@@ -39,7 +39,8 @@ interface SourceEventWalDao {
 	/** Loads the payload-free authority needed to reconcile one projection failure. */
 	@Query(
 		"SELECT admission_ordinal, source_kind, captured_collected_data_epoch, " +
-			"acquired_at_ms, wall_time_ms, authorization_purpose_eligibility_mask, " +
+			"acquired_at_ms, wall_time_ms, wall_time_uncertainty_ms, " +
+			"authorization_purpose_eligibility_mask, " +
 			"logical_tracking_id, service_run_id " +
 			"FROM source_event_wal " +
 			"WHERE admission_ordinal = :admissionOrdinal LIMIT 1",
@@ -204,6 +205,20 @@ interface SourceEventWalDao {
 		limit: Int,
 	): List<SourceEventWalEntity>
 
+	/** Payload-free ordered preflight for a bounded source-local projection pass. */
+	@Query(
+		"SELECT event_id, admission_ordinal FROM source_event_wal " +
+			"WHERE source_kind = :sourceKind AND admission_ordinal > :afterOrdinal " +
+			"AND admission_ordinal <= :throughOrdinal " +
+			"ORDER BY admission_ordinal ASC LIMIT :limit",
+	)
+	suspend fun sourceProjectionEventsAfterThrough(
+		sourceKind: Int,
+		afterOrdinal: Long,
+		throughOrdinal: Long,
+		limit: Int,
+	): List<SourceProjectionEventIdentityRow>
+
 	@Query("SELECT MAX(admission_ordinal) FROM source_event_wal")
 	suspend fun maximumAdmissionOrdinal(): Long?
 
@@ -289,10 +304,17 @@ data class SourceEventProjectionEligibilityRow(
 	@ColumnInfo(name = "captured_collected_data_epoch") val capturedCollectedDataEpoch: Long,
 	@ColumnInfo(name = "acquired_at_ms") val acquiredAtMs: Long,
 	@ColumnInfo(name = "wall_time_ms") val wallTimeMs: Long?,
+	@ColumnInfo(name = "wall_time_uncertainty_ms") val wallTimeUncertaintyMs: Long?,
 	@ColumnInfo(name = "authorization_purpose_eligibility_mask")
 	val authorizationPurposeEligibilityMask: Long,
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
 	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
+)
+
+/** Payload-free identity used to prove a decoded source projection page is complete. */
+data class SourceProjectionEventIdentityRow(
+	@ColumnInfo(name = "event_id") val eventId: String,
+	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
 )
 
 /** Payload-free projection used to recognize an exact replay of a process-stable delivery. */
