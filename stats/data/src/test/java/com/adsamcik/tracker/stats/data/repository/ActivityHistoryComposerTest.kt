@@ -335,6 +335,55 @@ class ActivityHistoryComposerTest {
 	}
 
 	@Test
+	fun `unknown and idle lifecycle states fail closed`() {
+		listOf(
+			"UNKNOWN" to "ACTIVE",
+			"ACTIVE" to "UNKNOWN",
+			"IDLE" to "IDLE",
+		).forEach { (sessionState, runState) ->
+			val entry = ActivityHistoryComposer.composeRecent(
+				liveSnapshotWithoutFacts(sessionState, runState),
+				EXECUTION_AUTHORITY,
+			).single().entry
+
+			entry.state shouldBe ActivityHistoryProductState.FAILED
+			entry.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+		}
+	}
+
+	@Test
+	fun `active and starting lifecycle phases cannot cross`() {
+		listOf(
+			"ACTIVE" to "STARTING",
+			"STARTING" to "ACTIVE",
+		).forEach { (sessionState, runState) ->
+			val entry = ActivityHistoryComposer.composeRecent(
+				liveSnapshotWithoutFacts(sessionState, runState),
+				EXECUTION_AUTHORITY,
+			).single().entry
+
+			entry.state shouldBe ActivityHistoryProductState.FAILED
+			entry.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+		}
+	}
+
+	@Test
+	fun `reconfiguring session permits only its canonical persisted run phases`() {
+		listOf("STARTING", "ACTIVE", "RECONFIGURING").forEach { runState ->
+			val entry = ActivityHistoryComposer.composeRecent(
+				liveSnapshotWithoutFacts("RECONFIGURING", runState),
+				EXECUTION_AUTHORITY,
+			).single().entry
+
+			entry.state shouldBe ActivityHistoryProductState.MATERIALIZING
+			entry.causes shouldBe setOf(
+				ActivityHistoryCause.SESSION_ACTIVE,
+				ActivityHistoryCause.MATERIALIZATION_BEHIND,
+			)
+		}
+	}
+
+	@Test
 	fun `newly effective capture manifest without its first fact stays bounded and materializing`() {
 		val snapshot = activeReconfiguredSnapshotAwaitingFact()
 
@@ -618,6 +667,40 @@ class ActivityHistoryComposerTest {
 			terminalFailures = emptyList(),
 			evidenceState = SourceEvidenceState(collectedDataEpoch = 0L),
 			overflow = false,
+		)
+	}
+
+	private fun liveSnapshotWithoutFacts(
+		sessionState: String,
+		runState: String,
+	): ActivityHistorySnapshot {
+		val initial = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val run = initial.runs.getValue("run-a").copy(
+			state = runState,
+			completedAtMs = null,
+			completionReason = null,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+			presentationAcknowledgedAtMs = null,
+		)
+		val session = initial.sessions.getValue(LOGICAL_ID).copy(
+			state = sessionState,
+			cutoffAtMs = null,
+			cutoffElapsedNanos = null,
+			completedAtMs = null,
+			finalAdmissionOrdinal = null,
+			currentServiceRunId = run.serviceRunId,
+			currentManifestRevision = 1L,
+			lifecycleLeaseGeneration = run.leaseGeneration,
+			lifecycleBootId = run.bootId,
+		)
+		return initial.copy(
+			sessions = mapOf(LOGICAL_ID to session),
+			runs = mapOf(run.serviceRunId to run),
+			revisions = emptyList(),
+			cursors = emptyList(),
+			fragmentsByRevision = emptyMap(),
+			evidenceByRevision = emptyMap(),
+			completenessByRun = emptyMap(),
 		)
 	}
 

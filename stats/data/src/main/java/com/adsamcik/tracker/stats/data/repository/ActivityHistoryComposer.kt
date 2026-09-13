@@ -321,13 +321,12 @@ internal object ActivityHistoryComposer {
 			val currentManifest = manifestsByRun[currentRun.serviceRunId]
 				.orEmpty().maxByOrNull(SessionManifestVersionEntity::manifestRevision) ?: return false
 			val stopping = session.state == STOPPING_RUN_STATE
-			val runStopping = currentRun.state == STOPPING_RUN_STATE
 			val hasAnyCutoff = session.cutoffAtMs != null || session.cutoffElapsedNanos != null
 			val hasExactCutoff = session.cutoffAtMs != null && session.cutoffElapsedNanos != null &&
 				requireNotNull(session.cutoffAtMs) >= session.startedAtMs &&
 				requireNotNull(session.cutoffElapsedNanos) >= session.startedElapsedNanos
 			val validCutoff = if (stopping) hasExactCutoff else !hasAnyCutoff
-			return stopping == runStopping && validCutoff &&
+			return hasValidLiveLifecyclePair(session.state, currentRun.state) && validCutoff &&
 				session.completedAtMs == null && session.finalAdmissionOrdinal == null &&
 				session.currentServiceRunId == currentRun.serviceRunId &&
 				session.currentManifestRevision == currentManifest.manifestRevision &&
@@ -788,12 +787,25 @@ internal object ActivityHistoryComposer {
 	}
 
 	private fun isNonTerminalRun(run: SourceServiceRunEntity): Boolean =
-		run.completedAtMs == null && run.state !in TERMINAL_RUN_STATES
+		run.completedAtMs == null && run.state in LIVE_RUN_STATES
 
 	private fun hasConsistentCompletion(state: String, completedAtMs: Long?): Boolean =
-		(state in TERMINAL_RUN_STATES) == (completedAtMs != null)
+		state in ALL_RUN_STATES && (state in TERMINAL_RUN_STATES) == (completedAtMs != null)
+
+	private fun hasValidLiveLifecyclePair(sessionState: String, runState: String): Boolean =
+		sessionState to runState in LIVE_SESSION_RUN_PAIRS
 
 	private val TERMINAL_RUN_STATES = setOf("FINALIZED", "FAILED", "CLOSED")
+	private val LIVE_RUN_STATES = setOf("STARTING", "ACTIVE", "RECONFIGURING", "STOPPING")
+	private val ALL_RUN_STATES = TERMINAL_RUN_STATES + LIVE_RUN_STATES
+	private val LIVE_SESSION_RUN_PAIRS = setOf(
+		"STARTING" to "STARTING",
+		"ACTIVE" to "ACTIVE",
+		"RECONFIGURING" to "STARTING",
+		"RECONFIGURING" to "ACTIVE",
+		"RECONFIGURING" to "RECONFIGURING",
+		"STOPPING" to "STOPPING",
+	)
 	private const val STOPPING_RUN_STATE = "STOPPING"
 	private val PROVIDER_COVERAGES = setOf("CALLBACKS_ENTERED_BEFORE_BARRIER",
 		"PROVIDER_COMPLETENESS_UNOBSERVABLE")
