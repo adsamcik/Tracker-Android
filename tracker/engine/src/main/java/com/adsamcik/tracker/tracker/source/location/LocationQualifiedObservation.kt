@@ -6,8 +6,10 @@ import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
+import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import java.time.ZoneId
 
 internal data class LocationProviderTimeInterval(
@@ -20,12 +22,7 @@ internal data class LocationProviderTimeInterval(
 	}
 }
 
-/**
- * Exact observed-time authority inherited from the provider registration and capture records.
- *
- * The intersection is evaluated against provider time. Receipt time must never make an otherwise
- * pre-effective fix eligible for product history.
- */
+/** Exact provider-time authority inherited from durable registration and capture records. */
 internal data class LocationCaptureTemporalAuthority(
 	val providerRegistration: LocationProviderTimeInterval,
 	val authorization: LocationProviderTimeInterval,
@@ -59,13 +56,13 @@ internal data class LocationCaptureTemporalAuthority(
 	}
 }
 
-/** The source-local deletion fence. Epoch rotation makes every older command ineligible. */
+/** Current source-local deletion fence, intentionally separate from captured fact authority. */
 internal data class LocationDeletionAuthority(
-	val collectedDataEpoch: Long,
+	val currentCollectedDataEpoch: Long,
 	val retainedFromWallTimeMs: Long?,
 ) {
 	init {
-		require(collectedDataEpoch >= 0L)
+		require(currentCollectedDataEpoch >= 0L)
 		require(retainedFromWallTimeMs == null || retainedFromWallTimeMs >= 0L)
 	}
 }
@@ -82,12 +79,7 @@ internal data class LocationHistoricalAcquisitionConfiguration(
 	}
 }
 
-/**
- * Immutable source, session, privacy, clock, and deletion authority for one Location fact command.
- *
- * A Location-only session is represented by `capturedSources == setOf(LOCATION)`. No sample-count
- * or another source is involved in the qualification contract.
- */
+/** Immutable source, session, privacy, clock, and capture authority for one Location fact. */
 internal data class LocationCaptureAuthority(
 	val logicalTrackingId: LogicalTrackingId,
 	val serviceRunId: ServiceRunId,
@@ -105,7 +97,7 @@ internal data class LocationCaptureAuthority(
 	val captureConsentEpoch: Long,
 	val sessionManifestRevision: Long,
 	val lifecycleLeaseGeneration: Long,
-	val deletion: LocationDeletionAuthority,
+	val capturedCollectedDataEpoch: Long,
 	val clockDomainId: String,
 	val zoneId: String,
 	val permissionPrecision: LocationPermissionPrecision,
@@ -133,6 +125,7 @@ internal data class LocationCaptureAuthority(
 		require(captureConsentEpoch >= 0L)
 		require(sessionManifestRevision > 0L)
 		require(lifecycleLeaseGeneration > 0L)
+		require(capturedCollectedDataEpoch >= 0L)
 		require(clockDomainId.isNotBlank())
 		require(zoneId.isNotBlank() && runCatching { ZoneId.of(zoneId) }.isSuccess) {
 			"Location capture authority requires a valid stored zone"
@@ -143,21 +136,56 @@ internal data class LocationCaptureAuthority(
 	}
 }
 
-/** Stable destination identity for a provider delivery unit and its exact session ownership. */
+/** Durable clock conversion evidence captured before later clock or zone state can rotate. */
+internal data class LocationDurableClockAuthority(
+	val clockDomainId: String,
+	val observedElapsedRealtimeNanos: Long,
+	val receivedElapsedRealtimeNanos: Long,
+	val observedWallTimeMs: Long,
+	val wallTimeUncertaintyMs: Long,
+)
+
+/**
+ * Immutable evidence decoded from one admitted WAL unit.
+ *
+ * [walIntegrityIdentity] binds the exact durable record bytes. Raw provider evidence can therefore
+ * never be replaced under an existing delivery identity by a later caller's current authority.
+ */
+internal data class LocationDurableObservationEvidence(
+	val sourceEventId: SourceEventId,
+	val sourceAdmissionOrdinal: Long,
+	val walIntegrityIdentity: String,
+	val sourceDeliveryIdentity: SourceDeliveryIdentity?,
+	val deliveryUnitIndex: Int,
+	val deliveryUnitCount: Int,
+	val capturedAuthority: LocationCaptureAuthority,
+	val clockAuthority: LocationDurableClockAuthority,
+	val payloadVersion: Int,
+	val payload: LocationFixPayload,
+	val quality: SourceQuality,
+	val isMock: Boolean,
+)
+
+/** Stable destination identity for one exact admitted provider-delivery unit. */
 internal data class LocationCapturedFactIdentity(
+	val sourceEventId: SourceEventId,
+	val sourceAdmissionOrdinal: Long,
+	val walIntegrityIdentity: String,
 	val sourceDeliveryIdentity: SourceDeliveryIdentity,
 	val deliveryUnitIndex: Int,
 	val logicalTrackingId: LogicalTrackingId,
 	val serviceRunId: ServiceRunId,
 	val sessionSegmentId: Long,
 	val sessionManifestRevision: Long,
-	val collectedDataEpoch: Long,
+	val capturedCollectedDataEpoch: Long,
 ) {
 	init {
+		require(sourceAdmissionOrdinal > 0L)
+		require(walIntegrityIdentity.matches(Regex("[0-9a-f]{64}")))
 		require(deliveryUnitIndex >= 0)
 		require(sessionSegmentId > 0L)
 		require(sessionManifestRevision > 0L)
-		require(collectedDataEpoch >= 0L)
+		require(capturedCollectedDataEpoch >= 0L)
 	}
 }
 
@@ -179,25 +207,42 @@ internal data class LocationCapturedFactMutation(
 	}
 }
 
-/** Complete product effect used for exact replay and semantic no-op checks. */
-internal data class LocationCapturedProductEffect(
-	val observedElapsedRealtimeNanos: Long,
-	val receivedElapsedRealtimeNanos: Long,
-	val observedWallTimeMs: Long,
-	val wallTimeUncertaintyMs: Long,
-	val deliveryUnitCount: Int,
-	val payload: LocationFixPayload,
+/** Recomputable qualification output; only this portion may change in a correction. */
+internal data class LocationDerivedQualification(
+	val qualifierVersion: Int,
+	val deliveryAgeNanos: Long,
+	val maximumObservationAgeNanos: Long,
+	val maximumHorizontalAccuracyMeters: Float,
+	val earliestPossibleWallTimeMs: Long,
+	val latestPossibleWallTimeMs: Long,
 ) {
 	init {
-		require(observedElapsedRealtimeNanos > 0L)
-		require(receivedElapsedRealtimeNanos >= observedElapsedRealtimeNanos)
-		require(observedWallTimeMs >= 0L)
-		require(wallTimeUncertaintyMs >= 0L)
-		require(deliveryUnitCount > 0)
+		require(qualifierVersion > 0)
+		require(deliveryAgeNanos >= 0L)
+		require(maximumObservationAgeNanos >= 0L)
+		require(maximumHorizontalAccuracyMeters.isFinite())
+		require(maximumHorizontalAccuracyMeters >= 0f)
+		require(earliestPossibleWallTimeMs >= 0L)
+		require(latestPossibleWallTimeMs >= earliestPossibleWallTimeMs)
 	}
+}
+
+/** Complete product effect used for exact replay and semantic no-op checks. */
+internal data class LocationCapturedProductEffect(
+	val durableEvidence: LocationDurableObservationEvidence,
+	val derivedQualification: LocationDerivedQualification,
+) {
+	val payload: LocationFixPayload
+		get() = durableEvidence.payload
+
+	val quality: SourceQuality
+		get() = durableEvidence.quality
+
+	val isMock: Boolean
+		get() = durableEvidence.isMock
 
 	val deliveryAgeNanos: Long
-		get() = receivedElapsedRealtimeNanos - observedElapsedRealtimeNanos
+		get() = derivedQualification.deliveryAgeNanos
 }
 
 /** Dormant source-local write command. It does not activate or replace the canonical writer. */
@@ -207,11 +252,37 @@ internal data class LocationCapturedFactCommand(
 	val productEffect: LocationCapturedProductEffect,
 ) {
 	init {
-		require(mutation.identity.deliveryUnitIndex < productEffect.deliveryUnitCount)
-		require(mutation.identity.logicalTrackingId == authority.logicalTrackingId)
-		require(mutation.identity.serviceRunId == authority.serviceRunId)
-		require(mutation.identity.sessionSegmentId == authority.sessionSegmentId)
-		require(mutation.identity.sessionManifestRevision == authority.sessionManifestRevision)
-		require(mutation.identity.collectedDataEpoch == authority.deletion.collectedDataEpoch)
+		val identity = mutation.identity
+		val evidence = productEffect.durableEvidence
+		val clock = evidence.clockAuthority
+		val derived = productEffect.derivedQualification
+		require(identity.sourceEventId == evidence.sourceEventId)
+		require(identity.sourceAdmissionOrdinal == evidence.sourceAdmissionOrdinal)
+		require(identity.walIntegrityIdentity == evidence.walIntegrityIdentity)
+		require(identity.sourceDeliveryIdentity == evidence.sourceDeliveryIdentity)
+		require(identity.deliveryUnitIndex == evidence.deliveryUnitIndex)
+		require(identity.deliveryUnitIndex < evidence.deliveryUnitCount)
+		require(evidence.capturedAuthority == authority)
+		require(identity.logicalTrackingId == authority.logicalTrackingId)
+		require(identity.serviceRunId == authority.serviceRunId)
+		require(identity.sessionSegmentId == authority.sessionSegmentId)
+		require(identity.sessionManifestRevision == authority.sessionManifestRevision)
+		require(identity.capturedCollectedDataEpoch == authority.capturedCollectedDataEpoch)
+		require(clock.clockDomainId == authority.clockDomainId)
+		require(derived.deliveryAgeNanos ==
+			clock.receivedElapsedRealtimeNanos - clock.observedElapsedRealtimeNanos
+		)
+		require(derived.maximumObservationAgeNanos ==
+			authority.acquisitionConfiguration.maximumObservationAgeNanos
+		)
+		require(derived.maximumHorizontalAccuracyMeters ==
+			authority.acquisitionConfiguration.maximumHorizontalAccuracyMeters
+		)
+		require(derived.earliestPossibleWallTimeMs ==
+			Math.subtractExact(clock.observedWallTimeMs, clock.wallTimeUncertaintyMs)
+		)
+		require(derived.latestPossibleWallTimeMs ==
+			Math.addExact(clock.observedWallTimeMs, clock.wallTimeUncertaintyMs)
+		)
 	}
 }

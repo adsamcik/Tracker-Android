@@ -1,7 +1,8 @@
 package com.adsamcik.tracker.tracker.source.location
 
+import com.adsamcik.tracker.shared.base.data.LocationPermissionPrecision
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
-import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
+import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 
 internal enum class LocationObservationOrigin {
 	PROVIDER_CALLBACK,
@@ -18,19 +19,12 @@ internal enum class LocationProviderOutcome {
 	FAILED,
 }
 
-/** Source-boundary input. Provider time and exact capture authority are never inferred at receipt. */
+/** Source-boundary input. A fix carries only immutable evidence recovered from the WAL. */
 internal data class LocationObservationInput(
 	val origin: LocationObservationOrigin,
 	val outcome: LocationProviderOutcome,
-	val capturedAuthority: LocationCaptureAuthority,
-	val sourceDeliveryIdentity: SourceDeliveryIdentity?,
-	val deliveryUnitIndex: Int?,
-	val deliveryUnitCount: Int?,
-	val observedElapsedRealtimeNanos: Long?,
-	val receivedElapsedRealtimeNanos: Long,
-	val observedWallTimeMs: Long?,
-	val wallTimeUncertaintyMs: Long?,
-	val payload: LocationFixPayload?,
+	val attemptedAuthority: LocationCaptureAuthority,
+	val durableEvidence: LocationDurableObservationEvidence?,
 )
 
 internal enum class LocationStaleReason {
@@ -50,6 +44,10 @@ internal enum class LocationFactRejection {
 	NOT_PROVIDER_OBSERVATION,
 	INCONSISTENT_PROVIDER_RESULT,
 	AUTHORITY_MISMATCH,
+	DELETION_AUTHORITY_MISMATCH,
+	INCOMPLETE_DURABLE_EVIDENCE,
+	WAL_INTEGRITY_UNVERIFIABLE,
+	UNSUPPORTED_PAYLOAD_VERSION,
 	NON_POSITIVE_PROVIDER_TIME,
 	FUTURE_PROVIDER_TIME,
 	AFTER_AUTHORITY,
@@ -59,8 +57,16 @@ internal enum class LocationFactRejection {
 	INVALID_COORDINATE,
 	INVALID_ACCURACY,
 	INSUFFICIENT_ACCURACY,
+	INVALID_ALTITUDE,
+	INVALID_VERTICAL_ACCURACY,
+	INVALID_SPEED,
+	INVALID_BEARING,
 	INVALID_PROVIDER,
+	CACHED_EVIDENCE,
+	QUALITY_AUTHORITY_MISMATCH,
+	INVALID_QUALIFIER_VERSION,
 	INVALID_CORRECTION_BASE,
+	RAW_EVIDENCE_CHANGED,
 	DELIVERY_IDENTITY_COLLISION,
 }
 
@@ -82,110 +88,81 @@ internal object LocationQualifiedObservationQualifier {
 	fun qualify(
 		input: LocationObservationInput,
 		expectedAuthority: LocationCaptureAuthority,
+		currentDeletionAuthority: LocationDeletionAuthority,
+		qualifierVersion: Int = 1,
 		semanticRevision: Long = 1L,
 		supersedesSemanticRevision: Long? = null,
 		priorDeliveryFact: LocationCapturedFactCommand? = null,
 		correctionBase: LocationCapturedFactCommand? = null,
 	): LocationObservationQualification {
 		if (input.origin != LocationObservationOrigin.PROVIDER_CALLBACK) {
-			return LocationObservationQualification.Rejected(
-				LocationFactRejection.NOT_PROVIDER_OBSERVATION,
-			)
+			return rejected(LocationFactRejection.NOT_PROVIDER_OBSERVATION)
 		}
-		if (input.capturedAuthority != expectedAuthority) {
-			return LocationObservationQualification.Rejected(
-				LocationFactRejection.AUTHORITY_MISMATCH,
-			)
+		if (input.attemptedAuthority != expectedAuthority) {
+			return rejected(LocationFactRejection.AUTHORITY_MISMATCH)
 		}
 		if (input.outcome != LocationProviderOutcome.FIX) {
-			if (input.payload != null) {
-				return LocationObservationQualification.Rejected(
-					LocationFactRejection.INCONSISTENT_PROVIDER_RESULT,
-				)
+			if (input.durableEvidence != null) {
+				return rejected(LocationFactRejection.INCONSISTENT_PROVIDER_RESULT)
 			}
 			return input.outcome.toUnavailable()
 		}
-		val payload = input.payload
-			?: return LocationObservationQualification.Rejected(
-				LocationFactRejection.INCONSISTENT_PROVIDER_RESULT,
-			)
-		val observedNanos = input.observedElapsedRealtimeNanos
-		if (observedNanos == null || observedNanos <= 0L || input.receivedElapsedRealtimeNanos <= 0L) {
-			return LocationObservationQualification.Rejected(
-				LocationFactRejection.NON_POSITIVE_PROVIDER_TIME,
-			)
+		val evidence = input.durableEvidence
+			?: return rejected(LocationFactRejection.INCONSISTENT_PROVIDER_RESULT)
+		if (evidence.capturedAuthority != expectedAuthority) {
+			return rejected(LocationFactRejection.AUTHORITY_MISMATCH)
 		}
-		if (observedNanos > input.receivedElapsedRealtimeNanos) {
-			return LocationObservationQualification.Rejected(LocationFactRejection.FUTURE_PROVIDER_TIME)
-		}
-		val temporal = expectedAuthority.temporalAuthority
-		if (observedNanos < temporal.startInclusiveNanos) {
-			return LocationObservationQualification.Stale(LocationStaleReason.PRE_EFFECTIVE)
-		}
-		if (observedNanos >= temporal.endExclusiveNanos) {
-			return LocationObservationQualification.Rejected(LocationFactRejection.AFTER_AUTHORITY)
-		}
-		val ageNanos = input.receivedElapsedRealtimeNanos - observedNanos
-		if (ageNanos > expectedAuthority.acquisitionConfiguration.maximumObservationAgeNanos) {
-			return LocationObservationQualification.Stale(LocationStaleReason.TOO_OLD)
-		}
-
-		val observedWallTimeMs = input.observedWallTimeMs
-		val wallTimeUncertaintyMs = input.wallTimeUncertaintyMs
-		if (
-			observedWallTimeMs == null || observedWallTimeMs < 0L ||
-			wallTimeUncertaintyMs == null || wallTimeUncertaintyMs < 0L
+		if (currentDeletionAuthority.currentCollectedDataEpoch !=
+			expectedAuthority.capturedCollectedDataEpoch
 		) {
-			return LocationObservationQualification.Rejected(LocationFactRejection.CLOCK_UNVERIFIABLE)
+			return rejected(LocationFactRejection.DELETION_AUTHORITY_MISMATCH)
 		}
-		val retainedFromMs = expectedAuthority.deletion.retainedFromWallTimeMs
-		if (retainedFromMs != null && observedWallTimeMs < retainedFromMs) {
-			return LocationObservationQualification.Stale(LocationStaleReason.BEFORE_DELETION_FLOOR)
+		if (qualifierVersion <= 0) {
+			return rejected(LocationFactRejection.INVALID_QUALIFIER_VERSION)
 		}
-
-		val deliveryIdentity = input.sourceDeliveryIdentity
-			?: return LocationObservationQualification.Rejected(
-				LocationFactRejection.DELIVERY_IDENTITY_UNVERIFIABLE,
-			)
-		val unitIndex = input.deliveryUnitIndex
-		val unitCount = input.deliveryUnitCount
-		if (unitIndex == null || unitCount == null || unitCount <= 0 || unitIndex !in 0 until unitCount) {
-			return LocationObservationQualification.Rejected(
-				LocationFactRejection.INVALID_DELIVERY_POSITION,
-			)
+		validateDurableEvidence(evidence, expectedAuthority, currentDeletionAuthority)?.let {
+			return it
 		}
-		payload.rejection(expectedAuthority)?.let { reason ->
-			return LocationObservationQualification.Rejected(reason)
-		}
+		val deliveryIdentity = evidence.sourceDeliveryIdentity
+			?: return rejected(LocationFactRejection.DELIVERY_IDENTITY_UNVERIFIABLE)
 
 		val identity = LocationCapturedFactIdentity(
+			sourceEventId = evidence.sourceEventId,
+			sourceAdmissionOrdinal = evidence.sourceAdmissionOrdinal,
+			walIntegrityIdentity = evidence.walIntegrityIdentity,
 			sourceDeliveryIdentity = deliveryIdentity,
-			deliveryUnitIndex = unitIndex,
+			deliveryUnitIndex = evidence.deliveryUnitIndex,
 			logicalTrackingId = expectedAuthority.logicalTrackingId,
 			serviceRunId = expectedAuthority.serviceRunId,
 			sessionSegmentId = expectedAuthority.sessionSegmentId,
 			sessionManifestRevision = expectedAuthority.sessionManifestRevision,
-			collectedDataEpoch = expectedAuthority.deletion.collectedDataEpoch,
+			capturedCollectedDataEpoch = expectedAuthority.capturedCollectedDataEpoch,
 		)
 		val mutation = runCatching {
 			LocationCapturedFactMutation(identity, semanticRevision, supersedesSemanticRevision)
 		}.getOrElse {
-			return LocationObservationQualification.Rejected(
-				LocationFactRejection.INVALID_CORRECTION_BASE,
-			)
+			return rejected(LocationFactRejection.INVALID_CORRECTION_BASE)
 		}
 		if (!hasValidCorrectionBase(mutation, expectedAuthority, correctionBase)) {
-			return LocationObservationQualification.Rejected(
-				LocationFactRejection.INVALID_CORRECTION_BASE,
-			)
+			return rejected(LocationFactRejection.INVALID_CORRECTION_BASE)
 		}
+
+		val clock = evidence.clockAuthority
+		val uncertaintyInterval = uncertaintyInterval(clock)
+			?: return rejected(LocationFactRejection.CLOCK_UNVERIFIABLE)
 		val effect = LocationCapturedProductEffect(
-			observedElapsedRealtimeNanos = observedNanos,
-			receivedElapsedRealtimeNanos = input.receivedElapsedRealtimeNanos,
-			observedWallTimeMs = observedWallTimeMs,
-			wallTimeUncertaintyMs = wallTimeUncertaintyMs,
-			deliveryUnitCount = unitCount,
-			payload = payload,
+			durableEvidence = evidence,
+			derivedQualification = LocationDerivedQualification(
+				qualifierVersion = qualifierVersion,
+				deliveryAgeNanos = clock.receivedElapsedRealtimeNanos -
+					clock.observedElapsedRealtimeNanos,
+				maximumObservationAgeNanos =
+					expectedAuthority.acquisitionConfiguration.maximumObservationAgeNanos,
+				maximumHorizontalAccuracyMeters =
+					expectedAuthority.acquisitionConfiguration.maximumHorizontalAccuracyMeters,
+				earliestPossibleWallTimeMs = uncertaintyInterval.first,
+				latestPossibleWallTimeMs = uncertaintyInterval.last,
+			),
 		)
 
 		if (semanticRevision == 1L && priorDeliveryFact != null) {
@@ -196,10 +173,11 @@ internal object LocationQualifiedObservationQualifier {
 			) {
 				LocationObservationQualification.Duplicate(priorDeliveryFact)
 			} else {
-				LocationObservationQualification.Rejected(
-					LocationFactRejection.DELIVERY_IDENTITY_COLLISION,
-				)
+				rejected(LocationFactRejection.DELIVERY_IDENTITY_COLLISION)
 			}
+		}
+		if (correctionBase != null && correctionBase.productEffect.durableEvidence != evidence) {
+			return rejected(LocationFactRejection.RAW_EVIDENCE_CHANGED)
 		}
 		if (correctionBase?.productEffect == effect) {
 			return LocationObservationQualification.Duplicate(correctionBase)
@@ -208,6 +186,75 @@ internal object LocationQualifiedObservationQualifier {
 		return LocationObservationQualification.Qualified(
 			LocationCapturedFactCommand(mutation, expectedAuthority, effect),
 		)
+	}
+
+	private fun validateDurableEvidence(
+		evidence: LocationDurableObservationEvidence,
+		authority: LocationCaptureAuthority,
+		deletionAuthority: LocationDeletionAuthority,
+	): LocationObservationQualification? {
+		if (evidence.sourceAdmissionOrdinal <= 0L) {
+			return rejected(LocationFactRejection.INCOMPLETE_DURABLE_EVIDENCE)
+		}
+		if (!LOWERCASE_SHA_256.matches(evidence.walIntegrityIdentity)) {
+			return rejected(LocationFactRejection.WAL_INTEGRITY_UNVERIFIABLE)
+		}
+		if (evidence.payloadVersion != LOCATION_PAYLOAD_VERSION) {
+			return rejected(LocationFactRejection.UNSUPPORTED_PAYLOAD_VERSION)
+		}
+		if (evidence.deliveryUnitCount <= 0 ||
+			evidence.deliveryUnitIndex !in 0 until evidence.deliveryUnitCount
+		) {
+			return rejected(LocationFactRejection.INVALID_DELIVERY_POSITION)
+		}
+		if (evidence.sourceDeliveryIdentity == null) {
+			return rejected(LocationFactRejection.DELIVERY_IDENTITY_UNVERIFIABLE)
+		}
+		val clock = evidence.clockAuthority
+		if (clock.clockDomainId != authority.clockDomainId) {
+			return rejected(LocationFactRejection.CLOCK_UNVERIFIABLE)
+		}
+		if (clock.observedElapsedRealtimeNanos <= 0L || clock.receivedElapsedRealtimeNanos <= 0L) {
+			return rejected(LocationFactRejection.NON_POSITIVE_PROVIDER_TIME)
+		}
+		if (clock.observedElapsedRealtimeNanos > clock.receivedElapsedRealtimeNanos) {
+			return rejected(LocationFactRejection.FUTURE_PROVIDER_TIME)
+		}
+		val temporal = authority.temporalAuthority
+		if (clock.observedElapsedRealtimeNanos < temporal.startInclusiveNanos) {
+			return LocationObservationQualification.Stale(LocationStaleReason.PRE_EFFECTIVE)
+		}
+		if (clock.observedElapsedRealtimeNanos >= temporal.endExclusiveNanos) {
+			return rejected(LocationFactRejection.AFTER_AUTHORITY)
+		}
+		val ageNanos = clock.receivedElapsedRealtimeNanos - clock.observedElapsedRealtimeNanos
+		if (ageNanos > authority.acquisitionConfiguration.maximumObservationAgeNanos) {
+			return LocationObservationQualification.Stale(LocationStaleReason.TOO_OLD)
+		}
+		val wallInterval = uncertaintyInterval(clock)
+			?: return rejected(LocationFactRejection.CLOCK_UNVERIFIABLE)
+		val retainedFromMs = deletionAuthority.retainedFromWallTimeMs
+		if (retainedFromMs != null && wallInterval.first < retainedFromMs) {
+			return LocationObservationQualification.Stale(LocationStaleReason.BEFORE_DELETION_FLOOR)
+		}
+		if (SourceQualityFlag.CACHED in evidence.quality.flags) {
+			return rejected(LocationFactRejection.CACHED_EVIDENCE)
+		}
+		val approximate = SourceQualityFlag.APPROXIMATE in evidence.quality.flags
+		if (approximate != (authority.permissionPrecision == LocationPermissionPrecision.APPROXIMATE)) {
+			return rejected(LocationFactRejection.QUALITY_AUTHORITY_MISMATCH)
+		}
+		evidence.payload.rejection(authority)?.let { reason -> return rejected(reason) }
+		return null
+	}
+
+	private fun uncertaintyInterval(clock: LocationDurableClockAuthority): LongRange? {
+		if (clock.observedWallTimeMs < 0L || clock.wallTimeUncertaintyMs < 0L) return null
+		return runCatching {
+			val start = Math.subtractExact(clock.observedWallTimeMs, clock.wallTimeUncertaintyMs)
+			val end = Math.addExact(clock.observedWallTimeMs, clock.wallTimeUncertaintyMs)
+			if (start < 0L) null else start..end
+		}.getOrNull()
 	}
 
 	private fun hasValidCorrectionBase(
@@ -247,12 +294,25 @@ internal object LocationQualifiedObservationQualifier {
 		horizontalAccuracyMeters >
 			authority.acquisitionConfiguration.maximumHorizontalAccuracyMeters ->
 			LocationFactRejection.INSUFFICIENT_ACCURACY
+		altitudeMeters?.isFinite() == false -> LocationFactRejection.INVALID_ALTITUDE
+		verticalAccuracyMeters?.let { !it.isFinite() || it < 0f } == true ->
+			LocationFactRejection.INVALID_VERTICAL_ACCURACY
+		speedMetersPerSecond?.let { !it.isFinite() || it < 0f } == true ->
+			LocationFactRejection.INVALID_SPEED
+		bearingDegrees?.let { !it.isFinite() || it < 0f || it >= FULL_CIRCLE_DEGREES } == true ->
+			LocationFactRejection.INVALID_BEARING
 		provider.isBlank() -> LocationFactRejection.INVALID_PROVIDER
 		else -> null
 	}
 
+	private fun rejected(reason: LocationFactRejection) =
+		LocationObservationQualification.Rejected(reason)
+
+	private const val LOCATION_PAYLOAD_VERSION = 1
 	private const val MIN_LATITUDE = -90.0
 	private const val MAX_LATITUDE = 90.0
 	private const val MIN_LONGITUDE = -180.0
 	private const val MAX_LONGITUDE = 180.0
+	private const val FULL_CIRCLE_DEGREES = 360f
+	private val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")
 }
