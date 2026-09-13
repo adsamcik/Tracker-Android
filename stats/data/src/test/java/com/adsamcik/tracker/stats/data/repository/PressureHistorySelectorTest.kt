@@ -244,8 +244,17 @@ class PressureHistorySelectorTest {
 		database.sourceDeletionFenceDao().upsert(
 			pressureRetentionMarker(fixture.logicalId, fixture.runId),
 		)
+		val repository = DefaultTrackingHistoryRepository(
+			database = database,
+			stepsSelector = mockk(relaxed = true),
+			logicalHistoryReader = mockk(relaxed = true),
+			pressureSelector = selector,
+			ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+		)
 
 		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		val logical = selector.discoverRecentPressureOnlyByPressureFacts(limit = 1).single()
+		val recent = repository.observeRecentPressureOnlyEntries(limit = 1).first().single()
 		val public = result.toPublicPressureSessionHistory().pressure
 
 		result.windows shouldBe emptyList()
@@ -256,11 +265,18 @@ class PressureHistorySelectorTest {
 		public.summary shouldBe null
 		public.windows shouldBe emptyList()
 		PressureHistoryCause.FACTS_MISSING_FOR_ADMITTED_RUN in public.causes shouldBe false
+		logical.qualifiedSources shouldBe emptySet()
+		logical.hasAuthenticatedRetentionLoss shouldBe true
+		logical.summary shouldBe null
+		recent.state shouldBe PressureHistoryPresentationState.PARTIAL
+		recent.pressure.summary shouldBe null
+		recent.pressure.hasRetainedObservation shouldBe false
+		recent.pressure.causes shouldBe setOf(PressureHistoryCause.RETENTION_TRUNCATED)
 	}
 
 	@Test
 	fun corruptRetentionMarkerFailsClosed() = runTest {
-		val fixture = insertFixture(factSemanticRevision = 1L)
+		val fixture = insertFixture(factSemanticRevision = null, laneCursor = 1L)
 		establishPressureRetentionFloor()
 		database.sourceDeletionFenceDao().upsert(
 			pressureRetentionMarker(
@@ -269,6 +285,13 @@ class PressureHistorySelectorTest {
 				collectedDataEpoch = 1L,
 			),
 		)
+		val repository = DefaultTrackingHistoryRepository(
+			database = database,
+			stepsSelector = mockk(relaxed = true),
+			logicalHistoryReader = mockk(relaxed = true),
+			pressureSelector = selector,
+			ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+		)
 
 		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
 
@@ -276,6 +299,8 @@ class PressureHistorySelectorTest {
 		result.coverage shouldBe PressureHistoryCoverage.UNKNOWN
 		result.windows shouldBe emptyList()
 		result.reasons shouldBe setOf(PressureHistoryReason.RETENTION_TRUNCATION_MARKER_INVALID)
+		selector.discoverRecentPressureOnlyByPressureFacts(limit = 1) shouldBe emptyList()
+		repository.observeRecentPressureOnlyEntries(limit = 1).first() shouldBe emptyList()
 	}
 
 	@Test
@@ -296,6 +321,40 @@ class PressureHistorySelectorTest {
 		public.presentationState shouldBe PressureHistoryPresentationState.PARTIAL
 		public.causes shouldBe setOf(PressureHistoryCause.RETENTION_TRUNCATED)
 		public.summary?.windowCount shouldBe 1
+	}
+
+	@Test
+	fun fullyPrunedReplacementGroupRemainsOneMarkerBackedRecentEntry() = runTest {
+		val first = insertFixture(factSemanticRevision = null, laneCursor = 2L)
+		val replacement = insertReplacementFixture(includeFact = false)
+		establishPressureRetentionFloor()
+		database.sourceDeletionFenceDao().upsert(
+			pressureRetentionMarker(first.logicalId, first.runId),
+		)
+		database.sourceDeletionFenceDao().upsert(
+			pressureRetentionMarker(replacement.logicalId, replacement.runId),
+		)
+		val repository = DefaultTrackingHistoryRepository(
+			database = database,
+			stepsSelector = mockk(relaxed = true),
+			logicalHistoryReader = mockk(relaxed = true),
+			pressureSelector = selector,
+			ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+		)
+
+		val logical = selector.discoverRecentPressureOnlyByPressureFacts(limit = 1).single()
+		val recent = repository.observeRecentPressureOnlyEntries(limit = 1).first().single()
+
+		logical.physicalMembers.map { member -> member.segment.id } shouldBe
+			listOf(first.segmentId, replacement.segmentId)
+		logical.qualifiedSources shouldBe emptySet()
+		logical.summary shouldBe null
+		recent.startTime.raw shouldBe RUN_START_MS
+		recent.endTime.raw shouldBe REPLACEMENT_RUN_END_MS
+		recent.state shouldBe PressureHistoryPresentationState.PARTIAL
+		recent.pressure.windows shouldBe emptyList()
+		recent.pressure.summary shouldBe null
+		recent.pressure.causes shouldBe setOf(PressureHistoryCause.RETENTION_TRUNCATED)
 	}
 
 	@Test

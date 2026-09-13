@@ -20,6 +20,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessE
 import java.time.DateTimeException
 import java.time.ZoneId
 import javax.inject.Inject
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /** Selects checksum-qualified Pressure history and composes only explicit replacement-run groups. */
 @Suppress("LargeClass", "TooManyFunctions")
@@ -58,7 +60,9 @@ internal class PressureHistorySelector @Inject constructor(
 
 	/**
 	 * Source-local ordinary discovery driven by Pressure facts and exact run/segment bindings.
-	 * Generic [SessionSegment.sampleCount] is deliberately not consulted.
+	 * Generic [SessionSegment.sampleCount] is deliberately not consulted. Payload-free retention
+	 * markers are exposed only by [discoverRecentPressureOnlyByPressureFacts], which authenticates
+	 * their opaque scope after complete logical membership expansion.
 	 */
 	internal suspend fun discoverRecentLogicalByPressureFacts(
 		limit: Int,
@@ -75,9 +79,10 @@ internal class PressureHistorySelector @Inject constructor(
 	}
 
 	/**
-	 * Finds a bounded accepted Pressure-only page without letting newer mixed or invalid candidates
-	 * consume the caller's result limit. All candidate pages and dependency batches share one Room
-	 * snapshot; physical members remain internal to the returned logical entries.
+	 * Finds a bounded Pressure-only page from retained facts or authenticated retention-loss markers.
+	 * Newer mixed or invalid candidates do not consume the caller's result limit inside the explicit
+	 * scan budget. All candidate pages and dependency batches share one Room snapshot; physical
+	 * members remain internal to the returned logical entries.
 	 */
 	internal suspend fun discoverRecentPressureOnlyByPressureFacts(
 		limit: Int,
@@ -86,14 +91,21 @@ internal class PressureHistorySelector @Inject constructor(
 		val accepted = linkedMapOf<PressureHistoryEntryIdentity, PressureLogicalHistoryEntry>()
 		var beforeLogicalRecencyStartMs: Long? = null
 		var beforeLogicalRecencySegmentId: Long? = null
+		var scannedCandidateCount = 0
 
-		while (accepted.size < limit) {
+		while (accepted.size < limit && scannedCandidateCount < PRESSURE_DISCOVERY_CANDIDATE_BUDGET) {
+			currentCoroutineContext().ensureActive()
+			val pageLimit = minOf(
+				PRESSURE_DISCOVERY_CANDIDATE_PAGE_SIZE,
+				PRESSURE_DISCOVERY_CANDIDATE_BUDGET - scannedCandidateCount,
+			)
 			val candidates = database.pressureFactRevisionDao().pressureLogicalHistoryCandidatePage(
-				limit = PRESSURE_DISCOVERY_CANDIDATE_PAGE_SIZE,
+				limit = pageLimit,
 				beforeLogicalRecencyStartMs = beforeLogicalRecencyStartMs,
 				beforeLogicalRecencySegmentId = beforeLogicalRecencySegmentId,
 			)
 			if (candidates.isEmpty()) break
+			scannedCandidateCount += candidates.size
 			val seeds = candidates.map { it.segment }
 
 			val entriesByMemberId = buildMap {
@@ -118,7 +130,7 @@ internal class PressureHistorySelector @Inject constructor(
 			val lastScanned = candidates.last()
 			beforeLogicalRecencyStartMs = lastScanned.logicalRecencyStartMs
 			beforeLogicalRecencySegmentId = lastScanned.logicalRecencySegmentId
-			if (candidates.size < PRESSURE_DISCOVERY_CANDIDATE_PAGE_SIZE) break
+			if (candidates.size < pageLimit) break
 		}
 
 		accepted.values.sortedWith(compareByDescending<PressureLogicalHistoryEntry> { entry ->
@@ -1057,4 +1069,5 @@ internal class PressureHistorySelector @Inject constructor(
 
 private const val PRESSURE_HISTORY_SEGMENT_BATCH_CAP = 64
 private const val PRESSURE_DISCOVERY_CANDIDATE_PAGE_SIZE = 32
+private const val PRESSURE_DISCOVERY_CANDIDATE_BUDGET = 256
 private const val PRESSURE_DISCOVERY_MEMBER_BUDGET = 256

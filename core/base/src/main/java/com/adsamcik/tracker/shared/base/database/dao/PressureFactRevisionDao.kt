@@ -7,7 +7,9 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 
 /** Deliberately narrow storage boundary for the dormant Pressure fact writer. */
 @Dao
@@ -118,48 +120,56 @@ interface PressureFactRevisionDao {
 	): List<SessionSegment>
 
 	/**
-	 * Discovers one fact-backed seed per logical entry in exact logical-entry recency order.
+	 * Discovers one Pressure-evidence candidate per logical entry in exact entry recency order.
 	 *
-	 * Recency is owned by the newest reciprocally bound physical member, even when that replacement
-	 * member has no Pressure fact. Choosing one seed per logical id makes a keyset page a safe upper
-	 * bound: an older unseen fact cannot later expand into a newer logical entry.
+	 * A retained fact is direct evidence. Exact Pressure capture manifest membership is only a coarse
+	 * seed for a possible payload-free retention marker, whose opaque scope digest cannot be joined
+	 * in SQLite. The product reader expands the complete replacement group and authenticates the
+	 * marker against the current collected-data epoch before accepting it. Generic sample counts are
+	 * deliberately absent.
 	 */
 	@Query(
 		"""
-		WITH fact_backed_seed AS (
+		WITH pressure_evidence_member AS (
 		  SELECT segment.*
 		  FROM session_segment AS segment
 		  INNER JOIN source_service_run AS run
 		    ON run.session_segment_id = segment.id
 		   AND run.service_run_id = segment.service_run_id
 		   AND run.logical_tracking_id = segment.logical_tracking_id
-		  WHERE EXISTS (
-		    SELECT 1
-		    FROM pressure_fact_revision AS fact
-		    WHERE fact.service_run_id = run.service_run_id
-		      AND fact.logical_tracking_id = run.logical_tracking_id
-		      AND fact.purpose = '${PressureFactRevisionEntity.PURPOSE_SESSION_CAPTURE}'
-		  )
-		    AND NOT EXISTS (
+		  WHERE (
+		    EXISTS (
 		      SELECT 1
-		      FROM session_segment AS newer_segment
-		      INNER JOIN source_service_run AS newer_run
-		        ON newer_run.session_segment_id = newer_segment.id
-		       AND newer_run.service_run_id = newer_segment.service_run_id
-		       AND newer_run.logical_tracking_id = newer_segment.logical_tracking_id
-		      WHERE newer_run.logical_tracking_id = run.logical_tracking_id
-		        AND EXISTS (
-		          SELECT 1
-		          FROM pressure_fact_revision AS newer_fact
-		          WHERE newer_fact.service_run_id = newer_run.service_run_id
-		            AND newer_fact.logical_tracking_id = newer_run.logical_tracking_id
-		            AND newer_fact.purpose = '${PressureFactRevisionEntity.PURPOSE_SESSION_CAPTURE}'
-		        )
+		      FROM pressure_fact_revision AS fact
+		      WHERE fact.service_run_id = run.service_run_id
+		        AND fact.logical_tracking_id = run.logical_tracking_id
+		        AND fact.purpose = '${PressureFactRevisionEntity.PURPOSE_SESSION_CAPTURE}'
+		    )
+		    OR EXISTS (
+		      SELECT 1
+		      FROM session_manifest_version AS manifest
+		      INNER JOIN session_manifest_source AS source
+		        ON source.logical_tracking_id = manifest.logical_tracking_id
+		       AND source.manifest_revision = manifest.manifest_revision
+		      WHERE manifest.service_run_id = run.service_run_id
+		        AND manifest.logical_tracking_id = run.logical_tracking_id
+		        AND source.source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE}
+		        AND source.purpose = '${SessionManifestPurposeCode.SESSION_CAPTURE}'
+		        AND source.persistence_eligible = 1
+		    )
+		  )
+		), pressure_evidence_seed AS (
+		  SELECT member.*
+		  FROM pressure_evidence_member AS member
+		  WHERE NOT EXISTS (
+		      SELECT 1
+		      FROM pressure_evidence_member AS newer
+		      WHERE newer.logical_tracking_id = member.logical_tracking_id
 		        AND (
-		          newer_segment.start_time_ms > segment.start_time_ms
+		          newer.start_time_ms > member.start_time_ms
 		          OR (
-		            newer_segment.start_time_ms = segment.start_time_ms
-		            AND newer_segment.id > segment.id
+		            newer.start_time_ms = member.start_time_ms
+		            AND newer.id > member.id
 		          )
 		        )
 		    )
@@ -187,7 +197,7 @@ interface PressureFactRevisionDao {
 		      ORDER BY member_segment.start_time_ms DESC, member_segment.id DESC
 		      LIMIT 1
 		    ) AS logical_recency_segment_id
-		  FROM fact_backed_seed AS seed
+		  FROM pressure_evidence_seed AS seed
 		)
 		SELECT *
 		FROM logical_ranked_seed

@@ -252,8 +252,21 @@ internal data class PressureLogicalHistoryEntry(
 	val qualifiedSources: Set<TrackingSourceComponent>
 		get() = physicalMembers.flatMapTo(linkedSetOf(), PressurePhysicalHistory::qualifiedSources)
 
+	/**
+	 * A current-epoch, source-local retention marker can keep a pruned entry discoverable, but is
+	 * never a qualified observation. Any failed physical sibling prevents the marker from serving as
+	 * discovery authority for the logical group.
+	 */
+	val hasAuthenticatedRetentionLoss: Boolean
+		get() = physicalMembers.any { member ->
+			PressureHistoryReason.RETENTION_TRUNCATED in member.reasons
+		} && physicalMembers.none { member ->
+			member.materialization == PressureHistoryMaterialization.FAILED ||
+				PressureHistoryReason.RETENTION_TRUNCATION_MARKER_INVALID in member.reasons
+		}
+
 	val isOrdinarilyDiscoverable: Boolean
-		get() = TrackingSourceComponent.PRESSURE in qualifiedSources
+		get() = TrackingSourceComponent.PRESSURE in qualifiedSources || hasAuthenticatedRetentionLoss
 
 	/** Exact Pressure-only intent is independent of current fact/materialization availability. */
 	val hasExactPressureOnlyIntent: Boolean
