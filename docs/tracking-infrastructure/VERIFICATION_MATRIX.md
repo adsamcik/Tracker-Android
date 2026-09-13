@@ -1970,3 +1970,23 @@ Deferred focused command:
 The command was not run. Compilation, Room query execution, fact schema/writer/cursor, source-local
 deletion/retention, provider callback and active-attempt behavior, product history/UI, device/OEM
 behavior, integration, activation, and release remain unproven.
+
+## TI-B274 — Ambient Steps structural-day product contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `55024d9f6`. Authored composer, DAO, and real-Room
+repository tests cover 31-day paging; bounded fact, gap, cursor, transition, authorization-member,
+session, and imported-entry dependencies; exact structural zone/day identity; stable fact revisions;
+effective-gap subtraction; provider and reboot discontinuity; local and portable session partition;
+overflow; typed availability/materialization; and no fabricated zero. Independent reviews rejected
+day-only caller authority, zero-width session evidence, incomplete retained-history authentication,
+and clamped authorization clock regressions before accepting the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*AmbientStepsFactRevisionDaoTest' --tests '*AmbientStepsImportStateDaoTest' :stats:data:testDebugUnitTest --tests '*AmbientStepsDayComposerTest' --tests '*AmbientStepsDayRepositoryTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query execution, shared Today/Timeline/Calendar/detail and
+numeric consumers, retention, deletion, consent reset, portable transfer, provider/device behavior,
+integration, activation, and release remain unproven.

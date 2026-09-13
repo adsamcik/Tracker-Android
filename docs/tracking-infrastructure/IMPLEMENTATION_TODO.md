@@ -498,7 +498,16 @@ cohort remain open.
 Accepted commits `4624859d1` and `016a434df` now implement the provider handoff and overlap
 partition portions: one bounded predecessor drain under historical authority, exact nonoverlapping
 successor floor, atomic cursor transition, and authenticated no-read replay. Product composition,
-retention/deletion/transfer, and the final scenario cohort remain open.
+retention/deletion/transfer, and the final scenario cohort were still open at that boundary.
+
+Accepted product-read commits `5ac0e573b` through `55024d9f6` implement source-specific portions of
+AMBIENT-006/007/009. One bounded Room snapshot authenticates exact structural-day, fact, gap,
+cursor, authorization-phase, policy/consent, local-session, and portable-import evidence; it
+partitions day, contained-session, and between-session Steps once and keeps gaps, partial,
+unavailable, materializing, and overflow states typed. Successor authorization must preserve direct
+elapsed and wall ordering before privacy clamping. These TODOs stay unchecked until shared Today,
+Timeline, Calendar, day detail and numeric consumers use the read, and retention, deletion, transfer,
+settings/remediation, and the complete scenario cohort exist.
 
 ## Pressure vertical
 

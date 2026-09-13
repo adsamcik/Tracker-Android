@@ -25,7 +25,13 @@ and make exact replay a no-op. Two read-only review passes rejected the initial 
 first correction; the final pass accepted this exact boundary as **IMPLEMENTED_UNVALIDATED**.
 Commits `4624859d1` and `016a434df` additionally drain one retiring provider under historical
 authority, partition the exact nonoverlapping successor boundary, and authenticate no-read replay.
-Product composition, retention, deletion, transfer, and activation remain open.
+The separate Ambient product-read branch is independently accepted through `55024d9f6`. One bounded
+Room snapshot authenticates structural days, facts, gaps, cursor and authorization phases,
+policy/consent, local session Steps, and portable-import evidence before composing day,
+contained-session, and between-session totals exactly once. Authorization successors must preserve
+both elapsed and wall-clock order before privacy-boundary clamping; exact, partial, unavailable, and
+materializing states remain typed and missing evidence never becomes zero. Shared product UI,
+retention, deletion, transfer, and activation remain open.
 
 The isolated Activity source worktree is clean at `a8c1752cb`. Its capture-only coalescing model now
 has Activity-specific v28 entities and DAOs, immutable historical registration-plan binding, and a
@@ -106,10 +112,9 @@ transfer, and UI remain open.
 Git/worktree reconciliation found no accepted committed implementation stranded or lost: imported
 Steps branches are contained or patch-equivalent in the coordinator, the older Pressure and numeric
 branches are ancestors, and the two dirty portable-import/qualified-awards drafts remain frozen
-reference inputs only. Ambient product composition and Cell persistence remain active isolated lanes
-whose current review findings must be corrected before acceptance. Activity WAL admission is a
-separate dormant lane under correction after review; Pressure shared UI and export-only transfer are
-active isolated lanes.
+reference inputs only. Cell persistence remains an active isolated lane whose current review finding
+must be corrected before acceptance. Activity WAL admission is a separate dormant lane under
+correction after review; Pressure shared UI and export-only transfer are active isolated lanes.
 
 The checked-in v28 JSON now declares 79 entities: 51 released-v27 entities plus 28 narrowly owned
 v28 additions. Its identity hash is intentionally stale and Room/Kotlin/SQL generation or checking

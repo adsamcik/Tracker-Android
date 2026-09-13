@@ -3365,3 +3365,22 @@ Each entry records repository evidence and does not duplicate the final architec
   authorization-member, WAL-unit, and sibling reads have explicit limits.
 - This decision adds no fact table, writer/cursor, callback owner, active attempt, product read,
   deletion/retention mutation, UI, or activation. Those remain separate Wi-Fi-local work.
+
+## TI-D211 — Ambient Steps days compose only through exact stored authority phases
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/tests `5ac0e573b` through
+  `55024d9f6` atop the accepted Ambient importer and handoff; TI-B274.
+- One source-specific Room snapshot reads bounded structural-day candidates, facts, gaps, cursor and
+  authorization history, policy/consent, local session Steps, and portable-import evidence. It
+  composes authoritative day total, contained-session total, and between-session value without
+  fabricating a session or adding overlapping representations twice.
+- Every fact and gap must fit wholly inside one authenticated same-registration authorization phase.
+  Direct successors must preserve both elapsed and wall-clock order before their clamped privacy
+  boundary is accepted; a rounded or clamped wall regression fails typed rather than silently moving
+  evidence across an authority transition.
+- Exact, partial, and unavailable values remain distinct. Gaps, unsupported or denied runtime,
+  historical authority failure, materialization lag, overflow, imported/local incompatibility, and
+  structural-zone identity remain explicit; missing evidence never becomes numeric zero.
+- This is a bounded source-specific day read, not shared Today/Timeline/Calendar/detail wiring.
+  Retention, deletion, consent reset, portable transfer, end-user settings/remediation, and
+  activation remain open.

@@ -46,8 +46,13 @@ observed zone. The v28 schema identity hash remains deliberately stale until the
 convergence generation/check.
 
 Provider replacement drain and overlap partitioning are now authored and independently accepted.
-Next Ambient dependencies are product composition, retention, deletion, and portable transfer. Do
-not enable
+The separate `codex/ti-ambient-product-read` branch is independently accepted through `55024d9f6`:
+one bounded source-specific Room snapshot authenticates structural days, facts, gaps, cursor and
+authorization phases, policy/consent, local session Steps, and portable import before composing day,
+contained-session, and between-session values exactly once. Direct authorization successors must
+preserve elapsed and wall chronology before privacy clamping; missing evidence remains typed rather
+than zero. Next Ambient dependencies are shared product UI/numeric consumers, retention, deletion,
+and portable transfer. Do not enable
 `ExecutableSourceLaneCatalog.AMBIENT` or a product surface yet. A completed-day no-evidence gap is
 terminal to this monotonic importer; later provider backfill requires a separate bounded repair
 contract rather than silently reopening the cursor.
