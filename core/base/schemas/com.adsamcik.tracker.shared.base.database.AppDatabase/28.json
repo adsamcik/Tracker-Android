@@ -1905,31 +1905,6 @@
         ]
       },
       {
-        "tableName": "ambient_steps_import_gap_effect_revision",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`gap_id` TEXT NOT NULL, `semantic_revision` INTEGER NOT NULL, `mutation_id` TEXT NOT NULL, `operation` TEXT NOT NULL, `effect_checksum` TEXT NOT NULL, `recorded_at_ms` INTEGER NOT NULL, PRIMARY KEY(`gap_id`, `semantic_revision`))",
-        "fields": [
-          { "fieldPath": "gapId", "columnName": "gap_id", "affinity": "TEXT", "notNull": true },
-          { "fieldPath": "semanticRevision", "columnName": "semantic_revision", "affinity": "INTEGER", "notNull": true },
-          { "fieldPath": "mutationId", "columnName": "mutation_id", "affinity": "TEXT", "notNull": true },
-          { "fieldPath": "operation", "columnName": "operation", "affinity": "TEXT", "notNull": true },
-          { "fieldPath": "effectChecksum", "columnName": "effect_checksum", "affinity": "TEXT", "notNull": true },
-          { "fieldPath": "recordedAtMs", "columnName": "recorded_at_ms", "affinity": "INTEGER", "notNull": true }
-        ],
-        "primaryKey": {
-          "autoGenerate": false,
-          "columnNames": ["gap_id", "semantic_revision"]
-        },
-        "indices": [
-          {
-            "name": "idx_ambient_steps_gap_effect_mutation",
-            "unique": true,
-            "columnNames": ["mutation_id"],
-            "orders": [],
-            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_ambient_steps_gap_effect_mutation` ON `${TABLE_NAME}` (`mutation_id`)"
-          }
-        ]
-      },
-      {
         "tableName": "steps_goal_effect",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`effect_identity` TEXT NOT NULL, `period_kind` TEXT NOT NULL, `period_start_epoch_day` INTEGER NOT NULL, `period_end_epoch_day` INTEGER NOT NULL, `qualified_through_epoch_day` INTEGER NOT NULL, `calendar_authority` TEXT NOT NULL, `target_steps` INTEGER NOT NULL, `weekly_daily_limit_bits` INTEGER, `decision_state` TEXT NOT NULL, `unavailable_reason` TEXT, `qualified_steps` INTEGER, `source_authority_digest` TEXT NOT NULL, `source_evidence_revision` INTEGER NOT NULL, `effect_revision` INTEGER NOT NULL, `completion_points_micros` INTEGER NOT NULL, `completion_xp` INTEGER NOT NULL, `desired_points_micros` INTEGER NOT NULL, `desired_xp` INTEGER NOT NULL, `first_completed_at_ms` INTEGER, `points_applied_revision` INTEGER NOT NULL, `xp_applied_revision` INTEGER NOT NULL, `notification_claimed_revision` INTEGER, `notification_claimed_at_ms` INTEGER, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`effect_identity`))",
         "fields": [

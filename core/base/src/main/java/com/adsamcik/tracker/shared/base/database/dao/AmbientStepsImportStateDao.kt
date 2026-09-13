@@ -1,13 +1,20 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
 import androidx.room.Dao
+import androidx.room.ColumnInfo
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
-import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEffectRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
+
+data class AmbientStepsEffectiveGapInterval(
+	@ColumnInfo(name = "gap_id") val gapId: String,
+	@ColumnInfo(name = "gap_start_time_ms") val gapStartTimeMs: Long,
+	@ColumnInfo(name = "gap_end_time_ms") val gapEndTimeMs: Long,
+)
 
 /** Source-local persistence primitives for a future Ambient Steps importer transaction. */
 @Dao
@@ -92,26 +99,51 @@ interface AmbientStepsImportStateDao {
 	)
 	suspend fun gaps(registrationGeneration: Long): List<AmbientStepsImportGapEntity>
 
-	@Insert(onConflict = OnConflictStrategy.IGNORE)
-	suspend fun insertGapEffectRevision(revision: AmbientStepsImportGapEffectRevisionEntity): Long
-
+	/**
+	 * Subtracts the union of latest-effective Ambient Steps facts from declared gaps. Fact UPSERTs
+	 * can split one gap into two intervals; a later RETRACT removes that fact from the subtraction.
+	 */
 	@Query(
-		"SELECT * FROM ambient_steps_import_gap_effect_revision WHERE gap_id = :gapId " +
-			"ORDER BY semantic_revision ASC",
+		"WITH effective_fact AS (" +
+			"SELECT fact.* FROM ambient_steps_fact_revision AS fact " +
+			"WHERE fact.operation = '${AmbientStepsFactRevisionEntity.OPERATION_UPSERT}' " +
+			"AND fact.semantic_revision = (SELECT MAX(state.semantic_revision) " +
+			"FROM ambient_steps_fact_revision AS state " +
+			"WHERE state.writer_id = fact.writer_id AND state.writer_version = fact.writer_version " +
+			"AND state.logical_fact_id = fact.logical_fact_id)), " +
+			"boundary AS (SELECT gap.gap_id, gap.gap_start_time_ms AS boundary_time_ms " +
+			"FROM ambient_steps_import_gap AS gap WHERE gap.registration_generation = :registrationGeneration " +
+			"UNION SELECT gap.gap_id, MIN(fact.window_end_time_ms, gap.gap_end_time_ms) " +
+			"FROM ambient_steps_import_gap AS gap JOIN effective_fact AS fact " +
+			"ON fact.provider = gap.provider AND fact.source_instance_id = gap.source_instance_id " +
+			"AND fact.registration_generation = gap.registration_generation " +
+			"AND fact.collected_data_epoch = gap.collected_data_epoch " +
+			"AND fact.window_end_time_ms > gap.gap_start_time_ms " +
+			"AND fact.window_start_time_ms < gap.gap_end_time_ms " +
+			"WHERE gap.registration_generation = :registrationGeneration) " +
+			"SELECT gap.gap_id AS gap_id, boundary.boundary_time_ms AS gap_start_time_ms, " +
+			"MIN(gap.gap_end_time_ms, COALESCE((SELECT MIN(fact.window_start_time_ms) " +
+			"FROM effective_fact AS fact WHERE fact.window_start_time_ms > boundary.boundary_time_ms " +
+			"AND fact.provider = gap.provider AND fact.source_instance_id = gap.source_instance_id " +
+			"AND fact.registration_generation = gap.registration_generation " +
+			"AND fact.collected_data_epoch = gap.collected_data_epoch " +
+			"AND fact.window_start_time_ms < gap.gap_end_time_ms " +
+			"AND fact.window_end_time_ms > gap.gap_start_time_ms), gap.gap_end_time_ms)) " +
+			"AS gap_end_time_ms FROM boundary JOIN ambient_steps_import_gap AS gap " +
+			"ON gap.gap_id = boundary.gap_id WHERE boundary.boundary_time_ms < gap.gap_end_time_ms " +
+			"AND NOT EXISTS (SELECT 1 FROM effective_fact AS fact " +
+			"WHERE fact.window_start_time_ms <= boundary.boundary_time_ms " +
+			"AND fact.provider = gap.provider AND fact.source_instance_id = gap.source_instance_id " +
+			"AND fact.registration_generation = gap.registration_generation " +
+			"AND fact.collected_data_epoch = gap.collected_data_epoch " +
+			"AND fact.window_end_time_ms > boundary.boundary_time_ms " +
+			"AND fact.window_end_time_ms > gap.gap_start_time_ms " +
+			"AND fact.window_start_time_ms < gap.gap_end_time_ms) " +
+			"ORDER BY gap_start_time_ms ASC",
 	)
-	suspend fun gapEffectRevisions(gapId: String): List<AmbientStepsImportGapEffectRevisionEntity>
-
-	@Query(
-		"SELECT gap.* FROM ambient_steps_import_gap AS gap " +
-			"JOIN ambient_steps_import_gap_effect_revision AS effect ON effect.gap_id = gap.gap_id " +
-			"WHERE gap.registration_generation = :registrationGeneration " +
-			"AND effect.semantic_revision = (SELECT MAX(candidate.semantic_revision) " +
-			"FROM ambient_steps_import_gap_effect_revision AS candidate " +
-			"WHERE candidate.gap_id = gap.gap_id) " +
-			"AND effect.operation = '${AmbientStepsImportGapEffectRevisionEntity.OPERATION_DECLARE}' " +
-			"ORDER BY gap.gap_sequence ASC",
-	)
-	suspend fun effectiveGaps(registrationGeneration: Long): List<AmbientStepsImportGapEntity>
+	suspend fun effectiveGapIntervals(
+		registrationGeneration: Long,
+	): List<AmbientStepsEffectiveGapInterval>
 
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertAuthorityTransition(
@@ -259,13 +291,17 @@ interface AmbientStepsImportStateDao {
 			"AND gap.previous_zone_id = ambient_steps_import_cursor.last_observed_zone_id " +
 			"AND gap.next_clock_domain_id = :newBootId " +
 			"AND gap.next_zone_id = :newZoneId " +
-			"AND EXISTS (SELECT 1 FROM ambient_steps_import_gap_effect_revision AS effect " +
-			"WHERE effect.gap_id = gap.gap_id " +
-			"AND effect.semantic_revision = (SELECT MAX(candidate.semantic_revision) " +
-			"FROM ambient_steps_import_gap_effect_revision AS candidate " +
-			"WHERE candidate.gap_id = gap.gap_id) " +
-			"AND effect.operation = " +
-			"'${AmbientStepsImportGapEffectRevisionEntity.OPERATION_DECLARE}')) " +
+			"AND NOT EXISTS (SELECT 1 FROM ambient_steps_fact_revision AS fact " +
+			"WHERE fact.operation = '${AmbientStepsFactRevisionEntity.OPERATION_UPSERT}' " +
+			"AND fact.provider = gap.provider AND fact.source_instance_id = gap.source_instance_id " +
+			"AND fact.registration_generation = gap.registration_generation " +
+			"AND fact.collected_data_epoch = gap.collected_data_epoch " +
+			"AND fact.window_end_time_ms > gap.gap_start_time_ms " +
+			"AND fact.window_start_time_ms < gap.gap_end_time_ms " +
+			"AND fact.semantic_revision = (SELECT MAX(state.semantic_revision) " +
+			"FROM ambient_steps_fact_revision AS state " +
+			"WHERE state.writer_id = fact.writer_id AND state.writer_version = fact.writer_version " +
+			"AND state.logical_fact_id = fact.logical_fact_id))) " +
 			"AND :newBootId = registration_clock_domain_id " +
 			"AND :newSegmentStartTimeMs >= imported_through_time_ms " +
 			"AND :newSegmentStartTimeMs % 1000 = 0 " +
@@ -320,17 +356,11 @@ interface AmbientStepsImportStateDao {
 	@Query("SELECT COUNT(*) FROM ambient_steps_import_gap")
 	suspend fun countGaps(): Long
 
-	@Query("SELECT COUNT(*) FROM ambient_steps_import_gap_effect_revision")
-	suspend fun countGapEffectRevisions(): Long
-
 	@Query("SELECT COUNT(*) FROM ambient_steps_import_authority_transition")
 	suspend fun countAuthorityTransitions(): Long
 
 	@Query("DELETE FROM ambient_steps_import_authority_transition")
 	fun deleteAllAuthorityTransitions()
-
-	@Query("DELETE FROM ambient_steps_import_gap_effect_revision")
-	fun deleteAllGapEffectRevisions()
 
 	@Query("DELETE FROM ambient_steps_import_gap")
 	fun deleteAllGaps()

@@ -7,9 +7,9 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEn
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
-import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEffectIntegrity
-import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEffectRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
@@ -93,7 +93,6 @@ class AmbientStepsImportStateDaoTest {
 		val gap = gap()
 		dao.insertGap(gap) shouldBe 1L
 		dao.insertGap(gap) shouldBe -1L
-		dao.insertGapEffectRevision(gapEffect(gap, 1L, DECLARE, 8_000L)) shouldBe 1L
 		dao.beginNextSegmentExact(
 			registrationGeneration = 7L,
 			expectedContinuitySegmentGeneration = 1L,
@@ -119,46 +118,6 @@ class AmbientStepsImportStateDaoTest {
 		next.importedThroughTimeMs shouldBe 8_000L
 		dao.gaps(7L) shouldContainExactly listOf(gap)
 	}
-
-	@Test
-	fun `late fact retracts a gap and fact retraction restores it by revision`() = runTest {
-		val gap = gap()
-		dao.insertCursor(
-			cursor().copy(importedThroughTimeMs = 6_000L, lastObservedAtMs = 7_000L, updatedAtMs = 7_000L),
-		) shouldBe 1L
-		dao.insertGap(gap) shouldBe 1L
-		val declared = gapEffect(gap, 1L, DECLARE, 9_000L)
-		val retracted = gapEffect(gap, 2L, RETRACT, 10_000L)
-		val restored = gapEffect(gap, 3L, DECLARE, 11_000L)
-
-		dao.insertGapEffectRevision(declared) shouldBe 1L
-		dao.effectiveGaps(7L) shouldContainExactly listOf(gap)
-		dao.insertGapEffectRevision(retracted) shouldBe 2L
-		dao.effectiveGaps(7L) shouldContainExactly emptyList()
-		beginGapSegment() shouldBe 0
-		dao.insertGapEffectRevision(restored) shouldBe 3L
-		dao.effectiveGaps(7L) shouldContainExactly listOf(gap)
-		beginGapSegment() shouldBe 1
-		dao.gapEffectRevisions(gap.gapId) shouldContainExactly listOf(declared, retracted, restored)
-	}
-
-	private suspend fun beginGapSegment(): Int = dao.beginNextSegmentExact(
-		registrationGeneration = 7L,
-		expectedContinuitySegmentGeneration = 1L,
-		expectedLastGapSequence = 0L,
-		expectedCursorRevision = 1L,
-		expectedImportedThroughTimeMs = 6_000L,
-		expectedObservedAtMs = 7_000L,
-		expectedUpdatedAtMs = 7_000L,
-		newLastGapSequence = 1L,
-		newContinuitySegmentGeneration = 2L,
-		newSegmentStartTimeMs = 8_000L,
-		newObservedAtMs = 9_000L,
-		newBootId = "boot-a",
-		newZoneId = "UTC",
-		newCursorRevision = 2L,
-		updatedAtMs = 9_000L,
-	)
 
 	@Test
 	fun `same registration rotates authority at one exact non-gap boundary`() = runTest {
@@ -204,6 +163,33 @@ class AmbientStepsImportStateDaoTest {
 	}
 
 	@Test
+	fun `effective gaps subtract full and partial facts and restore after exact retraction`() = runTest {
+		val gap = gap()
+		dao.insertGap(gap) shouldBe 1L
+		dao.effectiveGapIntervals(7L) shouldContainExactly listOf(
+			AmbientStepsEffectiveGapInterval(gap.gapId, 6_000L, 8_000L),
+		)
+
+		val partial = ambientFact(7_000L, 8_000L)
+		database.ambientStepsFactRevisionDao().insert(partial) shouldBe 1L
+		dao.effectiveGapIntervals(7L) shouldContainExactly listOf(
+			AmbientStepsEffectiveGapInterval(gap.gapId, 6_000L, 7_000L),
+		)
+
+		val full = ambientFact(6_000L, 8_000L)
+		database.ambientStepsFactRevisionDao().insert(full) shouldBe 2L
+		dao.effectiveGapIntervals(7L) shouldContainExactly emptyList()
+		database.ambientStepsFactRevisionDao().insert(retract(full)) shouldBe 3L
+		dao.effectiveGapIntervals(7L) shouldContainExactly listOf(
+			AmbientStepsEffectiveGapInterval(gap.gapId, 6_000L, 7_000L),
+		)
+		database.ambientStepsFactRevisionDao().insert(retract(partial)) shouldBe 4L
+		dao.effectiveGapIntervals(7L) shouldContainExactly listOf(
+			AmbientStepsEffectiveGapInterval(gap.gapId, 6_000L, 8_000L),
+		)
+	}
+
+	@Test
 	fun `same high water requires a strictly newer observation and monotonic update time`() = runTest {
 		dao.insertCursor(cursor()) shouldBe 1L
 		suspend fun advance(observedAtMs: Long, updatedAtMs: Long): Int =
@@ -232,7 +218,6 @@ class AmbientStepsImportStateDaoTest {
 	fun `retired cursor cannot advance and full clear removes cursor and gaps`() = runTest {
 		dao.insertCursor(cursor())
 		dao.insertGap(gap())
-		dao.insertGapEffectRevision(gapEffect(gap(), 1L, DECLARE, 8_000L))
 		dao.insertAuthorityTransition(authorityTransition())
 		dao.retireExact(
 			registrationGeneration = 7L,
@@ -259,12 +244,10 @@ class AmbientStepsImportStateDaoTest {
 		) shouldBe 0
 
 		dao.deleteAllAuthorityTransitions()
-		dao.deleteAllGapEffectRevisions()
 		dao.deleteAllGaps()
 		dao.deleteAllCursors()
 		dao.countGaps() shouldBe 0L
 		dao.countAuthorityTransitions() shouldBe 0L
-		dao.countGapEffectRevisions() shouldBe 0L
 		dao.countCursors() shouldBe 0L
 	}
 
@@ -327,32 +310,40 @@ class AmbientStepsImportStateDaoTest {
 			recordedAtMs = 8_000L,
 		)
 
-	private fun gapEffect(
-		gap: AmbientStepsImportGapEntity,
-		revision: Long,
-		operation: String,
-		recordedAtMs: Long,
-	): AmbientStepsImportGapEffectRevisionEntity {
-		val mutationId = AmbientStepsImportGapEffectIntegrity.mutationId(
-			gap.gapId,
-			revision,
-			operation,
+	private fun ambientFact(startTimeMs: Long, endTimeMs: Long): AmbientStepsFactRevisionEntity {
+		val logicalFactId = AmbientStepsFactIntegrity.logicalFactId(
+			PROVIDER, 7L, 1L, "ambient-instance", startTimeMs, 0L, "UTC", 6L,
 		)
-		return AmbientStepsImportGapEffectRevisionEntity(
-			gapId = gap.gapId,
-			semanticRevision = revision,
-			mutationId = mutationId,
-			operation = operation,
-			effectChecksum = AmbientStepsImportGapEffectIntegrity.effectChecksum(
-				gap.gapId,
-				revision,
-				mutationId,
-				operation,
-				recordedAtMs,
+		return signed(
+			AmbientStepsFactRevisionEntity(
+				logicalFactId, 1L,
+				AmbientStepsFactIntegrity.mutationId(logicalFactId, 1L, "UPSERT"),
+				AmbientStepsFactRevisionEntity.WRITER_ID, AmbientStepsFactRevisionEntity.WRITER_VERSION,
+				1L, "UPSERT", "PROVIDER_AGGREGATE", PROVIDER, 7L, 1L, "ambient-instance",
+				3L, "a".repeat(64), startTimeMs, endTimeMs, endTimeMs, 0L, "UTC",
+				0L, 86_400_000L, 10L, "AMBIENT_PRODUCT", 4L, 5L, 6L, 0L,
+				"0".repeat(64), endTimeMs,
 			),
-			recordedAtMs = recordedAtMs,
 		)
 	}
+
+	private fun retract(fact: AmbientStepsFactRevisionEntity): AmbientStepsFactRevisionEntity = signed(
+		fact.copy(
+			semanticRevision = 2L,
+			mutationId = AmbientStepsFactIntegrity.mutationId(fact.logicalFactId, 2L, "RETRACT"),
+			operation = "RETRACT",
+			originKind = "LOCAL_DELETE",
+			provider = null, registrationGeneration = null, continuitySegmentGeneration = null,
+			sourceInstanceId = null, authorizationRevision = null, authorizationFingerprint = null,
+			windowStartTimeMs = null, windowEndTimeMs = null, observedAtMs = null,
+			structuralEpochDay = null, storedZoneId = null, structuralDayStartTimeMs = null,
+			structuralDayEndTimeMs = null, stepCount = null, sourcePolicyRevision = null,
+			ambientConsentEpoch = null, scopeDeletionGeneration = 1L, appliedAtMs = 9_000L,
+		),
+	)
+
+	private fun signed(fact: AmbientStepsFactRevisionEntity): AmbientStepsFactRevisionEntity =
+		fact.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(fact))
 
 	private fun gap(): AmbientStepsImportGapEntity {
 		val id = AmbientStepsImportGapIntegrity.gapId(
@@ -393,7 +384,5 @@ class AmbientStepsImportStateDaoTest {
 
 	private companion object {
 		const val PROVIDER = AmbientStepsImportCursorEntity.PROVIDER_LOCAL_RECORDING_STEPS
-		const val DECLARE = AmbientStepsImportGapEffectRevisionEntity.OPERATION_DECLARE
-		const val RETRACT = AmbientStepsImportGapEffectRevisionEntity.OPERATION_RETRACT
 	}
 }

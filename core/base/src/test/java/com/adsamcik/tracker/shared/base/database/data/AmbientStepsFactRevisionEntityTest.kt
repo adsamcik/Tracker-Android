@@ -65,6 +65,8 @@ class AmbientStepsFactRevisionEntityTest {
 			{ fact.copy(sourceInstanceId = "another-opaque-instance") },
 			{ fact.copy(mutationId = "sha256:${"0".repeat(64)}") },
 			{ fact.copy(authorizationRevision = null) },
+			{ fact.copy(authorizationFingerprint = "A".repeat(64)) },
+			{ fact.copy(authorizationFingerprint = "not-a-broker-digest") },
 			{ fact.copy(windowEndTimeMs = fact.windowStartTimeMs) },
 			{ fact.copy(stepCount = null) },
 			{ fact.copy(stepCount = -1L) },
