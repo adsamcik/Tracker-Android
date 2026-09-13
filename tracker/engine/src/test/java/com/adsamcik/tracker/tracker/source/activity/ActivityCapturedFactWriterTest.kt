@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceAppliedPlanStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -20,11 +21,15 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
+import com.adsamcik.tracker.tracker.source.model.ActivityMode
+import com.adsamcik.tracker.tracker.source.model.ActivityPlan
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -137,7 +142,95 @@ class ActivityCapturedFactWriterTest {
 		database.activityCapturedFactDao().revisionCount() shouldBe 0L
 	}
 
-	private suspend fun seedAuthority() {
+	@Test
+	fun `capture consent may be reused by a later policy revision without changing epoch`() = runTest {
+		seedAuthority(sourcePolicyRevision = 2L, consentPolicyRevision = 1L)
+
+		val result = ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(
+				capturedWindow(authority = captureAuthority(sourcePolicyRevision = 2L)),
+			),
+		)
+
+		(result is ActivityCapturedWriteResult.Applied) shouldBe true
+	}
+
+	@Test
+	fun `invalid full service-run manifest timeline is rejected`() = runTest {
+		seedAuthority(runDesiredPlanRevision = 2L)
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `invalid stored manifest zone is rejected before persistence`() = runTest {
+		seedAuthority(manifestZoneId = "Not/A_Zone")
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `desired Activity payload must produce the captured physical fingerprint`() = runTest {
+		seedAuthority(activityPlan = DEFAULT_ACTIVITY_PLAN.copy(desiredDetectionLatencyMs = 60_000L))
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.ACQUISITION_CONFIGURATION_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `desired Activity payload checksum must be canonical`() = runTest {
+		seedAuthority(corruptDesiredChecksum = true)
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.ACQUISITION_CONFIGURATION_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `applied Activity state must bind the exact registration generation`() = runTest {
+		seedAuthority(appliedRegistrationGeneration = 2L)
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.ACQUISITION_CONFIGURATION_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `replacement-run manifest does not become this run elapsed cutoff`() = runTest {
+		seedAuthority()
+		insertReplacementRunManifest(effectiveElapsedRealtimeNanos = 250L)
+
+		val result = ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		)
+
+		(result is ActivityCapturedWriteResult.Applied) shouldBe true
+	}
+
+	private suspend fun seedAuthority(
+		sourcePolicyRevision: Long = 1L,
+		consentPolicyRevision: Long = sourcePolicyRevision,
+		activityPlan: ActivityPlan = DEFAULT_ACTIVITY_PLAN,
+		appliedRegistrationGeneration: Long = 1L,
+		manifestZoneId: String = "Europe/Prague",
+		runDesiredPlanRevision: Long = 1L,
+		corruptDesiredChecksum: Boolean = false,
+	) {
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
 		database.sourceDestinationOwnerDao().insertIfAbsent(
 			SourceDestinationOwnerEntity(
@@ -169,7 +262,7 @@ class ActivityCapturedFactWriterTest {
 				logicalTrackingId = LOGICAL_TRACKING_ID,
 				state = "FINALIZED",
 				lifecycleRevision = 2L,
-				desiredPlanRevision = 1L,
+				desiredPlanRevision = runDesiredPlanRevision,
 				rolloutRevision = 1L,
 				startOrigin = "MANUAL_FOREGROUND_START",
 				clockDomainId = BOOT_ID,
@@ -194,7 +287,7 @@ class ActivityCapturedFactWriterTest {
 				serviceRunId = SERVICE_RUN_ID,
 				logicalTrackingId = LOGICAL_TRACKING_ID,
 				state = "FINALIZED",
-				desiredPlanRevision = 1L,
+				desiredPlanRevision = runDesiredPlanRevision,
 				rolloutRevision = 1L,
 				foregroundCapabilityFlags = 0L,
 				startedAtMs = 1_000L,
@@ -222,23 +315,71 @@ class ActivityCapturedFactWriterTest {
 				presentationAcknowledgedAtMs = 2_000L,
 			),
 		)
-		insertManifest()
-		database.sourcePolicyDao().insertPolicies(listOf(activityPolicy()))
-		database.sourcePolicyDao().insertConsentEpochs(listOf(activityConsent()))
+		insertManifest(sourcePolicyRevision, manifestZoneId)
+		database.sourcePolicyDao().insertPolicies(listOf(activityPolicy(sourcePolicyRevision)))
+		database.sourcePolicyDao().insertConsentEpochs(listOf(activityConsent(consentPolicyRevision)))
 		database.sourcePlanStateDao().insertRevision(
-			AcquisitionPlanRevisionEntity(1L, "plan-1", 1_000L, "APPLIED", 1L),
+			AcquisitionPlanRevisionEntity(1L, "plan-1", 1_000L, "APPLIED", sourcePolicyRevision),
 		)
+		val encodedPlan = SourcePlanCodec().encode(activityPlan)
 		database.sourcePlanStateDao().insertDesiredPlans(
-			listOf(SourceDesiredPlanEntity(1L, SourceKind.ACTIVITY.stableCode, 1, byteArrayOf(1), "plan")),
+			listOf(
+				SourceDesiredPlanEntity(
+					1L,
+					SourceKind.ACTIVITY.stableCode,
+					1,
+					encodedPlan.bytes,
+					if (corruptDesiredChecksum) "corrupt-checksum" else encodedPlan.checksum,
+				),
+			),
+		)
+		database.sourcePlanStateDao().saveAppliedState(
+			SourceAppliedPlanStateEntity(
+				sourceKind = SourceKind.ACTIVITY.stableCode,
+				desiredRevision = 1L,
+				appliedRevision = 1L,
+				sourceInstanceId = SOURCE_INSTANCE_ID,
+				registrationGeneration = appliedRegistrationGeneration,
+				appliedAtElapsedNanos = RUN_START_NANOS,
+				status = "APPLIED",
+				degradedReasons = "",
+				updatedAtMs = 1_000L,
+			),
 		)
 		database.sourceBrokerDao().insertRegistration(activityRegistration())
-		database.sourceBrokerDao().insertAuthorizations(listOf(activityAuthorization()))
+		database.sourceBrokerDao().insertAuthorizations(
+			listOf(activityAuthorization(sourcePolicyRevision)),
+		)
 	}
 
-	private suspend fun insertManifest() {
-		val source = SessionManifestSourceEntity(
+	private suspend fun insertManifest(sourcePolicyRevision: Long, zoneId: String) {
+		val source = activityManifestSource(manifestRevision = 1L)
+		val unsigned = SessionManifestVersionEntity(
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			manifestRevision = 1L,
+			serviceRunId = SERVICE_RUN_ID,
+			sessionMode = "MANUAL",
+			sourcePolicyRevision = sourcePolicyRevision,
+			acquisitionPlanRevision = 1L,
+			rolloutRevision = 1L,
+			startOrigin = "MANUAL_FOREGROUND_START",
+			effectiveBootId = BOOT_ID,
+			effectiveElapsedRealtimeNanos = RUN_START_NANOS,
+			effectiveWallTimeMs = 1_000L,
+			zoneId = zoneId,
+			automationEpoch = null,
+			changeReason = "TEST",
+			manifestChecksum = "",
+		)
+		database.sourceSessionDao().insertManifest(
+			unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source))),
+		)
+		database.sourceSessionDao().insertManifestSources(listOf(source))
+	}
+
+	private fun activityManifestSource(manifestRevision: Long) = SessionManifestSourceEntity(
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			manifestRevision = manifestRevision,
 			sourceKind = SourceKind.ACTIVITY.stableCode,
 			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
 			consentEpoch = 0L,
@@ -251,21 +392,56 @@ class ActivityCapturedFactWriterTest {
 			writerProjectionVersion = WRITER_VERSION,
 			writerBindingGeneration = SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION,
 		)
+
+	private suspend fun insertReplacementRunManifest(effectiveElapsedRealtimeNanos: Long) {
+		val replacementRunId = "service-run-activity-replacement"
+		database.sourceSessionDao().insertServiceRun(
+			SourceServiceRunEntity(
+				serviceRunId = replacementRunId,
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				state = "FINALIZED",
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				foregroundCapabilityFlags = 0L,
+				startedAtMs = 1_500L,
+				startedElapsedNanos = effectiveElapsedRealtimeNanos,
+				completedAtMs = 2_000L,
+				completionReason = "TEST_REPLACEMENT",
+				bootId = BOOT_ID,
+				leaseGeneration = 2L,
+				startOrigin = "RECOVERY",
+				desiredForegroundCapabilityFlags = 0L,
+				appliedForegroundCapabilityFlags = 0L,
+				runtimeAcknowledgement = "STOPPED",
+				runtimeFailureCode = null,
+				runRevision = 2L,
+				startDeliveryToken = "delivery-replacement",
+				startCommandGeneration = 2L,
+				preparedManifestRevision = 2L,
+				preparedIntentRevision = 2L,
+				androidDeliveryState = "SETTLED",
+				androidDeliveryUpdatedAtMs = 2_000L,
+				startIsUserInitiated = true,
+				startIsAmbient = false,
+				sessionSegmentId = null,
+			),
+		)
+		val source = activityManifestSource(manifestRevision = 2L)
 		val unsigned = SessionManifestVersionEntity(
 			logicalTrackingId = LOGICAL_TRACKING_ID,
-			manifestRevision = 1L,
-			serviceRunId = SERVICE_RUN_ID,
+			manifestRevision = 2L,
+			serviceRunId = replacementRunId,
 			sessionMode = "MANUAL",
 			sourcePolicyRevision = 1L,
 			acquisitionPlanRevision = 1L,
 			rolloutRevision = 1L,
-			startOrigin = "MANUAL_FOREGROUND_START",
+			startOrigin = "RECOVERY",
 			effectiveBootId = BOOT_ID,
-			effectiveElapsedRealtimeNanos = RUN_START_NANOS,
-			effectiveWallTimeMs = 1_000L,
+			effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
+			effectiveWallTimeMs = 1_500L,
 			zoneId = "Europe/Prague",
 			automationEpoch = null,
-			changeReason = "TEST",
+			changeReason = "TEST_REPLACEMENT",
 			manifestChecksum = "",
 		)
 		database.sourceSessionDao().insertManifest(
@@ -274,8 +450,8 @@ class ActivityCapturedFactWriterTest {
 		database.sourceSessionDao().insertManifestSources(listOf(source))
 	}
 
-	private fun activityPolicy() = SourcePolicyEntity(
-		policyRevision = 1L,
+	private fun activityPolicy(sourcePolicyRevision: Long) = SourcePolicyEntity(
+		policyRevision = sourcePolicyRevision,
 		sourceKind = SourceKind.ACTIVITY.stableCode,
 		enabled = true,
 		qosCode = 1,
@@ -294,13 +470,13 @@ class ActivityCapturedFactWriterTest {
 		changeReason = "TEST",
 	)
 
-	private fun activityConsent() = SourceConsentEpochEntity(
+	private fun activityConsent(consentPolicyRevision: Long) = SourceConsentEpochEntity(
 		sourceKind = SourceKind.ACTIVITY.stableCode,
 		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
 		epoch = 0L,
 		eligible = true,
 		persistenceEligible = true,
-		policyRevision = 1L,
+		policyRevision = consentPolicyRevision,
 		effectiveBootId = BOOT_ID,
 		effectiveElapsedRealtimeNanos = RUN_START_NANOS,
 		effectiveWallTimeMs = 1_000L,
@@ -327,7 +503,7 @@ class ActivityCapturedFactWriterTest {
 		failureCode = null,
 	)
 
-	private fun activityAuthorization() = SourceAuthorizationEntity(
+	private fun activityAuthorization(sourcePolicyRevision: Long) = SourceAuthorizationEntity(
 		sourceKind = SourceKind.ACTIVITY.stableCode,
 		registrationGeneration = 1L,
 		authorizationRevision = 1L,
@@ -337,7 +513,7 @@ class ActivityCapturedFactWriterTest {
 		demandId = "capture-demand",
 		consumerId = "capture-consumer",
 		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
-		sourcePolicyRevision = 1L,
+		sourcePolicyRevision = sourcePolicyRevision,
 		consentEpoch = 0L,
 		persistenceEligible = true,
 		effectiveBootId = BOOT_ID,
@@ -353,8 +529,8 @@ class ActivityCapturedFactWriterTest {
 		semanticRevision: Long = 1L,
 		supersedes: Long? = null,
 		withGap: Boolean = true,
+		authority: ActivityCaptureAuthority = captureAuthority(),
 	): ActivityCapturedWindow {
-		val authority = captureAuthority()
 		val mutation = ActivityCapturedWindowMutation(
 			identity = ActivityCapturedWindowIdentity(authority, 200L, 400L),
 			semanticRevision = semanticRevision,
@@ -410,7 +586,7 @@ class ActivityCapturedFactWriterTest {
 		),
 	)
 
-	private fun captureAuthority() = ActivityCaptureAuthority(
+	private fun captureAuthority(sourcePolicyRevision: Long = 1L) = ActivityCaptureAuthority(
 		logicalTrackingId = LogicalTrackingId(LOGICAL_TRACKING_ID),
 		serviceRunId = ServiceRunId(SERVICE_RUN_ID),
 		sourceInstanceId = SourceInstanceId(SOURCE_INSTANCE_ID),
@@ -420,7 +596,7 @@ class ActivityCapturedFactWriterTest {
 		authorizationRevision = 1L,
 		authorizationFingerprint = AUTHORIZATION_FINGERPRINT,
 		purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-		sourcePolicyRevision = 1L,
+		sourcePolicyRevision = sourcePolicyRevision,
 		captureConsentEpoch = 0L,
 		sessionManifestRevision = 1L,
 		lifecycleLeaseGeneration = 1L,
@@ -438,11 +614,18 @@ class ActivityCapturedFactWriterTest {
 		private const val SERVICE_RUN_ID = "service-run-activity-1"
 		private const val SOURCE_INSTANCE_ID = "activity-instance-1"
 		private const val BOOT_ID = "boot-activity-1"
-		private const val PHYSICAL_FINGERPRINT = "activity-physical-1"
 		private const val AUTHORIZATION_FINGERPRINT = "activity-authorization-1"
 		private const val RUN_START_NANOS = 100L
 		private const val RUN_END_NANOS = 1_000L
 		private const val WRITER_ID = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID
 		private const val WRITER_VERSION = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION
+		private val DEFAULT_ACTIVITY_PLAN = ActivityPlan(
+			revision = 1L,
+			mode = ActivityMode.CONTINUOUS_RECOGNITION,
+			desiredDetectionLatencyMs = 30_000L,
+			confidenceThresholdPercent = 65,
+			transitionTypes = setOf(0, 1),
+		)
+		private val PHYSICAL_FINGERPRINT = DEFAULT_ACTIVITY_PLAN.physicalConfigurationFingerprint()
 	}
 }

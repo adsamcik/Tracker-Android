@@ -12,8 +12,14 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
+import com.adsamcik.tracker.tracker.source.model.ActivityPlan
+import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import java.security.MessageDigest
+import java.time.DateTimeException
+import java.time.ZoneId
 
 /** Input boundary keeps control-only Activity structurally outside captured persistence. */
 internal sealed interface ActivityCapturedWriteCommand {
@@ -64,6 +70,7 @@ internal sealed interface ActivityCapturedWriteResult {
  */
 internal class ActivityCapturedFactWriter(
 	private val database: AppDatabase,
+	private val planCodec: SourcePlanCodec = SourcePlanCodec(),
 ) {
 	suspend fun write(command: ActivityCapturedWriteCommand): ActivityCapturedWriteResult {
 		if (command is ActivityCapturedWriteCommand.ControlOnly) {
@@ -122,11 +129,27 @@ internal class ActivityCapturedFactWriter(
 			reject(ActivityCapturedWriteRejection.SEGMENT_REVERSE_BINDING_MISMATCH)
 		}
 
-		val manifest = sessionDao.manifestByServiceRunRevision(
-			serviceRunId,
-			authority.sessionManifestRevision,
-		) ?: reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
-		val sources = sessionDao.manifestSources(logicalTrackingId, authority.sessionManifestRevision)
+		val runManifests = sessionDao.manifestsForServiceRun(serviceRunId)
+		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, runManifests)) {
+			reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
+		}
+		val manifestSourcesByRevision = mutableMapOf<Long, List<SessionManifestSourceEntity>>()
+		for (candidate in runManifests) {
+			val candidateSources = sessionDao.manifestSources(
+				candidate.logicalTrackingId,
+				candidate.manifestRevision,
+			)
+			if (!SessionManifestIntegrity.verify(candidate, candidateSources)) {
+				reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
+			}
+			manifestSourcesByRevision[candidate.manifestRevision] = candidateSources
+		}
+		val manifestIndex = runManifests.indexOfFirst { candidate ->
+			candidate.manifestRevision == authority.sessionManifestRevision
+		}
+		if (manifestIndex < 0) reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
+		val manifest = runManifests[manifestIndex]
+		val sources = checkNotNull(manifestSourcesByRevision[authority.sessionManifestRevision])
 		if (manifest.logicalTrackingId != logicalTrackingId ||
 			manifest.sourcePolicyRevision != authority.sourcePolicyRevision ||
 			manifest.acquisitionPlanRevision != authority.configurationRevision ||
@@ -134,7 +157,12 @@ internal class ActivityCapturedFactWriter(
 			manifest.effectiveElapsedRealtimeNanos > window.intervalStartElapsedRealtimeNanos ||
 			!SessionManifestIntegrity.verify(manifest, sources)
 		) reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
-		val nextManifest = sessionDao.nextManifest(logicalTrackingId, authority.sessionManifestRevision)
+		try {
+			ZoneId.of(manifest.zoneId)
+		} catch (_: DateTimeException) {
+			reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
+		}
+		val nextManifest = runManifests.getOrNull(manifestIndex + 1)
 		if (nextManifest != null &&
 			window.intervalEndExclusiveElapsedRealtimeNanos > nextManifest.effectiveElapsedRealtimeNanos
 		) reject(ActivityCapturedWriteRejection.MANIFEST_AUTHORITY_MISMATCH)
@@ -160,7 +188,7 @@ internal class ActivityCapturedFactWriter(
 			authority.captureConsentEpoch,
 		) ?: reject(ActivityCapturedWriteRejection.CONSENT_AUTHORITY_MISMATCH)
 		if (!consent.eligible || !consent.persistenceEligible ||
-			consent.policyRevision != authority.sourcePolicyRevision ||
+			consent.policyRevision > authority.sourcePolicyRevision ||
 			consent.effectiveBootId != authority.clockDomainId ||
 			consent.effectiveElapsedRealtimeNanos > window.intervalStartElapsedRealtimeNanos
 		) reject(ActivityCapturedWriteRejection.CONSENT_AUTHORITY_MISMATCH)
@@ -169,8 +197,29 @@ internal class ActivityCapturedFactWriter(
 		val desiredActivityPlan = database.sourcePlanStateDao()
 			.desiredPlans(authority.configurationRevision)
 			.singleOrNull { it.sourceKind == SOURCE_KIND }
+		val decodedActivityPlan = desiredActivityPlan
+			?.takeIf { desired -> desired.payloadVersion == SOURCE_PLAN_PAYLOAD_VERSION }
+			?.let { desired -> runCatching { planCodec.decode(desired.payload) as? ActivityPlan }.getOrNull() }
+		val canonicalActivityPlan = decodedActivityPlan?.let(planCodec::encode)
+		val appliedActivityPlan = database.sourcePlanStateDao().appliedStates()
+			.singleOrNull { it.sourceKind == SOURCE_KIND }
 		if (acquisitionRevision?.sourcePolicyRevision != authority.sourcePolicyRevision ||
-			desiredActivityPlan == null
+			desiredActivityPlan == null || decodedActivityPlan == null ||
+			canonicalActivityPlan == null ||
+			!desiredActivityPlan.payload.contentEquals(canonicalActivityPlan.bytes) ||
+			desiredActivityPlan.payloadChecksum != canonicalActivityPlan.checksum ||
+			decodedActivityPlan.revision != authority.configurationRevision ||
+			!decodedActivityPlan.enabled ||
+			decodedActivityPlan.physicalConfigurationFingerprint() !=
+				authority.physicalConfigurationFingerprint ||
+			appliedActivityPlan == null ||
+			appliedActivityPlan.desiredRevision != authority.configurationRevision ||
+			appliedActivityPlan.appliedRevision != authority.configurationRevision ||
+			appliedActivityPlan.sourceInstanceId != authority.sourceInstanceId.value ||
+			appliedActivityPlan.registrationGeneration != authority.registrationGeneration ||
+			appliedActivityPlan.appliedAtElapsedNanos == null ||
+			appliedActivityPlan.appliedAtElapsedNanos > window.intervalStartElapsedRealtimeNanos ||
+			appliedActivityPlan.status !in APPLIED_PLAN_STATUSES
 		) reject(ActivityCapturedWriteRejection.ACQUISITION_CONFIGURATION_MISMATCH)
 
 		val registration = database.sourceBrokerDao().registration(
@@ -219,17 +268,9 @@ internal class ActivityCapturedFactWriter(
 
 		val session = sessionDao.session(logicalTrackingId)
 			?: reject(ActivityCapturedWriteRejection.SERVICE_RUN_MISMATCH)
-		val nextRunStart = sessionDao.manifests(logicalTrackingId)
-			.asSequence()
-			.filter { it.manifestRevision > authority.sessionManifestRevision }
-			.filter { it.serviceRunId != serviceRunId }
-			.filter { it.effectiveBootId == authority.clockDomainId }
-			.map { it.effectiveElapsedRealtimeNanos }
-			.minOrNull()
 		val sameClockCutoff = session.cutoffElapsedNanos
 			.takeIf { session.lifecycleBootId == authority.clockDomainId }
-		val expectedRunEnd = listOfNotNull(sameClockCutoff, nextRunStart).minOrNull()
-			?: Long.MAX_VALUE
+		val expectedRunEnd = sameClockCutoff ?: Long.MAX_VALUE
 		if (expectedRunEnd != authority.temporalAuthority.sessionRunEffect.endExclusiveNanos
 		) reject(ActivityCapturedWriteRejection.SERVICE_RUN_MISMATCH)
 
@@ -333,7 +374,12 @@ internal class ActivityCapturedFactWriter(
 		private const val PURPOSE = SourceBrokerPurpose.SESSION_CAPTURE
 		private const val WRITER_ID = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID
 		private const val WRITER_VERSION = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION
+		private const val SOURCE_PLAN_PAYLOAD_VERSION = 1
 		private const val INSERT_IGNORED = -1L
+		private val APPLIED_PLAN_STATUSES = setOf(
+			SourceApplyStatus.APPLIED.name,
+			SourceApplyStatus.DEGRADED.name,
+		)
 	}
 }
 
