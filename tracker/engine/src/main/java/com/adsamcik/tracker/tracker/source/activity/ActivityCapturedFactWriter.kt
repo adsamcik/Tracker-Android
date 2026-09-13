@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.activity
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
@@ -669,8 +670,10 @@ private object ActivityCapturedPersistence {
 			effectChecksum = "pending",
 			appliedAtMs = appliedAtMs,
 		)
+		check(ActivityCapturedFactIntegrity.logicalWindowId(unsigned) == logicalWindowId)
+		check(ActivityCapturedFactIntegrity.mutationId(logicalWindowId, semanticRevision) == mutationId)
 		val revision = unsigned.copy(
-			effectChecksum = effectChecksum(unsigned, fragments, evidence),
+			effectChecksum = ActivityCapturedFactIntegrity.effectChecksum(unsigned, fragments, evidence),
 		)
 		return ActivityCapturedPersistedMutation(
 			revision = revision,
@@ -862,65 +865,6 @@ private object ActivityCapturedPersistence {
 			window.intervalEndExclusiveElapsedRealtimeNanos.toString(),
 		)
 	}
-
-	private fun effectChecksum(
-		revision: ActivityCapturedWindowRevisionEntity,
-		fragments: List<ActivityCapturedFragmentEntity>,
-		evidence: List<ActivityCapturedEvidenceEntity>,
-	): String = digest(
-		"activity-captured-effect-v1",
-		listOf(
-			revision.logicalWindowId,
-			revision.storedZoneId,
-			revision.coverage,
-			revision.knownActiveDurationNanos.toString(),
-			revision.knownInactiveDurationNanos.toString(),
-			revision.unknownActivityDurationNanos.toString(),
-			revision.unobservedDurationNanos.toString(),
-		) + fragments.flatMap(::fragmentParts) + evidence.flatMap(::evidenceParts),
-	)
-
-	private fun fragmentParts(fragment: ActivityCapturedFragmentEntity): List<String> = listOf(
-		fragment.fragmentOrdinal,
-		fragment.fragmentKind,
-		fragment.bandOrdinal,
-		fragment.intervalStartElapsedRealtimeNanos,
-		fragment.intervalEndElapsedRealtimeNanos,
-		fragment.gapReason,
-		fragment.activity,
-		fragment.mechanism,
-		fragment.refinedTransitionActivity,
-		fragment.confidenceKind,
-		fragment.confidenceMinimumPercent,
-		fragment.confidenceMaximumPercent,
-		fragment.confidenceObservationCount,
-		fragment.startWallTimeMs,
-		fragment.startWallTimeUncertaintyMs,
-		fragment.startBoundaryKind,
-		fragment.startAnchorSourceEventId,
-		fragment.startAnchorProviderElapsedNanos,
-		fragment.endWallTimeMs,
-		fragment.endWallTimeUncertaintyMs,
-		fragment.endBoundaryKind,
-		fragment.endAnchorSourceEventId,
-		fragment.endAnchorProviderElapsedNanos,
-		fragment.wallTimeContinuity,
-	).map { it?.toString() ?: "null" }
-
-	private fun evidenceParts(evidence: ActivityCapturedEvidenceEntity): List<String> = listOf(
-		evidence.fragmentOrdinal.toString(),
-		evidence.evidenceOrdinal.toString(),
-		evidence.sourceEventId,
-		evidence.sourceAdmissionOrdinal.toString(),
-		evidence.sourceSequence.toString(),
-		evidence.providerElapsedRealtimeNanos.toString(),
-		evidence.receivedElapsedRealtimeNanos.toString(),
-		evidence.observationKind,
-		evidence.observedActivity,
-		evidence.transitionChange ?: "null",
-		evidence.confidencePercent?.toString() ?: "null",
-		evidence.coverageEndExclusiveElapsedRealtimeNanos?.toString() ?: "null",
-	)
 
 	private fun digest(domain: String, values: List<String>): String {
 		val canonical = (listOf(domain) + values).joinToString(separator = "") { value ->

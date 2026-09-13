@@ -86,13 +86,11 @@ data class ActivityHistoryEntry(
 	init {
 		require(endTime >= startTime)
 		require(storedZoneIds.none(String::isBlank))
-		require(fragments.zipWithNext().all { (left, right) ->
-			left.sortWallTime <= right.sortWallTime
-		}) { "Activity fragments must be ordered by stored wall-time authority" }
 		when (state) {
 			ActivityHistoryProductState.READY -> {
 				require(activeTime != null && fragments.isNotEmpty())
-				require(coverage == ActivityHistoryCoverage.COMPLETE && causes.isEmpty())
+				require(coverage != ActivityHistoryCoverage.NONE)
+				require(causes.none { it.isIntegrityFailure })
 			}
 			ActivityHistoryProductState.PARTIAL,
 			ActivityHistoryProductState.MATERIALIZING -> require(causes.isNotEmpty())
@@ -126,7 +124,6 @@ data class ActivityActiveTime(
 sealed interface ActivityHistoryFragment {
 	val storedZoneId: String
 	val durationNanos: Long
-	val sortWallTime: EpochMs
 
 	data class Band(
 		override val storedZoneId: String,
@@ -142,20 +139,22 @@ sealed interface ActivityHistoryFragment {
 		override val durationNanos: Long,
 	) : ActivityHistoryFragment {
 		init {
-			require(storedZoneId.isNotBlank() && endTime >= startTime)
+			require(storedZoneId.isNotBlank())
+			require(
+				endTime >= startTime ||
+					wallTimeContinuity == ActivityHistoryWallTimeContinuity.DISCONTINUITY_DETECTED,
+			)
 			require(startUncertaintyMs >= 0L && endUncertaintyMs >= 0L)
 			require(durationNanos > 0L)
 		}
 
-		override val sortWallTime: EpochMs get() = startTime
 	}
 
-	/** A known missing interval; its wall position is not fabricated when no wall anchor exists. */
+	/** A known missing interval; elapsed order is retained by list position without a fake wall time. */
 	data class Gap(
 		override val storedZoneId: String,
 		val reason: ActivityHistoryGapReason,
 		override val durationNanos: Long,
-		override val sortWallTime: EpochMs,
 	) : ActivityHistoryFragment {
 		init {
 			require(storedZoneId.isNotBlank() && durationNanos > 0L)
@@ -203,8 +202,9 @@ enum class ActivityHistoryWallTimeContinuity {
 }
 
 enum class ActivityHistoryGapReason {
-	NO_OBSERVATION,
-	ACTIVITY_UNKNOWN,
-	TRANSITION_STATE_AMBIGUOUS,
-	AUTHORITY_BOUNDARY,
+	NO_QUALIFIED_EVIDENCE,
+	PROVIDER_DISCONTINUITY,
+	AUTHORIZATION_DISCONTINUITY,
+	PROCESS_OR_REBOOT_DISCONTINUITY,
+	SOURCE_REJECTED_EVIDENCE,
 }

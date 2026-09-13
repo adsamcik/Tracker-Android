@@ -2,11 +2,12 @@ package com.adsamcik.tracker.stats.api.repository
 
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 
 class ActivityHistoryRepositoryTest {
 	@Test
-	fun `ready history requires complete nonempty content`() {
+	fun `ready history requires truthful nonempty content`() {
 		shouldThrow<IllegalArgumentException> {
 			entry(
 				state = ActivityHistoryProductState.READY,
@@ -15,6 +16,23 @@ class ActivityHistoryRepositoryTest {
 				fragments = emptyList(),
 			)
 		}
+	}
+
+	@Test
+	fun `settled ready history may truthfully retain partial provider coverage`() {
+		val gap = ActivityHistoryFragment.Gap(
+			storedZoneId = "UTC",
+			reason = ActivityHistoryGapReason.PROVIDER_DISCONTINUITY,
+			durationNanos = 1L,
+		)
+
+		entry(
+			state = ActivityHistoryProductState.READY,
+			coverage = ActivityHistoryCoverage.PARTIAL,
+			activeTime = ActivityActiveTime(0L, 0L, 0L, 1L),
+			fragments = listOf(gap),
+			causes = setOf(ActivityHistoryCause.PROVIDER_GAP),
+		).fragments shouldBe listOf(gap)
 	}
 
 	@Test
