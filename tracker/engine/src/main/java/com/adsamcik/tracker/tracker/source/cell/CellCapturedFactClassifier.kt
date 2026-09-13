@@ -431,11 +431,9 @@ internal object CellCapturedFactClassifier {
 			)
 		}
 		val reusablePrior: CellReusableFact.DirectAggregateOwner? = when {
-			mutation.semanticRevision > 1L ->
-				(correctionBase as? CellReusableFact.DirectAggregateOwner)?.takeIf {
-					authority.canReuseAggregateFrom(it.authority) &&
-					it.productEffect.aggregate == aggregate
-				}
+			// A correction advances this logical fact's cursor, so its superseded revision can no
+			// longer be a current direct owner. Keep every effective correction self-contained.
+			mutation.semanticRevision > 1L -> null
 			else -> (priorFact as? CellReusableFact.DirectAggregateOwner)?.takeIf {
 				it.reference.identity != mutation.identity &&
 					authority.canReuseAggregateFrom(it.authority) &&
@@ -610,7 +608,7 @@ internal object CellCapturedFactClassifier {
 		correctionBase == null -> false
 		correctionBase.reference.identity != mutation.identity -> false
 		correctionBase.reference.semanticRevision != mutation.supersedesSemanticRevision -> false
-		correctionBase.authority != authority -> false
+		!authority.isExactSettlementOf(correctionBase.authority) -> false
 		else -> true
 	}
 

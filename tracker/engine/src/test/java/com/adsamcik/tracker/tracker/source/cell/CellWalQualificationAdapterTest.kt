@@ -345,6 +345,142 @@ class CellWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `same WAL closes formerly open authority bounds after exact settlement`() = runTest {
+		installValidFixture(candidateWriter = true, openAuthority = true)
+		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val open = fact(first.logicalFactId, 1L)
+		assertEquals(Long.MAX_VALUE, open.providerAcceptanceEndNanos)
+		assertEquals(Long.MAX_VALUE, open.authorizationEffectEndNanos)
+		assertEquals(Long.MAX_VALUE, open.sessionRunEffectEndNanos)
+		assertEquals(Long.MAX_VALUE, open.deletionEffectEndNanos)
+
+		settleFixtureAuthority()
+
+		val corrected = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val settled = fact(corrected.logicalFactId, corrected.semanticRevision)
+		assertEquals(CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE, settled.factKind)
+		assertEquals(REGISTRATION_END_NANOS, settled.providerAcceptanceEndNanos)
+		assertEquals(REGISTRATION_END_NANOS, settled.authorizationEffectEndNanos)
+		assertEquals(REGISTRATION_END_NANOS, settled.consentEffectEndNanos)
+		assertEquals(REGISTRATION_END_NANOS, settled.sessionRunEffectEndNanos)
+		assertEquals(SESSION_END_NANOS, settled.deletionEffectEndNanos)
+	}
+
+	@Test
+	fun `finite historical bounds cannot move during correction`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET retired_elapsed_realtime_nanos = ? " +
+				"WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf(REGISTRATION_END_NANOS + 1L, CELL_SOURCE, REGISTRATION_GENERATION),
+		)
+
+		assertEquals(
+			CellCapturedWriteResult.Rejected(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH),
+			writer.write(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `retained callback materializes aggregate when prior owner falls below retention`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val shifted = observations().map { observation ->
+			observation.copy(
+				providerTimestampNanos = requireNotNull(observation.providerTimestampNanos) +
+					SECOND_DELIVERY_SHIFT_NANOS,
+			)
+		}
+		insertAdditionalWal(SECOND_EVENT_ID, shifted, SOURCE_SEQUENCE + 1L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_evidence_state SET retained_from_ms = ? WHERE id = 1",
+			arrayOf(OBSERVED_WALL_MS),
+		)
+
+		val second = assertIs<CellCapturedWriteResult.Applied>(writer.write(SECOND_EVENT_ID))
+		val retained = fact(second.logicalFactId, second.semanticRevision)
+
+		assertEquals(CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE, retained.factKind)
+		assertEquals(null, retained.aggregateOwnerLogicalFactId)
+		assertEquals(2, retained.observationCount)
+	}
+
+	@Test
+	fun `coverage replay rejects a superseded direct aggregate owner`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val shifted = observations().map { observation ->
+			observation.copy(
+				providerTimestampNanos = requireNotNull(observation.providerTimestampNanos) +
+					SECOND_DELIVERY_SHIFT_NANOS,
+			)
+		}
+		insertAdditionalWal(SECOND_EVENT_ID, shifted, SOURCE_SEQUENCE + 1L)
+		assertIs<CellCapturedWriteResult.Applied>(writer.write(SECOND_EVENT_ID))
+		pointCursorAt(syntheticRevision(fact(first.logicalFactId, 1L), 2L))
+
+		assertEquals(
+			CellCapturedWriteResult.Rejected(CellCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH),
+			writer.write(SECOND_EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `discontinuous prior lineage fails closed before reuse`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		pointCursorAt(syntheticRevision(fact(first.logicalFactId, 1L), 3L))
+		val shifted = observations().map { observation ->
+			observation.copy(
+				providerTimestampNanos = requireNotNull(observation.providerTimestampNanos) +
+					SECOND_DELIVERY_SHIFT_NANOS,
+			)
+		}
+		insertAdditionalWal(SECOND_EVENT_ID, shifted, SOURCE_SEQUENCE + 1L)
+
+		assertEquals(
+			CellCapturedWriteResult.Rejected(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH),
+			writer.write(SECOND_EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `lineage beyond source local maximum fails closed`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		var current = fact(first.logicalFactId, 1L)
+		for (revision in 2L..257L) {
+			current = syntheticRevision(current, revision)
+			assertEquals(true, database.cellCapturedFactDao().insertRevision(current) != -1L)
+		}
+		pointCursorAt(current, insert = false)
+
+		assertEquals(
+			CellCapturedWriteResult.Rejected(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH),
+			writer.write(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `manifest source integrity mismatch fails closed before persisted reuse`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_source SET qos_code = qos_code + 1 " +
+				"WHERE logical_tracking_id = ? AND manifest_revision = ?",
+			arrayOf(LOGICAL_ID, MANIFEST_REVISION),
+		)
+
+		assertEquals(
+			CellCapturedWriteResult.AdapterRejected(
+				CellWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE,
+			),
+			writer.write(EVENT_ID),
+		)
+	}
+
+	@Test
 	fun `cursor CAS collision rolls back an appended correction`() = runTest {
 		installValidFixture(candidateWriter = true)
 		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
@@ -552,6 +688,7 @@ class CellWalQualificationAdapterTest {
 		installDestinationOwner: Boolean = candidateWriter,
 		deletionGeneration: Long? = null,
 		observations: List<CellObservationEvidence> = observations(),
+		openAuthority: Boolean = false,
 	) {
 		database.sourceEvidenceStateDao().ensure(evidenceState)
 		if (deletionGeneration != null) {
@@ -581,10 +718,12 @@ class CellWalQualificationAdapterTest {
 		installPolicyAndConsent()
 		val segmentId = database.sessionSegmentDao().insert(segment(segmentRunId))
 		assertEquals(SEGMENT_ID, segmentId)
-		installSessionAndManifest(segmentId, zoneId, candidateWriter)
-		val demand = demand()
+		installSessionAndManifest(segmentId, zoneId, candidateWriter, openAuthority)
+		val demand = demand(openAuthority)
 		database.sourceBrokerDao().insertDemands(listOf(demand))
-		database.sourceBrokerDao().insertRegistration(registration(plan.physicalConfigurationFingerprint()))
+		database.sourceBrokerDao().insertRegistration(
+			registration(plan.physicalConfigurationFingerprint(), openAuthority = openAuthority),
+		)
 		val authorization = SourceBrokerAuthorization.rows(
 			sourceKind = CELL_SOURCE,
 			registrationGeneration = REGISTRATION_GENERATION,
@@ -680,6 +819,91 @@ class CellWalQualificationAdapterTest {
 		)
 		val wal = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
 		assertEquals(2L, database.sourceEventWalDao().insertIgnoringDuplicate(wal))
+	}
+
+	private suspend fun fact(
+		logicalFactId: String,
+		semanticRevision: Long,
+	): CellCapturedFactRevisionEntity = requireNotNull(
+		database.cellCapturedFactDao().revision(
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+			logicalFactId,
+			semanticRevision,
+		),
+	)
+
+	private fun syntheticRevision(
+		base: CellCapturedFactRevisionEntity,
+		semanticRevision: Long,
+	): CellCapturedFactRevisionEntity {
+		val unsigned = base.copy(
+			semanticRevision = semanticRevision,
+			supersedesSemanticRevision = semanticRevision - 1L,
+			mutationId = CellCapturedFactRevisionIntegrity.mutationId(
+				base.logicalFactId,
+				semanticRevision,
+			),
+			effectChecksum = ZERO_CHECKSUM,
+		)
+		return unsigned.copy(
+			effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(unsigned),
+		)
+	}
+
+	private suspend fun pointCursorAt(
+		revision: CellCapturedFactRevisionEntity,
+		insert: Boolean = true,
+	) {
+		if (insert) {
+			assertEquals(true, database.cellCapturedFactDao().insertRevision(revision) != -1L)
+		}
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE cell_captured_fact_cursor SET latest_semantic_revision = ?, " +
+				"latest_mutation_id = ?, latest_effect_checksum = ?, " +
+				"latest_source_admission_ordinal = ?, cursor_revision = cursor_revision + 1 " +
+				"WHERE logical_fact_id = ?",
+			arrayOf(
+				revision.semanticRevision,
+				revision.mutationId,
+				revision.effectChecksum,
+				revision.sourceAdmissionOrdinal,
+				revision.logicalFactId,
+			),
+		)
+	}
+
+	private fun settleFixtureAuthority() {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET status = 'RETIRED', retired_at_ms = ?, " +
+				"retired_elapsed_realtime_nanos = ? WHERE source_kind = ? " +
+				"AND registration_generation = ?",
+			arrayOf(
+				SESSION_END_WALL_MS,
+				REGISTRATION_END_NANOS,
+				CELL_SOURCE,
+				REGISTRATION_GENERATION,
+			),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE logical_tracking_session SET state = 'FINALIZED', lifecycle_revision = 2, " +
+				"cutoff_at_ms = ?, cutoff_elapsed_nanos = ?, completed_at_ms = ?, " +
+				"final_admission_ordinal = 1, current_service_run_id = NULL " +
+				"WHERE logical_tracking_id = ?",
+			arrayOf(SESSION_END_WALL_MS, SESSION_END_NANOS, SESSION_END_WALL_MS, LOGICAL_ID),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_service_run SET state = 'FINALIZED', completed_at_ms = ?, " +
+				"completion_reason = 'USER_STOP', runtime_acknowledgement = 'STOP_ACCEPTED', " +
+				"run_revision = 2, presentation_acknowledgement = 'QUIESCED', " +
+				"presentation_acknowledged_at_ms = ? WHERE service_run_id = ?",
+			arrayOf(SESSION_END_WALL_MS, SESSION_END_WALL_MS, RUN_ID),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET status = 'RETIRED', retire_boot_id = ?, " +
+				"retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
+			arrayOf(BOOT_ID, SESSION_END_NANOS, SESSION_END_WALL_MS, DEMAND_ID),
+		)
 	}
 
 	private suspend fun rewriteLatestAggregateAsHistorical(logicalFactId: String) {
@@ -789,27 +1013,28 @@ class CellWalQualificationAdapterTest {
 		segmentId: Long,
 		zoneId: String,
 		candidateWriter: Boolean,
+		openAuthority: Boolean = false,
 	) {
 		database.sourceSessionDao().insertSession(
 			LogicalTrackingSessionEntity(
 				logicalTrackingId = LOGICAL_ID,
-				state = "FINALIZED",
-				lifecycleRevision = 2L,
+				state = if (openAuthority) "ACTIVE" else "FINALIZED",
+				lifecycleRevision = if (openAuthority) 1L else 2L,
 				desiredPlanRevision = PLAN_REVISION,
 				rolloutRevision = ROLLOUT_REVISION,
 				startOrigin = START_ORIGIN,
 				clockDomainId = BOOT_ID,
 				startedAtMs = RUN_START_WALL_MS,
 				startedElapsedNanos = RUN_START_NANOS,
-				cutoffAtMs = SESSION_END_WALL_MS,
-				cutoffElapsedNanos = SESSION_END_NANOS,
-				completedAtMs = SESSION_END_WALL_MS,
-				finalAdmissionOrdinal = 1L,
+				cutoffAtMs = SESSION_END_WALL_MS.takeUnless { openAuthority },
+				cutoffElapsedNanos = SESSION_END_NANOS.takeUnless { openAuthority },
+				completedAtMs = SESSION_END_WALL_MS.takeUnless { openAuthority },
+				finalAdmissionOrdinal = 1L.takeUnless { openAuthority },
 				failureCode = null,
 				sessionMode = "MANUAL",
 				currentManifestRevision = MANIFEST_REVISION,
 				currentIntentRevision = 1L,
-				currentServiceRunId = null,
+				currentServiceRunId = RUN_ID.takeIf { openAuthority },
 				lifecycleLeaseGeneration = LEASE_GENERATION,
 				lifecycleBootId = BOOT_ID,
 				automationEpoch = null,
@@ -819,20 +1044,20 @@ class CellWalQualificationAdapterTest {
 			SourceServiceRunEntity(
 				serviceRunId = RUN_ID,
 				logicalTrackingId = LOGICAL_ID,
-				state = "FINALIZED",
+				state = if (openAuthority) "ACTIVE" else "FINALIZED",
 				desiredPlanRevision = PLAN_REVISION,
 				rolloutRevision = ROLLOUT_REVISION,
 				foregroundCapabilityFlags = 0L,
 				startedAtMs = RUN_START_WALL_MS,
 				startedElapsedNanos = RUN_START_NANOS,
-				completedAtMs = SESSION_END_WALL_MS,
-				completionReason = "USER_STOP",
+				completedAtMs = SESSION_END_WALL_MS.takeUnless { openAuthority },
+				completionReason = "USER_STOP".takeUnless { openAuthority },
 				bootId = BOOT_ID,
 				leaseGeneration = LEASE_GENERATION,
 				startOrigin = START_ORIGIN,
 				desiredForegroundCapabilityFlags = 0L,
 				appliedForegroundCapabilityFlags = 0L,
-				runtimeAcknowledgement = "STOP_ACCEPTED",
+				runtimeAcknowledgement = if (openAuthority) "START_ACCEPTED" else "STOP_ACCEPTED",
 				runtimeFailureCode = null,
 				runRevision = 2L,
 				startDeliveryToken = "cell-start-token",
@@ -844,8 +1069,12 @@ class CellWalQualificationAdapterTest {
 				startIsUserInitiated = true,
 				startIsAmbient = false,
 				sessionSegmentId = segmentId,
-				presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_QUIESCED,
-				presentationAcknowledgedAtMs = SESSION_END_WALL_MS,
+				presentationAcknowledgement = if (openAuthority) {
+					SourceServiceRunEntity.PRESENTATION_PENDING
+				} else {
+					SourceServiceRunEntity.PRESENTATION_QUIESCED
+				},
+				presentationAcknowledgedAtMs = SESSION_END_WALL_MS.takeUnless { openAuthority },
 			),
 		)
 		val source = SessionManifestSourceEntity(
@@ -902,6 +1131,7 @@ class CellWalQualificationAdapterTest {
 		fingerprint: String = cellPlan().physicalConfigurationFingerprint(),
 		generation: Long = REGISTRATION_GENERATION,
 		sourceInstance: String = SOURCE_INSTANCE,
+		openAuthority: Boolean = false,
 	) = ProviderRegistrationGenerationEntity(
 		sourceKind = CELL_SOURCE,
 		registrationGeneration = generation,
@@ -912,18 +1142,19 @@ class CellWalQualificationAdapterTest {
 		collectedDataEpoch = 0L,
 		providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
 		providerProcessIncarnationId = "process-$generation",
-		status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+		status = if (openAuthority) ProviderRegistrationGenerationEntity.STATUS_ACTIVE else
+			ProviderRegistrationGenerationEntity.STATUS_RETIRED,
 		reservedAtMs = RUN_START_WALL_MS,
 		reservedElapsedRealtimeNanos = RUN_START_NANOS,
 		acceptedAtMs = RUN_START_WALL_MS,
 		acceptedElapsedRealtimeNanos = REGISTRATION_START_NANOS,
-		retiredAtMs = SESSION_END_WALL_MS,
-		retiredElapsedRealtimeNanos = REGISTRATION_END_NANOS,
+		retiredAtMs = SESSION_END_WALL_MS.takeUnless { openAuthority },
+		retiredElapsedRealtimeNanos = REGISTRATION_END_NANOS.takeUnless { openAuthority },
 		failureCode = null,
 		captureCallbackBarrierAuthorizationRevision = AUTHORIZATION_REVISION,
 	)
 
-	private fun demand() = SourceDemandEntity(
+	private fun demand(openAuthority: Boolean = false) = SourceDemandEntity(
 		demandId = DEMAND_ID,
 		consumerId = "session:$RUN_ID",
 		sourceKind = CELL_SOURCE,
@@ -944,10 +1175,10 @@ class CellWalQualificationAdapterTest {
 		requestedBootId = BOOT_ID,
 		requestedElapsedRealtimeNanos = RUN_START_NANOS,
 		requestedAtMs = RUN_START_WALL_MS,
-		status = SourceDemandEntity.STATUS_RETIRED,
-		retireBootId = BOOT_ID,
-		retireElapsedRealtimeNanos = SESSION_END_NANOS,
-		retiredAtMs = SESSION_END_WALL_MS,
+		status = if (openAuthority) SourceDemandEntity.STATUS_ACTIVE else SourceDemandEntity.STATUS_RETIRED,
+		retireBootId = BOOT_ID.takeUnless { openAuthority },
+		retireElapsedRealtimeNanos = SESSION_END_NANOS.takeUnless { openAuthority },
+		retiredAtMs = SESSION_END_WALL_MS.takeUnless { openAuthority },
 	)
 
 	private fun segment(runId: String) = SessionSegment(

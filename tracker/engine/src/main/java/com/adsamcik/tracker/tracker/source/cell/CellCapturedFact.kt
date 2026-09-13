@@ -553,6 +553,35 @@ internal fun CellCaptureAuthority.canReuseAggregateFrom(other: CellCaptureAuthor
 		scopeDeletionGeneration == other.scopeDeletionGeneration && zoneId == other.zoneId &&
 		structuralEpochDay == other.structuralEpochDay
 
+/**
+ * A persisted authority may be corrected only by closing bounds that were genuinely open when the
+ * earlier revision was written. Starts and every non-temporal field remain immutable; a finite
+ * bound can never move or reopen.
+ */
+internal fun CellCaptureAuthority.isExactSettlementOf(previous: CellCaptureAuthority): Boolean =
+	previous.copy(temporalAuthority = temporalAuthority) == this &&
+		temporalAuthority.providerAcceptance.isExactSettlementOf(
+			previous.temporalAuthority.providerAcceptance,
+		) &&
+		temporalAuthority.authorizationEffect.isExactSettlementOf(
+			previous.temporalAuthority.authorizationEffect,
+		) &&
+		temporalAuthority.consentEffect.isExactSettlementOf(
+			previous.temporalAuthority.consentEffect,
+		) &&
+		temporalAuthority.sessionRunEffect.isExactSettlementOf(
+			previous.temporalAuthority.sessionRunEffect,
+		) &&
+		temporalAuthority.deletionEffect.isExactSettlementOf(
+			previous.temporalAuthority.deletionEffect,
+		)
+
+private fun CellProviderTimeInterval.isExactSettlementOf(
+	previous: CellProviderTimeInterval,
+): Boolean = startInclusiveNanos == previous.startInclusiveNanos &&
+	(endExclusiveNanos == previous.endExclusiveNanos ||
+		(previous.endExclusiveNanos == Long.MAX_VALUE && endExclusiveNanos < Long.MAX_VALUE))
+
 internal val CellCapturedFact.productEffect: CellCapturedProductEffect
 	get() = CellCapturedProductEffect(
 		evidenceBinding = evidenceBinding,
