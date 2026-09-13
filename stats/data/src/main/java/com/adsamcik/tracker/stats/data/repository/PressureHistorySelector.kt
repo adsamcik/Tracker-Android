@@ -84,16 +84,17 @@ internal class PressureHistorySelector @Inject constructor(
 	): List<PressureLogicalHistoryEntry> = database.withTransaction {
 		require(limit in 1..PRESSURE_HISTORY_SEGMENT_BATCH_CAP)
 		val accepted = linkedMapOf<PressureHistoryEntryIdentity, PressureLogicalHistoryEntry>()
-		var beforeStartTimeMs: Long? = null
-		var beforeSegmentId: Long? = null
+		var beforeLogicalRecencyStartMs: Long? = null
+		var beforeLogicalRecencySegmentId: Long? = null
 
 		while (accepted.size < limit) {
-			val seeds = database.pressureFactRevisionDao().historySegmentCandidatePage(
+			val candidates = database.pressureFactRevisionDao().pressureLogicalHistoryCandidatePage(
 				limit = PRESSURE_DISCOVERY_CANDIDATE_PAGE_SIZE,
-				beforeStartTimeMs = beforeStartTimeMs,
-				beforeSegmentId = beforeSegmentId,
+				beforeLogicalRecencyStartMs = beforeLogicalRecencyStartMs,
+				beforeLogicalRecencySegmentId = beforeLogicalRecencySegmentId,
 			)
-			if (seeds.isEmpty()) break
+			if (candidates.isEmpty()) break
+			val seeds = candidates.map { it.segment }
 
 			val entriesByMemberId = buildMap {
 				selectLogicalFromSeedsInTransaction(
@@ -107,16 +108,17 @@ internal class PressureHistorySelector @Inject constructor(
 				val entry = entriesByMemberId[seed.id] ?: return@forEach
 				if (
 					entry.identity is PressureHistoryEntryIdentity.Logical &&
-					entry.hasExactPressureOnlyIntent
+					entry.hasExactPressureOnlyIntent &&
+					entry.isOrdinarilyDiscoverable
 				) {
 					accepted.putIfAbsent(entry.identity, entry)
 				}
 			}
 
-			val lastScanned = seeds.last()
-			beforeStartTimeMs = lastScanned.startTimeMs
-			beforeSegmentId = lastScanned.id
-			if (seeds.size < PRESSURE_DISCOVERY_CANDIDATE_PAGE_SIZE) break
+			val lastScanned = candidates.last()
+			beforeLogicalRecencyStartMs = lastScanned.logicalRecencyStartMs
+			beforeLogicalRecencySegmentId = lastScanned.logicalRecencySegmentId
+			if (candidates.size < PRESSURE_DISCOVERY_CANDIDATE_PAGE_SIZE) break
 		}
 
 		accepted.values.sortedWith(compareByDescending<PressureLogicalHistoryEntry> { entry ->

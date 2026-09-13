@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
@@ -24,10 +25,18 @@ import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationStat
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -81,6 +90,96 @@ class PressureHistorySelectorTest {
 		recent.single().state shouldBe PressureHistoryPresentationState.READY
 		recent.single().pressure.windows.size shouldBe 2
 		recent.single().pressure.zoneAuthorities shouldBe linkedSetOf("Europe/Prague", "UTC")
+	}
+
+	@Test
+	fun pressureListOrdersByNewestReplacementBeyondFirstFactCandidatePage() = runTest {
+		val target = insertFixture(factSemanticRevision = 1L, laneCursor = 100L)
+		val newestReplacement = insertReplacementFixture(
+			includeFact = false,
+			unavailablePressure = true,
+		)
+		repeat(33) { index ->
+			insertIndependentPressureFixture(
+				index = index,
+				startTimeMs = 1_100L + index,
+			)
+		}
+
+		val recent = selector.discoverRecentPressureOnlyByPressureFacts(limit = 1).single()
+
+		recent.identity shouldBe PressureHistoryEntryIdentity.Logical(target.logicalId)
+		recent.physicalMembers.map { it.segment.id } shouldBe
+			listOf(target.segmentId, newestReplacement.segmentId)
+		recent.physicalMembers.maxOf { it.segment.startTimeMs } shouldBe REPLACEMENT_RUN_START_MS
+	}
+
+	@Test
+	fun pressureListFillsPastRejectedPageAndRequiresQualifiedRetainedFacts() = runTest {
+		val accepted = insertFixture(factSemanticRevision = 1L, laneCursor = 100L)
+		repeat(33) { index ->
+			insertIndependentPressureFixture(
+				index = index,
+				startTimeMs = 3_000L + index,
+				factCollectedDataEpoch = 1L,
+			)
+		}
+
+		val recent = selector.discoverRecentPressureOnlyByPressureFacts(limit = 1)
+
+		recent.map(PressureLogicalHistoryEntry::identity) shouldBe
+			listOf(PressureHistoryEntryIdentity.Logical(accepted.logicalId))
+		recent.single().isOrdinarilyDiscoverable shouldBe true
+	}
+
+	@Test
+	fun partiallyFencedLogicalGroupSurvivesAndFullyFencedGroupIsOmitted() = runTest {
+		val first = insertFixture(factSemanticRevision = 1L, laneCursor = 2L)
+		val replacement = insertReplacementFixture()
+		database.sourceDeletionFenceDao().upsert(pressureFence(first.logicalId, first.runId))
+
+		val partiallyRetained = selector.discoverRecentPressureOnlyByPressureFacts(limit = 10)
+
+		partiallyRetained.size shouldBe 1
+		partiallyRetained.single().physicalMembers.flatMap { it.windows }.map {
+			it.serviceRunId
+		} shouldBe listOf(replacement.runId)
+		database.sourceDeletionFenceDao().upsert(pressureFence(replacement.logicalId, replacement.runId))
+
+		selector.discoverRecentPressureOnlyByPressureFacts(limit = 10) shouldBe emptyList()
+	}
+
+	@Test
+	fun pressureFactInvalidationReemitsRecentPressureList() = runBlocking {
+		insertFixture(factSemanticRevision = null, laneCursor = 1L)
+		val repository = DefaultTrackingHistoryRepository(
+			database = database,
+			stepsSelector = mockk(relaxed = true),
+			logicalHistoryReader = mockk(relaxed = true),
+			pressureSelector = selector,
+			ioDispatcher = Dispatchers.IO,
+		)
+		val initialEmission = CompletableDeferred<Unit>()
+		val collection = async {
+			repository.observeRecentPressureOnlyEntries(limit = 1)
+				.onEach { initialEmission.complete(Unit) }
+				.take(2)
+				.toList()
+		}
+
+		withTimeout(5_000L) { initialEmission.await() }
+		database.pressureFactRevisionDao().insert(
+			pressureFact(
+				binding = pressureBinding(),
+				semanticRevision = 1L,
+				admissionOrdinal = 1L,
+			),
+		)
+
+		val emissions = withTimeout(5_000L) { collection.await() }
+		emissions.first() shouldBe emptyList()
+		emissions.last().size shouldBe 1
+		emissions.last().single().pressure.hasRetainedObservation shouldBe true
 	}
 
 	@Test
@@ -700,7 +799,10 @@ class PressureHistorySelectorTest {
 	}
 
 	@Suppress("LongMethod")
-	private suspend fun insertReplacementFixture(): PressureFixture {
+	private suspend fun insertReplacementFixture(
+		includeFact: Boolean = true,
+		unavailablePressure: Boolean = false,
+	): PressureFixture {
 		val segment = segment(
 			id = REPLACEMENT_SEGMENT_ID,
 			runId = REPLACEMENT_RUN_ID,
@@ -747,33 +849,133 @@ class PressureHistorySelectorTest {
 				logicalTrackingId = LOGICAL_ID,
 				serviceRunId = REPLACEMENT_RUN_ID,
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
-				sourceInstanceId = "pressure-provider-2",
-				registrationGeneration = 2L,
-				lastAdmissionOrdinal = 2L,
-				lastSourceSequence = 2L,
+				sourceInstanceId = if (unavailablePressure) {
+					"unavailable-pressure"
+				} else {
+					"pressure-provider-2"
+				},
+				registrationGeneration = if (unavailablePressure) 0L else 2L,
+				lastAdmissionOrdinal = if (unavailablePressure) null else 2L,
+				lastSourceSequence = if (unavailablePressure) null else 2L,
 				appDrainComplete = true,
-				providerCoverage = COMPLETE_PROVIDER_COVERAGE,
+				providerCoverage = if (unavailablePressure) {
+					"PROVIDER_COMPLETENESS_UNOBSERVABLE"
+				} else {
+					COMPLETE_PROVIDER_COVERAGE
+				},
 				stopStatus = "COMPLETE",
 				unresolvedSequenceStart = null,
 				unresolvedSequenceEnd = null,
 				updatedAtMs = REPLACEMENT_RUN_END_MS,
 			),
 		)
+		if (includeFact) {
+			database.pressureFactRevisionDao().insert(
+				pressureFact(
+					binding = binding,
+					semanticRevision = 1L,
+					admissionOrdinal = 2L,
+					sourceEventId = "pressure-event-2",
+					serviceRunId = REPLACEMENT_RUN_ID,
+					manifestRevision = 2L,
+					intervalStartTimeMs = REPLACEMENT_PRESSURE_START_MS,
+					intervalEndTimeMs = REPLACEMENT_PRESSURE_END_MS,
+					windowStartElapsedRealtimeNanos = REPLACEMENT_PRESSURE_START_ELAPSED_NANOS,
+					windowEndElapsedRealtimeNanos = REPLACEMENT_PRESSURE_END_ELAPSED_NANOS,
+				),
+			)
+		}
+		return PressureFixture(segment.id, LOGICAL_ID, REPLACEMENT_RUN_ID)
+	}
+
+	@Suppress("LongMethod")
+	private suspend fun insertIndependentPressureFixture(
+		index: Int,
+		startTimeMs: Long,
+		factCollectedDataEpoch: Long = 0L,
+	): PressureFixture {
+		val segmentId = 2_000L + index
+		val logicalTrackingId = "logical-pressure-independent-$index"
+		val serviceRunId = "run-pressure-independent-$index"
+		val endTimeMs = startTimeMs + 1_000L
+		val startElapsedNanos = Math.multiplyExact(startTimeMs, 1_000_000L)
+		val segment = segment(
+			id = segmentId,
+			runId = serviceRunId,
+			logicalTrackingId = logicalTrackingId,
+			startTimeMs = startTimeMs,
+			endTimeMs = endTimeMs,
+		)
+		database.sessionSegmentDao().insert(segment)
+		database.sourceSessionDao().insertServiceRun(
+			serviceRun(
+				runId = serviceRunId,
+				logicalTrackingId = logicalTrackingId,
+				segmentId = segmentId,
+				startTimeMs = startTimeMs,
+				endTimeMs = endTimeMs,
+				startElapsedNanos = startElapsedNanos,
+				manifestRevision = 1L,
+			),
+		)
+		val binding = pressureBinding(logicalTrackingId = logicalTrackingId)
+		val unsignedManifest = SessionManifestVersionEntity(
+			logicalTrackingId = logicalTrackingId,
+			manifestRevision = 1L,
+			serviceRunId = serviceRunId,
+			sessionMode = MANUAL_SESSION_MODE,
+			sourcePolicyRevision = 1L,
+			acquisitionPlanRevision = 1L,
+			rolloutRevision = ROLLOUT_REVISION,
+			startOrigin = MANUAL_START_ORIGIN,
+			effectiveBootId = BOOT_ID,
+			effectiveElapsedRealtimeNanos = startElapsedNanos,
+			effectiveWallTimeMs = startTimeMs,
+			zoneId = "UTC",
+			automationEpoch = null,
+			changeReason = "TEST_INDEPENDENT",
+			manifestChecksum = "",
+		)
+		database.sourceSessionDao().insertManifest(
+			unsignedManifest.copy(
+				manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, listOf(binding)),
+			),
+		)
+		database.sourceSessionDao().insertManifestSources(listOf(binding))
+		val admissionOrdinal = 10L + index
+		database.sourceSessionDao().saveCompleteness(
+			SourceSessionCompletenessEntity(
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				sourceInstanceId = "pressure-provider-independent-$index",
+				registrationGeneration = 1L,
+				lastAdmissionOrdinal = admissionOrdinal,
+				lastSourceSequence = admissionOrdinal,
+				appDrainComplete = true,
+				providerCoverage = COMPLETE_PROVIDER_COVERAGE,
+				stopStatus = "COMPLETE",
+				unresolvedSequenceStart = null,
+				unresolvedSequenceEnd = null,
+				updatedAtMs = endTimeMs,
+			),
+		)
 		database.pressureFactRevisionDao().insert(
 			pressureFact(
 				binding = binding,
 				semanticRevision = 1L,
-				admissionOrdinal = 2L,
-				sourceEventId = "pressure-event-2",
-				serviceRunId = REPLACEMENT_RUN_ID,
-				manifestRevision = 2L,
-				intervalStartTimeMs = REPLACEMENT_PRESSURE_START_MS,
-				intervalEndTimeMs = REPLACEMENT_PRESSURE_END_MS,
-				windowStartElapsedRealtimeNanos = REPLACEMENT_PRESSURE_START_ELAPSED_NANOS,
-				windowEndElapsedRealtimeNanos = REPLACEMENT_PRESSURE_END_ELAPSED_NANOS,
+				admissionOrdinal = admissionOrdinal,
+				sourceEventId = "pressure-event-independent-$index",
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+				collectedDataEpoch = factCollectedDataEpoch,
+				intervalStartTimeMs = startTimeMs + 100L,
+				intervalEndTimeMs = startTimeMs + 250L,
+				windowStartElapsedRealtimeNanos = startElapsedNanos + 100_000_000L,
+				windowEndElapsedRealtimeNanos = startElapsedNanos + 250_000_000L,
 			),
 		)
-		return PressureFixture(segment.id, LOGICAL_ID, REPLACEMENT_RUN_ID)
+		return PressureFixture(segmentId, logicalTrackingId, serviceRunId)
 	}
 
 	private suspend fun insertBareLogicalMember(index: Int): Long {
@@ -805,6 +1007,7 @@ class PressureHistorySelectorTest {
 	private fun segment(
 		id: Long = SEGMENT_ID,
 		runId: String = RUN_ID,
+		logicalTrackingId: String = LOGICAL_ID,
 		startTimeMs: Long = RUN_START_MS,
 		endTimeMs: Long = RUN_END_MS,
 	) = SessionSegment(
@@ -819,12 +1022,13 @@ class PressureHistorySelectorTest {
 		source = SegmentSource.USER_CREATED,
 		inferenceVersion = "test",
 		createdAt = endTimeMs,
-		logicalTrackingId = LOGICAL_ID,
+		logicalTrackingId = logicalTrackingId,
 		serviceRunId = runId,
 	)
 
 	private fun serviceRun(
 		runId: String = RUN_ID,
+		logicalTrackingId: String = LOGICAL_ID,
 		segmentId: Long = SEGMENT_ID,
 		startTimeMs: Long = RUN_START_MS,
 		endTimeMs: Long = RUN_END_MS,
@@ -832,7 +1036,7 @@ class PressureHistorySelectorTest {
 		manifestRevision: Long = 1L,
 	) = SourceServiceRunEntity(
 		serviceRunId = runId,
-		logicalTrackingId = LOGICAL_ID,
+		logicalTrackingId = logicalTrackingId,
 		state = "FINALIZED",
 		desiredPlanRevision = 1L,
 		rolloutRevision = ROLLOUT_REVISION,
@@ -858,8 +1062,9 @@ class PressureHistorySelectorTest {
 	private fun pressureBinding(
 		manifestRevision: Long = 1L,
 		consentEpoch: Long = 1L,
+		logicalTrackingId: String = LOGICAL_ID,
 	) = SessionManifestSourceEntity(
-		logicalTrackingId = LOGICAL_ID,
+		logicalTrackingId = logicalTrackingId,
 		manifestRevision = manifestRevision,
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 		purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
@@ -939,6 +1144,7 @@ class PressureHistorySelectorTest {
 		semanticRevision: Long,
 		admissionOrdinal: Long,
 		sourceEventId: String = SOURCE_EVENT_ID,
+		logicalTrackingId: String = LOGICAL_ID,
 		serviceRunId: String = RUN_ID,
 		manifestRevision: Long = 1L,
 		sourcePolicyRevision: Long = 1L,
@@ -947,6 +1153,7 @@ class PressureHistorySelectorTest {
 		intervalEndTimeMs: Long = PRESSURE_END_MS,
 		windowStartElapsedRealtimeNanos: Long = PRESSURE_START_ELAPSED_NANOS,
 		windowEndElapsedRealtimeNanos: Long = PRESSURE_END_ELAPSED_NANOS,
+		collectedDataEpoch: Long = 0L,
 	): PressureFactRevisionEntity {
 		val logicalFactId =
 			"${SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID}:$sourceEventId"
@@ -987,13 +1194,13 @@ class PressureHistorySelectorTest {
 			qualification = PressureFactRevisionEntity.QUALIFICATION_COMPLETE,
 			sourceQualityFlags = 0L,
 			sourceQualityConfidence = 1f,
-			logicalTrackingId = LOGICAL_ID,
+			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,
 			purpose = PressureFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 			manifestRevision = manifestRevision,
 			sourcePolicyRevision = sourcePolicyRevision,
 			captureConsentEpoch = captureConsentEpoch,
-			collectedDataEpoch = 0L,
+			collectedDataEpoch = collectedDataEpoch,
 			effectChecksum = "pending",
 			appliedAtMs = intervalEndTimeMs,
 		)
@@ -1001,6 +1208,19 @@ class PressureHistorySelectorTest {
 			effectChecksum = PressureFactRevisionIntegrity.effectChecksum(unsigned, binding),
 		)
 	}
+
+	private fun pressureFence(
+		logicalTrackingId: String,
+		serviceRunId: String,
+	) = SourceDeletionFenceEntity.createLogicalServiceRun(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+		purpose = PressureFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+		fenceGeneration = 1L,
+		collectedDataEpoch = 0L,
+		deletedAtMs = 10_000L,
+	)
 
 	private fun executableLaneAuthority() = SourceProductLaneExecutionAuthority { lane ->
 		lane.sourceKind == SourceDestinationOwnerEntity.SOURCE_PRESSURE &&

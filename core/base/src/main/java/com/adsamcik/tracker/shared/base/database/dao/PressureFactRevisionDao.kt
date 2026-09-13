@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
 import androidx.room.Dao
+import androidx.room.ColumnInfo
+import androidx.room.Embedded
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -114,6 +116,101 @@ interface PressureFactRevisionDao {
 		beforeStartTimeMs: Long?,
 		beforeSegmentId: Long?,
 	): List<SessionSegment>
+
+	/**
+	 * Discovers one fact-backed seed per logical entry in exact logical-entry recency order.
+	 *
+	 * Recency is owned by the newest reciprocally bound physical member, even when that replacement
+	 * member has no Pressure fact. Choosing one seed per logical id makes a keyset page a safe upper
+	 * bound: an older unseen fact cannot later expand into a newer logical entry.
+	 */
+	@Query(
+		"""
+		WITH fact_backed_seed AS (
+		  SELECT segment.*
+		  FROM session_segment AS segment
+		  INNER JOIN source_service_run AS run
+		    ON run.session_segment_id = segment.id
+		   AND run.service_run_id = segment.service_run_id
+		   AND run.logical_tracking_id = segment.logical_tracking_id
+		  WHERE EXISTS (
+		    SELECT 1
+		    FROM pressure_fact_revision AS fact
+		    WHERE fact.service_run_id = run.service_run_id
+		      AND fact.logical_tracking_id = run.logical_tracking_id
+		      AND fact.purpose = '${PressureFactRevisionEntity.PURPOSE_SESSION_CAPTURE}'
+		  )
+		    AND NOT EXISTS (
+		      SELECT 1
+		      FROM session_segment AS newer_segment
+		      INNER JOIN source_service_run AS newer_run
+		        ON newer_run.session_segment_id = newer_segment.id
+		       AND newer_run.service_run_id = newer_segment.service_run_id
+		       AND newer_run.logical_tracking_id = newer_segment.logical_tracking_id
+		      WHERE newer_run.logical_tracking_id = run.logical_tracking_id
+		        AND EXISTS (
+		          SELECT 1
+		          FROM pressure_fact_revision AS newer_fact
+		          WHERE newer_fact.service_run_id = newer_run.service_run_id
+		            AND newer_fact.logical_tracking_id = newer_run.logical_tracking_id
+		            AND newer_fact.purpose = '${PressureFactRevisionEntity.PURPOSE_SESSION_CAPTURE}'
+		        )
+		        AND (
+		          newer_segment.start_time_ms > segment.start_time_ms
+		          OR (
+		            newer_segment.start_time_ms = segment.start_time_ms
+		            AND newer_segment.id > segment.id
+		          )
+		        )
+		    )
+		), logical_ranked_seed AS (
+		  SELECT seed.*,
+		    (
+		      SELECT member_segment.start_time_ms
+		      FROM source_service_run AS member_run
+		      INNER JOIN session_segment AS member_segment
+		        ON member_segment.id = member_run.session_segment_id
+		       AND member_segment.service_run_id = member_run.service_run_id
+		       AND member_segment.logical_tracking_id = member_run.logical_tracking_id
+		      WHERE member_run.logical_tracking_id = seed.logical_tracking_id
+		      ORDER BY member_segment.start_time_ms DESC, member_segment.id DESC
+		      LIMIT 1
+		    ) AS logical_recency_start_ms,
+		    (
+		      SELECT member_segment.id
+		      FROM source_service_run AS member_run
+		      INNER JOIN session_segment AS member_segment
+		        ON member_segment.id = member_run.session_segment_id
+		       AND member_segment.service_run_id = member_run.service_run_id
+		       AND member_segment.logical_tracking_id = member_run.logical_tracking_id
+		      WHERE member_run.logical_tracking_id = seed.logical_tracking_id
+		      ORDER BY member_segment.start_time_ms DESC, member_segment.id DESC
+		      LIMIT 1
+		    ) AS logical_recency_segment_id
+		  FROM fact_backed_seed AS seed
+		)
+		SELECT *
+		FROM logical_ranked_seed
+		WHERE (
+		  :beforeLogicalRecencyStartMs IS NULL
+		  OR logical_recency_start_ms < :beforeLogicalRecencyStartMs
+		  OR (
+		    logical_recency_start_ms = :beforeLogicalRecencyStartMs
+		    AND logical_recency_segment_id < COALESCE(
+		      :beforeLogicalRecencySegmentId,
+		      9223372036854775807
+		    )
+		  )
+		)
+		ORDER BY logical_recency_start_ms DESC, logical_recency_segment_id DESC
+		LIMIT :limit
+		""",
+	)
+	suspend fun pressureLogicalHistoryCandidatePage(
+		limit: Int,
+		beforeLogicalRecencyStartMs: Long?,
+		beforeLogicalRecencySegmentId: Long?,
+	): List<PressureLogicalHistoryCandidate>
 
 	/**
 	 * Reads a bounded correction-expanded candidate page for exact physical/logical scopes.
@@ -294,3 +391,13 @@ interface PressureFactRevisionDao {
 	@Query("DELETE FROM pressure_fact_revision")
 	fun deleteAll()
 }
+
+/** Fact-bearing seed plus the recency of its complete reciprocal logical membership. */
+data class PressureLogicalHistoryCandidate(
+	@Embedded
+	val segment: SessionSegment,
+	@ColumnInfo(name = "logical_recency_start_ms")
+	val logicalRecencyStartMs: Long,
+	@ColumnInfo(name = "logical_recency_segment_id")
+	val logicalRecencySegmentId: Long,
+)
