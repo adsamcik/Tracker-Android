@@ -1,10 +1,12 @@
 package com.adsamcik.tracker.tracker.source.wifi
 
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
+import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -45,6 +47,7 @@ internal data class WifiWalObservationEvidence(
 	val sourceEventId: SourceEventId,
 	val sourceAdmissionOrdinal: Long,
 	val walIntegrityIdentity: String,
+	val providerDedupKey: String?,
 	val sourceDeliveryIdentity: SourceDeliveryIdentity?,
 	val deliveryUnitIndex: Int,
 	val deliveryUnitCount: Int,
@@ -58,56 +61,65 @@ internal data class WifiWalObservationEvidence(
 	val authorizationRevision: Long,
 	val authorizationFingerprint: String,
 	val purposeEligibilityMask: Long,
+	val sourceSequence: Long,
 	val sourcePolicyRevision: Long,
 	val captureConsentEpoch: Long,
 	val sessionManifestRevision: Long,
 	val lifecycleLeaseGeneration: Long,
 	val capturedCollectedDataEpoch: Long,
+	val activityAutomationEpoch: Long?,
+	val planAttribution: PlanAttribution,
 	val clock: WifiDurableClockEvidence,
+	val acquiredAtMs: Long,
+	val qualityFlags: Long,
+	val qualityConfidence: Float?,
 	val payloadVersion: Int,
 	val payloadBytes: List<Byte>,
 	val payloadChecksum: String,
-)
-
-/**
- * Provider-bound proof required before an empty callback can become a captured zero.
- *
- * The proof can only be created around one complete WAL evidence value, so it cannot be retargeted
- * to another delivery, authority, payload, or receipt clock after replay.
- */
-internal data class WifiConfirmedEmptyProviderProof private constructor(
-	val sourceEventId: SourceEventId,
-	val sourceAdmissionOrdinal: Long,
-	val walIntegrityIdentity: String,
-	val payloadChecksum: String,
-	val sourceDeliveryIdentity: SourceDeliveryIdentity,
-	val clockDomainId: String,
-	val providerObservationElapsedRealtimeNanos: Long,
-	val receivedElapsedRealtimeNanos: Long,
-	val observedWallTimeMs: Long,
-	val wallTimeUncertaintyMs: Long,
 ) {
-	companion object {
-		/** Trust boundary for an adapter holding a real provider-confirmed empty callback. */
-		fun fromProviderCallback(
-			evidence: WifiWalObservationEvidence,
-			providerObservationElapsedRealtimeNanos: Long,
-		): WifiConfirmedEmptyProviderProof? {
-			val deliveryIdentity = evidence.sourceDeliveryIdentity ?: return null
-			return WifiConfirmedEmptyProviderProof(
-				sourceEventId = evidence.sourceEventId,
-				sourceAdmissionOrdinal = evidence.sourceAdmissionOrdinal,
-				walIntegrityIdentity = evidence.walIntegrityIdentity,
-				payloadChecksum = evidence.payloadChecksum,
-				sourceDeliveryIdentity = deliveryIdentity,
-				clockDomainId = evidence.clock.clockDomainId,
-				providerObservationElapsedRealtimeNanos = providerObservationElapsedRealtimeNanos,
-				receivedElapsedRealtimeNanos = evidence.clock.receivedElapsedRealtimeNanos,
-				observedWallTimeMs = evidence.clock.observedWallTimeMs,
-				wallTimeUncertaintyMs = evidence.clock.wallTimeUncertaintyMs,
-			)
-		}
-	}
+	/** Recomputes the production `source_event_wal` identity over every integrity-bound field. */
+	fun calculatedWalIntegrityIdentity(): String = asWalEntity().calculatedIntegrityIdentity()
+
+	private fun asWalEntity(): SourceEventWalEntity = SourceEventWalEntity(
+		admissionOrdinal = sourceAdmissionOrdinal,
+		eventId = sourceEventId.value,
+		providerDedupKey = providerDedupKey,
+		deliveryIdentity = sourceDeliveryIdentity?.value,
+		deliveryUnitIndex = deliveryUnitIndex,
+		deliveryUnitCount = deliveryUnitCount,
+		logicalTrackingId = logicalTrackingId.value,
+		serviceRunId = serviceRunId.value,
+		sourceKind = SourceKind.WIFI.stableCode,
+		sourceInstanceId = sourceInstanceId.value,
+		registrationGeneration = registrationGeneration,
+		physicalConfigurationFingerprint = physicalConfigurationFingerprint,
+		authorizationRevision = authorizationRevision,
+		authorizationPurposeEligibilityMask = purposeEligibilityMask,
+		authorizationFingerprint = authorizationFingerprint,
+		sourceSequence = sourceSequence,
+		configRevision = configurationRevision,
+		planAttribution = planAttribution.ordinal,
+		clockDomainId = clock.clockDomainId,
+		observedElapsedNanos = clock.observedElapsedRealtimeNanos,
+		observedIntervalStartNanos = clock.observedIntervalStartElapsedRealtimeNanos,
+		receivedElapsedNanos = clock.receivedElapsedRealtimeNanos,
+		wallTimeMs = clock.observedWallTimeMs,
+		wallTimeUncertaintyMs = clock.wallTimeUncertaintyMs,
+		capturedCollectedDataEpoch = capturedCollectedDataEpoch,
+		activityAutomationEpoch = activityAutomationEpoch,
+		sourcePolicyRevision = sourcePolicyRevision,
+		captureConsentEpoch = captureConsentEpoch,
+		sessionManifestRevision = sessionManifestRevision,
+		lifecycleLeaseGeneration = lifecycleLeaseGeneration,
+		acquiredAtMs = acquiredAtMs,
+		qualityFlags = qualityFlags,
+		qualityConfidence = qualityConfidence,
+		payloadVersion = payloadVersion,
+		payload = payloadBytes.toByteArray(),
+		payloadChecksum = payloadChecksum,
+		integrityIdentity = walIntegrityIdentity,
+		createdAtMs = acquiredAtMs,
+	)
 }
 
 /** Source-boundary input. Updated results must be recovered from one immutable WAL unit. */
@@ -115,7 +127,6 @@ internal data class WifiObservationInput(
 	val origin: WifiObservationOrigin,
 	val outcome: WifiProviderOutcome,
 	val walEvidence: WifiWalObservationEvidence?,
-	val confirmedEmptyProof: WifiConfirmedEmptyProviderProof?,
 )
 
 internal enum class WifiFactRejection {
@@ -132,7 +143,6 @@ internal enum class WifiFactRejection {
 	PAYLOAD_DECODE_FAILED,
 	ACQUISITION_PLAN_UNVERIFIABLE,
 	APPLIED_REGISTRATION_MISMATCH,
-	CONFIRMED_EMPTY_PROOF_MISMATCH,
 	TOO_MANY_ACCESS_POINTS,
 	MALFORMED_ACCESS_POINT,
 }
@@ -140,7 +150,6 @@ internal enum class WifiFactRejection {
 internal sealed interface WifiCapturedFactClassification {
 	data class FreshChanged(val fact: WifiCapturedFact.Aggregate) : WifiCapturedFactClassification
 	data class FreshUnchanged(val fact: WifiCapturedFact.CoverageOnly) : WifiCapturedFactClassification
-	data class FreshConfirmedEmpty(val fact: WifiCapturedFact.CoverageOnly) : WifiCapturedFactClassification
 	data object Absent : WifiCapturedFactClassification
 	data object Stale : WifiCapturedFactClassification
 	data object Failed : WifiCapturedFactClassification
@@ -178,6 +187,9 @@ internal object WifiCapturedFactClassifier {
 			return WifiCapturedFactClassification.Absent
 		}
 		val wal = input.walEvidence ?: return rejected(WifiFactRejection.WAL_PROVENANCE_UNVERIFIABLE)
+		if (!wal.hasValidWalProvenance()) {
+			return rejected(WifiFactRejection.WAL_PROVENANCE_UNVERIFIABLE)
+		}
 		if (wal.capturedAuthority != expectedAuthority || !wal.matchesCapturedAuthority(expectedAuthority)) {
 			return rejected(WifiFactRejection.CAPTURE_AUTHORITY_MISMATCH)
 		}
@@ -209,6 +221,11 @@ internal object WifiCapturedFactClassifier {
 		) {
 			return rejected(WifiFactRejection.PAYLOAD_DECODE_FAILED)
 		}
+		if (payload.accessPoints.isEmpty()) {
+			// Android's current Wi-Fi callback payload has no provider-origin timestamp/proof for an
+			// empty result. Receipt or WAL time cannot manufacture a captured zero.
+			return WifiCapturedFactClassification.ClockUnverifiable
+		}
 		val deliveryIdentity = wal.sourceDeliveryIdentity
 			?: return rejected(WifiFactRejection.DELIVERY_IDENTITY_UNVERIFIABLE)
 		val evidenceBinding = wal.evidenceBinding(deliveryIdentity, expectedAuthority)
@@ -231,35 +248,20 @@ internal object WifiCapturedFactClassifier {
 			return rejected(WifiFactRejection.INVALID_CORRECTION_BASE)
 		}
 
-		return if (payload.accessPoints.isEmpty()) {
-			classifyEmpty(
-				input = input,
-				authority = expectedAuthority,
-				deletionAuthority = currentDeletionAuthority,
-				wal = wal,
-				mutation = mutation,
-				evidenceBinding = evidenceBinding,
-				priorFact = priorFact,
-				correctionBase = correctionBase,
-			)
-		} else {
-			classifyNonEmpty(
-				input = input,
-				authority = expectedAuthority,
-				deletionAuthority = currentDeletionAuthority,
-				wal = wal,
-				payload = payload,
-				maximumObservationAgeNanos = qualifiedPlan.maximumObservationAgeNanos,
-				mutation = mutation,
-				evidenceBinding = evidenceBinding,
-				priorFact = priorFact,
-				correctionBase = correctionBase,
-			)
-		}
+		return classifyNonEmpty(
+			authority = expectedAuthority,
+			deletionAuthority = currentDeletionAuthority,
+			wal = wal,
+			payload = payload,
+			maximumObservationAgeNanos = qualifiedPlan.maximumObservationAgeNanos,
+			mutation = mutation,
+			evidenceBinding = evidenceBinding,
+			priorFact = priorFact,
+			correctionBase = correctionBase,
+		)
 	}
 
 	private fun classifyNonEmpty(
-		input: WifiObservationInput,
 		authority: WifiCaptureAuthority,
 		deletionAuthority: WifiDeletionAuthority,
 		wal: WifiWalObservationEvidence,
@@ -270,9 +272,6 @@ internal object WifiCapturedFactClassifier {
 		priorFact: WifiReusableFact?,
 		correctionBase: WifiReusableFact?,
 	): WifiCapturedFactClassification {
-		if (input.confirmedEmptyProof != null) {
-			return rejected(WifiFactRejection.CONFIRMED_EMPTY_PROOF_MISMATCH)
-		}
 		val itemClassifications = payload.accessPoints.map { accessPoint ->
 			accessPoint to if (authority.acquisitionConfiguration.accepts(
 					accessPoint.frequencyMhz,
@@ -308,11 +307,14 @@ internal object WifiCapturedFactClassifier {
 		val providerTimes = accepted.map { requireNotNull(it.providerTimestampNanos) }
 		val providerStart = requireNotNull(providerTimes.minOrNull())
 		val providerEnd = requireNotNull(providerTimes.maxOrNull())
-		val wall = deriveObservedWall(wal.clock, providerEnd)
-			?: return WifiCapturedFactClassification.ClockUnverifiable
-		if (wall.crossesRetentionFloor(deletionAuthority)) {
+		val acceptedWalls = providerTimes.map { providerTime ->
+			deriveObservedWall(wal.clock, providerTime)
+				?: return WifiCapturedFactClassification.ClockUnverifiable
+		}
+		if (acceptedWalls.any { wall -> wall.crossesRetentionFloor(deletionAuthority) }) {
 			return WifiCapturedFactClassification.Stale
 		}
+		val wall = acceptedWalls[providerTimes.indexOf(providerEnd)]
 		val coverage = WifiCoverageEvidence(
 			providerIntervalStartElapsedRealtimeNanos = providerStart,
 			providerIntervalEndElapsedRealtimeNanos = providerEnd,
@@ -380,79 +382,6 @@ internal object WifiCapturedFactClassifier {
 		}
 	}
 
-	private fun classifyEmpty(
-		input: WifiObservationInput,
-		authority: WifiCaptureAuthority,
-		deletionAuthority: WifiDeletionAuthority,
-		wal: WifiWalObservationEvidence,
-		mutation: WifiCapturedFactMutation,
-		evidenceBinding: WifiCapturedEvidenceBinding,
-		priorFact: WifiReusableFact?,
-		correctionBase: WifiReusableFact?,
-	): WifiCapturedFactClassification {
-		val proof = input.confirmedEmptyProof ?: return WifiCapturedFactClassification.ClockUnverifiable
-		if (!proof.matches(wal)) {
-			return rejected(WifiFactRejection.CONFIRMED_EMPTY_PROOF_MISMATCH)
-		}
-		val providerTime = proof.providerObservationElapsedRealtimeNanos
-		val planAge = authority.acquisitionConfiguration.maximumObservationAgeNanos
-		return when (authority.classifyProviderTime(
-			providerTime,
-			wal.clock.receivedElapsedRealtimeNanos,
-			planAge,
-		)) {
-			ProviderTimeClassification.STALE -> WifiCapturedFactClassification.Stale
-			ProviderTimeClassification.CLOCK_UNVERIFIABLE ->
-				WifiCapturedFactClassification.ClockUnverifiable
-			ProviderTimeClassification.MALFORMED -> error("Provider time is not child data")
-			ProviderTimeClassification.FRESH -> {
-				val wall = deriveObservedWall(wal.clock, providerTime)
-					?: return WifiCapturedFactClassification.ClockUnverifiable
-				if (wall.crossesRetentionFloor(deletionAuthority)) {
-					return WifiCapturedFactClassification.Stale
-				}
-				val coverage = WifiCoverageEvidence(
-					providerIntervalStartElapsedRealtimeNanos = providerTime,
-					providerIntervalEndElapsedRealtimeNanos = providerTime,
-					receivedElapsedRealtimeNanos = wal.clock.receivedElapsedRealtimeNanos,
-					submittedResultCount = 0,
-					acceptedResultCount = 0,
-					staleResultCount = 0,
-					clockUnverifiableResultCount = 0,
-					malformedResultCount = 0,
-					comteness = WifiCoverageCompleteness.COMPLETE,
-				)
-				val productEffect = WifiCapturedProductEffect(
-					evidenceBinding = evidenceBinding,
-					observedWallTimeMs = wall.observedWallTimeMs,
-					wallTimeUncertaintyMs = wall.wallTimeUncertaintyMs,
-					availability = WifiAvailability.CONFIRMED_EMPTY,
-					coverage = coverage,
-					aggregate = null,
-				)
-				replayOrNoOp(
-					mutation,
-					authority,
-					productEffect,
-					priorFact,
-					correctionBase,
-				)?.let { return it }
-				WifiCapturedFactClassification.FreshConfirmedEmpty(
-					WifiCapturedFact.CoverageOnly(
-						mutation = mutation,
-						authority = authority,
-						evidenceBinding = evidenceBinding,
-						observedWallTimeMs = wall.observedWallTimeMs,
-						wallTimeUncertaintyMs = wall.wallTimeUncertaintyMs,
-						availability = WifiAvailability.CONFIRMED_EMPTY,
-						coverage = coverage,
-						reusesAggregate = null,
-					),
-				)
-			}
-		}
-	}
-
 	private fun replayOrNoOp(
 		mutation: WifiCapturedFactMutation,
 		authority: WifiCaptureAuthority,
@@ -482,14 +411,14 @@ internal object WifiCapturedFactClassifier {
 	}
 
 	private fun decodeWalPayload(wal: WifiWalObservationEvidence): WifiResultSnapshotPayload? {
-		if (wal.sourceAdmissionOrdinal <= 0L || wal.deliveryUnitCount <= 0 ||
-			wal.deliveryUnitIndex !in 0 until wal.deliveryUnitCount
-		) return null
 		if (!LOWERCASE_SHA_256.matches(wal.walIntegrityIdentity) ||
 			!LOWERCASE_SHA_256.matches(wal.payloadChecksum)
 		) return null
 		val bytes = wal.payloadBytes.toByteArray()
-		if (bytes.sha256() != wal.payloadChecksum || wal.payloadVersion != WIFI_PAYLOAD_VERSION) {
+		if (bytes.sha256() != wal.payloadChecksum ||
+			wal.calculatedWalIntegrityIdentity() != wal.walIntegrityIdentity ||
+			wal.payloadVersion != WIFI_PAYLOAD_VERSION
+		) {
 			return null
 		}
 		return runCatching {
@@ -499,15 +428,15 @@ internal object WifiCapturedFactClassifier {
 	}
 
 	private fun walPayloadRejection(wal: WifiWalObservationEvidence): WifiCapturedFactClassification {
-		if (wal.sourceAdmissionOrdinal <= 0L || wal.deliveryUnitCount <= 0 ||
-			wal.deliveryUnitIndex !in 0 until wal.deliveryUnitCount
-		) return rejected(WifiFactRejection.WAL_PROVENANCE_UNVERIFIABLE)
 		if (!LOWERCASE_SHA_256.matches(wal.walIntegrityIdentity)) {
 			return rejected(WifiFactRejection.WAL_INTEGRITY_UNVERIFIABLE)
 		}
 		val bytes = wal.payloadBytes.toByteArray()
 		if (!LOWERCASE_SHA_256.matches(wal.payloadChecksum) || bytes.sha256() != wal.payloadChecksum) {
 			return rejected(WifiFactRejection.PAYLOAD_INTEGRITY_UNVERIFIABLE)
+		}
+		if (wal.calculatedWalIntegrityIdentity() != wal.walIntegrityIdentity) {
+			return rejected(WifiFactRejection.WAL_INTEGRITY_UNVERIFIABLE)
 		}
 		return rejected(WifiFactRejection.PAYLOAD_DECODE_FAILED)
 	}
@@ -589,6 +518,9 @@ internal object WifiCapturedFactClassifier {
 		sourceDeliveryIdentity = deliveryIdentity,
 		deliveryUnitIndex = deliveryUnitIndex,
 		deliveryUnitCount = deliveryUnitCount,
+		providerDedupKey = providerDedupKey,
+		sourceSequence = sourceSequence,
+		planAttribution = planAttribution,
 		acquisitionPlanRevision = authority.configurationRevision,
 		acquisitionPlanChecksum = authority.serializedAcquisitionPlan.payloadChecksum,
 		clockDomainId = clock.clockDomainId,
@@ -597,6 +529,9 @@ internal object WifiCapturedFactClassifier {
 		receivedElapsedRealtimeNanos = clock.receivedElapsedRealtimeNanos,
 		observedWallTimeMs = clock.observedWallTimeMs,
 		wallTimeUncertaintyMs = clock.wallTimeUncertaintyMs,
+		acquiredAtMs = acquiredAtMs,
+		qualityFlags = qualityFlags,
+		qualityConfidence = qualityConfidence,
 	)
 
 	private fun WifiWalObservationEvidence.matchesCapturedAuthority(
@@ -615,7 +550,15 @@ internal object WifiCapturedFactClassifier {
 		sessionManifestRevision == authority.sessionManifestRevision &&
 		lifecycleLeaseGeneration == authority.lifecycleLeaseGeneration &&
 		capturedCollectedDataEpoch == authority.collectedDataEpoch &&
+		activityAutomationEpoch == null &&
 		clock.clockDomainId == authority.clockDomainId
+
+	private fun WifiWalObservationEvidence.hasValidWalProvenance(): Boolean =
+		sourceAdmissionOrdinal > 0L &&
+			deliveryUnitCount > 0 && deliveryUnitIndex in 0 until deliveryUnitCount &&
+			providerDedupKey == null && sourceSequence >= 0L && activityAutomationEpoch == null &&
+			acquiredAtMs >= 0L &&
+			(qualityConfidence == null || qualityConfidence in 0f..1f)
 
 	private fun WifiDurableClockEvidence.isValidFor(authority: WifiCaptureAuthority): Boolean =
 		clockDomainId == authority.clockDomainId &&
@@ -633,18 +576,6 @@ internal object WifiCapturedFactClassifier {
 		return providerTimes.minOrNull() == clock.observedIntervalStartElapsedRealtimeNanos &&
 			providerTimes.maxOrNull() == clock.observedElapsedRealtimeNanos
 	}
-
-	private fun WifiConfirmedEmptyProviderProof.matches(wal: WifiWalObservationEvidence): Boolean =
-		sourceEventId == wal.sourceEventId &&
-			sourceAdmissionOrdinal == wal.sourceAdmissionOrdinal &&
-			walIntegrityIdentity == wal.walIntegrityIdentity &&
-			payloadChecksum == wal.payloadChecksum &&
-			sourceDeliveryIdentity == wal.sourceDeliveryIdentity &&
-			clockDomainId == wal.clock.clockDomainId &&
-			receivedElapsedRealtimeNanos == wal.clock.receivedElapsedRealtimeNanos &&
-			providerObservationElapsedRealtimeNanos == wal.clock.observedElapsedRealtimeNanos &&
-			observedWallTimeMs == wal.clock.observedWallTimeMs &&
-			wallTimeUncertaintyMs == wal.clock.wallTimeUncertaintyMs
 
 	private fun WifiCaptureAuthority.classifyProviderTime(
 		providerTimeNanos: Long?,

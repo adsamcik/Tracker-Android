@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.wifi
 
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
+import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
@@ -145,7 +146,9 @@ internal data class WifiCaptureAuthority(
 		require(configurationRevision >= 0L)
 		require(physicalConfigurationFingerprint.isNotBlank())
 		require(authorizationRevision > 0L)
-		require(authorizationFingerprint.isNotBlank())
+		require(LOWERCASE_SHA_256.matches(authorizationFingerprint)) {
+			"Captured Wi-Fi authority requires a broker authorization fingerprint"
+		}
 		require(purposeEligibilityMask and SourceBrokerPurpose.ALL_MASK == purposeEligibilityMask)
 		require(purposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L) {
 			"Captured Wi-Fi authority requires SESSION_CAPTURE eligibility"
@@ -159,6 +162,10 @@ internal data class WifiCaptureAuthority(
 		require(zoneId.isNotBlank() && runCatching { ZoneId.of(zoneId) }.isSuccess) {
 			"Captured Wi-Fi authority requires a valid stored zone"
 		}
+	}
+
+	private companion object {
+		val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")
 	}
 }
 
@@ -260,7 +267,6 @@ internal data class WifiIdentityFreeAggregate(
 
 internal enum class WifiAvailability {
 	AVAILABLE,
-	CONFIRMED_EMPTY,
 }
 
 internal enum class WifiCoverageCompleteness {
@@ -324,6 +330,9 @@ internal data class WifiCapturedEvidenceBinding(
 	val sourceDeliveryIdentity: SourceDeliveryIdentity,
 	val deliveryUnitIndex: Int,
 	val deliveryUnitCount: Int,
+	val providerDedupKey: String?,
+	val sourceSequence: Long,
+	val planAttribution: PlanAttribution,
 	val acquisitionPlanRevision: Long,
 	val acquisitionPlanChecksum: String,
 	val clockDomainId: String,
@@ -332,6 +341,9 @@ internal data class WifiCapturedEvidenceBinding(
 	val receivedElapsedRealtimeNanos: Long,
 	val observedWallTimeMs: Long,
 	val wallTimeUncertaintyMs: Long,
+	val acquiredAtMs: Long,
+	val qualityFlags: Long,
+	val qualityConfidence: Float?,
 ) {
 	init {
 		require(sourceAdmissionOrdinal > 0L)
@@ -339,6 +351,7 @@ internal data class WifiCapturedEvidenceBinding(
 		require(LOWERCASE_SHA_256.matches(payloadChecksum))
 		require(deliveryUnitCount > 0)
 		require(deliveryUnitIndex in 0 until deliveryUnitCount)
+		require(sourceSequence >= 0L)
 		require(acquisitionPlanRevision >= 0L)
 		require(LOWERCASE_SHA_256.matches(acquisitionPlanChecksum))
 		require(clockDomainId.isNotBlank())
@@ -347,6 +360,8 @@ internal data class WifiCapturedEvidenceBinding(
 		require(receivedElapsedRealtimeNanos >= observedElapsedRealtimeNanos)
 		require(observedWallTimeMs >= 0L)
 		require(wallTimeUncertaintyMs >= 0L)
+		require(acquiredAtMs >= 0L)
+		require(qualityConfidence == null || qualityConfidence in 0f..1f)
 	}
 
 	private companion object {
@@ -366,8 +381,9 @@ internal data class WifiCapturedProductEffect(
 	init {
 		require(observedWallTimeMs >= 0L)
 		require(wallTimeUncertaintyMs >= 0L)
-		require((availability == WifiAvailability.AVAILABLE) == (aggregate != null))
-		require(aggregate == null || aggregate.observationCount > 0)
+		require(availability == WifiAvailability.AVAILABLE)
+		requireNotNull(aggregate)
+		require(aggregate.observationCount > 0)
 	}
 }
 
@@ -380,7 +396,7 @@ internal sealed interface WifiReusableFact {
 	val authority: WifiCaptureAuthority
 	val productEffect: WifiCapturedProductEffect
 
-	data class DirectAggregateOwner(
+	class DirectAggregateOwner private constructor(
 		override val reference: WifiAggregateFactReference,
 		override val authority: WifiCaptureAuthority,
 		override val productEffect: WifiCapturedProductEffect,
@@ -388,6 +404,19 @@ internal sealed interface WifiReusableFact {
 		init {
 			require(productEffect.availability == WifiAvailability.AVAILABLE)
 			requireNotNull(productEffect.aggregate)
+			requireExactOwnerBinding(reference, authority, productEffect.evidenceBinding)
+		}
+
+		companion object {
+			fun from(fact: WifiCapturedFact.Aggregate): DirectAggregateOwner =
+				DirectAggregateOwner(
+					reference = WifiAggregateFactReference(
+						fact.mutation.identity,
+						fact.mutation.semanticRevision,
+					),
+					authority = fact.authority,
+					productEffect = fact.productEffect,
+				)
 		}
 	}
 
@@ -398,15 +427,12 @@ internal sealed interface WifiReusableFact {
 		val directAggregateOwner: DirectAggregateOwner?,
 	) : WifiReusableFact {
 		init {
-			require(
-				(productEffect.availability == WifiAvailability.AVAILABLE) ==
-					(directAggregateOwner != null),
-			)
-			require(directAggregateOwner == null || directAggregateOwner.authority == authority)
-			require(
-				directAggregateOwner == null ||
-					directAggregateOwner.productEffect.aggregate == productEffect.aggregate,
-			)
+			require(productEffect.availability == WifiAvailability.AVAILABLE)
+			requireExactOwnerBinding(reference, authority, productEffect.evidenceBinding)
+			val owner = requireNotNull(directAggregateOwner)
+			require(owner.authority == authority)
+			require(owner.productEffect.aggregate == productEffect.aggregate)
+			requireExactOwnerBinding(owner.reference, owner.authority, owner.productEffect.evidenceBinding)
 		}
 	}
 }
@@ -453,18 +479,37 @@ internal sealed interface WifiCapturedFact {
 			requireWifiFactBinding(mutation, authority, evidenceBinding)
 			require(observedWallTimeMs >= 0L)
 			require(wallTimeUncertaintyMs >= 0L)
-			require(
-				(availability == WifiAvailability.AVAILABLE) == (reusesAggregate != null),
-			) {
-				"Only a fresh unchanged observation may reuse a prior aggregate"
+			require(availability == WifiAvailability.AVAILABLE)
+			val owner = requireNotNull(reusesAggregate) {
+				"A Wi-Fi coverage-only fact must reference its direct aggregate owner"
 			}
-			require(reusesAggregate == null || reusesAggregate.authority == authority)
-			require(
-				availability != WifiAvailability.CONFIRMED_EMPTY ||
-					coverage.acceptedResultCount == 0,
-			)
+			require(owner.authority == authority)
+			requireExactOwnerBinding(owner.reference, owner.authority, owner.productEffect.evidenceBinding)
 		}
 	}
+}
+
+private fun requireExactOwnerBinding(
+	reference: WifiAggregateFactReference,
+	authority: WifiCaptureAuthority,
+	evidence: WifiCapturedEvidenceBinding,
+) {
+	val identity = reference.identity
+	require(identity.sourceEventId == evidence.sourceEventId)
+	require(identity.sourceAdmissionOrdinal == evidence.sourceAdmissionOrdinal)
+	require(identity.walIntegrityIdentity == evidence.walIntegrityIdentity)
+	require(identity.payloadChecksum == evidence.payloadChecksum)
+	require(identity.sourceDeliveryIdentity == evidence.sourceDeliveryIdentity)
+	require(identity.deliveryUnitIndex == evidence.deliveryUnitIndex)
+	require(identity.deliveryUnitIndex < evidence.deliveryUnitCount)
+	require(identity.logicalTrackingId == authority.logicalTrackingId)
+	require(identity.serviceRunId == authority.serviceRunId)
+	require(identity.sessionSegmentId == authority.sessionSegmentId)
+	require(identity.sessionManifestRevision == authority.sessionManifestRevision)
+	require(identity.collectedDataEpoch == authority.collectedDataEpoch)
+	require(evidence.acquisitionPlanRevision == authority.configurationRevision)
+	require(evidence.acquisitionPlanChecksum == authority.serializedAcquisitionPlan.payloadChecksum)
+	require(evidence.clockDomainId == authority.clockDomainId)
 }
 
 private fun requireWifiFactBinding(
@@ -506,11 +551,7 @@ internal val WifiCapturedFact.productEffect: WifiCapturedProductEffect
 internal fun WifiCapturedFact.toReusableFact(): WifiReusableFact {
 	val reference = WifiAggregateFactReference(mutation.identity, mutation.semanticRevision)
 	return when (this) {
-		is WifiCapturedFact.Aggregate -> WifiReusableFact.DirectAggregateOwner(
-			reference = reference,
-			authority = authority,
-			productEffect = productEffect,
-		)
+		is WifiCapturedFact.Aggregate -> WifiReusableFact.DirectAggregateOwner.from(this)
 		is WifiCapturedFact.CoverageOnly -> WifiReusableFact.CoverageOnly(
 			reference = reference,
 			authority = authority,
