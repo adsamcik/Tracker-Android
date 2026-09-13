@@ -52,25 +52,41 @@ internal data class WifiCaptureTemporalAuthority(
 			providerTimeNanos < capturedEndExclusiveNanos
 }
 
-/** Exact source-local limits retained from the acquisition configuration that produced a fact. */
-internal data class WifiHistoricalAcquisitionConfiguration(
-	val maximumObservationAgeNanos: Long,
+/**
+ * Versioned source-local contract for interpreting Android Wi-Fi result children.
+ *
+ * These bounds are part of the qualifier, not mutable acquisition knobs. A historical fact binds
+ * to one named contract so a caller cannot widen or narrow the accepted result set.
+ */
+internal enum class WifiIdentityFreeResultContract(
 	val maximumAccessPointCount: Int,
 	val minimumFrequencyMhz: Int,
 	val maximumFrequencyMhz: Int,
 	val minimumSignalLevelDbm: Int,
 	val maximumSignalLevelDbm: Int,
 ) {
-	init {
-		require(maximumObservationAgeNanos >= 0L)
-		require(maximumAccessPointCount > 0)
-		require(minimumFrequencyMhz > 0 && maximumFrequencyMhz >= minimumFrequencyMhz)
-		require(maximumSignalLevelDbm >= minimumSignalLevelDbm)
-	}
+	ANDROID_SCAN_RESULTS_V1(
+		maximumAccessPointCount = 64,
+		minimumFrequencyMhz = 2_400,
+		maximumFrequencyMhz = 7_125,
+		minimumSignalLevelDbm = -200,
+		maximumSignalLevelDbm = 0,
+	),
+	;
 
 	fun accepts(frequencyMhz: Int, signalLevelDbm: Int): Boolean =
 		frequencyMhz in minimumFrequencyMhz..maximumFrequencyMhz &&
 			signalLevelDbm in minimumSignalLevelDbm..maximumSignalLevelDbm
+}
+
+/** Exact source-local acquisition inputs retained by the historical fact. */
+internal data class WifiHistoricalAcquisitionConfiguration(
+	val maximumObservationAgeNanos: Long,
+	val resultContract: WifiIdentityFreeResultContract,
+) {
+	init {
+		require(maximumObservationAgeNanos >= 0L)
+	}
 }
 
 /** Exact immutable `source_desired_plan` row used to qualify this observation. */
@@ -352,6 +368,9 @@ internal data class WifiCapturedEvidenceBinding(
 		require(deliveryUnitCount > 0)
 		require(deliveryUnitIndex in 0 until deliveryUnitCount)
 		require(sourceSequence >= 0L)
+		require(planAttribution == PlanAttribution.CAPTURED_REGISTRATION) {
+			"Captured Wi-Fi evidence requires the exact applied registration"
+		}
 		require(acquisitionPlanRevision >= 0L)
 		require(LOWERCASE_SHA_256.matches(acquisitionPlanChecksum))
 		require(clockDomainId.isNotBlank())
@@ -384,6 +403,9 @@ internal data class WifiCapturedProductEffect(
 		require(availability == WifiAvailability.AVAILABLE)
 		requireNotNull(aggregate)
 		require(aggregate.observationCount > 0)
+		require(coverage.acceptedResultCount == aggregate.observationCount) {
+			"Wi-Fi product coverage must equal its identity-free aggregate count"
+		}
 	}
 }
 
@@ -424,14 +446,18 @@ internal sealed interface WifiReusableFact {
 		override val reference: WifiAggregateFactReference,
 		override val authority: WifiCaptureAuthority,
 		override val productEffect: WifiCapturedProductEffect,
-		val directAggregateOwner: DirectAggregateOwner?,
+		val directAggregateOwner: DirectAggregateOwner,
 	) : WifiReusableFact {
 		init {
 			require(productEffect.availability == WifiAvailability.AVAILABLE)
 			requireExactOwnerBinding(reference, authority, productEffect.evidenceBinding)
-			val owner = requireNotNull(directAggregateOwner)
+			val owner = directAggregateOwner
 			require(owner.authority == authority)
 			require(owner.productEffect.aggregate == productEffect.aggregate)
+			require(
+				productEffect.coverage.acceptedResultCount ==
+					requireNotNull(owner.productEffect.aggregate).observationCount,
+			)
 			requireExactOwnerBinding(owner.reference, owner.authority, owner.productEffect.evidenceBinding)
 		}
 	}
@@ -462,10 +488,13 @@ internal sealed interface WifiCapturedFact {
 			require(wallTimeUncertaintyMs >= 0L)
 			require(availability == WifiAvailability.AVAILABLE)
 			require(aggregate.observationCount > 0)
+			require(coverage.acceptedResultCount == aggregate.observationCount) {
+				"Wi-Fi aggregate count must equal accepted result coverage"
+			}
 		}
 	}
 
-	data class CoverageOnly(
+	class CoverageOnly private constructor(
 		override val mutation: WifiCapturedFactMutation,
 		override val authority: WifiCaptureAuthority,
 		override val evidenceBinding: WifiCapturedEvidenceBinding,
@@ -473,18 +502,48 @@ internal sealed interface WifiCapturedFact {
 		override val wallTimeUncertaintyMs: Long,
 		override val availability: WifiAvailability,
 		override val coverage: WifiCoverageEvidence,
-		val reusesAggregate: WifiReusableFact.DirectAggregateOwner?,
+		val reusesAggregate: WifiReusableFact.DirectAggregateOwner,
+		observedAggregate: WifiIdentityFreeAggregate,
 	) : WifiCapturedFact {
 		init {
 			requireWifiFactBinding(mutation, authority, evidenceBinding)
 			require(observedWallTimeMs >= 0L)
 			require(wallTimeUncertaintyMs >= 0L)
 			require(availability == WifiAvailability.AVAILABLE)
-			val owner = requireNotNull(reusesAggregate) {
-				"A Wi-Fi coverage-only fact must reference its direct aggregate owner"
-			}
+			val owner = reusesAggregate
 			require(owner.authority == authority)
 			requireExactOwnerBinding(owner.reference, owner.authority, owner.productEffect.evidenceBinding)
+			val ownerAggregate = requireNotNull(owner.productEffect.aggregate)
+			require(observedAggregate == ownerAggregate) {
+				"Wi-Fi coverage-only fact must exactly match its direct aggregate owner"
+			}
+			require(coverage.acceptedResultCount == observedAggregate.observationCount) {
+				"Wi-Fi coverage-only count must equal the observed aggregate"
+			}
+		}
+
+		companion object {
+			fun fromExactAggregate(
+				mutation: WifiCapturedFactMutation,
+				authority: WifiCaptureAuthority,
+				evidenceBinding: WifiCapturedEvidenceBinding,
+				observedWallTimeMs: Long,
+				wallTimeUncertaintyMs: Long,
+				availability: WifiAvailability,
+				coverage: WifiCoverageEvidence,
+				observedAggregate: WifiIdentityFreeAggregate,
+				reusesAggregate: WifiReusableFact.DirectAggregateOwner,
+			): CoverageOnly = CoverageOnly(
+				mutation = mutation,
+				authority = authority,
+				evidenceBinding = evidenceBinding,
+				observedWallTimeMs = observedWallTimeMs,
+				wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+				availability = availability,
+				coverage = coverage,
+				reusesAggregate = reusesAggregate,
+				observedAggregate = observedAggregate,
+			)
 		}
 	}
 }
@@ -544,7 +603,7 @@ internal val WifiCapturedFact.productEffect: WifiCapturedProductEffect
 		coverage = coverage,
 		aggregate = when (this) {
 			is WifiCapturedFact.Aggregate -> aggregate
-			is WifiCapturedFact.CoverageOnly -> reusesAggregate?.productEffect?.aggregate
+			is WifiCapturedFact.CoverageOnly -> reusesAggregate.productEffect.aggregate
 		},
 	)
 

@@ -107,6 +107,65 @@ class WifiCapturedFactClassifierTest {
 	}
 
 	@Test
+	fun `fact constructors bind accepted coverage to exact aggregate semantics`() {
+		val authority = authority()
+		val original = freshFact(authority)
+		val owner = original.toReusableFact() as WifiReusableFact.DirectAggregateOwner
+		shouldThrow<IllegalArgumentException> {
+			original.copy(
+				coverage = original.coverage.copy(
+					acceptedResultCount = 0,
+					staleResultCount = 1,
+					completeness = WifiCoverageCompleteness.PARTIAL,
+				),
+			)
+		}
+
+		val unchanged = classify(
+			input(
+				authority = authority,
+				delivery = 'b',
+				accessPoints = listOf(accessPoint(2_412, -50, 1_030_000_000L)),
+			),
+			authority,
+			priorFact = owner,
+		) as WifiCapturedFactClassification.FreshUnchanged
+		val fact = unchanged.fact
+		shouldThrow<IllegalArgumentException> {
+			WifiCapturedFact.CoverageOnly.fromExactAggregate(
+				mutation = fact.mutation,
+				authority = fact.authority,
+				evidenceBinding = fact.evidenceBinding,
+				observedWallTimeMs = fact.observedWallTimeMs,
+				wallTimeUncertaintyMs = fact.wallTimeUncertaintyMs,
+				availability = fact.availability,
+				coverage = fact.coverage,
+				observedAggregate = requireNotNull(owner.productEffect.aggregate).copy(
+					bandMix = WifiBandMix(0, 1, 0, 0),
+				),
+				reusesAggregate = owner,
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			WifiCapturedFact.CoverageOnly.fromExactAggregate(
+				mutation = fact.mutation,
+				authority = fact.authority,
+				evidenceBinding = fact.evidenceBinding,
+				observedWallTimeMs = fact.observedWallTimeMs,
+				wallTimeUncertaintyMs = fact.wallTimeUncertaintyMs,
+				availability = fact.availability,
+				coverage = fact.coverage.copy(
+					acceptedResultCount = 0,
+					staleResultCount = 1,
+					completeness = WifiCoverageCompleteness.PARTIAL,
+				),
+				observedAggregate = requireNotNull(owner.productEffect.aggregate),
+				reusesAggregate = owner,
+			)
+		}
+	}
+
+	@Test
 	fun `empty callback stays clock unverifiable until provider origin proof exists`() {
 		val authority = authority()
 		classify(
@@ -148,15 +207,14 @@ class WifiCapturedFactClassifierTest {
 	}
 
 	@Test
-	fun `historical plan bounds count frequency and signal`() {
-		val bounded = authority(maximumAccessPointCount = 1)
+	fun `immutable result contract bounds count frequency and signal`() {
+		val bounded = authority()
 		classify(
 			input(
 				bounded,
-				accessPoints = listOf(
-					accessPoint(2_412, -50, 1_000_000_000L),
-					accessPoint(5_180, -60, 1_010_000_000L),
-				),
+				accessPoints = List(65) { index ->
+					accessPoint(2_412, -50, 1_000_000_000L + index)
+				},
 			),
 			bounded,
 		) shouldBe rejected(WifiFactRejection.TOO_MANY_ACCESS_POINTS)
@@ -168,6 +226,24 @@ class WifiCapturedFactClassifierTest {
 					bounded,
 				) shouldBe rejected(WifiFactRejection.MALFORMED_ACCESS_POINT)
 			}
+	}
+
+	@Test
+	fun `only captured registration plan attribution may produce facts`() {
+		val authority = authority()
+		PlanAttribution.entries.filterNot { it == PlanAttribution.CAPTURED_REGISTRATION }
+			.forEach { attribution ->
+				val original = input(authority)
+				val wal = requireNotNull(original.walEvidence)
+				val changed = wal.copy(planAttribution = attribution).withValidWalIntegrity()
+				classify(
+					original.copy(walEvidence = changed),
+					authority,
+				) shouldBe rejected(WifiFactRejection.PLAN_ATTRIBUTION_UNVERIFIABLE)
+			}
+
+		classify(input(authority), authority)::class shouldBe
+			WifiCapturedFactClassification.FreshChanged::class
 	}
 
 	@Test
@@ -403,13 +479,12 @@ class WifiCapturedFactClassifierTest {
 	}
 
 	@Test
-	fun `WAL integrity binds sequence plan acquisition and quality evidence`() {
+	fun `WAL integrity binds sequence acquisition and quality evidence`() {
 		val authority = authority()
 		val original = input(authority)
 		val wal = requireNotNull(original.walEvidence)
 		listOf(
 			wal.copy(sourceSequence = wal.sourceSequence + 1L),
-			wal.copy(planAttribution = PlanAttribution.LINKED_ATTEMPT),
 			wal.copy(acquiredAtMs = wal.acquiredAtMs + 1L),
 			wal.copy(qualityFlags = 1L),
 			wal.copy(qualityConfidence = 0.8f),
@@ -512,7 +587,6 @@ class WifiCapturedFactClassifierTest {
 
 	private fun authority(
 		maximumObservationAgeMs: Long = 500L,
-		maximumAccessPointCount: Int = 64,
 		zoneId: String = "Europe/Prague",
 	): WifiCaptureAuthority {
 		val plan = WifiPlan(
@@ -555,11 +629,7 @@ class WifiCapturedFactClassifierTest {
 					maximumObservationAgeMs,
 					NANOS_PER_MILLISECOND,
 				),
-				maximumAccessPointCount = maximumAccessPointCount,
-				minimumFrequencyMhz = 2_400,
-				maximumFrequencyMhz = 7_125,
-				minimumSignalLevelDbm = -200,
-				maximumSignalLevelDbm = 0,
+				resultContract = WifiIdentityFreeResultContract.ANDROID_SCAN_RESULTS_V1,
 			),
 			serializedAcquisitionPlan = WifiSerializedAcquisitionPlanEvidence(
 				payloadVersion = 1,
@@ -625,7 +695,7 @@ class WifiCapturedFactClassifierTest {
 			lifecycleLeaseGeneration = authority.lifecycleLeaseGeneration,
 			capturedCollectedDataEpoch = authority.collectedDataEpoch,
 			activityAutomationEpoch = null,
-			planAttribution = PlanAttribution.RECEIVE_TIME_ONLY,
+			planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
 			clock = WifiDurableClockEvidence(
 				clockDomainId = authority.clockDomainId,
 				observedIntervalStartElapsedRealtimeNanos = observedStart,

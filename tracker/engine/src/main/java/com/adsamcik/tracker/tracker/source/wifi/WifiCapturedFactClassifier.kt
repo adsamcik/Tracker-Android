@@ -141,6 +141,7 @@ internal enum class WifiFactRejection {
 	WAL_INTEGRITY_UNVERIFIABLE,
 	PAYLOAD_INTEGRITY_UNVERIFIABLE,
 	PAYLOAD_DECODE_FAILED,
+	PLAN_ATTRIBUTION_UNVERIFIABLE,
 	ACQUISITION_PLAN_UNVERIFIABLE,
 	APPLIED_REGISTRATION_MISMATCH,
 	TOO_MANY_ACCESS_POINTS,
@@ -190,6 +191,9 @@ internal object WifiCapturedFactClassifier {
 		if (!wal.hasValidWalProvenance()) {
 			return rejected(WifiFactRejection.WAL_PROVENANCE_UNVERIFIABLE)
 		}
+		if (wal.planAttribution != PlanAttribution.CAPTURED_REGISTRATION) {
+			return rejected(WifiFactRejection.PLAN_ATTRIBUTION_UNVERIFIABLE)
+		}
 		if (wal.capturedAuthority != expectedAuthority || !wal.matchesCapturedAuthority(expectedAuthority)) {
 			return rejected(WifiFactRejection.CAPTURE_AUTHORITY_MISMATCH)
 		}
@@ -208,9 +212,8 @@ internal object WifiCapturedFactClassifier {
 		if (!payload.providerTimelineMatches(wal.clock)) {
 			return WifiCapturedFactClassification.ClockUnverifiable
 		}
-		if (payload.accessPoints.size >
-			expectedAuthority.acquisitionConfiguration.maximumAccessPointCount
-		) {
+		val resultContract = expectedAuthority.acquisitionConfiguration.resultContract
+		if (payload.accessPoints.size > resultContract.maximumAccessPointCount) {
 			return rejected(WifiFactRejection.TOO_MANY_ACCESS_POINTS)
 		}
 		if (payload.accessPoints.any { it.identifierToken.isNotEmpty() }) {
@@ -273,7 +276,7 @@ internal object WifiCapturedFactClassifier {
 		correctionBase: WifiReusableFact?,
 	): WifiCapturedFactClassification {
 		val itemClassifications = payload.accessPoints.map { accessPoint ->
-			accessPoint to if (authority.acquisitionConfiguration.accepts(
+			accessPoint to if (authority.acquisitionConfiguration.resultContract.accepts(
 					accessPoint.frequencyMhz,
 					accessPoint.signalLevelDbm,
 				)
@@ -355,7 +358,7 @@ internal object WifiCapturedFactClassifier {
 			}
 		return if (directAggregateOwner != null) {
 			WifiCapturedFactClassification.FreshUnchanged(
-				WifiCapturedFact.CoverageOnly(
+				WifiCapturedFact.CoverageOnly.fromExactAggregate(
 					mutation = mutation,
 					authority = authority,
 					evidenceBinding = evidenceBinding,
@@ -363,6 +366,7 @@ internal object WifiCapturedFactClassifier {
 					wallTimeUncertaintyMs = wall.wallTimeUncertaintyMs,
 					availability = WifiAvailability.AVAILABLE,
 					coverage = coverage,
+					observedAggregate = aggregate,
 					reusesAggregate = directAggregateOwner,
 				),
 			)
