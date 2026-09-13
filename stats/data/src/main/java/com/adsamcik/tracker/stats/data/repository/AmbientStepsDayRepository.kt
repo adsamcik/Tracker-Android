@@ -820,6 +820,7 @@ private class AmbientStepsAuthorityTimeline private constructor(
 						previousAuthorizationElapsedRealtimeNanos ||
 					toAuthorization.effectiveElapsedRealtimeNanos <
 						fromAuthorization.effectiveElapsedRealtimeNanos ||
+					toAuthorization.effectiveWallTimeMs < fromAuthorization.effectiveWallTimeMs ||
 					toAuthorization.effectiveBootId != transition.toAuthorizationEffectiveBootId ||
 					toAuthorization.effectiveElapsedRealtimeNanos !=
 					transition.toAuthorizationEffectiveElapsedRealtimeNanos ||

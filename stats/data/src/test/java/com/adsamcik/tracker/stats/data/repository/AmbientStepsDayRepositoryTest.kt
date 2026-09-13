@@ -373,6 +373,40 @@ class AmbientStepsDayRepositoryTest {
 		)
 	}
 
+	@Test
+	fun `successor wall time cannot move backwards behind the same clamped boundary`() = runTest {
+		val registrationWallTimeMs = AUTHORITY_BOUNDARY
+		val predecessorWallTimeMs = AUTHORITY_BOUNDARY - 100L
+		val successorWallTimeMs = AUTHORITY_BOUNDARY - 200L
+		seedAuthority(
+			stateCursor = rotatedCursor(
+				registrationAcceptedAtMs = registrationWallTimeMs,
+				authorizationEffectiveWallTimeMs = successorWallTimeMs,
+			),
+			initialAuthorizationEffectiveTimeMs = predecessorWallTimeMs,
+		)
+		database.ambientStepsImportStateDao().insertAuthorityTransition(
+			authorityTransition(
+				registrationAcceptedAtMs = registrationWallTimeMs,
+				toAuthorizationEffectiveWallTimeMs = successorWallTimeMs,
+			),
+		)
+		database.ambientStepsFactRevisionDao().insert(
+			fact(
+				4L,
+				AUTHORITY_BOUNDARY,
+				DAY_END,
+				continuitySegmentGeneration = 2L,
+				authorizationRevision = 2L,
+				authorizationFingerprint = "b".repeat(64),
+			),
+		)
+
+		readSnapshot().page.days.single().total shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.AMBIENT_AUTHORITY_UNVERIFIABLE),
+		)
+	}
+
 	private suspend fun seedAuthority(
 		stateCursor: AmbientStepsImportCursorEntity = cursor(),
 		evidenceState: SourceEvidenceState = SourceEvidenceState(collectedDataEpoch = 7L),
@@ -535,19 +569,30 @@ class AmbientStepsDayRepositoryTest {
 		cursorRevision = 2L,
 	)
 
-	private fun rotatedCursor() = cursor().copy(
+	private fun rotatedCursor(
+		registrationAcceptedAtMs: Long = 0L,
+		authorizationEffectiveWallTimeMs: Long = AUTHORITY_BOUNDARY,
+	) = cursor().copy(
+		registrationAcceptedAtMs = registrationAcceptedAtMs,
 		authorizationRevision = 2L,
 		authorizationFingerprint = "b".repeat(64),
 		authorizationEffectiveElapsedRealtimeNanos = AUTHORITY_BOUNDARY * 1_000_000L,
-		authorizationEffectiveWallTimeMs = AUTHORITY_BOUNDARY,
-		eligibleFromTimeMs = AUTHORITY_BOUNDARY,
+		authorizationEffectiveWallTimeMs = authorizationEffectiveWallTimeMs,
+		eligibleFromTimeMs = maxOf(registrationAcceptedAtMs, authorizationEffectiveWallTimeMs),
 		continuitySegmentGeneration = 2L,
-		segmentStartTimeMs = AUTHORITY_BOUNDARY,
+		segmentStartTimeMs = maxOf(registrationAcceptedAtMs, authorizationEffectiveWallTimeMs),
 		authorityTransitionSequence = 1L,
 		cursorRevision = 2L,
 	)
 
-	private fun authorityTransition(): AmbientStepsImportAuthorityTransitionEntity {
+	private fun authorityTransition(
+		registrationAcceptedAtMs: Long = 0L,
+		toAuthorizationEffectiveWallTimeMs: Long = AUTHORITY_BOUNDARY,
+	): AmbientStepsImportAuthorityTransitionEntity {
+		val effectiveBoundaryTimeMs = maxOf(
+			registrationAcceptedAtMs,
+			toAuthorizationEffectiveWallTimeMs,
+		)
 		val transitionId = AmbientStepsImportAuthorityTransitionIntegrity.transitionId(
 			1L,
 			1L,
@@ -564,11 +609,11 @@ class AmbientStepsDayRepositoryTest {
 			"b".repeat(64),
 			"boot-a",
 			AUTHORITY_BOUNDARY * 1_000_000L,
-			AUTHORITY_BOUNDARY,
+			toAuthorizationEffectiveWallTimeMs,
 			1L,
 			1L,
-			0L,
-			AUTHORITY_BOUNDARY,
+			registrationAcceptedAtMs,
+			effectiveBoundaryTimeMs,
 		)
 		return AmbientStepsImportAuthorityTransitionEntity(
 			transitionId,
@@ -587,11 +632,11 @@ class AmbientStepsDayRepositoryTest {
 			"b".repeat(64),
 			"boot-a",
 			AUTHORITY_BOUNDARY * 1_000_000L,
-			AUTHORITY_BOUNDARY,
+			toAuthorizationEffectiveWallTimeMs,
 			1L,
 			1L,
-			0L,
-			AUTHORITY_BOUNDARY,
+			registrationAcceptedAtMs,
+			effectiveBoundaryTimeMs,
 			DAY_END,
 		)
 	}
