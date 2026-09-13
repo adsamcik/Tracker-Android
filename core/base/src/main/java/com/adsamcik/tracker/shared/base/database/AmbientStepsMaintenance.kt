@@ -355,9 +355,10 @@ internal suspend fun AppDatabase.deleteAmbientStepsAfterConsentReset(
 	AmbientStepsSourceDeletionResult.Deleted(latestUpserts.size, removedPayloads)
 }
 
-private suspend fun AppDatabase.loadAuthenticatedAmbientStepsState(
+internal suspend fun AppDatabase.loadAuthenticatedAmbientStepsState(
 	limits: AmbientStepsMaintenanceLimits,
 	checkpoint: suspend (AmbientStepsMaintenanceCheckpoint) -> Unit,
+	authenticateRetractedPayloadAuthority: Boolean = true,
 ): AmbientStepsMaintenanceAudit {
 	val owner = requireNotNull(sourceDestinationOwnerDao().get(
 		SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -440,6 +441,13 @@ private suspend fun AppDatabase.loadAuthenticatedAmbientStepsState(
 	) { "Ambient Steps import state has a dangling cursor reference" }
 	val authenticatedAuthorities = mutableMapOf<AmbientStepsFactAuthorityKey, Boolean>()
 	lineages.forEach { lineage ->
+		if (!authenticateRetractedPayloadAuthority &&
+			lineage.latest.operation == AmbientStepsFactRevisionEntity.OPERATION_RETRACT
+		) {
+			// Export authenticates the redacted terminal revision and complete correction chain above,
+			// but deliberately does not require provider state that source deletion already removed.
+			return@forEach
+		}
 		lineage.upserts.forEach { fact ->
 			val cursor = fact.registrationGeneration?.let(cursorsByGeneration::get)
 			check(cursor != null && cursor.provider == fact.provider &&
@@ -760,7 +768,7 @@ private fun AmbientStepsFactRevisionEntity.toAmbientStepsRetraction(
 	return unsigned.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsigned))
 }
 
-private data class AmbientStepsFactLineage(
+internal data class AmbientStepsFactLineage(
 	val logicalFactId: String,
 	val revisionCount: Int,
 	val upserts: List<AmbientStepsFactRevisionEntity>,
@@ -769,7 +777,7 @@ private data class AmbientStepsFactLineage(
 	val upsertRevisionCount: Int get() = upserts.size
 }
 
-private data class AmbientStepsMaintenanceAudit(
+internal data class AmbientStepsMaintenanceAudit(
 	val lineages: List<AmbientStepsFactLineage>,
 	val cursors: List<AmbientStepsImportCursorEntity>,
 	val gaps: List<AmbientStepsImportGapEntity>,
@@ -802,7 +810,7 @@ private fun AmbientStepsFactRevisionEntity.authorityKey() = AmbientStepsFactAuth
 private fun blocked(reason: AmbientStepsSourceDeletionBlockedReason) =
 	AmbientStepsSourceDeletionResult.Blocked(reason)
 
-private class AmbientStepsMaintenanceLimitExceeded(message: String) : IllegalStateException(message)
+internal class AmbientStepsMaintenanceLimitExceeded(message: String) : IllegalStateException(message)
 
 private fun requireMaintenanceBound(condition: Boolean, message: String) {
 	if (!condition) throw AmbientStepsMaintenanceLimitExceeded(message)
