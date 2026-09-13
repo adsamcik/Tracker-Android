@@ -12,6 +12,7 @@ internal data class ActivityCaptureAuthority(
 	val serviceRunId: ServiceRunId,
 	val sourceInstanceId: SourceInstanceId,
 	val registrationGeneration: Long,
+	val configurationRevision: Long,
 	val physicalConfigurationFingerprint: String,
 	val authorizationRevision: Long,
 	val authorizationFingerprint: String,
@@ -25,6 +26,7 @@ internal data class ActivityCaptureAuthority(
 ) {
 	init {
 		require(registrationGeneration > 0L)
+		require(configurationRevision >= 0L)
 		require(physicalConfigurationFingerprint.isNotBlank())
 		require(authorizationRevision > 0L)
 		require(authorizationFingerprint.isNotBlank())
@@ -108,6 +110,7 @@ internal sealed interface ActivityCapturedObservation {
 
 internal enum class ActivityBandMechanism {
 	TRANSITION,
+	SAMPLED_REFINEMENT,
 	SAMPLED_CLASSIFICATION,
 }
 
@@ -128,8 +131,8 @@ internal sealed interface ActivityBandConfidence {
 	}
 }
 
-/** Stable logical range key. Activity corrections replace this range rather than add to it. */
-internal data class ActivityCapturedFactKey(
+/** Stable source/window identity; derived band boundaries are deliberately not part of it. */
+internal data class ActivityCapturedWindowIdentity(
 	val authority: ActivityCaptureAuthority,
 	val intervalStartElapsedRealtimeNanos: Long,
 	val intervalEndExclusiveElapsedRealtimeNanos: Long,
@@ -140,27 +143,101 @@ internal data class ActivityCapturedFactKey(
 	}
 }
 
+/** One semantic replacement of all child fragments in a stable source window. */
+internal data class ActivityCapturedWindowMutation(
+	val identity: ActivityCapturedWindowIdentity,
+	val semanticRevision: Long,
+	val supersedesSemanticRevision: Long?,
+) {
+	init {
+		require(semanticRevision > 0L)
+		require(
+			supersedesSemanticRevision == null ||
+				supersedesSemanticRevision in 1 until semanticRevision,
+		)
+	}
+}
+
+/** Stable child identity within one atomic window mutation. */
+internal data class ActivityCapturedFactKey(
+	val mutation: ActivityCapturedWindowMutation,
+	val fragmentOrdinal: Int,
+) {
+	init {
+		require(fragmentOrdinal >= 0)
+	}
+}
+
+internal enum class ActivityWallTimeBoundaryKind {
+	EXACT_PROVIDER_OBSERVATION,
+	SAME_CLOCK_EXTRAPOLATION,
+}
+
+internal data class ActivityWallTimeDerivationAuthority(
+	val kind: ActivityWallTimeBoundaryKind,
+	val anchorSourceEventId: SourceEventId,
+	val anchorProviderElapsedRealtimeNanos: Long,
+	val clockDomainId: String,
+) {
+	init {
+		require(anchorProviderElapsedRealtimeNanos >= 0L)
+		require(clockDomainId.isNotBlank())
+	}
+}
+
+internal data class ActivityDerivedWallTimeBoundary(
+	val wallTimeMs: Long,
+	val uncertaintyMs: Long,
+	val authority: ActivityWallTimeDerivationAuthority,
+) {
+	init {
+		require(wallTimeMs >= 0L)
+		require(uncertaintyMs >= 0L)
+	}
+}
+
+internal enum class ActivityWallTimeContinuity {
+	SAME_ANCHOR,
+	CONSISTENT_WITHIN_UNCERTAINTY,
+	DISCONTINUITY_DETECTED,
+}
+
+/** Derived display-time range with its exact provider-clock anchors and continuity verdict. */
+internal data class ActivityDerivedWallTimeRange(
+	val startInclusive: ActivityDerivedWallTimeBoundary,
+	val endExclusive: ActivityDerivedWallTimeBoundary,
+	val continuity: ActivityWallTimeContinuity,
+)
+
 internal data class ActivityCapturedBand(
 	val key: ActivityCapturedFactKey,
+	val intervalStartElapsedRealtimeNanos: Long,
+	val intervalEndExclusiveElapsedRealtimeNanos: Long,
+	val wallTimeRange: ActivityDerivedWallTimeRange,
 	val activity: CapturedActivityType,
 	val mechanism: ActivityBandMechanism,
 	val confidence: ActivityBandConfidence,
 	val evidence: List<ActivityCapturedObservationReference>,
 ) {
 	init {
+		require(intervalStartElapsedRealtimeNanos >= 0L)
+		require(intervalEndExclusiveElapsedRealtimeNanos > intervalStartElapsedRealtimeNanos)
 		require(evidence.isNotEmpty())
 		require(evidence.distinctBy { it.sourceEventId } == evidence) {
 			"Captured Activity evidence cannot repeat a durable event identity"
 		}
-		require(
-			(mechanism == ActivityBandMechanism.TRANSITION) ==
-				(confidence is ActivityBandConfidence.TransitionSignal),
-		) { "Activity mechanism and confidence type must agree" }
+		when (mechanism) {
+			ActivityBandMechanism.TRANSITION ->
+				require(confidence is ActivityBandConfidence.TransitionSignal)
+			ActivityBandMechanism.SAMPLED_REFINEMENT,
+			ActivityBandMechanism.SAMPLED_CLASSIFICATION,
+			-> require(confidence is ActivityBandConfidence.Sampled)
+		}
 	}
 
 	val durationNanos: Long
-		get() = key.intervalEndExclusiveElapsedRealtimeNanos -
-			key.intervalStartElapsedRealtimeNanos
+		get() = intervalEndExclusiveElapsedRealtimeNanos -
+			intervalStartElapsedRealtimeNanos
 }
 
 internal enum class ActivityCoverageGapReason {
@@ -206,33 +283,39 @@ internal data class ActivityActiveTime(
 
 /** One exact-authorization coalescing result. Bands and gaps tile the complete requested window. */
 internal data class ActivityCapturedWindow(
-	val authority: ActivityCaptureAuthority,
-	val intervalStartElapsedRealtimeNanos: Long,
-	val intervalEndExclusiveElapsedRealtimeNanos: Long,
+	val mutation: ActivityCapturedWindowMutation,
 	val bands: List<ActivityCapturedBand>,
 	val gaps: List<ActivityCoverageGap>,
 	val exactDuplicateCount: Int,
 	val semanticDuplicateCount: Int,
 	val unchangedEvidenceCount: Int,
 ) {
+	val authority: ActivityCaptureAuthority
+		get() = mutation.identity.authority
+
+	val intervalStartElapsedRealtimeNanos: Long
+		get() = mutation.identity.intervalStartElapsedRealtimeNanos
+
+	val intervalEndExclusiveElapsedRealtimeNanos: Long
+		get() = mutation.identity.intervalEndExclusiveElapsedRealtimeNanos
+
 	init {
-		require(intervalStartElapsedRealtimeNanos >= 0L)
-		require(intervalEndExclusiveElapsedRealtimeNanos > intervalStartElapsedRealtimeNanos)
 		require(exactDuplicateCount >= 0)
 		require(semanticDuplicateCount >= 0)
 		require(unchangedEvidenceCount >= 0)
-		require(bands.all { it.key.authority == authority })
+		require(bands.all { it.key.mutation == mutation })
+		require(bands.map { it.key.fragmentOrdinal } == bands.indices.toList())
 		require(bands.zipWithNext().all { (left, right) ->
-			left.key.intervalEndExclusiveElapsedRealtimeNanos <=
-				right.key.intervalStartElapsedRealtimeNanos
+			left.intervalEndExclusiveElapsedRealtimeNanos <=
+				right.intervalStartElapsedRealtimeNanos
 		})
 		require(gaps.zipWithNext().all { (left, right) ->
 			left.intervalEndExclusiveElapsedRealtimeNanos <=
 				right.intervalStartElapsedRealtimeNanos
 		})
 		val tiled = bands.map { band ->
-			band.key.intervalStartElapsedRealtimeNanos to
-				band.key.intervalEndExclusiveElapsedRealtimeNanos
+			band.intervalStartElapsedRealtimeNanos to
+				band.intervalEndExclusiveElapsedRealtimeNanos
 		} + gaps.map { gap ->
 			gap.intervalStartElapsedRealtimeNanos to gap.intervalEndExclusiveElapsedRealtimeNanos
 		}

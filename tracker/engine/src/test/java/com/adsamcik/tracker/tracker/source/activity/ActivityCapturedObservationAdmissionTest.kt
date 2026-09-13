@@ -15,6 +15,7 @@ import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.StableActivityTypeCode
 import io.kotest.matchers.shouldBe
+import io.kotest.assertions.throwables.shouldThrow
 import org.junit.Test
 
 class ActivityCapturedObservationAdmissionTest {
@@ -160,15 +161,127 @@ class ActivityCapturedObservationAdmissionTest {
 		result shouldBe rejected(ActivityCaptureAdmissionRejection.MALFORMED_PROVIDER_TIME)
 	}
 
+	@Test
+	fun `provider acceptance is exact and end exclusive`() {
+		val accepted = ActivityCapturedObservationAdmission.admit(
+			event(providerTime = 1_000L),
+			acquisitionAuthority(
+				providerAcceptance = ActivityProviderTimeInterval(1_000L, 1_001L),
+			),
+		)
+		val rejected = ActivityCapturedObservationAdmission.admit(
+			event(providerTime = 1_000L),
+			acquisitionAuthority(
+				providerAcceptance = ActivityProviderTimeInterval(999L, 1_000L),
+			),
+		)
+
+		(accepted is ActivityCaptureAdmissionResult.Captured) shouldBe true
+		rejected shouldBe rejected(ActivityCaptureAdmissionRejection.OUTSIDE_PROVIDER_ACCEPTANCE)
+	}
+
+	@Test
+	fun `authorization retirement is exact and end exclusive`() {
+		val result = ActivityCapturedObservationAdmission.admit(
+			event(providerTime = 1_000L),
+			acquisitionAuthority(
+				authorizationEffect = ActivityProviderTimeInterval(900L, 1_000L),
+			),
+		)
+
+		result shouldBe rejected(ActivityCaptureAdmissionRejection.OUTSIDE_AUTHORIZATION_EFFECT)
+	}
+
+	@Test
+	fun `session run cutoff is exact and end exclusive`() {
+		val result = ActivityCapturedObservationAdmission.admit(
+			event(providerTime = 1_000L),
+			acquisitionAuthority(
+				sessionRunEffect = ActivityProviderTimeInterval(900L, 1_000L),
+			),
+		)
+
+		result shouldBe rejected(ActivityCaptureAdmissionRejection.OUTSIDE_SESSION_RUN_EFFECT)
+	}
+
+	@Test
+	fun `sampled validity is clipped to the earliest exact acquisition cutoff`() {
+		val result = ActivityCapturedObservationAdmission.admit(
+			event(
+				payload = ActivityRecognitionPayload(
+					activityType = StableActivityTypeCode.WALKING,
+					confidencePercent = 90,
+					providerElapsedRealtimeNanos = 1_000L,
+				),
+			),
+			acquisitionAuthority(
+				sampledPolicy = ActivitySampledClassificationPolicy.DirectCaptureDetail(75, 500L),
+				sessionRunEffect = ActivityProviderTimeInterval(0L, 1_100L),
+			),
+		)
+
+		val observation = (result as ActivityCaptureAdmissionResult.Captured).observation as
+			ActivityCapturedObservation.SampledClassification
+		observation.coverageEndExclusiveElapsedRealtimeNanos shouldBe 1_100L
+	}
+
+	@Test
+	fun `thresholds cannot be attached to a different historical configuration identity`() {
+		val captureAuthority = authority()
+
+		shouldThrow<IllegalArgumentException> {
+			ActivityCaptureAcquisitionAuthority(
+				captureAuthority = captureAuthority,
+				historicalConfiguration = ActivityHistoricalAcquisitionConfiguration(
+					identity = ActivityAcquisitionConfigurationIdentity(
+						sourceInstanceId = captureAuthority.sourceInstanceId.value,
+						registrationGeneration = captureAuthority.registrationGeneration,
+						configurationRevision = captureAuthority.configurationRevision + 1L,
+						physicalConfigurationFingerprint =
+							captureAuthority.physicalConfigurationFingerprint,
+						authorizationRevision = captureAuthority.authorizationRevision,
+						authorizationFingerprint = captureAuthority.authorizationFingerprint,
+					),
+					providerAcceptance = ActivityProviderTimeInterval(0L, 10_000L),
+					authorizationEffect = ActivityProviderTimeInterval(0L, 10_000L),
+					sessionRunEffect = ActivityProviderTimeInterval(0L, 10_000L),
+					maximumObservationAgeNanos = 100L,
+					sampledClassificationPolicy =
+						ActivitySampledClassificationPolicy.NotDirectlyRequested,
+				),
+			)
+		}
+	}
+
 	private fun acquisitionAuthority(
 		captureAuthority: ActivityCaptureAuthority = authority(),
 		maximumObservationAgeNanos: Long = 100L,
 		sampledPolicy: ActivitySampledClassificationPolicy =
 			ActivitySampledClassificationPolicy.NotDirectlyRequested,
+		providerAcceptance: ActivityProviderTimeInterval =
+			ActivityProviderTimeInterval(0L, 10_000L),
+		authorizationEffect: ActivityProviderTimeInterval =
+			ActivityProviderTimeInterval(0L, 10_000L),
+		sessionRunEffect: ActivityProviderTimeInterval =
+			ActivityProviderTimeInterval(0L, 10_000L),
 	) = ActivityCaptureAcquisitionAuthority(
 		captureAuthority = captureAuthority,
-		maximumObservationAgeNanos = maximumObservationAgeNanos,
-		sampledClassificationPolicy = sampledPolicy,
+		historicalConfiguration = ActivityHistoricalAcquisitionConfiguration(
+			identity = ActivityAcquisitionConfigurationIdentity(
+				sourceInstanceId = captureAuthority.sourceInstanceId.value,
+				registrationGeneration = captureAuthority.registrationGeneration,
+				configurationRevision = captureAuthority.configurationRevision,
+				physicalConfigurationFingerprint =
+					captureAuthority.physicalConfigurationFingerprint,
+				authorizationRevision = captureAuthority.authorizationRevision,
+				authorizationFingerprint = captureAuthority.authorizationFingerprint,
+			),
+			providerAcceptance = providerAcceptance,
+			authorizationEffect = authorizationEffect,
+			sessionRunEffect = sessionRunEffect,
+			maximumObservationAgeNanos = maximumObservationAgeNanos,
+			sampledClassificationPolicy = sampledPolicy,
+		),
 	)
 
 	private fun authority(
@@ -178,6 +291,7 @@ class ActivityCapturedObservationAdmissionTest {
 		serviceRunId = ServiceRunId("run-1"),
 		sourceInstanceId = SourceInstanceId("activity-provider"),
 		registrationGeneration = 3L,
+		configurationRevision = 5L,
 		physicalConfigurationFingerprint = "activity-physical",
 		authorizationRevision = 7L,
 		authorizationFingerprint = "activity-eligibility",

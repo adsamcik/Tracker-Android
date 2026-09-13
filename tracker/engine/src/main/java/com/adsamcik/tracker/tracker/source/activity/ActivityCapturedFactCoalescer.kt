@@ -3,16 +3,18 @@ package com.adsamcik.tracker.tracker.source.activity
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 
 internal data class ActivityCapturedCoalescingRequest(
-	val authority: ActivityCaptureAuthority,
-	val intervalStartElapsedRealtimeNanos: Long,
-	val intervalEndExclusiveElapsedRealtimeNanos: Long,
+	val mutation: ActivityCapturedWindowMutation,
 	val observations: List<ActivityCapturedObservation>,
 	val declaredGaps: List<ActivityCoverageGap> = emptyList(),
 ) {
-	init {
-		require(intervalStartElapsedRealtimeNanos >= 0L)
-		require(intervalEndExclusiveElapsedRealtimeNanos > intervalStartElapsedRealtimeNanos)
-	}
+	val authority: ActivityCaptureAuthority
+		get() = mutation.identity.authority
+
+	val intervalStartElapsedRealtimeNanos: Long
+		get() = mutation.identity.intervalStartElapsedRealtimeNanos
+
+	val intervalEndExclusiveElapsedRealtimeNanos: Long
+		get() = mutation.identity.intervalEndExclusiveElapsedRealtimeNanos
 }
 
 internal enum class ActivityCoalescingRejection {
@@ -23,6 +25,7 @@ internal enum class ActivityCoalescingRejection {
 	OBSERVATION_INSIDE_DECLARED_GAP,
 	EVENT_IDENTITY_COLLISION,
 	MALFORMED_DECLARED_GAP,
+	WALL_TIME_DERIVATION_FAILED,
 }
 
 internal sealed interface ActivityCoalescingResult {
@@ -93,10 +96,14 @@ internal object ActivityCapturedFactCoalescer {
 			sampled = sampled,
 			gaps = gaps,
 		)
-		val bands = rawBands.mergeAdjacent().map { raw ->
-			raw.toCapturedBand(request.authority, canonical.observations)
+		val bands = rawBands.mergeAdjacent().mapIndexed { fragmentOrdinal, raw ->
+			raw.toCapturedBand(request.mutation, fragmentOrdinal, canonical.observations)
 		}
-		val coveredGaps = complementWithDeclaredGaps(request, bands, gaps)
+		if (bands.any { it == null }) {
+			return rejected(ActivityCoalescingRejection.WALL_TIME_DERIVATION_FAILED)
+		}
+		val capturedBands = bands.filterNotNull()
+		val coveredGaps = complementWithDeclaredGaps(request, capturedBands, gaps)
 		val usedSampleIds = rawBands.asSequence()
 			.filter { it.mechanism == ActivityBandMechanism.SAMPLED_CLASSIFICATION }
 			.flatMap { it.evidence.asSequence() }
@@ -106,12 +113,8 @@ internal object ActivityCapturedFactCoalescer {
 
 		return ActivityCoalescingResult.Coalesced(
 			ActivityCapturedWindow(
-				authority = request.authority,
-				intervalStartElapsedRealtimeNanos =
-					request.intervalStartElapsedRealtimeNanos,
-				intervalEndExclusiveElapsedRealtimeNanos =
-					request.intervalEndExclusiveElapsedRealtimeNanos,
-				bands = bands,
+				mutation = request.mutation,
+				bands = capturedBands,
 				gaps = coveredGaps,
 				exactDuplicateCount = canonical.exactDuplicateCount,
 				semanticDuplicateCount = canonical.semanticDuplicateCount,
@@ -327,16 +330,19 @@ internal object ActivityCapturedFactCoalescer {
 		}
 
 	private fun RawActivityBand.toCapturedBand(
-		authority: ActivityCaptureAuthority,
+		mutation: ActivityCapturedWindowMutation,
+		fragmentOrdinal: Int,
 		observations: List<ActivityCapturedObservation>,
-	): ActivityCapturedBand {
+	): ActivityCapturedBand? {
 		val confidence = when (mechanism) {
 			ActivityBandMechanism.TRANSITION -> ActivityBandConfidence.TransitionSignal
+			ActivityBandMechanism.SAMPLED_REFINEMENT,
 			ActivityBandMechanism.SAMPLED_CLASSIFICATION -> {
 				val confidenceByIdentity = observations.asSequence()
 					.filterIsInstance<ActivityCapturedObservation.SampledClassification>()
 					.associate { it.reference.sourceEventId to it.confidencePercent }
-				val values = evidence.map { confidenceByIdentity.getValue(it.sourceEventId) }
+				val values = evidence.mapNotNull { confidenceByIdentity[it.sourceEventId] }
+				if (values.isEmpty()) return null
 				ActivityBandConfidence.Sampled(
 					minimumPercent = values.minOrNull()!!,
 					maximumPercent = values.maxOrNull()!!,
@@ -344,13 +350,89 @@ internal object ActivityCapturedFactCoalescer {
 				)
 			}
 		}
+		val wallTimeRange = deriveWallTimeRange(this, observations) ?: return null
 		return ActivityCapturedBand(
-			key = ActivityCapturedFactKey(authority, start, end),
+			key = ActivityCapturedFactKey(mutation, fragmentOrdinal),
+			intervalStartElapsedRealtimeNanos = start,
+			intervalEndExclusiveElapsedRealtimeNanos = end,
+			wallTimeRange = wallTimeRange,
 			activity = activity,
 			mechanism = mechanism,
 			confidence = confidence,
 			evidence = evidence,
 		)
+	}
+
+	private fun deriveWallTimeRange(
+		band: RawActivityBand,
+		observations: List<ActivityCapturedObservation>,
+	): ActivityDerivedWallTimeRange? {
+		val evidenceIds = band.evidence.mapTo(mutableSetOf()) { it.sourceEventId }
+		val anchors = observations.filter { it.reference.sourceEventId in evidenceIds }
+		if (anchors.isEmpty()) return null
+		val start = deriveWallTimeBoundary(band.start, anchors) ?: return null
+		val end = deriveWallTimeBoundary(band.end, anchors) ?: return null
+		val continuity = when {
+			start.authority.anchorSourceEventId == end.authority.anchorSourceEventId ->
+				ActivityWallTimeContinuity.SAME_ANCHOR
+			wallTimeMappingsAgree(band, start, end) ->
+				ActivityWallTimeContinuity.CONSISTENT_WITHIN_UNCERTAINTY
+			else -> ActivityWallTimeContinuity.DISCONTINUITY_DETECTED
+		}
+		return ActivityDerivedWallTimeRange(start, end, continuity)
+	}
+
+	private fun deriveWallTimeBoundary(
+		providerTime: Long,
+		anchors: List<ActivityCapturedObservation>,
+	): ActivityDerivedWallTimeBoundary? {
+		val anchor = anchors.minWithOrNull(
+			compareBy<ActivityCapturedObservation> {
+				unsignedDistance(it.reference.providerElapsedRealtimeNanos, providerTime)
+			}.thenBy { it.reference.providerElapsedRealtimeNanos }
+				.thenBy { it.reference.sourceSequence }
+				.thenBy { it.reference.admissionOrdinal }
+				.thenBy { it.reference.sourceEventId.value },
+		) ?: return null
+		val anchorProviderTime = anchor.reference.providerElapsedRealtimeNanos
+		val deltaNanos = if (providerTime >= anchorProviderTime) {
+			providerTime - anchorProviderTime
+		} else {
+			-(anchorProviderTime - providerTime)
+		}
+		val deltaMs = deltaNanos / NANOS_PER_MILLISECOND
+		val wallTimeMs = checkedAdd(anchor.observedWallTimeMs, deltaMs) ?: return null
+		if (wallTimeMs < 0L) return null
+		val roundingUncertainty = if (deltaNanos % NANOS_PER_MILLISECOND == 0L) 0L else 1L
+		val uncertainty = checkedAdd(anchor.wallTimeUncertaintyMs, roundingUncertainty)
+			?: return null
+		return ActivityDerivedWallTimeBoundary(
+			wallTimeMs = wallTimeMs,
+			uncertaintyMs = uncertainty,
+			authority = ActivityWallTimeDerivationAuthority(
+				kind = if (providerTime == anchorProviderTime) {
+					ActivityWallTimeBoundaryKind.EXACT_PROVIDER_OBSERVATION
+				} else {
+					ActivityWallTimeBoundaryKind.SAME_CLOCK_EXTRAPOLATION
+				},
+				anchorSourceEventId = anchor.reference.sourceEventId,
+				anchorProviderElapsedRealtimeNanos = anchorProviderTime,
+				clockDomainId = anchor.authority.clockDomainId,
+			),
+		)
+	}
+
+	private fun wallTimeMappingsAgree(
+		band: RawActivityBand,
+		start: ActivityDerivedWallTimeBoundary,
+		end: ActivityDerivedWallTimeBoundary,
+	): Boolean {
+		val expectedDeltaMs = (band.end - band.start) / NANOS_PER_MILLISECOND
+		val actualDeltaMs = end.wallTimeMs - start.wallTimeMs
+		val allowedDifference = saturatedAdd(start.uncertaintyMs, end.uncertaintyMs)
+		val minimum = saturatedSubtract(expectedDeltaMs, allowedDifference)
+		val maximum = saturatedAdd(expectedDeltaMs, allowedDifference)
+		return actualDeltaMs in minimum..maximum
 	}
 
 	private fun complementWithDeclaredGaps(
@@ -362,8 +444,8 @@ internal object ActivityCapturedFactCoalescer {
 			add(request.intervalStartElapsedRealtimeNanos)
 			add(request.intervalEndExclusiveElapsedRealtimeNanos)
 			bands.forEach { band ->
-				add(band.key.intervalStartElapsedRealtimeNanos)
-				add(band.key.intervalEndExclusiveElapsedRealtimeNanos)
+				add(band.intervalStartElapsedRealtimeNanos)
+				add(band.intervalEndExclusiveElapsedRealtimeNanos)
 			}
 			declaredGaps.forEach { gap ->
 				add(gap.intervalStartElapsedRealtimeNanos)
@@ -417,8 +499,8 @@ internal object ActivityCapturedFactCoalescer {
 		time >= start && time < end
 
 	private operator fun ActivityCapturedBand.contains(time: Long): Boolean =
-		time >= key.intervalStartElapsedRealtimeNanos &&
-			time < key.intervalEndExclusiveElapsedRealtimeNanos
+		time >= intervalStartElapsedRealtimeNanos &&
+			time < intervalEndExclusiveElapsedRealtimeNanos
 
 	private fun ActivityCapturedObservation.semanticKey() = ActivitySemanticKey(
 		providerTime = reference.providerElapsedRealtimeNanos,
@@ -531,6 +613,22 @@ internal object ActivityCapturedFactCoalescer {
 		CapturedActivityType.UNKNOWN -> 1
 	}
 
+	private fun unsignedDistance(left: Long, right: Long): Long =
+		if (left >= right) left - right else right - left
+
+	private fun checkedAdd(left: Long, right: Long): Long? = when {
+		right > 0L && left > Long.MAX_VALUE - right -> null
+		right < 0L && left < Long.MIN_VALUE - right -> null
+		else -> left + right
+	}
+
+	private fun saturatedAdd(left: Long, right: Long): Long =
+		checkedAdd(left, right) ?: Long.MAX_VALUE
+
+	private fun saturatedSubtract(left: Long, right: Long): Long =
+		if (left < Long.MIN_VALUE + right) Long.MIN_VALUE else left - right
+
 	private const val MAX_OBSERVATIONS = 4_096
 	private const val MAX_DECLARED_GAPS = 512
+	private const val NANOS_PER_MILLISECOND = 1_000_000L
 }

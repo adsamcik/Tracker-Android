@@ -9,14 +9,70 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.StableActivityTypeCode
 
-/** Exact physical/authorization contract resolved before a WAL row can become captured Activity. */
-internal data class ActivityCaptureAcquisitionAuthority(
-	val captureAuthority: ActivityCaptureAuthority,
+internal data class ActivityProviderTimeInterval(
+	val startInclusiveNanos: Long,
+	val endExclusiveNanos: Long,
+) {
+	init {
+		require(startInclusiveNanos >= 0L)
+		require(endExclusiveNanos > startInclusiveNanos)
+	}
+
+	operator fun contains(providerTimeNanos: Long): Boolean =
+		providerTimeNanos >= startInclusiveNanos && providerTimeNanos < endExclusiveNanos
+}
+
+/** Stable identity of the historical provider configuration supplying capture thresholds. */
+internal data class ActivityAcquisitionConfigurationIdentity(
+	val sourceInstanceId: String,
+	val registrationGeneration: Long,
+	val configurationRevision: Long,
+	val physicalConfigurationFingerprint: String,
+	val authorizationRevision: Long,
+	val authorizationFingerprint: String,
+) {
+	init {
+		require(sourceInstanceId.isNotBlank())
+		require(registrationGeneration > 0L)
+		require(configurationRevision >= 0L)
+		require(physicalConfigurationFingerprint.isNotBlank())
+		require(authorizationRevision > 0L)
+		require(authorizationFingerprint.isNotBlank())
+	}
+}
+
+/** Policy values are inseparable from the historical configuration that authorized them. */
+internal data class ActivityHistoricalAcquisitionConfiguration(
+	val identity: ActivityAcquisitionConfigurationIdentity,
+	val providerAcceptance: ActivityProviderTimeInterval,
+	val authorizationEffect: ActivityProviderTimeInterval,
+	val sessionRunEffect: ActivityProviderTimeInterval,
 	val maximumObservationAgeNanos: Long,
 	val sampledClassificationPolicy: ActivitySampledClassificationPolicy,
 ) {
 	init {
 		require(maximumObservationAgeNanos >= 0L)
+	}
+}
+
+/** Exact physical/authorization contract resolved before a WAL row can become captured Activity. */
+internal data class ActivityCaptureAcquisitionAuthority(
+	val captureAuthority: ActivityCaptureAuthority,
+	val historicalConfiguration: ActivityHistoricalAcquisitionConfiguration,
+) {
+	init {
+		val expectedIdentity = ActivityAcquisitionConfigurationIdentity(
+			sourceInstanceId = captureAuthority.sourceInstanceId.value,
+			registrationGeneration = captureAuthority.registrationGeneration,
+			configurationRevision = captureAuthority.configurationRevision,
+			physicalConfigurationFingerprint =
+				captureAuthority.physicalConfigurationFingerprint,
+			authorizationRevision = captureAuthority.authorizationRevision,
+			authorizationFingerprint = captureAuthority.authorizationFingerprint,
+		)
+		require(historicalConfiguration.identity == expectedIdentity) {
+			"Capture thresholds must belong to the exact historical acquisition identity"
+		}
 	}
 }
 
@@ -40,6 +96,9 @@ internal enum class ActivityCaptureAdmissionRejection {
 	CONTROL_ONLY,
 	INCOMPLETE_CAPTURE_AUTHORITY,
 	ACQUISITION_AUTHORITY_MISMATCH,
+	OUTSIDE_PROVIDER_ACCEPTANCE,
+	OUTSIDE_AUTHORIZATION_EFFECT,
+	OUTSIDE_SESSION_RUN_EFFECT,
 	MALFORMED_PROVIDER_TIME,
 	STALE_PROVIDER_TIME,
 	WALL_TIME_UNVERIFIABLE,
@@ -78,13 +137,14 @@ internal object ActivityCapturedObservationAdmission {
 		val physicalFingerprint = evidence.physicalConfigurationFingerprint
 		val authorizationRevision = evidence.authorizationRevision
 		val authorizationFingerprint = evidence.registrationEligibilityFingerprint
+		val configurationRevision = evidence.configRevision
 		val sourcePolicyRevision = evidence.sourcePolicyRevision
 		val captureConsentEpoch = evidence.captureConsentEpoch
 		val manifestRevision = evidence.sessionManifestRevision
 		val leaseGeneration = evidence.lifecycleLeaseGeneration
 		if (logicalTrackingId == null || serviceRunId == null || physicalFingerprint == null ||
 			authorizationRevision == null || authorizationFingerprint == null ||
-			sourcePolicyRevision == null || captureConsentEpoch == null ||
+			configurationRevision == null || sourcePolicyRevision == null || captureConsentEpoch == null ||
 			manifestRevision == null || leaseGeneration == null ||
 			evidence.planAttribution != PlanAttribution.CAPTURED_REGISTRATION ||
 			evidence.registrationGeneration <= 0L || evidence.sourceSequence <= 0L ||
@@ -97,6 +157,7 @@ internal object ActivityCapturedObservationAdmission {
 			serviceRunId = serviceRunId,
 			sourceInstanceId = evidence.sourceInstanceId,
 			registrationGeneration = evidence.registrationGeneration,
+			configurationRevision = configurationRevision,
 			physicalConfigurationFingerprint = physicalFingerprint,
 			authorizationRevision = authorizationRevision,
 			authorizationFingerprint = authorizationFingerprint,
@@ -116,8 +177,18 @@ internal object ActivityCapturedObservationAdmission {
 		if (providerTime == null || providerTime != evidence.observedElapsedRealtimeNanos ||
 			providerTime > evidence.receivedElapsedRealtimeNanos
 		) return rejected(ActivityCaptureAdmissionRejection.MALFORMED_PROVIDER_TIME)
+		val historicalConfiguration = acquisitionAuthority.historicalConfiguration
+		if (providerTime !in historicalConfiguration.providerAcceptance) {
+			return rejected(ActivityCaptureAdmissionRejection.OUTSIDE_PROVIDER_ACCEPTANCE)
+		}
+		if (providerTime !in historicalConfiguration.authorizationEffect) {
+			return rejected(ActivityCaptureAdmissionRejection.OUTSIDE_AUTHORIZATION_EFFECT)
+		}
+		if (providerTime !in historicalConfiguration.sessionRunEffect) {
+			return rejected(ActivityCaptureAdmissionRejection.OUTSIDE_SESSION_RUN_EFFECT)
+		}
 		if (evidence.receivedElapsedRealtimeNanos - providerTime >
-			acquisitionAuthority.maximumObservationAgeNanos
+			historicalConfiguration.maximumObservationAgeNanos
 		) return rejected(ActivityCaptureAdmissionRejection.STALE_PROVIDER_TIME)
 
 		val wallTimeMs = evidence.wallTimeMs
@@ -151,7 +222,7 @@ internal object ActivityCapturedObservationAdmission {
 				)
 			}
 			is ActivityRecognitionPayload -> {
-				val policy = acquisitionAuthority.sampledClassificationPolicy
+				val policy = historicalConfiguration.sampledClassificationPolicy
 				if (policy !is ActivitySampledClassificationPolicy.DirectCaptureDetail) {
 					return rejected(
 						ActivityCaptureAdmissionRejection.SAMPLED_CLASSIFICATION_NOT_DIRECTLY_REQUESTED,
@@ -163,9 +234,15 @@ internal object ActivityCapturedObservationAdmission {
 				if (payload.confidencePercent < policy.minimumConfidencePercent) {
 					return rejected(ActivityCaptureAdmissionRejection.SAMPLED_CLASSIFICATION_BELOW_THRESHOLD)
 				}
-				val coverageEnd = providerTime.checkedAdd(
+				val configuredCoverageEnd = providerTime.checkedAdd(
 					policy.maximumCoverageAfterObservationNanos,
 				) ?: return rejected(ActivityCaptureAdmissionRejection.SAMPLED_COVERAGE_OVERFLOW)
+				val coverageEnd = minOf(
+					configuredCoverageEnd,
+					historicalConfiguration.providerAcceptance.endExclusiveNanos,
+					historicalConfiguration.authorizationEffect.endExclusiveNanos,
+					historicalConfiguration.sessionRunEffect.endExclusiveNanos,
+				)
 				ActivityCapturedObservation.SampledClassification(
 					reference,
 					candidateAuthority,
