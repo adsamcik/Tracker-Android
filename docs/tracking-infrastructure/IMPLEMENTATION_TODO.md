@@ -813,6 +813,17 @@ Both primary manual routes request fine plus coarse together on Android 12+ and 
 Wi-Fi-only readiness after repair. These TODOs remain unchecked until provider/device permission
 behavior, the other sources' action paths, runtime/product convergence, and complete scenarios exist.
 
+Accepted maintenance commits `6369e4ed6` and `cc2e83938` implement bounded portions of WIFI-010/013
+and PRIV-002/003/004/005/011. One transactional service authenticates the complete Wi-Fi fact,
+cursor, deletion-generation and retained-WAL scope plus exact immutable source authority. Retention
+selects by covered-interval uncertainty, expands dependent-to-owner and owner-to-all-dependents to a
+fixed point, and removes the complete closure in foreign-key-safe order without deleting WAL.
+Coverage-only references require the full identity-free aggregate to match. Revoked-consent deletion
+requires capture demand/provider quiescence, installs run fences and a Wi-Fi generation before
+payload removal, and preserves CONTROL/other sources. These TODOs remain unchecked until runtime
+projection, transfer, shared UI, automatic/ambient behavior, worker/action invocation, and the full
+scenario cohort exist.
+
 ## Cell vertical
 
 - [ ] TODO-CELL-001 Complete one app-scoped Cell callback owner and stable durable delivery identity

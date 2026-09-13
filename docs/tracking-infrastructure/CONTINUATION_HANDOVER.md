@@ -189,9 +189,13 @@ Independent clean lanes:
   independently accepted through `750bd6c42`: the same scan-only API 26–29+ prerequisite matrix now
   drives capability, admission, service preparation, runtime, and reporting, while Dashboard and
   Tracker request fine plus coarse together on Android 12+ and preserve exact Wi-Fi-only start
-  intent. Nearby Devices remains a raw unrelated capability, not scan-only authority. Provider
-  activation, maintenance/transfer, shared UI, automatic/ambient behavior, and device evidence remain
-  open.
+  intent. Nearby Devices remains a raw unrelated capability, not scan-only authority.
+  `codex/ti-wifi-maintenance` is independently accepted through `cc2e83938`: its bounded source-local
+  transaction authenticates every fact/cursor/generation/WAL and source authority, retains or deletes
+  complete bidirectional aggregate closures in dependency-safe order, requires full aggregate
+  equality for coverage-only references, and fences revoked-consent deletion before payload removal
+  while preserving WAL and CONTROL. Provider activation, transfer, shared UI, automatic/ambient
+  behavior, worker/action invocation, and device evidence remain open.
 
 Read-only Git reconciliation found no accepted committed work lost through compaction. The imported
 Steps source branches are already contained or patch-equivalent in this coordinator; old

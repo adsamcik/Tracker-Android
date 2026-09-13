@@ -2424,3 +2424,27 @@ Deferred focused commands:
 
 The command was not run. Compilation, Room execution, complete Today/Timeline/Calendar/detail,
 localization/accessibility/device rendering, integration, activation, and release remain unproven.
+
+## TI-B295 — Wi-Fi retention and deletion-maintenance contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `cc2e83938`. Authored Room contracts cover bounded full
+fact/revision/cursor/deletion-generation/WAL traversal; exact plan/provider/authorization/session/
+manifest/clock/zone/owner authentication; covered-interval uncertainty and exact-floor equality;
+bidirectional fixed-point aggregate ownership; dependency-first deletion; complete identity-free
+aggregate equality; revoked-consent demand/provider quiescence; run fence plus Wi-Fi generation
+before payload removal; retained WAL/CONTROL; replay/no-resurrection; idempotence; corruption and
+configured overflow; and cancellation rollback.
+
+Independent review first rejected owner-only retention closure and count-only coverage-reference
+authentication. `cc2e83938` adds inverse dependent-floor and equal-count/different-content
+regressions; fresh read-only review accepted both corrections and the complete boundary.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*WifiWalQualificationAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, worker/action invocation, runtime projection,
+provider/process/reboot/device behavior, transfer, shared UI, integration, activation, and release
+remain unproven.

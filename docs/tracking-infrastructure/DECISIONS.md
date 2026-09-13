@@ -3736,3 +3736,20 @@ Each entry records repository evidence and does not duplicate the final architec
   physical entries navigate; source-only cards expose retained nullable source evidence without
   Location metrics or fabricated zero. This does not complete shared Today/Timeline/Calendar/detail,
   automatic/ambient presentation, localization/accessibility, device evidence, or validation.
+
+## TI-D232 — Wi-Fi maintenance preserves complete aggregate ownership behind source-local fences
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; source/DAO/Room tests `6369e4ed6` and
+  `cc2e83938`; corrected independent review; TI-B295.
+- One source-local transaction bounds and authenticates the complete Wi-Fi fact-revision, cursor,
+  deletion-generation, and retained-WAL scope together with exact payload, plan, provider,
+  authorization, policy/consent, run/segment/manifest, clock/zone, and destination-owner authority.
+- Retention uses the earliest covered wall bound including uncertainty. If any coverage dependent or
+  aggregate owner crosses the floor, ownership expands bidirectionally to the complete fixed-point
+  component; dependents are deleted before owners and exact floor equality is retained.
+- A coverage-only WAL event is authentic only when its reconstructed identity-free aggregate equals
+  every owner metric, not just observation count. Revoked-consent deletion requires compatible
+  demand and provider quiescence, installs exact global run fences and the next Wi-Fi deletion
+  generation before facts/cursors are removed, and retains WAL, CONTROL, and unrelated sources.
+- This does not activate projection/provider paths, invoke maintenance from workers or actions,
+  implement transfer, shared UI, automatic/ambient capture, or provide executed evidence.

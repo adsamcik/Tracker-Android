@@ -212,7 +212,7 @@ behind the Wi-Fi deletion epoch. Older terminal replacement history is accepted 
 exact current replacement bundle proves manifest/checksum/source membership, reciprocal run/segment,
 start action, plan, provider registration, current epoch, paired wall/elapsed chronology, and
 lifecycle-valid ACTIVE or RETIRING state. Fact persistence remains inactive; callback ownership,
-bounded active attempts, maintenance, transfer, and UI remain open. The separate Wi-Fi product-read
+bounded active attempts, transfer, and UI remain open. The separate Wi-Fi product-read
 branch is independently accepted through `adde063f3`. One bounded transaction discovers source-only
 entries from retained cursor/WAL/completeness carriers, expands complete logical replacement groups,
 and authenticates facts, freshness, provider/authorization/session windows, immutable plans,
@@ -226,6 +226,14 @@ evaluation, and reporting: API 26–27 accepts coarse/fine or the declared chang
 without Location Services; API 28 requires coarse/fine plus services; API 29+ requires fine plus
 services. Nearby Devices is not a `startScan`/`getScanResults` gate. Dashboard and Tracker request
 fine plus coarse together on Android 12+, then re-read the exact Wi-Fi-only readiness before start.
+The separate Wi-Fi maintenance branch is independently accepted through `cc2e83938`. One bounded
+transaction authenticates complete fact revisions, cursors, source deletion generation, retained
+WAL, plans, provider/authorization/session authority, correction lineage, and aggregate ownership.
+Retention uses the covered interval plus uncertainty, expands owner/dependent relationships in both
+directions to a fixed point, and deletes dependents before owners while retaining WAL. Coverage-only
+WAL references require full identity-free aggregate equality. Revoked-consent deletion requires
+demand/provider quiescence and installs exact run fences plus Wi-Fi generation before fact/cursor
+removal; replay, retry, corruption, overflow, or cancellation cannot resurrect partial state.
 
 Git/worktree reconciliation found no accepted committed implementation stranded or lost: imported
 Steps branches are contained or patch-equivalent in the coordinator, the older Pressure and numeric
