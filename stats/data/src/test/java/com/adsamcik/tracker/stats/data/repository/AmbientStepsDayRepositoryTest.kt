@@ -344,10 +344,42 @@ class AmbientStepsDayRepositoryTest {
 		)
 	}
 
+	@Test
+	fun `historical authorization from a foreign registration clock domain fails closed`() = runTest {
+		seedAuthority(
+			stateCursor = rotatedCursor(),
+			initialAuthorizationBootId = "foreign-boot",
+		)
+		database.ambientStepsImportStateDao().insertAuthorityTransition(authorityTransition())
+		database.ambientStepsFactRevisionDao().insert(fact(4L, 0L, AUTHORITY_BOUNDARY))
+
+		readSnapshot().page.days.single().total shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.AMBIENT_AUTHORITY_UNVERIFIABLE),
+		)
+	}
+
+	@Test
+	fun `historical authorization elapsed boundary cannot follow its successor`() = runTest {
+		seedAuthority(
+			stateCursor = rotatedCursor(),
+			initialAuthorizationEffectiveElapsedRealtimeNanos =
+				AUTHORITY_BOUNDARY * 1_000_000L + 1L,
+		)
+		database.ambientStepsImportStateDao().insertAuthorityTransition(authorityTransition())
+		database.ambientStepsFactRevisionDao().insert(fact(4L, 0L, AUTHORITY_BOUNDARY))
+
+		readSnapshot().page.days.single().total shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.AMBIENT_AUTHORITY_UNVERIFIABLE),
+		)
+	}
+
 	private suspend fun seedAuthority(
 		stateCursor: AmbientStepsImportCursorEntity = cursor(),
 		evidenceState: SourceEvidenceState = SourceEvidenceState(collectedDataEpoch = 7L),
 		initialAuthorizationEffectiveTimeMs: Long = 0L,
+		initialAuthorizationBootId: String = "boot-a",
+		initialAuthorizationEffectiveElapsedRealtimeNanos: Long =
+			initialAuthorizationEffectiveTimeMs * 1_000_000L,
 	) {
 		database.sourceEvidenceStateDao().ensure(evidenceState)
 		database.sourceDestinationOwnerDao().insertIfAbsent(
@@ -371,7 +403,15 @@ class AmbientStepsDayRepositoryTest {
 		database.sourcePolicyDao().insertConsentEpochs(listOf(consent()))
 		database.sourceBrokerDao().insertAuthorizations(
 			buildList {
-				add(authorization(1L, "a".repeat(64), initialAuthorizationEffectiveTimeMs))
+				add(
+					authorization(
+						1L,
+						"a".repeat(64),
+						initialAuthorizationEffectiveTimeMs,
+						initialAuthorizationBootId,
+						initialAuthorizationEffectiveElapsedRealtimeNanos,
+					),
+				)
 				if (stateCursor.authorizationRevision != 1L) {
 					add(
 						authorization(
@@ -435,6 +475,8 @@ class AmbientStepsDayRepositoryTest {
 		revision: Long,
 		fingerprint: String,
 		effectiveWallTimeMs: Long,
+		effectiveBootId: String = "boot-a",
+		effectiveElapsedRealtimeNanos: Long = effectiveWallTimeMs * 1_000_000L,
 	) = SourceAuthorizationEntity(
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 		registrationGeneration = 1L,
@@ -448,8 +490,8 @@ class AmbientStepsDayRepositoryTest {
 		sourcePolicyRevision = 1L,
 		consentEpoch = 1L,
 		persistenceEligible = true,
-		effectiveBootId = "boot-a",
-		effectiveElapsedRealtimeNanos = effectiveWallTimeMs * 1_000_000L,
+		effectiveBootId = effectiveBootId,
+		effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
 		effectiveWallTimeMs = effectiveWallTimeMs,
 		logicalTrackingId = null,
 		serviceRunId = null,

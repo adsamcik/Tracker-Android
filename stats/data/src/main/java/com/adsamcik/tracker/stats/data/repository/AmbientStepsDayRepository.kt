@@ -745,8 +745,11 @@ private class AmbientStepsAuthorityTimeline private constructor(
 			if (!current.matches(currentAuthorization) ||
 				currentAuthorization.effectiveBootId != cursor.authorizationEffectiveBootId ||
 				currentAuthorization.effectiveElapsedRealtimeNanos !=
-				cursor.authorizationEffectiveElapsedRealtimeNanos ||
-				currentAuthorization.effectiveWallTimeMs != cursor.authorizationEffectiveWallTimeMs
+					cursor.authorizationEffectiveElapsedRealtimeNanos ||
+				currentAuthorization.effectiveWallTimeMs != cursor.authorizationEffectiveWallTimeMs ||
+				currentAuthorization.effectiveBootId != cursor.registrationClockDomainId ||
+				currentAuthorization.effectiveElapsedRealtimeNanos <
+					cursor.registrationAcceptedElapsedRealtimeNanos
 			) return null
 			if (transitions.isEmpty()) {
 				if (!current.hasDurablePolicyAt(
@@ -777,12 +780,18 @@ private class AmbientStepsAuthorityTimeline private constructor(
 					firstTransition.fromAuthorizationRevision,
 				)
 			] ?: return null
+			if (initialAuthorization.effectiveBootId != cursor.registrationClockDomainId ||
+				initialAuthorization.effectiveElapsedRealtimeNanos <
+					cursor.registrationAcceptedElapsedRealtimeNanos
+			) return null
 			var phaseStart = AmbientStepsImportCursorEntity.privacyFloorTimeMs(
 				cursor.registrationAcceptedAtMs,
 				initialAuthorization.effectiveWallTimeMs,
 			)
 			var expectedAuthority: AmbientStepsStoredAuthority? = null
 			var previousBoundary = cursor.registrationAcceptedAtMs
+			var previousAuthorizationElapsedRealtimeNanos =
+				initialAuthorization.effectiveElapsedRealtimeNanos
 			transitions.forEach { transition ->
 				val from = transition.fromAuthority()
 				val to = transition.toAuthority()
@@ -805,6 +814,12 @@ private class AmbientStepsAuthorityTimeline private constructor(
 					transition.effectiveBoundaryTimeMs < phaseStart ||
 					(expectedAuthority != null && expectedAuthority != from) ||
 					!from.matches(fromAuthorization) || !to.matches(toAuthorization) ||
+					fromAuthorization.effectiveBootId != cursor.registrationClockDomainId ||
+					toAuthorization.effectiveBootId != cursor.registrationClockDomainId ||
+					fromAuthorization.effectiveElapsedRealtimeNanos !=
+						previousAuthorizationElapsedRealtimeNanos ||
+					toAuthorization.effectiveElapsedRealtimeNanos <
+						fromAuthorization.effectiveElapsedRealtimeNanos ||
 					toAuthorization.effectiveBootId != transition.toAuthorizationEffectiveBootId ||
 					toAuthorization.effectiveElapsedRealtimeNanos !=
 					transition.toAuthorizationEffectiveElapsedRealtimeNanos ||
@@ -835,6 +850,8 @@ private class AmbientStepsAuthorityTimeline private constructor(
 				firstSegment = transition.toContinuitySegmentGeneration
 				phaseStart = transition.effectiveBoundaryTimeMs
 				previousBoundary = transition.effectiveBoundaryTimeMs
+				previousAuthorizationElapsedRealtimeNanos =
+					toAuthorization.effectiveElapsedRealtimeNanos
 				expectedAuthority = to
 			}
 			val latest = transitions.last()
