@@ -145,6 +145,53 @@ interface AmbientStepsImportStateDao {
 		registrationGeneration: Long,
 	): List<AmbientStepsEffectiveGapInterval>
 
+	/**
+	 * Bounded page-level equivalent of [effectiveGapIntervals]. It subtracts latest-effective facts
+	 * before returning gaps, avoiding one registration query per discovered structural day.
+	 */
+	@Query(
+		"WITH effective_fact AS (SELECT fact.* FROM ambient_steps_fact_revision AS fact " +
+			"WHERE fact.operation = '${AmbientStepsFactRevisionEntity.OPERATION_UPSERT}' " +
+			"AND fact.semantic_revision = (SELECT MAX(state.semantic_revision) " +
+			"FROM ambient_steps_fact_revision AS state WHERE state.writer_id = fact.writer_id " +
+			"AND state.writer_version = fact.writer_version " +
+			"AND state.logical_fact_id = fact.logical_fact_id)), " +
+			"scoped_gap AS (SELECT * FROM ambient_steps_import_gap " +
+			"WHERE gap_end_time_ms > :fromTimeMs AND gap_start_time_ms < :toTimeMs), " +
+			"boundary AS (SELECT gap.gap_id, gap.gap_start_time_ms AS boundary_time_ms " +
+			"FROM scoped_gap AS gap UNION SELECT gap.gap_id, MIN(fact.window_end_time_ms, gap.gap_end_time_ms) " +
+			"FROM scoped_gap AS gap JOIN effective_fact AS fact ON fact.provider = gap.provider " +
+			"AND fact.source_instance_id = gap.source_instance_id " +
+			"AND fact.registration_generation = gap.registration_generation " +
+			"AND fact.collected_data_epoch = gap.collected_data_epoch " +
+			"AND fact.window_end_time_ms > gap.gap_start_time_ms " +
+			"AND fact.window_start_time_ms < gap.gap_end_time_ms) " +
+			"SELECT gap.gap_id AS gap_id, MAX(boundary.boundary_time_ms, :fromTimeMs) AS gap_start_time_ms, " +
+			"MIN(gap.gap_end_time_ms, :toTimeMs, COALESCE((SELECT MIN(fact.window_start_time_ms) " +
+			"FROM effective_fact AS fact WHERE fact.window_start_time_ms > boundary.boundary_time_ms " +
+			"AND fact.provider = gap.provider AND fact.source_instance_id = gap.source_instance_id " +
+			"AND fact.registration_generation = gap.registration_generation " +
+			"AND fact.collected_data_epoch = gap.collected_data_epoch " +
+			"AND fact.window_start_time_ms < gap.gap_end_time_ms " +
+			"AND fact.window_end_time_ms > gap.gap_start_time_ms), gap.gap_end_time_ms)) AS gap_end_time_ms " +
+			"FROM boundary JOIN scoped_gap AS gap ON gap.gap_id = boundary.gap_id " +
+			"WHERE MAX(boundary.boundary_time_ms, :fromTimeMs) < MIN(gap.gap_end_time_ms, :toTimeMs) " +
+			"AND NOT EXISTS (SELECT 1 FROM effective_fact AS fact " +
+			"WHERE fact.window_start_time_ms <= boundary.boundary_time_ms " +
+			"AND fact.provider = gap.provider AND fact.source_instance_id = gap.source_instance_id " +
+			"AND fact.registration_generation = gap.registration_generation " +
+			"AND fact.collected_data_epoch = gap.collected_data_epoch " +
+			"AND fact.window_end_time_ms > boundary.boundary_time_ms " +
+			"AND fact.window_end_time_ms > gap.gap_start_time_ms " +
+			"AND fact.window_start_time_ms < gap.gap_end_time_ms) " +
+			"ORDER BY gap_start_time_ms ASC LIMIT :limit",
+	)
+	suspend fun effectiveGapIntervalsOverlapping(
+		fromTimeMs: Long,
+		toTimeMs: Long,
+		limit: Int,
+	): List<AmbientStepsEffectiveGapInterval>
+
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertAuthorityTransition(
 		transition: AmbientStepsImportAuthorityTransitionEntity,

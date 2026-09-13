@@ -1,10 +1,19 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
 import androidx.room.Dao
+import androidx.room.ColumnInfo
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
+
+data class AmbientStepsStructuralDayRow(
+	@ColumnInfo(name = "structural_epoch_day") val structuralEpochDay: Long,
+	@ColumnInfo(name = "stored_zone_id") val storedZoneId: String,
+	@ColumnInfo(name = "structural_day_start_time_ms") val structuralDayStartTimeMs: Long,
+	@ColumnInfo(name = "structural_day_end_time_ms") val structuralDayEndTimeMs: Long,
+	@ColumnInfo(name = "latest_window_end_time_ms") val latestWindowEndTimeMs: Long,
+)
 
 /** Narrow append-only storage boundary for system-provider Ambient Steps aggregates. */
 @Dao
@@ -75,6 +84,52 @@ interface AmbientStepsFactRevisionDao {
 		writerVersion: Int,
 		fromTimeMs: Long,
 		toTimeMs: Long,
+		limit: Int,
+	): List<AmbientStepsFactRevisionEntity>
+
+	/**
+	 * Discovers sessionless structural days directly from latest-effective Ambient Steps facts.
+	 * Neither a tracking session nor Location/sample-count evidence participates in this page.
+	 */
+	@Query(
+		"WITH effective_fact AS (SELECT fact.* FROM ambient_steps_fact_revision AS fact " +
+			"WHERE fact.writer_id = :writerId AND fact.writer_version = :writerVersion " +
+			"AND fact.operation = '${AmbientStepsFactRevisionEntity.OPERATION_UPSERT}' " +
+			"AND fact.semantic_revision = (SELECT MAX(state.semantic_revision) " +
+			"FROM ambient_steps_fact_revision AS state WHERE state.writer_id = fact.writer_id " +
+			"AND state.writer_version = fact.writer_version " +
+			"AND state.logical_fact_id = fact.logical_fact_id)) " +
+			"SELECT structural_epoch_day, stored_zone_id, structural_day_start_time_ms, " +
+			"structural_day_end_time_ms, MAX(window_end_time_ms) AS latest_window_end_time_ms " +
+			"FROM effective_fact GROUP BY structural_epoch_day, stored_zone_id, " +
+			"structural_day_start_time_ms, structural_day_end_time_ms " +
+			"ORDER BY latest_window_end_time_ms DESC, structural_epoch_day DESC, stored_zone_id ASC " +
+			"LIMIT :limit",
+	)
+	suspend fun discoverStructuralDays(
+		writerId: String,
+		writerVersion: Int,
+		limit: Int,
+	): List<AmbientStepsStructuralDayRow>
+
+	/** One bounded fact read for a structural-day page; the caller groups by epoch-day and zone. */
+	@Query(
+		"SELECT candidate.* FROM ambient_steps_fact_revision AS candidate " +
+			"WHERE candidate.writer_id = :writerId AND candidate.writer_version = :writerVersion " +
+			"AND candidate.operation = '${AmbientStepsFactRevisionEntity.OPERATION_UPSERT}' " +
+			"AND candidate.structural_epoch_day BETWEEN :fromEpochDay AND :toEpochDay " +
+			"AND candidate.semantic_revision = (SELECT MAX(state.semantic_revision) " +
+			"FROM ambient_steps_fact_revision AS state WHERE state.writer_id = candidate.writer_id " +
+			"AND state.writer_version = candidate.writer_version " +
+			"AND state.logical_fact_id = candidate.logical_fact_id) " +
+			"ORDER BY candidate.structural_epoch_day DESC, candidate.stored_zone_id ASC, " +
+			"candidate.window_start_time_ms ASC, candidate.logical_fact_id ASC LIMIT :limit",
+	)
+	suspend fun latestEffectiveForStructuralDayRange(
+		writerId: String,
+		writerVersion: Int,
+		fromEpochDay: Long,
+		toEpochDay: Long,
 		limit: Int,
 	): List<AmbientStepsFactRevisionEntity>
 

@@ -43,6 +43,16 @@ class AmbientStepsFactRevisionDaoTest {
 			listOf(zero, positive)
 		dao.latestEffectiveOverlapping(WRITER_ID, WRITER_VERSION, 1_500L, 3_500L, 10) shouldContainExactly
 			listOf(zero, positive)
+		dao.discoverStructuralDays(WRITER_ID, WRITER_VERSION, 10) shouldContainExactly listOf(
+			AmbientStepsStructuralDayRow(0L, "UTC", 0L, 86_400_000L, 4_000L),
+		)
+		dao.latestEffectiveForStructuralDayRange(
+			WRITER_ID,
+			WRITER_VERSION,
+			0L,
+			0L,
+			10,
+		) shouldContainExactly listOf(zero, positive)
 
 		val correctedUnsigned = positive.copy(
 			semanticRevision = 2L,
@@ -66,6 +76,9 @@ class AmbientStepsFactRevisionDaoTest {
 		dao.latest(WRITER_ID, WRITER_VERSION, zero.logicalFactId) shouldBe deleted
 		dao.latestEffectiveForDay(WRITER_ID, WRITER_VERSION, 0L, "UTC") shouldContainExactly
 			listOf(corrected)
+		dao.discoverStructuralDays(WRITER_ID, WRITER_VERSION, 10) shouldContainExactly listOf(
+			AmbientStepsStructuralDayRow(0L, "UTC", 0L, 86_400_000L, 4_000L),
+		)
 		dao.insert(deleted) shouldBe -1L
 	}
 

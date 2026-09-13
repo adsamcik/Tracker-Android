@@ -169,16 +169,23 @@ class AmbientStepsImportStateDaoTest {
 		dao.effectiveGapIntervals(7L) shouldContainExactly listOf(
 			AmbientStepsEffectiveGapInterval(gap.gapId, 6_000L, 8_000L),
 		)
+		dao.effectiveGapIntervalsOverlapping(5_000L, 9_000L, 10) shouldContainExactly listOf(
+			AmbientStepsEffectiveGapInterval(gap.gapId, 6_000L, 8_000L),
+		)
 
 		val partial = ambientFact(7_000L, 8_000L)
 		database.ambientStepsFactRevisionDao().insert(partial) shouldBe 1L
 		dao.effectiveGapIntervals(7L) shouldContainExactly listOf(
 			AmbientStepsEffectiveGapInterval(gap.gapId, 6_000L, 7_000L),
 		)
+		dao.effectiveGapIntervalsOverlapping(5_000L, 9_000L, 10) shouldContainExactly listOf(
+			AmbientStepsEffectiveGapInterval(gap.gapId, 6_000L, 7_000L),
+		)
 
 		val full = ambientFact(6_000L, 8_000L)
 		database.ambientStepsFactRevisionDao().insert(full) shouldBe 2L
 		dao.effectiveGapIntervals(7L) shouldContainExactly emptyList()
+		dao.effectiveGapIntervalsOverlapping(5_000L, 9_000L, 10) shouldContainExactly emptyList()
 		database.ambientStepsFactRevisionDao().insert(retract(full)) shouldBe 3L
 		dao.effectiveGapIntervals(7L) shouldContainExactly listOf(
 			AmbientStepsEffectiveGapInterval(gap.gapId, 6_000L, 7_000L),
