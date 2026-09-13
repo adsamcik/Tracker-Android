@@ -39,6 +39,7 @@ import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.dao.TrajectoryReconstructionDao
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
+import com.adsamcik.tracker.shared.base.database.dao.WifiCapturedFactDao
 import com.adsamcik.tracker.shared.base.database.dao.XpLedgerDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
@@ -73,6 +74,9 @@ import com.adsamcik.tracker.shared.base.database.data.TrajectorySourceLinkEntity
 import com.adsamcik.tracker.shared.base.database.data.TrajectoryStateEntity
 import com.adsamcik.tracker.shared.base.database.data.VisitIntervalEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
+import com.adsamcik.tracker.shared.base.database.data.WifiCaptureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
@@ -175,6 +179,9 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedStepsRunEntity::class,
 			ImportedStepsManifestEntity::class,
 			PressureFactRevisionEntity::class,
+			WifiCapturedFactRevisionEntity::class,
+			WifiCapturedFactCursorEntity::class,
+			WifiCaptureDeletionGenerationEntity::class,
 			SourceDeletionFenceEntity::class,
 			SourceDestinationOwnerEntity::class,
 			ActivitySnapshot::class,
@@ -295,6 +302,9 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Provides the dormant append-only source-qualified Pressure fact history. */
 	abstract fun pressureFactRevisionDao(): PressureFactRevisionDao
+
+	/** Dormant identity-free Wi-Fi captured-fact persistence. */
+	abstract fun wifiCapturedFactDao(): WifiCapturedFactDao
 
 	/** Provides payload-free source/run deletion authority for source mutation paths. */
 	abstract fun sourceDeletionFenceDao(): SourceDeletionFenceDao
@@ -615,6 +625,9 @@ abstract class AppDatabase : RoomDatabase() {
 			database.stepFactRevisionDao().deleteAll()
 			database.importedStepsDao().deleteAll()
 			database.pressureFactRevisionDao().deleteAll()
+			database.wifiCapturedFactDao().deleteAllCursors()
+			database.wifiCapturedFactDao().deleteAllRevisions()
+			database.wifiCapturedFactDao().deleteAllDeletionGenerations()
 			database.stepIntervalDao().deleteAll()
 			database.activitySnapshotDao().deleteAll()
 			database.cellSampleDao().deleteAll()

@@ -398,14 +398,63 @@ class WifiCapturedFactClassifierTest {
 			originalInput,
 			authority,
 			priorFact = original.toReusableFact(),
-		) shouldBe WifiCapturedFactClassification.Absent
+		) shouldBe WifiCapturedFactClassification.Replay(
+			WifiAggregateFactReference(original.mutation.identity, 1L),
+		)
 		classify(
 			originalInput,
 			authority,
 			semanticRevision = 2L,
 			supersedesSemanticRevision = 1L,
 			correctionBase = original.toReusableFact(),
-		) shouldBe WifiCapturedFactClassification.Absent
+		) shouldBe WifiCapturedFactClassification.Replay(
+			WifiAggregateFactReference(original.mutation.identity, 1L),
+		)
+	}
+
+	@Test
+	fun `open authority cannot become another facts aggregate owner`() {
+		val open = authority().copy(temporalAuthority = WifiCaptureTemporalAuthority(
+			providerAcceptance = WifiProviderTimeInterval(1L, Long.MAX_VALUE),
+			authorizationEffect = WifiProviderTimeInterval(1L, Long.MAX_VALUE),
+			sessionRunEffect = WifiProviderTimeInterval(1L, Long.MAX_VALUE),
+		))
+		val original = freshFact(open)
+		val next = classify(
+			input(open, delivery = 'b'),
+			open,
+			priorFact = original.toReusableFact(),
+		) as WifiCapturedFactClassification.FreshChanged
+		next.fact.aggregate shouldBe original.aggregate
+	}
+
+	@Test
+	fun `closing open authority creates self contained aggregate correction`() {
+		val open = authority().copy(temporalAuthority = WifiCaptureTemporalAuthority(
+			providerAcceptance = WifiProviderTimeInterval(1L, Long.MAX_VALUE),
+			authorizationEffect = WifiProviderTimeInterval(1L, Long.MAX_VALUE),
+			sessionRunEffect = WifiProviderTimeInterval(1L, Long.MAX_VALUE),
+		))
+		val originalInput = input(open)
+		val original = freshFact(open)
+		val settled = open.copy(temporalAuthority = WifiCaptureTemporalAuthority(
+			providerAcceptance = WifiProviderTimeInterval(1L, 9_000_000_000L),
+			authorizationEffect = WifiProviderTimeInterval(1L, 9_000_000_000L),
+			sessionRunEffect = WifiProviderTimeInterval(1L, 9_000_000_000L),
+		))
+		val settledInput = originalInput.copy(
+			walEvidence = requireNotNull(originalInput.walEvidence)
+				.copy(capturedAuthority = settled)
+				.withValidWalIntegrity(),
+		)
+		val correction = classify(
+			settledInput,
+			settled,
+			semanticRevision = 2L,
+			supersedesSemanticRevision = 1L,
+			correctionBase = original.toReusableFact(),
+		) as WifiCapturedFactClassification.FreshChanged
+		correction.fact.mutation.supersedesSemanticRevision shouldBe 1L
 	}
 
 	@Test

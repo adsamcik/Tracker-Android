@@ -160,6 +160,7 @@ internal sealed interface WifiCapturedFactClassification {
 	data object PermissionLimited : WifiCapturedFactClassification
 	data object OsThrottled : WifiCapturedFactClassification
 	data object ClockUnverifiable : WifiCapturedFactClassification
+	data class Replay(val reference: WifiAggregateFactReference) : WifiCapturedFactClassification
 	data class Rejected(val reason: WifiFactRejection) : WifiCapturedFactClassification
 }
 
@@ -201,6 +202,11 @@ internal object WifiCapturedFactClassifier {
 			return rejected(WifiFactRejection.CAPTURE_AUTHORITY_MISMATCH)
 		}
 		if (currentDeletionAuthority.currentCollectedDataEpoch != expectedAuthority.collectedDataEpoch) {
+			return rejected(WifiFactRejection.DELETION_AUTHORITY_MISMATCH)
+		}
+		if (currentDeletionAuthority.currentScopeDeletionGeneration !=
+			expectedAuthority.scopeDeletionGeneration
+		) {
 			return rejected(WifiFactRejection.DELETION_AUTHORITY_MISMATCH)
 		}
 		val qualifiedPlan = qualifyAcquisitionPlan(expectedAuthority)
@@ -376,10 +382,9 @@ internal object WifiCapturedFactClassifier {
 			?.takeIf { prior ->
 				prior.reference.identity != mutation.identity &&
 					prior.authority == authority &&
+					mutation.semanticRevision == 1L &&
+					prior.authority.temporalAuthority.isImmutableForAggregateReuse() &&
 					prior.productEffect.aggregate == aggregate
-			} ?: (correctionBase as? WifiReusableFact.DirectAggregateOwner)
-			?.takeIf { base ->
-				base.authority == authority && base.productEffect.aggregate == aggregate
 			}
 		return if (directAggregateOwner != null) {
 			WifiCapturedFactClassification.FreshUnchanged(
@@ -427,13 +432,15 @@ internal object WifiCapturedFactClassifier {
 				priorFact.authority == authority &&
 				priorFact.productEffect == productEffect
 			) {
-				WifiCapturedFactClassification.Absent
+				WifiCapturedFactClassification.Replay(priorFact.reference)
 			} else {
 				rejected(WifiFactRejection.DELIVERY_IDENTITY_COLLISION)
 			}
 		}
-		return if (correctionBase?.productEffect == productEffect) {
-			WifiCapturedFactClassification.Absent
+		return if (correctionBase?.authority == authority &&
+			correctionBase.productEffect == productEffect
+		) {
+			WifiCapturedFactClassification.Replay(requireNotNull(correctionBase).reference)
 		} else {
 			null
 		}
@@ -517,7 +524,7 @@ internal object WifiCapturedFactClassifier {
 		correctionBase == null -> false
 		correctionBase.reference.identity != mutation.identity -> false
 		correctionBase.reference.semanticRevision != mutation.supersedesSemanticRevision -> false
-		correctionBase.authority != authority -> false
+		!authority.isExactSettlementOf(correctionBase.authority) -> false
 		else -> true
 	}
 
@@ -536,6 +543,7 @@ internal object WifiCapturedFactClassifier {
 		sessionSegmentId = sessionSegmentId,
 		sessionManifestRevision = sessionManifestRevision,
 		collectedDataEpoch = collectedDataEpoch,
+		scopeDeletionGeneration = scopeDeletionGeneration,
 	)
 
 	private fun WifiWalObservationEvidence.evidenceBinding(
@@ -696,6 +704,31 @@ internal object WifiCapturedFactClassifier {
 		in WIFI_6_GHZ_MIN_MHZ..WIFI_6_GHZ_MAX_MHZ -> WifiBand.SIX_GHZ
 		else -> WifiBand.OTHER
 	}
+
+	/** Only fully settled authority may back another fact's aggregate reference. */
+	private fun WifiCaptureTemporalAuthority.isImmutableForAggregateReuse(): Boolean =
+		providerAcceptance.endExclusiveNanos != Long.MAX_VALUE &&
+			authorizationEffect.endExclusiveNanos != Long.MAX_VALUE &&
+			sessionRunEffect.endExclusiveNanos != Long.MAX_VALUE
+
+	/** Corrections may close an open interval, but may not rotate any captured authority. */
+	private fun WifiCaptureAuthority.isExactSettlementOf(previous: WifiCaptureAuthority): Boolean =
+		copy(temporalAuthority = previous.temporalAuthority) == previous &&
+			temporalAuthority.providerAcceptance.isExactSettlementOf(
+				previous.temporalAuthority.providerAcceptance,
+			) &&
+			temporalAuthority.authorizationEffect.isExactSettlementOf(
+				previous.temporalAuthority.authorizationEffect,
+			) &&
+			temporalAuthority.sessionRunEffect.isExactSettlementOf(
+				previous.temporalAuthority.sessionRunEffect,
+			)
+
+	private fun WifiProviderTimeInterval.isExactSettlementOf(
+		previous: WifiProviderTimeInterval,
+	): Boolean = startInclusiveNanos == previous.startInclusiveNanos &&
+		(endExclusiveNanos == previous.endExclusiveNanos ||
+			(previous.endExclusiveNanos == Long.MAX_VALUE && endExclusiveNanos < Long.MAX_VALUE))
 
 	private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")
 		.digest(this)

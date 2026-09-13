@@ -112,10 +112,12 @@ internal data class WifiAppliedRegistrationEvidence(
 internal data class WifiDeletionAuthority(
 	val currentCollectedDataEpoch: Long,
 	val retainedFromWallTimeMs: Long?,
+	val currentScopeDeletionGeneration: Long = 0L,
 ) {
 	init {
 		require(currentCollectedDataEpoch >= 0L)
 		require(retainedFromWallTimeMs == null || retainedFromWallTimeMs >= 0L)
+		require(currentScopeDeletionGeneration >= 0L)
 	}
 }
 
@@ -149,6 +151,7 @@ internal data class WifiCaptureAuthority(
 	val acquisitionConfiguration: WifiHistoricalAcquisitionConfiguration,
 	val serializedAcquisitionPlan: WifiSerializedAcquisitionPlanEvidence,
 	val appliedRegistration: WifiAppliedRegistrationEvidence,
+	val scopeDeletionGeneration: Long = 0L,
 ) {
 	init {
 		require(sessionSegmentId > 0L)
@@ -174,6 +177,7 @@ internal data class WifiCaptureAuthority(
 		require(sessionManifestRevision > 0L)
 		require(lifecycleLeaseGeneration > 0L)
 		require(collectedDataEpoch >= 0L)
+		require(scopeDeletionGeneration >= 0L)
 		require(clockDomainId.isNotBlank())
 		require(zoneId.isNotBlank() && runCatching { ZoneId.of(zoneId) }.isSuccess) {
 			"Captured Wi-Fi authority requires a valid stored zone"
@@ -198,6 +202,7 @@ internal data class WifiCapturedFactIdentity(
 	val sessionSegmentId: Long,
 	val sessionManifestRevision: Long,
 	val collectedDataEpoch: Long,
+	val scopeDeletionGeneration: Long = 0L,
 ) {
 	init {
 		require(sourceAdmissionOrdinal > 0L)
@@ -207,6 +212,7 @@ internal data class WifiCapturedFactIdentity(
 		require(sessionSegmentId > 0L)
 		require(sessionManifestRevision > 0L)
 		require(collectedDataEpoch >= 0L)
+		require(scopeDeletionGeneration >= 0L)
 	}
 
 	private companion object {
@@ -566,6 +572,7 @@ private fun requireExactOwnerBinding(
 	require(identity.sessionSegmentId == authority.sessionSegmentId)
 	require(identity.sessionManifestRevision == authority.sessionManifestRevision)
 	require(identity.collectedDataEpoch == authority.collectedDataEpoch)
+	require(identity.scopeDeletionGeneration == authority.scopeDeletionGeneration)
 	require(evidence.acquisitionPlanRevision == authority.configurationRevision)
 	require(evidence.acquisitionPlanChecksum == authority.serializedAcquisitionPlan.payloadChecksum)
 	require(evidence.clockDomainId == authority.clockDomainId)
@@ -589,6 +596,7 @@ private fun requireWifiFactBinding(
 	require(identity.sessionSegmentId == authority.sessionSegmentId)
 	require(identity.sessionManifestRevision == authority.sessionManifestRevision)
 	require(identity.collectedDataEpoch == authority.collectedDataEpoch)
+	require(identity.scopeDeletionGeneration == authority.scopeDeletionGeneration)
 	require(evidence.acquisitionPlanRevision == authority.configurationRevision)
 	require(evidence.acquisitionPlanChecksum == authority.serializedAcquisitionPlan.payloadChecksum)
 	require(evidence.clockDomainId == authority.clockDomainId)

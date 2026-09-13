@@ -251,6 +251,8 @@ data class SessionManifestSourceEntity(
 				sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS -> requireStepsWriter()
 			isPersistenceEligibleCapture &&
 				sourceKind == SourceDestinationOwnerEntity.SOURCE_PRESSURE -> requirePressureWriter()
+			isPersistenceEligibleCapture &&
+				sourceKind == SourceDestinationOwnerEntity.SOURCE_WIFI -> requireWifiWriter()
 			else -> require(outputDestination == null && writerProjectionId == null) {
 				"Only supported persistence-eligible capture sources may carry writer provenance"
 			}
@@ -308,6 +310,21 @@ data class SessionManifestSourceEntity(
 			}
 			else -> require(false) { "Pressure capture must name a permanent destination owner" }
 		}
+	}
+
+	private fun requireWifiWriter() {
+		if (outputDestination == null) {
+			require(writerOwner == null && writerOwnerGeneration == null)
+			require(writerProjectionId == null && writerProjectionVersion == null &&
+				writerBindingGeneration == null)
+			return
+		}
+		require(outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI)
+		require(writerOwner == SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS)
+		require(writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
+		require(writerProjectionId == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID)
+		require(writerProjectionVersion == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION)
+		require(writerBindingGeneration == SourceDestinationOwnerEntity.WIFI_FACT_BINDING_GENERATION)
 	}
 }
 

@@ -33,12 +33,15 @@ data class SourceDestinationOwnerEntity(
 	companion object {
 		const val SOURCE_STEPS = 3
 		const val SOURCE_PRESSURE = 4
+		const val SOURCE_WIFI = 5
 		const val DESTINATION_SESSION_STEPS = "SESSION_STEPS"
 		const val DESTINATION_SESSION_PRESSURE = "SESSION_PRESSURE"
+		const val DESTINATION_SESSION_WIFI = "SESSION_WIFI"
 		const val OWNER_LEGACY_STEP_INTERVAL = "LEGACY_STEP_INTERVAL"
 		const val OWNER_STEPS_SESSION_FACTS = "STEPS_SESSION_FACTS"
 		const val OWNER_LEGACY_PRESSURE_SAMPLE = "LEGACY_PRESSURE_SAMPLE"
 		const val OWNER_PRESSURE_SESSION_FACTS = "PRESSURE_SESSION_FACTS"
+		const val OWNER_WIFI_SESSION_FACTS = "WIFI_SESSION_FACTS"
 		const val INITIAL_LEGACY_GENERATION = 1L
 		const val FIRST_CANDIDATE_GENERATION = 2L
 		const val STEPS_FACT_PROJECTION_ID = "steps-session-facts"
@@ -50,5 +53,8 @@ data class SourceDestinationOwnerEntity(
 		const val PRESSURE_FACT_PROJECTION_ID = "pressure-session-facts"
 		const val PRESSURE_FACT_PROJECTION_VERSION = 1
 		const val PRESSURE_FACT_BINDING_GENERATION = 1L
+		const val WIFI_FACT_PROJECTION_ID = "wifi-session-facts"
+		const val WIFI_FACT_PROJECTION_VERSION = 1
+		const val WIFI_FACT_BINDING_GENERATION = 1L
 	}
 }

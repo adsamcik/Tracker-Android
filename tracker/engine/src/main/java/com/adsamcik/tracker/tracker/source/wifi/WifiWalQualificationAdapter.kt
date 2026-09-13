@@ -71,6 +71,7 @@ internal enum class WifiWalAdapterRejection {
 	INVALID_STORED_ZONE,
 	DELETED_EVIDENCE,
 	DELETED_SCOPE,
+	SCOPE_DELETION_AUTHORITY_MISMATCH,
 	BEFORE_RETENTION_FLOOR,
 	TEMPORAL_AUTHORITY_UNVERIFIABLE,
 }
@@ -524,6 +525,17 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 		) {
 			return@withTransaction rejected(WifiWalAdapterRejection.DELETED_SCOPE)
 		}
+		val sourceDeletion = database.wifiCapturedFactDao().deletionGeneration(
+			logicalTrackingId,
+			serviceRunId,
+		)
+		if (sourceDeletion != null) {
+			// Wi-Fi WAL v1 does not carry a source-local generation. Never rebind an old
+			// delivery to the current post-deletion generation.
+			return@withTransaction rejected(
+				WifiWalAdapterRejection.SCOPE_DELETION_AUTHORITY_MISMATCH,
+			)
+		}
 		val wallInterval = providerWallInterval(wal)
 			?: return@withTransaction rejected(WifiWalAdapterRejection.TEMPORAL_AUTHORITY_UNVERIFIABLE)
 		if (evidenceState.retainedFromMs?.let { wallInterval.first < it } == true) {
@@ -591,11 +603,13 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 					clockDomainId = wal.clockDomainId,
 					capturedCollectedDataEpoch = wal.capturedCollectedDataEpoch,
 				),
+				scopeDeletionGeneration = 0L,
 			)
 		}.getOrNull() ?: return@withTransaction rejected(WifiWalAdapterRejection.MANIFEST_MISMATCH)
 		val deletionAuthority = WifiDeletionAuthority(
 			currentCollectedDataEpoch = evidenceState.collectedDataEpoch,
 			retainedFromWallTimeMs = evidenceState.retainedFromMs,
+			currentScopeDeletionGeneration = 0L,
 		)
 		val evidence = WifiWalObservationEvidence(
 			sourceEventId = eventId,

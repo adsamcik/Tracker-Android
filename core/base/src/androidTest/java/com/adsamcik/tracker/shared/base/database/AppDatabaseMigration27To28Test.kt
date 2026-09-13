@@ -678,6 +678,10 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "imported_steps_manifest", 0)
 		// Legacy pressure_sample rows lack v4 qualification and must never be backfilled.
 		assertTableCount(database, "pressure_fact_revision", 0)
+		// Legacy Wi-Fi observations have no v28 WAL/provider authority and remain unpromoted.
+		assertTableCount(database, "wifi_captured_fact_revision", 0)
+		assertTableCount(database, "wifi_captured_fact_cursor", 0)
+		assertTableCount(database, "wifi_capture_deletion_generation", 0)
 		assertIndexColumns(
 			database = database,
 			indexName = "idx_pressure_fact_revision_service_run_scope",
@@ -1154,6 +1158,9 @@ class AppDatabaseMigration27To28Test {
 		assertEquals("LEGACY_PRESSURE_SAMPLE", pressureOwner.owner)
 		assertEquals(1L, pressureOwner.ownerGeneration)
 		assertEquals(0L, database.pressureFactRevisionDao().count())
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
+		assertEquals(0L, database.wifiCapturedFactDao().deletionGenerationCount())
 	}
 
 	private suspend fun seedMigratedStepFactRevision(database: AppDatabase) {

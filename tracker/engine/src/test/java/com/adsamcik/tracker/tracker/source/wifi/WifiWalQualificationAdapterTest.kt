@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.wifi
 
 import android.app.Application
+import android.database.sqlite.SQLiteConstraintException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
@@ -15,12 +16,17 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiCaptureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
@@ -54,12 +60,14 @@ class WifiWalQualificationAdapterTest {
 	private val payloadCodec = DefaultSourcePayloadCodec()
 	private val planCodec = SourcePlanCodec()
 	private lateinit var subject: WifiWalQualificationAdapter
+	private lateinit var writer: WifiCapturedFactWriter
 
 	@Before
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		subject = WifiWalQualificationAdapter(database, payloadCodec, planCodec)
+		writer = WifiCapturedFactWriter(database, subject)
 	}
 
 	@After
@@ -449,6 +457,170 @@ class WifiWalQualificationAdapterTest {
 		}
 	}
 
+	@Test
+	fun `dormant writer appends one identity free revision then exact replay is unchanged`() = runTest {
+		installValidFixture(candidateWriter = true)
+
+		val applied = assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		assertEquals(1L, applied.semanticRevision)
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(1L, database.wifiCapturedFactDao().cursorCount())
+
+		val replay = assertIs<WifiCapturedWriteResult.Unchanged>(writer.write(EVENT_ID))
+		assertEquals(applied.logicalFactId, replay.logicalFactId)
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `writer remains dormant without exact destination ownership`() = runTest {
+		installValidFixture()
+
+		assertEquals(
+			WifiCapturedWriteResult.Rejected(WifiCapturedWriteRejection.DESTINATION_OWNER_CHANGED),
+			writer.write(EVENT_ID),
+		)
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `fresh unchanged aggregate writes bounded one hop coverage reference`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val first = assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val secondId = insertSecondWal()
+
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(secondId))
+		val second = requireNotNull(database.sourceEventWalDao().getByEventId(secondId.value))
+		val evaluated = assertIs<WifiWalAdapterResult.Evaluated>(subject.qualify(secondId))
+		val qualified = assertIs<WifiCapturedFactClassification.FreshChanged>(evaluated.classification)
+		val logicalId = WifiCapturedFactRevisionIntegrity.logicalFactId(
+			requireNotNull(second.deliveryIdentity), LOGICAL_ID, RUN_ID, SEGMENT_ID,
+			MANIFEST_REVISION, 0L, 0L,
+		)
+		val row = requireNotNull(database.wifiCapturedFactDao().revision(
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION,
+			logicalId,
+			1L,
+		))
+		assertEquals(WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY, row.factKind)
+		assertEquals(qualified.fact.aggregate.observationCount, row.acceptedResultCount)
+		assertEquals(2L, database.wifiCapturedFactDao().revisionCount())
+		assertFailsWith<SQLiteConstraintException> {
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM wifi_captured_fact_revision WHERE logical_fact_id = ?",
+				arrayOf(first.logicalFactId),
+			)
+		}
+	}
+
+	@Test
+	fun `cancellation after revision append rolls back revision cursor and publication`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val before = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+
+		assertFailsWith<CancellationException> {
+			writer.write(EVENT_ID) { checkpoint ->
+				if (checkpoint == WifiCapturedWriteCheckpoint.REVISION_INSERTED) {
+					throw CancellationException("cancel writer")
+				}
+			}
+		}
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
+		assertEquals(before, requireNotNull(database.sourceEvidenceStateDao().get()).revision)
+	}
+
+	@Test
+	fun `coverage replay rejects aggregate owner cursor rotation`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val first = assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val secondId = insertSecondWal()
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(secondId))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE wifi_captured_fact_cursor SET cursor_revision = 2 WHERE logical_fact_id = ?",
+			arrayOf(first.logicalFactId),
+		)
+
+		assertEquals(
+			WifiCapturedWriteResult.Rejected(WifiCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH),
+			writer.write(secondId),
+		)
+	}
+
+	@Test
+	fun `source local deletion generation rejects old WAL before classification`() = runTest {
+		installValidFixture(candidateWriter = true)
+		database.openHelper.writableDatabase.execSQL(
+			"INSERT INTO wifi_capture_deletion_generation(" +
+				"logical_tracking_id, service_run_id, collected_data_epoch, generation, updated_at_ms" +
+				") VALUES(?, ?, ?, ?, ?)",
+			arrayOf(LOGICAL_ID, RUN_ID, 0L, 1L, OBSERVED_WALL_MS),
+		)
+
+		assertEquals(
+			WifiWalAdapterResult.Rejected(
+				WifiWalAdapterRejection.SCOPE_DELETION_AUTHORITY_MISMATCH,
+			),
+			subject.qualify(EVENT_ID),
+		)
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `source local deletion generation advances only by exact sequential CAS`() = runTest {
+		val dao = database.wifiCapturedFactDao()
+		dao.insertDeletionGeneration(WifiCaptureDeletionGenerationEntity(
+			logicalTrackingId = LOGICAL_ID,
+			serviceRunId = RUN_ID,
+			collectedDataEpoch = 0L,
+			generation = 1L,
+			updatedAtMs = OBSERVED_WALL_MS,
+		))
+		assertEquals(0, dao.advanceDeletionGenerationExact(
+			LOGICAL_ID, RUN_ID, 0L, 0L, 1L, OBSERVED_WALL_MS + 1L,
+		))
+		assertEquals(1, dao.advanceDeletionGenerationExact(
+			LOGICAL_ID, RUN_ID, 0L, 1L, 2L, OBSERVED_WALL_MS + 2L,
+		))
+		assertEquals(2L, requireNotNull(dao.deletionGeneration(LOGICAL_ID, RUN_ID)).generation)
+	}
+
+	private suspend fun insertSecondWal(): SourceEventId {
+		val first = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val points = listOf(
+			WifiAccessPointEvidence("", 2_412, -80, OBSERVED_END_NANOS + 100_000_000L),
+			WifiAccessPointEvidence("", 5_180, -60, OBSERVED_END_NANOS + 200_000_000L),
+		)
+		val payload = WifiResultSnapshotPayload(
+			accessPoints = points,
+			platformTimestampMs = (OBSERVED_END_NANOS + 200_000_000L) / NANOS_PER_MILLISECOND,
+			resultAgeMs = null,
+		)
+		val encoded = payloadCodec.encode(payload, PAYLOAD_VERSION)
+		val unsigned = first.copy(
+			admissionOrdinal = 0L,
+			eventId = "wifi-event-2",
+			deliveryIdentity = wifiProviderDeliveryIdentity(BOOT_ID, points).value,
+			sourceSequence = SOURCE_SEQUENCE + 1L,
+			observedIntervalStartNanos = OBSERVED_END_NANOS + 100_000_000L,
+			observedElapsedNanos = OBSERVED_END_NANOS + 200_000_000L,
+			receivedElapsedNanos = RECEIVED_NANOS + 200_000_000L,
+			wallTimeMs = OBSERVED_WALL_MS + 200L,
+			acquiredAtMs = OBSERVED_WALL_MS + 200L,
+			createdAtMs = OBSERVED_WALL_MS + 201L,
+			payload = encoded.bytes,
+			payloadChecksum = encoded.checksum,
+			integrityIdentity = SourceEventWalEntity.LEGACY_PENDING_CHECKSUM,
+		)
+		val row = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
+		assertEquals(2L, database.sourceEventWalDao().insertIgnoringDuplicate(row))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE logical_tracking_session SET final_admission_ordinal = 2 WHERE logical_tracking_id = ?",
+			arrayOf(LOGICAL_ID),
+		)
+		return SourceEventId(row.eventId)
+	}
+
 	private suspend fun installValidFixture(
 		plan: WifiPlan = wifiPlan(),
 		configurationRevision: Long? = null,
@@ -463,13 +635,25 @@ class WifiWalQualificationAdapterTest {
 		planApplicationRevision: Long = PLAN_REVISION,
 		lastDemandAcquisitionSpec: String? = null,
 		requestedDeliveryLatencyMs: Long? = null,
+		candidateWriter: Boolean = false,
 	) {
 		database.sourceEvidenceStateDao().ensure(evidenceState)
 		insertPlan(plan)
 		installPolicyAndConsent()
 		val segmentId = database.sessionSegmentDao().insert(segment(segmentRunId))
 		assertEquals(SEGMENT_ID, segmentId)
-		installSessionAndManifest(segmentId, zoneId)
+		installSessionAndManifest(segmentId, zoneId, candidateWriter)
+		if (candidateWriter) {
+			database.sourceDestinationOwnerDao().insertIfAbsent(
+				SourceDestinationOwnerEntity(
+					sourceKind = WIFI_SOURCE,
+					destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI,
+					owner = SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS,
+					ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+					updatedAtMs = RUN_START_WALL_MS,
+				),
+			)
+		}
 		val demands = List(authorizationDemandCount) { index ->
 			demand(
 				index = index,
@@ -632,7 +816,11 @@ class WifiWalQualificationAdapterTest {
 		)
 	}
 
-	private suspend fun installSessionAndManifest(segmentId: Long, zoneId: String) {
+	private suspend fun installSessionAndManifest(
+		segmentId: Long,
+		zoneId: String,
+		candidateWriter: Boolean,
+	) {
 		database.sourceSessionDao().insertSession(
 			LogicalTrackingSessionEntity(
 				logicalTrackingId = LOGICAL_ID,
@@ -699,12 +887,24 @@ class WifiWalQualificationAdapterTest {
 			consentEpoch = CONSENT_EPOCH,
 			persistenceEligible = true,
 			qosCode = QOS_CODE,
-			outputDestination = null,
-			writerOwner = null,
-			writerOwnerGeneration = null,
-			writerProjectionId = null,
-			writerProjectionVersion = null,
-			writerBindingGeneration = null,
+			outputDestination = if (candidateWriter) {
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI
+			} else null,
+			writerOwner = if (candidateWriter) {
+				SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS
+			} else null,
+			writerOwnerGeneration = if (candidateWriter) {
+				SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+			} else null,
+			writerProjectionId = if (candidateWriter) {
+				SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID
+			} else null,
+			writerProjectionVersion = if (candidateWriter) {
+				SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION
+			} else null,
+			writerBindingGeneration = if (candidateWriter) {
+				SourceDestinationOwnerEntity.WIFI_FACT_BINDING_GENERATION
+			} else null,
 		)
 		val unsigned = SessionManifestVersionEntity(
 			logicalTrackingId = LOGICAL_ID,
