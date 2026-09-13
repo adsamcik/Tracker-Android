@@ -223,6 +223,118 @@ interface PressureFactRevisionDao {
 	): List<PressureLogicalHistoryCandidate>
 
 	/**
+	 * Pages one coarse Pressure-evidence seed for each logical entry overlapping an export range.
+	 *
+	 * The overlap predicate is evaluated against every reciprocally bound physical member, while the
+	 * seed may come from any member carrying a retained fact or immutable Pressure capture manifest.
+	 * The stats reader must still expand and authenticate the whole replacement group and any opaque
+	 * retention marker. Generic segment sample counts are deliberately absent.
+	 */
+	@Query(
+		"""
+		WITH overlapping_logical AS (
+		  SELECT DISTINCT member_run.logical_tracking_id
+		  FROM source_service_run AS member_run
+		  INNER JOIN session_segment AS member_segment
+		    ON member_segment.id = member_run.session_segment_id
+		   AND member_segment.service_run_id = member_run.service_run_id
+		   AND member_segment.logical_tracking_id = member_run.logical_tracking_id
+		  WHERE member_segment.start_time_ms < :toExclusiveMs
+		    AND member_segment.end_time_ms > :fromInclusiveMs
+		), pressure_evidence_member AS (
+		  SELECT segment.*
+		  FROM session_segment AS segment
+		  INNER JOIN source_service_run AS run
+		    ON run.session_segment_id = segment.id
+		   AND run.service_run_id = segment.service_run_id
+		   AND run.logical_tracking_id = segment.logical_tracking_id
+		  INNER JOIN overlapping_logical AS overlap
+		    ON overlap.logical_tracking_id = run.logical_tracking_id
+		  WHERE (
+		    EXISTS (
+		      SELECT 1
+		      FROM pressure_fact_revision AS fact
+		      WHERE fact.service_run_id = run.service_run_id
+		        AND fact.logical_tracking_id = run.logical_tracking_id
+		        AND fact.purpose = '${PressureFactRevisionEntity.PURPOSE_SESSION_CAPTURE}'
+		    )
+		    OR EXISTS (
+		      SELECT 1
+		      FROM session_manifest_version AS manifest
+		      INNER JOIN session_manifest_source AS source
+		        ON source.logical_tracking_id = manifest.logical_tracking_id
+		       AND source.manifest_revision = manifest.manifest_revision
+		      WHERE manifest.service_run_id = run.service_run_id
+		        AND manifest.logical_tracking_id = run.logical_tracking_id
+		        AND source.source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE}
+		        AND source.purpose = '${SessionManifestPurposeCode.SESSION_CAPTURE}'
+		        AND source.persistence_eligible = 1
+		    )
+		  )
+		), pressure_evidence_seed AS (
+		  SELECT member.*
+		  FROM pressure_evidence_member AS member
+		  WHERE NOT EXISTS (
+		    SELECT 1
+		    FROM pressure_evidence_member AS newer
+		    WHERE newer.logical_tracking_id = member.logical_tracking_id
+		      AND (
+		        newer.start_time_ms > member.start_time_ms
+		        OR (newer.start_time_ms = member.start_time_ms AND newer.id > member.id)
+		      )
+		  )
+		), logical_ranked_seed AS (
+		  SELECT seed.*,
+		    (
+		      SELECT member_segment.start_time_ms
+		      FROM source_service_run AS member_run
+		      INNER JOIN session_segment AS member_segment
+		        ON member_segment.id = member_run.session_segment_id
+		       AND member_segment.service_run_id = member_run.service_run_id
+		       AND member_segment.logical_tracking_id = member_run.logical_tracking_id
+		      WHERE member_run.logical_tracking_id = seed.logical_tracking_id
+		      ORDER BY member_segment.start_time_ms DESC, member_segment.id DESC
+		      LIMIT 1
+		    ) AS logical_recency_start_ms,
+		    (
+		      SELECT member_segment.id
+		      FROM source_service_run AS member_run
+		      INNER JOIN session_segment AS member_segment
+		        ON member_segment.id = member_run.session_segment_id
+		       AND member_segment.service_run_id = member_run.service_run_id
+		       AND member_segment.logical_tracking_id = member_run.logical_tracking_id
+		      WHERE member_run.logical_tracking_id = seed.logical_tracking_id
+		      ORDER BY member_segment.start_time_ms DESC, member_segment.id DESC
+		      LIMIT 1
+		    ) AS logical_recency_segment_id
+		  FROM pressure_evidence_seed AS seed
+		)
+		SELECT *
+		FROM logical_ranked_seed
+		WHERE (
+		  :beforeLogicalRecencyStartMs IS NULL
+		  OR logical_recency_start_ms < :beforeLogicalRecencyStartMs
+		  OR (
+		    logical_recency_start_ms = :beforeLogicalRecencyStartMs
+		    AND logical_recency_segment_id < COALESCE(
+		      :beforeLogicalRecencySegmentId,
+		      9223372036854775807
+		    )
+		  )
+		)
+		ORDER BY logical_recency_start_ms DESC, logical_recency_segment_id DESC
+		LIMIT :limit
+		""",
+	)
+	suspend fun portablePressureLogicalHistoryCandidatePage(
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
+		limit: Int,
+		beforeLogicalRecencyStartMs: Long?,
+		beforeLogicalRecencySegmentId: Long?,
+	): List<PressureLogicalHistoryCandidate>
+
+	/**
 	 * Reads a bounded correction-expanded candidate page for exact physical/logical scopes.
 	 *
 	 * Product history validates every retained revision before selecting the effective state. The

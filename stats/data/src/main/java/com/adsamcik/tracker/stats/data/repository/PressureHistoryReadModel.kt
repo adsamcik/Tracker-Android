@@ -19,6 +19,8 @@ internal data class PressureHistoryWindow(
 	val writerBindingGeneration: Long,
 	val intervalStartTimeMs: Long,
 	val intervalEndTimeMs: Long,
+	/** Durable wall projection confidence retained for transfer; the boot clock id stays local. */
+	val wallTimeUncertaintyMs: Long,
 	val windowStartElapsedRealtimeNanos: Long,
 	val windowEndElapsedRealtimeNanos: Long,
 	val sampleCount: Int,
@@ -54,6 +56,7 @@ internal data class PressureHistoryWindow(
 		require(writerProjectionVersion > 0)
 		require(writerBindingGeneration > 0L)
 		require(intervalStartTimeMs >= 0L && intervalEndTimeMs >= intervalStartTimeMs)
+		require(wallTimeUncertaintyMs >= 0L)
 		require(
 			windowStartElapsedRealtimeNanos >= 0L &&
 				windowEndElapsedRealtimeNanos >= windowStartElapsedRealtimeNanos,

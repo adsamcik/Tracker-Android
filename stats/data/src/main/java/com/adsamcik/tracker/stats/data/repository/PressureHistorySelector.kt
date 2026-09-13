@@ -159,9 +159,10 @@ internal class PressureHistorySelector @Inject constructor(
 	/** Caller must already hold the Room transaction defining the source-local history snapshot. */
 	internal suspend fun selectManyInTransaction(
 		segments: List<SessionSegment>,
+		memberBudget: Int = PRESSURE_HISTORY_SEGMENT_BATCH_CAP,
 	): List<PressurePhysicalHistory> {
 		if (segments.isEmpty()) return emptyList()
-		val expansion = expandPressureLogicalMembership(database, segments)
+		val expansion = expandPressureLogicalMembership(database, segments, memberBudget)
 		val snapshot = loadPressureHistoryBatchSnapshot(
 			database = database,
 			segments = expansion.segments,
@@ -839,6 +840,7 @@ internal class PressureHistorySelector @Inject constructor(
 		writerBindingGeneration = writerBindingGeneration,
 		intervalStartTimeMs = intervalStartTimeMs,
 		intervalEndTimeMs = intervalEndTimeMs,
+		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
 		windowStartElapsedRealtimeNanos = windowStartElapsedRealtimeNanos,
 		windowEndElapsedRealtimeNanos = windowEndElapsedRealtimeNanos,
 		sampleCount = sampleCount,

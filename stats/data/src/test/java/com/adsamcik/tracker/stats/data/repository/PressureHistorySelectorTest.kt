@@ -21,10 +21,17 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureRequest
+import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureResult
+import com.adsamcik.tracker.stats.api.repository.PortablePressureAvailability
+import com.adsamcik.tracker.stats.api.repository.PortablePressureCoverage
+import com.adsamcik.tracker.stats.api.repository.PortablePressureEntryV1
+import com.adsamcik.tracker.stats.api.repository.PortablePressureExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldNotContain
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -863,6 +870,102 @@ class PressureHistorySelectorTest {
 		(firstPage + secondPage).map(PressureFactRevisionEntity::sourceEventId) shouldBe
 			listOf(SOURCE_EVENT_ID, "pressure-event-2")
 	}
+
+	@Test
+	fun portablePressureSnapshotKeepsReplacementRunsAndHidesLocalIdentities() = runTest {
+		val first = insertFixture(
+			zoneId = "Europe/Prague",
+			factSemanticRevision = 1L,
+			laneCursor = 2L,
+		)
+		val replacement = insertReplacementFixture()
+
+		val result = PortablePressureRoomReader(database, selector).read(exportRequest())
+		val entry = (result as PortablePressureSnapshot.Ready).entries.single()
+
+		entry.runs.size shouldBe 2
+		entry.runs.flatMap { it.windows }.size shouldBe 2
+		entry.runs.first().windows.single().zoneId shouldBe "Europe/Prague"
+		entry.runs.first().windows.single().wallTimeUncertaintyMs shouldBe 0L
+		entry.runs.all { it.availability == PortablePressureAvailability.RETAINED } shouldBe true
+		entry.toString() shouldNotContain first.logicalId
+		entry.toString() shouldNotContain first.runId
+		entry.toString() shouldNotContain replacement.runId
+		entry.toString() shouldNotContain SOURCE_EVENT_ID
+	}
+
+	@Test
+	fun portablePressureRangeSelectsWholeReplacementGroup() = runTest {
+		insertFixture(factSemanticRevision = 1L, laneCursor = 2L)
+		insertReplacementFixture()
+		val firstMemberOnlyRange = ExportPortablePressureRequest(
+			fromInclusiveMs = RUN_START_MS,
+			toExclusiveMs = RUN_END_MS,
+		)
+
+		val result = PortablePressureRoomReader(database, selector).read(firstMemberOnlyRange)
+		val entry = (result as PortablePressureSnapshot.Ready).entries.single()
+
+		entry.startTimeMs shouldBe RUN_START_MS
+		entry.endTimeMs shouldBe REPLACEMENT_RUN_END_MS
+		entry.runs.size shouldBe 2
+	}
+
+	@Test
+	fun portablePressureMarkerOnlyEntryPreservesLossWithoutNumericValue() = runTest {
+		val fixture = insertFixture(factSemanticRevision = null, laneCursor = 1L)
+		establishPressureRetentionFloor()
+		database.sourceDeletionFenceDao().upsert(
+			pressureRetentionMarker(fixture.logicalId, fixture.runId),
+		)
+
+		val result = PortablePressureRoomReader(database, selector).read(exportRequest())
+		val run = (result as PortablePressureSnapshot.Ready).entries.single().runs.single()
+
+		run.retentionLoss shouldBe true
+		run.coverage shouldBe PortablePressureCoverage.PARTIAL
+		run.availability shouldBe PortablePressureAvailability.NO_RETAINED_OBSERVATION
+		run.windows shouldBe emptyList()
+	}
+
+	@Test
+	fun portablePressureRetainedWindowKeepsAuthenticatedRetentionLossPartial() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L, laneCursor = 1L)
+		establishPressureRetentionFloor()
+		database.sourceDeletionFenceDao().upsert(
+			pressureRetentionMarker(fixture.logicalId, fixture.runId),
+		)
+
+		val result = PortablePressureRoomReader(database, selector).read(exportRequest())
+		val run = (result as PortablePressureSnapshot.Ready).entries.single().runs.single()
+
+		run.availability shouldBe PortablePressureAvailability.RETAINED
+		run.windows.size shouldBe 1
+		run.retentionLoss shouldBe true
+		run.coverage shouldBe PortablePressureCoverage.PARTIAL
+	}
+
+	@Test
+	fun portablePressureMaterializingEntryFailsBeforeBecomingAnEmptyExport() = runTest {
+		insertFixture(factSemanticRevision = null, laneCursor = 0L)
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		val exporter = RoomExportPortablePressure(
+			reader = PortablePressureRoomReader(database, selector),
+			ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+		)
+
+		val result = exporter.export(exportRequest()) { entry -> emitted += entry }
+
+		result shouldBe ExportPortablePressureResult.Unverifiable(
+			PortablePressureExportUnverifiableReason.ENTRY_MATERIALIZING,
+		)
+		emitted shouldBe emptyList()
+	}
+
+	private fun exportRequest() = ExportPortablePressureRequest(
+		fromInclusiveMs = RUN_START_MS,
+		toExclusiveMs = REPLACEMENT_RUN_END_MS + 1L,
+	)
 
 	@Suppress("LongMethod")
 	private suspend fun insertFixture(

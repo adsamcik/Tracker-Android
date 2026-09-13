@@ -219,6 +219,7 @@ class PressureHistoryReadModelTest {
 		writerBindingGeneration = 1L,
 		intervalStartTimeMs = startElapsedNanos,
 		intervalEndTimeMs = startElapsedNanos + 1L,
+		wallTimeUncertaintyMs = 0L,
 		windowStartElapsedRealtimeNanos = startElapsedNanos,
 		windowEndElapsedRealtimeNanos = startElapsedNanos + 1L,
 		sampleCount = 2,
