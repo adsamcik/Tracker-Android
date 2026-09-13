@@ -74,6 +74,59 @@ class AmbientStepsStructuralWindowPlannerTest {
 	}
 
 	@Test
+	fun `progressive plan extends the current structural window from stable segment identity`() {
+		val day = LocalDate.of(2026, 6, 8)
+		val segmentStart = day.atTime(2, 0).atZone(prague).toInstant().toEpochMilli()
+		val importedThrough = day.atTime(8, 0).atZone(prague).toInstant().toEpochMilli()
+		val through = day.atTime(9, 45).atZone(prague).toInstant().toEpochMilli()
+
+		val window = AmbientStepsStructuralWindowPlanner().planProgressive(
+			segmentStartTimeMs = segmentStart,
+			importedThroughTimeMs = importedThrough,
+			throughTimeMs = through,
+			zoneId = prague,
+		).windows.single()
+
+		window.startTimeMs shouldBe segmentStart
+		window.endTimeMs shouldBe through
+	}
+
+	@Test
+	fun `same high water replays the same non-empty structural window`() {
+		val day = LocalDate.of(2026, 6, 8)
+		val segmentStart = day.atTime(2, 0).atZone(prague).toInstant().toEpochMilli()
+		val importedThrough = day.atTime(8, 0).atZone(prague).toInstant().toEpochMilli()
+
+		val window = AmbientStepsStructuralWindowPlanner().planProgressive(
+			segmentStartTimeMs = segmentStart,
+			importedThroughTimeMs = importedThrough,
+			throughTimeMs = importedThrough,
+			zoneId = prague,
+		).windows.single()
+
+		window.startTimeMs shouldBe segmentStart
+		window.endTimeMs shouldBe importedThrough
+	}
+
+	@Test
+	fun `advancing after a completed day starts a new structural fact`() {
+		val day = LocalDate.of(2026, 6, 8)
+		val segmentStart = day.atTime(2, 0).atZone(prague).toInstant().toEpochMilli()
+		val nextDayStart = day.plusDays(1L).atStartOfDay(prague).toInstant().toEpochMilli()
+		val through = day.plusDays(1L).atTime(1, 0).atZone(prague).toInstant().toEpochMilli()
+
+		val window = AmbientStepsStructuralWindowPlanner().planProgressive(
+			segmentStartTimeMs = segmentStart,
+			importedThroughTimeMs = nextDayStart,
+			throughTimeMs = through,
+			zoneId = prague,
+		).windows.single()
+
+		window.startTimeMs shouldBe nextDayStart
+		window.endTimeMs shouldBe through
+	}
+
+	@Test
 	fun `rejects sub-second cursor boundaries`() {
 		shouldThrow<IllegalArgumentException> {
 			AmbientStepsStructuralWindowPlanner().plan(1L, 1_000L, prague)

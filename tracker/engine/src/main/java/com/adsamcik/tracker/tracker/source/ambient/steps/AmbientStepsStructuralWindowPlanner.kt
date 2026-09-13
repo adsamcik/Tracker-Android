@@ -100,6 +100,51 @@ internal class AmbientStepsStructuralWindowPlanner(
 		)
 	}
 
+	/**
+	 * Plans the one fact revision that owns the cursor high-water.
+	 *
+	 * While the cursor remains inside a civil day, later reads deliberately start at the same
+	 * structural-day/continuity boundary so the provider aggregate revises one stable logical fact.
+	 * At a completed day boundary the next advancing read starts the following day. An exact replay
+	 * at the same high-water instead selects the preceding non-empty window.
+	 */
+	fun planProgressive(
+		segmentStartTimeMs: Long,
+		importedThroughTimeMs: Long,
+		throughTimeMs: Long,
+		zoneId: ZoneId,
+	): AmbientStepsStructuralWindowPlan {
+		require(segmentStartTimeMs >= 0L)
+		require(importedThroughTimeMs >= segmentStartTimeMs)
+		require(throughTimeMs >= importedThroughTimeMs)
+		require(segmentStartTimeMs % MILLIS_PER_SECOND == 0L)
+		require(importedThroughTimeMs % MILLIS_PER_SECOND == 0L)
+		require(throughTimeMs % MILLIS_PER_SECOND == 0L)
+		if (throughTimeMs == importedThroughTimeMs &&
+			importedThroughTimeMs == segmentStartTimeMs
+		) {
+			return AmbientStepsStructuralWindowPlan(emptyList(), deferredFromTimeMs = null)
+		}
+
+		val dayLookupTimeMs = if (throughTimeMs == importedThroughTimeMs) {
+			importedThroughTimeMs - MILLIS_PER_SECOND
+		} else {
+			importedThroughTimeMs
+		}
+		val day = structuralDayAt(dayLookupTimeMs, zoneId)
+		val startTimeMs = maxOf(segmentStartTimeMs, day.startTimeMs)
+		val endTimeMs = if (throughTimeMs == importedThroughTimeMs) {
+			importedThroughTimeMs
+		} else {
+			minOf(day.endTimeMs, throughTimeMs)
+		}
+		val window = AmbientStepsStructuralWindow(day, startTimeMs, endTimeMs)
+		return AmbientStepsStructuralWindowPlan(
+			windows = listOf(window),
+			deferredFromTimeMs = endTimeMs.takeIf { it < throughTimeMs },
+		)
+	}
+
 	private fun structuralDayAt(timeMs: Long, zoneId: ZoneId): AmbientStepsStructuralDay {
 		val date = Instant.ofEpochMilli(timeMs).atZone(zoneId).toLocalDate()
 		return AmbientStepsStructuralDay(

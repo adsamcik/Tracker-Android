@@ -286,7 +286,7 @@ interface AmbientStepsImportStateDao {
 			"AND gap.source_instance_id = ambient_steps_import_cursor.source_instance_id " +
 			"AND gap.collected_data_epoch = ambient_steps_import_cursor.collected_data_epoch " +
 			"AND gap.gap_start_time_ms <= ambient_steps_import_cursor.imported_through_time_ms " +
-			"AND ambient_steps_import_cursor.imported_through_time_ms < gap.gap_end_time_ms " +
+			"AND ambient_steps_import_cursor.imported_through_time_ms <= gap.gap_end_time_ms " +
 			"AND gap.gap_end_time_ms >= :newSegmentStartTimeMs " +
 			"AND gap.previous_clock_domain_id = ambient_steps_import_cursor.last_observed_boot_id " +
 			"AND gap.previous_zone_id = ambient_steps_import_cursor.last_observed_zone_id " +
@@ -335,7 +335,9 @@ interface AmbientStepsImportStateDao {
 			"AND state.writer_version = successor.writer_version " +
 			"AND state.logical_fact_id = successor.logical_fact_id)), gap.gap_end_time_ms))) " +
 			"AND :newBootId = registration_clock_domain_id " +
-			"AND :newSegmentStartTimeMs > imported_through_time_ms " +
+			"AND (:newSegmentStartTimeMs > imported_through_time_ms " +
+			"OR (:newSegmentStartTimeMs = imported_through_time_ms " +
+			"AND gap.gap_start_time_ms = gap.gap_end_time_ms)) " +
 			"AND :newSegmentStartTimeMs % 1000 = 0 " +
 			"AND :newObservedAtMs >= :newSegmentStartTimeMs " +
 			"AND :newObservedAtMs >= last_observed_at_ms " +

@@ -7,6 +7,8 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEn
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
@@ -82,6 +84,7 @@ internal enum class AmbientStepsImportNoEvidenceReason {
 }
 
 internal enum class AmbientStepsImportGapReason {
+	INITIAL_ZONE_AUTHORITY_UNOBSERVED,
 	AUTHORITY_BOUNDARY_NOT_DRAINED,
 	RETENTION_ADVANCED,
 	ZONE_CHANGED,
@@ -173,10 +176,15 @@ internal class AmbientStepsFactImporter internal constructor(
 		) {
 			return retryable(AmbientStepsImportRetryableReason.PROVIDER_RESULT_MISMATCH)
 		}
+		val commitLifecycle = lifecycleSnapshotOrNull()
+			?: return retryable(AmbientStepsImportRetryableReason.STORAGE_UNAVAILABLE)
+		if (commitLifecycle != lifecycle) {
+			return stale(AmbientStepsImportStaleReason.LIFECYCLE_CHANGED)
+		}
 
 		return try {
 			database.withTransaction {
-				commitRead(preflight, boundary, lifecycle, aggregate)
+				commitRead(preflight, boundary, commitLifecycle, aggregate)
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -197,17 +205,24 @@ internal class AmbientStepsFactImporter internal constructor(
 			is AuthorityResolution.Outcome -> return Preflight.Outcome(resolved.result)
 			is AuthorityResolution.Ready -> resolved.authority
 		}
-		val cursor = database.ambientStepsImportStateDao().cursor(
+		val storedCursor = database.ambientStepsImportStateDao().cursor(
 			authority.registration.registrationGeneration,
 		)
-		val cursorResolution = resolveCursor(authority, cursor, boundary)
+		val cursorResolution = prepareCursor(authority, storedCursor, boundary)
 		if (cursorResolution is CursorResolution.Outcome) {
 			return Preflight.Outcome(cursorResolution.result)
 		}
 		cursorResolution as CursorResolution.Ready
-		val effectiveCursor = cursorResolution.effectiveCursor
+		val effectiveCursor = cursorResolution.cursor
 		val retainedFromMs = lifecycle.retainedFromMs?.let(::roundForwardToSecond)
 		if (retainedFromMs != null && retainedFromMs > effectiveCursor.importedThroughTimeMs) {
+			advanceAcrossGap(
+				cursor = effectiveCursor,
+				reason = AmbientStepsImportGapReason.RETENTION_ADVANCED,
+				toTimeMs = retainedFromMs,
+				nextZoneId = effectiveCursor.lastObservedZoneId,
+				boundary = boundary,
+			)
 			return Preflight.Outcome(
 				AmbientStepsImportResult.Gap(
 					reason = AmbientStepsImportGapReason.RETENTION_ADVANCED,
@@ -217,23 +232,38 @@ internal class AmbientStepsFactImporter internal constructor(
 			)
 		}
 		if (effectiveCursor.lastObservedZoneId != boundary.zoneId.id) {
+			if (boundary.throughTimeMs < effectiveCursor.importedThroughTimeMs) {
+				return Preflight.Outcome(
+					AmbientStepsImportResult.NoEvidence(
+						AmbientStepsImportNoEvidenceReason.NO_WINDOW_AVAILABLE,
+					),
+				)
+			}
+			advanceAcrossGap(
+				cursor = effectiveCursor,
+				reason = AmbientStepsImportGapReason.ZONE_CHANGED,
+				toTimeMs = boundary.throughTimeMs,
+				nextZoneId = boundary.zoneId.id,
+				boundary = boundary,
+			)
 			return Preflight.Outcome(
 				AmbientStepsImportResult.Gap(
 					reason = AmbientStepsImportGapReason.ZONE_CHANGED,
 					fromTimeMs = effectiveCursor.importedThroughTimeMs,
-					toTimeMs = effectiveCursor.importedThroughTimeMs,
+					toTimeMs = boundary.throughTimeMs,
 				),
 			)
 		}
-		if (boundary.throughTimeMs <= effectiveCursor.importedThroughTimeMs) {
+		if (boundary.throughTimeMs < effectiveCursor.importedThroughTimeMs) {
 			return Preflight.Outcome(
 				AmbientStepsImportResult.NoEvidence(
 					AmbientStepsImportNoEvidenceReason.NO_WINDOW_AVAILABLE,
 				),
 			)
 		}
-		val plan = planner.plan(
-			fromTimeMs = effectiveCursor.importedThroughTimeMs,
+		val plan = planner.planProgressive(
+			segmentStartTimeMs = effectiveCursor.segmentStartTimeMs,
+			importedThroughTimeMs = effectiveCursor.importedThroughTimeMs,
 			throughTimeMs = boundary.throughTimeMs,
 			zoneId = boundary.zoneId,
 		)
@@ -245,9 +275,7 @@ internal class AmbientStepsFactImporter internal constructor(
 			)
 		return Preflight.Ready(
 			authority = authority,
-			storedCursor = cursor,
-			effectiveCursor = effectiveCursor,
-			transition = cursorResolution.transition,
+			storedCursor = effectiveCursor,
 			window = window,
 		)
 	}
@@ -258,9 +286,6 @@ internal class AmbientStepsFactImporter internal constructor(
 		lifecycle: CollectedDataLifecycleSnapshot,
 		aggregate: AmbientStepsProviderAggregate?,
 	): AmbientStepsImportResult {
-		if (lifecycleStore.snapshot() != lifecycle) {
-			return stale(AmbientStepsImportStaleReason.LIFECYCLE_CHANGED)
-		}
 		val current = when (val resolved = resolveAuthority(boundary, lifecycle)) {
 			is AuthorityResolution.Outcome -> return stale(resolved.result.toStaleReason())
 			is AuthorityResolution.Ready -> resolved.authority
@@ -281,20 +306,7 @@ internal class AmbientStepsFactImporter internal constructor(
 		}
 
 		val appliedAtMs = maxOf(clock.currentTimeMillis(), aggregate.observedAtMs)
-		var cursor = preflight.storedCursor
-		if (cursor == null) {
-			val inserted = database.ambientStepsImportStateDao().insertCursor(
-				preflight.effectiveCursor,
-			)
-			if (inserted == INSERT_IGNORED) throw ConcurrentAmbientStepsImportException()
-			cursor = preflight.effectiveCursor
-		}
-		if (preflight.transition != null) {
-			cursor = rotateAuthority(cursor, preflight.transition, aggregate.observedAtMs, appliedAtMs)
-		}
-		check(cursor.matchesEffectivePreflight(preflight.effectiveCursor)) {
-			"Ambient Steps cursor did not resolve to its preflight authority"
-		}
+		val cursor = preflight.storedCursor
 
 		val logicalFactId = AmbientStepsFactIntegrity.logicalFactId(
 			provider = cursor.provider,
@@ -354,9 +366,6 @@ internal class AmbientStepsFactImporter internal constructor(
 			nextRevision
 		}
 
-		if (lifecycleStore.snapshot() != lifecycle) {
-			throw ConcurrentAmbientStepsImportException()
-		}
 		val nextCursorRevision = Math.addExact(cursor.cursorRevision, 1L)
 		if (database.ambientStepsImportStateDao().advanceExact(
 				registrationGeneration = cursor.registrationGeneration,
@@ -500,7 +509,7 @@ internal class AmbientStepsFactImporter internal constructor(
 		)
 	}
 
-	private fun resolveCursor(
+	private suspend fun prepareCursor(
 		authority: AmbientAuthority,
 		cursor: AmbientStepsImportCursorEntity?,
 		boundary: AmbientStepsImportBoundary,
@@ -514,9 +523,32 @@ internal class AmbientStepsFactImporter internal constructor(
 					),
 				)
 			}
-			return CursorResolution.Ready(
-				effectiveCursor = authority.initialCursor(boundary.zoneId.id),
-				transition = null,
+			val initialCursor = authority.initialCursor(
+				zoneId = boundary.zoneId.id.takeIf { privacyFloor == boundary.throughTimeMs },
+			)
+			if (database.ambientStepsImportStateDao().insertCursor(initialCursor) == INSERT_IGNORED) {
+				throw ConcurrentAmbientStepsImportException()
+			}
+			if (privacyFloor < boundary.throughTimeMs) {
+				advanceAcrossGap(
+					cursor = initialCursor,
+					reason = AmbientStepsImportGapReason.INITIAL_ZONE_AUTHORITY_UNOBSERVED,
+					toTimeMs = boundary.throughTimeMs,
+					nextZoneId = boundary.zoneId.id,
+					boundary = boundary,
+				)
+				return CursorResolution.Outcome(
+					AmbientStepsImportResult.Gap(
+						reason = AmbientStepsImportGapReason.INITIAL_ZONE_AUTHORITY_UNOBSERVED,
+						fromTimeMs = privacyFloor,
+						toTimeMs = boundary.throughTimeMs,
+					),
+				)
+			}
+			return CursorResolution.Outcome(
+				AmbientStepsImportResult.NoEvidence(
+					AmbientStepsImportNoEvidenceReason.NO_WINDOW_AVAILABLE,
+				),
 			)
 		}
 		if (!cursor.matchesRegistrationAuthority(authority)) {
@@ -530,7 +562,7 @@ internal class AmbientStepsFactImporter internal constructor(
 			)
 		}
 		if (cursor.matchesCurrentAuthorization(authority)) {
-			return CursorResolution.Ready(cursor, transition = null)
+			return CursorResolution.Ready(cursor)
 		}
 		if (authority.authorization.authorizationRevision <= cursor.authorizationRevision) {
 			return CursorResolution.Outcome(
@@ -539,6 +571,20 @@ internal class AmbientStepsFactImporter internal constructor(
 		}
 		val boundaryTimeMs = authority.privacyFloorTimeMs
 		if (cursor.importedThroughTimeMs < boundaryTimeMs) {
+			val advanced = advanceAcrossGap(
+				cursor = cursor,
+				reason = AmbientStepsImportGapReason.AUTHORITY_BOUNDARY_NOT_DRAINED,
+				toTimeMs = boundaryTimeMs,
+				nextZoneId = cursor.lastObservedZoneId,
+				boundary = boundary,
+			)
+			val transition = authority.transitionFrom(advanced, boundary.observedAtMs)
+			rotateAuthority(
+				cursor = advanced,
+				transition = transition,
+				observedAtMs = boundary.observedAtMs,
+				appliedAtMs = appliedAtMs(boundary, boundaryTimeMs),
+			)
 			return CursorResolution.Outcome(
 				AmbientStepsImportResult.Gap(
 					reason = AmbientStepsImportGapReason.AUTHORITY_BOUNDARY_NOT_DRAINED,
@@ -554,9 +600,96 @@ internal class AmbientStepsFactImporter internal constructor(
 		}
 		val transition = authority.transitionFrom(cursor, boundary.observedAtMs)
 		return CursorResolution.Ready(
-			effectiveCursor = cursor.rotatedTo(authority, transition, boundary.observedAtMs),
-			transition = transition,
+			rotateAuthority(
+				cursor = cursor,
+				transition = transition,
+				observedAtMs = boundary.observedAtMs,
+				appliedAtMs = appliedAtMs(boundary, boundaryTimeMs),
+			),
 		)
+	}
+
+	private suspend fun advanceAcrossGap(
+		cursor: AmbientStepsImportCursorEntity,
+		reason: AmbientStepsImportGapReason,
+		toTimeMs: Long,
+		nextZoneId: String,
+		boundary: AmbientStepsImportBoundary,
+	): AmbientStepsImportCursorEntity {
+		require(toTimeMs >= cursor.importedThroughTimeMs)
+		val storedReason = reason.toStoredGapReason()
+		val nextGapSequence = Math.addExact(cursor.lastGapSequence, 1L)
+		val nextContinuityGeneration = Math.addExact(cursor.continuitySegmentGeneration, 1L)
+		val recordedAtMs = appliedAtMs(boundary, toTimeMs)
+		val previousZoneId = if (
+			reason == AmbientStepsImportGapReason.INITIAL_ZONE_AUTHORITY_UNOBSERVED
+		) {
+			AmbientStepsImportGapEntity.ZONE_AUTHORITY_UNOBSERVED
+		} else {
+			cursor.lastObservedZoneId
+		}
+		val gapId = AmbientStepsImportGapIntegrity.gapId(
+			registrationGeneration = cursor.registrationGeneration,
+			gapSequence = nextGapSequence,
+			provider = cursor.provider,
+			sourceInstanceId = cursor.sourceInstanceId,
+			reason = storedReason,
+			gapStartTimeMs = cursor.importedThroughTimeMs,
+			gapEndTimeMs = toTimeMs,
+			predecessorRegistrationGeneration = null,
+			predecessorProvider = null,
+			previousClockDomainId = cursor.lastObservedBootId,
+			nextClockDomainId = boundary.observedBootId,
+			previousZoneId = previousZoneId,
+			nextZoneId = nextZoneId,
+			collectedDataEpoch = cursor.collectedDataEpoch,
+		)
+		val gap = AmbientStepsImportGapEntity(
+			gapId = gapId,
+			registrationGeneration = cursor.registrationGeneration,
+			gapSequence = nextGapSequence,
+			provider = cursor.provider,
+			sourceInstanceId = cursor.sourceInstanceId,
+			reason = storedReason,
+			gapStartTimeMs = cursor.importedThroughTimeMs,
+			gapEndTimeMs = toTimeMs,
+			predecessorRegistrationGeneration = null,
+			predecessorProvider = null,
+			previousClockDomainId = cursor.lastObservedBootId,
+			nextClockDomainId = boundary.observedBootId,
+			previousZoneId = previousZoneId,
+			nextZoneId = nextZoneId,
+			collectedDataEpoch = cursor.collectedDataEpoch,
+			recordedAtMs = recordedAtMs,
+		)
+		val dao = database.ambientStepsImportStateDao()
+		if (dao.insertGap(gap) == INSERT_IGNORED &&
+			dao.gap(cursor.registrationGeneration, nextGapSequence) != gap
+		) {
+			throw ConcurrentAmbientStepsImportException()
+		}
+		val nextCursorRevision = Math.addExact(cursor.cursorRevision, 1L)
+		if (dao.beginNextSegmentExact(
+				registrationGeneration = cursor.registrationGeneration,
+				expectedContinuitySegmentGeneration = cursor.continuitySegmentGeneration,
+				expectedLastGapSequence = cursor.lastGapSequence,
+				expectedCursorRevision = cursor.cursorRevision,
+				expectedImportedThroughTimeMs = cursor.importedThroughTimeMs,
+				expectedObservedAtMs = cursor.lastObservedAtMs,
+				expectedUpdatedAtMs = cursor.updatedAtMs,
+				newLastGapSequence = nextGapSequence,
+				newContinuitySegmentGeneration = nextContinuityGeneration,
+				newSegmentStartTimeMs = toTimeMs,
+				newObservedAtMs = boundary.observedAtMs,
+				newBootId = boundary.observedBootId,
+				newZoneId = nextZoneId,
+				newCursorRevision = nextCursorRevision,
+				updatedAtMs = recordedAtMs,
+			) != 1
+		) {
+			throw ConcurrentAmbientStepsImportException()
+		}
+		return requireNotNull(dao.cursor(cursor.registrationGeneration))
 	}
 
 	private suspend fun rotateAuthority(
@@ -666,12 +799,13 @@ internal class AmbientStepsFactImporter internal constructor(
 		null
 	}
 
+	private fun appliedAtMs(boundary: AmbientStepsImportBoundary, effectiveTimeMs: Long): Long =
+		maxOf(clock.currentTimeMillis(), boundary.observedAtMs, effectiveTimeMs)
+
 	private sealed interface Preflight {
 		data class Ready(
 			val authority: AmbientAuthority,
-			val storedCursor: AmbientStepsImportCursorEntity?,
-			val effectiveCursor: AmbientStepsImportCursorEntity,
-			val transition: AmbientStepsImportAuthorityTransitionEntity?,
+			val storedCursor: AmbientStepsImportCursorEntity,
 			val window: AmbientStepsStructuralWindow,
 		) : Preflight
 		data class Outcome(val result: AmbientStepsImportResult) : Preflight
@@ -683,10 +817,7 @@ internal class AmbientStepsFactImporter internal constructor(
 	}
 
 	private sealed interface CursorResolution {
-		data class Ready(
-			val effectiveCursor: AmbientStepsImportCursorEntity,
-			val transition: AmbientStepsImportAuthorityTransitionEntity?,
-		) : CursorResolution
+		data class Ready(val cursor: AmbientStepsImportCursorEntity) : CursorResolution
 		data class Outcome(val result: AmbientStepsImportResult) : CursorResolution
 	}
 
@@ -708,7 +839,7 @@ internal class AmbientStepsFactImporter internal constructor(
 				authorizationEffectiveWallTimeMs,
 			)
 
-		fun initialCursor(zoneId: String): AmbientStepsImportCursorEntity =
+		fun initialCursor(zoneId: String?): AmbientStepsImportCursorEntity =
 			AmbientStepsImportCursorEntity(
 				registrationGeneration = registration.registrationGeneration,
 				provider = provider.name,
@@ -732,7 +863,8 @@ internal class AmbientStepsFactImporter internal constructor(
 				importedThroughTimeMs = privacyFloorTimeMs,
 				lastObservedAtMs = privacyFloorTimeMs,
 				lastObservedBootId = registration.clockDomainId,
-				lastObservedZoneId = zoneId,
+				lastObservedZoneId = zoneId
+					?: AmbientStepsImportGapEntity.ZONE_AUTHORITY_UNOBSERVED,
 				lastGapSequence = 0L,
 				authorityTransitionSequence = 0L,
 				cursorRevision = 1L,
@@ -921,55 +1053,6 @@ private fun AmbientStepsImportCursorEntity.matchesCurrentAuthorization(
 	ambientConsentEpoch == authority.policy.ambientConsentEpoch &&
 	eligibleFromTimeMs == authority.privacyFloorTimeMs
 
-private fun AmbientStepsImportCursorEntity.matchesEffectivePreflight(
-	expected: AmbientStepsImportCursorEntity,
-): Boolean = registrationGeneration == expected.registrationGeneration &&
-	provider == expected.provider && sourceInstanceId == expected.sourceInstanceId &&
-	registrationClockDomainId == expected.registrationClockDomainId &&
-	registrationAcceptedAtMs == expected.registrationAcceptedAtMs &&
-	registrationAcceptedElapsedRealtimeNanos == expected.registrationAcceptedElapsedRealtimeNanos &&
-	authorizationRevision == expected.authorizationRevision &&
-	authorizationFingerprint == expected.authorizationFingerprint &&
-	authorizationEffectiveBootId == expected.authorizationEffectiveBootId &&
-	authorizationEffectiveElapsedRealtimeNanos ==
-	expected.authorizationEffectiveElapsedRealtimeNanos &&
-	authorizationEffectiveWallTimeMs == expected.authorizationEffectiveWallTimeMs &&
-	sourcePolicyRevision == expected.sourcePolicyRevision &&
-	ambientConsentEpoch == expected.ambientConsentEpoch &&
-	collectedDataEpoch == expected.collectedDataEpoch &&
-	eligibleFromTimeMs == expected.eligibleFromTimeMs &&
-	continuitySegmentGeneration == expected.continuitySegmentGeneration &&
-	segmentStartTimeMs == expected.segmentStartTimeMs &&
-	importedThroughTimeMs == expected.importedThroughTimeMs &&
-	lastObservedAtMs == expected.lastObservedAtMs &&
-	lastObservedBootId == expected.lastObservedBootId &&
-	lastObservedZoneId == expected.lastObservedZoneId &&
-	lastGapSequence == expected.lastGapSequence &&
-	authorityTransitionSequence == expected.authorityTransitionSequence &&
-	cursorRevision == expected.cursorRevision && status == expected.status
-
-private fun AmbientStepsImportCursorEntity.rotatedTo(
-	authority: AmbientStepsFactImporter.AmbientAuthority,
-	transition: AmbientStepsImportAuthorityTransitionEntity,
-	observedAtMs: Long,
-): AmbientStepsImportCursorEntity = copy(
-	authorizationRevision = authority.authorization.authorizationRevision,
-	authorizationFingerprint = authority.authorization.authorizationFingerprint,
-	authorizationEffectiveBootId = authority.authorization.effectiveBootId,
-	authorizationEffectiveElapsedRealtimeNanos = authority.authorization.effectiveElapsedRealtimeNanos,
-	authorizationEffectiveWallTimeMs = authority.authorizationEffectiveWallTimeMs,
-	sourcePolicyRevision = authority.policy.policyRevision,
-	ambientConsentEpoch = requireNotNull(authority.policy.ambientConsentEpoch),
-	eligibleFromTimeMs = transition.effectiveBoundaryTimeMs,
-	continuitySegmentGeneration = transition.toContinuitySegmentGeneration,
-	segmentStartTimeMs = transition.effectiveBoundaryTimeMs,
-	importedThroughTimeMs = transition.effectiveBoundaryTimeMs,
-	lastObservedAtMs = observedAtMs,
-	authorityTransitionSequence = transition.transitionSequence,
-	cursorRevision = cursorRevision + 1L,
-	updatedAtMs = observedAtMs,
-)
-
 private fun AmbientStepsFactRevisionEntity.matchesAggregate(
 	authority: AmbientStepsFactImporter.AmbientAuthority,
 	cursor: AmbientStepsImportCursorEntity,
@@ -996,6 +1079,16 @@ private fun Long?.isAfter(other: Long?): Boolean = when {
 	this == null -> false
 	other == null -> true
 	else -> this > other
+}
+
+private fun AmbientStepsImportGapReason.toStoredGapReason(): String = when (this) {
+	AmbientStepsImportGapReason.INITIAL_ZONE_AUTHORITY_UNOBSERVED ->
+		AmbientStepsImportGapEntity.REASON_INITIAL_ZONE_AUTHORITY_UNOBSERVED
+	AmbientStepsImportGapReason.AUTHORITY_BOUNDARY_NOT_DRAINED ->
+		AmbientStepsImportGapEntity.REASON_AUTHORITY_BOUNDARY_NOT_DRAINED
+	AmbientStepsImportGapReason.RETENTION_ADVANCED ->
+		AmbientStepsImportGapEntity.REASON_PROVIDER_RETENTION_LOSS
+	AmbientStepsImportGapReason.ZONE_CHANGED -> AmbientStepsImportGapEntity.REASON_ZONE_CHANGED
 }
 
 private fun roundForwardToSecond(timeMs: Long): Long {

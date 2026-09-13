@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.time.FixedClock
@@ -110,9 +111,11 @@ class AmbientStepsFactImporterTest {
 		val reader = RecordingAmbientReader { window, observedAtMs ->
 			AmbientStepsProviderAggregate(PROVIDER, window, stepCount = 42L, observedAtMs)
 		}
+		val importer = subject(reader)
+		primeZone(importer)
 		clock.setTime(90_000_000L)
 
-		val result = subject(reader).importNext(
+		val result = importer.importNext(
 			importBoundary(through = 90_000_000L, observedAt = 90_000_000L),
 		) as AmbientStepsImportResult.Applied
 
@@ -144,31 +147,53 @@ class AmbientStepsFactImporterTest {
 	}
 
 	@Test
-	fun `provider absence creates neither cursor nor covered zero`() = runTest {
-		val reader = RecordingAmbientReader { _, _ -> null }
+	fun `provider absence creates no covered zero and later evidence remains importable`() = runTest {
+		var stepCount: Long? = null
+		val reader = RecordingAmbientReader { window, observedAtMs ->
+			stepCount?.let { AmbientStepsProviderAggregate(PROVIDER, window, it, observedAtMs) }
+		}
+		val importer = subject(reader)
+		primeZone(importer)
 
-		subject(reader).importNext(importBoundary()) shouldBe
+		importer.importNext(importBoundary()) shouldBe
 			AmbientStepsImportResult.NoEvidence(
 				AmbientStepsImportNoEvidenceReason.PROVIDER_RETURNED_NO_EVIDENCE,
 			)
 
 		reader.windows shouldBe listOf(AmbientStepsProviderReadWindow(2_000L, 5_000L))
 		database.ambientStepsFactRevisionDao().countAll() shouldBe 0L
-		database.ambientStepsImportStateDao().countCursors() shouldBe 0L
+		database.ambientStepsImportStateDao().countCursors() shouldBe 1L
 		database.ambientStepsImportStateDao().countGaps() shouldBe 0L
+		requireNotNull(
+			database.ambientStepsImportStateDao().cursor(registration.state.registrationGeneration),
+		).importedThroughTimeMs shouldBe 2_000L
+
+		stepCount = 12L
+		clock.setTime(9_000L)
+		val applied = importer.importNext(
+			importBoundary(through = 5_000L, observedAt = 9_000L, observedElapsed = 9_000L),
+		) as AmbientStepsImportResult.Applied
+		applied.window shouldBe AmbientStepsProviderReadWindow(2_000L, 5_000L)
+		applied.semanticRevision shouldBe 1L
+		database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
 	}
 
 	@Test
 	fun `provider failure is retryable and leaves durable import state untouched`() = runTest {
 		val reader = RecordingAmbientReader { _, _ -> error("provider unavailable") }
+		val importer = subject(reader)
+		primeZone(importer)
 
-		subject(reader).importNext(importBoundary()) shouldBe
+		importer.importNext(importBoundary()) shouldBe
 			AmbientStepsImportResult.Retryable(
 				AmbientStepsImportRetryableReason.PROVIDER_READ_FAILED,
 			)
 
 		database.ambientStepsFactRevisionDao().countAll() shouldBe 0L
-		database.ambientStepsImportStateDao().countCursors() shouldBe 0L
+		database.ambientStepsImportStateDao().countCursors() shouldBe 1L
+		requireNotNull(
+			database.ambientStepsImportStateDao().cursor(registration.state.registrationGeneration),
+		).importedThroughTimeMs shouldBe 2_000L
 	}
 
 	@Test
@@ -180,11 +205,13 @@ class AmbientStepsFactImporterTest {
 			AmbientStepsProviderAggregate(PROVIDER, window, 12L, observedAtMs)
 		}
 
-		subject(reader).importNext(importBoundary()) shouldBe
+		val importer = subject(reader)
+		primeZone(importer)
+		importer.importNext(importBoundary()) shouldBe
 			AmbientStepsImportResult.Stale(AmbientStepsImportStaleReason.LIFECYCLE_CHANGED)
 
 		database.ambientStepsFactRevisionDao().countAll() shouldBe 0L
-		database.ambientStepsImportStateDao().countCursors() shouldBe 0L
+		database.ambientStepsImportStateDao().countCursors() shouldBe 1L
 	}
 
 	@Test
@@ -200,11 +227,13 @@ class AmbientStepsFactImporterTest {
 			AmbientStepsProviderAggregate(PROVIDER, window, 12L, observedAtMs)
 		}
 
-		subject(reader).importNext(importBoundary()) shouldBe
+		val importer = subject(reader)
+		primeZone(importer)
+		importer.importNext(importBoundary()) shouldBe
 			AmbientStepsImportResult.Stale(AmbientStepsImportStaleReason.AUTHORIZATION_CHANGED)
 
 		database.ambientStepsFactRevisionDao().countAll() shouldBe 0L
-		database.ambientStepsImportStateDao().countCursors() shouldBe 0L
+		database.ambientStepsImportStateDao().countCursors() shouldBe 1L
 	}
 
 	@Test
@@ -229,23 +258,25 @@ class AmbientStepsFactImporterTest {
 			AmbientStepsProviderAggregate(PROVIDER, window, 12L, observedAtMs)
 		}
 
-		subject(reader).importNext(importBoundary()) shouldBe
+		val importer = subject(reader)
+		primeZone(importer)
+		importer.importNext(importBoundary()) shouldBe
 			AmbientStepsImportResult.Stale(
 				AmbientStepsImportStaleReason.DESTINATION_OWNER_CHANGED,
 			)
 
 		database.ambientStepsFactRevisionDao().countAll() shouldBe 0L
-		database.ambientStepsImportStateDao().countCursors() shouldBe 0L
+		database.ambientStepsImportStateDao().countCursors() shouldBe 1L
 	}
 
 	@Test
-	fun `exact replay advances reconstructed cursor without another product revision`() = runTest {
+	fun `same high-water replay advances observation without another product revision`() = runTest {
 		val reader = RecordingAmbientReader { window, observedAtMs ->
 			AmbientStepsProviderAggregate(PROVIDER, window, 42L, observedAtMs)
 		}
 		val importer = subject(reader)
+		primeZone(importer)
 		importer.importNext(importBoundary()) as AmbientStepsImportResult.Applied
-		database.ambientStepsImportStateDao().deleteAllCursors()
 		clock.setTime(9_000L)
 
 		val result = importer.importNext(
@@ -262,11 +293,43 @@ class AmbientStepsFactImporterTest {
 	}
 
 	@Test
+	fun `progressive read revises one stable structural fact instead of fragmenting windows`() = runTest {
+		val reader = RecordingAmbientReader { window, observedAtMs ->
+			val count = if (window.endTimeMs == 5_000L) 10L else 15L
+			AmbientStepsProviderAggregate(PROVIDER, window, count, observedAtMs)
+		}
+		val importer = subject(reader)
+		primeZone(importer)
+		val first = importer.importNext(importBoundary()) as AmbientStepsImportResult.Applied
+		clock.setTime(9_000L)
+
+		val second = importer.importNext(
+			importBoundary(through = 7_000L, observedAt = 9_000L, observedElapsed = 9_000L),
+		) as AmbientStepsImportResult.Applied
+
+		reader.windows shouldBe listOf(
+			AmbientStepsProviderReadWindow(2_000L, 5_000L),
+			AmbientStepsProviderReadWindow(2_000L, 7_000L),
+		)
+		second.logicalFactId shouldBe first.logicalFactId
+		second.semanticRevision shouldBe 2L
+		database.ambientStepsFactRevisionDao().revisions(
+			AmbientStepsFactRevisionEntity.WRITER_ID,
+			AmbientStepsFactRevisionEntity.WRITER_VERSION,
+			first.logicalFactId,
+		).map { it.windowEndTimeMs to it.stepCount } shouldBe listOf(
+			5_000L to 10L,
+			7_000L to 15L,
+		)
+	}
+
+	@Test
 	fun `exact same-registration authorization boundary rotates before applying next fact`() = runTest {
 		val reader = RecordingAmbientReader { window, observedAtMs ->
 			AmbientStepsProviderAggregate(PROVIDER, window, 10L, observedAtMs)
 		}
 		val importer = subject(reader)
+		primeZone(importer)
 		clock.setTime(3_000L)
 		importer.importNext(
 			importBoundary(through = 3_000L, observedAt = 3_000L, observedElapsed = 3_000L),
@@ -307,11 +370,56 @@ class AmbientStepsFactImporterTest {
 	}
 
 	@Test
+	fun `provider no evidence does not lose an exact authorization transition`() = runTest {
+		var returnEvidence = true
+		val reader = RecordingAmbientReader { window, observedAtMs ->
+			if (returnEvidence) AmbientStepsProviderAggregate(PROVIDER, window, 10L, observedAtMs) else null
+		}
+		val importer = subject(reader)
+		primeZone(importer)
+		clock.setTime(3_000L)
+		importer.importNext(
+			importBoundary(through = 3_000L, observedAt = 3_000L, observedElapsed = 3_000L),
+		) as AmbientStepsImportResult.Applied
+		broker.replaceAmbientStepsDemand(
+			consumerId = AmbientStepsDemandReconciler.CONSUMER_ID,
+			mechanism = null,
+			bootId = BOOT_ID,
+			elapsedRealtimeNanos = 3_500L,
+			wallTimeMs = 3_000L,
+		)
+		activateDemand(elapsed = 4_000L, wall = 3_000L)
+		returnEvidence = false
+		clock.setTime(5_000L)
+
+		importer.importNext(
+			importBoundary(through = 4_000L, observedAt = 5_000L, observedElapsed = 5_000L),
+		) shouldBe AmbientStepsImportResult.NoEvidence(
+			AmbientStepsImportNoEvidenceReason.PROVIDER_RETURNED_NO_EVIDENCE,
+		)
+		database.ambientStepsImportStateDao().countAuthorityTransitions() shouldBe 1L
+		val transitioned = requireNotNull(
+			database.ambientStepsImportStateDao().cursor(registration.state.registrationGeneration),
+		)
+		transitioned.importedThroughTimeMs shouldBe 3_000L
+		transitioned.segmentStartTimeMs shouldBe 3_000L
+		transitioned.authorityTransitionSequence shouldBe 1L
+
+		returnEvidence = true
+		clock.setTime(6_000L)
+		val resumed = importer.importNext(
+			importBoundary(through = 4_000L, observedAt = 6_000L, observedElapsed = 6_000L),
+		) as AmbientStepsImportResult.Applied
+		resumed.window shouldBe AmbientStepsProviderReadWindow(3_000L, 4_000L)
+	}
+
+	@Test
 	fun `undrained authorization boundary is an explicit gap and is not read across`() = runTest {
 		val reader = RecordingAmbientReader { window, observedAtMs ->
 			AmbientStepsProviderAggregate(PROVIDER, window, 10L, observedAtMs)
 		}
 		val importer = subject(reader)
+		primeZone(importer)
 		clock.setTime(3_000L)
 		importer.importNext(
 			importBoundary(through = 3_000L, observedAt = 3_000L, observedElapsed = 3_000L),
@@ -336,29 +444,151 @@ class AmbientStepsFactImporterTest {
 
 		reader.windows.size shouldBe readsBefore
 		database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
-		database.ambientStepsImportStateDao().countAuthorityTransitions() shouldBe 0L
+		database.ambientStepsImportStateDao().countGaps() shouldBe 1L
+		database.ambientStepsImportStateDao().countAuthorityTransitions() shouldBe 1L
+		val cursor = requireNotNull(
+			database.ambientStepsImportStateDao().cursor(registration.state.registrationGeneration),
+		)
+		cursor.importedThroughTimeMs shouldBe 4_000L
+		cursor.segmentStartTimeMs shouldBe 4_000L
+
+		clock.setTime(7_000L)
+		val resumed = importer.importNext(
+			importBoundary(through = 5_000L, observedAt = 7_000L, observedElapsed = 7_000L),
+		) as AmbientStepsImportResult.Applied
+		resumed.window shouldBe AmbientStepsProviderReadWindow(4_000L, 5_000L)
 	}
 
 	@Test
-	fun `zone and retention discontinuities are typed without fabricating coverage`() = runTest {
+	fun `first observed zone starts at its boundary and preserves the earlier interval as unknown`() =
+		runTest {
+			val reader = RecordingAmbientReader { window, observedAtMs ->
+				AmbientStepsProviderAggregate(PROVIDER, window, 10L, observedAtMs)
+			}
+			val importer = subject(reader)
+			val prague = ZoneId.of("Europe/Prague")
+
+			importer.importNext(
+				importBoundary(through = 5_000L, observedAt = 8_000L, zoneId = prague),
+			) shouldBe AmbientStepsImportResult.Gap(
+				reason = AmbientStepsImportGapReason.INITIAL_ZONE_AUTHORITY_UNOBSERVED,
+				fromTimeMs = 2_000L,
+				toTimeMs = 5_000L,
+			)
+
+			reader.windows shouldBe emptyList()
+			val gap = database.ambientStepsImportStateDao().gaps(
+				registration.state.registrationGeneration,
+			).single()
+			gap.reason shouldBe AmbientStepsImportGapEntity.REASON_INITIAL_ZONE_AUTHORITY_UNOBSERVED
+			gap.previousZoneId shouldBe AmbientStepsImportGapEntity.ZONE_AUTHORITY_UNOBSERVED
+			gap.nextZoneId shouldBe prague.id
+			val cursor = requireNotNull(
+				database.ambientStepsImportStateDao().cursor(registration.state.registrationGeneration),
+			)
+			cursor.segmentStartTimeMs shouldBe 5_000L
+			cursor.importedThroughTimeMs shouldBe 5_000L
+			cursor.lastObservedZoneId shouldBe prague.id
+
+			clock.setTime(9_000L)
+			val applied = importer.importNext(
+				importBoundary(
+					through = 7_000L,
+					observedAt = 9_000L,
+					observedElapsed = 9_000L,
+					zoneId = prague,
+				),
+			) as AmbientStepsImportResult.Applied
+			applied.window shouldBe AmbientStepsProviderReadWindow(5_000L, 7_000L)
+		}
+
+	@Test
+	fun `positive width zone change is durable and resumes only after its observed boundary`() = runTest {
 		val reader = RecordingAmbientReader { window, observedAtMs ->
 			AmbientStepsProviderAggregate(PROVIDER, window, 10L, observedAtMs)
 		}
 		val importer = subject(reader)
+		primeZone(importer)
 		importer.importNext(importBoundary()) as AmbientStepsImportResult.Applied
 		val readsBefore = reader.windows.size
+		val prague = ZoneId.of("Europe/Prague")
 
 		importer.importNext(
 			importBoundary(
 				through = 7_000L,
 				observedAt = 8_000L,
-				zoneId = ZoneId.of("Europe/Prague"),
+				zoneId = prague,
 			),
+		) shouldBe AmbientStepsImportResult.Gap(
+			reason = AmbientStepsImportGapReason.ZONE_CHANGED,
+			fromTimeMs = 5_000L,
+			toTimeMs = 7_000L,
+		)
+		reader.windows.size shouldBe readsBefore
+		val gap = database.ambientStepsImportStateDao().gaps(
+			registration.state.registrationGeneration,
+		).single()
+		gap.gapStartTimeMs shouldBe 5_000L
+		gap.gapEndTimeMs shouldBe 7_000L
+		gap.previousZoneId shouldBe "UTC"
+		gap.nextZoneId shouldBe prague.id
+
+		clock.setTime(9_000L)
+		val resumed = importer.importNext(
+			importBoundary(
+				through = 8_000L,
+				observedAt = 9_000L,
+				observedElapsed = 9_000L,
+				zoneId = prague,
+			),
+		) as AmbientStepsImportResult.Applied
+		resumed.window shouldBe AmbientStepsProviderReadWindow(7_000L, 8_000L)
+	}
+
+	@Test
+	fun `zero width zone transition cannot erase a later positive interval`() = runTest {
+		val reader = RecordingAmbientReader { window, observedAtMs ->
+			AmbientStepsProviderAggregate(PROVIDER, window, 10L, observedAtMs)
+		}
+		val importer = subject(reader)
+		primeZone(importer)
+		importer.importNext(importBoundary()) as AmbientStepsImportResult.Applied
+		val prague = ZoneId.of("Europe/Prague")
+
+		importer.importNext(
+			importBoundary(through = 5_000L, observedAt = 8_000L, zoneId = prague),
 		) shouldBe AmbientStepsImportResult.Gap(
 			reason = AmbientStepsImportGapReason.ZONE_CHANGED,
 			fromTimeMs = 5_000L,
 			toTimeMs = 5_000L,
 		)
+		val cursor = requireNotNull(
+			database.ambientStepsImportStateDao().cursor(registration.state.registrationGeneration),
+		)
+		cursor.importedThroughTimeMs shouldBe 5_000L
+		cursor.segmentStartTimeMs shouldBe 5_000L
+
+		clock.setTime(9_000L)
+		val resumed = importer.importNext(
+			importBoundary(
+				through = 7_000L,
+				observedAt = 9_000L,
+				observedElapsed = 9_000L,
+				zoneId = prague,
+			),
+		) as AmbientStepsImportResult.Applied
+		resumed.window shouldBe AmbientStepsProviderReadWindow(5_000L, 7_000L)
+	}
+
+	@Test
+	fun `retention discontinuity is durable and resumes from rounded retained floor`() = runTest {
+		val reader = RecordingAmbientReader { window, observedAtMs ->
+			AmbientStepsProviderAggregate(PROVIDER, window, 10L, observedAtMs)
+		}
+		val importer = subject(reader)
+		primeZone(importer)
+		importer.importNext(importBoundary()) as AmbientStepsImportResult.Applied
+		val readsBefore = reader.windows.size
 		lifecycleStore.set(
 			CollectedDataLifecycleSnapshot(
 				epoch = COLLECTED_DATA_EPOCH,
@@ -375,7 +605,18 @@ class AmbientStepsFactImporterTest {
 
 		reader.windows.size shouldBe readsBefore
 		database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
-		database.ambientStepsImportStateDao().countGaps() shouldBe 0L
+		val gap = database.ambientStepsImportStateDao().gaps(
+			registration.state.registrationGeneration,
+		).single()
+		gap.reason shouldBe AmbientStepsImportGapEntity.REASON_PROVIDER_RETENTION_LOSS
+		gap.gapStartTimeMs shouldBe 5_000L
+		gap.gapEndTimeMs shouldBe 7_000L
+
+		clock.setTime(10_000L)
+		val resumed = importer.importNext(
+			importBoundary(through = 8_000L, observedAt = 10_000L, observedElapsed = 10_000L),
+		) as AmbientStepsImportResult.Applied
+		resumed.window shouldBe AmbientStepsProviderReadWindow(7_000L, 8_000L)
 	}
 
 	private fun subject(reader: RecordingAmbientReader) = AmbientStepsFactImporter(
@@ -384,6 +625,14 @@ class AmbientStepsFactImporterTest {
 		clock = clock,
 		readers = mapOf(PROVIDER to reader),
 	)
+
+	private suspend fun primeZone(importer: AmbientStepsFactImporter) {
+		importer.importNext(
+			importBoundary(through = 2_000L, observedAt = 2_000L, observedElapsed = 2_000L),
+		) shouldBe AmbientStepsImportResult.NoEvidence(
+			AmbientStepsImportNoEvidenceReason.NO_WINDOW_AVAILABLE,
+		)
+	}
 
 	private suspend fun activateDemand(
 		elapsed: Long,

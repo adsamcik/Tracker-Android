@@ -96,7 +96,16 @@ data class AmbientStepsImportCursorEntity(
 		require(importedThroughTimeMs % MILLIS_PER_SECOND == 0L)
 		require(lastObservedAtMs >= importedThroughTimeMs)
 		require(lastObservedBootId == registrationClockDomainId)
-		requireValidZone(lastObservedZoneId)
+		if (lastObservedZoneId == AmbientStepsImportGapEntity.ZONE_AUTHORITY_UNOBSERVED) {
+			require(continuitySegmentGeneration == 1L)
+			require(segmentStartTimeMs == eligibleFromTimeMs)
+			require(importedThroughTimeMs == eligibleFromTimeMs)
+			require(lastGapSequence == 0L)
+			require(authorityTransitionSequence == 0L)
+			require(cursorRevision == 1L)
+		} else {
+			requireValidZone(lastObservedZoneId)
+		}
 		require(cursorRevision > 0L)
 		require(status in STATUSES)
 		require(updatedAtMs >= lastObservedAtMs)
@@ -193,7 +202,11 @@ data class AmbientStepsImportGapEntity(
 		require(predecessorProvider == null || predecessorProvider in PROVIDERS)
 		require(previousClockDomainId.isNotBlank())
 		require(nextClockDomainId.isNotBlank())
-		requireValidZone(previousZoneId)
+		if (reason == REASON_INITIAL_ZONE_AUTHORITY_UNOBSERVED) {
+			require(previousZoneId == ZONE_AUTHORITY_UNOBSERVED)
+		} else {
+			requireValidZone(previousZoneId)
+		}
 		requireValidZone(nextZoneId)
 		require(collectedDataEpoch >= 0L)
 		require(recordedAtMs >= gapEndTimeMs)
@@ -220,7 +233,12 @@ data class AmbientStepsImportGapEntity(
 			REASON_PROVIDER_NO_EVIDENCE,
 			REASON_PROVIDER_RETENTION_LOSS,
 			REASON_PROCESS_ABSENCE,
+			REASON_AUTHORITY_BOUNDARY_NOT_DRAINED,
 			-> require(gapEndTimeMs > gapStartTimeMs)
+			REASON_INITIAL_ZONE_AUTHORITY_UNOBSERVED -> {
+				require(gapEndTimeMs > gapStartTimeMs)
+				require(previousZoneId == ZONE_AUTHORITY_UNOBSERVED)
+			}
 			REASON_BOOT_CHANGED,
 			REASON_CLOCK_DISCONTINUITY,
 			-> {
@@ -243,6 +261,9 @@ data class AmbientStepsImportGapEntity(
 		const val REASON_ZONE_CHANGED = "ZONE_CHANGED"
 		const val REASON_PROVIDER_CHANGED = "PROVIDER_CHANGED"
 		const val REASON_CLOCK_DISCONTINUITY = "CLOCK_DISCONTINUITY"
+		const val REASON_AUTHORITY_BOUNDARY_NOT_DRAINED = "AUTHORITY_BOUNDARY_NOT_DRAINED"
+		const val REASON_INITIAL_ZONE_AUTHORITY_UNOBSERVED = "INITIAL_ZONE_AUTHORITY_UNOBSERVED"
+		const val ZONE_AUTHORITY_UNOBSERVED = "__UNOBSERVED__"
 
 		private val PROVIDERS = setOf(
 			AmbientStepsImportCursorEntity.PROVIDER_HEALTH_CONNECT_MOBILE_STEPS,
@@ -256,6 +277,8 @@ data class AmbientStepsImportGapEntity(
 			REASON_ZONE_CHANGED,
 			REASON_PROVIDER_CHANGED,
 			REASON_CLOCK_DISCONTINUITY,
+			REASON_AUTHORITY_BOUNDARY_NOT_DRAINED,
+			REASON_INITIAL_ZONE_AUTHORITY_UNOBSERVED,
 		)
 		private const val MILLIS_PER_SECOND = 1_000L
 	}

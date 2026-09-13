@@ -49,6 +49,61 @@ class AmbientStepsImportStateEntitiesTest {
 	}
 
 	@Test
+	fun `unobserved zone authority is confined to the initial cursor and explicit initial gap`() {
+		val initial = cursor().copy(
+			segmentStartTimeMs = 2_000L,
+			importedThroughTimeMs = 2_000L,
+			lastObservedAtMs = 2_000L,
+			lastObservedZoneId = AmbientStepsImportGapEntity.ZONE_AUTHORITY_UNOBSERVED,
+			updatedAtMs = 2_000L,
+		)
+		val gapId = AmbientStepsImportGapIntegrity.gapId(
+			registrationGeneration = 7L,
+			gapSequence = 1L,
+			provider = PROVIDER,
+			sourceInstanceId = "ambient-instance",
+			reason = AmbientStepsImportGapEntity.REASON_INITIAL_ZONE_AUTHORITY_UNOBSERVED,
+			gapStartTimeMs = 2_000L,
+			gapEndTimeMs = 5_000L,
+			predecessorRegistrationGeneration = null,
+			predecessorProvider = null,
+			previousClockDomainId = "boot-a",
+			nextClockDomainId = "boot-a",
+			previousZoneId = AmbientStepsImportGapEntity.ZONE_AUTHORITY_UNOBSERVED,
+			nextZoneId = "Europe/Prague",
+			collectedDataEpoch = 6L,
+		)
+
+		AmbientStepsImportGapEntity(
+			gapId = gapId,
+			registrationGeneration = 7L,
+			gapSequence = 1L,
+			provider = PROVIDER,
+			sourceInstanceId = "ambient-instance",
+			reason = AmbientStepsImportGapEntity.REASON_INITIAL_ZONE_AUTHORITY_UNOBSERVED,
+			gapStartTimeMs = 2_000L,
+			gapEndTimeMs = 5_000L,
+			predecessorRegistrationGeneration = null,
+			predecessorProvider = null,
+			previousClockDomainId = "boot-a",
+			nextClockDomainId = "boot-a",
+			previousZoneId = AmbientStepsImportGapEntity.ZONE_AUTHORITY_UNOBSERVED,
+			nextZoneId = "Europe/Prague",
+			collectedDataEpoch = 6L,
+			recordedAtMs = 5_000L,
+		).gapEndTimeMs shouldBe 5_000L
+
+		shouldThrow<IllegalArgumentException> {
+			initial.copy(importedThroughTimeMs = 3_000L, lastObservedAtMs = 3_000L, updatedAtMs = 3_000L)
+		}
+		shouldThrow<IllegalArgumentException> {
+			processGap().copy(
+				previousZoneId = AmbientStepsImportGapEntity.ZONE_AUTHORITY_UNOBSERVED,
+			)
+		}
+	}
+
+	@Test
 	fun `authority transition is an exact non-gap privacy split`() {
 		val transition = authorityTransition()
 
