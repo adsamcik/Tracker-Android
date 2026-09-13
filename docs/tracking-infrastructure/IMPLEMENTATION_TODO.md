@@ -670,8 +670,16 @@ Accepted isolated commits `e5082b670` through `96e930d80` implement only the pur
 identity-free classification portion of WIFI-003/005/013. Qualification now binds
 `CAPTURED_REGISTRATION` plan authority, caps and canonicalizes exact v2 one-unit provider payloads,
 and recomputes delivery identity from sorted minimized observations before first fact identity. No
-durable WAL adapter, fact table/writer/cursor, source-local deletion fence, provider runtime change,
-active-attempt product, history, or UI is complete, so every Wi-Fi TODO remains unchecked.
+fact table/writer/cursor, source-local deletion fence, provider runtime change, active-attempt
+product, history, or UI is complete, so every Wi-Fi TODO remains unchecked.
+
+Accepted commits `8c2587909` and `d7c5e5d4b` add the real retained-WAL portion of
+WIFI-001/003/004/013. The bounded dormant adapter authenticates one canonical delivery against the
+exact historical applied plan, all recomputed authorization demand floors, complete manifest and
+run/segment authority, canonical active or terminal lifecycle settlement, admission cutoff,
+retention, deletion, clock, and zone. These TODOs remain unchecked until source-local fact
+persistence, writer/cursor and maintenance exist and a production provider-to-product path consumes
+them.
 
 ## Cell vertical
 

@@ -1949,3 +1949,24 @@ The command was not run. The author inadvertently invoked a no-op
 evidence. Compilation, Room query execution, generated v28 schema convergence, runtime projection,
 shared UI, device/provider behavior,
 integration, activation, and release remain unproven.
+
+## TI-B273 — Wi-Fi retained-WAL authority contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `d7c5e5d4b`. Authored real-Room adapter tests cover the
+exact positive-sequence one-unit delivery, canonical payload and recomputed delivery identity,
+retained accepted-action plan application, immutable plan bytes/checksum/fingerprint, null runtime
+configuration hints, every bounded authorization member and demand contract, registration/barrier,
+policy/consent, complete manifest/run/segment binding, active and terminal lifecycle pairs, final
+admission cutoff, clock/zone, retention, deletion, and configured authority/read overflow.
+Independent review rejected fabricated applied-plan evidence, incomplete demand-floor proof, and
+unauthenticated terminal settlement before accepting the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*WifiCapturedFactClassifierTest' --tests '*WifiWalQualificationAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query execution, fact schema/writer/cursor, source-local
+deletion/retention, provider callback and active-attempt behavior, product history/UI, device/OEM
+behavior, integration, activation, and release remain unproven.

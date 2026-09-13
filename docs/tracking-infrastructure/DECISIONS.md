@@ -3347,3 +3347,21 @@ Each entry records repository evidence and does not duplicate the final architec
   unbounded duration. Earlier qualified facts remain visible and the group stays typed partial and
   materialization-behind. Physical run and event identities remain internal; no control-only input,
   `sample_count`, or Location inference is used.
+
+## TI-D210 — Wi-Fi WAL qualification replays exact applied capture authority
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/tests `8c2587909` and
+  `d7c5e5d4b` atop TI-D206; TI-B273.
+- One dormant Room adapter selects exactly one retained positive-sequence Wi-Fi delivery and
+  authenticates its bounded one-unit WAL shape, canonical identity-free payload, recomputed delivery
+  identity, complete manifest/run/segment binding, clock/zone, retention, deletion, and exact
+  captured-registration authority.
+- Historical plan evidence comes from the retained accepted source action plus immutable desired
+  plan bytes and checksum. Every bounded authorization member and demand contract is recomputed;
+  cache-only, malformed, excessive-age, non-broadcast-floor, or fabricated delivery-deadline plans
+  fail closed rather than borrowing current intent.
+- Active and terminal lifecycle pairs are authenticated separately. A terminal session must have no
+  current run, and its final admission ordinal must cover the selected WAL unit. All plan, manifest,
+  authorization-member, WAL-unit, and sibling reads have explicit limits.
+- This decision adds no fact table, writer/cursor, callback owner, active attempt, product read,
+  deletion/retention mutation, UI, or activation. Those remain separate Wi-Fi-local work.

@@ -90,21 +90,26 @@ read-only slice as **IMPLEMENTED_UNVALIDATED**. v1 evidence cannot prove subscri
 coverage remains typed `UNKNOWN`; confirmed empty is still unverifiable, and no Cell fact table,
 source-local deletion generation, writer/cursor, provider activation, product read, or UI is claimed.
 
-The isolated Wi-Fi branch is clean at `96e930d80`. Its pure dormant classifier requires exact
+The isolated Wi-Fi branch is clean at `d7c5e5d4b`. Its pure dormant classifier requires exact
 `CAPTURED_REGISTRATION` authority while allowing the passive runtime's nullable redundant
 configuration hint, validates the serialized desired plan and applied registration, caps bytes
 before decode, requires canonical v2 re-encoding and the exact one-unit sorted identity-free producer
 shape, and recomputes the production provider delivery identity before deriving any fact. Repeated
 independent review closed the previously caller-tunable, constructor, plan, payload, and identity
-gaps as **IMPLEMENTED_UNVALIDATED**. Durable WAL loading, fact persistence, callback ownership,
-bounded active attempts, product history, and UI remain open.
+gaps as **IMPLEMENTED_UNVALIDATED**. Commits `8c2587909` and `d7c5e5d4b` add an independently
+accepted retained-WAL adapter: it authenticates the exact accepted historical plan application,
+recomputes every bounded demand floor and authorization member, validates canonical active or
+terminal lifecycle settlement and admission cutoff, and caps all authority and delivery reads.
+Fact persistence, callback ownership, bounded active attempts, product history, maintenance,
+transfer, and UI remain open.
 
 Git/worktree reconciliation found no accepted committed implementation stranded or lost: imported
 Steps branches are contained or patch-equivalent in the coordinator, the older Pressure and numeric
 branches are ancestors, and the two dirty portable-import/qualified-awards drafts remain frozen
 reference inputs only. Ambient product composition and Cell persistence remain active isolated lanes
 whose current review findings must be corrected before acceptance. Activity WAL admission is a
-separate dormant lane under review.
+separate dormant lane under correction after review; Pressure shared UI and export-only transfer are
+active isolated lanes.
 
 The checked-in v28 JSON now declares 79 entities: 51 released-v27 entities plus 28 narrowly owned
 v28 additions. Its identity hash is intentionally stale and Room/Kotlin/SQL generation or checking
