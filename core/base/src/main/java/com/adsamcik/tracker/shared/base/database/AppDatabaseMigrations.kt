@@ -1739,6 +1739,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 					registration_generation INTEGER NOT NULL,
 					configuration_revision INTEGER NOT NULL,
 					desired_plan_payload_version INTEGER NOT NULL,
+					desired_plan_payload BLOB NOT NULL,
 					desired_plan_payload_checksum TEXT NOT NULL,
 					physical_configuration_fingerprint TEXT NOT NULL,
 					applied_at_elapsed_realtime_nanos INTEGER NOT NULL,

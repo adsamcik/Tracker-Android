@@ -227,6 +227,7 @@ internal class ActivityCapturedFactWriter(
 			historicalRegistrationPlan == null ||
 			historicalRegistrationPlan.configurationRevision != authority.configurationRevision ||
 			historicalRegistrationPlan.desiredPlanPayloadVersion != desiredActivityPlan.payloadVersion ||
+			!historicalRegistrationPlan.desiredPlanPayload.contentEquals(desiredActivityPlan.payload) ||
 			historicalRegistrationPlan.desiredPlanPayloadChecksum !=
 				desiredActivityPlan.payloadChecksum ||
 			historicalRegistrationPlan.physicalConfigurationFingerprint !=

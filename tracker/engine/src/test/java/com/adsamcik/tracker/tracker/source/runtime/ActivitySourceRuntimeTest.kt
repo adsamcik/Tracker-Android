@@ -11,10 +11,12 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationSnapsh
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.SourceRegistrationStateDao
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -33,6 +35,25 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ActivitySourceRuntimeTest {
+	@Test
+	fun `session demand carries exact plan independently of provider generation`() = runTest {
+		val fixture = fixture()
+		val plan = enabledPlan(41L)
+
+		assertIs<SourceStartResult.Started>(
+			fixture.runtime.start(claim("plan-attribution"), plan, DISCARDING_SINK),
+		)
+
+		val capturedPlan = requireNotNull(
+			fixture.arbiter.demand(ActivityRegistrationOwner.ACTIVE_SESSION).capturedPlan,
+		)
+		assertEquals(41L, capturedPlan.configurationRevision)
+		assertEquals(SourcePlanCodec.FORMAT_VERSION, capturedPlan.payloadVersion)
+		assertEquals(plan, SourcePlanCodec().decode(capturedPlan.payload))
+		assertEquals(plan.physicalConfigurationFingerprint(), capturedPlan.physicalConfigurationFingerprint)
+		assertTrue(capturedPlan.configurationRevision != ACTIVITY_GENERATION)
+	}
+
 	@Test
 	fun `reconfigure transfers claim even when provider identity is unchanged`() = runTest {
 		val fixture = fixture()
@@ -203,7 +224,7 @@ class ActivitySourceRuntimeTest {
 		val database = mockk<AppDatabase>()
 		every { database.sourceRegistrationStateDao() } returns registrationStateDao
 		return ActivityRuntimeFixture(
-			runtime = ActivitySourceRuntime(arbiter, database),
+			runtime = ActivitySourceRuntime(arbiter, database, SourcePlanCodec()),
 			arbiter = arbiter,
 			registrationStateDao = registrationStateDao,
 		)
@@ -255,6 +276,9 @@ private class RecordingActivityRegistrationArbiter(
 	val clearedOwners = mutableListOf<ActivityRegistrationOwner>()
 	val owners: Set<ActivityRegistrationOwner>
 		get() = demands.keys.toSet()
+
+	fun demand(owner: ActivityRegistrationOwner): ActivityRegistrationDemand =
+		requireNotNull(demands[owner])
 
 	override suspend fun setDemand(
 		owner: ActivityRegistrationOwner,

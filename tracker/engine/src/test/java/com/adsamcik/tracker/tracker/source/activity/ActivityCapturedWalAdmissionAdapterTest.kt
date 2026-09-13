@@ -341,6 +341,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 					registrationGeneration = REGISTRATION_GENERATION,
 					configurationRevision = PLAN_REVISION,
 					desiredPlanPayloadVersion = 1,
+					desiredPlanPayload = encodedPlan.bytes,
 					desiredPlanPayloadChecksum = encodedPlan.checksum,
 					physicalConfigurationFingerprint = physicalFingerprint,
 					appliedAtElapsedRealtimeNanos = REGISTRATION_START_NANOS,

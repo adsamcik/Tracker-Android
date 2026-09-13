@@ -283,6 +283,7 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			)
 			if (registrationPlan.configurationRevision != configurationRevision ||
 				registrationPlan.desiredPlanPayloadVersion != desiredPlan.payloadVersion ||
+				!registrationPlan.desiredPlanPayload.contentEquals(desiredPlan.payload) ||
 				registrationPlan.desiredPlanPayloadChecksum != desiredPlan.payloadChecksum ||
 				registrationPlan.physicalConfigurationFingerprint != physicalFingerprint ||
 				registrationPlan.appliedAtElapsedRealtimeNanos > selected.observedElapsedNanos

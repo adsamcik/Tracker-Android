@@ -29,6 +29,8 @@ data class ActivityCapturedRegistrationPlanEntity(
 	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long,
 	@ColumnInfo(name = "configuration_revision") val configurationRevision: Long,
 	@ColumnInfo(name = "desired_plan_payload_version") val desiredPlanPayloadVersion: Int,
+	@ColumnInfo(name = "desired_plan_payload", typeAffinity = ColumnInfo.BLOB)
+	val desiredPlanPayload: ByteArray,
 	@ColumnInfo(name = "desired_plan_payload_checksum") val desiredPlanPayloadChecksum: String,
 	@ColumnInfo(name = "physical_configuration_fingerprint")
 	val physicalConfigurationFingerprint: String,
@@ -39,7 +41,8 @@ data class ActivityCapturedRegistrationPlanEntity(
 	init {
 		require(sourceInstanceId.isNotBlank())
 		require(registrationGeneration > 0L && configurationRevision > 0L)
-		require(desiredPlanPayloadVersion > 0 && desiredPlanPayloadChecksum.isNotBlank())
+		require(desiredPlanPayloadVersion > 0 && desiredPlanPayload.isNotEmpty())
+		require(desiredPlanPayloadChecksum.isNotBlank())
 		require(physicalConfigurationFingerprint.isNotBlank())
 		require(appliedAtElapsedRealtimeNanos >= 0L)
 		require(applyStatus in APPLIED_STATUSES)
@@ -66,6 +69,7 @@ data class ActivityCapturedRegistrationPlanEntity(
 			registrationGeneration: Long,
 			configurationRevision: Long,
 			desiredPlanPayloadVersion: Int,
+			desiredPlanPayload: ByteArray,
 			desiredPlanPayloadChecksum: String,
 			physicalConfigurationFingerprint: String,
 			appliedAtElapsedRealtimeNanos: Long,
@@ -75,6 +79,7 @@ data class ActivityCapturedRegistrationPlanEntity(
 			registrationGeneration = registrationGeneration,
 			configurationRevision = configurationRevision,
 			desiredPlanPayloadVersion = desiredPlanPayloadVersion,
+			desiredPlanPayload = desiredPlanPayload.copyOf(),
 			desiredPlanPayloadChecksum = desiredPlanPayloadChecksum,
 			physicalConfigurationFingerprint = physicalConfigurationFingerprint,
 			appliedAtElapsedRealtimeNanos = appliedAtElapsedRealtimeNanos,

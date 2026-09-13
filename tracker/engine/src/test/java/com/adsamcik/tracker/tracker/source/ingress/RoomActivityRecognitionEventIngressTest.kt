@@ -9,8 +9,10 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatc
 import com.adsamcik.tracker.activity.api.ingress.ActivityTransitionEvidence
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.ActivityCapturedFactDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceBrokerDao
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -33,6 +35,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -48,6 +51,7 @@ class RoomActivityRecognitionEventIngressTest {
 	private lateinit var startupGate: TrackingStartupGate
 	private lateinit var database: AppDatabase
 	private lateinit var sourceBrokerDao: SourceBrokerDao
+	private lateinit var activityCapturedFactDao: ActivityCapturedFactDao
 	private lateinit var automationEpochAuthority: ActivityAutomationEpochAuthority
 	private lateinit var subject: RoomActivityRecognitionEventIngress
 	private val capturedDelivery = slot<SourceDeliveryCandidate>()
@@ -68,8 +72,11 @@ class RoomActivityRecognitionEventIngressTest {
 		database = mockk()
 		sourceBrokerDao = mockk()
 		every { database.sourceBrokerDao() } returns sourceBrokerDao
+		activityCapturedFactDao = mockk()
+		every { database.activityCapturedFactDao() } returns activityCapturedFactDao
 		coEvery { sourceBrokerDao.registration(SourceKind.ACTIVITY.stableCode, 1L) } returns
 			registration()
+		coEvery { activityCapturedFactDao.registrationPlanBinding(any(), any()) } returns null
 		automationEpochAuthority = mockk()
 		coEvery { automationEpochAuthority.epochForCallbackAdmission() } returns
 			activityAutomationAuthority()
@@ -97,6 +104,33 @@ class RoomActivityRecognitionEventIngressTest {
 		result.failureCode shouldBe "ACTIVITY_REGISTRATION_ACTIVATION_PENDING"
 		coVerify(exactly = 0) { automationEpochAuthority.epochForCallbackAdmission() }
 		coVerify(exactly = 0) { deliveryIngress.admit(any()) }
+	}
+
+	@Test
+	fun `callback stamps immutable applied plan revision instead of registration generation`() = runTest {
+		val payload = byteArrayOf(1, 2, 3)
+		val checksum = MessageDigest.getInstance("SHA-256")
+			.digest(payload)
+			.joinToString(separator = "") { byte -> "%02x".format(byte) }
+		coEvery { activityCapturedFactDao.registrationPlanBinding(any(), any()) } returns
+			ActivityCapturedRegistrationPlanEntity.create(
+				sourceInstanceId = "activity-instance",
+				registrationGeneration = 1L,
+				configurationRevision = 41L,
+				desiredPlanPayloadVersion = 1,
+				desiredPlanPayload = payload,
+				desiredPlanPayloadChecksum = checksum,
+				physicalConfigurationFingerprint = "physical-config",
+				appliedAtElapsedRealtimeNanos = 10L,
+				applyStatus = "APPLIED",
+			)
+		coEvery { deliveryIngress.admit(capture(capturedDelivery)) } returns
+			DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.UNSUPPORTED_PAYLOAD)
+
+		subject.admit(batch(recognitions = listOf(recognition(30L))))
+
+		capturedDelivery.captured.units.single().evidence.configRevision shouldBe 41L
+		capturedDelivery.captured.units.single().evidence.registrationGeneration shouldBe 1L
 	}
 
 	@Test

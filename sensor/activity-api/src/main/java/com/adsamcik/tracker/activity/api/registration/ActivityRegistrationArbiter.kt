@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.activity.api.registration
 
 import com.adsamcik.tracker.activity.ActivityTransitionData
+import java.security.MessageDigest
 
 /**
  * Sole logical entry point for activity-recognition registration ownership.
@@ -34,13 +35,58 @@ data class ActivityRegistrationDemand(
 	val continuousRecognitionIntervalSeconds: Int? = null,
 	val transitions: Set<ActivityTransitionData> = emptySet(),
 	val planRevision: Long? = null,
+	/** Exact captured-product plan; control-only owners must leave this null. */
+	val capturedPlan: ActivityRegistrationPlanAttribution? = null,
 ) {
 	init {
 		require(continuousRecognitionIntervalSeconds == null || continuousRecognitionIntervalSeconds > 0)
+		require(capturedPlan == null || planRevision == capturedPlan.configurationRevision) {
+			"Captured Activity plan revision must match the registration demand"
+		}
 	}
 
 	val enabled: Boolean
 		get() = continuousRecognitionIntervalSeconds != null || transitions.isNotEmpty()
+}
+
+/**
+ * Immutable serialized plan authority supplied by the session runtime to the physical arbiter.
+ *
+ * This API-owned value keeps the provider module independent of tracker-engine plan classes while
+ * still allowing the arbiter to commit the exact applied bytes with the accepted registration.
+ */
+class ActivityRegistrationPlanAttribution(
+	val configurationRevision: Long,
+	val payloadVersion: Int,
+	payload: ByteArray,
+	val payloadChecksum: String,
+	val physicalConfigurationFingerprint: String,
+) {
+	private val storedPayload: ByteArray = payload.copyOf()
+	val payload: ByteArray
+		get() = storedPayload.copyOf()
+
+	init {
+		require(configurationRevision > 0L)
+		require(payloadVersion > 0)
+		require(storedPayload.isNotEmpty() && storedPayload.size <= MAX_PLAN_PAYLOAD_BYTES)
+		require(payloadChecksum == sha256(storedPayload)) { "Activity plan payload checksum does not match" }
+		require(physicalConfigurationFingerprint.isNotBlank())
+	}
+
+	fun hasSameValueAs(other: ActivityRegistrationPlanAttribution): Boolean =
+		configurationRevision == other.configurationRevision &&
+			payloadVersion == other.payloadVersion &&
+			storedPayload.contentEquals(other.storedPayload) && payloadChecksum == other.payloadChecksum &&
+			physicalConfigurationFingerprint == other.physicalConfigurationFingerprint
+
+	companion object {
+		const val MAX_PLAN_PAYLOAD_BYTES = 64 * 1_024
+
+		private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+			.digest(bytes)
+			.joinToString(separator = "") { byte -> "%02x".format(byte) }
+	}
 }
 
 data class ActivityRegistrationIdentity(
@@ -108,6 +154,7 @@ enum class ActivityRegistrationFailureCode {
 	PROVIDER_CLEANUP_PENDING,
 	PROVIDER_CLEANUP_STATE_INVALID,
 	CALLBACK_DRAIN_PENDING,
+	MISSING_CAPTURE_PLAN_BINDING,
 	STORAGE_UNAVAILABLE,
 	STALE_COLLECTED_DATA_EPOCH,
 }

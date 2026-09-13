@@ -251,12 +251,14 @@ class ActivityCapturedFactWriterTest {
 	@Test
 	fun `historical registration plan binding cannot be overwritten by reconfiguration`() = runTest {
 		seedAuthority()
+		val replacementPlan = planCodec.encode(DEFAULT_ACTIVITY_PLAN.copy(revision = 2L))
 		val replacement = ActivityCapturedRegistrationPlanEntity.create(
 			sourceInstanceId = SOURCE_INSTANCE_ID,
 			registrationGeneration = 1L,
 			configurationRevision = 2L,
 			desiredPlanPayloadVersion = 1,
-			desiredPlanPayloadChecksum = "replacement-checksum",
+			desiredPlanPayload = replacementPlan.bytes,
+			desiredPlanPayloadChecksum = replacementPlan.checksum,
 			physicalConfigurationFingerprint = "replacement-fingerprint",
 			appliedAtElapsedRealtimeNanos = 500L,
 			applyStatus = "APPLIED",
@@ -747,6 +749,7 @@ class ActivityCapturedFactWriterTest {
 				registrationGeneration = historicalRegistrationGeneration,
 				configurationRevision = 1L,
 				desiredPlanPayloadVersion = 1,
+				desiredPlanPayload = encodedPlan.bytes,
 				desiredPlanPayloadChecksum = historicalPlanChecksum ?: encodedPlan.checksum,
 				physicalConfigurationFingerprint = physicalFingerprint,
 				appliedAtElapsedRealtimeNanos = RUN_START_NANOS,

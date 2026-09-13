@@ -170,8 +170,8 @@ class SourcePlanCodec @Inject constructor() {
 		.digest(bytes)
 		.joinToString("") { byte -> "%02x".format(byte) }
 
-	private companion object {
+	companion object {
 		const val FORMAT_VERSION = 1
-		const val MAX_SET_SIZE = 10_000
+		private const val MAX_SET_SIZE = 10_000
 	}
 }

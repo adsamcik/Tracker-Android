@@ -7,6 +7,7 @@ import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.RecognitionConfig
 import com.adsamcik.tracker.activity.receiver.ActivityCallbackRetryOwner
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -91,6 +92,9 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		owner: ActivityRegistrationOwner,
 		demand: ActivityRegistrationDemand,
 	): ActivityRegistrationResult = mutex.withLock {
+		require(owner == ActivityRegistrationOwner.ACTIVE_SESSION || demand.capturedPlan == null) {
+			"Only captured session Activity demand may carry captured-plan authority"
+		}
 		if (demand.enabled) demands[owner] = demand else demands.remove(owner)
 		reconcileLocked()
 	}
@@ -312,6 +316,16 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		} else {
 			requestedCombined
 		}
+		val sessionDemand = demands[ActivityRegistrationOwner.ACTIVE_SESSION]
+		if (ActivityRegistrationOwner.ACTIVE_SESSION in combined.owners &&
+			sessionDemand?.planRevision != null && combined.capturePlan == null
+		) {
+			return failure(
+				ActivityRegistrationStatus.BLOCKED,
+				ActivityRegistrationFailureCode.MISSING_CAPTURE_PLAN_BINDING,
+				false,
+			)
+		}
 		if (!combined.enabled) {
 			fenceAndRemoveLocked(clearOwners = false)
 			return failure(
@@ -326,7 +340,9 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		if (!backend.isAvailable) {
 			return failure(ActivityRegistrationStatus.BLOCKED, ActivityRegistrationFailureCode.PROVIDER_UNAVAILABLE, true)
 		}
-		val physicalConfigurationFingerprint = combined.physicalConfigurationFingerprint()
+		val physicalConfigurationFingerprint = combined.capturePlan
+			?.physicalConfigurationFingerprint
+			?: combined.physicalConfigurationFingerprint()
 		val lifecycle = try {
 			lifecycleStore.snapshot()
 		} catch (error: CancellationException) {
@@ -340,8 +356,29 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		}
 		val currentClockDomainId = bootClockDomainProvider.current()
 		val currentIdentity = current.identity
+		val currentPlanBindingMatches = if (currentIdentity?.matches(
+				physicalConfigurationFingerprint,
+				currentClockDomainId,
+				lifecycle.epoch,
+			) == true
+		) {
+			try {
+				registrationPlanMatches(currentIdentity, combined.capturePlan)
+			} catch (error: CancellationException) {
+				throw error
+			} catch (_: Exception) {
+				return failure(
+					ActivityRegistrationStatus.FAILED,
+					ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE,
+					true,
+				)
+			}
+		} else {
+			false
+		}
 		if (systemRegistrationRequiresRearm &&
 			currentIdentity != null &&
+			currentPlanBindingMatches &&
 			currentIdentity.matches(
 				physicalConfigurationFingerprint,
 				currentClockDomainId,
@@ -395,7 +432,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			)
 			return applied(current)
 		}
-		if (current.active && current.matches(
+		if (current.active && currentPlanBindingMatches && current.matches(
 				combined,
 				physicalConfigurationFingerprint,
 				currentClockDomainId,
@@ -470,20 +507,26 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 					if (!activityAcquisitionEligibilityInTransaction(demands).allows(combined)) {
 						return@withTransaction null
 					}
-					ActivityRegistrationActivation(
-						database.sourceBrokerDao().acceptReservedReplacement(
-							reservedState = reservation.state,
-							expectedPointerGeneration = reservation.predecessorState?.registrationGeneration,
-							expectedPointerInstanceId = reservation.predecessorState?.sourceInstanceId,
-							requiredAuthorizationFingerprint = null,
-							// The reservation is the conservative provider-request boundary. A backend
-							// may synchronously emit its first callback before applyRegistration returns;
-							// using a later post-return boundary would permanently reject that callback.
-							acceptedAtMs = reservation.providerRequestAtMs,
-							acceptedElapsedRealtimeNanos =
-								reservation.providerRequestElapsedRealtimeNanos,
-						),
+					requireDesiredPlanMatches(combined.capturePlan)
+					val previous = database.sourceBrokerDao().acceptReservedReplacement(
+						reservedState = reservation.state,
+						expectedPointerGeneration = reservation.predecessorState?.registrationGeneration,
+						expectedPointerInstanceId = reservation.predecessorState?.sourceInstanceId,
+						requiredAuthorizationFingerprint = null,
+						// The reservation is the conservative provider-request boundary. A backend
+						// may synchronously emit its first callback before applyRegistration returns;
+						// using a later post-return boundary would permanently reject that callback.
+						acceptedAtMs = reservation.providerRequestAtMs,
+						acceptedElapsedRealtimeNanos =
+							reservation.providerRequestElapsedRealtimeNanos,
 					)
+					persistRegistrationPlanBinding(
+						identity = identity,
+						plan = combined.capturePlan,
+						appliedAtElapsedRealtimeNanos =
+							reservation.providerRequestElapsedRealtimeNanos,
+					)
+					ActivityRegistrationActivation(previous)
 				}
 			}
 		} catch (error: CancellationException) {
@@ -1107,9 +1150,90 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			transitions = active.values.flatMap { it.transitions }.toSet(),
 			automaticRecognitionEligible = automatic?.continuousRecognitionIntervalSeconds != null,
 			automaticTransitions = automatic?.transitions.orEmpty(),
-			appliedRevision = active.values.mapNotNull { it.planRevision }.maxOrNull(),
+			appliedRevision = active[ActivityRegistrationOwner.ACTIVE_SESSION]
+				?.capturedPlan?.configurationRevision
+				?: active.values.mapNotNull { it.planRevision }.maxOrNull(),
+			capturePlan = active[ActivityRegistrationOwner.ACTIVE_SESSION]?.capturedPlan,
 		)
 	}
+
+	private suspend fun registrationPlanMatches(
+		identity: ActivityRegistrationIdentity,
+		plan: ActivityRegistrationPlanAttribution?,
+	): Boolean {
+		val stored = database.activityCapturedFactDao().registrationPlanBinding(
+			identity.sourceInstanceId,
+			identity.registrationGeneration,
+		)
+		return if (plan == null) stored == null else stored?.matches(identity, plan) == true
+	}
+
+	private suspend fun persistRegistrationPlanBinding(
+		identity: ActivityRegistrationIdentity,
+		plan: ActivityRegistrationPlanAttribution?,
+		appliedAtElapsedRealtimeNanos: Long,
+	) {
+		if (plan == null) return
+		val entity = ActivityCapturedRegistrationPlanEntity.create(
+			sourceInstanceId = identity.sourceInstanceId,
+			registrationGeneration = identity.registrationGeneration,
+			configurationRevision = plan.configurationRevision,
+			desiredPlanPayloadVersion = plan.payloadVersion,
+			desiredPlanPayload = plan.payload,
+			desiredPlanPayloadChecksum = plan.payloadChecksum,
+			physicalConfigurationFingerprint = plan.physicalConfigurationFingerprint,
+			appliedAtElapsedRealtimeNanos = appliedAtElapsedRealtimeNanos,
+			applyStatus = "APPLIED",
+		)
+		val inserted = database.activityCapturedFactDao().insertRegistrationPlanBinding(entity)
+		if (inserted == -1L) {
+			val existing = database.activityCapturedFactDao().registrationPlanBinding(
+				identity.sourceInstanceId,
+				identity.registrationGeneration,
+			)
+			check(existing?.hasSameStoredValueAs(entity) == true) {
+				"Activity registration already has a different captured plan"
+			}
+		}
+	}
+
+	private suspend fun requireDesiredPlanMatches(plan: ActivityRegistrationPlanAttribution?) {
+		if (plan == null) return
+		val desired = database.sourcePlanStateDao().desiredPlans(plan.configurationRevision)
+			.singleOrNull { row -> row.sourceKind == ACTIVITY_SOURCE_KIND }
+		check(desired != null && desired.revision == plan.configurationRevision &&
+			desired.payloadVersion == plan.payloadVersion &&
+			desired.payloadChecksum == plan.payloadChecksum &&
+			desired.payload.contentEquals(plan.payload)
+		) { "Activity capture plan does not match durable desired-plan authority" }
+	}
+
+	private fun ActivityCapturedRegistrationPlanEntity.matches(
+		identity: ActivityRegistrationIdentity,
+		plan: ActivityRegistrationPlanAttribution,
+	): Boolean = sourceInstanceId == identity.sourceInstanceId &&
+		registrationGeneration == identity.registrationGeneration &&
+		configurationRevision == plan.configurationRevision &&
+		desiredPlanPayloadVersion == plan.payloadVersion &&
+		desiredPlanPayloadChecksum == plan.payloadChecksum &&
+		desiredPlanPayload.contentEquals(plan.payload) &&
+		physicalConfigurationFingerprint == identity.physicalConfigurationFingerprint &&
+		physicalConfigurationFingerprint == plan.physicalConfigurationFingerprint &&
+		applyStatus in ActivityCapturedRegistrationPlanEntity.APPLIED_STATUSES &&
+		bindingIdentity == calculatedBindingIdentity()
+
+	private fun ActivityCapturedRegistrationPlanEntity.hasSameStoredValueAs(
+		other: ActivityCapturedRegistrationPlanEntity,
+	): Boolean = sourceInstanceId == other.sourceInstanceId &&
+		registrationGeneration == other.registrationGeneration &&
+		configurationRevision == other.configurationRevision &&
+		desiredPlanPayloadVersion == other.desiredPlanPayloadVersion &&
+		desiredPlanPayload.contentEquals(other.desiredPlanPayload) &&
+		desiredPlanPayloadChecksum == other.desiredPlanPayloadChecksum &&
+		physicalConfigurationFingerprint == other.physicalConfigurationFingerprint &&
+		appliedAtElapsedRealtimeNanos == other.appliedAtElapsedRealtimeNanos &&
+		applyStatus == other.applyStatus &&
+		bindingIdentity == other.bindingIdentity
 
 	private suspend fun activityAcquisitionEligibility(
 		durableDemands: List<SourceDemandEntity>,
@@ -1318,6 +1442,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		val automaticRecognitionEligible: Boolean,
 		val automaticTransitions: Set<com.adsamcik.tracker.activity.ActivityTransitionData>,
 		val appliedRevision: Long?,
+		val capturePlan: ActivityRegistrationPlanAttribution?,
 	) {
 		val enabled: Boolean get() = intervalSeconds != null || transitions.isNotEmpty()
 		val callbackMetadata = ActivityCallbackMetadata(

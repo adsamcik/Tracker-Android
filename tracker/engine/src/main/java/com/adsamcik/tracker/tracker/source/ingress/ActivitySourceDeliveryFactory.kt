@@ -5,6 +5,7 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
 import com.adsamcik.tracker.activity.api.ingress.ActivityTransitionEvidence
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationPlanAttribution
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
@@ -30,14 +31,16 @@ class ActivitySourceDeliveryFactory @Inject constructor() {
 		batch: ActivityRecognitionEvidenceBatch,
 		identity: ActivityRegistrationIdentity,
 		automationAuthority: ActivityAutomationEpochEntity,
+		appliedPlan: ActivityRegistrationPlanAttribution? = null,
 	): ActivitySourceDelivery = requireNotNull(
-		select(batch, identity, automationAuthority).delivery,
+		select(batch, identity, automationAuthority, appliedPlan).delivery,
 	) { "Activity callback has no provider-window-qualified observations" }
 
 	internal fun select(
 		batch: ActivityRecognitionEvidenceBatch,
 		identity: ActivityRegistrationIdentity,
 		automationAuthority: ActivityAutomationEpochEntity,
+		appliedPlan: ActivityRegistrationPlanAttribution? = null,
 		minimumObservedElapsedRealtimeNanos: Long = 0L,
 		cutoffElapsedRealtimeNanos: Long? = null,
 	): ActivitySourceDeliverySelection {
@@ -47,6 +50,10 @@ class ActivitySourceDeliveryFactory @Inject constructor() {
 			cutoffElapsedRealtimeNanos == null ||
 				cutoffElapsedRealtimeNanos >= minimumObservedElapsedRealtimeNanos,
 		)
+		require(
+			appliedPlan == null ||
+				appliedPlan.physicalConfigurationFingerprint == identity.physicalConfigurationFingerprint,
+		) { "Applied Activity plan does not belong to the callback registration" }
 		val recognitionEvents = batch.qualifiedRecognitionEvents(
 			minimumObservedElapsedRealtimeNanos,
 			cutoffElapsedRealtimeNanos,
@@ -65,6 +72,7 @@ class ActivitySourceDeliveryFactory @Inject constructor() {
 				batch,
 				identity,
 				automationAuthority,
+				appliedPlan,
 				qualifiedEvents(recognitionEvents, transitionEvents),
 				selectedAutomaticTransitionIndex(transitionEvents, batch.automaticTransitions),
 			),
@@ -139,6 +147,7 @@ class ActivitySourceDeliveryFactory @Inject constructor() {
 		batch: ActivityRecognitionEvidenceBatch,
 		identity: ActivityRegistrationIdentity,
 		automationAuthority: ActivityAutomationEpochEntity,
+		appliedPlan: ActivityRegistrationPlanAttribution?,
 		events: List<ActivitySourceEvent>,
 		selectedAutomaticTransitionIndex: Int?,
 	): ActivitySourceDelivery = ActivitySourceDelivery(
@@ -151,6 +160,7 @@ class ActivitySourceDeliveryFactory @Inject constructor() {
 						batch,
 						identity,
 						automationAuthority,
+						appliedPlan,
 						event.automationEligible(batch, selectedAutomaticTransitionIndex),
 					),
 				)
@@ -196,6 +206,7 @@ class ActivitySourceDeliveryFactory @Inject constructor() {
 		batch: ActivityRecognitionEvidenceBatch,
 		identity: ActivityRegistrationIdentity,
 		automationAuthority: ActivityAutomationEpochEntity,
+		appliedPlan: ActivityRegistrationPlanAttribution?,
 		automationEligible: Boolean,
 	): SourceEvidenceCandidate<out SourcePayload> {
 		val observedNanos = providerElapsedRealtimeNanos
@@ -220,7 +231,7 @@ class ActivitySourceDeliveryFactory @Inject constructor() {
 			registrationPurposeEligibilityMask = 0L,
 			registrationEligibilityFingerprint = null,
 			sourceSequence = 0L,
-			configRevision = identity.registrationGeneration,
+			configRevision = appliedPlan?.configurationRevision,
 			planAttribution = PlanAttribution.RECEIVE_TIME_ONLY,
 			clockDomainId = identity.clockDomainId,
 			observedElapsedRealtimeNanos = observedNanos,
