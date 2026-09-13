@@ -1466,7 +1466,6 @@ class PressureSourceRuntimeTest {
 		hardwareSamplePeriodMicros = hardwareSamplePeriodMicros,
 		maximumReportLatencyMicros = maximumReportLatencyMicros,
 		aggregationWindowMs = aggregationWindowMs,
-		movementGatedBurst = false,
 	)
 
 	private fun runtimeClaim(actionId: String) = SourceRuntimeClaim(

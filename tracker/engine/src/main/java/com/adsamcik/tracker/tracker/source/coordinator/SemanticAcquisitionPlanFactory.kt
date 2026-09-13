@@ -89,10 +89,10 @@ class SemanticAcquisitionPlanFactory @Inject constructor() {
 	}
 
 	private fun pressurePlan(frequency: SourceCollectionFrequency, revision: Long): PressurePlan = when (frequency) {
-		SourceCollectionFrequency.OFF -> PressurePlan(revision, false, 1_000_000, 0, 60_000, false)
-		SourceCollectionFrequency.BATTERY_SAVER -> PressurePlan(revision, true, 1_000_000, 60_000_000, 60_000, true)
-		SourceCollectionFrequency.BALANCED -> PressurePlan(revision, true, 200_000, 10_000_000, 10_000, false)
-		SourceCollectionFrequency.RESPONSIVE -> PressurePlan(revision, true, 50_000, 1_000_000, 2_000, false)
+		SourceCollectionFrequency.OFF -> PressurePlan(revision, false, 1_000_000, 0, 60_000)
+		SourceCollectionFrequency.BATTERY_SAVER -> PressurePlan(revision, true, 1_000_000, 60_000_000, 60_000)
+		SourceCollectionFrequency.BALANCED -> PressurePlan(revision, true, 200_000, 10_000_000, 10_000)
+		SourceCollectionFrequency.RESPONSIVE -> PressurePlan(revision, true, 50_000, 1_000_000, 2_000)
 	}
 
 	private fun wifiPlan(frequency: SourceCollectionFrequency, revision: Long): WifiPlan {

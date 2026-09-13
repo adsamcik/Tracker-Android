@@ -13,6 +13,7 @@ import com.adsamcik.tracker.tracker.source.model.SourcePlan
 import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.model.WifiMode
 import com.adsamcik.tracker.tracker.source.model.WifiPlan
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.Test
 
@@ -25,7 +26,7 @@ class SourcePlanCodecTest {
 			LocationPlan(4, LocationBackend.FRAMEWORK, LocationMode.BALANCED, 5_000, 2_000, 4f, 10_000, null, true),
 			ActivityPlan(4, ActivityMode.TRANSITIONS_ONLY, 10_000, 65, setOf(1, 4)),
 			StepsPlan(4, true, 15_000, 5_000, false),
-			PressurePlan(4, true, 100_000, 2_000_000, 5_000, true),
+			PressurePlan(4, true, 100_000, 2_000_000, 5_000),
 			WifiPlan(4, WifiMode.ACTIVE_ATTEMPTS, 60_000, 30_000, 120_000, RetryBackoff(5_000, 300_000)),
 			CellPlan(4, CellMode.OBSERVE_CHANGES, 120_000, 60_000, setOf(2, 1), RetryBackoff(10_000, 600_000)),
 		)
@@ -37,5 +38,19 @@ class SourcePlanCodecTest {
 			first.bytes.toList() shouldBe second.bytes.toList()
 			first.checksum shouldBe second.checksum
 		}
+	}
+
+	@Test
+	fun `legacy movement gated Pressure plan is rejected as an unsupported acquisition mode`() {
+		val bytes = subject.encode(
+			PressurePlan(4, true, 1_000_000, 60_000_000, 60_000),
+		).bytes.copyOf().also { encoded ->
+			// The retained final v1 field is the legacy movementGatedBurst claim.
+			encoded[encoded.lastIndex] = 1
+		}
+
+		shouldThrow<UnsupportedPressurePlanModeException> {
+			subject.decode(bytes)
+		}.mode shouldBe "MOVEMENT_GATED_BURST"
 	}
 }

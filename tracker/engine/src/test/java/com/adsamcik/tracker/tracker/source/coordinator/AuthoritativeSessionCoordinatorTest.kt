@@ -2783,7 +2783,6 @@ class AuthoritativeSessionCoordinatorTest {
 					hardwareSamplePeriodMicros = 200_000,
 					maximumReportLatencyMicros = 10_000_000,
 					aggregationWindowMs = 10_000L,
-					movementGatedBurst = false,
 				),
 			),
 			sourcePolicyRevision = 1L,

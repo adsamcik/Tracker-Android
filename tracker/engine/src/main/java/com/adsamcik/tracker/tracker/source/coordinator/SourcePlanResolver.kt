@@ -121,7 +121,7 @@ class SourcePlanResolver @Inject constructor() {
 				applicable.enabled
 			) {
 				val candidate = applicable.acceptReduction(
-					applicable.minimumUsefulLowRateBatched(),
+					applicable.minimumUsefulContinuousBatched(),
 					sourceFloors,
 				)
 				if (candidate != applicable) {
@@ -260,9 +260,9 @@ class SourcePlanResolver @Inject constructor() {
 				projectionCheckpointIntervalMs = maxOf(projectionCheckpointIntervalMs, 60_000L),
 				movementPolicyNeedsLowLatency = false,
 			) else this
-			is PressurePlan -> if (!profile.continuousPressureAllowed && activityWakeAvailable) {
-				minimumUsefulLowRateBatched()
-			} else this
+			// Pressure has no implemented movement-triggered burst contract. A direct Pressure demand
+			// therefore keeps its honest continuous plan instead of depending on Activity to wake it.
+			is PressurePlan -> this
 			is WifiPlan -> if (!profile.expensiveNetworkScansAllowed && mode == WifiMode.ACTIVE_ATTEMPTS) {
 				copy(mode = WifiMode.BROADCAST_DRIVEN)
 			} else this
@@ -281,12 +281,11 @@ class SourcePlanResolver @Inject constructor() {
 		probeDurationMs = null,
 	)
 
-	private fun PressurePlan.minimumUsefulLowRateBatched() = copy(
+	private fun PressurePlan.minimumUsefulContinuousBatched() = copy(
 		enabled = true,
 		hardwareSamplePeriodMicros = maxOf(hardwareSamplePeriodMicros, 1_000_000),
 		maximumReportLatencyMicros = maxOf(maximumReportLatencyMicros, 60_000_000),
 		aggregationWindowMs = maxOf(aggregationWindowMs, 60_000L),
-		movementGatedBurst = true,
 	)
 
 	private fun SourceDegradedReason.isHardPrerequisite(): Boolean = when (this) {

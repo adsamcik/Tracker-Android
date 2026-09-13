@@ -11,9 +11,11 @@ import com.adsamcik.tracker.tracker.source.model.ActivityPlan
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
+import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.WifiMode
 import com.adsamcik.tracker.tracker.source.model.WifiPlan
+import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import io.kotest.matchers.shouldBe
 import org.junit.Test
 
@@ -68,6 +70,37 @@ class SemanticAcquisitionPlanFactoryTest {
 			(plan.plans.getValue(SourceKind.WIFI) as WifiPlan).mode shouldBe
 				WifiMode.BROADCAST_DRIVEN
 		}
+	}
+
+	@Test
+	fun `enabled Pressure frequencies produce distinct executable continuous plans`() {
+		val plans = listOf(
+			SourceCollectionFrequency.BATTERY_SAVER,
+			SourceCollectionFrequency.BALANCED,
+			SourceCollectionFrequency.RESPONSIVE,
+		).map { frequency ->
+			subject.create(
+				TrackingParamsState(
+					sourceCollectionSettings = SourceCollectionSettings(pressure = frequency),
+				),
+				revision = 7L,
+				createdAtMs = 100L,
+				environment = environment,
+			).plans.getValue(SourceKind.PRESSURE) as PressurePlan
+		}
+
+		plans.map { plan ->
+			Triple(
+				plan.hardwareSamplePeriodMicros,
+				plan.maximumReportLatencyMicros,
+				plan.aggregationWindowMs,
+			)
+		} shouldBe listOf(
+			Triple(1_000_000, 60_000_000, 60_000L),
+			Triple(200_000, 10_000_000, 10_000L),
+			Triple(50_000, 1_000_000, 2_000L),
+		)
+		plans.map { plan -> plan.physicalConfigurationFingerprint() }.toSet().size shouldBe 3
 	}
 
 	@Test

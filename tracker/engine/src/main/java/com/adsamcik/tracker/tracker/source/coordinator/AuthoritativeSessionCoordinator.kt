@@ -4491,8 +4491,7 @@ private fun SourcePolicyEntity.allows(plan: SourcePlan): Boolean {
 				!plan.movementPolicyNeedsLowLatency
 			is PressurePlan -> plan.hardwareSamplePeriodMicros >= 1_000_000 &&
 				plan.maximumReportLatencyMicros >= 60_000_000 &&
-				plan.aggregationWindowMs >= 60_000L &&
-				plan.movementGatedBurst
+				plan.aggregationWindowMs >= 60_000L
 			is WifiPlan -> plan.mode.ordinal <= WifiMode.CACHED_ONLY.ordinal &&
 				plan.minimumAttemptIntervalMs >= 15 * 60_000L &&
 				plan.maximumAcceptableResultAgeMs >= 10 * 60_000L &&
