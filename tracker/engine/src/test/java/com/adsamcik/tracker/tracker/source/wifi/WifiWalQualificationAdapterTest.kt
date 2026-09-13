@@ -429,6 +429,41 @@ class WifiWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `terminal older run accepts a canonical retiring replacement registration`() = runTest {
+		installValidFixture()
+		installLiveReplacement()
+		makeReplacementRetiring(
+			retiredAtMs = SESSION_END_WALL_MS + 3L,
+			retiredElapsedNanos = SESSION_END_NANOS + 3L,
+		)
+
+		assertIs<WifiWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+	}
+
+	@Test
+	fun `retiring replacement cannot predate its accepted start action on either clock`() = runTest {
+		installValidFixture()
+		installLiveReplacement()
+		makeReplacementRetiring(
+			retiredAtMs = SESSION_END_WALL_MS + 1L,
+			retiredElapsedNanos = SESSION_END_NANOS + 3L,
+		)
+		assertEquals(
+			WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH),
+			subject.qualify(EVENT_ID),
+		)
+
+		makeReplacementRetiring(
+			retiredAtMs = SESSION_END_WALL_MS + 3L,
+			retiredElapsedNanos = SESSION_END_NANOS + 1L,
+		)
+		assertEquals(
+			WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
 	fun `terminal run still named by nonterminal session remains invalid`() = runTest {
 		installValidFixture()
 		setLiveLifecyclePair(sessionState = "ACTIVE", runState = "FINALIZED")
@@ -851,6 +886,29 @@ class WifiWalQualificationAdapterTest {
 				registration.failureCode,
 				registration.sourceKind,
 				registration.registrationGeneration,
+			),
+		)
+	}
+
+	private suspend fun makeReplacementRetiring(retiredAtMs: Long, retiredElapsedNanos: Long) {
+		val sessionDao = database.sourceSessionDao()
+		val session = requireNotNull(sessionDao.session(LOGICAL_ID))
+		val run = requireNotNull(sessionDao.serviceRun(REPLACEMENT_RUN_ID))
+		assertEquals(1, sessionDao.updateSession(session.copy(
+			state = "STOPPING",
+			cutoffAtMs = SESSION_END_WALL_MS + 10L,
+			cutoffElapsedNanos = SESSION_END_NANOS + 10L,
+		)))
+		assertEquals(1, sessionDao.updateServiceRun(run.copy(state = "STOPPING")))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET status = 'RETIRING', retired_at_ms = ?, " +
+				"retired_elapsed_realtime_nanos = ?, failure_code = 'session-stop' " +
+				"WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf(
+				retiredAtMs,
+				retiredElapsedNanos,
+				WIFI_SOURCE,
+				REPLACEMENT_REGISTRATION_GENERATION,
 			),
 		)
 	}

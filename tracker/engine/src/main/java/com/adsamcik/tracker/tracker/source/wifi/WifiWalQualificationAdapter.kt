@@ -860,7 +860,9 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 					registration.failureCode == null && run.state in ADMISSION_RUN_STATES
 			ProviderRegistrationGenerationEntity.STATUS_RETIRING ->
 				registration.retiredAtMs != null && registration.retiredElapsedRealtimeNanos != null &&
-					!registration.failureCode.isNullOrBlank() && run.state == "STOPPING"
+					!registration.failureCode.isNullOrBlank() && run.state == "STOPPING" &&
+					registration.retiredAtMs >= acknowledgedWall &&
+					registration.retiredElapsedRealtimeNanos >= acknowledgedElapsed
 			else -> false
 		}
 		if (!hasValidStatusShape) return false
