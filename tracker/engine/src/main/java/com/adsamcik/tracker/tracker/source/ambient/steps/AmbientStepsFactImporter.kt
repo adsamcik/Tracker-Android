@@ -213,6 +213,10 @@ internal class AmbientStepsFactImporter internal constructor(
 			database.withTransaction { resolveHandoffPreflight(command, lifecycle) }
 		} catch (cancelled: CancellationException) {
 			throw cancelled
+		} catch (_: IllegalArgumentException) {
+			return AmbientStepsProviderHandoffResult.Stale(
+				AmbientStepsProviderHandoffStaleReason.CURSOR_CHANGED,
+			)
 		} catch (_: Exception) {
 			return AmbientStepsProviderHandoffResult.Retryable(
 				AmbientStepsProviderHandoffRetryableReason.STORAGE_UNAVAILABLE,
@@ -373,44 +377,6 @@ internal class AmbientStepsFactImporter internal constructor(
 			)
 		}
 		val successorCursor = stateDao.cursor(command.successorRegistrationGeneration)
-		if (storedPredecessorCursor?.status == AmbientStepsImportCursorEntity.STATUS_RETIRED) {
-			val replayGap = successorCursor?.let { cursor ->
-				stateDao.gaps(cursor.registrationGeneration).singleOrNull { gap ->
-					gap.reason == AmbientStepsImportGapEntity.REASON_PROVIDER_CHANGED &&
-						gap.predecessorRegistrationGeneration ==
-						command.predecessorRegistrationGeneration &&
-						gap.predecessorProvider == predecessorProvider.name &&
-						gap.gapStartTimeMs == successorStartTimeMs &&
-						gap.gapEndTimeMs == successorStartTimeMs
-				}
-			}
-			if (successorCursor?.status == AmbientStepsImportCursorEntity.STATUS_ACTIVE &&
-				replayGap != null
-			) {
-				return HandoffPreflight.Outcome(
-					AmbientStepsProviderHandoffResult.Completed(
-						predecessorRegistrationGeneration =
-						command.predecessorRegistrationGeneration,
-						successorRegistrationGeneration =
-						command.successorRegistrationGeneration,
-						successorStartTimeMs = successorStartTimeMs,
-						drainDisposition = AmbientStepsProviderDrainDisposition.ALREADY_COVERED,
-						drainedWindow = null,
-						logicalFactId = null,
-						replayed = true,
-					),
-				)
-			}
-			return handoffStale(AmbientStepsProviderHandoffStaleReason.CURSOR_CHANGED)
-		}
-		if (predecessorRegistration.status !=
-			ProviderRegistrationGenerationEntity.STATUS_RETIRING
-		) {
-			return handoffStale(AmbientStepsProviderHandoffStaleReason.REGISTRATION_CHANGED)
-		}
-		if (successorCursor != null) {
-			return handoffStale(AmbientStepsProviderHandoffStaleReason.CURSOR_CHANGED)
-		}
 
 		val authLookupTime = cutoverElapsedRealtimeNanos.takeIf { it > 0L }?.minus(1L)
 			?: return handoffIneligible(
@@ -514,8 +480,29 @@ internal class AmbientStepsFactImporter internal constructor(
 			consent = predecessorConsent,
 			lifecycle = lifecycle,
 		)
+		if (storedPredecessorCursor?.status == AmbientStepsImportCursorEntity.STATUS_RETIRED) {
+			return resolveCompletedHandoffReplay(
+				command = command,
+				predecessor = predecessor,
+				successor = successor,
+				predecessorCursor = storedPredecessorCursor,
+				successorCursor = successorCursor,
+			)
+		}
+		if (predecessorRegistration.status !=
+			ProviderRegistrationGenerationEntity.STATUS_RETIRING
+		) {
+			return handoffStale(AmbientStepsProviderHandoffStaleReason.REGISTRATION_CHANGED)
+		}
+		if (successorCursor != null) {
+			return handoffStale(AmbientStepsProviderHandoffStaleReason.CURSOR_CHANGED)
+		}
 		val predecessorCursor = storedPredecessorCursor ?: predecessor.initialCursor()
-		if (!predecessorCursor.matchesHistoricalAuthority(predecessor)) {
+		if (!predecessorCursor.matchesHistoricalAuthority(
+				predecessor,
+				AmbientStepsImportCursorEntity.STATUS_ACTIVE,
+			)
+		) {
 			return handoffStale(AmbientStepsProviderHandoffStaleReason.AUTHORIZATION_CHANGED)
 		}
 		val predecessorCutoffTimeMs = roundBackwardToSecond(cutoverWallTimeMs)
@@ -560,6 +547,120 @@ internal class AmbientStepsFactImporter internal constructor(
 			cutoverWallTimeMs = cutoverWallTimeMs,
 			cutoverElapsedRealtimeNanos = cutoverElapsedRealtimeNanos,
 		)
+	}
+
+	private suspend fun resolveCompletedHandoffReplay(
+		command: AmbientStepsProviderHandoffCommand,
+		predecessor: HistoricalAmbientAuthority,
+		successor: AmbientAuthority,
+		predecessorCursor: AmbientStepsImportCursorEntity,
+		successorCursor: AmbientStepsImportCursorEntity?,
+	): HandoffPreflight {
+		if (!predecessorCursor.matchesHistoricalAuthority(
+				predecessor,
+				AmbientStepsImportCursorEntity.STATUS_RETIRED,
+			)
+		) {
+			return handoffStale(AmbientStepsProviderHandoffStaleReason.AUTHORIZATION_CHANGED)
+		}
+		val exactSuccessorCursor = successorCursor
+			?: return handoffStale(AmbientStepsProviderHandoffStaleReason.CURSOR_CHANGED)
+		if (!exactSuccessorCursor.matchesRegistrationAuthority(successor)) {
+			return handoffStale(AmbientStepsProviderHandoffStaleReason.REGISTRATION_CHANGED)
+		}
+		if (!exactSuccessorCursor.matchesCurrentAuthorization(successor)) {
+			return handoffStale(AmbientStepsProviderHandoffStaleReason.AUTHORIZATION_CHANGED)
+		}
+		if (predecessorCursor.lastObservedAtMs > command.observedAtMs ||
+			exactSuccessorCursor.lastObservedAtMs > command.observedAtMs
+		) {
+			return handoffStale(AmbientStepsProviderHandoffStaleReason.CURSOR_CHANGED)
+		}
+
+		val stateDao = database.ambientStepsImportStateDao()
+		if (!hasExactCursorSiblings(predecessorCursor) ||
+			!hasExactCursorSiblings(exactSuccessorCursor)
+		) {
+			return handoffStale(AmbientStepsProviderHandoffStaleReason.CURSOR_CHANGED)
+		}
+		val providerMarker = stateDao.gaps(exactSuccessorCursor.registrationGeneration)
+			.singleOrNull { gap ->
+				gap.reason == AmbientStepsImportGapEntity.REASON_PROVIDER_CHANGED &&
+					gap.predecessorRegistrationGeneration ==
+					predecessorCursor.registrationGeneration &&
+					gap.predecessorProvider == predecessorCursor.provider
+			}
+			?: return handoffStale(AmbientStepsProviderHandoffStaleReason.CURSOR_CHANGED)
+		val markerIsExact = providerMarker.registrationGeneration ==
+			exactSuccessorCursor.registrationGeneration &&
+			providerMarker.provider == exactSuccessorCursor.provider &&
+			providerMarker.sourceInstanceId == exactSuccessorCursor.sourceInstanceId &&
+			providerMarker.collectedDataEpoch == exactSuccessorCursor.collectedDataEpoch &&
+			providerMarker.gapSequence <= exactSuccessorCursor.lastGapSequence &&
+			providerMarker.gapStartTimeMs == providerMarker.gapEndTimeMs &&
+			providerMarker.gapStartTimeMs == predecessorCursor.importedThroughTimeMs &&
+			providerMarker.gapStartTimeMs >= requireNotNull(successor.registration.acceptedAtMs) &&
+			providerMarker.gapStartTimeMs <= exactSuccessorCursor.importedThroughTimeMs &&
+			providerMarker.previousClockDomainId ==
+				exactSuccessorCursor.registrationClockDomainId &&
+			providerMarker.nextClockDomainId == exactSuccessorCursor.registrationClockDomainId &&
+			providerMarker.previousZoneId == providerMarker.nextZoneId &&
+			providerMarker.recordedAtMs == predecessorCursor.updatedAtMs &&
+			providerMarker.recordedAtMs <= exactSuccessorCursor.updatedAtMs
+		if (!markerIsExact) {
+			return handoffStale(AmbientStepsProviderHandoffStaleReason.CURSOR_CHANGED)
+		}
+
+		return HandoffPreflight.Outcome(
+			AmbientStepsProviderHandoffResult.Completed(
+				predecessorRegistrationGeneration = predecessorCursor.registrationGeneration,
+				successorRegistrationGeneration = exactSuccessorCursor.registrationGeneration,
+				successorStartTimeMs = providerMarker.gapStartTimeMs,
+				drainDisposition = AmbientStepsProviderDrainDisposition.ALREADY_COVERED,
+				drainedWindow = null,
+				logicalFactId = null,
+				replayed = true,
+			),
+		)
+	}
+
+	private suspend fun hasExactCursorSiblings(
+		cursor: AmbientStepsImportCursorEntity,
+	): Boolean {
+		val stateDao = database.ambientStepsImportStateDao()
+		val gaps = stateDao.gaps(cursor.registrationGeneration)
+		if (gaps.size.toLong() != cursor.lastGapSequence || gaps.withIndex().any { (index, gap) ->
+			gap.gapSequence != index + 1L ||
+				gap.registrationGeneration != cursor.registrationGeneration ||
+				gap.provider != cursor.provider || gap.sourceInstanceId != cursor.sourceInstanceId ||
+				gap.collectedDataEpoch != cursor.collectedDataEpoch ||
+				gap.recordedAtMs > cursor.updatedAtMs
+		}) return false
+
+		val transitions = stateDao.authorityTransitions(cursor.registrationGeneration)
+		if (transitions.size.toLong() != cursor.authorityTransitionSequence ||
+			transitions.withIndex().any { (index, transition) ->
+				transition.transitionSequence != index + 1L ||
+					transition.registrationGeneration != cursor.registrationGeneration ||
+					transition.provider != cursor.provider ||
+					transition.sourceInstanceId != cursor.sourceInstanceId ||
+					transition.collectedDataEpoch != cursor.collectedDataEpoch ||
+					transition.recordedAtMs > cursor.updatedAtMs
+			}
+		) return false
+		val latestTransition = transitions.lastOrNull() ?: return true
+		return latestTransition.toAuthorizationRevision == cursor.authorizationRevision &&
+			latestTransition.toAuthorizationFingerprint == cursor.authorizationFingerprint &&
+			latestTransition.toAuthorizationEffectiveBootId ==
+			cursor.authorizationEffectiveBootId &&
+			latestTransition.toAuthorizationEffectiveElapsedRealtimeNanos ==
+			cursor.authorizationEffectiveElapsedRealtimeNanos &&
+			latestTransition.toAuthorizationEffectiveWallTimeMs ==
+			cursor.authorizationEffectiveWallTimeMs &&
+			latestTransition.toSourcePolicyRevision == cursor.sourcePolicyRevision &&
+			latestTransition.toAmbientConsentEpoch == cursor.ambientConsentEpoch &&
+			latestTransition.effectiveBoundaryTimeMs == cursor.eligibleFromTimeMs &&
+			latestTransition.toContinuitySegmentGeneration <= cursor.continuitySegmentGeneration
 	}
 
 	private suspend fun commitHandoff(
@@ -1815,6 +1916,7 @@ private fun SourcePolicyEntity.isHistoricalAmbientPolicy(
 
 private fun AmbientStepsImportCursorEntity.matchesHistoricalAuthority(
 	authority: AmbientStepsFactImporter.HistoricalAmbientAuthority,
+	expectedStatus: String,
 ): Boolean = registrationGeneration == authority.registration.registrationGeneration &&
 	provider == authority.provider.name && sourceInstanceId == authority.registration.sourceInstanceId &&
 	registrationClockDomainId == authority.registration.clockDomainId &&
@@ -1830,7 +1932,7 @@ private fun AmbientStepsImportCursorEntity.matchesHistoricalAuthority(
 	ambientConsentEpoch == authority.consent.epoch &&
 	collectedDataEpoch == authority.lifecycle.epoch &&
 	eligibleFromTimeMs == authority.privacyFloorTimeMs &&
-	status == AmbientStepsImportCursorEntity.STATUS_ACTIVE
+	status == expectedStatus
 
 private fun SourceAuthorizationSnapshot?.isExactAmbientAuthorization(
 	demands: List<SourceDemandEntity>,

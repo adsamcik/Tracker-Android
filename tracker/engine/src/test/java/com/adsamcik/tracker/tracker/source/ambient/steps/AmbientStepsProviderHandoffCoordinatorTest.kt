@@ -278,6 +278,124 @@ class AmbientStepsProviderHandoffCoordinatorTest {
 	}
 
 	@Test
+	fun `completed replay rejects successor authorization mismatch without rereading`() = runTest {
+		val reader = HandoffRecordingReader { window, observedAtMs ->
+			AmbientStepsProviderAggregate(
+				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+				window,
+				15L,
+				observedAtMs,
+			)
+		}
+		val importer = subject(reader)
+		primeZone(importer)
+		importer.importNext(importBoundary(5_000L, 5_000L)) as AmbientStepsImportResult.Applied
+		reader.windows.clear()
+		val successor = acceptReplacement(5_000L)
+		AmbientStepsProviderHandoffCoordinator(importer).execute(
+			handoffCommand(successor, observedAtMs = 6_000L),
+		) as AmbientStepsProviderHandoffResult.Completed
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE ambient_steps_import_cursor SET authorization_fingerprint = ? " +
+				"WHERE registration_generation = ?",
+			arrayOf("f".repeat(64), successor.state.registrationGeneration),
+		)
+
+		AmbientStepsProviderHandoffCoordinator(importer).execute(
+			handoffCommand(successor, observedAtMs = 7_000L),
+		) shouldBe AmbientStepsProviderHandoffResult.Stale(
+			AmbientStepsProviderHandoffStaleReason.AUTHORIZATION_CHANGED,
+		)
+		reader.windows shouldBe emptyList()
+	}
+
+	@Test
+	fun `completed replay rejects a missing successor provider marker without rereading`() = runTest {
+		val reader = HandoffRecordingReader { window, observedAtMs ->
+			AmbientStepsProviderAggregate(
+				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+				window,
+				15L,
+				observedAtMs,
+			)
+		}
+		val importer = subject(reader)
+		primeZone(importer)
+		importer.importNext(importBoundary(5_000L, 5_000L)) as AmbientStepsImportResult.Applied
+		reader.windows.clear()
+		val successor = acceptReplacement(5_000L)
+		AmbientStepsProviderHandoffCoordinator(importer).execute(
+			handoffCommand(successor, observedAtMs = 6_000L),
+		) as AmbientStepsProviderHandoffResult.Completed
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM ambient_steps_import_gap WHERE registration_generation = ?",
+			arrayOf(successor.state.registrationGeneration),
+		)
+
+		AmbientStepsProviderHandoffCoordinator(importer).execute(
+			handoffCommand(successor, observedAtMs = 7_000L),
+		) shouldBe AmbientStepsProviderHandoffResult.Stale(
+			AmbientStepsProviderHandoffStaleReason.CURSOR_CHANGED,
+		)
+		reader.windows shouldBe emptyList()
+	}
+
+	@Test
+	fun `completed replay rejects a missing predecessor gap sibling without rereading`() = runTest {
+		val reader = HandoffRecordingReader { _, _ -> null }
+		val importer = subject(reader)
+		primeZone(importer)
+		val successor = acceptReplacement(5_501L)
+		AmbientStepsProviderHandoffCoordinator(importer).execute(
+			handoffCommand(successor, observedAtMs = 7_000L),
+		) as AmbientStepsProviderHandoffResult.Completed
+		reader.windows.size shouldBe 1
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM ambient_steps_import_gap WHERE registration_generation = ?",
+			arrayOf(predecessor.state.registrationGeneration),
+		)
+
+		AmbientStepsProviderHandoffCoordinator(importer).execute(
+			handoffCommand(successor, observedAtMs = 8_000L),
+		) shouldBe AmbientStepsProviderHandoffResult.Stale(
+			AmbientStepsProviderHandoffStaleReason.CURSOR_CHANGED,
+		)
+		reader.windows.size shouldBe 1
+	}
+
+	@Test
+	fun `completed replay rejects predecessor authority mismatch without rereading`() = runTest {
+		val reader = HandoffRecordingReader { window, observedAtMs ->
+			AmbientStepsProviderAggregate(
+				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+				window,
+				15L,
+				observedAtMs,
+			)
+		}
+		val importer = subject(reader)
+		primeZone(importer)
+		importer.importNext(importBoundary(5_000L, 5_000L)) as AmbientStepsImportResult.Applied
+		reader.windows.clear()
+		val successor = acceptReplacement(5_000L)
+		AmbientStepsProviderHandoffCoordinator(importer).execute(
+			handoffCommand(successor, observedAtMs = 6_000L),
+		) as AmbientStepsProviderHandoffResult.Completed
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE ambient_steps_import_cursor SET source_policy_revision = " +
+				"source_policy_revision + 1 WHERE registration_generation = ?",
+			arrayOf(predecessor.state.registrationGeneration),
+		)
+
+		AmbientStepsProviderHandoffCoordinator(importer).execute(
+			handoffCommand(successor, observedAtMs = 7_000L),
+		) shouldBe AmbientStepsProviderHandoffResult.Stale(
+			AmbientStepsProviderHandoffStaleReason.AUTHORIZATION_CHANGED,
+		)
+		reader.windows shouldBe emptyList()
+	}
+
+	@Test
 	fun `lifecycle change during provider read fences every handoff write`() = runTest {
 		val reader = HandoffRecordingReader { window, observedAtMs ->
 			lifecycleStore.set(
