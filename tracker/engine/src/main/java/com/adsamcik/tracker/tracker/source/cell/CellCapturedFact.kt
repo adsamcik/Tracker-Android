@@ -2,8 +2,10 @@ package com.adsamcik.tracker.tracker.source.cell
 
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
+import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
+import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import java.time.ZoneId
@@ -327,6 +329,8 @@ internal data class CellAggregateFactReference(
 
 /** Immutable WAL and canonical decoded-provider binding for collision-safe replay. */
 internal data class CellCapturedEvidenceBinding(
+	val sourceEventId: SourceEventId,
+	val sourceKind: SourceKind,
 	val sourceDeliveryIdentity: SourceDeliveryIdentity,
 	val sourceAdmissionOrdinal: Long,
 	val walIntegrityIdentity: String,
@@ -334,17 +338,40 @@ internal data class CellCapturedEvidenceBinding(
 	val deliveryUnitIndex: Int,
 	val deliveryUnitCount: Int,
 	val sourceSequence: Long,
+	val planAttribution: PlanAttribution,
+	val payloadVersion: Int,
 	val canonicalProviderSemanticsDigest: String,
-	val capturedAuthority: CellChildAuthority,
+	val capturedAuthority: CellCaptureAuthority,
+	val observedIntervalStartElapsedRealtimeNanos: Long,
+	val observedElapsedRealtimeNanos: Long,
+	val receivedElapsedRealtimeNanos: Long,
+	val observedWallTimeMs: Long,
+	val wallTimeUncertaintyMs: Long,
+	val acquiredAtMs: Long,
+	val createdAtMs: Long,
+	val qualityFlags: Long,
+	val qualityConfidence: Float?,
 ) {
 	init {
+		require(sourceKind == SourceKind.CELL)
 		require(sourceAdmissionOrdinal > 0L)
 		require(LOWERCASE_SHA_256.matches(walIntegrityIdentity))
 		require(LOWERCASE_SHA_256.matches(payloadChecksum))
 		require(deliveryUnitCount > 0)
 		require(deliveryUnitIndex in 0 until deliveryUnitCount)
 		require(sourceSequence >= 0L)
+		require(planAttribution == PlanAttribution.CAPTURED_REGISTRATION)
+		require(payloadVersion > 0)
 		require(LOWERCASE_SHA_256.matches(canonicalProviderSemanticsDigest))
+		require(canonicalProviderSemanticsDigest == sourceDeliveryIdentity.value)
+		require(observedIntervalStartElapsedRealtimeNanos > 0L)
+		require(observedElapsedRealtimeNanos >= observedIntervalStartElapsedRealtimeNanos)
+		require(receivedElapsedRealtimeNanos >= observedElapsedRealtimeNanos)
+		require(observedWallTimeMs >= 0L)
+		require(wallTimeUncertaintyMs >= 0L)
+		require(acquiredAtMs >= 0L)
+		require(createdAtMs >= 0L)
+		require(qualityConfidence == null || qualityConfidence in 0f..1f)
 	}
 }
 
@@ -461,7 +488,7 @@ internal sealed interface CellReusableFact {
 				reference.identity.sourceDeliveryIdentity ==
 					productEffect.evidenceBinding.sourceDeliveryIdentity,
 			)
-			require(productEffect.evidenceBinding.capturedAuthority == authority.childAuthority)
+			require(productEffect.evidenceBinding.capturedAuthority == authority)
 			require(
 				productEffect.coverage.acceptedChildCount ==
 					productEffect.aggregate.observationCount,
@@ -492,7 +519,7 @@ internal sealed interface CellReusableFact {
 				reference.identity.sourceDeliveryIdentity ==
 					productEffect.evidenceBinding.sourceDeliveryIdentity,
 			)
-			require(productEffect.evidenceBinding.capturedAuthority == authority.childAuthority)
+			require(productEffect.evidenceBinding.capturedAuthority == authority)
 			require(authority.canReuseAggregateFrom(directAggregateOwner.authority))
 			require(productEffect.aggregate == directAggregateOwner.productEffect.aggregate)
 			require(
@@ -511,7 +538,7 @@ private fun validateCellFactBinding(
 ) {
 	validateCellFactIdentityBinding(mutation.identity, authority)
 	require(mutation.identity.sourceDeliveryIdentity == evidenceBinding.sourceDeliveryIdentity)
-	require(evidenceBinding.capturedAuthority == authority.childAuthority)
+	require(evidenceBinding.capturedAuthority == authority)
 	require(coverage.providerIntervalStartElapsedRealtimeNanos in authority.temporalAuthority)
 	require(coverage.providerIntervalEndElapsedRealtimeNanos in authority.temporalAuthority)
 }
