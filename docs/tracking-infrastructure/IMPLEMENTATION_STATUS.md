@@ -62,8 +62,12 @@ capture-only, WAL, delivery, clock, payload, quality, mock, policy, consent, gen
 retention, zone, freshness, and accuracy evidence; Location-only capture needs neither
 `sample_count` nor another source. The initial model failed review because current authority could
 re-stamp old evidence and raw payload could change under one delivery identity. The correction is
-independently accepted as **IMPLEMENTED_UNVALIDATED**. It does not modify or activate the canonical
-Location writer; a future adapter must verify the referenced WAL row before any shadow comparison.
+independently accepted as **IMPLEMENTED_UNVALIDATED**. The separate retained-WAL adapter is now
+accepted through `8a90104ce`: one Room snapshot verifies the actual event/delivery, canonical
+payload, same-registration authorization timeline, plan/manifest/reverse segment, clocks, zone,
+epoch, deletion, and uncertainty-safe retention evidence. Because v1 WAL lacks mock provenance it
+returns typed `MOCK_PROVENANCE_UNVERIFIABLE` instead of fabricating `false`. Neither branch modifies
+or activates the canonical Location writer or emits a qualified shadow command.
 
 The isolated Cell branch is clean at `2102d3212`. Its dormant adapter starts from one actual retained
 one-unit Cell WAL delivery inside one Room snapshot, requires a positive unique source sequence and
@@ -86,9 +90,9 @@ bounded active attempts, product history, and UI remain open.
 Git/worktree reconciliation found no accepted committed implementation stranded or lost: imported
 Steps branches are contained or patch-equivalent in the coordinator, the older Pressure and numeric
 branches are ancestors, and the two dirty portable-import/qualified-awards drafts remain frozen
-reference inputs only. Activity and Ambient product composition, Cell persistence, Pressure
-retention integration, and the Location WAL adapter remain active isolated lanes whose current
-review findings must be corrected before acceptance.
+reference inputs only. Activity and Ambient product composition, Cell persistence, and Pressure
+retention integration remain active isolated lanes whose current review findings must be corrected
+before acceptance.
 
 The checked-in v28 JSON now declares 79 entities: 51 released-v27 entities plus 28 narrowly owned
 v28 additions. Its identity hash is intentionally stale and Room/Kotlin/SQL generation or checking

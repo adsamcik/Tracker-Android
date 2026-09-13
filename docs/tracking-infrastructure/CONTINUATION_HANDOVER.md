@@ -72,7 +72,11 @@ Independent clean lanes:
 - Protected Location qualifier: `codex/ti-location-qualified-observation` at `762186a24` in
   `G:\Github\Tracker-Android\.worktrees\ti-location-qualified-observation`; clean and independently
   accepted as **IMPLEMENTED_UNVALIDATED**. It is dormant and does not alter the canonical writer;
-  future wiring must verify the referenced WAL row before any shadow comparison.
+  the retained-WAL adapter is independently accepted through `8a90104ce` on
+  `codex/ti-location-wal-adapter`. It verifies the actual persisted delivery and full historical
+  authority, but returns typed `MOCK_PROVENANCE_UNVERIFIABLE` because v1 WAL did not retain that
+  evidence. No shadow comparison may emit a qualified command until canonical payload provenance
+  exists.
 - Cell retained-WAL qualifier: `codex/ti-cell-fact-model` at `2102d3212` in
   `G:\Github\Tracker-Android\.worktrees\ti-cell-fact-model`; clean and independently accepted as
   **IMPLEMENTED_UNVALIDATED** for the bounded dormant read-only slice. It authenticates one real

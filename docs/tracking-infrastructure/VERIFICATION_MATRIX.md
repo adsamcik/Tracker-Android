@@ -1884,3 +1884,24 @@ The command was not run. One reviewer inadvertently invoked a branch `git diff -
 no output, changed nothing, and is discarded as evidence under the implementation-only directive.
 Compilation, durable WAL adaptation and persistence, provider callbacks/active attempts, product
 history/UI, device/OEM behavior, integration, activation, and release remain unproven.
+
+## TI-B270 — Protected Location retained-WAL adapter contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `8a90104ce`. Authored real-Room adapter tests cover two
+independent WAL queries with distinct byte-array objects but equal persisted content, exact scalar
+and payload comparison, typed missing v1 mock provenance, positive and allocator-exhaustion source
+sequences, complete and missing delivery batches, canonical versus malformed payload, sparse
+same-registration authorization boundaries, complete manifest checksum/timeline, reciprocal segment
+binding, valid stored zone, and overflow-safe retention uncertainty. Independent reviews rejected
+fabricated mock state, global-adjacent authorization, incomplete batch authority, and array reference
+equality before accepting the corrected dormant adapter.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*LocationWalQualificationAdapterTest' --tests '*LocationQualifiedObservationQualifierTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, SQL execution, a provenance-capable canonical payload,
+canonical-writer shadow comparison, provider/device behavior, history/UI, cutover, integration,
+activation, and release remain unproven.

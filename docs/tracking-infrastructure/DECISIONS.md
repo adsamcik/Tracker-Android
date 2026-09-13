@@ -3298,3 +3298,19 @@ Each entry records repository evidence and does not duplicate the final architec
   before any fact identity is derived. Aggregate count and owner semantics remain construction-safe;
   no BSSID, SSID, or stable radio identity is retained. Durable WAL adaptation, persistence,
   provider ownership, active attempts, product reads, and UI remain open.
+
+## TI-D207 — Protected Location shadow input fails typed when v1 provenance is absent
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/tests `077e5b4db`, `e11dcb3ba`,
+  `249342867`, and `8a90104ce`; TI-B270.
+- The dormant adapter selects one actual retained Location WAL delivery by positive bounded source
+  sequence and exact declared sibling cardinality, canonical-decodes its unit, recomputes delivery
+  identity, and verifies immutable plan, registration, same-registration authorization, manifest,
+  reciprocal run/segment, stored zone, epoch, deletion, and full retention-uncertainty authority.
+- Independent Room reads compare every persisted scalar and integrity field plus payload content;
+  Kotlin array reference equality is never used as evidence. Sparse global authorization revisions
+  do not shorten or extend the same registration's effective interval.
+- Canonical v1 Location WAL did not retain mock provenance. The adapter therefore returns typed
+  `MOCK_PROVENANCE_UNVERIFIABLE` and cannot emit a qualified command, rather than fabricating
+  `isMock=false`. The existing canonical writer remains the only writer; no runtime, schema, product,
+  comparison, cutover, or UI change is made.

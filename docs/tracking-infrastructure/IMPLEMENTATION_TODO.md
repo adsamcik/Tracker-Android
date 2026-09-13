@@ -576,13 +576,14 @@ the complete authored scenario cohort exist.
 - [ ] TODO-LOC-012 Author manual, automatic, ambient-if-approved, freshness, accuracy, replay,
   correction, context, query, UI, and shadow tests without running them.
 
-The isolated `codex/ti-location-qualified-observation` branch at `762186a24` has an independently
-accepted **IMPLEMENTED_UNVALIDATED** dormant qualifier for the source-local portions of LOC-003,
-LOC-006, LOC-007, and LOC-012. It binds immutable WAL, delivery, captured authority, clock, payload,
-quality, mock, deletion, retention, zone, freshness, and accuracy evidence and accepts exact
-Location-only capture without `sample_count`. These TODOs remain unchecked because no adapter,
-typed fact store, canonical-writer comparison, correction/retention path, product query, or UI is
-wired; the existing Location writer remains the only canonical writer.
+The isolated `codex/ti-location-qualified-observation` branch at `762186a24` and retained-WAL
+adapter through `8a90104ce` have independently accepted **IMPLEMENTED_UNVALIDATED** portions of
+LOC-003/006/007/011/012. They bind the actual canonical delivery plus immutable capture, clock,
+payload, plan, manifest, reverse segment, deletion, retention, zone, freshness, accuracy, and mock
+authority without `sample_count`. Retained v1 payload has no mock provenance and therefore remains
+typed unverifiable; no qualified command is fabricated. These TODOs stay unchecked because no
+canonical-writer comparison, correction/retention path, product query, or UI is wired, and the
+existing Location writer remains the only canonical writer.
 
 ## Activity vertical
 
