@@ -1,6 +1,11 @@
 package com.adsamcik.tracker.dashboard.ui.compose.state
 
 import androidx.compose.runtime.Immutable
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryFragment
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryType
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
@@ -25,7 +30,7 @@ sealed interface DashboardLiveSessionPresentation {
 		}
 	}
 
-	/** Exact history does not establish a Steps-only capture set; preserve the existing surface. */
+	/** Exact history does not establish a supported source-only set; preserve the existing surface. */
 	data class Standard(
 		val segmentId: Long,
 		/** Qualified Steps for this mixed-source segment, or null when Steps is not qualified. */
@@ -50,6 +55,16 @@ sealed interface DashboardLiveSessionPresentation {
 	data class PressureOnly(
 		val segmentId: Long,
 		val pressure: DashboardLivePressureValue,
+	) : DashboardLiveSessionPresentation {
+		init {
+			require(segmentId > 0L)
+		}
+	}
+
+	/** Exact Activity-only intent with source-local captured-product evidence. */
+	data class ActivityOnly(
+		val segmentId: Long,
+		val activity: DashboardLiveActivityValue,
 	) : DashboardLiveSessionPresentation {
 		init {
 			require(segmentId > 0L)
@@ -94,6 +109,43 @@ sealed interface DashboardLivePressureValue {
 	data class Materializing(val metrics: DashboardLivePressureMetrics?) : DashboardLivePressureValue
 	data object Unavailable : DashboardLivePressureValue
 	data object Failed : DashboardLivePressureValue
+}
+
+/** Captured Activity presentation; missing facts remain null and never become zero duration. */
+@Immutable
+data class DashboardLiveActivityValue(
+	val state: ActivityHistoryProductState,
+	val coverage: ActivityHistoryCoverage,
+	val knownActiveDurationNanos: Long?,
+	val latestMovementBand: ActivityHistoryType?,
+	val gapCount: Int,
+	val hasRetainedQualifiedEvidence: Boolean,
+) {
+	init {
+		require(knownActiveDurationNanos == null || knownActiveDurationNanos >= 0L)
+		require(gapCount >= 0)
+		require(
+			!hasRetainedQualifiedEvidence ||
+				(state != ActivityHistoryProductState.UNAVAILABLE &&
+					state != ActivityHistoryProductState.FAILED),
+		) { "Unavailable or failed Activity cannot claim retained qualified evidence" }
+		require(hasRetainedQualifiedEvidence ||
+			(knownActiveDurationNanos == null && latestMovementBand == null)
+		) { "Activity values require retained qualified band evidence" }
+	}
+}
+
+internal fun ActivityHistoryEntry.toDashboardLiveActivityValue(): DashboardLiveActivityValue {
+	val bands = fragments.filterIsInstance<ActivityHistoryFragment.Band>()
+	val hasEvidence = bands.isNotEmpty() && activeTime != null
+	return DashboardLiveActivityValue(
+		state = state,
+		coverage = coverage,
+		knownActiveDurationNanos = activeTime?.knownActiveDurationNanos.takeIf { hasEvidence },
+		latestMovementBand = bands.lastOrNull()?.activity.takeIf { hasEvidence },
+		gapCount = fragments.count { it is ActivityHistoryFragment.Gap },
+		hasRetainedQualifiedEvidence = hasEvidence,
+	)
 }
 
 /** Truthful durable Steps value for the active exact-capture Steps-only session. */

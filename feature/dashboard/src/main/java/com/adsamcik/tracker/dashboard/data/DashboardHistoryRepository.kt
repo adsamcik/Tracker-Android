@@ -12,9 +12,10 @@ import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
 import com.adsamcik.tracker.stats.api.metric.MetricKey
-import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageEntry
-import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageQuery
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import java.util.Calendar
@@ -44,6 +45,9 @@ sealed interface DashboardRecentHistoryEntry {
 
 	/** Opaque logical Pressure-only row with direct Pressure facts and no physical action identity. */
 	data class PressureOnly(val history: PressureOnlyHistoryEntry) : DashboardRecentHistoryEntry
+
+	/** Opaque Activity-only row with captured bands and no route/detail action identity. */
+	data class ActivityOnly(val history: ActivityHistoryEntry) : DashboardRecentHistoryEntry
 }
 
 /** Explicit recent-history state; failures never fall back to raw physical rows. */
@@ -95,7 +99,7 @@ data class DashboardAchievementHistory(
  * Feature-facing boundary for the dashboard's historical cards.
  */
 interface DashboardHistoryRepository {
-	/** Observe one coordinated, bounded physical/Steps/Pressure-aware recent-history page. */
+	/** Observe one coordinated, bounded physical/Steps/Activity/Pressure-aware recent page. */
 	fun observeRecentHistory(): Flow<List<DashboardRecentHistoryEntry>>
 
 	/** Load optional historical cards independently from the recent-history product. */
@@ -119,7 +123,7 @@ internal class RoomDashboardHistoryRepository @Inject constructor(
 				DashboardPhysicalCandidateGeneration(rows.map { row -> row.toModel() })
 			}
 			.flatMapLatest { generation ->
-				trackingHistoryRepository.observeRecentPressureAwarePage(
+				trackingHistoryRepository.observeRecentSourceAwarePage(
 					candidateSegmentIds = generation.candidateIds,
 					limit = RECENT_HISTORY_LIMIT,
 				).map(generation::mapPage)
@@ -246,24 +250,26 @@ private class DashboardPhysicalCandidateGeneration(
 	private val candidatesById = candidates.associateBy(Trip::id)
 	val candidateIds: List<Long> = candidates.map(Trip::id)
 
-	fun mapPage(query: PressureAwareHistoryPageQuery): List<DashboardRecentHistoryEntry> {
+	fun mapPage(query: SourceAwareHistoryPageQuery): List<DashboardRecentHistoryEntry> {
 		val page = when (query) {
-			is PressureAwareHistoryPageQuery.Content -> query.entries
-			is PressureAwareHistoryPageQuery.Unavailable -> throw DashboardHistoryPageUnavailable(
-				"Stats Pressure-aware page unavailable: ${query.reason}",
+			is SourceAwareHistoryPageQuery.Content -> query.entries
+			is SourceAwareHistoryPageQuery.Unavailable -> throw DashboardHistoryPageUnavailable(
+				"Stats source-aware page unavailable: ${query.reason}",
 			)
 		}
 		val mapped = page.map { entry ->
 			when (entry) {
-				is PressureAwareHistoryPageEntry.Physical -> DashboardRecentHistoryEntry.Physical(
+				is SourceAwareHistoryPageEntry.Physical -> DashboardRecentHistoryEntry.Physical(
 					checkNotNull(candidatesById[entry.segmentId]) {
 						"Stats returned a physical row outside this Dashboard candidate generation"
 					},
 				)
-				is PressureAwareHistoryPageEntry.StepsOnly ->
+				is SourceAwareHistoryPageEntry.StepsOnly ->
 					DashboardRecentHistoryEntry.StepsOnly(entry.history)
-				is PressureAwareHistoryPageEntry.PressureOnly ->
+				is SourceAwareHistoryPageEntry.PressureOnly ->
 					DashboardRecentHistoryEntry.PressureOnly(entry.history)
+				is SourceAwareHistoryPageEntry.ActivityOnly ->
+					DashboardRecentHistoryEntry.ActivityOnly(entry.history)
 			}
 		}
 		if (candidateBudgetExceeded && mapped.size < RECENT_HISTORY_LIMIT) {
