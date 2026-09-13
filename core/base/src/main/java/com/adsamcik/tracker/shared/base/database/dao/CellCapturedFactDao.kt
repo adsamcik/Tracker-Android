@@ -1,12 +1,22 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
 import androidx.room.Dao
+import androidx.room.ColumnInfo
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
+
+data class CellWalMaintenanceKey(
+	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
+	@ColumnInfo(name = "event_id") val eventId: String,
+)
 
 /** Narrow source-local persistence boundary for dormant captured Cell facts. */
 @Dao
@@ -41,6 +51,146 @@ interface CellCapturedFactDao {
 
 	@Query("SELECT COUNT(*) FROM cell_captured_fact_revision")
 	suspend fun revisionCount(): Long
+
+	/** Stable bounded keyset over every retained Cell fact revision. */
+	@Query(
+		"SELECT * FROM cell_captured_fact_revision " +
+			"WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion AND (" +
+			":afterLogicalFactId IS NULL OR logical_fact_id > :afterLogicalFactId OR " +
+			"(logical_fact_id = :afterLogicalFactId AND semantic_revision > :afterSemanticRevision)) " +
+			"ORDER BY logical_fact_id, semantic_revision LIMIT :limit",
+	)
+	suspend fun maintenanceRevisionPage(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		afterLogicalFactId: String?,
+		afterSemanticRevision: Long?,
+		limit: Int,
+	): List<CellCapturedFactRevisionEntity>
+
+	/** Stable bounded keyset used to prove one current head per retained Cell lineage. */
+	@Query(
+		"SELECT * FROM cell_captured_fact_cursor " +
+			"WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion " +
+			"AND (:afterLogicalFactId IS NULL OR logical_fact_id > :afterLogicalFactId) " +
+			"ORDER BY logical_fact_id LIMIT :limit",
+	)
+	suspend fun maintenanceCursorPage(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		afterLogicalFactId: String?,
+		limit: Int,
+	): List<CellCapturedFactCursorEntity>
+
+	/** Stable bounded keyset over source-local no-resurrection generations. */
+	@Query(
+		"SELECT * FROM cell_capture_deletion_generation WHERE " +
+			":afterLogicalTrackingId IS NULL OR logical_tracking_id > :afterLogicalTrackingId OR " +
+			"(logical_tracking_id = :afterLogicalTrackingId AND service_run_id > :afterServiceRunId) " +
+			"ORDER BY logical_tracking_id, service_run_id LIMIT :limit",
+	)
+	suspend fun maintenanceDeletionGenerationPage(
+		afterLogicalTrackingId: String?,
+		afterServiceRunId: String?,
+		limit: Int,
+	): List<CellCaptureDeletionGenerationEntity>
+
+	@Query(
+		"SELECT COUNT(*) FROM cell_captured_fact_revision WHERE " +
+			"writer_projection_id != :writerProjectionId " +
+			"OR writer_projection_version != :writerProjectionVersion",
+	)
+	suspend fun unsupportedRevisionCount(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+	): Long
+
+	@Query(
+		"SELECT COUNT(*) FROM cell_captured_fact_cursor WHERE " +
+			"writer_projection_id != :writerProjectionId " +
+			"OR writer_projection_version != :writerProjectionVersion",
+	)
+	suspend fun unsupportedCursorCount(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+	): Long
+
+	/** Any durable direct Cell demand could re-arm or retain the shared physical provider. */
+	@Query(
+		"SELECT * FROM source_demand WHERE source_kind = :sourceKind " +
+			"AND status IN ('ACTIVE', 'RETIRING', 'BLOCKED') ORDER BY demand_id LIMIT :limit",
+	)
+	suspend fun directCellDemandsForDeletion(
+		sourceKind: Int,
+		limit: Int,
+	): List<SourceDemandEntity>
+
+	/** Every nonterminal Cell registration represents active or pending callback work. */
+	@Query(
+		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
+			"AND status IN ('RESERVED', 'ACTIVE', 'RETIRING') " +
+			"ORDER BY registration_generation LIMIT :limit",
+	)
+	suspend fun cellRegistrationsForDeletion(
+		sourceKind: Int,
+		limit: Int,
+	): List<ProviderRegistrationGenerationEntity>
+
+	@Query(
+		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND authorization_revision = :authorizationRevision ORDER BY member_id LIMIT :limit",
+	)
+	suspend fun maintenanceAuthorizationMembers(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		authorizationRevision: Long,
+		limit: Int,
+	): List<SourceAuthorizationEntity>
+
+	@Query(
+		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration AND effective_boot_id = :bootId " +
+			"AND authorization_revision = (SELECT authorization_revision FROM source_authorization " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +
+			"AND effective_boot_id = :bootId " +
+			"AND effective_elapsed_realtime_nanos <= :observedElapsedRealtimeNanos " +
+			"ORDER BY effective_elapsed_realtime_nanos DESC, authorization_revision DESC LIMIT 1) " +
+			"ORDER BY member_id LIMIT :limit",
+	)
+	suspend fun maintenanceAuthorizationAt(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		bootId: String,
+		observedElapsedRealtimeNanos: Long,
+		limit: Int,
+	): List<SourceAuthorizationEntity>
+
+	@Query(
+		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND authorization_revision = (SELECT MIN(authorization_revision) " +
+			"FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND authorization_revision > :authorizationRevision) ORDER BY member_id LIMIT :limit",
+	)
+	suspend fun maintenanceNextAuthorizationMembers(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		authorizationRevision: Long,
+		limit: Int,
+	): List<SourceAuthorizationEntity>
+
+	@Query(
+		"SELECT * FROM source_desired_plan WHERE revision = :revision " +
+			"ORDER BY source_kind LIMIT :limit",
+	)
+	suspend fun maintenanceDesiredPlans(
+		revision: Long,
+		limit: Int,
+	): List<SourceDesiredPlanEntity>
 
 	@Query(
 		"SELECT fact.* FROM cell_captured_fact_revision AS fact " +
@@ -87,6 +237,24 @@ interface CellCapturedFactDao {
 
 	@Query("SELECT COUNT(*) FROM cell_captured_fact_cursor")
 	suspend fun cursorCount(): Long
+
+	@Query("SELECT COUNT(*) FROM source_event_wal WHERE source_kind = :sourceKind")
+	suspend fun maintenanceWalCount(sourceKind: Int): Long
+
+	@Query(
+		"SELECT admission_ordinal, event_id FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND admission_ordinal > :afterAdmissionOrdinal " +
+			"ORDER BY admission_ordinal LIMIT :limit",
+	)
+	suspend fun maintenanceWalKeys(
+		sourceKind: Int,
+		afterAdmissionOrdinal: Long,
+		limit: Int,
+	): List<CellWalMaintenanceKey>
+
+	/** Payload size guard used before maintenance loads and hashes one exact retained Cell WAL. */
+	@Query("SELECT length(payload) FROM source_event_wal WHERE event_id = :eventId LIMIT 1")
+	suspend fun maintenanceWalPayloadByteCount(eventId: String): Long?
 
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertCursor(entity: CellCapturedFactCursorEntity): Long
@@ -165,6 +333,28 @@ interface CellCapturedFactDao {
 		expectedGeneration: Long,
 		newGeneration: Long,
 		updatedAtMs: Long,
+	): Int
+
+	@Query(
+		"DELETE FROM cell_captured_fact_cursor WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion " +
+			"AND logical_fact_id IN (:logicalFactIds)",
+	)
+	suspend fun deleteExactCursors(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		logicalFactIds: List<String>,
+	): Int
+
+	@Query(
+		"DELETE FROM cell_captured_fact_revision WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion " +
+			"AND logical_fact_id IN (:logicalFactIds)",
+	)
+	suspend fun deleteExactRevisionLineages(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		logicalFactIds: List<String>,
 	): Int
 
 	@Query("DELETE FROM cell_captured_fact_cursor")
