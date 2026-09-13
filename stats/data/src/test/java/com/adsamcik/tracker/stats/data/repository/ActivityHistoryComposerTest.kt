@@ -282,6 +282,42 @@ class ActivityHistoryComposerTest {
 	}
 
 	@Test
+	fun `Activity-only intent ignores a known nonpersistent capture membership`() {
+		val snapshot = fixtureWithAdditionalManifestSource { source ->
+			source.nonpersistentCopy(sourceKind = SOURCE_LOCATION)
+		}
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.capturesOnlyActivity shouldBe true
+	}
+
+	@Test
+	fun `Activity-only intent fails closed for an unknown nonpersistent source`() {
+		val snapshot = fixtureWithAdditionalManifestSource { source ->
+			source.nonpersistentCopy(sourceKind = Int.MAX_VALUE)
+		}
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.capturesOnlyActivity shouldBe false
+	}
+
+	@Test
+	fun `Activity-only intent fails closed for an unknown manifest purpose`() {
+		val snapshot = fixtureWithAdditionalManifestSource { source ->
+			source.nonpersistentCopy(
+				sourceKind = SOURCE_LOCATION,
+				purpose = "UNKNOWN_PURPOSE",
+			)
+		}
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.capturesOnlyActivity shouldBe false
+	}
+
+	@Test
 	fun `verified Activity-only intent survives later writer authority failure`() {
 		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC"))).copy(lanes = emptyList())
 
@@ -748,6 +784,39 @@ class ActivityHistoryComposerTest {
 		trailingEntry.state shouldBe ActivityHistoryProductState.FAILED
 		badPolicyEntry.state shouldBe ActivityHistoryProductState.FAILED
 	}
+
+	private fun fixtureWithAdditionalManifestSource(
+		additionalSource: (SessionManifestSourceEntity) -> SessionManifestSourceEntity,
+	): ActivityHistorySnapshot {
+		val base = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val key = ActivityManifestKey(LOGICAL_ID, 1L)
+		val activitySource = base.sourcesByManifest.getValue(key).single()
+		val sources = listOf(activitySource, additionalSource(activitySource))
+		val original = base.manifestsByRun.getValue("run-a").single()
+		val manifest = original.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(original, sources),
+		)
+		return base.copy(
+			manifestsByRun = mapOf("run-a" to listOf(manifest)),
+			sourcesByManifest = mapOf(key to sources),
+		)
+	}
+
+	private fun SessionManifestSourceEntity.nonpersistentCopy(
+		sourceKind: Int,
+		purpose: String = this.purpose,
+	): SessionManifestSourceEntity = copy(
+		sourceKind = sourceKind,
+		purpose = purpose,
+		consentEpoch = 0L,
+		persistenceEligible = false,
+		outputDestination = null,
+		writerOwner = null,
+		writerOwnerGeneration = null,
+		writerProjectionId = null,
+		writerProjectionVersion = null,
+		writerBindingGeneration = null,
+	)
 
 	private fun fixture(specs: List<RunSpec>): ActivityHistorySnapshot {
 		val built = specs.map(::buildRun)

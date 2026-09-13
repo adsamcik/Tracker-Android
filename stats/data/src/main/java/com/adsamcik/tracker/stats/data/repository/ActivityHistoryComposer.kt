@@ -23,6 +23,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.repository.ActivityActiveTime
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryConfidence
@@ -117,12 +118,7 @@ internal object ActivityHistoryComposer {
 		if (zones.any { !isValidZone(it) }) {
 			return failed(logicalId, segments, ActivityHistoryCause.STORED_ZONE_INVALID)
 		}
-		val capturesOnlyActivity = manifests.values.all { manifest ->
-			snapshot.sourcesByManifest[ActivityManifestKey(logicalId, manifest.manifestRevision)]
-				.orEmpty()
-				.filter { source -> source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE }
-				.mapTo(linkedSetOf(), SessionManifestSourceEntity::sourceKind) == setOf(ACTIVITY_SOURCE)
-		}
+		val capturesOnlyActivity = hasExactActivityOnlyCaptureIntent(logicalId, manifests, snapshot)
 		fun failedWithIntent(cause: ActivityHistoryCause) =
 			failed(logicalId, segments, cause, capturesOnlyActivity)
 		fun unavailableWithIntent(cause: ActivityHistoryCause) =
@@ -400,6 +396,23 @@ internal object ActivityHistoryComposer {
 			consent.eligible && consent.persistenceEligible &&
 			consent.effectiveBootId == manifest.effectiveBootId &&
 			consent.effectiveElapsedRealtimeNanos <= manifest.effectiveElapsedRealtimeNanos
+	}
+
+	private fun hasExactActivityOnlyCaptureIntent(
+		logicalId: String,
+		manifests: Map<Long, SessionManifestVersionEntity>,
+		snapshot: ActivityHistorySnapshot,
+	): Boolean {
+		val ordered = manifests.values.sortedBy(SessionManifestVersionEntity::manifestRevision)
+		val sourcesByRevision = ordered.associate { manifest ->
+			manifest.manifestRevision to snapshot.sourcesByManifest[
+				ActivityManifestKey(logicalId, manifest.manifestRevision)
+			].orEmpty()
+		}
+		val capture = historicalCaptureAuthority(ordered, sourcesByRevision)
+		return (capture as? HistoricalCaptureAuthority.Exact)?.revisions?.all { revision ->
+			revision.capturedSources == setOf(TrackingSourceComponent.ACTIVITY)
+		} == true
 	}
 
 	private fun SourcePolicyEntity.captureConsentLiteral(): Long? = captureConsentEpoch
