@@ -429,7 +429,7 @@ class ActivityCapturedFactWriterTest {
 		evidence.observedActivity shouldBe "WALKING"
 		evidence.transitionChange shouldBe null
 		evidence.confidencePercent shouldBe 90
-		evidence.coverageEndExclusiveElapsedRealtimeNanos shouldBe 300L
+		evidence.coverageEndExclusiveElapsedRealtimeNanos shouldBe 1_000_200L
 	}
 
 	@Test
@@ -484,6 +484,62 @@ class ActivityCapturedFactWriterTest {
 	}
 
 	@Test
+	fun `sampled coverage must equal the exact historical plan horizon`() = runTest {
+		seedAuthority(
+			activityPlan = SAMPLED_ACTIVITY_PLAN,
+			physicalFingerprint = SAMPLED_PHYSICAL_FINGERPRINT,
+			walPayload = ActivityRecognitionPayload(
+				activityType = StableActivityTypeCode.WALKING,
+				confidencePercent = 90,
+				providerElapsedRealtimeNanos = 200L,
+			),
+		)
+
+		listOf(1_000_199L, 1_000_201L).forEach { mismatchedCoverageEnd ->
+			ActivityCapturedFactWriter(database).write(
+				ActivityCapturedWriteCommand.Captured(
+					sampledCapturedWindow(
+						authority = captureAuthority(
+							physicalFingerprint = SAMPLED_PHYSICAL_FINGERPRINT,
+						),
+						coverageEndExclusiveElapsedRealtimeNanos = mismatchedCoverageEnd,
+					),
+				),
+			) shouldBe ActivityCapturedWriteResult.Rejected(
+				ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH,
+			)
+		}
+	}
+
+	@Test
+	fun `caller cannot broaden sampled freshness beyond the historical plan`() = runTest {
+		val staleReceipt = 1_000_201L
+		seedAuthority(
+			activityPlan = SAMPLED_ACTIVITY_PLAN,
+			physicalFingerprint = SAMPLED_PHYSICAL_FINGERPRINT,
+			walReceivedElapsedRealtimeNanos = staleReceipt,
+			walPayload = ActivityRecognitionPayload(
+				activityType = StableActivityTypeCode.WALKING,
+				confidencePercent = 90,
+				providerElapsedRealtimeNanos = 200L,
+			),
+		)
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(
+				sampledCapturedWindow(
+					authority = captureAuthority(
+						physicalFingerprint = SAMPLED_PHYSICAL_FINGERPRINT,
+					),
+					receivedElapsedRealtimeNanos = staleReceipt,
+				),
+			),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH,
+		)
+	}
+
+	@Test
 	fun `sampled evidence below its historical plan threshold is rejected`() = runTest {
 		seedAuthority(
 			activityPlan = SAMPLED_ACTIVITY_PLAN,
@@ -517,13 +573,45 @@ class ActivityCapturedFactWriterTest {
 	}
 
 	@Test
-	fun `all-gap correction cannot supersede a retained prior lineage`() = runTest {
-		seedAuthority()
-		val subject = ActivityCapturedFactWriter(database)
-		subject.write(ActivityCapturedWriteCommand.Captured(capturedWindow()))
+	fun `current end-boundary uncertainty cannot cross the retention floor`() = runTest {
+		seedAuthority(walWallTimeMs = 2_100L)
 		database.sourceEvidenceStateDao().updateLifecycle(
 			epoch = 0L,
-			retainedFromMs = 2_050L,
+			retainedFromMs = 2_075L,
+			updatedAtMs = 3_000L,
+		) shouldBe 1
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow(wallTimeMs = 2_100L)),
+		) shouldBe ActivityCapturedWriteResult.Rejected(ActivityCapturedWriteRejection.RETAINED_DATA)
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	@Test
+	fun `earliest possible wall time saturates at epoch floor for retention`() = runTest {
+		seedAuthority(walWallTimeMs = 10L)
+		database.sourceEvidenceStateDao().updateLifecycle(
+			epoch = 0L,
+			retainedFromMs = 1L,
+			updatedAtMs = 3_000L,
+		) shouldBe 1
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow(wallTimeMs = 10L)),
+		) shouldBe ActivityCapturedWriteResult.Rejected(ActivityCapturedWriteRejection.RETAINED_DATA)
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	@Test
+	fun `all-gap correction cannot supersede uncertain retained prior lineage`() = runTest {
+		seedAuthority(walWallTimeMs = 2_100L)
+		val subject = ActivityCapturedFactWriter(database)
+		subject.write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow(wallTimeMs = 2_100L)),
+		)
+		database.sourceEvidenceStateDao().updateLifecycle(
+			epoch = 0L,
+			retainedFromMs = 2_075L,
 			updatedAtMs = 3_000L,
 		) shouldBe 1
 
@@ -930,6 +1018,7 @@ class ActivityCapturedFactWriterTest {
 		supersedes: Long? = null,
 		withGap: Boolean = true,
 		authority: ActivityCaptureAuthority = captureAuthority(),
+		wallTimeMs: Long = 2_000L,
 	): ActivityCapturedWindow {
 		val mutation = ActivityCapturedWindowMutation(
 			identity = ActivityCapturedWindowIdentity(authority, 200L, 400L),
@@ -954,8 +1043,8 @@ class ActivityCapturedFactWriterTest {
 			intervalStartElapsedRealtimeNanos = 200L,
 			intervalEndExclusiveElapsedRealtimeNanos = bandEnd,
 			wallTimeRange = ActivityDerivedWallTimeRange(
-				startInclusive = boundary(reference, 2_000L, ActivityWallTimeBoundaryKind.EXACT_PROVIDER_OBSERVATION),
-				endExclusive = boundary(reference, 2_000L, ActivityWallTimeBoundaryKind.SAME_CLOCK_EXTRAPOLATION),
+				startInclusive = boundary(reference, wallTimeMs, ActivityWallTimeBoundaryKind.EXACT_PROVIDER_OBSERVATION),
+				endExclusive = boundary(reference, wallTimeMs, ActivityWallTimeBoundaryKind.SAME_CLOCK_EXTRAPOLATION),
 				continuity = ActivityWallTimeContinuity.SAME_ANCHOR,
 			),
 			activity = CapturedActivityType.WALKING,
@@ -978,8 +1067,9 @@ class ActivityCapturedFactWriterTest {
 
 	private fun sampledCapturedWindow(
 		authority: ActivityCaptureAuthority,
-		coverageEndExclusiveElapsedRealtimeNanos: Long = 300L,
+		coverageEndExclusiveElapsedRealtimeNanos: Long = 1_000_200L,
 		confidencePercent: Int = 90,
+		receivedElapsedRealtimeNanos: Long = 210L,
 	): ActivityCapturedWindow {
 		val mutation = ActivityCapturedWindowMutation(
 			identity = ActivityCapturedWindowIdentity(authority, 200L, 400L),
@@ -991,7 +1081,7 @@ class ActivityCapturedFactWriterTest {
 			admissionOrdinal = 1L,
 			sourceSequence = 1L,
 			providerElapsedRealtimeNanos = 200L,
-			receivedElapsedRealtimeNanos = 210L,
+			receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
 			observationKind = ActivityCapturedObservationKind.SAMPLED_CLASSIFICATION,
 			observedActivity = CapturedActivityType.WALKING,
 			transitionChange = null,
@@ -1106,7 +1196,7 @@ class ActivityCapturedFactWriterTest {
 		private const val BOOT_ID = "boot-activity-1"
 		private const val AUTHORIZATION_FINGERPRINT = "activity-authorization-1"
 		private const val RUN_START_NANOS = 100L
-		private const val RUN_END_NANOS = 1_000L
+		private const val RUN_END_NANOS = 2_000_000L
 		private const val WRITER_ID = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID
 		private const val WRITER_VERSION = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION
 		private val DEFAULT_ACTIVITY_PLAN = ActivityPlan(
@@ -1119,6 +1209,7 @@ class ActivityCapturedFactWriterTest {
 		private val PHYSICAL_FINGERPRINT = DEFAULT_ACTIVITY_PLAN.physicalConfigurationFingerprint()
 		private val SAMPLED_ACTIVITY_PLAN = DEFAULT_ACTIVITY_PLAN.copy(
 			mode = ActivityMode.CONTINUOUS_RECOGNITION,
+			desiredDetectionLatencyMs = 1L,
 		)
 		private val SAMPLED_PHYSICAL_FINGERPRINT =
 			SAMPLED_ACTIVITY_PLAN.physicalConfigurationFingerprint()

@@ -299,10 +299,17 @@ internal class ActivityCapturedFactWriter(
 		if (state.retainedFromMs?.let { retainedFrom ->
 			val currentWallAuthority = mapped.fragments.asSequence()
 				.flatMap { fragment ->
-					sequenceOf(fragment.startWallTimeMs, fragment.endWallTimeMs).filterNotNull()
+					sequenceOf(
+						fragment.startWallTimeMs.earliestPossible(
+							fragment.startWallTimeUncertaintyMs,
+						),
+						fragment.endWallTimeMs.earliestPossible(
+							fragment.endWallTimeUncertaintyMs,
+						),
+					).filterNotNull()
 				}
 				.minOrNull()
-			val priorWallAuthority = dao.earliestBandWallTimeMs(
+			val priorWallAuthority = dao.earliestPossibleBandWallTimeMs(
 				WRITER_ID,
 				WRITER_VERSION,
 				mapped.revision.logicalWindowId,
@@ -405,7 +412,7 @@ internal class ActivityCapturedFactWriter(
 					?: reject(ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH)
 				val decodedPayload = wal.exactCanonicalPayloadOrNull(payloadCodec)
 				if (!wal.matches(reference, authority) ||
-					decodedPayload == null || !reference.matches(decodedPayload, activityPlan)
+					decodedPayload == null || !reference.matches(decodedPayload, activityPlan, authority)
 				) {
 					reject(ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH)
 				}
@@ -451,22 +458,57 @@ private fun SourceEventWalEntity.exactCanonicalPayloadOrNull(
 private fun ActivityCapturedObservationReference.matches(
 	payload: SourcePayload,
 	activityPlan: ActivityPlan,
-): Boolean = when (payload) {
-	is ActivityTransitionPayload ->
-		observationKind == ActivityCapturedObservationKind.TRANSITION &&
-			activityPlan.mode == ActivityMode.TRANSITIONS_ONLY &&
-			payload.transitionType in activityPlan.transitionTypes &&
-			payload.activityType == observedActivity.stableActivityTypeCode() &&
-			payload.transitionType == transitionChange?.stableTransitionCode() &&
-			payload.providerElapsedRealtimeNanos == providerElapsedRealtimeNanos
-	is ActivityRecognitionPayload ->
-		observationKind == ActivityCapturedObservationKind.SAMPLED_CLASSIFICATION &&
-			activityPlan.mode == ActivityMode.CONTINUOUS_RECOGNITION &&
-			payload.activityType == observedActivity.stableActivityTypeCode() &&
-			payload.confidencePercent == confidencePercent &&
-			payload.confidencePercent >= activityPlan.confidenceThresholdPercent &&
-			payload.providerElapsedRealtimeNanos == providerElapsedRealtimeNanos
-	else -> false
+	authority: ActivityCaptureAuthority,
+): Boolean {
+	val maximumAgeNanos = activityPlan.capturedObservationMaximumAgeNanosOrNull()
+		?: return false
+	if (receivedElapsedRealtimeNanos < providerElapsedRealtimeNanos ||
+		receivedElapsedRealtimeNanos - providerElapsedRealtimeNanos > maximumAgeNanos
+	) return false
+	return when (payload) {
+		is ActivityTransitionPayload ->
+			observationKind == ActivityCapturedObservationKind.TRANSITION &&
+				activityPlan.mode == ActivityMode.TRANSITIONS_ONLY &&
+				payload.transitionType in activityPlan.transitionTypes &&
+				payload.activityType == observedActivity.stableActivityTypeCode() &&
+				payload.transitionType == transitionChange?.stableTransitionCode() &&
+				payload.providerElapsedRealtimeNanos == providerElapsedRealtimeNanos &&
+				coverageEndExclusiveElapsedRealtimeNanos == null
+		is ActivityRecognitionPayload ->
+			observationKind == ActivityCapturedObservationKind.SAMPLED_CLASSIFICATION &&
+				activityPlan.mode == ActivityMode.CONTINUOUS_RECOGNITION &&
+				payload.activityType == observedActivity.stableActivityTypeCode() &&
+				payload.confidencePercent == confidencePercent &&
+				payload.confidencePercent >= activityPlan.confidenceThresholdPercent &&
+				payload.providerElapsedRealtimeNanos == providerElapsedRealtimeNanos &&
+				coverageEndExclusiveElapsedRealtimeNanos ==
+				expectedSampledCoverageEnd(activityPlan, authority)
+		else -> false
+	}
+}
+
+private fun Long?.earliestPossible(uncertaintyMs: Long?): Long? {
+	val wallTimeMs = this ?: return null
+	val uncertainty = uncertaintyMs ?: return null
+	return if (wallTimeMs <= uncertainty) 0L else wallTimeMs - uncertainty
+}
+
+private fun ActivityCapturedObservationReference.expectedSampledCoverageEnd(
+	activityPlan: ActivityPlan,
+	authority: ActivityCaptureAuthority,
+): Long? {
+	val horizonNanos = activityPlan.capturedObservationMaximumAgeNanosOrNull() ?: return null
+	val configuredEnd = if (providerElapsedRealtimeNanos <= Long.MAX_VALUE - horizonNanos) {
+		providerElapsedRealtimeNanos + horizonNanos
+	} else {
+		return null
+	}
+	return minOf(
+		configuredEnd,
+		authority.temporalAuthority.providerAcceptance.endExclusiveNanos,
+		authority.temporalAuthority.authorizationEffect.endExclusiveNanos,
+		authority.temporalAuthority.sessionRunEffect.endExclusiveNanos,
+	)
 }
 
 private fun CapturedActivityType.stableActivityTypeCode(): Int = when (this) {

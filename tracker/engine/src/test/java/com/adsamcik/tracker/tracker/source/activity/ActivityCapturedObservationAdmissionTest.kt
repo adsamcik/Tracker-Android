@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.tracker.source.activity
 
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
+import com.adsamcik.tracker.tracker.source.model.ActivityMode
+import com.adsamcik.tracker.tracker.source.model.ActivityPlan
 import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
@@ -14,9 +17,24 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.StableActivityTypeCode
+import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.Test
+
+private val TRANSITION_ACTIVITY_PLAN = ActivityPlan(
+	revision = 5L,
+	mode = ActivityMode.TRANSITIONS_ONLY,
+	desiredDetectionLatencyMs = 1L,
+	confidenceThresholdPercent = 75,
+	transitionTypes = setOf(0, 1),
+)
+private val SAMPLED_ACTIVITY_PLAN = TRANSITION_ACTIVITY_PLAN.copy(
+	mode = ActivityMode.CONTINUOUS_RECOGNITION,
+)
+private val TRANSITION_PLAN_FINGERPRINT =
+	TRANSITION_ACTIVITY_PLAN.physicalConfigurationFingerprint()
+private val SAMPLED_PLAN_FINGERPRINT = SAMPLED_ACTIVITY_PLAN.physicalConfigurationFingerprint()
 
 class ActivityCapturedObservationAdmissionTest {
 	@Test
@@ -58,17 +76,17 @@ class ActivityCapturedObservationAdmissionTest {
 			event(
 				payload = transition(StableActivityTypeCode.STILL),
 				providerTime = 1_000L,
-				receivedTime = 1_100L,
+				receivedTime = 1_001_000L,
 			),
-			acquisitionAuthority(maximumObservationAgeNanos = 100L),
+			acquisitionAuthority(),
 		)
 		val stale = ActivityCapturedObservationAdmission.admit(
 			event(
 				payload = transition(StableActivityTypeCode.STILL),
 				providerTime = 1_000L,
-				receivedTime = 1_101L,
+				receivedTime = 1_001_001L,
 			),
-			acquisitionAuthority(maximumObservationAgeNanos = 100L),
+			acquisitionAuthority(),
 		)
 
 		(fresh as ActivityCaptureAdmissionResult.Captured).observation.activity shouldBe
@@ -80,9 +98,7 @@ class ActivityCapturedObservationAdmissionTest {
 	fun `transition capture does not require sampled-classification authority`() {
 		val result = ActivityCapturedObservationAdmission.admit(
 			event(payload = transition(StableActivityTypeCode.WALKING)),
-			acquisitionAuthority(
-				sampledPolicy = ActivitySampledClassificationPolicy.NotDirectlyRequested,
-			),
+			acquisitionAuthority(),
 		)
 
 		(result as ActivityCaptureAdmissionResult.Captured).observation shouldBe
@@ -100,9 +116,7 @@ class ActivityCapturedObservationAdmissionTest {
 	fun `sampled classification requires explicit direct capture detail`() {
 		val result = ActivityCapturedObservationAdmission.admit(
 			event(payload = sampled(confidence = 90)),
-			acquisitionAuthority(
-				sampledPolicy = ActivitySampledClassificationPolicy.NotDirectlyRequested,
-			),
+			acquisitionAuthority(),
 		)
 
 		result shouldBe rejected(
@@ -113,36 +127,32 @@ class ActivityCapturedObservationAdmissionTest {
 	@Test
 	fun `direct sampled detail retains its exact confidence and bounded coverage`() {
 		val result = ActivityCapturedObservationAdmission.admit(
-			event(payload = sampled(confidence = 80)),
-			acquisitionAuthority(
-				sampledPolicy = ActivitySampledClassificationPolicy.DirectCaptureDetail(
-					minimumConfidencePercent = 75,
-					maximumCoverageAfterObservationNanos = 500L,
-				),
+			event(
+				payload = sampled(confidence = 80),
+				physicalFingerprint = SAMPLED_PLAN_FINGERPRINT,
 			),
+			acquisitionAuthority(activityPlan = SAMPLED_ACTIVITY_PLAN),
 		)
 
 		val observation = (result as ActivityCaptureAdmissionResult.Captured).observation as
 			ActivityCapturedObservation.SampledClassification
 		observation.confidencePercent shouldBe 80
-		observation.coverageEndExclusiveElapsedRealtimeNanos shouldBe 1_500L
+		observation.coverageEndExclusiveElapsedRealtimeNanos shouldBe 1_001_000L
 		observation.reference.observationKind shouldBe
 			ActivityCapturedObservationKind.SAMPLED_CLASSIFICATION
 		observation.reference.observedActivity shouldBe CapturedActivityType.RUNNING
 		observation.reference.confidencePercent shouldBe 80
-		observation.reference.coverageEndExclusiveElapsedRealtimeNanos shouldBe 1_500L
+		observation.reference.coverageEndExclusiveElapsedRealtimeNanos shouldBe 1_001_000L
 	}
 
 	@Test
 	fun `sampled detail below the direct threshold is rejected`() {
 		val result = ActivityCapturedObservationAdmission.admit(
-			event(payload = sampled(confidence = 74)),
-			acquisitionAuthority(
-				sampledPolicy = ActivitySampledClassificationPolicy.DirectCaptureDetail(
-					minimumConfidencePercent = 75,
-					maximumCoverageAfterObservationNanos = 500L,
-				),
+			event(
+				payload = sampled(confidence = 74),
+				physicalFingerprint = SAMPLED_PLAN_FINGERPRINT,
 			),
+			acquisitionAuthority(activityPlan = SAMPLED_ACTIVITY_PLAN),
 		)
 
 		result shouldBe rejected(
@@ -243,9 +253,10 @@ class ActivityCapturedObservationAdmissionTest {
 					confidencePercent = 90,
 					providerElapsedRealtimeNanos = 1_000L,
 				),
+				physicalFingerprint = SAMPLED_PLAN_FINGERPRINT,
 			),
 			acquisitionAuthority(
-				sampledPolicy = ActivitySampledClassificationPolicy.DirectCaptureDetail(75, 500L),
+				activityPlan = SAMPLED_ACTIVITY_PLAN,
 				sessionRunEffect = ActivityProviderTimeInterval(0L, 1_100L),
 			),
 		)
@@ -258,11 +269,12 @@ class ActivityCapturedObservationAdmissionTest {
 	@Test
 	fun `thresholds cannot be attached to a different historical configuration identity`() {
 		val captureAuthority = authority()
+		val encoded = SourcePlanCodec().encode(TRANSITION_ACTIVITY_PLAN)
 
 		shouldThrow<IllegalArgumentException> {
 			ActivityCaptureAcquisitionAuthority(
 				captureAuthority = captureAuthority,
-				historicalConfiguration = ActivityHistoricalAcquisitionConfiguration(
+				historicalConfiguration = ActivityHistoricalAcquisitionConfiguration.fromSerializedPlan(
 					identity = ActivityAcquisitionConfigurationIdentity(
 						sourceInstanceId = captureAuthority.sourceInstanceId,
 						registrationGeneration = captureAuthority.registrationGeneration,
@@ -275,27 +287,56 @@ class ActivityCapturedObservationAdmissionTest {
 					providerAcceptance = ActivityProviderTimeInterval(0L, 10_000L),
 					authorizationEffect = ActivityProviderTimeInterval(0L, 10_000L),
 					sessionRunEffect = ActivityProviderTimeInterval(0L, 10_000L),
-					maximumObservationAgeNanos = 100L,
-					sampledClassificationPolicy =
-						ActivitySampledClassificationPolicy.NotDirectlyRequested,
+					desiredPlanPayloadVersion = 1,
+					desiredPlanPayloadChecksum = encoded.checksum,
+					desiredPlanPayload = encoded.bytes,
 				),
+			)
+		}
+	}
+
+	@Test
+	fun `freshness confidence and sampled horizon come only from canonical serialized plan`() {
+		val encoded = SourcePlanCodec().encode(SAMPLED_ACTIVITY_PLAN)
+		val historical = ActivityHistoricalAcquisitionConfiguration.fromSerializedPlan(
+			identity = acquisitionIdentity(SAMPLED_ACTIVITY_PLAN),
+			providerAcceptance = ActivityProviderTimeInterval(0L, 10_000_000L),
+			authorizationEffect = ActivityProviderTimeInterval(0L, 10_000_000L),
+			sessionRunEffect = ActivityProviderTimeInterval(0L, 10_000_000L),
+			desiredPlanPayloadVersion = 1,
+			desiredPlanPayloadChecksum = encoded.checksum,
+			desiredPlanPayload = encoded.bytes,
+		)
+
+		historical.maximumObservationAgeNanos shouldBe 1_000_000L
+		historical.sampledClassificationPolicy shouldBe
+			ActivitySampledClassificationPolicy.DirectCaptureDetail(75, 1_000_000L)
+		shouldThrow<IllegalArgumentException> {
+			ActivityHistoricalAcquisitionConfiguration.fromSerializedPlan(
+				identity = acquisitionIdentity(SAMPLED_ACTIVITY_PLAN),
+				providerAcceptance = ActivityProviderTimeInterval(0L, 10_000_000L),
+				authorizationEffect = ActivityProviderTimeInterval(0L, 10_000_000L),
+				sessionRunEffect = ActivityProviderTimeInterval(0L, 10_000_000L),
+				desiredPlanPayloadVersion = 1,
+				desiredPlanPayloadChecksum = "caller-broadened-thresholds",
+				desiredPlanPayload = encoded.bytes,
 			)
 		}
 	}
 
 	private fun acquisitionAuthority(
 		captureAuthority: ActivityCaptureAuthority = authority(),
-		maximumObservationAgeNanos: Long = 100L,
-		sampledPolicy: ActivitySampledClassificationPolicy =
-			ActivitySampledClassificationPolicy.NotDirectlyRequested,
+		activityPlan: ActivityPlan = TRANSITION_ACTIVITY_PLAN,
 		providerAcceptance: ActivityProviderTimeInterval =
-			ActivityProviderTimeInterval(0L, 10_000L),
+			ActivityProviderTimeInterval(0L, 10_000_000L),
 		authorizationEffect: ActivityProviderTimeInterval =
-			ActivityProviderTimeInterval(0L, 10_000L),
+			ActivityProviderTimeInterval(0L, 10_000_000L),
 		sessionRunEffect: ActivityProviderTimeInterval =
-			ActivityProviderTimeInterval(0L, 10_000L),
+			ActivityProviderTimeInterval(0L, 10_000_000L),
 	): ActivityCaptureAcquisitionAuthority {
+		val encodedPlan = SourcePlanCodec().encode(activityPlan)
 		val exactCaptureAuthority = captureAuthority.copy(
+			physicalConfigurationFingerprint = activityPlan.physicalConfigurationFingerprint(),
 			temporalAuthority = ActivityCaptureTemporalAuthority(
 				providerAcceptance = providerAcceptance,
 				authorizationEffect = authorizationEffect,
@@ -304,24 +345,29 @@ class ActivityCapturedObservationAdmissionTest {
 		)
 		return ActivityCaptureAcquisitionAuthority(
 			captureAuthority = exactCaptureAuthority,
-			historicalConfiguration = ActivityHistoricalAcquisitionConfiguration(
-				identity = ActivityAcquisitionConfigurationIdentity(
-					sourceInstanceId = exactCaptureAuthority.sourceInstanceId,
-					registrationGeneration = exactCaptureAuthority.registrationGeneration,
-					configurationRevision = exactCaptureAuthority.configurationRevision,
-					physicalConfigurationFingerprint =
-						exactCaptureAuthority.physicalConfigurationFingerprint,
-					authorizationRevision = exactCaptureAuthority.authorizationRevision,
-					authorizationFingerprint = exactCaptureAuthority.authorizationFingerprint,
-				),
+			historicalConfiguration = ActivityHistoricalAcquisitionConfiguration.fromSerializedPlan(
+				identity = acquisitionIdentity(activityPlan, exactCaptureAuthority),
 				providerAcceptance = providerAcceptance,
 				authorizationEffect = authorizationEffect,
 				sessionRunEffect = sessionRunEffect,
-				maximumObservationAgeNanos = maximumObservationAgeNanos,
-				sampledClassificationPolicy = sampledPolicy,
+				desiredPlanPayloadVersion = 1,
+				desiredPlanPayloadChecksum = encodedPlan.checksum,
+				desiredPlanPayload = encodedPlan.bytes,
 			),
 		)
 	}
+
+	private fun acquisitionIdentity(
+		activityPlan: ActivityPlan,
+		captureAuthority: ActivityCaptureAuthority = authority(),
+	) = ActivityAcquisitionConfigurationIdentity(
+		sourceInstanceId = captureAuthority.sourceInstanceId,
+		registrationGeneration = captureAuthority.registrationGeneration,
+		configurationRevision = captureAuthority.configurationRevision,
+		physicalConfigurationFingerprint = activityPlan.physicalConfigurationFingerprint(),
+		authorizationRevision = captureAuthority.authorizationRevision,
+		authorizationFingerprint = captureAuthority.authorizationFingerprint,
+	)
 
 	private fun authority(
 		purposeMask: Long = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
@@ -331,7 +377,7 @@ class ActivityCapturedObservationAdmissionTest {
 		sourceInstanceId = SourceInstanceId("activity-provider"),
 		registrationGeneration = 3L,
 		configurationRevision = 5L,
-		physicalConfigurationFingerprint = "activity-physical",
+		physicalConfigurationFingerprint = TRANSITION_PLAN_FINGERPRINT,
 		authorizationRevision = 7L,
 		authorizationFingerprint = "activity-eligibility",
 		purposeEligibilityMask = purposeMask,
@@ -342,9 +388,9 @@ class ActivityCapturedObservationAdmissionTest {
 		collectedDataEpoch = 23L,
 		clockDomainId = "boot-1",
 		temporalAuthority = ActivityCaptureTemporalAuthority(
-			providerAcceptance = ActivityProviderTimeInterval(0L, 10_000L),
-			authorizationEffect = ActivityProviderTimeInterval(0L, 10_000L),
-			sessionRunEffect = ActivityProviderTimeInterval(0L, 10_000L),
+			providerAcceptance = ActivityProviderTimeInterval(0L, 10_000_000L),
+			authorizationEffect = ActivityProviderTimeInterval(0L, 10_000_000L),
+			sessionRunEffect = ActivityProviderTimeInterval(0L, 10_000_000L),
 		),
 	)
 
@@ -354,6 +400,7 @@ class ActivityCapturedObservationAdmissionTest {
 		authorizationRevision: Long = 7L,
 		providerTime: Long = 1_000L,
 		receivedTime: Long = 1_100L,
+		physicalFingerprint: String = TRANSITION_PLAN_FINGERPRINT,
 	) = AdmittedSourceEvent(
 		eventId = SourceEventId("activity-event-1"),
 		admissionOrdinal = 29L,
@@ -364,7 +411,7 @@ class ActivityCapturedObservationAdmissionTest {
 			source = SourceKind.ACTIVITY,
 			sourceInstanceId = SourceInstanceId("activity-provider"),
 			registrationGeneration = 3L,
-			physicalConfigurationFingerprint = "activity-physical",
+			physicalConfigurationFingerprint = physicalFingerprint,
 			authorizationRevision = authorizationRevision,
 			registrationPurposeEligibilityMask = purposeMask,
 			registrationEligibilityFingerprint = "activity-eligibility",
