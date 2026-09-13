@@ -92,9 +92,13 @@ internal object ActivityHistoryComposer {
 		if (runs.size != runIds.size || runs.any { run -> !runOwnsExactSegment(run, segments, logicalId) }) {
 			return failed(logicalId, segments, ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
 		}
-		val hasActiveRun = runs.any { it.completedAtMs == null || it.state !in TERMINAL_RUN_STATES }
+		if (runs.any { run -> !hasConsistentCompletion(run.state, run.completedAtMs) }) {
+			return failed(logicalId, segments, ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+		}
+		val hasActiveRun = runs.any(::isNonTerminalRun)
 		val session = snapshot.sessions[logicalId]
 		if (session == null || session.logicalTrackingId != logicalId ||
+			!hasConsistentCompletion(session.state, session.completedAtMs) ||
 			(session.state !in TERMINAL_RUN_STATES) != hasActiveRun ||
 			session.lifecycleRevision <= 0L || session.desiredPlanRevision <= 0L ||
 			session.rolloutRevision <= 0L || session.startedElapsedNanos < 0L ||
@@ -267,6 +271,9 @@ internal object ActivityHistoryComposer {
 		if (completeness.isEmpty() || completeness.any { !it.appDrainComplete || it.stopStatus != COMPLETE_STOP }) {
 			causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
 		}
+		if (timeline.hasPendingUnboundedCaptureInterval) {
+			causes += ActivityHistoryCause.MATERIALIZATION_BEHIND
+		}
 		if (fragments.any { it is ActivityHistoryFragment.Gap } ||
 			completeness.any { it.providerCoverage == UNOBSERVABLE_COVERAGE }) {
 			causes += ActivityHistoryCause.PROVIDER_GAP
@@ -274,6 +281,7 @@ internal object ActivityHistoryComposer {
 		val laneBehind = laneTarget != null && lane.contiguousAdmissionOrdinal < laneTarget
 		if (laneBehind) causes += ActivityHistoryCause.MATERIALIZATION_BEHIND
 		val coverage = if (ordered.all { it.coverage == "COMPLETE" } && timeline.externalGapDurationNanos == 0L &&
+			!timeline.hasPendingUnboundedCaptureInterval &&
 			ActivityHistoryCause.ACQUISITION_INCOMPLETE !in causes) {
 			ActivityHistoryCoverage.COMPLETE
 		} else ActivityHistoryCoverage.PARTIAL
@@ -307,14 +315,19 @@ internal object ActivityHistoryComposer {
 		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 		targetOrdinal: Long?,
 	): Boolean {
-		val nonTerminalRuns = runs.filter { run ->
-			run.completedAtMs == null || run.state !in TERMINAL_RUN_STATES
-		}
+		val nonTerminalRuns = runs.filter(::isNonTerminalRun)
 		if (nonTerminalRuns.isNotEmpty()) {
 			val currentRun = nonTerminalRuns.singleOrNull() ?: return false
 			val currentManifest = manifestsByRun[currentRun.serviceRunId]
 				.orEmpty().maxByOrNull(SessionManifestVersionEntity::manifestRevision) ?: return false
-			return session.cutoffAtMs == null && session.cutoffElapsedNanos == null &&
+			val stopping = session.state == STOPPING_RUN_STATE
+			val runStopping = currentRun.state == STOPPING_RUN_STATE
+			val hasAnyCutoff = session.cutoffAtMs != null || session.cutoffElapsedNanos != null
+			val hasExactCutoff = session.cutoffAtMs != null && session.cutoffElapsedNanos != null &&
+				requireNotNull(session.cutoffAtMs) >= session.startedAtMs &&
+				requireNotNull(session.cutoffElapsedNanos) >= session.startedElapsedNanos
+			val validCutoff = if (stopping) hasExactCutoff else !hasAnyCutoff
+			return stopping == runStopping && validCutoff &&
 				session.completedAtMs == null && session.finalAdmissionOrdinal == null &&
 				session.currentServiceRunId == currentRun.serviceRunId &&
 				session.currentManifestRevision == currentManifest.manifestRevision &&
@@ -585,6 +598,7 @@ internal object ActivityHistoryComposer {
 	): ActivityCaptureTimeline {
 		val public = mutableListOf<ActivityHistoryFragment>()
 		var externalGapNanos = 0L
+		var hasPendingUnboundedCaptureInterval = false
 		manifests.forEachIndexed { index, manifest ->
 			if (bindings[manifest.manifestRevision] == null) return@forEachIndexed
 			val next = manifests.getOrNull(index + 1)
@@ -598,6 +612,10 @@ internal object ActivityHistoryComposer {
 			val end = exactEnd ?: if (active) {
 				manifestRevisions.maxOfOrNull(ActivityCapturedWindowRevisionEntity::windowEndElapsedRealtimeNanos)
 			} else null
+			if (end == null && active && manifestRevisions.isEmpty()) {
+				hasPendingUnboundedCaptureInterval = true
+				return@forEachIndexed
+			}
 			require(end != null && end >= manifest.effectiveElapsedRealtimeNanos)
 			var cursor = manifest.effectiveElapsedRealtimeNanos
 			manifestRevisions.forEach { revision ->
@@ -625,7 +643,7 @@ internal object ActivityHistoryComposer {
 				)
 			}
 		}
-		return ActivityCaptureTimeline(public, externalGapNanos)
+		return ActivityCaptureTimeline(public, externalGapNanos, hasPendingUnboundedCaptureInterval)
 	}
 
 	private fun toPublicFragments(
@@ -769,7 +787,14 @@ internal object ActivityHistoryComposer {
 		false
 	}
 
+	private fun isNonTerminalRun(run: SourceServiceRunEntity): Boolean =
+		run.completedAtMs == null && run.state !in TERMINAL_RUN_STATES
+
+	private fun hasConsistentCompletion(state: String, completedAtMs: Long?): Boolean =
+		(state in TERMINAL_RUN_STATES) == (completedAtMs != null)
+
 	private val TERMINAL_RUN_STATES = setOf("FINALIZED", "FAILED", "CLOSED")
+	private const val STOPPING_RUN_STATE = "STOPPING"
 	private val PROVIDER_COVERAGES = setOf("CALLBACKS_ENTERED_BEFORE_BARRIER",
 		"PROVIDER_COMPLETENESS_UNOBSERVABLE")
 	private val STOP_STATUSES = setOf("COMPLETE", "TIMED_OUT", "PERMISSION_LOST", "PROVIDER_FAILED",
@@ -787,4 +812,5 @@ internal object ActivityHistoryComposer {
 private data class ActivityCaptureTimeline(
 	val fragments: List<ActivityHistoryFragment>,
 	val externalGapDurationNanos: Long,
+	val hasPendingUnboundedCaptureInterval: Boolean,
 )

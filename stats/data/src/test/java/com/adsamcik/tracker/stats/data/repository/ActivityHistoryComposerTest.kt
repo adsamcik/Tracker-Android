@@ -255,6 +255,104 @@ class ActivityHistoryComposerTest {
 	}
 
 	@Test
+	fun `stopping run retains its exact immutable cutoff while materialization drains`() {
+		val initial = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val stoppingRun = initial.runs.getValue("run-a").copy(
+			state = "STOPPING",
+			completedAtMs = null,
+			completionReason = null,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+			presentationAcknowledgedAtMs = null,
+		)
+		val terminalBoundary = requireNotNull(initial.sessions.getValue(LOGICAL_ID).cutoffElapsedNanos)
+		val stoppingSession = initial.sessions.getValue(LOGICAL_ID).copy(
+			state = "STOPPING",
+			completedAtMs = null,
+			finalAdmissionOrdinal = null,
+			currentServiceRunId = stoppingRun.serviceRunId,
+			currentManifestRevision = 1L,
+			lifecycleLeaseGeneration = stoppingRun.leaseGeneration,
+			lifecycleBootId = stoppingRun.bootId,
+			cutoffAtMs = terminalBoundary,
+			cutoffElapsedNanos = terminalBoundary,
+		)
+		val snapshot = initial.copy(
+			sessions = mapOf(LOGICAL_ID to stoppingSession),
+			runs = mapOf(stoppingRun.serviceRunId to stoppingRun),
+			revisions = emptyList(),
+			cursors = emptyList(),
+			fragmentsByRevision = emptyMap(),
+			evidenceByRevision = emptyMap(),
+			completenessByRun = emptyMap(),
+		)
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.state shouldBe ActivityHistoryProductState.MATERIALIZING
+		entry.causes shouldBe setOf(ActivityHistoryCause.SESSION_ACTIVE,
+			ActivityHistoryCause.MATERIALIZATION_BEHIND)
+		entry.activeTime shouldBe null
+	}
+
+	@Test
+	fun `terminal and nonterminal lifecycle rows require matching completion evidence`() {
+		val initial = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val finalizedRun = initial.runs.getValue("run-a")
+		val finalizedSession = initial.sessions.getValue(LOGICAL_ID)
+		val activeRun = finalizedRun.copy(
+			state = "ACTIVE",
+			completedAtMs = null,
+			completionReason = null,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+			presentationAcknowledgedAtMs = null,
+		)
+		val activeSession = finalizedSession.copy(
+			state = "ACTIVE",
+			cutoffAtMs = null,
+			cutoffElapsedNanos = null,
+			completedAtMs = null,
+			finalAdmissionOrdinal = null,
+			currentServiceRunId = activeRun.serviceRunId,
+			currentManifestRevision = 1L,
+			lifecycleLeaseGeneration = activeRun.leaseGeneration,
+			lifecycleBootId = activeRun.bootId,
+		)
+		val corrupt = listOf(
+			initial.copy(runs = mapOf(finalizedRun.serviceRunId to finalizedRun.copy(completedAtMs = null))),
+			initial.copy(runs = mapOf(finalizedRun.serviceRunId to finalizedRun.copy(state = "ACTIVE"))),
+			initial.copy(sessions = mapOf(LOGICAL_ID to finalizedSession.copy(completedAtMs = null))),
+			initial.copy(
+				sessions = mapOf(LOGICAL_ID to activeSession.copy(completedAtMs = finalizedSession.completedAtMs)),
+				runs = mapOf(activeRun.serviceRunId to activeRun),
+			),
+		)
+
+		corrupt.forEach { snapshot ->
+			val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+			entry.state shouldBe ActivityHistoryProductState.FAILED
+			entry.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+		}
+	}
+
+	@Test
+	fun `newly effective capture manifest without its first fact stays bounded and materializing`() {
+		val snapshot = activeReconfiguredSnapshotAwaitingFact()
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.state shouldBe ActivityHistoryProductState.MATERIALIZING
+		entry.coverage shouldBe ActivityHistoryCoverage.PARTIAL
+		entry.activeTime?.knownActiveDurationNanos shouldBe 100L
+		entry.activeTime?.unobservedDurationNanos shouldBe 400L
+		entry.fragments.sumOf(ActivityHistoryFragment::durationNanos) shouldBe 500L
+		entry.causes shouldBe setOf(
+			ActivityHistoryCause.PROVIDER_GAP,
+			ActivityHistoryCause.MATERIALIZATION_BEHIND,
+			ActivityHistoryCause.SESSION_ACTIVE,
+		)
+	}
+
+	@Test
 	fun `active session pointer and authority must match its sole nonterminal run`() {
 		val initial = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
 		val activeRun = initial.runs.getValue("run-a").copy(
@@ -520,6 +618,85 @@ class ActivityHistoryComposerTest {
 			terminalFailures = emptyList(),
 			evidenceState = SourceEvidenceState(collectedDataEpoch = 0L),
 			overflow = false,
+		)
+	}
+
+	private fun activeReconfiguredSnapshotAwaitingFact(): ActivityHistorySnapshot {
+		val first = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val second = fixture(listOf(RunSpec(2L, "run-b", "UTC")))
+		val secondSource = second.sourcesByManifest.getValue(ActivityManifestKey(LOGICAL_ID, 2L)).single()
+		val unsignedSecondManifest = second.manifestsByRun.getValue("run-b").single().copy(
+			serviceRunId = "run-a",
+			startOrigin = "POLICY_RECONCILIATION",
+			changeReason = "POLICY_RECONCILIATION",
+			manifestChecksum = "pending",
+		)
+		val secondManifest = unsignedSecondManifest.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(unsignedSecondManifest, listOf(secondSource)),
+		)
+		val activeRun = first.runs.getValue("run-a").copy(
+			state = "ACTIVE",
+			desiredPlanRevision = 2L,
+			completedAtMs = null,
+			completionReason = null,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+			presentationAcknowledgedAtMs = null,
+		)
+		val activeSession = first.sessions.getValue(LOGICAL_ID).copy(
+			state = "ACTIVE",
+			desiredPlanRevision = 2L,
+			cutoffAtMs = null,
+			cutoffElapsedNanos = null,
+			completedAtMs = null,
+			finalAdmissionOrdinal = null,
+			currentManifestRevision = 2L,
+			currentServiceRunId = activeRun.serviceRunId,
+			lifecycleLeaseGeneration = activeRun.leaseGeneration,
+			lifecycleBootId = activeRun.bootId,
+		)
+		val originalRevision = first.revisions.single()
+		val draft = originalRevision.copy(
+			logicalWindowId = "pending",
+			mutationId = "pending",
+			sessionRunEffectEndNanos = Long.MAX_VALUE,
+			effectChecksum = "pending",
+		)
+		val logicalWindowId = ActivityCapturedFactIntegrity.logicalWindowId(draft)
+		val identified = draft.copy(
+			logicalWindowId = logicalWindowId,
+			mutationId = ActivityCapturedFactIntegrity.mutationId(logicalWindowId, 1L),
+		)
+		val fragment = first.fragmentsByRevision.values.single().single().copy(
+			logicalWindowId = logicalWindowId,
+		)
+		val evidence = first.evidenceByRevision.values.single().map { row ->
+			row.copy(logicalWindowId = logicalWindowId)
+		}
+		val revision = identified.copy(
+			effectChecksum = ActivityCapturedFactIntegrity.effectChecksum(identified, listOf(fragment), evidence),
+		)
+		val cursor = first.cursors.single().copy(
+			logicalWindowId = logicalWindowId,
+			latestMutationId = revision.mutationId,
+			latestEffectChecksum = revision.effectChecksum,
+			updatedAtMs = revision.appliedAtMs,
+		)
+		return first.copy(
+			sessions = mapOf(LOGICAL_ID to activeSession),
+			runs = mapOf(activeRun.serviceRunId to activeRun),
+			manifestsByRun = mapOf(activeRun.serviceRunId to listOf(
+				first.manifestsByRun.getValue("run-a").single(), secondManifest,
+			)),
+			sourcesByManifest = first.sourcesByManifest +
+				(ActivityManifestKey(LOGICAL_ID, 2L) to listOf(secondSource)),
+			policies = first.policies + second.policies,
+			consents = first.consents + second.consents,
+			acquisitionPlanRevisions = first.acquisitionPlanRevisions + second.acquisitionPlanRevisions,
+			desiredPlans = first.desiredPlans + second.desiredPlans,
+			revisions = listOf(revision),
+			cursors = listOf(cursor),
+			fragmentsByRevision = mapOf(revisionKey(revision) to listOf(fragment)),
+			evidenceByRevision = mapOf(revisionKey(revision) to evidence),
 		)
 	}
 
