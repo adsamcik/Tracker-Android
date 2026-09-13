@@ -51,6 +51,14 @@ including exact STOPPING cutoff and permitted RECONFIGURING phases; a newly effe
 manifest without its first fact stays bounded and partial/materializing. Shared UI and runtime
 projection remain open.
 
+The separate Activity WAL-admission branch is independently accepted through `689a6e994`. It uses
+payload-free SQL preflight before loading any retained Activity BLOB, rechecks the canonical 21-byte
+cap, and authenticates full captured registration/authorization/plan, manifest, lifecycle,
+destination, deletion, retention, clock, and zone authority. Reachable live pairs include exact
+RECONFIGURING and STOPPING shapes; finite output requires both session and physical run terminal,
+null current pointer, and matching cutoff/final ordinal. It emits no CONTROL history and activates no
+writer. Runtime immutable plan binding and terminal drain remain open follow-on work.
+
 The isolated Pressure branch is clean at `3b8abe350`. Commits `8768767d4` through `8b076e6f7`
 provide fact-driven zero-sample discovery, reciprocal run/segment binding, complete replacement-run
 membership, immutable correction attribution, bounded and cancellable fact traversal, typed
@@ -122,7 +130,8 @@ Steps branches are contained or patch-equivalent in the coordinator, the older P
 branches are ancestors, and the two dirty portable-import/qualified-awards drafts remain frozen
 reference inputs only. Cell persistence is accepted through its source-local writer boundary, while
 maintenance and product work remain. Activity WAL admission is a separate dormant lane under
-correction after review; Pressure shared UI remains an active isolated lane. The export-only
+an accepted read boundary; its runtime plan-attribution follow-on is active. Pressure shared UI
+remains an active isolated lane. The export-only
 Pressure transfer slice is accepted, while its import half remains deliberately blocked on the
 missing authoritative writer and no-resurrection mapping.
 

@@ -67,7 +67,13 @@ Independent clean lanes:
   `d0bf3bf59` on `codex/ti-activity-product-read`: one transactional bounded repository authenticates
   complete replacement membership, lifecycle/lane/plan/cursor authority, manifest-window gaps, and
   exact live/STOPPING settlement without fabricating duration. Shared UI, runtime activation,
-  maintenance, and transfer remain open.
+  maintenance, and transfer remain open. A separate dormant retained-WAL adapter is independently
+  accepted through `689a6e994` on `codex/ti-activity-projection-adapter`: payload-free SQL preflight
+  bounds BLOB allocation, full historical captured authority is reauthenticated, live lifecycle
+  pairs use the exact durable-ingress vocabulary, and finite output requires terminal session/run,
+  null pointer, cutoff, and final-ordinal settlement. Runtime immutable plan insertion and exact
+  callback attribution are active follow-on work; terminal drain and destination activation remain
+  absent.
 - Pressure source-specific read model and honest acquisition tiers:
   `codex/ti-pressure-acquisition` at `3b8abe350` in
   `G:\Github\Tracker-Android\.worktrees\ti-pressure-acquisition`; clean and independently accepted

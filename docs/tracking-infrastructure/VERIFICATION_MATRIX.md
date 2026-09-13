@@ -2032,3 +2032,26 @@ Deferred focused commands:
 Neither command was run. Compilation, generated v28 schema convergence, SQL/migration execution,
 retention-worker preservation or retirement of referenced owner revisions, provider/callback/device
 behavior, product history/UI, transfer, integration, activation, and release remain unproven.
+
+## TI-B277 — Activity retained-WAL admission and settlement contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `689a6e994`. Authored real-Room adapter tests cover
+payload-free SQL size/cardinality preflight, selected and sibling BLOB overflow, canonical payload
+shape and delivery identity, exact capture owner and immutable registration-plan binding,
+authorization/demand/policy/consent, reciprocal manifest/run/segment, deletion/retention, clock/zone,
+destination authority, and CONTROL exclusion. Lifecycle tests cover exact STARTING, ACTIVE,
+RECONFIGURING and STOPPING live pairs, typed unsettled finite windows, terminal null pointer,
+cutoff/final-ordinal coverage, corrupt active/terminal mixtures, and legitimate older replacement
+runs. Repeated reviews rejected unbounded BLOB loading, unauthenticated settlement, and equality-only
+live-pair validation before accepting the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*ActivityCapturedWalAdmissionAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query execution, generated v28 schema convergence,
+production registration-plan insertion and callback attribution, bounded terminal projection,
+writer activation, maintenance/transfer, shared UI, provider/device behavior, integration,
+activation, and release remain unproven.

@@ -653,6 +653,14 @@ explicit gaps and materializing/partial state, and expose no physical run IDs or
 history. ACT-008/010 remain unchecked until runtime projection, Today/Timeline/Calendar/detail/live
 consumers, maintenance/transfer, and the complete authored scenario cohort exist.
 
+Accepted commits `8b10e2281`, `8138d7a45`, and `689a6e994` add the real retained-WAL admission portion
+of ACT-001/002/003/007/010. SQL preflight bounds Activity BLOB size before loading, all captured
+plan/authorization/manifest/destination/deletion/retention authority is recomputed, live lifecycle
+pairs match the exact durable-ingress vocabulary, and finite output requires complete terminal
+session/run settlement. These TODOs remain unchecked until production inserts the immutable applied
+plan, callback delivery stamps its exact revision/fingerprint, a bounded projection trigger owns
+terminal draining, and maintenance, transfer, shared UI, and full scenarios exist.
+
 ## Wi-Fi vertical
 
 - [ ] TODO-WIFI-001 Complete one app-scoped Wi-Fi callback owner and stable durable delivery

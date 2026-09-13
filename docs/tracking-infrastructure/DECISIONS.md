@@ -3419,3 +3419,22 @@ Each entry records repository evidence and does not duplicate the final architec
   reuse is no longer safe; finite exact replay and retained-prior fallback remain bounded.
 - Generated v28 schema JSON, retention-worker handling of referenced historical revisions, product
   history/UI, portable transfer, provider/runtime activation, and device behavior remain open.
+
+## TI-D214 — Activity WAL admission is byte-bounded and lifecycle-settled
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/tests `8b10e2281`, `8138d7a45`,
+  and `689a6e994` atop TI-D199/TI-D209; TI-B277.
+- The dormant adapter preflights selected and sibling payload lengths/cardinality in SQL before Room
+  loads any BLOB, then retains the canonical 21-byte Activity unit cap during full reads. Oversized,
+  incomplete, noncanonical, or identity-mismatched deliveries fail typed without allocation-driven
+  decode work.
+- Admission reauthenticates exact captured owner, immutable registration-plan binding, authorization
+  members and demands, policy/consent, manifest/run/segment, provider clocks, deletion/retention,
+  stored zone, and writer destination without accepting CONTROL evidence.
+- Reachable live session/run pairs use the exact durable-ingress vocabulary, including
+  RECONFIGURING and STOPPING. A finite window remains unavailable until both session and physical
+  run are terminal, the current pointer is null, and cutoff/final-admission ordinal cover the
+  selected delivery; legitimate older replacement runs remain admissible after settlement.
+- Runtime plan-binding insertion and exact delivery plan attribution are separate active work. A
+  bounded terminal projection trigger, destination activation, product UI, maintenance, and transfer
+  remain open.
