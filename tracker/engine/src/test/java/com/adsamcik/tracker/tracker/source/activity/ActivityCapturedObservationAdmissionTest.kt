@@ -163,10 +163,11 @@ class ActivityCapturedObservationAdmissionTest {
 
 	@Test
 	fun `provider acceptance is exact and end exclusive`() {
+		val acceptedInterval = ActivityProviderTimeInterval(1_000L, 1_001L)
 		val accepted = ActivityCapturedObservationAdmission.admit(
 			event(providerTime = 1_000L),
 			acquisitionAuthority(
-				providerAcceptance = ActivityProviderTimeInterval(1_000L, 1_001L),
+				providerAcceptance = acceptedInterval,
 			),
 		)
 		val rejected = ActivityCapturedObservationAdmission.admit(
@@ -176,8 +177,32 @@ class ActivityCapturedObservationAdmissionTest {
 			),
 		)
 
-		(accepted is ActivityCaptureAdmissionResult.Captured) shouldBe true
+		val captured = accepted as ActivityCaptureAdmissionResult.Captured
+		captured.observation.authority.temporalAuthority.providerAcceptance shouldBe
+			acceptedInterval
 		rejected shouldBe rejected(ActivityCaptureAdmissionRejection.OUTSIDE_PROVIDER_ACCEPTANCE)
+	}
+
+	@Test
+	fun `captured observation retains each exact temporal limit and their intersection`() {
+		val temporalAuthority = ActivityCaptureTemporalAuthority(
+			providerAcceptance = ActivityProviderTimeInterval(900L, 1_200L),
+			authorizationEffect = ActivityProviderTimeInterval(950L, 1_100L),
+			sessionRunEffect = ActivityProviderTimeInterval(980L, 1_050L),
+		)
+		val result = ActivityCapturedObservationAdmission.admit(
+			event(providerTime = 1_000L),
+			acquisitionAuthority(
+				providerAcceptance = temporalAuthority.providerAcceptance,
+				authorizationEffect = temporalAuthority.authorizationEffect,
+				sessionRunEffect = temporalAuthority.sessionRunEffect,
+			),
+		)
+
+		val captured = result as ActivityCaptureAdmissionResult.Captured
+		captured.observation.authority.temporalAuthority shouldBe temporalAuthority
+		captured.observation.authority.temporalAuthority.capturedIntersection shouldBe
+			ActivityProviderTimeInterval(980L, 1_050L)
 	}
 
 	@Test
@@ -264,25 +289,34 @@ class ActivityCapturedObservationAdmissionTest {
 			ActivityProviderTimeInterval(0L, 10_000L),
 		sessionRunEffect: ActivityProviderTimeInterval =
 			ActivityProviderTimeInterval(0L, 10_000L),
-	) = ActivityCaptureAcquisitionAuthority(
-		captureAuthority = captureAuthority,
-		historicalConfiguration = ActivityHistoricalAcquisitionConfiguration(
-			identity = ActivityAcquisitionConfigurationIdentity(
-				sourceInstanceId = captureAuthority.sourceInstanceId,
-				registrationGeneration = captureAuthority.registrationGeneration,
-				configurationRevision = captureAuthority.configurationRevision,
-				physicalConfigurationFingerprint =
-					captureAuthority.physicalConfigurationFingerprint,
-				authorizationRevision = captureAuthority.authorizationRevision,
-				authorizationFingerprint = captureAuthority.authorizationFingerprint,
+	): ActivityCaptureAcquisitionAuthority {
+		val exactCaptureAuthority = captureAuthority.copy(
+			temporalAuthority = ActivityCaptureTemporalAuthority(
+				providerAcceptance = providerAcceptance,
+				authorizationEffect = authorizationEffect,
+				sessionRunEffect = sessionRunEffect,
 			),
-			providerAcceptance = providerAcceptance,
-			authorizationEffect = authorizationEffect,
-			sessionRunEffect = sessionRunEffect,
-			maximumObservationAgeNanos = maximumObservationAgeNanos,
-			sampledClassificationPolicy = sampledPolicy,
-		),
-	)
+		)
+		return ActivityCaptureAcquisitionAuthority(
+			captureAuthority = exactCaptureAuthority,
+			historicalConfiguration = ActivityHistoricalAcquisitionConfiguration(
+				identity = ActivityAcquisitionConfigurationIdentity(
+					sourceInstanceId = exactCaptureAuthority.sourceInstanceId,
+					registrationGeneration = exactCaptureAuthority.registrationGeneration,
+					configurationRevision = exactCaptureAuthority.configurationRevision,
+					physicalConfigurationFingerprint =
+						exactCaptureAuthority.physicalConfigurationFingerprint,
+					authorizationRevision = exactCaptureAuthority.authorizationRevision,
+					authorizationFingerprint = exactCaptureAuthority.authorizationFingerprint,
+				),
+				providerAcceptance = providerAcceptance,
+				authorizationEffect = authorizationEffect,
+				sessionRunEffect = sessionRunEffect,
+				maximumObservationAgeNanos = maximumObservationAgeNanos,
+				sampledClassificationPolicy = sampledPolicy,
+			),
+		)
+	}
 
 	private fun authority(
 		purposeMask: Long = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
@@ -302,6 +336,11 @@ class ActivityCapturedObservationAdmissionTest {
 		lifecycleLeaseGeneration = 19L,
 		collectedDataEpoch = 23L,
 		clockDomainId = "boot-1",
+		temporalAuthority = ActivityCaptureTemporalAuthority(
+			providerAcceptance = ActivityProviderTimeInterval(0L, 10_000L),
+			authorizationEffect = ActivityProviderTimeInterval(0L, 10_000L),
+			sessionRunEffect = ActivityProviderTimeInterval(0L, 10_000L),
+		),
 	)
 
 	private fun event(

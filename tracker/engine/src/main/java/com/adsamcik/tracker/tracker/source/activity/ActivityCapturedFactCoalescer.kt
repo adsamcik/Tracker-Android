@@ -24,6 +24,8 @@ internal enum class ActivityCoalescingRejection {
 	TOO_MANY_OBSERVATIONS,
 	TOO_MANY_DECLARED_GAPS,
 	AUTHORITY_MISMATCH,
+	WINDOW_OUTSIDE_CAPTURE_VALIDITY,
+	OBSERVATION_OUTSIDE_CAPTURE_VALIDITY,
 	OBSERVATION_AFTER_WINDOW,
 	OBSERVATION_INSIDE_DECLARED_GAP,
 	EVENT_IDENTITY_COLLISION,
@@ -56,6 +58,18 @@ internal object ActivityCapturedFactCoalescer {
 		if (request.observations.any { it.authority != request.authority }) {
 			return rejected(ActivityCoalescingRejection.AUTHORITY_MISMATCH)
 		}
+		val captureValidity = request.authority.temporalAuthority.capturedIntersection
+		val requestedWindow = ActivityProviderTimeInterval(
+			request.intervalStartElapsedRealtimeNanos,
+			request.intervalEndExclusiveElapsedRealtimeNanos,
+		)
+		if (!captureValidity.contains(requestedWindow)) {
+			return rejected(ActivityCoalescingRejection.WINDOW_OUTSIDE_CAPTURE_VALIDITY)
+		}
+		if (request.observations.any {
+				it.reference.providerElapsedRealtimeNanos !in captureValidity
+			}
+		) return rejected(ActivityCoalescingRejection.OBSERVATION_OUTSIDE_CAPTURE_VALIDITY)
 		if (request.observations.any {
 				it.reference.providerElapsedRealtimeNanos >=
 					request.intervalEndExclusiveElapsedRealtimeNanos
@@ -408,10 +422,7 @@ internal object ActivityCapturedFactCoalescer {
 			}
 			if (selected == null) continue
 			val closureEvidence = negativeByTime[end].orEmpty()
-				.filter { boundary ->
-					boundary.negates(selected.activity) &&
-						selected.reference.providerElapsedRealtimeNanos < boundary.providerTime
-				}
+				.filter { boundary -> boundary.clips(selected) }
 				.map(NegativeActivityBoundary::reference)
 			val evidence = (transitionBand?.evidence.orEmpty() +
 				selected.reference + closureEvidence)
@@ -698,8 +709,15 @@ internal object ActivityCapturedFactCoalescer {
 		val reference: ActivityCapturedObservationReference,
 	) {
 		fun negates(sampledActivity: CapturedActivityType): Boolean =
-			activity == sampledActivity ||
-				isCompatibleActivityRefinement(activity, sampledActivity)
+			isCompatibleActivityNegativeBoundary(activity, sampledActivity)
+
+		fun clips(observation: ActivityCapturedObservation.SampledClassification): Boolean {
+			if (!negates(observation.activity)) return false
+			val sampleTime = observation.reference.providerElapsedRealtimeNanos
+			return sampleTime < providerTime ||
+				(sampleTime == providerTime &&
+					observation.reference.sourceSequence <= reference.sourceSequence)
+		}
 	}
 
 	private data class AllBandComposition(
@@ -762,7 +780,7 @@ internal object ActivityCapturedFactCoalescer {
 					val iterator = byActivity.getValue(activity).iterator()
 					while (iterator.hasNext()) {
 						val observation = iterator.next()
-						if (observation.reference.providerElapsedRealtimeNanos < boundary.providerTime) {
+						if (boundary.clips(observation)) {
 							iterator.remove()
 							removed = true
 						}
