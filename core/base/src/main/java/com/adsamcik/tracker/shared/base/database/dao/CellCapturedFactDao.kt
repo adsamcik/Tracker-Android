@@ -175,26 +175,31 @@ interface CellCapturedFactDao {
 	): Int
 
 	/**
-	 * Discovers one fact-backed segment per logical Cell entry. Presentation sample_count,
-	 * legacy radio rows, and Location are deliberately absent from this authority.
+	 * Discovers one cursor-settled segment per logical Cell entry. Cursor scope is the stable carrier;
+	 * current fact scope is authenticated later and cannot hide a moved lineage from that check.
+	 * Presentation sample_count, legacy radio rows, and Location are deliberately absent.
 	 */
 	@Query(
 		"""
 		WITH current_fact_member AS (
-		  SELECT segment.*
-		  FROM session_segment AS segment
+		  SELECT DISTINCT segment.*
+		  FROM cell_captured_fact_cursor AS fact_cursor
+		  INNER JOIN cell_captured_fact_revision AS fact
+		    ON fact.writer_projection_id = fact_cursor.writer_projection_id
+		   AND fact.writer_projection_version = fact_cursor.writer_projection_version
+		   AND fact.logical_fact_id = fact_cursor.logical_fact_id
+		   AND fact.semantic_revision = fact_cursor.latest_semantic_revision
+		   AND fact.mutation_id = fact_cursor.latest_mutation_id
+		   AND fact.effect_checksum = fact_cursor.latest_effect_checksum
+		   AND fact.source_admission_ordinal = fact_cursor.latest_source_admission_ordinal
 		  INNER JOIN source_service_run AS run
-		    ON run.session_segment_id = segment.id
-		   AND run.service_run_id = segment.service_run_id
-		   AND run.logical_tracking_id = segment.logical_tracking_id
-		  WHERE EXISTS (
-		    SELECT 1
-		    FROM cell_captured_fact_revision AS fact
-		    WHERE fact.logical_tracking_id = run.logical_tracking_id
-		      AND fact.service_run_id = run.service_run_id
-		      AND fact.session_segment_id = segment.id
-		      AND fact.purpose = 'SESSION_CAPTURE'
-		  )
+		    ON run.service_run_id = fact_cursor.service_run_id
+		   AND run.logical_tracking_id = fact_cursor.logical_tracking_id
+		   AND run.session_segment_id = fact_cursor.session_segment_id
+		  INNER JOIN session_segment AS segment
+		    ON segment.id = fact_cursor.session_segment_id
+		   AND segment.service_run_id = fact_cursor.service_run_id
+		   AND segment.logical_tracking_id = fact_cursor.logical_tracking_id
 		), logical_seed AS (
 		  SELECT member.*
 		  FROM current_fact_member AS member
@@ -248,27 +253,32 @@ interface CellCapturedFactDao {
 		beforeSegmentId: Long?,
 	): List<CellLogicalHistoryCandidate>
 
-	/** Pages complete correction lineages and direct aggregate owners for the selected universe. */
+	/** Pages complete cursor-carried correction lineages and their finite direct aggregate owners. */
 	@Query(
 		"""
 		SELECT * FROM cell_captured_fact_revision AS fact
 		WHERE (
-		     fact.service_run_id IN (:serviceRunIds)
-		   OR fact.logical_tracking_id IN (:logicalTrackingIds)
-		   OR EXISTS (
-		     SELECT 1 FROM cell_captured_fact_revision AS candidate
-		     WHERE candidate.writer_projection_id = fact.writer_projection_id
-		       AND candidate.writer_projection_version = fact.writer_projection_version
-		       AND candidate.logical_fact_id = fact.logical_fact_id
-		       AND (candidate.service_run_id IN (:serviceRunIds)
-		         OR candidate.logical_tracking_id IN (:logicalTrackingIds))
-		   )
-		   OR EXISTS (
-		     SELECT 1 FROM cell_captured_fact_revision AS dependent
-		     WHERE dependent.aggregate_owner_logical_fact_id = fact.logical_fact_id
-		       AND (dependent.service_run_id IN (:serviceRunIds)
-		         OR dependent.logical_tracking_id IN (:logicalTrackingIds))
-		   )
+		 fact.logical_fact_id IN (
+		  SELECT fact_cursor.logical_fact_id
+		  FROM cell_captured_fact_cursor AS fact_cursor
+		  WHERE fact_cursor.service_run_id IN (:serviceRunIds)
+		     OR fact_cursor.logical_tracking_id IN (:logicalTrackingIds)
+		 )
+		 OR fact.logical_fact_id IN (
+		  SELECT dependent.aggregate_owner_logical_fact_id
+		  FROM cell_captured_fact_revision AS dependent
+		  INNER JOIN cell_captured_fact_cursor AS dependent_cursor
+		    ON dependent_cursor.writer_projection_id = dependent.writer_projection_id
+		   AND dependent_cursor.writer_projection_version = dependent.writer_projection_version
+		   AND dependent_cursor.logical_fact_id = dependent.logical_fact_id
+		   AND dependent_cursor.latest_semantic_revision = dependent.semantic_revision
+		   AND dependent_cursor.latest_mutation_id = dependent.mutation_id
+		   AND dependent_cursor.latest_effect_checksum = dependent.effect_checksum
+		   AND dependent_cursor.latest_source_admission_ordinal = dependent.source_admission_ordinal
+		  WHERE dependent.aggregate_owner_logical_fact_id IS NOT NULL
+		    AND (dependent_cursor.service_run_id IN (:serviceRunIds)
+		      OR dependent_cursor.logical_tracking_id IN (:logicalTrackingIds))
+		 )
 		)
 		AND (
 		  :afterWriterProjectionId IS NULL

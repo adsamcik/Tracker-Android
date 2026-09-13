@@ -118,13 +118,18 @@ internal object CellHistoryComposer {
 			if (matches.size > 1) return failed(logicalId, segments, CellHistoryCause.MANIFEST_INTEGRITY_FAILED)
 			matches.singleOrNull()?.let { manifest.manifestRevision to it }
 		}.toMap()
-		val relatedRevisions = snapshot.revisions.filter { revision ->
-			revision.logicalTrackingId == logicalId || revision.serviceRunId in runIds ||
-				snapshot.revisions.any { candidate ->
-					candidate.logicalFactId == revision.logicalFactId &&
-					(candidate.logicalTrackingId == logicalId || candidate.serviceRunId in runIds)
-				}
-		}
+		// Cursor scope is the immutable discovery carrier. A current fact that moves its own
+		// scope therefore remains in this set and fails the exact scope check below instead of
+		// disappearing. Direct aggregate owners are the only permitted one-hop expansion.
+		val carriedFactIds = snapshot.cursors.asSequence()
+			.filter { it.logicalTrackingId == logicalId && it.serviceRunId in runIds }
+			.mapTo(linkedSetOf(), CellCapturedFactCursorEntity::logicalFactId)
+		val ownerFactIds = snapshot.revisions.asSequence()
+			.filter { it.logicalFactId in carriedFactIds }
+			.mapNotNull(CellCapturedFactRevisionEntity::aggregateOwnerLogicalFactId)
+			.toSet()
+		val relatedFactIds = carriedFactIds + ownerFactIds
+		val relatedRevisions = snapshot.revisions.filter { it.logicalFactId in relatedFactIds }
 		if (relatedRevisions.any { it.logicalTrackingId != logicalId || it.serviceRunId !in runIds }) {
 			return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED)
 		}
@@ -190,17 +195,17 @@ internal object CellHistoryComposer {
 		}.toSet()
 		if (deletedRuns.isNotEmpty()) return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED)
 
-		val currentEpoch = current.filter { (fact, _) ->
-			fact.collectedDataEpoch == evidenceState.collectedDataEpoch &&
-				fact.sourceAdmissionOrdinal > evidenceState.deletedSourceEventHighWaterOrdinal &&
-				fact.scopeDeletionGeneration ==
-					(snapshot.deletionGenerations[logicalId to fact.serviceRunId]?.generation ?: 0L) &&
-				(logicalId to fact.serviceRunId) !in snapshot.deletedScopes
+		val currentEpoch = current.filter { (fact, aggregate) ->
+			fact.hasCurrentPrivacyAuthority(logicalId, evidenceState, snapshot) &&
+				aggregate.hasCurrentPrivacyAuthority(logicalId, evidenceState, snapshot)
 		}
 		val epochLoss = currentEpoch.size != current.size
 		val retained = runCatching {
-			currentEpoch.filter { (fact, _) ->
-				evidenceState.retainedFromMs?.let { floor -> earliestPossibleWallTimeMs(fact) >= floor } != false
+			currentEpoch.filter { (fact, aggregate) ->
+				evidenceState.retainedFromMs?.let { floor ->
+					earliestPossibleWallTimeMs(fact) >= floor &&
+						earliestPossibleWallTimeMs(aggregate) >= floor
+				} != false
 			}
 		}.getOrElse { return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED) }
 		val retentionLoss = retained.size != currentEpoch.size
@@ -513,6 +518,16 @@ internal object CellHistoryComposer {
 			purposeEligibilityMask == dependent.purposeEligibilityMask &&
 			captureConsentEpoch == dependent.captureConsentEpoch && ownerSources == dependentSources
 	}
+
+	private fun CellCapturedFactRevisionEntity.hasCurrentPrivacyAuthority(
+		logicalId: String,
+		evidenceState: SourceEvidenceState,
+		snapshot: CellHistorySnapshot,
+	): Boolean = collectedDataEpoch == evidenceState.collectedDataEpoch &&
+		sourceAdmissionOrdinal > evidenceState.deletedSourceEventHighWaterOrdinal &&
+		scopeDeletionGeneration ==
+			(snapshot.deletionGenerations[logicalId to serviceRunId]?.generation ?: 0L) &&
+		(logicalId to serviceRunId) !in snapshot.deletedScopes
 
 	private fun CellHistorySnapshot.manifestAuthorityShape(
 		logicalTrackingId: String,
