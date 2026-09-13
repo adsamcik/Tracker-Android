@@ -104,6 +104,16 @@ class PressureOnlyTrackingContentTest {
 			.assertTextEquals("Preparing Pressure history…")
 	}
 
+	@Test
+	fun failedPressureUsesTypedNonRecordingHeader() {
+		setContent(DashboardLivePressureValue.Failed)
+
+		composeRule.onNodeWithTag("dashboard_live_pressure_header")
+			.assertTextEquals("Pressure history could not be prepared")
+		composeRule.onNodeWithTag("dashboard_live_pressure_value").assertTextEquals("—")
+		composeRule.onAllNodesWithText("Recording").assertCountEquals(0)
+	}
+
 	private fun setContent(pressure: DashboardLivePressureValue) {
 		val session = TrackerSessionSnapshot(
 			id = SEGMENT_ID,
