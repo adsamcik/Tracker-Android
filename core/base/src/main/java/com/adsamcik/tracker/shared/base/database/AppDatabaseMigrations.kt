@@ -1698,6 +1698,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 					last_observed_boot_id TEXT NOT NULL,
 					last_observed_zone_id TEXT NOT NULL,
 					last_gap_sequence INTEGER NOT NULL,
+					authority_transition_sequence INTEGER NOT NULL,
 					cursor_revision INTEGER NOT NULL,
 					status TEXT NOT NULL,
 					updated_at_ms INTEGER NOT NULL,
@@ -1712,6 +1713,43 @@ val MIGRATION_27_28: Migration = object : Migration(
 			execSQL(
 				"CREATE INDEX IF NOT EXISTS idx_ambient_steps_import_cursor_epoch " +
 					"ON ambient_steps_import_cursor(collected_data_epoch, status)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS ambient_steps_import_authority_transition (
+					transition_id TEXT NOT NULL,
+					registration_generation INTEGER NOT NULL,
+					transition_sequence INTEGER NOT NULL,
+					provider TEXT NOT NULL,
+					source_instance_id TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					from_continuity_segment_generation INTEGER NOT NULL,
+					to_continuity_segment_generation INTEGER NOT NULL,
+					from_authorization_revision INTEGER NOT NULL,
+					from_authorization_fingerprint TEXT NOT NULL,
+					from_source_policy_revision INTEGER NOT NULL,
+					from_ambient_consent_epoch INTEGER NOT NULL,
+					to_authorization_revision INTEGER NOT NULL,
+					to_authorization_fingerprint TEXT NOT NULL,
+					to_authorization_effective_boot_id TEXT NOT NULL,
+					to_authorization_effective_elapsed_realtime_nanos INTEGER NOT NULL,
+					to_authorization_effective_wall_time_ms INTEGER NOT NULL,
+					to_source_policy_revision INTEGER NOT NULL,
+					to_ambient_consent_epoch INTEGER NOT NULL,
+					registration_accepted_at_ms INTEGER NOT NULL,
+					effective_boundary_time_ms INTEGER NOT NULL,
+					recorded_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(registration_generation, transition_sequence)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_ambient_steps_import_authority_transition_id " +
+					"ON ambient_steps_import_authority_transition(transition_id)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_ambient_steps_import_authority_transition_boundary " +
+					"ON ambient_steps_import_authority_transition(effective_boundary_time_ms)",
 			)
 			execSQL(
 				"""

@@ -1539,7 +1539,7 @@
       },
       {
         "tableName": "ambient_steps_import_cursor",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`registration_generation` INTEGER NOT NULL, `provider` TEXT NOT NULL, `source_instance_id` TEXT NOT NULL, `registration_clock_domain_id` TEXT NOT NULL, `registration_accepted_at_ms` INTEGER NOT NULL, `registration_accepted_elapsed_realtime_nanos` INTEGER NOT NULL, `authorization_revision` INTEGER NOT NULL, `authorization_fingerprint` TEXT NOT NULL, `authorization_effective_boot_id` TEXT NOT NULL, `authorization_effective_elapsed_realtime_nanos` INTEGER NOT NULL, `authorization_effective_wall_time_ms` INTEGER NOT NULL, `source_policy_revision` INTEGER NOT NULL, `ambient_consent_epoch` INTEGER NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `eligible_from_time_ms` INTEGER NOT NULL, `continuity_segment_generation` INTEGER NOT NULL, `segment_start_time_ms` INTEGER NOT NULL, `imported_through_time_ms` INTEGER NOT NULL, `last_observed_at_ms` INTEGER NOT NULL, `last_observed_boot_id` TEXT NOT NULL, `last_observed_zone_id` TEXT NOT NULL, `last_gap_sequence` INTEGER NOT NULL, `cursor_revision` INTEGER NOT NULL, `status` TEXT NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`registration_generation`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`registration_generation` INTEGER NOT NULL, `provider` TEXT NOT NULL, `source_instance_id` TEXT NOT NULL, `registration_clock_domain_id` TEXT NOT NULL, `registration_accepted_at_ms` INTEGER NOT NULL, `registration_accepted_elapsed_realtime_nanos` INTEGER NOT NULL, `authorization_revision` INTEGER NOT NULL, `authorization_fingerprint` TEXT NOT NULL, `authorization_effective_boot_id` TEXT NOT NULL, `authorization_effective_elapsed_realtime_nanos` INTEGER NOT NULL, `authorization_effective_wall_time_ms` INTEGER NOT NULL, `source_policy_revision` INTEGER NOT NULL, `ambient_consent_epoch` INTEGER NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `eligible_from_time_ms` INTEGER NOT NULL, `continuity_segment_generation` INTEGER NOT NULL, `segment_start_time_ms` INTEGER NOT NULL, `imported_through_time_ms` INTEGER NOT NULL, `last_observed_at_ms` INTEGER NOT NULL, `last_observed_boot_id` TEXT NOT NULL, `last_observed_zone_id` TEXT NOT NULL, `last_gap_sequence` INTEGER NOT NULL, `authority_transition_sequence` INTEGER NOT NULL, `cursor_revision` INTEGER NOT NULL, `status` TEXT NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`registration_generation`))",
         "fields": [
           {
             "fieldPath": "registrationGeneration",
@@ -1674,6 +1674,12 @@
             "notNull": true
           },
           {
+            "fieldPath": "authorityTransitionSequence",
+            "columnName": "authority_transition_sequence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
             "fieldPath": "cursorRevision",
             "columnName": "cursor_revision",
             "affinity": "INTEGER",
@@ -1719,6 +1725,54 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_ambient_steps_import_cursor_epoch` ON `${TABLE_NAME}` (`collected_data_epoch`, `status`)"
+          }
+        ]
+      },
+      {
+        "tableName": "ambient_steps_import_authority_transition",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`transition_id` TEXT NOT NULL, `registration_generation` INTEGER NOT NULL, `transition_sequence` INTEGER NOT NULL, `provider` TEXT NOT NULL, `source_instance_id` TEXT NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `from_continuity_segment_generation` INTEGER NOT NULL, `to_continuity_segment_generation` INTEGER NOT NULL, `from_authorization_revision` INTEGER NOT NULL, `from_authorization_fingerprint` TEXT NOT NULL, `from_source_policy_revision` INTEGER NOT NULL, `from_ambient_consent_epoch` INTEGER NOT NULL, `to_authorization_revision` INTEGER NOT NULL, `to_authorization_fingerprint` TEXT NOT NULL, `to_authorization_effective_boot_id` TEXT NOT NULL, `to_authorization_effective_elapsed_realtime_nanos` INTEGER NOT NULL, `to_authorization_effective_wall_time_ms` INTEGER NOT NULL, `to_source_policy_revision` INTEGER NOT NULL, `to_ambient_consent_epoch` INTEGER NOT NULL, `registration_accepted_at_ms` INTEGER NOT NULL, `effective_boundary_time_ms` INTEGER NOT NULL, `recorded_at_ms` INTEGER NOT NULL, PRIMARY KEY(`registration_generation`, `transition_sequence`))",
+        "fields": [
+          { "fieldPath": "transitionId", "columnName": "transition_id", "affinity": "TEXT", "notNull": true },
+          { "fieldPath": "registrationGeneration", "columnName": "registration_generation", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "transitionSequence", "columnName": "transition_sequence", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "provider", "columnName": "provider", "affinity": "TEXT", "notNull": true },
+          { "fieldPath": "sourceInstanceId", "columnName": "source_instance_id", "affinity": "TEXT", "notNull": true },
+          { "fieldPath": "collectedDataEpoch", "columnName": "collected_data_epoch", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "fromContinuitySegmentGeneration", "columnName": "from_continuity_segment_generation", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "toContinuitySegmentGeneration", "columnName": "to_continuity_segment_generation", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "fromAuthorizationRevision", "columnName": "from_authorization_revision", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "fromAuthorizationFingerprint", "columnName": "from_authorization_fingerprint", "affinity": "TEXT", "notNull": true },
+          { "fieldPath": "fromSourcePolicyRevision", "columnName": "from_source_policy_revision", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "fromAmbientConsentEpoch", "columnName": "from_ambient_consent_epoch", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "toAuthorizationRevision", "columnName": "to_authorization_revision", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "toAuthorizationFingerprint", "columnName": "to_authorization_fingerprint", "affinity": "TEXT", "notNull": true },
+          { "fieldPath": "toAuthorizationEffectiveBootId", "columnName": "to_authorization_effective_boot_id", "affinity": "TEXT", "notNull": true },
+          { "fieldPath": "toAuthorizationEffectiveElapsedRealtimeNanos", "columnName": "to_authorization_effective_elapsed_realtime_nanos", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "toAuthorizationEffectiveWallTimeMs", "columnName": "to_authorization_effective_wall_time_ms", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "toSourcePolicyRevision", "columnName": "to_source_policy_revision", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "toAmbientConsentEpoch", "columnName": "to_ambient_consent_epoch", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "registrationAcceptedAtMs", "columnName": "registration_accepted_at_ms", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "effectiveBoundaryTimeMs", "columnName": "effective_boundary_time_ms", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "recordedAtMs", "columnName": "recorded_at_ms", "affinity": "INTEGER", "notNull": true }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": ["registration_generation", "transition_sequence"]
+        },
+        "indices": [
+          {
+            "name": "idx_ambient_steps_import_authority_transition_id",
+            "unique": true,
+            "columnNames": ["transition_id"],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_ambient_steps_import_authority_transition_id` ON `${TABLE_NAME}` (`transition_id`)"
+          },
+          {
+            "name": "idx_ambient_steps_import_authority_transition_boundary",
+            "unique": false,
+            "columnNames": ["effective_boundary_time_ms"],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_ambient_steps_import_authority_transition_boundary` ON `${TABLE_NAME}` (`effective_boundary_time_ms`)"
           }
         ]
       },

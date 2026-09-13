@@ -87,6 +87,7 @@ class LegacyV26ImportTest {
 		count(raw, "ambient_steps_fact_revision") shouldBe 0L
 		count(raw, "ambient_steps_import_cursor") shouldBe 0L
 		count(raw, "ambient_steps_import_gap") shouldBe 0L
+		count(raw, "ambient_steps_import_authority_transition") shouldBe 0L
 		count(raw, "pressure_fact_revision") shouldBe 0L
 	}
 

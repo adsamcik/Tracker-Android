@@ -48,6 +48,26 @@ class AmbientStepsImportStateEntitiesTest {
 		).forEach { invalid -> shouldThrow<IllegalArgumentException> { invalid() } }
 	}
 
+	@Test
+	fun `authority transition is an exact non-gap privacy split`() {
+		val transition = authorityTransition()
+
+		transition.effectiveBoundaryTimeMs shouldBe 6_000L
+		listOf<() -> Unit>(
+			{ transition.copy(transitionId = "wrong") },
+			{ transition.copy(toContinuitySegmentGeneration = 3L) },
+			{ transition.copy(toAuthorizationRevision = 3L) },
+			{ transition.copy(effectiveBoundaryTimeMs = 5_000L) },
+			{
+				transition.copy(
+					toAuthorizationFingerprint = transition.fromAuthorizationFingerprint,
+					toSourcePolicyRevision = transition.fromSourcePolicyRevision,
+					toAmbientConsentEpoch = transition.fromAmbientConsentEpoch,
+				)
+			},
+		).forEach { invalid -> shouldThrow<IllegalArgumentException> { invalid() } }
+	}
+
 	private fun cursor() = AmbientStepsImportCursorEntity(
 		registrationGeneration = 7L,
 		provider = PROVIDER,
@@ -71,6 +91,7 @@ class AmbientStepsImportStateEntitiesTest {
 		lastObservedBootId = "boot-a",
 		lastObservedZoneId = "UTC",
 		lastGapSequence = 0L,
+		authorityTransitionSequence = 0L,
 		cursorRevision = 1L,
 		status = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
 		updatedAtMs = 5_000L,
@@ -94,6 +115,37 @@ class AmbientStepsImportStateEntitiesTest {
 		collectedDataEpoch = 6L,
 		recordedAtMs = 7_000L,
 	)
+
+	private fun authorityTransition(): AmbientStepsImportAuthorityTransitionEntity =
+		AmbientStepsImportAuthorityTransitionEntity(
+			transitionId = AmbientStepsImportAuthorityTransitionIntegrity.transitionId(
+				7L,
+				1L,
+				"ambient-instance",
+				6L,
+			),
+			registrationGeneration = 7L,
+			transitionSequence = 1L,
+			provider = PROVIDER,
+			sourceInstanceId = "ambient-instance",
+			collectedDataEpoch = 6L,
+			fromContinuitySegmentGeneration = 1L,
+			toContinuitySegmentGeneration = 2L,
+			fromAuthorizationRevision = 3L,
+			fromAuthorizationFingerprint = "a".repeat(64),
+			fromSourcePolicyRevision = 4L,
+			fromAmbientConsentEpoch = 5L,
+			toAuthorizationRevision = 4L,
+			toAuthorizationFingerprint = "b".repeat(64),
+			toAuthorizationEffectiveBootId = "boot-a",
+			toAuthorizationEffectiveElapsedRealtimeNanos = 6_000_000_000L,
+			toAuthorizationEffectiveWallTimeMs = 5_001L,
+			toSourcePolicyRevision = 8L,
+			toAmbientConsentEpoch = 9L,
+			registrationAcceptedAtMs = 1_001L,
+			effectiveBoundaryTimeMs = 6_000L,
+			recordedAtMs = 8_000L,
+		)
 
 	private fun gapId(
 		reason: String = AmbientStepsImportGapEntity.REASON_PROCESS_ABSENCE,

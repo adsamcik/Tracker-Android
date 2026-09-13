@@ -49,6 +49,7 @@ import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
 import com.adsamcik.tracker.shared.base.database.data.CellSample
@@ -182,6 +183,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			StepInterval::class,
 			StepFactRevisionEntity::class,
 			AmbientStepsFactRevisionEntity::class,
+			AmbientStepsImportAuthorityTransitionEntity::class,
 			AmbientStepsImportCursorEntity::class,
 			AmbientStepsImportGapEntity::class,
 			StepsGoalEffectEntity::class,
@@ -643,6 +645,7 @@ abstract class AppDatabase : RoomDatabase() {
 			// have no previous local epoch and must not resurrect an explicitly deleted run.
 			database.stepFactRevisionDao().deleteAll()
 			database.ambientStepsFactRevisionDao().deleteAll()
+			database.ambientStepsImportStateDao().deleteAllAuthorityTransitions()
 			database.ambientStepsImportStateDao().deleteAllGaps()
 			database.ambientStepsImportStateDao().deleteAllCursors()
 			database.stepsGoalEffectDao().deleteAll()

@@ -11,6 +11,8 @@ import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SE
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapIntegrity
 import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEntity
@@ -102,16 +104,28 @@ class AppDatabaseMigration27To28Test {
 					assertEquals(1L, database.ambientStepsFactRevisionDao().countAll())
 					assertEquals(1L, database.ambientStepsImportStateDao().countCursors())
 					assertEquals(1L, database.ambientStepsImportStateDao().countGaps())
+					assertEquals(1L, database.ambientStepsImportStateDao().countAuthorityTransitions())
 					assertEquals(1L, database.pressureFactRevisionDao().count())
 					assertEquals(1L, database.sourceDeletionFenceDao().countAll())
+				}
+			} finally {
+				database.close()
+			}
+		}
 
+		// Cursor, gap and authority-split evidence must survive a real close/reopen before clear.
+		openProductionDatabase().let { database ->
+			try {
+				runBlocking {
+					assertEquals(1L, database.ambientStepsImportStateDao().countCursors())
+					assertEquals(1L, database.ambientStepsImportStateDao().countGaps())
+					assertEquals(1L, database.ambientStepsImportStateDao().countAuthorityTransitions())
 					AppDatabase.deleteAllCollectedData(
 						database = database,
 						collectedDataEpoch = 8,
 						retainedFromMs = null,
 						updatedAtMs = PopulatedV27Fixture.END_MS + 1,
 					)
-
 					assertCollectedRowsDeleted(database)
 				}
 			} finally {
@@ -119,8 +133,7 @@ class AppDatabaseMigration27To28Test {
 			}
 		}
 
-		// Closing and reopening the actual Room database proves neither migration nor recovery can
-		// resurrect the terminalized runtime or a cascaded location-projection child.
+		// A second reopen proves deletion cannot resurrect any collected or continuity state.
 		openProductionDatabase().let { database ->
 			try {
 				runBlocking {
@@ -700,6 +713,7 @@ class AppDatabaseMigration27To28Test {
 		)
 		assertTableCount(database, "ambient_steps_import_cursor", 0)
 		assertTableCount(database, "ambient_steps_import_gap", 0)
+		assertTableCount(database, "ambient_steps_import_authority_transition", 0)
 		assertIndexColumns(
 			database,
 			"idx_ambient_steps_import_cursor_progress",
@@ -1191,6 +1205,7 @@ class AppDatabaseMigration27To28Test {
 		assertEquals(0L, database.ambientStepsFactRevisionDao().countAll())
 		assertEquals(0L, database.ambientStepsImportStateDao().countCursors())
 		assertEquals(0L, database.ambientStepsImportStateDao().countGaps())
+		assertEquals(0L, database.ambientStepsImportStateDao().countAuthorityTransitions())
 		assertEquals(0L, database.stepsGoalEffectDao().countAll())
 		// Payload-free prior/original portable deletion authority survives full clear and reopen.
 		assertEquals(1L, database.sourceDeletionFenceDao().countAll())
@@ -1314,22 +1329,23 @@ class AppDatabaseMigration27To28Test {
 			registrationClockDomainId = "boot-v28",
 			registrationAcceptedAtMs = 1_001L,
 			registrationAcceptedElapsedRealtimeNanos = 2_000L,
-			authorizationRevision = 1L,
-			authorizationFingerprint = "a".repeat(64),
+			authorizationRevision = 2L,
+			authorizationFingerprint = "b".repeat(64),
 			authorizationEffectiveBootId = "boot-v28",
-			authorizationEffectiveElapsedRealtimeNanos = 2_000L,
-			authorizationEffectiveWallTimeMs = 1_500L,
-			sourcePolicyRevision = 1L,
-			ambientConsentEpoch = 1L,
+			authorizationEffectiveElapsedRealtimeNanos = 6_000_000_000L,
+			authorizationEffectiveWallTimeMs = 5_001L,
+			sourcePolicyRevision = 2L,
+			ambientConsentEpoch = 2L,
 			collectedDataEpoch = 7L,
 			eligibleFromTimeMs = 2_000L,
-			continuitySegmentGeneration = 2L,
+			continuitySegmentGeneration = 3L,
 			segmentStartTimeMs = 6_000L,
 			importedThroughTimeMs = 6_000L,
 			lastObservedAtMs = 7_000L,
 			lastObservedBootId = "boot-v28",
 			lastObservedZoneId = "UTC",
 			lastGapSequence = 1L,
+			authorityTransitionSequence = 1L,
 			cursorRevision = 1L,
 			status = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
 			updatedAtMs = 7_000L,
@@ -1370,6 +1386,41 @@ class AppDatabaseMigration27To28Test {
 					previousZoneId = "UTC",
 					nextZoneId = "UTC",
 					collectedDataEpoch = 7L,
+					recordedAtMs = 7_000L,
+				),
+			) != -1L,
+		)
+
+		val transitionSequence = 1L
+		assertTrue(
+			database.ambientStepsImportStateDao().insertAuthorityTransition(
+				AmbientStepsImportAuthorityTransitionEntity(
+					transitionId = AmbientStepsImportAuthorityTransitionIntegrity.transitionId(
+						1L,
+						transitionSequence,
+						"ambient-migration-instance",
+						7L,
+					),
+					registrationGeneration = 1L,
+					transitionSequence = transitionSequence,
+					provider = provider,
+					sourceInstanceId = "ambient-migration-instance",
+					collectedDataEpoch = 7L,
+					fromContinuitySegmentGeneration = 2L,
+					toContinuitySegmentGeneration = 3L,
+					fromAuthorizationRevision = 1L,
+					fromAuthorizationFingerprint = "a".repeat(64),
+					fromSourcePolicyRevision = 1L,
+					fromAmbientConsentEpoch = 1L,
+					toAuthorizationRevision = 2L,
+					toAuthorizationFingerprint = "b".repeat(64),
+					toAuthorizationEffectiveBootId = "boot-v28",
+					toAuthorizationEffectiveElapsedRealtimeNanos = 6_000_000_000L,
+					toAuthorizationEffectiveWallTimeMs = 5_001L,
+					toSourcePolicyRevision = 2L,
+					toAmbientConsentEpoch = 2L,
+					registrationAcceptedAtMs = 1_001L,
+					effectiveBoundaryTimeMs = 6_000L,
 					recordedAtMs = 7_000L,
 				),
 			) != -1L,

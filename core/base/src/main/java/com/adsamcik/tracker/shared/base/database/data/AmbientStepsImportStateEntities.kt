@@ -55,6 +55,7 @@ data class AmbientStepsImportCursorEntity(
 	@ColumnInfo(name = "last_observed_boot_id") val lastObservedBootId: String,
 	@ColumnInfo(name = "last_observed_zone_id") val lastObservedZoneId: String,
 	@ColumnInfo(name = "last_gap_sequence") val lastGapSequence: Long,
+	@ColumnInfo(name = "authority_transition_sequence") val authorityTransitionSequence: Long,
 	@ColumnInfo(name = "cursor_revision") val cursorRevision: Long,
 	@ColumnInfo(name = "status") val status: String,
 	@ColumnInfo(name = "updated_at_ms") val updatedAtMs: Long,
@@ -82,7 +83,13 @@ data class AmbientStepsImportCursorEntity(
 		) { "Ambient Steps cursor must start at the rounded-forward privacy boundary" }
 		require(continuitySegmentGeneration > 0L)
 		require(lastGapSequence >= 0L)
-		require(continuitySegmentGeneration == lastGapSequence + 1L)
+		require(authorityTransitionSequence >= 0L)
+		require(
+			continuitySegmentGeneration == Math.addExact(
+				Math.addExact(lastGapSequence, authorityTransitionSequence),
+				1L,
+			),
+		)
 		require(segmentStartTimeMs >= eligibleFromTimeMs)
 		require(segmentStartTimeMs % MILLIS_PER_SECOND == 0L)
 		require(importedThroughTimeMs >= segmentStartTimeMs)

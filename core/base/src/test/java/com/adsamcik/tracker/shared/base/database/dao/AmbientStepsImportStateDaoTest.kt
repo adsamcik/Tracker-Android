@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapIntegrity
 import io.kotest.matchers.collections.shouldContainExactly
@@ -45,6 +47,7 @@ class AmbientStepsImportStateDaoTest {
 			expectedCursorRevision = 1L,
 			expectedImportedThroughTimeMs = 4_000L,
 			expectedObservedAtMs = 5_000L,
+			expectedUpdatedAtMs = 5_000L,
 			expectedBootId = "boot-a",
 			expectedZoneId = "UTC",
 			newImportedThroughTimeMs = 6_000L,
@@ -61,6 +64,7 @@ class AmbientStepsImportStateDaoTest {
 			expectedCursorRevision = 1L,
 			expectedImportedThroughTimeMs = 4_000L,
 			expectedObservedAtMs = 5_000L,
+			expectedUpdatedAtMs = 5_000L,
 			expectedBootId = "boot-a",
 			expectedZoneId = "UTC",
 			newImportedThroughTimeMs = 8_000L,
@@ -75,6 +79,7 @@ class AmbientStepsImportStateDaoTest {
 			expectedCursorRevision = 2L,
 			expectedImportedThroughTimeMs = 6_000L,
 			expectedObservedAtMs = 7_000L,
+			expectedUpdatedAtMs = 7_000L,
 			expectedBootId = "boot-a",
 			expectedZoneId = "UTC",
 			newImportedThroughTimeMs = 5_000L,
@@ -92,6 +97,8 @@ class AmbientStepsImportStateDaoTest {
 			expectedLastGapSequence = 0L,
 			expectedCursorRevision = 2L,
 			expectedImportedThroughTimeMs = 6_000L,
+			expectedObservedAtMs = 7_000L,
+			expectedUpdatedAtMs = 7_000L,
 			newLastGapSequence = 1L,
 			newContinuitySegmentGeneration = 2L,
 			newSegmentStartTimeMs = 8_000L,
@@ -111,13 +118,83 @@ class AmbientStepsImportStateDaoTest {
 	}
 
 	@Test
+	fun `same registration rotates authority at one exact non-gap boundary`() = runTest {
+		val initial = cursor().copy(importedThroughTimeMs = 6_000L, lastObservedAtMs = 7_000L, updatedAtMs = 7_000L)
+		dao.insertCursor(initial) shouldBe 1L
+		val transition = authorityTransition()
+		dao.insertAuthorityTransition(transition) shouldBe 1L
+
+		dao.rotateAuthorityExact(
+			registrationGeneration = 7L,
+			expectedContinuitySegmentGeneration = 1L,
+			expectedLastGapSequence = 0L,
+			expectedAuthorityTransitionSequence = 0L,
+			expectedCursorRevision = 1L,
+			expectedObservedAtMs = 7_000L,
+			expectedUpdatedAtMs = 7_000L,
+			newAuthorityTransitionSequence = 1L,
+			newContinuitySegmentGeneration = 2L,
+			newAuthorizationRevision = 4L,
+			newAuthorizationFingerprint = "b".repeat(64),
+			newAuthorizationEffectiveBootId = "boot-a",
+			newAuthorizationEffectiveElapsedRealtimeNanos = 6_000_000_000L,
+			newAuthorizationEffectiveWallTimeMs = 5_001L,
+			newSourcePolicyRevision = 8L,
+			newAmbientConsentEpoch = 9L,
+			effectiveBoundaryTimeMs = 6_000L,
+			newObservedAtMs = 8_000L,
+			newCursorRevision = 2L,
+			updatedAtMs = 8_000L,
+		) shouldBe 1
+
+		val rotated = requireNotNull(dao.cursor(7L))
+		rotated.continuitySegmentGeneration shouldBe 2L
+		rotated.lastGapSequence shouldBe 0L
+		rotated.authorityTransitionSequence shouldBe 1L
+		rotated.eligibleFromTimeMs shouldBe 6_000L
+		rotated.segmentStartTimeMs shouldBe 6_000L
+		rotated.importedThroughTimeMs shouldBe 6_000L
+		rotated.authorizationRevision shouldBe 4L
+		rotated.sourcePolicyRevision shouldBe 8L
+		rotated.ambientConsentEpoch shouldBe 9L
+		dao.authorityTransitions(7L) shouldContainExactly listOf(transition)
+	}
+
+	@Test
+	fun `same high water requires a strictly newer observation and monotonic update time`() = runTest {
+		dao.insertCursor(cursor()) shouldBe 1L
+		suspend fun advance(observedAtMs: Long, updatedAtMs: Long): Int =
+			dao.advanceExact(
+				registrationGeneration = 7L,
+				expectedContinuitySegmentGeneration = 1L,
+				expectedLastGapSequence = 0L,
+				expectedCursorRevision = 1L,
+				expectedImportedThroughTimeMs = 4_000L,
+				expectedObservedAtMs = 5_000L,
+				expectedUpdatedAtMs = 5_000L,
+				expectedBootId = "boot-a",
+				expectedZoneId = "UTC",
+				newImportedThroughTimeMs = 4_000L,
+				newObservedAtMs = observedAtMs,
+				newCursorRevision = 2L,
+				updatedAtMs = updatedAtMs,
+			)
+
+		advance(observedAtMs = 5_000L, updatedAtMs = 5_000L) shouldBe 0
+		advance(observedAtMs = 6_000L, updatedAtMs = 4_999L) shouldBe 0
+		advance(observedAtMs = 6_000L, updatedAtMs = 6_000L) shouldBe 1
+	}
+
+	@Test
 	fun `retired cursor cannot advance and full clear removes cursor and gaps`() = runTest {
 		dao.insertCursor(cursor())
 		dao.insertGap(gap())
+		dao.insertAuthorityTransition(authorityTransition())
 		dao.retireExact(
 			registrationGeneration = 7L,
 			expectedCursorRevision = 1L,
 			expectedImportedThroughTimeMs = 4_000L,
+			expectedUpdatedAtMs = 5_000L,
 			newCursorRevision = 2L,
 			updatedAtMs = 8_000L,
 		) shouldBe 1
@@ -128,6 +205,7 @@ class AmbientStepsImportStateDaoTest {
 			expectedCursorRevision = 2L,
 			expectedImportedThroughTimeMs = 4_000L,
 			expectedObservedAtMs = 5_000L,
+			expectedUpdatedAtMs = 8_000L,
 			expectedBootId = "boot-a",
 			expectedZoneId = "UTC",
 			newImportedThroughTimeMs = 6_000L,
@@ -136,9 +214,11 @@ class AmbientStepsImportStateDaoTest {
 			updatedAtMs = 8_000L,
 		) shouldBe 0
 
+		dao.deleteAllAuthorityTransitions()
 		dao.deleteAllGaps()
 		dao.deleteAllCursors()
 		dao.countGaps() shouldBe 0L
+		dao.countAuthorityTransitions() shouldBe 0L
 		dao.countCursors() shouldBe 0L
 	}
 
@@ -165,10 +245,42 @@ class AmbientStepsImportStateDaoTest {
 		lastObservedBootId = "boot-a",
 		lastObservedZoneId = "UTC",
 		lastGapSequence = 0L,
+		authorityTransitionSequence = 0L,
 		cursorRevision = 1L,
 		status = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
 		updatedAtMs = 5_000L,
 	)
+
+	private fun authorityTransition(): AmbientStepsImportAuthorityTransitionEntity =
+		AmbientStepsImportAuthorityTransitionEntity(
+			transitionId = AmbientStepsImportAuthorityTransitionIntegrity.transitionId(
+				registrationGeneration = 7L,
+				transitionSequence = 1L,
+				sourceInstanceId = "ambient-instance",
+				collectedDataEpoch = 6L,
+			),
+			registrationGeneration = 7L,
+			transitionSequence = 1L,
+			provider = PROVIDER,
+			sourceInstanceId = "ambient-instance",
+			collectedDataEpoch = 6L,
+			fromContinuitySegmentGeneration = 1L,
+			toContinuitySegmentGeneration = 2L,
+			fromAuthorizationRevision = 3L,
+			fromAuthorizationFingerprint = "a".repeat(64),
+			fromSourcePolicyRevision = 4L,
+			fromAmbientConsentEpoch = 5L,
+			toAuthorizationRevision = 4L,
+			toAuthorizationFingerprint = "b".repeat(64),
+			toAuthorizationEffectiveBootId = "boot-a",
+			toAuthorizationEffectiveElapsedRealtimeNanos = 6_000_000_000L,
+			toAuthorizationEffectiveWallTimeMs = 5_001L,
+			toSourcePolicyRevision = 8L,
+			toAmbientConsentEpoch = 9L,
+			registrationAcceptedAtMs = 1_001L,
+			effectiveBoundaryTimeMs = 6_000L,
+			recordedAtMs = 8_000L,
+		)
 
 	private fun gap(): AmbientStepsImportGapEntity {
 		val id = AmbientStepsImportGapIntegrity.gapId(
