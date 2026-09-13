@@ -360,21 +360,17 @@ internal object WifiHistoryComposer {
 		val recomputed = runCatching { SourceBrokerAuthorization.rows(WIFI_SOURCE, wal.registrationGeneration,
 			requireNotNull(wal.authorizationRevision), exactDemands, first.effectiveBootId,
 			first.effectiveElapsedRealtimeNanos, first.effectiveWallTimeMs) }.getOrNull()
-		val member = exact.any { !it.isDenyAll && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+		val captureMemberCount = exact.count {
+			!it.isDenyAll && it.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
 			it.persistenceEligible && it.logicalTrackingId == wal.logicalTrackingId &&
 			it.serviceRunId == wal.serviceRunId && it.manifestRevision == wal.sessionManifestRevision &&
 			it.lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration &&
-			it.sourcePolicyRevision == wal.sourcePolicyRevision && it.consentEpoch == wal.captureConsentEpoch }
-		val contractsMatch = exactDemands.all { demand ->
-			demand.sourceKind == WIFI_SOURCE && demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
-				demand.persistenceEligible && demand.logicalTrackingId == wal.logicalTrackingId &&
-				demand.serviceRunId == wal.serviceRunId && demand.manifestRevision == wal.sessionManifestRevision &&
-				demand.lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration &&
-				demand.sourcePolicyRevision == wal.sourcePolicyRevision && demand.consentEpoch == wal.captureConsentEpoch &&
-				demand.requestedBootId == wal.clockDomainId && demand.minimumAcquisitionSpec == WIFI_BROADCAST_FLOOR &&
-				demand.requestedDeliveryLatencyMs == null && plan.maximumAgeMs <= demand.maximumAgeMs
+			it.sourcePolicyRevision == wal.sourcePolicyRevision && it.consentEpoch == wal.captureConsentEpoch
 		}
-		return providerEnd > first.effectiveElapsedRealtimeNanos && member && contractsMatch &&
+		val contractsMatch = exactDemands.all { demand ->
+			demand.hasCompatibleWifiPhysicalContract(plan, wal.clockDomainId)
+		}
+		return providerEnd > first.effectiveElapsedRealtimeNanos && captureMemberCount == 1 && contractsMatch &&
 			demandIds.distinct().size == demandIds.size && exactDemands.size == demandIds.size &&
 			recomputed?.sortedBy(SourceAuthorizationEntity::memberId) == exact.sortedBy(SourceAuthorizationEntity::memberId)
 	}
@@ -596,7 +592,7 @@ internal object WifiHistoryComposer {
 		if (demandIds.distinct().size != demandIds.size || exactDemands.size != demandIds.size ||
 			recomputed?.sortedBy(SourceAuthorizationEntity::memberId) != exact.sortedBy(SourceAuthorizationEntity::memberId)
 		) return false
-		val memberMatches = exact.any { row -> !row.isDenyAll &&
+		val captureMemberCount = exact.count { row -> !row.isDenyAll &&
 			row.purpose == SourceBrokerPurpose.SESSION_CAPTURE && row.persistenceEligible &&
 			row.logicalTrackingId == fact.logicalTrackingId && row.serviceRunId == fact.serviceRunId &&
 			row.manifestRevision == fact.manifestRevision &&
@@ -609,17 +605,18 @@ internal object WifiHistoryComposer {
 			.minWithOrNull(compareBy(SourceAuthorizationEntity::effectiveElapsedRealtimeNanos,
 				SourceAuthorizationEntity::authorizationRevision))?.effectiveElapsedRealtimeNanos ?: Long.MAX_VALUE
 		val contractsMatch = exactDemands.all { demand ->
-			demand.sourceKind == WIFI_SOURCE && demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
-				demand.persistenceEligible && demand.logicalTrackingId == fact.logicalTrackingId &&
-				demand.serviceRunId == fact.serviceRunId && demand.manifestRevision == fact.manifestRevision &&
-				demand.lifecycleLeaseGeneration == fact.lifecycleLeaseGeneration &&
-				demand.sourcePolicyRevision == fact.sourcePolicyRevision &&
-				demand.consentEpoch == fact.captureConsentEpoch && demand.requestedBootId == fact.clockDomainId &&
-				demand.minimumAcquisitionSpec == WIFI_BROADCAST_FLOOR &&
-				demand.requestedDeliveryLatencyMs == null && plan.maximumAgeMs <= demand.maximumAgeMs
+			demand.hasCompatibleWifiPhysicalContract(plan, fact.clockDomainId)
 		}
-		return memberMatches && contractsMatch && minOf(providerEnd, next) == fact.authorizationEffectEndNanos
+		return captureMemberCount == 1 && contractsMatch &&
+			minOf(providerEnd, next) == fact.authorizationEffectEndNanos
 	}
+
+	private fun SourceDemandEntity.hasCompatibleWifiPhysicalContract(
+		plan: WifiPlanEvidence,
+		clockDomainId: String,
+	): Boolean = sourceKind == WIFI_SOURCE && requestedBootId == clockDomainId &&
+		minimumAcquisitionSpec == WIFI_BROADCAST_FLOOR && requestedDeliveryLatencyMs == null &&
+		plan.maximumAgeMs <= maximumAgeMs
 
 	private fun LifecycleDesiredActionEntity.authenticates(
 		fact: WifiCapturedFactRevisionEntity,

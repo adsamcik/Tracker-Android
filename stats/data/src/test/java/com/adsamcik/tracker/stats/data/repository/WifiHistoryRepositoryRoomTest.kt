@@ -312,6 +312,53 @@ class WifiHistoryRepositoryRoomTest {
 		entry.state shouldBe WifiHistoryProductState.READY
 	}
 
+	@Test
+	fun `compatible shared authorization member does not steal captured fact ownership`() = runTest {
+		val group = withAdditionalAuthorizationMember(
+			buildGroup(240, 1, setOf(0)),
+			compatible = true,
+		)
+		persist(listOf(group))
+
+		val entry = (repository { true }.recent(1) as WifiHistoryPage.Available).entries.single()
+
+		entry.state shouldBe WifiHistoryProductState.READY
+		entry.observations shouldHaveSize 1
+		group.runs.single().authorizations
+			.filter { authorization -> authorization.authorizationRevision == 1L } shouldHaveSize 2
+	}
+
+	@Test
+	fun `incompatible shared authorization member fails product authority closed`() = runTest {
+		val group = withAdditionalAuthorizationMember(
+			buildGroup(241, 1, setOf(0)),
+			compatible = false,
+		)
+		persist(listOf(group))
+
+		assertRecentWriterFailure()
+	}
+
+	@Test
+	fun `pending WAL authenticates compatible shared members and rejects incompatible ones`() = runTest {
+		val compatible = withAdditionalAuthorizationMember(
+			buildGroup(242, 1, emptySet(), active = true),
+			compatible = true,
+		)
+		persist(listOf(compatible))
+		val materializing = (repository { true }.recent(1) as WifiHistoryPage.Available).entries.single()
+		materializing.state shouldBe WifiHistoryProductState.MATERIALIZING
+
+		database.close()
+		setUp()
+		val incompatible = withAdditionalAuthorizationMember(
+			buildGroup(243, 1, emptySet(), active = true),
+			compatible = false,
+		)
+		persist(listOf(incompatible))
+		assertRecentWriterFailure()
+	}
+
 	private fun repository(authority: () -> Boolean) = DefaultWifiHistoryRepository(
 		database, SourceProductLaneExecutionAuthority { authority() }, UnconfinedTestDispatcher(),
 	)
@@ -491,6 +538,69 @@ class WifiHistoryRepositoryRoomTest {
 			first.copy(provider = sharedProvider, demands = emptyList(), authorizations = emptyList()),
 			laterWithSharedRegistration,
 		))
+	}
+
+	private fun withAdditionalAuthorizationMember(
+		group: Group,
+		compatible: Boolean,
+	): Group {
+		require(group.runs.size == 1)
+		val built = group.runs.single()
+		val capture = built.demands.single()
+		val shared = capture.copy(
+			demandId = "${capture.demandId}-shared-control",
+			consumerId = "wifi-control",
+			purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			manifestRevision = null,
+			lifecycleLeaseGeneration = null,
+			persistenceEligible = false,
+			minimumAcquisitionSpec = if (compatible) {
+				"wifi:v1:required=BROADCAST_CALLBACK"
+			} else {
+				"wifi:v1:required=ACTIVE_SCAN"
+			},
+		)
+		val demands = listOf(capture, shared)
+		val authorization = SourceBrokerAuthorization.rows(
+			WIFI_SOURCE,
+			requireNotNull(built.provider).registrationGeneration,
+			1L,
+			demands,
+			BOOT_ID,
+			built.manifest.effectiveElapsedRealtimeNanos,
+			built.manifest.effectiveWallTimeMs,
+		)
+		val first = authorization.first()
+		val facts = built.facts.map { fact ->
+			val unsigned = fact.copy(
+				authorizationFingerprint = first.authorizationFingerprint,
+				purposeEligibilityMask = first.purposeEligibilityMask,
+				effectChecksum = ZERO_SHA,
+			)
+			unsigned.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(unsigned))
+		}
+		val current = facts.groupBy(WifiCapturedFactRevisionEntity::logicalFactId)
+			.values.map { lineage -> lineage.maxBy(WifiCapturedFactRevisionEntity::semanticRevision) }
+		val admissions = built.admissions.map { wal ->
+			val unsigned = wal.copy(
+				authorizationFingerprint = first.authorizationFingerprint,
+				authorizationPurposeEligibilityMask = first.purposeEligibilityMask,
+				integrityIdentity = SourceEventWalEntity.LEGACY_PENDING_CHECKSUM,
+			)
+			unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
+		}
+		val updated = built.copy(
+			demands = demands,
+			authorizations = authorization + built.authorizations.filter { row ->
+				row.authorizationRevision != 1L
+			},
+			facts = facts,
+			cursors = current.map(::cursor),
+			admissions = admissions,
+		)
+		return group.copy(runs = listOf(updated))
 	}
 
 	@Suppress("LongMethod")
