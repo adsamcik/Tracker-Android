@@ -130,6 +130,9 @@ internal object SourceDemandContractFactory {
 		qosCode: Int,
 		purpose: DirectSourceDemandPurpose,
 	): SourceDemandContract {
+		require(source != SourceKind.PRESSURE || purpose == DirectSourceDemandPurpose.SESSION_CAPTURE) {
+			"Pressure supports direct session capture demand only"
+		}
 		val effectiveQos = when {
 			qosCode in 1..3 -> qosCode
 			qosCode == 0 && purpose != DirectSourceDemandPurpose.SESSION_CAPTURE -> 1
