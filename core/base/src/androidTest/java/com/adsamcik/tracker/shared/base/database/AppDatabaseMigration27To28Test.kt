@@ -1260,6 +1260,7 @@ class AppDatabaseMigration27To28Test {
 			provider = provider,
 			registrationGeneration = 1L,
 			continuitySegmentGeneration = 1L,
+			sourceInstanceId = "ambient-migration-instance",
 			windowStartTimeMs = 1_000L,
 			structuralEpochDay = 0L,
 			storedZoneId = "UTC",

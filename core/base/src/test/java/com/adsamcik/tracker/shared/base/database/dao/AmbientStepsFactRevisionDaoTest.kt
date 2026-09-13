@@ -91,6 +91,7 @@ class AmbientStepsFactRevisionDaoTest {
 			provider,
 			1L,
 			1L,
+			"ambient-instance",
 			startTimeMs,
 			0L,
 			"UTC",

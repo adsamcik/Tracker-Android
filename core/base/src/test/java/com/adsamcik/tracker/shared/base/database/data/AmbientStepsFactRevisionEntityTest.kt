@@ -29,6 +29,20 @@ class AmbientStepsFactRevisionEntityTest {
 				provider = requireNotNull(original.provider),
 				registrationGeneration = requireNotNull(original.registrationGeneration),
 				continuitySegmentGeneration = 2L,
+				sourceInstanceId = requireNotNull(original.sourceInstanceId),
+				windowStartTimeMs = requireNotNull(original.windowStartTimeMs),
+				structuralEpochDay = requireNotNull(original.structuralEpochDay),
+				storedZoneId = requireNotNull(original.storedZoneId),
+				collectedDataEpoch = original.collectedDataEpoch,
+			) == original.logicalFactId
+		) shouldBe false
+		(
+			AmbientStepsFactIntegrity.logicalFactId(
+				provider = requireNotNull(original.provider),
+				registrationGeneration = requireNotNull(original.registrationGeneration),
+				continuitySegmentGeneration =
+					requireNotNull(original.continuitySegmentGeneration),
+				sourceInstanceId = "another-opaque-instance",
 				windowStartTimeMs = requireNotNull(original.windowStartTimeMs),
 				structuralEpochDay = requireNotNull(original.structuralEpochDay),
 				storedZoneId = requireNotNull(original.storedZoneId),
@@ -48,6 +62,8 @@ class AmbientStepsFactRevisionEntityTest {
 			{ fact.copy(provider = null) },
 			{ fact.copy(registrationGeneration = 0L) },
 			{ fact.copy(continuitySegmentGeneration = 0L) },
+			{ fact.copy(sourceInstanceId = "another-opaque-instance") },
+			{ fact.copy(mutationId = "sha256:${"0".repeat(64)}") },
 			{ fact.copy(authorizationRevision = null) },
 			{ fact.copy(windowEndTimeMs = fact.windowStartTimeMs) },
 			{ fact.copy(stepCount = null) },
@@ -104,6 +120,7 @@ class AmbientStepsFactRevisionEntityTest {
 			provider,
 			2L,
 			1L,
+			"ambient-instance",
 			1_000L,
 			0L,
 			"UTC",

@@ -83,6 +83,13 @@ data class AmbientStepsFactRevisionEntity(
 		require(writerVersion == WRITER_VERSION)
 		require(writerOwnerGeneration > 0L)
 		require(operation in OPERATIONS)
+		require(
+			mutationId == AmbientStepsFactIntegrity.mutationId(
+				logicalFactId,
+				semanticRevision,
+				operation,
+			),
+		) { "Ambient Steps mutation identity does not match its fact revision" }
 		require(originKind in ORIGIN_KINDS)
 		require(purpose == PURPOSE_AMBIENT_PRODUCT)
 		require(collectedDataEpoch >= 0L)
@@ -120,6 +127,18 @@ data class AmbientStepsFactRevisionEntity(
 		require(sourcePolicyRevision != null && sourcePolicyRevision > 0L)
 		require(ambientConsentEpoch != null && ambientConsentEpoch >= 0L)
 		require(appliedAtMs >= observedAtMs)
+		require(
+			logicalFactId == AmbientStepsFactIntegrity.logicalFactId(
+				provider = requireNotNull(provider),
+				registrationGeneration = requireNotNull(registrationGeneration),
+				continuitySegmentGeneration = requireNotNull(continuitySegmentGeneration),
+				sourceInstanceId = requireNotNull(sourceInstanceId),
+				windowStartTimeMs = requireNotNull(windowStartTimeMs),
+				structuralEpochDay = requireNotNull(structuralEpochDay),
+				storedZoneId = requireNotNull(storedZoneId),
+				collectedDataEpoch = collectedDataEpoch,
+			),
+		) { "Ambient Steps logical fact identity does not match its origin segment" }
 
 		val zone = ZoneId.of(storedZoneId)
 		val date = LocalDate.ofEpochDay(structuralEpochDay)
