@@ -96,6 +96,21 @@ interface ActivityCapturedFactDao {
 		logicalWindowId: String,
 	): ActivityCapturedWindowCursorEntity?
 
+	/** Oldest exact band wall authority across the append-only lineage for retention fencing. */
+	@Query(
+		"SELECT MIN(CASE WHEN start_wall_time_ms <= end_wall_time_ms " +
+			"THEN start_wall_time_ms ELSE end_wall_time_ms END) " +
+			"FROM activity_captured_fragment " +
+			"WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion " +
+			"AND logical_window_id = :logicalWindowId AND fragment_kind = 'BAND'",
+	)
+	suspend fun earliestBandWallTimeMs(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		logicalWindowId: String,
+	): Long?
+
 	@Query(
 		"UPDATE activity_captured_window_cursor SET " +
 			"latest_semantic_revision = :newSemanticRevision, " +

@@ -18,6 +18,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
@@ -25,6 +26,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
+import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
@@ -222,6 +224,78 @@ class ActivityCapturedFactWriterTest {
 		(result is ActivityCapturedWriteResult.Applied) shouldBe true
 	}
 
+	@Test
+	fun `captured evidence must resolve to an exact durable WAL admission`() = runTest {
+		seedAuthority(insertWalEvidence = false)
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `durable WAL receipt time must match captured evidence`() = runTest {
+		seedAuthority(walReceivedElapsedRealtimeNanos = 211L)
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `durable WAL provider time must match captured evidence`() = runTest {
+		seedAuthority(walObservedElapsedRealtimeNanos = 201L)
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `durable WAL source sequence must match captured evidence`() = runTest {
+		seedAuthority(walSourceSequence = 2L)
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `derived wall boundaries must retain their exact durable WAL anchor`() = runTest {
+		seedAuthority(walWallTimeMs = 1_999L)
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `all-gap correction cannot supersede a retained prior lineage`() = runTest {
+		seedAuthority()
+		val subject = ActivityCapturedFactWriter(database)
+		subject.write(ActivityCapturedWriteCommand.Captured(capturedWindow()))
+		database.sourceEvidenceStateDao().updateLifecycle(
+			epoch = 0L,
+			retainedFromMs = 2_050L,
+			updatedAtMs = 3_000L,
+		) shouldBe 1
+
+		subject.write(
+			ActivityCapturedWriteCommand.Captured(allGapCorrection()),
+		) shouldBe ActivityCapturedWriteResult.Rejected(ActivityCapturedWriteRejection.RETAINED_DATA)
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+	}
+
 	private suspend fun seedAuthority(
 		sourcePolicyRevision: Long = 1L,
 		consentPolicyRevision: Long = sourcePolicyRevision,
@@ -230,6 +304,11 @@ class ActivityCapturedFactWriterTest {
 		manifestZoneId: String = "Europe/Prague",
 		runDesiredPlanRevision: Long = 1L,
 		corruptDesiredChecksum: Boolean = false,
+		insertWalEvidence: Boolean = true,
+		walSourceSequence: Long = 1L,
+		walObservedElapsedRealtimeNanos: Long = 200L,
+		walReceivedElapsedRealtimeNanos: Long = 210L,
+		walWallTimeMs: Long = 2_000L,
 	) {
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
 		database.sourceDestinationOwnerDao().insertIfAbsent(
@@ -350,6 +429,15 @@ class ActivityCapturedFactWriterTest {
 		database.sourceBrokerDao().insertAuthorizations(
 			listOf(activityAuthorization(sourcePolicyRevision)),
 		)
+		if (insertWalEvidence) {
+			insertActivityWal(
+				sourcePolicyRevision = sourcePolicyRevision,
+				sourceSequence = walSourceSequence,
+				observedElapsedRealtimeNanos = walObservedElapsedRealtimeNanos,
+				receivedElapsedRealtimeNanos = walReceivedElapsedRealtimeNanos,
+				wallTimeMs = walWallTimeMs,
+			)
+		}
 	}
 
 	private suspend fun insertManifest(sourcePolicyRevision: Long, zoneId: String) {
@@ -525,6 +613,52 @@ class ActivityCapturedFactWriterTest {
 		lifecycleLeaseGeneration = 1L,
 	)
 
+	private suspend fun insertActivityWal(
+		sourcePolicyRevision: Long,
+		sourceSequence: Long,
+		observedElapsedRealtimeNanos: Long,
+		receivedElapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	) {
+		val unsigned = SourceEventWalEntity(
+			admissionOrdinal = 1L,
+			eventId = "activity-event-1",
+			providerDedupKey = "activity-provider-event-1",
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = SERVICE_RUN_ID,
+			sourceKind = SourceKind.ACTIVITY.stableCode,
+			sourceInstanceId = SOURCE_INSTANCE_ID,
+			registrationGeneration = 1L,
+			physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
+			authorizationRevision = 1L,
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			authorizationFingerprint = AUTHORIZATION_FINGERPRINT,
+			sourceSequence = sourceSequence,
+			configRevision = 1L,
+			planAttribution = PlanAttribution.CAPTURED_REGISTRATION.ordinal,
+			clockDomainId = BOOT_ID,
+			observedElapsedNanos = observedElapsedRealtimeNanos,
+			receivedElapsedNanos = receivedElapsedRealtimeNanos,
+			wallTimeMs = wallTimeMs,
+			wallTimeUncertaintyMs = 25L,
+			capturedCollectedDataEpoch = 0L,
+			sourcePolicyRevision = sourcePolicyRevision,
+			captureConsentEpoch = 0L,
+			sessionManifestRevision = 1L,
+			lifecycleLeaseGeneration = 1L,
+			acquiredAtMs = 2_000L,
+			qualityFlags = 0L,
+			qualityConfidence = 0.90f,
+			payloadVersion = 1,
+			payload = byteArrayOf(1, 2, 3),
+			payloadChecksum = "",
+			createdAtMs = 2_000L,
+		)
+		val checksummed = unsigned.copy(payloadChecksum = unsigned.calculatedPayloadChecksum())
+		val qualified = checksummed.copy(integrityIdentity = checksummed.calculatedIntegrityIdentity())
+		database.sourceEventWalDao().insertIgnoringDuplicate(qualified)
+	}
+
 	private fun capturedWindow(
 		semanticRevision: Long = 1L,
 		supersedes: Long? = null,
@@ -550,7 +684,7 @@ class ActivityCapturedFactWriterTest {
 			intervalEndExclusiveElapsedRealtimeNanos = bandEnd,
 			wallTimeRange = ActivityDerivedWallTimeRange(
 				startInclusive = boundary(reference, 2_000L, ActivityWallTimeBoundaryKind.EXACT_PROVIDER_OBSERVATION),
-				endExclusive = boundary(reference, 2_100L, ActivityWallTimeBoundaryKind.SAME_CLOCK_EXTRAPOLATION),
+				endExclusive = boundary(reference, 2_000L, ActivityWallTimeBoundaryKind.SAME_CLOCK_EXTRAPOLATION),
 				continuity = ActivityWallTimeContinuity.SAME_ANCHOR,
 			),
 			activity = CapturedActivityType.WALKING,
@@ -571,13 +705,32 @@ class ActivityCapturedFactWriterTest {
 		)
 	}
 
+	private fun allGapCorrection(): ActivityCapturedWindow {
+		val authority = captureAuthority()
+		val mutation = ActivityCapturedWindowMutation(
+			identity = ActivityCapturedWindowIdentity(authority, 200L, 400L),
+			semanticRevision = 2L,
+			supersedesSemanticRevision = 1L,
+		)
+		return ActivityCapturedWindow(
+			mutation = mutation,
+			bands = emptyList(),
+			gaps = listOf(
+				ActivityCoverageGap(200L, 400L, ActivityCoverageGapReason.NO_QUALIFIED_EVIDENCE),
+			),
+			exactDuplicateCount = 0,
+			semanticDuplicateCount = 0,
+			unchangedEvidenceCount = 0,
+		)
+	}
+
 	private fun boundary(
 		reference: ActivityCapturedObservationReference,
 		wallTimeMs: Long,
 		kind: ActivityWallTimeBoundaryKind,
 	) = ActivityDerivedWallTimeBoundary(
 		wallTimeMs = wallTimeMs,
-		uncertaintyMs = 25L,
+		uncertaintyMs = if (kind == ActivityWallTimeBoundaryKind.EXACT_PROVIDER_OBSERVATION) 25L else 26L,
 		authority = ActivityWallTimeDerivationAuthority(
 			kind = kind,
 			anchorSourceEventId = reference.sourceEventId,

@@ -11,9 +11,11 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
+import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
@@ -43,6 +45,7 @@ internal enum class ActivityCapturedWriteRejection {
 	ACQUISITION_CONFIGURATION_MISMATCH,
 	PROVIDER_AUTHORITY_MISMATCH,
 	AUTHORIZATION_AUTHORITY_MISMATCH,
+	SOURCE_EVENT_PROVENANCE_MISMATCH,
 	REVISION_CHAIN_MISMATCH,
 	IDENTITY_COLLISION,
 	CURSOR_CHANGED,
@@ -274,9 +277,7 @@ internal class ActivityCapturedFactWriter(
 		if (expectedRunEnd != authority.temporalAuthority.sessionRunEffect.endExclusiveNanos
 		) reject(ActivityCapturedWriteRejection.SERVICE_RUN_MISMATCH)
 
-		if (state.retainedFromMs?.let { retainedFrom ->
-			window.bands.any { band -> band.wallTimeRange.startInclusive.wallTimeMs < retainedFrom }
-		} == true) reject(ActivityCapturedWriteRejection.RETAINED_DATA)
+		requireExactDurableEvidence(window)
 
 		val mapped = ActivityCapturedPersistence.map(
 			window,
@@ -285,6 +286,20 @@ internal class ActivityCapturedFactWriter(
 			manifest.effectiveWallTimeMs,
 		)
 		val dao = database.activityCapturedFactDao()
+		if (state.retainedFromMs?.let { retainedFrom ->
+			val currentWallAuthority = mapped.fragments.asSequence()
+				.flatMap { fragment ->
+					sequenceOf(fragment.startWallTimeMs, fragment.endWallTimeMs).filterNotNull()
+				}
+				.minOrNull()
+			val priorWallAuthority = dao.earliestBandWallTimeMs(
+				WRITER_ID,
+				WRITER_VERSION,
+				mapped.revision.logicalWindowId,
+			)
+			listOfNotNull(currentWallAuthority, priorWallAuthority).minOrNull()
+				?.let { authoritativeStart -> authoritativeStart < retainedFrom } ?: true
+		} == true) reject(ActivityCapturedWriteRejection.RETAINED_DATA)
 		val existing = dao.revision(WRITER_ID, WRITER_VERSION, mapped.revision.logicalWindowId,
 			mapped.revision.semanticRevision)
 		if (existing != null) {
@@ -366,6 +381,31 @@ internal class ActivityCapturedFactWriter(
 		)
 	}
 
+	private suspend fun requireExactDurableEvidence(window: ActivityCapturedWindow) {
+		val authority = window.authority
+		val walDao = database.sourceEventWalDao()
+		val walByEventId = mutableMapOf<String, SourceEventWalEntity>()
+		for (band in window.bands) {
+			for (reference in band.evidence) {
+				val eventId = reference.sourceEventId.value
+				val wal = walByEventId[eventId] ?: walDao.getByEventId(eventId)
+					?: reject(ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH)
+				if (!wal.matches(reference, authority)) {
+					reject(ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH)
+				}
+				walByEventId[eventId] = wal
+			}
+			if (!band.wallTimeRange.startInclusive.matchesWalAnchor(
+					band.intervalStartElapsedRealtimeNanos,
+					walByEventId,
+				) || !band.wallTimeRange.endExclusive.matchesWalAnchor(
+					band.intervalEndExclusiveElapsedRealtimeNanos,
+					walByEventId,
+				)
+			) reject(ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH)
+		}
+	}
+
 	private fun reject(reason: ActivityCapturedWriteRejection): Nothing =
 		throw ActivityCapturedWriteRejectedException(reason)
 
@@ -381,6 +421,58 @@ internal class ActivityCapturedFactWriter(
 			SourceApplyStatus.DEGRADED.name,
 		)
 	}
+}
+
+private fun SourceEventWalEntity.matches(
+	reference: ActivityCapturedObservationReference,
+	authority: ActivityCaptureAuthority,
+): Boolean = hasQualifiedIntegrity() &&
+	eventId == reference.sourceEventId.value && admissionOrdinal == reference.admissionOrdinal &&
+	logicalTrackingId == authority.logicalTrackingId.value &&
+	serviceRunId == authority.serviceRunId.value && sourceKind == SourceKind.ACTIVITY.stableCode &&
+	sourceInstanceId == authority.sourceInstanceId.value &&
+	registrationGeneration == authority.registrationGeneration &&
+	physicalConfigurationFingerprint == authority.physicalConfigurationFingerprint &&
+	authorizationRevision == authority.authorizationRevision &&
+	authorizationPurposeEligibilityMask == authority.purposeEligibilityMask &&
+	authorizationFingerprint == authority.authorizationFingerprint &&
+	sourceSequence == reference.sourceSequence && configRevision == authority.configurationRevision &&
+	planAttribution == PlanAttribution.CAPTURED_REGISTRATION.ordinal &&
+	clockDomainId == authority.clockDomainId &&
+	observedElapsedNanos == reference.providerElapsedRealtimeNanos &&
+	receivedElapsedNanos == reference.receivedElapsedRealtimeNanos &&
+	observedElapsedNanos in authority.temporalAuthority.capturedIntersection &&
+	capturedCollectedDataEpoch == authority.collectedDataEpoch &&
+	sourcePolicyRevision == authority.sourcePolicyRevision &&
+	captureConsentEpoch == authority.captureConsentEpoch &&
+	sessionManifestRevision == authority.sessionManifestRevision &&
+	lifecycleLeaseGeneration == authority.lifecycleLeaseGeneration
+
+private fun ActivityDerivedWallTimeBoundary.matchesWalAnchor(
+	boundaryElapsedRealtimeNanos: Long,
+	walByEventId: Map<String, SourceEventWalEntity>,
+): Boolean {
+	val wal = walByEventId[authority.anchorSourceEventId.value] ?: return false
+	val anchorWallTimeMs = wal.wallTimeMs ?: return false
+	val anchorUncertaintyMs = wal.wallTimeUncertaintyMs ?: return false
+	if (authority.anchorProviderElapsedRealtimeNanos != wal.observedElapsedNanos) return false
+	val deltaNanos = runCatching {
+		Math.subtractExact(boundaryElapsedRealtimeNanos, wal.observedElapsedNanos)
+	}.getOrNull() ?: return false
+	val deltaMs = deltaNanos / NANOS_PER_MILLISECOND
+	val expectedWallTimeMs = runCatching { Math.addExact(anchorWallTimeMs, deltaMs) }
+		.getOrNull() ?: return false
+	val roundingUncertaintyMs = if (deltaNanos % NANOS_PER_MILLISECOND == 0L) 0L else 1L
+	val expectedUncertaintyMs = runCatching {
+		Math.addExact(anchorUncertaintyMs, roundingUncertaintyMs)
+	}.getOrNull() ?: return false
+	val expectedKind = if (deltaNanos == 0L) {
+		ActivityWallTimeBoundaryKind.EXACT_PROVIDER_OBSERVATION
+	} else {
+		ActivityWallTimeBoundaryKind.SAME_CLOCK_EXTRAPOLATION
+	}
+	return authority.kind == expectedKind && wallTimeMs == expectedWallTimeMs &&
+		uncertaintyMs == expectedUncertaintyMs
 }
 
 private fun SessionManifestSourceEntity.isExactCandidate(
@@ -737,3 +829,5 @@ private data class PersistableFragment(
 private class ActivityCapturedWriteRejectedException(
 	val reason: ActivityCapturedWriteRejection,
 ) : IllegalStateException(reason.name)
+
+private const val NANOS_PER_MILLISECOND = 1_000_000L
