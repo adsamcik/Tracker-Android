@@ -96,6 +96,26 @@ interface SourceEventWalDao {
 		deliveryIdentity: String,
 	): List<SourceDeliveryUnitIdentityRow>
 
+	/**
+	 * Bounded full-unit read for source adapters that must authenticate a provider delivery.
+	 *
+	 * Payloads are included because the covering identity projection cannot prove the source-native
+	 * delivery checksum. Callers request one overflow row and reject truncated or partial results.
+	 */
+	@Query(
+		"SELECT * FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND captured_collected_data_epoch = :collectedDataEpoch " +
+			"AND clock_domain_id = :clockDomainId AND delivery_identity = :deliveryIdentity " +
+			"ORDER BY delivery_unit_index ASC LIMIT :limit",
+	)
+	suspend fun deliveryEvents(
+		sourceKind: Int,
+		collectedDataEpoch: Long,
+		clockDomainId: String,
+		deliveryIdentity: String,
+		limit: Int,
+	): List<SourceEventWalEntity>
+
 	@Query(
 		"SELECT * FROM source_event_wal WHERE admission_ordinal > :afterOrdinal " +
 			"ORDER BY admission_ordinal ASC LIMIT :limit",
