@@ -55,33 +55,52 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 	): List<HistoricalStepsAwarePageEntry> {
 		validatePageRequest(candidateSegmentIds, limit)
 		return database.withTransaction {
-			val candidateSegments = if (candidateSegmentIds.isEmpty()) {
-				emptyList()
-			} else {
-				database.trackingHistoryReadDao().segments(candidateSegmentIds)
-			}
-			val candidateLogicalIds = candidateSegments.mapNotNull { segment ->
-				segment.logicalTrackingId?.takeIf(String::isNotBlank)
-			}.distinct()
-			val candidateGroups = loadLogicalMemberEvidence(candidateLogicalIds).toTrackingEntries()
-			val suppressedCandidateIds = candidateGroups.values
-				.filter(HistoricalTrackingEntryEvidence::hasExactStepsOnlyIntent)
-				.flatMapTo(hashSetOf()) { entry ->
-					entry.physicalMembers.map { member -> member.segment.id }
-				}
-
-			val physicalRows = candidateSegments
-				.filterNot { segment -> segment.id in suppressedCandidateIds }
-				.map(HistoricalStepsAwarePageEntry::Physical)
-			val stepsOnlyRows = selectRecentEntriesInTransaction(
-				limit = limit,
-				accept = HistoricalTrackingEntryEvidence::isContainedStepsOnlyEntry,
-			).map(HistoricalStepsAwarePageEntry::StepsOnly)
-
-			(physicalRows + stepsOnlyRows)
-				.sortedWith(stepsAwarePageOrder)
-				.take(limit)
+			selectRecentStepsAwarePageInTransaction(candidateSegmentIds, limit)
 		}
+	}
+
+	/** Caller must hold the Room transaction that defines the complete consumer snapshot. */
+	internal suspend fun selectRecentStepsAwarePageInTransaction(
+		candidateSegmentIds: List<Long>,
+		limit: Int,
+	): List<HistoricalStepsAwarePageEntry> {
+		return selectRecentStepsAwareCandidatesInTransaction(candidateSegmentIds, limit)
+			.take(limit)
+	}
+
+	/**
+	 * Returns every bounded physical candidate plus the newest [sourceOnlyLimit] Steps-only rows.
+	 * A wider multi-source compositor applies its own final limit only after all source rows merge.
+	 */
+	internal suspend fun selectRecentStepsAwareCandidatesInTransaction(
+		candidateSegmentIds: List<Long>,
+		sourceOnlyLimit: Int,
+	): List<HistoricalStepsAwarePageEntry> {
+		validatePageRequest(candidateSegmentIds, sourceOnlyLimit)
+		val candidateSegments = if (candidateSegmentIds.isEmpty()) {
+			emptyList()
+		} else {
+			database.trackingHistoryReadDao().segments(candidateSegmentIds)
+		}
+		val candidateLogicalIds = candidateSegments.mapNotNull { segment ->
+			segment.logicalTrackingId?.takeIf(String::isNotBlank)
+		}.distinct()
+		val candidateGroups = loadLogicalMemberEvidence(candidateLogicalIds).toTrackingEntries()
+		val suppressedCandidateIds = candidateGroups.values
+			.filter(HistoricalTrackingEntryEvidence::hasExactStepsOnlyIntent)
+			.flatMapTo(hashSetOf()) { entry ->
+				entry.physicalMembers.map { member -> member.segment.id }
+			}
+
+		val physicalRows = candidateSegments
+			.filterNot { segment -> segment.id in suppressedCandidateIds }
+			.map(HistoricalStepsAwarePageEntry::Physical)
+		val stepsOnlyRows = selectRecentEntriesInTransaction(
+			limit = sourceOnlyLimit,
+			accept = HistoricalTrackingEntryEvidence::isContainedStepsOnlyEntry,
+		).map(HistoricalStepsAwarePageEntry::StepsOnly)
+
+		return (physicalRows + stepsOnlyRows).sortedWith(stepsAwarePageOrder)
 	}
 
 	@Suppress("CyclomaticComplexMethod")

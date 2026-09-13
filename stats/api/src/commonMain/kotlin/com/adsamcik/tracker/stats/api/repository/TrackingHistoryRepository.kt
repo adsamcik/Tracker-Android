@@ -40,6 +40,20 @@ interface TrackingHistoryRepository {
 		limit: Int,
 	): Flow<List<StepsAwareHistoryPageEntry>>
 
+	/**
+	 * Observe one finite recent-history page with exact Steps-only and Pressure-only replacement.
+	 *
+	 * A physical row is suppressed for Pressure only when the complete logical manifest union is
+	 * exactly Pressure and retained source-local history authority makes that logical entry ordinarily
+	 * discoverable. Legacy, mixed, corrupt, and otherwise unverifiable candidates remain physical.
+	 * Implementations compose the three row kinds in one bounded snapshot; opaque source-only keys do
+	 * not grant physical detail, deletion, map, or export authority.
+	 */
+	fun observeRecentPressureAwarePage(
+		candidateSegmentIds: List<Long>,
+		limit: Int,
+	): Flow<List<PressureAwareHistoryPageEntry>>
+
 	/** Observe source-qualified Pressure history for one exact physical session segment. */
 	fun observePressureSession(segmentId: Long): Flow<PressureSessionHistoryQuery>
 
@@ -179,6 +193,33 @@ sealed interface StepsAwareHistoryPageEntry {
 	data class StepsOnly(
 		val history: StepsOnlyHistoryEntry,
 	) : StepsAwareHistoryPageEntry
+}
+
+/**
+ * One row in a finite Pressure-aware history page.
+ *
+ * Physical rows only echo caller-supplied ids. Source-only rows expose opaque logical identities;
+ * they intentionally retain no selectable physical run identity.
+ */
+sealed interface PressureAwareHistoryPageEntry {
+	/** A caller-supplied candidate that remains eligible for existing Trip presentation. */
+	data class Physical(
+		val segmentId: Long,
+	) : PressureAwareHistoryPageEntry {
+		init {
+			require(segmentId > 0L) { "Physical history candidate id must be positive" }
+		}
+	}
+
+	/** An opaque, non-selectable exact Steps-only logical row. */
+	data class StepsOnly(
+		val history: StepsOnlyHistoryEntry,
+	) : PressureAwareHistoryPageEntry
+
+	/** An opaque, non-selectable exact Pressure-only logical row. */
+	data class PressureOnly(
+		val history: PressureOnlyHistoryEntry,
+	) : PressureAwareHistoryPageEntry
 }
 
 /** Policy/capability availability, independent of acquisition and product progress. */

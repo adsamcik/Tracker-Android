@@ -23,6 +23,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessE
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
+import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
@@ -91,6 +92,39 @@ class PressureHistorySelectorTest {
 		recent.single().state shouldBe PressureHistoryPresentationState.READY
 		recent.single().pressure.windows.size shouldBe 2
 		recent.single().pressure.zoneAuthorities shouldBe linkedSetOf("Europe/Prague", "UTC")
+	}
+
+	@Test
+	fun pressureAwarePageReplacesCompleteDiscoverableLogicalGroupOnce() = runTest {
+		val first = insertFixture(factSemanticRevision = 1L, laneCursor = 2L)
+		val replacement = insertReplacementFixture()
+		val repository = pressureAwareRepository()
+
+		val page = repository.observeRecentPressureAwarePage(
+			candidateSegmentIds = listOf(first.segmentId, replacement.segmentId),
+			limit = 10,
+		).first()
+
+		page.size shouldBe 1
+		val pressureOnly = page.single() as PressureAwareHistoryPageEntry.PressureOnly
+		pressureOnly.history.key.toString() shouldBe "TrackingHistoryEntryKey"
+		pressureOnly.history.startTime.raw shouldBe RUN_START_MS
+		pressureOnly.history.endTime.raw shouldBe REPLACEMENT_RUN_END_MS
+		pressureOnly.history.pressure.windows.size shouldBe 2
+		pressureOnly.history.state shouldBe PressureHistoryPresentationState.READY
+	}
+
+	@Test
+	fun pressureAwarePageKeepsUnqualifiedExactIntentPhysical() = runTest {
+		val fixture = insertFixture(factSemanticRevision = null, laneCursor = 0L)
+		val repository = pressureAwareRepository()
+
+		val page = repository.observeRecentPressureAwarePage(
+			candidateSegmentIds = listOf(fixture.segmentId),
+			limit = 10,
+		).first()
+
+		page shouldBe listOf(PressureAwareHistoryPageEntry.Physical(fixture.segmentId))
 	}
 
 	@Test
@@ -1390,6 +1424,17 @@ class PressureHistorySelectorTest {
 			lane.projectionId == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID &&
 			lane.projectionVersion == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION &&
 			lane.captureModeMask == MANUAL_CAPTURE_MASK
+	}
+
+	private fun pressureAwareRepository(): DefaultTrackingHistoryRepository {
+		val stepsSelector = StepsSegmentHistorySelector(database, executableLaneAuthority())
+		return DefaultTrackingHistoryRepository(
+			database = database,
+			stepsSelector = stepsSelector,
+			logicalHistoryReader = LogicalTrackingHistoryReader(database, stepsSelector),
+			pressureSelector = selector,
+			ioDispatcher = Dispatchers.IO,
+		)
 	}
 
 	private data class PressureFixture(

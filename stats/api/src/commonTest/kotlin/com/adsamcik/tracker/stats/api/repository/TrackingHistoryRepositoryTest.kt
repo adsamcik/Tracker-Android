@@ -143,6 +143,26 @@ class TrackingHistoryRepositoryTest {
 	}
 
 	@Test
+	fun `Pressure-aware page keeps source-only identities opaque and physical echoes explicit`() {
+		val pressure = PressureOnlyHistoryEntry(
+			key = TrackingHistoryEntryKey("pressure:logical:one"),
+			startTime = EpochMs(100L),
+			endTime = EpochMs(200L),
+			pressure = unavailablePressureHistory(),
+		)
+
+		val logicalRow = PressureAwareHistoryPageEntry.PressureOnly(pressure)
+		assertEquals("TrackingHistoryEntryKey", logicalRow.history.key.toString())
+		assertEquals(
+			PressureAwareHistoryPageEntry.Physical(7L),
+			PressureAwareHistoryPageEntry.Physical(7L),
+		)
+		assertFailsWith<IllegalArgumentException> {
+			PressureAwareHistoryPageEntry.Physical(0L)
+		}
+	}
+
+	@Test
 	fun `covered zero remains distinct from missing evidence`() {
 		val history = StepsHistory(
 			count = 0L,
@@ -275,5 +295,14 @@ class TrackingHistoryRepositoryTest {
 		evidence = HistoryEvidence.RECORDED,
 		productState = HistoryProductState.READY,
 		coverage = StepsHistoryCoverage.COMPLETE,
+	)
+
+	private fun unavailablePressureHistory() = PressureHistory(
+		availability = HistoryAvailability.UNAVAILABLE,
+		evidence = HistoryEvidence.NONE,
+		productState = HistoryProductState.DEGRADED,
+		coverage = PressureHistoryCoverage.UNKNOWN,
+		windows = emptyList(),
+		causes = setOf(PressureHistoryCause.LEGACY_UNATTRIBUTED),
 	)
 }

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
@@ -10,6 +11,7 @@ import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistory
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
@@ -77,6 +79,52 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 	}
 
 	@OptIn(ExperimentalCoroutinesApi::class)
+	override fun observeRecentPressureAwarePage(
+		candidateSegmentIds: List<Long>,
+		limit: Int,
+	): Flow<List<PressureAwareHistoryPageEntry>> {
+		validatePressureAwarePageRequest(candidateSegmentIds, limit)
+		val stableCandidateSegmentIds = candidateSegmentIds.toList()
+		return historyInvalidations().mapLatest {
+			database.withTransaction {
+				val existingRows = logicalHistoryReader.selectRecentStepsAwareCandidatesInTransaction(
+					candidateSegmentIds = stableCandidateSegmentIds,
+					sourceOnlyLimit = limit,
+				)
+				val acceptedCandidatePressureGroups = pressureSelector
+					.selectLogicalBySegmentIdsInTransaction(stableCandidateSegmentIds)
+					.filter { entry ->
+						entry.hasExactPressureOnlyIntent && entry.isOrdinarilyDiscoverable
+					}
+				val suppressedPhysicalIds = acceptedCandidatePressureGroups.flatMapTo(hashSetOf()) {
+					entry -> entry.physicalMembers.map { member -> member.segment.id }
+				}
+				val pressureOnlyRows = pressureSelector
+					.discoverRecentPressureOnlyByPressureFactsInTransaction(limit)
+					.mapNotNull { entry ->
+						entry.toPublicPressureOnlyEntryOrNull()?.let { public ->
+							HistoricalPressureAwarePageEntry.PressureOnly(entry, public)
+						}
+					}
+				val retainedExistingRows = existingRows.mapNotNull { entry ->
+					when (entry) {
+						is HistoricalStepsAwarePageEntry.Physical -> entry.takeUnless {
+							it.segment.id in suppressedPhysicalIds
+						}?.let(HistoricalPressureAwarePageEntry::Existing)
+						is HistoricalStepsAwarePageEntry.StepsOnly ->
+							HistoricalPressureAwarePageEntry.Existing(entry)
+					}
+				}
+				(retainedExistingRows + pressureOnlyRows)
+					.sortedWith(pressureAwarePageOrder)
+					.take(limit)
+					.map(HistoricalPressureAwarePageEntry::toPublicPageEntry)
+			}
+		}.distinctUntilChanged()
+			.flowOn(ioDispatcher)
+	}
+
+	@OptIn(ExperimentalCoroutinesApi::class)
 	override fun observePressureSession(segmentId: Long): Flow<PressureSessionHistoryQuery> {
 		require(segmentId > 0L) { "Pressure session segment id must be positive" }
 		return historyInvalidations().mapLatest {
@@ -120,6 +168,25 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		}
 	}
 
+	private fun validatePressureAwarePageRequest(
+		candidateSegmentIds: List<Long>,
+		limit: Int,
+	) {
+		require(candidateSegmentIds.size <= MAX_RECENT_PRESSURE_ENTRY_COUNT) {
+			"Physical history candidate count cannot exceed $MAX_RECENT_PRESSURE_ENTRY_COUNT"
+		}
+		require(candidateSegmentIds.all { it > 0L }) {
+			"Physical history candidate ids must be positive"
+		}
+		require(candidateSegmentIds.distinct().size == candidateSegmentIds.size) {
+			"Physical history candidate ids must be distinct"
+		}
+		require(limit in 1..MAX_RECENT_PRESSURE_ENTRY_COUNT) {
+			"Recent Pressure-aware history limit must be between 1 and " +
+				MAX_RECENT_PRESSURE_ENTRY_COUNT
+		}
+	}
+
 	private fun historyInvalidations() = database.invalidationTracker.createFlow(
 		SESSION_SEGMENT_TABLE,
 		SERVICE_RUN_TABLE,
@@ -155,6 +222,44 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		const val SESSION_COMPLETENESS_TABLE = "source_session_completeness"
 	}
 }
+
+private sealed interface HistoricalPressureAwarePageEntry {
+	val recencyStartTimeMs: Long
+	val recencySegmentId: Long
+
+	data class Existing(
+		val entry: HistoricalStepsAwarePageEntry,
+	) : HistoricalPressureAwarePageEntry {
+		override val recencyStartTimeMs: Long get() = entry.recencyStartTimeMs
+		override val recencySegmentId: Long get() = entry.recencySegmentId
+	}
+
+	data class PressureOnly(
+		val entry: PressureLogicalHistoryEntry,
+		val public: PressureOnlyHistoryEntry,
+	) : HistoricalPressureAwarePageEntry {
+		override val recencyStartTimeMs: Long
+			get() = entry.physicalMembers.maxOf { member -> member.segment.startTimeMs }
+		override val recencySegmentId: Long
+			get() = entry.physicalMembers.maxOf { member -> member.segment.id }
+	}
+}
+
+private val pressureAwarePageOrder =
+	compareByDescending<HistoricalPressureAwarePageEntry> { it.recencyStartTimeMs }
+		.thenByDescending { it.recencySegmentId }
+
+private fun HistoricalPressureAwarePageEntry.toPublicPageEntry(): PressureAwareHistoryPageEntry =
+	when (this) {
+		is HistoricalPressureAwarePageEntry.Existing -> when (val existing = entry) {
+			is HistoricalStepsAwarePageEntry.Physical ->
+				PressureAwareHistoryPageEntry.Physical(existing.segment.id)
+			is HistoricalStepsAwarePageEntry.StepsOnly ->
+				PressureAwareHistoryPageEntry.StepsOnly(existing.history.toPublicStepsOnlyEntry())
+		}
+		is HistoricalPressureAwarePageEntry.PressureOnly ->
+			PressureAwareHistoryPageEntry.PressureOnly(public)
+	}
 
 private fun HistoricalSegmentEvidence.toPublicSessionHistory() = SessionHistory(
 	segmentId = segment.id,
@@ -195,7 +300,7 @@ internal fun TrackingSourceComponent.toPublicSource(): HistorySource = when (thi
 private fun List<HistoricalTrackingEntryEvidence>.mapToPublicStepsOnlyEntries() =
 	map(HistoricalTrackingEntryEvidence::toPublicStepsOnlyEntry)
 
-private fun HistoricalTrackingEntryEvidence.toPublicStepsOnlyEntry(): StepsOnlyHistoryEntry {
+internal fun HistoricalTrackingEntryEvidence.toPublicStepsOnlyEntry(): StepsOnlyHistoryEntry {
 	check(isContainedStepsOnlyEntry) { "Steps-only reader returned a non-Steps-only entry" }
 	val logicalIdentity = identity as? HistoricalEntryIdentity.Logical
 		?: error("Exact Steps-only entry requires logical identity")

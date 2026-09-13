@@ -49,13 +49,20 @@ internal class PressureHistorySelector @Inject constructor(
 	internal suspend fun selectLogicalBySegmentIds(
 		segmentIds: List<Long>,
 	): List<PressureLogicalHistoryEntry> = database.withTransaction {
+		selectLogicalBySegmentIdsInTransaction(segmentIds)
+	}
+
+	/** Caller must hold the Room transaction defining this logical-membership snapshot. */
+	internal suspend fun selectLogicalBySegmentIdsInTransaction(
+		segmentIds: List<Long>,
+	): List<PressureLogicalHistoryEntry> {
 		val distinctIds = segmentIds.distinct()
-		if (distinctIds.isEmpty()) return@withTransaction emptyList()
+		if (distinctIds.isEmpty()) return emptyList()
 		require(distinctIds.size <= PRESSURE_HISTORY_SEGMENT_BATCH_CAP) {
 			"At most $PRESSURE_HISTORY_SEGMENT_BATCH_CAP Pressure history rows may be selected"
 		}
 		val seeds = database.trackingHistoryReadDao().segments(distinctIds)
-		selectLogicalFromSeedsInTransaction(seeds)
+		return selectLogicalFromSeedsInTransaction(seeds)
 	}
 
 	/**
@@ -87,6 +94,13 @@ internal class PressureHistorySelector @Inject constructor(
 	internal suspend fun discoverRecentPressureOnlyByPressureFacts(
 		limit: Int,
 	): List<PressureLogicalHistoryEntry> = database.withTransaction {
+		discoverRecentPressureOnlyByPressureFactsInTransaction(limit)
+	}
+
+	/** Caller must hold the Room transaction defining discovery and complete membership expansion. */
+	internal suspend fun discoverRecentPressureOnlyByPressureFactsInTransaction(
+		limit: Int,
+	): List<PressureLogicalHistoryEntry> {
 		require(limit in 1..PRESSURE_HISTORY_SEGMENT_BATCH_CAP)
 		val accepted = linkedMapOf<PressureHistoryEntryIdentity, PressureLogicalHistoryEntry>()
 		var beforeLogicalRecencyStartMs: Long? = null
@@ -133,7 +147,7 @@ internal class PressureHistorySelector @Inject constructor(
 			if (candidates.size < pageLimit) break
 		}
 
-		accepted.values.sortedWith(compareByDescending<PressureLogicalHistoryEntry> { entry ->
+		return accepted.values.sortedWith(compareByDescending<PressureLogicalHistoryEntry> { entry ->
 			entry.physicalMembers.maxOf { it.segment.startTimeMs }
 		}.thenByDescending { entry ->
 			entry.physicalMembers.maxOf { it.segment.id }
