@@ -26,7 +26,6 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
-import com.adsamcik.tracker.tracker.source.model.sourceQualityFromStableFlags
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.time.ZoneId
@@ -60,7 +59,9 @@ internal enum class LocationWalAdapterRejection {
 	SEGMENT_MISMATCH,
 	INVALID_STORED_ZONE,
 	DELETED_EVIDENCE,
+	RETAINED_EVIDENCE,
 	TEMPORAL_AUTHORITY_UNVERIFIABLE,
+	MOCK_PROVENANCE_UNVERIFIABLE,
 }
 
 internal sealed interface LocationWalAdapterResult {
@@ -76,8 +77,10 @@ internal sealed interface LocationWalAdapterResult {
  *
  * The adapter accepts only an event identity. Every provider value and every authority field is
  * recovered and authenticated in one Room snapshot; no caller can supply a fix or a mutable
- * latest-plan pointer. It deliberately returns a command without persisting it, so the established
- * Location writer remains the sole canonical writer.
+ * latest-plan pointer. Retained v1 rows terminate in a typed mock-provenance rejection because
+ * their payload did not store that immutable provider flag. A later fully attributable payload may
+ * return a command, but this adapter never persists it, so the established Location writer remains
+ * the sole canonical writer.
  */
 internal class LocationWalQualificationAdapter @Inject constructor(
 	private val database: AppDatabase,
@@ -95,6 +98,9 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		if (!wal.hasQualifiedIntegrity()) {
 			return@withTransaction rejected(LocationWalAdapterRejection.WAL_INTEGRITY_MISMATCH)
 		}
+		if (wal.sourceSequence <= 0L || wal.sourceSequence > MAX_DURABLE_SOURCE_SEQUENCE) {
+			return@withTransaction rejected(LocationWalAdapterRejection.SOURCE_SEQUENCE_MISMATCH)
+		}
 		val sequenceRow = walDao.getBySourceSequence(
 			LOCATION_SOURCE,
 			wal.sourceInstanceId,
@@ -109,6 +115,13 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		val deliveryIdentity = wal.deliveryIdentity?.let { value ->
 			runCatching { SourceDeliveryIdentity(value) }.getOrNull()
 		} ?: return@withTransaction rejected(LocationWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
+		val deliveryUnitIndex = wal.deliveryUnitIndex
+		val deliveryUnitCount = wal.deliveryUnitCount
+		if (deliveryUnitIndex == null || deliveryUnitCount == null ||
+			deliveryUnitIndex !in 0 until deliveryUnitCount
+		) {
+			return@withTransaction rejected(LocationWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
+		}
 		val delivery = walDao.deliveryEvents(
 			sourceKind = LOCATION_SOURCE,
 			collectedDataEpoch = wal.capturedCollectedDataEpoch,
@@ -121,11 +134,12 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		}
 		val decodedDelivery = decodeAndAuthenticateDelivery(delivery, wal)
 			?: return@withTransaction rejected(LocationWalAdapterRejection.MALFORMED_DELIVERY)
+		if (decodedDelivery.getOrNull(deliveryUnitIndex)?.wal != wal) {
+			return@withTransaction rejected(LocationWalAdapterRejection.MALFORMED_DELIVERY)
+		}
 		if (sourceDeliveryIdentity(canonicalDeliveryBytes(decodedDelivery)).value != deliveryIdentity.value) {
 			return@withTransaction rejected(LocationWalAdapterRejection.DELIVERY_IDENTITY_MISMATCH)
 		}
-		val payload = decodedDelivery[requireNotNull(wal.deliveryUnitIndex)].payload
-
 		val configRevision = wal.configRevision
 		val policyRevision = wal.sourcePolicyRevision
 		val consentEpoch = wal.captureConsentEpoch
@@ -228,12 +242,15 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		) {
 			return@withTransaction rejected(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
 		}
+		val nextAuthorization = brokerDao.nextAuthorizationRevision(
+			LOCATION_SOURCE,
+			wal.registrationGeneration,
+			authorization.authorizationRevision,
+		).toAuthorizationSnapshotOrNull()
 		val authorizationEnd = authorizationEndExclusive(
 			registration.retiredElapsedRealtimeNanos ?: Long.MAX_VALUE,
 			authorization,
-			brokerDao.latestAuthorization(LOCATION_SOURCE, wal.registrationGeneration)
-				.toAuthorizationSnapshotOrNull(),
-			wal.registrationGeneration,
+			nextAuthorization,
 		)
 			?: return@withTransaction rejected(LocationWalAdapterRejection.AUTHORIZATION_MISMATCH)
 
@@ -365,7 +382,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		}.getOrNull() ?: return@withTransaction rejected(
 			LocationWalAdapterRejection.TEMPORAL_AUTHORITY_UNVERIFIABLE,
 		)
-		val authority = runCatching {
+		runCatching {
 			LocationCaptureAuthority(
 				logicalTrackingId = LogicalTrackingId(logicalTrackingId),
 				serviceRunId = ServiceRunId(serviceRunId),
@@ -401,48 +418,22 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		val wallTime = wal.wallTimeMs
 		val wallUncertainty = wal.wallTimeUncertaintyMs
 		val knownQualityMask = SourceQualityFlag.entries.fold(0L) { mask, flag -> mask or flag.bit }
-		if (wallTime == null || wallUncertainty == null || wal.qualityFlags and knownQualityMask != wal.qualityFlags ||
+		if (wallTime == null || wallUncertainty == null || wallUncertainty < 0L ||
+			wal.qualityFlags and knownQualityMask != wal.qualityFlags ||
 			wal.qualityConfidence?.let { confidence -> !confidence.isFinite() || confidence !in 0f..1f } == true
 		) {
 			return@withTransaction rejected(LocationWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
 		}
-		val evidence = LocationDurableObservationEvidence(
-			sourceEventId = eventId,
-			sourceAdmissionOrdinal = wal.admissionOrdinal,
-			walIntegrityIdentity = wal.integrityIdentity,
-			sourceDeliveryIdentity = deliveryIdentity,
-			deliveryUnitIndex = requireNotNull(wal.deliveryUnitIndex),
-			deliveryUnitCount = requireNotNull(wal.deliveryUnitCount),
-			capturedAuthority = authority,
-			clockAuthority = LocationDurableClockAuthority(
-				clockDomainId = wal.clockDomainId,
-				observedElapsedRealtimeNanos = wal.observedElapsedNanos,
-				receivedElapsedRealtimeNanos = wal.receivedElapsedNanos,
-				observedWallTimeMs = wallTime,
-				wallTimeUncertaintyMs = wallUncertainty,
-			),
-			payloadVersion = wal.payloadVersion,
-			payload = payload,
-			quality = sourceQualityFromStableFlags(wal.qualityFlags, wal.qualityConfidence),
-			// Canonical Location WAL payload v1 has no mock bit. This false value describes that
-			// exact format rather than inferring a later mutable platform state.
-			isMock = false,
-		)
-		LocationWalAdapterResult.Evaluated(
-			LocationQualifiedObservationQualifier.qualify(
-				input = LocationObservationInput(
-					origin = LocationObservationOrigin.PROVIDER_CALLBACK,
-					outcome = LocationProviderOutcome.FIX,
-					attemptedAuthority = authority,
-					durableEvidence = evidence,
-				),
-				expectedAuthority = authority,
-				currentDeletionAuthority = LocationDeletionAuthority(
-					currentCollectedDataEpoch = evidenceState.collectedDataEpoch,
-					retainedFromWallTimeMs = evidenceState.retainedFromMs,
-				),
-			),
-		)
+		val earliestPossibleWallTimeMs = if (wallTime < wallUncertainty) 0L else wallTime - wallUncertainty
+		if (evidenceState.retainedFromMs?.let { retainedFrom ->
+			earliestPossibleWallTimeMs < retainedFrom
+		} == true) {
+			return@withTransaction rejected(LocationWalAdapterRejection.RETAINED_EVIDENCE)
+		}
+		// Retained Location WAL payload v1 does not carry the platform mock-provider bit. Supplying
+		// `false` would manufacture immutable evidence, so this dormant bridge must stop here until a
+		// future canonical payload version persists that provenance explicitly.
+		return@withTransaction rejected(LocationWalAdapterRejection.MOCK_PROVENANCE_UNVERIFIABLE)
 	}
 
 	private fun decodeAndAuthenticateDelivery(
@@ -450,13 +441,20 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		target: SourceEventWalEntity,
 	): List<DecodedLocationDeliveryUnit>? {
 		val declaredCount = target.deliveryUnitCount ?: return null
-		if (declaredCount !in 1..MAX_LOCATION_DELIVERY_UNITS || delivery.size != declaredCount ||
+		val targetIndex = target.deliveryUnitIndex ?: return null
+		if (declaredCount !in 1..MAX_LOCATION_DELIVERY_UNITS || targetIndex !in 0 until declaredCount ||
+			delivery.size != declaredCount ||
 			delivery.mapNotNull(SourceEventWalEntity::deliveryUnitIndex) != delivery.indices.toList()
 		) return null
 		val firstSequence = delivery.first().sourceSequence
-		return delivery.mapIndexed { index, row ->
+		val lastSequence = runCatching {
+			Math.addExact(firstSequence, declaredCount.toLong() - 1L)
+		}.getOrNull() ?: return null
+		if (firstSequence <= 0L || lastSequence > MAX_DURABLE_SOURCE_SEQUENCE) return null
+		val decoded = delivery.mapIndexed { index, row ->
 			if (!row.hasQualifiedIntegrity() || row.deliveryUnitCount != declaredCount ||
 				row.deliveryIdentity != target.deliveryIdentity || row.sourceKind != LOCATION_SOURCE ||
+				row.providerDedupKey != null || row.admissionOrdinal <= 0L ||
 				row.sourceInstanceId != target.sourceInstanceId ||
 				row.registrationGeneration != target.registrationGeneration ||
 				row.physicalConfigurationFingerprint != target.physicalConfigurationFingerprint ||
@@ -469,6 +467,10 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 				row.captureConsentEpoch != target.captureConsentEpoch ||
 				row.sessionManifestRevision != target.sessionManifestRevision ||
 				row.lifecycleLeaseGeneration != target.lifecycleLeaseGeneration ||
+				row.capturedCollectedDataEpoch != target.capturedCollectedDataEpoch ||
+				row.clockDomainId != target.clockDomainId || row.activityAutomationEpoch != null ||
+				row.observedIntervalStartNanos != row.observedElapsedNanos ||
+				row.receivedElapsedNanos < row.observedElapsedNanos ||
 				row.wallTimeMs == null || row.wallTimeUncertaintyMs == null ||
 				row.wallTimeUncertaintyMs !in 0L..1L ||
 				row.sourceSequence != runCatching { Math.addExact(firstSequence, index.toLong()) }.getOrNull()
@@ -483,23 +485,16 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 			) return null
 			DecodedLocationDeliveryUnit(row, payload)
 		}
+		return decoded.takeIf { units -> units[targetIndex].wal == target }
 	}
 
-	private suspend fun authorizationEndExclusive(
+	private fun authorizationEndExclusive(
 		registrationEnd: Long,
 		authorization: SourceAuthorizationSnapshot,
-		latest: SourceAuthorizationSnapshot?,
-		registrationGeneration: Long,
+		next: SourceAuthorizationSnapshot?,
 	): Long? {
-		if (latest == null || latest.authorizationRevision < authorization.authorizationRevision) return null
-		if (latest.authorizationRevision == authorization.authorizationRevision) return registrationEnd
-		val nextRevision = runCatching { Math.addExact(authorization.authorizationRevision, 1L) }.getOrNull()
-			?: return null
-		val next = database.sourceBrokerDao().authorizationRevision(
-			LOCATION_SOURCE,
-			registrationGeneration,
-			nextRevision,
-		).toAuthorizationSnapshotOrNull() ?: return null
+		if (next == null) return registrationEnd
+		if (next.authorizationRevision <= authorization.authorizationRevision) return null
 		if (next.effectiveBootId != authorization.effectiveBootId ||
 			next.effectiveElapsedRealtimeNanos < authorization.effectiveElapsedRealtimeNanos
 		) return null
@@ -551,6 +546,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		const val LOCATION_SOURCE = 1
 		const val PLAN_PAYLOAD_VERSION = 1
 		const val MAX_LOCATION_DELIVERY_UNITS = 256
+		const val MAX_DURABLE_SOURCE_SEQUENCE = Long.MAX_VALUE - 1L
 		const val MAX_MANIFESTS_PER_RUN = 256
 		const val MAX_MANIFEST_SOURCE_ROWS = 4_096
 		const val LOCATION_DELIVERY_MAGIC = 0x4c4f4342

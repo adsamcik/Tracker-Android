@@ -30,7 +30,6 @@ import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
-import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
@@ -38,7 +37,6 @@ import com.adsamcik.tracker.tracker.source.model.toStableFlags
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import kotlin.test.assertEquals
-import kotlin.test.assertIs
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -68,18 +66,13 @@ class LocationWalQualificationAdapterTest {
 	}
 
 	@Test
-	fun `exact location-only WAL and historical authority produce a read-only qualified command`() = runTest {
+	fun `canonical location WAL remains typed unverifiable without durable mock provenance`() = runTest {
 		installValidFixture()
 
-		val result = assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
-		val command = assertIs<LocationObservationQualification.Qualified>(result.qualification).command
-
-		assertEquals(setOf(SourceKind.LOCATION), command.authority.capturedSources)
-		assertEquals(emptySet(), command.authority.controlSources)
-		assertEquals(RUN_ID, command.authority.serviceRunId.value)
-		assertEquals(SEGMENT_ID, command.authority.sessionSegmentId)
-		assertEquals(PLAN_REVISION, command.authority.configurationRevision)
-		assertEquals(OBSERVED_NANOS, command.productEffect.durableEvidence.clockAuthority.observedElapsedRealtimeNanos)
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.MOCK_PROVENANCE_UNVERIFIABLE),
+			subject.qualify(EVENT_ID),
+		)
 		assertEquals(1L, database.sourceEventWalDao().countAll())
 	}
 
@@ -102,10 +95,69 @@ class LocationWalQualificationAdapterTest {
 			),
 		)
 
-		val result = assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
-		val command = assertIs<LocationObservationQualification.Qualified>(result.qualification).command
-		assertEquals(PLAN_REVISION, command.authority.configurationRevision)
-		assertEquals(1_000_000_000L, command.authority.acquisitionConfiguration.maximumObservationAgeNanos)
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.MOCK_PROVENANCE_UNVERIFIABLE),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `zero source sequence cannot be accepted as a durably allocated delivery`() = runTest {
+		installValidFixture(sourceSequence = 0L)
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.SOURCE_SEQUENCE_MISMATCH),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `source sequence at exhausted allocator sentinel fails closed`() = runTest {
+		installValidFixture(sourceSequence = Long.MAX_VALUE)
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.SOURCE_SEQUENCE_MISMATCH),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `next same-registration authorization may be sparse across global revisions`() = runTest {
+		installValidFixture()
+		val fingerprint = locationPlan(PLAN_REVISION).physicalConfigurationFingerprint()
+		database.sourceBrokerDao().insertRegistration(
+			registration(fingerprint).copy(
+				registrationGeneration = REGISTRATION_GENERATION + 1L,
+				sourceInstanceId = "interleaved-location-instance",
+			),
+		)
+		database.sourceBrokerDao().insertAuthorizations(
+			SourceBrokerAuthorization.rows(
+				sourceKind = LOCATION_SOURCE,
+				registrationGeneration = REGISTRATION_GENERATION + 1L,
+				authorizationRevision = AUTHORIZATION_REVISION + 1L,
+				demands = emptyList(),
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = 650L,
+				effectiveWallTimeMs = 1_650L,
+			),
+		)
+		database.sourceBrokerDao().insertAuthorizations(
+			SourceBrokerAuthorization.rows(
+				sourceKind = LOCATION_SOURCE,
+				registrationGeneration = REGISTRATION_GENERATION,
+				authorizationRevision = AUTHORIZATION_REVISION + 2L,
+				demands = emptyList(),
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = 700L,
+				effectiveWallTimeMs = 1_700L,
+			),
+		)
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.MOCK_PROVENANCE_UNVERIFIABLE),
+			subject.qualify(EVENT_ID),
+		)
 	}
 
 	@Test
@@ -159,18 +211,140 @@ class LocationWalQualificationAdapterTest {
 		)
 	}
 
+	@Test
+	fun `complete canonical batch authenticates the exact selected indexed unit`() = runTest {
+		installValidFixture(
+			deliveryPayloads = listOf(
+				locationPayload().copy(provider = "network"),
+				locationPayload(),
+			),
+			selectedUnitIndex = 1,
+		)
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.MOCK_PROVENANCE_UNVERIFIABLE),
+			subject.qualify(EVENT_ID),
+		)
+		assertEquals(2L, database.sourceEventWalDao().countAll())
+	}
+
+	@Test
+	fun `missing sibling makes declared delivery cardinality unverifiable`() = runTest {
+		installValidFixture(
+			deliveryPayloads = listOf(locationPayload(), locationPayload().copy(provider = "network")),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_event_wal WHERE delivery_identity = ? AND delivery_unit_index = 1",
+			arrayOf(requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value)).deliveryIdentity),
+		)
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.MALFORMED_DELIVERY),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `integrity-valid but malformed payload cannot be decoded as Location`() = runTest {
+		installValidFixture()
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val withMalformedPayload = original.copy(payload = byteArrayOf(0x01))
+		val withChecksum = withMalformedPayload.copy(
+			payloadChecksum = withMalformedPayload.calculatedPayloadChecksum(),
+		)
+		val rewritten = withChecksum.copy(integrityIdentity = withChecksum.calculatedIntegrityIdentity())
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET payload = ?, payload_checksum = ?, integrity_identity = ? " +
+				"WHERE event_id = ?",
+			arrayOf(rewritten.payload, rewritten.payloadChecksum, rewritten.integrityIdentity, EVENT_ID.value),
+		)
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.MALFORMED_DELIVERY),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `manifest checksum mismatch fails before captured source authority is trusted`() = runTest {
+		installValidFixture()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_source SET qos_code = ? WHERE logical_tracking_id = ? " +
+				"AND manifest_revision = ? AND source_kind = ?",
+			arrayOf(QOS_CODE - 1, LOGICAL_ID, MANIFEST_REVISION, LOCATION_SOURCE),
+		)
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.MANIFEST_TIMELINE_UNVERIFIABLE),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `service run and segment must preserve exact reverse binding`() = runTest {
+		installValidFixture(segmentRunId = "different-run")
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.SEGMENT_MISMATCH),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `manifest stored zone must be a valid ZoneId`() = runTest {
+		installValidFixture(zoneId = "Not/AZone")
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.INVALID_STORED_ZONE),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `retention floor rejects an uncertainty interval that can precede it`() = runTest {
+		installValidFixture(
+			evidenceState = SourceEvidenceState(retainedFromMs = OBSERVED_WALL_MS + 1L),
+			wallTimeUncertaintyMs = 1L,
+		)
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.RETAINED_EVIDENCE),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `retention floor exactly at earliest possible wall preserves eligibility`() = runTest {
+		installValidFixture(
+			evidenceState = SourceEvidenceState(retainedFromMs = OBSERVED_WALL_MS - 1L),
+			wallTimeUncertaintyMs = 1L,
+		)
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.MOCK_PROVENANCE_UNVERIFIABLE),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
 	private suspend fun installValidFixture(
 		plan: LocationPlan = locationPlan(PLAN_REVISION),
 		providerFingerprint: String = plan.physicalConfigurationFingerprint(),
 		deliveryIdentityOverride: String? = null,
 		evidenceState: SourceEvidenceState = SourceEvidenceState(),
+		sourceSequence: Long = SOURCE_SEQUENCE,
+		deliveryPayloads: List<LocationFixPayload> = listOf(locationPayload()),
+		selectedUnitIndex: Int = 0,
+		zoneId: String = ZONE_ID,
+		segmentRunId: String = RUN_ID,
+		wallTimeUncertaintyMs: Long = 0L,
 	) {
+		require(selectedUnitIndex in deliveryPayloads.indices)
 		database.sourceEvidenceStateDao().ensure(evidenceState)
 		insertPlan(plan)
 		installPolicyAndConsent()
-		val segmentId = database.sessionSegmentDao().insert(segment())
+		val segmentId = database.sessionSegmentDao().insert(segment(segmentRunId))
 		assertEquals(SEGMENT_ID, segmentId)
-		installSessionAndManifest(segmentId)
+		installSessionAndManifest(segmentId, zoneId)
 		val demand = demand()
 		database.sourceBrokerDao().insertDemands(listOf(demand))
 		database.sourceBrokerDao().insertRegistration(registration(providerFingerprint))
@@ -184,50 +358,51 @@ class LocationWalQualificationAdapterTest {
 			effectiveWallTimeMs = 1_050L,
 		)
 		database.sourceBrokerDao().insertAuthorizations(authorization)
-		val payload = locationPayload()
-		val encodedPayload = payloadCodec.encode(payload, PAYLOAD_VERSION)
 		val deliveryIdentity = deliveryIdentityOverride ?: sourceDeliveryIdentity(
-			canonicalLocationDelivery(payload),
+			canonicalLocationDelivery(deliveryPayloads),
 		).value
-		val unsignedWal = SourceEventWalEntity(
-			eventId = EVENT_ID.value,
-			providerDedupKey = null,
-			deliveryIdentity = deliveryIdentity,
-			deliveryUnitIndex = 0,
-			deliveryUnitCount = 1,
-			logicalTrackingId = LOGICAL_ID,
-			serviceRunId = RUN_ID,
-			sourceKind = LOCATION_SOURCE,
-			sourceInstanceId = SOURCE_INSTANCE,
-			registrationGeneration = REGISTRATION_GENERATION,
-			physicalConfigurationFingerprint = providerFingerprint,
-			authorizationRevision = AUTHORIZATION_REVISION,
-			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-			authorizationFingerprint = authorization.first().authorizationFingerprint,
-			sourceSequence = SOURCE_SEQUENCE,
-			configRevision = PLAN_REVISION,
-			planAttribution = PlanAttribution.CAPTURED_REGISTRATION.ordinal,
-			clockDomainId = BOOT_ID,
-			observedElapsedNanos = OBSERVED_NANOS,
-			observedIntervalStartNanos = OBSERVED_NANOS,
-			receivedElapsedNanos = RECEIVED_NANOS,
-			wallTimeMs = OBSERVED_WALL_MS,
-			wallTimeUncertaintyMs = 0L,
-			capturedCollectedDataEpoch = 0L,
-			sourcePolicyRevision = POLICY_REVISION,
-			captureConsentEpoch = CONSENT_EPOCH,
-			sessionManifestRevision = MANIFEST_REVISION,
-			lifecycleLeaseGeneration = LEASE_GENERATION,
-			acquiredAtMs = OBSERVED_WALL_MS,
-			qualityFlags = SourceQuality().toStableFlags(),
-			qualityConfidence = null,
-			payloadVersion = PAYLOAD_VERSION,
-			payload = encodedPayload.bytes,
-			payloadChecksum = encodedPayload.checksum,
-			createdAtMs = 1_600L,
-		)
-		val wal = unsignedWal.copy(integrityIdentity = unsignedWal.calculatedIntegrityIdentity())
-		assertEquals(1L, database.sourceEventWalDao().insertIgnoringDuplicate(wal))
+		val walRows = deliveryPayloads.mapIndexed { index, payload ->
+			val encodedPayload = payloadCodec.encode(payload, PAYLOAD_VERSION)
+			val unsignedWal = SourceEventWalEntity(
+				eventId = if (index == selectedUnitIndex) EVENT_ID.value else "location-event-sibling-$index",
+				providerDedupKey = null,
+				deliveryIdentity = deliveryIdentity,
+				deliveryUnitIndex = index,
+				deliveryUnitCount = deliveryPayloads.size,
+				logicalTrackingId = LOGICAL_ID,
+				serviceRunId = RUN_ID,
+				sourceKind = LOCATION_SOURCE,
+				sourceInstanceId = SOURCE_INSTANCE,
+				registrationGeneration = REGISTRATION_GENERATION,
+				physicalConfigurationFingerprint = providerFingerprint,
+				authorizationRevision = AUTHORIZATION_REVISION,
+				authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+				authorizationFingerprint = authorization.first().authorizationFingerprint,
+				sourceSequence = Math.addExact(sourceSequence, index.toLong()),
+				configRevision = PLAN_REVISION,
+				planAttribution = PlanAttribution.CAPTURED_REGISTRATION.ordinal,
+				clockDomainId = BOOT_ID,
+				observedElapsedNanos = OBSERVED_NANOS,
+				observedIntervalStartNanos = OBSERVED_NANOS,
+				receivedElapsedNanos = RECEIVED_NANOS,
+				wallTimeMs = OBSERVED_WALL_MS,
+				wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+				capturedCollectedDataEpoch = 0L,
+				sourcePolicyRevision = POLICY_REVISION,
+				captureConsentEpoch = CONSENT_EPOCH,
+				sessionManifestRevision = MANIFEST_REVISION,
+				lifecycleLeaseGeneration = LEASE_GENERATION,
+				acquiredAtMs = OBSERVED_WALL_MS,
+				qualityFlags = SourceQuality().toStableFlags(),
+				qualityConfidence = null,
+				payloadVersion = PAYLOAD_VERSION,
+				payload = encodedPayload.bytes,
+				payloadChecksum = encodedPayload.checksum,
+				createdAtMs = 1_600L,
+			)
+			unsignedWal.copy(integrityIdentity = unsignedWal.calculatedIntegrityIdentity())
+		}
+		assertEquals(walRows.size, database.sourceEventWalDao().insertDeliveryUnits(walRows).size)
 	}
 
 	private suspend fun insertPlan(plan: LocationPlan) {
@@ -305,7 +480,7 @@ class LocationWalQualificationAdapterTest {
 		)
 	}
 
-	private suspend fun installSessionAndManifest(segmentId: Long) {
+	private suspend fun installSessionAndManifest(segmentId: Long, zoneId: String) {
 		database.sourceSessionDao().insertSession(
 			LogicalTrackingSessionEntity(
 				logicalTrackingId = LOGICAL_ID,
@@ -385,7 +560,7 @@ class LocationWalQualificationAdapterTest {
 			effectiveBootId = BOOT_ID,
 			effectiveElapsedRealtimeNanos = RUN_START_NANOS,
 			effectiveWallTimeMs = RUN_START_WALL_MS,
-			zoneId = "Europe/Prague",
+			zoneId = zoneId,
 			automationEpoch = null,
 			changeReason = "MANUAL_START",
 			manifestChecksum = "",
@@ -444,7 +619,7 @@ class LocationWalQualificationAdapterTest {
 		retiredAtMs = 2_000L,
 	)
 
-	private fun segment() = SessionSegment(
+	private fun segment(serviceRunId: String) = SessionSegment(
 		id = SEGMENT_ID,
 		startTimeMs = RUN_START_WALL_MS,
 		endTimeMs = 2_000L,
@@ -457,7 +632,7 @@ class LocationWalQualificationAdapterTest {
 		inferenceVersion = null,
 		createdAt = 2_000L,
 		logicalTrackingId = LOGICAL_ID,
-		serviceRunId = RUN_ID,
+		serviceRunId = serviceRunId,
 	)
 
 	private fun locationPlan(revision: Long) = LocationPlan(
@@ -483,28 +658,30 @@ class LocationWalQualificationAdapterTest {
 		provider = "gps",
 	)
 
-	private fun canonicalLocationDelivery(payload: LocationFixPayload): ByteArray =
+	private fun canonicalLocationDelivery(payloads: List<LocationFixPayload>): ByteArray =
 		ByteArrayOutputStream().use { bytes ->
 			DataOutputStream(bytes).use { output ->
 				output.writeInt(0x4c4f4342)
 				output.writeInt(1)
-				output.writeInt(1)
-				val provider = payload.provider.encodeToByteArray()
-				output.writeInt(provider.size)
-				output.write(provider)
-				output.writeLong(OBSERVED_NANOS)
-				output.writeLong(OBSERVED_WALL_MS)
-				output.writeLong(java.lang.Double.doubleToRawLongBits(payload.latitudeDegrees))
-				output.writeLong(java.lang.Double.doubleToRawLongBits(payload.longitudeDegrees))
-				output.writeInt(java.lang.Float.floatToRawIntBits(payload.horizontalAccuracyMeters))
-				output.writeBoolean(true)
-				output.writeLong(java.lang.Double.doubleToRawLongBits(requireNotNull(payload.altitudeMeters)))
-				output.writeBoolean(true)
-				output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.verticalAccuracyMeters)))
-				output.writeBoolean(true)
-				output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.speedMetersPerSecond)))
-				output.writeBoolean(true)
-				output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.bearingDegrees)))
+				output.writeInt(payloads.size)
+				payloads.forEach { payload ->
+					val provider = payload.provider.encodeToByteArray()
+					output.writeInt(provider.size)
+					output.write(provider)
+					output.writeLong(OBSERVED_NANOS)
+					output.writeLong(OBSERVED_WALL_MS)
+					output.writeLong(java.lang.Double.doubleToRawLongBits(payload.latitudeDegrees))
+					output.writeLong(java.lang.Double.doubleToRawLongBits(payload.longitudeDegrees))
+					output.writeInt(java.lang.Float.floatToRawIntBits(payload.horizontalAccuracyMeters))
+					output.writeBoolean(true)
+					output.writeLong(java.lang.Double.doubleToRawLongBits(requireNotNull(payload.altitudeMeters)))
+					output.writeBoolean(true)
+					output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.verticalAccuracyMeters)))
+					output.writeBoolean(true)
+					output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.speedMetersPerSecond)))
+					output.writeBoolean(true)
+					output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.bearingDegrees)))
+				}
 			}
 			bytes.toByteArray()
 		}
@@ -517,6 +694,7 @@ class LocationWalQualificationAdapterTest {
 		const val SOURCE_INSTANCE = "location-instance"
 		const val DEMAND_ID = "location-demand"
 		const val BOOT_ID = "boot-1"
+		const val ZONE_ID = "Europe/Prague"
 		const val PLAN_REVISION = 1L
 		const val POLICY_REVISION = 1L
 		const val CONSENT_EPOCH = 1L
