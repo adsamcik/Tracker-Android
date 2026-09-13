@@ -13,6 +13,7 @@ import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
+import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
@@ -177,6 +178,11 @@ class DataRetentionWorker @AssistedInject constructor(
 				appDatabase.trackerStateEventDao().deleteOlderThan(cutoffMillis)
 				appDatabase.locationSampleDao().deleteOlderThan(cutoffMillis)
 				appDatabase.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
+					beforeMs = retainedFromMs,
+					collectedDataEpoch = lifecycle.epoch,
+					markedAtMs = updatedAtMs,
+				)
+				appDatabase.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
 					beforeMs = retainedFromMs,
 					collectedDataEpoch = lifecycle.epoch,
 					markedAtMs = updatedAtMs,

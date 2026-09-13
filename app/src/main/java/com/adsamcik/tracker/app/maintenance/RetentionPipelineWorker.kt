@@ -13,6 +13,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
+import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
@@ -152,6 +153,11 @@ class RetentionPipelineWorker @AssistedInject constructor(
 				db.trackerStateEventDao().deleteOlderThan(cutoff)
 				db.locationSampleDao().deleteOlderThan(cutoff)
 				db.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
+					beforeMs = retainedFromMs,
+					collectedDataEpoch = lifecycle.epoch,
+					markedAtMs = updatedAtMs,
+				)
+				db.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
 					beforeMs = retainedFromMs,
 					collectedDataEpoch = lifecycle.epoch,
 					markedAtMs = updatedAtMs,
