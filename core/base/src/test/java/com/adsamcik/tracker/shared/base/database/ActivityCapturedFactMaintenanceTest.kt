@@ -30,6 +30,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import java.security.MessageDigest
 import java.util.concurrent.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -67,6 +68,19 @@ class ActivityCapturedFactMaintenanceTest {
 		database.activityCapturedFactDao().evidenceCount() shouldBe 0L
 		database.activityCapturedFactDao().cursorCount() shouldBe 0L
 		database.activityCapturedFactDao().registrationPlanBindingCount() shouldBe 1L
+	}
+
+	@Test
+	fun `retention removes a gap-only lineage whose wall placement is unverifiable`() = runTest {
+		seedCapturedActivity(retainedFromMs = 1_000L, gapOnly = true)
+
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(
+			beforeMs = 1_000L,
+			expectedCollectedDataEpoch = 0L,
+			markedAtMs = 5_000L,
+		) shouldBe ActivityCapturedRetentionResult.Pruned(1, 1)
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+		database.activityCapturedFactDao().cursorCount() shouldBe 0L
 	}
 
 	@Test
@@ -304,6 +318,170 @@ class ActivityCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `portable export emits only the latest authenticated correction with opaque identities`() = runTest {
+		seedCapturedActivity(semanticRevisions = 2)
+		database.sourceBrokerDao().insertDemands(listOf(controlDemand()))
+
+		val snapshot = PortableCapturedActivityRoomReader(database).read(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) as PortableCapturedActivitySnapshot.Ready
+
+		val entry = snapshot.envelope.entries.single()
+		val run = entry.runs.single()
+		val window = run.windows.single()
+		entry.identity.value shouldBe PortableActivityOpaqueIdentity.derive(
+			PortableActivityIdentityKind.LOGICAL_ENTRY,
+			LOGICAL_TRACKING_ID,
+		).value
+		window.coverage shouldBe PortableActivityWindowCoverage.COMPLETE
+		window.fragments.size shouldBe 1
+		(snapshot.envelope.toString().contains(LOGICAL_TRACKING_ID)) shouldBe false
+		(snapshot.envelope.toString().contains(SERVICE_RUN_ID)) shouldBe false
+		(snapshot.envelope.toString().contains(SOURCE_INSTANCE_ID)) shouldBe false
+		(snapshot.envelope.toString().contains("CONTROL_AUTOSTART")) shouldBe false
+	}
+
+	@Test
+	fun `portable export retains an explicit gap without inventing a numeric Activity value`() = runTest {
+		seedCapturedActivity(gapOnly = true)
+
+		val snapshot = PortableCapturedActivityRoomReader(database).read(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) as PortableCapturedActivitySnapshot.Ready
+
+		val window = snapshot.envelope.entries.single().runs.single().windows.single()
+		window.coverage shouldBe PortableActivityWindowCoverage.NONE
+		window.knownActiveDurationNanos shouldBe 0L
+		window.knownInactiveDurationNanos shouldBe 0L
+		window.unknownActivityDurationNanos shouldBe 0L
+		window.unobservedDurationNanos shouldBe 200L
+		window.fragments.single() shouldBe PortableActivityFragmentV1.Gap(
+			startOffsetNanos = 0L,
+			endOffsetNanos = 200L,
+			reason = "NO_QUALIFIED_EVIDENCE",
+		)
+	}
+
+	@Test
+	fun `portable export rejects retained gap-only authority without a wall anchor`() = runTest {
+		seedCapturedActivity(retainedFromMs = 1_000L, gapOnly = true)
+
+		PortableCapturedActivityRoomReader(database).read(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) shouldBe PortableCapturedActivitySnapshot.Outcome(
+			ExportPortableCapturedActivityResult.Unverifiable(
+				PortableActivityExportUnverifiableReason.RETENTION_CROSSES_ENTRY,
+			),
+		)
+	}
+
+	@Test
+	fun `portable export rejects a live member before any sink IO`() = runTest {
+		seedCapturedActivity(sessionRunEffectEndNanos = Long.MAX_VALUE)
+		makeCurrentRunLive()
+		var sinkCalls = 0
+		val result = RoomExportPortableCapturedActivity(database, Dispatchers.Unconfined).export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {
+			sinkCalls++
+		}
+
+		result shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.ENTRY_MATERIALIZING,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export rejects a fenced run before any sink IO`() = runTest {
+		seedCapturedActivity()
+		database.sourceDeletionFenceDao().insertIfAbsent(
+			SourceDeletionFenceEntity.createLogicalServiceRun(
+				sourceKind = ACTIVITY_SOURCE,
+				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				serviceRunId = SERVICE_RUN_ID,
+				fenceGeneration = 1L,
+				collectedDataEpoch = 0L,
+				deletedAtMs = 4_000L,
+			),
+		)
+		var sinkCalls = 0
+		val result = RoomExportPortableCapturedActivity(database, Dispatchers.Unconfined).export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) { sinkCalls++ }
+
+		result shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.DELETED_SCOPE,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export rejects one corrupt correction lineage before any sink IO`() = runTest {
+		seedCapturedActivity(semanticRevisions = 2)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE activity_captured_window_revision SET effect_checksum = 'corrupt' " +
+				"WHERE semantic_revision = 1",
+		)
+		var sinkCalls = 0
+
+		RoomExportPortableCapturedActivity(database, Dispatchers.Unconfined).export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) { sinkCalls++ } shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export bounds complete replacement membership before emission`() = runTest {
+		seedCapturedActivity(sessionRunEffectEndNanos = Long.MAX_VALUE)
+		installLiveReplacement()
+		val reader = PortableCapturedActivityRoomReader(
+			database = database,
+			limits = PortableActivityReadLimits(maximumRuns = 1),
+		)
+
+		reader.read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.DEPENDENCY_OVERFLOW,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export cancellation leaves the immutable snapshot unpublished`() = runTest {
+		seedCapturedActivity()
+		val reader = PortableCapturedActivityRoomReader(
+			database = database,
+			checkpoint = { point ->
+				if (point == PortableActivityReadCheckpoint.REPLACEMENT_MEMBERS_LOADED) {
+					throw CancellationException("cancel before snapshot publication")
+				}
+			},
+		)
+
+		shouldThrow<CancellationException> {
+			reader.read(ExportPortableCapturedActivityRequest(1_000L, 3_001L))
+		}
+	}
+
+	@Test
+	fun `portable sink runs only after the Room snapshot transaction`() = runTest {
+		seedCapturedActivity()
+		var observedInsideTransaction: Boolean? = null
+
+		RoomExportPortableCapturedActivity(database, Dispatchers.Unconfined).export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {
+			observedInsideTransaction = database.inTransaction()
+		} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+		observedInsideTransaction shouldBe false
+	}
+
+	@Test
 	fun `cancellation after payload removal rolls back facts and run fence`() = runTest {
 		seedCapturedActivity(revokedCapture = true)
 
@@ -332,6 +510,7 @@ class ActivityCapturedFactMaintenanceTest {
 		revokedCapture: Boolean = false,
 		providerActive: Boolean = false,
 		sessionRunEffectEndNanos: Long = 500L,
+		gapOnly: Boolean = false,
 	) {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(collectedDataEpoch = 0L, retainedFromMs = retainedFromMs),
@@ -408,7 +587,7 @@ class ActivityCapturedFactMaintenanceTest {
 		)
 		database.sourceBrokerDao().insertRegistration(registration(providerActive))
 		database.sourceBrokerDao().insertAuthorizations(listOf(authorization()))
-		insertFactLineage(segmentId, semanticRevisions, sessionRunEffectEndNanos)
+		insertFactLineage(segmentId, semanticRevisions, sessionRunEffectEndNanos, gapOnly)
 	}
 
 	private suspend fun makeCurrentRunLive() {
@@ -511,6 +690,7 @@ class ActivityCapturedFactMaintenanceTest {
 		segmentId: Long,
 		semanticRevisions: Int,
 		sessionRunEffectEndNanos: Long,
+		gapOnly: Boolean,
 	) {
 		require(semanticRevisions in 1..2)
 		val dao = database.activityCapturedFactDao()
@@ -520,6 +700,7 @@ class ActivityCapturedFactMaintenanceTest {
 				semanticRevision = ordinal.toLong(),
 				complete = ordinal == 2,
 				sessionRunEffectEndNanos = sessionRunEffectEndNanos,
+				gapOnly = gapOnly,
 			)
 		}
 		persisted.forEach { value ->
@@ -552,9 +733,12 @@ class ActivityCapturedFactMaintenanceTest {
 		semanticRevision: Long,
 		complete: Boolean,
 		sessionRunEffectEndNanos: Long,
+		gapOnly: Boolean,
 	): PersistedTestRevision {
 		val logicalWindowId = logicalWindowId(sessionRunEffectEndNanos)
-		val fragments = if (complete) {
+		val fragments = if (gapOnly) {
+			listOf(gapFragment(logicalWindowId, semanticRevision, 0, 200L, 400L))
+		} else if (complete) {
 			listOf(bandFragment(logicalWindowId, semanticRevision, 0, 200L, 400L))
 		} else {
 			listOf(
@@ -562,7 +746,7 @@ class ActivityCapturedFactMaintenanceTest {
 				gapFragment(logicalWindowId, semanticRevision, 1, 300L, 400L),
 			)
 		}
-		val evidence = listOf(evidence(logicalWindowId, semanticRevision))
+		val evidence = if (gapOnly) emptyList() else listOf(evidence(logicalWindowId, semanticRevision))
 		val unsigned = ActivityCapturedWindowRevisionEntity(
 			writerProjectionId = WRITER_ID,
 			writerProjectionVersion = WRITER_VERSION,
@@ -598,11 +782,11 @@ class ActivityCapturedFactMaintenanceTest {
 			sessionRunEffectEndNanos = sessionRunEffectEndNanos,
 			windowStartElapsedRealtimeNanos = 200L,
 			windowEndElapsedRealtimeNanos = 400L,
-			coverage = if (complete) "COMPLETE" else "PARTIAL",
-			knownActiveDurationNanos = if (complete) 200L else 100L,
+			coverage = if (gapOnly) "NONE" else if (complete) "COMPLETE" else "PARTIAL",
+			knownActiveDurationNanos = if (gapOnly) 0L else if (complete) 200L else 100L,
 			knownInactiveDurationNanos = 0L,
 			unknownActivityDurationNanos = 0L,
-			unobservedDurationNanos = if (complete) 0L else 100L,
+			unobservedDurationNanos = if (gapOnly) 200L else if (complete) 0L else 100L,
 			exactDuplicateCount = 0,
 			semanticDuplicateCount = 0,
 			unchangedEvidenceCount = 0,

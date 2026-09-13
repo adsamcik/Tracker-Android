@@ -157,7 +157,7 @@ internal suspend fun AppDatabase.pruneCapturedActivityFactsAffectedByRetentionFl
 				block(ActivityCapturedRetentionBlockedReason.STALE_REQUEST)
 			}
 			val selected = audit.lineages.filter { lineage ->
-				lineage.earliestPossibleWallTimeMs < beforeMs
+				lineage.earliestPossibleWallTimeMs?.let { earliest -> earliest < beforeMs } ?: true
 			}
 			if (selected.isEmpty()) return@withTransaction ActivityCapturedRetentionResult.NoChange
 			val dao = activityCapturedFactDao()
@@ -370,7 +370,12 @@ internal suspend fun AppDatabase.deleteCapturedActivityFactsAfterConsentReset(
 	}
 }
 
-private suspend fun AppDatabase.auditCapturedActivityFacts(
+/**
+ * Produces the immutable, fully authenticated captured-Activity snapshot shared by source-owned
+ * maintenance and portable read paths. Callers must keep the returned value inside their Room
+ * transaction; it deliberately exposes no mutation operation.
+ */
+internal suspend fun AppDatabase.auditCapturedActivityFacts(
 	limits: ActivityCapturedMaintenanceLimits,
 	checkpoint: suspend (ActivityCapturedMaintenanceCheckpoint) -> Unit,
 	requireOwnerWhenEmpty: Boolean = true,
@@ -529,8 +534,7 @@ private fun authenticateActivityCapturedLineage(
 	return ActivityCapturedLineage(
 		first.logicalWindowId,
 		revisions,
-		earliestWallTimeMs
-			?: block(ActivityCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE),
+		earliestWallTimeMs,
 	)
 }
 
@@ -973,19 +977,20 @@ private fun digest(domain: String, values: List<String>): String {
 	return sha256(canonical.toByteArray(Charsets.UTF_8))
 }
 
-private data class ActivityCapturedPersistedRevision(
+internal data class ActivityCapturedPersistedRevision(
 	val revision: ActivityCapturedWindowRevisionEntity,
 	val fragments: List<ActivityCapturedFragmentEntity>,
 	val evidence: List<ActivityCapturedEvidenceEntity>,
 )
 
-private data class ActivityCapturedLineage(
+internal data class ActivityCapturedLineage(
 	val logicalWindowId: String,
 	val revisions: List<ActivityCapturedPersistedRevision>,
-	val earliestPossibleWallTimeMs: Long,
+	/** Null means the complete lineage contains only explicit gaps and has no wall-time anchor. */
+	val earliestPossibleWallTimeMs: Long?,
 )
 
-private data class ActivityCapturedFactAudit(
+internal data class ActivityCapturedFactAudit(
 	val lineages: List<ActivityCapturedLineage>,
 	val latestDurableTimeMs: Long,
 )
@@ -995,7 +1000,7 @@ private data class ActivityCapturedRunScope(
 	val serviceRunId: String,
 )
 
-private class ActivityCapturedRetentionBlockedException(
+internal class ActivityCapturedRetentionBlockedException(
 	val reason: ActivityCapturedRetentionBlockedReason,
 ) : IllegalStateException(reason.name)
 
@@ -1003,7 +1008,7 @@ private class ActivityCapturedSourceDeletionBlockedException(
 	val reason: ActivityCapturedSourceDeletionBlockedReason,
 ) : IllegalStateException(reason.name)
 
-private class ActivityCapturedMaintenanceLimitExceeded : IllegalStateException()
+internal class ActivityCapturedMaintenanceLimitExceeded : IllegalStateException()
 
 private fun block(reason: ActivityCapturedRetentionBlockedReason): Nothing =
 	throw ActivityCapturedRetentionBlockedException(reason)
