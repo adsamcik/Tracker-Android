@@ -7,9 +7,17 @@ import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.kotest.assertions.throwables.shouldThrow
 import org.junit.Test
 
 class ActivityCapturedFactCoalescerTest {
+	@Test
+	fun `semantic mutation must name its exact predecessor`() {
+		shouldThrow<IllegalArgumentException> {
+			mutation(semanticRevision = 3L, supersedes = 1L)
+		}
+	}
+
 	@Test
 	fun `transition bands expose active inactive and unobserved time without fabricating coverage`() {
 		val window = coalesced(
