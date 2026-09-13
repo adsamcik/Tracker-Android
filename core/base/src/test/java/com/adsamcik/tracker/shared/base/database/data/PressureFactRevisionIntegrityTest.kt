@@ -1,10 +1,46 @@
 package com.adsamcik.tracker.shared.base.database.data
 
+import com.adsamcik.tracker.shared.base.database.earliestPossiblePressureWallTimeMs
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import org.junit.Test
 
 class PressureFactRevisionIntegrityTest {
+	@Test
+	fun `retention marker is exact payload-free self-verifying authority`() {
+		val marker = PressureFactRevisionIntegrity.retentionTruncationFence(
+			logicalTrackingId = "logical-1",
+			serviceRunId = "run-1",
+			collectedDataEpoch = 7L,
+			markedAtMs = 9_000L,
+		)
+
+		PressureFactRevisionIntegrity.isRetentionTruncationFence(
+			marker,
+			logicalTrackingId = "logical-1",
+			serviceRunId = "run-1",
+			collectedDataEpoch = 7L,
+		) shouldBe true
+		PressureFactRevisionIntegrity.isRetentionTruncationFence(
+			marker,
+			logicalTrackingId = "logical-1",
+			serviceRunId = "run-2",
+			collectedDataEpoch = 7L,
+		) shouldBe false
+		marker.scopeIdentityDigest shouldBe PressureFactRevisionIntegrity.retentionTruncationIdentity(
+			"logical-1",
+			"run-1",
+		)
+		marker.effectChecksum.length shouldBe 64
+	}
+
+	@Test
+	fun `earliest possible retention time saturates at zero without overflow`() {
+		earliestPossiblePressureWallTimeMs(2_000L, 100L) shouldBe 1_900L
+		earliestPossiblePressureWallTimeMs(2_000L, 2_000L) shouldBe 0L
+		earliestPossiblePressureWallTimeMs(2_000L, Long.MAX_VALUE) shouldBe 0L
+	}
+
 	@Test
 	@Suppress("LongMethod")
 	fun `canonical checksum rejects every independently mutable retained fact field`() {

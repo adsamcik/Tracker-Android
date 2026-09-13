@@ -4,6 +4,51 @@ import java.security.MessageDigest
 
 /** Frozen integrity contract shared by the canonical Pressure writer and exact readers. */
 object PressureFactRevisionIntegrity {
+	/** Distinct marker purpose: records retention loss without blocking later capture writes. */
+	const val RETENTION_TRUNCATION_PURPOSE = "SESSION_CAPTURE_RETENTION_TRUNCATION"
+
+	/** Creates the payload-free marker for an exact Pressure run affected by retention. */
+	fun retentionTruncationFence(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		collectedDataEpoch: Long,
+		markedAtMs: Long,
+	): SourceDeletionFenceEntity = SourceDeletionFenceEntity.createLogicalServiceRun(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+		purpose = RETENTION_TRUNCATION_PURPOSE,
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+		fenceGeneration = RETENTION_TRUNCATION_GENERATION,
+		collectedDataEpoch = collectedDataEpoch,
+		deletedAtMs = markedAtMs,
+	)
+
+	/** Stable opaque lookup identity for one exact Pressure run's retention marker. */
+	fun retentionTruncationIdentity(
+		logicalTrackingId: String,
+		serviceRunId: String,
+	): String = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+		purpose = RETENTION_TRUNCATION_PURPOSE,
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+	)
+
+	/** Recomputes the complete marker, including its payload-free scope and effect checksum. */
+	fun isRetentionTruncationFence(
+		fence: SourceDeletionFenceEntity,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		collectedDataEpoch: Long,
+	): Boolean = runCatching {
+		fence == retentionTruncationFence(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			collectedDataEpoch = collectedDataEpoch,
+			markedAtMs = fence.deletedAtMs,
+		)
+	}.getOrDefault(false)
+
 	/** Computes the canonical effect digest, including immutable destination-writer authority. */
 	fun effectChecksum(
 		fact: PressureFactRevisionEntity,
@@ -79,4 +124,6 @@ object PressureFactRevisionIntegrity {
 			.digest(canonical.toByteArray(Charsets.UTF_8))
 			.joinToString(separator = "") { byte -> "%02x".format(byte) }
 	}
+
+	private const val RETENTION_TRUNCATION_GENERATION = 1L
 }

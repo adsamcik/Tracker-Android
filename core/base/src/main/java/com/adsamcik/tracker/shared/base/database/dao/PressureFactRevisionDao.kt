@@ -242,6 +242,33 @@ interface PressureFactRevisionDao {
 		serviceRunId: String,
 	): Boolean
 
+	/** Pages every retained run id before retention trusts any checksummed fact field. */
+	@Query(
+		"SELECT DISTINCT service_run_id FROM pressure_fact_revision " +
+			"WHERE (:afterServiceRunId IS NULL OR service_run_id > :afterServiceRunId) " +
+			"ORDER BY service_run_id LIMIT :limit",
+	)
+	suspend fun retentionServiceRunIdPage(
+		afterServiceRunId: String?,
+		limit: Int,
+	): List<String>
+
+	/** Deletes every authenticated revision for the selected exact logical fact identities. */
+	@Query(
+		"DELETE FROM pressure_fact_revision WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND service_run_id = :serviceRunId " +
+			"AND writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion " +
+			"AND logical_fact_id IN (:logicalFactIds)",
+	)
+	suspend fun deleteExactLineages(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		logicalFactIds: List<String>,
+	): Int
+
 	/** Deletes one validated primary-key page through its exact final cursor. */
 	@Query(
 		"DELETE FROM pressure_fact_revision WHERE logical_tracking_id = :logicalTrackingId " +

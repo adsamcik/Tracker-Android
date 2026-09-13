@@ -108,6 +108,9 @@ class PressureFactRevisionDaoTest {
 			dao.insert(fact)
 		}
 
+		dao.retentionServiceRunIdPage(afterServiceRunId = null, limit = 1) shouldBe listOf("run-1")
+		dao.retentionServiceRunIdPage(afterServiceRunId = "run-1", limit = 1) shouldBe
+			listOf("run-2")
 		dao.firstExactServiceRunPage("tracking-1", "run-1", limit = 2) shouldBe
 			listOf(selectedOtherFact, selectedFirst)
 		dao.exactServiceRunPageAfter(

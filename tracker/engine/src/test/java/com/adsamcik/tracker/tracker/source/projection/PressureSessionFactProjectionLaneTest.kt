@@ -391,6 +391,36 @@ class PressureSessionFactProjectionLaneTest {
 	}
 
 	@Test
+	fun `retention rejects uncertainty crossing window and accepts exact floor boundary`() = runTest {
+		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		database.sourceEvidenceStateDao().updateLifecycle(
+			epoch = COLLECTED_DATA_EPOCH,
+			retainedFromMs = 9_752L,
+			updatedAtMs = 20_000L,
+		) shouldBe 1
+		val crossing = pressureEvent(
+			ordinal = 1L,
+			wallTimeMs = 10_001L,
+			wallTimeUncertaintyMs = 100L,
+		)
+		val exactBoundary = pressureEvent(
+			ordinal = 2L,
+			wallTimeMs = 10_002L,
+			wallTimeUncertaintyMs = 100L,
+		)
+
+		PressureSessionFactProjectionLane(
+			database,
+			sourceIngress(0L, 2L, listOf(crossing, exactBoundary)),
+		).drainThrough(2L) shouldBe
+			PressureSessionFactDrainResult.Complete(2L, factsInserted = 1, eventsValidated = 2)
+
+		fact(1L) shouldBe null
+		requireNotNull(fact(2L)).intervalStartTimeMs shouldBe 9_852L
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 2L
+	}
+
+	@Test
 	fun `deleted session scope advances as a validated no effect`() = runTest {
 		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 		insertSessionDeletionFence()
@@ -959,6 +989,7 @@ class PressureSessionFactProjectionLaneTest {
 		sourcePolicyRevision: Long = 3L,
 		captureConsentEpoch: Long = 4L,
 		wallTimeMs: Long = 10_000L + ordinal,
+		wallTimeUncertaintyMs: Long = 1L,
 		acquiredAtMs: Long = 10_000L + ordinal,
 	): AdmittedSourceEvent<PressureWindowPayload> {
 		val startNanos = ordinal * 1_000_000_000L
@@ -985,7 +1016,7 @@ class PressureSessionFactProjectionLaneTest {
 				observedElapsedRealtimeNanos = endNanos,
 				receivedElapsedRealtimeNanos = endNanos + 1_000L,
 				wallTimeMs = wallTimeMs,
-				wallTimeUncertaintyMs = 1L,
+				wallTimeUncertaintyMs = wallTimeUncertaintyMs,
 				capturedCollectedDataEpoch = collectedDataEpoch,
 				sourcePolicyRevision = sourcePolicyRevision,
 				captureConsentEpoch = captureConsentEpoch,
