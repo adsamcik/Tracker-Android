@@ -145,7 +145,9 @@ internal class PressureHistorySelector @Inject constructor(
 			val captureFailure = when (membershipFailure) {
 				PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW ->
 					HistoricalCaptureFailure.BATCH_DEPENDENCY_OVERFLOW
-				PressureHistoryReason.LOGICAL_MANIFEST_REVISION_UNION_INVALID ->
+				PressureHistoryReason.LOGICAL_MANIFEST_REVISION_UNION_INVALID,
+				PressureHistoryReason.MANIFEST_MEMBERSHIP_MISMATCH,
+				PressureHistoryReason.MANIFEST_INTEGRITY_FAILED ->
 					HistoricalCaptureFailure.MANIFEST_INTEGRITY_FAILED
 				else -> HistoricalCaptureFailure.SEGMENT_MEMBERSHIP_INCOMPLETE
 			}
@@ -373,6 +375,13 @@ internal class PressureHistorySelector @Inject constructor(
 		val targetOrdinal = completeness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal)
 			.maxOrNull()
 		val revisions = snapshot.factRevisionsByRun[serviceRunId].orEmpty()
+		if (logicalTrackingId in snapshot.invalidFactScopeLogicalIds) {
+			return failed(
+				segment,
+				captureAuthority,
+				PressureHistoryReason.PRESSURE_FACT_CORRECTION_INCOMPLETE,
+			)
+		}
 		if (completeness.singleOrNull()?.registrationGeneration == 0L) {
 			val retainedFromMs = evidenceState.retainedFromMs
 			val hasRetainedFacts = revisions.any { fact ->
@@ -387,13 +396,6 @@ internal class PressureHistorySelector @Inject constructor(
 			} else {
 				providerUnavailable(segment, captureAuthority)
 			}
-		}
-		if (logicalTrackingId in snapshot.invalidFactScopeLogicalIds) {
-			return failed(
-				segment,
-				captureAuthority,
-				PressureHistoryReason.PRESSURE_FACT_CORRECTION_INCOMPLETE,
-			)
 		}
 		if (revisions.isNotEmpty() && targetOrdinal == null ||
 			targetOrdinal != null && revisions.any { fact ->
@@ -863,6 +865,32 @@ internal class PressureHistorySelector @Inject constructor(
 			if (!SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(revisionsByRun)) {
 				failures[logicalTrackingId] =
 					PressureHistoryReason.LOGICAL_MANIFEST_REVISION_UNION_INVALID
+				return@forEach
+			}
+			val manifestFailure = serviceRunIds.firstNotNullOfOrNull { serviceRunId ->
+				val run = serviceRuns[serviceRunId]
+				val manifests = manifestsByRun[serviceRunId].orEmpty()
+				when {
+					run == null || run.logicalTrackingId != logicalTrackingId ->
+						PressureHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE
+					manifests.any { manifest ->
+						manifest.logicalTrackingId != logicalTrackingId ||
+							manifest.serviceRunId != serviceRunId
+					} -> PressureHistoryReason.MANIFEST_MEMBERSHIP_MISMATCH
+					manifests.any { manifest ->
+						val sources = sourcesByManifest[
+							PressureManifestKey(logicalTrackingId, manifest.manifestRevision)
+						].orEmpty()
+						!SessionManifestIntegrity.verify(manifest, sources) ||
+							!hasValidZone(manifest.zoneId)
+					} -> PressureHistoryReason.MANIFEST_INTEGRITY_FAILED
+					!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) ->
+						PressureHistoryReason.MANIFEST_INTEGRITY_FAILED
+					else -> null
+				}
+			}
+			if (manifestFailure != null) {
+				failures[logicalTrackingId] = manifestFailure
 			}
 		}
 		return if (failures == logicalMembershipFailures) this else copy(

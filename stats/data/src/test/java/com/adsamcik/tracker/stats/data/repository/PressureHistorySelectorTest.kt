@@ -195,6 +195,55 @@ class PressureHistorySelectorTest {
 	}
 
 	@Test
+	fun corruptReplacementManifestBlocksItsOtherwiseValidLogicalSibling() = runTest {
+		val first = insertFixture(factSemanticRevision = 1L, laneCursor = 2L)
+		val replacement = insertReplacementFixture()
+		val segments = database.trackingHistoryReadDao().segments(
+			listOf(first.segmentId, replacement.segmentId),
+		)
+		val snapshot = database.withTransaction {
+			loadPressureHistoryBatchSnapshot(database, segments)
+		}
+		val replacementManifest = snapshot.manifestsByRun.getValue(replacement.runId).single()
+		val replacementSources = snapshot.sourcesByManifest.getValue(
+			PressureManifestKey(LOGICAL_ID, replacementManifest.manifestRevision),
+		)
+		val timelineUnsigned = replacementManifest.copy(
+			effectiveElapsedRealtimeNanos = REPLACEMENT_RUN_START_ELAPSED_NANOS - 1L,
+			manifestChecksum = "",
+		)
+		val corruptions = listOf(
+			replacementManifest.copy(logicalTrackingId = "other-logical") to
+				PressureHistoryReason.MANIFEST_MEMBERSHIP_MISMATCH,
+			replacementManifest.copy(manifestChecksum = "0".repeat(64)) to
+				PressureHistoryReason.MANIFEST_INTEGRITY_FAILED,
+			timelineUnsigned.copy(
+				manifestChecksum = SessionManifestIntegrity.compute(
+					timelineUnsigned,
+					replacementSources,
+				),
+			) to PressureHistoryReason.MANIFEST_INTEGRITY_FAILED,
+		)
+
+		corruptions.forEach { (corruptManifest, expectedReason) ->
+			val corruptSnapshot = snapshot.copy(
+				manifestsByRun = snapshot.manifestsByRun + (
+					replacement.runId to listOf(corruptManifest)
+				),
+			)
+			val selected = selector.selectManyWithSnapshot(segments, corruptSnapshot)
+
+			selected.map { it.segment.id }.toSet() shouldBe
+				setOf(first.segmentId, replacement.segmentId)
+			selected.all { history ->
+				history.availability == PressureHistoryAvailability.UNAVAILABLE &&
+					history.materialization == PressureHistoryMaterialization.FAILED &&
+					history.reasons == setOf(expectedReason)
+			} shouldBe true
+		}
+	}
+
+	@Test
 	fun legitimateUnavailablePressureSettlementIsTypedUnavailable() = runTest {
 		val fixture = insertFixture(factSemanticRevision = null, unavailablePressure = true)
 
@@ -218,6 +267,44 @@ class PressureHistorySelectorTest {
 		result.coverage shouldBe PressureHistoryCoverage.UNKNOWN
 		result.reasons shouldBe setOf(
 			PressureHistoryReason.UNAVAILABLE_SENTINEL_WITH_RETAINED_FACTS,
+		)
+		result.windows shouldBe emptyList()
+	}
+
+	@Test
+	fun movedCorrectionCannotHideBehindUnavailablePressureSentinel() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L, unavailablePressure = true)
+		val first = pressureFact(pressureBinding(), semanticRevision = 1L, admissionOrdinal = 1L)
+		val escapedBinding = pressureBinding().copy(
+			logicalTrackingId = "other-logical",
+			manifestRevision = 2L,
+			consentEpoch = 2L,
+		)
+		val escapedUnsigned = first.copy(
+			semanticRevision = 2L,
+			mutationId = "${first.logicalFactId}:2",
+			sourceAdmissionOrdinal = 2L,
+			logicalTrackingId = "other-logical",
+			serviceRunId = "other-run",
+			manifestRevision = 2L,
+			sourcePolicyRevision = 2L,
+			captureConsentEpoch = 2L,
+			effectChecksum = "pending",
+		)
+		val escaped = escapedUnsigned.copy(
+			effectChecksum = PressureFactRevisionIntegrity.effectChecksum(
+				escapedUnsigned,
+				escapedBinding,
+			),
+		)
+		database.pressureFactRevisionDao().insert(escaped)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		result.availability shouldBe PressureHistoryAvailability.AVAILABLE
+		result.materialization shouldBe PressureHistoryMaterialization.FAILED
+		result.reasons shouldBe setOf(
+			PressureHistoryReason.PRESSURE_FACT_CORRECTION_INCOMPLETE,
 		)
 		result.windows shouldBe emptyList()
 	}
