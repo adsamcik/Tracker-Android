@@ -167,7 +167,7 @@ internal object ActivityHistoryComposer {
 		val targetByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId)
 			.mapValues { (_, rows) -> rows.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull() }
 		val laneTarget = targetByRun.values.filterNotNull().maxOrNull()
-		if (!hasValidLogicalSessionSettlement(session, active, laneTarget) ||
+		if (!hasValidLogicalSessionSettlement(session, runs, manifestsByRun, laneTarget) ||
 			laneTarget?.let { it < lane.activationOrdinal ||
 			lane.captureAdmissionCutoffOrdinal?.let { cutoff -> it > cutoff } == true } == true ||
 			snapshot.terminalFailures.isNotEmpty()
@@ -303,14 +303,25 @@ internal object ActivityHistoryComposer {
 
 	private fun hasValidLogicalSessionSettlement(
 		session: com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity,
-		active: Boolean,
+		runs: List<SourceServiceRunEntity>,
+		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 		targetOrdinal: Long?,
-	): Boolean = if (active) {
-		session.cutoffAtMs == null && session.cutoffElapsedNanos == null &&
-			session.completedAtMs == null && session.finalAdmissionOrdinal == null &&
-			!session.currentServiceRunId.isNullOrBlank()
-	} else {
-		session.cutoffAtMs != null && session.cutoffElapsedNanos != null &&
+	): Boolean {
+		val nonTerminalRuns = runs.filter { run ->
+			run.completedAtMs == null || run.state !in TERMINAL_RUN_STATES
+		}
+		if (nonTerminalRuns.isNotEmpty()) {
+			val currentRun = nonTerminalRuns.singleOrNull() ?: return false
+			val currentManifest = manifestsByRun[currentRun.serviceRunId]
+				.orEmpty().maxByOrNull(SessionManifestVersionEntity::manifestRevision) ?: return false
+			return session.cutoffAtMs == null && session.cutoffElapsedNanos == null &&
+				session.completedAtMs == null && session.finalAdmissionOrdinal == null &&
+				session.currentServiceRunId == currentRun.serviceRunId &&
+				session.currentManifestRevision == currentManifest.manifestRevision &&
+				session.lifecycleLeaseGeneration == currentRun.leaseGeneration &&
+				session.lifecycleBootId == currentRun.bootId
+		}
+		return session.cutoffAtMs != null && session.cutoffElapsedNanos != null &&
 			session.completedAtMs != null && session.completedAtMs >= session.startedAtMs &&
 		session.finalAdmissionOrdinal?.let { finalOrdinal ->
 			targetOrdinal == null || targetOrdinal <= finalOrdinal

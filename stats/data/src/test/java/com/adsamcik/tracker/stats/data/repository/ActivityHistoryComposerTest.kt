@@ -34,12 +34,16 @@ import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryFragment
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryPage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
+import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.security.MessageDigest
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -75,6 +79,61 @@ class ActivityHistoryComposerTest {
 
 		candidates shouldHaveSize 1
 		candidates.single().segment.id shouldBe segment.id
+	}
+
+	@Test
+	fun `repository session loads one exact Room snapshot`() = runTest {
+		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		persistFixture(snapshot)
+		var authorityChecks = 0
+		val repository = DefaultActivityHistoryRepository(
+			database,
+			SourceProductLaneExecutionAuthority {
+				authorityChecks += 1
+				database.inTransaction()
+			},
+			UnconfinedTestDispatcher(testScheduler),
+		)
+
+		val query = repository.session(snapshot.expansion.segments.single().id)
+
+		val entry = (query as ActivityHistoryQuery.Found).entry
+		entry.startTime shouldBe EpochMs(1_000L)
+		entry.endTime shouldBe EpochMs(1_500L)
+		entry.state shouldBe ActivityHistoryProductState.PARTIAL
+		entry.activeTime?.knownActiveDurationNanos shouldBe 100L
+		entry.storedZoneIds shouldBe setOf("UTC")
+		authorityChecks shouldBe 1
+	}
+
+	@Test
+	fun `repository expands replacement membership and recency across Room pages`() = runTest {
+		val specs = (1L..33L).map { revision ->
+			RunSpec(
+				revision = revision,
+				runId = "run-$revision",
+				zone = if (revision == 33L) "Europe/Prague" else "UTC",
+			)
+		}
+		val snapshot = fixture(specs)
+		persistFixture(snapshot)
+		val repository = DefaultActivityHistoryRepository(
+			database,
+			EXECUTION_AUTHORITY,
+			UnconfinedTestDispatcher(testScheduler),
+		)
+
+		val selected = repository.session(snapshot.expansion.segments.first().id)
+		val recent = repository.recent(1)
+
+		val selectedEntry = (selected as ActivityHistoryQuery.Found).entry
+		val recentEntry = (recent as ActivityHistoryPage.Available).entries.single()
+		selectedEntry.endTime shouldBe EpochMs(17_500L)
+		recentEntry.endTime shouldBe EpochMs(17_500L)
+		recentEntry.startTime shouldBe EpochMs(1_000L)
+		recentEntry.activeTime?.knownActiveDurationNanos shouldBe 3_300L
+		recentEntry.storedZoneIds shouldBe setOf("UTC", "Europe/Prague")
+		recentEntry shouldBe selectedEntry
 	}
 
 	@Test
@@ -193,6 +252,87 @@ class ActivityHistoryComposerTest {
 		entry.state shouldBe ActivityHistoryProductState.MATERIALIZING
 		entry.activeTime shouldBe null
 		entry.fragments shouldBe emptyList()
+	}
+
+	@Test
+	fun `active session pointer and authority must match its sole nonterminal run`() {
+		val initial = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val activeRun = initial.runs.getValue("run-a").copy(
+			state = "ACTIVE",
+			completedAtMs = null,
+			completionReason = null,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+			presentationAcknowledgedAtMs = null,
+		)
+		val activeSession = initial.sessions.getValue(LOGICAL_ID).copy(
+			state = "ACTIVE",
+			cutoffAtMs = null,
+			cutoffElapsedNanos = null,
+			completedAtMs = null,
+			finalAdmissionOrdinal = null,
+			currentServiceRunId = activeRun.serviceRunId,
+			currentManifestRevision = 1L,
+			lifecycleLeaseGeneration = activeRun.leaseGeneration,
+			lifecycleBootId = activeRun.bootId,
+		)
+		val active = initial.copy(
+			sessions = mapOf(LOGICAL_ID to activeSession),
+			runs = mapOf(activeRun.serviceRunId to activeRun),
+		)
+		val mismatches = listOf(
+			activeSession.copy(currentServiceRunId = "stale-run"),
+			activeSession.copy(currentManifestRevision = 2L),
+			activeSession.copy(lifecycleLeaseGeneration = activeRun.leaseGeneration + 1L),
+			activeSession.copy(lifecycleBootId = "stale-boot"),
+		)
+
+		mismatches.forEach { mismatch ->
+			val entry = ActivityHistoryComposer.composeRecent(
+				active.copy(sessions = mapOf(LOGICAL_ID to mismatch)),
+				EXECUTION_AUTHORITY,
+			).single().entry
+			entry.state shouldBe ActivityHistoryProductState.FAILED
+			entry.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+		}
+	}
+
+	@Test
+	fun `two nonterminal replacement runs cannot publish one active logical session`() {
+		val initial = fixture(
+			listOf(RunSpec(1L, "run-a", "UTC"), RunSpec(2L, "run-b", "UTC")),
+		)
+		val activeRuns = initial.runs.mapValues { (_, run) ->
+			run.copy(
+				state = "ACTIVE",
+				completedAtMs = null,
+				completionReason = null,
+				presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+				presentationAcknowledgedAtMs = null,
+			)
+		}
+		val current = activeRuns.getValue("run-b")
+		val session = initial.sessions.getValue(LOGICAL_ID).copy(
+			state = "ACTIVE",
+			cutoffAtMs = null,
+			cutoffElapsedNanos = null,
+			completedAtMs = null,
+			finalAdmissionOrdinal = null,
+			currentServiceRunId = current.serviceRunId,
+			currentManifestRevision = 2L,
+			lifecycleLeaseGeneration = current.leaseGeneration,
+			lifecycleBootId = current.bootId,
+		)
+
+		val entry = ActivityHistoryComposer.composeRecent(
+			initial.copy(
+				sessions = mapOf(LOGICAL_ID to session),
+				runs = activeRuns,
+			),
+			EXECUTION_AUTHORITY,
+		).single().entry
+
+		entry.state shouldBe ActivityHistoryProductState.FAILED
+		entry.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
 	}
 
 	@Test
@@ -381,6 +521,59 @@ class ActivityHistoryComposerTest {
 			evidenceState = SourceEvidenceState(collectedDataEpoch = 0L),
 			overflow = false,
 		)
+	}
+
+	private suspend fun persistFixture(snapshot: ActivityHistorySnapshot) {
+		val sessionDao = database.sourceSessionDao()
+		val policyDao = database.sourcePolicyDao()
+		val planDao = database.sourcePlanStateDao()
+		val brokerDao = database.sourceBrokerDao()
+		val factDao = database.activityCapturedFactDao()
+		snapshot.sessions.values.forEach { sessionDao.insertSession(it) }
+		database.sessionSegmentDao().insert(snapshot.expansion.segments)
+		snapshot.runs.values.sortedBy(SourceServiceRunEntity::startedAtMs)
+			.forEach { sessionDao.insertServiceRun(it) }
+		snapshot.manifestsByRun.values.flatten()
+			.sortedBy(SessionManifestVersionEntity::manifestRevision)
+			.forEach { sessionDao.insertManifest(it) }
+		sessionDao.insertManifestSources(
+			snapshot.sourcesByManifest.values.flatten()
+				.sortedBy(SessionManifestSourceEntity::manifestRevision),
+		)
+		policyDao.insertPolicies(snapshot.policies.values.sortedBy(SourcePolicyEntity::policyRevision))
+		policyDao.insertConsentEpochs(snapshot.consents.values.sortedBy(SourceConsentEpochEntity::epoch))
+		snapshot.acquisitionPlanRevisions.values.sortedBy(AcquisitionPlanRevisionEntity::revision)
+			.forEach { planDao.insertRevision(it) }
+		planDao.insertDesiredPlans(snapshot.desiredPlans.values.sortedBy(SourceDesiredPlanEntity::revision))
+		snapshot.registrationPlans.values
+			.sortedWith(compareBy(ActivityCapturedRegistrationPlanEntity::registrationGeneration))
+			.forEach { factDao.insertRegistrationPlanBinding(it) }
+		snapshot.providerRegistrations.values
+			.sortedBy(ProviderRegistrationGenerationEntity::registrationGeneration)
+			.forEach { brokerDao.insertRegistration(it) }
+		brokerDao.insertAuthorizations(
+			snapshot.authorizationsByRegistration.values.flatten().sortedWith(
+				compareBy(
+					SourceAuthorizationEntity::registrationGeneration,
+					SourceAuthorizationEntity::authorizationRevision,
+				),
+			),
+		)
+		snapshot.lanes.forEach { database.sourceProjectionStateDao().installProductLane(it) }
+		snapshot.completenessByRun.values.flatten().forEach { sessionDao.saveCompleteness(it) }
+		snapshot.revisions.sortedWith(
+			compareBy(
+				ActivityCapturedWindowRevisionEntity::logicalWindowId,
+				ActivityCapturedWindowRevisionEntity::semanticRevision,
+			),
+		).forEach { revision ->
+			factDao.insertRevision(revision)
+			val key = revisionKey(revision)
+			factDao.insertFragments(snapshot.fragmentsByRevision[key].orEmpty())
+			factDao.insertEvidence(snapshot.evidenceByRevision[key].orEmpty())
+		}
+		snapshot.cursors.forEach { factDao.insertCursor(it) }
+		database.sourceEvidenceStateDao().ensure(requireNotNull(snapshot.evidenceState))
 	}
 
 	private fun buildRun(spec: RunSpec): BuiltRun {
