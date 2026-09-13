@@ -541,6 +541,13 @@ registration reconciliation plus durable-WAL-before-materialization evidence. PR
 remain unchecked until dormant runtime wiring, lifecycle settlement, shared UI, and complete
 maintenance or transfer behavior exist.
 
+Accepted isolated commits `f36b80cb5`/`85ac20157` implement only the source-local retention-loss
+portion of PRESS-008/012. They authenticate bounded run/fact/correction authority, delete complete
+uncertainty-crossing lineages, and atomically retain a self-verifying payload-free marker, with hard
+total/per-run budgets and cancellation rollback. PRESS-008/012 remain unchecked until the worker
+invokes this path, product reads consume the marker, and repair, deletion, portable transfer, and
+the complete authored scenario cohort exist.
+
 ## Protected Location vertical
 
 - [ ] TODO-LOC-001 Keep the current canonical Location writer as the only active writer throughout

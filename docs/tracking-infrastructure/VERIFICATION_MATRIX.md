@@ -1842,3 +1842,23 @@ Deferred focused command:
 The command was not run. Kotlin/Room compilation, SQL execution, source-local fact persistence and
 deletion fencing, callback/provider behavior, multi-SIM completeness, product history/UI, device/OEM
 behavior, integration, activation, and release remain unproven.
+
+## TI-B268 — Pressure bounded retention-truncation contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `85ac20157`. Authored source-specific integrity, DAO,
+transaction, and writer-floor tests cover exact retention epoch/floor, reciprocal run/segment and
+complete manifest authority, policy/consent/writer/zone/deletion/correction validation, whole-lineage
+removal, self-verifying payload-free markers, sibling preservation, corruption rollback, exact floor
+boundary, configured total-revision overflow rollback, and cancellation immediately after marker
+insertion. An independent review rejected page-only boundedness and accepted the explicit total and
+per-run traversal budgets plus rollback correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*PressureRetentionTruncationTest' :stats:data:testDebugUnitTest --tests '*PressureHistory*' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Kotlin/Room compilation, SQL execution, retention-worker invocation,
+marker-aware product composition, large-store timing, correction/replay behavior, device storage,
+integration, activation, and release remain unproven.

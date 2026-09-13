@@ -50,7 +50,11 @@ Pressure commits `264cc4fe9` and `97941e8b1` add an independently accepted sourc
 read facade with batched logical-recency discovery, ordinary qualification, exact selected detail,
 typed states, and direct pressure quality evidence. Commits `5db56ebcc`, `b21135cf5`, and
 `a410dcb86` independently close session-only demand construction and restored-demand reconciliation
-while preserving durable-WAL-before-materialization ordering. Shared UI, maintenance, transfer, and
+while preserving durable-WAL-before-materialization ordering. Commits `f36b80cb5` and `85ac20157`
+add bounded source-specific retention truncation: one exact authority audit transaction writes a
+self-verifying payload-free run marker and removes every revision of each uncertainty-crossing
+lineage, rolling the entire mutation back on corruption, configured total-work overflow, or
+cancellation. Retention-worker invocation, marker-aware product reads, shared UI, transfer, and
 automatic Activity control remain open.
 
 The protected Location branch is clean at `762186a24`. Its three-file dormant qualifier binds exact
@@ -73,9 +77,9 @@ source-local deletion generation, writer/cursor, provider activation, product re
 Git/worktree reconciliation found no accepted committed implementation stranded or lost: imported
 Steps branches are contained or patch-equivalent in the coordinator, the older Pressure and numeric
 branches are ancestors, and the two dirty portable-import/qualified-awards drafts remain frozen
-reference inputs only. Activity product composition, Wi-Fi qualification, Pressure maintenance, and
-the Location WAL adapter remain active isolated lanes whose current review findings must be
-corrected before acceptance.
+reference inputs only. Activity product composition, Wi-Fi qualification, Ambient product
+composition, and the Location WAL adapter remain active isolated lanes whose current review
+findings must be corrected before acceptance.
 
 The checked-in v28 JSON now declares 79 entities: 51 released-v27 entities plus 28 narrowly owned
 v28 additions. Its identity hash is intentionally stale and Room/Kotlin/SQL generation or checking

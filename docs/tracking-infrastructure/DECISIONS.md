@@ -3266,3 +3266,19 @@ Each entry records repository evidence and does not duplicate the final architec
   subscription grouping, so completeness stays `UNKNOWN`; confirmed empty also remains
   unverifiable. No Cell fact table, source-local deletion generation, writer, provider activation,
   product history, or UI was added, and scope deletion generation must be exact before persistence.
+
+## TI-D205 — Pressure retention removes complete uncertain lineages under bounded authority
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/tests `f36b80cb5` and
+  `85ac20157`; TI-B268.
+- Retention candidate discovery never proves ownership from wall time. One source-specific Room
+  transaction revalidates the current exact retention floor and epoch, reciprocal run/segment
+  binding, complete manifest timeline/checksum and stored zone, exact Pressure capture policy,
+  consent and writer ownership, correction chains, and absence of cross-scope or deleted-scope facts.
+- When any revision's earliest possible wall bound crosses the floor and the aggregate cannot be
+  split truthfully, every revision of that logical lineage is removed and a self-verifying,
+  payload-free run marker is written atomically. The Pressure writer rejects later resurrection
+  across the same floor; `QUIESCED` and wall-time overlap are never ownership predicates.
+- Fixed query pages are reinforced by explicit total and per-run run/row/revision/lineage budgets.
+  Overflow, malformed authority, or cancellation rolls back all markers and deletions. A worker does
+  not yet invoke this path and product reads do not yet consume its marker.

@@ -64,7 +64,11 @@ Independent clean lanes:
   `G:\Github\Tracker-Android\.worktrees\ti-pressure-acquisition`; clean and independently accepted
   as **IMPLEMENTED_UNVALIDATED**. Source-specific public reads are accepted through `97941e8b1` on
   `codex/ti-pressure-product-read`; session-only durable demand/writer boundaries are accepted
-  through `a410dcb86` on `codex/ti-pressure-writer-activation`. Shared UI remains open.
+  through `a410dcb86` on `codex/ti-pressure-writer-activation`. Source-specific retention truncation
+  is accepted through `85ac20157` on `codex/ti-pressure-maintenance`: bounded full-authority audits
+  atomically record a payload-free marker and remove every affected lineage, with whole-transaction
+  rollback on overflow or cancellation. Retention-worker invocation, marker-aware product reads,
+  transfer, and shared UI remain open.
 - Protected Location qualifier: `codex/ti-location-qualified-observation` at `762186a24` in
   `G:\Github\Tracker-Android\.worktrees\ti-location-qualified-observation`; clean and independently
   accepted as **IMPLEMENTED_UNVALIDATED**. It is dormant and does not alter the canonical writer;
