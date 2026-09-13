@@ -89,7 +89,12 @@ transfer branch is independently accepted through `63b9667b3` for export only: o
 snapshot emits a self-checksummed, opaque, identity-minimized v1 stream with exact replacement,
 quality, uncertainty, stored-zone, and retention-loss semantics and no Location, control, provider,
 or local database identity. Shared UI, correction-safe repair, selected/all-data deletion,
-authoritative portable import, and automatic Activity control remain open.
+authoritative portable import, and automatic Activity control remain open. The separate Pressure UI
+branch is independently accepted through `8214b92ab` for one bounded Pressure-aware recent page,
+Dashboard row, and transactional live snapshot. Exact Pressure intent replaces the physical fallback
+before first fact; mixed/legacy entries remain physical; direct hPa metrics and typed state are shown
+without Location-derived fields or zero fabrication. Calendar, shared selected detail, broader
+Today/Timeline consumers, and device/accessibility review remain open.
 
 The protected Location branch is clean at `762186a24`. Its three-file dormant qualifier binds exact
 capture-only, WAL, delivery, clock, payload, quality, mock, policy, consent, generation, deletion,
@@ -134,9 +139,9 @@ Steps branches are contained or patch-equivalent in the coordinator, the older P
 branches are ancestors, and the two dirty portable-import/qualified-awards drafts remain frozen
 reference inputs only. Cell persistence is accepted through its source-local writer boundary, while
 maintenance and product work remain. Activity WAL admission and exact runtime plan attribution are
-accepted dormant boundaries. Pressure shared UI remains an active isolated lane. The export-only
-Pressure transfer slice is accepted, while its import half remains deliberately blocked on the
-missing authoritative writer and no-resurrection mapping.
+accepted dormant boundaries. The Pressure Dashboard/recent/live slice and export-only transfer slice
+are accepted, while portable import remains deliberately blocked on the missing authoritative writer
+and no-resurrection mapping.
 
 The checked-in v28 JSON now declares 79 entities: 51 released-v27 entities plus 28 narrowly owned
 v28 additions. Its identity hash is intentionally stale and Room/Kotlin/SQL generation or checking

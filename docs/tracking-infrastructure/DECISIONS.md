@@ -3456,3 +3456,22 @@ Each entry records repository evidence and does not duplicate the final architec
 - This closes the plan-attribution reachability gap only. A bounded terminal projection trigger,
   destination/writer activation, maintenance, transfer, shared UI, generated v28 schema convergence,
   and provider/device evidence remain open.
+
+## TI-D216 — Pressure-only recent and live UI uses one bounded truthful product snapshot
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated product/API/UI/tests `06ec05883` through
+  `8214b92ab` atop the accepted Pressure read and retention-marker path; TI-B279.
+- One Pressure-aware recent-page composition merges physical, Steps-only, and exact Pressure-only
+  candidates under explicit candidate/member limits, cancellation, and bounded backfill. Pressure
+  logical recency is one member-owned `(startTime,id)` tuple, never independent maxima.
+- Exact Pressure-only intent replaces the Location-shaped physical fallback before the first fact and
+  while unavailable or materializing. Mixed-source and legacy-unverifiable entries retain their
+  existing physical presentation; no `sample_count` or Location inference is introduced.
+- Dashboard exposes an opaque non-clickable Pressure-only row and one live snapshot assembled from
+  session plus Pressure classification inside one Room transaction. It shows only retained direct
+  hPa latest/range/change and typed coverage/state, never route, distance, speed, elevation, ascent,
+  coordinates, or fabricated zero.
+- `Recording` is evidence-driven: ready or partial/materializing state with retained qualified
+  metrics may use it; materializing without metrics, unavailable, and failed states use their typed
+  non-recording status. Calendar, selected shared detail, full Today/Timeline integration,
+  localization/device review, and automatic control remain open.

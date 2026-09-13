@@ -2076,3 +2076,26 @@ The command was not run. Compilation, Room query execution, generated v28 schema
 terminal projection triggering, destination/writer activation, provider callbacks, process/reboot,
 maintenance/transfer, shared UI, device behavior, integration, activation, and release remain
 unproven.
+
+## TI-B279 — Pressure-only recent, Dashboard, and live presentation contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `8214b92ab`. Authored API, repository, paging, presenter,
+and Compose tests cover exact Pressure-only intent before first fact, unavailable/materializing
+replacement of physical fallback, complete logical membership, one member-owned recency tuple,
+256-candidate/member overflow, cancellation, 64+1 Dashboard backfill, mixed/legacy preservation, and
+one Room snapshot for live session plus Pressure classification. UI contracts cover direct retained
+hPa latest/range/change and coverage, non-clickable opaque rows, no Location-derived fields, no zero
+fabrication, Recording only with qualified retained metrics, and typed non-recording materializing,
+unavailable, and failed headers. Reviews rejected fact-only replacement, split recency maxima,
+unbounded/underfilled pages, mixed-time live flows, and state-only Recording labels before accepting
+the corrections.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:api:jvmTest --tests '*TrackingHistoryRepositoryTest' :stats:data:testDebugUnitTest --tests '*PressureHistorySelectorTest' :feature:dashboard:testDebugUnitTest --tests '*DashboardHistoryRepositoryTest' --tests '*DashboardViewModelLiveStepsTest' --tests '*RecentTripsCardTest' --tests '*PressureOnlyTrackingContentTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query execution, Calendar/shared selected-detail/full
+Today-Timeline composition, localization/accessibility/device rendering, process/provider behavior,
+automatic control, integration, activation, and release remain unproven.

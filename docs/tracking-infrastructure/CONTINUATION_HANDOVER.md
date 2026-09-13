@@ -92,7 +92,13 @@ Independent clean lanes:
   reader. It emits opaque kind-scoped identity and qualified Pressure quality/uncertainty/zone
   evidence, never Location, control, provider, or local database identity. Import remains absent
   until a source-authoritative writer and deletion/retention/no-resurrection mapping exist. Shared
-  UI, deletion, repair, and import remain open. A redundant clean `ti-pressure-retention-product`
+  UI commits `06ec05883` through `8214b92ab` on `codex/ti-pressure-ui` are independently accepted for
+  a bounded Pressure-aware recent page, opaque Dashboard row, and one-transaction live snapshot.
+  Exact Pressure intent replaces the physical fallback before first fact; only retained direct hPa
+  metrics and typed state are exposed; mixed/legacy rows retain physical behavior; no
+  Location-derived field or fabricated zero is shown. Calendar, shared selected detail, broader
+  Today/Timeline composition, deletion, repair, and import remain open. A redundant clean
+  `ti-pressure-retention-product`
   worktree was created during a coordination race at `85ac20157` and
   intentionally remains untouched; do not reset or delete it while this wave is active.
 - Protected Location qualifier: `codex/ti-location-qualified-observation` at `762186a24` in
