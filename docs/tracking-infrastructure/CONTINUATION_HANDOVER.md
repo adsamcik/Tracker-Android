@@ -168,7 +168,13 @@ Independent clean lanes:
   epoch. Historical terminal runs require a complete bounded current replacement manifest/action/
   registration bundle with current epoch and exact wall/elapsed reservation, acceptance,
   acknowledgement, and retirement chronology; ACTIVE and RETIRING shapes fail closed separately.
-  Provider activation, maintenance/transfer, product history, and UI remain open.
+  `codex/ti-wifi-product-read` is independently accepted through `adde063f3`: one bounded Room
+  snapshot discovers cursor/WAL/completeness-carried source-only entries, expands complete logical
+  replacement groups, and authenticates fact freshness, provider/authorization/session windows,
+  immutable plans, lane/cursor/lifecycle, deletion, retention, and zone. Shared registration requires
+  exactly one matching persistent capture owner plus compatible physical contracts for every other
+  member; unrelated members never acquire fact ownership. Provider activation, maintenance/transfer,
+  shared UI, automatic/ambient behavior, and device evidence remain open.
 
 Read-only Git reconciliation found no accepted committed work lost through compaction. The imported
 Steps source branches are already contained or patch-equivalent in this coordinator; old

@@ -3629,3 +3629,21 @@ Each entry records repository evidence and does not duplicate the final architec
   `PressureOnly` plus existing typed unavailable states. Only Physical owns navigation/detail;
   mixed/legacy remain Physical, source-only numeric absence remains null, and no generic source
   payload, materializer language, or new UI platform is added.
+
+## TI-D226 — Wi-Fi history authenticates one capture owner within a compatible shared registration
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated API/data/Room tests `d52e85b7a` through
+  `adde063f3`; corrected independent re-review; TI-B289.
+- One bounded Room snapshot discovers Wi-Fi-only logical entries from exact cursor, retained WAL, and
+  completeness carriers, expands complete replacement membership, and authenticates fact lineage,
+  receipt freshness, provider/authorization/session windows, plan, lifecycle, lane/cursor, deletion,
+  retention, and stored-zone authority. Missing or corrupt current heads remain typed failures.
+- Provider reservation may precede a later compatible manifest on the same physical registration;
+  reservation must still precede acceptance. ACTIVE and RETIRING lane shapes require positive rollout
+  and valid install/update/terminal chronology; RETIRED requires exact cursor-equals-cutoff.
+- A complete authorization revision may contain multiple compatible broker members. Exactly one
+  persistence-eligible `SESSION_CAPTURE` demand must match the fact's logical/run/manifest owner;
+  every other demand must satisfy the same Wi-Fi broadcast physical contract but receives no fact
+  ownership. Incompatible membership fails closed in both retained-WAL and fact paths.
+- Policy, consent, demand, fence, and lane reads use SQL limits plus overflow accounting. Public
+  observations remain identity-free, and discovery uses neither `sample_count` nor Location.

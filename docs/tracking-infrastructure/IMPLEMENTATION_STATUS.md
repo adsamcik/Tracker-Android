@@ -184,7 +184,14 @@ behind the Wi-Fi deletion epoch. Older terminal replacement history is accepted 
 exact current replacement bundle proves manifest/checksum/source membership, reciprocal run/segment,
 start action, plan, provider registration, current epoch, paired wall/elapsed chronology, and
 lifecycle-valid ACTIVE or RETIRING state. Fact persistence remains inactive; callback ownership,
-bounded active attempts, product history, maintenance, transfer, and UI remain open.
+bounded active attempts, maintenance, transfer, and UI remain open. The separate Wi-Fi product-read
+branch is independently accepted through `adde063f3`. One bounded transaction discovers source-only
+entries from retained cursor/WAL/completeness carriers, expands complete logical replacement groups,
+and authenticates facts, freshness, provider/authorization/session windows, immutable plans,
+policy/consent, lane/cursor, deletion, retention, and stored-zone authority. Shared registrations
+require exactly one matching persistent capture owner while every other demand remains physically
+compatible; no unrelated member acquires fact ownership. Missing/corrupt heads and overflow remain
+typed, and public metrics stay identity-free with no `sample_count` or Location inference.
 
 Git/worktree reconciliation found no accepted committed implementation stranded or lost: imported
 Steps branches are contained or patch-equivalent in the coordinator, the older Pressure and numeric

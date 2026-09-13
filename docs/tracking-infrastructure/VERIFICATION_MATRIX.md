@@ -2281,3 +2281,29 @@ snapshot invalidation, mixed/legacy physical behavior, Activity and Pressure row
 dual-only contradiction failure, either-source overflow, opaque-key namespacing, cancellation, and
 absence of Location-shaped or fabricated numeric content. No code was changed and no command was
 run; the combined branch and all compilation/Room/UI/device evidence remain outstanding.
+
+## TI-B289 — Bounded Wi-Fi product history contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `adde063f3`. Authored API/composer/real-Room tests cover
+cursor/WAL/completeness-carried discovery, complete replacement groups, fact-only freshness,
+provider/authorization/session half-open windows, later manifest reuse of one accepted registration,
+active/retiring/retired lane chronology and exact cutoff, missing/corrupt heads, identity-free
+metrics, cancellation, and SQL limit enforcement for policy/consent/demand/fence/lane reads.
+
+Independent review rejected the first correction because it required every member in a valid shared
+broker authorization to own the same capture fact. `adde063f3` now requires exactly one matching
+persistent capture owner, authenticates the complete demand set/fingerprint, and verifies every other
+member's compatible Wi-Fi broadcast contract without transferring fact ownership. Authored ready,
+materializing, and incompatible-member fixtures cover both retained-WAL and fact paths; re-review
+accepted the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:api:testAndroidHostTest --tests '*WifiHistoryReadModelTest' :stats:data:testDebugUnitTest --tests '*WifiHistoryComposerTest' --tests '*WifiHistoryRepositoryRoomTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, generated v28 schema convergence, runtime
+projection, provider/callback/active-attempt behavior, maintenance/transfer, shared UI,
+automatic/ambient operation, device/process evidence, integration, activation, and release remain
+unproven.

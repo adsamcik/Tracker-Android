@@ -766,6 +766,16 @@ chronology. ACTIVE and RETIRING registrations have distinct valid shapes. These 
 unchecked until product history/UI, provider/callback and active-attempt ownership, maintenance,
 transfer, automatic/ambient behavior, and complete scenarios exist.
 
+Accepted product-read commits `d52e85b7a`, `f9ea70f6b`, `4328136b0`, and `adde063f3` implement
+bounded portions of WIFI-003/004/005/011/013 and HIST-002/003/004/005/006. Source-only discovery uses
+retained cursor/WAL/completeness evidence rather than `sample_count` or Location; one transaction
+authenticates complete replacement membership, fact freshness and provider/authorization/session
+windows, plan, lifecycle/lane/cursor, privacy, retention, and zone. A shared broker registration is
+valid only with exactly one matching persistent capture owner and compatible physical contracts for
+all other members; those members never inherit fact ownership. These TODOs remain unchecked until
+runtime projection, shared UI, maintenance/transfer, automatic/ambient behavior, and complete
+scenarios exist.
+
 ## Cell vertical
 
 - [ ] TODO-CELL-001 Complete one app-scoped Cell callback owner and stable durable delivery identity
