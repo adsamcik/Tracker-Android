@@ -118,8 +118,12 @@ Independent clean lanes:
   evidence, never Location, control, provider, or local database identity. Exact selected-session
   deletion and stored-zone repair are already accepted in `61608800e`/`9592c42d8`; the global
   all-data transaction advances the collected-data epoch before clearing Pressure facts. Portable
-  import and a separately invocable Pressure-wide erase remain absent until source-authoritative
-  writer, source-generation, quiescence, and no-resurrection mapping exist. Shared
+  import and a separately invocable Pressure-wide erase remain absent. A clean feasibility audit at
+  `63b9667b3` proved the live fact table cannot accept portable data truthfully: it requires real WAL,
+  provider-sequence, local run/manifest, and projection authority that the privacy-safe export omits.
+  There is no Pressure decoder, import authority store, or public import command. Build a distinct
+  source-owned portable-origin persistence/writer contract and extend history/maintenance to
+  authenticate it; never invent live authority or insert directly into the live fact table. Shared
   UI commits `06ec05883` through `8214b92ab` on `codex/ti-pressure-ui` are independently accepted for
   a bounded Pressure-aware recent page, opaque Dashboard row, and one-transaction live snapshot.
   Exact Pressure intent replaces the physical fallback before first fact; only retained direct hPa

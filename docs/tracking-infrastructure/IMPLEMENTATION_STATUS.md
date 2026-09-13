@@ -130,7 +130,14 @@ quality, uncertainty, stored-zone, and retention-loss semantics and no Location,
 or local database identity. Exact selected-session deletion and stored-zone repair already exist in
 `61608800e`/`9592c42d8`, and the global all-data transaction advances the collected-data epoch before
 clearing Pressure facts. Authoritative portable import, a separately invocable Pressure-wide erase,
-and automatic Activity control remain open. The separate Pressure UI
+and automatic Activity control remain open. A clean import feasibility audit at `63b9667b3` found
+that portable Pressure cannot safely reuse the live fact table: every retained fact is owned by a
+real admitted WAL event, provider sequence, local run/manifest, and projection lane, while the
+privacy-safe format deliberately exports none of those local identities. There is no Pressure
+portable decoder, import authority store, or source-owned import command. The next import slice must
+therefore define a distinct Pressure portable-origin persistence and writer contract, then teach
+history and maintenance to authenticate it; direct insertion or invented live authority is banned.
+The separate Pressure UI
 branch is independently accepted through `8214b92ab` for one bounded Pressure-aware recent page,
 Dashboard row, and transactional live snapshot. Exact Pressure intent replaces the physical fallback
 before first fact; mixed/legacy entries remain physical; direct hPa metrics and typed state are shown

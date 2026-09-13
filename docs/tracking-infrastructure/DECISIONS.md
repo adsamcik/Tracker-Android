@@ -3700,3 +3700,21 @@ Each entry records repository evidence and does not duplicate the final architec
   sink I/O occurs only after the read transaction.
 - This does not implement portable import, round-trip/no-resurrection mapping, shared UI, provider
   activation, or device/process evidence.
+
+## TI-D230 — Portable Pressure requires distinct imported provenance, never invented live authority
+
+- Status: **REPOSITORY_BOUNDARY_CONFIRMED**, 2026-09-13; clean audit at export HEAD `63b9667b3`;
+  no implementation change; TI-B293.
+- `PressureFactRevisionEntity` requires a real nonblank source event, positive admission ordinal,
+  provider sequence, local service run/manifest/policy/consent, and the Pressure projection owner.
+  The only writer derives those values from admitted provider WAL and the production history
+  selector reauthenticates them before exposing a fact.
+- Portable Pressure v1 intentionally exports only opaque product identity, pressure/quality/
+  coverage/uncertainty, structural zone, corrections, and retention-loss truth. It excludes provider
+  and local lifecycle/database identity; no decoder, Pressure import authority table/DAO, or
+  source-owned import command exists.
+- Direct DAO insertion or invented event/run/manifest values would bypass ownership and still fail
+  truthful history qualification. The next bounded import architecture is Pressure-specific:
+  imported-origin provenance and storage, one authenticated writer/admission transaction, explicit
+  deletion/retention/no-resurrection authority, and read/maintenance composition. It is not a
+  universal import framework and does not weaken the live-WAL contract.

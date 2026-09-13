@@ -593,6 +593,16 @@ invocable source-wide deletion semantics, no-resurrection mapping, shared UI, an
 boundary scenario tests remain. Exact selected-session deletion and stored-zone repair are already
 accepted, and global all-data erasure already includes Pressure facts.
 
+Import feasibility audit TI-D230/TI-B293 leaves PRESS-008/012 and PRIV-007 explicitly open. The
+current `PressureFactRevisionEntity` and its only writer require authentic live WAL event identity,
+positive admission ordinal, provider sequence, local run/manifest/policy/consent, and projection
+lane authority. Portable Pressure v1 intentionally excludes those local/provider identities, and
+there is no Pressure decoder, import authority entity/DAO, or source-owned import command. The next
+safe implementation is a distinct Pressure portable-origin provenance/store plus one bounded
+source-owned import writer, followed by history/maintenance recognition and round-trip,
+collision/deletion/retention/no-resurrection tests. Never fabricate a live event/run or insert the
+portable product directly into the live-WAL table.
+
 Accepted product/UI commits `06ec05883` through `c27cc1c18` implement bounded portions of
 PRESS-006/007/012 and HIST-002/003/005/006/011/012. One Pressure-aware recent page uses exact-intent
 replacement before first fact, member-owned recency, explicit traversal budgets, cancellation and

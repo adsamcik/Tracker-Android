@@ -2381,3 +2381,23 @@ The Gradle command was not run. During final read-only review, the reviewer acci
 `git diff --check`; it returned no output and changed no file. This was not an authorized start of the
 deferred validation phase. Compilation, Room execution, portable import/round trip, shared UI,
 provider/process/reboot/device behavior, integration, activation, and release remain unproven.
+
+## TI-B293 — Pressure portable-import feasibility boundary audited
+
+Status: **REPOSITORY_BOUNDARY_CONFIRMED** at clean `codex/ti-pressure-import` HEAD `63b9667b3`; no
+source or test file changed. Static inspection confirms that `PressureFactRevisionEntity` rejects a
+missing source event or nonpositive admission ordinal and binds every fact to provider sequence,
+local run/manifest/policy/consent, and the Pressure projection owner. The private
+`PressureSessionFactProjectionLane` constructs those values only from authenticated admitted WAL,
+and `PressureHistorySelector` requires the same live lineage.
+
+Portable Pressure v1 deliberately omits provider and local lifecycle identity. Repository search
+found no Pressure decoder, import authority entity/DAO, or source-owned import command. Therefore a
+direct insert or fabricated live identity is not an acceptable round trip. Required future evidence
+is a bounded Pressure-specific imported-origin store and writer, history/maintenance recognition,
+format decode/checksum/tamper coverage, collision/replay/idempotence, deletion and retention fences,
+and no-resurrection/round-trip contracts.
+
+No validation command was run. This audit proves only the architectural prerequisite and the unsafe
+paths that remain forbidden; portable import, Room execution, migration/reopen, integration, and
+device behavior remain unproven.
