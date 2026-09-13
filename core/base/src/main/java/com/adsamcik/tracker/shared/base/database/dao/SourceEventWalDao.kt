@@ -96,6 +96,25 @@ interface SourceEventWalDao {
 		deliveryIdentity: String,
 	): List<SourceDeliveryUnitIdentityRow>
 
+	/** Bounded exact-delivery probe for source adapters whose producer has finite cardinality. */
+	@Query(
+		"SELECT event_id, admission_ordinal, delivery_unit_index, delivery_unit_count, " +
+			"source_instance_id, registration_generation, physical_configuration_fingerprint, " +
+			"authorization_revision, observed_elapsed_nanos, observed_interval_start_nanos, " +
+			"payload_version, payload_checksum " +
+			"FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND captured_collected_data_epoch = :collectedDataEpoch " +
+			"AND clock_domain_id = :clockDomainId AND delivery_identity = :deliveryIdentity " +
+			"ORDER BY delivery_unit_index ASC LIMIT :limit",
+	)
+	suspend fun deliveryUnitsBounded(
+		sourceKind: Int,
+		collectedDataEpoch: Long,
+		clockDomainId: String,
+		deliveryIdentity: String,
+		limit: Int,
+	): List<SourceDeliveryUnitIdentityRow>
+
 	@Query(
 		"SELECT * FROM source_event_wal WHERE admission_ordinal > :afterOrdinal " +
 			"ORDER BY admission_ordinal ASC LIMIT :limit",

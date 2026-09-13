@@ -149,6 +149,37 @@ interface SourceBrokerDao {
 	): List<SourceAuthorizationEntity>
 
 	@Query(
+		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND authorization_revision = :authorizationRevision ORDER BY member_id LIMIT :limit",
+	)
+	suspend fun authorizationRevisionBounded(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		authorizationRevision: Long,
+		limit: Int,
+	): List<SourceAuthorizationEntity>
+
+	/**
+	 * Next immutable authorization for this physical registration. Authorization revisions are
+	 * source-global, so a registration's successor is not necessarily revision + 1.
+	 */
+	@Query(
+		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND authorization_revision = (SELECT MIN(authorization_revision) " +
+			"FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND authorization_revision > :authorizationRevision) ORDER BY member_id LIMIT :limit",
+	)
+	suspend fun nextAuthorizationRevisionBounded(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		authorizationRevision: Long,
+		limit: Int,
+	): List<SourceAuthorizationEntity>
+
+	@Query(
 		"SELECT EXISTS(SELECT 1 FROM source_authorization " +
 			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +
 			"AND purpose IN ('SESSION_CAPTURE', 'AMBIENT_PRODUCT') " +
@@ -209,6 +240,24 @@ interface SourceBrokerDao {
 		registrationGeneration: Long,
 		bootId: String,
 		observedElapsedRealtimeNanos: Long,
+	): List<SourceAuthorizationEntity>
+
+	@Query(
+		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration AND effective_boot_id = :bootId " +
+			"AND authorization_revision = (SELECT authorization_revision FROM source_authorization " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +
+			"AND effective_boot_id = :bootId " +
+			"AND effective_elapsed_realtime_nanos <= :observedElapsedRealtimeNanos " +
+			"ORDER BY effective_elapsed_realtime_nanos DESC, authorization_revision DESC LIMIT 1) " +
+			"ORDER BY member_id LIMIT :limit",
+	)
+	suspend fun authorizationAtBounded(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		bootId: String,
+		observedElapsedRealtimeNanos: Long,
+		limit: Int,
 	): List<SourceAuthorizationEntity>
 
 	@Query("SELECT COALESCE(MAX(authorization_revision), 0) FROM source_authorization WHERE source_kind = :sourceKind")
