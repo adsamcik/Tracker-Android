@@ -3170,3 +3170,21 @@ Each entry records repository evidence and does not duplicate the final architec
   accumulator. Thermal fallback is an explicit continuous batched plan bounded by direct demand.
 - Activity or stationary state cannot change, wake, start, or retain Pressure acquisition. This does
   not activate a provider, change rollout defaults, or claim device battery evidence.
+
+## TI-D199 — Protected Location qualification binds immutable delivery and clock evidence
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/tests `0025d8f26` and
+  `762186a24`; TI-B262.
+- The dormant Location qualifier requires exact capture-only source membership and binds its command
+  identity to the immutable event, admission, WAL integrity, source-native delivery unit, captured
+  authorization, provider clock, wall-time anchor and uncertainty, payload, quality, and mock
+  provenance. Current deletion authority is separate and cannot re-stamp an old delivery.
+- Raw provider evidence is immutable under one delivery identity. A later derived qualifier revision
+  may change only derived semantics under the same complete durable evidence; changed coordinates,
+  provider clocks, quality, or mock state are collisions rather than corrections.
+- Retention uses the complete overflow-safe wall-time uncertainty interval, and optional altitude,
+  vertical accuracy, speed, bearing, provider, coordinate, and accuracy fields fail closed when
+  malformed. Location-only capture is valid without `sample_count` or another source.
+- This decision does not wire the qualifier into the protected canonical writer, add a second writer,
+  change provider registration, or claim history/UI behavior. A later adapter must load and verify
+  the actual WAL row matching the supplied integrity identity.

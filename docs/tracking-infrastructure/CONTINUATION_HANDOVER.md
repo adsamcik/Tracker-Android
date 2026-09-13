@@ -59,6 +59,10 @@ Independent clean lanes:
   `codex/ti-pressure-acquisition` at `3b8abe350` in
   `G:\Github\Tracker-Android\.worktrees\ti-pressure-acquisition`; clean and independently accepted
   as **IMPLEMENTED_UNVALIDATED**. Shared product composition remains open.
+- Protected Location qualifier: `codex/ti-location-qualified-observation` at `762186a24` in
+  `G:\Github\Tracker-Android\.worktrees\ti-location-qualified-observation`; clean and independently
+  accepted as **IMPLEMENTED_UNVALIDATED**. It is dormant and does not alter the canonical writer;
+  future wiring must verify the referenced WAL row before any shadow comparison.
 
 Read-only Git reconciliation found no accepted committed work lost through compaction. The imported
 Steps source branches are already contained or patch-equivalent in this coordinator; old

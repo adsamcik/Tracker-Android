@@ -558,6 +558,14 @@ complete consumer behavior exist; no provider or product path is active.
 - [ ] TODO-LOC-012 Author manual, automatic, ambient-if-approved, freshness, accuracy, replay,
   correction, context, query, UI, and shadow tests without running them.
 
+The isolated `codex/ti-location-qualified-observation` branch at `762186a24` has an independently
+accepted **IMPLEMENTED_UNVALIDATED** dormant qualifier for the source-local portions of LOC-003,
+LOC-006, LOC-007, and LOC-012. It binds immutable WAL, delivery, captured authority, clock, payload,
+quality, mock, deletion, retention, zone, freshness, and accuracy evidence and accepts exact
+Location-only capture without `sample_count`. These TODOs remain unchecked because no adapter,
+typed fact store, canonical-writer comparison, correction/retention path, product query, or UI is
+wired; the existing Location writer remains the only canonical writer.
+
 ## Activity vertical
 
 - [ ] TODO-ACT-001 Preserve one physical Activity registration while carrying exact eligibility for

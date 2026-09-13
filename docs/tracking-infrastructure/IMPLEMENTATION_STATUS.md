@@ -46,11 +46,19 @@ Pressure acquisition. Fresh independent reviews accepted both exact boundaries a
 **IMPLEMENTED_UNVALIDATED**. Production history and UI composition and the remaining writer,
 maintenance, automatic-control, and transfer work are still open.
 
+The protected Location branch is clean at `762186a24`. Its three-file dormant qualifier binds exact
+capture-only, WAL, delivery, clock, payload, quality, mock, policy, consent, generation, deletion,
+retention, zone, freshness, and accuracy evidence; Location-only capture needs neither
+`sample_count` nor another source. The initial model failed review because current authority could
+re-stamp old evidence and raw payload could change under one delivery identity. The correction is
+independently accepted as **IMPLEMENTED_UNVALIDATED**. It does not modify or activate the canonical
+Location writer; a future adapter must verify the referenced WAL row before any shadow comparison.
+
 Git/worktree reconciliation found no accepted committed implementation stranded or lost: imported
 Steps branches are contained or patch-equivalent in the coordinator, the older Pressure and numeric
 branches are ancestors, and the two dirty portable-import/qualified-awards drafts remain frozen
-reference inputs only. Activity persistence, Wi-Fi, Cell, and protected Location are active isolated
-lanes and remain unaccepted while their review findings are corrected.
+reference inputs only. Activity persistence, Wi-Fi, and Cell are active isolated lanes and remain
+unaccepted while their review findings are corrected.
 
 The checked-in v28 JSON now declares 79 entities: 51 released-v27 entities plus 28 narrowly owned
 v28 additions. Its identity hash is intentionally stale and Room/Kotlin/SQL generation or checking

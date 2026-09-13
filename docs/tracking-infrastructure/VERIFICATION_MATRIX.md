@@ -1728,3 +1728,23 @@ Deferred focused command:
 
 The command was not run. Compilation, provider registration, FIFO/batching behavior, sensor cadence,
 battery impact, device behavior, integration, activation, and release remain unproven.
+
+## TI-B262 — Protected Location qualification contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `762186a24`. Three isolated source-local files author an
+exact Location observation, qualifier, and focused contracts for Location-only capture; immutable
+WAL/delivery/captured authority; separate current deletion and retention fencing; half-open provider
+time, freshness, accuracy, permission, boot, generation, policy, consent, manifest, zone, quality,
+mock, and optional payload validation; typed stale, unavailable, rejected, duplicate, collision, and
+derived-correction outcomes. A read-only review rejected the initial shape and accepted the exact
+correction. The protected canonical writer and runtime remain untouched.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*LocationQualifiedObservationQualifierTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Kotlin/API compilation, WAL adapter verification, provider behavior,
+canonical-writer equivalence, shadow comparison, device/UI behavior, integration, cutover, and
+release remain unproven.
