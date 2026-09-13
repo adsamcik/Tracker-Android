@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -68,6 +69,103 @@ class SourceRegistrationRepositoryTest {
 		shouldThrow<IllegalArgumentException> {
 			subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
 		}
+	}
+
+	@Test
+	fun `restored non-session pressure demands cannot reserve or authorize a provider`() = runTest {
+		enablePressureRegistrationForTest()
+		database.sourceBrokerDao().insertDemands(
+			listOf(
+				demand(
+					"pressure-control",
+					"app:legacy-control",
+					SourceBrokerPurpose.CONTROL_AUTOSTART,
+					null,
+					null,
+					false,
+					SourceKind.PRESSURE,
+				),
+				demand(
+					"pressure-ambient",
+					"app:legacy-ambient",
+					SourceBrokerPurpose.AMBIENT_PRODUCT,
+					null,
+					null,
+					false,
+					SourceKind.PRESSURE,
+				),
+			),
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			subject.begin(SourceKind.PRESSURE, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		}
+		database.sourceBrokerDao().maximumRegistrationGeneration(SourceKind.PRESSURE.stableCode) shouldBe 0L
+		database.sourceBrokerDao().maximumAuthorizationRevision(SourceKind.PRESSURE.stableCode) shouldBe 0L
+	}
+
+	@Test
+	fun `non-session pressure demand blocks reserved provider acceptance`() = runTest {
+		enablePressureRegistrationForTest()
+		database.sourceBrokerDao().insertDemands(
+			listOf(pressureCaptureDemand()),
+		)
+		val reservation = subject.begin(SourceKind.PRESSURE, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		database.sourceBrokerDao().retireConsumer("session:s1", "boot-7", 110L, 110L)
+		database.sourceBrokerDao().insertDemands(
+			listOf(
+				demand(
+					"pressure-control",
+					"app:legacy-control",
+					SourceBrokerPurpose.CONTROL_AUTOSTART,
+					null,
+					null,
+					false,
+					SourceKind.PRESSURE,
+				),
+			),
+		)
+
+		shouldThrow<IllegalStateException> {
+			subject.markAccepted(reservation, 120L, 120L)
+		}
+		database.sourceBrokerDao().registration(
+			SourceKind.PRESSURE.stableCode,
+			reservation.state.registrationGeneration,
+		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RESERVED
+		database.sourceBrokerDao().maximumAuthorizationRevision(SourceKind.PRESSURE.stableCode) shouldBe 1L
+	}
+
+	@Test
+	fun `non-session pressure demand blocks active authorization refresh`() = runTest {
+		enablePressureRegistrationForTest()
+		database.sourceBrokerDao().insertDemands(listOf(pressureCaptureDemand()))
+		val registration = subject.begin(SourceKind.PRESSURE, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(registration, 110L, 110L)
+		database.sourceBrokerDao().retireConsumer("session:s1", "boot-7", 120L, 120L)
+		database.sourceBrokerDao().insertDemands(
+			listOf(
+				demand(
+					"pressure-ambient",
+					"app:legacy-ambient",
+					SourceBrokerPurpose.AMBIENT_PRODUCT,
+					null,
+					null,
+					false,
+					SourceKind.PRESSURE,
+				),
+			),
+		)
+
+		subject.refreshActiveAuthorization(
+			SourceKind.PRESSURE,
+			registration,
+			2L,
+			PHYSICAL_CONFIG,
+			130L,
+			130L,
+		) shouldBe null
+		database.sourceBrokerDao().maximumAuthorizationRevision(SourceKind.PRESSURE.stableCode) shouldBe 1L
 	}
 
 	@Test
@@ -669,10 +767,11 @@ class SourceRegistrationRepositoryTest {
 		logicalTrackingId: String?,
 		manifestRevision: Long?,
 		persistenceEligible: Boolean,
+		source: SourceKind = SourceKind.STEPS,
 	) = SourceDemandEntity(
 		demandId = id,
 		consumerId = consumerId,
-		sourceKind = SourceKind.STEPS.stableCode,
+		sourceKind = source.stableCode,
 		purpose = purpose,
 		logicalTrackingId = logicalTrackingId,
 		serviceRunId = logicalTrackingId?.let { "run-$it" },
@@ -691,6 +790,34 @@ class SourceRegistrationRepositoryTest {
 		retireBootId = null,
 		retireElapsedRealtimeNanos = null,
 		retiredAtMs = null,
+	)
+
+	private suspend fun enablePressureRegistrationForTest() {
+		database.sourceProjectionStateDao().deleteAllProductLanes()
+		rolloutStore = installCanonicalProductLanesForTest(
+			database = database,
+			bindings = listOf(ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS),
+			rolloutRevision = 100L,
+		)
+		subject = SourceRegistrationRepository(
+			database,
+			FakeCollectedDataLifecycleStore(CollectedDataLifecycleSnapshot(3L, null)),
+			object : BootClockDomainProvider {
+				override fun current(): String = "boot-7"
+			},
+			processIncarnationIdProvider,
+			rolloutStore,
+		)
+	}
+
+	private fun pressureCaptureDemand() = demand(
+		"pressure-capture",
+		"session:s1",
+		SourceBrokerPurpose.SESSION_CAPTURE,
+		"s1",
+		1L,
+		true,
+		SourceKind.PRESSURE,
 	)
 
 	private companion object {

@@ -7,6 +7,8 @@ import com.adsamcik.tracker.shared.base.database.dao.PriorProcessRegistrationRec
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
@@ -109,6 +111,9 @@ class SourceRegistrationRepository @Inject constructor(
 			val demands = brokerDao.authorizationDemands(source.stableCode)
 			require(demands.isNotEmpty()) {
 				"A source registration requires at least one durable active broker demand"
+			}
+			require(supportsExactDemandPurposes(source, demands)) {
+				"Pressure provider registration requires exact SESSION_CAPTURE demand only"
 			}
 			val ownerScope = "source-broker:${source.stableCode}"
 			val purposeEligibilityMask = SourceBrokerAuthorization.purposeMask(demands)
@@ -250,6 +255,7 @@ class SourceRegistrationRepository @Inject constructor(
 			val brokerDao = database.sourceBrokerDao()
 			val demands = brokerDao.authorizationDemands(source.stableCode)
 			if (demands.isEmpty()) return@withTransaction null
+			if (!supportsExactDemandPurposes(source, demands)) return@withTransaction null
 			val purposeEligibilityMask = SourceBrokerAuthorization.purposeMask(demands)
 			if (purposeEligibilityMask <= 0L) return@withTransaction null
 			val ownerScope = expectedRegistration.ownerScope
@@ -307,6 +313,10 @@ class SourceRegistrationRepository @Inject constructor(
 		val source = SourceKind.entries.single { it.stableCode == registration.state.sourceKind }
 		return database.withTransaction {
 			requireSourceAcquisitionReachable(source)
+			val demands = database.sourceBrokerDao().authorizationDemands(source.stableCode)
+			check(supportsExactDemandPurposes(source, demands)) {
+				"Pressure provider acceptance requires exact SESSION_CAPTURE demand only"
+			}
 			database.sourceBrokerDao().acceptReservedReplacement(
 				reservedState = registration.state,
 				expectedPointerGeneration = registration.predecessorState?.registrationGeneration,
@@ -467,11 +477,14 @@ class SourceRegistrationRepository @Inject constructor(
 	private suspend fun appendAuthorizationIfChanged(
 		source: SourceKind,
 		registrationGeneration: Long,
-		demands: List<com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity>,
+		demands: List<SourceDemandEntity>,
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
 	): SourceAuthorizationSnapshot {
+		check(supportsExactDemandPurposes(source, demands)) {
+			"Unsupported demand purpose cannot enter observed-time authorization"
+		}
 		val dao = database.sourceBrokerDao()
 		val fingerprint = SourceBrokerAuthorization.fingerprint(demands)
 		val latest = dao.latestAuthorization(source.stableCode, registrationGeneration)
@@ -490,6 +503,15 @@ class SourceRegistrationRepository @Inject constructor(
 		dao.insertAuthorizations(rows)
 		return requireNotNull(rows.toAuthorizationSnapshotOrNull())
 	}
+
+	private fun supportsExactDemandPurposes(
+		source: SourceKind,
+		demands: List<SourceDemandEntity>,
+	): Boolean = source != SourceKind.PRESSURE || (
+		demands.isNotEmpty() && demands.all { demand ->
+			demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+		}
+	)
 
 	suspend fun allocateSequence(registration: SourceRegistration, updatedAtMs: Long): Long =
 		database.sourceRegistrationStateDao().allocateSequence(
