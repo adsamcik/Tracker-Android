@@ -9,6 +9,8 @@ import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistory
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
@@ -33,6 +35,7 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 	private val database: AppDatabase,
 	private val stepsSelector: StepsSegmentHistorySelector,
 	private val logicalHistoryReader: LogicalTrackingHistoryReader,
+	private val pressureSelector: PressureHistorySelector,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : TrackingHistoryRepository {
 	@OptIn(ExperimentalCoroutinesApi::class)
@@ -73,6 +76,32 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 			.flowOn(ioDispatcher)
 	}
 
+	@OptIn(ExperimentalCoroutinesApi::class)
+	override fun observePressureSession(segmentId: Long): Flow<PressureSessionHistoryQuery> {
+		require(segmentId > 0L) { "Pressure session segment id must be positive" }
+		return historyInvalidations().mapLatest {
+			pressureSelector.selectBySegmentId(segmentId)?.let { selected ->
+				PressureSessionHistoryQuery.Found(selected.toPublicPressureSessionHistory())
+			} ?: PressureSessionHistoryQuery.NotFound
+		}.distinctUntilChanged()
+			.flowOn(ioDispatcher)
+	}
+
+	@OptIn(ExperimentalCoroutinesApi::class)
+	override fun observeRecentPressureOnlyEntries(
+		limit: Int,
+	): Flow<List<PressureOnlyHistoryEntry>> {
+		require(limit in 1..MAX_RECENT_PRESSURE_ENTRY_COUNT) {
+			"Recent Pressure-only history limit must be between 1 and " +
+				MAX_RECENT_PRESSURE_ENTRY_COUNT
+		}
+		return historyInvalidations().mapLatest {
+			pressureSelector.discoverRecentPressureOnlyByPressureFacts(limit)
+				.mapNotNull(PressureLogicalHistoryEntry::toPublicPressureOnlyEntryOrNull)
+		}.distinctUntilChanged()
+			.flowOn(ioDispatcher)
+	}
+
 	private fun validateStepsAwarePageRequest(
 		candidateSegmentIds: List<Long>,
 		limit: Int,
@@ -103,12 +132,14 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		SOURCE_EVIDENCE_TABLE,
 		SOURCE_DELETION_FENCE_TABLE,
 		STEP_FACT_TABLE,
+		PRESSURE_FACT_TABLE,
 		SESSION_COMPLETENESS_TABLE,
 		emitInitialState = true,
 	)
 
 	private companion object {
 		const val MAX_RECENT_ENTRY_COUNT = 100
+		const val MAX_RECENT_PRESSURE_ENTRY_COUNT = 64
 		const val SESSION_SEGMENT_TABLE = "session_segment"
 		const val SERVICE_RUN_TABLE = "source_service_run"
 		const val MANIFEST_TABLE = "session_manifest_version"
@@ -120,6 +151,7 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		const val SOURCE_EVIDENCE_TABLE = "source_evidence_state"
 		const val SOURCE_DELETION_FENCE_TABLE = "source_deletion_fence"
 		const val STEP_FACT_TABLE = "step_fact_revision"
+		const val PRESSURE_FACT_TABLE = "pressure_fact_revision"
 		const val SESSION_COMPLETENESS_TABLE = "source_session_completeness"
 	}
 }
@@ -131,7 +163,7 @@ private fun HistoricalSegmentEvidence.toPublicSessionHistory() = SessionHistory(
 	steps = steps.toPublicHistory(),
 )
 
-private fun HistoricalCaptureAuthority.toPublicCapture(): HistoryCapture = when (this) {
+internal fun HistoricalCaptureAuthority.toPublicCapture(): HistoryCapture = when (this) {
 	is HistoricalCaptureAuthority.Exact -> HistoryCapture.Exact(
 		revisions.map { revision ->
 			HistoryCaptureRevision(
@@ -151,7 +183,7 @@ private fun HistoricalCaptureAuthority.toPublicCapture(): HistoryCapture = when 
 	is HistoricalCaptureAuthority.Unverifiable -> HistoryCapture.Unverifiable
 }
 
-private fun TrackingSourceComponent.toPublicSource(): HistorySource = when (this) {
+internal fun TrackingSourceComponent.toPublicSource(): HistorySource = when (this) {
 	TrackingSourceComponent.LOCATION -> HistorySource.LOCATION
 	TrackingSourceComponent.WIFI -> HistorySource.WIFI
 	TrackingSourceComponent.CELL -> HistorySource.CELL

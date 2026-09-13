@@ -20,8 +20,14 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
+import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import io.kotest.matchers.shouldBe
+import io.mockk.mockk
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -45,6 +51,37 @@ class PressureHistorySelectorTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun productionFacadeExposesBatchedLogicalListAndExactPhysicalDetail() = runTest {
+		val first = insertFixture(
+			zoneId = "Europe/Prague",
+			factSemanticRevision = 1L,
+			laneCursor = 2L,
+		)
+		insertReplacementFixture()
+		val repository = DefaultTrackingHistoryRepository(
+			database = database,
+			stepsSelector = mockk(relaxed = true),
+			logicalHistoryReader = mockk(relaxed = true),
+			pressureSelector = selector,
+			ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+		)
+
+		val detail = repository.observePressureSession(first.segmentId).first() as
+			PressureSessionHistoryQuery.Found
+		val recent = repository.observeRecentPressureOnlyEntries(limit = 10).first()
+
+		detail.history.segmentId shouldBe first.segmentId
+		detail.history.pressure.presentationState shouldBe PressureHistoryPresentationState.READY
+		detail.history.pressure.windows.single().zoneId shouldBe "Europe/Prague"
+		recent.size shouldBe 1
+		recent.single().key.toString() shouldBe "TrackingHistoryEntryKey"
+		recent.single().state shouldBe PressureHistoryPresentationState.READY
+		recent.single().pressure.windows.size shouldBe 2
+		recent.single().pressure.zoneAuthorities shouldBe linkedSetOf("Europe/Prague", "UTC")
+	}
 
 	@Test
 	fun pressureOnlyZeroSampleSegmentUsesQualifiedFactAndStoredManifestZone() = runTest {

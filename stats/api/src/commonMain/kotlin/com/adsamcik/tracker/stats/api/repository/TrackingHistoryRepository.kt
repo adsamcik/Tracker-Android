@@ -39,6 +39,17 @@ interface TrackingHistoryRepository {
 		candidateSegmentIds: List<Long>,
 		limit: Int,
 	): Flow<List<StepsAwareHistoryPageEntry>>
+
+	/** Observe source-qualified Pressure history for one exact physical session segment. */
+	fun observePressureSession(segmentId: Long): Flow<PressureSessionHistoryQuery>
+
+	/**
+	 * Observe recent exact Pressure-only logical entries through one bounded source-local read.
+	 *
+	 * Returned keys are deliberately opaque and do not grant physical delete, detail, or export
+	 * authority. Each row retains its complete bounded Pressure windows and explicit product state.
+	 */
+	fun observeRecentPressureOnlyEntries(limit: Int): Flow<List<PressureOnlyHistoryEntry>>
 }
 
 /** Result of resolving one local session-segment row identity. */

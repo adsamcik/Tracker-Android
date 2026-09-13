@@ -15,6 +15,8 @@ import com.adsamcik.tracker.stats.api.repository.HistoryCaptureRevision
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistory
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
@@ -297,6 +299,13 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 		candidateSegmentIds: List<Long>,
 		limit: Int,
 	): Flow<List<StepsAwareHistoryPageEntry>> = flowOf(emptyList())
+
+	override fun observePressureSession(segmentId: Long): Flow<PressureSessionHistoryQuery> =
+		flowOf(PressureSessionHistoryQuery.NotFound)
+
+	override fun observeRecentPressureOnlyEntries(
+		limit: Int,
+	): Flow<List<PressureOnlyHistoryEntry>> = flowOf(emptyList())
 
 	fun update(segmentId: Long, query: SessionHistoryQuery) {
 		state(segmentId).value = query

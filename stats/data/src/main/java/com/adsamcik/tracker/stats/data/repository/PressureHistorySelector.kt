@@ -74,11 +74,64 @@ internal class PressureHistorySelector @Inject constructor(
 		selectLogicalFromSeedsInTransaction(seeds)
 	}
 
+	/**
+	 * Finds a bounded accepted Pressure-only page without letting newer mixed or invalid candidates
+	 * consume the caller's result limit. All candidate pages and dependency batches share one Room
+	 * snapshot; physical members remain internal to the returned logical entries.
+	 */
+	internal suspend fun discoverRecentPressureOnlyByPressureFacts(
+		limit: Int,
+	): List<PressureLogicalHistoryEntry> = database.withTransaction {
+		require(limit in 1..PRESSURE_HISTORY_SEGMENT_BATCH_CAP)
+		val accepted = linkedMapOf<PressureHistoryEntryIdentity, PressureLogicalHistoryEntry>()
+		var beforeStartTimeMs: Long? = null
+		var beforeSegmentId: Long? = null
+
+		while (accepted.size < limit) {
+			val seeds = database.pressureFactRevisionDao().historySegmentCandidatePage(
+				limit = PRESSURE_DISCOVERY_CANDIDATE_PAGE_SIZE,
+				beforeStartTimeMs = beforeStartTimeMs,
+				beforeSegmentId = beforeSegmentId,
+			)
+			if (seeds.isEmpty()) break
+
+			val entriesByMemberId = buildMap {
+				selectLogicalFromSeedsInTransaction(
+					seeds = seeds,
+					memberBudget = PRESSURE_DISCOVERY_MEMBER_BUDGET,
+				).forEach { entry ->
+					entry.physicalMembers.forEach { member -> put(member.segment.id, entry) }
+				}
+			}
+			seeds.forEach { seed ->
+				val entry = entriesByMemberId[seed.id] ?: return@forEach
+				if (
+					entry.identity is PressureHistoryEntryIdentity.Logical &&
+					entry.hasExactPressureOnlyIntent
+				) {
+					accepted.putIfAbsent(entry.identity, entry)
+				}
+			}
+
+			val lastScanned = seeds.last()
+			beforeStartTimeMs = lastScanned.startTimeMs
+			beforeSegmentId = lastScanned.id
+			if (seeds.size < PRESSURE_DISCOVERY_CANDIDATE_PAGE_SIZE) break
+		}
+
+		accepted.values.sortedWith(compareByDescending<PressureLogicalHistoryEntry> { entry ->
+			entry.physicalMembers.maxOf { it.segment.startTimeMs }
+		}.thenByDescending { entry ->
+			entry.physicalMembers.maxOf { it.segment.id }
+		}).take(limit)
+	}
+
 	private suspend fun selectLogicalFromSeedsInTransaction(
 		seeds: List<SessionSegment>,
+		memberBudget: Int = PRESSURE_HISTORY_SEGMENT_BATCH_CAP,
 	): List<PressureLogicalHistoryEntry> {
 		if (seeds.isEmpty()) return emptyList()
-		val expansion = expandPressureLogicalMembership(database, seeds)
+		val expansion = expandPressureLogicalMembership(database, seeds, memberBudget)
 		val snapshot = loadPressureHistoryBatchSnapshot(
 			database = database,
 			segments = expansion.segments,
@@ -954,3 +1007,5 @@ internal class PressureHistorySelector @Inject constructor(
 }
 
 private const val PRESSURE_HISTORY_SEGMENT_BATCH_CAP = 64
+private const val PRESSURE_DISCOVERY_CANDIDATE_PAGE_SIZE = 32
+private const val PRESSURE_DISCOVERY_MEMBER_BUDGET = 256

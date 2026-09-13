@@ -3,10 +3,85 @@ package com.adsamcik.tracker.stats.data.repository
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
+import com.adsamcik.tracker.stats.api.repository.PressureSensorAccuracy
+import com.adsamcik.tracker.stats.api.repository.PressureWindowQualification
 import io.kotest.matchers.shouldBe
 import org.junit.Test
 
 class PressureHistoryReadModelTest {
+	@Test
+	fun publicPressureOnlyEntryRetainsLogicalGroupingWithoutPhysicalIdentity() {
+		val first = available(
+			segment = segment(id = 1L, logicalId = "logical", runId = "run-a", startMs = 100L),
+			window = window("fact-a", "run-a", "Europe/Prague", 10L, 1001f, 1000f),
+		)
+		val replacement = available(
+			segment = segment(id = 2L, logicalId = "logical", runId = "run-b", startMs = 200L),
+			window = window(
+				factId = "fact-b",
+				runId = "run-b",
+				zoneId = "America/New_York",
+				startElapsedNanos = 20L,
+				first = 999f,
+				last = 998f,
+				manifestRevision = 2L,
+			),
+		)
+
+		val public = requireNotNull(
+			PressureLogicalHistoryComposer.compose(listOf(first, replacement))
+				.single()
+				.toPublicPressureOnlyEntryOrNull(),
+		)
+
+		public.key.toString() shouldBe "TrackingHistoryEntryKey"
+		public.state shouldBe PressureHistoryPresentationState.READY
+		public.pressure.windows.size shouldBe 2
+		public.pressure.zoneAuthorities shouldBe
+			linkedSetOf("Europe/Prague", "America/New_York")
+		public.pressure.summary?.firstHectopascals shouldBe 1001f
+		public.pressure.summary?.latestHectopascals shouldBe 998f
+		public.pressure.windows.first().sensorAccuracy shouldBe PressureSensorAccuracy.HIGH
+		public.pressure.windows.first().qualification shouldBe PressureWindowQualification.COMPLETE
+		public.pressure.windows.first().maximumInterSampleGapNanos shouldBe 1L
+		public.pressure.windows.first().actualToExpectedSampleRatio shouldBe 1.0
+	}
+
+	@Test
+	fun publicPressureFailureHasNoFabricatedSummaryOrZone() {
+		val unavailable = PressurePhysicalHistory(
+			segment = segment(id = 3L, logicalId = "logical", runId = "run-a", startMs = 300L),
+			captureAuthority = HistoricalCaptureAuthority.Exact(
+				listOf(
+					HistoricalCaptureRevision(
+						manifestRevision = 1L,
+						effectiveWallTimeMs = 300L,
+						capturedSources = setOf(TrackingSourceComponent.PRESSURE),
+						controlSources = emptySet(),
+					),
+				),
+			),
+			windows = emptyList(),
+			availability = PressureHistoryAvailability.AVAILABLE,
+			evidence = PressureHistoryEvidence.NO_OBSERVATION,
+			materialization = PressureHistoryMaterialization.FAILED,
+			coverage = PressureHistoryCoverage.UNKNOWN,
+			reasons = setOf(PressureHistoryReason.PRESSURE_FACT_INTEGRITY_FAILED),
+		)
+
+		val publicEntry = requireNotNull(
+			PressureLogicalHistoryComposer.compose(listOf(unavailable))
+				.single()
+				.toPublicPressureOnlyEntryOrNull(),
+		)
+		val public = publicEntry.pressure
+
+		publicEntry.state shouldBe PressureHistoryPresentationState.FAILED
+		public.summary shouldBe null
+		public.zoneAuthorities shouldBe emptySet()
+	}
+
 	@Test
 	fun replacementRunsGroupOnlyByExplicitLogicalIdentityAndPreservePhysicalAuthority() {
 		val first = available(
