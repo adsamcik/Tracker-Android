@@ -22,12 +22,19 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 import java.security.MessageDigest
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -52,6 +59,21 @@ class ActivityCapturedFactMaintenanceTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	private fun portableReader(
+		limits: PortableActivityReadLimits = PortableActivityReadLimits(),
+	): PortableCapturedActivityRoomReader = PortableCapturedActivityRoomReader(
+		database = database,
+		laneExecutionAuthority = ACTIVITY_LANE_AUTHORITY,
+		limits = limits,
+	)
+
+	private fun portableExporter(): RoomExportPortableCapturedActivity =
+		RoomExportPortableCapturedActivity(
+			database = database,
+			laneExecutionAuthority = ACTIVITY_LANE_AUTHORITY,
+			ioDispatcher = Dispatchers.Unconfined,
+		)
 
 	@Test
 	fun `retention removes the complete correction lineage at an uncertain floor`() = runTest {
@@ -322,7 +344,7 @@ class ActivityCapturedFactMaintenanceTest {
 		seedCapturedActivity(semanticRevisions = 2)
 		database.sourceBrokerDao().insertDemands(listOf(controlDemand()))
 
-		val snapshot = PortableCapturedActivityRoomReader(database).read(
+		val snapshot = portableReader().read(
 			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
 		) as PortableCapturedActivitySnapshot.Ready
 
@@ -345,7 +367,7 @@ class ActivityCapturedFactMaintenanceTest {
 	fun `portable export retains an explicit gap without inventing a numeric Activity value`() = runTest {
 		seedCapturedActivity(gapOnly = true)
 
-		val snapshot = PortableCapturedActivityRoomReader(database).read(
+		val snapshot = portableReader().read(
 			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
 		) as PortableCapturedActivitySnapshot.Ready
 
@@ -367,7 +389,7 @@ class ActivityCapturedFactMaintenanceTest {
 		seedCapturedActivity()
 		installTerminalReplacement(capturesActivity = false)
 
-		val snapshot = PortableCapturedActivityRoomReader(database).read(
+		val snapshot = portableReader().read(
 			ExportPortableCapturedActivityRequest(3_000L, 4_001L),
 		) as PortableCapturedActivitySnapshot.Ready
 
@@ -383,7 +405,7 @@ class ActivityCapturedFactMaintenanceTest {
 		seedCapturedActivity()
 		installTerminalReplacement(capturesActivity = false)
 
-		PortableCapturedActivityRoomReader(database).read(
+		portableReader().read(
 			ExportPortableCapturedActivityRequest(3_000L, 3_100L),
 		) shouldBe PortableCapturedActivitySnapshot.Outcome(
 			ExportPortableCapturedActivityResult.NoEntries,
@@ -399,7 +421,7 @@ class ActivityCapturedFactMaintenanceTest {
 				"WHERE service_run_id = '$REPLACEMENT_SERVICE_RUN_ID'",
 		)
 
-		PortableCapturedActivityRoomReader(database).read(
+		portableReader().read(
 			ExportPortableCapturedActivityRequest(3_000L, 4_001L),
 		) shouldBe PortableCapturedActivitySnapshot.Outcome(
 			ExportPortableCapturedActivityResult.Unverifiable(
@@ -409,10 +431,143 @@ class ActivityCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `portable export waits for the lane to drain a later admitted Activity event`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(1L)
+		insertActivityWalEvent(2L)
+		replaceActivityCompleteness(lastAdmissionOrdinal = 2L, lastSourceSequence = 2L)
+		updateFinalAdmissionOrdinal(2L)
+		replaceActivityLane(activityProductLane(contiguousAdmissionOrdinal = 1L))
+		var sinkCalls = 0
+
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.ENTRY_MATERIALIZING,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export accepts the exact settled Activity lane target`() = runTest {
+		seedCapturedActivity()
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export rejects final admission below the Activity completeness target`() = runTest {
+		seedCapturedActivity()
+		replaceActivityCompleteness(lastAdmissionOrdinal = 2L, lastSourceSequence = 2L)
+		replaceActivityLane(activityProductLane(contiguousAdmissionOrdinal = 2L))
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects missing or mismatched completeness and lane authority`() = runTest {
+		seedCapturedActivity()
+		database.sourceSessionDao().deleteAllCompleteness()
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+
+		database.sourceSessionDao().saveCompleteness(
+			activityCompleteness().copy(sourceInstanceId = "foreign-activity-provider"),
+		)
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+
+		database.sourceSessionDao().deleteAllCompleteness()
+		database.sourceSessionDao().saveCompleteness(activityCompleteness())
+		replaceActivityLane(activityProductLane().copy(productStage = "CORRUPT"))
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects a terminal Activity projection failure`() = runTest {
+		seedCapturedActivity()
+		database.sourceProjectionStateDao().saveFailure(
+			SourceProjectionFailureEntity(
+				projectionId = WRITER_ID,
+				projectionVersion = WRITER_VERSION,
+				admissionOrdinal = 1L,
+				attemptCount = 1,
+				failureCode = "ACTIVITY_TEST_FAILURE",
+				terminal = true,
+				lastAttemptAtMs = 3_000L,
+			),
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export accepts only an exactly drained retired Activity lane`() = runTest {
+		seedCapturedActivity()
+		replaceActivityLane(
+			activityProductLane(
+				contiguousAdmissionOrdinal = 1L,
+				captureAdmissionCutoffOrdinal = 1L,
+				retentionRequired = false,
+				status = SourceProductProjectionLaneEntity.STATUS_RETIRED,
+				terminalDisposition = SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN,
+				terminalAtMs = 3_000L,
+			),
+		)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+
+		replaceActivityLane(
+			activityProductLane(
+				contiguousAdmissionOrdinal = 1L,
+				captureAdmissionCutoffOrdinal = 1L,
+				retentionRequired = false,
+				status = SourceProductProjectionLaneEntity.STATUS_RETIRED,
+				terminalDisposition = null,
+				terminalAtMs = null,
+			),
+		)
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
 	fun `portable export rejects retained gap-only authority without a wall anchor`() = runTest {
 		seedCapturedActivity(retainedFromMs = 1_000L, gapOnly = true)
 
-		PortableCapturedActivityRoomReader(database).read(
+		portableReader().read(
 			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
 		) shouldBe PortableCapturedActivitySnapshot.Outcome(
 			ExportPortableCapturedActivityResult.Unverifiable(
@@ -426,7 +581,7 @@ class ActivityCapturedFactMaintenanceTest {
 		seedCapturedActivity(sessionRunEffectEndNanos = Long.MAX_VALUE)
 		makeCurrentRunLive()
 		var sinkCalls = 0
-		val result = RoomExportPortableCapturedActivity(database, Dispatchers.Unconfined).export(
+		val result = portableExporter().export(
 			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
 		) {
 			sinkCalls++
@@ -453,7 +608,7 @@ class ActivityCapturedFactMaintenanceTest {
 			),
 		)
 		var sinkCalls = 0
-		val result = RoomExportPortableCapturedActivity(database, Dispatchers.Unconfined).export(
+		val result = portableExporter().export(
 			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
 		) { sinkCalls++ }
 
@@ -472,7 +627,7 @@ class ActivityCapturedFactMaintenanceTest {
 		)
 		var sinkCalls = 0
 
-		RoomExportPortableCapturedActivity(database, Dispatchers.Unconfined).export(
+		portableExporter().export(
 			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
 		) { sinkCalls++ } shouldBe ExportPortableCapturedActivityResult.Unverifiable(
 			PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
@@ -486,6 +641,7 @@ class ActivityCapturedFactMaintenanceTest {
 		installLiveReplacement()
 		val reader = PortableCapturedActivityRoomReader(
 			database = database,
+			laneExecutionAuthority = ACTIVITY_LANE_AUTHORITY,
 			limits = PortableActivityReadLimits(maximumRuns = 1),
 		)
 
@@ -502,6 +658,7 @@ class ActivityCapturedFactMaintenanceTest {
 		seedCapturedActivity()
 		val reader = PortableCapturedActivityRoomReader(
 			database = database,
+			laneExecutionAuthority = ACTIVITY_LANE_AUTHORITY,
 			checkpoint = { point ->
 				if (point == PortableActivityReadCheckpoint.REPLACEMENT_MEMBERS_LOADED) {
 					throw CancellationException("cancel before snapshot publication")
@@ -519,7 +676,7 @@ class ActivityCapturedFactMaintenanceTest {
 		seedCapturedActivity()
 		var observedInsideTransaction: Boolean? = null
 
-		RoomExportPortableCapturedActivity(database, Dispatchers.Unconfined).export(
+		portableExporter().export(
 			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
 		) {
 			observedInsideTransaction = database.inTransaction()
@@ -550,6 +707,72 @@ class ActivityCapturedFactMaintenanceTest {
 		database.sourceDeletionFenceDao().countAll() shouldBe 0L
 	}
 
+	private suspend fun replaceActivityCompleteness(
+		lastAdmissionOrdinal: Long,
+		lastSourceSequence: Long,
+	) {
+		database.sourceSessionDao().deleteAllCompleteness()
+		database.sourceSessionDao().saveCompleteness(
+			activityCompleteness(lastAdmissionOrdinal, lastSourceSequence),
+		)
+	}
+
+	private suspend fun updateFinalAdmissionOrdinal(value: Long) {
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(LOGICAL_TRACKING_ID))
+		dao.updateSession(session.copy(finalAdmissionOrdinal = value)) shouldBe 1
+	}
+
+	private suspend fun replaceActivityLane(lane: SourceProductProjectionLaneEntity) {
+		database.sourceProjectionStateDao().deleteAllProductLanes()
+		database.sourceProjectionStateDao().installProductLane(lane)
+	}
+
+	private suspend fun insertActivityWalEvent(ordinal: Long) {
+		val payload = byteArrayOf(ordinal.toByte())
+		val checksum = sha256(payload)
+		val unsealed = SourceEventWalEntity(
+			admissionOrdinal = ordinal,
+			eventId = "activity-event-$ordinal",
+			providerDedupKey = "activity-provider-event-$ordinal",
+			deliveryIdentity = "activity-delivery-$ordinal",
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 1,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = SERVICE_RUN_ID,
+			sourceKind = ACTIVITY_SOURCE,
+			sourceInstanceId = SOURCE_INSTANCE_ID,
+			registrationGeneration = 1L,
+			physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
+			authorizationRevision = 1L,
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			authorizationFingerprint = AUTHORIZATION_FINGERPRINT,
+			sourceSequence = ordinal,
+			configRevision = 1L,
+			planAttribution = 1,
+			clockDomainId = BOOT_ID,
+			observedElapsedNanos = 200L + ordinal,
+			receivedElapsedNanos = 210L + ordinal,
+			wallTimeMs = 2_000L + ordinal,
+			wallTimeUncertaintyMs = 5L,
+			capturedCollectedDataEpoch = 0L,
+			sourcePolicyRevision = 1L,
+			captureConsentEpoch = 0L,
+			sessionManifestRevision = 1L,
+			lifecycleLeaseGeneration = 1L,
+			acquiredAtMs = 2_000L + ordinal,
+			qualityFlags = 0L,
+			qualityConfidence = null,
+			payloadVersion = 1,
+			payload = payload,
+			payloadChecksum = checksum,
+			integrityIdentity = "pending",
+			createdAtMs = 2_000L + ordinal,
+		)
+		val sealed = unsealed.copy(integrityIdentity = unsealed.calculatedIntegrityIdentity())
+		database.sourceEventWalDao().insertIgnoringDuplicate(sealed) shouldBe ordinal
+	}
+
 	private suspend fun seedCapturedActivity(
 		retainedFromMs: Long? = null,
 		semanticRevisions: Int = 1,
@@ -570,6 +793,7 @@ class ActivityCapturedFactMaintenanceTest {
 				updatedAtMs = 1_000L,
 			),
 		)
+		database.sourceProjectionStateDao().installProductLane(activityProductLane())
 		val segmentId = database.sessionSegmentDao().insert(
 			SessionSegment(
 				startTimeMs = 1_000L,
@@ -613,7 +837,7 @@ class ActivityCapturedFactMaintenanceTest {
 		database.sourcePlanStateDao().insertRevision(
 			AcquisitionPlanRevisionEntity(1L, "plan-1", 1_000L, "APPLIED", 1L),
 		)
-		val planPayload = byteArrayOf(1, 2, 3, 4)
+		val planPayload = activityPlanPayload()
 		val planChecksum = sha256(planPayload)
 		database.sourcePlanStateDao().insertDesiredPlans(
 			listOf(SourceDesiredPlanEntity(1L, ACTIVITY_SOURCE, 1, planPayload, planChecksum)),
@@ -633,6 +857,7 @@ class ActivityCapturedFactMaintenanceTest {
 		)
 		database.sourceBrokerDao().insertRegistration(registration(providerActive))
 		database.sourceBrokerDao().insertAuthorizations(listOf(authorization()))
+		database.sourceSessionDao().saveCompleteness(activityCompleteness())
 		insertFactLineage(segmentId, semanticRevisions, sessionRunEffectEndNanos, gapOnly)
 	}
 
@@ -776,6 +1001,30 @@ class ActivityCapturedFactMaintenanceTest {
 		if (replacementSources.isNotEmpty()) {
 			sessionDao.insertManifestSources(replacementSources)
 		}
+		sessionDao.saveCompleteness(
+			if (capturesActivity) {
+				activityCompleteness().copy(
+					serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+					logicalTrackingId = LOGICAL_TRACKING_ID,
+				)
+			} else {
+				SourceSessionCompletenessEntity(
+					logicalTrackingId = LOGICAL_TRACKING_ID,
+					serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+					sourceKind = ACTIVITY_SOURCE,
+					sourceInstanceId = "not-owned-activity",
+					registrationGeneration = 0L,
+					lastAdmissionOrdinal = null,
+					lastSourceSequence = null,
+					appDrainComplete = true,
+					providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
+					stopStatus = "COMPLETE",
+					unresolvedSequenceStart = null,
+					unresolvedSequenceEnd = null,
+					updatedAtMs = 4_000L,
+				)
+			},
+		)
 		val session = requireNotNull(sessionDao.session(LOGICAL_TRACKING_ID))
 		sessionDao.updateSession(
 			session.copy(
@@ -1167,6 +1416,51 @@ class ActivityCapturedFactMaintenanceTest {
 		failureCode = null,
 	)
 
+	private fun activityCompleteness(
+		lastAdmissionOrdinal: Long = 1L,
+		lastSourceSequence: Long = 1L,
+	) = SourceSessionCompletenessEntity(
+		logicalTrackingId = LOGICAL_TRACKING_ID,
+		serviceRunId = SERVICE_RUN_ID,
+		sourceKind = ACTIVITY_SOURCE,
+		sourceInstanceId = SOURCE_INSTANCE_ID,
+		registrationGeneration = 1L,
+		lastAdmissionOrdinal = lastAdmissionOrdinal,
+		lastSourceSequence = lastSourceSequence,
+		appDrainComplete = true,
+		providerCoverage = "CALLBACKS_ENTERED_BEFORE_BARRIER",
+		stopStatus = "COMPLETE",
+		unresolvedSequenceStart = null,
+		unresolvedSequenceEnd = null,
+		updatedAtMs = 3_000L,
+	)
+
+	private fun activityProductLane(
+		contiguousAdmissionOrdinal: Long = 1L,
+		captureAdmissionCutoffOrdinal: Long? = null,
+		retentionRequired: Boolean = true,
+		status: String = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+		terminalDisposition: String? = null,
+		terminalAtMs: Long? = null,
+	) = SourceProductProjectionLaneEntity(
+		sourceKind = ACTIVITY_SOURCE,
+		bindingGeneration = 1L,
+		projectionId = WRITER_ID,
+		projectionVersion = WRITER_VERSION,
+		captureModeMask = 1L,
+		productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+		activatedRolloutRevision = 1L,
+		activationOrdinal = 1L,
+		contiguousAdmissionOrdinal = contiguousAdmissionOrdinal,
+		captureAdmissionCutoffOrdinal = captureAdmissionCutoffOrdinal,
+		retentionRequired = retentionRequired,
+		status = status,
+		terminalDisposition = terminalDisposition,
+		terminalAtMs = terminalAtMs,
+		installedAtMs = 900L,
+		updatedAtMs = terminalAtMs ?: 3_000L,
+	)
+
 	private fun authorization() = SourceAuthorizationEntity(
 		sourceKind = ACTIVITY_SOURCE,
 		registrationGeneration = 1L,
@@ -1337,6 +1631,20 @@ class ActivityCapturedFactMaintenanceTest {
 		return sha256(canonical.toByteArray(Charsets.UTF_8))
 	}
 
+	private fun activityPlanPayload(): ByteArray = ByteArrayOutputStream().use { buffer ->
+		DataOutputStream(buffer).use { output ->
+			output.writeInt(1)
+			output.writeUTF("ACTIVITY")
+			output.writeLong(1L)
+			output.writeUTF("TRANSITIONS_ONLY")
+			output.writeLong(1_000L)
+			output.writeInt(50)
+			output.writeInt(1)
+			output.writeInt(7)
+		}
+		buffer.toByteArray()
+	}
+
 	private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
 		.digest(bytes)
 		.joinToString(separator = "") { byte -> "%02x".format(byte) }
@@ -1348,6 +1656,10 @@ class ActivityCapturedFactMaintenanceTest {
 	)
 
 	companion object {
+		private val ACTIVITY_LANE_AUTHORITY = SourceProductLaneExecutionAuthority { lane ->
+			lane.sourceKind == ACTIVITY_SOURCE && lane.bindingGeneration == 1L &&
+				lane.projectionId == WRITER_ID && lane.projectionVersion == WRITER_VERSION
+		}
 		private const val ACTIVITY_SOURCE = SourceDestinationOwnerEntity.SOURCE_ACTIVITY
 		private const val WRITER_ID = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID
 		private const val WRITER_VERSION = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION
@@ -1355,7 +1667,8 @@ class ActivityCapturedFactMaintenanceTest {
 		private const val SERVICE_RUN_ID = "activity-maintenance-run"
 		private const val REPLACEMENT_SERVICE_RUN_ID = "activity-maintenance-replacement-run"
 		private const val SOURCE_INSTANCE_ID = "activity-maintenance-provider"
-		private const val PHYSICAL_FINGERPRINT = "activity-maintenance-fingerprint"
+		private const val PHYSICAL_FINGERPRINT =
+			"9f472d9529dc1da87eadbc931567884a453cc8dfd499ffb2f7a733520f854a6f"
 		private const val AUTHORIZATION_FINGERPRINT = "activity-maintenance-authorization"
 		private const val BOOT_ID = "activity-maintenance-boot"
 	}

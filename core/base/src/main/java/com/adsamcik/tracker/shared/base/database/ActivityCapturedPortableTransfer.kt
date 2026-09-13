@@ -2,7 +2,9 @@ package com.adsamcik.tracker.shared.base.database
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -10,7 +12,15 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEnti
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.DataInputStream
+import java.io.DataOutputStream
 import java.security.MessageDigest
 import java.time.DateTimeException
 import java.time.ZoneId
@@ -396,8 +406,9 @@ class RoomExportPortableCapturedActivity private constructor(
 ) : ExportPortableCapturedActivity {
 	constructor(
 		database: AppDatabase,
+		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 		ioDispatcher: CoroutineDispatcher,
-	) : this(PortableCapturedActivityRoomReader(database), ioDispatcher)
+	) : this(PortableCapturedActivityRoomReader(database, laneExecutionAuthority), ioDispatcher)
 
 	override suspend fun export(
 		request: ExportPortableCapturedActivityRequest,
@@ -439,6 +450,8 @@ internal data class PortableActivityReadLimits(
 	val maximumSourcesPerRun: Int = 3_072,
 	val maximumTotalManifests: Int = 65_536,
 	val maximumTotalSources: Int = 262_144,
+	val maximumCompletenessRows: Int = 65_536,
+	val maximumTerminalFailures: Int = 4_096,
 ) {
 	init {
 		listOf(
@@ -450,6 +463,8 @@ internal data class PortableActivityReadLimits(
 			maximumSourcesPerRun,
 			maximumTotalManifests,
 			maximumTotalSources,
+			maximumCompletenessRows,
+			maximumTerminalFailures,
 		).forEach { value -> require(value in 1 until Int.MAX_VALUE) }
 	}
 }
@@ -469,6 +484,7 @@ internal sealed interface PortableCapturedActivitySnapshot {
 /** Bounded one-transaction reader; it owns no provider or projection lifecycle. */
 internal class PortableCapturedActivityRoomReader(
 	private val database: AppDatabase,
+	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 	private val limits: PortableActivityReadLimits = PortableActivityReadLimits(),
 	private val checkpoint: suspend (PortableActivityReadCheckpoint) -> Unit = {
 		currentCoroutineContext().ensureActive()
@@ -570,6 +586,14 @@ internal class PortableCapturedActivityRoomReader(
 		val lineagesByRun = selectedLineages.keys.groupBy { lineage ->
 			lineage.revisions.last().revision.serviceRunId
 		}
+		validateTerminalProjectionSettlement(
+			sessions = sessions,
+			runs = runs,
+			lineagesByRun = lineagesByRun,
+			manifestsByRun = manifestDependencies.manifestsByRun,
+			sourcesByRun = manifestDependencies.sourcesByRun,
+			collectedDataEpoch = evidenceState.collectedDataEpoch,
+		)
 		validateDeletionFences(runs)
 
 		val entries = selectedLogicalIds.map { logicalTrackingId ->
@@ -718,6 +742,326 @@ internal class PortableCapturedActivityRoomReader(
 			if (!SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(revisionSlices)) {
 				abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 			}
+		}
+	}
+
+	@Suppress("CyclomaticComplexMethod", "LongMethod")
+	private suspend fun validateTerminalProjectionSettlement(
+		sessions: Map<String, LogicalTrackingSessionEntity>,
+		runs: List<SourceServiceRunEntity>,
+		lineagesByRun: Map<String, List<ActivityCapturedLineage>>,
+		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
+		sourcesByRun: Map<String, List<SessionManifestSourceEntity>>,
+		collectedDataEpoch: Long,
+	) {
+		if (sessions.values.any { session ->
+			session.state !in TERMINAL_SESSION_STATES || session.currentServiceRunId != null ||
+				session.completedAtMs == null || session.cutoffAtMs == null ||
+				session.cutoffElapsedNanos == null
+		}) abort(PortableActivityExportUnverifiableReason.ENTRY_MATERIALIZING)
+
+		val runIds = runs.map(SourceServiceRunEntity::serviceRunId)
+		val capturedRuns = linkedSetOf<String>()
+		runs.forEach { run ->
+			val manifests = manifestsByRun[run.serviceRunId].orEmpty()
+			val sources = sourcesByRun[run.serviceRunId].orEmpty()
+			if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests) ||
+				manifests.any { manifest ->
+					!SessionManifestIntegrity.verify(
+						manifest,
+						sources.filter { source -> source.belongsTo(manifest) },
+					)
+				} || sources.any { source ->
+					source.sourceKind == SourceDestinationOwnerEntity.SOURCE_ACTIVITY &&
+						source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
+						source.persistenceEligible &&
+						manifests.singleOrNull { manifest -> source.belongsTo(manifest) }
+							?.let(source::isCapturedActivityMember) != true
+				}
+			) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			if (manifests.any { manifest ->
+				sources.any { source -> source.isCapturedActivityMember(manifest) }
+			}) capturedRuns += run.serviceRunId
+		}
+
+		val completeness = loadPortableCompleteness(runIds)
+		if (!hasValidPortableCompleteness(completeness, runs) ||
+			completeness.mapTo(hashSetOf(), SourceSessionCompletenessEntity::serviceRunId) != runIds.toSet()
+		) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		if (completeness.any { row -> !row.appDrainComplete }) {
+			abort(PortableActivityExportUnverifiableReason.ENTRY_MATERIALIZING)
+		}
+		validatePortableCompletenessAuthority(
+			rows = completeness,
+			manifestsByRun = manifestsByRun,
+			sourcesByRun = sourcesByRun,
+			collectedDataEpoch = collectedDataEpoch,
+		)
+		val targetByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId)
+			.mapValues { (_, rows) ->
+				rows.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull()
+			}
+		if (capturedRuns.any { runId -> targetByRun[runId] == null }) {
+			abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+		val groupTarget = targetByRun.values.filterNotNull().maxOrNull()
+			?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+
+		val lane = database.sourceProjectionStateDao().productLane(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			bindingGeneration = SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION,
+			projectionId = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
+			projectionVersion = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION,
+		) ?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		if (!laneExecutionAuthority.owns(lane) || !hasValidPortableActivityLane(lane)) {
+			abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+		val requiredModeMask = sessions.values.fold(0L) { mask, session ->
+			mask or when (session.sessionMode) {
+				"MANUAL" -> MANUAL_SESSION_CAPTURE_MASK
+				"AUTOMATIC" -> AUTOMATIC_SESSION_CAPTURE_MASK
+				else -> abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			}
+		}
+		if (requiredModeMask == 0L || lane.captureModeMask and requiredModeMask != requiredModeMask ||
+			manifestsByRun.values.flatten().any { manifest ->
+				lane.activatedRolloutRevision > manifest.rolloutRevision
+			} || groupTarget < lane.activationOrdinal ||
+			lane.captureAdmissionCutoffOrdinal?.let { cutoff -> groupTarget > cutoff } == true
+		) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+
+		sessions.values.forEach { session ->
+			val sessionTarget = runs.asSequence()
+				.filter { run -> run.logicalTrackingId == session.logicalTrackingId }
+				.mapNotNull { run -> targetByRun[run.serviceRunId] }
+				.maxOrNull()
+				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			if (session.finalAdmissionOrdinal?.let { final -> final >= sessionTarget } != true) {
+				abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			}
+		}
+		lineagesByRun.forEach { (runId, lineages) ->
+			val target = targetByRun[runId]
+				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			if (lineages.asSequence().flatMap { lineage -> lineage.revisions.asSequence() }
+				.flatMap { revision -> revision.evidence.asSequence() }
+				.any { evidence ->
+					evidence.sourceAdmissionOrdinal < lane.activationOrdinal ||
+						evidence.sourceAdmissionOrdinal > target
+				}
+			) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+
+		val failures = database.trackingHistoryReadDao().terminalFailuresForServiceRuns(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			capturePurpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+			serviceRunIds = runIds,
+			afterOrdinal = lane.activationOrdinal - 1L,
+			throughOrdinal = groupTarget,
+			limit = limits.maximumTerminalFailures + 1,
+		)
+		if (failures.size > limits.maximumTerminalFailures) overflow()
+		if (failures.isNotEmpty()) {
+			abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+		if (lane.contiguousAdmissionOrdinal < groupTarget) {
+			abort(PortableActivityExportUnverifiableReason.ENTRY_MATERIALIZING)
+		}
+	}
+
+	private suspend fun loadPortableCompleteness(
+		runIds: List<String>,
+	): List<SourceSessionCompletenessEntity> {
+		val result = mutableListOf<SourceSessionCompletenessEntity>()
+		runIds.chunked(SQLITE_BIND_BATCH).forEach { batch ->
+			currentCoroutineContext().ensureActive()
+			val page = database.activityCapturedFactDao().portableCompleteness(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+				serviceRunIds = batch,
+				limit = limits.maximumCompletenessRows - result.size + 1,
+			)
+			result += page
+			if (result.size > limits.maximumCompletenessRows) overflow()
+		}
+		return result
+	}
+
+	private suspend fun validatePortableCompletenessAuthority(
+		rows: List<SourceSessionCompletenessEntity>,
+		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
+		sourcesByRun: Map<String, List<SessionManifestSourceEntity>>,
+		collectedDataEpoch: Long,
+	) {
+		val positiveRows = rows.filter { row -> row.registrationGeneration > 0L }
+		if (positiveRows.isEmpty()) return
+		val generations = positiveRows.map(SourceSessionCompletenessEntity::registrationGeneration).distinct()
+		val plans = loadPortableRegistrationPlans(generations)
+		val expectedPlanKeys = positiveRows.mapTo(hashSetOf()) { row ->
+			row.sourceInstanceId to row.registrationGeneration
+		}
+		val plansByKey = plans.associateBy { plan -> plan.sourceInstanceId to plan.registrationGeneration }
+		if (plansByKey.size != plans.size || plansByKey.keys != expectedPlanKeys) {
+			abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+		val desiredPlans = loadPortableDesiredPlans(
+			plans.map(ActivityCapturedRegistrationPlanEntity::configurationRevision).distinct(),
+		)
+		val desiredByRevision = desiredPlans.associateBy(SourceDesiredPlanEntity::revision)
+		if (desiredByRevision.size != desiredPlans.size ||
+			desiredByRevision.keys != plans.mapTo(hashSetOf(), ActivityCapturedRegistrationPlanEntity::configurationRevision)
+		) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		val providers = loadPortableProviderRegistrations(generations)
+		val providersByGeneration = providers.associateBy(ProviderRegistrationGenerationEntity::registrationGeneration)
+		if (providersByGeneration.size != providers.size || providersByGeneration.keys != generations.toSet()) {
+			abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+		positiveRows.forEach { row ->
+			val plan = plansByKey[row.sourceInstanceId to row.registrationGeneration]
+				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			val desired = desiredByRevision[plan.configurationRevision]
+				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			val provider = providersByGeneration[row.registrationGeneration]
+				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			val decodedPlan = PortableActivityPlanIntegrity.decode(desired)
+				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			val manifests = manifestsByRun[row.serviceRunId].orEmpty()
+			val sources = sourcesByRun[row.serviceRunId].orEmpty()
+			val hasMatchingManifest = manifests.any { manifest ->
+				manifest.acquisitionPlanRevision == plan.configurationRevision &&
+					sources.any { source -> source.isCapturedActivityMember(manifest) }
+			}
+			if (plan.desiredPlanPayloadVersion != desired.payloadVersion ||
+				!plan.desiredPlanPayload.contentEquals(desired.payload) ||
+				plan.desiredPlanPayloadChecksum != desired.payloadChecksum ||
+				plan.desiredPlanPayloadChecksum != sha256(plan.desiredPlanPayload) ||
+				plan.bindingIdentity != plan.calculatedBindingIdentity() || !decodedPlan.enabled ||
+				plan.physicalConfigurationFingerprint != decodedPlan.physicalConfigurationFingerprint ||
+				!hasMatchingManifest ||
+				provider.sourceKind != SourceDestinationOwnerEntity.SOURCE_ACTIVITY ||
+				provider.sourceInstanceId != row.sourceInstanceId ||
+				provider.registrationGeneration != row.registrationGeneration ||
+				provider.physicalConfigurationFingerprint != plan.physicalConfigurationFingerprint ||
+				provider.collectedDataEpoch != collectedDataEpoch || provider.acceptedAtMs == null ||
+				provider.acceptedElapsedRealtimeNanos == null ||
+				provider.status !in PORTABLE_ACCEPTED_PROVIDER_STATUSES
+			) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+	}
+
+	private suspend fun loadPortableRegistrationPlans(
+		generations: List<Long>,
+	): List<ActivityCapturedRegistrationPlanEntity> = loadBoundedDependencies(generations) { batch, limit ->
+		database.activityCapturedFactDao().portableRegistrationPlans(batch, limit)
+	}
+
+	private suspend fun loadPortableDesiredPlans(
+		revisions: List<Long>,
+	): List<SourceDesiredPlanEntity> = loadBoundedDependencies(revisions) { batch, limit ->
+		database.activityCapturedFactDao().portableDesiredPlans(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			batch,
+			limit,
+		)
+	}
+
+	private suspend fun loadPortableProviderRegistrations(
+		generations: List<Long>,
+	): List<ProviderRegistrationGenerationEntity> = loadBoundedDependencies(generations) { batch, limit ->
+		database.activityCapturedFactDao().portableProviderRegistrations(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			batch,
+			limit,
+		)
+	}
+
+	private suspend fun <T> loadBoundedDependencies(
+		identities: List<Long>,
+		load: suspend (List<Long>, Int) -> List<T>,
+	): List<T> {
+		val result = mutableListOf<T>()
+		identities.chunked(SQLITE_BIND_BATCH).forEach { batch ->
+			currentCoroutineContext().ensureActive()
+			result += load(batch, limits.maximumCompletenessRows - result.size + 1)
+			if (result.size > limits.maximumCompletenessRows) overflow()
+		}
+		return result
+	}
+
+	private fun hasValidPortableCompleteness(
+		rows: List<SourceSessionCompletenessEntity>,
+		runs: List<SourceServiceRunEntity>,
+	): Boolean {
+		val runsById = runs.associateBy(SourceServiceRunEntity::serviceRunId)
+		return runsById.size == runs.size && rows.groupBy(SourceSessionCompletenessEntity::serviceRunId)
+			.all { (runId, runRows) ->
+				val run = runsById[runId] ?: return@all false
+				val generations = runRows.map(SourceSessionCompletenessEntity::registrationGeneration)
+				if (generations.distinct().size != generations.size) return@all false
+				val highWaters = runRows.sortedBy(SourceSessionCompletenessEntity::registrationGeneration)
+					.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal)
+				if (!highWaters.zipWithNext().all { (left, right) -> right > left }) return@all false
+				runRows.all { row -> row.hasValidPortableShape(run) }
+			}
+	}
+
+	@Suppress("ComplexCondition")
+	private fun SourceSessionCompletenessEntity.hasValidPortableShape(
+		run: SourceServiceRunEntity,
+	): Boolean {
+		val unresolvedStart = unresolvedSequenceStart
+		val unresolvedEnd = unresolvedSequenceEnd
+		if (logicalTrackingId != run.logicalTrackingId || serviceRunId != run.serviceRunId ||
+			sourceKind != SourceDestinationOwnerEntity.SOURCE_ACTIVITY || sourceInstanceId.isBlank() ||
+			registrationGeneration < 0L || lastAdmissionOrdinal?.let { ordinal -> ordinal <= 0L } == true ||
+			lastSourceSequence?.let { sequence -> sequence < 0L } == true ||
+			(lastAdmissionOrdinal == null) != (lastSourceSequence == null) ||
+			(unresolvedStart == null) != (unresolvedEnd == null) ||
+			unresolvedStart?.let { start -> start <= 0L || start > requireNotNull(unresolvedEnd) } == true ||
+			providerCoverage !in PORTABLE_PROVIDER_COVERAGES || stopStatus !in PORTABLE_STOP_STATUSES ||
+			(stopStatus == COMPLETE_STOP_STATUS && !appDrainComplete) || updatedAtMs < 0L
+		) return false
+		if (registrationGeneration > 0L) return sourceInstanceId !in SYNTHETIC_ACTIVITY_INSTANCES
+		if (lastAdmissionOrdinal != null || lastSourceSequence != null || unresolvedStart != null ||
+			unresolvedEnd != null || providerCoverage != UNOBSERVABLE_PROVIDER_COVERAGE
+		) return false
+		return when (sourceInstanceId) {
+			NOT_OWNED_ACTIVITY_INSTANCE -> stopStatus == COMPLETE_STOP_STATUS && appDrainComplete
+			UNRESOLVED_ACTIVITY_INSTANCE ->
+				stopStatus in PROVIDER_UNAVAILABLE_STOP_STATUSES && !appDrainComplete
+			UNREGISTERED_ACTIVITY_INSTANCE ->
+				stopStatus in setOf(COMPLETE_STOP_STATUS, "PROVIDER_FAILED") && appDrainComplete
+			else -> false
+		}
+	}
+
+	private fun hasValidPortableActivityLane(lane: SourceProductProjectionLaneEntity): Boolean {
+		if (lane.sourceKind != SourceDestinationOwnerEntity.SOURCE_ACTIVITY ||
+			lane.bindingGeneration != SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION ||
+			lane.projectionId != SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID ||
+			lane.projectionVersion != SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION ||
+			lane.captureModeMask <= 0L ||
+			lane.captureModeMask and PORTABLE_SESSION_CAPTURE_MASK.inv() != 0L ||
+			lane.productStage !in PORTABLE_ACTIVITY_PRODUCT_STAGES || lane.activatedRolloutRevision <= 0L ||
+			lane.activationOrdinal <= 0L || lane.installedAtMs < 0L || lane.updatedAtMs < lane.installedAtMs
+		) return false
+		val minimumCursor = lane.activationOrdinal - 1L
+		val cutoff = lane.captureAdmissionCutoffOrdinal
+		if (lane.contiguousAdmissionOrdinal < minimumCursor ||
+			(cutoff != null && (cutoff < minimumCursor || lane.contiguousAdmissionOrdinal > cutoff))
+		) return false
+		return when (lane.status) {
+			SourceProductProjectionLaneEntity.STATUS_ACTIVE ->
+				lane.retentionRequired && cutoff == null && lane.terminalDisposition == null &&
+					lane.terminalAtMs == null
+			SourceProductProjectionLaneEntity.STATUS_RETIRED -> {
+				val terminalAt = lane.terminalAtMs ?: return false
+				!lane.retentionRequired &&
+					lane.terminalDisposition ==
+					SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN &&
+					cutoff != null && lane.contiguousAdmissionOrdinal == cutoff &&
+					terminalAt >= lane.installedAtMs && lane.updatedAtMs >= terminalAt
+			}
+			else -> false
 		}
 	}
 
@@ -1137,6 +1481,83 @@ private fun isPortableCompatibleRefinement(coarse: String, detail: String): Bool
 	else -> false
 }
 
+private data class PortableDecodedActivityPlan(
+	val revision: Long,
+	val mode: String,
+	val desiredDetectionLatencyMs: Long,
+	val confidenceThresholdPercent: Int,
+	val transitionTypes: Set<Int>,
+	val physicalConfigurationFingerprint: String,
+) {
+	val enabled: Boolean
+		get() = mode != "OFF"
+}
+
+/** Canonical source-plan-v1 check kept local to the source-specific portable selector. */
+private object PortableActivityPlanIntegrity {
+	fun decode(row: SourceDesiredPlanEntity): PortableDecodedActivityPlan? = runCatching {
+		require(row.sourceKind == SourceDestinationOwnerEntity.SOURCE_ACTIVITY)
+		require(row.payloadVersion == 1 && row.payloadChecksum == sha256(row.payload))
+		val decoded = DataInputStream(ByteArrayInputStream(row.payload)).use { input ->
+			require(input.readInt() == 1)
+			require(input.readUTF() == "ACTIVITY")
+			val revision = input.readLong()
+			val mode = input.readUTF()
+			val latency = input.readLong()
+			val confidence = input.readInt()
+			val transitionCount = input.readInt()
+			requireCount(transitionCount)
+			val transitions = buildSet(transitionCount) {
+				repeat(transitionCount) { add(input.readInt()) }
+			}
+			require(input.available() == 0 && revision == row.revision && revision > 0L)
+			require(transitions.size == transitionCount)
+			require(mode in PORTABLE_ACTIVITY_PLAN_MODES && latency >= 0L && confidence in 0..100)
+			PortableDecodedActivityPlan(
+				revision = revision,
+				mode = mode,
+				desiredDetectionLatencyMs = latency,
+				confidenceThresholdPercent = confidence,
+				transitionTypes = transitions,
+				physicalConfigurationFingerprint = sha256(
+					listOf(
+						"ACTIVITY",
+						mode,
+						latency,
+						confidence,
+						transitions.sorted().joinToString(","),
+					).joinToString("\u001f").toByteArray(Charsets.UTF_8),
+				),
+			)
+		}
+		require(row.payload.contentEquals(encode(decoded)))
+		decoded
+	}.getOrNull()
+
+	private fun requireCount(value: Int) {
+		require(value in 0..MAX_ACTIVITY_PLAN_TRANSITIONS)
+	}
+
+	private fun encode(plan: PortableDecodedActivityPlan): ByteArray =
+		ByteArrayOutputStream().use { buffer ->
+			DataOutputStream(buffer).use { output ->
+				output.writeInt(1)
+				output.writeUTF("ACTIVITY")
+				output.writeLong(plan.revision)
+				output.writeUTF(plan.mode)
+				output.writeLong(plan.desiredDetectionLatencyMs)
+				output.writeInt(plan.confidenceThresholdPercent)
+				output.writeInt(plan.transitionTypes.size)
+				plan.transitionTypes.sorted().forEach(output::writeInt)
+			}
+			buffer.toByteArray()
+		}
+}
+
+private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+	.digest(bytes)
+	.joinToString(separator = "") { byte -> "%02x".format(byte) }
+
 private fun outcome(
 	reason: PortableActivityExportUnverifiableReason,
 ): PortableCapturedActivitySnapshot.Outcome = PortableCapturedActivitySnapshot.Outcome(
@@ -1209,4 +1630,45 @@ private val ACTIVITY_WALL_CONTINUITIES = setOf(
 )
 private const val READ_PAGE_SIZE = 256
 private const val SQLITE_BIND_BATCH = 128
+private const val MANUAL_SESSION_CAPTURE_MASK = 1L
+private const val AUTOMATIC_SESSION_CAPTURE_MASK = 2L
+private const val PORTABLE_SESSION_CAPTURE_MASK =
+	MANUAL_SESSION_CAPTURE_MASK or AUTOMATIC_SESSION_CAPTURE_MASK
+private const val COMPLETE_STOP_STATUS = "COMPLETE"
+private const val UNOBSERVABLE_PROVIDER_COVERAGE = "PROVIDER_COMPLETENESS_UNOBSERVABLE"
+private const val NOT_OWNED_ACTIVITY_INSTANCE = "not-owned-activity"
+private const val UNRESOLVED_ACTIVITY_INSTANCE = "unresolved-activity"
+private const val UNREGISTERED_ACTIVITY_INSTANCE = "activity-unregistered"
+private val SYNTHETIC_ACTIVITY_INSTANCES = setOf(
+	NOT_OWNED_ACTIVITY_INSTANCE,
+	UNRESOLVED_ACTIVITY_INSTANCE,
+	UNREGISTERED_ACTIVITY_INSTANCE,
+)
+private val PORTABLE_ACTIVITY_PRODUCT_STAGES = setOf(
+	SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+	SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+)
+private val PORTABLE_PROVIDER_COVERAGES = setOf(
+	"CALLBACKS_ENTERED_BEFORE_BARRIER",
+	UNOBSERVABLE_PROVIDER_COVERAGE,
+)
+private val PORTABLE_STOP_STATUSES = setOf(
+	COMPLETE_STOP_STATUS,
+	"TIMED_OUT",
+	"PERMISSION_LOST",
+	"PROVIDER_FAILED",
+	"PROCESS_RESTARTED",
+)
+private val PROVIDER_UNAVAILABLE_STOP_STATUSES = setOf(
+	"TIMED_OUT",
+	"PERMISSION_LOST",
+	"PROVIDER_FAILED",
+)
+private const val MAX_ACTIVITY_PLAN_TRANSITIONS = 10_000
+private val PORTABLE_ACTIVITY_PLAN_MODES = setOf("OFF", "TRANSITIONS_ONLY", "CONTINUOUS_RECOGNITION")
+private val PORTABLE_ACCEPTED_PROVIDER_STATUSES = setOf(
+	ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+	ProviderRegistrationGenerationEntity.STATUS_RETIRING,
+	ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+)
 private val SHA_256_HEX = Regex("[0-9a-f]{64}")

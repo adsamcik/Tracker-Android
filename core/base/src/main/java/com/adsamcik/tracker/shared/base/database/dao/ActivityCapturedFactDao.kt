@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenera
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 
 /** Narrow append-only storage boundary for the dormant captured Activity writer. */
 @Dao
@@ -192,6 +193,52 @@ interface ActivityCapturedFactDao {
 		afterRegistrationGeneration: Long?,
 		limit: Int,
 	): List<ActivityCapturedRegistrationPlanEntity>
+
+	/** Bounded immutable applied-plan bindings used to authenticate terminal export settlement. */
+	@Query(
+		"SELECT * FROM activity_captured_registration_plan " +
+			"WHERE registration_generation IN (:registrationGenerations) " +
+			"ORDER BY registration_generation, source_instance_id LIMIT :limit",
+	)
+	suspend fun portableRegistrationPlans(
+		registrationGenerations: List<Long>,
+		limit: Int,
+	): List<ActivityCapturedRegistrationPlanEntity>
+
+	/** Bounded exact desired Activity plans referenced by immutable applied-plan bindings. */
+	@Query(
+		"SELECT * FROM source_desired_plan WHERE source_kind = :sourceKind " +
+			"AND revision IN (:configurationRevisions) ORDER BY revision LIMIT :limit",
+	)
+	suspend fun portableDesiredPlans(
+		sourceKind: Int,
+		configurationRevisions: List<Long>,
+		limit: Int,
+	): List<SourceDesiredPlanEntity>
+
+	/** Bounded provider registrations referenced by terminal Activity completeness rows. */
+	@Query(
+		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
+			"AND registration_generation IN (:registrationGenerations) " +
+			"ORDER BY registration_generation LIMIT :limit",
+	)
+	suspend fun portableProviderRegistrations(
+		sourceKind: Int,
+		registrationGenerations: List<Long>,
+		limit: Int,
+	): List<ProviderRegistrationGenerationEntity>
+
+	/** Source-filtered completeness prevents unrelated sources from consuming the overflow probe. */
+	@Query(
+		"SELECT * FROM source_session_completeness WHERE source_kind = :sourceKind " +
+			"AND service_run_id IN (:serviceRunIds) " +
+			"ORDER BY service_run_id, source_instance_id, registration_generation LIMIT :limit",
+	)
+	suspend fun portableCompleteness(
+		sourceKind: Int,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<SourceSessionCompletenessEntity>
 
 	/** Nonterminal captured demands include prepared rows that could later become active. */
 	@Query(
