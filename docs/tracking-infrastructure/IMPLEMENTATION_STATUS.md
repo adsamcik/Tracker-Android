@@ -91,14 +91,18 @@ epoch, deletion, and uncertainty-safe retention evidence. Because v1 WAL lacks m
 returns typed `MOCK_PROVENANCE_UNVERIFIABLE` instead of fabricating `false`. Neither branch modifies
 or activates the canonical Location writer or emits a qualified shadow command.
 
-The isolated Cell branch is clean at `2102d3212`. Its dormant adapter starts from one actual retained
+The isolated Cell branch is clean at `0dae1d8f5`. Its dormant adapter starts from one actual retained
 one-unit Cell WAL delivery inside one Room snapshot, requires a positive unique source sequence and
 canonical payload, recomputes WAL/payload/delivery identities, and revalidates immutable desired-plan,
 registration, same-registration authorization, policy/consent, run/manifest/segment, clock/zone,
 retention, collected-epoch, and global-deletion authority. Independent review accepts this bounded
-read-only slice as **IMPLEMENTED_UNVALIDATED**. v1 evidence cannot prove subscription grouping, so
-coverage remains typed `UNKNOWN`; confirmed empty is still unverifiable, and no Cell fact table,
-source-local deletion generation, writer/cursor, provider activation, product read, or UI is claimed.
+read path as **IMPLEMENTED_UNVALIDATED**. Commits `31bf7c49d` through `0dae1d8f5` add the independently
+accepted identity-free fact schema, source-local deletion epoch, bounded writer, correction lineage,
+aggregate-owner references, and cursor CAS. New compact coverage reuse requires finite owner
+authority, while exact historical owner revisions remain usable only inside a bounded complete
+aggregate lineage with an authenticated current tip. v1 evidence still cannot prove subscription
+grouping, so coverage remains typed `UNKNOWN`; provider activation, retention worker, product read,
+portable transfer, and UI are not claimed.
 
 The isolated Wi-Fi branch is clean at `d7c5e5d4b`. Its pure dormant classifier requires exact
 `CAPTURED_REGISTRATION` authority while allowing the passive runtime's nullable redundant
@@ -116,8 +120,8 @@ transfer, and UI remain open.
 Git/worktree reconciliation found no accepted committed implementation stranded or lost: imported
 Steps branches are contained or patch-equivalent in the coordinator, the older Pressure and numeric
 branches are ancestors, and the two dirty portable-import/qualified-awards drafts remain frozen
-reference inputs only. Cell persistence remains an active isolated lane whose current review finding
-must be corrected before acceptance. Activity WAL admission is a separate dormant lane under
+reference inputs only. Cell persistence is accepted through its source-local writer boundary, while
+maintenance and product work remain. Activity WAL admission is a separate dormant lane under
 correction after review; Pressure shared UI remains an active isolated lane. The export-only
 Pressure transfer slice is accepted, while its import half remains deliberately blocked on the
 missing authoritative writer and no-resurrection mapping.

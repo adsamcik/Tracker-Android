@@ -2011,3 +2011,24 @@ Deferred focused command:
 The command was not run. Compilation, Room query execution, maximum-boundary test coverage,
 authoritative import, deletion/no-resurrection, repair, shared UI, device/provider behavior,
 integration, activation, and release remain unproven.
+
+## TI-B276 — Cell source-local persistence and aggregate-lineage contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `0dae1d8f5`. Authored model, writer, real-Room, and v27
+to v28 migration tests cover identity-free changed/unchanged/coverage semantics, exact delivery and
+source authority, Cell deletion epoch, correction lineage, cursor CAS, replay, settlement, retention
+floor, cancellation/rollback, bounded 256-revision lineages, malformed/discontinuous overflow, and
+retained-prior fallback. Repeated independent reviews rejected unauthenticated corrections, mutable
+finite bounds, stale aggregate owners, open-owner reuse, and dangling historical owner revisions
+before accepting the bounded lineage correction.
+
+Deferred focused commands:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*CellCapturedFact*' --tests '*CellWalQualificationAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat :core:base:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.shared.base.database.AppDatabaseMigration27To28Test --no-daemon --no-parallel --max-workers=1 --console=plain --no-configuration-cache
+```
+
+Neither command was run. Compilation, generated v28 schema convergence, SQL/migration execution,
+retention-worker preservation or retirement of referenced owner revisions, provider/callback/device
+behavior, product history/UI, transfer, integration, activation, and release remain unproven.

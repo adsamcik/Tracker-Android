@@ -94,13 +94,17 @@ Independent clean lanes:
   authority, but returns typed `MOCK_PROVENANCE_UNVERIFIABLE` because v1 WAL did not retain that
   evidence. No shadow comparison may emit a qualified command until canonical payload provenance
   exists.
-- Cell retained-WAL qualifier: `codex/ti-cell-fact-model` at `2102d3212` in
+- Cell retained-WAL qualifier and source-local persistence: `codex/ti-cell-fact-model` at
+  `0dae1d8f5` in
   `G:\Github\Tracker-Android\.worktrees\ti-cell-fact-model`; clean and independently accepted as
-  **IMPLEMENTED_UNVALIDATED** for the bounded dormant read-only slice. It authenticates one real
-  retained Cell WAL delivery and its complete historical capture authority without persisting raw
-  radio identity. Coverage remains typed `UNKNOWN` because v1 WAL cannot prove subscription
-  grouping; no Cell fact table, source-local deletion fence, producer, runtime activation, history,
-  or UI is claimed.
+  **IMPLEMENTED_UNVALIDATED** through the dormant writer boundary. It authenticates one real retained
+  Cell WAL delivery and complete historical capture authority, then persists identity-free fact
+  revisions behind a Cell deletion epoch with bounded correction/aggregate lineages and cursor CAS.
+  Compact coverage reuse requires finite owner authority; historical owner revisions remain valid
+  only inside one bounded complete lineage with an authenticated current tip, preventing correction
+  from dangling dependents. Coverage remains typed `UNKNOWN` because v1 WAL cannot prove
+  subscription grouping. Runtime projection, retention-worker handling of referenced revisions,
+  transfer, product history/UI, and activation remain open.
 - Wi-Fi identity-free fact qualification and retained-WAL adapter: `codex/ti-wifi-fact-model` at
   `d7c5e5d4b` in
   `G:\Github\Tracker-Android\.worktrees\ti-wifi-fact-model`; clean and independently accepted as

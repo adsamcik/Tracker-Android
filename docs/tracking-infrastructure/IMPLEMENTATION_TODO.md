@@ -735,6 +735,16 @@ grouping remains unprovable and therefore typed `UNKNOWN`; no fact table, source
 generation, writer/cursor, runtime activation, product read, maintenance, or transfer is complete,
 so every Cell TODO remains unchecked.
 
+Accepted commits `31bf7c49d` through `0dae1d8f5` add source-specific portions of
+CELL-001/005/006/010/013: identity-free fact revisions, Cell deletion epoch, bounded transactional
+writer, correction lineage, aggregate-owner references, and cursor CAS. Compact coverage reuse is
+finite-authority-only; an exact historical owner revision remains valid only through a bounded
+complete aggregate lineage with an authenticated current cursor tip, so owner correction cannot
+strand dependents. Every Cell TODO stays unchecked until runtime projection, retention maintenance,
+selected/all-data deletion, transfer/no-resurrection, product history/UI, automatic/ambient paths,
+and the complete authored scenario cohort exist. Generated v28 JSON remains deferred convergence
+debt.
+
 ## Production history and UI
 
 - [ ] TODO-HIST-001 Complete one read-only TrackingHistoryRepository facade for observeToday,

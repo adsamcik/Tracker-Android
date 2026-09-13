@@ -3402,3 +3402,20 @@ Each entry records repository evidence and does not duplicate the final architec
 - Pressure import is not added. It remains blocked on an authoritative source-local import writer
   and exact portable provenance, deletion, collision, retention, and no-resurrection mapping; export
   cannot be used as permission to bypass those controls.
+
+## TI-D213 — Cell persistence retains bounded immutable aggregate ownership
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/schema/tests `31bf7c49d` through
+  `0dae1d8f5` atop TI-D204; TI-B276.
+- Qualified identity-free Cell deliveries enter one dormant source-local writer with exact delivery,
+  owner, manifest/run/segment, policy/consent, retention, global and Cell deletion-epoch, correction,
+  and cursor-CAS authority. Writes remain transactional and cancellation or corruption fails closed.
+- Changed or corrected content is self-contained. A compact coverage-only fact may reference prior
+  aggregate content only when the owner had finite immutable temporal authority at creation. The
+  referenced exact historical revision remains valid only inside one bounded complete aggregate
+  lineage whose authenticated current tip matches the cursor.
+- Later legitimate owner settlement or correction therefore cannot strand a dependent at an
+  obsolete current revision. Replay may materialize a new self-contained aggregate when historical
+  reuse is no longer safe; finite exact replay and retained-prior fallback remain bounded.
+- Generated v28 schema JSON, retention-worker handling of referenced historical revisions, product
+  history/UI, portable transfer, provider/runtime activation, and device behavior remain open.
