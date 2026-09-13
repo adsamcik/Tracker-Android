@@ -265,6 +265,34 @@ class TrackingHistoryRepositoryTest {
 	}
 
 	@Test
+	fun `combined live snapshot rejects unacknowledged common Activity-only intent`() {
+		val session = SessionHistory(
+			segmentId = 7L,
+			capture = HistoryCapture.Exact(
+				listOf(
+					HistoryCaptureRevision(
+						revision = 1L,
+						effectiveAt = EpochMs(100L),
+						capturedSources = setOf(HistorySource.ACTIVITY),
+						controlSources = emptySet(),
+					),
+				),
+			),
+			qualifiedSources = emptySet(),
+			steps = missingSteps(),
+		)
+
+		assertFailsWith<IllegalArgumentException> {
+			LiveSessionHistorySnapshot(
+				segmentId = session.segmentId,
+				session = SessionHistoryQuery.Found(session),
+				activity = ActivityHistoryQuery.Found(unavailableActivityHistory()),
+				pressure = pressureQueryFor(session),
+			)
+		}
+	}
+
+	@Test
 	fun `combined live snapshot rejects dual source-only truth`() {
 		val capture = HistoryCapture.Exact(
 			listOf(

@@ -137,6 +137,33 @@ class DashboardViewModelLiveStepsTest {
 	}
 
 	@Test
+	fun `rejected Activity-only authority mismatch is presented as history unavailable`() = runTest {
+		val mainDispatcher = StandardTestDispatcher(testScheduler)
+		Dispatchers.setMain(mainDispatcher)
+		try {
+			val running = MutableStateFlow(true)
+			val session = MutableStateFlow<TrackerSessionSnapshot?>(
+				TrackerSessionSnapshot(id = FIRST_SEGMENT_ID, start = 1L),
+			)
+			val repository = RecordingTrackingHistoryRepository().apply {
+				rejectLive(FIRST_SEGMENT_ID, "Activity-only truth contradicts common capture")
+			}
+			val viewModel = createViewModel(running, session, repository)
+			val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				viewModel.liveSessionPresentation.collect { }
+			}
+
+			advanceUntilIdle()
+
+			viewModel.liveSessionPresentation.value shouldBe
+				DashboardLiveSessionPresentation.HistoryUnavailable(FIRST_SEGMENT_ID)
+			collection.cancel()
+		} finally {
+			Dispatchers.resetMain()
+		}
+	}
+
+	@Test
 	fun `accepted exact Pressure only authority selects direct Pressure layout`() = runTest {
 		val mainDispatcher = StandardTestDispatcher(testScheduler)
 		Dispatchers.setMain(mainDispatcher)
@@ -593,6 +620,7 @@ class DashboardViewModelLiveStepsTest {
 
 private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 	private val snapshots = mutableMapOf<Long, MutableStateFlow<LiveSessionHistorySnapshot>>()
+	private val liveRejections = mutableMapOf<Long, String>()
 	val liveStarted = mutableListOf<Long>()
 	val liveCancelled = mutableListOf<Long>()
 
@@ -602,10 +630,15 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 	override fun observeLiveSession(segmentId: Long): Flow<LiveSessionHistorySnapshot> = flow {
 		liveStarted += segmentId
 		try {
+			liveRejections[segmentId]?.let { message -> throw IllegalArgumentException(message) }
 			emitAll(snapshotState(segmentId))
 		} finally {
 			liveCancelled += segmentId
 		}
+	}
+
+	fun rejectLive(segmentId: Long, message: String) {
+		liveRejections[segmentId] = message
 	}
 
 	override fun observeRecentStepsOnlyEntries(limit: Int): Flow<List<StepsOnlyHistoryEntry>> =
@@ -686,7 +719,13 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 	private fun foundSnapshot(query: SessionHistoryQuery.Found) = LiveSessionHistorySnapshot(
 		segmentId = query.history.segmentId,
 		session = query,
-		activity = defaultActivityQuery(query.history.segmentId),
+		activity = defaultActivityQuery(
+			segmentId = query.history.segmentId,
+			capturesOnlyActivity = (query.history.capture as? HistoryCapture.Exact)
+				?.revisions?.all { revision ->
+					revision.capturedSources == setOf(HistorySource.ACTIVITY)
+				} == true,
+		),
 		pressure = defaultPressureQuery(query.history),
 	)
 
@@ -700,7 +739,10 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 		pressure = PressureSessionHistoryQuery.NotFound,
 	)
 
-	private fun defaultActivityQuery(segmentId: Long) = ActivityHistoryQuery.Found(
+	private fun defaultActivityQuery(
+		segmentId: Long,
+		capturesOnlyActivity: Boolean = false,
+	) = ActivityHistoryQuery.Found(
 		ActivityHistoryEntry(
 			key = ActivityHistoryEntryKey("mixed:$segmentId"),
 			startTime = EpochMs(1L),
@@ -711,6 +753,7 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 			activeTime = null,
 			fragments = emptyList(),
 			causes = setOf(ActivityHistoryCause.SOURCE_NOT_CAPTURED),
+			capturesOnlyActivity = capturesOnlyActivity,
 		),
 	)
 

@@ -99,8 +99,8 @@ data class LiveSessionHistorySnapshot(
 		require(foundSession == null || foundPressure == null ||
 			foundSession.capture == foundPressure.capture
 		) { "Live session products must share one capture-authority snapshot" }
-		require(foundActivity?.capturesOnlyActivity != true ||
-			foundSession?.capturesOnly(HistorySource.ACTIVITY) == true
+		require(foundActivity == null || foundSession == null ||
+			foundActivity.capturesOnlyActivity == foundSession.capturesOnly(HistorySource.ACTIVITY)
 		) { "Activity-only truth contradicts the common capture snapshot" }
 		require(foundActivity?.capturesOnlyActivity != true ||
 			foundPressure?.capture?.capturesOnly(HistorySource.PRESSURE) != true

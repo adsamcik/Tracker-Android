@@ -66,10 +66,13 @@ internal object ActivityHistoryComposer {
 			.mapNotNull { logicalId ->
 				val members = members(logicalId, snapshot)
 				val entry = composeGroup(logicalId, snapshot, laneExecutionAuthority) ?: return@mapNotNull null
+				val recencyMember = members.maxWith(
+					compareBy(SessionSegment::startTimeMs, SessionSegment::id),
+				)
 				ComposedActivityEntry(
 					logicalTrackingId = logicalId,
-					recencyStartTimeMs = members.maxOfOrNull(SessionSegment::startTimeMs) ?: 0L,
-					recencySegmentId = members.maxOfOrNull(SessionSegment::id) ?: 0L,
+					recencyStartTimeMs = recencyMember.startTimeMs,
+					recencySegmentId = recencyMember.id,
 					physicalSegmentIds = members.map(SessionSegment::id),
 					entry = entry,
 				)

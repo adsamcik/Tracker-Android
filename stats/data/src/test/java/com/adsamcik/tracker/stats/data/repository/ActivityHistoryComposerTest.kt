@@ -191,6 +191,21 @@ class ActivityHistoryComposerTest {
 	}
 
 	@Test
+	fun `Activity recency uses one newest member tuple when physical ids regress`() {
+		val snapshot = fixture(
+			listOf(
+				RunSpec(1L, "run-a", "UTC", segmentId = 900L),
+				RunSpec(2L, "run-b", "UTC", segmentId = 40L),
+			),
+		)
+
+		val composed = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single()
+
+		composed.recencyStartTimeMs shouldBe 1_500L
+		composed.recencySegmentId shouldBe 40L
+	}
+
+	@Test
 	fun `source-aware page replaces factless Activity group once from exact intent`() = runTest {
 		val snapshot = fixture(
 			listOf(RunSpec(1L, "run-a", "UTC"), RunSpec(2L, "run-b", "UTC")),
@@ -1046,7 +1061,7 @@ class ActivityHistoryComposerTest {
 	private fun buildRun(spec: RunSpec): BuiltRun {
 		val baseElapsed = 1_000L + (spec.revision - 1L) * 500L
 		val segment = SessionSegment(
-			id = spec.revision,
+			id = spec.segmentId,
 			startTimeMs = baseElapsed,
 			endTimeMs = baseElapsed + 500L,
 			distanceM = 0f,
@@ -1504,7 +1519,13 @@ class ActivityHistoryComposerTest {
 		updatedAtMs = 0L,
 	)
 
-	private data class RunSpec(val revision: Long, val runId: String, val zone: String, val gap: Boolean = false)
+	private data class RunSpec(
+		val revision: Long,
+		val runId: String,
+		val zone: String,
+		val gap: Boolean = false,
+		val segmentId: Long = revision,
+	)
 
 	@Suppress("LongParameterList")
 	private data class BuiltRun(
