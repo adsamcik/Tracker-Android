@@ -21,12 +21,13 @@ class PressureHistoryReadModelTest {
 			),
 		)
 		val replacement = available(
-			segment = segment(id = 2L, logicalId = "logical", runId = "run-b", startMs = 200L),
+			segment = segment(id = 2L, logicalId = "logical", runId = "run-b", startMs = 50L),
 			window = window(
 				factId = "fact-b",
 				runId = "run-b",
 				zoneId = "America/New_York",
 				startElapsedNanos = 20L,
+				manifestRevision = 2L,
 				first = 999f,
 				last = 998f,
 			),
@@ -94,25 +95,30 @@ class PressureHistoryReadModelTest {
 	private fun available(
 		segment: SessionSegment,
 		window: PressureHistoryWindow,
-	) = PressurePhysicalHistory(
-		segment = segment,
-		captureAuthority = HistoricalCaptureAuthority.Exact(
-			listOf(
-				HistoricalCaptureRevision(
-					manifestRevision = 1L,
-					effectiveWallTimeMs = segment.startTimeMs,
-					capturedSources = setOf(TrackingSourceComponent.PRESSURE),
-					controlSources = emptySet(),
+	): PressurePhysicalHistory {
+		val attributedWindow = window.copy(
+			logicalTrackingId = requireNotNull(segment.logicalTrackingId),
+		)
+		return PressurePhysicalHistory(
+			segment = segment,
+			captureAuthority = HistoricalCaptureAuthority.Exact(
+				listOf(
+					HistoricalCaptureRevision(
+						manifestRevision = window.manifestRevision,
+						effectiveWallTimeMs = segment.startTimeMs,
+						capturedSources = setOf(TrackingSourceComponent.PRESSURE),
+						controlSources = emptySet(),
+					),
 				),
 			),
-		),
-		windows = listOf(window),
-		availability = PressureHistoryAvailability.AVAILABLE,
-		evidence = PressureHistoryEvidence.RECORDED,
-		materialization = PressureHistoryMaterialization.READY,
-		coverage = PressureHistoryCoverage.COMPLETE,
-		reasons = emptySet(),
-	)
+			windows = listOf(attributedWindow),
+			availability = PressureHistoryAvailability.AVAILABLE,
+			evidence = PressureHistoryEvidence.RECORDED,
+			materialization = PressureHistoryMaterialization.READY,
+			coverage = PressureHistoryCoverage.COMPLETE,
+			reasons = emptySet(),
+		)
+	}
 
 	@Suppress("LongParameterList")
 	private fun window(
@@ -122,12 +128,14 @@ class PressureHistoryReadModelTest {
 		startElapsedNanos: Long,
 		first: Float,
 		last: Float,
+		manifestRevision: Long = 1L,
 	) = PressureHistoryWindow(
 		logicalFactId = factId,
 		semanticRevision = 1L,
 		sourceAdmissionOrdinal = startElapsedNanos,
+		logicalTrackingId = "logical",
 		serviceRunId = runId,
-		manifestRevision = 1L,
+		manifestRevision = manifestRevision,
 		zoneId = zoneId,
 		writerProjectionId = "pressure-session-facts",
 		writerProjectionVersion = 1,
@@ -137,7 +145,7 @@ class PressureHistoryReadModelTest {
 		windowStartElapsedRealtimeNanos = startElapsedNanos,
 		windowEndElapsedRealtimeNanos = startElapsedNanos + 1L,
 		sampleCount = 2,
-		meanHectopascals = (first + last) / 2.0,
+		meanHectopascals = (first.toDouble() + last.toDouble()) / 2.0,
 		minimumHectopascals = minOf(first, last) - 0.5f,
 		maximumHectopascals = maxOf(first, last) + 0.5f,
 		firstHectopascals = first,
@@ -162,6 +170,8 @@ class PressureHistoryReadModelTest {
 		activityConfidence = null,
 		sampleCount = 0,
 		source = SegmentSource.USER_CREATED,
+		inferenceVersion = "test",
+		createdAt = startMs + 100L,
 		logicalTrackingId = logicalId,
 		serviceRunId = runId,
 	)

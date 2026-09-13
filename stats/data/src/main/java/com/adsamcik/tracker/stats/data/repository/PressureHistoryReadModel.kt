@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 
@@ -9,6 +10,7 @@ internal data class PressureHistoryWindow(
 	val logicalFactId: String,
 	val semanticRevision: Long,
 	val sourceAdmissionOrdinal: Long,
+	val logicalTrackingId: String,
 	val serviceRunId: String,
 	val manifestRevision: Long,
 	val zoneId: String,
@@ -33,6 +35,7 @@ internal data class PressureHistoryWindow(
 		require(logicalFactId.isNotBlank())
 		require(semanticRevision > 0L)
 		require(sourceAdmissionOrdinal > 0L)
+		require(logicalTrackingId.isNotBlank())
 		require(serviceRunId.isNotBlank())
 		require(manifestRevision > 0L)
 		require(zoneId.isNotBlank())
@@ -57,6 +60,7 @@ internal data class PressureHistoryWindow(
 }
 
 /** Truthful source-local state for one presentation segment and its exact physical run. */
+@Suppress("LongParameterList")
 internal data class PressurePhysicalHistory(
 	val segment: SessionSegment,
 	val captureAuthority: HistoricalCaptureAuthority,
@@ -71,7 +75,11 @@ internal data class PressurePhysicalHistory(
 		require(windows == windows.sortedWith(pressureWindowOrder))
 		require(windows.map(PressureHistoryWindow::logicalFactId).distinct().size == windows.size)
 		val serviceRunId = segment.serviceRunId
+		val logicalTrackingId = segment.logicalTrackingId
 		require(serviceRunId == null || windows.all { it.serviceRunId == serviceRunId })
+		require(
+			logicalTrackingId == null || windows.all { it.logicalTrackingId == logicalTrackingId },
+		)
 		when (evidence) {
 			PressureHistoryEvidence.NO_OBSERVATION -> require(windows.isEmpty())
 			PressureHistoryEvidence.RECORDED -> require(windows.isNotEmpty())
@@ -215,11 +223,19 @@ internal data class PressureLogicalHistoryEntry(
 
 	/** Exact Pressure-only intent is independent of current fact/materialization availability. */
 	val hasExactPressureOnlyIntent: Boolean
-		get() = physicalMembers.all { member ->
-			val capture = member.captureAuthority as? HistoricalCaptureAuthority.Exact ?: return false
-			capture.revisions.all { revision ->
-				revision.capturedSources == setOf(TrackingSourceComponent.PRESSURE)
+		get() {
+			val captures = physicalMembers.map { member ->
+				member.captureAuthority as? HistoricalCaptureAuthority.Exact ?: return false
 			}
+			if (!SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
+					captures.map { capture ->
+						capture.revisions.map(HistoricalCaptureRevision::manifestRevision)
+					},
+				)
+			) return false
+			return captures.all { capture -> capture.revisions.all { revision ->
+				revision.capturedSources == setOf(TrackingSourceComponent.PRESSURE)
+			} }
 		}
 }
 
@@ -242,7 +258,10 @@ private val PressurePhysicalHistory.pressureEntryIdentity: PressureHistoryEntryI
 	get() {
 		val logicalTrackingId = segment.logicalTrackingId?.takeIf(String::isNotBlank)
 		val serviceRunId = segment.serviceRunId?.takeIf(String::isNotBlank)
-		return if (logicalTrackingId != null && serviceRunId != null) {
+		return if (
+			logicalTrackingId != null && serviceRunId != null &&
+			captureAuthority is HistoricalCaptureAuthority.Exact
+		) {
 			PressureHistoryEntryIdentity.Logical(logicalTrackingId)
 		} else {
 			PressureHistoryEntryIdentity.Physical(segment.id)
@@ -256,6 +275,10 @@ private val pressureWindowOrder = compareBy<PressureHistoryWindow>(
 )
 
 private val pressurePhysicalMemberOrder = compareBy<PressurePhysicalHistory>(
+	{ history ->
+		(history.captureAuthority as? HistoricalCaptureAuthority.Exact)
+			?.revisions?.firstOrNull()?.manifestRevision ?: Long.MAX_VALUE
+	},
 	{ it.segment.startTimeMs },
 	{ it.segment.id },
 )

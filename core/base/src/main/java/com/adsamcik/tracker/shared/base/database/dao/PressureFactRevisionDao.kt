@@ -74,6 +74,82 @@ interface PressureFactRevisionDao {
 		limit: Int,
 	): List<PressureFactRevisionEntity>
 
+	/**
+	 * Reads a bounded correction-expanded page for a set of exact physical service runs.
+	 *
+	 * Product history validates every retained revision before selecting the effective state. The
+	 * full primary key in the cursor prevents a replacement run or correction boundary from being
+	 * skipped without issuing one fact query per presentation row.
+	 */
+	@Query(
+		"""
+		SELECT * FROM pressure_fact_revision
+		WHERE service_run_id IN (:serviceRunIds)
+		  AND (
+			:afterServiceRunId IS NULL
+			OR service_run_id > :afterServiceRunId
+			OR (
+			  service_run_id = :afterServiceRunId
+			  AND (
+				writer_projection_id > COALESCE(:afterWriterProjectionId, '')
+				OR (
+				  writer_projection_id = COALESCE(:afterWriterProjectionId, '')
+				  AND (
+					writer_projection_version > COALESCE(:afterWriterProjectionVersion, -1)
+					OR (
+					  writer_projection_version = COALESCE(:afterWriterProjectionVersion, -1)
+					  AND (
+						logical_fact_id > COALESCE(:afterLogicalFactId, '')
+						OR (
+						  logical_fact_id = COALESCE(:afterLogicalFactId, '')
+						  AND semantic_revision > COALESCE(:afterSemanticRevision, -1)
+						)
+					  )
+					)
+				  )
+				)
+			  )
+			)
+		  )
+		ORDER BY service_run_id,
+		         writer_projection_id,
+		         writer_projection_version,
+		         logical_fact_id,
+		         semantic_revision
+		LIMIT :limit
+		""",
+	)
+	suspend fun historyRevisionPage(
+		serviceRunIds: List<String>,
+		limit: Int,
+		afterServiceRunId: String?,
+		afterWriterProjectionId: String?,
+		afterWriterProjectionVersion: Int?,
+		afterLogicalFactId: String?,
+		afterSemanticRevision: Long?,
+	): List<PressureFactRevisionEntity>
+
+	/** True when any requested run owns a fact lineage whose revisions escape that exact scope. */
+	@Query(
+		"""
+		SELECT EXISTS(
+		  SELECT 1
+		  FROM pressure_fact_revision AS selected
+		  INNER JOIN pressure_fact_revision AS correction
+		    ON correction.writer_projection_id = selected.writer_projection_id
+		   AND correction.writer_projection_version = selected.writer_projection_version
+		   AND correction.logical_fact_id = selected.logical_fact_id
+		  WHERE selected.service_run_id IN (:serviceRunIds)
+		    AND (
+		      correction.logical_tracking_id != selected.logical_tracking_id
+		      OR correction.service_run_id != selected.service_run_id
+		    )
+		  LIMIT 1
+		)
+		""",
+	)
+	suspend fun hasCrossScopeRevisionsForRuns(serviceRunIds: List<String>): Boolean
+
 	/** Detects rows that name the selected service run but contradict its logical-session owner. */
 	@Query(
 		"SELECT (EXISTS(SELECT 1 FROM pressure_fact_revision " +
