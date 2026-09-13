@@ -12,6 +12,24 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevi
 /** Narrow append-only storage boundary for the dormant captured Activity writer. */
 @Dao
 interface ActivityCapturedFactDao {
+	/** Exact next immutable authorization boundary in the provider's canonical elapsed-time order. */
+	@Query(
+		"SELECT effective_elapsed_realtime_nanos FROM source_authorization " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +
+			"AND effective_boot_id = :bootId " +
+			"AND (effective_elapsed_realtime_nanos > :effectiveElapsedRealtimeNanos " +
+			"OR (effective_elapsed_realtime_nanos = :effectiveElapsedRealtimeNanos " +
+			"AND authorization_revision > :authorizationRevision)) " +
+			"ORDER BY effective_elapsed_realtime_nanos, authorization_revision LIMIT 1",
+	)
+	suspend fun nextAuthorizationBoundary(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		bootId: String,
+		effectiveElapsedRealtimeNanos: Long,
+		authorizationRevision: Long,
+	): Long?
+
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertRevision(entity: ActivityCapturedWindowRevisionEntity): Long
 

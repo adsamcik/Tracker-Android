@@ -221,8 +221,10 @@ data class ActivityCapturedFragmentEntity(
 				require(endAnchorProviderElapsedNanos != null && endAnchorProviderElapsedNanos >= 0L)
 				require(wallTimeContinuity?.isNotBlank() == true)
 				if (confidenceKind == CONFIDENCE_SAMPLED) {
-					require(confidenceMinimumPercent in 0..100)
-					require(confidenceMaximumPercent in confidenceMinimumPercent!!..100)
+					val minimum = requireNotNull(confidenceMinimumPercent)
+					val maximum = requireNotNull(confidenceMaximumPercent)
+					require(minimum in 0..100)
+					require(maximum in minimum..100)
 					require(confidenceObservationCount != null && confidenceObservationCount > 0)
 				} else {
 					require(confidenceKind == CONFIDENCE_TRANSITION)

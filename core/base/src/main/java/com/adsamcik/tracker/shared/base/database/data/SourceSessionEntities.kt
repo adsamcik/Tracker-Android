@@ -247,8 +247,10 @@ data class SessionManifestSourceEntity(
 		val isPersistenceEligibleCapture =
 			purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible
 		when {
-			isPersistenceEligibleCapture &&
+			isPersistenceEligibleCapture && outputDestination != null &&
 				sourceKind == SourceDestinationOwnerEntity.SOURCE_ACTIVITY -> requireActivityWriter()
+			isPersistenceEligibleCapture &&
+				sourceKind == SourceDestinationOwnerEntity.SOURCE_ACTIVITY -> Unit
 			isPersistenceEligibleCapture &&
 				sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS -> requireStepsWriter()
 			isPersistenceEligibleCapture &&

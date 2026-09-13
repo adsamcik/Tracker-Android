@@ -1,0 +1,448 @@
+package com.adsamcik.tracker.tracker.source.activity
+
+import android.app.Application
+import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
+import com.adsamcik.tracker.tracker.source.model.ServiceRunId
+import com.adsamcik.tracker.tracker.source.model.SourceEventId
+import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
+import com.adsamcik.tracker.tracker.source.model.SourceKind
+import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.test.runTest
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class ActivityCapturedFactWriterTest {
+	private lateinit var database: AppDatabase
+
+	@Before
+	fun setUp() {
+		val context: Application = ApplicationProvider.getApplicationContext()
+		database = AppDatabase.testDatabase(context)
+	}
+
+	@After
+	fun tearDown() = database.close()
+
+	@Test
+	fun `control-only command is rejected without creating captured state`() = runTest {
+		ActivityCapturedFactWriter(database).write(ActivityCapturedWriteCommand.ControlOnly) shouldBe
+			ActivityCapturedWriteResult.Rejected(ActivityCapturedWriteRejection.CONTROL_ONLY)
+
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	@Test
+	fun `exact candidate authority commits one tiled revision and replay is unchanged`() = runTest {
+		seedAuthority()
+		val subject = ActivityCapturedFactWriter(database)
+		val window = capturedWindow()
+
+		val applied = subject.write(ActivityCapturedWriteCommand.Captured(window)) as
+			ActivityCapturedWriteResult.Applied
+		applied shouldBe ActivityCapturedWriteResult.Applied(
+			logicalWindowId = applied.logicalWindowId,
+			semanticRevision = 1L,
+			cursorRevision = 1L,
+		)
+		val logicalWindowId = applied.logicalWindowId
+		val dao = database.activityCapturedFactDao()
+		dao.revisionCount() shouldBe 1L
+		dao.fragments(WRITER_ID, WRITER_VERSION, logicalWindowId, 1L).map { it.fragmentKind } shouldBe
+			listOf("BAND", "GAP")
+		dao.evidence(WRITER_ID, WRITER_VERSION, logicalWindowId, 1L).single().sourceEventId shouldBe
+			"activity-event-1"
+		dao.cursor(WRITER_ID, WRITER_VERSION, logicalWindowId)?.latestSemanticRevision shouldBe 1L
+		database.activitySnapshotDao().getAllBetween(0L, Long.MAX_VALUE).size shouldBe 0
+
+		subject.write(ActivityCapturedWriteCommand.Captured(window)) shouldBe
+			ActivityCapturedWriteResult.Unchanged(logicalWindowId, 1L, 1L)
+		dao.revisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `late correction appends exact successor and advances cursor without rewriting revision one`() = runTest {
+		seedAuthority()
+		val subject = ActivityCapturedFactWriter(database)
+		val first = subject.write(ActivityCapturedWriteCommand.Captured(capturedWindow()))
+			as ActivityCapturedWriteResult.Applied
+		val correction = capturedWindow(semanticRevision = 2L, supersedes = 1L, withGap = false)
+
+		subject.write(ActivityCapturedWriteCommand.Captured(correction)) shouldBe
+			ActivityCapturedWriteResult.Applied(first.logicalWindowId, 2L, 2L)
+		val dao = database.activityCapturedFactDao()
+		dao.revisionCount() shouldBe 2L
+		dao.revision(WRITER_ID, WRITER_VERSION, first.logicalWindowId, 1L)?.coverage shouldBe "PARTIAL"
+		dao.revision(WRITER_ID, WRITER_VERSION, first.logicalWindowId, 2L)?.coverage shouldBe "COMPLETE"
+		dao.cursor(WRITER_ID, WRITER_VERSION, first.logicalWindowId)?.latestSemanticRevision shouldBe 2L
+	}
+
+	@Test
+	fun `semantic successor with unchanged product effect is not stored`() = runTest {
+		seedAuthority()
+		val subject = ActivityCapturedFactWriter(database)
+		val first = subject.write(ActivityCapturedWriteCommand.Captured(capturedWindow()))
+			as ActivityCapturedWriteResult.Applied
+
+		subject.write(
+			ActivityCapturedWriteCommand.Captured(
+				capturedWindow(semanticRevision = 2L, supersedes = 1L),
+			),
+		) shouldBe ActivityCapturedWriteResult.Unchanged(first.logicalWindowId, 1L, 1L)
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `permanent selected-run fence rejects replay before any Activity fact is written`() = runTest {
+		seedAuthority()
+		database.sourceDeletionFenceDao().insertIfAbsent(
+			SourceDeletionFenceEntity.createLogicalServiceRun(
+				sourceKind = SourceKind.ACTIVITY.stableCode,
+				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				serviceRunId = SERVICE_RUN_ID,
+				fenceGeneration = 1L,
+				collectedDataEpoch = 0L,
+				deletedAtMs = 3_000L,
+			),
+		)
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		) shouldBe ActivityCapturedWriteResult.Rejected(ActivityCapturedWriteRejection.DELETED_SCOPE)
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	private suspend fun seedAuthority() {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
+		database.sourceDestinationOwnerDao().insertIfAbsent(
+			SourceDestinationOwnerEntity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
+				owner = SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS,
+				ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+				updatedAtMs = 1_000L,
+			),
+		)
+		val segmentId = database.sessionSegmentDao().insert(
+			SessionSegment(
+				startTimeMs = 1_000L,
+				endTimeMs = 2_000L,
+				distanceM = 0f,
+				steps = null,
+				primaryActivity = null,
+				activityConfidence = null,
+				sampleCount = 0,
+				source = SegmentSource.USER_CREATED,
+				inferenceVersion = null,
+				createdAt = 1_000L,
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				serviceRunId = SERVICE_RUN_ID,
+			),
+		)
+		database.sourceSessionDao().insertSession(
+			LogicalTrackingSessionEntity(
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				state = "FINALIZED",
+				lifecycleRevision = 2L,
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				startOrigin = "MANUAL_FOREGROUND_START",
+				clockDomainId = BOOT_ID,
+				startedAtMs = 1_000L,
+				startedElapsedNanos = RUN_START_NANOS,
+				cutoffAtMs = 2_000L,
+				cutoffElapsedNanos = RUN_END_NANOS,
+				completedAtMs = 2_000L,
+				finalAdmissionOrdinal = 1L,
+				failureCode = null,
+				sessionMode = "MANUAL",
+				currentManifestRevision = 1L,
+				currentIntentRevision = 2L,
+				currentServiceRunId = null,
+				lifecycleLeaseGeneration = 1L,
+				lifecycleBootId = BOOT_ID,
+				automationEpoch = null,
+			),
+		)
+		database.sourceSessionDao().insertServiceRun(
+			SourceServiceRunEntity(
+				serviceRunId = SERVICE_RUN_ID,
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				state = "FINALIZED",
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				foregroundCapabilityFlags = 0L,
+				startedAtMs = 1_000L,
+				startedElapsedNanos = RUN_START_NANOS,
+				completedAtMs = 2_000L,
+				completionReason = "TEST",
+				bootId = BOOT_ID,
+				leaseGeneration = 1L,
+				startOrigin = "MANUAL_FOREGROUND_START",
+				desiredForegroundCapabilityFlags = 0L,
+				appliedForegroundCapabilityFlags = 0L,
+				runtimeAcknowledgement = "STOPPED",
+				runtimeFailureCode = null,
+				runRevision = 2L,
+				startDeliveryToken = "delivery-1",
+				startCommandGeneration = 1L,
+				preparedManifestRevision = 1L,
+				preparedIntentRevision = 1L,
+				androidDeliveryState = "SETTLED",
+				androidDeliveryUpdatedAtMs = 2_000L,
+				startIsUserInitiated = true,
+				startIsAmbient = false,
+				sessionSegmentId = segmentId,
+				presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_QUIESCED,
+				presentationAcknowledgedAtMs = 2_000L,
+			),
+		)
+		insertManifest()
+		database.sourcePolicyDao().insertPolicies(listOf(activityPolicy()))
+		database.sourcePolicyDao().insertConsentEpochs(listOf(activityConsent()))
+		database.sourcePlanStateDao().insertRevision(
+			AcquisitionPlanRevisionEntity(1L, "plan-1", 1_000L, "APPLIED", 1L),
+		)
+		database.sourcePlanStateDao().insertDesiredPlans(
+			listOf(SourceDesiredPlanEntity(1L, SourceKind.ACTIVITY.stableCode, 1, byteArrayOf(1), "plan")),
+		)
+		database.sourceBrokerDao().insertRegistration(activityRegistration())
+		database.sourceBrokerDao().insertAuthorizations(listOf(activityAuthorization()))
+	}
+
+	private suspend fun insertManifest() {
+		val source = SessionManifestSourceEntity(
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			manifestRevision = 1L,
+			sourceKind = SourceKind.ACTIVITY.stableCode,
+			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+			consentEpoch = 0L,
+			persistenceEligible = true,
+			qosCode = 1,
+			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
+			writerOwner = SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS,
+			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			writerBindingGeneration = SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION,
+		)
+		val unsigned = SessionManifestVersionEntity(
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			manifestRevision = 1L,
+			serviceRunId = SERVICE_RUN_ID,
+			sessionMode = "MANUAL",
+			sourcePolicyRevision = 1L,
+			acquisitionPlanRevision = 1L,
+			rolloutRevision = 1L,
+			startOrigin = "MANUAL_FOREGROUND_START",
+			effectiveBootId = BOOT_ID,
+			effectiveElapsedRealtimeNanos = RUN_START_NANOS,
+			effectiveWallTimeMs = 1_000L,
+			zoneId = "Europe/Prague",
+			automationEpoch = null,
+			changeReason = "TEST",
+			manifestChecksum = "",
+		)
+		database.sourceSessionDao().insertManifest(
+			unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source))),
+		)
+		database.sourceSessionDao().insertManifestSources(listOf(source))
+	}
+
+	private fun activityPolicy() = SourcePolicyEntity(
+		policyRevision = 1L,
+		sourceKind = SourceKind.ACTIVITY.stableCode,
+		enabled = true,
+		qosCode = 1,
+		locationMinTimeSeconds = null,
+		locationMinDistanceMeters = null,
+		locationRequiredAccuracyMeters = null,
+		capturePersistenceEligible = true,
+		controlPersistenceEligible = false,
+		ambientPersistenceEligible = false,
+		captureConsentEpoch = 0L,
+		controlConsentEpoch = null,
+		ambientConsentEpoch = null,
+		effectiveBootId = BOOT_ID,
+		effectiveElapsedRealtimeNanos = RUN_START_NANOS,
+		effectiveWallTimeMs = 1_000L,
+		changeReason = "TEST",
+	)
+
+	private fun activityConsent() = SourceConsentEpochEntity(
+		sourceKind = SourceKind.ACTIVITY.stableCode,
+		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+		epoch = 0L,
+		eligible = true,
+		persistenceEligible = true,
+		policyRevision = 1L,
+		effectiveBootId = BOOT_ID,
+		effectiveElapsedRealtimeNanos = RUN_START_NANOS,
+		effectiveWallTimeMs = 1_000L,
+		changeReason = "TEST",
+	)
+
+	private fun activityRegistration() = ProviderRegistrationGenerationEntity(
+		sourceKind = SourceKind.ACTIVITY.stableCode,
+		registrationGeneration = 1L,
+		sourceInstanceId = SOURCE_INSTANCE_ID,
+		ownerScope = "activity-provider",
+		clockDomainId = BOOT_ID,
+		physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
+		collectedDataEpoch = 0L,
+		providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+		providerProcessIncarnationId = "process-1",
+		status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+		reservedAtMs = 900L,
+		reservedElapsedRealtimeNanos = 90L,
+		acceptedAtMs = 1_000L,
+		acceptedElapsedRealtimeNanos = RUN_START_NANOS,
+		retiredAtMs = null,
+		retiredElapsedRealtimeNanos = null,
+		failureCode = null,
+	)
+
+	private fun activityAuthorization() = SourceAuthorizationEntity(
+		sourceKind = SourceKind.ACTIVITY.stableCode,
+		registrationGeneration = 1L,
+		authorizationRevision = 1L,
+		memberId = "capture-member",
+		authorizationFingerprint = AUTHORIZATION_FINGERPRINT,
+		purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		demandId = "capture-demand",
+		consumerId = "capture-consumer",
+		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+		sourcePolicyRevision = 1L,
+		consentEpoch = 0L,
+		persistenceEligible = true,
+		effectiveBootId = BOOT_ID,
+		effectiveElapsedRealtimeNanos = RUN_START_NANOS,
+		effectiveWallTimeMs = 1_000L,
+		logicalTrackingId = LOGICAL_TRACKING_ID,
+		serviceRunId = SERVICE_RUN_ID,
+		manifestRevision = 1L,
+		lifecycleLeaseGeneration = 1L,
+	)
+
+	private fun capturedWindow(
+		semanticRevision: Long = 1L,
+		supersedes: Long? = null,
+		withGap: Boolean = true,
+	): ActivityCapturedWindow {
+		val authority = captureAuthority()
+		val mutation = ActivityCapturedWindowMutation(
+			identity = ActivityCapturedWindowIdentity(authority, 200L, 400L),
+			semanticRevision = semanticRevision,
+			supersedesSemanticRevision = supersedes,
+		)
+		val reference = ActivityCapturedObservationReference(
+			SourceEventId("activity-event-1"),
+			admissionOrdinal = 1L,
+			sourceSequence = 1L,
+			providerElapsedRealtimeNanos = 200L,
+			receivedElapsedRealtimeNanos = 210L,
+		)
+		val bandEnd = if (withGap) 300L else 400L
+		val band = ActivityCapturedBand(
+			key = ActivityCapturedFactKey(mutation, 0),
+			intervalStartElapsedRealtimeNanos = 200L,
+			intervalEndExclusiveElapsedRealtimeNanos = bandEnd,
+			wallTimeRange = ActivityDerivedWallTimeRange(
+				startInclusive = boundary(reference, 2_000L, ActivityWallTimeBoundaryKind.EXACT_PROVIDER_OBSERVATION),
+				endExclusive = boundary(reference, 2_100L, ActivityWallTimeBoundaryKind.SAME_CLOCK_EXTRAPOLATION),
+				continuity = ActivityWallTimeContinuity.SAME_ANCHOR,
+			),
+			activity = CapturedActivityType.WALKING,
+			mechanism = ActivityBandMechanism.TRANSITION,
+			refinedTransitionActivity = null,
+			confidence = ActivityBandConfidence.TransitionSignal,
+			evidence = listOf(reference),
+		)
+		return ActivityCapturedWindow(
+			mutation = mutation,
+			bands = listOf(band),
+			gaps = if (withGap) listOf(
+				ActivityCoverageGap(300L, 400L, ActivityCoverageGapReason.NO_QUALIFIED_EVIDENCE),
+			) else emptyList(),
+			exactDuplicateCount = 0,
+			semanticDuplicateCount = 0,
+			unchangedEvidenceCount = 0,
+		)
+	}
+
+	private fun boundary(
+		reference: ActivityCapturedObservationReference,
+		wallTimeMs: Long,
+		kind: ActivityWallTimeBoundaryKind,
+	) = ActivityDerivedWallTimeBoundary(
+		wallTimeMs = wallTimeMs,
+		uncertaintyMs = 25L,
+		authority = ActivityWallTimeDerivationAuthority(
+			kind = kind,
+			anchorSourceEventId = reference.sourceEventId,
+			anchorProviderElapsedRealtimeNanos = reference.providerElapsedRealtimeNanos,
+			clockDomainId = BOOT_ID,
+		),
+	)
+
+	private fun captureAuthority() = ActivityCaptureAuthority(
+		logicalTrackingId = LogicalTrackingId(LOGICAL_TRACKING_ID),
+		serviceRunId = ServiceRunId(SERVICE_RUN_ID),
+		sourceInstanceId = SourceInstanceId(SOURCE_INSTANCE_ID),
+		registrationGeneration = 1L,
+		configurationRevision = 1L,
+		physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
+		authorizationRevision = 1L,
+		authorizationFingerprint = AUTHORIZATION_FINGERPRINT,
+		purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		sourcePolicyRevision = 1L,
+		captureConsentEpoch = 0L,
+		sessionManifestRevision = 1L,
+		lifecycleLeaseGeneration = 1L,
+		collectedDataEpoch = 0L,
+		clockDomainId = BOOT_ID,
+		temporalAuthority = ActivityCaptureTemporalAuthority(
+			providerAcceptance = ActivityProviderTimeInterval(RUN_START_NANOS, Long.MAX_VALUE),
+			authorizationEffect = ActivityProviderTimeInterval(RUN_START_NANOS, Long.MAX_VALUE),
+			sessionRunEffect = ActivityProviderTimeInterval(RUN_START_NANOS, RUN_END_NANOS),
+		),
+	)
+
+	companion object {
+		private const val LOGICAL_TRACKING_ID = "logical-activity-1"
+		private const val SERVICE_RUN_ID = "service-run-activity-1"
+		private const val SOURCE_INSTANCE_ID = "activity-instance-1"
+		private const val BOOT_ID = "boot-activity-1"
+		private const val PHYSICAL_FINGERPRINT = "activity-physical-1"
+		private const val AUTHORIZATION_FINGERPRINT = "activity-authorization-1"
+		private const val RUN_START_NANOS = 100L
+		private const val RUN_END_NANOS = 1_000L
+		private const val WRITER_ID = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID
+		private const val WRITER_VERSION = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION
+	}
+}

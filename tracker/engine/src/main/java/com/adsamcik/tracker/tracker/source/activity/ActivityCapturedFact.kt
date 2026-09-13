@@ -215,8 +215,8 @@ internal data class ActivityCapturedWindowMutation(
 	init {
 		require(semanticRevision > 0L)
 		require(
-			supersedesSemanticRevision == null ||
-				supersedesSemanticRevision in 1 until semanticRevision,
+			if (semanticRevision == 1L) supersedesSemanticRevision == null
+			else supersedesSemanticRevision == semanticRevision - 1L,
 		)
 	}
 }
