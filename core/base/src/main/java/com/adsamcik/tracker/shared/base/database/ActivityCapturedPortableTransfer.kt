@@ -505,19 +505,42 @@ internal class PortableCapturedActivityRoomReader(
 		if (audit.lineages.isEmpty()) return noEntries()
 
 		val latestByWindow = audit.lineages.associateWith { lineage -> lineage.revisions.last() }
-		val candidateSegments = loadSegments(
+		val factOwnerSegments = loadSegments(
 			latestByWindow.values.map { persisted -> persisted.revision.sessionSegmentId }.distinct(),
 		)
-		val candidateSegmentsById = candidateSegments.associateBy(SessionSegment::id)
-		val selectedLogicalIds = latestByWindow.values.asSequence().filter { persisted ->
+		val factOwnerSegmentsById = factOwnerSegments.associateBy(SessionSegment::id)
+		val carrierLogicalIds = latestByWindow.values.asSequence().map { persisted ->
 			val revision = persisted.revision
-			val segment = candidateSegmentsById[revision.sessionSegmentId]
+			val segment = factOwnerSegmentsById[revision.sessionSegmentId]
 				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 			validateSegmentBinding(segment, revision.logicalTrackingId, revision.serviceRunId)
-			segment.startTimeMs < request.toExclusiveMs && segment.endTimeMs > request.fromInclusiveMs
-		}.map { persisted -> persisted.revision.logicalTrackingId }.distinct().sorted().toList()
+			revision.logicalTrackingId
+		}.distinct().sorted().toList()
+		if (carrierLogicalIds.size > limits.maximumEntries) overflow()
+
+		// Range is a property of the complete logical replacement group, never of the fact owner.
+		val carrierRuns = loadReplacementRuns(carrierLogicalIds)
+		checkpoint(PortableActivityReadCheckpoint.REPLACEMENT_MEMBERS_LOADED)
+		val carrierSegments = loadSegments(carrierRuns.map { run ->
+			run.sessionSegmentId
+				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}.distinct())
+		val carrierSegmentsById = carrierSegments.associateBy(SessionSegment::id)
+		carrierRuns.forEach { run ->
+			val segment = carrierSegmentsById[requireNotNull(run.sessionSegmentId)]
+				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			validateSegmentBinding(segment, run.logicalTrackingId, run.serviceRunId)
+		}
+		val selectedLogicalIds = carrierLogicalIds.filter { logicalTrackingId ->
+			carrierRuns.asSequence()
+				.filter { run -> run.logicalTrackingId == logicalTrackingId }
+				.map { run -> carrierSegmentsById.getValue(requireNotNull(run.sessionSegmentId)) }
+				.any { segment ->
+					segment.startTimeMs < request.toExclusiveMs &&
+						segment.endTimeMs > request.fromInclusiveMs
+				}
+		}
 		if (selectedLogicalIds.isEmpty()) return noEntries()
-		if (selectedLogicalIds.size > limits.maximumEntries) overflow()
 
 		val selectedLineages = latestByWindow.filterValues { persisted ->
 			persisted.revision.logicalTrackingId in selectedLogicalIds
@@ -533,14 +556,11 @@ internal class PortableCapturedActivityRoomReader(
 			} == true) abort(PortableActivityExportUnverifiableReason.RETENTION_CROSSES_ENTRY)
 		}
 
-		val runs = loadReplacementRuns(selectedLogicalIds)
-		checkpoint(PortableActivityReadCheckpoint.REPLACEMENT_MEMBERS_LOADED)
+		val runs = carrierRuns.filter { run -> run.logicalTrackingId in selectedLogicalIds }
 		val sessions = loadSessions(selectedLogicalIds)
-		val segments = loadSegments(runs.map { run ->
-			run.sessionSegmentId
-				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
-		}.distinct())
-		val segmentsById = segments.associateBy(SessionSegment::id)
+		val segmentsById = carrierSegmentsById.filterKeys { segmentId ->
+			segmentId in runs.mapNotNullTo(hashSetOf(), SourceServiceRunEntity::sessionSegmentId)
+		}
 		val manifestDependencies = loadManifestDependencies(runs)
 		validateLogicalManifestUnions(
 			selectedLogicalIds,

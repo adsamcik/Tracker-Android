@@ -363,6 +363,52 @@ class ActivityCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `portable range selects a complete group through an overlapping factless replacement`() = runTest {
+		seedCapturedActivity()
+		installTerminalReplacement(capturesActivity = false)
+
+		val snapshot = PortableCapturedActivityRoomReader(database).read(
+			ExportPortableCapturedActivityRequest(3_000L, 4_001L),
+		) as PortableCapturedActivitySnapshot.Ready
+
+		val runs = snapshot.envelope.entries.single().runs
+		runs.size shouldBe 2
+		runs.first().captureCoverage shouldBe PortableActivityCaptureCoverage.WHOLE_RUN
+		runs.last().captureCoverage shouldBe PortableActivityCaptureCoverage.NOT_CAPTURED
+		runs.last().windows shouldBe emptyList()
+	}
+
+	@Test
+	fun `portable range uses exact half-open replacement boundaries`() = runTest {
+		seedCapturedActivity()
+		installTerminalReplacement(capturesActivity = false)
+
+		PortableCapturedActivityRoomReader(database).read(
+			ExportPortableCapturedActivityRequest(3_000L, 3_100L),
+		) shouldBe PortableCapturedActivitySnapshot.Outcome(
+			ExportPortableCapturedActivityResult.NoEntries,
+		)
+	}
+
+	@Test
+	fun `portable range rejects a corrupt overlapping replacement binding`() = runTest {
+		seedCapturedActivity()
+		installTerminalReplacement(capturesActivity = false)
+		corruptWithoutForeignKeys(
+			"UPDATE session_segment SET service_run_id = 'foreign-run' " +
+				"WHERE service_run_id = '$REPLACEMENT_SERVICE_RUN_ID'",
+		)
+
+		PortableCapturedActivityRoomReader(database).read(
+			ExportPortableCapturedActivityRequest(3_000L, 4_001L),
+		) shouldBe PortableCapturedActivitySnapshot.Outcome(
+			ExportPortableCapturedActivityResult.Unverifiable(
+				PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+			),
+		)
+	}
+
+	@Test
 	fun `portable export rejects retained gap-only authority without a wall anchor`() = runTest {
 		seedCapturedActivity(retainedFromMs = 1_000L, gapOnly = true)
 
@@ -674,6 +720,73 @@ class ActivityCapturedFactMaintenanceTest {
 			currentServiceRunId = REPLACEMENT_SERVICE_RUN_ID,
 			lifecycleLeaseGeneration = 2L,
 		)) shouldBe 1
+	}
+
+	private suspend fun installTerminalReplacement(capturesActivity: Boolean) {
+		val sessionDao = database.sourceSessionDao()
+		val replacementSegmentId = database.sessionSegmentDao().insert(
+			SessionSegment(
+				startTimeMs = 3_100L,
+				endTimeMs = 4_000L,
+				distanceM = 0f,
+				steps = null,
+				primaryActivity = null,
+				activityConfidence = null,
+				sampleCount = 0,
+				source = SegmentSource.USER_CREATED,
+				inferenceVersion = null,
+				createdAt = 3_100L,
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+			),
+		)
+		sessionDao.insertServiceRun(
+			serviceRun(replacementSegmentId).copy(
+				serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+				startedAtMs = 3_100L,
+				startedElapsedNanos = 600L,
+				completedAtMs = 4_000L,
+				leaseGeneration = 2L,
+				runRevision = 2L,
+				startDeliveryToken = "delivery-replacement-terminal",
+				preparedManifestRevision = 2L,
+				preparedIntentRevision = 2L,
+				androidDeliveryUpdatedAtMs = 4_000L,
+				presentationAcknowledgedAtMs = 4_000L,
+			),
+		)
+		val replacementSources = if (capturesActivity) {
+			listOf(manifestSource().copy(manifestRevision = 2L))
+		} else {
+			emptyList()
+		}
+		val unsignedManifest = manifest().copy(
+			manifestRevision = 2L,
+			serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+			effectiveElapsedRealtimeNanos = 600L,
+			effectiveWallTimeMs = 3_100L,
+			changeReason = "REPLACEMENT_START",
+			manifestChecksum = "",
+		)
+		sessionDao.insertManifest(
+			unsignedManifest.copy(
+				manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, replacementSources),
+			),
+		)
+		if (replacementSources.isNotEmpty()) {
+			sessionDao.insertManifestSources(replacementSources)
+		}
+		val session = requireNotNull(sessionDao.session(LOGICAL_TRACKING_ID))
+		sessionDao.updateSession(
+			session.copy(
+				cutoffAtMs = 4_000L,
+				cutoffElapsedNanos = 900L,
+				completedAtMs = 4_000L,
+				currentManifestRevision = 2L,
+				currentIntentRevision = 2L,
+				lifecycleLeaseGeneration = 2L,
+			),
+		) shouldBe 1
 	}
 
 	private fun corruptWithoutForeignKeys(vararg statements: String) {
