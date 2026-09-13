@@ -18,6 +18,10 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsManifestEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 import kotlinx.coroutines.runBlocking
@@ -180,6 +184,69 @@ class AppDatabaseMigration27To28Test {
 				assertNull(database.importedStepsDao().entry(entryIdentity))
 				assertNull(database.importedStepsDao().run(runIdentity))
 				assertTrue(database.importedStepsDao().manifests(runIdentity).isEmpty())
+				assertCollectedRowsDeleted(database)
+			}
+		}
+	}
+
+	@Test
+	fun portablePressureOriginSurvivesMigratedReopenWithoutInventingLiveAuthority() {
+		helper.createDatabase(TEST_DATABASE, 27).use { database ->
+			PopulatedV27Fixture.seed(database)
+			seedV27Quarantine(database)
+		}
+		helper.runMigrationsAndValidate(TEST_DATABASE, 28, true, MIGRATION_27_28).use { database ->
+			assertMigrationState(database)
+		}
+		val entryIdentity = "sha256:${"7".repeat(64)}"
+		val runIdentity = "sha256:${"8".repeat(64)}"
+		val windowIdentity = "sha256:${"9".repeat(64)}"
+		val checksum = "sha256:${"a".repeat(64)}"
+		val entry = ImportedPressureEntryRevisionEntity(
+			entryIdentity, 1L, null, checksum,
+			ImportedPressureEntryRevisionEntity.SOURCE_FORMAT,
+			ImportedPressureEntryRevisionEntity.SOURCE_SCHEMA_VERSION,
+			10L, 20L, 7L, "job-pressure", "entry-pressure", "pressure.trackerpressure", 30L,
+		)
+		val run = ImportedPressureRunEntity(
+			entryIdentity, 1L, runIdentity, 10L, 20L, true,
+			ImportedPressureRunEntity.AVAILABILITY_RETAINED,
+			ImportedPressureRunEntity.COVERAGE_COMPLETE,
+			false, 7L, 0L,
+		)
+		val window = ImportedPressureWindowEntity(
+			entryIdentity, 1L, runIdentity, windowIdentity, checksum,
+			10L, 10L, 2L, 0L, 1, 1, 1_000.0, 0.0,
+			1_000f, 1_000f, 1_000f, 1_000f, null, null, "HIGH",
+			1_000, 0, 1_000_000L, 0L, "TARGET_ELAPSED", "COMPLETE", 0L, 1f, "UTC",
+		)
+		val generation = ImportedPressureDeletionGenerationEntity.create(runIdentity, 7L, 1L, 40L)
+		withProductionDatabase { database ->
+			runBlocking {
+				database.importedPressureDao().insertEntryRevision(entry)
+				database.importedPressureDao().insertRun(run)
+				database.importedPressureDao().insertWindow(window)
+				database.importedPressureDao().insertDeletionGeneration(generation)
+			}
+		}
+		withProductionDatabase { database ->
+			runBlocking {
+				assertEquals(entry, database.importedPressureDao().entryRevision(entryIdentity, 1L))
+				assertEquals(listOf(run), database.importedPressureDao().runs(entryIdentity, 1L))
+				assertEquals(
+					listOf(window),
+					database.importedPressureDao().windows(entryIdentity, 1L, runIdentity),
+				)
+				assertEquals(generation, database.importedPressureDao().deletionGeneration(runIdentity))
+				assertNull(database.sourceSessionDao().session(entryIdentity))
+				assertNull(database.sourceSessionDao().serviceRun(runIdentity))
+				AppDatabase.deleteAllCollectedData(database, 8L, null, 50L)
+			}
+		}
+		withProductionDatabase { database ->
+			runBlocking {
+				assertNull(database.importedPressureDao().latestEntryRevision(entryIdentity))
+				assertNull(database.importedPressureDao().deletionGeneration(runIdentity))
 				assertCollectedRowsDeleted(database)
 			}
 		}
@@ -676,6 +743,15 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "imported_steps_entry", 0)
 		assertTableCount(database, "imported_steps_run", 0)
 		assertTableCount(database, "imported_steps_manifest", 0)
+		assertTableCount(database, "imported_pressure_entry_revision", 0)
+		assertTableCount(database, "imported_pressure_run", 0)
+		assertTableCount(database, "imported_pressure_window", 0)
+		assertTableCount(database, "imported_pressure_deletion_generation", 0)
+		assertIndexColumns(
+			database,
+			"idx_imported_pressure_window_run",
+			listOf("entry_identity", "entry_import_revision", "run_identity"),
+		)
 		// Legacy pressure_sample rows lack v4 qualification and must never be backfilled.
 		assertTableCount(database, "pressure_fact_revision", 0)
 		assertIndexColumns(
