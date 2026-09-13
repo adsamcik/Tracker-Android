@@ -722,6 +722,59 @@ class WifiWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `maintenance rejects coverage owner with equal count but different aggregate`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val first = assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val changedPoints = listOf(
+			WifiAccessPointEvidence("", 2_412, -70, OBSERVED_END_NANOS + 100_000_000L),
+			WifiAccessPointEvidence("", 2_412, -50, OBSERVED_END_NANOS + 200_000_000L),
+		)
+		val changedOwnerId = insertAdditionalWal(2, changedPoints, OBSERVED_WALL_MS + 200L)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(changedOwnerId))
+		val matchingPoints = listOf(
+			WifiAccessPointEvidence("", 2_412, -70, OBSERVED_END_NANOS + 300_000_000L),
+			WifiAccessPointEvidence("", 2_412, -50, OBSERVED_END_NANOS + 400_000_000L),
+		)
+		val dependentId = insertAdditionalWal(3, matchingPoints, OBSERVED_WALL_MS + 400L)
+		val dependent = assertIs<WifiCapturedWriteResult.Applied>(writer.write(dependentId))
+		val dependentRevision = requireNotNull(database.wifiCapturedFactDao().revision(
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION,
+			dependent.logicalFactId,
+			1L,
+		))
+		assertEquals(WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY, dependentRevision.factKind)
+		val forged = dependentRevision.copy(
+			aggregateOwnerLogicalFactId = first.logicalFactId,
+			effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(
+				dependentRevision.copy(aggregateOwnerLogicalFactId = first.logicalFactId),
+			),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE wifi_captured_fact_revision SET aggregate_owner_logical_fact_id = ?, " +
+				"effect_checksum = ? WHERE logical_fact_id = ?",
+			arrayOf(forged.aggregateOwnerLogicalFactId, forged.effectChecksum, forged.logicalFactId),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE wifi_captured_fact_cursor SET latest_effect_checksum = ? WHERE logical_fact_id = ?",
+			arrayOf(forged.effectChecksum, forged.logicalFactId),
+		)
+		val retainedFromMs = OBSERVED_WALL_MS - 1_000L
+		val markedAtMs = OBSERVED_WALL_MS + 10_000L
+		assertEquals(
+			true,
+			database.sourceEvidenceStateDao().synchronizeLifecycle(0L, retainedFromMs, markedAtMs),
+		)
+
+		assertEquals(
+			WifiCapturedRetentionResult.Blocked(
+				WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+			),
+			maintenance.pruneAffectedByRetentionFloor(retainedFromMs, 0L, 0L, markedAtMs),
+		)
+	}
+
+	@Test
 	fun `source local deletion generation rejects old WAL before classification`() = runTest {
 		installValidFixture(candidateWriter = true)
 		database.openHelper.writableDatabase.execSQL(
@@ -783,6 +836,28 @@ class WifiWalQualificationAdapterTest {
 				expectedDeletedSourceEventHighWaterOrdinal = 0L,
 				markedAtMs = markedAtMs,
 			),
+		)
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
+		assertEquals(2L, database.sourceEventWalDao().countAll())
+	}
+
+	@Test
+	fun `retention floor affecting only coverage also removes its aggregate owner`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val secondId = insertSecondWal(observedWallTimeMs = OBSERVED_WALL_MS - 500L)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(secondId))
+		val retainedFromMs = OBSERVED_WALL_MS - 300L
+		val markedAtMs = OBSERVED_WALL_MS + 10_000L
+		assertEquals(
+			true,
+			database.sourceEvidenceStateDao().synchronizeLifecycle(0L, retainedFromMs, markedAtMs),
+		)
+
+		assertEquals(
+			WifiCapturedRetentionResult.Pruned(logicalFactCount = 2, revisionCount = 2),
+			maintenance.pruneAffectedByRetentionFloor(retainedFromMs, 0L, 0L, markedAtMs),
 		)
 		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
 		assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
@@ -1126,38 +1201,57 @@ class WifiWalQualificationAdapterTest {
 		)
 	}
 
-	private suspend fun insertSecondWal(): SourceEventId {
-		val first = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
-		val points = listOf(
+	private suspend fun insertSecondWal(
+		observedWallTimeMs: Long = OBSERVED_WALL_MS + 200L,
+	): SourceEventId = insertAdditionalWal(
+		index = 2,
+		accessPoints = listOf(
 			WifiAccessPointEvidence("", 2_412, -80, OBSERVED_END_NANOS + 100_000_000L),
 			WifiAccessPointEvidence("", 5_180, -60, OBSERVED_END_NANOS + 200_000_000L),
+		),
+		observedWallTimeMs = observedWallTimeMs,
+	)
+
+	private suspend fun insertAdditionalWal(
+		index: Int,
+		accessPoints: List<WifiAccessPointEvidence>,
+		observedWallTimeMs: Long,
+	): SourceEventId {
+		require(index > 1)
+		require(accessPoints.isNotEmpty())
+		val first = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val observedStart = requireNotNull(
+			accessPoints.mapNotNull(WifiAccessPointEvidence::providerTimestampNanos).minOrNull(),
+		)
+		val observedEnd = requireNotNull(
+			accessPoints.mapNotNull(WifiAccessPointEvidence::providerTimestampNanos).maxOrNull(),
 		)
 		val payload = WifiResultSnapshotPayload(
-			accessPoints = points,
-			platformTimestampMs = (OBSERVED_END_NANOS + 200_000_000L) / NANOS_PER_MILLISECOND,
+			accessPoints = accessPoints,
+			platformTimestampMs = observedEnd / NANOS_PER_MILLISECOND,
 			resultAgeMs = null,
 		)
 		val encoded = payloadCodec.encode(payload, PAYLOAD_VERSION)
 		val unsigned = first.copy(
 			admissionOrdinal = 0L,
-			eventId = "wifi-event-2",
-			deliveryIdentity = wifiProviderDeliveryIdentity(BOOT_ID, points).value,
-			sourceSequence = SOURCE_SEQUENCE + 1L,
-			observedIntervalStartNanos = OBSERVED_END_NANOS + 100_000_000L,
-			observedElapsedNanos = OBSERVED_END_NANOS + 200_000_000L,
-			receivedElapsedNanos = RECEIVED_NANOS + 200_000_000L,
-			wallTimeMs = OBSERVED_WALL_MS + 200L,
-			acquiredAtMs = OBSERVED_WALL_MS + 200L,
-			createdAtMs = OBSERVED_WALL_MS + 201L,
+			eventId = "wifi-event-$index",
+			deliveryIdentity = wifiProviderDeliveryIdentity(BOOT_ID, accessPoints).value,
+			sourceSequence = SOURCE_SEQUENCE + index - 1L,
+			observedIntervalStartNanos = observedStart,
+			observedElapsedNanos = observedEnd,
+			receivedElapsedNanos = observedEnd + 100_000_000L,
+			wallTimeMs = observedWallTimeMs,
+			acquiredAtMs = observedWallTimeMs,
+			createdAtMs = observedWallTimeMs + 1L,
 			payload = encoded.bytes,
 			payloadChecksum = encoded.checksum,
 			integrityIdentity = SourceEventWalEntity.LEGACY_PENDING_CHECKSUM,
 		)
 		val row = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
-		assertEquals(2L, database.sourceEventWalDao().insertIgnoringDuplicate(row))
+		assertEquals(index.toLong(), database.sourceEventWalDao().insertIgnoringDuplicate(row))
 		database.openHelper.writableDatabase.execSQL(
-			"UPDATE logical_tracking_session SET final_admission_ordinal = 2 WHERE logical_tracking_id = ?",
-			arrayOf(LOGICAL_ID),
+			"UPDATE logical_tracking_session SET final_admission_ordinal = ? WHERE logical_tracking_id = ?",
+			arrayOf(index, LOGICAL_ID),
 		)
 		return SourceEventId(row.eventId)
 	}

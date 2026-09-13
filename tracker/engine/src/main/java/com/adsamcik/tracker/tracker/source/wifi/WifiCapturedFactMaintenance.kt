@@ -484,6 +484,7 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 			block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 		}
 		val reuseAuthorityById = mutableMapOf<String, WifiAggregateReuseAuthority>()
+		val aggregateById = mutableMapOf<String, WifiIdentityFreeAggregate>()
 		for (lineage in lineages) {
 			currentCoroutineContext().ensureActive()
 			val latest = lineage.revisions.last()
@@ -500,9 +501,10 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 			}
 			reuseAuthorityById[lineage.logicalFactId] = walAuthority.reuseAuthority
+			aggregateById[lineage.logicalFactId] = requireNotNull(walAuthority.derivedAggregate).aggregate
 			checkpoint(WifiCapturedMaintenanceCheckpoint.LINEAGE_AUTHENTICATED)
 		}
-		authenticateDependencies(lineages, lineagesById, reuseAuthorityById)
+		authenticateDependencies(lineages, lineagesById, reuseAuthorityById, aggregateById)
 		authenticateDeletionGenerations(database, lineages, generations, evidence.collectedDataEpoch)
 
 		return WifiCapturedAudit(
@@ -1321,6 +1323,7 @@ private fun authenticateDependencies(
 	lineages: List<WifiCapturedLineage>,
 	lineagesById: Map<String, WifiCapturedLineage>,
 	reuseAuthorityById: Map<String, WifiAggregateReuseAuthority>,
+	aggregateById: Map<String, WifiIdentityFreeAggregate>,
 ) {
 	for (lineage in lineages) {
 		val ownerId = lineage.aggregateOwnerLogicalFactId ?: continue
@@ -1336,6 +1339,7 @@ private fun authenticateDependencies(
 		val dependent = lineage.revisions.last()
 		val ownerAuthority = reuseAuthorityById[owner.logicalFactId]
 		val dependentAuthority = reuseAuthorityById[lineage.logicalFactId]
+		val dependentAggregate = aggregateById[lineage.logicalFactId]
 		if (referenced == null || owner.revisions.last() != referenced ||
 			ownerCursorRevision != referenced.semanticRevision ||
 			owner.revisions.any { revision ->
@@ -1343,7 +1347,7 @@ private fun authenticateDependencies(
 			} || dependent.factKind != WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY ||
 			ownerAuthority == null || dependentAuthority == null || ownerAuthority != dependentAuthority ||
 			!referenced.hasFiniteAggregateReuseAuthority() ||
-			dependent.acceptedResultCount != referenced.observationCount
+			dependentAggregate == null || !referenced.matchesIdentityFreeAggregate(dependentAggregate)
 		) block(WifiCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	}
 }
@@ -1415,12 +1419,19 @@ private fun affectedDependencyClosure(
 		lineage.earliestPossibleWallTimeMs < beforeMs
 	}.mapTo(linkedSetOf(), WifiCapturedLineage::logicalFactId)
 	if (selected.isEmpty()) return emptySet()
+	val ownerByDependent = lineages.associate { lineage ->
+		lineage.logicalFactId to lineage.aggregateOwnerLogicalFactId
+	}
 	val dependentsByOwner = lineages.filter { lineage ->
 		lineage.aggregateOwnerLogicalFactId != null
 	}.groupBy(WifiCapturedLineage::aggregateOwnerLogicalFactId)
 	var changed: Boolean
 	do {
 		changed = false
+		for (dependentId in selected.toList()) {
+			val ownerId = ownerByDependent[dependentId]
+			if (ownerId != null && selected.add(ownerId)) changed = true
+		}
 		for (ownerId in selected.toList()) {
 			for (dependent in dependentsByOwner[ownerId].orEmpty()) {
 				if (selected.add(dependent.logicalFactId)) changed = true
@@ -1493,13 +1504,7 @@ private fun WifiCapturedFactRevisionEntity.matchesAuthenticatedWal(
 	return when (factKind) {
 		WifiCapturedFactRevisionEntity.FACT_KIND_AGGREGATE ->
 			aggregateOwnerLogicalFactId == null && aggregateOwnerSemanticRevision == null &&
-				aggregateOwnerCursorRevision == null && observationCount == aggregate.observationCount &&
-				twoPointFourGhzCount == aggregate.bandMix.twoPointFourGhzCount &&
-				fiveGhzCount == aggregate.bandMix.fiveGhzCount && sixGhzCount == aggregate.bandMix.sixGhzCount &&
-				otherBandCount == aggregate.bandMix.otherCount &&
-				strongestSignalDbm == aggregate.signalQuality?.strongestSignalLevelDbm &&
-				weakestSignalDbm == aggregate.signalQuality?.weakestSignalLevelDbm &&
-				signalSumDbm == aggregate.signalQuality?.signalLevelSumDbm
+				aggregateOwnerCursorRevision == null && matchesIdentityFreeAggregate(aggregate)
 		WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY ->
 			aggregateOwnerLogicalFactId != null && aggregateOwnerSemanticRevision != null &&
 				aggregateOwnerCursorRevision != null && observationCount == null &&
@@ -1509,6 +1514,17 @@ private fun WifiCapturedFactRevisionEntity.matchesAuthenticatedWal(
 		else -> false
 	}
 }
+
+private fun WifiCapturedFactRevisionEntity.matchesIdentityFreeAggregate(
+	aggregate: WifiIdentityFreeAggregate,
+): Boolean = observationCount == aggregate.observationCount &&
+	twoPointFourGhzCount == aggregate.bandMix.twoPointFourGhzCount &&
+	fiveGhzCount == aggregate.bandMix.fiveGhzCount &&
+	sixGhzCount == aggregate.bandMix.sixGhzCount &&
+	otherBandCount == aggregate.bandMix.otherCount &&
+	strongestSignalDbm == aggregate.signalQuality?.strongestSignalLevelDbm &&
+	weakestSignalDbm == aggregate.signalQuality?.weakestSignalLevelDbm &&
+	signalSumDbm == aggregate.signalQuality?.signalLevelSumDbm
 
 private fun WifiCapturedFactCursorEntity.matchesCurrent(
 	revision: WifiCapturedFactRevisionEntity,
