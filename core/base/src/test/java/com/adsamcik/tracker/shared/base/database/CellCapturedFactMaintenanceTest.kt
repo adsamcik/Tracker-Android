@@ -27,6 +27,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneId
@@ -75,7 +77,7 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
-	fun `retention may remove an affected dependent while retaining its owner`() = runTest {
+	fun `retention removes the complete owner dependency closure when a dependent crosses`() = runTest {
 		val owner = seedCapturedCell(
 			retainedFromMs = FLOOR_MS,
 			observedWallTimeMs = NEWER_WALL_MS,
@@ -91,10 +93,10 @@ class CellCapturedFactMaintenanceTest {
 			expectedCollectedDataEpoch = 0L,
 			expectedDeletedSourceEventHighWaterOrdinal = 0L,
 			markedAtMs = MAINTENANCE_TIME_MS,
-		) shouldBe CellCapturedRetentionResult.Pruned(1, 1)
+		) shouldBe CellCapturedRetentionResult.Pruned(2, 2)
 
-		database.cellCapturedFactDao().revisionCount() shouldBe 1L
-		database.cellCapturedFactDao().cursorCount() shouldBe 1L
+		database.cellCapturedFactDao().revisionCount() shouldBe 0L
+		database.cellCapturedFactDao().cursorCount() shouldBe 0L
 	}
 
 	@Test
@@ -152,6 +154,88 @@ class CellCapturedFactMaintenanceTest {
 			expectedCollectedDataEpoch = 0L,
 			expectedDeletedSourceEventHighWaterOrdinal = 0L,
 			markedAtMs = MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.Blocked(
+			CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `self rehashed foreign Cell plan blocks retention`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS)
+		val foreignPlan = cellPlanPayload(mode = CELL_MODE_OBSERVE_AND_SPARSE_REFRESH)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_desired_plan SET payload = ?, payload_checksum = ? " +
+				"WHERE revision = ? AND source_kind = ?",
+			arrayOf(foreignPlan, sha256(foreignPlan), PLAN_REVISION, CELL_SOURCE),
+		)
+
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			FLOOR_MS,
+			0L,
+			0L,
+			MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.Blocked(
+			CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+
+		database.cellCapturedFactDao().revisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `impossible provider registration chronology blocks retention`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET reserved_at_ms = accepted_at_ms + 1 " +
+				"WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf(CELL_SOURCE, REGISTRATION_GENERATION),
+		)
+
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			FLOOR_MS,
+			0L,
+			0L,
+			MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.Blocked(
+			CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+
+		database.cellCapturedFactDao().revisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `self consistent registration with impossible active retirement shape blocks retention`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET status = 'ACTIVE' " +
+				"WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf(CELL_SOURCE, REGISTRATION_GENERATION),
+		)
+
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			FLOOR_MS,
+			0L,
+			0L,
+			MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.Blocked(
+			CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `callback barrier beyond retained capture authorization blocks retention`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation " +
+				"SET capture_callback_barrier_authorization_revision = ? " +
+				"WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf(AUTHORIZATION_REVISION + 1L, CELL_SOURCE, REGISTRATION_GENERATION),
+		)
+
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			FLOOR_MS,
+			0L,
+			0L,
+			MAINTENANCE_TIME_MS,
 		) shouldBe CellCapturedRetentionResult.Blocked(
 			CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
 		)
@@ -241,8 +325,11 @@ class CellCapturedFactMaintenanceTest {
 
 	@Test
 	fun `retention keeps a lineage whose uncertainty lower bound equals the floor`() = runTest {
-		val exactLowerBound = OBSERVED_WALL_MS - WALL_UNCERTAINTY_MS
-		seedCapturedCell(retainedFromMs = exactLowerBound)
+		val exactLowerBound = OBSERVED_WALL_MS - COVERAGE_SPAN_MS - WALL_UNCERTAINTY_MS
+		seedCapturedCell(
+			retainedFromMs = exactLowerBound,
+			coverageSpanNanos = COVERAGE_SPAN_NANOS,
+		)
 
 		database.pruneCapturedCellFactsAffectedByRetentionFloor(
 			beforeMs = exactLowerBound,
@@ -253,6 +340,24 @@ class CellCapturedFactMaintenanceTest {
 
 		database.cellCapturedFactDao().revisionCount() shouldBe 1L
 		database.cellCapturedFactDao().cursorCount() shouldBe 1L
+	}
+
+	@Test
+	fun `retention removes coverage whose oldest uncertainty bound crosses the floor`() = runTest {
+		seedCapturedCell(
+			retainedFromMs = FLOOR_MS,
+			observedWallTimeMs = FLOOR_MS + COVERAGE_SPAN_MS + WALL_UNCERTAINTY_MS - 1L,
+			coverageSpanNanos = COVERAGE_SPAN_NANOS,
+		)
+
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			beforeMs = FLOOR_MS,
+			expectedCollectedDataEpoch = 0L,
+			expectedDeletedSourceEventHighWaterOrdinal = 0L,
+			markedAtMs = MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.Pruned(1, 1)
+
+		database.cellCapturedFactDao().revisionCount() shouldBe 0L
 	}
 
 	@Test
@@ -398,6 +503,64 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `WAL only scope with self rehashed foreign plan cannot receive a deletion fence`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS, revokedCapture = true)
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			FLOOR_MS,
+			0L,
+			0L,
+			MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.Pruned(1, 1)
+		val foreignPlan = cellPlanPayload(mode = CELL_MODE_OBSERVE_AND_SPARSE_REFRESH)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_desired_plan SET payload = ?, payload_checksum = ? " +
+				"WHERE revision = ? AND source_kind = ?",
+			arrayOf(foreignPlan, sha256(foreignPlan), PLAN_REVISION, CELL_SOURCE),
+		)
+
+		database.deleteCapturedCellFactsAfterConsentReset(
+			0L,
+			0L,
+			REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS,
+		) shouldBe CellCapturedSourceDeletionResult.Blocked(
+			CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		database.cellCapturedFactDao().deletionGenerationCount() shouldBe 0L
+	}
+
+	@Test
+	fun `WAL only scope with impossible provider chronology cannot receive a deletion fence`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS, revokedCapture = true)
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			FLOOR_MS,
+			0L,
+			0L,
+			MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.Pruned(1, 1)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation " +
+				"SET reserved_elapsed_realtime_nanos = accepted_elapsed_realtime_nanos + 1 " +
+				"WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf(CELL_SOURCE, REGISTRATION_GENERATION),
+		)
+
+		database.deleteCapturedCellFactsAfterConsentReset(
+			0L,
+			0L,
+			REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS,
+		) shouldBe CellCapturedSourceDeletionResult.Blocked(
+			CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		database.cellCapturedFactDao().deletionGenerationCount() shouldBe 0L
+	}
+
+	@Test
 	fun `source deletion preserves retired control demand and retained Cell WAL`() = runTest {
 		seedCapturedCell(revokedCapture = true)
 		val retiredControl = demand(active = false).copy(
@@ -424,6 +587,7 @@ class CellCapturedFactMaintenanceTest {
 		retainedFromMs: Long? = null,
 		semanticRevisions: Int = 1,
 		observedWallTimeMs: Long = OBSERVED_WALL_MS,
+		coverageSpanNanos: Long = 0L,
 		revokedCapture: Boolean = false,
 		directDemandActive: Boolean = false,
 	): CellCapturedFactRevisionEntity {
@@ -459,6 +623,7 @@ class CellCapturedFactMaintenanceTest {
 		return insertCapturedFact(
 			deliveryIndex = 1,
 			observedWallTimeMs = observedWallTimeMs,
+			coverageSpanNanos = coverageSpanNanos,
 			authorizationFingerprint = authorization.first().authorizationFingerprint,
 			semanticRevisions = semanticRevisions,
 		)
@@ -478,11 +643,14 @@ class CellCapturedFactMaintenanceTest {
 		aggregateOwner: CellCapturedFactRevisionEntity? = null,
 		acceptedChildCount: Int = 1,
 		semanticRevisions: Int = 1,
+		coverageSpanNanos: Long = 0L,
 	): CellCapturedFactRevisionEntity {
-		require(deliveryIndex in 1..9 && semanticRevisions in 1..2)
+		require(deliveryIndex in 1..9 && semanticRevisions in 1..2 && coverageSpanNanos >= 0L)
 		val deliveryIdentity = deliveryIndex.toString().repeat(64)
 		val eventId = "cell-event-$deliveryIndex"
 		val providerNanos = OBSERVED_NANOS + deliveryIndex
+		val coverageStartNanos = providerNanos - coverageSpanNanos
+		require(coverageStartNanos > 0L)
 		val payload = byteArrayOf(deliveryIndex.toByte(), 1, 2, 3)
 		val payloadChecksum = sha256(payload)
 		val unsignedWal = SourceEventWalEntity(
@@ -505,7 +673,7 @@ class CellCapturedFactMaintenanceTest {
 			planAttribution = 0,
 			clockDomainId = BOOT_ID,
 			observedElapsedNanos = providerNanos,
-			observedIntervalStartNanos = providerNanos,
+			observedIntervalStartNanos = coverageStartNanos,
 			receivedElapsedNanos = providerNanos + 1L,
 			wallTimeMs = observedWallTimeMs,
 			wallTimeUncertaintyMs = WALL_UNCERTAINTY_MS,
@@ -580,7 +748,9 @@ class CellCapturedFactMaintenanceTest {
 			scopeDeletionGeneration = 0L,
 			clockDomainId = BOOT_ID,
 			storedZoneId = ZONE_ID,
-			structuralEpochDay = structuralDay(observedWallTimeMs),
+			structuralEpochDay = structuralDay(
+				observedWallTimeMs - coverageSpanNanos / NANOS_PER_MILLISECOND - WALL_UNCERTAINTY_MS,
+			),
 			providerAcceptanceStartNanos = REGISTRATION_START_NANOS,
 			providerAcceptanceEndNanos = REGISTRATION_END_NANOS,
 			authorizationEffectStartNanos = AUTHORIZATION_START_NANOS,
@@ -591,11 +761,11 @@ class CellCapturedFactMaintenanceTest {
 			sessionRunEffectEndNanos = REGISTRATION_END_NANOS,
 			deletionEffectStartNanos = RUN_START_NANOS,
 			deletionEffectEndNanos = SESSION_END_NANOS,
-			maximumObservationAgeNanos = 1_000L,
-			observedIntervalStartNanos = providerNanos,
+			maximumObservationAgeNanos = MAXIMUM_OBSERVATION_AGE_NANOS,
+			observedIntervalStartNanos = coverageStartNanos,
 			observedElapsedNanos = providerNanos,
 			receivedElapsedNanos = providerNanos + 1L,
-			coverageIntervalStartNanos = providerNanos,
+			coverageIntervalStartNanos = coverageStartNanos,
 			coverageIntervalEndNanos = providerNanos,
 			observedWallTimeMs = observedWallTimeMs,
 			wallTimeUncertaintyMs = WALL_UNCERTAINTY_MS,
@@ -697,7 +867,7 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	private suspend fun installPlan() {
-		val payload = byteArrayOf(1, 2, 3)
+		val payload = cellPlanPayload()
 		database.sourcePlanStateDao().insertRevision(
 			AcquisitionPlanRevisionEntity(
 				revision = PLAN_REVISION,
@@ -937,6 +1107,23 @@ class CellCapturedFactMaintenanceTest {
 		.digest(bytes)
 		.joinToString(separator = "") { byte -> "%02x".format(byte) }
 
+	private fun cellPlanPayload(mode: String = CELL_MODE_OBSERVE_CHANGES): ByteArray =
+		ByteArrayOutputStream().use { buffer ->
+			DataOutputStream(buffer).use { output ->
+				output.writeInt(1)
+				output.writeUTF("CELL")
+				output.writeLong(PLAN_REVISION)
+				output.writeUTF(mode)
+				output.writeLong(MINIMUM_REFRESH_INTERVAL_MS)
+				output.writeLong(MAXIMUM_ACCEPTABLE_CACHED_AGE_MS)
+				output.writeInt(0)
+				output.writeLong(BACKOFF_INITIAL_DELAY_MS)
+				output.writeLong(BACKOFF_MAXIMUM_DELAY_MS)
+				output.writeDouble(BACKOFF_MULTIPLIER)
+			}
+			buffer.toByteArray()
+		}
+
 	private companion object {
 		const val CELL_SOURCE = SourceDestinationOwnerEntity.SOURCE_CELL
 		const val WRITER_ID = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID
@@ -948,7 +1135,13 @@ class CellCapturedFactMaintenanceTest {
 		const val CONTROL_DEMAND_ID = "cell-control-demand"
 		const val BOOT_ID = "boot-cell"
 		const val ZONE_ID = "Europe/Prague"
-		const val PHYSICAL_FINGERPRINT = "cell-fingerprint"
+		val PHYSICAL_FINGERPRINT = MessageDigest.getInstance("SHA-256")
+			.digest(
+				listOf("CELL", "CHANGE_CALLBACK", "")
+					.joinToString("\u001f")
+					.toByteArray(Charsets.UTF_8),
+			)
+			.joinToString(separator = "") { byte -> "%02x".format(byte) }
 		const val PLAN_REVISION = 1L
 		const val POLICY_REVISION = 1L
 		const val REVOKED_POLICY_REVISION = 2L
@@ -960,14 +1153,14 @@ class CellCapturedFactMaintenanceTest {
 		const val AUTHORIZATION_REVISION = 1L
 		const val SEGMENT_ID = 1L
 		const val QOS_CODE = 2
-		const val RUN_START_NANOS = 100L
-		const val REGISTRATION_START_NANOS = 110L
-		const val AUTHORIZATION_START_NANOS = 150L
-		const val OBSERVED_NANOS = 200L
-		const val REGISTRATION_END_NANOS = 500L
-		const val SESSION_END_NANOS = 600L
-		const val REVOKED_POLICY_NANOS = 700L
-		const val POLICY_START_NANOS = 100L
+		const val RUN_START_NANOS = 100_000_000L
+		const val REGISTRATION_START_NANOS = 110_000_000L
+		const val AUTHORIZATION_START_NANOS = 150_000_000L
+		const val OBSERVED_NANOS = 200_000_000L
+		const val REGISTRATION_END_NANOS = 500_000_000L
+		const val SESSION_END_NANOS = 600_000_000L
+		const val REVOKED_POLICY_NANOS = 700_000_000L
+		const val POLICY_START_NANOS = 100_000_000L
 		const val RUN_START_WALL_MS = 1_000L
 		const val OBSERVED_WALL_MS = 2_000L
 		const val NEWER_WALL_MS = 2_500L
@@ -977,6 +1170,18 @@ class CellCapturedFactMaintenanceTest {
 		const val MAINTENANCE_TIME_MS = 5_000L
 		const val DELETION_TIME_MS = 6_000L
 		const val WALL_UNCERTAINTY_MS = 20L
+		const val COVERAGE_SPAN_MS = 50L
+		const val COVERAGE_SPAN_NANOS = COVERAGE_SPAN_MS * 1_000_000L
+		const val NANOS_PER_MILLISECOND = 1_000_000L
+		const val MINIMUM_REFRESH_INTERVAL_MS = 60_000L
+		const val MAXIMUM_ACCEPTABLE_CACHED_AGE_MS = 1_000L
+		const val MAXIMUM_OBSERVATION_AGE_NANOS =
+			MAXIMUM_ACCEPTABLE_CACHED_AGE_MS * NANOS_PER_MILLISECOND
+		const val BACKOFF_INITIAL_DELAY_MS = 1_000L
+		const val BACKOFF_MAXIMUM_DELAY_MS = 60_000L
+		const val BACKOFF_MULTIPLIER = 2.0
+		const val CELL_MODE_OBSERVE_CHANGES = "OBSERVE_CHANGES"
+		const val CELL_MODE_OBSERVE_AND_SPARSE_REFRESH = "OBSERVE_AND_SPARSE_REFRESH"
 		const val ZERO_CHECKSUM =
 			"0000000000000000000000000000000000000000000000000000000000000000"
 	}
