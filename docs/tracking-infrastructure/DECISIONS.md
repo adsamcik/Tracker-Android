@@ -3188,3 +3188,64 @@ Each entry records repository evidence and does not duplicate the final architec
 - This decision does not wire the qualifier into the protected canonical writer, add a second writer,
   change provider registration, or claim history/UI behavior. A later adapter must load and verify
   the actual WAL row matching the supplied integrity identity.
+
+## TI-D200 — Captured Activity persistence authenticates source semantics and historical plans
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/tests `c2e1ee707` through
+  `a8c1752cb`; TI-B263.
+- Activity-specific v28 window-revision, fragment, evidence, cursor, and immutable
+  registration-plan rows preserve exact run, segment, manifest, policy, consent, provider,
+  acquisition, clock, zone, deletion, and source-owner authority without using control-only input.
+- Every referenced WAL payload is canonical-decoded and matched to the captured transition or sample
+  semantics before an append-only fact revision commits. Historical freshness, confidence, and
+  coverage derive only from the exact serialized Activity plan and immutable registration-plan
+  binding; a later current applied-plan pointer cannot invalidate a legitimate delayed correction.
+- Retention uses the earliest possible wall time across both bounds and their uncertainty for the
+  current fragment and the full prior lineage. Exact replay, semantic no-op, cursor CAS, transaction
+  rollback, and control rejection remain source-local. The generated v28 Room schema JSON is still
+  stale and must converge during the deferred generation and validation phase.
+
+## TI-D201 — Ambient provider handoff drains once and partitions the cutover exactly
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; source/tests `4624859d1` and `016a434df`;
+  TI-B264.
+- An already accepted successor may coordinate exactly one bounded predecessor read under the
+  predecessor's historical pre-cutover demand, authorization, policy, and consent. The read ends no
+  later than the retirement boundary and cannot retain or start a provider for enrichment.
+- One transaction commits at most one predecessor fact revision, records only the remaining
+  undrained interval as a typed gap, retires the predecessor cursor, initializes the successor at the
+  rounded nonoverlapping privacy floor, and records the exact provider-change marker. No positive
+  interval can be both retained fact coverage and an effective handoff gap.
+- Completed replay performs no provider read only after it authenticates both cursor authorities,
+  the complete gap and authorization-transition sibling sequences, and the exact marker linking the
+  predecessor and successor. Corrupt or dangling replay state fails closed.
+
+## TI-D202 — Pressure product reads expose source truth without fabricated physical claims
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/tests `264cc4fe9` and
+  `97941e8b1`; TI-B265.
+- The source-specific public read facade discovers recent Pressure-only logical entries from retained
+  qualified facts, expands complete replacement membership, and preserves physical ownership
+  internally. A batched logical-recency cursor includes newer factless replacement members and fills
+  past rejected candidates before applying the caller limit.
+- Public state separates availability, evidence, product state, coverage, and causes and exposes only
+  retained pressure count, range, mean, slope, fit, cadence, latency, maximum gap, and stored-zone
+  evidence. Missing or unqualified windows remain null or typed; they never become zero, altitude,
+  elevation, ascent, or another Location-derived claim.
+- This decision adds a source-specific API and repository path only. Shared Dashboard, History,
+  Calendar, detail rendering, provider activation, and automatic control remain open.
+
+## TI-D203 — Pressure demand is session-capture-only at construction and restoration
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; source/tests `5db56ebcc`, `b21135cf5`, and
+  `a410dcb86`; TI-B266.
+- Pressure demand construction accepts only exact `SESSION_CAPTURE`. Registration reconciliation
+  independently rejects empty or non-session durable Pressure vectors before reservation, provider
+  acceptance, active authorization refresh, or authorization-row insertion, so restored, legacy, or
+  corrupt control or ambient rows cannot retain the sensor.
+- RECORDING evidence remains a qualified durable WAL row, not a request, registration, baseline,
+  timer, or metadata event. MATERIALIZED source evidence advances only after the existing canonical
+  Pressure writer atomically commits the fact and evidence revision before its cursor.
+- The existing bounded SensorManager window actor, callback fencing, retirement, rollback, and
+  deletion machinery is reused. No catalog, default, provider activation, or shared product change
+  is made.

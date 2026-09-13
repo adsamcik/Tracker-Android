@@ -492,7 +492,12 @@ bounded reader-to-fact portions of AMBIENT-005: exact same-registration authorit
 monotonic cursor CAS, origin-qualified fact identity, explicit gap declarations, effective-gap
 subtraction, privacy-floor reads, post-read authority revalidation, atomic fact/cursor mutation,
 completed-day no-evidence progress, and exact replay. These partial completions do not close
-AMBIENT-003/005/008/009. Provider handoff drain, overlap partition, product consumers,
+AMBIENT-003/005/008/009. Product consumers, retention/deletion/transfer, and the final scenario
+cohort remain open.
+
+Accepted commits `4624859d1` and `016a434df` now implement the provider handoff and overlap
+partition portions: one bounded predecessor drain under historical authority, exact nonoverlapping
+successor floor, atomic cursor transition, and authenticated no-read replay. Product composition,
 retention/deletion/transfer, and the final scenario cohort remain open.
 
 ## Pressure vertical
@@ -529,6 +534,12 @@ ownership and quality evidence, and exposes real 1/5/20 Hz provider/aggregation 
 unsupported movement-gated mode is no longer representable and legacy serialized `true` fails
 typed. PRESS-001/006/007 remain unchecked until the demand adapter, production history/UI path, and
 complete consumer behavior exist; no provider or product path is active.
+
+Accepted isolated commits `264cc4fe9`/`97941e8b1` add the source-specific batched Pressure public
+read boundary, and `5db56ebcc`/`b21135cf5`/`a410dcb86` enforce session-only demand through restored
+registration reconciliation plus durable-WAL-before-materialization evidence. PRESS-004/005/006/007
+remain unchecked until dormant runtime wiring, lifecycle settlement, shared UI, and complete
+maintenance or transfer behavior exist.
 
 ## Protected Location vertical
 
@@ -595,6 +606,13 @@ The isolated `codex/ti-activity-captured-facts` branch at `7228cd6e9` is reviewe
 exact capture and historical acquisition authority, excludes control-only input, uses stable
 correction identity and wall-time uncertainty, coalesces transition-first compatible detail with
 explicit gaps, and remains bounded. Schema/writer/cursor/privacy/product integration is still open.
+
+The same branch now reaches `a8c1752cb` with independently accepted source-logic additions for the
+v28 Activity-specific storage, immutable historical registration-plan binding, canonical WAL
+semantic validation, atomic dormant writer, correction lineage, cursor CAS, and uncertainty-safe
+retention. The generated v28 Room schema JSON remains stale and must converge later. ACT-002/007/010
+remain unchecked until schema generation, runtime source binding, maintenance, transfer, product
+reads/UI, and complete authored scenarios exist.
 
 ## Wi-Fi vertical
 

@@ -23,18 +23,18 @@ advance. They do not backdate a newly observed zone, persist exact discontinuity
 no-evidence gaps without fabricating zero, preserve one stable progressively revised fact identity,
 and make exact replay a no-op. Two read-only review passes rejected the initial importer and its
 first correction; the final pass accepted this exact boundary as **IMPLEMENTED_UNVALIDATED**.
-Provider handoff drain, overlap partition, product composition, retention, deletion, transfer, and
-activation remain open.
+Commits `4624859d1` and `016a434df` additionally drain one retiring provider under historical
+authority, partition the exact nonoverlapping successor boundary, and authenticate no-read replay.
+Product composition, retention, deletion, transfer, and activation remain open.
 
-The isolated Activity worktree
-`G:\Github\Tracker-Android\.worktrees\ti-activity-captured-facts` is clean at `7228cd6e9` on
-`codex/ti-activity-captured-facts`. Its five Activity-specific model/test files define exact
-capture-only admission, historical acquisition and temporal authority, correction-stable window
-identity, wall-time/uncertainty, transition-first compatible sampled refinement, unmatched/equal-time
-EXIT barriers, explicit gaps and bounded sweep coalescing. Two adversarial review rounds and a final
-single-test correction closed the scoped findings as **IMPLEMENTED_UNVALIDATED**. No schema, writer,
-history, UI, shared runtime,
-or control-retention behavior is included.
+The isolated Activity source worktree is clean at `a8c1752cb`. Its capture-only coalescing model now
+has Activity-specific v28 entities and DAOs, immutable historical registration-plan binding, and a
+dormant canonical writer. Exact WAL payloads are decoded and matched to typed transition or sample
+semantics; freshness and coverage derive from the serialized plan; retention uses the complete
+wall-time uncertainty interval across current and prior lineage. Repeated adversarial review closed
+the source-logic findings as **IMPLEMENTED_UNVALIDATED**. The generated v28 Room schema JSON is still
+stale and is an explicit convergence blocker. Runtime activation, product history/UI, export,
+deletion integration, and control-retention behavior remain open.
 
 The isolated Pressure branch is clean at `3b8abe350`. Commits `8768767d4` through `8b076e6f7`
 provide fact-driven zero-sample discovery, reciprocal run/segment binding, complete replacement-run
@@ -45,6 +45,13 @@ different 1, 5, and 20 Hz provider and aggregation plans, and prevents Activity 
 Pressure acquisition. Fresh independent reviews accepted both exact boundaries as
 **IMPLEMENTED_UNVALIDATED**. Production history and UI composition and the remaining writer,
 maintenance, automatic-control, and transfer work are still open.
+
+Pressure commits `264cc4fe9` and `97941e8b1` add an independently accepted source-specific public
+read facade with batched logical-recency discovery, ordinary qualification, exact selected detail,
+typed states, and direct pressure quality evidence. Commits `5db56ebcc`, `b21135cf5`, and
+`a410dcb86` independently close session-only demand construction and restored-demand reconciliation
+while preserving durable-WAL-before-materialization ordering. Shared UI, maintenance, transfer, and
+automatic Activity control remain open.
 
 The protected Location branch is clean at `762186a24`. Its three-file dormant qualifier binds exact
 capture-only, WAL, delivery, clock, payload, quality, mock, policy, consent, generation, deletion,

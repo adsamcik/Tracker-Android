@@ -24,7 +24,7 @@ passes, rebase and merge through the clean integration checkout. No push or acti
 
 ## 2026-09-13 active coordinator checkpoint
 
-The current Ambient source checkpoint is `29801e17f` on `codex/ti-steps-import-actions` in
+The current Ambient source checkpoint is `016a434df` on `codex/ti-steps-import-actions` in
 `G:\Github\Tracker-Android\.worktrees\ti-steps-import-actions`; the worktree is clean. This
 supersedes the September 12 resume boundary below. On resume, verify status, HEAD, and log without
 resetting or discarding if they differ.
@@ -36,7 +36,8 @@ authorization transitions, monotonic CAS, stable origin-qualified fact identity,
 declarations with latest-fact subtraction, an exact reader-to-fact transaction, and full-clear or
 migration test source. The reviewed **IMPLEMENTED_UNVALIDATED** commits are `e965fb015`, `766d61fdb`,
 `fab70f295`, `5dfbc148b`, `09de7819e`, `1b274bf2c`, `a47807103`, `4461a95b4`, `39cff3c5a`,
-`1ca770a5f`, and `29801e17f`. Adversarial reviews first rejected authority rotation,
+`1ca770a5f`, `29801e17f`, `4624859d1`, and `016a434df`. Adversarial reviews first rejected authority
+rotation,
 identity, CAS, gap correction, migration-fixture, fingerprint, and effective-gap mismatches; the
 listed successors address them. The importer now reads outside Room, revalidates exact authority
 before one atomic fact/cursor transaction, advances completed no-evidence days as explicit gaps, and
@@ -44,21 +45,26 @@ makes exact replay a no-op. It never backfills before the rounded privacy floor 
 observed zone. The v28 schema identity hash remains deliberately stale until the deferred
 convergence generation/check.
 
-Next Ambient dependencies are provider replacement drain, overlap partitioning, product
-composition, retention, deletion, and portable transfer. Do not enable
+Provider replacement drain and overlap partitioning are now authored and independently accepted.
+Next Ambient dependencies are product composition, retention, deletion, and portable transfer. Do
+not enable
 `ExecutableSourceLaneCatalog.AMBIENT` or a product surface yet. A completed-day no-evidence gap is
 terminal to this monotonic importer; later provider backfill requires a separate bounded repair
 contract rather than silently reopening the cursor.
 
 Independent clean lanes:
 
-- Activity pure capture model: `codex/ti-activity-captured-facts` at `7228cd6e9` in
+- Activity captured-fact model, v28 storage, and dormant writer:
+  `codex/ti-activity-captured-facts` at `a8c1752cb` in
   `G:\Github\Tracker-Android\.worktrees\ti-activity-captured-facts`; reviewed as
-  **IMPLEMENTED_UNVALIDATED**. Writer/schema/history/UI remain open.
+  **IMPLEMENTED_UNVALIDATED** for source logic. The generated v28 schema JSON is stale and must
+  converge during validation; runtime activation, history/UI, maintenance, and transfer remain open.
 - Pressure source-specific read model and honest acquisition tiers:
   `codex/ti-pressure-acquisition` at `3b8abe350` in
   `G:\Github\Tracker-Android\.worktrees\ti-pressure-acquisition`; clean and independently accepted
-  as **IMPLEMENTED_UNVALIDATED**. Shared product composition remains open.
+  as **IMPLEMENTED_UNVALIDATED**. Source-specific public reads are accepted through `97941e8b1` on
+  `codex/ti-pressure-product-read`; session-only durable demand/writer boundaries are accepted
+  through `a410dcb86` on `codex/ti-pressure-writer-activation`. Shared UI remains open.
 - Protected Location qualifier: `codex/ti-location-qualified-observation` at `762186a24` in
   `G:\Github\Tracker-Android\.worktrees\ti-location-qualified-observation`; clean and independently
   accepted as **IMPLEMENTED_UNVALIDATED**. It is dormant and does not alter the canonical writer;

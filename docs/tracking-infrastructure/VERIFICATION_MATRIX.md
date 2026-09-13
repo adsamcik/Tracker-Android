@@ -1748,3 +1748,77 @@ Deferred focused command:
 The command was not run. Kotlin/API compilation, WAL adapter verification, provider behavior,
 canonical-writer equivalence, shadow comparison, device/UI behavior, integration, cutover, and
 release remain unproven.
+
+## TI-B263 — Captured Activity persistence contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `a8c1752cb`. Authored schema, DAO, migration, admission,
+writer, and Room-focused tests cover Activity-only ownership, canonical WAL payload decoding,
+transition/sample semantics, immutable historical registration-plan binding, exact manifest,
+policy, consent, registration, authorization, clock, zone, source/deletion epoch, append-only
+revision, cursor CAS, replay, rollback, control rejection, and uncertainty-safe retention across the
+full lineage. Multiple read-only reviews rejected earlier authority and retention shapes and accepted
+the corrected source logic.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest :tracker:engine:testDebugUnitTest --tests '*ActivityCaptured*' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. The generated v28 Room schema JSON does not yet contain the Activity tables
+and is an explicit convergence blocker. Compilation, migration/reopen, database execution, runtime
+wiring, product reads/UI, device behavior, integration, activation, and release remain unproven.
+
+## TI-B264 — Ambient provider-handoff contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `016a434df`. Authored coordinator/importer Room tests
+cover one bounded predecessor drain, historical pre-cutover authority, exact nonoverlapping cutoff
+and rounded successor floor, fact-versus-gap partition, predecessor retirement, successor cursor and
+provider marker, transaction rollback, stale generation/lifecycle/deletion rejection, intact
+no-read replay, and corrupt cursor/marker/sibling replay rejection. A read-only review rejected the
+initial replay authentication and accepted the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*AmbientStepsProviderHandoffCoordinatorTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, SQL and transaction execution, real provider drain, process
+death, reboot, device behavior, integration, activation, and release remain unproven.
+
+## TI-B265 — Pressure source-specific public read contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `97941e8b1`. Authored API, DAO, selector, mapper,
+repository, and Room-focused tests cover fact-driven Pressure-only discovery, one-snapshot batched
+reads, complete logical replacement grouping, page-boundary logical recency, rejected-candidate fill,
+partial versus fully fenced discoverability, invalidation re-emission, typed states and causes, and
+direct retained quality evidence without elevation claims. Read-only review rejected the first list
+query and accepted the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:api:jvmTest --tests '*PressureHistoryTest' :stats:data:testDebugUnitTest --tests '*PressureHistory*' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query generation, UI consumption, device behavior,
+integration, activation, and release remain unproven.
+
+## TI-B266 — Pressure session-only demand and writer-boundary contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `a410dcb86`. Authored factory, real-Room broker,
+registration-reconciliation, and WAL-to-writer tests cover exact session-only Pressure demand,
+restored non-session rejection before reservation/acceptance/authorization refresh, durable qualified
+WAL evidence before projection, and atomic canonical fact/evidence publication before materialized
+cursor progress. A read-only review rejected the construction-only guard and accepted the
+reconciliation correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*SourceDemandContractFactoryTest' --tests '*SourceRegistrationRepositoryTest' --tests '*Pressure*' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, provider registration, sensor/device behavior,
+integration, activation, and release remain unproven.
