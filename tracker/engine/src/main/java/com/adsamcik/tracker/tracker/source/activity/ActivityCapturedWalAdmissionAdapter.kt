@@ -804,8 +804,8 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 	): Boolean = when {
 		logicalTrackingId != session.logicalTrackingId -> false
 		state !in TERMINAL_LIFECYCLE_STATES ->
-			session.state !in TERMINAL_LIFECYCLE_STATES &&
-				session.currentServiceRunId == serviceRunId && session.state == state
+			session.currentServiceRunId == serviceRunId &&
+				(session.state to state) in LIVE_SESSION_RUN_STATE_PAIRS
 		session.state in TERMINAL_LIFECYCLE_STATES -> session.currentServiceRunId == null
 		else -> true
 	}
@@ -921,6 +921,16 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 		val TERMINAL_LIFECYCLE_STATES = setOf("FINALIZED", "CLOSED", "FAILED")
 		val ALL_LIFECYCLE_STATES = TERMINAL_LIFECYCLE_STATES +
 			setOf("STARTING", "ACTIVE", "RECONFIGURING", LIFECYCLE_STOPPING)
+		val LIVE_SESSION_RUN_STATE_PAIRS = setOf(
+			"STARTING" to "STARTING",
+			"STARTING" to "ACTIVE",
+			"ACTIVE" to "STARTING",
+			"ACTIVE" to "ACTIVE",
+			"RECONFIGURING" to "STARTING",
+			"RECONFIGURING" to "ACTIVE",
+			"ACTIVE" to LIFECYCLE_STOPPING,
+			LIFECYCLE_STOPPING to LIFECYCLE_STOPPING,
+		)
 		val ACCEPTED_REGISTRATION_STATUSES = setOf(
 			ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
 			ProviderRegistrationGenerationEntity.STATUS_RETIRING,

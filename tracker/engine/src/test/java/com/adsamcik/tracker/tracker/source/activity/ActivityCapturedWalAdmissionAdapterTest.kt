@@ -126,6 +126,45 @@ class ActivityCapturedWalAdmissionAdapterTest {
 	}
 
 	@Test
+	fun `reachable reconfiguration and stopping pairs remain typed unsettled`() = runTest {
+		val reachablePairs = listOf(
+			"RECONFIGURING" to "STARTING",
+			"RECONFIGURING" to "ACTIVE",
+			"ACTIVE" to "STOPPING",
+		)
+		for ((sessionState, runState) in reachablePairs) {
+			database.clearAllTables()
+			installFixture(settled = false)
+			val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID))
+			val run = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID))
+			database.sourceSessionDao().updateSession(session.copy(state = sessionState)) shouldBe 1
+			database.sourceSessionDao().updateServiceRun(run.copy(state = runState)) shouldBe 1
+
+			subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Unavailable(
+				ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW,
+			)
+		}
+	}
+
+	@Test
+	fun `terminal logical session can authenticate an older completed replacement run`() = runTest {
+		installFixture()
+		val completed = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID))
+		database.sourceSessionDao().insertServiceRun(
+			completed.copy(
+				serviceRunId = "activity-run-replacement",
+				startedAtMs = 1_900L,
+				startedElapsedNanos = 850L,
+				completedAtMs = 1_950L,
+				startDeliveryToken = "activity-replacement-token",
+				sessionSegmentId = null,
+			),
+		)
+
+		(subject().admit(EVENT_ID) is ActivityCapturedWalAdmissionResult.Admitted) shouldBe true
+	}
+
+	@Test
 	fun `oversized selected payload is rejected by payload preflight`() = runTest {
 		installFixture()
 		database.openHelper.writableDatabase.execSQL(
