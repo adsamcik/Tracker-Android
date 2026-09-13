@@ -134,7 +134,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		}
 		val decodedDelivery = decodeAndAuthenticateDelivery(delivery, wal)
 			?: return@withTransaction rejected(LocationWalAdapterRejection.MALFORMED_DELIVERY)
-		if (decodedDelivery.getOrNull(deliveryUnitIndex)?.wal != wal) {
+		if (decodedDelivery.getOrNull(deliveryUnitIndex)?.wal?.hasSamePersistedValueAs(wal) != true) {
 			return@withTransaction rejected(LocationWalAdapterRejection.MALFORMED_DELIVERY)
 		}
 		if (sourceDeliveryIdentity(canonicalDeliveryBytes(decodedDelivery)).value != deliveryIdentity.value) {
@@ -485,8 +485,48 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 			) return null
 			DecodedLocationDeliveryUnit(row, payload)
 		}
-		return decoded.takeIf { units -> units[targetIndex].wal == target }
+		return decoded.takeIf { units -> units[targetIndex].wal.hasSamePersistedValueAs(target) }
 	}
+
+	private fun SourceEventWalEntity.hasSamePersistedValueAs(other: SourceEventWalEntity): Boolean =
+		admissionOrdinal == other.admissionOrdinal &&
+			eventId == other.eventId &&
+			providerDedupKey == other.providerDedupKey &&
+			deliveryIdentity == other.deliveryIdentity &&
+			deliveryUnitIndex == other.deliveryUnitIndex &&
+			deliveryUnitCount == other.deliveryUnitCount &&
+			logicalTrackingId == other.logicalTrackingId &&
+			serviceRunId == other.serviceRunId &&
+			sourceKind == other.sourceKind &&
+			sourceInstanceId == other.sourceInstanceId &&
+			registrationGeneration == other.registrationGeneration &&
+			physicalConfigurationFingerprint == other.physicalConfigurationFingerprint &&
+			authorizationRevision == other.authorizationRevision &&
+			authorizationPurposeEligibilityMask == other.authorizationPurposeEligibilityMask &&
+			authorizationFingerprint == other.authorizationFingerprint &&
+			sourceSequence == other.sourceSequence &&
+			configRevision == other.configRevision &&
+			planAttribution == other.planAttribution &&
+			clockDomainId == other.clockDomainId &&
+			observedElapsedNanos == other.observedElapsedNanos &&
+			observedIntervalStartNanos == other.observedIntervalStartNanos &&
+			receivedElapsedNanos == other.receivedElapsedNanos &&
+			wallTimeMs == other.wallTimeMs &&
+			wallTimeUncertaintyMs == other.wallTimeUncertaintyMs &&
+			capturedCollectedDataEpoch == other.capturedCollectedDataEpoch &&
+			activityAutomationEpoch == other.activityAutomationEpoch &&
+			sourcePolicyRevision == other.sourcePolicyRevision &&
+			captureConsentEpoch == other.captureConsentEpoch &&
+			sessionManifestRevision == other.sessionManifestRevision &&
+			lifecycleLeaseGeneration == other.lifecycleLeaseGeneration &&
+			acquiredAtMs == other.acquiredAtMs &&
+			qualityFlags == other.qualityFlags &&
+			qualityConfidence == other.qualityConfidence &&
+			payloadVersion == other.payloadVersion &&
+			payload.contentEquals(other.payload) &&
+			payloadChecksum == other.payloadChecksum &&
+			integrityIdentity == other.integrityIdentity &&
+			createdAtMs == other.createdAtMs
 
 	private fun authorizationEndExclusive(
 		registrationEnd: Long,

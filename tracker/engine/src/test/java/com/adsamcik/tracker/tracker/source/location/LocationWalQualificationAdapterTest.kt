@@ -36,7 +36,9 @@ import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.model.toStableFlags
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertNotSame
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -74,6 +76,28 @@ class LocationWalQualificationAdapterTest {
 			subject.qualify(EVENT_ID),
 		)
 		assertEquals(1L, database.sourceEventWalDao().countAll())
+	}
+
+	@Test
+	fun `independent event and delivery queries preserve value identity before mock rejection`() = runTest {
+		installValidFixture()
+		val walDao = database.sourceEventWalDao()
+		val eventRead = requireNotNull(walDao.getByEventId(EVENT_ID.value))
+		val deliveryRead = walDao.deliveryEvents(
+			sourceKind = LOCATION_SOURCE,
+			collectedDataEpoch = eventRead.capturedCollectedDataEpoch,
+			clockDomainId = eventRead.clockDomainId,
+			deliveryIdentity = requireNotNull(eventRead.deliveryIdentity),
+			limit = 2,
+		).single()
+		assertNotSame(eventRead, deliveryRead)
+		assertNotSame(eventRead.payload, deliveryRead.payload)
+		assertContentEquals(eventRead.payload, deliveryRead.payload)
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.MOCK_PROVENANCE_UNVERIFIABLE),
+			subject.qualify(EVENT_ID),
+		)
 	}
 
 	@Test
