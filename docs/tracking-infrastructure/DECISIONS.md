@@ -3076,3 +3076,53 @@ Each entry records repository evidence and does not duplicate the final architec
 - This accepts the source-specific storage boundary, not the final importer identity. Before first
   production write, the logical fact identifier must remain stable across an extending read-through
   window so corrections revise one segment rather than create overlapping sum-able facts.
+
+## TI-D193 — Ambient continuity rotates authority inside one physical registration
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; source/tests/schema `e965fb015`, `766d61fdb`,
+  `fab70f295`, `5dfbc148b`, and `1b274bf2c`; TI-B257.
+- One cursor is bound to an exact continuity authority: provider, opaque source instance,
+  registration generation, authorization fingerprint/revision, policy/consent/collected-data
+  epochs, boot identity, zone, structural day, and privacy floor. Physical registration reuse does
+  not permit attribution reuse.
+- A legal authorization change within one physical registration closes the old segment and opens a
+  new continuity generation at the same rounded effective boundary without inventing a gap. The
+  immutable transition is self-verifying over both complete authority tuples and its boundary.
+- Cursor advance is compare-and-set and monotonic in high-water, observation, update time, and
+  continuity generation. Same high-water requires a newer observation; total no-op, stale writer,
+  regression, wrong authority, or wrong transition fails without mutation.
+- Provider aggregate logical identity is stable across an extending read-through end and includes
+  the opaque source-instance namespace. UPSERT logical IDs and every mutation ID are recomputed by
+  entity validation so a caller cannot merge or duplicate facts with signed arbitrary IDs.
+
+## TI-D194 — Ambient gaps are immutable declarations with correction-safe effective intervals
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; source/tests/schema `09de7819e`, `a47807103`,
+  and `4461a95b4`; TI-B257.
+- Process, reboot, provider, zone, retention, or no-evidence discontinuities remain immutable exact
+  declarations. Effective gaps are the maximal remaining intervals after subtracting
+  latest-effective exact-origin provider fact windows; no generic tombstone/effect platform is
+  introduced.
+- A later fact UPSERT may partially or fully cover a declared gap; its exact RETRACT restores the
+  corresponding effective interval. Segment transition succeeds only across one maximal effective
+  interval and rejects nonmaximal, zero-length, fully covered, wrong-origin, or stale authority.
+- This is cursor/gap storage and query authority only. The importer must still bind its fact and
+  cursor mutations in one transaction, and product composition must preserve partial coverage.
+
+## TI-D195 — Captured Activity uses exact-window facts and transition-first compatible refinement
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/tests `950b2b603`, `e1fb12403`,
+  `02a173ffc`, `50d053691`, `d000b569b`, and `7228cd6e9`; TI-B258.
+- Activity capture admission is independent from CONTROL and carries exact logical/run/source,
+  physical registration, authorization, policy/consent/manifest/lease/deletion/boot, historical
+  acquisition configuration, provider/auth/session half-open temporal authority, and provider/wall
+  clocks. Control-only input is typed-rejected.
+- Terminal movement bands use a stable window/revision/supersession identity, wall-time anchors and
+  uncertainty. Dynamic fragments do not become durable logical identity, so late EXIT or refined
+  evidence can revise one window rather than strand an overlapping fact.
+- Transition evidence is primary. High-confidence directly requested samples may refine coarse
+  `ON_FOOT` or `UNKNOWN` state without contradicting definitive transitions. EXIT barriers clip
+  compatible older or equal-order samples; equal-time order follows source sequence, and
+  UNKNOWN EXIT negates only UNKNOWN.
+- Bounded sorted sweeps produce typed active/inactive/unknown/unobserved coverage and explicit gaps.
+  This decision adds no schema, writer, provider, history, UI, or captured ambient Activity product.

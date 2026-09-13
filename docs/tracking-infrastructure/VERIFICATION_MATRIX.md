@@ -707,7 +707,7 @@ The three-review scope round did not authorize weakening the source contracts ab
 
 | ID | Scope assertion | Status | Evidence / exit condition |
 | --- | --- | --- | --- |
-| TI-VS01 | Every retained v28 table has a next-milestone production owner | `IN_REVIEW` | the 12 ownerless generic tables and duplicate lifecycle lease were removed; v28 now has 69 entities: all 51 released-v27 entities plus 18 narrowly owned additions, including two v27 recovery records, Activity automatic-action/epoch state, source-local product-lane activation/cursor/retention state, immutable selected-session history, and the source deletion fence. Historical 66-entity evidence remains valid only for its earlier checkpoint. `b5698e635` gives that fence its first exact candidate-Steps selected-deletion producer; per-table retention/export/deletion ownership, legacy/import coverage, and every other source producer remain incomplete. |
+| TI-VS01 | Every retained v28 table has a next-milestone production owner | `IN_REVIEW` | the 12 ownerless generic tables and duplicate lifecycle lease were removed; the authored v28 JSON now declares 79 entities: all 51 released-v27 entities plus 28 narrowly owned additions, including recovery, Activity automatic-action/epoch, source-local product-lane/cursor/retention, immutable selected-session history, deletion fences, and source-specific Ambient continuity/fact state. Historical 66/69-entity evidence remains valid only for its earlier checkpoint. The current identity hash is deliberately unregenerated until convergence; per-table retention/export/deletion ownership, legacy/import coverage, and every other source producer remain incomplete. |
 | TI-VS02 | Upgrade preserves or explicitly re-consents automatic tracking | `IN_REVIEW` | focused policy tests prove enabled legacy automatic mode grants Activity `CONTROL` only and mode transitions append grant/revoke epochs without changing capture. The current implementation marks that control nonpersistent; TI-D055 requires durable purpose-limited admission. Connected populated migration passes; automatic trigger and no-control-capture product/device proof remain. |
 | TI-VS03 | Database merge import excludes v28 control-plane rows | `PASS_LOCAL` | production merge uses a 24-table user-fact allowlist; the hostile-backup test proves an Activity fact imports while foreign policy authority and ACTIVE demand rows do not. Device restore coverage and derived recomputation remain separate gates. |
 | TI-VS04 | Exact Android migration boundary is executed, not compile-only | `IN_REVIEW` | seven populated v27→v28 containment cases pass on `Medium_Phone`, including WAL sequence, retained-floor, activation-floor, outbox-only, and pure-outbox high-watermark boundaries. The focused frozen runtime drain and process-wide startup/deletion ordering pass host tests at `f14a4a2b1`. Connected migrate→startup→drain, production backup-wrapper, portable export/import and cold restore remain blocking before schema freeze. |
@@ -1637,3 +1637,41 @@ The command was not run. The checked-in v28 schema JSON has the authored structu
 shape, but its identity hash has not been regenerated or checked. Migration/reopen, Kotlin/Room
 compilation, Android API behavior, provider behavior, device/UI/battery, CI, integration,
 activation, publication, and release therefore remain unproven.
+
+## TI-B257 — Ambient continuity, authority rotation, and effective-gap contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `4461a95b4`. The source-specific cursor/gap entity,
+DAO, v27-to-v28 migration, fresh-install, full-clear, and fact-integrity contracts cover exact
+continuity authority, rounded privacy floors, same-registration authorization rotation, monotonic
+CAS, stable source-instance fact identity, self-verifying logical/mutation/transition identity,
+lowercase broker authorization fingerprints, and close/reopen fixture source.
+
+Three read-only adversarial review passes found and drove corrections for frozen authorization in a
+reused registration, arbitrary signed identities, CAS regression/no-op, permanent false gaps,
+migration privacy-floor mismatch, weak fingerprint shape, incomplete transition identity, and a
+partial-gap segment-CAS mismatch. The final exact-scope review accepted `4461a95b4`: untouched,
+partial-suffix, fully covered, and retraction-restored effective gaps now govern transition CAS.
+
+No Gradle, compiler, test, lint, Detekt, Room processor, schema drift, migration/device, provider,
+UI, battery, CI, integration, activation, publication, or release command ran. The manually edited
+79-entity v28 JSON and its stale identity hash are convergence blockers, not current validation
+evidence. No importer transaction or product composition exists.
+
+## TI-B258 — Captured Activity admission and coalescing contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at isolated head `7228cd6e9`. Five Activity-specific
+production/test files author capture-only admission, historical acquisition/temporal authority,
+stable window corrections, wall-time uncertainty, compatible transition-first refinement, EXIT
+ordering, explicit gaps, and bounded sweep coalescing. No schema, writer, provider, shared runtime,
+history, UI, retention, deletion, export, or activation path changed.
+
+Two read-only adversarial review rounds rejected coarse-transition suppression, unmatched EXIT
+leakage, unstable derived-band identity, missing temporal/wall authority, quadratic scans, cutoff
+escape, equal-time EXIT ordering, and UNKNOWN over-negation. Commits `02a173ffc`, `50d053691`, and
+`d000b569b` corrected the production findings; `7228cd6e9` adds the final complementary UNKNOWN
+EXIT contract. One reviewer accidentally ran `git diff --check 0460f12a5..e1fb12403`; it returned
+no output and changed nothing. It is recorded as a process deviation and is not treated as an
+acceptance gate.
+
+No Gradle, compiler, test, lint, Detekt, Room, device, or other validation command ran. Kotlin/API
+compilation and all downstream writer/product behavior remain unproven.

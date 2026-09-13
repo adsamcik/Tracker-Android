@@ -10,6 +10,41 @@ The exhaustive remaining-work checklist is
 [IMPLEMENTATION_TODO.md](IMPLEMENTATION_TODO.md). It distinguishes implementation code and tests
 to author now from product decisions and the deferred convergence-validation phase.
 
+## September 13 coordinator checkpoint — Ambient continuity accepted, Activity model isolated
+
+The coordinator source worktree is clean at `4461a95b4` on
+`codex/ti-steps-import-actions`. Ambient Steps now owns a source-specific, sessionless cursor/gap
+store and correction-safe fact identity in addition to its previously authored provider lifecycle,
+startup rearm, deletion fencing, exact provider reads, eligibility preflight, structural window
+planning, and aggregate facts. Commits `e965fb015` through `4461a95b4` preserve exact provider,
+source-instance, registration, authorization, policy, consent, collected-data, boot, and stored-zone
+authority; rotate authorization within one physical registration without fabricating a gap; enforce
+monotonic cursor CAS; and derive effective gaps by subtracting latest-effective exact-origin facts.
+Three adversarial review passes rejected the initial shapes and found no remaining issue in the
+corrected boundary. The exact
+reader-to-cursor-to-fact importer transaction remains next and has not been started.
+
+The isolated Activity worktree
+`G:\Github\Tracker-Android\.worktrees\ti-activity-captured-facts` is clean at `7228cd6e9` on
+`codex/ti-activity-captured-facts`. Its five Activity-specific model/test files define exact
+capture-only admission, historical acquisition and temporal authority, correction-stable window
+identity, wall-time/uncertainty, transition-first compatible sampled refinement, unmatched/equal-time
+EXIT barriers, explicit gaps and bounded sweep coalescing. Two adversarial review rounds and a final
+single-test correction closed the scoped findings as **IMPLEMENTED_UNVALIDATED**. No schema, writer,
+history, UI, shared runtime,
+or control-retention behavior is included.
+
+The isolated Pressure read slice at `097277c74` remains **IN_REVIEW** and is not accepted by this
+checkpoint. Git/worktree reconciliation found no accepted committed implementation stranded or
+lost: imported Steps branches are contained or patch-equivalent in the coordinator, the older
+Pressure/numeric branches are ancestors, and the two dirty portable-import/qualified-awards drafts
+remain frozen reference inputs only.
+
+The checked-in v28 JSON now declares 79 entities: 51 released-v27 entities plus 28 narrowly owned
+v28 additions. Its identity hash is intentionally stale and Room/Kotlin/SQL generation or checking
+is deferred to convergence. No Gradle, compiler, test, lint, Detekt, schema-drift, emulator/device,
+UI, battery, CI, integration, activation, publication, or release command ran for this checkpoint.
+
 ## September 12 paused checkpoint — Ambient Steps facts, before cursor/import
 
 The clean source checkpoint is `88c14a52e` on `codex/ti-steps-import-actions` in
@@ -3730,6 +3765,7 @@ Focused model, broker, and capability-to-demand contracts were authored. The def
 ```
 
 No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
-activation, publication, or release command ran. This is **IMPLEMENTED_UNVALIDATED**. The
-reconciler is not invoked by a production surface, and no provider registration, subscription,
-read, import, cursor, ambient fact, or UI behavior exists yet.
+activation, publication, or release command ran. This was
+**IMPLEMENTED_UNVALIDATED** at that historical boundary. It is superseded by the September 13
+checkpoint: production startup now owns provider registration/rearm/read and cursor/fact storage,
+while import and product UI remain open.

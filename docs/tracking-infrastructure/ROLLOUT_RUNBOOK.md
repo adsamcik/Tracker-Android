@@ -129,8 +129,9 @@ Three fresh product, architecture, and delivery adversaries concluded `BLOCK / R
 
 R2 confirmed that v28 never shipped. The migration/schema was regenerated in place with the 12
 unused generic Phase 3 tables and duplicate lifecycle lease removed; later bounded ownership,
-history, recovery, and deletion-authority slices bring the current schema to 69 entities (51
-released-v27 plus 18 narrowly owned v28 additions). The new payload-free
+history, recovery, deletion-authority, and Ambient continuity slices bring the current authored
+schema to 79 entities (51 released-v27 plus 28 narrowly owned v28 additions). The identity hash for
+the latest implementation-only additions remains unregenerated until convergence. The new payload-free
 `source_deletion_fence` is consumed only by the dormant candidate Steps lane and selected-session
 reader; it has no production producer and is not evidence that permanent trip deletion, retention,
 import, or future writers are fenced. No v29 compatibility shell was introduced. Manual/session

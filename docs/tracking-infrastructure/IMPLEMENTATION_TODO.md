@@ -475,16 +475,24 @@ permission UI, provider acceptance/import, overlap and canonical composition, re
 reads, deletion, and complete authored scenario cohort exist. TI-D189/TI-B252/TI-B253 and
 `7b33b2271`/`c16a65e8d`/`039153f67` now add provider-specific opportunistic floors and a typed,
 idempotent capability-to-demand reconciler. It requires exact ambient policy/consent plus the Steps
-`AMBIENT` lane and creates no direct sensor or provider side effect. The production invocation,
-provider lifecycle, cursor, permission/revocation UI, and retention explanation remain open.
+`AMBIENT` lane and creates no direct sensor or provider side effect. Production startup now invokes
+the owned provider lifecycle, and exact system rearm/read/cursor/gap storage exists. The importer
+transaction, permission/revocation UI, and retention explanation remain open.
 
-Paused source checkpoint `88c14a52e` adds the next source-local portions without completing any
+Superseded paused source checkpoint `88c14a52e` added the next source-local portions without completing any
 whole Ambient TODO: `187800e03` prevents default-off, revoked, contained, or otherwise ineligible
 state from probing provider capability; `33874e0fe` plans bounded exact structural-day windows
 under explicit zone authority; and `88c14a52e` stores independent sessionless ambient aggregate
 fact revisions behind an `AMBIENT_STEPS` owner fence. Durable cursor/gap authority, a
 correction-safe stable logical segment identity, the exact importer transaction, overlap
 partitioning, product reads/UI, retention, deletion, and portable transfer remain unchecked.
+
+Accepted source checkpoint `4461a95b4` now implements the cursor/gap and correction-safe identity
+portions of AMBIENT-005: exact same-registration authority transitions, monotonic cursor CAS,
+origin-qualified fact identity, explicit gap declarations, and effective-gap subtraction by
+latest exact-origin facts. These partial completions do not close AMBIENT-003/005/008/009. The
+reader-to-fact atomic importer, provider handoff drain, overlap partition, product consumers,
+retention/deletion/transfer, and final scenario cohort remain open.
 
 ## Pressure vertical
 
@@ -512,6 +520,13 @@ partitioning, product reads/UI, retention, deletion, and portable transfer remai
   unless the separate calibrated-product decision is approved and implemented.
 - [ ] TODO-PRESS-012 Author FIFO and non-FIFO, batching, gap, correction, deletion, import/export,
   automatic-control, history, and UI contract tests without running them.
+
+The isolated `codex/ti-pressure-acquisition` branch at `097277c74` authors a source-specific
+Pressure physical/logical read model, bounded selector, correction validation, and focused tests.
+It remains **IN_REVIEW** and does not close PRESS-006/007 until independently accepted and composed
+through the coordinator-owned production history/UI path. The existing serialized
+`movementGatedBurst` still has no production trigger/window/cooldown and must not be presented as a
+real high-rate mode.
 
 ## Protected Location vertical
 
@@ -564,6 +579,12 @@ partitioning, product reads/UI, retention, deletion, and portable transfer remai
   captured ambient Activity product without a separate approved setting.
 - [ ] TODO-ACT-010 Author callback-batch, duplicate, coalescing, control-separation, trigger,
   process or reboot, correction, deletion, query, and UI tests without running them.
+
+The isolated `codex/ti-activity-captured-facts` branch at `7228cd6e9` is reviewed as
+**IMPLEMENTED_UNVALIDATED** for the pure-model portions of ACT-002/003/004/010 only. It preserves
+exact capture and historical acquisition authority, excludes control-only input, uses stable
+correction identity and wall-time uncertainty, coalesces transition-first compatible detail with
+explicit gaps, and remains bounded. Schema/writer/cursor/privacy/product integration is still open.
 
 ## Wi-Fi vertical
 
@@ -709,7 +730,7 @@ partitioning, product reads/UI, retention, deletion, and portable transfer remai
 ## Product decisions that must be resolved before affected activation
 
 - [x] TODO-DEC-001 Decide whether Step corroboration remains an explicit automatic CONTROL option.
-- [ ] TODO-DEC-002 Decide the single Ambient Steps continuity provider strategy and whether its
+- [x] TODO-DEC-002 Decide the single Ambient Steps continuity provider strategy and whether its
   promise is opportunistic or visible-foreground continuous.
 - [ ] TODO-DEC-003 Decide final retention durations and user-facing privacy copy for each source and
   purpose, including short-lived control evidence.

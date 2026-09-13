@@ -7,9 +7,8 @@ This is the durable execution ledger for the architecture in
 `ADAPTIVE_COLLECTIONS_GREENFIELD_DESIGN.md`. It records implementation boundaries and proof; it
 does not restate the architecture.
 
-Current execution boundary: TI-D186 through TI-D189, TI-B248 through TI-B253, and source commits
-`a8e876909`, `75f389f4f`, `754835f7c`, `aa6995b98`, `1023ab6b5`, `7b33b2271`, `c16a65e8d`, and
-`039153f67`. Ambient Steps is an opportunistic,
+Current execution boundary: TI-D186 through TI-D195, TI-B248 through TI-B258, and Ambient source
+checkpoint `4461a95b4`. Ambient Steps is an opportunistic,
 default-off product with an independent persisted preference plus Room `AMBIENT_PRODUCT`
 consent/epoch/revocation fence. A side-effect-free Android capability snapshot selects one capable
 system provider without permission-driven fallback; generic ambient Steps planning rejects the
@@ -17,11 +16,12 @@ direct sensor. Direct Step Counter registration and authorization are now purpos
 `SESSION_CAPTURE`, and that owner identity propagates through sensor checkpoints and durable
 sequence allocation, structurally preventing future ambient demand from retaining or sharing it.
 `TODO-STEPS-AUTO-005` remains open only at its deliberately unresolved fixed control-only Activity
-retention duration. Automatic Steps has no other implementation item open. AMBIENT-001 is closed;
-AMBIENT-002 next needs the end-user permission/revocation surface and retention/explanation UI;
-provider-specific demand wiring is authored but not invoked by production. AMBIENT-003 still needs
-durable selected-provider registration, ingestion,
-cursor/overlap semantics, and canonical composition. TI-D180 through TI-D185 retain
+retention duration. Automatic Steps has no other implementation item open. AMBIENT-001 is closed.
+Production startup now invokes the owned Ambient lifecycle, and accepted provider registration,
+system rearm, exact reads, cursor/gap storage, authorization rotation, and correction-safe fact
+identity are authored. AMBIENT-002 still needs the end-user permission/revocation surface and
+retention/explanation UI. AMBIENT-003 next needs the exact reader-to-cursor-to-fact transaction,
+provider handoff drain, overlap semantics, and canonical composition. TI-D180 through TI-D185 retain
 the preceding gateway, manifest, exact-demand, immutable-trigger, recovery, and product-path
 evidence. The September
 5 checkpoint in `CONTINUATION_HANDOVER.md` and TI-B204 onward in
@@ -176,7 +176,7 @@ its file ownership and semantics are independent:
 
 ## Unreleased-v28 table boundary
 
-The current schema contains 51 released-v27 tables and exactly 18 narrowly owned v28 additions. This constrains
+The current authored schema contains 51 released-v27 tables and 28 narrowly owned v28 additions. This constrains
 TI-180 as follows:
 
 | Treatment | Tables / records | Rule |
@@ -187,7 +187,8 @@ TI-180 as follows:
 | Extend additively | `source_event_wal` and released runtime/plan state | Preserve legacy rows as `LEGACY_UNQUALIFIED`; add delivery identity/range, authorization, all applicable epochs, use/retention class, counts, and origin. Runtime baselines rotate only with real physical/data-epoch changes. |
 | Add only when its transaction contract is ready | source cursor/gap, scoped deletion fence, destination owner, fact membership, day/source completeness, Wi-Fi/Cell headers | Keep records narrow and source-driven. Do not create generic contribution/accounting tables. |
 
-The current 69-table `28.json` is therefore not frozen. The bounded v28 additions now include the
+The current 79-entity `28.json` is therefore not frozen and its identity hash has not been
+regenerated for the implementation-only Ambient additions. The bounded v28 additions now include the
 narrow released-v27 recovery obligation/target records, Activity automatic-action/epoch state,
 source-local product-lane activation/cursor/retention state, immutable selected-session history,
 and the dormant source deletion fence required by later reviewed slices. They do not recreate the

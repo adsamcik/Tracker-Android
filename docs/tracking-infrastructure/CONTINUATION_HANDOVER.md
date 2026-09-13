@@ -22,6 +22,56 @@ Location, Activity, Wi-Fi, and Cell piece plus its applicable product/action tes
 one dedicated local convergence branch. Only then begin the complete validation/fix phase; after it
 passes, rebase and merge through the clean integration checkout. No push or activation is authorized.
 
+## 2026-09-13 active coordinator checkpoint
+
+The current Ambient source checkpoint is `4461a95b4` on `codex/ti-steps-import-actions` in
+`G:\Github\Tracker-Android\.worktrees\ti-steps-import-actions`; the worktree is clean. This
+supersedes the September 12 resume boundary below. On resume, verify status, HEAD, and log without
+resetting or discarding if they differ.
+
+Ambient Steps now has production startup/deletion lifecycle invocation, exact provider ownership,
+system rearm, provider read windows, default-off eligibility preflight, stored-zone window planning,
+sessionless aggregate facts, one cursor per exact continuity authority, same-registration
+authorization transitions, monotonic CAS, stable origin-qualified fact identity, immutable gap
+declarations with latest-fact subtraction, and full-clear/migration test source. The reviewed
+**IMPLEMENTED_UNVALIDATED** commits are `e965fb015`, `766d61fdb`, `fab70f295`, `5dfbc148b`, `09de7819e`,
+`1b274bf2c`, `a47807103`, and `4461a95b4`. Adversarial reviews first rejected authority rotation,
+identity, CAS, gap correction, migration-fixture, fingerprint, and effective-gap mismatches; the
+listed successors address them. The v28 schema identity hash remains deliberately stale until the
+deferred convergence generation/check.
+
+Next Ambient dependency: implement one bounded `:tracker:engine` transaction that revalidates the
+accepted registration and current authorization/policy/consent/lifecycle/destination-owner
+generation, initializes or advances the exact cursor, reads only planned structural windows, writes
+one canonical fact revision, and commits fact plus cursor atomically. It must not backfill before
+the rounded provider/authorization privacy floor. Provider replacement drain and overlap
+partitioning remain subsequent slices. Do not enable `ExecutableSourceLaneCatalog.AMBIENT` or a
+product surface yet.
+
+Independent clean lanes:
+
+- Activity pure capture model: `codex/ti-activity-captured-facts` at `7228cd6e9` in
+  `G:\Github\Tracker-Android\.worktrees\ti-activity-captured-facts`; reviewed as
+  **IMPLEMENTED_UNVALIDATED**. Writer/schema/history/UI remain open.
+- Pressure source-specific read model: `codex/ti-pressure-acquisition` at `097277c74` in
+  `G:\Github\Tracker-Android\.worktrees\ti-pressure-acquisition`; clean but still **IN_REVIEW**.
+  Do not compose it into shared history before the pending independent review.
+
+Read-only Git reconciliation found no accepted committed work lost through compaction. The imported
+Steps source branches are already contained or patch-equivalent in this coordinator; old
+`ti-pressure-session-facts` and `ti-steps-numeric-consumers` are ancestors. Preserve, but never merge
+wholesale, the dirty `ti-steps-portable-import` and `ti-steps-qualified-awards` drafts. The detached
+root checkout still owns exactly the six protected paths and their documented hashes matched on
+September 13. Local `dev/v10` remains `0460f12a5`; none of the current lanes is integrated or
+published.
+
+The user-supplied product vision remains aligned with the repository north star. Two attachment-era
+questions are now resolved by repository decisions: automatic Steps no longer uses corroboration
+(TI-D179), and Ambient Steps is opportunistic with Health Connect precedence and Local Recording
+fallback only on genuine Health Connect unavailability (TI-D186/TI-D187). The immediate unresolved
+product choice is the exact fixed TTL and retained shape for control-only Activity evidence
+(AUTO-005/DEC-003).
+
 ## 2026-09-12 paused checkpoint — resume before Ambient Steps cursor/import
 
 Use the existing worktree
