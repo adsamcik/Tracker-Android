@@ -47,6 +47,7 @@ class DurableSourceEventSinkTest {
 		coVerify(exactly = 1) { ingress.admit(any(), checkpoint) }
 		verify(exactly = 1) { motionController.onDurableEvidence(any()) }
 		verify(exactly = 1) { recovery.requestCommittedWorkDrain() }
+		verify(exactly = 1) { recovery.requestActivityCapturedFactDrain() }
 	}
 
 	@Test
@@ -64,6 +65,7 @@ class DurableSourceEventSinkTest {
 		coVerify(exactly = 1) { ingress.admit(any(), checkpoint) }
 		verify(exactly = 0) { recovery.requestCommittedWorkDrain() }
 		verify(exactly = 1) { recovery.requestStepsSessionFactDrain() }
+		verify(exactly = 0) { recovery.requestActivityCapturedFactDrain() }
 	}
 
 	@Test
@@ -99,6 +101,7 @@ class DurableSourceEventSinkTest {
 			.shouldBeInstanceOf<SourceAdmissionHandoff.Duplicate>()
 
 		verify(exactly = 2) { recovery.requestPressureSessionFactDrain() }
+		verify(exactly = 0) { recovery.requestActivityCapturedFactDrain() }
 		verify(exactly = 0) { recovery.requestStepsSessionFactDrain() }
 		verify(exactly = 0) { recovery.requestCommittedWorkDrain() }
 	}
@@ -121,6 +124,7 @@ class DurableSourceEventSinkTest {
 		handoff.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
 		coVerify(exactly = 1) { deliveryIngress.admit(any()) }
 		verify(exactly = 1) { recovery.requestCommittedWorkDrain() }
+		verify(exactly = 1) { recovery.requestActivityCapturedFactDrain() }
 	}
 
 	@Test
@@ -148,6 +152,7 @@ class DurableSourceEventSinkTest {
 		coVerify(exactly = 1) { deliveryIngress.admit(delivery, checkpoint) }
 		coVerify(exactly = 0) { deliveryIngress.admit(delivery) }
 		verify(exactly = 1) { recovery.requestCommittedWorkDrain() }
+		verify(exactly = 1) { recovery.requestActivityCapturedFactDrain() }
 	}
 
 	@Test
@@ -172,6 +177,7 @@ class DurableSourceEventSinkTest {
 		verify(exactly = 0) { motionController.onDurableEvidence(delivery.units[0].evidence) }
 		verify(exactly = 1) { motionController.onDurableEvidence(delivery.units[1].evidence) }
 		verify(exactly = 1) { recovery.requestCommittedWorkDrain() }
+		verify(exactly = 1) { recovery.requestActivityCapturedFactDrain() }
 	}
 
 	@Test
@@ -199,6 +205,7 @@ class DurableSourceEventSinkTest {
 		coVerify(exactly = 1) { deliveryIngress.admit(any()) }
 		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
 		verify(exactly = 1) { recovery.requestCommittedWorkDrain() }
+		verify(exactly = 1) { recovery.requestActivityCapturedFactDrain() }
 	}
 
 	@Test
@@ -252,6 +259,7 @@ class DurableSourceEventSinkTest {
 		verify(exactly = 0) { recovery.requestCommittedWorkDrain() }
 		verify(exactly = 0) { recovery.requestStepsSessionFactDrain() }
 		verify(exactly = 0) { recovery.requestPressureSessionFactDrain() }
+		verify(exactly = 0) { recovery.requestActivityCapturedFactDrain() }
 	}
 
 	@Test

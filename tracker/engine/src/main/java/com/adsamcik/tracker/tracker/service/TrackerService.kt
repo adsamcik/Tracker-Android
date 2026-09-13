@@ -1756,14 +1756,17 @@ internal class TrackerService : CoreService() {
 		}
 		if (preparedRuntime.applyStarted) {
 			retryTrackingShutdown {
-				when (val outcome = sourceSession.stop(
+				val outcome = sourceSession.stop(
 					reason = stopReason.name,
 					preserveLogicalSession = !gracefulStopRequested,
 					factualCutoff = activeExternalStop?.cutoff,
-				)) {
+				)
+				outcome.requestCapturedActivityProjectionOnSettlement(
+					sourcePipelineRecovery::requestActivityCapturedFactDrain,
+				)
+				when (outcome) {
 					SourceSessionStopOutcome.Stopped,
-					SourceSessionStopOutcome.NotActive,
-					-> Unit
+					SourceSessionStopOutcome.NotActive -> Unit
 					is SourceSessionStopOutcome.Retryable ->
 						throw TrackingShutdownRetryException(outcome.code.name)
 				}
@@ -2344,6 +2347,13 @@ internal fun sourceKindsFromMask(mask: Long): Set<SourceKind>? {
 
 internal fun sourceMask(sources: Set<SourceKind>): Long = sources.fold(0L) { mask, source ->
 	mask or (1L shl (source.stableCode - 1))
+}
+
+/** Terminal source authority is durable only after the exact stop transition commits. */
+internal fun SourceSessionStopOutcome.requestCapturedActivityProjectionOnSettlement(
+	requestDrain: () -> Unit,
+) {
+	if (this == SourceSessionStopOutcome.Stopped) requestDrain()
 }
 
 /** Rollout containment degrades only the named sources; it never blocks a reachable sibling. */

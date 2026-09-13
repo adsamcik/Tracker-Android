@@ -200,6 +200,7 @@ class RoomActivityRecognitionEventIngressTest {
 			recovery.drainCommittedActivityCallbackWork(any(), any(), any())
 		}
 		coVerify(exactly = 1) { recovery.drainCommittedWork() }
+		verify(exactly = 1) { recovery.requestActivityCapturedFactDrain() }
 		verify(exactly = 2) { motionController.onDurableEvidence(any()) }
 	}
 
@@ -270,6 +271,7 @@ class RoomActivityRecognitionEventIngressTest {
 		coVerify(exactly = 0) {
 			recovery.drainCommittedActivityCallbackWork(any(), any(), any())
 		}
+		verify(exactly = 1) { recovery.requestActivityCapturedFactDrain() }
 	}
 
 	@Test
@@ -463,6 +465,7 @@ class RoomActivityRecognitionEventIngressTest {
 		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
 		coVerify(exactly = 0) { recovery.drainCommittedWork() }
 		coVerify(exactly = 0) { recovery.drainCommittedActivityCallbackWork(any(), any(), any()) }
+		verify(exactly = 0) { recovery.requestActivityCapturedFactDrain() }
 	}
 
 	@Test
@@ -475,6 +478,7 @@ class RoomActivityRecognitionEventIngressTest {
 
 		coVerify(exactly = 0) { committedIngress.committedBatch(any(), any()) }
 		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
+		verify(exactly = 0) { recovery.requestActivityCapturedFactDrain() }
 	}
 
 	private fun batch(

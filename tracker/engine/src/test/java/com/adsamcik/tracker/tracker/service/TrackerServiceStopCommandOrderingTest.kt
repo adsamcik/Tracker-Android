@@ -2,6 +2,8 @@ package com.adsamcik.tracker.tracker.service
 
 import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
 import com.adsamcik.tracker.tracker.resilience.TrackingStopCommand
+import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionStopOutcome
+import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionStopRetryCode
 import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionStopCutoff
 import io.kotest.matchers.shouldBe
 import org.junit.Test
@@ -54,6 +56,21 @@ class TrackerServiceStopCommandOrderingTest {
 			SourceSessionStopCutoff(2_000L, 20_000L, "boot-1")
 		command.toLiveSourceSessionStopCutoff("boot-2", 90_000L) shouldBe
 			SourceSessionStopCutoff(2_000L, 90_000L, "boot-2")
+	}
+
+	@Test
+	fun `captured Activity is re-kicked only after durable terminal settlement`() {
+		var drainRequests = 0
+		val request: () -> Unit = { drainRequests++ }
+
+		SourceSessionStopOutcome.NotActive
+			.requestCapturedActivityProjectionOnSettlement(request)
+		SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.DRAIN_PENDING)
+			.requestCapturedActivityProjectionOnSettlement(request)
+		drainRequests shouldBe 0
+
+		SourceSessionStopOutcome.Stopped.requestCapturedActivityProjectionOnSettlement(request)
+		drainRequests shouldBe 1
 	}
 
 	private fun stopCommand(

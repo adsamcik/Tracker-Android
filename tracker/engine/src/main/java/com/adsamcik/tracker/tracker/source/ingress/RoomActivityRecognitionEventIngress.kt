@@ -221,6 +221,9 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 		}
 		val discardedCount = providerDiscardedCount +
 			(delivery.candidate.units.size - orderedUnits.size)
+		// The delivery transaction is already durable. Captured projection is deliberately only a
+		// conflated hint and never consumes the callback's Android start exemption.
+		sourcePipelineRecovery.requestActivityCapturedFactDrain()
 		val completion = runCatchingNonCancellation {
 			val loaded = orderedUnits.map { unit -> loadExactCommittedEvent(unit) }
 			val targetOrdinal = orderedUnits.maxOf(

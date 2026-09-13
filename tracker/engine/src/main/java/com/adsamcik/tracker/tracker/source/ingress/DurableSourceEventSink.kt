@@ -167,7 +167,10 @@ class DurableSourceEventSinkFactory private constructor(
 
 	private fun requestSourceDrain(source: SourceKind) {
 		when (source) {
-			SourceKind.ACTIVITY -> recovery?.requestCommittedWorkDrain()
+			SourceKind.ACTIVITY -> {
+				recovery?.requestCommittedWorkDrain()
+				recovery?.requestActivityCapturedFactDrain()
+			}
 			SourceKind.STEPS -> recovery?.requestStepsSessionFactDrain()
 			SourceKind.PRESSURE -> recovery?.requestPressureSessionFactDrain()
 			else -> Unit
