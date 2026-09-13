@@ -33,7 +33,12 @@ import java.time.ZoneId
 			name = "idx_ambient_steps_fact_day_window",
 		),
 		Index(
-			value = ["provider", "registration_generation", "window_start_time_ms"],
+			value = [
+				"provider",
+				"registration_generation",
+				"continuity_segment_generation",
+				"window_start_time_ms",
+			],
 			name = "idx_ambient_steps_fact_registration_window",
 		),
 	],
@@ -49,6 +54,7 @@ data class AmbientStepsFactRevisionEntity(
 	@ColumnInfo(name = "origin_kind") val originKind: String,
 	@ColumnInfo(name = "provider") val provider: String?,
 	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long?,
+	@ColumnInfo(name = "continuity_segment_generation") val continuitySegmentGeneration: Long?,
 	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String?,
 	@ColumnInfo(name = "authorization_revision") val authorizationRevision: Long?,
 	@ColumnInfo(name = "authorization_fingerprint") val authorizationFingerprint: String?,
@@ -94,6 +100,7 @@ data class AmbientStepsFactRevisionEntity(
 		require(scopeDeletionGeneration == 0L)
 		require(provider in PROVIDERS)
 		require(registrationGeneration != null && registrationGeneration > 0L)
+		require(continuitySegmentGeneration != null && continuitySegmentGeneration > 0L)
 		require(sourceInstanceId?.isNotBlank() == true)
 		require(authorizationRevision != null && authorizationRevision > 0L)
 		require(authorizationFingerprint?.isNotBlank() == true)
@@ -126,6 +133,7 @@ data class AmbientStepsFactRevisionEntity(
 		require(scopeDeletionGeneration > 0L)
 		require(provider == null)
 		require(registrationGeneration == null)
+		require(continuitySegmentGeneration == null)
 		require(sourceInstanceId == null)
 		require(authorizationRevision == null)
 		require(authorizationFingerprint == null)

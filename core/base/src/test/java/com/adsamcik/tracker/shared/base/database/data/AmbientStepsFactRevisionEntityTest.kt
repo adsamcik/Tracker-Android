@@ -6,6 +6,38 @@ import org.junit.Test
 
 class AmbientStepsFactRevisionEntityTest {
 	@Test
+	fun `extending one continuity segment revises stable logical fact identity`() {
+		val original = providerFact(stepCount = 4L)
+		val extendedUnsigned = original.copy(
+			semanticRevision = 2L,
+			mutationId = AmbientStepsFactIntegrity.mutationId(
+				original.logicalFactId,
+				2L,
+				AmbientStepsFactRevisionEntity.OPERATION_UPSERT,
+			),
+			windowEndTimeMs = 3_000L,
+			observedAtMs = 3_000L,
+			stepCount = 7L,
+			appliedAtMs = 3_000L,
+		)
+		val extended = signed(extendedUnsigned)
+
+		extended.logicalFactId shouldBe original.logicalFactId
+		AmbientStepsFactIntegrity.hasValidEffectChecksum(extended) shouldBe true
+		(
+			AmbientStepsFactIntegrity.logicalFactId(
+				provider = requireNotNull(original.provider),
+				registrationGeneration = requireNotNull(original.registrationGeneration),
+				continuitySegmentGeneration = 2L,
+				windowStartTimeMs = requireNotNull(original.windowStartTimeMs),
+				structuralEpochDay = requireNotNull(original.structuralEpochDay),
+				storedZoneId = requireNotNull(original.storedZoneId),
+				collectedDataEpoch = original.collectedDataEpoch,
+			) == original.logicalFactId
+		) shouldBe false
+	}
+
+	@Test
 	fun `covered zero requires exact provider registration consent and structural day authority`() {
 		val fact = providerFact(stepCount = 0L)
 
@@ -15,6 +47,7 @@ class AmbientStepsFactRevisionEntityTest {
 			{ fact.copy(logicalFactId = "provider:0:1000") },
 			{ fact.copy(provider = null) },
 			{ fact.copy(registrationGeneration = 0L) },
+			{ fact.copy(continuitySegmentGeneration = 0L) },
 			{ fact.copy(authorizationRevision = null) },
 			{ fact.copy(windowEndTimeMs = fact.windowStartTimeMs) },
 			{ fact.copy(stepCount = null) },
@@ -40,6 +73,7 @@ class AmbientStepsFactRevisionEntityTest {
 				originKind = AmbientStepsFactRevisionEntity.ORIGIN_LOCAL_DELETE,
 				provider = null,
 				registrationGeneration = null,
+				continuitySegmentGeneration = null,
 				sourceInstanceId = null,
 				authorizationRevision = null,
 				authorizationFingerprint = null,
@@ -68,8 +102,9 @@ class AmbientStepsFactRevisionEntityTest {
 		val provider = AmbientStepsFactRevisionEntity.PROVIDER_HEALTH_CONNECT_MOBILE_STEPS
 		val logicalFactId = AmbientStepsFactIntegrity.logicalFactId(
 			provider,
+			2L,
+			1L,
 			1_000L,
-			2_000L,
 			0L,
 			"UTC",
 			7L,
@@ -90,6 +125,7 @@ class AmbientStepsFactRevisionEntityTest {
 				originKind = AmbientStepsFactRevisionEntity.ORIGIN_PROVIDER_AGGREGATE,
 				provider = provider,
 				registrationGeneration = 2L,
+				continuitySegmentGeneration = 1L,
 				sourceInstanceId = "ambient-instance",
 				authorizationRevision = 3L,
 				authorizationFingerprint = "ambient-authorization",

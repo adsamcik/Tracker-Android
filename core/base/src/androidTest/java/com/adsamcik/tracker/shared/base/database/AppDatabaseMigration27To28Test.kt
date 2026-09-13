@@ -688,6 +688,16 @@ class AppDatabaseMigration27To28Test {
 		// v27 observations remain byte-for-byte facts; migration must not invent semantics.
 		assertTableCount(database, "step_fact_revision", 0)
 		assertTableCount(database, "ambient_steps_fact_revision", 0)
+		assertIndexColumns(
+			database,
+			"idx_ambient_steps_fact_registration_window",
+			listOf(
+				"provider",
+				"registration_generation",
+				"continuity_segment_generation",
+				"window_start_time_ms",
+			),
+		)
 		assertTableCount(database, "ambient_steps_import_cursor", 0)
 		assertTableCount(database, "ambient_steps_import_gap", 0)
 		assertIndexColumns(
@@ -1248,8 +1258,9 @@ class AppDatabaseMigration27To28Test {
 		val provider = AmbientStepsFactRevisionEntity.PROVIDER_HEALTH_CONNECT_MOBILE_STEPS
 		val logicalFactId = AmbientStepsFactIntegrity.logicalFactId(
 			provider = provider,
+			registrationGeneration = 1L,
+			continuitySegmentGeneration = 1L,
 			windowStartTimeMs = 1_000L,
-			windowEndTimeMs = 2_000L,
 			structuralEpochDay = 0L,
 			storedZoneId = "UTC",
 			collectedDataEpoch = 7L,
@@ -1269,6 +1280,7 @@ class AppDatabaseMigration27To28Test {
 			originKind = AmbientStepsFactRevisionEntity.ORIGIN_PROVIDER_AGGREGATE,
 			provider = provider,
 			registrationGeneration = 1L,
+			continuitySegmentGeneration = 1L,
 			sourceInstanceId = "ambient-migration-instance",
 			authorizationRevision = 1L,
 			authorizationFingerprint = "ambient-migration-authorization",

@@ -111,7 +111,13 @@ interface AmbientStepsImportStateDao {
 			"AND EXISTS (SELECT 1 FROM ambient_steps_import_gap AS gap " +
 			"WHERE gap.registration_generation = ambient_steps_import_cursor.registration_generation " +
 			"AND gap.gap_sequence = :newLastGapSequence " +
+			"AND gap.provider = ambient_steps_import_cursor.provider " +
+			"AND gap.source_instance_id = ambient_steps_import_cursor.source_instance_id " +
+			"AND gap.collected_data_epoch = ambient_steps_import_cursor.collected_data_epoch " +
+			"AND gap.gap_start_time_ms = ambient_steps_import_cursor.imported_through_time_ms " +
 			"AND gap.gap_end_time_ms = :newSegmentStartTimeMs " +
+			"AND gap.previous_clock_domain_id = ambient_steps_import_cursor.last_observed_boot_id " +
+			"AND gap.previous_zone_id = ambient_steps_import_cursor.last_observed_zone_id " +
 			"AND gap.next_clock_domain_id = :newBootId " +
 			"AND gap.next_zone_id = :newZoneId) " +
 			"AND :newBootId = registration_clock_domain_id " +

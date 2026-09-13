@@ -89,8 +89,9 @@ class AmbientStepsFactRevisionDaoTest {
 		val provider = AmbientStepsFactRevisionEntity.PROVIDER_LOCAL_RECORDING_STEPS
 		val logicalFactId = AmbientStepsFactIntegrity.logicalFactId(
 			provider,
+			1L,
+			1L,
 			startTimeMs,
-			endTimeMs,
 			0L,
 			"UTC",
 			7L,
@@ -111,6 +112,7 @@ class AmbientStepsFactRevisionDaoTest {
 				originKind = AmbientStepsFactRevisionEntity.ORIGIN_PROVIDER_AGGREGATE,
 				provider = provider,
 				registrationGeneration = 1L,
+				continuitySegmentGeneration = 1L,
 				sourceInstanceId = "ambient-instance",
 				authorizationRevision = 1L,
 				authorizationFingerprint = "ambient-authorization",
@@ -148,6 +150,7 @@ class AmbientStepsFactRevisionDaoTest {
 			originKind = AmbientStepsFactRevisionEntity.ORIGIN_LOCAL_DELETE,
 			provider = null,
 			registrationGeneration = null,
+			continuitySegmentGeneration = null,
 			sourceInstanceId = null,
 			authorizationRevision = null,
 			authorizationFingerprint = null,

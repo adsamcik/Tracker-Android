@@ -4,18 +4,24 @@ import java.security.MessageDigest
 
 /** Frozen identity and retained-effect contract for sessionless Ambient Steps facts. */
 object AmbientStepsFactIntegrity {
+	/**
+	 * Stable identity for one provider continuity segment within one structural day.
+	 * The read-through end is deliberately excluded so extensions and corrections revise this fact.
+	 */
 	fun logicalFactId(
 		provider: String,
+		registrationGeneration: Long,
+		continuitySegmentGeneration: Long,
 		windowStartTimeMs: Long,
-		windowEndTimeMs: Long,
 		structuralEpochDay: Long,
 		storedZoneId: String,
 		collectedDataEpoch: Long,
 	): String = opaqueDigest(
-		"ambient-steps-logical-fact-v1",
+		"ambient-steps-logical-fact-v2",
 		provider,
+		registrationGeneration,
+		continuitySegmentGeneration,
 		windowStartTimeMs,
-		windowEndTimeMs,
 		structuralEpochDay,
 		storedZoneId,
 		collectedDataEpoch,
@@ -44,6 +50,7 @@ object AmbientStepsFactIntegrity {
 		fact.originKind,
 		fact.provider,
 		fact.registrationGeneration,
+		fact.continuitySegmentGeneration,
 		fact.sourceInstanceId,
 		fact.authorizationRevision,
 		fact.authorizationFingerprint,

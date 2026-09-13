@@ -1635,6 +1635,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 					origin_kind TEXT NOT NULL,
 					provider TEXT,
 					registration_generation INTEGER,
+					continuity_segment_generation INTEGER,
 					source_instance_id TEXT,
 					authorization_revision INTEGER,
 					authorization_fingerprint TEXT,
@@ -1669,7 +1670,8 @@ val MIGRATION_27_28: Migration = object : Migration(
 			execSQL(
 				"CREATE INDEX IF NOT EXISTS idx_ambient_steps_fact_registration_window " +
 					"ON ambient_steps_fact_revision(" +
-					"provider, registration_generation, window_start_time_ms)",
+					"provider, registration_generation, continuity_segment_generation, " +
+					"window_start_time_ms)",
 			)
 			execSQL(
 				"""
