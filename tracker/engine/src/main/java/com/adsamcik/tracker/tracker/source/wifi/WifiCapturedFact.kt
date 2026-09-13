@@ -4,8 +4,10 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
+import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import java.time.ZoneId
 
 internal data class WifiProviderTimeInterval(
 	val startInclusiveNanos: Long,
@@ -70,6 +72,36 @@ internal data class WifiHistoricalAcquisitionConfiguration(
 			signalLevelDbm in minimumSignalLevelDbm..maximumSignalLevelDbm
 }
 
+/** Exact immutable `source_desired_plan` row used to qualify this observation. */
+internal data class WifiSerializedAcquisitionPlanEvidence(
+	val payloadVersion: Int,
+	val payloadBytes: List<Byte>,
+	val payloadChecksum: String,
+)
+
+/** Exact applied provider registration that produced the callback, not the latest mutable pointer. */
+internal data class WifiAppliedRegistrationEvidence(
+	val desiredRevision: Long,
+	val appliedRevision: Long?,
+	val sourceInstanceId: SourceInstanceId?,
+	val registrationGeneration: Long?,
+	val appliedAtElapsedRealtimeNanos: Long?,
+	val physicalConfigurationFingerprint: String?,
+	val clockDomainId: String?,
+	val capturedCollectedDataEpoch: Long?,
+)
+
+/** Current deletion authority is deliberately not part of immutable captured authority. */
+internal data class WifiDeletionAuthority(
+	val currentCollectedDataEpoch: Long,
+	val retainedFromWallTimeMs: Long?,
+) {
+	init {
+		require(currentCollectedDataEpoch >= 0L)
+		require(retainedFromWallTimeMs == null || retainedFromWallTimeMs >= 0L)
+	}
+}
+
 /**
  * Immutable historical authority for one identity-free Wi-Fi fact.
  *
@@ -98,6 +130,8 @@ internal data class WifiCaptureAuthority(
 	val zoneId: String,
 	val temporalAuthority: WifiCaptureTemporalAuthority,
 	val acquisitionConfiguration: WifiHistoricalAcquisitionConfiguration,
+	val serializedAcquisitionPlan: WifiSerializedAcquisitionPlanEvidence,
+	val appliedRegistration: WifiAppliedRegistrationEvidence,
 ) {
 	init {
 		require(sessionSegmentId > 0L)
@@ -122,13 +156,20 @@ internal data class WifiCaptureAuthority(
 		require(lifecycleLeaseGeneration > 0L)
 		require(collectedDataEpoch >= 0L)
 		require(clockDomainId.isNotBlank())
-		require(zoneId.isNotBlank())
+		require(zoneId.isNotBlank() && runCatching { ZoneId.of(zoneId) }.isSuccess) {
+			"Captured Wi-Fi authority requires a valid stored zone"
+		}
 	}
 }
 
 /** Stable destination identity. Corrections replace a revision; later callbacks create new facts. */
 internal data class WifiCapturedFactIdentity(
+	val sourceEventId: SourceEventId,
+	val sourceAdmissionOrdinal: Long,
+	val walIntegrityIdentity: String,
+	val payloadChecksum: String,
 	val sourceDeliveryIdentity: SourceDeliveryIdentity,
+	val deliveryUnitIndex: Int,
 	val logicalTrackingId: LogicalTrackingId,
 	val serviceRunId: ServiceRunId,
 	val sessionSegmentId: Long,
@@ -136,9 +177,17 @@ internal data class WifiCapturedFactIdentity(
 	val collectedDataEpoch: Long,
 ) {
 	init {
+		require(sourceAdmissionOrdinal > 0L)
+		require(LOWERCASE_SHA_256.matches(walIntegrityIdentity))
+		require(LOWERCASE_SHA_256.matches(payloadChecksum))
+		require(deliveryUnitIndex >= 0)
 		require(sessionSegmentId > 0L)
 		require(sessionManifestRevision > 0L)
 		require(collectedDataEpoch >= 0L)
+	}
+
+	private companion object {
+		val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")
 	}
 }
 
@@ -266,8 +315,48 @@ internal data class WifiAggregateFactReference(
 	}
 }
 
+/** Identity-free binding to the exact admitted WAL unit and historical acquisition plan. */
+internal data class WifiCapturedEvidenceBinding(
+	val sourceEventId: SourceEventId,
+	val sourceAdmissionOrdinal: Long,
+	val walIntegrityIdentity: String,
+	val payloadChecksum: String,
+	val sourceDeliveryIdentity: SourceDeliveryIdentity,
+	val deliveryUnitIndex: Int,
+	val deliveryUnitCount: Int,
+	val acquisitionPlanRevision: Long,
+	val acquisitionPlanChecksum: String,
+	val clockDomainId: String,
+	val observedIntervalStartElapsedRealtimeNanos: Long,
+	val observedElapsedRealtimeNanos: Long,
+	val receivedElapsedRealtimeNanos: Long,
+	val observedWallTimeMs: Long,
+	val wallTimeUncertaintyMs: Long,
+) {
+	init {
+		require(sourceAdmissionOrdinal > 0L)
+		require(LOWERCASE_SHA_256.matches(walIntegrityIdentity))
+		require(LOWERCASE_SHA_256.matches(payloadChecksum))
+		require(deliveryUnitCount > 0)
+		require(deliveryUnitIndex in 0 until deliveryUnitCount)
+		require(acquisitionPlanRevision >= 0L)
+		require(LOWERCASE_SHA_256.matches(acquisitionPlanChecksum))
+		require(clockDomainId.isNotBlank())
+		require(observedIntervalStartElapsedRealtimeNanos > 0L)
+		require(observedElapsedRealtimeNanos >= observedIntervalStartElapsedRealtimeNanos)
+		require(receivedElapsedRealtimeNanos >= observedElapsedRealtimeNanos)
+		require(observedWallTimeMs >= 0L)
+		require(wallTimeUncertaintyMs >= 0L)
+	}
+
+	private companion object {
+		val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")
+	}
+}
+
 /** Complete product effect used for exact replay and semantic no-op classification. */
 internal data class WifiCapturedProductEffect(
+	val evidenceBinding: WifiCapturedEvidenceBinding,
 	val observedWallTimeMs: Long,
 	val wallTimeUncertaintyMs: Long,
 	val availability: WifiAvailability,
@@ -325,6 +414,7 @@ internal sealed interface WifiReusableFact {
 internal sealed interface WifiCapturedFact {
 	val mutation: WifiCapturedFactMutation
 	val authority: WifiCaptureAuthority
+	val evidenceBinding: WifiCapturedEvidenceBinding
 	val observedWallTimeMs: Long
 	val wallTimeUncertaintyMs: Long
 	val availability: WifiAvailability
@@ -333,6 +423,7 @@ internal sealed interface WifiCapturedFact {
 	data class Aggregate(
 		override val mutation: WifiCapturedFactMutation,
 		override val authority: WifiCaptureAuthority,
+		override val evidenceBinding: WifiCapturedEvidenceBinding,
 		override val observedWallTimeMs: Long,
 		override val wallTimeUncertaintyMs: Long,
 		override val availability: WifiAvailability,
@@ -340,6 +431,7 @@ internal sealed interface WifiCapturedFact {
 		val aggregate: WifiIdentityFreeAggregate,
 	) : WifiCapturedFact {
 		init {
+			requireWifiFactBinding(mutation, authority, evidenceBinding)
 			require(observedWallTimeMs >= 0L)
 			require(wallTimeUncertaintyMs >= 0L)
 			require(availability == WifiAvailability.AVAILABLE)
@@ -350,6 +442,7 @@ internal sealed interface WifiCapturedFact {
 	data class CoverageOnly(
 		override val mutation: WifiCapturedFactMutation,
 		override val authority: WifiCaptureAuthority,
+		override val evidenceBinding: WifiCapturedEvidenceBinding,
 		override val observedWallTimeMs: Long,
 		override val wallTimeUncertaintyMs: Long,
 		override val availability: WifiAvailability,
@@ -357,6 +450,7 @@ internal sealed interface WifiCapturedFact {
 		val reusesAggregate: WifiReusableFact.DirectAggregateOwner?,
 	) : WifiCapturedFact {
 		init {
+			requireWifiFactBinding(mutation, authority, evidenceBinding)
 			require(observedWallTimeMs >= 0L)
 			require(wallTimeUncertaintyMs >= 0L)
 			require(
@@ -373,8 +467,32 @@ internal sealed interface WifiCapturedFact {
 	}
 }
 
+private fun requireWifiFactBinding(
+	mutation: WifiCapturedFactMutation,
+	authority: WifiCaptureAuthority,
+	evidence: WifiCapturedEvidenceBinding,
+) {
+	val identity = mutation.identity
+	require(identity.sourceEventId == evidence.sourceEventId)
+	require(identity.sourceAdmissionOrdinal == evidence.sourceAdmissionOrdinal)
+	require(identity.walIntegrityIdentity == evidence.walIntegrityIdentity)
+	require(identity.payloadChecksum == evidence.payloadChecksum)
+	require(identity.sourceDeliveryIdentity == evidence.sourceDeliveryIdentity)
+	require(identity.deliveryUnitIndex == evidence.deliveryUnitIndex)
+	require(identity.deliveryUnitIndex < evidence.deliveryUnitCount)
+	require(identity.logicalTrackingId == authority.logicalTrackingId)
+	require(identity.serviceRunId == authority.serviceRunId)
+	require(identity.sessionSegmentId == authority.sessionSegmentId)
+	require(identity.sessionManifestRevision == authority.sessionManifestRevision)
+	require(identity.collectedDataEpoch == authority.collectedDataEpoch)
+	require(evidence.acquisitionPlanRevision == authority.configurationRevision)
+	require(evidence.acquisitionPlanChecksum == authority.serializedAcquisitionPlan.payloadChecksum)
+	require(evidence.clockDomainId == authority.clockDomainId)
+}
+
 internal val WifiCapturedFact.productEffect: WifiCapturedProductEffect
 	get() = WifiCapturedProductEffect(
+		evidenceBinding = evidenceBinding,
 		observedWallTimeMs = observedWallTimeMs,
 		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
 		availability = availability,

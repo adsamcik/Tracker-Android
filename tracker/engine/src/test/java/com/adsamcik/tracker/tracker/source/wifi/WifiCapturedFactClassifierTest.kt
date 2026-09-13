@@ -1,728 +1,616 @@
 package com.adsamcik.tracker.tracker.source.wifi
 
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
+import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
+import com.adsamcik.tracker.tracker.source.model.RetryBackoff
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
+import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.WifiAccessPointEvidence
+import com.adsamcik.tracker.tracker.source.model.WifiMode
+import com.adsamcik.tracker.tracker.source.model.WifiPlan
+import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
+import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.Test
+import java.security.MessageDigest
 
 class WifiCapturedFactClassifierTest {
 	@Test
-	fun `fresh callback creates an identity-free aggregate with exact authority`() {
-		val authority = authority(capturedSources = setOf(SourceKind.WIFI))
-		val result = WifiCapturedFactClassifier.classify(
-			input(
-				accessPoints = listOf(
-					accessPoint(2_412, -48, 1_000L),
-					accessPoint(5_180, -62, 1_010L),
-					accessPoint(5_955, -70, 1_020L),
-				),
-			),
-			authority,
-		)
-
-		val fact = (result as WifiCapturedFactClassification.FreshChanged).fact
-		fact.authority shouldBe authority
-		fact.availability shouldBe WifiAvailability.AVAILABLE
-		fact.aggregate shouldBe WifiIdentityFreeAggregate(
-			observationCount = 3,
-			bandMix = WifiBandMix(
-				twoPointFourGhzCount = 1,
-				fiveGhzCount = 1,
-				sixGhzCount = 1,
-				otherCount = 0,
-			),
-			signalQuality = WifiSignalQualitySummary(
-				observationCount = 3,
-				strongestSignalLevelDbm = -48,
-				weakestSignalLevelDbm = -70,
-				signalLevelSumDbm = -180L,
-			),
-		)
-		fact.coverage shouldBe WifiCoverageEvidence(
-			providerIntervalStartElapsedRealtimeNanos = 1_000L,
-			providerIntervalEndElapsedRealtimeNanos = 1_020L,
-			receivedElapsedRealtimeNanos = 1_100L,
-			submittedResultCount = 3,
-			acceptedResultCount = 3,
-			staleResultCount = 0,
-			clockUnverifiableResultCount = 0,
-			malformedResultCount = 0,
-			completeness = WifiCoverageCompleteness.COMPLETE,
-		)
-		fact.mutation.identity shouldBe WifiCapturedFactIdentity(
-			sourceDeliveryIdentity = identity('a'),
-			logicalTrackingId = LogicalTrackingId("tracking-1"),
-			serviceRunId = ServiceRunId("run-1"),
-			sessionSegmentId = 41L,
-			sessionManifestRevision = 17L,
-			collectedDataEpoch = 23L,
-		)
-	}
-
-	@Test
-	fun `source-only manifest is sufficient and never requires Location`() {
-		val result = WifiCapturedFactClassifier.classify(
-			input(accessPoints = listOf(accessPoint(2_412, -50, 1_000L))),
-			authority(
-				capturedSources = setOf(SourceKind.WIFI),
-				controlSources = emptySet(),
+	fun `fresh callback is identity free and bound to WAL plan registration and clock`() {
+		val authority = authority()
+		val input = input(
+			authority = authority,
+			accessPoints = listOf(
+				accessPoint(2_412, -48, 1_000_000_000L),
+				accessPoint(5_180, -62, 1_010_000_000L),
+				accessPoint(5_955, -70, 1_020_000_000L),
 			),
 		)
 
-		val fact = (result as WifiCapturedFactClassification.FreshChanged).fact
+		val fact = (classify(input, authority) as WifiCapturedFactClassification.FreshChanged).fact
+		val wal = requireNotNull(input.walEvidence)
 		fact.authority.capturedSources shouldBe setOf(SourceKind.WIFI)
 		fact.authority.controlSources shouldBe emptySet()
+		fact.aggregate shouldBe WifiIdentityFreeAggregate(
+			observationCount = 3,
+			bandMix = WifiBandMix(1, 1, 1, 0),
+			signalQuality = WifiSignalQualitySummary(3, -48, -70, -180L),
+		)
+		fact.mutation.identity.sourceEventId shouldBe wal.sourceEventId
+		fact.mutation.identity.payloadChecksum shouldBe wal.payloadChecksum
+		fact.evidenceBinding.acquisitionPlanChecksum shouldBe
+			authority.serializedAcquisitionPlan.payloadChecksum
+		fact.evidenceBinding.observedElapsedRealtimeNanos shouldBe 1_020_000_000L
+		fact.observedWallTimeMs shouldBe DEFAULT_WALL_TIME_MS
+		fact.wallTimeUncertaintyMs shouldBe DEFAULT_UNCERTAINTY_MS
 	}
 
 	@Test
-	fun `fresh callback with the same aggregate stores coverage and reuses one prior fact`() {
+	fun `unchanged state reuses only a direct aggregate owner`() {
 		val authority = authority()
-		val firstResult = WifiCapturedFactClassifier.classify(
-			input(accessPoints = listOf(accessPoint(2_412, -50, 1_000L))),
-			authority,
-		) as WifiCapturedFactClassification.FreshChanged
-		val prior = firstResult.fact.toReusableFact() as WifiReusableFact.DirectAggregateOwner
-
-		val result = WifiCapturedFactClassifier.classify(
+		val original = freshFact(authority)
+		val owner = original.toReusableFact() as WifiReusableFact.DirectAggregateOwner
+		val unchanged = classify(
 			input(
-				deliveryIdentity = identity('b'),
-				accessPoints = listOf(accessPoint(2_412, -50, 1_100L)),
-				receivedElapsedRealtimeNanos = 1_150L,
+				authority = authority,
+				delivery = 'b',
+				accessPoints = listOf(accessPoint(2_412, -50, 1_030_000_000L)),
 			),
 			authority,
-			priorFact = prior,
-		)
+			priorFact = owner,
+		) as WifiCapturedFactClassification.FreshUnchanged
 
-		val fact = (result as WifiCapturedFactClassification.FreshUnchanged).fact
-		fact.reusesAggregate shouldBe prior
-		fact.coverage.providerIntervalStartElapsedRealtimeNanos shouldBe 1_100L
-		fact.mutation.identity.sourceDeliveryIdentity shouldBe identity('b')
+		unchanged.fact.reusesAggregate shouldBe owner
+		val coverageOnly = unchanged.fact.toReusableFact()
+		val next = classify(
+			input(
+				authority = authority,
+				delivery = 'c',
+				accessPoints = listOf(accessPoint(2_412, -50, 1_040_000_000L)),
+			),
+			authority,
+			priorFact = coverageOnly,
+		)
+		next::class shouldBe WifiCapturedFactClassification.FreshChanged::class
 	}
 
 	@Test
-	fun `same aggregate cannot reuse content across a changed historical authority`() {
-		val priorAuthority = authority()
-		val prior = (
-			WifiCapturedFactClassifier.classify(
-				input(accessPoints = listOf(accessPoint(2_412, -50, 1_000L))),
-				priorAuthority,
-			) as WifiCapturedFactClassification.FreshChanged
-			).fact.toReusableFact()
-		val changedAuthority = priorAuthority.copy(
-			authorizationRevision = priorAuthority.authorizationRevision + 1L,
-			authorizationFingerprint = "wifi-authorization-2",
+	fun `confirmed empty requires exact provider proof bound to WAL`() {
+		val authority = authority()
+		val noProof = input(authority, accessPoints = emptyList())
+		classify(noProof, authority) shouldBe WifiCapturedFactClassification.ClockUnverifiable
+
+		val provedInput = input(
+			authority = authority,
+			accessPoints = emptyList(),
+			confirmedEmptyProviderTimeNanos = 1_000_000_000L,
 		)
-
-		val result = WifiCapturedFactClassifier.classify(
-			input(
-				deliveryIdentity = identity('b'),
-				accessPoints = listOf(accessPoint(2_412, -50, 1_100L)),
-				receivedElapsedRealtimeNanos = 1_150L,
-			),
-			changedAuthority,
-			priorFact = prior,
-		)
-
-		result::class shouldBe WifiCapturedFactClassification.FreshChanged::class
-	}
-
-	@Test
-	fun `provider-confirmed fresh empty is a durable zero coverage fact`() {
-		val result = WifiCapturedFactClassifier.classify(
-			input(
-				accessPoints = emptyList(),
-				confirmedEmptyProof = confirmedEmptyProof(),
-			),
-			authority(),
-		)
-
+		val result = classify(provedInput, authority)
 		val fact = (result as WifiCapturedFactClassification.FreshConfirmedEmpty).fact
 		fact.availability shouldBe WifiAvailability.CONFIRMED_EMPTY
-		fact.reusesAggregate shouldBe null
-		fact.coverage.acceptedResultCount shouldBe 0
 		fact.coverage.submittedResultCount shouldBe 0
-		fact.coverage.receivedElapsedRealtimeNanos shouldBe 1_100L
 		fact.coverage.completeness shouldBe WifiCoverageCompleteness.COMPLETE
-	}
 
-	@Test
-	fun `empty result without source-native observation time is clock unverifiable`() {
-		val result = WifiCapturedFactClassifier.classify(
-			input(
-				accessPoints = emptyList(),
-				confirmedEmptyProof = null,
-			),
-			authority(),
-		)
-
-		result shouldBe WifiCapturedFactClassification.ClockUnverifiable
-	}
-
-	@Test
-	fun `confirmed empty proof is bound to delivery clock receipt and wall authority`() {
-		val mismatchedProofs = listOf(
-			confirmedEmptyProof(deliveryIdentity = identity('b')),
-			confirmedEmptyProof(clockDomainId = "other-boot"),
-			confirmedEmptyProof(receivedElapsedRealtimeNanos = 1_101L),
-			confirmedEmptyProof(observedWallTimeMs = 2_001L),
-			confirmedEmptyProof(wallTimeUncertaintyMs = 6L),
-		)
-
-		mismatchedProofs.forEach { proof ->
-			WifiCapturedFactClassifier.classify(
-				input(accessPoints = emptyList(), confirmedEmptyProof = proof),
-				authority(),
-			) shouldBe WifiCapturedFactClassification.Rejected(
-				WifiFactRejection.CONFIRMED_EMPTY_PROOF_MISMATCH,
-			)
-		}
-	}
-
-	@Test
-	fun `confirmed empty replay retains receipt time as part of collision evidence`() {
-		val authority = authority()
-		val initial = (
-			WifiCapturedFactClassifier.classify(
-				input(accessPoints = emptyList(), confirmedEmptyProof = confirmedEmptyProof()),
-				authority,
-			) as WifiCapturedFactClassification.FreshConfirmedEmpty
-			).fact
-
-		val replay = WifiCapturedFactClassifier.classify(
-			input(
-				accessPoints = emptyList(),
-				receivedElapsedRealtimeNanos = 1_101L,
-				confirmedEmptyProof = confirmedEmptyProof(
-					receivedElapsedRealtimeNanos = 1_101L,
+		val foreignWal = input(
+			authority = authority,
+			delivery = 'b',
+			accessPoints = emptyList(),
+			confirmedEmptyProviderTimeNanos = 1_000_000_000L,
+		).walEvidence!!
+		classify(
+			provedInput.copy(
+				confirmedEmptyProof = WifiConfirmedEmptyProviderProof.fromProviderCallback(
+					foreignWal,
+					1_000_000_000L,
 				),
 			),
 			authority,
-			priorFact = initial.toReusableFact(),
-		)
-
-		replay shouldBe WifiCapturedFactClassification.Rejected(
-			WifiFactRejection.DELIVERY_IDENTITY_COLLISION,
-		)
+		) shouldBe rejected(WifiFactRejection.CONFIRMED_EMPTY_PROOF_MISMATCH)
 	}
 
 	@Test
-	fun `empty proof cannot authorize a nonempty payload`() {
-		WifiCapturedFactClassifier.classify(
+	fun `mixed callback retains fresh children and reports incomplete coverage`() {
+		val authority = authority(maximumObservationAgeMs = 500L)
+		val result = classify(
 			input(
-				accessPoints = listOf(accessPoint(2_412, -50, 1_000L)),
-				confirmedEmptyProof = confirmedEmptyProof(),
-			),
-			authority(),
-		) shouldBe WifiCapturedFactClassification.Rejected(
-			WifiFactRejection.CONFIRMED_EMPTY_PROOF_MISMATCH,
-		)
-	}
-
-	@Test
-	fun `mixed-age callback retains only fresh aggregate evidence and marks partial coverage`() {
-		val result = WifiCapturedFactClassifier.classify(
-			input(
+				authority = authority,
+				receivedElapsedRealtimeNanos = 1_100_000_000L,
 				accessPoints = listOf(
-					accessPoint(2_412, -50, 1_000L),
-					accessPoint(5_180, -60, 400L),
+					accessPoint(2_412, -50, 1_000_000_000L),
+					accessPoint(5_180, -60, 400_000_000L),
 					accessPoint(5_955, -70, null),
+					accessPoint(0, -55, 1_010_000_000L),
 				),
 			),
-			authority(maximumObservationAgeNanos = 500L),
+			authority,
 		)
 
 		val fact = (result as WifiCapturedFactClassification.FreshChanged).fact
 		fact.aggregate.observationCount shouldBe 1
-		fact.aggregate.bandMix shouldBe WifiBandMix(1, 0, 0, 0)
 		fact.coverage shouldBe WifiCoverageEvidence(
-			providerIntervalStartElapsedRealtimeNanos = 1_000L,
-			providerIntervalEndElapsedRealtimeNanos = 1_000L,
-			receivedElapsedRealtimeNanos = 1_100L,
-			submittedResultCount = 3,
+			providerIntervalStartElapsedRealtimeNanos = 1_000_000_000L,
+			providerIntervalEndElapsedRealtimeNanos = 1_000_000_000L,
+			receivedElapsedRealtimeNanos = 1_100_000_000L,
+			submittedResultCount = 4,
 			acceptedResultCount = 1,
 			staleResultCount = 1,
 			clockUnverifiableResultCount = 1,
-			malformedResultCount = 0,
+			malformedResultCount = 1,
 			completeness = WifiCoverageCompleteness.PARTIAL,
 		)
 	}
 
 	@Test
-	fun `access point input is bounded by the historical acquisition configuration`() {
-		val result = WifiCapturedFactClassifier.classify(
+	fun `historical plan bounds count frequency and signal`() {
+		val bounded = authority(maximumAccessPointCount = 1)
+		classify(
 			input(
+				bounded,
 				accessPoints = listOf(
-					accessPoint(2_412, -50, 1_000L),
-					accessPoint(5_180, -60, 1_000L),
+					accessPoint(2_412, -50, 1_000_000_000L),
+					accessPoint(5_180, -60, 1_010_000_000L),
 				),
 			),
-			authority(maximumAccessPointCount = 1),
-		)
+			bounded,
+		) shouldBe rejected(WifiFactRejection.TOO_MANY_ACCESS_POINTS)
 
-		result shouldBe WifiCapturedFactClassification.Rejected(
-			WifiFactRejection.TOO_MANY_ACCESS_POINTS,
-		)
+		listOf(accessPoint(2_399, -50, 1_000_000_000L), accessPoint(2_412, -201, 1_000_000_000L))
+			.forEach { malformed ->
+				classify(
+					input(bounded, accessPoints = listOf(malformed)),
+					bounded,
+				) shouldBe rejected(WifiFactRejection.MALFORMED_ACCESS_POINT)
+			}
 	}
 
 	@Test
-	fun `malformed-only access points are rejected before aggregate persistence`() {
-		val result = WifiCapturedFactClassifier.classify(
-			input(accessPoints = listOf(accessPoint(2_412, -128, 1_000L))),
-			authority(minimumSignalLevelDbm = -127),
-		)
-
-		result shouldBe WifiCapturedFactClassification.Rejected(
-			WifiFactRejection.MALFORMED_ACCESS_POINT,
-		)
-	}
-
-	@Test
-	fun `valid children survive malformed siblings with explicit partial coverage`() {
-		val result = WifiCapturedFactClassifier.classify(
+	fun `stale future missing and nonprovider observations do not become facts`() {
+		val authority = authority(maximumObservationAgeMs = 500L)
+		classify(
 			input(
-				accessPoints = listOf(
-					accessPoint(2_412, -50, 1_000L),
-					accessPoint(0, -60, 1_000L),
-					accessPoint(5_180, 1, 1_000L),
-				),
-			),
-			authority(),
-		)
-
-		val fact = (result as WifiCapturedFactClassification.FreshChanged).fact
-		fact.aggregate.observationCount shouldBe 1
-		fact.coverage.submittedResultCount shouldBe 3
-		fact.coverage.acceptedResultCount shouldBe 1
-		fact.coverage.malformedResultCount shouldBe 2
-		fact.coverage.completeness shouldBe WifiCoverageCompleteness.PARTIAL
-	}
-
-	@Test
-	fun `all stale provider items have no product or coverage fact`() {
-		val result = WifiCapturedFactClassifier.classify(
-			input(
-				accessPoints = listOf(
-					accessPoint(2_412, -50, 400L),
-					accessPoint(5_180, -60, 499L),
-				),
-			),
-			authority(maximumObservationAgeNanos = 500L),
-		)
-
-		result shouldBe WifiCapturedFactClassification.Stale
-	}
-
-	@Test
-	fun `pre-effective and end-boundary observations are stale`() {
-		val authority = authority().copy(
-			temporalAuthority = WifiCaptureTemporalAuthority(
-				providerAcceptance = WifiProviderTimeInterval(900L, 1_100L),
-				authorizationEffect = WifiProviderTimeInterval(950L, 1_050L),
-				sessionRunEffect = WifiProviderTimeInterval(980L, 1_020L),
-			),
-		)
-
-		listOf(979L, 1_020L).forEach { providerTime ->
-			WifiCapturedFactClassifier.classify(
-				input(accessPoints = listOf(accessPoint(2_412, -50, providerTime))),
 				authority,
-			) shouldBe WifiCapturedFactClassification.Stale
-		}
-	}
-
-	@Test
-	fun `missing and future provider clocks fail closed as clock unverifiable`() {
-		listOf(
-			accessPoint(2_412, -50, null),
-			accessPoint(2_412, -50, 1_101L),
-		).forEach { accessPoint ->
-			WifiCapturedFactClassifier.classify(
-				input(accessPoints = listOf(accessPoint)),
-				authority(),
+				receivedElapsedRealtimeNanos = 2_000_000_000L,
+				accessPoints = listOf(accessPoint(2_412, -50, 1_000_000_000L)),
+			),
+			authority,
+		) shouldBe WifiCapturedFactClassification.Stale
+		listOf(2_100_000_000L, null).forEach { providerTime ->
+			classify(
+				input(
+					authority,
+					receivedElapsedRealtimeNanos = 2_000_000_000L,
+					accessPoints = listOf(accessPoint(2_412, -50, providerTime)),
+				),
+				authority,
 			) shouldBe WifiCapturedFactClassification.ClockUnverifiable
 		}
+		classify(
+			input(
+				authority,
+				origin = WifiObservationOrigin.CACHE_READ,
+				accessPoints = listOf(accessPoint(2_412, -50, 1_000_000_000L)),
+			),
+			authority,
+		) shouldBe WifiCapturedFactClassification.Absent
 	}
 
 	@Test
-	fun `wrong boot domain and missing wall authority are clock unverifiable`() {
+	fun `provider operational outcomes remain typed without manufacturing observations`() {
 		val authority = authority()
-		WifiCapturedFactClassifier.classify(
-			input(
-				clockDomainId = "another-boot",
-				accessPoints = listOf(accessPoint(2_412, -50, 1_000L)),
-			),
-			authority,
-		) shouldBe WifiCapturedFactClassification.ClockUnverifiable
-		WifiCapturedFactClassifier.classify(
-			input(
-				observedWallTimeMs = null,
-				accessPoints = listOf(accessPoint(2_412, -50, 1_000L)),
-			),
-			authority,
-		) shouldBe WifiCapturedFactClassification.ClockUnverifiable
-	}
-
-	@Test
-	fun `cache timer and request attempt never create an observation`() {
-		listOf(
-			WifiObservationOrigin.CACHE_READ,
-			WifiObservationOrigin.TIMER,
-			WifiObservationOrigin.REQUEST_ATTEMPT,
-		).forEach { origin ->
-			WifiCapturedFactClassifier.classify(
-				input(
-					origin = origin,
-					accessPoints = listOf(accessPoint(2_412, -50, 1_000L)),
-				),
-				authority(),
-			) shouldBe WifiCapturedFactClassification.Absent
-		}
-	}
-
-	@Test
-	fun `provider operational outcomes remain typed and payload free`() {
-		val expected = mapOf(
+		mapOf(
 			WifiProviderOutcome.ABSENT to WifiCapturedFactClassification.Absent,
-			WifiProviderOutcome.FAILED to WifiCapturedFactClassification.Failed,
 			WifiProviderOutcome.RESULTS_NOT_UPDATED to WifiCapturedFactClassification.Failed,
-			WifiProviderOutcome.PERMISSION_LIMITED to
-				WifiCapturedFactClassification.PermissionLimited,
+			WifiProviderOutcome.FAILED to WifiCapturedFactClassification.Failed,
+			WifiProviderOutcome.PERMISSION_LIMITED to WifiCapturedFactClassification.PermissionLimited,
 			WifiProviderOutcome.OS_THROTTLED to WifiCapturedFactClassification.OsThrottled,
-		)
-
-		expected.forEach { (outcome, classification) ->
-			WifiCapturedFactClassifier.classify(
-				input(
-					outcome = outcome,
-					deliveryIdentity = null,
-					clockDomainId = null,
-					observedWallTimeMs = null,
-					wallTimeUncertaintyMs = null,
-					accessPoints = emptyList(),
-				),
-				authority(),
-			) shouldBe classification
+		).forEach { (outcome, expected) ->
+			classify(input(authority, outcome = outcome), authority) shouldBe expected
 		}
 	}
 
 	@Test
-	fun `identity-bearing input is rejected before aggregate persistence`() {
-		val result = WifiCapturedFactClassifier.classify(
-			input(
-				accessPoints = listOf(
-					WifiAccessPointEvidence(
-						identifierToken = "aa:bb:cc:dd:ee:ff",
-						frequencyMhz = 2_412,
-						signalLevelDbm = -50,
-						providerTimestampNanos = 1_000L,
-					),
-				),
-			),
-			authority(),
-		)
-
-		result shouldBe WifiCapturedFactClassification.Rejected(
-			WifiFactRejection.IDENTITY_BEARING_INPUT,
-		)
-	}
-
-	@Test
-	fun `missing stable provider delivery identity cannot create a fact`() {
-		val result = WifiCapturedFactClassifier.classify(
-			input(
-				deliveryIdentity = null,
-				accessPoints = listOf(accessPoint(2_412, -50, 1_000L)),
-			),
-			authority(),
-		)
-
-		result shouldBe WifiCapturedFactClassification.Rejected(
-			WifiFactRejection.DELIVERY_IDENTITY_UNVERIFIABLE,
-		)
-	}
-
-	@Test
-	fun `band mix uses explicit Android Wi-Fi frequency ranges and retains unknown bands`() {
-		val result = WifiCapturedFactClassifier.classify(
-			input(
-				accessPoints = listOf(
-					accessPoint(2_400, -50, 1_000L),
-					accessPoint(2_500, -50, 1_000L),
-					accessPoint(4_900, -50, 1_000L),
-					accessPoint(5_900, -50, 1_000L),
-					accessPoint(5_925, -50, 1_000L),
-					accessPoint(7_125, -50, 1_000L),
-					accessPoint(5_901, -50, 1_000L),
-				),
-			),
-			authority(),
-		)
-
-		val aggregate = (result as WifiCapturedFactClassification.FreshChanged).fact.aggregate
-		aggregate.bandMix shouldBe WifiBandMix(2, 2, 2, 1)
-	}
-
-	@Test
-	fun `correction keeps stable fact identity and explicitly supersedes prior revision`() {
+	fun `identity bearing payload and missing delivery identity are rejected`() {
 		val authority = authority()
-		val initial = (
-			WifiCapturedFactClassifier.classify(
-				input(accessPoints = listOf(accessPoint(2_412, -50, 1_000L))),
-				authority,
-			) as WifiCapturedFactClassification.FreshChanged
-			).fact
-		val correctionBase = initial.toReusableFact()
-
-		val result = WifiCapturedFactClassifier.classify(
-			input(accessPoints = listOf(accessPoint(2_412, -49, 1_000L))),
-			authority,
-			semanticRevision = 2L,
-			supersedesSemanticRevision = 1L,
-			correctionBase = correctionBase,
-		)
-
-		val corrected = (result as WifiCapturedFactClassification.FreshChanged).fact
-		corrected.mutation.identity shouldBe initial.mutation.identity
-		corrected.mutation.semanticRevision shouldBe 2L
-		corrected.mutation.supersedesSemanticRevision shouldBe 1L
-	}
-
-	@Test
-	fun `correction requires the exact prior identity and revision`() {
-		val result = WifiCapturedFactClassifier.classify(
-			input(accessPoints = listOf(accessPoint(2_412, -49, 1_000L))),
-			authority(),
-			semanticRevision = 2L,
-			supersedesSemanticRevision = 1L,
-			correctionBase = null,
-		)
-
-		result shouldBe WifiCapturedFactClassification.Rejected(
-			WifiFactRejection.INVALID_CORRECTION_BASE,
-		)
-	}
-
-	@Test
-	fun `semantic no-op correction has zero product and coverage effect`() {
-		val authority = authority()
-		val initial = (
-			WifiCapturedFactClassifier.classify(
-				input(accessPoints = listOf(accessPoint(2_412, -50, 1_000L))),
-				authority,
-			) as WifiCapturedFactClassification.FreshChanged
-			).fact
-
-		val result = WifiCapturedFactClassifier.classify(
-			input(accessPoints = listOf(accessPoint(2_412, -50, 1_000L))),
-			authority,
-			semanticRevision = 2L,
-			supersedesSemanticRevision = 1L,
-			correctionBase = initial.toReusableFact(),
-		)
-
-		result shouldBe WifiCapturedFactClassification.Absent
-	}
-
-	@Test
-	fun `same aggregate with changed coverage or wall authority is not a semantic no-op`() {
-		val authority = authority()
-		val initial = (
-			WifiCapturedFactClassifier.classify(
-				input(accessPoints = listOf(accessPoint(2_412, -50, 1_000L))),
-				authority,
-			) as WifiCapturedFactClassification.FreshChanged
-			).fact
-		val correctionBase = initial.toReusableFact()
-
-		val changedCoverage = WifiCapturedFactClassifier.classify(
-			input(accessPoints = listOf(accessPoint(2_412, -50, 1_010L))),
-			authority,
-			semanticRevision = 2L,
-			supersedesSemanticRevision = 1L,
-			correctionBase = correctionBase,
-		)
-		val changedWall = WifiCapturedFactClassifier.classify(
+		classify(
 			input(
-				observedWallTimeMs = 2_001L,
-				accessPoints = listOf(accessPoint(2_412, -50, 1_000L)),
+				authority,
+				accessPoints = listOf(accessPoint(2_412, -50, 1_000_000_000L, "ssid-or-bssid")),
 			),
 			authority,
-			semanticRevision = 2L,
-			supersedesSemanticRevision = 1L,
-			correctionBase = correctionBase,
-		)
-
-		changedCoverage::class shouldBe WifiCapturedFactClassification.FreshUnchanged::class
-		changedWall::class shouldBe WifiCapturedFactClassification.FreshUnchanged::class
-	}
-
-	@Test
-	fun `coverage-only prior cannot become a transitive aggregate owner`() {
-		val authority = authority()
-		val first = (
-			WifiCapturedFactClassifier.classify(
-				input(accessPoints = listOf(accessPoint(2_412, -50, 1_000L))),
-				authority,
-			) as WifiCapturedFactClassification.FreshChanged
-			).fact
-		val second = (
-			WifiCapturedFactClassifier.classify(
-				input(
-					deliveryIdentity = identity('b'),
-					receivedElapsedRealtimeNanos = 1_150L,
-					accessPoints = listOf(accessPoint(2_412, -50, 1_100L)),
-				),
-				authority,
-				priorFact = first.toReusableFact(),
-			) as WifiCapturedFactClassification.FreshUnchanged
-			).fact
-
-		val third = WifiCapturedFactClassifier.classify(
-			input(
-				deliveryIdentity = identity('c'),
-				receivedElapsedRealtimeNanos = 1_250L,
-				accessPoints = listOf(accessPoint(2_412, -50, 1_200L)),
-			),
-			authority,
-			priorFact = second.toReusableFact(),
-		)
-
-		third::class shouldBe WifiCapturedFactClassification.FreshChanged::class
-	}
-
-	@Test
-	fun `exact provider replay has zero product and coverage effect`() {
-		val authority = authority()
-		val initial = (
-			WifiCapturedFactClassifier.classify(
-				input(accessPoints = listOf(accessPoint(2_412, -50, 1_000L))),
-				authority,
-			) as WifiCapturedFactClassification.FreshChanged
-			).fact
-
-		val replay = WifiCapturedFactClassifier.classify(
-			input(accessPoints = listOf(accessPoint(2_412, -50, 1_000L))),
-			authority,
-			priorFact = initial.toReusableFact(),
-		)
-
-		replay shouldBe WifiCapturedFactClassification.Absent
-	}
-
-	@Test
-	fun `control-only or overlapping manifest source authority cannot construct a captured fact`() {
-		shouldThrow<IllegalArgumentException> {
-			authority(
-				purposeEligibilityMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
-			)
+		) shouldBe rejected(WifiFactRejection.IDENTITY_BEARING_INPUT)
+		val noDelivery = input(authority).let {
+			it.copy(walEvidence = it.walEvidence!!.copy(sourceDeliveryIdentity = null))
 		}
-		shouldThrow<IllegalArgumentException> {
-			authority(
-				capturedSources = setOf(SourceKind.WIFI),
-				controlSources = setOf(SourceKind.WIFI),
-			)
+		classify(noDelivery, authority) shouldBe
+			rejected(WifiFactRejection.DELIVERY_IDENTITY_UNVERIFIABLE)
+	}
+
+	@Test
+	fun `same delivery cannot replay changed raw AP evidence`() {
+		val authority = authority()
+		val original = freshFact(authority)
+		val changedRaw = input(
+			authority,
+			accessPoints = listOf(accessPoint(5_180, -50, 1_000_000_000L)),
+		)
+		classify(
+			changedRaw,
+			authority,
+			priorFact = original.toReusableFact(),
+		) shouldBe rejected(WifiFactRejection.DELIVERY_IDENTITY_COLLISION)
+		classify(
+			changedRaw,
+			authority,
+			semanticRevision = 2L,
+			supersedesSemanticRevision = 1L,
+			correctionBase = original.toReusableFact(),
+		) shouldBe rejected(WifiFactRejection.RAW_EVIDENCE_CHANGED)
+	}
+
+	@Test
+	fun `same delivery cannot correct immutable clock evidence`() {
+		val authority = authority()
+		val originalInput = input(authority)
+		val original = (
+			classify(originalInput, authority) as WifiCapturedFactClassification.FreshChanged
+			).fact
+		val wal = requireNotNull(originalInput.walEvidence)
+		val changedClock = originalInput.copy(
+			walEvidence = wal.copy(
+				clock = wal.clock.copy(wallTimeUncertaintyMs = DEFAULT_UNCERTAINTY_MS + 1L),
+			),
+		)
+
+		classify(
+			changedClock,
+			authority,
+			priorFact = original.toReusableFact(),
+		) shouldBe rejected(WifiFactRejection.DELIVERY_IDENTITY_COLLISION)
+		classify(
+			changedClock,
+			authority,
+			semanticRevision = 2L,
+			supersedesSemanticRevision = 1L,
+			correctionBase = original.toReusableFact(),
+		) shouldBe rejected(WifiFactRejection.RAW_EVIDENCE_CHANGED)
+	}
+
+	@Test
+	fun `exact replay and product no-op correction do not create revisions`() {
+		val authority = authority()
+		val originalInput = input(authority)
+		val original = (
+			classify(originalInput, authority) as WifiCapturedFactClassification.FreshChanged
+			).fact
+		classify(
+			originalInput,
+			authority,
+			priorFact = original.toReusableFact(),
+		) shouldBe WifiCapturedFactClassification.Absent
+		classify(
+			originalInput,
+			authority,
+			semanticRevision = 2L,
+			supersedesSemanticRevision = 1L,
+			correctionBase = original.toReusableFact(),
+		) shouldBe WifiCapturedFactClassification.Absent
+	}
+
+	@Test
+	fun `captured authority is immutable and current deletion epoch is separate`() {
+		val authority = authority()
+		val original = input(authority)
+		val wal = requireNotNull(original.walEvidence)
+		val mismatches = listOf(
+			wal.copy(sourceAdmissionOrdinal = 0L),
+			wal.copy(logicalTrackingId = LogicalTrackingId("other-tracking")),
+			wal.copy(serviceRunId = ServiceRunId("other-run")),
+			wal.copy(sourceInstanceId = SourceInstanceId("other-instance")),
+			wal.copy(registrationGeneration = 10L),
+			wal.copy(configurationRevision = 6L),
+			wal.copy(physicalConfigurationFingerprint = "other-physical"),
+			wal.copy(authorizationRevision = 4L),
+			wal.copy(authorizationFingerprint = "other-authorization"),
+			wal.copy(purposeEligibilityMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART),
+			wal.copy(sourcePolicyRevision = 12L),
+			wal.copy(captureConsentEpoch = 8L),
+			wal.copy(sessionManifestRevision = 18L),
+			wal.copy(lifecycleLeaseGeneration = 20L),
+			wal.copy(capturedCollectedDataEpoch = 24L),
+		)
+		classify(
+			original.copy(walEvidence = mismatches.first()),
+			authority,
+		) shouldBe rejected(WifiFactRejection.WAL_PROVENANCE_UNVERIFIABLE)
+		mismatches.drop(1).forEach { wal ->
+			classify(original.copy(walEvidence = wal), authority) shouldBe
+				rejected(WifiFactRejection.CAPTURE_AUTHORITY_MISMATCH)
 		}
+		classify(
+			original,
+			authority,
+			deletionAuthority = WifiDeletionAuthority(24L, null),
+		) shouldBe rejected(WifiFactRejection.DELETION_AUTHORITY_MISMATCH)
+	}
+
+	@Test
+	fun `serialized acquisition plan and applied registration are exact historical evidence`() {
+		val authority = authority()
+		val corruptPlan = authority.copy(
+			serializedAcquisitionPlan = authority.serializedAcquisitionPlan.copy(
+				payloadChecksum = "f".repeat(64),
+			),
+		)
+		classify(
+			input(corruptPlan),
+			corruptPlan,
+		) shouldBe rejected(WifiFactRejection.ACQUISITION_PLAN_UNVERIFIABLE)
+
+		val mismatchedAge = authority.copy(
+			acquisitionConfiguration = authority.acquisitionConfiguration.copy(
+				maximumObservationAgeNanos = 999L,
+			),
+		)
+		classify(input(mismatchedAge), mismatchedAge) shouldBe
+			rejected(WifiFactRejection.ACQUISITION_PLAN_UNVERIFIABLE)
+		val mismatchedFingerprint = authority.copy(
+			physicalConfigurationFingerprint = "other-physical",
+		)
+		classify(input(mismatchedFingerprint), mismatchedFingerprint) shouldBe
+			rejected(WifiFactRejection.ACQUISITION_PLAN_UNVERIFIABLE)
+
+		val mismatchedRegistration = authority.copy(
+			appliedRegistration = authority.appliedRegistration.copy(appliedRevision = 4L),
+		)
+		classify(input(mismatchedRegistration), mismatchedRegistration) shouldBe
+			rejected(WifiFactRejection.APPLIED_REGISTRATION_MISMATCH)
+	}
+
+	@Test
+	fun `payload checksum and WAL integrity are independently rejected`() {
+		val authority = authority()
+		val original = input(authority)
+		val wal = requireNotNull(original.walEvidence)
+		classify(
+			original.copy(
+				walEvidence = wal.copy(payloadChecksum = "f".repeat(64)),
+			),
+			authority,
+		) shouldBe rejected(WifiFactRejection.PAYLOAD_INTEGRITY_UNVERIFIABLE)
+		classify(
+			original.copy(
+				walEvidence = wal.copy(walIntegrityIdentity = "not-a-digest"),
+			),
+			authority,
+		) shouldBe rejected(WifiFactRejection.WAL_INTEGRITY_UNVERIFIABLE)
+	}
+
+	@Test
+	fun `wall time is derived with uncertainty and full interval obeys retention`() {
+		val authority = authority()
+		val input = input(
+			authority = authority,
+			observedWallTimeMs = 100L,
+			wallTimeUncertaintyMs = 5L,
+			accessPoints = listOf(
+				accessPoint(2_412, -50, 999_500_000L),
+				accessPoint(0, -60, 1_000_000_000L),
+			),
+		)
+		val accepted = classify(
+			input,
+			authority,
+			deletionAuthority = WifiDeletionAuthority(CAPTURED_EPOCH, 94L),
+		) as WifiCapturedFactClassification.FreshChanged
+		accepted.fact.observedWallTimeMs shouldBe 100L
+		accepted.fact.wallTimeUncertaintyMs shouldBe 6L
+		classify(
+			input,
+			authority,
+			deletionAuthority = WifiDeletionAuthority(CAPTURED_EPOCH, 95L),
+		) shouldBe WifiCapturedFactClassification.Stale
+	}
+
+	@Test
+	fun `clock timeline and zone authority must be verifiable`() {
+		val authority = authority()
+		val original = input(authority)
+		val wal = requireNotNull(original.walEvidence)
+		val wrongTimeline = original.copy(
+			walEvidence = wal.copy(
+				clock = wal.clock.copy(
+					observedElapsedRealtimeNanos = 1_100_000_000L,
+				),
+			),
+		)
+		classify(wrongTimeline, authority) shouldBe WifiCapturedFactClassification.ClockUnverifiable
+		shouldThrow<IllegalArgumentException> { authority(zoneId = "Not/A_Zone") }
+	}
+
+	private fun classify(
+		input: WifiObservationInput,
+		authority: WifiCaptureAuthority,
+		deletionAuthority: WifiDeletionAuthority = WifiDeletionAuthority(CAPTURED_EPOCH, null),
+		semanticRevision: Long = 1L,
+		supersedesSemanticRevision: Long? = null,
+		priorFact: WifiReusableFact? = null,
+		correctionBase: WifiReusableFact? = null,
+	): WifiCapturedFactClassification = WifiCapturedFactClassifier.classify(
+		input = input,
+		expectedAuthority = authority,
+		currentDeletionAuthority = deletionAuthority,
+		semanticRevision = semanticRevision,
+		supersedesSemanticRevision = supersedesSemanticRevision,
+		priorFact = priorFact,
+		correctionBase = correctionBase,
+	)
+
+	private fun freshFact(authority: WifiCaptureAuthority): WifiCapturedFact.Aggregate =
+		(
+			classify(input(authority), authority) as WifiCapturedFactClassification.FreshChanged
+			).fact
+
+	private fun authority(
+		maximumObservationAgeMs: Long = 500L,
+		maximumAccessPointCount: Int = 64,
+		zoneId: String = "Europe/Prague",
+	): WifiCaptureAuthority {
+		val plan = WifiPlan(
+			revision = 5L,
+			mode = WifiMode.BROADCAST_DRIVEN,
+			minimumAttemptIntervalMs = 300_000L,
+			maximumAcceptableResultAgeMs = maximumObservationAgeMs,
+			unchangedResultDedupeWindowMs = 600_000L,
+			backoff = RetryBackoff(1_000L, 60_000L),
+		)
+		val encodedPlan = SourcePlanCodec().encode(plan)
+		val fingerprint = plan.physicalConfigurationFingerprint()
+		return WifiCaptureAuthority(
+			logicalTrackingId = LogicalTrackingId("tracking-1"),
+			serviceRunId = ServiceRunId("run-1"),
+			sessionSegmentId = 41L,
+			capturedSources = setOf(SourceKind.WIFI),
+			controlSources = emptySet(),
+			sourceInstanceId = SourceInstanceId("wifi-instance-1"),
+			registrationGeneration = 9L,
+			configurationRevision = plan.revision,
+			physicalConfigurationFingerprint = fingerprint,
+			authorizationRevision = 3L,
+			authorizationFingerprint = "wifi-authorization-1",
+			purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			sourcePolicyRevision = 11L,
+			captureConsentEpoch = 7L,
+			sessionManifestRevision = 17L,
+			lifecycleLeaseGeneration = 19L,
+			collectedDataEpoch = CAPTURED_EPOCH,
+			clockDomainId = CLOCK_DOMAIN,
+			zoneId = zoneId,
+			temporalAuthority = WifiCaptureTemporalAuthority(
+				providerAcceptance = WifiProviderTimeInterval(1L, 10_000_000_000L),
+				authorizationEffect = WifiProviderTimeInterval(1L, 10_000_000_000L),
+				sessionRunEffect = WifiProviderTimeInterval(1L, 10_000_000_000L),
+			),
+			acquisitionConfiguration = WifiHistoricalAcquisitionConfiguration(
+				maximumObservationAgeNanos = Math.multiplyExact(
+					maximumObservationAgeMs,
+					NANOS_PER_MILLISECOND,
+				),
+				maximumAccessPointCount = maximumAccessPointCount,
+				minimumFrequencyMhz = 2_400,
+				maximumFrequencyMhz = 7_125,
+				minimumSignalLevelDbm = -200,
+				maximumSignalLevelDbm = 0,
+			),
+			serializedAcquisitionPlan = WifiSerializedAcquisitionPlanEvidence(
+				payloadVersion = 1,
+				payloadBytes = encodedPlan.bytes.toList(),
+				payloadChecksum = encodedPlan.checksum,
+			),
+			appliedRegistration = WifiAppliedRegistrationEvidence(
+				desiredRevision = plan.revision,
+				appliedRevision = plan.revision,
+				sourceInstanceId = SourceInstanceId("wifi-instance-1"),
+				registrationGeneration = 9L,
+				appliedAtElapsedRealtimeNanos = 0L,
+				physicalConfigurationFingerprint = fingerprint,
+				clockDomainId = CLOCK_DOMAIN,
+				capturedCollectedDataEpoch = CAPTURED_EPOCH,
+			),
+		)
 	}
 
 	private fun input(
+		authority: WifiCaptureAuthority,
+		delivery: Char = 'a',
 		origin: WifiObservationOrigin = WifiObservationOrigin.PROVIDER_RESULTS_CALLBACK,
 		outcome: WifiProviderOutcome = WifiProviderOutcome.RESULTS_UPDATED,
-		deliveryIdentity: SourceDeliveryIdentity? = identity('a'),
-		clockDomainId: String? = "boot-1",
-		receivedElapsedRealtimeNanos: Long = 1_100L,
-		observedWallTimeMs: Long? = 2_000L,
-		wallTimeUncertaintyMs: Long? = 5L,
-		confirmedEmptyProof: WifiConfirmedEmptyProviderProof? = null,
-		accessPoints: List<WifiAccessPointEvidence>,
-	) = WifiObservationInput(
-		origin = origin,
-		outcome = outcome,
-		sourceDeliveryIdentity = deliveryIdentity,
-		clockDomainId = clockDomainId,
-		receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
-		observedWallTimeMs = observedWallTimeMs,
-		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
-		confirmedEmptyProof = confirmedEmptyProof,
-		accessPoints = accessPoints,
-	)
+		accessPoints: List<WifiAccessPointEvidence> = listOf(
+			accessPoint(2_412, -50, 1_000_000_000L),
+		),
+		receivedElapsedRealtimeNanos: Long = 1_100_000_000L,
+		observedWallTimeMs: Long = DEFAULT_WALL_TIME_MS,
+		wallTimeUncertaintyMs: Long = DEFAULT_UNCERTAINTY_MS,
+		confirmedEmptyProviderTimeNanos: Long? = null,
+	): WifiObservationInput {
+		if (outcome != WifiProviderOutcome.RESULTS_UPDATED) {
+			return WifiObservationInput(origin, outcome, null, null)
+		}
+		val payload = WifiResultSnapshotPayload(accessPoints, null, null)
+		val encoded = DefaultSourcePayloadCodec().encode(payload, 2)
+		val providerTimes = accessPoints.mapNotNull(WifiAccessPointEvidence::providerTimestampNanos)
+		val observed = providerTimes.maxOrNull() ?: confirmedEmptyProviderTimeNanos ?: 1_000_000_000L
+		val observedStart = providerTimes.minOrNull() ?: observed
+		val deliveryIdentity = identity(delivery)
+		val wal = WifiWalObservationEvidence(
+			sourceEventId = SourceEventId("wifi-event-$delivery"),
+			sourceAdmissionOrdinal = 7L + (delivery - 'a').toLong(),
+			walIntegrityIdentity = sha256("wifi-wal-$delivery-${encoded.checksum}"),
+			sourceDeliveryIdentity = deliveryIdentity,
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 1,
+			capturedAuthority = authority,
+			logicalTrackingId = authority.logicalTrackingId,
+			serviceRunId = authority.serviceRunId,
+			sourceInstanceId = authority.sourceInstanceId,
+			registrationGeneration = authority.registrationGeneration,
+			configurationRevision = authority.configurationRevision,
+			physicalConfigurationFingerprint = authority.physicalConfigurationFingerprint,
+			authorizationRevision = authority.authorizationRevision,
+			authorizationFingerprint = authority.authorizationFingerprint,
+			purposeEligibilityMask = authority.purposeEligibilityMask,
+			sourcePolicyRevision = authority.sourcePolicyRevision,
+			captureConsentEpoch = authority.captureConsentEpoch,
+			sessionManifestRevision = authority.sessionManifestRevision,
+			lifecycleLeaseGeneration = authority.lifecycleLeaseGeneration,
+			capturedCollectedDataEpoch = authority.collectedDataEpoch,
+			clock = WifiDurableClockEvidence(
+				clockDomainId = authority.clockDomainId,
+				observedIntervalStartElapsedRealtimeNanos = observedStart,
+				observedElapsedRealtimeNanos = observed,
+				receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
+				observedWallTimeMs = observedWallTimeMs,
+				wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+			),
+			payloadVersion = 2,
+			payloadBytes = encoded.bytes.toList(),
+			payloadChecksum = encoded.checksum,
+		)
+		return WifiObservationInput(
+			origin = origin,
+			outcome = outcome,
+			walEvidence = wal,
+			confirmedEmptyProof = confirmedEmptyProviderTimeNanos?.let {
+				WifiConfirmedEmptyProviderProof.fromProviderCallback(wal, it)
+			},
+		)
+	}
 
 	private fun accessPoint(
 		frequencyMhz: Int,
 		signalLevelDbm: Int,
 		providerTimestampNanos: Long?,
-	) = WifiAccessPointEvidence(
-		identifierToken = "",
-		frequencyMhz = frequencyMhz,
-		signalLevelDbm = signalLevelDbm,
-		providerTimestampNanos = providerTimestampNanos,
-	)
-
-	private fun authority(
-		capturedSources: Set<SourceKind> = setOf(SourceKind.WIFI),
-		controlSources: Set<SourceKind> = emptySet(),
-		purposeEligibilityMask: Long = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-		maximumObservationAgeNanos: Long = 500L,
-		maximumAccessPointCount: Int = 64,
-		minimumFrequencyMhz: Int = 1,
-		maximumFrequencyMhz: Int = 100_000,
-		minimumSignalLevelDbm: Int = -127,
-		maximumSignalLevelDbm: Int = 0,
-	) = WifiCaptureAuthority(
-		logicalTrackingId = LogicalTrackingId("tracking-1"),
-		serviceRunId = ServiceRunId("run-1"),
-		sessionSegmentId = 41L,
-		capturedSources = capturedSources,
-		controlSources = controlSources,
-		sourceInstanceId = SourceInstanceId("wifi-provider"),
-		registrationGeneration = 3L,
-		configurationRevision = 5L,
-		physicalConfigurationFingerprint = "wifi-physical",
-		authorizationRevision = 7L,
-		authorizationFingerprint = "wifi-authorization",
-		purposeEligibilityMask = purposeEligibilityMask,
-		sourcePolicyRevision = 11L,
-		captureConsentEpoch = 13L,
-		sessionManifestRevision = 17L,
-		lifecycleLeaseGeneration = 19L,
-		collectedDataEpoch = 23L,
-		clockDomainId = "boot-1",
-		zoneId = "Europe/Prague",
-		temporalAuthority = WifiCaptureTemporalAuthority(
-			providerAcceptance = WifiProviderTimeInterval(0L, 10_000L),
-			authorizationEffect = WifiProviderTimeInterval(0L, 10_000L),
-			sessionRunEffect = WifiProviderTimeInterval(0L, 10_000L),
-		),
-		acquisitionConfiguration = WifiHistoricalAcquisitionConfiguration(
-			maximumObservationAgeNanos = maximumObservationAgeNanos,
-			maximumAccessPointCount = maximumAccessPointCount,
-			minimumFrequencyMhz = minimumFrequencyMhz,
-			maximumFrequencyMhz = maximumFrequencyMhz,
-			minimumSignalLevelDbm = minimumSignalLevelDbm,
-			maximumSignalLevelDbm = maximumSignalLevelDbm,
-		),
-	)
-
-	private fun confirmedEmptyProof(
-		deliveryIdentity: SourceDeliveryIdentity = identity('a'),
-		clockDomainId: String = "boot-1",
-		providerObservationElapsedRealtimeNanos: Long = 1_000L,
-		receivedElapsedRealtimeNanos: Long = 1_100L,
-		observedWallTimeMs: Long = 2_000L,
-		wallTimeUncertaintyMs: Long = 5L,
-	) = WifiConfirmedEmptyProviderProof.fromProviderCallback(
-		sourceDeliveryIdentity = deliveryIdentity,
-		clockDomainId = clockDomainId,
-		providerObservationElapsedRealtimeNanos = providerObservationElapsedRealtimeNanos,
-		receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
-		observedWallTimeMs = observedWallTimeMs,
-		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
-	)
+		identifierToken: String = "",
+	) = WifiAccessPointEvidence(identifierToken, frequencyMhz, signalLevelDbm, providerTimestampNanos)
 
 	private fun identity(character: Char) = SourceDeliveryIdentity(character.toString().repeat(64))
+
+	private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
+		.digest(value.toByteArray(Charsets.UTF_8))
+		.joinToString(separator = "") { byte -> "%02x".format(byte) }
+
+	private fun rejected(reason: WifiFactRejection) = WifiCapturedFactClassification.Rejected(reason)
+
+	private companion object {
+		const val CAPTURED_EPOCH = 23L
+		const val CLOCK_DOMAIN = "boot-1"
+		const val DEFAULT_WALL_TIME_MS = 2_000L
+		const val DEFAULT_UNCERTAINTY_MS = 5L
+		const val NANOS_PER_MILLISECOND = 1_000_000L
+	}
 }
