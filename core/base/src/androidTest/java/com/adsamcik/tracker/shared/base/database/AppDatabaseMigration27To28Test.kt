@@ -1305,7 +1305,7 @@ class AppDatabaseMigration27To28Test {
 			continuitySegmentGeneration = 1L,
 			sourceInstanceId = "ambient-migration-instance",
 			authorizationRevision = 1L,
-			authorizationFingerprint = "ambient-migration-authorization",
+			authorizationFingerprint = "a".repeat(64),
 			windowStartTimeMs = 1_000L,
 			windowEndTimeMs = 2_000L,
 			observedAtMs = 2_000L,
@@ -1343,7 +1343,7 @@ class AppDatabaseMigration27To28Test {
 			sourcePolicyRevision = 2L,
 			ambientConsentEpoch = 2L,
 			collectedDataEpoch = 7L,
-			eligibleFromTimeMs = 2_000L,
+			eligibleFromTimeMs = 6_000L,
 			continuitySegmentGeneration = 3L,
 			segmentStartTimeMs = 6_000L,
 			importedThroughTimeMs = 6_000L,
@@ -1425,10 +1425,9 @@ class AppDatabaseMigration27To28Test {
 			database.ambientStepsImportStateDao().insertAuthorityTransition(
 				AmbientStepsImportAuthorityTransitionEntity(
 					transitionId = AmbientStepsImportAuthorityTransitionIntegrity.transitionId(
-						1L,
-						transitionSequence,
-						"ambient-migration-instance",
-						7L,
+						1L, transitionSequence, provider, "ambient-migration-instance", 7L, 2L, 3L,
+						1L, "a".repeat(64), 1L, 1L, 2L, "b".repeat(64),
+						"boot-v28", 6_000_000_000L, 5_001L, 2L, 2L, 1_001L, 6_000L,
 					),
 					registrationGeneration = 1L,
 					transitionSequence = transitionSequence,

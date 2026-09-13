@@ -145,7 +145,7 @@ class AmbientStepsFactRevisionEntityTest {
 				continuitySegmentGeneration = 1L,
 				sourceInstanceId = "ambient-instance",
 				authorizationRevision = 3L,
-				authorizationFingerprint = "ambient-authorization",
+				authorizationFingerprint = "a".repeat(64),
 				windowStartTimeMs = 1_000L,
 				windowEndTimeMs = 2_000L,
 				observedAtMs = 2_000L,

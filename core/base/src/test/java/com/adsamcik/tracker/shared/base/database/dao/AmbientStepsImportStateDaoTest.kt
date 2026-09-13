@@ -300,10 +300,9 @@ class AmbientStepsImportStateDaoTest {
 	private fun authorityTransition(): AmbientStepsImportAuthorityTransitionEntity =
 		AmbientStepsImportAuthorityTransitionEntity(
 			transitionId = AmbientStepsImportAuthorityTransitionIntegrity.transitionId(
-				registrationGeneration = 7L,
-				transitionSequence = 1L,
-				sourceInstanceId = "ambient-instance",
-				collectedDataEpoch = 6L,
+				7L, 1L, PROVIDER, "ambient-instance", 6L, 1L, 2L,
+				3L, "a".repeat(64), 4L, 5L, 4L, "b".repeat(64),
+				"boot-a", 6_000_000_000L, 5_001L, 8L, 9L, 1_001L, 6_000L,
 			),
 			registrationGeneration = 7L,
 			transitionSequence = 1L,

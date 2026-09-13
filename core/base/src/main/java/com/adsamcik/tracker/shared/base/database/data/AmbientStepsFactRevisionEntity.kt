@@ -110,7 +110,7 @@ data class AmbientStepsFactRevisionEntity(
 		require(continuitySegmentGeneration != null && continuitySegmentGeneration > 0L)
 		require(sourceInstanceId?.isNotBlank() == true)
 		require(authorizationRevision != null && authorizationRevision > 0L)
-		require(authorizationFingerprint?.isNotBlank() == true)
+		require(authorizationFingerprint?.matches(LOWERCASE_SHA256) == true)
 		require(windowStartTimeMs != null && windowStartTimeMs >= 0L)
 		require(windowEndTimeMs != null && windowEndTimeMs > windowStartTimeMs)
 		require(windowStartTimeMs % MILLIS_PER_SECOND == 0L)
@@ -183,6 +183,7 @@ data class AmbientStepsFactRevisionEntity(
 			PROVIDER_HEALTH_CONNECT_MOBILE_STEPS,
 			PROVIDER_LOCAL_RECORDING_STEPS,
 		)
+		private val LOWERCASE_SHA256 = Regex("[0-9a-f]{64}")
 		private const val MAX_ZONE_ID_LENGTH = 128
 		private const val MILLIS_PER_SECOND = 1_000L
 		private const val MAX_PROVIDER_WINDOW_MILLIS = 25L * 60L * 60L * MILLIS_PER_SECOND

@@ -55,6 +55,9 @@ class AmbientStepsImportStateEntitiesTest {
 		transition.effectiveBoundaryTimeMs shouldBe 6_000L
 		listOf<() -> Unit>(
 			{ transition.copy(transitionId = "wrong") },
+			{ transition.copy(fromSourcePolicyRevision = 6L) },
+			{ transition.copy(toAmbientConsentEpoch = 10L) },
+			{ transition.copy(effectiveBoundaryTimeMs = 7_000L) },
 			{ transition.copy(toContinuitySegmentGeneration = 3L) },
 			{ transition.copy(toAuthorizationRevision = 3L) },
 			{ transition.copy(effectiveBoundaryTimeMs = 5_000L) },
@@ -168,10 +171,9 @@ class AmbientStepsImportStateEntitiesTest {
 	private fun authorityTransition(): AmbientStepsImportAuthorityTransitionEntity =
 		AmbientStepsImportAuthorityTransitionEntity(
 			transitionId = AmbientStepsImportAuthorityTransitionIntegrity.transitionId(
-				7L,
-				1L,
-				"ambient-instance",
-				6L,
+				7L, 1L, PROVIDER, "ambient-instance", 6L, 1L, 2L,
+				3L, "a".repeat(64), 4L, 5L, 4L, "b".repeat(64),
+				"boot-a", 6_000_000_000L, 5_001L, 8L, 9L, 1_001L, 6_000L,
 			),
 			registrationGeneration = 7L,
 			transitionSequence = 1L,

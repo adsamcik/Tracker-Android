@@ -116,7 +116,7 @@ class AmbientStepsFactRevisionDaoTest {
 				continuitySegmentGeneration = 1L,
 				sourceInstanceId = "ambient-instance",
 				authorizationRevision = 1L,
-				authorizationFingerprint = "ambient-authorization",
+				authorizationFingerprint = "a".repeat(64),
 				windowStartTimeMs = startTimeMs,
 				windowEndTimeMs = endTimeMs,
 				observedAtMs = endTimeMs,
