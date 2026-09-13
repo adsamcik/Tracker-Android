@@ -198,6 +198,578 @@ internal class AmbientStepsFactImporter internal constructor(
 		}
 	}
 
+	/**
+	 * Drains one already-retiring predecessor and partitions its coverage from the accepted
+	 * successor. This command is dormant until provider lifecycle explicitly wires the handoff.
+	 */
+	internal suspend fun handoffAcceptedProvider(
+		command: AmbientStepsProviderHandoffCommand,
+	): AmbientStepsProviderHandoffResult {
+		val lifecycle = lifecycleSnapshotOrNull()
+			?: return AmbientStepsProviderHandoffResult.Retryable(
+				AmbientStepsProviderHandoffRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		val preflight = try {
+			database.withTransaction { resolveHandoffPreflight(command, lifecycle) }
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			return AmbientStepsProviderHandoffResult.Retryable(
+				AmbientStepsProviderHandoffRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		}
+		if (preflight is HandoffPreflight.Outcome) return preflight.result
+		preflight as HandoffPreflight.Ready
+
+		val aggregate = if (preflight.drainWindow == null) {
+			null
+		} else {
+			val reader = readers[preflight.predecessor.provider]
+				?: return AmbientStepsProviderHandoffResult.Ineligible(
+					AmbientStepsProviderHandoffIneligibleReason.PROVIDER_READER_UNAVAILABLE,
+				)
+			if (reader.provider != preflight.predecessor.provider) {
+				return AmbientStepsProviderHandoffResult.Retryable(
+					AmbientStepsProviderHandoffRetryableReason.PROVIDER_RESULT_MISMATCH,
+				)
+			}
+			try {
+				reader.read(preflight.drainWindow.providerWindow, command.observedAtMs)
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				return AmbientStepsProviderHandoffResult.Retryable(
+					AmbientStepsProviderHandoffRetryableReason.PROVIDER_READ_FAILED,
+				)
+			}
+		}
+		if (aggregate != null && (
+			aggregate.provider != preflight.predecessor.provider ||
+				aggregate.window != preflight.drainWindow?.providerWindow ||
+				aggregate.observedAtMs != command.observedAtMs
+			)
+		) {
+			return AmbientStepsProviderHandoffResult.Retryable(
+				AmbientStepsProviderHandoffRetryableReason.PROVIDER_RESULT_MISMATCH,
+			)
+		}
+
+		val commitLifecycle = lifecycleSnapshotOrNull()
+			?: return AmbientStepsProviderHandoffResult.Retryable(
+				AmbientStepsProviderHandoffRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		if (commitLifecycle != lifecycle) {
+			return AmbientStepsProviderHandoffResult.Stale(
+				AmbientStepsProviderHandoffStaleReason.LIFECYCLE_CHANGED,
+			)
+		}
+		return try {
+			database.withTransaction {
+				commitHandoff(preflight, command, commitLifecycle, aggregate)
+			}
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: RetractedAmbientStepsFactException) {
+			AmbientStepsProviderHandoffResult.Stale(
+				AmbientStepsProviderHandoffStaleReason.FACT_RETRACTED,
+			)
+		} catch (_: ConcurrentAmbientStepsImportException) {
+			AmbientStepsProviderHandoffResult.Stale(
+				AmbientStepsProviderHandoffStaleReason.CURRENT_STATE_CHANGED,
+			)
+		} catch (_: Exception) {
+			AmbientStepsProviderHandoffResult.Retryable(
+				AmbientStepsProviderHandoffRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		}
+	}
+
+	private suspend fun resolveHandoffPreflight(
+		command: AmbientStepsProviderHandoffCommand,
+		lifecycle: CollectedDataLifecycleSnapshot,
+	): HandoffPreflight {
+		val boundary = command.importBoundary()
+		val successor = when (val resolved = resolveAuthority(boundary, lifecycle)) {
+			is AuthorityResolution.Outcome -> {
+				val importReason = (resolved.result as? AmbientStepsImportResult.Ineligible)?.reason
+				return HandoffPreflight.Outcome(
+					AmbientStepsProviderHandoffResult.Ineligible(
+						if (importReason ==
+							AmbientStepsImportIneligibleReason.DESTINATION_OWNER_INELIGIBLE
+					) {
+							AmbientStepsProviderHandoffIneligibleReason.DESTINATION_OWNER_INELIGIBLE
+						} else {
+							AmbientStepsProviderHandoffIneligibleReason.REPLACEMENT_NOT_ACCEPTED
+						},
+					),
+				)
+			}
+			is AuthorityResolution.Ready -> resolved.authority
+		}
+		if (successor.registration.registrationGeneration !=
+			command.successorRegistrationGeneration
+		) {
+			return handoffStale(AmbientStepsProviderHandoffStaleReason.REGISTRATION_CHANGED)
+		}
+
+		val brokerDao = database.sourceBrokerDao()
+		val predecessorRegistration = brokerDao.registration(
+			SOURCE_KIND,
+			command.predecessorRegistrationGeneration,
+		) ?: return handoffIneligible(
+			AmbientStepsProviderHandoffIneligibleReason.PREDECESSOR_NOT_DRAINABLE,
+		)
+		val predecessorProvider = predecessorRegistration.ambientStepsProviderOrNull()
+			?: return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.PREDECESSOR_NOT_DRAINABLE,
+			)
+		if (predecessorProvider == successor.provider ||
+			predecessorRegistration.ownerScope != successor.registration.ownerScope ||
+			predecessorRegistration.sourceInstanceId != successor.registration.sourceInstanceId ||
+			predecessorRegistration.collectedDataEpoch != lifecycle.epoch ||
+			predecessorRegistration.clockDomainId != command.observedBootId ||
+			predecessorRegistration.providerResidency !=
+				ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE ||
+			predecessorRegistration.status !in setOf(
+				ProviderRegistrationGenerationEntity.STATUS_RETIRING,
+				ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			)
+		) {
+			return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.PREDECESSOR_NOT_DRAINABLE,
+			)
+		}
+		val cutoverWallTimeMs = predecessorRegistration.retiredAtMs
+			?: return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.PREDECESSOR_NOT_DRAINABLE,
+			)
+		val cutoverElapsedRealtimeNanos = predecessorRegistration.retiredElapsedRealtimeNanos
+			?: return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.PREDECESSOR_NOT_DRAINABLE,
+			)
+		if (successor.registration.acceptedAtMs != cutoverWallTimeMs ||
+			successor.registration.acceptedElapsedRealtimeNanos != cutoverElapsedRealtimeNanos ||
+			cutoverWallTimeMs > command.observedAtMs ||
+			cutoverElapsedRealtimeNanos > command.observedElapsedRealtimeNanos
+		) {
+			return handoffStale(AmbientStepsProviderHandoffStaleReason.REGISTRATION_CHANGED)
+		}
+
+		val stateDao = database.ambientStepsImportStateDao()
+		val storedPredecessorCursor = stateDao.cursor(command.predecessorRegistrationGeneration)
+		val successorStartTimeMs = roundForwardToSecond(
+			listOfNotNull(
+				cutoverWallTimeMs,
+				successor.registration.acceptedAtMs,
+				successor.authorizationEffectiveWallTimeMs,
+				successor.policy.effectiveWallTimeMs,
+				successor.consent.effectiveWallTimeMs,
+				lifecycle.retainedFromMs,
+			).max(),
+		)
+		if (successorStartTimeMs > command.observedAtMs) {
+			return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.REPLACEMENT_NOT_ACCEPTED,
+			)
+		}
+		val successorCursor = stateDao.cursor(command.successorRegistrationGeneration)
+		if (storedPredecessorCursor?.status == AmbientStepsImportCursorEntity.STATUS_RETIRED) {
+			val replayGap = successorCursor?.let { cursor ->
+				stateDao.gaps(cursor.registrationGeneration).singleOrNull { gap ->
+					gap.reason == AmbientStepsImportGapEntity.REASON_PROVIDER_CHANGED &&
+						gap.predecessorRegistrationGeneration ==
+						command.predecessorRegistrationGeneration &&
+						gap.predecessorProvider == predecessorProvider.name &&
+						gap.gapStartTimeMs == successorStartTimeMs &&
+						gap.gapEndTimeMs == successorStartTimeMs
+				}
+			}
+			if (successorCursor?.status == AmbientStepsImportCursorEntity.STATUS_ACTIVE &&
+				replayGap != null
+			) {
+				return HandoffPreflight.Outcome(
+					AmbientStepsProviderHandoffResult.Completed(
+						predecessorRegistrationGeneration =
+						command.predecessorRegistrationGeneration,
+						successorRegistrationGeneration =
+						command.successorRegistrationGeneration,
+						successorStartTimeMs = successorStartTimeMs,
+						drainDisposition = AmbientStepsProviderDrainDisposition.ALREADY_COVERED,
+						drainedWindow = null,
+						logicalFactId = null,
+						replayed = true,
+					),
+				)
+			}
+			return handoffStale(AmbientStepsProviderHandoffStaleReason.CURSOR_CHANGED)
+		}
+		if (predecessorRegistration.status !=
+			ProviderRegistrationGenerationEntity.STATUS_RETIRING
+		) {
+			return handoffStale(AmbientStepsProviderHandoffStaleReason.REGISTRATION_CHANGED)
+		}
+		if (successorCursor != null) {
+			return handoffStale(AmbientStepsProviderHandoffStaleReason.CURSOR_CHANGED)
+		}
+
+		val authLookupTime = cutoverElapsedRealtimeNanos.takeIf { it > 0L }?.minus(1L)
+			?: return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.AUTHORITY_NOT_PROVABLE,
+			)
+		val predecessorAuthorization = brokerDao.authorizationAt(
+			SOURCE_KIND,
+			predecessorRegistration.registrationGeneration,
+			predecessorRegistration.clockDomainId,
+			authLookupTime,
+		).toAuthorizationSnapshotOrNull()
+			?: return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.AUTHORITY_NOT_PROVABLE,
+			)
+		val cutoffAuthorization = brokerDao.authorizationAt(
+			SOURCE_KIND,
+			predecessorRegistration.registrationGeneration,
+			predecessorRegistration.clockDomainId,
+			cutoverElapsedRealtimeNanos,
+		).toAuthorizationSnapshotOrNull()
+			?: return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.AUTHORITY_NOT_PROVABLE,
+			)
+		val cutoffDemandIds = cutoffAuthorization.members.mapNotNull { it.demandId }.distinct()
+		val cutoffDemands = if (cutoffDemandIds.isEmpty()) {
+			emptyList()
+		} else {
+			brokerDao.demandsByIds(cutoffDemandIds)
+		}
+		if (cutoffAuthorization.authorizationRevision <=
+			predecessorAuthorization.authorizationRevision ||
+			cutoffAuthorization.authorizationFingerprint !=
+				successor.authorization.authorizationFingerprint ||
+			cutoffAuthorization.purposeEligibilityMask !=
+				SourceBrokerPurpose.MASK_AMBIENT_PRODUCT ||
+			cutoffAuthorization.effectiveElapsedRealtimeNanos != cutoverElapsedRealtimeNanos ||
+			cutoffAuthorization.members.any { it.effectiveWallTimeMs != cutoverWallTimeMs } ||
+			cutoffDemands.any { it.providerMatches(predecessorProvider) }
+		) {
+			return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.AUTHORITY_NOT_PROVABLE,
+			)
+		}
+		val demandIds = predecessorAuthorization.members.mapNotNull { it.demandId }.distinct()
+		if (demandIds.isEmpty()) {
+			return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.AUTHORITY_NOT_PROVABLE,
+			)
+		}
+		val predecessorDemands = brokerDao.demandsByIds(demandIds)
+		if (!predecessorAuthorization.isExactRetiredAmbientAuthorization(
+				registration = predecessorRegistration,
+			demands = predecessorDemands,
+			provider = predecessorProvider,
+			cutoverBootId = command.observedBootId,
+			cutoverElapsedRealtimeNanos = cutoverElapsedRealtimeNanos,
+			cutoverWallTimeMs = cutoverWallTimeMs,
+		)) {
+			return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.AUTHORITY_NOT_PROVABLE,
+			)
+		}
+		val predecessorPolicyRevision = predecessorAuthorization.members
+			.mapNotNull { it.sourcePolicyRevision }.distinct().singleOrNull()
+			?: return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.AUTHORITY_NOT_PROVABLE,
+			)
+		val predecessorConsentEpoch = predecessorAuthorization.members
+			.mapNotNull { it.consentEpoch }.distinct().singleOrNull()
+			?: return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.AUTHORITY_NOT_PROVABLE,
+			)
+		val policyDao = database.sourcePolicyDao()
+		val predecessorPolicy = policyDao.policyAtRevision(predecessorPolicyRevision, SOURCE_KIND)
+			?: return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.AUTHORITY_NOT_PROVABLE,
+			)
+		val predecessorConsent = policyDao.consentEpoch(
+			SOURCE_KIND,
+			SourceBrokerPurpose.AMBIENT_PRODUCT,
+			predecessorConsentEpoch,
+		) ?: return handoffIneligible(
+			AmbientStepsProviderHandoffIneligibleReason.AUTHORITY_NOT_PROVABLE,
+		)
+		if (!predecessorPolicy.isHistoricalAmbientPolicy(
+				predecessorConsent,
+				predecessorAuthorization,
+				cutoverWallTimeMs,
+			)
+		) {
+			return handoffIneligible(
+				AmbientStepsProviderHandoffIneligibleReason.AUTHORITY_NOT_PROVABLE,
+			)
+		}
+
+		val predecessor = HistoricalAmbientAuthority(
+			registration = predecessorRegistration,
+			provider = predecessorProvider,
+			authorization = predecessorAuthorization,
+			policy = predecessorPolicy,
+			consent = predecessorConsent,
+			lifecycle = lifecycle,
+		)
+		val predecessorCursor = storedPredecessorCursor ?: predecessor.initialCursor()
+		if (!predecessorCursor.matchesHistoricalAuthority(predecessor)) {
+			return handoffStale(AmbientStepsProviderHandoffStaleReason.AUTHORIZATION_CHANGED)
+		}
+		val predecessorCutoffTimeMs = roundBackwardToSecond(cutoverWallTimeMs)
+		if (predecessorCursor.importedThroughTimeMs > successorStartTimeMs ||
+			predecessorCutoffTimeMs > successorStartTimeMs ||
+			predecessorCursor.lastObservedAtMs > command.observedAtMs
+		) {
+			return handoffStale(AmbientStepsProviderHandoffStaleReason.CURSOR_CHANGED)
+		}
+		val retainedFloor = lifecycle.retainedFromMs?.let(::roundForwardToSecond)
+		val noReadGapReason = when {
+			predecessorCursor.lastObservedZoneId ==
+				AmbientStepsImportGapEntity.ZONE_AUTHORITY_UNOBSERVED ->
+				AmbientStepsImportGapReason.INITIAL_ZONE_AUTHORITY_UNOBSERVED
+			predecessorCursor.lastObservedZoneId != command.zoneId.id ->
+				AmbientStepsImportGapReason.ZONE_CHANGED
+			retainedFloor != null && retainedFloor > predecessorCursor.importedThroughTimeMs ->
+				AmbientStepsImportGapReason.RETENTION_ADVANCED
+			else -> null
+		}
+		val drainWindow = if (noReadGapReason == null &&
+			predecessorCutoffTimeMs > predecessorCursor.importedThroughTimeMs
+		) {
+			planner.planProgressive(
+				segmentStartTimeMs = predecessorCursor.segmentStartTimeMs,
+				importedThroughTimeMs = predecessorCursor.importedThroughTimeMs,
+				throughTimeMs = predecessorCutoffTimeMs,
+				zoneId = command.zoneId,
+			).windows.singleOrNull()
+		} else {
+			null
+		}
+		return HandoffPreflight.Ready(
+			predecessor = predecessor,
+			successor = successor,
+			storedPredecessorCursor = storedPredecessorCursor,
+			predecessorCursor = predecessorCursor,
+			drainWindow = drainWindow,
+			noReadGapReason = noReadGapReason,
+			predecessorCutoffTimeMs = predecessorCutoffTimeMs,
+			successorStartTimeMs = successorStartTimeMs,
+			cutoverWallTimeMs = cutoverWallTimeMs,
+			cutoverElapsedRealtimeNanos = cutoverElapsedRealtimeNanos,
+		)
+	}
+
+	private suspend fun commitHandoff(
+		preflight: HandoffPreflight.Ready,
+		command: AmbientStepsProviderHandoffCommand,
+		lifecycle: CollectedDataLifecycleSnapshot,
+		aggregate: AmbientStepsProviderAggregate?,
+	): AmbientStepsProviderHandoffResult {
+		val current = resolveHandoffPreflight(command, lifecycle)
+		if (current !is HandoffPreflight.Ready || current != preflight) {
+			return AmbientStepsProviderHandoffResult.Stale(
+				AmbientStepsProviderHandoffStaleReason.CURRENT_STATE_CHANGED,
+			)
+		}
+		if (preflight.predecessor.registration.status !=
+			ProviderRegistrationGenerationEntity.STATUS_RETIRING
+		) {
+			return AmbientStepsProviderHandoffResult.Stale(
+				AmbientStepsProviderHandoffStaleReason.REGISTRATION_CHANGED,
+			)
+		}
+
+		val stateDao = database.ambientStepsImportStateDao()
+		if (preflight.storedPredecessorCursor == null &&
+			stateDao.insertCursor(preflight.predecessorCursor) == INSERT_IGNORED
+		) {
+			throw ConcurrentAmbientStepsImportException()
+		}
+		var predecessorCursor = requireNotNull(
+			stateDao.cursor(preflight.predecessor.registration.registrationGeneration),
+		)
+		var logicalFactId: String? = null
+		var changed = false
+		if (preflight.drainWindow != null && aggregate != null) {
+			val application = applyHandoffAggregate(
+				authority = preflight.successor,
+				cursor = predecessorCursor,
+				window = preflight.drainWindow,
+				aggregate = aggregate,
+				lifecycle = lifecycle,
+			)
+			predecessorCursor = application.cursor
+			logicalFactId = application.logicalFactId
+			changed = application.changed
+		}
+
+		val missingStartTimeMs = predecessorCursor.importedThroughTimeMs
+		if (missingStartTimeMs < preflight.successorStartTimeMs) {
+			predecessorCursor = advanceAcrossGap(
+				cursor = predecessorCursor,
+				reason = preflight.noReadGapReason
+					?: AmbientStepsImportGapReason.AUTHORITY_BOUNDARY_NOT_DRAINED,
+				toTimeMs = preflight.successorStartTimeMs,
+				nextZoneId = command.zoneId.id,
+				boundary = command.importBoundary(preflight.successorStartTimeMs),
+			)
+		}
+		val appliedAtMs = appliedAtMs(
+			command.importBoundary(preflight.successorStartTimeMs),
+			preflight.successorStartTimeMs,
+		)
+		if (stateDao.retireExact(
+				registrationGeneration = predecessorCursor.registrationGeneration,
+				expectedCursorRevision = predecessorCursor.cursorRevision,
+				expectedImportedThroughTimeMs = predecessorCursor.importedThroughTimeMs,
+				expectedUpdatedAtMs = predecessorCursor.updatedAtMs,
+				newCursorRevision = Math.addExact(predecessorCursor.cursorRevision, 1L),
+				updatedAtMs = appliedAtMs,
+			) != 1
+		) {
+			throw ConcurrentAmbientStepsImportException()
+		}
+
+		var successorCursor = preflight.successor.initialCursor(command.zoneId.id)
+		if (stateDao.insertCursor(successorCursor) == INSERT_IGNORED) {
+			throw ConcurrentAmbientStepsImportException()
+		}
+		if (successorCursor.importedThroughTimeMs < preflight.successorStartTimeMs) {
+			val retainedFloor = lifecycle.retainedFromMs?.let(::roundForwardToSecond)
+			successorCursor = advanceAcrossGap(
+				cursor = successorCursor,
+				reason = if (retainedFloor != null &&
+					retainedFloor == preflight.successorStartTimeMs
+				) {
+					AmbientStepsImportGapReason.RETENTION_ADVANCED
+				} else {
+					AmbientStepsImportGapReason.AUTHORITY_BOUNDARY_NOT_DRAINED
+				},
+				toTimeMs = preflight.successorStartTimeMs,
+				nextZoneId = command.zoneId.id,
+				boundary = command.importBoundary(preflight.successorStartTimeMs),
+			)
+		}
+		beginProviderChangedSegment(
+			cursor = successorCursor,
+			predecessor = preflight.predecessor,
+			boundary = command.importBoundary(preflight.successorStartTimeMs),
+		)
+
+		val disposition = when {
+			preflight.drainWindow == null &&
+				preflight.predecessorCursor.importedThroughTimeMs ==
+				preflight.successorStartTimeMs ->
+				AmbientStepsProviderDrainDisposition.ALREADY_COVERED
+			preflight.drainWindow == null || aggregate == null ->
+				AmbientStepsProviderDrainDisposition.UNAVAILABLE
+			preflight.drainWindow?.endTimeMs != preflight.successorStartTimeMs ->
+				AmbientStepsProviderDrainDisposition.PARTIAL
+			!changed -> AmbientStepsProviderDrainDisposition.UNCHANGED
+			else -> AmbientStepsProviderDrainDisposition.APPLIED
+		}
+		return AmbientStepsProviderHandoffResult.Completed(
+			predecessorRegistrationGeneration =
+				preflight.predecessor.registration.registrationGeneration,
+			successorRegistrationGeneration =
+				preflight.successor.registration.registrationGeneration,
+			successorStartTimeMs = preflight.successorStartTimeMs,
+			drainDisposition = disposition,
+			drainedWindow = preflight.drainWindow.takeIf { aggregate != null },
+			logicalFactId = logicalFactId,
+			replayed = false,
+		)
+	}
+
+	private suspend fun applyHandoffAggregate(
+		authority: AmbientAuthority,
+		cursor: AmbientStepsImportCursorEntity,
+		window: AmbientStepsStructuralWindow,
+		aggregate: AmbientStepsProviderAggregate,
+		lifecycle: CollectedDataLifecycleSnapshot,
+	): HandoffFactApplication {
+		val logicalFactId = AmbientStepsFactIntegrity.logicalFactId(
+			provider = cursor.provider,
+			registrationGeneration = cursor.registrationGeneration,
+			continuitySegmentGeneration = cursor.continuitySegmentGeneration,
+			sourceInstanceId = cursor.sourceInstanceId,
+			windowStartTimeMs = window.startTimeMs,
+			structuralEpochDay = window.day.epochDay,
+			storedZoneId = window.day.zoneId,
+			collectedDataEpoch = cursor.collectedDataEpoch,
+		)
+		val factDao = database.ambientStepsFactRevisionDao()
+		val latest = factDao.latest(
+			AmbientStepsFactRevisionEntity.WRITER_ID,
+			AmbientStepsFactRevisionEntity.WRITER_VERSION,
+			logicalFactId,
+		)
+		if (latest?.operation == AmbientStepsFactRevisionEntity.OPERATION_RETRACT) {
+			throw RetractedAmbientStepsFactException()
+		}
+		val unchanged = latest != null && latest.matchesAggregate(
+			authority = authority,
+			cursor = cursor,
+			window = window,
+			aggregate = aggregate,
+		)
+		if (!unchanged) {
+			val nextRevision = Math.addExact(latest?.semanticRevision ?: 0L, 1L)
+			val fact = ambientFact(
+				authority = authority,
+				cursor = cursor,
+				window = window,
+				aggregate = aggregate,
+				semanticRevision = nextRevision,
+				appliedAtMs = maxOf(clock.currentTimeMillis(), aggregate.observedAtMs),
+			)
+			val evidenceDao = database.sourceEvidenceStateDao()
+			val lifecycleChanged = evidenceDao.synchronizeLifecycle(
+				epoch = lifecycle.epoch,
+				retainedFromMs = lifecycle.retainedFromMs,
+				updatedAtMs = fact.appliedAtMs,
+			)
+			val roomLifecycle = requireNotNull(evidenceDao.get())
+			if (roomLifecycle.collectedDataEpoch != lifecycle.epoch ||
+				roomLifecycle.retainedFromMs != lifecycle.retainedFromMs ||
+				factDao.insert(fact) == INSERT_IGNORED ||
+				(!lifecycleChanged && evidenceDao.incrementRevision(fact.appliedAtMs) != 1)
+			) {
+				throw ConcurrentAmbientStepsImportException()
+			}
+		}
+		val appliedAtMs = maxOf(clock.currentTimeMillis(), aggregate.observedAtMs)
+		val nextCursorRevision = Math.addExact(cursor.cursorRevision, 1L)
+		if (database.ambientStepsImportStateDao().advanceExact(
+				registrationGeneration = cursor.registrationGeneration,
+				expectedContinuitySegmentGeneration = cursor.continuitySegmentGeneration,
+				expectedLastGapSequence = cursor.lastGapSequence,
+				expectedCursorRevision = cursor.cursorRevision,
+				expectedImportedThroughTimeMs = cursor.importedThroughTimeMs,
+				expectedObservedAtMs = cursor.lastObservedAtMs,
+				expectedUpdatedAtMs = cursor.updatedAtMs,
+				expectedBootId = cursor.lastObservedBootId,
+				expectedZoneId = cursor.lastObservedZoneId,
+				newImportedThroughTimeMs = window.endTimeMs,
+				newObservedAtMs = aggregate.observedAtMs,
+				newCursorRevision = nextCursorRevision,
+				updatedAtMs = appliedAtMs,
+			) != 1
+		) {
+			throw ConcurrentAmbientStepsImportException()
+		}
+		return HandoffFactApplication(
+			cursor = requireNotNull(
+				database.ambientStepsImportStateDao().cursor(cursor.registrationGeneration),
+			),
+			logicalFactId = logicalFactId,
+			changed = !unchanged,
+		)
+	}
+
 	private suspend fun resolvePreflight(
 		boundary: AmbientStepsImportBoundary,
 		lifecycle: CollectedDataLifecycleSnapshot,
@@ -715,6 +1287,78 @@ internal class AmbientStepsFactImporter internal constructor(
 		return requireNotNull(dao.cursor(cursor.registrationGeneration))
 	}
 
+	private suspend fun beginProviderChangedSegment(
+		cursor: AmbientStepsImportCursorEntity,
+		predecessor: HistoricalAmbientAuthority,
+		boundary: AmbientStepsImportBoundary,
+	): AmbientStepsImportCursorEntity {
+		val nextGapSequence = Math.addExact(cursor.lastGapSequence, 1L)
+		val nextContinuityGeneration = Math.addExact(cursor.continuitySegmentGeneration, 1L)
+		val transitionTimeMs = cursor.importedThroughTimeMs
+		val recordedAtMs = appliedAtMs(boundary, transitionTimeMs)
+		val gapId = AmbientStepsImportGapIntegrity.gapId(
+			registrationGeneration = cursor.registrationGeneration,
+			gapSequence = nextGapSequence,
+			provider = cursor.provider,
+			sourceInstanceId = cursor.sourceInstanceId,
+			reason = AmbientStepsImportGapEntity.REASON_PROVIDER_CHANGED,
+			gapStartTimeMs = transitionTimeMs,
+			gapEndTimeMs = transitionTimeMs,
+			predecessorRegistrationGeneration = predecessor.registration.registrationGeneration,
+			predecessorProvider = predecessor.provider.name,
+			previousClockDomainId = cursor.lastObservedBootId,
+			nextClockDomainId = cursor.lastObservedBootId,
+			previousZoneId = cursor.lastObservedZoneId,
+			nextZoneId = cursor.lastObservedZoneId,
+			collectedDataEpoch = cursor.collectedDataEpoch,
+		)
+		val gap = AmbientStepsImportGapEntity(
+			gapId = gapId,
+			registrationGeneration = cursor.registrationGeneration,
+			gapSequence = nextGapSequence,
+			provider = cursor.provider,
+			sourceInstanceId = cursor.sourceInstanceId,
+			reason = AmbientStepsImportGapEntity.REASON_PROVIDER_CHANGED,
+			gapStartTimeMs = transitionTimeMs,
+			gapEndTimeMs = transitionTimeMs,
+			predecessorRegistrationGeneration = predecessor.registration.registrationGeneration,
+			predecessorProvider = predecessor.provider.name,
+			previousClockDomainId = cursor.lastObservedBootId,
+			nextClockDomainId = cursor.lastObservedBootId,
+			previousZoneId = cursor.lastObservedZoneId,
+			nextZoneId = cursor.lastObservedZoneId,
+			collectedDataEpoch = cursor.collectedDataEpoch,
+			recordedAtMs = recordedAtMs,
+		)
+		val dao = database.ambientStepsImportStateDao()
+		if (dao.insertGap(gap) == INSERT_IGNORED &&
+			dao.gap(cursor.registrationGeneration, nextGapSequence) != gap
+		) {
+			throw ConcurrentAmbientStepsImportException()
+		}
+		if (dao.beginNextSegmentExact(
+				registrationGeneration = cursor.registrationGeneration,
+				expectedContinuitySegmentGeneration = cursor.continuitySegmentGeneration,
+				expectedLastGapSequence = cursor.lastGapSequence,
+				expectedCursorRevision = cursor.cursorRevision,
+				expectedImportedThroughTimeMs = cursor.importedThroughTimeMs,
+				expectedObservedAtMs = cursor.lastObservedAtMs,
+				expectedUpdatedAtMs = cursor.updatedAtMs,
+				newLastGapSequence = nextGapSequence,
+				newContinuitySegmentGeneration = nextContinuityGeneration,
+				newSegmentStartTimeMs = transitionTimeMs,
+				newObservedAtMs = boundary.observedAtMs,
+				newBootId = cursor.lastObservedBootId,
+				newZoneId = cursor.lastObservedZoneId,
+				newCursorRevision = Math.addExact(cursor.cursorRevision, 1L),
+				updatedAtMs = recordedAtMs,
+			) != 1
+		) {
+			throw ConcurrentAmbientStepsImportException()
+		}
+		return requireNotNull(dao.cursor(cursor.registrationGeneration))
+	}
+
 	private suspend fun rotateAuthority(
 		cursor: AmbientStepsImportCursorEntity,
 		transition: AmbientStepsImportAuthorityTransitionEntity,
@@ -824,6 +1468,82 @@ internal class AmbientStepsFactImporter internal constructor(
 
 	private fun appliedAtMs(boundary: AmbientStepsImportBoundary, effectiveTimeMs: Long): Long =
 		maxOf(clock.currentTimeMillis(), boundary.observedAtMs, effectiveTimeMs)
+
+	internal sealed interface HandoffPreflight {
+		data class Ready(
+			val predecessor: HistoricalAmbientAuthority,
+			val successor: AmbientAuthority,
+			val storedPredecessorCursor: AmbientStepsImportCursorEntity?,
+			val predecessorCursor: AmbientStepsImportCursorEntity,
+			val drainWindow: AmbientStepsStructuralWindow?,
+			val noReadGapReason: AmbientStepsImportGapReason?,
+			val predecessorCutoffTimeMs: Long,
+			val successorStartTimeMs: Long,
+			val cutoverWallTimeMs: Long,
+			val cutoverElapsedRealtimeNanos: Long,
+		) : HandoffPreflight
+
+		data class Outcome(val result: AmbientStepsProviderHandoffResult) : HandoffPreflight
+	}
+
+	internal data class HistoricalAmbientAuthority(
+		val registration: ProviderRegistrationGenerationEntity,
+		val provider: AmbientStepsProvider,
+		val authorization: SourceAuthorizationSnapshot,
+		val policy: SourcePolicyEntity,
+		val consent: SourceConsentEpochEntity,
+		val lifecycle: CollectedDataLifecycleSnapshot,
+	) {
+		val authorizationEffectiveWallTimeMs: Long
+			get() = authorization.members.first().effectiveWallTimeMs
+
+		val privacyFloorTimeMs: Long
+			get() = roundForwardToSecond(
+				maxOf(
+					requireNotNull(registration.acceptedAtMs),
+					authorizationEffectiveWallTimeMs,
+					policy.effectiveWallTimeMs,
+					consent.effectiveWallTimeMs,
+				),
+			)
+
+		fun initialCursor(): AmbientStepsImportCursorEntity = AmbientStepsImportCursorEntity(
+			registrationGeneration = registration.registrationGeneration,
+			provider = provider.name,
+			sourceInstanceId = registration.sourceInstanceId,
+			registrationClockDomainId = registration.clockDomainId,
+			registrationAcceptedAtMs = requireNotNull(registration.acceptedAtMs),
+			registrationAcceptedElapsedRealtimeNanos =
+				requireNotNull(registration.acceptedElapsedRealtimeNanos),
+			authorizationRevision = authorization.authorizationRevision,
+			authorizationFingerprint = authorization.authorizationFingerprint,
+			authorizationEffectiveBootId = authorization.effectiveBootId,
+			authorizationEffectiveElapsedRealtimeNanos =
+				authorization.effectiveElapsedRealtimeNanos,
+			authorizationEffectiveWallTimeMs = authorizationEffectiveWallTimeMs,
+			sourcePolicyRevision = policy.policyRevision,
+			ambientConsentEpoch = consent.epoch,
+			collectedDataEpoch = lifecycle.epoch,
+			eligibleFromTimeMs = privacyFloorTimeMs,
+			continuitySegmentGeneration = 1L,
+			segmentStartTimeMs = privacyFloorTimeMs,
+			importedThroughTimeMs = privacyFloorTimeMs,
+			lastObservedAtMs = privacyFloorTimeMs,
+			lastObservedBootId = registration.clockDomainId,
+			lastObservedZoneId = AmbientStepsImportGapEntity.ZONE_AUTHORITY_UNOBSERVED,
+			lastGapSequence = 0L,
+			authorityTransitionSequence = 0L,
+			cursorRevision = 1L,
+			status = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
+			updatedAtMs = privacyFloorTimeMs,
+		)
+	}
+
+	private data class HandoffFactApplication(
+		val cursor: AmbientStepsImportCursorEntity,
+		val logicalFactId: String,
+		val changed: Boolean,
+	)
 
 	private sealed interface Preflight {
 		data class Ready(
@@ -1031,6 +1751,87 @@ private fun SourceDemandEntity.providerMatches(provider: AmbientStepsProvider): 
 	return floor.mechanism == mechanism
 }
 
+private fun SourceAuthorizationSnapshot.isExactRetiredAmbientAuthorization(
+	registration: ProviderRegistrationGenerationEntity,
+	demands: List<SourceDemandEntity>,
+	provider: AmbientStepsProvider,
+	cutoverBootId: String,
+	cutoverElapsedRealtimeNanos: Long,
+	cutoverWallTimeMs: Long,
+): Boolean {
+	val effectiveWallTimeMs = members.firstOrNull()?.effectiveWallTimeMs ?: return false
+	val authorizedDemandIds = members.mapNotNull { it.demandId }.toSet()
+	return !isDenied && purposeEligibilityMask == SourceBrokerPurpose.MASK_AMBIENT_PRODUCT &&
+		authorizationFingerprint == SourceBrokerAuthorization.fingerprint(demands) &&
+		effectiveBootId == registration.clockDomainId && effectiveBootId == cutoverBootId &&
+		effectiveElapsedRealtimeNanos < cutoverElapsedRealtimeNanos &&
+		effectiveWallTimeMs <= cutoverWallTimeMs &&
+		authorizedDemandIds.isNotEmpty() &&
+		authorizedDemandIds == demands.map(SourceDemandEntity::demandId).toSet() &&
+		members.all { member ->
+			!member.isDenyAll && member.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
+				member.persistenceEligible && member.effectiveBootId == effectiveBootId &&
+				member.effectiveElapsedRealtimeNanos == effectiveElapsedRealtimeNanos &&
+				member.effectiveWallTimeMs == effectiveWallTimeMs
+		} &&
+		demands.all { demand ->
+			demand.sourceKind == registration.sourceKind &&
+				demand.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
+				demand.logicalTrackingId == null && demand.serviceRunId == null &&
+				demand.manifestRevision == null && demand.lifecycleLeaseGeneration == null &&
+				demand.persistenceEligible && demand.providerMatches(provider) &&
+				demand.status == SourceDemandEntity.STATUS_RETIRED &&
+				demand.retireBootId == cutoverBootId &&
+				demand.retireElapsedRealtimeNanos == cutoverElapsedRealtimeNanos &&
+				demand.retiredAtMs == cutoverWallTimeMs &&
+				demand.requestedBootId == effectiveBootId &&
+				demand.requestedElapsedRealtimeNanos <= effectiveElapsedRealtimeNanos &&
+				demand.requestedAtMs <= effectiveWallTimeMs
+		}
+}
+
+private fun SourcePolicyEntity.isHistoricalAmbientPolicy(
+	consent: SourceConsentEpochEntity,
+	authorization: SourceAuthorizationSnapshot,
+	cutoverWallTimeMs: Long,
+): Boolean {
+	val authorizationWallTimeMs = authorization.members.firstOrNull()?.effectiveWallTimeMs
+		?: return false
+	return sourceKind == consent.sourceKind && ambientPersistenceEligible &&
+		ambientConsentEpoch == consent.epoch &&
+		policyRevision == consent.policyRevision && consent.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
+		consent.eligible && consent.persistenceEligible &&
+		effectiveBootId == authorization.effectiveBootId &&
+		consent.effectiveBootId == authorization.effectiveBootId &&
+		effectiveElapsedRealtimeNanos <= authorization.effectiveElapsedRealtimeNanos &&
+		consent.effectiveElapsedRealtimeNanos <= authorization.effectiveElapsedRealtimeNanos &&
+		effectiveWallTimeMs <= authorizationWallTimeMs &&
+		consent.effectiveWallTimeMs <= authorizationWallTimeMs &&
+		authorizationWallTimeMs <= cutoverWallTimeMs &&
+		authorization.members.all { member ->
+			member.sourcePolicyRevision == policyRevision && member.consentEpoch == consent.epoch
+		}
+}
+
+private fun AmbientStepsImportCursorEntity.matchesHistoricalAuthority(
+	authority: AmbientStepsFactImporter.HistoricalAmbientAuthority,
+): Boolean = registrationGeneration == authority.registration.registrationGeneration &&
+	provider == authority.provider.name && sourceInstanceId == authority.registration.sourceInstanceId &&
+	registrationClockDomainId == authority.registration.clockDomainId &&
+	registrationAcceptedAtMs == authority.registration.acceptedAtMs &&
+	registrationAcceptedElapsedRealtimeNanos == authority.registration.acceptedElapsedRealtimeNanos &&
+	authorizationRevision == authority.authorization.authorizationRevision &&
+	authorizationFingerprint == authority.authorization.authorizationFingerprint &&
+	authorizationEffectiveBootId == authority.authorization.effectiveBootId &&
+	authorizationEffectiveElapsedRealtimeNanos ==
+		authority.authorization.effectiveElapsedRealtimeNanos &&
+	authorizationEffectiveWallTimeMs == authority.authorizationEffectiveWallTimeMs &&
+	sourcePolicyRevision == authority.policy.policyRevision &&
+	ambientConsentEpoch == authority.consent.epoch &&
+	collectedDataEpoch == authority.lifecycle.epoch &&
+	eligibleFromTimeMs == authority.privacyFloorTimeMs &&
+	status == AmbientStepsImportCursorEntity.STATUS_ACTIVE
+
 private fun SourceAuthorizationSnapshot?.isExactAmbientAuthorization(
 	demands: List<SourceDemandEntity>,
 	policy: SourcePolicyEntity,
@@ -1121,6 +1922,33 @@ private fun roundForwardToSecond(timeMs: Long): Long {
 	val remainder = timeMs % MILLIS_PER_SECOND
 	return if (remainder == 0L) timeMs else Math.addExact(timeMs, MILLIS_PER_SECOND - remainder)
 }
+
+private fun roundBackwardToSecond(timeMs: Long): Long {
+	require(timeMs >= 0L)
+	return timeMs - (timeMs % MILLIS_PER_SECOND)
+}
+
+private fun AmbientStepsProviderHandoffCommand.importBoundary(
+	throughTimeMs: Long = roundBackwardToSecond(observedAtMs),
+): AmbientStepsImportBoundary = AmbientStepsImportBoundary(
+	observedBootId = observedBootId,
+	observedElapsedRealtimeNanos = observedElapsedRealtimeNanos,
+	observedAtMs = observedAtMs,
+	throughTimeMs = throughTimeMs,
+	zoneId = zoneId,
+)
+
+private fun handoffIneligible(
+	reason: AmbientStepsProviderHandoffIneligibleReason,
+): AmbientStepsFactImporter.HandoffPreflight = AmbientStepsFactImporter.HandoffPreflight.Outcome(
+	AmbientStepsProviderHandoffResult.Ineligible(reason),
+)
+
+private fun handoffStale(
+	reason: AmbientStepsProviderHandoffStaleReason,
+): AmbientStepsFactImporter.HandoffPreflight = AmbientStepsFactImporter.HandoffPreflight.Outcome(
+	AmbientStepsProviderHandoffResult.Stale(reason),
+)
 
 private fun authorityDifference(
 	before: AmbientStepsFactImporter.AmbientAuthority,
