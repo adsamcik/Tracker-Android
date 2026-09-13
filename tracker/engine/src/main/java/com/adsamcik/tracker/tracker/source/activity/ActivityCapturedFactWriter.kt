@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedPlanIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
@@ -212,18 +213,19 @@ internal class ActivityCapturedFactWriter(
 			?.takeIf { desired -> desired.payloadVersion == SOURCE_PLAN_PAYLOAD_VERSION }
 			?.let { desired -> runCatching { planCodec.decode(desired.payload) as? ActivityPlan }.getOrNull() }
 		val canonicalActivityPlan = decodedActivityPlan?.let(planCodec::encode)
+		val verifiedActivityPlan = desiredActivityPlan?.let(ActivityCapturedPlanIntegrity::decode)
 		val historicalRegistrationPlan = database.activityCapturedFactDao().registrationPlanBinding(
 			authority.sourceInstanceId.value,
 			authority.registrationGeneration,
 		)
 		if (acquisitionRevision?.sourcePolicyRevision != authority.sourcePolicyRevision ||
-			desiredActivityPlan == null || decodedActivityPlan == null ||
+			desiredActivityPlan == null || decodedActivityPlan == null || verifiedActivityPlan == null ||
 			canonicalActivityPlan == null ||
 			!desiredActivityPlan.payload.contentEquals(canonicalActivityPlan.bytes) ||
 			desiredActivityPlan.payloadChecksum != canonicalActivityPlan.checksum ||
-			decodedActivityPlan.revision != authority.configurationRevision ||
-			!decodedActivityPlan.enabled ||
-			decodedActivityPlan.physicalConfigurationFingerprint() !=
+			verifiedActivityPlan.revision != authority.configurationRevision ||
+			!verifiedActivityPlan.enabled ||
+			verifiedActivityPlan.physicalConfigurationFingerprint !=
 				authority.physicalConfigurationFingerprint ||
 			historicalRegistrationPlan == null ||
 			historicalRegistrationPlan.configurationRevision != authority.configurationRevision ||

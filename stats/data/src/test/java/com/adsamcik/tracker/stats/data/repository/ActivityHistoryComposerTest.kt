@@ -9,6 +9,8 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEn
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
@@ -22,7 +24,10 @@ import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
@@ -32,6 +37,9 @@ import com.adsamcik.tracker.stats.api.repository.ActivityHistoryFragment
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
+import java.security.MessageDigest
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -70,19 +78,21 @@ class ActivityHistoryComposerTest {
 	}
 
 	@Test
-	fun `replacement runs compose as one logical entry while preserving bands and stored zones`() {
+	fun `replacement runs compose as one logical entry with exact uncovered intervals`() {
 		val snapshot = fixture(
 			listOf(RunSpec(1L, "run-a", "Europe/Prague"), RunSpec(2L, "run-b", "UTC")),
 		)
 
-		val entries = ActivityHistoryComposer.composeRecent(snapshot)
+		val entries = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY)
 
 		entries shouldHaveSize 1
 		val entry = entries.single().entry
-		entry.state shouldBe ActivityHistoryProductState.READY
-		entry.coverage shouldBe ActivityHistoryCoverage.COMPLETE
-		entry.fragments shouldHaveSize 2
+		entry.state shouldBe ActivityHistoryProductState.PARTIAL
+		entry.coverage shouldBe ActivityHistoryCoverage.PARTIAL
+		entry.fragments shouldHaveSize 6
 		entry.activeTime?.knownActiveDurationNanos shouldBe 200L
+		entry.activeTime?.unobservedDurationNanos shouldBe 800L
+		entry.causes shouldBe setOf(ActivityHistoryCause.PROVIDER_GAP)
 		entry.storedZoneIds shouldBe setOf("Europe/Prague", "UTC")
 		entry.key.toString() shouldBe "ActivityHistoryEntryKey"
 	}
@@ -91,13 +101,14 @@ class ActivityHistoryComposerTest {
 	fun `explicit persisted gap remains partial and is not converted into a zero observation`() {
 		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC", gap = true)))
 
-		val entry = ActivityHistoryComposer.composeRecent(snapshot).single().entry
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
 
-		entry.state shouldBe ActivityHistoryProductState.READY
+		entry.state shouldBe ActivityHistoryProductState.PARTIAL
 		entry.coverage shouldBe ActivityHistoryCoverage.PARTIAL
 		entry.causes shouldBe setOf(ActivityHistoryCause.PROVIDER_GAP)
-		entry.fragments.single()::class shouldBe ActivityHistoryFragment.Gap::class
-		entry.activeTime?.unobservedDurationNanos shouldBe 100L
+		entry.fragments shouldHaveSize 3
+		entry.fragments.all { it is ActivityHistoryFragment.Gap } shouldBe true
+		entry.activeTime?.unobservedDurationNanos shouldBe 500L
 	}
 
 	@Test
@@ -112,7 +123,7 @@ class ActivityHistoryComposerTest {
 			),
 		)
 
-		val entry = ActivityHistoryComposer.composeRecent(snapshot).single().entry
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
 
 		entry.state shouldBe ActivityHistoryProductState.UNAVAILABLE
 		entry.causes shouldBe setOf(ActivityHistoryCause.PROVIDER_UNAVAILABLE)
@@ -132,7 +143,7 @@ class ActivityHistoryComposerTest {
 		)
 		val snapshot = original.copy(revisions = listOf(first, corrupt))
 
-		val entry = ActivityHistoryComposer.composeRecent(snapshot).single().entry
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
 
 		entry.state shouldBe ActivityHistoryProductState.FAILED
 		entry.causes shouldBe setOf(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
@@ -142,7 +153,7 @@ class ActivityHistoryComposerTest {
 	fun `bounded snapshot overflow is a typed failure with all content hidden`() {
 		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC"))).copy(overflow = true)
 
-		val entry = ActivityHistoryComposer.composeRecent(snapshot).single().entry
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
 
 		entry.state shouldBe ActivityHistoryProductState.FAILED
 		entry.causes shouldBe setOf(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
@@ -161,6 +172,14 @@ class ActivityHistoryComposerTest {
 			presentationAcknowledgedAtMs = null,
 		)
 		val snapshot = initial.copy(
+			sessions = mapOf(LOGICAL_ID to initial.sessions.getValue(LOGICAL_ID).copy(
+				state = "ACTIVE",
+				cutoffAtMs = null,
+				cutoffElapsedNanos = null,
+				completedAtMs = null,
+				finalAdmissionOrdinal = null,
+				currentServiceRunId = "run-a",
+			)),
 			runs = mapOf("run-a" to activeRun),
 			revisions = emptyList(),
 			cursors = emptyList(),
@@ -169,17 +188,171 @@ class ActivityHistoryComposerTest {
 			completenessByRun = emptyMap(),
 		)
 
-		val entry = ActivityHistoryComposer.composeRecent(snapshot).single().entry
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
 
 		entry.state shouldBe ActivityHistoryProductState.MATERIALIZING
 		entry.activeTime shouldBe null
 		entry.fragments shouldBe emptyList()
 	}
 
+	@Test
+	fun `execution authority and full lane shape fail closed`() {
+		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+
+		val notOwned = ActivityHistoryComposer.composeRecent(
+			snapshot,
+			SourceProductLaneExecutionAuthority { false },
+		).single().entry
+		val malformed = ActivityHistoryComposer.composeRecent(
+			snapshot.copy(lanes = listOf(snapshot.lanes.single().copy(retentionRequired = false))),
+			EXECUTION_AUTHORITY,
+		).single().entry
+
+		notOwned.state shouldBe ActivityHistoryProductState.FAILED
+		notOwned.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+		malformed.state shouldBe ActivityHistoryProductState.FAILED
+	}
+
+	@Test
+	fun `cursor revision and applied time are part of exact semantic authority`() {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val cursor = original.cursors.single()
+
+		listOf(
+			cursor.copy(cursorRevision = 2L),
+			cursor.copy(updatedAtMs = cursor.updatedAtMs + 1L),
+		).forEach { corrupt ->
+			val entry = ActivityHistoryComposer.composeRecent(
+				original.copy(cursors = listOf(corrupt)), EXECUTION_AUTHORITY,
+			).single().entry
+			entry.state shouldBe ActivityHistoryProductState.FAILED
+			entry.causes shouldBe setOf(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+		}
+	}
+
+	@Test
+	fun `retained earlier consent policy is accepted while newer consent policy is rejected`() {
+		val original = fixture(
+			listOf(RunSpec(1L, "run-a", "UTC"), RunSpec(2L, "run-b", "UTC")),
+		)
+		val retained = original.consents.getValue(2L).copy(policyRevision = 1L)
+		val retainedEntry = ActivityHistoryComposer.composeRecent(
+			original.copy(consents = original.consents + (2L to retained)), EXECUTION_AUTHORITY,
+		).single().entry
+		val future = original.consents.getValue(1L).copy(policyRevision = 2L)
+		val futureEntry = ActivityHistoryComposer.composeRecent(
+			original.copy(consents = original.consents + (1L to future)), EXECUTION_AUTHORITY,
+		).single().entry
+
+		retainedEntry.state shouldBe ActivityHistoryProductState.PARTIAL
+		futureEntry.state shouldBe ActivityHistoryProductState.FAILED
+		futureEntry.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+	}
+
+	@Test
+	fun `later no-fact settlement ordinal keeps the logical result materializing`() {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val later = completeness("run-a", generation = 2L, stop = "COMPLETE")
+		val firstPlan = original.registrationPlans.values.single()
+		val laterPlan = ActivityCapturedRegistrationPlanEntity.create(
+			sourceInstanceId = later.sourceInstanceId,
+			registrationGeneration = later.registrationGeneration,
+			configurationRevision = firstPlan.configurationRevision,
+			desiredPlanPayloadVersion = firstPlan.desiredPlanPayloadVersion,
+			desiredPlanPayloadChecksum = firstPlan.desiredPlanPayloadChecksum,
+			physicalConfigurationFingerprint = firstPlan.physicalConfigurationFingerprint,
+			appliedAtElapsedRealtimeNanos = firstPlan.appliedAtElapsedRealtimeNanos,
+			applyStatus = firstPlan.applyStatus,
+		)
+		val laterProvider = original.providerRegistrations.values.single().copy(
+			registrationGeneration = 2L,
+			sourceInstanceId = later.sourceInstanceId,
+		)
+		val snapshot = original.copy(
+			sessions = mapOf(LOGICAL_ID to original.sessions.getValue(LOGICAL_ID).copy(finalAdmissionOrdinal = 2L)),
+			completenessByRun = mapOf("run-a" to listOf(original.completenessByRun.getValue("run-a").single(), later)),
+			registrationPlans = original.registrationPlans + ((later.sourceInstanceId to 2L) to laterPlan),
+			providerRegistrations = original.providerRegistrations + (2L to laterProvider),
+			lanes = listOf(lane(throughOrdinal = 1L)),
+		)
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+		val terminal = ActivityHistoryComposer.composeRecent(
+			snapshot.copy(
+				lanes = listOf(lane(throughOrdinal = 2L)),
+				terminalFailures = listOf(
+					SourceProjectionFailureEntity(
+						projectionId = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
+						projectionVersion = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION,
+						admissionOrdinal = 2L,
+						attemptCount = 1,
+						failureCode = "TERMINAL",
+						terminal = true,
+						lastAttemptAtMs = 1L,
+					),
+				),
+			),
+			EXECUTION_AUTHORITY,
+		).single().entry
+
+		entry.state shouldBe ActivityHistoryProductState.MATERIALIZING
+		entry.causes shouldBe setOf(ActivityHistoryCause.PROVIDER_GAP, ActivityHistoryCause.MATERIALIZATION_BEHIND)
+		terminal.state shouldBe ActivityHistoryProductState.FAILED
+		terminal.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+	}
+
+	@Test
+	fun `desired plan checksum and policy qos are authenticated`() {
+		val original = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val badPlan = original.desiredPlans.getValue(1L).copy(payloadChecksum = "0".repeat(64))
+		val badPlanEntry = ActivityHistoryComposer.composeRecent(
+			original.copy(desiredPlans = mapOf(1L to badPlan)), EXECUTION_AUTHORITY,
+		).single().entry
+		val canonical = original.desiredPlans.getValue(1L)
+		val trailingPayload = canonical.payload + 0.toByte()
+		val trailing = canonical.copy(payload = trailingPayload, payloadChecksum = sha256(trailingPayload))
+		val trailingEntry = ActivityHistoryComposer.composeRecent(
+			original.copy(desiredPlans = mapOf(1L to trailing)), EXECUTION_AUTHORITY,
+		).single().entry
+		val badPolicy = original.policies.getValue(1L).copy(qosCode = 99)
+		val badPolicyEntry = ActivityHistoryComposer.composeRecent(
+			original.copy(policies = mapOf(1L to badPolicy)), EXECUTION_AUTHORITY,
+		).single().entry
+
+		badPlanEntry.state shouldBe ActivityHistoryProductState.FAILED
+		trailingEntry.state shouldBe ActivityHistoryProductState.FAILED
+		badPolicyEntry.state shouldBe ActivityHistoryProductState.FAILED
+	}
+
 	private fun fixture(specs: List<RunSpec>): ActivityHistorySnapshot {
 		val built = specs.map(::buildRun)
+		val sessionStart = built.minOf { it.run.startedElapsedNanos }
+		val sessionEnd = built.maxOf { requireNotNull(it.run.completedAtMs) }
 		return ActivityHistorySnapshot(
 			expansion = ActivityMembershipExpansion(built.map(BuiltRun::segment), emptyMap(), false),
+			sessions = mapOf(LOGICAL_ID to LogicalTrackingSessionEntity(
+				logicalTrackingId = LOGICAL_ID,
+				state = "FINALIZED",
+				lifecycleRevision = 1L,
+				desiredPlanRevision = specs.maxOf(RunSpec::revision),
+				rolloutRevision = 1L,
+				startOrigin = "MANUAL_FOREGROUND_START",
+				clockDomainId = ACTIVITY_BOOT_ID,
+				startedAtMs = sessionStart,
+				startedElapsedNanos = sessionStart,
+				cutoffAtMs = sessionEnd,
+				cutoffElapsedNanos = sessionEnd,
+				completedAtMs = sessionEnd,
+				finalAdmissionOrdinal = specs.maxOf(RunSpec::revision),
+				failureCode = null,
+				sessionMode = "MANUAL",
+				currentManifestRevision = specs.maxOf(RunSpec::revision),
+				currentIntentRevision = 1L,
+				currentServiceRunId = null,
+				lifecycleLeaseGeneration = 1L,
+				lifecycleBootId = ACTIVITY_BOOT_ID,
+				automationEpoch = null,
+			)),
 			runs = built.associate { it.run.serviceRunId to it.run },
 			manifestsByRun = built.associate { it.run.serviceRunId to listOf(it.manifest) },
 			sourcesByManifest = built.associate {
@@ -195,6 +368,8 @@ class ActivityHistoryComposerTest {
 			registrationPlans = built.associate {
 				(it.plan.sourceInstanceId to it.plan.registrationGeneration) to it.plan
 			},
+			acquisitionPlanRevisions = built.associate { it.planHeader.revision to it.planHeader },
+			desiredPlans = built.associate { it.desiredPlan.revision to it.desiredPlan },
 			providerRegistrations = built.associate {
 				it.provider.registrationGeneration to it.provider
 			},
@@ -209,7 +384,7 @@ class ActivityHistoryComposerTest {
 	}
 
 	private fun buildRun(spec: RunSpec): BuiltRun {
-		val baseElapsed = spec.revision * 1_000L
+		val baseElapsed = 1_000L + (spec.revision - 1L) * 500L
 		val segment = SessionSegment(
 			id = spec.revision,
 			startTimeMs = baseElapsed,
@@ -236,7 +411,7 @@ class ActivityHistoryComposerTest {
 			startedElapsedNanos = baseElapsed,
 			completedAtMs = baseElapsed + 500L,
 			completionReason = "STOPPED",
-			bootId = "boot-${spec.revision}",
+			bootId = ACTIVITY_BOOT_ID,
 			leaseGeneration = 1L,
 			startOrigin = "MANUAL_FOREGROUND_START",
 			desiredForegroundCapabilityFlags = 0L,
@@ -320,13 +495,27 @@ class ActivityHistoryComposerTest {
 			effectiveWallTimeMs = baseElapsed,
 			changeReason = "START",
 		)
+		val desiredPlan = desiredPlan(spec.revision)
+		val physicalFingerprint = activityPhysicalFingerprint(
+			mode = "TRANSITIONS_ONLY",
+			latency = 5_000L,
+			confidence = 50,
+			transitions = setOf(0, 1),
+		)
+		val planHeader = AcquisitionPlanRevisionEntity(
+			revision = spec.revision,
+			planId = "plan-${spec.revision}",
+			createdAtMs = baseElapsed,
+			status = "APPLIED",
+			sourcePolicyRevision = spec.revision,
+		)
 		val plan = ActivityCapturedRegistrationPlanEntity.create(
 			sourceInstanceId = "activity-${spec.revision}",
 			registrationGeneration = spec.revision,
 			configurationRevision = spec.revision,
-			desiredPlanPayloadVersion = 1,
-			desiredPlanPayloadChecksum = "plan-${spec.revision}",
-			physicalConfigurationFingerprint = "config-${spec.revision}",
+			desiredPlanPayloadVersion = desiredPlan.payloadVersion,
+			desiredPlanPayloadChecksum = desiredPlan.payloadChecksum,
+			physicalConfigurationFingerprint = physicalFingerprint,
 			appliedAtElapsedRealtimeNanos = baseElapsed,
 			applyStatus = "APPLIED",
 		)
@@ -345,8 +534,8 @@ class ActivityHistoryComposerTest {
 			reservedElapsedRealtimeNanos = baseElapsed,
 			acceptedAtMs = baseElapsed,
 			acceptedElapsedRealtimeNanos = baseElapsed,
-			retiredAtMs = baseElapsed + 200L,
-			retiredElapsedRealtimeNanos = baseElapsed + 200L,
+			retiredAtMs = baseElapsed + 500L,
+			retiredElapsedRealtimeNanos = baseElapsed + 500L,
 			failureCode = null,
 			captureCallbackBarrierAuthorizationRevision = 1L,
 		)
@@ -363,7 +552,7 @@ class ActivityHistoryComposerTest {
 			effectChecksum = ActivityCapturedFactIntegrity.effectChecksum(identified, listOf(fragment), evidence),
 		)
 		return BuiltRun(
-			segment, run, manifest, source, policy, consent, plan, provider, authorizations,
+			segment, run, manifest, source, policy, consent, planHeader, desiredPlan, plan, provider, authorizations,
 			revision, fragment, evidence,
 			ActivityCapturedWindowCursorEntity(
 				writerProjectionId = revision.writerProjectionId,
@@ -418,11 +607,11 @@ class ActivityHistoryComposerTest {
 		clockDomainId = run.bootId,
 		storedZoneId = spec.zone,
 		providerAcceptanceStartNanos = base,
-		providerAcceptanceEndNanos = base + 200L,
+		providerAcceptanceEndNanos = base + 500L,
 		authorizationEffectStartNanos = base,
-		authorizationEffectEndNanos = base + 200L,
+		authorizationEffectEndNanos = base + 500L,
 		sessionRunEffectStartNanos = base,
-		sessionRunEffectEndNanos = base + 200L,
+		sessionRunEffectEndNanos = base + 500L,
 		windowStartElapsedRealtimeNanos = base + 10L,
 		windowEndElapsedRealtimeNanos = base + 110L,
 		coverage = if (spec.gap) "NONE" else "COMPLETE",
@@ -569,14 +758,51 @@ class ActivityHistoryComposerTest {
 			consentEpoch = null,
 			persistenceEligible = false,
 			effectiveBootId = run.bootId,
-			effectiveElapsedRealtimeNanos = base + 200L,
-			effectiveWallTimeMs = base + 200L,
+			effectiveElapsedRealtimeNanos = base + 500L,
+			effectiveWallTimeMs = base + 500L,
 			logicalTrackingId = null,
 			serviceRunId = null,
 			manifestRevision = null,
 			lifecycleLeaseGeneration = null,
 		),
 	)
+
+	private fun desiredPlan(revision: Long): SourceDesiredPlanEntity {
+		val payload = ByteArrayOutputStream().use { buffer ->
+			DataOutputStream(buffer).use { output ->
+				output.writeInt(1)
+				output.writeUTF("ACTIVITY")
+				output.writeLong(revision)
+				output.writeUTF("TRANSITIONS_ONLY")
+				output.writeLong(5_000L)
+				output.writeInt(50)
+				output.writeInt(2)
+				output.writeInt(0)
+				output.writeInt(1)
+			}
+			buffer.toByteArray()
+		}
+		return SourceDesiredPlanEntity(
+			revision = revision,
+			sourceKind = ACTIVITY_SOURCE,
+			payloadVersion = 1,
+			payload = payload,
+			payloadChecksum = sha256(payload),
+		)
+	}
+
+	private fun activityPhysicalFingerprint(
+		mode: String,
+		latency: Long,
+		confidence: Int,
+		transitions: Set<Int>,
+	): String = sha256(
+		listOf("ACTIVITY", mode, latency, confidence, transitions.sorted().joinToString(","))
+			.joinToString("\u001f").toByteArray(Charsets.UTF_8),
+	)
+
+	private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+		.digest(bytes).joinToString(separator = "") { byte -> "%02x".format(byte) }
 
 	private fun completeness(runId: String, generation: Long, stop: String) =
 		SourceSessionCompletenessEntity(
@@ -628,6 +854,8 @@ class ActivityHistoryComposerTest {
 		val source: SessionManifestSourceEntity,
 		val policy: SourcePolicyEntity,
 		val consent: SourceConsentEpochEntity,
+		val planHeader: AcquisitionPlanRevisionEntity,
+		val desiredPlan: SourceDesiredPlanEntity,
 		val plan: ActivityCapturedRegistrationPlanEntity,
 		val provider: ProviderRegistrationGenerationEntity,
 		val authorizations: List<SourceAuthorizationEntity>,
@@ -640,5 +868,7 @@ class ActivityHistoryComposerTest {
 
 	private companion object {
 		const val LOGICAL_ID = "logical-activity"
+		const val ACTIVITY_BOOT_ID = "boot-activity"
+		val EXECUTION_AUTHORITY = SourceProductLaneExecutionAuthority { true }
 	}
 }

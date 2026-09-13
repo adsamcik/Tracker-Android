@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEn
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
@@ -310,11 +311,12 @@ interface ActivityCapturedFactDao {
 		beforeSegmentId: Long?,
 	): List<ActivityLogicalHistoryCandidate>
 
-	/** Loads a bounded correction-expanded fact universe for exact physical/logical candidates. */
+	/** Pages a correction-expanded fact universe for exact physical/logical candidates. */
 	@Query(
 		"""
 		SELECT * FROM activity_captured_window_revision AS fact
-		WHERE fact.service_run_id IN (:serviceRunIds)
+		WHERE (
+		     fact.service_run_id IN (:serviceRunIds)
 		   OR fact.logical_tracking_id IN (:logicalTrackingIds)
 		   OR EXISTS (
 		     SELECT 1 FROM activity_captured_window_revision AS candidate
@@ -326,14 +328,31 @@ interface ActivityCapturedFactDao {
 		         OR candidate.logical_tracking_id IN (:logicalTrackingIds)
 		       )
 		   )
+		)
+		AND (
+		  :afterWriterProjectionId IS NULL
+		  OR writer_projection_id > :afterWriterProjectionId
+		  OR (writer_projection_id = :afterWriterProjectionId AND (
+		    writer_projection_version > COALESCE(:afterWriterProjectionVersion, -1)
+		    OR (writer_projection_version = COALESCE(:afterWriterProjectionVersion, -1) AND (
+		      logical_window_id > COALESCE(:afterLogicalWindowId, '')
+		      OR (logical_window_id = COALESCE(:afterLogicalWindowId, '') AND
+		          semantic_revision > COALESCE(:afterSemanticRevision, -1))
+		    ))
+		  ))
+		)
 		ORDER BY writer_projection_id, writer_projection_version, logical_window_id, semantic_revision
 		LIMIT :limit
 		""",
 	)
-	suspend fun historyRevisions(
+	suspend fun historyRevisionPage(
 		serviceRunIds: List<String>,
 		logicalTrackingIds: List<String>,
 		limit: Int,
+		afterWriterProjectionId: String?,
+		afterWriterProjectionVersion: Int?,
+		afterLogicalWindowId: String?,
+		afterSemanticRevision: Long?,
 	): List<ActivityCapturedWindowRevisionEntity>
 
 	@Query(
@@ -371,12 +390,35 @@ interface ActivityCapturedFactDao {
 	@Query(
 		"SELECT * FROM activity_captured_registration_plan " +
 			"WHERE source_instance_id IN (:sourceInstanceIds) " +
+			"AND registration_generation IN (:registrationGenerations) " +
 			"ORDER BY source_instance_id, registration_generation LIMIT :limit",
 	)
 	suspend fun historyRegistrationPlans(
 		sourceInstanceIds: List<String>,
+		registrationGenerations: List<Long>,
 		limit: Int,
 	): List<ActivityCapturedRegistrationPlanEntity>
+
+	/** Immutable acquisition-plan headers referenced by the exact manifest snapshot. */
+	@Query(
+		"SELECT * FROM acquisition_plan_revision WHERE revision IN (:revisions) " +
+			"ORDER BY revision LIMIT :limit",
+	)
+	suspend fun historyAcquisitionPlanRevisions(
+		revisions: List<Long>,
+		limit: Int,
+	): List<AcquisitionPlanRevisionEntity>
+
+	/** Exact immutable Activity desired-plan members referenced by captured manifests. */
+	@Query(
+		"SELECT * FROM source_desired_plan WHERE source_kind = :sourceKind " +
+			"AND revision IN (:revisions) ORDER BY revision LIMIT :limit",
+	)
+	suspend fun historyDesiredPlans(
+		sourceKind: Int,
+		revisions: List<Long>,
+		limit: Int,
+	): List<SourceDesiredPlanEntity>
 
 	/** Immutable provider generations referenced by the bounded captured-fact snapshot. */
 	@Query(

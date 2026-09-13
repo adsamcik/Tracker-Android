@@ -7,6 +7,8 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEn
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -18,6 +20,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
@@ -36,6 +40,7 @@ import kotlinx.coroutines.withContext
 /** Source-local Activity history facade. All dependencies are read in one bounded Room snapshot. */
 internal class DefaultActivityHistoryRepository @Inject constructor(
 	private val database: AppDatabase,
+	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : ActivityHistoryRepository {
 	override suspend fun session(segmentId: Long): ActivityHistoryQuery {
@@ -46,7 +51,7 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 					?: return@withTransaction ActivityHistoryQuery.NotFound
 				val expansion = expandActivityMembership(listOf(seed))
 				val snapshot = loadActivitySnapshot(expansion)
-				val entry = ActivityHistoryComposer.composeSelected(seed, snapshot)
+				val entry = ActivityHistoryComposer.composeSelected(seed, snapshot, laneExecutionAuthority)
 				entry?.let(ActivityHistoryQuery::Found) ?: ActivityHistoryQuery.NotFound
 			}
 		}
@@ -56,59 +61,41 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 		require(limit in 1..MAX_ACTIVITY_HISTORY_RESULTS)
 		return withContext(ioDispatcher) {
 			database.withTransaction {
-				val candidates = loadRecentActivityCandidates()
-				if (candidates.overflow) {
-					return@withTransaction ActivityHistoryPage.Failed(
-						ActivityHistoryCause.READ_BUDGET_EXCEEDED,
-					)
-				}
-				if (candidates.segments.isEmpty()) {
-					return@withTransaction ActivityHistoryPage.Available(emptyList())
-				}
-				val expansion = expandActivityMembership(candidates.segments)
-				val snapshot = loadActivitySnapshot(expansion)
-				if (snapshot.overflow) {
-					return@withTransaction ActivityHistoryPage.Failed(
-						ActivityHistoryCause.READ_BUDGET_EXCEEDED,
-					)
-				}
-				val candidateIds = candidates.segments.mapNotNull(SessionSegment::logicalTrackingId).toSet()
-				ActivityHistoryPage.Available(
-					ActivityHistoryComposer.composeRecent(snapshot)
-						.filter { it.logicalTrackingId in candidateIds }
-						.sortedWith(
-							compareByDescending<ComposedActivityEntry> { it.recencyStartTimeMs }
-								.thenByDescending { it.recencySegmentId },
-						)
-						.take(limit)
-						.map(ComposedActivityEntry::entry),
-				)
+				loadRecentActivityHistory(limit)
 			}
 		}
 	}
 
-	private suspend fun loadRecentActivityCandidates(): ActivityCandidateLoad {
-		val candidates = mutableListOf<SessionSegment>()
-		var beforeStartTimeMs: Long? = null
-		var beforeSegmentId: Long? = null
-		while (true) {
-			currentCoroutineContext().ensureActive()
-			val remaining = MAX_ACTIVITY_CANDIDATE_SCAN - candidates.size
-			val pageLimit = minOf(ACTIVITY_CANDIDATE_PAGE_SIZE, remaining + 1)
-			val page = database.activityCapturedFactDao().logicalHistoryCandidatePage(
-				limit = pageLimit,
-				beforeStartTimeMs = beforeStartTimeMs,
-				beforeSegmentId = beforeSegmentId,
-			)
-			if (page.size > remaining) return ActivityCandidateLoad(candidates, overflow = true)
-			if (page.isEmpty()) break
-			candidates += page.map { it.segment }
-			val last = page.last()
-			beforeStartTimeMs = last.logicalRecencyStartMs
-			beforeSegmentId = last.logicalRecencySegmentId
-			if (page.size < pageLimit) break
-		}
-		return ActivityCandidateLoad(candidates, overflow = false)
+	private suspend fun loadRecentActivityHistory(limit: Int): ActivityHistoryPage {
+		return ActivityRecentHistoryPager.collect(
+			limit = limit,
+			pageSize = ACTIVITY_CANDIDATE_PAGE_SIZE,
+			candidateBudget = MAX_ACTIVITY_CANDIDATE_SCAN,
+			loadPage = { pageLimit, beforeStartTimeMs, beforeSegmentId ->
+				database.activityCapturedFactDao().logicalHistoryCandidatePage(
+					limit = pageLimit,
+					beforeStartTimeMs = beforeStartTimeMs,
+					beforeSegmentId = beforeSegmentId,
+				)
+			},
+			compose = { seeds ->
+				val expansion = expandActivityMembership(seeds)
+				val snapshot = loadActivitySnapshot(expansion)
+				if (snapshot.overflow) {
+					ActivityHistoryPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+				} else {
+					val candidateIds = seeds.mapNotNull(SessionSegment::logicalTrackingId).toSet()
+					ActivityHistoryPage.Available(
+						ActivityHistoryComposer.composeRecent(snapshot, laneExecutionAuthority)
+							.filter { it.logicalTrackingId in candidateIds }
+							.sortedWith(
+								compareByDescending<ComposedActivityEntry> { it.recencyStartTimeMs }
+									.thenByDescending { it.recencySegmentId },
+							).map(ComposedActivityEntry::entry),
+					)
+				}
+			},
+		)
 	}
 
 	private suspend fun expandActivityMembership(
@@ -193,8 +180,10 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 		val completeness = readDao.completeness(runIds, MAX_ACTIVITY_COMPLETENESS + 1)
 		val logicalIds = segments.mapNotNull(SessionSegment::logicalTrackingId)
 			.filter(String::isNotBlank).distinct()
+		val sessions = database.sourceSessionDao().sessions(logicalIds)
 		val factDao = database.activityCapturedFactDao()
-		val revisions = factDao.historyRevisions(runIds, logicalIds, MAX_ACTIVITY_REVISIONS + 1)
+		val revisionLoad = loadActivityRevisionPages(runIds, logicalIds)
+		val revisions = revisionLoad.revisions
 		currentCoroutineContext().ensureActive()
 		val windowIds = revisions.map(ActivityCapturedWindowRevisionEntity::logicalWindowId).distinct()
 		val cursors = if (windowIds.isEmpty()) emptyList() else {
@@ -207,12 +196,32 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 			factDao.historyEvidence(windowIds, MAX_ACTIVITY_EVIDENCE + 1)
 		}
 		currentCoroutineContext().ensureActive()
-		val sourceInstanceIds = revisions.map(ActivityCapturedWindowRevisionEntity::sourceInstanceId)
-			.distinct()
-		val registrationGenerations = revisions
-			.map(ActivityCapturedWindowRevisionEntity::registrationGeneration).distinct()
-		val registrationPlans = if (sourceInstanceIds.isEmpty()) emptyList() else {
-			factDao.historyRegistrationPlans(sourceInstanceIds, MAX_ACTIVITY_REGISTRATION_PLANS + 1)
+		val activityCompleteness = completeness.filter { it.sourceKind == ACTIVITY_SOURCE }
+		val sourceInstanceIds = sequenceOf(
+			revisions.asSequence().map(ActivityCapturedWindowRevisionEntity::sourceInstanceId),
+			activityCompleteness.asSequence().filter { it.registrationGeneration > 0L }
+				.map(SourceSessionCompletenessEntity::sourceInstanceId),
+		).flatten().distinct().toList()
+		val registrationGenerations = sequenceOf(
+			revisions.asSequence().map(ActivityCapturedWindowRevisionEntity::registrationGeneration),
+			activityCompleteness.asSequence().map(SourceSessionCompletenessEntity::registrationGeneration)
+				.filter { it > 0L },
+		).flatten().distinct().toList()
+		val registrationPlans = if (sourceInstanceIds.isEmpty() || registrationGenerations.isEmpty()) {
+			emptyList()
+		} else {
+			factDao.historyRegistrationPlans(
+				sourceInstanceIds,
+				registrationGenerations,
+				MAX_ACTIVITY_REGISTRATION_PLANS + 1,
+			)
+		}
+		val planRevisions = manifests.map(SessionManifestVersionEntity::acquisitionPlanRevision).distinct()
+		val acquisitionPlanRevisions = if (planRevisions.isEmpty()) emptyList() else {
+			factDao.historyAcquisitionPlanRevisions(planRevisions, MAX_ACTIVITY_ACQUISITION_PLANS + 1)
+		}
+		val desiredPlans = if (planRevisions.isEmpty()) emptyList() else {
+			factDao.historyDesiredPlans(ACTIVITY_SOURCE, planRevisions, MAX_ACTIVITY_DESIRED_PLANS + 1)
 		}
 		val providerRegistrations = if (registrationGenerations.isEmpty()) emptyList() else {
 			factDao.historyProviderRegistrations(
@@ -280,17 +289,21 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 				MAX_ACTIVITY_TERMINAL_FAILURES + 1,
 			)
 		}
-		val overflow = manifests.size > MAX_ACTIVITY_MANIFESTS ||
+		val overflow = revisionLoad.overflow ||
+			manifests.size > MAX_ACTIVITY_MANIFESTS ||
 			manifestSources.size > MAX_ACTIVITY_MANIFEST_SOURCES ||
 			completeness.size > MAX_ACTIVITY_COMPLETENESS ||
 			revisions.size > MAX_ACTIVITY_REVISIONS || cursors.size > MAX_ACTIVITY_CURSORS ||
 			fragments.size > MAX_ACTIVITY_FRAGMENTS || evidence.size > MAX_ACTIVITY_EVIDENCE ||
 			registrationPlans.size > MAX_ACTIVITY_REGISTRATION_PLANS ||
+			acquisitionPlanRevisions.size > MAX_ACTIVITY_ACQUISITION_PLANS ||
+			desiredPlans.size > MAX_ACTIVITY_DESIRED_PLANS ||
 			providerRegistrations.size > MAX_ACTIVITY_PROVIDER_REGISTRATIONS ||
 			authorizations.size > MAX_ACTIVITY_AUTHORIZATIONS ||
 			terminalFailures.size > MAX_ACTIVITY_TERMINAL_FAILURES
 		return ActivityHistorySnapshot(
 			expansion = expansion,
+			sessions = sessions.associateBy(LogicalTrackingSessionEntity::logicalTrackingId),
 			runs = runs.associateBy(SourceServiceRunEntity::serviceRunId),
 			manifestsByRun = manifests.take(MAX_ACTIVITY_MANIFESTS)
 				.groupBy(SessionManifestVersionEntity::serviceRunId),
@@ -307,6 +320,10 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 			evidenceByRevision = evidence.take(MAX_ACTIVITY_EVIDENCE).groupBy(::revisionKey),
 			registrationPlans = registrationPlans.take(MAX_ACTIVITY_REGISTRATION_PLANS)
 				.associateBy { it.sourceInstanceId to it.registrationGeneration },
+			acquisitionPlanRevisions = acquisitionPlanRevisions.take(MAX_ACTIVITY_ACQUISITION_PLANS)
+				.associateBy(AcquisitionPlanRevisionEntity::revision),
+			desiredPlans = desiredPlans.take(MAX_ACTIVITY_DESIRED_PLANS)
+				.associateBy(SourceDesiredPlanEntity::revision),
 			providerRegistrations = providerRegistrations.take(MAX_ACTIVITY_PROVIDER_REGISTRATIONS)
 				.associateBy(ProviderRegistrationGenerationEntity::registrationGeneration),
 			authorizationsByRegistration = authorizations.take(MAX_ACTIVITY_AUTHORIZATIONS)
@@ -318,9 +335,39 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 			overflow = overflow,
 		)
 	}
+
+	private suspend fun loadActivityRevisionPages(
+		serviceRunIds: List<String>,
+		logicalTrackingIds: List<String>,
+	): ActivityRevisionLoad {
+		val revisions = mutableListOf<ActivityCapturedWindowRevisionEntity>()
+		var cursor: ActivityRevisionKey? = null
+		while (true) {
+			currentCoroutineContext().ensureActive()
+			val remaining = MAX_ACTIVITY_REVISIONS - revisions.size
+			val pageLimit = minOf(ACTIVITY_REVISION_PAGE_SIZE, remaining + 1)
+			val page = database.activityCapturedFactDao().historyRevisionPage(
+				serviceRunIds = serviceRunIds,
+				logicalTrackingIds = logicalTrackingIds,
+				limit = pageLimit,
+				afterWriterProjectionId = cursor?.writerProjectionId,
+				afterWriterProjectionVersion = cursor?.writerProjectionVersion,
+				afterLogicalWindowId = cursor?.logicalWindowId,
+				afterSemanticRevision = cursor?.semanticRevision,
+			)
+			if (page.isEmpty()) return ActivityRevisionLoad(revisions, overflow = false)
+			if (page.size > remaining) return ActivityRevisionLoad(revisions, overflow = true)
+			revisions += page
+			cursor = revisionKey(page.last())
+			if (page.size < pageLimit) return ActivityRevisionLoad(revisions, overflow = false)
+		}
+	}
 }
 
-internal data class ActivityCandidateLoad(val segments: List<SessionSegment>, val overflow: Boolean)
+internal data class ActivityRevisionLoad(
+	val revisions: List<ActivityCapturedWindowRevisionEntity>,
+	val overflow: Boolean,
+)
 
 internal data class ActivityMembershipExpansion(
 	val segments: List<SessionSegment>,
@@ -331,6 +378,7 @@ internal data class ActivityMembershipExpansion(
 @Suppress("LongParameterList")
 internal data class ActivityHistorySnapshot(
 	val expansion: ActivityMembershipExpansion,
+	val sessions: Map<String, LogicalTrackingSessionEntity>,
 	val runs: Map<String, SourceServiceRunEntity>,
 	val manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 	val sourcesByManifest: Map<ActivityManifestKey, List<SessionManifestSourceEntity>>,
@@ -342,6 +390,8 @@ internal data class ActivityHistorySnapshot(
 	val fragmentsByRevision: Map<ActivityRevisionKey, List<ActivityCapturedFragmentEntity>>,
 	val evidenceByRevision: Map<ActivityRevisionKey, List<ActivityCapturedEvidenceEntity>>,
 	val registrationPlans: Map<Pair<String, Long>, ActivityCapturedRegistrationPlanEntity>,
+	val acquisitionPlanRevisions: Map<Long, AcquisitionPlanRevisionEntity>,
+	val desiredPlans: Map<Long, SourceDesiredPlanEntity>,
 	val providerRegistrations: Map<Long, ProviderRegistrationGenerationEntity>,
 	val authorizationsByRegistration: Map<Long, List<SourceAuthorizationEntity>>,
 	val deletionFenceDigests: Set<String>,
@@ -353,6 +403,7 @@ internal data class ActivityHistorySnapshot(
 	companion object {
 		fun empty(expansion: ActivityMembershipExpansion) = ActivityHistorySnapshot(
 			expansion = expansion,
+			sessions = emptyMap(),
 			runs = emptyMap(),
 			manifestsByRun = emptyMap(),
 			sourcesByManifest = emptyMap(),
@@ -364,6 +415,8 @@ internal data class ActivityHistorySnapshot(
 			fragmentsByRevision = emptyMap(),
 			evidenceByRevision = emptyMap(),
 			registrationPlans = emptyMap(),
+			acquisitionPlanRevisions = emptyMap(),
+			desiredPlans = emptyMap(),
 			providerRegistrations = emptyMap(),
 			authorizationsByRegistration = emptyMap(),
 			deletionFenceDigests = emptySet(),
@@ -421,6 +474,7 @@ internal fun isActivityCaptureMembership(source: SessionManifestSourceEntity): B
 internal const val ACTIVITY_SOURCE = SourceDestinationOwnerEntity.SOURCE_ACTIVITY
 private const val ACTIVITY_CANDIDATE_PAGE_SIZE = 64
 private const val ACTIVITY_MEMBER_PAGE_SIZE = 32
+private const val ACTIVITY_REVISION_PAGE_SIZE = 64
 private const val MAX_ACTIVITY_HISTORY_RESULTS = 100
 private const val MAX_ACTIVITY_CANDIDATE_SCAN = 128
 private const val MAX_ACTIVITY_LOGICAL_MEMBERS = 128
@@ -432,6 +486,8 @@ private const val MAX_ACTIVITY_CURSORS = 512
 private const val MAX_ACTIVITY_FRAGMENTS = 8_192
 private const val MAX_ACTIVITY_EVIDENCE = 16_384
 private const val MAX_ACTIVITY_REGISTRATION_PLANS = 512
+private const val MAX_ACTIVITY_ACQUISITION_PLANS = 512
+private const val MAX_ACTIVITY_DESIRED_PLANS = 512
 private const val MAX_ACTIVITY_PROVIDER_REGISTRATIONS = 512
 private const val MAX_ACTIVITY_AUTHORIZATIONS = 4_096
 private const val MAX_ACTIVITY_TERMINAL_FAILURES = 512
