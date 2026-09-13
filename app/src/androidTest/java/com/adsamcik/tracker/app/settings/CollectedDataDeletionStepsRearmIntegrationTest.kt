@@ -676,6 +676,7 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 			"ambient_steps_import_cursor",
 			"ambient_steps_import_gap",
 			"ambient_steps_import_authority_transition",
+			"ambient_steps_import_gap_effect_revision",
 			"pending_signal",
 			"source_product_projection_lane",
 			"source_demand",

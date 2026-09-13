@@ -185,7 +185,7 @@ data class AmbientStepsImportGapEntity(
 		require(
 			predecessorRegistrationGeneration == null ||
 				(predecessorRegistrationGeneration > 0L &&
-					predecessorRegistrationGeneration != registrationGeneration),
+					predecessorRegistrationGeneration < registrationGeneration),
 		)
 		require(
 			(predecessorRegistrationGeneration == null) == (predecessorProvider == null),

@@ -15,6 +15,8 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorit
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEffectIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEffectRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -105,6 +107,7 @@ class AppDatabaseMigration27To28Test {
 					assertEquals(1L, database.ambientStepsImportStateDao().countCursors())
 					assertEquals(1L, database.ambientStepsImportStateDao().countGaps())
 					assertEquals(1L, database.ambientStepsImportStateDao().countAuthorityTransitions())
+					assertEquals(1L, database.ambientStepsImportStateDao().countGapEffectRevisions())
 					assertEquals(1L, database.pressureFactRevisionDao().count())
 					assertEquals(1L, database.sourceDeletionFenceDao().countAll())
 				}
@@ -120,6 +123,7 @@ class AppDatabaseMigration27To28Test {
 					assertEquals(1L, database.ambientStepsImportStateDao().countCursors())
 					assertEquals(1L, database.ambientStepsImportStateDao().countGaps())
 					assertEquals(1L, database.ambientStepsImportStateDao().countAuthorityTransitions())
+					assertEquals(1L, database.ambientStepsImportStateDao().countGapEffectRevisions())
 					AppDatabase.deleteAllCollectedData(
 						database = database,
 						collectedDataEpoch = 8,
@@ -714,6 +718,7 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "ambient_steps_import_cursor", 0)
 		assertTableCount(database, "ambient_steps_import_gap", 0)
 		assertTableCount(database, "ambient_steps_import_authority_transition", 0)
+		assertTableCount(database, "ambient_steps_import_gap_effect_revision", 0)
 		assertIndexColumns(
 			database,
 			"idx_ambient_steps_import_cursor_progress",
@@ -1206,6 +1211,7 @@ class AppDatabaseMigration27To28Test {
 		assertEquals(0L, database.ambientStepsImportStateDao().countCursors())
 		assertEquals(0L, database.ambientStepsImportStateDao().countGaps())
 		assertEquals(0L, database.ambientStepsImportStateDao().countAuthorityTransitions())
+		assertEquals(0L, database.ambientStepsImportStateDao().countGapEffectRevisions())
 		assertEquals(0L, database.stepsGoalEffectDao().countAll())
 		// Payload-free prior/original portable deletion authority survives full clear and reopen.
 		assertEquals(1L, database.sourceDeletionFenceDao().countAll())
@@ -1386,6 +1392,29 @@ class AppDatabaseMigration27To28Test {
 					previousZoneId = "UTC",
 					nextZoneId = "UTC",
 					collectedDataEpoch = 7L,
+					recordedAtMs = 7_000L,
+				),
+			) != -1L,
+		)
+		val gapMutationId = AmbientStepsImportGapEffectIntegrity.mutationId(
+			gapId,
+			1L,
+			AmbientStepsImportGapEffectRevisionEntity.OPERATION_DECLARE,
+		)
+		assertTrue(
+			database.ambientStepsImportStateDao().insertGapEffectRevision(
+				AmbientStepsImportGapEffectRevisionEntity(
+					gapId = gapId,
+					semanticRevision = 1L,
+					mutationId = gapMutationId,
+					operation = AmbientStepsImportGapEffectRevisionEntity.OPERATION_DECLARE,
+					effectChecksum = AmbientStepsImportGapEffectIntegrity.effectChecksum(
+						gapId,
+						1L,
+						gapMutationId,
+						AmbientStepsImportGapEffectRevisionEntity.OPERATION_DECLARE,
+						7_000L,
+					),
 					recordedAtMs = 7_000L,
 				),
 			) != -1L,

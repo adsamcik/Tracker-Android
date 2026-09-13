@@ -52,6 +52,7 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEn
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEffectRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
@@ -186,6 +187,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			AmbientStepsImportAuthorityTransitionEntity::class,
 			AmbientStepsImportCursorEntity::class,
 			AmbientStepsImportGapEntity::class,
+			AmbientStepsImportGapEffectRevisionEntity::class,
 			StepsGoalEffectEntity::class,
 			StepsGoalRepairDayEntity::class,
 			ImportedStepsEntryEntity::class,
@@ -646,6 +648,7 @@ abstract class AppDatabase : RoomDatabase() {
 			database.stepFactRevisionDao().deleteAll()
 			database.ambientStepsFactRevisionDao().deleteAll()
 			database.ambientStepsImportStateDao().deleteAllAuthorityTransitions()
+			database.ambientStepsImportStateDao().deleteAllGapEffectRevisions()
 			database.ambientStepsImportStateDao().deleteAllGaps()
 			database.ambientStepsImportStateDao().deleteAllCursors()
 			database.stepsGoalEffectDao().deleteAll()

@@ -1784,6 +1784,23 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS ambient_steps_import_gap_effect_revision (
+					gap_id TEXT NOT NULL,
+					semantic_revision INTEGER NOT NULL,
+					mutation_id TEXT NOT NULL,
+					operation TEXT NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					recorded_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(gap_id, semantic_revision)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_ambient_steps_gap_effect_mutation " +
+					"ON ambient_steps_import_gap_effect_revision(mutation_id)",
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS steps_goal_effect (
 					effect_identity TEXT NOT NULL,
 					period_kind TEXT NOT NULL,

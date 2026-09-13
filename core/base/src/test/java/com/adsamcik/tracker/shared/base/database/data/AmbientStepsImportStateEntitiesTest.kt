@@ -68,6 +68,55 @@ class AmbientStepsImportStateEntitiesTest {
 		).forEach { invalid -> shouldThrow<IllegalArgumentException> { invalid() } }
 	}
 
+	@Test
+	fun `gap effect revisions reject mismatched mutation and checksum`() {
+		val gap = processGap()
+		val operation = AmbientStepsImportGapEffectRevisionEntity.OPERATION_DECLARE
+		val mutationId = AmbientStepsImportGapEffectIntegrity.mutationId(gap.gapId, 1L, operation)
+		val checksum = AmbientStepsImportGapEffectIntegrity.effectChecksum(
+			gap.gapId,
+			1L,
+			mutationId,
+			operation,
+			7_000L,
+		)
+		val revision = AmbientStepsImportGapEffectRevisionEntity(
+			gapId = gap.gapId,
+			semanticRevision = 1L,
+			mutationId = mutationId,
+			operation = operation,
+			effectChecksum = checksum,
+			recordedAtMs = 7_000L,
+		)
+
+		shouldThrow<IllegalArgumentException> { revision.copy(mutationId = "sha256:${"0".repeat(64)}") }
+		shouldThrow<IllegalArgumentException> { revision.copy(effectChecksum = "0".repeat(64)) }
+	}
+
+	@Test
+	fun `boot provider and zone handoffs carry their exact predecessor authority`() {
+		val boot = handoff(
+			reason = AmbientStepsImportGapEntity.REASON_BOOT_CHANGED,
+			predecessorRegistrationGeneration = 6L,
+			predecessorProvider = PROVIDER,
+			previousClockDomainId = "boot-before",
+		)
+		val provider = handoff(
+			reason = AmbientStepsImportGapEntity.REASON_PROVIDER_CHANGED,
+			provider = AmbientStepsImportCursorEntity.PROVIDER_LOCAL_RECORDING_STEPS,
+			predecessorRegistrationGeneration = 6L,
+			predecessorProvider = PROVIDER,
+		)
+		val zone = handoff(
+			reason = AmbientStepsImportGapEntity.REASON_ZONE_CHANGED,
+			previousZoneId = "Europe/Prague",
+		)
+
+		boot.nextClockDomainId shouldBe "boot-a"
+		provider.predecessorProvider shouldBe PROVIDER
+		zone.nextZoneId shouldBe "UTC"
+	}
+
 	private fun cursor() = AmbientStepsImportCursorEntity(
 		registrationGeneration = 7L,
 		provider = PROVIDER,
@@ -146,6 +195,26 @@ class AmbientStepsImportStateEntitiesTest {
 			effectiveBoundaryTimeMs = 6_000L,
 			recordedAtMs = 8_000L,
 		)
+
+	private fun handoff(
+		reason: String,
+		provider: String = PROVIDER,
+		predecessorRegistrationGeneration: Long? = null,
+		predecessorProvider: String? = null,
+		previousClockDomainId: String = "boot-a",
+		previousZoneId: String = "UTC",
+	): AmbientStepsImportGapEntity {
+		val gapId = AmbientStepsImportGapIntegrity.gapId(
+			7L, 1L, provider, "ambient-instance", reason, 4_000L, 4_000L,
+			predecessorRegistrationGeneration, predecessorProvider,
+			previousClockDomainId, "boot-a", previousZoneId, "UTC", 6L,
+		)
+		return AmbientStepsImportGapEntity(
+			gapId, 7L, 1L, provider, "ambient-instance", reason, 4_000L, 4_000L,
+			predecessorRegistrationGeneration, predecessorProvider,
+			previousClockDomainId, "boot-a", previousZoneId, "UTC", 6L, 7_000L,
+		)
+	}
 
 	private fun gapId(
 		reason: String = AmbientStepsImportGapEntity.REASON_PROCESS_ABSENCE,

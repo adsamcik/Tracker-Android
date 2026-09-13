@@ -7,6 +7,7 @@ import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEffectRevisionEntity
 
 /** Source-local persistence primitives for a future Ambient Steps importer transaction. */
 @Dao
@@ -90,6 +91,27 @@ interface AmbientStepsImportStateDao {
 			"ORDER BY gap_sequence ASC",
 	)
 	suspend fun gaps(registrationGeneration: Long): List<AmbientStepsImportGapEntity>
+
+	@Insert(onConflict = OnConflictStrategy.IGNORE)
+	suspend fun insertGapEffectRevision(revision: AmbientStepsImportGapEffectRevisionEntity): Long
+
+	@Query(
+		"SELECT * FROM ambient_steps_import_gap_effect_revision WHERE gap_id = :gapId " +
+			"ORDER BY semantic_revision ASC",
+	)
+	suspend fun gapEffectRevisions(gapId: String): List<AmbientStepsImportGapEffectRevisionEntity>
+
+	@Query(
+		"SELECT gap.* FROM ambient_steps_import_gap AS gap " +
+			"JOIN ambient_steps_import_gap_effect_revision AS effect ON effect.gap_id = gap.gap_id " +
+			"WHERE gap.registration_generation = :registrationGeneration " +
+			"AND effect.semantic_revision = (SELECT MAX(candidate.semantic_revision) " +
+			"FROM ambient_steps_import_gap_effect_revision AS candidate " +
+			"WHERE candidate.gap_id = gap.gap_id) " +
+			"AND effect.operation = '${AmbientStepsImportGapEffectRevisionEntity.OPERATION_DECLARE}' " +
+			"ORDER BY gap.gap_sequence ASC",
+	)
+	suspend fun effectiveGaps(registrationGeneration: Long): List<AmbientStepsImportGapEntity>
 
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertAuthorityTransition(
@@ -236,7 +258,14 @@ interface AmbientStepsImportStateDao {
 			"AND gap.previous_clock_domain_id = ambient_steps_import_cursor.last_observed_boot_id " +
 			"AND gap.previous_zone_id = ambient_steps_import_cursor.last_observed_zone_id " +
 			"AND gap.next_clock_domain_id = :newBootId " +
-			"AND gap.next_zone_id = :newZoneId) " +
+			"AND gap.next_zone_id = :newZoneId " +
+			"AND EXISTS (SELECT 1 FROM ambient_steps_import_gap_effect_revision AS effect " +
+			"WHERE effect.gap_id = gap.gap_id " +
+			"AND effect.semantic_revision = (SELECT MAX(candidate.semantic_revision) " +
+			"FROM ambient_steps_import_gap_effect_revision AS candidate " +
+			"WHERE candidate.gap_id = gap.gap_id) " +
+			"AND effect.operation = " +
+			"'${AmbientStepsImportGapEffectRevisionEntity.OPERATION_DECLARE}')) " +
 			"AND :newBootId = registration_clock_domain_id " +
 			"AND :newSegmentStartTimeMs >= imported_through_time_ms " +
 			"AND :newSegmentStartTimeMs % 1000 = 0 " +
@@ -291,11 +320,17 @@ interface AmbientStepsImportStateDao {
 	@Query("SELECT COUNT(*) FROM ambient_steps_import_gap")
 	suspend fun countGaps(): Long
 
+	@Query("SELECT COUNT(*) FROM ambient_steps_import_gap_effect_revision")
+	suspend fun countGapEffectRevisions(): Long
+
 	@Query("SELECT COUNT(*) FROM ambient_steps_import_authority_transition")
 	suspend fun countAuthorityTransitions(): Long
 
 	@Query("DELETE FROM ambient_steps_import_authority_transition")
 	fun deleteAllAuthorityTransitions()
+
+	@Query("DELETE FROM ambient_steps_import_gap_effect_revision")
+	fun deleteAllGapEffectRevisions()
 
 	@Query("DELETE FROM ambient_steps_import_gap")
 	fun deleteAllGaps()
