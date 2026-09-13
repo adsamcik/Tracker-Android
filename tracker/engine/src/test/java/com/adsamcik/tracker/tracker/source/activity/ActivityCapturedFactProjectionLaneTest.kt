@@ -143,6 +143,78 @@ class ActivityCapturedFactProjectionLaneTest {
 	}
 
 	@Test
+	fun `later replacement coalescing failure poisons that physical window origin`() = runTest {
+		val replacementEventId = SourceEventId("activity-event-2")
+		installLane()
+		insertTerminalSession(finalAdmissionOrdinal = 2L)
+		insertWalIdentity()
+		insertWalIdentity(2L, replacementEventId, REPLACEMENT_SERVICE_RUN_ID)
+		val adapter = mockk<ActivityCapturedWalAdmissionAdapter>()
+		val writer = mockk<ActivityCapturedFactWriter>()
+		coEvery { adapter.admit(EVENT_ID) } returns admitted()
+		coEvery { adapter.admit(replacementEventId) } returns admitted(
+			2L,
+			replacementEventId,
+			REPLACEMENT_SERVICE_RUN_ID,
+			observationNanos = WINDOW_END_NANOS,
+		)
+
+		lane(adapter, writer).drainThrough(2L) shouldBe ActivityCapturedFactDrainResult.Failed(
+			lastCompletedOrdinal = 0L,
+			failedOrdinal = 2L,
+			failureCode = "ACTIVITY_COALESCING_OBSERVATION_OUTSIDE_CAPTURE_VALIDITY",
+			terminal = true,
+		)
+		database.sourceProjectionStateDao().failure(
+			ActivityCapturedFactProjectionLane.WRITER_ID,
+			ActivityCapturedFactProjectionLane.WRITER_VERSION,
+			2L,
+		)?.failureCode shouldBe "ACTIVITY_COALESCING_OBSERVATION_OUTSIDE_CAPTURE_VALIDITY"
+		database.sourceProjectionStateDao().failure(
+			ActivityCapturedFactProjectionLane.WRITER_ID,
+			ActivityCapturedFactProjectionLane.WRITER_VERSION,
+			1L,
+		) shouldBe null
+		coVerify(exactly = 0) { writer.write(any()) }
+	}
+
+	@Test
+	fun `later replacement writer failure poisons that physical window origin`() = runTest {
+		val replacementEventId = SourceEventId("activity-event-2")
+		installLane()
+		insertTerminalSession(finalAdmissionOrdinal = 2L)
+		insertWalIdentity()
+		insertWalIdentity(2L, replacementEventId, REPLACEMENT_SERVICE_RUN_ID)
+		val adapter = mockk<ActivityCapturedWalAdmissionAdapter>()
+		val writer = mockk<ActivityCapturedFactWriter>()
+		coEvery { adapter.admit(EVENT_ID) } returns admitted()
+		coEvery { adapter.admit(replacementEventId) } returns
+			admitted(2L, replacementEventId, REPLACEMENT_SERVICE_RUN_ID)
+		coEvery { writer.write(any()) } returnsMany listOf(
+			ActivityCapturedWriteResult.Applied("window-1", 1L, 1L),
+			ActivityCapturedWriteResult.Rejected(ActivityCapturedWriteRejection.SERVICE_RUN_MISMATCH),
+		)
+
+		lane(adapter, writer).drainThrough(2L) shouldBe ActivityCapturedFactDrainResult.Failed(
+			lastCompletedOrdinal = 0L,
+			failedOrdinal = 2L,
+			failureCode = "ACTIVITY_WRITER_SERVICE_RUN_MISMATCH",
+			terminal = true,
+		)
+		database.sourceProjectionStateDao().failure(
+			ActivityCapturedFactProjectionLane.WRITER_ID,
+			ActivityCapturedFactProjectionLane.WRITER_VERSION,
+			2L,
+		)?.failureCode shouldBe "ACTIVITY_WRITER_SERVICE_RUN_MISMATCH"
+		database.sourceProjectionStateDao().failure(
+			ActivityCapturedFactProjectionLane.WRITER_ID,
+			ActivityCapturedFactProjectionLane.WRITER_VERSION,
+			1L,
+		) shouldBe null
+		coVerify(exactly = 2) { writer.write(any()) }
+	}
+
+	@Test
 	fun `later oversized payload poisons its own ordinal without writing the valid prefix`() = runTest {
 		installLane()
 		insertTerminalSession(finalAdmissionOrdinal = 2L)
@@ -378,14 +450,15 @@ class ActivityCapturedFactProjectionLaneTest {
 		ordinal: Long = 1L,
 		eventId: SourceEventId = EVENT_ID,
 		serviceRunId: String = SERVICE_RUN_ID,
+		observationNanos: Long = OBSERVATION_NANOS,
 	): ActivityCapturedWalAdmissionResult.Admitted {
 		val authority = captureAuthority(serviceRunId)
 		val reference = ActivityCapturedObservationReference(
 			sourceEventId = eventId,
 			admissionOrdinal = ordinal,
 			sourceSequence = ordinal,
-			providerElapsedRealtimeNanos = OBSERVATION_NANOS,
-			receivedElapsedRealtimeNanos = OBSERVATION_NANOS + 10L,
+			providerElapsedRealtimeNanos = observationNanos,
+			receivedElapsedRealtimeNanos = observationNanos + 10L,
 			observationKind = ActivityCapturedObservationKind.TRANSITION,
 			observedActivity = CapturedActivityType.WALKING,
 			transitionChange = ActivityTransitionChange.ENTER,
