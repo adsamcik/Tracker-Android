@@ -31,7 +31,12 @@ policy/consent, local session Steps, and portable-import evidence before composi
 contained-session, and between-session totals exactly once. Authorization successors must preserve
 both elapsed and wall-clock order before privacy-boundary clamping; exact, partial, unavailable, and
 materializing states remain typed and missing evidence never becomes zero. Shared product UI,
-retention, deletion, transfer, and activation remain open.
+transfer, and activation remain open. The separate Ambient maintenance branch is independently
+accepted through `d998dbb4c`: bounded source-local retention and consent/source deletion audit every
+fact/cursor/gap/transition/authorization row, require compatible provider/demand quiescence, install
+terminal payload-free retractions before removing UPSERT payloads/import authority, and preserve
+no-resurrection across replay and retry. Portable export is implemented separately but remains in
+correction review; it is not accepted by this checkpoint.
 
 The isolated Activity source worktree is clean at `a8c1752cb`. Its capture-only coalescing model now
 has Activity-specific v28 entities and DAOs, immutable historical registration-plan binding, and a

@@ -2307,3 +2307,27 @@ The command was not run. Compilation, Room execution, generated v28 schema conve
 projection, provider/callback/active-attempt behavior, maintenance/transfer, shared UI,
 automatic/ambient operation, device/process evidence, integration, activation, and release remain
 unproven.
+
+## TI-B290 — Ambient Steps retention, deletion, and replay contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `d998dbb4c`. Authored real-Room tests cover bounded
+complete fact/cursor/gap/transition/authorization/import audits, active/retiring demand and compatible
+provider quiescence, exact terminal RETRACT-before-UPSERT removal, consent/source deletion, replayed
+older and corrected UPSERT cleanup, retained retraction, idempotent retry, whole-lineage retention,
+malformed/foreign/orphan/overflow failure, SQLite rollback, and cancellation.
+
+Independent reviews rejected the initial exact-mask-only quiescence and unbounded/incomplete audit,
+then rejected a correction where RETRACT plus replayed older UPSERT physically survived. The final
+implementation preserves the terminal source-local retraction, removes all replayed payload/import
+state, and reports `AlreadyDeleted` only after the source contains no resurrectable payload; re-review
+accepted it.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*AmbientStepsMaintenanceTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, generated v28 schema convergence, portable
+export acceptance, shared Today/Timeline/Calendar/UI, provider/process/reboot/device behavior,
+integration, activation, and release remain unproven.

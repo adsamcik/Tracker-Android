@@ -509,6 +509,15 @@ elapsed and wall ordering before privacy clamping. These TODOs stay unchecked un
 Timeline, Calendar, day detail and numeric consumers use the read, and retention, deletion, transfer,
 settings/remediation, and the complete scenario cohort exist.
 
+Accepted maintenance commits `23a26a356`, `2f08fdae8`, and `d998dbb4c` implement the bounded
+retention/deletion/no-resurrection portions of AMBIENT-008/009. Complete fact correction lineages,
+cursors, gaps, transitions, authorization, and import state are audited under explicit total and
+per-table limits; active/retiring demand or compatible provider generations block mutation. A
+terminal checksum-authenticated RETRACT is installed before exact UPSERT removal, survives retry,
+and authorizes cleanup of replayed older/correction payloads; retention removes whole crossing or
+replayed terminal lineages. These TODOs remain unchecked until portable transfer is accepted,
+settings/remediation and shared product consumers are complete, and the full scenario cohort exists.
+
 ## Pressure vertical
 
 - [ ] TODO-PRESS-001 Complete the Pressure demand adapter and honest low, standard, and bounded

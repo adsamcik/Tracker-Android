@@ -3647,3 +3647,21 @@ Each entry records repository evidence and does not duplicate the final architec
   ownership. Incompatible membership fails closed in both retained-WAL and fact paths.
 - Policy, consent, demand, fence, and lane reads use SQL limits plus overflow accounting. Public
   observations remain identity-free, and discovery uses neither `sample_count` nor Location.
+
+## TI-D227 — Ambient Steps deletion retains a terminal source-local retraction against replay
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/Room tests `23a26a356`,
+  `2f08fdae8`, and `d998dbb4c`; corrected independent review; TI-B290.
+- Retention and consent/source deletion audit complete bounded Ambient Steps fact lineages, cursor,
+  gap, authorization-transition, and import state. Active or retiring Ambient demand and active,
+  reserved, or retiring compatible provider registration block deletion; `QUIESCED` is not used as
+  an ownership predicate.
+- Source deletion installs a checksum-authenticated payload-free terminal RETRACT before removing
+  exact UPSERT payloads and all import authority in one Room transaction. The retraction survives
+  retry and authorizes cleanup of an older or corrected UPSERT replayed after deletion; success is
+  reported only after no payload/import state remains.
+- Retention removes whole uncertainty-crossing and replayed terminal lineages behind the durable
+  floor. Malformed, foreign, orphaned, partial, or configured-overflow state and cancellation fail
+  closed without partial mutation.
+- This is Ambient source-local maintenance, not portable-export acceptance, shared UI, provider
+  activation, generic tombstones, device/process proof, or product rollout.
