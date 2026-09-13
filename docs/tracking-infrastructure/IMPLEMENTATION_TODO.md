@@ -858,6 +858,16 @@ automatic/ambient behavior, and complete scenarios exist.
 - [ ] TODO-HIST-015 Complete plain-language localization, accessibility semantics, large-text
   behavior, and truthful empty or failure copy in code and UI tests without running device review.
 
+The accepted Activity and Pressure source-local UI branches deliberately overlap the same product
+seams. TI-D225 freezes the convergence implementation: begin with Pressure UI `8214b92ab`, layer the
+accepted Activity product dependencies, then resolve `f364cbc42` and `48d4d3e67` into one generic
+live snapshot carrying session plus both source states and one bounded source-aware recent page.
+Keep only the demonstrated `Physical | StepsOnly | ActivityOnly | PressureOnly` presentation
+vocabulary. Suppress complete authenticated source-only replacement groups before one final recency
+sort, fail closed on either source's scan/membership overflow or contradictory dual-only authority,
+and preserve mixed/legacy physical behavior. HIST-001/002/003/004/005/006/008/011/012 remain open
+until that union is implemented and reviewed.
+
 ## Start, settings, permissions, and source actions
 
 - [ ] TODO-ACTION-001 Audit every manual start entry point and route it through the same current

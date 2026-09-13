@@ -3607,3 +3607,25 @@ Each entry records repository evidence and does not duplicate the final architec
   Convergence must create one combined Activity-plus-Pressure transactional live snapshot, one
   bounded recent-page composition, and one presentation vocabulary preserving both exact-intent
   paths. Neither branch may overwrite or replace the other.
+
+## TI-D225 — Activity and Pressure UI converge through one demonstrated source-aware product seam
+
+- Status: **ACCEPTED_DESIGN_NOT_IMPLEMENTED**, 2026-09-13; independent overlap and algorithm audit;
+  TI-B288.
+- Convergence starts from accepted Pressure UI `8214b92ab`, layers accepted Activity dependencies
+  through `d0bf3bf59`, then applies `f364cbc42` and `48d4d3e67` without taking either conflict side
+  wholesale. The two resulting commits separate shared stats coordination from Dashboard
+  presentation.
+- `TrackingHistoryRepository` retains one generic live observer. Its one Room transaction resolves
+  the segment once and returns the common session plus Activity and Pressure states. The ViewModel
+  observes only that snapshot; exact source-only classification must agree with common capture
+  authority, and a contradictory dual-only state fails closed.
+- One bounded source-aware recent-page transaction authenticates and suppresses the union of complete
+  Activity-only and Pressure-only replacement members, obtains bounded top candidates from each
+  source, merges them with existing Physical/Steps entries, rejects logical-identity collision, then
+  sorts once by member-owned recency and takes the requested limit. Overflow from either source is a
+  typed unavailable result; no per-row observer or query fan-out is introduced.
+- The presentation vocabulary is closed to `Physical`, `StepsOnly`, `ActivityOnly`, and
+  `PressureOnly` plus existing typed unavailable states. Only Physical owns navigation/detail;
+  mixed/legacy remain Physical, source-only numeric absence remains null, and no generic source
+  payload, materializer language, or new UI platform is added.

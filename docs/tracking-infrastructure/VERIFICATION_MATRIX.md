@@ -2266,3 +2266,18 @@ Deferred focused command:
 The command was not run. Compilation, Room execution, Activity-plus-Pressure convergence, full
 Today/Timeline/Calendar/detail, localization/accessibility/device rendering, provider/process/
 reboot/FGS behavior, automatic capture, integration, activation, and release remain unproven.
+
+## TI-B288 — Activity and Pressure shared-UI convergence design audited
+
+Status: **DESIGN_ONLY_UNVALIDATED**. Read-only comparison of accepted Pressure UI `8214b92ab` and
+Activity UI `f364cbc42`/`48d4d3e67` identified every overlapping stats API/data, Dashboard repository/
+ViewModel/live-state, Compose, string, and test seam. The audit specifies one combined transactional
+live snapshot, one bounded source-aware recent-page algorithm, complete replacement-member
+suppression, top-limit discovery from both sources, one final member-owned recency sort, collision/
+overflow/cancellation failure, and the exact four-kind presentation vocabulary.
+
+Required authored convergence tests must preserve both branches' existing contracts and add combined
+snapshot invalidation, mixed/legacy physical behavior, Activity and Pressure rows in one page,
+dual-only contradiction failure, either-source overflow, opaque-key namespacing, cancellation, and
+absence of Location-shaped or fabricated numeric content. No code was changed and no command was
+run; the combined branch and all compilation/Room/UI/device evidence remain outstanding.

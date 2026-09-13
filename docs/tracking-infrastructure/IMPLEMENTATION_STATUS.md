@@ -86,7 +86,12 @@ content with retained movement bands, active time, coverage, and gaps; it expose
 control or numeric field and never turns missing evidence into zero. This is a source-local
 acceptance only: the branch overlaps the accepted Pressure UI seams, so convergence must union both
 source shapes into one live snapshot, recent merge, and presentation vocabulary rather than choose
-one branch.
+one branch. The reviewed convergence design starts from Pressure UI `8214b92ab`, layers the accepted
+Activity product dependencies, and resolves the two Activity UI commits without taking either side
+wholesale. `TrackingHistoryRepository` retains one generic live observer whose single transaction
+returns session, Activity, and Pressure state, plus one bounded source-aware recent page with the
+closed `Physical | StepsOnly | ActivityOnly | PressureOnly` vocabulary. Candidate/member overflow,
+identity collision, or contradictory dual-only authority fails closed.
 
 The isolated Pressure branch is clean at `3b8abe350`. Commits `8768767d4` through `8b076e6f7`
 provide fact-driven zero-sample discovery, reciprocal run/segment binding, complete replacement-run
