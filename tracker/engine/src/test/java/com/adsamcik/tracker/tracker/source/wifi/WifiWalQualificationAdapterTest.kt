@@ -4,6 +4,7 @@ import android.app.Application
 import android.database.sqlite.SQLiteConstraintException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
@@ -61,6 +62,7 @@ class WifiWalQualificationAdapterTest {
 	private val planCodec = SourcePlanCodec()
 	private lateinit var subject: WifiWalQualificationAdapter
 	private lateinit var writer: WifiCapturedFactWriter
+	private lateinit var maintenance: WifiCapturedFactMaintenance
 
 	@Before
 	fun setUp() {
@@ -68,6 +70,7 @@ class WifiWalQualificationAdapterTest {
 		database = AppDatabase.testDatabase(context)
 		subject = WifiWalQualificationAdapter(database, payloadCodec, planCodec)
 		writer = WifiCapturedFactWriter(database, subject)
+		maintenance = WifiCapturedFactMaintenance(database, payloadCodec, planCodec)
 	}
 
 	@After
@@ -756,6 +759,216 @@ class WifiWalQualificationAdapterTest {
 		assertEquals(2L, requireNotNull(dao.deletionGeneration(LOGICAL_ID, RUN_ID)).generation)
 	}
 
+	@Test
+	fun `retention removes the whole uncertainty affected aggregate dependency closure but keeps WAL`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val secondId = insertSecondWal()
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(secondId))
+		val markedAtMs = OBSERVED_WALL_MS + 10_000L
+		assertEquals(
+			true,
+			database.sourceEvidenceStateDao().synchronizeLifecycle(
+				0L,
+				OBSERVED_WALL_MS,
+				markedAtMs,
+			),
+		)
+
+		assertEquals(
+			WifiCapturedRetentionResult.Pruned(logicalFactCount = 2, revisionCount = 2),
+			maintenance.pruneAffectedByRetentionFloor(
+				beforeMs = OBSERVED_WALL_MS,
+				expectedCollectedDataEpoch = 0L,
+				expectedDeletedSourceEventHighWaterOrdinal = 0L,
+				markedAtMs = markedAtMs,
+			),
+		)
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
+		assertEquals(2L, database.sourceEventWalDao().countAll())
+	}
+
+	@Test
+	fun `retention leaves wholly retained lineage unchanged`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val retainedFromMs = OBSERVED_WALL_MS - 1_000L
+		val markedAtMs = OBSERVED_WALL_MS + 10_000L
+		assertEquals(
+			true,
+			database.sourceEvidenceStateDao().synchronizeLifecycle(
+				0L,
+				retainedFromMs,
+				markedAtMs,
+			),
+		)
+
+		assertEquals(
+			WifiCapturedRetentionResult.NoChange,
+			maintenance.pruneAffectedByRetentionFloor(
+				retainedFromMs,
+				0L,
+				0L,
+				markedAtMs,
+			),
+		)
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `source deletion requires revoked capture consent`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+
+		assertEquals(
+			WifiCapturedSourceDeletionResult.Blocked(
+				WifiCapturedSourceDeletionBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE,
+			),
+			maintenance.deleteAfterCaptureConsentReset(0L, 0L, CONSENT_EPOCH, DELETE_AT_MS),
+		)
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `revoked source deletion fences exact WAL scope before removal and delayed replay stays rejected`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		revokeCaptureConsent()
+
+		assertEquals(
+			WifiCapturedSourceDeletionResult.Deleted(1, 1, 1),
+			maintenance.deleteAfterCaptureConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH, DELETE_AT_MS),
+		)
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
+		assertEquals(1L, database.sourceEventWalDao().countAll())
+		assertEquals(
+			1L,
+			requireNotNull(database.wifiCapturedFactDao().deletionGeneration(LOGICAL_ID, RUN_ID)).generation,
+		)
+		assertEquals(
+			WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.DELETED_SCOPE),
+			subject.qualify(EVENT_ID),
+		)
+		assertEquals(
+			WifiCapturedSourceDeletionResult.AlreadyDeleted,
+			maintenance.deleteAfterCaptureConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH, DELETE_AT_MS),
+		)
+	}
+
+	@Test
+	fun `WAL only capture scope is authenticated fenced and retained`() = runTest {
+		installValidFixture(candidateWriter = true)
+		revokeCaptureConsent()
+
+		assertEquals(
+			WifiCapturedSourceDeletionResult.Deleted(0, 0, 1),
+			maintenance.deleteAfterCaptureConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH, DELETE_AT_MS),
+		)
+		assertEquals(1L, database.sourceEventWalDao().countAll())
+		assertEquals(
+			1L,
+			requireNotNull(database.wifiCapturedFactDao().deletionGeneration(LOGICAL_ID, RUN_ID)).generation,
+		)
+	}
+
+	@Test
+	fun `source deletion rejects active capture demand and nonterminal provider independently`() = runTest {
+		installValidFixture(candidateWriter = true)
+		revokeCaptureConsent()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET status = 'ACTIVE', retire_boot_id = NULL, " +
+				"retire_elapsed_realtime_nanos = NULL, retired_at_ms = NULL WHERE demand_id = ?",
+			arrayOf("$DEMAND_ID-0"),
+		)
+		assertEquals(
+			WifiCapturedSourceDeletionResult.Blocked(
+				WifiCapturedSourceDeletionBlockedReason.CAPTURE_DEMAND_NOT_QUIESCED,
+			),
+			maintenance.deleteAfterCaptureConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH, DELETE_AT_MS),
+		)
+
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET status = 'RETIRED', retire_boot_id = ?, " +
+				"retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
+			arrayOf(BOOT_ID, SESSION_END_NANOS, SESSION_END_WALL_MS, "$DEMAND_ID-0"),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET status = 'ACTIVE', retired_at_ms = NULL, " +
+				"retired_elapsed_realtime_nanos = NULL WHERE source_kind = ? " +
+				"AND registration_generation = ?",
+			arrayOf(WIFI_SOURCE, REGISTRATION_GENERATION),
+		)
+		assertEquals(
+			WifiCapturedSourceDeletionResult.Blocked(
+				WifiCapturedSourceDeletionBlockedReason.CAPTURE_PROVIDER_NOT_QUIESCED,
+			),
+			maintenance.deleteAfterCaptureConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH, DELETE_AT_MS),
+		)
+	}
+
+	@Test
+	fun `bounded WAL audit fails closed before source deletion`() = runTest {
+		installValidFixture(candidateWriter = true)
+		insertSecondWal()
+		revokeCaptureConsent()
+
+		assertEquals(
+			WifiCapturedSourceDeletionResult.Blocked(
+				WifiCapturedSourceDeletionBlockedReason.MAINTENANCE_BOUND_EXCEEDED,
+			),
+			maintenance.deleteAfterCaptureConsentReset(
+				0L,
+				0L,
+				REVOKED_CONSENT_EPOCH,
+				DELETE_AT_MS,
+				WifiCapturedMaintenanceLimits(maximumWalEvents = 1),
+			) {},
+		)
+		assertEquals(2L, database.sourceEventWalDao().countAll())
+		assertEquals(0L, database.wifiCapturedFactDao().deletionGenerationCount())
+	}
+
+	@Test
+	fun `cancellation after deletion fences rolls the whole source mutation back`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		revokeCaptureConsent()
+
+		assertFailsWith<CancellationException> {
+			maintenance.deleteAfterCaptureConsentReset(
+				0L,
+				0L,
+				REVOKED_CONSENT_EPOCH,
+				DELETE_AT_MS,
+				WifiCapturedMaintenanceLimits(),
+			) { checkpoint ->
+				if (checkpoint == WifiCapturedMaintenanceCheckpoint.DELETION_FENCES_INSTALLED) {
+					throw CancellationException("cancel deletion")
+				}
+			}
+		}
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(1L, database.wifiCapturedFactDao().cursorCount())
+		assertEquals(0L, database.wifiCapturedFactDao().deletionGenerationCount())
+		val digest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+			WIFI_SOURCE,
+			SourceBrokerPurpose.SESSION_CAPTURE,
+			LOGICAL_ID,
+			RUN_ID,
+		)
+		assertEquals(
+			false,
+			database.sourceDeletionFenceDao().contains(
+				WIFI_SOURCE,
+				SourceBrokerPurpose.SESSION_CAPTURE,
+				SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+				digest,
+			),
+		)
+	}
+
 	private suspend fun setLiveLifecyclePair(sessionState: String, runState: String) {
 		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
 		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
@@ -947,6 +1160,60 @@ class WifiWalQualificationAdapterTest {
 			arrayOf(LOGICAL_ID),
 		)
 		return SourceEventId(row.eventId)
+	}
+
+	private suspend fun revokeCaptureConsent() {
+		val policyDao = database.sourcePolicyDao()
+		policyDao.insertPolicies(
+			listOf(
+				SourcePolicyEntity(
+					policyRevision = REVOKED_POLICY_REVISION,
+					sourceKind = WIFI_SOURCE,
+					enabled = false,
+					qosCode = QOS_CODE,
+					locationMinTimeSeconds = null,
+					locationMinDistanceMeters = null,
+					locationRequiredAccuracyMeters = null,
+					capturePersistenceEligible = false,
+					controlPersistenceEligible = false,
+					ambientPersistenceEligible = false,
+					captureConsentEpoch = null,
+					controlConsentEpoch = null,
+					ambientConsentEpoch = null,
+					effectiveBootId = BOOT_ID,
+					effectiveElapsedRealtimeNanos = SESSION_END_NANOS + 1L,
+					effectiveWallTimeMs = SESSION_END_WALL_MS + 1L,
+					changeReason = "TEST_CAPTURE_CONSENT_RESET",
+				),
+			),
+		)
+		policyDao.insertConsentEpochs(
+			listOf(
+				SourceConsentEpochEntity(
+					sourceKind = WIFI_SOURCE,
+					purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+					epoch = REVOKED_CONSENT_EPOCH,
+					eligible = false,
+					persistenceEligible = false,
+					policyRevision = REVOKED_POLICY_REVISION,
+					effectiveBootId = BOOT_ID,
+					effectiveElapsedRealtimeNanos = SESSION_END_NANOS + 1L,
+					effectiveWallTimeMs = SESSION_END_WALL_MS + 1L,
+					changeReason = "TEST_CAPTURE_CONSENT_RESET",
+				),
+			),
+		)
+		assertEquals(
+			1,
+			policyDao.compareAndSetAuthority(
+				SourcePolicyAuthorityEntity.STATE_ACTIVE,
+				POLICY_REVISION,
+				SourcePolicyAuthorityEntity.STATE_ACTIVE,
+				REVOKED_POLICY_REVISION,
+				null,
+				SESSION_END_WALL_MS + 1L,
+			),
+		)
 	}
 
 	private suspend fun installValidFixture(
@@ -1388,7 +1655,9 @@ class WifiWalQualificationAdapterTest {
 		const val ZONE_ID = "Europe/Prague"
 		const val PLAN_REVISION = 1L
 		const val POLICY_REVISION = 1L
+		const val REVOKED_POLICY_REVISION = 2L
 		const val CONSENT_EPOCH = 1L
+		const val REVOKED_CONSENT_EPOCH = 2L
 		const val MANIFEST_REVISION = 1L
 		const val REPLACEMENT_MANIFEST_REVISION = 2L
 		const val REPLACEMENT_INTENT_REVISION = 2L
@@ -1416,6 +1685,7 @@ class WifiWalQualificationAdapterTest {
 		const val RUN_START_WALL_MS = 1_699_999_999_000L
 		const val OBSERVED_WALL_MS = 1_700_000_000_000L
 		const val SESSION_END_WALL_MS = 1_700_000_003_000L
+		const val DELETE_AT_MS = 1_700_000_020_000L
 		const val WALL_UNCERTAINTY_MS = 1L
 		const val NANOS_PER_MILLISECOND = 1_000_000L
 	}
