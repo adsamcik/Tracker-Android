@@ -28,6 +28,13 @@ interface SourcePlanStateDao {
 	@Query("SELECT * FROM source_desired_plan WHERE revision = :revision ORDER BY source_kind")
 	suspend fun desiredPlans(revision: Long): List<SourceDesiredPlanEntity>
 
+	/** Exact immutable source plan; mutable applied state cannot replace historical authority. */
+	@Query(
+		"SELECT * FROM source_desired_plan WHERE revision = :revision " +
+			"AND source_kind = :sourceKind LIMIT 1",
+	)
+	suspend fun desiredPlan(revision: Long, sourceKind: Int): SourceDesiredPlanEntity?
+
 	@Query("SELECT * FROM source_applied_plan_state ORDER BY source_kind")
 	suspend fun appliedStates(): List<SourceAppliedPlanStateEntity>
 

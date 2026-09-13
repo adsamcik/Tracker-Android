@@ -15,6 +15,8 @@ import com.adsamcik.tracker.tracker.source.runtime.cellProviderDeliveryIdentity
 import java.security.MessageDigest
 
 internal enum class CellObservationOrigin {
+	/** Durable WAL proves a provider callback, but v1 does not retain change-vs-refresh origin. */
+	PROVIDER_CALLBACK,
 	CHANGE_CALLBACK,
 	REFRESH_RESULT_CALLBACK,
 	GET_ALL_CELL_INFO_CACHE,
@@ -748,7 +750,8 @@ internal object CellCapturedFactClassifier {
 	}
 
 	private val CellObservationOrigin.isProviderCallback: Boolean
-		get() = this == CellObservationOrigin.CHANGE_CALLBACK ||
+		get() = this == CellObservationOrigin.PROVIDER_CALLBACK ||
+			this == CellObservationOrigin.CHANGE_CALLBACK ||
 			this == CellObservationOrigin.REFRESH_RESULT_CALLBACK
 
 	private data class ClassifiedChild(

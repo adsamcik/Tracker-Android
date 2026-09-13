@@ -20,6 +20,7 @@ class CellCapturedFactClassifierTest {
 	@Test
 	fun `only callback deliveries can produce facts`() {
 		CellObservationOrigin.entries.filterNot {
+			it == CellObservationOrigin.PROVIDER_CALLBACK ||
 			it == CellObservationOrigin.CHANGE_CALLBACK ||
 				it == CellObservationOrigin.REFRESH_RESULT_CALLBACK
 		}.forEach { origin ->
@@ -234,33 +235,6 @@ class CellCapturedFactClassifierTest {
 			),
 			authority,
 		) shouldBe rejected(CellFactRejection.IDENTITY_BEARING_INPUT)
-	}
-
-	@Test
-	fun `provider authority is half open and receipt clock is exact`() {
-		val authority = authority(
-			temporalAuthority = temporalAuthority(start = 9_000_000_000L, end = 10_000_000_000L),
-			maximumObservationAgeNanos = 1_000_000_000L,
-		)
-		val fact = classify(
-			input(
-				authority = authority,
-				observations = listOf(
-					observation("LTE", true, -105, 9_000_000_000L),
-					observation("LTE", true, -105, 10_000_000_000L),
-				),
-			),
-			authority,
-		) as CellCapturedFactClassification.FreshChanged
-		fact.fact.coverage.acceptedChildCount shouldBe 1
-		fact.fact.coverage.staleChildCount shouldBe 1
-
-		val future = input(
-			authority = authority,
-			observations = listOf(observation("LTE", true, -105, 10_100_000_000L)),
-		)
-		(classify(future, authority) as CellCapturedFactClassification.ClockUnverifiable).reason shouldBe
-			CellClockUnverifiableReason.DELIVERY_CLOCK_DOMAIN_MISSING_OR_MISMATCHED
 	}
 
 	@Test

@@ -148,6 +148,24 @@ interface SourceBrokerDao {
 		authorizationRevision: Long,
 	): List<SourceAuthorizationEntity>
 
+	/**
+	 * Next immutable authorization for this physical registration. Authorization revisions are
+	 * source-global, so a registration's successor is not necessarily revision + 1.
+	 */
+	@Query(
+		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND authorization_revision = (SELECT MIN(authorization_revision) " +
+			"FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND authorization_revision > :authorizationRevision) ORDER BY member_id",
+	)
+	suspend fun nextAuthorizationRevision(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		authorizationRevision: Long,
+	): List<SourceAuthorizationEntity>
+
 	@Query(
 		"SELECT EXISTS(SELECT 1 FROM source_authorization " +
 			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +
