@@ -74,7 +74,7 @@ private fun PressureOnlyTrackingCard(pressure: DashboardLivePressureValue) {
 		),
 	) {
 		Column(modifier = Modifier.padding(RidgelineSpacing.Lg)) {
-			PressureOnlyRecordingHeader()
+			PressureOnlyStateHeader(pressure)
 			Spacer(Modifier.height(RidgelineSpacing.Md))
 			Text(
 				text = stringResource(R.string.dashboard_metric_pressure),
@@ -102,20 +102,23 @@ private fun PressureOnlyTrackingCard(pressure: DashboardLivePressureValue) {
 }
 
 @Composable
-private fun PressureOnlyRecordingHeader() {
+private fun PressureOnlyStateHeader(pressure: DashboardLivePressureValue) {
 	Row(
 		modifier = Modifier.fillMaxWidth(),
 		verticalAlignment = Alignment.CenterVertically,
 		horizontalArrangement = Arrangement.spacedBy(RidgelineSpacing.Sm),
 	) {
-		Box(
-			modifier = Modifier
-				.size(10.dp)
-				.clip(MaterialTheme.shapes.extraLarge)
-				.background(MaterialTheme.colorScheme.error),
-		)
+		if (pressure.hasDurableRecordingHeader) {
+			Box(
+				modifier = Modifier
+					.size(10.dp)
+					.clip(MaterialTheme.shapes.extraLarge)
+					.background(MaterialTheme.colorScheme.error),
+			)
+		}
 		Text(
-			text = stringResource(R.string.dashboard_recording),
+			text = stringResource(pressure.headerResource),
+			modifier = Modifier.testTag("dashboard_live_pressure_header"),
 			style = MaterialTheme.typography.labelLarge,
 			fontWeight = FontWeight.SemiBold,
 			color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -174,6 +177,22 @@ private val DashboardLivePressureValue.statusResource: Int
 		is DashboardLivePressureValue.Materializing -> R.string.dashboard_recent_pressure_materializing
 		DashboardLivePressureValue.Unavailable -> R.string.dashboard_recent_pressure_unavailable
 		DashboardLivePressureValue.Failed -> R.string.dashboard_recent_pressure_failed
+	}
+
+private val DashboardLivePressureValue.hasDurableRecordingHeader: Boolean
+	get() = when (this) {
+		is DashboardLivePressureValue.Ready -> true
+		is DashboardLivePressureValue.Partial -> metrics != null
+		is DashboardLivePressureValue.Materializing,
+		DashboardLivePressureValue.Unavailable,
+		DashboardLivePressureValue.Failed -> false
+	}
+
+private val DashboardLivePressureValue.headerResource: Int
+	get() = if (hasDurableRecordingHeader) {
+		R.string.dashboard_recording
+	} else {
+		statusResource
 	}
 
 private val PressureHistoryCoverage.labelResource: Int

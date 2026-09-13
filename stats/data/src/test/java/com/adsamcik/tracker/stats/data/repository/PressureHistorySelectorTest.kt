@@ -27,6 +27,7 @@ import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
@@ -94,6 +95,27 @@ class PressureHistorySelectorTest {
 		recent.single().state shouldBe PressureHistoryPresentationState.READY
 		recent.single().pressure.windows.size shouldBe 2
 		recent.single().pressure.zoneAuthorities shouldBe linkedSetOf("Europe/Prague", "UTC")
+	}
+
+	@Test
+	fun liveFacadeReturnsSessionAndPressureFromOneCaptureAuthoritySnapshot() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L, laneCursor = 2L)
+		val authority = executableLaneAuthority()
+		val repository = DefaultTrackingHistoryRepository(
+			database = database,
+			stepsSelector = StepsSegmentHistorySelector(database, authority),
+			logicalHistoryReader = mockk(relaxed = true),
+			pressureSelector = PressureHistorySelector(database, authority),
+			ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+		)
+
+		val snapshot = repository.observeLiveSession(fixture.segmentId).first()
+		val session = (snapshot.session as SessionHistoryQuery.Found).history
+		val pressure = (snapshot.pressure as PressureSessionHistoryQuery.Found).history
+
+		snapshot.segmentId shouldBe fixture.segmentId
+		session.capture shouldBe pressure.capture
+		pressure.pressure.presentationState shouldBe PressureHistoryPresentationState.READY
 	}
 
 	@Test

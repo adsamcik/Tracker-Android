@@ -17,6 +17,7 @@ import com.adsamcik.tracker.stats.api.repository.HistoryCaptureRevision
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.LiveSessionHistorySnapshot
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.PressureHistory
@@ -86,8 +87,7 @@ class DashboardViewModelLiveStepsTest {
 			running.value = true
 			advanceUntilIdle()
 
-			repository.started shouldContainExactly listOf(FIRST_SEGMENT_ID)
-			repository.pressureStarted shouldContainExactly listOf(FIRST_SEGMENT_ID)
+			repository.liveStarted shouldContainExactly listOf(FIRST_SEGMENT_ID)
 			viewModel.liveSessionPresentation.value shouldBe
 				DashboardLiveSessionPresentation.HistoryUnavailable(FIRST_SEGMENT_ID)
 			observed shouldContain DashboardLiveSessionPresentation.Resolving(FIRST_SEGMENT_ID)
@@ -106,10 +106,8 @@ class DashboardViewModelLiveStepsTest {
 			session.value = TrackerSessionSnapshot(id = SECOND_SEGMENT_ID, start = 2L)
 			advanceUntilIdle()
 
-			repository.cancelled shouldContain FIRST_SEGMENT_ID
-			repository.pressureCancelled shouldContain FIRST_SEGMENT_ID
-			repository.started shouldContainExactly listOf(FIRST_SEGMENT_ID, SECOND_SEGMENT_ID)
-			repository.pressureStarted shouldContainExactly listOf(FIRST_SEGMENT_ID, SECOND_SEGMENT_ID)
+			repository.liveCancelled shouldContain FIRST_SEGMENT_ID
+			repository.liveStarted shouldContainExactly listOf(FIRST_SEGMENT_ID, SECOND_SEGMENT_ID)
 			viewModel.liveSessionPresentation.value shouldBe
 				DashboardLiveSessionPresentation.HistoryUnavailable(SECOND_SEGMENT_ID)
 			observed shouldContain DashboardLiveSessionPresentation.Resolving(SECOND_SEGMENT_ID)
@@ -117,8 +115,7 @@ class DashboardViewModelLiveStepsTest {
 			running.value = false
 			advanceUntilIdle()
 
-			repository.cancelled shouldContain SECOND_SEGMENT_ID
-			repository.pressureCancelled shouldContain SECOND_SEGMENT_ID
+			repository.liveCancelled shouldContain SECOND_SEGMENT_ID
 			viewModel.liveSessionPresentation.value shouldBe
 				DashboardLiveSessionPresentation.Inactive
 			collection.cancel()
@@ -221,7 +218,7 @@ class DashboardViewModelLiveStepsTest {
 		}
 
 	@Test
-	fun `mixed or mismatched Pressure history never hides the standard surface`() = runTest {
+	fun `mixed Pressure history never hides the standard surface`() = runTest {
 		val mainDispatcher = StandardTestDispatcher(testScheduler)
 		Dispatchers.setMain(mainDispatcher)
 		try {
@@ -250,14 +247,6 @@ class DashboardViewModelLiveStepsTest {
 			advanceUntilIdle()
 			viewModel.liveSessionPresentation.value shouldBe
 				DashboardLiveSessionPresentation.Standard(FIRST_SEGMENT_ID)
-
-			repository.updatePressure(
-				FIRST_SEGMENT_ID,
-				PressureSessionHistoryQuery.Found(pressureHistory(SECOND_SEGMENT_ID)),
-			)
-			advanceUntilIdle()
-			viewModel.liveSessionPresentation.value shouldBe
-				DashboardLiveSessionPresentation.HistoryUnavailable(FIRST_SEGMENT_ID)
 			collection.cancel()
 		} finally {
 			Dispatchers.resetMain()
@@ -312,14 +301,6 @@ class DashboardViewModelLiveStepsTest {
 					FIRST_SEGMENT_ID,
 					DashboardLiveStepsValue.Complete(1_500L),
 				)
-
-			repository.update(
-				FIRST_SEGMENT_ID,
-				SessionHistoryQuery.Found(stepsOnlyHistory(SECOND_SEGMENT_ID)),
-			)
-			advanceUntilIdle()
-			viewModel.liveSessionPresentation.value shouldBe
-				DashboardLiveSessionPresentation.HistoryUnavailable(FIRST_SEGMENT_ID)
 			collection.cancel()
 		} finally {
 			Dispatchers.resetMain()
@@ -513,19 +494,20 @@ class DashboardViewModelLiveStepsTest {
 }
 
 private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
-	private val states = mutableMapOf<Long, MutableStateFlow<SessionHistoryQuery>>()
-	private val pressureStates = mutableMapOf<Long, MutableStateFlow<PressureSessionHistoryQuery>>()
-	val started = mutableListOf<Long>()
-	val cancelled = mutableListOf<Long>()
-	val pressureStarted = mutableListOf<Long>()
-	val pressureCancelled = mutableListOf<Long>()
+	private val snapshots = mutableMapOf<Long, MutableStateFlow<LiveSessionHistorySnapshot>>()
+	val liveStarted = mutableListOf<Long>()
+	val liveCancelled = mutableListOf<Long>()
 
-	override fun observeSession(segmentId: Long): Flow<SessionHistoryQuery> = flow {
-		started += segmentId
+	override fun observeSession(segmentId: Long): Flow<SessionHistoryQuery> = flowOf(
+		SessionHistoryQuery.NotFound,
+	)
+
+	override fun observeLiveSession(segmentId: Long): Flow<LiveSessionHistorySnapshot> = flow {
+		liveStarted += segmentId
 		try {
-			emitAll(state(segmentId))
+			emitAll(snapshotState(segmentId))
 		} finally {
-			cancelled += segmentId
+			liveCancelled += segmentId
 		}
 	}
 
@@ -544,32 +526,78 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 		PressureAwareHistoryPageQuery.Content(emptyList()),
 	)
 
-	override fun observePressureSession(segmentId: Long): Flow<PressureSessionHistoryQuery> = flow {
-		pressureStarted += segmentId
-		try {
-			emitAll(pressureState(segmentId))
-		} finally {
-			pressureCancelled += segmentId
-		}
-	}
+	override fun observePressureSession(segmentId: Long): Flow<PressureSessionHistoryQuery> = flowOf(
+		PressureSessionHistoryQuery.NotFound,
+	)
 
 	override fun observeRecentPressureOnlyEntries(
 		limit: Int,
 	): Flow<List<PressureOnlyHistoryEntry>> = flowOf(emptyList())
 
 	fun update(segmentId: Long, query: SessionHistoryQuery) {
-		state(segmentId).value = query
+		val snapshot = when (query) {
+			SessionHistoryQuery.NotFound -> missingSnapshot(segmentId)
+			is SessionHistoryQuery.Found -> LiveSessionHistorySnapshot(
+				segmentId = segmentId,
+				session = query,
+				pressure = PressureSessionHistoryQuery.Found(
+					PressureSessionHistory(
+						segmentId = segmentId,
+						capture = query.history.capture,
+						qualifiedSources = emptySet(),
+						pressure = missingPressureHistory(),
+					),
+				),
+			)
+		}
+		snapshotState(segmentId).value = snapshot
 	}
 
 	fun updatePressure(segmentId: Long, query: PressureSessionHistoryQuery) {
-		pressureState(segmentId).value = query
+		val snapshot = when (query) {
+			PressureSessionHistoryQuery.NotFound -> missingSnapshot(segmentId)
+			is PressureSessionHistoryQuery.Found -> LiveSessionHistorySnapshot(
+				segmentId = segmentId,
+				session = SessionHistoryQuery.Found(
+					SessionHistory(
+						segmentId = segmentId,
+						capture = query.history.capture,
+						qualifiedSources = emptySet(),
+						steps = missingStepsHistory(),
+					),
+				),
+				pressure = query,
+			)
+		}
+		snapshotState(segmentId).value = snapshot
 	}
 
-	private fun state(segmentId: Long): MutableStateFlow<SessionHistoryQuery> =
-		states.getOrPut(segmentId) { MutableStateFlow(SessionHistoryQuery.NotFound) }
-
-	private fun pressureState(segmentId: Long): MutableStateFlow<PressureSessionHistoryQuery> =
-		pressureStates.getOrPut(segmentId) {
-			MutableStateFlow(PressureSessionHistoryQuery.NotFound)
+	private fun snapshotState(segmentId: Long): MutableStateFlow<LiveSessionHistorySnapshot> =
+		snapshots.getOrPut(segmentId) {
+			MutableStateFlow(missingSnapshot(segmentId))
 		}
+
+	private fun missingSnapshot(segmentId: Long) = LiveSessionHistorySnapshot(
+		segmentId = segmentId,
+		session = SessionHistoryQuery.NotFound,
+		pressure = PressureSessionHistoryQuery.NotFound,
+	)
+
+	private fun missingStepsHistory() = StepsHistory(
+		count = null,
+		availability = HistoryAvailability.UNAVAILABLE,
+		evidence = HistoryEvidence.NONE,
+		productState = HistoryProductState.DEGRADED,
+		coverage = StepsHistoryCoverage.UNKNOWN,
+		causes = setOf(StepsHistoryCause.LEGACY_UNVERIFIED),
+	)
+
+	private fun missingPressureHistory() = PressureHistory(
+		availability = HistoryAvailability.UNAVAILABLE,
+		evidence = HistoryEvidence.NONE,
+		productState = HistoryProductState.DEGRADED,
+		coverage = PressureHistoryCoverage.UNKNOWN,
+		windows = emptyList(),
+		causes = setOf(PressureHistoryCause.LEGACY_UNATTRIBUTED),
+	)
 }

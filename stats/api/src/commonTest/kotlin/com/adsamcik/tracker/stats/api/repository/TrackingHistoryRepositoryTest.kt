@@ -9,6 +9,52 @@ import kotlin.test.assertTrue
 
 class TrackingHistoryRepositoryTest {
 	@Test
+	fun `live snapshot rejects mixed-time capture authority`() {
+		val stepsCapture = HistoryCapture.Exact(
+			listOf(
+				HistoryCaptureRevision(
+					revision = 1L,
+					effectiveAt = EpochMs(100L),
+					capturedSources = setOf(HistorySource.STEPS),
+					controlSources = emptySet(),
+				),
+			),
+		)
+		val pressureCapture = HistoryCapture.Exact(
+			listOf(
+				HistoryCaptureRevision(
+					revision = 2L,
+					effectiveAt = EpochMs(200L),
+					capturedSources = setOf(HistorySource.PRESSURE),
+					controlSources = emptySet(),
+				),
+			),
+		)
+
+		assertFailsWith<IllegalArgumentException> {
+			LiveSessionHistorySnapshot(
+				segmentId = 7L,
+				session = SessionHistoryQuery.Found(
+					SessionHistory(
+						segmentId = 7L,
+						capture = stepsCapture,
+						qualifiedSources = emptySet(),
+						steps = missingSteps(),
+					),
+				),
+				pressure = PressureSessionHistoryQuery.Found(
+					PressureSessionHistory(
+						segmentId = 7L,
+						capture = pressureCapture,
+						qualifiedSources = emptySet(),
+						pressure = unavailablePressureHistory(),
+					),
+				),
+			)
+		}
+	}
+
+	@Test
 	fun `exact Steps-only capture ignores separately named control sources`() {
 		val history = SessionHistory(
 			segmentId = 7L,
@@ -295,6 +341,15 @@ class TrackingHistoryRepositoryTest {
 		evidence = HistoryEvidence.RECORDED,
 		productState = HistoryProductState.READY,
 		coverage = StepsHistoryCoverage.COMPLETE,
+	)
+
+	private fun missingSteps() = StepsHistory(
+		count = null,
+		availability = HistoryAvailability.UNAVAILABLE,
+		evidence = HistoryEvidence.NONE,
+		productState = HistoryProductState.DEGRADED,
+		coverage = StepsHistoryCoverage.UNKNOWN,
+		causes = setOf(StepsHistoryCause.LEGACY_UNVERIFIED),
 	)
 
 	private fun unavailablePressureHistory() = PressureHistory(

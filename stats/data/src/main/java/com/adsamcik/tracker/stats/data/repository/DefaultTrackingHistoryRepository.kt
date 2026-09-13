@@ -10,6 +10,7 @@ import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.LiveSessionHistorySnapshot
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageQuery
@@ -50,6 +51,40 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 			} ?: SessionHistoryQuery.NotFound
 		}.distinctUntilChanged()
 			.flowOn(ioDispatcher)
+
+	@OptIn(ExperimentalCoroutinesApi::class)
+	override fun observeLiveSession(segmentId: Long): Flow<LiveSessionHistorySnapshot> {
+		require(segmentId > 0L) { "Live session segment id must be positive" }
+		return historyInvalidations().mapLatest {
+			database.withTransaction {
+				val segment = database.trackingHistoryReadDao()
+					.segments(listOf(segmentId))
+					.singleOrNull()
+				if (segment == null) {
+					return@withTransaction LiveSessionHistorySnapshot(
+						segmentId = segmentId,
+						session = SessionHistoryQuery.NotFound,
+						pressure = PressureSessionHistoryQuery.NotFound,
+					)
+				}
+				val session = stepsSelector.selectManyInTransaction(listOf(segment))
+					.singleOrNull()
+					?.let { selected -> SessionHistoryQuery.Found(selected.toPublicSessionHistory()) }
+					?: SessionHistoryQuery.NotFound
+				val pressure = pressureSelector.selectManyInTransaction(listOf(segment))
+					.singleOrNull { selected -> selected.segment.id == segmentId }
+					?.let { selected ->
+						PressureSessionHistoryQuery.Found(selected.toPublicPressureSessionHistory())
+					} ?: PressureSessionHistoryQuery.NotFound
+				LiveSessionHistorySnapshot(
+					segmentId = segmentId,
+					session = session,
+					pressure = pressure,
+				)
+			}
+		}.distinctUntilChanged()
+			.flowOn(ioDispatcher)
+	}
 
 	@OptIn(ExperimentalCoroutinesApi::class)
 	override fun observeRecentStepsOnlyEntries(

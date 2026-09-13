@@ -43,6 +43,7 @@ class PressureOnlyTrackingContentTest {
 		composeRule.onNodeWithTag("dashboard_pressure_only_tracking_card")
 			.assertIsDisplayed()
 			.assertHasNoClickAction()
+		composeRule.onNodeWithTag("dashboard_live_pressure_header").assertTextEquals("Recording")
 		composeRule.onNodeWithTag("dashboard_live_pressure_value").assertTextEquals("1001.5 hPa")
 		composeRule.onAllNodesWithText("Range 999.5–1002.0 hPa").assertCountEquals(1)
 		composeRule.onAllNodesWithText("Change 1.5 hPa").assertCountEquals(1)
@@ -61,6 +62,9 @@ class PressureOnlyTrackingContentTest {
 
 		composeRule.onNodeWithTag("dashboard_live_pressure_value").assertTextEquals("—")
 		composeRule.onNodeWithTag("dashboard_live_pressure_status").assertIsDisplayed()
+		composeRule.onNodeWithTag("dashboard_live_pressure_header")
+			.assertTextEquals("Pressure history unavailable")
+		composeRule.onAllNodesWithText("Recording").assertCountEquals(0)
 		composeRule.onAllNodesWithText("hPa", substring = true).assertCountEquals(0)
 		composeRule.onAllNodesWithText("Range", substring = true).assertCountEquals(0)
 		composeRule.onAllNodesWithText("Change", substring = true).assertCountEquals(0)
@@ -73,6 +77,9 @@ class PressureOnlyTrackingContentTest {
 		composeRule.onNodeWithTag("dashboard_live_pressure_value").assertTextEquals("—")
 		composeRule.onNodeWithTag("dashboard_live_pressure_status")
 			.assertTextEquals("Preparing Pressure history…")
+		composeRule.onNodeWithTag("dashboard_live_pressure_header")
+			.assertTextEquals("Preparing Pressure history…")
+		composeRule.onAllNodesWithText("Recording").assertCountEquals(0)
 		composeRule.onAllNodesWithText("hPa", substring = true).assertCountEquals(0)
 	}
 

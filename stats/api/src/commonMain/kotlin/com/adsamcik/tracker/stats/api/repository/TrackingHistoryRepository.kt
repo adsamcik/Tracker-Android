@@ -19,6 +19,13 @@ interface TrackingHistoryRepository {
 	fun observeSession(segmentId: Long): Flow<SessionHistoryQuery>
 
 	/**
+	 * Observe the existing session product and source-local Pressure product from one durable
+	 * snapshot. Live presentation must use this seam when exact capture intent changes which
+	 * controls are visible; independently combined observations can mix different database states.
+	 */
+	fun observeLiveSession(segmentId: Long): Flow<LiveSessionHistorySnapshot>
+
+	/**
 	 * Observe recent logical entries whose exact capture set was Steps and no other source.
 	 *
 	 * The list is composed in one bounded read. It exposes neither a numeric cross-run total nor a
@@ -65,6 +72,31 @@ interface TrackingHistoryRepository {
 	 * authority. Each row retains its complete bounded Pressure windows and explicit product state.
 	 */
 	fun observeRecentPressureOnlyEntries(limit: Int): Flow<List<PressureOnlyHistoryEntry>>
+}
+
+/** One exact-segment Room snapshot used to choose the live session presentation. */
+data class LiveSessionHistorySnapshot(
+	val segmentId: Long,
+	val session: SessionHistoryQuery,
+	val pressure: PressureSessionHistoryQuery,
+) {
+	init {
+		require(segmentId > 0L) { "Live session snapshot requires a persisted segment identity" }
+		val foundSession = (session as? SessionHistoryQuery.Found)?.history
+		val foundPressure = (pressure as? PressureSessionHistoryQuery.Found)?.history
+		require((foundSession == null) == (foundPressure == null)) {
+			"Live session products must resolve the segment in the same snapshot"
+		}
+		require(foundSession == null || foundSession.segmentId == segmentId) {
+			"Session history does not belong to the live snapshot segment"
+		}
+		require(foundPressure == null || foundPressure.segmentId == segmentId) {
+			"Pressure history does not belong to the live snapshot segment"
+		}
+		require(foundSession == null || foundPressure == null ||
+			foundSession.capture == foundPressure.capture
+		) { "Live session products must share one capture-authority snapshot" }
+	}
 }
 
 /** Result of resolving one local session-segment row identity. */

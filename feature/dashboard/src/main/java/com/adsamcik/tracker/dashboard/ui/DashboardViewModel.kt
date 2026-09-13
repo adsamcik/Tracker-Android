@@ -30,6 +30,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.LiveSessionHistorySnapshot
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistory
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
@@ -153,12 +154,8 @@ class DashboardViewModel @Inject constructor(
 			if (segmentId == null) {
 				flowOf(DashboardLiveSessionPresentation.Inactive)
 			} else {
-				combine(
-					trackingHistoryRepository.observeSession(segmentId),
-					trackingHistoryRepository.observePressureSession(segmentId),
-				) { sessionQuery, pressureQuery ->
-					toLivePresentation(segmentId, sessionQuery, pressureQuery)
-				}
+				trackingHistoryRepository.observeLiveSession(segmentId)
+					.map { snapshot -> toLivePresentation(segmentId, snapshot) }
 					.onStart {
 						emit(DashboardLiveSessionPresentation.Resolving(segmentId))
 					}
@@ -363,25 +360,19 @@ private data class SessionInsightsRequest(
 
 private fun toLivePresentation(
 	requestedSegmentId: Long,
-	sessionQuery: SessionHistoryQuery,
-	pressureQuery: PressureSessionHistoryQuery,
+	snapshot: LiveSessionHistorySnapshot,
 ): DashboardLiveSessionPresentation {
-	val pressureHistory = when (pressureQuery) {
-		PressureSessionHistoryQuery.NotFound -> null
-		is PressureSessionHistoryQuery.Found -> {
-			if (pressureQuery.history.segmentId != requestedSegmentId) {
-				return DashboardLiveSessionPresentation.HistoryUnavailable(requestedSegmentId)
-			}
-			pressureQuery.history
-		}
+	if (snapshot.segmentId != requestedSegmentId) {
+		return DashboardLiveSessionPresentation.HistoryUnavailable(requestedSegmentId)
 	}
+	val pressureHistory = (snapshot.pressure as? PressureSessionHistoryQuery.Found)?.history
 	if (pressureHistory?.hasExactPressureOnlyIntent == true) {
 		return DashboardLiveSessionPresentation.PressureOnly(
 			segmentId = requestedSegmentId,
 			pressure = pressureHistory.pressure.toDashboardLivePressureValue(),
 		)
 	}
-	return sessionQuery.toLivePresentation(requestedSegmentId)
+	return snapshot.session.toLivePresentation(requestedSegmentId)
 }
 
 private fun SessionHistoryQuery.toLivePresentation(
