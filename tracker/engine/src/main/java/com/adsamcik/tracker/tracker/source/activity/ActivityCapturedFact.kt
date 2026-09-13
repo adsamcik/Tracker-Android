@@ -6,6 +6,43 @@ import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 
+internal data class ActivityProviderTimeInterval(
+	val startInclusiveNanos: Long,
+	val endExclusiveNanos: Long,
+) {
+	init {
+		require(startInclusiveNanos >= 0L)
+		require(endExclusiveNanos > startInclusiveNanos)
+	}
+
+	operator fun contains(providerTimeNanos: Long): Boolean =
+		providerTimeNanos >= startInclusiveNanos && providerTimeNanos < endExclusiveNanos
+
+	fun contains(interval: ActivityProviderTimeInterval): Boolean =
+		interval.startInclusiveNanos >= startInclusiveNanos &&
+			interval.endExclusiveNanos <= endExclusiveNanos
+}
+
+/** Exact physical, authorization, and run-time limits retained with every captured fact. */
+internal data class ActivityCaptureTemporalAuthority(
+	val providerAcceptance: ActivityProviderTimeInterval,
+	val authorizationEffect: ActivityProviderTimeInterval,
+	val sessionRunEffect: ActivityProviderTimeInterval,
+) {
+	val capturedIntersection = ActivityProviderTimeInterval(
+		startInclusiveNanos = maxOf(
+			providerAcceptance.startInclusiveNanos,
+			authorizationEffect.startInclusiveNanos,
+			sessionRunEffect.startInclusiveNanos,
+		),
+		endExclusiveNanos = minOf(
+			providerAcceptance.endExclusiveNanos,
+			authorizationEffect.endExclusiveNanos,
+			sessionRunEffect.endExclusiveNanos,
+		),
+	)
+}
+
 /** Immutable capture authority copied from one authorization-homogeneous Activity WAL unit. */
 internal data class ActivityCaptureAuthority(
 	val logicalTrackingId: LogicalTrackingId,
@@ -23,6 +60,7 @@ internal data class ActivityCaptureAuthority(
 	val lifecycleLeaseGeneration: Long,
 	val collectedDataEpoch: Long,
 	val clockDomainId: String,
+	val temporalAuthority: ActivityCaptureTemporalAuthority,
 ) {
 	init {
 		require(registrationGeneration > 0L)
@@ -79,6 +117,14 @@ internal fun isCompatibleActivityRefinement(
 	CapturedActivityType.UNKNOWN -> detail != CapturedActivityType.UNKNOWN
 	else -> false
 }
+
+/** EXIT invalidation is narrower than positive coarse-state refinement. */
+internal fun isCompatibleActivityNegativeBoundary(
+	exited: CapturedActivityType,
+	sampled: CapturedActivityType,
+): Boolean = exited == sampled ||
+	(exited == CapturedActivityType.ON_FOOT &&
+		(sampled == CapturedActivityType.WALKING || sampled == CapturedActivityType.RUNNING))
 
 internal enum class ActivityTransitionChange { ENTER, EXIT }
 

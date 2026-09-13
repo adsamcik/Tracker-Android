@@ -109,6 +109,36 @@ class ActivityCapturedFactCoalescerTest {
 	}
 
 	@Test
+	fun `unknown transition may be refined by known direct detail`() {
+		val window = coalesced(
+			transition("unknown", 100L, CapturedActivityType.UNKNOWN),
+			sampled("walking", 200L, 90, 400L, CapturedActivityType.WALKING),
+		)
+
+		window.bands.single {
+			it.mechanism == ActivityBandMechanism.SAMPLED_REFINEMENT
+		}.refinedTransitionActivity shouldBe CapturedActivityType.UNKNOWN
+	}
+
+	@Test
+	fun `unknown exit does not negate known sampled activity`() {
+		val window = coalesced(
+			sampled("walking", 100L, 90, 900L, CapturedActivityType.WALKING),
+			transition(
+				"unknown-exit",
+				400L,
+				CapturedActivityType.UNKNOWN,
+				ActivityTransitionChange.EXIT,
+			),
+		)
+
+		window.bands.single().intervalStartElapsedRealtimeNanos shouldBe 100L
+		window.bands.single().intervalEndExclusiveElapsedRealtimeNanos shouldBe 900L
+		window.bands.single().evidence shouldContainExactly listOf(reference("walking", 100L))
+		window.unchangedEvidenceCount shouldBe 1
+	}
+
+	@Test
 	fun `unmatched exit is a negative boundary for older compatible sample coverage`() {
 		val window = coalesced(
 			sampled("walking", 100L, 90, 900L, CapturedActivityType.WALKING),
@@ -135,7 +165,7 @@ class ActivityCapturedFactCoalescerTest {
 	}
 
 	@Test
-	fun `on-foot exit clips older walking detail but not a new same-time sample`() {
+	fun `equal-time exit wins when source sequence does not prove the sample came later`() {
 		val window = coalesced(
 			sampled("old-walking", 100L, 90, 900L, CapturedActivityType.WALKING),
 			transition(
@@ -147,13 +177,42 @@ class ActivityCapturedFactCoalescerTest {
 			sampled("new-walking", 400L, 90, 700L, CapturedActivityType.WALKING),
 		)
 
-		window.bands.map { band ->
-			band.intervalStartElapsedRealtimeNanos to band.intervalEndExclusiveElapsedRealtimeNanos
-		} shouldContainExactly listOf(100L to 700L)
+		window.bands.single().intervalStartElapsedRealtimeNanos shouldBe 100L
+		window.bands.single().intervalEndExclusiveElapsedRealtimeNanos shouldBe 400L
 		window.bands.single().evidence shouldContainExactly listOf(
 			reference("old-walking", 100L),
-			reference("new-walking", 400L),
 			reference("on-foot-exit", 400L),
+		)
+		window.unchangedEvidenceCount shouldBe 1
+	}
+
+	@Test
+	fun `equal-time sample survives only when source sequence proves it followed exit`() {
+		val window = coalesced(
+			sampled("old-walking", 100L, 90, 900L, CapturedActivityType.WALKING),
+			transition(
+				"on-foot-exit",
+				400L,
+				CapturedActivityType.ON_FOOT,
+				ActivityTransitionChange.EXIT,
+				sourceSequence = 401L,
+			),
+			sampled(
+				"new-walking",
+				400L,
+				90,
+				700L,
+				CapturedActivityType.WALKING,
+				sourceSequence = 402L,
+			),
+		)
+
+		window.bands.single().intervalStartElapsedRealtimeNanos shouldBe 100L
+		window.bands.single().intervalEndExclusiveElapsedRealtimeNanos shouldBe 700L
+		window.bands.single().evidence shouldContainExactly listOf(
+			reference("old-walking", 100L),
+			reference("on-foot-exit", 400L, sourceSequence = 401L),
+			reference("new-walking", 400L, sourceSequence = 402L),
 		)
 	}
 
@@ -284,6 +343,64 @@ class ActivityCapturedFactCoalescerTest {
 	}
 
 	@Test
+	fun `coalescing window cannot extend a transition beyond the exact capture cutoff`() {
+		val restricted = authority.withCaptureValidity(0L, 400L)
+		val observation = transition("walking", 100L, CapturedActivityType.WALKING).copy(
+			authority = restricted,
+		)
+		val outside = ActivityCapturedFactCoalescer.coalesce(
+			requestFor(restricted, 0L, 401L, listOf(observation)),
+		)
+		val exact = ActivityCapturedFactCoalescer.coalesce(
+			requestFor(restricted, 0L, 400L, listOf(observation)),
+		) as ActivityCoalescingResult.Coalesced
+
+		outside shouldBe ActivityCoalescingResult.Rejected(
+			ActivityCoalescingRejection.WINDOW_OUTSIDE_CAPTURE_VALIDITY,
+		)
+		exact.window.bands.single().intervalEndExclusiveElapsedRealtimeNanos shouldBe 400L
+	}
+
+	@Test
+	fun `coalescing window must stay inside the intersection of every temporal limit`() {
+		val restricted = authority.copy(
+			temporalAuthority = ActivityCaptureTemporalAuthority(
+				providerAcceptance = ActivityProviderTimeInterval(50L, 900L),
+				authorizationEffect = ActivityProviderTimeInterval(100L, 800L),
+				sessionRunEffect = ActivityProviderTimeInterval(150L, 850L),
+			),
+		)
+		val observation = transition("walking", 200L, CapturedActivityType.WALKING).copy(
+			authority = restricted,
+		)
+
+		ActivityCapturedFactCoalescer.coalesce(
+			requestFor(restricted, 149L, 800L, listOf(observation)),
+		) shouldBe ActivityCoalescingResult.Rejected(
+			ActivityCoalescingRejection.WINDOW_OUTSIDE_CAPTURE_VALIDITY,
+		)
+		val exact = ActivityCapturedFactCoalescer.coalesce(
+			requestFor(restricted, 150L, 800L, listOf(observation)),
+		) as ActivityCoalescingResult.Coalesced
+		exact.window.authority.temporalAuthority.capturedIntersection shouldBe
+			ActivityProviderTimeInterval(150L, 800L)
+	}
+
+	@Test
+	fun `lookback observation must remain inside the same exact capture validity`() {
+		val restricted = authority.withCaptureValidity(100L, 500L)
+		val observation = transition("pre-authority", 50L, CapturedActivityType.WALKING).copy(
+			authority = restricted,
+		)
+
+		ActivityCapturedFactCoalescer.coalesce(
+			requestFor(restricted, 100L, 400L, listOf(observation)),
+		) shouldBe ActivityCoalescingResult.Rejected(
+			ActivityCoalescingRejection.OBSERVATION_OUTSIDE_CAPTURE_VALIDITY,
+		)
+	}
+
+	@Test
 	fun `late correction replaces one stable window with a new semantic revision`() {
 		val firstMutation = mutation()
 		val correctedMutation = mutation(semanticRevision = 2L, supersedes = 1L)
@@ -329,6 +446,31 @@ class ActivityCapturedFactCoalescerTest {
 		declaredGaps = declaredGaps,
 	)
 
+	private fun requestFor(
+		captureAuthority: ActivityCaptureAuthority,
+		start: Long,
+		end: Long,
+		observations: List<ActivityCapturedObservation>,
+	) = ActivityCapturedCoalescingRequest(
+		mutation = ActivityCapturedWindowMutation(
+			identity = ActivityCapturedWindowIdentity(captureAuthority, start, end),
+			semanticRevision = 1L,
+			supersedesSemanticRevision = null,
+		),
+		observations = observations,
+	)
+
+	private fun ActivityCaptureAuthority.withCaptureValidity(
+		start: Long,
+		end: Long,
+	) = copy(
+		temporalAuthority = ActivityCaptureTemporalAuthority(
+			providerAcceptance = ActivityProviderTimeInterval(start, end),
+			authorizationEffect = ActivityProviderTimeInterval(start, end),
+			sessionRunEffect = ActivityProviderTimeInterval(start, end),
+		),
+	)
+
 	private fun mutation(
 		semanticRevision: Long = 1L,
 		supersedes: Long? = null,
@@ -343,8 +485,9 @@ class ActivityCapturedFactCoalescerTest {
 		time: Long,
 		activity: CapturedActivityType,
 		change: ActivityTransitionChange = ActivityTransitionChange.ENTER,
+		sourceSequence: Long = time + 1L,
 	) = ActivityCapturedObservation.Transition(
-		reference = reference(id, time),
+		reference = reference(id, time, sourceSequence),
 		authority = authority,
 		activity = activity,
 		observedWallTimeMs = time + 10_000L,
@@ -358,8 +501,9 @@ class ActivityCapturedFactCoalescerTest {
 		confidence: Int,
 		coverageEnd: Long,
 		activity: CapturedActivityType,
+		sourceSequence: Long = time + 1L,
 	) = ActivityCapturedObservation.SampledClassification(
-		reference = reference(id, time),
+		reference = reference(id, time, sourceSequence),
 		authority = authority,
 		activity = activity,
 		observedWallTimeMs = time + 10_000L,
@@ -368,10 +512,14 @@ class ActivityCapturedFactCoalescerTest {
 		coverageEndExclusiveElapsedRealtimeNanos = coverageEnd,
 	)
 
-	private fun reference(id: String, time: Long) = ActivityCapturedObservationReference(
+	private fun reference(
+		id: String,
+		time: Long,
+		sourceSequence: Long = time + 1L,
+	) = ActivityCapturedObservationReference(
 		sourceEventId = SourceEventId(id),
 		admissionOrdinal = time + 1L,
-		sourceSequence = time + 1L,
+		sourceSequence = sourceSequence,
 		providerElapsedRealtimeNanos = time,
 		receivedElapsedRealtimeNanos = time + 10L,
 	)
@@ -392,5 +540,10 @@ class ActivityCapturedFactCoalescerTest {
 		lifecycleLeaseGeneration = 19L,
 		collectedDataEpoch = 23L,
 		clockDomainId = "boot-1",
+		temporalAuthority = ActivityCaptureTemporalAuthority(
+			providerAcceptance = ActivityProviderTimeInterval(0L, 10_000L),
+			authorizationEffect = ActivityProviderTimeInterval(0L, 10_000L),
+			sessionRunEffect = ActivityProviderTimeInterval(0L, 10_000L),
+		),
 	)
 }

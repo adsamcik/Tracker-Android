@@ -10,19 +10,6 @@ import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.StableActivityTypeCode
 
-internal data class ActivityProviderTimeInterval(
-	val startInclusiveNanos: Long,
-	val endExclusiveNanos: Long,
-) {
-	init {
-		require(startInclusiveNanos >= 0L)
-		require(endExclusiveNanos > startInclusiveNanos)
-	}
-
-	operator fun contains(providerTimeNanos: Long): Boolean =
-		providerTimeNanos >= startInclusiveNanos && providerTimeNanos < endExclusiveNanos
-}
-
 /** Stable identity of the historical provider configuration supplying capture thresholds. */
 internal data class ActivityAcquisitionConfigurationIdentity(
 	val sourceInstanceId: SourceInstanceId,
@@ -73,6 +60,13 @@ internal data class ActivityCaptureAcquisitionAuthority(
 		require(historicalConfiguration.identity == expectedIdentity) {
 			"Capture thresholds must belong to the exact historical acquisition identity"
 		}
+		require(
+			captureAuthority.temporalAuthority == ActivityCaptureTemporalAuthority(
+				providerAcceptance = historicalConfiguration.providerAcceptance,
+				authorizationEffect = historicalConfiguration.authorizationEffect,
+				sessionRunEffect = historicalConfiguration.sessionRunEffect,
+			),
+		) { "Capture authority must retain the exact historical temporal limits" }
 	}
 }
 
@@ -168,6 +162,7 @@ internal object ActivityCapturedObservationAdmission {
 			lifecycleLeaseGeneration = leaseGeneration,
 			collectedDataEpoch = evidence.capturedCollectedDataEpoch,
 			clockDomainId = evidence.clockDomainId,
+			temporalAuthority = acquisitionAuthority.captureAuthority.temporalAuthority,
 		)
 		if (candidateAuthority != acquisitionAuthority.captureAuthority) {
 			return rejected(ActivityCaptureAdmissionRejection.ACQUISITION_AUTHORITY_MISMATCH)
