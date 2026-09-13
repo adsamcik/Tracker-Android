@@ -1675,3 +1675,56 @@ acceptance gate.
 
 No Gradle, compiler, test, lint, Detekt, Room, device, or other validation command ran. Kotlin/API
 compilation and all downstream writer/product behavior remain unproven.
+
+## TI-B259 — Ambient reader-to-fact importer contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `29801e17f`. Authored importer and Room-contract tests
+cover privacy-floor planning, provider read outside Room, exact post-read authority revalidation,
+atomic fact/revision/cursor CAS, stable progressive identity, zone and retention transitions,
+undrained authorization, completed-day no-evidence progress, null partial-day preservation, exact
+replay, rollback, and no resurrection after retraction. Two read-only reviews rejected the initial
+importer and first correction; the final review accepted this bounded source behavior.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*AmbientStepsFactImporterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Kotlin/Room/API compilation, database execution, provider behavior,
+process/reboot behavior, schema drift, device/UI/battery, integration, activation, and release remain
+unproven.
+
+## TI-B260 — Pressure fact-driven history selection and composition contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `8b076e6f7`. Authored DAO, selector, composer, and Room
+tests cover zero-sample fact discovery, reciprocal run/segment binding, full replacement membership,
+manifest-union integrity, correction attribution and escaped lineage, provider-unavailable conflict,
+bounded paging and overflow, stored-zone composition, and retained quality or coverage evidence.
+Read-only review rejected two earlier shapes and accepted the final correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:data:testDebugUnitTest --tests '*PressureHistory*' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Kotlin/Room compilation, SQL execution, cancellation behavior, shared
+history/UI consumption, device/provider behavior, integration, and release remain unproven.
+
+## TI-B261 — Honest Pressure acquisition-plan contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `3b8abe350`. Authored codec, semantic plan factory, resolver,
+provider-request, and source-runtime tests require the legacy movement-gated byte to remain false,
+reject unsupported legacy true, preserve distinct 1/5/20 Hz provider and aggregation behavior,
+retain explicit thermal fallback, and leave Pressure unchanged by Activity or stationary state. An
+independent source review accepted the exact boundary.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*Pressure*' --tests '*SourcePlanCodecTest' --tests '*SourcePlanResolverTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, provider registration, FIFO/batching behavior, sensor cadence,
+battery impact, device behavior, integration, activation, and release remain unproven.

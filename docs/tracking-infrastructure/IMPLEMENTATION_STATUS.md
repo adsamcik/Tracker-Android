@@ -1,6 +1,6 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-09-12
+Last updated: 2026-09-13
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
@@ -10,19 +10,21 @@ The exhaustive remaining-work checklist is
 [IMPLEMENTATION_TODO.md](IMPLEMENTATION_TODO.md). It distinguishes implementation code and tests
 to author now from product decisions and the deferred convergence-validation phase.
 
-## September 13 coordinator checkpoint — Ambient continuity accepted, Activity model isolated
+## September 13 coordinator checkpoint — Ambient importer and Pressure read path accepted
 
-The coordinator source worktree is clean at `4461a95b4` on
-`codex/ti-steps-import-actions`. Ambient Steps now owns a source-specific, sessionless cursor/gap
-store and correction-safe fact identity in addition to its previously authored provider lifecycle,
-startup rearm, deletion fencing, exact provider reads, eligibility preflight, structural window
-planning, and aggregate facts. Commits `e965fb015` through `4461a95b4` preserve exact provider,
-source-instance, registration, authorization, policy, consent, collected-data, boot, and stored-zone
-authority; rotate authorization within one physical registration without fabricating a gap; enforce
-monotonic cursor CAS; and derive effective gaps by subtracting latest-effective exact-origin facts.
-Three adversarial review passes rejected the initial shapes and found no remaining issue in the
-corrected boundary. The exact
-reader-to-cursor-to-fact importer transaction remains next and has not been started.
+The coordinator source worktree is clean at `29801e17f` on
+`codex/ti-steps-import-actions`. Ambient Steps now owns the exact bounded
+reader-to-cursor-to-fact importer in addition to its provider lifecycle, startup rearm, deletion
+fencing, provider reads, eligibility preflight, structural windows, sessionless facts, cursor, and
+gaps. Commits `39cff3c5a`, `1ca770a5f`, and `29801e17f` keep provider reads outside Room, revalidate
+current registration, authorization, policy, consent, demand, lifecycle, and destination ownership
+before commit, and atomically write at most one canonical fact revision with its monotonic cursor
+advance. They do not backdate a newly observed zone, persist exact discontinuity and completed-day
+no-evidence gaps without fabricating zero, preserve one stable progressively revised fact identity,
+and make exact replay a no-op. Two read-only review passes rejected the initial importer and its
+first correction; the final pass accepted this exact boundary as **IMPLEMENTED_UNVALIDATED**.
+Provider handoff drain, overlap partition, product composition, retention, deletion, transfer, and
+activation remain open.
 
 The isolated Activity worktree
 `G:\Github\Tracker-Android\.worktrees\ti-activity-captured-facts` is clean at `7228cd6e9` on
@@ -34,11 +36,21 @@ single-test correction closed the scoped findings as **IMPLEMENTED_UNVALIDATED**
 history, UI, shared runtime,
 or control-retention behavior is included.
 
-The isolated Pressure read slice at `097277c74` remains **IN_REVIEW** and is not accepted by this
-checkpoint. Git/worktree reconciliation found no accepted committed implementation stranded or
-lost: imported Steps branches are contained or patch-equivalent in the coordinator, the older
-Pressure/numeric branches are ancestors, and the two dirty portable-import/qualified-awards drafts
-remain frozen reference inputs only.
+The isolated Pressure branch is clean at `3b8abe350`. Commits `8768767d4` through `8b076e6f7`
+provide fact-driven zero-sample discovery, reciprocal run/segment binding, complete replacement-run
+membership, immutable correction attribution, bounded and cancellable fact traversal, typed
+unavailable, integrity, and overflow outcomes, and retained quality evidence. Commit `3b8abe350`
+removes the unsupported movement-gated mode, rejects legacy serialized `true`, preserves genuinely
+different 1, 5, and 20 Hz provider and aggregation plans, and prevents Activity state from changing
+Pressure acquisition. Fresh independent reviews accepted both exact boundaries as
+**IMPLEMENTED_UNVALIDATED**. Production history and UI composition and the remaining writer,
+maintenance, automatic-control, and transfer work are still open.
+
+Git/worktree reconciliation found no accepted committed implementation stranded or lost: imported
+Steps branches are contained or patch-equivalent in the coordinator, the older Pressure and numeric
+branches are ancestors, and the two dirty portable-import/qualified-awards drafts remain frozen
+reference inputs only. Activity persistence, Wi-Fi, Cell, and protected Location are active isolated
+lanes and remain unaccepted while their review findings are corrected.
 
 The checked-in v28 JSON now declares 79 entities: 51 released-v27 entities plus 28 narrowly owned
 v28 additions. Its identity hash is intentionally stale and Room/Kotlin/SQL generation or checking

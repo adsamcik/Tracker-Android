@@ -1,6 +1,6 @@
 # Tracking Infrastructure Continuation Handover
 
-Last updated: 2026-09-12
+Last updated: 2026-09-13
 
 ## Implementation-only directive
 
@@ -24,7 +24,7 @@ passes, rebase and merge through the clean integration checkout. No push or acti
 
 ## 2026-09-13 active coordinator checkpoint
 
-The current Ambient source checkpoint is `4461a95b4` on `codex/ti-steps-import-actions` in
+The current Ambient source checkpoint is `29801e17f` on `codex/ti-steps-import-actions` in
 `G:\Github\Tracker-Android\.worktrees\ti-steps-import-actions`; the worktree is clean. This
 supersedes the September 12 resume boundary below. On resume, verify status, HEAD, and log without
 resetting or discarding if they differ.
@@ -33,29 +33,32 @@ Ambient Steps now has production startup/deletion lifecycle invocation, exact pr
 system rearm, provider read windows, default-off eligibility preflight, stored-zone window planning,
 sessionless aggregate facts, one cursor per exact continuity authority, same-registration
 authorization transitions, monotonic CAS, stable origin-qualified fact identity, immutable gap
-declarations with latest-fact subtraction, and full-clear/migration test source. The reviewed
-**IMPLEMENTED_UNVALIDATED** commits are `e965fb015`, `766d61fdb`, `fab70f295`, `5dfbc148b`, `09de7819e`,
-`1b274bf2c`, `a47807103`, and `4461a95b4`. Adversarial reviews first rejected authority rotation,
+declarations with latest-fact subtraction, an exact reader-to-fact transaction, and full-clear or
+migration test source. The reviewed **IMPLEMENTED_UNVALIDATED** commits are `e965fb015`, `766d61fdb`,
+`fab70f295`, `5dfbc148b`, `09de7819e`, `1b274bf2c`, `a47807103`, `4461a95b4`, `39cff3c5a`,
+`1ca770a5f`, and `29801e17f`. Adversarial reviews first rejected authority rotation,
 identity, CAS, gap correction, migration-fixture, fingerprint, and effective-gap mismatches; the
-listed successors address them. The v28 schema identity hash remains deliberately stale until the
-deferred convergence generation/check.
+listed successors address them. The importer now reads outside Room, revalidates exact authority
+before one atomic fact/cursor transaction, advances completed no-evidence days as explicit gaps, and
+makes exact replay a no-op. It never backfills before the rounded privacy floor or backdates a newly
+observed zone. The v28 schema identity hash remains deliberately stale until the deferred
+convergence generation/check.
 
-Next Ambient dependency: implement one bounded `:tracker:engine` transaction that revalidates the
-accepted registration and current authorization/policy/consent/lifecycle/destination-owner
-generation, initializes or advances the exact cursor, reads only planned structural windows, writes
-one canonical fact revision, and commits fact plus cursor atomically. It must not backfill before
-the rounded provider/authorization privacy floor. Provider replacement drain and overlap
-partitioning remain subsequent slices. Do not enable `ExecutableSourceLaneCatalog.AMBIENT` or a
-product surface yet.
+Next Ambient dependencies are provider replacement drain, overlap partitioning, product
+composition, retention, deletion, and portable transfer. Do not enable
+`ExecutableSourceLaneCatalog.AMBIENT` or a product surface yet. A completed-day no-evidence gap is
+terminal to this monotonic importer; later provider backfill requires a separate bounded repair
+contract rather than silently reopening the cursor.
 
 Independent clean lanes:
 
 - Activity pure capture model: `codex/ti-activity-captured-facts` at `7228cd6e9` in
   `G:\Github\Tracker-Android\.worktrees\ti-activity-captured-facts`; reviewed as
   **IMPLEMENTED_UNVALIDATED**. Writer/schema/history/UI remain open.
-- Pressure source-specific read model: `codex/ti-pressure-acquisition` at `097277c74` in
-  `G:\Github\Tracker-Android\.worktrees\ti-pressure-acquisition`; clean but still **IN_REVIEW**.
-  Do not compose it into shared history before the pending independent review.
+- Pressure source-specific read model and honest acquisition tiers:
+  `codex/ti-pressure-acquisition` at `3b8abe350` in
+  `G:\Github\Tracker-Android\.worktrees\ti-pressure-acquisition`; clean and independently accepted
+  as **IMPLEMENTED_UNVALIDATED**. Shared product composition remains open.
 
 Read-only Git reconciliation found no accepted committed work lost through compaction. The imported
 Steps source branches are already contained or patch-equivalent in this coordinator; old

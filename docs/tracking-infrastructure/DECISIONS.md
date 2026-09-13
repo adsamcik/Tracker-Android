@@ -3126,3 +3126,47 @@ Each entry records repository evidence and does not duplicate the final architec
   UNKNOWN EXIT negates only UNKNOWN.
 - Bounded sorted sweeps produce typed active/inactive/unknown/unobserved coverage and explicit gaps.
   This decision adds no schema, writer, provider, history, UI, or captured ambient Activity product.
+
+## TI-D196 — Ambient provider reads commit one fact and cursor under revalidated authority
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; source/tests `39cff3c5a`, `1ca770a5f`, and
+  `29801e17f`; TI-B259.
+- Provider reads occur outside Room. The final Room transaction re-reads the accepted provider
+  registration, current authorization, policy, consent, direct ambient demand, lifecycle, source
+  owner, cursor, and deletion authority before it inserts at most one fact revision and advances the
+  cursor by compare-and-set.
+- The importer cannot read before its rounded privacy floor or assign a newly observed zone to an
+  earlier interval. Zone, retention, and undrained-authorization discontinuities are explicit gaps;
+  a fully completed structural day with no provider evidence becomes a typed no-evidence gap so it
+  cannot block all later days or become fabricated covered zero.
+- Progressive reads revise one stable fact identity. Exact same-high-water and same-observation
+  replay is a no-op; a newer observation may advance only observation authority. A completed-day
+  no-evidence gap is terminal to this monotonic path, so later backfill requires a separately bounded
+  repair contract rather than implicit cursor reversal.
+
+## TI-D197 — Pressure history is discovered from qualified facts and complete replacement groups
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/tests `8768767d4`, `097277c74`,
+  `7d3392a7d`, `30b99549`, and `8b076e6f7`; TI-B260.
+- Pressure-only history discovery joins Pressure facts to reciprocal service-run and segment binding;
+  neither `sample_count` nor Location is source proof. Every selected logical entry expands the full
+  explicit replacement-run set before composition, and malformed membership, manifest union,
+  reverse binding, ownership, or correction lineage fails the whole logical group closed.
+- Fact paging and logical membership are bounded with typed overflow and cancellation checkpoints.
+  Immutable correction attribution includes manifest, policy, consent, clock, and stored-zone
+  authority. A provider-unavailable sentinel cannot hide retained or escaped facts.
+- The read model retains real count, range, mean, variance, trend fit, accuracy, cadence, latency,
+  expected and actual sample coverage, maximum gap, closure, flags, confidence, and stored zone. This
+  decision does not yet expose the model through shared product history or UI.
+
+## TI-D198 — Pressure acquisition exposes only real continuous or batched provider behavior
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/tests `3b8abe350`; TI-B261.
+- Pressure no longer models a movement-gated burst that no provider implemented. The retained v1
+  serialized byte must be `false`; legacy `true` is a typed unsupported mode rather than silently
+  acquiring continuously under a false battery promise.
+- Low, standard, and responsive plans retain distinct 1, 5, and 20 Hz sampling, delivery latency,
+  FIFO/batching, and aggregation windows that reach the existing SensorManager request and
+  accumulator. Thermal fallback is an explicit continuous batched plan bounded by direct demand.
+- Activity or stationary state cannot change, wake, start, or retain Pressure acquisition. This does
+  not activate a provider, change rollout defaults, or claim device battery evidence.

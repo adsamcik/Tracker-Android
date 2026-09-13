@@ -1,6 +1,6 @@
 # Tracking Infrastructure Completion TODO
 
-Last updated: 2026-09-12
+Last updated: 2026-09-13
 
 This is the canonical remaining-work ledger for the six source-to-product verticals. It translates
 the vision, final design, adaptive acquisition design, execution ledger, decisions, current
@@ -487,12 +487,13 @@ fact revisions behind an `AMBIENT_STEPS` owner fence. Durable cursor/gap authori
 correction-safe stable logical segment identity, the exact importer transaction, overlap
 partitioning, product reads/UI, retention, deletion, and portable transfer remain unchecked.
 
-Accepted source checkpoint `4461a95b4` now implements the cursor/gap and correction-safe identity
-portions of AMBIENT-005: exact same-registration authority transitions, monotonic cursor CAS,
-origin-qualified fact identity, explicit gap declarations, and effective-gap subtraction by
-latest exact-origin facts. These partial completions do not close AMBIENT-003/005/008/009. The
-reader-to-fact atomic importer, provider handoff drain, overlap partition, product consumers,
-retention/deletion/transfer, and final scenario cohort remain open.
+Accepted source checkpoint `29801e17f` now implements the cursor/gap, correction-safe identity, and
+bounded reader-to-fact portions of AMBIENT-005: exact same-registration authority transitions,
+monotonic cursor CAS, origin-qualified fact identity, explicit gap declarations, effective-gap
+subtraction, privacy-floor reads, post-read authority revalidation, atomic fact/cursor mutation,
+completed-day no-evidence progress, and exact replay. These partial completions do not close
+AMBIENT-003/005/008/009. Provider handoff drain, overlap partition, product consumers,
+retention/deletion/transfer, and the final scenario cohort remain open.
 
 ## Pressure vertical
 
@@ -521,12 +522,13 @@ retention/deletion/transfer, and final scenario cohort remain open.
 - [ ] TODO-PRESS-012 Author FIFO and non-FIFO, batching, gap, correction, deletion, import/export,
   automatic-control, history, and UI contract tests without running them.
 
-The isolated `codex/ti-pressure-acquisition` branch at `097277c74` authors a source-specific
-Pressure physical/logical read model, bounded selector, correction validation, and focused tests.
-It remains **IN_REVIEW** and does not close PRESS-006/007 until independently accepted and composed
-through the coordinator-owned production history/UI path. The existing serialized
-`movementGatedBurst` still has no production trigger/window/cooldown and must not be presented as a
-real high-rate mode.
+The isolated `codex/ti-pressure-acquisition` branch at `3b8abe350` has independently accepted
+**IMPLEMENTED_UNVALIDATED** source-specific Pressure read and acquisition slices. It discovers from
+qualified facts, validates complete replacement and correction membership, retains exact physical
+ownership and quality evidence, and exposes real 1/5/20 Hz provider/aggregation differences. The
+unsupported movement-gated mode is no longer representable and legacy serialized `true` fails
+typed. PRESS-001/006/007 remain unchecked until the demand adapter, production history/UI path, and
+complete consumer behavior exist; no provider or product path is active.
 
 ## Protected Location vertical
 
