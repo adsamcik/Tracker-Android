@@ -83,8 +83,19 @@ internal class CellWalQualificationAdapter @Inject constructor(
 	private val payloadCodec: SourcePayloadCodec,
 	private val planCodec: SourcePlanCodec,
 ) {
+	suspend fun qualify(eventId: SourceEventId): CellWalAdapterResult = qualify(
+		eventId = eventId,
+		classify = { input, authority ->
+			CellCapturedFactClassifier.classify(input = input, authority = authority)
+		},
+	)
+
 	@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
-	suspend fun qualify(eventId: SourceEventId): CellWalAdapterResult = database.withTransaction {
+	suspend fun qualify(
+		eventId: SourceEventId,
+		classify: suspend (CellObservationInput, CellCaptureAuthority) ->
+			CellCapturedFactClassification,
+	): CellWalAdapterResult = database.withTransaction {
 		val walDao = database.sourceEventWalDao()
 		val wal = walDao.getByEventId(eventId.value)
 			?: return@withTransaction rejected(CellWalAdapterRejection.MISSING_EVENT)
@@ -514,13 +525,13 @@ internal class CellWalQualificationAdapter @Inject constructor(
 			capturedAuthority = authority,
 		)
 		CellWalAdapterResult.Evaluated(
-			CellCapturedFactClassifier.classify(
-				input = CellObservationInput(
+			classify(
+				CellObservationInput(
 					origin = CellObservationOrigin.PROVIDER_CALLBACK,
 					outcome = CellProviderOutcome.DELIVERED,
 					walEvidence = evidence,
 				),
-				authority = authority,
+				authority,
 			),
 		)
 	}

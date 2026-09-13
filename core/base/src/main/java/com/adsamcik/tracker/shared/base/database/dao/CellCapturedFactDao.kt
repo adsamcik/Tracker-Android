@@ -26,8 +26,53 @@ interface CellCapturedFactDao {
 		semanticRevision: Long,
 	): CellCapturedFactRevisionEntity?
 
+	@Query(
+		"SELECT * FROM cell_captured_fact_revision WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion " +
+			"AND logical_fact_id = :logicalFactId " +
+			"ORDER BY semantic_revision DESC LIMIT :limit",
+	)
+	suspend fun revisionsForFact(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		logicalFactId: String,
+		limit: Int,
+	): List<CellCapturedFactRevisionEntity>
+
 	@Query("SELECT COUNT(*) FROM cell_captured_fact_revision")
 	suspend fun revisionCount(): Long
+
+	@Query(
+		"SELECT fact.* FROM cell_captured_fact_revision AS fact " +
+			"INNER JOIN cell_captured_fact_cursor AS fact_cursor ON " +
+			"fact_cursor.writer_projection_id = fact.writer_projection_id AND " +
+			"fact_cursor.writer_projection_version = fact.writer_projection_version AND " +
+			"fact_cursor.logical_fact_id = fact.logical_fact_id AND " +
+			"fact_cursor.latest_semantic_revision = fact.semantic_revision AND " +
+			"fact_cursor.latest_mutation_id = fact.mutation_id AND " +
+			"fact_cursor.latest_effect_checksum = fact.effect_checksum AND " +
+			"fact_cursor.latest_source_admission_ordinal = fact.source_admission_ordinal " +
+			"WHERE fact.writer_projection_id = :writerProjectionId AND " +
+			"fact.writer_projection_version = :writerProjectionVersion AND " +
+			"fact.logical_tracking_id = :logicalTrackingId AND " +
+			"fact.service_run_id = :serviceRunId AND " +
+			"fact.session_segment_id = :sessionSegmentId AND " +
+			"fact.collected_data_epoch = :collectedDataEpoch AND " +
+			"fact.scope_deletion_generation = :scopeDeletionGeneration AND " +
+			"fact.source_admission_ordinal < :beforeSourceAdmissionOrdinal " +
+			"ORDER BY fact.source_admission_ordinal DESC LIMIT 1",
+	)
+	@Suppress("LongParameterList")
+	suspend fun latestEffectiveBefore(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		sessionSegmentId: Long,
+		collectedDataEpoch: Long,
+		scopeDeletionGeneration: Long,
+		beforeSourceAdmissionOrdinal: Long,
+	): CellCapturedFactRevisionEntity?
 
 	@Query(
 		"SELECT * FROM cell_captured_fact_cursor WHERE writer_projection_id = :writerProjectionId " +
@@ -65,7 +110,7 @@ interface CellCapturedFactDao {
 			"AND latest_source_admission_ordinal = :expectedSourceAdmissionOrdinal " +
 			"AND cursor_revision = :expectedCursorRevision " +
 			"AND :newSemanticRevision = :expectedSemanticRevision + 1 " +
-			"AND :newSourceAdmissionOrdinal > :expectedSourceAdmissionOrdinal " +
+			"AND :newSourceAdmissionOrdinal >= :expectedSourceAdmissionOrdinal " +
 			"AND :newCursorRevision = :expectedCursorRevision + 1",
 	)
 	@Suppress("LongParameterList")

@@ -1833,7 +1833,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 					"ON cell_captured_fact_revision(writer_projection_id, writer_projection_version, mutation_id)",
 			)
 			execSQL(
-				"CREATE UNIQUE INDEX IF NOT EXISTS idx_cell_captured_fact_admission " +
+				"CREATE INDEX IF NOT EXISTS idx_cell_captured_fact_admission " +
 					"ON cell_captured_fact_revision(writer_projection_id, writer_projection_version, " +
 					"source_admission_ordinal)",
 			)

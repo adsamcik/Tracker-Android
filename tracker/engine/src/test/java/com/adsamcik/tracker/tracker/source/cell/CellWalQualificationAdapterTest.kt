@@ -5,6 +5,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -38,7 +40,9 @@ import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprin
 import com.adsamcik.tracker.tracker.source.runtime.cellProviderDeliveryIdentity
 import java.time.Instant
 import java.time.ZoneId
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -286,6 +290,165 @@ class CellWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `new unchanged callback persists coverage only and reuses one direct aggregate`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val beforeEvidenceRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+		val shifted = observations().map { observation ->
+			observation.copy(
+				providerTimestampNanos = requireNotNull(observation.providerTimestampNanos) +
+					SECOND_DELIVERY_SHIFT_NANOS,
+			)
+		}
+		insertAdditionalWal(SECOND_EVENT_ID, shifted, SOURCE_SEQUENCE + 1L)
+
+		val second = assertIs<CellCapturedWriteResult.Applied>(writer.write(SECOND_EVENT_ID))
+		val coverage = requireNotNull(
+			database.cellCapturedFactDao().revision(
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				second.logicalFactId,
+				second.semanticRevision,
+			),
+		)
+
+		assertEquals(CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY, coverage.factKind)
+		assertEquals(first.logicalFactId, coverage.aggregateOwnerLogicalFactId)
+		assertEquals(1L, coverage.aggregateOwnerSemanticRevision)
+		assertEquals(null, coverage.observationCount)
+		assertEquals(2L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(beforeEvidenceRevision + 1L, database.sourceEvidenceStateDao().get()?.revision)
+	}
+
+	@Test
+	fun `same retained WAL can append an exact semantic correction`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		rewriteLatestAggregateAsHistorical(first.logicalFactId)
+
+		val corrected = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val revision = requireNotNull(
+			database.cellCapturedFactDao().revision(
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				corrected.logicalFactId,
+				corrected.semanticRevision,
+			),
+		)
+
+		assertEquals(first.logicalFactId, corrected.logicalFactId)
+		assertEquals(2L, revision.semanticRevision)
+		assertEquals(1L, revision.supersedesSemanticRevision)
+		assertEquals(1, revision.registeredObservationCount)
+		assertEquals(SOURCE_SEQUENCE, revision.sourceSequence)
+		assertEquals(2L, database.cellCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `cursor CAS collision rolls back an appended correction`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		rewriteLatestAggregateAsHistorical(first.logicalFactId)
+		val evidenceRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+
+		val result = writer.write(EVENT_ID) { checkpoint ->
+			if (checkpoint == CellCapturedWriteCheckpoint.REVISION_INSERTED) {
+				database.openHelper.writableDatabase.execSQL(
+					"UPDATE cell_captured_fact_cursor SET cursor_revision = cursor_revision + 1 " +
+						"WHERE logical_fact_id = ?",
+					arrayOf(first.logicalFactId),
+				)
+			}
+		}
+
+		assertEquals(
+			CellCapturedWriteResult.Rejected(CellCapturedWriteRejection.CURSOR_CHANGED),
+			result,
+		)
+		assertEquals(1L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(
+			1L,
+			database.cellCapturedFactDao().cursor(
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				first.logicalFactId,
+			)?.cursorRevision,
+		)
+		assertEquals(evidenceRevision, database.sourceEvidenceStateDao().get()?.revision)
+	}
+
+	@Test
+	fun `destination authority rotation after qualification rolls back the write`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+
+		val result = writer.write(EVENT_ID) { checkpoint ->
+			if (checkpoint == CellCapturedWriteCheckpoint.QUALIFIED) {
+				database.openHelper.writableDatabase.execSQL(
+					"UPDATE source_destination_owner SET owner_generation = 2 " +
+						"WHERE source_kind = ? AND destination = ?",
+					arrayOf(
+						CELL_SOURCE,
+						SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+					),
+				)
+			}
+		}
+
+		assertEquals(
+			CellCapturedWriteResult.Rejected(CellCapturedWriteRejection.DESTINATION_OWNER_CHANGED),
+			result,
+		)
+		assertEquals(1L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(
+			SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			database.sourceDestinationOwnerDao().get(
+				CELL_SOURCE,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+			)?.ownerGeneration,
+		)
+	}
+
+	@Test
+	fun `retention rotation after qualification is rechecked and rolled back`() = runTest {
+		installValidFixture(candidateWriter = true)
+
+		val result = writer.write(EVENT_ID) { checkpoint ->
+			if (checkpoint == CellCapturedWriteCheckpoint.QUALIFIED) {
+				database.openHelper.writableDatabase.execSQL(
+					"UPDATE source_evidence_state SET retained_from_ms = ? WHERE id = 1",
+					arrayOf(OBSERVED_WALL_MS + 1L),
+				)
+			}
+		}
+
+		assertEquals(
+			CellCapturedWriteResult.Rejected(CellCapturedWriteRejection.RETAINED_DATA),
+			result,
+		)
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(null, database.sourceEvidenceStateDao().get()?.retainedFromMs)
+	}
+
+	@Test
+	fun `cancellation after cursor advancement rolls back fact cursor and evidence`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val evidenceRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+
+		assertFailsWith<CancellationException> {
+			writer.write(EVENT_ID) { checkpoint ->
+				if (checkpoint == CellCapturedWriteCheckpoint.CURSOR_ADVANCED) {
+					throw CancellationException("test cancellation")
+				}
+			}
+		}
+
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(0L, database.cellCapturedFactDao().cursorCount())
+		assertEquals(evidenceRevision, database.sourceEvidenceStateDao().get()?.revision)
+	}
+
+	@Test
 	fun `candidate writer remains dormant without exact destination owner`() = runTest {
 		installValidFixture(candidateWriter = true, installDestinationOwner = false)
 
@@ -482,6 +645,69 @@ class CellWalQualificationAdapterTest {
 		)
 		val wal = unsignedWal.copy(integrityIdentity = unsignedWal.calculatedIntegrityIdentity())
 		assertEquals(1L, database.sourceEventWalDao().insertIgnoringDuplicate(wal))
+	}
+
+	private suspend fun insertAdditionalWal(
+		eventId: SourceEventId,
+		observations: List<CellObservationEvidence>,
+		sourceSequence: Long,
+	) {
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+		val encodedPayload = payloadCodec.encode(
+			CellSnapshotPayload(null, observations, CellRefreshOutcome.CALLBACK),
+			PAYLOAD_VERSION,
+		)
+		val latestProviderTime = requireNotNull(
+			observations.mapNotNull(CellObservationEvidence::providerTimestampNanos).maxOrNull(),
+		)
+		val observedWallMs = OBSERVED_WALL_MS + SECOND_DELIVERY_SHIFT_NANOS / 1_000_000L
+		val unsigned = original.copy(
+			admissionOrdinal = 0L,
+			eventId = eventId.value,
+			deliveryIdentity = cellProviderDeliveryIdentity(BOOT_ID, observations).value,
+			sourceSequence = sourceSequence,
+			observedElapsedNanos = latestProviderTime,
+			observedIntervalStartNanos = requireNotNull(
+				observations.mapNotNull(CellObservationEvidence::providerTimestampNanos).minOrNull(),
+			),
+			receivedElapsedNanos = latestProviderTime + 100_000_000L,
+			wallTimeMs = observedWallMs,
+			acquiredAtMs = observedWallMs,
+			payload = encodedPayload.bytes,
+			payloadChecksum = encodedPayload.checksum,
+			createdAtMs = observedWallMs,
+			integrityIdentity = SourceEventWalEntity.LEGACY_PENDING_CHECKSUM,
+		)
+		val wal = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
+		assertEquals(2L, database.sourceEventWalDao().insertIgnoringDuplicate(wal))
+	}
+
+	private suspend fun rewriteLatestAggregateAsHistorical(logicalFactId: String) {
+		val current = requireNotNull(
+			database.cellCapturedFactDao().revision(
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				logicalFactId,
+				1L,
+			),
+		)
+		val unsigned = current.copy(
+			registeredObservationCount = 0,
+			effectChecksum = ZERO_CHECKSUM,
+		)
+		val historical = unsigned.copy(
+			effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(unsigned),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE cell_captured_fact_revision SET registered_observation_count = ?, " +
+				"effect_checksum = ? WHERE logical_fact_id = ? AND semantic_revision = 1",
+			arrayOf(0, historical.effectChecksum, logicalFactId),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE cell_captured_fact_cursor SET latest_effect_checksum = ? " +
+				"WHERE logical_fact_id = ?",
+			arrayOf(historical.effectChecksum, logicalFactId),
+		)
 	}
 
 	private suspend fun insertPlan(plan: CellPlan) {
@@ -756,6 +982,7 @@ class CellWalQualificationAdapterTest {
 
 	private companion object {
 		val EVENT_ID = SourceEventId("cell-event-1")
+		val SECOND_EVENT_ID = SourceEventId("cell-event-2")
 		val CELL_SOURCE = SourceKind.CELL.stableCode
 		const val LOGICAL_ID = "logical-cell"
 		const val RUN_ID = "run-cell"
@@ -789,5 +1016,8 @@ class CellWalQualificationAdapterTest {
 		const val OBSERVED_WALL_MS = 1_700_000_000_000L
 		const val SESSION_END_WALL_MS = 1_700_000_003_000L
 		const val WALL_UNCERTAINTY_MS = 1L
+		const val SECOND_DELIVERY_SHIFT_NANOS = 200_000_000L
+		const val ZERO_CHECKSUM =
+			"0000000000000000000000000000000000000000000000000000000000000000"
 	}
 }

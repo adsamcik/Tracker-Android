@@ -25,7 +25,6 @@ import java.security.MessageDigest
 		),
 		Index(
 			value = ["writer_projection_id", "writer_projection_version", "source_admission_ordinal"],
-			unique = true,
 			name = "idx_cell_captured_fact_admission",
 		),
 		Index(
