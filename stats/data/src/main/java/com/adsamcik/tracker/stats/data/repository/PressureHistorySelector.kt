@@ -416,7 +416,23 @@ internal class PressureHistorySelector @Inject constructor(
 			captureAuthority,
 			PressureHistoryReason.SOURCE_EVIDENCE_STATE_MISSING,
 		)
-		if (evidenceState.retainedFromMs?.let { segment.endTimeMs < it } == true) {
+		val markerState = retentionTruncationState(
+			snapshot = snapshot,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			collectedDataEpoch = evidenceState.collectedDataEpoch,
+		)
+		if (markerState == PressureRetentionTruncationState.INVALID) {
+			return failed(
+				segment,
+				captureAuthority,
+				PressureHistoryReason.RETENTION_TRUNCATION_MARKER_INVALID,
+			)
+		}
+		val retentionTruncated = markerState == PressureRetentionTruncationState.VALID
+		if (!retentionTruncated &&
+			evidenceState.retainedFromMs?.let { segment.endTimeMs < it } == true
+		) {
 			return unavailable(segment, captureAuthority, PressureHistoryReason.OUTSIDE_RETAINED_FLOOR)
 		}
 		val retentionCrossesSegment = evidenceState.retainedFromMs?.let { retainedFromMs ->
@@ -442,14 +458,14 @@ internal class PressureHistorySelector @Inject constructor(
 			val hasRetainedFacts = revisions.any { fact ->
 				retainedFromMs == null || fact.intervalEndTimeMs >= retainedFromMs
 			}
-			return if (hasRetainedFacts) {
-				failed(
+			if (hasRetainedFacts) {
+				return failed(
 					segment,
 					captureAuthority,
 					PressureHistoryReason.UNAVAILABLE_SENTINEL_WITH_RETAINED_FACTS,
 				)
-			} else {
-				providerUnavailable(segment, captureAuthority)
+			} else if (!retentionTruncated) {
+				return providerUnavailable(segment, captureAuthority)
 			}
 		}
 		if (revisions.isNotEmpty() && targetOrdinal == null ||
@@ -521,6 +537,7 @@ internal class PressureHistorySelector @Inject constructor(
 		if (!captureCoveredWholeRun) reasons += PressureHistoryReason.CAPTURE_NOT_ENABLED_FOR_WHOLE_RUN
 		if (!serviceRunCompleted) reasons += PressureHistoryReason.SERVICE_RUN_ACTIVE
 		if (retentionCrossesSegment) reasons += PressureHistoryReason.RETENTION_CROSSES_SEGMENT
+		if (retentionTruncated) reasons += PressureHistoryReason.RETENTION_TRUNCATED
 		if (completeness.isEmpty()) reasons += PressureHistoryReason.COMPLETENESS_MISSING
 		if (completeness.any { !it.appDrainComplete }) {
 			reasons += PressureHistoryReason.APP_DRAIN_INCOMPLETE
@@ -537,7 +554,9 @@ internal class PressureHistorySelector @Inject constructor(
 		if (effectiveFacts.any {
 			it.qualification == PressureFactRevisionEntity.QUALIFICATION_PARTIAL
 		}) reasons += PressureHistoryReason.PARTIAL_FACT
-		if (targetOrdinal != null && revisions.isEmpty() && !retentionCrossesSegment) {
+		if (targetOrdinal != null && revisions.isEmpty() &&
+			!retentionCrossesSegment && !retentionTruncated
+		) {
 			reasons += PressureHistoryReason.FACTS_MISSING_FOR_ADMITTED_RUN
 		}
 
@@ -582,6 +601,7 @@ internal class PressureHistorySelector @Inject constructor(
 				row.providerCoverage == COMPLETE_PROVIDER_COVERAGE
 		}
 		val coverage = when {
+			retentionTruncated -> PressureHistoryCoverage.PARTIAL
 			windows.isEmpty() -> PressureHistoryCoverage.NONE
 			materialization == PressureHistoryMaterialization.READY && acquisitionComplete &&
 				captureCoveredWholeRun && !retentionCrossesSegment &&
@@ -602,6 +622,31 @@ internal class PressureHistorySelector @Inject constructor(
 			coverage = coverage,
 			reasons = reasons,
 		)
+	}
+
+	private fun retentionTruncationState(
+		snapshot: PressureHistoryBatchSnapshot,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		collectedDataEpoch: Long,
+	): PressureRetentionTruncationState {
+		val digest = PressureFactRevisionIntegrity.retentionTruncationIdentity(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+		)
+		val marker = snapshot.retentionTruncationFencesByDigest[digest]
+			?: return PressureRetentionTruncationState.ABSENT
+		return if (PressureFactRevisionIntegrity.isRetentionTruncationFence(
+				fence = marker,
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+				collectedDataEpoch = collectedDataEpoch,
+			)
+		) {
+			PressureRetentionTruncationState.VALID
+		} else {
+			PressureRetentionTruncationState.INVALID
+		}
 	}
 
 	private fun correctionFailure(
@@ -962,6 +1007,8 @@ internal class PressureHistorySelector @Inject constructor(
 		val manifestClockDomainId: String,
 		val zoneId: String,
 	)
+
+	private enum class PressureRetentionTruncationState { ABSENT, VALID, INVALID }
 
 	private data class PressureWriterBinding(
 		val owner: String,

@@ -2,6 +2,7 @@ package com.adsamcik.tracker.stats.data.repository
 
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
@@ -96,6 +97,28 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 			scopeIdentityDigests = scopeDigests,
 		)
 	}
+	val retentionTruncationDigests = segments.mapNotNull { segment ->
+		val logicalTrackingId = segment.logicalTrackingId?.takeIf(String::isNotBlank)
+		val serviceRunId = segment.serviceRunId?.takeIf(String::isNotBlank)
+		if (logicalTrackingId == null || serviceRunId == null) {
+			null
+		} else {
+			PressureFactRevisionIntegrity.retentionTruncationIdentity(
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+			)
+		}
+	}.distinct()
+	val retentionTruncationFences = if (retentionTruncationDigests.isEmpty()) {
+		emptyList()
+	} else {
+		readDao.deletionFences(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			purpose = PressureFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
+			scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			scopeIdentityDigests = retentionTruncationDigests,
+		)
+	}
 	val productLanes = if (serviceRunIds.isEmpty()) {
 		emptyList()
 	} else {
@@ -137,6 +160,9 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 		pressurePolicies = pressurePolicies.associateBy(SourcePolicyEntity::policyRevision),
 		pressureCaptureConsents = pressureCaptureConsents.associateBy(SourceConsentEpochEntity::epoch),
 		deletionFenceDigests = deletionFences.mapTo(hashSetOf()) { it.scopeIdentityDigest },
+		retentionTruncationFencesByDigest = retentionTruncationFences.associateBy {
+			it.scopeIdentityDigest
+		},
 		factRevisionsByRun = pressureFacts.groupBy(PressureFactRevisionEntity::serviceRunId),
 		invalidFactScopeLogicalIds = invalidFactScopeLogicalIds,
 		logicalMembershipFailures = logicalMembershipFailures,
@@ -385,6 +411,7 @@ internal data class PressureHistoryBatchSnapshot(
 	val pressurePolicies: Map<Long, SourcePolicyEntity>,
 	val pressureCaptureConsents: Map<Long, SourceConsentEpochEntity>,
 	val deletionFenceDigests: Set<String>,
+	val retentionTruncationFencesByDigest: Map<String, SourceDeletionFenceEntity>,
 	val factRevisionsByRun: Map<String, List<PressureFactRevisionEntity>>,
 	val invalidFactScopeLogicalIds: Set<String>,
 	val logicalMembershipFailures: Map<String, PressureHistoryReason>,

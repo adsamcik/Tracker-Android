@@ -21,6 +21,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import io.kotest.matchers.shouldBe
@@ -214,6 +215,87 @@ class PressureHistorySelectorTest {
 		result.windows.single().closureKind shouldBe PressureFactRevisionEntity.CLOSURE_TARGET_ELAPSED
 		result.windows.single().sourceQualityFlags shouldBe 0L
 		result.windows.single().sourceQualityConfidence shouldBe 1f
+	}
+
+	@Test
+	fun retentionMarkerMakesSurvivingPressureFactsExplicitlyPartial() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		establishPressureRetentionFloor()
+		database.sourceDeletionFenceDao().upsert(
+			pressureRetentionMarker(fixture.logicalId, fixture.runId),
+		)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		val public = result.toPublicPressureSessionHistory().pressure
+
+		result.windows.size shouldBe 1
+		result.materialization shouldBe PressureHistoryMaterialization.READY
+		result.coverage shouldBe PressureHistoryCoverage.PARTIAL
+		result.reasons shouldBe setOf(PressureHistoryReason.RETENTION_TRUNCATED)
+		public.presentationState shouldBe PressureHistoryPresentationState.PARTIAL
+		public.causes shouldBe setOf(PressureHistoryCause.RETENTION_TRUNCATED)
+		public.summary?.windowCount shouldBe 1
+	}
+
+	@Test
+	fun fullyPrunedRetentionMarkerIsPartialWithoutFabricatedPressure() = runTest {
+		val fixture = insertFixture(factSemanticRevision = null, laneCursor = 1L)
+		establishPressureRetentionFloor()
+		database.sourceDeletionFenceDao().upsert(
+			pressureRetentionMarker(fixture.logicalId, fixture.runId),
+		)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		val public = result.toPublicPressureSessionHistory().pressure
+
+		result.windows shouldBe emptyList()
+		result.materialization shouldBe PressureHistoryMaterialization.READY
+		result.coverage shouldBe PressureHistoryCoverage.PARTIAL
+		result.reasons shouldBe setOf(PressureHistoryReason.RETENTION_TRUNCATED)
+		public.presentationState shouldBe PressureHistoryPresentationState.PARTIAL
+		public.summary shouldBe null
+		public.windows shouldBe emptyList()
+		PressureHistoryCause.FACTS_MISSING_FOR_ADMITTED_RUN in public.causes shouldBe false
+	}
+
+	@Test
+	fun corruptRetentionMarkerFailsClosed() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		establishPressureRetentionFloor()
+		database.sourceDeletionFenceDao().upsert(
+			pressureRetentionMarker(
+				logicalTrackingId = fixture.logicalId,
+				serviceRunId = fixture.runId,
+				collectedDataEpoch = 1L,
+			),
+		)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		result.materialization shouldBe PressureHistoryMaterialization.FAILED
+		result.coverage shouldBe PressureHistoryCoverage.UNKNOWN
+		result.windows shouldBe emptyList()
+		result.reasons shouldBe setOf(PressureHistoryReason.RETENTION_TRUNCATION_MARKER_INVALID)
+	}
+
+	@Test
+	fun retentionLossOnOneReplacementKeepsSurvivingSiblingFacts() = runTest {
+		val first = insertFixture(factSemanticRevision = null, laneCursor = 2L)
+		val replacement = insertReplacementFixture()
+		establishPressureRetentionFloor()
+		database.sourceDeletionFenceDao().upsert(
+			pressureRetentionMarker(first.logicalId, first.runId),
+		)
+
+		val logical = selector.selectLogicalBySegmentIds(listOf(first.segmentId)).single()
+		val public = requireNotNull(logical.toPublicPressureOnlyEntryOrNull()).pressure
+
+		logical.physicalMembers.size shouldBe 2
+		logical.windows.map(PressureHistoryWindow::serviceRunId) shouldBe listOf(replacement.runId)
+		public.windows.size shouldBe 1
+		public.presentationState shouldBe PressureHistoryPresentationState.PARTIAL
+		public.causes shouldBe setOf(PressureHistoryCause.RETENTION_TRUNCATED)
+		public.summary?.windowCount shouldBe 1
 	}
 
 	@Test
@@ -1221,6 +1303,27 @@ class PressureHistorySelectorTest {
 		collectedDataEpoch = 0L,
 		deletedAtMs = 10_000L,
 	)
+
+	private fun pressureRetentionMarker(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		collectedDataEpoch: Long = 0L,
+	) = PressureFactRevisionIntegrity.retentionTruncationFence(
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+		collectedDataEpoch = collectedDataEpoch,
+		markedAtMs = 10_000L,
+	)
+
+	private suspend fun establishPressureRetentionFloor() {
+		check(
+			database.sourceEvidenceStateDao().updateLifecycle(
+				epoch = 0L,
+				retainedFromMs = RUN_START_MS,
+				updatedAtMs = 10_000L,
+			) == 1,
+		)
+	}
 
 	private fun executableLaneAuthority() = SourceProductLaneExecutionAuthority { lane ->
 		lane.sourceKind == SourceDestinationOwnerEntity.SOURCE_PRESSURE &&

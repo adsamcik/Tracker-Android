@@ -66,6 +66,8 @@ private fun List<PressurePhysicalHistory>.toPublicPressureHistory(): PressureHis
 		retainedWindows.isNotEmpty() -> ApiPressureHistoryCoverage.PARTIAL
 		publicMembers.any { it.coverage == ApiPressureHistoryCoverage.UNKNOWN } ->
 			ApiPressureHistoryCoverage.UNKNOWN
+		publicMembers.any { it.coverage == ApiPressureHistoryCoverage.PARTIAL } ->
+			ApiPressureHistoryCoverage.PARTIAL
 		else -> ApiPressureHistoryCoverage.NONE
 	}
 	val productState = when {
@@ -213,6 +215,9 @@ internal fun PressureHistoryReason.toPublicCause(): PressureHistoryCause = when 
 	PressureHistoryReason.OUTSIDE_RETAINED_FLOOR -> PressureHistoryCause.OUTSIDE_RETAINED_FLOOR
 	PressureHistoryReason.RETENTION_CROSSES_SEGMENT ->
 		PressureHistoryCause.RETENTION_CROSSES_SEGMENT
+	PressureHistoryReason.RETENTION_TRUNCATED -> PressureHistoryCause.RETENTION_TRUNCATED
+	PressureHistoryReason.RETENTION_TRUNCATION_MARKER_INVALID ->
+		PressureHistoryCause.RETENTION_TRUNCATION_MARKER_INVALID
 	PressureHistoryReason.COMPLETENESS_MISSING -> PressureHistoryCause.COMPLETENESS_MISSING
 	PressureHistoryReason.COMPLETENESS_INVALID -> PressureHistoryCause.COMPLETENESS_INVALID
 	PressureHistoryReason.APP_DRAIN_INCOMPLETE -> PressureHistoryCause.APP_DRAIN_INCOMPLETE
