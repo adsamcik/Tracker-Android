@@ -204,7 +204,7 @@ class TripDetailPresenterTest {
 	}
 
 	@Test
-	fun `history read failure degrades only Steps and preserves the trip`() = runTest {
+	fun `history read failure preserves the trip and fails source presentation closed`() = runTest {
 		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
 		every { trackingHistoryRepository.observeLiveSession(42L) } returns flow {
 			throw IllegalStateException("history failed")
@@ -219,14 +219,23 @@ class TripDetailPresenterTest {
 			val loaded = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
 			loaded.trip shouldBe sampleTrip
 			loaded.steps shouldBe TripDetailStepsState.Failed
+			loaded.sourcePresentation shouldBe TripDetailSourcePresentation.Failed
 		}
 	}
 
 	@Test
-	fun `history failure after a value keeps unrelated trip content loaded`() = runTest {
+	fun `history failure replaces stale Pressure presentation and keeps trip loaded`() = runTest {
 		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
+		val pressure = unavailablePressure()
 		every { trackingHistoryRepository.observeLiveSession(42L) } returns flow {
-			emit(foundHistory(42L, 300L))
+			emit(
+				foundHistory(
+					segmentId = 42L,
+					count = 300L,
+					capture = exactCapture(setOf(HistorySource.PRESSURE)),
+					pressure = pressure,
+				),
+			)
 			throw IllegalStateException("later history failure")
 		}
 		val events = MutableSharedFlow<TripDetailEvent>()
@@ -236,11 +245,13 @@ class TripDetailPresenterTest {
 
 			awaitItem() shouldBe TripDetailState.Loading
 			awaitItem() shouldBe resolvingState()
-			awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>().steps shouldBe
-				TripDetailStepsState.Complete(300L)
+			val beforeFailure = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
+			beforeFailure.steps shouldBe TripDetailStepsState.Complete(300L)
+			beforeFailure.sourcePresentation shouldBe TripDetailSourcePresentation.PressureOnly(pressure)
 			val degraded = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
 			degraded.trip shouldBe sampleTrip
 			degraded.steps shouldBe TripDetailStepsState.Failed
+			degraded.sourcePresentation shouldBe TripDetailSourcePresentation.Failed
 		}
 	}
 
@@ -279,7 +290,11 @@ class TripDetailPresenterTest {
 			events.emit(TripDetailEvent.LoadTrip(42L))
 			awaitItem() shouldBe TripDetailState.Loading
 			awaitItem() shouldBe resolvingState()
-			awaitItem() shouldBe resolvingState(TripDetailStepsState.Failed)
+			awaitItem() shouldBe TripDetailState.Loaded(
+				trip = sampleTrip,
+				steps = TripDetailStepsState.Failed,
+				sourcePresentation = TripDetailSourcePresentation.Failed,
+			)
 
 			events.emit(TripDetailEvent.LoadTrip(42L))
 			awaitItem() shouldBe TripDetailState.Loading

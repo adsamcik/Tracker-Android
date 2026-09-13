@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.statistics.presenter
 
+import com.adsamcik.tracker.stats.api.TransportMode
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistoryCaptureRevision
@@ -10,11 +11,33 @@ import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistory
+import com.adsamcik.tracker.stats.api.repository.TripSummary
+import com.adsamcik.tracker.stats.api.value.DistanceM
+import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
+import com.adsamcik.tracker.stats.api.value.StepCount
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
 class TripDetailSourcePresentationTest {
+	@Test
+	fun `failed source history never enables stale Location presentation`() {
+		TripDetailState.Loaded(
+			trip = TripSummary(
+				id = 42L,
+				startTimeMs = EpochMs(1_000L),
+				endTimeMs = EpochMs(2_000L),
+				distance = DistanceM(1_000f),
+				steps = StepCount(10),
+				duration = DurationMs(1_000L),
+				primaryMode = TransportMode.WALK,
+				sampleCount = 4,
+			),
+			steps = TripDetailStepsState.Failed,
+			sourcePresentation = TripDetailSourcePresentation.Failed,
+		).supportsLocationPresentation shouldBe false
+	}
+
 	@Test
 	fun `every capture revision must remain exactly Pressure`() {
 		val pressure = unavailablePressure()

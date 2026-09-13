@@ -175,6 +175,29 @@ class TripDetailRouteComposeTest {
 	}
 
 	@Test
+	fun `failed source history exposes retry without Location products`() {
+		var retried = false
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				TripDetailSourceFailure(onRetry = { retried = true })
+			}
+		}
+
+		composeTestRule.onNodeWithText(text(R.string.trip_detail_source_failed)).assertIsDisplayed()
+		composeTestRule.onNodeWithText(text(R.string.trip_detail_retry)).performClick()
+		assertTrue(retried)
+		listOf(
+			R.string.trip_detail_route_map,
+			R.string.trip_detail_view_on_map,
+			R.string.trip_detail_export_gpx,
+			R.string.trip_detail_distance,
+			R.string.trip_detail_elevation_gain,
+		).forEach { resource ->
+			composeTestRule.onNodeWithText(text(resource)).assertDoesNotExist()
+		}
+	}
+
+	@Test
 	fun `Pressure-only detail shows retained direct pressure and hides Location products`() {
 		val pressure = pressureHistory(
 			productState = HistoryProductState.PARTIAL,

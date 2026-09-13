@@ -265,6 +265,10 @@ private fun TripOverview(
 			TripDetailSourceResolving()
 			return
 		}
+		TripDetailSourcePresentation.Failed -> {
+			TripDetailSourceFailure(onRetry = onRetrySteps)
+			return
+		}
 		is TripDetailSourcePresentation.PressureOnly -> {
 			TripDetailPressureOverview(
 				trip = trip,
@@ -418,6 +422,31 @@ private fun TripDetailSourceResolving() {
 		contentAlignment = Alignment.Center,
 	) {
 		CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+	}
+}
+
+/** Fail-closed captured-source error surface; retry is the only exposed product action. */
+@Composable
+@Suppress("FunctionNaming") // Internal so Compose tests can guard the failure affordances.
+internal fun TripDetailSourceFailure(onRetry: () -> Unit) {
+	Box(
+		modifier = Modifier
+			.fillMaxSize()
+			.padding(32.dp)
+			.testTag("trip_detail_source_failed"),
+		contentAlignment = Alignment.Center,
+	) {
+		Column(horizontalAlignment = Alignment.CenterHorizontally) {
+			EmptyStateCard(
+				icon = Icons.Filled.ErrorOutline,
+				title = stringResource(R.string.trip_detail_source_failed),
+				subtitle = stringResource(R.string.trip_detail_source_failed_subtitle),
+			)
+			Spacer(Modifier.height(16.dp))
+			androidx.compose.material3.Button(onClick = onRetry) {
+				Text(stringResource(R.string.trip_detail_retry))
+			}
+		}
 	}
 }
 

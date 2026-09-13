@@ -10,6 +10,9 @@ sealed interface TripDetailSourcePresentation {
 	/** Capture authority has not resolved yet, so Location affordances remain hidden. */
 	data object Resolving : TripDetailSourcePresentation
 
+	/** Captured-source history failed to resolve, so stale Location affordances remain hidden. */
+	data object Failed : TripDetailSourcePresentation
+
 	/** Existing Trip Detail behavior for mixed, Location, and legacy-unverifiable history. */
 	data object Standard : TripDetailSourcePresentation
 

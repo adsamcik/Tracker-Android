@@ -85,6 +85,7 @@ class TripDetailPresenter @Inject constructor(
 								if (error is CancellationException) throw error
 								val failedState = (latestState as? TripDetailState.Loaded)?.copy(
 									steps = TripDetailStepsState.Failed,
+									sourcePresentation = TripDetailSourcePresentation.Failed,
 								) ?: latestState
 								emit(failedState)
 							}

@@ -157,6 +157,8 @@
     <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Retained pressure available</string>
     <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">Pressure unavailable</string>
     <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">Pressure history failed</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">History unavailable</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">Retry to refresh captured-source history for this trip.</string>
     <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">No retained coverage</string>
     <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">Complete retained coverage</string>
     <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">Partial retained coverage</string>
