@@ -183,7 +183,7 @@ private val DashboardLivePressureValue.hasDurableRecordingHeader: Boolean
 	get() = when (this) {
 		is DashboardLivePressureValue.Ready -> true
 		is DashboardLivePressureValue.Partial -> metrics != null
-		is DashboardLivePressureValue.Materializing,
+		is DashboardLivePressureValue.Materializing -> metrics != null
 		DashboardLivePressureValue.Unavailable,
 		DashboardLivePressureValue.Failed -> false
 	}

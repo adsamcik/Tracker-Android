@@ -83,6 +83,27 @@ class PressureOnlyTrackingContentTest {
 		composeRule.onAllNodesWithText("hPa", substring = true).assertCountEquals(0)
 	}
 
+	@Test
+	fun materializingPressureWithRetainedEvidenceKeepsRecordingHeader() {
+		setContent(
+			DashboardLivePressureValue.Materializing(
+				DashboardLivePressureMetrics(
+					latestHectopascals = 1000.5f,
+					minimumHectopascals = 999.5f,
+					maximumHectopascals = 1001.0f,
+					changeHectopascals = 1.0f,
+					coverage = PressureHistoryCoverage.PARTIAL,
+					zoneAuthorities = listOf("Europe/Prague"),
+				),
+			),
+		)
+
+		composeRule.onNodeWithTag("dashboard_live_pressure_header").assertTextEquals("Recording")
+		composeRule.onNodeWithTag("dashboard_live_pressure_value").assertTextEquals("1000.5 hPa")
+		composeRule.onNodeWithTag("dashboard_live_pressure_status")
+			.assertTextEquals("Preparing Pressure history…")
+	}
+
 	private fun setContent(pressure: DashboardLivePressureValue) {
 		val session = TrackerSessionSnapshot(
 			id = SEGMENT_ID,
