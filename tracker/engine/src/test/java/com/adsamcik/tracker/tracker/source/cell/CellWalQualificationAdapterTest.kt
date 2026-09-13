@@ -290,7 +290,7 @@ class CellWalQualificationAdapterTest {
 	}
 
 	@Test
-	fun `new unchanged callback persists coverage only and reuses one direct aggregate`() = runTest {
+	fun `finite immutable owner permits one coverage only reuse`() = runTest {
 		installValidFixture(candidateWriter = true)
 		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
 		val beforeEvidenceRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
@@ -318,6 +318,39 @@ class CellWalQualificationAdapterTest {
 		assertEquals(null, coverage.observationCount)
 		assertEquals(2L, database.cellCapturedFactDao().revisionCount())
 		assertEquals(beforeEvidenceRevision + 1L, database.sourceEvidenceStateDao().get()?.revision)
+	}
+
+	@Test
+	fun `open owner cannot strand a dependent when its authority later settles`() = runTest {
+		installValidFixture(candidateWriter = true, openAuthority = true)
+		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val shifted = observations().map { observation ->
+			observation.copy(
+				providerTimestampNanos = requireNotNull(observation.providerTimestampNanos) +
+					SECOND_DELIVERY_SHIFT_NANOS,
+			)
+		}
+		insertAdditionalWal(SECOND_EVENT_ID, shifted, SOURCE_SEQUENCE + 1L)
+
+		val second = assertIs<CellCapturedWriteResult.Applied>(writer.write(SECOND_EVENT_ID))
+		val independent = fact(second.logicalFactId, second.semanticRevision)
+		assertEquals(CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE, independent.factKind)
+		assertEquals(null, independent.aggregateOwnerLogicalFactId)
+		assertEquals(null, independent.aggregateOwnerSemanticRevision)
+
+		settleFixtureAuthority()
+
+		val settledOwner = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		assertEquals(first.logicalFactId, settledOwner.logicalFactId)
+		assertEquals(2L, settledOwner.semanticRevision)
+		val settledIndependent = assertIs<CellCapturedWriteResult.Applied>(writer.write(SECOND_EVENT_ID))
+		val settledIndependentFact = fact(
+			settledIndependent.logicalFactId,
+			settledIndependent.semanticRevision,
+		)
+		assertEquals(CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE, settledIndependentFact.factKind)
+		assertEquals(null, settledIndependentFact.aggregateOwnerLogicalFactId)
+		assertEquals(null, settledIndependentFact.aggregateOwnerSemanticRevision)
 	}
 
 	@Test

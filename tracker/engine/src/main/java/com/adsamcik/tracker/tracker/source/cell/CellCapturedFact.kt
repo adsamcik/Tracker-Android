@@ -55,6 +55,19 @@ internal data class CellCaptureTemporalAuthority(
 	operator fun contains(providerTimeNanos: Long): Boolean =
 		providerTimeNanos >= capturedStartInclusiveNanos &&
 			providerTimeNanos < capturedEndExclusiveNanos
+
+	/**
+	 * Aggregate ownership may be shared only after every historical boundary is immutable. An open
+	 * component can still settle later even when another finite component already bounds the
+	 * effective intersection; that settlement advances the owner's revision and would strand a
+	 * coverage-only fact at the obsolete revision.
+	 */
+	val isImmutableForAggregateReuse: Boolean
+		get() = providerAcceptance.endExclusiveNanos != Long.MAX_VALUE &&
+			authorizationEffect.endExclusiveNanos != Long.MAX_VALUE &&
+			consentEffect.endExclusiveNanos != Long.MAX_VALUE &&
+			sessionRunEffect.endExclusiveNanos != Long.MAX_VALUE &&
+			deletionEffect.endExclusiveNanos != Long.MAX_VALUE
 }
 
 /** Immutable authority copied by the adapter onto each callback child before classification. */
@@ -436,6 +449,7 @@ internal sealed interface CellCapturedFact {
 			require(wallTimeUncertaintyMs >= 0L)
 			require(availability == CellAvailability.AVAILABLE)
 			require(authority.canReuseAggregateFrom(reusesAggregate.authority))
+			require(reusesAggregate.authority.temporalAuthority.isImmutableForAggregateReuse)
 			require(reusesAggregate.productEffect.aggregate.observationCount > 0)
 			require(
 				coverage.acceptedChildCount ==
@@ -521,6 +535,7 @@ internal sealed interface CellReusableFact {
 			)
 			require(productEffect.evidenceBinding.capturedAuthority == authority)
 			require(authority.canReuseAggregateFrom(directAggregateOwner.authority))
+			require(directAggregateOwner.authority.temporalAuthority.isImmutableForAggregateReuse)
 			require(productEffect.aggregate == directAggregateOwner.productEffect.aggregate)
 			require(
 				productEffect.coverage.acceptedChildCount ==

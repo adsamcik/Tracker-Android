@@ -436,6 +436,7 @@ internal object CellCapturedFactClassifier {
 			mutation.semanticRevision > 1L -> null
 			else -> (priorFact as? CellReusableFact.DirectAggregateOwner)?.takeIf {
 				it.reference.identity != mutation.identity &&
+					it.authority.temporalAuthority.isImmutableForAggregateReuse &&
 					authority.canReuseAggregateFrom(it.authority) &&
 					it.productEffect.aggregate == aggregate
 			}

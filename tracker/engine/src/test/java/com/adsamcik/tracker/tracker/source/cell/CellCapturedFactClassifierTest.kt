@@ -222,6 +222,22 @@ class CellCapturedFactClassifierTest {
 	}
 
 	@Test
+	fun `open temporal owner cannot back a coverage only fact`() {
+		val openAuthority = authority(
+			temporalAuthority = temporalAuthority(end = Long.MAX_VALUE),
+		)
+		val owner = (classify(input(authority = openAuthority), openAuthority) as
+			CellCapturedFactClassification.FreshChanged).fact.toReusableFact()
+		val nextInput = input(
+			authority = openAuthority,
+			observations = listOf(observation("LTE", true, -105, 9_950_000_000L)),
+		)
+
+		classify(nextInput, openAuthority, priorFact = owner)::class shouldBe
+			CellCapturedFactClassification.FreshChanged::class
+	}
+
+	@Test
 	fun `empty and identity bearing provider payloads cannot become product facts`() {
 		val authority = authority()
 		classify(input(authority = authority, observations = emptyList()), authority) shouldBe
