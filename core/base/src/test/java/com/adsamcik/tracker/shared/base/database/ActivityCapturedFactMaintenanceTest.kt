@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
@@ -539,6 +540,99 @@ class ActivityCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `portable export accepts the production system rearmable Activity registration`() = runTest {
+		seedCapturedActivity()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation " +
+				"SET provider_residency = 'SYSTEM_REARMABLE', provider_process_incarnation_id = NULL " +
+				"WHERE source_kind = $ACTIVITY_SOURCE AND registration_generation = 1",
+		)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export authenticates a complete shared capture and CONTROL authorization`() = runTest {
+		seedCapturedActivity(sharedControlAuthorization = true)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export rejects a corrupted authorization fingerprint`() = runTest {
+		seedCapturedActivity()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_authorization SET authorization_fingerprint = 'corrupt-fingerprint' " +
+				"WHERE source_kind = $ACTIVITY_SOURCE AND registration_generation = 1 " +
+				"AND authorization_revision = 1",
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects a missing CONTROL sibling in a shared authorization`() = runTest {
+		seedCapturedActivity(sharedControlAuthorization = true)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_authorization WHERE member_id = 'demand:historic-control-demand'",
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects an unexpected CONTROL sibling`() = runTest {
+		seedCapturedActivity()
+		val control = historicalControlDemand()
+		database.sourceBrokerDao().insertDemands(listOf(control))
+		val unexpected = authorizationRows(
+			registrationGeneration = 1L,
+			authorizationRevision = 1L,
+			demands = listOf(historicalCaptureDemand(), control),
+			effectiveElapsedNanos = 150L,
+			effectiveWallTimeMs = 1_500L,
+		).single { row -> row.purpose == SourceBrokerPurpose.CONTROL_AUTOSTART }
+		database.sourceBrokerDao().insertAuthorizations(listOf(unexpected))
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects changed demand terms behind an authorization`() = runTest {
+		seedCapturedActivity()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET maximum_age_ms = 1 " +
+				"WHERE demand_id = 'historic-capture-demand'",
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
 	fun `portable export rejects final admission below the Activity completeness target`() = runTest {
 		seedCapturedActivity()
 		replaceActivityCompleteness(lastAdmissionOrdinal = 2L, lastSourceSequence = 2L)
@@ -845,7 +939,7 @@ class ActivityCapturedFactMaintenanceTest {
 			physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
 			authorizationRevision = 1L,
 			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-			authorizationFingerprint = AUTHORIZATION_FINGERPRINT,
+			authorizationFingerprint = historicalAuthorizationFingerprint(),
 			sourceSequence = ordinal,
 			configRevision = 1L,
 			planAttribution = 1,
@@ -879,6 +973,7 @@ class ActivityCapturedFactMaintenanceTest {
 		providerActive: Boolean = false,
 		sessionRunEffectEndNanos: Long = 500L,
 		gapOnly: Boolean = false,
+		sharedControlAuthorization: Boolean = false,
 	) {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(collectedDataEpoch = 0L, retainedFromMs = retainedFromMs),
@@ -956,9 +1051,29 @@ class ActivityCapturedFactMaintenanceTest {
 			),
 		)
 		database.sourceBrokerDao().insertRegistration(registration(providerActive))
-		database.sourceBrokerDao().insertAuthorizations(listOf(authorization()))
+		val authorizationDemands = buildList {
+			add(historicalCaptureDemand())
+			if (sharedControlAuthorization) add(historicalControlDemand())
+		}
+		database.sourceBrokerDao().insertDemands(authorizationDemands)
+		database.sourceBrokerDao().insertAuthorizations(
+			authorizationRows(
+				registrationGeneration = 1L,
+				authorizationRevision = 1L,
+				demands = authorizationDemands,
+				effectiveElapsedNanos = 150L,
+				effectiveWallTimeMs = 1_500L,
+			),
+		)
 		database.sourceSessionDao().saveCompleteness(activityCompleteness())
-		insertFactLineage(segmentId, semanticRevisions, sessionRunEffectEndNanos, gapOnly)
+		insertFactLineage(
+			segmentId = segmentId,
+			semanticRevisions = semanticRevisions,
+			sessionRunEffectEndNanos = sessionRunEffectEndNanos,
+			gapOnly = gapOnly,
+			authorizationFingerprint = SourceBrokerAuthorization.fingerprint(authorizationDemands),
+			purposeEligibilityMask = SourceBrokerAuthorization.purposeMask(authorizationDemands),
+		)
 	}
 
 	private suspend fun makeCurrentRunLive() {
@@ -1143,19 +1258,23 @@ class ActivityCapturedFactMaintenanceTest {
 					),
 				),
 			)
+			val replacementDemand = historicalCaptureDemand(
+				demandId = "historic-replacement-capture-demand",
+				consumerId = "historic-replacement-capture-consumer",
+				serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+				manifestRevision = 2L,
+				leaseGeneration = 2L,
+				requestedAtMs = 3_100L,
+				requestedElapsedNanos = 600L,
+			)
+			database.sourceBrokerDao().insertDemands(listOf(replacementDemand))
 			database.sourceBrokerDao().insertAuthorizations(
-				listOf(
-					authorization().copy(
-						authorizationRevision = 2L,
-						memberId = "capture-member-replacement",
-						registrationGeneration = 2L,
-						logicalTrackingId = LOGICAL_TRACKING_ID,
-						serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
-						manifestRevision = 2L,
-						lifecycleLeaseGeneration = 2L,
-						effectiveElapsedRealtimeNanos = 600L,
-						effectiveWallTimeMs = 3_100L,
-					),
+				authorizationRows(
+					registrationGeneration = 2L,
+					authorizationRevision = 2L,
+					demands = listOf(replacementDemand),
+					effectiveElapsedNanos = 600L,
+					effectiveWallTimeMs = 3_100L,
 				),
 			)
 		}
@@ -1214,6 +1333,8 @@ class ActivityCapturedFactMaintenanceTest {
 		semanticRevisions: Int,
 		sessionRunEffectEndNanos: Long,
 		gapOnly: Boolean,
+		authorizationFingerprint: String,
+		purposeEligibilityMask: Long,
 	) {
 		require(semanticRevisions in 1..2)
 		val dao = database.activityCapturedFactDao()
@@ -1224,6 +1345,8 @@ class ActivityCapturedFactMaintenanceTest {
 				complete = ordinal == 2,
 				sessionRunEffectEndNanos = sessionRunEffectEndNanos,
 				gapOnly = gapOnly,
+				authorizationFingerprint = authorizationFingerprint,
+				purposeEligibilityMask = purposeEligibilityMask,
 			)
 		}
 		persisted.forEach { value ->
@@ -1257,8 +1380,14 @@ class ActivityCapturedFactMaintenanceTest {
 		complete: Boolean,
 		sessionRunEffectEndNanos: Long,
 		gapOnly: Boolean,
+		authorizationFingerprint: String,
+		purposeEligibilityMask: Long,
 	): PersistedTestRevision {
-		val logicalWindowId = logicalWindowId(sessionRunEffectEndNanos)
+		val logicalWindowId = logicalWindowId(
+			sessionRunEffectEndNanos,
+			authorizationFingerprint,
+			purposeEligibilityMask,
+		)
 		val fragments = if (gapOnly) {
 			listOf(gapFragment(logicalWindowId, semanticRevision, 0, 200L, 400L))
 		} else if (complete) {
@@ -1288,8 +1417,8 @@ class ActivityCapturedFactMaintenanceTest {
 			configurationRevision = 1L,
 			physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
 			authorizationRevision = 1L,
-			authorizationFingerprint = AUTHORIZATION_FINGERPRINT,
-			purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			authorizationFingerprint = authorizationFingerprint,
+			purposeEligibilityMask = purposeEligibilityMask,
 			sourcePolicyRevision = 1L,
 			captureConsentEpoch = 0L,
 			manifestRevision = 1L,
@@ -1670,27 +1799,80 @@ class ActivityCapturedFactMaintenanceTest {
 		updatedAtMs = terminalAtMs ?: 3_000L,
 	)
 
-	private fun authorization() = SourceAuthorizationEntity(
+	private fun authorizationRows(
+		registrationGeneration: Long,
+		authorizationRevision: Long,
+		demands: List<SourceDemandEntity>,
+		effectiveElapsedNanos: Long,
+		effectiveWallTimeMs: Long,
+	): List<SourceAuthorizationEntity> = SourceBrokerAuthorization.rows(
 		sourceKind = ACTIVITY_SOURCE,
-		registrationGeneration = 1L,
-		authorizationRevision = 1L,
-		memberId = "capture-member",
-		authorizationFingerprint = AUTHORIZATION_FINGERPRINT,
-		purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-		demandId = "historic-capture-demand",
-		consumerId = "historic-capture-consumer",
+		registrationGeneration = registrationGeneration,
+		authorizationRevision = authorizationRevision,
+		demands = demands,
+		effectiveBootId = BOOT_ID,
+		effectiveElapsedRealtimeNanos = effectiveElapsedNanos,
+		effectiveWallTimeMs = effectiveWallTimeMs,
+	)
+
+	private fun historicalCaptureDemand(
+		demandId: String = "historic-capture-demand",
+		consumerId: String = "historic-capture-consumer",
+		serviceRunId: String = SERVICE_RUN_ID,
+		manifestRevision: Long = 1L,
+		leaseGeneration: Long = 1L,
+		requestedAtMs: Long = 1_000L,
+		requestedElapsedNanos: Long = 100L,
+	) = SourceDemandEntity(
+		demandId = demandId,
+		consumerId = consumerId,
+		sourceKind = ACTIVITY_SOURCE,
 		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+		logicalTrackingId = LOGICAL_TRACKING_ID,
+		serviceRunId = serviceRunId,
+		manifestRevision = manifestRevision,
+		lifecycleLeaseGeneration = leaseGeneration,
 		sourcePolicyRevision = 1L,
 		consentEpoch = 0L,
 		persistenceEligible = true,
-		effectiveBootId = BOOT_ID,
-		effectiveElapsedRealtimeNanos = 150L,
-		effectiveWallTimeMs = 1_500L,
-		logicalTrackingId = LOGICAL_TRACKING_ID,
-		serviceRunId = SERVICE_RUN_ID,
-		manifestRevision = 1L,
-		lifecycleLeaseGeneration = 1L,
+		qosCode = 1,
+		maximumAgeMs = 0L,
+		desiredLatencyMs = 0L,
+		requestedBootId = BOOT_ID,
+		requestedElapsedRealtimeNanos = requestedElapsedNanos,
+		requestedAtMs = requestedAtMs,
+		status = SourceDemandEntity.STATUS_RETIRED,
+		retireBootId = BOOT_ID,
+		retireElapsedRealtimeNanos = requestedElapsedNanos + 1L,
+		retiredAtMs = requestedAtMs + 1L,
 	)
+
+	private fun historicalControlDemand() = SourceDemandEntity(
+		demandId = "historic-control-demand",
+		consumerId = "historic-control-consumer",
+		sourceKind = ACTIVITY_SOURCE,
+		purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
+		logicalTrackingId = null,
+		serviceRunId = null,
+		manifestRevision = null,
+		lifecycleLeaseGeneration = null,
+		sourcePolicyRevision = 1L,
+		consentEpoch = 0L,
+		persistenceEligible = false,
+		qosCode = 1,
+		maximumAgeMs = 0L,
+		desiredLatencyMs = 0L,
+		requestedBootId = BOOT_ID,
+		requestedElapsedRealtimeNanos = 100L,
+		requestedAtMs = 1_000L,
+		status = SourceDemandEntity.STATUS_RETIRED,
+		retireBootId = BOOT_ID,
+		retireElapsedRealtimeNanos = 101L,
+		retiredAtMs = 1_001L,
+	)
+
+	private fun historicalAuthorizationFingerprint(): String =
+		SourceBrokerAuthorization.fingerprint(listOf(historicalCaptureDemand()))
 
 	private fun captureDemand() = SourceDemandEntity(
 		demandId = "live-capture-demand",
@@ -1740,7 +1922,11 @@ class ActivityCapturedFactMaintenanceTest {
 		retiredAtMs = null,
 	)
 
-	private fun logicalWindowId(sessionRunEffectEndNanos: Long): String = digest(
+	private fun logicalWindowId(
+		sessionRunEffectEndNanos: Long,
+		authorizationFingerprint: String,
+		purposeEligibilityMask: Long,
+	): String = digest(
 		"activity-captured-window-v1",
 		listOf(
 			LOGICAL_TRACKING_ID,
@@ -1750,8 +1936,8 @@ class ActivityCapturedFactMaintenanceTest {
 			"1",
 			PHYSICAL_FINGERPRINT,
 			"1",
-			AUTHORIZATION_FINGERPRINT,
-			SourceBrokerPurpose.MASK_SESSION_CAPTURE.toString(),
+			authorizationFingerprint,
+			purposeEligibilityMask.toString(),
 			"1",
 			"0",
 			"1",
@@ -1879,7 +2065,6 @@ class ActivityCapturedFactMaintenanceTest {
 		private const val REPLACEMENT_SOURCE_INSTANCE_ID = "activity-maintenance-replacement-provider"
 		private const val PHYSICAL_FINGERPRINT =
 			"9f472d9529dc1da87eadbc931567884a453cc8dfd499ffb2f7a733520f854a6f"
-		private const val AUTHORIZATION_FINGERPRINT = "activity-maintenance-authorization"
 		private const val BOOT_ID = "activity-maintenance-boot"
 	}
 }

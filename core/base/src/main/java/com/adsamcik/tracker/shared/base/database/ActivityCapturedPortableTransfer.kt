@@ -14,13 +14,16 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEnti
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -801,13 +804,6 @@ internal class PortableCapturedActivityRoomReader(
 		if (completeness.any { row -> !row.appDrainComplete }) {
 			abort(PortableActivityExportUnverifiableReason.ENTRY_MATERIALIZING)
 		}
-		validatePortableCompletenessAuthority(
-			rows = completeness,
-			runs = runs,
-			manifestsByRun = manifestsByRun,
-			sourcesByRun = sourcesByRun,
-			collectedDataEpoch = collectedDataEpoch,
-		)
 		val completenessTargetByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId)
 			.mapValues { (_, rows) ->
 				rows.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull()
@@ -815,12 +811,21 @@ internal class PortableCapturedActivityRoomReader(
 		if (capturedRuns.any { runId -> completenessTargetByRun[runId] == null }) {
 			abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
-		val retainedWalTargetByRun = loadPortableCapturedWalTargets(
+		val retainedWal = loadPortableCapturedWalTargets(
 			runs = runs,
 			manifestsByRun = manifestsByRun,
 			sourcesByRun = sourcesByRun,
 			collectedDataEpoch = collectedDataEpoch,
 		)
+		validatePortableCompletenessAuthority(
+			rows = completeness,
+			retainedWalRows = retainedWal.rows,
+			runs = runs,
+			manifestsByRun = manifestsByRun,
+			sourcesByRun = sourcesByRun,
+			collectedDataEpoch = collectedDataEpoch,
+		)
+		val retainedWalTargetByRun = retainedWal.targetByRun
 		if (retainedWalTargetByRun.any { (runId, retainedTarget) ->
 				retainedTarget > (completenessTargetByRun[runId] ?: 0L)
 			}
@@ -917,7 +922,7 @@ internal class PortableCapturedActivityRoomReader(
 		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 		sourcesByRun: Map<String, List<SessionManifestSourceEntity>>,
 		collectedDataEpoch: Long,
-	): Map<String, Long> {
+	): PortableActivityWalTargetAudit {
 		val rows = mutableListOf<ActivityCapturedPortableWalTargetRow>()
 		runs.map(SourceServiceRunEntity::serviceRunId).chunked(SQLITE_BIND_BATCH).forEach { runIds ->
 			currentCoroutineContext().ensureActive()
@@ -973,13 +978,17 @@ internal class PortableCapturedActivityRoomReader(
 				row.integrityIdentity != row.calculatedIntegrityIdentity()
 			) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
-		return rows.groupBy { row -> requireNotNull(row.serviceRunId) }
-			.mapValues { (_, values) -> values.maxOf { row -> row.admissionOrdinal } }
+		return PortableActivityWalTargetAudit(
+			rows = rows,
+			targetByRun = rows.groupBy { row -> requireNotNull(row.serviceRunId) }
+				.mapValues { (_, values) -> values.maxOf { row -> row.admissionOrdinal } },
+		)
 	}
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod")
 	private suspend fun validatePortableCompletenessAuthority(
 		rows: List<SourceSessionCompletenessEntity>,
+		retainedWalRows: List<ActivityCapturedPortableWalTargetRow>,
 		runs: List<SourceServiceRunEntity>,
 		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 		sourcesByRun: Map<String, List<SessionManifestSourceEntity>>,
@@ -996,6 +1005,16 @@ internal class PortableCapturedActivityRoomReader(
 		if (plansByKey.size != plans.size || plansByKey.keys != expectedPlanKeys) {
 			abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
+		if (retainedWalRows.any { wal ->
+				val plan = plansByKey[wal.sourceInstanceId to wal.registrationGeneration]
+				positiveRows.none { completeness ->
+					completeness.serviceRunId == wal.serviceRunId &&
+						completeness.sourceInstanceId == wal.sourceInstanceId &&
+						completeness.registrationGeneration == wal.registrationGeneration
+				} || plan == null || wal.configRevision != plan.configurationRevision ||
+					wal.physicalConfigurationFingerprint != plan.physicalConfigurationFingerprint
+			}
+		) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		val desiredPlans = loadPortableDesiredPlans(
 			plans.map(ActivityCapturedRegistrationPlanEntity::configurationRevision).distinct(),
 		)
@@ -1010,7 +1029,33 @@ internal class PortableCapturedActivityRoomReader(
 		}
 		val runIds = runs.map(SourceServiceRunEntity::serviceRunId)
 		val actions = loadPortableLifecycleActions(runIds)
-		val authorizations = loadPortableCaptureAuthorizations(generations, runIds)
+		val captureAuthorizationReferences = loadPortableCaptureAuthorizations(generations, runIds)
+		val authorizationKeys = buildSet {
+			captureAuthorizationReferences.forEach { authorization ->
+				add(PortableActivityAuthorizationKey(
+					authorization.registrationGeneration,
+					authorization.authorizationRevision,
+				))
+			}
+			retainedWalRows.forEach { wal ->
+				add(PortableActivityAuthorizationKey(
+					wal.registrationGeneration,
+					requireNotNull(wal.authorizationRevision),
+				))
+			}
+			providers.forEach { provider ->
+				if (provider.captureCallbackBarrierAuthorizationRevision > 0L) {
+					add(PortableActivityAuthorizationKey(
+						provider.registrationGeneration,
+						provider.captureCallbackBarrierAuthorizationRevision,
+					))
+				}
+			}
+		}
+		val authorizationsByKey = loadPortableAuthorizationRevisions(authorizationKeys)
+		validatePortableAuthorizationRevisions(authorizationsByKey)
+		val authorizations = authorizationsByKey.values.flatten()
+		validatePortableWalAuthorizations(retainedWalRows, authorizationsByKey)
 		val runsById = runs.associateBy(SourceServiceRunEntity::serviceRunId)
 		positiveRows.forEach { row ->
 			val plan = plansByKey[row.sourceInstanceId to row.registrationGeneration]
@@ -1056,8 +1101,7 @@ internal class PortableCapturedActivityRoomReader(
 				provider.physicalConfigurationFingerprint != plan.physicalConfigurationFingerprint ||
 				provider.collectedDataEpoch != collectedDataEpoch || provider.acceptedAtMs == null ||
 				provider.acceptedElapsedRealtimeNanos == null ||
-				provider.providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ||
-				provider.providerProcessIncarnationId.isNullOrBlank() ||
+				!provider.hasValidPortableActivityResidency() ||
 				provider.status !in PORTABLE_ACCEPTED_PROVIDER_STATUSES ||
 				!provider.hasValidPortableChronology(plan) ||
 				provider.captureCallbackBarrierAuthorizationRevision <
@@ -1116,6 +1160,106 @@ internal class PortableCapturedActivityRoomReader(
 		return result
 	}
 
+	private suspend fun loadPortableAuthorizationRevisions(
+		keys: Set<PortableActivityAuthorizationKey>,
+	): Map<PortableActivityAuthorizationKey, List<SourceAuthorizationEntity>> {
+		val result = linkedMapOf<PortableActivityAuthorizationKey, List<SourceAuthorizationEntity>>()
+		var totalRows = 0
+		keys.sortedWith(compareBy<PortableActivityAuthorizationKey>(PortableActivityAuthorizationKey::registrationGeneration)
+			.thenBy(PortableActivityAuthorizationKey::authorizationRevision))
+			.forEach { key ->
+				currentCoroutineContext().ensureActive()
+				val rows = database.activityCapturedFactDao().maintenanceAuthorizationMembers(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+					registrationGeneration = key.registrationGeneration,
+					authorizationRevision = key.authorizationRevision,
+					limit = limits.maximumCaptureAuthorizations - totalRows + 1,
+				)
+				totalRows += rows.size
+				if (totalRows > limits.maximumCaptureAuthorizations) overflow()
+				if (rows.isEmpty()) {
+					abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+				}
+				result[key] = rows
+			}
+		return result
+	}
+
+	private suspend fun validatePortableAuthorizationRevisions(
+		authorizationsByKey: Map<PortableActivityAuthorizationKey, List<SourceAuthorizationEntity>>,
+	) {
+		val demandIds = authorizationsByKey.values.asSequence().flatten()
+			.mapNotNull(SourceAuthorizationEntity::demandId)
+			.distinct()
+			.sorted()
+			.toList()
+		if (demandIds.size > limits.maximumCaptureAuthorizations) overflow()
+		val demands = mutableListOf<SourceDemandEntity>()
+		demandIds.chunked(SQLITE_BIND_BATCH).forEach { batch ->
+			currentCoroutineContext().ensureActive()
+			demands += database.sourceBrokerDao().demandsByIds(batch)
+			if (demands.size > limits.maximumCaptureAuthorizations) overflow()
+		}
+		val demandsById = demands.associateBy(SourceDemandEntity::demandId)
+		if (demandsById.size != demands.size || demandsById.keys != demandIds.toSet()) {
+			abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+		authorizationsByKey.forEach { (key, rows) ->
+			val snapshot = rows.toAuthorizationSnapshotOrNull()
+				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			val referencedDemands = rows.mapNotNull { row ->
+				row.demandId?.let(demandsById::get)
+			}
+			if (referencedDemands.map(SourceDemandEntity::demandId).distinct().size !=
+				referencedDemands.size
+			) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			val first = rows.first()
+			val expected = SourceBrokerAuthorization.rows(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+				registrationGeneration = key.registrationGeneration,
+				authorizationRevision = key.authorizationRevision,
+				demands = referencedDemands,
+				effectiveBootId = snapshot.effectiveBootId,
+				effectiveElapsedRealtimeNanos = snapshot.effectiveElapsedRealtimeNanos,
+				effectiveWallTimeMs = first.effectiveWallTimeMs,
+			).sortedBy(SourceAuthorizationEntity::memberId)
+			if (rows.sortedBy(SourceAuthorizationEntity::memberId) != expected) {
+				abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			}
+		}
+	}
+
+	private fun validatePortableWalAuthorizations(
+		walRows: List<ActivityCapturedPortableWalTargetRow>,
+		authorizationsByKey: Map<PortableActivityAuthorizationKey, List<SourceAuthorizationEntity>>,
+	) {
+		walRows.forEach { wal ->
+			val key = PortableActivityAuthorizationKey(
+				wal.registrationGeneration,
+				requireNotNull(wal.authorizationRevision),
+			)
+			val authorizationRows = authorizationsByKey[key]
+				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			val snapshot = authorizationRows.toAuthorizationSnapshotOrNull()
+				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			if (snapshot.authorizationFingerprint != wal.authorizationFingerprint ||
+				snapshot.purposeEligibilityMask != wal.authorizationPurposeEligibilityMask ||
+				snapshot.effectiveBootId != wal.clockDomainId ||
+				snapshot.effectiveElapsedRealtimeNanos > wal.observedElapsedNanos ||
+				authorizationRows.none { authorization ->
+					!authorization.isDenyAll && authorization.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+						authorization.persistenceEligible &&
+						authorization.logicalTrackingId == wal.logicalTrackingId &&
+						authorization.serviceRunId == wal.serviceRunId &&
+						authorization.manifestRevision == wal.sessionManifestRevision &&
+						authorization.lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration &&
+						authorization.sourcePolicyRevision == wal.sourcePolicyRevision &&
+						authorization.consentEpoch == wal.captureConsentEpoch
+				}
+			) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+	}
+
 	@Suppress("ComplexCondition")
 	private fun ProviderRegistrationGenerationEntity.hasValidPortableChronology(
 		plan: ActivityCapturedRegistrationPlanEntity,
@@ -1135,6 +1279,15 @@ internal class PortableCapturedActivityRoomReader(
 			else -> false
 		}
 	}
+
+	private fun ProviderRegistrationGenerationEntity.hasValidPortableActivityResidency(): Boolean =
+		when (providerResidency) {
+			ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ->
+				!providerProcessIncarnationId.isNullOrBlank()
+			ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE ->
+				providerProcessIncarnationId == null
+			else -> false
+		}
 
 	@Suppress("ComplexCondition")
 	private fun validatePortableAcceptedAction(
@@ -1909,6 +2062,16 @@ private class PortableActivitySnapshotAbort(
 private data class ActivityPortableManifestDependencies(
 	val manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 	val sourcesByRun: Map<String, List<SessionManifestSourceEntity>>,
+)
+
+private data class PortableActivityWalTargetAudit(
+	val rows: List<ActivityCapturedPortableWalTargetRow>,
+	val targetByRun: Map<String, Long>,
+)
+
+private data class PortableActivityAuthorizationKey(
+	val registrationGeneration: Long,
+	val authorizationRevision: Long,
 )
 
 private val ZONE_EPOCH_ORDER = compareBy<PortableActivityZoneEpochV1>(
