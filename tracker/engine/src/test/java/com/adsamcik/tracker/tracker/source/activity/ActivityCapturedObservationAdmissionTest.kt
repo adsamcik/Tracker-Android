@@ -126,6 +126,11 @@ class ActivityCapturedObservationAdmissionTest {
 			ActivityCapturedObservation.SampledClassification
 		observation.confidencePercent shouldBe 80
 		observation.coverageEndExclusiveElapsedRealtimeNanos shouldBe 1_500L
+		observation.reference.observationKind shouldBe
+			ActivityCapturedObservationKind.SAMPLED_CLASSIFICATION
+		observation.reference.observedActivity shouldBe CapturedActivityType.RUNNING
+		observation.reference.confidencePercent shouldBe 80
+		observation.reference.coverageEndExclusiveElapsedRealtimeNanos shouldBe 1_500L
 	}
 
 	@Test
@@ -404,6 +409,11 @@ class ActivityCapturedObservationAdmissionTest {
 		sourceSequence = 31L,
 		providerElapsedRealtimeNanos = 1_000L,
 		receivedElapsedRealtimeNanos = 1_100L,
+		observationKind = ActivityCapturedObservationKind.TRANSITION,
+		observedActivity = CapturedActivityType.WALKING,
+		transitionChange = ActivityTransitionChange.ENTER,
+		confidencePercent = null,
+		coverageEndExclusiveElapsedRealtimeNanos = null,
 	)
 
 	private fun rejected(reason: ActivityCaptureAdmissionRejection) =

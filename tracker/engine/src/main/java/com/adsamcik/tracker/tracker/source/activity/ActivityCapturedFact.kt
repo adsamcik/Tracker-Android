@@ -82,18 +82,43 @@ internal data class ActivityCaptureAuthority(
 }
 
 /** Exact durable provider observation that contributed to a captured Activity product. */
+internal enum class ActivityCapturedObservationKind {
+	TRANSITION,
+	SAMPLED_CLASSIFICATION,
+}
+
 internal data class ActivityCapturedObservationReference(
 	val sourceEventId: SourceEventId,
 	val admissionOrdinal: Long,
 	val sourceSequence: Long,
 	val providerElapsedRealtimeNanos: Long,
 	val receivedElapsedRealtimeNanos: Long,
+	val observationKind: ActivityCapturedObservationKind,
+	val observedActivity: CapturedActivityType,
+	val transitionChange: ActivityTransitionChange?,
+	val confidencePercent: Int?,
+	val coverageEndExclusiveElapsedRealtimeNanos: Long?,
 ) {
 	init {
 		require(admissionOrdinal > 0L)
 		require(sourceSequence > 0L)
 		require(providerElapsedRealtimeNanos >= 0L)
 		require(receivedElapsedRealtimeNanos >= providerElapsedRealtimeNanos)
+		when (observationKind) {
+			ActivityCapturedObservationKind.TRANSITION -> {
+				require(transitionChange != null)
+				require(confidencePercent == null)
+				require(coverageEndExclusiveElapsedRealtimeNanos == null)
+			}
+			ActivityCapturedObservationKind.SAMPLED_CLASSIFICATION -> {
+				require(transitionChange == null)
+				require(confidencePercent != null && confidencePercent in 0..100)
+				require(
+					coverageEndExclusiveElapsedRealtimeNanos != null &&
+						coverageEndExclusiveElapsedRealtimeNanos > providerElapsedRealtimeNanos,
+				)
+			}
+		}
 	}
 }
 
@@ -147,6 +172,9 @@ internal sealed interface ActivityCapturedObservation {
 		init {
 			require(observedWallTimeMs >= 0L)
 			require(wallTimeUncertaintyMs >= 0L)
+			require(reference.observationKind == ActivityCapturedObservationKind.TRANSITION)
+			require(reference.observedActivity == activity)
+			require(reference.transitionChange == change)
 		}
 	}
 
@@ -166,6 +194,16 @@ internal sealed interface ActivityCapturedObservation {
 			require(confidencePercent in 0..100)
 			require(
 				coverageEndExclusiveElapsedRealtimeNanos > reference.providerElapsedRealtimeNanos,
+			)
+			require(
+				reference.observationKind ==
+					ActivityCapturedObservationKind.SAMPLED_CLASSIFICATION,
+			)
+			require(reference.observedActivity == activity)
+			require(reference.confidencePercent == confidencePercent)
+			require(
+				reference.coverageEndExclusiveElapsedRealtimeNanos ==
+					coverageEndExclusiveElapsedRealtimeNanos,
 			)
 		}
 	}
@@ -321,20 +359,50 @@ internal data class ActivityCapturedBand(
 			wallTimeRange.endExclusive.authority.anchorProviderElapsedRealtimeNanos ==
 				intervalEndExclusiveElapsedRealtimeNanos,
 		)
+		val sampledEvidence = evidence.filter {
+			it.observationKind == ActivityCapturedObservationKind.SAMPLED_CLASSIFICATION
+		}
+		val transitionEvidence = evidence.filter {
+			it.observationKind == ActivityCapturedObservationKind.TRANSITION
+		}
 		when (mechanism) {
 			ActivityBandMechanism.TRANSITION -> {
 				require(confidence is ActivityBandConfidence.TransitionSignal)
 				require(refinedTransitionActivity == null)
+				require(sampledEvidence.isEmpty())
+				require(transitionEvidence.any {
+					it.observedActivity == activity &&
+						it.transitionChange == ActivityTransitionChange.ENTER
+				})
 			}
 			ActivityBandMechanism.SAMPLED_REFINEMENT -> {
 				require(confidence is ActivityBandConfidence.Sampled)
 				require(refinedTransitionActivity != null)
 				require(isCompatibleActivityRefinement(refinedTransitionActivity, activity))
+				require(sampledEvidence.any { it.observedActivity == activity })
+				require(transitionEvidence.any {
+					it.observedActivity == refinedTransitionActivity &&
+						it.transitionChange == ActivityTransitionChange.ENTER
+				})
 			}
 			ActivityBandMechanism.SAMPLED_CLASSIFICATION -> {
 				require(confidence is ActivityBandConfidence.Sampled)
 				require(refinedTransitionActivity == null)
+				require(sampledEvidence.any { it.observedActivity == activity })
 			}
+		}
+		if (confidence is ActivityBandConfidence.Sampled) {
+			val evidenceConfidence = sampledEvidence.map { requireNotNull(it.confidencePercent) }
+			require(evidenceConfidence.isNotEmpty())
+			require(confidence.minimumPercent == evidenceConfidence.minOrNull())
+			require(confidence.maximumPercent == evidenceConfidence.maxOrNull())
+			require(confidence.observationCount == evidenceConfidence.size)
+			require(sampledEvidence.all { reference ->
+				reference.observedActivity == activity &&
+					reference.providerElapsedRealtimeNanos < intervalEndExclusiveElapsedRealtimeNanos &&
+					requireNotNull(reference.coverageEndExclusiveElapsedRealtimeNanos) >
+						intervalStartElapsedRealtimeNanos
+			})
 		}
 	}
 

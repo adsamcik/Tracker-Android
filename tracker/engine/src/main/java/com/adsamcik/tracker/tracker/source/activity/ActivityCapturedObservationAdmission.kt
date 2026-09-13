@@ -193,13 +193,6 @@ internal object ActivityCapturedObservationAdmission {
 		}
 		val activity = event.activityTypeOrNull()
 			?: return rejected(ActivityCaptureAdmissionRejection.UNSUPPORTED_ACTIVITY)
-		val reference = ActivityCapturedObservationReference(
-			sourceEventId = event.eventId,
-			admissionOrdinal = event.admissionOrdinal,
-			sourceSequence = evidence.sourceSequence,
-			providerElapsedRealtimeNanos = providerTime,
-			receivedElapsedRealtimeNanos = evidence.receivedElapsedRealtimeNanos,
-		)
 		val observation = when (val payload = evidence.payload) {
 			is ActivityTransitionPayload -> {
 				val change = when (payload.transitionType) {
@@ -208,12 +201,23 @@ internal object ActivityCapturedObservationAdmission {
 					else -> return rejected(ActivityCaptureAdmissionRejection.UNSUPPORTED_TRANSITION)
 				}
 				ActivityCapturedObservation.Transition(
-					reference,
-					candidateAuthority,
-					activity,
-					wallTimeMs,
-					wallTimeUncertaintyMs,
-					change,
+					reference = ActivityCapturedObservationReference(
+						sourceEventId = event.eventId,
+						admissionOrdinal = event.admissionOrdinal,
+						sourceSequence = evidence.sourceSequence,
+						providerElapsedRealtimeNanos = providerTime,
+						receivedElapsedRealtimeNanos = evidence.receivedElapsedRealtimeNanos,
+						observationKind = ActivityCapturedObservationKind.TRANSITION,
+						observedActivity = activity,
+						transitionChange = change,
+						confidencePercent = null,
+						coverageEndExclusiveElapsedRealtimeNanos = null,
+					),
+					authority = candidateAuthority,
+					activity = activity,
+					observedWallTimeMs = wallTimeMs,
+					wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+					change = change,
 				)
 			}
 			is ActivityRecognitionPayload -> {
@@ -239,13 +243,25 @@ internal object ActivityCapturedObservationAdmission {
 					historicalConfiguration.sessionRunEffect.endExclusiveNanos,
 				)
 				ActivityCapturedObservation.SampledClassification(
-					reference,
-					candidateAuthority,
-					activity,
-					wallTimeMs,
-					wallTimeUncertaintyMs,
-					payload.confidencePercent,
-					coverageEnd,
+					reference = ActivityCapturedObservationReference(
+						sourceEventId = event.eventId,
+						admissionOrdinal = event.admissionOrdinal,
+						sourceSequence = evidence.sourceSequence,
+						providerElapsedRealtimeNanos = providerTime,
+						receivedElapsedRealtimeNanos = evidence.receivedElapsedRealtimeNanos,
+						observationKind =
+							ActivityCapturedObservationKind.SAMPLED_CLASSIFICATION,
+						observedActivity = activity,
+						transitionChange = null,
+						confidencePercent = payload.confidencePercent,
+						coverageEndExclusiveElapsedRealtimeNanos = coverageEnd,
+					),
+					authority = candidateAuthority,
+					activity = activity,
+					observedWallTimeMs = wallTimeMs,
+					wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+					confidencePercent = payload.confidencePercent,
+					coverageEndExclusiveElapsedRealtimeNanos = coverageEnd,
 				)
 			}
 			else -> return rejected(ActivityCaptureAdmissionRejection.NOT_ACTIVITY)

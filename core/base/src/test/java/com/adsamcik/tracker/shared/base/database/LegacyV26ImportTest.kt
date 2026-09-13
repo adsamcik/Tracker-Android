@@ -84,6 +84,7 @@ class LegacyV26ImportTest {
 				"${SourceDestinationOwnerEntity.SOURCE_PRESSURE}",
 		) shouldBe SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
 		count(raw, "pressure_fact_revision") shouldBe 0L
+		count(raw, "activity_captured_registration_plan") shouldBe 0L
 		count(raw, "activity_captured_window_revision") shouldBe 0L
 	}
 
