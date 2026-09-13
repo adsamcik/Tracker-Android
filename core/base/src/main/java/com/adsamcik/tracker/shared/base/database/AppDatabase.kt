@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.converter.DetectedActivityTypeC
 import com.adsamcik.tracker.shared.base.database.converter.GeoFeaturePropertiesConverter
 import com.adsamcik.tracker.shared.base.database.converter.SessionlessTypeConverter
 import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
+import com.adsamcik.tracker.shared.base.database.dao.ActivityCapturedFactDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivityAutomaticStartActionDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivityAutomationEpochDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
@@ -41,6 +42,10 @@ import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.XpLedgerDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.CellSample
@@ -175,6 +180,10 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedStepsRunEntity::class,
 			ImportedStepsManifestEntity::class,
 			PressureFactRevisionEntity::class,
+			ActivityCapturedWindowRevisionEntity::class,
+			ActivityCapturedFragmentEntity::class,
+			ActivityCapturedEvidenceEntity::class,
+			ActivityCapturedWindowCursorEntity::class,
 			SourceDeletionFenceEntity::class,
 			SourceDestinationOwnerEntity::class,
 			ActivitySnapshot::class,
@@ -295,6 +304,9 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Provides the dormant append-only source-qualified Pressure fact history. */
 	abstract fun pressureFactRevisionDao(): PressureFactRevisionDao
+
+	/** Dormant append-only captured Activity facts; this accessor does not activate acquisition. */
+	abstract fun activityCapturedFactDao(): ActivityCapturedFactDao
 
 	/** Provides payload-free source/run deletion authority for source mutation paths. */
 	abstract fun sourceDeletionFenceDao(): SourceDeletionFenceDao
@@ -615,6 +627,10 @@ abstract class AppDatabase : RoomDatabase() {
 			database.stepFactRevisionDao().deleteAll()
 			database.importedStepsDao().deleteAll()
 			database.pressureFactRevisionDao().deleteAll()
+			database.activityCapturedFactDao().deleteAllEvidence()
+			database.activityCapturedFactDao().deleteAllFragments()
+			database.activityCapturedFactDao().deleteAllCursors()
+			database.activityCapturedFactDao().deleteAllRevisions()
 			database.stepIntervalDao().deleteAll()
 			database.activitySnapshotDao().deleteAll()
 			database.cellSampleDao().deleteAll()
