@@ -14,8 +14,8 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.StableActivityTypeCode
-import io.kotest.matchers.shouldBe
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.shouldBe
 import org.junit.Test
 
 class ActivityCapturedObservationAdmissionTest {
@@ -234,7 +234,7 @@ class ActivityCapturedObservationAdmissionTest {
 				captureAuthority = captureAuthority,
 				historicalConfiguration = ActivityHistoricalAcquisitionConfiguration(
 					identity = ActivityAcquisitionConfigurationIdentity(
-						sourceInstanceId = captureAuthority.sourceInstanceId.value,
+						sourceInstanceId = captureAuthority.sourceInstanceId,
 						registrationGeneration = captureAuthority.registrationGeneration,
 						configurationRevision = captureAuthority.configurationRevision + 1L,
 						physicalConfigurationFingerprint =
@@ -268,7 +268,7 @@ class ActivityCapturedObservationAdmissionTest {
 		captureAuthority = captureAuthority,
 		historicalConfiguration = ActivityHistoricalAcquisitionConfiguration(
 			identity = ActivityAcquisitionConfigurationIdentity(
-				sourceInstanceId = captureAuthority.sourceInstanceId.value,
+				sourceInstanceId = captureAuthority.sourceInstanceId,
 				registrationGeneration = captureAuthority.registrationGeneration,
 				configurationRevision = captureAuthority.configurationRevision,
 				physicalConfigurationFingerprint =

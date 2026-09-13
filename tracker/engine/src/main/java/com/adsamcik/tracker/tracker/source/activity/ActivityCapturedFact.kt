@@ -70,6 +70,16 @@ internal enum class CapturedActivityType(val isKnownActive: Boolean, val isKnown
 	UNKNOWN(isKnownActive = false, isKnownInactive = false),
 }
 
+internal fun isCompatibleActivityRefinement(
+	coarse: CapturedActivityType,
+	detail: CapturedActivityType,
+): Boolean = when (coarse) {
+	CapturedActivityType.ON_FOOT -> detail == CapturedActivityType.WALKING ||
+		detail == CapturedActivityType.RUNNING
+	CapturedActivityType.UNKNOWN -> detail != CapturedActivityType.UNKNOWN
+	else -> false
+}
+
 internal enum class ActivityTransitionChange { ENTER, EXIT }
 
 /** A source-qualified Activity observation that is independently authorized for captured history. */
@@ -87,7 +97,12 @@ internal sealed interface ActivityCapturedObservation {
 		override val observedWallTimeMs: Long,
 		override val wallTimeUncertaintyMs: Long,
 		val change: ActivityTransitionChange,
-	) : ActivityCapturedObservation
+	) : ActivityCapturedObservation {
+		init {
+			require(observedWallTimeMs >= 0L)
+			require(wallTimeUncertaintyMs >= 0L)
+		}
+	}
 
 	data class SampledClassification(
 		override val reference: ActivityCapturedObservationReference,
@@ -100,6 +115,8 @@ internal sealed interface ActivityCapturedObservation {
 		val coverageEndExclusiveElapsedRealtimeNanos: Long,
 	) : ActivityCapturedObservation {
 		init {
+			require(observedWallTimeMs >= 0L)
+			require(wallTimeUncertaintyMs >= 0L)
 			require(confidencePercent in 0..100)
 			require(
 				coverageEndExclusiveElapsedRealtimeNanos > reference.providerElapsedRealtimeNanos,
@@ -207,7 +224,15 @@ internal data class ActivityDerivedWallTimeRange(
 	val startInclusive: ActivityDerivedWallTimeBoundary,
 	val endExclusive: ActivityDerivedWallTimeBoundary,
 	val continuity: ActivityWallTimeContinuity,
-)
+) {
+	init {
+		require(
+			continuity != ActivityWallTimeContinuity.SAME_ANCHOR ||
+				startInclusive.authority.anchorSourceEventId ==
+				endExclusive.authority.anchorSourceEventId,
+		)
+	}
+}
 
 internal data class ActivityCapturedBand(
 	val key: ActivityCapturedFactKey,
@@ -216,6 +241,7 @@ internal data class ActivityCapturedBand(
 	val wallTimeRange: ActivityDerivedWallTimeRange,
 	val activity: CapturedActivityType,
 	val mechanism: ActivityBandMechanism,
+	val refinedTransitionActivity: CapturedActivityType?,
 	val confidence: ActivityBandConfidence,
 	val evidence: List<ActivityCapturedObservationReference>,
 ) {
@@ -226,12 +252,43 @@ internal data class ActivityCapturedBand(
 		require(evidence.distinctBy { it.sourceEventId } == evidence) {
 			"Captured Activity evidence cannot repeat a durable event identity"
 		}
+		val evidenceIds = evidence.mapTo(mutableSetOf()) { it.sourceEventId }
+		require(wallTimeRange.startInclusive.authority.anchorSourceEventId in evidenceIds)
+		require(wallTimeRange.endExclusive.authority.anchorSourceEventId in evidenceIds)
+		require(
+			wallTimeRange.startInclusive.authority.clockDomainId ==
+				key.mutation.identity.authority.clockDomainId,
+		)
+		require(
+			wallTimeRange.endExclusive.authority.clockDomainId ==
+				key.mutation.identity.authority.clockDomainId,
+		)
+		if (wallTimeRange.startInclusive.authority.kind ==
+			ActivityWallTimeBoundaryKind.EXACT_PROVIDER_OBSERVATION
+		) require(
+			wallTimeRange.startInclusive.authority.anchorProviderElapsedRealtimeNanos ==
+				intervalStartElapsedRealtimeNanos,
+		)
+		if (wallTimeRange.endExclusive.authority.kind ==
+			ActivityWallTimeBoundaryKind.EXACT_PROVIDER_OBSERVATION
+		) require(
+			wallTimeRange.endExclusive.authority.anchorProviderElapsedRealtimeNanos ==
+				intervalEndExclusiveElapsedRealtimeNanos,
+		)
 		when (mechanism) {
-			ActivityBandMechanism.TRANSITION ->
+			ActivityBandMechanism.TRANSITION -> {
 				require(confidence is ActivityBandConfidence.TransitionSignal)
-			ActivityBandMechanism.SAMPLED_REFINEMENT,
-			ActivityBandMechanism.SAMPLED_CLASSIFICATION,
-			-> require(confidence is ActivityBandConfidence.Sampled)
+				require(refinedTransitionActivity == null)
+			}
+			ActivityBandMechanism.SAMPLED_REFINEMENT -> {
+				require(confidence is ActivityBandConfidence.Sampled)
+				require(refinedTransitionActivity != null)
+				require(isCompatibleActivityRefinement(refinedTransitionActivity, activity))
+			}
+			ActivityBandMechanism.SAMPLED_CLASSIFICATION -> {
+				require(confidence is ActivityBandConfidence.Sampled)
+				require(refinedTransitionActivity == null)
+			}
 		}
 	}
 

@@ -6,6 +6,7 @@ import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.StableActivityTypeCode
 
@@ -24,7 +25,7 @@ internal data class ActivityProviderTimeInterval(
 
 /** Stable identity of the historical provider configuration supplying capture thresholds. */
 internal data class ActivityAcquisitionConfigurationIdentity(
-	val sourceInstanceId: String,
+	val sourceInstanceId: SourceInstanceId,
 	val registrationGeneration: Long,
 	val configurationRevision: Long,
 	val physicalConfigurationFingerprint: String,
@@ -32,7 +33,6 @@ internal data class ActivityAcquisitionConfigurationIdentity(
 	val authorizationFingerprint: String,
 ) {
 	init {
-		require(sourceInstanceId.isNotBlank())
 		require(registrationGeneration > 0L)
 		require(configurationRevision >= 0L)
 		require(physicalConfigurationFingerprint.isNotBlank())
@@ -62,7 +62,7 @@ internal data class ActivityCaptureAcquisitionAuthority(
 ) {
 	init {
 		val expectedIdentity = ActivityAcquisitionConfigurationIdentity(
-			sourceInstanceId = captureAuthority.sourceInstanceId.value,
+			sourceInstanceId = captureAuthority.sourceInstanceId,
 			registrationGeneration = captureAuthority.registrationGeneration,
 			configurationRevision = captureAuthority.configurationRevision,
 			physicalConfigurationFingerprint =

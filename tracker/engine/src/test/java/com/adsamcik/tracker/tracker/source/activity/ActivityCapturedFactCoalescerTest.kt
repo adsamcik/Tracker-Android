@@ -56,8 +56,105 @@ class ActivityCapturedFactCoalescerTest {
 			band.activity shouldBe CapturedActivityType.WALKING
 			band.mechanism shouldBe ActivityBandMechanism.TRANSITION
 			band.evidence shouldContainExactly listOf(reference("walking", 100L))
+			band.wallTimeRange.endExclusive.authority.kind shouldBe
+				ActivityWallTimeBoundaryKind.SAME_CLOCK_EXTRAPOLATION
+			band.wallTimeRange.endExclusive.uncertaintyMs shouldBe 6L
+			band.wallTimeRange.continuity shouldBe ActivityWallTimeContinuity.SAME_ANCHOR
 		}
 		window.unchangedEvidenceCount shouldBe 1
+	}
+
+	@Test
+	fun `direct high confidence sample refines only a compatible coarse transition`() {
+		val window = coalesced(
+			transition("on-foot", 100L, CapturedActivityType.ON_FOOT),
+			sampled("walking", 200L, 90, 400L, CapturedActivityType.WALKING),
+		)
+
+		window.bands.map { band ->
+			Triple(
+				band.intervalStartElapsedRealtimeNanos to
+					band.intervalEndExclusiveElapsedRealtimeNanos,
+				band.activity,
+				band.mechanism,
+			)
+		} shouldContainExactly listOf(
+			Triple(100L to 200L, CapturedActivityType.ON_FOOT, ActivityBandMechanism.TRANSITION),
+			Triple(
+				200L to 400L,
+				CapturedActivityType.WALKING,
+				ActivityBandMechanism.SAMPLED_REFINEMENT,
+			),
+			Triple(400L to 1_000L, CapturedActivityType.ON_FOOT,
+				ActivityBandMechanism.TRANSITION),
+		)
+		window.bands[1].confidence shouldBe ActivityBandConfidence.Sampled(90, 90, 1)
+		window.bands[1].refinedTransitionActivity shouldBe CapturedActivityType.ON_FOOT
+		window.bands[1].evidence shouldContainExactly listOf(
+			reference("on-foot", 100L),
+			reference("walking", 200L),
+		)
+	}
+
+	@Test
+	fun `sample never contradicts a definitive transition`() {
+		val window = coalesced(
+			transition("still", 100L, CapturedActivityType.STILL),
+			sampled("walking", 200L, 100, 800L, CapturedActivityType.WALKING),
+		)
+
+		window.bands.single().activity shouldBe CapturedActivityType.STILL
+		window.bands.single().mechanism shouldBe ActivityBandMechanism.TRANSITION
+		window.unchangedEvidenceCount shouldBe 1
+	}
+
+	@Test
+	fun `unmatched exit is a negative boundary for older compatible sample coverage`() {
+		val window = coalesced(
+			sampled("walking", 100L, 90, 900L, CapturedActivityType.WALKING),
+			transition(
+				"walking-exit",
+				400L,
+				CapturedActivityType.WALKING,
+				ActivityTransitionChange.EXIT,
+			),
+		)
+
+		window.bands.single().intervalStartElapsedRealtimeNanos shouldBe 100L
+		window.bands.single().intervalEndExclusiveElapsedRealtimeNanos shouldBe 400L
+		window.bands.single().evidence shouldContainExactly listOf(
+			reference("walking", 100L),
+			reference("walking-exit", 400L),
+		)
+		window.gaps.last() shouldBe ActivityCoverageGap(
+			400L,
+			1_000L,
+			ActivityCoverageGapReason.NO_QUALIFIED_EVIDENCE,
+		)
+		window.unchangedEvidenceCount shouldBe 0
+	}
+
+	@Test
+	fun `on-foot exit clips older walking detail but not a new same-time sample`() {
+		val window = coalesced(
+			sampled("old-walking", 100L, 90, 900L, CapturedActivityType.WALKING),
+			transition(
+				"on-foot-exit",
+				400L,
+				CapturedActivityType.ON_FOOT,
+				ActivityTransitionChange.EXIT,
+			),
+			sampled("new-walking", 400L, 90, 700L, CapturedActivityType.WALKING),
+		)
+
+		window.bands.map { band ->
+			band.intervalStartElapsedRealtimeNanos to band.intervalEndExclusiveElapsedRealtimeNanos
+		} shouldContainExactly listOf(100L to 700L)
+		window.bands.single().evidence shouldContainExactly listOf(
+			reference("old-walking", 100L),
+			reference("new-walking", 400L),
+			reference("on-foot-exit", 400L),
+		)
 	}
 
 	@Test

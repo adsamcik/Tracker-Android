@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.tracker.source.activity
 
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
+import java.util.EnumMap
+import java.util.PriorityQueue
+import java.util.TreeSet
 
 internal data class ActivityCapturedCoalescingRequest(
 	val mutation: ActivityCapturedWindowMutation,
@@ -39,8 +42,8 @@ internal sealed interface ActivityCoalescingResult {
 }
 
 /**
- * Pure, bounded Activity fact composition. Transitions always win where they provide coverage;
- * sampled classifications can only fill otherwise-uncovered time from a direct capture plan.
+ * Pure, bounded Activity fact composition. Exact transitions define the state envelope; only
+ * compatible direct-capture samples can refine a coarse transition or fill uncovered time.
  */
 internal object ActivityCapturedFactCoalescer {
 	fun coalesce(request: ActivityCapturedCoalescingRequest): ActivityCoalescingResult {
@@ -69,10 +72,9 @@ internal object ActivityCapturedFactCoalescer {
 		if (!gaps.areValidFor(request)) {
 			return rejected(ActivityCoalescingRejection.MALFORMED_DECLARED_GAP)
 		}
-		if (request.observations.any { observation ->
-				gaps.any { gap -> observation.reference.providerElapsedRealtimeNanos in gap }
-			}
-		) return rejected(ActivityCoalescingRejection.OBSERVATION_INSIDE_DECLARED_GAP)
+		if (request.observations.intersects(gaps)) {
+			return rejected(ActivityCoalescingRejection.OBSERVATION_INSIDE_DECLARED_GAP)
+		}
 
 		val canonical = canonicalize(request.observations)
 		if (canonical is Canonicalization.IdentityCollision) {
@@ -90,26 +92,35 @@ internal object ActivityCapturedFactCoalescer {
 		val sampled = canonical.observations.filterIsInstance<
 			ActivityCapturedObservation.SampledClassification
 		>()
-		val rawBands = composeAllBands(
+		val bandComposition = composeAllBands(
 			request = request,
 			transitionBands = transitionComposition.bands,
 			sampled = sampled,
 			gaps = gaps,
+			negativeBoundaries = transitionComposition.negativeBoundaries,
 		)
+		val rawBands = bandComposition.bands
+		val observationsById = canonical.observations.associateBy {
+			it.reference.sourceEventId
+		}
 		val bands = rawBands.mergeAdjacent().mapIndexed { fragmentOrdinal, raw ->
-			raw.toCapturedBand(request.mutation, fragmentOrdinal, canonical.observations)
+			raw.toCapturedBand(request.mutation, fragmentOrdinal, observationsById)
 		}
 		if (bands.any { it == null }) {
 			return rejected(ActivityCoalescingRejection.WALL_TIME_DERIVATION_FAILED)
 		}
 		val capturedBands = bands.filterNotNull()
 		val coveredGaps = complementWithDeclaredGaps(request, capturedBands, gaps)
-		val usedSampleIds = rawBands.asSequence()
-			.filter { it.mechanism == ActivityBandMechanism.SAMPLED_CLASSIFICATION }
+		val usedEvidenceIds = rawBands.asSequence()
 			.flatMap { it.evidence.asSequence() }
 			.map(ActivityCapturedObservationReference::sourceEventId)
 			.toSet()
-		val unchangedSamples = sampled.count { it.reference.sourceEventId !in usedSampleIds }
+		val unchangedSamples = sampled.count { it.reference.sourceEventId !in usedEvidenceIds }
+		val effectiveNegativeIds = usedEvidenceIds +
+			bandComposition.effectiveNegativeBoundaryIds
+		val unchangedUnmatchedExits = transitionComposition.unmatchedExitIds.count {
+			it !in effectiveNegativeIds
+		}
 
 		return ActivityCoalescingResult.Coalesced(
 			ActivityCapturedWindow(
@@ -118,7 +129,8 @@ internal object ActivityCapturedFactCoalescer {
 				gaps = coveredGaps,
 				exactDuplicateCount = canonical.exactDuplicateCount,
 				semanticDuplicateCount = canonical.semanticDuplicateCount,
-				unchangedEvidenceCount = transitionComposition.unchangedCount + unchangedSamples,
+				unchangedEvidenceCount = transitionComposition.redundantEnterCount +
+					unchangedSamples + unchangedUnmatchedExits,
 			),
 		)
 	}
@@ -162,15 +174,20 @@ internal object ActivityCapturedFactCoalescer {
 			it.reference.providerElapsedRealtimeNanos
 		}
 		val state = mutableMapOf<CapturedActivityType, ActivityCapturedObservation.Transition>()
-		var unchangedCount = 0
+		var redundantEnterCount = 0
+		val negativeBoundaries = mutableListOf<NegativeActivityBoundary>()
+		val unmatchedExitIds = mutableSetOf<SourceEventId>()
 		transitionsByTime.keys.asSequence()
 			.filter { it < request.intervalStartElapsedRealtimeNanos }
 			.sorted()
 			.forEach { time ->
-				unchangedCount += applyTransitions(
+				val application = applyTransitions(
 					state,
 					transitionsByTime.getValue(time),
-				).unchangedCount
+				)
+				redundantEnterCount += application.redundantEnterCount
+				negativeBoundaries += application.negativeBoundaries
+				unmatchedExitIds += application.unmatchedExitIds
 			}
 
 		val boundaries = buildSet {
@@ -185,16 +202,22 @@ internal object ActivityCapturedFactCoalescer {
 			}
 		}.sorted()
 		val bands = mutableListOf<RawActivityBand>()
+		var gapIndex = 0
 		for (index in 0 until boundaries.lastIndex) {
 			val start = boundaries[index]
 			val end = boundaries[index + 1]
-			if (gaps.any { it.intervalStartElapsedRealtimeNanos == start }) state.clear()
-			val containingGap = gaps.firstOrNull { start in it }
+			while (gapIndex < gaps.size &&
+				gaps[gapIndex].intervalEndExclusiveElapsedRealtimeNanos <= start
+			) gapIndex += 1
+			val containingGap = gaps.getOrNull(gapIndex)?.takeIf { start in it }
+			if (containingGap?.intervalStartElapsedRealtimeNanos == start) state.clear()
 			if (containingGap != null) continue
 			val application = transitionsByTime[start]?.let { atStart ->
 				applyTransitions(state, atStart)
 			} ?: TransitionApplication.EMPTY
-			unchangedCount += application.unchangedCount
+			redundantEnterCount += application.redundantEnterCount
+			negativeBoundaries += application.negativeBoundaries
+			unmatchedExitIds += application.unmatchedExitIds
 			if (application.changedReferences.isNotEmpty() && bands.lastOrNull()?.end == start) {
 				val previous = bands.last()
 				bands[bands.lastIndex] = previous.copy(
@@ -214,27 +237,39 @@ internal object ActivityCapturedFactCoalescer {
 					.sortedWith(referenceComparator),
 			)
 		}
-		return TransitionComposition(bands, unchangedCount)
+		return TransitionComposition(
+			bands = bands,
+			redundantEnterCount = redundantEnterCount,
+			negativeBoundaries = negativeBoundaries.sortedWith(negativeBoundaryComparator),
+			unmatchedExitIds = unmatchedExitIds,
+		)
 	}
 
 	private fun applyTransitions(
 		state: MutableMap<CapturedActivityType, ActivityCapturedObservation.Transition>,
 		atSameTime: List<ActivityCapturedObservation.Transition>,
 	): TransitionApplication {
-		var unchanged = 0
+		var redundantEnters = 0
 		val changed = mutableListOf<ActivityCapturedObservationReference>()
+		val negativeBoundaries = mutableListOf<NegativeActivityBoundary>()
+		val unmatchedExitIds = mutableSetOf<SourceEventId>()
 		atSameTime.sortedWith(transitionApplicationComparator).forEach { transition ->
 			when (transition.change) {
 				ActivityTransitionChange.EXIT -> {
+					negativeBoundaries += NegativeActivityBoundary(
+						providerTime = transition.reference.providerElapsedRealtimeNanos,
+						activity = transition.activity,
+						reference = transition.reference,
+					)
 					if (state.remove(transition.activity) == null) {
-						unchanged += 1
+						unmatchedExitIds += transition.reference.sourceEventId
 					} else {
 						changed += transition.reference
 					}
 				}
 				ActivityTransitionChange.ENTER -> {
 					if (transition.activity in state) {
-						unchanged += 1
+						redundantEnters += 1
 					} else {
 						state[transition.activity] = transition
 						changed += transition.reference
@@ -242,7 +277,12 @@ internal object ActivityCapturedFactCoalescer {
 				}
 			}
 		}
-		return TransitionApplication(unchanged, changed)
+		return TransitionApplication(
+			redundantEnterCount = redundantEnters,
+			changedReferences = changed,
+			negativeBoundaries = negativeBoundaries,
+			unmatchedExitIds = unmatchedExitIds,
+		)
 	}
 
 	private fun composeAllBands(
@@ -250,7 +290,8 @@ internal object ActivityCapturedFactCoalescer {
 		transitionBands: List<RawActivityBand>,
 		sampled: List<ActivityCapturedObservation.SampledClassification>,
 		gaps: List<ActivityCoverageGap>,
-	): List<RawActivityBand> {
+		negativeBoundaries: List<NegativeActivityBoundary>,
+	): AllBandComposition {
 		val boundaries = buildSet {
 			add(request.intervalStartElapsedRealtimeNanos)
 			add(request.intervalEndExclusiveElapsedRealtimeNanos)
@@ -274,48 +315,130 @@ internal object ActivityCapturedFactCoalescer {
 				add(gap.intervalStartElapsedRealtimeNanos)
 				add(gap.intervalEndExclusiveElapsedRealtimeNanos)
 			}
+			negativeBoundaries.forEach { boundary ->
+				if (boundary.providerTime >= request.intervalStartElapsedRealtimeNanos) {
+					add(boundary.providerTime)
+				}
+			}
 		}.filter {
 			it in request.intervalStartElapsedRealtimeNanos..request.intervalEndExclusiveElapsedRealtimeNanos
 		}.sorted()
-		return buildList {
-			for (index in 0 until boundaries.lastIndex) {
-				val start = boundaries[index]
-				val end = boundaries[index + 1]
-				if (start == end || gaps.any { start in it }) continue
-				val transitionBand = transitionBands.firstOrNull { start in it }
-				if (transitionBand != null) {
-					add(transitionBand.copy(start = start, end = end))
-					continue
+		val samplesByStart = sampled.sortedWith(sampledStartComparator)
+		val samples = ActiveSamples(sampledSelectionComparator)
+		val negativeByTime = negativeBoundaries.groupBy(NegativeActivityBoundary::providerTime)
+		val effectiveNegativeIds = mutableSetOf<SourceEventId>()
+		val bands = mutableListOf<RawActivityBand>()
+		var sampleIndex = 0
+		var negativeIndex = 0
+		var transitionIndex = 0
+		var gapIndex = 0
+		val windowStart = request.intervalStartElapsedRealtimeNanos
+		while (true) {
+			val nextSampleTime = samplesByStart.getOrNull(sampleIndex)
+				?.reference?.providerElapsedRealtimeNanos
+				?.takeIf { it < windowStart }
+				?: Long.MAX_VALUE
+			val nextNegativeTime = negativeBoundaries.getOrNull(negativeIndex)
+				?.providerTime
+				?.takeIf { it < windowStart }
+				?: Long.MAX_VALUE
+			val nextTime = minOf(nextSampleTime, nextNegativeTime)
+			if (nextTime == Long.MAX_VALUE) break
+			samples.expireAt(nextTime)
+			while (sampleIndex < samplesByStart.size &&
+				samplesByStart[sampleIndex].reference.providerElapsedRealtimeNanos == nextTime
+			) {
+				val observation = samplesByStart[sampleIndex]
+				if (observation.coverageEndExclusiveElapsedRealtimeNanos > windowStart) {
+					samples.add(observation)
 				}
-				val selected = sampled.asSequence()
-					.filter { observation ->
-						observation.reference.providerElapsedRealtimeNanos <= start &&
-							observation.coverageEndExclusiveElapsedRealtimeNanos >= end &&
-							!gaps.interruptCoverage(
-								observation.reference.providerElapsedRealtimeNanos,
-								start,
-							)
-					}
-					.maxWithOrNull(sampledSelectionComparator)
-					?: continue
-				add(
-					RawActivityBand(
-						start = start,
-						end = end,
-						activity = selected.activity,
-						mechanism = ActivityBandMechanism.SAMPLED_CLASSIFICATION,
-						evidence = listOf(selected.reference),
-					),
-				)
+				sampleIndex += 1
+			}
+			while (negativeIndex < negativeBoundaries.size &&
+				negativeBoundaries[negativeIndex].providerTime == nextTime
+			) {
+				val boundary = negativeBoundaries[negativeIndex]
+				if (samples.apply(boundary)) {
+					effectiveNegativeIds += boundary.reference.sourceEventId
+				}
+				negativeIndex += 1
 			}
 		}
+		for (index in 0 until boundaries.lastIndex) {
+			val start = boundaries[index]
+			val end = boundaries[index + 1]
+			while (gapIndex < gaps.size &&
+				gaps[gapIndex].intervalEndExclusiveElapsedRealtimeNanos <= start
+			) gapIndex += 1
+			val containingGap = gaps.getOrNull(gapIndex)?.takeIf { start in it }
+			if (containingGap?.intervalStartElapsedRealtimeNanos == start) samples.clear()
+			while (sampleIndex < samplesByStart.size &&
+				samplesByStart[sampleIndex].reference.providerElapsedRealtimeNanos <= start
+			) {
+				val observation = samplesByStart[sampleIndex]
+				if (containingGap == null &&
+					observation.coverageEndExclusiveElapsedRealtimeNanos > start
+				) samples.add(observation)
+				sampleIndex += 1
+			}
+			samples.expireAt(start)
+			while (negativeIndex < negativeBoundaries.size &&
+				negativeBoundaries[negativeIndex].providerTime <= start
+			) {
+				val boundary = negativeBoundaries[negativeIndex]
+				if (samples.apply(boundary)) {
+					effectiveNegativeIds += boundary.reference.sourceEventId
+				}
+				negativeIndex += 1
+			}
+			if (start == end || containingGap != null) continue
+			while (transitionIndex < transitionBands.size &&
+				transitionBands[transitionIndex].end <= start
+			) transitionIndex += 1
+			val transitionBand = transitionBands.getOrNull(transitionIndex)
+				?.takeIf { start in it }
+			val selected = if (transitionBand == null) {
+				samples.best()
+			} else {
+				samples.best(compatibleRefinements(transitionBand.activity))
+			}
+			if (transitionBand != null && selected == null) {
+				bands += transitionBand.copy(start = start, end = end)
+				continue
+			}
+			if (selected == null) continue
+			val closureEvidence = negativeByTime[end].orEmpty()
+				.filter { boundary ->
+					boundary.negates(selected.activity) &&
+						selected.reference.providerElapsedRealtimeNanos < boundary.providerTime
+				}
+				.map(NegativeActivityBoundary::reference)
+			val evidence = (transitionBand?.evidence.orEmpty() +
+				selected.reference + closureEvidence)
+				.distinctBy { it.sourceEventId }
+				.sortedWith(referenceComparator)
+			bands += RawActivityBand(
+				start = start,
+				end = end,
+				activity = selected.activity,
+				mechanism = if (transitionBand == null) {
+					ActivityBandMechanism.SAMPLED_CLASSIFICATION
+				} else {
+					ActivityBandMechanism.SAMPLED_REFINEMENT
+				},
+				refinedTransitionActivity = transitionBand?.activity,
+				evidence = evidence,
+			)
+		}
+		return AllBandComposition(bands, effectiveNegativeIds)
 	}
 
 	private fun List<RawActivityBand>.mergeAdjacent(): List<RawActivityBand> =
 		fold(mutableListOf()) { merged, next ->
 			val previous = merged.lastOrNull()
 			if (previous != null && previous.end == next.start &&
-				previous.activity == next.activity && previous.mechanism == next.mechanism
+				previous.activity == next.activity && previous.mechanism == next.mechanism &&
+				previous.refinedTransitionActivity == next.refinedTransitionActivity
 			) {
 				merged[merged.lastIndex] = previous.copy(
 					end = next.end,
@@ -332,16 +455,16 @@ internal object ActivityCapturedFactCoalescer {
 	private fun RawActivityBand.toCapturedBand(
 		mutation: ActivityCapturedWindowMutation,
 		fragmentOrdinal: Int,
-		observations: List<ActivityCapturedObservation>,
+		observationsById: Map<SourceEventId, ActivityCapturedObservation>,
 	): ActivityCapturedBand? {
 		val confidence = when (mechanism) {
 			ActivityBandMechanism.TRANSITION -> ActivityBandConfidence.TransitionSignal
 			ActivityBandMechanism.SAMPLED_REFINEMENT,
 			ActivityBandMechanism.SAMPLED_CLASSIFICATION -> {
-				val confidenceByIdentity = observations.asSequence()
-					.filterIsInstance<ActivityCapturedObservation.SampledClassification>()
-					.associate { it.reference.sourceEventId to it.confidencePercent }
-				val values = evidence.mapNotNull { confidenceByIdentity[it.sourceEventId] }
+				val values = evidence.mapNotNull { reference ->
+					(observationsById[reference.sourceEventId] as?
+						ActivityCapturedObservation.SampledClassification)?.confidencePercent
+				}
 				if (values.isEmpty()) return null
 				ActivityBandConfidence.Sampled(
 					minimumPercent = values.minOrNull()!!,
@@ -350,7 +473,7 @@ internal object ActivityCapturedFactCoalescer {
 				)
 			}
 		}
-		val wallTimeRange = deriveWallTimeRange(this, observations) ?: return null
+		val wallTimeRange = deriveWallTimeRange(this, observationsById) ?: return null
 		return ActivityCapturedBand(
 			key = ActivityCapturedFactKey(mutation, fragmentOrdinal),
 			intervalStartElapsedRealtimeNanos = start,
@@ -358,6 +481,7 @@ internal object ActivityCapturedFactCoalescer {
 			wallTimeRange = wallTimeRange,
 			activity = activity,
 			mechanism = mechanism,
+			refinedTransitionActivity = refinedTransitionActivity,
 			confidence = confidence,
 			evidence = evidence,
 		)
@@ -365,10 +489,9 @@ internal object ActivityCapturedFactCoalescer {
 
 	private fun deriveWallTimeRange(
 		band: RawActivityBand,
-		observations: List<ActivityCapturedObservation>,
+		observationsById: Map<SourceEventId, ActivityCapturedObservation>,
 	): ActivityDerivedWallTimeRange? {
-		val evidenceIds = band.evidence.mapTo(mutableSetOf()) { it.sourceEventId }
-		val anchors = observations.filter { it.reference.sourceEventId in evidenceIds }
+		val anchors = band.evidence.mapNotNull { observationsById[it.sourceEventId] }
 		if (anchors.isEmpty()) return null
 		val start = deriveWallTimeBoundary(band.start, anchors) ?: return null
 		val end = deriveWallTimeBoundary(band.end, anchors) ?: return null
@@ -453,11 +576,21 @@ internal object ActivityCapturedFactCoalescer {
 			}
 		}.sorted()
 		return buildList {
+			var bandIndex = 0
+			var gapIndex = 0
 			for (index in 0 until boundaries.lastIndex) {
 				val start = boundaries[index]
 				val end = boundaries[index + 1]
-				if (bands.any { start in it }) continue
-				val reason = declaredGaps.firstOrNull { start in it }?.reason
+				while (bandIndex < bands.size &&
+					bands[bandIndex].intervalEndExclusiveElapsedRealtimeNanos <= start
+				) bandIndex += 1
+				if (bands.getOrNull(bandIndex)?.let { start in it } == true) continue
+				while (gapIndex < declaredGaps.size &&
+					declaredGaps[gapIndex].intervalEndExclusiveElapsedRealtimeNanos <= start
+				) gapIndex += 1
+				val reason = declaredGaps.getOrNull(gapIndex)
+					?.takeIf { start in it }
+					?.reason
 					?: ActivityCoverageGapReason.NO_QUALIFIED_EVIDENCE
 				val previous = lastOrNull()
 				if (previous != null && previous.intervalEndExclusiveElapsedRealtimeNanos == start &&
@@ -484,12 +617,19 @@ internal object ActivityCapturedFactCoalescer {
 			right.intervalStartElapsedRealtimeNanos
 	}
 
-	private fun List<ActivityCoverageGap>.interruptCoverage(
-		observationTime: Long,
-		intervalStart: Long,
-	): Boolean = any { gap ->
-		gap.intervalStartElapsedRealtimeNanos >= observationTime &&
-			gap.intervalEndExclusiveElapsedRealtimeNanos <= intervalStart
+	private fun List<ActivityCapturedObservation>.intersects(
+		gaps: List<ActivityCoverageGap>,
+	): Boolean {
+		val observations = sortedBy { it.reference.providerElapsedRealtimeNanos }
+		var gapIndex = 0
+		for (observation in observations) {
+			val providerTime = observation.reference.providerElapsedRealtimeNanos
+			while (gapIndex < gaps.size &&
+				gaps[gapIndex].intervalEndExclusiveElapsedRealtimeNanos <= providerTime
+			) gapIndex += 1
+			if (gaps.getOrNull(gapIndex)?.let { providerTime in it } == true) return true
+		}
+		return false
 	}
 
 	private operator fun ActivityCoverageGap.contains(time: Long): Boolean =
@@ -536,25 +676,113 @@ internal object ActivityCapturedFactCoalescer {
 
 	private data class TransitionComposition(
 		val bands: List<RawActivityBand>,
-		val unchangedCount: Int,
+		val redundantEnterCount: Int,
+		val negativeBoundaries: List<NegativeActivityBoundary>,
+		val unmatchedExitIds: Set<SourceEventId>,
 	)
 
 	private data class TransitionApplication(
-		val unchangedCount: Int,
+		val redundantEnterCount: Int,
 		val changedReferences: List<ActivityCapturedObservationReference>,
+		val negativeBoundaries: List<NegativeActivityBoundary>,
+		val unmatchedExitIds: Set<SourceEventId>,
 	) {
 		companion object {
-			val EMPTY = TransitionApplication(0, emptyList())
+			val EMPTY = TransitionApplication(0, emptyList(), emptyList(), emptySet())
 		}
 	}
+
+	private data class NegativeActivityBoundary(
+		val providerTime: Long,
+		val activity: CapturedActivityType,
+		val reference: ActivityCapturedObservationReference,
+	) {
+		fun negates(sampledActivity: CapturedActivityType): Boolean =
+			activity == sampledActivity ||
+				isCompatibleActivityRefinement(activity, sampledActivity)
+	}
+
+	private data class AllBandComposition(
+		val bands: List<RawActivityBand>,
+		val effectiveNegativeBoundaryIds: Set<SourceEventId>,
+	)
 
 	private data class RawActivityBand(
 		val start: Long,
 		val end: Long,
 		val activity: CapturedActivityType,
 		val mechanism: ActivityBandMechanism,
+		val refinedTransitionActivity: CapturedActivityType? = null,
 		val evidence: List<ActivityCapturedObservationReference>,
 	)
+
+	private class ActiveSamples(
+		private val selectionComparator: Comparator<
+			ActivityCapturedObservation.SampledClassification
+		>,
+	) {
+		private val byActivity = EnumMap<
+			CapturedActivityType,
+			TreeSet<ActivityCapturedObservation.SampledClassification>
+		>(CapturedActivityType::class.java).apply {
+			CapturedActivityType.values().forEach { activity ->
+				put(activity, TreeSet(selectionComparator))
+			}
+		}
+		private val expirations = PriorityQueue(
+			compareBy<ActivityCapturedObservation.SampledClassification> {
+				it.coverageEndExclusiveElapsedRealtimeNanos
+			}.thenBy { it.reference.sourceEventId.value },
+		)
+
+		fun add(observation: ActivityCapturedObservation.SampledClassification) {
+			byActivity.getValue(observation.activity).add(observation)
+			expirations.add(observation)
+		}
+
+		fun expireAt(providerTime: Long) {
+			while (expirations.peek()?.coverageEndExclusiveElapsedRealtimeNanos
+				?.let { it <= providerTime } == true
+			) {
+				val expired = expirations.remove()
+				byActivity.getValue(expired.activity).remove(expired)
+			}
+		}
+
+		fun clear() {
+			byActivity.values.forEach { it.clear() }
+			expirations.clear()
+		}
+
+		fun apply(boundary: NegativeActivityBoundary): Boolean {
+			var removed = false
+			CapturedActivityType.values().asSequence()
+				.filter(boundary::negates)
+				.forEach { activity ->
+					val iterator = byActivity.getValue(activity).iterator()
+					while (iterator.hasNext()) {
+						val observation = iterator.next()
+						if (observation.reference.providerElapsedRealtimeNanos < boundary.providerTime) {
+							iterator.remove()
+							removed = true
+						}
+					}
+				}
+			return removed
+		}
+
+		fun best(
+			allowedActivities: Set<CapturedActivityType>? = null,
+		): ActivityCapturedObservation.SampledClassification? =
+			(allowedActivities ?: ActivityCapturedFactCoalescer.ALL_ACTIVITY_TYPES)
+				.asSequence()
+				.mapNotNull { activity ->
+					byActivity.getValue(activity).let { active ->
+						if (active.isEmpty()) null else active.last()
+					}
+				}
+				.maxWithOrNull(selectionComparator)
+	}
 
 	private val referenceComparator =
 		compareBy<ActivityCapturedObservationReference>(
@@ -593,6 +821,20 @@ internal object ActivityCapturedFactCoalescer {
 			.thenBy { it.reference.admissionOrdinal }
 			.thenBy { it.reference.sourceEventId.value }
 
+	private val negativeBoundaryComparator =
+		compareBy<NegativeActivityBoundary>(NegativeActivityBoundary::providerTime)
+			.thenBy { it.activity.ordinal }
+			.thenBy { it.reference.sourceSequence }
+			.thenBy { it.reference.admissionOrdinal }
+			.thenBy { it.reference.sourceEventId.value }
+
+	private val sampledStartComparator =
+		compareBy<ActivityCapturedObservation.SampledClassification> {
+			it.reference.providerElapsedRealtimeNanos
+		}.thenBy { it.reference.sourceSequence }
+			.thenBy { it.reference.admissionOrdinal }
+			.thenBy { it.reference.sourceEventId.value }
+
 	private val sampledSelectionComparator =
 		compareBy<ActivityCapturedObservation.SampledClassification> {
 			it.confidencePercent
@@ -601,6 +843,10 @@ internal object ActivityCapturedFactCoalescer {
 			.thenBy { it.reference.sourceSequence }
 			.thenBy { it.reference.admissionOrdinal }
 			.thenBy { it.reference.sourceEventId.value }
+
+	private fun compatibleRefinements(
+		transitionActivity: CapturedActivityType,
+	): Set<CapturedActivityType> = COMPATIBLE_REFINEMENTS.getValue(transitionActivity)
 
 	private fun activityPriority(activity: CapturedActivityType): Int = when (activity) {
 		CapturedActivityType.RUNNING -> 8
@@ -627,6 +873,13 @@ internal object ActivityCapturedFactCoalescer {
 
 	private fun saturatedSubtract(left: Long, right: Long): Long =
 		if (left < Long.MIN_VALUE + right) Long.MIN_VALUE else left - right
+
+	private val ALL_ACTIVITY_TYPES = CapturedActivityType.values().toSet()
+	private val COMPATIBLE_REFINEMENTS = CapturedActivityType.values().associateWith { coarse ->
+		CapturedActivityType.values().filterTo(mutableSetOf()) { detail ->
+			isCompatibleActivityRefinement(coarse, detail)
+		}
+	}
 
 	private const val MAX_OBSERVATIONS = 4_096
 	private const val MAX_DECLARED_GAPS = 512
