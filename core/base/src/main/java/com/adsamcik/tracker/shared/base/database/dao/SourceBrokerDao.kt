@@ -35,6 +35,14 @@ interface SourceBrokerDao {
 	)
 	suspend fun activeDemands(sourceKind: Int): List<SourceDemandEntity>
 
+	/** Bounded quiescence audit; callers request one overflow row. */
+	@Query(
+		"SELECT * FROM source_demand WHERE source_kind = :sourceKind " +
+			"AND status IN ('ACTIVE', 'RETIRING') " +
+			"ORDER BY purpose, consumer_id, demand_id LIMIT :limit",
+	)
+	suspend fun activeDemandsBounded(sourceKind: Int, limit: Int): List<SourceDemandEntity>
+
 	@Query(
 		"SELECT * FROM source_demand WHERE source_kind = :sourceKind AND status = 'ACTIVE' " +
 			"ORDER BY purpose, consumer_id, demand_id",
@@ -149,6 +157,19 @@ interface SourceBrokerDao {
 		authorizationRevision: Long,
 	): List<SourceAuthorizationEntity>
 
+	/** Exact immutable authorization envelope with a caller-owned member bound. */
+	@Query(
+		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND authorization_revision = :authorizationRevision ORDER BY member_id LIMIT :limit",
+	)
+	suspend fun authorizationRevisionBounded(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		authorizationRevision: Long,
+		limit: Int,
+	): List<SourceAuthorizationEntity>
+
 	/** Bounded immutable authorization evidence for a source-specific historical product read. */
 	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
@@ -241,6 +262,16 @@ interface SourceBrokerDao {
 	)
 	suspend fun currentPhysicalRegistrations(sourceKind: Int): List<ProviderRegistrationGenerationEntity>
 
+	/** Bounded nonterminal registration audit; callers request one overflow row. */
+	@Query(
+		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
+			"AND status IN ('ACTIVE', 'RESERVED') ORDER BY registration_generation LIMIT :limit",
+	)
+	suspend fun currentPhysicalRegistrationsBounded(
+		sourceKind: Int,
+		limit: Int,
+	): List<ProviderRegistrationGenerationEntity>
+
 	@Query(
 		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
 			"AND owner_scope = :ownerScope AND status = 'RESERVED' " +
@@ -256,6 +287,16 @@ interface SourceBrokerDao {
 			"AND status = 'RETIRING' ORDER BY registration_generation",
 	)
 	suspend fun pendingProviderRemovals(sourceKind: Int): List<ProviderRegistrationGenerationEntity>
+
+	/** Bounded retiring-registration audit; callers request one overflow row. */
+	@Query(
+		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
+			"AND status = 'RETIRING' ORDER BY registration_generation LIMIT :limit",
+	)
+	suspend fun pendingProviderRemovalsBounded(
+		sourceKind: Int,
+		limit: Int,
+	): List<ProviderRegistrationGenerationEntity>
 
 	@Query(
 		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +

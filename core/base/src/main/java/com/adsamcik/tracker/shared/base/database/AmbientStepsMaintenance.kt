@@ -36,14 +36,26 @@ internal data class AmbientStepsMaintenanceLimits(
 	val maximumCursors: Int = 256,
 	val maximumGaps: Int = 4_096,
 	val maximumAuthorityTransitions: Int = 4_096,
+	val maximumAuthorizationRevisions: Int = 4_096,
+	val maximumAuthorizationMembersPerRevision: Int = 64,
+	val maximumActiveDemands: Int = 256,
+	val maximumCurrentRegistrations: Int = 32,
+	val maximumPendingProviderRemovals: Int = 32,
 ) {
 	init {
 		require(factPageSize in 1..1_024)
-		require(maximumRevisions > 0)
-		require(maximumLogicalFacts > 0)
-		require(maximumCursors > 0)
-		require(maximumGaps > 0)
-		require(maximumAuthorityTransitions > 0)
+		listOf(
+			maximumRevisions,
+			maximumLogicalFacts,
+			maximumCursors,
+			maximumGaps,
+			maximumAuthorityTransitions,
+			maximumAuthorizationRevisions,
+			maximumAuthorizationMembersPerRevision,
+			maximumActiveDemands,
+			maximumCurrentRegistrations,
+			maximumPendingProviderRemovals,
+		).forEach { limit -> require(limit in 1 until Int.MAX_VALUE) }
 	}
 }
 
@@ -54,6 +66,8 @@ enum class AmbientStepsSourceDeletionBlockedReason {
 	AMBIENT_CONSENT_STILL_ELIGIBLE,
 	AMBIENT_DEMAND_NOT_QUIESCED,
 	AMBIENT_PROVIDER_NOT_QUIESCED,
+	MAINTENANCE_BOUND_EXCEEDED,
+	UNRECOGNIZED_PAYLOAD_PRESENT,
 	DELETION_GENERATION_EXHAUSTED,
 }
 
@@ -111,6 +125,12 @@ internal suspend fun AppDatabase.pruneAuthenticatedAmbientStepsFactsAffectedByRe
 	check(evidence.retainedFromMs == beforeMs) {
 		"Ambient Steps retention floor does not match current source-evidence authority"
 	}
+	check(
+		ambientStepsFactRevisionDao().countUnrecognizedPayloadRows(
+			AmbientStepsFactRevisionEntity.WRITER_ID,
+			AmbientStepsFactRevisionEntity.WRITER_VERSION,
+		) == 0L,
+	) { "Ambient Steps retention encountered an unrecognized payload-bearing row" }
 	val audit = loadAuthenticatedAmbientStepsState(limits, checkpoint)
 	checkpoint(AmbientStepsMaintenanceCheckpoint.AUTHORITY_AUTHENTICATED)
 	check(markedAtMs >= audit.latestDurableTimeMs) {
@@ -207,7 +227,16 @@ internal suspend fun AppDatabase.deleteAmbientStepsAfterConsentReset(
 			AmbientStepsSourceDeletionBlockedReason.AMBIENT_CONSENT_STILL_ELIGIBLE,
 		)
 	}
-	if (sourceBrokerDao().activeDemands(SourceDestinationOwnerEntity.SOURCE_STEPS).any { demand ->
+	val activeDemands = sourceBrokerDao().activeDemandsBounded(
+		SourceDestinationOwnerEntity.SOURCE_STEPS,
+		limits.maximumActiveDemands + 1,
+	)
+	if (activeDemands.size > limits.maximumActiveDemands) {
+		return@withTransaction blocked(
+			AmbientStepsSourceDeletionBlockedReason.MAINTENANCE_BOUND_EXCEEDED,
+		)
+	}
+	if (activeDemands.any { demand ->
 			demand.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT
 		}
 	) {
@@ -215,21 +244,56 @@ internal suspend fun AppDatabase.deleteAmbientStepsAfterConsentReset(
 			AmbientStepsSourceDeletionBlockedReason.AMBIENT_DEMAND_NOT_QUIESCED,
 		)
 	}
-	val ambientOwnerScope = SourceProviderPurposeScope.exactOwnerScope(
+	val currentRegistrations = sourceBrokerDao().currentPhysicalRegistrationsBounded(
 		SourceDestinationOwnerEntity.SOURCE_STEPS,
-		SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+		limits.maximumCurrentRegistrations + 1,
 	)
-	val nonterminalRegistrations = buildList {
-		addAll(sourceBrokerDao().currentPhysicalRegistrations(SourceDestinationOwnerEntity.SOURCE_STEPS))
-		addAll(sourceBrokerDao().pendingProviderRemovals(SourceDestinationOwnerEntity.SOURCE_STEPS))
-	}.distinctBy(ProviderRegistrationGenerationEntity::registrationGeneration)
-	if (nonterminalRegistrations.any { it.ownerScope == ambientOwnerScope }) {
+	val pendingRemovals = sourceBrokerDao().pendingProviderRemovalsBounded(
+		SourceDestinationOwnerEntity.SOURCE_STEPS,
+		limits.maximumPendingProviderRemovals + 1,
+	)
+	if (currentRegistrations.size > limits.maximumCurrentRegistrations ||
+		pendingRemovals.size > limits.maximumPendingProviderRemovals
+	) {
+		return@withTransaction blocked(
+			AmbientStepsSourceDeletionBlockedReason.MAINTENANCE_BOUND_EXCEEDED,
+		)
+	}
+	val nonterminalRegistrations = (currentRegistrations + pendingRemovals)
+		.distinctBy(ProviderRegistrationGenerationEntity::registrationGeneration)
+	if (nonterminalRegistrations.any { registration ->
+			!SourceProviderPurposeScope.isCanonicalOwnerScope(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				registration.ownerScope,
+			) || SourceProviderPurposeScope.supportsPurpose(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				registration.ownerScope,
+				SourceBrokerPurpose.AMBIENT_PRODUCT,
+			)
+		}
+	) {
 		return@withTransaction blocked(
 			AmbientStepsSourceDeletionBlockedReason.AMBIENT_PROVIDER_NOT_QUIESCED,
 		)
 	}
 
-	val audit = loadAuthenticatedAmbientStepsState(limits, checkpoint)
+	val factDao = ambientStepsFactRevisionDao()
+	if (factDao.countUnrecognizedPayloadRows(
+			AmbientStepsFactRevisionEntity.WRITER_ID,
+			AmbientStepsFactRevisionEntity.WRITER_VERSION,
+		) > 0L
+	) {
+		return@withTransaction blocked(
+			AmbientStepsSourceDeletionBlockedReason.UNRECOGNIZED_PAYLOAD_PRESENT,
+		)
+	}
+	val audit = try {
+		loadAuthenticatedAmbientStepsState(limits, checkpoint)
+	} catch (@Suppress("SwallowedException") _: AmbientStepsMaintenanceLimitExceeded) {
+		return@withTransaction blocked(
+			AmbientStepsSourceDeletionBlockedReason.MAINTENANCE_BOUND_EXCEEDED,
+		)
+	}
 	checkpoint(AmbientStepsMaintenanceCheckpoint.AUTHORITY_AUTHENTICATED)
 	check(deletedAtMs >= audit.latestDurableTimeMs) {
 		"Ambient Steps deletion time precedes retained source authority"
@@ -248,7 +312,6 @@ internal suspend fun AppDatabase.deleteAmbientStepsAfterConsentReset(
 	val nextGeneration = if (latestUpserts.isEmpty()) priorGeneration else {
 		Math.addExact(priorGeneration, 1L).coerceAtLeast(1L)
 	}
-	val factDao = ambientStepsFactRevisionDao()
 	latestUpserts.forEach { lineage ->
 		val retraction = lineage.latest.toAmbientStepsRetraction(nextGeneration, deletedAtMs)
 		if (factDao.insert(retraction) == INSERT_IGNORED &&
@@ -278,7 +341,7 @@ internal suspend fun AppDatabase.deleteAmbientStepsAfterConsentReset(
 	stateDao.deleteAllGaps()
 	stateDao.deleteAllCursors()
 	check(stateDao.countAuthorityTransitions() == 0L && stateDao.countGaps() == 0L &&
-		stateDao.countCursors() == 0L && factDao.countUpserts() == 0L
+		stateDao.countCursors() == 0L && factDao.countPayloadBearingRows() == 0L
 	) { "Ambient Steps source deletion did not remove all fenced source state" }
 	if (latestUpserts.isEmpty() && audit.cursors.isEmpty() && audit.gaps.isEmpty() &&
 		audit.transitions.isEmpty()
@@ -307,18 +370,28 @@ private suspend fun AppDatabase.loadAuthenticatedAmbientStepsState(
 		"Ambient Steps maintenance requires source-evidence state"
 	}
 	val lineages = auditAmbientStepsFacts(limits, checkpoint)
-	check(lineages.size <= limits.maximumLogicalFacts)
+	requireMaintenanceBound(
+		lineages.size <= limits.maximumLogicalFacts,
+		"Ambient Steps logical-fact maintenance bound exceeded",
+	)
 	val stateDao = ambientStepsImportStateDao()
 	val cursors = stateDao.maintenanceCursors(limits.maximumCursors + 1)
-	check(cursors.size <= limits.maximumCursors) { "Ambient Steps cursor maintenance bound exceeded" }
+	requireMaintenanceBound(
+		cursors.size <= limits.maximumCursors,
+		"Ambient Steps cursor maintenance bound exceeded",
+	)
 	val gaps = stateDao.maintenanceGaps(limits.maximumGaps + 1)
-	check(gaps.size <= limits.maximumGaps) { "Ambient Steps gap maintenance bound exceeded" }
+	requireMaintenanceBound(
+		gaps.size <= limits.maximumGaps,
+		"Ambient Steps gap maintenance bound exceeded",
+	)
 	val transitions = stateDao.maintenanceAuthorityTransitions(
 		limits.maximumAuthorityTransitions + 1,
 	)
-	check(transitions.size <= limits.maximumAuthorityTransitions) {
-		"Ambient Steps authority-transition maintenance bound exceeded"
-	}
+	requireMaintenanceBound(
+		transitions.size <= limits.maximumAuthorityTransitions,
+		"Ambient Steps authority-transition maintenance bound exceeded",
+	)
 	check(cursors.all { it.collectedDataEpoch == evidence.collectedDataEpoch } &&
 		gaps.all { it.collectedDataEpoch == evidence.collectedDataEpoch } &&
 		transitions.all { it.collectedDataEpoch == evidence.collectedDataEpoch }
@@ -379,10 +452,15 @@ private suspend fun AppDatabase.loadAuthenticatedAmbientStepsState(
 				cursor.registrationGeneration
 			].orEmpty())) { "Ambient Steps fact has no exact authority phase" }
 			val authorityKey = fact.authorityKey()
-			val authenticated = authenticatedAuthorities[authorityKey] ?:
-				authenticateAmbientFactAuthority(fact, cursor).also { result ->
+			val authenticated = authenticatedAuthorities[authorityKey] ?: run {
+				requireMaintenanceBound(
+					authenticatedAuthorities.size < limits.maximumAuthorizationRevisions,
+					"Ambient Steps authorization-revision maintenance bound exceeded",
+				)
+				authenticateAmbientFactAuthority(fact, cursor, limits).also { result ->
 					authenticatedAuthorities[authorityKey] = result
 				}
+			}
 			check(authenticated) {
 				"Ambient Steps fact policy/consent/authorization authority is invalid"
 			}
@@ -410,9 +488,10 @@ private suspend fun AppDatabase.auditAmbientStepsFacts(
 		)
 		if (page.isEmpty()) break
 		revisionCount = Math.addExact(revisionCount, page.size)
-		check(revisionCount <= limits.maximumRevisions) {
-			"Ambient Steps fact revision maintenance bound exceeded"
-		}
+		requireMaintenanceBound(
+			revisionCount <= limits.maximumRevisions,
+			"Ambient Steps fact revision maintenance bound exceeded",
+		)
 		checkpoint(AmbientStepsMaintenanceCheckpoint.FACT_PAGE_LOADED)
 		page.forEach { fact ->
 			check(AmbientStepsFactIntegrity.hasValidEffectChecksum(fact)) {
@@ -420,9 +499,10 @@ private suspend fun AppDatabase.auditAmbientStepsFacts(
 			}
 			if (current.isNotEmpty() && current.last().logicalFactId != fact.logicalFactId) {
 				result += current.toAuthenticatedLineage()
-				check(result.size <= limits.maximumLogicalFacts) {
-					"Ambient Steps logical-fact maintenance bound exceeded"
-				}
+				requireMaintenanceBound(
+					result.size <= limits.maximumLogicalFacts,
+					"Ambient Steps logical-fact maintenance bound exceeded",
+				)
 				current = mutableListOf()
 			}
 			current += fact
@@ -436,7 +516,10 @@ private suspend fun AppDatabase.auditAmbientStepsFacts(
 		if (page.size < limits.factPageSize) break
 	}
 	if (current.isNotEmpty()) result += current.toAuthenticatedLineage()
-	check(result.size <= limits.maximumLogicalFacts)
+	requireMaintenanceBound(
+		result.size <= limits.maximumLogicalFacts,
+		"Ambient Steps logical-fact maintenance bound exceeded",
+	)
 	return result
 }
 
@@ -469,12 +552,18 @@ private fun List<AmbientStepsFactRevisionEntity>.toAuthenticatedLineage(): Ambie
 private suspend fun AppDatabase.authenticateAmbientFactAuthority(
 	fact: AmbientStepsFactRevisionEntity,
 	cursor: AmbientStepsImportCursorEntity,
+	limits: AmbientStepsMaintenanceLimits,
 ): Boolean {
 	val authorizationRevision = fact.authorizationRevision ?: return false
-	val rows = sourceBrokerDao().authorizationRevision(
+	val rows = sourceBrokerDao().authorizationRevisionBounded(
 		SourceDestinationOwnerEntity.SOURCE_STEPS,
 		cursor.registrationGeneration,
 		authorizationRevision,
+		limits.maximumAuthorizationMembersPerRevision + 1,
+	)
+	requireMaintenanceBound(
+		rows.size <= limits.maximumAuthorizationMembersPerRevision,
+		"Ambient Steps authorization-member maintenance bound exceeded",
 	)
 	val first = rows.firstOrNull() ?: return false
 	if (first.authorizationRevision != authorizationRevision ||
@@ -712,6 +801,12 @@ private fun AmbientStepsFactRevisionEntity.authorityKey() = AmbientStepsFactAuth
 
 private fun blocked(reason: AmbientStepsSourceDeletionBlockedReason) =
 	AmbientStepsSourceDeletionResult.Blocked(reason)
+
+private class AmbientStepsMaintenanceLimitExceeded(message: String) : IllegalStateException(message)
+
+private fun requireMaintenanceBound(condition: Boolean, message: String) {
+	if (!condition) throw AmbientStepsMaintenanceLimitExceeded(message)
+}
 
 private val DEFAULT_AMBIENT_STEPS_MAINTENANCE_LIMITS = AmbientStepsMaintenanceLimits()
 private const val DELETE_BATCH_SIZE = 128

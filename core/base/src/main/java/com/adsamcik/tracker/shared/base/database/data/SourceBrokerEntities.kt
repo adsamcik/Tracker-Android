@@ -53,22 +53,34 @@ object SourceProviderPurposeScope {
 		return exactPurposeMaskOrNull(sourceKind, ownerScope) != null
 	}
 
+	/** True when this exact, shared, or legacy provider owner can serve [purpose]. */
+	fun supportsPurpose(sourceKind: Int, ownerScope: String, purpose: String): Boolean {
+		val requestedMask = SourceBrokerPurpose.mask(purpose)
+		require(requestedMask != 0L) { "Unknown broker purpose $purpose" }
+		return compatiblePurposeMaskOrNull(sourceKind, ownerScope)
+			?.let { mask -> (mask and requestedMask) != 0L }
+			?: false
+	}
+
 	fun selectDemands(
 		sourceKind: Int,
 		ownerScope: String,
 		demands: Collection<SourceDemandEntity>,
 	): List<SourceDemandEntity> {
-		val shared = sharedOwnerScope(sourceKind)
-		val purposeMask = when {
-			ownerScope == shared -> SourceBrokerPurpose.ALL_MASK
-			ownerScope.startsWith(shared + PURPOSE_MARKER) ->
-				exactPurposeMaskOrNull(sourceKind, ownerScope) ?: return emptyList()
-			ownerScope.startsWith(BROKER_PREFIX) -> return emptyList()
-			else -> SourceBrokerPurpose.ALL_MASK
-		}
 		return demands.filter { demand ->
 			demand.sourceKind == sourceKind &&
-				(SourceBrokerPurpose.mask(demand.purpose) and purposeMask) != 0L
+				supportsPurpose(sourceKind, ownerScope, demand.purpose)
+		}
+	}
+
+	private fun compatiblePurposeMaskOrNull(sourceKind: Int, ownerScope: String): Long? {
+		val shared = sharedOwnerScope(sourceKind)
+		return when {
+			ownerScope == shared -> SourceBrokerPurpose.ALL_MASK
+			ownerScope.startsWith(shared + PURPOSE_MARKER) ->
+				exactPurposeMaskOrNull(sourceKind, ownerScope)
+			ownerScope.startsWith(BROKER_PREFIX) -> null
+			else -> SourceBrokerPurpose.ALL_MASK
 		}
 	}
 

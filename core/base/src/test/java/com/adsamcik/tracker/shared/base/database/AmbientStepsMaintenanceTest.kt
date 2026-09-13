@@ -127,6 +127,230 @@ class AmbientStepsMaintenanceTest {
 	}
 
 	@Test
+	fun `active ambient demand blocks deletion after consent revocation`() = runTest {
+		val fixture = seed(revoked = true)
+		database.sourceBrokerDao().insertDemands(
+			listOf(
+				fixture.historicalDemand.copy(
+					demandId = "still-active-ambient",
+					consumerId = "still-active-consumer",
+					status = SourceDemandEntity.STATUS_ACTIVE,
+					retireBootId = null,
+					retireElapsedRealtimeNanos = null,
+					retiredAtMs = null,
+				),
+			),
+		)
+
+		database.deleteAmbientStepsAfterConsentReset(EPOCH, REVOKED_CONSENT, MAINTENANCE_TIME) shouldBe
+			AmbientStepsSourceDeletionResult.Blocked(
+				AmbientStepsSourceDeletionBlockedReason.AMBIENT_DEMAND_NOT_QUIESCED,
+			)
+	}
+
+	@Test
+	fun `shared provider registration remains ambient-compatible`() = runTest {
+		seed(revoked = true)
+		insertNonterminalRegistration(
+			generation = 2L,
+			ownerScope = SourceProviderPurposeScope.sharedOwnerScope(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+			),
+		)
+
+		assertAmbientProviderBlocksDeletion()
+	}
+
+	@Test
+	fun `combined-purpose provider registration remains ambient-compatible`() = runTest {
+		seed(revoked = true)
+		insertNonterminalRegistration(
+			generation = 2L,
+			ownerScope = SourceProviderPurposeScope.exactOwnerScope(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				SourceBrokerPurpose.MASK_AMBIENT_PRODUCT or
+					SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			),
+		)
+
+		assertAmbientProviderBlocksDeletion()
+	}
+
+	@Test
+	fun `legacy unscoped provider registration remains ambient-compatible`() = runTest {
+		seed(revoked = true)
+		insertNonterminalRegistration(generation = 2L, ownerScope = "legacy-steps-owner")
+
+		assertAmbientProviderBlocksDeletion()
+	}
+
+	@Test
+	fun `malformed broker provider scope fails closed during deletion`() = runTest {
+		seed(revoked = true)
+		insertNonterminalRegistration(
+			generation = 2L,
+			ownerScope = SourceProviderPurposeScope.sharedOwnerScope(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+			) + ":purposes=not-a-mask",
+		)
+
+		assertAmbientProviderBlocksDeletion()
+	}
+
+	@Test
+	fun `active-demand quiescence scan overflows as a typed blocked result`() = runTest {
+		val fixture = seed(revoked = true)
+		database.sourceBrokerDao().insertDemands(
+			(1..2).map { index ->
+				fixture.historicalDemand.copy(
+					demandId = "overflow-demand-$index",
+					consumerId = "overflow-consumer-$index",
+					status = SourceDemandEntity.STATUS_ACTIVE,
+					retireBootId = null,
+					retireElapsedRealtimeNanos = null,
+					retiredAtMs = null,
+				)
+			},
+		)
+
+		val result = database.deleteAmbientStepsAfterConsentReset(
+			expectedCollectedDataEpoch = EPOCH,
+			expectedRevokedConsentEpoch = REVOKED_CONSENT,
+			deletedAtMs = MAINTENANCE_TIME,
+			limits = AmbientStepsMaintenanceLimits(maximumActiveDemands = 1),
+			checkpoint = {},
+		)
+
+		result shouldBe AmbientStepsSourceDeletionResult.Blocked(
+			AmbientStepsSourceDeletionBlockedReason.MAINTENANCE_BOUND_EXCEEDED,
+		)
+	}
+
+	@Test
+	fun `registration quiescence scans overflow before provider compatibility is inferred`() = runTest {
+		seed(revoked = true)
+		(2L..3L).forEach { generation ->
+			insertNonterminalRegistration(
+				generation = generation,
+				ownerScope = SourceProviderPurposeScope.exactOwnerScope(
+					SourceDestinationOwnerEntity.SOURCE_STEPS,
+					SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+				),
+			)
+		}
+
+		val result = database.deleteAmbientStepsAfterConsentReset(
+			expectedCollectedDataEpoch = EPOCH,
+			expectedRevokedConsentEpoch = REVOKED_CONSENT,
+			deletedAtMs = MAINTENANCE_TIME,
+			limits = AmbientStepsMaintenanceLimits(maximumCurrentRegistrations = 1),
+			checkpoint = {},
+		)
+
+		result shouldBe AmbientStepsSourceDeletionResult.Blocked(
+			AmbientStepsSourceDeletionBlockedReason.MAINTENANCE_BOUND_EXCEEDED,
+		)
+	}
+
+	@Test
+	fun `pending-removal quiescence scan is bounded independently`() = runTest {
+		seed(revoked = true)
+		(2L..3L).forEach { generation ->
+			insertNonterminalRegistration(
+				generation = generation,
+				ownerScope = SourceProviderPurposeScope.exactOwnerScope(
+					SourceDestinationOwnerEntity.SOURCE_STEPS,
+					SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+				),
+				status = ProviderRegistrationGenerationEntity.STATUS_RETIRING,
+			)
+		}
+
+		val result = database.deleteAmbientStepsAfterConsentReset(
+			expectedCollectedDataEpoch = EPOCH,
+			expectedRevokedConsentEpoch = REVOKED_CONSENT,
+			deletedAtMs = MAINTENANCE_TIME,
+			limits = AmbientStepsMaintenanceLimits(maximumPendingProviderRemovals = 1),
+			checkpoint = {},
+		)
+
+		result shouldBe AmbientStepsSourceDeletionResult.Blocked(
+			AmbientStepsSourceDeletionBlockedReason.MAINTENANCE_BOUND_EXCEEDED,
+		)
+	}
+
+	@Test
+	fun `authorization members are bounded before demand traversal`() = runTest {
+		val fixture = seed(revoked = true, authorizationMemberCount = 2)
+		val fact = fixture.fact(0L, DAY_END, 10L)
+		database.ambientStepsFactRevisionDao().insert(fact)
+
+		val result = database.deleteAmbientStepsAfterConsentReset(
+			expectedCollectedDataEpoch = EPOCH,
+			expectedRevokedConsentEpoch = REVOKED_CONSENT,
+			deletedAtMs = MAINTENANCE_TIME,
+			limits = AmbientStepsMaintenanceLimits(maximumAuthorizationMembersPerRevision = 1),
+			checkpoint = {},
+		)
+
+		result shouldBe AmbientStepsSourceDeletionResult.Blocked(
+			AmbientStepsSourceDeletionBlockedReason.MAINTENANCE_BOUND_EXCEEDED,
+		)
+		database.ambientStepsFactRevisionDao().latest(
+			AmbientStepsFactRevisionEntity.WRITER_ID,
+			AmbientStepsFactRevisionEntity.WRITER_VERSION,
+			fact.logicalFactId,
+		) shouldBe fact
+	}
+
+	@Test
+	fun `foreign-version and malformed-operation payload block source deletion`() = runTest {
+		val fixture = seed(revoked = true)
+		val foreign = fixture.fact(0L, 1_000L, 4L)
+		val malformed = fixture.fact(1_000L, DAY_END, 5L)
+		listOf(foreign, malformed).forEach { database.ambientStepsFactRevisionDao().insert(it) }
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE ambient_steps_fact_revision SET writer_version = 99 " +
+				"WHERE logical_fact_id = ?",
+			arrayOf(foreign.logicalFactId),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE ambient_steps_fact_revision SET operation = 'CORRUPT' " +
+				"WHERE logical_fact_id = ?",
+			arrayOf(malformed.logicalFactId),
+		)
+
+		database.deleteAmbientStepsAfterConsentReset(EPOCH, REVOKED_CONSENT, MAINTENANCE_TIME) shouldBe
+			AmbientStepsSourceDeletionResult.Blocked(
+				AmbientStepsSourceDeletionBlockedReason.UNRECOGNIZED_PAYLOAD_PRESENT,
+			)
+		database.ambientStepsFactRevisionDao().countPayloadBearingRows() shouldBe 2L
+	}
+
+	@Test
+	fun `retention fails before silently skipping malformed payload`() = runTest {
+		val fixture = seed(revoked = false, retainedFromMs = 1_500L)
+		val fact = fixture.fact(0L, 1_000L, 4L)
+		database.ambientStepsFactRevisionDao().insert(fact)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE ambient_steps_fact_revision SET operation = 'CORRUPT' " +
+				"WHERE logical_fact_id = ?",
+			arrayOf(fact.logicalFactId),
+		)
+
+		val failure = runCatching {
+			database.pruneAuthenticatedAmbientStepsFactsAffectedByRetentionFloor(
+				beforeMs = 1_500L,
+				collectedDataEpoch = EPOCH,
+				markedAtMs = MAINTENANCE_TIME,
+			)
+		}.exceptionOrNull()
+
+		(failure is IllegalStateException) shouldBe true
+		database.ambientStepsFactRevisionDao().countPayloadBearingRows() shouldBe 1L
+	}
+
+	@Test
 	fun `cancellation after deletion fences rolls the whole source mutation back`() = runTest {
 		val fixture = seed(revoked = true)
 		val fact = fixture.fact(0L, DAY_END, 10L)
@@ -158,7 +382,9 @@ class AmbientStepsMaintenanceTest {
 	private suspend fun seed(
 		revoked: Boolean,
 		retainedFromMs: Long? = null,
+		authorizationMemberCount: Int = 1,
 	): Fixture {
+		require(authorizationMemberCount > 0)
 		val evidenceDao = database.sourceEvidenceStateDao()
 		evidenceDao.ensure()
 		evidenceDao.synchronizeLifecycle(EPOCH, retainedFromMs, 0L)
@@ -201,32 +427,34 @@ class AmbientStepsMaintenanceTest {
 				updatedAtMs = if (revoked) 2_000L else 0L,
 			),
 		)
-		val demand = SourceDemandEntity(
-			demandId = "ambient-demand",
-			consumerId = "ambient-consumer",
-			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
-			logicalTrackingId = null,
-			serviceRunId = null,
-			manifestRevision = null,
-			lifecycleLeaseGeneration = null,
-			sourcePolicyRevision = HISTORICAL_POLICY,
-			consentEpoch = ACTIVE_CONSENT,
-			persistenceEligible = true,
-			qosCode = 1,
-			minimumAcquisitionSpec = "ambient-steps:v1:LOCAL_RECORDING_STEPS",
-			maximumAgeMs = 0L,
-			desiredLatencyMs = 0L,
-			requestedBootId = BOOT_ID,
-			requestedElapsedRealtimeNanos = 0L,
-			requestedAtMs = 0L,
-			status = SourceDemandEntity.STATUS_RETIRED,
-			retireBootId = BOOT_ID,
-			retireElapsedRealtimeNanos = DAY_END,
-			retiredAtMs = DAY_END,
-		)
-		database.sourceBrokerDao().insertDemands(listOf(demand))
-		val fingerprint = SourceBrokerAuthorization.fingerprint(listOf(demand))
+		val demands = (1..authorizationMemberCount).map { index ->
+			SourceDemandEntity(
+				demandId = "ambient-demand-$index",
+				consumerId = "ambient-consumer-$index",
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+				logicalTrackingId = null,
+				serviceRunId = null,
+				manifestRevision = null,
+				lifecycleLeaseGeneration = null,
+				sourcePolicyRevision = HISTORICAL_POLICY,
+				consentEpoch = ACTIVE_CONSENT,
+				persistenceEligible = true,
+				qosCode = 1,
+				minimumAcquisitionSpec = "ambient-steps:v1:LOCAL_RECORDING_STEPS",
+				maximumAgeMs = 0L,
+				desiredLatencyMs = 0L,
+				requestedBootId = BOOT_ID,
+				requestedElapsedRealtimeNanos = 0L,
+				requestedAtMs = 0L,
+				status = SourceDemandEntity.STATUS_RETIRED,
+				retireBootId = BOOT_ID,
+				retireElapsedRealtimeNanos = DAY_END,
+				retiredAtMs = DAY_END,
+			)
+		}
+		database.sourceBrokerDao().insertDemands(demands)
+		val fingerprint = SourceBrokerAuthorization.fingerprint(demands)
 		database.sourceBrokerDao().insertRegistration(
 			ProviderRegistrationGenerationEntity(
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -257,7 +485,7 @@ class AmbientStepsMaintenanceTest {
 				SourceDestinationOwnerEntity.SOURCE_STEPS,
 				REGISTRATION,
 				AUTHORIZATION,
-				listOf(demand),
+				demands,
 				BOOT_ID,
 				0L,
 				0L,
@@ -292,7 +520,7 @@ class AmbientStepsMaintenanceTest {
 			updatedAtMs = DAY_END,
 		)
 		database.ambientStepsImportStateDao().insertCursor(cursor)
-		return Fixture(cursor, fingerprint)
+		return Fixture(cursor, fingerprint, demands.first())
 	}
 
 	private fun policy(
@@ -339,6 +567,7 @@ class AmbientStepsMaintenanceTest {
 	private data class Fixture(
 		val cursor: AmbientStepsImportCursorEntity,
 		val authorizationFingerprint: String,
+		val historicalDemand: SourceDemandEntity,
 	) {
 		fun fact(startTimeMs: Long, endTimeMs: Long, stepCount: Long): AmbientStepsFactRevisionEntity {
 			val logicalFactId = AmbientStepsFactIntegrity.logicalFactId(
@@ -388,6 +617,51 @@ class AmbientStepsMaintenanceTest {
 			)
 			return unsigned.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsigned))
 		}
+	}
+
+	private suspend fun insertNonterminalRegistration(
+		generation: Long,
+		ownerScope: String,
+		status: String = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+	) {
+		database.sourceBrokerDao().insertRegistration(
+			ProviderRegistrationGenerationEntity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				registrationGeneration = generation,
+				sourceInstanceId = "nonterminal-source-$generation",
+				ownerScope = ownerScope,
+				clockDomainId = BOOT_ID,
+				physicalConfigurationFingerprint =
+					"ambient-steps-provider:v1:mechanism=$PROVIDER",
+				collectedDataEpoch = EPOCH,
+				providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+				providerProcessIncarnationId = null,
+				status = status,
+				reservedAtMs = 2_000L,
+				reservedElapsedRealtimeNanos = 2_000_000_000L,
+				acceptedAtMs = 2_000L,
+				acceptedElapsedRealtimeNanos = 2_000_000_000L,
+				retiredAtMs = if (status == ProviderRegistrationGenerationEntity.STATUS_RETIRING) {
+					3_000L
+				} else {
+					null
+				},
+				retiredElapsedRealtimeNanos =
+					if (status == ProviderRegistrationGenerationEntity.STATUS_RETIRING) {
+						3_000_000_000L
+					} else {
+						null
+					},
+				failureCode = null,
+			),
+		)
+	}
+
+	private suspend fun assertAmbientProviderBlocksDeletion() {
+		database.deleteAmbientStepsAfterConsentReset(EPOCH, REVOKED_CONSENT, MAINTENANCE_TIME) shouldBe
+			AmbientStepsSourceDeletionResult.Blocked(
+				AmbientStepsSourceDeletionBlockedReason.AMBIENT_PROVIDER_NOT_QUIESCED,
+			)
 	}
 
 	private companion object {

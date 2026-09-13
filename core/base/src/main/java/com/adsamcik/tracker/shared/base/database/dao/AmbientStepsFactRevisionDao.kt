@@ -62,6 +62,25 @@ interface AmbientStepsFactRevisionDao {
 		limit: Int,
 	): List<AmbientStepsFactRevisionEntity>
 
+	/**
+	 * Payload rows outside the one supported writer/version/operation shape cannot be silently
+	 * skipped by retention or source deletion.
+	 */
+	@Query(
+		"SELECT COUNT(*) FROM ambient_steps_fact_revision WHERE (" +
+			"provider IS NOT NULL OR registration_generation IS NOT NULL OR " +
+			"continuity_segment_generation IS NOT NULL OR source_instance_id IS NOT NULL OR " +
+			"authorization_revision IS NOT NULL OR authorization_fingerprint IS NOT NULL OR " +
+			"window_start_time_ms IS NOT NULL OR window_end_time_ms IS NOT NULL OR " +
+			"observed_at_ms IS NOT NULL OR structural_epoch_day IS NOT NULL OR " +
+			"stored_zone_id IS NOT NULL OR structural_day_start_time_ms IS NOT NULL OR " +
+			"structural_day_end_time_ms IS NOT NULL OR step_count IS NOT NULL OR " +
+			"source_policy_revision IS NOT NULL OR ambient_consent_epoch IS NOT NULL) AND NOT (" +
+			"writer_id = :writerId AND writer_version = :writerVersion AND " +
+			"operation = '${AmbientStepsFactRevisionEntity.OPERATION_UPSERT}')",
+	)
+	suspend fun countUnrecognizedPayloadRows(writerId: String, writerVersion: Int): Long
+
 	/** Removes complete authenticated lineages selected before the current retention floor. */
 	@Query(
 		"DELETE FROM ambient_steps_fact_revision WHERE writer_id = :writerId " +
@@ -220,6 +239,20 @@ interface AmbientStepsFactRevisionDao {
 			"operation = '${AmbientStepsFactRevisionEntity.OPERATION_UPSERT}'",
 	)
 	suspend fun countUpserts(): Long
+
+	/** Complete-table privacy assertion independent of writer version or operation spelling. */
+	@Query(
+		"SELECT COUNT(*) FROM ambient_steps_fact_revision WHERE " +
+			"provider IS NOT NULL OR registration_generation IS NOT NULL OR " +
+			"continuity_segment_generation IS NOT NULL OR source_instance_id IS NOT NULL OR " +
+			"authorization_revision IS NOT NULL OR authorization_fingerprint IS NOT NULL OR " +
+			"window_start_time_ms IS NOT NULL OR window_end_time_ms IS NOT NULL OR " +
+			"observed_at_ms IS NOT NULL OR structural_epoch_day IS NOT NULL OR " +
+			"stored_zone_id IS NOT NULL OR structural_day_start_time_ms IS NOT NULL OR " +
+			"structural_day_end_time_ms IS NOT NULL OR step_count IS NOT NULL OR " +
+			"source_policy_revision IS NOT NULL OR ambient_consent_epoch IS NOT NULL",
+	)
+	suspend fun countPayloadBearingRows(): Long
 
 	/** Full collected-data clear only; scoped deletion appends redacted revisions instead. */
 	@Query("DELETE FROM ambient_steps_fact_revision")
