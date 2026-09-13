@@ -3718,3 +3718,21 @@ Each entry records repository evidence and does not duplicate the final architec
   imported-origin provenance and storage, one authenticated writer/admission transaction, explicit
   deletion/retention/no-resurrection authority, and read/maintenance composition. It is not a
   universal import framework and does not weaken the live-WAL contract.
+
+## TI-D231 — Activity and Pressure converge through one bounded truthful product composition
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; source/API/UI/tests `49081ecfb`, `873fcae26`,
+  `606153694`, and `100d3e9d2`; two corrected independent review rounds; TI-B294.
+- The shared history facade performs one transactional live read for session, Activity, and Pressure,
+  and one bounded recent composition that expands and suppresses complete source-only replacement
+  membership before a single final recency sort.
+- Activity capture intent reuses canonical historical authority: known nonpersistent capture rows do
+  not change the set, unknown source or purpose fails closed, and common exact intent must agree
+  bidirectionally with the source-local flag. Pressure retains equivalent exact-capture agreement.
+- Logical Activity recency copies both start and ID from one newest physical member. Any source
+  overflow, identity collision, contradictory dual-only claim, or live agreement mismatch becomes
+  typed unavailable instead of a standard Location-shaped entry.
+- The closed presentation vocabulary is `Physical | StepsOnly | ActivityOnly | PressureOnly`. Only
+  physical entries navigate; source-only cards expose retained nullable source evidence without
+  Location metrics or fabricated zero. This does not complete shared Today/Timeline/Calendar/detail,
+  automatic/ambient presentation, localization/accessibility, device evidence, or validation.

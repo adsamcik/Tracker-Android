@@ -102,6 +102,18 @@ returns session, Activity, and Pressure state, plus one bounded source-aware rec
 closed `Physical | StepsOnly | ActivityOnly | PressureOnly` vocabulary. Candidate/member overflow,
 identity collision, or contradictory dual-only authority fails closed.
 
+The combined Activity/Pressure product branch is independently accepted through `100d3e9d2` on
+`codex/ti-activity-pressure-product-ui`. It implements the reviewed union rather than choosing one
+source branch: one transaction returns live session plus Activity and Pressure, and one bounded
+recent composition suppresses complete source-only replacement groups before one recency sort.
+Activity-only intent delegates to canonical historical capture authority, ignores known
+nonpersistent capture membership, and rejects unknown source/purpose values. Logical recency copies
+one newest physical member's `(startTimeMs, id)` tuple. Common exact capture intent and source-local
+flags must agree bidirectionally; overflow, collision, dual-only contradiction, or mismatch becomes
+typed history-unavailable instead of falling into Location-shaped UI. Only physical entries remain
+navigable; source-only values remain nullable and truthful. Broader Today/Timeline/Calendar/detail,
+localization/accessibility/device evidence, and validation remain open.
+
 The isolated Pressure branch is clean at `3b8abe350`. Commits `8768767d4` through `8b076e6f7`
 provide fact-driven zero-sample discovery, reciprocal run/segment binding, complete replacement-run
 membership, immutable correction attribution, bounded and cancellable fact traversal, typed

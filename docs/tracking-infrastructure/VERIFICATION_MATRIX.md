@@ -2401,3 +2401,26 @@ and no-resurrection/round-trip contracts.
 No validation command was run. This audit proves only the architectural prerequisite and the unsafe
 paths that remain forbidden; portable import, Room execution, migration/reopen, integration, and
 device behavior remain unproven.
+
+## TI-B294 — Activity and Pressure product-convergence contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `100d3e9d2`. Authored API, Room-composition, presenter,
+and Dashboard tests cover one transactional live session/Activity/Pressure snapshot; one bounded
+source-aware recent page; exact `Physical | StepsOnly | ActivityOnly | PressureOnly` vocabulary;
+complete replacement suppression; collision, overflow and dual-only failure; opaque nonnavigable
+source-only content; nullable Activity/Pressure metrics; and no Location-shaped fallback.
+
+The first review required canonical persistence-eligible Activity intent and unknown source/purpose
+failure. The second required member-owned recency and bidirectional common/source live agreement.
+Regressions cover known nonpersistent membership, corrupt membership, regressing physical IDs,
+inverse live mismatch, and Dashboard `HistoryUnavailable`. Final read-only review accepted the full
+chain.
+
+Deferred focused commands:
+
+```powershell
+.\gradlew.bat :stats:api:androidHostTest :stats:data:testDebugUnitTest :feature:dashboard:testDebugUnitTest --tests '*TrackingHistoryRepositoryTest' --tests '*ActivityHistoryComposerTest' --tests '*DashboardViewModelLiveStepsTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, complete Today/Timeline/Calendar/detail,
+localization/accessibility/device rendering, integration, activation, and release remain unproven.

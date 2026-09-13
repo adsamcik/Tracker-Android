@@ -95,13 +95,14 @@ Independent clean lanes:
   classification, one transactional live Activity/session read, bounded recent-page composition,
   and non-Location Dashboard content without fabricated zero. They are accepted only as an isolated
   source slice: the same API and Dashboard seams are changed by the accepted Pressure UI branch.
-  Final convergence must union Activity and Pressure into one live snapshot, recent merge, and
-  presentation vocabulary. The reviewed order is Pressure UI `8214b92ab`, then the accepted Activity
-  product dependency range through `d0bf3bf59`, then conflict-resolve `f364cbc42` and `48d4d3e67`
-  without taking either branch wholesale. Keep one generic live transaction returning session plus
-  both source states and one bounded source-aware recent page with only `Physical`, `StepsOnly`,
-  `ActivityOnly`, and `PressureOnly`; dual-only contradiction or either source overflow fails closed.
-  Transfer and catalog activation remain absent.
+  Final convergence is now implemented and independently accepted through `100d3e9d2` on
+  `codex/ti-activity-pressure-product-ui`. One generic live transaction returns session plus both
+  source states; one bounded source-aware page exposes only `Physical`, `StepsOnly`, `ActivityOnly`,
+  and `PressureOnly`. Canonical persistence-eligible intent, one-member recency tuples, bidirectional
+  live agreement, complete replacement suppression, and collision/overflow/dual-only failures all
+  fail closed. Only physical entries navigate; source-only UI remains opaque, nullable, and free of
+  Location-shaped metrics. Broader shared Today/Timeline/Calendar/detail and transfer/catalog
+  activation remain absent.
 - Pressure source-specific read model and honest acquisition tiers:
   `codex/ti-pressure-acquisition` at `3b8abe350` in
   `G:\Github\Tracker-Android\.worktrees\ti-pressure-acquisition`; clean and independently accepted

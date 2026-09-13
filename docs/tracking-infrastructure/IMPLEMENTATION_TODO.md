@@ -912,8 +912,13 @@ live snapshot carrying session plus both source states and one bounded source-aw
 Keep only the demonstrated `Physical | StepsOnly | ActivityOnly | PressureOnly` presentation
 vocabulary. Suppress complete authenticated source-only replacement groups before one final recency
 sort, fail closed on either source's scan/membership overflow or contradictory dual-only authority,
-and preserve mixed/legacy physical behavior. HIST-001/002/003/004/005/006/008/011/012 remain open
-until that union is implemented and reviewed.
+and preserve mixed/legacy physical behavior. Accepted convergence commits `49081ecfb`, `873fcae26`,
+`606153694`, and `100d3e9d2` now implement and independently review that union. Canonical exact
+capture intent, one-member recency tuples, bidirectional live agreement, complete replacement
+suppression, collision/overflow/dual-only failure, and opaque source-only UI are covered by authored
+tests. HIST-001/002/003/004/005/006/008/011/012 remain open until Today, Timeline, Calendar, shared
+detail, automatic/ambient composition, localization/accessibility, and the complete source cohort
+use the same facade.
 
 ## Start, settings, permissions, and source actions
 
