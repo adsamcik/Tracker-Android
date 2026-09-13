@@ -2,14 +2,18 @@ package com.adsamcik.tracker.tracker.source.wifi
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
@@ -17,15 +21,18 @@ import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
+import com.adsamcik.tracker.tracker.source.model.SourceDemandContract
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.WifiAccessPointEvidence
+import com.adsamcik.tracker.tracker.source.model.WifiBroadcastAcquisitionFloor
 import com.adsamcik.tracker.tracker.source.model.WifiMode
 import com.adsamcik.tracker.tracker.source.model.WifiPlan
 import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.runtime.wifiProviderDeliveryIdentity
+import com.adsamcik.tracker.tracker.source.runtime.toSourceDemandContract
 import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.currentCoroutineContext
@@ -43,6 +50,8 @@ internal enum class WifiWalAdapterRejection {
 	DELIVERY_IDENTITY_MISMATCH,
 	MISSING_HISTORICAL_PLAN,
 	HISTORICAL_PLAN_MISMATCH,
+	HISTORICAL_PLAN_APPLICATION_UNVERIFIABLE,
+	HISTORICAL_DEMAND_CONTRACT_UNVERIFIABLE,
 	MISSING_REGISTRATION,
 	REGISTRATION_MISMATCH,
 	MISSING_AUTHORIZATION,
@@ -194,6 +203,11 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 		if (run == null || session == null) {
 			return@withTransaction rejected(WifiWalAdapterRejection.MISSING_SESSION)
 		}
+		if (!session.hasValidLifecycleShape(wal.admissionOrdinal) || !run.hasValidLifecycleShape() ||
+			!run.hasValidRelationshipTo(session)
+		) {
+			return@withTransaction rejected(WifiWalAdapterRejection.SESSION_MISMATCH)
+		}
 		val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
 		if (run.desiredPlanRevision <= 0L || run.logicalTrackingId != logicalTrackingId ||
 			run.bootId != wal.clockDomainId || run.leaseGeneration != leaseGeneration ||
@@ -328,6 +342,17 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 		) {
 			return@withTransaction rejected(WifiWalAdapterRejection.AUTHORIZATION_MISMATCH)
 		}
+		val demandContracts = demands.map { demand ->
+			runCatching { demand.toSourceDemandContract() }.getOrNull()
+				?: return@withTransaction rejected(
+					WifiWalAdapterRejection.HISTORICAL_DEMAND_CONTRACT_UNVERIFIABLE,
+				)
+		}
+		if (demandContracts.any { contract -> !plan.satisfiesExactWifiContract(contract) }) {
+			return@withTransaction rejected(
+				WifiWalAdapterRejection.HISTORICAL_DEMAND_CONTRACT_UNVERIFIABLE,
+			)
+		}
 		val nextAuthorizationRows = brokerDao.nextAuthorizationRevisionBounded(
 			WIFI_SOURCE,
 			wal.registrationGeneration,
@@ -350,6 +375,34 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 					authorization.effectiveElapsedRealtimeNanos ->
 				return@withTransaction rejected(WifiWalAdapterRejection.AUTHORIZATION_MISMATCH)
 			else -> minOf(registrationEnd, nextAuthorization.effectiveElapsedRealtimeNanos)
+		}
+		val startActions = sessionDao.sourceStartActionsForManifestBounded(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			manifestRevision = manifestRevision,
+			sourceKind = WIFI_SOURCE,
+			limit = MAX_PLAN_APPLICATION_ROWS + 1,
+		)
+		if (startActions.size > MAX_PLAN_APPLICATION_ROWS) {
+			return@withTransaction rejected(
+				WifiWalAdapterRejection.HISTORICAL_PLAN_APPLICATION_UNVERIFIABLE,
+			)
+		}
+		val planApplication = startActions.singleOrNull()
+		val appliedAtElapsedNanos = maxOf(
+			registrationStart,
+			authorization.effectiveElapsedRealtimeNanos,
+		)
+		if (planApplication == null || !planApplication.authenticates(
+			wal = wal,
+			run = run,
+			manifest = manifest,
+			configurationRevision = configurationRevision,
+			appliedAtElapsedNanos = appliedAtElapsedNanos,
+		)) {
+			return@withTransaction rejected(
+				WifiWalAdapterRejection.HISTORICAL_PLAN_APPLICATION_UNVERIFIABLE,
+			)
 		}
 
 		val policyDao = database.sourcePolicyDao()
@@ -533,7 +586,7 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 					appliedRevision = configurationRevision,
 					sourceInstanceId = SourceInstanceId(wal.sourceInstanceId),
 					registrationGeneration = wal.registrationGeneration,
-					appliedAtElapsedRealtimeNanos = registrationStart,
+					appliedAtElapsedRealtimeNanos = appliedAtElapsedNanos,
 					physicalConfigurationFingerprint = physicalFingerprint,
 					clockDomainId = wal.clockDomainId,
 					capturedCollectedDataEpoch = wal.capturedCollectedDataEpoch,
@@ -679,6 +732,7 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 		const val MAX_MANIFEST_SOURCE_ROWS = 4_096
 		const val MAX_EXPECTED_DELIVERY_UNITS = 1
 		const val MAX_AUTHORIZATION_MEMBERS = 64
+		const val MAX_PLAN_APPLICATION_ROWS = 1
 		const val MAX_PLAN_PAYLOAD_BYTES = 1_024
 		const val NANOS_PER_MILLISECOND = 1_000_000L
 		const val PRODUCER_WALL_UNCERTAINTY_MS = 1L
@@ -709,6 +763,80 @@ private fun WifiPlan.hasSupportedHistoricalShape(): Boolean =
 		backoff.initialDelayMs >= 0L && backoff.maximumDelayMs >= backoff.initialDelayMs &&
 		backoff.multiplier.isFinite() && backoff.multiplier >= 1.0
 
+private fun WifiPlan.satisfiesExactWifiContract(contract: SourceDemandContract): Boolean =
+	contract.floor === WifiBroadcastAcquisitionFloor &&
+		mode in setOf(WifiMode.BROADCAST_DRIVEN, WifiMode.ACTIVE_ATTEMPTS) &&
+		maximumAcceptableResultAgeMs <= contract.maximumProviderItemAgeMs &&
+		contract.requestedDeliveryLatencyMs == null
+
+private fun LifecycleDesiredActionEntity.authenticates(
+	wal: SourceEventWalEntity,
+	run: SourceServiceRunEntity,
+	manifest: SessionManifestVersionEntity,
+	configurationRevision: Long,
+	appliedAtElapsedNanos: Long,
+): Boolean {
+	val acknowledgedAt = acknowledgedAtMs ?: return false
+	val acknowledgedElapsed = acknowledgedElapsedRealtimeNanos ?: return false
+	return actionRevision > 0L && actionFamily == "SOURCE_RUNTIME" &&
+		sourceKind == SourceKind.WIFI.stableCode && desiredState == "STARTED" &&
+		status == "START_ACCEPTED" && attemptCount > 0 && failureCode == null && retryTrigger == null &&
+		logicalTrackingId == wal.logicalTrackingId && serviceRunId == wal.serviceRunId &&
+		manifestRevision == wal.sessionManifestRevision && desiredPlanRevision == configurationRevision &&
+		sourcePolicyRevision == wal.sourcePolicyRevision && consentEpoch == wal.captureConsentEpoch &&
+		startOrigin == manifest.startOrigin && startOrigin == run.startOrigin &&
+		bootId == wal.clockDomainId && leaseGeneration == wal.lifecycleLeaseGeneration &&
+		sourceInstanceId == wal.sourceInstanceId && registrationGeneration == wal.registrationGeneration &&
+		requestedAtMs == manifest.effectiveWallTimeMs && acknowledgedAt >= requestedAtMs &&
+		requestedElapsedRealtimeNanos == manifest.effectiveElapsedRealtimeNanos &&
+		requestedElapsedRealtimeNanos <= appliedAtElapsedNanos &&
+		appliedAtElapsedNanos <= acknowledgedElapsed &&
+		appliedAtElapsedNanos <= (wal.observedIntervalStartNanos ?: Long.MIN_VALUE)
+}
+
+private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(admissionOrdinal: Long): Boolean {
+	if (state !in ALL_SESSION_STATES || lifecycleRevision <= 0L || desiredPlanRevision <= 0L ||
+		startedAtMs < 0L || startedElapsedNanos < 0L || lifecycleLeaseGeneration <= 0L ||
+		lifecycleBootId.isNullOrBlank() || currentManifestRevision?.let { it <= 0L } != false
+	) return false
+	val terminal = state in TERMINAL_SESSION_STATES
+	if ((completedAtMs != null) != terminal) return false
+	if (completedAtMs?.let { it < startedAtMs } == true) return false
+	if ((cutoffAtMs == null) != (cutoffElapsedNanos == null)) return false
+	if (terminal || state == "STOPPING") {
+		if (cutoffAtMs == null || cutoffElapsedNanos == null ||
+			cutoffAtMs < startedAtMs || cutoffElapsedNanos < startedElapsedNanos
+		) return false
+	} else if (cutoffAtMs != null || cutoffElapsedNanos != null) {
+		return false
+	}
+	return if (terminal) {
+		currentServiceRunId == null && finalAdmissionOrdinal?.let { it >= admissionOrdinal } == true
+	} else {
+		!currentServiceRunId.isNullOrBlank() && finalAdmissionOrdinal == null
+	}
+}
+
+private fun SourceServiceRunEntity.hasValidLifecycleShape(): Boolean {
+	if (state !in ALL_SESSION_STATES || desiredPlanRevision <= 0L || startedAtMs < 0L ||
+		startedElapsedNanos < 0L || leaseGeneration <= 0L || bootId.isBlank()
+	) return false
+	val terminal = state in TERMINAL_SESSION_STATES
+	if ((completedAtMs != null) != terminal) return false
+	return completedAtMs?.let { it >= startedAtMs } != false
+}
+
+private fun SourceServiceRunEntity.hasValidRelationshipTo(
+	session: LogicalTrackingSessionEntity,
+): Boolean = when {
+	logicalTrackingId != session.logicalTrackingId -> false
+	state !in TERMINAL_SESSION_STATES ->
+		session.state !in TERMINAL_SESSION_STATES && session.currentServiceRunId == serviceRunId &&
+			session.state == state
+	session.state in TERMINAL_SESSION_STATES -> session.currentServiceRunId == null
+	else -> true
+}
+
 private fun WifiPlan.maximumObservationAgeNanos(): Long =
 	if (maximumAcceptableResultAgeMs > Long.MAX_VALUE / 1_000_000L) {
 		Long.MAX_VALUE
@@ -717,3 +845,7 @@ private fun WifiPlan.maximumObservationAgeNanos(): Long =
 	}
 
 private fun rejected(reason: WifiWalAdapterRejection) = WifiWalAdapterResult.Rejected(reason)
+
+private val TERMINAL_SESSION_STATES = setOf("FINALIZED", "CLOSED", "FAILED")
+private val ALL_SESSION_STATES = TERMINAL_SESSION_STATES +
+	setOf("STARTING", "ACTIVE", "RECONFIGURING", "STOPPING")

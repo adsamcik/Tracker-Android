@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -168,6 +169,133 @@ class WifiWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `passive WAL requires exact retained plan application settlement`() = runTest {
+		installValidFixture(includePlanApplication = false)
+
+		assertEquals(
+			WifiWalAdapterResult.Rejected(
+				WifiWalAdapterRejection.HISTORICAL_PLAN_APPLICATION_UNVERIFIABLE,
+			),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `in-place plan revision cannot collapse behind matching provider fingerprint`() = runTest {
+		installValidFixture(planApplicationRevision = PLAN_REVISION + 1L)
+
+		assertEquals(
+			WifiWalAdapterResult.Rejected(
+				WifiWalAdapterRejection.HISTORICAL_PLAN_APPLICATION_UNVERIFIABLE,
+			),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `ambiguous plan application lineage is rejected within an explicit bound`() = runTest {
+		installValidFixture()
+		database.sourceSessionDao().insertLifecycleActions(
+			listOf(startAction(actionId = "wifi-start-action-duplicate", actionRevision = 2L)),
+		)
+
+		assertEquals(
+			WifiWalAdapterResult.Rejected(
+				WifiWalAdapterRejection.HISTORICAL_PLAN_APPLICATION_UNVERIFIABLE,
+			),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `malformed persisted Wi-Fi demand floor fails closed`() = runTest {
+		installValidFixture(
+			authorizationDemandCount = 2,
+			lastDemandAcquisitionSpec = "wifi:v1:required=CACHED_ONLY",
+		)
+
+		assertEquals(
+			WifiWalAdapterResult.Rejected(
+				WifiWalAdapterRejection.HISTORICAL_DEMAND_CONTRACT_UNVERIFIABLE,
+			),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `opportunistic Wi-Fi plan cannot claim a provider delivery deadline`() = runTest {
+		installValidFixture(requestedDeliveryLatencyMs = 1_000L)
+
+		assertEquals(
+			WifiWalAdapterResult.Rejected(
+				WifiWalAdapterRejection.HISTORICAL_DEMAND_CONTRACT_UNVERIFIABLE,
+			),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `cached-only plan cannot satisfy captured broadcast demand`() = runTest {
+		installValidFixture(plan = wifiPlan().copy(mode = WifiMode.CACHED_ONLY))
+
+		assertEquals(
+			WifiWalAdapterResult.Rejected(
+				WifiWalAdapterRejection.HISTORICAL_DEMAND_CONTRACT_UNVERIFIABLE,
+			),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `plan result age must satisfy every authorized demand`() = runTest {
+		installValidFixture(plan = wifiPlan().copy(maximumAcceptableResultAgeMs = 2_000L))
+
+		assertEquals(
+			WifiWalAdapterResult.Rejected(
+				WifiWalAdapterRejection.HISTORICAL_DEMAND_CONTRACT_UNVERIFIABLE,
+			),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `terminal session final admission ordinal must cover selected WAL`() = runTest {
+		installValidFixture()
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
+		assertEquals(1, database.sourceSessionDao().updateSession(session.copy(finalAdmissionOrdinal = 0L)))
+
+		assertEquals(
+			WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `session and current run lifecycle states must form an exact live pair`() = runTest {
+		installValidFixture()
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
+		assertEquals(1, database.sourceSessionDao().updateSession(
+			session.copy(
+				state = "ACTIVE",
+				completedAtMs = null,
+				cutoffAtMs = null,
+				cutoffElapsedNanos = null,
+				finalAdmissionOrdinal = null,
+				currentServiceRunId = RUN_ID,
+			),
+		))
+		assertEquals(1, database.sourceSessionDao().updateServiceRun(
+			run.copy(state = "STOPPING", completedAtMs = null),
+		))
+
+		assertEquals(
+			WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
 	fun `same-registration next authorization ignores interleaved global revision`() = runTest {
 		installValidFixture()
 		database.sourceBrokerDao().insertRegistration(
@@ -322,6 +450,7 @@ class WifiWalQualificationAdapterTest {
 	}
 
 	private suspend fun installValidFixture(
+		plan: WifiPlan = wifiPlan(),
 		configurationRevision: Long? = null,
 		sourceSequence: Long = SOURCE_SEQUENCE,
 		accessPoints: List<WifiAccessPointEvidence> = accessPoints(),
@@ -330,15 +459,28 @@ class WifiWalQualificationAdapterTest {
 		evidenceState: SourceEvidenceState = SourceEvidenceState(),
 		zoneId: String = ZONE_ID,
 		authorizationDemandCount: Int = 1,
+		includePlanApplication: Boolean = true,
+		planApplicationRevision: Long = PLAN_REVISION,
+		lastDemandAcquisitionSpec: String? = null,
+		requestedDeliveryLatencyMs: Long? = null,
 	) {
 		database.sourceEvidenceStateDao().ensure(evidenceState)
-		val plan = wifiPlan()
 		insertPlan(plan)
 		installPolicyAndConsent()
 		val segmentId = database.sessionSegmentDao().insert(segment(segmentRunId))
 		assertEquals(SEGMENT_ID, segmentId)
 		installSessionAndManifest(segmentId, zoneId)
-		val demands = List(authorizationDemandCount) { index -> demand(index) }
+		val demands = List(authorizationDemandCount) { index ->
+			demand(
+				index = index,
+				minimumAcquisitionSpec = if (index == authorizationDemandCount - 1) {
+					lastDemandAcquisitionSpec ?: "wifi:v1:required=BROADCAST_CALLBACK"
+				} else {
+					"wifi:v1:required=BROADCAST_CALLBACK"
+				},
+				requestedDeliveryLatencyMs = requestedDeliveryLatencyMs,
+			)
+		}
 		database.sourceBrokerDao().insertDemands(demands)
 		database.sourceBrokerDao().insertRegistration(registration(plan.physicalConfigurationFingerprint()))
 		val authorization = SourceBrokerAuthorization.rows(
@@ -351,6 +493,11 @@ class WifiWalQualificationAdapterTest {
 			effectiveWallTimeMs = RUN_START_WALL_MS,
 		)
 		database.sourceBrokerDao().insertAuthorizations(authorization)
+		if (includePlanApplication) {
+			database.sourceSessionDao().insertLifecycleActions(
+				listOf(startAction(desiredPlanRevision = planApplicationRevision)),
+			)
+		}
 		val isEmpty = accessPoints.isEmpty()
 		val observedStart = if (isEmpty) OBSERVED_END_NANOS else requireNotNull(
 			accessPoints.mapNotNull(WifiAccessPointEvidence::providerTimestampNanos).minOrNull(),
@@ -607,7 +754,11 @@ class WifiWalQualificationAdapterTest {
 		captureCallbackBarrierAuthorizationRevision = AUTHORIZATION_REVISION,
 	)
 
-	private fun demand(index: Int = 0) = SourceDemandEntity(
+	private fun demand(
+		index: Int = 0,
+		minimumAcquisitionSpec: String = "wifi:v1:required=BROADCAST_CALLBACK",
+		requestedDeliveryLatencyMs: Long? = null,
+	) = SourceDemandEntity(
 		demandId = "$DEMAND_ID-$index",
 		consumerId = "session:$RUN_ID:$index",
 		sourceKind = WIFI_SOURCE,
@@ -620,11 +771,11 @@ class WifiWalQualificationAdapterTest {
 		consentEpoch = CONSENT_EPOCH,
 		persistenceEligible = true,
 		qosCode = QOS_CODE,
-		minimumAcquisitionSpec = "wifi:v1:broadcast_driven",
+		minimumAcquisitionSpec = minimumAcquisitionSpec,
 		adaptiveReductionAllowed = false,
 		maximumAgeMs = 1_000L,
 		desiredLatencyMs = 1_000L,
-		requestedDeliveryLatencyMs = 0L,
+		requestedDeliveryLatencyMs = requestedDeliveryLatencyMs,
 		requestedBootId = BOOT_ID,
 		requestedElapsedRealtimeNanos = RUN_START_NANOS,
 		requestedAtMs = RUN_START_WALL_MS,
@@ -632,6 +783,37 @@ class WifiWalQualificationAdapterTest {
 		retireBootId = BOOT_ID,
 		retireElapsedRealtimeNanos = SESSION_END_NANOS,
 		retiredAtMs = SESSION_END_WALL_MS,
+	)
+
+	private fun startAction(
+		desiredPlanRevision: Long = PLAN_REVISION,
+		actionId: String = "wifi-start-action",
+		actionRevision: Long = 1L,
+	) = LifecycleDesiredActionEntity(
+		actionId = actionId,
+		logicalTrackingId = LOGICAL_ID,
+		serviceRunId = RUN_ID,
+		manifestRevision = MANIFEST_REVISION,
+		actionRevision = actionRevision,
+		actionFamily = "SOURCE_RUNTIME",
+		sourceKind = WIFI_SOURCE,
+		desiredState = "STARTED",
+		desiredPlanRevision = desiredPlanRevision,
+		sourcePolicyRevision = POLICY_REVISION,
+		consentEpoch = CONSENT_EPOCH,
+		startOrigin = START_ORIGIN,
+		bootId = BOOT_ID,
+		leaseGeneration = LEASE_GENERATION,
+		requestedAtMs = RUN_START_WALL_MS,
+		requestedElapsedRealtimeNanos = RUN_START_NANOS,
+		status = "START_ACCEPTED",
+		attemptCount = 1,
+		acknowledgedAtMs = RUN_START_WALL_MS + 1L,
+		acknowledgedElapsedRealtimeNanos = PLAN_APPLICATION_ACK_NANOS,
+		failureCode = null,
+		retryTrigger = null,
+		sourceInstanceId = SOURCE_INSTANCE,
+		registrationGeneration = REGISTRATION_GENERATION,
 	)
 
 	private fun segment(runId: String) = SessionSegment(
@@ -690,6 +872,7 @@ class WifiWalQualificationAdapterTest {
 		const val POLICY_START_NANOS = 1_000_000_000L
 		const val REGISTRATION_START_NANOS = 1_100_000_000L
 		const val AUTHORIZATION_START_NANOS = 1_200_000_000L
+		const val PLAN_APPLICATION_ACK_NANOS = 1_300_000_000L
 		const val OBSERVED_START_NANOS = 1_500_000_000L
 		const val OBSERVED_END_NANOS = 1_600_000_000L
 		const val RECEIVED_NANOS = 1_700_000_000L

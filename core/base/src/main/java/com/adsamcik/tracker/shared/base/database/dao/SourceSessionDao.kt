@@ -158,6 +158,21 @@ interface SourceSessionDao {
 	@Query("SELECT * FROM lifecycle_desired_action WHERE action_id = :actionId")
 	suspend fun lifecycleAction(actionId: String): LifecycleDesiredActionEntity?
 
+	/** Bounded exact historical source-start settlements for one manifest/source binding. */
+	@Query(
+		"SELECT * FROM lifecycle_desired_action WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND service_run_id = :serviceRunId AND manifest_revision = :manifestRevision " +
+			"AND source_kind = :sourceKind AND action_family = 'SOURCE_RUNTIME' " +
+			"AND desired_state = 'STARTED' ORDER BY action_revision ASC LIMIT :limit",
+	)
+	suspend fun sourceStartActionsForManifestBounded(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		manifestRevision: Long,
+		sourceKind: Int,
+		limit: Int,
+	): List<LifecycleDesiredActionEntity>
+
 	@Query(
 		"SELECT * FROM lifecycle_desired_action WHERE logical_tracking_id = :logicalTrackingId " +
 			"ORDER BY action_revision ASC",
