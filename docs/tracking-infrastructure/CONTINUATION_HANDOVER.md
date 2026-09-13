@@ -54,9 +54,12 @@ preserve elapsed and wall chronology before privacy clamping; missing evidence r
 than zero. `codex/ti-ambient-maintenance` is independently accepted through `d998dbb4c`: bounded
 whole-table authority audits, provider/demand quiescence, terminal payload-free retractions,
 complete UPSERT/import cleanup, retry/idempotence, correction-replay cleanup, whole-lineage
-retention, and cancellation rollback preserve no-resurrection. Portable export exists on
-`codex/ti-ambient-transfer` but remains under correction review. Next Ambient dependencies are
-shared product UI/numeric consumers, accepted portable transfer, and settings/remediation. Do not enable
+retention, and cancellation rollback preserve no-resurrection. `codex/ti-ambient-transfer` is
+independently accepted through `8ff5ec428`: its bounded authenticated reader blocks day-end backlog,
+rejects stale cursor authority behind any later allow or deny-all revision, emits opaque checksummed
+structural-day/zone/fact/gap truth without provider/session/control/Location/local IDs, and invokes
+the sink only after the Room transaction. Next Ambient dependencies are portable import/round trip,
+shared product UI/numeric consumers, and settings/remediation. Do not enable
 `ExecutableSourceLaneCatalog.AMBIENT` or a product surface yet. A completed-day no-evidence gap is
 terminal to this monotonic importer; later provider backfill requires a separate bounded repair
 contract rather than silently reopening the cursor.

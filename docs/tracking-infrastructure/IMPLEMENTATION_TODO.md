@@ -518,6 +518,15 @@ and authorizes cleanup of replayed older/correction payloads; retention removes 
 replayed terminal lineages. These TODOs remain unchecked until portable transfer is accepted,
 settings/remediation and shared product consumers are complete, and the full scenario cohort exists.
 
+Accepted export commits `4dd91180a`, `0f67e93be`, and `8ff5ec428` implement the portable-output
+portion of AMBIENT-007/008/009 and PRIV-006. One bounded Room transaction authenticates retained
+structural day, zone, fact, gap, transition, cursor, authorization, privacy, and retention state,
+then emits a self-checksummed opaque format with no provider, session, control, Location, or local
+database identity. Any active cursor that can still change the selected day blocks export even when
+its backlog has not reached day start; any later authorization revision, including deny-all,
+invalidates stale cursor authority. These TODOs remain unchecked until import/round-trip mapping,
+shared product consumers, settings/remediation, and the complete scenario cohort exist.
+
 ## Pressure vertical
 
 - [ ] TODO-PRESS-001 Complete the Pressure demand adapter and honest low, standard, and bounded

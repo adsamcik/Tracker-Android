@@ -35,8 +35,12 @@ transfer, and activation remain open. The separate Ambient maintenance branch is
 accepted through `d998dbb4c`: bounded source-local retention and consent/source deletion audit every
 fact/cursor/gap/transition/authorization row, require compatible provider/demand quiescence, install
 terminal payload-free retractions before removing UPSERT payloads/import authority, and preserve
-no-resurrection across replay and retry. Portable export is implemented separately but remains in
-correction review; it is not accepted by this checkpoint.
+no-resurrection across replay and retry. Portable export is independently accepted through
+`8ff5ec428`: one bounded authenticated Room snapshot emits only retained structural-day/zone/fact/
+effective-gap truth, blocks any active cursor that can still change the selected day, and rejects a
+stale cursor when any later authorization revision—including deny-all—exists. The checksummed opaque
+format excludes provider, session, control, Location, and local database identity; sink I/O occurs
+only after the reader transaction.
 
 The isolated Activity source worktree is clean at `a8c1752cb`. Its capture-only coalescing model now
 has Activity-specific v28 entities and DAOs, immutable historical registration-plan binding, and a

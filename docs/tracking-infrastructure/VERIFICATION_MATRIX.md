@@ -2355,3 +2355,29 @@ Deferred focused commands:
 The commands were not run. Compilation, Android permission-dialog behavior, provider callback/scan,
 throttling, process/reboot/FGS/device behavior, product history/UI convergence, integration,
 activation, and release remain unproven.
+
+## TI-B292 — Ambient Steps portable-export contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `8ff5ec428`. Authored real-Room and format tests cover one
+bounded authenticated snapshot, structural day/stored zone, complete fact revisions, effective gaps,
+authorization transitions, policy/consent/retention/deletion, opaque checksummed output, privacy
+exclusions, terminal retraction plus replay `NoData`, cancellation, and sink invocation only after
+the transaction.
+
+Independent review first rejected a predicate that allowed export when an active cursor backlog had
+not yet reached the selected day start; the correction vetoes every cursor below day end. Re-review
+then found that the maximum purpose-qualified authorization query hid later deny-all revisions;
+`8ff5ec428` compares against the latest revision of any kind before reconstructing the exact allow
+authority. Cross-registration backlog, tamper, and later-deny regressions cover no-export/no-sink;
+final re-review accepted the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*AmbientStepsPortable*' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The Gradle command was not run. During final read-only review, the reviewer accidentally invoked
+`git diff --check`; it returned no output and changed no file. This was not an authorized start of the
+deferred validation phase. Compilation, Room execution, portable import/round trip, shared UI,
+provider/process/reboot/device behavior, integration, activation, and release remain unproven.

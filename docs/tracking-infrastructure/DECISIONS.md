@@ -3682,3 +3682,21 @@ Each entry records repository evidence and does not duplicate the final architec
   and unrelated single-permission prerequisites retain their existing path.
 - All audited manual entry points already preserve the exact requested capture set. This correction
   neither enables Wi-Fi nor registers another source, provider, scan, control, or enrichment demand.
+
+## TI-D229 — Ambient Steps export blocks every cursor or authorization successor that can change a day
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/Room tests `4dd91180a`,
+  `0f67e93be`, and `8ff5ec428`; corrected independent review; TI-B292.
+- One bounded Room snapshot authenticates the selected structural day, stored zone, complete fact
+  lineage, effective gaps, authorization transitions, cursor, policy/consent, retention, and source
+  deletion state before constructing portable content.
+- An authenticated active cursor makes a day materializing whenever its segment begins before the
+  day end and its imported-through boundary is below day end, even when backlog has not reached day
+  start. The cursor revision must also equal the latest immutable authorization revision of any kind;
+  a later deny-all cannot be hidden by purpose-filtered lookup.
+- The checksummed format uses opaque kind-scoped identity and released product evidence only. It
+  contains no provider, registration, session, control, Location, local database identity, or
+  fabricated zero. Terminal retraction plus delayed replay returns no data; cancellation escapes and
+  sink I/O occurs only after the read transaction.
+- This does not implement portable import, round-trip/no-resurrection mapping, shared UI, provider
+  activation, or device/process evidence.
