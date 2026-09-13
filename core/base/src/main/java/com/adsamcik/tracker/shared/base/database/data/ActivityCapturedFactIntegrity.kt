@@ -1,5 +1,9 @@
 package com.adsamcik.tracker.shared.base.database.data
 
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.DataInputStream
+import java.io.DataOutputStream
 import java.security.MessageDigest
 
 /** Canonical identity and product-effect verification shared by the Activity writer and readers. */
@@ -247,4 +251,108 @@ object ActivityCapturedFactIntegrity {
 	private val ALL_ACTIVITIES = ACTIVE_ACTIVITIES + setOf("STILL", "TILTING", "UNKNOWN")
 	private val BOUNDARY_KINDS = setOf("EXACT_PROVIDER_OBSERVATION", "SAME_CLOCK_EXTRAPOLATION")
 	private val CONTINUITIES = setOf("SAME_ANCHOR", "CONSISTENT_WITHIN_UNCERTAINTY", "DISCONTINUITY_DETECTED")
+}
+
+/** Exact canonical Activity member decoded from one immutable desired-plan row. */
+data class ActivityCapturedDesiredPlan(
+	val revision: Long,
+	val mode: String,
+	val desiredDetectionLatencyMs: Long,
+	val confidenceThresholdPercent: Int,
+	val transitionTypes: Set<Int>,
+	val physicalConfigurationFingerprint: String,
+) {
+	val enabled: Boolean
+		get() = mode != MODE_OFF
+
+	companion object {
+		const val MODE_OFF = "OFF"
+	}
+}
+
+/**
+ * Canonical source-plan-v1 verification shared by the Activity writer and historical reader.
+ *
+ * The re-encode requirement rejects trailing bytes, duplicate/unsorted transition members, and
+ * any alternate byte representation before a checksum or physical fingerprint can authorize data.
+ */
+object ActivityCapturedPlanIntegrity {
+	fun decode(row: SourceDesiredPlanEntity): ActivityCapturedDesiredPlan? = runCatching {
+		require(row.sourceKind == SourceDestinationOwnerEntity.SOURCE_ACTIVITY)
+		require(row.payloadVersion == PAYLOAD_VERSION)
+		require(row.payloadChecksum == sha256(row.payload))
+		val decoded = DataInputStream(ByteArrayInputStream(row.payload)).use { input ->
+			require(input.readInt() == FORMAT_VERSION)
+			require(input.readUTF() == SOURCE_ACTIVITY)
+			val revision = input.readLong()
+			val mode = input.readUTF()
+			val latency = input.readLong()
+			val confidence = input.readInt()
+			val transitionCount = input.readInt()
+			require(transitionCount in 0..MAX_TRANSITION_TYPES)
+			val transitions = buildSet(transitionCount) {
+				repeat(transitionCount) { add(input.readInt()) }
+			}
+			require(input.available() == 0)
+			require(revision == row.revision && revision > 0L)
+			require(mode in ACTIVITY_MODES)
+			require(latency >= 0L)
+			require(confidence in 0..100)
+			ActivityCapturedDesiredPlan(
+				revision = revision,
+				mode = mode,
+				desiredDetectionLatencyMs = latency,
+				confidenceThresholdPercent = confidence,
+				transitionTypes = transitions,
+				physicalConfigurationFingerprint = physicalFingerprint(
+					mode,
+					latency,
+					confidence,
+					transitions,
+				),
+			)
+		}
+		require(row.payload.contentEquals(encode(decoded)))
+		decoded
+	}.getOrNull()
+
+	private fun encode(plan: ActivityCapturedDesiredPlan): ByteArray =
+		ByteArrayOutputStream().use { buffer ->
+			DataOutputStream(buffer).use { output ->
+				output.writeInt(FORMAT_VERSION)
+				output.writeUTF(SOURCE_ACTIVITY)
+				output.writeLong(plan.revision)
+				output.writeUTF(plan.mode)
+				output.writeLong(plan.desiredDetectionLatencyMs)
+				output.writeInt(plan.confidenceThresholdPercent)
+				output.writeInt(plan.transitionTypes.size)
+				plan.transitionTypes.sorted().forEach(output::writeInt)
+			}
+			buffer.toByteArray()
+		}
+
+	private fun physicalFingerprint(
+		mode: String,
+		latency: Long,
+		confidence: Int,
+		transitions: Set<Int>,
+	): String = sha256(
+		listOf(
+			SOURCE_ACTIVITY,
+			mode,
+			latency,
+			confidence,
+			transitions.sorted().joinToString(","),
+		).joinToString("\u001f").toByteArray(Charsets.UTF_8),
+	)
+
+	private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+		.digest(bytes)
+		.joinToString(separator = "") { byte -> "%02x".format(byte) }
+
+	private const val PAYLOAD_VERSION = 1
+	private const val FORMAT_VERSION = 1
+	private const val SOURCE_ACTIVITY = "ACTIVITY"
+	private const val MAX_TRANSITION_TYPES = 10_000
+	private val ACTIVITY_MODES = setOf("OFF", "TRANSITIONS_ONLY", "CONTINUOUS_RECOGNITION")
 }
