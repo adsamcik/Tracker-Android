@@ -2099,3 +2099,22 @@ Deferred focused command:
 The command was not run. Compilation, Room query execution, Calendar/shared selected-detail/full
 Today-Timeline composition, localization/accessibility/device rendering, process/provider behavior,
 automatic control, integration, activation, and release remain unproven.
+
+## TI-B280 — Protected Location mock-provenance and crash-repair contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `6e9d84f38`. Authored codec, runtime-delivery,
+qualification, retained-WAL adapter, and raw-repair tests cover frozen v1 golden compatibility,
+typed v1 mock-provenance unverifiability, canonical v2 true/false provenance, identity divergence,
+missing/null/trailing-byte/corrupt rejection, crash repair and replay idempotence, and absence of a
+second fact write. Independent review accepted the corrected raw-repair propagation after rejecting
+the initial hard-coded non-mock repair.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*SourcePayloadCodecTest' --tests '*LocationSourceDeliveryFactoryTest' --tests '*LocationQualifiedObservationTest' --tests '*LocationWalQualificationAdapterTest' --tests '*RawLocationObservationRepairTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, protected-writer shadow comparison, route or
+distance recomposition, correction, retention, deletion, transfer, product UI, provider/process/
+device behavior, integration, activation, cutover, and release remain unproven.

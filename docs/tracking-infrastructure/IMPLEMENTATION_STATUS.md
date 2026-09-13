@@ -105,8 +105,12 @@ independently accepted as **IMPLEMENTED_UNVALIDATED**. The separate retained-WAL
 accepted through `8a90104ce`: one Room snapshot verifies the actual event/delivery, canonical
 payload, same-registration authorization timeline, plan/manifest/reverse segment, clocks, zone,
 epoch, deletion, and uncertainty-safe retention evidence. Because v1 WAL lacks mock provenance it
-returns typed `MOCK_PROVENANCE_UNVERIFIABLE` instead of fabricating `false`. Neither branch modifies
-or activates the canonical Location writer or emits a qualified shadow command.
+returns typed `MOCK_PROVENANCE_UNVERIFIABLE` instead of fabricating `false`. The separate provenance
+branch is independently accepted through `6e9d84f38`: canonical v2 Location WAL requires and retains
+the authoritative platform mock bit in normalized identity, qualification, and raw-observation
+crash repair, while frozen pre-v2 payloads retain their established compatibility behavior and
+remain unverifiable to the new qualifier. Missing or corrupt v2 provenance fails closed. None of
+these branches modifies or activates the canonical Location writer or emits a qualified shadow fact.
 
 The isolated Cell branch is clean at `0dae1d8f5`. Its dormant adapter starts from one actual retained
 one-unit Cell WAL delivery inside one Room snapshot, requires a positive unique source sequence and

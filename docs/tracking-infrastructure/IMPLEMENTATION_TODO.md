@@ -598,6 +598,9 @@ transfer import, automatic control, localization/accessibility, and complete sce
 - [ ] TODO-LOC-007 Complete durable source identity, exact replay suppression, correction, route and
   distance recomposition, gaps, retention, export/import, deletion, and no-resurrection around the
   protected writer.
+  - Checkpoint `6e9d84f38` preserves authoritative v2 mock provenance through WAL identity,
+    qualification, and crash repair while keeping frozen v1 typed unverifiable for the new path.
+    The broader replay, recomposition, maintenance, transfer, and protected-writer work remains.
 - [ ] TODO-LOC-008 Provide optional Location context only from compatible Location facts already
   being collected; no radio or other source may start or retain Location.
 - [ ] TODO-LOC-009 Resolve whether ambient Location offers a product beyond passive opportunistic

@@ -3475,3 +3475,17 @@ Each entry records repository evidence and does not duplicate the final architec
   metrics may use it; materializing without metrics, unavailable, and failed states use their typed
   non-recording status. Calendar, selected shared detail, full Today/Timeline integration,
   localization/device review, and automatic control remain open.
+
+## TI-D217 — Protected Location v2 retains mock provenance without adding a writer
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/tests `1013c72dc` and
+  `6e9d84f38` atop the accepted retained-WAL adapter; TI-B280.
+- Frozen pre-v2 Location payload bytes and raw-observation repair retain their established
+  compatibility behavior. Because they never recorded authoritative mock provenance, the new
+  qualified path continues to return typed `MOCK_PROVENANCE_UNVERIFIABLE` rather than inventing it.
+- Canonical v2 payloads require the platform mock bit, include it in normalized delivery ordering
+  and identity, and preserve both true and false through WAL decode, qualification, and
+  raw-observation crash repair. Missing, trailing, noncanonical, or corrupt v2 provenance fails
+  closed.
+- The adapter still returns a dormant command only. This adds no schema, catalog activation,
+  rollout stage, product history, cutover, fact write, or second canonical Location writer.

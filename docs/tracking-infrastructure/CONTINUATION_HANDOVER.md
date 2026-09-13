@@ -107,8 +107,12 @@ Independent clean lanes:
   the retained-WAL adapter is independently accepted through `8a90104ce` on
   `codex/ti-location-wal-adapter`. It verifies the actual persisted delivery and full historical
   authority, but returns typed `MOCK_PROVENANCE_UNVERIFIABLE` because v1 WAL did not retain that
-  evidence. No shadow comparison may emit a qualified command until canonical payload provenance
-  exists.
+  evidence. `codex/ti-location-wal-provenance` is independently accepted through `6e9d84f38`:
+  future canonical v2 WAL requires the platform mock bit, binds it into normalized delivery
+  identity and qualification, and preserves true/false through raw-observation crash repair;
+  missing or corrupt v2 provenance fails closed. Frozen v1 encode/decode and its established raw
+  repair behavior remain compatible, but v1 still cannot qualify the new path. No second writer,
+  catalog activation, cutover, schema change, or shadow fact write was introduced.
 - Cell retained-WAL qualifier and source-local persistence: `codex/ti-cell-fact-model` at
   `0dae1d8f5` in
   `G:\Github\Tracker-Android\.worktrees\ti-cell-fact-model`; clean and independently accepted as
