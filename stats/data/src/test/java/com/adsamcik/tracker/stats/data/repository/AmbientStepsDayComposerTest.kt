@@ -183,6 +183,21 @@ class AmbientStepsDayComposerTest {
 		assertThrows<IllegalArgumentException> { EffectiveAmbientStepsGap(40L, 40L) }
 	}
 
+	@Test
+	fun `session origin remains explicit in contained attribution`() {
+		val imported = session(20L, 40L, 5L).copy(
+			origin = QualifiedSessionStepsOrigin.PORTABLE_IMPORT,
+		)
+		val result = composeAmbientStepsDay(
+			day,
+			listOf(fact(0L, DAY_END, 10L)),
+			emptyList(),
+			listOf(imported),
+		)
+
+		result.inSession.single().origin shouldBe QualifiedSessionStepsOrigin.PORTABLE_IMPORT
+	}
+
 	private val day = AmbientStepsDayIdentity(0L, "UTC", 0L, DAY_END)
 	private val provenance = AmbientStepsProviderProvenance("provider", "instance", 1L, 1L)
 

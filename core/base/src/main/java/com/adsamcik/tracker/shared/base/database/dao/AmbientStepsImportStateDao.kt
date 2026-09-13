@@ -35,6 +35,24 @@ interface AmbientStepsImportStateDao {
 	)
 	suspend fun latestActiveCursor(provider: String): AmbientStepsImportCursorEntity?
 
+	/** Bounded singular-provider proof for current product availability and materialization. */
+	@Query(
+		"SELECT * FROM ambient_steps_import_cursor " +
+			"WHERE status = '${AmbientStepsImportCursorEntity.STATUS_ACTIVE}' " +
+			"ORDER BY registration_generation DESC LIMIT :limit",
+	)
+	suspend fun activeCursors(limit: Int): List<AmbientStepsImportCursorEntity>
+
+	/** Fixed-count historical cursor lookup for one bounded fact page. */
+	@Query(
+		"SELECT * FROM ambient_steps_import_cursor " +
+			"WHERE registration_generation IN (:registrationGenerations) " +
+			"ORDER BY registration_generation",
+	)
+	suspend fun cursors(
+		registrationGenerations: List<Long>,
+	): List<AmbientStepsImportCursorEntity>
+
 	/**
 	 * Monotonic compare-and-set used inside the eventual provider-read/fact transaction.
 	 * A repeated correction read may retain the same time high-water, but it must advance both the

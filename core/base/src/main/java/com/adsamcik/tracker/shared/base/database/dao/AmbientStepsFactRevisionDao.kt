@@ -112,6 +112,40 @@ interface AmbientStepsFactRevisionDao {
 		limit: Int,
 	): List<AmbientStepsStructuralDayRow>
 
+	/**
+	 * Stable keyset page for product readers. Callers request one overflow row and expose the final
+	 * accepted sort tuple as the continuation; a partial dependency page is never composed.
+	 */
+	@Query(
+		"WITH effective_fact AS (SELECT fact.* FROM ambient_steps_fact_revision AS fact " +
+			"WHERE fact.writer_id = :writerId AND fact.writer_version = :writerVersion " +
+			"AND fact.operation = '${AmbientStepsFactRevisionEntity.OPERATION_UPSERT}' " +
+			"AND fact.semantic_revision = (SELECT MAX(state.semantic_revision) " +
+			"FROM ambient_steps_fact_revision AS state WHERE state.writer_id = fact.writer_id " +
+			"AND state.writer_version = fact.writer_version " +
+			"AND state.logical_fact_id = fact.logical_fact_id)) " +
+			"SELECT structural_epoch_day, stored_zone_id, structural_day_start_time_ms, " +
+			"structural_day_end_time_ms, MAX(window_end_time_ms) AS latest_window_end_time_ms " +
+			"FROM effective_fact GROUP BY structural_epoch_day, stored_zone_id, " +
+			"structural_day_start_time_ms, structural_day_end_time_ms HAVING " +
+			":beforeLatestWindowEndTimeMs IS NULL OR " +
+			"MAX(window_end_time_ms) < :beforeLatestWindowEndTimeMs OR " +
+			"(MAX(window_end_time_ms) = :beforeLatestWindowEndTimeMs AND " +
+			"structural_epoch_day < :beforeEpochDay) OR " +
+			"(MAX(window_end_time_ms) = :beforeLatestWindowEndTimeMs AND " +
+			"structural_epoch_day = :beforeEpochDay AND stored_zone_id > :beforeStoredZoneId) " +
+			"ORDER BY latest_window_end_time_ms DESC, structural_epoch_day DESC, stored_zone_id ASC " +
+			"LIMIT :limit",
+	)
+	suspend fun discoverStructuralDayPage(
+		writerId: String,
+		writerVersion: Int,
+		beforeLatestWindowEndTimeMs: Long?,
+		beforeEpochDay: Long?,
+		beforeStoredZoneId: String?,
+		limit: Int,
+	): List<AmbientStepsStructuralDayRow>
+
 	/** One bounded fact read for a structural-day page; the caller groups by epoch-day and zone. */
 	@Query(
 		"SELECT candidate.* FROM ambient_steps_fact_revision AS candidate " +

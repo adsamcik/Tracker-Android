@@ -80,22 +80,26 @@ internal sealed interface SessionAmbientCompatibility {
 	data object Unproven : SessionAmbientCompatibility
 }
 
+internal enum class QualifiedSessionStepsOrigin { LOCAL_CAPTURE, PORTABLE_IMPORT }
+
 internal data class QualifiedSessionStepsWindow(
 	val logicalTrackingId: String,
 	val serviceRunId: String,
 	val startTimeMs: Long,
 	val endTimeMs: Long,
 	val stepCount: Long?,
-	val storedZoneId: String,
+	val storedZoneId: String?,
 	val compatibility: SessionAmbientCompatibility,
+	val origin: QualifiedSessionStepsOrigin = QualifiedSessionStepsOrigin.LOCAL_CAPTURE,
 ) {
 	init {
 		require(logicalTrackingId.isNotBlank())
 		require(serviceRunId.isNotBlank())
 		require(startTimeMs >= 0L)
-		require(endTimeMs > startTimeMs)
+		require(endTimeMs >= startTimeMs)
 		require(stepCount == null || stepCount >= 0L)
-		require(storedZoneId.isNotBlank())
+		require(storedZoneId == null || storedZoneId.isNotBlank())
+		storedZoneId?.let(ZoneId::of)
 	}
 }
 
@@ -106,6 +110,7 @@ internal enum class AmbientStepsDayCause {
 	AMBIENT_FACT_OVERLAP,
 	AMBIENT_COUNT_OVERFLOW,
 	AMBIENT_DAY_AUTHORITY_MISMATCH,
+	AMBIENT_AUTHORITY_UNVERIFIABLE,
 	SESSION_OUTSIDE_DAY,
 	SESSION_VALUE_UNAVAILABLE,
 	SESSION_OVERLAP,

@@ -94,11 +94,41 @@ class AmbientStepsFactRevisionDaoTest {
 		dao.revisions(WRITER_ID, WRITER_VERSION, fact.logicalFactId).shouldBeEmpty()
 	}
 
+	@Test
+	fun `structural day keyset page continues after the last accepted row`() = runTest {
+		val day0 = providerFact(1_000L, 2_000L, 1L)
+		val day1 = providerFact(86_401_000L, 86_402_000L, 2L, epochDay = 1L)
+		val day2 = providerFact(172_801_000L, 172_802_000L, 3L, epochDay = 2L)
+		listOf(day0, day1, day2).forEach { dao.insert(it) }
+
+		val first = dao.discoverStructuralDayPage(
+			WRITER_ID, WRITER_VERSION, null, null, null, limit = 2,
+		)
+		first shouldContainExactly listOf(
+			AmbientStepsStructuralDayRow(2L, "UTC", 172_800_000L, 259_200_000L, 172_802_000L),
+			AmbientStepsStructuralDayRow(1L, "UTC", 86_400_000L, 172_800_000L, 86_402_000L),
+		)
+		val tail = first.last()
+		dao.discoverStructuralDayPage(
+			WRITER_ID,
+			WRITER_VERSION,
+			tail.latestWindowEndTimeMs,
+			tail.structuralEpochDay,
+			tail.storedZoneId,
+			limit = 2,
+		) shouldContainExactly listOf(
+			AmbientStepsStructuralDayRow(0L, "UTC", 0L, 86_400_000L, 2_000L),
+		)
+	}
+
 	private fun providerFact(
 		startTimeMs: Long,
 		endTimeMs: Long,
 		stepCount: Long,
+		epochDay: Long = 0L,
 	): AmbientStepsFactRevisionEntity {
+		val dayStartTimeMs = epochDay * 86_400_000L
+		val dayEndTimeMs = dayStartTimeMs + 86_400_000L
 		val provider = AmbientStepsFactRevisionEntity.PROVIDER_LOCAL_RECORDING_STEPS
 		val logicalFactId = AmbientStepsFactIntegrity.logicalFactId(
 			provider,
@@ -106,7 +136,7 @@ class AmbientStepsFactRevisionDaoTest {
 			1L,
 			"ambient-instance",
 			startTimeMs,
-			0L,
+			epochDay,
 			"UTC",
 			7L,
 		)
@@ -133,10 +163,10 @@ class AmbientStepsFactRevisionDaoTest {
 				windowStartTimeMs = startTimeMs,
 				windowEndTimeMs = endTimeMs,
 				observedAtMs = endTimeMs,
-				structuralEpochDay = 0L,
+				structuralEpochDay = epochDay,
 				storedZoneId = "UTC",
-				structuralDayStartTimeMs = 0L,
-				structuralDayEndTimeMs = 86_400_000L,
+				structuralDayStartTimeMs = dayStartTimeMs,
+				structuralDayEndTimeMs = dayEndTimeMs,
 				stepCount = stepCount,
 				purpose = AmbientStepsFactRevisionEntity.PURPOSE_AMBIENT_PRODUCT,
 				sourcePolicyRevision = 1L,

@@ -296,6 +296,50 @@ class AmbientStepsImportStateDaoTest {
 		dao.countCursors() shouldBe 0L
 	}
 
+	@Test
+	fun `bounded cursor reads preserve exact active and historical registration identity`() = runTest {
+		val active = cursor()
+		val retired = cursor().copy(
+			registrationGeneration = 8L,
+			status = AmbientStepsImportCursorEntity.STATUS_RETIRED,
+		)
+		dao.insertCursor(active) shouldBe 1L
+		dao.insertCursor(retired) shouldBe 2L
+
+		dao.activeCursors(2) shouldContainExactly listOf(active)
+		dao.cursors(listOf(8L, 7L)) shouldContainExactly listOf(active, retired)
+	}
+
+	@Test
+	fun `zero-width structural transition gap has no effective product interval`() = runTest {
+		val start = 6_000L
+		val id = AmbientStepsImportGapIntegrity.gapId(
+			registrationGeneration = 7L,
+			gapSequence = 1L,
+			provider = PROVIDER,
+			sourceInstanceId = "ambient-instance",
+			reason = AmbientStepsImportGapEntity.REASON_ZONE_CHANGED,
+			gapStartTimeMs = start,
+			gapEndTimeMs = start,
+			predecessorRegistrationGeneration = null,
+			predecessorProvider = null,
+			previousClockDomainId = "boot-a",
+			nextClockDomainId = "boot-a",
+			previousZoneId = "UTC",
+			nextZoneId = "Europe/Prague",
+			collectedDataEpoch = 6L,
+		)
+		dao.insertGap(
+			AmbientStepsImportGapEntity(
+				id, 7L, 1L, PROVIDER, "ambient-instance",
+				AmbientStepsImportGapEntity.REASON_ZONE_CHANGED, start, start,
+				null, null, "boot-a", "boot-a", "UTC", "Europe/Prague", 6L, start,
+			),
+		) shouldBe 1L
+
+		dao.effectiveGapIntervalsOverlapping(5_000L, 7_000L, 2) shouldContainExactly emptyList()
+	}
+
 	private fun cursor() = AmbientStepsImportCursorEntity(
 		registrationGeneration = 7L,
 		provider = PROVIDER,
