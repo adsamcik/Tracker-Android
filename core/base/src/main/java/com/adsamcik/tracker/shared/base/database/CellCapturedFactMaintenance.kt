@@ -1018,6 +1018,11 @@ private suspend fun AppDatabase.authenticateCellRegistration(
 		CELL_SOURCE,
 		registration.registrationGeneration,
 	)
+	// Cell closes callback intake before retiring the provider and persists the exact retirement
+	// interval used below. Unlike Activity's registration arbiter, the Cell runtime does not publish
+	// the broker's capture-authorization barrier field, so its production value remains zero. Treat
+	// only a barrier beyond the retained authorization history as impossible; requiring equality here
+	// would make every ordinary retired Cell registration unverifiable.
 	val acceptedShape = when (registration.status) {
 		ProviderRegistrationGenerationEntity.STATUS_ACTIVE ->
 			retiredAtMs == null && retiredElapsedNanos == null && registration.failureCode == null
@@ -1041,9 +1046,7 @@ private suspend fun AppDatabase.authenticateCellRegistration(
 		(retiredElapsedNanos != null && acceptedElapsedNanos > retiredElapsedNanos) ||
 		expectedAuthorizationRevision <= 0L ||
 		expectedAuthorizationRevision > maximumCaptureAuthorizationRevision ||
-		registration.captureCallbackBarrierAuthorizationRevision > maximumCaptureAuthorizationRevision ||
-		(registration.status != ProviderRegistrationGenerationEntity.STATUS_ACTIVE &&
-			registration.captureCallbackBarrierAuthorizationRevision != maximumCaptureAuthorizationRevision)
+		registration.captureCallbackBarrierAuthorizationRevision > maximumCaptureAuthorizationRevision
 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	return acceptedElapsedNanos..(retiredElapsedNanos ?: Long.MAX_VALUE)
 }

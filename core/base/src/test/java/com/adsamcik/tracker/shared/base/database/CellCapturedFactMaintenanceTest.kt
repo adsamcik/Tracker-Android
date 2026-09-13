@@ -77,6 +77,22 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `retired Cell registration with production default callback barrier remains authentic`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS)
+
+		database.sourceBrokerDao().registration(
+			CELL_SOURCE,
+			REGISTRATION_GENERATION,
+		)?.captureCallbackBarrierAuthorizationRevision shouldBe 0L
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			beforeMs = FLOOR_MS,
+			expectedCollectedDataEpoch = 0L,
+			expectedDeletedSourceEventHighWaterOrdinal = 0L,
+			markedAtMs = MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.Pruned(1, 1)
+	}
+
+	@Test
 	fun `retention removes the complete owner dependency closure when a dependent crosses`() = runTest {
 		val owner = seedCapturedCell(
 			retainedFromMs = FLOOR_MS,
@@ -203,7 +219,7 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
-	fun `self consistent registration with impossible active retirement shape blocks retention`() = runTest {
+	fun `live registration status with stale retirement fields blocks retention`() = runTest {
 		seedCapturedCell(retainedFromMs = FLOOR_MS)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation SET status = 'ACTIVE' " +
@@ -222,7 +238,7 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
-	fun `callback barrier beyond retained capture authorization blocks retention`() = runTest {
+	fun `stale callback barrier beyond retained capture authorization blocks retention`() = runTest {
 		seedCapturedCell(retainedFromMs = FLOOR_MS)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation " +
@@ -1079,7 +1095,7 @@ class CellCapturedFactMaintenanceTest {
 		retiredAtMs = SESSION_END_WALL_MS,
 		retiredElapsedRealtimeNanos = REGISTRATION_END_NANOS,
 		failureCode = null,
-		captureCallbackBarrierAuthorizationRevision = AUTHORIZATION_REVISION,
+		captureCallbackBarrierAuthorizationRevision = 0L,
 	)
 
 	private fun segment() = SessionSegment(
