@@ -139,6 +139,32 @@ class ActivityCapturedFactCoalescerTest {
 	}
 
 	@Test
+	fun `unknown exit clips older unknown sampled activity`() {
+		val window = coalesced(
+			sampled("unknown", 100L, 90, 900L, CapturedActivityType.UNKNOWN),
+			transition(
+				"unknown-exit",
+				400L,
+				CapturedActivityType.UNKNOWN,
+				ActivityTransitionChange.EXIT,
+			),
+		)
+
+		window.bands.single().intervalStartElapsedRealtimeNanos shouldBe 100L
+		window.bands.single().intervalEndExclusiveElapsedRealtimeNanos shouldBe 400L
+		window.bands.single().evidence shouldContainExactly listOf(
+			reference("unknown", 100L),
+			reference("unknown-exit", 400L),
+		)
+		window.gaps.last() shouldBe ActivityCoverageGap(
+			400L,
+			1_000L,
+			ActivityCoverageGapReason.NO_QUALIFIED_EVIDENCE,
+		)
+		window.unchangedEvidenceCount shouldBe 0
+	}
+
+	@Test
 	fun `unmatched exit is a negative boundary for older compatible sample coverage`() {
 		val window = coalesced(
 			sampled("walking", 100L, 90, 900L, CapturedActivityType.WALKING),
