@@ -1,8 +1,10 @@
 package com.adsamcik.tracker.shared.base.database
 
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.dao.ActivityCapturedPortableWalTargetRow
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -11,6 +13,8 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
@@ -451,6 +455,9 @@ internal data class PortableActivityReadLimits(
 	val maximumTotalManifests: Int = 65_536,
 	val maximumTotalSources: Int = 262_144,
 	val maximumCompletenessRows: Int = 65_536,
+	val maximumCapturedWalRows: Int = 65_536,
+	val maximumLifecycleActions: Int = 65_536,
+	val maximumCaptureAuthorizations: Int = 65_536,
 	val maximumTerminalFailures: Int = 4_096,
 ) {
 	init {
@@ -464,6 +471,9 @@ internal data class PortableActivityReadLimits(
 			maximumTotalManifests,
 			maximumTotalSources,
 			maximumCompletenessRows,
+			maximumCapturedWalRows,
+			maximumLifecycleActions,
+			maximumCaptureAuthorizations,
 			maximumTerminalFailures,
 		).forEach { value -> require(value in 1 until Int.MAX_VALUE) }
 	}
@@ -793,16 +803,32 @@ internal class PortableCapturedActivityRoomReader(
 		}
 		validatePortableCompletenessAuthority(
 			rows = completeness,
+			runs = runs,
 			manifestsByRun = manifestsByRun,
 			sourcesByRun = sourcesByRun,
 			collectedDataEpoch = collectedDataEpoch,
 		)
-		val targetByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId)
+		val completenessTargetByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId)
 			.mapValues { (_, rows) ->
 				rows.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull()
 			}
-		if (capturedRuns.any { runId -> targetByRun[runId] == null }) {
+		if (capturedRuns.any { runId -> completenessTargetByRun[runId] == null }) {
 			abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+		val retainedWalTargetByRun = loadPortableCapturedWalTargets(
+			runs = runs,
+			manifestsByRun = manifestsByRun,
+			sourcesByRun = sourcesByRun,
+			collectedDataEpoch = collectedDataEpoch,
+		)
+		if (retainedWalTargetByRun.any { (runId, retainedTarget) ->
+				retainedTarget > (completenessTargetByRun[runId] ?: 0L)
+			}
+		) abort(PortableActivityExportUnverifiableReason.ENTRY_MATERIALIZING)
+		val targetByRun = completenessTargetByRun.mapValues { (runId, completenessTarget) ->
+			completenessTarget?.let { target ->
+				maxOf(target, retainedWalTargetByRun[runId] ?: 0L)
+			}
 		}
 		val groupTarget = targetByRun.values.filterNotNull().maxOrNull()
 			?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
@@ -886,8 +912,61 @@ internal class PortableCapturedActivityRoomReader(
 		return result
 	}
 
+	private suspend fun loadPortableCapturedWalTargets(
+		runs: List<SourceServiceRunEntity>,
+		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
+		sourcesByRun: Map<String, List<SessionManifestSourceEntity>>,
+		collectedDataEpoch: Long,
+	): Map<String, Long> {
+		val rows = mutableListOf<ActivityCapturedPortableWalTargetRow>()
+		runs.map(SourceServiceRunEntity::serviceRunId).chunked(SQLITE_BIND_BATCH).forEach { runIds ->
+			currentCoroutineContext().ensureActive()
+			rows += database.activityCapturedFactDao().portableCapturedWalTargets(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+				serviceRunIds = runIds,
+				capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+				limit = limits.maximumCapturedWalRows - rows.size + 1,
+			)
+			if (rows.size > limits.maximumCapturedWalRows) overflow()
+		}
+		val runsById = runs.associateBy(SourceServiceRunEntity::serviceRunId)
+		rows.forEach { row ->
+			val runId = row.serviceRunId
+			val run = runId?.let(runsById::get)
+			val manifestRevision = row.sessionManifestRevision
+			val manifest = manifestsByRun[runId].orEmpty().singleOrNull { candidate ->
+				candidate.manifestRevision == manifestRevision
+			}
+			val source = sourcesByRun[runId].orEmpty().singleOrNull { candidate ->
+				manifest != null && candidate.isCapturedActivityMember(manifest)
+			}
+			if (run == null || manifest == null || source == null ||
+				row.logicalTrackingId != run.logicalTrackingId || row.admissionOrdinal <= 0L ||
+				row.sourceSequence <= 0L || row.sourceInstanceId.isBlank() ||
+				row.registrationGeneration <= 0L ||
+				row.physicalConfigurationFingerprint.isNullOrBlank() ||
+				row.authorizationRevision?.let { revision -> revision > 0L } != true ||
+				row.authorizationFingerprint.isNullOrBlank() ||
+				row.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
+				row.configRevision != manifest.acquisitionPlanRevision ||
+				row.clockDomainId != run.bootId || row.clockDomainId != manifest.effectiveBootId ||
+				row.observedElapsedNanos < manifest.effectiveElapsedRealtimeNanos ||
+				row.receivedElapsedNanos < row.observedElapsedNanos ||
+				row.capturedCollectedDataEpoch != collectedDataEpoch ||
+				row.sourcePolicyRevision != manifest.sourcePolicyRevision ||
+				row.captureConsentEpoch != source.consentEpoch ||
+				row.lifecycleLeaseGeneration != run.leaseGeneration ||
+				!SHA_256_HEX.matches(row.integrityIdentity)
+			) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+		return rows.groupBy { row -> requireNotNull(row.serviceRunId) }
+			.mapValues { (_, values) -> values.maxOf { row -> row.admissionOrdinal } }
+	}
+
+	@Suppress("CyclomaticComplexMethod", "LongMethod")
 	private suspend fun validatePortableCompletenessAuthority(
 		rows: List<SourceSessionCompletenessEntity>,
+		runs: List<SourceServiceRunEntity>,
 		manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 		sourcesByRun: Map<String, List<SessionManifestSourceEntity>>,
 		collectedDataEpoch: Long,
@@ -915,6 +994,10 @@ internal class PortableCapturedActivityRoomReader(
 		if (providersByGeneration.size != providers.size || providersByGeneration.keys != generations.toSet()) {
 			abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
+		val runIds = runs.map(SourceServiceRunEntity::serviceRunId)
+		val actions = loadPortableLifecycleActions(runIds)
+		val authorizations = loadPortableCaptureAuthorizations(generations, runIds)
+		val runsById = runs.associateBy(SourceServiceRunEntity::serviceRunId)
 		positiveRows.forEach { row ->
 			val plan = plansByKey[row.sourceInstanceId to row.registrationGeneration]
 				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
@@ -926,9 +1009,22 @@ internal class PortableCapturedActivityRoomReader(
 				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 			val manifests = manifestsByRun[row.serviceRunId].orEmpty()
 			val sources = sourcesByRun[row.serviceRunId].orEmpty()
-			val hasMatchingManifest = manifests.any { manifest ->
+			val run = runsById[row.serviceRunId]
+				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			val matchingManifests = manifests.filter { manifest ->
 				manifest.acquisitionPlanRevision == plan.configurationRevision &&
 					sources.any { source -> source.isCapturedActivityMember(manifest) }
+			}
+			val acceptedActions = actions.filter { action ->
+				action.serviceRunId == row.serviceRunId &&
+					action.sourceInstanceId == row.sourceInstanceId &&
+					action.registrationGeneration == row.registrationGeneration &&
+					action.status == PORTABLE_START_ACCEPTED &&
+					action.desiredState == PORTABLE_ACTION_STARTED
+			}
+			val capturedAuthorizations = authorizations.filter { authorization ->
+				authorization.serviceRunId == row.serviceRunId &&
+					authorization.registrationGeneration == row.registrationGeneration
 			}
 			if (plan.desiredPlanPayloadVersion != desired.payloadVersion ||
 				!plan.desiredPlanPayload.contentEquals(desired.payload) ||
@@ -936,16 +1032,187 @@ internal class PortableCapturedActivityRoomReader(
 				plan.desiredPlanPayloadChecksum != sha256(plan.desiredPlanPayload) ||
 				plan.bindingIdentity != plan.calculatedBindingIdentity() || !decodedPlan.enabled ||
 				plan.physicalConfigurationFingerprint != decodedPlan.physicalConfigurationFingerprint ||
-				!hasMatchingManifest ||
+				matchingManifests.isEmpty() || acceptedActions.isEmpty() ||
+				capturedAuthorizations.isEmpty() ||
 				provider.sourceKind != SourceDestinationOwnerEntity.SOURCE_ACTIVITY ||
 				provider.sourceInstanceId != row.sourceInstanceId ||
 				provider.registrationGeneration != row.registrationGeneration ||
+				provider.ownerScope != PORTABLE_ACTIVITY_PROVIDER_OWNER_SCOPE ||
+				provider.clockDomainId != run.bootId ||
 				provider.physicalConfigurationFingerprint != plan.physicalConfigurationFingerprint ||
 				provider.collectedDataEpoch != collectedDataEpoch || provider.acceptedAtMs == null ||
 				provider.acceptedElapsedRealtimeNanos == null ||
-				provider.status !in PORTABLE_ACCEPTED_PROVIDER_STATUSES
+				provider.providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ||
+				provider.providerProcessIncarnationId.isNullOrBlank() ||
+				provider.status !in PORTABLE_ACCEPTED_PROVIDER_STATUSES ||
+				!provider.hasValidPortableChronology(plan) ||
+				provider.captureCallbackBarrierAuthorizationRevision <
+					capturedAuthorizations.maxOf(SourceAuthorizationEntity::authorizationRevision)
 			) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			acceptedActions.forEach { action ->
+				validatePortableAcceptedAction(action, run, matchingManifests, sources, provider, plan)
+			}
+			capturedAuthorizations.forEach { authorization ->
+				validatePortableCaptureAuthorization(
+					authorization,
+					run,
+					manifests,
+					sources,
+					provider,
+					acceptedActions,
+				)
+			}
 		}
+	}
+
+	private suspend fun loadPortableLifecycleActions(
+		runIds: List<String>,
+	): List<LifecycleDesiredActionEntity> {
+		val result = mutableListOf<LifecycleDesiredActionEntity>()
+		runIds.chunked(SQLITE_BIND_BATCH).forEach { batch ->
+			currentCoroutineContext().ensureActive()
+			result += database.activityCapturedFactDao().portableLifecycleActions(
+				SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+				batch,
+				limits.maximumLifecycleActions - result.size + 1,
+			)
+			if (result.size > limits.maximumLifecycleActions) overflow()
+		}
+		return result
+	}
+
+	private suspend fun loadPortableCaptureAuthorizations(
+		generations: List<Long>,
+		runIds: List<String>,
+	): List<SourceAuthorizationEntity> {
+		val result = mutableListOf<SourceAuthorizationEntity>()
+		generations.chunked(SQLITE_BIND_BATCH).forEach { generationBatch ->
+			runIds.chunked(SQLITE_BIND_BATCH).forEach { runBatch ->
+				currentCoroutineContext().ensureActive()
+				result += database.activityCapturedFactDao().portableCaptureAuthorizations(
+					SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+					generationBatch,
+					runBatch,
+					SourceBrokerPurpose.SESSION_CAPTURE,
+					limits.maximumCaptureAuthorizations - result.size + 1,
+				)
+				if (result.size > limits.maximumCaptureAuthorizations) overflow()
+			}
+		}
+		return result
+	}
+
+	@Suppress("ComplexCondition")
+	private fun ProviderRegistrationGenerationEntity.hasValidPortableChronology(
+		plan: ActivityCapturedRegistrationPlanEntity,
+	): Boolean {
+		val acceptedWall = acceptedAtMs ?: return false
+		val acceptedElapsed = acceptedElapsedRealtimeNanos ?: return false
+		if (reservedAtMs > acceptedWall || reservedElapsedRealtimeNanos > acceptedElapsed ||
+			plan.appliedAtElapsedRealtimeNanos != acceptedElapsed
+		) return false
+		return when (status) {
+			ProviderRegistrationGenerationEntity.STATUS_ACTIVE ->
+				retiredAtMs == null && retiredElapsedRealtimeNanos == null && failureCode == null
+			ProviderRegistrationGenerationEntity.STATUS_RETIRING,
+			ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			-> retiredAtMs?.let { retiredWall -> retiredWall >= acceptedWall } == true &&
+				retiredElapsedRealtimeNanos?.let { retiredElapsed -> retiredElapsed >= acceptedElapsed } == true
+			else -> false
+		}
+	}
+
+	@Suppress("ComplexCondition")
+	private fun validatePortableAcceptedAction(
+		action: LifecycleDesiredActionEntity,
+		run: SourceServiceRunEntity,
+		matchingManifests: List<SessionManifestVersionEntity>,
+		sources: List<SessionManifestSourceEntity>,
+		provider: ProviderRegistrationGenerationEntity,
+		plan: ActivityCapturedRegistrationPlanEntity,
+	) {
+		val manifest = matchingManifests.singleOrNull { candidate ->
+			candidate.manifestRevision == action.manifestRevision
+		} ?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		val source = sources.singleOrNull { candidate -> candidate.isCapturedActivityMember(manifest) }
+			?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		val acknowledgedWall = action.acknowledgedAtMs
+		val acknowledgedElapsed = action.acknowledgedElapsedRealtimeNanos
+		if (action.actionId.isBlank() || action.logicalTrackingId != run.logicalTrackingId ||
+			action.serviceRunId != run.serviceRunId || action.actionRevision <= 0L ||
+			action.actionFamily != PORTABLE_SOURCE_RUNTIME_ACTION ||
+			action.sourceKind != SourceDestinationOwnerEntity.SOURCE_ACTIVITY ||
+			action.desiredState != PORTABLE_ACTION_STARTED ||
+			action.desiredPlanRevision != plan.configurationRevision ||
+			action.sourcePolicyRevision != manifest.sourcePolicyRevision ||
+			action.consentEpoch != source.consentEpoch || action.startOrigin != manifest.startOrigin ||
+			action.bootId != run.bootId || action.bootId != manifest.effectiveBootId ||
+			action.leaseGeneration != run.leaseGeneration || action.attemptCount <= 0 ||
+			action.status != PORTABLE_START_ACCEPTED || action.failureCode != null ||
+			action.retryTrigger != null || action.sourceInstanceId != provider.sourceInstanceId ||
+			action.registrationGeneration != provider.registrationGeneration ||
+			action.requestedAtMs < run.startedAtMs ||
+			action.requestedAtMs < manifest.effectiveWallTimeMs ||
+			action.requestedElapsedRealtimeNanos < run.startedElapsedNanos ||
+			action.requestedElapsedRealtimeNanos < manifest.effectiveElapsedRealtimeNanos ||
+			acknowledgedWall == null || acknowledgedElapsed == null ||
+			acknowledgedWall < action.requestedAtMs ||
+			acknowledgedElapsed < action.requestedElapsedRealtimeNanos ||
+			acknowledgedWall < requireNotNull(provider.acceptedAtMs) ||
+			acknowledgedElapsed < requireNotNull(provider.acceptedElapsedRealtimeNanos) ||
+			acknowledgedElapsed < plan.appliedAtElapsedRealtimeNanos ||
+			acknowledgedWall > requireNotNull(run.completedAtMs) ||
+			provider.retiredAtMs?.let { retired -> acknowledgedWall > retired } == true ||
+			provider.retiredElapsedRealtimeNanos?.let { retired ->
+				acknowledgedElapsed > retired
+			} == true
+		) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+	}
+
+	@Suppress("ComplexCondition")
+	private fun validatePortableCaptureAuthorization(
+		authorization: SourceAuthorizationEntity,
+		run: SourceServiceRunEntity,
+		manifests: List<SessionManifestVersionEntity>,
+		sources: List<SessionManifestSourceEntity>,
+		provider: ProviderRegistrationGenerationEntity,
+		acceptedActions: List<LifecycleDesiredActionEntity>,
+	) {
+		val manifestRevision = authorization.manifestRevision
+		val manifest = manifests.singleOrNull { candidate ->
+			candidate.manifestRevision == manifestRevision
+		} ?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		val source = sources.singleOrNull { candidate -> candidate.isCapturedActivityMember(manifest) }
+			?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		val acceptedElapsed = requireNotNull(provider.acceptedElapsedRealtimeNanos)
+		val acceptedWall = requireNotNull(provider.acceptedAtMs)
+		if (authorization.isDenyAll || authorization.memberId.isBlank() ||
+			authorization.authorizationRevision <= 0L ||
+			authorization.authorizationFingerprint.isBlank() ||
+			authorization.purpose != SourceBrokerPurpose.SESSION_CAPTURE ||
+			authorization.purposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
+			authorization.logicalTrackingId != run.logicalTrackingId ||
+			authorization.serviceRunId != run.serviceRunId ||
+			authorization.lifecycleLeaseGeneration != run.leaseGeneration ||
+			authorization.sourcePolicyRevision != manifest.sourcePolicyRevision ||
+			authorization.consentEpoch != source.consentEpoch || !authorization.persistenceEligible ||
+			authorization.effectiveBootId != run.bootId ||
+			authorization.effectiveBootId != manifest.effectiveBootId ||
+			authorization.effectiveElapsedRealtimeNanos < run.startedElapsedNanos ||
+			authorization.effectiveElapsedRealtimeNanos < manifest.effectiveElapsedRealtimeNanos ||
+			authorization.effectiveElapsedRealtimeNanos < acceptedElapsed ||
+			authorization.effectiveWallTimeMs < run.startedAtMs ||
+			authorization.effectiveWallTimeMs < manifest.effectiveWallTimeMs ||
+			authorization.effectiveWallTimeMs < acceptedWall ||
+			authorization.effectiveWallTimeMs > requireNotNull(run.completedAtMs) ||
+			provider.retiredElapsedRealtimeNanos?.let { retired ->
+				authorization.effectiveElapsedRealtimeNanos > retired
+			} == true || provider.retiredAtMs?.let { retired ->
+				authorization.effectiveWallTimeMs > retired
+			} == true || acceptedActions.none { action ->
+				action.manifestRevision == manifest.manifestRevision
+			}
+		) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 	}
 
 	private suspend fun loadPortableRegistrationPlans(
@@ -1634,6 +1901,11 @@ private const val MANUAL_SESSION_CAPTURE_MASK = 1L
 private const val AUTOMATIC_SESSION_CAPTURE_MASK = 2L
 private const val PORTABLE_SESSION_CAPTURE_MASK =
 	MANUAL_SESSION_CAPTURE_MASK or AUTOMATIC_SESSION_CAPTURE_MASK
+private const val PORTABLE_SOURCE_RUNTIME_ACTION = "SOURCE_RUNTIME"
+private const val PORTABLE_ACTION_STARTED = "STARTED"
+private const val PORTABLE_START_ACCEPTED = "START_ACCEPTED"
+private val PORTABLE_ACTIVITY_PROVIDER_OWNER_SCOPE =
+	"source-broker:${SourceDestinationOwnerEntity.SOURCE_ACTIVITY}"
 private const val COMPLETE_STOP_STATUS = "COMPLETE"
 private const val UNOBSERVABLE_PROVIDER_COVERAGE = "PROVIDER_COMPLETENESS_UNOBSERVABLE"
 private const val NOT_OWNED_ACTIVITY_INSTANCE = "not-owned-activity"

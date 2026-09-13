@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEn
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -449,6 +450,50 @@ class ActivityCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `portable export treats retained WAL above stale completeness as materializing`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(2L)
+		var sinkCalls = 0
+
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.ENTRY_MATERIALIZING,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export accepts retained WAL only at the exact drained target`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(2L)
+		replaceActivityCompleteness(lastAdmissionOrdinal = 2L, lastSourceSequence = 2L)
+		updateFinalAdmissionOrdinal(2L)
+		replaceActivityLane(activityProductLane(contiguousAdmissionOrdinal = 2L))
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export fails closed when retained WAL target proof exceeds its bound`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(1L)
+		insertActivityWalEvent(2L)
+		val reader = portableReader(
+			limits = PortableActivityReadLimits(maximumCapturedWalRows = 1),
+		)
+
+		reader.read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.DEPENDENCY_OVERFLOW,
+				),
+			)
+	}
+
+	@Test
 	fun `portable export accepts the exact settled Activity lane target`() = runTest {
 		seedCapturedActivity()
 
@@ -469,6 +514,24 @@ class ActivityCapturedFactMaintenanceTest {
 					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
 				),
 			)
+	}
+
+	@Test
+	fun `portable export authenticates a factless replacement provider before emission`() = runTest {
+		seedCapturedActivity()
+		installTerminalReplacement(capturesActivity = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET owner_scope = 'foreign-owner' " +
+				"WHERE source_kind = $ACTIVITY_SOURCE AND registration_generation = 2",
+		)
+		var sinkCalls = 0
+
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 4_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+		)
+		sinkCalls shouldBe 0
 	}
 
 	@Test
@@ -820,6 +883,7 @@ class ActivityCapturedFactMaintenanceTest {
 			),
 		)
 		database.sourceSessionDao().insertManifestSources(listOf(source))
+		database.sourceSessionDao().insertLifecycleActions(listOf(captureStartAction()))
 		val policies = mutableListOf(historicalPolicy())
 		if (revokedCapture) policies += revokedPolicy()
 		database.sourcePolicyDao().insertPolicies(policies)
@@ -1000,12 +1064,73 @@ class ActivityCapturedFactMaintenanceTest {
 		)
 		if (replacementSources.isNotEmpty()) {
 			sessionDao.insertManifestSources(replacementSources)
+			val planPayload = activityPlanPayload()
+			val planChecksum = sha256(planPayload)
+			database.activityCapturedFactDao().insertRegistrationPlanBinding(
+				ActivityCapturedRegistrationPlanEntity.create(
+					sourceInstanceId = REPLACEMENT_SOURCE_INSTANCE_ID,
+					registrationGeneration = 2L,
+					configurationRevision = 1L,
+					desiredPlanPayloadVersion = 1,
+					desiredPlanPayload = planPayload,
+					desiredPlanPayloadChecksum = planChecksum,
+					physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
+					appliedAtElapsedRealtimeNanos = 600L,
+					applyStatus = "APPLIED",
+				),
+			)
+			database.sourceBrokerDao().insertRegistration(
+				registration(
+					active = false,
+					registrationGeneration = 2L,
+					sourceInstanceId = REPLACEMENT_SOURCE_INSTANCE_ID,
+					reservedAtMs = 3_000L,
+					reservedElapsedNanos = 590L,
+					acceptedAtMs = 3_100L,
+					acceptedElapsedNanos = 600L,
+					retiredAtMs = 3_900L,
+					retiredElapsedNanos = 890L,
+					callbackBarrierRevision = 2L,
+				),
+			)
+			sessionDao.insertLifecycleActions(
+				listOf(
+					captureStartAction(
+						serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+						manifestRevision = 2L,
+						actionRevision = 2L,
+						leaseGeneration = 2L,
+						requestedAtMs = 3_100L,
+						requestedElapsedNanos = 600L,
+						sourceInstanceId = REPLACEMENT_SOURCE_INSTANCE_ID,
+						registrationGeneration = 2L,
+					),
+				),
+			)
+			database.sourceBrokerDao().insertAuthorizations(
+				listOf(
+					authorization().copy(
+						authorizationRevision = 2L,
+						memberId = "capture-member-replacement",
+						registrationGeneration = 2L,
+						logicalTrackingId = LOGICAL_TRACKING_ID,
+						serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+						manifestRevision = 2L,
+						lifecycleLeaseGeneration = 2L,
+						effectiveElapsedRealtimeNanos = 600L,
+						effectiveWallTimeMs = 3_100L,
+					),
+				),
+			)
 		}
 		sessionDao.saveCompleteness(
 			if (capturesActivity) {
 				activityCompleteness().copy(
 					serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
 					logicalTrackingId = LOGICAL_TRACKING_ID,
+					sourceInstanceId = REPLACEMENT_SOURCE_INSTANCE_ID,
+					registrationGeneration = 2L,
+					updatedAtMs = 4_000L,
 				)
 			} else {
 				SourceSessionCompletenessEntity(
@@ -1395,10 +1520,21 @@ class ActivityCapturedFactMaintenanceTest {
 		effectiveWallTimeMs = 4_000L,
 	)
 
-	private fun registration(active: Boolean) = ProviderRegistrationGenerationEntity(
+	private fun registration(
+		active: Boolean,
+		registrationGeneration: Long = 1L,
+		sourceInstanceId: String = SOURCE_INSTANCE_ID,
+		reservedAtMs: Long = 900L,
+		reservedElapsedNanos: Long = 90L,
+		acceptedAtMs: Long = 1_000L,
+		acceptedElapsedNanos: Long = 100L,
+		retiredAtMs: Long = 3_500L,
+		retiredElapsedNanos: Long = 1_000L,
+		callbackBarrierRevision: Long = 1L,
+	) = ProviderRegistrationGenerationEntity(
 		sourceKind = ACTIVITY_SOURCE,
-		registrationGeneration = 1L,
-		sourceInstanceId = SOURCE_INSTANCE_ID,
+		registrationGeneration = registrationGeneration,
+		sourceInstanceId = sourceInstanceId,
 		ownerScope = "source-broker:$ACTIVITY_SOURCE",
 		clockDomainId = BOOT_ID,
 		physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
@@ -1407,13 +1543,50 @@ class ActivityCapturedFactMaintenanceTest {
 		providerProcessIncarnationId = "process-1",
 		status = if (active) ProviderRegistrationGenerationEntity.STATUS_ACTIVE else
 			ProviderRegistrationGenerationEntity.STATUS_RETIRED,
-		reservedAtMs = 900L,
-		reservedElapsedRealtimeNanos = 90L,
-		acceptedAtMs = 1_000L,
-		acceptedElapsedRealtimeNanos = 100L,
-		retiredAtMs = 3_500L.takeUnless { active },
-		retiredElapsedRealtimeNanos = 1_000L.takeUnless { active },
+		reservedAtMs = reservedAtMs,
+		reservedElapsedRealtimeNanos = reservedElapsedNanos,
+		acceptedAtMs = acceptedAtMs,
+		acceptedElapsedRealtimeNanos = acceptedElapsedNanos,
+		retiredAtMs = retiredAtMs.takeUnless { active },
+		retiredElapsedRealtimeNanos = retiredElapsedNanos.takeUnless { active },
 		failureCode = null,
+		captureCallbackBarrierAuthorizationRevision = callbackBarrierRevision,
+	)
+
+	private fun captureStartAction(
+		serviceRunId: String = SERVICE_RUN_ID,
+		manifestRevision: Long = 1L,
+		actionRevision: Long = 1L,
+		leaseGeneration: Long = 1L,
+		requestedAtMs: Long = 1_000L,
+		requestedElapsedNanos: Long = 100L,
+		sourceInstanceId: String = SOURCE_INSTANCE_ID,
+		registrationGeneration: Long = 1L,
+	) = LifecycleDesiredActionEntity(
+		actionId = "activity-start-$serviceRunId-$manifestRevision",
+		logicalTrackingId = LOGICAL_TRACKING_ID,
+		serviceRunId = serviceRunId,
+		manifestRevision = manifestRevision,
+		actionRevision = actionRevision,
+		actionFamily = "SOURCE_RUNTIME",
+		sourceKind = ACTIVITY_SOURCE,
+		desiredState = "STARTED",
+		desiredPlanRevision = 1L,
+		sourcePolicyRevision = 1L,
+		consentEpoch = 0L,
+		startOrigin = "MANUAL_FOREGROUND_START",
+		bootId = BOOT_ID,
+		leaseGeneration = leaseGeneration,
+		requestedAtMs = requestedAtMs,
+		requestedElapsedRealtimeNanos = requestedElapsedNanos,
+		status = "START_ACCEPTED",
+		attemptCount = 1,
+		acknowledgedAtMs = requestedAtMs,
+		acknowledgedElapsedRealtimeNanos = requestedElapsedNanos,
+		failureCode = null,
+		retryTrigger = null,
+		sourceInstanceId = sourceInstanceId,
+		registrationGeneration = registrationGeneration,
 	)
 
 	private fun activityCompleteness(
@@ -1667,6 +1840,7 @@ class ActivityCapturedFactMaintenanceTest {
 		private const val SERVICE_RUN_ID = "activity-maintenance-run"
 		private const val REPLACEMENT_SERVICE_RUN_ID = "activity-maintenance-replacement-run"
 		private const val SOURCE_INSTANCE_ID = "activity-maintenance-provider"
+		private const val REPLACEMENT_SOURCE_INSTANCE_ID = "activity-maintenance-replacement-provider"
 		private const val PHYSICAL_FINGERPRINT =
 			"9f472d9529dc1da87eadbc931567884a453cc8dfd499ffb2f7a733520f854a6f"
 		private const val AUTHORIZATION_FINGERPRINT = "activity-maintenance-authorization"

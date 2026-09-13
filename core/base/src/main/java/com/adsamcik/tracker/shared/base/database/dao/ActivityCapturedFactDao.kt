@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -9,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEn
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
@@ -240,6 +242,53 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 	): List<SourceSessionCompletenessEntity>
 
+	/** Payload-free retained Activity WAL rows used to prove each selected run's true high-water. */
+	@Query(
+		"SELECT admission_ordinal, logical_tracking_id, service_run_id, source_instance_id, " +
+			"registration_generation, physical_configuration_fingerprint, authorization_revision, " +
+			"authorization_purpose_eligibility_mask, authorization_fingerprint, source_sequence, " +
+			"config_revision, clock_domain_id, observed_elapsed_nanos, received_elapsed_nanos, " +
+			"captured_collected_data_epoch, source_policy_revision, capture_consent_epoch, " +
+			"session_manifest_revision, lifecycle_lease_generation, integrity_identity " +
+			"FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND service_run_id IN (:serviceRunIds) " +
+			"AND (authorization_purpose_eligibility_mask & :capturePurposeMask) != 0 " +
+			"ORDER BY service_run_id, admission_ordinal LIMIT :limit",
+	)
+	suspend fun portableCapturedWalTargets(
+		sourceKind: Int,
+		serviceRunIds: List<String>,
+		capturePurposeMask: Long,
+		limit: Int,
+	): List<ActivityCapturedPortableWalTargetRow>
+
+	/** Bounded immutable lifecycle acknowledgements binding a provider generation to selected runs. */
+	@Query(
+		"SELECT * FROM lifecycle_desired_action WHERE source_kind = :sourceKind " +
+			"AND service_run_id IN (:serviceRunIds) " +
+			"ORDER BY service_run_id, action_revision LIMIT :limit",
+	)
+	suspend fun portableLifecycleActions(
+		sourceKind: Int,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<LifecycleDesiredActionEntity>
+
+	/** Bounded captured authorization ownership used to authenticate terminal callback barriers. */
+	@Query(
+		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation IN (:registrationGenerations) " +
+			"AND service_run_id IN (:serviceRunIds) AND purpose = :capturePurpose " +
+			"ORDER BY registration_generation, authorization_revision, member_id LIMIT :limit",
+	)
+	suspend fun portableCaptureAuthorizations(
+		sourceKind: Int,
+		registrationGenerations: List<Long>,
+		serviceRunIds: List<String>,
+		capturePurpose: String,
+		limit: Int,
+	): List<SourceAuthorizationEntity>
+
 	/** Nonterminal captured demands include prepared rows that could later become active. */
 	@Query(
 		"SELECT * FROM source_demand WHERE source_kind = :sourceKind " +
@@ -434,3 +483,29 @@ interface ActivityCapturedFactDao {
 	@Query("DELETE FROM activity_captured_registration_plan")
 	fun deleteAllRegistrationPlanBindings()
 }
+
+/** Minimal source-owned WAL header; payload bytes and provider identifiers never leave Room. */
+data class ActivityCapturedPortableWalTargetRow(
+	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
+	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
+	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
+	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String,
+	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long,
+	@ColumnInfo(name = "physical_configuration_fingerprint")
+	val physicalConfigurationFingerprint: String?,
+	@ColumnInfo(name = "authorization_revision") val authorizationRevision: Long?,
+	@ColumnInfo(name = "authorization_purpose_eligibility_mask")
+	val authorizationPurposeEligibilityMask: Long,
+	@ColumnInfo(name = "authorization_fingerprint") val authorizationFingerprint: String?,
+	@ColumnInfo(name = "source_sequence") val sourceSequence: Long,
+	@ColumnInfo(name = "config_revision") val configRevision: Long?,
+	@ColumnInfo(name = "clock_domain_id") val clockDomainId: String,
+	@ColumnInfo(name = "observed_elapsed_nanos") val observedElapsedNanos: Long,
+	@ColumnInfo(name = "received_elapsed_nanos") val receivedElapsedNanos: Long,
+	@ColumnInfo(name = "captured_collected_data_epoch") val capturedCollectedDataEpoch: Long,
+	@ColumnInfo(name = "source_policy_revision") val sourcePolicyRevision: Long?,
+	@ColumnInfo(name = "capture_consent_epoch") val captureConsentEpoch: Long?,
+	@ColumnInfo(name = "session_manifest_revision") val sessionManifestRevision: Long?,
+	@ColumnInfo(name = "lifecycle_lease_generation") val lifecycleLeaseGeneration: Long?,
+	@ColumnInfo(name = "integrity_identity") val integrityIdentity: String,
+)
