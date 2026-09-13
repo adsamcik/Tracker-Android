@@ -3330,3 +3330,20 @@ Each entry records repository evidence and does not duplicate the final architec
   summary, or numeric value. Stale or corrupt markers fail closed; retained siblings remain visible.
   The fixed coarse candidate budget may return a short page under extreme manifest-only noise, but
   it cannot publish an unqualified group.
+
+## TI-D209 — Activity product reads bind complete lifecycle and materialization truth
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/API/tests `eb4f426b6` through
+  `d0bf3bf59`; TI-B272.
+- Activity-only discovery is fact-backed, bounded, page-aware, and expands complete logical
+  replacement membership inside one Room transaction. It authenticates immutable desired-plan and
+  registration-plan fingerprints, policy/consent, lane execution/terminal settlement, cursor,
+  deletion/retention, manifest-window coverage, reciprocal segment binding, and stored zone.
+- The current logical pointer must name the sole nonterminal replacement run and bind its current
+  manifest, lease, boot, and exact closed lifecycle vocabulary. Completion fields and session/run
+  phases must form a canonical pair; STOPPING carries its paired immutable cutoff and unknown,
+  idle, crossed, or multiply active shapes fail closed.
+- A newly effective capture manifest that has not produced its first fact contributes no invented
+  unbounded duration. Earlier qualified facts remain visible and the group stays typed partial and
+  materialization-behind. Physical run and event identities remain internal; no control-only input,
+  `sample_count`, or Location inference is used.

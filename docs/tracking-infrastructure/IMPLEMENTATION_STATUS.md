@@ -36,6 +36,15 @@ the source-logic findings as **IMPLEMENTED_UNVALIDATED**. The generated v28 Room
 stale and is an explicit convergence blocker. Runtime activation, product history/UI, export,
 deletion integration, and control-retention behavior remain open.
 
+The separate Activity product branch is independently accepted through `d0bf3bf59`. Its bounded
+one-transaction repository discovers Activity-only logical entries from retained facts, expands
+complete replacement membership across pages, authenticates exact manifest/plan/registration,
+lane execution, cursor, deletion/retention and canonical lifecycle settlement, and composes explicit
+authorized-window gaps. Live state accepts only the closed canonical session/run vocabulary,
+including exact STOPPING cutoff and permitted RECONFIGURING phases; a newly effective capture
+manifest without its first fact stays bounded and partial/materializing. Shared UI and runtime
+projection remain open.
+
 The isolated Pressure branch is clean at `3b8abe350`. Commits `8768767d4` through `8b076e6f7`
 provide fact-driven zero-sample discovery, reciprocal run/segment binding, complete replacement-run
 membership, immutable correction attribution, bounded and cancellable fact traversal, typed
@@ -93,8 +102,9 @@ bounded active attempts, product history, and UI remain open.
 Git/worktree reconciliation found no accepted committed implementation stranded or lost: imported
 Steps branches are contained or patch-equivalent in the coordinator, the older Pressure and numeric
 branches are ancestors, and the two dirty portable-import/qualified-awards drafts remain frozen
-reference inputs only. Activity and Ambient product composition and Cell persistence remain active
-isolated lanes whose current review findings must be corrected before acceptance.
+reference inputs only. Ambient product composition and Cell persistence remain active isolated lanes
+whose current review findings must be corrected before acceptance. Activity WAL admission is a
+separate dormant lane under review.
 
 The checked-in v28 JSON now declares 79 entities: 51 released-v27 entities plus 28 narrowly owned
 v28 additions. Its identity hash is intentionally stale and Room/Kotlin/SQL generation or checking

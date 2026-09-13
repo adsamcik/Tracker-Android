@@ -1925,3 +1925,27 @@ Deferred focused command:
 The command was not run. Compilation, Room/worker execution, physical retention timing, repair,
 portable transfer, shared UI, large-store paging behavior, device storage, integration, activation,
 and release remain unproven.
+
+## TI-B272 — Activity source-specific product-read contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `d0bf3bf59`. Authored API, DAO, composer, pager,
+repository, and real-Room tests cover Activity-fact-backed discovery, complete replacement expansion
+across 32-member pages, one-transaction selected/recent loading, immutable plan and registration
+fingerprints, policy/consent ordering, manifest-window gaps, lane execution/terminal settlement,
+cursor/deletion/retention authority, exact active pointer and current manifest/lease/boot, canonical
+live and STOPPING state pairs, completion parity, and a newest manifest awaiting its first fact as
+bounded partial/materialization-behind. Repeated independent reviews rejected incomplete coverage,
+lane authority, unbounded paging, stale active pointers, lifecycle pairing, and invented active-tail
+duration before accepting the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:api:jvmTest --tests '*ActivityHistory*' :stats:data:testDebugUnitTest --tests '*ActivityHistory*' --tests '*ActivityRecentHistoryPagerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. The author inadvertently invoked a no-op
+`git diff --check --no-index NUL NUL`; it inspected no repository content and is discarded as
+evidence. Compilation, Room query execution, generated v28 schema convergence, runtime projection,
+shared UI, device/provider behavior,
+integration, activation, and release remain unproven.

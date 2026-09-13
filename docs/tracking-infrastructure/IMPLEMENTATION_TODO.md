@@ -629,6 +629,13 @@ retention. The generated v28 Room schema JSON remains stale and must converge la
 remain unchecked until schema generation, runtime source binding, maintenance, transfer, product
 reads/UI, and complete authored scenarios exist.
 
+Accepted isolated Activity product commits `eb4f426b6` through `d0bf3bf59` implement source-specific
+bounded recent/selected reads for portions of ACT-008/010. They discover from Activity facts,
+authenticate complete logical replacement and lifecycle/lane/plan/cursor authority, preserve
+explicit gaps and materializing/partial state, and expose no physical run IDs or control-only
+history. ACT-008/010 remain unchecked until runtime projection, Today/Timeline/Calendar/detail/live
+consumers, maintenance/transfer, and the complete authored scenario cohort exist.
+
 ## Wi-Fi vertical
 
 - [ ] TODO-WIFI-001 Complete one app-scoped Wi-Fi callback owner and stable durable delivery

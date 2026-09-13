@@ -58,7 +58,11 @@ Independent clean lanes:
   `codex/ti-activity-captured-facts` at `a8c1752cb` in
   `G:\Github\Tracker-Android\.worktrees\ti-activity-captured-facts`; reviewed as
   **IMPLEMENTED_UNVALIDATED** for source logic. The generated v28 schema JSON is stale and must
-  converge during validation; runtime activation, history/UI, maintenance, and transfer remain open.
+  converge during validation. Source-specific product reads are independently accepted through
+  `d0bf3bf59` on `codex/ti-activity-product-read`: one transactional bounded repository authenticates
+  complete replacement membership, lifecycle/lane/plan/cursor authority, manifest-window gaps, and
+  exact live/STOPPING settlement without fabricating duration. Shared UI, runtime activation,
+  maintenance, and transfer remain open.
 - Pressure source-specific read model and honest acquisition tiers:
   `codex/ti-pressure-acquisition` at `3b8abe350` in
   `G:\Github\Tracker-Android\.worktrees\ti-pressure-acquisition`; clean and independently accepted
