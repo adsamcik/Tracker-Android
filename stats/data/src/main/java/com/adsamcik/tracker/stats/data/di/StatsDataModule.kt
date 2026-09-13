@@ -7,6 +7,7 @@ import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.PersistentDirtyState
 import com.adsamcik.tracker.stats.api.repository.AchievementMetricsProvider
 import com.adsamcik.tracker.stats.api.repository.AchievementRepository
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.CellSignalRepository
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
@@ -26,6 +27,7 @@ import com.adsamcik.tracker.stats.data.metric.DefaultPersistentDirtyState
 import com.adsamcik.tracker.stats.data.metric.DurableMetricDirtyTracker
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementRepository
+import com.adsamcik.tracker.stats.data.repository.DefaultActivityHistoryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultCellSignalRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultDailySummaryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultDomainEventRepository
@@ -175,6 +177,17 @@ internal abstract class TrackingHistoryDataModule {
 	abstract fun bindTrackingHistoryRepository(
 		impl: DefaultTrackingHistoryRepository,
 	): TrackingHistoryRepository
+}
+
+/** Keeps the source-specific Activity fact reader independent of the shared history facade. */
+@Module
+@InstallIn(SingletonComponent::class)
+internal abstract class ActivityHistoryDataModule {
+	@Binds
+	@Singleton
+	abstract fun bindActivityHistoryRepository(
+		impl: DefaultActivityHistoryRepository,
+	): ActivityHistoryRepository
 }
 
 /**
