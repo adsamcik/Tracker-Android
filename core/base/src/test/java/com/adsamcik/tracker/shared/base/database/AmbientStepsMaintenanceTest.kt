@@ -110,6 +110,72 @@ class AmbientStepsMaintenanceTest {
 	}
 
 	@Test
+	fun `deletion retry cleans replayed correction lineage behind its terminal retraction`() = runTest {
+		val fixture = seed(revoked = true)
+		val first = fixture.fact(0L, 1_000L, 4L)
+		val correction = fixture.correction(first, endTimeMs = 2_000L, stepCount = 5L)
+		listOf(first, correction).forEach { database.ambientStepsFactRevisionDao().insert(it) }
+
+		database.deleteAmbientStepsAfterConsentReset(EPOCH, REVOKED_CONSENT, MAINTENANCE_TIME) shouldBe
+			AmbientStepsSourceDeletionResult.Deleted(1, 2)
+		val retraction = database.ambientStepsFactRevisionDao().revisions(
+			AmbientStepsFactRevisionEntity.WRITER_ID,
+			AmbientStepsFactRevisionEntity.WRITER_VERSION,
+			first.logicalFactId,
+		).single()
+		retraction.semanticRevision shouldBe 3L
+		retraction.operation shouldBe AmbientStepsFactRevisionEntity.OPERATION_RETRACT
+
+		// Delayed exact rows may physically return, but the terminal higher revision remains the
+		// effective state and supplies cleanup authority after source-deletion removed the cursor.
+		listOf(first, correction).forEach { database.ambientStepsFactRevisionDao().insert(it) }
+		database.ambientStepsFactRevisionDao().latestEffectiveForDay(
+			AmbientStepsFactRevisionEntity.WRITER_ID,
+			AmbientStepsFactRevisionEntity.WRITER_VERSION,
+			0L,
+			"UTC",
+		).isEmpty() shouldBe true
+
+		database.deleteAmbientStepsAfterConsentReset(
+			EPOCH,
+			REVOKED_CONSENT,
+			MAINTENANCE_TIME + 1L,
+		) shouldBe AmbientStepsSourceDeletionResult.Deleted(0, 2)
+		database.ambientStepsFactRevisionDao().revisions(
+			AmbientStepsFactRevisionEntity.WRITER_ID,
+			AmbientStepsFactRevisionEntity.WRITER_VERSION,
+			first.logicalFactId,
+		) shouldContainExactly listOf(retraction)
+		database.ambientStepsFactRevisionDao().countPayloadBearingRows() shouldBe 0L
+
+		database.deleteAmbientStepsAfterConsentReset(
+			EPOCH,
+			REVOKED_CONSENT,
+			MAINTENANCE_TIME + 2L,
+		) shouldBe AmbientStepsSourceDeletionResult.AlreadyDeleted
+	}
+
+	@Test
+	fun `retention may remove a complete replayed terminal lineage behind its floor`() = runTest {
+		val fixture = seed(revoked = true, retainedFromMs = 1_500L)
+		val first = fixture.fact(0L, 1_000L, 4L)
+		val correction = fixture.correction(first, endTimeMs = 2_000L, stepCount = 5L)
+		listOf(first, correction).forEach { database.ambientStepsFactRevisionDao().insert(it) }
+		database.deleteAmbientStepsAfterConsentReset(EPOCH, REVOKED_CONSENT, MAINTENANCE_TIME) shouldBe
+			AmbientStepsSourceDeletionResult.Deleted(1, 2)
+		listOf(first, correction).forEach { database.ambientStepsFactRevisionDao().insert(it) }
+
+		database.pruneAuthenticatedAmbientStepsFactsAffectedByRetentionFloor(
+			beforeMs = 1_500L,
+			collectedDataEpoch = EPOCH,
+			markedAtMs = MAINTENANCE_TIME + 1L,
+		) shouldBe 3
+
+		database.ambientStepsFactRevisionDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.retainedFromMs shouldBe 1_500L
+	}
+
+	@Test
 	fun `eligible or nonquiesced ambient authority blocks source deletion without mutation`() = runTest {
 		val eligible = seed(revoked = false)
 		val fact = eligible.fact(0L, DAY_END, 10L)
@@ -612,6 +678,28 @@ class AmbientStepsMaintenanceTest {
 				ambientConsentEpoch = ACTIVE_CONSENT,
 				collectedDataEpoch = EPOCH,
 				scopeDeletionGeneration = 0L,
+				effectChecksum = "0".repeat(64),
+				appliedAtMs = endTimeMs,
+			)
+			return unsigned.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsigned))
+		}
+
+		fun correction(
+			previous: AmbientStepsFactRevisionEntity,
+			endTimeMs: Long,
+			stepCount: Long,
+		): AmbientStepsFactRevisionEntity {
+			val revision = Math.addExact(previous.semanticRevision, 1L)
+			val unsigned = previous.copy(
+				semanticRevision = revision,
+				mutationId = AmbientStepsFactIntegrity.mutationId(
+					previous.logicalFactId,
+					revision,
+					AmbientStepsFactRevisionEntity.OPERATION_UPSERT,
+				),
+				windowEndTimeMs = endTimeMs,
+				observedAtMs = endTimeMs,
+				stepCount = stepCount,
 				effectChecksum = "0".repeat(64),
 				appliedAtMs = endTimeMs,
 			)
