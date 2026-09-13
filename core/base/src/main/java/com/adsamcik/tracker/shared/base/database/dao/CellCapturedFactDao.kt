@@ -175,23 +175,15 @@ interface CellCapturedFactDao {
 	): Int
 
 	/**
-	 * Discovers one cursor-settled segment per logical Cell entry. Cursor scope is the stable carrier;
-	 * current fact scope is authenticated later and cannot hide a moved lineage from that check.
+	 * Discovers one cursor-carried segment per logical Cell entry. Cursor scope is the stable carrier;
+	 * the current fact head is authenticated later and cannot hide a missing or corrupt lineage.
 	 * Presentation sample_count, legacy radio rows, and Location are deliberately absent.
 	 */
 	@Query(
 		"""
-		WITH current_fact_member AS (
+		WITH cursor_member AS (
 		  SELECT DISTINCT segment.*
 		  FROM cell_captured_fact_cursor AS fact_cursor
-		  INNER JOIN cell_captured_fact_revision AS fact
-		    ON fact.writer_projection_id = fact_cursor.writer_projection_id
-		   AND fact.writer_projection_version = fact_cursor.writer_projection_version
-		   AND fact.logical_fact_id = fact_cursor.logical_fact_id
-		   AND fact.semantic_revision = fact_cursor.latest_semantic_revision
-		   AND fact.mutation_id = fact_cursor.latest_mutation_id
-		   AND fact.effect_checksum = fact_cursor.latest_effect_checksum
-		   AND fact.source_admission_ordinal = fact_cursor.latest_source_admission_ordinal
 		  INNER JOIN source_service_run AS run
 		    ON run.service_run_id = fact_cursor.service_run_id
 		   AND run.logical_tracking_id = fact_cursor.logical_tracking_id
@@ -200,11 +192,13 @@ interface CellCapturedFactDao {
 		    ON segment.id = fact_cursor.session_segment_id
 		   AND segment.service_run_id = fact_cursor.service_run_id
 		   AND segment.logical_tracking_id = fact_cursor.logical_tracking_id
+		  WHERE fact_cursor.writer_projection_id = :writerProjectionId
+		    AND fact_cursor.writer_projection_version = :writerProjectionVersion
 		), logical_seed AS (
 		  SELECT member.*
-		  FROM current_fact_member AS member
+		  FROM cursor_member AS member
 		  WHERE NOT EXISTS (
-		    SELECT 1 FROM current_fact_member AS newer
+		    SELECT 1 FROM cursor_member AS newer
 		    WHERE newer.logical_tracking_id = member.logical_tracking_id
 		      AND (newer.start_time_ms > member.start_time_ms OR
 		        (newer.start_time_ms = member.start_time_ms AND newer.id > member.id))
@@ -248,10 +242,27 @@ interface CellCapturedFactDao {
 		""",
 	)
 	suspend fun logicalHistoryCandidatePage(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
 		limit: Int,
 		beforeStartTimeMs: Long?,
 		beforeSegmentId: Long?,
 	): List<CellLogicalHistoryCandidate>
+
+	/** Cursor carriers are loaded independently of their claimed current revision head. */
+	@Query(
+		"SELECT * FROM cell_captured_fact_cursor WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion AND " +
+			"(service_run_id IN (:serviceRunIds) OR logical_tracking_id IN (:logicalTrackingIds)) " +
+			"ORDER BY writer_projection_id, writer_projection_version, logical_fact_id LIMIT :limit",
+	)
+	suspend fun historyCursorsForScopes(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		serviceRunIds: List<String>,
+		logicalTrackingIds: List<String>,
+		limit: Int,
+	): List<CellCapturedFactCursorEntity>
 
 	/** Pages complete cursor-carried correction lineages and their finite direct aggregate owners. */
 	@Query(

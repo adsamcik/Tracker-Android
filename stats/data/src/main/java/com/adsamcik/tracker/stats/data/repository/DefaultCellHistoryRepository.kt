@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
@@ -60,7 +61,11 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 			currentCoroutineContext().ensureActive()
 			val pageLimit = minOf(CANDIDATE_PAGE_SIZE, MAX_CANDIDATE_SCAN - scanned)
 			val candidates = database.cellCapturedFactDao().logicalHistoryCandidatePage(
-				pageLimit, beforeStart, beforeId,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				pageLimit,
+				beforeStart,
+				beforeId,
 			)
 			if (candidates.isEmpty()) break
 			scanned += candidates.size
@@ -154,10 +159,20 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 		val factLoad = loadFactPages(runIds, logicalIds)
 		val revisions = factLoad.revisions
 		currentCoroutineContext().ensureActive()
+		val scopedCursors = factDao.historyCursorsForScopes(
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+			runIds,
+			logicalIds,
+			MAX_CURSORS + 1,
+		)
 		val factIds = revisions.map(CellCapturedFactRevisionEntity::logicalFactId).distinct()
-		val cursors = factIds.chunked(SQL_ID_BATCH).flatMap { ids ->
+		val referencedCursors = factIds.chunked(SQL_ID_BATCH).flatMap { ids ->
 			currentCoroutineContext().ensureActive()
 			factDao.historyCursors(ids, MAX_CURSORS + 1)
+		}
+		val cursors = (scopedCursors + referencedCursors).distinctBy { cursor ->
+			Triple(cursor.writerProjectionId, cursor.writerProjectionVersion, cursor.logicalFactId)
 		}
 		val generations = factDao.historyDeletionGenerations(logicalIds, runIds, MAX_DELETION_GENERATIONS + 1)
 		val planRevisions = manifests.map(SessionManifestVersionEntity::acquisitionPlanRevision).distinct()

@@ -130,6 +130,12 @@ internal object CellHistoryComposer {
 			.toSet()
 		val relatedFactIds = carriedFactIds + ownerFactIds
 		val relatedRevisions = snapshot.revisions.filter { it.logicalFactId in relatedFactIds }
+		if (carriedFactIds.any { carriedId ->
+				relatedRevisions.none { revision -> revision.logicalFactId == carriedId }
+			}
+		) {
+			return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED)
+		}
 		if (relatedRevisions.any { it.logicalTrackingId != logicalId || it.serviceRunId !in runIds }) {
 			return failed(logicalId, segments, CellHistoryCause.FACT_INTEGRITY_FAILED)
 		}

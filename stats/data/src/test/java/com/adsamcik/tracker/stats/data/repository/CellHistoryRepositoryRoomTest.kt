@@ -127,6 +127,40 @@ class CellHistoryRepositoryRoomTest {
 	}
 
 	@Test
+	fun `cursor-carried scope exposes a missing current revision as integrity failure`() = runTest {
+		val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
+		persist(listOf(group))
+		val cursor = ownerCursor(group)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM cell_captured_fact_revision WHERE logical_fact_id = ? AND semantic_revision = ?",
+			arrayOf(cursor.logicalFactId, cursor.latestSemanticRevision),
+		)
+
+		assertRecentFactIntegrityFailure()
+	}
+
+	@Test
+	fun `cursor-carried scope exposes every corrupt current head field as integrity failure`() = runTest {
+		val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
+		persist(listOf(group))
+		val cursor = ownerCursor(group)
+		val corruptions = listOf(
+			"latest_semantic_revision" to cursor.latestSemanticRevision + 1L,
+			"latest_mutation_id" to sha256("wrong-current-mutation"),
+			"latest_effect_checksum" to sha256("wrong-current-effect"),
+			"latest_source_admission_ordinal" to cursor.latestSourceAdmissionOrdinal + 1L,
+		)
+		corruptions.forEach { (column, value) ->
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE cell_captured_fact_cursor SET $column = ? WHERE logical_fact_id = ?",
+				arrayOf(value, cursor.logicalFactId),
+			)
+			assertRecentFactIntegrityFailure()
+			restoreCursorHead(cursor)
+		}
+	}
+
+	@Test
 	fun `coverage-only fact cannot reuse aggregate below deletion high water`() = runTest {
 		val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
 		val ownerOrdinal = group.runs.single().facts.first().sourceAdmissionOrdinal
@@ -648,6 +682,32 @@ class CellHistoryRepositoryRoomTest {
 		cursorRevision = fact.semanticRevision,
 		updatedAtMs = fact.appliedAtMs,
 	)
+
+	private fun ownerCursor(group: Group): CellCapturedFactCursorEntity = group.runs.single().cursors
+		.single { cursor -> cursor.latestSemanticRevision == 2L }
+
+	private suspend fun assertRecentFactIntegrityFailure() {
+		val page = repository { true }.recent(1) as CellHistoryPage.Available
+		val entry = page.entries.single()
+		entry.state shouldBe CellHistoryProductState.FAILED
+		entry.causes shouldBe setOf(CellHistoryCause.FACT_INTEGRITY_FAILED)
+		entry.observations shouldBe emptyList()
+	}
+
+	private fun restoreCursorHead(cursor: CellCapturedFactCursorEntity) {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE cell_captured_fact_cursor SET latest_semantic_revision = ?, " +
+				"latest_mutation_id = ?, latest_effect_checksum = ?, " +
+				"latest_source_admission_ordinal = ? WHERE logical_fact_id = ?",
+			arrayOf(
+				cursor.latestSemanticRevision,
+				cursor.latestMutationId,
+				cursor.latestEffectChecksum,
+				cursor.latestSourceAdmissionOrdinal,
+				cursor.logicalFactId,
+			),
+		)
+	}
 
 	private fun demand(logicalId: String, spec: RunSpec, runEndElapsed: Long, runEndWall: Long) =
 		SourceDemandEntity(

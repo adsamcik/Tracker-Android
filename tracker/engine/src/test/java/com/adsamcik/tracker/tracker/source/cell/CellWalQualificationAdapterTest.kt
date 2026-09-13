@@ -281,7 +281,13 @@ class CellWalQualificationAdapterTest {
 		installValidFixture(candidateWriter = true)
 		assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
 
-		val candidates = database.cellCapturedFactDao().logicalHistoryCandidatePage(10, null, null)
+		val candidates = database.cellCapturedFactDao().logicalHistoryCandidatePage(
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+			10,
+			null,
+			null,
+		)
 
 		assertEquals(1, candidates.size)
 		assertEquals(SEGMENT_ID, candidates.single().segment.id)
