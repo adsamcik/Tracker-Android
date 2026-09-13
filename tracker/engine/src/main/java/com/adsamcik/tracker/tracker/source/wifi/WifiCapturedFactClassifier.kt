@@ -14,6 +14,7 @@ import com.adsamcik.tracker.tracker.source.model.WifiAccessPointEvidence
 import com.adsamcik.tracker.tracker.source.model.WifiPlan
 import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
+import com.adsamcik.tracker.tracker.source.runtime.wifiProviderDeliveryIdentity
 import java.security.MessageDigest
 
 internal enum class WifiObservationOrigin {
@@ -56,7 +57,7 @@ internal data class WifiWalObservationEvidence(
 	val serviceRunId: ServiceRunId,
 	val sourceInstanceId: SourceInstanceId,
 	val registrationGeneration: Long,
-	val configurationRevision: Long,
+	val configurationRevision: Long?,
 	val physicalConfigurationFingerprint: String,
 	val authorizationRevision: Long,
 	val authorizationFingerprint: String,
@@ -144,6 +145,8 @@ internal enum class WifiFactRejection {
 	PLAN_ATTRIBUTION_UNVERIFIABLE,
 	ACQUISITION_PLAN_UNVERIFIABLE,
 	APPLIED_REGISTRATION_MISMATCH,
+	PAYLOAD_TOO_LARGE,
+	PROVIDER_DELIVERY_SHAPE_UNVERIFIABLE,
 	TOO_MANY_ACCESS_POINTS,
 	MALFORMED_ACCESS_POINT,
 }
@@ -205,6 +208,12 @@ internal object WifiCapturedFactClassifier {
 		if (!appliedRegistrationMatches(expectedAuthority, qualifiedPlan.plan)) {
 			return rejected(WifiFactRejection.APPLIED_REGISTRATION_MISMATCH)
 		}
+		if (wal.configurationRevision?.let { it != qualifiedPlan.plan.revision } == true) {
+			return rejected(WifiFactRejection.ACQUISITION_PLAN_UNVERIFIABLE)
+		}
+		if (wal.payloadBytes.size > MAX_CANONICAL_WIFI_PAYLOAD_BYTES) {
+			return rejected(WifiFactRejection.PAYLOAD_TOO_LARGE)
+		}
 		val payload = decodeWalPayload(wal) ?: return walPayloadRejection(wal)
 		if (!wal.clock.isValidFor(expectedAuthority)) {
 			return WifiCapturedFactClassification.ClockUnverifiable
@@ -229,8 +238,24 @@ internal object WifiCapturedFactClassifier {
 			// empty result. Receipt or WAL time cannot manufacture a captured zero.
 			return WifiCapturedFactClassification.ClockUnverifiable
 		}
+		if (!payload.hasCanonicalProviderDeliveryShape()) {
+			return rejected(WifiFactRejection.PROVIDER_DELIVERY_SHAPE_UNVERIFIABLE)
+		}
 		val deliveryIdentity = wal.sourceDeliveryIdentity
 			?: return rejected(WifiFactRejection.DELIVERY_IDENTITY_UNVERIFIABLE)
+		val calculatedDeliveryIdentity = runCatching {
+			wifiProviderDeliveryIdentity(expectedAuthority.clockDomainId, payload.accessPoints)
+		}.getOrNull() ?: return rejected(WifiFactRejection.DELIVERY_IDENTITY_UNVERIFIABLE)
+		if (deliveryIdentity != calculatedDeliveryIdentity) {
+			return when {
+				semanticRevision > 1L &&
+					correctionBase?.reference?.identity?.sourceDeliveryIdentity == deliveryIdentity ->
+					rejected(WifiFactRejection.RAW_EVIDENCE_CHANGED)
+				priorFact?.reference?.identity?.sourceDeliveryIdentity == deliveryIdentity ->
+					rejected(WifiFactRejection.DELIVERY_IDENTITY_COLLISION)
+				else -> rejected(WifiFactRejection.DELIVERY_IDENTITY_UNVERIFIABLE)
+			}
+		}
 		val evidenceBinding = wal.evidenceBinding(deliveryIdentity, expectedAuthority)
 		val identity = expectedAuthority.factIdentity(wal, deliveryIdentity)
 		val mutation = runCatching {
@@ -426,8 +451,10 @@ internal object WifiCapturedFactClassifier {
 			return null
 		}
 		return runCatching {
-			payloadCodec.decode(SourceKind.WIFI, wal.payloadVersion, bytes)
-				as? WifiResultSnapshotPayload
+			val decoded = payloadCodec.decode(SourceKind.WIFI, wal.payloadVersion, bytes)
+				as? WifiResultSnapshotPayload ?: return@runCatching null
+			val canonical = payloadCodec.encode(decoded, WIFI_PAYLOAD_VERSION).bytes
+			decoded.takeIf { canonical.contentEquals(bytes) }
 		}.getOrNull()
 	}
 
@@ -544,7 +571,7 @@ internal object WifiCapturedFactClassifier {
 		serviceRunId == authority.serviceRunId &&
 		sourceInstanceId == authority.sourceInstanceId &&
 		registrationGeneration == authority.registrationGeneration &&
-		configurationRevision == authority.configurationRevision &&
+		(configurationRevision == null || configurationRevision == authority.configurationRevision) &&
 		physicalConfigurationFingerprint == authority.physicalConfigurationFingerprint &&
 		authorizationRevision == authority.authorizationRevision &&
 		authorizationFingerprint == authority.authorizationFingerprint &&
@@ -559,7 +586,9 @@ internal object WifiCapturedFactClassifier {
 
 	private fun WifiWalObservationEvidence.hasValidWalProvenance(): Boolean =
 		sourceAdmissionOrdinal > 0L &&
-			deliveryUnitCount > 0 && deliveryUnitIndex in 0 until deliveryUnitCount &&
+		// Android emits one Wi-Fi snapshot unit per provider callback. This pure qualifier has no
+		// sibling universe with which it could authenticate any other claimed cardinality.
+		deliveryUnitCount == 1 && deliveryUnitIndex == 0 &&
 			providerDedupKey == null && sourceSequence >= 0L && activityAutomationEpoch == null &&
 			acquiredAtMs >= 0L &&
 			(qualityConfidence == null || qualityConfidence in 0f..1f)
@@ -579,6 +608,16 @@ internal object WifiCapturedFactClassifier {
 		if (providerTimes.isEmpty()) return true
 		return providerTimes.minOrNull() == clock.observedIntervalStartElapsedRealtimeNanos &&
 			providerTimes.maxOrNull() == clock.observedElapsedRealtimeNanos
+	}
+
+	private fun WifiResultSnapshotPayload.hasCanonicalProviderDeliveryShape(): Boolean {
+		if (accessPoints.isEmpty() || resultAgeMs != null) return false
+		if (accessPoints.any { it.identifierToken.isNotEmpty() || it.providerTimestampNanos == null }) {
+			return false
+		}
+		if (accessPoints != accessPoints.sortedWith(WIFI_PROVIDER_ITEM_ORDER)) return false
+		val latestProviderNanos = accessPoints.maxOf { requireNotNull(it.providerTimestampNanos) }
+		return platformTimestampMs == latestProviderNanos / NANOS_PER_MILLISECOND
 	}
 
 	private fun WifiCaptureAuthority.classifyProviderTime(
@@ -684,5 +723,14 @@ internal object WifiCapturedFactClassifier {
 	private const val WIFI_5_GHZ_MAX_MHZ = 5_900
 	private const val WIFI_6_GHZ_MIN_MHZ = 5_925
 	private const val WIFI_6_GHZ_MAX_MHZ = 7_125
+	// Canonical v2 bytes: type + count + 64 minimized APs + platform time + null result age.
+	// A minimized AP is empty modified-UTF (2), frequency (4), signal (4), and timestamp (1 + 8).
+	private val MAX_CANONICAL_WIFI_PAYLOAD_BYTES = 4 + 4 +
+		(WifiIdentityFreeResultContract.ANDROID_SCAN_RESULTS_V1.maximumAccessPointCount * 19) + 9 + 1
 	private val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")
+	private val WIFI_PROVIDER_ITEM_ORDER = compareBy<WifiAccessPointEvidence>(
+		WifiAccessPointEvidence::frequencyMhz,
+		WifiAccessPointEvidence::signalLevelDbm,
+		WifiAccessPointEvidence::providerTimestampNanos,
+	)
 }
