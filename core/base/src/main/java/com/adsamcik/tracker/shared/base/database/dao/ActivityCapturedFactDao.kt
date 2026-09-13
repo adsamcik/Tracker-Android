@@ -266,6 +266,33 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 	): List<ActivityCapturedPortableWalTargetRow>
 
+	/** Complete payload-free delivery siblings for bounded selected-run Activity WAL targets. */
+	@Query(
+		"SELECT admission_ordinal, event_id, provider_dedup_key, delivery_identity, " +
+			"delivery_unit_index, delivery_unit_count, logical_tracking_id, service_run_id, " +
+			"source_kind, source_instance_id, registration_generation, " +
+			"physical_configuration_fingerprint, authorization_revision, " +
+			"authorization_purpose_eligibility_mask, authorization_fingerprint, source_sequence, " +
+			"config_revision, plan_attribution, clock_domain_id, observed_elapsed_nanos, " +
+			"observed_interval_start_nanos, received_elapsed_nanos, wall_time_ms, " +
+			"wall_time_uncertainty_ms, captured_collected_data_epoch, activity_automation_epoch, " +
+			"source_policy_revision, capture_consent_epoch, session_manifest_revision, " +
+			"lifecycle_lease_generation, acquired_at_ms, quality_flags, quality_confidence, " +
+			"payload_version, payload_checksum, LENGTH(payload) AS payload_bytes, " +
+			"integrity_identity, created_at_ms " +
+			"FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND captured_collected_data_epoch = :capturedCollectedDataEpoch " +
+			"AND clock_domain_id = :clockDomainId AND delivery_identity IN (:deliveryIdentities) " +
+			"ORDER BY delivery_identity, admission_ordinal LIMIT :limit",
+	)
+	suspend fun portableCapturedWalDeliveryMembers(
+		sourceKind: Int,
+		capturedCollectedDataEpoch: Long,
+		clockDomainId: String,
+		deliveryIdentities: List<String>,
+		limit: Int,
+	): List<ActivityCapturedPortableWalTargetRow>
+
 	/** Bounded immutable lifecycle acknowledgements binding a provider generation to selected runs. */
 	@Query(
 		"SELECT * FROM lifecycle_desired_action WHERE source_kind = :sourceKind " +
@@ -278,18 +305,21 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 	): List<LifecycleDesiredActionEntity>
 
-	/** Bounded captured authorization ownership used to authenticate terminal callback barriers. */
+	/**
+	 * Complete bounded authorization history for the selected physical Activity generations.
+	 *
+	 * CONTROL and deny-all successors are deliberately retained: they close the provider-time
+	 * interval of an earlier capture revision and therefore cannot be filtered by run or purpose.
+	 */
 	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
 			"AND registration_generation IN (:registrationGenerations) " +
-			"AND service_run_id IN (:serviceRunIds) AND purpose = :capturePurpose " +
-			"ORDER BY registration_generation, authorization_revision, member_id LIMIT :limit",
+			"ORDER BY registration_generation, effective_elapsed_realtime_nanos, " +
+			"authorization_revision, member_id LIMIT :limit",
 	)
-	suspend fun portableCaptureAuthorizations(
+	suspend fun portableAuthorizationsForGenerations(
 		sourceKind: Int,
 		registrationGenerations: List<Long>,
-		serviceRunIds: List<String>,
-		capturePurpose: String,
 		limit: Int,
 	): List<SourceAuthorizationEntity>
 

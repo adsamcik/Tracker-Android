@@ -478,6 +478,240 @@ class ActivityCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `portable export rejects WAL observed after a later deny-all authorization`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 2L,
+			observedElapsedNanos = 600L,
+			receivedElapsedNanos = 610L,
+		)
+		settleActivityWalTarget(2L)
+		var sinkCalls = 0
+
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export rejects WAL observed after capture rotates to CONTROL only`() = runTest {
+		seedCapturedActivity(providerActive = true)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			observedElapsedNanos = 600L,
+			receivedElapsedNanos = 610L,
+		)
+		settleActivityWalTarget(2L)
+		var sinkCalls = 0
+
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export rejects a stale capture callback barrier`() = runTest {
+		seedCapturedActivity()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation " +
+				"SET capture_callback_barrier_authorization_revision = 0 " +
+				"WHERE source_kind = $ACTIVITY_SOURCE AND registration_generation = 1",
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export accepts an active system rearmable provider after a CONTROL successor`() = runTest {
+		seedCapturedActivity(providerActive = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation " +
+				"SET provider_residency = 'SYSTEM_REARMABLE', provider_process_incarnation_id = NULL " +
+				"WHERE source_kind = $ACTIVITY_SOURCE AND registration_generation = 1",
+		)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export rejects a delivery with a missing declared sibling`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = "activity-delivery-batch",
+			deliveryUnitCount = 2,
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects duplicate delivery unit indices`() = runTest {
+		seedCapturedActivity()
+		database.openHelper.writableDatabase.execSQL("DROP INDEX idx_source_event_wal_delivery_unit")
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = "activity-delivery-batch",
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 2,
+			receivedElapsedNanos = 220L,
+		)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			deliveryIdentity = "activity-delivery-batch",
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 2,
+			receivedElapsedNanos = 220L,
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects mixed immutable authority within one delivery`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = "activity-delivery-batch",
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 2,
+			receivedElapsedNanos = 220L,
+		)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			deliveryIdentity = "activity-delivery-batch",
+			deliveryUnitIndex = 1,
+			deliveryUnitCount = 2,
+			receivedElapsedNanos = 221L,
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects nonconsecutive delivery source sequence`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = "activity-delivery-batch",
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 2,
+			sourceSequence = 1L,
+			receivedElapsedNanos = 220L,
+		)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			deliveryIdentity = "activity-delivery-batch",
+			deliveryUnitIndex = 1,
+			deliveryUnitCount = 2,
+			sourceSequence = 3L,
+			receivedElapsedNanos = 220L,
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects a noncontiguous delivery unit range`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = "activity-delivery-batch",
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 3,
+			receivedElapsedNanos = 220L,
+		)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			deliveryIdentity = "activity-delivery-batch",
+			deliveryUnitIndex = 2,
+			deliveryUnitCount = 3,
+			receivedElapsedNanos = 220L,
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects an interval start that differs from provider observation`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			observedElapsedNanos = 201L,
+			observedIntervalStartNanos = 200L,
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export accepts an exact settled multi-unit delivery`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = "activity-delivery-batch",
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 2,
+			receivedElapsedNanos = 220L,
+		)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			deliveryIdentity = "activity-delivery-batch",
+			deliveryUnitIndex = 1,
+			deliveryUnitCount = 2,
+			receivedElapsedNanos = 220L,
+		)
+		settleActivityWalTarget(2L)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
 	fun `portable export fails closed when retained WAL target proof exceeds its bound`() = runTest {
 		seedCapturedActivity()
 		insertActivityWalEvent(1L)
@@ -921,16 +1155,31 @@ class ActivityCapturedFactMaintenanceTest {
 		database.sourceProjectionStateDao().installProductLane(lane)
 	}
 
-	private suspend fun insertActivityWalEvent(ordinal: Long) {
+	private suspend fun settleActivityWalTarget(ordinal: Long) {
+		replaceActivityCompleteness(lastAdmissionOrdinal = ordinal, lastSourceSequence = ordinal)
+		updateFinalAdmissionOrdinal(ordinal)
+		replaceActivityLane(activityProductLane(contiguousAdmissionOrdinal = ordinal))
+	}
+
+	private suspend fun insertActivityWalEvent(
+		ordinal: Long,
+		deliveryIdentity: String = "activity-delivery-$ordinal",
+		deliveryUnitIndex: Int = 0,
+		deliveryUnitCount: Int = 1,
+		sourceSequence: Long = ordinal,
+		observedElapsedNanos: Long = 200L + ordinal,
+		observedIntervalStartNanos: Long = observedElapsedNanos,
+		receivedElapsedNanos: Long = 210L + ordinal,
+	) {
 		val payload = byteArrayOf(ordinal.toByte())
 		val checksum = sha256(payload)
 		val unsealed = SourceEventWalEntity(
 			admissionOrdinal = ordinal,
 			eventId = "activity-event-$ordinal",
 			providerDedupKey = "activity-provider-event-$ordinal",
-			deliveryIdentity = "activity-delivery-$ordinal",
-			deliveryUnitIndex = 0,
-			deliveryUnitCount = 1,
+			deliveryIdentity = deliveryIdentity,
+			deliveryUnitIndex = deliveryUnitIndex,
+			deliveryUnitCount = deliveryUnitCount,
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			serviceRunId = SERVICE_RUN_ID,
 			sourceKind = ACTIVITY_SOURCE,
@@ -940,12 +1189,13 @@ class ActivityCapturedFactMaintenanceTest {
 			authorizationRevision = 1L,
 			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 			authorizationFingerprint = historicalAuthorizationFingerprint(),
-			sourceSequence = ordinal,
+			sourceSequence = sourceSequence,
 			configRevision = 1L,
 			planAttribution = 1,
 			clockDomainId = BOOT_ID,
-			observedElapsedNanos = 200L + ordinal,
-			receivedElapsedNanos = 210L + ordinal,
+			observedElapsedNanos = observedElapsedNanos,
+			observedIntervalStartNanos = observedIntervalStartNanos,
+			receivedElapsedNanos = receivedElapsedNanos,
 			wallTimeMs = 2_000L + ordinal,
 			wallTimeUncertaintyMs = 5L,
 			capturedCollectedDataEpoch = 0L,
@@ -1051,9 +1301,16 @@ class ActivityCapturedFactMaintenanceTest {
 			),
 		)
 		database.sourceBrokerDao().insertRegistration(registration(providerActive))
+		val activeControl = historicalControlDemand().copy(
+			status = SourceDemandEntity.STATUS_ACTIVE,
+			retireBootId = null,
+			retireElapsedRealtimeNanos = null,
+			retiredAtMs = null,
+		)
+		val sharedControl = if (providerActive) activeControl else historicalControlDemand()
 		val authorizationDemands = buildList {
 			add(historicalCaptureDemand())
-			if (sharedControlAuthorization) add(historicalControlDemand())
+			if (sharedControlAuthorization) add(sharedControl)
 		}
 		database.sourceBrokerDao().insertDemands(authorizationDemands)
 		database.sourceBrokerDao().insertAuthorizations(
@@ -1063,6 +1320,18 @@ class ActivityCapturedFactMaintenanceTest {
 				demands = authorizationDemands,
 				effectiveElapsedNanos = 150L,
 				effectiveWallTimeMs = 1_500L,
+			),
+		)
+		if (providerActive && !sharedControlAuthorization) {
+			database.sourceBrokerDao().insertDemands(listOf(activeControl))
+		}
+		database.sourceBrokerDao().insertAuthorizations(
+			authorizationRows(
+				registrationGeneration = 1L,
+				authorizationRevision = 2L,
+				demands = if (providerActive) listOf(activeControl) else emptyList(),
+				effectiveElapsedNanos = 500L,
+				effectiveWallTimeMs = 3_000L,
 			),
 		)
 		database.sourceSessionDao().saveCompleteness(activityCompleteness())
@@ -1241,7 +1510,7 @@ class ActivityCapturedFactMaintenanceTest {
 					acceptedElapsedNanos = 600L,
 					retiredAtMs = 3_900L,
 					retiredElapsedNanos = 890L,
-					callbackBarrierRevision = 2L,
+					callbackBarrierRevision = 3L,
 				),
 			)
 			sessionDao.insertLifecycleActions(
@@ -1271,10 +1540,19 @@ class ActivityCapturedFactMaintenanceTest {
 			database.sourceBrokerDao().insertAuthorizations(
 				authorizationRows(
 					registrationGeneration = 2L,
-					authorizationRevision = 2L,
+					authorizationRevision = 3L,
 					demands = listOf(replacementDemand),
 					effectiveElapsedNanos = 600L,
 					effectiveWallTimeMs = 3_100L,
+				),
+			)
+			database.sourceBrokerDao().insertAuthorizations(
+				authorizationRows(
+					registrationGeneration = 2L,
+					authorizationRevision = 4L,
+					demands = emptyList(),
+					effectiveElapsedNanos = 880L,
+					effectiveWallTimeMs = 3_900L,
 				),
 			)
 		}
