@@ -664,8 +664,8 @@ Accepted isolated Activity product commits `eb4f426b6` through `d0bf3bf59` imple
 bounded recent/selected reads for portions of ACT-008/010. They discover from Activity facts,
 authenticate complete logical replacement and lifecycle/lane/plan/cursor authority, preserve
 explicit gaps and materializing/partial state, and expose no physical run IDs or control-only
-history. ACT-008/010 remain unchecked until runtime projection, Today/Timeline/Calendar/detail/live
-consumers, maintenance/transfer, and the complete authored scenario cohort exist.
+history. ACT-008/010 remain unchecked until shared Today/Timeline/Calendar/detail/live consumers,
+transfer, destination activation, and the complete authored scenario cohort exist.
 
 Accepted commits `8b10e2281`, `8138d7a45`, and `689a6e994` add the real retained-WAL admission portion
 of ACT-001/002/003/007/010. SQL preflight bounds Activity BLOB size before loading, all captured
@@ -680,16 +680,24 @@ Accepted commit `4cd3246cf` closes the runtime immutable applied-plan and callba
 portions of ACT-001/002/007/010. Exact plan bytes/checksum/revision/fingerprint are stored atomically
 with the accepted ACTIVE_SESSION registration, desired-plan mismatch rolls back provider acceptance,
 historical replacements remain attributable, CONTROL cannot provide capture identity, and delivery
-uses true plan revision rather than registration generation. The TODOs remain unchecked until a
-bounded terminal projection trigger and source-local destination activation exist, followed by
-maintenance, transfer, shared UI, and complete scenarios.
+uses true plan revision rather than registration generation. The terminal projection is accepted in
+the following checkpoint; the TODOs remain unchecked until source-local destination activation,
+transfer, shared UI, and complete scenarios exist.
+
+Accepted projection commits `96aa051cf` through `f269b562a` implement bounded portions of
+ACT-001/002/003/007/010 and DATA-006/007. One terminal logical session drains exact-event-preflighted
+WAL into separate physical replacement windows; fact/evidence/cursor mutation is transactional,
+cancellation rolls back, and CONTROL/deleted/retained evidence cannot enter captured history. Each
+window owns its first admission ordinal, so later coalescer or writer failure does not poison an
+earlier valid prefix. The production catalog stays inert. These TODOs remain unchecked until
+destination activation, shared UI, transfer, and complete process/provider scenarios exist.
 
 Accepted maintenance commits `adcf47289` and `d3b889991` implement bounded portions of
 ACT-003/007/010. Whole correction lineages are retained only behind the exact uncertainty-safe floor;
 capture-source deletion requires revoked capture consent, quiesced capture demands and every
 compatible physical registration, complete fact/cursor/fragment/evidence/plan reconciliation, and
 exact run fences before clearing capture state. WAL and CONTROL are preserved and stale replay is
-rejected. These TODOs remain unchecked until terminal projection, transfer, shared UI, automatic
+rejected. These TODOs remain unchecked until transfer, shared UI, automatic
 capture behavior, and complete scenarios exist.
 
 ## Wi-Fi vertical

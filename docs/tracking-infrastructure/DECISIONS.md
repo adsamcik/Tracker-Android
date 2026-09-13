@@ -3537,5 +3537,20 @@ Each entry records repository evidence and does not duplicate the final architec
   registration-plan row, authenticates live/replacement/terminal effect ends exactly as the writer
   stored them, installs exact retained run deletion fences, and only then clears capture state.
   WAL and CONTROL remain intact; stale projection replay cannot resurrect deleted facts.
-- This is source-local maintenance, not a generic tombstone platform. Transfer, shared UI, terminal
-  projection acceptance, catalog activation, provider/device behavior, and AUTO-005 remain separate.
+- This is source-local maintenance, not a generic tombstone platform. Transfer, shared UI,
+  destination/catalog activation, provider/device behavior, and AUTO-005 remain separate.
+
+## TI-D221 — Activity terminal projection preserves each physical window's failure origin
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/tests `96aa051cf` through
+  `f269b562a` atop the accepted WAL/plan-attribution boundary; TI-B284.
+- One bounded terminal logical-session drain preflights each exact Activity event before loading its
+  payload, partitions by physical acquisition window, and invokes the one dormant canonical writer.
+  Replacement physical runs never share a coalescing accumulator.
+- Each window retains its own first WAL admission ordinal. Coalescer rejection or writer poison is
+  attributed to that exact group, so a later invalid replacement cannot poison an earlier valid
+  prefix. The 4,096 plus one overflow row remains the exact terminal failure origin.
+- Fact/evidence/lane-cursor mutation remains one Room transaction; cancellation and poison roll back.
+  CONTROL, deleted, retained-out, or generation-invalid evidence cannot write captured history.
+- The production projection catalog remains inert. This does not activate a destination, provider,
+  automatic mode, shared UI, transfer, or product rollout.

@@ -80,8 +80,11 @@ Independent clean lanes:
   authenticate live, replacement, and terminal writer semantics, reconcile every Activity fact/
   cursor/fragment/evidence/registration-plan row before success, and install exact run fences before
   clearing capture state. WAL and CONTROL remain untouched; stale replay is rejected. Terminal
-  projection is still in correction review, while transfer, shared UI, and catalog activation remain
-  absent.
+  projection is independently accepted through `f269b562a`: one bounded drain keeps physical
+  replacement windows separate, preflights each exact event before loading its payload, and commits
+  the canonical fact/cursor mutation transactionally. Coalescer or writer failure is attributed to
+  that window's own first WAL ordinal, never an earlier valid prefix. Transfer, shared UI, and catalog
+  activation remain absent.
 - Pressure source-specific read model and honest acquisition tiers:
   `codex/ti-pressure-acquisition` at `3b8abe350` in
   `G:\Github\Tracker-Android\.worktrees\ti-pressure-acquisition`; clean and independently accepted

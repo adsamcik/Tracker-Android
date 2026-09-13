@@ -2181,5 +2181,25 @@ Deferred focused command:
 ```
 
 The command was not run. Compilation, Room query execution, generated v28 schema convergence,
-terminal projection acceptance, portable transfer, shared UI, provider/process/device behavior,
+destination activation, portable transfer, shared UI, provider/process/device behavior,
 automatic capture, integration, activation, and release remain unproven.
+
+## TI-B284 — Activity terminal projection and exact poison-origin contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `f269b562a`. Authored projection-lane tests cover exact
+per-event payload preflight, bounded terminal traversal, 4,096 plus one overflow attribution,
+separate physical replacement-window accumulation, canonical writer/evidence/cursor transaction,
+duplicate/drain handoff, cancellation rollback, and CONTROL/deletion/retention exclusion. Focused
+later-window tests prove both coalescer and writer failure report that group's first WAL admission
+ordinal and leave the earlier valid prefix unpoisoned. Independent review accepted the correction after rejecting
+initial-run ordinal reuse. Production catalog assertions remain inert.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*ActivityCapturedFactProjectionLaneTest' --tests '*ActivityCapturedWalAdmissionAdapterTest' --tests '*ActivityCapturedFactWriterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, generated v28 schema convergence, destination
+activation, provider/process/reboot/device behavior, shared UI, transfer, automatic capture,
+integration, rollout, and release remain unproven.

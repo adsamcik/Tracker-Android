@@ -61,7 +61,12 @@ writer. Commit `4cd3246cf` is independently accepted for the runtime plan-attrib
 accepted ACTIVE_SESSION registration atomically stores canonical defensive-copy plan bytes,
 checksum, true revision, and fingerprint; exact desired-plan mismatch rolls back acceptance and
 removes the requested provider; CONTROL and missing bindings cannot fabricate capture attribution;
-and delivery stamps plan identity rather than registration generation. Terminal drain remains open.
+and delivery stamps plan identity rather than registration generation. The separate terminal
+projection branch is independently accepted through `f269b562a`: one bounded drain preflights exact
+events before loading payloads, preserves distinct physical replacement windows, and commits
+fact/evidence/cursor mutation in one Room transaction. Each window retains its own first WAL ordinal,
+so a later coalescer or writer failure cannot poison an earlier valid prefix. Cancellation rolls
+back, CONTROL/deleted/retained evidence is rejected, and the production catalog remains inert.
 
 The separate Activity maintenance branch is independently accepted through `d3b889991`. Retention
 authenticates complete source-owned correction lineages and removes whole uncertainty-safe windows
