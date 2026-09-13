@@ -75,7 +75,18 @@ quiesced capture demand and every compatible Activity registration, reconciles b
 revision/cursor/fragment/evidence/registration-plan state, installs exact run deletion fences, and
 then clears capture facts while preserving WAL and CONTROL. Live, replacement, and terminal effect
 ends match the writer's boot/cutoff semantics; stale replay is rejected and cancellation rolls back.
-Portable transfer, shared UI, and catalog activation remain open.
+Portable transfer and catalog activation remain open. Source-local Activity UI is accepted
+separately below; final shared Dashboard/history convergence remains open.
+
+The separate Activity UI branch is independently accepted through `48d4d3e67`. Commits
+`f364cbc42` and `48d4d3e67` discover exact Activity-only intent before the first fact, classify the
+complete replacement group, use one transactional live Activity/session snapshot, and merge a
+bounded Activity-aware recent page. Dashboard exposes non-clickable Activity-only live/recent
+content with retained movement bands, active time, coverage, and gaps; it exposes no Location-shaped
+control or numeric field and never turns missing evidence into zero. This is a source-local
+acceptance only: the branch overlaps the accepted Pressure UI seams, so convergence must union both
+source shapes into one live snapshot, recent merge, and presentation vocabulary rather than choose
+one branch.
 
 The isolated Pressure branch is clean at `3b8abe350`. Commits `8768767d4` through `8b076e6f7`
 provide fact-driven zero-sample discovery, reciprocal run/segment binding, complete replacement-run

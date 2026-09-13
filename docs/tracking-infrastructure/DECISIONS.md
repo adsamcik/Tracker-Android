@@ -3590,3 +3590,20 @@ Each entry records repository evidence and does not duplicate the final architec
 - Historical checkpoint text that predates the accepted deletion/read/retention work remains useful
   as history but is not the current implementation boundary. Do not start a duplicate deletion/day
   repair lane from those older snapshots.
+
+## TI-D224 — Activity-only Dashboard truth is accepted source-locally and requires union convergence
+
+- Status: **IMPLEMENTED_UNVALIDATED_WITH_CONVERGENCE_BLOCKER**, 2026-09-13; isolated source/API/UI/
+  tests `f364cbc42` and `48d4d3e67`; independent static review; TI-B287.
+- Exact all-revision Activity-only intent is resolved before facts and across complete logical
+  replacement membership. One Room transaction reads live Activity and session authority, and one
+  bounded recent-page merge preserves source-only discovery without `sample_count` or Location.
+- Dashboard exposes retained movement bands, active time, coverage, and gaps in non-clickable
+  Activity-only live/recent content. Missing, materializing, partial, unavailable, or failed evidence
+  remains nullable/typed; route, distance, speed, elevation, coordinates, maps, and fabricated zero
+  are absent.
+- This is not yet a shared-product integration. The accepted Pressure UI branch independently owns
+  the same history API, Dashboard repository/ViewModel/live-state, Compose, strings, and tests.
+  Convergence must create one combined Activity-plus-Pressure transactional live snapshot, one
+  bounded recent-page composition, and one presentation vocabulary preserving both exact-intent
+  paths. Neither branch may overwrite or replace the other.

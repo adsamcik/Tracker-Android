@@ -703,6 +703,15 @@ exact run fences before clearing capture state. WAL and CONTROL are preserved an
 rejected. These TODOs remain unchecked until transfer, shared UI, automatic
 capture behavior, and complete scenarios exist.
 
+Accepted source-local UI commits `f364cbc42` and `48d4d3e67` implement additional bounded portions
+of ACT-008/010 and HIST-002/003/005/006/012. Exact Activity-only intent remains visible before its
+first fact, complete replacement groups are classified together, live Activity/session state is one
+Room snapshot, and Dashboard shows only nullable retained bands/active time/coverage/gaps without
+Location controls or fabricated zero. ACT-008 remains unchecked because Pressure and Activity use
+the same shared history/Dashboard seams: final assembly must build one combined live transaction,
+recent-page merge, and presentation vocabulary, then complete Today/Timeline/Calendar/detail and
+automatic paths.
+
 ## Wi-Fi vertical
 
 - [ ] TODO-WIFI-001 Complete one app-scoped Wi-Fi callback owner and stable durable delivery

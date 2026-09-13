@@ -2242,3 +2242,27 @@ Pressure fact revisions with the other tracking state.
 No command was executed beyond read-only source/history inspection, and no production or test file
 changed. Portable Pressure import and a separately invocable Pressure-wide erase remain unproven and
 must not be conflated with the accepted selected-session or global all-data paths.
+
+## TI-B287 — Activity-only product and Dashboard contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED_WITH_CONVERGENCE_BLOCKER** through `48d4d3e67`. Authored Room/API,
+repository, ViewModel, and Compose tests cover pre-fact Activity capture intent, exact all-revision
+classification, 33-member replacement paging, one-snapshot live reads, bounded recent discovery and
+64 plus one Dashboard backfill, retained movement bands/active time/coverage/gaps, materializing and
+missing values without zero, and absence of Location metrics, controls, or navigation.
+
+Independent static review accepted the source-local behavior and identified one mandatory assembly
+condition: accepted Pressure UI changes the same public history, Dashboard repository/ViewModel,
+live-state, Compose, resource, and test seams. Final convergence must union both source contracts in
+one transactional live read, one bounded recent merge, and one presentation vocabulary; neither
+isolated branch is integration-complete.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:api:testAndroidHostTest --tests '*TrackingHistoryRepositoryTest' :stats:data:testDebugUnitTest --tests '*ActivityHistoryComposerTest' --tests '*StepsSegmentHistorySelectorTest' :feature:dashboard:testDebugUnitTest --tests '*DashboardHistoryRepositoryTest' --tests '*DashboardViewModelLiveStepsTest' --tests '*RecentTripsCardTest' --tests '*ActivityOnlyTrackingContentTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, Activity-plus-Pressure convergence, full
+Today/Timeline/Calendar/detail, localization/accessibility/device rendering, provider/process/
+reboot/FGS behavior, automatic capture, integration, activation, and release remain unproven.

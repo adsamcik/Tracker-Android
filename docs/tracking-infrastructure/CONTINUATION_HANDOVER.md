@@ -66,8 +66,8 @@ Independent clean lanes:
   converge during validation. Source-specific product reads are independently accepted through
   `d0bf3bf59` on `codex/ti-activity-product-read`: one transactional bounded repository authenticates
   complete replacement membership, lifecycle/lane/plan/cursor authority, manifest-window gaps, and
-  exact live/STOPPING settlement without fabricating duration. Shared UI, runtime activation,
-  maintenance, and transfer remain open. A separate dormant retained-WAL adapter is independently
+  exact live/STOPPING settlement without fabricating duration. Runtime activation and transfer remain
+  open. Source-local UI is accepted separately below. A separate dormant retained-WAL adapter is independently
   accepted through `689a6e994` on `codex/ti-activity-projection-adapter`: payload-free SQL preflight
   bounds BLOB allocation, full historical captured authority is reauthenticated, live lifecycle
   pairs use the exact durable-ingress vocabulary, and finite output requires terminal session/run,
@@ -83,8 +83,13 @@ Independent clean lanes:
   projection is independently accepted through `f269b562a`: one bounded drain keeps physical
   replacement windows separate, preflights each exact event before loading its payload, and commits
   the canonical fact/cursor mutation transactionally. Coalescer or writer failure is attributed to
-  that window's own first WAL ordinal, never an earlier valid prefix. Transfer, shared UI, and catalog
-  activation remain absent.
+  that window's own first WAL ordinal, never an earlier valid prefix. Source-local UI commits
+  `f364cbc42` and `48d4d3e67` add exact pre-fact Activity intent, complete replacement-group
+  classification, one transactional live Activity/session read, bounded recent-page composition,
+  and non-Location Dashboard content without fabricated zero. They are accepted only as an isolated
+  source slice: the same API and Dashboard seams are changed by the accepted Pressure UI branch.
+  Final convergence must union Activity and Pressure into one live snapshot, recent merge, and
+  presentation vocabulary. Transfer and catalog activation remain absent.
 - Pressure source-specific read model and honest acquisition tiers:
   `codex/ti-pressure-acquisition` at `3b8abe350` in
   `G:\Github\Tracker-Android\.worktrees\ti-pressure-acquisition`; clean and independently accepted
