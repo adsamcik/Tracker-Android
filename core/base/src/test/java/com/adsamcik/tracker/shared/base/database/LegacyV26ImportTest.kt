@@ -85,6 +85,8 @@ class LegacyV26ImportTest {
 				"${SourceDestinationOwnerEntity.SOURCE_PRESSURE}",
 		) shouldBe SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
 		count(raw, "ambient_steps_fact_revision") shouldBe 0L
+		count(raw, "ambient_steps_import_cursor") shouldBe 0L
+		count(raw, "ambient_steps_import_gap") shouldBe 0L
 		count(raw, "pressure_fact_revision") shouldBe 0L
 	}
 

@@ -10,6 +10,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapIntegrity
 import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -92,10 +95,13 @@ class AppDatabaseMigration27To28Test {
 					assertForeignKeysEnabled(database)
 					seedMigratedStepFactRevision(database)
 					seedMigratedAmbientStepsFactRevision(database)
+					seedMigratedAmbientStepsImportState(database)
 					seedMigratedPressureFactRevision(database)
 					seedMigratedDeletionFence(database)
 					assertEquals(1L, database.stepFactRevisionDao().countAll())
 					assertEquals(1L, database.ambientStepsFactRevisionDao().countAll())
+					assertEquals(1L, database.ambientStepsImportStateDao().countCursors())
+					assertEquals(1L, database.ambientStepsImportStateDao().countGaps())
 					assertEquals(1L, database.pressureFactRevisionDao().count())
 					assertEquals(1L, database.sourceDeletionFenceDao().countAll())
 
@@ -682,6 +688,18 @@ class AppDatabaseMigration27To28Test {
 		// v27 observations remain byte-for-byte facts; migration must not invent semantics.
 		assertTableCount(database, "step_fact_revision", 0)
 		assertTableCount(database, "ambient_steps_fact_revision", 0)
+		assertTableCount(database, "ambient_steps_import_cursor", 0)
+		assertTableCount(database, "ambient_steps_import_gap", 0)
+		assertIndexColumns(
+			database,
+			"idx_ambient_steps_import_cursor_progress",
+			listOf("provider", "status", "imported_through_time_ms"),
+		)
+		assertIndexColumns(
+			database,
+			"idx_ambient_steps_import_gap_window",
+			listOf("gap_start_time_ms", "gap_end_time_ms"),
+		)
 		assertTableCount(database, "steps_goal_effect", 0)
 		assertTableCount(database, "steps_goal_repair_day", 0)
 		database.query("PRAGMA table_info(steps_goal_effect)").use { cursor ->
@@ -1161,6 +1179,8 @@ class AppDatabaseMigration27To28Test {
 			.getAllBetween(PopulatedV27Fixture.START_MS, PopulatedV27Fixture.END_MS).isEmpty())
 		assertEquals(0L, database.stepFactRevisionDao().countAll())
 		assertEquals(0L, database.ambientStepsFactRevisionDao().countAll())
+		assertEquals(0L, database.ambientStepsImportStateDao().countCursors())
+		assertEquals(0L, database.ambientStepsImportStateDao().countGaps())
 		assertEquals(0L, database.stepsGoalEffectDao().countAll())
 		// Payload-free prior/original portable deletion authority survives full clear and reopen.
 		assertEquals(1L, database.sourceDeletionFenceDao().countAll())
@@ -1270,6 +1290,77 @@ class AppDatabaseMigration27To28Test {
 		)
 		val fact = unsigned.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsigned))
 		assertTrue(database.ambientStepsFactRevisionDao().insert(fact) != -1L)
+	}
+
+	private suspend fun seedMigratedAmbientStepsImportState(database: AppDatabase) {
+		val provider = AmbientStepsImportCursorEntity.PROVIDER_HEALTH_CONNECT_MOBILE_STEPS
+		val cursor = AmbientStepsImportCursorEntity(
+			registrationGeneration = 1L,
+			provider = provider,
+			sourceInstanceId = "ambient-migration-instance",
+			registrationClockDomainId = "boot-v28",
+			registrationAcceptedAtMs = 1_001L,
+			registrationAcceptedElapsedRealtimeNanos = 2_000L,
+			authorizationRevision = 1L,
+			authorizationFingerprint = "a".repeat(64),
+			authorizationEffectiveBootId = "boot-v28",
+			authorizationEffectiveElapsedRealtimeNanos = 2_000L,
+			authorizationEffectiveWallTimeMs = 1_500L,
+			sourcePolicyRevision = 1L,
+			ambientConsentEpoch = 1L,
+			collectedDataEpoch = 7L,
+			eligibleFromTimeMs = 2_000L,
+			continuitySegmentGeneration = 2L,
+			segmentStartTimeMs = 6_000L,
+			importedThroughTimeMs = 6_000L,
+			lastObservedAtMs = 7_000L,
+			lastObservedBootId = "boot-v28",
+			lastObservedZoneId = "UTC",
+			lastGapSequence = 1L,
+			cursorRevision = 1L,
+			status = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
+			updatedAtMs = 7_000L,
+		)
+		assertTrue(database.ambientStepsImportStateDao().insertCursor(cursor) != -1L)
+
+		val gapId = AmbientStepsImportGapIntegrity.gapId(
+			registrationGeneration = 1L,
+			gapSequence = 1L,
+			provider = provider,
+			sourceInstanceId = "ambient-migration-instance",
+			reason = AmbientStepsImportGapEntity.REASON_PROCESS_ABSENCE,
+			gapStartTimeMs = 4_000L,
+			gapEndTimeMs = 6_000L,
+			predecessorRegistrationGeneration = null,
+			predecessorProvider = null,
+			previousClockDomainId = "boot-v28",
+			nextClockDomainId = "boot-v28",
+			previousZoneId = "UTC",
+			nextZoneId = "UTC",
+			collectedDataEpoch = 7L,
+		)
+		assertTrue(
+			database.ambientStepsImportStateDao().insertGap(
+				AmbientStepsImportGapEntity(
+					gapId = gapId,
+					registrationGeneration = 1L,
+					gapSequence = 1L,
+					provider = provider,
+					sourceInstanceId = "ambient-migration-instance",
+					reason = AmbientStepsImportGapEntity.REASON_PROCESS_ABSENCE,
+					gapStartTimeMs = 4_000L,
+					gapEndTimeMs = 6_000L,
+					predecessorRegistrationGeneration = null,
+					predecessorProvider = null,
+					previousClockDomainId = "boot-v28",
+					nextClockDomainId = "boot-v28",
+					previousZoneId = "UTC",
+					nextZoneId = "UTC",
+					collectedDataEpoch = 7L,
+					recordedAtMs = 7_000L,
+				),
+			) != -1L,
+		)
 	}
 
 	private suspend fun seedMigratedStepFactRevision(database: AppDatabase) {

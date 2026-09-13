@@ -1673,6 +1673,77 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS ambient_steps_import_cursor (
+					registration_generation INTEGER NOT NULL,
+					provider TEXT NOT NULL,
+					source_instance_id TEXT NOT NULL,
+					registration_clock_domain_id TEXT NOT NULL,
+					registration_accepted_at_ms INTEGER NOT NULL,
+					registration_accepted_elapsed_realtime_nanos INTEGER NOT NULL,
+					authorization_revision INTEGER NOT NULL,
+					authorization_fingerprint TEXT NOT NULL,
+					authorization_effective_boot_id TEXT NOT NULL,
+					authorization_effective_elapsed_realtime_nanos INTEGER NOT NULL,
+					authorization_effective_wall_time_ms INTEGER NOT NULL,
+					source_policy_revision INTEGER NOT NULL,
+					ambient_consent_epoch INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					eligible_from_time_ms INTEGER NOT NULL,
+					continuity_segment_generation INTEGER NOT NULL,
+					segment_start_time_ms INTEGER NOT NULL,
+					imported_through_time_ms INTEGER NOT NULL,
+					last_observed_at_ms INTEGER NOT NULL,
+					last_observed_boot_id TEXT NOT NULL,
+					last_observed_zone_id TEXT NOT NULL,
+					last_gap_sequence INTEGER NOT NULL,
+					cursor_revision INTEGER NOT NULL,
+					status TEXT NOT NULL,
+					updated_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(registration_generation)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_ambient_steps_import_cursor_progress " +
+					"ON ambient_steps_import_cursor(provider, status, imported_through_time_ms)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_ambient_steps_import_cursor_epoch " +
+					"ON ambient_steps_import_cursor(collected_data_epoch, status)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS ambient_steps_import_gap (
+					gap_id TEXT NOT NULL,
+					registration_generation INTEGER NOT NULL,
+					gap_sequence INTEGER NOT NULL,
+					provider TEXT NOT NULL,
+					source_instance_id TEXT NOT NULL,
+					reason TEXT NOT NULL,
+					gap_start_time_ms INTEGER NOT NULL,
+					gap_end_time_ms INTEGER NOT NULL,
+					predecessor_registration_generation INTEGER,
+					predecessor_provider TEXT,
+					previous_clock_domain_id TEXT NOT NULL,
+					next_clock_domain_id TEXT NOT NULL,
+					previous_zone_id TEXT NOT NULL,
+					next_zone_id TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					recorded_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(registration_generation, gap_sequence)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_ambient_steps_import_gap_id " +
+					"ON ambient_steps_import_gap(gap_id)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_ambient_steps_import_gap_window " +
+					"ON ambient_steps_import_gap(gap_start_time_ms, gap_end_time_ms)",
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS steps_goal_effect (
 					effect_identity TEXT NOT NULL,
 					period_kind TEXT NOT NULL,
