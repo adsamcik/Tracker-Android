@@ -846,9 +846,11 @@ private fun SourceServiceRunEntity.hasValidRelationshipTo(
 	logicalTrackingId != session.logicalTrackingId -> false
 	state !in TERMINAL_SESSION_STATES ->
 		session.state !in TERMINAL_SESSION_STATES && session.currentServiceRunId == serviceRunId &&
-			session.state == state
+			((session.state in ADMISSION_SESSION_STATES && state in ADMISSION_RUN_STATES) ||
+				(session.state == "ACTIVE" && state == "STOPPING") ||
+				(session.state == "STOPPING" && state == "STOPPING"))
 	session.state in TERMINAL_SESSION_STATES -> session.currentServiceRunId == null
-	else -> true
+	else -> false
 }
 
 private fun WifiPlan.maximumObservationAgeNanos(): Long =
@@ -861,5 +863,7 @@ private fun WifiPlan.maximumObservationAgeNanos(): Long =
 private fun rejected(reason: WifiWalAdapterRejection) = WifiWalAdapterResult.Rejected(reason)
 
 private val TERMINAL_SESSION_STATES = setOf("FINALIZED", "CLOSED", "FAILED")
+private val ADMISSION_SESSION_STATES = setOf("STARTING", "ACTIVE", "RECONFIGURING")
+private val ADMISSION_RUN_STATES = setOf("STARTING", "ACTIVE")
 private val ALL_SESSION_STATES = TERMINAL_SESSION_STATES +
 	setOf("STARTING", "ACTIVE", "RECONFIGURING", "STOPPING")

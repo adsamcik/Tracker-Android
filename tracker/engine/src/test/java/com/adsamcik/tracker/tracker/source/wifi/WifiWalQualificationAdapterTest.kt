@@ -279,28 +279,37 @@ class WifiWalQualificationAdapterTest {
 	}
 
 	@Test
-	fun `session and current run lifecycle states must form an exact live pair`() = runTest {
+	fun `all reachable durable ingress lifecycle pairs remain eligible`() = runTest {
 		installValidFixture()
-		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
-		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
-		assertEquals(1, database.sourceSessionDao().updateSession(
-			session.copy(
-				state = "ACTIVE",
-				completedAtMs = null,
-				cutoffAtMs = null,
-				cutoffElapsedNanos = null,
-				finalAdmissionOrdinal = null,
-				currentServiceRunId = RUN_ID,
-			),
-		))
-		assertEquals(1, database.sourceSessionDao().updateServiceRun(
-			run.copy(state = "STOPPING", completedAtMs = null),
-		))
+		val admissionPairs = listOf("STARTING", "ACTIVE", "RECONFIGURING").flatMap { session ->
+			listOf("STARTING", "ACTIVE").map { run -> session to run }
+		}
+		val reachablePairs = admissionPairs + listOf("ACTIVE" to "STOPPING", "STOPPING" to "STOPPING")
 
-		assertEquals(
-			WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH),
-			subject.qualify(EVENT_ID),
+		reachablePairs.forEach { (sessionState, runState) ->
+			setLiveLifecyclePair(sessionState, runState)
+			assertIs<WifiWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		}
+	}
+
+	@Test
+	fun `impossible live lifecycle pairs still fail closed`() = runTest {
+		installValidFixture()
+		val impossiblePairs = listOf(
+			"STARTING" to "STOPPING",
+			"RECONFIGURING" to "STOPPING",
+			"STOPPING" to "STARTING",
+			"STOPPING" to "ACTIVE",
+			"ACTIVE" to "FINALIZED",
 		)
+
+		impossiblePairs.forEach { (sessionState, runState) ->
+			setLiveLifecyclePair(sessionState, runState)
+			assertEquals(
+				WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH),
+				subject.qualify(EVENT_ID),
+			)
+		}
 	}
 
 	@Test
@@ -583,6 +592,28 @@ class WifiWalQualificationAdapterTest {
 			LOGICAL_ID, RUN_ID, 0L, 1L, 2L, OBSERVED_WALL_MS + 2L,
 		))
 		assertEquals(2L, requireNotNull(dao.deletionGeneration(LOGICAL_ID, RUN_ID)).generation)
+	}
+
+	private suspend fun setLiveLifecyclePair(sessionState: String, runState: String) {
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
+		val stoppingSession = sessionState == "STOPPING"
+		assertEquals(1, database.sourceSessionDao().updateSession(
+			session.copy(
+				state = sessionState,
+				completedAtMs = null,
+				cutoffAtMs = SESSION_END_WALL_MS.takeIf { stoppingSession },
+				cutoffElapsedNanos = SESSION_END_NANOS.takeIf { stoppingSession },
+				finalAdmissionOrdinal = null,
+				currentServiceRunId = RUN_ID,
+			),
+		))
+		assertEquals(1, database.sourceSessionDao().updateServiceRun(
+			run.copy(
+				state = runState,
+				completedAtMs = SESSION_END_WALL_MS.takeIf { runState in setOf("FINALIZED", "CLOSED", "FAILED") },
+			),
+		))
 	}
 
 	private suspend fun insertSecondWal(): SourceEventId {
