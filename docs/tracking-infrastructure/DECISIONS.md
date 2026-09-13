@@ -3282,3 +3282,19 @@ Each entry records repository evidence and does not duplicate the final architec
 - Fixed query pages are reinforced by explicit total and per-run run/row/revision/lineage budgets.
   Overflow, malformed authority, or cancellation rolls back all markers and deletions. A worker does
   not yet invoke this path and product reads do not yet consume its marker.
+
+## TI-D206 — Wi-Fi facts authenticate the exact identity-free provider snapshot
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/tests `e5082b670` through
+  `96e930d80`; TI-B269.
+- Pure Wi-Fi qualification accepts only captured-registration evidence. A passive callback may omit
+  the redundant runtime configuration hint, but the exact serialized desired plan and applied
+  registration remain mandatory; a nonnull mismatch fails closed.
+- Input bytes are capped before decoding, v2 payloads must canonical re-encode with no trailing data,
+  and only the production one-unit callback shape qualifies. Nonempty observations must be sorted,
+  privacy-minimized, timestamped per child, carry the latest provider millisecond in the platform
+  timestamp, and omit result age.
+- The stored source-delivery identity is recomputed with the production Wi-Fi provider canonicalizer
+  before any fact identity is derived. Aggregate count and owner semantics remain construction-safe;
+  no BSSID, SSID, or stable radio identity is retained. Durable WAL adaptation, persistence,
+  provider ownership, active attempts, product reads, and UI remain open.

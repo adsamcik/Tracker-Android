@@ -651,6 +651,13 @@ reads/UI, and complete authored scenarios exist.
 - [ ] TODO-WIFI-013 Author freshness, empty, unchanged, replay, restart, throttle, active-budget,
   privacy, context, deletion, query, UI, automatic, and ambient tests without running them.
 
+Accepted isolated commits `e5082b670` through `96e930d80` implement only the pure dormant
+identity-free classification portion of WIFI-003/005/013. Qualification now binds
+`CAPTURED_REGISTRATION` plan authority, caps and canonicalizes exact v2 one-unit provider payloads,
+and recomputes delivery identity from sorted minimized observations before first fact identity. No
+durable WAL adapter, fact table/writer/cursor, source-local deletion fence, provider runtime change,
+active-attempt product, history, or UI is complete, so every Wi-Fi TODO remains unchecked.
+
 ## Cell vertical
 
 - [ ] TODO-CELL-001 Complete one app-scoped Cell callback owner and stable durable delivery identity

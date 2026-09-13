@@ -1862,3 +1862,25 @@ Deferred focused command:
 The command was not run. Kotlin/Room compilation, SQL execution, retention-worker invocation,
 marker-aware product composition, large-store timing, correction/replay behavior, device storage,
 integration, activation, and release remain unproven.
+
+## TI-B269 — Wi-Fi canonical provider-snapshot qualification contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `96e930d80`. Authored pure classifier tests cover exact
+captured-registration provenance, passive null versus mismatched configuration hints, immutable
+desired-plan and applied-registration authority, pre-decode byte limits, canonical v2 re-encoding
+and EOF, exact unit index/count, sorted identity-free access-point evidence, provider-derived
+platform timestamp, absent result age, recomputed production delivery identity, per-child freshness,
+retention, aggregate count/owner construction, replay, correction, and malformed input. Repeated
+read-only reviews rejected caller-selected bounds, bypassable construction, passive-plan mismatch,
+forged identity, and noncanonical payload shapes before accepting the final pure model.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*WifiCapturedFactClassifierTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. One reviewer inadvertently invoked a branch `git diff --check`; it returned
+no output, changed nothing, and is discarded as evidence under the implementation-only directive.
+Compilation, durable WAL adaptation and persistence, provider callbacks/active attempts, product
+history/UI, device/OEM behavior, integration, activation, and release remain unproven.

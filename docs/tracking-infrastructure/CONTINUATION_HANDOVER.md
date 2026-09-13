@@ -80,6 +80,12 @@ Independent clean lanes:
   radio identity. Coverage remains typed `UNKNOWN` because v1 WAL cannot prove subscription
   grouping; no Cell fact table, source-local deletion fence, producer, runtime activation, history,
   or UI is claimed.
+- Wi-Fi identity-free fact qualification: `codex/ti-wifi-fact-model` at `96e930d80` in
+  `G:\Github\Tracker-Android\.worktrees\ti-wifi-fact-model`; clean and independently accepted as
+  **IMPLEMENTED_UNVALIDATED** for the pure dormant classifier. It authenticates captured passive
+  plan authority, canonical v2 bytes and exact one-unit provider shape, and recomputes delivery
+  identity from sorted minimized access-point evidence before deriving a fact. A durable adapter,
+  fact persistence, provider activation, history, and UI remain open.
 
 Read-only Git reconciliation found no accepted committed work lost through compaction. The imported
 Steps source branches are already contained or patch-equivalent in this coordinator; old
