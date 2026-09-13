@@ -7,6 +7,8 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import javax.inject.Inject
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /**
  * Composes recent physical presentation rows into stable logical history entries.
@@ -111,18 +113,31 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 		val accepted = ArrayList<HistoricalTrackingEntryEvidence>(limit)
 		var beforeStartTimeMs: Long? = null
 		var beforeSegmentId: Long? = null
+		var scannedCandidateCount = 0
 
-		entryPages@ while (accepted.size < limit) {
-			val candidates = database.trackingHistoryReadDao().recentEntryCandidatePage(
-				limit = ENTRY_CANDIDATE_BATCH_CAP,
+		entryPages@ while (
+			accepted.size < limit && scannedCandidateCount < ENTRY_CANDIDATE_SCAN_BUDGET
+		) {
+			currentCoroutineContext().ensureActive()
+			val remainingCandidateBudget = ENTRY_CANDIDATE_SCAN_BUDGET - scannedCandidateCount
+			val acceptedPageLimit = minOf(
+				ENTRY_CANDIDATE_BATCH_CAP,
+				remainingCandidateBudget,
+			)
+			val finalBudgetPage = remainingCandidateBudget <= ENTRY_CANDIDATE_BATCH_CAP
+			val candidateProbe = database.trackingHistoryReadDao().recentEntryCandidatePage(
+				limit = acceptedPageLimit + if (finalBudgetPage) 1 else 0,
 				stepsSourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 				capturePurpose = SessionManifestPurposeCode.SESSION_CAPTURE,
 				beforeStartTimeMs = beforeStartTimeMs,
 				beforeSegmentId = beforeSegmentId,
 			)
+			val candidateBudgetExceeded = finalBudgetPage && candidateProbe.size > acceptedPageLimit
+			val candidates = candidateProbe.take(acceptedPageLimit)
 			if (candidates.isEmpty()) {
 				break
 			}
+			scannedCandidateCount += candidates.size
 
 			val entries = loadCandidateEntries(candidates)
 			for (candidate in candidates) {
@@ -136,11 +151,14 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 					break@entryPages
 				}
 			}
+			if (candidateBudgetExceeded) throw LogicalHistoryPageDependencyOverflow(
+				HistoryPageDependencyLimit.CANDIDATE_SCAN,
+			)
 
 			val lastScanned = candidates.last()
 			beforeStartTimeMs = lastScanned.sortStartTimeMs
 			beforeSegmentId = lastScanned.sortSegmentId
-			if (candidates.size < ENTRY_CANDIDATE_BATCH_CAP) {
+			if (candidates.size < acceptedPageLimit) {
 				break
 			}
 		}
@@ -186,17 +204,27 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 		var afterStartTimeMs: Long? = null
 		var afterSegmentId: Long? = null
 		while (true) {
-			val segmentPage = database.trackingHistoryReadDao().logicalEntrySegmentPage(
+			currentCoroutineContext().ensureActive()
+			val remaining = MAX_LOGICAL_MEMBER_COUNT - evidence.size
+			val acceptedPageLimit = minOf(HISTORY_SEGMENT_BATCH_CAP, remaining)
+			val finalBudgetPage = remaining <= HISTORY_SEGMENT_BATCH_CAP
+			val segmentProbe = database.trackingHistoryReadDao().logicalEntrySegmentPage(
 				logicalTrackingIds = logicalIds,
-				limit = HISTORY_SEGMENT_BATCH_CAP,
+				limit = acceptedPageLimit + if (finalBudgetPage) 1 else 0,
 				afterStartTimeMs = afterStartTimeMs,
 				afterSegmentId = afterSegmentId,
 			)
+			if (finalBudgetPage && segmentProbe.size > acceptedPageLimit) {
+				throw LogicalHistoryPageDependencyOverflow(
+					HistoryPageDependencyLimit.LOGICAL_MEMBERSHIP,
+				)
+			}
+			val segmentPage = segmentProbe.take(acceptedPageLimit)
 			if (segmentPage.isEmpty()) {
 				break
 			}
 			evidence += stepsSelector.selectManyInTransaction(segmentPage)
-			if (segmentPage.size < HISTORY_SEGMENT_BATCH_CAP) {
+			if (segmentPage.size < acceptedPageLimit) {
 				break
 			}
 			val lastScanned = segmentPage.last()
@@ -224,18 +252,28 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 		var afterStartedAtMs: Long? = null
 		var afterServiceRunId: String? = null
 		while (true) {
-			val runPage = database.trackingHistoryReadDao().logicalEntryServiceRunPage(
+			currentCoroutineContext().ensureActive()
+			val remaining = MAX_LOGICAL_MEMBER_COUNT - serviceRuns.size
+			val acceptedPageLimit = minOf(HISTORY_SEGMENT_BATCH_CAP, remaining)
+			val finalBudgetPage = remaining <= HISTORY_SEGMENT_BATCH_CAP
+			val runProbe = database.trackingHistoryReadDao().logicalEntryServiceRunPage(
 				logicalTrackingIds = logicalIds,
-				limit = HISTORY_SEGMENT_BATCH_CAP,
+				limit = acceptedPageLimit + if (finalBudgetPage) 1 else 0,
 				afterLogicalTrackingId = afterLogicalTrackingId,
 				afterStartedAtMs = afterStartedAtMs,
 				afterServiceRunId = afterServiceRunId,
 			)
+			if (finalBudgetPage && runProbe.size > acceptedPageLimit) {
+				throw LogicalHistoryPageDependencyOverflow(
+					HistoryPageDependencyLimit.LOGICAL_MEMBERSHIP,
+				)
+			}
+			val runPage = runProbe.take(acceptedPageLimit)
 			if (runPage.isEmpty()) {
 				break
 			}
 			serviceRuns += runPage
-			if (runPage.size < HISTORY_SEGMENT_BATCH_CAP) {
+			if (runPage.size < acceptedPageLimit) {
 				break
 			}
 			val lastScanned = runPage.last()
@@ -294,6 +332,8 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 
 	private companion object {
 		const val ENTRY_CANDIDATE_BATCH_CAP = 64
+		const val ENTRY_CANDIDATE_SCAN_BUDGET = 256
+		const val MAX_LOGICAL_MEMBER_COUNT = 256
 		const val MAX_PHYSICAL_CANDIDATE_COUNT = 100
 		const val MAX_RECENT_ENTRY_COUNT = 100
 
@@ -302,3 +342,9 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 				.thenByDescending { it.recencySegmentId }
 	}
 }
+
+internal class LogicalHistoryPageDependencyOverflow(
+	val limit: HistoryPageDependencyLimit,
+) : IllegalStateException("Logical history dependency budget exceeded: $limit")
+
+internal enum class HistoryPageDependencyLimit { CANDIDATE_SCAN, LOGICAL_MEMBERSHIP }

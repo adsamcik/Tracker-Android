@@ -24,6 +24,8 @@ import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
 import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageQuery
+import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
@@ -100,10 +102,11 @@ class PressureHistorySelectorTest {
 		val replacement = insertReplacementFixture()
 		val repository = pressureAwareRepository()
 
-		val page = repository.observeRecentPressureAwarePage(
+		val query = repository.observeRecentPressureAwarePage(
 			candidateSegmentIds = listOf(first.segmentId, replacement.segmentId),
 			limit = 10,
 		).first()
+		val page = (query as PressureAwareHistoryPageQuery.Content).entries
 
 		page.size shouldBe 1
 		val pressureOnly = page.single() as PressureAwareHistoryPageEntry.PressureOnly
@@ -115,16 +118,85 @@ class PressureHistorySelectorTest {
 	}
 
 	@Test
-	fun pressureAwarePageKeepsUnqualifiedExactIntentPhysical() = runTest {
+	fun pressureAwarePageReplacesExactIntentBeforeFirstFact() = runTest {
 		val fixture = insertFixture(factSemanticRevision = null, laneCursor = 0L)
 		val repository = pressureAwareRepository()
 
-		val page = repository.observeRecentPressureAwarePage(
+		val query = repository.observeRecentPressureAwarePage(
+			candidateSegmentIds = listOf(fixture.segmentId),
+			limit = 10,
+		).first()
+		val page = (query as PressureAwareHistoryPageQuery.Content).entries
+
+		val pressureOnly = page.single() as PressureAwareHistoryPageEntry.PressureOnly
+		pressureOnly.history.state shouldBe PressureHistoryPresentationState.MATERIALIZING
+		pressureOnly.history.pressure.summary shouldBe null
+	}
+
+	@Test
+	fun pressureAwarePageRetainsExactPressureOnlyProviderUnavailableState() = runTest {
+		val fixture = insertFixture(
+			factSemanticRevision = null,
+			laneCursor = 1L,
+			unavailablePressure = true,
+		)
+
+		val query = pressureAwareRepository().observeRecentPressureAwarePage(
+			candidateSegmentIds = listOf(fixture.segmentId),
+			limit = 10,
+		).first()
+		val pressureOnly = (query as PressureAwareHistoryPageQuery.Content).entries.single() as
+			PressureAwareHistoryPageEntry.PressureOnly
+
+		pressureOnly.history.state shouldBe PressureHistoryPresentationState.UNAVAILABLE
+		pressureOnly.history.pressure.summary shouldBe null
+	}
+
+	@Test
+	fun pressureAwarePageReturnsTypedUnavailableWhenLogicalMembershipExceedsBudget() = runTest {
+		val fixture = insertFixture(factSemanticRevision = null, laneCursor = 0L)
+		repeat(64) { index -> insertBareLogicalMember(index + 1) }
+
+		val query = pressureAwareRepository().observeRecentPressureAwarePage(
 			candidateSegmentIds = listOf(fixture.segmentId),
 			limit = 10,
 		).first()
 
-		page shouldBe listOf(PressureAwareHistoryPageEntry.Physical(fixture.segmentId))
+		query shouldBe PressureAwareHistoryPageQuery.Unavailable(
+			PressureAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
+		)
+	}
+
+	@Test
+	fun pressureIntentDiscoveryReturnsTypedUnavailableAtCandidateScanBoundary() = runTest {
+		insertFixture(factSemanticRevision = 1L)
+		insertIndependentPressureFixture(
+			index = 1,
+			startTimeMs = 3_000L,
+			factCollectedDataEpoch = 1L,
+		)
+
+		val query = database.withTransaction {
+			selector.discoverRecentPressureOnlyIntentInTransaction(
+				limit = 2,
+				candidateBudget = 1,
+			)
+		}
+
+		query shouldBe PressureOnlyDiscoveryResult.Unavailable(
+			PressureAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
+		)
+	}
+
+	@Test
+	fun logicalPressureRecencyUsesOneNewestMemberTupleWhenPhysicalIdsRegress() = runTest {
+		val first = insertFixture(factSemanticRevision = 1L)
+		val replacement = insertReplacementFixture(segmentId = 40L)
+
+		val logical = selector.selectLogicalBySegmentIds(listOf(first.segmentId)).single()
+
+		logical.recencyMember.segment.id shouldBe replacement.segmentId
+		logical.recencyMember.segment.startTimeMs shouldBe REPLACEMENT_RUN_START_MS
 	}
 
 	@Test
@@ -977,9 +1049,10 @@ class PressureHistorySelectorTest {
 	private suspend fun insertReplacementFixture(
 		includeFact: Boolean = true,
 		unavailablePressure: Boolean = false,
+		segmentId: Long = REPLACEMENT_SEGMENT_ID,
 	): PressureFixture {
 		val segment = segment(
-			id = REPLACEMENT_SEGMENT_ID,
+			id = segmentId,
 			runId = REPLACEMENT_RUN_ID,
 			startTimeMs = REPLACEMENT_RUN_START_MS,
 			endTimeMs = REPLACEMENT_RUN_END_MS,
@@ -988,7 +1061,7 @@ class PressureHistorySelectorTest {
 		database.sourceSessionDao().insertServiceRun(
 			serviceRun(
 				runId = REPLACEMENT_RUN_ID,
-				segmentId = REPLACEMENT_SEGMENT_ID,
+				segmentId = segmentId,
 				startTimeMs = REPLACEMENT_RUN_START_MS,
 				endTimeMs = REPLACEMENT_RUN_END_MS,
 				startElapsedNanos = REPLACEMENT_RUN_START_ELAPSED_NANOS,

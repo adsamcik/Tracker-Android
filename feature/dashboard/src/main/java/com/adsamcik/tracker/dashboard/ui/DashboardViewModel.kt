@@ -19,6 +19,7 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveSessionPresentation
 import com.adsamcik.tracker.dashboard.ui.compose.state.StreakState
 import com.adsamcik.tracker.dashboard.ui.compose.state.WeeklyTrend
+import com.adsamcik.tracker.dashboard.ui.compose.state.toDashboardLivePressureValue
 import com.adsamcik.tracker.dashboard.ui.compose.state.toDashboardLiveStepsValue
 import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.DailySummary
@@ -27,7 +28,10 @@ import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.PressureSessionHistory
+import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.tracker.insights.SessionInsight
@@ -149,8 +153,12 @@ class DashboardViewModel @Inject constructor(
 			if (segmentId == null) {
 				flowOf(DashboardLiveSessionPresentation.Inactive)
 			} else {
-				trackingHistoryRepository.observeSession(segmentId)
-					.map { query -> query.toLivePresentation(segmentId) }
+				combine(
+					trackingHistoryRepository.observeSession(segmentId),
+					trackingHistoryRepository.observePressureSession(segmentId),
+				) { sessionQuery, pressureQuery ->
+					toLivePresentation(segmentId, sessionQuery, pressureQuery)
+				}
 					.onStart {
 						emit(DashboardLiveSessionPresentation.Resolving(segmentId))
 					}
@@ -353,6 +361,29 @@ private data class SessionInsightsRequest(
 	val session: TrackerSessionSnapshot,
 )
 
+private fun toLivePresentation(
+	requestedSegmentId: Long,
+	sessionQuery: SessionHistoryQuery,
+	pressureQuery: PressureSessionHistoryQuery,
+): DashboardLiveSessionPresentation {
+	val pressureHistory = when (pressureQuery) {
+		PressureSessionHistoryQuery.NotFound -> null
+		is PressureSessionHistoryQuery.Found -> {
+			if (pressureQuery.history.segmentId != requestedSegmentId) {
+				return DashboardLiveSessionPresentation.HistoryUnavailable(requestedSegmentId)
+			}
+			pressureQuery.history
+		}
+	}
+	if (pressureHistory?.hasExactPressureOnlyIntent == true) {
+		return DashboardLiveSessionPresentation.PressureOnly(
+			segmentId = requestedSegmentId,
+			pressure = pressureHistory.pressure.toDashboardLivePressureValue(),
+		)
+	}
+	return sessionQuery.toLivePresentation(requestedSegmentId)
+}
+
 private fun SessionHistoryQuery.toLivePresentation(
 	requestedSegmentId: Long,
 ): DashboardLiveSessionPresentation = when (this) {
@@ -373,3 +404,13 @@ private fun SessionHistoryQuery.toLivePresentation(
 		)
 	}
 }
+
+/**
+ * Location controls are hidden by exact Pressure-only capture intent, including truthful
+ * materializing or unavailable states before the first Pressure fact. Mixed and unverifiable
+ * histories retain the established Standard surface.
+ */
+private val PressureSessionHistory.hasExactPressureOnlyIntent: Boolean
+	get() = (capture as? HistoryCapture.Exact)?.revisions?.all { revision ->
+		revision.capturedSources == setOf(HistorySource.PRESSURE)
+	} == true

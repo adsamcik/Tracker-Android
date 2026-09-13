@@ -44,15 +44,16 @@ interface TrackingHistoryRepository {
 	 * Observe one finite recent-history page with exact Steps-only and Pressure-only replacement.
 	 *
 	 * A physical row is suppressed for Pressure only when the complete logical manifest union is
-	 * exactly Pressure and retained source-local history authority makes that logical entry ordinarily
-	 * discoverable. Legacy, mixed, corrupt, and otherwise unverifiable candidates remain physical.
-	 * Implementations compose the three row kinds in one bounded snapshot; opaque source-only keys do
-	 * not grant physical detail, deletion, map, or export authority.
+	 * exactly Pressure. That exact intent remains visible while its source product is materializing or
+	 * unavailable; it does not require a first fact. Legacy, mixed, corrupt, and otherwise unverifiable
+	 * candidates remain physical. Implementations compose the three row kinds in one bounded snapshot;
+	 * an undecidable bounded dependency is typed unavailable and opaque source-only keys do not grant
+	 * physical detail, deletion, map, or export authority.
 	 */
 	fun observeRecentPressureAwarePage(
 		candidateSegmentIds: List<Long>,
 		limit: Int,
-	): Flow<List<PressureAwareHistoryPageEntry>>
+	): Flow<PressureAwareHistoryPageQuery>
 
 	/** Observe source-qualified Pressure history for one exact physical session segment. */
 	fun observePressureSession(segmentId: Long): Flow<PressureSessionHistoryQuery>
@@ -220,6 +221,25 @@ sealed interface PressureAwareHistoryPageEntry {
 	data class PressureOnly(
 		val history: PressureOnlyHistoryEntry,
 	) : PressureAwareHistoryPageEntry
+}
+
+/** One bounded Pressure-aware page result; dependency overflow never falls back to raw rows. */
+sealed interface PressureAwareHistoryPageQuery {
+	/** The complete requested page within the declared candidate and membership budgets. */
+	data class Content(
+		val entries: List<PressureAwareHistoryPageEntry>,
+	) : PressureAwareHistoryPageQuery
+
+	/** Exact source-only replacement could not be decided within a bounded read. */
+	data class Unavailable(
+		val reason: PressureAwareHistoryPageUnavailableReason,
+	) : PressureAwareHistoryPageQuery
+}
+
+/** Bounded dependency that prevented a truthful Pressure-aware page decision. */
+enum class PressureAwareHistoryPageUnavailableReason {
+	CANDIDATE_SCAN_LIMIT,
+	LOGICAL_MEMBERSHIP_LIMIT,
 }
 
 /** Policy/capability availability, independent of acquisition and product progress. */

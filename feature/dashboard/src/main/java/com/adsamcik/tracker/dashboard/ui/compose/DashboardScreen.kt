@@ -48,6 +48,7 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.allowsRuntimeMilestones
 import com.adsamcik.tracker.dashboard.ui.compose.state.qualifiedMilestoneSteps
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.TrackingContent
+import com.adsamcik.tracker.dashboard.ui.compose.tracking.PressureOnlyTrackingContent
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.StepsOnlyTrackingContent
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.TrackingHistoryResolutionContent
 import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLayout
@@ -220,6 +221,21 @@ internal fun DashboardScreen(
 					DashboardMode.TRACKING -> when (
 						val presentation = state.liveSessionPresentation
 					) {
+						is DashboardLiveSessionPresentation.PressureOnly -> {
+							val session = state.sessionData
+							if (session != null && session.id == presentation.segmentId) {
+								PressureOnlyTrackingContent(
+									sessionData = session,
+									presentation = presentation,
+									bottomClearance = bottomClearance,
+								)
+							} else {
+								TrackingHistoryResolutionContent(
+									historyUnavailable = false,
+									bottomClearance = bottomClearance,
+								)
+							}
+						}
 						is DashboardLiveSessionPresentation.StepsOnly -> {
 							val session = state.sessionData
 							if (session != null && session.id == presentation.segmentId) {

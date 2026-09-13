@@ -49,6 +49,11 @@
     <string name="dashboard_live_steps_materializing">Preparing durable step history…</string>
     <string name="dashboard_live_steps_missing">Waiting for a qualifying step observation</string>
     <string name="dashboard_live_steps_unavailable">Durable step history is unavailable</string>
+    <string name="dashboard_metric_pressure">Pressure</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">Range %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">Change %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">Stored zone: %1$s</string>
     <string name="dashboard_milestone_distance">km reached!</string>
     <string name="dashboard_milestone_steps">steps reached!</string>
     <string name="dashboard_milestone_time">min tracked!</string>

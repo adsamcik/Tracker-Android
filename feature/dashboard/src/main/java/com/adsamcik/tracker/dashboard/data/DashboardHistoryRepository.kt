@@ -13,6 +13,7 @@ import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
 import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
@@ -113,7 +114,7 @@ internal class RoomDashboardHistoryRepository @Inject constructor(
 ) : DashboardHistoryRepository {
 	@OptIn(ExperimentalCoroutinesApi::class)
 	override fun observeRecentHistory(): Flow<List<DashboardRecentHistoryEntry>> =
-		tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_LIMIT)
+		tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_BUDGET + 1)
 			.map { rows ->
 				DashboardPhysicalCandidateGeneration(rows.map { row -> row.toModel() })
 			}
@@ -226,7 +227,7 @@ internal class RoomDashboardHistoryRepository @Inject constructor(
 	private companion object {
 		const val DOMAIN_DAILY_DISCOVERY = "DAILY_DISCOVERY"
 		const val EXPLORATION_LEVEL = 14
-		const val PHYSICAL_CANDIDATE_LIMIT = 20
+		const val PHYSICAL_CANDIDATE_BUDGET = 64
 		const val RECENT_HISTORY_LIMIT = 5
 		const val DASHBOARD_DAY_COUNT = 7
 		const val RECENT_TREND_DAY_COUNT = 3
@@ -238,13 +239,21 @@ internal class RoomDashboardHistoryRepository @Inject constructor(
 
 /** Immutable physical snapshot used for one Stats page generation. */
 private class DashboardPhysicalCandidateGeneration(
-	private val candidates: List<Trip>,
+	candidateProbe: List<Trip>,
 ) {
+	private val candidateBudgetExceeded = candidateProbe.size > PHYSICAL_CANDIDATE_BUDGET
+	private val candidates = candidateProbe.take(PHYSICAL_CANDIDATE_BUDGET)
 	private val candidatesById = candidates.associateBy(Trip::id)
 	val candidateIds: List<Long> = candidates.map(Trip::id)
 
-	fun mapPage(page: List<PressureAwareHistoryPageEntry>): List<DashboardRecentHistoryEntry> =
-		page.map { entry ->
+	fun mapPage(query: PressureAwareHistoryPageQuery): List<DashboardRecentHistoryEntry> {
+		val page = when (query) {
+			is PressureAwareHistoryPageQuery.Content -> query.entries
+			is PressureAwareHistoryPageQuery.Unavailable -> throw DashboardHistoryPageUnavailable(
+				"Stats Pressure-aware page unavailable: ${query.reason}",
+			)
+		}
+		val mapped = page.map { entry ->
 			when (entry) {
 				is PressureAwareHistoryPageEntry.Physical -> DashboardRecentHistoryEntry.Physical(
 					checkNotNull(candidatesById[entry.segmentId]) {
@@ -257,4 +266,18 @@ private class DashboardPhysicalCandidateGeneration(
 					DashboardRecentHistoryEntry.PressureOnly(entry.history)
 			}
 		}
+		if (candidateBudgetExceeded && mapped.size < RECENT_HISTORY_LIMIT) {
+			throw DashboardHistoryPageUnavailable(
+				"Physical candidate budget exhausted before the recent page was filled",
+			)
+		}
+		return mapped
+	}
+
+	private companion object {
+		const val PHYSICAL_CANDIDATE_BUDGET = 64
+		const val RECENT_HISTORY_LIMIT = 5
+	}
 }
+
+private class DashboardHistoryPageUnavailable(message: String) : IllegalStateException(message)

@@ -268,6 +268,10 @@ internal data class PressureLogicalHistoryEntry(
 	val isOrdinarilyDiscoverable: Boolean
 		get() = TrackingSourceComponent.PRESSURE in qualifiedSources || hasAuthenticatedRetentionLoss
 
+	/** One physical member owns both recency fields; independently maximizing them is not a tuple. */
+	val recencyMember: PressurePhysicalHistory
+		get() = physicalMembers.maxWith(pressurePhysicalRecencyOrder)
+
 	/** Exact Pressure-only intent is independent of current fact/materialization availability. */
 	val hasExactPressureOnlyIntent: Boolean
 		get() {
@@ -326,6 +330,11 @@ private val pressurePhysicalMemberOrder = compareBy<PressurePhysicalHistory>(
 		(history.captureAuthority as? HistoricalCaptureAuthority.Exact)
 			?.revisions?.firstOrNull()?.manifestRevision ?: Long.MAX_VALUE
 	},
+	{ it.segment.startTimeMs },
+	{ it.segment.id },
+)
+
+private val pressurePhysicalRecencyOrder = compareBy<PressurePhysicalHistory>(
 	{ it.segment.startTimeMs },
 	{ it.segment.id },
 )

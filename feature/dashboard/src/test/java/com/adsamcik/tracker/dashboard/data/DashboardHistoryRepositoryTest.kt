@@ -13,6 +13,8 @@ import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageQuery
+import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
@@ -64,12 +66,14 @@ class DashboardHistoryRepositoryTest {
 				limit = RECENT_HISTORY_LIMIT,
 			)
 		} returns flowOf(
-			listOf(
-				PressureAwareHistoryPageEntry.Physical(3L),
-				PressureAwareHistoryPageEntry.StepsOnly(steps),
-				PressureAwareHistoryPageEntry.Physical(20L),
-				PressureAwareHistoryPageEntry.Physical(2L),
-				PressureAwareHistoryPageEntry.Physical(1L),
+			PressureAwareHistoryPageQuery.Content(
+				listOf(
+					PressureAwareHistoryPageEntry.Physical(3L),
+					PressureAwareHistoryPageEntry.StepsOnly(steps),
+					PressureAwareHistoryPageEntry.Physical(20L),
+					PressureAwareHistoryPageEntry.Physical(2L),
+					PressureAwareHistoryPageEntry.Physical(1L),
+				),
 			),
 		)
 
@@ -94,11 +98,15 @@ class DashboardHistoryRepositoryTest {
 	@Test
 	fun `replacement generation cancels old page and maps matching physical snapshot`() = runTest {
 		val candidateRows = MutableStateFlow(listOf(trip(1L)))
-		val firstPage = MutableStateFlow<List<PressureAwareHistoryPageEntry>>(
-			listOf(PressureAwareHistoryPageEntry.Physical(1L)),
+		val firstPage = MutableStateFlow<PressureAwareHistoryPageQuery>(
+			PressureAwareHistoryPageQuery.Content(
+				listOf(PressureAwareHistoryPageEntry.Physical(1L)),
+			),
 		)
-		val secondPage = MutableStateFlow<List<PressureAwareHistoryPageEntry>>(
-			listOf(PressureAwareHistoryPageEntry.Physical(2L)),
+		val secondPage = MutableStateFlow<PressureAwareHistoryPageQuery>(
+			PressureAwareHistoryPageQuery.Content(
+				listOf(PressureAwareHistoryPageEntry.Physical(2L)),
+			),
 		)
 		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_LIMIT) } returns candidateRows
 		every {
@@ -115,7 +123,7 @@ class DashboardHistoryRepositoryTest {
 		advanceUntilIdle()
 		candidateRows.value = listOf(trip(2L))
 		advanceUntilIdle()
-		firstPage.value = emptyList()
+		firstPage.value = PressureAwareHistoryPageQuery.Content(emptyList())
 		collection.join()
 
 		pages.map { page -> (page.single() as DashboardRecentHistoryEntry.Physical).trip.id } shouldContainExactly
@@ -129,7 +137,11 @@ class DashboardHistoryRepositoryTest {
 		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_LIMIT) } returns flowOf(candidates)
 		every {
 			trackingHistoryRepository.observeRecentPressureAwarePage(any(), RECENT_HISTORY_LIMIT)
-		} returns flowOf(listOf(PressureAwareHistoryPageEntry.StepsOnly(steps)))
+		} returns flowOf(
+			PressureAwareHistoryPageQuery.Content(
+				listOf(PressureAwareHistoryPageEntry.StepsOnly(steps)),
+			),
+		)
 
 		val page = repository(testScheduler).observeRecentHistory().first()
 
@@ -149,7 +161,11 @@ class DashboardHistoryRepositoryTest {
 				listOf(1L),
 				RECENT_HISTORY_LIMIT,
 			)
-		} returns flowOf(listOf(PressureAwareHistoryPageEntry.PressureOnly(pressure)))
+		} returns flowOf(
+			PressureAwareHistoryPageQuery.Content(
+				listOf(PressureAwareHistoryPageEntry.PressureOnly(pressure)),
+			),
+		)
 
 		val page = repository(testScheduler).observeRecentHistory().first()
 
@@ -166,6 +182,60 @@ class DashboardHistoryRepositoryTest {
 		shouldThrow<IllegalStateException> {
 			repository(testScheduler).observeRecentHistory().first()
 		}
+	}
+
+	@Test
+	fun `typed Stats unavailability is propagated without raw fallback`() = runTest {
+		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_LIMIT) } returns flowOf(listOf(trip(1L)))
+		every {
+			trackingHistoryRepository.observeRecentPressureAwarePage(listOf(1L), RECENT_HISTORY_LIMIT)
+		} returns flowOf(
+			PressureAwareHistoryPageQuery.Unavailable(
+				PressureAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
+			),
+		)
+
+		shouldThrow<IllegalStateException> {
+			repository(testScheduler).observeRecentHistory().first()
+		}
+	}
+
+	@Test
+	fun `candidate overflow fails closed when the bounded page remains underfilled`() = runTest {
+		val candidates = (PHYSICAL_CANDIDATE_LIMIT.toLong() downTo 1L).map(::trip)
+		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_LIMIT) } returns flowOf(candidates)
+		every {
+			trackingHistoryRepository.observeRecentPressureAwarePage(any(), RECENT_HISTORY_LIMIT)
+		} returns flowOf(
+			PressureAwareHistoryPageQuery.Content(
+				listOf(PressureAwareHistoryPageEntry.Physical(candidates.first().id)),
+			),
+		)
+
+		shouldThrow<IllegalStateException> {
+			repository(testScheduler).observeRecentHistory().first()
+		}
+	}
+
+	@Test
+	fun `bounded backfill may complete from the first sixty four of an overflow probe`() = runTest {
+		val candidates = (PHYSICAL_CANDIDATE_LIMIT.toLong() downTo 1L).map(::trip)
+		val expectedIds = candidates.take(RECENT_HISTORY_LIMIT).map { it.id }
+		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_LIMIT) } returns flowOf(candidates)
+		every {
+			trackingHistoryRepository.observeRecentPressureAwarePage(
+				candidateSegmentIds = candidates.take(64).map { it.id },
+				limit = RECENT_HISTORY_LIMIT,
+			)
+		} returns flowOf(
+			PressureAwareHistoryPageQuery.Content(
+				expectedIds.map { PressureAwareHistoryPageEntry.Physical(it) },
+			),
+		)
+
+		val page = repository(testScheduler).observeRecentHistory().first()
+
+		page.map { (it as DashboardRecentHistoryEntry.Physical).trip.id } shouldBe expectedIds
 	}
 
 	@Test
@@ -243,7 +313,7 @@ class DashboardHistoryRepositoryTest {
 
 	private companion object {
 		const val EXPLORATION_LEVEL = 14
-		const val PHYSICAL_CANDIDATE_LIMIT = 20
+		const val PHYSICAL_CANDIDATE_LIMIT = 65
 		const val RECENT_HISTORY_LIMIT = 5
 		const val DASHBOARD_DAY_COUNT = 7
 		const val STREAK_TYPE = "DAILY_DISCOVERY"

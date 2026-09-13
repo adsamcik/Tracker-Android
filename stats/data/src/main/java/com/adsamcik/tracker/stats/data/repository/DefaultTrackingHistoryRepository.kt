@@ -12,6 +12,8 @@ import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageQuery
+import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistory
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
@@ -82,43 +84,69 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 	override fun observeRecentPressureAwarePage(
 		candidateSegmentIds: List<Long>,
 		limit: Int,
-	): Flow<List<PressureAwareHistoryPageEntry>> {
+	): Flow<PressureAwareHistoryPageQuery> {
 		validatePressureAwarePageRequest(candidateSegmentIds, limit)
 		val stableCandidateSegmentIds = candidateSegmentIds.toList()
 		return historyInvalidations().mapLatest {
-			database.withTransaction {
-				val existingRows = logicalHistoryReader.selectRecentStepsAwareCandidatesInTransaction(
-					candidateSegmentIds = stableCandidateSegmentIds,
-					sourceOnlyLimit = limit,
-				)
-				val acceptedCandidatePressureGroups = pressureSelector
-					.selectLogicalBySegmentIdsInTransaction(stableCandidateSegmentIds)
-					.filter { entry ->
-						entry.hasExactPressureOnlyIntent && entry.isOrdinarilyDiscoverable
+			try {
+				database.withTransaction {
+					val existingRows = logicalHistoryReader.selectRecentStepsAwareCandidatesInTransaction(
+						candidateSegmentIds = stableCandidateSegmentIds,
+						sourceOnlyLimit = limit,
+					)
+					val candidatePressureGroups = pressureSelector
+						.selectLogicalBySegmentIdsInTransaction(stableCandidateSegmentIds)
+					if (candidatePressureGroups.hasDependencyOverflow) {
+						return@withTransaction PressureAwareHistoryPageQuery.Unavailable(
+							PressureAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
+						)
 					}
-				val suppressedPhysicalIds = acceptedCandidatePressureGroups.flatMapTo(hashSetOf()) {
-					entry -> entry.physicalMembers.map { member -> member.segment.id }
-				}
-				val pressureOnlyRows = pressureSelector
-					.discoverRecentPressureOnlyByPressureFactsInTransaction(limit)
-					.mapNotNull { entry ->
-						entry.toPublicPressureOnlyEntryOrNull()?.let { public ->
-							HistoricalPressureAwarePageEntry.PressureOnly(entry, public)
+					val exactCandidatePressureGroups = candidatePressureGroups.filter(
+						PressureLogicalHistoryEntry::hasExactPressureOnlyIntent,
+					)
+					val suppressedPhysicalIds = exactCandidatePressureGroups.flatMapTo(hashSetOf()) {
+						entry -> entry.physicalMembers.map { member -> member.segment.id }
+					}
+					val pressureDiscovery = pressureSelector
+						.discoverRecentPressureOnlyIntentInTransaction(limit)
+					if (pressureDiscovery is PressureOnlyDiscoveryResult.Unavailable) {
+						return@withTransaction PressureAwareHistoryPageQuery.Unavailable(
+							pressureDiscovery.reason,
+						)
+					}
+					val pressureOnlyRows = (pressureDiscovery as PressureOnlyDiscoveryResult.Content)
+						.entries.mapNotNull { entry ->
+							entry.toPublicPressureOnlyEntryOrNull()?.let { public ->
+								HistoricalPressureAwarePageEntry.PressureOnly(entry, public)
+							}
+						}
+					val retainedExistingRows = existingRows.mapNotNull { entry ->
+						when (entry) {
+							is HistoricalStepsAwarePageEntry.Physical -> entry.takeUnless {
+								it.segment.id in suppressedPhysicalIds
+							}?.let(HistoricalPressureAwarePageEntry::Existing)
+							is HistoricalStepsAwarePageEntry.StepsOnly ->
+								HistoricalPressureAwarePageEntry.Existing(entry)
 						}
 					}
-				val retainedExistingRows = existingRows.mapNotNull { entry ->
-					when (entry) {
-						is HistoricalStepsAwarePageEntry.Physical -> entry.takeUnless {
-							it.segment.id in suppressedPhysicalIds
-						}?.let(HistoricalPressureAwarePageEntry::Existing)
-						is HistoricalStepsAwarePageEntry.StepsOnly ->
-							HistoricalPressureAwarePageEntry.Existing(entry)
-					}
+					PressureAwareHistoryPageQuery.Content(
+						(retainedExistingRows + pressureOnlyRows)
+							.sortedWith(pressureAwarePageOrder)
+							.take(limit)
+							.map(HistoricalPressureAwarePageEntry::toPublicPageEntry),
+					)
 				}
-				(retainedExistingRows + pressureOnlyRows)
-					.sortedWith(pressureAwarePageOrder)
-					.take(limit)
-					.map(HistoricalPressureAwarePageEntry::toPublicPageEntry)
+			} catch (overflow: LogicalHistoryPageDependencyOverflow) {
+				PressureAwareHistoryPageQuery.Unavailable(
+					when (overflow.limit) {
+						HistoryPageDependencyLimit.CANDIDATE_SCAN ->
+							PressureAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT
+						HistoryPageDependencyLimit.LOGICAL_MEMBERSHIP ->
+							PressureAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT
+					},
+				)
+			} catch (overflow: PressureHistoryPageDependencyOverflow) {
+				PressureAwareHistoryPageQuery.Unavailable(overflow.reason)
 			}
 		}.distinctUntilChanged()
 			.flowOn(ioDispatcher)
@@ -239,11 +267,18 @@ private sealed interface HistoricalPressureAwarePageEntry {
 		val public: PressureOnlyHistoryEntry,
 	) : HistoricalPressureAwarePageEntry {
 		override val recencyStartTimeMs: Long
-			get() = entry.physicalMembers.maxOf { member -> member.segment.startTimeMs }
+			get() = entry.recencyMember.segment.startTimeMs
 		override val recencySegmentId: Long
-			get() = entry.physicalMembers.maxOf { member -> member.segment.id }
+			get() = entry.recencyMember.segment.id
 	}
 }
+
+private val List<PressureLogicalHistoryEntry>.hasDependencyOverflow: Boolean
+	get() = any { entry ->
+		entry.physicalMembers.any { member ->
+			PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW in member.reasons
+		}
+	}
 
 private val pressureAwarePageOrder =
 	compareByDescending<HistoricalPressureAwarePageEntry> { it.recencyStartTimeMs }
