@@ -107,7 +107,10 @@ internal class PressureHistorySelector @Inject constructor(
 	internal fun selectManyWithSnapshot(
 		segments: List<SessionSegment>,
 		snapshot: PressureHistoryBatchSnapshot,
-	): List<PressurePhysicalHistory> = segments.map { segment -> select(segment, snapshot) }
+	): List<PressurePhysicalHistory> {
+		val validatedSnapshot = snapshot.withLogicalManifestMembershipValidation(segments)
+		return segments.map { segment -> select(segment, validatedSnapshot) }
+	}
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "LongParameterList", "ReturnCount")
 	private fun select(
@@ -139,10 +142,12 @@ internal class PressureHistorySelector @Inject constructor(
 		}
 		val membershipFailure = snapshot.logicalMembershipFailures[logicalTrackingId]
 		if (membershipFailure != null) {
-			val captureFailure = if (membershipFailure == PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW) {
-				HistoricalCaptureFailure.BATCH_DEPENDENCY_OVERFLOW
-			} else {
-				HistoricalCaptureFailure.SEGMENT_MEMBERSHIP_INCOMPLETE
+			val captureFailure = when (membershipFailure) {
+				PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW ->
+					HistoricalCaptureFailure.BATCH_DEPENDENCY_OVERFLOW
+				PressureHistoryReason.LOGICAL_MANIFEST_REVISION_UNION_INVALID ->
+					HistoricalCaptureFailure.MANIFEST_INTEGRITY_FAILED
+				else -> HistoricalCaptureFailure.SEGMENT_MEMBERSHIP_INCOMPLETE
 			}
 			return unavailable(segment, captureFailure, membershipFailure)
 		}
@@ -367,10 +372,22 @@ internal class PressureHistorySelector @Inject constructor(
 		}
 		val targetOrdinal = completeness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal)
 			.maxOrNull()
-		if (completeness.singleOrNull()?.registrationGeneration == 0L) {
-			return providerUnavailable(segment, captureAuthority)
-		}
 		val revisions = snapshot.factRevisionsByRun[serviceRunId].orEmpty()
+		if (completeness.singleOrNull()?.registrationGeneration == 0L) {
+			val retainedFromMs = evidenceState.retainedFromMs
+			val hasRetainedFacts = revisions.any { fact ->
+				retainedFromMs == null || fact.intervalEndTimeMs >= retainedFromMs
+			}
+			return if (hasRetainedFacts) {
+				failed(
+					segment,
+					captureAuthority,
+					PressureHistoryReason.UNAVAILABLE_SENTINEL_WITH_RETAINED_FACTS,
+				)
+			} else {
+				providerUnavailable(segment, captureAuthority)
+			}
+		}
 		if (logicalTrackingId in snapshot.invalidFactScopeLogicalIds) {
 			return failed(
 				segment,
@@ -386,10 +403,10 @@ internal class PressureHistorySelector @Inject constructor(
 		) {
 			return failed(segment, captureAuthority, PressureHistoryReason.COMPLETENESS_INVALID)
 		}
-		val correctionFailure = correctionFailure(revisions)
+		val manifestsByRevision = manifests.associateBy(SessionManifestVersionEntity::manifestRevision)
+		val correctionFailure = correctionFailure(revisions, manifestsByRevision)
 		if (correctionFailure != null) return failed(segment, captureAuthority, correctionFailure)
 
-		val manifestsByRevision = manifests.associateBy(SessionManifestVersionEntity::manifestRevision)
 		val nextManifestByRevision = manifests.mapIndexed { index, manifest ->
 			manifest.manifestRevision to manifests.getOrNull(index + 1)
 		}.toMap()
@@ -532,6 +549,7 @@ internal class PressureHistorySelector @Inject constructor(
 
 	private fun correctionFailure(
 		revisions: List<PressureFactRevisionEntity>,
+		manifestsByRevision: Map<Long, SessionManifestVersionEntity>,
 	): PressureHistoryReason? {
 		if (revisions.map(PressureFactRevisionEntity::sourceAdmissionOrdinal).distinct().size !=
 			revisions.size
@@ -547,17 +565,35 @@ internal class PressureHistorySelector @Inject constructor(
 				} catch (_: ArithmeticException) {
 					return PressureHistoryReason.PRESSURE_FACT_CORRECTION_INCOMPLETE
 				}
+				val priorAuthority = prior.correctionAuthority(manifestsByRevision)
+				val currentAuthority = current.correctionAuthority(manifestsByRevision)
 				if (current.semanticRevision != expectedRevision ||
 					current.sourceAdmissionOrdinal <= prior.sourceAdmissionOrdinal ||
 					current.sourceEventId != prior.sourceEventId ||
 					current.writerBindingGeneration != prior.writerBindingGeneration ||
 					current.logicalTrackingId != prior.logicalTrackingId ||
 					current.serviceRunId != prior.serviceRunId || current.purpose != prior.purpose ||
-					current.collectedDataEpoch != prior.collectedDataEpoch
+					current.collectedDataEpoch != prior.collectedDataEpoch ||
+					priorAuthority == null || currentAuthority != priorAuthority
 				) return PressureHistoryReason.PRESSURE_FACT_CORRECTION_INCOMPLETE
 			}
 		}
 		return null
+	}
+
+	private fun PressureFactRevisionEntity.correctionAuthority(
+		manifestsByRevision: Map<Long, SessionManifestVersionEntity>,
+	): PressureCorrectionAuthority? {
+		val manifest = manifestsByRevision[manifestRevision] ?: return null
+		return PressureCorrectionAuthority(
+			manifestRevision = manifestRevision,
+			sourcePolicyRevision = sourcePolicyRevision,
+			captureConsentEpoch = captureConsentEpoch,
+			clockDomainId = clockDomainId,
+			wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+			manifestClockDomainId = manifest.effectiveBootId,
+			zoneId = manifest.zoneId,
+		)
 	}
 
 	@Suppress("ComplexCondition")
@@ -800,6 +836,49 @@ internal class PressureHistorySelector @Inject constructor(
 	} catch (_: DateTimeException) {
 		false
 	}
+
+	private fun PressureHistoryBatchSnapshot.withLogicalManifestMembershipValidation(
+		segments: List<SessionSegment>,
+	): PressureHistoryBatchSnapshot {
+		val failures = logicalMembershipFailures.toMutableMap()
+		segments.groupBy(SessionSegment::logicalTrackingId).forEach { (logicalTrackingId, members) ->
+			if (logicalTrackingId.isNullOrBlank() || logicalTrackingId in failures) return@forEach
+			val serviceRunIds = members.mapNotNull(SessionSegment::serviceRunId)
+			if (serviceRunIds.size != members.size || serviceRunIds.distinct().size != members.size) {
+				failures[logicalTrackingId] = PressureHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE
+				return@forEach
+			}
+			val completeRunIds = serviceRuns.values.asSequence()
+				.filter { run -> run.logicalTrackingId == logicalTrackingId }
+				.map(SourceServiceRunEntity::serviceRunId)
+				.toSet()
+			if (completeRunIds != serviceRunIds.toSet()) {
+				failures[logicalTrackingId] = PressureHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE
+				return@forEach
+			}
+			val revisionsByRun = serviceRunIds.map { serviceRunId ->
+				manifestsByRun[serviceRunId].orEmpty()
+					.map(SessionManifestVersionEntity::manifestRevision)
+			}
+			if (!SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(revisionsByRun)) {
+				failures[logicalTrackingId] =
+					PressureHistoryReason.LOGICAL_MANIFEST_REVISION_UNION_INVALID
+			}
+		}
+		return if (failures == logicalMembershipFailures) this else copy(
+			logicalMembershipFailures = failures,
+		)
+	}
+
+	private data class PressureCorrectionAuthority(
+		val manifestRevision: Long,
+		val sourcePolicyRevision: Long,
+		val captureConsentEpoch: Long,
+		val clockDomainId: String,
+		val wallTimeUncertaintyMs: Long,
+		val manifestClockDomainId: String,
+		val zoneId: String,
+	)
 
 	private data class PressureWriterBinding(
 		val owner: String,

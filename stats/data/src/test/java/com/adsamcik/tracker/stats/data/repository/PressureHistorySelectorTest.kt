@@ -129,6 +129,72 @@ class PressureHistorySelectorTest {
 	}
 
 	@Test
+	fun partialLogicalMemberInputCannotLookCompleteAgainstItsSnapshotUniverse() = runTest {
+		val first = insertFixture(factSemanticRevision = 1L, laneCursor = 2L)
+		val replacement = insertReplacementFixture()
+		val segments = database.trackingHistoryReadDao().segments(
+			listOf(first.segmentId, replacement.segmentId),
+		)
+		val snapshot = database.withTransaction {
+			loadPressureHistoryBatchSnapshot(database, segments)
+		}
+
+		val partial = selector.selectManyWithSnapshot(listOf(segments.first()), snapshot).single()
+
+		partial.availability shouldBe PressureHistoryAvailability.UNAVAILABLE
+		partial.reasons shouldBe setOf(PressureHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE)
+	}
+
+	@Test
+	fun duplicateServiceRunMembershipCannotLookComplete() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		val segment = database.trackingHistoryReadDao().segments(listOf(fixture.segmentId)).single()
+		val snapshot = database.withTransaction {
+			loadPressureHistoryBatchSnapshot(database, listOf(segment))
+		}
+
+		val duplicate = segment.copy(id = REPLACEMENT_SEGMENT_ID)
+		val selected = selector.selectManyWithSnapshot(listOf(segment, duplicate), snapshot)
+
+		selected.all { history ->
+			history.availability == PressureHistoryAvailability.UNAVAILABLE &&
+				history.reasons == setOf(PressureHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE)
+		} shouldBe true
+	}
+
+	@Test
+	fun logicalManifestRevisionGapOrDuplicatePreventsReplacementComposition() = runTest {
+		val first = insertFixture(factSemanticRevision = 1L, laneCursor = 2L)
+		val replacement = insertReplacementFixture()
+		val segments = database.trackingHistoryReadDao().segments(
+			listOf(first.segmentId, replacement.segmentId),
+		)
+		val snapshot = database.withTransaction {
+			loadPressureHistoryBatchSnapshot(database, segments)
+		}
+		val replacementManifest = snapshot.manifestsByRun.getValue(replacement.runId).single()
+
+		listOf(1L, 3L).forEach { invalidReplacementRevision ->
+			val invalidSnapshot = snapshot.copy(
+				manifestsByRun = snapshot.manifestsByRun + (
+					replacement.runId to listOf(
+						replacementManifest.copy(manifestRevision = invalidReplacementRevision),
+					)
+				),
+			)
+			val selected = selector.selectManyWithSnapshot(segments, invalidSnapshot)
+
+			selected.all { history ->
+				history.availability == PressureHistoryAvailability.UNAVAILABLE &&
+					history.reasons == setOf(
+						PressureHistoryReason.LOGICAL_MANIFEST_REVISION_UNION_INVALID,
+					)
+			} shouldBe true
+			PressureLogicalHistoryComposer.compose(selected).size shouldBe segments.size
+		}
+	}
+
+	@Test
 	fun legitimateUnavailablePressureSettlementIsTypedUnavailable() = runTest {
 		val fixture = insertFixture(factSemanticRevision = null, unavailablePressure = true)
 
@@ -138,6 +204,21 @@ class PressureHistorySelectorTest {
 		result.materialization shouldBe PressureHistoryMaterialization.NOT_APPLICABLE
 		result.coverage shouldBe PressureHistoryCoverage.NONE
 		result.reasons shouldBe setOf(PressureHistoryReason.PROVIDER_UNAVAILABLE)
+		result.windows shouldBe emptyList()
+	}
+
+	@Test
+	fun unavailablePressureSentinelWithRetainedFactFailsAsCompletenessConflict() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L, unavailablePressure = true)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		result.availability shouldBe PressureHistoryAvailability.AVAILABLE
+		result.materialization shouldBe PressureHistoryMaterialization.FAILED
+		result.coverage shouldBe PressureHistoryCoverage.UNKNOWN
+		result.reasons shouldBe setOf(
+			PressureHistoryReason.UNAVAILABLE_SENTINEL_WITH_RETAINED_FACTS,
+		)
 		result.windows shouldBe emptyList()
 	}
 
@@ -166,6 +247,37 @@ class PressureHistorySelectorTest {
 		result.availability shouldBe PressureHistoryAvailability.UNAVAILABLE
 		result.reasons shouldBe setOf(PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW)
 		result.windows shouldBe emptyList()
+	}
+
+	@Test
+	fun logicalMemberTraversalBudgetFailsClosedBeforeAccumulatingPastLimit() = runTest {
+		val fixture = insertFixture(factSemanticRevision = null)
+		insertBareLogicalMember(index = 1)
+		val seed = database.trackingHistoryReadDao().segments(listOf(fixture.segmentId)).single()
+
+		val expansion = database.withTransaction {
+			expandPressureLogicalMembership(database, listOf(seed), memberBudget = 1)
+		}
+
+		expansion.segments shouldBe listOf(seed)
+		expansion.failures shouldBe mapOf(
+			LOGICAL_ID to PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW,
+		)
+	}
+
+	@Test
+	fun logicalMemberCursorCrossesPageBoundaryWithoutSkippingReplacementRuns() = runTest {
+		val fixture = insertFixture(factSemanticRevision = null)
+		val addedSegmentIds = (1..33).map { index -> insertBareLogicalMember(index) }
+		val seed = database.trackingHistoryReadDao().segments(listOf(fixture.segmentId)).single()
+
+		val expansion = database.withTransaction {
+			expandPressureLogicalMembership(database, listOf(seed), memberBudget = 64)
+		}
+
+		expansion.failures shouldBe emptyMap()
+		expansion.segments.map(SessionSegment::id).toSet() shouldBe
+			(addedSegmentIds + fixture.segmentId).toSet()
 	}
 
 	@Test
@@ -209,6 +321,124 @@ class PressureHistorySelectorTest {
 		database.pressureFactRevisionDao().insert(escaped)
 
 		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		result.materialization shouldBe PressureHistoryMaterialization.FAILED
+		result.reasons shouldBe setOf(PressureHistoryReason.PRESSURE_FACT_CORRECTION_INCOMPLETE)
+		result.windows shouldBe emptyList()
+	}
+
+	@Test
+	@Suppress("LongMethod")
+	fun correctionCannotRotateManifestPolicyConsentOrClockZoneAuthority() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L, laneCursor = 2L)
+		val rotatedBinding = pressureBinding(manifestRevision = 2L, consentEpoch = 2L)
+		val unsignedManifest = SessionManifestVersionEntity(
+			logicalTrackingId = LOGICAL_ID,
+			manifestRevision = 2L,
+			serviceRunId = RUN_ID,
+			sessionMode = MANUAL_SESSION_MODE,
+			sourcePolicyRevision = 2L,
+			acquisitionPlanRevision = 1L,
+			rolloutRevision = ROLLOUT_REVISION,
+			startOrigin = POLICY_RECONCILIATION,
+			effectiveBootId = BOOT_ID,
+			effectiveElapsedRealtimeNanos = ROTATED_MANIFEST_ELAPSED_NANOS,
+			effectiveWallTimeMs = ROTATED_MANIFEST_WALL_TIME_MS,
+			zoneId = "America/New_York",
+			automationEpoch = null,
+			changeReason = POLICY_RECONCILIATION,
+			manifestChecksum = "",
+		)
+		val manifest = unsignedManifest.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(
+				unsignedManifest,
+				listOf(rotatedBinding),
+			),
+		)
+		database.sourceSessionDao().insertManifest(manifest)
+		database.sourceSessionDao().insertManifestSources(listOf(rotatedBinding))
+		database.sourcePolicyDao().insertPolicies(listOf(
+			pressurePolicy(
+				policyRevision = 2L,
+				captureConsentEpoch = 2L,
+				effectiveElapsedRealtimeNanos = ROTATED_MANIFEST_ELAPSED_NANOS,
+				effectiveWallTimeMs = ROTATED_MANIFEST_WALL_TIME_MS,
+			),
+		))
+		database.sourcePolicyDao().insertConsentEpochs(listOf(
+			pressureConsent(
+				epoch = 2L,
+				policyRevision = 2L,
+				effectiveElapsedRealtimeNanos = ROTATED_MANIFEST_ELAPSED_NANOS,
+				effectiveWallTimeMs = ROTATED_MANIFEST_WALL_TIME_MS,
+			),
+		))
+		val rotatedFact = pressureFact(
+			binding = rotatedBinding,
+			semanticRevision = 2L,
+			admissionOrdinal = 2L,
+			manifestRevision = 2L,
+			sourcePolicyRevision = 2L,
+			captureConsentEpoch = 2L,
+			intervalStartTimeMs = ROTATED_PRESSURE_START_MS,
+			intervalEndTimeMs = ROTATED_PRESSURE_END_MS,
+			windowStartElapsedRealtimeNanos = ROTATED_PRESSURE_START_ELAPSED_NANOS,
+			windowEndElapsedRealtimeNanos = ROTATED_PRESSURE_END_ELAPSED_NANOS,
+		)
+		PressureFactRevisionIntegrity.hasValidEffectChecksum(
+			rotatedFact,
+			rotatedBinding,
+		) shouldBe true
+		database.pressureFactRevisionDao().insert(rotatedFact)
+		val completeness = database.trackingHistoryReadDao().completeness(listOf(RUN_ID)).single()
+		database.sourceSessionDao().saveCompleteness(
+			completeness.copy(
+				lastAdmissionOrdinal = 2L,
+				lastSourceSequence = 2L,
+				updatedAtMs = ROTATED_PRESSURE_END_MS,
+			),
+		)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+
+		result.materialization shouldBe PressureHistoryMaterialization.FAILED
+		result.reasons shouldBe setOf(PressureHistoryReason.PRESSURE_FACT_CORRECTION_INCOMPLETE)
+		result.windows shouldBe emptyList()
+	}
+
+	@Test
+	fun correctionCannotRotateWallClockUncertaintyAuthority() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L, laneCursor = 2L)
+		val segment = database.trackingHistoryReadDao().segments(listOf(fixture.segmentId)).single()
+		val snapshot = database.withTransaction {
+			loadPressureHistoryBatchSnapshot(database, listOf(segment))
+		}
+		val first = snapshot.factRevisionsByRun.getValue(RUN_ID).single()
+		val correctedUnsigned = first.copy(
+			semanticRevision = 2L,
+			mutationId = "${first.logicalFactId}:2",
+			sourceAdmissionOrdinal = 2L,
+			wallTimeUncertaintyMs = first.wallTimeUncertaintyMs + 1L,
+			effectChecksum = "pending",
+		)
+		val binding = pressureBinding()
+		val corrected = correctedUnsigned.copy(
+			effectChecksum = PressureFactRevisionIntegrity.effectChecksum(
+				correctedUnsigned,
+				binding,
+			),
+		)
+		PressureFactRevisionIntegrity.hasValidEffectChecksum(corrected, binding) shouldBe true
+		val completeness = snapshot.completenessByRun.getValue(RUN_ID).single().copy(
+			lastAdmissionOrdinal = 2L,
+			lastSourceSequence = 2L,
+		)
+		val rotatedSnapshot = snapshot.copy(
+			factRevisionsByRun = snapshot.factRevisionsByRun + (RUN_ID to listOf(first, corrected)),
+			completenessByRun = snapshot.completenessByRun + (RUN_ID to listOf(completeness)),
+		)
+
+		val result = selector.selectManyWithSnapshot(listOf(segment), rotatedSnapshot).single()
 
 		result.materialization shouldBe PressureHistoryMaterialization.FAILED
 		result.reasons shouldBe setOf(PressureHistoryReason.PRESSURE_FACT_CORRECTION_INCOMPLETE)
@@ -422,6 +652,32 @@ class PressureHistorySelectorTest {
 		return PressureFixture(segment.id, LOGICAL_ID, REPLACEMENT_RUN_ID)
 	}
 
+	private suspend fun insertBareLogicalMember(index: Int): Long {
+		val segmentId = 1_000L + index
+		val runId = "run-pressure-bare-$index"
+		val startTimeMs = 10_000L + index
+		val endTimeMs = startTimeMs + 1L
+		database.sessionSegmentDao().insert(
+			segment(
+				id = segmentId,
+				runId = runId,
+				startTimeMs = startTimeMs,
+				endTimeMs = endTimeMs,
+			),
+		)
+		database.sourceSessionDao().insertServiceRun(
+			serviceRun(
+				runId = runId,
+				segmentId = segmentId,
+				startTimeMs = startTimeMs,
+				endTimeMs = endTimeMs,
+				startElapsedNanos = 1_000_000_000L + index,
+				manifestRevision = 10L + index,
+			),
+		)
+		return segmentId
+	}
+
 	private fun segment(
 		id: Long = SEGMENT_ID,
 		runId: String = RUN_ID,
@@ -475,12 +731,15 @@ class PressureHistorySelectorTest {
 		presentationAcknowledgedAtMs = endTimeMs,
 	)
 
-	private fun pressureBinding(manifestRevision: Long = 1L) = SessionManifestSourceEntity(
+	private fun pressureBinding(
+		manifestRevision: Long = 1L,
+		consentEpoch: Long = 1L,
+	) = SessionManifestSourceEntity(
 		logicalTrackingId = LOGICAL_ID,
 		manifestRevision = manifestRevision,
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 		purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
-		consentEpoch = 1L,
+		consentEpoch = consentEpoch,
 		persistenceEligible = true,
 		qosCode = 1,
 		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
@@ -491,8 +750,13 @@ class PressureHistorySelectorTest {
 		writerBindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
 	)
 
-	private fun pressurePolicy() = SourcePolicyEntity(
-		policyRevision = 1L,
+	private fun pressurePolicy(
+		policyRevision: Long = 1L,
+		captureConsentEpoch: Long = 1L,
+		effectiveElapsedRealtimeNanos: Long = RUN_START_ELAPSED_NANOS,
+		effectiveWallTimeMs: Long = RUN_START_MS,
+	) = SourcePolicyEntity(
+		policyRevision = policyRevision,
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 		enabled = true,
 		qosCode = 1,
@@ -502,25 +766,30 @@ class PressureHistorySelectorTest {
 		capturePersistenceEligible = true,
 		controlPersistenceEligible = false,
 		ambientPersistenceEligible = false,
-		captureConsentEpoch = 1L,
+		captureConsentEpoch = captureConsentEpoch,
 		controlConsentEpoch = null,
 		ambientConsentEpoch = null,
 		effectiveBootId = BOOT_ID,
-		effectiveElapsedRealtimeNanos = RUN_START_ELAPSED_NANOS,
-		effectiveWallTimeMs = RUN_START_MS,
+		effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
+		effectiveWallTimeMs = effectiveWallTimeMs,
 		changeReason = "TEST",
 	)
 
-	private fun pressureConsent() = SourceConsentEpochEntity(
+	private fun pressureConsent(
+		epoch: Long = 1L,
+		policyRevision: Long = 1L,
+		effectiveElapsedRealtimeNanos: Long = RUN_START_ELAPSED_NANOS,
+		effectiveWallTimeMs: Long = RUN_START_MS,
+	) = SourceConsentEpochEntity(
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 		purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
-		epoch = 1L,
+		epoch = epoch,
 		eligible = true,
 		persistenceEligible = true,
-		policyRevision = 1L,
+		policyRevision = policyRevision,
 		effectiveBootId = BOOT_ID,
-		effectiveElapsedRealtimeNanos = RUN_START_ELAPSED_NANOS,
-		effectiveWallTimeMs = RUN_START_MS,
+		effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
+		effectiveWallTimeMs = effectiveWallTimeMs,
 		changeReason = "TEST",
 	)
 
@@ -548,6 +817,8 @@ class PressureHistorySelectorTest {
 		sourceEventId: String = SOURCE_EVENT_ID,
 		serviceRunId: String = RUN_ID,
 		manifestRevision: Long = 1L,
+		sourcePolicyRevision: Long = 1L,
+		captureConsentEpoch: Long = 1L,
 		intervalStartTimeMs: Long = PRESSURE_START_MS,
 		intervalEndTimeMs: Long = PRESSURE_END_MS,
 		windowStartElapsedRealtimeNanos: Long = PRESSURE_START_ELAPSED_NANOS,
@@ -596,8 +867,8 @@ class PressureHistorySelectorTest {
 			serviceRunId = serviceRunId,
 			purpose = PressureFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 			manifestRevision = manifestRevision,
-			sourcePolicyRevision = 1L,
-			captureConsentEpoch = 1L,
+			sourcePolicyRevision = sourcePolicyRevision,
+			captureConsentEpoch = captureConsentEpoch,
 			collectedDataEpoch = 0L,
 			effectChecksum = "pending",
 			appliedAtMs = intervalEndTimeMs,
@@ -631,6 +902,7 @@ class PressureHistorySelectorTest {
 		const val SOURCE_EVENT_ID = "pressure-event"
 		const val MANUAL_SESSION_MODE = "MANUAL"
 		const val MANUAL_START_ORIGIN = "MANUAL_FOREGROUND_START"
+		const val POLICY_RECONCILIATION = "POLICY_RECONCILIATION"
 		const val MANUAL_CAPTURE_MASK = 1L
 		const val ROLLOUT_REVISION = 2L
 		const val RUN_START_MS = 1_000L
@@ -640,6 +912,12 @@ class PressureHistorySelectorTest {
 		const val PRESSURE_END_MS = 1_250L
 		const val PRESSURE_START_ELAPSED_NANOS = 110_000_000L
 		const val PRESSURE_END_ELAPSED_NANOS = 260_000_000L
+		const val ROTATED_MANIFEST_WALL_TIME_MS = 1_400L
+		const val ROTATED_MANIFEST_ELAPSED_NANOS = 300_000_000L
+		const val ROTATED_PRESSURE_START_MS = 1_500L
+		const val ROTATED_PRESSURE_END_MS = 1_650L
+		const val ROTATED_PRESSURE_START_ELAPSED_NANOS = 310_000_000L
+		const val ROTATED_PRESSURE_END_ELAPSED_NANOS = 460_000_000L
 		const val REPLACEMENT_RUN_START_MS = 2_000L
 		const val REPLACEMENT_RUN_END_MS = 3_000L
 		const val REPLACEMENT_RUN_START_ELAPSED_NANOS = 300_000_000L
