@@ -20,19 +20,56 @@ internal enum class WifiProviderOutcome {
 }
 
 /**
- * Source-boundary input. [providerObservationElapsedRealtimeNanos] is used only for a provider-
- * confirmed empty result and must come from a source-native clock/identity contract. Receipt time
- * is never substituted for it.
+ * Explicit provider-bound proof required before an empty callback can become a captured zero.
+ * The future source adapter must supply the same durable delivery and all observed-time fields;
+ * receipt time alone is not a provider observation.
  */
+internal data class WifiConfirmedEmptyProviderProof private constructor(
+	val sourceDeliveryIdentity: SourceDeliveryIdentity,
+	val clockDomainId: String,
+	val providerObservationElapsedRealtimeNanos: Long,
+	val receivedElapsedRealtimeNanos: Long,
+	val observedWallTimeMs: Long,
+	val wallTimeUncertaintyMs: Long,
+) {
+	init {
+		require(clockDomainId.isNotBlank())
+		require(providerObservationElapsedRealtimeNanos >= 0L)
+		require(receivedElapsedRealtimeNanos >= providerObservationElapsedRealtimeNanos)
+		require(observedWallTimeMs >= 0L)
+		require(wallTimeUncertaintyMs >= 0L)
+	}
+
+	companion object {
+		/** Trust boundary for a source adapter with real provider-native empty-result evidence. */
+		fun fromProviderCallback(
+			sourceDeliveryIdentity: SourceDeliveryIdentity,
+			clockDomainId: String,
+			providerObservationElapsedRealtimeNanos: Long,
+			receivedElapsedRealtimeNanos: Long,
+			observedWallTimeMs: Long,
+			wallTimeUncertaintyMs: Long,
+		) = WifiConfirmedEmptyProviderProof(
+			sourceDeliveryIdentity = sourceDeliveryIdentity,
+			clockDomainId = clockDomainId,
+			providerObservationElapsedRealtimeNanos = providerObservationElapsedRealtimeNanos,
+			receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
+			observedWallTimeMs = observedWallTimeMs,
+			wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+		)
+	}
+}
+
+/** Source-boundary input. Receipt time is never substituted for provider observation time. */
 internal data class WifiObservationInput(
 	val origin: WifiObservationOrigin,
 	val outcome: WifiProviderOutcome,
 	val sourceDeliveryIdentity: SourceDeliveryIdentity?,
 	val clockDomainId: String?,
-	val providerObservationElapsedRealtimeNanos: Long?,
 	val receivedElapsedRealtimeNanos: Long,
 	val observedWallTimeMs: Long?,
 	val wallTimeUncertaintyMs: Long?,
+	val confirmedEmptyProof: WifiConfirmedEmptyProviderProof?,
 	val accessPoints: List<WifiAccessPointEvidence>,
 ) {
 	init {
@@ -47,6 +84,9 @@ internal enum class WifiFactRejection {
 	DELIVERY_IDENTITY_UNVERIFIABLE,
 	DELIVERY_IDENTITY_COLLISION,
 	INVALID_CORRECTION_BASE,
+	CONFIRMED_EMPTY_PROOF_MISMATCH,
+	TOO_MANY_ACCESS_POINTS,
+	MALFORMED_ACCESS_POINT,
 }
 
 internal sealed interface WifiCapturedFactClassification {
@@ -88,6 +128,13 @@ internal object WifiCapturedFactClassifier {
 		if (input.clockDomainId != authority.clockDomainId) {
 			return WifiCapturedFactClassification.ClockUnverifiable
 		}
+		if (input.accessPoints.size >
+			authority.acquisitionConfiguration.maximumAccessPointCount
+		) {
+			return WifiCapturedFactClassification.Rejected(
+				WifiFactRejection.TOO_MANY_ACCESS_POINTS,
+			)
+		}
 		if (input.accessPoints.any { it.identifierToken.isNotEmpty() }) {
 			return WifiCapturedFactClassification.Rejected(
 				WifiFactRejection.IDENTITY_BEARING_INPUT,
@@ -116,32 +163,35 @@ internal object WifiCapturedFactClassifier {
 			?: return WifiCapturedFactClassification.ClockUnverifiable
 
 		if (input.accessPoints.isEmpty()) {
-			if (semanticRevision == 1L && priorFact?.reference?.identity == identity) {
-				return if (priorFact.authority == authority &&
-					priorFact.availability == WifiAvailability.CONFIRMED_EMPTY
-				) {
-					WifiCapturedFactClassification.Absent
-				} else {
-					WifiCapturedFactClassification.Rejected(
-						WifiFactRejection.DELIVERY_IDENTITY_COLLISION,
-					)
-				}
-			}
 			return classifyEmpty(
 				input,
 				authority,
 				mutation,
 				wallTimeMs,
 				wallTimeUncertaintyMs,
+				priorFact,
 				correctionBase,
+			)
+		}
+		if (input.confirmedEmptyProof != null) {
+			return WifiCapturedFactClassification.Rejected(
+				WifiFactRejection.CONFIRMED_EMPTY_PROOF_MISMATCH,
 			)
 		}
 
 		val itemClassifications = input.accessPoints.map { accessPoint ->
-			accessPoint to authority.classifyProviderTime(
-				accessPoint.providerTimestampNanos,
-				input.receivedElapsedRealtimeNanos,
-			)
+			accessPoint to if (authority.acquisitionConfiguration.accepts(
+					accessPoint.frequencyMhz,
+					accessPoint.signalLevelDbm,
+				)
+			) {
+				authority.classifyProviderTime(
+					accessPoint.providerTimestampNanos,
+					input.receivedElapsedRealtimeNanos,
+				)
+			} else {
+				ProviderTimeClassification.MALFORMED
+			}
 		}
 		val accepted = itemClassifications.filter { it.second == ProviderTimeClassification.FRESH }
 			.map(Pair<WifiAccessPointEvidence, ProviderTimeClassification>::first)
@@ -149,11 +199,16 @@ internal object WifiCapturedFactClassifier {
 		val unverifiableCount = itemClassifications.count {
 			it.second == ProviderTimeClassification.CLOCK_UNVERIFIABLE
 		}
+		val malformedCount = itemClassifications.count {
+			it.second == ProviderTimeClassification.MALFORMED
+		}
 		if (accepted.isEmpty()) {
-			return if (unverifiableCount > 0) {
-				WifiCapturedFactClassification.ClockUnverifiable
-			} else {
-				WifiCapturedFactClassification.Stale
+			return when {
+				malformedCount > 0 -> WifiCapturedFactClassification.Rejected(
+					WifiFactRejection.MALFORMED_ACCESS_POINT,
+				)
+				unverifiableCount > 0 -> WifiCapturedFactClassification.ClockUnverifiable
+				else -> WifiCapturedFactClassification.Stale
 			}
 		}
 
@@ -161,21 +216,31 @@ internal object WifiCapturedFactClassifier {
 		val coverage = WifiCoverageEvidence(
 			providerIntervalStartElapsedRealtimeNanos = requireNotNull(providerTimes.minOrNull()),
 			providerIntervalEndElapsedRealtimeNanos = requireNotNull(providerTimes.maxOrNull()),
+			receivedElapsedRealtimeNanos = input.receivedElapsedRealtimeNanos,
 			submittedResultCount = input.accessPoints.size,
 			acceptedResultCount = accepted.size,
 			staleResultCount = staleCount,
 			clockUnverifiableResultCount = unverifiableCount,
-			completeness = if (staleCount == 0 && unverifiableCount == 0) {
+			malformedResultCount = malformedCount,
+			completeness = if (
+				staleCount == 0 && unverifiableCount == 0 && malformedCount == 0
+			) {
 				WifiCoverageCompleteness.COMPLETE
 			} else {
 				WifiCoverageCompleteness.PARTIAL
 			},
 		)
 		val aggregate = identityFreeAggregate(accepted)
+		val productEffect = WifiCapturedProductEffect(
+			observedWallTimeMs = wallTimeMs,
+			wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+			availability = WifiAvailability.AVAILABLE,
+			coverage = coverage,
+			aggregate = aggregate,
+		)
 		if (semanticRevision == 1L && priorFact?.reference?.identity == identity) {
 			return if (priorFact.authority == authority &&
-				priorFact.availability == WifiAvailability.AVAILABLE &&
-				priorFact.aggregate == aggregate
+				priorFact.productEffect == productEffect
 			) {
 				WifiCapturedFactClassification.Absent
 			} else {
@@ -184,18 +249,19 @@ internal object WifiCapturedFactClassifier {
 				)
 			}
 		}
-		if (correctionBase != null && correctionBase.availability == WifiAvailability.AVAILABLE &&
-			correctionBase.aggregate == aggregate
-		) {
+		if (correctionBase?.productEffect == productEffect) {
 			return WifiCapturedFactClassification.Absent
 		}
-		val reusablePrior = priorFact?.takeIf { prior ->
+		val directAggregateOwner = (priorFact as? WifiReusableFact.DirectAggregateOwner)
+			?.takeIf { prior ->
 			prior.reference.identity != identity &&
 				prior.authority == authority &&
-				prior.availability == WifiAvailability.AVAILABLE &&
-				prior.aggregate == aggregate
-		}
-		return if (reusablePrior != null) {
+				prior.productEffect.aggregate == aggregate
+			} ?: (correctionBase as? WifiReusableFact.DirectAggregateOwner)
+			?.takeIf { base ->
+				base.authority == authority && base.productEffect.aggregate == aggregate
+			}
+		return if (directAggregateOwner != null) {
 			WifiCapturedFactClassification.FreshUnchanged(
 				WifiCapturedFact.CoverageOnly(
 					mutation = mutation,
@@ -204,7 +270,7 @@ internal object WifiCapturedFactClassifier {
 					wallTimeUncertaintyMs = wallTimeUncertaintyMs,
 					availability = WifiAvailability.AVAILABLE,
 					coverage = coverage,
-					reusesAggregate = reusablePrior.reference,
+					reusesAggregate = directAggregateOwner,
 				),
 			)
 		} else {
@@ -228,16 +294,64 @@ internal object WifiCapturedFactClassifier {
 		mutation: WifiCapturedFactMutation,
 		wallTimeMs: Long,
 		wallTimeUncertaintyMs: Long,
+		priorFact: WifiReusableFact?,
 		correctionBase: WifiReusableFact?,
 	): WifiCapturedFactClassification {
-		val providerTime = input.providerObservationElapsedRealtimeNanos
+		val deliveryIdentity = requireNotNull(input.sourceDeliveryIdentity)
+		val proof = input.confirmedEmptyProof
 			?: return WifiCapturedFactClassification.ClockUnverifiable
+		if (
+			proof.sourceDeliveryIdentity != deliveryIdentity ||
+			proof.clockDomainId != input.clockDomainId ||
+			proof.receivedElapsedRealtimeNanos != input.receivedElapsedRealtimeNanos ||
+			proof.observedWallTimeMs != wallTimeMs ||
+			proof.wallTimeUncertaintyMs != wallTimeUncertaintyMs
+		) {
+			return WifiCapturedFactClassification.Rejected(
+				WifiFactRejection.CONFIRMED_EMPTY_PROOF_MISMATCH,
+			)
+		}
+		val providerTime = proof.providerObservationElapsedRealtimeNanos
 		return when (authority.classifyProviderTime(providerTime, input.receivedElapsedRealtimeNanos)) {
 			ProviderTimeClassification.STALE -> WifiCapturedFactClassification.Stale
 			ProviderTimeClassification.CLOCK_UNVERIFIABLE ->
 				WifiCapturedFactClassification.ClockUnverifiable
+			ProviderTimeClassification.MALFORMED -> error("Provider time is not child data")
 			ProviderTimeClassification.FRESH -> {
-				if (correctionBase?.availability == WifiAvailability.CONFIRMED_EMPTY) {
+				val coverage = WifiCoverageEvidence(
+					providerIntervalStartElapsedRealtimeNanos = providerTime,
+					providerIntervalEndElapsedRealtimeNanos = providerTime,
+					receivedElapsedRealtimeNanos = input.receivedElapsedRealtimeNanos,
+					submittedResultCount = 0,
+					acceptedResultCount = 0,
+					staleResultCount = 0,
+					clockUnverifiableResultCount = 0,
+					malformedResultCount = 0,
+					completeness = WifiCoverageCompleteness.COMPLETE,
+				)
+				val productEffect = WifiCapturedProductEffect(
+					observedWallTimeMs = wallTimeMs,
+					wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+					availability = WifiAvailability.CONFIRMED_EMPTY,
+					coverage = coverage,
+					aggregate = null,
+				)
+				if (
+					mutation.semanticRevision == 1L &&
+					priorFact?.reference?.identity == mutation.identity
+				) {
+					return if (
+						priorFact.authority == authority &&
+						priorFact.productEffect == productEffect
+					) {
+						WifiCapturedFactClassification.Absent
+					} else {
+						WifiCapturedFactClassification.Rejected(
+							WifiFactRejection.DELIVERY_IDENTITY_COLLISION,
+						)
+					}
+				}
+				if (correctionBase?.productEffect == productEffect) {
 					return WifiCapturedFactClassification.Absent
 				}
 				WifiCapturedFactClassification.FreshConfirmedEmpty(
@@ -247,15 +361,7 @@ internal object WifiCapturedFactClassifier {
 						observedWallTimeMs = wallTimeMs,
 						wallTimeUncertaintyMs = wallTimeUncertaintyMs,
 						availability = WifiAvailability.CONFIRMED_EMPTY,
-						coverage = WifiCoverageEvidence(
-							providerIntervalStartElapsedRealtimeNanos = providerTime,
-							providerIntervalEndElapsedRealtimeNanos = providerTime,
-							submittedResultCount = 0,
-							acceptedResultCount = 0,
-							staleResultCount = 0,
-							clockUnverifiableResultCount = 0,
-							completeness = WifiCoverageCompleteness.COMPLETE,
-						),
+						coverage = coverage,
 						reusesAggregate = null,
 					),
 				)
@@ -297,7 +403,10 @@ internal object WifiCapturedFactClassifier {
 		if (!temporalAuthority.contains(providerTimeNanos)) {
 			return ProviderTimeClassification.STALE
 		}
-		return if (receivedElapsedRealtimeNanos - providerTimeNanos > maximumObservationAgeNanos) {
+		return if (
+			receivedElapsedRealtimeNanos - providerTimeNanos >
+				acquisitionConfiguration.maximumObservationAgeNanos
+		) {
 			ProviderTimeClassification.STALE
 		} else {
 			ProviderTimeClassification.FRESH
@@ -335,7 +444,7 @@ internal object WifiCapturedFactClassifier {
 		else -> WifiBand.OTHER
 	}
 
-	private enum class ProviderTimeClassification { FRESH, STALE, CLOCK_UNVERIFIABLE }
+	private enum class ProviderTimeClassification { FRESH, STALE, CLOCK_UNVERIFIABLE, MALFORMED }
 	private enum class WifiBand { TWO_POINT_FOUR_GHZ, FIVE_GHZ, SIX_GHZ, OTHER }
 
 	private const val WIFI_24_GHZ_MIN_MHZ = 2_400
