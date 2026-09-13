@@ -3314,3 +3314,19 @@ Each entry records repository evidence and does not duplicate the final architec
   `MOCK_PROVENANCE_UNVERIFIABLE` and cannot emit a qualified command, rather than fabricating
   `isMock=false`. The existing canonical writer remains the only writer; no runtime, schema, product,
   comparison, cutover, or UI change is made.
+
+## TI-D208 — Pressure retention loss remains discoverable without qualifying a missing fact
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; source convergence `69b4d62b2`, `cbfdb602d`, and
+  `ed4089323` atop TI-D197/TI-D202/TI-D205; TI-B271.
+- Both existing retention workers invoke the bounded authenticated Pressure mark-and-prune
+  transaction before physical Pressure sample or segment deletion. Audit failure is retryable and
+  cannot be recorded as a successful retention transaction or proceed to the physical delete.
+- Recent discovery may use exact Pressure `SESSION_CAPTURE` manifest membership only as a bounded
+  coarse candidate. A logical group becomes ordinarily discoverable solely from retained qualified
+  Pressure facts or a recomputed current-epoch source-specific retention-loss marker after complete
+  replacement membership is authenticated.
+- A marker-only group is `PARTIAL` with retention loss and has no qualified Pressure source, window,
+  summary, or numeric value. Stale or corrupt markers fail closed; retained siblings remain visible.
+  The fixed coarse candidate budget may return a short page under extreme manifest-only noise, but
+  it cannot publish an unqualified group.

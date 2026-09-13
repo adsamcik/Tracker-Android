@@ -1905,3 +1905,23 @@ Deferred focused command:
 The command was not run. Compilation, SQL execution, a provenance-capable canonical payload,
 canonical-writer shadow comparison, provider/device behavior, history/UI, cutover, integration,
 activation, and release remain unproven.
+
+## TI-B271 — Pressure retention worker and marker-only discovery contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `ed4089323`. Authored worker and source-specific product
+tests cover mark-and-prune ordering before physical Pressure deletion, retry/no-success on audit
+failure, authenticated current-epoch marker reads, fully pruned single and replacement-run groups,
+partial state without windows/summary/value/qualified source, stale or corrupt marker omission,
+surviving replacement siblings, rejected-candidate fill, page-boundary recency, bounded candidate and
+membership traversal, and cancellation checkpoints. Independent review rejected fact-only recent
+discovery and accepted the marker-aware correction while rechecking the prior maintenance authority.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*PressureRetentionTruncationTest' :stats:data:testDebugUnitTest --tests '*PressureHistory*' :app:testDebugUnitTest --tests '*DataRetentionWorker*' --tests '*RetentionPipelineWorker*' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room/worker execution, physical retention timing, repair,
+portable transfer, shared UI, large-store paging behavior, device storage, integration, activation,
+and release remain unproven.

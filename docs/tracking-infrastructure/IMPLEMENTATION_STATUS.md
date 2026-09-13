@@ -54,8 +54,11 @@ while preserving durable-WAL-before-materialization ordering. Commits `f36b80cb5
 add bounded source-specific retention truncation: one exact authority audit transaction writes a
 self-verifying payload-free run marker and removes every revision of each uncertainty-crossing
 lineage, rolling the entire mutation back on corruption, configured total-work overflow, or
-cancellation. Retention-worker invocation, marker-aware product reads, shared UI, transfer, and
-automatic Activity control remain open.
+cancellation. Accepted source convergence through `ed4089323` additionally invokes that audit from
+both retention workers before physical Pressure deletion and makes recent/detail reads authenticate
+marker-only entries as partial without windows, summary, value, or a qualified source. Stale or
+corrupt markers are omitted; surviving replacement facts stay visible. Shared UI, portable transfer,
+and automatic Activity control remain open.
 
 The protected Location branch is clean at `762186a24`. Its three-file dormant qualifier binds exact
 capture-only, WAL, delivery, clock, payload, quality, mock, policy, consent, generation, deletion,
@@ -90,9 +93,8 @@ bounded active attempts, product history, and UI remain open.
 Git/worktree reconciliation found no accepted committed implementation stranded or lost: imported
 Steps branches are contained or patch-equivalent in the coordinator, the older Pressure and numeric
 branches are ancestors, and the two dirty portable-import/qualified-awards drafts remain frozen
-reference inputs only. Activity and Ambient product composition, Cell persistence, and Pressure
-retention integration remain active isolated lanes whose current review findings must be corrected
-before acceptance.
+reference inputs only. Activity and Ambient product composition and Cell persistence remain active
+isolated lanes whose current review findings must be corrected before acceptance.
 
 The checked-in v28 JSON now declares 79 entities: 51 released-v27 entities plus 28 narrowly owned
 v28 additions. Its identity hash is intentionally stale and Room/Kotlin/SQL generation or checking

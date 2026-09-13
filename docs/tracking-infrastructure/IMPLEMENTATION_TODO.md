@@ -548,6 +548,13 @@ total/per-run budgets and cancellation rollback. PRESS-008/012 remain unchecked 
 invokes this path, product reads consume the marker, and repair, deletion, portable transfer, and
 the complete authored scenario cohort exist.
 
+Accepted source convergence through `ed4089323` adds the Pressure portions that the first retention
+slice deliberately left open: both retention workers run exact mark-and-prune before physical
+Pressure deletion, and source-specific recent/detail reads authenticate retained marker-only groups
+as partial while exposing no qualified source, windows, summary, or value. PRESS-008/012 remain
+unchecked because portable export/import, selected/all-data deletion integration, correction-safe
+repair, shared product surfaces, and the final scenario cohort are not complete.
+
 ## Protected Location vertical
 
 - [ ] TODO-LOC-001 Keep the current canonical Location writer as the only active writer throughout
