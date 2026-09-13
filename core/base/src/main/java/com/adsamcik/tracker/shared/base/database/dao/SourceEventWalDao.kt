@@ -18,6 +18,24 @@ interface SourceEventWalDao {
 	@Query("SELECT * FROM source_event_wal WHERE event_id = :eventId LIMIT 1")
 	suspend fun getByEventId(eventId: String): SourceEventWalEntity?
 
+	/** Payload-free size and delivery identity checked before a source adapter may read one BLOB. */
+	@Query(
+		"SELECT event_id, source_kind, captured_collected_data_epoch, clock_domain_id, " +
+			"delivery_identity, delivery_unit_index, delivery_unit_count, LENGTH(payload) AS payload_bytes " +
+			"FROM source_event_wal WHERE event_id = :eventId LIMIT 1",
+	)
+	suspend fun payloadPreflightByEventId(eventId: String): SourceEventWalPayloadPreflightRow?
+
+	/** Loads one event only when SQLite has enforced the adapter's payload bound. */
+	@Query(
+		"SELECT * FROM source_event_wal WHERE event_id = :eventId " +
+			"AND LENGTH(payload) <= :maximumPayloadBytes LIMIT 1",
+	)
+	suspend fun boundedPayloadByEventId(
+		eventId: String,
+		maximumPayloadBytes: Int,
+	): SourceEventWalEntity?
+
 	/** Loads the payload-free authority needed to reconcile one projection failure. */
 	@Query(
 		"SELECT admission_ordinal, source_kind, captured_collected_data_epoch, " +
@@ -96,23 +114,37 @@ interface SourceEventWalDao {
 		deliveryIdentity: String,
 	): List<SourceDeliveryUnitIdentityRow>
 
-	/**
-	 * Bounded full-unit read for source adapters that must authenticate a provider delivery.
-	 *
-	 * Payloads are included because the covering identity projection cannot prove the source-native
-	 * delivery checksum. Callers request one overflow row and reject truncated or partial results.
-	 */
+	/** Payload-free bounded delivery scan used before any Activity payload BLOB is materialized. */
 	@Query(
-		"SELECT * FROM source_event_wal WHERE source_kind = :sourceKind " +
+		"SELECT event_id, delivery_unit_index, delivery_unit_count, " +
+			"LENGTH(payload) AS payload_bytes FROM source_event_wal " +
+			"WHERE source_kind = :sourceKind " +
 			"AND captured_collected_data_epoch = :collectedDataEpoch " +
 			"AND clock_domain_id = :clockDomainId AND delivery_identity = :deliveryIdentity " +
 			"ORDER BY delivery_unit_index ASC LIMIT :limit",
 	)
-	suspend fun deliveryEvents(
+	suspend fun deliveryPayloadPreflight(
 		sourceKind: Int,
 		collectedDataEpoch: Long,
 		clockDomainId: String,
 		deliveryIdentity: String,
+		limit: Int,
+	): List<SourceEventWalDeliveryPayloadPreflightRow>
+
+	/** Full delivery read whose per-row payload bound remains enforced by SQLite. */
+	@Query(
+		"SELECT * FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND captured_collected_data_epoch = :collectedDataEpoch " +
+			"AND clock_domain_id = :clockDomainId AND delivery_identity = :deliveryIdentity " +
+			"AND LENGTH(payload) <= :maximumPayloadBytes " +
+			"ORDER BY delivery_unit_index ASC LIMIT :limit",
+	)
+	suspend fun deliveryEventsWithBoundedPayload(
+		sourceKind: Int,
+		collectedDataEpoch: Long,
+		clockDomainId: String,
+		deliveryIdentity: String,
+		maximumPayloadBytes: Int,
 		limit: Int,
 	): List<SourceEventWalEntity>
 
@@ -278,4 +310,24 @@ data class SourceDeliveryUnitIdentityRow(
 	@ColumnInfo(name = "observed_interval_start_nanos") val observedIntervalStartNanos: Long?,
 	@ColumnInfo(name = "payload_version") val payloadVersion: Int,
 	@ColumnInfo(name = "payload_checksum") val payloadChecksum: String,
+)
+
+/** Payload-free preflight for the selected WAL event. */
+data class SourceEventWalPayloadPreflightRow(
+	@ColumnInfo(name = "event_id") val eventId: String,
+	@ColumnInfo(name = "source_kind") val sourceKind: Int,
+	@ColumnInfo(name = "captured_collected_data_epoch") val capturedCollectedDataEpoch: Long,
+	@ColumnInfo(name = "clock_domain_id") val clockDomainId: String,
+	@ColumnInfo(name = "delivery_identity") val deliveryIdentity: String?,
+	@ColumnInfo(name = "delivery_unit_index") val deliveryUnitIndex: Int?,
+	@ColumnInfo(name = "delivery_unit_count") val deliveryUnitCount: Int?,
+	@ColumnInfo(name = "payload_bytes") val payloadBytes: Long,
+)
+
+/** Bounded payload-free delivery member used to reject oversized siblings before BLOB reads. */
+data class SourceEventWalDeliveryPayloadPreflightRow(
+	@ColumnInfo(name = "event_id") val eventId: String,
+	@ColumnInfo(name = "delivery_unit_index") val deliveryUnitIndex: Int?,
+	@ColumnInfo(name = "delivery_unit_count") val deliveryUnitCount: Int?,
+	@ColumnInfo(name = "payload_bytes") val payloadBytes: Long,
 )

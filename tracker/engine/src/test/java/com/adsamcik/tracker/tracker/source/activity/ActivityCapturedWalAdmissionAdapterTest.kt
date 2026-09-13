@@ -126,6 +126,75 @@ class ActivityCapturedWalAdmissionAdapterTest {
 	}
 
 	@Test
+	fun `oversized selected payload is rejected by payload preflight`() = runTest {
+		installFixture()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET payload = ? WHERE event_id = ?",
+			arrayOf<Any>(ByteArray(22), EVENT_ID.value),
+		)
+
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.DELIVERY_TOO_LARGE,
+		)
+	}
+
+	@Test
+	fun `oversized delivery sibling is rejected before full delivery loading`() = runTest {
+		installFixture()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET payload = ? WHERE event_id = 'activity-event-2'",
+			arrayOf<Any>(ByteArray(22)),
+		)
+
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.DELIVERY_TOO_LARGE,
+		)
+	}
+
+	@Test
+	fun `terminal session retaining an active run pointer fails closed`() = runTest {
+		installFixture()
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID))
+		database.sourceSessionDao().updateSession(
+			session.copy(currentServiceRunId = SERVICE_RUN_ID),
+		) shouldBe 1
+
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `terminal session with nonterminal physical run fails closed`() = runTest {
+		installFixture()
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID))
+		database.sourceSessionDao().updateServiceRun(
+			run.copy(
+				state = "ACTIVE",
+				completedAtMs = null,
+				completionReason = null,
+			),
+		) shouldBe 1
+
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `terminal final admission ordinal must cover every delivery member`() = runTest {
+		installFixture()
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID))
+		database.sourceSessionDao().updateSession(
+			session.copy(finalAdmissionOrdinal = 1L),
+		) shouldBe 1
+
+		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH,
+		)
+	}
+
+	@Test
 	fun `missing admitted sibling cannot authenticate declared Activity delivery`() = runTest {
 		installFixture()
 		database.openHelper.writableDatabase.execSQL(
@@ -417,7 +486,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 		database.sourceSessionDao().insertSession(
 			LogicalTrackingSessionEntity(
 				logicalTrackingId = LOGICAL_TRACKING_ID,
-				state = if (settled) "FINALIZED" else "RECORDING",
+				state = if (settled) "FINALIZED" else "ACTIVE",
 				lifecycleRevision = if (settled) 2L else 1L,
 				desiredPlanRevision = PLAN_REVISION,
 				rolloutRevision = 1L,
@@ -443,7 +512,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 			SourceServiceRunEntity(
 				serviceRunId = SERVICE_RUN_ID,
 				logicalTrackingId = LOGICAL_TRACKING_ID,
-				state = if (settled) "FINALIZED" else "RUNNING",
+				state = if (settled) "FINALIZED" else "ACTIVE",
 				desiredPlanRevision = PLAN_REVISION,
 				rolloutRevision = 1L,
 				foregroundCapabilityFlags = 0L,

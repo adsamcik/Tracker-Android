@@ -2,6 +2,8 @@ package com.adsamcik.tracker.tracker.source.activity
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.SourceEventWalPayloadPreflightRow
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
@@ -12,6 +14,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
@@ -114,10 +117,23 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 	suspend fun admit(eventId: SourceEventId): ActivityCapturedWalAdmissionResult =
 		database.withTransaction transaction@{
 			val walDao = database.sourceEventWalDao()
-			val selected = walDao.getByEventId(eventId.value)
+			val selectedPreflight = walDao.payloadPreflightByEventId(eventId.value)
 				?: return@transaction rejected(ActivityCapturedWalAdmissionRejection.MISSING_EVENT)
-			if (selected.sourceKind != ACTIVITY_SOURCE) {
+			if (selectedPreflight.sourceKind != ACTIVITY_SOURCE) {
 				return@transaction rejected(ActivityCapturedWalAdmissionRejection.WRONG_SOURCE)
+			}
+			if (selectedPreflight.payloadBytes > MAX_ACTIVITY_PAYLOAD_BYTES) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.DELIVERY_TOO_LARGE)
+			}
+			if (selectedPreflight.payloadBytes <= 0L) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.MALFORMED_DELIVERY)
+			}
+			val selected = walDao.boundedPayloadByEventId(
+				eventId = eventId.value,
+				maximumPayloadBytes = MAX_ACTIVITY_PAYLOAD_BYTES,
+			) ?: return@transaction rejected(ActivityCapturedWalAdmissionRejection.MALFORMED_DELIVERY)
+			if (!selectedPreflight.matches(selected)) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.MALFORMED_DELIVERY)
 			}
 			if (!selected.hasQualifiedIntegrity()) {
 				return@transaction rejected(ActivityCapturedWalAdmissionRejection.WAL_INTEGRITY_MISMATCH)
@@ -141,15 +157,34 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 				return@transaction rejected(ActivityCapturedWalAdmissionRejection.DELIVERY_TOO_LARGE)
 			}
 
-			val deliveryRows = walDao.deliveryEvents(
+			val deliveryPreflight = walDao.deliveryPayloadPreflight(
 				sourceKind = ACTIVITY_SOURCE,
 				collectedDataEpoch = selected.capturedCollectedDataEpoch,
 				clockDomainId = selected.clockDomainId,
 				deliveryIdentity = deliveryIdentity.value,
 				limit = MAX_DELIVERY_UNITS + 1,
 			)
-			if (deliveryRows.size > MAX_DELIVERY_UNITS) {
+			if (deliveryPreflight.size > MAX_DELIVERY_UNITS ||
+				deliveryPreflight.any { row -> row.payloadBytes > MAX_ACTIVITY_PAYLOAD_BYTES }
+			) {
 				return@transaction rejected(ActivityCapturedWalAdmissionRejection.DELIVERY_TOO_LARGE)
+			}
+			if (deliveryPreflight.size != declaredUnitCount ||
+				deliveryPreflight.any { row -> row.payloadBytes <= 0L } ||
+				deliveryPreflight.mapNotNull { row -> row.deliveryUnitIndex } !=
+					deliveryPreflight.indices.toList() ||
+				deliveryPreflight.any { row -> row.deliveryUnitCount != declaredUnitCount }
+			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.MALFORMED_DELIVERY)
+			val deliveryRows = walDao.deliveryEventsWithBoundedPayload(
+				sourceKind = ACTIVITY_SOURCE,
+				collectedDataEpoch = selected.capturedCollectedDataEpoch,
+				clockDomainId = selected.clockDomainId,
+				deliveryIdentity = deliveryIdentity.value,
+				maximumPayloadBytes = MAX_ACTIVITY_PAYLOAD_BYTES,
+				limit = MAX_DELIVERY_UNITS + 1,
+			)
+			if (deliveryRows.size != deliveryPreflight.size) {
+				return@transaction rejected(ActivityCapturedWalAdmissionRejection.MALFORMED_DELIVERY)
 			}
 			val decodedDelivery = decodeCompleteDelivery(deliveryRows, selected)
 				?: return@transaction rejected(ActivityCapturedWalAdmissionRejection.MALFORMED_DELIVERY)
@@ -364,10 +399,19 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 				session.lifecycleLeaseGeneration < leaseGeneration ||
 				run.startedElapsedNanos > selected.observedElapsedNanos
 			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH)
+			val maximumDeliveryOrdinal = decodedDelivery.maxOf { unit -> unit.wal.admissionOrdinal }
+			if (!session.hasValidLifecycleShape(maximumDeliveryOrdinal) ||
+				!run.hasValidLifecycleShape() || !run.hasValidRelationshipTo(session)
+			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH)
+			if (session.state !in TERMINAL_LIFECYCLE_STATES ||
+				run.state !in TERMINAL_LIFECYCLE_STATES
+			) return@transaction unavailable(
+				ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW,
+			)
 			val sessionEnd = session.cutoffElapsedNanos
 			val finalAdmissionOrdinal = session.finalAdmissionOrdinal
 			if (sessionEnd == null || finalAdmissionOrdinal == null ||
-				decodedDelivery.maxOf { unit -> unit.wal.admissionOrdinal } > finalAdmissionOrdinal
+				maximumDeliveryOrdinal > finalAdmissionOrdinal
 			) return@transaction unavailable(
 				ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW,
 			)
@@ -711,6 +755,61 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 	private fun SourceEventWalEntity.hasSamePersistedValueAs(other: SourceEventWalEntity): Boolean =
 		this == other.copy(payload = payload) && payload.contentEquals(other.payload)
 
+	private fun SourceEventWalPayloadPreflightRow.matches(wal: SourceEventWalEntity): Boolean =
+		eventId == wal.eventId && sourceKind == wal.sourceKind &&
+		capturedCollectedDataEpoch == wal.capturedCollectedDataEpoch &&
+		clockDomainId == wal.clockDomainId && deliveryIdentity == wal.deliveryIdentity &&
+		deliveryUnitIndex == wal.deliveryUnitIndex && deliveryUnitCount == wal.deliveryUnitCount &&
+		payloadBytes == wal.payload.size.toLong()
+
+	private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(
+		maximumAdmissionOrdinal: Long,
+	): Boolean {
+		if (state !in ALL_LIFECYCLE_STATES || lifecycleRevision <= 0L || desiredPlanRevision <= 0L ||
+			startedAtMs < 0L || startedElapsedNanos < 0L || lifecycleLeaseGeneration <= 0L ||
+			lifecycleBootId.isNullOrBlank() || currentManifestRevision?.let { it <= 0L } != false ||
+			(cutoffAtMs == null) != (cutoffElapsedNanos == null)
+		) return false
+		val terminal = state in TERMINAL_LIFECYCLE_STATES
+		if ((completedAtMs != null) != terminal ||
+			completedAtMs?.let { completed -> completed < startedAtMs } == true
+		) return false
+		if (terminal || state == LIFECYCLE_STOPPING) {
+			if (cutoffAtMs == null || cutoffElapsedNanos == null || cutoffAtMs < startedAtMs ||
+				cutoffElapsedNanos < startedElapsedNanos
+		) return false
+		} else if (cutoffAtMs != null || cutoffElapsedNanos != null) {
+			return false
+		}
+		return if (terminal) {
+			currentServiceRunId == null &&
+				finalAdmissionOrdinal?.let { ordinal -> ordinal >= maximumAdmissionOrdinal } == true
+		} else {
+			!currentServiceRunId.isNullOrBlank() && finalAdmissionOrdinal == null
+		}
+	}
+
+	private fun SourceServiceRunEntity.hasValidLifecycleShape(): Boolean {
+		if (state !in ALL_LIFECYCLE_STATES || serviceRunId.isBlank() || logicalTrackingId.isBlank() ||
+			startedAtMs < 0L || startedElapsedNanos < 0L || leaseGeneration <= 0L ||
+			bootId.isBlank() || runRevision <= 0L
+		) return false
+		val terminal = state in TERMINAL_LIFECYCLE_STATES
+		return (completedAtMs != null) == terminal &&
+			completedAtMs?.let { completed -> completed >= startedAtMs } != false
+	}
+
+	private fun SourceServiceRunEntity.hasValidRelationshipTo(
+		session: LogicalTrackingSessionEntity,
+	): Boolean = when {
+		logicalTrackingId != session.logicalTrackingId -> false
+		state !in TERMINAL_LIFECYCLE_STATES ->
+			session.state !in TERMINAL_LIFECYCLE_STATES &&
+				session.currentServiceRunId == serviceRunId && session.state == state
+		session.state in TERMINAL_LIFECYCLE_STATES -> session.currentServiceRunId == null
+		else -> true
+	}
+
 	private fun SourceEventWalEntity.hasSameDeliveryAuthorityAs(
 		other: SourceEventWalEntity,
 	): Boolean = logicalTrackingId == other.logicalTrackingId &&
@@ -807,6 +906,7 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 		const val ACTIVITY_PAYLOAD_VERSION = 1
 		const val SOURCE_PLAN_PAYLOAD_VERSION = 1
 		const val MAX_DELIVERY_UNITS = 256
+		const val MAX_ACTIVITY_PAYLOAD_BYTES = 21
 		const val MAX_MANIFESTS_PER_RUN = 64
 		const val MAX_MANIFEST_SOURCE_ROWS = 1_024
 		const val MAX_DELIVERY_ORDER_CANDIDATES = 4_096L
@@ -817,6 +917,10 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 		const val DELIVERY_EVENT_BYTES = Long.SIZE_BYTES + Int.SIZE_BYTES * 4
 		const val KIND_RECOGNITION = 0
 		const val KIND_TRANSITION = 1
+		const val LIFECYCLE_STOPPING = "STOPPING"
+		val TERMINAL_LIFECYCLE_STATES = setOf("FINALIZED", "CLOSED", "FAILED")
+		val ALL_LIFECYCLE_STATES = TERMINAL_LIFECYCLE_STATES +
+			setOf("STARTING", "ACTIVE", "RECONFIGURING", LIFECYCLE_STOPPING)
 		val ACCEPTED_REGISTRATION_STATUSES = setOf(
 			ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
 			ProviderRegistrationGenerationEntity.STATUS_RETIRING,
