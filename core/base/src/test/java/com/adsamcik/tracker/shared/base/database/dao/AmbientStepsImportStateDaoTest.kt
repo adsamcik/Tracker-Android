@@ -190,6 +190,44 @@ class AmbientStepsImportStateDaoTest {
 	}
 
 	@Test
+	fun `untouched gap permits its exact segment transition`() = runTest {
+		dao.insertCursor(cursorAt(6_000L, 7_000L)) shouldBe 1L
+		dao.insertGap(gap()) shouldBe 1L
+
+		beginGapTransition(6_000L, 7_000L, 8_000L) shouldBe 1
+	}
+
+	@Test
+	fun `partially covered gap permits transition over the exact remaining suffix`() = runTest {
+		dao.insertCursor(cursorAt(7_000L, 8_000L)) shouldBe 1L
+		dao.insertGap(gap()) shouldBe 1L
+		database.ambientStepsFactRevisionDao().insert(ambientFact(6_000L, 7_000L)) shouldBe 1L
+
+		beginGapTransition(7_000L, 8_000L, 7_000L) shouldBe 0
+		beginGapTransition(7_000L, 8_000L, 8_000L) shouldBe 1
+	}
+
+	@Test
+	fun `fully covered gap blocks segment transition`() = runTest {
+		dao.insertCursor(cursorAt(6_000L, 7_000L)) shouldBe 1L
+		dao.insertGap(gap()) shouldBe 1L
+		database.ambientStepsFactRevisionDao().insert(ambientFact(6_000L, 8_000L)) shouldBe 1L
+
+		beginGapTransition(6_000L, 7_000L, 8_000L) shouldBe 0
+	}
+
+	@Test
+	fun `exact fact retraction restores segment transition eligibility`() = runTest {
+		dao.insertCursor(cursorAt(6_000L, 7_000L)) shouldBe 1L
+		dao.insertGap(gap()) shouldBe 1L
+		val coveringFact = ambientFact(6_000L, 8_000L)
+		database.ambientStepsFactRevisionDao().insert(coveringFact) shouldBe 1L
+		database.ambientStepsFactRevisionDao().insert(retract(coveringFact)) shouldBe 2L
+
+		beginGapTransition(6_000L, 7_000L, 8_000L) shouldBe 1
+	}
+
+	@Test
 	fun `same high water requires a strictly newer observation and monotonic update time`() = runTest {
 		dao.insertCursor(cursor()) shouldBe 1L
 		suspend fun advance(observedAtMs: Long, updatedAtMs: Long): Int =
@@ -278,6 +316,34 @@ class AmbientStepsImportStateDaoTest {
 		cursorRevision = 1L,
 		status = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
 		updatedAtMs = 5_000L,
+	)
+
+	private fun cursorAt(importedThroughTimeMs: Long, observedAtMs: Long) = cursor().copy(
+		importedThroughTimeMs = importedThroughTimeMs,
+		lastObservedAtMs = observedAtMs,
+		updatedAtMs = observedAtMs,
+	)
+
+	private suspend fun beginGapTransition(
+		expectedImportedThroughTimeMs: Long,
+		expectedObservedAtMs: Long,
+		newSegmentStartTimeMs: Long,
+	): Int = dao.beginNextSegmentExact(
+		registrationGeneration = 7L,
+		expectedContinuitySegmentGeneration = 1L,
+		expectedLastGapSequence = 0L,
+		expectedCursorRevision = 1L,
+		expectedImportedThroughTimeMs = expectedImportedThroughTimeMs,
+		expectedObservedAtMs = expectedObservedAtMs,
+		expectedUpdatedAtMs = expectedObservedAtMs,
+		newLastGapSequence = 1L,
+		newContinuitySegmentGeneration = 2L,
+		newSegmentStartTimeMs = newSegmentStartTimeMs,
+		newObservedAtMs = 9_000L,
+		newBootId = "boot-a",
+		newZoneId = "UTC",
+		newCursorRevision = 2L,
+		updatedAtMs = 9_000L,
 	)
 
 	private fun authorityTransition(): AmbientStepsImportAuthorityTransitionEntity =

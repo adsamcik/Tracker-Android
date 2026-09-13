@@ -285,8 +285,9 @@ interface AmbientStepsImportStateDao {
 			"AND gap.provider = ambient_steps_import_cursor.provider " +
 			"AND gap.source_instance_id = ambient_steps_import_cursor.source_instance_id " +
 			"AND gap.collected_data_epoch = ambient_steps_import_cursor.collected_data_epoch " +
-			"AND gap.gap_start_time_ms = ambient_steps_import_cursor.imported_through_time_ms " +
-			"AND gap.gap_end_time_ms = :newSegmentStartTimeMs " +
+			"AND gap.gap_start_time_ms <= ambient_steps_import_cursor.imported_through_time_ms " +
+			"AND ambient_steps_import_cursor.imported_through_time_ms < gap.gap_end_time_ms " +
+			"AND gap.gap_end_time_ms >= :newSegmentStartTimeMs " +
 			"AND gap.previous_clock_domain_id = ambient_steps_import_cursor.last_observed_boot_id " +
 			"AND gap.previous_zone_id = ambient_steps_import_cursor.last_observed_zone_id " +
 			"AND gap.next_clock_domain_id = :newBootId " +
@@ -296,14 +297,45 @@ interface AmbientStepsImportStateDao {
 			"AND fact.provider = gap.provider AND fact.source_instance_id = gap.source_instance_id " +
 			"AND fact.registration_generation = gap.registration_generation " +
 			"AND fact.collected_data_epoch = gap.collected_data_epoch " +
-			"AND fact.window_end_time_ms > gap.gap_start_time_ms " +
-			"AND fact.window_start_time_ms < gap.gap_end_time_ms " +
+			"AND fact.window_start_time_ms <= ambient_steps_import_cursor.imported_through_time_ms " +
+			"AND fact.window_end_time_ms > ambient_steps_import_cursor.imported_through_time_ms " +
 			"AND fact.semantic_revision = (SELECT MAX(state.semantic_revision) " +
 			"FROM ambient_steps_fact_revision AS state " +
 			"WHERE state.writer_id = fact.writer_id AND state.writer_version = fact.writer_version " +
-			"AND state.logical_fact_id = fact.logical_fact_id))) " +
+			"AND state.logical_fact_id = fact.logical_fact_id)) " +
+			"AND (ambient_steps_import_cursor.imported_through_time_ms = gap.gap_start_time_ms " +
+			"OR EXISTS (SELECT 1 FROM ambient_steps_fact_revision AS predecessor " +
+			"WHERE predecessor.operation = '${AmbientStepsFactRevisionEntity.OPERATION_UPSERT}' " +
+			"AND predecessor.provider = gap.provider " +
+			"AND predecessor.source_instance_id = gap.source_instance_id " +
+			"AND predecessor.registration_generation = gap.registration_generation " +
+			"AND predecessor.collected_data_epoch = gap.collected_data_epoch " +
+			"AND MIN(predecessor.window_end_time_ms, gap.gap_end_time_ms) = " +
+			"ambient_steps_import_cursor.imported_through_time_ms " +
+			"AND predecessor.semantic_revision = (SELECT MAX(state.semantic_revision) " +
+			"FROM ambient_steps_fact_revision AS state " +
+			"WHERE state.writer_id = predecessor.writer_id " +
+			"AND state.writer_version = predecessor.writer_version " +
+			"AND state.logical_fact_id = predecessor.logical_fact_id))) " +
+			"AND :newSegmentStartTimeMs = MIN(gap.gap_end_time_ms, COALESCE((" +
+			"SELECT MIN(successor.window_start_time_ms) " +
+			"FROM ambient_steps_fact_revision AS successor " +
+			"WHERE successor.operation = '${AmbientStepsFactRevisionEntity.OPERATION_UPSERT}' " +
+			"AND successor.provider = gap.provider " +
+			"AND successor.source_instance_id = gap.source_instance_id " +
+			"AND successor.registration_generation = gap.registration_generation " +
+			"AND successor.collected_data_epoch = gap.collected_data_epoch " +
+			"AND successor.window_start_time_ms > " +
+			"ambient_steps_import_cursor.imported_through_time_ms " +
+			"AND successor.window_start_time_ms < gap.gap_end_time_ms " +
+			"AND successor.window_end_time_ms > gap.gap_start_time_ms " +
+			"AND successor.semantic_revision = (SELECT MAX(state.semantic_revision) " +
+			"FROM ambient_steps_fact_revision AS state " +
+			"WHERE state.writer_id = successor.writer_id " +
+			"AND state.writer_version = successor.writer_version " +
+			"AND state.logical_fact_id = successor.logical_fact_id)), gap.gap_end_time_ms))) " +
 			"AND :newBootId = registration_clock_domain_id " +
-			"AND :newSegmentStartTimeMs >= imported_through_time_ms " +
+			"AND :newSegmentStartTimeMs > imported_through_time_ms " +
 			"AND :newSegmentStartTimeMs % 1000 = 0 " +
 			"AND :newObservedAtMs >= :newSegmentStartTimeMs " +
 			"AND :newObservedAtMs >= last_observed_at_ms " +
