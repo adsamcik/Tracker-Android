@@ -72,8 +72,12 @@ lineage, rolling the entire mutation back on corruption, configured total-work o
 cancellation. Accepted source convergence through `ed4089323` additionally invokes that audit from
 both retention workers before physical Pressure deletion and makes recent/detail reads authenticate
 marker-only entries as partial without windows, summary, value, or a qualified source. Stale or
-corrupt markers are omitted; surviving replacement facts stay visible. Shared UI, portable transfer,
-and automatic Activity control remain open.
+corrupt markers are omitted; surviving replacement facts stay visible. The separate Pressure
+transfer branch is independently accepted through `63b9667b3` for export only: one bounded Room
+snapshot emits a self-checksummed, opaque, identity-minimized v1 stream with exact replacement,
+quality, uncertainty, stored-zone, and retention-loss semantics and no Location, control, provider,
+or local database identity. Shared UI, correction-safe repair, selected/all-data deletion,
+authoritative portable import, and automatic Activity control remain open.
 
 The protected Location branch is clean at `762186a24`. Its three-file dormant qualifier binds exact
 capture-only, WAL, delivery, clock, payload, quality, mock, policy, consent, generation, deletion,
@@ -114,7 +118,9 @@ Steps branches are contained or patch-equivalent in the coordinator, the older P
 branches are ancestors, and the two dirty portable-import/qualified-awards drafts remain frozen
 reference inputs only. Cell persistence remains an active isolated lane whose current review finding
 must be corrected before acceptance. Activity WAL admission is a separate dormant lane under
-correction after review; Pressure shared UI and export-only transfer are active isolated lanes.
+correction after review; Pressure shared UI remains an active isolated lane. The export-only
+Pressure transfer slice is accepted, while its import half remains deliberately blocked on the
+missing authoritative writer and no-resurrection mapping.
 
 The checked-in v28 JSON now declares 79 entities: 51 released-v27 entities plus 28 narrowly owned
 v28 additions. Its identity hash is intentionally stale and Room/Kotlin/SQL generation or checking

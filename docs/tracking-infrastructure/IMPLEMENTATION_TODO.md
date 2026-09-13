@@ -564,6 +564,14 @@ as partial while exposing no qualified source, windows, summary, or value. PRESS
 unchecked because portable export/import, selected/all-data deletion integration, correction-safe
 repair, shared product surfaces, and the final scenario cohort are not complete.
 
+Accepted export-only commit `63b9667b3` implements the portable-output portion of PRESS-008/012 and
+PRIV-006. One bounded transaction emits complete qualified replacement groups in a self-checksummed
+Pressure v1 format with opaque kind-scoped identities, quality/coverage/uncertainty and stored-zone
+evidence, and explicit retention-loss partial state. It excludes Location, control, provider and
+local database identity. These TODOs remain unchecked because authoritative import, selected and
+all-data deletion, correction-safe repair, no-resurrection mapping, shared UI, and explicit maximum
+boundary scenario tests remain.
+
 ## Protected Location vertical
 
 - [ ] TODO-LOC-001 Keep the current canonical Location writer as the only active writer throughout

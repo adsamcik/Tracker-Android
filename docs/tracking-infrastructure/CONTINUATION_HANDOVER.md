@@ -78,8 +78,13 @@ Independent clean lanes:
   `codex/ti-pressure-maintenance`: bounded full-authority audits atomically record a payload-free
   marker and remove every affected lineage; both retention workers invoke it before physical
   Pressure deletion; product reads authenticate marker-only logical entries as partial without a
-  qualified source or value. Transfer and shared UI remain open. A redundant clean
-  `ti-pressure-retention-product` worktree was created during a coordination race at `85ac20157` and
+  qualified source or value. `codex/ti-pressure-transfer` is independently accepted through
+  `63b9667b3` for a bounded, self-checksummed, privacy-safe export-only format and one-transaction
+  reader. It emits opaque kind-scoped identity and qualified Pressure quality/uncertainty/zone
+  evidence, never Location, control, provider, or local database identity. Import remains absent
+  until a source-authoritative writer and deletion/retention/no-resurrection mapping exist. Shared
+  UI, deletion, repair, and import remain open. A redundant clean `ti-pressure-retention-product`
+  worktree was created during a coordination race at `85ac20157` and
   intentionally remains untouched; do not reset or delete it while this wave is active.
 - Protected Location qualifier: `codex/ti-location-qualified-observation` at `762186a24` in
   `G:\Github\Tracker-Android\.worktrees\ti-location-qualified-observation`; clean and independently

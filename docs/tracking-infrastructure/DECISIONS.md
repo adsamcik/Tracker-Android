@@ -3384,3 +3384,21 @@ Each entry records repository evidence and does not duplicate the final architec
 - This is a bounded source-specific day read, not shared Today/Timeline/Calendar/detail wiring.
   Retention, deletion, consent reset, portable transfer, end-user settings/remediation, and
   activation remain open.
+
+## TI-D212 — Pressure portable transfer starts with a bounded privacy-safe export
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated API/source/tests `63b9667b3` atop the
+  accepted Pressure selector and retention-marker path; TI-B275.
+- A source-specific export API and self-checksummed v1 format expose only opaque kind-scoped logical,
+  run, and window identities plus qualified Pressure statistics, timing/coverage, uncertainty,
+  accuracy, cadence, latency, maximum gap, and stored window zone. They contain no coordinates,
+  elevation/ascent, control evidence, provider identifiers, or local database IDs.
+- One Room transaction pages bounded range candidates, expands complete replacement membership, and
+  reuses the accepted manifest/policy/consent/writer/correction/deletion/retention authority before
+  producing an in-memory snapshot. Sink I/O starts only after the transaction; corrupt,
+  materializing, or configured-overflow input emits nothing.
+- Marker-only and retained-plus-marker entries remain explicitly partial. A marker never fabricates
+  a numeric window or qualified retained observation.
+- Pressure import is not added. It remains blocked on an authoritative source-local import writer
+  and exact portable provenance, deletion, collision, retention, and no-resurrection mapping; export
+  cannot be used as permission to bypass those controls.

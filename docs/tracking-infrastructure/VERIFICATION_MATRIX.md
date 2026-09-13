@@ -1990,3 +1990,24 @@ Deferred focused command:
 The command was not run. Compilation, Room query execution, shared Today/Timeline/Calendar/detail and
 numeric consumers, retention, deletion, consent reset, portable transfer, provider/device behavior,
 integration, activation, and release remain unproven.
+
+## TI-B275 — Pressure privacy-safe portable export contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `63b9667b3`. Authored API-format and real-Room selector tests
+cover self-checksumming, opaque kind-scoped identities, complete replacement-run range discovery,
+qualified windows, direct Welford variance state, accuracy/cadence/latency/expected-versus-actual
+coverage, maximum gap, wall uncertainty, stored zone, marker-only and retained-plus-marker partial
+state, materializing no-emission, and absence of Location/control/provider/local identities. An
+independent read-only review accepted the transaction/sink boundary and configured limits. Direct
+tests for the maximum entry, total-run, total-window, and per-entry-run overflow constants remain a
+P3 authored-test follow-up.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:api:testAndroidHostTest --tests '*PressurePortableFormatV1Test' :stats:data:testDebugUnitTest --tests '*PressureHistoryReadModelTest' --tests '*PressureHistorySelectorTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query execution, maximum-boundary test coverage,
+authoritative import, deletion/no-resurrection, repair, shared UI, device/provider behavior,
+integration, activation, and release remain unproven.
