@@ -11,8 +11,13 @@ import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEnti
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
@@ -370,6 +375,30 @@ interface WifiCapturedFactDao {
 	): List<SourceDesiredPlanEntity>
 
 	@Query(
+		"SELECT DISTINCT policy.* FROM source_policy AS policy " +
+			"JOIN session_manifest_version AS manifest " +
+			"ON manifest.source_policy_revision = policy.policy_revision " +
+			"WHERE policy.source_kind = :sourceKind AND manifest.service_run_id IN (:serviceRunIds) " +
+			"ORDER BY policy.policy_revision LIMIT :limit",
+	)
+	suspend fun historyPolicies(
+		sourceKind: Int,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<SourcePolicyEntity>
+
+	@Query(
+		"SELECT * FROM source_consent_epoch WHERE source_kind = :sourceKind AND purpose = :purpose " +
+			"AND epoch IN (:epochs) ORDER BY epoch LIMIT :limit",
+	)
+	suspend fun historyConsentEpochs(
+		sourceKind: Int,
+		purpose: String,
+		epochs: List<Long>,
+		limit: Int,
+	): List<SourceConsentEpochEntity>
+
+	@Query(
 		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
 			"AND registration_generation IN (:registrationGenerations) " +
 			"ORDER BY registration_generation LIMIT :limit",
@@ -391,6 +420,12 @@ interface WifiCapturedFactDao {
 		registrationGenerations: List<Long>,
 		limit: Int,
 	): List<SourceAuthorizationEntity>
+
+	@Query("SELECT * FROM source_demand WHERE demand_id IN (:demandIds) ORDER BY demand_id LIMIT :limit")
+	suspend fun historyDemands(
+		demandIds: List<String>,
+		limit: Int,
+	): List<SourceDemandEntity>
 
 	@Query(
 		"SELECT * FROM lifecycle_desired_action WHERE source_kind = :sourceKind " +
@@ -416,6 +451,50 @@ interface WifiCapturedFactDao {
 		capturePurposeMask: Long,
 		limit: Int,
 	): List<SourceEventWalEntity>
+
+	@Query(
+		"SELECT * FROM source_deletion_fence WHERE source_kind = :sourceKind " +
+			"AND purpose = :purpose AND scope_kind = :scopeKind " +
+			"AND scope_identity_digest IN (:scopeIdentityDigests) " +
+			"ORDER BY scope_identity_digest LIMIT :limit",
+	)
+	suspend fun historyDeletionFences(
+		sourceKind: Int,
+		purpose: String,
+		scopeKind: String,
+		scopeIdentityDigests: List<String>,
+		limit: Int,
+	): List<SourceDeletionFenceEntity>
+
+	@Query(
+		"""
+		SELECT lane.*
+		FROM source_product_projection_lane AS lane
+		WHERE lane.source_kind = :sourceKind
+		  AND EXISTS (
+			SELECT 1
+			FROM session_manifest_source AS source
+			JOIN session_manifest_version AS manifest
+			  ON manifest.logical_tracking_id = source.logical_tracking_id
+			 AND manifest.manifest_revision = source.manifest_revision
+			WHERE manifest.service_run_id IN (:serviceRunIds)
+			  AND source.source_kind = :sourceKind
+			  AND source.purpose = :capturePurpose
+			  AND source.persistence_eligible = 1
+			  AND source.writer_projection_id = lane.projection_id
+			  AND source.writer_projection_version = lane.projection_version
+			  AND source.writer_binding_generation = lane.binding_generation
+		  )
+		ORDER BY lane.binding_generation, lane.projection_id, lane.projection_version
+		LIMIT :limit
+		""",
+	)
+	suspend fun historyProductLanes(
+		sourceKind: Int,
+		capturePurpose: String,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<SourceProductProjectionLaneEntity>
 
 	@Query("SELECT COUNT(*) FROM wifi_captured_fact_revision")
 	suspend fun revisionCount(): Long

@@ -214,6 +214,104 @@ class WifiHistoryRepositoryRoomTest {
 		}
 	}
 
+	@Test
+	fun `fact-only history rejects stale and half-open boundary observations`() = runTest {
+		val stale = transformFacts(buildGroup(210, 1, setOf(0))) { fact ->
+			fact.copy(receivedElapsedNanos = Math.addExact(
+				fact.coverageIntervalStartNanos, fact.maximumObservationAgeNanos + 1L,
+			))
+		}
+		persist(listOf(stale))
+		assertRecentWriterFailure()
+
+		database.close()
+		setUp()
+		val base = buildGroup(211, 1, setOf(0))
+		val runEnd = base.runs.single().segment.endTimeMs
+		val elapsedEnd = base.runs.single().facts.last().sessionRunEffectEndNanos
+		val boundary = transformFacts(base) { fact ->
+			fact.copy(
+				observedElapsedNanos = elapsedEnd,
+				receivedElapsedNanos = elapsedEnd,
+				coverageIntervalEndNanos = elapsedEnd,
+				observedWallTimeMs = runEnd,
+				acquiredAtMs = runEnd,
+				appliedAtMs = runEnd,
+			)
+		}
+		persist(listOf(boundary))
+		assertRecentWriterFailure()
+	}
+
+	@Test
+	fun `one physical registration may serve a later replacement manifest`() = runTest {
+		val group = shareRegistrationAcrossReplacement(buildGroup(212, 2, setOf(1)))
+
+		persist(listOf(group))
+
+		val entry = (repository { true }.recent(1) as WifiHistoryPage.Available).entries.single()
+		entry.state shouldBe WifiHistoryProductState.READY
+		entry.observations shouldHaveSize 1
+		val reserved = requireNotNull(group.runs.first().provider).reservedElapsedRealtimeNanos
+		(reserved < group.runs.last().manifest.effectiveElapsedRealtimeNanos) shouldBe true
+	}
+
+	@Test
+	fun `source-local attribution queries enforce their SQL result limits`() = runTest {
+		val group = buildGroup(213, 2, setOf(1))
+		persist(listOf(group))
+		val dao = database.wifiCapturedFactDao()
+		val runs = group.runs.map { it.run.serviceRunId }
+
+		dao.historyPolicies(WIFI_SOURCE, runs, 1) shouldHaveSize 1
+		dao.historyConsentEpochs(
+			WIFI_SOURCE,
+			SourceBrokerPurpose.SESSION_CAPTURE,
+			group.runs.map { it.consent.epoch },
+			1,
+		) shouldHaveSize 1
+		dao.historyDemands(
+			group.runs.flatMap(BuiltRun::demands).map(SourceDemandEntity::demandId),
+			1,
+		) shouldHaveSize 1
+		dao.historyProductLanes(WIFI_SOURCE, SourceBrokerPurpose.SESSION_CAPTURE, runs, 1) shouldHaveSize 1
+	}
+
+	@Test
+	fun `lane stage rollout chronology and retired cursor shape fail closed`() = runTest {
+		val mutations = listOf(
+			"UPDATE source_product_projection_lane SET product_stage = 'UNKNOWN'",
+			"UPDATE source_product_projection_lane SET activated_rollout_revision = 0",
+			"UPDATE source_product_projection_lane SET installed_at_ms = 2, updated_at_ms = 1",
+			"UPDATE source_product_projection_lane SET status = 'RETIRED', retention_required = 0, " +
+				"capture_admission_cutoff_ordinal = contiguous_admission_ordinal + 1, " +
+				"terminal_disposition = 'CONTAINED_AFTER_DRAIN', terminal_at_ms = 1, updated_at_ms = 1",
+		)
+		mutations.forEachIndexed { index, mutation ->
+			if (index > 0) {
+				database.close()
+				setUp()
+			}
+			persist(listOf(buildGroup(220 + index, 1, setOf(0))))
+			database.openHelper.writableDatabase.execSQL(mutation)
+			assertRecentWriterFailure()
+		}
+	}
+
+	@Test
+	fun `fully drained retired lane remains valid`() = runTest {
+		val group = buildGroup(230, 1, setOf(0))
+		persist(listOf(group))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_product_projection_lane SET status = 'RETIRED', retention_required = 0, " +
+				"capture_admission_cutoff_ordinal = contiguous_admission_ordinal, " +
+				"terminal_disposition = 'CONTAINED_AFTER_DRAIN', terminal_at_ms = 1, updated_at_ms = 1",
+		)
+
+		val entry = (repository { true }.recent(1) as WifiHistoryPage.Available).entries.single()
+		entry.state shouldBe WifiHistoryProductState.READY
+	}
+
 	private fun repository(authority: () -> Boolean) = DefaultWifiHistoryRepository(
 		database, SourceProductLaneExecutionAuthority { authority() }, UnconfinedTestDispatcher(),
 	)
@@ -222,6 +320,13 @@ class WifiHistoryRepositoryRoomTest {
 		val entry = (repository { true }.recent(1) as WifiHistoryPage.Available).entries.single()
 		entry.state shouldBe WifiHistoryProductState.FAILED
 		entry.causes shouldBe setOf(WifiHistoryCause.FACT_INTEGRITY_FAILED)
+		entry.observations shouldBe emptyList()
+	}
+
+	private suspend fun assertRecentWriterFailure() {
+		val entry = (repository { true }.recent(1) as WifiHistoryPage.Available).entries.single()
+		entry.state shouldBe WifiHistoryProductState.FAILED
+		entry.causes shouldBe setOf(WifiHistoryCause.WRITER_PROVENANCE_INVALID)
 		entry.observations shouldBe emptyList()
 	}
 
@@ -315,6 +420,77 @@ class WifiHistoryRepositoryRoomTest {
 			),
 			built,
 		)
+	}
+
+	private fun transformFacts(
+		group: Group,
+		transform: (WifiCapturedFactRevisionEntity) -> WifiCapturedFactRevisionEntity,
+	): Group = group.copy(runs = group.runs.map { built ->
+		val facts = built.facts.map { original ->
+			val changed = transform(original).copy(effectChecksum = ZERO_SHA)
+			changed.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(changed))
+		}
+		val current = facts.groupBy(WifiCapturedFactRevisionEntity::logicalFactId)
+			.values.map { it.maxBy(WifiCapturedFactRevisionEntity::semanticRevision) }
+		built.copy(facts = facts, cursors = current.map(::cursor))
+	})
+
+	private fun shareRegistrationAcrossReplacement(group: Group): Group {
+		require(group.runs.size == 2)
+		val first = group.runs.first()
+		val later = group.runs.last()
+		val firstProvider = requireNotNull(first.provider)
+		val laterProvider = requireNotNull(later.provider)
+		val sharedProvider = firstProvider.copy(
+			retiredAtMs = laterProvider.retiredAtMs,
+			retiredElapsedRealtimeNanos = laterProvider.retiredElapsedRealtimeNanos,
+		)
+		val authorization = SourceBrokerAuthorization.rows(
+			WIFI_SOURCE,
+			sharedProvider.registrationGeneration,
+			1L,
+			later.demands,
+			BOOT_ID,
+			later.manifest.effectiveElapsedRealtimeNanos,
+			later.manifest.effectiveWallTimeMs,
+		)
+		val deny = SourceBrokerAuthorization.rows(
+			WIFI_SOURCE,
+			sharedProvider.registrationGeneration,
+			2L,
+			emptyList(),
+			BOOT_ID,
+			requireNotNull(laterProvider.retiredElapsedRealtimeNanos),
+			requireNotNull(laterProvider.retiredAtMs),
+		)
+		val fingerprint = authorization.first().authorizationFingerprint
+		val laterWithSharedRegistration = transformFacts(
+			group.copy(runs = listOf(later)),
+		) { fact ->
+			fact.copy(
+				sourceInstanceId = sharedProvider.sourceInstanceId,
+				registrationGeneration = sharedProvider.registrationGeneration,
+				authorizationFingerprint = fingerprint,
+				providerAcceptanceStartNanos = requireNotNull(
+					sharedProvider.acceptedElapsedRealtimeNanos,
+				),
+			)
+		}.runs.single().copy(
+			provider = null,
+			authorizations = authorization + deny,
+			actions = later.actions.map { action -> action.copy(
+				sourceInstanceId = sharedProvider.sourceInstanceId,
+				registrationGeneration = sharedProvider.registrationGeneration,
+			) },
+			completeness = later.completeness?.copy(
+				sourceInstanceId = sharedProvider.sourceInstanceId,
+				registrationGeneration = sharedProvider.registrationGeneration,
+			),
+		)
+		return group.copy(runs = listOf(
+			first.copy(provider = sharedProvider, demands = emptyList(), authorizations = emptyList()),
+			laterWithSharedRegistration,
+		))
 	}
 
 	@Suppress("LongMethod")

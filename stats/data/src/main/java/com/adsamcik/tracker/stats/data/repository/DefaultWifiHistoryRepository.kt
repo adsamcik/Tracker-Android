@@ -156,7 +156,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 		val runs = readDao.serviceRuns(runIds)
 		val manifests = readDao.manifests(runIds, MAX_MANIFESTS + 1)
 		val sources = readDao.manifestSources(runIds, MAX_MANIFEST_SOURCES + 1)
-		val policies = readDao.policiesForServiceRuns(WIFI_SOURCE, runIds)
+		val policies = factDao.historyPolicies(WIFI_SOURCE, runIds, MAX_POLICIES + 1)
 		val completeness = readDao.completeness(runIds, MAX_COMPLETENESS + 1)
 		val sessions = database.sourceSessionDao().sessions(logicalIds)
 		val factLoad = loadFactPages(runIds, logicalIds)
@@ -198,16 +198,18 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 		}
 		val authorizations = authorizationLoad.rows
 		val demandIds = authorizations.mapNotNull { it.demandId }.distinct()
-		val demandLoad = loadChunked(demandIds, MAX_DEMANDS) { ids, _ ->
-			database.sourceBrokerDao().demandsByIds(ids)
+		val demandLoad = loadChunked(demandIds, MAX_DEMANDS) { ids, limit ->
+			factDao.historyDemands(ids, limit)
 		}
 		val demands = demandLoad.rows
 		val consentEpochs = sources.filter(::isWifiCaptureMembership)
 			.map(SessionManifestSourceEntity::consentEpoch).distinct()
-		val consents = if (consentEpochs.isEmpty()) emptyList() else
-			database.sourcePolicyDao().consentEpochs(
-				WIFI_SOURCE, SessionManifestPurposeCode.SESSION_CAPTURE, consentEpochs,
+		val consentLoad = loadChunked(consentEpochs, MAX_CONSENTS) { epochs, limit ->
+			factDao.historyConsentEpochs(
+				WIFI_SOURCE, SessionManifestPurposeCode.SESSION_CAPTURE, epochs, limit,
 			)
+		}
+		val consents = consentLoad.rows
 		val actions = factDao.historyStartActions(WIFI_SOURCE, runIds, MAX_ACTIONS + 1)
 		val scopePairs = segments.mapNotNull { segment ->
 			val logical = segment.logicalTrackingId?.takeIf(String::isNotBlank)
@@ -219,12 +221,13 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 				WIFI_SOURCE, SessionManifestPurposeCode.SESSION_CAPTURE, logical, run,
 			)
 		}
-		val fences = if (digestToPair.isEmpty()) emptyList() else readDao.deletionFences(
+		val fences = if (digestToPair.isEmpty()) emptyList() else factDao.historyDeletionFences(
 			WIFI_SOURCE, SessionManifestPurposeCode.SESSION_CAPTURE,
 			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN, digestToPair.keys.toList(),
+			MAX_DELETION_FENCES + 1,
 		)
-		val lanes = readDao.productLanesForServiceRuns(
-			WIFI_SOURCE, SessionManifestPurposeCode.SESSION_CAPTURE, runIds,
+		val lanes = factDao.historyProductLanes(
+			WIFI_SOURCE, SessionManifestPurposeCode.SESSION_CAPTURE, runIds, MAX_LANES + 1,
 		)
 		val through = maxOfOrNull(
 			maxOfOrNull(
@@ -243,7 +246,8 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 		val evidence = database.sourceEvidenceStateDao().get()
 		currentCoroutineContext().ensureActive()
 		val overflow = factLoad.overflow || referencedCursorLoad.overflow || providerLoad.overflow ||
-			authorizationLoad.overflow || demandLoad.overflow || runs.size > MAX_LOGICAL_MEMBERS ||
+			authorizationLoad.overflow || demandLoad.overflow || consentLoad.overflow ||
+			runs.size > MAX_LOGICAL_MEMBERS ||
 			sessions.size > MAX_SESSIONS || manifests.size > MAX_MANIFESTS ||
 			sources.size > MAX_MANIFEST_SOURCES || completeness.size > MAX_COMPLETENESS ||
 			policies.size > MAX_POLICIES || consents.size > MAX_CONSENTS ||
@@ -262,14 +266,15 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			sourcesByManifest = sources.take(MAX_MANIFEST_SOURCES).groupBy {
 				WifiManifestKey(it.logicalTrackingId, it.manifestRevision)
 			},
-			policies = policies.associateBy(SourcePolicyEntity::policyRevision),
-			consents = consents.associateBy(SourceConsentEpochEntity::epoch),
+			policies = policies.take(MAX_POLICIES).associateBy(SourcePolicyEntity::policyRevision),
+			consents = consents.take(MAX_CONSENTS).associateBy(SourceConsentEpochEntity::epoch),
 			completenessByRun = completeness.take(MAX_COMPLETENESS).groupBy { it.serviceRunId },
 			revisions = revisions.take(MAX_FACT_REVISIONS),
 			cursors = cursors.take(MAX_CURSORS),
 			deletionGenerations = generations.take(MAX_DELETION_GENERATIONS)
 				.associateBy { it.logicalTrackingId to it.serviceRunId },
-			deletedScopes = fences.mapNotNull { digestToPair[it.scopeIdentityDigest] }.toSet(),
+			deletedScopes = fences.take(MAX_DELETION_FENCES)
+				.mapNotNull { digestToPair[it.scopeIdentityDigest] }.toSet(),
 			planHeaders = planHeaders.take(MAX_PLANS).associateBy { it.revision },
 			desiredPlans = desiredPlans.take(MAX_PLANS).associateBy(SourceDesiredPlanEntity::revision),
 			providerRegistrations = providers.take(MAX_PROVIDERS).associateBy { it.registrationGeneration },
@@ -278,7 +283,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			demands = demands.take(MAX_DEMANDS).associateBy(SourceDemandEntity::demandId),
 			startActions = actions.take(MAX_ACTIONS),
 			admissions = admissions.take(MAX_ADMISSION_ROWS),
-			lanes = lanes,
+			lanes = lanes.take(MAX_LANES),
 			terminalFailures = failures.take(MAX_TERMINAL_FAILURES),
 			evidenceState = evidence,
 			overflow = overflow,

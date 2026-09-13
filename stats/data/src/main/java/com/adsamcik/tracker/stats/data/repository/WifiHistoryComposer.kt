@@ -313,8 +313,7 @@ internal object WifiHistoryComposer {
 			provider.providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
 			provider.clockDomainId == clockDomainId && provider.collectedDataEpoch == capturedCollectedDataEpoch &&
 			provider.physicalConfigurationFingerprint == physicalConfigurationFingerprint &&
-			provider.hasValidHistoricalShape() && provider.reservedAtMs >= manifest.effectiveWallTimeMs &&
-			provider.reservedElapsedRealtimeNanos >= manifest.effectiveElapsedRealtimeNanos &&
+			provider.hasValidHistoricalShape() &&
 			provider.acceptedAtMs?.let { accepted -> action.acknowledgedAtMs?.let { accepted <= it } } == true &&
 			providerStart <= requireNotNull(action.acknowledgedElapsedRealtimeNanos) &&
 			providerStart <= observedStart &&
@@ -495,6 +494,12 @@ internal object WifiHistoryComposer {
 			?: minOf(sessionEnd, providerEnd, fact.authorizationEffectEndNanos)
 		val maxAgeNanos = runCatching { Math.multiplyExact(plan.maximumAgeMs, NANOS_PER_MILLISECOND) }
 			.getOrNull() ?: return false
+		val oldestObservationAgeNanos = runCatching {
+			Math.subtractExact(fact.receivedElapsedNanos, fact.coverageIntervalStartNanos)
+		}.getOrNull() ?: return false
+		val capturedStart = maxOf(providerStart, fact.authorizationEffectStartNanos,
+			manifest.effectiveElapsedRealtimeNanos)
+		val capturedEnd = minOf(providerEnd, fact.authorizationEffectEndNanos, expectedManifestEnd)
 		val sources = snapshot.manifestAuthorityShape(fact.logicalTrackingId, fact.manifestRevision) ?: return false
 		val action = snapshot.startActions.singleOrNull { it.serviceRunId == fact.serviceRunId &&
 			it.manifestRevision == fact.manifestRevision } ?: return false
@@ -522,10 +527,11 @@ internal object WifiHistoryComposer {
 			plan.payloadVersion == fact.planPayloadVersion && plan.payloadChecksum == fact.planPayloadChecksum &&
 			plan.physicalFingerprint == fact.physicalConfigurationFingerprint &&
 			fact.maximumObservationAgeNanos == maxAgeNanos && fact.resultContract == WIFI_RESULT_CONTRACT &&
+			oldestObservationAgeNanos in 0L..maxAgeNanos && capturedEnd > capturedStart &&
+			fact.coverageIntervalStartNanos >= capturedStart && fact.coverageIntervalStartNanos < capturedEnd &&
+			fact.coverageIntervalEndNanos >= capturedStart && fact.coverageIntervalEndNanos < capturedEnd &&
 			fact.registrationAppliedAtNanos == appliedAt &&
 			provider.hasExactFactAuthority(fact, plan.physicalFingerprint) &&
-			provider.reservedAtMs >= manifest.effectiveWallTimeMs &&
-			provider.reservedElapsedRealtimeNanos >= manifest.effectiveElapsedRealtimeNanos &&
 			provider.acceptedAtMs?.let { accepted -> action.acknowledgedAtMs?.let { accepted <= it } } == true &&
 			providerStart <= requireNotNull(action.acknowledgedElapsedRealtimeNanos) &&
 			providerStart == fact.providerAcceptanceStartNanos && providerEnd == fact.providerAcceptanceEndNanos &&
@@ -846,18 +852,27 @@ internal object WifiHistoryComposer {
 		lane.projectionId == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID &&
 		lane.projectionVersion == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION
 
-	private fun isValidLane(lane: SourceProductProjectionLaneEntity): Boolean =
-		lane.captureModeMask > 0L && lane.captureModeMask and ALL_CAPTURE_MASK.inv() == 0L &&
-		lane.activationOrdinal > 0L && lane.contiguousAdmissionOrdinal >= lane.activationOrdinal - 1L &&
-		when (lane.status) {
+	private fun isValidLane(lane: SourceProductProjectionLaneEntity): Boolean {
+		if (lane.captureModeMask <= 0L || lane.captureModeMask and ALL_CAPTURE_MASK.inv() != 0L ||
+			lane.productStage !in PRODUCT_STAGES || lane.activatedRolloutRevision <= 0L ||
+			lane.activationOrdinal <= 0L || lane.contiguousAdmissionOrdinal < lane.activationOrdinal - 1L ||
+			lane.installedAtMs < 0L || lane.updatedAtMs < lane.installedAtMs ||
+			(lane.terminalDisposition == null) != (lane.terminalAtMs == null)
+		) return false
+		return when (lane.status) {
 			SourceProductProjectionLaneEntity.STATUS_ACTIVE -> lane.captureAdmissionCutoffOrdinal == null &&
-				lane.terminalDisposition == null && lane.terminalAtMs == null && lane.retentionRequired
-			SourceProductProjectionLaneEntity.STATUS_RETIRED -> lane.captureAdmissionCutoffOrdinal != null &&
-				lane.contiguousAdmissionOrdinal >= requireNotNull(lane.captureAdmissionCutoffOrdinal) &&
-				lane.terminalDisposition == SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN &&
-				lane.terminalAtMs != null && !lane.retentionRequired
+				lane.terminalDisposition == null && lane.retentionRequired
+			SourceProductProjectionLaneEntity.STATUS_RETIRED -> {
+				val cutoff = lane.captureAdmissionCutoffOrdinal ?: return false
+				val terminalAt = lane.terminalAtMs ?: return false
+				cutoff >= lane.activationOrdinal - 1L && lane.contiguousAdmissionOrdinal == cutoff &&
+					lane.terminalDisposition ==
+					SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN &&
+					terminalAt >= lane.installedAtMs && lane.updatedAtMs >= terminalAt && !lane.retentionRequired
+			}
 			else -> false
 		}
+	}
 
 	private fun members(logicalId: String, snapshot: WifiHistorySnapshot): List<SessionSegment> =
 		snapshot.expansion.segments.filter { it.logicalTrackingId == logicalId }
@@ -923,6 +938,10 @@ internal object WifiHistoryComposer {
 	private const val AUTOMATIC_CAPTURE_MASK = 2L
 	private const val ALL_CAPTURE_MASK = MANUAL_CAPTURE_MASK or AUTOMATIC_CAPTURE_MASK
 	private const val NANOS_PER_MILLISECOND = 1_000_000L
+	private val PRODUCT_STAGES = setOf(
+		SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+		SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+	)
 	private val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")
 }
 
