@@ -212,6 +212,11 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 		) {
 			return@withTransaction rejected(WifiWalAdapterRejection.SESSION_MISMATCH)
 		}
+		if (run.state in TERMINAL_SESSION_STATES && session.state !in TERMINAL_SESSION_STATES &&
+			(currentRun == null || !hasExactCurrentReplacementBundle(session, currentRun))
+		) {
+			return@withTransaction rejected(WifiWalAdapterRejection.SESSION_MISMATCH)
+		}
 		val sessionEnd = session.cutoffElapsedNanos ?: Long.MAX_VALUE
 		if (run.desiredPlanRevision <= 0L || run.logicalTrackingId != logicalTrackingId ||
 			run.bootId != wal.clockDomainId || run.leaseGeneration != leaseGeneration ||
@@ -738,6 +743,117 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 		}.getOrNull()
 	}
 
+	/**
+	 * Authenticates the complete live replacement that keeps an older terminal run attributable.
+	 * Scalar current-run pointers alone are not historical authority.
+	 */
+	@Suppress("CyclomaticComplexMethod", "LongMethod")
+	private suspend fun hasExactCurrentReplacementBundle(
+		session: LogicalTrackingSessionEntity,
+		run: SourceServiceRunEntity,
+	): Boolean {
+		if (!run.hasValidCurrentRelationshipTo(session) || session.currentIntentRevision?.let { it > 0L } != true ||
+			run.preparedIntentRevision != session.currentIntentRevision ||
+			run.rolloutRevision != session.rolloutRevision || run.runtimeAcknowledgement != "START_ACCEPTED" ||
+			run.runtimeFailureCode != null || run.presentationAcknowledgement !=
+			SourceServiceRunEntity.PRESENTATION_PENDING || run.presentationAcknowledgedAtMs != null
+		) return false
+		val sessionDao = database.sourceSessionDao()
+		val manifests = sessionDao.manifestsForServiceRun(run.serviceRunId, MAX_MANIFESTS_PER_RUN + 1)
+		if (manifests.size > MAX_MANIFESTS_PER_RUN ||
+			!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)
+		) return false
+		val currentRevision = session.currentManifestRevision ?: return false
+		val manifest = manifests.lastOrNull()?.takeIf { it.manifestRevision == currentRevision }
+			?: return false
+		if (manifest.sessionMode != session.sessionMode || manifest.acquisitionPlanRevision !=
+			session.desiredPlanRevision || manifest.effectiveBootId != session.lifecycleBootId
+		) return false
+		val allSources = database.trackingHistoryReadDao().manifestSources(
+			listOf(run.serviceRunId), MAX_MANIFEST_SOURCE_ROWS + 1,
+		)
+		if (allSources.size > MAX_MANIFEST_SOURCE_ROWS || manifests.any { candidate ->
+				!SessionManifestIntegrity.verify(candidate, allSources.filter { source ->
+					source.logicalTrackingId == candidate.logicalTrackingId &&
+						source.manifestRevision == candidate.manifestRevision
+				})
+			}
+		) return false
+		val manifestSources = allSources.filter { source ->
+			source.logicalTrackingId == session.logicalTrackingId &&
+				source.manifestRevision == manifest.manifestRevision
+		}
+		if (manifestSources.any { source ->
+				SourceKind.entries.none { it.stableCode == source.sourceKind } ||
+					source.purpose !in SessionManifestPurposeCode.ALL
+			}
+		) return false
+		val wifiSource = manifestSources.singleOrNull { source ->
+			source.sourceKind == WIFI_SOURCE &&
+				source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE && source.persistenceEligible
+		} ?: return false
+
+		val planHeader = database.sourcePlanStateDao().revision(manifest.acquisitionPlanRevision)
+			?: return false
+		val desiredPlan = database.sourcePlanStateDao().desiredPlan(
+			manifest.acquisitionPlanRevision, WIFI_SOURCE,
+		) ?: return false
+		if (desiredPlan.payload.size > MAX_PLAN_PAYLOAD_BYTES) return false
+		val plan = runCatching { planCodec.decode(desiredPlan.payload) as? WifiPlan }.getOrNull()
+			?: return false
+		val reencoded = runCatching { planCodec.encode(plan) }.getOrNull() ?: return false
+		if (planHeader.sourcePolicyRevision != manifest.sourcePolicyRevision ||
+			desiredPlan.payloadVersion != PLAN_PAYLOAD_VERSION || desiredPlan.revision !=
+			manifest.acquisitionPlanRevision || desiredPlan.sourceKind != WIFI_SOURCE ||
+			plan.revision != manifest.acquisitionPlanRevision || !plan.hasSupportedHistoricalShape() ||
+			!reencoded.bytes.contentEquals(desiredPlan.payload) ||
+			reencoded.checksum != desiredPlan.payloadChecksum
+		) return false
+
+		val policy = database.sourcePolicyDao().policyAtRevision(manifest.sourcePolicyRevision, WIFI_SOURCE)
+			?: return false
+		val consent = database.sourcePolicyDao().consentEpoch(
+			WIFI_SOURCE, SessionManifestPurposeCode.SESSION_CAPTURE, wifiSource.consentEpoch,
+		) ?: return false
+		if (!policy.enabled || !policy.capturePersistenceEligible ||
+			policy.captureConsentEpoch != wifiSource.consentEpoch || policy.qosCode != wifiSource.qosCode ||
+			policy.effectiveBootId != manifest.effectiveBootId ||
+			policy.effectiveElapsedRealtimeNanos > manifest.effectiveElapsedRealtimeNanos ||
+			!consent.eligible || !consent.persistenceEligible || consent.policyRevision > policy.policyRevision ||
+			consent.effectiveBootId != manifest.effectiveBootId ||
+			consent.effectiveElapsedRealtimeNanos > manifest.effectiveElapsedRealtimeNanos
+		) return false
+
+		val segmentId = run.sessionSegmentId ?: return false
+		val segment = database.sessionSegmentDao().getById(segmentId) ?: return false
+		if (segment.logicalTrackingId != session.logicalTrackingId || segment.serviceRunId != run.serviceRunId) {
+			return false
+		}
+		val actions = sessionDao.sourceStartActionsForManifestBounded(
+			session.logicalTrackingId, run.serviceRunId, manifest.manifestRevision, WIFI_SOURCE,
+			MAX_PLAN_APPLICATION_ROWS + 1,
+		)
+		if (actions.size > MAX_PLAN_APPLICATION_ROWS) return false
+		val action = actions.singleOrNull()?.takeIf {
+			it.authenticatesCurrentReplacement(session, run, manifest, wifiSource)
+		} ?: return false
+		val registrationGeneration = action.registrationGeneration ?: return false
+		val registration = database.sourceBrokerDao().registration(WIFI_SOURCE, registrationGeneration)
+			?: return false
+		val acceptedElapsed = registration.acceptedElapsedRealtimeNanos ?: return false
+		val retiredElapsed = registration.retiredElapsedRealtimeNanos
+		return registration.sourceInstanceId == action.sourceInstanceId &&
+			registration.ownerScope == EXPECTED_OWNER_SCOPE && registration.clockDomainId == run.bootId &&
+			registration.providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
+			registration.physicalConfigurationFingerprint == plan.physicalConfigurationFingerprint() &&
+			registration.status in setOf(
+				ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+				ProviderRegistrationGenerationEntity.STATUS_RETIRING,
+			) && acceptedElapsed >= manifest.effectiveElapsedRealtimeNanos &&
+			acceptedElapsed <= requireNotNull(action.acknowledgedElapsedRealtimeNanos) &&
+			retiredElapsed?.let { it > manifest.effectiveElapsedRealtimeNanos } != false
+	}
+
 	private fun List<com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity>
 		.toSnapshotOrNull(): SourceAuthorizationSnapshot? =
 		runCatching { toAuthorizationSnapshotOrNull() }.getOrNull()
@@ -809,6 +925,30 @@ private fun LifecycleDesiredActionEntity.authenticates(
 		requestedElapsedRealtimeNanos <= appliedAtElapsedNanos &&
 		appliedAtElapsedNanos <= acknowledgedElapsed &&
 		appliedAtElapsedNanos <= (wal.observedIntervalStartNanos ?: Long.MIN_VALUE)
+}
+
+private fun LifecycleDesiredActionEntity.authenticatesCurrentReplacement(
+	session: LogicalTrackingSessionEntity,
+	run: SourceServiceRunEntity,
+	manifest: SessionManifestVersionEntity,
+	wifiSource: SessionManifestSourceEntity,
+): Boolean {
+	val acknowledgedAt = acknowledgedAtMs ?: return false
+	val acknowledgedElapsed = acknowledgedElapsedRealtimeNanos ?: return false
+	val sourceInstance = sourceInstanceId ?: return false
+	val registration = registrationGeneration ?: return false
+	return actionRevision > 0L && actionFamily == "SOURCE_RUNTIME" && sourceKind == SourceKind.WIFI.stableCode &&
+		desiredState == "STARTED" && status == "START_ACCEPTED" && attemptCount > 0 &&
+		failureCode == null && retryTrigger == null && sourceInstance.isNotBlank() && registration > 0L &&
+		logicalTrackingId == session.logicalTrackingId && serviceRunId == run.serviceRunId &&
+		manifestRevision == manifest.manifestRevision && desiredPlanRevision == manifest.acquisitionPlanRevision &&
+		sourcePolicyRevision == manifest.sourcePolicyRevision && consentEpoch == wifiSource.consentEpoch &&
+		startOrigin == manifest.startOrigin && startOrigin == run.startOrigin && bootId == run.bootId &&
+		bootId == session.lifecycleBootId && leaseGeneration == run.leaseGeneration &&
+		leaseGeneration == session.lifecycleLeaseGeneration && requestedAtMs == manifest.effectiveWallTimeMs &&
+		requestedElapsedRealtimeNanos == manifest.effectiveElapsedRealtimeNanos &&
+		requestedAtMs >= run.startedAtMs && requestedElapsedRealtimeNanos >= run.startedElapsedNanos &&
+		acknowledgedAt >= requestedAtMs && acknowledgedElapsed >= requestedElapsedRealtimeNanos
 }
 
 private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(admissionOrdinal: Long): Boolean {

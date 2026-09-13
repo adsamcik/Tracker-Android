@@ -321,6 +321,65 @@ class WifiWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `terminal older run requires the replacement manifest`() = runTest {
+		installValidFixture()
+		installLiveReplacement()
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM session_manifest_version WHERE logical_tracking_id = ? AND manifest_revision = ?",
+			arrayOf(LOGICAL_ID, REPLACEMENT_MANIFEST_REVISION),
+		)
+		assertEquals(
+			WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `terminal older run requires the exact replacement manifest checksum`() = runTest {
+		installValidFixture()
+		installLiveReplacement()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_version SET manifest_checksum = ? " +
+				"WHERE logical_tracking_id = ? AND manifest_revision = ?",
+			arrayOf("0".repeat(64), LOGICAL_ID, REPLACEMENT_MANIFEST_REVISION),
+		)
+		assertEquals(
+			WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `terminal older run rejects wrong replacement reverse binding`() = runTest {
+		installValidFixture()
+		installLiveReplacement()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_segment SET logical_tracking_id = 'wrong-logical' WHERE id = ?",
+			arrayOf(REPLACEMENT_SEGMENT_ID),
+		)
+
+		assertEquals(
+			WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `terminal older run rejects stale replacement lifecycle action`() = runTest {
+		installValidFixture()
+		installLiveReplacement()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE lifecycle_desired_action SET lease_generation = lease_generation + 1 WHERE action_id = ?",
+			arrayOf(REPLACEMENT_ACTION_ID),
+		)
+
+		assertEquals(
+			WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
 	fun `terminal run still named by nonterminal session remains invalid`() = runTest {
 		installValidFixture()
 		setLiveLifecyclePair(sessionState = "ACTIVE", runState = "FINALIZED")
@@ -639,20 +698,75 @@ class WifiWalQualificationAdapterTest {
 		val sessionDao = database.sourceSessionDao()
 		val session = requireNotNull(sessionDao.session(LOGICAL_ID))
 		val terminalRun = requireNotNull(sessionDao.serviceRun(RUN_ID))
-		sessionDao.insertServiceRun(
-			terminalRun.copy(
+		val replacementStartWall = SESSION_END_WALL_MS + 1L
+		val replacementStartElapsed = SESSION_END_NANOS + 1L
+		val replacementSegment = segment(REPLACEMENT_RUN_ID).copy(
+			id = REPLACEMENT_SEGMENT_ID,
+			startTimeMs = replacementStartWall,
+			endTimeMs = replacementStartWall,
+			createdAt = replacementStartWall,
+		)
+		assertEquals(REPLACEMENT_SEGMENT_ID, database.sessionSegmentDao().insert(replacementSegment))
+		val replacementRun = terminalRun.copy(
+			serviceRunId = REPLACEMENT_RUN_ID,
+			state = "ACTIVE",
+			startedAtMs = replacementStartWall,
+			startedElapsedNanos = replacementStartElapsed,
+			completedAtMs = null,
+			completionReason = null,
+			runtimeAcknowledgement = "START_ACCEPTED",
+			runRevision = 1L,
+			startDeliveryToken = "wifi-replacement-start-token",
+			preparedManifestRevision = REPLACEMENT_MANIFEST_REVISION,
+			preparedIntentRevision = REPLACEMENT_INTENT_REVISION,
+			sessionSegmentId = REPLACEMENT_SEGMENT_ID,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+			presentationAcknowledgedAtMs = null,
+		)
+		sessionDao.insertServiceRun(replacementRun)
+		val originalSource = requireNotNull(sessionDao.manifestSource(
+			LOGICAL_ID,
+			MANIFEST_REVISION,
+			WIFI_SOURCE,
+			SourceBrokerPurpose.SESSION_CAPTURE,
+		))
+		val replacementSource = originalSource.copy(manifestRevision = REPLACEMENT_MANIFEST_REVISION)
+		val unsignedManifest = requireNotNull(sessionDao.manifest(LOGICAL_ID, MANIFEST_REVISION)).copy(
+			manifestRevision = REPLACEMENT_MANIFEST_REVISION,
+			serviceRunId = REPLACEMENT_RUN_ID,
+			effectiveElapsedRealtimeNanos = replacementStartElapsed,
+			effectiveWallTimeMs = replacementStartWall,
+			changeReason = "REPLACEMENT_START",
+			manifestChecksum = "",
+		)
+		sessionDao.insertManifest(unsignedManifest.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, listOf(replacementSource)),
+		))
+		sessionDao.insertManifestSources(listOf(replacementSource))
+		sessionDao.insertLifecycleActions(listOf(
+			startAction(actionId = REPLACEMENT_ACTION_ID, actionRevision = 2L).copy(
 				serviceRunId = REPLACEMENT_RUN_ID,
-				state = "ACTIVE",
-				startedAtMs = SESSION_END_WALL_MS + 1L,
-				startedElapsedNanos = SESSION_END_NANOS + 1L,
-				completedAtMs = null,
-				completionReason = null,
-				runtimeAcknowledgement = "START_ACCEPTED",
-				runRevision = 1L,
-				startDeliveryToken = "wifi-replacement-start-token",
-				sessionSegmentId = null,
-				presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
-				presentationAcknowledgedAtMs = null,
+				manifestRevision = REPLACEMENT_MANIFEST_REVISION,
+				requestedAtMs = replacementStartWall,
+				requestedElapsedRealtimeNanos = replacementStartElapsed,
+				acknowledgedAtMs = replacementStartWall + 1L,
+				acknowledgedElapsedRealtimeNanos = replacementStartElapsed + 1L,
+				sourceInstanceId = REPLACEMENT_SOURCE_INSTANCE,
+				registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
+			),
+		))
+		database.sourceBrokerDao().insertRegistration(
+			registration(
+				generation = REPLACEMENT_REGISTRATION_GENERATION,
+				sourceInstance = REPLACEMENT_SOURCE_INSTANCE,
+			).copy(
+				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+				reservedAtMs = replacementStartWall,
+				reservedElapsedRealtimeNanos = replacementStartElapsed,
+				acceptedAtMs = replacementStartWall,
+				acceptedElapsedRealtimeNanos = replacementStartElapsed,
+				retiredAtMs = null,
+				retiredElapsedRealtimeNanos = null,
 			),
 		)
 		assertEquals(1, sessionDao.updateSession(
@@ -662,6 +776,8 @@ class WifiWalQualificationAdapterTest {
 				cutoffAtMs = null,
 				cutoffElapsedNanos = null,
 				finalAdmissionOrdinal = null,
+				currentManifestRevision = REPLACEMENT_MANIFEST_REVISION,
+				currentIntentRevision = REPLACEMENT_INTENT_REVISION,
 				currentServiceRunId = REPLACEMENT_RUN_ID,
 			),
 		))
@@ -1134,6 +1250,8 @@ class WifiWalQualificationAdapterTest {
 		const val LOGICAL_ID = "logical-wifi"
 		const val RUN_ID = "run-wifi"
 		const val REPLACEMENT_RUN_ID = "run-wifi-replacement"
+		const val REPLACEMENT_ACTION_ID = "wifi-replacement-start-action"
+		const val REPLACEMENT_SOURCE_INSTANCE = "wifi-replacement-instance"
 		const val SOURCE_INSTANCE = "wifi-instance"
 		const val DEMAND_ID = "wifi-demand"
 		const val BOOT_ID = "boot-1"
@@ -1142,11 +1260,15 @@ class WifiWalQualificationAdapterTest {
 		const val POLICY_REVISION = 1L
 		const val CONSENT_EPOCH = 1L
 		const val MANIFEST_REVISION = 1L
+		const val REPLACEMENT_MANIFEST_REVISION = 2L
+		const val REPLACEMENT_INTENT_REVISION = 2L
 		const val LEASE_GENERATION = 1L
 		const val REGISTRATION_GENERATION = 1L
+		const val REPLACEMENT_REGISTRATION_GENERATION = 2L
 		const val AUTHORIZATION_REVISION = 1L
 		const val ROLLOUT_REVISION = 1L
 		const val SEGMENT_ID = 1L
+		const val REPLACEMENT_SEGMENT_ID = 2L
 		const val SOURCE_SEQUENCE = 1L
 		const val PAYLOAD_VERSION = 2
 		const val QOS_CODE = 2
