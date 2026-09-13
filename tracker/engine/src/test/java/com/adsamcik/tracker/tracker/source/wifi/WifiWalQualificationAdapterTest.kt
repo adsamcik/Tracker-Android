@@ -380,6 +380,55 @@ class WifiWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `terminal older run rejects a replacement registration from a stale data epoch`() = runTest {
+		installValidFixture()
+		installLiveReplacement()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET collected_data_epoch = collected_data_epoch + 1 " +
+				"WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf(WIFI_SOURCE, REPLACEMENT_REGISTRATION_GENERATION),
+		)
+
+		assertEquals(
+			WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `terminal older run rejects malformed replacement registration clocks and status`() = runTest {
+		installValidFixture()
+		installLiveReplacement()
+		val registration = requireNotNull(database.sourceBrokerDao().registration(
+			WIFI_SOURCE,
+			REPLACEMENT_REGISTRATION_GENERATION,
+		))
+		val corruptions = listOf(
+			"accepted_at_ms = NULL, accepted_elapsed_realtime_nanos = NULL",
+			"reserved_at_ms = accepted_at_ms + 1",
+			"reserved_elapsed_realtime_nanos = accepted_elapsed_realtime_nanos + 1",
+			"accepted_at_ms = accepted_at_ms + 2",
+			"accepted_elapsed_realtime_nanos = accepted_elapsed_realtime_nanos + 2",
+			"retired_at_ms = accepted_at_ms, retired_elapsed_realtime_nanos = " +
+				"accepted_elapsed_realtime_nanos, failure_code = 'retiring'",
+			"status = 'RETIRING', retired_at_ms = NULL, retired_elapsed_realtime_nanos = NULL, " +
+				"failure_code = NULL",
+		)
+		corruptions.forEach { assignment ->
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE provider_registration_generation SET $assignment " +
+					"WHERE source_kind = ? AND registration_generation = ?",
+				arrayOf(WIFI_SOURCE, REPLACEMENT_REGISTRATION_GENERATION),
+			)
+			assertEquals(
+				WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH),
+				subject.qualify(EVENT_ID),
+			)
+			restoreReplacementRegistration(registration)
+		}
+	}
+
+	@Test
 	fun `terminal run still named by nonterminal session remains invalid`() = runTest {
 		installValidFixture()
 		setLiveLifecyclePair(sessionState = "ACTIVE", runState = "FINALIZED")
@@ -781,6 +830,29 @@ class WifiWalQualificationAdapterTest {
 				currentServiceRunId = REPLACEMENT_RUN_ID,
 			),
 		))
+	}
+
+	private fun restoreReplacementRegistration(registration: ProviderRegistrationGenerationEntity) {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET collected_data_epoch = ?, status = ?, " +
+				"reserved_at_ms = ?, reserved_elapsed_realtime_nanos = ?, accepted_at_ms = ?, " +
+				"accepted_elapsed_realtime_nanos = ?, retired_at_ms = ?, " +
+				"retired_elapsed_realtime_nanos = ?, failure_code = ? " +
+				"WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf(
+				registration.collectedDataEpoch,
+				registration.status,
+				registration.reservedAtMs,
+				registration.reservedElapsedRealtimeNanos,
+				registration.acceptedAtMs,
+				registration.acceptedElapsedRealtimeNanos,
+				registration.retiredAtMs,
+				registration.retiredElapsedRealtimeNanos,
+				registration.failureCode,
+				registration.sourceKind,
+				registration.registrationGeneration,
+			),
+		)
 	}
 
 	private suspend fun insertSecondWal(): SourceEventId {

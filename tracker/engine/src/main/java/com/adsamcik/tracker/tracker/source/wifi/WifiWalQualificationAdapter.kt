@@ -197,6 +197,8 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 		) {
 			return@withTransaction rejected(WifiWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
 		}
+		val evidenceState = database.sourceEvidenceStateDao().get()
+			?: return@withTransaction rejected(WifiWalAdapterRejection.DELETED_EVIDENCE)
 
 		val sessionDao = database.sourceSessionDao()
 		val run = sessionDao.serviceRun(serviceRunId)
@@ -213,7 +215,12 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 			return@withTransaction rejected(WifiWalAdapterRejection.SESSION_MISMATCH)
 		}
 		if (run.state in TERMINAL_SESSION_STATES && session.state !in TERMINAL_SESSION_STATES &&
-			(currentRun == null || !hasExactCurrentReplacementBundle(session, currentRun))
+			(currentRun == null || !hasExactCurrentReplacementBundle(
+				session,
+				currentRun,
+				wal.capturedCollectedDataEpoch,
+				evidenceState.collectedDataEpoch,
+			))
 		) {
 			return@withTransaction rejected(WifiWalAdapterRejection.SESSION_MISMATCH)
 		}
@@ -511,8 +518,6 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 			return@withTransaction rejected(WifiWalAdapterRejection.SEGMENT_MISMATCH)
 		}
 
-		val evidenceState = database.sourceEvidenceStateDao().get()
-			?: return@withTransaction rejected(WifiWalAdapterRejection.DELETED_EVIDENCE)
 		if (evidenceState.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
 			wal.admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal
 		) {
@@ -751,7 +756,12 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 	private suspend fun hasExactCurrentReplacementBundle(
 		session: LogicalTrackingSessionEntity,
 		run: SourceServiceRunEntity,
+		expectedCollectedDataEpoch: Long,
+		currentCollectedDataEpoch: Long,
 	): Boolean {
+		if (expectedCollectedDataEpoch < 0L || currentCollectedDataEpoch != expectedCollectedDataEpoch) {
+			return false
+		}
 		if (!run.hasValidCurrentRelationshipTo(session) || session.currentIntentRevision?.let { it > 0L } != true ||
 			run.preparedIntentRevision != session.currentIntentRevision ||
 			run.rolloutRevision != session.rolloutRevision || run.runtimeAcknowledgement != "START_ACCEPTED" ||
@@ -840,18 +850,36 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 		val registrationGeneration = action.registrationGeneration ?: return false
 		val registration = database.sourceBrokerDao().registration(WIFI_SOURCE, registrationGeneration)
 			?: return false
+		val acceptedWall = registration.acceptedAtMs ?: return false
 		val acceptedElapsed = registration.acceptedElapsedRealtimeNanos ?: return false
+		val acknowledgedWall = action.acknowledgedAtMs ?: return false
+		val acknowledgedElapsed = action.acknowledgedElapsedRealtimeNanos ?: return false
+		val hasValidStatusShape = when (registration.status) {
+			ProviderRegistrationGenerationEntity.STATUS_ACTIVE ->
+				registration.retiredAtMs == null && registration.retiredElapsedRealtimeNanos == null &&
+					registration.failureCode == null && run.state in ADMISSION_RUN_STATES
+			ProviderRegistrationGenerationEntity.STATUS_RETIRING ->
+				registration.retiredAtMs != null && registration.retiredElapsedRealtimeNanos != null &&
+					!registration.failureCode.isNullOrBlank() && run.state == "STOPPING"
+			else -> false
+		}
+		if (!hasValidStatusShape) return false
+		val retiredWall = registration.retiredAtMs
 		val retiredElapsed = registration.retiredElapsedRealtimeNanos
-		return registration.sourceInstanceId == action.sourceInstanceId &&
+		return registration.sourceKind == WIFI_SOURCE &&
+			registration.registrationGeneration == registrationGeneration &&
+			registration.sourceInstanceId == action.sourceInstanceId &&
 			registration.ownerScope == EXPECTED_OWNER_SCOPE && registration.clockDomainId == run.bootId &&
 			registration.providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
+			registration.collectedDataEpoch == expectedCollectedDataEpoch &&
 			registration.physicalConfigurationFingerprint == plan.physicalConfigurationFingerprint() &&
-			registration.status in setOf(
-				ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
-				ProviderRegistrationGenerationEntity.STATUS_RETIRING,
-			) && acceptedElapsed >= manifest.effectiveElapsedRealtimeNanos &&
-			acceptedElapsed <= requireNotNull(action.acknowledgedElapsedRealtimeNanos) &&
-			retiredElapsed?.let { it > manifest.effectiveElapsedRealtimeNanos } != false
+			registration.reservedAtMs >= manifest.effectiveWallTimeMs &&
+			registration.reservedElapsedRealtimeNanos >= manifest.effectiveElapsedRealtimeNanos &&
+			registration.reservedAtMs <= acceptedWall &&
+			registration.reservedElapsedRealtimeNanos <= acceptedElapsed &&
+			acceptedWall <= acknowledgedWall && acceptedElapsed <= acknowledgedElapsed &&
+			retiredWall?.let { it >= acceptedWall } != false &&
+			retiredElapsed?.let { it >= acceptedElapsed } != false
 	}
 
 	private fun List<com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity>
