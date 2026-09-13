@@ -177,8 +177,13 @@ Independent clean lanes:
   replacement groups, and authenticates fact freshness, provider/authorization/session windows,
   immutable plans, lane/cursor/lifecycle, deletion, retention, and zone. Shared registration requires
   exactly one matching persistent capture owner plus compatible physical contracts for every other
-  member; unrelated members never acquire fact ownership. Provider activation, maintenance/transfer,
-  shared UI, automatic/ambient behavior, and device evidence remain open.
+  member; unrelated members never acquire fact ownership. `codex/ti-wifi-manual-action` is
+  independently accepted through `750bd6c42`: the same scan-only API 26–29+ prerequisite matrix now
+  drives capability, admission, service preparation, runtime, and reporting, while Dashboard and
+  Tracker request fine plus coarse together on Android 12+ and preserve exact Wi-Fi-only start
+  intent. Nearby Devices remains a raw unrelated capability, not scan-only authority. Provider
+  activation, maintenance/transfer, shared UI, automatic/ambient behavior, and device evidence remain
+  open.
 
 Read-only Git reconciliation found no accepted committed work lost through compaction. The imported
 Steps source branches are already contained or patch-equivalent in this coordinator; old

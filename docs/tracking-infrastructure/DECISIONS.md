@@ -3665,3 +3665,20 @@ Each entry records repository evidence and does not duplicate the final architec
   closed without partial mutation.
 - This is Ambient source-local maintenance, not portable-export acceptance, shared UI, provider
   activation, generic tombstones, device/process proof, or product rollout.
+
+## TI-D228 — Manual Wi-Fi uses the platform scan matrix and paired precise-location repair
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated app/core/tracker/UI tests
+  `ca433596b`, `78498d12f`, and `750bd6c42`; corrected independent review; TI-B291.
+- Tracker's scan-only path calls `startScan`/`getScanResults`; Nearby Devices is retained as a raw
+  capability for unrelated Wi-Fi APIs but is not a prerequisite for this path.
+- One shared prerequisite model now drives capability, foreground admission, service preparation,
+  connectivity runtime, Wi-Fi runtime, and reporting. API 26–27 accepts coarse or fine Location (or
+  the manifest-declared change-Wi-Fi permission) without Location Services; API 28 accepts coarse or
+  fine plus enabled services; API 29+ for this target requires fine plus enabled services.
+- On Android 12+, Dashboard and Tracker repair precise Location by requesting fine and coarse
+  together through the multi-permission contract. A fine grant is required for the API 29+ scan;
+  denial remains typed, and the route re-reads exact source readiness before starting. Earlier APIs
+  and unrelated single-permission prerequisites retain their existing path.
+- All audited manual entry points already preserve the exact requested capture set. This correction
+  neither enables Wi-Fi nor registers another source, provider, scan, control, or enrichment demand.

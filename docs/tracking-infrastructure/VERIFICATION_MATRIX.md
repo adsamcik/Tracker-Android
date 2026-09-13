@@ -2331,3 +2331,27 @@ Deferred focused command:
 The command was not run. Compilation, Room execution, generated v28 schema convergence, portable
 export acceptance, shared Today/Timeline/Calendar/UI, provider/process/reboot/device behavior,
 integration, activation, and release remain unproven.
+
+## TI-B291 — Manual Wi-Fi prerequisite and remediation contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `750bd6c42`. Authored capability, foreground-source,
+connectivity-runtime, Wi-Fi-runtime, service-preflight, shared permission-launcher, Dashboard route,
+Tracker route, onboarding, and settings tests cover API 26–27 coarse/fine/change-Wi-Fi without
+Location Services, API 28 coarse/fine plus services, API 29+ fine plus services, no Nearby scan-only
+gate, exact capture-set preservation, Android 12+ paired fine/coarse repair, denial, and readiness
+re-evaluation before start.
+
+Independent review rejected the first correction for over-constraining API 26–28 and leaving the two
+primary manual routes on a fine-only request that Android 12 can ignore. The two follow-up commits
+align every capability/admission/runtime layer and the route launchers with the platform matrix;
+re-review accepted the correction.
+
+Deferred focused commands:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*TrackingPermissionCapabilitiesTest' :core:ui:testDebugUnitTest --tests '*ContextualPermissionRequestTest' :tracker:engine:testDebugUnitTest --tests '*AndroidForegroundSourceCapabilitiesTest' --tests '*ConnectivityRuntimeSupportTest' --tests '*WifiSourceRuntimeTest' :tracker:service:testDebugUnitTest --tests '*TrackingServicePermissionPreflightTest' :app:testDebugUnitTest --tests '*SetupViewModelTest' --tests '*TrackingSettingsViewModelTest' :feature:dashboard:testDebugUnitTest --tests '*DashboardRouteTest' :feature:tracker:testDebugUnitTest --tests '*TrackerRouteTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The commands were not run. Compilation, Android permission-dialog behavior, provider callback/scan,
+throttling, process/reboot/FGS/device behavior, product history/UI convergence, integration,
+activation, and release remain unproven.

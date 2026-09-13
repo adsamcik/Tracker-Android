@@ -785,6 +785,15 @@ all other members; those members never inherit fact ownership. These TODOs remai
 runtime projection, shared UI, maintenance/transfer, automatic/ambient behavior, and complete
 scenarios exist.
 
+Accepted manual-action commits `ca433596b`, `78498d12f`, and `750bd6c42` implement bounded portions
+of WIFI-002/013 and ACTION-001/002/003/006/008. All production manual starts already preserve the
+exact requested capture set; the shared Wi-Fi scan prerequisite model now applies the platform
+matrix consistently across capability, admission, service preparation, runtime evaluation, and
+reporting. Nearby Devices remains available to unrelated APIs but is not a scan-only prerequisite.
+Both primary manual routes request fine plus coarse together on Android 12+ and re-read exact
+Wi-Fi-only readiness after repair. These TODOs remain unchecked until provider/device permission
+behavior, the other sources' action paths, runtime/product convergence, and complete scenarios exist.
+
 ## Cell vertical
 
 - [ ] TODO-CELL-001 Complete one app-scoped Cell callback owner and stable durable delivery identity

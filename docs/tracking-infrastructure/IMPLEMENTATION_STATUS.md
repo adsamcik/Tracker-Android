@@ -197,6 +197,12 @@ policy/consent, lane/cursor, deletion, retention, and stored-zone authority. Sha
 require exactly one matching persistent capture owner while every other demand remains physically
 compatible; no unrelated member acquires fact ownership. Missing/corrupt heads and overflow remain
 typed, and public metrics stay identity-free with no `sample_count` or Location inference.
+The separate manual-action branch is independently accepted through `750bd6c42`. One shared
+scan-only prerequisite model drives capability, admission, foreground preparation, runtime
+evaluation, and reporting: API 26–27 accepts coarse/fine or the declared change-Wi-Fi permission
+without Location Services; API 28 requires coarse/fine plus services; API 29+ requires fine plus
+services. Nearby Devices is not a `startScan`/`getScanResults` gate. Dashboard and Tracker request
+fine plus coarse together on Android 12+, then re-read the exact Wi-Fi-only readiness before start.
 
 Git/worktree reconciliation found no accepted committed implementation stranded or lost: imported
 Steps branches are contained or patch-equivalent in the coordinator, the older Pressure and numeric
