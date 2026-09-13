@@ -121,6 +121,53 @@ class AmbientStepsFactRevisionDaoTest {
 		)
 	}
 
+	@Test
+	fun `maintenance audit pages and exact lineage deletion stay bounded`() = runTest {
+		val first = providerFact(1_000L, 2_000L, 1L)
+		val second = providerFact(3_000L, 4_000L, 2L)
+		val correctedUnsigned = first.copy(
+			semanticRevision = 2L,
+			mutationId = AmbientStepsFactIntegrity.mutationId(
+				first.logicalFactId,
+				2L,
+				AmbientStepsFactRevisionEntity.OPERATION_UPSERT,
+			),
+			stepCount = 3L,
+			observedAtMs = 5_000L,
+			appliedAtMs = 5_000L,
+		)
+		val corrected = signed(correctedUnsigned)
+		listOf(first, corrected, second).forEach { dao.insert(it) }
+		val ordered = listOf(first, corrected, second).sortedWith(
+			compareBy<AmbientStepsFactRevisionEntity>(
+				AmbientStepsFactRevisionEntity::logicalFactId,
+				AmbientStepsFactRevisionEntity::semanticRevision,
+			),
+		)
+
+		val page = dao.maintenanceRevisionPage(WRITER_ID, WRITER_VERSION, null, null, 2)
+		page shouldContainExactly ordered.take(2)
+		dao.maintenanceRevisionPage(
+			WRITER_ID,
+			WRITER_VERSION,
+			page.last().logicalFactId,
+			page.last().semanticRevision,
+			2,
+		) shouldContainExactly ordered.drop(2)
+
+		dao.deleteExactLineages(WRITER_ID, WRITER_VERSION, listOf(first.logicalFactId)) shouldBe 2
+		dao.countUpserts() shouldBe 1L
+		val redaction = retraction(second, semanticRevision = 2L)
+		dao.insert(redaction)
+		dao.deleteUpsertsForLogicalFacts(
+			WRITER_ID,
+			WRITER_VERSION,
+			listOf(second.logicalFactId),
+		) shouldBe 1
+		dao.revisions(WRITER_ID, WRITER_VERSION, second.logicalFactId) shouldContainExactly
+			listOf(redaction)
+	}
+
 	private fun providerFact(
 		startTimeMs: Long,
 		endTimeMs: Long,

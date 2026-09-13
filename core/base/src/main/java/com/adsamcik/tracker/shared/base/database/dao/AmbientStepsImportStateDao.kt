@@ -69,6 +69,12 @@ interface AmbientStepsImportStateDao {
 		registrationGenerations: List<Long>,
 	): List<AmbientStepsImportCursorEntity>
 
+	/** Bounded complete maintenance snapshot; callers request one overflow row. */
+	@Query(
+		"SELECT * FROM ambient_steps_import_cursor ORDER BY registration_generation LIMIT :limit",
+	)
+	suspend fun maintenanceCursors(limit: Int): List<AmbientStepsImportCursorEntity>
+
 	/**
 	 * Monotonic compare-and-set used inside the eventual provider-read/fact transaction.
 	 * A repeated correction read may retain the same time high-water, but it must advance both the
@@ -132,6 +138,13 @@ interface AmbientStepsImportStateDao {
 			"ORDER BY gap_sequence ASC",
 	)
 	suspend fun gaps(registrationGeneration: Long): List<AmbientStepsImportGapEntity>
+
+	/** Bounded complete maintenance snapshot; callers request one overflow row. */
+	@Query(
+		"SELECT * FROM ambient_steps_import_gap " +
+			"ORDER BY registration_generation, gap_sequence LIMIT :limit",
+	)
+	suspend fun maintenanceGaps(limit: Int): List<AmbientStepsImportGapEntity>
 
 	/**
 	 * Subtracts the union of latest-effective Ambient Steps facts from declared gaps. Fact UPSERTs
@@ -259,6 +272,15 @@ interface AmbientStepsImportStateDao {
 	)
 	suspend fun authorityTransitions(
 		registrationGeneration: Long,
+	): List<AmbientStepsImportAuthorityTransitionEntity>
+
+	/** Bounded complete maintenance snapshot; callers request one overflow row. */
+	@Query(
+		"SELECT * FROM ambient_steps_import_authority_transition " +
+			"ORDER BY registration_generation, transition_sequence LIMIT :limit",
+	)
+	suspend fun maintenanceAuthorityTransitions(
+		limit: Int,
 	): List<AmbientStepsImportAuthorityTransitionEntity>
 
 	/** One bounded page-level transition snapshot for all referenced registrations. */

@@ -44,6 +44,51 @@ interface AmbientStepsFactRevisionDao {
 	): List<AmbientStepsFactRevisionEntity>
 
 	/**
+	 * Stable bounded audit page over every retained revision. Maintenance must authenticate this
+	 * complete keyset before it trusts window or deletion fields for pruning.
+	 */
+	@Query(
+		"SELECT * FROM ambient_steps_fact_revision WHERE writer_id = :writerId " +
+			"AND writer_version = :writerVersion AND (" +
+			":afterLogicalFactId IS NULL OR logical_fact_id > :afterLogicalFactId OR " +
+			"(logical_fact_id = :afterLogicalFactId AND semantic_revision > :afterSemanticRevision)) " +
+			"ORDER BY logical_fact_id ASC, semantic_revision ASC LIMIT :limit",
+	)
+	suspend fun maintenanceRevisionPage(
+		writerId: String,
+		writerVersion: Int,
+		afterLogicalFactId: String?,
+		afterSemanticRevision: Long?,
+		limit: Int,
+	): List<AmbientStepsFactRevisionEntity>
+
+	/** Removes complete authenticated lineages selected before the current retention floor. */
+	@Query(
+		"DELETE FROM ambient_steps_fact_revision WHERE writer_id = :writerId " +
+			"AND writer_version = :writerVersion AND logical_fact_id IN (:logicalFactIds)",
+	)
+	suspend fun deleteExactLineages(
+		writerId: String,
+		writerVersion: Int,
+		logicalFactIds: List<String>,
+	): Int
+
+	/**
+	 * Removes only payload-bearing states after a durable source-delete RETRACT won every lineage.
+	 * The redacted latest state remains as the no-resurrection authority.
+	 */
+	@Query(
+		"DELETE FROM ambient_steps_fact_revision WHERE writer_id = :writerId " +
+			"AND writer_version = :writerVersion AND logical_fact_id IN (:logicalFactIds) " +
+			"AND operation = '${AmbientStepsFactRevisionEntity.OPERATION_UPSERT}'",
+	)
+	suspend fun deleteUpsertsForLogicalFacts(
+		writerId: String,
+		writerVersion: Int,
+		logicalFactIds: List<String>,
+	): Int
+
+	/**
 	 * Returns only the latest non-retracted fact state for one exact structural day authority.
 	 * The correlated latest-revision predicate prevents a redacted RETRACT from losing its scope.
 	 */
@@ -169,6 +214,12 @@ interface AmbientStepsFactRevisionDao {
 
 	@Query("SELECT COUNT(*) FROM ambient_steps_fact_revision")
 	suspend fun countAll(): Long
+
+	@Query(
+		"SELECT COUNT(*) FROM ambient_steps_fact_revision WHERE " +
+			"operation = '${AmbientStepsFactRevisionEntity.OPERATION_UPSERT}'",
+	)
+	suspend fun countUpserts(): Long
 
 	/** Full collected-data clear only; scoped deletion appends redacted revisions instead. */
 	@Query("DELETE FROM ambient_steps_fact_revision")
