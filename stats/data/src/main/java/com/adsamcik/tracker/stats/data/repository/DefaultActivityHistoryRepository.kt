@@ -46,56 +46,100 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 	override suspend fun session(segmentId: Long): ActivityHistoryQuery {
 		require(segmentId > 0L)
 		return withContext(ioDispatcher) {
-			database.withTransaction {
-				val seed = database.trackingHistoryReadDao().segments(listOf(segmentId)).singleOrNull()
-					?: return@withTransaction ActivityHistoryQuery.NotFound
-				val expansion = expandActivityMembership(listOf(seed))
-				val snapshot = loadActivitySnapshot(expansion)
-				val entry = ActivityHistoryComposer.composeSelected(seed, snapshot, laneExecutionAuthority)
-				entry?.let(ActivityHistoryQuery::Found) ?: ActivityHistoryQuery.NotFound
-			}
+			database.withTransaction { sessionInTransaction(segmentId) }
 		}
+	}
+
+	internal suspend fun sessionInTransaction(segmentId: Long): ActivityHistoryQuery {
+		require(segmentId > 0L)
+		val seed = database.trackingHistoryReadDao().segments(listOf(segmentId)).singleOrNull()
+			?: return ActivityHistoryQuery.NotFound
+		val expansion = expandActivityMembership(listOf(seed))
+		val snapshot = loadActivitySnapshot(expansion)
+		val entry = ActivityHistoryComposer.composeSelected(seed, snapshot, laneExecutionAuthority)
+		return entry?.let(ActivityHistoryQuery::Found) ?: ActivityHistoryQuery.NotFound
 	}
 
 	override suspend fun recent(limit: Int): ActivityHistoryPage {
 		require(limit in 1..MAX_ACTIVITY_HISTORY_RESULTS)
 		return withContext(ioDispatcher) {
 			database.withTransaction {
-				loadRecentActivityHistory(limit)
+				when (val result = loadRecentActivityCompositions(limit) { true }) {
+					is ActivityComposedPage.Available ->
+						ActivityHistoryPage.Available(result.entries.map(ComposedActivityEntry::entry))
+					is ActivityComposedPage.Failed -> ActivityHistoryPage.Failed(result.cause)
+				}
 			}
 		}
 	}
 
-	private suspend fun loadRecentActivityHistory(limit: Int): ActivityHistoryPage {
-		return ActivityRecentHistoryPager.collect(
-			limit = limit,
-			pageSize = ACTIVITY_CANDIDATE_PAGE_SIZE,
-			candidateBudget = MAX_ACTIVITY_CANDIDATE_SCAN,
-			loadPage = { pageLimit, beforeStartTimeMs, beforeSegmentId ->
-				database.activityCapturedFactDao().logicalHistoryCandidatePage(
-					limit = pageLimit,
-					beforeStartTimeMs = beforeStartTimeMs,
-					beforeSegmentId = beforeSegmentId,
-				)
-			},
-			compose = { seeds ->
-				val expansion = expandActivityMembership(seeds)
-				val snapshot = loadActivitySnapshot(expansion)
-				if (snapshot.overflow) {
-					ActivityHistoryPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
-				} else {
-					val candidateIds = seeds.mapNotNull(SessionSegment::logicalTrackingId).toSet()
-					ActivityHistoryPage.Available(
-						ActivityHistoryComposer.composeRecent(snapshot, laneExecutionAuthority)
-							.filter { it.logicalTrackingId in candidateIds }
-							.sortedWith(
-								compareByDescending<ComposedActivityEntry> { it.recencyStartTimeMs }
-									.thenByDescending { it.recencySegmentId },
-							).map(ComposedActivityEntry::entry),
-					)
-				}
-			},
+	/** Exact Activity groups for a bounded caller-owned physical candidate generation. */
+	internal suspend fun selectBySegmentIdsInTransaction(
+		segmentIds: List<Long>,
+	): ActivityComposedPage {
+		require(segmentIds.size <= MAX_ACTIVITY_HISTORY_RESULTS)
+		require(segmentIds.all { it > 0L } && segmentIds.distinct().size == segmentIds.size)
+		if (segmentIds.isEmpty()) return ActivityComposedPage.Available(emptyList())
+		val seeds = database.trackingHistoryReadDao().segments(segmentIds)
+		val expansion = expandActivityMembership(seeds)
+		val snapshot = loadActivitySnapshot(expansion)
+		if (snapshot.overflow) return ActivityComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+		val logicalIds = seeds.mapNotNull(SessionSegment::logicalTrackingId).toSet()
+		return ActivityComposedPage.Available(
+			ActivityHistoryComposer.composeRecent(snapshot, laneExecutionAuthority)
+				.filter { it.logicalTrackingId in logicalIds },
 		)
+	}
+
+	/** Intent-first recent Activity-only rows; absence of a captured fact is not a filter. */
+	internal suspend fun recentActivityOnlyInTransaction(limit: Int): ActivityComposedPage {
+		require(limit in 1..MAX_ACTIVITY_HISTORY_RESULTS)
+		return loadRecentActivityCompositions(limit) { it.entry.capturesOnlyActivity }
+	}
+
+	@Suppress("CyclomaticComplexMethod")
+	private suspend fun loadRecentActivityCompositions(
+		limit: Int,
+		accept: (ComposedActivityEntry) -> Boolean,
+	): ActivityComposedPage {
+		val accepted = mutableListOf<ComposedActivityEntry>()
+		var scanned = 0
+		var beforeStartTimeMs: Long? = null
+		var beforeSegmentId: Long? = null
+		while (accepted.size < limit) {
+			currentCoroutineContext().ensureActive()
+			val remaining = MAX_ACTIVITY_CANDIDATE_SCAN - scanned
+			if (remaining == 0) {
+				return ActivityComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+			}
+			val pageLimit = minOf(ACTIVITY_CANDIDATE_PAGE_SIZE, remaining)
+			val page = database.activityCapturedFactDao().logicalHistoryCandidatePage(
+				limit = pageLimit,
+				beforeStartTimeMs = beforeStartTimeMs,
+				beforeSegmentId = beforeSegmentId,
+				activitySourceKind = ACTIVITY_SOURCE,
+			)
+			if (page.isEmpty()) break
+			if (page.size > pageLimit) {
+				return ActivityComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+			}
+			scanned += page.size
+			val seeds = page.map { it.segment }
+			val expansion = expandActivityMembership(seeds)
+			val snapshot = loadActivitySnapshot(expansion)
+			if (snapshot.overflow) {
+				return ActivityComposedPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+			}
+			val candidateIds = seeds.mapNotNull(SessionSegment::logicalTrackingId).toSet()
+			accepted += ActivityHistoryComposer.composeRecent(snapshot, laneExecutionAuthority)
+				.filter { it.logicalTrackingId in candidateIds && accept(it) }
+				.sortedWith(activityCompositionOrder)
+			val last = page.last()
+			beforeStartTimeMs = last.logicalRecencyStartMs
+			beforeSegmentId = last.logicalRecencySegmentId
+			if (page.size < pageLimit) break
+		}
+		return ActivityComposedPage.Available(accepted.take(limit))
 	}
 
 	private suspend fun expandActivityMembership(
@@ -464,8 +508,18 @@ internal data class ComposedActivityEntry(
 	val logicalTrackingId: String,
 	val recencyStartTimeMs: Long,
 	val recencySegmentId: Long,
+	val physicalSegmentIds: List<Long>,
 	val entry: com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry,
 )
+
+internal sealed interface ActivityComposedPage {
+	data class Available(val entries: List<ComposedActivityEntry>) : ActivityComposedPage
+	data class Failed(val cause: ActivityHistoryCause) : ActivityComposedPage
+}
+
+internal val activityCompositionOrder =
+	compareByDescending<ComposedActivityEntry> { it.recencyStartTimeMs }
+		.thenByDescending { it.recencySegmentId }
 
 internal fun isActivityCaptureMembership(source: SessionManifestSourceEntity): Boolean =
 	source.sourceKind == ACTIVITY_SOURCE &&

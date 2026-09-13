@@ -17,7 +17,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecution
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
-import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageUnavailableReason
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import java.time.DateTimeException
 import java.time.ZoneId
 import javax.inject.Inject
@@ -162,7 +162,7 @@ internal class PressureHistorySelector @Inject constructor(
 					PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW in member.reasons
 				}
 			}) return PressureOnlyDiscoveryResult.Unavailable(
-				PressureAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
+				SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
 			)
 			val entriesByMemberId = buildMap {
 				resolvedEntries.forEach { entry ->
@@ -182,7 +182,7 @@ internal class PressureHistorySelector @Inject constructor(
 			}
 			if (accepted.size >= limit) break
 			if (candidateBudgetExceeded) return PressureOnlyDiscoveryResult.Unavailable(
-				PressureAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
+				SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
 			)
 
 			val lastScanned = candidates.last()
@@ -1138,12 +1138,12 @@ internal sealed interface PressureOnlyDiscoveryResult {
 	) : PressureOnlyDiscoveryResult
 
 	data class Unavailable(
-		val reason: PressureAwareHistoryPageUnavailableReason,
+		val reason: SourceAwareHistoryPageUnavailableReason,
 	) : PressureOnlyDiscoveryResult
 }
 
 private enum class PressureOnlyDiscoveryMode { ORDINARY, EXACT_INTENT }
 
 internal class PressureHistoryPageDependencyOverflow(
-	val reason: PressureAwareHistoryPageUnavailableReason,
+	val reason: SourceAwareHistoryPageUnavailableReason,
 ) : IllegalStateException("Pressure history dependency budget exceeded: $reason")

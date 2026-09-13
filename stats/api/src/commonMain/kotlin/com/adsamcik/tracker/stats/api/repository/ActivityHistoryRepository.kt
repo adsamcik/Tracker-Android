@@ -7,7 +7,7 @@ interface ActivityHistoryRepository {
 	/** Resolves the complete logical replacement group containing one physical presentation row. */
 	suspend fun session(segmentId: Long): ActivityHistoryQuery
 
-	/** Discovers recent logical entries from qualified Activity facts, never presentation counters. */
+	/** Discovers recent logical entries from captured Activity intent and retained product facts. */
 	suspend fun recent(limit: Int): ActivityHistoryPage
 }
 
@@ -82,6 +82,8 @@ data class ActivityHistoryEntry(
 	val activeTime: ActivityActiveTime?,
 	val fragments: List<ActivityHistoryFragment>,
 	val causes: Set<ActivityHistoryCause> = emptySet(),
+	/** Every authenticated capture manifest revision contains Activity and no other captured source. */
+	val capturesOnlyActivity: Boolean = false,
 ) {
 	init {
 		require(endTime >= startTime)

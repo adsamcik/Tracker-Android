@@ -10,11 +10,9 @@ import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.LiveSessionHistorySnapshot
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
-import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageEntry
-import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageQuery
-import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistory
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
@@ -23,6 +21,9 @@ import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
 import com.adsamcik.tracker.stats.api.repository.StepsAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage as ApiStepsHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
@@ -41,6 +42,7 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 	private val stepsSelector: StepsSegmentHistorySelector,
 	private val logicalHistoryReader: LogicalTrackingHistoryReader,
 	private val pressureSelector: PressureHistorySelector,
+	private val activityHistoryRepository: DefaultActivityHistoryRepository,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : TrackingHistoryRepository {
 	@OptIn(ExperimentalCoroutinesApi::class)
@@ -64,6 +66,7 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 					return@withTransaction LiveSessionHistorySnapshot(
 						segmentId = segmentId,
 						session = SessionHistoryQuery.NotFound,
+						activity = ActivityHistoryQuery.NotFound,
 						pressure = PressureSessionHistoryQuery.NotFound,
 					)
 				}
@@ -79,6 +82,7 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 				LiveSessionHistorySnapshot(
 					segmentId = segmentId,
 					session = session,
+					activity = activityHistoryRepository.sessionInTransaction(segmentId),
 					pressure = pressure,
 				)
 			}
@@ -116,11 +120,11 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 	}
 
 	@OptIn(ExperimentalCoroutinesApi::class)
-	override fun observeRecentPressureAwarePage(
+	override fun observeRecentSourceAwarePage(
 		candidateSegmentIds: List<Long>,
 		limit: Int,
-	): Flow<PressureAwareHistoryPageQuery> {
-		validatePressureAwarePageRequest(candidateSegmentIds, limit)
+	): Flow<SourceAwareHistoryPageQuery> {
+		validateSourceAwarePageRequest(candidateSegmentIds, limit)
 		val stableCandidateSegmentIds = candidateSegmentIds.toList()
 		return historyInvalidations().mapLatest {
 			try {
@@ -129,59 +133,99 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 						candidateSegmentIds = stableCandidateSegmentIds,
 						sourceOnlyLimit = limit,
 					)
+					val candidateActivity = activityHistoryRepository
+						.selectBySegmentIdsInTransaction(stableCandidateSegmentIds)
+					val candidateActivityGroups = when (candidateActivity) {
+						is ActivityComposedPage.Available -> candidateActivity.entries
+						is ActivityComposedPage.Failed -> return@withTransaction
+							SourceAwareHistoryPageQuery.Unavailable(
+								SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
+							)
+					}
 					val candidatePressureGroups = pressureSelector
 						.selectLogicalBySegmentIdsInTransaction(stableCandidateSegmentIds)
 					if (candidatePressureGroups.hasDependencyOverflow) {
-						return@withTransaction PressureAwareHistoryPageQuery.Unavailable(
-							PressureAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
+						return@withTransaction SourceAwareHistoryPageQuery.Unavailable(
+							SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
 						)
+					}
+					val exactCandidateActivityGroups = candidateActivityGroups.filter { composed ->
+						composed.entry.capturesOnlyActivity
 					}
 					val exactCandidatePressureGroups = candidatePressureGroups.filter(
 						PressureLogicalHistoryEntry::hasExactPressureOnlyIntent,
 					)
-					val suppressedPhysicalIds = exactCandidatePressureGroups.flatMapTo(hashSetOf()) {
+					if (hasDualOnlyContradiction(
+							exactCandidateActivityGroups,
+							exactCandidatePressureGroups,
+						)
+					) return@withTransaction SourceAwareHistoryPageQuery.Unavailable(
+						SourceAwareHistoryPageUnavailableReason.SOURCE_IDENTITY_COLLISION,
+					)
+					val suppressedPhysicalIds = exactCandidateActivityGroups.flatMapTo(hashSetOf()) {
+						entry -> entry.physicalSegmentIds
+					}
+					exactCandidatePressureGroups.flatMapTo(suppressedPhysicalIds) {
 						entry -> entry.physicalMembers.map { member -> member.segment.id }
+					}
+					val activityDiscovery = when (
+						val result = activityHistoryRepository.recentActivityOnlyInTransaction(limit)
+					) {
+						is ActivityComposedPage.Available -> result.entries
+						is ActivityComposedPage.Failed -> return@withTransaction
+							SourceAwareHistoryPageQuery.Unavailable(
+								SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
+							)
 					}
 					val pressureDiscovery = pressureSelector
 						.discoverRecentPressureOnlyIntentInTransaction(limit)
 					if (pressureDiscovery is PressureOnlyDiscoveryResult.Unavailable) {
-						return@withTransaction PressureAwareHistoryPageQuery.Unavailable(
+						return@withTransaction SourceAwareHistoryPageQuery.Unavailable(
 							pressureDiscovery.reason,
 						)
 					}
+					val activityOnlyRows = activityDiscovery.map(
+						HistoricalSourceAwarePageEntry::ActivityOnly,
+					)
 					val pressureOnlyRows = (pressureDiscovery as PressureOnlyDiscoveryResult.Content)
 						.entries.mapNotNull { entry ->
 							entry.toPublicPressureOnlyEntryOrNull()?.let { public ->
-								HistoricalPressureAwarePageEntry.PressureOnly(entry, public)
+								HistoricalSourceAwarePageEntry.PressureOnly(entry, public)
 							}
 						}
 					val retainedExistingRows = existingRows.mapNotNull { entry ->
 						when (entry) {
 							is HistoricalStepsAwarePageEntry.Physical -> entry.takeUnless {
 								it.segment.id in suppressedPhysicalIds
-							}?.let(HistoricalPressureAwarePageEntry::Existing)
+							}?.let(HistoricalSourceAwarePageEntry::Existing)
 							is HistoricalStepsAwarePageEntry.StepsOnly ->
-								HistoricalPressureAwarePageEntry.Existing(entry)
+								HistoricalSourceAwarePageEntry.Existing(entry)
 						}
 					}
-					PressureAwareHistoryPageQuery.Content(
-						(retainedExistingRows + pressureOnlyRows)
-							.sortedWith(pressureAwarePageOrder)
+					val combined = retainedExistingRows + activityOnlyRows + pressureOnlyRows
+					if (combined.hasSourceIdentityCollision) {
+						return@withTransaction SourceAwareHistoryPageQuery.Unavailable(
+							SourceAwareHistoryPageUnavailableReason.SOURCE_IDENTITY_COLLISION,
+						)
+					}
+					SourceAwareHistoryPageQuery.Content(
+						combined
+							.sortedWith(sourceAwarePageOrder)
 							.take(limit)
-							.map(HistoricalPressureAwarePageEntry::toPublicPageEntry),
+							.map(HistoricalSourceAwarePageEntry::toPublicPageEntry),
 					)
 				}
 			} catch (overflow: LogicalHistoryPageDependencyOverflow) {
-				PressureAwareHistoryPageQuery.Unavailable(
+				SourceAwareHistoryPageQuery.Unavailable(
 					when (overflow.limit) {
 						HistoryPageDependencyLimit.CANDIDATE_SCAN ->
-							PressureAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT
+							SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT
 						HistoryPageDependencyLimit.LOGICAL_MEMBERSHIP ->
-							PressureAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT
+							SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT
 					},
 				)
 			} catch (overflow: PressureHistoryPageDependencyOverflow) {
-				PressureAwareHistoryPageQuery.Unavailable(overflow.reason)
+				SourceAwareHistoryPageQuery.Unavailable(overflow.reason)
 			}
 		}.distinctUntilChanged()
 			.flowOn(ioDispatcher)
@@ -212,7 +256,6 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		}.distinctUntilChanged()
 			.flowOn(ioDispatcher)
 	}
-
 	private fun validateStepsAwarePageRequest(
 		candidateSegmentIds: List<Long>,
 		limit: Int,
@@ -231,7 +274,7 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		}
 	}
 
-	private fun validatePressureAwarePageRequest(
+	private fun validateSourceAwarePageRequest(
 		candidateSegmentIds: List<Long>,
 		limit: Int,
 	) {
@@ -245,7 +288,7 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 			"Physical history candidate ids must be distinct"
 		}
 		require(limit in 1..MAX_RECENT_PRESSURE_ENTRY_COUNT) {
-			"Recent Pressure-aware history limit must be between 1 and " +
+			"Recent source-aware history limit must be between 1 and " +
 				MAX_RECENT_PRESSURE_ENTRY_COUNT
 		}
 	}
@@ -263,6 +306,16 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		SOURCE_DELETION_FENCE_TABLE,
 		STEP_FACT_TABLE,
 		PRESSURE_FACT_TABLE,
+		ACTIVITY_FACT_TABLE,
+		ACTIVITY_FRAGMENT_TABLE,
+		ACTIVITY_EVIDENCE_TABLE,
+		ACTIVITY_CURSOR_TABLE,
+		ACTIVITY_REGISTRATION_PLAN_TABLE,
+		ACQUISITION_PLAN_TABLE,
+		DESIRED_PLAN_TABLE,
+		PROVIDER_REGISTRATION_TABLE,
+		SOURCE_AUTHORIZATION_TABLE,
+		SOURCE_SESSION_TABLE,
 		SESSION_COMPLETENESS_TABLE,
 		emitInitialState = true,
 	)
@@ -282,29 +335,56 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		const val SOURCE_DELETION_FENCE_TABLE = "source_deletion_fence"
 		const val STEP_FACT_TABLE = "step_fact_revision"
 		const val PRESSURE_FACT_TABLE = "pressure_fact_revision"
+		const val ACTIVITY_FACT_TABLE = "activity_captured_window_revision"
+		const val ACTIVITY_FRAGMENT_TABLE = "activity_captured_fragment"
+		const val ACTIVITY_EVIDENCE_TABLE = "activity_captured_evidence"
+		const val ACTIVITY_CURSOR_TABLE = "activity_captured_window_cursor"
+		const val ACTIVITY_REGISTRATION_PLAN_TABLE = "activity_captured_registration_plan"
+		const val ACQUISITION_PLAN_TABLE = "acquisition_plan_revision"
+		const val DESIRED_PLAN_TABLE = "source_desired_plan"
+		const val PROVIDER_REGISTRATION_TABLE = "provider_registration_generation"
+		const val SOURCE_AUTHORIZATION_TABLE = "source_authorization"
+		const val SOURCE_SESSION_TABLE = "logical_tracking_session"
 		const val SESSION_COMPLETENESS_TABLE = "source_session_completeness"
 	}
 }
 
-private sealed interface HistoricalPressureAwarePageEntry {
+private sealed interface HistoricalSourceAwarePageEntry {
 	val recencyStartTimeMs: Long
 	val recencySegmentId: Long
+	val logicalTrackingId: String?
 
 	data class Existing(
 		val entry: HistoricalStepsAwarePageEntry,
-	) : HistoricalPressureAwarePageEntry {
+	) : HistoricalSourceAwarePageEntry {
 		override val recencyStartTimeMs: Long get() = entry.recencyStartTimeMs
 		override val recencySegmentId: Long get() = entry.recencySegmentId
+		override val logicalTrackingId: String?
+			get() = when (entry) {
+				is HistoricalStepsAwarePageEntry.Physical -> entry.segment.logicalTrackingId
+				is HistoricalStepsAwarePageEntry.StepsOnly ->
+					(entry.history.identity as? HistoricalEntryIdentity.Logical)?.logicalTrackingId
+			}
+	}
+
+	data class ActivityOnly(
+		val entry: ComposedActivityEntry,
+	) : HistoricalSourceAwarePageEntry {
+		override val recencyStartTimeMs: Long get() = entry.recencyStartTimeMs
+		override val recencySegmentId: Long get() = entry.recencySegmentId
+		override val logicalTrackingId: String get() = entry.logicalTrackingId
 	}
 
 	data class PressureOnly(
 		val entry: PressureLogicalHistoryEntry,
 		val public: PressureOnlyHistoryEntry,
-	) : HistoricalPressureAwarePageEntry {
+	) : HistoricalSourceAwarePageEntry {
 		override val recencyStartTimeMs: Long
 			get() = entry.recencyMember.segment.startTimeMs
 		override val recencySegmentId: Long
 			get() = entry.recencyMember.segment.id
+		override val logicalTrackingId: String?
+			get() = (entry.identity as? PressureHistoryEntryIdentity.Logical)?.logicalTrackingId
 	}
 }
 
@@ -315,20 +395,55 @@ private val List<PressureLogicalHistoryEntry>.hasDependencyOverflow: Boolean
 		}
 	}
 
-private val pressureAwarePageOrder =
-	compareByDescending<HistoricalPressureAwarePageEntry> { it.recencyStartTimeMs }
+private fun hasDualOnlyContradiction(
+	activity: List<ComposedActivityEntry>,
+	pressure: List<PressureLogicalHistoryEntry>,
+): Boolean {
+	val activityLogicalIds = activity.map(ComposedActivityEntry::logicalTrackingId)
+	val pressureLogicalIds = pressure.mapNotNull { entry ->
+		(entry.identity as? PressureHistoryEntryIdentity.Logical)?.logicalTrackingId
+	}
+	val activityPhysicalIds = activity.flatMap(ComposedActivityEntry::physicalSegmentIds)
+	val pressurePhysicalIds = pressure.flatMap { entry ->
+		entry.physicalMembers.map { member -> member.segment.id }
+	}
+	return activityLogicalIds.size != activityLogicalIds.distinct().size ||
+		pressureLogicalIds.size != pressureLogicalIds.distinct().size ||
+		activityLogicalIds.any(pressureLogicalIds.toHashSet()::contains) ||
+		activityPhysicalIds.any(pressurePhysicalIds.toHashSet()::contains)
+}
+
+private val List<HistoricalSourceAwarePageEntry>.hasSourceIdentityCollision: Boolean
+	get() {
+		val sourceOnlyIds = mapNotNull { entry ->
+			entry.logicalTrackingId.takeUnless {
+				entry is HistoricalSourceAwarePageEntry.Existing &&
+					entry.entry is HistoricalStepsAwarePageEntry.Physical
+			}
+		}
+		if (sourceOnlyIds.size != sourceOnlyIds.distinct().size) return true
+		return filterIsInstance<HistoricalSourceAwarePageEntry.Existing>()
+			.filter { it.entry is HistoricalStepsAwarePageEntry.Physical }
+			.mapNotNull(HistoricalSourceAwarePageEntry::logicalTrackingId)
+			.any(sourceOnlyIds.toHashSet()::contains)
+}
+
+private val sourceAwarePageOrder =
+	compareByDescending<HistoricalSourceAwarePageEntry> { it.recencyStartTimeMs }
 		.thenByDescending { it.recencySegmentId }
 
-private fun HistoricalPressureAwarePageEntry.toPublicPageEntry(): PressureAwareHistoryPageEntry =
+private fun HistoricalSourceAwarePageEntry.toPublicPageEntry(): SourceAwareHistoryPageEntry =
 	when (this) {
-		is HistoricalPressureAwarePageEntry.Existing -> when (val existing = entry) {
+		is HistoricalSourceAwarePageEntry.Existing -> when (val existing = entry) {
 			is HistoricalStepsAwarePageEntry.Physical ->
-				PressureAwareHistoryPageEntry.Physical(existing.segment.id)
+				SourceAwareHistoryPageEntry.Physical(existing.segment.id)
 			is HistoricalStepsAwarePageEntry.StepsOnly ->
-				PressureAwareHistoryPageEntry.StepsOnly(existing.history.toPublicStepsOnlyEntry())
+				SourceAwareHistoryPageEntry.StepsOnly(existing.history.toPublicStepsOnlyEntry())
 		}
-		is HistoricalPressureAwarePageEntry.PressureOnly ->
-			PressureAwareHistoryPageEntry.PressureOnly(public)
+		is HistoricalSourceAwarePageEntry.ActivityOnly ->
+			SourceAwareHistoryPageEntry.ActivityOnly(entry.entry)
+		is HistoricalSourceAwarePageEntry.PressureOnly ->
+			SourceAwareHistoryPageEntry.PressureOnly(public)
 	}
 
 private fun HistoricalSegmentEvidence.toPublicSessionHistory() = SessionHistory(

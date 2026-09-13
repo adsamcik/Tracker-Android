@@ -118,12 +118,17 @@ interface ActivityCapturedFactDao {
 	): ActivityCapturedWindowCursorEntity?
 
 	/**
-	 * Discovers one fact-backed segment per logical Activity entry without consulting sample_count.
+	 * Discovers one Activity-intent segment per logical entry without consulting sample_count.
+	 *
+	 * This deliberately admits a broad candidate when any immutable manifest revision declares
+	 * persistence-eligible captured Activity. The bounded product composer authenticates the complete
+	 * manifest union and decides whether every revision is Activity-only; candidate SQL never treats
+	 * the absence of a fact as the absence of capture intent.
 	 * The reader expands and authenticates every replacement member before returning product data.
 	 */
 	@Query(
 		"""
-		WITH fact_backed_member AS (
+		WITH activity_intent_member AS (
 		  SELECT segment.*
 		  FROM session_segment AS segment
 		  INNER JOIN source_service_run AS run
@@ -132,17 +137,21 @@ interface ActivityCapturedFactDao {
 		   AND run.logical_tracking_id = segment.logical_tracking_id
 		  WHERE EXISTS (
 		    SELECT 1
-		    FROM activity_captured_window_revision AS fact
-		    WHERE fact.service_run_id = run.service_run_id
-		      AND fact.logical_tracking_id = run.logical_tracking_id
-		      AND fact.session_segment_id = segment.id
-		      AND fact.purpose = 'SESSION_CAPTURE'
+		    FROM session_manifest_version AS manifest
+		    INNER JOIN session_manifest_source AS source
+		      ON source.logical_tracking_id = manifest.logical_tracking_id
+		     AND source.manifest_revision = manifest.manifest_revision
+		    WHERE manifest.service_run_id = run.service_run_id
+		      AND manifest.logical_tracking_id = run.logical_tracking_id
+		      AND source.source_kind = :activitySourceKind
+		      AND source.purpose = 'SESSION_CAPTURE'
+		      AND source.persistence_eligible = 1
 		  )
 		), logical_seed AS (
 		  SELECT member.*
-		  FROM fact_backed_member AS member
+		  FROM activity_intent_member AS member
 		  WHERE NOT EXISTS (
-		    SELECT 1 FROM fact_backed_member AS newer
+		    SELECT 1 FROM activity_intent_member AS newer
 		    WHERE newer.logical_tracking_id = member.logical_tracking_id
 		      AND (
 		        newer.start_time_ms > member.start_time_ms OR
@@ -193,6 +202,7 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 		beforeStartTimeMs: Long?,
 		beforeSegmentId: Long?,
+		activitySourceKind: Int,
 	): List<ActivityLogicalHistoryCandidate>
 
 	/** Pages a correction-expanded fact universe for exact physical/logical candidates. */
@@ -407,7 +417,7 @@ interface ActivityCapturedFactDao {
 	fun deleteAllRegistrationPlanBindings()
 }
 
-/** Fact-backed seed plus the newest reciprocal member used only for stable keyset ordering. */
+/** Intent-backed seed plus the newest reciprocal member used only for stable keyset ordering. */
 data class ActivityLogicalHistoryCandidate(
 	@Embedded val segment: SessionSegment,
 	@ColumnInfo(name = "logical_recency_start_ms") val logicalRecencyStartMs: Long,

@@ -37,6 +37,9 @@ import com.adsamcik.tracker.stats.api.repository.ActivityHistoryFragment
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryPage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -45,6 +48,7 @@ import java.io.DataOutputStream
 import java.security.MessageDigest
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.flow.first
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -67,18 +71,32 @@ class ActivityHistoryComposerTest {
 	fun tearDown() = database.close()
 
 	@Test
-	fun `ordinary discovery finds an Activity-only zero-sample segment from its fact`() = runTest {
-		val fixture = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+	fun `ordinary discovery finds Activity-only intent before its first fact`() = runTest {
+		val fixture = fixture(listOf(RunSpec(1L, "run-a", "UTC"))).copy(
+			revisions = emptyList(),
+			cursors = emptyList(),
+			fragmentsByRevision = emptyMap(),
+			evidenceByRevision = emptyMap(),
+		)
 		val segment = fixture.expansion.segments.single()
 		segment.sampleCount shouldBe 0
-		database.sessionSegmentDao().insert(segment)
-		database.sourceSessionDao().insertServiceRun(fixture.runs.getValue("run-a"))
-		database.activityCapturedFactDao().insertRevision(fixture.revisions.single())
+		persistFixture(fixture)
 
-		val candidates = database.activityCapturedFactDao().logicalHistoryCandidatePage(10, null, null)
+		val candidates = database.activityCapturedFactDao().logicalHistoryCandidatePage(
+			10, null, null, ACTIVITY_SOURCE,
+		)
 
 		candidates shouldHaveSize 1
 		candidates.single().segment.id shouldBe segment.id
+		val repository = DefaultActivityHistoryRepository(
+			database,
+			EXECUTION_AUTHORITY,
+			UnconfinedTestDispatcher(testScheduler),
+		)
+		val entry = (repository.recent(1) as ActivityHistoryPage.Available).entries.single()
+		entry.capturesOnlyActivity shouldBe true
+		entry.activeTime shouldBe null
+		entry.fragments shouldBe emptyList()
 	}
 
 	@Test
@@ -103,6 +121,42 @@ class ActivityHistoryComposerTest {
 		entry.state shouldBe ActivityHistoryProductState.PARTIAL
 		entry.activeTime?.knownActiveDurationNanos shouldBe 100L
 		entry.storedZoneIds shouldBe setOf("UTC")
+		entry.capturesOnlyActivity shouldBe true
+		authorityChecks shouldBe 1
+	}
+
+	@Test
+	fun `Activity live facade classifies capture and product in one Room snapshot`() = runTest {
+		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		persistFixture(snapshot)
+		var authorityChecks = 0
+		val authority = SourceProductLaneExecutionAuthority {
+			authorityChecks += 1
+			database.inTransaction()
+		}
+		val activityRepository = DefaultActivityHistoryRepository(
+			database,
+			authority,
+			UnconfinedTestDispatcher(testScheduler),
+		)
+		val stepsSelector = StepsSegmentHistorySelector(database, authority)
+		val repository = DefaultTrackingHistoryRepository(
+			database = database,
+			stepsSelector = stepsSelector,
+			logicalHistoryReader = LogicalTrackingHistoryReader(database, stepsSelector),
+			pressureSelector = PressureHistorySelector(database, authority),
+			activityHistoryRepository = activityRepository,
+			ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+		)
+
+		val live = repository.observeLiveSession(
+			snapshot.expansion.segments.single().id,
+		).first()
+
+		(live.session as SessionHistoryQuery.Found).history.segmentId shouldBe live.segmentId
+		val activity = (live.activity as ActivityHistoryQuery.Found).entry
+		activity.capturesOnlyActivity shouldBe true
+		activity.activeTime?.knownActiveDurationNanos shouldBe 100L
 		authorityChecks shouldBe 1
 	}
 
@@ -137,6 +191,44 @@ class ActivityHistoryComposerTest {
 	}
 
 	@Test
+	fun `source-aware page replaces factless Activity group once from exact intent`() = runTest {
+		val snapshot = fixture(
+			listOf(RunSpec(1L, "run-a", "UTC"), RunSpec(2L, "run-b", "UTC")),
+		).copy(
+			revisions = emptyList(),
+			cursors = emptyList(),
+			fragmentsByRevision = emptyMap(),
+			evidenceByRevision = emptyMap(),
+		)
+		persistFixture(snapshot)
+		val activityRepository = DefaultActivityHistoryRepository(
+			database,
+			EXECUTION_AUTHORITY,
+			UnconfinedTestDispatcher(testScheduler),
+		)
+		val stepsSelector = StepsSegmentHistorySelector(database, EXECUTION_AUTHORITY)
+		val repository = DefaultTrackingHistoryRepository(
+			database = database,
+			stepsSelector = stepsSelector,
+			logicalHistoryReader = LogicalTrackingHistoryReader(database, stepsSelector),
+			pressureSelector = PressureHistorySelector(database, EXECUTION_AUTHORITY),
+			activityHistoryRepository = activityRepository,
+			ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+		)
+
+		val page = repository.observeRecentSourceAwarePage(
+			candidateSegmentIds = snapshot.expansion.segments.map(SessionSegment::id),
+			limit = 5,
+		).first() as SourceAwareHistoryPageQuery.Content
+
+		page.entries shouldHaveSize 1
+		val activity = (page.entries.single() as SourceAwareHistoryPageEntry.ActivityOnly).history
+		activity.capturesOnlyActivity shouldBe true
+		activity.activeTime shouldBe null
+		activity.fragments shouldBe emptyList()
+	}
+
+	@Test
 	fun `replacement runs compose as one logical entry with exact uncovered intervals`() {
 		val snapshot = fixture(
 			listOf(RunSpec(1L, "run-a", "Europe/Prague"), RunSpec(2L, "run-b", "UTC")),
@@ -154,6 +246,52 @@ class ActivityHistoryComposerTest {
 		entry.causes shouldBe setOf(ActivityHistoryCause.PROVIDER_GAP)
 		entry.storedZoneIds shouldBe setOf("Europe/Prague", "UTC")
 		entry.key.toString() shouldBe "ActivityHistoryEntryKey"
+	}
+
+	@Test
+	fun `all-revision Activity-only intent rejects a mixed captured source`() {
+		val base = fixture(
+			listOf(RunSpec(1L, "run-a", "UTC"), RunSpec(2L, "run-b", "UTC")),
+		)
+		val key = ActivityManifestKey(LOGICAL_ID, 2L)
+		val activitySource = base.sourcesByManifest.getValue(key).single()
+		val locationSource = activitySource.copy(
+			sourceKind = SOURCE_LOCATION,
+			outputDestination = null,
+			writerOwner = null,
+			writerOwnerGeneration = null,
+			writerProjectionId = null,
+			writerProjectionVersion = null,
+			writerBindingGeneration = null,
+		)
+		val sources = listOf(activitySource, locationSource)
+		val unsignedManifest = base.manifestsByRun.getValue("run-b").single().copy(
+			manifestChecksum = "pending",
+		)
+		val mixedManifest = unsignedManifest.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, sources),
+		)
+		val snapshot = base.copy(
+			manifestsByRun = base.manifestsByRun + ("run-b" to listOf(mixedManifest)),
+			sourcesByManifest = base.sourcesByManifest + (key to sources),
+		)
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.capturesOnlyActivity shouldBe false
+	}
+
+	@Test
+	fun `verified Activity-only intent survives later writer authority failure`() {
+		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC"))).copy(lanes = emptyList())
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.state shouldBe ActivityHistoryProductState.FAILED
+		entry.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+		entry.capturesOnlyActivity shouldBe true
+		entry.activeTime shouldBe null
+		entry.fragments shouldBe emptyList()
 	}
 
 	@Test
@@ -1322,6 +1460,7 @@ class ActivityHistoryComposerTest {
 	private companion object {
 		const val LOGICAL_ID = "logical-activity"
 		const val ACTIVITY_BOOT_ID = "boot-activity"
+		const val SOURCE_LOCATION = 1
 		val EXECUTION_AUTHORITY = SourceProductLaneExecutionAuthority { true }
 	}
 }

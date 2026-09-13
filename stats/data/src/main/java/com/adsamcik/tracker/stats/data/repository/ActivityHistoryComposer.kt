@@ -69,6 +69,7 @@ internal object ActivityHistoryComposer {
 					logicalTrackingId = logicalId,
 					recencyStartTimeMs = members.maxOfOrNull(SessionSegment::startTimeMs) ?: 0L,
 					recencySegmentId = members.maxOfOrNull(SessionSegment::id) ?: 0L,
+					physicalSegmentIds = members.map(SessionSegment::id),
 					entry = entry,
 				)
 			}.toList()
@@ -116,10 +117,20 @@ internal object ActivityHistoryComposer {
 		if (zones.any { !isValidZone(it) }) {
 			return failed(logicalId, segments, ActivityHistoryCause.STORED_ZONE_INVALID)
 		}
+		val capturesOnlyActivity = manifests.values.all { manifest ->
+			snapshot.sourcesByManifest[ActivityManifestKey(logicalId, manifest.manifestRevision)]
+				.orEmpty()
+				.filter { source -> source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE }
+				.mapTo(linkedSetOf(), SessionManifestSourceEntity::sourceKind) == setOf(ACTIVITY_SOURCE)
+		}
+		fun failedWithIntent(cause: ActivityHistoryCause) =
+			failed(logicalId, segments, cause, capturesOnlyActivity)
+		fun unavailableWithIntent(cause: ActivityHistoryCause) =
+			unavailable(logicalId, segments, zones, cause, capturesOnlyActivity)
 		val bindings = manifests.values.mapNotNull { manifest ->
 			val matching = snapshot.sourcesByManifest[ActivityManifestKey(logicalId, manifest.manifestRevision)]
 				.orEmpty().filter(::isActivityCaptureMembership)
-			if (matching.size > 1) return failed(logicalId, segments,
+			if (matching.size > 1) return failedWithIntent(
 				ActivityHistoryCause.MANIFEST_INTEGRITY_FAILED)
 			matching.singleOrNull()?.let { manifest.manifestRevision to it }
 		}.toMap()
@@ -127,12 +138,14 @@ internal object ActivityHistoryComposer {
 			.filterValues { lineage -> lineage.any { it.logicalTrackingId == logicalId || it.serviceRunId in runIds } }
 		val allRevisions = relevantLineages.values.flatten()
 		if (bindings.isEmpty()) {
-			return if (allRevisions.isEmpty()) unavailable(logicalId, segments, zones,
-				ActivityHistoryCause.SOURCE_NOT_CAPTURED) else failed(logicalId, segments,
-				ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+			return if (allRevisions.isEmpty()) {
+				unavailableWithIntent(ActivityHistoryCause.SOURCE_NOT_CAPTURED)
+			} else {
+				failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+			}
 		}
 		if (!hasValidCaptureAuthority(manifests, bindings, snapshot)) {
-			return failed(logicalId, segments, ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+			return failedWithIntent(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
 		}
 		val lane = snapshot.lanes.singleOrNull(::isActivityLane)
 		val captureModeMask = manifests.values.fold(0L) { mask, manifest ->
@@ -145,29 +158,29 @@ internal object ActivityHistoryComposer {
 		if (lane == null || !laneExecutionAuthority.owns(lane) || !isValidHistoricalLane(lane) ||
 			captureModeMask == 0L || lane.captureModeMask and captureModeMask != captureModeMask ||
 			manifests.values.any { lane.activatedRolloutRevision > it.rolloutRevision }) {
-			return failed(logicalId, segments, ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+			return failedWithIntent(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
 		}
 		if (segments.any { segment -> deletionDigest(logicalId, requireNotNull(segment.serviceRunId)) in
 				snapshot.deletionFenceDigests }) {
-			return unavailable(logicalId, segments, zones, ActivityHistoryCause.RETENTION_LIMIT)
+			return unavailableWithIntent(ActivityHistoryCause.RETENTION_LIMIT)
 		}
 		val evidenceState = snapshot.evidenceState
-			?: return failed(logicalId, segments, ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+			?: return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
 		if (allRevisions.any { it.logicalTrackingId != logicalId || it.serviceRunId !in runIds }) {
-			return failed(logicalId, segments, ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+			return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
 		}
 		val active = hasActiveRun
 		val completeness = runs.flatMap { snapshot.completenessByRun[it.serviceRunId].orEmpty() }
 			.filter { it.sourceKind == ACTIVITY_SOURCE }
 		if (!hasValidCompleteness(completeness, logicalId, runIds)) {
-			return failed(logicalId, segments, ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+			return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
 		}
 		if (!hasValidCompletenessAuthority(completeness, snapshot)) {
-			return failed(logicalId, segments, ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+			return failedWithIntent(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
 		}
 		if (!active && completeness.mapTo(hashSetOf(), SourceSessionCompletenessEntity::serviceRunId) !=
 			runIds.toSet()
-		) return failed(logicalId, segments, ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+		) return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
 		val targetByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId)
 			.mapValues { (_, rows) -> rows.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull() }
 		val laneTarget = targetByRun.values.filterNotNull().maxOrNull()
@@ -175,14 +188,14 @@ internal object ActivityHistoryComposer {
 			laneTarget?.let { it < lane.activationOrdinal ||
 			lane.captureAdmissionCutoffOrdinal?.let { cutoff -> it > cutoff } == true } == true ||
 			snapshot.terminalFailures.isNotEmpty()
-		) return failed(logicalId, segments, ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+		) return failedWithIntent(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
 		val effective = mutableListOf<ActivityCapturedWindowRevisionEntity>()
 		for ((_, lineage) in relevantLineages) {
 			val ordered = lineage.sortedBy(ActivityCapturedWindowRevisionEntity::semanticRevision)
 			val latest = validateLineage(ordered, snapshot)
-				?: return failed(logicalId, segments, ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+				?: return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
 			if (latest.collectedDataEpoch != evidenceState.collectedDataEpoch) {
-				return unavailable(logicalId, segments, zones, ActivityHistoryCause.PRIVACY_EPOCH_MISMATCH)
+				return unavailableWithIntent(ActivityHistoryCause.PRIVACY_EPOCH_MISMATCH)
 			}
 			val manifest = manifests[latest.manifestRevision]
 			val binding = bindings[latest.manifestRevision]
@@ -203,13 +216,13 @@ internal object ActivityHistoryComposer {
 					latest, manifest, nextManifest, binding, run, plan, desiredPlan, provider,
 					authorizations, expectedSessionRunEnd,
 				)) {
-				return failed(logicalId, segments, ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+				return failedWithIntent(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
 			}
 			val factEvidence = snapshot.evidenceByRevision[revisionKey(latest)].orEmpty()
 			val targetOrdinal = targetByRun[latest.serviceRunId]
 			if (targetOrdinal == null || factEvidence.any { row -> row.sourceAdmissionOrdinal < lane.activationOrdinal ||
 				row.sourceAdmissionOrdinal > targetOrdinal }) {
-				return failed(logicalId, segments, ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+				return failedWithIntent(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
 			}
 			effective += latest
 		}
@@ -222,20 +235,20 @@ internal object ActivityHistoryComposer {
 				}
 			}
 		} catch (_: ArithmeticException) {
-			return failed(logicalId, segments, ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+			return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
 		}
 		if (crossesRetention) {
-			return unavailable(logicalId, segments, zones, ActivityHistoryCause.RETENTION_LIMIT)
+			return unavailableWithIntent(ActivityHistoryCause.RETENTION_LIMIT)
 		}
 		if (effective.isNotEmpty() && completeness.any { it.registrationGeneration == 0L }) {
-			return failed(logicalId, segments, ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+			return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
 		}
 		if (effective.isEmpty()) {
 			return when {
-				active -> materializing(logicalId, segments, zones)
+				active -> materializing(logicalId, segments, zones, capturesOnlyActivity)
 				completeness.any { it.stopStatus in PROVIDER_UNAVAILABLE_STATUSES } ->
-					unavailable(logicalId, segments, zones, ActivityHistoryCause.PROVIDER_UNAVAILABLE)
-				else -> unavailable(logicalId, segments, zones, ActivityHistoryCause.NO_QUALIFIED_FACTS)
+					unavailableWithIntent(ActivityHistoryCause.PROVIDER_UNAVAILABLE)
+				else -> unavailableWithIntent(ActivityHistoryCause.NO_QUALIFIED_FACTS)
 			}
 		}
 		val ordered = effective.sortedWith(compareBy(
@@ -247,11 +260,11 @@ internal object ActivityHistoryComposer {
 			revisions.zipWithNext().any { (left, right) ->
 				left.windowEndElapsedRealtimeNanos > right.windowStartElapsedRealtimeNanos
 			}
-		}) return failed(logicalId, segments, ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+		}) return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
 		val timeline = runCatching {
 			composeCaptureTimeline(ordered, manifests.values.sortedBy { it.manifestRevision }, bindings, session,
 				snapshot, active)
-		}.getOrNull() ?: return failed(logicalId, segments, ActivityHistoryCause.FACT_INTEGRITY_FAILED)
+		}.getOrNull() ?: return failedWithIntent(ActivityHistoryCause.FACT_INTEGRITY_FAILED)
 		val fragments = timeline.fragments
 		val activeTime = try {
 			ActivityActiveTime(
@@ -264,7 +277,7 @@ internal object ActivityHistoryComposer {
 				),
 			)
 		} catch (_: ArithmeticException) {
-			return failed(logicalId, segments, ActivityHistoryCause.VALUE_OVERFLOW)
+			return failedWithIntent(ActivityHistoryCause.VALUE_OVERFLOW)
 		}
 		val causes = linkedSetOf<ActivityHistoryCause>()
 		if (bindings.size != manifests.size) causes += ActivityHistoryCause.ACQUISITION_INCOMPLETE
@@ -292,7 +305,10 @@ internal object ActivityHistoryComposer {
 			else -> ActivityHistoryProductState.READY
 		}
 		if (active) causes += ActivityHistoryCause.SESSION_ACTIVE
-		return entry(logicalId, segments, zones, state, coverage, activeTime, fragments, causes)
+		return entry(
+			logicalId, segments, zones, state, coverage, activeTime, fragments, causes,
+			capturesOnlyActivity = capturesOnlyActivity,
+		)
 	}
 
 	private fun members(logicalId: String, snapshot: ActivityHistorySnapshot): List<SessionSegment> =
@@ -711,29 +727,43 @@ internal object ActivityHistoryComposer {
 		activeTime: ActivityActiveTime?,
 		fragments: List<ActivityHistoryFragment>,
 		causes: Set<ActivityHistoryCause>,
+		capturesOnlyActivity: Boolean = false,
 	): ActivityHistoryEntry {
 		val start = segments.minOf(SessionSegment::startTimeMs).coerceAtLeast(0L)
 		val end = segments.maxOf(SessionSegment::endTimeMs).coerceAtLeast(start)
 		return ActivityHistoryEntry(ActivityHistoryEntryKey("activity-logical:$logicalId"), EpochMs(start),
-			EpochMs(end), zones, state, coverage, activeTime, fragments, causes)
+			EpochMs(end), zones, state, coverage, activeTime, fragments, causes,
+			capturesOnlyActivity = capturesOnlyActivity)
 	}
 
-	private fun failed(logicalId: String, segments: List<SessionSegment>, cause: ActivityHistoryCause) =
+	private fun failed(
+		logicalId: String,
+		segments: List<SessionSegment>,
+		cause: ActivityHistoryCause,
+		capturesOnlyActivity: Boolean = false,
+	) =
 		entry(logicalId, segments, emptySet(), ActivityHistoryProductState.FAILED,
-			ActivityHistoryCoverage.NONE, null, emptyList(), setOf(cause))
+			ActivityHistoryCoverage.NONE, null, emptyList(), setOf(cause), capturesOnlyActivity)
 
 	private fun unavailable(
 		logicalId: String,
 		segments: List<SessionSegment>,
 		zones: Set<String>,
 		cause: ActivityHistoryCause,
+		capturesOnlyActivity: Boolean = false,
 	) = entry(logicalId, segments, zones, ActivityHistoryProductState.UNAVAILABLE,
-		ActivityHistoryCoverage.NONE, null, emptyList(), setOf(cause))
+		ActivityHistoryCoverage.NONE, null, emptyList(), setOf(cause), capturesOnlyActivity)
 
-	private fun materializing(logicalId: String, segments: List<SessionSegment>, zones: Set<String>) =
+	private fun materializing(
+		logicalId: String,
+		segments: List<SessionSegment>,
+		zones: Set<String>,
+		capturesOnlyActivity: Boolean = false,
+	) =
 		entry(logicalId, segments, zones, ActivityHistoryProductState.MATERIALIZING,
 			ActivityHistoryCoverage.NONE, null, emptyList(),
-			setOf(ActivityHistoryCause.SESSION_ACTIVE, ActivityHistoryCause.MATERIALIZATION_BEHIND))
+			setOf(ActivityHistoryCause.SESSION_ACTIVE, ActivityHistoryCause.MATERIALIZATION_BEHIND),
+			capturesOnlyActivity)
 
 	private fun legacy(segment: SessionSegment): ActivityHistoryEntry =
 		entry("legacy:${segment.id}", listOf(segment), emptySet(), ActivityHistoryProductState.UNAVAILABLE,
