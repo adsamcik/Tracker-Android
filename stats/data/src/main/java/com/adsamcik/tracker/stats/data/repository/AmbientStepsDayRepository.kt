@@ -2,11 +2,17 @@ package com.adsamcik.tracker.stats.data.repository
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.AmbientStepsEffectiveGapInterval
 import com.adsamcik.tracker.shared.base.database.dao.AmbientStepsStructuralDayRow
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
@@ -86,6 +92,8 @@ internal enum class AmbientStepsDayDependency {
 	SESSION_HISTORY,
 	IMPORTED_SESSION_ENTRIES,
 	CURSORS,
+	AUTHORITY_TRANSITIONS,
+	AUTHORIZATIONS,
 }
 
 internal sealed interface AmbientStepsDayPageResult {
@@ -217,6 +225,80 @@ internal class AmbientStepsDayRepository @Inject constructor(
 		if (gaps.size > MAX_AMBIENT_GAPS_PER_PAGE) {
 			return overflow(AmbientStepsDayDependency.GAPS, request)
 		}
+		val selectedDayKeys = dayIdentities.associateBy(AmbientStepsDayIdentity::key)
+		val selectedFacts = facts.filter { fact ->
+			fact.dayKeyOrNull()?.let(selectedDayKeys::containsKey) == true
+		}
+		val registrationGenerations = buildSet {
+			selectedFacts.mapNotNullTo(this) { it.registrationGeneration }
+			gaps.mapTo(this) { it.registrationGeneration }
+			gaps.mapNotNullTo(this) { it.predecessorRegistrationGeneration }
+		}.sorted()
+		if (registrationGenerations.size > MAX_HISTORICAL_AMBIENT_CURSORS_PER_PAGE) {
+			return overflow(AmbientStepsDayDependency.CURSORS, request)
+		}
+		val cursors = if (registrationGenerations.isEmpty()) emptyList() else {
+			database.ambientStepsImportStateDao().cursors(registrationGenerations)
+		}
+		if (cursors.size != registrationGenerations.size) return historicalEvidenceMissing()
+		val factRegistrationGenerations = selectedFacts.mapNotNull {
+			it.registrationGeneration
+		}.distinct().sorted()
+		val transitions = if (factRegistrationGenerations.isEmpty()) emptyList() else {
+			database.ambientStepsImportStateDao().authorityTransitionsBounded(
+				factRegistrationGenerations,
+				MAX_AMBIENT_AUTHORITY_TRANSITIONS_PER_PAGE + 1,
+			)
+		}
+		if (transitions.size > MAX_AMBIENT_AUTHORITY_TRANSITIONS_PER_PAGE) {
+			return overflow(AmbientStepsDayDependency.AUTHORITY_TRANSITIONS, request)
+		}
+		val authorizationKeys = buildSet {
+			cursors.filter { cursor ->
+				cursor.registrationGeneration in factRegistrationGenerations
+			}.forEach { cursor ->
+				add(
+					AmbientStepsAuthorizationKey(
+						cursor.registrationGeneration,
+						cursor.authorizationRevision,
+					),
+				)
+			}
+			transitions.forEach { transition ->
+				add(
+					AmbientStepsAuthorizationKey(
+						transition.registrationGeneration,
+						transition.fromAuthorizationRevision,
+					),
+				)
+				add(
+					AmbientStepsAuthorizationKey(
+						transition.registrationGeneration,
+						transition.toAuthorizationRevision,
+					),
+				)
+			}
+		}
+		if (authorizationKeys.size > MAX_AMBIENT_AUTHORIZATION_KEYS_PER_PAGE) {
+			return overflow(AmbientStepsDayDependency.AUTHORIZATIONS, request)
+		}
+		val authorizationRows = if (authorizationKeys.isEmpty()) emptyList() else {
+			database.sourceBrokerDao().authorizationRevisionsBounded(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				authorizationKeys.map(AmbientStepsAuthorizationKey::registrationGeneration).distinct(),
+				authorizationKeys.map(AmbientStepsAuthorizationKey::authorizationRevision).distinct(),
+				MAX_AMBIENT_AUTHORIZATION_MEMBERS_PER_PAGE + 1,
+			)
+		}
+		if (authorizationRows.size > MAX_AMBIENT_AUTHORIZATION_MEMBERS_PER_PAGE) {
+			return overflow(AmbientStepsDayDependency.AUTHORIZATIONS, request)
+		}
+		val authorizations = authorizationRows.groupBy {
+			AmbientStepsAuthorizationKey(it.registrationGeneration, it.authorizationRevision)
+		}.mapValues { (key, rows) -> rows.toAmbientAuthorizationOrNull(key) }
+		if (authorizationKeys.any { key -> authorizations[key] == null }) {
+			return historicalEvidenceMissing()
+		}
 		val segments = database.trackingHistoryReadDao().portableStepsSegmentCandidatePage(
 			fromMs = fromTimeMs,
 			toMs = toTimeMs,
@@ -238,18 +320,13 @@ internal class AmbientStepsDayRepository @Inject constructor(
 			return overflow(AmbientStepsDayDependency.IMPORTED_SESSION_ENTRIES, request)
 		}
 
-		val selectedDayKeys = dayIdentities.associateBy(AmbientStepsDayIdentity::key)
-		val selectedFacts = facts.filter { fact ->
-			fact.dayKeyOrNull()?.let(selectedDayKeys::containsKey) == true
-		}
-		val registrationGenerations = selectedFacts.mapNotNull {
-			it.registrationGeneration
-		}.distinct()
-		val cursors = if (registrationGenerations.isEmpty()) emptyList() else {
-			database.ambientStepsImportStateDao().cursors(registrationGenerations)
-		}
-		if (cursors.size != registrationGenerations.size) return historicalEvidenceMissing()
-		val policyRevisions = selectedFacts.mapNotNull { it.sourcePolicyRevision }.distinct()
+		val policyRevisions = buildSet {
+			selectedFacts.mapNotNullTo(this) { it.sourcePolicyRevision }
+			transitions.forEach { transition ->
+				add(transition.fromSourcePolicyRevision)
+				add(transition.toSourcePolicyRevision)
+			}
+		}.sorted()
 		val policies = if (policyRevisions.isEmpty()) emptyList() else {
 			database.sourcePolicyDao().policiesAtRevisions(
 				SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -257,7 +334,13 @@ internal class AmbientStepsDayRepository @Inject constructor(
 			)
 		}
 		if (policies.size != policyRevisions.size) return historicalEvidenceMissing()
-		val consentEpochs = selectedFacts.mapNotNull { it.ambientConsentEpoch }.distinct()
+		val consentEpochs = buildSet {
+			selectedFacts.mapNotNullTo(this) { it.ambientConsentEpoch }
+			transitions.forEach { transition ->
+				add(transition.fromAmbientConsentEpoch)
+				add(transition.toAmbientConsentEpoch)
+			}
+		}.sorted()
 		val consents = if (consentEpochs.isEmpty()) emptyList() else {
 			database.sourcePolicyDao().consentEpochs(
 				SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -346,6 +429,21 @@ internal class AmbientStepsDayRepository @Inject constructor(
 		val cursorsByGeneration = cursors.associateBy(AmbientStepsImportCursorEntity::registrationGeneration)
 		val policiesByRevision = policies.associateBy(SourcePolicyEntity::policyRevision)
 		val consentsByEpoch = consents.associateBy(SourceConsentEpochEntity::epoch)
+		val transitionsByRegistration = transitions.groupBy(
+			AmbientStepsImportAuthorityTransitionEntity::registrationGeneration,
+		)
+		val authorityTimelines = cursorsByGeneration.mapValues { (generation, cursor) ->
+			AmbientStepsAuthorityTimeline.create(
+				cursor,
+				transitionsByRegistration[generation].orEmpty(),
+				authorizations,
+				policiesByRevision,
+				consentsByEpoch,
+			)
+		}
+		val qualifiedGaps = gaps.map { gap ->
+			gap.qualifyForRead(evidenceState, cursorsByGeneration)
+		}
 		val factsByDay = selectedFacts.groupBy { fact -> fact.dayKeyOrNull() }
 		val productDays = dayIdentities.map { day ->
 			val dayFacts = factsByDay[day.key].orEmpty()
@@ -358,6 +456,7 @@ internal class AmbientStepsDayRepository @Inject constructor(
 						ownerGeneration = owner.ownerGeneration,
 						evidenceState = evidenceState,
 						cursor = fact.registrationGeneration?.let(cursorsByGeneration::get),
+						authorityTimeline = fact.registrationGeneration?.let(authorityTimelines::get),
 						policy = fact.sourcePolicyRevision?.let(policiesByRevision::get),
 						consent = fact.ambientConsentEpoch?.let(consentsByEpoch::get),
 					)
@@ -370,10 +469,18 @@ internal class AmbientStepsDayRepository @Inject constructor(
 				)
 			}
 			val qualifiedFacts = dayFacts.map { it.toQualifiedFact(day) }
-			val effectiveGaps = gaps.asSequence()
-				.filter { it.gapEndTimeMs > it.gapStartTimeMs }
-				.filter { it.gapEndTimeMs > day.startTimeMs && it.gapStartTimeMs < day.endTimeMs }
-				.map { gap -> EffectiveAmbientStepsGap(gap.gapStartTimeMs, gap.gapEndTimeMs) }
+			val dayGaps = qualifiedGaps.filter { gap ->
+				gap.row.gapEndTimeMs > day.startTimeMs && gap.row.gapStartTimeMs < day.endTimeMs
+			}
+			if (dayGaps.any { !it.valid }) {
+				return@map unavailableDay(
+					day,
+					daySessions,
+					AmbientStepsDayCause.AMBIENT_AUTHORITY_UNVERIFIABLE,
+				)
+			}
+			val effectiveGaps = dayGaps.asSequence()
+				.mapNotNull(AmbientStepsGapReadQualification::effect)
 				.toList()
 			composeAmbientStepsDay(day, qualifiedFacts, effectiveGaps, daySessions)
 		}
@@ -472,6 +579,7 @@ private fun AmbientStepsFactRevisionEntity.hasValidReadAuthority(
 	ownerGeneration: Long,
 	evidenceState: SourceEvidenceState,
 	cursor: AmbientStepsImportCursorEntity?,
+	authorityTimeline: AmbientStepsAuthorityTimeline?,
 	policy: SourcePolicyEntity?,
 	consent: SourceConsentEpochEntity?,
 ): Boolean {
@@ -489,7 +597,7 @@ private fun AmbientStepsFactRevisionEntity.hasValidReadAuthority(
 		cursor.collectedDataEpoch == collectedDataEpoch &&
 		cursor.registrationAcceptedAtMs <= start &&
 		cursor.importedThroughTimeMs >= end &&
-		cursor.continuitySegmentGeneration >= requireNotNull(continuitySegmentGeneration) &&
+		authorityTimeline?.accepts(this) == true &&
 		policy != null && policy.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
 		policy.policyRevision == sourcePolicyRevision && policy.enabled &&
 		policy.ambientPersistenceEligible && policy.ambientConsentEpoch == ambientConsentEpoch &&
@@ -498,6 +606,382 @@ private fun AmbientStepsFactRevisionEntity.hasValidReadAuthority(
 		consent.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && consent.epoch == ambientConsentEpoch &&
 		consent.policyRevision == sourcePolicyRevision && consent.eligible && consent.persistenceEligible &&
 		consent.effectiveWallTimeMs <= start
+}
+
+private data class AmbientStepsStoredAuthority(
+	val authorizationRevision: Long,
+	val authorizationFingerprint: String,
+	val sourcePolicyRevision: Long,
+	val ambientConsentEpoch: Long,
+) {
+	fun matches(fact: AmbientStepsFactRevisionEntity): Boolean =
+		fact.authorizationRevision == authorizationRevision &&
+			fact.authorizationFingerprint == authorizationFingerprint &&
+			fact.sourcePolicyRevision == sourcePolicyRevision &&
+			fact.ambientConsentEpoch == ambientConsentEpoch
+
+	fun hasDurablePolicyAt(
+		boundaryTimeMs: Long,
+		policiesByRevision: Map<Long, SourcePolicyEntity>,
+		consentsByEpoch: Map<Long, SourceConsentEpochEntity>,
+	): Boolean {
+		val policy = policiesByRevision[sourcePolicyRevision] ?: return false
+		val consent = consentsByEpoch[ambientConsentEpoch] ?: return false
+		return policy.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+			policy.policyRevision == sourcePolicyRevision && policy.enabled &&
+			policy.ambientPersistenceEligible && policy.ambientConsentEpoch == ambientConsentEpoch &&
+			policy.effectiveWallTimeMs <= boundaryTimeMs &&
+			consent.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+			consent.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
+			consent.epoch == ambientConsentEpoch && consent.policyRevision == sourcePolicyRevision &&
+			consent.eligible && consent.persistenceEligible && consent.effectiveWallTimeMs <= boundaryTimeMs
+	}
+}
+
+private data class AmbientStepsAuthorizationKey(
+	val registrationGeneration: Long,
+	val authorizationRevision: Long,
+)
+
+private data class AmbientStepsHistoricalAuthorization(
+	val key: AmbientStepsAuthorizationKey,
+	val fingerprint: String,
+	val effectiveBootId: String,
+	val effectiveElapsedRealtimeNanos: Long,
+	val effectiveWallTimeMs: Long,
+	val sourcePolicyRevision: Long,
+	val ambientConsentEpoch: Long,
+)
+
+private fun List<SourceAuthorizationEntity>.toAmbientAuthorizationOrNull(
+	key: AmbientStepsAuthorizationKey,
+): AmbientStepsHistoricalAuthorization? {
+	val first = firstOrNull() ?: return null
+	if (first.sourceKind != SourceDestinationOwnerEntity.SOURCE_STEPS ||
+		first.registrationGeneration != key.registrationGeneration ||
+		first.authorizationRevision != key.authorizationRevision ||
+		first.isDenyAll || first.purpose != SourceBrokerPurpose.AMBIENT_PRODUCT ||
+		!first.persistenceEligible || first.sourcePolicyRevision == null || first.consentEpoch == null ||
+		first.purposeEligibilityMask != SourceBrokerPurpose.MASK_AMBIENT_PRODUCT ||
+		first.logicalTrackingId != null || first.serviceRunId != null || first.manifestRevision != null ||
+		first.lifecycleLeaseGeneration != null
+	) return null
+	if (any { row ->
+			row.sourceKind != first.sourceKind ||
+				row.registrationGeneration != first.registrationGeneration ||
+				row.authorizationRevision != first.authorizationRevision ||
+				row.authorizationFingerprint != first.authorizationFingerprint ||
+				row.purposeEligibilityMask != first.purposeEligibilityMask ||
+				row.effectiveBootId != first.effectiveBootId ||
+				row.effectiveElapsedRealtimeNanos != first.effectiveElapsedRealtimeNanos ||
+				row.effectiveWallTimeMs != first.effectiveWallTimeMs || row.isDenyAll ||
+				row.purpose != SourceBrokerPurpose.AMBIENT_PRODUCT || !row.persistenceEligible ||
+				row.sourcePolicyRevision != first.sourcePolicyRevision ||
+				row.consentEpoch != first.consentEpoch || row.logicalTrackingId != null ||
+				row.serviceRunId != null || row.manifestRevision != null ||
+				row.lifecycleLeaseGeneration != null
+		}
+	) return null
+	return AmbientStepsHistoricalAuthorization(
+		key,
+		first.authorizationFingerprint,
+		first.effectiveBootId,
+		first.effectiveElapsedRealtimeNanos,
+		first.effectiveWallTimeMs,
+		requireNotNull(first.sourcePolicyRevision),
+		requireNotNull(first.consentEpoch),
+	)
+}
+
+private data class AmbientStepsAuthorityPhase(
+	val firstContinuitySegmentGeneration: Long,
+	val lastContinuitySegmentGeneration: Long,
+	val startTimeMs: Long,
+	val endTimeMs: Long,
+	val authority: AmbientStepsStoredAuthority,
+) {
+	fun accepts(fact: AmbientStepsFactRevisionEntity): Boolean {
+		val segmentGeneration = fact.continuitySegmentGeneration ?: return false
+		val start = fact.windowStartTimeMs ?: return false
+		val end = fact.windowEndTimeMs ?: return false
+		return segmentGeneration in firstContinuitySegmentGeneration..lastContinuitySegmentGeneration &&
+			start >= startTimeMs && end <= endTimeMs && end > start && authority.matches(fact)
+	}
+}
+
+private class AmbientStepsAuthorityTimeline private constructor(
+	private val phases: List<AmbientStepsAuthorityPhase>,
+) {
+	fun accepts(fact: AmbientStepsFactRevisionEntity): Boolean = phases.any { it.accepts(fact) }
+
+	companion object {
+		@Suppress("LongMethod", "CyclomaticComplexMethod")
+		fun create(
+			cursor: AmbientStepsImportCursorEntity,
+			transitions: List<AmbientStepsImportAuthorityTransitionEntity>,
+			authorizations: Map<AmbientStepsAuthorizationKey, AmbientStepsHistoricalAuthorization?>,
+			policiesByRevision: Map<Long, SourcePolicyEntity>,
+			consentsByEpoch: Map<Long, SourceConsentEpochEntity>,
+		): AmbientStepsAuthorityTimeline? {
+			if (transitions.size.toLong() != cursor.authorityTransitionSequence ||
+				transitions.withIndex().any { (index, transition) ->
+					transition.transitionSequence != index + 1L ||
+					!transition.hasExactOrigin(cursor) ||
+					transition.recordedAtMs > cursor.updatedAtMs
+				}
+			) return null
+			val current = AmbientStepsStoredAuthority(
+				cursor.authorizationRevision,
+				cursor.authorizationFingerprint,
+				cursor.sourcePolicyRevision,
+				cursor.ambientConsentEpoch,
+			)
+			val currentAuthorization = authorizations[
+				AmbientStepsAuthorizationKey(
+					cursor.registrationGeneration,
+					cursor.authorizationRevision,
+				)
+			] ?: return null
+			if (!current.matches(currentAuthorization) ||
+				currentAuthorization.effectiveBootId != cursor.authorizationEffectiveBootId ||
+				currentAuthorization.effectiveElapsedRealtimeNanos !=
+				cursor.authorizationEffectiveElapsedRealtimeNanos ||
+				currentAuthorization.effectiveWallTimeMs != cursor.authorizationEffectiveWallTimeMs
+			) return null
+			if (transitions.isEmpty()) {
+				if (!current.hasDurablePolicyAt(
+						cursor.eligibleFromTimeMs,
+						policiesByRevision,
+						consentsByEpoch,
+					)
+				) return null
+				return AmbientStepsAuthorityTimeline(
+					listOf(
+						AmbientStepsAuthorityPhase(
+							1L,
+							cursor.continuitySegmentGeneration,
+							cursor.eligibleFromTimeMs,
+							cursor.importedThroughTimeMs,
+							current,
+						),
+					),
+				)
+			}
+
+			val phases = mutableListOf<AmbientStepsAuthorityPhase>()
+			var firstSegment = 1L
+			val firstTransition = transitions.first()
+			val initialAuthorization = authorizations[
+				AmbientStepsAuthorizationKey(
+					cursor.registrationGeneration,
+					firstTransition.fromAuthorizationRevision,
+				)
+			] ?: return null
+			var phaseStart = AmbientStepsImportCursorEntity.privacyFloorTimeMs(
+				cursor.registrationAcceptedAtMs,
+				initialAuthorization.effectiveWallTimeMs,
+			)
+			var expectedAuthority: AmbientStepsStoredAuthority? = null
+			var previousBoundary = cursor.registrationAcceptedAtMs
+			transitions.forEach { transition ->
+				val from = transition.fromAuthority()
+				val to = transition.toAuthority()
+				val fromAuthorization = authorizations[
+					AmbientStepsAuthorizationKey(
+						transition.registrationGeneration,
+						transition.fromAuthorizationRevision,
+					)
+				] ?: return null
+				val toAuthorization = authorizations[
+					AmbientStepsAuthorizationKey(
+						transition.registrationGeneration,
+						transition.toAuthorizationRevision,
+					)
+				] ?: return null
+				if (transition.fromContinuitySegmentGeneration < firstSegment ||
+					transition.toContinuitySegmentGeneration !=
+					Math.addExact(transition.fromContinuitySegmentGeneration, 1L) ||
+					transition.effectiveBoundaryTimeMs < previousBoundary ||
+					transition.effectiveBoundaryTimeMs < phaseStart ||
+					(expectedAuthority != null && expectedAuthority != from) ||
+					!from.matches(fromAuthorization) || !to.matches(toAuthorization) ||
+					toAuthorization.effectiveBootId != transition.toAuthorizationEffectiveBootId ||
+					toAuthorization.effectiveElapsedRealtimeNanos !=
+					transition.toAuthorizationEffectiveElapsedRealtimeNanos ||
+					toAuthorization.effectiveWallTimeMs != transition.toAuthorizationEffectiveWallTimeMs ||
+					transition.effectiveBoundaryTimeMs !=
+					AmbientStepsImportCursorEntity.privacyFloorTimeMs(
+						transition.registrationAcceptedAtMs,
+						toAuthorization.effectiveWallTimeMs,
+					) ||
+					!from.hasDurablePolicyAt(
+						transition.effectiveBoundaryTimeMs,
+						policiesByRevision,
+						consentsByEpoch,
+					) ||
+					!to.hasDurablePolicyAt(
+						transition.effectiveBoundaryTimeMs,
+						policiesByRevision,
+						consentsByEpoch,
+					)
+				) return null
+				phases += AmbientStepsAuthorityPhase(
+					firstSegment,
+					transition.fromContinuitySegmentGeneration,
+					phaseStart,
+					transition.effectiveBoundaryTimeMs,
+					from,
+				)
+				firstSegment = transition.toContinuitySegmentGeneration
+				phaseStart = transition.effectiveBoundaryTimeMs
+				previousBoundary = transition.effectiveBoundaryTimeMs
+				expectedAuthority = to
+			}
+			val latest = transitions.last()
+			if (expectedAuthority != current ||
+				latest.toAuthorizationEffectiveBootId != cursor.authorizationEffectiveBootId ||
+				latest.toAuthorizationEffectiveElapsedRealtimeNanos !=
+				cursor.authorizationEffectiveElapsedRealtimeNanos ||
+				latest.toAuthorizationEffectiveWallTimeMs != cursor.authorizationEffectiveWallTimeMs ||
+				latest.effectiveBoundaryTimeMs != cursor.eligibleFromTimeMs ||
+				firstSegment > cursor.continuitySegmentGeneration ||
+				phaseStart > cursor.importedThroughTimeMs
+			) return null
+			phases += AmbientStepsAuthorityPhase(
+				firstSegment,
+				cursor.continuitySegmentGeneration,
+				phaseStart,
+				cursor.importedThroughTimeMs,
+				current,
+			)
+			return AmbientStepsAuthorityTimeline(phases)
+		}
+	}
+}
+
+private fun AmbientStepsStoredAuthority.matches(
+	authorization: AmbientStepsHistoricalAuthorization,
+): Boolean = authorizationRevision == authorization.key.authorizationRevision &&
+	authorizationFingerprint == authorization.fingerprint &&
+	sourcePolicyRevision == authorization.sourcePolicyRevision &&
+	ambientConsentEpoch == authorization.ambientConsentEpoch
+
+private fun AmbientStepsImportAuthorityTransitionEntity.hasExactOrigin(
+	cursor: AmbientStepsImportCursorEntity,
+): Boolean = transitionId == AmbientStepsImportAuthorityTransitionIntegrity.transitionId(
+	registrationGeneration,
+	transitionSequence,
+	provider,
+	sourceInstanceId,
+	collectedDataEpoch,
+	fromContinuitySegmentGeneration,
+	toContinuitySegmentGeneration,
+	fromAuthorizationRevision,
+	fromAuthorizationFingerprint,
+	fromSourcePolicyRevision,
+	fromAmbientConsentEpoch,
+	toAuthorizationRevision,
+	toAuthorizationFingerprint,
+	toAuthorizationEffectiveBootId,
+	toAuthorizationEffectiveElapsedRealtimeNanos,
+	toAuthorizationEffectiveWallTimeMs,
+	toSourcePolicyRevision,
+	toAmbientConsentEpoch,
+	registrationAcceptedAtMs,
+	effectiveBoundaryTimeMs,
+) && registrationGeneration == cursor.registrationGeneration && provider == cursor.provider &&
+	sourceInstanceId == cursor.sourceInstanceId && collectedDataEpoch == cursor.collectedDataEpoch &&
+	registrationAcceptedAtMs == cursor.registrationAcceptedAtMs &&
+	toAuthorizationEffectiveBootId == cursor.registrationClockDomainId
+
+private fun AmbientStepsImportAuthorityTransitionEntity.fromAuthority() =
+	AmbientStepsStoredAuthority(
+		fromAuthorizationRevision,
+		fromAuthorizationFingerprint,
+		fromSourcePolicyRevision,
+		fromAmbientConsentEpoch,
+	)
+
+private fun AmbientStepsImportAuthorityTransitionEntity.toAuthority() =
+	AmbientStepsStoredAuthority(
+		toAuthorizationRevision,
+		toAuthorizationFingerprint,
+		toSourcePolicyRevision,
+		toAmbientConsentEpoch,
+	)
+
+private data class AmbientStepsGapReadQualification(
+	val row: AmbientStepsEffectiveGapInterval,
+	val valid: Boolean,
+	val effect: EffectiveAmbientStepsGap?,
+)
+
+private fun AmbientStepsEffectiveGapInterval.qualifyForRead(
+	evidenceState: SourceEvidenceState,
+	cursorsByGeneration: Map<Long, AmbientStepsImportCursorEntity>,
+): AmbientStepsGapReadQualification {
+	val declared = runCatching {
+		AmbientStepsImportGapEntity(
+			gapId,
+			registrationGeneration,
+			gapSequence,
+			provider,
+			sourceInstanceId,
+			reason,
+			declaredGapStartTimeMs,
+			declaredGapEndTimeMs,
+			predecessorRegistrationGeneration,
+			predecessorProvider,
+			previousClockDomainId,
+			nextClockDomainId,
+			previousZoneId,
+			nextZoneId,
+			collectedDataEpoch,
+			recordedAtMs,
+		)
+	}.getOrNull()
+	val cursor = cursorsByGeneration[registrationGeneration]
+	val predecessor = predecessorRegistrationGeneration?.let(cursorsByGeneration::get)
+	val originMatches = if (predecessorRegistrationGeneration == null) {
+		predecessorProvider == null && cursor?.registrationClockDomainId == previousClockDomainId
+	} else {
+		predecessor != null && predecessor.provider == predecessorProvider &&
+			predecessor.collectedDataEpoch == collectedDataEpoch &&
+			predecessor.registrationClockDomainId == previousClockDomainId &&
+			predecessor.importedThroughTimeMs == declaredGapStartTimeMs
+	}
+	val valid = declared != null &&
+		gapId == AmbientStepsImportGapIntegrity.gapId(
+			registrationGeneration,
+			gapSequence,
+			provider,
+			sourceInstanceId,
+			reason,
+			declaredGapStartTimeMs,
+			declaredGapEndTimeMs,
+			predecessorRegistrationGeneration,
+			predecessorProvider,
+			previousClockDomainId,
+			nextClockDomainId,
+			previousZoneId,
+			nextZoneId,
+			collectedDataEpoch,
+		) && collectedDataEpoch == evidenceState.collectedDataEpoch && cursor != null &&
+		cursor.provider == provider && cursor.sourceInstanceId == sourceInstanceId &&
+		cursor.collectedDataEpoch == collectedDataEpoch && cursor.lastGapSequence >= gapSequence &&
+		cursor.registrationAcceptedAtMs <= declaredGapStartTimeMs &&
+		cursor.importedThroughTimeMs >= declaredGapEndTimeMs &&
+		cursor.registrationClockDomainId == nextClockDomainId && recordedAtMs <= cursor.updatedAtMs &&
+		gapStartTimeMs >= declaredGapStartTimeMs && gapEndTimeMs <= declaredGapEndTimeMs &&
+		gapEndTimeMs > gapStartTimeMs && originMatches
+	if (!valid) return AmbientStepsGapReadQualification(this, false, null)
+	val retainedStart = maxOf(gapStartTimeMs, evidenceState.retainedFromMs ?: gapStartTimeMs)
+	val effect = if (retainedStart < gapEndTimeMs) {
+		EffectiveAmbientStepsGap(retainedStart, gapEndTimeMs)
+	} else {
+		null
+	}
+	return AmbientStepsGapReadQualification(this, true, effect)
 }
 
 private fun AmbientStepsFactRevisionEntity.toQualifiedFact(
@@ -541,3 +1025,7 @@ internal const val MAX_AMBIENT_DAY_PAGE_SIZE = 31
 private const val MAX_ACTIVE_AMBIENT_CURSORS = 1
 private const val MAX_AMBIENT_FACTS_PER_PAGE = 400
 private const val MAX_AMBIENT_GAPS_PER_PAGE = 400
+private const val MAX_HISTORICAL_AMBIENT_CURSORS_PER_PAGE = 400
+private const val MAX_AMBIENT_AUTHORITY_TRANSITIONS_PER_PAGE = 400
+private const val MAX_AMBIENT_AUTHORIZATION_KEYS_PER_PAGE = 400
+private const val MAX_AMBIENT_AUTHORIZATION_MEMBERS_PER_PAGE = 400

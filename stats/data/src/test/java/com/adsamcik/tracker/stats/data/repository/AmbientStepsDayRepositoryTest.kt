@@ -5,9 +5,12 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
@@ -204,8 +207,149 @@ class AmbientStepsDayRepositoryTest {
 		)
 	}
 
-	private suspend fun seedAuthority(stateCursor: AmbientStepsImportCursorEntity = cursor()) {
-		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 7L))
+	@Test
+	fun `full immutable gap authority is required before a day can be partial`() = runTest {
+		seedAuthority(cursorWithGap())
+		database.ambientStepsFactRevisionDao().insert(fact(5L, 0L, GAP_START))
+		database.ambientStepsFactRevisionDao().insert(
+			fact(5L, GAP_END, DAY_END, continuitySegmentGeneration = 2L),
+		)
+		database.ambientStepsImportStateDao().insertGap(gap(1L, GAP_START))
+
+		readSnapshot().page.days.single().total shouldBe AmbientStepsNumericValue.Partial(
+			10L,
+			setOf(
+				AmbientStepsDayCause.AMBIENT_COVERAGE_PARTIAL,
+				AmbientStepsDayCause.AMBIENT_GAP,
+			),
+		)
+
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE ambient_steps_import_gap SET gap_id = ? WHERE registration_generation = 1",
+			arrayOf("sha256:${"f".repeat(64)}"),
+		)
+		readSnapshot().page.days.single().total shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.AMBIENT_AUTHORITY_UNVERIFIABLE),
+		)
+	}
+
+	@Test
+	fun `stale epoch and foreign gap origin fail closed`() = runTest {
+		seedAuthority(cursorWithGap())
+		database.ambientStepsFactRevisionDao().insert(fact(5L, 0L, GAP_START))
+		database.ambientStepsFactRevisionDao().insert(
+			fact(5L, GAP_END, DAY_END, continuitySegmentGeneration = 2L),
+		)
+		database.ambientStepsImportStateDao().insertGap(gap(1L, GAP_START, collectedDataEpoch = 6L))
+		readSnapshot().page.days.single().total shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.AMBIENT_AUTHORITY_UNVERIFIABLE),
+		)
+
+		database.ambientStepsImportStateDao().deleteAllGaps()
+		database.ambientStepsImportStateDao().insertGap(
+			gap(1L, GAP_START, sourceInstanceId = "foreign-instance"),
+		)
+		readSnapshot().page.days.single().total shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.AMBIENT_AUTHORITY_UNVERIFIABLE),
+		)
+	}
+
+	@Test
+	fun `gap entirely before retention floor cannot downgrade retained day`() = runTest {
+		seedAuthority(
+			stateCursor = cursorWithGap().copy(segmentStartTimeMs = 1_000L),
+			evidenceState = SourceEvidenceState(collectedDataEpoch = 7L, retainedFromMs = GAP_START),
+		)
+		database.ambientStepsFactRevisionDao().insert(
+			fact(10L, GAP_START, DAY_END, continuitySegmentGeneration = 2L),
+		)
+		database.ambientStepsImportStateDao().insertGap(gap(1L, 0L))
+
+		readSnapshot().page.days.single().total shouldBe AmbientStepsNumericValue.Partial(
+			10L,
+			setOf(AmbientStepsDayCause.AMBIENT_COVERAGE_PARTIAL),
+		)
+	}
+
+	@Test
+	fun `facts on both sides of authorization rotation bind to exact historical phases`() = runTest {
+		seedAuthority(rotatedCursor())
+		database.ambientStepsImportStateDao().insertAuthorityTransition(authorityTransition())
+		database.ambientStepsFactRevisionDao().insert(fact(4L, 0L, AUTHORITY_BOUNDARY))
+		database.ambientStepsFactRevisionDao().insert(
+			fact(
+				6L,
+				AUTHORITY_BOUNDARY,
+				DAY_END,
+				continuitySegmentGeneration = 2L,
+				authorizationRevision = 2L,
+				authorizationFingerprint = "b".repeat(64),
+			),
+		)
+
+		readSnapshot().page.days.single().total shouldBe AmbientStepsNumericValue.Exact(10L)
+	}
+
+	@Test
+	fun `post-rotation fact cannot retain predecessor authorization`() = runTest {
+		seedAuthority(rotatedCursor())
+		database.ambientStepsImportStateDao().insertAuthorityTransition(authorityTransition())
+		database.ambientStepsFactRevisionDao().insert(fact(4L, 0L, AUTHORITY_BOUNDARY))
+		database.ambientStepsFactRevisionDao().insert(
+			fact(6L, AUTHORITY_BOUNDARY, DAY_END, continuitySegmentGeneration = 2L),
+		)
+
+		readSnapshot().page.days.single().total shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.AMBIENT_AUTHORITY_UNVERIFIABLE),
+		)
+	}
+
+	@Test
+	fun `pre-rotation fact cannot cross the exact transition boundary`() = runTest {
+		seedAuthority(rotatedCursor())
+		database.ambientStepsImportStateDao().insertAuthorityTransition(authorityTransition())
+		database.ambientStepsFactRevisionDao().insert(fact(10L, 0L, AUTHORITY_BOUNDARY + 1_000L))
+
+		readSnapshot().page.days.single().total shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.AMBIENT_AUTHORITY_UNVERIFIABLE),
+		)
+	}
+
+	@Test
+	fun `historical authorization rows must match the captured fact fingerprint`() = runTest {
+		seedAuthority()
+		database.ambientStepsFactRevisionDao().insert(fact(10L))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_authorization SET authorization_fingerprint = ? " +
+				"WHERE source_kind = ? AND registration_generation = 1 AND authorization_revision = 1",
+			arrayOf("f".repeat(64), SourceDestinationOwnerEntity.SOURCE_STEPS),
+		)
+
+		readSnapshot().page.days.single().total shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.AMBIENT_AUTHORITY_UNVERIFIABLE),
+		)
+	}
+
+	@Test
+	fun `pre-rotation fact cannot precede its historical authorization boundary`() = runTest {
+		seedAuthority(
+			stateCursor = rotatedCursor(),
+			initialAuthorizationEffectiveTimeMs = 1_000L,
+		)
+		database.ambientStepsImportStateDao().insertAuthorityTransition(authorityTransition())
+		database.ambientStepsFactRevisionDao().insert(fact(10L, 0L, AUTHORITY_BOUNDARY))
+
+		readSnapshot().page.days.single().total shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.AMBIENT_AUTHORITY_UNVERIFIABLE),
+		)
+	}
+
+	private suspend fun seedAuthority(
+		stateCursor: AmbientStepsImportCursorEntity = cursor(),
+		evidenceState: SourceEvidenceState = SourceEvidenceState(collectedDataEpoch = 7L),
+		initialAuthorizationEffectiveTimeMs: Long = 0L,
+	) {
+		database.sourceEvidenceStateDao().ensure(evidenceState)
 		database.sourceDestinationOwnerDao().insertIfAbsent(
 			SourceDestinationOwnerEntity(
 				SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -225,6 +369,20 @@ class AmbientStepsDayRepositoryTest {
 		)
 		database.sourcePolicyDao().insertPolicies(listOf(policy(1L)))
 		database.sourcePolicyDao().insertConsentEpochs(listOf(consent()))
+		database.sourceBrokerDao().insertAuthorizations(
+			buildList {
+				add(authorization(1L, "a".repeat(64), initialAuthorizationEffectiveTimeMs))
+				if (stateCursor.authorizationRevision != 1L) {
+					add(
+						authorization(
+							stateCursor.authorizationRevision,
+							stateCursor.authorizationFingerprint,
+							stateCursor.authorizationEffectiveWallTimeMs,
+						),
+					)
+				}
+			},
+		)
 		database.ambientStepsImportStateDao().insertCursor(stateCursor)
 	}
 
@@ -273,6 +431,32 @@ class AmbientStepsDayRepositoryTest {
 		changeReason = "test",
 	)
 
+	private fun authorization(
+		revision: Long,
+		fingerprint: String,
+		effectiveWallTimeMs: Long,
+	) = SourceAuthorizationEntity(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		registrationGeneration = 1L,
+		authorizationRevision = revision,
+		memberId = "demand:ambient-$revision",
+		authorizationFingerprint = fingerprint,
+		purposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+		demandId = "ambient-$revision",
+		consumerId = "ambient-importer",
+		purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+		sourcePolicyRevision = 1L,
+		consentEpoch = 1L,
+		persistenceEligible = true,
+		effectiveBootId = "boot-a",
+		effectiveElapsedRealtimeNanos = effectiveWallTimeMs * 1_000_000L,
+		effectiveWallTimeMs = effectiveWallTimeMs,
+		logicalTrackingId = null,
+		serviceRunId = null,
+		manifestRevision = null,
+		lifecycleLeaseGeneration = null,
+	)
+
 	private fun cursor() = AmbientStepsImportCursorEntity(
 		registrationGeneration = 1L,
 		provider = PROVIDER,
@@ -302,16 +486,87 @@ class AmbientStepsDayRepositoryTest {
 		updatedAtMs = DAY_END,
 	)
 
+	private fun cursorWithGap() = cursor().copy(
+		continuitySegmentGeneration = 2L,
+		segmentStartTimeMs = GAP_END,
+		lastGapSequence = 1L,
+		cursorRevision = 2L,
+	)
+
+	private fun rotatedCursor() = cursor().copy(
+		authorizationRevision = 2L,
+		authorizationFingerprint = "b".repeat(64),
+		authorizationEffectiveElapsedRealtimeNanos = AUTHORITY_BOUNDARY * 1_000_000L,
+		authorizationEffectiveWallTimeMs = AUTHORITY_BOUNDARY,
+		eligibleFromTimeMs = AUTHORITY_BOUNDARY,
+		continuitySegmentGeneration = 2L,
+		segmentStartTimeMs = AUTHORITY_BOUNDARY,
+		authorityTransitionSequence = 1L,
+		cursorRevision = 2L,
+	)
+
+	private fun authorityTransition(): AmbientStepsImportAuthorityTransitionEntity {
+		val transitionId = AmbientStepsImportAuthorityTransitionIntegrity.transitionId(
+			1L,
+			1L,
+			PROVIDER,
+			SOURCE_INSTANCE,
+			7L,
+			1L,
+			2L,
+			1L,
+			"a".repeat(64),
+			1L,
+			1L,
+			2L,
+			"b".repeat(64),
+			"boot-a",
+			AUTHORITY_BOUNDARY * 1_000_000L,
+			AUTHORITY_BOUNDARY,
+			1L,
+			1L,
+			0L,
+			AUTHORITY_BOUNDARY,
+		)
+		return AmbientStepsImportAuthorityTransitionEntity(
+			transitionId,
+			1L,
+			1L,
+			PROVIDER,
+			SOURCE_INSTANCE,
+			7L,
+			1L,
+			2L,
+			1L,
+			"a".repeat(64),
+			1L,
+			1L,
+			2L,
+			"b".repeat(64),
+			"boot-a",
+			AUTHORITY_BOUNDARY * 1_000_000L,
+			AUTHORITY_BOUNDARY,
+			1L,
+			1L,
+			0L,
+			AUTHORITY_BOUNDARY,
+			DAY_END,
+		)
+	}
+
 	private fun fact(
 		count: Long,
 		startTimeMs: Long = 0L,
 		endTimeMs: Long = DAY_END,
 		epochDay: Long = 0L,
+		continuitySegmentGeneration: Long = 1L,
+		authorizationRevision: Long = 1L,
+		authorizationFingerprint: String = "a".repeat(64),
 	): AmbientStepsFactRevisionEntity {
 		val dayStartTimeMs = epochDay * DAY_END
 		val dayEndTimeMs = dayStartTimeMs + DAY_END
 		val logicalFactId = AmbientStepsFactIntegrity.logicalFactId(
-			PROVIDER, 1L, 1L, SOURCE_INSTANCE, startTimeMs, epochDay, "UTC", 7L,
+			PROVIDER, 1L, continuitySegmentGeneration, SOURCE_INSTANCE, startTimeMs, epochDay, "UTC", 7L,
 		)
 		return signed(
 			AmbientStepsFactRevisionEntity(
@@ -327,10 +582,10 @@ class AmbientStepsDayRepositoryTest {
 				originKind = AmbientStepsFactRevisionEntity.ORIGIN_PROVIDER_AGGREGATE,
 				provider = PROVIDER,
 				registrationGeneration = 1L,
-				continuitySegmentGeneration = 1L,
+				continuitySegmentGeneration = continuitySegmentGeneration,
 				sourceInstanceId = SOURCE_INSTANCE,
-				authorizationRevision = 1L,
-				authorizationFingerprint = "a".repeat(64),
+				authorizationRevision = authorizationRevision,
+				authorizationFingerprint = authorizationFingerprint,
 				windowStartTimeMs = startTimeMs,
 				windowEndTimeMs = endTimeMs,
 				observedAtMs = endTimeMs,
@@ -379,13 +634,18 @@ class AmbientStepsDayRepositoryTest {
 		),
 	)
 
-	private fun gap(sequence: Long, startTimeMs: Long): AmbientStepsImportGapEntity {
+	private fun gap(
+		sequence: Long,
+		startTimeMs: Long,
+		collectedDataEpoch: Long = 7L,
+		sourceInstanceId: String = SOURCE_INSTANCE,
+	): AmbientStepsImportGapEntity {
 		val endTimeMs = startTimeMs + 1_000L
 		val gapId = AmbientStepsImportGapIntegrity.gapId(
 			registrationGeneration = 1L,
 			gapSequence = sequence,
 			provider = PROVIDER,
-			sourceInstanceId = SOURCE_INSTANCE,
+			sourceInstanceId = sourceInstanceId,
 			reason = AmbientStepsImportGapEntity.REASON_PROCESS_ABSENCE,
 			gapStartTimeMs = startTimeMs,
 			gapEndTimeMs = endTimeMs,
@@ -395,14 +655,14 @@ class AmbientStepsDayRepositoryTest {
 			nextClockDomainId = "boot-a",
 			previousZoneId = "UTC",
 			nextZoneId = "UTC",
-			collectedDataEpoch = 7L,
+			collectedDataEpoch = collectedDataEpoch,
 		)
 		return AmbientStepsImportGapEntity(
 			gapId = gapId,
 			registrationGeneration = 1L,
 			gapSequence = sequence,
 			provider = PROVIDER,
-			sourceInstanceId = SOURCE_INSTANCE,
+			sourceInstanceId = sourceInstanceId,
 			reason = AmbientStepsImportGapEntity.REASON_PROCESS_ABSENCE,
 			gapStartTimeMs = startTimeMs,
 			gapEndTimeMs = endTimeMs,
@@ -412,7 +672,7 @@ class AmbientStepsDayRepositoryTest {
 			nextClockDomainId = "boot-a",
 			previousZoneId = "UTC",
 			nextZoneId = "UTC",
-			collectedDataEpoch = 7L,
+			collectedDataEpoch = collectedDataEpoch,
 			recordedAtMs = endTimeMs,
 		)
 	}
@@ -423,6 +683,9 @@ class AmbientStepsDayRepositoryTest {
 
 	private companion object {
 		const val DAY_END = 86_400_000L
+		const val GAP_START = 10_000L
+		const val GAP_END = 11_000L
+		const val AUTHORITY_BOUNDARY = 43_200_000L
 		const val SOURCE_INSTANCE = "ambient-instance"
 		const val PROVIDER = AmbientStepsFactRevisionEntity.PROVIDER_LOCAL_RECORDING_STEPS
 	}

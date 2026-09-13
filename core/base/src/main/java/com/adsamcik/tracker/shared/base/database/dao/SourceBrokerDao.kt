@@ -149,6 +149,20 @@ interface SourceBrokerDao {
 		authorizationRevision: Long,
 	): List<SourceAuthorizationEntity>
 
+	/** Bounded immutable authorization evidence for a source-specific historical product read. */
+	@Query(
+		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation IN (:registrationGenerations) " +
+			"AND authorization_revision IN (:authorizationRevisions) " +
+			"ORDER BY registration_generation, authorization_revision, member_id LIMIT :limit",
+	)
+	suspend fun authorizationRevisionsBounded(
+		sourceKind: Int,
+		registrationGenerations: List<Long>,
+		authorizationRevisions: List<Long>,
+		limit: Int,
+	): List<SourceAuthorizationEntity>
+
 	@Query(
 		"SELECT EXISTS(SELECT 1 FROM source_authorization " +
 			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +
