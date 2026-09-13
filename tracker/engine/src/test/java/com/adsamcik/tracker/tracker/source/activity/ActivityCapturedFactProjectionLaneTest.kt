@@ -14,20 +14,15 @@ import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
-import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
-import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
-import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
-import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
-import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.StableActivityTypeCode
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import io.kotest.assertions.throwables.shouldThrow
@@ -66,20 +61,17 @@ class ActivityCapturedFactProjectionLaneTest {
 	@Test
 	fun `production catalog keeps the captured Activity writer dormant`() = runTest {
 		installLane()
-		val ingress = mockk<DurableSourceIngress>()
 		val adapter = mockk<ActivityCapturedWalAdmissionAdapter>()
 		val writer = mockk<ActivityCapturedFactWriter>()
 
 		ActivityCapturedFactProjectionLane(
 			database,
-			ingress,
 			adapter,
 			writer,
 		).drainThrough(1L) shouldBe ActivityCapturedFactDrainResult.Inactive(
 			ActivityCapturedLaneInactiveReason.BINARY_BINDING_NOT_ENABLED,
 		)
 
-		coVerify(exactly = 0) { ingress.committedSourceBatch(any(), any(), any(), any()) }
 		coVerify(exactly = 0) { adapter.admit(any()) }
 		coVerify(exactly = 0) { writer.write(any()) }
 	}
@@ -90,18 +82,13 @@ class ActivityCapturedFactProjectionLaneTest {
 			installLane()
 			insertTerminalSession()
 			insertWalIdentity()
-			val event = activityEvent()
-			val ingress = mockk<DurableSourceIngress>()
 			val adapter = mockk<ActivityCapturedWalAdmissionAdapter>()
 			val writer = mockk<ActivityCapturedFactWriter>()
-			coEvery {
-				ingress.committedSourceBatch(SourceKind.ACTIVITY, 0L, 1L, any())
-			} returns listOf(event)
 			coEvery { adapter.admit(EVENT_ID) } returns
 				ActivityCapturedWalAdmissionResult.Unavailable(
 					ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW,
 				)
-			val subject = lane(ingress, adapter, writer)
+			val subject = lane(adapter, writer)
 
 			subject.drainThrough(1L) shouldBe ActivityCapturedFactDrainResult.Deferred(
 				lastCompletedOrdinal = 0L,
@@ -138,15 +125,8 @@ class ActivityCapturedFactProjectionLaneTest {
 			eventId = replacementEventId,
 			serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
 		)
-		val ingress = mockk<DurableSourceIngress>()
 		val adapter = mockk<ActivityCapturedWalAdmissionAdapter>()
 		val writer = mockk<ActivityCapturedFactWriter>()
-		coEvery {
-			ingress.committedSourceBatch(SourceKind.ACTIVITY, 0L, 2L, any())
-		} returns listOf(
-			activityEvent(),
-			activityEvent(2L, replacementEventId, REPLACEMENT_SERVICE_RUN_ID),
-		)
 		coEvery { adapter.admit(EVENT_ID) } returns admitted()
 		coEvery { adapter.admit(replacementEventId) } returns
 			admitted(2L, replacementEventId, REPLACEMENT_SERVICE_RUN_ID)
@@ -155,7 +135,7 @@ class ActivityCapturedFactProjectionLaneTest {
 			ActivityCapturedWriteResult.Applied("window-2", 1L, 1L),
 		)
 
-		lane(ingress, adapter, writer).drainThrough(2L) shouldBe
+		lane(adapter, writer).drainThrough(2L) shouldBe
 			ActivityCapturedFactDrainResult.Complete(2L, 2, 2)
 
 		activeLane()?.contiguousAdmissionOrdinal shouldBe 2L
@@ -163,21 +143,24 @@ class ActivityCapturedFactProjectionLaneTest {
 	}
 
 	@Test
-	fun `payload-free and decoded page mismatch durably poisons its first exact ordinal`() = runTest {
+	fun `later oversized payload poisons its own ordinal without writing the valid prefix`() = runTest {
 		installLane()
+		insertTerminalSession(finalAdmissionOrdinal = 2L)
 		insertWalIdentity()
-		val ingress = mockk<DurableSourceIngress>()
+		val oversizedId = SourceEventId("activity-event-oversized")
+		insertWalIdentity(2L, oversizedId, payload = ByteArray(22))
 		val adapter = mockk<ActivityCapturedWalAdmissionAdapter>()
 		val writer = mockk<ActivityCapturedFactWriter>()
-		coEvery {
-			ingress.committedSourceBatch(SourceKind.ACTIVITY, 0L, 1L, any())
-		} returns emptyList()
+		coEvery { adapter.admit(EVENT_ID) } returns admitted()
+		coEvery { adapter.admit(oversizedId) } returns ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.DELIVERY_TOO_LARGE,
+		)
 
-		lane(ingress, adapter, writer).drainThrough(1L) shouldBe
+		lane(adapter, writer).drainThrough(2L) shouldBe
 			ActivityCapturedFactDrainResult.Failed(
 				lastCompletedOrdinal = 0L,
-				failedOrdinal = 1L,
-				failureCode = "ACTIVITY_DURABLE_INGRESS_PAGE_MISMATCH",
+				failedOrdinal = 2L,
+				failureCode = "ACTIVITY_WAL_DELIVERY_TOO_LARGE",
 				terminal = true,
 			)
 
@@ -185,9 +168,8 @@ class ActivityCapturedFactProjectionLaneTest {
 		database.sourceProjectionStateDao().failure(
 			ActivityCapturedFactProjectionLane.WRITER_ID,
 			ActivityCapturedFactProjectionLane.WRITER_VERSION,
-			1L,
+			2L,
 		)?.terminal shouldBe true
-		coVerify(exactly = 0) { adapter.admit(any()) }
 		coVerify(exactly = 0) { writer.write(any()) }
 	}
 
@@ -196,17 +178,13 @@ class ActivityCapturedFactProjectionLaneTest {
 		runTest {
 			installLane()
 			insertWalIdentity()
-			val ingress = mockk<DurableSourceIngress>()
 			val adapter = mockk<ActivityCapturedWalAdmissionAdapter>()
 			val writer = mockk<ActivityCapturedFactWriter>()
-			coEvery {
-				ingress.committedSourceBatch(SourceKind.ACTIVITY, 0L, 1L, any())
-			} returns listOf(activityEvent())
 			coEvery { adapter.admit(EVENT_ID) } returns ActivityCapturedWalAdmissionResult.Rejected(
 				ActivityCapturedWalAdmissionRejection.CONTROL_ONLY,
 			)
 
-			lane(ingress, adapter, writer).drainThrough(1L) shouldBe
+			lane(adapter, writer).drainThrough(1L) shouldBe
 				ActivityCapturedFactDrainResult.Complete(1L, 0, 1)
 
 			activeLane()?.contiguousAdmissionOrdinal shouldBe 1L
@@ -214,47 +192,49 @@ class ActivityCapturedFactProjectionLaneTest {
 		}
 
 	@Test
-	fun `committed deletion releases an old terminal poison without resurrecting a fact`() = runTest {
+	fun `committed deletion releases a later oversized poison on cleanup retry`() = runTest {
 		installLane()
+		insertTerminalSession(finalAdmissionOrdinal = 2L)
 		insertWalIdentity()
-		val event = activityEvent()
-		val ingress = mockk<DurableSourceIngress>()
+		val oversizedId = SourceEventId("activity-event-oversized")
+		insertWalIdentity(2L, oversizedId, payload = ByteArray(22))
 		val adapter = mockk<ActivityCapturedWalAdmissionAdapter>()
 		val writer = mockk<ActivityCapturedFactWriter>()
-		coEvery {
-			ingress.committedSourceBatch(SourceKind.ACTIVITY, 0L, 1L, any())
-		} returns emptyList()
-		val subject = lane(ingress, adapter, writer)
-		subject.drainThrough(1L) shouldBe ActivityCapturedFactDrainResult.Failed(
+		coEvery { adapter.admit(EVENT_ID) } returns admitted()
+		coEvery { adapter.admit(oversizedId) } returns ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.DELIVERY_TOO_LARGE,
+		)
+		val subject = lane(adapter, writer)
+		subject.drainThrough(2L) shouldBe ActivityCapturedFactDrainResult.Failed(
 			0L,
-			1L,
-			"ACTIVITY_DURABLE_INGRESS_PAGE_MISMATCH",
+			2L,
+			"ACTIVITY_WAL_DELIVERY_TOO_LARGE",
 			terminal = true,
 		)
 
 		database.sourceEvidenceStateDao().updateAfterFullDeletion(
 			epoch = COLLECTED_DATA_EPOCH + 1L,
 			retainedFromMs = null,
-			deletedSourceEventHighWaterOrdinal = 1L,
+			deletedSourceEventHighWaterOrdinal = 2L,
 			updatedAtMs = 2_000L,
 		) shouldBe 1
-		coEvery {
-			ingress.committedSourceBatch(SourceKind.ACTIVITY, 0L, 1L, any())
-		} returns listOf(event)
 		coEvery { adapter.admit(EVENT_ID) } returns ActivityCapturedWalAdmissionResult.Rejected(
 			ActivityCapturedWalAdmissionRejection.DELETED_EVIDENCE,
 		)
-
-		subject.drainThrough(1L) shouldBe ActivityCapturedFactDrainResult.Complete(
-			lastCompletedOrdinal = 1L,
-			windowsApplied = 0,
-			eventsValidated = 1,
+		coEvery { adapter.admit(oversizedId) } returns ActivityCapturedWalAdmissionResult.Rejected(
+			ActivityCapturedWalAdmissionRejection.DELETED_EVIDENCE,
 		)
-		activeLane()?.contiguousAdmissionOrdinal shouldBe 1L
+
+		subject.drainThrough(2L) shouldBe ActivityCapturedFactDrainResult.Complete(
+			lastCompletedOrdinal = 2L,
+			windowsApplied = 0,
+			eventsValidated = 2,
+		)
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 2L
 		database.sourceProjectionStateDao().failure(
 			ActivityCapturedFactProjectionLane.WRITER_ID,
 			ActivityCapturedFactProjectionLane.WRITER_VERSION,
-			1L,
+			2L,
 		) shouldBe null
 		coVerify(exactly = 0) { writer.write(any()) }
 	}
@@ -264,16 +244,12 @@ class ActivityCapturedFactProjectionLaneTest {
 		installLane()
 		insertTerminalSession()
 		insertWalIdentity()
-		val ingress = mockk<DurableSourceIngress>()
 		val adapter = mockk<ActivityCapturedWalAdmissionAdapter>()
 		val writer = mockk<ActivityCapturedFactWriter>()
-		coEvery {
-			ingress.committedSourceBatch(SourceKind.ACTIVITY, 0L, 1L, any())
-		} returns listOf(activityEvent())
 		coEvery { adapter.admit(EVENT_ID) } returns admitted()
 		coEvery { writer.write(any()) } throws CancellationException("cancel writer")
 
-		shouldThrow<CancellationException> { lane(ingress, adapter, writer).drainThrough(1L) }
+		shouldThrow<CancellationException> { lane(adapter, writer).drainThrough(1L) }
 
 		activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
 		database.sourceProjectionStateDao().failure(
@@ -284,31 +260,22 @@ class ActivityCapturedFactProjectionLaneTest {
 	}
 
 	@Test
-	fun `bounded page verifier distinguishes exact mismatch and overflow`() {
-		val event = activityEvent()
-		val preflight = listOf(SourceProjectionEventIdentityRow(EVENT_ID.value, 1L))
+	fun `bounded preflight reports the exact first overflow ordinal`() {
+		val preflight = listOf(
+			SourceProjectionEventIdentityRow(EVENT_ID.value, 1L),
+			SourceProjectionEventIdentityRow("second", 2L),
+			SourceProjectionEventIdentityRow("overflow", 3L),
+		)
 
-		ActivityCapturedProjectionPageVerifier.verify(preflight, listOf(event), 1) shouldBe
-			ActivityCapturedProjectionPageStatus.EXACT
-		ActivityCapturedProjectionPageVerifier.verify(
-			preflight,
-			listOf(event.copy(eventId = SourceEventId("different"))),
-			1,
-		) shouldBe ActivityCapturedProjectionPageStatus.IDENTITY_MISMATCH
-		ActivityCapturedProjectionPageVerifier.verify(
-			preflight + SourceProjectionEventIdentityRow("second", 2L),
-			listOf(event),
-			1,
-		) shouldBe ActivityCapturedProjectionPageStatus.LIMIT_EXCEEDED
+		preflight.firstOverflowOrdinal(2) shouldBe 3L
+		preflight.firstOverflowOrdinal(3) shouldBe null
 	}
 
 	private fun lane(
-		ingress: DurableSourceIngress,
 		adapter: ActivityCapturedWalAdmissionAdapter,
 		writer: ActivityCapturedFactWriter,
 	) = ActivityCapturedFactProjectionLane(
 		database,
-		ingress,
 		adapter,
 		writer,
 		ExecutableSourceLaneCatalog.explicit(activityBinding()),
@@ -367,6 +334,7 @@ class ActivityCapturedFactProjectionLaneTest {
 		ordinal: Long = 1L,
 		eventId: SourceEventId = EVENT_ID,
 		serviceRunId: String = SERVICE_RUN_ID,
+		payload: ByteArray = byteArrayOf(1),
 	) {
 		val raw = SourceEventWalEntity(
 			admissionOrdinal = ordinal,
@@ -398,7 +366,7 @@ class ActivityCapturedFactProjectionLaneTest {
 			qualityFlags = 0L,
 			qualityConfidence = null,
 			payloadVersion = 1,
-			payload = byteArrayOf(1),
+			payload = payload,
 			payloadChecksum = "test-only",
 			integrityIdentity = "test-only",
 			createdAtMs = 1_100L,
@@ -490,48 +458,6 @@ class ActivityCapturedFactProjectionLaneTest {
 			),
 		)
 	}
-
-	private fun activityEvent(
-		ordinal: Long = 1L,
-		eventId: SourceEventId = EVENT_ID,
-		serviceRunId: String = SERVICE_RUN_ID,
-	): AdmittedSourceEvent<ActivityTransitionPayload> = AdmittedSourceEvent(
-		eventId = eventId,
-		admissionOrdinal = ordinal,
-		evidence = SourceEvidenceCandidate(
-			providerDedupKey = "activity-dedup-$ordinal",
-			logicalTrackingId = LogicalTrackingId(LOGICAL_TRACKING_ID),
-			serviceRunId = ServiceRunId(serviceRunId),
-			source = SourceKind.ACTIVITY,
-			sourceInstanceId = SourceInstanceId(SOURCE_INSTANCE_ID),
-			registrationGeneration = REGISTRATION_GENERATION,
-			physicalConfigurationFingerprint = plan().physicalConfigurationFingerprint(),
-			authorizationRevision = AUTHORIZATION_REVISION,
-			registrationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-			registrationEligibilityFingerprint = "activity-capture",
-			sourceSequence = ordinal,
-			configRevision = PLAN_REVISION,
-			planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
-			clockDomainId = BOOT_ID,
-			observedElapsedRealtimeNanos = OBSERVATION_NANOS,
-			receivedElapsedRealtimeNanos = OBSERVATION_NANOS + 10L,
-			wallTimeMs = 1_100L,
-			wallTimeUncertaintyMs = 5L,
-			capturedCollectedDataEpoch = COLLECTED_DATA_EPOCH,
-			sourcePolicyRevision = POLICY_REVISION,
-			captureConsentEpoch = CONSENT_EPOCH,
-			sessionManifestRevision = MANIFEST_REVISION,
-			lifecycleLeaseGeneration = LEASE_GENERATION,
-			acquiredAtMs = 1_100L,
-			quality = SourceQuality(),
-			payloadVersion = 1,
-			payload = ActivityTransitionPayload(
-				StableActivityTypeCode.WALKING,
-				0,
-				OBSERVATION_NANOS,
-			),
-		),
-	)
 
 	private fun plan() = ActivityPlan(
 		revision = PLAN_REVISION,

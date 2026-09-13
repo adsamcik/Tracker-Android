@@ -13,11 +13,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEnt
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
-import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
-import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
-import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
+import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
-import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -39,7 +36,6 @@ import kotlinx.coroutines.sync.withLock
 @Suppress("LargeClass", "TooManyFunctions") // One source-local transactional projection owner.
 internal class ActivityCapturedFactProjectionLane private constructor(
 	private val database: AppDatabase,
-	private val ingress: DurableSourceIngress,
 	private val adapter: ActivityCapturedWalAdmissionAdapter,
 	private val writer: ActivityCapturedFactWriter,
 	private val executableLaneCatalog: ExecutableSourceLaneCatalog,
@@ -52,13 +48,11 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 	@Inject
 	constructor(
 		database: AppDatabase,
-		ingress: DurableSourceIngress,
 		adapter: ActivityCapturedWalAdmissionAdapter,
 		executableLaneCatalog: ExecutableSourceLaneCatalog,
 		@ApplicationScope applicationScope: CoroutineScope,
 	) : this(
 		database,
-		ingress,
 		adapter,
 		ActivityCapturedFactWriter(database),
 		executableLaneCatalog,
@@ -68,11 +62,10 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 
 	internal constructor(
 		database: AppDatabase,
-		ingress: DurableSourceIngress,
 		adapter: ActivityCapturedWalAdmissionAdapter,
 		writer: ActivityCapturedFactWriter = ActivityCapturedFactWriter(database),
 		executableLaneCatalog: ExecutableSourceLaneCatalog = ExecutableSourceLaneCatalog(),
-	) : this(database, ingress, adapter, writer, executableLaneCatalog, null, Unit)
+	) : this(database, adapter, writer, executableLaneCatalog, null, Unit)
 
 	init {
 		applicationScope?.launch {
@@ -190,30 +183,10 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 							eventsValidated = 0,
 						)
 					}
-					attemptedOrdinal = preflight.first().admissionOrdinal
-					val events = ingress.committedSourceBatch(
-						SourceKind.ACTIVITY,
-						cursor,
-						targetAdmissionOrdinal,
-						PROBE_PAGE_SIZE,
-					)
-					if (ActivityCapturedProjectionPageVerifier.verify(
-						preflight,
-						events,
-						PROBE_PAGE_SIZE,
-					) != ActivityCapturedProjectionPageStatus.EXACT) {
-						return@withTransaction terminalFailure(
-							lane,
-							cursor,
-							preflight.first().admissionOrdinal,
-							"ACTIVITY_DURABLE_INGRESS_PAGE_MISMATCH",
-						)
-					}
-
 					var skippedThrough = cursor
-					for (event in events) {
+					for (event in preflight) {
 						attemptedOrdinal = event.admissionOrdinal
-						when (val admission = adapter.admit(event.eventId)) {
+						when (val admission = adapter.admit(SourceEventId(event.eventId))) {
 							is ActivityCapturedWalAdmissionResult.Admitted -> {
 								return@withTransaction projectTerminalRun(
 									lane,
@@ -274,33 +247,18 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 								)
 						}
 					}
-					val through = if (events.size < PROBE_PAGE_SIZE) {
+					val through = if (preflight.size < PROBE_PAGE_SIZE) {
 						targetAdmissionOrdinal
 					} else {
 						skippedThrough
 					}
 					advanceCursor(lane, through)
-					ActivityProjectionPass.Applied(through, 0, events.size)
+					ActivityProjectionPass.Applied(through, 0, preflight.size)
 				}
 			} catch (cancelled: CancellationException) {
 				throw cancelled
 			} catch (changed: ActivityLaneAuthorityChangedException) {
 				return ActivityCapturedFactDrainResult.AuthorityChanged(changed.reason)
-			} catch (corrupt: CorruptSourceEventException) {
-				when (val resolved = resolveCorruptFailure(initialLane, cursor, corrupt)) {
-					is ActivityProjectionPass.Applied -> {
-						cursor = resolved.throughOrdinal
-						continue
-					}
-					is ActivityProjectionPass.TerminalBlocked ->
-						return ActivityCapturedFactDrainResult.Failed(
-							resolved.throughOrdinal,
-							resolved.failure.admissionOrdinal,
-							resolved.failure.failureCode,
-							terminal = true,
-						)
-					is ActivityProjectionPass.Deferred -> error("Corrupt recovery cannot defer")
-				}
 			} catch (poison: ActivityCapturedProjectionPoisonException) {
 				return persistFailure(
 					cursor,
@@ -352,7 +310,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		originalCursor: Long,
 		skippedThrough: Long,
 		targetAdmissionOrdinal: Long,
-		seedEvent: AdmittedSourceEvent<out SourcePayload>,
+		seedEvent: SourceProjectionEventIdentityRow,
 		seed: ActivityCapturedWalAdmissionResult.Admitted,
 	): ActivityProjectionPass {
 		val authority = seed.acquisitionAuthority.captureAuthority
@@ -371,37 +329,20 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 		}
 
 		val preflight = projectionPage(skippedThrough, finalOrdinal, MAX_RUN_EVENTS + 1)
-		if (preflight.size > MAX_RUN_EVENTS) {
+		val overflowOrdinal = preflight.firstOverflowOrdinal(MAX_RUN_EVENTS)
+		if (overflowOrdinal != null) {
 			return terminalFailure(
 				lane,
 				originalCursor,
-				seedEvent.admissionOrdinal,
+				overflowOrdinal,
 				"ACTIVITY_TERMINAL_RUN_EVENT_LIMIT_EXCEEDED",
-			)
-		}
-		val events = ingress.committedSourceBatch(
-			SourceKind.ACTIVITY,
-			skippedThrough,
-			finalOrdinal,
-			MAX_RUN_EVENTS + 1,
-		)
-		if (ActivityCapturedProjectionPageVerifier.verify(
-			preflight,
-			events,
-			MAX_RUN_EVENTS,
-		) != ActivityCapturedProjectionPageStatus.EXACT) {
-			return terminalFailure(
-				lane,
-				originalCursor,
-				seedEvent.admissionOrdinal,
-				"ACTIVITY_TERMINAL_RUN_INGRESS_MISMATCH",
 			)
 		}
 
 		val groups = linkedMapOf<ActivityProjectionWindowKey, MutableList<ActivityCapturedObservation>>()
 		var validated = 0
-		for (event in events) {
-			when (val admission = adapter.admit(event.eventId)) {
+		for (event in preflight) {
+			when (val admission = adapter.admit(SourceEventId(event.eventId))) {
 				is ActivityCapturedWalAdmissionResult.Admitted -> {
 					val candidateAuthority = admission.acquisitionAuthority.captureAuthority
 					if (candidateAuthority.logicalTrackingId != authority.logicalTrackingId) {
@@ -513,7 +454,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 			}
 		}
 		val projectionDao = database.sourceProjectionStateDao()
-		events.forEach { event ->
+		preflight.forEach { event ->
 			projectionDao.deleteFailure(WRITER_ID, WRITER_VERSION, event.admissionOrdinal)
 		}
 		advanceCursor(lane, finalOrdinal)
@@ -566,39 +507,6 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 			if (persisted) code else "FAILURE_AUDIT_UNAVAILABLE",
 			terminal = persisted && terminal,
 		)
-	}
-
-	private suspend fun resolveCorruptFailure(
-		expectedLane: SourceProductProjectionLaneEntity,
-		cursor: Long,
-		corrupt: CorruptSourceEventException,
-	): ActivityProjectionPass = database.withTransaction {
-		val lane = requireExactLane(expectedLane, cursor)
-		val evidenceState = evidenceState()
-		check(corrupt.sourceKind == SourceKind.ACTIVITY.stableCode) {
-			"Activity reader reported corruption for another source"
-		}
-		check(corrupt.admissionOrdinal > cursor) {
-			"Activity reader reported corruption at or before its cursor"
-		}
-		if (failureIsLifecycleRejected(corrupt.admissionOrdinal, evidenceState)) {
-			database.sourceProjectionStateDao().deleteFailure(
-				WRITER_ID,
-				WRITER_VERSION,
-				corrupt.admissionOrdinal,
-			)
-			advanceCursor(lane, corrupt.admissionOrdinal)
-			ActivityProjectionPass.Applied(corrupt.admissionOrdinal, 0, 0)
-		} else {
-			val failure = saveFailure(
-				corrupt.admissionOrdinal,
-				corrupt.failureCode,
-				terminal = true,
-			)
-			val through = corrupt.admissionOrdinal - 1L
-			advanceCursor(lane, through)
-			ActivityProjectionPass.TerminalBlocked(failure, through)
-		}
 	}
 
 	private suspend fun saveFailure(
@@ -822,29 +730,10 @@ private class ActivityCapturedProjectionPoisonException(
 	val failureCode: String,
 ) : IllegalStateException(failureCode)
 
-internal enum class ActivityCapturedProjectionPageStatus {
-	EXACT,
-	LIMIT_EXCEEDED,
-	IDENTITY_MISMATCH,
-}
-
-/** Pure verifier for the payload-free SQL page and the separately decoded retained WAL page. */
-internal object ActivityCapturedProjectionPageVerifier {
-	fun verify(
-		preflight: List<SourceProjectionEventIdentityRow>,
-		decoded: List<AdmittedSourceEvent<out SourcePayload>>,
-		maximumEvents: Int,
-	): ActivityCapturedProjectionPageStatus {
-		require(maximumEvents > 0)
-		if (preflight.size > maximumEvents || decoded.size > maximumEvents) {
-			return ActivityCapturedProjectionPageStatus.LIMIT_EXCEEDED
-		}
-		if (decoded.size != preflight.size || decoded.indices.any { index ->
-			decoded[index].eventId.value != preflight[index].eventId ||
-				decoded[index].admissionOrdinal != preflight[index].admissionOrdinal
-		}) return ActivityCapturedProjectionPageStatus.IDENTITY_MISMATCH
-		return ActivityCapturedProjectionPageStatus.EXACT
-	}
+/** Returns the exact first row outside a caller's finite processing budget. */
+internal fun List<SourceProjectionEventIdentityRow>.firstOverflowOrdinal(maximumEvents: Int): Long? {
+	require(maximumEvents > 0)
+	return getOrNull(maximumEvents)?.admissionOrdinal
 }
 
 private fun ActivityCapturedWalAdmissionRejection.failureCode(): String =
