@@ -150,7 +150,12 @@ Independent clean lanes:
   shape, recomputes delivery identity from sorted minimized access-point evidence, and binds the
   retained delivery to exact historical plan application, every bounded demand floor, complete
   lifecycle/admission settlement, manifest/run/segment, clocks, zone, retention, and deletion.
-  Fact persistence, provider activation, maintenance/transfer, history, and UI remain open.
+  The persistence follow-on is independently accepted through `26347367c`: a dormant transactional
+  writer appends identity-free fact revisions/corrections and cursor CAS behind the Wi-Fi deletion
+  epoch. Historical terminal runs require a complete bounded current replacement manifest/action/
+  registration bundle with current epoch and exact wall/elapsed reservation, acceptance,
+  acknowledgement, and retirement chronology; ACTIVE and RETIRING shapes fail closed separately.
+  Provider activation, maintenance/transfer, product history, and UI remain open.
 
 Read-only Git reconciliation found no accepted committed work lost through compaction. The imported
 Steps source branches are already contained or patch-equivalent in this coordinator; old

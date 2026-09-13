@@ -160,8 +160,13 @@ gaps as **IMPLEMENTED_UNVALIDATED**. Commits `8c2587909` and `d7c5e5d4b` add an 
 accepted retained-WAL adapter: it authenticates the exact accepted historical plan application,
 recomputes every bounded demand floor and authorization member, validates canonical active or
 terminal lifecycle settlement and admission cutoff, and caps all authority and delivery reads.
-Fact persistence, callback ownership, bounded active attempts, product history, maintenance,
-transfer, and UI remain open.
+The persistence follow-on is independently accepted through `26347367c`: one dormant source-local
+writer transaction appends identity-free revisions, correction/aggregate ownership and cursor CAS
+behind the Wi-Fi deletion epoch. Older terminal replacement history is accepted only when a bounded
+exact current replacement bundle proves manifest/checksum/source membership, reciprocal run/segment,
+start action, plan, provider registration, current epoch, paired wall/elapsed chronology, and
+lifecycle-valid ACTIVE or RETIRING state. Fact persistence remains inactive; callback ownership,
+bounded active attempts, product history, maintenance, transfer, and UI remain open.
 
 Git/worktree reconciliation found no accepted committed implementation stranded or lost: imported
 Steps branches are contained or patch-equivalent in the coordinator, the older Pressure and numeric

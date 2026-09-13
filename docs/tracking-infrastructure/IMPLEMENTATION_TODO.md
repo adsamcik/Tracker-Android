@@ -745,6 +745,15 @@ retention, deletion, clock, and zone. These TODOs remain unchecked until source-
 persistence, writer/cursor and maintenance exist and a production provider-to-product path consumes
 them.
 
+Accepted persistence commits `3a8fd1968` through `26347367c` implement bounded portions of
+WIFI-001/004/005/010/013. One dormant source-local transaction appends identity-free fact revisions,
+correction/aggregate ownership and cursor CAS behind the Wi-Fi deletion epoch. A terminal older run
+is attributable only through a complete current replacement manifest/action/provider bundle with
+exact current epoch and paired wall/elapsed reservation, acceptance, acknowledgement and retirement
+chronology. ACTIVE and RETIRING registrations have distinct valid shapes. These TODOs remain
+unchecked until product history/UI, provider/callback and active-attempt ownership, maintenance,
+transfer, automatic/ambient behavior, and complete scenarios exist.
+
 ## Cell vertical
 
 - [ ] TODO-CELL-001 Complete one app-scoped Cell callback owner and stable durable delivery identity

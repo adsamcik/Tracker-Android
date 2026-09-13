@@ -3554,3 +3554,20 @@ Each entry records repository evidence and does not duplicate the final architec
   CONTROL, deleted, retained-out, or generation-invalid evidence cannot write captured history.
 - The production projection catalog remains inert. This does not activate a destination, provider,
   automatic mode, shared UI, transfer, or product rollout.
+
+## TI-D222 — Wi-Fi terminal history requires a complete current replacement bundle
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/schema/tests `3a8fd1968`
+  through `26347367c` atop the accepted Wi-Fi classifier/WAL adapter; TI-B285.
+- The dormant Wi-Fi writer appends identity-free fact revisions, bounded correction and finite
+  aggregate-owner references, and one exact source cursor in a single Room transaction behind the
+  Wi-Fi deletion epoch. Replay, cancellation, stale generation, and invalid authority fail closed.
+- An older terminal physical run is attributable only when the different current run has a complete
+  bounded manifest timeline/checksum/source set, reciprocal run/segment, accepted start action,
+  canonical plan, boot/lease/source-instance, current evidence epoch, and exact process-bound
+  provider registration.
+- Registration reservation, acceptance, action acknowledgement, and retirement must preserve both
+  wall and elapsed chronology. ACTIVE and RETIRING shapes are validated separately; a retiring
+  provider cannot precede its accepted start acknowledgement.
+- No SSID, BSSID, raw identifier, provider activation, active scan, product history, maintenance,
+  transfer, UI, automatic/ambient enablement, or Location inference context is added.

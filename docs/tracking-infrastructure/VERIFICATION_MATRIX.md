@@ -2203,3 +2203,28 @@ Deferred focused command:
 The command was not run. Compilation, Room execution, generated v28 schema convergence, destination
 activation, provider/process/reboot/device behavior, shared UI, transfer, automatic capture,
 integration, rollout, and release remain unproven.
+
+## TI-B285 — Wi-Fi persistence and replacement-registration authority contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `26347367c`. Authored model, writer, real-Room,
+migration, WAL-adapter, and replacement tests cover identity-free changed/unchanged/coverage facts,
+exact delivery and source authority, Wi-Fi deletion epoch, correction/finite aggregate ownership,
+cursor CAS, replay, cancellation, and bounded lineage traversal. Terminal older-run cases cover
+complete current manifest checksum/source membership, reciprocal segment/run, accepted action,
+canonical plan, boot/lease/source instance, exact current evidence epoch, process-bound registration,
+paired acceptance clocks, reservation/acceptance/action chronology, and distinct ACTIVE/RETIRING
+retirement shapes. Missing/corrupt/stale/overflow and retirement-before-action wall or elapsed cases
+fail closed. Repeated reviews rejected equality-only lifecycle, missing replacement authentication,
+stale epoch/clock shapes, and incomplete retirement ordering before accepting the correction.
+
+Deferred focused commands:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*WifiCapturedFact*' --tests '*WifiWalQualificationAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat :core:base:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.shared.base.database.AppDatabaseMigration27To28Test --no-daemon --no-parallel --max-workers=1 --console=plain --no-configuration-cache
+```
+
+Neither command was run. Compilation, Room query/migration execution, generated v28 schema
+convergence, provider/callback/active-attempt behavior, product history/UI, maintenance/transfer,
+device/process evidence, automatic/ambient operation, integration, activation, and release remain
+unproven.
