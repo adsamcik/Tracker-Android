@@ -144,6 +144,23 @@
     <string name="trip_detail_delete_confirm">Delete</string>
     <string name="trip_detail_cancel">Cancel</string>
     <string name="trip_detail_more_options">More options</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">Pressure session</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">Air pressure</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">Latest</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">Retained range</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">First-to-latest change</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">Coverage</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">Stored zone</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">Updating retained pressure…</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">Partial retained pressure</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Retained pressure available</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">Pressure unavailable</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">Pressure history failed</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">No retained coverage</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">Complete retained coverage</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">Partial retained coverage</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">Coverage unavailable</string>
 
     <!-- Ski session detail -->
     <string name="ski_detail_header">Ski Session</string>

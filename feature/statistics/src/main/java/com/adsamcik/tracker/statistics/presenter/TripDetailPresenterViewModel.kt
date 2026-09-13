@@ -79,6 +79,11 @@ class TripDetailPresenterViewModel @Inject constructor(
 	fun loadSupplementalData() {
 		val loaded = state.value as? TripDetailState.Loaded ?: return
 		supplementalDataJob?.cancel()
+		if (!loaded.supportsLocationPresentation) {
+			_skiSegments.value = emptyList()
+			_insights.value = TripDetailInsights()
+			return
+		}
 		supplementalDataJob = viewModelScope.launch {
 			try {
 				loadSupplementalDataForTrip(loaded)
@@ -123,6 +128,7 @@ class TripDetailPresenterViewModel @Inject constructor(
 	fun exportTripGpx(context: Context) {
 		viewModelScope.launch {
 			val loaded = state.value as? TripDetailState.Loaded ?: return@launch
+			if (!loaded.supportsLocationPresentation) return@launch
 			val trip = loaded.trip
 			gpxShareHelper.exportAndShare(
 				context = context,

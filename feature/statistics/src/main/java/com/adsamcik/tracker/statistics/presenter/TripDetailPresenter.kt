@@ -1,17 +1,17 @@
 package com.adsamcik.tracker.statistics.presenter
 
 import com.adsamcik.tracker.stats.api.presenter.Presenter
-import com.adsamcik.tracker.stats.api.repository.TripRepository
-import com.adsamcik.tracker.stats.api.repository.TripSummary
+import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+import com.adsamcik.tracker.stats.api.repository.TripRepository
+import com.adsamcik.tracker.stats.api.repository.TripSummary
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 /** UI state for the trip detail screen. */
@@ -20,6 +20,7 @@ sealed interface TripDetailState {
 	data class Loaded(
 		val trip: TripSummary,
 		val steps: TripDetailStepsState,
+		val sourcePresentation: TripDetailSourcePresentation = TripDetailSourcePresentation.Standard,
 	) : TripDetailState
 	data class NotFound(val tripId: Long) : TripDetailState
 	data class Error(val message: String) : TripDetailState
@@ -56,31 +57,37 @@ class TripDetailPresenter @Inject constructor(
 							}
 						},
 						ifRight = { trip ->
-							emit(
-								TripDetailState.Loaded(
-									trip = trip,
-									steps = TripDetailStepsState.Materializing,
-								),
+							var latestState: TripDetailState = TripDetailState.Loaded(
+								trip = trip,
+								steps = TripDetailStepsState.Materializing,
+								sourcePresentation = TripDetailSourcePresentation.Resolving,
 							)
-							emitAll(
-								trackingHistoryRepository.observeSession(event.tripId).map { query ->
-									when (query) {
-										SessionHistoryQuery.NotFound ->
-											TripDetailState.NotFound(event.tripId)
-										is SessionHistoryQuery.Found -> TripDetailState.Loaded(
-											trip = trip,
-											steps = query.history.steps.toTripDetailStepsState(),
-										)
+							emit(latestState)
+							try {
+								trackingHistoryRepository.observeLiveSession(event.tripId).collect { snapshot ->
+									latestState = when (val session = snapshot.session) {
+										SessionHistoryQuery.NotFound -> TripDetailState.NotFound(event.tripId)
+										is SessionHistoryQuery.Found -> {
+											val pressure = requireNotNull(
+												snapshot.pressure as? PressureSessionHistoryQuery.Found,
+											) { "Live history snapshot resolved only one source product" }
+											TripDetailState.Loaded(
+												trip = trip,
+												steps = session.history.steps.toTripDetailStepsState(),
+												sourcePresentation = pressure.history
+													.toTripDetailSourcePresentation(),
+											)
+										}
 									}
-								}.catch {
-									emit(
-										TripDetailState.Loaded(
-											trip = trip,
-											steps = TripDetailStepsState.Failed,
-										),
-									)
-								},
-							)
+									emit(latestState)
+								}
+							} catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
+								if (error is CancellationException) throw error
+								val failedState = (latestState as? TripDetailState.Loaded)?.copy(
+									steps = TripDetailStepsState.Failed,
+								) ?: latestState
+								emit(failedState)
+							}
 						},
 					)
 				}
