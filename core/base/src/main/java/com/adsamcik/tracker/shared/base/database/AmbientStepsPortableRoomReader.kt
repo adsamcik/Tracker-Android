@@ -314,7 +314,7 @@ private suspend fun AppDatabase.hasExactActiveAmbientCursorAuthority(
 		registration.failureCode != null ||
 		registration.captureCallbackBarrierAuthorizationRevision != 0L
 	) return false
-	if (sourceBrokerDao().maximumCaptureAuthorizationRevision(
+	if (ambientStepsImportStateDao().latestAuthorizationRevision(
 			SourceDestinationOwnerEntity.SOURCE_STEPS,
 			cursor.registrationGeneration,
 		) != cursor.authorizationRevision

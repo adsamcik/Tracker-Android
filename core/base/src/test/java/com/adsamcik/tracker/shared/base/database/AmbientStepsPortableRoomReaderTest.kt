@@ -183,6 +183,43 @@ class AmbientStepsPortableRoomReaderTest {
 	}
 
 	@Test
+	fun `later deny all invalidates an older active backlog cursor before export`() = runTest {
+		val retired = seed(importedThroughMs = SECOND_DAY_END)
+		database.ambientStepsFactRevisionDao().insert(
+			retired.fact(
+				startTimeMs = DAY_END,
+				endTimeMs = SECOND_DAY_END,
+				stepCount = 11L,
+				structuralEpochDay = 1L,
+				structuralDayStartTimeMs = DAY_END,
+				structuralDayEndTimeMs = SECOND_DAY_END,
+			),
+		)
+		insertActiveBacklogCursor(
+			registrationGeneration = SUCCESSOR_REGISTRATION,
+			sourceInstanceId = SUCCESSOR_SOURCE_INSTANCE,
+			importedThroughTimeMs = 1_000L,
+		)
+		database.sourceBrokerDao().insertAuthorizations(
+			SourceBrokerAuthorization.rows(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				SUCCESSOR_REGISTRATION,
+				AUTHORIZATION + 1L,
+				emptyList(),
+				BOOT_ID,
+				2_000_000_000L,
+				2_000L,
+			),
+		)
+
+		AmbientStepsPortableRoomReader(database).read(
+			AmbientStepsPortableReadRequest(DAY_END, SECOND_DAY_END),
+		) shouldBe AmbientStepsPortableSnapshot.Unverifiable(
+			AmbientStepsPortableReadFailure.CORRUPT_RETAINED_STATE,
+		)
+	}
+
+	@Test
 	fun `terminal deletion and delayed exact replay remain clean no data after cursor removal`() = runTest {
 		val fixture = seed(revoked = true)
 		val fact = fixture.fact(0L, DAY_END, 9L)

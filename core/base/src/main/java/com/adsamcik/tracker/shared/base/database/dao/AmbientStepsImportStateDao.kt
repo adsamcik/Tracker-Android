@@ -76,6 +76,19 @@ interface AmbientStepsImportStateDao {
 	suspend fun maintenanceCursors(limit: Int): List<AmbientStepsImportCursorEntity>
 
 	/**
+	 * Latest authorization revision of any kind for one Ambient provider registration.
+	 * This deliberately includes deny-all revisions, which have no purpose-bearing member row.
+	 */
+	@Query(
+		"SELECT COALESCE(MAX(authorization_revision), 0) FROM source_authorization " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration",
+	)
+	suspend fun latestAuthorizationRevision(
+		sourceKind: Int,
+		registrationGeneration: Long,
+	): Long
+
+	/**
 	 * Monotonic compare-and-set used inside the eventual provider-read/fact transaction.
 	 * A repeated correction read may retain the same time high-water, but it must advance both the
 	 * observation timestamp and cursor revision. A stale importer cannot change the row.
