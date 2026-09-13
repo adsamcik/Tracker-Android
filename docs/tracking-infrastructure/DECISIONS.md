@@ -3522,3 +3522,20 @@ Each entry records repository evidence and does not duplicate the final architec
   v1 subscription grouping remains typed `UNKNOWN`; no stable radio identity is introduced.
 - This adds no provider/callback owner, runtime projection, maintenance, transfer, shared UI,
   automatic/ambient activation, or Location enrichment.
+
+## TI-D220 — Activity maintenance deletes capture facts only behind exact run fences
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/tests `adcf47289` and
+  `d3b889991` atop the dormant Activity projection branch; TI-B283.
+- Retention authenticates each complete captured-Activity correction lineage and removes whole
+  uncertainty-crossing windows only behind the current source-evidence retention floor. Partial,
+  orphaned, malformed, foreign, or configured-overflow state fails closed before mutation.
+- Capture-source deletion requires current revoked `SESSION_CAPTURE` consent, no active/retiring
+  capture demand, and no nonterminal compatible Activity registration. Shared registrations are
+  treated conservatively; CONTROL is not interpreted as captured product data.
+- The transaction reconciles every expected Activity revision, cursor, fragment, evidence, and
+  registration-plan row, authenticates live/replacement/terminal effect ends exactly as the writer
+  stored them, installs exact retained run deletion fences, and only then clears capture state.
+  WAL and CONTROL remain intact; stale projection replay cannot resurrect deleted facts.
+- This is source-local maintenance, not a generic tombstone platform. Transfer, shared UI, terminal
+  projection acceptance, catalog activation, provider/device behavior, and AUTO-005 remain separate.

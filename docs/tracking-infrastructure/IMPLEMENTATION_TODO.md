@@ -684,6 +684,14 @@ uses true plan revision rather than registration generation. The TODOs remain un
 bounded terminal projection trigger and source-local destination activation exist, followed by
 maintenance, transfer, shared UI, and complete scenarios.
 
+Accepted maintenance commits `adcf47289` and `d3b889991` implement bounded portions of
+ACT-003/007/010. Whole correction lineages are retained only behind the exact uncertainty-safe floor;
+capture-source deletion requires revoked capture consent, quiesced capture demands and every
+compatible physical registration, complete fact/cursor/fragment/evidence/plan reconciliation, and
+exact run fences before clearing capture state. WAL and CONTROL are preserved and stale replay is
+rejected. These TODOs remain unchecked until terminal projection, transfer, shared UI, automatic
+capture behavior, and complete scenarios exist.
+
 ## Wi-Fi vertical
 
 - [ ] TODO-WIFI-001 Complete one app-scoped Wi-Fi callback owner and stable durable delivery

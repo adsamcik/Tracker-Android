@@ -75,7 +75,12 @@ Independent clean lanes:
   independently accepted for exact runtime plan attribution: accepted ACTIVE_SESSION registration
   atomically stores canonical bytes/checksum/true revision/fingerprint, mismatch rolls back provider
   acceptance, CONTROL cannot supply captured authority, and callback delivery no longer substitutes
-  registration generation for plan revision. Terminal drain and destination activation remain
+  registration generation for plan revision. `codex/ti-activity-maintenance` is independently
+  accepted through `d3b889991`: bounded whole-lineage retention and capture-source deletion
+  authenticate live, replacement, and terminal writer semantics, reconcile every Activity fact/
+  cursor/fragment/evidence/registration-plan row before success, and install exact run fences before
+  clearing capture state. WAL and CONTROL remain untouched; stale replay is rejected. Terminal
+  projection is still in correction review, while transfer, shared UI, and catalog activation remain
   absent.
 - Pressure source-specific read model and honest acquisition tiers:
   `codex/ti-pressure-acquisition` at `3b8abe350` in

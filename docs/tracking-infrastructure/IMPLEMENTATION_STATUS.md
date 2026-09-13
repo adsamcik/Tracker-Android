@@ -63,6 +63,15 @@ checksum, true revision, and fingerprint; exact desired-plan mismatch rolls back
 removes the requested provider; CONTROL and missing bindings cannot fabricate capture attribution;
 and delivery stamps plan identity rather than registration generation. Terminal drain remains open.
 
+The separate Activity maintenance branch is independently accepted through `d3b889991`. Retention
+authenticates complete source-owned correction lineages and removes whole uncertainty-safe windows
+only behind the exact current floor. Capture-source deletion requires revoked capture consent plus
+quiesced capture demand and every compatible Activity registration, reconciles bounded whole-table
+revision/cursor/fragment/evidence/registration-plan state, installs exact run deletion fences, and
+then clears capture facts while preserving WAL and CONTROL. Live, replacement, and terminal effect
+ends match the writer's boot/cutoff semantics; stale replay is rejected and cancellation rolls back.
+Portable transfer, shared UI, and catalog activation remain open.
+
 The isolated Pressure branch is clean at `3b8abe350`. Commits `8768767d4` through `8b076e6f7`
 provide fact-driven zero-sample discovery, reciprocal run/segment binding, complete replacement-run
 membership, immutable correction attribution, bounded and cancellable fact traversal, typed

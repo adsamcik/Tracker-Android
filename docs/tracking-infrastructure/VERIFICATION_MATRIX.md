@@ -2162,3 +2162,24 @@ Deferred focused command:
 The command was not run. Compilation, Room query execution, generated v28 schema convergence,
 runtime projection, retention/deletion/transfer, shared UI, provider/callback/device behavior,
 automatic/ambient operation, integration, activation, and release remain unproven.
+
+## TI-B283 — Activity retention, capture deletion, and no-resurrection contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `d3b889991`. Authored real-Room and writer tests cover
+bounded complete revision/cursor/fragment/evidence/registration-plan reconciliation, whole-lineage
+uncertainty-safe retention, live current and terminal-old/live-replacement runs, exact terminal
+cutoff and mismatch, revoked capture consent, active demand and shared registration quiescence,
+foreign/malformed/orphan/bare rows, exact run deletion fences, stale replay rejection, WAL/CONTROL
+preservation, limit-plus-one failure, transaction ordering, and cancellation rollback. Independent
+review rejected nullable-cutoff comparison and incomplete child-table accounting before accepting
+the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ActivityCapturedFactMaintenanceTest' :tracker:engine:testDebugUnitTest --tests '*ActivityCapturedFactWriterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query execution, generated v28 schema convergence,
+terminal projection acceptance, portable transfer, shared UI, provider/process/device behavior,
+automatic capture, integration, activation, and release remain unproven.
