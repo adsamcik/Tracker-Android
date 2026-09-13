@@ -9,6 +9,10 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEn
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 
 /** Narrow append-only storage boundary for the dormant captured Activity writer. */
 @Dao
@@ -110,6 +114,169 @@ interface ActivityCapturedFactDao {
 		logicalWindowId: String,
 	): ActivityCapturedWindowCursorEntity?
 
+	/** Stable bounded revision keyset used by Activity-owned maintenance. */
+	@Query(
+		"SELECT * FROM activity_captured_window_revision " +
+			"WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion AND (" +
+			":afterLogicalWindowId IS NULL OR logical_window_id > :afterLogicalWindowId OR " +
+			"(logical_window_id = :afterLogicalWindowId " +
+			"AND semantic_revision > :afterSemanticRevision)) " +
+			"ORDER BY logical_window_id, semantic_revision LIMIT :limit",
+	)
+	suspend fun maintenanceRevisionPage(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		afterLogicalWindowId: String?,
+		afterSemanticRevision: Long?,
+		limit: Int,
+	): List<ActivityCapturedWindowRevisionEntity>
+
+	/** Stable bounded cursor keyset used to prove one current head per retained lineage. */
+	@Query(
+		"SELECT * FROM activity_captured_window_cursor " +
+			"WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion " +
+			"AND (:afterLogicalWindowId IS NULL OR logical_window_id > :afterLogicalWindowId) " +
+			"ORDER BY logical_window_id LIMIT :limit",
+	)
+	suspend fun maintenanceCursorPage(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		afterLogicalWindowId: String?,
+		limit: Int,
+	): List<ActivityCapturedWindowCursorEntity>
+
+	/** SQLite-enforced fragment cap; callers request one overflow row. */
+	@Query(
+		"SELECT * FROM activity_captured_fragment " +
+			"WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion " +
+			"AND logical_window_id = :logicalWindowId AND semantic_revision = :semanticRevision " +
+			"ORDER BY fragment_ordinal LIMIT :limit",
+	)
+	suspend fun maintenanceFragments(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		logicalWindowId: String,
+		semanticRevision: Long,
+		limit: Int,
+	): List<ActivityCapturedFragmentEntity>
+
+	/** SQLite-enforced evidence cap; callers request one overflow row. */
+	@Query(
+		"SELECT * FROM activity_captured_evidence " +
+			"WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion " +
+			"AND logical_window_id = :logicalWindowId AND semantic_revision = :semanticRevision " +
+			"ORDER BY fragment_ordinal, evidence_ordinal LIMIT :limit",
+	)
+	suspend fun maintenanceEvidence(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		logicalWindowId: String,
+		semanticRevision: Long,
+		limit: Int,
+	): List<ActivityCapturedEvidenceEntity>
+
+	/** Stable bounded plan-binding keyset for complete captured-source deletion audits. */
+	@Query(
+		"SELECT * FROM activity_captured_registration_plan WHERE " +
+			":afterSourceInstanceId IS NULL OR source_instance_id > :afterSourceInstanceId OR " +
+			"(source_instance_id = :afterSourceInstanceId " +
+			"AND registration_generation > :afterRegistrationGeneration) " +
+			"ORDER BY source_instance_id, registration_generation LIMIT :limit",
+	)
+	suspend fun maintenanceRegistrationPlanPage(
+		afterSourceInstanceId: String?,
+		afterRegistrationGeneration: Long?,
+		limit: Int,
+	): List<ActivityCapturedRegistrationPlanEntity>
+
+	/** Nonterminal captured demands include prepared rows that could later become active. */
+	@Query(
+		"SELECT * FROM source_demand WHERE source_kind = :sourceKind " +
+			"AND purpose = :purpose AND status IN ('ACTIVE', 'RETIRING', 'BLOCKED') " +
+			"ORDER BY demand_id LIMIT :limit",
+	)
+	suspend fun capturedActivityDemandsForDeletion(
+		sourceKind: Int,
+		purpose: String,
+		limit: Int,
+	): List<SourceDemandEntity>
+
+	/** All physical registrations that could still deliver a captured callback. */
+	@Query(
+		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
+			"AND status IN ('RESERVED', 'ACTIVE', 'RETIRING') " +
+			"ORDER BY registration_generation LIMIT :limit",
+	)
+	suspend fun activityRegistrationsForDeletion(
+		sourceKind: Int,
+		limit: Int,
+	): List<ProviderRegistrationGenerationEntity>
+
+	@Query(
+		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND authorization_revision = :authorizationRevision ORDER BY member_id LIMIT :limit",
+	)
+	suspend fun maintenanceAuthorizationMembers(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		authorizationRevision: Long,
+		limit: Int,
+	): List<SourceAuthorizationEntity>
+
+	@Query(
+		"SELECT * FROM source_desired_plan WHERE revision = :revision " +
+			"ORDER BY source_kind LIMIT :limit",
+	)
+	suspend fun maintenanceDesiredPlans(
+		revision: Long,
+		limit: Int,
+	): List<SourceDesiredPlanEntity>
+
+	@Query(
+		"SELECT COUNT(*) FROM activity_captured_window_revision WHERE " +
+			"writer_projection_id != :writerProjectionId " +
+			"OR writer_projection_version != :writerProjectionVersion",
+	)
+	suspend fun unsupportedRevisionCount(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+	): Long
+
+	@Query(
+		"SELECT COUNT(*) FROM activity_captured_fragment WHERE " +
+			"writer_projection_id != :writerProjectionId " +
+			"OR writer_projection_version != :writerProjectionVersion",
+	)
+	suspend fun unsupportedFragmentCount(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+	): Long
+
+	@Query(
+		"SELECT COUNT(*) FROM activity_captured_evidence WHERE " +
+			"writer_projection_id != :writerProjectionId " +
+			"OR writer_projection_version != :writerProjectionVersion",
+	)
+	suspend fun unsupportedEvidenceCount(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+	): Long
+
+	@Query(
+		"SELECT COUNT(*) FROM activity_captured_window_cursor WHERE " +
+			"writer_projection_id != :writerProjectionId " +
+			"OR writer_projection_version != :writerProjectionVersion",
+	)
+	suspend fun unsupportedCursorCount(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+	): Long
+
 	/** Earliest possible band wall time across both uncertain boundaries and the full lineage. */
 	@Query(
 		"SELECT MIN(CASE " +
@@ -169,8 +336,41 @@ interface ActivityCapturedFactDao {
 	@Query("SELECT COUNT(*) FROM activity_captured_window_revision")
 	suspend fun revisionCount(): Long
 
+	@Query("SELECT COUNT(*) FROM activity_captured_fragment")
+	suspend fun fragmentCount(): Long
+
+	@Query("SELECT COUNT(*) FROM activity_captured_evidence")
+	suspend fun evidenceCount(): Long
+
+	@Query("SELECT COUNT(*) FROM activity_captured_window_cursor")
+	suspend fun cursorCount(): Long
+
 	@Query("SELECT COUNT(*) FROM activity_captured_registration_plan")
 	suspend fun registrationPlanBindingCount(): Long
+
+	@Query(
+		"DELETE FROM activity_captured_window_cursor " +
+			"WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion " +
+			"AND logical_window_id IN (:logicalWindowIds)",
+	)
+	suspend fun deleteExactCursors(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		logicalWindowIds: List<String>,
+	): Int
+
+	@Query(
+		"DELETE FROM activity_captured_window_revision " +
+			"WHERE writer_projection_id = :writerProjectionId " +
+			"AND writer_projection_version = :writerProjectionVersion " +
+			"AND logical_window_id IN (:logicalWindowIds)",
+	)
+	suspend fun deleteExactRevisionLineages(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		logicalWindowIds: List<String>,
+	): Int
 
 	@Query("DELETE FROM activity_captured_evidence")
 	fun deleteAllEvidence()

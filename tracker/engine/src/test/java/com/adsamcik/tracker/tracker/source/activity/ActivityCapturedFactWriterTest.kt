@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.source.activity
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ActivityCapturedSourceDeletionResult
+import com.adsamcik.tracker.shared.base.database.deleteCapturedActivityFactsAfterConsentReset
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
@@ -21,6 +23,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
@@ -154,6 +157,63 @@ class ActivityCapturedFactWriterTest {
 			ActivityCapturedWriteCommand.Captured(capturedWindow()),
 		) shouldBe ActivityCapturedWriteResult.Rejected(ActivityCapturedWriteRejection.DELETED_SCOPE)
 		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+	}
+
+	@Test
+	fun `source deletion fences retained WAL replay without deleting CONTROL history`() = runTest {
+		seedAuthority()
+		val subject = ActivityCapturedFactWriter(database)
+		(subject.write(ActivityCapturedWriteCommand.Captured(capturedWindow())) is
+			ActivityCapturedWriteResult.Applied) shouldBe true
+		database.sourceBrokerDao().markRegistrationRetiring(
+			SourceKind.ACTIVITY.stableCode,
+			1L,
+			SOURCE_INSTANCE_ID,
+			3_000L,
+			500L,
+			"CAPTURE_CONSENT_REVOKED",
+		) shouldBe 1
+		database.sourceBrokerDao().completeRegistrationRetirement(
+			SourceKind.ACTIVITY.stableCode,
+			1L,
+			SOURCE_INSTANCE_ID,
+		) shouldBe 1
+		database.sourcePolicyDao().insertPolicies(
+			listOf(
+				activityPolicy(2L).copy(
+					capturePersistenceEligible = false,
+					captureConsentEpoch = null,
+					effectiveElapsedRealtimeNanos = 600L,
+					effectiveWallTimeMs = 3_500L,
+				),
+			),
+		)
+		database.sourcePolicyDao().insertConsentEpochs(
+			listOf(
+				activityConsent(2L).copy(
+					epoch = 1L,
+					eligible = false,
+					persistenceEligible = false,
+					effectiveElapsedRealtimeNanos = 600L,
+					effectiveWallTimeMs = 3_500L,
+				),
+			),
+		)
+		database.sourcePolicyDao().ensureAuthority(
+			SourcePolicyAuthorityEntity(
+				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+				currentPolicyRevision = 2L,
+				legacySettingsFingerprint = null,
+				updatedAtMs = 3_500L,
+			),
+		)
+
+		val deleted = database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 4_000L)
+		(deleted is ActivityCapturedSourceDeletionResult.Deleted) shouldBe true
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+		subject.write(ActivityCapturedWriteCommand.Captured(capturedWindow())) shouldBe
+			ActivityCapturedWriteResult.Rejected(ActivityCapturedWriteRejection.DELETED_SCOPE)
+		database.sourceEventWalDao().countAll() shouldBe 1L
 	}
 
 	@Test
