@@ -1046,7 +1046,7 @@ private suspend fun AppDatabase.authenticateCellRegistration(
 		(retiredElapsedNanos != null && acceptedElapsedNanos > retiredElapsedNanos) ||
 		expectedAuthorizationRevision <= 0L ||
 		expectedAuthorizationRevision > maximumCaptureAuthorizationRevision ||
-		registration.captureCallbackBarrierAuthorizationRevision > maximumCaptureAuthorizationRevision
+		registration.captureCallbackBarrierAuthorizationRevision != 0L
 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	return acceptedElapsedNanos..(retiredElapsedNanos ?: Long.MAX_VALUE)
 }

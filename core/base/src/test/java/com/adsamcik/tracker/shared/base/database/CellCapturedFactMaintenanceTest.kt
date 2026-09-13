@@ -93,6 +93,26 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `nonzero callback barrier within retained capture authorization blocks retention`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation " +
+				"SET capture_callback_barrier_authorization_revision = ? " +
+				"WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf(AUTHORIZATION_REVISION, CELL_SOURCE, REGISTRATION_GENERATION),
+		)
+
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			FLOOR_MS,
+			0L,
+			0L,
+			MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.Blocked(
+			CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
 	fun `retention removes the complete owner dependency closure when a dependent crosses`() = runTest {
 		val owner = seedCapturedCell(
 			retainedFromMs = FLOOR_MS,
