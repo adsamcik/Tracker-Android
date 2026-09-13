@@ -179,6 +179,59 @@ class AmbientStepsFactImporterTest {
 	}
 
 	@Test
+	fun `empty completed day becomes a gap and does not block later day evidence`() = runTest {
+		var invocation = 0
+		val reader = RecordingAmbientReader { window, observedAtMs ->
+			if (invocation++ == 0) {
+				null
+			} else {
+				AmbientStepsProviderAggregate(PROVIDER, window, 17L, observedAtMs)
+			}
+		}
+		val importer = subject(reader)
+		primeZone(importer)
+		clock.setTime(86_405_000L)
+
+		importer.importNext(
+			importBoundary(
+				through = 86_400_000L,
+				observedAt = 86_401_000L,
+				observedElapsed = 86_401_000L,
+			),
+		) shouldBe AmbientStepsImportResult.Gap(
+			reason = AmbientStepsImportGapReason.PROVIDER_NO_EVIDENCE,
+			fromTimeMs = 2_000L,
+			toTimeMs = 86_400_000L,
+		)
+
+		val applied = importer.importNext(
+			importBoundary(
+				through = 86_404_000L,
+				observedAt = 86_405_000L,
+				observedElapsed = 86_405_000L,
+			),
+		) as AmbientStepsImportResult.Applied
+
+		reader.windows shouldBe listOf(
+			AmbientStepsProviderReadWindow(2_000L, 86_400_000L),
+			AmbientStepsProviderReadWindow(86_400_000L, 86_404_000L),
+		)
+		applied.window shouldBe reader.windows.last()
+		database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
+		val gap = database.ambientStepsImportStateDao().gaps(
+			registration.state.registrationGeneration,
+		).single()
+		gap.reason shouldBe AmbientStepsImportGapEntity.REASON_PROVIDER_NO_EVIDENCE
+		gap.gapStartTimeMs shouldBe 2_000L
+		gap.gapEndTimeMs shouldBe 86_400_000L
+		val cursor = requireNotNull(
+			database.ambientStepsImportStateDao().cursor(registration.state.registrationGeneration),
+		)
+		cursor.importedThroughTimeMs shouldBe 86_404_000L
+		cursor.continuitySegmentGeneration shouldBe 2L
+	}
+
+	@Test
 	fun `provider failure is retryable and leaves durable import state untouched`() = runTest {
 		val reader = RecordingAmbientReader { _, _ -> error("provider unavailable") }
 		val importer = subject(reader)
@@ -290,6 +343,25 @@ class AmbientStepsFactImporterTest {
 		)
 		cursor.importedThroughTimeMs shouldBe 5_000L
 		cursor.lastObservedAtMs shouldBe 9_000L
+	}
+
+	@Test
+	fun `identical high-water and observation replay is an idempotent no-op`() = runTest {
+		val reader = RecordingAmbientReader { window, observedAtMs ->
+			AmbientStepsProviderAggregate(PROVIDER, window, 42L, observedAtMs)
+		}
+		val importer = subject(reader)
+		primeZone(importer)
+		val first = importer.importNext(importBoundary()) as AmbientStepsImportResult.Applied
+		val dao = database.ambientStepsImportStateDao()
+		val before = requireNotNull(dao.cursor(registration.state.registrationGeneration))
+
+		val replay = importer.importNext(importBoundary()) as AmbientStepsImportResult.Unchanged
+
+		replay.window shouldBe AmbientStepsProviderReadWindow(2_000L, 5_000L)
+		replay.cursorRevision shouldBe first.cursorRevision
+		dao.cursor(registration.state.registrationGeneration) shouldBe before
+		database.ambientStepsFactRevisionDao().countAll() shouldBe 1L
 	}
 
 	@Test

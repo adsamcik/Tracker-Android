@@ -86,6 +86,7 @@ internal enum class AmbientStepsImportNoEvidenceReason {
 internal enum class AmbientStepsImportGapReason {
 	INITIAL_ZONE_AUTHORITY_UNOBSERVED,
 	AUTHORITY_BOUNDARY_NOT_DRAINED,
+	PROVIDER_NO_EVIDENCE,
 	RETENTION_ADVANCED,
 	ZONE_CHANGED,
 }
@@ -300,6 +301,20 @@ internal class AmbientStepsFactImporter internal constructor(
 			return stale(AmbientStepsImportStaleReason.CURSOR_CHANGED)
 		}
 		if (aggregate == null) {
+			if (preflight.window.endTimeMs == preflight.window.day.endTimeMs) {
+				advanceAcrossGap(
+					cursor = preflight.storedCursor,
+					reason = AmbientStepsImportGapReason.PROVIDER_NO_EVIDENCE,
+					toTimeMs = preflight.window.endTimeMs,
+					nextZoneId = preflight.window.day.zoneId,
+					boundary = boundary,
+				)
+				return AmbientStepsImportResult.Gap(
+					reason = AmbientStepsImportGapReason.PROVIDER_NO_EVIDENCE,
+					fromTimeMs = preflight.storedCursor.importedThroughTimeMs,
+					toTimeMs = preflight.window.endTimeMs,
+				)
+			}
 			return AmbientStepsImportResult.NoEvidence(
 				AmbientStepsImportNoEvidenceReason.PROVIDER_RETURNED_NO_EVIDENCE,
 			)
@@ -333,6 +348,14 @@ internal class AmbientStepsFactImporter internal constructor(
 			window = preflight.window,
 			aggregate = aggregate,
 		)
+		if (unchanged && preflight.window.endTimeMs == cursor.importedThroughTimeMs &&
+			aggregate.observedAtMs == cursor.lastObservedAtMs
+		) {
+			return AmbientStepsImportResult.Unchanged(
+				window = preflight.window.providerWindow,
+				cursorRevision = cursor.cursorRevision,
+			)
+		}
 		val semanticRevision = if (unchanged) {
 			requireNotNull(latest).semanticRevision
 		} else {
@@ -1086,6 +1109,8 @@ private fun AmbientStepsImportGapReason.toStoredGapReason(): String = when (this
 		AmbientStepsImportGapEntity.REASON_INITIAL_ZONE_AUTHORITY_UNOBSERVED
 	AmbientStepsImportGapReason.AUTHORITY_BOUNDARY_NOT_DRAINED ->
 		AmbientStepsImportGapEntity.REASON_AUTHORITY_BOUNDARY_NOT_DRAINED
+	AmbientStepsImportGapReason.PROVIDER_NO_EVIDENCE ->
+		AmbientStepsImportGapEntity.REASON_PROVIDER_NO_EVIDENCE
 	AmbientStepsImportGapReason.RETENTION_ADVANCED ->
 		AmbientStepsImportGapEntity.REASON_PROVIDER_RETENTION_LOSS
 	AmbientStepsImportGapReason.ZONE_CHANGED -> AmbientStepsImportGapEntity.REASON_ZONE_CHANGED
