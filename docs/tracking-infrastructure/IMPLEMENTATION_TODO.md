@@ -561,16 +561,19 @@ Accepted source convergence through `ed4089323` adds the Pressure portions that 
 slice deliberately left open: both retention workers run exact mark-and-prune before physical
 Pressure deletion, and source-specific recent/detail reads authenticate retained marker-only groups
 as partial while exposing no qualified source, windows, summary, or value. PRESS-008/012 remain
-unchecked because portable export/import, selected/all-data deletion integration, correction-safe
-repair, shared product surfaces, and the final scenario cohort are not complete.
+unchecked because portable import, a separately invocable Pressure-wide erase, shared product
+surfaces, and the final scenario cohort are not complete. Exact selected-session deletion and
+stored-zone correction-safe repair are already implemented in `61608800e`/`9592c42d8`; the global
+all-data transaction already advances the collected-data epoch and clears Pressure facts.
 
 Accepted export-only commit `63b9667b3` implements the portable-output portion of PRESS-008/012 and
 PRIV-006. One bounded transaction emits complete qualified replacement groups in a self-checksummed
 Pressure v1 format with opaque kind-scoped identities, quality/coverage/uncertainty and stored-zone
 evidence, and explicit retention-loss partial state. It excludes Location, control, provider and
-local database identity. These TODOs remain unchecked because authoritative import, selected and
-all-data deletion, correction-safe repair, no-resurrection mapping, shared UI, and explicit maximum
-boundary scenario tests remain.
+local database identity. These TODOs remain unchecked because authoritative import, separately
+invocable source-wide deletion semantics, no-resurrection mapping, shared UI, and explicit maximum-
+boundary scenario tests remain. Exact selected-session deletion and stored-zone repair are already
+accepted, and global all-data erasure already includes Pressure facts.
 
 Accepted product/UI commits `06ec05883` through `c27cc1c18` implement bounded portions of
 PRESS-006/007/012 and HIST-002/003/005/006/011/012. One Pressure-aware recent page uses exact-intent

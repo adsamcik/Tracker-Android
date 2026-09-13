@@ -102,8 +102,10 @@ corrupt markers are omitted; surviving replacement facts stay visible. The separ
 transfer branch is independently accepted through `63b9667b3` for export only: one bounded Room
 snapshot emits a self-checksummed, opaque, identity-minimized v1 stream with exact replacement,
 quality, uncertainty, stored-zone, and retention-loss semantics and no Location, control, provider,
-or local database identity. Shared UI, correction-safe repair, selected/all-data deletion,
-authoritative portable import, and automatic Activity control remain open. The separate Pressure UI
+or local database identity. Exact selected-session deletion and stored-zone repair already exist in
+`61608800e`/`9592c42d8`, and the global all-data transaction advances the collected-data epoch before
+clearing Pressure facts. Authoritative portable import, a separately invocable Pressure-wide erase,
+and automatic Activity control remain open. The separate Pressure UI
 branch is independently accepted through `8214b92ab` for one bounded Pressure-aware recent page,
 Dashboard row, and transactional live snapshot. Exact Pressure intent replaces the physical fallback
 before first fact; mixed/legacy entries remain physical; direct hPa metrics and typed state are shown

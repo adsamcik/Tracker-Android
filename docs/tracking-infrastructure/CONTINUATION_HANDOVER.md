@@ -98,8 +98,11 @@ Independent clean lanes:
   qualified source or value. `codex/ti-pressure-transfer` is independently accepted through
   `63b9667b3` for a bounded, self-checksummed, privacy-safe export-only format and one-transaction
   reader. It emits opaque kind-scoped identity and qualified Pressure quality/uncertainty/zone
-  evidence, never Location, control, provider, or local database identity. Import remains absent
-  until a source-authoritative writer and deletion/retention/no-resurrection mapping exist. Shared
+  evidence, never Location, control, provider, or local database identity. Exact selected-session
+  deletion and stored-zone repair are already accepted in `61608800e`/`9592c42d8`; the global
+  all-data transaction advances the collected-data epoch before clearing Pressure facts. Portable
+  import and a separately invocable Pressure-wide erase remain absent until source-authoritative
+  writer, source-generation, quiescence, and no-resurrection mapping exist. Shared
   UI commits `06ec05883` through `8214b92ab` on `codex/ti-pressure-ui` are independently accepted for
   a bounded Pressure-aware recent page, opaque Dashboard row, and one-transaction live snapshot.
   Exact Pressure intent replaces the physical fallback before first fact; only retained direct hPa

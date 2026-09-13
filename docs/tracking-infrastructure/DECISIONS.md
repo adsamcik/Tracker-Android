@@ -3571,3 +3571,22 @@ Each entry records repository evidence and does not duplicate the final architec
   provider cannot precede its accepted start acknowledgement.
 - No SSID, BSSID, raw identifier, provider activation, active scan, product history, maintenance,
   transfer, UI, automatic/ambient enablement, or Location inference context is added.
+
+## TI-D223 — Pressure maintenance scope distinguishes existing deletion from missing source-wide authority
+
+- Status: **RECONCILED_FROM_REPOSITORY_EVIDENCE**, 2026-09-13; static audit of accepted ancestry and
+  current code; TI-B286.
+- Pressure selected-session deletion and stored-zone correction-safe repair are already implemented
+  and accepted in `61608800e` and `9592c42d8`. Source-specific retention and retained-loss discovery
+  are present through `ed4089323`, and privacy-safe portable export exists separately at
+  `63b9667b3`.
+- The global all-data transaction atomically advances the collected-data epoch/high-water before
+  clearing WAL, lifecycle state, and `pressure_fact_revision`, so a second "all-data" Pressure path
+  would duplicate existing authority.
+- What remains is narrower and materially different: portable Pressure import and, only if the
+  product requires it, a separately invocable Pressure-wide erase. The latter cannot borrow selected
+  session ownership or `QUIESCED`; it requires explicit source-generation, run-fence enumeration,
+  provider/demand quiescence, undrained-WAL handling, and no-resurrection semantics.
+- Historical checkpoint text that predates the accepted deletion/read/retention work remains useful
+  as history but is not the current implementation boundary. Do not start a duplicate deletion/day
+  repair lane from those older snapshots.

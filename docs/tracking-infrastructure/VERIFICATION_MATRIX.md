@@ -2228,3 +2228,17 @@ Neither command was run. Compilation, Room query/migration execution, generated 
 convergence, provider/callback/active-attempt behavior, product history/UI, maintenance/transfer,
 device/process evidence, automatic/ambient operation, integration, activation, and release remain
 unproven.
+
+## TI-B286 — Pressure deletion and repair scope reconciled against current code
+
+Status: **REPOSITORY_AUDIT_ONLY**. Read-only inspection confirmed that `61608800e` and `9592c42d8`
+provide the typed Pressure selected-session API/module/service, exact source/run deletion fence,
+bounded deterministic fact removal, stored-zone day repair, cancellation/rollback, idempotence, and
+delayed-replay no-resurrection tests already recorded by TI-B199/TI-B200. The `ed4089323` ancestry
+contains Pressure retention and retained-loss discovery; `63b9667b3` contains export only. Current
+`AppDatabase` global deletion advances the collected-data epoch/high-water atomically and removes
+Pressure fact revisions with the other tracking state.
+
+No command was executed beyond read-only source/history inspection, and no production or test file
+changed. Portable Pressure import and a separately invocable Pressure-wide erase remain unproven and
+must not be conflated with the accepted selected-session or global all-data paths.
