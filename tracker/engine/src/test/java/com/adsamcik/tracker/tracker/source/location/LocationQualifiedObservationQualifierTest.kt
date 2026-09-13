@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.location
 import com.adsamcik.tracker.shared.base.data.LocationPermissionPrecision
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
@@ -323,7 +324,11 @@ class LocationQualifiedObservationQualifierTest {
 				LocationFactRejection.WAL_INTEGRITY_UNVERIFIABLE,
 			baseline.copy(sourceDeliveryIdentity = null) to
 				LocationFactRejection.DELIVERY_IDENTITY_UNVERIFIABLE,
-			baseline.copy(payloadVersion = 2) to LocationFactRejection.UNSUPPORTED_PAYLOAD_VERSION,
+			baseline.copy(payloadVersion = 1) to LocationFactRejection.UNSUPPORTED_PAYLOAD_VERSION,
+			baseline.copy(payload = baseline.payload.copy(isMock = null)) to
+				LocationFactRejection.MOCK_PROVENANCE_MISMATCH,
+			baseline.copy(isMock = !baseline.isMock) to
+				LocationFactRejection.MOCK_PROVENANCE_MISMATCH,
 			baseline.copy(deliveryUnitIndex = 1, deliveryUnitCount = 1) to
 				LocationFactRejection.INVALID_DELIVERY_POSITION,
 		)
@@ -373,7 +378,10 @@ class LocationQualifiedObservationQualifierTest {
 			requireNotNull(originalInput.durableEvidence).copy(
 				quality = SourceQuality(flags = setOf(SourceQualityFlag.PROVIDER_DEGRADED)),
 			),
-			requireNotNull(originalInput.durableEvidence).copy(isMock = true),
+			requireNotNull(originalInput.durableEvidence).copy(
+				payload = requireNotNull(originalInput.durableEvidence).payload.copy(isMock = true),
+				isMock = true,
+			),
 		)
 
 		rawChanges.forEach { changedEvidence ->
@@ -587,8 +595,8 @@ class LocationQualifiedObservationQualifierTest {
 			observedWallTimeMs = observedWallTimeMs,
 			wallTimeUncertaintyMs = wallTimeUncertaintyMs,
 		),
-		payloadVersion = 1,
-		payload = payload,
+		payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+		payload = payload.copy(isMock = isMock),
 		quality = quality,
 		isMock = isMock,
 	)

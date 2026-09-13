@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrN
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -26,6 +27,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
+import com.adsamcik.tracker.tracker.source.model.sourceQualityFromStableFlags
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.time.ZoneId
@@ -78,9 +80,8 @@ internal sealed interface LocationWalAdapterResult {
  * The adapter accepts only an event identity. Every provider value and every authority field is
  * recovered and authenticated in one Room snapshot; no caller can supply a fix or a mutable
  * latest-plan pointer. Retained v1 rows terminate in a typed mock-provenance rejection because
- * their payload did not store that immutable provider flag. A later fully attributable payload may
- * return a command, but this adapter never persists it, so the established Location writer remains
- * the sole canonical writer.
+ * their payload did not store that immutable provider flag. Canonical v2 rows can return a command,
+ * but this adapter never persists it, so the established Location writer remains the sole writer.
  */
 internal class LocationWalQualificationAdapter @Inject constructor(
 	private val database: AppDatabase,
@@ -97,6 +98,9 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		}
 		if (!wal.hasQualifiedIntegrity()) {
 			return@withTransaction rejected(LocationWalAdapterRejection.WAL_INTEGRITY_MISMATCH)
+		}
+		if (wal.payloadVersion !in SUPPORTED_LOCATION_PAYLOAD_VERSIONS) {
+			return@withTransaction rejected(LocationWalAdapterRejection.UNSUPPORTED_PAYLOAD)
 		}
 		if (wal.sourceSequence <= 0L || wal.sourceSequence > MAX_DURABLE_SOURCE_SEQUENCE) {
 			return@withTransaction rejected(LocationWalAdapterRejection.SOURCE_SEQUENCE_MISMATCH)
@@ -382,7 +386,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		}.getOrNull() ?: return@withTransaction rejected(
 			LocationWalAdapterRejection.TEMPORAL_AUTHORITY_UNVERIFIABLE,
 		)
-		runCatching {
+		val captureAuthority = runCatching {
 			LocationCaptureAuthority(
 				logicalTrackingId = LogicalTrackingId(logicalTrackingId),
 				serviceRunId = ServiceRunId(serviceRunId),
@@ -430,10 +434,49 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		} == true) {
 			return@withTransaction rejected(LocationWalAdapterRejection.RETAINED_EVIDENCE)
 		}
-		// Retained Location WAL payload v1 does not carry the platform mock-provider bit. Supplying
-		// `false` would manufacture immutable evidence, so this dormant bridge must stop here until a
-		// future canonical payload version persists that provenance explicitly.
-		return@withTransaction rejected(LocationWalAdapterRejection.MOCK_PROVENANCE_UNVERIFIABLE)
+		val selectedPayload = decodedDelivery[deliveryUnitIndex].payload
+		if (wal.payloadVersion < LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION ||
+			selectedPayload.isMock == null
+		) {
+			// Retained Location WAL payload v1 did not carry the platform mock-provider bit. Supplying
+			// `false` would manufacture immutable evidence, so legacy bytes remain typed unverifiable.
+			return@withTransaction rejected(LocationWalAdapterRejection.MOCK_PROVENANCE_UNVERIFIABLE)
+		}
+		val evidence = LocationDurableObservationEvidence(
+			sourceEventId = SourceEventId(wal.eventId),
+			sourceAdmissionOrdinal = wal.admissionOrdinal,
+			walIntegrityIdentity = wal.integrityIdentity,
+			sourceDeliveryIdentity = deliveryIdentity,
+			deliveryUnitIndex = deliveryUnitIndex,
+			deliveryUnitCount = deliveryUnitCount,
+			capturedAuthority = captureAuthority,
+			clockAuthority = LocationDurableClockAuthority(
+				clockDomainId = wal.clockDomainId,
+				observedElapsedRealtimeNanos = wal.observedElapsedNanos,
+				receivedElapsedRealtimeNanos = wal.receivedElapsedNanos,
+				observedWallTimeMs = wallTime,
+				wallTimeUncertaintyMs = wallUncertainty,
+			),
+			payloadVersion = wal.payloadVersion,
+			payload = selectedPayload,
+			quality = sourceQualityFromStableFlags(wal.qualityFlags, wal.qualityConfidence),
+			isMock = requireNotNull(selectedPayload.isMock),
+		)
+		return@withTransaction LocationWalAdapterResult.Evaluated(
+			LocationQualifiedObservationQualifier.qualify(
+				input = LocationObservationInput(
+					origin = LocationObservationOrigin.PROVIDER_CALLBACK,
+					outcome = LocationProviderOutcome.FIX,
+					attemptedAuthority = captureAuthority,
+					durableEvidence = evidence,
+				),
+				expectedAuthority = captureAuthority,
+				currentDeletionAuthority = LocationDeletionAuthority(
+					currentCollectedDataEpoch = evidenceState.collectedDataEpoch,
+					retainedFromWallTimeMs = evidenceState.retainedFromMs,
+				),
+			),
+		)
 	}
 
 	private fun decodeAndAuthenticateDelivery(
@@ -454,6 +497,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		val decoded = delivery.mapIndexed { index, row ->
 			if (!row.hasQualifiedIntegrity() || row.deliveryUnitCount != declaredCount ||
 				row.deliveryIdentity != target.deliveryIdentity || row.sourceKind != LOCATION_SOURCE ||
+				row.payloadVersion != target.payloadVersion ||
 				row.providerDedupKey != null || row.admissionOrdinal <= 0L ||
 				row.sourceInstanceId != target.sourceInstanceId ||
 				row.registrationGeneration != target.registrationGeneration ||
@@ -544,8 +588,15 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 	private fun canonicalDeliveryBytes(units: List<DecodedLocationDeliveryUnit>): ByteArray =
 		ByteArrayOutputStream().use { bytes ->
 			DataOutputStream(bytes).use { output ->
+				val payloadVersion = units.first().wal.payloadVersion
 				output.writeInt(LOCATION_DELIVERY_MAGIC)
-				output.writeInt(LOCATION_DELIVERY_VERSION)
+				output.writeInt(
+					if (payloadVersion >= LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) {
+						LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION
+					} else {
+						LOCATION_LEGACY_DELIVERY_VERSION
+					},
+				)
 				output.writeInt(units.size)
 				units.forEach { unit ->
 					val row = unit.wal
@@ -562,6 +613,9 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 					output.writeOptionalFloat(payload.verticalAccuracyMeters)
 					output.writeOptionalFloat(payload.speedMetersPerSecond)
 					output.writeOptionalFloat(payload.bearingDegrees)
+					if (payloadVersion >= LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) {
+						output.writeBoolean(requireNotNull(payload.isMock))
+					}
 				}
 			}
 			bytes.toByteArray()
@@ -590,8 +644,11 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		const val MAX_MANIFESTS_PER_RUN = 256
 		const val MAX_MANIFEST_SOURCE_ROWS = 4_096
 		const val LOCATION_DELIVERY_MAGIC = 0x4c4f4342
-		const val LOCATION_DELIVERY_VERSION = 1
+		const val LOCATION_LEGACY_DELIVERY_VERSION = 1
+		const val LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION = 2
 		const val DERIVED_WALL_UNCERTAINTY_MS = 1L
+		val SUPPORTED_LOCATION_PAYLOAD_VERSIONS =
+			setOf(LOCATION_LEGACY_DELIVERY_VERSION, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION)
 	}
 }
 

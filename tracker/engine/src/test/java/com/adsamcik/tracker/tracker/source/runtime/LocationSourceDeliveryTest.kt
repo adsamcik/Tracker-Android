@@ -1,8 +1,9 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import com.adsamcik.tracker.testing.fake.FakeLocationSource
-import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -44,6 +45,24 @@ class LocationSourceDeliveryTest {
 			delivery.units.map { (it.evidence.payload as LocationFixPayload).provider },
 		)
 		assertTrue(delivery.units.all { it.evidence.sourceSequence == 0L })
+		assertTrue(delivery.units.all {
+			it.evidence.payloadVersion == LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
+		})
+		assertTrue(delivery.units.all { (it.evidence.payload as LocationFixPayload).isMock == false })
+	}
+
+	@Test
+	fun `mock provenance participates in payload and replay identity`() {
+		val ordinary = location("gps", elapsedNanos = 700L, wallTimeMs = 7L)
+		val mocked = copyLocation(ordinary).apply { isMock = true }
+
+		val ordinaryDelivery = delivery(listOf(ordinary), receivedElapsedNanos = 1_000L)
+		val mockDelivery = delivery(listOf(mocked), receivedElapsedNanos = 1_000L)
+
+		assertEquals(false, (ordinaryDelivery.units.single().evidence.payload as LocationFixPayload).isMock)
+		assertEquals(true, (mockDelivery.units.single().evidence.payload as LocationFixPayload).isMock)
+		assertTrue(ordinaryDelivery.identity != mockDelivery.identity)
+		assertEquals(mockDelivery.identity, delivery(listOf(copyLocation(mocked)), 1_500L).identity)
 	}
 
 	@Test
@@ -242,6 +261,7 @@ class LocationSourceDeliveryTest {
 			provider = source.provider ?: "test",
 		).apply {
 			elapsedRealtimeNanos = source.elapsedRealtimeNanos
+			if (source.isMockProviderEvidence()) isMock = true
 		}
 
 	private fun deviceState(

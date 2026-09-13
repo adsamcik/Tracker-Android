@@ -26,6 +26,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -38,7 +39,10 @@ import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotSame
+import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -76,6 +80,60 @@ class LocationWalQualificationAdapterTest {
 			subject.qualify(EVENT_ID),
 		)
 		assertEquals(1L, database.sourceEventWalDao().countAll())
+	}
+
+	@Test
+	fun `version two WAL qualifies exact non-mock provenance without writing a second fact`() = runTest {
+		installValidFixture(
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(isMock = false)),
+		)
+
+		val evaluated = assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		val qualified = assertIs<LocationObservationQualification.Qualified>(evaluated.qualification)
+
+		assertFalse(qualified.command.productEffect.isMock)
+		assertEquals(
+			LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			qualified.command.productEffect.durableEvidence.payloadVersion,
+		)
+		assertEquals(EVENT_ID, qualified.command.mutation.identity.sourceEventId)
+		assertEquals(1L, database.sourceEventWalDao().countAll())
+	}
+
+	@Test
+	fun `version two WAL retains positive mock provenance in qualified product effect`() = runTest {
+		installValidFixture(
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(isMock = true)),
+		)
+
+		val evaluated = assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		val qualified = assertIs<LocationObservationQualification.Qualified>(evaluated.qualification)
+
+		assertTrue(qualified.command.productEffect.isMock)
+		assertTrue(requireNotNull(qualified.command.productEffect.payload.isMock))
+	}
+
+	@Test
+	fun `version two mock provenance participates in exact delivery identity`() = runTest {
+		val nonMockPayload = locationPayload(isMock = false)
+		val nonMockIdentity = sourceDeliveryIdentity(
+			canonicalLocationDelivery(
+				payloads = listOf(nonMockPayload),
+				payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			),
+		).value
+		installValidFixture(
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(nonMockPayload.copy(isMock = true)),
+			deliveryIdentityOverride = nonMockIdentity,
+		)
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.DELIVERY_IDENTITY_MISMATCH),
+			subject.qualify(EVENT_ID),
+		)
 	}
 
 	@Test
@@ -356,6 +414,7 @@ class LocationWalQualificationAdapterTest {
 		deliveryIdentityOverride: String? = null,
 		evidenceState: SourceEvidenceState = SourceEvidenceState(),
 		sourceSequence: Long = SOURCE_SEQUENCE,
+		payloadVersion: Int = LEGACY_LOCATION_PAYLOAD_VERSION,
 		deliveryPayloads: List<LocationFixPayload> = listOf(locationPayload()),
 		selectedUnitIndex: Int = 0,
 		zoneId: String = ZONE_ID,
@@ -383,10 +442,10 @@ class LocationWalQualificationAdapterTest {
 		)
 		database.sourceBrokerDao().insertAuthorizations(authorization)
 		val deliveryIdentity = deliveryIdentityOverride ?: sourceDeliveryIdentity(
-			canonicalLocationDelivery(deliveryPayloads),
+			canonicalLocationDelivery(deliveryPayloads, payloadVersion),
 		).value
 		val walRows = deliveryPayloads.mapIndexed { index, payload ->
-			val encodedPayload = payloadCodec.encode(payload, PAYLOAD_VERSION)
+			val encodedPayload = payloadCodec.encode(payload, payloadVersion)
 			val unsignedWal = SourceEventWalEntity(
 				eventId = if (index == selectedUnitIndex) EVENT_ID.value else "location-event-sibling-$index",
 				providerDedupKey = null,
@@ -419,7 +478,7 @@ class LocationWalQualificationAdapterTest {
 				acquiredAtMs = OBSERVED_WALL_MS,
 				qualityFlags = SourceQuality().toStableFlags(),
 				qualityConfidence = null,
-				payloadVersion = PAYLOAD_VERSION,
+				payloadVersion = payloadVersion,
 				payload = encodedPayload.bytes,
 				payloadChecksum = encodedPayload.checksum,
 				createdAtMs = 1_600L,
@@ -671,7 +730,7 @@ class LocationWalQualificationAdapterTest {
 		preciseLocationAvailable = true,
 	)
 
-	private fun locationPayload() = LocationFixPayload(
+	private fun locationPayload(isMock: Boolean? = null) = LocationFixPayload(
 		latitudeDegrees = 50.087,
 		longitudeDegrees = 14.421,
 		horizontalAccuracyMeters = 5f,
@@ -680,13 +739,17 @@ class LocationWalQualificationAdapterTest {
 		speedMetersPerSecond = 1.5f,
 		bearingDegrees = 90f,
 		provider = "gps",
+		isMock = isMock,
 	)
 
-	private fun canonicalLocationDelivery(payloads: List<LocationFixPayload>): ByteArray =
+	private fun canonicalLocationDelivery(
+		payloads: List<LocationFixPayload>,
+		payloadVersion: Int = LEGACY_LOCATION_PAYLOAD_VERSION,
+	): ByteArray =
 		ByteArrayOutputStream().use { bytes ->
 			DataOutputStream(bytes).use { output ->
 				output.writeInt(0x4c4f4342)
-				output.writeInt(1)
+				output.writeInt(payloadVersion)
 				output.writeInt(payloads.size)
 				payloads.forEach { payload ->
 					val provider = payload.provider.encodeToByteArray()
@@ -705,6 +768,9 @@ class LocationWalQualificationAdapterTest {
 					output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.speedMetersPerSecond)))
 					output.writeBoolean(true)
 					output.writeInt(java.lang.Float.floatToRawIntBits(requireNotNull(payload.bearingDegrees)))
+					if (payloadVersion >= LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) {
+						output.writeBoolean(requireNotNull(payload.isMock))
+					}
 				}
 			}
 			bytes.toByteArray()
@@ -729,7 +795,7 @@ class LocationWalQualificationAdapterTest {
 		const val ROLLOUT_REVISION = 1L
 		const val SEGMENT_ID = 1L
 		const val SOURCE_SEQUENCE = 1L
-		const val PAYLOAD_VERSION = 1
+		const val LEGACY_LOCATION_PAYLOAD_VERSION = 1
 		const val QOS_CODE = 2
 		const val START_ORIGIN = "MANUAL_FOREGROUND_START"
 		const val RUN_START_NANOS = 100L

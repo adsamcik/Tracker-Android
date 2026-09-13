@@ -6,6 +6,7 @@ import com.adsamcik.tracker.tracker.source.model.CellObservationEvidence
 import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
 import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
@@ -58,8 +59,12 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 		}
 		val payload = DataInputStream(ByteArrayInputStream(bytes)).use { input ->
 			input.readPayload(payloadVersion).also {
-				if (payloadVersion >= PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION) {
-					require(input.available() == 0) { "Trailing source-payload version 4 bytes" }
+				if (
+					(source == SourceKind.LOCATION &&
+						payloadVersion >= LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) ||
+					payloadVersion >= PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION
+				) {
+					require(input.available() == 0) { "Trailing source-payload bytes" }
 				}
 			}
 		}
@@ -70,6 +75,15 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 	private fun DataOutputStream.writePayload(payload: SourcePayload, payloadVersion: Int) {
 		when (payload) {
 			is LocationFixPayload -> {
+				if (payloadVersion >= LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) {
+					require(payload.isMock != null) {
+						"Location payload version $payloadVersion requires durable mock provenance"
+					}
+				} else {
+					require(payload.isMock == null) {
+						"Location payload version $payloadVersion cannot discard mock provenance"
+					}
+				}
 				writeInt(TYPE_LOCATION_FIX)
 				writeDouble(payload.latitudeDegrees)
 				writeDouble(payload.longitudeDegrees)
@@ -79,6 +93,9 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 				writeNullableFloat(payload.speedMetersPerSecond)
 				writeNullableFloat(payload.bearingDegrees)
 				writeUTF(payload.provider)
+				if (payloadVersion >= LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) {
+					writeBoolean(requireNotNull(payload.isMock))
+				}
 			}
 			is ActivityTransitionPayload -> {
 				writeInt(TYPE_ACTIVITY_TRANSITION)
@@ -189,6 +206,9 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 			speedMetersPerSecond = readNullableFloat(),
 			bearingDegrees = readNullableFloat(),
 			provider = readUTF(),
+			isMock = if (payloadVersion >= LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) {
+				readBoolean()
+			} else null,
 		)
 		TYPE_ACTIVITY_TRANSITION -> ActivityTransitionPayload(readInt(), readInt(), readLong())
 		TYPE_ACTIVITY_RECOGNITION -> ActivityRecognitionPayload(readInt(), readInt(), readNullableLong())

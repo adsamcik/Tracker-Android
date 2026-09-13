@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.location
 
 import com.adsamcik.tracker.shared.base.data.LocationPermissionPrecision
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 
 internal enum class LocationObservationOrigin {
@@ -48,6 +49,7 @@ internal enum class LocationFactRejection {
 	INCOMPLETE_DURABLE_EVIDENCE,
 	WAL_INTEGRITY_UNVERIFIABLE,
 	UNSUPPORTED_PAYLOAD_VERSION,
+	MOCK_PROVENANCE_MISMATCH,
 	NON_POSITIVE_PROVIDER_TIME,
 	FUTURE_PROVIDER_TIME,
 	AFTER_AUTHORITY,
@@ -199,8 +201,11 @@ internal object LocationQualifiedObservationQualifier {
 		if (!LOWERCASE_SHA_256.matches(evidence.walIntegrityIdentity)) {
 			return rejected(LocationFactRejection.WAL_INTEGRITY_UNVERIFIABLE)
 		}
-		if (evidence.payloadVersion != LOCATION_PAYLOAD_VERSION) {
+		if (evidence.payloadVersion != LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) {
 			return rejected(LocationFactRejection.UNSUPPORTED_PAYLOAD_VERSION)
+		}
+		if (evidence.payload.isMock == null || evidence.payload.isMock != evidence.isMock) {
+			return rejected(LocationFactRejection.MOCK_PROVENANCE_MISMATCH)
 		}
 		if (evidence.deliveryUnitCount <= 0 ||
 			evidence.deliveryUnitIndex !in 0 until evidence.deliveryUnitCount
@@ -308,7 +313,6 @@ internal object LocationQualifiedObservationQualifier {
 	private fun rejected(reason: LocationFactRejection) =
 		LocationObservationQualification.Rejected(reason)
 
-	private const val LOCATION_PAYLOAD_VERSION = 1
 	private const val MIN_LATITUDE = -90.0
 	private const val MAX_LATITUDE = 90.0
 	private const val MIN_LONGITUDE = -180.0

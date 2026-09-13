@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.location.Location
+import androidx.core.location.LocationCompat
 import com.adsamcik.tracker.shared.base.constant.CoordinateConstants
 
 /** Canonical source-field ordering for provider batches, independent of callback list permutation. */
@@ -25,6 +26,7 @@ internal fun normalizeLocationBatch(locations: List<Location>): List<Location> =
 			{ it.identity.verticalAccuracy },
 			{ it.identity.speed },
 			{ it.identity.bearing },
+			{ it.identity.isMock },
 			// Only exact provider-observation duplicates can reach this tie-breaker; distinctBy
 			// removes them, so their incoming order cannot affect delivery bytes or unit order.
 			{ it.originalIndex },
@@ -50,6 +52,7 @@ private fun Location.providerObservationIdentity() = ProviderObservationIdentity
 	verticalAccuracy = verticalAccuracyMeters.takeIf { hasVerticalAccuracy() },
 	speed = speed.takeIf { hasSpeed() },
 	bearing = bearing.takeIf { hasBearing() },
+	isMock = isMockProviderEvidence(),
 )
 
 private data class ProviderObservationIdentity(
@@ -63,7 +66,11 @@ private data class ProviderObservationIdentity(
 	val verticalAccuracy: Float?,
 	val speed: Float?,
 	val bearing: Float?,
+	val isMock: Boolean,
 )
+
+/** API-compatible access to the provider-owned mock bit on the exact callback object. */
+internal fun Location.isMockProviderEvidence(): Boolean = LocationCompat.isMock(this)
 
 internal fun Location.isValidLocationEvidence(): Boolean =
 	latitude.isFinite() && longitude.isFinite() &&

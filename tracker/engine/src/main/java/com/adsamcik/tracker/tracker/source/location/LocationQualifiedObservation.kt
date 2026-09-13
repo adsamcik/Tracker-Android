@@ -163,6 +163,7 @@ internal data class LocationDurableObservationEvidence(
 	val payloadVersion: Int,
 	val payload: LocationFixPayload,
 	val quality: SourceQuality,
+	/** Redundant typed projection that must exactly match v2 [LocationFixPayload.isMock]. */
 	val isMock: Boolean,
 )
 

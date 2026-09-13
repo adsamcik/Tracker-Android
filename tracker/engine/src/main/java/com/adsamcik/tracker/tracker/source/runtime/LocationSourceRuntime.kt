@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
@@ -1384,7 +1385,7 @@ internal fun locationDeliveryCandidate(
 							}
 						},
 					),
-					payloadVersion = 1,
+					payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
 					payload = LocationFixPayload(
 						latitudeDegrees = location.latitude,
 						longitudeDegrees = location.longitude,
@@ -1395,6 +1396,7 @@ internal fun locationDeliveryCandidate(
 						speedMetersPerSecond = location.speed.takeIf { location.hasSpeed() },
 						bearingDegrees = location.bearing.takeIf { location.hasBearing() },
 						provider = location.provider ?: "unknown",
+						isMock = location.isMockProviderEvidence(),
 					),
 				),
 			)
@@ -1406,7 +1408,7 @@ private fun canonicalLocationDeliveryBytes(locations: List<Location>): ByteArray
 	ByteArrayOutputStream().use { bytes ->
 		DataOutputStream(bytes).use { output ->
 			output.writeInt(LOCATION_DELIVERY_MAGIC)
-			output.writeInt(LOCATION_DELIVERY_VERSION)
+			output.writeInt(LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION)
 			output.writeInt(locations.size)
 			locations.forEach { location ->
 				val providerBytes = (location.provider ?: "unknown").encodeToByteArray()
@@ -1421,6 +1423,7 @@ private fun canonicalLocationDeliveryBytes(locations: List<Location>): ByteArray
 				output.writeOptionalFloat(location.hasVerticalAccuracy(), location.verticalAccuracyMeters)
 				output.writeOptionalFloat(location.hasSpeed(), location.speed)
 				output.writeOptionalFloat(location.hasBearing(), location.bearing)
+				output.writeBoolean(location.isMockProviderEvidence())
 			}
 		}
 		bytes.toByteArray()
@@ -1437,7 +1440,7 @@ private fun DataOutputStream.writeOptionalFloat(present: Boolean, value: Float) 
 }
 
 private const val LOCATION_DELIVERY_MAGIC = 0x4c4f4342 // LOCB
-private const val LOCATION_DELIVERY_VERSION = 1
+private const val LOCATION_MOCK_PROVENANCE_DELIVERY_VERSION = 2
 private const val LOCATION_NANOS_PER_MILLISECOND = 1_000_000L
 private const val LOCATION_BATCHED_AFTER_NANOS = 5_000L * LOCATION_NANOS_PER_MILLISECOND
 private const val LOCATION_CALLBACK_BUFFER_CAPACITY = 64
