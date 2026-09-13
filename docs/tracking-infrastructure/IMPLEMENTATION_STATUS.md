@@ -61,11 +61,21 @@ re-stamp old evidence and raw payload could change under one delivery identity. 
 independently accepted as **IMPLEMENTED_UNVALIDATED**. It does not modify or activate the canonical
 Location writer; a future adapter must verify the referenced WAL row before any shadow comparison.
 
+The isolated Cell branch is clean at `2102d3212`. Its dormant adapter starts from one actual retained
+one-unit Cell WAL delivery inside one Room snapshot, requires a positive unique source sequence and
+canonical payload, recomputes WAL/payload/delivery identities, and revalidates immutable desired-plan,
+registration, same-registration authorization, policy/consent, run/manifest/segment, clock/zone,
+retention, collected-epoch, and global-deletion authority. Independent review accepts this bounded
+read-only slice as **IMPLEMENTED_UNVALIDATED**. v1 evidence cannot prove subscription grouping, so
+coverage remains typed `UNKNOWN`; confirmed empty is still unverifiable, and no Cell fact table,
+source-local deletion generation, writer/cursor, provider activation, product read, or UI is claimed.
+
 Git/worktree reconciliation found no accepted committed implementation stranded or lost: imported
 Steps branches are contained or patch-equivalent in the coordinator, the older Pressure and numeric
 branches are ancestors, and the two dirty portable-import/qualified-awards drafts remain frozen
-reference inputs only. Activity persistence, Wi-Fi, and Cell are active isolated lanes and remain
-unaccepted while their review findings are corrected.
+reference inputs only. Activity product composition, Wi-Fi qualification, Pressure maintenance, and
+the Location WAL adapter remain active isolated lanes whose current review findings must be
+corrected before acceptance.
 
 The checked-in v28 JSON now declares 79 entities: 51 released-v27 entities plus 28 narrowly owned
 v28 additions. Its identity hash is intentionally stale and Room/Kotlin/SQL generation or checking

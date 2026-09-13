@@ -1822,3 +1822,23 @@ Deferred focused command:
 
 The command was not run. Compilation, Room execution, provider registration, sensor/device behavior,
 integration, activation, and release remain unproven.
+
+## TI-B267 — Cell retained-WAL qualification contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `2102d3212`. Authored classifier and real-Room adapter
+tests cover an actual retained one-unit Cell WAL delivery, positive source sequence, canonical
+payload and identity recomputation, sibling overflow, interleaved same-registration authorization
+revisions, immutable plan and manifest authority, reciprocal run/segment binding, retention and
+wall-uncertainty structural-day boundaries, identity-free aggregate semantics, and typed
+unverifiable outcomes. Repeated read-only reviews rejected caller-signed provenance, noncanonical
+payload, and global-adjacent authorization assumptions before accepting the retained-WAL adapter.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*CellCapturedFact*' --tests '*CellWalQualificationAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Kotlin/Room compilation, SQL execution, source-local fact persistence and
+deletion fencing, callback/provider behavior, multi-SIM completeness, product history/UI, device/OEM
+behavior, integration, activation, and release remain unproven.

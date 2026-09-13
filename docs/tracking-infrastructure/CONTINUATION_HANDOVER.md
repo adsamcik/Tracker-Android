@@ -69,6 +69,13 @@ Independent clean lanes:
   `G:\Github\Tracker-Android\.worktrees\ti-location-qualified-observation`; clean and independently
   accepted as **IMPLEMENTED_UNVALIDATED**. It is dormant and does not alter the canonical writer;
   future wiring must verify the referenced WAL row before any shadow comparison.
+- Cell retained-WAL qualifier: `codex/ti-cell-fact-model` at `2102d3212` in
+  `G:\Github\Tracker-Android\.worktrees\ti-cell-fact-model`; clean and independently accepted as
+  **IMPLEMENTED_UNVALIDATED** for the bounded dormant read-only slice. It authenticates one real
+  retained Cell WAL delivery and its complete historical capture authority without persisting raw
+  radio identity. Coverage remains typed `UNKNOWN` because v1 WAL cannot prove subscription
+  grouping; no Cell fact table, source-local deletion fence, producer, runtime activation, history,
+  or UI is claimed.
 
 Read-only Git reconciliation found no accepted committed work lost through compaction. The imported
 Steps source branches are already contained or patch-equivalent in this coordinator; old

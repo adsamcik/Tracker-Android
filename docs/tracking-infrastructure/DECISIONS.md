@@ -3249,3 +3249,20 @@ Each entry records repository evidence and does not duplicate the final architec
 - The existing bounded SensorManager window actor, callback fencing, retirement, rollback, and
   deletion machinery is reused. No catalog, default, provider activation, or shared product change
   is made.
+
+## TI-D204 — Cell qualification begins from one authenticated retained WAL delivery
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/tests `114137e58`, `eeae6d24f`,
+  `891d5e2f2`, and `2102d3212`; TI-B267.
+- The dormant Cell qualifier accepts only a real retained one-unit Cell WAL row with positive unique
+  source sequence, canonical payload bytes, recomputed WAL, payload, and delivery identities, and
+  exact captured-registration attribution. It derives the next boundary from the same registration's
+  authorization timeline rather than adjacency in a global revision sequence.
+- Qualification revalidates the immutable desired plan and fingerprint, registration and
+  authorization members, policy and consent, run and complete manifest timeline, reciprocal
+  run-to-segment binding, provider clocks and wall uncertainty, stored structural zone, collected
+  epoch, retention floor, and current global deletion authority in one Room snapshot.
+- Cell products remain privacy-minimized and identity-free. Retained v1 evidence cannot prove
+  subscription grouping, so completeness stays `UNKNOWN`; confirmed empty also remains
+  unverifiable. No Cell fact table, source-local deletion generation, writer, provider activation,
+  product history, or UI was added, and scope deletion generation must be exact before persistence.

@@ -673,6 +673,14 @@ reads/UI, and complete authored scenarios exist.
 - [ ] TODO-CELL-013 Author callback, per-child freshness, multi-SIM, replay, restart, refresh budget,
   privacy, context, deletion, query, UI, automatic, and ambient tests without running them.
 
+Accepted isolated commits `114137e58` through `2102d3212` implement only the dormant identity-free
+classification and real retained-WAL qualification portions of CELL-001/004/006/013. One Room
+snapshot authenticates the exact one-unit delivery, immutable plan/registration/authorization,
+manifest/run/segment, clock/zone, retention, and global deletion authority. v1 subscription
+grouping remains unprovable and therefore typed `UNKNOWN`; no fact table, source-local deletion
+generation, writer/cursor, runtime activation, product read, maintenance, or transfer is complete,
+so every Cell TODO remains unchecked.
+
 ## Production history and UI
 
 - [ ] TODO-HIST-001 Complete one read-only TrackingHistoryRepository facade for observeToday,
