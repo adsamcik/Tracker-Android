@@ -451,6 +451,11 @@ private suspend fun AppDatabase.auditCapturedActivityFacts(
 	}
 
 	val cursors = loadActivityCapturedCursors(limits)
+	if (dao.revisionCount() != revisionCount.toLong() ||
+		dao.fragmentCount() != fragmentCount.toLong() ||
+		dao.evidenceCount() != evidenceCount.toLong() ||
+		dao.cursorCount() != cursors.size.toLong()
+	) block(ActivityCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	if (cursors.size != lineages.size || cursors.keys != lineages.mapTo(mutableSetOf()) {
 			lineage -> lineage.logicalWindowId
 		}
@@ -537,6 +542,9 @@ private suspend fun AppDatabase.authenticateActivityCapturedAuthority(
 	val run = sessionDao.serviceRun(revision.serviceRunId)
 	val session = sessionDao.session(revision.logicalTrackingId)
 	val segment = sessionSegmentDao().getById(revision.sessionSegmentId)
+	val sameClockSessionEnd = session?.let { current ->
+		current.cutoffElapsedNanos.takeIf { current.lifecycleBootId == revision.clockDomainId }
+	} ?: Long.MAX_VALUE
 	if (run == null || session == null || segment == null ||
 		run.logicalTrackingId != revision.logicalTrackingId ||
 		run.sessionSegmentId != revision.sessionSegmentId ||
@@ -546,7 +554,7 @@ private suspend fun AppDatabase.authenticateActivityCapturedAuthority(
 		segment.serviceRunId != revision.serviceRunId ||
 		session.lifecycleBootId != revision.clockDomainId ||
 		session.lifecycleLeaseGeneration < revision.lifecycleLeaseGeneration ||
-		session.cutoffElapsedNanos != revision.sessionRunEffectEndNanos
+		sameClockSessionEnd != revision.sessionRunEffectEndNanos
 	) block(ActivityCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 
 	val manifests = sessionDao.manifestsForServiceRun(
@@ -766,6 +774,9 @@ private suspend fun AppDatabase.auditCapturedActivityRegistrationPlans(
 		sourceInstanceId = page.last().sourceInstanceId
 		registrationGeneration = page.last().registrationGeneration
 		if (page.size < minOf(remaining, REGISTRATION_PLAN_PAGE_SIZE)) break
+	}
+	if (activityCapturedFactDao().registrationPlanBindingCount() != result.size.toLong()) {
+		block(ActivityCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	}
 	return result
 }

@@ -93,6 +93,52 @@ class ActivityCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `retention authenticates a live current run with an open session boundary`() = runTest {
+		seedCapturedActivity(retainedFromMs = 1_000L, sessionRunEffectEndNanos = Long.MAX_VALUE)
+		makeCurrentRunLive()
+
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(
+			beforeMs = 1_000L,
+			expectedCollectedDataEpoch = 0L,
+			markedAtMs = 5_000L,
+		) shouldBe ActivityCapturedRetentionResult.NoChange
+	}
+
+	@Test
+	fun `retention authenticates an open old-run fact after a live replacement`() = runTest {
+		seedCapturedActivity(retainedFromMs = 1_000L, sessionRunEffectEndNanos = Long.MAX_VALUE)
+		installLiveReplacement()
+
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(
+			beforeMs = 1_000L,
+			expectedCollectedDataEpoch = 0L,
+			markedAtMs = 5_000L,
+		) shouldBe ActivityCapturedRetentionResult.NoChange
+	}
+
+	@Test
+	fun `retention accepts the exact terminal cutoff and rejects a changed cutoff`() = runTest {
+		seedCapturedActivity(retainedFromMs = 1_000L)
+
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(
+			beforeMs = 1_000L,
+			expectedCollectedDataEpoch = 0L,
+			markedAtMs = 5_000L,
+		) shouldBe ActivityCapturedRetentionResult.NoChange
+
+		val sessionDao = database.sourceSessionDao()
+		val session = requireNotNull(sessionDao.session(LOGICAL_TRACKING_ID))
+		sessionDao.updateSession(session.copy(cutoffElapsedNanos = 501L)) shouldBe 1
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(
+			beforeMs = 1_000L,
+			expectedCollectedDataEpoch = 0L,
+			markedAtMs = 5_000L,
+		) shouldBe ActivityCapturedRetentionResult.Blocked(
+			ActivityCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
 	fun `revoked capture deletion fences every run and preserves CONTROL demand`() = runTest {
 		seedCapturedActivity(revokedCapture = true)
 		database.sourceBrokerDao().insertDemands(listOf(controlDemand()))
@@ -190,6 +236,74 @@ class ActivityCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `orphan fragment blocks source deletion before AlreadyDeleted`() = runTest {
+		seedCapturedActivity(revokedCapture = true)
+		corruptWithoutForeignKeys(
+			"DELETE FROM activity_captured_evidence",
+			"DELETE FROM activity_captured_window_cursor",
+			"DELETE FROM activity_captured_window_revision",
+			"DELETE FROM activity_captured_registration_plan",
+		)
+
+		database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 5_000L) shouldBe
+			ActivityCapturedSourceDeletionResult.Blocked(
+				ActivityCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+			)
+		database.activityCapturedFactDao().fragmentCount() shouldBe 1L
+	}
+
+	@Test
+	fun `orphan evidence blocks source deletion before AlreadyDeleted`() = runTest {
+		seedCapturedActivity(revokedCapture = true)
+		corruptWithoutForeignKeys(
+			"DELETE FROM activity_captured_fragment",
+			"DELETE FROM activity_captured_window_cursor",
+			"DELETE FROM activity_captured_window_revision",
+			"DELETE FROM activity_captured_registration_plan",
+		)
+
+		database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 5_000L) shouldBe
+			ActivityCapturedSourceDeletionResult.Blocked(
+				ActivityCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+			)
+		database.activityCapturedFactDao().evidenceCount() shouldBe 1L
+	}
+
+	@Test
+	fun `orphan cursor blocks source deletion before AlreadyDeleted`() = runTest {
+		seedCapturedActivity(revokedCapture = true)
+		corruptWithoutForeignKeys(
+			"DELETE FROM activity_captured_evidence",
+			"DELETE FROM activity_captured_fragment",
+			"DELETE FROM activity_captured_window_revision",
+			"DELETE FROM activity_captured_registration_plan",
+		)
+
+		database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 5_000L) shouldBe
+			ActivityCapturedSourceDeletionResult.Blocked(
+				ActivityCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+			)
+		database.activityCapturedFactDao().cursorCount() shouldBe 1L
+	}
+
+	@Test
+	fun `bare revision blocks source deletion before an empty-source result`() = runTest {
+		seedCapturedActivity(revokedCapture = true)
+		corruptWithoutForeignKeys(
+			"DELETE FROM activity_captured_evidence",
+			"DELETE FROM activity_captured_fragment",
+			"DELETE FROM activity_captured_window_cursor",
+			"DELETE FROM activity_captured_registration_plan",
+		)
+
+		database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 5_000L) shouldBe
+			ActivityCapturedSourceDeletionResult.Blocked(
+				ActivityCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+			)
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+	}
+
+	@Test
 	fun `cancellation after payload removal rolls back facts and run fence`() = runTest {
 		seedCapturedActivity(revokedCapture = true)
 
@@ -217,6 +331,7 @@ class ActivityCapturedFactMaintenanceTest {
 		semanticRevisions: Int = 1,
 		revokedCapture: Boolean = false,
 		providerActive: Boolean = false,
+		sessionRunEffectEndNanos: Long = 500L,
 	) {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(collectedDataEpoch = 0L, retainedFromMs = retainedFromMs),
@@ -293,14 +408,119 @@ class ActivityCapturedFactMaintenanceTest {
 		)
 		database.sourceBrokerDao().insertRegistration(registration(providerActive))
 		database.sourceBrokerDao().insertAuthorizations(listOf(authorization()))
-		insertFactLineage(segmentId, semanticRevisions)
+		insertFactLineage(segmentId, semanticRevisions, sessionRunEffectEndNanos)
 	}
 
-	private suspend fun insertFactLineage(segmentId: Long, semanticRevisions: Int) {
+	private suspend fun makeCurrentRunLive() {
+		val sessionDao = database.sourceSessionDao()
+		val session = requireNotNull(sessionDao.session(LOGICAL_TRACKING_ID))
+		val run = requireNotNull(sessionDao.serviceRun(SERVICE_RUN_ID))
+		sessionDao.updateSession(session.copy(
+			state = "ACTIVE",
+			cutoffAtMs = null,
+			cutoffElapsedNanos = null,
+			completedAtMs = null,
+			finalAdmissionOrdinal = null,
+			currentServiceRunId = SERVICE_RUN_ID,
+		)) shouldBe 1
+		sessionDao.updateServiceRun(run.copy(
+			state = "ACTIVE",
+			completedAtMs = null,
+			completionReason = null,
+			runtimeAcknowledgement = "START_ACCEPTED",
+			runRevision = 3L,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+			presentationAcknowledgedAtMs = null,
+		)) shouldBe 1
+	}
+
+	private suspend fun installLiveReplacement() {
+		val sessionDao = database.sourceSessionDao()
+		val replacementSegmentId = database.sessionSegmentDao().insert(
+			SessionSegment(
+				startTimeMs = 3_100L,
+				endTimeMs = 3_100L,
+				distanceM = 0f,
+				steps = null,
+				primaryActivity = null,
+				activityConfidence = null,
+				sampleCount = 0,
+				source = SegmentSource.USER_CREATED,
+				inferenceVersion = null,
+				createdAt = 3_100L,
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+			),
+		)
+		val replacementRun = serviceRun(replacementSegmentId).copy(
+			serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+			state = "ACTIVE",
+			startedAtMs = 3_100L,
+			startedElapsedNanos = 600L,
+			completedAtMs = null,
+			completionReason = null,
+			leaseGeneration = 2L,
+			runtimeAcknowledgement = "START_ACCEPTED",
+			runRevision = 1L,
+			startDeliveryToken = "delivery-replacement",
+			preparedManifestRevision = 2L,
+			preparedIntentRevision = 2L,
+			androidDeliveryUpdatedAtMs = 3_100L,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+			presentationAcknowledgedAtMs = null,
+		)
+		sessionDao.insertServiceRun(replacementRun)
+		val replacementSource = manifestSource().copy(manifestRevision = 2L)
+		val unsignedManifest = manifest().copy(
+			manifestRevision = 2L,
+			serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+			effectiveElapsedRealtimeNanos = 600L,
+			effectiveWallTimeMs = 3_100L,
+			changeReason = "REPLACEMENT_START",
+			manifestChecksum = "",
+		)
+		sessionDao.insertManifest(unsignedManifest.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, listOf(replacementSource)),
+		))
+		sessionDao.insertManifestSources(listOf(replacementSource))
+		val session = requireNotNull(sessionDao.session(LOGICAL_TRACKING_ID))
+		sessionDao.updateSession(session.copy(
+			state = "ACTIVE",
+			cutoffAtMs = null,
+			cutoffElapsedNanos = null,
+			completedAtMs = null,
+			finalAdmissionOrdinal = null,
+			currentManifestRevision = 2L,
+			currentIntentRevision = 2L,
+			currentServiceRunId = REPLACEMENT_SERVICE_RUN_ID,
+			lifecycleLeaseGeneration = 2L,
+		)) shouldBe 1
+	}
+
+	private fun corruptWithoutForeignKeys(vararg statements: String) {
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL("PRAGMA foreign_keys = OFF")
+		try {
+			statements.forEach { statement -> sqlite.execSQL(statement) }
+		} finally {
+			sqlite.execSQL("PRAGMA foreign_keys = ON")
+		}
+	}
+
+	private suspend fun insertFactLineage(
+		segmentId: Long,
+		semanticRevisions: Int,
+		sessionRunEffectEndNanos: Long,
+	) {
 		require(semanticRevisions in 1..2)
 		val dao = database.activityCapturedFactDao()
 		val persisted = (1..semanticRevisions).map { ordinal ->
-			persistedRevision(segmentId, ordinal.toLong(), complete = ordinal == 2)
+			persistedRevision(
+				segmentId = segmentId,
+				semanticRevision = ordinal.toLong(),
+				complete = ordinal == 2,
+				sessionRunEffectEndNanos = sessionRunEffectEndNanos,
+			)
 		}
 		persisted.forEach { value ->
 			dao.insertRevision(value.revision)
@@ -331,8 +551,9 @@ class ActivityCapturedFactMaintenanceTest {
 		segmentId: Long,
 		semanticRevision: Long,
 		complete: Boolean,
+		sessionRunEffectEndNanos: Long,
 	): PersistedTestRevision {
-		val logicalWindowId = logicalWindowId()
+		val logicalWindowId = logicalWindowId(sessionRunEffectEndNanos)
 		val fragments = if (complete) {
 			listOf(bandFragment(logicalWindowId, semanticRevision, 0, 200L, 400L))
 		} else {
@@ -374,7 +595,7 @@ class ActivityCapturedFactMaintenanceTest {
 			authorizationEffectStartNanos = 150L,
 			authorizationEffectEndNanos = Long.MAX_VALUE,
 			sessionRunEffectStartNanos = 100L,
-			sessionRunEffectEndNanos = 500L,
+			sessionRunEffectEndNanos = sessionRunEffectEndNanos,
 			windowStartElapsedRealtimeNanos = 200L,
 			windowEndElapsedRealtimeNanos = 400L,
 			coverage = if (complete) "COMPLETE" else "PARTIAL",
@@ -719,7 +940,7 @@ class ActivityCapturedFactMaintenanceTest {
 		retiredAtMs = null,
 	)
 
-	private fun logicalWindowId(): String = digest(
+	private fun logicalWindowId(sessionRunEffectEndNanos: Long): String = digest(
 		"activity-captured-window-v1",
 		listOf(
 			LOGICAL_TRACKING_ID,
@@ -742,7 +963,7 @@ class ActivityCapturedFactMaintenanceTest {
 			"150",
 			Long.MAX_VALUE.toString(),
 			"100",
-			"500",
+			sessionRunEffectEndNanos.toString(),
 			"200",
 			"400",
 		),
@@ -835,6 +1056,7 @@ class ActivityCapturedFactMaintenanceTest {
 		private const val WRITER_VERSION = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION
 		private const val LOGICAL_TRACKING_ID = "activity-maintenance-logical"
 		private const val SERVICE_RUN_ID = "activity-maintenance-run"
+		private const val REPLACEMENT_SERVICE_RUN_ID = "activity-maintenance-replacement-run"
 		private const val SOURCE_INSTANCE_ID = "activity-maintenance-provider"
 		private const val PHYSICAL_FINGERPRINT = "activity-maintenance-fingerprint"
 		private const val AUTHORIZATION_FINGERPRINT = "activity-maintenance-authorization"
