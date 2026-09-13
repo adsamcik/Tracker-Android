@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.ui.compose
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -28,6 +29,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
+import com.adsamcik.tracker.shared.utils.compose.permission.ContextualMultiplePermissionRequest
 import com.adsamcik.tracker.shared.utils.compose.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.utils.compose.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.utils.compose.permission.PermissionType
@@ -237,26 +239,38 @@ fun TrackerRoute(
     // Contextual permission request dialog (Apple-style: rationale before system prompt)
     val permissionRequest = manualStartPermissionRequest?.toTrackerPermissionRequest()
     if (permissionRequest != null) {
-        ContextualPermissionRequest(
-            permissionType = permissionRequest.type,
-            permission = permissionRequest.permission,
-            onPermissionResult = {
-                manualStartPermissionRequest = null
-                scope.launch {
-                    val updated = TrackerServiceApi.readManualTrackingStartReadiness(context)
-                    manualStartReadiness = updated
-                    hasLocationPermission = checkLocationPermission(context)
-                    val sameRepair = (updated as? ManualTrackingStartReadiness.RepairRequired)
-                        ?.prerequisite == permissionRequest.prerequisite
-                    if (sameRepair) {
-                        permissionDenied = true
-                    } else {
-                        requestManualStart()
-                    }
+        val onPermissionResult: (Boolean) -> Unit = {
+            manualStartPermissionRequest = null
+            scope.launch {
+                val updated = TrackerServiceApi.readManualTrackingStartReadiness(context)
+                manualStartReadiness = updated
+                hasLocationPermission = checkLocationPermission(context)
+                val sameRepair = (updated as? ManualTrackingStartReadiness.RepairRequired)
+                    ?.prerequisite == permissionRequest.prerequisite
+                if (sameRepair) {
+                    permissionDenied = true
+                } else {
+                    requestManualStart()
                 }
-            },
-            onDismiss = { manualStartPermissionRequest = null }
-        )
+            }
+        }
+        val onDismiss = { manualStartPermissionRequest = null }
+        if (permissionRequest.permissions.size == 1) {
+            ContextualPermissionRequest(
+                permissionType = permissionRequest.type,
+                permission = permissionRequest.permissions.single(),
+                onPermissionResult = onPermissionResult,
+                onDismiss = onDismiss,
+            )
+        } else {
+            ContextualMultiplePermissionRequest(
+                permissionType = permissionRequest.type,
+                permissions = permissionRequest.permissions,
+                requiredPermissions = permissionRequest.requiredPermissions,
+                onPermissionResult = onPermissionResult,
+                onDismiss = onDismiss,
+            )
+        }
     }
     
     // Show snackbar if permission denied (non-blocking, allows retry)
@@ -372,28 +386,39 @@ fun TrackerRoute(
 internal data class TrackerManualStartPermissionRequest(
     val prerequisite: ManualTrackingStartPrerequisite,
     val type: PermissionType,
-    val permission: String,
+    val permissions: List<String>,
+    val requiredPermissions: Set<String>,
 )
 
-internal fun ManualTrackingStartPrerequisite.toTrackerPermissionRequest():
+internal fun ManualTrackingStartPrerequisite.toTrackerPermissionRequest(
+    apiLevel: Int = Build.VERSION.SDK_INT,
+):
     TrackerManualStartPermissionRequest? = when (this) {
     ManualTrackingStartPrerequisite.PRECISE_LOCATION_PERMISSION ->
         TrackerManualStartPermissionRequest(
             prerequisite = this,
             type = PermissionType.LOCATION_FOREGROUND,
-            permission = Manifest.permission.ACCESS_FINE_LOCATION,
+            permissions = buildList {
+                add(Manifest.permission.ACCESS_FINE_LOCATION)
+                if (apiLevel >= Build.VERSION_CODES.S) {
+                    add(Manifest.permission.ACCESS_COARSE_LOCATION)
+                }
+            },
+            requiredPermissions = setOf(Manifest.permission.ACCESS_FINE_LOCATION),
         )
     ManualTrackingStartPrerequisite.ACTIVITY_RECOGNITION_PERMISSION ->
         TrackerManualStartPermissionRequest(
             prerequisite = this,
             type = PermissionType.ACTIVITY_RECOGNITION,
-            permission = Manifest.permission.ACTIVITY_RECOGNITION,
+            permissions = listOf(Manifest.permission.ACTIVITY_RECOGNITION),
+            requiredPermissions = setOf(Manifest.permission.ACTIVITY_RECOGNITION),
         )
     ManualTrackingStartPrerequisite.READ_PHONE_STATE_PERMISSION ->
         TrackerManualStartPermissionRequest(
             prerequisite = this,
             type = PermissionType.PHONE_STATE,
-            permission = Manifest.permission.READ_PHONE_STATE,
+            permissions = listOf(Manifest.permission.READ_PHONE_STATE),
+            requiredPermissions = setOf(Manifest.permission.READ_PHONE_STATE),
         )
     ManualTrackingStartPrerequisite.LOCATION_SERVICES -> null
 }
