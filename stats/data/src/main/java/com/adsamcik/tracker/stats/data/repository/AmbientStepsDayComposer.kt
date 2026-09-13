@@ -59,7 +59,9 @@ internal data class EffectiveAmbientStepsGap(
 ) {
 	init {
 		require(startTimeMs >= 0L)
-		require(endTimeMs >= startTimeMs)
+		require(endTimeMs > startTimeMs) {
+			"A zero-width Ambient Steps discontinuity has no product coverage effect"
+		}
 	}
 }
 
@@ -166,12 +168,12 @@ internal fun composeAmbientStepsDay(
 		compareBy(QualifiedAmbientStepsFact::startTimeMs, QualifiedAmbientStepsFact::logicalFactId),
 	)
 	if (orderedFacts.isEmpty()) {
-		val causes = buildSet {
+		val total = AmbientStepsNumericValue.Unavailable(setOf(AmbientStepsDayCause.NO_AMBIENT_FACT))
+		val between = AmbientStepsNumericValue.Unavailable(buildSet {
 			add(AmbientStepsDayCause.NO_AMBIENT_FACT)
 			if (outsideSession) add(AmbientStepsDayCause.SESSION_OUTSIDE_DAY)
-		}
-		val unavailable = AmbientStepsNumericValue.Unavailable(causes)
-		return AmbientStepsDayProduct(day, unavailable, containedSessions, unavailable)
+		})
+		return AmbientStepsDayProduct(day, total, containedSessions, between)
 	}
 	if (orderedFacts.zipWithNext().any { (left, right) -> right.startTimeMs < left.endTimeMs }) {
 		val unavailable = AmbientStepsNumericValue.Unavailable(setOf(AmbientStepsDayCause.AMBIENT_FACT_OVERLAP))
@@ -194,7 +196,6 @@ internal fun composeAmbientStepsDay(
 	val totalCauses = buildSet {
 		if (!continuousCoverage) add(AmbientStepsDayCause.AMBIENT_COVERAGE_PARTIAL)
 		if (effectiveGap) add(AmbientStepsDayCause.AMBIENT_GAP)
-		if (outsideSession) add(AmbientStepsDayCause.SESSION_OUTSIDE_DAY)
 	}
 	val total = if (totalCauses.isEmpty()) {
 		AmbientStepsNumericValue.Exact(ambientTotal)
@@ -203,6 +204,7 @@ internal fun composeAmbientStepsDay(
 	}
 	val betweenCauses = linkedSetOf<AmbientStepsDayCause>()
 	if (total !is AmbientStepsNumericValue.Exact) betweenCauses += totalCauses
+	if (outsideSession) betweenCauses += AmbientStepsDayCause.SESSION_OUTSIDE_DAY
 	if (containedSessions.zipWithNext().any { (left, right) -> right.startTimeMs < left.endTimeMs }) {
 		betweenCauses += AmbientStepsDayCause.SESSION_OVERLAP
 	}

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.Test
 
 class AmbientStepsDayComposerTest {
@@ -95,6 +96,91 @@ class AmbientStepsDayComposerTest {
 		result.total shouldBe AmbientStepsNumericValue.Unavailable(
 			setOf(AmbientStepsDayCause.AMBIENT_DAY_AUTHORITY_MISMATCH),
 		)
+	}
+
+	@Test
+	fun `wrong-zone session cannot downgrade authoritative ambient total`() {
+		val result = composeAmbientStepsDay(
+			day,
+			listOf(fact(0L, DAY_END, 100L)),
+			emptyList(),
+			listOf(session(20L, 40L, 25L).copy(storedZoneId = "Europe/Prague")),
+		)
+
+		result.total shouldBe AmbientStepsNumericValue.Exact(100L)
+		result.inSession shouldBe emptyList()
+		result.betweenSession shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.SESSION_OUTSIDE_DAY),
+		)
+	}
+
+	@Test
+	fun `overlapping sessions leave ambient total exact but make subtraction unavailable`() {
+		val result = composeAmbientStepsDay(
+			day,
+			listOf(fact(0L, DAY_END, 100L)),
+			emptyList(),
+			listOf(session(20L, 50L, 20L), session(40L, 60L, 10L)),
+		)
+
+		result.total shouldBe AmbientStepsNumericValue.Exact(100L)
+		result.betweenSession shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.SESSION_OVERLAP),
+		)
+	}
+
+	@Test
+	fun `unavailable session value never becomes zero subtraction`() {
+		val result = composeAmbientStepsDay(
+			day,
+			listOf(fact(0L, DAY_END, 100L)),
+			emptyList(),
+			listOf(session(20L, 40L, null)),
+		)
+
+		result.total shouldBe AmbientStepsNumericValue.Exact(100L)
+		result.betweenSession shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.SESSION_VALUE_UNAVAILABLE),
+		)
+	}
+
+	@Test
+	fun `session count greater than ambient total fails subtraction closed`() {
+		val result = composeAmbientStepsDay(
+			day,
+			listOf(fact(0L, DAY_END, 10L)),
+			emptyList(),
+			listOf(session(20L, 40L, 11L)),
+		)
+
+		result.total shouldBe AmbientStepsNumericValue.Exact(10L)
+		result.betweenSession shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.SESSION_COUNT_EXCEEDS_AMBIENT_TOTAL),
+		)
+	}
+
+	@Test
+	fun `compatible session must be covered by one provider domain even when day has multiple origins`() {
+		val otherProvenance = AmbientStepsProviderProvenance("provider-b", "instance-b", 2L, 1L)
+		val result = composeAmbientStepsDay(
+			day,
+			listOf(
+				fact(0L, 50L, 40L),
+				fact(50L, DAY_END, 60L, "b").copy(provenance = otherProvenance),
+			),
+			emptyList(),
+			listOf(session(40L, 60L, 10L)),
+		)
+
+		result.total shouldBe AmbientStepsNumericValue.Exact(100L)
+		result.betweenSession shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.SESSION_NOT_COVERED_BY_COMPATIBLE_AMBIENT_FACT),
+		)
+	}
+
+	@Test
+	fun `zero-width gaps are rejected before product composition`() {
+		assertThrows<IllegalArgumentException> { EffectiveAmbientStepsGap(40L, 40L) }
 	}
 
 	private val day = AmbientStepsDayIdentity(0L, "UTC", 0L, DAY_END)
