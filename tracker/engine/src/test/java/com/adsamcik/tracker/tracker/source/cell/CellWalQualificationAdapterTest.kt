@@ -321,7 +321,7 @@ class CellWalQualificationAdapterTest {
 	}
 
 	@Test
-	fun `open owner cannot strand a dependent when its authority later settles`() = runTest {
+	fun `historical open dependent self materializes after its owner settles`() = runTest {
 		installValidFixture(candidateWriter = true, openAuthority = true)
 		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
 		val shifted = observations().map { observation ->
@@ -333,24 +333,26 @@ class CellWalQualificationAdapterTest {
 		insertAdditionalWal(SECOND_EVENT_ID, shifted, SOURCE_SEQUENCE + 1L)
 
 		val second = assertIs<CellCapturedWriteResult.Applied>(writer.write(SECOND_EVENT_ID))
-		val independent = fact(second.logicalFactId, second.semanticRevision)
-		assertEquals(CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE, independent.factKind)
-		assertEquals(null, independent.aggregateOwnerLogicalFactId)
-		assertEquals(null, independent.aggregateOwnerSemanticRevision)
+		rewriteAsHistoricalCoverageOnly(second.logicalFactId, first.logicalFactId)
+		val historicalDependent = fact(second.logicalFactId, second.semanticRevision)
+		assertEquals(CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY, historicalDependent.factKind)
+		assertEquals(first.logicalFactId, historicalDependent.aggregateOwnerLogicalFactId)
+		assertEquals(1L, historicalDependent.aggregateOwnerSemanticRevision)
 
 		settleFixtureAuthority()
 
 		val settledOwner = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
 		assertEquals(first.logicalFactId, settledOwner.logicalFactId)
 		assertEquals(2L, settledOwner.semanticRevision)
-		val settledIndependent = assertIs<CellCapturedWriteResult.Applied>(writer.write(SECOND_EVENT_ID))
-		val settledIndependentFact = fact(
-			settledIndependent.logicalFactId,
-			settledIndependent.semanticRevision,
+		val settledDependent = assertIs<CellCapturedWriteResult.Applied>(writer.write(SECOND_EVENT_ID))
+		val settledDependentFact = fact(
+			settledDependent.logicalFactId,
+			settledDependent.semanticRevision,
 		)
-		assertEquals(CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE, settledIndependentFact.factKind)
-		assertEquals(null, settledIndependentFact.aggregateOwnerLogicalFactId)
-		assertEquals(null, settledIndependentFact.aggregateOwnerSemanticRevision)
+		assertEquals(2L, settledDependent.semanticRevision)
+		assertEquals(CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE, settledDependentFact.factKind)
+		assertEquals(null, settledDependentFact.aggregateOwnerLogicalFactId)
+		assertEquals(null, settledDependentFact.aggregateOwnerSemanticRevision)
 	}
 
 	@Test
@@ -440,7 +442,7 @@ class CellWalQualificationAdapterTest {
 	}
 
 	@Test
-	fun `coverage replay rejects a superseded direct aggregate owner`() = runTest {
+	fun `coverage replay authenticates its exact owner through a later owner revision`() = runTest {
 		installValidFixture(candidateWriter = true)
 		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
 		val shifted = observations().map { observation ->
@@ -453,10 +455,7 @@ class CellWalQualificationAdapterTest {
 		assertIs<CellCapturedWriteResult.Applied>(writer.write(SECOND_EVENT_ID))
 		pointCursorAt(syntheticRevision(fact(first.logicalFactId, 1L), 2L))
 
-		assertEquals(
-			CellCapturedWriteResult.Rejected(CellCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH),
-			writer.write(SECOND_EVENT_ID),
-		)
+		assertIs<CellCapturedWriteResult.Unchanged>(writer.write(SECOND_EVENT_ID))
 	}
 
 	@Test
@@ -959,6 +958,63 @@ class CellWalQualificationAdapterTest {
 			"UPDATE cell_captured_fact_revision SET registered_observation_count = ?, " +
 				"effect_checksum = ? WHERE logical_fact_id = ? AND semantic_revision = 1",
 			arrayOf(0, historical.effectChecksum, logicalFactId),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE cell_captured_fact_cursor SET latest_effect_checksum = ? " +
+				"WHERE logical_fact_id = ?",
+			arrayOf(historical.effectChecksum, logicalFactId),
+		)
+	}
+
+	private suspend fun rewriteAsHistoricalCoverageOnly(
+		logicalFactId: String,
+		ownerLogicalFactId: String,
+	) {
+		val current = fact(logicalFactId, 1L)
+		val unsigned = current.copy(
+			factKind = CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY,
+			aggregateOwnerLogicalFactId = ownerLogicalFactId,
+			aggregateOwnerSemanticRevision = 1L,
+			observationCount = null,
+			registeredObservationCount = null,
+			gsmCount = null,
+			cdmaCount = null,
+			wcdmaCount = null,
+			tdscdmaCount = null,
+			lteCount = null,
+			nrCount = null,
+			qualityUnknownCount = null,
+			qualityNoneOrUnknownCount = null,
+			qualityPoorCount = null,
+			qualityModerateCount = null,
+			qualityGoodCount = null,
+			qualityGreatCount = null,
+			weakObservationCount = null,
+			knownQualityObservationCount = null,
+			allKnownQualityIsWeak = null,
+			effectChecksum = ZERO_CHECKSUM,
+		)
+		val historical = unsigned.copy(
+			effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(unsigned),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE cell_captured_fact_revision SET fact_kind = ?, " +
+				"aggregate_owner_logical_fact_id = ?, aggregate_owner_semantic_revision = ?, " +
+				"observation_count = NULL, registered_observation_count = NULL, " +
+				"gsm_count = NULL, cdma_count = NULL, wcdma_count = NULL, tdscdma_count = NULL, " +
+				"lte_count = NULL, nr_count = NULL, quality_unknown_count = NULL, " +
+				"quality_none_or_unknown_count = NULL, quality_poor_count = NULL, " +
+				"quality_moderate_count = NULL, quality_good_count = NULL, " +
+				"quality_great_count = NULL, weak_observation_count = NULL, " +
+				"known_quality_observation_count = NULL, all_known_quality_is_weak = NULL, " +
+				"effect_checksum = ? WHERE logical_fact_id = ? AND semantic_revision = 1",
+			arrayOf(
+				CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY,
+				ownerLogicalFactId,
+				1L,
+				historical.effectChecksum,
+				logicalFactId,
+			),
 		)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE cell_captured_fact_cursor SET latest_effect_checksum = ? " +

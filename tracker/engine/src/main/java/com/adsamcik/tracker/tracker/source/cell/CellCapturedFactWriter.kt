@@ -412,7 +412,7 @@ internal class CellCapturedFactWriter @Inject constructor(
 	private suspend fun requireExactRevisionLineage(
 		current: CellCapturedFactRevisionEntity,
 		cursor: CellCapturedFactCursorEntity,
-	) {
+	): List<CellCapturedFactRevisionEntity> {
 		if (!cursor.matchesCurrentRevision(current) || current.semanticRevision > MAX_FACT_REVISIONS) {
 			reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 		}
@@ -435,6 +435,7 @@ internal class CellCapturedFactWriter @Inject constructor(
 				(nextOlder != null && !revision.isAuthenticatedSuccessorOf(nextOlder))
 			) reject(CellCapturedWriteRejection.REVISION_CHAIN_MISMATCH)
 		}
+		return revisions
 	}
 
 	private suspend fun loadDirectAggregateOwner(
@@ -450,11 +451,21 @@ internal class CellCapturedFactWriter @Inject constructor(
 		) ?: reject(CellCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
 		val cursor = dao.cursor(WRITER_ID, WRITER_VERSION, logicalFactId)
 			?: reject(CellCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
+		val current = dao.revision(
+			WRITER_ID,
+			WRITER_VERSION,
+			logicalFactId,
+			cursor.latestSemanticRevision,
+		) ?: reject(CellCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
 		if (row.factKind != CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE ||
 			!CellCapturedFactRevisionIntegrity.hasValidEffectChecksum(row) ||
-			!cursor.matchesCurrentRevision(row)
+			!cursor.matchesCurrentRevision(current)
 		) reject(CellCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
-		requireExactRevisionLineage(row, cursor)
+		val lineage = requireExactRevisionLineage(current, cursor)
+		if (row !in lineage || lineage.any { revision ->
+				revision.factKind != CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE
+			}
+		) reject(CellCapturedWriteRejection.AGGREGATE_OWNER_MISMATCH)
 		requireCurrentWriteAuthority(row)
 		return try {
 			val authority = persistedAuthority(row)

@@ -528,6 +528,10 @@ internal sealed interface CellReusableFact {
 		val directAggregateOwner: DirectAggregateOwner,
 	) : CellReusableFact {
 		init {
+			// Historical rows may reference an owner revision whose formerly open authority has
+			// since settled. The writer authenticates that exact revision through the complete
+			// current owner lineage before reconstructing this read-only form. New facts still use
+			// CellCapturedFact.CoverageOnly, which requires an immutable owner.
 			validateCellFactIdentityBinding(reference.identity, authority)
 			require(
 				reference.identity.sourceDeliveryIdentity ==
@@ -535,7 +539,6 @@ internal sealed interface CellReusableFact {
 			)
 			require(productEffect.evidenceBinding.capturedAuthority == authority)
 			require(authority.canReuseAggregateFrom(directAggregateOwner.authority))
-			require(directAggregateOwner.authority.temporalAuthority.isImmutableForAggregateReuse)
 			require(productEffect.aggregate == directAggregateOwner.productEffect.aggregate)
 			require(
 				productEffect.coverage.acceptedChildCount ==
