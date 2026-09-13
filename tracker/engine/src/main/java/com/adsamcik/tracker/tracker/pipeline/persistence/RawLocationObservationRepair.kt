@@ -14,6 +14,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.stats.api.value.LatE7
 import com.adsamcik.tracker.stats.api.value.LonE7
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
+import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import dev.tracebox.Tracebox
@@ -97,6 +98,7 @@ class RawLocationObservationRepair @Inject constructor(
 	private fun SourceEventWalEntity.toCanonicalObservationOrNull(): LocationObservation? {
 		if (!hasRepairableIntegrity()) return null
 		val decodedPayload = decodeLocationPayloadOrNull() ?: return null
+		val isMock = decodedPayload.repairedMockProvenance(payloadVersion) ?: return null
 		val coordinates = decodedPayload.toStoredCoordinatesOrNull()
 		val elapsedTimeIsValid = hasValidElapsedTime()
 		val repairedBatch = repairedBatchPosition()
@@ -122,7 +124,7 @@ class RawLocationObservationRepair @Inject constructor(
 			permissionPrecision = LocationPermissionPrecision.UNKNOWN.name,
 			batchIndex = repairedBatch.index,
 			batchSize = repairedBatch.size,
-			isMock = false,
+			isMock = isMock,
 			ingressDisposition = repairedIngressDisposition(coordinates, elapsedTimeIsValid).name,
 			estimatorVersion = PersistenceProcessor.CURRENT_ESTIMATOR_VERSION,
 			calibrationVersion = PersistenceProcessor.CURRENT_CALIBRATION_VERSION,
@@ -134,6 +136,10 @@ class RawLocationObservationRepair @Inject constructor(
 			bootClockDomainId = clockDomainId,
 		)
 	}
+
+	/** Frozen v1 bytes predate this evidence and retain their established conservative false repair. */
+	private fun LocationFixPayload.repairedMockProvenance(payloadVersion: Int): Boolean? =
+		if (payloadVersion < LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) false else isMock
 
 	private fun SourceEventWalEntity.hasRepairableIntegrity(): Boolean =
 		hasQualifiedIntegrity() || hasVerifiedLegacyPayload() || hasPendingLegacyPayload()
