@@ -23,6 +23,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -40,6 +41,35 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
+
+internal enum class CellCaptureDeletionBarrierBlockedReason {
+	CAPTURE_AUTHORIZATION_ACTIVE,
+	STALE_LIFECYCLE,
+	STALE_REGISTRATION,
+	AUTHORIZATION_UNVERIFIABLE,
+}
+
+internal enum class CellCaptureDeletionBarrierRetryableReason {
+	CALLBACK_DRAIN_TIMED_OUT,
+	CALLBACK_LANE_UNAVAILABLE,
+	BARRIER_PUBLICATION_FAILED,
+}
+
+internal sealed interface CellCaptureDeletionBarrierResult {
+	data object NoLocalProvider : CellCaptureDeletionBarrierResult
+
+	data class Established(
+		val throughAuthorizationRevision: Long,
+	) : CellCaptureDeletionBarrierResult
+
+	data class Blocked(
+		val reason: CellCaptureDeletionBarrierBlockedReason,
+	) : CellCaptureDeletionBarrierResult
+
+	data class Retryable(
+		val reason: CellCaptureDeletionBarrierRetryableReason,
+	) : CellCaptureDeletionBarrierResult
+}
 
 @Singleton
 class CellSourceRuntime @Inject internal constructor(
@@ -167,6 +197,185 @@ class CellSourceRuntime @Inject internal constructor(
 			if (ownerClaim != claim) return@withLock OwnedSourceShutdown.NotOwned
 			(automaticFailureAck ?: shutdownLocked(cutoff)).toOwnedShutdown()
 		}
+	}
+
+	/**
+	 * Closes Cell callback entry, drains the exact FIFO prefix, and publishes its durable capture
+	 * barrier without stopping a compatible CONTROL-only provider.
+	 */
+	internal suspend fun establishCaptureDeletionBarrier(
+		expectedCollectedDataEpoch: Long,
+	): CellCaptureDeletionBarrierResult = lifecycleMutex.withLock {
+		require(expectedCollectedDataEpoch >= 0L)
+		val activeRegistration = registration ?: return@withLock
+			CellCaptureDeletionBarrierResult.NoLocalProvider
+		if (activeRegistration.state.collectedDataEpoch != expectedCollectedDataEpoch) {
+			return@withLock CellCaptureDeletionBarrierResult.Blocked(
+				CellCaptureDeletionBarrierBlockedReason.STALE_LIFECYCLE,
+			)
+		}
+		if (activeRegistration.authorization.authorizedMembers.any { member ->
+				member.persistenceEligible && member.purpose in setOf(
+					SourceBrokerPurpose.SESSION_CAPTURE,
+					SourceBrokerPurpose.AMBIENT_PRODUCT,
+				)
+			}) return@withLock CellCaptureDeletionBarrierResult.Blocked(
+			CellCaptureDeletionBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
+		)
+
+		val activeToken = callbackToken
+		val activeQueue = queue
+		val activeActor = actor
+		if (activeToken == null || activeQueue == null || activeActor == null ||
+			!activeActor.isActive
+		) {
+			return@withLock CellCaptureDeletionBarrierResult.Retryable(
+				CellCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
+			)
+		}
+		val closed = synchronized(callbackLock) {
+			if (!accepting || registration !== activeRegistration || callbackToken !== activeToken ||
+				queue !== activeQueue
+			) {
+				false
+			} else {
+				accepting = false
+				true
+			}
+		}
+		if (!closed) return@withLock CellCaptureDeletionBarrierResult.Retryable(
+			CellCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
+		)
+
+		var cancellation: CancellationException? = null
+		var resumed = false
+		var outcome: CellCaptureDeletionBarrierResult? = null
+		try {
+			try {
+				wakeups.cancel(REFRESH_WAKEUP_ID)
+				wakeups.cancel(TIMEOUT_WAKEUP_ID)
+				val completion = CompletableDeferred<Unit>()
+				val drained = try {
+					withTimeoutOrNull(DEFAULT_DRAIN_TIMEOUT_MS) {
+						activeQueue.submit(CellRuntimeInput.CaptureBarrier(completion))
+						completion.await()
+						true
+					}
+				} catch (cancelled: CancellationException) {
+					throw cancelled
+				} catch (@Suppress("SwallowedException") _: Exception) {
+					null
+				}
+				outcome = when (drained) {
+					null -> CellCaptureDeletionBarrierResult.Retryable(
+						CellCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
+					)
+					false -> CellCaptureDeletionBarrierResult.Retryable(
+						CellCaptureDeletionBarrierRetryableReason.CALLBACK_DRAIN_TIMED_OUT,
+					)
+					true -> publishCaptureDeletionBarrier(
+						activeRegistration,
+						expectedCollectedDataEpoch,
+					)
+				}
+			} catch (cancelled: CancellationException) {
+				cancellation = cancelled
+			} catch (@Suppress("SwallowedException") _: Exception) {
+				outcome = CellCaptureDeletionBarrierResult.Retryable(
+					CellCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
+				)
+			}
+		} finally {
+			// Closure is an acquisition-lane fence, not a permanent provider shutdown. Attempt the
+			// exact compatible CONTROL-only transition even when drain/publication/caller fails.
+			resumed = resumeCaptureDeletionBarrierLane(
+				activeRegistration,
+				activeToken,
+				activeQueue,
+				activeActor,
+				allowResume = outcome.allowsControlLaneResumption(),
+			)
+		}
+		cancellation?.let { throw it }
+		if (!outcome.allowsControlLaneResumption()) {
+			requireNotNull(outcome)
+		} else if (!resumed) {
+			CellCaptureDeletionBarrierResult.Retryable(
+				CellCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
+			)
+		} else requireNotNull(outcome)
+	}
+
+	private suspend fun publishCaptureDeletionBarrier(
+		activeRegistration: SourceRegistration,
+		expectedCollectedDataEpoch: Long,
+	): CellCaptureDeletionBarrierResult {
+		val publication = try {
+			registrations.publishCellCaptureCallbackBarrier(
+				activeRegistration,
+				expectedCollectedDataEpoch,
+			)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (@Suppress("SwallowedException") _: Exception) {
+			return CellCaptureDeletionBarrierResult.Retryable(
+				CellCaptureDeletionBarrierRetryableReason.BARRIER_PUBLICATION_FAILED,
+			)
+		}
+		return when (publication) {
+			is CellCaptureCallbackBarrierPublication.Blocked ->
+				CellCaptureDeletionBarrierResult.Blocked(
+					when (publication.reason) {
+						CellCaptureCallbackBarrierBlockedReason.STALE_LIFECYCLE ->
+							CellCaptureDeletionBarrierBlockedReason.STALE_LIFECYCLE
+						CellCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION ->
+							CellCaptureDeletionBarrierBlockedReason.STALE_REGISTRATION
+						CellCaptureCallbackBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE ->
+							CellCaptureDeletionBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE
+						CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE ->
+							CellCaptureDeletionBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE
+					},
+				)
+			is CellCaptureCallbackBarrierPublication.Established ->
+				CellCaptureDeletionBarrierResult.Established(
+					publication.throughAuthorizationRevision,
+				)
+		}
+	}
+
+	private fun resumeCaptureDeletionBarrierLane(
+		activeRegistration: SourceRegistration,
+		activeToken: CellCallbackToken,
+		activeQueue: CellCallbackLane<CellRuntimeInput>,
+		activeActor: Job,
+		allowResume: Boolean,
+	): Boolean = synchronized(callbackLock) {
+		val currentRegistration = registration ?: return@synchronized false
+		if (!allowResume || accepting || currentRegistration !== activeRegistration ||
+			callbackToken !== activeToken || queue !== activeQueue || actor !== activeActor ||
+			!activeActor.isActive || currentPlan == null || currentSink == null ||
+			currentRegistration.authorization.authorizedMembers.any { member ->
+				member.persistenceEligible && member.purpose in setOf(
+					SourceBrokerPurpose.SESSION_CAPTURE,
+					SourceBrokerPurpose.AMBIENT_PRODUCT,
+				)
+			}
+		) {
+			false
+		} else {
+			val notified = activeQueue.offer(CellRuntimeInput.PlanChanged)
+			accepting = notified
+			notified
+		}
+	}
+
+	private fun CellCaptureDeletionBarrierResult?.allowsControlLaneResumption(): Boolean = when (this) {
+		is CellCaptureDeletionBarrierResult.Blocked -> reason !in setOf(
+			CellCaptureDeletionBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
+			CellCaptureDeletionBarrierBlockedReason.STALE_LIFECYCLE,
+			CellCaptureDeletionBarrierBlockedReason.STALE_REGISTRATION,
+		)
+		else -> true
 	}
 
 	/**
@@ -767,6 +976,7 @@ class CellSourceRuntime @Inject internal constructor(
 					backoff = backoff.failed()
 					scheduleRefresh()
 				}
+				is CellRuntimeInput.CaptureBarrier -> input.completion.complete(Unit)
 			}
 		}
 	}
@@ -910,6 +1120,9 @@ class CellSourceRuntime @Inject internal constructor(
 		data object PlanChanged : CellRuntimeInput
 		data object Refresh : CellRuntimeInput
 		data object Timeout : CellRuntimeInput
+		data class CaptureBarrier(
+			val completion: CompletableDeferred<Unit>,
+		) : CellRuntimeInput
 		data class Snapshot(
 			val snapshot: CellBackendSnapshot,
 			val outcome: CellRefreshOutcome,
@@ -977,6 +1190,8 @@ internal class CellCallbackLane<T>(capacity: Int = CELL_CALLBACK_BUFFER_CAPACITY
 	}
 
 	fun offer(input: T): Boolean = channel.trySend(input).isSuccess
+
+	suspend fun submit(input: T) = channel.send(input)
 
 	fun close() = channel.close()
 
