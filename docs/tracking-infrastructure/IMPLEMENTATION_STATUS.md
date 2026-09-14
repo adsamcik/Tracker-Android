@@ -63,6 +63,25 @@ as an invented correction. `b9e31666d` returns typed `CONFLICTING_ORIGIN_IDENTIT
 exact full-v1 equality emits once and distinct identities stay separate. Imported maintenance,
 file/UI action wiring, schema convergence, validation, and device evidence remain open.
 
+Imported Pressure selected-entry deletion is independently reviewed as
+**IMPLEMENTED_UNVALIDATED** through `941999060`. The four-commit chain `582f51570`, `3a6a118f2`,
+`11a01b75b`, and `941999060` adds a dedicated imported logical-entry deletion marker, exact typed
+API/Room command, Hilt binding, v27-to-v28 DDL/full-clear wiring, and focused unit/Room/migration test
+source. The command proves the current local epoch and selected import revision; authenticates the
+complete bounded correction lineage; and verifies every selected entry/run/window identity against
+all live owners plus both marker kinds before the first fence. It records every historical run
+generation and the entry marker before cascading only the selected imported hierarchy.
+
+Two correction reviews closed global owner/kind collisions and collisions with durable marker
+namespaces. A later full-slice review found that a marker on a superseded revision's run was ignored
+by history/export and duplicate/correction admission. `941999060` makes that state typed
+unverifiable and nonexportable, blocks exact replay, alternate receipts, and later corrections on
+any retained-lineage run marker, while retaining the existing typed deleted state when the same run
+identity legitimately survives into the latest revision. Independent final static review found no
+remaining blocking defect. No execution command ran; schema JSON generation, file/UI invocation,
+imported retention/source-wide erase, device evidence, integration, activation, and release remain
+open.
+
 The separate `codex/ti-cell-maintenance` branch is independently accepted through `f8d7a5f50`.
 Its bounded source-local retention and revoked-consent deletion transaction now authenticates
 canonical v1 Cell payload bytes, recomputes the exact provider-delivery identity, rederives the full

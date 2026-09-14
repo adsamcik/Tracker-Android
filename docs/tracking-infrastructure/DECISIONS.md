@@ -3919,3 +3919,24 @@ Each entry records repository evidence and does not duplicate the final architec
 - Ingress and startup recovery provide conflated wake hints only. This does not install or activate
   a provider, register demand, change rollout, add a second writer, invoke maintenance, implement
   transfer/UI/automatic/ambient behavior, provide executed evidence, or release.
+
+## TI-D242 — Imported Pressure deletion fences the complete correction lineage and identity namespace
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; API/Room/migration/history/import/export/test
+  commits `582f51570`, `3a6a118f2`, `11a01b75b`, and `941999060`; corrected independent reviews;
+  TI-B305.
+- One selected imported entry is deletable only at the exact current collected-data epoch and import
+  revision after complete bounded receipt/revision/run/window authentication. Before any mutation,
+  every selected opaque identity must have one compatible global live owner and no conflicting entry
+  or run marker identity.
+- Deletion writes a source-specific logical-entry marker and generation-one marker for every run
+  across every retained correction revision before cascading the imported hierarchy in the same
+  transaction. It never substitutes wall overlap, `sample_count`, `QUIESCED`, or live Pressure
+  provider/session/manifest/WAL authority for ownership.
+- History and export treat a marker found only on a superseded run as unverifiable and nonnumeric;
+  a marker on an identity reused by the latest correction retains the typed deleted representation.
+  Import checks every retained-lineage run marker before exact replay, alternate receipt claim, or a
+  successor correction, preventing an older physical run from resurrecting through a newer file.
+- Unrelated imported entries, local Pressure, other sources, and live authority remain untouched;
+  cancellation and storage failure roll back. The generated v28 schema, file/UI action, imported
+  retention/source-wide erase, execution validation, activation, and release remain deferred.

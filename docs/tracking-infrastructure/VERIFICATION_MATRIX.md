@@ -2678,3 +2678,33 @@ Deferred focused command:
 The command was not run. Compilation, Room execution, maintenance invocation, transfer, shared UI,
 automatic/ambient behavior, provider/process/reboot/device evidence, integration, activation, and
 release remain unproven.
+
+## TI-B305 — Imported Pressure selected-entry deletion and no-resurrection contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `941999060` (`582f51570`, `3a6a118f2`, `11a01b75b`,
+and `941999060`). Authored API, DAO, Room, migration, history, export, and import assertions cover
+exact epoch/revision selection; complete correction lineage; dedicated entry versus run markers;
+global live and marker identity-kind/owner collisions; bounded overflow; fence-before-cascade;
+receipt/hierarchy removal; cancellation/rollback; idempotence; unrelated imported and live-source
+preservation; full clear and migration reopen; and absence of fabricated provider/session/WAL
+authority.
+
+Independent reviews first found that globally keyed run markers could affect an unrelated entry and
+that the live-owner audit omitted both durable marker namespaces. `3a6a118f2` and `11a01b75b` add
+bounded entry/run/window owner plus entry/run-marker checks before the first fence, with all four
+cross-kind marker collisions and legitimate same-owner correction reuse. A fresh full-slice review
+then found that superseded-revision run markers were ignored by latest-only history/export and by
+exact/alternate/correction import paths. `941999060` makes superseded-only deletion typed
+unverifiable and nonexportable and blocks every admission path on any retained-lineage marker;
+latest-reused run identities retain typed deleted behavior. Final independent static review returned
+ACCEPT with no remaining blocking defect.
+
+Deferred focused commands:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ImportedPressureDaoTest' :stats:api:androidHostTest --tests '*PressurePortableImportContractTest' :stats:data:testDebugUnitTest --tests '*RoomDeleteImportedPressureEntryTest' --tests '*ImportedPressureHistoryEvaluatorTest' --tests '*RoomImportPortablePressureTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, generated-schema parity, connected migration,
+file/UI invocation, imported retention/source-wide erase, device/provider/process behavior,
+integration, activation, publication, and release remain unproven.

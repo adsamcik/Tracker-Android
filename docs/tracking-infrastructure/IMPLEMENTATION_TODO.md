@@ -612,6 +612,16 @@ content sharing one opaque identity fails typed before output and cannot invent 
 Imported maintenance and the file/UI action remain. Never fabricate a live event/run or insert the
 portable product directly into the live-WAL table.
 
+Independently reviewed commits `582f51570` through `941999060` implement a further bounded portion
+of PRESS-008/012 and PRIV-004/005/007/011. Exact selected imported-entry deletion authenticates the
+current epoch/revision, complete correction lineage, and global live-plus-marker identity namespace
+before writing one logical-entry marker and per-run generations ahead of the atomic hierarchy
+cascade. History/export and every replay/correction path honor run markers from all retained
+revisions, including superseded runs; unrelated imported entries and live source authority remain
+untouched. Focused API/DAO/Room/migration/no-resurrection tests are authored but unexecuted. These
+TODOs remain unchecked until file/UI invocation, imported retention/source-wide erase, schema
+convergence, and the complete scenario cohort exist.
+
 Accepted product/UI commits `06ec05883` through `c27cc1c18` implement bounded portions of
 PRESS-006/007/012 and HIST-002/003/005/006/011/012. One Pressure-aware recent page uses exact-intent
 replacement before first fact, member-owned recency, explicit traversal budgets, cancellation and

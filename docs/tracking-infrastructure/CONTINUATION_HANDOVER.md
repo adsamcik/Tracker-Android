@@ -60,6 +60,19 @@ pressure, while deleted/unverifiable remain explicit. Exact local/import duplica
 divergent content sharing an opaque identity fails typed before sink output, so re-import cannot
 invent a correction winner. File/UI action wiring and imported maintenance remain open.
 
+Imported Pressure selected-entry deletion is independently reviewed as
+**IMPLEMENTED_UNVALIDATED** through `941999060` (`582f51570`, `3a6a118f2`, `11a01b75b`, and
+`941999060`). One exact current-epoch/current-revision command authenticates the complete bounded
+imported correction lineage and the global live-plus-tombstone entry/run/window identity namespace
+before installing any privacy fence. It writes a dedicated logical-entry marker plus generation-one
+markers for every physical run across every retained revision, then cascades only that imported
+hierarchy in the same transaction. History, export, exact/alternate receipt replay, and later
+corrections now honor markers from superseded revisions, so an older physical run cannot resurrect
+through a newer portable snapshot. Cancellation and storage failure roll back; unrelated imported
+entries, local Pressure, live WAL/manifest/provider authority, and other sources remain untouched.
+The v28 schema JSON is still intentionally deferred to convergence. File/UI invocation, imported
+retention/source-wide erase, execution validation, activation, and rollout remain open.
+
 Cell maintenance is independently accepted through `f8d7a5f50` after closing a canonical-delivery
 identity gap. The source-local transaction recomputes the exact shared v1 runtime identity and full
 identity-free aggregate, requires current-head/full-authority owner reuse, retains complete
