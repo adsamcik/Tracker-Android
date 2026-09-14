@@ -168,11 +168,12 @@ internal class WifiCaptureConsentRevocationDeletionCommand @Inject constructor(
 			consent.eligible || consent.persistenceEligible ||
 			consent.policyRevision > policy.policyRevision
 		) return@withTransaction WifiCapturedSourceDeletionBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE
+		// Generic evidence time also advances for independent CONTROL/AMBIENT WAL. The exact
+		// epoch/high-water checks above fence lifecycle authority without making those sources block.
 		if (request.deletedAtMs < maxOf(
 			authority.updatedAtMs,
 			policy.effectiveWallTimeMs,
 			consent.effectiveWallTimeMs,
-			evidence.updatedAtMs,
 		)
 		) return@withTransaction WifiCapturedSourceDeletionBlockedReason.STALE_REQUEST
 		null

@@ -296,11 +296,12 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 					revokedConsent.eligible || revokedConsent.persistenceEligible ||
 					revokedConsent.policyRevision > policy.policyRevision
 				) block(WifiCapturedSourceDeletionBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE)
+				// CONTROL/AMBIENT ingress advances the generic evidence clock; exact epoch/high-water
+				// and the capture-specific clocks below remain the deletion authority.
 				if (deletedAtMs < maxOf(
 					policyAuthority.updatedAtMs,
 					policy.effectiveWallTimeMs,
 					revokedConsent.effectiveWallTimeMs,
-					evidence.updatedAtMs,
 				)) block(WifiCapturedSourceDeletionBlockedReason.STALE_REQUEST)
 
 				val dao = database.wifiCapturedFactDao()
@@ -539,8 +540,8 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				WifiCapturedRunScope(generation.logicalTrackingId, generation.serviceRunId)
 			},
 			wal = wal,
+			// auditWal advances time only for fully authenticated current capture-bearing WAL.
 			latestDurableTimeMs = maxOf(
-				evidence.updatedAtMs,
 				owner?.updatedAtMs ?: 0L,
 				wal.latestDurableTimeMs,
 				lineages.maxOfOrNull { lineage ->

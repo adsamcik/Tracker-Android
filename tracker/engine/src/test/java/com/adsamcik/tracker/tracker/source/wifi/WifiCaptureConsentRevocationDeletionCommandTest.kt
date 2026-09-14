@@ -4,6 +4,8 @@ import android.app.Application
 import android.database.sqlite.SQLiteException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -13,22 +15,45 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCaptureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
+import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
+import com.adsamcik.tracker.tracker.source.ingress.DeliveryAdmissionResult
+import com.adsamcik.tracker.tracker.source.ingress.RoomDurableSourceIngress
 import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
+import com.adsamcik.tracker.tracker.source.model.PlanAttribution
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryUnit
 import com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory
+import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.SourceQuality
+import com.adsamcik.tracker.tracker.source.model.WifiAccessPointEvidence
+import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
 import com.adsamcik.tracker.tracker.source.runtime.WifiCaptureDeletionBarrierBlockedReason
 import com.adsamcik.tracker.tracker.source.runtime.WifiCaptureDeletionBarrierResult
 import com.adsamcik.tracker.tracker.source.runtime.WifiCaptureDeletionBarrierRetryableReason
 import com.adsamcik.tracker.tracker.source.runtime.WifiSourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.WITHHELD_RADIO_IDENTIFIER_TOKEN
+import com.adsamcik.tracker.tracker.source.runtime.wifiProviderDeliveryIdentity
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import javax.inject.Provider
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -80,6 +105,82 @@ class WifiCaptureConsentRevocationDeletionCommandTest {
 		coVerify(exactly = 2) { runtime.establishCaptureDeletionBarrier(COLLECTED_DATA_EPOCH) }
 		database.sourceBrokerDao().maximumRegistrationGeneration(WIFI_SOURCE) shouldBe 0L
 		database.wifiCapturedFactDao().maintenanceWalCount(WIFI_SOURCE) shouldBe 0L
+	}
+
+	@Test
+	fun `real ingress noncapture evidence after request cannot starve capture deletion`() = runTest {
+		installPolicy(revoked = true)
+		val deletionRequest = request()
+		val controlDemand = sentinelControlDemand()
+		val authorizationFingerprint = installIngressControlAuthority(controlDemand)
+		val ingress = RoomDurableSourceIngress(
+			database = database,
+			lifecycleStore = WifiDeletionIngressLifecycleStore(COLLECTED_DATA_EPOCH),
+			payloadCodec = DefaultSourcePayloadCodec(),
+			executableLaneCatalog = ExecutableSourceLaneCatalog.explicit(),
+			trackingStartupGateProvider = Provider { WifiDeletionIngressStartupGate },
+		)
+		val evidenceBefore = requireNotNull(database.sourceEvidenceStateDao().get())
+
+		ingress.admit(ingressControlDelivery(authorizationFingerprint))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		val evidenceAfterAdmission = requireNotNull(database.sourceEvidenceStateDao().get())
+		evidenceAfterAdmission.revision shouldBe evidenceBefore.revision + 1L
+		(evidenceAfterAdmission.updatedAtMs > evidenceBefore.updatedAtMs) shouldBe true
+		(evidenceAfterAdmission.updatedAtMs > deletionRequest.deletedAtMs) shouldBe true
+		val walBefore = database.sourceEventWalDao().eventsAfter(0L, 2).single()
+		evidenceAfterAdmission.updatedAtMs shouldBe walBefore.createdAtMs
+		(walBefore.createdAtMs > deletionRequest.deletedAtMs) shouldBe true
+		(walBefore.admissionOrdinal > DELETED_SOURCE_HIGH_WATER) shouldBe true
+		walBefore.sourceSequence shouldBe 1L
+		walBefore.wallTimeMs shouldBe INGRESS_OBSERVED_AT_MS
+		walBefore.authorizationPurposeEligibilityMask shouldBe
+			SourceBrokerPurpose.MASK_CONTROL_AUTOSTART
+		walBefore.planAttribution shouldBe PlanAttribution.RECEIVE_TIME_ONLY.ordinal
+		walBefore.logicalTrackingId shouldBe null
+		walBefore.serviceRunId shouldBe null
+		walBefore.sourcePolicyRevision shouldBe null
+		walBefore.captureConsentEpoch shouldBe null
+		walBefore.sessionManifestRevision shouldBe null
+		walBefore.lifecycleLeaseGeneration shouldBe null
+		val demandBefore = database.sourceBrokerDao().demandsByIds(
+			listOf(controlDemand.demandId),
+		).single()
+		val authorizationBefore = database.sourceBrokerDao().latestAuthorization(
+			WIFI_SOURCE,
+			INGRESS_REGISTRATION_GENERATION,
+		)
+
+		maintenance = WifiCapturedFactMaintenance(
+			database,
+			DefaultSourcePayloadCodec(),
+			SourcePlanCodec(),
+		)
+		subject = WifiCaptureConsentRevocationDeletionCommand(database, runtime, maintenance)
+		coEvery { runtime.establishCaptureDeletionBarrier(COLLECTED_DATA_EPOCH) } coAnswers {
+			database.sourceEvidenceStateDao().get() shouldBe evidenceAfterAdmission
+			database.sourceEventWalDao().countAll() shouldBe 1L
+			WifiCaptureDeletionBarrierResult.Established(0L)
+		}
+
+		subject.delete(deletionRequest) shouldBe
+			WifiCaptureConsentRevocationDeletionResult.AlreadyDeleted
+
+		database.sourceEvidenceStateDao().get() shouldBe evidenceAfterAdmission
+		val walAfter = database.sourceEventWalDao().eventsAfter(0L, 2).single()
+		walAfter.copy(payload = byteArrayOf()) shouldBe walBefore.copy(payload = byteArrayOf())
+		walAfter.payload.contentEquals(walBefore.payload) shouldBe true
+		database.sourceBrokerDao().demandsByIds(listOf(controlDemand.demandId)).single() shouldBe
+			demandBefore
+		database.sourceBrokerDao().latestAuthorization(
+			WIFI_SOURCE,
+			INGRESS_REGISTRATION_GENERATION,
+		) shouldBe authorizationBefore
+		database.wifiCapturedFactDao().revisionCount() shouldBe 0L
+		database.wifiCapturedFactDao().cursorCount() shouldBe 0L
+		database.wifiCapturedFactDao().deletionGenerationCount() shouldBe 0L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		coVerify(exactly = 1) { runtime.establishCaptureDeletionBarrier(COLLECTED_DATA_EPOCH) }
 	}
 
 	@Test
@@ -500,6 +601,143 @@ class WifiCaptureConsentRevocationDeletionCommandTest {
 		)
 	}
 
+	private fun sentinelControlDemand(): SourceDemandEntity {
+		val contract = SourceDemandContractFactory.forQos(
+			SourceKind.WIFI,
+			QOS_OFF,
+			DirectSourceDemandPurpose.CONTROL_AUTOSTART,
+		)
+		return SourceDemandEntity(
+			demandId = INGRESS_CONTROL_DEMAND_ID,
+			consumerId = "app:sentinel-wifi-control",
+			sourceKind = WIFI_SOURCE,
+			purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			manifestRevision = null,
+			lifecycleLeaseGeneration = null,
+			sourcePolicyRevision = CURRENT_POLICY_REVISION,
+			consentEpoch = CONTROL_CONSENT_EPOCH,
+			persistenceEligible = false,
+			qosCode = QOS_OFF,
+			minimumAcquisitionSpec = contract.encodeFloor(),
+			adaptiveReductionAllowed = contract.adaptiveReductionAllowed,
+			maximumAgeMs = contract.maximumProviderItemAgeMs,
+			desiredLatencyMs = contract.targetPlanningLatencyMs,
+			requestedDeliveryLatencyMs = contract.requestedDeliveryLatencyMs,
+			requestedBootId = BOOT_ID,
+			requestedElapsedRealtimeNanos = CURRENT_POLICY_ELAPSED_NANOS,
+			requestedAtMs = CURRENT_POLICY_AT_MS,
+			status = SourceDemandEntity.STATUS_ACTIVE,
+			retireBootId = null,
+			retireElapsedRealtimeNanos = null,
+			retiredAtMs = null,
+		)
+	}
+
+	private suspend fun installIngressControlAuthority(demand: SourceDemandEntity): String {
+		database.sourceBrokerDao().insertDemands(listOf(demand))
+		database.sourceRegistrationStateDao().insertIfAbsent(
+			SourceRegistrationStateEntity(
+				sourceKind = WIFI_SOURCE,
+				ownerScope = INGRESS_OWNER_SCOPE,
+				sourceInstanceId = INGRESS_SOURCE_INSTANCE_ID,
+				clockDomainId = BOOT_ID,
+				registrationGeneration = INGRESS_REGISTRATION_GENERATION,
+				nextSequence = 1L,
+				appliedRevision = INGRESS_AUTHORIZATION_REVISION,
+				collectedDataEpoch = COLLECTED_DATA_EPOCH,
+				updatedAtMs = INGRESS_AUTHORIZATION_AT_MS,
+			),
+		)
+		database.sourceBrokerDao().insertRegistration(
+			ProviderRegistrationGenerationEntity(
+				sourceKind = WIFI_SOURCE,
+				registrationGeneration = INGRESS_REGISTRATION_GENERATION,
+				sourceInstanceId = INGRESS_SOURCE_INSTANCE_ID,
+				ownerScope = INGRESS_OWNER_SCOPE,
+				clockDomainId = BOOT_ID,
+				physicalConfigurationFingerprint = INGRESS_PHYSICAL_CONFIGURATION,
+				collectedDataEpoch = COLLECTED_DATA_EPOCH,
+				providerResidency =
+					ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+				providerProcessIncarnationId = "wifi-delete-ingress-process",
+				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+				reservedAtMs = CURRENT_POLICY_AT_MS,
+				reservedElapsedRealtimeNanos = INGRESS_REGISTRATION_ELAPSED_NANOS,
+				acceptedAtMs = CURRENT_POLICY_AT_MS,
+				acceptedElapsedRealtimeNanos = INGRESS_REGISTRATION_ELAPSED_NANOS,
+				retiredAtMs = null,
+				retiredElapsedRealtimeNanos = null,
+				failureCode = null,
+				captureCallbackBarrierAuthorizationRevision = 0L,
+			),
+		)
+		val authorization = SourceBrokerAuthorization.rows(
+			sourceKind = WIFI_SOURCE,
+			registrationGeneration = INGRESS_REGISTRATION_GENERATION,
+			authorizationRevision = INGRESS_AUTHORIZATION_REVISION,
+			demands = listOf(demand),
+			effectiveBootId = BOOT_ID,
+			effectiveElapsedRealtimeNanos = INGRESS_AUTHORIZATION_ELAPSED_NANOS,
+			effectiveWallTimeMs = INGRESS_AUTHORIZATION_AT_MS,
+		)
+		database.sourceBrokerDao().insertAuthorizations(authorization)
+		return authorization.single().authorizationFingerprint
+	}
+
+	private fun ingressControlDelivery(authorizationFingerprint: String): SourceDeliveryCandidate {
+		val accessPoints = listOf(
+			WifiAccessPointEvidence(
+				identifierToken = WITHHELD_RADIO_IDENTIFIER_TOKEN,
+				frequencyMhz = 2_412,
+				signalLevelDbm = -50,
+				providerTimestampNanos = INGRESS_OBSERVED_ELAPSED_NANOS,
+			),
+		)
+		val evidence = SourceEvidenceCandidate(
+			providerDedupKey = null,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			source = SourceKind.WIFI,
+			sourceInstanceId = SourceInstanceId(INGRESS_SOURCE_INSTANCE_ID),
+			registrationGeneration = INGRESS_REGISTRATION_GENERATION,
+			physicalConfigurationFingerprint = INGRESS_PHYSICAL_CONFIGURATION,
+			authorizationRevision = INGRESS_AUTHORIZATION_REVISION,
+			registrationPurposeEligibilityMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+			registrationEligibilityFingerprint = authorizationFingerprint,
+			sourceSequence = 0L,
+			configRevision = null,
+			planAttribution = PlanAttribution.RECEIVE_TIME_ONLY,
+			clockDomainId = BOOT_ID,
+			observedElapsedRealtimeNanos = INGRESS_OBSERVED_ELAPSED_NANOS,
+			receivedElapsedRealtimeNanos = INGRESS_RECEIVED_ELAPSED_NANOS,
+			wallTimeMs = INGRESS_OBSERVED_AT_MS,
+			wallTimeUncertaintyMs = 1L,
+			capturedCollectedDataEpoch = COLLECTED_DATA_EPOCH,
+			acquiredAtMs = INGRESS_OBSERVED_AT_MS,
+			quality = SourceQuality(),
+			payloadVersion = 2,
+			payload = WifiResultSnapshotPayload(
+				accessPoints = accessPoints,
+				platformTimestampMs =
+					INGRESS_OBSERVED_ELAPSED_NANOS / NANOS_PER_MILLISECOND,
+				resultAgeMs = null,
+			),
+		)
+		return SourceDeliveryCandidate(
+			identity = wifiProviderDeliveryIdentity(BOOT_ID, accessPoints),
+			units = listOf(
+				SourceDeliveryUnit(
+					unitIndex = 0,
+					evidence = evidence,
+					observedIntervalStartElapsedRealtimeNanos =
+						INGRESS_OBSERVED_ELAPSED_NANOS,
+				),
+			),
+		)
+	}
+
 	private fun sentinelAmbientWal(): SourceEventWalEntity {
 		val payload = byteArrayOf(1, 2, 3)
 		val unsigned = SourceEventWalEntity(
@@ -574,5 +812,45 @@ class WifiCaptureConsentRevocationDeletionCommandTest {
 		const val SENTINEL_LOGICAL_TRACKING_ID = "sentinel-wifi-session"
 		const val SENTINEL_SERVICE_RUN_ID = "sentinel-wifi-run"
 		const val SENTINEL_WAL_EVENT_ID = "sentinel-wifi-ambient-event"
+		const val INGRESS_CONTROL_DEMAND_ID = "sentinel-wifi-ingress-control-demand"
+		const val INGRESS_SOURCE_INSTANCE_ID = "sentinel-wifi-ingress-instance"
+		const val INGRESS_REGISTRATION_GENERATION = 1L
+		const val INGRESS_AUTHORIZATION_REVISION = 1L
+		const val INGRESS_REGISTRATION_ELAPSED_NANOS = 350_000_000L
+		const val INGRESS_AUTHORIZATION_ELAPSED_NANOS = 400_000_000L
+		const val INGRESS_OBSERVED_ELAPSED_NANOS = 500_000_000L
+		const val INGRESS_RECEIVED_ELAPSED_NANOS = 600_000_000L
+		const val INGRESS_AUTHORIZATION_AT_MS = 2_300L
+		const val INGRESS_OBSERVED_AT_MS = DELETED_AT_MS + 100L
+		const val NANOS_PER_MILLISECOND = 1_000_000L
+		val INGRESS_OWNER_SCOPE = "source-broker:$WIFI_SOURCE"
+		val INGRESS_PHYSICAL_CONFIGURATION = "a".repeat(64)
 	}
+}
+
+private class WifiDeletionIngressLifecycleStore(epoch: Long) : CollectedDataLifecycleStore {
+	private val state = MutableStateFlow(CollectedDataLifecycleSnapshot(epoch, null))
+	override val snapshots: Flow<CollectedDataLifecycleSnapshot> = state
+	override suspend fun snapshot(): CollectedDataLifecycleSnapshot = state.value
+
+	override suspend fun beginFullDeletion(deletedAtMs: Long): CollectedDataLifecycleSnapshot {
+		val updated = state.value.copy(epoch = state.value.epoch + 1L, retainedFromMs = deletedAtMs)
+		state.emit(updated)
+		return updated
+	}
+
+	override suspend fun advanceRetainedFrom(retainedFromMs: Long): CollectedDataLifecycleSnapshot {
+		val updated = state.value.copy(retainedFromMs = retainedFromMs)
+		state.emit(updated)
+		return updated
+	}
+}
+
+private object WifiDeletionIngressStartupGate : TrackingStartupGate {
+	override val isReady: Boolean = true
+	override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+		TrackingStartupResult.Ready(
+			legacyRecoveryPartial = false,
+			liveCompletedThroughOrdinal = 0L,
+		)
 }
