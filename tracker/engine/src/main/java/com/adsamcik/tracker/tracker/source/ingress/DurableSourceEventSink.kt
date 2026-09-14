@@ -170,6 +170,7 @@ class DurableSourceEventSinkFactory private constructor(
 			SourceKind.ACTIVITY -> recovery?.requestCommittedWorkDrain()
 			SourceKind.STEPS -> recovery?.requestStepsSessionFactDrain()
 			SourceKind.PRESSURE -> recovery?.requestPressureSessionFactDrain()
+			SourceKind.CELL -> recovery?.requestCellSessionFactDrain()
 			else -> Unit
 		}
 	}

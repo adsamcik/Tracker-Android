@@ -22,9 +22,11 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.CellMode
@@ -274,6 +276,199 @@ class CellWalQualificationAdapterTest {
 		assertEquals(0L, fact.scopeDeletionGeneration)
 		assertEquals("UNKNOWN", fact.subscriptionCompleteness)
 		assertEquals(beforeEvidenceRevision + 1L, database.sourceEvidenceStateDao().get()?.revision)
+	}
+
+	@Test
+	fun `canonical Cell lane commits one authenticated fact and both cursors`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val lane = CellSessionFactProjectionLane(database, subject, writer)
+
+		val result = assertIs<CellSessionFactDrainResult.Complete>(lane.drainAvailable())
+
+		assertEquals(1L, result.lastCompletedOrdinal)
+		assertEquals(1, result.factsInserted)
+		assertEquals(1, result.eventsValidated)
+		assertEquals(1L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(1L, database.cellCapturedFactDao().cursorCount())
+		assertEquals(
+			1L,
+			database.sourceProjectionStateDao().activeProductLane(CELL_SOURCE)
+				?.contiguousAdmissionOrdinal,
+		)
+	}
+
+	@Test
+	fun `shadow Cell lane validates without invoking the canonical writer`() = runTest {
+		installValidFixture(candidateWriter = false)
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW)
+
+		val result = assertIs<CellSessionFactDrainResult.Complete>(
+			CellSessionFactProjectionLane(database, subject, writer).drainAvailable(),
+		)
+
+		assertEquals(1, result.eventsValidated)
+		assertEquals(0, result.factsInserted)
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(0L, database.cellCapturedFactDao().cursorCount())
+		assertEquals(
+			1L,
+			database.sourceProjectionStateDao().activeProductLane(CELL_SOURCE)
+				?.contiguousAdmissionOrdinal,
+		)
+	}
+
+	@Test
+	fun `noncapture Cell purpose masks settle without captured history`() = runTest {
+		installValidFixture(candidateWriter = true)
+		rewriteWalPurpose(EVENT_ID, SourceBrokerPurpose.MASK_CONTROL_AUTOSTART)
+		val shifted = observations().map { observation ->
+			observation.copy(
+				providerTimestampNanos = requireNotNull(observation.providerTimestampNanos) +
+					SECOND_DELIVERY_SHIFT_NANOS,
+			)
+		}
+		insertAdditionalWal(SECOND_EVENT_ID, shifted, SOURCE_SEQUENCE + 1L)
+		rewriteWalPurpose(SECOND_EVENT_ID, SourceBrokerPurpose.MASK_AMBIENT_PRODUCT)
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+
+		val result = assertIs<CellSessionFactDrainResult.Complete>(
+			CellSessionFactProjectionLane(database, subject, writer).drainAvailable(),
+		)
+
+		assertEquals(2L, result.lastCompletedOrdinal)
+		assertEquals(0, result.eventsValidated)
+		assertEquals(0, result.factsInserted)
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(0L, database.cellCapturedFactDao().cursorCount())
+	}
+
+	@Test
+	fun `corrupt Cell WAL is terminal and deletion later settles only the lane cursor`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET payload = X'00' WHERE event_id = ?",
+			arrayOf(EVENT_ID.value),
+		)
+		val lane = CellSessionFactProjectionLane(database, subject, writer)
+
+		val failed = assertIs<CellSessionFactDrainResult.Failed>(lane.drainAvailable())
+		assertEquals(0L, failed.lastCompletedOrdinal)
+		assertEquals(1L, failed.failedOrdinal)
+		assertEquals("CELL_ADAPTER_WAL_INTEGRITY_MISMATCH", failed.failureCode)
+		assertEquals(true, failed.terminal)
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(0L, database.cellCapturedFactDao().cursorCount())
+		assertEquals(0L, database.sourceProjectionStateDao().activeProductLane(CELL_SOURCE)
+			?.contiguousAdmissionOrdinal)
+
+		assertEquals(
+			1,
+			database.sourceEvidenceStateDao().updateAfterFullDeletion(
+				epoch = 0L,
+				retainedFromMs = null,
+				deletedSourceEventHighWaterOrdinal = 1L,
+				updatedAtMs = SESSION_END_WALL_MS,
+			),
+		)
+		val settled = assertIs<CellSessionFactDrainResult.Complete>(lane.drainAvailable())
+		assertEquals(1L, settled.lastCompletedOrdinal)
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(0L, database.cellCapturedFactDao().cursorCount())
+		assertEquals(
+			null,
+			database.sourceProjectionStateDao().failure(
+				CellSessionFactProjectionLane.WRITER_ID,
+				CellSessionFactProjectionLane.WRITER_VERSION,
+				1L,
+			),
+		)
+	}
+
+	@Test
+	fun `retryable Cell lane failure keeps every cursor and retries exactly`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		var fail = true
+		val lane = CellSessionFactProjectionLane(
+			database,
+			subject,
+			writer,
+			writeCheckpoint = { _, checkpoint ->
+				if (fail && checkpoint == CellCapturedWriteCheckpoint.QUALIFIED) {
+					error("retry-cell")
+				}
+			},
+		)
+
+		val failed = assertIs<CellSessionFactDrainResult.Failed>(lane.drainAvailable())
+		assertEquals(false, failed.terminal)
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(0L, database.cellCapturedFactDao().cursorCount())
+		assertEquals(0L, database.sourceProjectionStateDao().activeProductLane(CELL_SOURCE)
+			?.contiguousAdmissionOrdinal)
+
+		fail = false
+		val recovered = assertIs<CellSessionFactDrainResult.Complete>(lane.drainAvailable())
+		assertEquals(1, recovered.factsInserted)
+		assertEquals(1L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(1L, database.cellCapturedFactDao().cursorCount())
+		assertEquals(
+			null,
+			database.sourceProjectionStateDao().failure(
+				CellSessionFactProjectionLane.WRITER_ID,
+				CellSessionFactProjectionLane.WRITER_VERSION,
+				1L,
+			),
+		)
+	}
+
+	@Test
+	fun `Cell lane cancellation after fact insert rolls back fact and lane cursors`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val lane = CellSessionFactProjectionLane(
+			database,
+			subject,
+			writer,
+			writeCheckpoint = { _, checkpoint ->
+				if (checkpoint == CellCapturedWriteCheckpoint.REVISION_INSERTED) {
+					throw CancellationException("cancel-cell-lane")
+				}
+			},
+		)
+
+		assertFailsWith<CancellationException> { lane.drainAvailable() }
+
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(0L, database.cellCapturedFactDao().cursorCount())
+		assertEquals(0L, database.sourceProjectionStateDao().activeProductLane(CELL_SOURCE)
+			?.contiguousAdmissionOrdinal)
+		assertEquals(
+			null,
+			database.sourceProjectionStateDao().failure(
+				CellSessionFactProjectionLane.WRITER_ID,
+				CellSessionFactProjectionLane.WRITER_VERSION,
+				1L,
+			),
+		)
+	}
+
+	@Test
+	fun `canonical Cell lane refuses missing destination owner before WAL mutation`() = runTest {
+		installValidFixture(candidateWriter = true, installDestinationOwner = false)
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+
+		val changed = assertIs<CellSessionFactDrainResult.AuthorityChanged>(
+			CellSessionFactProjectionLane(database, subject, writer).drainAvailable(),
+		)
+
+		assertEquals("CELL_DESTINATION_OWNER_CHANGED", changed.reason)
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(0L, database.cellCapturedFactDao().cursorCount())
+		assertEquals(0L, database.sourceProjectionStateDao().activeProductLane(CELL_SOURCE)
+			?.contiguousAdmissionOrdinal)
 	}
 
 	@Test
@@ -851,6 +1046,41 @@ class CellWalQualificationAdapterTest {
 		)
 		val wal = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
 		assertEquals(2L, database.sourceEventWalDao().insertIgnoringDuplicate(wal))
+	}
+
+	private suspend fun installCellLane(stage: String) {
+		val binding = ExecutableSourceLaneCatalog.CELL_SESSION_FACTS
+		database.sourceProjectionStateDao().installProductLane(
+			SourceProductProjectionLaneEntity(
+				sourceKind = binding.source.stableCode,
+				bindingGeneration = binding.bindingGeneration,
+				projectionId = binding.projectionId,
+				projectionVersion = binding.projectionVersion,
+				captureModeMask = binding.captureModeMask,
+				productStage = stage,
+				activatedRolloutRevision = ROLLOUT_REVISION,
+				activationOrdinal = 1L,
+				contiguousAdmissionOrdinal = 0L,
+				retentionRequired = true,
+				status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+				installedAtMs = RUN_START_WALL_MS,
+				updatedAtMs = RUN_START_WALL_MS,
+			),
+		)
+	}
+
+	private suspend fun rewriteWalPurpose(eventId: SourceEventId, purposeMask: Long) {
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(eventId.value))
+		val unsigned = original.copy(
+			authorizationPurposeEligibilityMask = purposeMask,
+			integrityIdentity = SourceEventWalEntity.LEGACY_PENDING_CHECKSUM,
+		)
+		val rewritten = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ?, " +
+				"integrity_identity = ? WHERE event_id = ?",
+			arrayOf(purposeMask, rewritten.integrityIdentity, eventId.value),
+		)
 	}
 
 	private suspend fun fact(

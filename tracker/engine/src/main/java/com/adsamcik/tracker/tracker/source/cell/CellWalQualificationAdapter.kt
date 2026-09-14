@@ -76,7 +76,7 @@ internal sealed interface CellWalAdapterResult {
  * Dormant read-only bridge from one exact retained Cell WAL row to the source-local fact model.
  *
  * The only caller input is an event id. Provider values and capture authority are recovered from
- * immutable Room rows in one snapshot. No writer, provider, cadence, or product surface is wired.
+ * immutable Room rows in one snapshot. It neither mutates facts nor starts a provider or cadence.
  */
 internal class CellWalQualificationAdapter @Inject constructor(
 	private val database: AppDatabase,

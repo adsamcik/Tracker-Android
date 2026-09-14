@@ -30,6 +30,24 @@ interface SourceEventWalDao {
 		admissionOrdinal: Long,
 	): SourceEventProjectionEligibilityRow?
 
+	/**
+	 * Bounded payload-free source-local projection preflight. The materializer must reload and
+	 * authenticate each exact event before deriving a product fact; this covering read only bounds
+	 * scheduling and prevents a batch payload decode before lane authority is established.
+	 */
+	@Query(
+		"SELECT event_id, admission_ordinal, authorization_purpose_eligibility_mask " +
+			"FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND admission_ordinal > :afterOrdinal AND admission_ordinal <= :throughOrdinal " +
+			"ORDER BY admission_ordinal ASC LIMIT :limit",
+	)
+	suspend fun sourceProjectionCandidatesAfterThrough(
+		sourceKind: Int,
+		afterOrdinal: Long,
+		throughOrdinal: Long,
+		limit: Int,
+	): List<SourceEventProjectionCandidateRow>
+
 	@Query(
 		"SELECT event_id, admission_ordinal, provider_dedup_key, source_instance_id, " +
 			"registration_generation, physical_configuration_fingerprint, authorization_revision, " +
@@ -260,6 +278,14 @@ data class SourceEventProjectionEligibilityRow(
 	val authorizationPurposeEligibilityMask: Long,
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
 	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
+)
+
+/** Payload-free identity for one bounded source-local projection attempt. */
+data class SourceEventProjectionCandidateRow(
+	@ColumnInfo(name = "event_id") val eventId: String,
+	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
+	@ColumnInfo(name = "authorization_purpose_eligibility_mask")
+	val authorizationPurposeEligibilityMask: Long,
 )
 
 /** Payload-free projection used to recognize an exact replay of a process-stable delivery. */

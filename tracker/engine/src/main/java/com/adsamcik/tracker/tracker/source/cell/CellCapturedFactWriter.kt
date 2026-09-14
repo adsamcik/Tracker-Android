@@ -65,7 +65,8 @@ internal sealed interface CellCapturedWriteResult {
 /**
  * Dormant canonical Cell writer. Qualification and mutation share one Room transaction, so an
  * adapter result can never outlive the provider, authorization, consent, deletion, or epoch state
- * that created it. No production component invokes this class until a later source-local cutover.
+ * that created it. Its only production caller is the exact source-local Cell lane; executable code
+ * alone neither installs that lane nor authorizes canonical rollout.
  */
 internal class CellCapturedFactWriter @Inject constructor(
 	private val database: AppDatabase,
@@ -78,16 +79,28 @@ internal class CellCapturedFactWriter @Inject constructor(
 		checkpoint: suspend (CellCapturedWriteCheckpoint) -> Unit,
 	): CellCapturedWriteResult = try {
 		database.withTransaction {
-			when (val result = adapter.qualify(eventId, ::classifyWithStoredState)) {
-				is CellWalAdapterResult.Rejected -> CellCapturedWriteResult.AdapterRejected(result.reason)
-				is CellWalAdapterResult.Evaluated -> {
-					checkpoint(CellCapturedWriteCheckpoint.QUALIFIED)
-					writeClassification(result.classification, checkpoint)
-				}
-			}
+			writeInCurrentTransaction(eventId, checkpoint)
 		}
 	} catch (rejected: CellCapturedWriteRejectedException) {
 		CellCapturedWriteResult.Rejected(rejected.reason)
+	}
+
+	/**
+	 * Source-lane seam. The caller owns the Room transaction and must allow
+	 * [CellCapturedWriteRejectedException] to escape so a late cursor rejection rolls back every
+	 * preceding fact mutation before it records a durable projection failure.
+	 */
+	internal suspend fun writeInCurrentTransaction(
+		eventId: SourceEventId,
+		checkpoint: suspend (CellCapturedWriteCheckpoint) -> Unit = {},
+	): CellCapturedWriteResult = when (
+		val result = adapter.qualify(eventId, ::classifyWithStoredState)
+	) {
+		is CellWalAdapterResult.Rejected -> CellCapturedWriteResult.AdapterRejected(result.reason)
+		is CellWalAdapterResult.Evaluated -> {
+			checkpoint(CellCapturedWriteCheckpoint.QUALIFIED)
+			writeClassification(result.classification, checkpoint)
+		}
 	}
 
 	private suspend fun classifyWithStoredState(
@@ -1192,6 +1205,6 @@ private fun CellCapturedFactRevisionEntity.toCursor(cursorRevision: Long) =
 		updatedAtMs = appliedAtMs,
 	)
 
-private class CellCapturedWriteRejectedException(
+internal class CellCapturedWriteRejectedException(
 	val reason: CellCapturedWriteRejection,
 ) : IllegalStateException(reason.name)
