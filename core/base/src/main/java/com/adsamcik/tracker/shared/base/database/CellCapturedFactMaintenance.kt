@@ -13,7 +13,9 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
@@ -283,14 +285,19 @@ internal suspend fun AppDatabase.deleteCapturedCellFactsAfterConsentReset(
 			)) block(CellCapturedSourceDeletionBlockedReason.STALE_REQUEST)
 
 			val dao = cellCapturedFactDao()
-			val demands = dao.directCellDemandsForDeletion(
+			val demands = dao.directCellCaptureDemandsForDeletion(
 				CELL_SOURCE,
 				limits.maximumDirectDemands + 1,
 			)
 			if (demands.size > limits.maximumDirectDemands) throw CellCapturedMaintenanceLimitExceeded()
-			if (demands.isNotEmpty()) {
+			if (demands.any { demand -> demand.status == SourceDemandEntity.STATUS_ACTIVE }) {
 				block(CellCapturedSourceDeletionBlockedReason.DIRECT_DEMAND_NOT_QUIESCED)
 			}
+			authenticateRetiringCellCaptureDemands(
+				demands = demands,
+				revokedPolicyRevision = policy.policyRevision,
+				revokedConsent = revokedConsent,
+			)
 			val registrations = dao.cellRegistrationsForDeletion(
 				CELL_SOURCE,
 				limits.maximumNonterminalRegistrations + 1,
@@ -298,8 +305,21 @@ internal suspend fun AppDatabase.deleteCapturedCellFactsAfterConsentReset(
 			if (registrations.size > limits.maximumNonterminalRegistrations) {
 				throw CellCapturedMaintenanceLimitExceeded()
 			}
-			if (registrations.isNotEmpty()) {
-				block(CellCapturedSourceDeletionBlockedReason.CAPTURE_PROVIDER_NOT_QUIESCED)
+			registrations.forEach { registration ->
+				authenticateCellCaptureDeletionBarrier(
+					registration = registration,
+					expectedCollectedDataEpoch = expectedCollectedDataEpoch,
+					limits = limits,
+				)
+			}
+			if (demands.isNotEmpty() && dao.retireCellCaptureDemandsForDeletion(
+					sourceKind = CELL_SOURCE,
+					bootId = revokedConsent.effectiveBootId,
+					elapsedRealtimeNanos = revokedConsent.effectiveElapsedRealtimeNanos,
+					wallTimeMs = revokedConsent.effectiveWallTimeMs,
+				) != demands.size
+			) {
+				block(CellCapturedSourceDeletionBlockedReason.DIRECT_DEMAND_NOT_QUIESCED)
 			}
 
 			val audit = auditCapturedCellFacts(evidenceState, limits, checkpoint)
@@ -884,6 +904,171 @@ private suspend fun AppDatabase.boundedAuthorizationMembers(
 	if (rows.size > limits.maximumAuthorizationMembers) throw CellCapturedMaintenanceLimitExceeded()
 }
 
+/**
+ * Authenticates the exact direct capture demands fenced by the consent change before retiring
+ * them. A prepared BLOCKED demand was never provider authority; a RETIRING demand keeps its first
+ * complete, monotonic source-clock boundary while the current provider authorization and callback
+ * barrier independently prove that it can no longer admit capture.
+ */
+private suspend fun AppDatabase.authenticateRetiringCellCaptureDemands(
+	demands: List<SourceDemandEntity>,
+	revokedPolicyRevision: Long,
+	revokedConsent: SourceConsentEpochEntity,
+) {
+	for (demand in demands) {
+		val stateShape = when (demand.status) {
+			SourceDemandEntity.STATUS_RETIRING -> {
+				val retireBootId = demand.retireBootId
+				val retireElapsedNanos = demand.retireElapsedRealtimeNanos
+				val retiredAtMs = demand.retiredAtMs
+				retireBootId != null && retireElapsedNanos != null && retiredAtMs != null &&
+					retiredAtMs >= demand.requestedAtMs &&
+					(retireBootId != demand.requestedBootId ||
+						retireElapsedNanos >= demand.requestedElapsedRealtimeNanos)
+			}
+			SourceDemandEntity.STATUS_BLOCKED ->
+				demand.retireBootId == null && demand.retireElapsedRealtimeNanos == null &&
+					demand.retiredAtMs == null
+			else -> false
+		}
+		val policy = sourcePolicyDao().policyAtRevision(demand.sourcePolicyRevision, CELL_SOURCE)
+		val consent = sourcePolicyDao().consentEpoch(
+			CELL_SOURCE,
+			CAPTURE_PURPOSE,
+			demand.consentEpoch,
+		)
+		if (!stateShape || demand.sourceKind != CELL_SOURCE ||
+			demand.purpose != CAPTURE_PURPOSE || !demand.persistenceEligible ||
+			demand.logicalTrackingId.isNullOrBlank() || demand.serviceRunId.isNullOrBlank() ||
+			demand.manifestRevision == null || demand.lifecycleLeaseGeneration == null ||
+			demand.sourcePolicyRevision >= revokedPolicyRevision || policy == null || consent == null ||
+			!policy.enabled || !policy.capturePersistenceEligible ||
+			policy.captureConsentEpoch != demand.consentEpoch || policy.qosCode != demand.qosCode ||
+			!consent.eligible || !consent.persistenceEligible ||
+			consent.policyRevision != policy.policyRevision ||
+			consent.effectiveBootId != policy.effectiveBootId ||
+			consent.effectiveElapsedRealtimeNanos != policy.effectiveElapsedRealtimeNanos ||
+			consent.effectiveWallTimeMs != policy.effectiveWallTimeMs ||
+			demand.requestedBootId != policy.effectiveBootId ||
+			demand.requestedElapsedRealtimeNanos < policy.effectiveElapsedRealtimeNanos ||
+			demand.requestedAtMs < policy.effectiveWallTimeMs
+		) block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	}
+}
+
+/**
+ * A compatible Cell provider may remain ACTIVE for CONTROL after capture consent is revoked. Its
+ * latest authorization must be reconstructed from the exact active demands, and the provider
+ * owner must have acknowledged the complete historical capture revision after draining its FIFO.
+ */
+private suspend fun AppDatabase.authenticateCellCaptureDeletionBarrier(
+	registration: ProviderRegistrationGenerationEntity,
+	expectedCollectedDataEpoch: Long,
+	limits: CellCapturedMaintenanceLimits,
+) {
+	val activeShape = registration.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE &&
+		registration.acceptedAtMs != null && registration.acceptedElapsedRealtimeNanos != null &&
+		registration.retiredAtMs == null && registration.retiredElapsedRealtimeNanos == null &&
+		registration.failureCode == null
+	val retiringShape = registration.status == ProviderRegistrationGenerationEntity.STATUS_RETIRING &&
+		registration.acceptedAtMs != null && registration.acceptedElapsedRealtimeNanos != null &&
+		registration.retiredAtMs != null && registration.retiredElapsedRealtimeNanos != null &&
+		!registration.failureCode.isNullOrBlank()
+	if ((!activeShape && !retiringShape) || registration.sourceKind != CELL_SOURCE ||
+		registration.ownerScope != "source-broker:$CELL_SOURCE" ||
+		registration.providerResidency != ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ||
+		registration.providerProcessIncarnationId.isNullOrBlank() ||
+		registration.collectedDataEpoch != expectedCollectedDataEpoch
+	) block(CellCapturedSourceDeletionBlockedReason.CAPTURE_PROVIDER_NOT_QUIESCED)
+
+	val latestRevision = cellCapturedFactDao().maximumRegistrationAuthorizationRevision(
+		CELL_SOURCE,
+		registration.registrationGeneration,
+	)
+	if (latestRevision <= 0L) {
+		block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	}
+	val rows = boundedAuthorizationMembers(registration.registrationGeneration, latestRevision, limits)
+	val authorization = try {
+		rows.toAuthorizationSnapshotOrNull()
+	} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
+		null
+	} ?: block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	val activeDemands = cellCapturedFactDao().activeCellDemandsForDeletion(
+		CELL_SOURCE,
+		limits.maximumDirectDemands + 1,
+	)
+	if (activeDemands.size > limits.maximumDirectDemands) {
+		throw CellCapturedMaintenanceLimitExceeded()
+	}
+	authenticateCurrentCellDemands(activeDemands)
+	val expectedRows = SourceBrokerAuthorization.rows(
+		sourceKind = CELL_SOURCE,
+		registrationGeneration = registration.registrationGeneration,
+		authorizationRevision = latestRevision,
+		demands = activeDemands,
+		effectiveBootId = authorization.effectiveBootId,
+		effectiveElapsedRealtimeNanos = authorization.effectiveElapsedRealtimeNanos,
+		effectiveWallTimeMs = rows.first().effectiveWallTimeMs,
+	)
+	if (rows.sortedBy { row -> row.memberId } != expectedRows.sortedBy { row -> row.memberId }) {
+		block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	}
+	if (authorization.authorizedMembers.any { member ->
+			member.persistenceEligible && member.purpose in setOf(
+				SourceBrokerPurpose.SESSION_CAPTURE,
+				SourceBrokerPurpose.AMBIENT_PRODUCT,
+			)
+		}) block(CellCapturedSourceDeletionBlockedReason.CAPTURE_PROVIDER_NOT_QUIESCED)
+
+	val maximumCaptureRevision = sourceBrokerDao().maximumCaptureAuthorizationRevision(
+		CELL_SOURCE,
+		registration.registrationGeneration,
+	)
+	when {
+		registration.captureCallbackBarrierAuthorizationRevision < maximumCaptureRevision ->
+			block(CellCapturedSourceDeletionBlockedReason.CAPTURE_PROVIDER_NOT_QUIESCED)
+		registration.captureCallbackBarrierAuthorizationRevision > maximumCaptureRevision ->
+			block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	}
+}
+
+/** Only policy-authenticated CONTROL may keep the shared provider resident during deletion. */
+private suspend fun AppDatabase.authenticateCurrentCellDemands(
+	demands: List<SourceDemandEntity>,
+) {
+	for (demand in demands) {
+		if (demand.sourceKind != CELL_SOURCE) {
+			block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		}
+		if (demand.purpose in setOf(
+				SourceBrokerPurpose.SESSION_CAPTURE,
+				SourceBrokerPurpose.AMBIENT_PRODUCT,
+			)
+		) continue
+		if (demand.purpose !in setOf(
+				SourceBrokerPurpose.CONTROL_AUTOSTART,
+				SourceBrokerPurpose.CONTROL_CONTINUATION,
+			)
+		) block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		val policy = sourcePolicyDao().policyAtRevision(demand.sourcePolicyRevision, CELL_SOURCE)
+		val consent = sourcePolicyDao().consentEpoch(
+			CELL_SOURCE,
+			CONTROL_POLICY_PURPOSE,
+			demand.consentEpoch,
+		)
+		if (policy == null || consent == null ||
+			policy.controlConsentEpoch != demand.consentEpoch ||
+			policy.controlPersistenceEligible != demand.persistenceEligible ||
+			!consent.eligible || consent.persistenceEligible != demand.persistenceEligible ||
+			consent.policyRevision > policy.policyRevision ||
+			demand.requestedBootId != policy.effectiveBootId ||
+			demand.requestedElapsedRealtimeNanos < policy.effectiveElapsedRealtimeNanos ||
+			demand.requestedAtMs < policy.effectiveWallTimeMs
+		) block(CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	}
+}
+
 private suspend fun AppDatabase.boundedAuthorizationAt(
 	registrationGeneration: Long,
 	bootId: String,
@@ -1062,11 +1247,9 @@ private suspend fun AppDatabase.authenticateCellRegistration(
 		CELL_SOURCE,
 		registration.registrationGeneration,
 	)
-	// Cell closes callback intake before retiring the provider and persists the exact retirement
-	// interval used below. Unlike Activity's registration arbiter, the Cell runtime does not publish
-	// the broker's capture-authorization barrier field, so its production value remains zero. Treat
-	// only a barrier beyond the retained authorization history as impossible; requiring equality here
-	// would make every ordinary retired Cell registration unverifiable.
+	// The barrier is monotonic provider-owner evidence. Historical facts need only reject an
+	// impossible value beyond retained capture authorization; consent deletion separately requires
+	// exact equality after the live Cell callback lane is drained.
 	val acceptedShape = when (registration.status) {
 		ProviderRegistrationGenerationEntity.STATUS_ACTIVE ->
 			retiredAtMs == null && retiredElapsedNanos == null && registration.failureCode == null
@@ -1090,7 +1273,7 @@ private suspend fun AppDatabase.authenticateCellRegistration(
 		(retiredElapsedNanos != null && acceptedElapsedNanos > retiredElapsedNanos) ||
 		expectedAuthorizationRevision <= 0L ||
 		expectedAuthorizationRevision > maximumCaptureAuthorizationRevision ||
-		registration.captureCallbackBarrierAuthorizationRevision != 0L
+		registration.captureCallbackBarrierAuthorizationRevision > maximumCaptureAuthorizationRevision
 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	return acceptedElapsedNanos..(retiredElapsedNanos ?: Long.MAX_VALUE)
 }
@@ -2117,6 +2300,7 @@ private fun block(reason: CellCapturedSourceDeletionBlockedReason): Nothing =
 
 private const val CELL_SOURCE = SourceDestinationOwnerEntity.SOURCE_CELL
 private const val CAPTURE_PURPOSE = SourceBrokerPurpose.SESSION_CAPTURE
+private const val CONTROL_POLICY_PURPOSE = "CONTROL"
 private const val WRITER_ID = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID
 private const val WRITER_VERSION = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION
 private const val CAPTURED_REGISTRATION_PLAN_ATTRIBUTION = 0

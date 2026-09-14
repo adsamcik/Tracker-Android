@@ -95,7 +95,7 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
-	fun `nonzero callback barrier within retained capture authorization blocks retention`() = runTest {
+	fun `nonzero callback barrier within retained capture authorization remains authentic`() = runTest {
 		seedCapturedCell(retainedFromMs = FLOOR_MS)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE provider_registration_generation " +
@@ -109,9 +109,7 @@ class CellCapturedFactMaintenanceTest {
 			0L,
 			0L,
 			MAINTENANCE_TIME_MS,
-		) shouldBe CellCapturedRetentionResult.Blocked(
-			CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
-		)
+		) shouldBe CellCapturedRetentionResult.Pruned(1, 1)
 	}
 
 	@Test
@@ -797,7 +795,7 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
-	fun `nonterminal Cell registration blocks consent deletion`() = runTest {
+	fun `active Cell registration without authorization is unverifiable for consent deletion`() = runTest {
 		seedCapturedCell(revokedCapture = true)
 		database.sourceBrokerDao().insertRegistration(
 			registration().copy(
@@ -815,9 +813,119 @@ class CellCapturedFactMaintenanceTest {
 			REVOKED_CONSENT_EPOCH,
 			DELETION_TIME_MS,
 		) shouldBe CellCapturedSourceDeletionResult.Blocked(
+			CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+
+		database.cellCapturedFactDao().revisionCount() shouldBe 1L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `drained CONTROL-only Cell provider survives capture consent deletion`() = runTest {
+		seedCapturedCell(revokedCapture = true)
+		val control = installActiveControlOnlyProvider(
+			captureBarrierRevision = SECOND_AUTHORIZATION_REVISION,
+		)
+
+		database.deleteCapturedCellFactsAfterConsentReset(
+			0L,
+			0L,
+			REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS,
+		) shouldBe CellCapturedSourceDeletionResult.Deleted(1, 1, 1)
+
+		database.sourceBrokerDao().demandsByIds(listOf(control.demandId)) shouldBe listOf(control)
+		database.sourceBrokerDao().registration(
+			CELL_SOURCE,
+			REPLACEMENT_REGISTRATION_GENERATION,
+		)?.let { retained ->
+			retained.status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+			retained.captureCallbackBarrierAuthorizationRevision shouldBe SECOND_AUTHORIZATION_REVISION
+		}
+		database.cellCapturedFactDao().maintenanceWalCount(CELL_SOURCE) shouldBe 1L
+	}
+
+	@Test
+	fun `CONTROL-only provider without exact callback barrier blocks capture deletion`() = runTest {
+		seedCapturedCell(revokedCapture = true)
+		val control = installActiveControlOnlyProvider(captureBarrierRevision = 0L)
+
+		database.deleteCapturedCellFactsAfterConsentReset(
+			0L,
+			0L,
+			REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS,
+		) shouldBe CellCapturedSourceDeletionResult.Blocked(
 			CellCapturedSourceDeletionBlockedReason.CAPTURE_PROVIDER_NOT_QUIESCED,
 		)
 
+		database.sourceBrokerDao().demandsByIds(listOf(control.demandId)) shouldBe listOf(control)
+		database.cellCapturedFactDao().revisionCount() shouldBe 1L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `callback barrier beyond Cell capture history is unverifiable`() = runTest {
+		seedCapturedCell(revokedCapture = true)
+		installActiveControlOnlyProvider(captureBarrierRevision = CONTROL_AUTHORIZATION_REVISION)
+
+		database.deleteCapturedCellFactsAfterConsentReset(
+			0L,
+			0L,
+			REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS,
+		) shouldBe CellCapturedSourceDeletionResult.Blocked(
+			CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+
+		database.cellCapturedFactDao().revisionCount() shouldBe 1L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `already-fenced demand retains its first boundary while Cell capture is retired`() = runTest {
+		seedCapturedCell(revokedCapture = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET status = 'RETIRING', retire_boot_id = ?, " +
+				"retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
+			arrayOf(BOOT_ID, REVOKED_POLICY_NANOS, REVOKED_POLICY_WALL_MS, DEMAND_ID),
+		)
+
+		database.deleteCapturedCellFactsAfterConsentReset(
+			0L,
+			0L,
+			REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS,
+		) shouldBe CellCapturedSourceDeletionResult.Deleted(1, 1, 1)
+
+		database.sourceBrokerDao().demandsByIds(listOf(DEMAND_ID)).single().let { retired ->
+			retired.status shouldBe SourceDemandEntity.STATUS_RETIRED
+			retired.retireBootId shouldBe BOOT_ID
+			retired.retireElapsedRealtimeNanos shouldBe REVOKED_POLICY_NANOS
+			retired.retiredAtMs shouldBe REVOKED_POLICY_WALL_MS
+		}
+	}
+
+	@Test
+	fun `impossible capture-demand retirement chronology rolls back deletion`() = runTest {
+		seedCapturedCell(revokedCapture = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET status = 'RETIRING', retire_boot_id = ?, " +
+				"retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
+			arrayOf(BOOT_ID, RUN_START_NANOS - 1L, REVOKED_POLICY_WALL_MS, DEMAND_ID),
+		)
+
+		database.deleteCapturedCellFactsAfterConsentReset(
+			0L,
+			0L,
+			REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS,
+		) shouldBe CellCapturedSourceDeletionResult.Blocked(
+			CellCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+
+		database.sourceBrokerDao().demandsByIds(listOf(DEMAND_ID)).single().status shouldBe
+			SourceDemandEntity.STATUS_RETIRING
 		database.cellCapturedFactDao().revisionCount() shouldBe 1L
 		database.sourceDeletionFenceDao().countAll() shouldBe 0L
 	}
@@ -1329,7 +1437,7 @@ class CellCapturedFactMaintenanceTest {
 
 	private suspend fun installPolicy(revokedCapture: Boolean) {
 		val policies = mutableListOf(historicalPolicy())
-		val consents = mutableListOf(historicalConsent())
+		val consents = mutableListOf(historicalConsent(), historicalControlConsent())
 		if (revokedCapture) {
 			policies += revokedPolicy()
 			consents += revokedConsent()
@@ -1473,7 +1581,7 @@ class CellCapturedFactMaintenanceTest {
 		controlPersistenceEligible = false,
 		ambientPersistenceEligible = false,
 		captureConsentEpoch = CONSENT_EPOCH,
-		controlConsentEpoch = null,
+		controlConsentEpoch = CONTROL_CONSENT_EPOCH,
 		ambientConsentEpoch = null,
 		effectiveBootId = BOOT_ID,
 		effectiveElapsedRealtimeNanos = POLICY_START_NANOS,
@@ -1512,6 +1620,19 @@ class CellCapturedFactMaintenanceTest {
 		effectiveElapsedRealtimeNanos = REVOKED_POLICY_NANOS,
 		effectiveWallTimeMs = REVOKED_POLICY_WALL_MS,
 		changeReason = "TEST_REVOKE",
+	)
+
+	private fun historicalControlConsent() = SourceConsentEpochEntity(
+		sourceKind = CELL_SOURCE,
+		purpose = "CONTROL",
+		epoch = CONTROL_CONSENT_EPOCH,
+		eligible = true,
+		persistenceEligible = false,
+		policyRevision = POLICY_REVISION,
+		effectiveBootId = BOOT_ID,
+		effectiveElapsedRealtimeNanos = POLICY_START_NANOS,
+		effectiveWallTimeMs = RUN_START_WALL_MS,
+		changeReason = "TEST_CONTROL",
 	)
 
 	private fun demand(active: Boolean) = SourceDemandEntity(
@@ -1564,6 +1685,58 @@ class CellCapturedFactMaintenanceTest {
 		failureCode = null,
 		captureCallbackBarrierAuthorizationRevision = 0L,
 	)
+
+	private suspend fun installActiveControlOnlyProvider(
+		captureBarrierRevision: Long,
+	): SourceDemandEntity {
+		val captureHistory = demand(active = false)
+		val control = demand(active = true).copy(
+			demandId = CONTROL_DEMAND_ID,
+			consumerId = "app:cell-control",
+			purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			manifestRevision = null,
+			lifecycleLeaseGeneration = null,
+			sourcePolicyRevision = REVOKED_POLICY_REVISION,
+			consentEpoch = CONTROL_CONSENT_EPOCH,
+			persistenceEligible = false,
+			requestedElapsedRealtimeNanos = REVOKED_POLICY_NANOS,
+			requestedAtMs = REVOKED_POLICY_WALL_MS,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(control))
+		database.sourceBrokerDao().insertRegistration(
+			registration(
+				generation = REPLACEMENT_REGISTRATION_GENERATION,
+				sourceInstanceId = CONTROL_SOURCE_INSTANCE_ID,
+			).copy(
+				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+				retiredAtMs = null,
+				retiredElapsedRealtimeNanos = null,
+				captureCallbackBarrierAuthorizationRevision = captureBarrierRevision,
+			),
+		)
+		database.sourceBrokerDao().insertAuthorizations(
+			SourceBrokerAuthorization.rows(
+				sourceKind = CELL_SOURCE,
+				registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
+				authorizationRevision = SECOND_AUTHORIZATION_REVISION,
+				demands = listOf(captureHistory),
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = AUTHORIZATION_START_NANOS,
+				effectiveWallTimeMs = RUN_START_WALL_MS,
+			) + SourceBrokerAuthorization.rows(
+				sourceKind = CELL_SOURCE,
+				registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
+				authorizationRevision = CONTROL_AUTHORIZATION_REVISION,
+				demands = listOf(control),
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = REVOKED_POLICY_NANOS,
+				effectiveWallTimeMs = REVOKED_POLICY_WALL_MS,
+			),
+		)
+		return control
+	}
 
 	private fun segment() = SessionSegment(
 		id = SEGMENT_ID,
@@ -1652,6 +1825,7 @@ class CellCapturedFactMaintenanceTest {
 		const val LOGICAL_TRACKING_ID = "logical-cell-maintenance"
 		const val SERVICE_RUN_ID = "run-cell-maintenance"
 		const val SOURCE_INSTANCE_ID = "cell-instance"
+		const val CONTROL_SOURCE_INSTANCE_ID = "cell-control-instance"
 		const val DEMAND_ID = "cell-demand"
 		const val CONTROL_DEMAND_ID = "cell-control-demand"
 		const val BOOT_ID = "boot-cell"
@@ -1667,6 +1841,7 @@ class CellCapturedFactMaintenanceTest {
 		const val POLICY_REVISION = 1L
 		const val REVOKED_POLICY_REVISION = 2L
 		const val CONSENT_EPOCH = 1L
+		const val CONTROL_CONSENT_EPOCH = 1L
 		const val REVOKED_CONSENT_EPOCH = 2L
 		const val MANIFEST_REVISION = 1L
 		const val LEASE_GENERATION = 1L
@@ -1674,6 +1849,7 @@ class CellCapturedFactMaintenanceTest {
 		const val REPLACEMENT_REGISTRATION_GENERATION = 2L
 		const val AUTHORIZATION_REVISION = 1L
 		const val SECOND_AUTHORIZATION_REVISION = 2L
+		const val CONTROL_AUTHORIZATION_REVISION = 3L
 		const val SEGMENT_ID = 1L
 		const val QOS_CODE = 2
 		const val RUN_START_NANOS = 100_000_000L
