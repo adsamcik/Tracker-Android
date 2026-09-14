@@ -551,7 +551,7 @@ class ActivityCapturedFactMaintenanceTest {
 		seedCapturedActivity()
 		insertActivityWalEvent(
 			ordinal = 1L,
-			deliveryIdentity = "activity-delivery-batch",
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
 			deliveryUnitCount = 2,
 		)
 
@@ -561,19 +561,35 @@ class ActivityCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `portable export rejects a noncanonical delivery identity before sibling expansion`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = "A".repeat(64),
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
 	fun `portable export rejects duplicate delivery unit indices`() = runTest {
 		seedCapturedActivity()
 		database.openHelper.writableDatabase.execSQL("DROP INDEX idx_source_event_wal_delivery_unit")
 		insertActivityWalEvent(
 			ordinal = 1L,
-			deliveryIdentity = "activity-delivery-batch",
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 2,
 			receivedElapsedNanos = 220L,
 		)
 		insertActivityWalEvent(
 			ordinal = 2L,
-			deliveryIdentity = "activity-delivery-batch",
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 2,
 			receivedElapsedNanos = 220L,
@@ -592,14 +608,14 @@ class ActivityCapturedFactMaintenanceTest {
 		seedCapturedActivity()
 		insertActivityWalEvent(
 			ordinal = 1L,
-			deliveryIdentity = "activity-delivery-batch",
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 2,
 			receivedElapsedNanos = 220L,
 		)
 		insertActivityWalEvent(
 			ordinal = 2L,
-			deliveryIdentity = "activity-delivery-batch",
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
 			deliveryUnitIndex = 1,
 			deliveryUnitCount = 2,
 			receivedElapsedNanos = 221L,
@@ -618,7 +634,7 @@ class ActivityCapturedFactMaintenanceTest {
 		seedCapturedActivity()
 		insertActivityWalEvent(
 			ordinal = 1L,
-			deliveryIdentity = "activity-delivery-batch",
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 2,
 			sourceSequence = 0L,
@@ -626,13 +642,13 @@ class ActivityCapturedFactMaintenanceTest {
 		)
 		insertActivityWalEvent(
 			ordinal = 2L,
-			deliveryIdentity = "activity-delivery-batch",
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
 			deliveryUnitIndex = 1,
 			deliveryUnitCount = 2,
 			sourceSequence = 3L,
 			receivedElapsedNanos = 220L,
 		)
-		settleActivityWalTarget(2L)
+		settleActivityWalTarget(2L, lastSourceSequence = 3L)
 
 		portableExporter().export(
 			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
@@ -644,7 +660,7 @@ class ActivityCapturedFactMaintenanceTest {
 		seedCapturedActivity()
 		insertActivityWalEvent(
 			ordinal = 1L,
-			deliveryIdentity = "activity-delivery-batch",
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 3,
 			sourceSequence = 0L,
@@ -652,7 +668,7 @@ class ActivityCapturedFactMaintenanceTest {
 		)
 		insertActivityWalEvent(
 			ordinal = 2L,
-			deliveryIdentity = "activity-delivery-batch",
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
 			deliveryUnitIndex = 2,
 			deliveryUnitCount = 3,
 			sourceSequence = 2L,
@@ -670,7 +686,7 @@ class ActivityCapturedFactMaintenanceTest {
 		seedCapturedActivity()
 		insertActivityWalEvent(
 			ordinal = 1L,
-			deliveryIdentity = "activity-delivery-batch",
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 2,
 			sourceSequence = 2L,
@@ -678,7 +694,7 @@ class ActivityCapturedFactMaintenanceTest {
 		)
 		insertActivityWalEvent(
 			ordinal = 2L,
-			deliveryIdentity = "activity-delivery-batch",
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
 			deliveryUnitIndex = 1,
 			deliveryUnitCount = 2,
 			sourceSequence = 1L,
@@ -704,9 +720,131 @@ class ActivityCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `portable export reproduces mixed per-unit freshness before capture attribution`() = runTest {
+		seedCapturedActivity(
+			sharedControlAuthorization = true,
+			historicalCaptureMaximumAgeMs = 0L,
+		)
+		val capture = historicalCaptureDemand(maximumAgeMs = 0L)
+		val control = historicalControlDemand()
+		val authorizationMembers = listOf(capture, control)
+		val authorizationFingerprint = SourceBrokerAuthorization.fingerprint(authorizationMembers)
+		val deliveryIdentity = canonicalDeliveryIdentity("mixed-freshness")
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = deliveryIdentity,
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 2,
+			sourceSequence = 0L,
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+			authorizationFingerprint = authorizationFingerprint,
+			captureAttributed = false,
+			observedElapsedNanos = 190L,
+			receivedElapsedNanos = 200L,
+		)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			deliveryIdentity = deliveryIdentity,
+			deliveryUnitIndex = 1,
+			deliveryUnitCount = 2,
+			sourceSequence = 1L,
+			authorizationPurposeEligibilityMask =
+				SourceBrokerAuthorization.purposeMask(authorizationMembers),
+			authorizationFingerprint = authorizationFingerprint,
+			observedElapsedNanos = 200L,
+			receivedElapsedNanos = 200L,
+		)
+		settleActivityWalTarget(2L, lastSourceSequence = 1L)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export rejects retained capture that production freshness would omit`() = runTest {
+		seedCapturedActivity(historicalCaptureMaximumAgeMs = 0L)
+		insertActivityWalEvent(
+			ordinal = 1L,
+			sourceSequence = 0L,
+			authorizationFingerprint = historicalAuthorizationFingerprint(maximumAgeMs = 0L),
+			observedElapsedNanos = 200L,
+			receivedElapsedNanos = 201L,
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects retained capture with a foreign authorization fingerprint`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			authorizationFingerprint = "0".repeat(64),
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export saturates maximum age conversion for a delayed capture`() = runTest {
+		seedCapturedActivity(historicalCaptureMaximumAgeMs = Long.MAX_VALUE)
+		insertActivityWalEvent(
+			ordinal = 1L,
+			sourceSequence = 0L,
+			authorizationFingerprint = historicalAuthorizationFingerprint(Long.MAX_VALUE),
+			observedElapsedNanos = 200L,
+			receivedElapsedNanos = Long.MAX_VALUE,
+			createdAtMs = 3_100L,
+		)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
 	fun `portable export cannot hide a retained CONTROL sibling in another data epoch`() = runTest {
 		seedCapturedActivity(providerActive = true)
 		insertCaptureAndControlDelivery(controlCollectedDataEpoch = 1L)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects retained CONTROL sibling with a capture purpose mask`() = runTest {
+		seedCapturedActivity(providerActive = true)
+		insertCaptureAndControlDelivery(
+			controlPurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects retained CONTROL sibling with a foreign authorization fingerprint`() = runTest {
+		seedCapturedActivity(providerActive = true)
+		insertCaptureAndControlDelivery(controlAuthorizationFingerprint = "0".repeat(64))
 
 		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
 			PortableCapturedActivitySnapshot.Outcome(
@@ -738,14 +876,14 @@ class ActivityCapturedFactMaintenanceTest {
 		seedCapturedActivity()
 		insertActivityWalEvent(
 			ordinal = 1L,
-			deliveryIdentity = "activity-delivery-batch",
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 2,
 			receivedElapsedNanos = 220L,
 		)
 		insertActivityWalEvent(
 			ordinal = 2L,
-			deliveryIdentity = "activity-delivery-batch",
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
 			deliveryUnitIndex = 1,
 			deliveryUnitCount = 2,
 			receivedElapsedNanos = 220L,
@@ -1201,13 +1339,23 @@ class ActivityCapturedFactMaintenanceTest {
 		database.sourceProjectionStateDao().installProductLane(lane)
 	}
 
-	private suspend fun settleActivityWalTarget(ordinal: Long) {
-		replaceActivityCompleteness(lastAdmissionOrdinal = ordinal, lastSourceSequence = ordinal)
+	private suspend fun settleActivityWalTarget(
+		ordinal: Long,
+		lastSourceSequence: Long = ordinal,
+	) {
+		replaceActivityCompleteness(
+			lastAdmissionOrdinal = ordinal,
+			lastSourceSequence = lastSourceSequence,
+		)
 		updateFinalAdmissionOrdinal(ordinal)
 		replaceActivityLane(activityProductLane(contiguousAdmissionOrdinal = ordinal))
 	}
 
-	private suspend fun insertCaptureAndControlDelivery(controlCollectedDataEpoch: Long = 0L) {
+	private suspend fun insertCaptureAndControlDelivery(
+		controlCollectedDataEpoch: Long = 0L,
+		controlPurposeMask: Long = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+		controlAuthorizationFingerprint: String? = null,
+	) {
 		val activeControl = historicalControlDemand().copy(
 			status = SourceDemandEntity.STATUS_ACTIVE,
 			retireBootId = null,
@@ -1216,7 +1364,7 @@ class ActivityCapturedFactMaintenanceTest {
 		)
 		insertActivityWalEvent(
 			ordinal = 1L,
-			deliveryIdentity = "activity-delivery-authorization-rotation",
+			deliveryIdentity = canonicalDeliveryIdentity("authorization-rotation"),
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 2,
 			sourceSequence = 0L,
@@ -1226,13 +1374,14 @@ class ActivityCapturedFactMaintenanceTest {
 		)
 		insertActivityWalEvent(
 			ordinal = 2L,
-			deliveryIdentity = "activity-delivery-authorization-rotation",
+			deliveryIdentity = canonicalDeliveryIdentity("authorization-rotation"),
 			deliveryUnitIndex = 1,
 			deliveryUnitCount = 2,
 			sourceSequence = 1L,
 			authorizationRevision = 2L,
-			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
-			authorizationFingerprint = SourceBrokerAuthorization.fingerprint(listOf(activeControl)),
+			authorizationPurposeEligibilityMask = controlPurposeMask,
+			authorizationFingerprint = controlAuthorizationFingerprint
+				?: SourceBrokerAuthorization.fingerprint(listOf(activeControl)),
 			captureAttributed = false,
 			observedElapsedNanos = 600L,
 			receivedElapsedNanos = 610L,
@@ -1244,7 +1393,7 @@ class ActivityCapturedFactMaintenanceTest {
 
 	private suspend fun insertActivityWalEvent(
 		ordinal: Long,
-		deliveryIdentity: String = "activity-delivery-$ordinal",
+		deliveryIdentity: String = canonicalDeliveryIdentity("single-$ordinal"),
 		deliveryUnitIndex: Int = 0,
 		deliveryUnitCount: Int = 1,
 		sourceSequence: Long = ordinal,
@@ -1313,6 +1462,8 @@ class ActivityCapturedFactMaintenanceTest {
 		sessionRunEffectEndNanos: Long = 500L,
 		gapOnly: Boolean = false,
 		sharedControlAuthorization: Boolean = false,
+		historicalCaptureMaximumAgeMs: Long = 1_000L,
+		historicalControlMaximumAgeMs: Long = 1_000L,
 	) {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(collectedDataEpoch = 0L, retainedFromMs = retainedFromMs),
@@ -1390,15 +1541,17 @@ class ActivityCapturedFactMaintenanceTest {
 			),
 		)
 		database.sourceBrokerDao().insertRegistration(registration(providerActive))
-		val activeControl = historicalControlDemand().copy(
+		val historicalCapture = historicalCaptureDemand(maximumAgeMs = historicalCaptureMaximumAgeMs)
+		val historicalControl = historicalControlDemand(maximumAgeMs = historicalControlMaximumAgeMs)
+		val activeControl = historicalControl.copy(
 			status = SourceDemandEntity.STATUS_ACTIVE,
 			retireBootId = null,
 			retireElapsedRealtimeNanos = null,
 			retiredAtMs = null,
 		)
-		val sharedControl = if (providerActive) activeControl else historicalControlDemand()
+		val sharedControl = if (providerActive) activeControl else historicalControl
 		val authorizationDemands = buildList {
-			add(historicalCaptureDemand())
+			add(historicalCapture)
 			if (sharedControlAuthorization) add(sharedControl)
 		}
 		database.sourceBrokerDao().insertDemands(authorizationDemands)
@@ -2190,6 +2343,7 @@ class ActivityCapturedFactMaintenanceTest {
 		leaseGeneration: Long = 1L,
 		requestedAtMs: Long = 1_000L,
 		requestedElapsedNanos: Long = 100L,
+		maximumAgeMs: Long = 1_000L,
 	) = SourceDemandEntity(
 		demandId = demandId,
 		consumerId = consumerId,
@@ -2203,7 +2357,7 @@ class ActivityCapturedFactMaintenanceTest {
 		consentEpoch = 0L,
 		persistenceEligible = true,
 		qosCode = 1,
-		maximumAgeMs = 0L,
+		maximumAgeMs = maximumAgeMs,
 		desiredLatencyMs = 0L,
 		requestedBootId = BOOT_ID,
 		requestedElapsedRealtimeNanos = requestedElapsedNanos,
@@ -2214,7 +2368,7 @@ class ActivityCapturedFactMaintenanceTest {
 		retiredAtMs = requestedAtMs + 1L,
 	)
 
-	private fun historicalControlDemand() = SourceDemandEntity(
+	private fun historicalControlDemand(maximumAgeMs: Long = 1_000L) = SourceDemandEntity(
 		demandId = "historic-control-demand",
 		consumerId = "historic-control-consumer",
 		sourceKind = ACTIVITY_SOURCE,
@@ -2227,7 +2381,7 @@ class ActivityCapturedFactMaintenanceTest {
 		consentEpoch = 0L,
 		persistenceEligible = false,
 		qosCode = 1,
-		maximumAgeMs = 0L,
+		maximumAgeMs = maximumAgeMs,
 		desiredLatencyMs = 0L,
 		requestedBootId = BOOT_ID,
 		requestedElapsedRealtimeNanos = 100L,
@@ -2238,8 +2392,10 @@ class ActivityCapturedFactMaintenanceTest {
 		retiredAtMs = 1_001L,
 	)
 
-	private fun historicalAuthorizationFingerprint(): String =
-		SourceBrokerAuthorization.fingerprint(listOf(historicalCaptureDemand()))
+	private fun historicalAuthorizationFingerprint(maximumAgeMs: Long = 1_000L): String =
+		SourceBrokerAuthorization.fingerprint(
+			listOf(historicalCaptureDemand(maximumAgeMs = maximumAgeMs)),
+		)
 
 	private fun captureDemand() = SourceDemandEntity(
 		demandId = "live-capture-demand",
@@ -2410,6 +2566,9 @@ class ActivityCapturedFactMaintenanceTest {
 	private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
 		.digest(bytes)
 		.joinToString(separator = "") { byte -> "%02x".format(byte) }
+
+	private fun canonicalDeliveryIdentity(label: String): String =
+		sha256(label.toByteArray(Charsets.UTF_8))
 
 	private data class PersistedTestRevision(
 		val revision: ActivityCapturedWindowRevisionEntity,
