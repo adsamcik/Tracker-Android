@@ -26,6 +26,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 import javax.inject.Provider
@@ -40,6 +41,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
     private val migrationBackupRepository: DatabaseMigrationBackupRepository,
 	private val trackingStartupGate: TrackingStartupGate,
 	private val stepsSessionFactProjectionLaneProvider: Provider<StepsSessionFactProjectionLane>,
+	private val cellCapturedRetentionService: CellCapturedRetentionService,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
@@ -59,20 +61,22 @@ class RetentionPipelineWorker @AssistedInject constructor(
 			val appDatabase = appDatabaseProvider.get()
             val now = System.currentTimeMillis()
 
-            val rawRetentionResult = if (config.rawDataRetentionDays == 0) {
+            val rawCutoff = config.rawDataRetentionDays.takeUnless { it == 0 }?.let { retentionDays ->
+                now - retentionDays.toLong() * Time.DAY_IN_MILLISECONDS
+            }
+            val rawRetentionResult = if (rawCutoff == null) {
                 RawRetentionResult.NOT_APPLICABLE
             } else {
-                val cutoff = now - config.rawDataRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
                 // Establish the durable policy before deleting either live source rows
                 // or a migration backup. A delayed WAL entry must be rejected even if
                 // it postpones the physical delete.
 				requireReadyGeneration(startupGeneration)
-                val lifecycle = collectedDataLifecycleStore.advanceRetainedFrom(cutoff)
+				val lifecycle = collectedDataLifecycleStore.advanceRetainedFrom(rawCutoff)
 				requireReadyGeneration(startupGeneration)
                 migrationBackupRepository.deleteAll()
 				val result = purgeRawData(
 					appDatabase,
-					cutoff,
+					rawCutoff,
 					lifecycle,
 					now,
 					startupGeneration,
@@ -81,13 +85,18 @@ class RetentionPipelineWorker @AssistedInject constructor(
 				trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
 					stepsSessionFactProjectionLaneProvider.get().drainAvailable()
 				} ?: throw StartupGenerationChangedException
-				requireReadyGeneration(startupGeneration)
-				appDatabase.pruneSourceEventStorageBefore(
-					createdBeforeMs = cutoff,
-					verifyCollectedDataAccess = { requireReadyGeneration(startupGeneration) },
-				)
                 result
             }
+			// Captured Cell maintenance authenticates retained WAL, so it must precede physical
+			// source-event pruning while remaining after source-evidence/Steps settlement.
+			pruneCapturedCellData(appDatabase, config, now, startupGeneration)
+			if (rawCutoff != null) {
+				requireReadyGeneration(startupGeneration)
+				appDatabase.pruneSourceEventStorageBefore(
+					createdBeforeMs = rawCutoff,
+					verifyCollectedDataAccess = { requireReadyGeneration(startupGeneration) },
+				)
+			}
 			purgeWifiCellData(appDatabase, config, now, startupGeneration)
 			purgeTripData(appDatabase, config, now, startupGeneration)
 			purgeDailySummaries(appDatabase, config, now, startupGeneration)
@@ -99,6 +108,8 @@ class RetentionPipelineWorker @AssistedInject constructor(
             } else {
                 Result.success()
             }
+		} catch (cancelled: CancellationException) {
+			throw cancelled
 		} catch (_: StartupGenerationChangedException) {
 			Result.success()
         } catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
@@ -175,6 +186,26 @@ class RetentionPipelineWorker @AssistedInject constructor(
         DEFERRED_FOR_PENDING_SIGNALS,
     }
 
+	private suspend fun pruneCapturedCellData(
+		db: AppDatabase,
+		config: RetentionConfigState,
+		now: Long,
+		startupGeneration: Long,
+	) {
+		if (config.wifiCellRetentionDays == 0) return
+		requireReadyGeneration(startupGeneration)
+		if (db.pendingSignalDao().hasAny()) return
+		val cutoff = computeWifiCellCutoffMillis(config.wifiCellRetentionDays, now)
+		requireReadyGeneration(startupGeneration)
+		trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
+			cellCapturedRetentionService.prune(
+				database = db,
+				beforeMs = cutoff,
+				markedAtMs = now,
+			)
+		} ?: throw StartupGenerationChangedException
+    }
+
     private suspend fun purgeWifiCellData(
 		db: AppDatabase,
 		config: RetentionConfigState,
@@ -184,7 +215,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
         if (config.wifiCellRetentionDays == 0) return
 		requireReadyGeneration(startupGeneration)
         if (db.pendingSignalDao().hasAny()) return
-        val cutoff = now - config.wifiCellRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
+		val cutoff = computeWifiCellCutoffMillis(config.wifiCellRetentionDays, now)
         db.withTransaction {
 			requireReadyGeneration(startupGeneration)
 			try {
@@ -301,7 +332,20 @@ class RetentionPipelineWorker @AssistedInject constructor(
     companion object {
         internal const val WORK_NAME = "APP.DATA_RETENTION_PIPELINE_WEEKLY"
         internal const val LEGACY_WORK_NAME = "APP.DATA_RETENTION_WEEKLY"
-        private const val DAYS_PER_YEAR = 365
+		private const val DAYS_PER_YEAR = 365
+
+		internal fun computeWifiCellCutoffMillis(retentionDays: Int, nowMs: Long): Long {
+			require(retentionDays > 0)
+			return try {
+				val retentionMs = Math.multiplyExact(
+					retentionDays.toLong(),
+					Time.DAY_IN_MILLISECONDS,
+				)
+				Math.subtractExact(nowMs, retentionMs).coerceAtLeast(0L)
+			} catch (_: ArithmeticException) {
+				0L
+			}
+		}
 
         fun ensureScheduled(context: Context) {
             val workManager = WorkManager.getInstance(context)

@@ -8,6 +8,8 @@ import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionBlockedReason
+import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
@@ -60,6 +62,8 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -453,6 +457,113 @@ class RetentionPipelineWorkerRobolectricTest {
 	}
 
 	@Test
+	fun `zero Wi-Fi Cell retention does not invoke captured Cell maintenance`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val service = cellRetentionService()
+		val db = retentionDatabase()
+
+		assertEquals(
+			ListenableWorker.Result.success(),
+			worker(
+				context = context,
+				store = retentionStore(autoPurgeConfig(rawDataRetentionDays = 0)),
+				db = db,
+				cellCapturedRetentionService = service,
+			).doWork(),
+		)
+
+		coVerify(exactly = 0) { service.prune(any(), any(), any()) }
+	}
+
+	@Test
+	fun `blocked captured Cell retention is one-shot and later retention stages remain ordered`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val service = cellRetentionService(
+			CellCapturedRetentionResult.Blocked(
+				CellCapturedRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED,
+			),
+		)
+		val cellDao: CellSampleDao = mockk(relaxed = true)
+		val wifiDao: WifiObservationDao = mockk(relaxed = true)
+		val sessionDao: SessionSegmentDao = mockk(relaxed = true)
+		val db = retentionDatabase(
+			cellSampleDao = cellDao,
+			wifiObservationDao = wifiDao,
+			sessionSegmentDao = sessionDao,
+		)
+		val cutoff = slot<Long>()
+		val markedAt = slot<Long>()
+		val config = RetentionConfigState(
+			autoPurgeEnabled = true,
+			rawDataRetentionDays = 0,
+			wifiCellRetentionDays = 3,
+			tripRetentionDays = 1,
+			dailySummaryRetentionDays = 0,
+			explorationRetentionDays = 0,
+		)
+
+		assertEquals(
+			ListenableWorker.Result.success(),
+			worker(
+				context,
+				retentionStore(config),
+				db,
+				cellCapturedRetentionService = service,
+			).doWork(),
+		)
+
+		coVerify(exactly = 1) {
+			service.prune(db, capture(cutoff), capture(markedAt))
+		}
+		assertEquals(
+			RetentionPipelineWorker.computeWifiCellCutoffMillis(3, markedAt.captured),
+			cutoff.captured,
+		)
+		coVerifyOrder {
+			service.prune(db, any(), any())
+			cellDao.deleteOlderThan(cutoff.captured)
+			wifiDao.deleteOlderThan(cutoff.captured)
+			sessionDao.deleteOlderThan(any())
+		}
+		verify(exactly = 0) { db.sourceBrokerDao() }
+		verify(exactly = 0) { db.sourceRuntimeStateDao() }
+	}
+
+	@Test
+	fun `captured Cell retention cancellation propagates without legacy deletion`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val service = mockk<CellCapturedRetentionService>()
+		coEvery { service.prune(any(), any(), any()) } throws
+			CancellationException("cancel-cell-retention-worker")
+		val cellDao: CellSampleDao = mockk(relaxed = true)
+		val wifiDao: WifiObservationDao = mockk(relaxed = true)
+		val db = retentionDatabase(cellSampleDao = cellDao, wifiObservationDao = wifiDao)
+		val config = RetentionConfigState(
+			autoPurgeEnabled = true,
+			rawDataRetentionDays = 0,
+			wifiCellRetentionDays = 1,
+			tripRetentionDays = 0,
+			dailySummaryRetentionDays = 0,
+			explorationRetentionDays = 0,
+		)
+
+		assertFailsWith<CancellationException> {
+			worker(
+				context,
+				retentionStore(config),
+				db,
+				cellCapturedRetentionService = service,
+			).doWork()
+		}
+
+		coVerify(exactly = 1) { service.prune(db, any(), any()) }
+		coVerify(exactly = 0) { cellDao.deleteOlderThan(any()) }
+		coVerify(exactly = 0) { wifiDao.deleteOlderThan(any()) }
+		verify(exactly = 0) { db.sourceBrokerDao() }
+		verify(exactly = 0) { db.sourceRuntimeStateDao() }
+	}
+
+	@Test
 	fun `domain event purge clamps cutoff to slowest consumer cursor`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		val slowestCursorMs = 1_234L
@@ -522,6 +633,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		trackingStartupGate: TrackingStartupGate = READY_STARTUP_GATE,
 		stepsProjectionLaneProvider: Provider<StepsSessionFactProjectionLane> =
 			Provider { mockk(relaxed = true) },
+		cellCapturedRetentionService: CellCapturedRetentionService = cellRetentionService(),
 	): RetentionPipelineWorker =
 		TestListenableWorkerBuilder<RetentionPipelineWorker>(context)
 			.setWorkerFactory(object : WorkerFactory() {
@@ -538,6 +650,7 @@ class RetentionPipelineWorkerRobolectricTest {
 					migrationBackupRepository,
 					trackingStartupGate,
 					stepsProjectionLaneProvider,
+					cellCapturedRetentionService,
 				)
 			})
 			.build() as RetentionPipelineWorker
@@ -560,6 +673,9 @@ class RetentionPipelineWorkerRobolectricTest {
 		domainEventDao: DomainEventDao = mockk(relaxed = true),
 		exportLogDao: ExportLogDao = mockk(relaxed = true),
 		pendingSignalDao: PendingSignalDao = mockk(relaxed = true),
+		cellSampleDao: CellSampleDao = mockk(relaxed = true),
+		wifiObservationDao: WifiObservationDao = mockk(relaxed = true),
+		sessionSegmentDao: SessionSegmentDao = mockk(relaxed = true),
 	): AppDatabase {
 		val db: AppDatabase = mockk(relaxed = true)
 		every { db.transactionExecutor } returns DIRECT_EXECUTOR
@@ -587,7 +703,16 @@ class RetentionPipelineWorkerRobolectricTest {
 		every { db.locationObservationDecisionDao() } returns mockk(relaxed = true)
 		every { db.trackerStateEventDao() } returns mockk(relaxed = true)
 		every { db.sourceEvidenceStateDao() } returns sourceEvidenceStateDao
+		every { db.cellSampleDao() } returns cellSampleDao
+		every { db.wifiObservationDao() } returns wifiObservationDao
+		every { db.sessionSegmentDao() } returns sessionSegmentDao
 		return db
+	}
+
+	private fun cellRetentionService(
+		result: CellCapturedRetentionResult = CellCapturedRetentionResult.NoChange,
+	): CellCapturedRetentionService = mockk {
+		coEvery { prune(any(), any(), any()) } returns result
 	}
 
 	private fun lifecycleStore(
