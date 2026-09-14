@@ -112,15 +112,20 @@ abstract class ImportedPressureDao {
 		expectedCollectedDataEpoch: Long,
 		expectedGeneration: Long,
 		replacement: ImportedPressureDeletionGenerationEntity,
-	): Int = updateDeletionGeneration(
-		replacement.runIdentity,
-		expectedCollectedDataEpoch,
-		expectedGeneration,
-		replacement.collectedDataEpoch,
-		replacement.generation,
-		replacement.deletedAtMs,
-		replacement.effectChecksum,
-	)
+	): Int {
+		require(replacement.collectedDataEpoch == expectedCollectedDataEpoch)
+		require(expectedGeneration in 0L until Long.MAX_VALUE)
+		require(replacement.generation == expectedGeneration + 1L)
+		return updateDeletionGeneration(
+			replacement.runIdentity,
+			expectedCollectedDataEpoch,
+			expectedGeneration,
+			replacement.collectedDataEpoch,
+			replacement.generation,
+			replacement.deletedAtMs,
+			replacement.effectChecksum,
+		)
+	}
 
 	@Query(
 		"UPDATE imported_pressure_deletion_generation SET collected_data_epoch = :collectedDataEpoch, " +

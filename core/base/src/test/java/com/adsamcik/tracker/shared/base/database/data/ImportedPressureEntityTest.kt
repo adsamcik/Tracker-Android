@@ -54,11 +54,14 @@ class ImportedPressureEntityTest {
 	}
 
 	@Test
-	fun `deletion generation is positive and self identified`() {
+	fun `deletion generation checksum binds every authority field`() {
 		val generation = ImportedPressureDeletionGenerationEntity.create(opaque('3'), 7L, 1L, 30L)
 		listOf<() -> Unit>(
-			{ generation.copy(generation = 0L) },
-			{ generation.copy(effectChecksum = "local") },
+			{ generation.copy(runIdentity = opaque('4')) },
+			{ generation.copy(collectedDataEpoch = 8L) },
+			{ generation.copy(generation = 2L) },
+			{ generation.copy(deletedAtMs = 31L) },
+			{ generation.copy(effectChecksum = opaque('5')) },
 		).forEach { invalid -> assertThrows(IllegalArgumentException::class.java) { invalid() } }
 	}
 

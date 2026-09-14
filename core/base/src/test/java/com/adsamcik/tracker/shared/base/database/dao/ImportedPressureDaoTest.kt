@@ -93,8 +93,24 @@ class ImportedPressureDaoTest {
 		val generation = ImportedPressureDeletionGenerationEntity.create(RUN, 7L, 1L, 50L)
 		dao.insertDeletionGeneration(generation)
 		val advanced = ImportedPressureDeletionGenerationEntity.create(RUN, 7L, 2L, 60L)
-		dao.advanceDeletionGeneration(7L, 0L, advanced) shouldBe 0
+		val otherEpoch = ImportedPressureDeletionGenerationEntity.create(RUN, 8L, 2L, 60L)
+		shouldThrow<IllegalArgumentException> {
+			dao.advanceDeletionGeneration(7L, 1L, otherEpoch)
+		}
+		val sameGeneration = ImportedPressureDeletionGenerationEntity.create(RUN, 7L, 1L, 60L)
+		shouldThrow<IllegalArgumentException> {
+			dao.advanceDeletionGeneration(7L, 1L, sameGeneration)
+		}
+		dao.deletionGeneration(RUN) shouldBe generation
 		dao.advanceDeletionGeneration(7L, 1L, advanced) shouldBe 1
+		dao.advanceDeletionGeneration(7L, 1L, advanced) shouldBe 0
+		val lowerGeneration = ImportedPressureDeletionGenerationEntity.create(RUN, 7L, 1L, 70L)
+		shouldThrow<IllegalArgumentException> {
+			dao.advanceDeletionGeneration(7L, 2L, lowerGeneration)
+		}
+		shouldThrow<IllegalArgumentException> {
+			dao.advanceDeletionGeneration(7L, Long.MAX_VALUE, advanced)
+		}
 		dao.deletionGeneration(RUN) shouldBe advanced
 		shouldThrow<SQLiteConstraintException> {
 			dao.insertDeletionGeneration(advanced)
