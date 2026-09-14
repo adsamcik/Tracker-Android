@@ -126,8 +126,16 @@ lifecycle/fence settlement require a reloaded full-integrity WAL row; missing or
 stays terminal unless deleted-source high-water independently settles it. The first terminal ordinal
 remains in the durable target after WAL removal, and retention is derived from authenticated
 provider coverage rather than raw envelope time. Ingress and recovery add hints only; no provider,
-demand, rollout activation, second writer, maintenance call, transfer, shared UI, or automatic/
-ambient product path is introduced.
+demand, rollout activation, second writer, transfer, shared UI, or automatic/ambient product path is
+introduced. `16acedc538` now adds the independently accepted production retention invocation. Zero
+`wifiCellRetentionDays` skips all captured-Wi-Fi retention; a nonzero value computes an
+overflow-safe cutoff and calls the narrow service exactly once under the startup-generation lease,
+before source-event WAL pruning and regardless of pending-signal legacy cleanup deferral. The
+service snapshots collected-data epoch and deleted-source high-water; the existing maintenance
+transaction rechecks them with the exact floor while retaining WAL. Typed no-change/blocked/pruned
+outcomes continue the worker once, storage failure maps to WorkManager retry, and cancellation
+propagates. No provider, demand, writer, retry loop, or rollout state is added. Consent-reset/source
+deletion, transfer, shared UI, automatic/ambient behavior, validation, and device evidence remain.
 
 The separate `codex/ti-activity-transfer` branch is independently accepted through `8f0842354`
 for captured Activity portable export. One bounded Room snapshot authenticates exact logical and

@@ -104,7 +104,15 @@ Wi-Fi writer and atomically advances fact, cursor, evidence, failure, and lane s
 noncapture and terminal decision authenticates the exact full WAL row; missing/corrupt evidence
 remains terminal except for independent deleted-source high-water, and retention uses the
 authenticated provider interval. Ingress/recovery only provide conflated hints. No provider,
-demand, rollout state, second writer, maintenance invocation, transfer, or product UI is activated.
+demand, rollout state, second writer, transfer, or product UI is activated. The same branch is now
+independently accepted through `16acedc538` for the production retention invocation. Nonzero
+`wifiCellRetentionDays` invokes authenticated captured-Wi-Fi retention exactly once under the
+startup-generation lease, before source-event WAL pruning and even when pending signals defer only
+legacy radio cleanup; zero remains keep-forever. The narrow service snapshots epoch and deleted-WAL
+high-water, while the mutation transaction rechecks both plus the exact saturating cutoff. Typed
+outcomes continue once, storage failure requests WorkManager retry, cancellation propagates, and no
+provider, demand, writer, retry loop, or rollout state is created. Consent-reset/source deletion,
+transfer, shared UI, automatic/ambient behavior, and validation remain open.
 
 Activity portable export is independently accepted through `8f0842354`. Its one-transaction reader
 expands all retained rows behind each canonical 64-hex delivery identity, authenticates the exact

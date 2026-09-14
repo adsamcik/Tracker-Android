@@ -3960,3 +3960,18 @@ Each entry records repository evidence and does not duplicate the final architec
   demand, session, manifest, policy, consent, WAL, writer, or rollout authority. Imported product
   read/round trip, maintenance, file/UI action, generated schema, validation, activation, and
   release remain deferred.
+
+## TI-D244 — Wi-Fi captured retention runs once before its WAL evidence can be pruned
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; worker/service/maintenance/test commit
+  `16acedc538`; independent static review; TI-B307.
+- `wifiCellRetentionDays == 0` remains keep-forever. A nonzero value computes one saturating cutoff
+  and invokes the narrow captured-Wi-Fi retention service exactly once under the retention worker's
+  current startup-generation lease.
+- The invocation occurs before source-event WAL pruning and is not skipped when pending signals
+  defer legacy Wi-Fi/Cell cleanup. The service snapshots collected-data epoch and deleted-source
+  high-water; the existing source-local transaction rechecks those values and the exact floor while
+  retaining its WAL authentication evidence.
+- Typed no-change, blocked, and pruned outcomes continue the worker once. Storage failure maps to
+  WorkManager retry and cancellation propagates; no provider, demand, writer, retry loop, rollout,
+  transfer, UI, automatic, or ambient behavior is introduced.

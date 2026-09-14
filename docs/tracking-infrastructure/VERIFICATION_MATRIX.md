@@ -2737,3 +2737,24 @@ The command was not run. Compilation, Room execution, generated-schema parity, c
 imported product read/round trip, selected deletion, retention/source-wide erase, file/UI action,
 shared product composition, device/provider/process behavior, integration, activation, publication,
 and release remain unproven.
+
+## TI-B307 — Production Wi-Fi captured-retention invocation contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `16acedc538`. Authored service, worker, and Room-facing tests
+cover zero-days keep-forever; one nonzero invocation; saturating cutoff; startup-generation lease;
+epoch/deleted-source-high-water snapshot and transactional race rejection; execution before WAL
+pruning; invocation despite pending-signal legacy deferral; exact typed no-change/blocked/pruned
+continuation; storage retry; cancellation propagation; WAL preservation at call time; and absence of
+provider, demand, writer, or rollout activation.
+
+Fresh independent static review returned ACCEPT with no remaining blocking defect.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests '*RetentionPipelineWorkerTest' --tests '*RetentionPipelineWorkerRobolectricTest' :tracker:engine:testDebugUnitTest --tests '*WifiCapturedRetentionServiceTest' --tests '*WifiWalQualificationAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, consent-reset/source deletion, transfer,
+shared UI, automatic/ambient behavior, provider/process/reboot/device evidence, integration,
+activation, publication, and release remain unproven.

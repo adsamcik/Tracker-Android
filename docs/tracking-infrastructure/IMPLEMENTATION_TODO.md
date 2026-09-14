@@ -881,6 +881,15 @@ corrupt rows remain terminal except for deleted-source high-water, and provider-
 is authenticated. Wi-Fi TODOs remain unchecked until maintenance invocation, transfer, shared UI,
 automatic/ambient behavior, and complete scenarios exist.
 
+Accepted retention-invocation commit `16acedc538` implements another bounded portion of
+WIFI-010/013 and PRIV-002/003/011. Nonzero configured retention calls the authenticated source-local
+maintenance exactly once under the worker's startup-generation lease and before source-event WAL
+pruning, including when pending signals defer legacy radio cleanup; zero retains forever. Cutoff
+arithmetic saturates, the service snapshots epoch/deleted-source high-water, the transaction
+rechecks all authority, typed storage failure requests worker retry, and cancellation propagates.
+Wi-Fi TODOs remain unchecked until consent-reset/source deletion, transfer, shared UI, automatic/
+ambient behavior, and complete scenarios exist.
+
 ## Cell vertical
 
 - [ ] TODO-CELL-001 Complete one app-scoped Cell callback owner and stable durable delivery identity
