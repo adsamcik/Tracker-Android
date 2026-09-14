@@ -1383,17 +1383,12 @@ private suspend fun AppDatabase.loadCapturedCellWalScopesForDeletion(
 			if (wal == null || wal.admissionOrdinal != key.admissionOrdinal ||
 				wal.sourceKind != CELL_SOURCE || !wal.hasQualifiedIntegrity()
 			) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-			latestDurableTimeMs = maxOf(latestDurableTimeMs, wal.createdAtMs)
 			if (wal.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch ||
 				wal.admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal
 			) continue
-			val captureFields = listOf(
+			val captureBindingFields = listOf(
 				wal.logicalTrackingId,
 				wal.serviceRunId,
-				wal.configRevision,
-				wal.physicalConfigurationFingerprint,
-				wal.authorizationRevision,
-				wal.authorizationFingerprint,
 				wal.sourcePolicyRevision,
 				wal.captureConsentEpoch,
 				wal.sessionManifestRevision,
@@ -1401,8 +1396,14 @@ private suspend fun AppDatabase.loadCapturedCellWalScopesForDeletion(
 			)
 			val captureEligible = wal.authorizationPurposeEligibilityMask and
 				SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
-			if (!captureEligible && captureFields.all { field -> field == null }) continue
-			if (!captureEligible || captureFields.any { field -> field == null } ||
+			if (!captureEligible && captureBindingFields.all { field -> field == null }) continue
+			val captureEnvelopeFields = captureBindingFields + listOf(
+				wal.configRevision,
+				wal.physicalConfigurationFingerprint,
+				wal.authorizationRevision,
+				wal.authorizationFingerprint,
+			)
+			if (!captureEligible || captureEnvelopeFields.any { field -> field == null } ||
 				wal.logicalTrackingId.isNullOrBlank() || wal.serviceRunId.isNullOrBlank() ||
 				wal.deliveryIdentity?.matches(LOWERCASE_SHA_256) != true ||
 				wal.deliveryUnitIndex != 0 || wal.deliveryUnitCount != 1 || wal.sourceSequence <= 0L ||
@@ -1413,6 +1414,7 @@ private suspend fun AppDatabase.loadCapturedCellWalScopesForDeletion(
 				wal.activityAutomationEpoch != null
 			) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 			scopes += authenticateCapturedCellWalScopeForDeletion(wal, limits)
+			latestDurableTimeMs = maxOf(latestDurableTimeMs, wal.createdAtMs)
 		}
 		loaded = Math.addExact(loaded, keys.size)
 		afterAdmissionOrdinal = keys.last().admissionOrdinal

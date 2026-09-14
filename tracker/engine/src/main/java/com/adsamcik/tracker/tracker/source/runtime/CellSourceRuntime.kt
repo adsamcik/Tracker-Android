@@ -264,14 +264,14 @@ class CellSourceRuntime @Inject internal constructor(
 				} catch (cancelled: CancellationException) {
 					throw cancelled
 				} catch (@Suppress("SwallowedException") _: Exception) {
-					null
+					false
 				}
 				outcome = when (drained) {
 					null -> CellCaptureDeletionBarrierResult.Retryable(
-						CellCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
+						CellCaptureDeletionBarrierRetryableReason.CALLBACK_DRAIN_TIMED_OUT,
 					)
 					false -> CellCaptureDeletionBarrierResult.Retryable(
-						CellCaptureDeletionBarrierRetryableReason.CALLBACK_DRAIN_TIMED_OUT,
+						CellCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
 					)
 					true -> publishCaptureDeletionBarrier(
 						activeRegistration,

@@ -821,11 +821,16 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
-	fun `drained CONTROL-only Cell provider survives capture consent deletion`() = runTest {
+	fun `newer CONTROL-only Cell WAL survives post-barrier capture consent deletion`() = runTest {
 		seedCapturedCell(revokedCapture = true)
 		val control = installActiveControlOnlyProvider(
 			captureBarrierRevision = SECOND_AUTHORIZATION_REVISION,
 		)
+		val controlRegistration = requireNotNull(database.sourceBrokerDao().registration(
+			CELL_SOURCE,
+			REPLACEMENT_REGISTRATION_GENERATION,
+		))
+		val controlWal = insertNewerControlOnlyWal()
 
 		database.deleteCapturedCellFactsAfterConsentReset(
 			0L,
@@ -835,14 +840,35 @@ class CellCapturedFactMaintenanceTest {
 		) shouldBe CellCapturedSourceDeletionResult.Deleted(1, 1, 1)
 
 		database.sourceBrokerDao().demandsByIds(listOf(control.demandId)) shouldBe listOf(control)
-		database.sourceBrokerDao().registration(
+		requireNotNull(database.sourceBrokerDao().registration(
 			CELL_SOURCE,
 			REPLACEMENT_REGISTRATION_GENERATION,
-		)?.let { retained ->
-			retained.status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
-			retained.captureCallbackBarrierAuthorizationRevision shouldBe SECOND_AUTHORIZATION_REVISION
+		)) shouldBe controlRegistration
+		database.cellCapturedFactDao().maintenanceWalCount(CELL_SOURCE) shouldBe 2L
+		requireNotNull(database.sourceEventWalDao().getByEventId(CONTROL_WAL_EVENT_ID)).let { retained ->
+			retained.createdAtMs shouldBe CONTROL_WAL_CREATED_AT_MS
+			retained.payloadChecksum shouldBe controlWal.payloadChecksum
+			retained.integrityIdentity shouldBe controlWal.integrityIdentity
+			retained.payload.contentEquals(controlWal.payload) shouldBe true
 		}
-		database.cellCapturedFactDao().maintenanceWalCount(CELL_SOURCE) shouldBe 1L
+		val scopeDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+			CELL_SOURCE,
+			SourceBrokerPurpose.SESSION_CAPTURE,
+			LOGICAL_TRACKING_ID,
+			SERVICE_RUN_ID,
+		)
+		database.sourceDeletionFenceDao().contains(
+			CELL_SOURCE,
+			SourceBrokerPurpose.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			scopeDigest,
+		) shouldBe true
+		database.cellCapturedFactDao().deletionGeneration(
+			LOGICAL_TRACKING_ID,
+			SERVICE_RUN_ID,
+		)?.generation shouldBe 1L
+		database.cellCapturedFactDao().revisionCount() shouldBe 0L
+		database.cellCapturedFactDao().cursorCount() shouldBe 0L
 	}
 
 	@Test
@@ -1738,6 +1764,67 @@ class CellCapturedFactMaintenanceTest {
 		return control
 	}
 
+	private suspend fun insertNewerControlOnlyWal(): SourceEventWalEntity {
+		val authorization = database.cellCapturedFactDao().maintenanceAuthorizationMembers(
+			CELL_SOURCE,
+			REPLACEMENT_REGISTRATION_GENERATION,
+			CONTROL_AUTHORIZATION_REVISION,
+			2,
+		).single()
+		val observations = listOf(
+			CellTestObservation(
+				radioType = CELL_TECHNOLOGY_LTE,
+				registered = true,
+				signalLevelDbm = -95,
+				providerTimestampNanos = CONTROL_WAL_OBSERVED_NANOS,
+			),
+		)
+		val payload = cellPayload(observations)
+		val unsigned = SourceEventWalEntity(
+			eventId = CONTROL_WAL_EVENT_ID,
+			providerDedupKey = null,
+			deliveryIdentity = canonicalCellProviderDeliveryIdentity(
+				BOOT_ID,
+				observations.mapNotNull { it.toProviderDeliveryIdentityFactOrNull() },
+			),
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 1,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			sourceKind = CELL_SOURCE,
+			sourceInstanceId = CONTROL_SOURCE_INSTANCE_ID,
+			registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
+			physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
+			authorizationRevision = CONTROL_AUTHORIZATION_REVISION,
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+			authorizationFingerprint = authorization.authorizationFingerprint,
+			sourceSequence = 1L,
+			configRevision = null,
+			planAttribution = RECEIVE_TIME_ONLY_PLAN_ATTRIBUTION,
+			clockDomainId = BOOT_ID,
+			observedElapsedNanos = CONTROL_WAL_OBSERVED_NANOS,
+			observedIntervalStartNanos = CONTROL_WAL_OBSERVED_NANOS,
+			receivedElapsedNanos = CONTROL_WAL_OBSERVED_NANOS,
+			wallTimeMs = CONTROL_WAL_CREATED_AT_MS,
+			wallTimeUncertaintyMs = 0L,
+			capturedCollectedDataEpoch = 0L,
+			sourcePolicyRevision = null,
+			captureConsentEpoch = null,
+			sessionManifestRevision = null,
+			lifecycleLeaseGeneration = null,
+			acquiredAtMs = CONTROL_WAL_CREATED_AT_MS,
+			qualityFlags = 0L,
+			qualityConfidence = null,
+			payloadVersion = 1,
+			payload = payload,
+			payloadChecksum = sha256(payload),
+			createdAtMs = CONTROL_WAL_CREATED_AT_MS,
+		)
+		val wal = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
+		database.sourceEventWalDao().insertIgnoringDuplicate(wal)
+		return wal
+	}
+
 	private fun segment() = SessionSegment(
 		id = SEGMENT_ID,
 		startTimeMs = RUN_START_WALL_MS,
@@ -1828,6 +1915,8 @@ class CellCapturedFactMaintenanceTest {
 		const val CONTROL_SOURCE_INSTANCE_ID = "cell-control-instance"
 		const val DEMAND_ID = "cell-demand"
 		const val CONTROL_DEMAND_ID = "cell-control-demand"
+		const val CONTROL_WAL_EVENT_ID = "cell-control-event"
+		const val RECEIVE_TIME_ONLY_PLAN_ATTRIBUTION = 2
 		const val BOOT_ID = "boot-cell"
 		const val ZONE_ID = "Europe/Prague"
 		val PHYSICAL_FINGERPRINT = MessageDigest.getInstance("SHA-256")
@@ -1860,6 +1949,7 @@ class CellCapturedFactMaintenanceTest {
 		const val REGISTRATION_END_NANOS = 500_000_000L
 		const val SESSION_END_NANOS = 600_000_000L
 		const val REVOKED_POLICY_NANOS = 700_000_000L
+		const val CONTROL_WAL_OBSERVED_NANOS = REVOKED_POLICY_NANOS + 1L
 		const val POLICY_START_NANOS = 100_000_000L
 		const val RUN_START_WALL_MS = 1_000L
 		const val OBSERVED_WALL_MS = 2_000L
@@ -1869,6 +1959,7 @@ class CellCapturedFactMaintenanceTest {
 		const val FLOOR_MS = 1_990L
 		const val MAINTENANCE_TIME_MS = 5_000L
 		const val DELETION_TIME_MS = 6_000L
+		const val CONTROL_WAL_CREATED_AT_MS = DELETION_TIME_MS + 1L
 		const val WALL_UNCERTAINTY_MS = 20L
 		const val COVERAGE_SPAN_MS = 50L
 		const val COVERAGE_SPAN_NANOS = COVERAGE_SPAN_MS * 1_000_000L
