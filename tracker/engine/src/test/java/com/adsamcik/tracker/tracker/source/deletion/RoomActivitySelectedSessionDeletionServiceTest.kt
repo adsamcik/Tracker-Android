@@ -132,6 +132,23 @@ class RoomActivitySelectedSessionDeletionServiceTest {
 		}
 
 	@Test
+	fun `live scoped CONTROL_CONTINUATION does not block selected Activity deletion`() = runTest {
+		val segments = insertReplacementSession()
+		insertCapturedActivityPayload(segments)
+		insertActiveScopedControlContinuationProvider()
+
+		service().deleteSelectedSession(segments.last().id) shouldBe
+			ActivitySessionDeletionResult.Deleted
+
+		segments.forEach { segment -> database.sessionSegmentDao().getById(segment.id) shouldBe null }
+		val retainedControl = database.sourceBrokerDao().currentDemands("session:$LOGICAL_ID").single()
+		retainedControl.purpose shouldBe SourceBrokerPurpose.CONTROL_CONTINUATION
+		retainedControl.serviceRunId shouldBe SECOND_RUN_ID
+		database.sourceBrokerDao().currentPhysicalRegistration(ACTIVITY_SOURCE)?.status shouldBe
+			ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+	}
+
+	@Test
 	fun `mixed capture authority blocks whole replacement group before any fence`() = runTest {
 		val segments = insertReplacementSession(secondCapturedSource = SourceKindCode.STEPS)
 
@@ -172,6 +189,21 @@ class RoomActivitySelectedSessionDeletionServiceTest {
 
 		segments.forEach { segment -> database.sessionSegmentDao().getById(segment.id)?.id shouldBe segment.id }
 		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `ACTIVE selected SESSION_CAPTURE demand blocks deletion`() = runTest {
+		assertSelectedCaptureDemandBlocks(SourceDemandEntity.STATUS_ACTIVE)
+	}
+
+	@Test
+	fun `RETIRING selected SESSION_CAPTURE demand blocks deletion`() = runTest {
+		assertSelectedCaptureDemandBlocks(SourceDemandEntity.STATUS_RETIRING)
+	}
+
+	@Test
+	fun `BLOCKED selected SESSION_CAPTURE demand blocks deletion`() = runTest {
+		assertSelectedCaptureDemandBlocks(SourceDemandEntity.STATUS_BLOCKED)
 	}
 
 	@Test
@@ -810,6 +842,45 @@ class RoomActivitySelectedSessionDeletionServiceTest {
 		)
 	}
 
+	private suspend fun insertActiveScopedControlContinuationProvider() {
+		val demand = selectedSessionDemand(
+			purpose = SourceBrokerPurpose.CONTROL_CONTINUATION,
+			status = SourceDemandEntity.STATUS_ACTIVE,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(demand))
+		database.sourceBrokerDao().insertRegistration(
+			activeRegistration(CONTROL_REGISTRATION_GENERATION),
+		)
+		database.sourceBrokerDao().insertAuthorizations(
+			SourceBrokerAuthorization.rows(
+				sourceKind = ACTIVITY_SOURCE,
+				registrationGeneration = CONTROL_REGISTRATION_GENERATION,
+				authorizationRevision = 1L,
+				demands = listOf(demand),
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = 60L,
+				effectiveWallTimeMs = 600L,
+			),
+		)
+	}
+
+	private suspend fun assertSelectedCaptureDemandBlocks(status: String) {
+		val segments = insertReplacementSession()
+		database.sourceBrokerDao().insertDemands(
+			listOf(selectedSessionDemand(SourceBrokerPurpose.SESSION_CAPTURE, status)),
+		)
+
+		service().deleteSelectedSession(segments.first().id) shouldBe
+			ActivitySessionDeletionResult.BlockedActive
+
+		segments.forEach { segment ->
+			database.sessionSegmentDao().getById(segment.id)?.id shouldBe segment.id
+		}
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+		drainRequests shouldBe 0
+	}
+
 	private suspend fun insertActiveSelectedCaptureProvider() {
 		database.sourceBrokerDao().insertRegistration(activeRegistration())
 		database.sourceBrokerDao().insertAuthorizations(
@@ -886,6 +957,36 @@ class RoomActivitySelectedSessionDeletionServiceTest {
 		retireBootId = null,
 		retireElapsedRealtimeNanos = null,
 		retiredAtMs = null,
+	)
+
+	private fun selectedSessionDemand(
+		purpose: String,
+		status: String,
+	) = SourceDemandEntity(
+		demandId = "selected-$purpose-$status",
+		consumerId = "session:$LOGICAL_ID",
+		sourceKind = ACTIVITY_SOURCE,
+		purpose = purpose,
+		logicalTrackingId = LOGICAL_ID,
+		serviceRunId = SECOND_RUN_ID,
+		manifestRevision = 2L,
+		lifecycleLeaseGeneration = 2L,
+		sourcePolicyRevision = 1L,
+		consentEpoch = 0L,
+		persistenceEligible = purpose == SourceBrokerPurpose.SESSION_CAPTURE,
+		qosCode = 1,
+		minimumAcquisitionSpec = "activity-selected-$purpose",
+		adaptiveReductionAllowed = true,
+		maximumAgeMs = 0L,
+		desiredLatencyMs = 0L,
+		requestedDeliveryLatencyMs = null,
+		requestedBootId = BOOT_ID,
+		requestedElapsedRealtimeNanos = 50L,
+		requestedAtMs = 500L,
+		status = status,
+		retireBootId = BOOT_ID.takeIf { status == SourceDemandEntity.STATUS_RETIRING },
+		retireElapsedRealtimeNanos = 800L.takeIf { status == SourceDemandEntity.STATUS_RETIRING },
+		retiredAtMs = 8_000L.takeIf { status == SourceDemandEntity.STATUS_RETIRING },
 	)
 
 	private fun activityPolicy() = SourcePolicyEntity(

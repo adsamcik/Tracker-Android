@@ -459,9 +459,7 @@ internal class RoomActivitySelectedSessionDeletionService internal constructor(
 		return run.logicalTrackingId == logicalId && run.sessionSegmentId == selected.id &&
 			(session.state !in TERMINAL_SESSION_STATES || session.currentServiceRunId != null ||
 				run.state !in TERMINAL_RUN_STATES || run.completedAtMs == null ||
-				database.sourceSessionDao().hasNonterminalLatestLifecycleAction(logicalId, runId) ||
-				database.sourceBrokerDao().currentDemands("session:$logicalId")
-					.any { demand -> demand.serviceRunId == runId })
+				database.sourceSessionDao().hasNonterminalLatestLifecycleAction(logicalId, runId))
 	}
 
 	@Suppress("ReturnCount")
