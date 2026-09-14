@@ -107,6 +107,20 @@ fully authenticated current capture-bearing WAL participates in the time fence. 
 stop, hidden demand, retry loop, rollout, or caller action is added. Transfer, UI action wiring,
 shared product composition, automatic/ambient behavior, and validation remain open.
 
+Captured Cell portable export is independently accepted through `9203fdd7c` (`ce8f6b3ee`,
+`6402c0487`, `a06144eea`, `04e21f730`, and `9203fdd7c`). One bounded selected-entry Room snapshot
+authenticates reciprocal replacement ownership, exact Cell capture manifests and source authority,
+the complete fact/cursor/generation/WAL/completeness closure, aggregate dependencies, deletion,
+retention, lane/lifecycle, clocks, and zone before sink I/O. Durable Cell source sequence zero is
+valid; callback-local completeness counters remain a separate domain. Zero-callback and gap-only
+settlement requires canonical broker registration, authorization, persistent capture demand, plan,
+manifest, start/retire chronology, and exact status/drain/gap shapes. An independent generation/lane
+admission relation finds double-scope-corrupt WAL/facts and complete authorization revisions; full
+accepted-chain queries prevent failed reservations from hiding overlap or source-instance conflicts.
+Output is deterministic, identity-free technology/quality/availability/coverage evidence with no raw
+tower, subscription, WAL, provider, local identity, or Location inference. Portable import/round
+trip, file/UI actions, shared UI, automatic/ambient product behavior, and validation remain open.
+
 The dormant Wi-Fi retained-WAL projection is independently accepted at `dfaf6bb8e` on
 `codex/ti-wifi-maintenance`. Its finite 64-row drain binds the existing qualifier to the one existing
 Wi-Fi writer and atomically advances fact, cursor, evidence, failure, and lane state. Every

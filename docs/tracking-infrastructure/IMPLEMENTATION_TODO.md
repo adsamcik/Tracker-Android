@@ -1014,6 +1014,18 @@ demand, and WAL remain exact; newer pure CONTROL WAL is nonblocking, while authe
 still advances deletion staleness. Cell TODOs remain unchecked until file/UI action invocation,
 transfer/no-resurrection, shared UI, automatic/ambient behavior, and complete scenarios exist.
 
+Accepted portable-export commits `ce8f6b3ee`, `6402c0487`, `a06144eea`, `04e21f730`, and
+`9203fdd7c` implement further bounded portions of CELL-001/004/005/006/010/011/013 and
+PRIV-006/011. One selected-entry transaction authenticates exact reciprocal replacement membership,
+all immutable source and settlement authority, source-filtered fact/WAL/completeness plus independent
+generation/lane admission closure, full authorization revisions, aggregate dependencies, deletion,
+retention, clocks, and zone. Cell's durable sequence starts at zero and is never conflated with its
+callback-local completeness counter. Canonical broker authority is required for zero-observation
+settlement, and failed reservations cannot mask accepted-chain conflicts. Only deterministic
+identity-free Cell evidence reaches the post-transaction sink. Cell TODOs remain unchecked until
+portable import/round trip, shared file/UI actions, automatic/ambient behavior, and complete
+scenarios exist.
+
 ## Production history and UI
 
 - [ ] TODO-HIST-001 Complete one read-only TrackingHistoryRepository facade for observeToday,

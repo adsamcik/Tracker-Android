@@ -134,6 +134,26 @@ resume compatible CONTROL without reopening stale, replaced, or capture-active s
 start/stop, hidden demand, retry loop, rollout, or UI/action caller is introduced. Transfer, shared
 UI, automatic/ambient behavior, validation, and device evidence remain open.
 
+The Cell branch then reaches independently accepted `9203fdd7c` for portable captured export through
+`ce8f6b3ee`, `6402c0487`, `a06144eea`, `04e21f730`, and `9203fdd7c`. The typed v1 exporter resolves
+one selected logical entry and authenticates its complete reciprocal run/segment replacement set,
+all captured manifests and immutable source authority, selected fact/cursor/generation/WAL/
+completeness closure, aggregate owner/dependents, deletion, retention, lane/lifecycle, clocks, and
+stored zone in one bounded Room transaction; the deterministic sink runs only afterward. Review
+first rejected source-global audits, hidden reverse segments, terminal failure reported as transient,
+and legitimate zero-callback replacement rejection. Subsequent rounds corrected production Cell
+status/drain/gap shapes, zero-based durable source sequence, separation from callback-local
+completeness counters, canonical broker-backed zero-observation settlement, and source-filtered
+caps. Final review found that both mutable scope fields or a revision could still hide evidence and
+that failed reservations could mask accepted registration continuity. `9203fdd7c` adds an
+independent selected-generation/lane admission relation with event/ordinal fact recovery, complete
+pre-filter authorization revision authentication, and all-accepted-chain conflict queries. Fresh
+static review accepted the full lineage. Output contains only identity-free technology, quality,
+availability, coverage, completeness, gaps and typed state; no raw tower/subscription/provider/WAL/
+local IDs, Location inference, provider activation, demand, writer, import, or UI path is added.
+Portable import/round trip, file/UI action, shared UI, automatic/ambient behavior, validation, and
+device evidence remain open.
+
 The separate `codex/ti-wifi-maintenance` branch is independently accepted at `dfaf6bb8e` for the
 dormant retained-WAL projection. One finite 64-candidate source-local drain reauthenticates lane and
 source state on every pass, uses the existing Wi-Fi qualifier and sole writer, and commits exact

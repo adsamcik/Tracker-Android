@@ -4052,3 +4052,24 @@ Each entry records repository evidence and does not duplicate the final architec
 - Reimport and re-export cannot resurrect the entry. Unrelated imported/local Activity, CONTROL,
   WAL, live demand/provider/manifest/plan/writer authority, and other sources remain untouched. This
   adds no generic tombstone platform, UI action, activation, validation, publication, or release.
+
+## TI-D249 — Cell export proves source settlement through independent authority relations
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; initial export `ce8f6b3ee`, closure corrections
+  `6402c0487`, `a06144eea`, `04e21f730`, and `9203fdd7c`; corrected independent reviews; TI-B312.
+- One bounded selected-entry Room transaction authenticates complete reciprocal replacement
+  membership, exact `{Cell}` captured manifests, policy/consent/plan/provider/lifecycle/lane/clocks/
+  zone authority, fact/cursor/generation/WAL/completeness closure, aggregate dependencies, deletion,
+  and retention before deterministic sink I/O.
+- Durable Cell `sourceSequence` is zero-based and distinct from the callback-local completeness
+  sequence. Exact status/drain/gap shapes and canonical registration, authorization, persistent
+  capture demand, plan, manifest, segment, and start/retire chronology govern zero-observation and
+  gap-only settlement.
+- Scope-pair discovery is insufficient because both mutable fields can be rehashed. A separate
+  selected-generation/lane admission relation recovers WAL/facts by event/ordinal, and complete
+  authorization revisions are authenticated before membership filtering. All accepted registrations
+  on either side are conflict-checked so failed reservations cannot mask overlap or source-instance
+  discontinuity.
+- Portable output contains only identity-free technology/quality/availability/coverage/completeness
+  evidence and typed gaps/state. It exposes no tower, subscription, provider, WAL, local identity, or
+  Location inference and creates no provider/demand/writer/import/UI/rollout authority.

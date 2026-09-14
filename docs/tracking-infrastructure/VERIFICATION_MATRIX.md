@@ -2881,3 +2881,35 @@ implementation-only phase and must be regenerated/reviewed at convergence. Compi
 migration execution, imported retention/source erase, file/UI actions, shared product UI, automatic
 behavior, provider/process/reboot/device evidence, integration, activation, publication, and release
 remain unproven.
+
+## TI-B312 — Captured Cell portable-export contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `9203fdd7c` (`ce8f6b3ee`, `6402c0487`, `a06144eea`,
+`04e21f730`, and `9203fdd7c`). Authored portable contract, selected-scope DAO/maintenance/export,
+qualifier/entity corrections, and production-shaped tests cover deterministic identity-free output;
+source sequence zero; separate callback completeness counters; reciprocal logical/run/segment
+membership; complete source-filtered fact/cursor/generation/WAL/completeness and aggregate closure;
+manifest revisions; deletion/retention; missing or settled WAL; terminal failure before lag;
+zero-callback/gap-only and generation-zero settlement; sink failure; cancellation; storage; and
+unrelated-history isolation.
+
+Review rounds rejected source-global audits, hidden reverse segments/deletion generations, terminal
+failure mislabeled `Materializing`, fabricated completeness, impossible failure tests, positive
+sequence assumptions, callback/WAL sequence conflation, unauthenticated zero-observation rows, and
+caps applied before Cell filtering. Later review found double-scope-rehashed WAL/facts and hidden
+authorization revisions could disappear before zero-observation checks, while failed/unaccepted
+registrations could mask accepted predecessor/successor conflicts. `9203fdd7c` adds the independent
+selected-generation/lane admission relation, event/ordinal fact recovery, complete authorization
+revision authentication, and all-accepted-chain conflict queries. Tests cover double-scope WAL/fact
+tamper, hidden/canonical revisions, unrelated Cell caps, and failed-generation predecessor/successor
+sandwiches. Fresh full-lineage static review returned ACCEPT with no remaining blocker.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*CellCapturedFactMaintenanceTest' :tracker:engine:testDebugUnitTest --tests '*CellWalQualificationAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, portable import/round trip, file/UI action,
+shared product UI, automatic/ambient behavior, provider/process/reboot/device evidence, integration,
+activation, publication, and release remain unproven.
