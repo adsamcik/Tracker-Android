@@ -2628,3 +2628,29 @@ Deferred focused commands:
 The commands were not run. Compilation, Room execution, portable import/round trip,
 consent-reset/file/UI action wiring, automatic behavior, shared product integration,
 provider/process/reboot/device evidence, activation, and release remain unproven.
+
+## TI-B303 — Imported Pressure history and round-trip contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `b9e31666d`. Authored API and Room tests cover one
+bounded snapshot of current epoch, retained tombstones, receipts, complete revision/run/window
+lineage, checksums, correction order, stable identity owners, retention, structural zone, coverage,
+and configured limits; imported-only discovery; stable opaque origin; nullable hPa; truthful
+partial/deleted/materializing/unverifiable states; bounded live/import pages; exact duplicate
+suppression; distinct origins; authenticated latest-v1 re-export; fresh-database round trip; and
+no-resurrection after tombstone or retention loss.
+
+Independent review rejected divergent local/imported content sharing one opaque identity because
+exporting both would make re-import fabricate a correction winner from output order.
+`b9e31666d` adds typed `CONFLICTING_ORIGIN_IDENTITY` before sink I/O. Exact full-v1 equality emits
+once, distinct identities remain separate, and the correction does not change bounded lineage,
+paging, or no-live-authority behavior. Fresh static re-review accepted the correction.
+
+Deferred focused commands:
+
+```powershell
+.\gradlew.bat :stats:api:androidHostTest :stats:data:testDebugUnitTest --tests '*PressureHistoryTest' --tests '*ImportedPressureHistoryEvaluatorTest' --tests '*PressureHistorySelectorTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The commands were not run. Compilation, Room execution, imported maintenance, file/UI action
+wiring, schema generation/reopen, provider/process/reboot/device behavior, integration, activation,
+and release remain unproven.

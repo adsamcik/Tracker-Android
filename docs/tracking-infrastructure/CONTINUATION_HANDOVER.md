@@ -49,8 +49,16 @@ duplicates, claims alternate identical receipts without duplicating the hierarch
 receipt reuse, cross-kind/cross-owner identity drift, lineage gaps, corruption, and overflow.
 Cancellation rolls back receipt and hierarchy together. This is **IMPLEMENTED_UNVALIDATED** and
 never fabricates or inserts live Pressure WAL facts. The checked-in v28 Room schema JSON still lacks
-all five `imported_pressure_*` tables and must be regenerated/reviewed during convergence. Imported
-history/maintenance, file/UI action wiring, and portable round trip remain later source-local slices.
+all five `imported_pressure_*` tables and must be regenerated/reviewed during convergence.
+
+Imported Pressure product read and portable round trip are independently accepted through
+`b9e31666d` (`040b38f8c` plus its origin-collision correction). One bounded Room snapshot
+authenticates current epoch, tombstones, receipts, complete revision/run/window lineage, checksums,
+owners, retention, stored zone, and coverage. Imported-only entries are discoverable without
+Location, `sample_count`, or fabricated live authority; retention-only is partial with nullable
+pressure, while deleted/unverifiable remain explicit. Exact local/import duplicates emit once;
+divergent content sharing an opaque identity fails typed before sink output, so re-import cannot
+invent a correction winner. File/UI action wiring and imported maintenance remain open.
 
 Cell maintenance is independently accepted through `f8d7a5f50` after closing a canonical-delivery
 identity gap. The source-local transaction recomputes the exact shared v1 runtime identity and full

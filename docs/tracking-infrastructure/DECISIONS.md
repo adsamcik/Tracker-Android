@@ -3883,3 +3883,21 @@ Each entry records repository evidence and does not duplicate the final architec
 - WAL, CONTROL, plans, registrations, authorization, unrelated Activity, other sources, and
   nonselected days remain. This slice does not wire user actions/consent reset, implement portable
   import, enable automatic capture, provide executed evidence, activate rollout, or release.
+
+## TI-D240 — Divergent Pressure origins cannot fabricate a correction winner during round trip
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; DAO/API/read/export/test commits `040b38f8c`
+  and `b9e31666d`; corrected independent review; TI-B303.
+- One bounded Room snapshot authenticates the complete imported Pressure entry-revision, receipt,
+  run, and window lineage plus current epoch, tombstones, checksums, stable owners, correction order,
+  retention, structural zone, coverage, and limits before any product or export result.
+- Imported-only entries remain discoverable without Location, `sample_count`, or invented local
+  lifecycle/WAL authority. Retention-only is typed partial with nullable/no pressure evidence;
+  deleted, materializing, and unverifiable states remain distinct.
+- Live and imported entries with different identities remain distinct. Exact full-v1 duplicate
+  content under one opaque identity emits once. Divergent authenticated origins sharing that
+  identity return typed `CONFLICTING_ORIGIN_IDENTITY` before sink I/O; output ordering cannot invent
+  a cross-origin correction lineage or choose a latest winner on re-import.
+- Only fully authenticated non-tombstoned latest imported v1 content is re-exported. This does not
+  add provider/session/manifest/WAL authority, implement imported maintenance or file/UI actions,
+  generate the deferred schema, validate execution, activate rollout, or release.

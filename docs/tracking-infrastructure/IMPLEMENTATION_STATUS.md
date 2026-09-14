@@ -51,6 +51,18 @@ imported-Pressure tables and remains a mandatory convergence-generation blocker.
 maintenance composition, portable re-export round trip, and user-facing file/import action remain
 open.
 
+Pressure imported product read and round trip are independently accepted through `b9e31666d`.
+`040b38f8c` adds bounded DAO reads, a shared Pressure-local lineage authenticator, one-transaction
+imported evaluation, public imported origin/state mapping, a bounded live-plus-import page, and
+authenticated latest-v1 re-export. It requires current epoch, retained tombstones, complete receipt/
+revision/run/window ownership, checksums, correction order, retention, structural zone, and coverage.
+Imported-only facts need no Location, `sample_count`, or invented live run; retention-only remains
+partial with null numeric evidence and deleted/unverifiable states stay explicit. Review found that
+divergent local/imported content sharing one opaque identity would be emitted twice and re-imported
+as an invented correction. `b9e31666d` returns typed `CONFLICTING_ORIGIN_IDENTITY` before sink I/O;
+exact full-v1 equality emits once and distinct identities stay separate. Imported maintenance,
+file/UI action wiring, schema convergence, validation, and device evidence remain open.
+
 The separate `codex/ti-cell-maintenance` branch is independently accepted through `f8d7a5f50`.
 Its bounded source-local retention and revoked-consent deletion transaction now authenticates
 canonical v1 Cell payload bytes, recomputes the exact provider-delivery identity, rederives the full

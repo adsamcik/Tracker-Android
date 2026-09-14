@@ -605,8 +605,11 @@ portable-origin entry/run/window hierarchy, immutable receipt authority, bounded
 reads, copied local epoch, monotonic run-deletion generation, and one source-owned import admission
 transaction. Exact/alternate receipt replay, corrections, collision, tombstone, epoch, corruption,
 overflow, cancellation, and rollback paths are authored without any live-WAL identity or runtime
-fact insertion. The next required slices are imported history/maintenance recognition, portable
-re-export round trip, and the file/UI action. Never fabricate a live event/run or insert the
+fact insertion. Accepted `040b38f8c`/`b9e31666d` product-read and round-trip commits add complete
+authenticated imported discovery, bounded live/import composition, truthful partial/deleted/
+unverifiable states, latest-v1 re-export, and exact duplicate suppression. Divergent local/imported
+content sharing one opaque identity fails typed before output and cannot invent a correction winner.
+Imported maintenance and the file/UI action remain. Never fabricate a live event/run or insert the
 portable product directly into the live-WAL table.
 
 Accepted product/UI commits `06ec05883` through `c27cc1c18` implement bounded portions of
