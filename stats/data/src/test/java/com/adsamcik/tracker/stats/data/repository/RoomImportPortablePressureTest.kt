@@ -268,6 +268,40 @@ class RoomImportPortablePressureTest {
 	}
 
 	@Test
+	fun `superseded run tombstone blocks replay alternate receipt and correction without mutation`() =
+		runTest {
+			val importer = importer(testScheduler)
+			val (first, second) = seedDistinctRunRevisions(importer)
+			database.importedPressureDao().insertDeletionGeneration(
+				ImportedPressureDeletionGenerationEntity.create(
+					runIdentity = first.entry.runs.single().identity.value,
+					collectedDataEpoch = EPOCH,
+					generation = 1L,
+					deletedAtMs = 60L,
+				),
+			)
+			val alternateReceipt = second.copy(
+				receipt = receipt(jobId = "job-alternate", receivedAtMs = 60L),
+			)
+			val correction = thirdDistinctCorrection()
+
+			listOf(second, alternateReceipt, correction).forEach { blocked ->
+				importer.importEntry(blocked) shouldBe ImportPortablePressureResult.Blocked(
+					PortablePressureImportBlockedReason.DELETED_RUN,
+				)
+			}
+
+			val dao = database.importedPressureDao()
+			dao.latestEntryRevision(second.entry.identity.value)?.importRevision shouldBe 2L
+			dao.entryRevisionsForAdmission(second.entry.identity.value).size shouldBe 2
+			dao.receiptsForAdmission(second.entry.identity.value).size shouldBe 2
+			dao.allRunsForAdmission(second.entry.identity.value).size shouldBe 2
+			dao.allWindowsForAdmission(second.entry.identity.value).size shouldBe 2
+			dao.receipt(alternateReceipt.receipt.jobId, alternateReceipt.receipt.entryKey) shouldBe null
+			dao.receipt(correction.receipt.jobId, correction.receipt.entryKey) shouldBe null
+		}
+
+	@Test
 	fun `missing or changed collected data epoch fails before mutation`() = runTest {
 		val missingStateDatabase = newDatabase()
 		try {

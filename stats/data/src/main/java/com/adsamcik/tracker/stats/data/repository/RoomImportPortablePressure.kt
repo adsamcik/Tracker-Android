@@ -92,6 +92,14 @@ internal class RoomImportPortablePressure internal constructor(
 			identity = entry.identity.value,
 			expectedCollectedDataEpoch = request.expectedCollectedDataEpoch,
 		)
+		val retainedRunIdentities = lineage.revisions.flatMapTo(linkedSetOf()) { revision ->
+			revision.entry.runs.map { it.identity.value }
+		}
+		if (storedValue {
+			dao.deletionGenerationsForHistory(retainedRunIdentities.toList())
+		}.isNotEmpty()) {
+			blocked(PortablePressureImportBlockedReason.DELETED_RUN)
+		}
 
 		val receiptBinding = storedValue {
 			dao.receipt(request.receipt.jobId, request.receipt.entryKey)

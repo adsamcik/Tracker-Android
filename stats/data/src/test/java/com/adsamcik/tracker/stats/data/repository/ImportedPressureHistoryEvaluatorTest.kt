@@ -18,6 +18,7 @@ import com.adsamcik.tracker.stats.api.repository.PortablePressureAvailability
 import com.adsamcik.tracker.stats.api.repository.PortablePressureCoverage
 import com.adsamcik.tracker.stats.api.repository.PortablePressureEntrySink
 import com.adsamcik.tracker.stats.api.repository.PortablePressureEntryV1
+import com.adsamcik.tracker.stats.api.repository.PortablePressureExportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortablePressureIdentityKind
 import com.adsamcik.tracker.stats.api.repository.PortablePressureImportBlockedReason
 import com.adsamcik.tracker.stats.api.repository.PortablePressureImportReceipt
@@ -215,6 +216,75 @@ class ImportedPressureHistoryEvaluatorTest {
 	}
 
 	@Test
+	fun `superseded run tombstone makes corrected history nonnumeric and unexportable`() = runTest {
+		val first = request(
+			entry(runLocalId = "run-a", windowLocalId = "window-a"),
+			receipt(jobId = "job-a", entryKey = "entry-a", receivedAtMs = 30L),
+		)
+		val corrected = request(
+			entry(runLocalId = "run-b", windowLocalId = "window-b", wallTimeUncertaintyMs = 26L),
+			receipt(jobId = "job-b", entryKey = "entry-b", receivedAtMs = 40L),
+		)
+		val writer = importer(database, testScheduler)
+		writer.importEntry(first) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		writer.importEntry(corrected) shouldBe ImportPortablePressureResult.Applied(2L, 1, 1)
+		database.importedPressureDao().insertDeletionGeneration(
+			ImportedPressureDeletionGenerationEntity.create(
+				runIdentity = first.entry.runs.single().identity.value,
+				collectedDataEpoch = EPOCH,
+				generation = 1L,
+				deletedAtMs = 60L,
+			),
+		)
+
+		val selected = evaluate(database).single()
+		selected shouldBe ImportedPressureHistoryEvaluation.Unverifiable(
+			selected.candidate,
+			ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		val public = selected.toPublicPressureOnlyEntry()
+		public.state shouldBe PressureHistoryPresentationState.UNVERIFIABLE
+		public.pressure.summary shouldBe null
+		public.pressure.windows shouldBe emptyList()
+		var emitted = false
+		exporter(database, testScheduler).export(
+			ExportPortablePressureRequest(0L, 3_000L),
+			PortablePressureEntrySink { emitted = true },
+		) shouldBe ExportPortablePressureResult.Unverifiable(
+			PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+		)
+		emitted shouldBe false
+	}
+
+	@Test
+	fun `run identity reused by latest correction preserves typed deleted history`() = runTest {
+		val first = request()
+		val corrected = request(
+			entry(wallTimeUncertaintyMs = 26L),
+			receipt(jobId = "job-2", entryKey = "entry-2", receivedAtMs = 40L),
+		)
+		val writer = importer(database, testScheduler)
+		writer.importEntry(first) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		writer.importEntry(corrected) shouldBe ImportPortablePressureResult.Applied(2L, 1, 1)
+		first.entry.runs.single().identity shouldBe corrected.entry.runs.single().identity
+		database.importedPressureDao().insertDeletionGeneration(
+			ImportedPressureDeletionGenerationEntity.create(
+				runIdentity = first.entry.runs.single().identity.value,
+				collectedDataEpoch = EPOCH,
+				generation = 1L,
+				deletedAtMs = 60L,
+			),
+		)
+
+		val selected = evaluate(database).single() as ImportedPressureHistoryEvaluation.Readable
+		selected.deletedRunIdentities shouldBe setOf(first.entry.runs.single().identity.value)
+		val public = selected.toPublicPressureOnlyEntry()
+		public.state shouldBe PressureHistoryPresentationState.DELETED
+		public.pressure.summary shouldBe null
+		public.pressure.windows shouldBe emptyList()
+	}
+
+	@Test
 	fun `stored checksum corruption is a typed unverifiable history row`() = runTest {
 		val request = request()
 		importer(database, testScheduler).importEntry(request)
@@ -372,16 +442,20 @@ class ImportedPressureHistoryEvaluatorTest {
 		receivedAtMs = receivedAtMs,
 	)
 
-	private fun entry(wallTimeUncertaintyMs: Long = 25L): PortablePressureEntryV1 {
+	private fun entry(
+		wallTimeUncertaintyMs: Long = 25L,
+		runLocalId: String = "run",
+		windowLocalId: String = "window",
+	): PortablePressureEntryV1 {
 		val run = PortablePressureRunV1(
-			identity = identity(PortablePressureIdentityKind.PHYSICAL_RUN, "run"),
+			identity = identity(PortablePressureIdentityKind.PHYSICAL_RUN, runLocalId),
 			startTimeMs = 1_000L,
 			endTimeMs = 2_000L,
 			capturedForWholeRun = true,
 			availability = PortablePressureAvailability.RETAINED,
 			coverage = PortablePressureCoverage.COMPLETE,
 			retentionLoss = false,
-			windows = listOf(window(wallTimeUncertaintyMs)),
+			windows = listOf(window(wallTimeUncertaintyMs, windowLocalId)),
 		)
 		return PortablePressureEntryV1.create(
 			identity = identity(PortablePressureIdentityKind.LOGICAL_ENTRY, "entry"),
@@ -392,8 +466,11 @@ class ImportedPressureHistoryEvaluatorTest {
 	}
 
 	@Suppress("LongMethod")
-	private fun window(wallTimeUncertaintyMs: Long) = PortablePressureWindowV1.create(
-		identity = identity(PortablePressureIdentityKind.WINDOW, "window"),
+	private fun window(
+		wallTimeUncertaintyMs: Long,
+		windowLocalId: String,
+	) = PortablePressureWindowV1.create(
+		identity = identity(PortablePressureIdentityKind.WINDOW, windowLocalId),
 		intervalStartTimeMs = 1_000L,
 		intervalEndTimeMs = 1_150L,
 		wallTimeUncertaintyMs = wallTimeUncertaintyMs,

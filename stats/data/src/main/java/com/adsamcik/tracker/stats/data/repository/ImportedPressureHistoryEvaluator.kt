@@ -187,14 +187,26 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 				)
 				val latest = requireNotNull(lineage.latest)
 				require(candidate.exactlyMatches(latest))
+				val lineageRunIds = lineage.revisions.flatMapTo(linkedSetOf()) { revision ->
+					revision.entry.runs.map { it.identity.value }
+				}
+				val deletedLineageRunIds = lineageRunIds.filterTo(linkedSetOf()) {
+					it in tombstonesByRun
+				}
 				val latestRunIds = latest.entry.runs.mapTo(linkedSetOf()) { it.identity.value }
-				val deletedRunIds = latestRunIds.filterTo(linkedSetOf()) { it in tombstonesByRun }
-				ImportedPressureHistoryEvaluation.Readable(
-					candidate = candidate,
-					lineage = lineage,
-					deletedRunIdentities = deletedRunIds,
-					retainedFromMs = state.retainedFromMs,
-				)
+				if (deletedLineageRunIds.any { it !in latestRunIds }) {
+					ImportedPressureHistoryEvaluation.Unverifiable(
+						candidate,
+						ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
+					)
+				} else {
+					ImportedPressureHistoryEvaluation.Readable(
+						candidate = candidate,
+						lineage = lineage,
+						deletedRunIdentities = deletedLineageRunIds,
+						retainedFromMs = state.retainedFromMs,
+					)
+				}
 			} catch (failure: ImportedPressureLineageFailure) {
 				ImportedPressureHistoryEvaluation.Unverifiable(
 					candidate,
