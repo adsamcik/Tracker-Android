@@ -36,6 +36,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryPage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
@@ -101,11 +102,11 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 			return ActivityHistoryPage.Failed(ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT)
 		}
 		val publicLive = (live.page as ActivityHistoryPage.Available).entries
-		val collisions = imported.filterIsInstance<ImportedActivityProductEvaluation.Readable>()
-			.filter { it.candidate.identity in localIdentities }
+		val hasReadableImports = imported.any { it is ImportedActivityProductEvaluation.Readable }
 		val localPortableEntries = try {
-			loadLocalPortableComparisonEntries(
-				collisions,
+			loadLocalPortableOwnershipSnapshot(
+				hasReadableImports,
+				publicLive,
 				localIdentities.keys,
 			)
 		} catch (_: ImportedActivityHistoryCompositionFailure) {
@@ -126,25 +127,35 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 		}
 	}
 
-	private suspend fun loadLocalPortableComparisonEntries(
-		imported: List<ImportedActivityProductEvaluation.Readable>,
+	private suspend fun loadLocalPortableOwnershipSnapshot(
+		hasReadableImports: Boolean,
+		localEntries: List<ActivityHistoryEntry>,
 		localEntryIdentities: Set<String>,
 	): Map<String, PortableActivityEntryV1> {
-		if (imported.isEmpty() || localEntryIdentities.isEmpty()) return emptyMap()
-		val earliest = imported.minOf { it.candidate.startTimeMs }
-		val latest = imported.maxOf { it.candidate.endTimeMs }
-		if (earliest == Long.MAX_VALUE) throw ImportedActivityHistoryCompositionFailure()
-		val toExclusiveMs = if (latest == Long.MAX_VALUE) latest else Math.addExact(latest, 1L)
+		if (!hasReadableImports || localEntryIdentities.isEmpty()) return emptyMap()
+		if (localEntries.size != localEntryIdentities.size) {
+			throw ImportedActivityHistoryCompositionFailure()
+		}
+		val earliest = localEntries.minOf { it.startTime.raw }
+		val latest = localEntries.maxOf { it.endTime.raw }
+		if (latest <= earliest) throw ImportedActivityHistoryCompositionFailure()
 		return when (val result = localPortableReader.read(
-			ExportPortableCapturedActivityRequest(earliest, toExclusiveMs),
+			ExportPortableCapturedActivityRequest(earliest, latest),
 		)) {
-			is ReadLocalPortableCapturedActivityResult.Ready ->
-				result.envelope.entries.filter { it.identity.value in localEntryIdentities }
-					.associateBy { it.identity.value }
-			is ReadLocalPortableCapturedActivityResult.Unverifiable -> emptyMap()
-			ReadLocalPortableCapturedActivityResult.StorageUnavailable ->
-				throw ActivityHistoryLocalPortableReadUnavailable()
-			ReadLocalPortableCapturedActivityResult.NoEntries -> emptyMap()
+			is ReadLocalPortableCapturedActivityResult.Ready -> {
+				// Seed every overlapping local owner, including bounded rows outside the visible page.
+				val completeSnapshot = result.envelope.entries.associateBy { it.identity.value }
+				if (completeSnapshot.size != result.envelope.entries.size ||
+					!completeSnapshot.keys.containsAll(localEntryIdentities)
+				) {
+					throw ImportedActivityHistoryCompositionFailure()
+				}
+				completeSnapshot
+			}
+			is ReadLocalPortableCapturedActivityResult.Unverifiable,
+			ReadLocalPortableCapturedActivityResult.StorageUnavailable,
+			ReadLocalPortableCapturedActivityResult.NoEntries ->
+				throw ImportedActivityHistoryCompositionFailure()
 		}
 	}
 
@@ -595,5 +606,3 @@ private const val MAX_ACTIVITY_DESIRED_PLANS = 512
 private const val MAX_ACTIVITY_PROVIDER_REGISTRATIONS = 512
 private const val MAX_ACTIVITY_AUTHORIZATIONS = 4_096
 private const val MAX_ACTIVITY_TERMINAL_FAILURES = 512
-
-private class ActivityHistoryLocalPortableReadUnavailable : RuntimeException(null, null, false, false)

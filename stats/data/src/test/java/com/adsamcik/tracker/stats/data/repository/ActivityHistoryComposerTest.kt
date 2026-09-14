@@ -2,7 +2,18 @@ package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.database.ActivityCapturedPortableIntegrity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedActivityRequest
+import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedActivityRequest
+import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedActivityResult
+import com.adsamcik.tracker.shared.base.database.PortableActivityEntryV1
+import com.adsamcik.tracker.shared.base.database.PortableActivityIdentityKind
+import com.adsamcik.tracker.shared.base.database.PortableActivityImportReceipt
+import com.adsamcik.tracker.shared.base.database.PortableActivityOpaqueIdentity
+import com.adsamcik.tracker.shared.base.database.ReadLocalPortableCapturedActivityResult
+import com.adsamcik.tracker.shared.base.database.RoomImportPortableCapturedActivity
+import com.adsamcik.tracker.shared.base.database.RoomReadLocalPortableCapturedActivity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
@@ -10,6 +21,7 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrati
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -21,6 +33,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
@@ -34,6 +47,7 @@ import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryFragment
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryPage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
@@ -43,6 +57,7 @@ import io.kotest.matchers.shouldBe
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.security.MessageDigest
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -134,6 +149,81 @@ class ActivityHistoryComposerTest {
 		recentEntry.activeTime?.knownActiveDurationNanos shouldBe 3_300L
 		recentEntry.storedZoneIds shouldBe setOf("UTC", "Europe/Prague")
 		recentEntry shouldBe selectedEntry
+	}
+
+	@Test
+	fun `repository rejects a distinct imported entry reusing local run and window ownership`() = runTest {
+		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		persistPortableFixture(snapshot)
+		val localPortable = readLocalPortableEntry(snapshot)
+		database.clearAllTables()
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
+		val foreignIdentity = PortableActivityOpaqueIdentity.derive(
+			PortableActivityIdentityKind.LOGICAL_ENTRY,
+			"foreign-imported-entry",
+		)
+		val foreign = localPortable.copy(
+			identity = foreignIdentity,
+			contentChecksum = ActivityCapturedPortableIntegrity.entryChecksum(
+				foreignIdentity,
+				localPortable.sessionMode,
+				localPortable.startTimeMs,
+				localPortable.endTimeMs,
+				localPortable.runs,
+			),
+		)
+		importPortable(foreign, testScheduler)
+		persistPortableFixture(snapshot)
+		val repository = DefaultActivityHistoryRepository(
+			database,
+			EXECUTION_AUTHORITY,
+			UnconfinedTestDispatcher(testScheduler),
+		)
+
+		val page = repository.recent(10) as ActivityHistoryPage.Available
+
+		page.entries shouldHaveSize 2
+		val imported = page.entries.single { it.origin == ActivityHistoryOrigin.IMPORTED }
+		imported.state shouldBe ActivityHistoryProductState.FAILED
+		imported.causes shouldBe setOf(ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+		imported.activeTime shouldBe null
+		imported.fragments shouldBe emptyList()
+	}
+
+	@Test
+	fun `repository fails mixed history closed when bounded local ownership is incomplete`() = runTest {
+		val terminal = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		persistPortableFixture(terminal)
+		val localPortable = readLocalPortableEntry(terminal)
+		database.clearAllTables()
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
+		val foreignIdentity = PortableActivityOpaqueIdentity.derive(
+			PortableActivityIdentityKind.LOGICAL_ENTRY,
+			"independent-imported-entry",
+		)
+		importPortable(
+			localPortable.copy(
+				identity = foreignIdentity,
+				contentChecksum = ActivityCapturedPortableIntegrity.entryChecksum(
+					foreignIdentity,
+					localPortable.sessionMode,
+					localPortable.startTimeMs,
+					localPortable.endTimeMs,
+					localPortable.runs,
+				),
+			),
+			testScheduler,
+		)
+		persistPortableFixture(activeReconfiguredSnapshotAwaitingFact())
+		val repository = DefaultActivityHistoryRepository(
+			database,
+			EXECUTION_AUTHORITY,
+			UnconfinedTestDispatcher(testScheduler),
+		)
+
+		repository.recent(10) shouldBe ActivityHistoryPage.Failed(
+			ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
+		)
 	}
 
 	@Test
@@ -836,6 +926,94 @@ class ActivityHistoryComposerTest {
 		database.sourceEvidenceStateDao().ensure(requireNotNull(snapshot.evidenceState))
 	}
 
+	private suspend fun persistPortableFixture(snapshot: ActivityHistorySnapshot) {
+		persistFixture(snapshot)
+		database.sourceDestinationOwnerDao().insertIfAbsent(
+			SourceDestinationOwnerEntity(
+				sourceKind = ACTIVITY_SOURCE,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
+				owner = SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS,
+				ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+				updatedAtMs = 1_000L,
+			),
+		)
+		val captureAuthorizations = snapshot.authorizationsByRegistration.values.flatten()
+			.filter { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+		val demands = captureAuthorizations.map { authorization ->
+			val run = snapshot.runs.getValue(requireNotNull(authorization.serviceRunId))
+			captureDemand(
+				revision = requireNotNull(authorization.manifestRevision),
+				run = run,
+				base = authorization.effectiveElapsedRealtimeNanos,
+			)
+		}
+		database.sourceBrokerDao().insertDemands(demands)
+		val actions = captureAuthorizations.map { authorization ->
+			val run = snapshot.runs.getValue(requireNotNull(authorization.serviceRunId))
+			val manifestRevision = requireNotNull(authorization.manifestRevision)
+			val manifest = snapshot.manifestsByRun.getValue(run.serviceRunId)
+				.single { it.manifestRevision == manifestRevision }
+			LifecycleDesiredActionEntity(
+				actionId = "activity-start-${run.serviceRunId}-$manifestRevision",
+				logicalTrackingId = run.logicalTrackingId,
+				serviceRunId = run.serviceRunId,
+				manifestRevision = manifestRevision,
+				actionRevision = authorization.registrationGeneration,
+				actionFamily = "SOURCE_RUNTIME",
+				sourceKind = ACTIVITY_SOURCE,
+				desiredState = "STARTED",
+				desiredPlanRevision = manifest.acquisitionPlanRevision,
+				sourcePolicyRevision = manifest.sourcePolicyRevision,
+				consentEpoch = authorization.consentEpoch,
+				startOrigin = manifest.startOrigin,
+				bootId = run.bootId,
+				leaseGeneration = run.leaseGeneration,
+				requestedAtMs = authorization.effectiveWallTimeMs,
+				requestedElapsedRealtimeNanos = authorization.effectiveElapsedRealtimeNanos,
+				status = "START_ACCEPTED",
+				attemptCount = 1,
+				acknowledgedAtMs = authorization.effectiveWallTimeMs,
+				acknowledgedElapsedRealtimeNanos = authorization.effectiveElapsedRealtimeNanos,
+				failureCode = null,
+				retryTrigger = null,
+				sourceInstanceId = snapshot.providerRegistrations
+					.getValue(authorization.registrationGeneration).sourceInstanceId,
+				registrationGeneration = authorization.registrationGeneration,
+			)
+		}
+		database.sourceSessionDao().insertLifecycleActions(actions)
+	}
+
+	private suspend fun readLocalPortableEntry(snapshot: ActivityHistorySnapshot): PortableActivityEntryV1 {
+		val start = snapshot.expansion.segments.minOf(SessionSegment::startTimeMs)
+		val end = snapshot.expansion.segments.maxOf(SessionSegment::endTimeMs)
+		val result = RoomReadLocalPortableCapturedActivity(database, EXECUTION_AUTHORITY).read(
+			ExportPortableCapturedActivityRequest(start, end),
+		)
+		return (result as ReadLocalPortableCapturedActivityResult.Ready).envelope.entries.single()
+	}
+
+	private suspend fun importPortable(
+		entry: PortableActivityEntryV1,
+		scheduler: TestCoroutineScheduler,
+	) {
+		RoomImportPortableCapturedActivity(
+			database,
+			UnconfinedTestDispatcher(scheduler),
+		).importEntry(
+			ImportPortableCapturedActivityRequest(
+				entry = entry,
+				receipt = PortableActivityImportReceipt(
+					jobId = "ownership-regression",
+					entryKey = entry.identity.value,
+					sourceName = "backup.trackeractivity",
+					receivedAtMs = 20_000L,
+				),
+				expectedCollectedDataEpoch = 0L,
+			),
+		) shouldBe ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+	}
+
 	private fun buildRun(spec: RunSpec): BuiltRun {
 		val baseElapsed = 1_000L + (spec.revision - 1L) * 500L
 		val segment = SessionSegment(
@@ -967,6 +1145,7 @@ class ActivityHistoryComposerTest {
 			registrationGeneration = spec.revision,
 			configurationRevision = spec.revision,
 			desiredPlanPayloadVersion = desiredPlan.payloadVersion,
+			desiredPlanPayload = desiredPlan.payload,
 			desiredPlanPayloadChecksum = desiredPlan.payloadChecksum,
 			physicalConfigurationFingerprint = physicalFingerprint,
 			appliedAtElapsedRealtimeNanos = baseElapsed,
@@ -976,7 +1155,7 @@ class ActivityHistoryComposerTest {
 			sourceKind = ACTIVITY_SOURCE,
 			registrationGeneration = spec.revision,
 			sourceInstanceId = plan.sourceInstanceId,
-			ownerScope = "session-activity",
+			ownerScope = "source-broker:$ACTIVITY_SOURCE",
 			clockDomainId = run.bootId,
 			physicalConfigurationFingerprint = plan.physicalConfigurationFingerprint,
 			collectedDataEpoch = 0L,
@@ -992,8 +1171,15 @@ class ActivityHistoryComposerTest {
 			failureCode = null,
 			captureCallbackBarrierAuthorizationRevision = 1L,
 		)
-		val authorizations = authorizations(spec, run, baseElapsed)
-		val draft = revision(spec, run, plan, baseElapsed)
+		val demand = captureDemand(spec.revision, run, baseElapsed)
+		val authorizations = authorizations(spec, run, baseElapsed, demand)
+		val draft = revision(
+			spec,
+			run,
+			plan,
+			baseElapsed,
+			SourceBrokerAuthorization.fingerprint(listOf(demand)),
+		)
 		val logicalWindowId = ActivityCapturedFactIntegrity.logicalWindowId(draft)
 		val identified = draft.copy(
 			logicalWindowId = logicalWindowId,
@@ -1032,6 +1218,7 @@ class ActivityHistoryComposerTest {
 		run: SourceServiceRunEntity,
 		plan: ActivityCapturedRegistrationPlanEntity,
 		base: Long,
+		authorizationFingerprint: String,
 	) = ActivityCapturedWindowRevisionEntity(
 		writerProjectionId = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
 		writerProjectionVersion = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION,
@@ -1050,7 +1237,7 @@ class ActivityHistoryComposerTest {
 		configurationRevision = plan.configurationRevision,
 		physicalConfigurationFingerprint = plan.physicalConfigurationFingerprint,
 		authorizationRevision = 1L,
-		authorizationFingerprint = "a".repeat(64),
+		authorizationFingerprint = authorizationFingerprint,
 		purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 		sourcePolicyRevision = spec.revision,
 		captureConsentEpoch = spec.revision,
@@ -1175,49 +1362,52 @@ class ActivityHistoryComposerTest {
 		spec: RunSpec,
 		run: SourceServiceRunEntity,
 		base: Long,
-	): List<SourceAuthorizationEntity> = listOf(
-		SourceAuthorizationEntity(
+		demand: SourceDemandEntity,
+	): List<SourceAuthorizationEntity> =
+		SourceBrokerAuthorization.rows(
 			sourceKind = ACTIVITY_SOURCE,
 			registrationGeneration = spec.revision,
 			authorizationRevision = 1L,
-			memberId = SourceBrokerAuthorization.memberId("demand-${spec.revision}"),
-			authorizationFingerprint = "a".repeat(64),
-			purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-			demandId = "demand-${spec.revision}",
-			consumerId = "session",
-			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
-			sourcePolicyRevision = spec.revision,
-			consentEpoch = spec.revision,
-			persistenceEligible = true,
+			demands = listOf(demand),
 			effectiveBootId = run.bootId,
 			effectiveElapsedRealtimeNanos = base,
 			effectiveWallTimeMs = base,
-			logicalTrackingId = LOGICAL_ID,
-			serviceRunId = spec.runId,
-			manifestRevision = spec.revision,
-			lifecycleLeaseGeneration = run.leaseGeneration,
-		),
-		SourceAuthorizationEntity(
+		) + SourceBrokerAuthorization.rows(
 			sourceKind = ACTIVITY_SOURCE,
 			registrationGeneration = spec.revision,
 			authorizationRevision = 2L,
-			memberId = SourceBrokerAuthorization.DENY_ALL_MEMBER_ID,
-			authorizationFingerprint = "b".repeat(64),
-			purposeEligibilityMask = 0L,
-			demandId = null,
-			consumerId = null,
-			purpose = null,
-			sourcePolicyRevision = null,
-			consentEpoch = null,
-			persistenceEligible = false,
+			demands = emptyList(),
 			effectiveBootId = run.bootId,
 			effectiveElapsedRealtimeNanos = base + 500L,
 			effectiveWallTimeMs = base + 500L,
-			logicalTrackingId = null,
-			serviceRunId = null,
-			manifestRevision = null,
-			lifecycleLeaseGeneration = null,
-		),
+		)
+
+	private fun captureDemand(
+		revision: Long,
+		run: SourceServiceRunEntity,
+		base: Long,
+	) = SourceDemandEntity(
+		demandId = "demand-$revision",
+		consumerId = "session",
+		sourceKind = ACTIVITY_SOURCE,
+		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+		logicalTrackingId = LOGICAL_ID,
+		serviceRunId = run.serviceRunId,
+		manifestRevision = revision,
+		lifecycleLeaseGeneration = run.leaseGeneration,
+		sourcePolicyRevision = revision,
+		consentEpoch = revision,
+		persistenceEligible = true,
+		qosCode = 2,
+		maximumAgeMs = 5_000L,
+		desiredLatencyMs = 0L,
+		requestedBootId = run.bootId,
+		requestedElapsedRealtimeNanos = base,
+		requestedAtMs = base,
+		status = SourceDemandEntity.STATUS_RETIRED,
+		retireBootId = run.bootId,
+		retireElapsedRealtimeNanos = base + 500L,
+		retiredAtMs = base + 500L,
 	)
 
 	private fun desiredPlan(revision: Long): SourceDesiredPlanEntity {
