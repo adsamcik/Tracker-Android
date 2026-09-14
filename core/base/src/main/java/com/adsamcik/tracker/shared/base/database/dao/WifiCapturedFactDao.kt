@@ -566,10 +566,10 @@ interface WifiCapturedFactDao {
 		writerProjectionVersion: Int,
 	): Long
 
-	/** Capture demands which can still deliver or retain session Wi-Fi observations. */
+	/** Only direct session capture is retired by captured-Wi-Fi consent deletion. */
 	@Query(
 		"SELECT * FROM source_demand WHERE source_kind = :sourceKind " +
-			"AND purpose = :capturePurpose AND status IN ('ACTIVE', 'RETIRING') " +
+			"AND purpose = :capturePurpose AND status IN ('ACTIVE', 'RETIRING', 'BLOCKED') " +
 			"ORDER BY demand_id LIMIT :limit",
 	)
 	suspend fun captureDemandsForDeletion(
@@ -577,6 +577,32 @@ interface WifiCapturedFactDao {
 		capturePurpose: String,
 		limit: Int,
 	): List<SourceDemandEntity>
+
+	/** Exact bounded demand vector from which the current Wi-Fi authorization is derived. */
+	@Query(
+		"SELECT * FROM source_demand WHERE source_kind = :sourceKind AND status = 'ACTIVE' " +
+			"ORDER BY purpose, consumer_id, demand_id LIMIT :limit",
+	)
+	suspend fun activeDemandsForDeletion(
+		sourceKind: Int,
+		limit: Int,
+	): List<SourceDemandEntity>
+
+	@Query(
+		"UPDATE source_demand SET status = 'RETIRED', " +
+			"retire_boot_id = COALESCE(retire_boot_id, :bootId), " +
+			"retire_elapsed_realtime_nanos = COALESCE(retire_elapsed_realtime_nanos, :elapsedRealtimeNanos), " +
+			"retired_at_ms = COALESCE(retired_at_ms, :wallTimeMs) " +
+			"WHERE source_kind = :sourceKind AND purpose = :capturePurpose " +
+			"AND status IN ('RETIRING', 'BLOCKED')",
+	)
+	suspend fun retireCaptureDemandsForDeletion(
+		sourceKind: Int,
+		capturePurpose: String,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): Int
 
 	/** Every nonterminal Wi-Fi registration represents active or pending callback work. */
 	@Query(
@@ -600,6 +626,15 @@ interface WifiCapturedFactDao {
 		authorizationRevision: Long,
 		limit: Int,
 	): List<SourceAuthorizationEntity>
+
+	@Query(
+		"SELECT COALESCE(MAX(authorization_revision), 0) FROM source_authorization " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration",
+	)
+	suspend fun maximumRegistrationAuthorizationRevision(
+		sourceKind: Int,
+		registrationGeneration: Long,
+	): Long
 
 	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +

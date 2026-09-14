@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.dao.PriorProcessRegistrationRec
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
@@ -48,6 +49,23 @@ internal data class SourceRegistrationRetirementToken(
 	val retiredElapsedRealtimeNanos: Long,
 	val reason: String?,
 )
+
+internal enum class WifiCaptureCallbackBarrierBlockedReason {
+	STALE_LIFECYCLE,
+	STALE_REGISTRATION,
+	CAPTURE_AUTHORIZATION_ACTIVE,
+	AUTHORIZATION_UNVERIFIABLE,
+}
+
+internal sealed interface WifiCaptureCallbackBarrierPublication {
+	data class Established(
+		val throughAuthorizationRevision: Long,
+	) : WifiCaptureCallbackBarrierPublication
+
+	data class Blocked(
+		val reason: WifiCaptureCallbackBarrierBlockedReason,
+	) : WifiCaptureCallbackBarrierPublication
+}
 
 /**
  * Allocates durable source identities and monotonically increasing source sequences.
@@ -318,6 +336,141 @@ class SourceRegistrationRepository @Inject constructor(
 		}
 	}
 
+	/**
+	 * Publishes Wi-Fi's source-local callback barrier only for the exact current process
+	 * generation. The runtime calls this after closing callback entry and draining every earlier
+	 * FIFO item. Independently authorized CONTROL and AMBIENT_PRODUCT members may remain.
+	 */
+	internal suspend fun publishWifiCaptureCallbackBarrier(
+		expectedRegistration: SourceRegistration,
+		expectedCollectedDataEpoch: Long,
+	): WifiCaptureCallbackBarrierPublication {
+		require(expectedRegistration.state.sourceKind == SourceKind.WIFI.stableCode)
+		require(expectedCollectedDataEpoch >= 0L)
+		val lifecycle = lifecycleStore.snapshot()
+		if (lifecycle.epoch != expectedCollectedDataEpoch) {
+			return WifiCaptureCallbackBarrierPublication.Blocked(
+				WifiCaptureCallbackBarrierBlockedReason.STALE_LIFECYCLE,
+			)
+		}
+		val currentProcessId = processIncarnationIdProvider.current()
+		return database.withTransaction {
+			val state = database.sourceRegistrationStateDao().get(
+				SourceKind.WIFI.stableCode,
+				expectedRegistration.ownerScope,
+			)
+			val physical = database.sourceBrokerDao().registration(
+				SourceKind.WIFI.stableCode,
+				expectedRegistration.state.registrationGeneration,
+			)
+			if (state == null || physical == null ||
+				state.sourceInstanceId != expectedRegistration.state.sourceInstanceId ||
+				state.registrationGeneration != expectedRegistration.state.registrationGeneration ||
+				state.clockDomainId != expectedRegistration.state.clockDomainId ||
+				state.collectedDataEpoch != expectedCollectedDataEpoch ||
+				physical.sourceInstanceId != expectedRegistration.state.sourceInstanceId ||
+				physical.ownerScope != expectedRegistration.ownerScope ||
+				physical.clockDomainId != expectedRegistration.state.clockDomainId ||
+				physical.physicalConfigurationFingerprint !=
+					expectedRegistration.physicalConfigurationFingerprint ||
+				physical.collectedDataEpoch != expectedCollectedDataEpoch ||
+				physical.providerResidency !=
+					ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ||
+				physical.providerProcessIncarnationId != currentProcessId ||
+				physical.status != ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+			) return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
+				WifiCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION,
+			)
+
+			val factDao = database.wifiCapturedFactDao()
+			val latestRevision = factDao.maximumRegistrationAuthorizationRevision(
+				SourceKind.WIFI.stableCode,
+				expectedRegistration.state.registrationGeneration,
+			)
+			val rows = factDao.maintenanceAuthorizationMembers(
+				SourceKind.WIFI.stableCode,
+				expectedRegistration.state.registrationGeneration,
+				latestRevision,
+				MAX_WIFI_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS + 1,
+			)
+			val currentAuthorization = if (
+				rows.size <= MAX_WIFI_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS
+			) {
+				try {
+					rows.toAuthorizationSnapshotOrNull()
+				} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
+					null
+				}
+			} else null
+			if (latestRevision <= 0L || currentAuthorization == null ||
+				!currentAuthorization.sameWifiBarrierAuthorizationAs(expectedRegistration.authorization)
+			) return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
+				WifiCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
+			)
+			val activeDemands = factDao.activeDemandsForDeletion(
+				SourceKind.WIFI.stableCode,
+				MAX_WIFI_CALLBACK_BARRIER_DEMANDS + 1,
+			)
+			val expectedRows = try {
+				SourceBrokerAuthorization.rows(
+					sourceKind = SourceKind.WIFI.stableCode,
+					registrationGeneration = expectedRegistration.state.registrationGeneration,
+					authorizationRevision = latestRevision,
+					demands = activeDemands,
+					effectiveBootId = currentAuthorization.effectiveBootId,
+					effectiveElapsedRealtimeNanos =
+						currentAuthorization.effectiveElapsedRealtimeNanos,
+					effectiveWallTimeMs = rows.first().effectiveWallTimeMs,
+				)
+			} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
+				return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
+					WifiCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
+				)
+			}
+			if (activeDemands.size > MAX_WIFI_CALLBACK_BARRIER_DEMANDS ||
+				rows.sortedBy { row -> row.memberId } != expectedRows.sortedBy { row -> row.memberId }
+			) return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
+				WifiCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
+			)
+			if (currentAuthorization.authorizedMembers.any { member ->
+					member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+				}
+			) return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
+				WifiCaptureCallbackBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
+			)
+
+			val maximumProductRevision = database.sourceBrokerDao()
+				.maximumCaptureAuthorizationRevision(
+					SourceKind.WIFI.stableCode,
+					expectedRegistration.state.registrationGeneration,
+				)
+			if (physical.captureCallbackBarrierAuthorizationRevision > maximumProductRevision) {
+				return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
+					WifiCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
+				)
+			}
+			if (database.sourceBrokerDao().acknowledgeCaptureCallbackBarrier(
+					sourceKind = SourceKind.WIFI.stableCode,
+					registrationGeneration = expectedRegistration.state.registrationGeneration,
+					sourceInstanceId = expectedRegistration.state.sourceInstanceId,
+					throughAuthorizationRevision = maximumProductRevision,
+				) != 1
+			) return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
+				WifiCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION,
+			)
+			val acknowledged = database.sourceBrokerDao().registration(
+				SourceKind.WIFI.stableCode,
+				expectedRegistration.state.registrationGeneration,
+			)
+			if (acknowledged?.captureCallbackBarrierAuthorizationRevision !=
+				maximumProductRevision
+			) return@withTransaction WifiCaptureCallbackBarrierPublication.Blocked(
+				WifiCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION,
+			)
+			WifiCaptureCallbackBarrierPublication.Established(maximumProductRevision)
+		}
+	}
+
 	private suspend fun requireSourceAcquisitionReachable(source: SourceKind) {
 		require(isSourceAcquisitionReachable(source)) {
 			"Source ${source.name} is contained by the current rollout state"
@@ -570,3 +723,15 @@ class SourceRegistrationRepository @Inject constructor(
 		}
 	}
 }
+
+private fun SourceAuthorizationSnapshot.sameWifiBarrierAuthorizationAs(
+	other: SourceAuthorizationSnapshot,
+): Boolean = authorizationRevision == other.authorizationRevision &&
+	authorizationFingerprint == other.authorizationFingerprint &&
+	purposeEligibilityMask == other.purposeEligibilityMask &&
+	effectiveBootId == other.effectiveBootId &&
+	effectiveElapsedRealtimeNanos == other.effectiveElapsedRealtimeNanos &&
+	members.sortedBy { row -> row.memberId } == other.members.sortedBy { row -> row.memberId }
+
+private const val MAX_WIFI_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS = 64
+private const val MAX_WIFI_CALLBACK_BARRIER_DEMANDS = 256

@@ -14,9 +14,11 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEntity
@@ -306,9 +308,13 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				if (demands.size > limits.maximumDirectDemands) {
 					throw WifiCapturedMaintenanceLimitExceeded()
 				}
-				if (demands.isNotEmpty()) {
+				if (demands.any { demand -> demand.status == SourceDemandEntity.STATUS_ACTIVE }) {
 					block(WifiCapturedSourceDeletionBlockedReason.CAPTURE_DEMAND_NOT_QUIESCED)
 				}
+				authenticateRetiringWifiCaptureDemands(
+					demands = demands,
+					revokedPolicyRevision = policy.policyRevision,
+				)
 				val registrations = dao.registrationsForDeletion(
 					WIFI_SOURCE,
 					limits.maximumNonterminalRegistrations + 1,
@@ -316,8 +322,23 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 				if (registrations.size > limits.maximumNonterminalRegistrations) {
 					throw WifiCapturedMaintenanceLimitExceeded()
 				}
-				if (registrations.isNotEmpty()) {
-					block(WifiCapturedSourceDeletionBlockedReason.CAPTURE_PROVIDER_NOT_QUIESCED)
+				registrations.forEach { registration ->
+					authenticateWifiCaptureDeletionBarrier(
+						registration = registration,
+						expectedCollectedDataEpoch = expectedCollectedDataEpoch,
+						currentPolicy = policy,
+						limits = limits,
+					)
+				}
+				if (demands.isNotEmpty() && dao.retireCaptureDemandsForDeletion(
+						sourceKind = WIFI_SOURCE,
+						capturePurpose = CAPTURE_PURPOSE,
+						bootId = revokedConsent.effectiveBootId,
+						elapsedRealtimeNanos = revokedConsent.effectiveElapsedRealtimeNanos,
+						wallTimeMs = revokedConsent.effectiveWallTimeMs,
+					) != demands.size
+				) {
+					block(WifiCapturedSourceDeletionBlockedReason.CAPTURE_DEMAND_NOT_QUIESCED)
 				}
 
 				val audit = audit(evidence, limits, checkpoint)
@@ -1141,6 +1162,201 @@ internal class WifiCapturedFactMaintenance @Inject constructor(
 		)
 	}
 
+	/**
+	 * Authenticates the exact direct capture demands fenced by the consent change before retiring
+	 * them. A prepared BLOCKED demand was never provider authority; RETIRING keeps its first
+	 * complete source-clock boundary while the callback barrier proves it can no longer admit
+	 * session capture.
+	 */
+	private suspend fun authenticateRetiringWifiCaptureDemands(
+		demands: List<SourceDemandEntity>,
+		revokedPolicyRevision: Long,
+	) {
+		for (demand in demands) {
+			val stateShape = when (demand.status) {
+				SourceDemandEntity.STATUS_RETIRING -> {
+					val retireBootId = demand.retireBootId
+					val retireElapsedNanos = demand.retireElapsedRealtimeNanos
+					val retiredAtMs = demand.retiredAtMs
+					retireBootId != null && retireElapsedNanos != null && retiredAtMs != null &&
+						retiredAtMs >= demand.requestedAtMs &&
+						(retireBootId != demand.requestedBootId ||
+							retireElapsedNanos >= demand.requestedElapsedRealtimeNanos)
+				}
+				SourceDemandEntity.STATUS_BLOCKED ->
+					demand.retireBootId == null && demand.retireElapsedRealtimeNanos == null &&
+						demand.retiredAtMs == null
+				else -> false
+			}
+			val policy = database.sourcePolicyDao().policyAtRevision(
+				demand.sourcePolicyRevision,
+				WIFI_SOURCE,
+			)
+			val consent = database.sourcePolicyDao().consentEpoch(
+				WIFI_SOURCE,
+				CAPTURE_PURPOSE,
+				demand.consentEpoch,
+			)
+			if (!stateShape || demand.sourceKind != WIFI_SOURCE ||
+				demand.purpose != CAPTURE_PURPOSE || !demand.persistenceEligible ||
+				demand.logicalTrackingId.isNullOrBlank() || demand.serviceRunId.isNullOrBlank() ||
+				demand.manifestRevision == null || demand.lifecycleLeaseGeneration == null ||
+				demand.sourcePolicyRevision >= revokedPolicyRevision || policy == null || consent == null ||
+				!policy.enabled || !policy.capturePersistenceEligible ||
+				policy.captureConsentEpoch != demand.consentEpoch || policy.qosCode != demand.qosCode ||
+				!consent.eligible || !consent.persistenceEligible ||
+				consent.policyRevision != policy.policyRevision ||
+				consent.effectiveBootId != policy.effectiveBootId ||
+				consent.effectiveElapsedRealtimeNanos != policy.effectiveElapsedRealtimeNanos ||
+				consent.effectiveWallTimeMs != policy.effectiveWallTimeMs ||
+				demand.requestedBootId != policy.effectiveBootId ||
+				demand.requestedElapsedRealtimeNanos < policy.effectiveElapsedRealtimeNanos ||
+				demand.requestedAtMs < policy.effectiveWallTimeMs
+			) block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		}
+	}
+
+	/**
+	 * Wi-Fi may remain ACTIVE for independently authorized CONTROL or AMBIENT_PRODUCT demand. The
+	 * latest authorization must reconstruct exactly from current active demands, while the source
+	 * owner must have acknowledged every historical product-capable callback revision after
+	 * draining its FIFO.
+	 */
+	private suspend fun authenticateWifiCaptureDeletionBarrier(
+		registration: ProviderRegistrationGenerationEntity,
+		expectedCollectedDataEpoch: Long,
+		currentPolicy: SourcePolicyEntity,
+		limits: WifiCapturedMaintenanceLimits,
+	) {
+		val activeShape = registration.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE &&
+			registration.acceptedAtMs != null && registration.acceptedElapsedRealtimeNanos != null &&
+			registration.retiredAtMs == null && registration.retiredElapsedRealtimeNanos == null &&
+			registration.failureCode == null
+		val retiringShape =
+			registration.status == ProviderRegistrationGenerationEntity.STATUS_RETIRING &&
+				registration.acceptedAtMs != null && registration.acceptedElapsedRealtimeNanos != null &&
+				registration.retiredAtMs != null && registration.retiredElapsedRealtimeNanos != null &&
+				!registration.failureCode.isNullOrBlank()
+		if ((!activeShape && !retiringShape) || registration.sourceKind != WIFI_SOURCE ||
+			registration.ownerScope != "source-broker:$WIFI_SOURCE" ||
+			registration.providerResidency !=
+				ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ||
+			registration.providerProcessIncarnationId.isNullOrBlank() ||
+			registration.collectedDataEpoch != expectedCollectedDataEpoch
+		) block(WifiCapturedSourceDeletionBlockedReason.CAPTURE_PROVIDER_NOT_QUIESCED)
+
+		val dao = database.wifiCapturedFactDao()
+		val latestRevision = dao.maximumRegistrationAuthorizationRevision(
+			WIFI_SOURCE,
+			registration.registrationGeneration,
+		)
+		if (latestRevision <= 0L) {
+			block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		}
+		val rows = boundedAuthorizationMembers(
+			registration.registrationGeneration,
+			latestRevision,
+			limits,
+		)
+		val authorization = rows.toSnapshotOrNull()
+			?: block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		if (authorization.authorizedMembers.any { member ->
+				member.persistenceEligible && member.purpose == CAPTURE_PURPOSE
+			}
+		) block(WifiCapturedSourceDeletionBlockedReason.CAPTURE_PROVIDER_NOT_QUIESCED)
+		val activeDemands = dao.activeDemandsForDeletion(
+			WIFI_SOURCE,
+			limits.maximumDirectDemands + 1,
+		)
+		if (activeDemands.size > limits.maximumDirectDemands) {
+			throw WifiCapturedMaintenanceLimitExceeded()
+		}
+		authenticateCurrentWifiDemands(activeDemands, currentPolicy)
+		val expectedRows = try {
+			SourceBrokerAuthorization.rows(
+				sourceKind = WIFI_SOURCE,
+				registrationGeneration = registration.registrationGeneration,
+				authorizationRevision = latestRevision,
+				demands = activeDemands,
+				effectiveBootId = authorization.effectiveBootId,
+				effectiveElapsedRealtimeNanos = authorization.effectiveElapsedRealtimeNanos,
+				effectiveWallTimeMs = rows.first().effectiveWallTimeMs,
+			)
+		} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
+			block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		}
+		if (rows.sortedBy { row -> row.memberId } != expectedRows.sortedBy { row -> row.memberId }) {
+			block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		}
+		val maximumProductRevision = database.sourceBrokerDao().maximumCaptureAuthorizationRevision(
+			WIFI_SOURCE,
+			registration.registrationGeneration,
+		)
+		when {
+			registration.captureCallbackBarrierAuthorizationRevision < maximumProductRevision ->
+				block(WifiCapturedSourceDeletionBlockedReason.CAPTURE_PROVIDER_NOT_QUIESCED)
+			registration.captureCallbackBarrierAuthorizationRevision > maximumProductRevision ->
+				block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		}
+	}
+
+	/** Current non-session Wi-Fi demands must remain independently policy/consent authorized. */
+	private suspend fun authenticateCurrentWifiDemands(
+		demands: List<SourceDemandEntity>,
+		currentPolicy: SourcePolicyEntity,
+	) {
+		for (demand in demands) {
+			if (demand.sourceKind != WIFI_SOURCE || demand.purpose == CAPTURE_PURPOSE) {
+				block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			}
+			val demandPolicy = database.sourcePolicyDao().policyAtRevision(
+				demand.sourcePolicyRevision,
+				WIFI_SOURCE,
+			) ?: block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			val (demandPolicyConsentEpoch, demandPolicyPersistenceEligible, consentPurpose) =
+				when (demand.purpose) {
+				SourceBrokerPurpose.CONTROL_AUTOSTART,
+				SourceBrokerPurpose.CONTROL_CONTINUATION,
+				-> Triple(
+					demandPolicy.controlConsentEpoch,
+					demandPolicy.controlPersistenceEligible,
+					CONTROL_PURPOSE,
+				)
+				SourceBrokerPurpose.AMBIENT_PRODUCT -> Triple(
+					demandPolicy.ambientConsentEpoch,
+					demandPolicy.ambientPersistenceEligible,
+					SourceBrokerPurpose.AMBIENT_PRODUCT,
+				)
+				else -> block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			}
+			val (currentConsentEpoch, currentPersistenceEligible) = when (demand.purpose) {
+				SourceBrokerPurpose.CONTROL_AUTOSTART,
+				SourceBrokerPurpose.CONTROL_CONTINUATION,
+				-> currentPolicy.controlConsentEpoch to currentPolicy.controlPersistenceEligible
+				SourceBrokerPurpose.AMBIENT_PRODUCT ->
+					currentPolicy.ambientConsentEpoch to currentPolicy.ambientPersistenceEligible
+				else -> block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			}
+			val consent = database.sourcePolicyDao().consentEpoch(
+				WIFI_SOURCE,
+				consentPurpose,
+				demand.consentEpoch,
+			) ?: block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			if (!demandPolicy.enabled || demandPolicy.qosCode != demand.qosCode ||
+				demandPolicyConsentEpoch != demand.consentEpoch ||
+				demandPolicyPersistenceEligible != demand.persistenceEligible ||
+				!currentPolicy.enabled || currentPolicy.qosCode != demand.qosCode ||
+				currentConsentEpoch != demand.consentEpoch ||
+				currentPersistenceEligible != demand.persistenceEligible || !consent.eligible ||
+				consent.persistenceEligible != demand.persistenceEligible ||
+				consent.policyRevision > demandPolicy.policyRevision ||
+				demand.requestedBootId != demandPolicy.effectiveBootId ||
+				demand.requestedElapsedRealtimeNanos < demandPolicy.effectiveElapsedRealtimeNanos ||
+				demand.requestedAtMs < demandPolicy.effectiveWallTimeMs
+			) block(WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		}
+	}
+
 	private suspend fun boundedAuthorizationMembers(
 		registrationGeneration: Long,
 		authorizationRevision: Long,
@@ -1959,6 +2175,7 @@ private fun block(reason: WifiCapturedSourceDeletionBlockedReason): Nothing =
 
 private const val WIFI_SOURCE = SourceDestinationOwnerEntity.SOURCE_WIFI
 private const val CAPTURE_PURPOSE = SourceBrokerPurpose.SESSION_CAPTURE
+private const val CONTROL_PURPOSE = SessionManifestPurposeCode.CONTROL
 private const val DESTINATION = SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI
 private const val OWNER = SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS
 private const val OWNER_GENERATION = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
