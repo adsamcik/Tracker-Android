@@ -102,10 +102,13 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 			return ActivityHistoryPage.Failed(ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT)
 		}
 		val publicLive = (live.page as ActivityHistoryPage.Available).entries
-		val hasReadableImports = imported.any { it is ImportedActivityProductEvaluation.Readable }
+		val hasImportedOwnership = imported.any {
+			it is ImportedActivityProductEvaluation.Readable ||
+				it is ImportedActivityProductEvaluation.Retained
+		}
 		val localPortableEntries = try {
 			loadLocalPortableOwnershipSnapshot(
-				hasReadableImports,
+				hasImportedOwnership,
 				publicLive,
 				localIdentities.keys,
 			)
@@ -128,11 +131,11 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 	}
 
 	private suspend fun loadLocalPortableOwnershipSnapshot(
-		hasReadableImports: Boolean,
+		hasImportedOwnership: Boolean,
 		localEntries: List<ActivityHistoryEntry>,
 		localEntryIdentities: Set<String>,
 	): Map<String, PortableActivityEntryV1> {
-		if (!hasReadableImports || localEntryIdentities.isEmpty()) return emptyMap()
+		if (!hasImportedOwnership || localEntryIdentities.isEmpty()) return emptyMap()
 		if (localEntries.size != localEntryIdentities.size) {
 			throw ImportedActivityHistoryCompositionFailure()
 		}

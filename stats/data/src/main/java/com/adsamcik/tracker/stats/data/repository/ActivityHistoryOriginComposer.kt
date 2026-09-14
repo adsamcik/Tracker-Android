@@ -35,8 +35,14 @@ internal object ActivityHistoryOriginComposer {
 			}
 			val collision = evaluation.candidate.identity in localIdentities
 			val exactLocal = localPortableEntriesByIdentity[evaluation.candidate.identity]
-			val ownershipConflict = evaluation is ImportedActivityProductEvaluation.Readable &&
-				!ownership.tryInclude(evaluation.entry)
+			val ownershipConflict = when (evaluation) {
+				is ImportedActivityProductEvaluation.Readable -> !ownership.tryInclude(evaluation.entry)
+				is ImportedActivityProductEvaluation.Retained -> !ownership.tryInclude(
+					PortableActivityOpaqueIdentity(evaluation.candidate.identity),
+					evaluation.protectedIdentities,
+				)
+				is ImportedActivityProductEvaluation.Unverifiable -> false
+			}
 			if (!ownershipConflict && collision &&
 				evaluation is ImportedActivityProductEvaluation.Readable &&
 				evaluation.isReExportable && exactLocal == evaluation.entry

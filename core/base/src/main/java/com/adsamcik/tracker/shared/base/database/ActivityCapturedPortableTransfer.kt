@@ -377,9 +377,22 @@ class PortableActivityOpaqueOwnershipVerifier private constructor(
 	private val deletionScopeOwners: MutableMap<String, PortableActivityOpaqueOwner>,
 ) {
 	/** Atomically adds one compatible hierarchy; false leaves the verifier unchanged. */
-	@Suppress("ComplexCondition")
 	fun tryInclude(entry: PortableActivityEntryV1): Boolean {
 		val candidate = ownershipOf(entry) ?: return false
+		return tryInclude(candidate)
+	}
+
+	/** Atomically adds one authenticated payload-free retained hierarchy. */
+	fun tryInclude(
+		entryIdentity: PortableActivityOpaqueIdentity,
+		retainedIdentities: List<RetainedImportedActivityIdentity>,
+	): Boolean {
+		val candidate = ownershipOf(entryIdentity, retainedIdentities) ?: return false
+		return tryInclude(candidate)
+	}
+
+	@Suppress("ComplexCondition")
+	private fun tryInclude(candidate: PortableActivityOpaqueOwnershipVerifier): Boolean {
 		if (candidate.identityOwners.keys.any { it in deletionScopeOwners } ||
 			candidate.deletionScopeOwners.keys.any { it in identityOwners } ||
 			candidate.identityOwners.any { (identity, owner) ->
@@ -432,6 +445,46 @@ class PortableActivityOpaqueOwnershipVerifier private constructor(
 			if (verifier.identityOwners.keys.any { it in verifier.deletionScopeOwners }) return null
 			return verifier
 		}
+
+		private fun ownershipOf(
+			entryIdentity: PortableActivityOpaqueIdentity,
+			retainedIdentities: List<RetainedImportedActivityIdentity>,
+		): PortableActivityOpaqueOwnershipVerifier? {
+			if (retainedIdentities.map { it.value }.distinct().size != retainedIdentities.size ||
+				retainedIdentities.filterIsInstance<RetainedImportedActivityIdentity.Entry>()
+					.singleOrNull()?.identity != entryIdentity
+			) return null
+			val verifier = PortableActivityOpaqueOwnershipVerifier(linkedMapOf(), linkedMapOf())
+			val entry = entryIdentity.value
+			retainedIdentities.forEach { retained ->
+				when (retained) {
+					is RetainedImportedActivityIdentity.Entry -> if (
+						retained.identity != entryIdentity || !verifier.bindIdentity(
+							retained.identity.value,
+							PortableActivityOpaqueOwner(PortableActivityIdentityKind.LOGICAL_ENTRY, entry),
+						)
+					) return null
+					is RetainedImportedActivityIdentity.Run -> if (!verifier.bindIdentity(
+						retained.identity.value,
+						PortableActivityOpaqueOwner(
+							PortableActivityIdentityKind.PHYSICAL_RUN,
+							entry,
+							retained.identity.value,
+						),
+					)) return null
+					is RetainedImportedActivityIdentity.Window -> if (!verifier.bindIdentity(
+						retained.identity.value,
+						PortableActivityOpaqueOwner(PortableActivityIdentityKind.CAPTURE_WINDOW, entry),
+					)) return null
+					is RetainedImportedActivityIdentity.DeletionScope -> if (!verifier.bindScope(
+						retained.digest.value,
+						PortableActivityOpaqueOwner(PortableActivityIdentityKind.PHYSICAL_RUN, entry),
+					)) return null
+				}
+			}
+			if (verifier.identityOwners.keys.any { it in verifier.deletionScopeOwners }) return null
+			return verifier
+		}
 	}
 
 	private fun bindIdentity(identity: String, owner: PortableActivityOpaqueOwner): Boolean {
@@ -452,6 +505,29 @@ private data class PortableActivityOpaqueOwner(
 	val entryIdentity: String,
 	val runIdentity: String? = null,
 )
+
+/** One authenticated semantic identity retained after imported Activity payload removal. */
+sealed interface RetainedImportedActivityIdentity {
+	val value: String
+
+	data class Entry(val identity: PortableActivityOpaqueIdentity) : RetainedImportedActivityIdentity {
+		override val value: String get() = identity.value
+	}
+
+	data class Run(val identity: PortableActivityOpaqueIdentity) : RetainedImportedActivityIdentity {
+		override val value: String get() = identity.value
+	}
+
+	data class Window(val identity: PortableActivityOpaqueIdentity) : RetainedImportedActivityIdentity {
+		override val value: String get() = identity.value
+	}
+
+	data class DeletionScope(
+		val digest: PortableActivityDeletionScopeDigest,
+	) : RetainedImportedActivityIdentity {
+		override val value: String get() = digest.value
+	}
+}
 
 fun interface PortableActivityEnvelopeSink {
 	/** Receives one complete immutable envelope after its Room snapshot has ended. */
@@ -937,7 +1013,14 @@ internal class PortableCapturedActivityRoomReader(
 		imported.forEach { evaluation ->
 			currentCoroutineContext().ensureActive()
 			when (evaluation) {
-				is ImportedActivityProductEvaluation.Retained -> Unit
+				is ImportedActivityProductEvaluation.Retained -> {
+					val retainedEntryIdentity = PortableActivityOpaqueIdentity(evaluation.candidate.identity)
+					if (retainedEntryIdentity in localByIdentity || !ownership.tryInclude(
+							retainedEntryIdentity,
+							evaluation.protectedIdentities,
+						)
+					) abort(PortableActivityExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
+				}
 				is ImportedActivityProductEvaluation.Unverifiable -> abort(
 					when (evaluation.reason) {
 						ImportedActivityProductFailure.DEPENDENCY_OVERFLOW ->

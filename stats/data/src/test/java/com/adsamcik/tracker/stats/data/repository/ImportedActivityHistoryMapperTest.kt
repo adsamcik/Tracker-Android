@@ -22,6 +22,7 @@ import com.adsamcik.tracker.shared.base.database.PortableActivityWindowCoverage
 import com.adsamcik.tracker.shared.base.database.PortableActivityWindowV1
 import com.adsamcik.tracker.shared.base.database.PortableActivityZoneEpochV1
 import com.adsamcik.tracker.shared.base.database.RoomImportPortableCapturedActivity
+import com.adsamcik.tracker.shared.base.database.RetainedImportedActivityIdentity
 import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityHistoryCandidate
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
@@ -150,11 +151,7 @@ class ImportedActivityHistoryMapperTest {
 			value,
 			deletedRunIdentities = setOf(value.runs.single().identity.value),
 		).toPublicActivityEntry()
-		val retained = ImportedActivityProductEvaluation.Retained(
-			candidate = candidate(value),
-			retainedFromMs = 1_500L,
-			retainedAtMs = 3_100L,
-		).toPublicActivityEntry()
+		val retained = retained(value).toPublicActivityEntry()
 		val corrupt = ImportedActivityProductEvaluation.Unverifiable(
 			candidate(value),
 			ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
@@ -243,6 +240,55 @@ class ImportedActivityHistoryMapperTest {
 	}
 
 	@Test
+	fun `origin composer preserves retained run window and scope collisions with local ownership`() {
+		val logicalId = "local-retained-owner"
+		val localIdentity = PortableActivityOpaqueIdentity.derive(
+			PortableActivityIdentityKind.LOGICAL_ENTRY,
+			logicalId,
+		)
+		val localPortable = entry(window(), localIdentity)
+		val local = readable(localPortable).toPublicActivityEntry().copy(
+			origin = ActivityHistoryOrigin.LOCAL,
+		)
+		val localRun = localPortable.runs.single()
+		val importedWithRunCollision = entry(
+			window = window(opaque('7')),
+			identity = opaque('5'),
+			runIdentity = localRun.identity,
+			deletionScope = PortableActivityDeletionScopeDigest("6".repeat(64)),
+		)
+		val importedWithWindowCollision = entry(
+			window = window(localRun.windows.single().identity),
+			identity = opaque('8'),
+			runIdentity = opaque('9'),
+			deletionScope = PortableActivityDeletionScopeDigest("a".repeat(64)),
+		)
+		val importedWithScopeCollision = entry(
+			window = window(opaque('d')),
+			identity = opaque('b'),
+			runIdentity = opaque('c'),
+			deletionScope = localRun.deletionScopeDigest,
+		)
+
+		listOf(
+			importedWithRunCollision,
+			importedWithWindowCollision,
+			importedWithScopeCollision,
+		).forEach { imported ->
+			val composed = ActivityHistoryOriginComposer.compose(
+				live = listOf(local),
+				liveLogicalTrackingIds = setOf(logicalId),
+				imported = listOf(retained(imported)),
+				localPortableEntriesByIdentity = mapOf(localIdentity.value to localPortable),
+				limit = 10,
+			)
+
+			composed.single { it.origin == ActivityHistoryOrigin.IMPORTED }.causes shouldBe
+				setOf(ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+		}
+	}
+
+	@Test
 	fun `origin composer preserves distinct authenticated imported origins`() {
 		val first = readable(entry(window(), opaque('1')))
 		val second = readable(
@@ -328,6 +374,22 @@ class ImportedActivityHistoryMapperTest {
 		deletedRunIdentities = deletedRunIdentities,
 		retainedFromMs = retainedFromMs,
 		retentionLimited = retainedFromMs != null,
+	)
+
+	private fun retained(entry: PortableActivityEntryV1) = ImportedActivityProductEvaluation.Retained(
+		candidate = candidate(entry),
+		retainedFromMs = 1_500L,
+		retainedAtMs = 3_100L,
+		protectedIdentities = buildList {
+			add(RetainedImportedActivityIdentity.Entry(entry.identity))
+			entry.runs.forEach { run ->
+				add(RetainedImportedActivityIdentity.Run(run.identity))
+				add(RetainedImportedActivityIdentity.DeletionScope(run.deletionScopeDigest))
+				run.windows.forEach { window ->
+					add(RetainedImportedActivityIdentity.Window(window.identity))
+				}
+			}
+		},
 	)
 
 	private fun candidate(entry: PortableActivityEntryV1) = ImportedActivityHistoryCandidate(

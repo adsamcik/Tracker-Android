@@ -4,6 +4,7 @@ import android.app.Application
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityWindowEntity
@@ -1574,11 +1575,60 @@ class RoomImportPortableCapturedActivityTest {
 			val retained = database.withTransaction {
 				ImportedActivityProductReader(database).selectIdentityInTransaction(sourceScopedEntry.identity)
 			}
-			retained shouldBe ImportedActivityProductEvaluation.Retained(
-				candidate = requireNotNull(retained).candidate,
-				retainedFromMs = RETENTION_FLOOR,
-				retainedAtMs = RETENTION_MARKED_AT,
+			(retained is ImportedActivityProductEvaluation.Retained) shouldBe true
+			val retainedProduct = retained as ImportedActivityProductEvaluation.Retained
+			retainedProduct.retainedFromMs shouldBe RETENTION_FLOOR
+			retainedProduct.retainedAtMs shouldBe RETENTION_MARKED_AT
+			retainedProduct.protectedIdentities.toSet() shouldBe setOf(
+				RetainedImportedActivityIdentity.Entry(sourceScopedEntry.identity),
+				RetainedImportedActivityIdentity.Run(sourceScopedEntry.runs.single().identity),
+				RetainedImportedActivityIdentity.DeletionScope(
+					sourceScopedEntry.runs.single().deletionScopeDigest,
+				),
+				RetainedImportedActivityIdentity.Window(
+					sourceScopedEntry.runs.single().windows.single().identity,
+				),
 			)
+			val retainedRun = sourceScopedEntry.runs.single()
+			val localRunCollision = entry(
+				entryLocalId = "post-retention-local-run-entry",
+				runIdentity = retainedRun.identity,
+				deletionScope = scope("post-retention-local-run-scope"),
+				windowIdentity = identity(
+					PortableActivityIdentityKind.CAPTURE_WINDOW,
+					"post-retention-local-run-window",
+				),
+			)
+			val localWindowCollision = entry(
+				entryLocalId = "post-retention-local-window-entry",
+				runIdentity = identity(
+					PortableActivityIdentityKind.PHYSICAL_RUN,
+					"post-retention-local-window-run",
+				),
+				deletionScope = scope("post-retention-local-window-scope"),
+				windowIdentity = retainedRun.windows.single().identity,
+			)
+			val localScopeCollision = entry(
+				entryLocalId = "post-retention-local-scope-entry",
+				runIdentity = identity(
+					PortableActivityIdentityKind.PHYSICAL_RUN,
+					"post-retention-local-scope-run",
+				),
+				deletionScope = retainedRun.deletionScopeDigest,
+				windowIdentity = identity(
+					PortableActivityIdentityKind.CAPTURE_WINDOW,
+					"post-retention-local-scope-window",
+				),
+			)
+			listOf(localRunCollision, localWindowCollision, localScopeCollision).forEach { local ->
+				val exportOwnership = requireNotNull(
+					PortableActivityOpaqueOwnershipVerifier.fromEntries(listOf(local)),
+				)
+				exportOwnership.tryInclude(
+					sourceScopedEntry.identity,
+					retainedProduct.protectedIdentities,
+				) shouldBe false
+			}
 			importer(testScheduler).importEntry(value) shouldBe ImportPortableCapturedActivityResult.Blocked(
 				PortableActivityImportBlockedReason.RETENTION_BOUNDARY,
 			)
@@ -1861,6 +1911,144 @@ class RoomImportPortableCapturedActivityTest {
 	}
 
 	@Test
+	fun `retention authority capacity combines existing and selected rows without mutation`() = runTest {
+		val first = entry(
+			entryLocalId = "combined-cap-first-entry",
+			runIdentity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "combined-cap-first-run"),
+			deletionScope = scope("combined-cap-first-scope"),
+			windowIdentity = identity(PortableActivityIdentityKind.CAPTURE_WINDOW, "combined-cap-first-window"),
+			startUncertaintyMs = 0L,
+			endUncertaintyMs = 0L,
+			startTimeMs = 1_000L,
+		)
+		val second = entry(
+			entryLocalId = "combined-cap-second-entry",
+			runIdentity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "combined-cap-second-run"),
+			deletionScope = scope("combined-cap-second-scope"),
+			windowIdentity = identity(PortableActivityIdentityKind.CAPTURE_WINDOW, "combined-cap-second-window"),
+			startUncertaintyMs = 0L,
+			endUncertaintyMs = 0L,
+			startTimeMs = 2_000L,
+		)
+		val importer = importer(testScheduler)
+		importer.importEntry(request(first, receipt("combined-cap-first", 30L))) shouldBe
+			ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		importer.importEntry(request(second, receipt("combined-cap-second", 40L))) shouldBe
+			ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 1_500L, 80L) shouldBe 1
+		val bounded = truncator(
+			testScheduler,
+			limits = ImportedActivityRetentionLimits(
+				maximumEntries = 1,
+				maximumProtectedIdentities = 4,
+			),
+		)
+
+		bounded.truncate(retentionRequest(retainedFromMs = 1_500L)) shouldBe
+			TruncateImportedActivityRetentionResult.Truncated(1, 1, 1, 1, 1)
+		val firstReceipt = requireNotNull(
+			database.importedActivityDao().retentionReceipt(first.identity.value),
+		)
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 2_500L, 120L) shouldBe 1
+		bounded.truncate(
+			retentionRequest(expectedRevision = 3L, markedAtMs = 130L, retainedFromMs = 2_500L),
+		) shouldBe TruncateImportedActivityRetentionResult.Unverifiable(
+			ImportedActivityProductFailure.DEPENDENCY_OVERFLOW,
+		)
+
+		database.importedActivityDao().retentionReceipt(first.identity.value) shouldBe firstReceipt
+		database.importedActivityDao().latestEntryRevision(second.identity.value)?.importRevision shouldBe 1L
+		database.importedActivityDao().retentionReceipt(second.identity.value) shouldBe null
+		database.importedActivityDao().retentionReceiptCount() shouldBe 1L
+		database.importedActivityDao().retainedIdentityCount() shouldBe 4L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 3L
+	}
+
+	@Test
+	fun `retention paging discards large safe pages and rolls back selected aggregate overflow`() = runTest {
+		val importer = importer(testScheduler)
+		repeat(99) { index ->
+			val safe = entry(
+				entryLocalId = "paging-safe-entry-$index",
+				runIdentity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "paging-safe-run-$index"),
+				deletionScope = scope("paging-safe-scope-$index"),
+				windowIdentity = identity(PortableActivityIdentityKind.CAPTURE_WINDOW, "paging-safe-window-$index"),
+				startUncertaintyMs = 0L,
+				endUncertaintyMs = 0L,
+				startTimeMs = 2_000L + index,
+			)
+			importer.importEntry(request(safe, receipt("paging-safe-job-$index", 30L + index))) shouldBe
+				ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		}
+		listOf(1_400L, 1_300L).forEachIndexed { index, startTimeMs ->
+			val selected = entry(
+				entryLocalId = "paging-selected-entry-$index",
+				runIdentity = identity(
+					PortableActivityIdentityKind.PHYSICAL_RUN,
+					"paging-selected-run-$index",
+				),
+				deletionScope = scope("paging-selected-scope-$index"),
+				windowIdentity = identity(
+					PortableActivityIdentityKind.CAPTURE_WINDOW,
+					"paging-selected-window-$index",
+				),
+				startUncertaintyMs = 0L,
+				endUncertaintyMs = 0L,
+				startTimeMs = startTimeMs,
+			)
+			importer.importEntry(request(selected, receipt("paging-selected-job-$index", 200L + index))) shouldBe
+				ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		}
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 1_500L, 250L) shouldBe 1
+
+		truncator(
+			testScheduler,
+			limits = ImportedActivityRetentionLimits(maximumFragmentRows = 1),
+		).truncate(
+			retentionRequest(markedAtMs = 300L, retainedFromMs = 1_500L),
+		) shouldBe TruncateImportedActivityRetentionResult.Unverifiable(
+			ImportedActivityProductFailure.DEPENDENCY_OVERFLOW,
+		)
+
+		rowCount("imported_activity_entry_revision") shouldBe 101L
+		database.importedActivityDao().retentionReceiptCount() shouldBe 0L
+		database.importedActivityDao().retainedIdentityCount() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
+	}
+
+	@Test
+	fun `retention authority capacity uses global injected and overflow safe bounds`() {
+		val defaults = ImportedActivityRetentionLimits()
+		defaults.canRetainAuthority(
+			ActivityCapturedPortableFormatV1.MAX_ENTRIES.toLong() - 1L,
+			ImportedActivityDao.MAX_RETAINED_IDENTITY_ROWS.toLong() - 4L,
+			1,
+			4,
+		) shouldBe true
+		defaults.canRetainAuthority(
+			ActivityCapturedPortableFormatV1.MAX_ENTRIES.toLong() - 1L,
+			ImportedActivityDao.MAX_RETAINED_IDENTITY_ROWS.toLong() - 4L,
+			2,
+			4,
+		) shouldBe false
+		defaults.canRetainAuthority(
+			ActivityCapturedPortableFormatV1.MAX_ENTRIES.toLong() - 1L,
+			ImportedActivityDao.MAX_RETAINED_IDENTITY_ROWS.toLong() - 4L,
+			1,
+			5,
+		) shouldBe false
+		defaults.canRetainAuthority(Long.MAX_VALUE, Long.MAX_VALUE, 1, 1) shouldBe false
+
+		val injected = ImportedActivityRetentionLimits(
+			maximumEntries = 2,
+			maximumProtectedIdentities = 5,
+		)
+		injected.canRetainAuthority(1L, 4L, 1, 1) shouldBe true
+		injected.canRetainAuthority(1L, 4L, 2, 1) shouldBe false
+		injected.canRetainAuthority(1L, 4L, 1, 2) shouldBe false
+	}
+
+	@Test
 	fun `storage failure after retention authority insertion rolls back every effect`() = runTest {
 		val value = request()
 		importer(testScheduler).importEntry(value)
@@ -1938,10 +2126,11 @@ class RoomImportPortableCapturedActivityTest {
 	private fun retentionRequest(
 		expectedRevision: Long = 1L,
 		markedAtMs: Long = RETENTION_MARKED_AT,
+		retainedFromMs: Long = RETENTION_FLOOR,
 	) = TruncateImportedActivityRetentionRequest(
 		expectedCollectedDataEpoch = EPOCH,
 		expectedSourceEvidenceRevision = expectedRevision,
-		retainedFromMs = RETENTION_FLOOR,
+		retainedFromMs = retainedFromMs,
 		retainedAtMs = markedAtMs,
 	)
 
@@ -1997,25 +2186,33 @@ class RoomImportPortableCapturedActivityTest {
 		),
 		runs: List<PortableActivityRunV1>? = null,
 		startUncertaintyMs: Long = 10L,
+		startTimeMs: Long = 1_000L,
 	): PortableActivityEntryV1 {
 		val exactRuns = runs ?: listOf(
-			run(runIdentity, deletionScope, endUncertaintyMs, windowIdentity, startUncertaintyMs),
+			run(
+				runIdentity,
+				deletionScope,
+				endUncertaintyMs,
+				windowIdentity,
+				startUncertaintyMs,
+				startTimeMs,
+			),
 		)
-		val startTimeMs = exactRuns.minOf(PortableActivityRunV1::startTimeMs)
-		val endTimeMs = exactRuns.maxOf(PortableActivityRunV1::endTimeMs)
+		val entryStartTimeMs = exactRuns.minOf(PortableActivityRunV1::startTimeMs)
+		val entryEndTimeMs = exactRuns.maxOf(PortableActivityRunV1::endTimeMs)
 		val checksum = ActivityCapturedPortableIntegrity.entryChecksum(
 			entryIdentity,
 			sessionMode,
-			startTimeMs,
-			endTimeMs,
+			entryStartTimeMs,
+			entryEndTimeMs,
 			exactRuns,
 		)
 		return PortableActivityEntryV1(
 			entryIdentity,
 			checksum,
 			sessionMode,
-			startTimeMs,
-			endTimeMs,
+			entryStartTimeMs,
+			entryEndTimeMs,
 			exactRuns,
 		)
 	}
@@ -2034,14 +2231,16 @@ class RoomImportPortableCapturedActivityTest {
 			"window",
 		),
 		startUncertaintyMs: Long = 10L,
+		startTimeMs: Long = 1_000L,
 	): PortableActivityRunV1 {
-		val zones = listOf(PortableActivityZoneEpochV1(1_000L, "Europe/Prague"))
-		val windows = listOf(window(endUncertaintyMs, windowIdentity, startUncertaintyMs))
+		val endTimeMs = Math.addExact(startTimeMs, 1_000L)
+		val zones = listOf(PortableActivityZoneEpochV1(startTimeMs, "Europe/Prague"))
+		val windows = listOf(window(endUncertaintyMs, windowIdentity, startUncertaintyMs, startTimeMs))
 		val checksum = ActivityCapturedPortableIntegrity.runChecksum(
 			identity,
 			deletionScope,
-			1_000L,
-			2_000L,
+			startTimeMs,
+			endTimeMs,
 			PortableActivityCaptureCoverage.WHOLE_RUN,
 			zones,
 			windows,
@@ -2050,8 +2249,8 @@ class RoomImportPortableCapturedActivityTest {
 			identity,
 			deletionScope,
 			checksum,
-			1_000L,
-			2_000L,
+			startTimeMs,
+			endTimeMs,
 			PortableActivityCaptureCoverage.WHOLE_RUN,
 			zones,
 			windows,
@@ -2082,12 +2281,14 @@ class RoomImportPortableCapturedActivityTest {
 			"window",
 		),
 		startUncertaintyMs: Long = 10L,
+		wallTimeMs: Long = 1_000L,
 	): PortableActivityWindowV1 {
 		val fragments = listOf(
 			PortableActivityFragmentV1.Band(
 				0L, 100L, "WALKING", "TRANSITION", null, "TRANSITION_SIGNAL",
-				null, null, null, 1_000L, startUncertaintyMs, "EXACT_PROVIDER_OBSERVATION",
-				1_001L, endUncertaintyMs, "SAME_CLOCK_EXTRAPOLATION", "SAME_ANCHOR",
+				null, null, null, wallTimeMs, startUncertaintyMs, "EXACT_PROVIDER_OBSERVATION",
+				Math.addExact(wallTimeMs, 1L), endUncertaintyMs,
+				"SAME_CLOCK_EXTRAPOLATION", "SAME_ANCHOR",
 			),
 		)
 		val checksum = ActivityCapturedPortableIntegrity.windowChecksum(

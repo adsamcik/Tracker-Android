@@ -226,6 +226,14 @@ abstract class ImportedActivityDao {
 		historyLimit(identities.size, MAX_REVISIONS_PER_ENTRY),
 	)
 
+	suspend fun entryRevisionsForBoundedHistory(
+		identities: List<String>,
+		maximumRows: Int,
+	): List<ImportedActivityEntryRevisionEntity> = loadHistoryEntryRevisions(
+		checkedHistoryIdentities(identities),
+		boundedHistoryLimit(identities.size, MAX_REVISIONS_PER_ENTRY, maximumRows),
+	)
+
 	@Query(
 		"SELECT * FROM imported_activity_entry_revision WHERE identity IN (:identities) " +
 			"ORDER BY identity, import_revision LIMIT :limit",
@@ -286,6 +294,14 @@ abstract class ImportedActivityDao {
 			historyLimit(identities.size, MAX_TOTAL_RUNS_PER_LINEAGE),
 		)
 
+	suspend fun runsForBoundedHistory(
+		identities: List<String>,
+		maximumRows: Int,
+	): List<ImportedActivityRunEntity> = loadHistoryRuns(
+		checkedHistoryIdentities(identities),
+		boundedHistoryLimit(identities.size, MAX_TOTAL_RUNS_PER_LINEAGE, maximumRows),
+	)
+
 	@Query(
 		"SELECT * FROM imported_activity_run WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity, entry_import_revision, start_time_ms, end_time_ms, identity LIMIT :limit",
@@ -312,6 +328,14 @@ abstract class ImportedActivityDao {
 			checkedHistoryIdentities(identities),
 			historyLimit(identities.size, MAX_TOTAL_ZONE_EPOCHS_PER_LINEAGE),
 		)
+
+	suspend fun zoneEpochsForBoundedHistory(
+		identities: List<String>,
+		maximumRows: Int,
+	): List<ImportedActivityZoneEpochEntity> = loadHistoryZoneEpochs(
+		checkedHistoryIdentities(identities),
+		boundedHistoryLimit(identities.size, MAX_TOTAL_ZONE_EPOCHS_PER_LINEAGE, maximumRows),
+	)
 
 	@Query(
 		"SELECT * FROM imported_activity_zone_epoch WHERE entry_identity IN (:identities) " +
@@ -341,6 +365,14 @@ abstract class ImportedActivityDao {
 			historyLimit(identities.size, MAX_TOTAL_WINDOWS_PER_LINEAGE),
 		)
 
+	suspend fun windowsForBoundedHistory(
+		identities: List<String>,
+		maximumRows: Int,
+	): List<ImportedActivityWindowEntity> = loadHistoryWindows(
+		checkedHistoryIdentities(identities),
+		boundedHistoryLimit(identities.size, MAX_TOTAL_WINDOWS_PER_LINEAGE, maximumRows),
+	)
+
 	@Query(
 		"SELECT * FROM imported_activity_window WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity, entry_import_revision, run_identity, start_offset_nanos, " +
@@ -368,6 +400,14 @@ abstract class ImportedActivityDao {
 			checkedHistoryIdentities(identities),
 			historyLimit(identities.size, MAX_TOTAL_FRAGMENTS_PER_LINEAGE),
 		)
+
+	suspend fun fragmentsForBoundedHistory(
+		identities: List<String>,
+		maximumRows: Int,
+	): List<ImportedActivityFragmentEntity> = loadHistoryFragments(
+		checkedHistoryIdentities(identities),
+		boundedHistoryLimit(identities.size, MAX_TOTAL_FRAGMENTS_PER_LINEAGE, maximumRows),
+	)
 
 	@Query(
 		"SELECT * FROM imported_activity_fragment WHERE entry_identity IN (:identities) " +
@@ -728,6 +768,16 @@ abstract class ImportedActivityDao {
 
 	private fun historyLimit(identityCount: Int, maximumPerIdentity: Int): Int =
 		Math.addExact(Math.multiplyExact(identityCount, maximumPerIdentity), 1)
+
+	private fun boundedHistoryLimit(
+		identityCount: Int,
+		maximumPerIdentity: Int,
+		maximumRows: Int,
+	): Int {
+		require(maximumRows > 0)
+		val overflowSentinel = if (maximumRows == Int.MAX_VALUE) Int.MAX_VALUE else maximumRows + 1
+		return minOf(historyLimit(identityCount, maximumPerIdentity), overflowSentinel)
+	}
 
 	companion object {
 		const val MAX_REVISIONS_PER_ENTRY = 16
