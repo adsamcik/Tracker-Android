@@ -10,6 +10,16 @@ The exhaustive remaining-work checklist is
 [IMPLEMENTATION_TODO.md](IMPLEMENTATION_TODO.md). It distinguishes implementation code and tests
 to author now from product decisions and the deferred convergence-validation phase.
 
+## Durable phase instruction
+
+The current tracking-infrastructure phase is **IMPLEMENTATION_ONLY**, including after chat
+compaction or machine handoff. Implement production behavior and write focused tests, but do not
+execute or iterate from Gradle, compilation, tests, lint, Detekt, Room schema drift,
+`git diff --check`, emulator/device, UI evaluator, battery, CI, release, or rollout results. Static
+source review and coherent local commits are allowed; every such slice remains
+**IMPLEMENTED_UNVALIDATED**. Validation begins only after the complete assembly is frozen, and all
+execution-driven fixes are deferred to that batch.
+
 ## September 14 implementation-only checkpoint — Pressure portable-origin storage and admission accepted
 
 The separate `codex/ti-pressure-import` branch is clean and independently accepted through

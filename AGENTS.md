@@ -1,5 +1,25 @@
 # Repository guidance
 
+## Tracking-infrastructure implementation-only phase
+
+Until the tracking-infrastructure assembly gate is explicitly declared complete, work on the
+six-source tracking-infrastructure continuation is **implementation only**. This rule is a durable
+resume/compaction invariant and applies to the coordinator and every delegated agent:
+
+- Implement bounded production logic and author the focused unit, contract, Room, and UI test
+  source needed for each behavior change.
+- Do not execute or iterate from Gradle, compilation, tests, lint, Detekt, Room schema drift,
+  `git diff --check`, emulator/device, UI evaluator, battery, CI, release, or rollout validation.
+- Static source inspection and review, exact-path staging, and coherent local commits are allowed.
+  Mark those commits `IMPLEMENTED_UNVALIDATED`; a written test is not evidence that it passes.
+- Keep source branches out of `dev/v10` and do not push or activate candidate providers/writers.
+- After every planned production and test-source slice exists, freeze one convergence input set.
+  Only then run validation in one batch, fix the resulting issues, rerun the complete gates, and
+  locally integrate after the full result is proven ready.
+
+Every tracking-infrastructure handover and delegated task must repeat this phase boundary. Do not
+silently resume validation after a context compaction or machine handoff.
+
 ## Investigate before editing
 
 - Work from the repository root. Inspect `settings.gradle.kts`, the relevant module build file,

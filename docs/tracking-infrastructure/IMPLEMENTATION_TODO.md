@@ -1,18 +1,24 @@
 # Tracking Infrastructure Completion TODO
 
-Last updated: 2026-09-13
+Last updated: 2026-09-14
 
 This is the canonical remaining-work ledger for the six source-to-product verticals. It translates
 the vision, final design, adaptive acquisition design, execution ledger, decisions, current
 implementation status, and handovers into checkable work. Repository evidence wins whenever this
 ledger becomes stale.
 
-The current phase is **IMPLEMENTATION_ONLY**. Write production logic and focused unit or contract
-tests together, but do not run Gradle, compilation, tests, lint, Detekt, Room schema drift,
-emulator/device, UI evaluation, battery, CI, release, or rollout validation. A checked
-implementation item means only that the reviewed production and test code exists in a coherent
-local commit marked **IMPLEMENTED_UNVALIDATED**. It does not mean that the behavior passes, is
-integrated, is active, or is ready to ship.
+The current phase is **IMPLEMENTATION_ONLY**, and this is a durable compaction/machine-handoff
+instruction. Write production logic and focused unit, contract, Room, or UI test source together,
+but do not execute those tests, iterate from execution results, or run Gradle, compilation, lint,
+Detekt, Room schema drift, `git diff --check`, emulator/device, UI evaluation, battery, CI, release,
+or rollout validation. Static source inspection/review and coherent local commits are allowed. A
+checked implementation item means only that the reviewed production and test code exists in a
+coherent local commit marked **IMPLEMENTED_UNVALIDATED**. It does not mean that the behavior
+passes, is integrated, is active, or is ready to ship.
+
+Do not start validation piecemeal when one source appears complete. Finish every planned source and
+product/action slice, freeze the complete convergence input, then run and repair the validation
+suite as one batch.
 
 ## How to use this ledger
 

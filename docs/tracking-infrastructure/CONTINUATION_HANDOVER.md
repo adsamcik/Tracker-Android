@@ -4,12 +4,16 @@ Last updated: 2026-09-14
 
 ## Implementation-only directive
 
-The user has stopped all testing and validation until the entire planned implementation is built.
+**Compaction and machine-handoff invariant:** the user has stopped all testing and validation until
+the entire planned implementation is built. Every resumed coordinator or subagent must inherit this
+rule even if earlier chat history is missing.
 Use [IMPLEMENTATION_TODO.md](IMPLEMENTATION_TODO.md) as the canonical checkbox ledger for every
 remaining implementation, product-decision, convergence, validation, and local-integration item.
 Do not run Gradle, compile/build tasks, tests, lint, Detekt, Room drift, emulator/device, UI
-evaluation, battery, CI, or release validation. Continue writing bounded production logic and its
-unit/contract tests. Mark every new source commit `IMPLEMENTED_UNVALIDATED`; preserve expected
+evaluation, battery, CI, release validation, or `git diff --check`. Continue writing bounded
+production logic and its focused unit/contract/Room/UI test source, but do not execute those tests
+or iterate from execution results. Static source review, exact-path staging, and coherent local
+commits remain allowed. Mark every new source commit `IMPLEMENTED_UNVALIDATED`; preserve expected
 commands and known failures for the later convergence phase.
 
 No Tracker Gradle 9.6.1 process is active. The former engine session is terminal: it reported one
@@ -21,6 +25,10 @@ Keep unvalidated branches out of local `dev/v10`. When every planned Steps, Pres
 Location, Activity, Wi-Fi, and Cell piece plus its applicable product/action tests exists, compose
 one dedicated local convergence branch. Only then begin the complete validation/fix phase; after it
 passes, rebase and merge through the clean integration checkout. No push or activation is authorized.
+
+Do not weaken this boundary to run a convenient focused check. The switch to validation requires a
+frozen complete assembly and an explicit coordinator checkpoint; validation and result-driven fixes
+then happen together as one batch.
 
 ## 2026-09-14 active coordinator checkpoint
 

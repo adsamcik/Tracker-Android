@@ -1,6 +1,6 @@
 # Tracking Infrastructure Verification Matrix
 
-Last updated: 2026-09-12
+Last updated: 2026-09-14
 
 Status meanings: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `IN_REVIEW`, `DONE`. `DONE` requires production repository evidence, not provider registration alone.
 
@@ -11,6 +11,13 @@ product, and action logic plus focused unit/contract tests are present on source
 This includes no Gradle invocation, compile/build, test, lint, Detekt, Room schema drift,
 emulator/device, UI evaluator, battery, CI, or release command. Existing evidence below remains
 valid only for its exact historical commit inputs.
+
+This is also the durable rule after any chat compaction or machine handoff. Test source must still
+be authored with each production slice, but it must not be executed or used for result-driven
+iteration yet. `git diff --check` is likewise deferred. Static source review, exact-path staging,
+and coherent local `IMPLEMENTED_UNVALIDATED` commits are the only acceptance tools in this phase.
+Validation starts only after the complete assembly input is frozen, and failures are then repaired
+in one coordinated batch.
 
 The last pre-directive engine attempt from `ti-steps-import-product` ended with two unresolved
 results: `RoomStepsSelectedSessionDeletionServiceTest` failed its wall-uncertain materializer
