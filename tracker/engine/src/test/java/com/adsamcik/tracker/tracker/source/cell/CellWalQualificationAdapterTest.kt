@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -341,6 +342,103 @@ class CellWalQualificationAdapterTest {
 		assertEquals(0, result.factsInserted)
 		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
 		assertEquals(0L, database.cellCapturedFactDao().cursorCount())
+	}
+
+	@Test
+	fun `corrupt noncapture purpose mask is terminal before lane cursor progress`() = runTest {
+		installValidFixture(candidateWriter = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ? " +
+				"WHERE event_id = ?",
+			arrayOf(SourceBrokerPurpose.MASK_CONTROL_AUTOSTART, EVENT_ID.value),
+		)
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+
+		val failed = assertTerminalCellLaneFailure(
+			CellSessionFactProjectionLane(database, subject, writer),
+		)
+
+		assertEquals("CELL_PREFLIGHT_WAL_INTEGRITY_MISMATCH", failed.failureCode)
+	}
+
+	@Test
+	fun `corrupt Cell epoch cannot release a terminal candidate on repeat`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		corruptWalPayload()
+		val lane = CellSessionFactProjectionLane(database, subject, writer)
+		assertTerminalCellLaneFailure(lane)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET captured_collected_data_epoch = " +
+				"captured_collected_data_epoch + 1 WHERE event_id = ?",
+			arrayOf(EVENT_ID.value),
+		)
+
+		val repeated = assertTerminalCellLaneFailure(lane)
+
+		assertEquals("CELL_ADAPTER_WAL_INTEGRITY_MISMATCH", repeated.failureCode)
+	}
+
+	@Test
+	fun `missing Cell WAL cannot release its terminal candidate without deletion high water`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		corruptWalPayload()
+		val lane = CellSessionFactProjectionLane(database, subject, writer)
+		assertTerminalCellLaneFailure(lane)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_event_wal WHERE event_id = ?",
+			arrayOf(EVENT_ID.value),
+		)
+
+		val repeated = assertTerminalCellLaneFailure(lane)
+
+		assertEquals("CELL_ADAPTER_WAL_INTEGRITY_MISMATCH", repeated.failureCode)
+	}
+
+	@Test
+	fun `corrupt Cell scope and time cannot release a terminal candidate on repeat`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installCellLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		corruptWalPayload()
+		val lane = CellSessionFactProjectionLane(database, subject, writer)
+		assertTerminalCellLaneFailure(lane)
+		val forgedLogicalId = "forged-cell-logical"
+		val forgedRunId = "forged-cell-run"
+		assertEquals(
+			true,
+			database.sourceDeletionFenceDao().insertIfAbsent(
+				SourceDeletionFenceEntity.createLogicalServiceRun(
+					sourceKind = CELL_SOURCE,
+					purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+					logicalTrackingId = forgedLogicalId,
+					serviceRunId = forgedRunId,
+					fenceGeneration = 1L,
+					collectedDataEpoch = 0L,
+					deletedAtMs = SESSION_END_WALL_MS,
+				),
+			) != -1L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET logical_tracking_id = ?, service_run_id = ? " +
+				"WHERE event_id = ?",
+			arrayOf(forgedLogicalId, forgedRunId, EVENT_ID.value),
+		)
+
+		assertTerminalCellLaneFailure(lane)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_evidence_state SET retained_from_ms = ? WHERE id = 1",
+			arrayOf(OBSERVED_WALL_MS + 1L),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET acquired_at_ms = 0, wall_time_ms = 0 " +
+				"WHERE event_id = ?",
+			arrayOf(EVENT_ID.value),
+		)
+
+		val repeated = assertTerminalCellLaneFailure(lane)
+
+		assertEquals("CELL_ADAPTER_WAL_INTEGRITY_MISMATCH", repeated.failureCode)
 	}
 
 	@Test
@@ -1081,6 +1179,30 @@ class CellWalQualificationAdapterTest {
 				"integrity_identity = ? WHERE event_id = ?",
 			arrayOf(purposeMask, rewritten.integrityIdentity, eventId.value),
 		)
+	}
+
+	private fun corruptWalPayload() {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET payload = X'00' WHERE event_id = ?",
+			arrayOf(EVENT_ID.value),
+		)
+	}
+
+	private suspend fun assertTerminalCellLaneFailure(
+		lane: CellSessionFactProjectionLane,
+	): CellSessionFactDrainResult.Failed {
+		val failed = assertIs<CellSessionFactDrainResult.Failed>(lane.drainAvailable())
+		assertEquals(0L, failed.lastCompletedOrdinal)
+		assertEquals(1L, failed.failedOrdinal)
+		assertEquals(true, failed.terminal)
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(0L, database.cellCapturedFactDao().cursorCount())
+		assertEquals(
+			0L,
+			database.sourceProjectionStateDao().activeProductLane(CELL_SOURCE)
+				?.contiguousAdmissionOrdinal,
+		)
+		return failed
 	}
 
 	private suspend fun fact(

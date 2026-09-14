@@ -2,11 +2,12 @@ package com.adsamcik.tracker.tracker.source.cell
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.dao.SourceEventProjectionEligibilityRow
+import com.adsamcik.tracker.shared.base.database.dao.SourceEventProjectionCandidateRow
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
@@ -96,11 +97,20 @@ class CellSessionFactProjectionLane private constructor(
 			database.withTransaction {
 				val exactLane = requireExactLane(initialLane)
 				val state = evidenceState()
+				val cutoff = exactLane.captureAdmissionCutoffOrdinal ?: Long.MAX_VALUE
+				val terminalOrdinal = database.sourceProjectionStateDao()
+					.firstTerminalFailureAfterThrough(
+						projectionId = WRITER_ID,
+						projectionVersion = WRITER_VERSION,
+						afterOrdinal = exactLane.contiguousAdmissionOrdinal,
+						throughOrdinal = cutoff,
+					)?.admissionOrdinal ?: 0L
 				val durableHighWater = maxOf(
 					database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L,
 					state.deletedSourceEventHighWaterOrdinal,
+					terminalOrdinal,
 				)
-				minOf(durableHighWater, exactLane.captureAdmissionCutoffOrdinal ?: Long.MAX_VALUE)
+				minOf(durableHighWater, cutoff)
 			}
 		} catch (changed: CellLaneAuthorityChangedException) {
 			return@withLock CellSessionFactDrainResult.AuthorityChanged(changed.reason)
@@ -207,13 +217,29 @@ class CellSessionFactProjectionLane private constructor(
 						if (candidate.authorizationPurposeEligibilityMask and
 							SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
 						) {
-							// CONTROL and ambient/opportunistic observations are not captured history.
-							database.sourceProjectionStateDao().deleteFailure(
-								WRITER_ID,
-								WRITER_VERSION,
-								candidate.admissionOrdinal,
-							)
-							continue
+							val authenticated = authenticatePreflightCandidate(candidate)
+							if (authenticated is CellPreflightAuthentication.Failed) {
+								val failure = saveFailure(
+									candidate.admissionOrdinal,
+									authenticated.failureCode,
+									terminal = true,
+								)
+								val through = candidate.admissionOrdinal - 1L
+								advanceCursor(lane, through)
+								return@withTransaction CellProjectionPass.TerminalBlocked(failure, through)
+							}
+							val wal = (authenticated as CellPreflightAuthentication.Authenticated).wal
+							if (wal.authorizationPurposeEligibilityMask and
+								SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
+							) {
+								// CONTROL and ambient/opportunistic observations are not captured history.
+								database.sourceProjectionStateDao().deleteFailure(
+									WRITER_ID,
+									WRITER_VERSION,
+									candidate.admissionOrdinal,
+								)
+								continue
+							}
 						}
 
 						val result = if (
@@ -342,16 +368,32 @@ class CellSessionFactProjectionLane private constructor(
 		failure: SourceProjectionFailureEntity,
 		state: SourceEvidenceState,
 	): Boolean {
-		if (failure.failureCode in LIFECYCLE_SETTLED_FAILURES ||
-			failure.admissionOrdinal <= state.deletedSourceEventHighWaterOrdinal
-		) return true
-		val raw = database.sourceEventWalDao()
-			.projectionEligibilityByAdmissionOrdinal(failure.admissionOrdinal) ?: return true
-		if (raw.sourceKind != SourceKind.CELL.stableCode) return true
+		if (failure.admissionOrdinal <= state.deletedSourceEventHighWaterOrdinal) return true
+		val raw = database.sourceEventWalDao().getByAdmissionOrdinal(failure.admissionOrdinal)
+			?: return false
+		if (raw.admissionOrdinal != failure.admissionOrdinal ||
+			raw.sourceKind != SourceKind.CELL.stableCode ||
+			!raw.hasQualifiedIntegrity()
+		) return false
+		if (failure.failureCode in LIFECYCLE_SETTLED_FAILURES) return true
 		return raw.isLifecycleRejected(state) || raw.isDeletedScope()
 	}
 
-	private fun SourceEventProjectionEligibilityRow.isLifecycleRejected(
+	private suspend fun authenticatePreflightCandidate(
+		candidate: SourceEventProjectionCandidateRow,
+	): CellPreflightAuthentication {
+		val wal = database.sourceEventWalDao().getByAdmissionOrdinal(candidate.admissionOrdinal)
+			?: return CellPreflightAuthentication.Failed("CELL_PREFLIGHT_WAL_MISSING")
+		if (wal.eventId != candidate.eventId || wal.admissionOrdinal != candidate.admissionOrdinal ||
+			wal.sourceKind != SourceKind.CELL.stableCode
+		) return CellPreflightAuthentication.Failed("CELL_PREFLIGHT_WAL_IDENTITY_MISMATCH")
+		if (!wal.hasQualifiedIntegrity()) {
+			return CellPreflightAuthentication.Failed("CELL_PREFLIGHT_WAL_INTEGRITY_MISMATCH")
+		}
+		return CellPreflightAuthentication.Authenticated(wal)
+	}
+
+	private fun SourceEventWalEntity.isLifecycleRejected(
 		state: SourceEvidenceState,
 	): Boolean = authorizationPurposeEligibilityMask and
 		SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
@@ -361,7 +403,7 @@ class CellSessionFactProjectionLane private constructor(
 				wallTimeMs?.takeIf { it >= 0L }?.let { it < retainedFrom } == true
 		} == true
 
-	private suspend fun SourceEventProjectionEligibilityRow.isDeletedScope(): Boolean {
+	private suspend fun SourceEventWalEntity.isDeletedScope(): Boolean {
 		val logical = logicalTrackingId ?: return false
 		val run = serviceRunId ?: return false
 		return database.sourceDeletionFenceDao().contains(
@@ -502,6 +544,11 @@ private data class CellCandidateProjectionResult(
 	val factInserted: Boolean,
 	val failureCode: String?,
 )
+
+private sealed interface CellPreflightAuthentication {
+	data class Authenticated(val wal: SourceEventWalEntity) : CellPreflightAuthentication
+	data class Failed(val failureCode: String) : CellPreflightAuthentication
+}
 
 private fun CellCapturedFactClassification.failureCodeOrNull(): String? = when (this) {
 	is CellCapturedFactClassification.FreshChanged,

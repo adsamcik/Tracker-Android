@@ -18,6 +18,9 @@ interface SourceEventWalDao {
 	@Query("SELECT * FROM source_event_wal WHERE event_id = :eventId LIMIT 1")
 	suspend fun getByEventId(eventId: String): SourceEventWalEntity?
 
+	@Query("SELECT * FROM source_event_wal WHERE admission_ordinal = :admissionOrdinal LIMIT 1")
+	suspend fun getByAdmissionOrdinal(admissionOrdinal: Long): SourceEventWalEntity?
+
 	/** Loads the payload-free authority needed to reconcile one projection failure. */
 	@Query(
 		"SELECT admission_ordinal, source_kind, captured_collected_data_epoch, " +
