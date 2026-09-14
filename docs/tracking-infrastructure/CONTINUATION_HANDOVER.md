@@ -120,8 +120,16 @@ startup-generation lease, before source-event WAL pruning and even when pending 
 legacy radio cleanup; zero remains keep-forever. The narrow service snapshots epoch and deleted-WAL
 high-water, while the mutation transaction rechecks both plus the exact saturating cutoff. Typed
 outcomes continue once, storage failure requests WorkManager retry, cancellation propagates, and no
-provider, demand, writer, retry loop, or rollout state is created. Consent-reset/source deletion,
-transfer, shared UI, automatic/ambient behavior, and validation remain open.
+provider, demand, writer, retry loop, or rollout state is created. The same branch is independently
+accepted through `8629d0630` (`f3c3e105a`, `8fc415724`, and `8629d0630`) for capture-consent
+deletion. It proves current revoked capture policy/consent and exact source epoch/high-water, closes
+and drains the local callback FIFO, publishes the durable barrier, then transactionally installs
+exact run/source fences before removing capture facts, cursors, and generations. CONTROL and AMBIENT
+demand, authorization, registration, and WAL remain intact and can resume compatibly. Generic
+evidence update time cannot starve deletion; only authenticated current-epoch capture WAL above the
+preflight high-water participates in the time fence, while newer such capture evidence still blocks.
+No provider activation or hidden demand is introduced. Transfer, file/UI actions, shared UI,
+automatic/ambient product behavior, and validation remain open.
 
 Activity portable export is independently accepted through `8f0842354`. Its one-transaction reader
 expands all retained rows behind each canonical 64-hex delivery identity, authenticates the exact

@@ -4016,3 +4016,19 @@ Each entry records repository evidence and does not duplicate the final architec
   latest nontombstoned/nonretained imported v1 content, preserving deterministic second-database
   round trip. Imported maintenance/actions, shared UI, schema convergence, validation, activation,
   and release remain deferred.
+
+## TI-D247 — Wi-Fi capture deletion ignores noncapture evidence clocks without weakening capture fences
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; command/runtime/maintenance/test commits
+  `f3c3e105a`, `8fc415724`, and `8629d0630`; corrected independent reviews; TI-B310.
+- Deletion requires the exact current source epoch/high-water and revoked Wi-Fi `SESSION_CAPTURE`
+  policy/consent, closes and drains the current-process callback FIFO, publishes the durable barrier,
+  then rechecks every authority before run/source fences and capture-payload removal.
+- Exact direct capture demand retires. Independently authorized CONTROL and AMBIENT demand,
+  authorization, registration, and WAL remain intact; compatible noncapture ownership is resumed on
+  success and every typed abort without fabricating capture authority or starting a provider.
+- Generic `SourceEvidenceState.updatedAtMs` reflects every WAL purpose and is therefore excluded from
+  capture-deletion staleness. Only fully authenticated current-epoch capture-bearing WAL above the
+  preflight high-water advances that time fence; newer capture evidence still blocks.
+- This adds no transfer, file/UI action, shared product composition, automatic/ambient product path,
+  validation, activation, publication, or release.

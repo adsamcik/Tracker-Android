@@ -2818,3 +2818,33 @@ The command was not run. Compilation, Room execution, generated-schema parity, i
 deletion/retention/source erase, file/UI actions, shared Today/Timeline/Calendar/detail composition,
 automatic/ambient behavior, device/provider/process evidence, integration, activation, publication,
 and release remain unproven.
+
+## TI-B310 — Wi-Fi capture-consent deletion contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `8629d0630` (`f3c3e105a`, `8fc415724`, and
+`8629d0630`). Authored command, runtime, repository, maintenance, qualification, and Room-facing
+tests cover exact revoked capture policy/consent and current source epoch/high-water; callback FIFO
+close/drain; durable barrier publication; transactional authority recheck; exact direct capture-
+demand retirement; run/source fence-before-payload order; capture fact/cursor/generation removal;
+CONTROL and AMBIENT demand, authorization, registration, and WAL preservation; compatible
+noncapture resumption; stale/replaced/capture-active nonreopen; timeout, exceptional lane, storage,
+and cancellation typing; and absence of provider activation or hidden demand.
+
+The first review required production-purpose noncapture authentication and a distinct current
+policy-revision request fence. Re-review found that generic evidence update time could still advance
+for every CONTROL/AMBIENT admission and starve capture deletion. `8629d0630` removes only that
+noncapture clock from command preflight, transactional recheck, and audit while preserving exact
+capture-owned clocks. A production `RoomDurableSourceIngress` regression admits later CONTROL,
+advances generic evidence, and still reaches `AlreadyDeleted` with the exact noncapture WAL/demand/
+authorization preserved and no capture fact, cursor, generation, or fence fabricated. Fresh
+full-lineage static review returned ACCEPT with no remaining blocking defect.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*WifiCaptureConsentRevocationDeletionCommandTest' --tests '*WifiWalQualificationAdapterTest' --tests '*WifiSourceRuntimeTest' --tests '*SourceRegistrationRepositoryTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, file/UI action, transfer, shared product UI,
+automatic/ambient product behavior, provider/process/reboot/device evidence, integration, activation,
+publication, and release remain unproven.

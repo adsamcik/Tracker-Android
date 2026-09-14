@@ -150,8 +150,20 @@ before source-event WAL pruning and regardless of pending-signal legacy cleanup 
 service snapshots collected-data epoch and deleted-source high-water; the existing maintenance
 transaction rechecks them with the exact floor while retaining WAL. Typed no-change/blocked/pruned
 outcomes continue the worker once, storage failure maps to WorkManager retry, and cancellation
-propagates. No provider, demand, writer, retry loop, or rollout state is added. Consent-reset/source
-deletion, transfer, shared UI, automatic/ambient behavior, validation, and device evidence remain.
+propagates. No provider, demand, writer, retry loop, or rollout state is added. The branch then reaches
+independently accepted `8629d0630` for Wi-Fi capture-consent deletion (`f3c3e105a`, `8fc415724`, and
+`8629d0630`). The command authenticates the exact current source epoch/high-water and revoked capture
+policy/consent, closes and drains the local callback FIFO, publishes the durable barrier, and
+rechecks all authority in the source-local transaction. Exact run/source fences precede removal of
+capture facts, cursors, and generations; only direct capture demand is retired. CONTROL and AMBIENT
+demand, authorization, registration, and WAL remain intact and are resumed only when still
+compatible. The first correction makes retained noncapture WAL use its production purpose-specific
+authority; the second removes generic `SourceEvidenceState.updatedAtMs` from all capture-deletion
+time fences. Only fully authenticated current-epoch capture-bearing WAL above the preflight
+high-water can now stale deletion. A production `RoomDurableSourceIngress` regression advances
+generic evidence through later CONTROL without blocking an exact already-deleted result. Fresh
+full-lineage static review accepted the correction. Transfer, file/UI action, shared UI, automatic/
+ambient product behavior, validation, and device evidence remain open.
 
 The separate `codex/ti-activity-transfer` branch is independently accepted through `8f0842354`
 for captured Activity portable export. One bounded Room snapshot authenticates exact logical and

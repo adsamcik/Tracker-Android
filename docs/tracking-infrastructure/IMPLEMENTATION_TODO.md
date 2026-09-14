@@ -902,6 +902,16 @@ rechecks all authority, typed storage failure requests worker retry, and cancell
 Wi-Fi TODOs remain unchecked until consent-reset/source deletion, transfer, shared UI, automatic/
 ambient behavior, and complete scenarios exist.
 
+Accepted consent-deletion commits `f3c3e105a`, `8fc415724`, and `8629d0630` implement further
+bounded portions of WIFI-010/013 and PRIV-002/003/004/005/011. Exact revoked capture policy/consent,
+source epoch/high-water, callback FIFO drain, durable barrier, demand retirement, and transactional
+run/source fencing govern capture payload deletion. CONTROL and AMBIENT demand, authorization,
+registration, and WAL survive and resume only under current compatible authority. Generic evidence
+update time is not capture evidence and cannot starve deletion; only authenticated current-epoch
+capture-bearing WAL above the preflight high-water contributes to staleness. Wi-Fi TODOs remain
+unchecked until transfer, shared UI/actions, automatic/ambient product behavior, and complete
+scenarios exist.
+
 ## Cell vertical
 
 - [ ] TODO-CELL-001 Complete one app-scoped Cell callback owner and stable durable delivery identity
