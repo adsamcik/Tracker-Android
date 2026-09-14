@@ -4,6 +4,10 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -358,6 +362,74 @@ class RoomImportPortableCapturedActivityTest {
 		importer(testScheduler).importEntry(request) shouldBe ImportPortableCapturedActivityResult.Blocked(
 			PortableActivityImportBlockedReason.COLLECTED_DATA_EPOCH_CHANGED,
 		)
+	}
+
+	@Test
+	fun `source deletion scope blocks initial replay alternate receipt and correction without mutation`() = runTest {
+		val deletionScope = PortableActivityDeletionScopeDigest.derive(LOGICAL_TRACKING_ID, SERVICE_RUN_ID)
+		val original = request(entry(deletionScope = deletionScope))
+		val fence = sourceDeletionFence()
+		val importer = importer(testScheduler)
+		database.sourceDeletionFenceDao().insertIfAbsent(fence)
+
+		importer.importEntry(original) shouldBe ImportPortableCapturedActivityResult.Blocked(
+			PortableActivityImportBlockedReason.DELETED_SCOPE,
+		)
+		rowCount("imported_activity_entry_revision") shouldBe 0L
+		rowCount("imported_activity_receipt") shouldBe 0L
+		rowCount("imported_activity_run") shouldBe 0L
+		database.sourceDeletionFenceDao().countAll() shouldBe 1L
+
+		database.sourceDeletionFenceDao().deleteAll()
+		importer.importEntry(original) shouldBe ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		database.sourceDeletionFenceDao().insertIfAbsent(fence)
+		val alternate = original.copy(receipt = receipt("scope-alternate", 50L))
+		val correction = request(
+			entry(deletionScope = deletionScope, endUncertaintyMs = 12L),
+			receipt("scope-correction", 60L),
+		)
+
+		listOf(original, alternate, correction).forEach { blockedRequest ->
+			importer.importEntry(blockedRequest) shouldBe ImportPortableCapturedActivityResult.Blocked(
+				PortableActivityImportBlockedReason.DELETED_SCOPE,
+			)
+		}
+		rowCount("imported_activity_entry_revision") shouldBe 1L
+		rowCount("imported_activity_receipt") shouldBe 1L
+		rowCount("imported_activity_run") shouldBe 1L
+		database.sourceDeletionFenceDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `stale exact source deletion scope is stored evidence corruption`() = runTest {
+		val deletionScope = PortableActivityDeletionScopeDigest.derive(LOGICAL_TRACKING_ID, SERVICE_RUN_ID)
+		val request = request(entry(deletionScope = deletionScope))
+		database.sourceDeletionFenceDao().insertIfAbsent(sourceDeletionFence(epoch = EPOCH - 1L))
+
+		importer(testScheduler).importEntry(request) shouldBe ImportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		rowCount("imported_activity_entry_revision") shouldBe 0L
+		rowCount("imported_activity_receipt") shouldBe 0L
+		rowCount("imported_activity_run") shouldBe 0L
+		database.sourceDeletionFenceDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `unrelated source purpose and logical run fences do not block admission`() = runTest {
+		val deletionScope = PortableActivityDeletionScopeDigest.derive(LOGICAL_TRACKING_ID, SERVICE_RUN_ID)
+		listOf(
+			sourceDeletionFence(logicalTrackingId = "other-logical"),
+			sourceDeletionFence(sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS),
+			sourceDeletionFence(purpose = SourceBrokerPurpose.CONTROL_CONTINUATION),
+		).forEach { database.sourceDeletionFenceDao().insertIfAbsent(it) }
+
+		importer(testScheduler).importEntry(request(entry(deletionScope = deletionScope))) shouldBe
+			ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		rowCount("imported_activity_entry_revision") shouldBe 1L
+		rowCount("imported_activity_receipt") shouldBe 1L
+		rowCount("imported_activity_run") shouldBe 1L
+		database.sourceDeletionFenceDao().countAll() shouldBe 3L
 	}
 
 	@Test
@@ -716,6 +788,22 @@ class RoomImportPortableCapturedActivityTest {
 		ActivityCapturedPortableIntegrity.digest("test-scope", listOf(local)),
 	)
 
+	private fun sourceDeletionFence(
+		logicalTrackingId: String = LOGICAL_TRACKING_ID,
+		serviceRunId: String = SERVICE_RUN_ID,
+		sourceKind: Int = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+		purpose: String = SessionManifestPurposeCode.SESSION_CAPTURE,
+		epoch: Long = EPOCH,
+	) = SourceDeletionFenceEntity.createLogicalServiceRun(
+		sourceKind = sourceKind,
+		purpose = purpose,
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+		fenceGeneration = 1L,
+		collectedDataEpoch = epoch,
+		deletedAtMs = 70L,
+	)
+
 	private fun daoForCurrentDatabase() = database.importedActivityDao()
 
 	private fun rowCount(table: String): Long = database.openHelper.readableDatabase
@@ -731,5 +819,7 @@ class RoomImportPortableCapturedActivityTest {
 
 	private companion object {
 		const val EPOCH = 7L
+		const val LOGICAL_TRACKING_ID = "logical-entry"
+		const val SERVICE_RUN_ID = "service-run"
 	}
 }

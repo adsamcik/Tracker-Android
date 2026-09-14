@@ -10,6 +10,9 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedActivityReceiptEnt
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityWindowEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityZoneEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import java.time.DateTimeException
 import javax.inject.Inject
@@ -81,6 +84,21 @@ class RoomImportPortableCapturedActivity internal constructor(
 		val deletions = storedValue { dao.deletionGenerations(runIdentities) }
 		if (deletions.any { it.collectedDataEpoch != request.expectedCollectedDataEpoch }) storedCorrupt()
 		if (deletions.isNotEmpty()) blocked(PortableActivityImportBlockedReason.DELETED_RUN)
+		val sourceDeletionFences = storedValue {
+			database.trackingHistoryReadDao().deletionFences(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+				purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+				scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+				scopeIdentityDigests = entry.runs.map { it.deletionScopeDigest.value }.distinct(),
+			)
+		}
+		if (sourceDeletionFences.any {
+				it.collectedDataEpoch != request.expectedCollectedDataEpoch
+			}
+		) storedCorrupt()
+		if (sourceDeletionFences.isNotEmpty()) {
+			blocked(PortableActivityImportBlockedReason.DELETED_SCOPE)
+		}
 
 		authenticateOpaqueIdentityOwnership(
 			dao,

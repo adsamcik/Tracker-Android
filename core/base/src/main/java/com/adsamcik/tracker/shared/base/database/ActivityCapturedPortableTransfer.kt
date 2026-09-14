@@ -456,6 +456,7 @@ enum class PortableActivityImportBlockedReason {
 	OPAQUE_IDENTITY_CONFLICT,
 	DELETED_ENTRY,
 	DELETED_RUN,
+	DELETED_SCOPE,
 }
 
 enum class PortableActivityImportUnverifiableReason {
