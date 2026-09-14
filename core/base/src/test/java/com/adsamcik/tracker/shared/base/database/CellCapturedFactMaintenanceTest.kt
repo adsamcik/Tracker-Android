@@ -846,10 +846,23 @@ class CellCapturedFactMaintenanceTest {
 		)) shouldBe controlRegistration
 		database.cellCapturedFactDao().maintenanceWalCount(CELL_SOURCE) shouldBe 2L
 		requireNotNull(database.sourceEventWalDao().getByEventId(CONTROL_WAL_EVENT_ID)).let { retained ->
+			retained.configRevision shouldBe PLAN_REVISION
+			retained.planAttribution shouldBe RECEIVE_TIME_ONLY_PLAN_ATTRIBUTION
+			retained.logicalTrackingId shouldBe null
+			retained.serviceRunId shouldBe null
+			retained.sourcePolicyRevision shouldBe null
+			retained.captureConsentEpoch shouldBe null
+			retained.sessionManifestRevision shouldBe null
+			retained.lifecycleLeaseGeneration shouldBe null
+			retained.authorizationFingerprint shouldBe controlWal.authorizationFingerprint
 			retained.createdAtMs shouldBe CONTROL_WAL_CREATED_AT_MS
 			retained.payloadChecksum shouldBe controlWal.payloadChecksum
 			retained.integrityIdentity shouldBe controlWal.integrityIdentity
 			retained.payload.contentEquals(controlWal.payload) shouldBe true
+			retained.copy(
+				admissionOrdinal = controlWal.admissionOrdinal,
+				payload = controlWal.payload,
+			) shouldBe controlWal
 		}
 		val scopeDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
 			CELL_SOURCE,
@@ -1799,7 +1812,7 @@ class CellCapturedFactMaintenanceTest {
 			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
 			authorizationFingerprint = authorization.authorizationFingerprint,
 			sourceSequence = 1L,
-			configRevision = null,
+			configRevision = PLAN_REVISION,
 			planAttribution = RECEIVE_TIME_ONLY_PLAN_ATTRIBUTION,
 			clockDomainId = BOOT_ID,
 			observedElapsedNanos = CONTROL_WAL_OBSERVED_NANOS,
