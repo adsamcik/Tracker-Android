@@ -1187,6 +1187,111 @@ class WifiWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `retention rejects an epoch changed after its evidence snapshot`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val retainedFromMs = OBSERVED_WALL_MS
+		val markedAtMs = OBSERVED_WALL_MS + 10_000L
+		assertEquals(
+			true,
+			database.sourceEvidenceStateDao().synchronizeLifecycle(0L, retainedFromMs, markedAtMs),
+		)
+		assertEquals(
+			1,
+			database.sourceEvidenceStateDao().updateLifecycle(
+				epoch = 1L,
+				retainedFromMs = retainedFromMs,
+				updatedAtMs = markedAtMs + 1L,
+			),
+		)
+
+		assertEquals(
+			WifiCapturedRetentionResult.Blocked(
+				WifiCapturedRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED,
+			),
+			maintenance.pruneAffectedByRetentionFloor(
+				beforeMs = retainedFromMs,
+				expectedCollectedDataEpoch = 0L,
+				expectedDeletedSourceEventHighWaterOrdinal = 0L,
+				markedAtMs = markedAtMs + 2L,
+			),
+		)
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `retention rejects a deleted high-water changed after its evidence snapshot`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val retainedFromMs = OBSERVED_WALL_MS
+		val markedAtMs = OBSERVED_WALL_MS + 10_000L
+		assertEquals(
+			true,
+			database.sourceEvidenceStateDao().synchronizeLifecycle(0L, retainedFromMs, markedAtMs),
+		)
+		assertEquals(
+			1,
+			database.sourceEvidenceStateDao().updateAfterFullDeletion(
+				epoch = 0L,
+				retainedFromMs = retainedFromMs,
+				deletedSourceEventHighWaterOrdinal = 1L,
+				updatedAtMs = markedAtMs + 1L,
+			),
+		)
+
+		assertEquals(
+			WifiCapturedRetentionResult.Blocked(
+				WifiCapturedRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED,
+			),
+			maintenance.pruneAffectedByRetentionFloor(
+				beforeMs = retainedFromMs,
+				expectedCollectedDataEpoch = 0L,
+				expectedDeletedSourceEventHighWaterOrdinal = 0L,
+				markedAtMs = markedAtMs + 2L,
+			),
+		)
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `retention rejects a cutoff changed after its evidence snapshot`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val requestedRetainedFromMs = OBSERVED_WALL_MS - 1_000L
+		val currentRetainedFromMs = OBSERVED_WALL_MS
+		val markedAtMs = OBSERVED_WALL_MS + 10_000L
+		assertEquals(
+			true,
+			database.sourceEvidenceStateDao().synchronizeLifecycle(
+				epoch = 0L,
+				retainedFromMs = requestedRetainedFromMs,
+				updatedAtMs = markedAtMs,
+			),
+		)
+		assertEquals(
+			true,
+			database.sourceEvidenceStateDao().synchronizeLifecycle(
+				epoch = 0L,
+				retainedFromMs = currentRetainedFromMs,
+				updatedAtMs = markedAtMs + 1L,
+			),
+		)
+
+		assertEquals(
+			WifiCapturedRetentionResult.Blocked(
+				WifiCapturedRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED,
+			),
+			maintenance.pruneAffectedByRetentionFloor(
+				beforeMs = requestedRetainedFromMs,
+				expectedCollectedDataEpoch = 0L,
+				expectedDeletedSourceEventHighWaterOrdinal = 0L,
+				markedAtMs = markedAtMs + 2L,
+			),
+		)
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
 	fun `source deletion requires revoked capture consent`() = runTest {
 		installValidFixture(candidateWriter = true)
 		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))

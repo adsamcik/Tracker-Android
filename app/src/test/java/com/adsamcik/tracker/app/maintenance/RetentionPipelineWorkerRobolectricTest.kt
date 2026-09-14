@@ -28,6 +28,7 @@ import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerStateEventDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
+import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
@@ -41,6 +42,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEnt
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
@@ -53,6 +55,9 @@ import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
+import com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionBlockedReason
+import com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionResult
+import com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionService
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
@@ -60,6 +65,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -71,6 +77,7 @@ import org.robolectric.annotation.Config
 import java.util.concurrent.Executor
 import javax.inject.Provider
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.test.assertFailsWith
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -213,13 +220,21 @@ class RetentionPipelineWorkerRobolectricTest {
 	}
 
 	@Test
-	fun `pending signal WAL defers raw retention after advancing privacy boundary`() = runTest {
+	@Suppress("LongMethod")
+	fun `pending signal defers legacy radio deletion but Wi-Fi authenticates before WAL pruning`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		val db = AppDatabase.testDatabase(context)
 		val collectedDataLifecycleStore = lifecycleStore(
 			CollectedDataLifecycleSnapshot(epoch = 9L, retainedFromMs = 1_234L),
 		)
 		val migrationBackupRepository: DatabaseMigrationBackupRepository = mockk(relaxed = true)
+		var wifiWalCountAtRetention: Long? = null
+		val wifiRetentionService: WifiCapturedRetentionService = mockk {
+			coEvery { prune(db, any(), any()) } coAnswers {
+				wifiWalCountAtRetention = db.sourceEventWalDao().countAll()
+				WifiCapturedRetentionResult.NoChange
+			}
+		}
 		try {
 			insertExpiredStepsHistory(db, collectedDataEpoch = 9L)
 			db.locationSampleDao().insert(
@@ -256,19 +271,40 @@ class RetentionPipelineWorkerRobolectricTest {
 					),
 				),
 			)
+			db.wifiObservationDao().insert(
+				WifiObservation(
+					timeMs = 1L,
+					bssid = "retained-by-pending-signal",
+					ssid = "",
+					capabilities = "",
+					frequency = 2_412,
+					level = -50,
+					latE7 = null,
+					lonE7 = null,
+					provenance = CoordinateProvenance.UNKNOWN,
+					createdAt = 1L,
+				),
+			)
+			db.sourceEventWalDao().insertIgnoringDuplicate(staleRawWifiEvent())
 
 			assertEquals(
 				ListenableWorker.Result.retry(),
 				worker(
 					context,
-					retentionStore(autoPurgeConfig(rawDataRetentionDays = 1)),
+					retentionStore(
+						autoPurgeConfig(rawDataRetentionDays = 1).copy(wifiCellRetentionDays = 1),
+					),
 					db,
 					migrationBackupRepository = migrationBackupRepository,
 					collectedDataLifecycleStore = collectedDataLifecycleStore,
+					wifiCapturedRetentionService = wifiRetentionService,
 				).doWork(),
 			)
 
+			assertEquals(1L, wifiWalCountAtRetention)
+			assertEquals(0L, db.sourceEventWalDao().countAll())
 			assertEquals(1L, db.locationSampleDao().countAll())
+			assertEquals(1L, db.wifiObservationDao().getScanSummary().totalObservations)
 			assertEquals(1L, db.stepFactRevisionDao().countAll())
 			assertEquals(1, db.pendingSignalDao().countAll())
 			assertEquals(1L, db.sourceEvidenceStateDao().get()?.revision)
@@ -290,6 +326,7 @@ class RetentionPipelineWorkerRobolectricTest {
 				9L,
 			))
 			coVerify(exactly = 1) { collectedDataLifecycleStore.advanceRetainedFrom(any()) }
+			coVerify(exactly = 1) { wifiRetentionService.prune(db, any(), any()) }
 			verify(exactly = 1) { migrationBackupRepository.deleteAll() }
 		} finally {
 			db.close()
@@ -453,6 +490,147 @@ class RetentionPipelineWorkerRobolectricTest {
 	}
 
 	@Test
+	fun `zero Wi-Fi Cell retention keeps captured Wi-Fi forever`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val service = wifiRetentionService()
+		val db = retentionDatabase()
+
+		assertEquals(
+			ListenableWorker.Result.success(),
+			worker(
+				context = context,
+				store = retentionStore(autoPurgeConfig(rawDataRetentionDays = 0)),
+				db = db,
+				wifiCapturedRetentionService = service,
+			).doWork(),
+		)
+
+		coVerify(exactly = 0) { service.prune(any(), any(), any()) }
+		verify(exactly = 0) { db.sourceBrokerDao() }
+		verify(exactly = 0) { db.sourceRuntimeStateDao() }
+		verify(exactly = 0) { db.trackingRolloutStateDao() }
+	}
+
+	@Test
+	@Suppress("LongMethod")
+	fun `captured Wi-Fi typed outcomes are one-shot and preserve later stage ordering`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val expectedResults = listOf(
+			WifiCapturedRetentionResult.NoChange,
+			WifiCapturedRetentionResult.Pruned(logicalFactCount = 2, revisionCount = 3),
+			WifiCapturedRetentionResult.Blocked(
+				WifiCapturedRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED,
+			),
+		)
+
+		expectedResults.forEach { expected ->
+			val service = wifiRetentionService(expected)
+			val cellDao: CellSampleDao = mockk(relaxed = true)
+			val wifiDao: WifiObservationDao = mockk(relaxed = true)
+			val sessionDao: SessionSegmentDao = mockk(relaxed = true)
+			val db = retentionDatabase(
+				cellSampleDao = cellDao,
+				wifiObservationDao = wifiDao,
+				sessionSegmentDao = sessionDao,
+			)
+			val cutoff = slot<Long>()
+			val markedAt = slot<Long>()
+			val config = RetentionConfigState(
+				autoPurgeEnabled = true,
+				rawDataRetentionDays = 0,
+				wifiCellRetentionDays = 3,
+				tripRetentionDays = 1,
+				dailySummaryRetentionDays = 0,
+				explorationRetentionDays = 0,
+			)
+
+			assertEquals(
+				ListenableWorker.Result.success(),
+				worker(
+					context = context,
+					store = retentionStore(config),
+					db = db,
+					wifiCapturedRetentionService = service,
+				).doWork(),
+			)
+
+			coVerify(exactly = 1) {
+				service.prune(db, capture(cutoff), capture(markedAt))
+			}
+			assertEquals(
+				RetentionPipelineWorker.computeWifiCellCutoffMillis(3, markedAt.captured),
+				cutoff.captured,
+			)
+			coVerifyOrder {
+				service.prune(db, any(), any())
+				cellDao.deleteOlderThan(cutoff.captured)
+				wifiDao.deleteOlderThan(cutoff.captured)
+				sessionDao.deleteOlderThan(any())
+			}
+			verify(exactly = 0) { db.sourceBrokerDao() }
+			verify(exactly = 0) { db.sourceRuntimeStateDao() }
+			verify(exactly = 0) { db.trackingRolloutStateDao() }
+		}
+	}
+
+	@Test
+	fun `captured Wi-Fi storage failure requests one worker retry without legacy deletion`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val service: WifiCapturedRetentionService = mockk()
+		coEvery { service.prune(any(), any(), any()) } throws
+			IllegalStateException("wifi-retention-storage")
+		val cellDao: CellSampleDao = mockk(relaxed = true)
+		val wifiDao: WifiObservationDao = mockk(relaxed = true)
+		val db = retentionDatabase(cellSampleDao = cellDao, wifiObservationDao = wifiDao)
+		val config = autoPurgeConfig(rawDataRetentionDays = 0).copy(wifiCellRetentionDays = 1)
+
+		assertEquals(
+			ListenableWorker.Result.retry(),
+			worker(
+				context = context,
+				store = retentionStore(config),
+				db = db,
+				wifiCapturedRetentionService = service,
+			).doWork(),
+		)
+
+		coVerify(exactly = 1) { service.prune(db, any(), any()) }
+		coVerify(exactly = 0) { cellDao.deleteOlderThan(any()) }
+		coVerify(exactly = 0) { wifiDao.deleteOlderThan(any()) }
+		verify(exactly = 0) { db.sourceBrokerDao() }
+		verify(exactly = 0) { db.sourceRuntimeStateDao() }
+		verify(exactly = 0) { db.trackingRolloutStateDao() }
+	}
+
+	@Test
+	fun `captured Wi-Fi cancellation propagates without legacy deletion`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val service: WifiCapturedRetentionService = mockk()
+		coEvery { service.prune(any(), any(), any()) } throws
+			CancellationException("cancel-wifi-retention-worker")
+		val cellDao: CellSampleDao = mockk(relaxed = true)
+		val wifiDao: WifiObservationDao = mockk(relaxed = true)
+		val db = retentionDatabase(cellSampleDao = cellDao, wifiObservationDao = wifiDao)
+		val config = autoPurgeConfig(rawDataRetentionDays = 0).copy(wifiCellRetentionDays = 1)
+
+		assertFailsWith<CancellationException> {
+			worker(
+				context = context,
+				store = retentionStore(config),
+				db = db,
+				wifiCapturedRetentionService = service,
+			).doWork()
+		}
+
+		coVerify(exactly = 1) { service.prune(db, any(), any()) }
+		coVerify(exactly = 0) { cellDao.deleteOlderThan(any()) }
+		coVerify(exactly = 0) { wifiDao.deleteOlderThan(any()) }
+		verify(exactly = 0) { db.sourceBrokerDao() }
+		verify(exactly = 0) { db.sourceRuntimeStateDao() }
+		verify(exactly = 0) { db.trackingRolloutStateDao() }
+	}
+
+	@Test
 	fun `domain event purge clamps cutoff to slowest consumer cursor`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		val slowestCursorMs = 1_234L
@@ -522,6 +700,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		trackingStartupGate: TrackingStartupGate = READY_STARTUP_GATE,
 		stepsProjectionLaneProvider: Provider<StepsSessionFactProjectionLane> =
 			Provider { mockk(relaxed = true) },
+		wifiCapturedRetentionService: WifiCapturedRetentionService = wifiRetentionService(),
 	): RetentionPipelineWorker =
 		TestListenableWorkerBuilder<RetentionPipelineWorker>(context)
 			.setWorkerFactory(object : WorkerFactory() {
@@ -538,6 +717,7 @@ class RetentionPipelineWorkerRobolectricTest {
 					migrationBackupRepository,
 					trackingStartupGate,
 					stepsProjectionLaneProvider,
+					wifiCapturedRetentionService,
 				)
 			})
 			.build() as RetentionPipelineWorker
@@ -560,6 +740,9 @@ class RetentionPipelineWorkerRobolectricTest {
 		domainEventDao: DomainEventDao = mockk(relaxed = true),
 		exportLogDao: ExportLogDao = mockk(relaxed = true),
 		pendingSignalDao: PendingSignalDao = mockk(relaxed = true),
+		cellSampleDao: CellSampleDao = mockk(relaxed = true),
+		wifiObservationDao: WifiObservationDao = mockk(relaxed = true),
+		sessionSegmentDao: SessionSegmentDao = mockk(relaxed = true),
 	): AppDatabase {
 		val db: AppDatabase = mockk(relaxed = true)
 		every { db.transactionExecutor } returns DIRECT_EXECUTOR
@@ -587,7 +770,16 @@ class RetentionPipelineWorkerRobolectricTest {
 		every { db.locationObservationDecisionDao() } returns mockk(relaxed = true)
 		every { db.trackerStateEventDao() } returns mockk(relaxed = true)
 		every { db.sourceEvidenceStateDao() } returns sourceEvidenceStateDao
+		every { db.cellSampleDao() } returns cellSampleDao
+		every { db.wifiObservationDao() } returns wifiObservationDao
+		every { db.sessionSegmentDao() } returns sessionSegmentDao
 		return db
+	}
+
+	private fun wifiRetentionService(
+		result: WifiCapturedRetentionResult = WifiCapturedRetentionResult.NoChange,
+	): WifiCapturedRetentionService = mockk {
+		coEvery { prune(any(), any(), any()) } returns result
 	}
 
 	private fun lifecycleStore(
@@ -685,6 +877,13 @@ class RetentionPipelineWorkerRobolectricTest {
 		payloadChecksum = "corrupt",
 		integrityIdentity = "corrupt",
 		createdAtMs = 1L,
+	)
+
+	private fun staleRawWifiEvent() = staleRawStepsEvent().copy(
+		eventId = "stale-wifi-event",
+		providerDedupKey = "stale-wifi-dedup",
+		sourceKind = SourceKind.WIFI.stableCode,
+		sourceInstanceId = "wifi-provider",
 	)
 
 	private suspend fun insertExpiredStepsHistory(

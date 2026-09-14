@@ -93,7 +93,7 @@ internal data class WifiCapturedMaintenanceLimits(
 	}
 }
 
-internal enum class WifiCapturedRetentionBlockedReason {
+enum class WifiCapturedRetentionBlockedReason {
 	SOURCE_EVIDENCE_AUTHORITY_CHANGED,
 	DESTINATION_OWNER_CHANGED,
 	UNRECOGNIZED_PAYLOAD_PRESENT,
@@ -102,7 +102,7 @@ internal enum class WifiCapturedRetentionBlockedReason {
 	STALE_REQUEST,
 }
 
-internal sealed interface WifiCapturedRetentionResult {
+sealed interface WifiCapturedRetentionResult {
 	data class Pruned(
 		val logicalFactCount: Int,
 		val revisionCount: Int,
