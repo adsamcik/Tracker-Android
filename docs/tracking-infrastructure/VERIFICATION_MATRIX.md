@@ -2448,3 +2448,27 @@ Deferred focused command:
 The command was not run. Compilation, Room execution, worker/action invocation, runtime projection,
 provider/process/reboot/device behavior, transfer, shared UI, integration, activation, and release
 remain unproven.
+
+## TI-B296 — Pressure portable-origin storage and monotonic deletion contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `ddb9ed162`. Authored entity, DAO, and migration/reopen
+contracts cover the composite imported entry-revision → run → window hierarchy; every portable-v1
+field; copied receipt and local epoch authority; bounded 64-run/2,048-window reads plus counts;
+receipt rollback cascade; full collected-data clear; no fabricated live session; and a standalone
+self-checksummed run tombstone. The corrected transition requires the same collected-data epoch,
+an overflow-safe expected generation, and exact `+1`; tests reject changed epoch, same/lower
+generation, stale overwrite, and checksum-preserving authority-field substitution while preserving
+the winning row.
+
+Independent review accepted the source chain and explicitly confirmed that no production runtime
+uses the dormant imported DAO. The deferred focused commands are:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ImportedPressure*' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat :core:base:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.shared.base.database.AppDatabaseMigration27To28Test --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The commands were not run. The tracked v28 Room schema JSON still lacks the four imported-Pressure
+tables and must be regenerated/reviewed during convergence. Compilation, Room execution,
+production import admission, no-resurrection writer behavior, history/maintenance composition,
+round trip, integration, device behavior, activation, and release remain unproven.

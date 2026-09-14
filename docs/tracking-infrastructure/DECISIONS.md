@@ -3753,3 +3753,22 @@ Each entry records repository evidence and does not duplicate the final architec
   generation before facts/cursors are removed, and retains WAL, CONTROL, and unrelated sources.
 - This does not activate projection/provider paths, invoke maintenance from workers or actions,
   implement transfer, shared UI, automatic/ambient capture, or provide executed evidence.
+
+## TI-D233 — Portable Pressure facts retain imported provenance instead of invented live authority
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; source/DAO/migration/test commits `04ba749d0`
+  and `ddb9ed162`; corrected independent review; TI-B296.
+- Portable Pressure uses a source-specific immutable entry-revision → physical-run → window
+  hierarchy. It retains every v1 value plus copied receipt provenance and local collected-data and
+  deletion-generation authority, but it never invents live WAL, provider, manifest, policy,
+  consent, service-run, or projection ownership.
+- Reads are capped at 64 runs and 2,048 windows with separate counts so a future writer can prove
+  completeness. Exact receipt rollback cascades the selected hierarchy, while a standalone
+  self-checksummed run tombstone survives and may advance only within the same epoch by an
+  overflow-safe exact `+1` compare-and-set.
+- The raw DAO does not grant admission. A later Pressure-specific writer must enforce initial
+  generation 1, reject every retained tombstone resurrection, authenticate receipt/idempotence and
+  the complete portable hierarchy, and commit atomically before imported facts become readable.
+- The v28 Room schema JSON is intentionally deferred but mandatory before convergence integration.
+  This slice does not implement import admission, history/maintenance composition, file/UI wiring,
+  portable round trip, validation, activation, or rollout.

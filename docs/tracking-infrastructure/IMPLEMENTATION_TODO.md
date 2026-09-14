@@ -594,14 +594,13 @@ boundary scenario tests remain. Exact selected-session deletion and stored-zone 
 accepted, and global all-data erasure already includes Pressure facts.
 
 Import feasibility audit TI-D230/TI-B293 leaves PRESS-008/012 and PRIV-007 explicitly open. The
-current `PressureFactRevisionEntity` and its only writer require authentic live WAL event identity,
-positive admission ordinal, provider sequence, local run/manifest/policy/consent, and projection
-lane authority. Portable Pressure v1 intentionally excludes those local/provider identities, and
-there is no Pressure decoder, import authority entity/DAO, or source-owned import command. The next
-safe implementation is a distinct Pressure portable-origin provenance/store plus one bounded
-source-owned import writer, followed by history/maintenance recognition and round-trip,
-collision/deletion/retention/no-resurrection tests. Never fabricate a live event/run or insert the
-portable product directly into the live-WAL table.
+accepted `04ba749d0`/`ddb9ed162` storage slice now supplies the required distinct Pressure
+portable-origin entry/run/window hierarchy, bounded reads, copied receipt/local-epoch authority,
+and a standalone checksummed monotonic run-deletion generation. It deliberately has no live-WAL
+identity and no runtime caller. The next required slice is one bounded source-owned import
+admission/writer transaction with exact replay, collision, initial-generation, retained-tombstone,
+epoch, cancellation, and rollback contracts; history/maintenance recognition and round trip follow.
+Never fabricate a live event/run or insert the portable product directly into the live-WAL table.
 
 Accepted product/UI commits `06ec05883` through `c27cc1c18` implement bounded portions of
 PRESS-006/007/012 and HIST-002/003/005/006/011/012. One Pressure-aware recent page uses exact-intent

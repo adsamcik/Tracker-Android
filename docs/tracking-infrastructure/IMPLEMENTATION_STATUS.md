@@ -1,6 +1,6 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-09-13
+Last updated: 2026-09-14
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
@@ -9,6 +9,25 @@ evidence index.
 The exhaustive remaining-work checklist is
 [IMPLEMENTATION_TODO.md](IMPLEMENTATION_TODO.md). It distinguishes implementation code and tests
 to author now from product decisions and the deferred convergence-validation phase.
+
+## September 14 implementation-only checkpoint — Pressure portable-origin storage accepted
+
+The separate `codex/ti-pressure-import` branch is clean and independently accepted through
+`ddb9ed162`. Commits `04ba749d0` and `ddb9ed162` add a Pressure-specific immutable imported
+entry-revision → physical-run → window hierarchy, retain every portable-v1 product field plus
+copied receipt provenance and local collected-data/deletion authority, and expose only bounded
+64-run/2,048-window reads with separate completeness counts. Imported facts remain isolated from
+the live provider-WAL fact table and cannot fabricate a service run, manifest, policy, consent,
+provider sequence, or projection owner.
+
+Receipt rollback cascades only the selected imported hierarchy; the standalone self-checksummed
+run tombstone survives selected receipt deletion and advances only by same-epoch, overflow-safe,
+exact `+1` compare-and-set. Regressions were authored for stale retry, epoch/generation regression,
+checksum coverage, migrated reopen, full collected-data clear, and the absence of a fake live
+session. The source commits are **IMPLEMENTED_UNVALIDATED**. The tracked v28 Room schema JSON does
+not yet contain the four imported-Pressure tables and remains a mandatory convergence-generation
+blocker. The production import admission transaction, initial generation-1/no-resurrection check,
+history/maintenance composition, portable round trip, and user-facing import action remain open.
 
 ## September 13 coordinator checkpoint — Ambient importer and Pressure read path accepted
 

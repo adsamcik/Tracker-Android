@@ -1,6 +1,6 @@
 # Tracking Infrastructure Continuation Handover
 
-Last updated: 2026-09-13
+Last updated: 2026-09-14
 
 ## Implementation-only directive
 
@@ -21,6 +21,30 @@ Keep unvalidated branches out of local `dev/v10`. When every planned Steps, Pres
 Location, Activity, Wi-Fi, and Cell piece plus its applicable product/action tests exists, compose
 one dedicated local convergence branch. Only then begin the complete validation/fix phase; after it
 passes, rebase and merge through the clean integration checkout. No push or activation is authorized.
+
+## 2026-09-14 active coordinator checkpoint
+
+Pressure portable-origin storage is independently accepted on `codex/ti-pressure-import` through
+`ddb9ed162` (`04ba749d0` plus the monotonic-fence correction). It is deliberately source-specific:
+immutable entry revisions own exact physical runs and windows, every portable-v1 field and copied
+receipt/local privacy authority is retained, reads are bounded with independent counts, and no row
+claims live WAL/provider/run/manifest/projection authority. Exact receipt rollback cascades its
+children while a standalone checksummed run tombstone survives; an existing tombstone can advance
+only in the same collected-data epoch by overflow-safe exact `+1` CAS. A fresh static review
+accepted the source chain after the regression/epoch/checksum correction.
+
+This is storage only, **IMPLEMENTED_UNVALIDATED**. The checked-in v28 Room schema JSON still lacks
+the four `imported_pressure_*` tables and must be regenerated and reviewed during convergence. The
+next in-progress slice is the Pressure-specific import admission/writer transaction: it must accept
+only authenticated portable v1 content and explicit receipt/current-local-epoch authority, make
+exact replay idempotent, reject collision or retained tombstone resurrection, and atomically write
+only the imported hierarchy. It must never fabricate or insert live Pressure WAL facts. History,
+maintenance, file/UI action wiring, and portable round trip remain later source-local slices.
+
+Activity portable export is in fresh review at `4077f6d03`; Cell maintenance is in fresh review at
+`55cda6499`. Neither is accepted or recorded as a completed checkpoint yet. No Gradle, compiler,
+test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration, activation,
+publication, or release command ran on September 14.
 
 ## 2026-09-13 active coordinator checkpoint
 
