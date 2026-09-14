@@ -152,9 +152,18 @@ zones, gaps, `NOT_CAPTURED` replacement members, partial coverage, nullable valu
 deleted/retained/unverifiable states. Combined local/import composition authenticates one bounded
 complete local ownership snapshot so a distinct import cannot reuse a local run/window identity;
 only exact full-v1 equality suppresses a duplicate. Re-export admits only fully authenticated latest
-nontombstoned imports, checks every origin before sink I/O, and preserves exact second-database
-round trip without creating live authority. Imported maintenance, file/UI actions, shared UI,
-schema generation, and validation remain open.
+nontombstoned imports, checks every origin before sink I/O, and preserves exact second-database round
+trip without creating live authority. The branch then reaches independently accepted `68ac8d207`
+for selected imported deletion (`936bc6096`, `9256a33fb`, and `68ac8d207`). One bounded transaction
+authenticates the exact latest selected entry/checksum/revision, current epoch, retention and entry/
+run/source fences, then writes the Activity-specific replay receipt plus every entry/run tombstone
+before cascading only that imported hierarchy. The receipt self-verifies the canonical run/window/
+scope set and source-fence snapshot. Absent-header replay audits the complete receipt-authenticated
+identity set across every imported Activity primary and owner column in bounded chunks; orphan reuse,
+corrupt/missing markers, stale request time, conflicting checksum, collision, or overflow fails
+closed. Delete/reimport/re-export cannot resurrect the entry, while unrelated imported/local
+Activity, CONTROL, WAL, and live authority remain untouched. Imported retention/source-wide erase,
+file/UI actions, shared UI, schema generation, and validation remain open.
 
 Exact Activity selected-session deletion is independently accepted on
 `codex/ti-activity-maintenance` through `dd19b4d33` (`09a2f1c96` plus its scoped-control

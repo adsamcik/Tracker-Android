@@ -2848,3 +2848,36 @@ Deferred focused command:
 The command was not run. Compilation, Room execution, file/UI action, transfer, shared product UI,
 automatic/ambient product behavior, provider/process/reboot/device evidence, integration, activation,
 publication, and release remain unproven.
+
+## TI-B311 — Selected imported-Activity deletion and replay contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `68ac8d207` (`936bc6096`, `9256a33fb`, and
+`68ac8d207`). Authored API, entity, v28 migration, DAO, transactional service, importer/product-
+reader integration, Room, entity, DAO, and migration tests cover exact identity/revision/full-v1
+checksum selection; current epoch, retention, entry/run/source-fence and global owner authority;
+latest correction/receipt hierarchy; every physical run/window/fragment; tombstone-and-receipt before
+cascade; exact replay; stale request time; conflicting checksum; missing/extra/corrupt run markers or
+scope digests; epoch/fence/retention changes; cancellation/storage rollback; delete/reimport/export
+no-resurrection; and unrelated local/imported/CONTROL/WAL/live-authority preservation.
+
+The first review rejected `AlreadyDeleted` authenticated only by entry identity/revision after the
+payload cascade. `9256a33fb` adds the self-verifying Activity deletion receipt. Re-review then found
+that absent-header replay checked descendants only under the deleted entry identity, allowing a
+protected run/window identity to hide in another row's owner column. `68ac8d207` builds the complete
+receipt-authenticated entry/run/window/scope identity union and audits it through one capped,
+chunked UNION over all Activity primary and owner columns plus marker/fence owners. Tests cover run-
+as-entry reuse, window-as-run/window-owner reuse, scope-owner collision, overflow, and exact replay.
+Fresh full-lineage static review returned ACCEPT with no remaining blocking defect.
+
+Deferred focused commands:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*RoomImportPortableCapturedActivityTest' --tests '*ImportedActivityDaoTest' --tests '*ImportedActivityEntityTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat checkRoomSchemaDrift --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Neither command was run. The checked-in v28 schema JSON is intentionally stale during the
+implementation-only phase and must be regenerated/reviewed at convergence. Compilation, Room and
+migration execution, imported retention/source erase, file/UI actions, shared product UI, automatic
+behavior, provider/process/reboot/device evidence, integration, activation, publication, and release
+remain unproven.

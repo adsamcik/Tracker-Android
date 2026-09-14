@@ -783,6 +783,16 @@ before sink I/O; second-database round trip preserves origin without live author
 unchecked until imported maintenance and actions, shared Today/Timeline/Calendar/detail composition,
 automatic behavior, generated schema convergence, and complete scenarios exist.
 
+Accepted imported-deletion commits `936bc6096`, `9256a33fb`, and `68ac8d207` implement further
+bounded portions of ACT-003/007/010 and PRIV-004/005/011. Exact selection/checksum/revision and
+current epoch/retention/fence/owner authority govern one tombstone-before-cascade transaction. A
+self-verifying Activity-specific receipt retains the canonical run/window/scope authority needed to
+authenticate exact replay after payload removal; a capped, chunked union checks every protected
+identity across all imported Activity primary and owner columns. Corrupt, stale, incomplete,
+colliding, orphaned, or overflowing replay fails closed, and reimport/re-export cannot resurrect the
+deleted hierarchy. TODOs remain unchecked until imported retention/source erase, shared file/UI
+actions, automatic behavior, generated schema convergence, and complete scenarios exist.
+
 Accepted selected-deletion commits `09a2f1c96` and `dd19b4d33` implement additional bounded
 portions of ACT-003/007/010 and PRIV-004/005/011. The service proves complete bidirectional logical
 replacement ownership and exact all-revision `{Activity}` capture authority, fences every run before

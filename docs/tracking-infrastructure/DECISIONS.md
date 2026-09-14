@@ -4032,3 +4032,23 @@ Each entry records repository evidence and does not duplicate the final architec
   preflight high-water advances that time fence; newer capture evidence still blocks.
 - This adds no transfer, file/UI action, shared product composition, automatic/ambient product path,
   validation, activation, publication, or release.
+
+## TI-D248 — Imported Activity deletion keeps a self-verifying replay receipt
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; selected deletion `936bc6096`, replay-receipt
+  correction `9256a33fb`, owner-column correction `68ac8d207`; corrected independent reviews;
+  TI-B311.
+- One bounded transaction authenticates the exact selected imported entry/revision/full-v1 checksum,
+  current collected-data epoch and uncertainty-aware retention, latest correction/receipt hierarchy,
+  every physical run/window/fragment, entry/run/source fence, and global owner kind.
+- Every run tombstone, the entry tombstone, and one Activity-specific deletion receipt commit before
+  cascading only the selected imported hierarchy. The receipt binds the checksum, canonical run/
+  window/scope counts and digests, exact run-marker digest, and source-fence snapshot so payload-free
+  replay remains independently verifiable.
+- Absent-header replay checks freshness and audits the complete receipt-authenticated identity union
+  across every imported Activity primary and owner column in bounded chunks. Missing, extra, corrupt,
+  stale, orphaned, colliding, or overflowing authority fails closed instead of becoming
+  `AlreadyDeleted`.
+- Reimport and re-export cannot resurrect the entry. Unrelated imported/local Activity, CONTROL,
+  WAL, live demand/provider/manifest/plan/writer authority, and other sources remain untouched. This
+  adds no generic tombstone platform, UI action, activation, validation, publication, or release.

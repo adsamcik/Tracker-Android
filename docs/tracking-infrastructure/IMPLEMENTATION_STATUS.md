@@ -204,9 +204,22 @@ readable imports coexist; all entry/run/window/scope identities seed the verifie
 incomplete local evidence fails the page closed, and only exact full-v1 equality deduplicates. The
 combined exporter authenticates every origin before sink I/O and re-exports only latest
 nontombstoned/nonretained imported v1 content. Independent review found and corrected the initial
-top-level-only local ownership read; the final static pass accepted the full lineage. Selected
-imported deletion, retention/source erase, file/UI actions, shared UI, generated v28 schema,
-validation, and device evidence remain open.
+top-level-only local ownership read; the final static pass accepted the full lineage. The branch then
+reaches `68ac8d207` for independently accepted selected imported deletion (`936bc6096`, `9256a33fb`,
+and `68ac8d207`). The typed request selects the exact imported identity, revision, full-v1 checksum,
+and deletion time. One bounded Room transaction authenticates the current epoch, uncertainty-aware
+retention, latest receipt/correction hierarchy, entry/run/source fences, and all global owner kinds.
+It persists every run tombstone, the entry tombstone, and an Activity-specific replay receipt before
+the selected FK cascade. The receipt binds the full checksum, canonical run/window/scope counts and
+digests, exact run-marker digest, and source-fence snapshot. Replay with no header reauthenticates
+freshness plus the complete protected identity union through a capped, chunked query over every
+imported Activity primary and owner column; missing, extra, corrupt, orphaned, colliding, stale, or
+overflowing authority fails closed. Reimport and re-export cannot resurrect deleted content,
+cancellation/storage roll back, and unrelated local/imported Activity, CONTROL, WAL, demands,
+providers, manifests, plans, writers, and other sources remain untouched. Multiple review rounds
+corrected under-authenticated `AlreadyDeleted` and descendant owner-column gaps; the final static
+pass accepted the full lineage. Imported retention/source erase, file/UI actions, shared UI,
+generated v28 schema, validation, and device evidence remain open.
 
 The separate `codex/ti-activity-maintenance` branch is independently accepted through
 `dd19b4d33` for exact selected-session deletion. `09a2f1c96` adds a typed API, bounded reverse
