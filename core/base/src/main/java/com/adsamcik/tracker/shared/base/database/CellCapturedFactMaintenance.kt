@@ -425,7 +425,7 @@ internal suspend fun AppDatabase.deleteCapturedCellFactsAfterConsentReset(
 	}
 }
 
-private suspend fun AppDatabase.auditCapturedCellFacts(
+internal suspend fun AppDatabase.auditCapturedCellFacts(
 	evidenceState: SourceEvidenceState,
 	limits: CellCapturedMaintenanceLimits,
 	checkpoint: suspend (CellCapturedMaintenanceCheckpoint) -> Unit,
@@ -517,6 +517,7 @@ private suspend fun AppDatabase.auditCapturedCellFacts(
 	return CellCapturedFactAudit(
 		lineages = lineages,
 		lineagesById = byId,
+		aggregateById = aggregateById,
 		generationByScope = generations.associateBy { generation ->
 			CellCapturedRunScope(generation.logicalTrackingId, generation.serviceRunId)
 		},
@@ -1351,7 +1352,7 @@ private suspend fun AppDatabase.loadCellDeletionGenerations(
  * Capture-authorized carriers keep a run fence discoverable even after product retention removed
  * their fact, which prevents a later writer replay from resurrecting deleted Cell history.
  */
-private suspend fun AppDatabase.loadCapturedCellWalScopesForDeletion(
+internal suspend fun AppDatabase.loadCapturedCellWalScopesForDeletion(
 	evidenceState: SourceEvidenceState,
 	limits: CellCapturedMaintenanceLimits,
 ): CellCapturedWalAudit {
@@ -1359,6 +1360,7 @@ private suspend fun AppDatabase.loadCapturedCellWalScopesForDeletion(
 	val total = dao.maintenanceWalCount(CELL_SOURCE)
 	if (total > limits.maximumWalEvents) throw CellCapturedMaintenanceLimitExceeded()
 	val scopes = linkedSetOf<CellCapturedRunScope>()
+	val carriers = mutableListOf<CellCapturedWalCarrier>()
 	var afterAdmissionOrdinal = 0L
 	var loaded = 0
 	var latestDurableTimeMs = 0L
@@ -1413,7 +1415,19 @@ private suspend fun AppDatabase.loadCapturedCellWalScopesForDeletion(
 				wal.planAttribution != CAPTURED_REGISTRATION_PLAN_ATTRIBUTION ||
 				wal.activityAutomationEpoch != null
 			) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-			scopes += authenticateCapturedCellWalScopeForDeletion(wal, limits)
+			val scope = authenticateCapturedCellWalScopeForDeletion(wal, limits)
+			scopes += scope
+			carriers += CellCapturedWalCarrier(
+				wal.eventId,
+				wal.admissionOrdinal,
+				scope,
+				earliestCoveredWallTime(
+					requireNotNull(wal.wallTimeMs),
+					requireNotNull(wal.wallTimeUncertaintyMs),
+					wal.observedElapsedNanos,
+					requireNotNull(wal.observedIntervalStartNanos),
+				),
+			)
 			latestDurableTimeMs = maxOf(latestDurableTimeMs, wal.createdAtMs)
 		}
 		loaded = Math.addExact(loaded, keys.size)
@@ -1423,7 +1437,7 @@ private suspend fun AppDatabase.loadCapturedCellWalScopesForDeletion(
 	if (loaded.toLong() != total) {
 		block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	}
-	return CellCapturedWalAudit(scopes, latestDurableTimeMs)
+	return CellCapturedWalAudit(scopes, carriers, latestDurableTimeMs)
 }
 
 /**
@@ -2064,7 +2078,7 @@ private fun SourceServiceRunEntity.hasValidHistoricalCellShape(
 		(session.state == SESSION_STATE_STOPPING && state == SESSION_STATE_STOPPING)
 }
 
-private fun decodeCanonicalCellPlan(bytes: ByteArray): CellHistoricalPlan? = runCatching {
+internal fun decodeCanonicalCellPlan(bytes: ByteArray): CellHistoricalPlan? = runCatching {
 	val plan = DataInputStream(ByteArrayInputStream(bytes)).use { input ->
 		require(input.readInt() == CELL_PLAN_FORMAT_VERSION)
 		require(input.readUTF() == CELL_PLAN_SOURCE_NAME)
@@ -2125,7 +2139,7 @@ private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-25
 	.digest(bytes)
 	.joinToString(separator = "") { byte -> "%02x".format(byte) }
 
-private data class CellCapturedLineage(
+internal data class CellCapturedLineage(
 	val logicalFactId: String,
 	val revisions: List<CellCapturedFactRevisionEntity>,
 	val earliestPossibleWallTimeMs: Long,
@@ -2138,12 +2152,12 @@ private data class CellCapturedLineage(
 		}
 }
 
-private data class CellCapturedRunScope(
+internal data class CellCapturedRunScope(
 	val logicalTrackingId: String,
 	val serviceRunId: String,
 )
 
-private data class CellHistoricalPlan(
+internal data class CellHistoricalPlan(
 	val revision: Long,
 	val mode: String,
 	val minimumRefreshAttemptIntervalMs: Long,
@@ -2190,9 +2204,17 @@ private data class CellHistoricalPlan(
 	}
 }
 
-private data class CellCapturedWalAudit(
+internal data class CellCapturedWalAudit(
 	val scopes: Set<CellCapturedRunScope>,
+	val carriers: List<CellCapturedWalCarrier>,
 	val latestDurableTimeMs: Long,
+)
+
+internal data class CellCapturedWalCarrier(
+	val eventId: String,
+	val admissionOrdinal: Long,
+	val scope: CellCapturedRunScope,
+	val earliestPossibleWallTimeMs: Long,
 )
 
 /** Exact source-local product authority required by one-hop aggregate reuse. */
@@ -2258,7 +2280,7 @@ private data class CellHistoricalPayloadEffect(
 	val aggregate: CellHistoricalIdentityFreeAggregate,
 )
 
-private data class CellHistoricalIdentityFreeAggregate(
+internal data class CellHistoricalIdentityFreeAggregate(
 	val observationCount: Int,
 	val registeredObservationCount: Int,
 	val gsmCount: Int,
@@ -2278,14 +2300,15 @@ private data class CellHistoricalIdentityFreeAggregate(
 	val allKnownQualityIsWeak: Boolean,
 )
 
-private data class CellCapturedFactAudit(
+internal data class CellCapturedFactAudit(
 	val lineages: List<CellCapturedLineage>,
 	val lineagesById: Map<String, CellCapturedLineage>,
+	val aggregateById: Map<String, CellHistoricalIdentityFreeAggregate>,
 	val generationByScope: Map<CellCapturedRunScope, CellCaptureDeletionGenerationEntity>,
 	val latestDurableTimeMs: Long,
 )
 
-private class CellCapturedRetentionBlockedException(
+internal class CellCapturedRetentionBlockedException(
 	val reason: CellCapturedRetentionBlockedReason,
 ) : IllegalStateException(reason.name)
 
@@ -2293,7 +2316,7 @@ private class CellCapturedSourceDeletionBlockedException(
 	val reason: CellCapturedSourceDeletionBlockedReason,
 ) : IllegalStateException(reason.name)
 
-private class CellCapturedMaintenanceLimitExceeded : IllegalStateException()
+internal class CellCapturedMaintenanceLimitExceeded : IllegalStateException()
 
 private fun block(reason: CellCapturedRetentionBlockedReason): Nothing =
 	throw CellCapturedRetentionBlockedException(reason)

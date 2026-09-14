@@ -4,10 +4,12 @@ import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Embedded
 import androidx.room.Query
+import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
@@ -457,6 +459,27 @@ interface TrackingHistoryReadDao {
 		sourceKind: Int,
 		serviceRunIds: List<String>,
 	): List<SourcePolicyEntity>
+
+	/** Bounded immutable plan headers referenced by a source-specific product read. */
+	@Query(
+		"SELECT * FROM acquisition_plan_revision WHERE revision IN (:revisions) " +
+			"ORDER BY revision LIMIT :limit",
+	)
+	suspend fun acquisitionPlanRevisions(
+		revisions: List<Long>,
+		limit: Int,
+	): List<AcquisitionPlanRevisionEntity>
+
+	/** Bounded source-local desired plans referenced by a source-specific product read. */
+	@Query(
+		"SELECT * FROM source_desired_plan WHERE source_kind = :sourceKind " +
+			"AND revision IN (:revisions) ORDER BY revision LIMIT :limit",
+	)
+	suspend fun desiredPlans(
+		sourceKind: Int,
+		revisions: List<Long>,
+		limit: Int,
+	): List<SourceDesiredPlanEntity>
 
 	/** Reads source-local acquisition settlement for the requested service runs. */
 	@Query(
