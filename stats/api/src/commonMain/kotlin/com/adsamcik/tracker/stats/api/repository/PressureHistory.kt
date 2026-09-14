@@ -35,6 +35,7 @@ data class PressureSessionHistory(
 /** One opaque logical Pressure-only row. It grants no physical mutation or export authority. */
 data class PressureOnlyHistoryEntry(
 	val key: TrackingHistoryEntryKey,
+	val origin: PressureHistoryOrigin,
 	val startTime: EpochMs,
 	val endTime: EpochMs,
 	val pressure: PressureHistory,
@@ -47,11 +48,38 @@ data class PressureOnlyHistoryEntry(
 		get() = pressure.presentationState
 }
 
+/** Proven origin for a Pressure-only list row; neither form grants physical mutation authority. */
+sealed interface PressureHistoryOrigin {
+	/** A checksum-qualified local logical tracking entry. */
+	data object Local : PressureHistoryOrigin
+
+	/** A portable-origin entry identified only by its stable source-supplied opaque digest. */
+	data class Imported(
+		val identity: ImportedPressureHistoryIdentity,
+	) : PressureHistoryOrigin
+}
+
+/** Stable opaque equality identity for an imported Pressure entry. */
+@JvmInline
+value class ImportedPressureHistoryIdentity(val value: String) {
+	init {
+		require(OPAQUE_PRESSURE_IDENTITY.matches(value)) {
+			"Imported Pressure history identity must be an opaque SHA-256 digest"
+		}
+	}
+
+	override fun toString(): String = "ImportedPressureHistoryIdentity"
+}
+
+private val OPAQUE_PRESSURE_IDENTITY = Regex("sha256:[0-9a-f]{64}")
+
 /** Compact product state used by Pressure list and detail presentation. */
 enum class PressureHistoryPresentationState {
 	MATERIALIZING,
 	PARTIAL,
 	READY,
+	DELETED,
+	UNVERIFIABLE,
 	UNAVAILABLE,
 	FAILED,
 }
@@ -109,6 +137,10 @@ enum class PressureHistoryCause {
 	PRODUCT_LANE_BEHIND,
 	DELETED_FACTS,
 	BATCH_DEPENDENCY_OVERFLOW,
+	IMPORTED_EVIDENCE_UNVERIFIABLE,
+	IMPORTED_SOURCE_EVIDENCE_STATE_MISSING,
+	IMPORTED_STALE_COLLECTED_DATA_EPOCH,
+	IMPORTED_DEPENDENCY_OVERFLOW,
 }
 
 enum class PressureSensorAccuracy { UNKNOWN, UNRELIABLE, LOW, MEDIUM, HIGH }
@@ -255,6 +287,10 @@ data class PressureHistory(
 
 	val presentationState: PressureHistoryPresentationState
 		get() = when {
+			windows.isEmpty() && PressureHistoryCause.DELETED_FACTS in causes ->
+				PressureHistoryPresentationState.DELETED
+			windows.isEmpty() && causes.any { it in importedUnverifiableCauses } ->
+				PressureHistoryPresentationState.UNVERIFIABLE
 			productState == HistoryProductState.FAILED -> PressureHistoryPresentationState.FAILED
 			productState == HistoryProductState.MATERIALIZING ->
 				PressureHistoryPresentationState.MATERIALIZING
@@ -264,3 +300,10 @@ data class PressureHistory(
 			else -> PressureHistoryPresentationState.PARTIAL
 		}
 }
+
+private val importedUnverifiableCauses = setOf(
+	PressureHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
+	PressureHistoryCause.IMPORTED_SOURCE_EVIDENCE_STATE_MISSING,
+	PressureHistoryCause.IMPORTED_STALE_COLLECTED_DATA_EPOCH,
+	PressureHistoryCause.IMPORTED_DEPENDENCY_OVERFLOW,
+)

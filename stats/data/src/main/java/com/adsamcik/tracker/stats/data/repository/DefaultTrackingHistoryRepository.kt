@@ -36,8 +36,29 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 	private val stepsSelector: StepsSegmentHistorySelector,
 	private val logicalHistoryReader: LogicalTrackingHistoryReader,
 	private val pressureSelector: PressureHistorySelector,
+	private val pressurePageReader: PressureHistoryPageReader,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : TrackingHistoryRepository {
+	internal constructor(
+		database: AppDatabase,
+		stepsSelector: StepsSegmentHistorySelector,
+		logicalHistoryReader: LogicalTrackingHistoryReader,
+		pressureSelector: PressureHistorySelector,
+		ioDispatcher: CoroutineDispatcher,
+	) : this(
+		database = database,
+		stepsSelector = stepsSelector,
+		logicalHistoryReader = logicalHistoryReader,
+		pressureSelector = pressureSelector,
+		pressurePageReader = PressureHistoryPageReader(
+			database = database,
+			liveSelector = pressureSelector,
+			importedEvaluator = ImportedPressureHistoryEvaluator(database),
+			portableReader = PortablePressureRoomReader(database, pressureSelector),
+		),
+		ioDispatcher = ioDispatcher,
+	)
+
 	@OptIn(ExperimentalCoroutinesApi::class)
 	override fun observeSession(segmentId: Long): Flow<SessionHistoryQuery> =
 		historyInvalidations().mapLatest {
@@ -96,8 +117,7 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 				MAX_RECENT_PRESSURE_ENTRY_COUNT
 		}
 		return historyInvalidations().mapLatest {
-			pressureSelector.discoverRecentPressureOnlyByPressureFacts(limit)
-				.mapNotNull(PressureLogicalHistoryEntry::toPublicPressureOnlyEntryOrNull)
+			pressurePageReader.selectRecent(limit)
 		}.distinctUntilChanged()
 			.flowOn(ioDispatcher)
 	}
@@ -134,6 +154,11 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		STEP_FACT_TABLE,
 		PRESSURE_FACT_TABLE,
 		SESSION_COMPLETENESS_TABLE,
+		IMPORTED_PRESSURE_ENTRY_TABLE,
+		IMPORTED_PRESSURE_RECEIPT_TABLE,
+		IMPORTED_PRESSURE_RUN_TABLE,
+		IMPORTED_PRESSURE_WINDOW_TABLE,
+		IMPORTED_PRESSURE_DELETION_TABLE,
 		emitInitialState = true,
 	)
 
@@ -153,6 +178,11 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		const val STEP_FACT_TABLE = "step_fact_revision"
 		const val PRESSURE_FACT_TABLE = "pressure_fact_revision"
 		const val SESSION_COMPLETENESS_TABLE = "source_session_completeness"
+		const val IMPORTED_PRESSURE_ENTRY_TABLE = "imported_pressure_entry_revision"
+		const val IMPORTED_PRESSURE_RECEIPT_TABLE = "imported_pressure_receipt"
+		const val IMPORTED_PRESSURE_RUN_TABLE = "imported_pressure_run"
+		const val IMPORTED_PRESSURE_WINDOW_TABLE = "imported_pressure_window"
+		const val IMPORTED_PRESSURE_DELETION_TABLE = "imported_pressure_deletion_generation"
 	}
 }
 

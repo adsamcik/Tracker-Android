@@ -46,8 +46,9 @@ interface TrackingHistoryRepository {
 	/**
 	 * Observe recent exact Pressure-only logical entries through one bounded source-local read.
 	 *
-	 * Returned keys are deliberately opaque and do not grant physical delete, detail, or export
-	 * authority. Each row retains its complete bounded Pressure windows and explicit product state.
+	 * Local and authenticated portable origins remain explicit. Returned keys are deliberately opaque
+	 * and do not grant physical delete, detail, or export authority. Each row retains only direct
+	 * Pressure evidence and an explicit product state; missing evidence never becomes numeric zero.
 	 */
 	fun observeRecentPressureOnlyEntries(limit: Int): Flow<List<PressureOnlyHistoryEntry>>
 }

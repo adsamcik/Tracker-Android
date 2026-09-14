@@ -78,6 +78,43 @@ class PressureHistoryTest {
 	}
 
 	@Test
+	fun `imported deletion and unverifiable evidence remain distinct and nonnumeric`() {
+		val deleted = PressureHistory(
+			availability = HistoryAvailability.UNAVAILABLE,
+			evidence = HistoryEvidence.NONE,
+			productState = HistoryProductState.DEGRADED,
+			coverage = PressureHistoryCoverage.NONE,
+			windows = emptyList(),
+			causes = setOf(PressureHistoryCause.DELETED_FACTS),
+		)
+		val unverifiable = PressureHistory(
+			availability = HistoryAvailability.UNAVAILABLE,
+			evidence = HistoryEvidence.NONE,
+			productState = HistoryProductState.FAILED,
+			coverage = PressureHistoryCoverage.UNKNOWN,
+			windows = emptyList(),
+			causes = setOf(PressureHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE),
+		)
+
+		assertEquals(PressureHistoryPresentationState.DELETED, deleted.presentationState)
+		assertEquals(PressureHistoryPresentationState.UNVERIFIABLE, unverifiable.presentationState)
+		assertNull(deleted.summary)
+		assertNull(unverifiable.summary)
+	}
+
+	@Test
+	fun `imported history identity remains stable opaque evidence`() {
+		val raw = "sha256:" + "a".repeat(64)
+		val identity = ImportedPressureHistoryIdentity(raw)
+
+		assertEquals(raw, identity.value)
+		assertEquals("ImportedPressureHistoryIdentity", identity.toString())
+		assertFailsWith<IllegalArgumentException> {
+			ImportedPressureHistoryIdentity("clear-text-local-id")
+		}
+	}
+
+	@Test
 	fun `ready Pressure cannot be fabricated without a retained observation`() {
 		assertFailsWith<IllegalArgumentException> {
 			PressureHistory(

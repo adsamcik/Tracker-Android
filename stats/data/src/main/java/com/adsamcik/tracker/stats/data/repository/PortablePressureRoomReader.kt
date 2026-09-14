@@ -28,15 +28,21 @@ import kotlinx.coroutines.ensureActive
 /**
  * Creates a bounded, fully authenticated Pressure transfer snapshot in one Room transaction.
  *
- * The accepted source-local selector remains the single authority for manifests, policies,
- * consent, writer ownership, corrections, deletion, retention markers, and replacement members.
- * This adapter only privacy-minimizes already-qualified direct Pressure evidence.
+ * Local entries retain the live source selector's manifest, policy, writer, correction, deletion,
+ * and retention authority. Portable-origin entries pass their independent imported-lineage and
+ * local privacy evaluator. This adapter never converts either origin into the other's authority.
  */
 @Singleton
 internal class PortablePressureRoomReader @Inject constructor(
 	private val database: AppDatabase,
 	private val selector: PressureHistorySelector,
+	private val importedEvaluator: ImportedPressureHistoryEvaluator,
 ) {
+	internal constructor(
+		database: AppDatabase,
+		selector: PressureHistorySelector,
+	) : this(database, selector, ImportedPressureHistoryEvaluator(database))
+
 	suspend fun read(request: ExportPortablePressureRequest): PortablePressureSnapshot =
 		database.withTransaction {
 			try {
@@ -113,10 +119,49 @@ internal class PortablePressureRoomReader @Inject constructor(
 			if (page.size < pageLimit) break
 		}
 
+		val imported = importedEvaluator.selectForExportInTransaction(request)
+		val importedEntries = imported.mapNotNull { evaluation ->
+			when (evaluation) {
+				is ImportedPressureHistoryEvaluation.Readable -> if (evaluation.isReExportable) {
+					evaluation.latest.entry
+				} else {
+					null
+				}
+				is ImportedPressureHistoryEvaluation.Unverifiable -> abort(
+					when (evaluation.reason) {
+						ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW ->
+							PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW
+						else -> PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE
+					},
+				)
+			}
+		}
+		val localByIdentity = entries.associateBy { it.identity }
+		importedEntries.forEach { importedEntry ->
+			val local = localByIdentity[importedEntry.identity]
+			if (local == null || local != importedEntry) entries += importedEntry
+		}
+		if (entries.size > PressurePortableFormatV1.MAX_ENTRIES ||
+			entries.sumOf { it.runs.size } > PressurePortableFormatV1.MAX_TOTAL_RUNS ||
+			entries.sumOf { entry -> entry.runs.sumOf { it.windows.size } } >
+			PressurePortableFormatV1.MAX_TOTAL_WINDOWS
+		) {
+			abort(PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW)
+		}
+
 		if (entries.isEmpty()) {
 			return PortablePressureSnapshot.Outcome(ExportPortablePressureResult.NoEntries)
 		}
 		return PortablePressureSnapshot.Ready(entries.sortedWith(PORTABLE_PRESSURE_ENTRY_ORDER))
+	}
+
+	/** Pure exact-content comparison seam; failure can only prevent duplicate suppression. */
+	internal fun portableEntryForComparison(
+		entry: PressureLogicalHistoryEntry,
+	): PortablePressureEntryV1? = try {
+		portableEntry(entry)
+	} catch (_: PortablePressureSnapshotAbort) {
+		null
 	}
 
 	private fun portableEntry(entry: PressureLogicalHistoryEntry): PortablePressureEntryV1? {

@@ -87,6 +87,13 @@ internal class PressureHistorySelector @Inject constructor(
 	internal suspend fun discoverRecentPressureOnlyByPressureFacts(
 		limit: Int,
 	): List<PressureLogicalHistoryEntry> = database.withTransaction {
+		discoverRecentPressureOnlyInTransaction(limit)
+	}
+
+	/** Caller owns the Room snapshot used to compose live and imported Pressure candidates. */
+	internal suspend fun discoverRecentPressureOnlyInTransaction(
+		limit: Int,
+	): List<PressureLogicalHistoryEntry> {
 		require(limit in 1..PRESSURE_HISTORY_SEGMENT_BATCH_CAP)
 		val accepted = linkedMapOf<PressureHistoryEntryIdentity, PressureLogicalHistoryEntry>()
 		var beforeLogicalRecencyStartMs: Long? = null

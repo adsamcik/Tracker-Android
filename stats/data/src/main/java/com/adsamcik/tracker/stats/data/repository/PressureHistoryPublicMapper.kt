@@ -9,6 +9,7 @@ import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage as ApiPressureHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryWindow as ApiPressureHistoryWindow
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.PressureSensorAccuracy
@@ -30,6 +31,7 @@ internal fun PressureLogicalHistoryEntry.toPublicPressureOnlyEntryOrNull(): Pres
 	val logicalIdentity = identity as? PressureHistoryEntryIdentity.Logical ?: return null
 	return PressureOnlyHistoryEntry(
 		key = TrackingHistoryEntryKey("pressure:logical:${logicalIdentity.logicalTrackingId}"),
+		origin = PressureHistoryOrigin.Local,
 		startTime = EpochMs(physicalMembers.minOf { it.segment.startTimeMs }),
 		endTime = EpochMs(physicalMembers.maxOf { it.segment.endTimeMs }),
 		pressure = physicalMembers.toPublicPressureHistory(),

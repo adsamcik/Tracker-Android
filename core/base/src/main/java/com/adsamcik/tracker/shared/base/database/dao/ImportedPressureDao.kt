@@ -56,6 +56,82 @@ abstract class ImportedPressureDao {
 	)
 	abstract suspend fun latestEntryRevision(identity: String): ImportedPressureEntryRevisionEntity?
 
+	/** One latest-revision seed per imported logical entry, ordered for a source-local product page. */
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_pressure_entry_revision
+		  GROUP BY identity
+		)
+		SELECT entry.identity,
+		       entry.import_revision,
+		       entry.content_checksum,
+		       entry.start_time_ms,
+		       entry.end_time_ms,
+		       entry.received_at_ms
+		FROM imported_pressure_entry_revision AS entry
+		INNER JOIN latest_revision AS latest
+		  ON latest.identity = entry.identity
+		 AND latest.import_revision = entry.import_revision
+		WHERE (
+		  :beforeStartTimeMs IS NULL
+		  OR entry.start_time_ms < :beforeStartTimeMs
+		  OR (
+		    entry.start_time_ms = :beforeStartTimeMs
+		    AND entry.identity < COALESCE(:beforeIdentity, '')
+		  )
+		)
+		ORDER BY entry.start_time_ms DESC, entry.identity DESC
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun recentHistoryCandidatePage(
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): List<ImportedPressureHistoryCandidate>
+
+	/** Latest imported entries whose complete logical time range overlaps the requested range. */
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_pressure_entry_revision
+		  GROUP BY identity
+		)
+		SELECT entry.identity,
+		       entry.import_revision,
+		       entry.content_checksum,
+		       entry.start_time_ms,
+		       entry.end_time_ms,
+		       entry.received_at_ms
+		FROM imported_pressure_entry_revision AS entry
+		INNER JOIN latest_revision AS latest
+		  ON latest.identity = entry.identity
+		 AND latest.import_revision = entry.import_revision
+		WHERE entry.start_time_ms < :toExclusiveMs
+		  AND entry.end_time_ms > :fromInclusiveMs
+		  AND (
+		    :beforeStartTimeMs IS NULL
+		    OR entry.start_time_ms < :beforeStartTimeMs
+		    OR (
+		      entry.start_time_ms = :beforeStartTimeMs
+		      AND entry.identity < COALESCE(:beforeIdentity, '')
+		    )
+		  )
+		ORDER BY entry.start_time_ms DESC, entry.identity DESC
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun historyCandidatePageInRange(
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): List<ImportedPressureHistoryCandidate>
+
 	/** Complete ordered lineage plus one overflow row; callers must reject any non-contiguous head. */
 	suspend fun entryRevisionsForAdmission(
 		identity: String,
@@ -70,6 +146,23 @@ abstract class ImportedPressureDao {
 	)
 	protected abstract suspend fun loadEntryRevisions(
 		identity: String,
+		limit: Int,
+	): List<ImportedPressureEntryRevisionEntity>
+
+	/** Complete bounded revision headers for a finite imported-history candidate batch. */
+	suspend fun entryRevisionsForHistory(
+		identities: List<String>,
+	): List<ImportedPressureEntryRevisionEntity> = loadHistoryEntryRevisions(
+		identities = checkedHistoryIdentities(identities),
+		limit = historyLimit(identities.size, MAX_REVISIONS_PER_ENTRY),
+	)
+
+	@Query(
+		"SELECT * FROM imported_pressure_entry_revision WHERE identity IN (:identities) " +
+			"ORDER BY identity, import_revision LIMIT :limit",
+	)
+	protected abstract suspend fun loadHistoryEntryRevisions(
+		identities: List<String>,
 		limit: Int,
 	): List<ImportedPressureEntryRevisionEntity>
 
@@ -99,6 +192,22 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<ImportedPressureReceiptEntity>
 
+	/** Complete bounded receipt authority for a finite imported-history candidate batch. */
+	suspend fun receiptsForHistory(identities: List<String>): List<ImportedPressureReceiptEntity> =
+		loadHistoryReceipts(
+			identities = checkedHistoryIdentities(identities),
+			limit = historyLimit(identities.size, MAX_RECEIPTS_PER_ENTRY),
+		)
+
+	@Query(
+		"SELECT * FROM imported_pressure_receipt WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, import_job_id, import_entry_key LIMIT :limit",
+	)
+	protected abstract suspend fun loadHistoryReceipts(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedPressureReceiptEntity>
+
 	suspend fun runs(identity: String, revision: Long): List<ImportedPressureRunEntity> =
 		loadRuns(identity, revision, MAX_RUNS_PER_ENTRY)
 
@@ -123,6 +232,22 @@ abstract class ImportedPressureDao {
 	)
 	protected abstract suspend fun loadAllRuns(
 		identity: String,
+		limit: Int,
+	): List<ImportedPressureRunEntity>
+
+	/** Complete bounded physical membership for a finite imported-history candidate batch. */
+	suspend fun runsForHistory(identities: List<String>): List<ImportedPressureRunEntity> =
+		loadHistoryRuns(
+			identities = checkedHistoryIdentities(identities),
+			limit = historyLimit(identities.size, MAX_TOTAL_RUNS_PER_ENTRY_LINEAGE),
+		)
+
+	@Query(
+		"SELECT * FROM imported_pressure_run WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, start_time_ms, identity LIMIT :limit",
+	)
+	protected abstract suspend fun loadHistoryRuns(
+		identities: List<String>,
 		limit: Int,
 	): List<ImportedPressureRunEntity>
 
@@ -159,6 +284,23 @@ abstract class ImportedPressureDao {
 	)
 	protected abstract suspend fun loadAllWindows(
 		identity: String,
+		limit: Int,
+	): List<ImportedPressureWindowEntity>
+
+	/** Complete bounded windows for a finite imported-history candidate batch. */
+	suspend fun windowsForHistory(identities: List<String>): List<ImportedPressureWindowEntity> =
+		loadHistoryWindows(
+			identities = checkedHistoryIdentities(identities),
+			limit = historyLimit(identities.size, MAX_TOTAL_WINDOWS_PER_ENTRY_LINEAGE),
+		)
+
+	@Query(
+		"SELECT * FROM imported_pressure_window WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, run_identity, " +
+			"interval_start_time_ms, identity LIMIT :limit",
+	)
+	protected abstract suspend fun loadHistoryWindows(
+		identities: List<String>,
 		limit: Int,
 	): List<ImportedPressureWindowEntity>
 
@@ -214,6 +356,16 @@ abstract class ImportedPressureDao {
 		runIdentities: List<String>,
 	): List<ImportedPressureDeletionGenerationEntity>
 
+	/** Bounded batched tombstone read; never fans out once per imported row. */
+	suspend fun deletionGenerationsForHistory(
+		runIdentities: List<String>,
+	): List<ImportedPressureDeletionGenerationEntity> {
+		require(runIdentities.size <= MAX_HISTORY_ENTRY_CANDIDATES * MAX_TOTAL_RUNS_PER_ENTRY_LINEAGE)
+		return runIdentities.distinct().chunked(HISTORY_ID_QUERY_CHUNK_SIZE).flatMap { identities ->
+			deletionGenerations(identities)
+		}
+	}
+
 	/** Exact compare-and-set; a stale deleter cannot overwrite a newer privacy generation. */
 	suspend fun advanceDeletionGeneration(
 		expectedCollectedDataEpoch: Long,
@@ -268,6 +420,16 @@ abstract class ImportedPressureDao {
 	@Query("DELETE FROM imported_pressure_deletion_generation")
 	abstract fun deleteAllDeletionGenerations()
 
+	private fun checkedHistoryIdentities(identities: List<String>): List<String> {
+		require(identities.isNotEmpty())
+		require(identities.size <= MAX_HISTORY_ENTRY_CANDIDATES)
+		require(identities.distinct().size == identities.size)
+		return identities
+	}
+
+	private fun historyLimit(identityCount: Int, maximumPerIdentity: Int): Int =
+		Math.addExact(Math.multiplyExact(identityCount, maximumPerIdentity), 1)
+
 	companion object {
 		const val MAX_RUNS_PER_ENTRY = 64
 		const val MAX_WINDOWS_PER_RUN = 2_048
@@ -277,8 +439,19 @@ abstract class ImportedPressureDao {
 		const val MAX_TOTAL_RUNS_PER_ENTRY_LINEAGE = MAX_REVISIONS_PER_ENTRY * MAX_RUNS_PER_ENTRY
 		const val MAX_TOTAL_WINDOWS_PER_ENTRY_LINEAGE =
 			MAX_REVISIONS_PER_ENTRY * MAX_TOTAL_WINDOWS_PER_ENTRY
+		const val MAX_HISTORY_ENTRY_CANDIDATES = 64
+		private const val HISTORY_ID_QUERY_CHUNK_SIZE = 400
 	}
 }
+
+data class ImportedPressureHistoryCandidate(
+	val identity: String,
+	@ColumnInfo(name = "import_revision") val importRevision: Long,
+	@ColumnInfo(name = "content_checksum") val contentChecksum: String,
+	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
+	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
+	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+)
 
 data class ImportedPressureRunIdentityOwner(
 	val identity: String,
