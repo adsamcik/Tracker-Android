@@ -1176,11 +1176,9 @@ private fun List<SourceSessionCompletenessEntity>.hasValidPortableCellShape(
 					start >= 0L && requireNotNull(row.unresolvedSequenceEnd) >= start
 				} != false &&
 				row.providerCoverage == CELL_PROVIDER_COVERAGE &&
-				row.stopStatus in CELL_STOP_STATUS_VALUES && row.updatedAtMs >= 0L &&
+				row.updatedAtMs >= 0L &&
 				if (row.registrationGeneration == 0L) {
-					rows.size == 1 && row.lastAdmissionOrdinal == null &&
-					row.providerCoverage == "PROVIDER_COMPLETENESS_UNOBSERVABLE" &&
-						row.stopStatus in setOf("PERMISSION_LOST", "PROVIDER_FAILED")
+					rows.size == 1
 				} else true
 		}
 }
@@ -1188,10 +1186,24 @@ private fun List<SourceSessionCompletenessEntity>.hasValidPortableCellShape(
 private fun SourceSessionCompletenessEntity.hasValidPortableCellStopShape(): Boolean {
 	val hasGap = unresolvedSequenceStart != null
 	if (hasGap && (appDrainComplete || stopStatus != "TIMED_OUT")) return false
-	return when (stopStatus) {
-		"COMPLETE" -> appDrainComplete && !hasGap
-		"TIMED_OUT" -> !appDrainComplete
-		"PROVIDER_FAILED", "PERMISSION_LOST", "PROCESS_RESTARTED" -> !hasGap
+	return when {
+		registrationGeneration == 0L -> {
+			lastAdmissionOrdinal == null && lastSourceSequence == null && !hasGap &&
+				when (stopStatus) {
+					"COMPLETE" -> appDrainComplete
+					"TIMED_OUT" -> !appDrainComplete
+					// The coordinator fallback is incomplete while the runtime's unavailable
+					// acknowledgement is drain-complete; neither owns a provider generation.
+					"PROVIDER_FAILED" -> true
+					else -> false
+				}
+		}
+		registrationGeneration > 0L -> when (stopStatus) {
+			"COMPLETE" -> appDrainComplete && !hasGap
+			"TIMED_OUT" -> !appDrainComplete
+			"PROVIDER_FAILED" -> appDrainComplete && !hasGap
+			else -> false
+		}
 		else -> false
 	}
 }
@@ -1287,13 +1299,6 @@ private val PORTABLE_CELL_RUN_ORDER = compareBy<PortableCapturedCellRunV1>(
 private val SHA_256_HEX = Regex("[0-9a-f]{64}")
 private val TERMINAL_SESSION_STATES = setOf("FINALIZED", "FAILED", "CLOSED")
 private const val CELL_PROVIDER_COVERAGE = "PROVIDER_COMPLETENESS_UNOBSERVABLE"
-private val CELL_STOP_STATUS_VALUES = setOf(
-	"COMPLETE",
-	"TIMED_OUT",
-	"PERMISSION_LOST",
-	"PROVIDER_FAILED",
-	"PROCESS_RESTARTED",
-)
 private val PORTABLE_CELL_AUDIT_LIMITS = CellCapturedMaintenanceLimits(
 	maximumRevisions = 4_096,
 	maximumLogicalFacts = 4_096,

@@ -1426,7 +1426,14 @@ class CellCapturedFactMaintenanceTest {
 
 	@Test
 	fun `portable export reports a selected terminal projection failure before lane lag`() = runTest {
-		seedCapturedCell(withPortableExportState = true, portableLaneThroughOrdinal = 0L)
+		seedCapturedCell(
+			withPortableExportState = true,
+			portableLaneThroughOrdinal = 0L,
+			persistCapturedProduct = false,
+		)
+		database.cellCapturedFactDao().maintenanceWalCount(CELL_SOURCE) shouldBe 1L
+		database.cellCapturedFactDao().revisionCount() shouldBe 0L
+		database.cellCapturedFactDao().cursorCount() shouldBe 0L
 		database.sourceProjectionStateDao().saveFailure(
 			SourceProjectionFailureEntity(
 				projectionId = WRITER_ID,
@@ -1442,6 +1449,20 @@ class CellCapturedFactMaintenanceTest {
 		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
 			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
 		)
+	}
+
+	@Test
+	fun `portable export reports materializing for the same unprojected WAL without failure`() = runTest {
+		seedCapturedCell(
+			withPortableExportState = true,
+			portableLaneThroughOrdinal = 0L,
+			persistCapturedProduct = false,
+		)
+		database.cellCapturedFactDao().maintenanceWalCount(CELL_SOURCE) shouldBe 1L
+		database.cellCapturedFactDao().revisionCount() shouldBe 0L
+		database.cellCapturedFactDao().cursorCount() shouldBe 0L
+
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Materializing
 	}
 
 	@Test
@@ -1477,6 +1498,86 @@ class CellCapturedFactMaintenanceTest {
 		}
 		replacement.availability shouldBe PortableCellRunAvailability.NO_RETAINED_OBSERVATION
 		replacement.acquisitionCompleteness shouldBe PortableCellAcquisitionCompleteness.PARTIAL
+	}
+
+	@Test
+	fun `portable export accepts a drain complete positive generation provider failure`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installCapturedReplacementRun(
+			stopStatus = "PROVIDER_FAILED",
+			appDrainComplete = true,
+		)
+		var emitted: PortableCapturedCellEntryV1? = null
+
+		portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+			emitted = it
+		}
+
+		requireNotNull(emitted).runs.single { run ->
+			run.startTimeMs == REPLACEMENT_RUN_START_WALL_MS
+		}.availability shouldBe PortableCellRunAvailability.NO_RETAINED_OBSERVATION
+	}
+
+	@Test
+	fun `portable export accepts a generation zero complete coordinator fallback`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installCapturedReplacementRun(
+			registrationGeneration = 0L,
+			sourceInstanceId = "not-owned-cell",
+			stopStatus = "COMPLETE",
+			appDrainComplete = true,
+		)
+		var emitted: PortableCapturedCellEntryV1? = null
+
+		portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+			emitted = it
+		}
+
+		requireNotNull(emitted).runs.single { run ->
+			run.startTimeMs == REPLACEMENT_RUN_START_WALL_MS
+		}.availability shouldBe PortableCellRunAvailability.NO_RETAINED_OBSERVATION
+	}
+
+	@Test
+	fun `portable export accepts a generation zero timed out coordinator fallback`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installCapturedReplacementRun(
+			registrationGeneration = 0L,
+			sourceInstanceId = "unresolved-cell",
+			stopStatus = "TIMED_OUT",
+			appDrainComplete = false,
+		)
+		var emitted: PortableCapturedCellEntryV1? = null
+
+		portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+			emitted = it
+		}
+
+		requireNotNull(emitted).runs.single { run ->
+			run.startTimeMs == REPLACEMENT_RUN_START_WALL_MS
+		}.acquisitionCompleteness shouldBe PortableCellAcquisitionCompleteness.PARTIAL
+	}
+
+	@Test
+	fun `portable export rejects impossible positive generation stop shapes`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installCapturedReplacementRun()
+		listOf(
+			"PROVIDER_FAILED" to false,
+			"PERMISSION_LOST" to true,
+			"PROCESS_RESTARTED" to true,
+		).forEach { (stopStatus, appDrainComplete) ->
+			database.sourceSessionDao().saveCompleteness(
+				replacementCompleteness(
+					stopStatus = stopStatus,
+					appDrainComplete = appDrainComplete,
+				),
+			)
+
+			exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+				PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
+			)
+		}
 	}
 
 	@Test
@@ -1764,6 +1865,7 @@ class CellCapturedFactMaintenanceTest {
 		directDemandActive: Boolean = false,
 		withPortableExportState: Boolean = false,
 		portableLaneThroughOrdinal: Long? = null,
+		persistCapturedProduct: Boolean = true,
 	): CellCapturedFactRevisionEntity {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(retainedFromMs = retainedFromMs),
@@ -1802,6 +1904,7 @@ class CellCapturedFactMaintenanceTest {
 			authorizationFingerprint = authorization.first().authorizationFingerprint,
 			semanticRevisions = semanticRevisions,
 			missingTimeChildCount = missingTimeChildCount,
+			persistProduct = persistCapturedProduct,
 		)
 		if (withPortableExportState) {
 			installPortableExportState(
@@ -2016,6 +2119,10 @@ class CellCapturedFactMaintenanceTest {
 	private suspend fun installCapturedReplacementRun(
 		unresolvedSequenceStart: Long? = null,
 		unresolvedSequenceEnd: Long? = null,
+		registrationGeneration: Long = REPLACEMENT_REGISTRATION_GENERATION,
+		sourceInstanceId: String = REPLACEMENT_SOURCE_INSTANCE_ID,
+		stopStatus: String = if (unresolvedSequenceStart == null) "COMPLETE" else "TIMED_OUT",
+		appDrainComplete: Boolean = unresolvedSequenceStart == null,
 	) {
 		val segmentId = database.sessionSegmentDao().insert(
 			segment().copy(
@@ -2078,21 +2185,44 @@ class CellCapturedFactMaintenanceTest {
 			unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(capture))),
 		)
 		database.sourceSessionDao().insertManifestSources(listOf(capture))
+		val replacementDemand = demand(active = false).copy(
+			demandId = REPLACEMENT_DEMAND_ID,
+			consumerId = "session:$REPLACEMENT_SERVICE_RUN_ID",
+			serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+			manifestRevision = REPLACEMENT_MANIFEST_REVISION,
+			requestedElapsedRealtimeNanos = REPLACEMENT_RUN_START_NANOS,
+			requestedAtMs = REPLACEMENT_RUN_START_WALL_MS,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(replacementDemand))
+		if (registrationGeneration > 0L) {
+			database.sourceBrokerDao().insertRegistration(
+				registration(registrationGeneration, sourceInstanceId).copy(
+					reservedAtMs = REPLACEMENT_RUN_START_WALL_MS,
+					reservedElapsedRealtimeNanos = REPLACEMENT_RUN_START_NANOS,
+					acceptedAtMs = REPLACEMENT_RUN_START_WALL_MS,
+					acceptedElapsedRealtimeNanos = REPLACEMENT_REGISTRATION_START_NANOS,
+				),
+			)
+			database.sourceBrokerDao().insertAuthorizations(
+				SourceBrokerAuthorization.rows(
+					sourceKind = CELL_SOURCE,
+					registrationGeneration = registrationGeneration,
+					authorizationRevision = AUTHORIZATION_REVISION,
+					demands = listOf(replacementDemand),
+					effectiveBootId = BOOT_ID,
+					effectiveElapsedRealtimeNanos = REPLACEMENT_REGISTRATION_START_NANOS,
+					effectiveWallTimeMs = REPLACEMENT_RUN_START_WALL_MS,
+				),
+			)
+		}
 		database.sourceSessionDao().saveCompleteness(
-			SourceSessionCompletenessEntity(
-				logicalTrackingId = LOGICAL_TRACKING_ID,
-				serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
-				sourceKind = CELL_SOURCE,
-				sourceInstanceId = "cell-replacement-instance",
-				registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
-				lastAdmissionOrdinal = null,
-				lastSourceSequence = null,
-				appDrainComplete = unresolvedSequenceStart == null,
-				providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
-				stopStatus = if (unresolvedSequenceStart == null) "COMPLETE" else "TIMED_OUT",
+			replacementCompleteness(
+				registrationGeneration = registrationGeneration,
+				sourceInstanceId = sourceInstanceId,
+				stopStatus = stopStatus,
+				appDrainComplete = appDrainComplete,
 				unresolvedSequenceStart = unresolvedSequenceStart,
 				unresolvedSequenceEnd = unresolvedSequenceEnd,
-				updatedAtMs = SESSION_END_WALL_MS,
 			),
 		)
 		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID))
@@ -2100,6 +2230,29 @@ class CellCapturedFactMaintenanceTest {
 			session.copy(currentManifestRevision = REPLACEMENT_MANIFEST_REVISION),
 		) shouldBe 1
 	}
+
+	private fun replacementCompleteness(
+		registrationGeneration: Long = REPLACEMENT_REGISTRATION_GENERATION,
+		sourceInstanceId: String = REPLACEMENT_SOURCE_INSTANCE_ID,
+		stopStatus: String = "COMPLETE",
+		appDrainComplete: Boolean = true,
+		unresolvedSequenceStart: Long? = null,
+		unresolvedSequenceEnd: Long? = null,
+	) = SourceSessionCompletenessEntity(
+		logicalTrackingId = LOGICAL_TRACKING_ID,
+		serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+		sourceKind = CELL_SOURCE,
+		sourceInstanceId = sourceInstanceId,
+		registrationGeneration = registrationGeneration,
+		lastAdmissionOrdinal = null,
+		lastSourceSequence = null,
+		appDrainComplete = appDrainComplete,
+		providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
+		stopStatus = stopStatus,
+		unresolvedSequenceStart = unresolvedSequenceStart,
+		unresolvedSequenceEnd = unresolvedSequenceEnd,
+		updatedAtMs = SESSION_END_WALL_MS,
+	)
 
 	private suspend fun installControlOnlyReconciliationManifest() {
 		val control = SessionManifestSourceEntity(
@@ -2203,6 +2356,7 @@ class CellCapturedFactMaintenanceTest {
 		authorizationEffectStartNanos: Long = AUTHORIZATION_START_NANOS,
 		authorizationEffectEndNanos: Long = REGISTRATION_END_NANOS,
 		consentEffectEndNanos: Long = REGISTRATION_END_NANOS,
+		persistProduct: Boolean = true,
 	): CellCapturedFactRevisionEntity {
 		require(
 			deliveryIndex in 1..9 && semanticRevisions in 1..2 && coverageSpanNanos >= 0L &&
@@ -2441,27 +2595,29 @@ class CellCapturedFactMaintenanceTest {
 			}
 		}
 		val dao = database.cellCapturedFactDao()
-		revisions.forEach { revision -> dao.insertRevision(revision) }
 		val latest = revisions.last()
-		dao.insertCursor(
-			CellCapturedFactCursorEntity(
-				writerProjectionId = WRITER_ID,
-				writerProjectionVersion = WRITER_VERSION,
-				logicalFactId = latest.logicalFactId,
-				logicalTrackingId = latest.logicalTrackingId,
-				serviceRunId = latest.serviceRunId,
-				sessionSegmentId = latest.sessionSegmentId,
-				writerOwnerGeneration = latest.writerOwnerGeneration,
-				collectedDataEpoch = latest.collectedDataEpoch,
-				scopeDeletionGeneration = latest.scopeDeletionGeneration,
-				latestSemanticRevision = latest.semanticRevision,
-				latestMutationId = latest.mutationId,
-				latestEffectChecksum = latest.effectChecksum,
-				latestSourceAdmissionOrdinal = latest.sourceAdmissionOrdinal,
-				cursorRevision = latest.semanticRevision,
-				updatedAtMs = latest.appliedAtMs,
-			),
-		)
+		if (persistProduct) {
+			revisions.forEach { revision -> dao.insertRevision(revision) }
+			dao.insertCursor(
+				CellCapturedFactCursorEntity(
+					writerProjectionId = WRITER_ID,
+					writerProjectionVersion = WRITER_VERSION,
+					logicalFactId = latest.logicalFactId,
+					logicalTrackingId = latest.logicalTrackingId,
+					serviceRunId = latest.serviceRunId,
+					sessionSegmentId = latest.sessionSegmentId,
+					writerOwnerGeneration = latest.writerOwnerGeneration,
+					collectedDataEpoch = latest.collectedDataEpoch,
+					scopeDeletionGeneration = latest.scopeDeletionGeneration,
+					latestSemanticRevision = latest.semanticRevision,
+					latestMutationId = latest.mutationId,
+					latestEffectChecksum = latest.effectChecksum,
+					latestSourceAdmissionOrdinal = latest.sourceAdmissionOrdinal,
+					cursorRevision = latest.semanticRevision,
+					updatedAtMs = latest.appliedAtMs,
+				),
+			)
+		}
 		return latest
 	}
 
@@ -2972,8 +3128,10 @@ class CellCapturedFactMaintenanceTest {
 		const val SERVICE_RUN_ID = "run-cell-maintenance"
 		const val REPLACEMENT_SERVICE_RUN_ID = "run-cell-maintenance-replacement"
 		const val SOURCE_INSTANCE_ID = "cell-instance"
+		const val REPLACEMENT_SOURCE_INSTANCE_ID = "cell-replacement-instance"
 		const val CONTROL_SOURCE_INSTANCE_ID = "cell-control-instance"
 		const val DEMAND_ID = "cell-demand"
+		const val REPLACEMENT_DEMAND_ID = "cell-replacement-demand"
 		const val CONTROL_DEMAND_ID = "cell-control-demand"
 		const val CONTROL_WAL_EVENT_ID = "cell-control-event"
 		const val AMBIENT_WAL_EVENT_ID = "cell-ambient-event"
@@ -3013,6 +3171,7 @@ class CellCapturedFactMaintenanceTest {
 		const val SECOND_AUTHORIZATION_START_NANOS = 210_000_000L
 		const val OBSERVED_NANOS = 200_000_000L
 		const val REPLACEMENT_RUN_START_NANOS = 300_000_000L
+		const val REPLACEMENT_REGISTRATION_START_NANOS = 310_000_000L
 		const val REGISTRATION_END_NANOS = 500_000_000L
 		const val SESSION_END_NANOS = 600_000_000L
 		const val REVOKED_POLICY_NANOS = 700_000_000L
