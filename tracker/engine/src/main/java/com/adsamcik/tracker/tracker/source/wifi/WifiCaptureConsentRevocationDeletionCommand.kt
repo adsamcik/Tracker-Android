@@ -17,12 +17,14 @@ import kotlinx.coroutines.CancellationException
 internal data class WifiCaptureConsentRevocationDeletionRequest(
 	val expectedCollectedDataEpoch: Long,
 	val expectedDeletedSourceEventHighWaterOrdinal: Long,
+	val expectedCurrentPolicyRevision: Long,
 	val expectedRevokedConsentEpoch: Long,
 	val deletedAtMs: Long,
 ) {
 	init {
 		require(expectedCollectedDataEpoch >= 0L)
 		require(expectedDeletedSourceEventHighWaterOrdinal >= 0L)
+		require(expectedCurrentPolicyRevision > 0L)
 		require(expectedRevokedConsentEpoch >= 0L)
 		require(deletedAtMs >= 0L)
 	}
@@ -115,6 +117,7 @@ internal class WifiCaptureConsentRevocationDeletionCommand @Inject constructor(
 				expectedCollectedDataEpoch = request.expectedCollectedDataEpoch,
 				expectedDeletedSourceEventHighWaterOrdinal =
 					request.expectedDeletedSourceEventHighWaterOrdinal,
+				expectedCurrentPolicyRevision = request.expectedCurrentPolicyRevision,
 				expectedRevokedConsentEpoch = request.expectedRevokedConsentEpoch,
 				deletedAtMs = request.deletedAtMs,
 			)
@@ -153,19 +156,17 @@ internal class WifiCaptureConsentRevocationDeletionCommand @Inject constructor(
 
 		val policyDao = database.sourcePolicyDao()
 		val authority = policyDao.authority()?.takeIf { current ->
-			current.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE
+			current.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE &&
+				current.currentPolicyRevision == request.expectedCurrentPolicyRevision
 		} ?: return@withTransaction WifiCapturedSourceDeletionBlockedReason.POLICY_AUTHORITY_UNAVAILABLE
-		val policy = policyDao.policyAtRevision(authority.currentPolicyRevision, WIFI_SOURCE)
+		val policy = policyDao.policyAtRevision(request.expectedCurrentPolicyRevision, WIFI_SOURCE)
 		val consent = policyDao.latestConsentEpoch(WIFI_SOURCE, CAPTURE_PURPOSE)
 		if (policy == null || consent == null ||
 			consent.epoch != request.expectedRevokedConsentEpoch
 		) return@withTransaction WifiCapturedSourceDeletionBlockedReason.POLICY_AUTHORITY_UNAVAILABLE
 		if (policy.capturePersistenceEligible || policy.captureConsentEpoch != null ||
 			consent.eligible || consent.persistenceEligible ||
-			consent.policyRevision != policy.policyRevision ||
-			consent.effectiveBootId != policy.effectiveBootId ||
-			consent.effectiveElapsedRealtimeNanos != policy.effectiveElapsedRealtimeNanos ||
-			consent.effectiveWallTimeMs != policy.effectiveWallTimeMs
+			consent.policyRevision > policy.policyRevision
 		) return@withTransaction WifiCapturedSourceDeletionBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE
 		if (request.deletedAtMs < maxOf(
 			authority.updatedAtMs,

@@ -33,8 +33,10 @@ import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
+import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.RetryBackoff
+import com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.WifiAccessPointEvidence
@@ -1300,7 +1302,13 @@ class WifiWalQualificationAdapterTest {
 			WifiCapturedSourceDeletionResult.Blocked(
 				WifiCapturedSourceDeletionBlockedReason.CAPTURE_CONSENT_STILL_ELIGIBLE,
 			),
-			maintenance.deleteAfterCaptureConsentReset(0L, 0L, CONSENT_EPOCH, DELETE_AT_MS),
+			maintenance.deleteAfterCaptureConsentReset(
+				0L,
+				0L,
+				POLICY_REVISION,
+				CONSENT_EPOCH,
+				DELETE_AT_MS,
+			),
 		)
 		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
 	}
@@ -1313,7 +1321,13 @@ class WifiWalQualificationAdapterTest {
 
 		assertEquals(
 			WifiCapturedSourceDeletionResult.Deleted(1, 1, 1),
-			maintenance.deleteAfterCaptureConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH, DELETE_AT_MS),
+			maintenance.deleteAfterCaptureConsentReset(
+				0L,
+				0L,
+				REVOKED_POLICY_REVISION,
+				REVOKED_CONSENT_EPOCH,
+				DELETE_AT_MS,
+			),
 		)
 		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
 		assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
@@ -1328,7 +1342,13 @@ class WifiWalQualificationAdapterTest {
 		)
 		assertEquals(
 			WifiCapturedSourceDeletionResult.AlreadyDeleted,
-			maintenance.deleteAfterCaptureConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH, DELETE_AT_MS),
+			maintenance.deleteAfterCaptureConsentReset(
+				0L,
+				0L,
+				REVOKED_POLICY_REVISION,
+				REVOKED_CONSENT_EPOCH,
+				DELETE_AT_MS,
+			),
 		)
 	}
 
@@ -1339,7 +1359,13 @@ class WifiWalQualificationAdapterTest {
 
 		assertEquals(
 			WifiCapturedSourceDeletionResult.Deleted(0, 0, 1),
-			maintenance.deleteAfterCaptureConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH, DELETE_AT_MS),
+			maintenance.deleteAfterCaptureConsentReset(
+				0L,
+				0L,
+				REVOKED_POLICY_REVISION,
+				REVOKED_CONSENT_EPOCH,
+				DELETE_AT_MS,
+			),
 		)
 		assertEquals(1L, database.sourceEventWalDao().countAll())
 		assertEquals(
@@ -1361,7 +1387,13 @@ class WifiWalQualificationAdapterTest {
 			WifiCapturedSourceDeletionResult.Blocked(
 				WifiCapturedSourceDeletionBlockedReason.CAPTURE_DEMAND_NOT_QUIESCED,
 			),
-			maintenance.deleteAfterCaptureConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH, DELETE_AT_MS),
+			maintenance.deleteAfterCaptureConsentReset(
+				0L,
+				0L,
+				REVOKED_POLICY_REVISION,
+				REVOKED_CONSENT_EPOCH,
+				DELETE_AT_MS,
+			),
 		)
 
 		database.openHelper.writableDatabase.execSQL(
@@ -1379,7 +1411,13 @@ class WifiWalQualificationAdapterTest {
 			WifiCapturedSourceDeletionResult.Blocked(
 				WifiCapturedSourceDeletionBlockedReason.CAPTURE_PROVIDER_NOT_QUIESCED,
 			),
-			maintenance.deleteAfterCaptureConsentReset(0L, 0L, REVOKED_CONSENT_EPOCH, DELETE_AT_MS),
+			maintenance.deleteAfterCaptureConsentReset(
+				0L,
+				0L,
+				REVOKED_POLICY_REVISION,
+				REVOKED_CONSENT_EPOCH,
+				DELETE_AT_MS,
+			),
 		)
 	}
 
@@ -1399,29 +1437,8 @@ class WifiWalQualificationAdapterTest {
 					"$DEMAND_ID-0",
 				),
 			)
-			val ambient = demand(40).copy(
-				consumerId = "app:wifi-ambient",
-				purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
-				logicalTrackingId = null,
-				serviceRunId = null,
-				manifestRevision = null,
-				lifecycleLeaseGeneration = null,
-				sourcePolicyRevision = REVOKED_POLICY_REVISION,
-				consentEpoch = AMBIENT_CONSENT_EPOCH,
-				status = SourceDemandEntity.STATUS_ACTIVE,
-				retireBootId = null,
-				retireElapsedRealtimeNanos = null,
-				retiredAtMs = null,
-				requestedElapsedRealtimeNanos = SESSION_END_NANOS + 1L,
-				requestedAtMs = SESSION_END_WALL_MS + 1L,
-			)
-			val control = ambient.copy(
-				demandId = "$DEMAND_ID-control",
-				consumerId = "app:wifi-control",
-				purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
-				consentEpoch = CONTROL_CONSENT_EPOCH,
-				persistenceEligible = false,
-			)
+			val ambient = nonCaptureDemand(40, SourceBrokerPurpose.AMBIENT_PRODUCT)
+			val control = nonCaptureDemand(41, SourceBrokerPurpose.CONTROL_AUTOSTART)
 			val unrelated = control.copy(
 				demandId = "$DEMAND_ID-unrelated-cell",
 				consumerId = "app:cell-control",
@@ -1455,6 +1472,7 @@ class WifiWalQualificationAdapterTest {
 				maintenance.deleteAfterCaptureConsentReset(
 					0L,
 					0L,
+					REVOKED_POLICY_REVISION,
 					REVOKED_CONSENT_EPOCH,
 					DELETE_AT_MS,
 				),
@@ -1492,6 +1510,161 @@ class WifiWalQualificationAdapterTest {
 		}
 
 	@Test
+	fun `active noncapture demand with a retirement boundary fails closed`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<WifiCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		revokeCaptureConsent(keepAmbientAndControl = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET status = 'RETIRING', retire_boot_id = ?, " +
+				"retire_elapsed_realtime_nanos = ?, retired_at_ms = ? WHERE demand_id = ?",
+			arrayOf(
+				BOOT_ID,
+				SESSION_END_NANOS + 1L,
+				SESSION_END_WALL_MS + 1L,
+				"$DEMAND_ID-0",
+			),
+		)
+		val malformedAmbient = nonCaptureDemand(42, SourceBrokerPurpose.AMBIENT_PRODUCT).copy(
+			retireBootId = BOOT_ID,
+			retireElapsedRealtimeNanos = SESSION_END_NANOS + 2L,
+			retiredAtMs = SESSION_END_WALL_MS + 2L,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(malformedAmbient))
+		val activeRegistration = registration(
+			generation = REGISTRATION_GENERATION + 1L,
+			sourceInstance = "$SOURCE_INSTANCE-malformed-noncapture",
+		).copy(
+			status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+			retiredAtMs = null,
+			retiredElapsedRealtimeNanos = null,
+			captureCallbackBarrierAuthorizationRevision = AUTHORIZATION_REVISION + 1L,
+		)
+		database.sourceBrokerDao().insertRegistration(activeRegistration)
+		database.sourceBrokerDao().insertAuthorizations(
+			SourceBrokerAuthorization.rows(
+				sourceKind = WIFI_SOURCE,
+				registrationGeneration = activeRegistration.registrationGeneration,
+				authorizationRevision = AUTHORIZATION_REVISION + 1L,
+				demands = listOf(malformedAmbient),
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = SESSION_END_NANOS + 1L,
+				effectiveWallTimeMs = SESSION_END_WALL_MS + 1L,
+			),
+		)
+
+		assertEquals(
+			WifiCapturedSourceDeletionResult.Blocked(
+				WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+			),
+			maintenance.deleteAfterCaptureConsentReset(
+				0L,
+				0L,
+				REVOKED_POLICY_REVISION,
+				REVOKED_CONSENT_EPOCH,
+				DELETE_AT_MS,
+			),
+		)
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(0L, database.wifiCapturedFactDao().deletionGenerationCount())
+	}
+
+	@Test
+	fun `source deletion preserves real ingress control and ambient WAL without capture scope or time`() =
+		runTest {
+			installValidFixture(
+				evidenceState = SourceEvidenceState(deletedSourceEventHighWaterOrdinal = 1L),
+			)
+			revokeCaptureConsent(keepAmbientAndControl = true)
+			val controlBefore = insertNoncaptureWal(2, SourceBrokerPurpose.CONTROL_AUTOSTART)
+			val ambientBefore = insertNoncaptureWal(3, SourceBrokerPurpose.AMBIENT_PRODUCT)
+
+			assertEquals(
+				WifiCapturedSourceDeletionResult.AlreadyDeleted,
+				maintenance.deleteAfterCaptureConsentReset(
+					0L,
+					1L,
+					REVOKED_POLICY_REVISION,
+					REVOKED_CONSENT_EPOCH,
+					DELETE_AT_MS,
+				),
+			)
+
+			assertExactWal(controlBefore)
+			assertExactWal(ambientBefore)
+			assertEquals(0L, database.wifiCapturedFactDao().deletionGenerationCount())
+			assertEquals(0L, database.sourceEvidenceStateDao().get()?.revision)
+		}
+
+	@Test
+	fun `old epoch and below high-water WAL are nonblocking before payload authentication`() = runTest {
+		installValidFixture(evidenceState = SourceEvidenceState(
+			collectedDataEpoch = 1L,
+			deletedSourceEventHighWaterOrdinal = 1L,
+		))
+		val oldEpoch = insertSecondWal()
+		rewriteWalEpochAndPayload(EVENT_ID, 1L, byteArrayOf(0))
+		rewriteWalEpochAndPayload(oldEpoch, 0L, byteArrayOf(0))
+		revokeCaptureConsent()
+
+		assertEquals(
+			WifiCapturedSourceDeletionResult.AlreadyDeleted,
+			maintenance.deleteAfterCaptureConsentReset(
+				1L,
+				1L,
+				REVOKED_POLICY_REVISION,
+				REVOKED_CONSENT_EPOCH,
+				DELETE_AT_MS,
+			),
+		)
+		assertEquals(2L, database.sourceEventWalDao().countAll())
+		assertEquals(0L, database.wifiCapturedFactDao().deletionGenerationCount())
+	}
+
+	@Test
+	fun `noncapture mask with capture bindings cannot masquerade as retained WAL`() = runTest {
+		installValidFixture()
+		rewriteWalPurpose(EVENT_ID, SourceBrokerPurpose.MASK_CONTROL_AUTOSTART)
+		revokeCaptureConsent()
+
+		assertEquals(
+			WifiCapturedSourceDeletionResult.Blocked(
+				WifiCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+			),
+			maintenance.deleteAfterCaptureConsentReset(
+				0L,
+				0L,
+				REVOKED_POLICY_REVISION,
+				REVOKED_CONSENT_EPOCH,
+				DELETE_AT_MS,
+			),
+		)
+		assertEquals(1L, database.sourceEventWalDao().countAll())
+		assertEquals(0L, database.wifiCapturedFactDao().deletionGenerationCount())
+	}
+
+	@Test
+	fun `newer authenticated capture WAL advances deletion staleness`() = runTest {
+		installValidFixture(candidateWriter = true)
+		insertSecondWal(DELETE_AT_MS + 100L)
+		revokeCaptureConsent()
+
+		assertEquals(
+			WifiCapturedSourceDeletionResult.Blocked(
+				WifiCapturedSourceDeletionBlockedReason.STALE_REQUEST,
+			),
+			maintenance.deleteAfterCaptureConsentReset(
+				0L,
+				0L,
+				REVOKED_POLICY_REVISION,
+				REVOKED_CONSENT_EPOCH,
+				DELETE_AT_MS,
+			),
+		)
+		assertEquals(2L, database.sourceEventWalDao().countAll())
+		assertEquals(0L, database.wifiCapturedFactDao().deletionGenerationCount())
+	}
+
+	@Test
 	fun `bounded WAL audit fails closed before source deletion`() = runTest {
 		installValidFixture(candidateWriter = true)
 		insertSecondWal()
@@ -1504,6 +1677,7 @@ class WifiWalQualificationAdapterTest {
 			maintenance.deleteAfterCaptureConsentReset(
 				0L,
 				0L,
+				REVOKED_POLICY_REVISION,
 				REVOKED_CONSENT_EPOCH,
 				DELETE_AT_MS,
 				WifiCapturedMaintenanceLimits(maximumWalEvents = 1),
@@ -1533,6 +1707,7 @@ class WifiWalQualificationAdapterTest {
 			maintenance.deleteAfterCaptureConsentReset(
 				0L,
 				0L,
+				REVOKED_POLICY_REVISION,
 				REVOKED_CONSENT_EPOCH,
 				DELETE_AT_MS,
 				WifiCapturedMaintenanceLimits(),
@@ -1834,6 +2009,129 @@ class WifiWalQualificationAdapterTest {
 		return SourceEventId(row.eventId)
 	}
 
+	private suspend fun insertNoncaptureWal(
+		index: Int,
+		purpose: String,
+	): SourceEventWalEntity {
+		require(index > 1)
+		val demand = nonCaptureDemand(index, purpose).copy(
+			status = SourceDemandEntity.STATUS_RETIRED,
+			retireBootId = BOOT_ID,
+			retireElapsedRealtimeNanos = NONCAPTURE_OBSERVED_END_NANOS + index,
+			retiredAtMs = NONCAPTURE_WALL_TIME_MS + index,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(demand))
+		val generation = NONCAPTURE_REGISTRATION_GENERATION + index
+		val authorizationRevision = NONCAPTURE_AUTHORIZATION_REVISION + index
+		val sourceInstance = "$SOURCE_INSTANCE-noncapture-$index"
+		val registration = registration(
+			generation = generation,
+			sourceInstance = sourceInstance,
+		).copy(
+			reservedAtMs = SESSION_END_WALL_MS + 1L,
+			reservedElapsedRealtimeNanos = SESSION_END_NANOS + 1L,
+			acceptedAtMs = SESSION_END_WALL_MS + 2L,
+			acceptedElapsedRealtimeNanos = NONCAPTURE_REGISTRATION_START_NANOS,
+			retiredAtMs = NONCAPTURE_WALL_TIME_MS + index,
+			retiredElapsedRealtimeNanos = NONCAPTURE_OBSERVED_END_NANOS + index,
+			captureCallbackBarrierAuthorizationRevision = authorizationRevision,
+		)
+		database.sourceBrokerDao().insertRegistration(registration)
+		val authorizationRows = SourceBrokerAuthorization.rows(
+			sourceKind = WIFI_SOURCE,
+			registrationGeneration = generation,
+			authorizationRevision = authorizationRevision,
+			demands = listOf(demand),
+			effectiveBootId = BOOT_ID,
+			effectiveElapsedRealtimeNanos = NONCAPTURE_AUTHORIZATION_START_NANOS,
+			effectiveWallTimeMs = SESSION_END_WALL_MS + 3L,
+		)
+		database.sourceBrokerDao().insertAuthorizations(authorizationRows)
+		val accessPoints = listOf(
+			WifiAccessPointEvidence("", 2_412, -80, NONCAPTURE_OBSERVED_START_NANOS),
+			WifiAccessPointEvidence("", 5_180, -60, NONCAPTURE_OBSERVED_END_NANOS),
+		)
+		val payload = WifiResultSnapshotPayload(
+			accessPoints = accessPoints,
+			platformTimestampMs = NONCAPTURE_OBSERVED_END_NANOS / NANOS_PER_MILLISECOND,
+			resultAgeMs = null,
+		)
+		val encoded = payloadCodec.encode(payload, PAYLOAD_VERSION)
+		val unsigned = SourceEventWalEntity(
+			eventId = "wifi-noncapture-event-$index",
+			providerDedupKey = null,
+			deliveryIdentity = wifiProviderDeliveryIdentity(BOOT_ID, accessPoints).value,
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 1,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			sourceKind = WIFI_SOURCE,
+			sourceInstanceId = sourceInstance,
+			registrationGeneration = generation,
+			physicalConfigurationFingerprint = wifiPlan().physicalConfigurationFingerprint(),
+			authorizationRevision = authorizationRevision,
+			authorizationPurposeEligibilityMask = authorizationRows.first().purposeEligibilityMask,
+			authorizationFingerprint = authorizationRows.first().authorizationFingerprint,
+			sourceSequence = 1L,
+			configRevision = null,
+			planAttribution = PlanAttribution.RECEIVE_TIME_ONLY.ordinal,
+			clockDomainId = BOOT_ID,
+			observedElapsedNanos = NONCAPTURE_OBSERVED_END_NANOS,
+			observedIntervalStartNanos = NONCAPTURE_OBSERVED_START_NANOS,
+			receivedElapsedNanos = NONCAPTURE_RECEIVED_NANOS,
+			wallTimeMs = NONCAPTURE_WALL_TIME_MS,
+			wallTimeUncertaintyMs = WALL_UNCERTAINTY_MS,
+			capturedCollectedDataEpoch = 0L,
+			activityAutomationEpoch = null,
+			sourcePolicyRevision = null,
+			captureConsentEpoch = null,
+			sessionManifestRevision = null,
+			lifecycleLeaseGeneration = null,
+			acquiredAtMs = NONCAPTURE_WALL_TIME_MS,
+			qualityFlags = 0L,
+			qualityConfidence = null,
+			payloadVersion = PAYLOAD_VERSION,
+			payload = encoded.bytes,
+			payloadChecksum = encoded.checksum,
+			createdAtMs = DELETE_AT_MS + index,
+		)
+		val row = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
+		assertEquals(index.toLong(), database.sourceEventWalDao().insertIgnoringDuplicate(row))
+		return requireNotNull(database.sourceEventWalDao().getByEventId(row.eventId))
+	}
+
+	private suspend fun assertExactWal(expected: SourceEventWalEntity) {
+		val actual = requireNotNull(database.sourceEventWalDao().getByEventId(expected.eventId))
+		assertEquals(expected.copy(payload = byteArrayOf()), actual.copy(payload = byteArrayOf()))
+		assertEquals(true, expected.payload.contentEquals(actual.payload))
+	}
+
+	private suspend fun rewriteWalEpochAndPayload(
+		eventId: SourceEventId,
+		collectedDataEpoch: Long,
+		payload: ByteArray,
+	) {
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(eventId.value))
+		val checksummed = original.copy(
+			capturedCollectedDataEpoch = collectedDataEpoch,
+			payload = payload,
+			payloadChecksum = SourceEventWalEntity.LEGACY_PENDING_CHECKSUM,
+			integrityIdentity = SourceEventWalEntity.LEGACY_PENDING_CHECKSUM,
+		).let { row -> row.copy(payloadChecksum = row.calculatedPayloadChecksum()) }
+		val rewritten = checksummed.copy(integrityIdentity = checksummed.calculatedIntegrityIdentity())
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET captured_collected_data_epoch = ?, payload = ?, " +
+				"payload_checksum = ?, integrity_identity = ? WHERE event_id = ?",
+			arrayOf(
+				collectedDataEpoch,
+				payload,
+				rewritten.payloadChecksum,
+				rewritten.integrityIdentity,
+				eventId.value,
+			),
+		)
+	}
+
 	private suspend fun revokeCaptureConsent(keepAmbientAndControl: Boolean = false) {
 		val policyDao = database.sourcePolicyDao()
 		policyDao.insertPolicies(
@@ -1841,8 +2139,8 @@ class WifiWalQualificationAdapterTest {
 				SourcePolicyEntity(
 					policyRevision = REVOKED_POLICY_REVISION,
 					sourceKind = WIFI_SOURCE,
-					enabled = keepAmbientAndControl,
-					qosCode = QOS_CODE,
+					enabled = false,
+					qosCode = QOS_OFF,
 					locationMinTimeSeconds = null,
 					locationMinDistanceMeters = null,
 					locationRequiredAccuracyMeters = null,
@@ -2284,6 +2582,40 @@ class WifiWalQualificationAdapterTest {
 		retiredAtMs = SESSION_END_WALL_MS,
 	)
 
+	private fun nonCaptureDemand(index: Int, purpose: String): SourceDemandEntity {
+		val directPurpose = when (purpose) {
+			SourceBrokerPurpose.CONTROL_AUTOSTART ->
+				DirectSourceDemandPurpose.CONTROL_AUTOSTART
+			SourceBrokerPurpose.AMBIENT_PRODUCT -> DirectSourceDemandPurpose.AMBIENT_PRODUCT
+			else -> error("Unsupported noncapture test purpose")
+		}
+		val contract = SourceDemandContractFactory.forQos(SourceKind.WIFI, QOS_OFF, directPurpose)
+		val ambient = purpose == SourceBrokerPurpose.AMBIENT_PRODUCT
+		return demand(index).copy(
+			consumerId = "app:wifi-${purpose.lowercase()}",
+			purpose = purpose,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			manifestRevision = null,
+			lifecycleLeaseGeneration = null,
+			sourcePolicyRevision = REVOKED_POLICY_REVISION,
+			consentEpoch = if (ambient) AMBIENT_CONSENT_EPOCH else CONTROL_CONSENT_EPOCH,
+			persistenceEligible = ambient,
+			qosCode = QOS_OFF,
+			minimumAcquisitionSpec = contract.encodeFloor(),
+			adaptiveReductionAllowed = contract.adaptiveReductionAllowed,
+			maximumAgeMs = contract.maximumProviderItemAgeMs,
+			desiredLatencyMs = contract.targetPlanningLatencyMs,
+			requestedDeliveryLatencyMs = contract.requestedDeliveryLatencyMs,
+			requestedElapsedRealtimeNanos = SESSION_END_NANOS + 1L,
+			requestedAtMs = SESSION_END_WALL_MS + 1L,
+			status = SourceDemandEntity.STATUS_ACTIVE,
+			retireBootId = null,
+			retireElapsedRealtimeNanos = null,
+			retiredAtMs = null,
+		)
+	}
+
 	private fun startAction(
 		desiredPlanRevision: Long = PLAN_REVISION,
 		actionId: String = "wifi-start-action",
@@ -2371,12 +2703,15 @@ class WifiWalQualificationAdapterTest {
 		const val REGISTRATION_GENERATION = 1L
 		const val REPLACEMENT_REGISTRATION_GENERATION = 2L
 		const val AUTHORIZATION_REVISION = 1L
+		const val NONCAPTURE_REGISTRATION_GENERATION = 100L
+		const val NONCAPTURE_AUTHORIZATION_REVISION = 100L
 		const val ROLLOUT_REVISION = 1L
 		const val SEGMENT_ID = 1L
 		const val REPLACEMENT_SEGMENT_ID = 2L
 		const val SOURCE_SEQUENCE = 1L
 		const val PAYLOAD_VERSION = 2
 		const val QOS_CODE = 2
+		const val QOS_OFF = 0
 		const val START_ORIGIN = "MANUAL_FOREGROUND_START"
 		const val RUN_START_NANOS = 1_000_000_000L
 		const val POLICY_START_NANOS = 1_000_000_000L
@@ -2388,10 +2723,16 @@ class WifiWalQualificationAdapterTest {
 		const val RECEIVED_NANOS = 1_700_000_000L
 		const val REGISTRATION_END_NANOS = 3_000_000_000L
 		const val SESSION_END_NANOS = 4_000_000_000L
+		const val NONCAPTURE_REGISTRATION_START_NANOS = 4_100_000_000L
+		const val NONCAPTURE_AUTHORIZATION_START_NANOS = 4_150_000_000L
+		const val NONCAPTURE_OBSERVED_START_NANOS = 4_200_000_000L
+		const val NONCAPTURE_OBSERVED_END_NANOS = 4_300_000_000L
+		const val NONCAPTURE_RECEIVED_NANOS = 4_400_000_000L
 		const val RUN_START_WALL_MS = 1_699_999_999_000L
 		const val OBSERVED_WALL_MS = 1_700_000_000_000L
 		const val SESSION_END_WALL_MS = 1_700_000_003_000L
 		const val DELETE_AT_MS = 1_700_000_020_000L
+		const val NONCAPTURE_WALL_TIME_MS = DELETE_AT_MS + 1_000L
 		const val WALL_UNCERTAINTY_MS = 1L
 		const val NANOS_PER_MILLISECOND = 1_000_000L
 	}
