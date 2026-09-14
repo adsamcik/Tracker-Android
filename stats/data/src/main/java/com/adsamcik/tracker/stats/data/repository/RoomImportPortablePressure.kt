@@ -263,6 +263,7 @@ internal class RoomImportPortablePressure internal constructor(
 		val revisionNumbers = headers.map { it.importRevision }.toSet()
 		require(runs.all { it.entryImportRevision in revisionNumbers })
 		require(windows.all { it.entryImportRevision in revisionNumbers })
+		authenticateLineageIdentityOwnership(identity, runs, windows)
 		val runsByRevision = runs.groupBy(ImportedPressureRunEntity::entryImportRevision)
 		val windowsByRevision = windows.groupBy(ImportedPressureWindowEntity::entryImportRevision)
 		AuthenticatedPressureLineage(
@@ -278,6 +279,43 @@ internal class RoomImportPortablePressure internal constructor(
 			},
 			receiptCount = receipts.size,
 		)
+	}
+
+	private fun authenticateLineageIdentityOwnership(
+		entryIdentity: String,
+		runs: List<ImportedPressureRunEntity>,
+		windows: List<ImportedPressureWindowEntity>,
+	) {
+		val owners = mutableMapOf<String, PressureLineageIdentityOwner>()
+		fun bind(identity: String, owner: PressureLineageIdentityOwner) {
+			val previous = owners[identity]
+			if (previous == null) owners[identity] = owner else require(previous == owner)
+		}
+		bind(
+			entryIdentity,
+			PressureLineageIdentityOwner(PortablePressureIdentityKind.LOGICAL_ENTRY, entryIdentity),
+		)
+		runs.forEach { run ->
+			require(run.entryIdentity == entryIdentity)
+			bind(
+				run.identity,
+				PressureLineageIdentityOwner(
+					kind = PortablePressureIdentityKind.PHYSICAL_RUN,
+					entryIdentity = entryIdentity,
+				),
+			)
+		}
+		windows.forEach { window ->
+			require(window.entryIdentity == entryIdentity)
+			bind(
+				window.identity,
+				PressureLineageIdentityOwner(
+					kind = PortablePressureIdentityKind.WINDOW,
+					entryIdentity = entryIdentity,
+					runIdentity = window.runIdentity,
+				),
+			)
+		}
 	}
 
 	@Suppress("LongMethod")
@@ -418,6 +456,12 @@ private data class AuthenticatedPressureLineage(
 private data class AuthenticatedPressureRevision(
 	val header: ImportedPressureEntryRevisionEntity,
 	val entry: PortablePressureEntryV1,
+)
+
+private data class PressureLineageIdentityOwner(
+	val kind: PortablePressureIdentityKind,
+	val entryIdentity: String,
+	val runIdentity: String? = null,
 )
 
 private fun ImportPortablePressureRequest.toReceiptEntity(

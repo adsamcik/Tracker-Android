@@ -41,6 +41,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
+@Suppress("LargeClass")
 class RoomImportPortablePressureTest {
 	private lateinit var database: AppDatabase
 
@@ -183,6 +184,36 @@ class RoomImportPortablePressureTest {
 				PortablePressureImportBlockedReason.OPAQUE_IDENTITY_CONFLICT,
 			)
 		}
+	}
+
+	@Test
+	fun `stored cross-revision run versus window kind collision is unverifiable`() = runTest {
+		val importer = importer(testScheduler)
+		val (first, second) = seedDistinctRunRevisions(importer)
+		rewriteSecondRevisionWindow(
+			second,
+			first.entry.runs.single().identity,
+		)
+
+		importer.importEntry(thirdDistinctCorrection()) shouldBe
+			ImportPortablePressureResult.Unverifiable(
+				PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+	}
+
+	@Test
+	fun `stored cross-revision window owner retargeting is unverifiable`() = runTest {
+		val importer = importer(testScheduler)
+		val (first, second) = seedDistinctRunRevisions(importer)
+		rewriteSecondRevisionWindow(
+			second,
+			first.entry.runs.single().windows.single().identity,
+		)
+
+		importer.importEntry(thirdDistinctCorrection()) shouldBe
+			ImportPortablePressureResult.Unverifiable(
+				PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
 	}
 
 	@Test
@@ -450,6 +481,61 @@ class RoomImportPortablePressureTest {
 		database.importedPressureDao().latestEntryRevision(request.entry.identity.value) shouldBe null
 	}
 
+	private suspend fun seedDistinctRunRevisions(
+		importer: RoomImportPortablePressure,
+	): Pair<ImportPortablePressureRequest, ImportPortablePressureRequest> {
+		val first = request()
+		val second = request(
+			entry("entry", "run-2", "window-2", 26L),
+			receipt("job-2", 40L),
+		)
+		importer.importEntry(first) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		importer.importEntry(second) shouldBe ImportPortablePressureResult.Applied(2L, 1, 1)
+		return first to second
+	}
+
+	private fun thirdDistinctCorrection() = request(
+		entry("entry", "run-3", "window-3", 27L),
+		receipt("job-3", 50L),
+	)
+
+	private fun rewriteSecondRevisionWindow(
+		second: ImportPortablePressureRequest,
+		replacementIdentity: PortablePressureOpaqueIdentity,
+	) {
+		val originalRun = second.entry.runs.single()
+		val originalWindow = originalRun.windows.single()
+		val replacementWindow = originalWindow.withIdentity(replacementIdentity)
+		val replacementRun = originalRun.copy(windows = listOf(replacementWindow))
+		val replacementEntry = PortablePressureEntryV1.create(
+			identity = second.entry.identity,
+			startTimeMs = second.entry.startTimeMs,
+			endTimeMs = second.entry.endTimeMs,
+			runs = listOf(replacementRun),
+		)
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL(
+			"UPDATE imported_pressure_window SET identity = ?, content_checksum = ? " +
+				"WHERE entry_identity = ? AND entry_import_revision = 2 AND identity = ?",
+			arrayOf(
+				replacementWindow.identity.value,
+				replacementWindow.contentChecksum.value,
+				second.entry.identity.value,
+				originalWindow.identity.value,
+			),
+		)
+		sqlite.execSQL(
+			"UPDATE imported_pressure_entry_revision SET content_checksum = ? " +
+				"WHERE identity = ? AND import_revision = 2",
+			arrayOf(replacementEntry.contentChecksum.value, second.entry.identity.value),
+		)
+		sqlite.execSQL(
+			"UPDATE imported_pressure_receipt SET entry_content_checksum = ? " +
+				"WHERE entry_identity = ? AND entry_import_revision = 2",
+			arrayOf(replacementEntry.contentChecksum.value, second.entry.identity.value),
+		)
+	}
+
 	private fun importer(
 		scheduler: TestCoroutineScheduler,
 		database: AppDatabase = this.database,
@@ -551,6 +637,37 @@ class RoomImportPortablePressureTest {
 
 	private fun identity(kind: PortablePressureIdentityKind, local: String) =
 		PortablePressureOpaqueIdentity.derive(kind, local)
+
+	@Suppress("LongMethod")
+	private fun PortablePressureWindowV1.withIdentity(
+		identity: PortablePressureOpaqueIdentity,
+	) = PortablePressureWindowV1.create(
+		identity = identity,
+		intervalStartTimeMs = intervalStartTimeMs,
+		intervalEndTimeMs = intervalEndTimeMs,
+		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+		observedDurationNanos = observedDurationNanos,
+		sampleCount = sampleCount,
+		expectedSampleCount = expectedSampleCount,
+		meanHectopascals = meanHectopascals,
+		sumSquaredDeviations = sumSquaredDeviations,
+		minimumHectopascals = minimumHectopascals,
+		maximumHectopascals = maximumHectopascals,
+		firstHectopascals = firstHectopascals,
+		latestHectopascals = latestHectopascals,
+		slopeHectopascalsPerSecond = slopeHectopascalsPerSecond,
+		rSquared = rSquared,
+		sensorAccuracy = sensorAccuracy,
+		effectiveSamplePeriodMicros = effectiveSamplePeriodMicros,
+		effectiveMaximumReportLatencyMicros = effectiveMaximumReportLatencyMicros,
+		targetWindowDurationNanos = targetWindowDurationNanos,
+		maximumInterSampleGapNanos = maximumInterSampleGapNanos,
+		closure = closure,
+		qualification = qualification,
+		sourceQualityFlags = sourceQualityFlags,
+		sourceQualityConfidence = sourceQualityConfidence,
+		zoneId = zoneId,
+	)
 
 	private fun newDatabase(): AppDatabase = AppDatabase.testDatabase(
 		ApplicationProvider.getApplicationContext<Application>(),
