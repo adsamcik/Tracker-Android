@@ -170,6 +170,97 @@ class RoomDeleteImportedPressureEntryTest {
 	}
 
 	@Test
+	fun `cross-owner run identity blocks before any selected or unrelated mutation`() = runTest {
+		val selected = request()
+		val unrelated = request(
+			entry("other-entry", "other-run", "other-window"),
+			receipt("job-other", "entry-other", 40L),
+		)
+		val importer = importer(testScheduler)
+		importer.importEntry(selected) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		importer.importEntry(unrelated) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		val dao = database.importedPressureDao()
+		val selectedRun = dao.allRunsForAdmission(selected.entry.identity.value).single()
+		dao.insertRun(
+			selectedRun.copy(
+				entryIdentity = unrelated.entry.identity.value,
+				entryImportRevision = 1L,
+			),
+		)
+
+		deleter(testScheduler).delete(deleteRequest(selected.entry, revision = 1L)) shouldBe
+			DeleteImportedPressureEntryResult.Unverifiable(
+				ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+
+		dao.latestEntryRevision(selected.entry.identity.value)?.importRevision shouldBe 1L
+		dao.latestEntryRevision(unrelated.entry.identity.value)?.importRevision shouldBe 1L
+		dao.existingRunIdentityOwners(listOf(selectedRun.identity), 3)
+			.map { owner -> owner.entryIdentity }
+			.toSet() shouldBe setOf(selected.entry.identity.value, unrelated.entry.identity.value)
+		dao.entryDeletion(selected.entry.identity.value) shouldBe null
+		dao.deletionGeneration(selectedRun.identity) shouldBe null
+	}
+
+	@Test
+	fun `cross-kind global identity blocks before any privacy fence`() = runTest {
+		val selected = request()
+		importer(testScheduler).importEntry(selected) shouldBe
+			ImportPortablePressureResult.Applied(1L, 1, 1)
+		val dao = database.importedPressureDao()
+		val selectedHeader = requireNotNull(dao.latestEntryRevision(selected.entry.identity.value))
+		val selectedRun = dao.allRunsForAdmission(selected.entry.identity.value).single()
+		val crossKindHeader = selectedHeader.copy(
+			identity = selectedRun.identity,
+			importJobId = "cross-kind-job",
+			importEntryKey = "cross-kind-entry",
+			receivedAtMs = selectedHeader.receivedAtMs + 1L,
+		)
+		dao.insertEntryRevision(crossKindHeader)
+
+		deleter(testScheduler).delete(deleteRequest(selected.entry, revision = 1L)) shouldBe
+			DeleteImportedPressureEntryResult.Unverifiable(
+				ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+
+		dao.latestEntryRevision(selected.entry.identity.value)?.importRevision shouldBe 1L
+		dao.entryRevision(selectedRun.identity, 1L) shouldBe crossKindHeader
+		dao.entryDeletion(selected.entry.identity.value) shouldBe null
+		dao.deletionGeneration(selectedRun.identity) shouldBe null
+	}
+
+	@Test
+	fun `global owner overflow is typed and leaves the selected lineage unfenced`() = runTest {
+		val selected = request()
+		importer(testScheduler).importEntry(selected) shouldBe
+			ImportPortablePressureResult.Applied(1L, 1, 1)
+		val dao = database.importedPressureDao()
+		val selectedHeader = requireNotNull(dao.latestEntryRevision(selected.entry.identity.value))
+		val selectedRun = dao.allRunsForAdmission(selected.entry.identity.value).single()
+		repeat(3) { index ->
+			val ownerIdentity = identity(PortablePressureIdentityKind.LOGICAL_ENTRY, "owner-$index").value
+			dao.insertEntryRevision(
+				selectedHeader.copy(
+					identity = ownerIdentity,
+					importJobId = "owner-job-$index",
+					importEntryKey = "owner-entry-$index",
+					receivedAtMs = selectedHeader.receivedAtMs + index + 1L,
+				),
+			)
+			dao.insertRun(selectedRun.copy(entryIdentity = ownerIdentity))
+		}
+
+		deleter(testScheduler).delete(deleteRequest(selected.entry, revision = 1L)) shouldBe
+			DeleteImportedPressureEntryResult.Unverifiable(
+				ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW,
+			)
+
+		dao.latestEntryRevision(selected.entry.identity.value)?.importRevision shouldBe 1L
+		dao.entryDeletion(selected.entry.identity.value) shouldBe null
+		dao.deletionGeneration(selectedRun.identity) shouldBe null
+	}
+
+	@Test
 	fun `over-limit lineage is unverifiable without installing fences`() = runTest {
 		val imported = request()
 		importer(testScheduler).importEntry(imported)
