@@ -936,29 +936,53 @@ internal class PortableCapturedActivityRoomReader(
 		if (selectedRows.any { row -> row.deliveryIdentity.isNullOrBlank() }
 		) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		val rows = mutableListOf<ActivityCapturedPortableWalTargetRow>()
-		selectedRows.groupBy { row ->
-			row.capturedCollectedDataEpoch to row.clockDomainId
-		}.forEach { (clockKey, clockRows) ->
-			clockRows.map { row -> requireNotNull(row.deliveryIdentity) }.distinct()
-				.chunked(SQLITE_BIND_BATCH).forEach { deliveryBatch ->
-					currentCoroutineContext().ensureActive()
-					rows += database.activityCapturedFactDao().portableCapturedWalDeliveryMembers(
-						sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
-						capturedCollectedDataEpoch = clockKey.first,
-						clockDomainId = clockKey.second,
-						deliveryIdentities = deliveryBatch,
-						limit = limits.maximumCapturedWalRows - rows.size + 1,
-					)
-					if (rows.size > limits.maximumCapturedWalRows) overflow()
-				}
+		selectedRows.map { row -> requireNotNull(row.deliveryIdentity) }.distinct()
+			.chunked(SQLITE_BIND_BATCH).forEach { deliveryBatch ->
+				currentCoroutineContext().ensureActive()
+				rows += database.activityCapturedFactDao().portableCapturedWalDeliveryMembers(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+					deliveryIdentities = deliveryBatch,
+					limit = limits.maximumCapturedWalRows - rows.size + 1,
+				)
+				if (rows.size > limits.maximumCapturedWalRows) overflow()
 		}
-		if (rows.map(ActivityCapturedPortableWalTargetRow::eventId).toSet() !=
-			selectedRows.map(ActivityCapturedPortableWalTargetRow::eventId).toSet()
+		val deliveryEventIds = rows.map(ActivityCapturedPortableWalTargetRow::eventId)
+		val selectedEventIds = selectedRows.map(ActivityCapturedPortableWalTargetRow::eventId)
+		if (deliveryEventIds.distinct().size != deliveryEventIds.size ||
+			selectedEventIds.distinct().size != selectedEventIds.size ||
+			!deliveryEventIds.toSet().containsAll(selectedEventIds)
 		) {
 			abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
 		val runsById = runs.associateBy(SourceServiceRunEntity::serviceRunId)
 		rows.forEach { row ->
+			if (row.sourceKind != SourceDestinationOwnerEntity.SOURCE_ACTIVITY ||
+				row.admissionOrdinal <= 0L ||
+				row.eventId.isBlank() || row.deliveryIdentity.isNullOrBlank() ||
+				!row.hasValidDeliveryShape() ||
+				row.sourceSequence < 0L || row.sourceInstanceId.isBlank() ||
+				row.registrationGeneration <= 0L ||
+				row.physicalConfigurationFingerprint.isNullOrBlank() ||
+				row.authorizationRevision?.let { revision -> revision > 0L } != true ||
+				row.authorizationFingerprint.isNullOrBlank() ||
+				row.authorizationPurposeEligibilityMask and SourceBrokerPurpose.ALL_MASK !=
+					row.authorizationPurposeEligibilityMask ||
+				row.providerDedupKey != null || row.configRevision?.let { revision -> revision > 0L } != true ||
+				row.clockDomainId.isBlank() || row.observedElapsedNanos < 0L ||
+				row.observedIntervalStartNanos != row.observedElapsedNanos ||
+				row.receivedElapsedNanos < row.observedElapsedNanos ||
+				row.wallTimeMs == null || row.wallTimeMs < 0L ||
+				row.wallTimeUncertaintyMs == null || row.wallTimeUncertaintyMs < 0L ||
+				row.capturedCollectedDataEpoch != collectedDataEpoch ||
+				row.acquiredAtMs < 0L ||
+				row.qualityConfidence?.let { confidence -> !confidence.isFinite() } == true ||
+				row.payloadVersion != ACTIVITY_CAPTURED_WAL_PAYLOAD_VERSION ||
+				row.payloadBytes !in 1L..MAX_ACTIVITY_CAPTURED_WAL_PAYLOAD_BYTES ||
+				!SHA_256_HEX.matches(row.payloadChecksum) || !SHA_256_HEX.matches(row.integrityIdentity) ||
+				row.integrityIdentity != row.calculatedIntegrityIdentity()
+			) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+		selectedRows.forEach { row ->
 			val runId = row.serviceRunId
 			val run = runId?.let(runsById::get)
 			val manifestRevision = row.sessionManifestRevision
@@ -969,41 +993,21 @@ internal class PortableCapturedActivityRoomReader(
 				manifest != null && candidate.isCapturedActivityMember(manifest)
 			}
 			if (run == null || manifest == null || source == null ||
-				row.sourceKind != SourceDestinationOwnerEntity.SOURCE_ACTIVITY ||
-				row.logicalTrackingId != run.logicalTrackingId || row.admissionOrdinal <= 0L ||
-				row.eventId.isBlank() || row.deliveryIdentity.isNullOrBlank() ||
-				!row.hasValidDeliveryShape() ||
-				row.sourceSequence <= 0L || row.sourceInstanceId.isBlank() ||
-				row.registrationGeneration <= 0L ||
-				row.physicalConfigurationFingerprint.isNullOrBlank() ||
-				row.authorizationRevision?.let { revision -> revision > 0L } != true ||
-				row.authorizationFingerprint.isNullOrBlank() ||
-				row.authorizationPurposeEligibilityMask and SourceBrokerPurpose.ALL_MASK !=
-				row.authorizationPurposeEligibilityMask ||
+				row.logicalTrackingId != run.logicalTrackingId ||
 				row.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
 				row.configRevision != manifest.acquisitionPlanRevision ||
 				row.planAttribution != CAPTURED_REGISTRATION_PLAN_ATTRIBUTION ||
 				row.clockDomainId != run.bootId || row.clockDomainId != manifest.effectiveBootId ||
 				row.observedElapsedNanos < manifest.effectiveElapsedRealtimeNanos ||
-				row.observedIntervalStartNanos != row.observedElapsedNanos ||
-				row.receivedElapsedNanos < row.observedElapsedNanos ||
-				row.wallTimeMs == null || row.wallTimeMs < 0L ||
-				row.wallTimeUncertaintyMs == null || row.wallTimeUncertaintyMs < 0L ||
-				row.capturedCollectedDataEpoch != collectedDataEpoch ||
 				row.sourcePolicyRevision != manifest.sourcePolicyRevision ||
 				row.captureConsentEpoch != source.consentEpoch ||
-				row.lifecycleLeaseGeneration != run.leaseGeneration || row.acquiredAtMs < 0L ||
-				row.qualityConfidence?.let { confidence -> !confidence.isFinite() } == true ||
-				row.payloadVersion != ACTIVITY_CAPTURED_WAL_PAYLOAD_VERSION ||
-				row.payloadBytes !in 1L..MAX_ACTIVITY_CAPTURED_WAL_PAYLOAD_BYTES ||
-				!SHA_256_HEX.matches(row.payloadChecksum) || !SHA_256_HEX.matches(row.integrityIdentity) ||
-				row.integrityIdentity != row.calculatedIntegrityIdentity()
+				row.lifecycleLeaseGeneration != run.leaseGeneration
 			) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
 		validatePortableWalDeliveryGroups(rows)
 		return PortableActivityWalTargetAudit(
 			rows = rows,
-			targetByRun = rows.groupBy { row -> requireNotNull(row.serviceRunId) }
+			targetByRun = selectedRows.groupBy { row -> requireNotNull(row.serviceRunId) }
 				.mapValues { (_, values) -> values.maxOf { row -> row.admissionOrdinal } },
 		)
 	}
@@ -1030,11 +1034,7 @@ internal class PortableCapturedActivityRoomReader(
 		}
 		if (retainedWalRows.any { wal ->
 				val plan = plansByKey[wal.sourceInstanceId to wal.registrationGeneration]
-				plan == null || positiveRows.none { completeness ->
-					completeness.serviceRunId == wal.serviceRunId &&
-						completeness.sourceInstanceId == wal.sourceInstanceId &&
-						completeness.registrationGeneration == wal.registrationGeneration
-				} || wal.configRevision != plan.configurationRevision ||
+				plan == null || wal.configRevision != plan.configurationRevision ||
 					wal.physicalConfigurationFingerprint != plan.physicalConfigurationFingerprint
 			}
 		) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
@@ -1303,6 +1303,29 @@ internal class PortableCapturedActivityRoomReader(
 				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 			val snapshot = effective.rows.toAuthorizationSnapshotOrNull()
 				?: abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			val capturedAuthorizations = effective.rows.filter { authorization ->
+				!authorization.isDenyAll && authorization.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+			}
+			val captureMember = capturedAuthorizations.singleOrNull()?.takeIf { authorization ->
+				authorization.persistenceEligible &&
+					authorization.logicalTrackingId == wal.logicalTrackingId &&
+					authorization.serviceRunId == wal.serviceRunId &&
+					authorization.manifestRevision == wal.sessionManifestRevision &&
+					authorization.lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration &&
+					authorization.sourcePolicyRevision == wal.sourcePolicyRevision &&
+					authorization.consentEpoch == wal.captureConsentEpoch
+			}
+			val hasCapturedShape = wal.logicalTrackingId != null || wal.serviceRunId != null ||
+				wal.sourcePolicyRevision != null || wal.captureConsentEpoch != null ||
+				wal.sessionManifestRevision != null || wal.lifecycleLeaseGeneration != null
+			val exactAttribution = if (hasCapturedShape) {
+				captureMember != null && wal.logicalTrackingId?.isNotBlank() == true &&
+					wal.serviceRunId?.isNotBlank() == true && wal.planAttribution ==
+					CAPTURED_REGISTRATION_PLAN_ATTRIBUTION
+			} else {
+				captureMember == null && !snapshot.isDenied &&
+					wal.planAttribution == RECEIVE_TIME_ONLY_PLAN_ATTRIBUTION
+			}
 			if (effective.key.authorizationRevision != wal.authorizationRevision ||
 				wal.observedElapsedNanos < requireNotNull(provider.acceptedElapsedRealtimeNanos) ||
 				provider.retiredElapsedRealtimeNanos?.let { retired ->
@@ -1310,16 +1333,7 @@ internal class PortableCapturedActivityRoomReader(
 				} == true ||
 				snapshot.authorizationFingerprint != wal.authorizationFingerprint ||
 				snapshot.purposeEligibilityMask != wal.authorizationPurposeEligibilityMask ||
-				effective.rows.none { authorization ->
-					!authorization.isDenyAll && authorization.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
-						authorization.persistenceEligible &&
-						authorization.logicalTrackingId == wal.logicalTrackingId &&
-						authorization.serviceRunId == wal.serviceRunId &&
-						authorization.manifestRevision == wal.sessionManifestRevision &&
-						authorization.lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration &&
-						authorization.sourcePolicyRevision == wal.sourcePolicyRevision &&
-						authorization.consentEpoch == wal.captureConsentEpoch
-				}
+				!exactAttribution
 			) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
 	}
@@ -1355,9 +1369,7 @@ internal class PortableCapturedActivityRoomReader(
 				wal.registrationGeneration == row.registrationGeneration
 		}
 		if (runWal.any { wal ->
-				wal.observedElapsedNanos >= closing.effectiveElapsedRealtimeNanos ||
-					wal.receivedElapsedNanos > closing.effectiveElapsedRealtimeNanos ||
-					wal.createdAtMs > closing.effectiveWallTimeMs
+				wal.observedElapsedNanos >= closing.effectiveElapsedRealtimeNanos
 			}
 		) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		if (provider.status in setOf(
@@ -1372,34 +1384,21 @@ internal class PortableCapturedActivityRoomReader(
 	private fun validatePortableWalDeliveryGroups(
 		rows: List<ActivityCapturedPortableWalTargetRow>,
 	) {
-		rows.groupBy { row ->
-			PortableActivityDeliveryKey(
-				collectedDataEpoch = row.capturedCollectedDataEpoch,
-				clockDomainId = row.clockDomainId,
-				deliveryIdentity = requireNotNull(row.deliveryIdentity),
-			)
-		}.values.forEach { members ->
+		rows.groupBy { row -> requireNotNull(row.deliveryIdentity) }.values.forEach { members ->
 			val ordered = members.sortedBy { row -> row.deliveryUnitIndex }
 			val first = ordered.first()
 			val declaredCount = requireNotNull(first.deliveryUnitCount)
-			val firstSequence = first.sourceSequence
-			if (ordered.size != declaredCount || ordered.mapNotNull { it.deliveryUnitIndex } !=
-				ordered.indices.toList() || ordered.any { row ->
+			if (ordered.mapNotNull { it.deliveryUnitIndex }.distinct().size != ordered.size ||
+				ordered.any { row ->
 					row.deliveryUnitCount != declaredCount ||
-						!row.hasSamePortableDeliveryAuthorityAs(first) ||
+						!row.hasSamePortableProviderDeliveryAs(first) ||
 						row.observedIntervalStartNanos != row.observedElapsedNanos
 				}
 			) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
-			ordered.forEachIndexed { index, row ->
-				val expectedSequence = runCatching {
-					Math.addExact(firstSequence, index.toLong())
-				}.getOrNull() ?: abort(
-					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
-				)
-				if (row.sourceSequence != expectedSequence) {
-					abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			if (ordered.zipWithNext().any { (previous, current) ->
+					current.sourceSequence <= previous.sourceSequence
 				}
-			}
+			) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
 	}
 
@@ -2184,27 +2183,17 @@ private fun ActivityCapturedPortableWalTargetRow.hasValidDeliveryShape(): Boolea
 }
 
 @Suppress("ComplexCondition")
-private fun ActivityCapturedPortableWalTargetRow.hasSamePortableDeliveryAuthorityAs(
+private fun ActivityCapturedPortableWalTargetRow.hasSamePortableProviderDeliveryAs(
 	other: ActivityCapturedPortableWalTargetRow,
 ): Boolean =
-	logicalTrackingId == other.logicalTrackingId &&
-		serviceRunId == other.serviceRunId &&
-		sourceKind == other.sourceKind &&
+	sourceKind == other.sourceKind &&
 		sourceInstanceId == other.sourceInstanceId &&
 		registrationGeneration == other.registrationGeneration &&
 		physicalConfigurationFingerprint == other.physicalConfigurationFingerprint &&
-		authorizationRevision == other.authorizationRevision &&
-		authorizationPurposeEligibilityMask == other.authorizationPurposeEligibilityMask &&
-		authorizationFingerprint == other.authorizationFingerprint &&
 		configRevision == other.configRevision &&
-		planAttribution == other.planAttribution &&
 		clockDomainId == other.clockDomainId &&
 		receivedElapsedNanos == other.receivedElapsedNanos &&
-		capturedCollectedDataEpoch == other.capturedCollectedDataEpoch &&
-		sourcePolicyRevision == other.sourcePolicyRevision &&
-		captureConsentEpoch == other.captureConsentEpoch &&
-		sessionManifestRevision == other.sessionManifestRevision &&
-		lifecycleLeaseGeneration == other.lifecycleLeaseGeneration
+		capturedCollectedDataEpoch == other.capturedCollectedDataEpoch
 
 private fun outcome(
 	reason: PortableActivityExportUnverifiableReason,
@@ -2259,12 +2248,6 @@ private data class PortableActivityAuthorizationRevision(
 			row.logicalTrackingId == logicalTrackingId && row.serviceRunId == serviceRunId
 	}
 }
-
-private data class PortableActivityDeliveryKey(
-	val collectedDataEpoch: Long,
-	val clockDomainId: String,
-	val deliveryIdentity: String,
-)
 
 private val PORTABLE_AUTHORIZATION_REVISION_ORDER =
 	compareBy<PortableActivityAuthorizationRevision>(
@@ -2326,7 +2309,8 @@ private const val PORTABLE_SESSION_CAPTURE_MASK =
 private const val PORTABLE_SOURCE_RUNTIME_ACTION = "SOURCE_RUNTIME"
 private const val PORTABLE_ACTION_STARTED = "STARTED"
 private const val PORTABLE_START_ACCEPTED = "START_ACCEPTED"
-private const val CAPTURED_REGISTRATION_PLAN_ATTRIBUTION = 1
+private const val CAPTURED_REGISTRATION_PLAN_ATTRIBUTION = 0
+private const val RECEIVE_TIME_ONLY_PLAN_ATTRIBUTION = 2
 private const val ACTIVITY_CAPTURED_WAL_PAYLOAD_VERSION = 1
 private const val MAX_ACTIVITY_DELIVERY_UNITS = 256
 private const val MAX_ACTIVITY_CAPTURED_WAL_PAYLOAD_BYTES = 21L

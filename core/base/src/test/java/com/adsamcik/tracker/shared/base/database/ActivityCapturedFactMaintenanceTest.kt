@@ -547,7 +547,7 @@ class ActivityCapturedFactMaintenanceTest {
 	}
 
 	@Test
-	fun `portable export rejects a delivery with a missing declared sibling`() = runTest {
+	fun `portable export accepts a retained captured unit when a denied delivery sibling was omitted`() = runTest {
 		seedCapturedActivity()
 		insertActivityWalEvent(
 			ordinal = 1L,
@@ -555,12 +555,9 @@ class ActivityCapturedFactMaintenanceTest {
 			deliveryUnitCount = 2,
 		)
 
-		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
-			PortableCapturedActivitySnapshot.Outcome(
-				ExportPortableCapturedActivityResult.Unverifiable(
-					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
-				),
-			)
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
 	}
 
 	@Test
@@ -617,14 +614,14 @@ class ActivityCapturedFactMaintenanceTest {
 	}
 
 	@Test
-	fun `portable export rejects nonconsecutive delivery source sequence`() = runTest {
+	fun `portable export accepts strictly increasing retained delivery source sequence gaps`() = runTest {
 		seedCapturedActivity()
 		insertActivityWalEvent(
 			ordinal = 1L,
 			deliveryIdentity = "activity-delivery-batch",
 			deliveryUnitIndex = 0,
 			deliveryUnitCount = 2,
-			sourceSequence = 1L,
+			sourceSequence = 0L,
 			receivedElapsedNanos = 220L,
 		)
 		insertActivityWalEvent(
@@ -633,6 +630,58 @@ class ActivityCapturedFactMaintenanceTest {
 			deliveryUnitIndex = 1,
 			deliveryUnitCount = 2,
 			sourceSequence = 3L,
+			receivedElapsedNanos = 220L,
+		)
+		settleActivityWalTarget(2L)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export accepts sparse original unit indices after sibling omission`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = "activity-delivery-batch",
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 3,
+			sourceSequence = 0L,
+			receivedElapsedNanos = 220L,
+		)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			deliveryIdentity = "activity-delivery-batch",
+			deliveryUnitIndex = 2,
+			deliveryUnitCount = 3,
+			sourceSequence = 2L,
+			receivedElapsedNanos = 220L,
+		)
+		settleActivityWalTarget(2L)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export rejects retained delivery source sequence regression`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = "activity-delivery-batch",
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 2,
+			sourceSequence = 2L,
+			receivedElapsedNanos = 220L,
+		)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			deliveryIdentity = "activity-delivery-batch",
+			deliveryUnitIndex = 1,
+			deliveryUnitCount = 2,
+			sourceSequence = 1L,
 			receivedElapsedNanos = 220L,
 		)
 
@@ -645,22 +694,19 @@ class ActivityCapturedFactMaintenanceTest {
 	}
 
 	@Test
-	fun `portable export rejects a noncontiguous delivery unit range`() = runTest {
-		seedCapturedActivity()
-		insertActivityWalEvent(
-			ordinal = 1L,
-			deliveryIdentity = "activity-delivery-batch",
-			deliveryUnitIndex = 0,
-			deliveryUnitCount = 3,
-			receivedElapsedNanos = 220L,
-		)
-		insertActivityWalEvent(
-			ordinal = 2L,
-			deliveryIdentity = "activity-delivery-batch",
-			deliveryUnitIndex = 2,
-			deliveryUnitCount = 3,
-			receivedElapsedNanos = 220L,
-		)
+	fun `portable export authenticates retained CONTROL sibling without selecting it`() = runTest {
+		seedCapturedActivity(providerActive = true)
+		insertCaptureAndControlDelivery()
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export cannot hide a retained CONTROL sibling in another data epoch`() = runTest {
+		seedCapturedActivity(providerActive = true)
+		insertCaptureAndControlDelivery(controlCollectedDataEpoch = 1L)
 
 		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
 			PortableCapturedActivitySnapshot.Outcome(
@@ -1161,56 +1207,99 @@ class ActivityCapturedFactMaintenanceTest {
 		replaceActivityLane(activityProductLane(contiguousAdmissionOrdinal = ordinal))
 	}
 
+	private suspend fun insertCaptureAndControlDelivery(controlCollectedDataEpoch: Long = 0L) {
+		val activeControl = historicalControlDemand().copy(
+			status = SourceDemandEntity.STATUS_ACTIVE,
+			retireBootId = null,
+			retireElapsedRealtimeNanos = null,
+			retiredAtMs = null,
+		)
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = "activity-delivery-authorization-rotation",
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 2,
+			sourceSequence = 0L,
+			observedElapsedNanos = 200L,
+			receivedElapsedNanos = 610L,
+			createdAtMs = 3_100L,
+		)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			deliveryIdentity = "activity-delivery-authorization-rotation",
+			deliveryUnitIndex = 1,
+			deliveryUnitCount = 2,
+			sourceSequence = 1L,
+			authorizationRevision = 2L,
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+			authorizationFingerprint = SourceBrokerAuthorization.fingerprint(listOf(activeControl)),
+			captureAttributed = false,
+			observedElapsedNanos = 600L,
+			receivedElapsedNanos = 610L,
+			wallTimeMs = 3_100L,
+			capturedCollectedDataEpoch = controlCollectedDataEpoch,
+			createdAtMs = 3_100L,
+		)
+	}
+
 	private suspend fun insertActivityWalEvent(
 		ordinal: Long,
 		deliveryIdentity: String = "activity-delivery-$ordinal",
 		deliveryUnitIndex: Int = 0,
 		deliveryUnitCount: Int = 1,
 		sourceSequence: Long = ordinal,
+		authorizationRevision: Long = 1L,
+		authorizationPurposeEligibilityMask: Long = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		authorizationFingerprint: String = historicalAuthorizationFingerprint(),
+		captureAttributed: Boolean = true,
 		observedElapsedNanos: Long = 200L + ordinal,
 		observedIntervalStartNanos: Long = observedElapsedNanos,
 		receivedElapsedNanos: Long = 210L + ordinal,
+		wallTimeMs: Long = 2_000L + ordinal,
+		acquiredAtMs: Long = wallTimeMs,
+		capturedCollectedDataEpoch: Long = 0L,
+		createdAtMs: Long = acquiredAtMs,
 	) {
 		val payload = byteArrayOf(ordinal.toByte())
 		val checksum = sha256(payload)
 		val unsealed = SourceEventWalEntity(
 			admissionOrdinal = ordinal,
 			eventId = "activity-event-$ordinal",
-			providerDedupKey = "activity-provider-event-$ordinal",
+			providerDedupKey = null,
 			deliveryIdentity = deliveryIdentity,
 			deliveryUnitIndex = deliveryUnitIndex,
 			deliveryUnitCount = deliveryUnitCount,
-			logicalTrackingId = LOGICAL_TRACKING_ID,
-			serviceRunId = SERVICE_RUN_ID,
+			logicalTrackingId = LOGICAL_TRACKING_ID.takeIf { captureAttributed },
+			serviceRunId = SERVICE_RUN_ID.takeIf { captureAttributed },
 			sourceKind = ACTIVITY_SOURCE,
 			sourceInstanceId = SOURCE_INSTANCE_ID,
 			registrationGeneration = 1L,
 			physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
-			authorizationRevision = 1L,
-			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-			authorizationFingerprint = historicalAuthorizationFingerprint(),
+			authorizationRevision = authorizationRevision,
+			authorizationPurposeEligibilityMask = authorizationPurposeEligibilityMask,
+			authorizationFingerprint = authorizationFingerprint,
 			sourceSequence = sourceSequence,
 			configRevision = 1L,
-			planAttribution = 1,
+			planAttribution = if (captureAttributed) 0 else 2,
 			clockDomainId = BOOT_ID,
 			observedElapsedNanos = observedElapsedNanos,
 			observedIntervalStartNanos = observedIntervalStartNanos,
 			receivedElapsedNanos = receivedElapsedNanos,
-			wallTimeMs = 2_000L + ordinal,
+			wallTimeMs = wallTimeMs,
 			wallTimeUncertaintyMs = 5L,
-			capturedCollectedDataEpoch = 0L,
-			sourcePolicyRevision = 1L,
-			captureConsentEpoch = 0L,
-			sessionManifestRevision = 1L,
-			lifecycleLeaseGeneration = 1L,
-			acquiredAtMs = 2_000L + ordinal,
+			capturedCollectedDataEpoch = capturedCollectedDataEpoch,
+			sourcePolicyRevision = 1L.takeIf { captureAttributed },
+			captureConsentEpoch = 0L.takeIf { captureAttributed },
+			sessionManifestRevision = 1L.takeIf { captureAttributed },
+			lifecycleLeaseGeneration = 1L.takeIf { captureAttributed },
+			acquiredAtMs = acquiredAtMs,
 			qualityFlags = 0L,
 			qualityConfidence = null,
 			payloadVersion = 1,
 			payload = payload,
 			payloadChecksum = checksum,
 			integrityIdentity = "pending",
-			createdAtMs = 2_000L + ordinal,
+			createdAtMs = createdAtMs,
 		)
 		val sealed = unsealed.copy(integrityIdentity = unsealed.calculatedIntegrityIdentity())
 		database.sourceEventWalDao().insertIgnoringDuplicate(sealed) shouldBe ordinal

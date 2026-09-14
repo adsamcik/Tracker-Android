@@ -281,14 +281,11 @@ interface ActivityCapturedFactDao {
 			"payload_version, payload_checksum, LENGTH(payload) AS payload_bytes, " +
 			"integrity_identity, created_at_ms " +
 			"FROM source_event_wal WHERE source_kind = :sourceKind " +
-			"AND captured_collected_data_epoch = :capturedCollectedDataEpoch " +
-			"AND clock_domain_id = :clockDomainId AND delivery_identity IN (:deliveryIdentities) " +
+			"AND delivery_identity IN (:deliveryIdentities) " +
 			"ORDER BY delivery_identity, admission_ordinal LIMIT :limit",
 	)
 	suspend fun portableCapturedWalDeliveryMembers(
 		sourceKind: Int,
-		capturedCollectedDataEpoch: Long,
-		clockDomainId: String,
 		deliveryIdentities: List<String>,
 		limit: Int,
 	): List<ActivityCapturedPortableWalTargetRow>
