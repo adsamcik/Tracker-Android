@@ -6,6 +6,26 @@ import org.junit.Test
 
 class ActivityCapturedPortableFormatV1Test {
 	@Test
+	fun `import contract keeps receipt provenance bounded and outcomes typed`() {
+		val receipt = PortableActivityImportReceipt("job", "entry", "backup.trackeractivity", 10L)
+		receipt.sourceName shouldBe "backup.trackeractivity"
+		shouldThrow<IllegalArgumentException> { receipt.copy(jobId = "") }
+		shouldThrow<IllegalArgumentException> {
+			receipt.copy(
+				entryKey = "x".repeat(
+					ActivityCapturedPortableFormatV1.MAX_IMPORT_RECEIPT_FIELD_LENGTH + 1,
+				),
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			ImportPortableCapturedActivityResult.Applied(1L, 1, 0, 1)
+		}
+		ImportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		).reason shouldBe PortableActivityImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE
+	}
+
+	@Test
 	fun `opaque identities are stable and kind namespaced`() {
 		val logical = PortableActivityOpaqueIdentity.derive(
 			PortableActivityIdentityKind.LOGICAL_ENTRY,

@@ -52,6 +52,7 @@ object ActivityCapturedPortableFormatV1 {
 	const val MAX_FRAGMENTS_PER_WINDOW = 1_024
 	const val MAX_ZONE_EPOCHS_PER_RUN = 256
 	const val MAX_ORIGIN_IDENTITY_LENGTH = 4_096
+	const val MAX_IMPORT_RECEIPT_FIELD_LENGTH = 4_096
 	const val MAX_TEXT_VALUE_LENGTH = 128
 }
 
@@ -377,6 +378,101 @@ interface ExportPortableCapturedActivity {
 		request: ExportPortableCapturedActivityRequest,
 		sink: PortableActivityEnvelopeSink,
 	): ExportPortableCapturedActivityResult
+}
+
+/** Bounded provenance copied into Activity-local immutable import authority. */
+data class PortableActivityImportReceipt(
+	val jobId: String,
+	val entryKey: String,
+	val sourceName: String,
+	val receivedAtMs: Long,
+) {
+	init {
+		listOf(jobId, entryKey, sourceName).forEach { value ->
+			require(value.isNotBlank())
+			require(value.length <= ActivityCapturedPortableFormatV1.MAX_IMPORT_RECEIPT_FIELD_LENGTH)
+		}
+		require(receivedAtMs >= 0L)
+	}
+}
+
+/** One Activity-only admission transaction over an already-decoded captured-product entry. */
+data class ImportPortableCapturedActivityRequest(
+	val entry: PortableActivityEntryV1,
+	val receipt: PortableActivityImportReceipt,
+	val expectedCollectedDataEpoch: Long,
+) {
+	init {
+		require(expectedCollectedDataEpoch >= 0L)
+	}
+}
+
+/** Admission stores imported product evidence only and never grants live capture authority. */
+interface ImportPortableCapturedActivity {
+	suspend fun importEntry(
+		request: ImportPortableCapturedActivityRequest,
+	): ImportPortableCapturedActivityResult
+}
+
+sealed interface ImportPortableCapturedActivityResult {
+	data class Applied(
+		val importRevision: Long,
+		val physicalRunCount: Int,
+		val windowCount: Int,
+		val fragmentCount: Int,
+	) : ImportPortableCapturedActivityResult {
+		init {
+			require(importRevision > 0L)
+			require(physicalRunCount > 0)
+			require(windowCount > 0)
+			require(fragmentCount > 0)
+		}
+	}
+
+	data class Duplicate(val importRevision: Long) : ImportPortableCapturedActivityResult {
+		init {
+			require(importRevision > 0L)
+		}
+	}
+
+	data class Blocked(
+		val reason: PortableActivityImportBlockedReason,
+	) : ImportPortableCapturedActivityResult
+
+	data class Unverifiable(
+		val reason: PortableActivityImportUnverifiableReason,
+	) : ImportPortableCapturedActivityResult
+
+	data class RetryableFailure(
+		val reason: PortableActivityTransferRetryableReason,
+	) : ImportPortableCapturedActivityResult
+}
+
+enum class PortableActivityImportBlockedReason {
+	COLLECTED_DATA_EPOCH_CHANGED,
+	RETENTION_BOUNDARY,
+	RECEIPT_CONFLICT,
+	CORRECTION_CONFLICT,
+	OPAQUE_IDENTITY_CONFLICT,
+	DELETED_ENTRY,
+	DELETED_RUN,
+}
+
+enum class PortableActivityImportUnverifiableReason {
+	ENTRY_INVALID,
+	SOURCE_EVIDENCE_STATE_MISSING,
+	STORED_EVIDENCE_UNVERIFIABLE,
+	DEPENDENCY_OVERFLOW,
+	RUN_OVERFLOW,
+	WINDOW_OVERFLOW,
+	FRAGMENT_OVERFLOW,
+	ZONE_EPOCH_OVERFLOW,
+	REVISION_OVERFLOW,
+}
+
+enum class PortableActivityTransferRetryableReason {
+	CONCURRENT_STATE_CHANGE,
+	STORAGE_UNAVAILABLE,
 }
 
 sealed interface ExportPortableCapturedActivityResult {

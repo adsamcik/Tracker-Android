@@ -30,6 +30,7 @@ import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StepFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedStepsDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceDeletionFenceDao
@@ -68,6 +69,14 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsManifestEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityFragmentEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRunEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityWindowEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityZoneEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -180,6 +189,14 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedStepsEntryEntity::class,
 			ImportedStepsRunEntity::class,
 			ImportedStepsManifestEntity::class,
+			ImportedActivityEntryRevisionEntity::class,
+			ImportedActivityReceiptEntity::class,
+			ImportedActivityRunEntity::class,
+			ImportedActivityZoneEpochEntity::class,
+			ImportedActivityWindowEntity::class,
+			ImportedActivityFragmentEntity::class,
+			ImportedActivityEntryDeletionEntity::class,
+			ImportedActivityDeletionGenerationEntity::class,
 			PressureFactRevisionEntity::class,
 			ActivityCapturedRegistrationPlanEntity::class,
 			ActivityCapturedWindowRevisionEntity::class,
@@ -303,6 +320,9 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Dormant imported Steps metadata; this accessor does not grant import admission authority. */
 	abstract fun importedStepsDao(): ImportedStepsDao
+
+	/** Imported captured Activity product evidence; never a live source authority. */
+	abstract fun importedActivityDao(): ImportedActivityDao
 
 	/** Provides the dormant append-only source-qualified Pressure fact history. */
 	abstract fun pressureFactRevisionDao(): PressureFactRevisionDao
@@ -628,6 +648,10 @@ abstract class AppDatabase : RoomDatabase() {
 			database.sourceDeletionFenceDao().deleteAll()
 			database.stepFactRevisionDao().deleteAll()
 			database.importedStepsDao().deleteAll()
+			database.importedActivityDao().deleteAllReceipts()
+			database.importedActivityDao().deleteAllEntries()
+			database.importedActivityDao().deleteAllEntryDeletions()
+			database.importedActivityDao().deleteAllDeletionGenerations()
 			database.pressureFactRevisionDao().deleteAll()
 			database.activityCapturedFactDao().deleteAllEvidence()
 			database.activityCapturedFactDao().deleteAllFragments()
