@@ -217,13 +217,20 @@ class RetentionPipelineWorkerRobolectricTest {
 	}
 
 	@Test
-	fun `pending signal WAL defers raw retention after advancing privacy boundary`() = runTest {
+	fun `pending signal defers legacy raw deletion but Cell authenticates before WAL pruning`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		val db = AppDatabase.testDatabase(context)
 		val collectedDataLifecycleStore = lifecycleStore(
 			CollectedDataLifecycleSnapshot(epoch = 9L, retainedFromMs = 1_234L),
 		)
 		val migrationBackupRepository: DatabaseMigrationBackupRepository = mockk(relaxed = true)
+		var cellWalCountAtRetention: Long? = null
+		val cellRetentionService: CellCapturedRetentionService = mockk {
+			coEvery { prune(db, any(), any()) } coAnswers {
+				cellWalCountAtRetention = db.sourceEventWalDao().countAll()
+				CellCapturedRetentionResult.NoChange
+			}
+		}
 		try {
 			insertExpiredStepsHistory(db, collectedDataEpoch = 9L)
 			db.locationSampleDao().insert(
@@ -260,18 +267,24 @@ class RetentionPipelineWorkerRobolectricTest {
 					),
 				),
 			)
+			db.sourceEventWalDao().insertIgnoringDuplicate(staleRawCellEvent())
 
 			assertEquals(
 				ListenableWorker.Result.retry(),
 				worker(
 					context,
-					retentionStore(autoPurgeConfig(rawDataRetentionDays = 1)),
+					retentionStore(
+						autoPurgeConfig(rawDataRetentionDays = 1).copy(wifiCellRetentionDays = 1),
+					),
 					db,
 					migrationBackupRepository = migrationBackupRepository,
 					collectedDataLifecycleStore = collectedDataLifecycleStore,
+					cellCapturedRetentionService = cellRetentionService,
 				).doWork(),
 			)
 
+			assertEquals(1L, cellWalCountAtRetention)
+			assertEquals(0L, db.sourceEventWalDao().countAll())
 			assertEquals(1L, db.locationSampleDao().countAll())
 			assertEquals(1L, db.stepFactRevisionDao().countAll())
 			assertEquals(1, db.pendingSignalDao().countAll())
@@ -294,6 +307,7 @@ class RetentionPipelineWorkerRobolectricTest {
 				9L,
 			))
 			coVerify(exactly = 1) { collectedDataLifecycleStore.advanceRetainedFrom(any()) }
+			coVerify(exactly = 1) { cellRetentionService.prune(db, any(), any()) }
 			verify(exactly = 1) { migrationBackupRepository.deleteAll() }
 		} finally {
 			db.close()
@@ -810,6 +824,13 @@ class RetentionPipelineWorkerRobolectricTest {
 		payloadChecksum = "corrupt",
 		integrityIdentity = "corrupt",
 		createdAtMs = 1L,
+	)
+
+	private fun staleRawCellEvent() = staleRawStepsEvent().copy(
+		eventId = "stale-cell-event",
+		providerDedupKey = "stale-cell-dedup",
+		sourceKind = SourceKind.CELL.stableCode,
+		sourceInstanceId = "cell-provider",
 	)
 
 	private suspend fun insertExpiredStepsHistory(

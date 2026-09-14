@@ -194,7 +194,6 @@ class RetentionPipelineWorker @AssistedInject constructor(
 	) {
 		if (config.wifiCellRetentionDays == 0) return
 		requireReadyGeneration(startupGeneration)
-		if (db.pendingSignalDao().hasAny()) return
 		val cutoff = computeWifiCellCutoffMillis(config.wifiCellRetentionDays, now)
 		requireReadyGeneration(startupGeneration)
 		trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
