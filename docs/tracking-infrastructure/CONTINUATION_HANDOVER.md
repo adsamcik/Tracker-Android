@@ -24,8 +24,9 @@ passes, rebase and merge through the clean integration checkout. No push or acti
 
 ## 2026-09-14 active coordinator checkpoint
 
-Pressure portable-origin storage is independently accepted on `codex/ti-pressure-import` through
-`ddb9ed162` (`04ba749d0` plus the monotonic-fence correction). It is deliberately source-specific:
+Pressure portable-origin storage and admission are independently accepted on
+`codex/ti-pressure-import` through `6c77f25ef`. The storage
+(`04ba749d0`/`ddb9ed162`) is deliberately source-specific:
 immutable entry revisions own exact physical runs and windows, every portable-v1 field and copied
 receipt/local privacy authority is retained, reads are bounded with independent counts, and no row
 claims live WAL/provider/run/manifest/projection authority. Exact receipt rollback cascades its
@@ -33,13 +34,15 @@ children while a standalone checksummed run tombstone survives; an existing tomb
 only in the same collected-data epoch by overflow-safe exact `+1` CAS. A fresh static review
 accepted the source chain after the regression/epoch/checksum correction.
 
-This is storage only, **IMPLEMENTED_UNVALIDATED**. The checked-in v28 Room schema JSON still lacks
-the four `imported_pressure_*` tables and must be regenerated and reviewed during convergence. The
-next in-progress slice is the Pressure-specific import admission/writer transaction: it must accept
-only authenticated portable v1 content and explicit receipt/current-local-epoch authority, make
-exact replay idempotent, reject collision or retained tombstone resurrection, and atomically write
-only the imported hierarchy. It must never fabricate or insert live Pressure WAL facts. History,
-maintenance, file/UI action wiring, and portable round trip remain later source-local slices.
+The accepted admission corrections (`2a680f5b9`, `f7e11b4cf`, `6c77f25ef`) add a fifth immutable
+Pressure-local receipt table and one typed transaction. It reauthenticates the entire bounded v1
+snapshot and complete capped revision/receipt/run/window lineage, checks epoch/tombstones before
+duplicates, claims alternate identical receipts without duplicating the hierarchy, and rejects
+receipt reuse, cross-kind/cross-owner identity drift, lineage gaps, corruption, and overflow.
+Cancellation rolls back receipt and hierarchy together. This is **IMPLEMENTED_UNVALIDATED** and
+never fabricates or inserts live Pressure WAL facts. The checked-in v28 Room schema JSON still lacks
+all five `imported_pressure_*` tables and must be regenerated/reviewed during convergence. Imported
+history/maintenance, file/UI action wiring, and portable round trip remain later source-local slices.
 
 Cell maintenance is independently accepted through `f8d7a5f50` after closing a canonical-delivery
 identity gap. The source-local transaction recomputes the exact shared v1 runtime identity and full

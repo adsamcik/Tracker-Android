@@ -2468,10 +2468,10 @@ uses the dormant imported DAO. The deferred focused commands are:
 .\gradlew.bat :core:base:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.shared.base.database.AppDatabaseMigration27To28Test --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
 ```
 
-The commands were not run. The tracked v28 Room schema JSON still lacks the four imported-Pressure
-tables and must be regenerated/reviewed during convergence. Compilation, Room execution,
-production import admission, no-resurrection writer behavior, history/maintenance composition,
-round trip, integration, device behavior, activation, and release remain unproven.
+The commands were not run. The tracked v28 Room schema JSON still lacks the imported-Pressure
+tables (five after TI-B299) and must be regenerated/reviewed during convergence. Compilation, Room
+execution, production import admission, no-resurrection writer behavior, history/maintenance
+composition, round trip, integration, device behavior, activation, and release remain unproven.
 
 ## TI-B297 — Cell canonical-identity retention and deletion contracts authored
 
@@ -2519,3 +2519,26 @@ chain. Deferred focused command:
 The command was not run. Compilation, Room execution, portable import/round trip, selected
 deletion, file/UI action wiring, catalog activation, provider/process/reboot/device behavior,
 integration, activation, and release remain unproven.
+
+## TI-B299 — Pressure receipt, lineage, and import-admission contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `6c77f25ef`. Authored API, Room, DAO, entity, and
+migration/reopen tests cover defensive I/O-dispatched v1 snapshot reauthentication; current local
+epoch; tombstone-before-duplicate no-resurrection; immutable original and alternate receipt claims;
+idempotent replay and conflicting reuse; exact immediate-successor correction; bounded complete
+`1..N` header/receipt/run/window lineage; format/schema/checksum/order/interval integrity; global and
+cross-revision identity-kind/owner stability; run/per-run-window/total-window/revision/receipt
+limits; imported-only atomic writes; injected mid-write/receipt rollback; and cancellation
+propagation. Cross-kind and window-owner mutation fixtures recompute window, entry, and authoritative
+receipt checksums so the lineage ownership audit—not an earlier checksum failure—blocks them.
+
+Independent review accepted the three-commit corrected chain. Deferred focused commands:
+
+```powershell
+.\gradlew.bat :stats:api:androidHostTest :core:base:testDebugUnitTest :stats:data:testDebugUnitTest --tests '*PressurePortableImportContractTest' --tests '*ImportedPressureDaoTest' --tests '*RoomImportPortablePressureTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat :core:base:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.shared.base.database.AppDatabaseMigration27To28Test --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The commands were not run. The v28 Room schema JSON still lacks all five imported-Pressure tables.
+Compilation, Room execution, imported history/maintenance, re-export round trip, file/UI action,
+integration, device behavior, activation, and release remain unproven.

@@ -10,7 +10,7 @@ The exhaustive remaining-work checklist is
 [IMPLEMENTATION_TODO.md](IMPLEMENTATION_TODO.md). It distinguishes implementation code and tests
 to author now from product decisions and the deferred convergence-validation phase.
 
-## September 14 implementation-only checkpoint — Pressure portable-origin storage accepted
+## September 14 implementation-only checkpoint — Pressure portable-origin storage and admission accepted
 
 The separate `codex/ti-pressure-import` branch is clean and independently accepted through
 `ddb9ed162`. Commits `04ba749d0` and `ddb9ed162` add a Pressure-specific immutable imported
@@ -24,10 +24,22 @@ Receipt rollback cascades only the selected imported hierarchy; the standalone s
 run tombstone survives selected receipt deletion and advances only by same-epoch, overflow-safe,
 exact `+1` compare-and-set. Regressions were authored for stale retry, epoch/generation regression,
 checksum coverage, migrated reopen, full collected-data clear, and the absence of a fake live
-session. The source commits are **IMPLEMENTED_UNVALIDATED**. The tracked v28 Room schema JSON does
-not yet contain the four imported-Pressure tables and remains a mandatory convergence-generation
-blocker. The production import admission transaction, initial generation-1/no-resurrection check,
-history/maintenance composition, portable round trip, and user-facing import action remain open.
+session. The storage commits are **IMPLEMENTED_UNVALIDATED**.
+
+Pressure import admission is independently accepted on the same branch through `6c77f25ef`.
+`2a680f5b9`, `f7e11b4cf`, and `6c77f25ef` add a typed source-owned Room transaction and a fifth,
+Pressure-local immutable receipt table. The writer defensively snapshots and reauthenticates the
+complete v1 hierarchy on the I/O dispatcher; checks the current local epoch and every retained run
+tombstone before any duplicate path; enforces bounded global identity ownership; and validates the
+complete capped revision, receipt, run, and window lineage before exact replay, alternate-receipt
+claim, or immediate-successor correction. An alternate receipt for identical content atomically
+claims only a receipt row; later identity/checksum/provenance reuse conflicts. Cross-revision
+identity kind or owner retargeting, gaps, mixed epochs, corrupt format/schema/checksum/order/
+intervals, or configured overflow fail typed. Writes remain imported-only and cancellation rolls
+back the hierarchy and receipt together. The tracked v28 Room schema JSON contains none of the five
+imported-Pressure tables and remains a mandatory convergence-generation blocker. Imported history/
+maintenance composition, portable re-export round trip, and user-facing file/import action remain
+open.
 
 The separate `codex/ti-cell-maintenance` branch is independently accepted through `f8d7a5f50`.
 Its bounded source-local retention and revoked-consent deletion transaction now authenticates

@@ -3808,3 +3808,24 @@ Each entry records repository evidence and does not duplicate the final architec
   observation at or after closing is rejected.
 - This is read-only captured Activity export. It does not implement portable import, selected
   deletion, file/UI action wiring, catalog activation, validation, device proof, or rollout.
+
+## TI-D236 — Pressure import claims every receipt and authenticates the whole stored lineage
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; API/Room/migration/test commits `2a680f5b9`,
+  `f7e11b4cf`, and `6c77f25ef`; corrected independent review; TI-B299.
+- One Pressure-local immutable receipt row authoritatively binds every accepted original or
+  alternate `(job, entry)` receipt to exact entry revision, content checksum, collected-data epoch,
+  source label, and receive time. Alternate identical content claims only a receipt row; later
+  identity/checksum/provenance reuse conflicts and never depends on call order.
+- Before replay, receipt claim, or correction extension, one bounded set of queries loads the exact
+  revision headers, receipts, runs, and windows. In memory the writer proves contiguous `1..N`
+  revisions, exact predecessor links, one epoch and v1 format/schema, complete receipt bindings,
+  checksums/order/intervals, per-revision limits, and one stable kind/owner for every opaque identity
+  across the entire lineage.
+- Current local epoch and retained run tombstones are checked before every duplicate path. The
+  transaction writes only imported entry/run/window/receipt rows at live generation zero;
+  cancellation or failure rolls all of them back and no live provider/session/WAL/fact authority is
+  fabricated.
+- The v28 Room schema JSON lacks all five imported-Pressure tables and remains a mandatory
+  convergence blocker. This slice does not implement imported history/maintenance, file/UI wiring,
+  re-export round trip, validation, activation, or rollout.
