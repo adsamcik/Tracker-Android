@@ -23,10 +23,14 @@ import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessE
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureResult
+import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureRequest
+import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureResult
 import com.adsamcik.tracker.stats.api.repository.PortablePressureAvailability
 import com.adsamcik.tracker.stats.api.repository.PortablePressureCoverage
+import com.adsamcik.tracker.stats.api.repository.PortablePressureEntrySink
 import com.adsamcik.tracker.stats.api.repository.PortablePressureEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortablePressureExportUnverifiableReason
+import com.adsamcik.tracker.stats.api.repository.PortablePressureImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
@@ -946,6 +950,78 @@ class PressureHistorySelectorTest {
 	}
 
 	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun portablePressureExactImportedCopyExportsOnceAndRoundTrips() = runTest {
+		insertFixture(factSemanticRevision = 1L)
+		val local = (PortablePressureRoomReader(database, selector).read(exportRequest()) as
+			PortablePressureSnapshot.Ready).entries.single()
+		RoomImportPortablePressure(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+		) {}.importEntry(importRequest(local, "same")) shouldBe
+			ImportPortablePressureResult.Applied(1L, 1, 1)
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+		val result = RoomExportPortablePressure(
+			PortablePressureRoomReader(database, selector),
+			UnconfinedTestDispatcher(testScheduler),
+		).export(exportRequest(), PortablePressureEntrySink { emitted += it })
+
+		result shouldBe ExportPortablePressureResult.Exported(1)
+		emitted shouldBe listOf(local)
+		val target = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>())
+		try {
+			target.sourceEvidenceStateDao().ensure(SourceEvidenceState())
+			RoomImportPortablePressure(
+				target,
+				UnconfinedTestDispatcher(testScheduler),
+			) {}.importEntry(importRequest(emitted.single(), "round-trip")) shouldBe
+				ImportPortablePressureResult.Applied(1L, 1, 1)
+			val roundTrip = target.withTransaction {
+				ImportedPressureHistoryEvaluator(target).selectRecentInTransaction(1).single()
+			} as ImportedPressureHistoryEvaluation.Readable
+			roundTrip.latest.entry shouldBe local
+		} finally {
+			target.close()
+		}
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun portablePressureDivergentImportedCopyFailsClosed() = runTest {
+		insertFixture(factSemanticRevision = 1L)
+		val local = (PortablePressureRoomReader(database, selector).read(exportRequest()) as
+			PortablePressureSnapshot.Ready).entries.single()
+		val localRun = local.runs.single()
+		val divergent = PortablePressureEntryV1.create(
+			identity = local.identity,
+			startTimeMs = local.startTimeMs,
+			endTimeMs = local.endTimeMs,
+			runs = listOf(
+				localRun.copy(
+					capturedForWholeRun = false,
+					coverage = PortablePressureCoverage.PARTIAL,
+				),
+			),
+		)
+		RoomImportPortablePressure(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+		) {}.importEntry(importRequest(divergent, "divergent")) shouldBe
+			ImportPortablePressureResult.Applied(1L, 1, 1)
+		val emitted = mutableListOf<PortablePressureEntryV1>()
+
+		val result = RoomExportPortablePressure(
+			PortablePressureRoomReader(database, selector),
+			UnconfinedTestDispatcher(testScheduler),
+		).export(exportRequest(), PortablePressureEntrySink { emitted += it })
+
+		result shouldBe ExportPortablePressureResult.Unverifiable(
+			PortablePressureExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY,
+		)
+		emitted shouldBe emptyList()
+	}
+
+	@Test
 	fun portablePressureMaterializingEntryFailsBeforeBecomingAnEmptyExport() = runTest {
 		insertFixture(factSemanticRevision = null, laneCursor = 0L)
 		val emitted = mutableListOf<PortablePressureEntryV1>()
@@ -965,6 +1041,20 @@ class PressureHistorySelectorTest {
 	private fun exportRequest() = ExportPortablePressureRequest(
 		fromInclusiveMs = RUN_START_MS,
 		toExclusiveMs = REPLACEMENT_RUN_END_MS + 1L,
+	)
+
+	private fun importRequest(
+		entry: PortablePressureEntryV1,
+		receiptSuffix: String,
+	) = ImportPortablePressureRequest(
+		entry = entry,
+		receipt = PortablePressureImportReceipt(
+			jobId = "pressure-$receiptSuffix-job",
+			entryKey = "pressure-$receiptSuffix-entry",
+			sourceName = "pressure-$receiptSuffix.trackerpressure",
+			receivedAtMs = RUN_END_MS + 1L,
+		),
+		expectedCollectedDataEpoch = 0L,
 	)
 
 	@Suppress("LongMethod")

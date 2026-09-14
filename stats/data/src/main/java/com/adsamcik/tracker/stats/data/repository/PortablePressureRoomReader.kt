@@ -139,7 +139,11 @@ internal class PortablePressureRoomReader @Inject constructor(
 		val localByIdentity = entries.associateBy { it.identity }
 		importedEntries.forEach { importedEntry ->
 			val local = localByIdentity[importedEntry.identity]
-			if (local == null || local != importedEntry) entries += importedEntry
+			when {
+				local == null -> entries += importedEntry
+				local == importedEntry -> Unit
+				else -> abort(PortablePressureExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
+			}
 		}
 		if (entries.size > PressurePortableFormatV1.MAX_ENTRIES ||
 			entries.sumOf { it.runs.size } > PressurePortableFormatV1.MAX_TOTAL_RUNS ||

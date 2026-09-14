@@ -133,6 +133,7 @@ sealed interface ExportPortablePressureResult {
 enum class PortablePressureExportUnverifiableReason {
 	SOURCE_EVIDENCE_UNAVAILABLE,
 	CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+	CONFLICTING_ORIGIN_IDENTITY,
 	ENTRY_MATERIALIZING,
 	DEPENDENCY_OVERFLOW,
 }
