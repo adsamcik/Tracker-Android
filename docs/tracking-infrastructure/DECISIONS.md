@@ -3995,3 +3995,24 @@ Each entry records repository evidence and does not duplicate the final architec
   WAL contributes. Timeout and exceptional callback-lane failure remain separately typed.
 - This adds no UI/action caller, retry loop, rollout, transfer, shared UI, automatic/ambient
   behavior, validation, activation, or release.
+
+## TI-D246 — Imported Activity joins product history only through complete cross-origin ownership
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; reviewed local-history prerequisites
+  `6e8d15206` through `b8fb77bdb`, imported product/round-trip commit `d1289d5fa`, ownership
+  correction `86a1370bc`; corrected independent review; TI-B309.
+- One bounded imported snapshot authenticates latest contiguous correction and receipt lineage,
+  every physical replacement run/zone/window/fragment, current collected-data epoch and
+  uncertainty-aware retention, entry/run/source-scope deletion, and global identity-kind ownership.
+- Recent product history preserves stored zones, gaps, `NOT_CAPTURED` replacement members, partial
+  coverage, nullable active-time/band values, and typed deleted/retained/unverifiable states. It
+  never uses Location or `sample_count`, exposes local physical identities, or fabricates zero or
+  provider/session/manifest/policy/consent/WAL/writer authority.
+- Whenever readable imports coexist with local results, one complete bounded local portable
+  snapshot contributes every entry/run/window/deletion-scope identity to the global verifier.
+  Missing or incomplete local evidence fails closed; only exact full-v1 equality suppresses a
+  duplicate, while same-entry divergence or child-identity reuse is typed conflict.
+- Combined export authenticates all origins before sink I/O and re-exports only fully authenticated
+  latest nontombstoned/nonretained imported v1 content, preserving deterministic second-database
+  round trip. Imported maintenance/actions, shared UI, schema convergence, validation, activation,
+  and release remain deferred.

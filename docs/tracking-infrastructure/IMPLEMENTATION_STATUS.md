@@ -179,9 +179,22 @@ source-local run fence. `fde0c9f63` now checks every bounded Activity `SESSION_C
 scope before any receipt replay or hierarchy mutation: a current exact fence is typed
 `DELETED_SCOPE`, stale exact evidence is unverifiable, and unrelated source/purpose/digest rows do
 not block. Cancellation, SQLite failure, and concurrency roll back, and import grants no live
-provider, demand, session, manifest, policy, consent, WAL, or writer authority. Product read and
-round trip, selected imported deletion, retention/source erase, file/UI actions, generated v28
-schema, validation, and device evidence remain open.
+provider, demand, session, manifest, policy, consent, WAL, or writer authority. The branch then
+applies the six reviewed source-specific local history commits as `6e8d15206` through `b8fb77bdb`;
+`d1289d5fa` composes authenticated imported history and re-export/round trip, and `86a1370bc` closes
+mixed-origin child ownership. One bounded imported snapshot validates latest contiguous correction
+and receipt lineage, every physical run/zone/window/fragment, current epoch/uncertainty-aware
+retention, entry/run markers, source scopes, and global identity-kind owners. Public recent history
+preserves stored zones, gaps, partial/`NOT_CAPTURED` replacement evidence, nullable active time and
+bands, and typed deleted/unavailable/unverifiable failure without fabricating zero or local IDs.
+Combined local/import composition takes one complete bounded local portable snapshot whenever
+readable imports coexist; all entry/run/window/scope identities seed the verifier, missing or active
+incomplete local evidence fails the page closed, and only exact full-v1 equality deduplicates. The
+combined exporter authenticates every origin before sink I/O and re-exports only latest
+nontombstoned/nonretained imported v1 content. Independent review found and corrected the initial
+top-level-only local ownership read; the final static pass accepted the full lineage. Selected
+imported deletion, retention/source erase, file/UI actions, shared UI, generated v28 schema,
+validation, and device evidence remain open.
 
 The separate `codex/ti-activity-maintenance` branch is independently accepted through
 `dd19b4d33` for exact selected-session deletion. `09a2f1c96` adds a typed API, bounded reverse

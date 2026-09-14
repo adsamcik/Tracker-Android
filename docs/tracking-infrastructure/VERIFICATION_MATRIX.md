@@ -2787,3 +2787,34 @@ Deferred focused command:
 The command was not run. Compilation, Room execution, command caller/file or UI action, transfer,
 shared UI, automatic/ambient behavior, provider/process/reboot/device evidence, integration,
 activation, publication, and release remain unproven.
+
+## TI-B309 — Imported Activity product composition and round-trip contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `86a1370bc`: local-history prerequisite cherry-picks
+`6e8d15206`, `f20c6bf6`, `759fb46fe`, `ad0fb0872`, `7238fbe6`, and `b8fb77bdb`; imported
+composition/re-export `d1289d5fa`; mixed-origin ownership correction `86a1370bc`. Authored format,
+DAO, Room, mapper, repository, and portable-reader tests cover bounded correction/receipt/run/zone/
+window/fragment lineage; epoch and uncertainty-aware retention; entry/run/source-scope deletion;
+global live/imported identity-kind ownership; stored zones, gaps, partial and `NOT_CAPTURED`
+replacement evidence; nullable values and no fabricated zero; imported-only recent discovery; exact
+full-v1 deduplication versus divergent origin conflict; child run/window collision; active/incomplete
+local ownership failure; re-export-before-sink; second-database round trip; overflow, corruption,
+storage, cancellation; and absence of fabricated live authority.
+
+Independent review found that production initially loaded local portable ownership only for a
+top-level identity collision, so a distinct import could reuse a local run/window identity. The
+correction performs one bounded complete local portable read for every selected local page entry
+whenever readable imports coexist, validates identity-set completeness, and seeds the verifier with
+the entire result. Fresh full-lineage static review returned ACCEPT with no remaining blocking
+defect.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*RoomImportPortableCapturedActivityTest' --tests '*ActivityCapturedFactMaintenanceTest' :stats:api:allTests :stats:data:testDebugUnitTest --tests '*ImportedActivityHistoryMapperTest' --tests '*ActivityHistoryComposerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, generated-schema parity, imported selected
+deletion/retention/source erase, file/UI actions, shared Today/Timeline/Calendar/detail composition,
+automatic/ambient behavior, device/provider/process evidence, integration, activation, publication,
+and release remain unproven.

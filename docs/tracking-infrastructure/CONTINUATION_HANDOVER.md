@@ -137,8 +137,16 @@ authenticates current epoch/retention plus complete bounded correction and ident
 consults the exact Activity `source_deletion_fence` scope before any receipt or hierarchy mutation.
 Exact replay, alternate receipt, correction, stale evidence, collision, cancellation, and storage
 failure have typed or atomic outcomes; import creates no live provider, demand, session, manifest,
-policy, consent, WAL, or writer authority. Product read/round trip, imported maintenance, file/UI
-actions, schema generation, and validation remain open.
+policy, consent, WAL, or writer authority. The same branch now reaches `86a1370bc` after the six
+reviewed local Activity history prerequisites, `d1289d5fa`, and its ownership correction. Imported
+facts are ordinarily discoverable in the source-specific recent product read with truthful stored
+zones, gaps, `NOT_CAPTURED` replacement members, partial coverage, nullable values, and typed
+deleted/retained/unverifiable states. Combined local/import composition authenticates one bounded
+complete local ownership snapshot so a distinct import cannot reuse a local run/window identity;
+only exact full-v1 equality suppresses a duplicate. Re-export admits only fully authenticated latest
+nontombstoned imports, checks every origin before sink I/O, and preserves exact second-database
+round trip without creating live authority. Imported maintenance, file/UI actions, shared UI,
+schema generation, and validation remain open.
 
 Exact Activity selected-session deletion is independently accepted on
 `codex/ti-activity-maintenance` through `dd19b4d33` (`09a2f1c96` plus its scoped-control

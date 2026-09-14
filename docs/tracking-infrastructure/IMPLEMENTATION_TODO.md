@@ -771,6 +771,18 @@ fail closed or roll back without fabricating live authority. These TODOs remain 
 imported product read/round trip, imported deletion/retention/source erase, file/UI actions, shared
 product composition, generated schema convergence, and complete scenarios exist.
 
+The combined Activity transfer branch then applies the reviewed local history prerequisites as
+`6e8d15206` through `b8fb77bdb`; accepted commits `d1289d5fa` and `86a1370bc` implement further
+bounded portions of ACT-003/007/008/010, HIST-002/003/004/005/006/008/009, and PRIV-006/011.
+Imported-only facts enter the source-specific recent read with stored zones, truthful gaps/partial/
+`NOT_CAPTURED` membership, nullable values, and typed deletion/retention/unverifiable states. One
+complete bounded local portable snapshot supplies every local entry/run/window/scope identity before
+mixed-origin composition, so only exact full-v1 duplicates collapse and child identity reuse fails
+closed. Only authenticated latest nontombstoned imports re-export, after all origins settle and
+before sink I/O; second-database round trip preserves origin without live authority. TODOs remain
+unchecked until imported maintenance and actions, shared Today/Timeline/Calendar/detail composition,
+automatic behavior, generated schema convergence, and complete scenarios exist.
+
 Accepted selected-deletion commits `09a2f1c96` and `dd19b4d33` implement additional bounded
 portions of ACT-003/007/010 and PRIV-004/005/011. The service proves complete bidirectional logical
 replacement ownership and exact all-revision `{Activity}` capture authority, fences every run before
