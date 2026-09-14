@@ -19,6 +19,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsManifestEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
@@ -222,6 +223,13 @@ class AppDatabaseMigration27To28Test {
 			1_000, 0, 1_000_000L, 0L, "TARGET_ELAPSED", "COMPLETE", 0L, 1f, "UTC",
 		)
 		val generation = ImportedPressureDeletionGenerationEntity.create(runIdentity, 7L, 1L, 40L)
+		val deletedEntryIdentity = "sha256:${"b".repeat(64)}"
+		val entryDeletion = ImportedPressureEntryDeletionEntity.create(
+			deletedEntryIdentity,
+			7L,
+			2L,
+			45L,
+		)
 		val receipt = ImportedPressureReceiptEntity(
 			"job-pressure", "entry-pressure", "pressure.trackerpressure", 30L,
 			entryIdentity, 1L, checksum, 7L,
@@ -235,6 +243,7 @@ class AppDatabaseMigration27To28Test {
 				database.importedPressureDao().insertReceipt(receipt)
 				database.importedPressureDao().insertReceipt(alternateReceipt)
 				database.importedPressureDao().insertDeletionGeneration(generation)
+				database.importedPressureDao().insertEntryDeletion(entryDeletion)
 			}
 		}
 		withProductionDatabase { database ->
@@ -246,6 +255,10 @@ class AppDatabaseMigration27To28Test {
 					database.importedPressureDao().windows(entryIdentity, 1L, runIdentity),
 				)
 				assertEquals(generation, database.importedPressureDao().deletionGeneration(runIdentity))
+				assertEquals(
+					entryDeletion,
+					database.importedPressureDao().entryDeletion(deletedEntryIdentity),
+				)
 				assertEquals(
 					receipt,
 					database.importedPressureDao().receipt("job-pressure", "entry-pressure"),
@@ -265,6 +278,7 @@ class AppDatabaseMigration27To28Test {
 				assertNull(database.importedPressureDao().receipt("job-pressure", "entry-pressure"))
 				assertNull(database.importedPressureDao().receipt("job-pressure-copy", "entry-pressure"))
 				assertNull(database.importedPressureDao().deletionGeneration(runIdentity))
+				assertNull(database.importedPressureDao().entryDeletion(deletedEntryIdentity))
 				assertCollectedRowsDeleted(database)
 			}
 		}
@@ -764,6 +778,7 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "imported_pressure_entry_revision", 0)
 		assertTableCount(database, "imported_pressure_run", 0)
 		assertTableCount(database, "imported_pressure_window", 0)
+		assertTableCount(database, "imported_pressure_entry_deletion", 0)
 		assertTableCount(database, "imported_pressure_deletion_generation", 0)
 		assertIndexColumns(
 			database,

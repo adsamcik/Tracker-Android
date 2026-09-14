@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
@@ -40,6 +41,9 @@ abstract class ImportedPressureDao {
 		require(generation.generation == 1L)
 		insertDeletionGenerationRow(generation)
 	}
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertEntryDeletion(deletion: ImportedPressureEntryDeletionEntity)
 
 	@Query(
 		"SELECT * FROM imported_pressure_entry_revision " +
@@ -356,6 +360,20 @@ abstract class ImportedPressureDao {
 		runIdentities: List<String>,
 	): List<ImportedPressureDeletionGenerationEntity>
 
+	@Query("SELECT * FROM imported_pressure_entry_deletion WHERE entry_identity = :entryIdentity")
+	abstract suspend fun entryDeletion(entryIdentity: String): ImportedPressureEntryDeletionEntity?
+
+	@Query("SELECT * FROM imported_pressure_entry_deletion WHERE entry_identity IN (:entryIdentities)")
+	abstract suspend fun entryDeletions(
+		entryIdentities: List<String>,
+	): List<ImportedPressureEntryDeletionEntity>
+
+	/** Bounded logical-entry tombstones for one finite imported-history candidate batch. */
+	suspend fun entryDeletionsForHistory(
+		entryIdentities: List<String>,
+	): List<ImportedPressureEntryDeletionEntity> =
+		entryDeletions(checkedHistoryIdentities(entryIdentities))
+
 	/** Bounded batched tombstone read; never fans out once per imported row. */
 	suspend fun deletionGenerationsForHistory(
 		runIdentities: List<String>,
@@ -419,6 +437,10 @@ abstract class ImportedPressureDao {
 	/** Full collected-data clear only. Selected deletion must retain and advance these rows. */
 	@Query("DELETE FROM imported_pressure_deletion_generation")
 	abstract fun deleteAllDeletionGenerations()
+
+	/** Full collected-data clear only. Selected entry deletion must retain this authority. */
+	@Query("DELETE FROM imported_pressure_entry_deletion")
+	abstract fun deleteAllEntryDeletions()
 
 	private fun checkedHistoryIdentities(identities: List<String>): List<String> {
 		require(identities.isNotEmpty())

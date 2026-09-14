@@ -1698,6 +1698,18 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS imported_pressure_entry_deletion (
+					entry_identity TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					deleted_import_revision INTEGER NOT NULL,
+					deleted_at_ms INTEGER NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					PRIMARY KEY(entry_identity)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS imported_pressure_run (
 					entry_identity TEXT NOT NULL,
 					entry_import_revision INTEGER NOT NULL,

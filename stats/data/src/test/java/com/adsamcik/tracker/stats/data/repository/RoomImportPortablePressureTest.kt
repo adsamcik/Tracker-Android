@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureResult
@@ -181,6 +182,37 @@ class RoomImportPortablePressureTest {
 					receiptMetadata = receipt("collision-$index", 50L + index),
 				),
 			) shouldBe ImportPortablePressureResult.Blocked(
+				PortablePressureImportBlockedReason.OPAQUE_IDENTITY_CONFLICT,
+			)
+		}
+	}
+
+	@Test
+	fun `retained tombstone identity kinds cannot be reused across portable kinds`() = runTest {
+		val entryTombstoneCollision = request()
+		val runTombstoneCollision = request(
+			portableEntry = entry("entry-2", "run-2", "window-2"),
+			receiptMetadata = receipt(jobId = "job-2", receivedAtMs = 40L),
+		)
+		database.importedPressureDao().insertEntryDeletion(
+			ImportedPressureEntryDeletionEntity.create(
+				entryIdentity = entryTombstoneCollision.entry.runs.single().windows.single().identity.value,
+				collectedDataEpoch = EPOCH,
+				deletedImportRevision = 1L,
+				deletedAtMs = 50L,
+			),
+		)
+		database.importedPressureDao().insertDeletionGeneration(
+			ImportedPressureDeletionGenerationEntity.create(
+				runIdentity = runTombstoneCollision.entry.identity.value,
+				collectedDataEpoch = EPOCH,
+				generation = 1L,
+				deletedAtMs = 50L,
+			),
+		)
+
+		listOf(entryTombstoneCollision, runTombstoneCollision).forEach { colliding ->
+			importer(testScheduler).importEntry(colliding) shouldBe ImportPortablePressureResult.Blocked(
 				PortablePressureImportBlockedReason.OPAQUE_IDENTITY_CONFLICT,
 			)
 		}

@@ -36,6 +36,17 @@ class PressurePortableImportContractTest {
 		}
 	}
 
+	@Test
+	fun `selected imported deletion requires exact positive revision and nonnegative epoch`() {
+		val identity = ImportedPressureHistoryIdentity(entry().identity.value)
+		shouldThrow<IllegalArgumentException> {
+			DeleteImportedPressureEntryRequest(identity, 0L, 7L)
+		}
+		shouldThrow<IllegalArgumentException> {
+			DeleteImportedPressureEntryRequest(identity, 1L, -1L)
+		}
+	}
+
 	private fun receipt(
 		jobId: String = "job-1",
 		entryKey: String = "entry-1",

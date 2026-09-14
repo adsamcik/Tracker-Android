@@ -4,6 +4,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureHistoryCandidate
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
@@ -112,6 +113,7 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 				receipts = database.importedPressureDao().receiptsForHistory(identities),
 				runs = database.importedPressureDao().runsForHistory(identities),
 				windows = database.importedPressureDao().windowsForHistory(identities),
+				entryDeletions = database.importedPressureDao().entryDeletionsForHistory(identities),
 			)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -153,8 +155,20 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 		val receiptsByIdentity = loaded.receipts.groupBy { it.entryIdentity }
 		val runsByIdentity = loaded.runs.groupBy { it.entryIdentity }
 		val windowsByIdentity = loaded.windows.groupBy { it.entryIdentity }
+		val entryDeletionsByIdentity = loaded.entryDeletions.associateBy { it.entryIdentity }
+		if (entryDeletionsByIdentity.size != loaded.entryDeletions.size) {
+			return candidates.unverifiable(
+				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
 		return candidates.map { candidate ->
 			currentCoroutineContext().ensureActive()
+			if (entryDeletionsByIdentity[candidate.identity] != null) {
+				return@map ImportedPressureHistoryEvaluation.Unverifiable(
+					candidate,
+					ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+			}
 			val headers = headersByIdentity[candidate.identity].orEmpty()
 			if (headers.any { it.collectedDataEpoch != state.collectedDataEpoch }) {
 				return@map ImportedPressureHistoryEvaluation.Unverifiable(
@@ -257,19 +271,22 @@ private data class ImportedPressureHistoryBatch(
 	val receipts: List<ImportedPressureReceiptEntity>,
 	val runs: List<ImportedPressureRunEntity>,
 	val windows: List<ImportedPressureWindowEntity>,
+	val entryDeletions: List<ImportedPressureEntryDeletionEntity>,
 ) {
 	fun exceedsBatchLimit(identityCount: Int): Boolean =
 		headers.size > identityCount * ImportedPressureDao.MAX_REVISIONS_PER_ENTRY ||
 			receipts.size > identityCount * ImportedPressureDao.MAX_RECEIPTS_PER_ENTRY ||
 			runs.size > identityCount * ImportedPressureDao.MAX_TOTAL_RUNS_PER_ENTRY_LINEAGE ||
-			windows.size > identityCount * ImportedPressureDao.MAX_TOTAL_WINDOWS_PER_ENTRY_LINEAGE
+			windows.size > identityCount * ImportedPressureDao.MAX_TOTAL_WINDOWS_PER_ENTRY_LINEAGE ||
+			entryDeletions.size > identityCount
 
 	fun belongsOnlyTo(identities: List<String>): Boolean {
 		val expected = identities.toHashSet()
 		return headers.all { it.identity in expected } &&
 			receipts.all { it.entryIdentity in expected } &&
 			runs.all { it.entryIdentity in expected } &&
-			windows.all { it.entryIdentity in expected }
+			windows.all { it.entryIdentity in expected } &&
+			entryDeletions.all { it.entryIdentity in expected }
 	}
 }
 

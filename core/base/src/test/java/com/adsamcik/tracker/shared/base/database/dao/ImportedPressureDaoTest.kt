@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteConstraintException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
@@ -76,16 +77,20 @@ class ImportedPressureDaoTest {
 		dao.insertWindow(window())
 		dao.insertReceipt(receipt())
 		val generation = ImportedPressureDeletionGenerationEntity.create(RUN, 7L, 1L, 50L)
+		val entryDeletion = ImportedPressureEntryDeletionEntity.create(OTHER, 7L, 2L, 55L)
 		dao.insertDeletionGeneration(generation)
+		dao.insertEntryDeletion(entryDeletion)
 
 		dao.deleteEntryRevision(ENTRY, 1L) shouldBe 1
 		dao.receipt("job-1", "entry-1") shouldBe null
 		dao.runs(ENTRY, 1L) shouldBe emptyList()
 		dao.windows(ENTRY, 1L, RUN) shouldBe emptyList()
 		dao.deletionGeneration(RUN) shouldBe generation
+		dao.entryDeletion(OTHER) shouldBe entryDeletion
 
 		AppDatabase.deleteAllCollectedData(database, 8L, null, 60L)
 		dao.deletionGeneration(RUN) shouldBe null
+		dao.entryDeletion(OTHER) shouldBe null
 	}
 
 	@Test

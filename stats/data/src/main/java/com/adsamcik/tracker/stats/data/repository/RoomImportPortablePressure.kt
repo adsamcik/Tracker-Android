@@ -79,6 +79,9 @@ internal class RoomImportPortablePressure internal constructor(
 		}
 
 		val entry = request.entry
+		if (storedValue { dao.entryDeletion(entry.identity.value) } != null) {
+			blocked(PortablePressureImportBlockedReason.DELETED_ENTRY)
+		}
 		val runIdentities = entry.runs.map { it.identity.value }
 		if (storedValue { dao.deletionGenerations(runIdentities) }.isNotEmpty()) {
 			blocked(PortablePressureImportBlockedReason.DELETED_RUN)
@@ -181,6 +184,8 @@ internal class RoomImportPortablePressure internal constructor(
 			val entries = storedValue { dao.existingEntryIdentities(identities, limit) }
 			val runs = storedValue { dao.existingRunIdentityOwners(identities, limit) }
 			val windows = storedValue { dao.existingWindowIdentityOwners(identities, limit) }
+			val deletedEntries = storedValue { dao.entryDeletions(identities) }
+			val deletedRuns = storedValue { dao.deletionGenerations(identities) }
 			if (entries.size >= limit || runs.size >= limit || windows.size >= limit) {
 				unverifiable(PortablePressureImportUnverifiableReason.DEPENDENCY_OVERFLOW)
 			}
@@ -192,6 +197,10 @@ internal class RoomImportPortablePressure internal constructor(
 					kinds[owner.identity] != PortablePressureIdentityKind.WINDOW ||
 						owner.entryIdentity != entry.identity.value ||
 						windowOwners[owner.identity] != owner.runIdentity
+				} || deletedEntries.any { marker ->
+					kinds[marker.entryIdentity] != PortablePressureIdentityKind.LOGICAL_ENTRY
+				} || deletedRuns.any { marker ->
+					kinds[marker.runIdentity] != PortablePressureIdentityKind.PHYSICAL_RUN
 				}
 			) {
 				blocked(PortablePressureImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)

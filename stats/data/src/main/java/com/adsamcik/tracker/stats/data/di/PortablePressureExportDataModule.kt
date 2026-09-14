@@ -1,7 +1,9 @@
 package com.adsamcik.tracker.stats.data.di
 
+import com.adsamcik.tracker.stats.api.repository.DeleteImportedPressureEntry
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressure
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressure
+import com.adsamcik.tracker.stats.data.repository.RoomDeleteImportedPressureEntry
 import com.adsamcik.tracker.stats.data.repository.RoomExportPortablePressure
 import com.adsamcik.tracker.stats.data.repository.RoomImportPortablePressure
 import dagger.Binds
@@ -25,4 +27,10 @@ internal abstract class PortablePressureExportDataModule {
 	abstract fun bindImportPortablePressure(
 		impl: RoomImportPortablePressure,
 	): ImportPortablePressure
+
+	@Binds
+	@Singleton
+	abstract fun bindDeleteImportedPressureEntry(
+		impl: RoomDeleteImportedPressureEntry,
+	): DeleteImportedPressureEntry
 }

@@ -158,6 +158,7 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		IMPORTED_PRESSURE_RECEIPT_TABLE,
 		IMPORTED_PRESSURE_RUN_TABLE,
 		IMPORTED_PRESSURE_WINDOW_TABLE,
+		IMPORTED_PRESSURE_ENTRY_DELETION_TABLE,
 		IMPORTED_PRESSURE_DELETION_TABLE,
 		emitInitialState = true,
 	)
@@ -182,6 +183,7 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		const val IMPORTED_PRESSURE_RECEIPT_TABLE = "imported_pressure_receipt"
 		const val IMPORTED_PRESSURE_RUN_TABLE = "imported_pressure_run"
 		const val IMPORTED_PRESSURE_WINDOW_TABLE = "imported_pressure_window"
+		const val IMPORTED_PRESSURE_ENTRY_DELETION_TABLE = "imported_pressure_entry_deletion"
 		const val IMPORTED_PRESSURE_DELETION_TABLE = "imported_pressure_deletion_generation"
 	}
 }

@@ -100,6 +100,69 @@ data class ImportedPressureReceiptEntity(
 	}
 }
 
+/**
+ * Immutable logical-entry privacy authority retained after selected imported Pressure deletion.
+ *
+ * This authority is deliberately separate from physical-run deletion generations: an import
+ * revision orders destination-local corrections, while a run generation fences one physical
+ * owner. Full collected-data clear is the only operation allowed to remove this row.
+ */
+@Entity(tableName = "imported_pressure_entry_deletion", primaryKeys = ["entry_identity"])
+data class ImportedPressureEntryDeletionEntity(
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
+	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	@ColumnInfo(name = "deleted_import_revision") val deletedImportRevision: Long,
+	@ColumnInfo(name = "deleted_at_ms") val deletedAtMs: Long,
+	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
+) {
+	init {
+		require(ImportedPressureIdentity.isOpaque(entryIdentity))
+		require(collectedDataEpoch >= 0L && deletedImportRevision > 0L && deletedAtMs >= 0L)
+		require(
+			effectChecksum == checksum(
+				entryIdentity,
+				collectedDataEpoch,
+				deletedImportRevision,
+				deletedAtMs,
+			),
+		)
+	}
+
+	companion object {
+		fun create(
+			entryIdentity: String,
+			collectedDataEpoch: Long,
+			deletedImportRevision: Long,
+			deletedAtMs: Long,
+		): ImportedPressureEntryDeletionEntity = ImportedPressureEntryDeletionEntity(
+			entryIdentity,
+			collectedDataEpoch,
+			deletedImportRevision,
+			deletedAtMs,
+			checksum(entryIdentity, collectedDataEpoch, deletedImportRevision, deletedAtMs),
+		)
+
+		private fun checksum(
+			entryIdentity: String,
+			collectedDataEpoch: Long,
+			deletedImportRevision: Long,
+			deletedAtMs: Long,
+		): String {
+			val values = listOf(
+				"tracker-imported-pressure-entry-deletion-v1",
+				entryIdentity,
+				collectedDataEpoch.toString(),
+				deletedImportRevision.toString(),
+				deletedAtMs.toString(),
+			)
+			val canonical = values.joinToString(separator = "") { "${it.length}:$it" }
+			return "sha256:" + MessageDigest.getInstance("SHA-256")
+				.digest(canonical.toByteArray(Charsets.UTF_8))
+				.joinToString(separator = "") { byte -> "%02x".format(byte) }
+		}
+	}
+}
+
 /** Exact foreign physical membership, without any fabricated local run/provider authority. */
 @Entity(
 	tableName = "imported_pressure_run",
