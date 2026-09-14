@@ -61,6 +61,80 @@ abstract class ImportedActivityDao {
 	)
 	abstract suspend fun latestEntryRevision(identity: String): ImportedActivityEntryRevisionEntity?
 
+	/** One latest-revision seed per imported logical entry, ordered for product history. */
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_activity_entry_revision
+		  GROUP BY identity
+		)
+		SELECT entry.identity,
+		       entry.import_revision,
+		       entry.content_checksum,
+		       entry.start_time_ms,
+		       entry.end_time_ms,
+		       entry.received_at_ms
+		FROM imported_activity_entry_revision AS entry
+		INNER JOIN latest_revision AS latest
+		  ON latest.identity = entry.identity
+		 AND latest.import_revision = entry.import_revision
+		WHERE :beforeStartTimeMs IS NULL
+		   OR entry.start_time_ms < :beforeStartTimeMs
+		   OR (
+		     entry.start_time_ms = :beforeStartTimeMs
+		     AND entry.identity < COALESCE(:beforeIdentity, '')
+		   )
+		ORDER BY entry.start_time_ms DESC, entry.identity DESC
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun recentHistoryCandidatePage(
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): List<ImportedActivityHistoryCandidate>
+
+	/** Latest imported entries whose complete logical range overlaps an export request. */
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_activity_entry_revision
+		  GROUP BY identity
+		)
+		SELECT entry.identity,
+		       entry.import_revision,
+		       entry.content_checksum,
+		       entry.start_time_ms,
+		       entry.end_time_ms,
+		       entry.received_at_ms
+		FROM imported_activity_entry_revision AS entry
+		INNER JOIN latest_revision AS latest
+		  ON latest.identity = entry.identity
+		 AND latest.import_revision = entry.import_revision
+		WHERE entry.start_time_ms < :toExclusiveMs
+		  AND entry.end_time_ms > :fromInclusiveMs
+		  AND (
+		    :beforeStartTimeMs IS NULL
+		    OR entry.start_time_ms < :beforeStartTimeMs
+		    OR (
+		      entry.start_time_ms = :beforeStartTimeMs
+		      AND entry.identity < COALESCE(:beforeIdentity, '')
+		    )
+		  )
+		ORDER BY entry.start_time_ms DESC, entry.identity DESC
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun historyCandidatePageInRange(
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): List<ImportedActivityHistoryCandidate>
+
 	suspend fun entryRevisionsForAdmission(identity: String): List<ImportedActivityEntryRevisionEntity> =
 		loadEntryRevisions(identity, MAX_REVISIONS_PER_ENTRY + 1)
 
@@ -70,6 +144,22 @@ abstract class ImportedActivityDao {
 	)
 	protected abstract suspend fun loadEntryRevisions(
 		identity: String,
+		limit: Int,
+	): List<ImportedActivityEntryRevisionEntity>
+
+	suspend fun entryRevisionsForHistory(
+		identities: List<String>,
+	): List<ImportedActivityEntryRevisionEntity> = loadHistoryEntryRevisions(
+		checkedHistoryIdentities(identities),
+		historyLimit(identities.size, MAX_REVISIONS_PER_ENTRY),
+	)
+
+	@Query(
+		"SELECT * FROM imported_activity_entry_revision WHERE identity IN (:identities) " +
+			"ORDER BY identity, import_revision LIMIT :limit",
+	)
+	protected abstract suspend fun loadHistoryEntryRevisions(
+		identities: List<String>,
 		limit: Int,
 	): List<ImportedActivityEntryRevisionEntity>
 
@@ -91,6 +181,21 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityReceiptEntity>
 
+	suspend fun receiptsForHistory(identities: List<String>): List<ImportedActivityReceiptEntity> =
+		loadHistoryReceipts(
+			checkedHistoryIdentities(identities),
+			historyLimit(identities.size, MAX_RECEIPTS_PER_ENTRY),
+		)
+
+	@Query(
+		"SELECT * FROM imported_activity_receipt WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, import_job_id, import_entry_key LIMIT :limit",
+	)
+	protected abstract suspend fun loadHistoryReceipts(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedActivityReceiptEntity>
+
 	suspend fun allRunsForAdmission(identity: String): List<ImportedActivityRunEntity> =
 		loadAllRuns(identity, MAX_TOTAL_RUNS_PER_LINEAGE + 1)
 
@@ -103,6 +208,21 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityRunEntity>
 
+	suspend fun runsForHistory(identities: List<String>): List<ImportedActivityRunEntity> =
+		loadHistoryRuns(
+			checkedHistoryIdentities(identities),
+			historyLimit(identities.size, MAX_TOTAL_RUNS_PER_LINEAGE),
+		)
+
+	@Query(
+		"SELECT * FROM imported_activity_run WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, start_time_ms, end_time_ms, identity LIMIT :limit",
+	)
+	protected abstract suspend fun loadHistoryRuns(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedActivityRunEntity>
+
 	suspend fun allZoneEpochsForAdmission(identity: String): List<ImportedActivityZoneEpochEntity> =
 		loadAllZoneEpochs(identity, MAX_TOTAL_ZONE_EPOCHS_PER_LINEAGE + 1)
 
@@ -112,6 +232,21 @@ abstract class ImportedActivityDao {
 	)
 	protected abstract suspend fun loadAllZoneEpochs(
 		identity: String,
+		limit: Int,
+	): List<ImportedActivityZoneEpochEntity>
+
+	suspend fun zoneEpochsForHistory(identities: List<String>): List<ImportedActivityZoneEpochEntity> =
+		loadHistoryZoneEpochs(
+			checkedHistoryIdentities(identities),
+			historyLimit(identities.size, MAX_TOTAL_ZONE_EPOCHS_PER_LINEAGE),
+		)
+
+	@Query(
+		"SELECT * FROM imported_activity_zone_epoch WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, run_identity, ordinal LIMIT :limit",
+	)
+	protected abstract suspend fun loadHistoryZoneEpochs(
+		identities: List<String>,
 		limit: Int,
 	): List<ImportedActivityZoneEpochEntity>
 
@@ -128,6 +263,22 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityWindowEntity>
 
+	suspend fun windowsForHistory(identities: List<String>): List<ImportedActivityWindowEntity> =
+		loadHistoryWindows(
+			checkedHistoryIdentities(identities),
+			historyLimit(identities.size, MAX_TOTAL_WINDOWS_PER_LINEAGE),
+		)
+
+	@Query(
+		"SELECT * FROM imported_activity_window WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, run_identity, start_offset_nanos, " +
+			"end_offset_nanos, identity LIMIT :limit",
+	)
+	protected abstract suspend fun loadHistoryWindows(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedActivityWindowEntity>
+
 	suspend fun allFragmentsForAdmission(identity: String): List<ImportedActivityFragmentEntity> =
 		loadAllFragments(identity, MAX_TOTAL_FRAGMENTS_PER_LINEAGE + 1)
 
@@ -137,6 +288,22 @@ abstract class ImportedActivityDao {
 	)
 	protected abstract suspend fun loadAllFragments(
 		identity: String,
+		limit: Int,
+	): List<ImportedActivityFragmentEntity>
+
+	suspend fun fragmentsForHistory(identities: List<String>): List<ImportedActivityFragmentEntity> =
+		loadHistoryFragments(
+			checkedHistoryIdentities(identities),
+			historyLimit(identities.size, MAX_TOTAL_FRAGMENTS_PER_LINEAGE),
+		)
+
+	@Query(
+		"SELECT * FROM imported_activity_fragment WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, run_identity, window_identity, ordinal " +
+			"LIMIT :limit",
+	)
+	protected abstract suspend fun loadHistoryFragments(
+		identities: List<String>,
 		limit: Int,
 	): List<ImportedActivityFragmentEntity>
 
@@ -181,10 +348,24 @@ abstract class ImportedActivityDao {
 		identities: List<String>,
 	): List<ImportedActivityEntryDeletionEntity>
 
+	suspend fun entryDeletionsForHistory(
+		identities: List<String>,
+	): List<ImportedActivityEntryDeletionEntity> = checkedHistoryIdentities(identities)
+		.chunked(HISTORY_ID_QUERY_CHUNK_SIZE)
+		.flatMap { entryDeletions(it) }
+
 	@Query("SELECT * FROM imported_activity_deletion_generation WHERE run_identity IN (:identities)")
 	abstract suspend fun deletionGenerations(
 		identities: List<String>,
 	): List<ImportedActivityDeletionGenerationEntity>
+
+	suspend fun deletionGenerationsForHistory(
+		runIdentities: List<String>,
+	): List<ImportedActivityDeletionGenerationEntity> {
+		require(runIdentities.size <= MAX_HISTORY_ENTRY_CANDIDATES * MAX_TOTAL_RUNS_PER_LINEAGE)
+		return runIdentities.distinct().chunked(HISTORY_ID_QUERY_CHUNK_SIZE)
+			.flatMap { deletionGenerations(it) }
+	}
 
 	@Query(
 		"SELECT * FROM imported_activity_run WHERE entry_identity = :identity " +
@@ -237,6 +418,16 @@ abstract class ImportedActivityDao {
 	@Query("DELETE FROM imported_activity_deletion_generation")
 	abstract fun deleteAllDeletionGenerations()
 
+	private fun checkedHistoryIdentities(identities: List<String>): List<String> {
+		require(identities.isNotEmpty())
+		require(identities.size <= HISTORY_EVALUATION_BATCH_SIZE)
+		require(identities.distinct().size == identities.size)
+		return identities
+	}
+
+	private fun historyLimit(identityCount: Int, maximumPerIdentity: Int): Int =
+		Math.addExact(Math.multiplyExact(identityCount, maximumPerIdentity), 1)
+
 	companion object {
 		const val MAX_REVISIONS_PER_ENTRY = 16
 		const val MAX_RECEIPTS_PER_ENTRY = 256
@@ -246,8 +437,20 @@ abstract class ImportedActivityDao {
 		const val MAX_TOTAL_ZONE_EPOCHS_PER_LINEAGE = 16_384
 		const val MAX_TOTAL_WINDOWS_PER_LINEAGE = 65_536
 		const val MAX_TOTAL_FRAGMENTS_PER_LINEAGE = 524_288
+		const val MAX_HISTORY_ENTRY_CANDIDATES = 100
+		const val HISTORY_EVALUATION_BATCH_SIZE = 4
+		private const val HISTORY_ID_QUERY_CHUNK_SIZE = 400
 	}
 }
+
+data class ImportedActivityHistoryCandidate(
+	val identity: String,
+	@ColumnInfo(name = "import_revision") val importRevision: Long,
+	@ColumnInfo(name = "content_checksum") val contentChecksum: String,
+	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
+	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
+	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+)
 
 data class ImportedActivityRunIdentityOwner(
 	val identity: String,

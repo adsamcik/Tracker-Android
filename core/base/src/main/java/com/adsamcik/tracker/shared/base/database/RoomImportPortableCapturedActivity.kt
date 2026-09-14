@@ -530,7 +530,7 @@ private fun ImportedActivityLineageAuthenticator.Reason.toImportReason() = when 
 		PortableActivityImportUnverifiableReason.REVISION_OVERFLOW
 }
 
-private fun PortableActivityEntryV1.crossesRetentionBoundary(retainedFromMs: Long): Boolean {
+internal fun PortableActivityEntryV1.crossesRetentionBoundary(retainedFromMs: Long): Boolean {
 	if (startTimeMs < retainedFromMs) return true
 	val earliestEvidenceMs = runs.asSequence()
 		.flatMap { run -> run.windows.asSequence() }

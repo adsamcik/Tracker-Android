@@ -366,6 +366,90 @@ class ActivityCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `portable re-export emits one entry for exact local and imported origins`() = runTest {
+		seedCapturedActivity()
+		val local = (portableReader().read(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) as PortableCapturedActivitySnapshot.Ready).envelope.entries.single()
+		RoomImportPortableCapturedActivity(database, Dispatchers.Unconfined).importEntry(
+			ImportPortableCapturedActivityRequest(
+				local,
+				PortableActivityImportReceipt("round-trip", "entry", "same-device.trackeractivity", 4_000L),
+				0L,
+			),
+		) shouldBe ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+
+		var emitted: PortableActivityEnvelopeV1? = null
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			emitted = it
+		} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+		emitted?.entries shouldBe listOf(local)
+	}
+
+	@Test
+	fun `portable re-export rejects divergent local and imported origins sharing an identity`() = runTest {
+		seedCapturedActivity()
+		val local = (portableReader().read(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) as PortableCapturedActivitySnapshot.Ready).envelope.entries.single()
+		val divergent = correctedPortableEntry(local)
+		RoomImportPortableCapturedActivity(database, Dispatchers.Unconfined).importEntry(
+			ImportPortableCapturedActivityRequest(
+				divergent,
+				PortableActivityImportReceipt("conflict", "entry", "foreign.trackeractivity", 4_000L),
+				0L,
+			),
+		) shouldBe ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+
+		var sinkCalls = 0
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable re-export rejects a foreign entry reusing local run ownership`() = runTest {
+		seedCapturedActivity()
+		val local = (portableReader().read(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) as PortableCapturedActivitySnapshot.Ready).envelope.entries.single()
+		val foreignIdentity = PortableActivityOpaqueIdentity.derive(
+			PortableActivityIdentityKind.LOGICAL_ENTRY,
+			"foreign-entry",
+		)
+		val foreign = local.copy(
+			identity = foreignIdentity,
+			contentChecksum = ActivityCapturedPortableIntegrity.entryChecksum(
+				foreignIdentity,
+				local.sessionMode,
+				local.startTimeMs,
+				local.endTimeMs,
+				local.runs,
+			),
+		)
+		RoomImportPortableCapturedActivity(database, Dispatchers.Unconfined).importEntry(
+			ImportPortableCapturedActivityRequest(
+				foreign,
+				PortableActivityImportReceipt(
+					"owner-conflict", "entry", "foreign.trackeractivity", 4_000L,
+				),
+				0L,
+			),
+		) shouldBe ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+
+		var sinkCalls = 0
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
 	fun `portable export retains an explicit gap without inventing a numeric Activity value`() = runTest {
 		seedCapturedActivity(gapOnly = true)
 
@@ -2569,6 +2653,52 @@ class ActivityCapturedFactMaintenanceTest {
 
 	private fun canonicalDeliveryIdentity(label: String): String =
 		sha256(label.toByteArray(Charsets.UTF_8))
+
+	private fun correctedPortableEntry(entry: PortableActivityEntryV1): PortableActivityEntryV1 {
+		val run = entry.runs.single()
+		val window = run.windows.single()
+		val band = window.fragments.single() as PortableActivityFragmentV1.Band
+		val fragments = listOf(band.copy(endWallTimeUncertaintyMs = band.endWallTimeUncertaintyMs + 1L))
+		val correctedWindow = window.copy(
+			contentChecksum = ActivityCapturedPortableIntegrity.windowChecksum(
+				window.identity,
+				window.startOffsetNanos,
+				window.endOffsetNanos,
+				window.storedZoneId,
+				window.coverage,
+				window.knownActiveDurationNanos,
+				window.knownInactiveDurationNanos,
+				window.unknownActivityDurationNanos,
+				window.unobservedDurationNanos,
+				fragments,
+			),
+			fragments = fragments,
+		)
+		val windows = listOf(correctedWindow)
+		val correctedRun = run.copy(
+			contentChecksum = ActivityCapturedPortableIntegrity.runChecksum(
+				run.identity,
+				run.deletionScopeDigest,
+				run.startTimeMs,
+				run.endTimeMs,
+				run.captureCoverage,
+				run.zoneEpochs,
+				windows,
+			),
+			windows = windows,
+		)
+		val runs = listOf(correctedRun)
+		return entry.copy(
+			contentChecksum = ActivityCapturedPortableIntegrity.entryChecksum(
+				entry.identity,
+				entry.sessionMode,
+				entry.startTimeMs,
+				entry.endTimeMs,
+				runs,
+			),
+			runs = runs,
+		)
+	}
 
 	private data class PersistedTestRevision(
 		val revision: ActivityCapturedWindowRevisionEntity,

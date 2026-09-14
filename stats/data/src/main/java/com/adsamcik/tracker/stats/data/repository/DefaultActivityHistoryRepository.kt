@@ -2,6 +2,14 @@ package com.adsamcik.tracker.stats.data.repository
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedActivityRequest
+import com.adsamcik.tracker.shared.base.database.ImportedActivityProductEvaluation
+import com.adsamcik.tracker.shared.base.database.ImportedActivityProductReader
+import com.adsamcik.tracker.shared.base.database.PortableActivityEntryV1
+import com.adsamcik.tracker.shared.base.database.PortableActivityIdentityKind
+import com.adsamcik.tracker.shared.base.database.PortableActivityOpaqueIdentity
+import com.adsamcik.tracker.shared.base.database.ReadLocalPortableCapturedActivityResult
+import com.adsamcik.tracker.shared.base.database.RoomReadLocalPortableCapturedActivity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
@@ -28,6 +36,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryPage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryRepository
@@ -43,6 +52,12 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : ActivityHistoryRepository {
+	private val importedProductReader = ImportedActivityProductReader(database)
+	private val localPortableReader = RoomReadLocalPortableCapturedActivity(
+		database,
+		laneExecutionAuthority,
+	)
+
 	override suspend fun session(segmentId: Long): ActivityHistoryQuery {
 		require(segmentId > 0L)
 		return withContext(ioDispatcher) {
@@ -61,13 +76,81 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 		require(limit in 1..MAX_ACTIVITY_HISTORY_RESULTS)
 		return withContext(ioDispatcher) {
 			database.withTransaction {
-				loadRecentActivityHistory(limit)
+				composeRecentActivityHistory(limit)
 			}
 		}
 	}
 
-	private suspend fun loadRecentActivityHistory(limit: Int): ActivityHistoryPage {
-		return ActivityRecentHistoryPager.collect(
+	private suspend fun composeRecentActivityHistory(limit: Int): ActivityHistoryPage {
+		val live = loadRecentActivityHistory(limit)
+		if (live.page is ActivityHistoryPage.Failed) return live.page
+		val imported = try {
+			importedProductReader.selectRecentInTransaction(limit)
+		} catch (cancelled: kotlinx.coroutines.CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			return ActivityHistoryPage.Failed(ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		}
+		val localIdentities = live.logicalTrackingIds.associateBy { logicalId ->
+			PortableActivityOpaqueIdentity.derive(
+				PortableActivityIdentityKind.LOGICAL_ENTRY,
+				logicalId,
+			).value
+		}
+		if (localIdentities.size != live.logicalTrackingIds.size) {
+			return ActivityHistoryPage.Failed(ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+		}
+		val publicLive = (live.page as ActivityHistoryPage.Available).entries
+		val collisions = imported.filterIsInstance<ImportedActivityProductEvaluation.Readable>()
+			.filter { it.candidate.identity in localIdentities }
+		val localPortableEntries = try {
+			loadLocalPortableComparisonEntries(
+				collisions,
+				localIdentities.keys,
+			)
+		} catch (_: ImportedActivityHistoryCompositionFailure) {
+			return ActivityHistoryPage.Failed(ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		}
+		return try {
+			ActivityHistoryPage.Available(
+				ActivityHistoryOriginComposer.compose(
+					live = publicLive,
+					liveLogicalTrackingIds = live.logicalTrackingIds,
+					imported = imported,
+					localPortableEntriesByIdentity = localPortableEntries,
+					limit = limit,
+				),
+			)
+		} catch (_: ImportedActivityHistoryCompositionFailure) {
+			ActivityHistoryPage.Failed(ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		}
+	}
+
+	private suspend fun loadLocalPortableComparisonEntries(
+		imported: List<ImportedActivityProductEvaluation.Readable>,
+		localEntryIdentities: Set<String>,
+	): Map<String, PortableActivityEntryV1> {
+		if (imported.isEmpty() || localEntryIdentities.isEmpty()) return emptyMap()
+		val earliest = imported.minOf { it.candidate.startTimeMs }
+		val latest = imported.maxOf { it.candidate.endTimeMs }
+		if (earliest == Long.MAX_VALUE) throw ImportedActivityHistoryCompositionFailure()
+		val toExclusiveMs = if (latest == Long.MAX_VALUE) latest else Math.addExact(latest, 1L)
+		return when (val result = localPortableReader.read(
+			ExportPortableCapturedActivityRequest(earliest, toExclusiveMs),
+		)) {
+			is ReadLocalPortableCapturedActivityResult.Ready ->
+				result.envelope.entries.filter { it.identity.value in localEntryIdentities }
+					.associateBy { it.identity.value }
+			is ReadLocalPortableCapturedActivityResult.Unverifiable -> emptyMap()
+			ReadLocalPortableCapturedActivityResult.StorageUnavailable ->
+				throw ActivityHistoryLocalPortableReadUnavailable()
+			ReadLocalPortableCapturedActivityResult.NoEntries -> emptyMap()
+		}
+	}
+
+	private suspend fun loadRecentActivityHistory(limit: Int): LiveActivityHistoryPage {
+		val logicalIdByEntryKey = linkedMapOf<ActivityHistoryEntryKey, String>()
+		val page = ActivityRecentHistoryPager.collect(
 			limit = limit,
 			pageSize = ACTIVITY_CANDIDATE_PAGE_SIZE,
 			candidateBudget = MAX_ACTIVITY_CANDIDATE_SCAN,
@@ -85,17 +168,33 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 					ActivityHistoryPage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
 				} else {
 					val candidateIds = seeds.mapNotNull(SessionSegment::logicalTrackingId).toSet()
-					ActivityHistoryPage.Available(
-						ActivityHistoryComposer.composeRecent(snapshot, laneExecutionAuthority)
+					val composed = ActivityHistoryComposer.composeRecent(snapshot, laneExecutionAuthority)
 							.filter { it.logicalTrackingId in candidateIds }
 							.sortedWith(
 								compareByDescending<ComposedActivityEntry> { it.recencyStartTimeMs }
 									.thenByDescending { it.recencySegmentId },
-							).map(ComposedActivityEntry::entry),
-					)
+							)
+					composed.forEach { item ->
+						logicalIdByEntryKey[item.entry.key] = item.logicalTrackingId
+					}
+					ActivityHistoryPage.Available(composed.map(ComposedActivityEntry::entry))
 				}
 			},
 		)
+		val returnedLogicalIds = when (page) {
+			is ActivityHistoryPage.Available -> page.entries.mapNotNullTo(linkedSetOf()) { entry ->
+				logicalIdByEntryKey[entry.key]
+			}
+			is ActivityHistoryPage.Failed -> emptySet()
+		}
+		val exactPage = if (page is ActivityHistoryPage.Available &&
+			returnedLogicalIds.size != page.entries.size
+		) {
+			ActivityHistoryPage.Failed(ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+		} else {
+			page
+		}
+		return LiveActivityHistoryPage(exactPage, returnedLogicalIds)
 	}
 
 	private suspend fun expandActivityMembership(
@@ -369,6 +468,11 @@ internal data class ActivityRevisionLoad(
 	val overflow: Boolean,
 )
 
+private data class LiveActivityHistoryPage(
+	val page: ActivityHistoryPage,
+	val logicalTrackingIds: Set<String>,
+)
+
 internal data class ActivityMembershipExpansion(
 	val segments: List<SessionSegment>,
 	val failures: Map<String, ActivityHistoryCause>,
@@ -491,3 +595,5 @@ private const val MAX_ACTIVITY_DESIRED_PLANS = 512
 private const val MAX_ACTIVITY_PROVIDER_REGISTRATIONS = 512
 private const val MAX_ACTIVITY_AUTHORIZATIONS = 4_096
 private const val MAX_ACTIVITY_TERMINAL_FAILURES = 512
+
+private class ActivityHistoryLocalPortableReadUnavailable : RuntimeException(null, null, false, false)

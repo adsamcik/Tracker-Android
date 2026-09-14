@@ -368,6 +368,91 @@ data class ExportPortableCapturedActivityRequest(
 	}
 }
 
+/**
+ * Source-specific structural verifier for already-authenticated portable Activity entries.
+ * It exposes no identifiers and grants no live, deletion, or writer authority.
+ */
+class PortableActivityOpaqueOwnershipVerifier private constructor(
+	private val identityOwners: MutableMap<String, PortableActivityOpaqueOwner>,
+	private val deletionScopeOwners: MutableMap<String, PortableActivityOpaqueOwner>,
+) {
+	/** Atomically adds one compatible hierarchy; false leaves the verifier unchanged. */
+	@Suppress("ComplexCondition")
+	fun tryInclude(entry: PortableActivityEntryV1): Boolean {
+		val candidate = ownershipOf(entry) ?: return false
+		if (candidate.identityOwners.keys.any { it in deletionScopeOwners } ||
+			candidate.deletionScopeOwners.keys.any { it in identityOwners } ||
+			candidate.identityOwners.any { (identity, owner) ->
+				identityOwners[identity]?.let { it != owner } == true
+			} || candidate.deletionScopeOwners.any { (scope, owner) ->
+				deletionScopeOwners[scope]?.let { it != owner } == true
+			}
+		) return false
+		identityOwners.putAll(candidate.identityOwners)
+		deletionScopeOwners.putAll(candidate.deletionScopeOwners)
+		return true
+	}
+
+	companion object {
+		fun fromEntries(entries: Collection<PortableActivityEntryV1>):
+			PortableActivityOpaqueOwnershipVerifier? {
+			val verifier = PortableActivityOpaqueOwnershipVerifier(linkedMapOf(), linkedMapOf())
+			return verifier.takeIf { entries.all(verifier::tryInclude) }
+		}
+
+		private fun ownershipOf(entry: PortableActivityEntryV1): PortableActivityOpaqueOwnershipVerifier? {
+			val verifier = PortableActivityOpaqueOwnershipVerifier(linkedMapOf(), linkedMapOf())
+			val entryIdentity = entry.identity.value
+			if (!verifier.bindIdentity(
+				entryIdentity,
+				PortableActivityOpaqueOwner(PortableActivityIdentityKind.LOGICAL_ENTRY, entryIdentity),
+			)) return null
+			entry.runs.forEach { run ->
+				val runIdentity = run.identity.value
+				val scope = run.deletionScopeDigest.value
+				val runOwner = PortableActivityOpaqueOwner(
+					PortableActivityIdentityKind.PHYSICAL_RUN,
+					entryIdentity,
+					runIdentity,
+				)
+				if (!verifier.bindIdentity(runIdentity, runOwner) ||
+					!verifier.bindScope(scope, runOwner)
+				) return null
+				run.windows.forEach { window ->
+					if (!verifier.bindIdentity(
+						window.identity.value,
+						PortableActivityOpaqueOwner(
+							PortableActivityIdentityKind.CAPTURE_WINDOW,
+							entryIdentity,
+							runIdentity,
+						),
+					)) return null
+				}
+			}
+			if (verifier.identityOwners.keys.any { it in verifier.deletionScopeOwners }) return null
+			return verifier
+		}
+	}
+
+	private fun bindIdentity(identity: String, owner: PortableActivityOpaqueOwner): Boolean {
+		val previous = identityOwners[identity]
+		if (previous == null) identityOwners[identity] = owner
+		return previous == null || previous == owner
+	}
+
+	private fun bindScope(scope: String, owner: PortableActivityOpaqueOwner): Boolean {
+		val previous = deletionScopeOwners[scope]
+		if (previous == null) deletionScopeOwners[scope] = owner
+		return previous == null || previous == owner
+	}
+}
+
+private data class PortableActivityOpaqueOwner(
+	val kind: PortableActivityIdentityKind,
+	val entryIdentity: String,
+	val runIdentity: String? = null,
+)
+
 fun interface PortableActivityEnvelopeSink {
 	/** Receives one complete immutable envelope after its Room snapshot has ended. */
 	suspend fun emit(envelope: PortableActivityEnvelopeV1)
@@ -497,6 +582,8 @@ enum class PortableActivityExportUnverifiableReason {
 	ENTRY_MATERIALIZING,
 	RETENTION_CROSSES_ENTRY,
 	DELETED_SCOPE,
+	SOURCE_EVIDENCE_UNAVAILABLE,
+	CONFLICTING_ORIGIN_IDENTITY,
 	DEPENDENCY_OVERFLOW,
 }
 
@@ -591,6 +678,43 @@ internal sealed interface PortableCapturedActivitySnapshot {
 	}
 }
 
+/** Exact local-origin portable facts for cross-origin product comparison; it grants no mutation authority. */
+class RoomReadLocalPortableCapturedActivity(
+	database: AppDatabase,
+	laneExecutionAuthority: SourceProductLaneExecutionAuthority,
+) {
+	private val reader = PortableCapturedActivityRoomReader(database, laneExecutionAuthority)
+
+	suspend fun read(
+		request: ExportPortableCapturedActivityRequest,
+	): ReadLocalPortableCapturedActivityResult = try {
+		when (val snapshot = reader.readLocal(request)) {
+			is PortableCapturedActivitySnapshot.Ready ->
+				ReadLocalPortableCapturedActivityResult.Ready(snapshot.envelope)
+			is PortableCapturedActivitySnapshot.Outcome -> when (val result = snapshot.result) {
+				ExportPortableCapturedActivityResult.NoEntries ->
+					ReadLocalPortableCapturedActivityResult.NoEntries
+				is ExportPortableCapturedActivityResult.Unverifiable ->
+					ReadLocalPortableCapturedActivityResult.Unverifiable(result.reason)
+				else -> ReadLocalPortableCapturedActivityResult.StorageUnavailable
+			}
+		}
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		ReadLocalPortableCapturedActivityResult.StorageUnavailable
+	}
+}
+
+sealed interface ReadLocalPortableCapturedActivityResult {
+	data class Ready(val envelope: PortableActivityEnvelopeV1) : ReadLocalPortableCapturedActivityResult
+	data object NoEntries : ReadLocalPortableCapturedActivityResult
+	data class Unverifiable(
+		val reason: PortableActivityExportUnverifiableReason,
+	) : ReadLocalPortableCapturedActivityResult
+	data object StorageUnavailable : ReadLocalPortableCapturedActivityResult
+}
+
 /** Bounded one-transaction reader; it owns no provider or projection lifecycle. */
 internal class PortableCapturedActivityRoomReader(
 	private val database: AppDatabase,
@@ -605,7 +729,7 @@ internal class PortableCapturedActivityRoomReader(
 	): PortableCapturedActivitySnapshot = try {
 		database.withTransaction {
 			checkpoint(PortableActivityReadCheckpoint.TRANSACTION_STARTED)
-			readInTransaction(request)
+			readCombinedInTransaction(request)
 		}
 	} catch (abort: PortableActivitySnapshotAbort) {
 		outcome(abort.reason)
@@ -619,7 +743,83 @@ internal class PortableCapturedActivityRoomReader(
 		outcome(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 	}
 
-	private suspend fun readInTransaction(
+	internal suspend fun readLocal(
+		request: ExportPortableCapturedActivityRequest,
+	): PortableCapturedActivitySnapshot = try {
+		database.withTransaction {
+			checkpoint(PortableActivityReadCheckpoint.TRANSACTION_STARTED)
+			readLocalInTransaction(request)
+		}
+	} catch (abort: PortableActivitySnapshotAbort) {
+		outcome(abort.reason)
+	} catch (_: ActivityCapturedMaintenanceLimitExceeded) {
+		outcome(PortableActivityExportUnverifiableReason.DEPENDENCY_OVERFLOW)
+	} catch (_: ActivityCapturedRetentionBlockedException) {
+		outcome(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+	} catch (_: IllegalArgumentException) {
+		outcome(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+	} catch (_: ArithmeticException) {
+		outcome(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+	}
+
+	private suspend fun readCombinedInTransaction(
+		request: ExportPortableCapturedActivityRequest,
+	): PortableCapturedActivitySnapshot {
+		val local = readLocalInTransaction(request)
+		val localEntries = when (local) {
+			is PortableCapturedActivitySnapshot.Ready -> local.envelope.entries
+			is PortableCapturedActivitySnapshot.Outcome -> when (local.result) {
+				ExportPortableCapturedActivityResult.NoEntries -> emptyList()
+				else -> return local
+			}
+		}
+		val imported = ImportedActivityProductReader(database).selectForExportInTransaction(request)
+		val entries = localEntries.toMutableList()
+		val localByIdentity = localEntries.associateBy(PortableActivityEntryV1::identity)
+		val ownership = PortableActivityOpaqueOwnershipVerifier.fromEntries(localEntries)
+			?: abort(PortableActivityExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
+		imported.forEach { evaluation ->
+			currentCoroutineContext().ensureActive()
+			when (evaluation) {
+				is ImportedActivityProductEvaluation.Unverifiable -> abort(
+					when (evaluation.reason) {
+						ImportedActivityProductFailure.DEPENDENCY_OVERFLOW ->
+							PortableActivityExportUnverifiableReason.DEPENDENCY_OVERFLOW
+						ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT ->
+							PortableActivityExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY
+						else -> PortableActivityExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE
+					},
+				)
+				is ImportedActivityProductEvaluation.Readable -> if (evaluation.isReExportable) {
+					val localEntry = localByIdentity[evaluation.entry.identity]
+					when {
+						localEntry == null -> {
+							if (!ownership.tryInclude(evaluation.entry)) {
+								abort(PortableActivityExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY)
+							}
+							entries += evaluation.entry
+						}
+						localEntry != evaluation.entry -> abort(
+							PortableActivityExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY,
+						)
+					}
+				}
+			}
+		}
+		if (entries.size > ActivityCapturedPortableFormatV1.MAX_ENTRIES ||
+			entries.sumOf { it.runs.size.toLong() } > ActivityCapturedPortableFormatV1.MAX_RUNS
+		) overflow()
+		if (entries.isEmpty()) return noEntries()
+		val ordered = entries.sortedWith(ENTRY_ORDER)
+		return PortableCapturedActivitySnapshot.Ready(
+			PortableActivityEnvelopeV1(
+				contentChecksum = ActivityCapturedPortableIntegrity.envelopeChecksum(ordered),
+				entries = ordered,
+			),
+		)
+	}
+
+	private suspend fun readLocalInTransaction(
 		request: ExportPortableCapturedActivityRequest,
 	): PortableCapturedActivitySnapshot {
 		val audit = database.auditCapturedActivityFacts(

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
@@ -9,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CancellationException
@@ -598,6 +600,211 @@ class RoomImportPortableCapturedActivityTest {
 			importer(testScheduler).importEntry(request(value, receipt("overflow-$index", 80L + index))) shouldBe
 				ImportPortableCapturedActivityResult.Unverifiable(reason)
 		}
+	}
+
+	@Test
+	fun `product reader selects the latest authenticated correction and exporter round trips it`() = runTest {
+		val first = request()
+		val corrected = request(entry(endUncertaintyMs = 12L), receipt("job-correction", 40L))
+		val importer = importer(testScheduler)
+		importer.importEntry(first) shouldBe ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		importer.importEntry(corrected) shouldBe ImportPortableCapturedActivityResult.Applied(2L, 1, 1, 1)
+
+		val evaluation = database.withTransaction {
+			ImportedActivityProductReader(database).selectRecentInTransaction(10).single()
+		} as ImportedActivityProductEvaluation.Readable
+		evaluation.entry shouldBe corrected.entry
+		evaluation.isReExportable shouldBe true
+
+		var emitted: PortableActivityEnvelopeV1? = null
+		var emittedInsideTransaction: Boolean? = null
+		val exporter = RoomExportPortableCapturedActivity(
+			database,
+			SourceProductLaneExecutionAuthority { false },
+			UnconfinedTestDispatcher(testScheduler),
+		)
+		exporter.export(ExportPortableCapturedActivityRequest(999L, 2_001L)) {
+			emittedInsideTransaction = database.inTransaction()
+			emitted = it
+		} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+		emittedInsideTransaction shouldBe false
+		emitted?.entries shouldBe listOf(corrected.entry)
+
+		val target = newDatabase()
+		try {
+			target.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+			val roundTrip = ImportPortableCapturedActivityRequest(
+				requireNotNull(emitted).entries.single(),
+				receipt("target-round-trip", 80L),
+				EPOCH,
+			)
+			importer(testScheduler, target).importEntry(roundTrip) shouldBe
+				ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+			val targetEvaluation = target.withTransaction {
+				ImportedActivityProductReader(target).selectRecentInTransaction(1).single()
+			} as ImportedActivityProductEvaluation.Readable
+			targetEvaluation.entry shouldBe corrected.entry
+		} finally {
+			target.close()
+		}
+	}
+
+	@Test
+	fun `entry and run tombstones prevent portable resurrection while retaining typed product truth`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		val runIdentity = value.entry.runs.single().identity.value
+		database.importedActivityDao().insertDeletionGeneration(
+			ImportedActivityDeletionGenerationEntity.create(runIdentity, EPOCH, 1L, 50L),
+		)
+
+		val runDeleted = database.withTransaction {
+			ImportedActivityProductReader(database).selectRecentInTransaction(1).single()
+		} as ImportedActivityProductEvaluation.Readable
+		runDeleted.deletedRunIdentities shouldBe setOf(runIdentity)
+		runDeleted.isReExportable shouldBe false
+
+		database.importedActivityDao().insertEntryDeletion(
+			ImportedActivityEntryDeletionEntity.create(value.entry.identity.value, EPOCH, 1L, 60L),
+		)
+		val entryDeleted = database.withTransaction {
+			ImportedActivityProductReader(database).selectRecentInTransaction(1).single()
+		} as ImportedActivityProductEvaluation.Readable
+		entryDeleted.entryDeleted shouldBe true
+		entryDeleted.isReExportable shouldBe false
+
+		var sinkCalls = 0
+		RoomExportPortableCapturedActivity(
+			database,
+			SourceProductLaneExecutionAuthority { false },
+			UnconfinedTestDispatcher(testScheduler),
+		).export(ExportPortableCapturedActivityRequest(999L, 2_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.NoEntries
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `exact local source deletion fence hides the matching imported run from product and re-export`() = runTest {
+		val deletionScope = PortableActivityDeletionScopeDigest.derive(LOGICAL_TRACKING_ID, SERVICE_RUN_ID)
+		val value = request(entry(deletionScope = deletionScope))
+		importer(testScheduler).importEntry(value) shouldBe
+			ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		database.sourceDeletionFenceDao().insertIfAbsent(sourceDeletionFence()) shouldBe 1L
+
+		val evaluation = database.withTransaction {
+			ImportedActivityProductReader(database).selectRecentInTransaction(1).single()
+		} as ImportedActivityProductEvaluation.Readable
+		evaluation.deletedRunIdentities shouldBe setOf(value.entry.runs.single().identity.value)
+		evaluation.isReExportable shouldBe false
+
+		var sinkCalls = 0
+		RoomExportPortableCapturedActivity(
+			database,
+			SourceProductLaneExecutionAuthority { false },
+			UnconfinedTestDispatcher(testScheduler),
+		).export(ExportPortableCapturedActivityRequest(999L, 2_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.NoEntries
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `advanced privacy epoch and retention floor cannot expose stale imported values`() = runTest {
+		importer(testScheduler).importEntry(request())
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 1_500L, 40L) shouldBe 1
+		val retained = database.withTransaction {
+			ImportedActivityProductReader(database).selectRecentInTransaction(1).single()
+		} as ImportedActivityProductEvaluation.Readable
+		retained.retainedFromMs shouldBe 1_500L
+		retained.isReExportable shouldBe false
+
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH + 1L, null, 50L) shouldBe 1
+		val stale = database.withTransaction {
+			ImportedActivityProductReader(database).selectRecentInTransaction(1).single()
+		} as ImportedActivityProductEvaluation.Unverifiable
+		stale.reason shouldBe ImportedActivityProductFailure.STALE_COLLECTED_DATA_EPOCH
+	}
+
+	@Test
+	fun `stored checksum corruption is typed and cannot reach the portable sink`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value) shouldBe
+			ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_activity_entry_revision SET content_checksum = ? WHERE identity = ?",
+			arrayOf("e".repeat(64), value.entry.identity.value),
+		)
+
+		val evaluation = database.withTransaction {
+			ImportedActivityProductReader(database).selectRecentInTransaction(1).single()
+		} as ImportedActivityProductEvaluation.Unverifiable
+		evaluation.reason shouldBe ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE
+		var sinkCalls = 0
+		RoomExportPortableCapturedActivity(
+			database,
+			SourceProductLaneExecutionAuthority { false },
+			UnconfinedTestDispatcher(testScheduler),
+		).export(ExportPortableCapturedActivityRequest(999L, 2_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `imported revision overflow fails closed before product reconstruction`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value) shouldBe
+			ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		val sqlite = database.openHelper.writableDatabase
+		for (revision in 2L..17L) {
+			sqlite.execSQL(
+				"""
+				INSERT INTO imported_activity_entry_revision (
+				  identity, import_revision, supersedes_import_revision, content_checksum,
+				  source_format, source_schema_version, session_mode, start_time_ms, end_time_ms,
+				  collected_data_epoch, import_job_id, import_entry_key, import_source_name,
+				  received_at_ms
+				)
+				SELECT identity, ?, ?, content_checksum, source_format, source_schema_version,
+				       session_mode, start_time_ms, end_time_ms, collected_data_epoch, ?, ?,
+				       import_source_name, received_at_ms + ?
+				FROM imported_activity_entry_revision
+				WHERE identity = ? AND import_revision = 1
+				""".trimIndent(),
+				arrayOf(
+					revision,
+					revision - 1L,
+					"overflow-job-$revision",
+					"overflow-entry-$revision",
+					revision,
+					value.entry.identity.value,
+				),
+			)
+		}
+
+		val evaluation = database.withTransaction {
+			ImportedActivityProductReader(database).selectRecentInTransaction(1).single()
+		} as ImportedActivityProductEvaluation.Unverifiable
+		evaluation.reason shouldBe ImportedActivityProductFailure.DEPENDENCY_OVERFLOW
+	}
+
+	@Test
+	fun `portable re-export maps imported storage failure without invoking the sink`() = runTest {
+		val closed = newDatabase()
+		closed.close()
+		var sinkCalls = 0
+
+		RoomExportPortableCapturedActivity(
+			closed,
+			SourceProductLaneExecutionAuthority { false },
+			UnconfinedTestDispatcher(testScheduler),
+		).export(ExportPortableCapturedActivityRequest(999L, 2_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.StorageUnavailable
+		sinkCalls shouldBe 0
 	}
 
 	private fun importer(

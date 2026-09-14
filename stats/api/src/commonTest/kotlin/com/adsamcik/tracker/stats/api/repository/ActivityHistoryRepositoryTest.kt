@@ -61,6 +61,20 @@ class ActivityHistoryRepositoryTest {
 		}
 	}
 
+	@Test
+	fun `existing history remains local unless an imported origin is explicit`() {
+		val local = entry(
+			state = ActivityHistoryProductState.UNAVAILABLE,
+			coverage = ActivityHistoryCoverage.NONE,
+			activeTime = null,
+			fragments = emptyList(),
+			causes = setOf(ActivityHistoryCause.NO_QUALIFIED_FACTS),
+		)
+
+		local.origin shouldBe ActivityHistoryOrigin.LOCAL
+		local.copy(origin = ActivityHistoryOrigin.IMPORTED).origin shouldBe ActivityHistoryOrigin.IMPORTED
+	}
+
 	private fun entry(
 		state: ActivityHistoryProductState,
 		coverage: ActivityHistoryCoverage,

@@ -45,6 +45,12 @@ enum class ActivityHistoryProductState {
 	FAILED,
 }
 
+/** Product provenance only; it carries no local row or portable identity. */
+enum class ActivityHistoryOrigin {
+	LOCAL,
+	IMPORTED,
+}
+
 enum class ActivityHistoryCoverage {
 	NONE,
 	PARTIAL,
@@ -60,8 +66,11 @@ enum class ActivityHistoryCause(val isIntegrityFailure: Boolean = false) {
 	PROVIDER_GAP,
 	PROVIDER_UNAVAILABLE,
 	RETENTION_LIMIT,
+	DELETED,
 	PRIVACY_EPOCH_MISMATCH,
 	LEGACY_UNVERIFIABLE,
+	IMPORTED_EVIDENCE_UNVERIFIABLE(isIntegrityFailure = true),
+	ORIGIN_IDENTITY_CONFLICT(isIntegrityFailure = true),
 	READ_BUDGET_EXCEEDED(isIntegrityFailure = true),
 	PHYSICAL_MEMBERSHIP_INVALID(isIntegrityFailure = true),
 	MANIFEST_INTEGRITY_FAILED(isIntegrityFailure = true),
@@ -82,6 +91,7 @@ data class ActivityHistoryEntry(
 	val activeTime: ActivityActiveTime?,
 	val fragments: List<ActivityHistoryFragment>,
 	val causes: Set<ActivityHistoryCause> = emptySet(),
+	val origin: ActivityHistoryOrigin = ActivityHistoryOrigin.LOCAL,
 ) {
 	init {
 		require(endTime >= startTime)
