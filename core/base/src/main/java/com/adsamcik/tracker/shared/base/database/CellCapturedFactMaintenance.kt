@@ -260,12 +260,13 @@ internal suspend fun AppDatabase.deleteCapturedCellFactsAfterConsentReset(
 					expectedDeletedSourceEventHighWaterOrdinal
 			) block(CellCapturedSourceDeletionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
 
-			val policyAuthority = sourcePolicyDao().authority()
-			val policy = policyAuthority?.takeIf { authority ->
+			val policyAuthority = sourcePolicyDao().authority()?.takeIf { authority ->
 				authority.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE
-			}?.let { authority ->
-				sourcePolicyDao().policyAtRevision(authority.currentPolicyRevision, CELL_SOURCE)
-			}
+			} ?: block(CellCapturedSourceDeletionBlockedReason.POLICY_AUTHORITY_UNAVAILABLE)
+			val policy = sourcePolicyDao().policyAtRevision(
+				policyAuthority.currentPolicyRevision,
+				CELL_SOURCE,
+			)
 			val revokedConsent = sourcePolicyDao().latestConsentEpoch(CELL_SOURCE, CAPTURE_PURPOSE)
 			if (policy == null || revokedConsent == null ||
 				revokedConsent.epoch != expectedRevokedConsentEpoch
