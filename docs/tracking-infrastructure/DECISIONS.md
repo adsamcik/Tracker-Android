@@ -3901,3 +3901,21 @@ Each entry records repository evidence and does not duplicate the final architec
 - Only fully authenticated non-tombstoned latest imported v1 content is re-exported. This does not
   add provider/session/manifest/WAL authority, implement imported maintenance or file/UI actions,
   generate the deferred schema, validate execution, activate rollout, or release.
+
+## TI-D241 — Wi-Fi projection settles only authenticated retained WAL through the sole writer
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; DAO/lane/recovery/ingress/test commit
+  `dfaf6bb8e`; independent review; TI-B304.
+- One dormant source-local lane captures a finite durable high-water and pages at most 64 Wi-Fi
+  candidates per pass. The target includes retained WAL, deleted-source high-water, and the first
+  terminal failure ordinal so WAL removal cannot hide poison from recovery.
+- A payload-free candidate is only an index. CONTROL/AMBIENT skip and terminal lifecycle, fence,
+  epoch, scope, time, or retention settlement require an exact full-row reload and qualified
+  integrity. Missing or corrupt evidence remains terminal unless independently settled by
+  deleted-source high-water.
+- Captured and compact coverage-owner paths still pass through the existing Wi-Fi qualifier and sole
+  writer, authenticate provider-interval retention and exact destination ownership, and commit
+  fact/cursor/evidence/failure/lane state in one transaction with cancellation propagation.
+- Ingress and startup recovery provide conflated wake hints only. This does not install or activate
+  a provider, register demand, change rollout, add a second writer, invoke maintenance, implement
+  transfer/UI/automatic/ambient behavior, provide executed evidence, or release.

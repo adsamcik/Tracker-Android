@@ -2654,3 +2654,27 @@ Deferred focused commands:
 The commands were not run. Compilation, Room execution, imported maintenance, file/UI action
 wiring, schema generation/reopen, provider/process/reboot/device behavior, integration, activation,
 and release remain unproven.
+
+## TI-B304 — Wi-Fi retained-WAL projection contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `dfaf6bb8e`. Authored source-local tests cover finite
+64-row drain targeting; captured and compact-coverage projection; canonical versus shadow writer
+ownership; valid CONTROL/AMBIENT skip; corrupt purpose mask, epoch, logical/run/time/retention
+scope; missing WAL; deleted-source high-water; retry, poison, cancellation, stale destination owner;
+atomic fact/cursor/evidence/failure/lane settlement; and ingress/startup hints.
+
+Independent review confirmed every noncapture and terminal decision reloads the exact row and
+requires qualified full integrity, invalid/missing evidence remains terminal except for independent
+deletion high-water, the terminal ordinal stays reachable after WAL removal, retention uses the
+authenticated provider interval, and the existing single writer rechecks destination ownership.
+Caller inspection found hints only and no provider, demand, rollout, or second-writer activation.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*WifiCapturedFact*' --tests '*WifiWalQualificationAdapterTest' --tests '*SourcePipelineRecoveryTest' --tests '*TrackingRolloutStateStoreTest' --tests '*DurableSourceEventSinkTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, maintenance invocation, transfer, shared UI,
+automatic/ambient behavior, provider/process/reboot/device evidence, integration, activation, and
+release remain unproven.

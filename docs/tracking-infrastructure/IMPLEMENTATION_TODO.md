@@ -852,6 +852,14 @@ payload removal, and preserves CONTROL/other sources. These TODOs remain uncheck
 projection, transfer, shared UI, automatic/ambient behavior, worker/action invocation, and the full
 scenario cohort exist.
 
+Accepted projection commit `dfaf6bb8e` implements additional bounded portions of
+WIFI-001/003/004/005/010/013 and DATA-003/006/007/009/011. One finite dormant drain binds retained
+captured WAL to the existing Wi-Fi qualifier and sole writer with atomic fact/cursor/evidence/
+failure/lane settlement. Noncapture and terminal paths require exact full-row integrity; missing or
+corrupt rows remain terminal except for deleted-source high-water, and provider-interval retention
+is authenticated. Wi-Fi TODOs remain unchecked until maintenance invocation, transfer, shared UI,
+automatic/ambient behavior, and complete scenarios exist.
+
 ## Cell vertical
 
 - [ ] TODO-CELL-001 Complete one app-scoped Cell callback owner and stable durable delivery identity

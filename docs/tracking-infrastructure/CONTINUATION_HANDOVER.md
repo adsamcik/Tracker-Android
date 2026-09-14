@@ -85,6 +85,14 @@ once before source-event WAL pruning, including while pending signals defer lega
 cleanup. Cancellation propagates and typed blocked/no-change/pruned results do not start retry loops
 or provider demand. Consent-reset/source deletion and the other Cell product gaps remain open.
 
+The dormant Wi-Fi retained-WAL projection is independently accepted at `dfaf6bb8e` on
+`codex/ti-wifi-maintenance`. Its finite 64-row drain binds the existing qualifier to the one existing
+Wi-Fi writer and atomically advances fact, cursor, evidence, failure, and lane state. Every
+noncapture and terminal decision authenticates the exact full WAL row; missing/corrupt evidence
+remains terminal except for independent deleted-source high-water, and retention uses the
+authenticated provider interval. Ingress/recovery only provide conflated hints. No provider,
+demand, rollout state, second writer, maintenance invocation, transfer, or product UI is activated.
+
 Activity portable export is independently accepted through `8f0842354`. Its one-transaction reader
 expands all retained rows behind each canonical 64-hex delivery identity, authenticates the exact
 observed-time authorization revision and production per-demand freshness, recomputes the qualified

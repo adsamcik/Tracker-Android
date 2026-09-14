@@ -99,6 +99,17 @@ guards still defer legacy radio deletion. Zero days keeps forever, cancellation 
 typed outcomes do not activate a provider, demand, writer, rollout, or retry loop. Consent-reset
 source deletion and remaining Cell product paths stay open.
 
+The separate `codex/ti-wifi-maintenance` branch is independently accepted at `dfaf6bb8e` for the
+dormant retained-WAL projection. One finite 64-candidate source-local drain reauthenticates lane and
+source state on every pass, uses the existing Wi-Fi qualifier and sole writer, and commits exact
+fact/fact-cursor/evidence/failure/lane-cursor state atomically. CONTROL/AMBIENT skip and terminal
+lifecycle/fence settlement require a reloaded full-integrity WAL row; missing or corrupt evidence
+stays terminal unless deleted-source high-water independently settles it. The first terminal ordinal
+remains in the durable target after WAL removal, and retention is derived from authenticated
+provider coverage rather than raw envelope time. Ingress and recovery add hints only; no provider,
+demand, rollout activation, second writer, maintenance call, transfer, shared UI, or automatic/
+ambient product path is introduced.
+
 The separate `codex/ti-activity-transfer` branch is independently accepted through `8f0842354`
 for captured Activity portable export. One bounded Room snapshot authenticates exact logical and
 physical replacement ownership, captured fact/cursor/writer authority, immutable plans, provider
