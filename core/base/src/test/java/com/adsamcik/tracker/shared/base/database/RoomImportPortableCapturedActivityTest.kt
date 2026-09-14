@@ -943,7 +943,7 @@ class RoomImportPortableCapturedActivityTest {
 	}
 
 	@Test
-	fun `exact replay fails closed for missing extra or corrupt receipt and run marker`() = runTest {
+	fun `exact replay fails closed for missing or corrupt receipt and run marker`() = runTest {
 		val value = request()
 		importer(testScheduler).importEntry(value)
 		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 100L)) shouldBe
@@ -985,21 +985,6 @@ class RoomImportPortableCapturedActivityTest {
 			arrayOf(entryIdentity),
 		)
 		dao.insertEntryDeletionReceipt(receipt)
-		val extraRunDeletion = ImportedActivityDeletionGenerationEntity.create(
-			value.entry.runs.single().deletionScopeDigest.value,
-			EPOCH,
-			1L,
-			100L,
-		)
-		dao.insertDeletionGeneration(extraRunDeletion)
-		deleter(testScheduler).delete(replay) shouldBe DeleteSelectedImportedActivityResult.Unverifiable(
-			ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT,
-		)
-		database.openHelper.writableDatabase.execSQL(
-			"DELETE FROM imported_activity_deletion_generation WHERE run_identity = ?",
-			arrayOf(extraRunDeletion.runIdentity),
-		)
-
 		val unsupported = ImportedActivityDeletionGenerationEntity.create(
 			runIdentity,
 			EPOCH,
@@ -1014,6 +999,212 @@ class RoomImportPortableCapturedActivityTest {
 		deleter(testScheduler).delete(replay) shouldBe DeleteSelectedImportedActivityResult.Unverifiable(
 			ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
 		)
+	}
+
+	@Test
+	fun `exact replay rejects selected run reused as entry identity or orphan entry owner`() = runTest {
+		val value = request()
+		val dao = database.importedActivityDao()
+		importer(testScheduler).importEntry(value)
+		val headerTemplate = requireNotNull(dao.latestEntryRevision(value.entry.identity.value))
+		val receiptTemplate = dao.receiptsForAdmission(value.entry.identity.value).single()
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.Deleted(1, 1)
+		val selectedRun = value.entry.runs.single().identity.value
+		val replay = deleteRequest(value.entry, deletedAtMs = 110L)
+		val reusedHeader = headerTemplate.copy(
+			identity = selectedRun,
+			importJobId = "run-reuse-header-job",
+			importEntryKey = "run-reuse-header-entry",
+			receivedAtMs = 101L,
+		)
+		dao.insertEntryRevision(reusedHeader)
+
+		deleter(testScheduler).delete(replay) shouldBe DeleteSelectedImportedActivityResult.Unverifiable(
+			ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT,
+		)
+
+		dao.insertReceipt(
+			receiptTemplate.copy(
+				importJobId = "run-reuse-owner-job",
+				importEntryKey = "run-reuse-owner-entry",
+				receivedAtMs = 102L,
+				entryIdentity = selectedRun,
+				entryContentChecksum = reusedHeader.contentChecksum,
+			),
+		)
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL("PRAGMA foreign_keys = OFF")
+		try {
+			sqlite.execSQL(
+				"DELETE FROM imported_activity_entry_revision WHERE identity = ?",
+				arrayOf(selectedRun),
+			)
+		} finally {
+			sqlite.execSQL("PRAGMA foreign_keys = ON")
+		}
+
+		deleter(testScheduler).delete(replay) shouldBe DeleteSelectedImportedActivityResult.Unverifiable(
+			ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT,
+		)
+	}
+
+	@Test
+	fun `exact replay rejects selected window reused as run or window owner under another entry`() = runTest {
+		val value = request()
+		val otherEntry = entry(
+			entryLocalId = "foreign-owner-entry",
+			runIdentity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "foreign-owner-run"),
+			deletionScope = scope("foreign-owner-run"),
+			windowIdentity = identity(PortableActivityIdentityKind.CAPTURE_WINDOW, "foreign-owner-window"),
+		)
+		val dao = database.importedActivityDao()
+		importer(testScheduler).importEntry(value)
+		importer(testScheduler).importEntry(
+			request(
+				otherEntry,
+				PortableActivityImportReceipt("foreign-owner-job", "foreign-owner", "owner", 40L),
+			),
+		)
+		val otherRun = otherEntry.runs.single()
+		val otherWindow = dao.windows(otherEntry.identity.value, 1L, otherRun.identity.value).single()
+		val otherFragment = dao.fragments(
+			otherEntry.identity.value,
+			1L,
+			otherRun.identity.value,
+			otherWindow.identity,
+		).single()
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.Deleted(1, 1)
+		val selectedWindow = value.entry.runs.single().windows.single().identity.value
+		val replay = deleteRequest(value.entry, deletedAtMs = 110L)
+		val foreignRunOwner = otherWindow.copy(
+			runIdentity = selectedWindow,
+			identity = identity(PortableActivityIdentityKind.CAPTURE_WINDOW, "foreign-run-owner").value,
+		)
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL("PRAGMA foreign_keys = OFF")
+		try {
+			dao.insertWindow(foreignRunOwner)
+		} finally {
+			sqlite.execSQL("PRAGMA foreign_keys = ON")
+		}
+
+		deleter(testScheduler).delete(replay) shouldBe DeleteSelectedImportedActivityResult.Unverifiable(
+			ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT,
+		)
+
+		sqlite.execSQL(
+			"DELETE FROM imported_activity_window WHERE entry_identity = ? AND " +
+				"entry_import_revision = ? AND run_identity = ? AND identity = ?",
+			arrayOf(
+				foreignRunOwner.entryIdentity,
+				foreignRunOwner.entryImportRevision,
+				foreignRunOwner.runIdentity,
+				foreignRunOwner.identity,
+			),
+		)
+		sqlite.execSQL("PRAGMA foreign_keys = OFF")
+		try {
+			dao.insertFragment(otherFragment.copy(windowIdentity = selectedWindow))
+		} finally {
+			sqlite.execSQL("PRAGMA foreign_keys = ON")
+		}
+
+		deleter(testScheduler).delete(replay) shouldBe DeleteSelectedImportedActivityResult.Unverifiable(
+			ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT,
+		)
+	}
+
+	@Test
+	fun `exact replay rejects selected scope reused by deletion markers or a foreign owner`() = runTest {
+		val selectedScope = PortableActivityDeletionScopeDigest.derive(
+			LOGICAL_TRACKING_ID,
+			SERVICE_RUN_ID,
+		)
+		val value = request(entry(deletionScope = selectedScope))
+		importer(testScheduler).importEntry(value)
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.Deleted(1, 1)
+		val scopeMarker = ImportedActivityDeletionGenerationEntity.create(
+			selectedScope.value,
+			EPOCH,
+			1L,
+			100L,
+		)
+		database.importedActivityDao().insertDeletionGeneration(scopeMarker)
+
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 110L)) shouldBe
+			DeleteSelectedImportedActivityResult.Unverifiable(
+				ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT,
+			)
+
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL(
+			"DELETE FROM imported_activity_deletion_generation WHERE run_identity = ?",
+			arrayOf(selectedScope.value),
+		)
+		val foreignFence = sourceDeletionFence(sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS)
+		database.sourceDeletionFenceDao().insertIfAbsent(foreignFence) shouldBe 1L
+		sqlite.execSQL(
+			"UPDATE source_deletion_fence SET scope_identity_digest = ? " +
+				"WHERE source_kind = ? AND purpose = ? AND scope_kind = ? AND scope_identity_digest = ?",
+			arrayOf(
+				selectedScope.value,
+				foreignFence.sourceKind,
+				foreignFence.purpose,
+				foreignFence.scopeKind,
+				foreignFence.scopeIdentityDigest,
+			),
+		)
+
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 110L)) shouldBe
+			DeleteSelectedImportedActivityResult.Unverifiable(
+				ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT,
+			)
+	}
+
+	@Test
+	fun `exact replay owner audit fails closed at its bounded result limit`() = runTest {
+		val value = request()
+		val dao = database.importedActivityDao()
+		importer(testScheduler).importEntry(value)
+		val receiptTemplate = dao.receiptsForAdmission(value.entry.identity.value).single()
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.Deleted(1, 1)
+		val selectedRun = value.entry.runs.single().identity.value
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL("PRAGMA foreign_keys = OFF")
+		try {
+			repeat(10) { ordinal ->
+				dao.insertReceipt(
+					receiptTemplate.copy(
+						importJobId = "owner-overflow-job-$ordinal",
+						importEntryKey = "owner-overflow-entry-$ordinal",
+						receivedAtMs = 101L + ordinal,
+						entryIdentity = selectedRun,
+					),
+				)
+			}
+		} finally {
+			sqlite.execSQL("PRAGMA foreign_keys = ON")
+		}
+
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 120L)) shouldBe
+			DeleteSelectedImportedActivityResult.Unverifiable(
+				ImportedActivityProductFailure.DEPENDENCY_OVERFLOW,
+			)
+	}
+
+	@Test
+	fun `complete protected identity audit accepts matching exact replay`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.Deleted(1, 1)
+
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 110L)) shouldBe
+			DeleteSelectedImportedActivityResult.AlreadyDeleted(1L)
 	}
 
 	@Test

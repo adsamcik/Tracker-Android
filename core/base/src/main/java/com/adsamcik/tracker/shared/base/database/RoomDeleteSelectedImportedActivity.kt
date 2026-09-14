@@ -4,6 +4,7 @@ import android.database.sqlite.SQLiteConstraintException
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityProtectedIdentityOwner
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionReceiptEntity
@@ -274,55 +275,71 @@ class RoomDeleteSelectedImportedActivity internal constructor(
 		authority: ExpectedImportedActivityDeletionAuthority,
 		exactDeletion: Boolean,
 	) {
-		if (dao.hasImportedHierarchyDependents(authority.entryIdentity)) storedCorrupt()
 		val foundEntryDeletions = linkedSetOf<String>()
 		val foundReceipts = linkedSetOf<String>()
 		val foundRunDeletions = linkedSetOf<String>()
-		val identities = listOf(authority.entryIdentity) + authority.runIdentities +
-			authority.windowIdentities
-		identities.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { identityBatch ->
-			val identityLimit = identityBatch.size + 1
-			if (dao.existingEntryIdentities(identityBatch, identityLimit).isNotEmpty() ||
-				dao.existingRunIdentityOwners(identityBatch, identityLimit).isNotEmpty() ||
-				dao.existingWindowIdentityOwners(identityBatch, identityLimit).isNotEmpty() ||
-				dao.existingRunScopeOwners(identityBatch, 1).isNotEmpty()
-			) originConflict()
-
-			val entryDeletions = dao.entryDeletions(identityBatch)
-			val receipts = dao.entryDeletionReceipts(identityBatch)
-			val runDeletions = dao.deletionGenerations(identityBatch)
-			if (!exactDeletion) {
-				if (entryDeletions.isNotEmpty() || receipts.isNotEmpty() || runDeletions.isNotEmpty()) {
-					originConflict()
+		authority.protectedIdentities
+			.chunked(ImportedActivityDao.PROTECTED_IDENTITY_AUDIT_BATCH_SIZE)
+			.forEach { identityBatch ->
+				val maximumExpectedOwnerCount = identityBatch.size + 1
+				val owners = dao.protectedIdentityOwners(
+					identities = identityBatch,
+					limit = maximumExpectedOwnerCount + 1,
+				)
+				if (owners.size > maximumExpectedOwnerCount) dependencyOverflow()
+				owners.forEach { owner ->
+					authenticateProtectedIdentityOwner(
+						owner,
+						authority,
+						exactDeletion,
+						foundEntryDeletions,
+						foundReceipts,
+						foundRunDeletions,
+					)
 				}
-			} else {
-				if (entryDeletions.any { it.entryIdentity != authority.entryIdentity } ||
-					receipts.any { it.entryIdentity != authority.entryIdentity } ||
-					runDeletions.any { it.runIdentity !in authority.runIdentities }
+			}
+		if (!exactDeletion) return
+		if (foundEntryDeletions != setOf(authority.entryIdentity) ||
+			foundReceipts != setOf(authority.entryIdentity) ||
+			foundRunDeletions != authority.runIdentities.toSet()
+		) storedCorrupt()
+	}
+
+	@Suppress("LongParameterList", "ComplexCondition")
+	private fun authenticateProtectedIdentityOwner(
+		owner: ImportedActivityProtectedIdentityOwner,
+		authority: ExpectedImportedActivityDeletionAuthority,
+		exactDeletion: Boolean,
+		foundEntryDeletions: MutableSet<String>,
+		foundReceipts: MutableSet<String>,
+		foundRunDeletions: MutableSet<String>,
+	) {
+		when (owner.ownerKind) {
+			ImportedActivityProtectedIdentityOwner.ENTRY_DELETION -> {
+				if (!exactDeletion || owner.protectedIdentity != authority.entryIdentity) originConflict()
+				foundEntryDeletions += owner.protectedIdentity
+			}
+			ImportedActivityProtectedIdentityOwner.ENTRY_DELETION_RECEIPT -> {
+				if (!exactDeletion || owner.protectedIdentity != authority.entryIdentity) originConflict()
+				foundReceipts += owner.protectedIdentity
+			}
+			ImportedActivityProtectedIdentityOwner.RUN_DELETION -> {
+				if (!exactDeletion || owner.protectedIdentity !in authority.runIdentities) originConflict()
+				foundRunDeletions += owner.protectedIdentity
+			}
+			ImportedActivityProtectedIdentityOwner.SOURCE_DELETION_SCOPE -> {
+				if (!exactDeletion || owner.protectedIdentity !in authority.scopeDigests ||
+					owner.sourceKind != SourceDestinationOwnerEntity.SOURCE_ACTIVITY ||
+					owner.purpose != SessionManifestPurposeCode.SESSION_CAPTURE ||
+					owner.scopeKind != SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN
 				) originConflict()
-				entryDeletions.mapTo(foundEntryDeletions) { it.entryIdentity }
-				receipts.mapTo(foundReceipts) { it.entryIdentity }
-				runDeletions.mapTo(foundRunDeletions) { it.runIdentity }
+			}
+			else -> if (owner.protectedIdentity == authority.entryIdentity) {
+				storedCorrupt()
+			} else {
+				originConflict()
 			}
 		}
-		if (
-			exactDeletion && (
-				foundEntryDeletions != setOf(authority.entryIdentity) ||
-					foundReceipts != setOf(authority.entryIdentity) ||
-					foundRunDeletions != authority.runIdentities.toSet()
-			)
-		) storedCorrupt()
-
-		val scopes = authority.scopeDigests
-		val scopeLimit = scopes.size + 1
-		if (dao.existingEntryIdentities(scopes, 1).isNotEmpty() ||
-			dao.existingRunIdentityOwners(scopes, 1).isNotEmpty() ||
-			dao.existingWindowIdentityOwners(scopes, 1).isNotEmpty() ||
-			dao.existingRunScopeOwners(scopes, scopeLimit).isNotEmpty() ||
-			dao.entryDeletions(scopes).isNotEmpty() ||
-			dao.entryDeletionReceipts(scopes).isNotEmpty() ||
-			dao.deletionGenerations(scopes).isNotEmpty()
-		) originConflict()
 	}
 
 	@Suppress("ComplexCondition")
@@ -381,6 +398,9 @@ class RoomDeleteSelectedImportedActivity internal constructor(
 	private fun originConflict(): Nothing =
 		unverifiable(ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT)
 
+	private fun dependencyOverflow(): Nothing =
+		unverifiable(ImportedActivityProductFailure.DEPENDENCY_OVERFLOW)
+
 	private fun unverifiable(reason: ImportedActivityProductFailure): Nothing =
 		throw ImportedActivityDeletionAbort(DeleteSelectedImportedActivityResult.Unverifiable(reason))
 
@@ -396,6 +416,16 @@ private data class ExpectedImportedActivityDeletionAuthority(
 ) {
 	val runIdentities: List<String> = runScopes.keys.toList()
 	val scopeDigests: List<String> = runScopes.values.toList()
+	val protectedIdentities: List<String> = buildList {
+		add(entryIdentity)
+		addAll(runIdentities)
+		addAll(windowIdentities)
+		addAll(scopeDigests)
+	}
+
+	init {
+		require(protectedIdentities.distinct().size == protectedIdentities.size)
+	}
 
 	fun exactlyMatches(
 		runs: List<Pair<String, String>>,
@@ -414,8 +444,6 @@ private data class ExpectedImportedActivityDeletionAuthority(
 		)
 	}
 }
-
-private const val IDENTITY_QUERY_CHUNK_SIZE = 400
 
 internal enum class ImportedActivityDeletionCheckpoint {
 	TRANSACTION_STARTED,

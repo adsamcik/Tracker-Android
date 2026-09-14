@@ -359,6 +359,85 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityWindowIdentityOwner>
 
+	@Query(
+		"""
+		SELECT owner_kind, protected_identity, source_kind, purpose, scope_kind
+		FROM (
+			SELECT 'ENTRY_IDENTITY' AS owner_kind,
+			       identity AS protected_identity,
+			       CAST(NULL AS INTEGER) AS source_kind,
+			       CAST(NULL AS TEXT) AS purpose,
+			       CAST(NULL AS TEXT) AS scope_kind
+			FROM imported_activity_entry_revision
+			UNION ALL
+			SELECT 'RECEIPT_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_receipt
+			UNION ALL
+			SELECT 'RUN_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_run
+			UNION ALL
+			SELECT 'RUN_IDENTITY', identity, NULL, NULL, NULL
+			FROM imported_activity_run
+			UNION ALL
+			SELECT 'RUN_SCOPE_OWNER', deletion_scope_digest, NULL, NULL, NULL
+			FROM imported_activity_run
+			UNION ALL
+			SELECT 'ZONE_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_zone_epoch
+			UNION ALL
+			SELECT 'ZONE_RUN_OWNER', run_identity, NULL, NULL, NULL
+			FROM imported_activity_zone_epoch
+			UNION ALL
+			SELECT 'WINDOW_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_window
+			UNION ALL
+			SELECT 'WINDOW_RUN_OWNER', run_identity, NULL, NULL, NULL
+			FROM imported_activity_window
+			UNION ALL
+			SELECT 'WINDOW_IDENTITY', identity, NULL, NULL, NULL
+			FROM imported_activity_window
+			UNION ALL
+			SELECT 'FRAGMENT_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_fragment
+			UNION ALL
+			SELECT 'FRAGMENT_RUN_OWNER', run_identity, NULL, NULL, NULL
+			FROM imported_activity_fragment
+			UNION ALL
+			SELECT 'FRAGMENT_WINDOW_OWNER', window_identity, NULL, NULL, NULL
+			FROM imported_activity_fragment
+			UNION ALL
+			SELECT 'ENTRY_DELETION', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_entry_deletion
+			UNION ALL
+			SELECT 'ENTRY_DELETION_RECEIPT', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_entry_deletion_receipt
+			UNION ALL
+			SELECT 'RUN_DELETION', run_identity, NULL, NULL, NULL
+			FROM imported_activity_deletion_generation
+			UNION ALL
+			SELECT 'SOURCE_DELETION_SCOPE', scope_identity_digest, source_kind, purpose, scope_kind
+			FROM source_deletion_fence
+		) AS owner_facts
+		WHERE protected_identity IN (:identities)
+		ORDER BY owner_kind, protected_identity, source_kind, purpose, scope_kind
+		LIMIT :limit
+		""",
+	)
+	protected abstract suspend fun loadProtectedIdentityOwners(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedActivityProtectedIdentityOwner>
+
+	suspend fun protectedIdentityOwners(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedActivityProtectedIdentityOwner> {
+		require(identities.size in 1..PROTECTED_IDENTITY_AUDIT_BATCH_SIZE)
+		require(identities.distinct().size == identities.size)
+		require(limit in 1..(identities.size + 2))
+		return loadProtectedIdentityOwners(identities, limit)
+	}
+
 	@Query("SELECT * FROM imported_activity_entry_deletion WHERE entry_identity = :identity")
 	abstract suspend fun entryDeletion(identity: String): ImportedActivityEntryDeletionEntity?
 
@@ -433,19 +512,6 @@ abstract class ImportedActivityDao {
 		windowIdentity: String,
 	): List<ImportedActivityFragmentEntity>
 
-	@Query(
-		"""
-		SELECT CASE WHEN
-			EXISTS(SELECT 1 FROM imported_activity_receipt WHERE entry_identity = :identity LIMIT 1) OR
-			EXISTS(SELECT 1 FROM imported_activity_run WHERE entry_identity = :identity LIMIT 1) OR
-			EXISTS(SELECT 1 FROM imported_activity_zone_epoch WHERE entry_identity = :identity LIMIT 1) OR
-			EXISTS(SELECT 1 FROM imported_activity_window WHERE entry_identity = :identity LIMIT 1) OR
-			EXISTS(SELECT 1 FROM imported_activity_fragment WHERE entry_identity = :identity LIMIT 1)
-		THEN 1 ELSE 0 END
-		""",
-	)
-	abstract suspend fun hasImportedHierarchyDependents(identity: String): Boolean
-
 	/** Cascades only the selected imported entry's receipts, runs, windows, zones, and fragments. */
 	@Query("DELETE FROM imported_activity_entry_revision WHERE identity = :identity")
 	abstract suspend fun deleteEntryRevisions(identity: String): Int
@@ -486,6 +552,7 @@ abstract class ImportedActivityDao {
 		const val MAX_TOTAL_FRAGMENTS_PER_LINEAGE = 524_288
 		const val MAX_HISTORY_ENTRY_CANDIDATES = 100
 		const val HISTORY_EVALUATION_BATCH_SIZE = 4
+		const val PROTECTED_IDENTITY_AUDIT_BATCH_SIZE = 400
 		private const val HISTORY_ID_QUERY_CHUNK_SIZE = 400
 	}
 }
@@ -516,3 +583,18 @@ data class ImportedActivityWindowIdentityOwner(
 	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
 	@ColumnInfo(name = "run_identity") val runIdentity: String,
 )
+
+data class ImportedActivityProtectedIdentityOwner(
+	@ColumnInfo(name = "owner_kind") val ownerKind: String,
+	@ColumnInfo(name = "protected_identity") val protectedIdentity: String,
+	@ColumnInfo(name = "source_kind") val sourceKind: Int?,
+	val purpose: String?,
+	@ColumnInfo(name = "scope_kind") val scopeKind: String?,
+) {
+	companion object {
+		const val ENTRY_DELETION = "ENTRY_DELETION"
+		const val ENTRY_DELETION_RECEIPT = "ENTRY_DELETION_RECEIPT"
+		const val RUN_DELETION = "RUN_DELETION"
+		const val SOURCE_DELETION_SCOPE = "SOURCE_DELETION_SCOPE"
+	}
+}
