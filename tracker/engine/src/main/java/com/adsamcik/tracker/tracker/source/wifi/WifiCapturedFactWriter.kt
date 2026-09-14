@@ -55,7 +55,8 @@ internal sealed interface WifiCapturedWriteResult {
 
 /**
  * Dormant canonical Wi-Fi writer. Qualification, revision append, cursor CAS, and publication share
- * one Room transaction. Nothing invokes this writer from a provider or production runtime yet.
+ * one Room transaction. Its only production caller is the exact source-local Wi-Fi lane;
+ * executable code alone neither installs that lane nor authorizes canonical rollout.
  */
 internal class WifiCapturedFactWriter @Inject constructor(
 	private val database: AppDatabase,
@@ -68,17 +69,25 @@ internal class WifiCapturedFactWriter @Inject constructor(
 		checkpoint: suspend (WifiCapturedWriteCheckpoint) -> Unit,
 	): WifiCapturedWriteResult = try {
 		database.withTransaction {
-			currentCoroutineContext().ensureActive()
-			when (val result = adapter.qualify(eventId, ::classifyWithStoredState)) {
-				is WifiWalAdapterResult.Rejected -> WifiCapturedWriteResult.AdapterRejected(result.reason)
-				is WifiWalAdapterResult.Evaluated -> {
-					checkpoint(WifiCapturedWriteCheckpoint.QUALIFIED)
-					writeClassification(result.classification, checkpoint)
-				}
-			}
+			writeInCurrentTransaction(eventId, checkpoint)
 		}
 	} catch (rejected: WifiCapturedWriteRejectedException) {
 		WifiCapturedWriteResult.Rejected(rejected.reason)
+	}
+
+	/** Lane seam whose caller owns the Room transaction and rollback boundary. */
+	internal suspend fun writeInCurrentTransaction(
+		eventId: SourceEventId,
+		checkpoint: suspend (WifiCapturedWriteCheckpoint) -> Unit = {},
+	): WifiCapturedWriteResult {
+		currentCoroutineContext().ensureActive()
+		return when (val result = adapter.qualify(eventId, ::classifyWithStoredState)) {
+			is WifiWalAdapterResult.Rejected -> WifiCapturedWriteResult.AdapterRejected(result.reason)
+			is WifiWalAdapterResult.Evaluated -> {
+				checkpoint(WifiCapturedWriteCheckpoint.QUALIFIED)
+				writeClassification(result.classification, checkpoint)
+			}
+		}
 	}
 
 	private suspend fun classifyWithStoredState(
@@ -775,6 +784,6 @@ private fun WifiCapturedFactRevisionEntity.toCursor(revision: Long) = WifiCaptur
 	semanticRevision, mutationId, effectChecksum, sourceAdmissionOrdinal, revision, appliedAtMs,
 )
 
-private class WifiCapturedWriteRejectedException(
+internal class WifiCapturedWriteRejectedException(
 	val reason: WifiCapturedWriteRejection,
 ) : IllegalStateException(reason.name)

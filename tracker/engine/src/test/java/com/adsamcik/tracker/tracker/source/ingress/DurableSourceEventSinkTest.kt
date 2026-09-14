@@ -104,6 +104,30 @@ class DurableSourceEventSinkTest {
 	}
 
 	@Test
+	fun `durable and duplicate Wi-Fi admissions independently kick the Wi-Fi lane`() = runTest {
+		val ingress = mockk<DurableSourceIngress>()
+		val deliveryIngress = mockk<DurableSourceDeliveryIngress>()
+		val recovery = mockk<SourcePipelineRecovery>(relaxed = true)
+		coEvery { deliveryIngress.admit(any()) } returnsMany listOf(
+			DeliveryAdmissionResult.Admitted(
+				listOf(DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("wifi-event"), 7L)),
+			),
+			DeliveryAdmissionResult.Duplicate(
+				listOf(DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("wifi-event"), 7L)),
+			),
+		)
+		val subject = DurableSourceEventSinkFactory(ingress, deliveryIngress, recovery)
+
+		subject.unbound.admit(wifiDelivery()).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		subject.unbound.admit(wifiDelivery()).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Duplicate>()
+
+		verify(exactly = 2) { recovery.requestWifiSessionFactDrain() }
+		verify(exactly = 0) { recovery.requestPressureSessionFactDrain() }
+		verify(exactly = 0) { recovery.requestStepsSessionFactDrain() }
+		verify(exactly = 0) { recovery.requestCommittedWorkDrain() }
+	}
+
+	@Test
 	fun `atomic delivery admission requests exactly one projection drain`() = runTest {
 		val ingress = mockk<DurableSourceIngress>()
 		val deliveryIngress = mockk<DurableSourceDeliveryIngress>()
@@ -362,6 +386,16 @@ class DurableSourceEventSinkTest {
 			maximumInterSampleGapNanos = 50_000_000L,
 			closureKind = PressureWindowClosureKind.TARGET_ELAPSED,
 		),
+	)
+
+	private fun wifiCandidate() = candidate().copy(
+		source = SourceKind.WIFI,
+		sourceInstanceId = SourceInstanceId("wifi"),
+	)
+
+	private fun wifiDelivery() = SourceDeliveryCandidate(
+		identity = sourceDeliveryIdentity("wifi-delivery".encodeToByteArray()),
+		units = listOf(SourceDeliveryUnit(0, wifiCandidate().copy(sourceSequence = 0L))),
 	)
 
 	private fun delivery(): SourceDeliveryCandidate = SourceDeliveryCandidate(

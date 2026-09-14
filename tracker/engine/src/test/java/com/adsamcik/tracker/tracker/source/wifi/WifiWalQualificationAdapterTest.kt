@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEnt
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
@@ -19,17 +20,17 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIntegrity
-import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -688,6 +689,300 @@ class WifiWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `canonical Wi-Fi lane atomically commits captured fact and both cursors`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val demandsBefore = database.sourceBrokerDao().activeDemands(WIFI_SOURCE)
+		val registrationBefore = database.sourceBrokerDao().registration(
+			WIFI_SOURCE,
+			REGISTRATION_GENERATION,
+		)
+
+		val result = assertIs<WifiSessionFactDrainResult.Complete>(
+			WifiSessionFactProjectionLane(database, subject, writer).drainAvailable(),
+		)
+
+		assertEquals(1L, result.lastCompletedOrdinal)
+		assertEquals(1, result.factsInserted)
+		assertEquals(1, result.eventsValidated)
+		assertEquals(1L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(1L, database.wifiCapturedFactDao().cursorCount())
+		assertEquals(1L, database.sourceProjectionStateDao().activeProductLane(WIFI_SOURCE)
+			?.contiguousAdmissionOrdinal)
+		assertEquals(null, database.sourceProjectionStateDao().failure(
+			WifiSessionFactProjectionLane.WRITER_ID,
+			WifiSessionFactProjectionLane.WRITER_VERSION,
+			1L,
+		))
+		assertEquals(demandsBefore, database.sourceBrokerDao().activeDemands(WIFI_SOURCE))
+		assertEquals(
+			registrationBefore,
+			database.sourceBrokerDao().registration(WIFI_SOURCE, REGISTRATION_GENERATION),
+		)
+	}
+
+	@Test
+	fun `canonical Wi-Fi lane writes compact unchanged coverage against exact aggregate owner`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val secondId = insertSecondWal()
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+
+		val result = assertIs<WifiSessionFactDrainResult.Complete>(
+			WifiSessionFactProjectionLane(database, subject, writer).drainAvailable(),
+		)
+
+		assertEquals(2L, result.lastCompletedOrdinal)
+		assertEquals(2, result.factsInserted)
+		assertEquals(2L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(2L, database.wifiCapturedFactDao().cursorCount())
+		val second = requireNotNull(database.sourceEventWalDao().getByEventId(secondId.value))
+		val logicalId = WifiCapturedFactRevisionIntegrity.logicalFactId(
+			requireNotNull(second.deliveryIdentity), LOGICAL_ID, RUN_ID, SEGMENT_ID,
+			MANIFEST_REVISION, 0L, 0L,
+		)
+		val coverage = requireNotNull(database.wifiCapturedFactDao().revision(
+			WifiSessionFactProjectionLane.WRITER_ID,
+			WifiSessionFactProjectionLane.WRITER_VERSION,
+			logicalId,
+			1L,
+		))
+		assertEquals(WifiCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY, coverage.factKind)
+		assertEquals(1L, coverage.aggregateOwnerSemanticRevision)
+		assertEquals(1L, coverage.aggregateOwnerCursorRevision)
+	}
+
+	@Test
+	fun `shadow Wi-Fi lane validates without invoking canonical writer`() = runTest {
+		installValidFixture(candidateWriter = false)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW)
+
+		val result = assertIs<WifiSessionFactDrainResult.Complete>(
+			WifiSessionFactProjectionLane(database, subject, writer).drainAvailable(),
+		)
+
+		assertEquals(1, result.eventsValidated)
+		assertEquals(0, result.factsInserted)
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(1L, database.sourceProjectionStateDao().activeProductLane(WIFI_SOURCE)
+			?.contiguousAdmissionOrdinal)
+	}
+
+	@Test
+	fun `valid CONTROL and AMBIENT Wi-Fi rows settle without captured history`() = runTest {
+		installValidFixture(candidateWriter = true)
+		rewriteWalPurpose(EVENT_ID, SourceBrokerPurpose.MASK_CONTROL_AUTOSTART)
+		val secondId = insertAdditionalWal(2, accessPoints(), OBSERVED_WALL_MS + 200L)
+		rewriteWalPurpose(secondId, SourceBrokerPurpose.MASK_AMBIENT_PRODUCT)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+
+		val result = assertIs<WifiSessionFactDrainResult.Complete>(
+			WifiSessionFactProjectionLane(database, subject, writer).drainAvailable(),
+		)
+
+		assertEquals(2L, result.lastCompletedOrdinal)
+		assertEquals(0, result.eventsValidated)
+		assertEquals(0, result.factsInserted)
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `corrupt noncapture Wi-Fi mask is terminal before lane cursor progress`() = runTest {
+		installValidFixture(candidateWriter = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ? WHERE event_id = ?",
+			arrayOf(SourceBrokerPurpose.MASK_CONTROL_AUTOSTART, EVENT_ID.value),
+		)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+
+		val failed = assertTerminalWifiLaneFailure(
+			WifiSessionFactProjectionLane(database, subject, writer),
+		)
+
+		assertEquals("WIFI_PREFLIGHT_WAL_INTEGRITY_MISMATCH", failed.failureCode)
+	}
+
+	@Test
+	fun `corrupt Wi-Fi epoch cannot release terminal candidate`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		corruptWalPayload()
+		val lane = WifiSessionFactProjectionLane(database, subject, writer)
+		assertTerminalWifiLaneFailure(lane)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET captured_collected_data_epoch = " +
+				"captured_collected_data_epoch + 1 WHERE event_id = ?",
+			arrayOf(EVENT_ID.value),
+		)
+
+		val repeated = assertTerminalWifiLaneFailure(lane)
+
+		assertEquals("WIFI_ADAPTER_WAL_INTEGRITY_MISMATCH", repeated.failureCode)
+	}
+
+	@Test
+	fun `corrupt Wi-Fi scope cannot release terminal candidate`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		corruptWalPayload()
+		val lane = WifiSessionFactProjectionLane(database, subject, writer)
+		assertTerminalWifiLaneFailure(lane)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET logical_tracking_id = 'forged-wifi-logical', " +
+				"service_run_id = 'forged-wifi-run' WHERE event_id = ?",
+			arrayOf(EVENT_ID.value),
+		)
+
+		val repeated = assertTerminalWifiLaneFailure(lane)
+
+		assertEquals("WIFI_ADAPTER_WAL_INTEGRITY_MISMATCH", repeated.failureCode)
+	}
+
+	@Test
+	fun `corrupt Wi-Fi time cannot release terminal candidate`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		corruptWalPayload()
+		val lane = WifiSessionFactProjectionLane(database, subject, writer)
+		assertTerminalWifiLaneFailure(lane)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET acquired_at_ms = 0, wall_time_ms = 0 WHERE event_id = ?",
+			arrayOf(EVENT_ID.value),
+		)
+
+		val repeated = assertTerminalWifiLaneFailure(lane)
+
+		assertEquals("WIFI_ADAPTER_WAL_INTEGRITY_MISMATCH", repeated.failureCode)
+	}
+
+	@Test
+	fun `missing Wi-Fi WAL cannot release terminal candidate without deletion high water`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		corruptWalPayload()
+		val lane = WifiSessionFactProjectionLane(database, subject, writer)
+		assertTerminalWifiLaneFailure(lane)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_event_wal WHERE event_id = ?",
+			arrayOf(EVENT_ID.value),
+		)
+
+		val repeated = assertTerminalWifiLaneFailure(lane)
+
+		assertEquals("WIFI_ADAPTER_WAL_INTEGRITY_MISMATCH", repeated.failureCode)
+		assertEquals(1, database.sourceEvidenceStateDao().updateAfterFullDeletion(
+			epoch = 0L,
+			retainedFromMs = null,
+			deletedSourceEventHighWaterOrdinal = 1L,
+			updatedAtMs = SESSION_END_WALL_MS,
+		))
+		val settled = assertIs<WifiSessionFactDrainResult.Complete>(lane.drainAvailable())
+		assertEquals(1L, settled.lastCompletedOrdinal)
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `deleted source high water releases terminal Wi-Fi ordinal without fact`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		corruptWalPayload()
+		val lane = WifiSessionFactProjectionLane(database, subject, writer)
+		assertTerminalWifiLaneFailure(lane)
+		assertEquals(1, database.sourceEvidenceStateDao().updateAfterFullDeletion(
+			epoch = 0L,
+			retainedFromMs = null,
+			deletedSourceEventHighWaterOrdinal = 1L,
+			updatedAtMs = SESSION_END_WALL_MS,
+		))
+
+		val settled = assertIs<WifiSessionFactDrainResult.Complete>(lane.drainAvailable())
+
+		assertEquals(1L, settled.lastCompletedOrdinal)
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(null, database.sourceProjectionStateDao().failure(
+			WifiSessionFactProjectionLane.WRITER_ID,
+			WifiSessionFactProjectionLane.WRITER_VERSION,
+			1L,
+		))
+	}
+
+	@Test
+	fun `retryable Wi-Fi poison preserves cursors and retries exact event`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		var fail = true
+		val lane = WifiSessionFactProjectionLane(
+			database,
+			subject,
+			writer,
+			writeCheckpoint = { _, checkpoint ->
+				if (fail && checkpoint == WifiCapturedWriteCheckpoint.QUALIFIED) error("retry-wifi")
+			},
+		)
+
+		val failed = assertIs<WifiSessionFactDrainResult.Failed>(lane.drainAvailable())
+		assertEquals(false, failed.terminal)
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(0L, database.sourceProjectionStateDao().activeProductLane(WIFI_SOURCE)
+			?.contiguousAdmissionOrdinal)
+		fail = false
+		val recovered = assertIs<WifiSessionFactDrainResult.Complete>(lane.drainAvailable())
+		assertEquals(1, recovered.factsInserted)
+		assertEquals(null, database.sourceProjectionStateDao().failure(
+			WifiSessionFactProjectionLane.WRITER_ID,
+			WifiSessionFactProjectionLane.WRITER_VERSION,
+			1L,
+		))
+	}
+
+	@Test
+	fun `Wi-Fi lane cancellation rolls back fact failure and lane cursors`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val lane = WifiSessionFactProjectionLane(
+			database,
+			subject,
+			writer,
+			writeCheckpoint = { _, checkpoint ->
+				if (checkpoint == WifiCapturedWriteCheckpoint.REVISION_INSERTED) {
+					throw CancellationException("cancel-wifi-lane")
+				}
+			},
+		)
+
+		assertFailsWith<CancellationException> { lane.drainAvailable() }
+
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
+		assertEquals(0L, database.sourceProjectionStateDao().activeProductLane(WIFI_SOURCE)
+			?.contiguousAdmissionOrdinal)
+		assertEquals(null, database.sourceProjectionStateDao().failure(
+			WifiSessionFactProjectionLane.WRITER_ID,
+			WifiSessionFactProjectionLane.WRITER_VERSION,
+			1L,
+		))
+	}
+
+	@Test
+	fun `canonical Wi-Fi lane refuses stale destination owner before WAL mutation`() = runTest {
+		installValidFixture(candidateWriter = true)
+		installWifiLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_destination_owner SET owner_generation = owner_generation + 1 " +
+				"WHERE source_kind = ? AND destination = ?",
+			arrayOf(WIFI_SOURCE, SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI),
+		)
+
+		val changed = assertIs<WifiSessionFactDrainResult.AuthorityChanged>(
+			WifiSessionFactProjectionLane(database, subject, writer).drainAvailable(),
+		)
+
+		assertEquals("WIFI_DESTINATION_OWNER_CHANGED", changed.reason)
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(0L, database.sourceProjectionStateDao().activeProductLane(WIFI_SOURCE)
+			?.contiguousAdmissionOrdinal)
+	}
+
+	@Test
 	fun `cancellation after revision append rolls back revision cursor and publication`() = runTest {
 		installValidFixture(candidateWriter = true)
 		val before = requireNotNull(database.sourceEvidenceStateDao().get()).revision
@@ -1199,6 +1494,62 @@ class WifiWalQualificationAdapterTest {
 				REPLACEMENT_REGISTRATION_GENERATION,
 			),
 		)
+	}
+
+	private suspend fun installWifiLane(stage: String) {
+		val binding = ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS
+		database.sourceProjectionStateDao().installProductLane(
+			SourceProductProjectionLaneEntity(
+				sourceKind = binding.source.stableCode,
+				bindingGeneration = binding.bindingGeneration,
+				projectionId = binding.projectionId,
+				projectionVersion = binding.projectionVersion,
+				captureModeMask = binding.captureModeMask,
+				productStage = stage,
+				activatedRolloutRevision = ROLLOUT_REVISION,
+				activationOrdinal = 1L,
+				contiguousAdmissionOrdinal = 0L,
+				retentionRequired = true,
+				status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+				installedAtMs = RUN_START_WALL_MS,
+				updatedAtMs = RUN_START_WALL_MS,
+			),
+		)
+	}
+
+	private suspend fun rewriteWalPurpose(eventId: SourceEventId, purposeMask: Long) {
+		val original = requireNotNull(database.sourceEventWalDao().getByEventId(eventId.value))
+		val unsigned = original.copy(
+			authorizationPurposeEligibilityMask = purposeMask,
+			integrityIdentity = SourceEventWalEntity.LEGACY_PENDING_CHECKSUM,
+		)
+		val rewritten = unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = ?, " +
+				"integrity_identity = ? WHERE event_id = ?",
+			arrayOf(purposeMask, rewritten.integrityIdentity, eventId.value),
+		)
+	}
+
+	private fun corruptWalPayload() {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET payload = X'00' WHERE event_id = ?",
+			arrayOf(EVENT_ID.value),
+		)
+	}
+
+	private suspend fun assertTerminalWifiLaneFailure(
+		lane: WifiSessionFactProjectionLane,
+	): WifiSessionFactDrainResult.Failed {
+		val failed = assertIs<WifiSessionFactDrainResult.Failed>(lane.drainAvailable())
+		assertEquals(0L, failed.lastCompletedOrdinal)
+		assertEquals(1L, failed.failedOrdinal)
+		assertEquals(true, failed.terminal)
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
+		assertEquals(0L, database.sourceProjectionStateDao().activeProductLane(WIFI_SOURCE)
+			?.contiguousAdmissionOrdinal)
+		return failed
 	}
 
 	private suspend fun insertSecondWal(

@@ -12,6 +12,7 @@ import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactProject
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecovery
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecoveryResult
+import com.adsamcik.tracker.tracker.source.wifi.WifiSessionFactProjectionLane
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Provider
@@ -32,6 +33,7 @@ class SourcePipelineRecovery private constructor(
 	private val activityEffects: ActivityAutomationOutboxDispatcher,
 	private val stepsProjectionLane: StepsSessionFactProjectionLane?,
 	private val pressureProjectionLane: PressureSessionFactProjectionLane?,
+	private val wifiProjectionLane: WifiSessionFactProjectionLane?,
 	applicationScope: CoroutineScope?,
 	private val startupGateProvider: Provider<TrackingStartupGate>?,
 	@Suppress("UNUSED_PARAMETER") constructionMarker: Unit,
@@ -49,6 +51,7 @@ class SourcePipelineRecovery private constructor(
 		activityEffects: ActivityAutomationOutboxDispatcher,
 		stepsProjectionLane: StepsSessionFactProjectionLane,
 		pressureProjectionLane: PressureSessionFactProjectionLane,
+		wifiProjectionLane: WifiSessionFactProjectionLane,
 		@ApplicationScope applicationScope: CoroutineScope,
 		startupGateProvider: Provider<TrackingStartupGate>,
 	) : this(
@@ -58,6 +61,7 @@ class SourcePipelineRecovery private constructor(
 		activityEffects,
 		stepsProjectionLane,
 		pressureProjectionLane,
+		wifiProjectionLane,
 		applicationScope,
 		startupGateProvider,
 		Unit,
@@ -76,6 +80,7 @@ class SourcePipelineRecovery private constructor(
 		activityEffects,
 		null,
 		null,
+		null,
 		applicationScope,
 		null,
 		Unit,
@@ -95,6 +100,7 @@ class SourcePipelineRecovery private constructor(
 		null,
 		null,
 		null,
+		null,
 		Unit,
 	)
 
@@ -110,6 +116,7 @@ class SourcePipelineRecovery private constructor(
 		coordinator,
 		activityProjectionLane,
 		activityEffects,
+		null,
 		null,
 		null,
 		applicationScope,
@@ -130,6 +137,7 @@ class SourcePipelineRecovery private constructor(
 		activityProjectionLane,
 		activityEffects,
 		stepsProjectionLane,
+		null,
 		null,
 		applicationScope,
 		null,
@@ -151,6 +159,29 @@ class SourcePipelineRecovery private constructor(
 		activityEffects,
 		stepsProjectionLane,
 		pressureProjectionLane,
+		null,
+		applicationScope,
+		null,
+		Unit,
+	)
+
+	internal constructor(
+		legacyRecovery: LegacyV27ProjectionRecovery,
+		coordinator: TrackingCoordinator,
+		activityProjectionLane: ActivityAutomationProjectionLane,
+		activityEffects: ActivityAutomationOutboxDispatcher,
+		stepsProjectionLane: StepsSessionFactProjectionLane,
+		pressureProjectionLane: PressureSessionFactProjectionLane,
+		wifiProjectionLane: WifiSessionFactProjectionLane,
+		applicationScope: CoroutineScope,
+	) : this(
+		legacyRecovery,
+		coordinator,
+		activityProjectionLane,
+		activityEffects,
+		stepsProjectionLane,
+		pressureProjectionLane,
+		wifiProjectionLane,
 		applicationScope,
 		null,
 		Unit,
@@ -193,6 +224,11 @@ class SourcePipelineRecovery private constructor(
 		pressureProjectionLane?.requestDrain()
 	}
 
+	/** Source-local Wi-Fi hint; callbacks never join an active scan or sibling lane. */
+	fun requestWifiSessionFactDrain() {
+		wifiProjectionLane?.requestDrain()
+	}
+
 	/** Recovers durable projections only; it deliberately cannot invoke application consumers. */
 	suspend fun recoverDurableState(): SourceRecoveryResult {
 		val legacyResult = recoverStartupAuthority()
@@ -222,6 +258,7 @@ class SourcePipelineRecovery private constructor(
 		// poisoned fact cannot block an independently viable source or cause polling.
 		stepsProjectionLane?.requestDrain()
 		pressureProjectionLane?.requestDrain()
+		wifiProjectionLane?.requestDrain()
 		return legacyResult
 	}
 

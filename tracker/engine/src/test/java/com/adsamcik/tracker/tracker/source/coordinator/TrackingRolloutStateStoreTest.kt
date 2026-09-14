@@ -51,11 +51,12 @@ class TrackingRolloutStateStoreTest {
 	}
 
 	@Test
-	fun `production catalog retains Steps generations and exact manual Pressure binding`() {
+	fun `production catalog retains exact source-local Steps Pressure and Wi-Fi bindings`() {
 		val catalog = ExecutableSourceLaneCatalog()
 		val generationOne = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1
 		val generationTwo = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2
 		val pressure = ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS
+		val wifi = ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS
 
 		catalog.owns(generationOne) shouldBe true
 		catalog.owns(generationTwo) shouldBe true
@@ -72,6 +73,12 @@ class TrackingRolloutStateStoreTest {
 		pressure.projectionId shouldBe SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID
 		pressure.projectionVersion shouldBe SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION
 		pressure.captureModes shouldBe setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)
+		catalog.owns(wifi) shouldBe true
+		wifi.source shouldBe SourceKind.WIFI
+		wifi.bindingGeneration shouldBe SourceDestinationOwnerEntity.WIFI_FACT_BINDING_GENERATION
+		wifi.projectionId shouldBe SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID
+		wifi.projectionVersion shouldBe SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION
+		wifi.captureModes shouldBe setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)
 	}
 
 	@Test

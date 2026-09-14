@@ -20,6 +20,7 @@ import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactProject
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecovery
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecoveryResult
+import com.adsamcik.tracker.tracker.source.wifi.WifiSessionFactProjectionLane
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
@@ -199,6 +200,7 @@ class SourcePipelineRecoveryTest {
 	fun `startup and committed fact hints independently kick their source local lanes`() = runTest {
 		val stepsLane = mockk<StepsSessionFactProjectionLane>(relaxed = true)
 		val pressureLane = mockk<PressureSessionFactProjectionLane>(relaxed = true)
+		val wifiLane = mockk<WifiSessionFactProjectionLane>(relaxed = true)
 		val scheduled = SourcePipelineRecovery(
 			legacy,
 			coordinator,
@@ -206,6 +208,7 @@ class SourcePipelineRecoveryTest {
 			activityEffects,
 			stepsLane,
 			pressureLane,
+			wifiLane,
 			backgroundScope,
 		)
 		coEvery { legacy.recover() } returns LegacyV27ProjectionRecoveryResult.NotRequired
@@ -213,11 +216,14 @@ class SourcePipelineRecoveryTest {
 		scheduled.recoverStartupAuthority()
 		scheduled.requestStepsSessionFactDrain()
 		scheduled.requestPressureSessionFactDrain()
+		scheduled.requestWifiSessionFactDrain()
 
 		verify(exactly = 2) { stepsLane.requestDrain() }
 		verify(exactly = 2) { pressureLane.requestDrain() }
+		verify(exactly = 2) { wifiLane.requestDrain() }
 		coVerify(exactly = 0) { stepsLane.drainAvailable() }
 		coVerify(exactly = 0) { pressureLane.drainAvailable() }
+		coVerify(exactly = 0) { wifiLane.drainAvailable() }
 		coVerify(exactly = 0) { activityLane.drainAvailable() }
 		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
 	}

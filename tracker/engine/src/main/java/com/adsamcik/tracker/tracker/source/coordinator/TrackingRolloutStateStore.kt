@@ -35,7 +35,12 @@ class ExecutableSourceLaneCatalog internal constructor(
 	bindings: Set<ExecutableSourceLaneBinding>,
 ) : SourceProductLaneExecutionAuthority {
 	@Inject constructor() : this(
-		setOf(STEPS_SESSION_FACTS_V1, STEPS_SESSION_FACTS_V2, PRESSURE_SESSION_FACTS),
+		setOf(
+			STEPS_SESSION_FACTS_V1,
+			STEPS_SESSION_FACTS_V2,
+			PRESSURE_SESSION_FACTS,
+			WIFI_SESSION_FACTS,
+		),
 	)
 
 	private val bindingsByGeneration = bindings.associateBy { binding ->
@@ -120,6 +125,15 @@ class ExecutableSourceLaneCatalog internal constructor(
 			bindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
 			projectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
 			projectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
+		)
+
+		/** Dormant source-local Wi-Fi writer contract; executable does not imply activation. */
+		val WIFI_SESSION_FACTS = ExecutableSourceLaneBinding(
+			source = SourceKind.WIFI,
+			bindingGeneration = SourceDestinationOwnerEntity.WIFI_FACT_BINDING_GENERATION,
+			projectionId = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+			projectionVersion = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION,
 			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
 		)
 
@@ -654,6 +668,15 @@ private suspend fun AppDatabase.hasExactCanonicalDestinationOwner(
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
 			) ?: return false
 			owner.owner == SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS &&
+				owner.ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+		}
+		SourceKind.WIFI -> {
+			if (binding != ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS) return false
+			val owner = sourceDestinationOwnerDao().get(
+				SourceDestinationOwnerEntity.SOURCE_WIFI,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI,
+			) ?: return false
+			owner.owner == SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS &&
 				owner.ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
 		}
 		else -> true
