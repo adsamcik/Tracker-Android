@@ -29,6 +29,20 @@ not yet contain the four imported-Pressure tables and remains a mandatory conver
 blocker. The production import admission transaction, initial generation-1/no-resurrection check,
 history/maintenance composition, portable round trip, and user-facing import action remain open.
 
+The separate `codex/ti-cell-maintenance` branch is independently accepted through `f8d7a5f50`.
+Its bounded source-local retention and revoked-consent deletion transaction now authenticates
+canonical v1 Cell payload bytes, recomputes the exact provider-delivery identity, rederives the full
+identity-free aggregate, and binds every reusable owner to the current cursor head plus exact
+provider/configuration/plan/authorization/policy/manifest/lease/clock/temporal authority. Retention
+uses covered-interval uncertainty and a bidirectional fixed-point owner/dependent closure;
+dependency rows are removed before owners. Deletion requires exact-zero callback barrier and
+quiescence, installs run and Cell-generation fences before payload removal, preserves WAL, CONTROL,
+and other sources, and rolls back on corruption, overflow, cancellation, or stale authority.
+Focused tests now use the shared runtime identity derivation and reject fully self-rehashed semantic
+tampering, null/nonpositive provider times, aggregate retargeting, and authority rotation. Runtime
+projection, worker/action invocation, transfer, shared UI, automatic/ambient behavior, device
+evidence, and validation remain open.
+
 ## September 13 coordinator checkpoint — Ambient importer and Pressure read path accepted
 
 The coordinator source worktree is clean at `29801e17f` on

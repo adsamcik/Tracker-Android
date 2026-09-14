@@ -3772,3 +3772,20 @@ Each entry records repository evidence and does not duplicate the final architec
 - The v28 Room schema JSON is intentionally deferred but mandatory before convergence integration.
   This slice does not implement import admission, history/maintenance composition, file/UI wiring,
   portable round trip, validation, activation, or rollout.
+
+## TI-D234 — Cell maintenance replays the canonical provider identity before trusting aggregates
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; source/runtime/Room/test commits `86c994a15`
+  through `f8d7a5f50`; corrected independent review; TI-B297.
+- Maintenance decodes canonical v1 Cell payload once, rejects identity-bearing or null/nonpositive-
+  time children, recomputes the exact byte-for-byte provider-delivery identity shared with the live
+  runtime, and rederives the complete identity-free aggregate before trusting a fact or cursor.
+- Coverage-owner reuse requires the referenced revision to be the current cursor head and to match
+  every aggregate and provider/configuration/plan/authorization/policy/manifest/lease/clock/
+  temporal authority field. Count equality alone never authorizes retargeting.
+- Retention uses the complete covered interval including uncertainty and a bounded bidirectional
+  owner/dependent fixed point, deleting dependents before owners. Revoked-consent deletion requires
+  compatible demand/provider quiescence and the exact-zero process callback barrier, then installs
+  run and Cell-generation fences before removing payload while preserving WAL and CONTROL.
+- This does not invoke the service from workers/actions, activate the projection/provider path,
+  implement transfer/shared UI/automatic/ambient behavior, or provide executed evidence.

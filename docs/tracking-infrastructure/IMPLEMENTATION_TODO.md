@@ -879,6 +879,17 @@ require current privacy and retention authority for both dependent and owner. Th
 unchecked until runtime projection, shared Today/Timeline/Calendar/detail UI, maintenance, transfer,
 automatic/ambient behavior, and complete scenarios exist.
 
+Accepted maintenance commits `86c994a15` through `f8d7a5f50` implement bounded portions of
+CELL-004/005/006/010/013 and PRIV-002/003/004/005/011. One transaction authenticates complete
+fact/cursor/generation/WAL and exact source authority, replays canonical v1 payload into both the
+shared provider-delivery identity and full identity-free aggregate, and permits compact owner reuse
+only at the current cursor head with exact value and authority equality. Retention expands the
+uncertainty-crossing owner/dependent closure bidirectionally and deletes dependency-first. Revoked
+consent requires compatible demand/provider quiescence and an exact-zero process callback barrier,
+then installs run and Cell-generation fences before removing payload while preserving WAL and
+CONTROL. These TODOs remain unchecked until runtime projection and invocation, transfer, shared UI,
+automatic/ambient behavior, and the complete scenario cohort exist.
+
 ## Production history and UI
 
 - [ ] TODO-HIST-001 Complete one read-only TrackingHistoryRepository facade for observeToday,

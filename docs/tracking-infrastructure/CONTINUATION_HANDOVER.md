@@ -41,10 +41,18 @@ exact replay idempotent, reject collision or retained tombstone resurrection, an
 only the imported hierarchy. It must never fabricate or insert live Pressure WAL facts. History,
 maintenance, file/UI action wiring, and portable round trip remain later source-local slices.
 
-Activity portable export is in fresh review at `4077f6d03`; Cell maintenance is in fresh review at
-`55cda6499`. Neither is accepted or recorded as a completed checkpoint yet. No Gradle, compiler,
-test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration, activation,
-publication, or release command ran on September 14.
+Cell maintenance is independently accepted through `f8d7a5f50` after closing a canonical-delivery
+identity gap. The source-local transaction recomputes the exact shared v1 runtime identity and full
+identity-free aggregate, requires current-head/full-authority owner reuse, retains complete
+uncertainty-safe owner/dependent closures, and fences revoked-consent deletion behind quiescence and
+the exact-zero callback barrier. A fully self-rehashed payload/WAL/fact/cursor rewrite retaining the
+old identity is rejected. The next Cell slice is the dormant captured-WAL projection into the one
+existing source-local writer; it must not activate rollout, admit CONTROL/ambient facts, or create
+another writer.
+
+Activity portable export is in fresh review through `8f0842354`; it is not accepted or recorded as
+a completed checkpoint yet. No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device,
+UI, battery, CI, integration, activation, publication, or release command ran on September 14.
 
 ## 2026-09-13 active coordinator checkpoint
 

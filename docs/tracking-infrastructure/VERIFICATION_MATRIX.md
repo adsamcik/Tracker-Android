@@ -2472,3 +2472,27 @@ The commands were not run. The tracked v28 Room schema JSON still lacks the four
 tables and must be regenerated/reviewed during convergence. Compilation, Room execution,
 production import admission, no-resurrection writer behavior, history/maintenance composition,
 round trip, integration, device behavior, activation, and release remain unproven.
+
+## TI-B297 — Cell canonical-identity retention and deletion contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `f8d7a5f50`. Authored source-local maintenance tests
+cover canonical v1 payload decoding; shared runtime/maintenance provider-delivery identity bytes;
+positive child provider time; complete identity-free aggregate replay; current cursor-head owner
+binding; exact provider/configuration/plan/authorization/policy/manifest/lease/clock/temporal
+authority; covered-interval retention; bounded bidirectional owner/dependent closure; dependency-
+first deletion; exact-zero callback barrier; demand/provider quiescence; run/Cell-generation fences;
+preserved WAL/CONTROL; replay/no-resurrection; idempotence; corruption/overflow; and cancellation
+rollback. Adversarial fixtures independently change radio, registration state, signal quality,
+registration generation, and authorization revision, and fully rehash payload/WAL/fact/cursor while
+retaining the old delivery/logical identity; every mismatch remains blocked.
+
+Independent re-review confirmed the extracted v1 identity helper preserves the former runtime byte
+stream exactly and that prior transaction/privacy fences remain intact. Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*CellCapturedFactMaintenanceTest' :tracker:engine:testDebugUnitTest --tests '*CellWalQualificationAdapterTest' --tests '*CellSourceRuntimeTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, maintenance worker/action invocation,
+runtime projection, provider/process/reboot/device behavior, transfer, shared UI, integration,
+activation, and release remain unproven.
