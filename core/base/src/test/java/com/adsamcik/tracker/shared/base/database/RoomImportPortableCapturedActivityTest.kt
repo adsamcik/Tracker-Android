@@ -2017,6 +2017,57 @@ class RoomImportPortableCapturedActivityTest {
 	}
 
 	@Test
+	fun `retention authenticates dense neighboring lineages independently and discards payload`() = runTest {
+		fun denseEntry(local: String, startTimeMs: Long): PortableActivityEntryV1 {
+			val runs = List(32) { index ->
+				run(
+					identity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "$local-run-$index"),
+					deletionScope = scope("$local-scope-$index"),
+					windowIdentity = identity(
+						PortableActivityIdentityKind.CAPTURE_WINDOW,
+						"$local-window-$index",
+					),
+					startUncertaintyMs = 0L,
+					endUncertaintyMs = 0L,
+					startTimeMs = Math.addExact(startTimeMs, index.toLong()),
+				)
+			}
+			return entry(entryLocalId = "$local-entry", runs = runs)
+		}
+
+		val newer = denseEntry("independent-newer", 1_400L)
+		val older = denseEntry("independent-older", 1_300L)
+		val importer = importer(testScheduler)
+		importer.importEntry(request(newer, receipt("independent-newer-job", 200L))) shouldBe
+			ImportPortableCapturedActivityResult.Applied(1L, 32, 32, 32)
+		importer.importEntry(request(older, receipt("independent-older-job", 201L))) shouldBe
+			ImportPortableCapturedActivityResult.Applied(1L, 32, 32, 32)
+		rowCount("imported_activity_fragment") shouldBe 64L
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 1_500L, 250L) shouldBe 1
+		var authenticatedLineages = 0
+		val truncator = truncator(testScheduler) { checkpoint ->
+			if (checkpoint == ImportedActivityRetentionCheckpoint.LINEAGE_AUTHENTICATED) {
+				authenticatedLineages++
+				if (authenticatedLineages == 1) {
+					// Any retained or repeated first-lineage payload authentication would now fail.
+					database.openHelper.writableDatabase.execSQL(
+						"UPDATE imported_activity_fragment SET activity = ? WHERE entry_identity = ?",
+						arrayOf("CORRUPTED_AFTER_AUTHENTICATION", newer.identity.value),
+					)
+				}
+			}
+		}
+
+		truncator.truncate(
+			retentionRequest(markedAtMs = 300L, retainedFromMs = 1_500L),
+		) shouldBe TruncateImportedActivityRetentionResult.Truncated(2, 2, 64, 64, 64)
+		authenticatedLineages shouldBe 2
+		database.importedActivityDao().retentionReceiptCount() shouldBe 2L
+		database.importedActivityDao().retainedIdentityCount() shouldBe 194L
+		rowCount("imported_activity_entry_revision") shouldBe 0L
+	}
+
+	@Test
 	fun `retention authority capacity uses global injected and overflow safe bounds`() {
 		val defaults = ImportedActivityRetentionLimits()
 		defaults.canRetainAuthority(

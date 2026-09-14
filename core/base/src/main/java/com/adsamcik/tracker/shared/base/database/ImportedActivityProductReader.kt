@@ -42,11 +42,11 @@ class ImportedActivityProductReader(
 	}
 
 	/**
-	 * Visits every imported entry shell for retention in finite payload batches. Safe payload is
-	 * discarded before the next batch; only the caller's compact authority may outlive a visit.
+	 * Visits every imported entry shell for retention one lineage at a time. Safe payload is
+	 * discarded before the next lineage; only the caller's compact authority may outlive a visit.
 	 */
 	internal suspend fun visitAllForRetentionInTransaction(
-		visit: suspend (List<ImportedActivityProductEvaluation>) -> Unit,
+		visit: suspend (ImportedActivityProductEvaluation) -> Unit,
 	): ImportedActivityRetentionVisitResult {
 		var candidateCount = 0
 		var retainedCount = 0
@@ -72,19 +72,16 @@ class ImportedActivityProductReader(
 					ImportedActivityProductFailure.DEPENDENCY_OVERFLOW,
 				)
 			}
-			for (batch in page.chunked(ImportedActivityDao.HISTORY_EVALUATION_BATCH_SIZE)) {
+			for (candidate in page) {
 				currentCoroutineContext().ensureActive()
-				val evaluations = evaluateRetentionBatch(batch)
-				val failure = evaluations.filterIsInstance<ImportedActivityProductEvaluation.Unverifiable>()
-					.firstOrNull()
-				if (failure != null) {
-					return ImportedActivityRetentionVisitResult.Unverifiable(failure.reason)
+				val evaluation = evaluateBatch(listOf(candidate), RETENTION_SCAN_LIMITS).single()
+				if (evaluation is ImportedActivityProductEvaluation.Unverifiable) {
+					return ImportedActivityRetentionVisitResult.Unverifiable(evaluation.reason)
 				}
-				retainedCount = Math.addExact(
-					retainedCount,
-					evaluations.count { it is ImportedActivityProductEvaluation.Retained },
-				)
-				visit(evaluations)
+				if (evaluation is ImportedActivityProductEvaluation.Retained) {
+					retainedCount = Math.addExact(retainedCount, 1)
+				}
+				visit(evaluation)
 			}
 			candidateCount = Math.addExact(candidateCount, page.size)
 			val last = page.last()
@@ -93,20 +90,6 @@ class ImportedActivityProductReader(
 			if (page.size < pageLimit) break
 		}
 		return ImportedActivityRetentionVisitResult.Complete(candidateCount, retainedCount)
-	}
-
-	private suspend fun evaluateRetentionBatch(
-		candidates: List<ImportedActivityHistoryCandidate>,
-	): List<ImportedActivityProductEvaluation> {
-		val evaluations = evaluateBatch(candidates, RETENTION_SCAN_LIMITS)
-		if (candidates.size == 1 || evaluations.none {
-				it is ImportedActivityProductEvaluation.Unverifiable &&
-					it.reason == ImportedActivityProductFailure.DEPENDENCY_OVERFLOW
-			}
-		) return evaluations
-		val midpoint = candidates.size / 2
-		return evaluateRetentionBatch(candidates.subList(0, midpoint)) +
-			evaluateRetentionBatch(candidates.subList(midpoint, candidates.size))
 	}
 
 	suspend fun selectRecentInTransaction(limit: Int): List<ImportedActivityProductEvaluation> {
@@ -484,7 +467,7 @@ class ImportedActivityProductReader(
 	private companion object {
 		const val SQLITE_BIND_BATCH = 400
 		val RETENTION_SCAN_LIMITS = ImportedActivityRetentionLimits(
-			maximumEntries = ImportedActivityDao.HISTORY_EVALUATION_BATCH_SIZE,
+			maximumEntries = 1,
 			maximumRevisions = ImportedActivityDao.MAX_REVISIONS_PER_ENTRY,
 			maximumRunRows = ImportedActivityDao.MAX_TOTAL_RUNS_PER_LINEAGE,
 			maximumZoneRows = ImportedActivityDao.MAX_TOTAL_ZONE_EPOCHS_PER_LINEAGE,
