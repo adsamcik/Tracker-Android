@@ -2708,3 +2708,32 @@ Deferred focused commands:
 The command was not run. Compilation, Room execution, generated-schema parity, connected migration,
 file/UI invocation, imported retention/source-wide erase, device/provider/process behavior,
 integration, activation, publication, and release remain unproven.
+
+## TI-B306 — Portable captured Activity storage and admission contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `fde0c9f63` (`5401ef0dc`, `a99987807`, and
+`fde0c9f63`). Authored format, entity, DAO, Room, and migration assertions cover the complete
+eight-table imported hierarchy; capture-format-only admission; `NOT_CAPTURED` physical replacement
+members; exact and alternate receipt replay; contiguous corrections; current epoch and retention;
+bounded entry/run/window identity ownership across live rows and both imported marker namespaces;
+current versus stale Activity source-deletion scopes; unrelated fence source/purpose/digest;
+cancellation, SQLite, and concurrency rollback; full clear; migration reopen; and absence of
+fabricated live authority.
+
+Independent review corrected unsupported automatic database closing in the migration reopen test,
+then found that imported Activity admission did not consult the existing source-local deletion
+fence. `fde0c9f63` adds the exact early bounded fence gate before receipt or hierarchy mutation, so
+same-database export/delete/reimport is typed `DELETED_SCOPE`; stale exact fence evidence is
+unverifiable and unrelated fences do not block. A fresh full-slice static review returned ACCEPT
+with no remaining blocking defect.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ActivityCapturedPortableFormatV1Test' --tests '*ImportedActivity*' --tests '*RoomImportPortableCapturedActivityTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, generated-schema parity, connected migration,
+imported product read/round trip, selected deletion, retention/source-wide erase, file/UI action,
+shared product composition, device/provider/process behavior, integration, activation, publication,
+and release remain unproven.

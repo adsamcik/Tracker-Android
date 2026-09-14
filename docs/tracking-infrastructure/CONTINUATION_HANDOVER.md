@@ -112,7 +112,16 @@ observed-time authorization revision and production per-demand freshness, recomp
 purpose mask while binding the full authorization fingerprint, and exports only exact captured
 members. It truthfully permits sparse indices, sequence zero/gaps, mixed capture/CONTROL and late
 receipt after a qualified pre-close observation; CONTROL never becomes captured output. The next
-nonoverlapping Activity transfer slice remains portable import/round trip.
+nonoverlapping Activity transfer slice is now implemented through `fde0c9f63` (`5401ef0dc`,
+`a99987807`, and `fde0c9f63`). Eight Activity-local imported tables retain immutable entry
+revisions, receipts, physical runs, zone epochs, windows, fragments, and separate entry/run deletion
+markers. Admission is capture-format-only, preserves truthful `NOT_CAPTURED` replacement members,
+authenticates current epoch/retention plus complete bounded correction and identity ownership, and
+consults the exact Activity `source_deletion_fence` scope before any receipt or hierarchy mutation.
+Exact replay, alternate receipt, correction, stale evidence, collision, cancellation, and storage
+failure have typed or atomic outcomes; import creates no live provider, demand, session, manifest,
+policy, consent, WAL, or writer authority. Product read/round trip, imported maintenance, file/UI
+actions, schema generation, and validation remain open.
 
 Exact Activity selected-session deletion is independently accepted on
 `codex/ti-activity-maintenance` through `dd19b4d33` (`09a2f1c96` plus its scoped-control

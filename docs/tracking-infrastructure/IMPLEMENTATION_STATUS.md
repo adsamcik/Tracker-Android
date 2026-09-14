@@ -142,6 +142,23 @@ mask/fingerprint, shared-delivery, settlement, overflow, or payload corruption f
 external sink I/O. Portable import/round trip, selected deletion, file/UI action wiring, catalog
 activation, validation, and device evidence remain open.
 
+The same `codex/ti-activity-transfer` branch is independently accepted through `fde0c9f63` for
+captured Activity portable storage and admission. `5401ef0dc` adds eight source-local imported
+tables and one bounded transaction for immutable entry revisions, receipts, physical replacement
+runs, zone epochs, capture windows/fragments, and distinct entry/run deletion markers. The importer
+accepts only captured Activity v1 content, retains `NOT_CAPTURED` replacement members without
+inventing capture, requires current collected-data epoch and retention authority, authenticates
+contiguous correction lineage and exact/alternate receipts, and audits entry/run/window ownership
+against live owners and both imported marker namespaces. Review corrected migration database
+closing in `a99987807`, then found that same-database export/delete/reimport could bypass the
+source-local run fence. `fde0c9f63` now checks every bounded Activity `SESSION_CAPTURE` deletion
+scope before any receipt replay or hierarchy mutation: a current exact fence is typed
+`DELETED_SCOPE`, stale exact evidence is unverifiable, and unrelated source/purpose/digest rows do
+not block. Cancellation, SQLite failure, and concurrency roll back, and import grants no live
+provider, demand, session, manifest, policy, consent, WAL, or writer authority. Product read and
+round trip, selected imported deletion, retention/source erase, file/UI actions, generated v28
+schema, validation, and device evidence remain open.
+
 The separate `codex/ti-activity-maintenance` branch is independently accepted through
 `dd19b4d33` for exact selected-session deletion. `09a2f1c96` adds a typed API, bounded reverse
 segment ownership, one source-local Room service, per-run maintenance fencing, exact fact/cursor/

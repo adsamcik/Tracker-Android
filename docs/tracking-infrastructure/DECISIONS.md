@@ -3940,3 +3940,23 @@ Each entry records repository evidence and does not duplicate the final architec
 - Unrelated imported entries, local Pressure, other sources, and live authority remain untouched;
   cancellation and storage failure roll back. The generated v28 schema, file/UI action, imported
   retention/source-wide erase, execution validation, activation, and release remain deferred.
+
+## TI-D243 — Portable Activity import owns immutable captured history without live authority
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; storage/import/test commits `5401ef0dc`,
+  `a99987807`, and `fde0c9f63`; corrected independent reviews; TI-B306.
+- Eight Activity-local tables retain immutable entry revisions and receipts, exact physical
+  replacement runs, zone epochs, windows/fragments, and distinct entry/run deletion markers. The
+  importer accepts captured v1 format only and preserves `NOT_CAPTURED` replacement members as
+  structural evidence rather than converting CONTROL or missing capture into product history.
+- One bounded transaction requires the current collected-data epoch and retention floor, exact or
+  contiguous correction lineage, compatible receipts, and globally compatible entry/run/window
+  ownership across live owners and both imported deletion-marker namespaces before mutation.
+- Every run's payload-free Activity `SESSION_CAPTURE` deletion-scope digest is checked against the
+  current source-local fence before receipt replay or hierarchy mutation. A current exact fence is
+  typed `DELETED_SCOPE`; stale exact fence evidence is unverifiable; unrelated digest, source, or
+  purpose remains nonblocking, preventing same-database export/delete/reimport resurrection.
+- Cancellation, SQLite failure, and concurrent conflict roll back. Import does not create provider,
+  demand, session, manifest, policy, consent, WAL, writer, or rollout authority. Imported product
+  read/round trip, maintenance, file/UI action, generated schema, validation, activation, and
+  release remain deferred.

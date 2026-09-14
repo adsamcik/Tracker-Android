@@ -760,6 +760,17 @@ CONTROL is authenticated but excluded. These TODOs remain unchecked until portab
 trip, exact selected-session deletion, file/UI action wiring, catalog activation, and complete
 scenarios exist.
 
+Accepted portable-import commits `5401ef0dc`, `a99987807`, and `fde0c9f63` implement additional
+bounded portions of ACT-003/007/010 and PRIV-006/011. Eight Activity-local imported tables retain
+the immutable full-v1 hierarchy, receipts, correction lineage, and separate entry/run deletion
+markers. Admission is capture-format-only, preserves `NOT_CAPTURED` replacement members, audits
+all bounded entry/run/window identities against live owners and both marker namespaces, and checks
+the exact Activity source-deletion scope before replay or mutation so export/delete/reimport cannot
+resurrect captured history. Stale epoch/fence, conflicting origin, cancellation, and storage failure
+fail closed or roll back without fabricating live authority. These TODOs remain unchecked until
+imported product read/round trip, imported deletion/retention/source erase, file/UI actions, shared
+product composition, generated schema convergence, and complete scenarios exist.
+
 Accepted selected-deletion commits `09a2f1c96` and `dd19b4d33` implement additional bounded
 portions of ACT-003/007/010 and PRIV-004/005/011. The service proves complete bidirectional logical
 replacement ownership and exact all-revision `{Activity}` capture authority, fences every run before
