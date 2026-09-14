@@ -124,25 +124,47 @@ interface SourceBrokerDao {
 		registrationGeneration: Long,
 	): ProviderRegistrationGenerationEntity?
 
+	/**
+	 * Searches the complete earlier accepted chain in the selected source clock/epoch. Failed or
+	 * unaccepted generations do not mask a conflicting accepted physical registration.
+	 */
 	@Query(
-		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
-			"AND registration_generation < :registrationGeneration " +
-			"ORDER BY registration_generation DESC LIMIT 1",
+		"SELECT EXISTS(SELECT 1 FROM provider_registration_generation " +
+			"WHERE source_kind = :sourceKind AND registration_generation < :registrationGeneration " +
+			"AND clock_domain_id = :clockDomainId AND collected_data_epoch = :collectedDataEpoch AND (" +
+			"(accepted_at_ms IS NULL) != (accepted_elapsed_realtime_nanos IS NULL) OR " +
+			"(accepted_at_ms IS NOT NULL AND accepted_elapsed_realtime_nanos IS NOT NULL AND (" +
+			"source_instance_id != :sourceInstanceId OR retired_at_ms IS NULL OR " +
+			"retired_elapsed_realtime_nanos IS NULL OR " +
+			"retired_elapsed_realtime_nanos > :reservedElapsedRealtimeNanos))) LIMIT 1)",
 	)
-	suspend fun previousRegistration(
+	suspend fun hasConflictingAcceptedRegistrationBefore(
 		sourceKind: Int,
 		registrationGeneration: Long,
-	): ProviderRegistrationGenerationEntity?
+		clockDomainId: String,
+		collectedDataEpoch: Long,
+		sourceInstanceId: String,
+		reservedElapsedRealtimeNanos: Long,
+	): Boolean
 
+	/** Complete later accepted-chain counterpart to [hasConflictingAcceptedRegistrationBefore]. */
 	@Query(
-		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
-			"AND registration_generation > :registrationGeneration " +
-			"ORDER BY registration_generation LIMIT 1",
+		"SELECT EXISTS(SELECT 1 FROM provider_registration_generation " +
+			"WHERE source_kind = :sourceKind AND registration_generation > :registrationGeneration " +
+			"AND clock_domain_id = :clockDomainId AND collected_data_epoch = :collectedDataEpoch AND (" +
+			"(accepted_at_ms IS NULL) != (accepted_elapsed_realtime_nanos IS NULL) OR " +
+			"(accepted_at_ms IS NOT NULL AND accepted_elapsed_realtime_nanos IS NOT NULL AND (" +
+			"source_instance_id != :sourceInstanceId OR " +
+			":retiredElapsedRealtimeNanos > reserved_elapsed_realtime_nanos))) LIMIT 1)",
 	)
-	suspend fun nextRegistration(
+	suspend fun hasConflictingAcceptedRegistrationAfter(
 		sourceKind: Int,
 		registrationGeneration: Long,
-	): ProviderRegistrationGenerationEntity?
+		clockDomainId: String,
+		collectedDataEpoch: Long,
+		sourceInstanceId: String,
+		retiredElapsedRealtimeNanos: Long,
+	): Boolean
 
 	@Query(
 		"SELECT COUNT(DISTINCT registration_generation) FROM source_authorization " +

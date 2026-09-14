@@ -520,20 +520,19 @@ interface TrackingHistoryReadDao {
 		limit: Int,
 	): List<SourceSessionCompletenessEntity>
 
-	/** Candidate authorization revisions that ever carried this exact persistent run demand. */
+	/**
+	 * Complete bounded authorization-revision identity set for one physical registration.
+	 * Membership fields are deliberately not used for candidate discovery; callers authenticate each
+	 * full revision before deciding whether it carried a requested persistent run demand.
+	 */
 	@Query(
 		"SELECT DISTINCT authorization_revision FROM source_authorization " +
 			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +
-			"AND logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId " +
-			"AND purpose = :capturePurpose AND persistence_eligible = 1 " +
 			"ORDER BY authorization_revision LIMIT :limit",
 	)
-	suspend fun persistentCaptureAuthorizationRevisions(
+	suspend fun registrationAuthorizationRevisions(
 		sourceKind: Int,
 		registrationGeneration: Long,
-		logicalTrackingId: String,
-		serviceRunId: String,
-		capturePurpose: String,
 		limit: Int,
 	): List<Long>
 

@@ -69,15 +69,75 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<CellCapturedFactRevisionEntity>
 
-	/** Complete bounded fact side of one selected portable logical/run closure. */
+	/**
+	 * Complete bounded fact side of one selected portable logical/run closure.
+	 *
+	 * The source/run pair remains provisional until the fact and its WAL are authenticated. The
+	 * registration generation and authenticated lane admission window therefore supply an independent
+	 * candidate relation for a fact whose two retained membership scalars were both changed, including
+	 * a generation whose completeness row claims zero callbacks. Admission bounds discover candidates
+	 * only; they never establish ownership.
+	 */
 	@Query(
-		"SELECT * FROM cell_captured_fact_revision WHERE " +
-			"(logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds)) " +
-			"ORDER BY logical_fact_id, semantic_revision LIMIT :limit",
+		"""
+		WITH requested_run AS (
+			SELECT service_run_id, logical_tracking_id
+			FROM source_service_run
+			WHERE service_run_id IN (:capturedServiceRunIds)
+		), requested_generation AS (
+			SELECT DISTINCT completeness.registration_generation
+			FROM requested_run
+			JOIN source_session_completeness AS completeness
+			  ON completeness.service_run_id = requested_run.service_run_id
+			 AND completeness.logical_tracking_id = requested_run.logical_tracking_id
+			WHERE completeness.source_kind = :sourceKind
+			  AND completeness.registration_generation > 0
+		), candidate_wal AS (
+			SELECT wal.admission_ordinal, wal.event_id
+			FROM source_event_wal AS wal
+			WHERE wal.source_kind = :sourceKind
+			  AND (wal.logical_tracking_id = :logicalTrackingId OR wal.service_run_id IN (:serviceRunIds))
+			UNION
+			SELECT wal.admission_ordinal, wal.event_id
+			FROM source_event_wal AS wal
+			WHERE wal.source_kind = :sourceKind
+			  AND wal.admission_ordinal > :activationFloorOrdinal
+			  AND wal.admission_ordinal <= :admissionCeilingOrdinal
+			  AND EXISTS (
+			    SELECT 1
+			    FROM requested_generation
+			    WHERE wal.registration_generation = requested_generation.registration_generation
+			  )
+		), candidate_fact AS (
+			SELECT writer_projection_id, writer_projection_version, logical_fact_id
+			FROM cell_captured_fact_revision
+			WHERE logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds)
+			UNION
+			SELECT revision.writer_projection_id,
+			       revision.writer_projection_version,
+			       revision.logical_fact_id
+			FROM cell_captured_fact_revision AS revision
+			JOIN candidate_wal
+			  ON candidate_wal.event_id = revision.source_event_id
+			  OR candidate_wal.admission_ordinal = revision.source_admission_ordinal
+		)
+		SELECT revision.*
+		FROM cell_captured_fact_revision AS revision
+		JOIN candidate_fact
+		  ON candidate_fact.writer_projection_id = revision.writer_projection_id
+		 AND candidate_fact.writer_projection_version = revision.writer_projection_version
+		 AND candidate_fact.logical_fact_id = revision.logical_fact_id
+		ORDER BY revision.logical_fact_id, revision.semantic_revision
+		LIMIT :limit
+		""",
 	)
 	suspend fun portableRevisionClosure(
+		sourceKind: Int,
 		logicalTrackingId: String,
 		serviceRunIds: List<String>,
+		capturedServiceRunIds: List<String>,
+		activationFloorOrdinal: Long,
+		admissionCeilingOrdinal: Long,
 		limit: Int,
 	): List<CellCapturedFactRevisionEntity>
 
@@ -96,15 +156,72 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<CellCapturedFactCursorEntity>
 
-	/** Complete bounded cursor side of one selected portable logical/run closure. */
+	/** Complete bounded cursor side for the same independently discovered portable fact closure. */
 	@Query(
-		"SELECT * FROM cell_captured_fact_cursor WHERE " +
-			"(logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds)) " +
-			"ORDER BY logical_fact_id LIMIT :limit",
+		"""
+		WITH requested_run AS (
+			SELECT service_run_id, logical_tracking_id
+			FROM source_service_run
+			WHERE service_run_id IN (:capturedServiceRunIds)
+		), requested_generation AS (
+			SELECT DISTINCT completeness.registration_generation
+			FROM requested_run
+			JOIN source_session_completeness AS completeness
+			  ON completeness.service_run_id = requested_run.service_run_id
+			 AND completeness.logical_tracking_id = requested_run.logical_tracking_id
+			WHERE completeness.source_kind = :sourceKind
+			  AND completeness.registration_generation > 0
+		), candidate_wal AS (
+			SELECT wal.admission_ordinal, wal.event_id
+			FROM source_event_wal AS wal
+			WHERE wal.source_kind = :sourceKind
+			  AND (wal.logical_tracking_id = :logicalTrackingId OR wal.service_run_id IN (:serviceRunIds))
+			UNION
+			SELECT wal.admission_ordinal, wal.event_id
+			FROM source_event_wal AS wal
+			WHERE wal.source_kind = :sourceKind
+			  AND wal.admission_ordinal > :activationFloorOrdinal
+			  AND wal.admission_ordinal <= :admissionCeilingOrdinal
+			  AND EXISTS (
+			    SELECT 1
+			    FROM requested_generation
+			    WHERE wal.registration_generation = requested_generation.registration_generation
+			  )
+		), candidate_fact AS (
+			SELECT writer_projection_id, writer_projection_version, logical_fact_id
+			FROM cell_captured_fact_revision
+			WHERE logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds)
+			UNION
+			SELECT revision.writer_projection_id,
+			       revision.writer_projection_version,
+			       revision.logical_fact_id
+			FROM cell_captured_fact_revision AS revision
+			JOIN candidate_wal
+			  ON candidate_wal.event_id = revision.source_event_id
+			  OR candidate_wal.admission_ordinal = revision.source_admission_ordinal
+		)
+		SELECT fact_cursor.*
+		FROM cell_captured_fact_cursor AS fact_cursor
+		WHERE fact_cursor.logical_tracking_id = :logicalTrackingId
+		   OR fact_cursor.service_run_id IN (:serviceRunIds)
+		   OR EXISTS (
+		     SELECT 1
+		     FROM candidate_fact
+		     WHERE candidate_fact.writer_projection_id = fact_cursor.writer_projection_id
+		       AND candidate_fact.writer_projection_version = fact_cursor.writer_projection_version
+		       AND candidate_fact.logical_fact_id = fact_cursor.logical_fact_id
+		   )
+		ORDER BY fact_cursor.logical_fact_id
+		LIMIT :limit
+		""",
 	)
 	suspend fun portableCursorClosure(
+		sourceKind: Int,
 		logicalTrackingId: String,
 		serviceRunIds: List<String>,
+		capturedServiceRunIds: List<String>,
+		activationFloorOrdinal: Long,
+		admissionCeilingOrdinal: Long,
 		limit: Int,
 	): List<CellCapturedFactCursorEntity>
 
@@ -323,16 +440,54 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<CellWalMaintenanceKey>
 
-	/** Complete bounded WAL side of one selected portable logical/run closure. */
+	/**
+	 * Complete bounded WAL side of one selected portable logical/run closure. The second UNION arm
+	 * is independent of both WAL membership scalars and remains source-filtered before LIMIT.
+	 */
 	@Query(
-		"SELECT admission_ordinal, event_id FROM source_event_wal WHERE source_kind = :sourceKind " +
-			"AND (logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds)) " +
-			"ORDER BY admission_ordinal LIMIT :limit",
+		"""
+		WITH requested_run AS (
+			SELECT service_run_id, logical_tracking_id
+			FROM source_service_run
+			WHERE service_run_id IN (:capturedServiceRunIds)
+		), requested_generation AS (
+			SELECT DISTINCT completeness.registration_generation
+			FROM requested_run
+			JOIN source_session_completeness AS completeness
+			  ON completeness.service_run_id = requested_run.service_run_id
+			 AND completeness.logical_tracking_id = requested_run.logical_tracking_id
+			WHERE completeness.source_kind = :sourceKind
+			  AND completeness.registration_generation > 0
+		), candidate_wal AS (
+			SELECT wal.admission_ordinal, wal.event_id
+			FROM source_event_wal AS wal
+			WHERE wal.source_kind = :sourceKind
+			  AND (wal.logical_tracking_id = :logicalTrackingId OR wal.service_run_id IN (:serviceRunIds))
+			UNION
+			SELECT wal.admission_ordinal, wal.event_id
+			FROM source_event_wal AS wal
+			WHERE wal.source_kind = :sourceKind
+			  AND wal.admission_ordinal > :activationFloorOrdinal
+			  AND wal.admission_ordinal <= :admissionCeilingOrdinal
+			  AND EXISTS (
+			    SELECT 1
+			    FROM requested_generation
+			    WHERE wal.registration_generation = requested_generation.registration_generation
+			  )
+		)
+		SELECT admission_ordinal, event_id
+		FROM candidate_wal
+		ORDER BY admission_ordinal
+		LIMIT :limit
+		""",
 	)
 	suspend fun portableWalClosureKeys(
 		sourceKind: Int,
 		logicalTrackingId: String,
 		serviceRunIds: List<String>,
+		capturedServiceRunIds: List<String>,
+		activationFloorOrdinal: Long,
+		admissionCeilingOrdinal: Long,
 		limit: Int,
 	): List<CellWalMaintenanceKey>
 

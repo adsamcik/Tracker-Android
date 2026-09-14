@@ -542,15 +542,26 @@ internal suspend fun AppDatabase.auditPortableCapturedCellFacts(
 	evidenceState: SourceEvidenceState,
 	logicalTrackingId: String,
 	serviceRunIds: List<String>,
+	capturedServiceRunIds: List<String>,
+	activationFloorOrdinal: Long,
+	admissionCeilingOrdinal: Long,
 	limits: CellCapturedMaintenanceLimits,
 	checkpoint: suspend (CellCapturedMaintenanceCheckpoint) -> Unit,
 ): CellCapturedFactAudit {
 	require(logicalTrackingId.isNotBlank())
 	require(serviceRunIds.isNotEmpty() && serviceRunIds.distinct().size == serviceRunIds.size)
+	require(capturedServiceRunIds.isNotEmpty() && capturedServiceRunIds.all(serviceRunIds::contains))
+	require(capturedServiceRunIds.distinct().size == capturedServiceRunIds.size)
+	require(activationFloorOrdinal >= 0L)
+	require(admissionCeilingOrdinal >= activationFloorOrdinal)
 	val dao = cellCapturedFactDao()
 	val revisions = dao.portableRevisionClosure(
+		CELL_SOURCE,
 		logicalTrackingId,
 		serviceRunIds,
+		capturedServiceRunIds,
+		activationFloorOrdinal,
+		admissionCeilingOrdinal,
 		limits.maximumRevisions + 1,
 	)
 	if (revisions.size > limits.maximumRevisions) throw CellCapturedMaintenanceLimitExceeded()
@@ -575,8 +586,12 @@ internal suspend fun AppDatabase.auditPortableCapturedCellFacts(
 	) block(CellCapturedRetentionBlockedReason.DESTINATION_OWNER_CHANGED)
 
 	val cursorRows = dao.portableCursorClosure(
+		CELL_SOURCE,
 		logicalTrackingId,
 		serviceRunIds,
+		capturedServiceRunIds,
+		activationFloorOrdinal,
+		admissionCeilingOrdinal,
 		limits.maximumCursors + 1,
 	)
 	if (cursorRows.size > limits.maximumCursors) throw CellCapturedMaintenanceLimitExceeded()
@@ -1559,15 +1574,25 @@ internal suspend fun AppDatabase.loadPortableCapturedCellWalScopes(
 	evidenceState: SourceEvidenceState,
 	logicalTrackingId: String,
 	serviceRunIds: List<String>,
+	capturedServiceRunIds: List<String>,
+	activationFloorOrdinal: Long,
+	admissionCeilingOrdinal: Long,
 	limits: CellCapturedMaintenanceLimits,
 ): CellCapturedWalAudit {
 	require(logicalTrackingId.isNotBlank())
 	require(serviceRunIds.isNotEmpty() && serviceRunIds.distinct().size == serviceRunIds.size)
+	require(capturedServiceRunIds.isNotEmpty() && capturedServiceRunIds.all(serviceRunIds::contains))
+	require(capturedServiceRunIds.distinct().size == capturedServiceRunIds.size)
+	require(activationFloorOrdinal >= 0L)
+	require(admissionCeilingOrdinal >= activationFloorOrdinal)
 	val dao = cellCapturedFactDao()
 	val keys = dao.portableWalClosureKeys(
 		CELL_SOURCE,
 		logicalTrackingId,
 		serviceRunIds,
+		capturedServiceRunIds,
+		activationFloorOrdinal,
+		admissionCeilingOrdinal,
 		limits.maximumWalEvents + 1,
 	)
 	if (keys.size > limits.maximumWalEvents) throw CellCapturedMaintenanceLimitExceeded()
