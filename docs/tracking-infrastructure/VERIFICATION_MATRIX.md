@@ -2758,3 +2758,32 @@ Deferred focused command:
 The command was not run. Compilation, Room execution, consent-reset/source deletion, transfer,
 shared UI, automatic/ambient behavior, provider/process/reboot/device evidence, integration,
 activation, publication, and release remain unproven.
+
+## TI-B308 — Cell capture-consent revocation deletion contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `27b796bd8` (`0ad2ec4d6`, `71efc0707`, `917fe45df`,
+`128e3622c`, and `27b796bd8`). Authored maintenance, command, runtime, repository, and Room-facing
+tests cover exact revoked capture policy/consent/evidence; current-process callback FIFO close and
+drain; authenticated durable barrier publication; post-barrier policy and source-evidence races;
+direct capture-demand retirement; run/source fence-before-payload order; exact CONTROL resumption on
+success, blocked, timeout, publication exception, storage failure, and cancellation; stale/replaced/
+capture-active nonreopen; CONTROL registration/demand/WAL preservation; and no provider start/stop,
+hidden demand, retry loop, or rollout.
+
+Independent review first required a non-null active policy authority and a real source-evidence race.
+A fresh full review then found that post-barrier CONTROL-only WAL could starve capture deletion and
+that timeout typing was inverted. `128e3622c` confines staleness to fully authenticated current
+capture-bearing WAL and separates timeout from lane failure. `27b796bd8` makes the regression match
+production ingress and proves the newer CONTROL row remains byte-for-byte equivalent after
+normalizing only generated ordinal and array identity. Final static review returned ACCEPT with no
+remaining blocking defect.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*CellCapturedFactMaintenanceTest' :tracker:engine:testDebugUnitTest --tests '*CellCaptureConsentRevocationDeletionCommandTest' --tests '*CellSourceRuntimeTest' --tests '*SourceRegistrationRepositoryTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, command caller/file or UI action, transfer,
+shared UI, automatic/ambient behavior, provider/process/reboot/device evidence, integration,
+activation, publication, and release remain unproven.

@@ -3975,3 +3975,23 @@ Each entry records repository evidence and does not duplicate the final architec
 - Typed no-change, blocked, and pruned outcomes continue the worker once. Storage failure maps to
   WorkManager retry and cancellation propagates; no provider, demand, writer, retry loop, rollout,
   transfer, UI, automatic, or ambient behavior is introduced.
+
+## TI-D245 — Cell capture deletion drains callbacks without revoking independent CONTROL
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; command/runtime/repository/maintenance/test
+  commits `0ad2ec4d6`, `71efc0707`, `917fe45df`, `128e3622c`, and `27b796bd8`; corrected independent
+  reviews; TI-B308.
+- The command preflights the exact current source-evidence epoch/high-water and revoked Cell
+  `SESSION_CAPTURE` policy/consent, closes and drains the current-process callback FIFO, publishes an
+  authenticated durable barrier, and lets the low-level transaction recheck every authority before
+  mutation. Only exact direct capture demand is retired and run/source fences precede payload
+  removal.
+- Independently authorized CONTROL may remain on the physical registration. Every barrier abort,
+  timeout, publication exception, storage error, and cancellation attempts exact compatible CONTROL
+  resumption without reopening stale, replaced, or capture-active state. No provider start/stop or
+  hidden demand is introduced.
+- Pure CONTROL-only WAL remains exact and does not advance capture-deletion staleness even when it is
+  newer than the request; only current-epoch, above-high-water, fully authenticated capture-bearing
+  WAL contributes. Timeout and exceptional callback-lane failure remain separately typed.
+- This adds no UI/action caller, retry loop, rollout, transfer, shared UI, automatic/ambient
+  behavior, validation, activation, or release.

@@ -118,6 +118,22 @@ guards still defer legacy radio deletion. Zero days keeps forever, cancellation 
 typed outcomes do not activate a provider, demand, writer, rollout, or retry loop. Consent-reset
 source deletion and remaining Cell product paths stay open.
 
+The Cell branch is now independently accepted through `27b796bd8` for exact capture-consent
+revocation deletion. `0ad2ec4d6` narrows low-level deletion to direct `SESSION_CAPTURE` demand while
+preserving CONTROL; `71efc0707` adds the typed command, current-process callback FIFO close/drain,
+durable barrier publication, and exact compatible CONTROL resumption. Review then required a
+non-null active policy authority and a real post-barrier source-evidence race, fixed by
+`917fe45df`. A fresh full review found that newly resumed CONTROL-only WAL could wrongly advance the
+capture deletion time fence forever and that timeout versus exceptional lane failure was inverted;
+`128e3622c` makes only fully authenticated current capture-bearing WAL contribute to staleness and
+types timeout as `CALLBACK_DRAIN_TIMED_OUT`. `27b796bd8` makes the newer CONTROL-WAL regression match
+production ingress and proves its demand, registration, payload, configuration/authorization
+envelope, checksum, and integrity remain exact while capture facts delete and run/source fences
+publish. All abort, timeout, publication-exception, storage, and cancellation paths preserve or
+resume compatible CONTROL without reopening stale, replaced, or capture-active state. No provider
+start/stop, hidden demand, retry loop, rollout, or UI/action caller is introduced. Transfer, shared
+UI, automatic/ambient behavior, validation, and device evidence remain open.
+
 The separate `codex/ti-wifi-maintenance` branch is independently accepted at `dfaf6bb8e` for the
 dormant retained-WAL projection. One finite 64-candidate source-local drain reauthenticates lane and
 source state on every pass, uses the existing Wi-Fi qualifier and sole writer, and commits exact

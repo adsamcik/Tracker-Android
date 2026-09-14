@@ -973,6 +973,15 @@ cleanup. Zero retains forever; exact source evidence and cutoff are rechecked; c
 typed outcomes remain nonactivating. Cell TODOs remain unchecked because consent-reset/source
 deletion, transfer, shared UI, automatic/ambient behavior, and complete scenarios remain.
 
+Accepted consent-deletion commits `0ad2ec4d6`, `71efc0707`, `917fe45df`, `128e3622c`, and
+`27b796bd8` implement another bounded portion of CELL-001/010/013 and PRIV-003/004/005/011. Exact
+revoked capture authority gates a current-process FIFO drain and durable callback barrier before the
+source-local transaction retires only direct capture demand and publishes run/source fences ahead
+of payload removal. Independently authorized CONTROL is resumed on every exit and its registration,
+demand, and WAL remain exact; newer pure CONTROL WAL is nonblocking, while authenticated capture WAL
+still advances deletion staleness. Cell TODOs remain unchecked until file/UI action invocation,
+transfer/no-resurrection, shared UI, automatic/ambient behavior, and complete scenarios exist.
+
 ## Production history and UI
 
 - [ ] TODO-HIST-001 Complete one read-only TrackingHistoryRepository facade for observeToday,

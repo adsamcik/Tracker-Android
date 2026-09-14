@@ -96,7 +96,16 @@ epoch and deleted-source high-water, and the existing transaction rechecks that 
 exact cutoff. `wifiCellRetentionDays == 0` remains keep-forever; nonzero retention invokes exactly
 once before source-event WAL pruning, including while pending signals defer legacy Wi-Fi/Cell row
 cleanup. Cancellation propagates and typed blocked/no-change/pruned results do not start retry loops
-or provider demand. Consent-reset/source deletion and the other Cell product gaps remain open.
+or provider demand. Exact Cell capture-consent deletion is now independently accepted through
+`27b796bd8` (`0ad2ec4d6`, `71efc0707`, `917fe45df`, `128e3622c`, and `27b796bd8`). The typed command
+requires the exact revoked `SESSION_CAPTURE` policy/consent and current source evidence, closes and
+drains the local callback FIFO, publishes a bounded durable barrier, then rechecks authority in the
+source-local fence-before-payload transaction. Only direct capture demand retires; compatible
+CONTROL is resumed on every abort/timeout/exception/cancellation and its registration, demand, and
+WAL remain exact. Pure CONTROL-only WAL is preserved and cannot make capture deletion stale; only
+fully authenticated current capture-bearing WAL participates in the time fence. No provider start/
+stop, hidden demand, retry loop, rollout, or caller action is added. Transfer, UI action wiring,
+shared product composition, automatic/ambient behavior, and validation remain open.
 
 The dormant Wi-Fi retained-WAL projection is independently accepted at `dfaf6bb8e` on
 `codex/ti-wifi-maintenance`. Its finite 64-row drain binds the existing qualifier to the one existing
