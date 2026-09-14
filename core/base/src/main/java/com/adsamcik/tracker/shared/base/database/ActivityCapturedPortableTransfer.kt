@@ -499,14 +499,42 @@ interface ImportPortableCapturedActivity {
 	): ImportPortableCapturedActivityResult
 }
 
+/** Exact physical-run and source-deletion scope selected from an authenticated product read. */
+data class SelectedImportedActivityRunDeletionScope(
+	val runIdentity: PortableActivityOpaqueIdentity,
+	val deletionScopeDigest: PortableActivityDeletionScopeDigest,
+)
+
 /** Exact latest imported Activity revision selected from an authenticated product read. */
 data class SelectedImportedActivityIdentity(
 	val entryIdentity: PortableActivityOpaqueIdentity,
 	val importRevision: Long,
 	val contentChecksum: PortableActivityDigest,
+	val runDeletionScopes: List<SelectedImportedActivityRunDeletionScope>,
+	val windowIdentities: List<PortableActivityOpaqueIdentity>,
 ) {
 	init {
 		require(importRevision > 0L)
+		require(runDeletionScopes.isNotEmpty())
+		require(runDeletionScopes.size <= ActivityCapturedPortableFormatV1.MAX_RUNS_PER_ENTRY)
+		require(runDeletionScopes.map { it.runIdentity }.distinct().size == runDeletionScopes.size)
+		require(
+			runDeletionScopes.map { it.deletionScopeDigest }.distinct().size == runDeletionScopes.size,
+		)
+		require(windowIdentities.isNotEmpty())
+		require(windowIdentities.size <= MAX_SELECTED_IMPORTED_WINDOWS)
+		require(windowIdentities.distinct().size == windowIdentities.size)
+		val allIdentities = buildSet {
+			add(entryIdentity.value)
+			runDeletionScopes.forEach { run -> add(run.runIdentity.value) }
+			windowIdentities.forEach { window -> add(window.value) }
+		}
+		require(allIdentities.size == runDeletionScopes.size + windowIdentities.size + 1)
+		require(runDeletionScopes.none { it.deletionScopeDigest.value in allIdentities })
+	}
+
+	private companion object {
+		const val MAX_SELECTED_IMPORTED_WINDOWS = 16_384
 	}
 }
 

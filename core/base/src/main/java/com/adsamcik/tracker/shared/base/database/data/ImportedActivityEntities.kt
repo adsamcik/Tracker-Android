@@ -338,6 +338,246 @@ data class ImportedActivityEntryDeletionEntity(
 	}
 }
 
+/** Activity-only exact-replay receipt retained with the entry no-resurrection marker. */
+@Entity(
+	tableName = "imported_activity_entry_deletion_receipt",
+	primaryKeys = ["entry_identity"],
+	foreignKeys = [ForeignKey(
+		entity = ImportedActivityEntryDeletionEntity::class,
+		parentColumns = ["entry_identity"],
+		childColumns = ["entry_identity"],
+		onDelete = ForeignKey.CASCADE,
+	)],
+)
+@Suppress("LongParameterList")
+data class ImportedActivityEntryDeletionReceiptEntity(
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
+	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	@ColumnInfo(name = "deleted_import_revision") val deletedImportRevision: Long,
+	@ColumnInfo(name = "deleted_content_checksum") val deletedContentChecksum: String,
+	@ColumnInfo(name = "expected_run_count") val expectedRunCount: Int,
+	@ColumnInfo(name = "run_scope_set_checksum") val runScopeSetChecksum: String,
+	@ColumnInfo(name = "expected_window_count") val expectedWindowCount: Int,
+	@ColumnInfo(name = "window_identity_set_checksum") val windowIdentitySetChecksum: String,
+	@ColumnInfo(name = "run_deletion_set_checksum") val runDeletionSetChecksum: String,
+	@ColumnInfo(name = "source_fence_count") val sourceFenceCount: Int,
+	@ColumnInfo(name = "source_fence_set_checksum") val sourceFenceSetChecksum: String,
+	@ColumnInfo(name = "retained_from_ms") val retainedFromMs: Long?,
+	@ColumnInfo(name = "deleted_at_ms") val deletedAtMs: Long,
+	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
+) {
+	init {
+		listOf(
+			entryIdentity,
+			deletedContentChecksum,
+			runScopeSetChecksum,
+			windowIdentitySetChecksum,
+			runDeletionSetChecksum,
+			sourceFenceSetChecksum,
+			effectChecksum,
+		).forEach { require(ImportedActivityIdentity.isDigest(it)) }
+		require(collectedDataEpoch >= 0L && deletedImportRevision > 0L && deletedAtMs >= 0L)
+		require(expectedRunCount in 1..MAX_EXPECTED_RUNS)
+		require(expectedWindowCount in 1..MAX_EXPECTED_WINDOWS)
+		require(sourceFenceCount in 0..expectedRunCount)
+		require(retainedFromMs == null || retainedFromMs >= 0L)
+		require(effectChecksum == checksum(this))
+	}
+
+	companion object {
+		@Suppress("LongParameterList")
+		fun create(
+			entryDeletion: ImportedActivityEntryDeletionEntity,
+			deletedContentChecksum: String,
+			runScopes: List<Pair<String, String>>,
+			windowIdentities: List<String>,
+			runDeletions: List<ImportedActivityDeletionGenerationEntity>,
+			sourceFences: List<SourceDeletionFenceEntity>,
+			retainedFromMs: Long?,
+		): ImportedActivityEntryDeletionReceiptEntity {
+			require(ImportedActivityIdentity.isDigest(deletedContentChecksum))
+			require(retainedFromMs == null || retainedFromMs >= 0L)
+			requireValidRunScopes(runScopes)
+			requireValidWindowIdentities(windowIdentities)
+			val runIdentities = runScopes.mapTo(linkedSetOf()) { it.first }
+			require(runDeletions.size == runScopes.size)
+			require(runDeletions.mapTo(linkedSetOf()) { it.runIdentity } == runIdentities)
+			require(runDeletions.all {
+				it.collectedDataEpoch == entryDeletion.collectedDataEpoch && it.generation == 1L
+			})
+			val scopeDigests = runScopes.mapTo(linkedSetOf()) { it.second }
+			require(entryDeletion.entryIdentity !in runIdentities)
+			require(entryDeletion.entryIdentity !in scopeDigests)
+			require(entryDeletion.entryIdentity !in windowIdentities)
+			require(windowIdentities.none { it in runIdentities || it in scopeDigests })
+			require(sourceFences.distinctBy { it.scopeIdentityDigest }.size == sourceFences.size)
+			require(sourceFences.all {
+				it.sourceKind == SourceDestinationOwnerEntity.SOURCE_ACTIVITY &&
+					it.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
+					it.scopeKind == SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN &&
+					it.scopeIdentityDigest in scopeDigests &&
+					it.collectedDataEpoch == entryDeletion.collectedDataEpoch &&
+					it.fenceGeneration == 1L
+			})
+			val runScopeSetChecksum = checksumRunScopes(runScopes)
+			val windowIdentitySetChecksum = checksumWindowIdentities(windowIdentities)
+			val runDeletionSetChecksum = checksumRunDeletions(runDeletions)
+			val sourceFenceSetChecksum = checksumSourceFences(sourceFences)
+			val effectChecksum = checksum(
+				entryIdentity = entryDeletion.entryIdentity,
+				collectedDataEpoch = entryDeletion.collectedDataEpoch,
+				deletedImportRevision = entryDeletion.deletedImportRevision,
+				deletedContentChecksum = deletedContentChecksum,
+				expectedRunCount = runScopes.size,
+				runScopeSetChecksum = runScopeSetChecksum,
+				expectedWindowCount = windowIdentities.size,
+				windowIdentitySetChecksum = windowIdentitySetChecksum,
+				runDeletionSetChecksum = runDeletionSetChecksum,
+				sourceFenceCount = sourceFences.size,
+				sourceFenceSetChecksum = sourceFenceSetChecksum,
+				retainedFromMs = retainedFromMs,
+				deletedAtMs = entryDeletion.deletedAtMs,
+			)
+			return ImportedActivityEntryDeletionReceiptEntity(
+				entryIdentity = entryDeletion.entryIdentity,
+				collectedDataEpoch = entryDeletion.collectedDataEpoch,
+				deletedImportRevision = entryDeletion.deletedImportRevision,
+				deletedContentChecksum = deletedContentChecksum,
+				expectedRunCount = runScopes.size,
+				runScopeSetChecksum = runScopeSetChecksum,
+				expectedWindowCount = windowIdentities.size,
+				windowIdentitySetChecksum = windowIdentitySetChecksum,
+				runDeletionSetChecksum = runDeletionSetChecksum,
+				sourceFenceCount = sourceFences.size,
+				sourceFenceSetChecksum = sourceFenceSetChecksum,
+				retainedFromMs = retainedFromMs,
+				deletedAtMs = entryDeletion.deletedAtMs,
+				effectChecksum = effectChecksum,
+			)
+		}
+
+		fun checksumRunScopes(values: List<Pair<String, String>>): String {
+			requireValidRunScopes(values)
+			return ImportedActivityIdentity.digest(
+				"tracker-imported-activity-deletion-run-scope-set-v1",
+				listOf(values.size.toString()) + values.sortedWith(
+					compareBy<Pair<String, String>>({ it.first }, { it.second }),
+				).flatMap { (runIdentity, scopeDigest) -> listOf(runIdentity, scopeDigest) },
+			)
+		}
+
+		fun checksumWindowIdentities(values: List<String>): String {
+			requireValidWindowIdentities(values)
+			return ImportedActivityIdentity.digest(
+				"tracker-imported-activity-deletion-window-identity-set-v1",
+				listOf(values.size.toString()) + values.sorted(),
+			)
+		}
+
+		fun checksumRunDeletions(values: List<ImportedActivityDeletionGenerationEntity>): String =
+			ImportedActivityIdentity.digest(
+				"tracker-imported-activity-deletion-run-marker-set-v1",
+				listOf(values.size.toString()) + values.sortedBy { it.runIdentity }.flatMap { value ->
+					listOf(
+						value.runIdentity,
+						value.collectedDataEpoch.toString(),
+						value.generation.toString(),
+						value.deletedAtMs.toString(),
+						value.effectChecksum,
+					)
+				},
+			)
+
+		fun checksumSourceFences(values: List<SourceDeletionFenceEntity>): String =
+			ImportedActivityIdentity.digest(
+				"tracker-imported-activity-deletion-source-fence-set-v1",
+				listOf(values.size.toString()) + values.sortedBy { it.scopeIdentityDigest }.flatMap { value ->
+					listOf(
+						value.sourceKind.toString(),
+						value.purpose,
+						value.scopeKind,
+						value.scopeIdentityDigest,
+						value.fenceGeneration.toString(),
+						value.collectedDataEpoch.toString(),
+						value.deletedAtMs.toString(),
+						value.effectChecksum,
+					)
+				},
+			)
+
+		private fun requireValidRunScopes(values: List<Pair<String, String>>) {
+			require(values.size in 1..MAX_EXPECTED_RUNS)
+			values.flatMap { listOf(it.first, it.second) }.forEach {
+				require(ImportedActivityIdentity.isDigest(it))
+			}
+			require(values.distinctBy { it.first }.size == values.size)
+			require(values.distinctBy { it.second }.size == values.size)
+			val identities = values.mapTo(linkedSetOf()) { it.first }
+			require(values.none { it.second in identities })
+		}
+
+		private fun requireValidWindowIdentities(values: List<String>) {
+			require(values.size in 1..MAX_EXPECTED_WINDOWS)
+			require(values.distinct().size == values.size)
+			values.forEach { require(ImportedActivityIdentity.isDigest(it)) }
+		}
+
+		private fun checksum(value: ImportedActivityEntryDeletionReceiptEntity) = checksum(
+			entryIdentity = value.entryIdentity,
+			collectedDataEpoch = value.collectedDataEpoch,
+			deletedImportRevision = value.deletedImportRevision,
+			deletedContentChecksum = value.deletedContentChecksum,
+			expectedRunCount = value.expectedRunCount,
+			runScopeSetChecksum = value.runScopeSetChecksum,
+			expectedWindowCount = value.expectedWindowCount,
+			windowIdentitySetChecksum = value.windowIdentitySetChecksum,
+			runDeletionSetChecksum = value.runDeletionSetChecksum,
+			sourceFenceCount = value.sourceFenceCount,
+			sourceFenceSetChecksum = value.sourceFenceSetChecksum,
+			retainedFromMs = value.retainedFromMs,
+			deletedAtMs = value.deletedAtMs,
+		)
+
+		@Suppress("LongParameterList")
+		private fun checksum(
+			entryIdentity: String,
+			collectedDataEpoch: Long,
+			deletedImportRevision: Long,
+			deletedContentChecksum: String,
+			expectedRunCount: Int,
+			runScopeSetChecksum: String,
+			expectedWindowCount: Int,
+			windowIdentitySetChecksum: String,
+			runDeletionSetChecksum: String,
+			sourceFenceCount: Int,
+			sourceFenceSetChecksum: String,
+			retainedFromMs: Long?,
+			deletedAtMs: Long,
+		) =
+			ImportedActivityIdentity.digest(
+				"tracker-imported-activity-entry-deletion-receipt-v1",
+				listOf(
+					entryIdentity,
+					collectedDataEpoch.toString(),
+					deletedImportRevision.toString(),
+					deletedContentChecksum,
+					expectedRunCount.toString(),
+					runScopeSetChecksum,
+					expectedWindowCount.toString(),
+					windowIdentitySetChecksum,
+					runDeletionSetChecksum,
+					sourceFenceCount.toString(),
+					sourceFenceSetChecksum,
+					retainedFromMs?.toString() ?: "NONE",
+					deletedAtMs.toString(),
+				),
+			)
+
+		private const val MAX_EXPECTED_RUNS = 64
+		private const val MAX_EXPECTED_WINDOWS = 16_384
+	}
+}
+
 /** Run-level no-resurrection authority; portable v1 has no successor deletion generation token. */
 @Entity(tableName = "imported_activity_deletion_generation", primaryKeys = ["run_identity"])
 data class ImportedActivityDeletionGenerationEntity(

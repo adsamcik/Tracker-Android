@@ -76,6 +76,15 @@ class RoomImportPortableCapturedActivity internal constructor(
 			blocked(PortableActivityImportBlockedReason.RETENTION_BOUNDARY)
 		}
 		val entryDeletion = storedValue { dao.entryDeletion(entry.identity.value) }
+		val entryDeletionReceipt = storedValue { dao.entryDeletionReceipt(entry.identity.value) }
+		if (
+			entryDeletionReceipt != null && (
+				entryDeletion == null ||
+					entryDeletionReceipt.collectedDataEpoch != entryDeletion.collectedDataEpoch ||
+					entryDeletionReceipt.deletedImportRevision != entryDeletion.deletedImportRevision ||
+					entryDeletionReceipt.deletedAtMs != entryDeletion.deletedAtMs
+			)
+		) storedCorrupt()
 		if (entryDeletion != null) {
 			if (entryDeletion.collectedDataEpoch != request.expectedCollectedDataEpoch) storedCorrupt()
 			blocked(PortableActivityImportBlockedReason.DELETED_ENTRY)
@@ -225,8 +234,10 @@ class RoomImportPortableCapturedActivity internal constructor(
 			val windows = storedValue { dao.existingWindowIdentityOwners(identities, limit) }
 			val identityAsScopes = storedValue { dao.existingRunScopeOwners(identities, 1) }
 			val deletedEntries = storedValue { dao.entryDeletions(identities) }
+			val deletionReceipts = storedValue { dao.entryDeletionReceipts(identities) }
 			val deletedRuns = storedValue { dao.deletionGenerations(identities) }
 			if (deletedEntries.any { it.collectedDataEpoch != expectedCollectedDataEpoch } ||
+				deletionReceipts.any { it.collectedDataEpoch != expectedCollectedDataEpoch } ||
 				deletedRuns.any { it.collectedDataEpoch != expectedCollectedDataEpoch }
 			) storedCorrupt()
 			if (entries.size >= limit || runs.size >= limit || windows.size >= limit) {
@@ -244,6 +255,9 @@ class RoomImportPortableCapturedActivity internal constructor(
 						windowOwners[owner.identity] != owner.runIdentity
 				} || deletedEntries.any { marker ->
 					kinds[marker.entryIdentity] != PortableActivityIdentityKind.LOGICAL_ENTRY
+				} || deletionReceipts.any { receipt ->
+					kinds[receipt.entryIdentity] != PortableActivityIdentityKind.LOGICAL_ENTRY ||
+						deletedEntries.none { marker -> marker.entryIdentity == receipt.entryIdentity }
 				} || deletedRuns.any { marker ->
 					kinds[marker.runIdentity] != PortableActivityIdentityKind.PHYSICAL_RUN
 				}
@@ -255,12 +269,15 @@ class RoomImportPortableCapturedActivity internal constructor(
 			val scopeAsRuns = storedValue { dao.existingRunIdentityOwners(digests, 1) }
 			val scopeAsWindows = storedValue { dao.existingWindowIdentityOwners(digests, 1) }
 			val scopeAsDeletedEntries = storedValue { dao.entryDeletions(digests) }
+			val scopeAsDeletionReceipts = storedValue { dao.entryDeletionReceipts(digests) }
 			val scopeAsDeletedRuns = storedValue { dao.deletionGenerations(digests) }
 			if (scopeAsDeletedEntries.any { it.collectedDataEpoch != expectedCollectedDataEpoch } ||
+				scopeAsDeletionReceipts.any { it.collectedDataEpoch != expectedCollectedDataEpoch } ||
 				scopeAsDeletedRuns.any { it.collectedDataEpoch != expectedCollectedDataEpoch }
 			) storedCorrupt()
 			if (scopeAsEntries.isNotEmpty() || scopeAsRuns.isNotEmpty() || scopeAsWindows.isNotEmpty() ||
-				scopeAsDeletedEntries.isNotEmpty() || scopeAsDeletedRuns.isNotEmpty()
+				scopeAsDeletedEntries.isNotEmpty() || scopeAsDeletionReceipts.isNotEmpty() ||
+				scopeAsDeletedRuns.isNotEmpty()
 			) blocked(PortableActivityImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
 			if (owners.size > digests.size) {
 				blocked(PortableActivityImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)

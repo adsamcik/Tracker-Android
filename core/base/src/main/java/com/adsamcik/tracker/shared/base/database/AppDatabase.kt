@@ -71,6 +71,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedStepsRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsManifestEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityReceiptEntity
@@ -196,6 +197,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedActivityWindowEntity::class,
 			ImportedActivityFragmentEntity::class,
 			ImportedActivityEntryDeletionEntity::class,
+			ImportedActivityEntryDeletionReceiptEntity::class,
 			ImportedActivityDeletionGenerationEntity::class,
 			PressureFactRevisionEntity::class,
 			ActivityCapturedRegistrationPlanEntity::class,
@@ -650,6 +652,7 @@ abstract class AppDatabase : RoomDatabase() {
 			database.importedStepsDao().deleteAll()
 			database.importedActivityDao().deleteAllReceipts()
 			database.importedActivityDao().deleteAllEntries()
+			database.importedActivityDao().deleteAllEntryDeletionReceipts()
 			database.importedActivityDao().deleteAllEntryDeletions()
 			database.importedActivityDao().deleteAllDeletionGenerations()
 			database.pressureFactRevisionDao().deleteAll()

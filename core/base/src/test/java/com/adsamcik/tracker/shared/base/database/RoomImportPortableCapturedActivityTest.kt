@@ -6,6 +6,7 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityWindowEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -854,6 +855,13 @@ class RoomImportPortableCapturedActivityTest {
 					100L,
 				),
 			)
+			val deletionReceipt = requireNotNull(
+				dao.entryDeletionReceipt(corrected.entry.identity.value),
+			)
+			deletionReceipt.deletedContentChecksum shouldBe corrected.entry.contentChecksum.value
+			deletionReceipt.expectedRunCount shouldBe corrected.entry.runs.size
+			deletionReceipt.expectedWindowCount shouldBe corrected.entry.runs.sumOf { it.windows.size }
+			deletionReceipt.deletedAtMs shouldBe 100L
 			dao.latestEntryRevision(otherEntry.identity.value)?.contentChecksum shouldBe
 				otherEntry.contentChecksum.value
 			database.sourceDeletionFenceDao().get(
@@ -878,6 +886,241 @@ class RoomImportPortableCapturedActivityTest {
 			} shouldBe ExportPortableCapturedActivityResult.Exported(1)
 			envelope?.entries shouldBe listOf(otherEntry)
 		}
+
+	@Test
+	fun `exact replay rejects conflicting checksum stale time and changed selected hierarchy`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value) shouldBe
+			ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.Deleted(1, 1)
+		val exactReplay = deleteRequest(value.entry, deletedAtMs = 110L)
+
+		deleter(testScheduler).delete(
+			exactReplay.copy(
+				selected = exactReplay.selected.copy(
+					contentChecksum = PortableActivityDigest("0".repeat(64)),
+				),
+			),
+		) shouldBe DeleteSelectedImportedActivityResult.Blocked(
+			SelectedImportedActivityDeletionBlockedReason.STALE_SELECTION,
+		)
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 99L)) shouldBe
+			DeleteSelectedImportedActivityResult.Blocked(
+				SelectedImportedActivityDeletionBlockedReason.STALE_REQUEST,
+			)
+		val changedScope = exactReplay.selected.runDeletionScopes.single().copy(
+			deletionScopeDigest = scope("changed-replay-scope"),
+		)
+		deleter(testScheduler).delete(
+			exactReplay.copy(
+				selected = exactReplay.selected.copy(runDeletionScopes = listOf(changedScope)),
+			),
+		) shouldBe DeleteSelectedImportedActivityResult.Blocked(
+			SelectedImportedActivityDeletionBlockedReason.STALE_SELECTION,
+		)
+		val changedWindow = identity(PortableActivityIdentityKind.CAPTURE_WINDOW, "changed-replay-window")
+		deleter(testScheduler).delete(
+			exactReplay.copy(
+				selected = exactReplay.selected.copy(windowIdentities = listOf(changedWindow)),
+			),
+		) shouldBe DeleteSelectedImportedActivityResult.Blocked(
+			SelectedImportedActivityDeletionBlockedReason.STALE_SELECTION,
+		)
+		val extraRun = SelectedImportedActivityRunDeletionScope(
+			runIdentity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "extra-replay-run"),
+			deletionScopeDigest = scope("extra-replay-run"),
+		)
+		deleter(testScheduler).delete(
+			exactReplay.copy(
+				selected = exactReplay.selected.copy(
+					runDeletionScopes = exactReplay.selected.runDeletionScopes + extraRun,
+				),
+			),
+		) shouldBe DeleteSelectedImportedActivityResult.Blocked(
+			SelectedImportedActivityDeletionBlockedReason.STALE_SELECTION,
+		)
+	}
+
+	@Test
+	fun `exact replay fails closed for missing extra or corrupt receipt and run marker`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.Deleted(1, 1)
+		val dao = database.importedActivityDao()
+		val entryIdentity = value.entry.identity.value
+		val runIdentity = value.entry.runs.single().identity.value
+		val receipt = requireNotNull(dao.entryDeletionReceipt(entryIdentity))
+		val runDeletion = dao.deletionGenerations(listOf(runIdentity)).single()
+		val replay = deleteRequest(value.entry, deletedAtMs = 110L)
+
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM imported_activity_entry_deletion_receipt WHERE entry_identity = ?",
+			arrayOf(entryIdentity),
+		)
+		deleter(testScheduler).delete(replay) shouldBe DeleteSelectedImportedActivityResult.Unverifiable(
+			ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		dao.insertEntryDeletionReceipt(receipt)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM imported_activity_deletion_generation WHERE run_identity = ?",
+			arrayOf(runIdentity),
+		)
+		deleter(testScheduler).delete(replay) shouldBe DeleteSelectedImportedActivityResult.Unverifiable(
+			ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		dao.insertDeletionGeneration(runDeletion)
+
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_activity_entry_deletion_receipt " +
+				"SET run_scope_set_checksum = ? WHERE entry_identity = ?",
+			arrayOf("f".repeat(64), entryIdentity),
+		)
+		deleter(testScheduler).delete(replay) shouldBe DeleteSelectedImportedActivityResult.Unverifiable(
+			ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM imported_activity_entry_deletion_receipt WHERE entry_identity = ?",
+			arrayOf(entryIdentity),
+		)
+		dao.insertEntryDeletionReceipt(receipt)
+		val extraRunDeletion = ImportedActivityDeletionGenerationEntity.create(
+			value.entry.runs.single().deletionScopeDigest.value,
+			EPOCH,
+			1L,
+			100L,
+		)
+		dao.insertDeletionGeneration(extraRunDeletion)
+		deleter(testScheduler).delete(replay) shouldBe DeleteSelectedImportedActivityResult.Unverifiable(
+			ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM imported_activity_deletion_generation WHERE run_identity = ?",
+			arrayOf(extraRunDeletion.runIdentity),
+		)
+
+		val unsupported = ImportedActivityDeletionGenerationEntity.create(
+			runIdentity,
+			EPOCH,
+			2L,
+			100L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_activity_deletion_generation SET generation = ?, effect_checksum = ? " +
+				"WHERE run_identity = ?",
+			arrayOf(unsupported.generation, unsupported.effectChecksum, runIdentity),
+		)
+		deleter(testScheduler).delete(replay) shouldBe DeleteSelectedImportedActivityResult.Unverifiable(
+			ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `exact replay audits global owner collisions without a header`() = runTest {
+		val value = request()
+		val otherEntry = entry(
+			entryLocalId = "replay-owner",
+			runIdentity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "replay-owner-run"),
+			deletionScope = scope("replay-owner-run"),
+			windowIdentity = identity(PortableActivityIdentityKind.CAPTURE_WINDOW, "replay-owner-window"),
+		)
+		importer(testScheduler).importEntry(value)
+		importer(testScheduler).importEntry(
+			request(otherEntry, PortableActivityImportReceipt("owner-job", "owner", "owner", 40L)),
+		)
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.Deleted(1, 1)
+		val selectedWindow = value.entry.runs.single().windows.single()
+		val otherRun = otherEntry.runs.single()
+		database.importedActivityDao().insertWindow(
+			ImportedActivityWindowEntity(
+				entryIdentity = otherEntry.identity.value,
+				entryImportRevision = 1L,
+				runIdentity = otherRun.identity.value,
+				identity = selectedWindow.identity.value,
+				contentChecksum = selectedWindow.contentChecksum.value,
+				startOffsetNanos = selectedWindow.startOffsetNanos,
+				endOffsetNanos = selectedWindow.endOffsetNanos,
+				storedZoneId = selectedWindow.storedZoneId,
+				coverage = selectedWindow.coverage.name,
+				knownActiveDurationNanos = selectedWindow.knownActiveDurationNanos,
+				knownInactiveDurationNanos = selectedWindow.knownInactiveDurationNanos,
+				unknownActivityDurationNanos = selectedWindow.unknownActivityDurationNanos,
+				unobservedDurationNanos = selectedWindow.unobservedDurationNanos,
+			),
+		)
+
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 110L)) shouldBe
+			DeleteSelectedImportedActivityResult.Unverifiable(
+				ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT,
+			)
+	}
+
+	@Test
+	fun `exact replay fails closed when an orphan descendant survives the cascade`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.Deleted(1, 1)
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL("PRAGMA foreign_keys = OFF")
+		sqlite.execSQL(
+			"""
+			INSERT INTO imported_activity_receipt (
+			  import_job_id, import_entry_key, import_source_name, received_at_ms,
+			  entry_identity, entry_import_revision, entry_content_checksum, collected_data_epoch
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			""".trimIndent(),
+			arrayOf(
+				"orphan-job",
+				"orphan-entry",
+				"orphan-source",
+				105L,
+				value.entry.identity.value,
+				1L,
+				value.entry.contentChecksum.value,
+				EPOCH,
+			),
+		)
+		sqlite.execSQL("PRAGMA foreign_keys = ON")
+
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 110L)) shouldBe
+			DeleteSelectedImportedActivityResult.Unverifiable(
+				ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+	}
+
+	@Test
+	fun `exact replay rejects source fence retention and collected epoch changes`() = runTest {
+		val value = request(
+			entry(
+				deletionScope = PortableActivityDeletionScopeDigest.derive(
+					LOGICAL_TRACKING_ID,
+					SERVICE_RUN_ID,
+				),
+			),
+		)
+		importer(testScheduler).importEntry(value)
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.Deleted(1, 1)
+		database.sourceDeletionFenceDao().insertIfAbsent(sourceDeletionFence()) shouldBe 1L
+
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 110L)) shouldBe
+			DeleteSelectedImportedActivityResult.Unverifiable(
+				ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 500L, 120L) shouldBe 1
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 130L)) shouldBe
+			DeleteSelectedImportedActivityResult.Blocked(
+				SelectedImportedActivityDeletionBlockedReason.RETENTION_BOUNDARY,
+			)
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH + 1L, 500L, 140L) shouldBe 1
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 150L)) shouldBe
+			DeleteSelectedImportedActivityResult.Blocked(
+				SelectedImportedActivityDeletionBlockedReason.COLLECTED_DATA_EPOCH_CHANGED,
+			)
+	}
 
 	@Test
 	fun `selected imported deletion preserves exact prior run and source fences`() = runTest {
@@ -929,6 +1172,8 @@ class RoomImportPortableCapturedActivityTest {
 			retainedSourceFence.scopeKind,
 			retainedSourceFence.scopeIdentityDigest,
 		) shouldBe retainedSourceFence
+		deleter(testScheduler).delete(deleteRequest(value, deletedAtMs = 110L)) shouldBe
+			DeleteSelectedImportedActivityResult.AlreadyDeleted(1L)
 	}
 
 	@Test
@@ -1054,6 +1299,7 @@ class RoomImportPortableCapturedActivityTest {
 
 		database.importedActivityDao().latestEntryRevision(value.entry.identity.value)?.importRevision shouldBe 1L
 		database.importedActivityDao().entryDeletion(value.entry.identity.value) shouldBe null
+		database.importedActivityDao().entryDeletionReceipt(value.entry.identity.value) shouldBe null
 		database.importedActivityDao().deletionGenerations(value.entry.runs.map { it.identity.value }) shouldBe
 			emptyList()
 	}
@@ -1074,6 +1320,7 @@ class RoomImportPortableCapturedActivityTest {
 			)
 		database.importedActivityDao().latestEntryRevision(value.entry.identity.value)?.importRevision shouldBe 1L
 		database.importedActivityDao().entryDeletion(value.entry.identity.value) shouldBe null
+		database.importedActivityDao().entryDeletionReceipt(value.entry.identity.value) shouldBe null
 		database.importedActivityDao().deletionGenerations(value.entry.runs.map { it.identity.value }) shouldBe
 			emptyList()
 	}
@@ -1137,6 +1384,15 @@ class RoomImportPortableCapturedActivityTest {
 			entryIdentity = entry.identity,
 			importRevision = importRevision,
 			contentChecksum = entry.contentChecksum,
+			runDeletionScopes = entry.runs.map { run ->
+				SelectedImportedActivityRunDeletionScope(
+					runIdentity = run.identity,
+					deletionScopeDigest = run.deletionScopeDigest,
+				)
+			},
+			windowIdentities = entry.runs.flatMap { run ->
+				run.windows.map { window -> window.identity }
+			},
 		),
 		expectedCollectedDataEpoch = EPOCH,
 		deletedAtMs = deletedAtMs,

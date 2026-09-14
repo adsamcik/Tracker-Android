@@ -8,6 +8,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityReceiptEntity
@@ -59,6 +60,7 @@ class ImportedActivityMigration27To28Test {
 				"imported_activity_window",
 				"imported_activity_fragment",
 				"imported_activity_entry_deletion",
+				"imported_activity_entry_deletion_receipt",
 				"imported_activity_deletion_generation",
 			).forEach { table ->
 				database.query("SELECT COUNT(*) FROM $table").use { cursor ->
@@ -85,6 +87,10 @@ class ImportedActivityMigration27To28Test {
 					assertEquals(WINDOW, dao.windows(ENTRY, 1L, RUN).single().identity)
 					assertEquals(1, dao.fragments(ENTRY, 1L, RUN, WINDOW).size)
 					assertEquals(7L, dao.entryDeletion(TOMBSTONED_ENTRY)?.collectedDataEpoch)
+					assertEquals(
+						digest('a'),
+						dao.entryDeletionReceipt(TOMBSTONED_ENTRY)?.deletedContentChecksum,
+					)
 					assertEquals(
 						1L,
 						dao.deletionGenerations(listOf(TOMBSTONED_RUN)).single().generation,
@@ -129,11 +135,30 @@ class ImportedActivityMigration27To28Test {
 				"job", "entry", "backup.trackeractivity", 30L, ENTRY, 1L, digest('2'), 7L,
 			),
 		)
-		dao.insertEntryDeletion(
-			ImportedActivityEntryDeletionEntity.create(TOMBSTONED_ENTRY, 7L, 1L, 40L),
+		val entryDeletion = ImportedActivityEntryDeletionEntity.create(
+			TOMBSTONED_ENTRY,
+			7L,
+			1L,
+			40L,
 		)
-		dao.insertDeletionGeneration(
-			ImportedActivityDeletionGenerationEntity.create(TOMBSTONED_RUN, 7L, 1L, 40L),
+		val runDeletion = ImportedActivityDeletionGenerationEntity.create(
+			TOMBSTONED_RUN,
+			7L,
+			1L,
+			40L,
+		)
+		dao.insertEntryDeletion(entryDeletion)
+		dao.insertDeletionGeneration(runDeletion)
+		dao.insertEntryDeletionReceipt(
+			ImportedActivityEntryDeletionReceiptEntity.create(
+				entryDeletion = entryDeletion,
+				deletedContentChecksum = digest('a'),
+				runScopes = listOf(TOMBSTONED_RUN to digest('b')),
+				windowIdentities = listOf(digest('c')),
+				runDeletions = listOf(runDeletion),
+				sourceFences = emptyList(),
+				retainedFromMs = null,
+			),
 		)
 	}
 

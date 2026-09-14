@@ -122,7 +122,14 @@ class ImportedActivityProductReader(
 		if (loaded.exceedsBatchLimit(identities.size)) {
 			return candidates.unverifiable(ImportedActivityProductFailure.DEPENDENCY_OVERFLOW)
 		}
-		if (!loaded.belongsOnlyTo(identities) || !hasExactImportedIdentityOwnership(loaded)) {
+		val hasExactOwnership = try {
+			hasExactImportedIdentityOwnership(loaded)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			return candidates.unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		if (!loaded.belongsOnlyTo(identities) || !hasExactOwnership) {
 			return candidates.unverifiable(ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT)
 		}
 
@@ -229,6 +236,7 @@ class ImportedActivityProductReader(
 			val windows = database.importedActivityDao().existingWindowIdentityOwners(identities, limit)
 			val scopes = database.importedActivityDao().existingRunScopeOwners(identities, 1)
 			val deletedEntries = database.importedActivityDao().entryDeletions(identities)
+			val deletionReceipts = database.importedActivityDao().entryDeletionReceipts(identities)
 			val deletedRuns = database.importedActivityDao().deletionGenerations(identities)
 			if (entries.size >= limit || runs.size >= limit || windows.size >= limit || scopes.isNotEmpty()) {
 				return false
@@ -245,6 +253,15 @@ class ImportedActivityProductReader(
 					it.entryIdentity != owner.entryIdentity || it.runIdentity != owner.runIdentity
 				}
 			} || deletedEntries.any { it.entryIdentity !in entryOwners } ||
+				deletionReceipts.any { receipt ->
+					val deletion = deletedEntries.singleOrNull {
+						it.entryIdentity == receipt.entryIdentity
+					}
+					receipt.entryIdentity !in entryOwners || deletion == null ||
+						receipt.collectedDataEpoch != deletion.collectedDataEpoch ||
+						receipt.deletedImportRevision != deletion.deletedImportRevision ||
+						receipt.deletedAtMs != deletion.deletedAtMs
+				} ||
 				deletedRuns.any { it.runIdentity !in runOwners }
 			) return false
 		}
@@ -260,6 +277,7 @@ class ImportedActivityProductReader(
 				database.importedActivityDao().existingRunIdentityOwners(scopes, 1).isNotEmpty() ||
 				database.importedActivityDao().existingWindowIdentityOwners(scopes, 1).isNotEmpty() ||
 				database.importedActivityDao().entryDeletions(scopes).isNotEmpty() ||
+				database.importedActivityDao().entryDeletionReceipts(scopes).isNotEmpty() ||
 				database.importedActivityDao().deletionGenerations(scopes).isNotEmpty()
 			) return false
 		}

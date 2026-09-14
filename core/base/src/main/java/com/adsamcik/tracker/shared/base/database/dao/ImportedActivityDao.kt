@@ -5,8 +5,10 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.adsamcik.tracker.shared.base.database.ActivityCapturedPortableFormatV1
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityReceiptEntity
@@ -39,13 +41,23 @@ abstract class ImportedActivityDao {
 	abstract suspend fun insertEntryDeletion(value: ImportedActivityEntryDeletionEntity)
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
-	protected abstract suspend fun insertDeletionGenerationRow(
-		value: ImportedActivityDeletionGenerationEntity,
+	abstract suspend fun insertEntryDeletionReceipt(value: ImportedActivityEntryDeletionReceiptEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	protected abstract suspend fun insertDeletionGenerationRows(
+		values: List<ImportedActivityDeletionGenerationEntity>,
 	)
 
 	suspend fun insertDeletionGeneration(value: ImportedActivityDeletionGenerationEntity) {
-		require(value.generation == 1L)
-		insertDeletionGenerationRow(value)
+		insertDeletionGenerations(listOf(value))
+	}
+
+	suspend fun insertDeletionGenerations(values: List<ImportedActivityDeletionGenerationEntity>) {
+		require(values.isNotEmpty())
+		require(values.size <= ActivityCapturedPortableFormatV1.MAX_RUNS_PER_ENTRY)
+		require(values.distinctBy { it.runIdentity }.size == values.size)
+		require(values.all { it.generation == 1L })
+		insertDeletionGenerationRows(values)
 	}
 
 	@Query(
@@ -350,10 +362,18 @@ abstract class ImportedActivityDao {
 	@Query("SELECT * FROM imported_activity_entry_deletion WHERE entry_identity = :identity")
 	abstract suspend fun entryDeletion(identity: String): ImportedActivityEntryDeletionEntity?
 
+	@Query("SELECT * FROM imported_activity_entry_deletion_receipt WHERE entry_identity = :identity")
+	abstract suspend fun entryDeletionReceipt(identity: String): ImportedActivityEntryDeletionReceiptEntity?
+
 	@Query("SELECT * FROM imported_activity_entry_deletion WHERE entry_identity IN (:identities)")
 	abstract suspend fun entryDeletions(
 		identities: List<String>,
 	): List<ImportedActivityEntryDeletionEntity>
+
+	@Query("SELECT * FROM imported_activity_entry_deletion_receipt WHERE entry_identity IN (:identities)")
+	abstract suspend fun entryDeletionReceipts(
+		identities: List<String>,
+	): List<ImportedActivityEntryDeletionReceiptEntity>
 
 	suspend fun entryDeletionsForHistory(
 		identities: List<String>,
@@ -413,6 +433,19 @@ abstract class ImportedActivityDao {
 		windowIdentity: String,
 	): List<ImportedActivityFragmentEntity>
 
+	@Query(
+		"""
+		SELECT CASE WHEN
+			EXISTS(SELECT 1 FROM imported_activity_receipt WHERE entry_identity = :identity LIMIT 1) OR
+			EXISTS(SELECT 1 FROM imported_activity_run WHERE entry_identity = :identity LIMIT 1) OR
+			EXISTS(SELECT 1 FROM imported_activity_zone_epoch WHERE entry_identity = :identity LIMIT 1) OR
+			EXISTS(SELECT 1 FROM imported_activity_window WHERE entry_identity = :identity LIMIT 1) OR
+			EXISTS(SELECT 1 FROM imported_activity_fragment WHERE entry_identity = :identity LIMIT 1)
+		THEN 1 ELSE 0 END
+		""",
+	)
+	abstract suspend fun hasImportedHierarchyDependents(identity: String): Boolean
+
 	/** Cascades only the selected imported entry's receipts, runs, windows, zones, and fragments. */
 	@Query("DELETE FROM imported_activity_entry_revision WHERE identity = :identity")
 	abstract suspend fun deleteEntryRevisions(identity: String): Int
@@ -425,6 +458,9 @@ abstract class ImportedActivityDao {
 
 	@Query("DELETE FROM imported_activity_entry_deletion")
 	abstract fun deleteAllEntryDeletions()
+
+	@Query("DELETE FROM imported_activity_entry_deletion_receipt")
+	abstract fun deleteAllEntryDeletionReceipts()
 
 	@Query("DELETE FROM imported_activity_deletion_generation")
 	abstract fun deleteAllDeletionGenerations()

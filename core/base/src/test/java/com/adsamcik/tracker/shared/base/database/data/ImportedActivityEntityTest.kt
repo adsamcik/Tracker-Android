@@ -35,14 +35,29 @@ class ImportedActivityEntityTest {
 	}
 
 	@Test
-	fun `entry and run tombstone checksums bind all no resurrection authority`() {
+	fun `entry run and exact replay checksums bind all no resurrection authority`() {
 		val entryDeletion = ImportedActivityEntryDeletionEntity.create(digest('1'), 7L, 2L, 30L)
 		val runDeletion = ImportedActivityDeletionGenerationEntity.create(digest('2'), 7L, 1L, 30L)
+		val receipt = ImportedActivityEntryDeletionReceiptEntity.create(
+			entryDeletion = entryDeletion,
+			deletedContentChecksum = digest('4'),
+			runScopes = listOf(digest('2') to digest('3')),
+			windowIdentities = listOf(digest('5')),
+			runDeletions = listOf(runDeletion),
+			sourceFences = emptyList(),
+			retainedFromMs = null,
+		)
 		listOf<() -> Unit>(
 			{ entryDeletion.copy(deletedImportRevision = 1L) },
 			{ entryDeletion.copy(effectChecksum = digest('9')) },
 			{ runDeletion.copy(generation = 2L) },
 			{ runDeletion.copy(collectedDataEpoch = 8L) },
+			{ receipt.copy(deletedContentChecksum = digest('5')) },
+			{ receipt.copy(expectedRunCount = 2) },
+			{ receipt.copy(runScopeSetChecksum = digest('6')) },
+			{ receipt.copy(expectedWindowCount = 2) },
+			{ receipt.copy(windowIdentitySetChecksum = digest('7')) },
+			{ receipt.copy(sourceFenceCount = 1) },
 		).forEach { invalid -> assertThrows(IllegalArgumentException::class.java) { invalid() } }
 	}
 

@@ -3,11 +3,14 @@ package com.adsamcik.tracker.shared.base.database
 import android.database.sqlite.SQLiteConstraintException
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -34,7 +37,13 @@ class RoomDeleteSelectedImportedActivity internal constructor(
 		request: DeleteSelectedImportedActivityRequest,
 	): DeleteSelectedImportedActivityResult = withContext(ioDispatcher) {
 		try {
-			database.withTransaction { deleteInTransaction(request) }
+			val snapshot = request.copy(
+				selected = request.selected.copy(
+					runDeletionScopes = request.selected.runDeletionScopes.map { it.copy() }.toList(),
+					windowIdentities = request.selected.windowIdentities.toList(),
+				),
+			)
+			database.withTransaction { deleteInTransaction(snapshot) }
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (abort: ImportedActivityDeletionAbort) {
@@ -50,7 +59,7 @@ class RoomDeleteSelectedImportedActivity internal constructor(
 		}
 	}
 
-	@Suppress("LongMethod", "ComplexCondition", "CyclomaticComplexMethod")
+	@Suppress("LongMethod", "ComplexCondition", "CyclomaticComplexMethod", "NestedBlockDepth")
 	private suspend fun deleteInTransaction(
 		request: DeleteSelectedImportedActivityRequest,
 	): DeleteSelectedImportedActivityResult {
@@ -64,6 +73,7 @@ class RoomDeleteSelectedImportedActivity internal constructor(
 			state.retainedFromMs?.let { it < 0L } == true || state.updatedAtMs < 0L
 		) storedCorrupt()
 
+		val authority = ExpectedImportedActivityDeletionAuthority.from(request.selected)
 		val dao = database.importedActivityDao()
 		val evaluation = storedValue {
 			ImportedActivityProductReader(database).selectIdentityInTransaction(
@@ -71,23 +81,23 @@ class RoomDeleteSelectedImportedActivity internal constructor(
 			)
 		}
 		if (evaluation == null) {
-			val deletion = storedValue { dao.entryDeletion(request.selected.entryIdentity.value) }
-				?: return DeleteSelectedImportedActivityResult.NotFound
-			if (deletion.collectedDataEpoch != request.expectedCollectedDataEpoch) storedCorrupt()
-			if (deletion.deletedImportRevision != request.selected.importRevision) {
-				blocked(SelectedImportedActivityDeletionBlockedReason.STALE_SELECTION)
+			val deletion = storedValue { dao.entryDeletion(authority.entryIdentity) }
+			if (deletion == null) {
+				storedValue { authenticateAbsentIdentity(dao, authority, exactDeletion = false) }
+				return DeleteSelectedImportedActivityResult.NotFound
 			}
-			return DeleteSelectedImportedActivityResult.AlreadyDeleted(deletion.deletedImportRevision)
+			return authenticateReplay(request, state, dao, deletion, authority)
 		}
 		val readable = when (evaluation) {
 			is ImportedActivityProductEvaluation.Unverifiable -> unverifiable(evaluation.reason)
 			is ImportedActivityProductEvaluation.Readable -> evaluation
 		}
-		if (readable.candidate.identity != request.selected.entryIdentity.value ||
+		if (readable.candidate.identity != authority.entryIdentity ||
 			readable.candidate.importRevision != request.selected.importRevision ||
 			readable.candidate.contentChecksum != request.selected.contentChecksum.value
 		) blocked(SelectedImportedActivityDeletionBlockedReason.STALE_SELECTION)
 		if (readable.entryDeleted) storedCorrupt()
+		if (readable.retainedFromMs != state.retainedFromMs) storedCorrupt()
 		if (readable.retentionLimited) {
 			blocked(SelectedImportedActivityDeletionBlockedReason.RETENTION_BOUNDARY)
 		}
@@ -100,32 +110,24 @@ class RoomDeleteSelectedImportedActivity internal constructor(
 					.maxOfOrNull { it.receivedAtMs } ?: 0L,
 			)
 		}
-		val runIdentities = readable.entry.runs.map { it.identity.value }
-		val deletionScopesByRun = readable.entry.runs.associate {
-			it.identity.value to it.deletionScopeDigest.value
+		val liveRunScopes = readable.entry.runs.map { run ->
+			run.identity.value to run.deletionScopeDigest.value
 		}
-		if (runIdentities.isEmpty() || runIdentities.distinct().size != runIdentities.size ||
-			deletionScopesByRun.size != runIdentities.size
-		) storedCorrupt()
-		val runDeletions = storedValue { dao.deletionGenerations(runIdentities) }
-		val sourceDeletions = storedValue {
-			database.trackingHistoryReadDao().deletionFences(
-				sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
-				purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
-				scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
-				scopeIdentityDigests = deletionScopesByRun.values.toList(),
-			)
+		val liveWindowIdentities = readable.entry.runs.flatMap { run ->
+			run.windows.map { window -> window.identity.value }
 		}
-		if (runDeletions.distinctBy { it.runIdentity }.size != runDeletions.size ||
-			runDeletions.any {
-				it.runIdentity !in deletionScopesByRun ||
-					it.collectedDataEpoch != request.expectedCollectedDataEpoch || it.generation != 1L
-			} || sourceDeletions.distinctBy { it.scopeIdentityDigest }.size != sourceDeletions.size ||
-			sourceDeletions.any {
-				it.scopeIdentityDigest !in deletionScopesByRun.values ||
-					it.collectedDataEpoch != request.expectedCollectedDataEpoch || it.fenceGeneration != 1L
-			}
-		) storedCorrupt()
+		if (!authority.exactlyMatches(liveRunScopes, liveWindowIdentities)) {
+			blocked(SelectedImportedActivityDeletionBlockedReason.STALE_SELECTION)
+		}
+		val runDeletions = storedValue { dao.deletionGenerations(authority.runIdentities) }
+		val sourceDeletions = storedValue { sourceDeletions(authority) }
+		authenticateDeletionRows(
+			authority,
+			request.expectedCollectedDataEpoch,
+			runDeletions,
+			sourceDeletions,
+			requireEveryRun = false,
+		)
 		val exactLatestDurableTimeMs = maxOf(
 			latestDurableTimeMs,
 			runDeletions.maxOfOrNull { it.deletedAtMs } ?: 0L,
@@ -136,32 +138,53 @@ class RoomDeleteSelectedImportedActivity internal constructor(
 		}
 		val runDeletionIdentities = runDeletions.mapTo(hashSetOf()) { it.runIdentity }
 		val sourceDeletionScopes = sourceDeletions.mapTo(hashSetOf()) { it.scopeIdentityDigest }
-		val exactlyDeletedRuns = deletionScopesByRun.filter { (run, scope) ->
+		val exactlyDeletedRuns = authority.runScopes.filter { (run, scope) ->
 			run in runDeletionIdentities || scope in sourceDeletionScopes
 		}.keys
 		if (readable.deletedRunIdentities != exactlyDeletedRuns) storedCorrupt()
 		writeCheckpoint(ImportedActivityDeletionCheckpoint.AUTHORITY_AUTHENTICATED)
 
 		val entryDeletion = ImportedActivityEntryDeletionEntity.create(
-			entryIdentity = request.selected.entryIdentity.value,
+			entryIdentity = authority.entryIdentity,
 			collectedDataEpoch = request.expectedCollectedDataEpoch,
 			deletedImportRevision = request.selected.importRevision,
 			deletedAtMs = request.deletedAtMs,
 		)
 		dao.insertEntryDeletion(entryDeletion)
 		val deletionsByRun = runDeletions.associateBy { it.runIdentity }
-		runIdentities.forEach { runIdentity ->
-			if (runIdentity !in deletionsByRun) {
-				dao.insertDeletionGeneration(
-					ImportedActivityDeletionGenerationEntity.create(
-						runIdentity = runIdentity,
-						collectedDataEpoch = request.expectedCollectedDataEpoch,
-						generation = 1L,
-						deletedAtMs = request.deletedAtMs,
-					),
+		val missingRunDeletions = authority.runIdentities.mapNotNull { runIdentity ->
+			if (runIdentity in deletionsByRun) {
+				null
+			} else {
+				ImportedActivityDeletionGenerationEntity.create(
+					runIdentity = runIdentity,
+					collectedDataEpoch = request.expectedCollectedDataEpoch,
+					generation = 1L,
+					deletedAtMs = request.deletedAtMs,
 				)
 			}
 		}
+		if (missingRunDeletions.isNotEmpty()) dao.insertDeletionGenerations(missingRunDeletions)
+		val finalRunDeletions = storedValue { dao.deletionGenerations(authority.runIdentities) }
+		authenticateDeletionRows(
+			authority,
+			request.expectedCollectedDataEpoch,
+			finalRunDeletions,
+			sourceDeletions,
+			requireEveryRun = true,
+		)
+		val deletionReceipt = storedValue {
+			ImportedActivityEntryDeletionReceiptEntity.create(
+				entryDeletion = entryDeletion,
+				deletedContentChecksum = request.selected.contentChecksum.value,
+				runScopes = authority.runScopes.entries.map { it.key to it.value },
+				windowIdentities = authority.windowIdentities,
+				runDeletions = finalRunDeletions,
+				sourceFences = sourceDeletions,
+				retainedFromMs = state.retainedFromMs,
+			)
+		}
+		dao.insertEntryDeletionReceipt(deletionReceipt)
 		writeCheckpoint(ImportedActivityDeletionCheckpoint.TOMBSTONES_RECORDED)
 
 		val expectedRevisionCount = try {
@@ -169,25 +192,171 @@ class RoomDeleteSelectedImportedActivity internal constructor(
 		} catch (_: ArithmeticException) {
 			unverifiable(ImportedActivityProductFailure.VALUE_OVERFLOW)
 		}
-		if (dao.deleteEntryRevisions(request.selected.entryIdentity.value) != expectedRevisionCount) {
+		if (dao.deleteEntryRevisions(authority.entryIdentity) != expectedRevisionCount) {
 			storedCorrupt()
 		}
-		if (dao.latestHistoryCandidate(request.selected.entryIdentity.value) != null ||
-			dao.receiptsForAdmission(request.selected.entryIdentity.value).isNotEmpty() ||
-			dao.allRunsForAdmission(request.selected.entryIdentity.value).isNotEmpty() ||
-			dao.allZoneEpochsForAdmission(request.selected.entryIdentity.value).isNotEmpty() ||
-			dao.allWindowsForAdmission(request.selected.entryIdentity.value).isNotEmpty() ||
-			dao.allFragmentsForAdmission(request.selected.entryIdentity.value).isNotEmpty() ||
-			dao.entryDeletion(request.selected.entryIdentity.value) != entryDeletion ||
-			dao.deletionGenerations(runIdentities).associateBy { it.runIdentity }.keys !=
-				runIdentities.toSet()
+		storedValue { authenticateAbsentIdentity(dao, authority, exactDeletion = true) }
+		if (dao.latestHistoryCandidate(authority.entryIdentity) != null ||
+			dao.entryDeletion(authority.entryIdentity) != entryDeletion ||
+			dao.entryDeletionReceipt(authority.entryIdentity) != deletionReceipt ||
+			dao.deletionGenerations(authority.runIdentities).toSet() != finalRunDeletions.toSet()
 		) storedCorrupt()
 		writeCheckpoint(ImportedActivityDeletionCheckpoint.HIERARCHY_REMOVED)
 		return DeleteSelectedImportedActivityResult.Deleted(
 			importRevisionCount = expectedRevisionCount,
-			physicalRunCount = runIdentities.size,
+			physicalRunCount = authority.runIdentities.size,
 		)
 	}
+
+	@Suppress("LongMethod", "ComplexCondition")
+	private suspend fun authenticateReplay(
+		request: DeleteSelectedImportedActivityRequest,
+		state: SourceEvidenceState,
+		dao: ImportedActivityDao,
+		entryDeletion: ImportedActivityEntryDeletionEntity,
+		authority: ExpectedImportedActivityDeletionAuthority,
+	): DeleteSelectedImportedActivityResult {
+		val receipt = storedValue { dao.entryDeletionReceipt(authority.entryIdentity) }
+			?: storedCorrupt()
+		if (entryDeletion.entryIdentity != receipt.entryIdentity ||
+			entryDeletion.collectedDataEpoch != receipt.collectedDataEpoch ||
+			entryDeletion.deletedImportRevision != receipt.deletedImportRevision ||
+			entryDeletion.deletedAtMs != receipt.deletedAtMs ||
+			entryDeletion.collectedDataEpoch != request.expectedCollectedDataEpoch ||
+			receipt.deletedImportRevision > ImportedActivityDao.MAX_REVISIONS_PER_ENTRY.toLong()
+		) storedCorrupt()
+		if (entryDeletion.deletedImportRevision != request.selected.importRevision ||
+			receipt.deletedContentChecksum != request.selected.contentChecksum.value ||
+			receipt.expectedRunCount != authority.runIdentities.size ||
+			receipt.runScopeSetChecksum != ImportedActivityEntryDeletionReceiptEntity
+				.checksumRunScopes(authority.runScopes.entries.map { it.key to it.value }) ||
+			receipt.expectedWindowCount != authority.windowIdentities.size ||
+			receipt.windowIdentitySetChecksum != ImportedActivityEntryDeletionReceiptEntity
+				.checksumWindowIdentities(authority.windowIdentities)
+		) blocked(SelectedImportedActivityDeletionBlockedReason.STALE_SELECTION)
+		if (receipt.retainedFromMs != state.retainedFromMs) {
+			blocked(SelectedImportedActivityDeletionBlockedReason.RETENTION_BOUNDARY)
+		}
+		storedValue { authenticateAbsentIdentity(dao, authority, exactDeletion = true) }
+
+		val runDeletions = storedValue { dao.deletionGenerations(authority.runIdentities) }
+		val sourceDeletions = storedValue { sourceDeletions(authority) }
+		authenticateDeletionRows(
+			authority,
+			request.expectedCollectedDataEpoch,
+			runDeletions,
+			sourceDeletions,
+			requireEveryRun = true,
+		)
+		if (receipt.runDeletionSetChecksum != ImportedActivityEntryDeletionReceiptEntity
+				.checksumRunDeletions(runDeletions) ||
+			receipt.sourceFenceCount != sourceDeletions.size ||
+			receipt.sourceFenceSetChecksum != ImportedActivityEntryDeletionReceiptEntity
+				.checksumSourceFences(sourceDeletions)
+		) storedCorrupt()
+		val latestDurableTimeMs = maxOf(
+			state.updatedAtMs,
+			entryDeletion.deletedAtMs,
+			runDeletions.maxOfOrNull { it.deletedAtMs } ?: 0L,
+			sourceDeletions.maxOfOrNull { it.deletedAtMs } ?: 0L,
+		)
+		if (request.deletedAtMs < latestDurableTimeMs) {
+			blocked(SelectedImportedActivityDeletionBlockedReason.STALE_REQUEST)
+		}
+		return DeleteSelectedImportedActivityResult.AlreadyDeleted(
+			entryDeletion.deletedImportRevision,
+		)
+	}
+
+	@Suppress("ComplexCondition", "LongMethod")
+	private suspend fun authenticateAbsentIdentity(
+		dao: ImportedActivityDao,
+		authority: ExpectedImportedActivityDeletionAuthority,
+		exactDeletion: Boolean,
+	) {
+		if (dao.hasImportedHierarchyDependents(authority.entryIdentity)) storedCorrupt()
+		val foundEntryDeletions = linkedSetOf<String>()
+		val foundReceipts = linkedSetOf<String>()
+		val foundRunDeletions = linkedSetOf<String>()
+		val identities = listOf(authority.entryIdentity) + authority.runIdentities +
+			authority.windowIdentities
+		identities.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { identityBatch ->
+			val identityLimit = identityBatch.size + 1
+			if (dao.existingEntryIdentities(identityBatch, identityLimit).isNotEmpty() ||
+				dao.existingRunIdentityOwners(identityBatch, identityLimit).isNotEmpty() ||
+				dao.existingWindowIdentityOwners(identityBatch, identityLimit).isNotEmpty() ||
+				dao.existingRunScopeOwners(identityBatch, 1).isNotEmpty()
+			) originConflict()
+
+			val entryDeletions = dao.entryDeletions(identityBatch)
+			val receipts = dao.entryDeletionReceipts(identityBatch)
+			val runDeletions = dao.deletionGenerations(identityBatch)
+			if (!exactDeletion) {
+				if (entryDeletions.isNotEmpty() || receipts.isNotEmpty() || runDeletions.isNotEmpty()) {
+					originConflict()
+				}
+			} else {
+				if (entryDeletions.any { it.entryIdentity != authority.entryIdentity } ||
+					receipts.any { it.entryIdentity != authority.entryIdentity } ||
+					runDeletions.any { it.runIdentity !in authority.runIdentities }
+				) originConflict()
+				entryDeletions.mapTo(foundEntryDeletions) { it.entryIdentity }
+				receipts.mapTo(foundReceipts) { it.entryIdentity }
+				runDeletions.mapTo(foundRunDeletions) { it.runIdentity }
+			}
+		}
+		if (
+			exactDeletion && (
+				foundEntryDeletions != setOf(authority.entryIdentity) ||
+					foundReceipts != setOf(authority.entryIdentity) ||
+					foundRunDeletions != authority.runIdentities.toSet()
+			)
+		) storedCorrupt()
+
+		val scopes = authority.scopeDigests
+		val scopeLimit = scopes.size + 1
+		if (dao.existingEntryIdentities(scopes, 1).isNotEmpty() ||
+			dao.existingRunIdentityOwners(scopes, 1).isNotEmpty() ||
+			dao.existingWindowIdentityOwners(scopes, 1).isNotEmpty() ||
+			dao.existingRunScopeOwners(scopes, scopeLimit).isNotEmpty() ||
+			dao.entryDeletions(scopes).isNotEmpty() ||
+			dao.entryDeletionReceipts(scopes).isNotEmpty() ||
+			dao.deletionGenerations(scopes).isNotEmpty()
+		) originConflict()
+	}
+
+	@Suppress("ComplexCondition")
+	private fun authenticateDeletionRows(
+		authority: ExpectedImportedActivityDeletionAuthority,
+		epoch: Long,
+		runDeletions: List<ImportedActivityDeletionGenerationEntity>,
+		sourceDeletions: List<SourceDeletionFenceEntity>,
+		requireEveryRun: Boolean,
+	) {
+		if (runDeletions.distinctBy { it.runIdentity }.size != runDeletions.size ||
+			runDeletions.any {
+				it.runIdentity !in authority.runIdentities ||
+					it.collectedDataEpoch != epoch || it.generation != 1L
+			} || requireEveryRun && runDeletions.size != authority.runIdentities.size ||
+			sourceDeletions.distinctBy { it.scopeIdentityDigest }.size != sourceDeletions.size ||
+			sourceDeletions.any {
+				it.sourceKind != SourceDestinationOwnerEntity.SOURCE_ACTIVITY ||
+					it.purpose != SessionManifestPurposeCode.SESSION_CAPTURE ||
+					it.scopeKind != SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN ||
+					it.scopeIdentityDigest !in authority.scopeDigests ||
+					it.collectedDataEpoch != epoch || it.fenceGeneration != 1L
+			}
+		) storedCorrupt()
+	}
+
+	private suspend fun sourceDeletions(
+		authority: ExpectedImportedActivityDeletionAuthority,
+	): List<SourceDeletionFenceEntity> = database.trackingHistoryReadDao().deletionFences(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+		purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+		scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+		scopeIdentityDigests = authority.scopeDigests,
+	)
 
 	private suspend inline fun <T> storedValue(crossinline block: suspend () -> T): T = try {
 		block()
@@ -209,6 +378,9 @@ class RoomDeleteSelectedImportedActivity internal constructor(
 	private fun storedCorrupt(): Nothing =
 		unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
 
+	private fun originConflict(): Nothing =
+		unverifiable(ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT)
+
 	private fun unverifiable(reason: ImportedActivityProductFailure): Nothing =
 		throw ImportedActivityDeletionAbort(DeleteSelectedImportedActivityResult.Unverifiable(reason))
 
@@ -216,6 +388,34 @@ class RoomDeleteSelectedImportedActivity internal constructor(
 		val result: DeleteSelectedImportedActivityResult,
 	) : RuntimeException(null, null, false, false)
 }
+
+private data class ExpectedImportedActivityDeletionAuthority(
+	val entryIdentity: String,
+	val runScopes: Map<String, String>,
+	val windowIdentities: List<String>,
+) {
+	val runIdentities: List<String> = runScopes.keys.toList()
+	val scopeDigests: List<String> = runScopes.values.toList()
+
+	fun exactlyMatches(
+		runs: List<Pair<String, String>>,
+		windows: List<String>,
+	): Boolean = runs.size == runScopes.size && runs.distinctBy { it.first }.size == runs.size &&
+		runs.distinctBy { it.second }.size == runs.size && runs.toMap() == runScopes &&
+		windows.size == windowIdentities.size && windows.toSet() == windowIdentities.toSet()
+
+	companion object {
+		fun from(selected: SelectedImportedActivityIdentity) = ExpectedImportedActivityDeletionAuthority(
+			entryIdentity = selected.entryIdentity.value,
+			runScopes = selected.runDeletionScopes.associate { run ->
+				run.runIdentity.value to run.deletionScopeDigest.value
+			},
+			windowIdentities = selected.windowIdentities.map { it.value },
+		)
+	}
+}
+
+private const val IDENTITY_QUERY_CHUNK_SIZE = 400
 
 internal enum class ImportedActivityDeletionCheckpoint {
 	TRANSACTION_STARTED,

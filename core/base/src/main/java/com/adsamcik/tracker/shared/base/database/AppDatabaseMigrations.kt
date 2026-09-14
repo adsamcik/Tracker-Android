@@ -1839,6 +1839,28 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS imported_activity_entry_deletion_receipt (
+					entry_identity TEXT NOT NULL PRIMARY KEY,
+					collected_data_epoch INTEGER NOT NULL,
+					deleted_import_revision INTEGER NOT NULL,
+					deleted_content_checksum TEXT NOT NULL,
+					expected_run_count INTEGER NOT NULL,
+					run_scope_set_checksum TEXT NOT NULL,
+					expected_window_count INTEGER NOT NULL,
+					window_identity_set_checksum TEXT NOT NULL,
+					run_deletion_set_checksum TEXT NOT NULL,
+					source_fence_count INTEGER NOT NULL,
+					source_fence_set_checksum TEXT NOT NULL,
+					retained_from_ms INTEGER,
+					deleted_at_ms INTEGER NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					FOREIGN KEY(entry_identity)
+						REFERENCES imported_activity_entry_deletion(entry_identity) ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS imported_activity_deletion_generation (
 					run_identity TEXT NOT NULL PRIMARY KEY,
 					collected_data_epoch INTEGER NOT NULL,

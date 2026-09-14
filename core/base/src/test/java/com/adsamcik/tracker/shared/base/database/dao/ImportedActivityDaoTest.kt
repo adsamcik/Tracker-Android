@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityReceiptEntity
@@ -67,15 +68,27 @@ class ImportedActivityDaoTest {
 	@Test
 	fun `full collected clear removes imported payload and its old epoch tombstones`() = runTest {
 		insertHierarchy()
-		dao.insertEntryDeletion(ImportedActivityEntryDeletionEntity.create(ENTRY, 7L, 1L, 40L))
-		dao.insertDeletionGeneration(
-			ImportedActivityDeletionGenerationEntity.create(RUN, 7L, 1L, 40L),
+		val entryDeletion = ImportedActivityEntryDeletionEntity.create(ENTRY, 7L, 1L, 40L)
+		val runDeletion = ImportedActivityDeletionGenerationEntity.create(RUN, 7L, 1L, 40L)
+		dao.insertEntryDeletion(entryDeletion)
+		dao.insertDeletionGeneration(runDeletion)
+		dao.insertEntryDeletionReceipt(
+			ImportedActivityEntryDeletionReceiptEntity.create(
+				entryDeletion = entryDeletion,
+				deletedContentChecksum = digest('2'),
+				runScopes = listOf(RUN to digest('4')),
+				windowIdentities = listOf(WINDOW),
+				runDeletions = listOf(runDeletion),
+				sourceFences = emptyList(),
+				retainedFromMs = null,
+			),
 		)
 
 		AppDatabase.deleteAllCollectedData(database, 8L, null, 50L)
 
 		dao.latestEntryRevision(ENTRY) shouldBe null
 		dao.entryDeletion(ENTRY) shouldBe null
+		dao.entryDeletionReceipt(ENTRY) shouldBe null
 		dao.deletionGenerations(listOf(RUN)) shouldBe emptyList()
 	}
 
