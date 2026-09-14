@@ -125,6 +125,53 @@ interface SourceBrokerDao {
 	): ProviderRegistrationGenerationEntity?
 
 	@Query(
+		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
+			"AND registration_generation < :registrationGeneration " +
+			"ORDER BY registration_generation DESC LIMIT 1",
+	)
+	suspend fun previousRegistration(
+		sourceKind: Int,
+		registrationGeneration: Long,
+	): ProviderRegistrationGenerationEntity?
+
+	@Query(
+		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
+			"AND registration_generation > :registrationGeneration " +
+			"ORDER BY registration_generation LIMIT 1",
+	)
+	suspend fun nextRegistration(
+		sourceKind: Int,
+		registrationGeneration: Long,
+	): ProviderRegistrationGenerationEntity?
+
+	@Query(
+		"SELECT COUNT(DISTINCT registration_generation) FROM source_authorization " +
+			"WHERE source_kind = :sourceKind AND authorization_revision = :authorizationRevision",
+	)
+	suspend fun authorizationRevisionRegistrationCount(
+		sourceKind: Int,
+		authorizationRevision: Long,
+	): Int
+
+	@Query(
+		"SELECT COALESCE(MAX(authorization_revision), 0) FROM source_authorization " +
+			"WHERE source_kind = :sourceKind AND registration_generation < :registrationGeneration",
+	)
+	suspend fun maximumAuthorizationRevisionBeforeRegistration(
+		sourceKind: Int,
+		registrationGeneration: Long,
+	): Long
+
+	@Query(
+		"SELECT COALESCE(MIN(authorization_revision), 0) FROM source_authorization " +
+			"WHERE source_kind = :sourceKind AND registration_generation > :registrationGeneration",
+	)
+	suspend fun minimumAuthorizationRevisionAfterRegistration(
+		sourceKind: Int,
+		registrationGeneration: Long,
+	): Long
+
+	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
 			"AND registration_generation = :registrationGeneration " +
 			"AND authorization_revision = (SELECT MAX(authorization_revision) FROM source_authorization " +

@@ -78,7 +78,7 @@ class CellWalQualificationAdapterTest {
 	}
 
 	@Test
-	fun `exact cell-only WAL and durable authority produce identity-free fact`() = runTest {
+	fun `exact first Cell WAL sequence zero and durable authority produce identity-free fact`() = runTest {
 		installValidFixture()
 
 		val evaluated = assertIs<CellWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
@@ -101,8 +101,8 @@ class CellWalQualificationAdapterTest {
 	}
 
 	@Test
-	fun `real producer unit and positive source sequence are mandatory`() = runTest {
-		installValidFixture(sourceSequence = 0L)
+	fun `real producer unit and nonnegative source sequence are mandatory`() = runTest {
+		installValidFixture(sourceSequence = -1L)
 		assertEquals(
 			CellWalAdapterResult.Rejected(CellWalAdapterRejection.MALFORMED_PRODUCER_DELIVERY),
 			subject.qualify(EVENT_ID),
@@ -249,7 +249,7 @@ class CellWalQualificationAdapterTest {
 	}
 
 	@Test
-	fun `dormant candidate writer atomically appends fact cursor and evidence revision`() = runTest {
+	fun `dormant candidate writer persists first source sequence zero atomically`() = runTest {
 		installValidFixture(candidateWriter = true)
 		val beforeEvidenceRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
 
@@ -274,6 +274,7 @@ class CellWalQualificationAdapterTest {
 		assertEquals(fact.semanticRevision, cursor.latestSemanticRevision)
 		assertEquals(fact.mutationId, cursor.latestMutationId)
 		assertEquals(fact.effectChecksum, cursor.latestEffectChecksum)
+		assertEquals(0L, fact.sourceSequence)
 		assertEquals(0L, fact.scopeDeletionGeneration)
 		assertEquals("UNKNOWN", fact.subscriptionCompleteness)
 		assertEquals(beforeEvidenceRevision + 1L, database.sourceEvidenceStateDao().get()?.revision)
@@ -1653,8 +1654,8 @@ class CellWalQualificationAdapterTest {
 	)
 
 	private companion object {
-		val EVENT_ID = SourceEventId("cell-event-1")
-		val SECOND_EVENT_ID = SourceEventId("cell-event-2")
+		val EVENT_ID = SourceEventId("cell-event-0")
+		val SECOND_EVENT_ID = SourceEventId("cell-event-1")
 		val CELL_SOURCE = SourceKind.CELL.stableCode
 		const val LOGICAL_ID = "logical-cell"
 		const val RUN_ID = "run-cell"
@@ -1671,7 +1672,7 @@ class CellWalQualificationAdapterTest {
 		const val AUTHORIZATION_REVISION = 1L
 		const val ROLLOUT_REVISION = 1L
 		const val SEGMENT_ID = 1L
-		const val SOURCE_SEQUENCE = 1L
+		const val SOURCE_SEQUENCE = 0L
 		const val PAYLOAD_VERSION = 1
 		const val QOS_CODE = 2
 		const val START_ORIGIN = "MANUAL_FOREGROUND_START"

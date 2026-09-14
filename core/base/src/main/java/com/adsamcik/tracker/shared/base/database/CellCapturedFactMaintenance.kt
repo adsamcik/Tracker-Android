@@ -1516,7 +1516,7 @@ internal suspend fun AppDatabase.loadCapturedCellWalScopesForDeletion(
 			if (!captureEligible || captureEnvelopeFields.any { field -> field == null } ||
 				wal.logicalTrackingId.isNullOrBlank() || wal.serviceRunId.isNullOrBlank() ||
 				wal.deliveryIdentity?.matches(LOWERCASE_SHA_256) != true ||
-				wal.deliveryUnitIndex != 0 || wal.deliveryUnitCount != 1 || wal.sourceSequence <= 0L ||
+				wal.deliveryUnitIndex != 0 || wal.deliveryUnitCount != 1 || wal.sourceSequence < 0L ||
 				wal.configRevision!! <= 0L || wal.authorizationRevision!! <= 0L ||
 				wal.sourcePolicyRevision!! <= 0L || wal.captureConsentEpoch!! < 0L ||
 				wal.sessionManifestRevision!! <= 0L || wal.lifecycleLeaseGeneration!! <= 0L ||
@@ -1529,6 +1529,8 @@ internal suspend fun AppDatabase.loadCapturedCellWalScopesForDeletion(
 				wal.eventId,
 				wal.admissionOrdinal,
 				scope,
+				wal.sourceInstanceId,
+				wal.registrationGeneration,
 				earliestCoveredWallTime(
 					requireNotNull(wal.wallTimeMs),
 					requireNotNull(wal.wallTimeUncertaintyMs),
@@ -1611,7 +1613,7 @@ internal suspend fun AppDatabase.loadPortableCapturedCellWalScopes(
 		if (!captureEligible || captureEnvelopeFields.any { field -> field == null } ||
 			wal.logicalTrackingId.isNullOrBlank() || wal.serviceRunId.isNullOrBlank() ||
 			wal.deliveryIdentity?.matches(LOWERCASE_SHA_256) != true ||
-			wal.deliveryUnitIndex != 0 || wal.deliveryUnitCount != 1 || wal.sourceSequence <= 0L ||
+			wal.deliveryUnitIndex != 0 || wal.deliveryUnitCount != 1 || wal.sourceSequence < 0L ||
 			wal.configRevision!! <= 0L || wal.authorizationRevision!! <= 0L ||
 			wal.sourcePolicyRevision!! <= 0L || wal.captureConsentEpoch!! < 0L ||
 			wal.sessionManifestRevision!! <= 0L || wal.lifecycleLeaseGeneration!! <= 0L ||
@@ -1624,6 +1626,8 @@ internal suspend fun AppDatabase.loadPortableCapturedCellWalScopes(
 			wal.eventId,
 			wal.admissionOrdinal,
 			scope,
+			wal.sourceInstanceId,
+			wal.registrationGeneration,
 			earliestCoveredWallTime(
 				requireNotNull(wal.wallTimeMs),
 				requireNotNull(wal.wallTimeUncertaintyMs),
@@ -2410,6 +2414,8 @@ internal data class CellCapturedWalCarrier(
 	val eventId: String,
 	val admissionOrdinal: Long,
 	val scope: CellCapturedRunScope,
+	val sourceInstanceId: String,
+	val registrationGeneration: Long,
 	val earliestPossibleWallTimeMs: Long,
 )
 

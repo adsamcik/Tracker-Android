@@ -146,7 +146,7 @@ data class CellCapturedFactRevisionEntity(
 		require(sourceEventId.isNotBlank() && sourceAdmissionOrdinal > 0L)
 		require(LOWERCASE_SHA_256.matches(walIntegrityIdentity))
 		require(LOWERCASE_SHA_256.matches(payloadChecksum))
-		require(deliveryUnitCount == 1 && deliveryUnitIndex == 0 && sourceSequence > 0L)
+		require(deliveryUnitCount == 1 && deliveryUnitIndex == 0 && sourceSequence >= 0L)
 		require(planAttribution == PLAN_ATTRIBUTION_CAPTURED_REGISTRATION && payloadVersion > 0)
 		require(canonicalProviderSemanticsDigest == sourceDeliveryIdentity)
 		require(sourceInstanceId.isNotBlank() && registrationGeneration > 0L)

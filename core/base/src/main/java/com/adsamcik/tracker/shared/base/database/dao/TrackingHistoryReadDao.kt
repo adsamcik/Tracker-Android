@@ -508,6 +508,35 @@ interface TrackingHistoryReadDao {
 		limit: Int = Int.MAX_VALUE,
 	): List<SourceSessionCompletenessEntity>
 
+	/** Bounded settlement closure for one source without charging unrelated sources to its cap. */
+	@Query(
+		"SELECT * FROM source_session_completeness WHERE source_kind = :sourceKind " +
+			"AND service_run_id IN (:serviceRunIds) " +
+			"ORDER BY service_run_id, source_instance_id, registration_generation LIMIT :limit",
+	)
+	suspend fun sourceCompleteness(
+		sourceKind: Int,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<SourceSessionCompletenessEntity>
+
+	/** Candidate authorization revisions that ever carried this exact persistent run demand. */
+	@Query(
+		"SELECT DISTINCT authorization_revision FROM source_authorization " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +
+			"AND logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId " +
+			"AND purpose = :capturePurpose AND persistence_eligible = 1 " +
+			"ORDER BY authorization_revision LIMIT :limit",
+	)
+	suspend fun persistentCaptureAuthorizationRevisions(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		capturePurpose: String,
+		limit: Int,
+	): List<Long>
+
 	/**
 	 * Anchors each candidate fact to a requested durable run before returning its retained scope
 	 * carrier and fact-global state.

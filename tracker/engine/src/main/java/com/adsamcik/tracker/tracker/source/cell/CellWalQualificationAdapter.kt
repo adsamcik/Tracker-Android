@@ -550,7 +550,7 @@ internal class CellWalQualificationAdapter @Inject constructor(
 
 	private fun SourceEventWalEntity.hasExactProducerShape(): Boolean =
 		admissionOrdinal > 0L && providerDedupKey == null && deliveryIdentity != null &&
-			deliveryUnitIndex == 0 && deliveryUnitCount == 1 && sourceSequence > 0L &&
+			deliveryUnitIndex == 0 && deliveryUnitCount == 1 && sourceSequence >= 0L &&
 			planAttribution == PlanAttribution.CAPTURED_REGISTRATION.ordinal &&
 			activityAutomationEpoch == null && observedIntervalStartNanos != null &&
 			observedIntervalStartNanos > 0L && observedElapsedNanos >= observedIntervalStartNanos &&
