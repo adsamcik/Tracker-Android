@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
@@ -74,6 +75,7 @@ internal class RoomImportPortablePressure internal constructor(
 		}
 	}
 
+	@Suppress("LongMethod")
 	private suspend fun importInTransaction(
 		request: ImportPortablePressureRequest,
 	): ImportPortablePressureResult {
@@ -91,27 +93,35 @@ internal class RoomImportPortablePressure internal constructor(
 			blocked(PortablePressureImportBlockedReason.DELETED_RUN)
 		}
 		authenticateOpaqueIdentityOwnership(dao, entry)
+		val lineage = authenticateStoredLineage(
+			dao = dao,
+			identity = entry.identity.value,
+			expectedCollectedDataEpoch = request.expectedCollectedDataEpoch,
+		)
 
-		val receiptEntry = storedValue {
-			dao.entryRevisionForReceipt(request.receipt.jobId, request.receipt.entryKey)
+		val receiptBinding = storedValue {
+			dao.receipt(request.receipt.jobId, request.receipt.entryKey)
 		}
-		if (receiptEntry != null) {
-			return authenticateReceiptReplay(dao, request, receiptEntry)
+		if (receiptBinding != null) {
+			return authenticateReceiptReplay(request, receiptBinding, lineage)
+		}
+		if (lineage.receiptCount >= ImportedPressureDao.MAX_RECEIPTS_PER_ENTRY) {
+			unverifiable(PortablePressureImportUnverifiableReason.DEPENDENCY_OVERFLOW)
 		}
 
-		val latest = storedValue { dao.latestEntryRevision(entry.identity.value) }
-		if (latest != null) {
-			if (latest.collectedDataEpoch != request.expectedCollectedDataEpoch) {
-				blocked(PortablePressureImportBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
-			}
-			val stored = authenticateStoredEntry(dao, latest)
-			if (stored == entry) return ImportPortablePressureResult.Duplicate(latest.importRevision)
+		val identical = lineage.revisions.singleOrNull { it.entry == entry }
+		if (identical != null) {
+			dao.insertReceipt(request.toReceiptEntity(identical.header.importRevision))
+			writeCheckpoint(PressureImportWriteCheckpoint.RECEIPT_INSERTED)
+			return ImportPortablePressureResult.Duplicate(identical.header.importRevision)
 		}
-		val revision = when (latest?.importRevision) {
-			null -> 1L
-			Long.MAX_VALUE -> unverifiable(PortablePressureImportUnverifiableReason.REVISION_OVERFLOW)
-			else -> latest.importRevision + 1L
+		if (lineage.revisions.any { it.header.contentChecksum == entry.contentChecksum.value }) {
+			unverifiable(PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 		}
+		if (lineage.revisions.size >= ImportedPressureDao.MAX_REVISIONS_PER_ENTRY) {
+			unverifiable(PortablePressureImportUnverifiableReason.REVISION_OVERFLOW)
+		}
+		val revision = lineage.revisions.size.toLong() + 1L
 
 		val epoch = request.expectedCollectedDataEpoch
 		dao.insertEntryRevision(entry.toEntity(request, revision))
@@ -124,6 +134,8 @@ internal class RoomImportPortablePressure internal constructor(
 				writeCheckpoint(PressureImportWriteCheckpoint.WINDOW_INSERTED)
 			}
 		}
+		dao.insertReceipt(request.toReceiptEntity(revision))
+		writeCheckpoint(PressureImportWriteCheckpoint.RECEIPT_INSERTED)
 		return ImportPortablePressureResult.Applied(
 			importRevision = revision,
 			physicalRunCount = entry.runs.size,
@@ -132,24 +144,27 @@ internal class RoomImportPortablePressure internal constructor(
 	}
 
 	@Suppress("ComplexCondition")
-	private suspend fun authenticateReceiptReplay(
-		dao: ImportedPressureDao,
+	private fun authenticateReceiptReplay(
 		request: ImportPortablePressureRequest,
-		stored: ImportedPressureEntryRevisionEntity,
+		stored: ImportedPressureReceiptEntity,
+		lineage: AuthenticatedPressureLineage,
 	): ImportPortablePressureResult {
 		val receipt = request.receipt
 		if (stored.importJobId != receipt.jobId || stored.importEntryKey != receipt.entryKey ||
 			stored.importSourceName != receipt.sourceName || stored.receivedAtMs != receipt.receivedAtMs ||
 			stored.collectedDataEpoch != request.expectedCollectedDataEpoch ||
-			stored.identity != request.entry.identity.value ||
-			stored.contentChecksum != request.entry.contentChecksum.value
+			stored.entryIdentity != request.entry.identity.value ||
+			stored.entryContentChecksum != request.entry.contentChecksum.value
 		) {
 			blocked(PortablePressureImportBlockedReason.RECEIPT_CONFLICT)
 		}
-		if (authenticateStoredEntry(dao, stored) != request.entry) {
-			blocked(PortablePressureImportBlockedReason.RECEIPT_CONFLICT)
+		val revision = lineage.revisions.singleOrNull {
+			it.header.importRevision == stored.entryImportRevision
+		} ?: unverifiable(PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		if (revision.entry != request.entry) {
+			unverifiable(PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 		}
-		return ImportPortablePressureResult.Duplicate(stored.importRevision)
+		return ImportPortablePressureResult.Duplicate(stored.entryImportRevision)
 	}
 
 	@Suppress("ComplexCondition")
@@ -193,31 +208,91 @@ internal class RoomImportPortablePressure internal constructor(
 		}
 	}
 
-	@Suppress("LongMethod")
-	private suspend fun authenticateStoredEntry(
+	@Suppress("LongMethod", "ComplexCondition")
+	private suspend fun authenticateStoredLineage(
 		dao: ImportedPressureDao,
-		entry: ImportedPressureEntryRevisionEntity,
-	): PortablePressureEntryV1 = storedValue {
-		if (entry.importRevision == 1L) {
-			require(entry.supersedesImportRevision == null)
-		} else {
-			require(entry.supersedesImportRevision == entry.importRevision - 1L)
-			val predecessor = requireNotNull(
-				dao.entryRevision(entry.identity, entry.importRevision - 1L),
-			)
-			require(predecessor.importRevision == entry.importRevision - 1L)
-			require(
-				(predecessor.importRevision == 1L && predecessor.supersedesImportRevision == null) ||
-					predecessor.supersedesImportRevision == predecessor.importRevision - 1L,
-			)
+		identity: String,
+		expectedCollectedDataEpoch: Long,
+	): AuthenticatedPressureLineage = storedValue {
+		val headers = dao.entryRevisionsForAdmission(identity)
+		if (headers.size > ImportedPressureDao.MAX_REVISIONS_PER_ENTRY) {
+			unverifiable(PortablePressureImportUnverifiableReason.REVISION_OVERFLOW)
 		}
-		require(entry.sourceFormat == PressurePortableFormatV1.FORMAT)
-		require(entry.sourceSchemaVersion == PressurePortableFormatV1.SCHEMA_VERSION)
-		val runs = dao.runsForAdmission(entry.identity, entry.importRevision)
-		require(runs.size <= PressurePortableFormatV1.MAX_RUNS_PER_ENTRY)
+		if (headers.isEmpty()) return@storedValue AuthenticatedPressureLineage(emptyList(), 0)
+		headers.forEachIndexed { index, header ->
+			val revision = index.toLong() + 1L
+			require(header.identity == identity)
+			require(header.importRevision == revision)
+			require(header.supersedesImportRevision == if (revision == 1L) null else revision - 1L)
+			require(header.collectedDataEpoch == expectedCollectedDataEpoch)
+			require(header.sourceFormat == PressurePortableFormatV1.FORMAT)
+			require(header.sourceSchemaVersion == PressurePortableFormatV1.SCHEMA_VERSION)
+		}
+		val receipts = dao.receiptsForAdmission(identity)
+		if (receipts.size > ImportedPressureDao.MAX_RECEIPTS_PER_ENTRY) {
+			unverifiable(PortablePressureImportUnverifiableReason.DEPENDENCY_OVERFLOW)
+		}
+		val headersByRevision = headers.associateBy { it.importRevision }
+		receipts.forEach { receipt ->
+			val header = requireNotNull(headersByRevision[receipt.entryImportRevision])
+			require(receipt.entryIdentity == header.identity)
+			require(receipt.entryContentChecksum == header.contentChecksum)
+			require(receipt.collectedDataEpoch == header.collectedDataEpoch)
+		}
+		headers.forEach { header ->
+			require(receipts.any { receipt ->
+				receipt.importJobId == header.importJobId &&
+					receipt.importEntryKey == header.importEntryKey &&
+					receipt.importSourceName == header.importSourceName &&
+					receipt.receivedAtMs == header.receivedAtMs &&
+					receipt.entryIdentity == header.identity &&
+					receipt.entryImportRevision == header.importRevision &&
+					receipt.entryContentChecksum == header.contentChecksum &&
+					receipt.collectedDataEpoch == header.collectedDataEpoch
+			})
+		}
+
+		val runs = dao.allRunsForAdmission(identity)
+		if (runs.size > headers.size * PressurePortableFormatV1.MAX_RUNS_PER_ENTRY) {
+			unverifiable(PortablePressureImportUnverifiableReason.RUN_OVERFLOW)
+		}
+		val windows = dao.allWindowsForAdmission(identity)
+		if (windows.size > headers.size * PressurePortableFormatV1.MAX_TOTAL_WINDOWS) {
+			unverifiable(PortablePressureImportUnverifiableReason.TOTAL_WINDOW_OVERFLOW)
+		}
+		val revisionNumbers = headers.map { it.importRevision }.toSet()
+		require(runs.all { it.entryImportRevision in revisionNumbers })
+		require(windows.all { it.entryImportRevision in revisionNumbers })
+		val runsByRevision = runs.groupBy(ImportedPressureRunEntity::entryImportRevision)
+		val windowsByRevision = windows.groupBy(ImportedPressureWindowEntity::entryImportRevision)
+		AuthenticatedPressureLineage(
+			revisions = headers.map { header ->
+				AuthenticatedPressureRevision(
+					header = header,
+					entry = authenticateStoredRevision(
+						header,
+						runsByRevision[header.importRevision].orEmpty(),
+						windowsByRevision[header.importRevision].orEmpty(),
+					),
+				)
+			},
+			receiptCount = receipts.size,
+		)
+	}
+
+	@Suppress("LongMethod")
+	private fun authenticateStoredRevision(
+		entry: ImportedPressureEntryRevisionEntity,
+		runs: List<ImportedPressureRunEntity>,
+		windows: List<ImportedPressureWindowEntity>,
+	): PortablePressureEntryV1 {
+		if (runs.size > PressurePortableFormatV1.MAX_RUNS_PER_ENTRY) {
+			unverifiable(PortablePressureImportUnverifiableReason.RUN_OVERFLOW)
+		}
+		if (windows.size > PressurePortableFormatV1.MAX_TOTAL_WINDOWS) {
+			unverifiable(PortablePressureImportUnverifiableReason.TOTAL_WINDOW_OVERFLOW)
+		}
 		require(runs.isNotEmpty())
-		val windows = dao.windowsForAdmission(entry.identity, entry.importRevision)
-		require(windows.size <= PressurePortableFormatV1.MAX_TOTAL_WINDOWS)
 		val windowsByRun = windows.groupBy(ImportedPressureWindowEntity::runIdentity)
 		require(windowsByRun.keys.all { runIdentity -> runs.any { it.identity == runIdentity } })
 		val portableRuns = runs.map { run ->
@@ -225,6 +300,10 @@ internal class RoomImportPortablePressure internal constructor(
 			require(run.entryImportRevision == entry.importRevision)
 			require(run.collectedDataEpoch == entry.collectedDataEpoch)
 			require(run.scopeDeletionGeneration == 0L)
+			val runWindows = windowsByRun[run.identity].orEmpty()
+			if (runWindows.size > PressurePortableFormatV1.MAX_WINDOWS_PER_RUN) {
+				unverifiable(PortablePressureImportUnverifiableReason.WINDOW_OVERFLOW)
+			}
 			PortablePressureRunV1(
 				identity = PortablePressureOpaqueIdentity(run.identity),
 				startTimeMs = run.startTimeMs,
@@ -233,7 +312,7 @@ internal class RoomImportPortablePressure internal constructor(
 				availability = PortablePressureAvailability.valueOf(run.availability),
 				coverage = PortablePressureCoverage.valueOf(run.coverage),
 				retentionLoss = run.retentionLoss,
-				windows = windowsByRun[run.identity].orEmpty().map { window ->
+				windows = runWindows.map { window ->
 					require(window.entryIdentity == entry.identity)
 					require(window.entryImportRevision == entry.importRevision)
 					require(window.runIdentity == run.identity)
@@ -251,7 +330,7 @@ internal class RoomImportPortablePressure internal constructor(
 			}
 		}
 		require(identities.distinct().size == identities.size)
-		PortablePressureEntryV1(
+		return PortablePressureEntryV1(
 			identity = PortablePressureOpaqueIdentity(entry.identity),
 			contentChecksum = PortablePressureDigest(entry.contentChecksum),
 			startTimeMs = entry.startTimeMs,
@@ -263,14 +342,15 @@ internal class RoomImportPortablePressure internal constructor(
 	private fun snapshot(request: ImportPortablePressureRequest): ImportPortablePressureRequest =
 		incomingValue {
 			val rawRuns = request.entry.runs
-			if (rawRuns.size > PressurePortableFormatV1.MAX_RUNS_PER_ENTRY ||
-				rawRuns.any { it.windows.size > PressurePortableFormatV1.MAX_WINDOWS_PER_RUN }
-			) {
-				unverifiable(PortablePressureImportUnverifiableReason.DEPENDENCY_OVERFLOW)
+			if (rawRuns.size > PressurePortableFormatV1.MAX_RUNS_PER_ENTRY) {
+				unverifiable(PortablePressureImportUnverifiableReason.RUN_OVERFLOW)
+			}
+			if (rawRuns.any { it.windows.size > PressurePortableFormatV1.MAX_WINDOWS_PER_RUN }) {
+				unverifiable(PortablePressureImportUnverifiableReason.WINDOW_OVERFLOW)
 			}
 			val totalWindows = rawRuns.fold(0L) { count, run -> count + run.windows.size }
 			if (totalWindows > PressurePortableFormatV1.MAX_TOTAL_WINDOWS) {
-				unverifiable(PortablePressureImportUnverifiableReason.DEPENDENCY_OVERFLOW)
+				unverifiable(PortablePressureImportUnverifiableReason.TOTAL_WINDOW_OVERFLOW)
 			}
 			val runs = rawRuns.map { run ->
 				val windows = run.windows.map { it.copy() }.toList()
@@ -327,7 +407,31 @@ internal enum class PressureImportWriteCheckpoint {
 	ENTRY_INSERTED,
 	RUN_INSERTED,
 	WINDOW_INSERTED,
+	RECEIPT_INSERTED,
 }
+
+private data class AuthenticatedPressureLineage(
+	val revisions: List<AuthenticatedPressureRevision>,
+	val receiptCount: Int,
+)
+
+private data class AuthenticatedPressureRevision(
+	val header: ImportedPressureEntryRevisionEntity,
+	val entry: PortablePressureEntryV1,
+)
+
+private fun ImportPortablePressureRequest.toReceiptEntity(
+	revision: Long,
+) = ImportedPressureReceiptEntity(
+	importJobId = receipt.jobId,
+	importEntryKey = receipt.entryKey,
+	importSourceName = receipt.sourceName,
+	receivedAtMs = receipt.receivedAtMs,
+	entryIdentity = entry.identity.value,
+	entryImportRevision = revision,
+	entryContentChecksum = entry.contentChecksum.value,
+	collectedDataEpoch = expectedCollectedDataEpoch,
+)
 
 private fun PortablePressureEntryV1.toEntity(
 	request: ImportPortablePressureRequest,

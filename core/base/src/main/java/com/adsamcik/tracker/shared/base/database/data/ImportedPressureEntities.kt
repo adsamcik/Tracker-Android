@@ -10,10 +10,11 @@ import java.time.ZoneId
 /**
  * One immutable observation of a portable Pressure entry.
  *
- * [importRevision] is destination-local receipt order, not a claim about the exporting database's
- * semantic revision. A later authenticated import may append a successor without replacing the
- * evidence that was previously received. Receipt identifiers are copied as provenance because the
- * generic receipt rows are mutable workflow state and therefore cannot safely own imported facts.
+ * [importRevision] is destination-local authenticated content order, not a claim about the
+ * exporting database's semantic revision. A corrected import may append a successor without
+ * replacing prior evidence; an identical alternate receipt binds to the existing revision instead.
+ * Original receipt identifiers remain copied provenance because generic receipt rows are mutable
+ * workflow state and therefore cannot safely own imported facts.
  */
 @Entity(
 	tableName = "imported_pressure_entry_revision",
@@ -58,6 +59,44 @@ data class ImportedPressureEntryRevisionEntity(
 	companion object {
 		const val SOURCE_FORMAT = "tracker-portable-pressure"
 		const val SOURCE_SCHEMA_VERSION = 1
+	}
+}
+
+/**
+ * Immutable Pressure-local receipt authority. Multiple independently received copies may bind to
+ * one already-authenticated entry revision without duplicating its physical hierarchy.
+ */
+@Entity(
+	tableName = "imported_pressure_receipt",
+	primaryKeys = ["import_job_id", "import_entry_key"],
+	foreignKeys = [ForeignKey(
+		entity = ImportedPressureEntryRevisionEntity::class,
+		parentColumns = ["identity", "import_revision"],
+		childColumns = ["entry_identity", "entry_import_revision"],
+		onDelete = ForeignKey.CASCADE,
+	)],
+	indices = [Index(
+		value = ["entry_identity", "entry_import_revision"],
+		name = "idx_imported_pressure_receipt_entry",
+	)],
+)
+data class ImportedPressureReceiptEntity(
+	@ColumnInfo(name = "import_job_id") val importJobId: String,
+	@ColumnInfo(name = "import_entry_key") val importEntryKey: String,
+	@ColumnInfo(name = "import_source_name") val importSourceName: String,
+	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
+	@ColumnInfo(name = "entry_import_revision") val entryImportRevision: Long,
+	@ColumnInfo(name = "entry_content_checksum") val entryContentChecksum: String,
+	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+) {
+	init {
+		ImportedPressureIdentity.requireProvenance(importJobId, importEntryKey, importSourceName)
+		require(receivedAtMs >= 0L)
+		require(ImportedPressureIdentity.isOpaque(entryIdentity))
+		require(entryImportRevision > 0L)
+		require(ImportedPressureIdentity.isOpaque(entryContentChecksum))
+		require(collectedDataEpoch >= 0L)
 	}
 }
 

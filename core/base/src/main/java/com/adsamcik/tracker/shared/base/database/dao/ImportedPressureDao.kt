@@ -7,13 +7,14 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
 
 /**
- * Dormant Pressure-specific portable-origin storage. This DAO neither decodes a transfer nor grants
- * import admission. A later authoritative writer must validate the full hierarchy, receipt, epoch,
- * deletion generation, and entry checksum in one transaction before using these inserts.
+ * Pressure-specific portable-origin storage primitives. This DAO does not grant admission; the
+ * source-local writer validates the complete lineage, receipt, epoch, deletion generation, and
+ * checksums in one transaction before using these inserts.
  */
 @Dao
 abstract class ImportedPressureDao {
@@ -25,6 +26,9 @@ abstract class ImportedPressureDao {
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertWindow(window: ImportedPressureWindowEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertReceipt(receipt: ImportedPressureReceiptEntity)
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	protected abstract suspend fun insertDeletionGenerationRow(
@@ -52,24 +56,51 @@ abstract class ImportedPressureDao {
 	)
 	abstract suspend fun latestEntryRevision(identity: String): ImportedPressureEntryRevisionEntity?
 
-	@Query(
-		"SELECT * FROM imported_pressure_entry_revision " +
-			"WHERE import_job_id = :jobId AND import_entry_key = :entryKey " +
-			"ORDER BY import_revision DESC LIMIT 1",
+	/** Complete ordered lineage plus one overflow row; callers must reject any non-contiguous head. */
+	suspend fun entryRevisionsForAdmission(
+		identity: String,
+	): List<ImportedPressureEntryRevisionEntity> = loadEntryRevisions(
+		identity,
+		MAX_REVISIONS_PER_ENTRY + 1,
 	)
-	abstract suspend fun entryRevisionForReceipt(
+
+	@Query(
+		"SELECT * FROM imported_pressure_entry_revision WHERE identity = :identity " +
+			"ORDER BY import_revision LIMIT :limit",
+	)
+	protected abstract suspend fun loadEntryRevisions(
+		identity: String,
+		limit: Int,
+	): List<ImportedPressureEntryRevisionEntity>
+
+	@Query(
+		"SELECT * FROM imported_pressure_receipt " +
+			"WHERE import_job_id = :jobId AND import_entry_key = :entryKey",
+	)
+	abstract suspend fun receipt(
 		jobId: String,
 		entryKey: String,
-	): ImportedPressureEntryRevisionEntity?
+	): ImportedPressureReceiptEntity?
+
+	/** Complete bounded receipt authority for one opaque entry, including alternate claims. */
+	suspend fun receiptsForAdmission(
+		identity: String,
+	): List<ImportedPressureReceiptEntity> = loadReceipts(
+		identity,
+		MAX_RECEIPTS_PER_ENTRY + 1,
+	)
+
+	@Query(
+		"SELECT * FROM imported_pressure_receipt WHERE entry_identity = :identity " +
+			"ORDER BY entry_import_revision, import_job_id, import_entry_key LIMIT :limit",
+	)
+	protected abstract suspend fun loadReceipts(
+		identity: String,
+		limit: Int,
+	): List<ImportedPressureReceiptEntity>
 
 	suspend fun runs(identity: String, revision: Long): List<ImportedPressureRunEntity> =
 		loadRuns(identity, revision, MAX_RUNS_PER_ENTRY)
-
-	/** One extra row lets an admission reader distinguish corruption from an exact upper bound. */
-	suspend fun runsForAdmission(
-		identity: String,
-		revision: Long,
-	): List<ImportedPressureRunEntity> = loadRuns(identity, revision, MAX_RUNS_PER_ENTRY + 1)
 
 	@Query(
 		"SELECT * FROM imported_pressure_run " +
@@ -79,6 +110,19 @@ abstract class ImportedPressureDao {
 	protected abstract suspend fun loadRuns(
 		identity: String,
 		revision: Long,
+		limit: Int,
+	): List<ImportedPressureRunEntity>
+
+	/** Complete bounded run set for all retained revisions of one opaque entry. */
+	suspend fun allRunsForAdmission(identity: String): List<ImportedPressureRunEntity> =
+		loadAllRuns(identity, MAX_TOTAL_RUNS_PER_ENTRY_LINEAGE + 1)
+
+	@Query(
+		"SELECT * FROM imported_pressure_run WHERE entry_identity = :identity " +
+			"ORDER BY entry_import_revision, start_time_ms, identity LIMIT :limit",
+	)
+	protected abstract suspend fun loadAllRuns(
+		identity: String,
 		limit: Int,
 	): List<ImportedPressureRunEntity>
 
@@ -105,24 +149,16 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<ImportedPressureWindowEntity>
 
-	/** Bounded whole-entry read avoids per-run query fan-out while authenticating a receipt. */
-	suspend fun windowsForAdmission(
-		entryIdentity: String,
-		entryRevision: Long,
-	): List<ImportedPressureWindowEntity> = loadWindowsForAdmission(
-		entryIdentity,
-		entryRevision,
-		MAX_TOTAL_WINDOWS_PER_ENTRY + 1,
-	)
+	/** Complete bounded window set for all retained revisions of one opaque entry. */
+	suspend fun allWindowsForAdmission(identity: String): List<ImportedPressureWindowEntity> =
+		loadAllWindows(identity, MAX_TOTAL_WINDOWS_PER_ENTRY_LINEAGE + 1)
 
 	@Query(
-		"SELECT * FROM imported_pressure_window " +
-			"WHERE entry_identity = :entryIdentity AND entry_import_revision = :entryRevision " +
-			"ORDER BY run_identity, interval_start_time_ms, identity LIMIT :limit",
+		"SELECT * FROM imported_pressure_window WHERE entry_identity = :identity " +
+			"ORDER BY entry_import_revision, run_identity, interval_start_time_ms, identity LIMIT :limit",
 	)
-	protected abstract suspend fun loadWindowsForAdmission(
-		entryIdentity: String,
-		entryRevision: Long,
+	protected abstract suspend fun loadAllWindows(
+		identity: String,
 		limit: Int,
 	): List<ImportedPressureWindowEntity>
 
@@ -225,6 +261,9 @@ abstract class ImportedPressureDao {
 	@Query("DELETE FROM imported_pressure_entry_revision")
 	abstract fun deleteAllEntries()
 
+	@Query("DELETE FROM imported_pressure_receipt")
+	abstract fun deleteAllReceipts()
+
 	/** Full collected-data clear only. Selected deletion must retain and advance these rows. */
 	@Query("DELETE FROM imported_pressure_deletion_generation")
 	abstract fun deleteAllDeletionGenerations()
@@ -233,6 +272,11 @@ abstract class ImportedPressureDao {
 		const val MAX_RUNS_PER_ENTRY = 64
 		const val MAX_WINDOWS_PER_RUN = 2_048
 		const val MAX_TOTAL_WINDOWS_PER_ENTRY = 16_384
+		const val MAX_REVISIONS_PER_ENTRY = 16
+		const val MAX_RECEIPTS_PER_ENTRY = 256
+		const val MAX_TOTAL_RUNS_PER_ENTRY_LINEAGE = MAX_REVISIONS_PER_ENTRY * MAX_RUNS_PER_ENTRY
+		const val MAX_TOTAL_WINDOWS_PER_ENTRY_LINEAGE =
+			MAX_REVISIONS_PER_ENTRY * MAX_TOTAL_WINDOWS_PER_ENTRY
 	}
 }
 

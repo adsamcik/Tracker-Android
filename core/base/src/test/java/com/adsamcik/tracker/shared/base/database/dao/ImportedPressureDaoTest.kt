@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
 import io.kotest.assertions.throwables.shouldThrow
@@ -38,8 +39,12 @@ class ImportedPressureDaoTest {
 		dao.insertEntryRevision(entry())
 		dao.insertRun(run())
 		dao.insertWindow(window())
+		dao.insertReceipt(receipt())
 
 		dao.latestEntryRevision(ENTRY) shouldBe entry()
+		dao.entryRevisionsForAdmission(ENTRY) shouldBe listOf(entry())
+		dao.receipt("job-1", "entry-1") shouldBe receipt()
+		dao.receiptsForAdmission(ENTRY) shouldBe listOf(receipt())
 		dao.runs(ENTRY, 1L) shouldBe listOf(run())
 		dao.windows(ENTRY, 1L, RUN) shouldBe listOf(window())
 		dao.runCount(ENTRY, 1L) shouldBe 1
@@ -61,7 +66,6 @@ class ImportedPressureDaoTest {
 		dao.insertEntryRevision(corrected)
 		dao.entryRevision(ENTRY, 1L) shouldBe entry()
 		dao.latestEntryRevision(ENTRY) shouldBe corrected
-		dao.entryRevisionForReceipt("job-2", "entry-1") shouldBe corrected
 		shouldThrow<SQLiteConstraintException> { dao.insertEntryRevision(corrected.copy(contentChecksum = WINDOW)) }
 	}
 
@@ -70,16 +74,32 @@ class ImportedPressureDaoTest {
 		dao.insertEntryRevision(entry())
 		dao.insertRun(run())
 		dao.insertWindow(window())
+		dao.insertReceipt(receipt())
 		val generation = ImportedPressureDeletionGenerationEntity.create(RUN, 7L, 1L, 50L)
 		dao.insertDeletionGeneration(generation)
 
 		dao.deleteEntryRevision(ENTRY, 1L) shouldBe 1
+		dao.receipt("job-1", "entry-1") shouldBe null
 		dao.runs(ENTRY, 1L) shouldBe emptyList()
 		dao.windows(ENTRY, 1L, RUN) shouldBe emptyList()
 		dao.deletionGeneration(RUN) shouldBe generation
 
 		AppDatabase.deleteAllCollectedData(database, 8L, null, 60L)
 		dao.deletionGeneration(RUN) shouldBe null
+	}
+
+	@Test
+	fun `alternate receipt binds exact revision and cannot be reused`() = runTest {
+		dao.insertEntryRevision(entry())
+		val original = receipt()
+		val alternate = receipt().copy(importJobId = "job-2", receivedAtMs = 40L)
+		dao.insertReceipt(original)
+		dao.insertReceipt(alternate)
+
+		dao.receipt("job-2", "entry-1") shouldBe alternate
+		shouldThrow<SQLiteConstraintException> {
+			dao.insertReceipt(alternate.copy(entryContentChecksum = OTHER))
+		}
 	}
 
 	@Test
@@ -134,6 +154,11 @@ class ImportedPressureDaoTest {
 		availability = ImportedPressureRunEntity.AVAILABILITY_RETAINED,
 		coverage = ImportedPressureRunEntity.COVERAGE_COMPLETE,
 		retentionLoss = false, collectedDataEpoch = 7L, scopeDeletionGeneration = 0L,
+	)
+
+	private fun receipt() = ImportedPressureReceiptEntity(
+		"job-1", "entry-1", "pressure.trackerpressure", 30L,
+		ENTRY, 1L, CHECKSUM, 7L,
 	)
 
 	private fun window() = ImportedPressureWindowEntity(

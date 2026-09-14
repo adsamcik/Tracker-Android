@@ -65,6 +65,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedStepsRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsManifestEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
@@ -180,6 +181,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedStepsRunEntity::class,
 			ImportedStepsManifestEntity::class,
 			ImportedPressureEntryRevisionEntity::class,
+			ImportedPressureReceiptEntity::class,
 			ImportedPressureRunEntity::class,
 			ImportedPressureWindowEntity::class,
 			ImportedPressureDeletionGenerationEntity::class,
@@ -626,6 +628,7 @@ abstract class AppDatabase : RoomDatabase() {
 			database.sourceDeletionFenceDao().deleteAll()
 			database.stepFactRevisionDao().deleteAll()
 			database.importedStepsDao().deleteAll()
+			database.importedPressureDao().deleteAllReceipts()
 			database.importedPressureDao().deleteAllEntries()
 			database.importedPressureDao().deleteAllDeletionGenerations()
 			database.pressureFactRevisionDao().deleteAll()

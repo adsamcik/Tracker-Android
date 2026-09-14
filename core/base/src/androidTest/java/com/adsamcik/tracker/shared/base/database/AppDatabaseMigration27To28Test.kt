@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedStepsRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsManifestEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
@@ -221,11 +222,18 @@ class AppDatabaseMigration27To28Test {
 			1_000, 0, 1_000_000L, 0L, "TARGET_ELAPSED", "COMPLETE", 0L, 1f, "UTC",
 		)
 		val generation = ImportedPressureDeletionGenerationEntity.create(runIdentity, 7L, 1L, 40L)
+		val receipt = ImportedPressureReceiptEntity(
+			"job-pressure", "entry-pressure", "pressure.trackerpressure", 30L,
+			entryIdentity, 1L, checksum, 7L,
+		)
+		val alternateReceipt = receipt.copy(importJobId = "job-pressure-copy", receivedAtMs = 35L)
 		withProductionDatabase { database ->
 			runBlocking {
 				database.importedPressureDao().insertEntryRevision(entry)
 				database.importedPressureDao().insertRun(run)
 				database.importedPressureDao().insertWindow(window)
+				database.importedPressureDao().insertReceipt(receipt)
+				database.importedPressureDao().insertReceipt(alternateReceipt)
 				database.importedPressureDao().insertDeletionGeneration(generation)
 			}
 		}
@@ -238,6 +246,14 @@ class AppDatabaseMigration27To28Test {
 					database.importedPressureDao().windows(entryIdentity, 1L, runIdentity),
 				)
 				assertEquals(generation, database.importedPressureDao().deletionGeneration(runIdentity))
+				assertEquals(
+					receipt,
+					database.importedPressureDao().receipt("job-pressure", "entry-pressure"),
+				)
+				assertEquals(
+					alternateReceipt,
+					database.importedPressureDao().receipt("job-pressure-copy", "entry-pressure"),
+				)
 				assertNull(database.sourceSessionDao().session(entryIdentity))
 				assertNull(database.sourceSessionDao().serviceRun(runIdentity))
 				AppDatabase.deleteAllCollectedData(database, 8L, null, 50L)
@@ -246,6 +262,8 @@ class AppDatabaseMigration27To28Test {
 		withProductionDatabase { database ->
 			runBlocking {
 				assertNull(database.importedPressureDao().latestEntryRevision(entryIdentity))
+				assertNull(database.importedPressureDao().receipt("job-pressure", "entry-pressure"))
+				assertNull(database.importedPressureDao().receipt("job-pressure-copy", "entry-pressure"))
 				assertNull(database.importedPressureDao().deletionGeneration(runIdentity))
 				assertCollectedRowsDeleted(database)
 			}

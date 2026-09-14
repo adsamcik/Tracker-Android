@@ -1676,6 +1676,28 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS imported_pressure_receipt (
+					import_job_id TEXT NOT NULL,
+					import_entry_key TEXT NOT NULL,
+					import_source_name TEXT NOT NULL,
+					received_at_ms INTEGER NOT NULL,
+					entry_identity TEXT NOT NULL,
+					entry_import_revision INTEGER NOT NULL,
+					entry_content_checksum TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					PRIMARY KEY(import_job_id, import_entry_key),
+					FOREIGN KEY(entry_identity, entry_import_revision)
+						REFERENCES imported_pressure_entry_revision(identity, import_revision)
+						ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_pressure_receipt_entry " +
+					"ON imported_pressure_receipt(entry_identity, entry_import_revision)",
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS imported_pressure_run (
 					entry_identity TEXT NOT NULL,
 					entry_import_revision INTEGER NOT NULL,
