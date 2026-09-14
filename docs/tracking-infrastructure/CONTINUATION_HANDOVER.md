@@ -57,9 +57,17 @@ identity gap. The source-local transaction recomputes the exact shared v1 runtim
 identity-free aggregate, requires current-head/full-authority owner reuse, retains complete
 uncertainty-safe owner/dependent closures, and fences revoked-consent deletion behind quiescence and
 the exact-zero callback barrier. A fully self-rehashed payload/WAL/fact/cursor rewrite retaining the
-old identity is rejected. The next Cell slice is the dormant captured-WAL projection into the one
-existing source-local writer; it must not activate rollout, admit CONTROL/ambient facts, or create
-another writer.
+old identity is rejected.
+
+The dormant Cell captured-WAL projection is now independently accepted through `20da10845`
+(`2e114194a` plus its integrity correction). It binds the existing qualifier to the one existing
+Cell writer and advances fact, fact-cursor, evidence, failure, and lane-cursor state transactionally.
+Every noncapture skip and terminal lifecycle/fence settlement reloads the exact full WAL row and
+requires qualified integrity; a missing or corrupt row remains terminal unless independently
+settled by deleted-source high-water. CONTROL and AMBIENT rows remain outside captured history.
+Ingress and recovery only wake the dormant drain; they do not activate rollout, provider demand, or
+a second writer. Worker/action invocation, transfer, shared UI, and automatic/ambient product paths
+remain open.
 
 Activity portable export is independently accepted through `8f0842354`. Its one-transaction reader
 expands all retained rows behind each canonical 64-hex delivery identity, authenticates the exact

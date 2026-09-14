@@ -3829,3 +3829,21 @@ Each entry records repository evidence and does not duplicate the final architec
 - The v28 Room schema JSON lacks all five imported-Pressure tables and remains a mandatory
   convergence blocker. This slice does not implement imported history/maintenance, file/UI wiring,
   re-export round trip, validation, activation, or rollout.
+
+## TI-D237 — Cell projection settlement requires authenticated full-row evidence
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; source/DAO/recovery/test commits `2e114194a`
+  and `20da10845`; corrected independent review; TI-B300.
+- The dormant source-local lane drains through a finite durable target and uses the one existing Cell
+  qualifier and writer. Ingress and startup recovery may only provide a wake hint; they do not start
+  the provider, register demand, enable rollout, or create another destination owner.
+- A payload-free candidate is only an index hint. Before skipping CONTROL or AMBIENT, or interpreting
+  terminal lifecycle, retention, deletion, epoch, time, logical, run, or segment fields, the lane
+  reloads the exact `(eventId, ordinal, source)` WAL row and requires its complete qualified
+  integrity. Missing, wrong-source, or corrupt evidence remains terminal.
+- Independently authenticated deleted-source high-water is the sole row-independent settlement
+  authority. The finite drain target retains the first terminal ordinal even after WAL removal, so
+  failure cannot disappear from recovery merely because the payload row is absent.
+- This does not invoke maintenance from a worker/action, implement transfer or shared UI, enable
+  automatic/ambient Cell, provide executed evidence, activate the provider/writer, or authorize
+  rollout.

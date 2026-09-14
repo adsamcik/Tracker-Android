@@ -907,6 +907,15 @@ then installs run and Cell-generation fences before removing payload while prese
 CONTROL. These TODOs remain unchecked until runtime projection and invocation, transfer, shared UI,
 automatic/ambient behavior, and the complete scenario cohort exist.
 
+Accepted projection commits `2e114194a` and `20da10845` implement bounded portions of
+CELL-001/004/005/006/010/013 and DATA-003/006/007/009/011. One finite dormant drain binds retained
+captured WAL to the existing Cell qualifier and single source-local writer, with transactional fact,
+cursor, evidence, failure, and lane settlement. Noncapture and terminal decisions authenticate the
+exact full WAL row; corrupt or missing rows cannot advance except through independent deleted-source
+high-water. CONTROL and AMBIENT remain outside captured history. Every Cell TODO remains unchecked
+until maintenance invocation, transfer, shared UI, automatic/ambient behavior, and the complete
+scenario cohort exist.
+
 ## Production history and UI
 
 - [ ] TODO-HIST-001 Complete one read-only TrackingHistoryRepository facade for observeToday,

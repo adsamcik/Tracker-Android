@@ -2549,3 +2549,29 @@ Independent review accepted the three-commit corrected chain. Deferred focused c
 The commands were not run. The v28 Room schema JSON still lacks all five imported-Pressure tables.
 Compilation, Room execution, imported history/maintenance, re-export round trip, file/UI action,
 integration, device behavior, activation, and release remain unproven.
+
+## TI-B300 — Cell retained-WAL projection settlement contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `20da10845`. The dormant projection chain
+`2e114194a`/`20da10845` adds a finite source-local Cell drain, ingress/recovery hints, exact
+qualification, the one existing fact writer, and atomic fact/fact-cursor/evidence/failure/lane-cursor
+settlement. Authored tests cover captured persistence, valid CONTROL and AMBIENT skip, corrupt
+purpose mask, corrupt epoch, forged logical/run/time/retention scope, missing WAL, terminal repeat,
+and independent deleted-source high-water release.
+
+Independent review first rejected unauthenticated payload-free selector and terminal-settlement
+decisions. The correction reloads exact event ID, ordinal, and source; requires full qualified WAL
+integrity before every noncapture or lifecycle/fence decision; keeps invalid or missing evidence
+terminal; and includes the first terminal ordinal in the finite drain target after WAL removal. The
+review also confirmed the captured path still authenticates and decodes the exact delivery and that
+no provider, demand, rollout activation, or second writer is introduced.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*CellCapturedFact*' --tests '*CellWalQualificationAdapterTest' --tests '*SourcePipelineRecoveryTest' --tests '*TrackingRolloutStateStoreTest' --tests '*DurableSourceEventSinkTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, maintenance worker/action invocation,
+transfer, shared UI, automatic/ambient behavior, provider/process/reboot/device behavior,
+integration, activation, and release remain unproven.

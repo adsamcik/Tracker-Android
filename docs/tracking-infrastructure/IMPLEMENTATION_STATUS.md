@@ -65,6 +65,17 @@ tampering, null/nonpositive provider times, aggregate retargeting, and authority
 projection, worker/action invocation, transfer, shared UI, automatic/ambient behavior, device
 evidence, and validation remain open.
 
+The same Cell branch is independently accepted through `20da10845` for the dormant retained-WAL
+projection lane. `2e114194a` connects bounded ingress/recovery hints to a finite source-local drain,
+the existing qualifier, and the single existing Cell fact writer. Its transaction advances exact
+fact/fact-cursor/evidence/failure/lane-cursor state without starting a provider or registering
+demand. Review rejected the first settlement path because it interpreted payload-free selector
+fields before full-row integrity. `20da10845` now reloads and authenticates the exact WAL row before
+every noncapture skip and terminal lifecycle/fence decision; invalid or missing rows remain terminal
+unless an independent deleted-source high-water proves settlement. Authored corruption and
+CONTROL/AMBIENT regressions cover that correction. Worker/action invocation, transfer, shared UI,
+automatic/ambient behavior, validation, and activation remain open.
+
 The separate `codex/ti-activity-transfer` branch is independently accepted through `8f0842354`
 for captured Activity portable export. One bounded Room snapshot authenticates exact logical and
 physical replacement ownership, captured fact/cursor/writer authority, immutable plans, provider
