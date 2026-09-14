@@ -83,7 +83,17 @@ observed-time authorization revision and production per-demand freshness, recomp
 purpose mask while binding the full authorization fingerprint, and exports only exact captured
 members. It truthfully permits sparse indices, sequence zero/gaps, mixed capture/CONTROL and late
 receipt after a qualified pre-close observation; CONTROL never becomes captured output. The next
-nonoverlapping Activity slice is exact selected-session deletion on `codex/ti-activity-maintenance`.
+nonoverlapping Activity transfer slice remains portable import/round trip.
+
+Exact Activity selected-session deletion is independently accepted on
+`codex/ti-activity-maintenance` through `dd19b4d33` (`09a2f1c96` plus its scoped-control
+correction). One bounded transaction proves bidirectional logical/run/segment replacement
+membership, exact all-revision capture set `{Activity}`, manifests, policy/consent, writer and
+terminal authority; installs a monotonic fence for every physical run; removes exact captured
+payload/presentation state; and repairs affected stored-zone days while preserving WAL, CONTROL,
+plans, authority, unrelated Activity, and other sources. Only Activity `SESSION_CAPTURE` demand
+blocks deletion; scoped `CONTROL_CONTINUATION` remains compatible. Consent-reset, portable import,
+file/UI action wiring, automatic behavior, and complete scenarios remain open.
 
 No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
 activation, publication, or release command ran on September 14.

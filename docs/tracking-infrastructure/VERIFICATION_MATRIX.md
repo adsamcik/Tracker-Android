@@ -2600,3 +2600,31 @@ Deferred focused command:
 The command was not run. Compilation, Room execution, consent-reset/source deletion, transfer,
 shared UI, automatic/ambient behavior, provider/process/reboot/device behavior, integration,
 activation, and release remain unproven.
+
+## TI-B302 — Exact Activity selected-session deletion contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `dd19b4d33`. Authored API, core-maintenance, Room
+service, and day-repair tests cover complete bidirectional logical/run/segment replacement
+membership; exact all-revision `{Activity}` capture intent; reverse bindings; manifests; terminal
+lifecycle; policy/consent/writer/source evidence; bounded capture-demand and provider authorization;
+per-run monotonic fences before payload deletion; exact fact/revision/cursor/fragment/evidence and
+presentation removal; stored-zone repair; cancellation/rollback/idempotence; and preservation of
+WAL, CONTROL, plans, unrelated Activity, and other sources.
+
+Static review first required a converse logical-ID segment query, bounded MAX+1 authorization-member
+load, and two-run payload fixtures. A later review rejected a broad pre-read demand shortcut that
+treated session-scoped CONTROL as capture. `dd19b4d33` removes that shortcut: the bounded
+transactional Activity `SESSION_CAPTURE` query remains authoritative. Authored cases permit scoped
+`CONTROL_CONTINUATION` while rejecting exact ACTIVE, RETIRING, and BLOCKED capture demand before any
+fence, evidence mutation, or drain. Fresh re-review accepted the correction and the complete
+source-local boundary.
+
+Deferred focused commands:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ActivityCapturedFactMaintenanceTest' :tracker:engine:testDebugUnitTest --tests '*RoomActivitySelectedSessionDeletionServiceTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The commands were not run. Compilation, Room execution, portable import/round trip,
+consent-reset/file/UI action wiring, automatic behavior, shared product integration,
+provider/process/reboot/device evidence, activation, and release remain unproven.

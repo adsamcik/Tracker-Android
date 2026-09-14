@@ -747,6 +747,15 @@ CONTROL is authenticated but excluded. These TODOs remain unchecked until portab
 trip, exact selected-session deletion, file/UI action wiring, catalog activation, and complete
 scenarios exist.
 
+Accepted selected-deletion commits `09a2f1c96` and `dd19b4d33` implement additional bounded
+portions of ACT-003/007/010 and PRIV-004/005/011. The service proves complete bidirectional logical
+replacement ownership and exact all-revision `{Activity}` capture authority, fences every run before
+removing selected source payload/presentation state, repairs stored-zone days, and preserves WAL,
+CONTROL, unrelated Activity, plans, and other sources. Only bounded exact Activity
+`SESSION_CAPTURE` demand blocks; scoped `CONTROL_CONTINUATION` remains compatible. TODOs remain
+unchecked until portable import/round trip, consent-reset/actions, automatic behavior, shared UI,
+and complete scenarios exist.
+
 Accepted source-local UI commits `f364cbc42` and `48d4d3e67` implement additional bounded portions
 of ACT-008/010 and HIST-002/003/005/006/012. Exact Activity-only intent remains visible before its
 first fact, complete replacement groups are classified together, live Activity/session state is one

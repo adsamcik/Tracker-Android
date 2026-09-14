@@ -100,6 +100,19 @@ mask/fingerprint, shared-delivery, settlement, overflow, or payload corruption f
 external sink I/O. Portable import/round trip, selected deletion, file/UI action wiring, catalog
 activation, validation, and device evidence remain open.
 
+The separate `codex/ti-activity-maintenance` branch is independently accepted through
+`dd19b4d33` for exact selected-session deletion. `09a2f1c96` adds a typed API, bounded reverse
+segment ownership, one source-local Room service, per-run maintenance fencing, exact fact/cursor/
+fragment/evidence and presentation deletion, and stored-zone day repair across a complete logical
+replacement group. It requires the all-revision capture set to be exactly `{Activity}`, terminal
+session/run state, authenticated manifests/policy/consent/writer authority, no selected capture
+demand, and compatible current provider authorization. Review first required converse
+logical-to-segment membership, bounded authorization members, and two-run payload coverage; a later
+review found that a pre-read shortcut also blocked scoped CONTROL. `dd19b4d33` removes that shortcut
+and leaves the bounded transactional Activity `SESSION_CAPTURE` query authoritative, so
+`CONTROL_CONTINUATION` is preserved while active/retiring/blocked capture still blocks. Portable
+import, consent-reset/action wiring, automatic behavior, validation, and device evidence remain.
+
 ## September 13 coordinator checkpoint — Ambient importer and Pressure read path accepted
 
 The coordinator source worktree is clean at `29801e17f` on

@@ -3864,3 +3864,22 @@ Each entry records repository evidence and does not duplicate the final architec
 - This does not invoke consent-reset deletion, alter legacy radio retention semantics, start a
   provider/demand/writer, enable rollout, implement transfer/UI/automatic/ambient behavior, or
   provide executed evidence.
+
+## TI-D239 — Activity selected deletion owns the complete replacement group, not scoped control
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; API/DAO/service/test commits `09a2f1c96`
+  and `dd19b4d33`; corrected independent reviews; TI-B302.
+- Deletion resolves a bounded complete bidirectional logical-entry → physical-run → segment group,
+  proves every reverse binding and manifest, and requires the exact all-revision capture set to be
+  `{Activity}`. Wall-time overlap, `sample_count`, `QUIESCED`, or one-sided ownership never selects
+  rows for deletion.
+- The transaction reauthenticates terminal lifecycle, policy/consent, source writer, exact selected
+  capture demand, current provider authorization, and source evidence. It installs a monotonic fence
+  for every physical run before deleting selected fact/revision/cursor/fragment/evidence and
+  presentation rows, then repairs the affected structural-zone days from survivors.
+- Only bounded Activity `SESSION_CAPTURE` demand is a deletion blocker. A live session-scoped
+  `CONTROL_CONTINUATION` registration remains valid control authority and is preserved; it cannot
+  become captured history or prevent deletion of already terminal captured Activity.
+- WAL, CONTROL, plans, registrations, authorization, unrelated Activity, other sources, and
+  nonselected days remain. This slice does not wire user actions/consent reset, implement portable
+  import, enable automatic capture, provide executed evidence, activate rollout, or release.
