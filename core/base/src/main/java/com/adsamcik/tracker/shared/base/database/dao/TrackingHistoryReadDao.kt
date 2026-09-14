@@ -173,6 +173,22 @@ interface TrackingHistoryReadDao {
 	@Query("SELECT * FROM session_segment WHERE id IN (:segmentIds)")
 	suspend fun segments(segmentIds: List<Long>): List<SessionSegment>
 
+	/**
+	 * Raw reverse-membership read for one portable logical entry.
+	 *
+	 * Unlike [logicalEntrySegmentPage], this deliberately applies no service-run join or reciprocal
+	 * predicate: portable export must observe and reject an orphan or mismatched segment instead of
+	 * allowing that predicate to hide it.
+	 */
+	@Query(
+		"SELECT * FROM session_segment WHERE logical_tracking_id = :logicalTrackingId " +
+			"ORDER BY start_time_ms, id LIMIT :limit",
+	)
+	suspend fun rawLogicalEntrySegments(
+		logicalTrackingId: String,
+		limit: Int,
+	): List<SessionSegment>
+
 	/** Keyset page of exact or explicitly attributed migrated siblings for logical entries. */
 	@Query(
 		"SELECT segment.* FROM session_segment AS segment " +

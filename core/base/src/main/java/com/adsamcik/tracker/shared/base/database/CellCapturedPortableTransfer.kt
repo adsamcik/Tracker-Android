@@ -385,10 +385,6 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 		),
 	)
 	if (!evidence.hasValidPortableCellShape()) return result(unverifiableFact())
-	val audit = auditCapturedCellFacts(
-		evidence,
-		PORTABLE_CELL_AUDIT_LIMITS,
-	) { currentCoroutineContext().ensureActive() }
 
 	val readDao = trackingHistoryReadDao()
 	val runs = readDao.logicalEntryServiceRunPage(
@@ -419,14 +415,27 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 	if (segmentIds.size != runs.size || segmentIds.distinct().size != segmentIds.size) {
 		return result(unverifiableMembership())
 	}
-	val segments = readDao.segments(segmentIds)
-	if (segments.size != runs.size || segments.distinctBy(SessionSegment::id).size != segments.size) {
+	val segments = readDao.rawLogicalEntrySegments(
+		request.logicalTrackingId,
+		CellCapturedPortableFormatV1.MAX_RUNS_PER_ENTRY + 1,
+	)
+	if (segments.size > CellCapturedPortableFormatV1.MAX_RUNS_PER_ENTRY) return result(overflow())
+	if (segments.size != runs.size || segments.distinctBy(SessionSegment::id).size != segments.size ||
+		segments.mapTo(mutableSetOf(), SessionSegment::id) != segmentIds.toSet()
+	) {
 		return result(unverifiableMembership())
 	}
 	val segmentsById = segments.associateBy(SessionSegment::id)
 	if (runs.any { run -> !run.hasExactPortableMembership(request.logicalTrackingId, segmentsById) }) {
 		return result(unverifiableMembership())
 	}
+	val runIds = runs.map(SourceServiceRunEntity::serviceRunId)
+	val audit = auditPortableCapturedCellFacts(
+		evidence,
+		request.logicalTrackingId,
+		runIds,
+		PORTABLE_CELL_AUDIT_LIMITS,
+	) { currentCoroutineContext().ensureActive() }
 
 	val session = sourceSessionDao().session(request.logicalTrackingId)
 		?: return result(unverifiableMembership())
@@ -436,18 +445,18 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 		else -> return result(unverifiableAttribution())
 	}
 	if (!session.hasPortableCellShape(runs)) return result(unverifiableAttribution())
-	if (session.completedAtMs == null || runs.any { it.completedAtMs == null }) {
-		return result(ExportPortableCapturedCellResult.Materializing)
+	val hierarchyMaterializing = session.completedAtMs == null || runs.any { run ->
+		run.completedAtMs == null ||
+			run.presentationAcknowledgement == SourceServiceRunEntity.PRESENTATION_PENDING
 	}
-	if (runs.any { it.presentationAcknowledgement == SourceServiceRunEntity.PRESENTATION_PENDING }) {
-		return result(ExportPortableCapturedCellResult.Materializing)
-	}
-	if (runs.any {
-		it.presentationAcknowledgement != SourceServiceRunEntity.PRESENTATION_QUIESCED ||
-			it.presentationAcknowledgedAtMs == null
+	if (runs.any { run ->
+		run.presentationAcknowledgement !in setOf(
+			SourceServiceRunEntity.PRESENTATION_PENDING,
+			SourceServiceRunEntity.PRESENTATION_QUIESCED,
+		) || (run.presentationAcknowledgement == SourceServiceRunEntity.PRESENTATION_QUIESCED &&
+			run.presentationAcknowledgedAtMs == null)
 	}) return result(unverifiableWriter())
 
-	val runIds = runs.map(SourceServiceRunEntity::serviceRunId)
 	val manifests = readDao.manifests(runIds, CellCapturedPortableFormatV1.MAX_MANIFESTS + 1)
 	val sources = readDao.manifestSources(runIds, CellCapturedPortableFormatV1.MAX_MANIFEST_SOURCES + 1)
 	val completeness = readDao.completeness(
@@ -568,7 +577,12 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 		lane.captureModeMask and requiredModeMask == 0L ||
 		manifests.any { lane.activatedRolloutRevision > it.rolloutRevision }
 	) return result(unverifiableWriter())
-	val walAudit = loadCapturedCellWalScopesForDeletion(evidence, PORTABLE_CELL_AUDIT_LIMITS)
+	val walAudit = loadPortableCapturedCellWalScopes(
+		evidence,
+		request.logicalTrackingId,
+		runIds,
+		PORTABLE_CELL_AUDIT_LIMITS,
+	)
 	val selectedWal = walAudit.carriers.filter {
 		it.scope.logicalTrackingId == request.logicalTrackingId
 	}
@@ -578,6 +592,9 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 		selectedWal.any { it.scope.serviceRunId !in runIds } ||
 		audit.lineages.any { lineage ->
 			lineage.scope.serviceRunId in runIds && lineage.scope.logicalTrackingId != request.logicalTrackingId
+		} || walAudit.carriers.any { carrier ->
+			carrier.scope.serviceRunId in runIds &&
+				carrier.scope.logicalTrackingId != request.logicalTrackingId
 		}
 	) return result(unverifiableFact())
 	val selectedCapturedRunIds = captureByRun.filterValues { it.isNotEmpty() }.keys
@@ -612,8 +629,8 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 		hasLocalGeneration != hasGlobalFence
 	}) return result(unverifiableFact())
 	if (audit.generationByScope.keys.any { scope ->
-		scope.logicalTrackingId == request.logicalTrackingId &&
-			scope.serviceRunId in runIds && scope.serviceRunId !in selectedCapturedRunIds
+		scope.logicalTrackingId != request.logicalTrackingId || scope.serviceRunId !in runIds ||
+			scope.serviceRunId !in selectedCapturedRunIds
 	}) return result(unverifiableFact())
 	val selectedDeleted = selectedCapturedRunIds.any { runId ->
 		audit.generationByScope.containsKey(CellCapturedRunScope(request.logicalTrackingId, runId))
@@ -625,24 +642,22 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 	val retainedWal = selectedWal.filter { carrier ->
 		retainedFloor == null || carrier.earliestPossibleWallTimeMs >= retainedFloor
 	}
-	if (retainedWal.any { it.admissionOrdinal > lane.contiguousAdmissionOrdinal }) {
-		return result(ExportPortableCapturedCellResult.Materializing)
-	}
-	val factEventIds = selectedLineages.mapTo(mutableSetOf()) { it.revisions.last().sourceEventId }
-	if (retainedWal.any { it.eventId !in factEventIds }) return result(unverifiableWriter())
 
-	val cellCompleteness = completeness.filter { it.sourceKind == CELL_SOURCE_KIND }
+	val cellCompleteness = completeness.filter { row ->
+		row.sourceKind == CELL_SOURCE_KIND && row.serviceRunId in selectedCapturedRunIds
+	}
 	if (!cellCompleteness.hasValidPortableCellShape(request.logicalTrackingId, runIds)) {
 		return result(unverifiableWriter())
 	}
-	if (selectedLineages.isNotEmpty() && selectedCapturedRunIds.any { runId ->
+	if (selectedCapturedRunIds.any { runId ->
 		cellCompleteness.none { it.serviceRunId == runId }
 	}) return result(unverifiableWriter())
-	val targetOrdinal = maxOfNullable(
+	val targetOrdinal = listOfNotNull(
 		selectedLineages.maxOfOrNull { it.revisions.last().sourceAdmissionOrdinal },
 		cellCompleteness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull(),
-	)
-	if (targetOrdinal != null && targetOrdinal > requireNotNull(session.finalAdmissionOrdinal)) {
+		selectedWal.maxOfOrNull(CellCapturedWalCarrier::admissionOrdinal),
+	).maxOrNull()
+	if (targetOrdinal != null && session.finalAdmissionOrdinal?.let { targetOrdinal > it } == true) {
 		return result(unverifiableWriter())
 	}
 	if (targetOrdinal != null && (targetOrdinal < lane.activationOrdinal ||
@@ -660,9 +675,6 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 				row.lastSourceSequence?.let { it >= fact.sourceSequence } == true
 		}
 	}) return result(unverifiableWriter())
-	if (targetOrdinal != null && lane.contiguousAdmissionOrdinal < targetOrdinal) {
-		return result(ExportPortableCapturedCellResult.Materializing)
-	}
 	val failures = if (targetOrdinal == null || lane.activationOrdinal > targetOrdinal) emptyList() else {
 		readDao.terminalFailuresForServiceRuns(
 			CELL_SOURCE_KIND,
@@ -675,6 +687,11 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 	}
 	if (failures.size > CellCapturedPortableFormatV1.MAX_TERMINAL_FAILURES) return result(overflow())
 	if (failures.isNotEmpty()) return result(unverifiableWriter())
+	if (hierarchyMaterializing ||
+		(targetOrdinal != null && lane.contiguousAdmissionOrdinal < targetOrdinal)
+	) return result(ExportPortableCapturedCellResult.Materializing)
+	val factEventIds = selectedLineages.mapTo(mutableSetOf()) { it.revisions.last().sourceEventId }
+	if (retainedWal.any { it.eventId !in factEventIds }) return result(unverifiableWriter())
 
 	val timeRetainedLineages = selectedLineages.filter { lineage ->
 		retainedFloor == null || lineage.earliestPossibleWallTimeMs >= retainedFloor
@@ -1144,14 +1161,13 @@ private fun List<SourceSessionCompletenessEntity>.hasValidPortableCellShape(
 	runIds: List<String>,
 ): Boolean = groupBy(SourceSessionCompletenessEntity::serviceRunId).all { (runId, unorderedRows) ->
 	val rows = unorderedRows.sortedBy(SourceSessionCompletenessEntity::registrationGeneration)
+	val admissionHighWaters = rows.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal)
 	runId in runIds && rows.distinctBy(SourceSessionCompletenessEntity::registrationGeneration).size == rows.size &&
-		rows.zipWithNext().all { (previous, next) ->
-			val previousOrdinal = previous.lastAdmissionOrdinal
-			val nextOrdinal = next.lastAdmissionOrdinal
-			previousOrdinal == null || nextOrdinal == null || nextOrdinal >= previousOrdinal
+		admissionHighWaters.zipWithNext().all { (previous, next) ->
+			next > previous
 		} && rows.all { row ->
 			row.logicalTrackingId == logicalTrackingId && row.sourceInstanceId.isNotBlank() &&
-				row.registrationGeneration >= 0L && row.appDrainComplete &&
+				row.registrationGeneration >= 0L && row.hasValidPortableCellStopShape() &&
 				(row.lastAdmissionOrdinal == null) == (row.lastSourceSequence == null) &&
 				row.lastAdmissionOrdinal?.let { it > 0L } != false &&
 				row.lastSourceSequence?.let { it >= 0L } != false &&
@@ -1159,25 +1175,31 @@ private fun List<SourceSessionCompletenessEntity>.hasValidPortableCellShape(
 				row.unresolvedSequenceStart?.let { start ->
 					start >= 0L && requireNotNull(row.unresolvedSequenceEnd) >= start
 				} != false &&
-				row.providerCoverage in CELL_PROVIDER_COVERAGE_VALUES &&
+				row.providerCoverage == CELL_PROVIDER_COVERAGE &&
 				row.stopStatus in CELL_STOP_STATUS_VALUES && row.updatedAtMs >= 0L &&
 				if (row.registrationGeneration == 0L) {
 					rows.size == 1 && row.lastAdmissionOrdinal == null &&
-						row.providerCoverage == "PROVIDER_COMPLETENESS_UNOBSERVABLE" &&
+					row.providerCoverage == "PROVIDER_COMPLETENESS_UNOBSERVABLE" &&
 						row.stopStatus in setOf("PERMISSION_LOST", "PROVIDER_FAILED")
-				} else {
-					row.lastAdmissionOrdinal != null
-				}
+				} else true
 		}
+}
+
+private fun SourceSessionCompletenessEntity.hasValidPortableCellStopShape(): Boolean {
+	val hasGap = unresolvedSequenceStart != null
+	if (hasGap && (appDrainComplete || stopStatus != "TIMED_OUT")) return false
+	return when (stopStatus) {
+		"COMPLETE" -> appDrainComplete && !hasGap
+		"TIMED_OUT" -> !appDrainComplete
+		"PROVIDER_FAILED", "PERMISSION_LOST", "PROCESS_RESTARTED" -> !hasGap
+		else -> false
+	}
 }
 
 private fun List<SourceSessionCompletenessEntity>.toPortableAcquisitionCompleteness(
 	captured: Boolean,
 ): PortableCellAcquisitionCompleteness = when {
 	!captured || isEmpty() -> PortableCellAcquisitionCompleteness.UNKNOWN
-	all { it.providerCoverage == CELL_COMPLETE_PROVIDER_COVERAGE &&
-		it.stopStatus == CELL_COMPLETE_STOP_STATUS && it.unresolvedSequenceStart == null } ->
-		PortableCellAcquisitionCompleteness.COMPLETE
 	else -> PortableCellAcquisitionCompleteness.PARTIAL
 }
 
@@ -1202,12 +1224,6 @@ private fun unverifiableWriter() = ExportPortableCapturedCellResult.Unverifiable
 private fun overflow() = ExportPortableCapturedCellResult.Unverifiable(
 	PortableCellUnverifiableReason.DEPENDENCY_OVERFLOW,
 )
-
-private fun maxOfNullable(left: Long?, right: Long?): Long? = when {
-	left == null -> right
-	right == null -> left
-	else -> maxOf(left, right)
-}
 
 private fun sumExact(vararg values: Int): Int = values.fold(0) { sum, value ->
 	Math.addExact(sum, value)
@@ -1270,10 +1286,7 @@ private val PORTABLE_CELL_RUN_ORDER = compareBy<PortableCapturedCellRunV1>(
 )
 private val SHA_256_HEX = Regex("[0-9a-f]{64}")
 private val TERMINAL_SESSION_STATES = setOf("FINALIZED", "FAILED", "CLOSED")
-private val CELL_PROVIDER_COVERAGE_VALUES = setOf(
-	"CALLBACKS_ENTERED_BEFORE_BARRIER",
-	"PROVIDER_COMPLETENESS_UNOBSERVABLE",
-)
+private const val CELL_PROVIDER_COVERAGE = "PROVIDER_COMPLETENESS_UNOBSERVABLE"
 private val CELL_STOP_STATUS_VALUES = setOf(
 	"COMPLETE",
 	"TIMED_OUT",
@@ -1287,8 +1300,6 @@ private val PORTABLE_CELL_AUDIT_LIMITS = CellCapturedMaintenanceLimits(
 	maximumCursors = 4_096,
 	maximumDeletionGenerations = 4_096,
 )
-private const val CELL_COMPLETE_PROVIDER_COVERAGE = "CALLBACKS_ENTERED_BEFORE_BARRIER"
-private const val CELL_COMPLETE_STOP_STATUS = "COMPLETE"
 private const val MANUAL_CAPTURE_MASK = 1L
 private const val AUTOMATIC_CAPTURE_MASK = 2L
 private const val ALL_CAPTURE_MASK = MANUAL_CAPTURE_MASK or AUTOMATIC_CAPTURE_MASK

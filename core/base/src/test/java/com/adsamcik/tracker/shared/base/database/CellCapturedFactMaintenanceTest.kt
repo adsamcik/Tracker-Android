@@ -1,8 +1,10 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
@@ -27,6 +29,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntit
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.canonicalCellProviderDeliveryIdentity
@@ -1175,7 +1178,7 @@ class CellCapturedFactMaintenanceTest {
 		entry.runs.single().captureCoverage shouldBe PortableCellCaptureCoverage.WHOLE_RUN
 		entry.runs.single().availability shouldBe PortableCellRunAvailability.RETAINED
 		entry.runs.single().acquisitionCompleteness shouldBe
-			PortableCellAcquisitionCompleteness.COMPLETE
+			PortableCellAcquisitionCompleteness.PARTIAL
 		entry.runs.single().observations.single().let { observation ->
 			observation.semanticRevision shouldBe 2L
 			observation.supersedesSemanticRevision shouldBe 1L
@@ -1246,6 +1249,7 @@ class CellCapturedFactMaintenanceTest {
 			portableCompleteness(
 				providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
 				stopStatus = "TIMED_OUT",
+				appDrainComplete = false,
 			),
 		)
 		var emitted: PortableCapturedCellEntryV1? = null
@@ -1339,13 +1343,282 @@ class CellCapturedFactMaintenanceTest {
 	@Test
 	fun `portable export reports materializing before sink IO when Cell lane trails`() = runTest {
 		seedCapturedCell(withPortableExportState = true, portableLaneThroughOrdinal = 0L)
-		var sinkReached = false
+
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Materializing
+	}
+
+	@Test
+	fun `portable export is not blocked by unrelated valid history beyond its selected cap`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		database.withTransaction {
+			repeat(PORTABLE_AUDIT_CAP + 1) { index ->
+				insertUnrelatedDeletionGeneration(index, includeFence = true)
+			}
+		}
+		var emitted: PortableCapturedCellEntryV1? = null
+
+		val result = portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+			emitted = it
+		}
+		val entry = requireNotNull(emitted)
+		result shouldBe ExportPortableCapturedCellResult.Exported(
+			entry.identity,
+			entry.contentChecksum,
+			1,
+			1,
+		)
+	}
+
+	@Test
+	fun `portable export ignores unrelated corrupt deletion history`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		insertUnrelatedDeletionGeneration(1, includeFence = false)
+		var emitted: PortableCapturedCellEntryV1? = null
 
 		portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
-			sinkReached = true
-		} shouldBe ExportPortableCapturedCellResult.Materializing
+			emitted = it
+		}
 
-		sinkReached shouldBe false
+		requireNotNull(emitted).runs.single().observations.size shouldBe 1
+	}
+
+	@Test
+	fun `portable export rejects an orphan reverse segment`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		database.sessionSegmentDao().insert(
+			segment().copy(
+				id = ORPHAN_SEGMENT_ID,
+				serviceRunId = "orphan-cell-run",
+			),
+		)
+
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.PHYSICAL_MEMBERSHIP_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `portable export rejects a mismatched reverse segment`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_segment SET service_run_id = ? WHERE id = ?",
+			arrayOf("mismatched-cell-run", SEGMENT_ID),
+		)
+
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.PHYSICAL_MEMBERSHIP_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `portable export rejects a selected logical deletion generation without a captured run`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		insertDeletionGeneration(
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = "absent-cell-run",
+			includeFence = true,
+		)
+
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `portable export reports a selected terminal projection failure before lane lag`() = runTest {
+		seedCapturedCell(withPortableExportState = true, portableLaneThroughOrdinal = 0L)
+		database.sourceProjectionStateDao().saveFailure(
+			SourceProjectionFailureEntity(
+				projectionId = WRITER_ID,
+				projectionVersion = WRITER_VERSION,
+				admissionOrdinal = 1L,
+				attemptCount = 1,
+				failureCode = "CELL_CLASSIFICATION_STALE",
+				terminal = true,
+				lastAttemptAtMs = SESSION_END_WALL_MS,
+			),
+		)
+
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `portable export accepts a captured replacement with zero callbacks`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installCapturedReplacementRun()
+		var emitted: PortableCapturedCellEntryV1? = null
+
+		portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+			emitted = it
+		}
+
+		val replacement = requireNotNull(emitted).runs.single { run ->
+			run.startTimeMs == REPLACEMENT_RUN_START_WALL_MS
+		}
+		replacement.captureCoverage shouldBe PortableCellCaptureCoverage.WHOLE_RUN
+		replacement.availability shouldBe PortableCellRunAvailability.NO_RETAINED_OBSERVATION
+		replacement.acquisitionCompleteness shouldBe PortableCellAcquisitionCompleteness.PARTIAL
+	}
+
+	@Test
+	fun `portable export accepts a captured replacement with only a provider gap`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installCapturedReplacementRun(unresolvedSequenceStart = 1L, unresolvedSequenceEnd = 2L)
+		var emitted: PortableCapturedCellEntryV1? = null
+
+		portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+			emitted = it
+		}
+
+		val replacement = requireNotNull(emitted).runs.single { run ->
+			run.startTimeMs == REPLACEMENT_RUN_START_WALL_MS
+		}
+		replacement.availability shouldBe PortableCellRunAvailability.NO_RETAINED_OBSERVATION
+		replacement.acquisitionCompleteness shouldBe PortableCellAcquisitionCompleteness.PARTIAL
+	}
+
+	@Test
+	fun `portable export rejects fabricated callback-complete Cell coverage`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		database.sourceSessionDao().saveCompleteness(
+			portableCompleteness(providerCoverage = "CALLBACKS_ENTERED_BEFORE_BARRIER"),
+		)
+
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `portable export rejects repeated admission high water across Cell generations`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		database.sourceSessionDao().saveCompleteness(
+			portableCompleteness(
+				lastAdmissionOrdinal = 1L,
+				lastSourceSequence = 2L,
+			).copy(
+				sourceInstanceId = "cell-second-generation",
+				registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
+			),
+		)
+
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `portable export rejects a selected fact whose WAL is missing`() = runTest {
+		val fact = seedCapturedCell(withPortableExportState = true)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_event_wal WHERE event_id = ?",
+			arrayOf(fact.sourceEventId),
+		)
+
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `portable export rejects a settled selected WAL without its fact`() = runTest {
+		val fact = seedCapturedCell(withPortableExportState = true)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM cell_captured_fact_cursor WHERE logical_fact_id = ?",
+			arrayOf(fact.logicalFactId),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM cell_captured_fact_revision WHERE logical_fact_id = ?",
+			arrayOf(fact.logicalFactId),
+		)
+
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.WRITER_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `portable export reports partial capture across manifest revisions`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+		installControlOnlyReconciliationManifest()
+		var emitted: PortableCapturedCellEntryV1? = null
+
+		portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+			emitted = it
+		}
+
+		requireNotNull(emitted).runs.single().captureCoverage shouldBe
+			PortableCellCaptureCoverage.PARTIAL_RUN
+	}
+
+	@Test
+	fun `portable export rejects a retained aggregate dependent whose owner crossed retention`() = runTest {
+		val owner = seedCapturedCell(
+			retainedFromMs = FLOOR_MS,
+			withPortableExportState = true,
+		)
+		insertCapturedFact(
+			deliveryIndex = 2,
+			observedWallTimeMs = NEWER_WALL_MS,
+			aggregateOwner = owner,
+		)
+		installPortableExportState(throughOrdinal = 2L, lastSourceSequence = 2L)
+
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unavailable(
+			PortableCellUnavailableReason.RETENTION_LIMIT,
+		)
+	}
+
+	@Test
+	fun `portable export rejects a corrupt selected deletion fence`() = runTest {
+		seedCapturedCell(revokedCapture = true, withPortableExportState = true)
+		database.deleteCapturedCellFactsAfterConsentReset(
+			0L,
+			0L,
+			REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS,
+		) shouldBe CellCapturedSourceDeletionResult.Deleted(1, 1, 1)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_deletion_fence SET effect_checksum = ? WHERE source_kind = ?",
+			arrayOf(ZERO_CHECKSUM, CELL_SOURCE),
+		)
+
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `portable export rejects a deletion generation that disagrees with its fence`() = runTest {
+		seedCapturedCell(revokedCapture = true, withPortableExportState = true)
+		database.deleteCapturedCellFactsAfterConsentReset(
+			0L,
+			0L,
+			REVOKED_CONSENT_EPOCH,
+			DELETION_TIME_MS,
+		) shouldBe CellCapturedSourceDeletionResult.Deleted(1, 1, 1)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE cell_capture_deletion_generation SET generation = generation + 1 " +
+				"WHERE logical_tracking_id = ? AND service_run_id = ?",
+			arrayOf(LOGICAL_TRACKING_ID, SERVICE_RUN_ID),
+		)
+
+		exportExpectingNoSink() shouldBe ExportPortableCapturedCellResult.Unverifiable(
+			PortableCellUnverifiableReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `portable Cell ordinary sink failure propagates`() = runTest {
+		seedCapturedCell(withPortableExportState = true)
+
+		shouldThrow<IllegalStateException> {
+			portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+				throw IllegalStateException("portable sink failed")
+			}
+		}
 	}
 
 	@Test
@@ -1549,6 +1822,54 @@ class CellCapturedFactMaintenanceTest {
 		Dispatchers.Unconfined,
 	)
 
+	private suspend fun exportExpectingNoSink(): ExportPortableCapturedCellResult {
+		var sinkReached = false
+		val result = portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) {
+			sinkReached = true
+		}
+		sinkReached shouldBe false
+		return result
+	}
+
+	private suspend fun insertUnrelatedDeletionGeneration(index: Int, includeFence: Boolean) {
+		insertDeletionGeneration(
+			logicalTrackingId = "unrelated-cell-entry-$index",
+			serviceRunId = "unrelated-cell-run-$index",
+			includeFence = includeFence,
+			updatedAtMs = DELETION_TIME_MS + index,
+		)
+	}
+
+	private suspend fun insertDeletionGeneration(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		includeFence: Boolean,
+		updatedAtMs: Long = DELETION_TIME_MS,
+	) {
+		database.cellCapturedFactDao().insertDeletionGeneration(
+			CellCaptureDeletionGenerationEntity(
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+				collectedDataEpoch = 0L,
+				generation = 1L,
+				updatedAtMs = updatedAtMs,
+			),
+		)
+		if (includeFence) {
+			database.sourceDeletionFenceDao().insertIfAbsent(
+				SourceDeletionFenceEntity.createLogicalServiceRun(
+					sourceKind = CELL_SOURCE,
+					purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+					logicalTrackingId = logicalTrackingId,
+					serviceRunId = serviceRunId,
+					fenceGeneration = 1L,
+					collectedDataEpoch = 0L,
+					deletedAtMs = updatedAtMs,
+				),
+			)
+		}
+	}
+
 	private suspend fun installPortableExportState(
 		throughOrdinal: Long,
 		lastSourceSequence: Long,
@@ -1595,10 +1916,11 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	private fun portableCompleteness(
-		lastAdmissionOrdinal: Long = 1L,
-		lastSourceSequence: Long = 1L,
-		providerCoverage: String = "CALLBACKS_ENTERED_BEFORE_BARRIER",
+		lastAdmissionOrdinal: Long? = 1L,
+		lastSourceSequence: Long? = 1L,
+		providerCoverage: String = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
 		stopStatus: String = "COMPLETE",
+		appDrainComplete: Boolean = true,
 	) = SourceSessionCompletenessEntity(
 		logicalTrackingId = LOGICAL_TRACKING_ID,
 		serviceRunId = SERVICE_RUN_ID,
@@ -1607,7 +1929,7 @@ class CellCapturedFactMaintenanceTest {
 		registrationGeneration = REGISTRATION_GENERATION,
 		lastAdmissionOrdinal = lastAdmissionOrdinal,
 		lastSourceSequence = lastSourceSequence,
-		appDrainComplete = true,
+		appDrainComplete = appDrainComplete,
 		providerCoverage = providerCoverage,
 		stopStatus = stopStatus,
 		unresolvedSequenceStart = null,
@@ -1679,6 +2001,131 @@ class CellCapturedFactMaintenanceTest {
 			zoneId = ZONE_ID,
 			automationEpoch = null,
 			changeReason = "PROCESS_REPLACEMENT",
+			manifestChecksum = "",
+		)
+		database.sourceSessionDao().insertManifest(
+			unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(control))),
+		)
+		database.sourceSessionDao().insertManifestSources(listOf(control))
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID))
+		database.sourceSessionDao().updateSession(
+			session.copy(currentManifestRevision = REPLACEMENT_MANIFEST_REVISION),
+		) shouldBe 1
+	}
+
+	private suspend fun installCapturedReplacementRun(
+		unresolvedSequenceStart: Long? = null,
+		unresolvedSequenceEnd: Long? = null,
+	) {
+		val segmentId = database.sessionSegmentDao().insert(
+			segment().copy(
+				id = REPLACEMENT_SEGMENT_ID,
+				startTimeMs = REPLACEMENT_RUN_START_WALL_MS,
+				serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+			),
+		)
+		database.sourceSessionDao().insertServiceRun(
+			SourceServiceRunEntity(
+				serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				state = "FINALIZED",
+				desiredPlanRevision = PLAN_REVISION,
+				rolloutRevision = 1L,
+				foregroundCapabilityFlags = 0L,
+				startedAtMs = REPLACEMENT_RUN_START_WALL_MS,
+				startedElapsedNanos = REPLACEMENT_RUN_START_NANOS,
+				completedAtMs = SESSION_END_WALL_MS,
+				completionReason = "USER_STOP",
+				bootId = BOOT_ID,
+				leaseGeneration = LEASE_GENERATION,
+				startOrigin = "MANUAL_FOREGROUND_START",
+				desiredForegroundCapabilityFlags = 0L,
+				appliedForegroundCapabilityFlags = 0L,
+				runtimeAcknowledgement = "STOP_ACCEPTED",
+				runRevision = 2L,
+				startDeliveryToken = "cell-captured-replacement-start",
+				startCommandGeneration = 2L,
+				preparedManifestRevision = REPLACEMENT_MANIFEST_REVISION,
+				preparedIntentRevision = 1L,
+				androidDeliveryState = "FOREGROUND_ACCEPTED",
+				androidDeliveryUpdatedAtMs = REPLACEMENT_RUN_START_WALL_MS,
+				startIsUserInitiated = true,
+				startIsAmbient = false,
+				sessionSegmentId = segmentId,
+				presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_QUIESCED,
+				presentationAcknowledgedAtMs = SESSION_END_WALL_MS,
+			),
+		)
+		val capture = manifestSource().copy(manifestRevision = REPLACEMENT_MANIFEST_REVISION)
+		val unsigned = SessionManifestVersionEntity(
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			manifestRevision = REPLACEMENT_MANIFEST_REVISION,
+			serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+			sessionMode = "MANUAL",
+			sourcePolicyRevision = POLICY_REVISION,
+			acquisitionPlanRevision = PLAN_REVISION,
+			rolloutRevision = 1L,
+			startOrigin = "MANUAL_FOREGROUND_START",
+			effectiveBootId = BOOT_ID,
+			effectiveElapsedRealtimeNanos = REPLACEMENT_RUN_START_NANOS,
+			effectiveWallTimeMs = REPLACEMENT_RUN_START_WALL_MS,
+			zoneId = ZONE_ID,
+			automationEpoch = null,
+			changeReason = "PROCESS_REPLACEMENT",
+			manifestChecksum = "",
+		)
+		database.sourceSessionDao().insertManifest(
+			unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(capture))),
+		)
+		database.sourceSessionDao().insertManifestSources(listOf(capture))
+		database.sourceSessionDao().saveCompleteness(
+			SourceSessionCompletenessEntity(
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+				sourceKind = CELL_SOURCE,
+				sourceInstanceId = "cell-replacement-instance",
+				registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
+				lastAdmissionOrdinal = null,
+				lastSourceSequence = null,
+				appDrainComplete = unresolvedSequenceStart == null,
+				providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
+				stopStatus = if (unresolvedSequenceStart == null) "COMPLETE" else "TIMED_OUT",
+				unresolvedSequenceStart = unresolvedSequenceStart,
+				unresolvedSequenceEnd = unresolvedSequenceEnd,
+				updatedAtMs = SESSION_END_WALL_MS,
+			),
+		)
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID))
+		database.sourceSessionDao().updateSession(
+			session.copy(currentManifestRevision = REPLACEMENT_MANIFEST_REVISION),
+		) shouldBe 1
+	}
+
+	private suspend fun installControlOnlyReconciliationManifest() {
+		val control = SessionManifestSourceEntity(
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			manifestRevision = REPLACEMENT_MANIFEST_REVISION,
+			sourceKind = CELL_SOURCE,
+			purpose = SessionManifestPurposeCode.CONTROL,
+			consentEpoch = CONTROL_CONSENT_EPOCH,
+			persistenceEligible = false,
+			qosCode = QOS_CODE,
+		)
+		val unsigned = SessionManifestVersionEntity(
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			manifestRevision = REPLACEMENT_MANIFEST_REVISION,
+			serviceRunId = SERVICE_RUN_ID,
+			sessionMode = "MANUAL",
+			sourcePolicyRevision = POLICY_REVISION,
+			acquisitionPlanRevision = PLAN_REVISION,
+			rolloutRevision = 1L,
+			startOrigin = "POLICY_RECONCILIATION",
+			effectiveBootId = BOOT_ID,
+			effectiveElapsedRealtimeNanos = SECOND_AUTHORIZATION_START_NANOS,
+			effectiveWallTimeMs = NEWER_WALL_MS,
+			zoneId = ZONE_ID,
+			automationEpoch = null,
+			changeReason = "POLICY_RECONCILIATION",
 			manifestChecksum = "",
 		)
 		database.sourceSessionDao().insertManifest(
@@ -2556,7 +3003,9 @@ class CellCapturedFactMaintenanceTest {
 		const val CONTROL_AUTHORIZATION_REVISION = 3L
 		const val SEGMENT_ID = 1L
 		const val REPLACEMENT_SEGMENT_ID = 2L
+		const val ORPHAN_SEGMENT_ID = 3L
 		const val OVERFLOW_SEGMENT_ID_BASE = 100
+		const val PORTABLE_AUDIT_CAP = 4_096
 		const val QOS_CODE = 2
 		const val RUN_START_NANOS = 100_000_000L
 		const val REGISTRATION_START_NANOS = 110_000_000L

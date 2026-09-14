@@ -69,6 +69,18 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<CellCapturedFactRevisionEntity>
 
+	/** Complete bounded fact side of one selected portable logical/run closure. */
+	@Query(
+		"SELECT * FROM cell_captured_fact_revision WHERE " +
+			"(logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds)) " +
+			"ORDER BY logical_fact_id, semantic_revision LIMIT :limit",
+	)
+	suspend fun portableRevisionClosure(
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<CellCapturedFactRevisionEntity>
+
 	/** Stable bounded keyset used to prove one current head per retained Cell lineage. */
 	@Query(
 		"SELECT * FROM cell_captured_fact_cursor " +
@@ -84,6 +96,18 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<CellCapturedFactCursorEntity>
 
+	/** Complete bounded cursor side of one selected portable logical/run closure. */
+	@Query(
+		"SELECT * FROM cell_captured_fact_cursor WHERE " +
+			"(logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds)) " +
+			"ORDER BY logical_fact_id LIMIT :limit",
+	)
+	suspend fun portableCursorClosure(
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<CellCapturedFactCursorEntity>
+
 	/** Stable bounded keyset over source-local no-resurrection generations. */
 	@Query(
 		"SELECT * FROM cell_capture_deletion_generation WHERE " +
@@ -94,6 +118,18 @@ interface CellCapturedFactDao {
 	suspend fun maintenanceDeletionGenerationPage(
 		afterLogicalTrackingId: String?,
 		afterServiceRunId: String?,
+		limit: Int,
+	): List<CellCaptureDeletionGenerationEntity>
+
+	/** Complete bounded deletion-generation side of one selected portable logical/run closure. */
+	@Query(
+		"SELECT * FROM cell_capture_deletion_generation WHERE " +
+			"(logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds)) " +
+			"ORDER BY logical_tracking_id, service_run_id LIMIT :limit",
+	)
+	suspend fun portableDeletionGenerationClosure(
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
 		limit: Int,
 	): List<CellCaptureDeletionGenerationEntity>
 
@@ -284,6 +320,19 @@ interface CellCapturedFactDao {
 	suspend fun maintenanceWalKeys(
 		sourceKind: Int,
 		afterAdmissionOrdinal: Long,
+		limit: Int,
+	): List<CellWalMaintenanceKey>
+
+	/** Complete bounded WAL side of one selected portable logical/run closure. */
+	@Query(
+		"SELECT admission_ordinal, event_id FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND (logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds)) " +
+			"ORDER BY admission_ordinal LIMIT :limit",
+	)
+	suspend fun portableWalClosureKeys(
+		sourceKind: Int,
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
 		limit: Int,
 	): List<CellWalMaintenanceKey>
 

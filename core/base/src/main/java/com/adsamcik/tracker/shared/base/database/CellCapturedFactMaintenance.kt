@@ -532,6 +532,114 @@ internal suspend fun AppDatabase.auditCapturedCellFacts(
 	)
 }
 
+/**
+ * Audits the complete retained Cell fact closure that can affect one portable logical entry.
+ * Rows are selected from both sides of the logical-entry/service-run identity so a one-sided
+ * corruption cannot escape the audit, while unrelated retained history cannot exhaust its bounds.
+ */
+@Suppress("ComplexCondition", "LongMethod")
+internal suspend fun AppDatabase.auditPortableCapturedCellFacts(
+	evidenceState: SourceEvidenceState,
+	logicalTrackingId: String,
+	serviceRunIds: List<String>,
+	limits: CellCapturedMaintenanceLimits,
+	checkpoint: suspend (CellCapturedMaintenanceCheckpoint) -> Unit,
+): CellCapturedFactAudit {
+	require(logicalTrackingId.isNotBlank())
+	require(serviceRunIds.isNotEmpty() && serviceRunIds.distinct().size == serviceRunIds.size)
+	val dao = cellCapturedFactDao()
+	val revisions = dao.portableRevisionClosure(
+		logicalTrackingId,
+		serviceRunIds,
+		limits.maximumRevisions + 1,
+	)
+	if (revisions.size > limits.maximumRevisions) throw CellCapturedMaintenanceLimitExceeded()
+	if (revisions.isNotEmpty()) checkpoint(CellCapturedMaintenanceCheckpoint.REVISION_PAGE_LOADED)
+
+	val lineages = revisions.groupBy(CellCapturedFactRevisionEntity::logicalFactId)
+		.values
+		.map(::authenticateCellCapturedLineage)
+	if (lineages.size > limits.maximumLogicalFacts) throw CellCapturedMaintenanceLimitExceeded()
+	val byId = lineages.associateBy(CellCapturedLineage::logicalFactId)
+	if (byId.size != lineages.size) {
+		block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	}
+
+	val owner = sourceDestinationOwnerDao().get(
+		CELL_SOURCE,
+		SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+	)
+	if (lineages.isNotEmpty() && (owner == null ||
+		owner.owner != SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS ||
+		owner.ownerGeneration != SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
+	) block(CellCapturedRetentionBlockedReason.DESTINATION_OWNER_CHANGED)
+
+	val cursorRows = dao.portableCursorClosure(
+		logicalTrackingId,
+		serviceRunIds,
+		limits.maximumCursors + 1,
+	)
+	if (cursorRows.size > limits.maximumCursors) throw CellCapturedMaintenanceLimitExceeded()
+	val cursors = cursorRows.associateBy(CellCapturedFactCursorEntity::logicalFactId)
+	if (cursors.size != cursorRows.size || cursors.keys != byId.keys) {
+		block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	}
+
+	val generations = dao.portableDeletionGenerationClosure(
+		logicalTrackingId,
+		serviceRunIds,
+		limits.maximumDeletionGenerations + 1,
+	)
+	if (generations.size > limits.maximumDeletionGenerations) {
+		throw CellCapturedMaintenanceLimitExceeded()
+	}
+	val generationByScope = generations.associateBy { generation ->
+		CellCapturedRunScope(generation.logicalTrackingId, generation.serviceRunId)
+	}
+	if (generationByScope.size != generations.size) {
+		block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	}
+
+	val reuseAuthorityById = mutableMapOf<String, CellAggregateReuseAuthority>()
+	val aggregateById = mutableMapOf<String, CellHistoricalIdentityFreeAggregate>()
+	var latestWalTimeMs = 0L
+	for (lineage in lineages) {
+		currentCoroutineContext().ensureActive()
+		val latest = lineage.revisions.last()
+		val cursor = cursors[lineage.logicalFactId]
+		if (cursor == null || !cursor.matchesCurrent(latest)) {
+			block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		}
+		if (latest.collectedDataEpoch != evidenceState.collectedDataEpoch ||
+			latest.sourceAdmissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal
+		) block(CellCapturedRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		val authenticated = authenticateCellCapturedAuthority(latest, limits)
+		reuseAuthorityById[lineage.logicalFactId] = authenticated.reuseAuthority
+		aggregateById[lineage.logicalFactId] = authenticated.aggregate
+		latestWalTimeMs = maxOf(latestWalTimeMs, authenticated.walCreatedAtMs)
+		checkpoint(CellCapturedMaintenanceCheckpoint.LINEAGE_AUTHENTICATED)
+	}
+	// Aggregate owners share the selected capture scope and are therefore included by the closure
+	// query even when only their dependent correction is a retained export observation.
+	authenticateAggregateDependencies(lineages, byId, reuseAuthorityById, aggregateById)
+	authenticateCellDeletionGenerations(lineages, generations, evidenceState.collectedDataEpoch)
+
+	return CellCapturedFactAudit(
+		lineages = lineages,
+		lineagesById = byId,
+		aggregateById = aggregateById,
+		generationByScope = generationByScope,
+		latestDurableTimeMs = maxOf(
+			evidenceState.updatedAtMs,
+			owner?.updatedAtMs ?: 0L,
+			latestWalTimeMs,
+			lineages.maxOfOrNull { lineage -> lineage.revisions.maxOf { it.appliedAtMs } } ?: 0L,
+			cursors.values.maxOfOrNull(CellCapturedFactCursorEntity::updatedAtMs) ?: 0L,
+			generations.maxOfOrNull(CellCaptureDeletionGenerationEntity::updatedAtMs) ?: 0L,
+		),
+	)
+}
+
 private fun authenticateCellCapturedLineage(
 	revisions: List<CellCapturedFactRevisionEntity>,
 ): CellCapturedLineage {
@@ -1436,6 +1544,94 @@ internal suspend fun AppDatabase.loadCapturedCellWalScopesForDeletion(
 	}
 	if (loaded.toLong() != total) {
 		block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	}
+	return CellCapturedWalAudit(scopes, carriers, latestDurableTimeMs)
+}
+
+/**
+ * Audits only WAL carriers that can belong to one portable logical-entry/run closure. The OR
+ * predicate deliberately includes malformed one-sided bindings so the caller can reject them.
+ */
+@Suppress("ComplexCondition", "LongMethod")
+internal suspend fun AppDatabase.loadPortableCapturedCellWalScopes(
+	evidenceState: SourceEvidenceState,
+	logicalTrackingId: String,
+	serviceRunIds: List<String>,
+	limits: CellCapturedMaintenanceLimits,
+): CellCapturedWalAudit {
+	require(logicalTrackingId.isNotBlank())
+	require(serviceRunIds.isNotEmpty() && serviceRunIds.distinct().size == serviceRunIds.size)
+	val dao = cellCapturedFactDao()
+	val keys = dao.portableWalClosureKeys(
+		CELL_SOURCE,
+		logicalTrackingId,
+		serviceRunIds,
+		limits.maximumWalEvents + 1,
+	)
+	if (keys.size > limits.maximumWalEvents) throw CellCapturedMaintenanceLimitExceeded()
+	if (keys != keys.sortedBy { key -> key.admissionOrdinal } ||
+		keys.any { key -> key.admissionOrdinal <= 0L } ||
+		keys.distinctBy { key -> key.admissionOrdinal }.size != keys.size ||
+		keys.distinctBy { key -> key.eventId }.size != keys.size
+	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+
+	val scopes = linkedSetOf<CellCapturedRunScope>()
+	val carriers = mutableListOf<CellCapturedWalCarrier>()
+	var latestDurableTimeMs = 0L
+	for (key in keys) {
+		currentCoroutineContext().ensureActive()
+		val payloadBytes = dao.maintenanceWalPayloadByteCount(key.eventId)
+		if (payloadBytes == null || payloadBytes > limits.maximumWalPayloadBytes) {
+			block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		}
+		val wal = sourceEventWalDao().getByEventId(key.eventId)
+		if (wal == null || wal.admissionOrdinal != key.admissionOrdinal ||
+			wal.sourceKind != CELL_SOURCE || !wal.hasQualifiedIntegrity()
+		) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		if (wal.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch ||
+			wal.admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal
+		) continue
+		val captureBindingFields = listOf(
+			wal.logicalTrackingId,
+			wal.serviceRunId,
+			wal.sourcePolicyRevision,
+			wal.captureConsentEpoch,
+			wal.sessionManifestRevision,
+			wal.lifecycleLeaseGeneration,
+		)
+		val captureEligible = wal.authorizationPurposeEligibilityMask and
+			SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
+		if (!captureEligible && captureBindingFields.all { field -> field == null }) continue
+		val captureEnvelopeFields = captureBindingFields + listOf(
+			wal.configRevision,
+			wal.physicalConfigurationFingerprint,
+			wal.authorizationRevision,
+			wal.authorizationFingerprint,
+		)
+		if (!captureEligible || captureEnvelopeFields.any { field -> field == null } ||
+			wal.logicalTrackingId.isNullOrBlank() || wal.serviceRunId.isNullOrBlank() ||
+			wal.deliveryIdentity?.matches(LOWERCASE_SHA_256) != true ||
+			wal.deliveryUnitIndex != 0 || wal.deliveryUnitCount != 1 || wal.sourceSequence <= 0L ||
+			wal.configRevision!! <= 0L || wal.authorizationRevision!! <= 0L ||
+			wal.sourcePolicyRevision!! <= 0L || wal.captureConsentEpoch!! < 0L ||
+			wal.sessionManifestRevision!! <= 0L || wal.lifecycleLeaseGeneration!! <= 0L ||
+			wal.planAttribution != CAPTURED_REGISTRATION_PLAN_ATTRIBUTION ||
+			wal.activityAutomationEpoch != null
+		) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		val scope = authenticateCapturedCellWalScopeForDeletion(wal, limits)
+		scopes += scope
+		carriers += CellCapturedWalCarrier(
+			wal.eventId,
+			wal.admissionOrdinal,
+			scope,
+			earliestCoveredWallTime(
+				requireNotNull(wal.wallTimeMs),
+				requireNotNull(wal.wallTimeUncertaintyMs),
+				wal.observedElapsedNanos,
+				requireNotNull(wal.observedIntervalStartNanos),
+			),
+		)
+		latestDurableTimeMs = maxOf(latestDurableTimeMs, wal.createdAtMs)
 	}
 	return CellCapturedWalAudit(scopes, carriers, latestDurableTimeMs)
 }
