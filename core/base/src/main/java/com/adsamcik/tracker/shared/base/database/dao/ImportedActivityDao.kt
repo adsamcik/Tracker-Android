@@ -12,6 +12,8 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDelet
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetainedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetentionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityWindowEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityZoneEpochEntity
@@ -42,6 +44,12 @@ abstract class ImportedActivityDao {
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertEntryDeletionReceipt(value: ImportedActivityEntryDeletionReceiptEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertRetentionReceipts(values: List<ImportedActivityRetentionReceiptEntity>)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertRetainedIdentities(values: List<ImportedActivityRetainedIdentityEntity>)
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	protected abstract suspend fun insertDeletionGenerationRows(
@@ -75,10 +83,19 @@ abstract class ImportedActivityDao {
 
 	@Query(
 		"SELECT identity, import_revision, content_checksum, start_time_ms, end_time_ms, " +
-			"received_at_ms FROM imported_activity_entry_revision WHERE identity = :identity " +
+			"received_at_ms, 'LIVE' AS candidate_state " +
+			"FROM imported_activity_entry_revision WHERE identity = :identity " +
 			"ORDER BY import_revision DESC LIMIT 1",
 	)
 	abstract suspend fun latestHistoryCandidate(identity: String): ImportedActivityHistoryCandidate?
+
+	@Query(
+		"SELECT entry_identity AS identity, latest_import_revision AS import_revision, " +
+			"latest_content_checksum AS content_checksum, start_time_ms, end_time_ms, received_at_ms, " +
+			"'RETAINED' AS candidate_state FROM imported_activity_retention_receipt " +
+			"WHERE entry_identity = :identity",
+	)
+	abstract suspend fun retainedHistoryCandidate(identity: String): ImportedActivityHistoryCandidate?
 
 	/** One latest-revision seed per imported logical entry, ordered for product history. */
 	@Query(
@@ -93,7 +110,8 @@ abstract class ImportedActivityDao {
 		       entry.content_checksum,
 		       entry.start_time_ms,
 		       entry.end_time_ms,
-		       entry.received_at_ms
+		       entry.received_at_ms,
+		       'LIVE' AS candidate_state
 		FROM imported_activity_entry_revision AS entry
 		INNER JOIN latest_revision AS latest
 		  ON latest.identity = entry.identity
@@ -104,7 +122,22 @@ abstract class ImportedActivityDao {
 		     entry.start_time_ms = :beforeStartTimeMs
 		     AND entry.identity < COALESCE(:beforeIdentity, '')
 		   )
-		ORDER BY entry.start_time_ms DESC, entry.identity DESC
+		UNION ALL
+		SELECT retained.entry_identity,
+		       retained.latest_import_revision,
+		       retained.latest_content_checksum,
+		       retained.start_time_ms,
+		       retained.end_time_ms,
+		       retained.received_at_ms,
+		       'RETAINED' AS candidate_state
+		FROM imported_activity_retention_receipt AS retained
+		WHERE :beforeStartTimeMs IS NULL
+		   OR retained.start_time_ms < :beforeStartTimeMs
+		   OR (
+		     retained.start_time_ms = :beforeStartTimeMs
+		     AND retained.entry_identity < COALESCE(:beforeIdentity, '')
+		   )
+		ORDER BY start_time_ms DESC, identity DESC, candidate_state
 		LIMIT :limit
 		""",
 	)
@@ -127,7 +160,8 @@ abstract class ImportedActivityDao {
 		       entry.content_checksum,
 		       entry.start_time_ms,
 		       entry.end_time_ms,
-		       entry.received_at_ms
+		       entry.received_at_ms,
+		       'LIVE' AS candidate_state
 		FROM imported_activity_entry_revision AS entry
 		INNER JOIN latest_revision AS latest
 		  ON latest.identity = entry.identity
@@ -142,7 +176,26 @@ abstract class ImportedActivityDao {
 		      AND entry.identity < COALESCE(:beforeIdentity, '')
 		    )
 		  )
-		ORDER BY entry.start_time_ms DESC, entry.identity DESC
+		UNION ALL
+		SELECT retained.entry_identity,
+		       retained.latest_import_revision,
+		       retained.latest_content_checksum,
+		       retained.start_time_ms,
+		       retained.end_time_ms,
+		       retained.received_at_ms,
+		       'RETAINED' AS candidate_state
+		FROM imported_activity_retention_receipt AS retained
+		WHERE retained.start_time_ms < :toExclusiveMs
+		  AND retained.end_time_ms > :fromInclusiveMs
+		  AND (
+		    :beforeStartTimeMs IS NULL
+		    OR retained.start_time_ms < :beforeStartTimeMs
+		    OR (
+		      retained.start_time_ms = :beforeStartTimeMs
+		      AND retained.entry_identity < COALESCE(:beforeIdentity, '')
+		    )
+		  )
+		ORDER BY start_time_ms DESC, identity DESC, candidate_state
 		LIMIT :limit
 		""",
 	)
@@ -373,6 +426,15 @@ abstract class ImportedActivityDao {
 			SELECT 'RECEIPT_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
 			FROM imported_activity_receipt
 			UNION ALL
+			SELECT 'RETENTION_RECEIPT_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_retention_receipt
+			UNION ALL
+			SELECT 'RETAINED_IDENTITY', protected_identity, NULL, NULL, NULL
+			FROM imported_activity_retained_identity
+			UNION ALL
+			SELECT 'RETAINED_IDENTITY_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_retained_identity
+			UNION ALL
 			SELECT 'RUN_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
 			FROM imported_activity_run
 			UNION ALL
@@ -436,6 +498,123 @@ abstract class ImportedActivityDao {
 		require(identities.distinct().size == identities.size)
 		require(limit in 1..(identities.size + 2))
 		return loadProtectedIdentityOwners(identities, limit)
+	}
+
+	@Query("SELECT * FROM imported_activity_retention_receipt WHERE entry_identity = :identity")
+	abstract suspend fun retentionReceipt(identity: String): ImportedActivityRetentionReceiptEntity?
+
+	@Query("SELECT * FROM imported_activity_retention_receipt WHERE entry_identity IN (:identities)")
+	abstract suspend fun retentionReceipts(
+		identities: List<String>,
+	): List<ImportedActivityRetentionReceiptEntity>
+
+	@Query(
+		"SELECT * FROM imported_activity_retention_receipt " +
+			"WHERE :afterIdentity IS NULL OR entry_identity > :afterIdentity " +
+			"ORDER BY entry_identity LIMIT :limit",
+	)
+	abstract suspend fun retentionReceiptPage(
+		afterIdentity: String?,
+		limit: Int,
+	): List<ImportedActivityRetentionReceiptEntity>
+
+	@Query(
+		"SELECT * FROM imported_activity_retained_identity WHERE entry_identity IN (:entryIdentities) " +
+			"ORDER BY entry_identity, identity_kind, protected_identity LIMIT :limit",
+	)
+	abstract suspend fun retainedIdentitiesForEntries(
+		entryIdentities: List<String>,
+		limit: Int,
+	): List<ImportedActivityRetainedIdentityEntity>
+
+	@Query(
+		"SELECT * FROM imported_activity_retained_identity WHERE protected_identity IN (:identities) " +
+			"ORDER BY protected_identity LIMIT :limit",
+	)
+	abstract suspend fun retainedIdentityOwners(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedActivityRetainedIdentityEntity>
+
+	@Query("SELECT COUNT(*) FROM imported_activity_retention_receipt")
+	abstract suspend fun retentionReceiptCount(): Long
+
+	@Query("SELECT COUNT(*) FROM imported_activity_retained_identity")
+	abstract suspend fun retainedIdentityCount(): Long
+
+	@Query(
+		"SELECT COUNT(*) FROM imported_activity_retained_identity AS marker " +
+			"LEFT JOIN imported_activity_retention_receipt AS receipt " +
+			"ON receipt.entry_identity = marker.entry_identity " +
+			"WHERE receipt.entry_identity IS NULL",
+	)
+	abstract suspend fun orphanRetainedIdentityCount(): Long
+
+	@Query(
+		"""
+		SELECT owner_kind, protected_identity, source_kind, purpose, scope_kind, COUNT(*) AS owner_count
+		FROM (
+			SELECT 'ENTRY_IDENTITY' AS owner_kind, identity AS protected_identity,
+			       CAST(NULL AS INTEGER) AS source_kind, CAST(NULL AS TEXT) AS purpose,
+			       CAST(NULL AS TEXT) AS scope_kind
+			FROM imported_activity_entry_revision
+			UNION ALL SELECT 'RECEIPT_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_receipt
+			UNION ALL SELECT 'RUN_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_run
+			UNION ALL SELECT 'RUN_IDENTITY', identity, NULL, NULL, NULL FROM imported_activity_run
+			UNION ALL SELECT 'RUN_SCOPE_OWNER', deletion_scope_digest, NULL, NULL, NULL
+			FROM imported_activity_run
+			UNION ALL SELECT 'ZONE_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_zone_epoch
+			UNION ALL SELECT 'ZONE_RUN_OWNER', run_identity, NULL, NULL, NULL
+			FROM imported_activity_zone_epoch
+			UNION ALL SELECT 'WINDOW_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_window
+			UNION ALL SELECT 'WINDOW_RUN_OWNER', run_identity, NULL, NULL, NULL
+			FROM imported_activity_window
+			UNION ALL SELECT 'WINDOW_IDENTITY', identity, NULL, NULL, NULL
+			FROM imported_activity_window
+			UNION ALL SELECT 'FRAGMENT_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_fragment
+			UNION ALL SELECT 'FRAGMENT_RUN_OWNER', run_identity, NULL, NULL, NULL
+			FROM imported_activity_fragment
+			UNION ALL SELECT 'FRAGMENT_WINDOW_OWNER', window_identity, NULL, NULL, NULL
+			FROM imported_activity_fragment
+			UNION ALL SELECT 'ENTRY_DELETION', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_entry_deletion
+			UNION ALL SELECT 'ENTRY_DELETION_RECEIPT', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_entry_deletion_receipt
+			UNION ALL SELECT 'RUN_DELETION', run_identity, NULL, NULL, NULL
+			FROM imported_activity_deletion_generation
+			UNION ALL SELECT 'SOURCE_DELETION_SCOPE', scope_identity_digest, source_kind, purpose, scope_kind
+			FROM source_deletion_fence
+			UNION ALL SELECT 'RETENTION_RECEIPT_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_retention_receipt
+			UNION ALL SELECT 'RETAINED_IDENTITY', protected_identity, NULL, NULL, NULL
+			FROM imported_activity_retained_identity
+			UNION ALL SELECT 'RETAINED_IDENTITY_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+			FROM imported_activity_retained_identity
+		) AS owner_facts
+		WHERE protected_identity IN (:identities)
+		GROUP BY owner_kind, protected_identity, source_kind, purpose, scope_kind
+		ORDER BY owner_kind, protected_identity, source_kind, purpose, scope_kind
+		LIMIT :limit
+		""",
+	)
+	protected abstract suspend fun loadProtectedIdentityOwnerCounts(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedActivityProtectedIdentityOwnerCount>
+
+	suspend fun protectedIdentityOwnerCounts(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedActivityProtectedIdentityOwnerCount> {
+		require(identities.size in 1..PROTECTED_IDENTITY_AUDIT_BATCH_SIZE)
+		require(identities.distinct().size == identities.size)
+		require(limit > 0)
+		return loadProtectedIdentityOwnerCounts(identities, limit)
 	}
 
 	@Query("SELECT * FROM imported_activity_entry_deletion WHERE entry_identity = :identity")
@@ -516,6 +695,9 @@ abstract class ImportedActivityDao {
 	@Query("DELETE FROM imported_activity_entry_revision WHERE identity = :identity")
 	abstract suspend fun deleteEntryRevisions(identity: String): Int
 
+	@Query("DELETE FROM imported_activity_entry_revision WHERE identity IN (:identities)")
+	abstract suspend fun deleteEntryRevisionLineages(identities: List<String>): Int
+
 	@Query("DELETE FROM imported_activity_entry_revision")
 	abstract fun deleteAllEntries()
 
@@ -530,6 +712,12 @@ abstract class ImportedActivityDao {
 
 	@Query("DELETE FROM imported_activity_deletion_generation")
 	abstract fun deleteAllDeletionGenerations()
+
+	@Query("DELETE FROM imported_activity_retained_identity")
+	abstract fun deleteAllRetainedIdentities()
+
+	@Query("DELETE FROM imported_activity_retention_receipt")
+	abstract fun deleteAllRetentionReceipts()
 
 	private fun checkedHistoryIdentities(identities: List<String>): List<String> {
 		require(identities.isNotEmpty())
@@ -553,6 +741,7 @@ abstract class ImportedActivityDao {
 		const val MAX_HISTORY_ENTRY_CANDIDATES = 100
 		const val HISTORY_EVALUATION_BATCH_SIZE = 4
 		const val PROTECTED_IDENTITY_AUDIT_BATCH_SIZE = 400
+		const val MAX_RETAINED_IDENTITY_ROWS = 262_144
 		private const val HISTORY_ID_QUERY_CHUNK_SIZE = 400
 	}
 }
@@ -564,7 +753,11 @@ data class ImportedActivityHistoryCandidate(
 	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
 	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
 	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+	@ColumnInfo(name = "candidate_state") val candidateState: String = IMPORTED_ACTIVITY_CANDIDATE_LIVE,
 )
+
+const val IMPORTED_ACTIVITY_CANDIDATE_LIVE = "LIVE"
+const val IMPORTED_ACTIVITY_CANDIDATE_RETAINED = "RETAINED"
 
 data class ImportedActivityRunIdentityOwner(
 	val identity: String,
@@ -598,3 +791,12 @@ data class ImportedActivityProtectedIdentityOwner(
 		const val SOURCE_DELETION_SCOPE = "SOURCE_DELETION_SCOPE"
 	}
 }
+
+data class ImportedActivityProtectedIdentityOwnerCount(
+	@ColumnInfo(name = "owner_kind") val ownerKind: String,
+	@ColumnInfo(name = "protected_identity") val protectedIdentity: String,
+	@ColumnInfo(name = "source_kind") val sourceKind: Int?,
+	val purpose: String?,
+	@ColumnInfo(name = "scope_kind") val scopeKind: String?,
+	@ColumnInfo(name = "owner_count") val ownerCount: Long,
+)

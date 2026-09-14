@@ -1531,6 +1531,356 @@ class RoomImportPortableCapturedActivityTest {
 	}
 
 	@Test
+	fun `retention truncates the complete imported hierarchy and prevents every resurrection path`() =
+		runTest {
+			val sourceScopedEntry = entry(
+				deletionScope = PortableActivityDeletionScopeDigest.derive(
+					LOGICAL_TRACKING_ID,
+					SERVICE_RUN_ID,
+				),
+				startUncertaintyMs = 0L,
+			)
+			val value = request(sourceScopedEntry)
+			importer(testScheduler).importEntry(value) shouldBe
+				ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+			val runDeletion = ImportedActivityDeletionGenerationEntity.create(
+				sourceScopedEntry.runs.single().identity.value,
+				EPOCH,
+				1L,
+				70L,
+			)
+			database.importedActivityDao().insertDeletionGeneration(runDeletion)
+			val sourceFence = sourceDeletionFence()
+			database.sourceDeletionFenceDao().insertIfAbsent(sourceFence) shouldBe 1L
+			establishRetentionFloor()
+
+			truncator(testScheduler).truncate(retentionRequest()) shouldBe
+				TruncateImportedActivityRetentionResult.Truncated(1, 1, 1, 1, 1)
+
+			val dao = database.importedActivityDao()
+			dao.latestEntryRevision(sourceScopedEntry.identity.value) shouldBe null
+			val receipt = requireNotNull(dao.retentionReceipt(sourceScopedEntry.identity.value))
+			receipt.latestContentChecksum shouldBe sourceScopedEntry.contentChecksum.value
+			receipt.runDeletionCount shouldBe 1
+			receipt.sourceFenceCount shouldBe 1
+			dao.retainedIdentitiesForEntries(listOf(sourceScopedEntry.identity.value), 5).size shouldBe 4
+			dao.deletionGenerations(listOf(runDeletion.runIdentity)).single() shouldBe runDeletion
+			database.sourceDeletionFenceDao().get(
+				sourceFence.sourceKind,
+				sourceFence.purpose,
+				sourceFence.scopeKind,
+				sourceFence.scopeIdentityDigest,
+			) shouldBe sourceFence
+			val retained = database.withTransaction {
+				ImportedActivityProductReader(database).selectIdentityInTransaction(sourceScopedEntry.identity)
+			}
+			retained shouldBe ImportedActivityProductEvaluation.Retained(
+				candidate = requireNotNull(retained).candidate,
+				retainedFromMs = RETENTION_FLOOR,
+				retainedAtMs = RETENTION_MARKED_AT,
+			)
+			importer(testScheduler).importEntry(value) shouldBe ImportPortableCapturedActivityResult.Blocked(
+				PortableActivityImportBlockedReason.RETENTION_BOUNDARY,
+			)
+			deleter(testScheduler).delete(deleteRequest(sourceScopedEntry, deletedAtMs = 110L)) shouldBe
+				DeleteSelectedImportedActivityResult.Blocked(
+					SelectedImportedActivityDeletionBlockedReason.RETENTION_BOUNDARY,
+				)
+			var sinkCalls = 0
+			RoomExportPortableCapturedActivity(
+				database,
+				SourceProductLaneExecutionAuthority { false },
+				UnconfinedTestDispatcher(testScheduler),
+			).export(ExportPortableCapturedActivityRequest(900L, 2_100L)) { sinkCalls++ } shouldBe
+				ExportPortableCapturedActivityResult.NoEntries
+			sinkCalls shouldBe 0
+			truncator(testScheduler).truncate(
+				retentionRequest(expectedRevision = 2L, markedAtMs = 110L),
+			) shouldBe TruncateImportedActivityRetentionResult.NoChange
+		}
+
+	@Test
+	fun `a retained older correction cannot escape through a newer safe correction`() = runTest {
+		val original = request(entry(startUncertaintyMs = 10L))
+		val corrected = request(
+			entry(startUncertaintyMs = 0L, endUncertaintyMs = 0L),
+			receipt("retention-correction", 40L),
+		)
+		importer(testScheduler).importEntry(original) shouldBe
+			ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		importer(testScheduler).importEntry(corrected) shouldBe
+			ImportPortableCapturedActivityResult.Applied(2L, 1, 1, 1)
+		establishRetentionFloor()
+
+		truncator(testScheduler).truncate(retentionRequest()) shouldBe
+			TruncateImportedActivityRetentionResult.Truncated(1, 2, 2, 2, 2)
+		database.importedActivityDao().retentionReceipt(original.entry.identity.value)
+			?.latestContentChecksum shouldBe corrected.entry.contentChecksum.value
+	}
+
+	@Test
+	fun `retention selects captured uncertainty instead of the raw entry range`() = runTest {
+		val runs = listOf(
+			notCapturedRun(startTimeMs = 900L, endTimeMs = 994L),
+			run(startUncertaintyMs = 0L, endUncertaintyMs = 0L),
+		).sortedWith(
+			compareBy<PortableActivityRunV1>(PortableActivityRunV1::startTimeMs)
+				.thenBy(PortableActivityRunV1::endTimeMs)
+				.thenBy { it.identity.value },
+		)
+		val value = entry(entryLocalId = "retention-covered-interval", runs = runs)
+		importer(testScheduler).importEntry(request(value)) shouldBe
+			ImportPortableCapturedActivityResult.Applied(1L, 2, 1, 1)
+		establishRetentionFloor()
+
+		truncator(testScheduler).truncate(retentionRequest()) shouldBe
+			TruncateImportedActivityRetentionResult.NoChange
+		database.importedActivityDao().latestEntryRevision(value.identity.value)?.importRevision shouldBe 1L
+		database.importedActivityDao().retentionReceipt(value.identity.value) shouldBe null
+	}
+
+	@Test
+	fun `retention preserves safe imports and preexisting selected deletion authority`() = runTest {
+		val selected = entry()
+		val safe = entry(
+			entryLocalId = "retention-safe-entry",
+			runIdentity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "retention-safe-run"),
+			deletionScope = scope("retention-safe-scope"),
+			windowIdentity = identity(PortableActivityIdentityKind.CAPTURE_WINDOW, "retention-safe-window"),
+			startUncertaintyMs = 0L,
+			endUncertaintyMs = 0L,
+		)
+		val deleted = entry(
+			entryLocalId = "retention-deleted-entry",
+			runIdentity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "retention-deleted-run"),
+			deletionScope = scope("retention-deleted-scope"),
+			windowIdentity = identity(PortableActivityIdentityKind.CAPTURE_WINDOW, "retention-deleted-window"),
+		)
+		importer(testScheduler).importEntry(request(selected))
+		importer(testScheduler).importEntry(request(
+			safe,
+			PortableActivityImportReceipt("retention-safe-job", "safe", "backup", 40L),
+		))
+		importer(testScheduler).importEntry(request(
+			deleted,
+			PortableActivityImportReceipt("retention-deleted-job", "deleted", "backup", 50L),
+		))
+		deleter(testScheduler).delete(deleteRequest(deleted, deletedAtMs = 70L)) shouldBe
+			DeleteSelectedImportedActivityResult.Deleted(1, 1)
+		val deletedReceipt = requireNotNull(
+			database.importedActivityDao().entryDeletionReceipt(deleted.identity.value),
+		)
+		val deletedMarker = requireNotNull(
+			database.importedActivityDao().entryDeletion(deleted.identity.value),
+		)
+		establishRetentionFloor()
+		val expectedRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+
+		truncator(testScheduler).truncate(
+			retentionRequest(expectedRevision = expectedRevision),
+		) shouldBe TruncateImportedActivityRetentionResult.Truncated(1, 1, 1, 1, 1)
+
+		database.importedActivityDao().latestEntryRevision(selected.identity.value) shouldBe null
+		database.importedActivityDao().latestEntryRevision(safe.identity.value)?.identity shouldBe
+			safe.identity.value
+		database.importedActivityDao().entryDeletionReceipt(deleted.identity.value) shouldBe deletedReceipt
+		database.importedActivityDao().entryDeletion(deleted.identity.value) shouldBe deletedMarker
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `retention rejects stale lifecycle snapshots and stale marking time without mutation`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		establishRetentionFloor()
+
+		truncator(testScheduler).truncate(
+			retentionRequest(expectedRevision = 0L),
+		) shouldBe TruncateImportedActivityRetentionResult.Blocked(
+			ImportedActivityRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED,
+		)
+		truncator(testScheduler).truncate(
+			retentionRequest().copy(retainedFromMs = RETENTION_FLOOR - 1L),
+		) shouldBe TruncateImportedActivityRetentionResult.Blocked(
+			ImportedActivityRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED,
+		)
+		truncator(testScheduler).truncate(
+			retentionRequest(markedAtMs = RETENTION_STATE_AT - 1L),
+		) shouldBe TruncateImportedActivityRetentionResult.Blocked(
+			ImportedActivityRetentionBlockedReason.STALE_REQUEST,
+		)
+		database.importedActivityDao().latestEntryRevision(value.entry.identity.value)?.importRevision shouldBe 1L
+		database.importedActivityDao().retentionReceipt(value.entry.identity.value) shouldBe null
+	}
+
+	@Test
+	fun `retention audits orphan semantic owner columns before writing authority`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		val run = value.entry.runs.single()
+		val window = run.windows.single()
+		val storedFragment = database.importedActivityDao().fragments(
+			value.entry.identity.value,
+			1L,
+			run.identity.value,
+			window.identity.value,
+		).single()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL("PRAGMA foreign_keys = OFF")
+		try {
+			database.importedActivityDao().insertFragment(
+				storedFragment.copy(
+					entryIdentity = ActivityCapturedPortableIntegrity.digest("orphan-entry", listOf("1")),
+					runIdentity = ActivityCapturedPortableIntegrity.digest("orphan-run", listOf("1")),
+					windowIdentity = window.identity.value,
+				),
+			)
+		} finally {
+			sqlite.execSQL("PRAGMA foreign_keys = ON")
+		}
+		establishRetentionFloor()
+
+		truncator(testScheduler).truncate(retentionRequest()) shouldBe
+			TruncateImportedActivityRetentionResult.Unverifiable(
+				ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT,
+			)
+		database.importedActivityDao().latestEntryRevision(value.entry.identity.value)?.importRevision shouldBe 1L
+		database.importedActivityDao().retentionReceipt(value.entry.identity.value) shouldBe null
+	}
+
+	@Test
+	fun `missing retained identity marker is never accepted as exact retained replay`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		establishRetentionFloor()
+		truncator(testScheduler).truncate(retentionRequest()) shouldBe
+			TruncateImportedActivityRetentionResult.Truncated(1, 1, 1, 1, 1)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM imported_activity_retained_identity WHERE protected_identity = ?",
+			arrayOf(value.entry.runs.single().identity.value),
+		)
+
+		importer(testScheduler).importEntry(value) shouldBe ImportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		truncator(testScheduler).truncate(
+			retentionRequest(expectedRevision = 2L, markedAtMs = 110L),
+		) shouldBe TruncateImportedActivityRetentionResult.Unverifiable(
+			ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `corrupt retained receipt is a typed product failure and cannot admit a replay`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		establishRetentionFloor()
+		truncator(testScheduler).truncate(retentionRequest()) shouldBe
+			TruncateImportedActivityRetentionResult.Truncated(1, 1, 1, 1, 1)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_activity_retention_receipt SET retained_at_ms = retained_at_ms + 1 " +
+				"WHERE entry_identity = ?",
+			arrayOf(value.entry.identity.value),
+		)
+
+		val evaluation = database.withTransaction {
+			ImportedActivityProductReader(database).selectIdentityInTransaction(value.entry.identity)
+		}
+		evaluation shouldBe ImportedActivityProductEvaluation.Unverifiable(
+			requireNotNull(evaluation).candidate,
+			ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		importer(testScheduler).importEntry(value) shouldBe ImportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `retained product rejects a changed source fence set and collected data epoch`() = runTest {
+		val value = request(entry(
+			deletionScope = PortableActivityDeletionScopeDigest.derive(
+				LOGICAL_TRACKING_ID,
+				SERVICE_RUN_ID,
+			),
+		))
+		importer(testScheduler).importEntry(value)
+		establishRetentionFloor()
+		truncator(testScheduler).truncate(retentionRequest()) shouldBe
+			TruncateImportedActivityRetentionResult.Truncated(1, 1, 1, 1, 1)
+		val lateFence = sourceDeletionFence()
+		database.sourceDeletionFenceDao().insertIfAbsent(lateFence) shouldBe 1L
+
+		val fenceChanged = database.withTransaction {
+			ImportedActivityProductReader(database).selectIdentityInTransaction(value.entry.identity)
+		}
+		fenceChanged shouldBe ImportedActivityProductEvaluation.Unverifiable(
+			requireNotNull(fenceChanged).candidate,
+			ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_deletion_fence WHERE scope_identity_digest = ?",
+			arrayOf(lateFence.scopeIdentityDigest),
+		)
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH + 1L, RETENTION_FLOOR, 120L) shouldBe 1
+
+		val epochChanged = database.withTransaction {
+			ImportedActivityProductReader(database).selectIdentityInTransaction(value.entry.identity)
+		}
+		epochChanged shouldBe ImportedActivityProductEvaluation.Unverifiable(
+			requireNotNull(epochChanged).candidate,
+			ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		importer(testScheduler).importEntry(value.copy(expectedCollectedDataEpoch = EPOCH + 1L)) shouldBe
+			ImportPortableCapturedActivityResult.Unverifiable(
+				PortableActivityImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+	}
+
+	@Test
+	fun `retention bound overflow and cancellation both preserve the imported hierarchy`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		establishRetentionFloor()
+		truncator(
+			testScheduler,
+			limits = ImportedActivityRetentionLimits(maximumProtectedIdentities = 3),
+		).truncate(retentionRequest()) shouldBe TruncateImportedActivityRetentionResult.Unverifiable(
+			ImportedActivityProductFailure.DEPENDENCY_OVERFLOW,
+		)
+		val cancelling = truncator(testScheduler) { checkpoint ->
+			if (checkpoint == ImportedActivityRetentionCheckpoint.PAYLOAD_REMOVED) {
+				throw CancellationException("cancel imported Activity retention")
+			}
+		}
+		shouldThrow<CancellationException> { cancelling.truncate(retentionRequest()) }
+
+		database.importedActivityDao().latestEntryRevision(value.entry.identity.value)?.importRevision shouldBe 1L
+		database.importedActivityDao().retentionReceipt(value.entry.identity.value) shouldBe null
+		rowCount("imported_activity_retained_identity") shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
+	}
+
+	@Test
+	fun `storage failure after retention authority insertion rolls back every effect`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		establishRetentionFloor()
+		val failing = truncator(testScheduler) { checkpoint ->
+			if (checkpoint == ImportedActivityRetentionCheckpoint.RETENTION_AUTHORITY_INSERTED) {
+				throw SQLiteException("retention storage failed")
+			}
+		}
+
+		failing.truncate(retentionRequest()) shouldBe
+			TruncateImportedActivityRetentionResult.RetryableFailure(
+				PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		database.importedActivityDao().latestEntryRevision(value.entry.identity.value)?.importRevision shouldBe 1L
+		database.importedActivityDao().retentionReceipt(value.entry.identity.value) shouldBe null
+		rowCount("imported_activity_retained_identity") shouldBe 0L
+	}
+
+	@Test
 	fun `portable re-export maps imported storage failure without invoking the sink`() = runTest {
 		val closed = newDatabase()
 		closed.close()
@@ -1564,6 +1914,35 @@ class RoomImportPortableCapturedActivityTest {
 		database,
 		UnconfinedTestDispatcher(scheduler),
 		checkpoint,
+	)
+
+	private fun truncator(
+		scheduler: TestCoroutineScheduler,
+		limits: ImportedActivityRetentionLimits = ImportedActivityRetentionLimits(),
+		checkpoint: suspend (ImportedActivityRetentionCheckpoint) -> Unit = {},
+	) = RoomTruncateImportedActivityRetention(
+		database,
+		UnconfinedTestDispatcher(scheduler),
+		checkpoint,
+		limits,
+	)
+
+	private suspend fun establishRetentionFloor() {
+		database.sourceEvidenceStateDao().updateLifecycle(
+			EPOCH,
+			RETENTION_FLOOR,
+			RETENTION_STATE_AT,
+		) shouldBe 1
+	}
+
+	private fun retentionRequest(
+		expectedRevision: Long = 1L,
+		markedAtMs: Long = RETENTION_MARKED_AT,
+	) = TruncateImportedActivityRetentionRequest(
+		expectedCollectedDataEpoch = EPOCH,
+		expectedSourceEvidenceRevision = expectedRevision,
+		retainedFromMs = RETENTION_FLOOR,
+		retainedAtMs = markedAtMs,
 	)
 
 	private fun deleteRequest(
@@ -1617,21 +1996,26 @@ class RoomImportPortableCapturedActivityTest {
 			"window",
 		),
 		runs: List<PortableActivityRunV1>? = null,
+		startUncertaintyMs: Long = 10L,
 	): PortableActivityEntryV1 {
-		val exactRuns = runs ?: listOf(run(runIdentity, deletionScope, endUncertaintyMs, windowIdentity))
+		val exactRuns = runs ?: listOf(
+			run(runIdentity, deletionScope, endUncertaintyMs, windowIdentity, startUncertaintyMs),
+		)
+		val startTimeMs = exactRuns.minOf(PortableActivityRunV1::startTimeMs)
+		val endTimeMs = exactRuns.maxOf(PortableActivityRunV1::endTimeMs)
 		val checksum = ActivityCapturedPortableIntegrity.entryChecksum(
 			entryIdentity,
 			sessionMode,
-			1_000L,
-			2_000L,
+			startTimeMs,
+			endTimeMs,
 			exactRuns,
 		)
 		return PortableActivityEntryV1(
 			entryIdentity,
 			checksum,
 			sessionMode,
-			1_000L,
-			2_000L,
+			startTimeMs,
+			endTimeMs,
 			exactRuns,
 		)
 	}
@@ -1649,9 +2033,10 @@ class RoomImportPortableCapturedActivityTest {
 			PortableActivityIdentityKind.CAPTURE_WINDOW,
 			"window",
 		),
+		startUncertaintyMs: Long = 10L,
 	): PortableActivityRunV1 {
 		val zones = listOf(PortableActivityZoneEpochV1(1_000L, "Europe/Prague"))
-		val windows = listOf(window(endUncertaintyMs, windowIdentity))
+		val windows = listOf(window(endUncertaintyMs, windowIdentity, startUncertaintyMs))
 		val checksum = ActivityCapturedPortableIntegrity.runChecksum(
 			identity,
 			deletionScope,
@@ -1673,16 +2058,19 @@ class RoomImportPortableCapturedActivityTest {
 		)
 	}
 
-	private fun notCapturedRun(): PortableActivityRunV1 {
+	private fun notCapturedRun(
+		startTimeMs: Long = 1_000L,
+		endTimeMs: Long = 2_000L,
+	): PortableActivityRunV1 {
 		val identity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "not-captured-run")
 		val scope = PortableActivityDeletionScopeDigest("b".repeat(64))
-		val zones = listOf(PortableActivityZoneEpochV1(1_000L, "Europe/Prague"))
+		val zones = listOf(PortableActivityZoneEpochV1(startTimeMs, "Europe/Prague"))
 		val checksum = ActivityCapturedPortableIntegrity.runChecksum(
-			identity, scope, 1_000L, 2_000L, PortableActivityCaptureCoverage.NOT_CAPTURED,
+			identity, scope, startTimeMs, endTimeMs, PortableActivityCaptureCoverage.NOT_CAPTURED,
 			zones, emptyList(),
 		)
 		return PortableActivityRunV1(
-			identity, scope, checksum, 1_000L, 2_000L,
+			identity, scope, checksum, startTimeMs, endTimeMs,
 			PortableActivityCaptureCoverage.NOT_CAPTURED, zones, emptyList(),
 		)
 	}
@@ -1693,11 +2081,12 @@ class RoomImportPortableCapturedActivityTest {
 			PortableActivityIdentityKind.CAPTURE_WINDOW,
 			"window",
 		),
+		startUncertaintyMs: Long = 10L,
 	): PortableActivityWindowV1 {
 		val fragments = listOf(
 			PortableActivityFragmentV1.Band(
 				0L, 100L, "WALKING", "TRANSITION", null, "TRANSITION_SIGNAL",
-				null, null, null, 1_000L, 10L, "EXACT_PROVIDER_OBSERVATION",
+				null, null, null, 1_000L, startUncertaintyMs, "EXACT_PROVIDER_OBSERVATION",
 				1_001L, endUncertaintyMs, "SAME_CLOCK_EXTRAPOLATION", "SAME_ANCHOR",
 			),
 		)
@@ -1800,5 +2189,8 @@ class RoomImportPortableCapturedActivityTest {
 		const val EPOCH = 7L
 		const val LOGICAL_TRACKING_ID = "logical-entry"
 		const val SERVICE_RUN_ID = "service-run"
+		const val RETENTION_FLOOR = 995L
+		const val RETENTION_STATE_AT = 80L
+		const val RETENTION_MARKED_AT = 100L
 	}
 }

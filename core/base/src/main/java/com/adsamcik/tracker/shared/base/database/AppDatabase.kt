@@ -75,6 +75,8 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDelet
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetainedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetentionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityWindowEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityZoneEpochEntity
@@ -196,6 +198,8 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedActivityZoneEpochEntity::class,
 			ImportedActivityWindowEntity::class,
 			ImportedActivityFragmentEntity::class,
+			ImportedActivityRetentionReceiptEntity::class,
+			ImportedActivityRetainedIdentityEntity::class,
 			ImportedActivityEntryDeletionEntity::class,
 			ImportedActivityEntryDeletionReceiptEntity::class,
 			ImportedActivityDeletionGenerationEntity::class,
@@ -652,6 +656,8 @@ abstract class AppDatabase : RoomDatabase() {
 			database.importedStepsDao().deleteAll()
 			database.importedActivityDao().deleteAllReceipts()
 			database.importedActivityDao().deleteAllEntries()
+			database.importedActivityDao().deleteAllRetainedIdentities()
+			database.importedActivityDao().deleteAllRetentionReceipts()
 			database.importedActivityDao().deleteAllEntryDeletionReceipts()
 			database.importedActivityDao().deleteAllEntryDeletions()
 			database.importedActivityDao().deleteAllDeletionGenerations()

@@ -2,11 +2,15 @@ package com.adsamcik.tracker.shared.base.database
 
 import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityHistoryCandidate
+import com.adsamcik.tracker.shared.base.database.dao.IMPORTED_ACTIVITY_CANDIDATE_LIVE
+import com.adsamcik.tracker.shared.base.database.dao.IMPORTED_ACTIVITY_CANDIDATE_RETAINED
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetainedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetentionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityWindowEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityZoneEpochEntity
@@ -27,9 +31,46 @@ class ImportedActivityProductReader(
 	internal suspend fun selectIdentityInTransaction(
 		identity: PortableActivityOpaqueIdentity,
 	): ImportedActivityProductEvaluation? {
-		val candidate = database.importedActivityDao().latestHistoryCandidate(identity.value)
-			?: return null
+		val dao = database.importedActivityDao()
+		val live = dao.latestHistoryCandidate(identity.value)
+		val retained = dao.retainedHistoryCandidate(identity.value)
+		if (live != null && retained != null) {
+			return live.unverifiable(ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT)
+		}
+		val candidate = live ?: retained ?: return null
 		return evaluateCandidates(listOf(candidate), null, null, 1).single()
+	}
+
+	/** Every imported entry shell, including retained-out receipts, in one bounded snapshot. */
+	internal suspend fun selectAllInTransaction(): List<ImportedActivityProductEvaluation> {
+		val candidates = mutableListOf<ImportedActivityHistoryCandidate>()
+		var beforeStartTimeMs: Long? = null
+		var beforeIdentity: String? = null
+		while (true) {
+			currentCoroutineContext().ensureActive()
+			val remaining = ActivityCapturedPortableFormatV1.MAX_ENTRIES - candidates.size
+			val pageLimit = minOf(ImportedActivityDao.MAX_HISTORY_ENTRY_CANDIDATES, remaining + 1)
+			val page = database.importedActivityDao().recentHistoryCandidatePage(
+				limit = pageLimit,
+				beforeStartTimeMs = beforeStartTimeMs,
+				beforeIdentity = beforeIdentity,
+			)
+			if (page.isEmpty()) break
+			if (!isValidCandidatePage(page, beforeStartTimeMs, beforeIdentity)) {
+				return page.take(1).unverifiable(
+					ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+			}
+			if (page.size > remaining) {
+				return page.take(1).unverifiable(ImportedActivityProductFailure.DEPENDENCY_OVERFLOW)
+			}
+			candidates += page
+			val last = page.last()
+			beforeStartTimeMs = last.startTimeMs
+			beforeIdentity = last.identity
+			if (page.size < pageLimit) break
+		}
+		return evaluateCandidates(candidates, null, null, ActivityCapturedPortableFormatV1.MAX_ENTRIES)
 	}
 
 	suspend fun selectRecentInTransaction(limit: Int): List<ImportedActivityProductEvaluation> {
@@ -104,7 +145,53 @@ class ImportedActivityProductReader(
 		if (state.collectedDataEpoch < 0L || state.retainedFromMs?.let { it < 0L } == true) {
 			return candidates.unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
 		}
-		val identities = candidates.map(ImportedActivityHistoryCandidate::identity)
+		val dao = database.importedActivityDao()
+		val candidateIdentities = candidates.map(ImportedActivityHistoryCandidate::identity)
+		val retentionReceipts = try {
+			dao.retentionReceipts(candidateIdentities)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			return candidates.unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		if (retentionReceipts.distinctBy { it.entryIdentity }.size != retentionReceipts.size) {
+			return candidates.unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		val retentionByIdentity = retentionReceipts.associateBy { it.entryIdentity }
+		if (candidates.any { candidate ->
+			(candidate.candidateState == IMPORTED_ACTIVITY_CANDIDATE_RETAINED) !=
+				(candidate.identity in retentionByIdentity)
+		}) return candidates.unverifiable(ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT)
+		val retentionFailure = try {
+			database.authenticateImportedActivityRetentionBatch(state, retentionReceipts)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			ImportedActivityRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
+		}
+		when (retentionFailure) {
+			ImportedActivityRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE ->
+				return candidates.unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+			ImportedActivityRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT ->
+				return candidates.unverifiable(ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT)
+			ImportedActivityRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
+				return candidates.unverifiable(ImportedActivityProductFailure.DEPENDENCY_OVERFLOW)
+			null -> Unit
+		}
+		val retainedEvaluations = retentionReceipts.associate { receipt ->
+			receipt.entryIdentity to ImportedActivityProductEvaluation.Retained(
+				candidate = receipt.toHistoryCandidate(),
+				retainedFromMs = receipt.retainedFromMs,
+				retainedAtMs = receipt.retainedAtMs,
+			)
+		}
+		val liveCandidates = candidates.filter {
+			it.candidateState == IMPORTED_ACTIVITY_CANDIDATE_LIVE
+		}
+		if (liveCandidates.isEmpty()) {
+			return candidates.map { requireNotNull(retainedEvaluations[it.identity]) }
+		}
+		val identities = liveCandidates.map(ImportedActivityHistoryCandidate::identity)
 		val loaded = try {
 			ImportedActivityProductBatch(
 				headers = database.importedActivityDao().entryRevisionsForHistory(identities),
@@ -163,7 +250,7 @@ class ImportedActivityProductReader(
 		val entryDeletionsByIdentity = entryDeletions.associateBy(ImportedActivityEntryDeletionEntity::entryIdentity)
 		val runDeletionsByIdentity = runDeletions.associateBy(ImportedActivityDeletionGenerationEntity::runIdentity)
 		val sourceDeletedScopes = sourceDeletions.mapTo(hashSetOf(), SourceDeletionFenceEntity::scopeIdentityDigest)
-		return candidates.map { candidate ->
+		val liveEvaluations = liveCandidates.map { candidate ->
 			currentCoroutineContext().ensureActive()
 			val headers = headersByIdentity[candidate.identity].orEmpty()
 			if (headers.any { it.collectedDataEpoch != state.collectedDataEpoch }) {
@@ -207,7 +294,7 @@ class ImportedActivityProductReader(
 					deletedRunIdentities = deletedRunIdentities,
 					retainedFromMs = state.retainedFromMs,
 					retentionLimited = state.retainedFromMs?.let { retainedFromMs ->
-						latest.entry.crossesRetentionBoundary(retainedFromMs)
+						lineage.revisions.any { it.entry.crossesRetentionBoundary(retainedFromMs) }
 					} == true,
 				)
 			} catch (failure: ImportedActivityLineageFailure) {
@@ -217,6 +304,9 @@ class ImportedActivityProductReader(
 			} catch (_: ArithmeticException) {
 				candidate.unverifiable(ImportedActivityProductFailure.VALUE_OVERFLOW)
 			}
+		}.associateBy { it.candidate.identity }
+		return candidates.map { candidate ->
+			retainedEvaluations[candidate.identity] ?: requireNotNull(liveEvaluations[candidate.identity])
 		}
 	}
 
@@ -238,7 +328,11 @@ class ImportedActivityProductReader(
 			val deletedEntries = database.importedActivityDao().entryDeletions(identities)
 			val deletionReceipts = database.importedActivityDao().entryDeletionReceipts(identities)
 			val deletedRuns = database.importedActivityDao().deletionGenerations(identities)
-			if (entries.size >= limit || runs.size >= limit || windows.size >= limit || scopes.isNotEmpty()) {
+			val retained = database.importedActivityDao().retainedIdentityOwners(identities, limit)
+			val retentionReceipts = database.importedActivityDao().retentionReceipts(identities)
+			if (entries.size >= limit || runs.size >= limit || windows.size >= limit || scopes.isNotEmpty() ||
+				retained.isNotEmpty() || retentionReceipts.isNotEmpty()
+			) {
 				return false
 			}
 			if (entries.any { it !in entryOwners } || runs.any { owner ->
@@ -278,7 +372,9 @@ class ImportedActivityProductReader(
 				database.importedActivityDao().existingWindowIdentityOwners(scopes, 1).isNotEmpty() ||
 				database.importedActivityDao().entryDeletions(scopes).isNotEmpty() ||
 				database.importedActivityDao().entryDeletionReceipts(scopes).isNotEmpty() ||
-				database.importedActivityDao().deletionGenerations(scopes).isNotEmpty()
+				database.importedActivityDao().deletionGenerations(scopes).isNotEmpty() ||
+				database.importedActivityDao().retainedIdentityOwners(scopes, 1).isNotEmpty() ||
+				database.importedActivityDao().retentionReceipts(scopes).isNotEmpty()
 			) return false
 		}
 		return true
@@ -295,7 +391,11 @@ class ImportedActivityProductReader(
 		if (candidates.map { it.identity }.distinct().size != candidates.size) return false
 		if (candidates.any {
 			it.identity.isBlank() || it.importRevision <= 0L || it.startTimeMs < 0L ||
-				it.endTimeMs < it.startTimeMs || it.receivedAtMs < 0L
+				it.endTimeMs < it.startTimeMs || it.receivedAtMs < 0L ||
+				it.candidateState !in setOf(
+					IMPORTED_ACTIVITY_CANDIDATE_LIVE,
+					IMPORTED_ACTIVITY_CANDIDATE_RETAINED,
+				)
 		}) return false
 		val cursors = buildList {
 			if (beforeStartTimeMs != null && beforeIdentity != null) add(beforeStartTimeMs to beforeIdentity)
@@ -325,6 +425,13 @@ sealed interface ImportedActivityProductEvaluation {
 		val isReExportable: Boolean
 			get() = !entryDeleted && deletedRunIdentities.isEmpty() && !retentionLimited
 	}
+
+	/** Payload-free, authenticated proof that this imported entry was truncated by retention. */
+	data class Retained(
+		override val candidate: ImportedActivityHistoryCandidate,
+		val retainedFromMs: Long,
+		val retainedAtMs: Long,
+	) : ImportedActivityProductEvaluation
 
 	data class Unverifiable(
 		override val candidate: ImportedActivityHistoryCandidate,
@@ -370,6 +477,17 @@ private fun ImportedActivityHistoryCandidate.exactlyMatches(
 ): Boolean = identity == latest.header.identity && importRevision == latest.header.importRevision &&
 	contentChecksum == latest.header.contentChecksum && startTimeMs == latest.header.startTimeMs &&
 	endTimeMs == latest.header.endTimeMs && receivedAtMs == latest.header.receivedAtMs
+
+private fun ImportedActivityRetentionReceiptEntity.toHistoryCandidate() =
+	ImportedActivityHistoryCandidate(
+		identity = entryIdentity,
+		importRevision = latestImportRevision,
+		contentChecksum = latestContentChecksum,
+		startTimeMs = startTimeMs,
+		endTimeMs = endTimeMs,
+		receivedAtMs = receivedAtMs,
+		candidateState = IMPORTED_ACTIVITY_CANDIDATE_RETAINED,
+	)
 
 private fun ImportedActivityHistoryCandidate.unverifiable(reason: ImportedActivityProductFailure) =
 	ImportedActivityProductEvaluation.Unverifiable(this, reason)

@@ -150,7 +150,11 @@ class ImportedActivityHistoryMapperTest {
 			value,
 			deletedRunIdentities = setOf(value.runs.single().identity.value),
 		).toPublicActivityEntry()
-		val retained = readable(value, retainedFromMs = 1_500L).toPublicActivityEntry()
+		val retained = ImportedActivityProductEvaluation.Retained(
+			candidate = candidate(value),
+			retainedFromMs = 1_500L,
+			retainedAtMs = 3_100L,
+		).toPublicActivityEntry()
 		val corrupt = ImportedActivityProductEvaluation.Unverifiable(
 			candidate(value),
 			ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,

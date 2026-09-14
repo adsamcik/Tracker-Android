@@ -10,6 +10,8 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDelet
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetainedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetentionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityWindowEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityZoneEpochEntity
@@ -83,6 +85,44 @@ class ImportedActivityDaoTest {
 				retainedFromMs = null,
 			),
 		)
+		val retainedEntry = digest('a')
+		val retainedHeader = entry().copy(
+			identity = retainedEntry,
+			contentChecksum = digest('b'),
+			importJobId = "retained-job",
+			importEntryKey = "retained-entry",
+		)
+		val retainedImportReceipt = receipt().copy(
+			importJobId = "retained-job",
+			importEntryKey = "retained-entry",
+			entryIdentity = retainedEntry,
+			entryContentChecksum = digest('b'),
+		)
+		val retainedMarkers = listOf(
+			ImportedActivityRetainedIdentityEntity(
+				retainedEntry, retainedEntry, ImportedActivityRetainedIdentityEntity.ENTRY,
+			),
+			ImportedActivityRetainedIdentityEntity(
+				digest('c'), retainedEntry, ImportedActivityRetainedIdentityEntity.RUN,
+			),
+			ImportedActivityRetainedIdentityEntity(
+				digest('d'), retainedEntry, ImportedActivityRetainedIdentityEntity.WINDOW,
+			),
+			ImportedActivityRetainedIdentityEntity(
+				digest('e'), retainedEntry, ImportedActivityRetainedIdentityEntity.DELETION_SCOPE,
+			),
+		)
+		dao.insertRetentionReceipts(listOf(
+			ImportedActivityRetentionReceiptEntity.create(
+				retainedEntry, 7L, 1L, 10L, 40L, 1L, digest('b'), 1L, 9L, 30L,
+				1, 1, 1, 1, 1, 1, emptyList(), emptyList(), retainedMarkers,
+				ImportedActivityRetentionReceiptEntity.lineageAuthorityChecksum(
+					listOf(retainedHeader),
+					listOf(retainedImportReceipt),
+				),
+			),
+		))
+		dao.insertRetainedIdentities(retainedMarkers)
 
 		AppDatabase.deleteAllCollectedData(database, 8L, null, 50L)
 
@@ -90,6 +130,8 @@ class ImportedActivityDaoTest {
 		dao.entryDeletion(ENTRY) shouldBe null
 		dao.entryDeletionReceipt(ENTRY) shouldBe null
 		dao.deletionGenerations(listOf(RUN)) shouldBe emptyList()
+		dao.retentionReceipt(retainedEntry) shouldBe null
+		dao.retainedIdentityCount() shouldBe 0L
 	}
 
 	private suspend fun insertHierarchy() {

@@ -46,6 +46,7 @@ internal object ActivityHistoryOriginComposer {
 				val originConflict = ownershipConflict || (
 					collision && when (evaluation) {
 						is ImportedActivityProductEvaluation.Readable -> exactLocal != evaluation.entry
+						is ImportedActivityProductEvaluation.Retained -> true
 						is ImportedActivityProductEvaluation.Unverifiable -> true
 					}
 				)

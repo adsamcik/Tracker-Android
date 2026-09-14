@@ -7,12 +7,14 @@ import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetainedIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityWindowEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityZoneEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import java.time.DateTimeException
 import javax.inject.Inject
@@ -68,10 +70,16 @@ class RoomImportPortableCapturedActivity internal constructor(
 		if (state.collectedDataEpoch != request.expectedCollectedDataEpoch) {
 			blocked(PortableActivityImportBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
 		}
+		authenticateAllRetentionAuthority(dao, state)
 
 		val entry = request.entry
 		val retentionFloor = state.retainedFromMs
 		if (retentionFloor != null && retentionFloor < 0L) storedCorrupt()
+		val retainedEntry = storedValue { dao.retentionReceipt(entry.identity.value) }
+		if (retainedEntry != null) {
+			authenticateRetentionReceipts(listOf(retainedEntry), state)
+			blocked(PortableActivityImportBlockedReason.RETENTION_BOUNDARY)
+		}
 		if (retentionFloor != null && entry.crossesRetentionBoundary(retentionFloor)) {
 			blocked(PortableActivityImportBlockedReason.RETENTION_BOUNDARY)
 		}
@@ -112,7 +120,7 @@ class RoomImportPortableCapturedActivity internal constructor(
 		authenticateOpaqueIdentityOwnership(
 			dao,
 			entry,
-			request.expectedCollectedDataEpoch,
+			state,
 		)
 		val lineage = authenticateStoredLineage(
 			dao,
@@ -209,8 +217,9 @@ class RoomImportPortableCapturedActivity internal constructor(
 	private suspend fun authenticateOpaqueIdentityOwnership(
 		dao: ImportedActivityDao,
 		entry: PortableActivityEntryV1,
-		expectedCollectedDataEpoch: Long,
+		state: SourceEvidenceState,
 	) {
+		val expectedCollectedDataEpoch = state.collectedDataEpoch
 		val kinds = buildMap {
 			put(entry.identity.value, PortableActivityIdentityKind.LOGICAL_ENTRY)
 			entry.runs.forEach { run ->
@@ -236,6 +245,12 @@ class RoomImportPortableCapturedActivity internal constructor(
 			val deletedEntries = storedValue { dao.entryDeletions(identities) }
 			val deletionReceipts = storedValue { dao.entryDeletionReceipts(identities) }
 			val deletedRuns = storedValue { dao.deletionGenerations(identities) }
+			val retainedOwners = storedValue { dao.retainedIdentityOwners(identities, limit) }
+			val retainedReceiptOwners = storedValue { dao.retentionReceipts(identities) }
+			authenticateRetentionOwners(dao, retainedOwners, state)
+			retainedReceiptOwners.chunked(ImportedActivityDao.HISTORY_EVALUATION_BATCH_SIZE).forEach {
+				authenticateRetentionReceipts(it, state)
+			}
 			if (deletedEntries.any { it.collectedDataEpoch != expectedCollectedDataEpoch } ||
 				deletionReceipts.any { it.collectedDataEpoch != expectedCollectedDataEpoch } ||
 				deletedRuns.any { it.collectedDataEpoch != expectedCollectedDataEpoch }
@@ -243,7 +258,8 @@ class RoomImportPortableCapturedActivity internal constructor(
 			if (entries.size >= limit || runs.size >= limit || windows.size >= limit) {
 				unverifiable(PortableActivityImportUnverifiableReason.DEPENDENCY_OVERFLOW)
 			}
-			if (identityAsScopes.isNotEmpty() ||
+			if (identityAsScopes.isNotEmpty() || retainedOwners.isNotEmpty() ||
+				retainedReceiptOwners.isNotEmpty() ||
 				entries.any { kinds[it] != PortableActivityIdentityKind.LOGICAL_ENTRY } ||
 				runs.any { owner ->
 					val expected = runOwners[owner.identity]
@@ -271,13 +287,20 @@ class RoomImportPortableCapturedActivity internal constructor(
 			val scopeAsDeletedEntries = storedValue { dao.entryDeletions(digests) }
 			val scopeAsDeletionReceipts = storedValue { dao.entryDeletionReceipts(digests) }
 			val scopeAsDeletedRuns = storedValue { dao.deletionGenerations(digests) }
+			val scopeAsRetained = storedValue { dao.retainedIdentityOwners(digests, digests.size + 1) }
+			val scopeAsRetentionReceipts = storedValue { dao.retentionReceipts(digests) }
+			authenticateRetentionOwners(dao, scopeAsRetained, state)
+			scopeAsRetentionReceipts.chunked(ImportedActivityDao.HISTORY_EVALUATION_BATCH_SIZE).forEach {
+				authenticateRetentionReceipts(it, state)
+			}
 			if (scopeAsDeletedEntries.any { it.collectedDataEpoch != expectedCollectedDataEpoch } ||
 				scopeAsDeletionReceipts.any { it.collectedDataEpoch != expectedCollectedDataEpoch } ||
 				scopeAsDeletedRuns.any { it.collectedDataEpoch != expectedCollectedDataEpoch }
 			) storedCorrupt()
 			if (scopeAsEntries.isNotEmpty() || scopeAsRuns.isNotEmpty() || scopeAsWindows.isNotEmpty() ||
 				scopeAsDeletedEntries.isNotEmpty() || scopeAsDeletionReceipts.isNotEmpty() ||
-				scopeAsDeletedRuns.isNotEmpty()
+				scopeAsDeletedRuns.isNotEmpty() || scopeAsRetained.isNotEmpty() ||
+				scopeAsRetentionReceipts.isNotEmpty()
 			) blocked(PortableActivityImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
 			if (owners.size > digests.size) {
 				blocked(PortableActivityImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
@@ -286,6 +309,75 @@ class RoomImportPortableCapturedActivity internal constructor(
 				scopeOwners[owner.deletionScopeDigest] != (owner.entryIdentity to owner.identity)
 			}
 			if (hasDifferentOwner) blocked(PortableActivityImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
+		}
+	}
+
+	private suspend fun authenticateRetentionOwners(
+		dao: ImportedActivityDao,
+		owners: List<ImportedActivityRetainedIdentityEntity>,
+		state: SourceEvidenceState,
+	) {
+		if (owners.isEmpty()) return
+		if (owners.distinctBy { it.protectedIdentity }.size != owners.size) storedCorrupt()
+		val entryIdentities = owners.map { it.entryIdentity }.distinct()
+		val receipts = storedValue { dao.retentionReceipts(entryIdentities) }
+		if (receipts.map { it.entryIdentity }.toSet() != entryIdentities.toSet()) storedCorrupt()
+		receipts.chunked(ImportedActivityDao.HISTORY_EVALUATION_BATCH_SIZE).forEach {
+			authenticateRetentionReceipts(it, state)
+		}
+	}
+
+	private suspend fun authenticateAllRetentionAuthority(
+		dao: ImportedActivityDao,
+		state: SourceEvidenceState,
+	) {
+		val receiptCount = storedValue { dao.retentionReceiptCount() }
+		val markerCount = storedValue { dao.retainedIdentityCount() }
+		if (receiptCount < 0L || markerCount < 0L ||
+			receiptCount > ActivityCapturedPortableFormatV1.MAX_ENTRIES ||
+			markerCount > ImportedActivityDao.MAX_RETAINED_IDENTITY_ROWS
+		) unverifiable(PortableActivityImportUnverifiableReason.DEPENDENCY_OVERFLOW)
+		if (storedValue { dao.orphanRetainedIdentityCount() } != 0L) storedCorrupt()
+		var loadedCount = 0L
+		var afterIdentity: String? = null
+		while (true) {
+			val page = storedValue {
+				dao.retentionReceiptPage(
+					afterIdentity,
+					ImportedActivityDao.HISTORY_EVALUATION_BATCH_SIZE,
+				)
+			}
+			if (page.isEmpty()) break
+			if (page.size > ImportedActivityDao.HISTORY_EVALUATION_BATCH_SIZE ||
+				page.zipWithNext().any { (left, right) -> left.entryIdentity >= right.entryIdentity } ||
+				afterIdentity?.let { prior -> page.first().entryIdentity <= prior } == true
+			) storedCorrupt()
+			authenticateRetentionReceipts(page, state)
+			loadedCount = try {
+				Math.addExact(loadedCount, page.size.toLong())
+			} catch (_: ArithmeticException) {
+				unverifiable(PortableActivityImportUnverifiableReason.DEPENDENCY_OVERFLOW)
+			}
+			if (loadedCount > ActivityCapturedPortableFormatV1.MAX_ENTRIES) {
+				unverifiable(PortableActivityImportUnverifiableReason.DEPENDENCY_OVERFLOW)
+			}
+			afterIdentity = page.last().entryIdentity
+			if (page.size < ImportedActivityDao.HISTORY_EVALUATION_BATCH_SIZE) break
+		}
+		if (loadedCount != receiptCount) storedCorrupt()
+	}
+
+	private suspend fun authenticateRetentionReceipts(
+		receipts: List<com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetentionReceiptEntity>,
+		state: SourceEvidenceState,
+	) {
+		when (storedValue { database.authenticateImportedActivityRetentionBatch(state, receipts) }) {
+			ImportedActivityRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
+				unverifiable(PortableActivityImportUnverifiableReason.DEPENDENCY_OVERFLOW)
+			ImportedActivityRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
+			ImportedActivityRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			-> storedCorrupt()
+			null -> Unit
 		}
 	}
 
@@ -548,7 +640,6 @@ private fun ImportedActivityLineageAuthenticator.Reason.toImportReason() = when 
 }
 
 internal fun PortableActivityEntryV1.crossesRetentionBoundary(retainedFromMs: Long): Boolean {
-	if (startTimeMs < retainedFromMs) return true
 	val earliestEvidenceMs = runs.asSequence()
 		.flatMap { run -> run.windows.asSequence() }
 		.flatMap { window -> window.fragments.asSequence() }

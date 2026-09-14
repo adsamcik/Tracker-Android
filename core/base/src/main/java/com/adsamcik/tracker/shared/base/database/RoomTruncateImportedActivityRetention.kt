@@ -1,0 +1,523 @@
+package com.adsamcik.tracker.shared.base.database
+
+import android.database.sqlite.SQLiteConstraintException
+import android.database.sqlite.SQLiteException
+import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityDao
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityFragmentEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetainedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetentionReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRunEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityWindowEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityZoneEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
+
+/** Activity-only imported payload retention; it cannot mutate live capture or source control state. */
+@Singleton
+class RoomTruncateImportedActivityRetention internal constructor(
+	private val database: AppDatabase,
+	private val ioDispatcher: CoroutineDispatcher,
+	private val checkpoint: suspend (ImportedActivityRetentionCheckpoint) -> Unit,
+	private val limits: ImportedActivityRetentionLimits = ImportedActivityRetentionLimits(),
+) : TruncateImportedActivityRetention {
+	@Inject
+	constructor(
+		database: AppDatabase,
+		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+	) : this(database, ioDispatcher, { currentCoroutineContext().ensureActive() })
+
+	override suspend fun truncate(
+		request: TruncateImportedActivityRetentionRequest,
+	): TruncateImportedActivityRetentionResult = withContext(ioDispatcher) {
+		try {
+			database.withTransaction { truncateInTransaction(request) }
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (abort: ImportedActivityRetentionAbort) {
+			abort.result
+		} catch (_: SQLiteConstraintException) {
+			TruncateImportedActivityRetentionResult.RetryableFailure(
+				PortableActivityTransferRetryableReason.CONCURRENT_STATE_CHANGE,
+			)
+		} catch (_: SQLiteException) {
+			TruncateImportedActivityRetentionResult.RetryableFailure(
+				PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		} catch (_: Exception) {
+			TruncateImportedActivityRetentionResult.RetryableFailure(
+				PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		}
+	}
+
+	@Suppress("LongMethod", "ComplexCondition", "CyclomaticComplexMethod", "NestedBlockDepth")
+	private suspend fun truncateInTransaction(
+		request: TruncateImportedActivityRetentionRequest,
+	): TruncateImportedActivityRetentionResult {
+		checkpoint(ImportedActivityRetentionCheckpoint.TRANSACTION_STARTED)
+		val state = stored { database.sourceEvidenceStateDao().get() }
+			?: unverifiable(ImportedActivityProductFailure.SOURCE_EVIDENCE_STATE_MISSING)
+		if (state.revision < 0L || state.collectedDataEpoch < 0L || state.updatedAtMs < 0L ||
+			state.retainedFromMs?.let { it < 0L } == true
+		) unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		if (state.collectedDataEpoch != request.expectedCollectedDataEpoch ||
+			state.revision != request.expectedSourceEvidenceRevision ||
+			state.retainedFromMs != request.retainedFromMs
+		) blocked(ImportedActivityRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		if (request.retainedAtMs < state.updatedAtMs) {
+			blocked(ImportedActivityRetentionBlockedReason.STALE_REQUEST)
+		}
+		val evaluations = stored { ImportedActivityProductReader(database).selectAllInTransaction() }
+		if (evaluations.size > ActivityCapturedPortableFormatV1.MAX_ENTRIES) {
+			unverifiable(ImportedActivityProductFailure.DEPENDENCY_OVERFLOW)
+		}
+		val dao = database.importedActivityDao()
+		val retainedReceiptCount = stored { dao.retentionReceiptCount() }
+		val retainedIdentityCount = stored { dao.retainedIdentityCount() }
+		if (retainedReceiptCount < 0L || retainedIdentityCount < 0L ||
+			retainedReceiptCount > limits.maximumEntries ||
+			retainedIdentityCount > limits.maximumProtectedIdentities
+		) unverifiable(ImportedActivityProductFailure.DEPENDENCY_OVERFLOW)
+		evaluations.filterIsInstance<ImportedActivityProductEvaluation.Unverifiable>()
+			.firstOrNull()?.let { unverifiable(it.reason) }
+		if (stored { dao.orphanRetainedIdentityCount() } != 0L ||
+			evaluations.count { it is ImportedActivityProductEvaluation.Retained }.toLong() !=
+			retainedReceiptCount
+		) unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		val selected = evaluations.filterIsInstance<ImportedActivityProductEvaluation.Readable>()
+			.filter { it.retentionLimited }
+		if (selected.isEmpty()) return TruncateImportedActivityRetentionResult.NoChange
+		if (selected.any { it.entryDeleted }) {
+			unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+
+		val nextStateRevision = try {
+			Math.addExact(state.revision, 1L)
+		} catch (_: ArithmeticException) {
+			unverifiable(ImportedActivityProductFailure.VALUE_OVERFLOW)
+		}
+		val selections = mutableListOf<ImportedActivityRetentionSelection>()
+		var totals = ImportedActivityRetentionTotals()
+		selected.chunked(ImportedActivityDao.HISTORY_EVALUATION_BATCH_SIZE).forEach { batch ->
+			currentCoroutineContext().ensureActive()
+			val authenticated = stored {
+				authenticateSelectedBatch(batch, state, request, nextStateRevision)
+			}
+			selections += authenticated
+			totals = stored { totals.plus(authenticated) }
+			if (!totals.withinBounds(limits)) {
+				unverifiable(ImportedActivityProductFailure.DEPENDENCY_OVERFLOW)
+			}
+			checkpoint(ImportedActivityRetentionCheckpoint.LINEAGE_AUTHENTICATED)
+		}
+		val allMarkers = selections.flatMap { it.markers }
+		if (allMarkers.map { it.protectedIdentity }.distinct().size != allMarkers.size) {
+			unverifiable(ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT)
+		}
+
+		dao.insertRetentionReceipts(selections.map { it.receipt })
+		dao.insertRetainedIdentities(allMarkers)
+		checkpoint(ImportedActivityRetentionCheckpoint.RETENTION_AUTHORITY_INSERTED)
+		selections.chunked(SQLITE_BIND_BATCH).forEach { batch ->
+			val identities = batch.map { it.receipt.entryIdentity }
+			val expected = batch.sumOf { it.receipt.revisionCount }
+			if (dao.deleteEntryRevisionLineages(identities) != expected) {
+				unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+			}
+			if (dao.existingEntryIdentities(identities, 1).isNotEmpty()) {
+				unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+			}
+			checkpoint(ImportedActivityRetentionCheckpoint.PAYLOAD_REMOVED)
+		}
+		if (database.sourceEvidenceStateDao().incrementRevision(request.retainedAtMs) != 1) {
+			throw IllegalStateException("Unable to publish imported Activity retention")
+		}
+		val published = stored { database.sourceEvidenceStateDao().get() }
+			?: unverifiable(ImportedActivityProductFailure.SOURCE_EVIDENCE_STATE_MISSING)
+		if (published.collectedDataEpoch != state.collectedDataEpoch ||
+			published.retainedFromMs != state.retainedFromMs ||
+			published.revision != nextStateRevision ||
+			published.updatedAtMs != request.retainedAtMs
+		) blocked(ImportedActivityRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		selections.map { it.receipt }.chunked(ImportedActivityDao.HISTORY_EVALUATION_BATCH_SIZE)
+			.forEach { receipts ->
+				when (stored { database.authenticateImportedActivityRetentionBatch(published, receipts) }) {
+					ImportedActivityRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
+						unverifiable(ImportedActivityProductFailure.DEPENDENCY_OVERFLOW)
+					ImportedActivityRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT ->
+						unverifiable(ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT)
+					ImportedActivityRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE ->
+						unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+					null -> Unit
+				}
+			}
+		checkpoint(ImportedActivityRetentionCheckpoint.RETENTION_AUTHORITY_VERIFIED)
+		return TruncateImportedActivityRetentionResult.Truncated(
+			entryCount = selections.size,
+			revisionCount = totals.revisions,
+			runRowCount = totals.runs,
+			windowRowCount = totals.windows,
+			fragmentRowCount = totals.fragments,
+		)
+	}
+
+	@Suppress("LongMethod", "ComplexCondition")
+	private suspend fun authenticateSelectedBatch(
+		batch: List<ImportedActivityProductEvaluation.Readable>,
+		state: SourceEvidenceState,
+		request: TruncateImportedActivityRetentionRequest,
+		nextStateRevision: Long,
+	): List<ImportedActivityRetentionSelection> {
+		val dao = database.importedActivityDao()
+		val identities = batch.map { it.candidate.identity }
+		val headers = stored { dao.entryRevisionsForHistory(identities) }
+		val receipts = stored { dao.receiptsForHistory(identities) }
+		val runs = stored { dao.runsForHistory(identities) }
+		val zones = stored { dao.zoneEpochsForHistory(identities) }
+		val windows = stored { dao.windowsForHistory(identities) }
+		val fragments = stored { dao.fragmentsForHistory(identities) }
+		val entryDeletions = stored { dao.entryDeletionsForHistory(identities) }
+		val entryDeletionReceipts = stored { dao.entryDeletionReceipts(identities) }
+		if (entryDeletions.isNotEmpty() || entryDeletionReceipts.isNotEmpty()) {
+			unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		val headersByEntry = headers.groupBy(ImportedActivityEntryRevisionEntity::identity)
+		val receiptsByEntry = receipts.groupBy(ImportedActivityReceiptEntity::entryIdentity)
+		val runsByEntry = runs.groupBy(ImportedActivityRunEntity::entryIdentity)
+		val zonesByEntry = zones.groupBy(ImportedActivityZoneEpochEntity::entryIdentity)
+		val windowsByEntry = windows.groupBy(ImportedActivityWindowEntity::entryIdentity)
+		val fragmentsByEntry = fragments.groupBy(ImportedActivityFragmentEntity::entryIdentity)
+		val stableRunIds = batch.flatMap { it.entry.runs }.map { it.identity.value }.distinct()
+		val stableScopes = batch.flatMap { it.entry.runs }.map { it.deletionScopeDigest.value }.distinct()
+		val runDeletions = stableRunIds.chunked(SQLITE_BIND_BATCH).flatMap { dao.deletionGenerations(it) }
+		val sourceFences = stableScopes.chunked(SQLITE_BIND_BATCH).flatMap { scopes ->
+			database.trackingHistoryReadDao().deletionFences(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+				purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+				scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+				scopeIdentityDigests = scopes,
+			)
+		}
+		if (runDeletions.distinctBy { it.runIdentity }.size != runDeletions.size ||
+			sourceFences.distinctBy { it.scopeIdentityDigest }.size != sourceFences.size ||
+			runDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
+			runDeletions.any { it.generation != 1L } ||
+			sourceFences.any {
+				it.collectedDataEpoch != state.collectedDataEpoch || it.fenceGeneration != 1L
+			}
+		) unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		val latestDurableTime = listOf(
+			state.updatedAtMs,
+			headers.maxOfOrNull { it.receivedAtMs } ?: 0L,
+			receipts.maxOfOrNull { it.receivedAtMs } ?: 0L,
+			runDeletions.maxOfOrNull { it.deletedAtMs } ?: 0L,
+			sourceFences.maxOfOrNull { it.deletedAtMs } ?: 0L,
+		).maxOrNull() ?: 0L
+		if (request.retainedAtMs < latestDurableTime) {
+			blocked(ImportedActivityRetentionBlockedReason.STALE_REQUEST)
+		}
+
+		val selections = batch.map { evaluation ->
+			val identity = evaluation.candidate.identity
+			val entryHeaders = headersByEntry[identity].orEmpty()
+			val entryReceipts = receiptsByEntry[identity].orEmpty()
+			val entryRuns = runsByEntry[identity].orEmpty()
+			val entryZones = zonesByEntry[identity].orEmpty()
+			val entryWindows = windowsByEntry[identity].orEmpty()
+			val entryFragments = fragmentsByEntry[identity].orEmpty()
+			val lineage = try {
+				ImportedActivityLineageAuthenticator.authenticate(
+					identity,
+					state.collectedDataEpoch,
+					entryHeaders,
+					entryReceipts,
+					entryRuns,
+					entryZones,
+					entryWindows,
+					entryFragments,
+				)
+			} catch (failure: ImportedActivityLineageFailure) {
+				unverifiable(failure.reason.toRetentionProductFailure())
+			}
+			val latest = lineage.revisions.lastOrNull()
+				?: unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+			if (latest.entry != evaluation.entry ||
+				latest.header.importRevision != evaluation.candidate.importRevision ||
+				latest.header.contentChecksum != evaluation.candidate.contentChecksum ||
+				lineage.revisions.none { it.entry.crossesRetentionBoundary(request.retainedFromMs) }
+			) unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+			val markers = retainedMarkers(latest.entry)
+			val entryRunIds = latest.entry.runs.mapTo(hashSetOf()) { it.identity.value }
+			val entryScopes = latest.entry.runs.mapTo(hashSetOf()) { it.deletionScopeDigest.value }
+			val entryRunDeletions = runDeletions.filter { it.runIdentity in entryRunIds }
+			val entrySourceFences = sourceFences.filter { it.scopeIdentityDigest in entryScopes }
+			val retainedReceipt = ImportedActivityRetentionReceiptEntity.create(
+				entryIdentity = identity,
+				collectedDataEpoch = state.collectedDataEpoch,
+				sourceEvidenceRevision = nextStateRevision,
+				retainedFromMs = request.retainedFromMs,
+				retainedAtMs = request.retainedAtMs,
+				latestImportRevision = latest.header.importRevision,
+				latestContentChecksum = latest.header.contentChecksum,
+				startTimeMs = latest.header.startTimeMs,
+				endTimeMs = latest.header.endTimeMs,
+				receivedAtMs = latest.header.receivedAtMs,
+				revisionCount = entryHeaders.size,
+				importReceiptCount = entryReceipts.size,
+				runRowCount = entryRuns.size,
+				zoneEpochRowCount = entryZones.size,
+				windowRowCount = entryWindows.size,
+				fragmentRowCount = entryFragments.size,
+				runDeletions = entryRunDeletions,
+				sourceFences = entrySourceFences,
+				markers = markers,
+				lineageAuthorityChecksum =
+					ImportedActivityRetentionReceiptEntity.lineageAuthorityChecksum(
+						entryHeaders,
+						entryReceipts,
+					),
+			)
+			ImportedActivityRetentionSelection(
+				retainedReceipt,
+				markers,
+				entryHeaders,
+				entryReceipts,
+				entryRuns,
+				entryZones,
+				entryWindows,
+				entryFragments,
+				entryRunDeletions,
+				entrySourceFences,
+			)
+		}
+		authenticateSelectedOwnerColumns(selections)
+		return selections
+	}
+
+	private suspend fun authenticateSelectedOwnerColumns(
+		selections: List<ImportedActivityRetentionSelection>,
+	) {
+		val expected = linkedMapOf<OwnerKey, Long>()
+		fun include(kind: String, identity: String, count: Long = 1L) {
+			val key = OwnerKey(kind, identity, null, null, null)
+			expected[key] = Math.addExact(expected[key] ?: 0L, count)
+		}
+		selections.forEach { value ->
+			value.headers.forEach { include("ENTRY_IDENTITY", it.identity) }
+			value.importReceipts.forEach { include("RECEIPT_ENTRY_OWNER", it.entryIdentity) }
+			value.runs.forEach {
+				include("RUN_ENTRY_OWNER", it.entryIdentity)
+				include("RUN_IDENTITY", it.identity)
+				include("RUN_SCOPE_OWNER", it.deletionScopeDigest)
+			}
+			value.zones.forEach {
+				include("ZONE_ENTRY_OWNER", it.entryIdentity)
+				include("ZONE_RUN_OWNER", it.runIdentity)
+			}
+			value.windows.forEach {
+				include("WINDOW_ENTRY_OWNER", it.entryIdentity)
+				include("WINDOW_RUN_OWNER", it.runIdentity)
+				include("WINDOW_IDENTITY", it.identity)
+			}
+			value.fragments.forEach {
+				include("FRAGMENT_ENTRY_OWNER", it.entryIdentity)
+				include("FRAGMENT_RUN_OWNER", it.runIdentity)
+				include("FRAGMENT_WINDOW_OWNER", it.windowIdentity)
+			}
+			value.runDeletions.forEach { include("RUN_DELETION", it.runIdentity) }
+			value.sourceFences.forEach { fence ->
+				val key = OwnerKey(
+					"SOURCE_DELETION_SCOPE",
+					fence.scopeIdentityDigest,
+					fence.sourceKind,
+					fence.purpose,
+					fence.scopeKind,
+				)
+				expected[key] = Math.addExact(expected[key] ?: 0L, 1L)
+			}
+		}
+		val identities = selections.flatMap { it.markers }.map { it.protectedIdentity }
+		if (identities.distinct().size != identities.size) {
+			unverifiable(ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT)
+		}
+		for (batch in identities.chunked(SQLITE_BIND_BATCH)) {
+			val expectedBatch = expected.filterKeys { it.protectedIdentity in batch }
+			val actualRows = stored {
+				database.importedActivityDao().protectedIdentityOwnerCounts(
+					batch,
+					expectedBatch.size + 1,
+				)
+			}
+			val actual = actualRows.associate { row ->
+				OwnerKey(
+					row.ownerKind,
+					row.protectedIdentity,
+					row.sourceKind,
+					row.purpose,
+					row.scopeKind,
+				) to row.ownerCount
+			}
+			if (actualRows.size != expectedBatch.size || actual != expectedBatch) {
+				unverifiable(ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT)
+			}
+		}
+	}
+
+	private fun retainedMarkers(entry: PortableActivityEntryV1): List<ImportedActivityRetainedIdentityEntity> =
+		buildList {
+			val owner = entry.identity.value
+			add(ImportedActivityRetainedIdentityEntity(owner, owner, ImportedActivityRetainedIdentityEntity.ENTRY))
+			entry.runs.forEach { run ->
+				add(ImportedActivityRetainedIdentityEntity(
+					run.identity.value,
+					owner,
+					ImportedActivityRetainedIdentityEntity.RUN,
+				))
+				add(ImportedActivityRetainedIdentityEntity(
+					run.deletionScopeDigest.value,
+					owner,
+					ImportedActivityRetainedIdentityEntity.DELETION_SCOPE,
+				))
+				run.windows.forEach { window ->
+					add(ImportedActivityRetainedIdentityEntity(
+						window.identity.value,
+						owner,
+						ImportedActivityRetainedIdentityEntity.WINDOW,
+					))
+				}
+			}
+		}
+
+	private suspend inline fun <T> stored(crossinline block: suspend () -> T): T = try {
+		block()
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (abort: ImportedActivityRetentionAbort) {
+		throw abort
+	} catch (storage: SQLiteException) {
+		throw storage
+	} catch (_: IllegalArgumentException) {
+		unverifiable(ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+	} catch (_: ArithmeticException) {
+		unverifiable(ImportedActivityProductFailure.VALUE_OVERFLOW)
+	}
+
+	private fun blocked(reason: ImportedActivityRetentionBlockedReason): Nothing =
+		throw ImportedActivityRetentionAbort(TruncateImportedActivityRetentionResult.Blocked(reason))
+
+	private fun unverifiable(reason: ImportedActivityProductFailure): Nothing =
+		throw ImportedActivityRetentionAbort(TruncateImportedActivityRetentionResult.Unverifiable(reason))
+
+	private class ImportedActivityRetentionAbort(
+		val result: TruncateImportedActivityRetentionResult,
+	) : RuntimeException(null, null, false, false)
+}
+
+internal enum class ImportedActivityRetentionCheckpoint {
+	TRANSACTION_STARTED,
+	LINEAGE_AUTHENTICATED,
+	RETENTION_AUTHORITY_INSERTED,
+	PAYLOAD_REMOVED,
+	RETENTION_AUTHORITY_VERIFIED,
+}
+
+internal data class ImportedActivityRetentionLimits(
+	val maximumEntries: Int = ActivityCapturedPortableFormatV1.MAX_ENTRIES,
+	val maximumRevisions: Int = 65_536,
+	val maximumRunRows: Int = 262_144,
+	val maximumZoneRows: Int = 262_144,
+	val maximumWindowRows: Int = 262_144,
+	val maximumFragmentRows: Int = 524_288,
+	val maximumProtectedIdentities: Int = 262_144,
+) {
+	init {
+		listOf(
+			maximumEntries,
+			maximumRevisions,
+			maximumRunRows,
+			maximumZoneRows,
+			maximumWindowRows,
+			maximumFragmentRows,
+			maximumProtectedIdentities,
+		).forEach { require(it > 0) }
+	}
+}
+
+private data class ImportedActivityRetentionSelection(
+	val receipt: ImportedActivityRetentionReceiptEntity,
+	val markers: List<ImportedActivityRetainedIdentityEntity>,
+	val headers: List<ImportedActivityEntryRevisionEntity>,
+	val importReceipts: List<ImportedActivityReceiptEntity>,
+	val runs: List<ImportedActivityRunEntity>,
+	val zones: List<ImportedActivityZoneEpochEntity>,
+	val windows: List<ImportedActivityWindowEntity>,
+	val fragments: List<ImportedActivityFragmentEntity>,
+	val runDeletions: List<ImportedActivityDeletionGenerationEntity>,
+	val sourceFences: List<SourceDeletionFenceEntity>,
+)
+
+private data class ImportedActivityRetentionTotals(
+	val entries: Int = 0,
+	val revisions: Int = 0,
+	val runs: Int = 0,
+	val zones: Int = 0,
+	val windows: Int = 0,
+	val fragments: Int = 0,
+	val markers: Int = 0,
+) {
+	fun plus(values: List<ImportedActivityRetentionSelection>) = ImportedActivityRetentionTotals(
+		entries = Math.addExact(entries, values.size),
+		revisions = Math.addExact(revisions, values.sumOf { it.headers.size }),
+		runs = Math.addExact(runs, values.sumOf { it.runs.size }),
+		zones = Math.addExact(zones, values.sumOf { it.zones.size }),
+		windows = Math.addExact(windows, values.sumOf { it.windows.size }),
+		fragments = Math.addExact(fragments, values.sumOf { it.fragments.size }),
+		markers = Math.addExact(markers, values.sumOf { it.markers.size }),
+	)
+
+	@Suppress("ComplexCondition")
+	fun withinBounds(limits: ImportedActivityRetentionLimits): Boolean =
+		entries <= limits.maximumEntries &&
+			revisions <= limits.maximumRevisions &&
+			runs <= limits.maximumRunRows &&
+			zones <= limits.maximumZoneRows &&
+			windows <= limits.maximumWindowRows &&
+			fragments <= limits.maximumFragmentRows &&
+			markers <= limits.maximumProtectedIdentities
+}
+
+private data class OwnerKey(
+	val ownerKind: String,
+	val protectedIdentity: String,
+	val sourceKind: Int?,
+	val purpose: String?,
+	val scopeKind: String?,
+)
+
+private fun ImportedActivityLineageAuthenticator.Reason.toRetentionProductFailure() = when (this) {
+	ImportedActivityLineageAuthenticator.Reason.DEPENDENCY_OVERFLOW,
+	ImportedActivityLineageAuthenticator.Reason.RUN_OVERFLOW,
+	ImportedActivityLineageAuthenticator.Reason.WINDOW_OVERFLOW,
+	ImportedActivityLineageAuthenticator.Reason.FRAGMENT_OVERFLOW,
+	ImportedActivityLineageAuthenticator.Reason.ZONE_EPOCH_OVERFLOW,
+	ImportedActivityLineageAuthenticator.Reason.REVISION_OVERFLOW,
+	-> ImportedActivityProductFailure.DEPENDENCY_OVERFLOW
+	ImportedActivityLineageAuthenticator.Reason.STORED_EVIDENCE_UNVERIFIABLE ->
+		ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE
+}
+
+private const val SQLITE_BIND_BATCH = 400

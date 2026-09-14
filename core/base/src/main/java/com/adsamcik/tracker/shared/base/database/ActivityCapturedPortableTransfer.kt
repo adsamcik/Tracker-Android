@@ -556,6 +556,66 @@ interface DeleteSelectedImportedActivity {
 	): DeleteSelectedImportedActivityResult
 }
 
+/**
+ * Exact Activity-import retention snapshot. The global floor is established separately; this
+ * request may consume that exact monotonic state but cannot create, lower, or widen it.
+ */
+data class TruncateImportedActivityRetentionRequest(
+	val expectedCollectedDataEpoch: Long,
+	val expectedSourceEvidenceRevision: Long,
+	val retainedFromMs: Long,
+	val retainedAtMs: Long,
+) {
+	init {
+		require(expectedCollectedDataEpoch >= 0L)
+		require(expectedSourceEvidenceRevision >= 0L)
+		require(retainedFromMs >= 0L)
+		require(retainedAtMs >= 0L)
+	}
+}
+
+interface TruncateImportedActivityRetention {
+	suspend fun truncate(
+		request: TruncateImportedActivityRetentionRequest,
+	): TruncateImportedActivityRetentionResult
+}
+
+sealed interface TruncateImportedActivityRetentionResult {
+	data class Truncated(
+		val entryCount: Int,
+		val revisionCount: Int,
+		val runRowCount: Int,
+		val windowRowCount: Int,
+		val fragmentRowCount: Int,
+	) : TruncateImportedActivityRetentionResult {
+		init {
+			require(entryCount > 0 && revisionCount >= entryCount)
+			require(runRowCount >= revisionCount)
+			require(windowRowCount >= revisionCount)
+			require(fragmentRowCount >= windowRowCount)
+		}
+	}
+
+	data object NoChange : TruncateImportedActivityRetentionResult
+
+	data class Blocked(
+		val reason: ImportedActivityRetentionBlockedReason,
+	) : TruncateImportedActivityRetentionResult
+
+	data class Unverifiable(
+		val reason: ImportedActivityProductFailure,
+	) : TruncateImportedActivityRetentionResult
+
+	data class RetryableFailure(
+		val reason: PortableActivityTransferRetryableReason,
+	) : TruncateImportedActivityRetentionResult
+}
+
+enum class ImportedActivityRetentionBlockedReason {
+	SOURCE_EVIDENCE_AUTHORITY_CHANGED,
+	STALE_REQUEST,
+}
+
 sealed interface DeleteSelectedImportedActivityResult {
 	data class Deleted(
 		val importRevisionCount: Int,
@@ -877,6 +937,7 @@ internal class PortableCapturedActivityRoomReader(
 		imported.forEach { evaluation ->
 			currentCoroutineContext().ensureActive()
 			when (evaluation) {
+				is ImportedActivityProductEvaluation.Retained -> Unit
 				is ImportedActivityProductEvaluation.Unverifiable -> abort(
 					when (evaluation.reason) {
 						ImportedActivityProductFailure.DEPENDENCY_OVERFLOW ->

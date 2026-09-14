@@ -1828,6 +1828,51 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS imported_activity_retention_receipt (
+					entry_identity TEXT NOT NULL PRIMARY KEY,
+					collected_data_epoch INTEGER NOT NULL,
+					source_evidence_revision INTEGER NOT NULL,
+					retained_from_ms INTEGER NOT NULL,
+					retained_at_ms INTEGER NOT NULL,
+					latest_import_revision INTEGER NOT NULL,
+					latest_content_checksum TEXT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					received_at_ms INTEGER NOT NULL,
+					revision_count INTEGER NOT NULL,
+					import_receipt_count INTEGER NOT NULL,
+					run_row_count INTEGER NOT NULL,
+					zone_epoch_row_count INTEGER NOT NULL,
+					window_row_count INTEGER NOT NULL,
+					fragment_row_count INTEGER NOT NULL,
+					run_deletion_count INTEGER NOT NULL,
+					run_deletion_set_checksum TEXT NOT NULL,
+					source_fence_count INTEGER NOT NULL,
+					source_fence_set_checksum TEXT NOT NULL,
+					protected_identity_count INTEGER NOT NULL,
+					protected_identity_set_checksum TEXT NOT NULL,
+					lineage_authority_checksum TEXT NOT NULL,
+					effect_checksum TEXT NOT NULL
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_activity_retained_identity (
+					protected_identity TEXT NOT NULL PRIMARY KEY,
+					entry_identity TEXT NOT NULL,
+					identity_kind TEXT NOT NULL,
+					FOREIGN KEY(entry_identity)
+						REFERENCES imported_activity_retention_receipt(entry_identity) ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_activity_retained_identity_entry " +
+					"ON imported_activity_retained_identity(entry_identity)",
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS imported_activity_entry_deletion (
 					entry_identity TEXT NOT NULL PRIMARY KEY,
 					collected_data_epoch INTEGER NOT NULL,

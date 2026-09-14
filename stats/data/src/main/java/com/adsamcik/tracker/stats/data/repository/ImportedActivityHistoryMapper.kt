@@ -24,6 +24,11 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 internal fun ImportedActivityProductEvaluation.toPublicActivityEntry(
 	originConflict: Boolean = false,
 ): ActivityHistoryEntry = when (this) {
+	is ImportedActivityProductEvaluation.Retained -> if (originConflict) {
+		failed(ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+	} else {
+		unavailable(ActivityHistoryCause.RETENTION_LIMIT)
+	}
 	is ImportedActivityProductEvaluation.Unverifiable -> unavailableOrFailed(
 		cause = if (originConflict) {
 			ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT

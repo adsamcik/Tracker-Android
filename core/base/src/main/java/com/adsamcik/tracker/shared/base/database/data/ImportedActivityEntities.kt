@@ -301,6 +301,352 @@ data class ImportedActivityFragmentEntity(
 	}
 }
 
+/**
+ * Payload-free proof that one complete imported Activity correction lineage was removed by the
+ * already-durable global retention floor. It is deliberately separate from user deletion
+ * tombstones: retention must remain distinguishable from both "never imported" and "deleted".
+ */
+@Entity(tableName = "imported_activity_retention_receipt", primaryKeys = ["entry_identity"])
+@Suppress("LongParameterList")
+data class ImportedActivityRetentionReceiptEntity(
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
+	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	@ColumnInfo(name = "source_evidence_revision") val sourceEvidenceRevision: Long,
+	@ColumnInfo(name = "retained_from_ms") val retainedFromMs: Long,
+	@ColumnInfo(name = "retained_at_ms") val retainedAtMs: Long,
+	@ColumnInfo(name = "latest_import_revision") val latestImportRevision: Long,
+	@ColumnInfo(name = "latest_content_checksum") val latestContentChecksum: String,
+	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
+	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
+	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+	@ColumnInfo(name = "revision_count") val revisionCount: Int,
+	@ColumnInfo(name = "import_receipt_count") val importReceiptCount: Int,
+	@ColumnInfo(name = "run_row_count") val runRowCount: Int,
+	@ColumnInfo(name = "zone_epoch_row_count") val zoneEpochRowCount: Int,
+	@ColumnInfo(name = "window_row_count") val windowRowCount: Int,
+	@ColumnInfo(name = "fragment_row_count") val fragmentRowCount: Int,
+	@ColumnInfo(name = "run_deletion_count") val runDeletionCount: Int,
+	@ColumnInfo(name = "run_deletion_set_checksum") val runDeletionSetChecksum: String,
+	@ColumnInfo(name = "source_fence_count") val sourceFenceCount: Int,
+	@ColumnInfo(name = "source_fence_set_checksum") val sourceFenceSetChecksum: String,
+	@ColumnInfo(name = "protected_identity_count") val protectedIdentityCount: Int,
+	@ColumnInfo(name = "protected_identity_set_checksum") val protectedIdentitySetChecksum: String,
+	@ColumnInfo(name = "lineage_authority_checksum") val lineageAuthorityChecksum: String,
+	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
+) {
+	init {
+		listOf(
+			entryIdentity,
+			latestContentChecksum,
+			runDeletionSetChecksum,
+			sourceFenceSetChecksum,
+			protectedIdentitySetChecksum,
+			lineageAuthorityChecksum,
+			effectChecksum,
+		).forEach { require(ImportedActivityIdentity.isDigest(it)) }
+		require(collectedDataEpoch >= 0L && sourceEvidenceRevision > 0L)
+		require(retainedFromMs >= 0L && retainedAtMs >= 0L)
+		require(latestImportRevision > 0L)
+		require(startTimeMs >= 0L && endTimeMs >= startTimeMs)
+		require(receivedAtMs in 0L..retainedAtMs)
+		require(revisionCount in 1..MAX_REVISIONS)
+		require(latestImportRevision == revisionCount.toLong())
+		require(importReceiptCount in revisionCount..MAX_RECEIPTS)
+		require(runRowCount in revisionCount..MAX_RUN_ROWS)
+		require(zoneEpochRowCount in runRowCount..MAX_ZONE_ROWS)
+		require(windowRowCount in revisionCount..MAX_WINDOW_ROWS)
+		require(fragmentRowCount in windowRowCount..MAX_FRAGMENT_ROWS)
+		require(runRowCount % revisionCount == 0)
+		require(zoneEpochRowCount % revisionCount == 0)
+		require(windowRowCount % revisionCount == 0)
+		val stableRunCount = runRowCount / revisionCount
+		val stableWindowCount = windowRowCount / revisionCount
+		require(stableRunCount in 1..MAX_RUNS_PER_ENTRY)
+		require(runDeletionCount in 0..stableRunCount)
+		require(sourceFenceCount in 0..stableRunCount)
+		require(protectedIdentityCount == 1 + stableRunCount * 2 + stableWindowCount)
+		require(protectedIdentityCount <= MAX_PROTECTED_IDENTITIES)
+		require(effectChecksum == checksum(this))
+	}
+
+	@Suppress("ComplexCondition")
+	fun authenticates(markers: List<ImportedActivityRetainedIdentityEntity>): Boolean {
+		val stableRunCount = runRowCount / revisionCount
+		val stableWindowCount = windowRowCount / revisionCount
+		return markers.size == protectedIdentityCount &&
+			markers.all { it.entryIdentity == entryIdentity } &&
+			markers.map { it.protectedIdentity }.distinct().size == markers.size &&
+			markers.count { it.identityKind == ImportedActivityRetainedIdentityEntity.ENTRY } == 1 &&
+			markers.count { it.identityKind == ImportedActivityRetainedIdentityEntity.RUN } ==
+			stableRunCount &&
+			markers.count { it.identityKind == ImportedActivityRetainedIdentityEntity.WINDOW } ==
+			stableWindowCount &&
+			markers.count {
+				it.identityKind == ImportedActivityRetainedIdentityEntity.DELETION_SCOPE
+			} == stableRunCount &&
+			protectedIdentitySetChecksum == checksumProtectedIdentities(markers)
+	}
+
+	companion object {
+		@Suppress("LongParameterList")
+		fun create(
+			entryIdentity: String,
+			collectedDataEpoch: Long,
+			sourceEvidenceRevision: Long,
+			retainedFromMs: Long,
+			retainedAtMs: Long,
+			latestImportRevision: Long,
+			latestContentChecksum: String,
+			startTimeMs: Long,
+			endTimeMs: Long,
+			receivedAtMs: Long,
+			revisionCount: Int,
+			importReceiptCount: Int,
+			runRowCount: Int,
+			zoneEpochRowCount: Int,
+			windowRowCount: Int,
+			fragmentRowCount: Int,
+			runDeletions: List<ImportedActivityDeletionGenerationEntity>,
+			sourceFences: List<SourceDeletionFenceEntity>,
+			markers: List<ImportedActivityRetainedIdentityEntity>,
+			lineageAuthorityChecksum: String,
+		): ImportedActivityRetentionReceiptEntity {
+			val protectedChecksum = checksumProtectedIdentities(markers)
+			val runDeletionChecksum =
+				ImportedActivityEntryDeletionReceiptEntity.checksumRunDeletions(runDeletions)
+			val sourceFenceChecksum =
+				ImportedActivityEntryDeletionReceiptEntity.checksumSourceFences(sourceFences)
+			return ImportedActivityRetentionReceiptEntity(
+				entryIdentity = entryIdentity,
+				collectedDataEpoch = collectedDataEpoch,
+				sourceEvidenceRevision = sourceEvidenceRevision,
+				retainedFromMs = retainedFromMs,
+				retainedAtMs = retainedAtMs,
+				latestImportRevision = latestImportRevision,
+				latestContentChecksum = latestContentChecksum,
+				startTimeMs = startTimeMs,
+				endTimeMs = endTimeMs,
+				receivedAtMs = receivedAtMs,
+				revisionCount = revisionCount,
+				importReceiptCount = importReceiptCount,
+				runRowCount = runRowCount,
+				zoneEpochRowCount = zoneEpochRowCount,
+				windowRowCount = windowRowCount,
+				fragmentRowCount = fragmentRowCount,
+				runDeletionCount = runDeletions.size,
+				runDeletionSetChecksum = runDeletionChecksum,
+				sourceFenceCount = sourceFences.size,
+				sourceFenceSetChecksum = sourceFenceChecksum,
+				protectedIdentityCount = markers.size,
+				protectedIdentitySetChecksum = protectedChecksum,
+				lineageAuthorityChecksum = lineageAuthorityChecksum,
+				effectChecksum = checksum(
+					entryIdentity,
+					collectedDataEpoch,
+					sourceEvidenceRevision,
+					retainedFromMs,
+					retainedAtMs,
+					latestImportRevision,
+					latestContentChecksum,
+					startTimeMs,
+					endTimeMs,
+					receivedAtMs,
+					revisionCount,
+					importReceiptCount,
+					runRowCount,
+					zoneEpochRowCount,
+					windowRowCount,
+					fragmentRowCount,
+					runDeletions.size,
+					runDeletionChecksum,
+					sourceFences.size,
+					sourceFenceChecksum,
+					markers.size,
+					protectedChecksum,
+					lineageAuthorityChecksum,
+				),
+			)
+		}
+
+		fun checksumProtectedIdentities(values: List<ImportedActivityRetainedIdentityEntity>): String {
+			require(values.isNotEmpty() && values.size <= MAX_PROTECTED_IDENTITIES)
+			require(values.map { it.protectedIdentity }.distinct().size == values.size)
+			return ImportedActivityIdentity.digest(
+				"tracker-imported-activity-retained-identity-set-v1",
+				listOf(values.size.toString()) + values.sortedWith(
+					compareBy(ImportedActivityRetainedIdentityEntity::identityKind)
+						.thenBy(ImportedActivityRetainedIdentityEntity::protectedIdentity),
+				).flatMap { listOf(it.identityKind, it.protectedIdentity) },
+			)
+		}
+
+		fun lineageAuthorityChecksum(
+			headers: List<ImportedActivityEntryRevisionEntity>,
+			receipts: List<ImportedActivityReceiptEntity>,
+		): String {
+			require(headers.isNotEmpty() && headers.size <= MAX_REVISIONS)
+			require(receipts.size in headers.size..MAX_RECEIPTS)
+			return ImportedActivityIdentity.digest(
+				"tracker-imported-activity-retained-lineage-authority-v1",
+				listOf(headers.size.toString()) + headers.sortedBy { it.importRevision }.flatMap { value ->
+					listOf(
+						value.identity,
+						value.importRevision.toString(),
+						value.supersedesImportRevision?.toString() ?: "NONE",
+						value.contentChecksum,
+						value.sourceFormat,
+						value.sourceSchemaVersion.toString(),
+						value.sessionMode,
+						value.startTimeMs.toString(),
+						value.endTimeMs.toString(),
+						value.collectedDataEpoch.toString(),
+						value.importJobId,
+						value.importEntryKey,
+						value.importSourceName,
+						value.receivedAtMs.toString(),
+					)
+				} + listOf(receipts.size.toString()) + receipts.sortedWith(
+					compareBy(ImportedActivityReceiptEntity::entryImportRevision)
+						.thenBy(ImportedActivityReceiptEntity::importJobId)
+						.thenBy(ImportedActivityReceiptEntity::importEntryKey),
+				).flatMap { value ->
+					listOf(
+						value.importJobId,
+						value.importEntryKey,
+						value.importSourceName,
+						value.receivedAtMs.toString(),
+						value.entryImportRevision.toString(),
+						value.entryContentChecksum,
+						value.collectedDataEpoch.toString(),
+					)
+				},
+			)
+		}
+
+		private fun checksum(value: ImportedActivityRetentionReceiptEntity) = checksum(
+			value.entryIdentity,
+			value.collectedDataEpoch,
+			value.sourceEvidenceRevision,
+			value.retainedFromMs,
+			value.retainedAtMs,
+			value.latestImportRevision,
+			value.latestContentChecksum,
+			value.startTimeMs,
+			value.endTimeMs,
+			value.receivedAtMs,
+			value.revisionCount,
+			value.importReceiptCount,
+			value.runRowCount,
+			value.zoneEpochRowCount,
+			value.windowRowCount,
+			value.fragmentRowCount,
+			value.runDeletionCount,
+			value.runDeletionSetChecksum,
+			value.sourceFenceCount,
+			value.sourceFenceSetChecksum,
+			value.protectedIdentityCount,
+			value.protectedIdentitySetChecksum,
+			value.lineageAuthorityChecksum,
+		)
+
+		@Suppress("LongParameterList")
+		private fun checksum(
+			entryIdentity: String,
+			collectedDataEpoch: Long,
+			sourceEvidenceRevision: Long,
+			retainedFromMs: Long,
+			retainedAtMs: Long,
+			latestImportRevision: Long,
+			latestContentChecksum: String,
+			startTimeMs: Long,
+			endTimeMs: Long,
+			receivedAtMs: Long,
+			revisionCount: Int,
+			importReceiptCount: Int,
+			runRowCount: Int,
+			zoneEpochRowCount: Int,
+			windowRowCount: Int,
+			fragmentRowCount: Int,
+			runDeletionCount: Int,
+			runDeletionSetChecksum: String,
+			sourceFenceCount: Int,
+			sourceFenceSetChecksum: String,
+			protectedIdentityCount: Int,
+			protectedIdentitySetChecksum: String,
+			lineageAuthorityChecksum: String,
+		) = ImportedActivityIdentity.digest(
+			"tracker-imported-activity-retention-receipt-v1",
+			listOf(
+				entryIdentity,
+				collectedDataEpoch.toString(),
+				sourceEvidenceRevision.toString(),
+				retainedFromMs.toString(),
+				retainedAtMs.toString(),
+				latestImportRevision.toString(),
+				latestContentChecksum,
+				startTimeMs.toString(),
+				endTimeMs.toString(),
+				receivedAtMs.toString(),
+				revisionCount.toString(),
+				importReceiptCount.toString(),
+				runRowCount.toString(),
+				zoneEpochRowCount.toString(),
+				windowRowCount.toString(),
+				fragmentRowCount.toString(),
+				runDeletionCount.toString(),
+				runDeletionSetChecksum,
+				sourceFenceCount.toString(),
+				sourceFenceSetChecksum,
+				protectedIdentityCount.toString(),
+				protectedIdentitySetChecksum,
+				lineageAuthorityChecksum,
+			),
+		)
+
+		private const val MAX_REVISIONS = 16
+		private const val MAX_RECEIPTS = 256
+		private const val MAX_RUN_ROWS = MAX_REVISIONS * 64
+		private const val MAX_RUNS_PER_ENTRY = 64
+		private const val MAX_ZONE_ROWS = 16_384
+		private const val MAX_WINDOW_ROWS = 65_536
+		private const val MAX_FRAGMENT_ROWS = 524_288
+		private const val MAX_PROTECTED_IDENTITIES = 1 + 64 + 16_384 + 64
+	}
+}
+
+/** One globally exclusive semantic identity retained without any Activity payload. */
+@Entity(
+	tableName = "imported_activity_retained_identity",
+	primaryKeys = ["protected_identity"],
+	foreignKeys = [ForeignKey(
+		entity = ImportedActivityRetentionReceiptEntity::class,
+		parentColumns = ["entry_identity"],
+		childColumns = ["entry_identity"],
+		onDelete = ForeignKey.CASCADE,
+	)],
+	indices = [Index(value = ["entry_identity"], name = "idx_imported_activity_retained_identity_entry")],
+)
+data class ImportedActivityRetainedIdentityEntity(
+	@ColumnInfo(name = "protected_identity") val protectedIdentity: String,
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
+	@ColumnInfo(name = "identity_kind") val identityKind: String,
+) {
+	init {
+		require(ImportedActivityIdentity.isDigest(protectedIdentity))
+		require(ImportedActivityIdentity.isDigest(entryIdentity))
+		require(identityKind in ALL_KINDS)
+		require((identityKind == ENTRY) == (protectedIdentity == entryIdentity))
+	}
+
+	companion object {
+		const val ENTRY = "ENTRY"
+		const val RUN = "RUN"
+		const val WINDOW = "WINDOW"
+		const val DELETION_SCOPE = "DELETION_SCOPE"
+		private val ALL_KINDS = setOf(ENTRY, RUN, WINDOW, DELETION_SCOPE)
+	}
+}
+
 /** Entry-level no-resurrection authority retained after imported logical deletion. */
 @Entity(tableName = "imported_activity_entry_deletion", primaryKeys = ["entry_identity"])
 data class ImportedActivityEntryDeletionEntity(

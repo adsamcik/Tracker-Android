@@ -12,6 +12,8 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDelet
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetainedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetentionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityWindowEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityZoneEpochEntity
@@ -59,6 +61,8 @@ class ImportedActivityMigration27To28Test {
 				"imported_activity_zone_epoch",
 				"imported_activity_window",
 				"imported_activity_fragment",
+				"imported_activity_retention_receipt",
+				"imported_activity_retained_identity",
 				"imported_activity_entry_deletion",
 				"imported_activity_entry_deletion_receipt",
 				"imported_activity_deletion_generation",
@@ -94,6 +98,14 @@ class ImportedActivityMigration27To28Test {
 					assertEquals(
 						1L,
 						dao.deletionGenerations(listOf(TOMBSTONED_RUN)).single().generation,
+					)
+					assertEquals(
+						10L,
+						dao.retentionReceipt(RETAINED_ENTRY)?.retainedFromMs,
+					)
+					assertEquals(
+						4,
+						dao.retainedIdentitiesForEntries(listOf(RETAINED_ENTRY), 5).size,
 					)
 				}
 			} finally {
@@ -135,6 +147,58 @@ class ImportedActivityMigration27To28Test {
 				"job", "entry", "backup.trackeractivity", 30L, ENTRY, 1L, digest('2'), 7L,
 			),
 		)
+		val retainedHeader = ImportedActivityEntryRevisionEntity(
+			RETAINED_ENTRY, 1L, null, digest('d'), ActivityCapturedPortableFormatV1.FORMAT, 1,
+			"MANUAL", 1L, 9L, 7L, "retained-job", "retained-entry",
+			"backup.trackeractivity", 9L,
+		)
+		val retainedImportReceipt = ImportedActivityReceiptEntity(
+			"retained-job", "retained-entry", "backup.trackeractivity", 9L,
+			RETAINED_ENTRY, 1L, digest('d'), 7L,
+		)
+		val retainedMarkers = listOf(
+			ImportedActivityRetainedIdentityEntity(
+				RETAINED_ENTRY, RETAINED_ENTRY, ImportedActivityRetainedIdentityEntity.ENTRY,
+			),
+			ImportedActivityRetainedIdentityEntity(
+				RETAINED_RUN, RETAINED_ENTRY, ImportedActivityRetainedIdentityEntity.RUN,
+			),
+			ImportedActivityRetainedIdentityEntity(
+				RETAINED_WINDOW, RETAINED_ENTRY, ImportedActivityRetainedIdentityEntity.WINDOW,
+			),
+			ImportedActivityRetainedIdentityEntity(
+				RETAINED_SCOPE, RETAINED_ENTRY, ImportedActivityRetainedIdentityEntity.DELETION_SCOPE,
+			),
+		)
+		dao.insertRetentionReceipts(listOf(
+			ImportedActivityRetentionReceiptEntity.create(
+				entryIdentity = RETAINED_ENTRY,
+				collectedDataEpoch = 7L,
+				sourceEvidenceRevision = 1L,
+				retainedFromMs = 10L,
+				retainedAtMs = 11L,
+				latestImportRevision = 1L,
+				latestContentChecksum = digest('d'),
+				startTimeMs = 1L,
+				endTimeMs = 9L,
+				receivedAtMs = 9L,
+				revisionCount = 1,
+				importReceiptCount = 1,
+				runRowCount = 1,
+				zoneEpochRowCount = 1,
+				windowRowCount = 1,
+				fragmentRowCount = 1,
+				runDeletions = emptyList(),
+				sourceFences = emptyList(),
+				markers = retainedMarkers,
+				lineageAuthorityChecksum =
+					ImportedActivityRetentionReceiptEntity.lineageAuthorityChecksum(
+						listOf(retainedHeader),
+						listOf(retainedImportReceipt),
+					),
+			),
+		))
+		dao.insertRetainedIdentities(retainedMarkers)
 		val entryDeletion = ImportedActivityEntryDeletionEntity.create(
 			TOMBSTONED_ENTRY,
 			7L,
@@ -180,5 +244,9 @@ class ImportedActivityMigration27To28Test {
 		val WINDOW = "6".repeat(64)
 		val TOMBSTONED_ENTRY = "8".repeat(64)
 		val TOMBSTONED_RUN = "9".repeat(64)
+		val RETAINED_ENTRY = "d".repeat(64)
+		val RETAINED_RUN = "e".repeat(64)
+		val RETAINED_WINDOW = "f".repeat(64)
+		val RETAINED_SCOPE = "0".repeat(64)
 	}
 }

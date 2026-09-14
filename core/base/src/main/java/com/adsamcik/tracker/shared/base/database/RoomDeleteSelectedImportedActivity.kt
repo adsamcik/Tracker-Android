@@ -90,6 +90,8 @@ class RoomDeleteSelectedImportedActivity internal constructor(
 			return authenticateReplay(request, state, dao, deletion, authority)
 		}
 		val readable = when (evaluation) {
+			is ImportedActivityProductEvaluation.Retained ->
+				blocked(SelectedImportedActivityDeletionBlockedReason.RETENTION_BOUNDARY)
 			is ImportedActivityProductEvaluation.Unverifiable -> unverifiable(evaluation.reason)
 			is ImportedActivityProductEvaluation.Readable -> evaluation
 		}
