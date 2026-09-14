@@ -169,7 +169,8 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 	}
 
 	/**
-	 * Reauthenticates every selected opaque identity against all imported Pressure owner tables.
+	 * Reauthenticates every selected opaque identity against all imported Pressure owner and privacy
+	 * marker tables.
 	 * Tombstones are keyed only by opaque identity, so a corrupt cross-owner or cross-kind row must
 	 * block before the first durable privacy fence can affect an unrelated imported entry.
 	 */
@@ -222,8 +223,24 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 			val entries = dao.existingEntryIdentities(identities, queryLimit)
 			val runs = dao.existingRunIdentityOwners(identities, queryLimit)
 			val windows = dao.existingWindowIdentityOwners(identities, queryLimit)
+			val entryTombstones = dao.entryDeletions(identities)
+			val runTombstones = dao.deletionGenerations(identities)
 			if (entries.size >= queryLimit || runs.size >= queryLimit || windows.size >= queryLimit) {
 				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW)
+			}
+			val incompatibleEntryTombstone = entryTombstones.any { marker ->
+				expected[marker.entryIdentity]?.kind != PortablePressureIdentityKind.LOGICAL_ENTRY
+			}
+			val incompatibleRunTombstone = runTombstones.any { marker ->
+				expected[marker.runIdentity]?.kind != PortablePressureIdentityKind.PHYSICAL_RUN
+			}
+			if (incompatibleEntryTombstone || incompatibleRunTombstone) {
+				unverifiable(
+					ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+			}
+			if (entryTombstones.isNotEmpty() || runTombstones.isNotEmpty()) {
+				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.PARTIAL_DELETION_STATE)
 			}
 			val observed = linkedMapOf<String, ImportedPressureGlobalIdentityOwner>()
 			fun observe(identity: String, owner: ImportedPressureGlobalIdentityOwner) {

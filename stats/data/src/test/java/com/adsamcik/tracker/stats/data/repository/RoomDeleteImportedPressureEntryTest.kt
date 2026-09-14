@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedPressureEntryRequest
@@ -261,6 +262,55 @@ class RoomDeleteImportedPressureEntryTest {
 	}
 
 	@Test
+	fun `entry tombstone sharing selected run identity blocks before mutation`() = runTest {
+		assertEntryTombstoneCollisionBlocked(testScheduler) { selected ->
+			selected.runs.single().identity.value
+		}
+	}
+
+	@Test
+	fun `entry tombstone sharing selected window identity blocks before mutation`() = runTest {
+		assertEntryTombstoneCollisionBlocked(testScheduler) { selected ->
+			selected.runs.single().windows.single().identity.value
+		}
+	}
+
+	@Test
+	fun `run tombstone sharing selected entry identity blocks before mutation`() = runTest {
+		assertRunTombstoneCollisionBlocked(testScheduler) { selected -> selected.identity.value }
+	}
+
+	@Test
+	fun `run tombstone sharing selected window identity blocks before mutation`() = runTest {
+		assertRunTombstoneCollisionBlocked(testScheduler) { selected ->
+			selected.runs.single().windows.single().identity.value
+		}
+	}
+
+	@Test
+	fun `same owner run and window identities may be reused by a correction`() = runTest {
+		val importer = importer(testScheduler)
+		val first = request(entry(), receipt("same-owner-job-1", "same-owner-entry-1", 30L))
+		val correction = request(
+			entry(wallTimeUncertaintyMs = 30L),
+			receipt("same-owner-job-2", "same-owner-entry-2", 40L),
+		)
+		importer.importEntry(first) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		importer.importEntry(correction) shouldBe ImportPortablePressureResult.Applied(2L, 1, 1)
+		first.entry.runs.single().identity shouldBe correction.entry.runs.single().identity
+		first.entry.runs.single().windows.single().identity shouldBe
+			correction.entry.runs.single().windows.single().identity
+
+		deleter(testScheduler).delete(deleteRequest(correction.entry, revision = 2L)) shouldBe
+			DeleteImportedPressureEntryResult.Deleted
+
+		val dao = database.importedPressureDao()
+		dao.entryRevisionsForAdmission(correction.entry.identity.value) shouldBe emptyList()
+		dao.deletionGeneration(correction.entry.runs.single().identity.value)?.generation shouldBe 1L
+		dao.entryDeletion(correction.entry.identity.value)?.deletedImportRevision shouldBe 2L
+	}
+
+	@Test
 	fun `over-limit lineage is unverifiable without installing fences`() = runTest {
 		val imported = request()
 		importer(testScheduler).importEntry(imported)
@@ -340,6 +390,82 @@ class RoomDeleteImportedPressureEntryTest {
 		database.importedPressureDao().entryDeletion(missing.identity.value) shouldBe null
 	}
 
+	private suspend fun assertEntryTombstoneCollisionBlocked(
+		scheduler: TestCoroutineScheduler,
+		collisionIdentity: (PortablePressureEntryV1) -> String,
+	) {
+		val selected = request()
+		val unrelated = unrelatedRequest()
+		val importer = importer(scheduler)
+		importer.importEntry(selected) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		importer.importEntry(unrelated) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		val marker = ImportedPressureEntryDeletionEntity.create(
+			entryIdentity = collisionIdentity(selected.entry),
+			collectedDataEpoch = EPOCH,
+			deletedImportRevision = 1L,
+			deletedAtMs = DELETED_AT_MS - 1L,
+		)
+		val dao = database.importedPressureDao()
+		dao.insertEntryDeletion(marker)
+
+		deleter(scheduler).delete(deleteRequest(selected.entry, revision = 1L)) shouldBe
+			DeleteImportedPressureEntryResult.Unverifiable(
+				ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+
+		assertRetained(selected.entry, unrelated.entry)
+		dao.entryDeletion(selected.entry.identity.value) shouldBe null
+		dao.deletionGeneration(selected.entry.runs.single().identity.value) shouldBe null
+		dao.entryDeletion(marker.entryIdentity) shouldBe marker
+	}
+
+	private suspend fun assertRunTombstoneCollisionBlocked(
+		scheduler: TestCoroutineScheduler,
+		collisionIdentity: (PortablePressureEntryV1) -> String,
+	) {
+		val selected = request()
+		val unrelated = unrelatedRequest()
+		val importer = importer(scheduler)
+		importer.importEntry(selected) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		importer.importEntry(unrelated) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+		val marker = ImportedPressureDeletionGenerationEntity.create(
+			runIdentity = collisionIdentity(selected.entry),
+			collectedDataEpoch = EPOCH,
+			generation = 1L,
+			deletedAtMs = DELETED_AT_MS - 1L,
+		)
+		val dao = database.importedPressureDao()
+		dao.insertDeletionGeneration(marker)
+
+		deleter(scheduler).delete(deleteRequest(selected.entry, revision = 1L)) shouldBe
+			DeleteImportedPressureEntryResult.Unverifiable(
+				ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+
+		assertRetained(selected.entry, unrelated.entry)
+		dao.entryDeletion(selected.entry.identity.value) shouldBe null
+		dao.deletionGeneration(selected.entry.runs.single().identity.value) shouldBe null
+		dao.deletionGeneration(marker.runIdentity) shouldBe marker
+	}
+
+	private suspend fun assertRetained(
+		selected: PortablePressureEntryV1,
+		unrelated: PortablePressureEntryV1,
+	) {
+		val dao = database.importedPressureDao()
+		dao.latestEntryRevision(selected.identity.value)?.importRevision shouldBe 1L
+		dao.allRunsForAdmission(selected.identity.value).size shouldBe 1
+		dao.allWindowsForAdmission(selected.identity.value).size shouldBe 1
+		dao.latestEntryRevision(unrelated.identity.value)?.importRevision shouldBe 1L
+		dao.allRunsForAdmission(unrelated.identity.value).size shouldBe 1
+		dao.allWindowsForAdmission(unrelated.identity.value).size shouldBe 1
+	}
+
+	private fun unrelatedRequest() = request(
+		entry("marker-other-entry", "marker-other-run", "marker-other-window"),
+		receipt("marker-other-job", "marker-other-entry", 45L),
+	)
+
 	private fun importer(scheduler: TestCoroutineScheduler) = RoomImportPortablePressure(
 		database,
 		UnconfinedTestDispatcher(scheduler),
@@ -385,8 +511,9 @@ class RoomDeleteImportedPressureEntryTest {
 		entryLocalId: String = "entry",
 		runLocalId: String = "run",
 		windowLocalId: String = "window",
+		wallTimeUncertaintyMs: Long = 25L,
 	): PortablePressureEntryV1 {
-		val run = run(runLocalId, windowLocalId)
+		val run = run(runLocalId, windowLocalId, wallTimeUncertaintyMs)
 		return PortablePressureEntryV1.create(
 			identity = identity(PortablePressureIdentityKind.LOGICAL_ENTRY, entryLocalId),
 			startTimeMs = run.startTimeMs,
@@ -395,7 +522,11 @@ class RoomDeleteImportedPressureEntryTest {
 		)
 	}
 
-	private fun run(runLocalId: String, windowLocalId: String) = PortablePressureRunV1(
+	private fun run(
+		runLocalId: String,
+		windowLocalId: String,
+		wallTimeUncertaintyMs: Long,
+	) = PortablePressureRunV1(
 		identity = identity(PortablePressureIdentityKind.PHYSICAL_RUN, runLocalId),
 		startTimeMs = 1_000L,
 		endTimeMs = 2_000L,
@@ -403,15 +534,18 @@ class RoomDeleteImportedPressureEntryTest {
 		availability = PortablePressureAvailability.RETAINED,
 		coverage = PortablePressureCoverage.COMPLETE,
 		retentionLoss = false,
-		windows = listOf(window(windowLocalId)),
+		windows = listOf(window(windowLocalId, wallTimeUncertaintyMs)),
 	)
 
 	@Suppress("LongMethod")
-	private fun window(windowLocalId: String) = PortablePressureWindowV1.create(
+	private fun window(
+		windowLocalId: String,
+		wallTimeUncertaintyMs: Long,
+	) = PortablePressureWindowV1.create(
 		identity = identity(PortablePressureIdentityKind.WINDOW, windowLocalId),
 		intervalStartTimeMs = 1_000L,
 		intervalEndTimeMs = 1_150L,
-		wallTimeUncertaintyMs = 25L,
+		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
 		observedDurationNanos = 150_000_000L,
 		sampleCount = 4,
 		expectedSampleCount = 4,
