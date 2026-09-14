@@ -499,6 +499,74 @@ interface ImportPortableCapturedActivity {
 	): ImportPortableCapturedActivityResult
 }
 
+/** Exact latest imported Activity revision selected from an authenticated product read. */
+data class SelectedImportedActivityIdentity(
+	val entryIdentity: PortableActivityOpaqueIdentity,
+	val importRevision: Long,
+	val contentChecksum: PortableActivityDigest,
+) {
+	init {
+		require(importRevision > 0L)
+	}
+}
+
+/** One selected imported-origin deletion attempt; it grants no live source authority. */
+data class DeleteSelectedImportedActivityRequest(
+	val selected: SelectedImportedActivityIdentity,
+	val expectedCollectedDataEpoch: Long,
+	val deletedAtMs: Long,
+) {
+	init {
+		require(expectedCollectedDataEpoch >= 0L)
+		require(deletedAtMs >= 0L)
+	}
+}
+
+interface DeleteSelectedImportedActivity {
+	suspend fun delete(
+		request: DeleteSelectedImportedActivityRequest,
+	): DeleteSelectedImportedActivityResult
+}
+
+sealed interface DeleteSelectedImportedActivityResult {
+	data class Deleted(
+		val importRevisionCount: Int,
+		val physicalRunCount: Int,
+	) : DeleteSelectedImportedActivityResult {
+		init {
+			require(importRevisionCount > 0)
+			require(physicalRunCount > 0)
+		}
+	}
+
+	data class AlreadyDeleted(val deletedImportRevision: Long) : DeleteSelectedImportedActivityResult {
+		init {
+			require(deletedImportRevision > 0L)
+		}
+	}
+
+	data object NotFound : DeleteSelectedImportedActivityResult
+
+	data class Blocked(
+		val reason: SelectedImportedActivityDeletionBlockedReason,
+	) : DeleteSelectedImportedActivityResult
+
+	data class Unverifiable(
+		val reason: ImportedActivityProductFailure,
+	) : DeleteSelectedImportedActivityResult
+
+	data class RetryableFailure(
+		val reason: PortableActivityTransferRetryableReason,
+	) : DeleteSelectedImportedActivityResult
+}
+
+enum class SelectedImportedActivityDeletionBlockedReason {
+	COLLECTED_DATA_EPOCH_CHANGED,
+	STALE_SELECTION,
+	STALE_REQUEST,
+	RETENTION_BOUNDARY,
+}
+
 sealed interface ImportPortableCapturedActivityResult {
 	data class Applied(
 		val importRevision: Long,

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
+import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
@@ -28,6 +29,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
+@Suppress("LargeClass", "TooManyFunctions") // Import, read, export, and deletion share one Room fixture.
 class RoomImportPortableCapturedActivityTest {
 	private lateinit var database: AppDatabase
 
@@ -792,6 +794,305 @@ class RoomImportPortableCapturedActivityTest {
 	}
 
 	@Test
+	fun `selected imported deletion fences exact correction and cannot be reimported or re-exported`() =
+		runTest {
+			database.sourceEvidenceStateDao().updateAfterFullDeletion(
+				epoch = EPOCH,
+				retainedFromMs = null,
+				deletedSourceEventHighWaterOrdinal = 17L,
+				updatedAtMs = 20L,
+			) shouldBe 1
+			val evidenceBefore = requireNotNull(database.sourceEvidenceStateDao().get())
+			val original = request()
+			val corrected = request(entry(endUncertaintyMs = 12L), receipt("job-correction", 40L))
+			val otherEntry = entry(
+				entryLocalId = "other-entry",
+				runIdentity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "other-run"),
+				deletionScope = scope("other-run"),
+				windowIdentity = identity(PortableActivityIdentityKind.CAPTURE_WINDOW, "other-window"),
+			)
+			val other = request(
+				otherEntry,
+				PortableActivityImportReceipt("job-other", "entry-other", "backup.trackeractivity", 50L),
+			)
+			val importer = importer(testScheduler)
+			importer.importEntry(original) shouldBe
+				ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+			importer.importEntry(corrected) shouldBe
+				ImportPortableCapturedActivityResult.Applied(2L, 1, 1, 1)
+			importer.importEntry(other) shouldBe
+				ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+			val unrelatedFence = sourceDeletionFence(
+				logicalTrackingId = "unrelated-logical",
+				serviceRunId = "unrelated-run",
+			)
+			database.sourceDeletionFenceDao().insertIfAbsent(unrelatedFence) shouldBe 1L
+
+			deleter(testScheduler).delete(deleteRequest(corrected.entry, 2L, deletedAtMs = 100L)) shouldBe
+				DeleteSelectedImportedActivityResult.Deleted(2, 1)
+
+			val dao = database.importedActivityDao()
+			dao.latestHistoryCandidate(corrected.entry.identity.value) shouldBe null
+			dao.entryRevisionsForAdmission(corrected.entry.identity.value) shouldBe emptyList()
+			dao.receiptsForAdmission(corrected.entry.identity.value) shouldBe emptyList()
+			dao.allRunsForAdmission(corrected.entry.identity.value) shouldBe emptyList()
+			dao.allZoneEpochsForAdmission(corrected.entry.identity.value) shouldBe emptyList()
+			dao.allWindowsForAdmission(corrected.entry.identity.value) shouldBe emptyList()
+			dao.allFragmentsForAdmission(corrected.entry.identity.value) shouldBe emptyList()
+			dao.entryDeletion(corrected.entry.identity.value) shouldBe
+				ImportedActivityEntryDeletionEntity.create(
+					corrected.entry.identity.value,
+					EPOCH,
+					2L,
+					100L,
+				)
+			dao.deletionGenerations(corrected.entry.runs.map { it.identity.value }) shouldBe listOf(
+				ImportedActivityDeletionGenerationEntity.create(
+					corrected.entry.runs.single().identity.value,
+					EPOCH,
+					1L,
+					100L,
+				),
+			)
+			dao.latestEntryRevision(otherEntry.identity.value)?.contentChecksum shouldBe
+				otherEntry.contentChecksum.value
+			database.sourceDeletionFenceDao().get(
+				unrelatedFence.sourceKind,
+				unrelatedFence.purpose,
+				unrelatedFence.scopeKind,
+				unrelatedFence.scopeIdentityDigest,
+			) shouldBe unrelatedFence
+			database.sourceEvidenceStateDao().get() shouldBe evidenceBefore
+
+			deleter(testScheduler).delete(deleteRequest(corrected.entry, 2L, deletedAtMs = 110L)) shouldBe
+				DeleteSelectedImportedActivityResult.AlreadyDeleted(2L)
+			importer.importEntry(corrected.copy(receipt = receipt("job-reimport", 120L))) shouldBe
+				ImportPortableCapturedActivityResult.Blocked(PortableActivityImportBlockedReason.DELETED_ENTRY)
+			var envelope: PortableActivityEnvelopeV1? = null
+			RoomExportPortableCapturedActivity(
+				database,
+				SourceProductLaneExecutionAuthority { false },
+				UnconfinedTestDispatcher(testScheduler),
+			).export(ExportPortableCapturedActivityRequest(999L, 2_001L)) {
+				envelope = it
+			} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+			envelope?.entries shouldBe listOf(otherEntry)
+		}
+
+	@Test
+	fun `selected imported deletion preserves exact prior run and source fences`() = runTest {
+		val sourceScopedRun = run(
+			identity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "source-fenced-run"),
+			deletionScope = PortableActivityDeletionScopeDigest.derive(
+				LOGICAL_TRACKING_ID,
+				SERVICE_RUN_ID,
+			),
+			windowIdentity = identity(PortableActivityIdentityKind.CAPTURE_WINDOW, "source-fenced-window"),
+		)
+		val runFenced = run(
+			identity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "run-fenced-run"),
+			deletionScope = scope("run-fenced-run"),
+			windowIdentity = identity(PortableActivityIdentityKind.CAPTURE_WINDOW, "run-fenced-window"),
+		)
+		val value = entry(
+			entryLocalId = "partially-deleted",
+			runs = listOf(sourceScopedRun, runFenced).sortedWith(
+				compareBy<PortableActivityRunV1>(PortableActivityRunV1::startTimeMs)
+					.thenBy(PortableActivityRunV1::endTimeMs)
+					.thenBy { it.identity.value },
+			),
+		)
+		importer(testScheduler).importEntry(request(value)) shouldBe
+			ImportPortableCapturedActivityResult.Applied(1L, 2, 2, 2)
+		val retainedRunDeletion = ImportedActivityDeletionGenerationEntity.create(
+			runFenced.identity.value,
+			EPOCH,
+			1L,
+			70L,
+		)
+		database.importedActivityDao().insertDeletionGeneration(retainedRunDeletion)
+		val retainedSourceFence = sourceDeletionFence()
+		database.sourceDeletionFenceDao().insertIfAbsent(retainedSourceFence) shouldBe 1L
+
+		deleter(testScheduler).delete(deleteRequest(value, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.Deleted(1, 2)
+
+		val deletions = database.importedActivityDao()
+			.deletionGenerations(value.runs.map { it.identity.value })
+			.associateBy { it.runIdentity }
+		deletions[runFenced.identity.value] shouldBe retainedRunDeletion
+		deletions[sourceScopedRun.identity.value] shouldBe
+			ImportedActivityDeletionGenerationEntity.create(sourceScopedRun.identity.value, EPOCH, 1L, 100L)
+		database.sourceDeletionFenceDao().get(
+			retainedSourceFence.sourceKind,
+			retainedSourceFence.purpose,
+			retainedSourceFence.scopeKind,
+			retainedSourceFence.scopeIdentityDigest,
+		) shouldBe retainedSourceFence
+	}
+
+	@Test
+	fun `stale selected correction and stale deletion time leave imported hierarchy untouched`() = runTest {
+		val first = request()
+		val corrected = request(entry(endUncertaintyMs = 12L), receipt("job-correction", 40L))
+		val importer = importer(testScheduler)
+		importer.importEntry(first)
+		importer.importEntry(corrected)
+
+		deleter(testScheduler).delete(deleteRequest(first.entry, 1L, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.Blocked(
+				SelectedImportedActivityDeletionBlockedReason.STALE_SELECTION,
+			)
+		deleter(testScheduler).delete(deleteRequest(corrected.entry, 2L, deletedAtMs = 39L)) shouldBe
+			DeleteSelectedImportedActivityResult.Blocked(
+				SelectedImportedActivityDeletionBlockedReason.STALE_REQUEST,
+			)
+		database.importedActivityDao().latestEntryRevision(corrected.entry.identity.value)
+			?.importRevision shouldBe 2L
+		database.importedActivityDao().entryDeletion(corrected.entry.identity.value) shouldBe null
+	}
+
+	@Test
+	fun `privacy epoch and retention floor block selected imported deletion without mutation`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 1_500L, 60L) shouldBe 1
+
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.Blocked(
+				SelectedImportedActivityDeletionBlockedReason.RETENTION_BOUNDARY,
+			)
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH + 1L, 1_500L, 70L) shouldBe 1
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.Blocked(
+				SelectedImportedActivityDeletionBlockedReason.COLLECTED_DATA_EPOCH_CHANGED,
+			)
+		database.importedActivityDao().latestEntryRevision(value.entry.identity.value) shouldBe
+			database.importedActivityDao().entryRevision(value.entry.identity.value, 1L)
+		database.importedActivityDao().entryDeletion(value.entry.identity.value) shouldBe null
+	}
+
+	@Test
+	fun `corrupt selected imported hierarchy fails closed before tombstones`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM imported_activity_fragment WHERE entry_identity = ?",
+			arrayOf(value.entry.identity.value),
+		)
+
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.Unverifiable(
+				ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		database.importedActivityDao().latestEntryRevision(value.entry.identity.value) shouldBe
+			database.importedActivityDao().entryRevision(value.entry.identity.value, 1L)
+		database.importedActivityDao().entryDeletion(value.entry.identity.value) shouldBe null
+		database.importedActivityDao().deletionGenerations(value.entry.runs.map { it.identity.value }) shouldBe
+			emptyList()
+	}
+
+	@Test
+	fun `conflicting imported owner authority fails closed before selected deletion`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		val runIdentity = value.entry.runs.single().identity.value
+		val conflictingOwner = ImportedActivityEntryDeletionEntity.create(runIdentity, EPOCH, 1L, 60L)
+		database.importedActivityDao().insertEntryDeletion(conflictingOwner)
+
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.Unverifiable(
+				ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT,
+			)
+		database.importedActivityDao().latestEntryRevision(value.entry.identity.value)?.importRevision shouldBe 1L
+		database.importedActivityDao().entryDeletion(value.entry.identity.value) shouldBe null
+		database.importedActivityDao().entryDeletion(runIdentity) shouldBe conflictingOwner
+	}
+
+	@Test
+	fun `unsupported imported deletion generation fails closed before selected deletion`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		val unsupported = ImportedActivityDeletionGenerationEntity.create(
+			value.entry.runs.single().identity.value,
+			EPOCH,
+			2L,
+			60L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"INSERT INTO imported_activity_deletion_generation VALUES (?, ?, ?, ?, ?)",
+			arrayOf(
+				unsupported.runIdentity,
+				unsupported.collectedDataEpoch,
+				unsupported.generation,
+				unsupported.deletedAtMs,
+				unsupported.effectChecksum,
+			),
+		)
+
+		deleter(testScheduler).delete(deleteRequest(value.entry, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.Unverifiable(
+				ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		database.importedActivityDao().latestEntryRevision(value.entry.identity.value)?.importRevision shouldBe 1L
+		database.importedActivityDao().entryDeletion(value.entry.identity.value) shouldBe null
+	}
+
+	@Test
+	fun `cancellation after imported tombstones rolls back the whole selected deletion`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		val cancelling = deleter(testScheduler) { checkpoint ->
+			if (checkpoint == ImportedActivityDeletionCheckpoint.TOMBSTONES_RECORDED) {
+				throw CancellationException("cancel selected deletion")
+			}
+		}
+
+		shouldThrow<CancellationException> {
+			cancelling.delete(deleteRequest(value.entry, deletedAtMs = 100L))
+		}
+
+		database.importedActivityDao().latestEntryRevision(value.entry.identity.value)?.importRevision shouldBe 1L
+		database.importedActivityDao().entryDeletion(value.entry.identity.value) shouldBe null
+		database.importedActivityDao().deletionGenerations(value.entry.runs.map { it.identity.value }) shouldBe
+			emptyList()
+	}
+
+	@Test
+	fun `storage failure after imported tombstones rolls back the whole selected deletion`() = runTest {
+		val value = request()
+		importer(testScheduler).importEntry(value)
+		val failing = deleter(testScheduler) { checkpoint ->
+			if (checkpoint == ImportedActivityDeletionCheckpoint.TOMBSTONES_RECORDED) {
+				throw SQLiteException("selected deletion write failed")
+			}
+		}
+
+		failing.delete(deleteRequest(value.entry, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.RetryableFailure(
+				PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		database.importedActivityDao().latestEntryRevision(value.entry.identity.value)?.importRevision shouldBe 1L
+		database.importedActivityDao().entryDeletion(value.entry.identity.value) shouldBe null
+		database.importedActivityDao().deletionGenerations(value.entry.runs.map { it.identity.value }) shouldBe
+			emptyList()
+	}
+
+	@Test
+	fun `missing and unavailable selected imported entries remain typed`() = runTest {
+		val value = entry()
+		deleter(testScheduler).delete(deleteRequest(value, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.NotFound
+
+		val closed = newDatabase()
+		closed.close()
+		deleter(testScheduler, closed).delete(deleteRequest(value, deletedAtMs = 100L)) shouldBe
+			DeleteSelectedImportedActivityResult.RetryableFailure(
+				PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
+			)
+	}
+
+	@Test
 	fun `portable re-export maps imported storage failure without invoking the sink`() = runTest {
 		val closed = newDatabase()
 		closed.close()
@@ -815,6 +1116,30 @@ class RoomImportPortableCapturedActivityTest {
 		database,
 		UnconfinedTestDispatcher(scheduler),
 		checkpoint,
+	)
+
+	private fun deleter(
+		scheduler: TestCoroutineScheduler,
+		database: AppDatabase = this.database,
+		checkpoint: suspend (ImportedActivityDeletionCheckpoint) -> Unit = {},
+	) = RoomDeleteSelectedImportedActivity(
+		database,
+		UnconfinedTestDispatcher(scheduler),
+		checkpoint,
+	)
+
+	private fun deleteRequest(
+		entry: PortableActivityEntryV1,
+		importRevision: Long = 1L,
+		deletedAtMs: Long,
+	) = DeleteSelectedImportedActivityRequest(
+		selected = SelectedImportedActivityIdentity(
+			entryIdentity = entry.identity,
+			importRevision = importRevision,
+			contentChecksum = entry.contentChecksum,
+		),
+		expectedCollectedDataEpoch = EPOCH,
+		deletedAtMs = deletedAtMs,
 	)
 
 	private fun request(

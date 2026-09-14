@@ -61,6 +61,13 @@ abstract class ImportedActivityDao {
 	)
 	abstract suspend fun latestEntryRevision(identity: String): ImportedActivityEntryRevisionEntity?
 
+	@Query(
+		"SELECT identity, import_revision, content_checksum, start_time_ms, end_time_ms, " +
+			"received_at_ms FROM imported_activity_entry_revision WHERE identity = :identity " +
+			"ORDER BY import_revision DESC LIMIT 1",
+	)
+	abstract suspend fun latestHistoryCandidate(identity: String): ImportedActivityHistoryCandidate?
+
 	/** One latest-revision seed per imported logical entry, ordered for product history. */
 	@Query(
 		"""
@@ -405,6 +412,10 @@ abstract class ImportedActivityDao {
 		runIdentity: String,
 		windowIdentity: String,
 	): List<ImportedActivityFragmentEntity>
+
+	/** Cascades only the selected imported entry's receipts, runs, windows, zones, and fragments. */
+	@Query("DELETE FROM imported_activity_entry_revision WHERE identity = :identity")
+	abstract suspend fun deleteEntryRevisions(identity: String): Int
 
 	@Query("DELETE FROM imported_activity_entry_revision")
 	abstract fun deleteAllEntries()

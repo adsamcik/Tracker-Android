@@ -24,6 +24,14 @@ import kotlinx.coroutines.ensureActive
 class ImportedActivityProductReader(
 	private val database: AppDatabase,
 ) {
+	internal suspend fun selectIdentityInTransaction(
+		identity: PortableActivityOpaqueIdentity,
+	): ImportedActivityProductEvaluation? {
+		val candidate = database.importedActivityDao().latestHistoryCandidate(identity.value)
+			?: return null
+		return evaluateCandidates(listOf(candidate), null, null, 1).single()
+	}
+
 	suspend fun selectRecentInTransaction(limit: Int): List<ImportedActivityProductEvaluation> {
 		require(limit in 1..ImportedActivityDao.MAX_HISTORY_ENTRY_CANDIDATES)
 		val candidates = database.importedActivityDao().recentHistoryCandidatePage(
