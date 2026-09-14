@@ -28,6 +28,85 @@ interface ExportPortablePressure {
 	): ExportPortablePressureResult
 }
 
+/** Bounded receipt provenance copied into the immutable Pressure-origin row. */
+data class PortablePressureImportReceipt(
+	val jobId: String,
+	val entryKey: String,
+	val sourceName: String,
+	val receivedAtMs: Long,
+) {
+	init {
+		listOf(jobId, entryKey, sourceName).forEach { value ->
+			require(value.isNotBlank())
+			require(value.length <= PressurePortableFormatV1.MAX_IMPORT_RECEIPT_FIELD_LENGTH)
+		}
+		require(receivedAtMs >= 0L)
+	}
+}
+
+/** One Pressure-only admission transaction over already-decoded portable v1 evidence. */
+data class ImportPortablePressureRequest(
+	val entry: PortablePressureEntryV1,
+	val receipt: PortablePressureImportReceipt,
+	val expectedCollectedDataEpoch: Long,
+) {
+	init {
+		require(expectedCollectedDataEpoch >= 0L)
+	}
+}
+
+/** Import admission never creates live capture authority or a live Pressure fact. */
+interface ImportPortablePressure {
+	suspend fun importEntry(request: ImportPortablePressureRequest): ImportPortablePressureResult
+}
+
+sealed interface ImportPortablePressureResult {
+	data class Applied(
+		val importRevision: Long,
+		val physicalRunCount: Int,
+		val windowCount: Int,
+	) : ImportPortablePressureResult {
+		init {
+			require(importRevision > 0L)
+			require(physicalRunCount > 0)
+			require(windowCount >= 0)
+		}
+	}
+
+	data class Duplicate(val importRevision: Long) : ImportPortablePressureResult {
+		init {
+			require(importRevision > 0L)
+		}
+	}
+
+	data class Blocked(
+		val reason: PortablePressureImportBlockedReason,
+	) : ImportPortablePressureResult
+
+	data class Unverifiable(
+		val reason: PortablePressureImportUnverifiableReason,
+	) : ImportPortablePressureResult
+
+	data class RetryableFailure(
+		val reason: PortablePressureTransferRetryableReason,
+	) : ImportPortablePressureResult
+}
+
+enum class PortablePressureImportBlockedReason {
+	COLLECTED_DATA_EPOCH_CHANGED,
+	RECEIPT_CONFLICT,
+	OPAQUE_IDENTITY_CONFLICT,
+	DELETED_RUN,
+}
+
+enum class PortablePressureImportUnverifiableReason {
+	ENTRY_INVALID,
+	SOURCE_EVIDENCE_STATE_MISSING,
+	STORED_EVIDENCE_UNVERIFIABLE,
+	DEPENDENCY_OVERFLOW,
+	REVISION_OVERFLOW,
+}
+
 /** No-entry and unverifiable outcomes cannot be mistaken for successful empty data. */
 sealed interface ExportPortablePressureResult {
 	data class Exported(val entryCount: Int) : ExportPortablePressureResult {
@@ -56,5 +135,6 @@ enum class PortablePressureExportUnverifiableReason {
 }
 
 enum class PortablePressureTransferRetryableReason {
+	CONCURRENT_STATE_CHANGE,
 	STORAGE_UNAVAILABLE,
 }

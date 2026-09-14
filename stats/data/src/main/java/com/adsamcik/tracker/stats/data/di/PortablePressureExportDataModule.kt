@@ -1,14 +1,16 @@
 package com.adsamcik.tracker.stats.data.di
 
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressure
+import com.adsamcik.tracker.stats.api.repository.ImportPortablePressure
 import com.adsamcik.tracker.stats.data.repository.RoomExportPortablePressure
+import com.adsamcik.tracker.stats.data.repository.RoomImportPortablePressure
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
-/** Product binding for the source-local, read-only portable Pressure exporter. */
+/** Product bindings for source-local portable Pressure transfer. */
 @Module
 @InstallIn(SingletonComponent::class)
 internal abstract class PortablePressureExportDataModule {
@@ -17,4 +19,10 @@ internal abstract class PortablePressureExportDataModule {
 	abstract fun bindExportPortablePressure(
 		impl: RoomExportPortablePressure,
 	): ExportPortablePressure
+
+	@Binds
+	@Singleton
+	abstract fun bindImportPortablePressure(
+		impl: RoomImportPortablePressure,
+	): ImportPortablePressure
 }

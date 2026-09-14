@@ -19,6 +19,7 @@ object PressurePortableFormatV1 {
 	const val MAX_TOTAL_WINDOWS: Int = 16_384
 	const val MAX_LOCAL_IDENTITY_LENGTH: Int = 4_096
 	const val MAX_ZONE_ID_LENGTH: Int = 128
+	const val MAX_IMPORT_RECEIPT_FIELD_LENGTH: Int = 4_096
 }
 
 enum class PortablePressureIdentityKind { LOGICAL_ENTRY, PHYSICAL_RUN, WINDOW }

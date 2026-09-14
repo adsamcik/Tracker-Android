@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -26,7 +27,15 @@ abstract class ImportedPressureDao {
 	abstract suspend fun insertWindow(window: ImportedPressureWindowEntity)
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
-	abstract suspend fun insertDeletionGeneration(generation: ImportedPressureDeletionGenerationEntity)
+	protected abstract suspend fun insertDeletionGenerationRow(
+		generation: ImportedPressureDeletionGenerationEntity,
+	)
+
+	/** A previously absent privacy fence may only be created at its exact first generation. */
+	suspend fun insertDeletionGeneration(generation: ImportedPressureDeletionGenerationEntity) {
+		require(generation.generation == 1L)
+		insertDeletionGenerationRow(generation)
+	}
 
 	@Query(
 		"SELECT * FROM imported_pressure_entry_revision " +
@@ -55,6 +64,12 @@ abstract class ImportedPressureDao {
 
 	suspend fun runs(identity: String, revision: Long): List<ImportedPressureRunEntity> =
 		loadRuns(identity, revision, MAX_RUNS_PER_ENTRY)
+
+	/** One extra row lets an admission reader distinguish corruption from an exact upper bound. */
+	suspend fun runsForAdmission(
+		identity: String,
+		revision: Long,
+	): List<ImportedPressureRunEntity> = loadRuns(identity, revision, MAX_RUNS_PER_ENTRY + 1)
 
 	@Query(
 		"SELECT * FROM imported_pressure_run " +
@@ -90,7 +105,58 @@ abstract class ImportedPressureDao {
 		limit: Int,
 	): List<ImportedPressureWindowEntity>
 
-	@Query("SELECT COUNT(*) FROM imported_pressure_run WHERE entry_identity = :identity AND entry_import_revision = :revision")
+	/** Bounded whole-entry read avoids per-run query fan-out while authenticating a receipt. */
+	suspend fun windowsForAdmission(
+		entryIdentity: String,
+		entryRevision: Long,
+	): List<ImportedPressureWindowEntity> = loadWindowsForAdmission(
+		entryIdentity,
+		entryRevision,
+		MAX_TOTAL_WINDOWS_PER_ENTRY + 1,
+	)
+
+	@Query(
+		"SELECT * FROM imported_pressure_window " +
+			"WHERE entry_identity = :entryIdentity AND entry_import_revision = :entryRevision " +
+			"ORDER BY run_identity, interval_start_time_ms, identity LIMIT :limit",
+	)
+	protected abstract suspend fun loadWindowsForAdmission(
+		entryIdentity: String,
+		entryRevision: Long,
+		limit: Int,
+	): List<ImportedPressureWindowEntity>
+
+	@Query(
+		"SELECT DISTINCT identity FROM imported_pressure_entry_revision " +
+			"WHERE identity IN (:identities) LIMIT :limit",
+	)
+	abstract suspend fun existingEntryIdentities(
+		identities: List<String>,
+		limit: Int,
+	): List<String>
+
+	@Query(
+		"SELECT DISTINCT identity, entry_identity FROM imported_pressure_run " +
+			"WHERE identity IN (:identities) LIMIT :limit",
+	)
+	abstract suspend fun existingRunIdentityOwners(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedPressureRunIdentityOwner>
+
+	@Query(
+		"SELECT DISTINCT identity, entry_identity, run_identity FROM imported_pressure_window " +
+			"WHERE identity IN (:identities) LIMIT :limit",
+	)
+	abstract suspend fun existingWindowIdentityOwners(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedPressureWindowIdentityOwner>
+
+	@Query(
+		"SELECT COUNT(*) FROM imported_pressure_run " +
+			"WHERE entry_identity = :identity AND entry_import_revision = :revision",
+	)
 	abstract suspend fun runCount(identity: String, revision: Long): Int
 
 	@Query(
@@ -106,6 +172,11 @@ abstract class ImportedPressureDao {
 
 	@Query("SELECT * FROM imported_pressure_deletion_generation WHERE run_identity = :runIdentity")
 	abstract suspend fun deletionGeneration(runIdentity: String): ImportedPressureDeletionGenerationEntity?
+
+	@Query("SELECT * FROM imported_pressure_deletion_generation WHERE run_identity IN (:runIdentities)")
+	abstract suspend fun deletionGenerations(
+		runIdentities: List<String>,
+	): List<ImportedPressureDeletionGenerationEntity>
 
 	/** Exact compare-and-set; a stale deleter cannot overwrite a newer privacy generation. */
 	suspend fun advanceDeletionGeneration(
@@ -161,5 +232,17 @@ abstract class ImportedPressureDao {
 	companion object {
 		const val MAX_RUNS_PER_ENTRY = 64
 		const val MAX_WINDOWS_PER_RUN = 2_048
+		const val MAX_TOTAL_WINDOWS_PER_ENTRY = 16_384
 	}
 }
+
+data class ImportedPressureRunIdentityOwner(
+	val identity: String,
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
+)
+
+data class ImportedPressureWindowIdentityOwner(
+	val identity: String,
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
+	@ColumnInfo(name = "run_identity") val runIdentity: String,
+)

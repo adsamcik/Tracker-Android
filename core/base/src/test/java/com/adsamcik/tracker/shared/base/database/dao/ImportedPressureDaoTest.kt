@@ -113,7 +113,12 @@ class ImportedPressureDaoTest {
 		}
 		dao.deletionGeneration(RUN) shouldBe advanced
 		shouldThrow<SQLiteConstraintException> {
-			dao.insertDeletionGeneration(advanced)
+			dao.insertDeletionGeneration(generation)
+		}
+		shouldThrow<IllegalArgumentException> {
+			dao.insertDeletionGeneration(
+				ImportedPressureDeletionGenerationEntity.create(OTHER, 7L, 2L, 80L),
+			)
 		}
 	}
 
