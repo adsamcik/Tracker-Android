@@ -68,20 +68,30 @@ class ImportedActivityMigration27To28Test {
 			}
 		}
 
-		openDatabase().use { database -> runBlocking { insertHierarchy(database) } }
-		openDatabase().use { database ->
-			runBlocking {
-				val dao = database.importedActivityDao()
-				assertEquals(ENTRY, dao.latestEntryRevision(ENTRY)?.identity)
-				assertEquals(RUN, dao.runs(ENTRY, 1L).single().identity)
-				assertEquals("UTC", dao.zoneEpochs(ENTRY, 1L, RUN).single().zoneId)
-				assertEquals(WINDOW, dao.windows(ENTRY, 1L, RUN).single().identity)
-				assertEquals(1, dao.fragments(ENTRY, 1L, RUN, WINDOW).size)
-				assertEquals(7L, dao.entryDeletion(TOMBSTONED_ENTRY)?.collectedDataEpoch)
-				assertEquals(
-					1L,
-					dao.deletionGenerations(listOf(TOMBSTONED_RUN)).single().generation,
-				)
+		openDatabase().let { database ->
+			try {
+				runBlocking { insertHierarchy(database) }
+			} finally {
+				database.close()
+			}
+		}
+		openDatabase().let { database ->
+			try {
+				runBlocking {
+					val dao = database.importedActivityDao()
+					assertEquals(ENTRY, dao.latestEntryRevision(ENTRY)?.identity)
+					assertEquals(RUN, dao.runs(ENTRY, 1L).single().identity)
+					assertEquals("UTC", dao.zoneEpochs(ENTRY, 1L, RUN).single().zoneId)
+					assertEquals(WINDOW, dao.windows(ENTRY, 1L, RUN).single().identity)
+					assertEquals(1, dao.fragments(ENTRY, 1L, RUN, WINDOW).size)
+					assertEquals(7L, dao.entryDeletion(TOMBSTONED_ENTRY)?.collectedDataEpoch)
+					assertEquals(
+						1L,
+						dao.deletionGenerations(listOf(TOMBSTONED_RUN)).single().generation,
+					)
+				}
+			} finally {
+				database.close()
 			}
 		}
 	}
