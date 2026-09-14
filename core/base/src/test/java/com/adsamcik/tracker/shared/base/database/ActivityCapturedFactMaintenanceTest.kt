@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
@@ -325,6 +326,109 @@ class ActivityCapturedFactMaintenanceTest {
 		database.activityCapturedFactDao().cursorCount() shouldBe 1L
 		database.sourceDeletionFenceDao().countAll() shouldBe 0L
 	}
+
+	@Test
+	fun `selected deletion fences exact run and preserves nonpayload authority and CONTROL`() = runTest {
+		seedCapturedActivity()
+		database.sourceBrokerDao().insertDemands(listOf(controlDemand()))
+		val segmentId = requireNotNull(
+			database.sourceSessionDao().serviceRun(SERVICE_RUN_ID),
+		).sessionSegmentId!!
+
+		val result = database.withTransaction {
+			database.deleteSelectedCapturedActivityFactsInTransaction(
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				runScopes = listOf(ActivityCapturedSelectedRunScope(SERVICE_RUN_ID, segmentId)),
+				expectedCollectedDataEpoch = 0L,
+				deletedAtMs = 5_000L,
+			)
+		}
+
+		result shouldBe ActivityCapturedSelectedDeletionResult.Deleted(1, 1, 1)
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+		database.activityCapturedFactDao().fragmentCount() shouldBe 0L
+		database.activityCapturedFactDao().evidenceCount() shouldBe 0L
+		database.activityCapturedFactDao().cursorCount() shouldBe 0L
+		database.activityCapturedFactDao().registrationPlanBindingCount() shouldBe 1L
+		database.sessionSegmentDao().getById(segmentId)?.id shouldBe segmentId
+		database.sourceSessionDao().session(LOGICAL_TRACKING_ID)?.logicalTrackingId shouldBe
+			LOGICAL_TRACKING_ID
+		database.sourceSessionDao().serviceRun(SERVICE_RUN_ID)?.serviceRunId shouldBe SERVICE_RUN_ID
+		database.sourceSessionDao().manifestsForServiceRun(SERVICE_RUN_ID, 2).size shouldBe 1
+		database.sourceBrokerDao().activeDemands(ACTIVITY_SOURCE).single().purpose shouldBe
+			SourceBrokerPurpose.CONTROL_AUTOSTART
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
+		val digest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+			ACTIVITY_SOURCE,
+			SourceBrokerPurpose.SESSION_CAPTURE,
+			LOGICAL_TRACKING_ID,
+			SERVICE_RUN_ID,
+		)
+		database.sourceDeletionFenceDao().contains(
+			ACTIVITY_SOURCE,
+			SourceBrokerPurpose.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			digest,
+		) shouldBe true
+	}
+
+	@Test
+	fun `selected deletion catches one-sided cursor scope corruption before mutation`() = runTest {
+		seedCapturedActivity()
+		val segmentId = requireNotNull(
+			database.sourceSessionDao().serviceRun(SERVICE_RUN_ID),
+		).sessionSegmentId!!
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE activity_captured_window_cursor SET service_run_id = 'foreign-run'",
+		)
+
+		database.withTransaction {
+			database.deleteSelectedCapturedActivityFactsInTransaction(
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				runScopes = listOf(ActivityCapturedSelectedRunScope(SERVICE_RUN_ID, segmentId)),
+				expectedCollectedDataEpoch = 0L,
+				deletedAtMs = 5_000L,
+			)
+		} shouldBe ActivityCapturedSelectedDeletionResult.Blocked(
+			ActivityCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+	}
+
+	@Test
+	fun `selected deletion cancellation after payload removal rolls back generation facts and fence`() =
+		runTest {
+			seedCapturedActivity()
+			val segmentId = requireNotNull(
+				database.sourceSessionDao().serviceRun(SERVICE_RUN_ID),
+			).sessionSegmentId!!
+
+			shouldThrow<CancellationException> {
+				database.withTransaction {
+					database.deleteSelectedCapturedActivityFactsInTransaction(
+						logicalTrackingId = LOGICAL_TRACKING_ID,
+						runScopes = listOf(
+							ActivityCapturedSelectedRunScope(SERVICE_RUN_ID, segmentId),
+						),
+						expectedCollectedDataEpoch = 0L,
+						deletedAtMs = 5_000L,
+						limits = ActivityCapturedMaintenanceLimits(),
+						checkpoint = { checkpoint ->
+							if (checkpoint == ActivityCapturedMaintenanceCheckpoint.PAYLOAD_REMOVED) {
+								throw CancellationException("test cancellation")
+							}
+						},
+					)
+				}
+			}
+
+			database.activityCapturedFactDao().revisionCount() shouldBe 1L
+			database.activityCapturedFactDao().cursorCount() shouldBe 1L
+			database.sourceDeletionFenceDao().countAll() shouldBe 0L
+			database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+		}
 
 	private suspend fun seedCapturedActivity(
 		retainedFromMs: Long? = null,

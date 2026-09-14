@@ -23,6 +23,18 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	@Query("SELECT * FROM session_segment WHERE id = :id")
 	suspend fun getById(id: Long): SessionSegment?
 
+	/** Bounded reverse ownership union for one immutable logical tracking entry and its exact runs. */
+	@Query(
+		"SELECT * FROM session_segment WHERE logical_tracking_id = :logicalTrackingId " +
+			"OR service_run_id IN (:serviceRunIds) " +
+			"ORDER BY id LIMIT :limit",
+	)
+	suspend fun selectedOwnershipSegments(
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<SessionSegment>
+
 	@Query(
 		"""
 		SELECT
