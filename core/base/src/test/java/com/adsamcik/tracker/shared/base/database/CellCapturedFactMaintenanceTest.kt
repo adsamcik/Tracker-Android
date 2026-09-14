@@ -158,6 +158,146 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `same count coverage cannot retarget a different identity free aggregate`() = runTest {
+		seedCapturedCell(retainedFromMs = 1_000L)
+		val incompatibleOwner = insertCapturedFact(
+			deliveryIndex = 2,
+			observedWallTimeMs = NEWER_WALL_MS,
+			radioType = CELL_TECHNOLOGY_GSM,
+			signalLevelDbm = -115,
+		)
+		insertCapturedFact(
+			deliveryIndex = 3,
+			observedWallTimeMs = NEWER_WALL_MS,
+			aggregateOwner = incompatibleOwner,
+		)
+
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			1_000L,
+			0L,
+			0L,
+			MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.Blocked(
+			CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `self rehashed direct aggregate must still match canonical Cell payload`() = runTest {
+		val original = seedCapturedCell(retainedFromMs = 1_000L)
+		val forgedUnsigned = original.copy(
+			gsmCount = 1,
+			lteCount = 0,
+			effectChecksum = ZERO_CHECKSUM,
+		)
+		val forged = forgedUnsigned.copy(
+			effectChecksum = CellCapturedFactRevisionIntegrity.effectChecksum(forgedUnsigned),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE cell_captured_fact_revision SET gsm_count = ?, lte_count = ?, effect_checksum = ? " +
+				"WHERE writer_projection_id = ? AND writer_projection_version = ? " +
+				"AND logical_fact_id = ? AND semantic_revision = ?",
+			arrayOf(
+				forged.gsmCount,
+				forged.lteCount,
+				forged.effectChecksum,
+				forged.writerProjectionId,
+				forged.writerProjectionVersion,
+				forged.logicalFactId,
+				forged.semanticRevision,
+			),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE cell_captured_fact_cursor SET latest_effect_checksum = ? " +
+				"WHERE writer_projection_id = ? AND writer_projection_version = ? AND logical_fact_id = ?",
+			arrayOf(
+				forged.effectChecksum,
+				forged.writerProjectionId,
+				forged.writerProjectionVersion,
+				forged.logicalFactId,
+			),
+		)
+
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			1_000L,
+			0L,
+			0L,
+			MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.Blocked(
+			CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `coverage cannot retarget an owner across provider registration authority`() = runTest {
+		val owner = seedCapturedCell(retainedFromMs = 1_000L)
+		database.sourceBrokerDao().insertRegistration(
+			registration(
+				generation = REPLACEMENT_REGISTRATION_GENERATION,
+				sourceInstanceId = REPLACEMENT_SOURCE_INSTANCE_ID,
+			),
+		)
+		val replacementAuthorization = SourceBrokerAuthorization.rows(
+			sourceKind = CELL_SOURCE,
+			registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
+			authorizationRevision = AUTHORIZATION_REVISION,
+			demands = listOf(demand(active = false)),
+			effectiveBootId = BOOT_ID,
+			effectiveElapsedRealtimeNanos = AUTHORIZATION_START_NANOS,
+			effectiveWallTimeMs = RUN_START_WALL_MS,
+		)
+		database.sourceBrokerDao().insertAuthorizations(replacementAuthorization)
+		insertCapturedFact(
+			deliveryIndex = 2,
+			observedWallTimeMs = NEWER_WALL_MS,
+			aggregateOwner = owner,
+			sourceInstanceId = REPLACEMENT_SOURCE_INSTANCE_ID,
+			registrationGeneration = REPLACEMENT_REGISTRATION_GENERATION,
+			authorizationFingerprint = replacementAuthorization.single().authorizationFingerprint,
+		)
+
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			1_000L,
+			0L,
+			0L,
+			MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.Blocked(
+			CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `coverage must reference the current aggregate owner revision`() = runTest {
+		val currentOwner = seedCapturedCell(retainedFromMs = 1_000L, semanticRevisions = 2)
+		insertCapturedFact(
+			deliveryIndex = 2,
+			observedWallTimeMs = NEWER_WALL_MS,
+			aggregateOwner = currentOwner.copy(semanticRevision = 1L),
+		)
+
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			1_000L,
+			0L,
+			0L,
+			MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.Blocked(
+			CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `canonical partial payload with missing provider time remains maintainable`() = runTest {
+		seedCapturedCell(retainedFromMs = FLOOR_MS, missingTimeChildCount = 1)
+
+		database.pruneCapturedCellFactsAffectedByRetentionFloor(
+			FLOOR_MS,
+			0L,
+			0L,
+			MAINTENANCE_TIME_MS,
+		) shouldBe CellCapturedRetentionResult.Pruned(1, 1)
+	}
+
+	@Test
 	fun `revision overflow blocks before retention mutates a lineage`() = runTest {
 		seedCapturedCell(retainedFromMs = FLOOR_MS, semanticRevisions = 2)
 
@@ -622,6 +762,7 @@ class CellCapturedFactMaintenanceTest {
 	private suspend fun seedCapturedCell(
 		retainedFromMs: Long? = null,
 		semanticRevisions: Int = 1,
+		missingTimeChildCount: Int = 0,
 		observedWallTimeMs: Long = OBSERVED_WALL_MS,
 		coverageSpanNanos: Long = 0L,
 		revokedCapture: Boolean = false,
@@ -660,34 +801,55 @@ class CellCapturedFactMaintenanceTest {
 			deliveryIndex = 1,
 			observedWallTimeMs = observedWallTimeMs,
 			coverageSpanNanos = coverageSpanNanos,
+			acceptedChildCount = if (coverageSpanNanos == 0L) 1 else 2,
 			authorizationFingerprint = authorization.first().authorizationFingerprint,
 			semanticRevisions = semanticRevisions,
+			missingTimeChildCount = missingTimeChildCount,
 		)
 	}
 
 	private suspend fun insertCapturedFact(
 		deliveryIndex: Int,
 		observedWallTimeMs: Long,
-		authorizationFingerprint: String = requireNotNull(
-			database.cellCapturedFactDao().maintenanceAuthorizationMembers(
-				CELL_SOURCE,
-				REGISTRATION_GENERATION,
-				AUTHORIZATION_REVISION,
-				2,
-			),
-		).single().authorizationFingerprint,
+		authorizationFingerprint: String? = null,
 		aggregateOwner: CellCapturedFactRevisionEntity? = null,
 		acceptedChildCount: Int = 1,
+		missingTimeChildCount: Int = 0,
 		semanticRevisions: Int = 1,
 		coverageSpanNanos: Long = 0L,
+		radioType: String = CELL_TECHNOLOGY_LTE,
+		registered: Boolean = true,
+		signalLevelDbm: Int? = -95,
+		sourceInstanceId: String = SOURCE_INSTANCE_ID,
+		registrationGeneration: Long = REGISTRATION_GENERATION,
+		authorizationRevision: Long = AUTHORIZATION_REVISION,
 	): CellCapturedFactRevisionEntity {
-		require(deliveryIndex in 1..9 && semanticRevisions in 1..2 && coverageSpanNanos >= 0L)
+		require(
+			deliveryIndex in 1..9 && semanticRevisions in 1..2 && coverageSpanNanos >= 0L &&
+				acceptedChildCount > 0 && missingTimeChildCount >= 0,
+		)
+		val exactAuthorizationFingerprint = authorizationFingerprint ?: requireNotNull(
+			database.cellCapturedFactDao().maintenanceAuthorizationMembers(
+				CELL_SOURCE,
+				registrationGeneration,
+				authorizationRevision,
+				2,
+			),
+		).single().authorizationFingerprint
 		val deliveryIdentity = deliveryIndex.toString().repeat(64)
 		val eventId = "cell-event-$deliveryIndex"
 		val providerNanos = OBSERVED_NANOS + deliveryIndex
 		val coverageStartNanos = providerNanos - coverageSpanNanos
 		require(coverageStartNanos > 0L)
-		val payload = byteArrayOf(deliveryIndex.toByte(), 1, 2, 3)
+		val payload = cellPayload(
+			acceptedChildCount = acceptedChildCount,
+			missingTimeChildCount = missingTimeChildCount,
+			providerStartNanos = coverageStartNanos,
+			providerEndNanos = providerNanos,
+			radioType = radioType,
+			registered = registered,
+			signalLevelDbm = signalLevelDbm,
+		)
 		val payloadChecksum = sha256(payload)
 		val unsignedWal = SourceEventWalEntity(
 			eventId = eventId,
@@ -698,12 +860,12 @@ class CellCapturedFactMaintenanceTest {
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			serviceRunId = SERVICE_RUN_ID,
 			sourceKind = CELL_SOURCE,
-			sourceInstanceId = SOURCE_INSTANCE_ID,
-			registrationGeneration = REGISTRATION_GENERATION,
+			sourceInstanceId = sourceInstanceId,
+			registrationGeneration = registrationGeneration,
 			physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
-			authorizationRevision = AUTHORIZATION_REVISION,
+			authorizationRevision = authorizationRevision,
 			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-			authorizationFingerprint = authorizationFingerprint,
+			authorizationFingerprint = exactAuthorizationFingerprint,
 			sourceSequence = deliveryIndex.toLong(),
 			configRevision = PLAN_REVISION,
 			planAttribution = 0,
@@ -769,12 +931,12 @@ class CellCapturedFactMaintenanceTest {
 			planAttribution = CellCapturedFactRevisionEntity.PLAN_ATTRIBUTION_CAPTURED_REGISTRATION,
 			payloadVersion = 1,
 			canonicalProviderSemanticsDigest = deliveryIdentity,
-			sourceInstanceId = SOURCE_INSTANCE_ID,
-			registrationGeneration = REGISTRATION_GENERATION,
+			sourceInstanceId = sourceInstanceId,
+			registrationGeneration = registrationGeneration,
 			configurationRevision = PLAN_REVISION,
 			physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
-			authorizationRevision = AUTHORIZATION_REVISION,
-			authorizationFingerprint = authorizationFingerprint,
+			authorizationRevision = authorizationRevision,
+			authorizationFingerprint = exactAuthorizationFingerprint,
 			purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 			sourcePolicyRevision = POLICY_REVISION,
 			captureConsentEpoch = CONSENT_EPOCH,
@@ -810,34 +972,67 @@ class CellCapturedFactMaintenanceTest {
 			qualityFlags = 0L,
 			qualityConfidence = null,
 			availability = CellCapturedFactRevisionEntity.AVAILABILITY_AVAILABLE,
-			submittedChildCount = acceptedChildCount,
+			submittedChildCount = Math.addExact(acceptedChildCount, missingTimeChildCount),
 			acceptedChildCount = acceptedChildCount,
 			staleChildCount = 0,
 			futureTimeChildCount = 0,
-			missingTimeChildCount = 0,
+			missingTimeChildCount = missingTimeChildCount,
 			clockUnverifiableChildCount = 0,
 			authorityMismatchChildCount = 0,
 			unsupportedTechnologyChildCount = 0,
 			subscriptionCompleteness =
 				CellCapturedFactRevisionEntity.SUBSCRIPTION_COMPLETENESS_UNKNOWN,
-			childCompleteness = CellCapturedFactRevisionEntity.CHILD_COMPLETENESS_COMPLETE,
+			childCompleteness = if (missingTimeChildCount == 0) {
+				CellCapturedFactRevisionEntity.CHILD_COMPLETENESS_COMPLETE
+			} else {
+				CellCapturedFactRevisionEntity.CHILD_COMPLETENESS_PARTIAL
+			},
 			observationCount = acceptedChildCount.takeIf { aggregateOwner == null },
-			registeredObservationCount = acceptedChildCount.takeIf { aggregateOwner == null },
-			gsmCount = 0.takeIf { aggregateOwner == null },
-			cdmaCount = 0.takeIf { aggregateOwner == null },
-			wcdmaCount = 0.takeIf { aggregateOwner == null },
-			tdscdmaCount = 0.takeIf { aggregateOwner == null },
-			lteCount = acceptedChildCount.takeIf { aggregateOwner == null },
-			nrCount = 0.takeIf { aggregateOwner == null },
-			qualityUnknownCount = 0.takeIf { aggregateOwner == null },
-			qualityNoneOrUnknownCount = 0.takeIf { aggregateOwner == null },
-			qualityPoorCount = 0.takeIf { aggregateOwner == null },
-			qualityModerateCount = 0.takeIf { aggregateOwner == null },
-			qualityGoodCount = acceptedChildCount.takeIf { aggregateOwner == null },
-			qualityGreatCount = 0.takeIf { aggregateOwner == null },
-			weakObservationCount = 0.takeIf { aggregateOwner == null },
-			knownQualityObservationCount = acceptedChildCount.takeIf { aggregateOwner == null },
-			allKnownQualityIsWeak = false.takeIf { aggregateOwner == null },
+			registeredObservationCount = (if (registered) acceptedChildCount else 0)
+				.takeIf { aggregateOwner == null },
+			gsmCount = (if (radioType.equals(CELL_TECHNOLOGY_GSM, ignoreCase = true)) {
+				acceptedChildCount
+			} else 0).takeIf { aggregateOwner == null },
+			cdmaCount = (if (radioType.equals(CELL_TECHNOLOGY_CDMA, ignoreCase = true)) {
+				acceptedChildCount
+			} else 0).takeIf { aggregateOwner == null },
+			wcdmaCount = (if (radioType.equals(CELL_TECHNOLOGY_WCDMA, ignoreCase = true)) {
+				acceptedChildCount
+			} else 0).takeIf { aggregateOwner == null },
+			tdscdmaCount = (if (radioType.equals(CELL_TECHNOLOGY_TDSCDMA, ignoreCase = true)) {
+				acceptedChildCount
+			} else 0).takeIf { aggregateOwner == null },
+			lteCount = (if (radioType.equals(CELL_TECHNOLOGY_LTE, ignoreCase = true)) {
+				acceptedChildCount
+			} else 0).takeIf { aggregateOwner == null },
+			nrCount = (if (radioType.equals(CELL_TECHNOLOGY_NR, ignoreCase = true)) {
+				acceptedChildCount
+			} else 0).takeIf { aggregateOwner == null },
+			qualityUnknownCount = (if (signalLevelDbm == null || signalLevelDbm == Int.MAX_VALUE) {
+				acceptedChildCount
+			} else 0).takeIf { aggregateOwner == null },
+			qualityNoneOrUnknownCount = (if (signalLevelDbm != null && signalLevelDbm <= -120) {
+				acceptedChildCount
+			} else 0).takeIf { aggregateOwner == null },
+			qualityPoorCount = (if (signalLevelDbm != null && signalLevelDbm in -119..-110) {
+				acceptedChildCount
+			} else 0).takeIf { aggregateOwner == null },
+			qualityModerateCount = (if (signalLevelDbm != null && signalLevelDbm in -109..-100) {
+				acceptedChildCount
+			} else 0).takeIf { aggregateOwner == null },
+			qualityGoodCount = (if (signalLevelDbm != null && signalLevelDbm in -99..-90) {
+				acceptedChildCount
+			} else 0).takeIf { aggregateOwner == null },
+			qualityGreatCount = (if (signalLevelDbm != null && signalLevelDbm > -90 &&
+				signalLevelDbm != Int.MAX_VALUE) acceptedChildCount else 0).takeIf { aggregateOwner == null },
+			weakObservationCount = (if (signalLevelDbm != null && signalLevelDbm <= -110) {
+				acceptedChildCount
+			} else 0).takeIf { aggregateOwner == null },
+			knownQualityObservationCount = (if (signalLevelDbm == null || signalLevelDbm == Int.MAX_VALUE) {
+				0
+			} else acceptedChildCount).takeIf { aggregateOwner == null },
+			allKnownQualityIsWeak = (signalLevelDbm != null && signalLevelDbm != Int.MAX_VALUE &&
+				signalLevelDbm <= -110).takeIf { aggregateOwner == null },
 			effectChecksum = ZERO_CHECKSUM,
 			appliedAtMs = observedWallTimeMs,
 		)
@@ -1097,10 +1292,13 @@ class CellCapturedFactMaintenanceTest {
 		retiredAtMs = SESSION_END_WALL_MS.takeUnless { active },
 	)
 
-	private fun registration() = ProviderRegistrationGenerationEntity(
+	private fun registration(
+		generation: Long = REGISTRATION_GENERATION,
+		sourceInstanceId: String = SOURCE_INSTANCE_ID,
+	) = ProviderRegistrationGenerationEntity(
 		sourceKind = CELL_SOURCE,
-		registrationGeneration = REGISTRATION_GENERATION,
-		sourceInstanceId = SOURCE_INSTANCE_ID,
+		registrationGeneration = generation,
+		sourceInstanceId = sourceInstanceId,
 		ownerScope = "source-broker:$CELL_SOURCE",
 		clockDomainId = BOOT_ID,
 		physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
@@ -1143,6 +1341,45 @@ class CellCapturedFactMaintenanceTest {
 		.digest(bytes)
 		.joinToString(separator = "") { byte -> "%02x".format(byte) }
 
+	private fun cellPayload(
+		acceptedChildCount: Int,
+		missingTimeChildCount: Int,
+		providerStartNanos: Long,
+		providerEndNanos: Long,
+		radioType: String,
+		registered: Boolean,
+		signalLevelDbm: Int?,
+	): ByteArray = ByteArrayOutputStream().use { buffer ->
+		require(
+			acceptedChildCount > 0 && missingTimeChildCount >= 0 && providerStartNanos > 0L &&
+				providerEndNanos >= providerStartNanos,
+		)
+		DataOutputStream(buffer).use { output ->
+			output.writeInt(CELL_PAYLOAD_TYPE)
+			output.writeBoolean(false)
+			output.writeInt(Math.addExact(acceptedChildCount, missingTimeChildCount))
+			repeat(acceptedChildCount) { index ->
+				output.writeUTF("")
+				output.writeUTF(radioType)
+				output.writeBoolean(registered)
+				output.writeBoolean(signalLevelDbm != null)
+				signalLevelDbm?.let(output::writeInt)
+				output.writeBoolean(true)
+				output.writeLong(if (index == 0) providerStartNanos else providerEndNanos)
+			}
+			repeat(missingTimeChildCount) {
+				output.writeUTF("")
+				output.writeUTF(radioType)
+				output.writeBoolean(registered)
+				output.writeBoolean(signalLevelDbm != null)
+				signalLevelDbm?.let(output::writeInt)
+				output.writeBoolean(false)
+			}
+			output.writeInt(CELL_REFRESH_OUTCOME_CALLBACK)
+		}
+		buffer.toByteArray()
+	}
+
 	private fun cellPlanPayload(mode: String = CELL_MODE_OBSERVE_CHANGES): ByteArray =
 		ByteArrayOutputStream().use { buffer ->
 			DataOutputStream(buffer).use { output ->
@@ -1167,6 +1404,7 @@ class CellCapturedFactMaintenanceTest {
 		const val LOGICAL_TRACKING_ID = "logical-cell-maintenance"
 		const val SERVICE_RUN_ID = "run-cell-maintenance"
 		const val SOURCE_INSTANCE_ID = "cell-instance"
+		const val REPLACEMENT_SOURCE_INSTANCE_ID = "cell-instance-replacement"
 		const val DEMAND_ID = "cell-demand"
 		const val CONTROL_DEMAND_ID = "cell-control-demand"
 		const val BOOT_ID = "boot-cell"
@@ -1186,6 +1424,7 @@ class CellCapturedFactMaintenanceTest {
 		const val MANIFEST_REVISION = 1L
 		const val LEASE_GENERATION = 1L
 		const val REGISTRATION_GENERATION = 1L
+		const val REPLACEMENT_REGISTRATION_GENERATION = 2L
 		const val AUTHORIZATION_REVISION = 1L
 		const val SEGMENT_ID = 1L
 		const val QOS_CODE = 2
@@ -1218,6 +1457,14 @@ class CellCapturedFactMaintenanceTest {
 		const val BACKOFF_MULTIPLIER = 2.0
 		const val CELL_MODE_OBSERVE_CHANGES = "OBSERVE_CHANGES"
 		const val CELL_MODE_OBSERVE_AND_SPARSE_REFRESH = "OBSERVE_AND_SPARSE_REFRESH"
+		const val CELL_PAYLOAD_TYPE = 8
+		const val CELL_REFRESH_OUTCOME_CALLBACK = 0
+		const val CELL_TECHNOLOGY_GSM = "GSM"
+		const val CELL_TECHNOLOGY_CDMA = "CDMA"
+		const val CELL_TECHNOLOGY_WCDMA = "WCDMA"
+		const val CELL_TECHNOLOGY_TDSCDMA = "TDSCDMA"
+		const val CELL_TECHNOLOGY_LTE = "LTE"
+		const val CELL_TECHNOLOGY_NR = "NR"
 		const val ZERO_CHECKSUM =
 			"0000000000000000000000000000000000000000000000000000000000000000"
 	}

@@ -470,6 +470,7 @@ private suspend fun AppDatabase.auditCapturedCellFacts(
 	val byId = lineages.associateBy(CellCapturedLineage::logicalFactId)
 	if (byId.size != lineages.size) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	val reuseAuthorityById = mutableMapOf<String, CellAggregateReuseAuthority>()
+	val aggregateById = mutableMapOf<String, CellHistoricalIdentityFreeAggregate>()
 	var latestWalTimeMs = 0L
 	for (lineage in lineages) {
 		currentCoroutineContext().ensureActive()
@@ -483,10 +484,11 @@ private suspend fun AppDatabase.auditCapturedCellFacts(
 		) block(CellCapturedRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
 		val authenticated = authenticateCellCapturedAuthority(latest, limits)
 		reuseAuthorityById[lineage.logicalFactId] = authenticated.reuseAuthority
+		aggregateById[lineage.logicalFactId] = authenticated.aggregate
 		latestWalTimeMs = maxOf(latestWalTimeMs, authenticated.walCreatedAtMs)
 		checkpoint(CellCapturedMaintenanceCheckpoint.LINEAGE_AUTHENTICATED)
 	}
-	authenticateAggregateDependencies(lineages, byId, reuseAuthorityById)
+	authenticateAggregateDependencies(lineages, byId, reuseAuthorityById, aggregateById)
 	authenticateCellDeletionGenerations(lineages, generations, evidenceState.collectedDataEpoch)
 
 	return CellCapturedFactAudit(
@@ -586,6 +588,11 @@ private suspend fun AppDatabase.authenticateCellCapturedAuthority(
 		wal.payloadChecksum != revision.payloadChecksum ||
 		wal.integrityIdentity != revision.walIntegrityIdentity || wal.createdAtMs != revision.createdAtMs
 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	val payloadEffect = wal.decodeCanonicalCellPayloadEffect(revision)
+		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	if (!revision.matchesCellPayloadEffect(payloadEffect)) {
+		block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	}
 
 	val sessionDao = sourceSessionDao()
 	val run = sessionDao.serviceRun(revision.serviceRunId)
@@ -818,13 +825,35 @@ private suspend fun AppDatabase.authenticateCellCapturedAuthority(
 			sessionSegmentId = revision.sessionSegmentId,
 			capturedSources = capturedSources,
 			controlSources = controlSources,
+			sourceInstanceId = revision.sourceInstanceId,
+			registrationGeneration = revision.registrationGeneration,
+			configurationRevision = revision.configurationRevision,
+			physicalConfigurationFingerprint = revision.physicalConfigurationFingerprint,
+			authorizationRevision = revision.authorizationRevision,
+			authorizationFingerprint = revision.authorizationFingerprint,
 			purposeEligibilityMask = revision.purposeEligibilityMask,
+			sourcePolicyRevision = revision.sourcePolicyRevision,
 			captureConsentEpoch = revision.captureConsentEpoch,
+			manifestRevision = revision.manifestRevision,
+			lifecycleLeaseGeneration = revision.lifecycleLeaseGeneration,
 			collectedDataEpoch = revision.collectedDataEpoch,
 			scopeDeletionGeneration = revision.scopeDeletionGeneration,
+			clockDomainId = revision.clockDomainId,
 			storedZoneId = revision.storedZoneId,
 			structuralEpochDay = revision.structuralEpochDay,
+			providerAcceptanceStartNanos = revision.providerAcceptanceStartNanos,
+			providerAcceptanceEndNanos = revision.providerAcceptanceEndNanos,
+			authorizationEffectStartNanos = revision.authorizationEffectStartNanos,
+			authorizationEffectEndNanos = revision.authorizationEffectEndNanos,
+			consentEffectStartNanos = revision.consentEffectStartNanos,
+			consentEffectEndNanos = revision.consentEffectEndNanos,
+			sessionRunEffectStartNanos = revision.sessionRunEffectStartNanos,
+			sessionRunEffectEndNanos = revision.sessionRunEffectEndNanos,
+			deletionEffectStartNanos = revision.deletionEffectStartNanos,
+			deletionEffectEndNanos = revision.deletionEffectEndNanos,
+			maximumObservationAgeNanos = revision.maximumObservationAgeNanos,
 		),
+		aggregate = payloadEffect.aggregate,
 		walCreatedAtMs = wal.createdAtMs,
 	)
 }
@@ -862,6 +891,7 @@ private fun authenticateAggregateDependencies(
 	lineages: List<CellCapturedLineage>,
 	lineagesById: Map<String, CellCapturedLineage>,
 	reuseAuthorityById: Map<String, CellAggregateReuseAuthority>,
+	aggregateById: Map<String, CellHistoricalIdentityFreeAggregate>,
 ) {
 	for (lineage in lineages) {
 		val ownerId = lineage.aggregateOwnerLogicalFactId ?: continue
@@ -875,13 +905,14 @@ private fun authenticateAggregateDependencies(
 		val dependent = lineage.revisions.last()
 		val ownerAuthority = reuseAuthorityById[owner.logicalFactId]
 		val dependentAuthority = reuseAuthorityById[lineage.logicalFactId]
-		if (referenced == null || owner.revisions.any { revision ->
+		val dependentAggregate = aggregateById[lineage.logicalFactId]
+		if (referenced == null || owner.revisions.last() != referenced || owner.revisions.any { revision ->
 				revision.factKind != CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE
 			} || dependent.factKind != CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY ||
 			ownerAuthority == null || dependentAuthority == null ||
 			ownerAuthority != dependentAuthority ||
 			!referenced.hasFiniteAggregateReuseAuthority() ||
-			dependent.acceptedChildCount != referenced.observationCount
+			dependentAggregate == null || !referenced.matchesIdentityFreeAggregate(dependentAggregate)
 		) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	}
 }
@@ -1587,6 +1618,206 @@ private fun providerWallInterval(wal: SourceEventWalEntity): LongRange? {
 	}.getOrNull()
 }
 
+/** Exact production v1 callback bytes; raw subscription and radio identity are never accepted. */
+private fun SourceEventWalEntity.decodeCanonicalCellPayload(): List<CellHistoricalObservation>? = runCatching {
+	require(payloadVersion == CELL_PAYLOAD_VERSION)
+	val decoded = DataInputStream(ByteArrayInputStream(payload)).use { input ->
+		require(input.readInt() == CELL_PAYLOAD_TYPE)
+		require(input.readNullableCellInt() == null)
+		val childCount = input.readInt()
+		require(childCount in 1..MAX_CELL_CHILDREN_PER_DELIVERY)
+		val children = List(childCount) {
+			CellHistoricalObservation(
+				identifierToken = input.readUTF(),
+				radioType = input.readUTF(),
+				registered = input.readBoolean(),
+				signalLevelDbm = input.readNullableCellInt(),
+				providerTimestampNanos = input.readNullableCellLong(),
+			)
+		}
+		require(input.readInt() == CELL_REFRESH_OUTCOME_CALLBACK)
+		require(input.available() == 0)
+		children
+	}
+	require(decoded.all { child ->
+		child.identifierToken.isEmpty()
+	})
+	require(encodeCanonicalCellPayload(decoded).contentEquals(payload))
+	val providerTimes = decoded.mapNotNull(CellHistoricalObservation::providerTimestampNanos)
+	require(providerTimes.isNotEmpty())
+	require(providerTimes.minOrNull() == observedIntervalStartNanos)
+	require(providerTimes.maxOrNull() == observedElapsedNanos)
+	decoded
+}.getOrNull()
+
+/**
+ * Deterministically replays the source classifier's identity-free product effect. Maintenance
+ * cannot authenticate a fact merely because its WAL header and a self-rehashed fact agree.
+ */
+private fun SourceEventWalEntity.decodeCanonicalCellPayloadEffect(
+	revision: CellCapturedFactRevisionEntity,
+): CellHistoricalPayloadEffect? = runCatching {
+	val decoded = requireNotNull(decodeCanonicalCellPayload())
+
+	val capturedStart = maxOf(
+		revision.providerAcceptanceStartNanos,
+		revision.authorizationEffectStartNanos,
+		revision.consentEffectStartNanos,
+		revision.sessionRunEffectStartNanos,
+		revision.deletionEffectStartNanos,
+	)
+	val capturedEnd = minOf(
+		revision.providerAcceptanceEndNanos,
+		revision.authorizationEffectEndNanos,
+		revision.consentEffectEndNanos,
+		revision.sessionRunEffectEndNanos,
+		revision.deletionEffectEndNanos,
+	)
+	require(capturedEnd > capturedStart)
+
+	val accepted = mutableListOf<CellHistoricalObservation>()
+	var stale = 0
+	var future = 0
+	var missingTime = 0
+	var unsupported = 0
+	for (child in decoded) {
+		val providerTime = child.providerTimestampNanos
+		if (providerTime == null || providerTime <= 0L) {
+			missingTime++
+			continue
+		}
+		when {
+			providerTime > receivedElapsedNanos -> future++
+			providerTime < capturedStart || providerTime >= capturedEnd ||
+				receivedElapsedNanos - providerTime > revision.maximumObservationAgeNanos -> stale++
+			child.radioTechnology == null -> unsupported++
+			else -> accepted += child
+		}
+	}
+	require(accepted.isNotEmpty())
+	CellHistoricalPayloadEffect(
+		providerIntervalStartNanos = accepted.minOf { child -> requireNotNull(child.providerTimestampNanos) },
+		providerIntervalEndNanos = accepted.maxOf { child -> requireNotNull(child.providerTimestampNanos) },
+		submittedChildCount = decoded.size,
+		acceptedChildCount = accepted.size,
+		staleChildCount = stale,
+		futureTimeChildCount = future,
+		missingTimeChildCount = missingTime,
+		unsupportedTechnologyChildCount = unsupported,
+		childCompleteness = if (accepted.size == decoded.size) {
+			CellCapturedFactRevisionEntity.CHILD_COMPLETENESS_COMPLETE
+		} else {
+			CellCapturedFactRevisionEntity.CHILD_COMPLETENESS_PARTIAL
+		},
+		aggregate = accepted.toIdentityFreeAggregate(),
+	)
+}.getOrNull()
+
+private fun encodeCanonicalCellPayload(children: List<CellHistoricalObservation>): ByteArray =
+	ByteArrayOutputStream().use { buffer ->
+		DataOutputStream(buffer).use { output ->
+			output.writeInt(CELL_PAYLOAD_TYPE)
+			output.writeNullableCellInt(null)
+			output.writeInt(children.size)
+			children.forEach { child ->
+				output.writeUTF(child.identifierToken)
+				output.writeUTF(child.radioType)
+				output.writeBoolean(child.registered)
+				output.writeNullableCellInt(child.signalLevelDbm)
+				output.writeNullableCellLong(child.providerTimestampNanos)
+			}
+			output.writeInt(CELL_REFRESH_OUTCOME_CALLBACK)
+		}
+		buffer.toByteArray()
+	}
+
+private fun DataInputStream.readNullableCellInt(): Int? = if (readBoolean()) readInt() else null
+
+private fun DataInputStream.readNullableCellLong(): Long? = if (readBoolean()) readLong() else null
+
+private fun DataOutputStream.writeNullableCellInt(value: Int?) {
+	writeBoolean(value != null)
+	if (value != null) writeInt(value)
+}
+
+private fun DataOutputStream.writeNullableCellLong(value: Long?) {
+	writeBoolean(value != null)
+	if (value != null) writeLong(value)
+}
+
+private fun List<CellHistoricalObservation>.toIdentityFreeAggregate(): CellHistoricalIdentityFreeAggregate {
+	val technologyCounts = groupingBy { child -> requireNotNull(child.radioTechnology) }.eachCount()
+	val qualityCounts = groupingBy(CellHistoricalObservation::qualityLevel).eachCount()
+	val unknown = qualityCounts[null] ?: 0
+	val noneOrUnknown = qualityCounts[0] ?: 0
+	val poor = qualityCounts[1] ?: 0
+	val known = size - unknown
+	val weak = Math.addExact(noneOrUnknown, poor)
+	return CellHistoricalIdentityFreeAggregate(
+		observationCount = size,
+		registeredObservationCount = count(CellHistoricalObservation::registered),
+		gsmCount = technologyCounts[CELL_TECHNOLOGY_GSM] ?: 0,
+		cdmaCount = technologyCounts[CELL_TECHNOLOGY_CDMA] ?: 0,
+		wcdmaCount = technologyCounts[CELL_TECHNOLOGY_WCDMA] ?: 0,
+		tdscdmaCount = technologyCounts[CELL_TECHNOLOGY_TDSCDMA] ?: 0,
+		lteCount = technologyCounts[CELL_TECHNOLOGY_LTE] ?: 0,
+		nrCount = technologyCounts[CELL_TECHNOLOGY_NR] ?: 0,
+		qualityUnknownCount = unknown,
+		qualityNoneOrUnknownCount = noneOrUnknown,
+		qualityPoorCount = poor,
+		qualityModerateCount = qualityCounts[2] ?: 0,
+		qualityGoodCount = qualityCounts[3] ?: 0,
+		qualityGreatCount = qualityCounts[4] ?: 0,
+		weakObservationCount = weak,
+		knownQualityObservationCount = known,
+		allKnownQualityIsWeak = known > 0 && weak == known,
+	)
+}
+
+private val CellHistoricalObservation.radioTechnology: String?
+	get() = radioType.uppercase().takeIf { technology -> technology in CELL_RADIO_TECHNOLOGIES }
+
+private val CellHistoricalObservation.qualityLevel: Int?
+	get() = when {
+		signalLevelDbm == null || signalLevelDbm == Int.MAX_VALUE -> null
+		signalLevelDbm <= -120 -> 0
+		signalLevelDbm <= -110 -> 1
+		signalLevelDbm <= -100 -> 2
+		signalLevelDbm <= -90 -> 3
+		else -> 4
+	}
+
+private fun CellCapturedFactRevisionEntity.matchesCellPayloadEffect(
+	effect: CellHistoricalPayloadEffect,
+): Boolean = coverageIntervalStartNanos == effect.providerIntervalStartNanos &&
+	coverageIntervalEndNanos == effect.providerIntervalEndNanos &&
+	submittedChildCount == effect.submittedChildCount &&
+	acceptedChildCount == effect.acceptedChildCount && staleChildCount == effect.staleChildCount &&
+	futureTimeChildCount == effect.futureTimeChildCount &&
+	missingTimeChildCount == effect.missingTimeChildCount &&
+	clockUnverifiableChildCount == 0 && authorityMismatchChildCount == 0 &&
+	unsupportedTechnologyChildCount == effect.unsupportedTechnologyChildCount &&
+	subscriptionCompleteness == CellCapturedFactRevisionEntity.SUBSCRIPTION_COMPLETENESS_UNKNOWN &&
+	childCompleteness == effect.childCompleteness && when (factKind) {
+		CellCapturedFactRevisionEntity.FACT_KIND_AGGREGATE -> matchesIdentityFreeAggregate(effect.aggregate)
+		CellCapturedFactRevisionEntity.FACT_KIND_COVERAGE_ONLY -> true
+		else -> false
+	}
+
+private fun CellCapturedFactRevisionEntity.matchesIdentityFreeAggregate(
+	aggregate: CellHistoricalIdentityFreeAggregate,
+): Boolean = observationCount == aggregate.observationCount &&
+	registeredObservationCount == aggregate.registeredObservationCount && gsmCount == aggregate.gsmCount &&
+	cdmaCount == aggregate.cdmaCount && wcdmaCount == aggregate.wcdmaCount &&
+	tdscdmaCount == aggregate.tdscdmaCount && lteCount == aggregate.lteCount && nrCount == aggregate.nrCount &&
+	qualityUnknownCount == aggregate.qualityUnknownCount &&
+	qualityNoneOrUnknownCount == aggregate.qualityNoneOrUnknownCount &&
+	qualityPoorCount == aggregate.qualityPoorCount &&
+	qualityModerateCount == aggregate.qualityModerateCount && qualityGoodCount == aggregate.qualityGoodCount &&
+	qualityGreatCount == aggregate.qualityGreatCount && weakObservationCount == aggregate.weakObservationCount &&
+	knownQualityObservationCount == aggregate.knownQualityObservationCount &&
+	allKnownQualityIsWeak == aggregate.allKnownQualityIsWeak
+
 private fun LogicalTrackingSessionEntity.hasValidHistoricalCellShape(
 	expectedBootId: String,
 ): Boolean {
@@ -1770,17 +2001,80 @@ private data class CellAggregateReuseAuthority(
 	val sessionSegmentId: Long,
 	val capturedSources: Set<Int>,
 	val controlSources: Set<Int>,
+	val sourceInstanceId: String,
+	val registrationGeneration: Long,
+	val configurationRevision: Long,
+	val physicalConfigurationFingerprint: String,
+	val authorizationRevision: Long,
+	val authorizationFingerprint: String,
 	val purposeEligibilityMask: Long,
+	val sourcePolicyRevision: Long,
 	val captureConsentEpoch: Long,
+	val manifestRevision: Long,
+	val lifecycleLeaseGeneration: Long,
 	val collectedDataEpoch: Long,
 	val scopeDeletionGeneration: Long,
+	val clockDomainId: String,
 	val storedZoneId: String,
 	val structuralEpochDay: Long,
+	val providerAcceptanceStartNanos: Long,
+	val providerAcceptanceEndNanos: Long,
+	val authorizationEffectStartNanos: Long,
+	val authorizationEffectEndNanos: Long,
+	val consentEffectStartNanos: Long,
+	val consentEffectEndNanos: Long,
+	val sessionRunEffectStartNanos: Long,
+	val sessionRunEffectEndNanos: Long,
+	val deletionEffectStartNanos: Long,
+	val deletionEffectEndNanos: Long,
+	val maximumObservationAgeNanos: Long,
 )
 
 private data class AuthenticatedCellFactAuthority(
 	val reuseAuthority: CellAggregateReuseAuthority,
+	val aggregate: CellHistoricalIdentityFreeAggregate,
 	val walCreatedAtMs: Long,
+)
+
+private data class CellHistoricalObservation(
+	val identifierToken: String,
+	val radioType: String,
+	val registered: Boolean,
+	val signalLevelDbm: Int?,
+	val providerTimestampNanos: Long?,
+)
+
+private data class CellHistoricalPayloadEffect(
+	val providerIntervalStartNanos: Long,
+	val providerIntervalEndNanos: Long,
+	val submittedChildCount: Int,
+	val acceptedChildCount: Int,
+	val staleChildCount: Int,
+	val futureTimeChildCount: Int,
+	val missingTimeChildCount: Int,
+	val unsupportedTechnologyChildCount: Int,
+	val childCompleteness: String,
+	val aggregate: CellHistoricalIdentityFreeAggregate,
+)
+
+private data class CellHistoricalIdentityFreeAggregate(
+	val observationCount: Int,
+	val registeredObservationCount: Int,
+	val gsmCount: Int,
+	val cdmaCount: Int,
+	val wcdmaCount: Int,
+	val tdscdmaCount: Int,
+	val lteCount: Int,
+	val nrCount: Int,
+	val qualityUnknownCount: Int,
+	val qualityNoneOrUnknownCount: Int,
+	val qualityPoorCount: Int,
+	val qualityModerateCount: Int,
+	val qualityGoodCount: Int,
+	val qualityGreatCount: Int,
+	val weakObservationCount: Int,
+	val knownQualityObservationCount: Int,
+	val allKnownQualityIsWeak: Boolean,
 )
 
 private data class CellCapturedFactAudit(
@@ -1819,10 +2113,28 @@ private const val WAL_PAGE_SIZE = 256
 private const val NANOS_PER_MILLISECOND = 1_000_000L
 private const val CELL_PLAN_FORMAT_VERSION = 1
 private const val CELL_PLAN_PAYLOAD_VERSION = 1
+private const val CELL_PAYLOAD_VERSION = 1
+private const val CELL_PAYLOAD_TYPE = 8
+private const val CELL_REFRESH_OUTCOME_CALLBACK = 0
+private const val MAX_CELL_CHILDREN_PER_DELIVERY = 256
 private const val CELL_PLAN_SOURCE_NAME = "CELL"
 private const val CELL_MODE_OBSERVE_CHANGES = "OBSERVE_CHANGES"
 private const val CELL_MODE_OBSERVE_AND_SPARSE_REFRESH = "OBSERVE_AND_SPARSE_REFRESH"
 private const val MAX_CELL_PLAN_SUBSCRIPTIONS = 10_000
+private const val CELL_TECHNOLOGY_GSM = "GSM"
+private const val CELL_TECHNOLOGY_CDMA = "CDMA"
+private const val CELL_TECHNOLOGY_WCDMA = "WCDMA"
+private const val CELL_TECHNOLOGY_TDSCDMA = "TDSCDMA"
+private const val CELL_TECHNOLOGY_LTE = "LTE"
+private const val CELL_TECHNOLOGY_NR = "NR"
+private val CELL_RADIO_TECHNOLOGIES = setOf(
+	CELL_TECHNOLOGY_GSM,
+	CELL_TECHNOLOGY_CDMA,
+	CELL_TECHNOLOGY_WCDMA,
+	CELL_TECHNOLOGY_TDSCDMA,
+	CELL_TECHNOLOGY_LTE,
+	CELL_TECHNOLOGY_NR,
+)
 private val LOWERCASE_SHA_256 = Regex("^[0-9a-f]{64}$")
 
 private val CELL_CAPTURE_MODES = setOf(
