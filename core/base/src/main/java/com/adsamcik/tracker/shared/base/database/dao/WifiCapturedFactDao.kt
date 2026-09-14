@@ -32,6 +32,19 @@ data class WifiWalPayloadSize(
 	@ColumnInfo(name = "payload_byte_count") val payloadByteCount: Long,
 )
 
+/** Payload-free reverse identity used by the bounded portable Wi-Fi audit. */
+data class WifiPortableWalIdentityRow(
+	@ColumnInfo(name = "event_id") val eventId: String,
+	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
+	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String,
+	@ColumnInfo(name = "source_sequence") val sourceSequence: Long,
+	@ColumnInfo(name = "captured_collected_data_epoch") val capturedCollectedDataEpoch: Long,
+	@ColumnInfo(name = "clock_domain_id") val clockDomainId: String,
+	@ColumnInfo(name = "delivery_identity") val deliveryIdentity: String?,
+	@ColumnInfo(name = "delivery_unit_index") val deliveryUnitIndex: Int?,
+	@ColumnInfo(name = "delivery_unit_count") val deliveryUnitCount: Int?,
+)
+
 /** Bounded append-only storage boundary for dormant Wi-Fi captured facts. */
 @Dao
 interface WifiCapturedFactDao {
@@ -243,6 +256,16 @@ interface WifiCapturedFactDao {
 		sourceEventIds: List<String>,
 	): List<WifiWalMaintenanceKey>
 
+	/** Completeness checkpoints bind a durable ordinal, including exact delivery replays. */
+	@Query(
+		"SELECT admission_ordinal, event_id FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND admission_ordinal IN (:admissionOrdinals) ORDER BY admission_ordinal",
+	)
+	suspend fun portableWalKeysForAdmissionOrdinals(
+		sourceKind: Int,
+		admissionOrdinals: List<Long>,
+	): List<WifiWalMaintenanceKey>
+
 	/** Bounded batched payload-size preflight before the portable reader materializes WAL blobs. */
 	@Query(
 		"SELECT event_id, length(payload) AS payload_byte_count FROM source_event_wal " +
@@ -253,6 +276,40 @@ interface WifiCapturedFactDao {
 	/** Bounded batched full-row load after [portableWalPayloadSizes] has accepted every blob. */
 	@Query("SELECT * FROM source_event_wal WHERE event_id IN (:eventIds) ORDER BY admission_ordinal")
 	suspend fun portableWalRows(eventIds: List<String>): List<SourceEventWalEntity>
+
+	/**
+	 * Batched reverse proof for the source-instance/sequence uniqueness boundary. Length-prefixed
+	 * keys avoid delimiter ambiguity without materializing unrelated rows from a cross product.
+	 */
+	@Query(
+		"SELECT event_id, admission_ordinal, source_instance_id, source_sequence, " +
+			"captured_collected_data_epoch, clock_domain_id, delivery_identity, delivery_unit_index, " +
+			"delivery_unit_count FROM source_event_wal WHERE source_kind = :sourceKind AND " +
+			"(CAST(length(source_instance_id) AS TEXT) || ':' || source_instance_id || ':' || " +
+			"CAST(source_sequence AS TEXT)) IN (:sequenceIdentities) ORDER BY admission_ordinal " +
+			"LIMIT :limit",
+	)
+	suspend fun portableWalSequenceIdentities(
+		sourceKind: Int,
+		sequenceIdentities: List<String>,
+		limit: Int,
+	): List<WifiPortableWalIdentityRow>
+
+	/** Batched reverse proof for the one-unit Wi-Fi provider-delivery identity boundary. */
+	@Query(
+		"SELECT event_id, admission_ordinal, source_instance_id, source_sequence, " +
+			"captured_collected_data_epoch, clock_domain_id, delivery_identity, delivery_unit_index, " +
+			"delivery_unit_count FROM source_event_wal WHERE source_kind = :sourceKind AND " +
+			"(CAST(captured_collected_data_epoch AS TEXT) || ':' || " +
+			"CAST(length(clock_domain_id) AS TEXT) || ':' || clock_domain_id || ':' || " +
+			"CAST(length(delivery_identity) AS TEXT) || ':' || delivery_identity) IN (:deliveryIdentities) " +
+			"ORDER BY admission_ordinal LIMIT :limit",
+	)
+	suspend fun portableWalDeliveryIdentities(
+		sourceKind: Int,
+		deliveryIdentities: List<String>,
+		limit: Int,
+	): List<WifiPortableWalIdentityRow>
 
 	@Query(
 		"SELECT * FROM wifi_capture_deletion_generation WHERE logical_tracking_id = :logicalTrackingId " +
@@ -505,6 +562,17 @@ interface WifiCapturedFactDao {
 		limit: Int,
 	): List<SourcePolicyEntity>
 
+	/** Exact immutable policy revisions referenced by the selected authorization closure. */
+	@Query(
+		"SELECT * FROM source_policy WHERE source_kind = :sourceKind " +
+			"AND policy_revision IN (:policyRevisions) ORDER BY policy_revision LIMIT :limit",
+	)
+	suspend fun historyPoliciesAtRevisions(
+		sourceKind: Int,
+		policyRevisions: List<Long>,
+		limit: Int,
+	): List<SourcePolicyEntity>
+
 	@Query(
 		"SELECT * FROM source_consent_epoch WHERE source_kind = :sourceKind AND purpose = :purpose " +
 			"AND epoch IN (:epochs) ORDER BY epoch LIMIT :limit",
@@ -513,6 +581,18 @@ interface WifiCapturedFactDao {
 		sourceKind: Int,
 		purpose: String,
 		epochs: List<Long>,
+		limit: Int,
+	): List<SourceConsentEpochEntity>
+
+	/** Exact purpose/epoch pairs referenced by the selected authorization closure. */
+	@Query(
+		"SELECT * FROM source_consent_epoch WHERE source_kind = :sourceKind AND " +
+			"(CAST(length(purpose) AS TEXT) || ':' || purpose || ':' || CAST(epoch AS TEXT)) " +
+			"IN (:purposeEpochIdentities) ORDER BY purpose, epoch LIMIT :limit",
+	)
+	suspend fun historyConsentAuthorities(
+		sourceKind: Int,
+		purposeEpochIdentities: List<String>,
 		limit: Int,
 	): List<SourceConsentEpochEntity>
 

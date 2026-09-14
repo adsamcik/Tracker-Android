@@ -25,7 +25,6 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
-import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifi
 import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiRequest
@@ -51,13 +50,10 @@ import com.adsamcik.tracker.stats.api.repository.PortableWifiUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.PortableWifiUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.WifiCapturedPortableFormatV1
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
-import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
-import com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.WifiMode
 import com.adsamcik.tracker.tracker.source.model.WifiPlan
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
-import com.adsamcik.tracker.tracker.source.runtime.toSourceDemandContract
 import java.time.DateTimeException
 import java.time.ZoneId
 import javax.inject.Inject
@@ -271,10 +267,14 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 				PortableWifiUnavailableReason.SOURCE_NOT_CAPTURED,
 			))
 		}
+		if (session.completedAtMs == null || runs.any { it.completedAtMs == null }) {
+			return outcome(ExportPortableCapturedWifiResult.Active)
+		}
 		val audit = maintenance.auditPortableInTransaction(
 			evidence,
 			request.logicalTrackingId,
 			runIds,
+			completeness,
 			PORTABLE_LIMITS,
 		)
 
@@ -417,144 +417,45 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 			)
 		}
 
-		if (session.completedAtMs == null || runs.any { it.completedAtMs == null }) {
-			return outcome(ExportPortableCapturedWifiResult.Active)
-		}
-
 		val wifiCompleteness = completeness.filter { row ->
 			row.sourceKind == WIFI_SOURCE && row.serviceRunId in selectedCapturedRunIds
 		}
 		if (!wifiCompleteness.hasValidPortableWifiShape(request.logicalTrackingId, selectedCapturedRunIds) ||
 			selectedCapturedRunIds.any { runId -> wifiCompleteness.none { it.serviceRunId == runId } }
 		) return outcome(unverifiableWriter())
-		val walRegistrationKeys = selectedWal.mapTo(mutableSetOf()) { wal ->
-			wal.evidence.registrationGeneration to wal.evidence.sourceInstanceId.value
-		}
-		val unbackedCompleteness = wifiCompleteness.filter { row ->
-			row.registrationGeneration > 0L &&
-				(row.registrationGeneration to row.sourceInstanceId) !in walRegistrationKeys
-		}
-		if (unbackedCompleteness.isNotEmpty()) {
-			val generations = unbackedCompleteness.map(SourceSessionCompletenessEntity::registrationGeneration)
-				.distinct()
-			val registrations = database.wifiCapturedFactDao().historyProviderRegistrations(
-				WIFI_SOURCE,
-				generations,
-				WifiCapturedPortableFormatV1.MAX_COMPLETENESS_ROWS + 1,
-			)
-			if (registrations.size > WifiCapturedPortableFormatV1.MAX_COMPLETENESS_ROWS ||
-				registrations.distinctBy(ProviderRegistrationGenerationEntity::registrationGeneration).size !=
-					registrations.size || registrations.mapTo(mutableSetOf()) { it.registrationGeneration } !=
-					generations.toSet()
-			) return outcome(overflow())
-			val registrationByGeneration = registrations.associateBy {
-				it.registrationGeneration
-			}
-			val authorizationRows = database.wifiCapturedFactDao().historyAuthorizations(
-				WIFI_SOURCE,
-				generations,
-				WifiCapturedPortableFormatV1.MAX_AUTHORIZATION_ROWS + 1,
-			)
-			if (authorizationRows.size > WifiCapturedPortableFormatV1.MAX_AUTHORIZATION_ROWS ||
-				authorizationRows.any { it.registrationGeneration !in generations }
-			) return outcome(overflow())
-			val authorizationSnapshots = authorizationRows
-				.groupBy { it.registrationGeneration to it.authorizationRevision }
-				.mapNotNull { (_, rows) -> runCatching { rows.toAuthorizationSnapshotOrNull() }.getOrNull() }
-			if (authorizationSnapshots.size != authorizationRows.distinctBy {
-				it.registrationGeneration to it.authorizationRevision
-			}.size || authorizationSnapshots.distinctBy(SourceAuthorizationSnapshot::authorizationRevision).size !=
-				authorizationSnapshots.size || authorizationSnapshots.any { snapshot ->
-					selectedWal.any { wal ->
-						wal.evidence.registrationGeneration != snapshot.members.first().registrationGeneration &&
-							wal.evidence.authorizationRevision == snapshot.authorizationRevision
-					}
-				}
-			) return outcome(unverifiableWriter())
-			val demandIds = authorizationRows.mapNotNull(SourceAuthorizationEntity::demandId).distinct()
-			if (demandIds.size > WifiCapturedPortableFormatV1.MAX_DEMANDS) return outcome(overflow())
-			val demands = mutableListOf<SourceDemandEntity>()
-			for (demandIdBatch in demandIds.chunked(PORTABLE_QUERY_BATCH_SIZE)) {
-				currentCoroutineContext().ensureActive()
-				val batch = database.wifiCapturedFactDao().historyDemands(
-					demandIdBatch,
-					demandIdBatch.size + 1,
-				)
-				if (batch.size != demandIdBatch.size) return outcome(unverifiableWriter())
-				demands += batch
-			}
-			if (demands.size != demandIds.size || demands.size > WifiCapturedPortableFormatV1.MAX_DEMANDS ||
-				demands.distinctBy(SourceDemandEntity::demandId).size != demands.size
-			) return outcome(unverifiableWriter())
-			val demandsById = demands.associateBy(SourceDemandEntity::demandId)
-			if (authorizationRows.any { row -> !row.hasExactPortableMember(demandsById[row.demandId]) } ||
-				authorizationSnapshots.any { snapshot ->
-					!snapshot.hasExactPortableFingerprint(demandsById)
-				}
-			) return outcome(unverifiableWriter())
-			if (unbackedCompleteness.any { row ->
-				val registration = registrationByGeneration[row.registrationGeneration]
+		val positiveCompleteness = wifiCompleteness.filter { it.registrationGeneration > 0L }
+		val portableAuthority = audit.wal.portableAuthority ?: return outcome(unverifiableWriter())
+		if (audit.wal.portableAuthorityQueryCount > WIFI_PORTABLE_AUTHORITY_QUERY_LIMIT ||
+			positiveCompleteness.any { row ->
+				val registration = portableAuthority.registrationsByGeneration[row.registrationGeneration]
 					?: return@any true
-				val run = runs.singleOrNull { it.serviceRunId == row.serviceRunId }
-					?: return@any true
-				val registrationAuthorizations = authorizationSnapshots.filter { snapshot ->
-					snapshot.members.first().registrationGeneration == row.registrationGeneration
-				}
+				val run = runs.singleOrNull { it.serviceRunId == row.serviceRunId } ?: return@any true
+				val authorizations = portableAuthority.authorizationsByGeneration[row.registrationGeneration]
+					.orEmpty()
 				!registration.hasPortableRegistrationShape(
 					row,
-					runs,
-					manifestsByRun,
-					captureByRun,
-					desiredByRevision,
-					planCodec,
-				) || registrationAuthorizations.none { snapshot ->
-					snapshot.hasExactPortableCaptureAuthority(
-						registration,
-						run,
-						captureByRun[run.serviceRunId].orEmpty(),
-						demandsById,
-					)
-				} || !registrationAuthorizations.hasExactPortableCaptureRetirement(
+					run,
+					portableAuthority,
+				) || !authorizations.hasExactPortableCaptureRetirement(
 					registration,
 					run,
-					demandsById,
-				)
-			}) return outcome(unverifiableWriter())
-			val allSelectedInstances = selectedWal.map { wal -> wal.evidence.sourceInstanceId.value } +
-				registrations.map(ProviderRegistrationGenerationEntity::sourceInstanceId)
-			if (allSelectedInstances.distinct().size != 1) return outcome(unverifiableWriter())
-			val epochRelations = registrations.map { registration ->
-				registration.collectedDataEpoch.compareTo(evidence.collectedDataEpoch)
+					portableAuthority,
+				) || portableAuthority.exactPortableActions(registration, run) == null ||
+					!row.hasExactPortableTail(audit.wal.settlementByAdmissionOrdinal)
 			}
-			if (epochRelations.any { it != 0 }) {
-				return outcome(
-					if (epochRelations.all { it < 0 } && selectedLineages.isEmpty() && selectedWal.isEmpty()) {
-						ExportPortableCapturedWifiResult.Deleted
-					} else {
-						unverifiableFact()
-					},
-				)
-			}
-			val actions = readDao.historyStartActions(
-				WIFI_SOURCE,
-				runIds,
-				WifiCapturedPortableFormatV1.MAX_MANIFESTS + 1,
+		) return outcome(unverifiableWriter())
+		val epochRelations = positiveCompleteness.map { row ->
+			portableAuthority.registrationsByGeneration.getValue(row.registrationGeneration)
+				.collectedDataEpoch.compareTo(evidence.collectedDataEpoch)
+		}
+		if (epochRelations.any { it != 0 }) {
+			return outcome(
+				if (epochRelations.all { it < 0 } && selectedLineages.isEmpty() && selectedWal.isEmpty()) {
+					ExportPortableCapturedWifiResult.Deleted
+				} else {
+					unverifiableFact()
+				},
 			)
-			if (actions.size > WifiCapturedPortableFormatV1.MAX_MANIFESTS ||
-				actions.distinctBy(LifecycleDesiredActionEntity::actionId).size != actions.size ||
-				unbackedCompleteness.any { row ->
-					val run = runs.single { it.serviceRunId == row.serviceRunId }
-					val registration = registrationByGeneration.getValue(row.registrationGeneration)
-					actions.count { action ->
-						action.authenticatesPortableCompleteness(
-							run,
-							manifestsByRun[run.serviceRunId].orEmpty(),
-							captureByRun[run.serviceRunId].orEmpty(),
-							registration,
-						)
-					} != 1
-				}
-			) return outcome(unverifiableWriter())
 		}
 
 		val targetOrdinal = listOfNotNull(
@@ -824,37 +725,60 @@ private fun SessionManifestSourceEntity.isExactPortableWifiWriter(): Boolean =
 @Suppress("LongParameterList")
 private fun ProviderRegistrationGenerationEntity.hasPortableRegistrationShape(
 	row: SourceSessionCompletenessEntity,
-	runs: List<SourceServiceRunEntity>,
-	manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
-	captureByRun: Map<String, List<SessionManifestSourceEntity>>,
-	desiredByRevision: Map<Long, com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity>,
-	planCodec: SourcePlanCodec,
+	run: SourceServiceRunEntity,
+	authority: WifiPortableAuthoritySnapshot,
 ): Boolean {
-	if (row.lastAdmissionOrdinal != null || row.lastSourceSequence != null) return false
-	val run = runs.singleOrNull { it.serviceRunId == row.serviceRunId } ?: return false
-	val capturedRevisions = captureByRun[run.serviceRunId].orEmpty()
-		.mapTo(mutableSetOf(), SessionManifestSourceEntity::manifestRevision)
-	val fingerprints = manifestsByRun[run.serviceRunId].orEmpty()
-		.filter { it.manifestRevision in capturedRevisions }
-		.mapNotNull { manifest ->
-			val desired = desiredByRevision[manifest.acquisitionPlanRevision] ?: return@mapNotNull null
-			(runCatching { planCodec.decode(desired.payload) as? WifiPlan }.getOrNull())
-				?.physicalConfigurationFingerprint()
-		}.toSet()
 	val acceptedWall = acceptedAtMs ?: return false
 	val acceptedElapsed = acceptedElapsedRealtimeNanos ?: return false
-	val statusShape = status == ProviderRegistrationGenerationEntity.STATUS_RETIRED &&
-		retiredAtMs != null && retiredElapsedRealtimeNanos != null &&
-		!failureCode.isNullOrBlank()
+	val acceptedActions = authority.exactPortableActions(this, run) ?: return false
+	val plans = acceptedActions.mapNotNull { authority.plansByRevision[it.desiredPlanRevision] }
+	if (plans.size != acceptedActions.size || plans.any {
+		it.physicalConfigurationFingerprint() != physicalConfigurationFingerprint
+	}) return false
+	val statusShape = when (status) {
+		ProviderRegistrationGenerationEntity.STATUS_ACTIVE ->
+			retiredAtMs == null && retiredElapsedRealtimeNanos == null && failureCode == null
+		ProviderRegistrationGenerationEntity.STATUS_RETIRING ->
+			retiredAtMs != null && retiredElapsedRealtimeNanos != null && !failureCode.isNullOrBlank()
+		ProviderRegistrationGenerationEntity.STATUS_RETIRED ->
+			retiredAtMs != null && retiredElapsedRealtimeNanos != null &&
+				failureCode?.isNotBlank() != false
+		else -> false
+	}
 	return sourceKind == WIFI_SOURCE && registrationGeneration == row.registrationGeneration &&
 		sourceInstanceId == row.sourceInstanceId && ownerScope == "source-broker:$WIFI_SOURCE" &&
 		clockDomainId == run.bootId &&
 		providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
-		!providerProcessIncarnationId.isNullOrBlank() && physicalConfigurationFingerprint in fingerprints &&
+		!providerProcessIncarnationId.isNullOrBlank() &&
 		captureCallbackBarrierAuthorizationRevision > 0L &&
 		statusShape && reservedAtMs <= acceptedWall && reservedElapsedRealtimeNanos <= acceptedElapsed &&
 		retiredAtMs?.let { it >= acceptedWall } != false &&
 		retiredElapsedRealtimeNanos?.let { it >= acceptedElapsed } != false
+}
+
+private fun WifiPortableAuthoritySnapshot.exactPortableActions(
+	registration: ProviderRegistrationGenerationEntity,
+	run: SourceServiceRunEntity,
+): List<LifecycleDesiredActionEntity>? {
+	val manifests = manifestsByRun[run.serviceRunId].orEmpty()
+	val bindings = manifests.flatMap { manifest ->
+		sourcesByManifest[manifest.logicalTrackingId to manifest.manifestRevision]
+			.orEmpty().filter(::isPortableWifiCaptureMembership)
+	}
+	val captureManifestRevisions = authorizationsByGeneration[registration.registrationGeneration].orEmpty()
+		.flatMap(SourceAuthorizationSnapshot::authorizedMembers)
+		.filter { member ->
+			member.purpose == CAPTURE_PURPOSE && member.logicalTrackingId == run.logicalTrackingId &&
+				member.serviceRunId == run.serviceRunId
+		}.mapNotNull(SourceAuthorizationEntity::manifestRevision).toSet()
+	if (captureManifestRevisions.isEmpty()) return null
+	val actions = actionsByRun[run.serviceRunId].orEmpty().filter { action ->
+		action.authenticatesPortableCompleteness(run, manifests, bindings, registration)
+	}
+	if (actions.map(LifecycleDesiredActionEntity::manifestRevision).toSet() != captureManifestRevisions ||
+		captureManifestRevisions.any { revision -> actions.count { it.manifestRevision == revision } != 1 }
+	) return null
+	return actions
 }
 
 private fun SourceAuthorizationEntity.hasExactPortableMember(demand: SourceDemandEntity?): Boolean {
@@ -889,54 +813,36 @@ private fun SourceAuthorizationSnapshot.hasExactPortableFingerprint(
 	if (demands.size != authorizedMembers.size || demands.distinctBy(SourceDemandEntity::demandId).size != demands.size) {
 		return false
 	}
-	return authorizationFingerprint == SourceBrokerAuthorization.fingerprint(demands) &&
-		purposeEligibilityMask == SourceBrokerAuthorization.purposeMask(demands)
-}
-
-private fun SourceAuthorizationSnapshot.hasExactPortableCaptureAuthority(
-	registration: ProviderRegistrationGenerationEntity,
-	run: SourceServiceRunEntity,
-	bindings: List<SessionManifestSourceEntity>,
-	demandsById: Map<String, SourceDemandEntity>,
-): Boolean {
-	val acceptedElapsed = registration.acceptedElapsedRealtimeNanos ?: return false
-	val retiredElapsed = registration.retiredElapsedRealtimeNanos ?: return false
-	if (members.first().registrationGeneration != registration.registrationGeneration ||
-		effectiveBootId != registration.clockDomainId || effectiveBootId != run.bootId ||
-		effectiveElapsedRealtimeNanos !in acceptedElapsed..retiredElapsed ||
-		purposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
-	) return false
-	return authorizedMembers.any { member ->
-		val demand = member.demandId?.let(demandsById::get) ?: return@any false
-		val binding = bindings.singleOrNull { it.manifestRevision == demand.manifestRevision }
-		val expectedContract = runCatching {
-			SourceDemandContractFactory.forQos(
-				SourceKind.WIFI,
-				demand.qosCode,
-				DirectSourceDemandPurpose.SESSION_CAPTURE,
-			)
-		}.getOrNull()
-		val actualContract = runCatching { demand.toSourceDemandContract() }.getOrNull()
-		binding != null && demand.purpose == CAPTURE_PURPOSE && demand.persistenceEligible &&
-			demand.consumerId == "session:${run.logicalTrackingId}" && expectedContract == actualContract &&
-			demand.logicalTrackingId == run.logicalTrackingId && demand.serviceRunId == run.serviceRunId &&
-			demand.lifecycleLeaseGeneration == run.leaseGeneration &&
-			demand.sourcePolicyRevision == member.sourcePolicyRevision &&
-			demand.sourcePolicyRevision > 0L && demand.consentEpoch == binding.consentEpoch &&
-			demand.qosCode == binding.qosCode && demand.status == SourceDemandEntity.STATUS_RETIRED &&
-			demand.retireBootId == run.bootId &&
-			registration.captureCallbackBarrierAuthorizationRevision == authorizationRevision
-	}
+	val expected = runCatching {
+		SourceBrokerAuthorization.rows(
+			members.first().sourceKind,
+			members.first().registrationGeneration,
+			authorizationRevision,
+			demands,
+			effectiveBootId,
+			effectiveElapsedRealtimeNanos,
+			members.first().effectiveWallTimeMs,
+		)
+	}.getOrNull() ?: return false
+	return expected.sortedBy(SourceAuthorizationEntity::memberId) ==
+		members.sortedBy(SourceAuthorizationEntity::memberId) &&
+		members.all { member -> member.hasExactPortableMember(member.demandId?.let(demandsById::get)) }
 }
 
 private fun List<SourceAuthorizationSnapshot>.hasExactPortableCaptureRetirement(
 	registration: ProviderRegistrationGenerationEntity,
 	run: SourceServiceRunEntity,
-	demandsById: Map<String, SourceDemandEntity>,
+	authority: WifiPortableAuthoritySnapshot,
 ): Boolean {
-	if (isEmpty() || any { snapshot ->
+	if (isEmpty() || any snapshotLoop@{ snapshot ->
 			snapshot.members.first().registrationGeneration != registration.registrationGeneration ||
-				snapshot.effectiveBootId != registration.clockDomainId
+				snapshot.effectiveBootId != registration.clockDomainId ||
+				!snapshot.hasExactPortableFingerprint(authority.demandsById) ||
+				snapshot.authorizedMembers.any memberLoop@{ member ->
+					val demand = member.demandId?.let(authority.demandsById::get)
+						?: return@memberLoop true
+					!authority.authenticatesHistoricalDemand(demand, snapshot)
+				}
 		}
 	) return false
 	val ordered = sortedWith(compareBy(
@@ -944,33 +850,93 @@ private fun List<SourceAuthorizationSnapshot>.hasExactPortableCaptureRetirement(
 		SourceAuthorizationSnapshot::authorizationRevision,
 	))
 	if (ordered.map(SourceAuthorizationSnapshot::authorizationRevision).distinct().size != ordered.size) return false
-	val selectedDemandIds = demandsById.values.filter { demand ->
-		demand.sourceKind == WIFI_SOURCE && demand.purpose == CAPTURE_PURPOSE &&
-			demand.logicalTrackingId == run.logicalTrackingId && demand.serviceRunId == run.serviceRunId
-	}.mapTo(mutableSetOf(), SourceDemandEntity::demandId)
-	if (selectedDemandIds.isEmpty()) return false
-	val captureSnapshots = ordered.filter { snapshot ->
-		snapshot.authorizedMembers.any { member -> member.demandId in selectedDemandIds }
-	}
-	val lastCapture = captureSnapshots.lastOrNull() ?: return false
-	if (lastCapture.authorizationRevision != registration.captureCallbackBarrierAuthorizationRevision) return false
-	val retirementElapsed = selectedDemandIds.map { demandId ->
-		demandsById.getValue(demandId).retireElapsedRealtimeNanos ?: return false
-	}.maxOrNull() ?: return false
-	val retirementWall = selectedDemandIds.map { demandId ->
-		demandsById.getValue(demandId).retiredAtMs ?: return false
-	}.maxOrNull() ?: return false
-	val closing = ordered.firstOrNull { snapshot ->
-		(snapshot.effectiveElapsedRealtimeNanos > lastCapture.effectiveElapsedRealtimeNanos ||
-			snapshot.effectiveElapsedRealtimeNanos == lastCapture.effectiveElapsedRealtimeNanos &&
-				snapshot.authorizationRevision > lastCapture.authorizationRevision) &&
-			snapshot.authorizedMembers.none { member -> member.demandId in selectedDemandIds }
+	val allCaptureDemands = ordered.flatMap(SourceAuthorizationSnapshot::authorizedMembers)
+		.filter { it.purpose == CAPTURE_PURPOSE }
+		.mapNotNull { it.demandId?.let(authority.demandsById::get) }
+		.distinctBy(SourceDemandEntity::demandId)
+	if (allCaptureDemands.isEmpty() || allCaptureDemands.any { demand ->
+		!demand.hasExactPortableCaptureBinding(registration, authority)
+	}) return false
+	if (allCaptureDemands.none { demand ->
+		demand.logicalTrackingId == run.logicalTrackingId && demand.serviceRunId == run.serviceRunId
+	}) return false
+	if (allCaptureDemands.any { demand ->
+		val demandRun = demand.serviceRunId?.let(authority.runsById::get) ?: return@any true
+		val lastCapture = ordered.lastOrNull { snapshot ->
+			snapshot.authorizedMembers.any { it.demandId == demand.demandId }
+		} ?: return@any true
+		val closing = ordered.firstOrNull { snapshot ->
+			PORTABLE_WIFI_AUTHORIZATION_ORDER.compare(snapshot, lastCapture) > 0 &&
+				snapshot.authorizedMembers.none { it.demandId == demand.demandId }
+		} ?: return@any true
+		demand.status != SourceDemandEntity.STATUS_RETIRED || demand.retireBootId != demandRun.bootId ||
+			demand.retireElapsedRealtimeNanos != closing.effectiveElapsedRealtimeNanos ||
+			demand.retiredAtMs != closing.members.first().effectiveWallTimeMs ||
+			ordered.dropWhile { it != closing }.any { snapshot ->
+				snapshot.authorizedMembers.any { it.demandId == demand.demandId }
+			}
+	}) return false
+	val lastCapture = ordered.lastOrNull { snapshot ->
+		snapshot.authorizedMembers.any { it.purpose == CAPTURE_PURPOSE }
 	} ?: return false
-	return closing.effectiveElapsedRealtimeNanos == retirementElapsed &&
-		closing.members.first().effectiveWallTimeMs == retirementWall &&
-		ordered.dropWhile { it != closing }.none { snapshot ->
-			snapshot.authorizedMembers.any { member -> member.demandId in selectedDemandIds }
+	if (lastCapture.authorizationRevision != registration.captureCallbackBarrierAuthorizationRevision) return false
+	val registrationPlans = authority.plansForRegistration(registration)
+	if (registrationPlans.isEmpty() || ordered.flatMap(SourceAuthorizationSnapshot::authorizedMembers)
+		.filter { it.purpose != CAPTURE_PURPOSE }
+		.mapNotNull { it.demandId?.let(authority.demandsById::get) }
+		.distinctBy(SourceDemandEntity::demandId)
+		.any { demand ->
+			registrationPlans.none { authority.planSatisfiesDemand(it, demand) }
+		}
+	) return false
+	if (registration.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE) {
+		val continuation = ordered.last().authorizedMembers
+		if (continuation.isEmpty() || continuation.any { member ->
+			member.purpose !in setOf(
+				SourceBrokerPurpose.CONTROL_AUTOSTART,
+				SourceBrokerPurpose.CONTROL_CONTINUATION,
+				SourceBrokerPurpose.AMBIENT_PRODUCT,
+			) || member.demandId?.let(authority.demandsById::get)?.status != SourceDemandEntity.STATUS_ACTIVE
+		}) return false
 	}
+	return true
+}
+
+private fun SourceDemandEntity.hasExactPortableCaptureBinding(
+	registration: ProviderRegistrationGenerationEntity,
+	authority: WifiPortableAuthoritySnapshot,
+): Boolean {
+	val runId = serviceRunId ?: return false
+	val logicalId = logicalTrackingId ?: return false
+	val manifestRevision = manifestRevision ?: return false
+	val lease = lifecycleLeaseGeneration ?: return false
+	val run = authority.runsById[runId] ?: return false
+	val manifest = authority.manifestsByRun[runId].orEmpty()
+		.singleOrNull { it.manifestRevision == manifestRevision } ?: return false
+	val binding = authority.sourcesByManifest[logicalId to manifestRevision].orEmpty()
+		.singleOrNull { it.isExactPortableWifiWriter() } ?: return false
+	val plan = authority.plansByRevision[manifest.acquisitionPlanRevision] ?: return false
+	return sourceKind == WIFI_SOURCE && purpose == CAPTURE_PURPOSE && persistenceEligible &&
+		consumerId == "session:$logicalId" && logicalId == authority.session.logicalTrackingId &&
+		run.logicalTrackingId == logicalId && run.leaseGeneration == lease &&
+		manifest.logicalTrackingId == logicalId && manifest.serviceRunId == runId &&
+		binding.manifestRevision == manifestRevision && binding.consentEpoch == consentEpoch &&
+		binding.qosCode == qosCode && manifest.sourcePolicyRevision == sourcePolicyRevision &&
+		plan.physicalConfigurationFingerprint() == registration.physicalConfigurationFingerprint &&
+		authority.planSatisfiesDemand(plan, this)
+}
+
+private fun SourceSessionCompletenessEntity.hasExactPortableTail(
+	settlements: Map<Long, WifiPortableWalSettlement>,
+): Boolean {
+	val ordinal = lastAdmissionOrdinal
+	if (ordinal == null) return lastSourceSequence == null
+	if (lastSourceSequence == null) return false
+	val settlement = settlements[ordinal] ?: return false
+	val scope = settlement.captureScope
+	return settlement.sourceInstanceId == sourceInstanceId &&
+		settlement.registrationGeneration == registrationGeneration &&
+		(scope == null || scope.logicalTrackingId == logicalTrackingId && scope.serviceRunId == serviceRunId)
 }
 
 private fun LifecycleDesiredActionEntity.authenticatesPortableCompleteness(
@@ -1037,7 +1003,6 @@ private fun SessionManifestVersionEntity.hasExactPortableWifiIntent(
 }
 
 private fun WifiPlan.hasPortableShape(): Boolean = revision > 0L && mode in setOf(
-	WifiMode.CACHED_ONLY,
 	WifiMode.BROADCAST_DRIVEN,
 	WifiMode.ACTIVE_ATTEMPTS,
 ) && minimumAttemptIntervalMs >= 0L && maximumAcceptableResultAgeMs >= 0L &&
@@ -1079,7 +1044,10 @@ private fun List<SourceSessionCompletenessEntity>.hasValidPortableWifiShape(
 				(row.unresolvedSequenceStart == null) == (row.unresolvedSequenceEnd == null) &&
 				row.unresolvedSequenceStart?.let { start ->
 					start >= 0L && requireNotNull(row.unresolvedSequenceEnd) >= start
-				} != false && row.providerCoverage == WIFI_PROVIDER_COVERAGE &&
+				} != false && row.providerCoverage in setOf(
+					WIFI_PROVIDER_COVERAGE,
+					COMPLETE_PROVIDER_COVERAGE,
+				) &&
 				row.stopStatus in STOP_STATUS_VALUES && row.updatedAtMs >= 0L && row.hasValidStopShape() &&
 				if (row.registrationGeneration == 0L) {
 					rows.size == 1 && row.lastAdmissionOrdinal == null && row.lastSourceSequence == null &&
@@ -1172,6 +1140,9 @@ private val PORTABLE_LIMITS = WifiCapturedMaintenanceLimits(
 	maximumDeletionGenerations = WifiCapturedPortableFormatV1.MAX_RUNS_PER_ENTRY,
 	maximumWalEvents = WifiCapturedPortableFormatV1.MAX_OBSERVATIONS_PER_ENTRY,
 )
+private val PORTABLE_WIFI_AUTHORIZATION_ORDER = compareBy<SourceAuthorizationSnapshot>(
+	SourceAuthorizationSnapshot::effectiveElapsedRealtimeNanos,
+).thenBy(SourceAuthorizationSnapshot::authorizationRevision)
 private const val WIFI_SOURCE = SourceDestinationOwnerEntity.SOURCE_WIFI
 private const val CAPTURE_PURPOSE = SourceBrokerPurpose.SESSION_CAPTURE
 private const val MANUAL_CAPTURE_MASK = 1L
@@ -1179,7 +1150,6 @@ private const val AUTOMATIC_CAPTURE_MASK = 2L
 private const val ALL_CAPTURE_MASK = MANUAL_CAPTURE_MASK or AUTOMATIC_CAPTURE_MASK
 private const val PLAN_PAYLOAD_VERSION = 1
 private const val MAX_PLAN_PAYLOAD_BYTES = 1_024
-private const val PORTABLE_QUERY_BATCH_SIZE = 256
 private const val NANOS_PER_MILLISECOND = 1_000_000L
 private val TERMINAL_STATES = setOf("FINALIZED", "FAILED", "CLOSED")
 private val ALL_SESSION_STATES = TERMINAL_STATES + setOf("STARTING", "ACTIVE", "RECONFIGURING", "STOPPING")
@@ -1189,7 +1159,7 @@ private val ADMISSION_RUN_STATES = setOf("STARTING", "ACTIVE")
 private val PROVIDER_UNAVAILABLE_STATUSES = setOf("PERMISSION_LOST", "PROVIDER_FAILED")
 private val VALID_SOURCE_CODES = SourceKind.entries.mapTo(mutableSetOf(), SourceKind::stableCode)
 private const val WIFI_PROVIDER_COVERAGE = "PROVIDER_COMPLETENESS_UNOBSERVABLE"
-private const val COMPLETE_PROVIDER_COVERAGE = WIFI_PROVIDER_COVERAGE
+private const val COMPLETE_PROVIDER_COVERAGE = "CALLBACKS_ENTERED_BEFORE_BARRIER"
 private val STOP_STATUS_VALUES = setOf(
 	"COMPLETE",
 	"TIMED_OUT",
