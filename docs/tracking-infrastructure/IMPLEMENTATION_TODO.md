@@ -730,6 +730,16 @@ exact run fences before clearing capture state. WAL and CONTROL are preserved an
 rejected. These TODOs remain unchecked until transfer, shared UI, automatic
 capture behavior, and complete scenarios exist.
 
+Accepted portable-export commits `c7e087d9c` through `8f0842354` implement bounded portions of
+ACT-003/007/010 and PRIV-006/011. One Room snapshot authenticates the complete selected replacement
+group and every retained sibling behind each canonical Activity delivery identity. It reproduces
+production per-demand freshness and effective authorization per unit, tolerates sparse original
+indices and allocated source-sequence gaps, and permits late receipt only for a qualified
+pre-closing observation with exact terminal settlement. Only captured members become targets;
+CONTROL is authenticated but excluded. These TODOs remain unchecked until portable import/round
+trip, exact selected-session deletion, file/UI action wiring, catalog activation, and complete
+scenarios exist.
+
 Accepted source-local UI commits `f364cbc42` and `48d4d3e67` implement additional bounded portions
 of ACT-008/010 and HIST-002/003/005/006/012. Exact Activity-only intent remains visible before its
 first fact, complete replacement groups are classified together, live Activity/session state is one

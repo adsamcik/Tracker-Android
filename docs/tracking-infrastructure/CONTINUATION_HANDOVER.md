@@ -50,9 +50,16 @@ old identity is rejected. The next Cell slice is the dormant captured-WAL projec
 existing source-local writer; it must not activate rollout, admit CONTROL/ambient facts, or create
 another writer.
 
-Activity portable export is in fresh review through `8f0842354`; it is not accepted or recorded as
-a completed checkpoint yet. No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device,
-UI, battery, CI, integration, activation, publication, or release command ran on September 14.
+Activity portable export is independently accepted through `8f0842354`. Its one-transaction reader
+expands all retained rows behind each canonical 64-hex delivery identity, authenticates the exact
+observed-time authorization revision and production per-demand freshness, recomputes the qualified
+purpose mask while binding the full authorization fingerprint, and exports only exact captured
+members. It truthfully permits sparse indices, sequence zero/gaps, mixed capture/CONTROL and late
+receipt after a qualified pre-close observation; CONTROL never becomes captured output. The next
+nonoverlapping Activity slice is exact selected-session deletion on `codex/ti-activity-maintenance`.
+
+No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran on September 14.
 
 ## 2026-09-13 active coordinator checkpoint
 

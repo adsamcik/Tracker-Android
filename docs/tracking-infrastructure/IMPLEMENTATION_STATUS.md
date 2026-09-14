@@ -43,6 +43,19 @@ tampering, null/nonpositive provider times, aggregate retargeting, and authority
 projection, worker/action invocation, transfer, shared UI, automatic/ambient behavior, device
 evidence, and validation remain open.
 
+The separate `codex/ti-activity-transfer` branch is independently accepted through `8f0842354`
+for captured Activity portable export. One bounded Room snapshot authenticates exact logical and
+physical replacement ownership, captured fact/cursor/writer authority, immutable plans, provider
+registration, per-observation authorization and per-demand freshness, policy/consent, lifecycle
+closing, deletion/retention, and every retained sibling of a canonical delivery. Sparse original
+indices, source-sequence zero and gaps, independently authorized units, rejected/retained-away
+siblings, and late receipt after a qualified pre-close observation match production ingress; only
+exact qualified capture members become export targets. CONTROL siblings remain authenticated but
+never enter captured history or output. Malformed delivery identity, stale capture, hidden sibling,
+mask/fingerprint, shared-delivery, settlement, overflow, or payload corruption fails closed before
+external sink I/O. Portable import/round trip, selected deletion, file/UI action wiring, catalog
+activation, validation, and device evidence remain open.
+
 ## September 13 coordinator checkpoint — Ambient importer and Pressure read path accepted
 
 The coordinator source worktree is clean at `29801e17f` on

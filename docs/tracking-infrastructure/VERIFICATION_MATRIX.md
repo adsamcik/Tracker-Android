@@ -2496,3 +2496,26 @@ stream exactly and that prior transaction/privacy fences remain intact. Deferred
 The command was not run. Compilation, Room execution, maintenance worker/action invocation,
 runtime projection, provider/process/reboot/device behavior, transfer, shared UI, integration,
 activation, and release remain unproven.
+
+## TI-B298 — Activity production-shape portable-export contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `8f0842354`. Authored bounded Room/export tests cover
+canonical bare lowercase 64-hex delivery identity before source-wide sibling expansion; payload-
+free ordered lookup; sparse original indices; source-sequence zero and increasing gaps; omitted
+rejected or retained-away siblings; per-unit observed-time authorization; overflow-safe per-demand
+freshness; full authorization fingerprint plus recomputed qualified purpose mask; mixed capture and
+CONTROL; captured-target-only run binding; half-open closing; qualified late receipt; exact terminal
+settlement; malformed/hidden sibling, stale capture, mask/fingerprint/shared-delivery corruption;
+overflow; cancellation; and sink I/O only after the transaction. CONTROL never becomes captured
+portable content.
+
+Independent review compared these shapes with production durable ingress and accepted the corrected
+chain. Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ActivityCapturedFactMaintenanceTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, portable import/round trip, selected
+deletion, file/UI action wiring, catalog activation, provider/process/reboot/device behavior,
+integration, activation, and release remain unproven.

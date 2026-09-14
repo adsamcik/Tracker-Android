@@ -3789,3 +3789,22 @@ Each entry records repository evidence and does not duplicate the final architec
   run and Cell-generation fences before removing payload while preserving WAL and CONTROL.
 - This does not invoke the service from workers/actions, activate the projection/provider path,
   implement transfer/shared UI/automatic/ambient behavior, or provide executed evidence.
+
+## TI-D235 — Activity export authenticates production delivery shape without exporting CONTROL
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; source/DAO/Room/test commits `c7e087d9c`
+  through `8f0842354`; corrected independent review; TI-B298.
+- The export snapshot expands every retained Activity sibling by source plus canonical bare 64-hex
+  delivery identity before loading payloads. Original unit indices may be sparse and allocated
+  source sequences may start at zero or contain gaps; duplicate indices, sequence regression, or
+  disagreement in immutable provider-delivery fields fails closed.
+- Each retained unit is authenticated at provider observation time against its exact authorization
+  revision. The original full authorization fingerprint stays bound, then production per-demand
+  maximum age is replayed with overflow-safe time conversion to recompute the qualified purpose
+  mask. Only a qualified exact capture member may contribute an export target; CONTROL siblings are
+  authenticated but never represented as captured history.
+- Activity closing is half-open at observation time. A qualified observation before closing may be
+  received later only when exact terminal session/run settlement proves the durable drain; an
+  observation at or after closing is rejected.
+- This is read-only captured Activity export. It does not implement portable import, selected
+  deletion, file/UI action wiring, catalog activation, validation, device proof, or rollout.
