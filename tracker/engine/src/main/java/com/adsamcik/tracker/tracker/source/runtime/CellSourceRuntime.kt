@@ -1,7 +1,9 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.os.SystemClock
+import com.adsamcik.tracker.shared.base.database.data.CellProviderDeliveryIdentityFact
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.canonicalCellProviderDeliveryIdentity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.CellMode
@@ -20,9 +22,6 @@ import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
-import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
-import java.io.ByteArrayOutputStream
-import java.io.DataOutputStream
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
@@ -1147,35 +1146,24 @@ internal fun cellProviderDeliveryIdentity(
 	clockDomainId: String,
 	observations: List<CellObservationEvidence>,
 ): SourceDeliveryIdentity {
-	require(clockDomainId.isNotBlank())
-	require(observations.isNotEmpty()) { "Cell delivery identity requires provider facts" }
 	require(observations.all { it.identifierToken == WITHHELD_RADIO_IDENTIFIER_TOKEN }) {
 		"Cell delivery identity accepts minimized observations only"
 	}
-	val canonical = ByteArrayOutputStream().also { bytes ->
-		DataOutputStream(bytes).use { output ->
-			output.writeInt(CELL_DELIVERY_IDENTITY_VERSION)
-			output.writeCanonicalString(clockDomainId)
-			val ordered = observations.sortedWith(CELL_OBSERVATION_ORDER)
-			output.writeInt(ordered.size)
-			ordered.forEach { observation ->
-				output.writeCanonicalString(observation.radioType)
-				output.writeBoolean(observation.registered)
-				output.writeBoolean(observation.signalLevelDbm != null)
-				observation.signalLevelDbm?.let(output::writeInt)
-				output.writeLong(requireNotNull(observation.providerTimestampNanos) {
-					"Qualified Cell evidence requires provider time"
-				})
-			}
-		}
-	}.toByteArray()
-	return sourceDeliveryIdentity(canonical)
-}
-
-private fun DataOutputStream.writeCanonicalString(value: String) {
-	val encoded = value.toByteArray(Charsets.UTF_8)
-	writeInt(encoded.size)
-	write(encoded)
+	return SourceDeliveryIdentity(
+		canonicalCellProviderDeliveryIdentity(
+			clockDomainId,
+			observations.map { observation ->
+				CellProviderDeliveryIdentityFact(
+					radioType = observation.radioType,
+					registered = observation.registered,
+					signalLevelDbm = observation.signalLevelDbm,
+					providerTimestampNanos = requireNotNull(observation.providerTimestampNanos) {
+						"Qualified Cell evidence requires provider time"
+					},
+				)
+			},
+		),
+	)
 }
 
 internal fun minimizedCellSnapshotPayload(
@@ -1193,5 +1181,3 @@ private val CELL_OBSERVATION_ORDER = compareBy<CellObservationEvidence>(
 	CellObservationEvidence::signalLevelDbm,
 	CellObservationEvidence::providerTimestampNanos,
 )
-
-private const val CELL_DELIVERY_IDENTITY_VERSION = 1

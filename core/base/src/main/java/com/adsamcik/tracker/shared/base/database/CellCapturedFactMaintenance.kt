@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerat
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.CellProviderDeliveryIdentityFact
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -18,6 +19,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.canonicalCellProviderDeliveryIdentity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -588,7 +590,18 @@ private suspend fun AppDatabase.authenticateCellCapturedAuthority(
 		wal.payloadChecksum != revision.payloadChecksum ||
 		wal.integrityIdentity != revision.walIntegrityIdentity || wal.createdAtMs != revision.createdAtMs
 	) block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
-	val payloadEffect = wal.decodeCanonicalCellPayloadEffect(revision)
+	val decodedPayload = wal.decodeCanonicalCellPayload()
+		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	val canonicalDeliveryIdentity = runCatching {
+		canonicalCellProviderDeliveryIdentity(
+			wal.clockDomainId,
+			decodedPayload.map(CellHistoricalObservation::toProviderDeliveryIdentityFact),
+		)
+	}.getOrNull() ?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	if (canonicalDeliveryIdentity != revision.sourceDeliveryIdentity) {
+		block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+	}
+	val payloadEffect = wal.canonicalCellPayloadEffect(revision, decodedPayload)
 		?: block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	if (!revision.matchesCellPayloadEffect(payloadEffect)) {
 		block(CellCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
@@ -1640,11 +1653,11 @@ private fun SourceEventWalEntity.decodeCanonicalCellPayload(): List<CellHistoric
 		children
 	}
 	require(decoded.all { child ->
-		child.identifierToken.isEmpty()
+		child.identifierToken.isEmpty() && child.providerTimestampNanos != null &&
+			requireNotNull(child.providerTimestampNanos) > 0L
 	})
 	require(encodeCanonicalCellPayload(decoded).contentEquals(payload))
-	val providerTimes = decoded.mapNotNull(CellHistoricalObservation::providerTimestampNanos)
-	require(providerTimes.isNotEmpty())
+	val providerTimes = decoded.map { child -> requireNotNull(child.providerTimestampNanos) }
 	require(providerTimes.minOrNull() == observedIntervalStartNanos)
 	require(providerTimes.maxOrNull() == observedElapsedNanos)
 	decoded
@@ -1654,11 +1667,10 @@ private fun SourceEventWalEntity.decodeCanonicalCellPayload(): List<CellHistoric
  * Deterministically replays the source classifier's identity-free product effect. Maintenance
  * cannot authenticate a fact merely because its WAL header and a self-rehashed fact agree.
  */
-private fun SourceEventWalEntity.decodeCanonicalCellPayloadEffect(
+private fun SourceEventWalEntity.canonicalCellPayloadEffect(
 	revision: CellCapturedFactRevisionEntity,
+	decoded: List<CellHistoricalObservation>,
 ): CellHistoricalPayloadEffect? = runCatching {
-	val decoded = requireNotNull(decodeCanonicalCellPayload())
-
 	val capturedStart = maxOf(
 		revision.providerAcceptanceStartNanos,
 		revision.authorizationEffectStartNanos,
@@ -1678,14 +1690,9 @@ private fun SourceEventWalEntity.decodeCanonicalCellPayloadEffect(
 	val accepted = mutableListOf<CellHistoricalObservation>()
 	var stale = 0
 	var future = 0
-	var missingTime = 0
 	var unsupported = 0
 	for (child in decoded) {
-		val providerTime = child.providerTimestampNanos
-		if (providerTime == null || providerTime <= 0L) {
-			missingTime++
-			continue
-		}
+		val providerTime = requireNotNull(child.providerTimestampNanos)
 		when {
 			providerTime > receivedElapsedNanos -> future++
 			providerTime < capturedStart || providerTime >= capturedEnd ||
@@ -1702,7 +1709,7 @@ private fun SourceEventWalEntity.decodeCanonicalCellPayloadEffect(
 		acceptedChildCount = accepted.size,
 		staleChildCount = stale,
 		futureTimeChildCount = future,
-		missingTimeChildCount = missingTime,
+		missingTimeChildCount = 0,
 		unsupportedTechnologyChildCount = unsupported,
 		childCompleteness = if (accepted.size == decoded.size) {
 			CellCapturedFactRevisionEntity.CHILD_COMPLETENESS_COMPLETE
@@ -1773,6 +1780,14 @@ private fun List<CellHistoricalObservation>.toIdentityFreeAggregate(): CellHisto
 		allKnownQualityIsWeak = known > 0 && weak == known,
 	)
 }
+
+private fun CellHistoricalObservation.toProviderDeliveryIdentityFact() =
+	CellProviderDeliveryIdentityFact(
+		radioType = radioType,
+		registered = registered,
+		signalLevelDbm = signalLevelDbm,
+		providerTimestampNanos = requireNotNull(providerTimestampNanos),
+	)
 
 private val CellHistoricalObservation.radioTechnology: String?
 	get() = radioType.uppercase().takeIf { technology -> technology in CELL_RADIO_TECHNOLOGIES }
