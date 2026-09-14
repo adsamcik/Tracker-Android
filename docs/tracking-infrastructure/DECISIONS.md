@@ -3847,3 +3847,20 @@ Each entry records repository evidence and does not duplicate the final architec
 - This does not invoke maintenance from a worker/action, implement transfer or shared UI, enable
   automatic/ambient Cell, provide executed evidence, activate the provider/writer, or authorize
   rollout.
+
+## TI-D238 — Captured-Cell retention must run before its WAL authentication can be pruned
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; app service/worker/test commits `c34fa21d9`
+  and `7823ddc09`; corrected independent review; TI-B301.
+- The existing `wifiCellRetentionDays` setting is the only policy input. Zero remains keep-forever;
+  a nonzero value produces one overflow-safe cutoff and one bounded captured-Cell retention call per
+  worker run. No new duration, policy copy, scheduler, or retry loop is introduced.
+- The service snapshots collected-data epoch and deleted-source high-water. The source-local
+  transaction atomically rechecks both plus the exact cutoff before any fact mutation, and typed
+  blocked/no-change/pruned results remain truthful nonretry outcomes. Cancellation propagates.
+- Captured-Cell retention must execute before generic source-event WAL pruning because that WAL is
+  required to authenticate retained facts. Pending signals may still defer legacy Wi-Fi/Cell row
+  deletion, but cannot skip captured retention and allow its evidence to be destroyed first.
+- This does not invoke consent-reset deletion, alter legacy radio retention semantics, start a
+  provider/demand/writer, enable rollout, implement transfer/UI/automatic/ambient behavior, or
+  provide executed evidence.

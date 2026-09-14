@@ -69,6 +69,14 @@ Ingress and recovery only wake the dormant drain; they do not activate rollout, 
 a second writer. Worker/action invocation, transfer, shared UI, and automatic/ambient product paths
 remain open.
 
+Configured captured-Cell retention is independently accepted through `7823ddc09`
+(`c34fa21d9` plus the WAL-order correction). One app service snapshots the current collected-data
+epoch and deleted-source high-water, and the existing transaction rechecks that authority and the
+exact cutoff. `wifiCellRetentionDays == 0` remains keep-forever; nonzero retention invokes exactly
+once before source-event WAL pruning, including while pending signals defer legacy Wi-Fi/Cell row
+cleanup. Cancellation propagates and typed blocked/no-change/pruned results do not start retry loops
+or provider demand. Consent-reset/source deletion and the other Cell product gaps remain open.
+
 Activity portable export is independently accepted through `8f0842354`. Its one-transaction reader
 expands all retained rows behind each canonical 64-hex delivery identity, authenticates the exact
 observed-time authorization revision and production per-demand freshness, recomputes the qualified

@@ -2575,3 +2575,28 @@ Deferred focused command:
 The command was not run. Compilation, Room execution, maintenance worker/action invocation,
 transfer, shared UI, automatic/ambient behavior, provider/process/reboot/device behavior,
 integration, activation, and release remain unproven.
+
+## TI-B301 — Captured-Cell retention invocation and WAL-order contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `7823ddc09`. `c34fa21d9` adds a bounded app retention
+service and one worker invocation using the existing `wifiCellRetentionDays` value. Authored unit
+and Robolectric sources cover keep-forever zero, exact nonzero cutoff, source-evidence snapshot,
+pruned/no-change/blocked outcomes, cancellation, no provider/demand activation, and stage ordering.
+
+Independent review rejected the first order because a pending signal skipped captured retention
+while later source-event pruning could delete the WAL required for fact authentication.
+`7823ddc09` removes only that skip. The focused real-database fixture now uses nonzero raw and Cell
+retention with a pending signal, observes the old Cell WAL still present inside the sole service
+call, and observes it pruned afterward while legacy radio rows and the pending signal remain
+deferred. Re-review accepted the corrected order and unchanged typed/cancellation/activation
+boundaries.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests '*CellCapturedRetentionServiceTest' --tests '*RetentionPipelineWorkerTest' --tests '*RetentionPipelineWorkerRobolectricTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, consent-reset/source deletion, transfer,
+shared UI, automatic/ambient behavior, provider/process/reboot/device behavior, integration,
+activation, and release remain unproven.

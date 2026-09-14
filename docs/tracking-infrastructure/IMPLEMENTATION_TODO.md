@@ -916,6 +916,13 @@ high-water. CONTROL and AMBIENT remain outside captured history. Every Cell TODO
 until maintenance invocation, transfer, shared UI, automatic/ambient behavior, and the complete
 scenario cohort exist.
 
+Accepted invocation commits `c34fa21d9` and `7823ddc09` implement a further bounded portion of
+CELL-010/013 and PRIV-001/002/011. Existing configured Cell retention now calls the authenticated
+source transaction exactly once before WAL pruning, even when pending signals defer legacy radio
+cleanup. Zero retains forever; exact source evidence and cutoff are rechecked; cancellation and
+typed outcomes remain nonactivating. Cell TODOs remain unchecked because consent-reset/source
+deletion, transfer, shared UI, automatic/ambient behavior, and complete scenarios remain.
+
 ## Production history and UI
 
 - [ ] TODO-HIST-001 Complete one read-only TrackingHistoryRepository facade for observeToday,

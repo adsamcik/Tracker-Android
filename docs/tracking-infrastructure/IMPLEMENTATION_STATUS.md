@@ -76,6 +76,17 @@ unless an independent deleted-source high-water proves settlement. Authored corr
 CONTROL/AMBIENT regressions cover that correction. Worker/action invocation, transfer, shared UI,
 automatic/ambient behavior, validation, and activation remain open.
 
+Captured-Cell retention now has one production invocation through `7823ddc09`. `c34fa21d9` adds a
+bounded app service and invokes it once per retention-worker run using the existing
+`wifiCellRetentionDays` policy, without choosing a new duration. The service snapshots source
+evidence and the existing transaction atomically rechecks epoch, deleted-source high-water, and the
+exact overflow-safe cutoff. Independent review found that pending signals skipped this call while
+later WAL pruning destroyed its authentication evidence. `7823ddc09` moves no broad stages; it
+removes only that skip, so authenticated retention always precedes WAL pruning while pending-signal
+guards still defer legacy radio deletion. Zero days keeps forever, cancellation propagates, and
+typed outcomes do not activate a provider, demand, writer, rollout, or retry loop. Consent-reset
+source deletion and remaining Cell product paths stay open.
+
 The separate `codex/ti-activity-transfer` branch is independently accepted through `8f0842354`
 for captured Activity portable export. One bounded Room snapshot authenticates exact logical and
 physical replacement ownership, captured fact/cursor/writer authority, immutable plans, provider
