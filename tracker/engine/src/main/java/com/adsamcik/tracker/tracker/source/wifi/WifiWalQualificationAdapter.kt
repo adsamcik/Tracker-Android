@@ -696,7 +696,7 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 
 	private fun SourceEventWalEntity.hasExactProducerEnvelope(): Boolean =
 		admissionOrdinal > 0L && providerDedupKey == null && deliveryIdentity != null &&
-			deliveryUnitIndex == 0 && deliveryUnitCount == 1 && sourceSequence > 0L &&
+			deliveryUnitIndex == 0 && deliveryUnitCount == 1 && sourceSequence >= 0L &&
 			planAttribution == PlanAttribution.CAPTURED_REGISTRATION.ordinal &&
 			activityAutomationEpoch == null && observedIntervalStartNanos != null &&
 			requireNotNull(observedIntervalStartNanos) > 0L &&

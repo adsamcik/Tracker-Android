@@ -27,6 +27,11 @@ data class WifiWalMaintenanceKey(
 	@ColumnInfo(name = "event_id") val eventId: String,
 )
 
+data class WifiWalPayloadSize(
+	@ColumnInfo(name = "event_id") val eventId: String,
+	@ColumnInfo(name = "payload_byte_count") val payloadByteCount: Long,
+)
+
 /** Bounded append-only storage boundary for dormant Wi-Fi captured facts. */
 @Dao
 interface WifiCapturedFactDao {
@@ -140,6 +145,114 @@ interface WifiCapturedFactDao {
 			"AND aggregate_owner_semantic_revision = :semanticRevision",
 	)
 	suspend fun dependentCount(logicalFactId: String, semanticRevision: Long): Long
+
+	/**
+	 * Complete one-hop fact closure for one portable logical entry.
+	 *
+	 * Both identity directions and every direct aggregate owner needed by the selected facts are
+	 * selected. Unrelated dependents of a selected owner are deliberately outside this read-only
+	 * export closure and cannot consume its cap.
+	 */
+	@Query(
+		"""
+		WITH selected_fact AS (
+		 SELECT DISTINCT logical_fact_id, aggregate_owner_logical_fact_id
+		 FROM wifi_captured_fact_revision
+		 WHERE logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds)
+		), selected_owner AS (
+		 SELECT DISTINCT aggregate_owner_logical_fact_id AS logical_fact_id
+		 FROM selected_fact WHERE aggregate_owner_logical_fact_id IS NOT NULL
+		), closure_id AS (
+		 SELECT logical_fact_id FROM selected_fact
+		 UNION SELECT logical_fact_id FROM selected_owner
+		)
+		SELECT fact.* FROM wifi_captured_fact_revision AS fact
+		WHERE fact.logical_fact_id IN (SELECT logical_fact_id FROM closure_id)
+		   OR fact.logical_tracking_id = :logicalTrackingId
+		   OR fact.service_run_id IN (:serviceRunIds)
+		ORDER BY fact.logical_fact_id, fact.semantic_revision
+		LIMIT :limit
+		""",
+	)
+	suspend fun portableRevisionClosure(
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<WifiCapturedFactRevisionEntity>
+
+	/** Cursor side of the exact portable fact closure, including one-sided scope corruption. */
+	@Query(
+		"""
+		WITH selected_fact AS (
+		 SELECT DISTINCT logical_fact_id, aggregate_owner_logical_fact_id
+		 FROM wifi_captured_fact_revision
+		 WHERE logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds)
+		), selected_owner AS (
+		 SELECT DISTINCT aggregate_owner_logical_fact_id AS logical_fact_id
+		 FROM selected_fact WHERE aggregate_owner_logical_fact_id IS NOT NULL
+		), closure_id AS (
+		 SELECT logical_fact_id FROM selected_fact
+		 UNION SELECT logical_fact_id FROM selected_owner
+		)
+		SELECT cursor.* FROM wifi_captured_fact_cursor AS cursor
+		WHERE cursor.logical_fact_id IN (SELECT logical_fact_id FROM closure_id)
+		   OR cursor.logical_tracking_id = :logicalTrackingId
+		   OR cursor.service_run_id IN (:serviceRunIds)
+		ORDER BY cursor.logical_fact_id
+		LIMIT :limit
+		""",
+	)
+	suspend fun portableCursorClosure(
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<WifiCapturedFactCursorEntity>
+
+	/** Complete selected source-local deletion-generation side. */
+	@Query(
+		"SELECT * FROM wifi_capture_deletion_generation WHERE " +
+			"logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds) " +
+			"ORDER BY logical_tracking_id, service_run_id LIMIT :limit",
+	)
+	suspend fun portableDeletionGenerationClosure(
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<WifiCaptureDeletionGenerationEntity>
+
+	/** Complete selected Wi-Fi WAL scope; dependency keys are loaded separately in fixed batches. */
+	@Query(
+		"SELECT admission_ordinal, event_id FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND (logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds)) " +
+			"ORDER BY admission_ordinal LIMIT :limit",
+	)
+	suspend fun portableWalClosureKeys(
+		sourceKind: Int,
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<WifiWalMaintenanceKey>
+
+	/** Fixed-batch reverse lookup for WAL rows referenced by authenticated fact dependencies. */
+	@Query(
+		"SELECT admission_ordinal, event_id FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND event_id IN (:sourceEventIds) ORDER BY admission_ordinal",
+	)
+	suspend fun portableWalKeysForEvents(
+		sourceKind: Int,
+		sourceEventIds: List<String>,
+	): List<WifiWalMaintenanceKey>
+
+	/** Bounded batched payload-size preflight before the portable reader materializes WAL blobs. */
+	@Query(
+		"SELECT event_id, length(payload) AS payload_byte_count FROM source_event_wal " +
+			"WHERE event_id IN (:eventIds) ORDER BY admission_ordinal",
+	)
+	suspend fun portableWalPayloadSizes(eventIds: List<String>): List<WifiWalPayloadSize>
+
+	/** Bounded batched full-row load after [portableWalPayloadSizes] has accepted every blob. */
+	@Query("SELECT * FROM source_event_wal WHERE event_id IN (:eventIds) ORDER BY admission_ordinal")
+	suspend fun portableWalRows(eventIds: List<String>): List<SourceEventWalEntity>
 
 	@Query(
 		"SELECT * FROM wifi_capture_deletion_generation WHERE logical_tracking_id = :logicalTrackingId " +

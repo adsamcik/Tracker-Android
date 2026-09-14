@@ -148,7 +148,7 @@ data class WifiCapturedFactRevisionEntity(
 		require(LOWERCASE_SHA_256.matches(walIntegrityIdentity))
 		require(LOWERCASE_SHA_256.matches(payloadChecksum))
 		require(LOWERCASE_SHA_256.matches(sourceDeliveryIdentity))
-		require(deliveryUnitIndex == 0 && deliveryUnitCount == 1 && sourceSequence > 0L)
+		require(deliveryUnitIndex == 0 && deliveryUnitCount == 1 && sourceSequence >= 0L)
 		require(planAttribution == PLAN_ATTRIBUTION_CAPTURED_REGISTRATION)
 		require(sourceInstanceId.isNotBlank() && registrationGeneration > 0L)
 		require(configurationRevision >= 0L && physicalConfigurationFingerprint.isNotBlank())

@@ -94,6 +94,21 @@ class WifiHistoryRepositoryRoomTest {
 	}
 
 	@Test
+	fun `production first Wi-Fi source sequence zero remains discoverable`() = runTest {
+		val group = transformFacts(buildGroup(301, 1, setOf(0))) { fact ->
+			fact.copy(sourceSequence = 0L)
+		}
+		persist(listOf(group))
+
+		val entry = (repository { true }.session(group.runs.single().segment.id) as
+			WifiHistoryQuery.Found).entry
+
+		entry.state shouldBe WifiHistoryProductState.READY
+		entry.observations shouldHaveSize 1
+		entry.observations.single().observationCount shouldBe 2
+	}
+
+	@Test
 	fun `replacement siblings and correction revisions compose one logical entry`() = runTest {
 		val group = buildGroup(2, 33, setOf(0))
 		persist(listOf(group))

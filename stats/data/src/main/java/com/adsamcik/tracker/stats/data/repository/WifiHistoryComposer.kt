@@ -296,7 +296,7 @@ internal object WifiHistoryComposer {
 			Math.subtractExact(observedElapsedNanos, observedStart) / NANOS_PER_MILLISECOND), uncertainty) }
 			.getOrNull() ?: return false
 		return sourceKind == WIFI_SOURCE && admissionOrdinal > 0L && sourceInstanceId.isNotBlank() &&
-			registrationGeneration > 0L && sourceSequence > 0L && this.logicalTrackingId == logicalId &&
+			registrationGeneration > 0L && sourceSequence >= 0L && this.logicalTrackingId == logicalId &&
 			serviceRunId == manifest.serviceRunId && configRevision == manifest.acquisitionPlanRevision &&
 			plan.enabled && plan.physicalFingerprint == physicalConfigurationFingerprint &&
 			authorizationRevision > 0L &&
