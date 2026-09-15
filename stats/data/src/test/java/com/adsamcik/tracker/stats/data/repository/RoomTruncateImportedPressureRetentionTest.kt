@@ -329,6 +329,134 @@ class RoomTruncateImportedPressureRetentionTest {
 		} shouldBe entryFence
 	}
 
+	@Test
+	fun `oversized live candidate text is rejected before candidate materialization`() = runTest {
+		val imported = importRequest(entry(), 1)
+		importer(testScheduler).importEntry(imported)
+		publishFloor()
+		val oversized = com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+			.MAX_LINEAGE_TEXT_BYTES.toInt() + 1
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_pressure_entry_revision SET content_checksum = " +
+				"CAST(zeroblob(?) AS TEXT) WHERE identity = ?",
+			arrayOf(oversized, imported.entry.identity.value),
+		)
+
+		subject(testScheduler).truncate(request()) shouldBe
+			TruncateImportedPressureRetentionResult.Unverifiable(
+				ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW,
+			)
+		database.importedPressureDao().identityFenceCount() shouldBe 0L
+		database.importedPressureDao().retentionReceiptCount() shouldBe 0L
+		database.importedPressureDao().entryRevisionsForAdmission(imported.entry.identity.value)
+			.size shouldBe 1
+	}
+
+	@Test
+	fun `oversized retained fence dependency is rejected before receipt materialization`() = runTest {
+		val imported = importRequest(entry(), 1)
+		importer(testScheduler).importEntry(imported)
+		publishFloor()
+		subject(testScheduler).truncate(request())
+		val oversized = com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+			.MAX_LINEAGE_TEXT_BYTES.toInt() + 1
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_pressure_identity_fence SET effect_checksum = " +
+				"CAST(zeroblob(?) AS TEXT) " +
+				"WHERE entry_identity = ? AND identity_kind = 'WINDOW'",
+			arrayOf(oversized, imported.entry.identity.value),
+		)
+
+		subject(testScheduler).truncate(request(expectedRevision = 2L)) shouldBe
+			TruncateImportedPressureRetentionResult.Unverifiable(
+				ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW,
+			)
+		database.importedPressureDao().retentionReceiptCount() shouldBe 1L
+		database.importedPressureDao().retainedIdentityCount() shouldBe 3L
+		database.importedPressureDao().sourceErase() shouldBe null
+	}
+
+	@Test
+	fun `source erase uses numeric owner preflight before oversized live candidate text`() = runTest {
+		val imported = importRequest(entry(), 1)
+		importer(testScheduler).importEntry(imported)
+		val oversized = com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+			.MAX_LINEAGE_TEXT_BYTES.toInt() + 1
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_pressure_entry_revision SET content_checksum = " +
+				"CAST(zeroblob(?) AS TEXT) WHERE identity = ?",
+			arrayOf(oversized, imported.entry.identity.value),
+		)
+
+		RoomErasePressureSource(
+			database,
+			object : com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrier {
+				override suspend fun establish(
+					expectedCollectedDataEpoch: Long,
+				) = com.adsamcik.tracker.stats.api.repository
+					.PressureSourceEraseBarrierResult.NoLocalProvider(
+						com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierToken(
+							expectedCollectedDataEpoch,
+							null,
+							1L,
+						),
+					)
+
+				override suspend fun verifySettled(
+					token: com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierToken,
+				) = com.adsamcik.tracker.stats.api.repository
+					.PressureSourceEraseBarrierVerification.Verified
+			},
+			UnconfinedTestDispatcher(testScheduler),
+			{},
+		).erase(
+			com.adsamcik.tracker.stats.api.repository.ErasePressureSourceRequest(
+				EPOCH,
+				0L,
+				0L,
+				1L,
+				1L,
+				RETAINED_AT_MS,
+			),
+		) shouldBe com.adsamcik.tracker.stats.api.repository.ErasePressureSourceResult.Unverifiable(
+			ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW,
+		)
+		database.importedPressureDao().sourceErase() shouldBe null
+		database.importedPressureDao().identityFenceCount() shouldBe 0L
+	}
+
+	@Test
+	fun `selected deletion preflights oversized permanent authority for known identity`() = runTest {
+		val imported = importRequest(entry(), 1)
+		importer(testScheduler).importEntry(imported)
+		publishFloor()
+		subject(testScheduler).truncate(request())
+		val oversized = com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+			.MAX_LINEAGE_TEXT_BYTES.toInt() + 1
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_pressure_identity_fence SET effect_checksum = CAST(zeroblob(?) AS TEXT) " +
+				"WHERE entry_identity = ? AND identity_kind = 'WINDOW'",
+			arrayOf(oversized, imported.entry.identity.value),
+		)
+
+		RoomDeleteImportedPressureEntry(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+			{ RETAINED_AT_MS + 1L },
+			{},
+		).delete(
+			DeleteImportedPressureEntryRequest(
+				ImportedPressureHistoryIdentity(imported.entry.identity.value),
+				1L,
+				EPOCH,
+			),
+		) shouldBe DeleteImportedPressureEntryResult.Unverifiable(
+			ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW,
+		)
+		database.importedPressureDao().retentionReceiptCount() shouldBe 1L
+		database.importedPressureDao().retainedIdentityCount() shouldBe 3L
+	}
+
 	private suspend fun publishFloor() {
 		database.sourceEvidenceStateDao().updateLifecycle(
 			EPOCH,
