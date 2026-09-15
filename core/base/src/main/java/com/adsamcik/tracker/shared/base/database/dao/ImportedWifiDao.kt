@@ -100,6 +100,18 @@ abstract class ImportedWifiDao {
 	): List<WifiSelectedDeletionProtectedIdentityEntity>
 
 	@Query(
+		"SELECT * FROM wifi_selected_deletion_protected_identity " +
+			"WHERE selection_identity != :excludedSelection AND (" +
+			"protected_identity IN (:identities) OR owner_entry_identity IN (:identities) " +
+			"OR owner_run_identity IN (:identities) OR deletion_scope_digest IN (:identities) " +
+			"OR aggregate_owner_identity IN (:identities)) LIMIT 1",
+	)
+	abstract suspend fun foreignSelectedDeletionProtectedIdentityOwner(
+		identities: List<String>,
+		excludedSelection: String,
+	): WifiSelectedDeletionProtectedIdentityEntity?
+
+	@Query(
 		"""
 		SELECT DISTINCT 'ENTRY' AS owner_kind,
 		       identity AS protected_identity,
@@ -601,6 +613,12 @@ abstract class ImportedWifiDao {
 
 	@Query("SELECT COUNT(*) FROM ski_run_segment WHERE session_id IN (:segmentIds)")
 	abstract suspend fun selectedSkiSegmentCount(segmentIds: List<Long>): Long
+
+	@Query("SELECT EXISTS(SELECT 1 FROM pending_signal WHERE session_id IN (:segmentIds) LIMIT 1)")
+	abstract suspend fun hasSelectedPendingSignal(segmentIds: List<Long>): Boolean
+
+	@Query("SELECT EXISTS(SELECT 1 FROM quarantined_signal WHERE session_id IN (:segmentIds) LIMIT 1)")
+	abstract suspend fun hasSelectedQuarantinedSignal(segmentIds: List<Long>): Boolean
 
 	@Query(
 		"DELETE FROM session_segment WHERE logical_tracking_id = :logicalTrackingId " +

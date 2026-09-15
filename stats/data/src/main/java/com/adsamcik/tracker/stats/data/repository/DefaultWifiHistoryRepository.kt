@@ -396,12 +396,13 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 		request: WifiHistoryRangeRequest,
 	): WifiHistoryStructuralDayPage = withContext(ioDispatcher) {
 		database.withTransaction {
-			when (val page = rangeInTransaction(request)) {
+			val structuralEntries = mutableListOf<WifiHistoryStructuralEntryProjection>()
+			when (val page = rangeInTransaction(request, structuralEntries)) {
 				is WifiHistoryRangePage.Failed -> WifiHistoryStructuralDayPage.Failed(page.cause)
 				is WifiHistoryRangePage.Available -> try {
 					WifiHistoryStructuralDayPage.Available(
 						days = WifiHistoryStructuralDayComposer.compose(
-							page.entries,
+							structuralEntries,
 							request.fromInclusive.raw,
 							request.toExclusive.raw,
 						),
@@ -421,7 +422,9 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 	@Suppress("LongMethod", "CyclomaticComplexMethod")
 	internal suspend fun rangeInTransaction(
 		request: WifiHistoryRangeRequest,
+		structuralOutput: MutableList<WifiHistoryStructuralEntryProjection>? = null,
 	): WifiHistoryRangePage {
+		structuralOutput?.clear()
 		val cursor = WifiHistoryRangeCursorCodec.decode(
 			request.continuation,
 			request.fromInclusive.raw,
@@ -517,6 +520,9 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 				startTimeMs = evaluation.candidate.newestMemberStartTimeMs,
 				identity = evaluation.candidate.newestMemberIdentity.value,
 				entry = publicEntry,
+				structuralRuns = publicEntry?.let {
+					evaluation.authenticatedStructuralRuns(it)
+				}.orEmpty(),
 			)
 		}
 
@@ -534,11 +540,22 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 					localStart = item.startTimeMs
 					localSegmentId = item.composed.recencySegmentId
 					output += item.composed.entry
+					structuralOutput?.add(
+						WifiHistoryStructuralEntryProjection(
+							item.composed.entry,
+							item.composed.structuralRuns,
+						),
+					)
 				}
 				is WifiRangeWorkItem.Imported -> {
 					importedStart = item.startTimeMs
 					importedIdentity = item.identity
-					item.entry?.let(output::add)
+					item.entry?.let { entry ->
+						output += entry
+						structuralOutput?.add(
+							WifiHistoryStructuralEntryProjection(entry, item.structuralRuns),
+						)
+					}
 				}
 			}
 			consumed += 1
@@ -991,6 +1008,7 @@ private sealed interface WifiRangeWorkItem {
 		override val startTimeMs: Long,
 		val identity: String,
 		val entry: WifiHistoryEntry?,
+		val structuralRuns: List<WifiHistoryStructuralRunProjection>,
 	) : WifiRangeWorkItem {
 		override val stableIdentity: String = identity
 		override val originOrder: Int = 1

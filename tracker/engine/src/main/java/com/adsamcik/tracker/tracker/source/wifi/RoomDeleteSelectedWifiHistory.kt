@@ -177,7 +177,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		if (readable.candidate.selection != selected) {
 			blocked(WifiHistoryDeletionBlockedReason.STALE_SELECTION)
 		}
-		if (readable.retentionLimited) blocked(WifiHistoryDeletionBlockedReason.RETENTION_BOUNDARY)
+		if (readable.retentionLimited || readable.entry.runs.any { it.retentionLoss }) {
+			blocked(WifiHistoryDeletionBlockedReason.RETENTION_BOUNDARY)
+		}
 		if (readable.entryDeleted) storedCorrupt()
 		val identity = selected.key.value
 		val lineage = authenticateImportedLineage(identity, state.collectedDataEpoch)
@@ -330,10 +332,18 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 					runs.singleOrNull { it.serviceRunId == segment.serviceRunId }?.sessionSegmentId != segment.id
 			}
 		) blocked(WifiHistoryDeletionBlockedReason.ORIGINAL_SCOPE_REBOUND)
-		if (segments.any { it.distanceM != 0f || it.steps != null || it.sampleCount != 0 }) {
+		if (segments.any {
+				it.distanceM != 0f || it.steps != null || it.primaryActivity != null ||
+					it.activityConfidence != null || it.sampleCount != 0 ||
+					it.inferenceVersion != null || it.hasDistanceAnomaly
+			}
+		) {
 			blocked(WifiHistoryDeletionBlockedReason.MIXED_CAPTURE_SCOPE)
 		}
-		if (dao.selectedSkiSegmentCount(segmentIds) != 0L) {
+		if (dao.selectedSkiSegmentCount(segmentIds) != 0L ||
+			dao.hasSelectedPendingSignal(segmentIds) ||
+			dao.hasSelectedQuarantinedSignal(segmentIds)
+		) {
 			blocked(WifiHistoryDeletionBlockedReason.MIXED_CAPTURE_SCOPE)
 		}
 		authenticateOnlyWifiManifests(logicalTrackingId, runs)
@@ -353,6 +363,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		}
 		if (portable.identity.value != selection.key.value) {
 			blocked(WifiHistoryDeletionBlockedReason.ORIGINAL_SCOPE_REBOUND)
+		}
+		if (portable.runs.any { it.retentionLoss }) {
+			blocked(WifiHistoryDeletionBlockedReason.RETENTION_BOUNDARY)
 		}
 		val importedCollision = importedEvaluator.selectIdentityInTransaction(
 			com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey(
@@ -657,17 +670,15 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		if (receipt.retainedFromMs != state.retainedFromMs) {
 			blocked(WifiHistoryDeletionBlockedReason.RETENTION_BOUNDARY)
 		}
-		val protected = database.importedWifiDao().selectedDeletionProtectedIdentities(
-			selectionIdentity,
-			origin,
-			receipt.expectedProtectedIdentityCount + 1,
-		)
-		if (protected.size != receipt.expectedProtectedIdentityCount ||
-			WifiSelectedDeletionReceiptEntity.checksumProtectedIdentities(protected) !=
-			receipt.protectedIdentitySetChecksum
-		) storedCorrupt()
+		val footprint = loadStoredProtectedFootprint(receipt, state)
+		val protected = footprint.protected
 		val authority = authorityFromReceipt(receipt, protected)
-		authenticateProtectedNamespace(authority, state, allowOwnReceipt = true)
+		authenticateProtectedNamespace(
+			authority,
+			state,
+			allowOwnReceipt = true,
+			knownFootprint = footprint,
+		)
 		authenticatePayloadAbsent(
 			authority,
 			imported = receipt.origin == WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
@@ -792,35 +803,53 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		authority: WifiSelectedDeletionAuthority,
 		state: SourceEvidenceState,
 		allowOwnReceipt: Boolean,
+		knownFootprint: StoredWifiProtectedFootprint? = null,
 	) {
 		val dao = database.importedWifiDao()
 		val targetOrigin = authority.protectedIdentities.first().receiptOrigin
 		val expectedByKey = authority.protectedIdentities.associateBy {
 			it.identityKind to it.protectedIdentity
 		}
+		var authenticatedRows = 0L
+		var authenticatedBytes = 0L
+		for (origin in listOf(
+			WifiSelectedDeletionReceiptEntity.ORIGIN_LOCAL,
+			WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+		)) {
+			val footprint = if (knownFootprint?.receipt?.origin == origin) {
+				knownFootprint
+			} else {
+				dao.selectedDeletionReceipt(authority.selectionIdentity, origin)
+					?.let { loadStoredProtectedFootprint(it, state) }
+			} ?: continue
+			if (origin == targetOrigin && !allowOwnReceipt) originConflict()
+			authenticatedRows = Math.addExact(
+				authenticatedRows,
+				footprint.protected.size.toLong(),
+			)
+			authenticatedBytes = Math.addExact(
+				authenticatedBytes,
+				protectedFootprintByteSize(footprint.protected),
+			)
+			if (authenticatedRows > limits.maximumProtectedIdentities ||
+				authenticatedBytes > limits.maximumProtectedBytes
+			) dependencyOverflow()
+			if (footprint.protected.any { owner ->
+					val expected = expectedByKey[owner.identityKind to owner.protectedIdentity]
+					expected == null || !owner.hasCompatibleProtectedOwner(expected)
+				}
+			) originConflict()
+		}
+		val expectedScopes = authority.runMarkers.mapTo(hashSetOf()) {
+			it.deletionScopeDigest
+		}
 		for (identities in authority.protectedIdentities.map { it.protectedIdentity }
 			.chunked(PROTECTED_QUERY_BATCH_SIZE)
 		) {
-			val ownerLimit = minOf(
-				limits.maximumProtectedIdentities + 1,
-				Math.addExact(Math.multiplyExact(identities.size, 16), 1),
-			)
-			val owners = dao.selectedDeletionProtectedIdentityOwners(
+			if (dao.foreignSelectedDeletionProtectedIdentityOwner(
 				identities,
-				ownerLimit,
-			)
-			if (owners.size >= ownerLimit ||
-				owners.any { owner ->
-					val expected = expectedByKey[owner.identityKind to owner.protectedIdentity]
-					owner.collectedDataEpoch != state.collectedDataEpoch || expected == null ||
-						owner.selectionIdentity != authority.selectionIdentity ||
-						owner.receiptOrigin == targetOrigin && (
-							!allowOwnReceipt || !owner.hasCompatibleProtectedOwner(expected)
-							) ||
-						owner.receiptOrigin != targetOrigin &&
-						!owner.hasCompatibleProtectedOwner(expected)
-				}
-			) originConflict()
+				authority.selectionIdentity,
+			) != null) originConflict()
 			val fences = dao.deletionFenceIdentityOwners(
 				identities,
 				identities.size + 1,
@@ -828,13 +857,43 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 			if (fences.size > identities.size ||
 				fences.any { fence ->
 					fence.collectedDataEpoch != state.collectedDataEpoch ||
-						fence.scopeIdentityDigest !in authority.runMarkers.map {
-							it.deletionScopeDigest
-						} || fence.sourceKind != WIFI_SOURCE ||
+						fence.scopeIdentityDigest !in expectedScopes ||
+						fence.sourceKind != WIFI_SOURCE ||
 						fence.purpose != SessionManifestPurposeCode.SESSION_CAPTURE
 				}
 			) originConflict()
 		}
+	}
+
+	private suspend fun loadStoredProtectedFootprint(
+		receipt: WifiSelectedDeletionReceiptEntity,
+		state: SourceEvidenceState,
+	): StoredWifiProtectedFootprint {
+		if (receipt.collectedDataEpoch != state.collectedDataEpoch ||
+			receipt.expectedProtectedIdentityCount > limits.maximumProtectedIdentities
+		) {
+			if (receipt.expectedProtectedIdentityCount > limits.maximumProtectedIdentities) {
+				dependencyOverflow()
+			}
+			storedCorrupt()
+		}
+		val protected = database.importedWifiDao().selectedDeletionProtectedIdentities(
+			receipt.selectionIdentity,
+			receipt.origin,
+			Math.addExact(receipt.expectedProtectedIdentityCount, 1),
+		)
+		val protectedBytes = protectedFootprintByteSize(protected)
+		if (protectedBytes > limits.maximumProtectedBytes) dependencyOverflow()
+		if (protected.size != receipt.expectedProtectedIdentityCount ||
+			protected.any {
+				it.selectionIdentity != receipt.selectionIdentity ||
+					it.receiptOrigin != receipt.origin ||
+					it.collectedDataEpoch != state.collectedDataEpoch
+			} ||
+			WifiSelectedDeletionReceiptEntity.checksumProtectedIdentities(protected) !=
+			receipt.protectedIdentitySetChecksum
+		) storedCorrupt()
+		return StoredWifiProtectedFootprint(receipt, protected)
 	}
 
 	private suspend fun authenticatePayloadAbsent(
@@ -964,6 +1023,16 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		value.effectChecksum,
 	).sumOf { it.length.toLong() }
 
+	private fun protectedFootprintByteSize(
+		values: List<WifiSelectedDeletionProtectedIdentityEntity>,
+	): Long = try {
+		values.fold(0L) { total, value ->
+			Math.addExact(total, protectedIdentityByteSize(value))
+		}
+	} catch (_: ArithmeticException) {
+		dependencyOverflow()
+	}
+
 	private fun WifiHistorySelection.selectionIdentity(): String = when (this) {
 		is WifiHistorySelection.Local -> key.value
 		is WifiHistorySelection.Imported -> selected.key.value
@@ -1021,6 +1090,11 @@ internal enum class WifiSelectedDeletionCheckpoint {
 	MARKERS_RECORDED,
 	PAYLOAD_REMOVED,
 }
+
+private data class StoredWifiProtectedFootprint(
+	val receipt: WifiSelectedDeletionReceiptEntity,
+	val protected: List<WifiSelectedDeletionProtectedIdentityEntity>,
+)
 
 private class WifiSelectedDeletionAbort(
 	val result: DeleteSelectedWifiHistoryResult,

@@ -2,6 +2,7 @@ package com.adsamcik.tracker.stats.data.repository
 
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryBand
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryDayAllocation
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntry
@@ -29,7 +30,7 @@ class WifiHistoryRangeSupportTest {
 		)
 
 		val days = WifiHistoryStructuralDayComposer.compose(
-			listOf(entry),
+			listOf(projection(entry)),
 			beforeJump - 60_000L,
 			afterJump + 60_001L,
 		)
@@ -49,14 +50,16 @@ class WifiHistoryRangeSupportTest {
 	}
 
 	@Test
-	fun `uncertainty crossing stored-zone midnight creates partial nonadditive memberships`() {
+	fun `already expanded observation bounds are not expanded by uncertainty twice`() {
 		val zone = ZoneId.of("Europe/Prague")
-		val observed = ZonedDateTime.of(2026, 10, 25, 0, 0, 0, 0, zone)
+		val earliest = ZonedDateTime.of(2026, 10, 25, 0, 0, 30, 0, zone)
 			.toInstant().toEpochMilli()
+		val observed = earliest + 60_000L
+		val latest = observed + 60_000L
 		val entry = entry(
 			"midnight",
 			observation(
-				intervalStartMs = observed,
+				intervalStartMs = earliest,
 				observedMs = observed,
 				uncertaintyMs = 60_000L,
 				zoneId = zone.id,
@@ -64,17 +67,143 @@ class WifiHistoryRangeSupportTest {
 		)
 
 		val days = WifiHistoryStructuralDayComposer.compose(
-			listOf(entry),
-			observed - 60_000L,
-			observed + 60_001L,
+			listOf(projection(entry, earliest, latest)),
+			earliest,
+			latest + 1L,
 		)
 
-		days.size shouldBe 2
-		days.flatMap { it.memberships }.all {
-			it.allocation == WifiHistoryDayAllocation.PARTIAL
-		} shouldBe true
-		days.flatMap { it.memberships }.all { it.entry.observations.size == 1 } shouldBe true
+		days.size shouldBe 1
+		days.single().memberships.single().allocation shouldBe WifiHistoryDayAllocation.EXACT
 	}
+
+	@Test
+	fun `empty runs keep disjoint stored zones within their own envelopes`() {
+		val utc = ZoneId.of("UTC")
+		val prague = ZoneId.of("Europe/Prague")
+		val firstStart = ZonedDateTime.of(2026, 1, 10, 12, 0, 0, 0, utc)
+			.toInstant().toEpochMilli()
+		val secondStart = ZonedDateTime.of(2026, 1, 12, 12, 0, 0, 0, prague)
+			.toInstant().toEpochMilli()
+		val entry = emptyEntry("empty-runs", firstStart, secondStart + 60_000L, setOf(utc.id, prague.id))
+
+		val days = WifiHistoryStructuralDayComposer.compose(
+			listOf(
+				WifiHistoryStructuralEntryProjection(
+					entry,
+					listOf(
+						emptyRun(firstStart, firstStart + 60_000L, utc.id),
+						emptyRun(secondStart, secondStart + 60_000L, prague.id),
+					),
+				),
+			),
+			firstStart,
+			secondStart + 60_001L,
+		)
+
+		days.map { it.storedZoneId } shouldBe listOf(prague.id, utc.id)
+		days.single { it.storedZoneId == utc.id }.epochDay shouldBe
+			Instant.ofEpochMilli(firstStart).atZone(utc).toLocalDate().toEpochDay()
+		days.single { it.storedZoneId == prague.id }.epochDay shouldBe
+			Instant.ofEpochMilli(secondStart).atZone(prague).toLocalDate().toEpochDay()
+	}
+
+	@Test
+	fun `fact run and empty sibling both retain run-owned day membership`() {
+		val utc = ZoneId.of("UTC")
+		val prague = ZoneId.of("Europe/Prague")
+		val observed = ZonedDateTime.of(2026, 2, 1, 12, 0, 0, 0, utc)
+			.toInstant().toEpochMilli()
+		val emptyStart = ZonedDateTime.of(2026, 2, 3, 12, 0, 0, 0, prague)
+			.toInstant().toEpochMilli()
+		val publicObservation = observation(observed - 1L, observed, 1L, utc.id)
+		val entry = entry("mixed-runs", publicObservation).copy(
+			startTime = EpochMs(observed - 1_000L),
+			endTime = EpochMs(emptyStart + 60_000L),
+			storedZoneIds = setOf(utc.id, prague.id),
+			state = WifiHistoryProductState.PARTIAL,
+			coverage = WifiHistoryCoverage.PARTIAL,
+			causes = setOf(WifiHistoryCause.NO_QUALIFIED_FACTS),
+		)
+
+		val days = WifiHistoryStructuralDayComposer.compose(
+			listOf(
+				WifiHistoryStructuralEntryProjection(
+					entry,
+					listOf(
+						WifiHistoryStructuralRunProjection(
+							observed - 1_000L,
+							observed + 1_000L,
+							setOf(utc.id),
+							listOf(
+								WifiHistoryStructuralObservationProjection(
+									observed - 1L,
+									observed + 1L,
+									utc.id,
+								),
+							),
+						),
+						emptyRun(emptyStart, emptyStart + 60_000L, prague.id),
+					),
+				),
+			),
+			observed - 1_000L,
+			emptyStart + 60_001L,
+		)
+
+		days.single { it.storedZoneId == utc.id }
+			.memberships.single().allocation shouldBe WifiHistoryDayAllocation.PARTIAL
+		days.single { it.storedZoneId == prague.id }
+			.memberships.single().allocation shouldBe WifiHistoryDayAllocation.UNAVAILABLE
+	}
+
+	private fun projection(
+		entry: WifiHistoryEntry,
+		earliest: Long = entry.observations.single().intervalStartTime.raw,
+		latest: Long = Math.addExact(
+			entry.observations.single().observedTime.raw,
+			entry.observations.single().wallTimeUncertaintyMs,
+		),
+	) = WifiHistoryStructuralEntryProjection(
+		entry,
+		listOf(
+			WifiHistoryStructuralRunProjection(
+				entry.startTime.raw,
+				entry.endTime.raw,
+				entry.storedZoneIds,
+				listOf(
+					WifiHistoryStructuralObservationProjection(
+						earliest,
+						latest,
+						entry.observations.single().storedZoneId,
+					),
+				),
+			),
+		),
+	)
+
+	private fun emptyRun(startTimeMs: Long, endTimeMs: Long, zoneId: String) =
+		WifiHistoryStructuralRunProjection(
+			startTimeMs,
+			endTimeMs,
+			setOf(zoneId),
+			emptyList(),
+		)
+
+	private fun emptyEntry(
+		seed: String,
+		startTimeMs: Long,
+		endTimeMs: Long,
+		zones: Set<String>,
+	) = WifiHistoryEntry(
+		key = WifiHistoryEntryKey("range-$seed"),
+		startTime = EpochMs(startTimeMs),
+		endTime = EpochMs(endTimeMs),
+		storedZoneIds = zones,
+		state = WifiHistoryProductState.UNAVAILABLE,
+		coverage = WifiHistoryCoverage.NONE,
+		observations = emptyList(),
+		causes = setOf(WifiHistoryCause.PROVIDER_UNAVAILABLE),
+	)
 
 	private fun entry(seed: String, observation: WifiHistoryObservation) = WifiHistoryEntry(
 		key = WifiHistoryEntryKey("range-$seed"),

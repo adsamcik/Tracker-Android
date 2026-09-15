@@ -180,6 +180,41 @@ class ImportedWifiHistoryMapperTest {
 	}
 
 	@Test
+	fun `imported structural projection keeps empty run ownership and exact portable bounds`() {
+		val observation = observation("structural-observation", 2_000L)
+		val factRun = run("structural-fact", observation, 1_500L, 2_500L)
+		val emptyRun = PortableWifiIntegrity.createRun(
+			identity = identity(PortableWifiIdentityKind.PHYSICAL_RUN, "structural-empty"),
+			deletionScopeDigest = PortableWifiDeletionScopeDigest(
+				sha256("test-imported-wifi-scope:structural-empty"),
+			),
+			startTimeMs = 86_400_000L,
+			endTimeMs = 86_401_000L,
+			storedZoneIds = listOf("UTC"),
+			captureCoverage = PortableWifiCaptureCoverage.WHOLE_RUN,
+			availability = PortableWifiRunAvailability.NO_RETAINED_OBSERVATION,
+			acquisitionCompleteness = PortableWifiAcquisitionCompleteness.COMPLETE,
+			hasUnresolvedProviderRange = false,
+			retentionLoss = false,
+			observations = emptyList(),
+		)
+		val imported = entry(listOf(factRun, emptyRun))
+		val evaluation = readable(imported)
+		val public = evaluation.toPublicWifiEntry()
+
+		val runs = evaluation.authenticatedStructuralRuns(public)
+
+		runs.size shouldBe 2
+		runs.single { it.storedZoneIds == setOf("UTC") }.observations shouldBe emptyList()
+		runs.single { it.storedZoneIds == setOf("Europe/Prague") }
+			.observations.single() shouldBe WifiHistoryStructuralObservationProjection(
+			earliestPossibleTimeMs = observation.coverageStartTimeMs,
+			latestPossibleTimeMs = observation.latestPossibleTimeMs,
+			storedZoneId = observation.storedZoneId,
+		)
+	}
+
+	@Test
 	fun `exact full portable duplicate may collapse but payload mismatch fails typed`() {
 		val portable = entry(listOf(run("run", observation("observation", 1_100L))))
 		val imported = readable(portable, collidingLocalLogicalId = "entry")

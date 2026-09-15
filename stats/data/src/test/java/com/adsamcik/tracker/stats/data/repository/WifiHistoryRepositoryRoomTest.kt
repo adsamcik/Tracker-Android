@@ -40,12 +40,14 @@ import com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifiRe
 import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryBand
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryDayAllocation
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryPage
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryRangeContinuation
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryRangePage
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryStructuralDayPage
 import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryReader
 import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryResult
 import com.adsamcik.tracker.stats.api.value.EpochMs
@@ -431,6 +433,47 @@ class WifiHistoryRepositoryRoomTest {
 			),
 		) shouldBe WifiHistoryRangePage.Failed(WifiHistoryCause.RANGE_CONTINUATION_INVALID)
 	}
+
+	@Test
+	fun `structural days retain an empty run beside a fact-bearing run in its own stored zone`() =
+		runTest {
+			val base = buildGroup(6, 2, setOf(0))
+			val group = base.copy(
+				runs = base.runs.mapIndexed { index, built ->
+					if (index == 0) {
+						built
+					} else {
+						val unsigned = built.manifest.copy(
+							zoneId = "Europe/Prague",
+							manifestChecksum = "pending",
+						)
+						built.copy(
+							manifest = unsigned.copy(
+								manifestChecksum = SessionManifestIntegrity.compute(
+									unsigned,
+									listOf(built.source),
+								),
+							),
+						)
+					}
+				},
+			)
+			persist(listOf(group))
+
+			val page = repository { true }.structuralDays(
+				WifiHistoryRangeRequest(
+					EpochMs(group.runs.first().segment.startTimeMs),
+					EpochMs(group.runs.last().segment.endTimeMs + 1L),
+					10,
+				),
+			) as WifiHistoryStructuralDayPage.Available
+
+			page.days.map { it.storedZoneId }.toSet() shouldBe setOf("UTC", "Europe/Prague")
+			page.days.single { it.storedZoneId == "UTC" }
+				.memberships.single().allocation shouldBe WifiHistoryDayAllocation.EXACT
+			page.days.single { it.storedZoneId == "Europe/Prague" }
+				.memberships.single().allocation shouldBe WifiHistoryDayAllocation.UNAVAILABLE
+		}
 
 	@Test
 	fun `fact-only history rejects stale and half-open boundary observations`() = runTest {

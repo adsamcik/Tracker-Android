@@ -41,6 +41,34 @@ internal fun ImportedWifiProductEvaluation.toPublicWifiEntry(
 	}
 }
 
+internal fun ImportedWifiProductEvaluation.authenticatedStructuralRuns(
+	publicEntry: WifiHistoryEntry,
+): List<WifiHistoryStructuralRunProjection> = when (this) {
+	is ImportedWifiProductEvaluation.Unverifiable -> emptyList()
+	is ImportedWifiProductEvaluation.Readable -> {
+		if (entryDeleted || publicEntry.state == WifiHistoryProductState.FAILED) {
+			emptyList()
+		} else {
+			entry.runs.filterNot { it.identity in deletedRunIdentities }.map { run ->
+				WifiHistoryStructuralRunProjection(
+					startTimeMs = run.startTimeMs,
+					endTimeMs = run.endTimeMs,
+					storedZoneIds = run.storedZoneIds.toSet(),
+					observations = run.observations
+						.filter { it.identity in retainedObservationIdentities }
+						.map { observation ->
+							WifiHistoryStructuralObservationProjection(
+								earliestPossibleTimeMs = observation.coverageStartTimeMs,
+								latestPossibleTimeMs = observation.latestPossibleTimeMs,
+								storedZoneId = observation.storedZoneId,
+							)
+						},
+				)
+			}
+		}
+	}
+}
+
 private fun ImportedWifiProductEvaluation.Readable.readablePublicEntry(): WifiHistoryEntry {
 	val visibleRuns = entry.runs.filterNot { it.identity in deletedRunIdentities }
 	if (visibleRuns.isEmpty()) return deleted()

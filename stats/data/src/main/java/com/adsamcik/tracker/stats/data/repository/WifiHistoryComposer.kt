@@ -71,7 +71,13 @@ internal object WifiHistoryComposer {
 		.mapNotNull(SessionSegment::logicalTrackingId).filter(String::isNotBlank).distinct()
 		.mapNotNull { logicalId ->
 			val members = members(logicalId, snapshot)
-			val entry = composeGroup(logicalId, snapshot, laneExecutionAuthority) ?: return@mapNotNull null
+			val structuralRuns = mutableListOf<WifiHistoryStructuralRunProjection>()
+			val entry = composeGroup(
+				logicalId,
+				snapshot,
+				laneExecutionAuthority,
+				structuralRuns,
+			) ?: return@mapNotNull null
 			ComposedWifiEntry(
 				logicalTrackingId = logicalId,
 				recencyStartTimeMs = members.maxOfOrNull(SessionSegment::startTimeMs) ?: 0L,
@@ -80,6 +86,7 @@ internal object WifiHistoryComposer {
 				)?.id ?: 0L,
 				physicalSegmentIds = members.map(SessionSegment::id),
 				entry = entry,
+				structuralRuns = structuralRuns,
 			)
 		}.toList()
 
@@ -88,6 +95,7 @@ internal object WifiHistoryComposer {
 		logicalId: String,
 		snapshot: WifiHistorySnapshot,
 		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
+		structuralOutput: MutableList<WifiHistoryStructuralRunProjection>? = null,
 	): WifiHistoryEntry? {
 		val segments = members(logicalId, snapshot)
 		if (segments.isEmpty()) return null
@@ -121,6 +129,26 @@ internal object WifiHistoryComposer {
 		if (zones.any { runCatching { ZoneId.of(it) }.isFailure }) {
 			return failed(logicalId, segments, WifiHistoryCause.STORED_ZONE_INVALID)
 		}
+		val structuralRunShells = runCatching {
+			runs.map { run ->
+				val segment = segments.single { it.id == run.sessionSegmentId }
+				WifiHistoryStructuralRunProjection(
+					startTimeMs = segment.startTimeMs,
+					endTimeMs = segment.endTimeMs,
+					storedZoneIds = manifestsByRun.getValue(run.serviceRunId)
+						.mapTo(linkedSetOf(), SessionManifestVersionEntity::zoneId),
+					observations = emptyList(),
+				)
+			}
+		}.getOrElse {
+			return failed(logicalId, segments, WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+		}
+		fun publishStructuralRuns(values: List<WifiHistoryStructuralRunProjection>) {
+			structuralOutput?.apply {
+				clear()
+				addAll(values)
+			}
+		}
 		val bindings = linkedMapOf<Long, SessionManifestSourceEntity>()
 		for (manifest in manifests) {
 			val matches = snapshot.sourcesByManifest[WifiManifestKey(logicalId, manifest.manifestRevision)]
@@ -140,9 +168,16 @@ internal object WifiHistoryComposer {
 			related.any { it.logicalTrackingId != logicalId || it.serviceRunId !in runIds }
 		) return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED)
 		if (bindings.isEmpty()) {
-			return if (related.isEmpty()) unavailable(logicalId, segments, zones,
-				WifiHistoryCause.SOURCE_NOT_CAPTURED) else failed(logicalId, segments,
-				WifiHistoryCause.FACT_INTEGRITY_FAILED)
+			if (related.isNotEmpty()) {
+				return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED)
+			}
+			publishStructuralRuns(structuralRunShells)
+			return unavailable(
+				logicalId,
+				segments,
+				zones,
+				WifiHistoryCause.SOURCE_NOT_CAPTURED,
+			)
 		}
 		if (!hasValidCaptureAuthority(manifests, bindings, snapshot)) {
 			return failed(logicalId, segments, WifiHistoryCause.PLAN_INTEGRITY_FAILED)
@@ -238,7 +273,8 @@ internal object WifiHistoryComposer {
 			} != false }
 		}.getOrElse { return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED) }
 		val retentionLoss = retained.size != currentEpoch.size
-		if (retained.isEmpty()) return when {
+		if (retained.isEmpty()) {
+			val emptyEntry = when {
 			current.isNotEmpty() && epochLoss -> unavailable(logicalId, segments, zones,
 				WifiHistoryCause.PRIVACY_EPOCH_MISMATCH, capturesOnlyWifi)
 			currentEpoch.isNotEmpty() && retentionLoss -> unavailable(logicalId, segments, zones,
@@ -255,6 +291,9 @@ internal object WifiHistoryComposer {
 					capturesOnlyWifi,
 				)
 			else -> missing(logicalId, segments, zones, capturesOnlyWifi)
+			}
+			publishStructuralRuns(structuralRunShells)
+			return emptyEntry
 		}
 
 		val observations = runCatching { retained.sortedWith(compareBy(
@@ -275,6 +314,27 @@ internal object WifiHistoryComposer {
 		if (retained.any { it.first.coverageCompleteness == WifiCapturedFactRevisionEntity.COVERAGE_PARTIAL }) {
 			causes += WifiHistoryCause.RESULT_SET_PARTIAL
 		}
+		val structuralObservations = runCatching {
+			retained.groupBy { it.first.serviceRunId }.mapValues { (_, facts) ->
+				facts.map { (fact, _) ->
+					WifiHistoryStructuralObservationProjection(
+						earliestPossibleTimeMs = earliestPossibleWallTimeMs(fact),
+						latestPossibleTimeMs = Math.addExact(
+							fact.observedWallTimeMs,
+							fact.wallTimeUncertaintyMs,
+						),
+						storedZoneId = fact.storedZoneId,
+					)
+				}
+			}
+		}.getOrElse {
+			return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED)
+		}
+		publishStructuralRuns(
+			runs.zip(structuralRunShells).map { (run, shell) ->
+				shell.copy(observations = structuralObservations[run.serviceRunId].orEmpty())
+			},
+		)
 		return if (causes.isEmpty()) entry(logicalId, segments, zones, WifiHistoryProductState.READY,
 			WifiHistoryCoverage.COMPLETE, observations, emptySet(), capturesOnlyWifi) else
 			entry(logicalId, segments, zones, WifiHistoryProductState.PARTIAL,
@@ -1201,6 +1261,7 @@ internal data class ComposedWifiEntry(
 	val recencySegmentId: Long,
 	val physicalSegmentIds: List<Long>,
 	val entry: WifiHistoryEntry,
+	val structuralRuns: List<WifiHistoryStructuralRunProjection> = emptyList(),
 ) {
 	init {
 		require(logicalTrackingId.isNotBlank())
@@ -1209,6 +1270,9 @@ internal data class ComposedWifiEntry(
 		require(physicalSegmentIds.distinct().size == physicalSegmentIds.size)
 		require(recencySegmentId in physicalSegmentIds)
 		require(entry.origin == WifiHistoryOrigin.LOCAL)
+		require(structuralRuns.all {
+			it.startTimeMs >= entry.startTime.raw && it.endTimeMs <= entry.endTime.raw
+		})
 	}
 }
 
