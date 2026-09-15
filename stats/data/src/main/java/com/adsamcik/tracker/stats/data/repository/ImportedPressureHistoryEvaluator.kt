@@ -110,19 +110,6 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 			)
 		}
 		val candidate = candidates.single()
-		database.importedPressureDao().sourceErase()?.let { erased ->
-			if (erased.collectedDataEpoch != state.collectedDataEpoch ||
-				erased.sourceEvidenceRevision > state.revision ||
-				erased.erasedAtMs > state.updatedAtMs
-			) {
-				return candidates.unverifiable(
-					ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
-				)
-			}
-			return candidates.unverifiable(
-				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
-			)
-		}
 		if (candidate.candidateState == IMPORTED_PRESSURE_CANDIDATE_RETAINED) {
 			val receipt = database.importedPressureDao().retentionReceipt(candidate.identity)
 				?: return candidates.unverifiable(
@@ -135,6 +122,8 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 			}
 			return when (database.authenticateImportedPressureRetention(state, receipt)) {
 				ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
+					candidates.unverifiable(ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW)
+				ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
 					candidates.unverifiable(ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW)
 				ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
 				ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
@@ -163,6 +152,17 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 			return candidates.unverifiable(
 				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
 			)
+		}
+		when (database.importedPressureDao().lineageFootprint(candidate.identity).validate()) {
+			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW,
+			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW,
+			-> return candidates.unverifiable(ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW)
+			ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
+			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			-> return candidates.unverifiable(
+				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+			null -> Unit
 		}
 		val identities = candidates.map(ImportedPressureHistoryCandidate::identity)
 		val loaded = try {

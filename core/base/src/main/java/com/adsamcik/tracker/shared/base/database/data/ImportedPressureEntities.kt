@@ -113,17 +113,33 @@ data class ImportedPressureEntryDeletionEntity(
 	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
 	@ColumnInfo(name = "deleted_import_revision") val deletedImportRevision: Long,
 	@ColumnInfo(name = "deleted_at_ms") val deletedAtMs: Long,
+	@ColumnInfo(name = "run_deletion_count") val runDeletionCount: Int,
+	@ColumnInfo(name = "run_deletion_set_checksum") val runDeletionSetChecksum: String,
+	@ColumnInfo(name = "identity_fence_count") val identityFenceCount: Int,
+	@ColumnInfo(name = "identity_fence_set_checksum") val identityFenceSetChecksum: String,
 	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
 ) {
 	init {
 		require(ImportedPressureIdentity.isOpaque(entryIdentity))
-		require(collectedDataEpoch >= 0L && deletedImportRevision > 0L && deletedAtMs >= 0L)
+		require(
+			collectedDataEpoch >= 0L &&
+				deletedImportRevision in 1L..ImportedPressureMaintenanceBounds.MAX_REVISIONS.toLong() &&
+				deletedAtMs >= 0L,
+		)
+		require(runDeletionCount > 0 && identityFenceCount > runDeletionCount)
+		listOf(runDeletionSetChecksum, identityFenceSetChecksum).forEach {
+			require(ImportedPressureIdentity.isOpaque(it))
+		}
 		require(
 			effectChecksum == checksum(
 				entryIdentity,
 				collectedDataEpoch,
 				deletedImportRevision,
 				deletedAtMs,
+				runDeletionCount,
+				runDeletionSetChecksum,
+				identityFenceCount,
+				identityFenceSetChecksum,
 			),
 		)
 	}
@@ -134,12 +150,27 @@ data class ImportedPressureEntryDeletionEntity(
 			collectedDataEpoch: Long,
 			deletedImportRevision: Long,
 			deletedAtMs: Long,
+			runDeletions: List<ImportedPressureDeletionGenerationEntity>,
+			identityFences: List<ImportedPressureIdentityFenceEntity>,
 		): ImportedPressureEntryDeletionEntity = ImportedPressureEntryDeletionEntity(
 			entryIdentity,
 			collectedDataEpoch,
 			deletedImportRevision,
 			deletedAtMs,
-			checksum(entryIdentity, collectedDataEpoch, deletedImportRevision, deletedAtMs),
+			runDeletions.size,
+			ImportedPressureRetentionReceiptEntity.checksumRunDeletions(runDeletions),
+			identityFences.size,
+			ImportedPressureIdentityFenceEntity.checksumSet(identityFences),
+			checksum(
+				entryIdentity,
+				collectedDataEpoch,
+				deletedImportRevision,
+				deletedAtMs,
+				runDeletions.size,
+				ImportedPressureRetentionReceiptEntity.checksumRunDeletions(runDeletions),
+				identityFences.size,
+				ImportedPressureIdentityFenceEntity.checksumSet(identityFences),
+			),
 		)
 
 		private fun checksum(
@@ -147,6 +178,10 @@ data class ImportedPressureEntryDeletionEntity(
 			collectedDataEpoch: Long,
 			deletedImportRevision: Long,
 			deletedAtMs: Long,
+			runDeletionCount: Int,
+			runDeletionSetChecksum: String,
+			identityFenceCount: Int,
+			identityFenceSetChecksum: String,
 		): String {
 			val values = listOf(
 				"tracker-imported-pressure-entry-deletion-v1",
@@ -154,6 +189,10 @@ data class ImportedPressureEntryDeletionEntity(
 				collectedDataEpoch.toString(),
 				deletedImportRevision.toString(),
 				deletedAtMs.toString(),
+				runDeletionCount.toString(),
+				runDeletionSetChecksum,
+				identityFenceCount.toString(),
+				identityFenceSetChecksum,
 			)
 			val canonical = values.joinToString(separator = "") { "${it.length}:$it" }
 			return "sha256:" + MessageDigest.getInstance("SHA-256")
@@ -454,6 +493,7 @@ data class ImportedPressureRetentionReceiptEntity(
 	@ColumnInfo(name = "run_deletion_set_checksum") val runDeletionSetChecksum: String,
 	@ColumnInfo(name = "protected_identity_count") val protectedIdentityCount: Int,
 	@ColumnInfo(name = "protected_identity_set_checksum") val protectedIdentitySetChecksum: String,
+	@ColumnInfo(name = "identity_fence_set_checksum") val identityFenceSetChecksum: String,
 	@ColumnInfo(name = "lineage_authority_checksum") val lineageAuthorityChecksum: String,
 	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
 ) {
@@ -463,6 +503,7 @@ data class ImportedPressureRetentionReceiptEntity(
 			latestContentChecksum,
 			runDeletionSetChecksum,
 			protectedIdentitySetChecksum,
+			identityFenceSetChecksum,
 			lineageAuthorityChecksum,
 			effectChecksum,
 		).forEach { require(ImportedPressureIdentity.isOpaque(it)) }
@@ -507,10 +548,14 @@ data class ImportedPressureRetentionReceiptEntity(
 			windowRowCount: Int,
 			runDeletions: List<ImportedPressureDeletionGenerationEntity>,
 			markers: List<ImportedPressureRetainedIdentityEntity>,
+			identityFences: List<ImportedPressureIdentityFenceEntity>,
 			lineageAuthorityChecksum: String,
 		): ImportedPressureRetentionReceiptEntity {
 			val runDeletionChecksum = checksumRunDeletions(runDeletions)
 			val protectedChecksum = checksumProtectedIdentities(markers)
+			require(identityFences.map { it.protectedIdentity }.toSet() ==
+				markers.map { it.protectedIdentity }.toSet())
+			val identityFenceChecksum = ImportedPressureIdentityFenceEntity.checksumSet(identityFences)
 			return ImportedPressureRetentionReceiptEntity(
 				entryIdentity = entryIdentity,
 				collectedDataEpoch = collectedDataEpoch,
@@ -530,6 +575,7 @@ data class ImportedPressureRetentionReceiptEntity(
 				runDeletionSetChecksum = runDeletionChecksum,
 				protectedIdentityCount = markers.size,
 				protectedIdentitySetChecksum = protectedChecksum,
+				identityFenceSetChecksum = identityFenceChecksum,
 				lineageAuthorityChecksum = lineageAuthorityChecksum,
 				effectChecksum = checksum(
 					entryIdentity,
@@ -550,6 +596,7 @@ data class ImportedPressureRetentionReceiptEntity(
 					runDeletionChecksum,
 					markers.size,
 					protectedChecksum,
+					identityFenceChecksum,
 					lineageAuthorityChecksum,
 				),
 			)
@@ -573,7 +620,7 @@ data class ImportedPressureRetentionReceiptEntity(
 		fun checksumRunDeletions(
 			values: List<ImportedPressureDeletionGenerationEntity>,
 		): String {
-			require(values.size <= ImportedPressureMaintenanceBounds.MAX_DISTINCT_RUNS)
+			require(values.size <= ImportedPressureMaintenanceBounds.MAX_SOURCE_RUN_DELETIONS)
 			require(values.map { it.runIdentity }.distinct().size == values.size)
 			return ImportedPressureIdentity.digest(
 				"tracker-imported-pressure-retained-run-deletions-v1",
@@ -651,6 +698,7 @@ data class ImportedPressureRetentionReceiptEntity(
 			value.runDeletionSetChecksum,
 			value.protectedIdentityCount,
 			value.protectedIdentitySetChecksum,
+			value.identityFenceSetChecksum,
 			value.lineageAuthorityChecksum,
 		)
 
@@ -674,6 +722,7 @@ data class ImportedPressureRetentionReceiptEntity(
 			runDeletionSetChecksum: String,
 			protectedIdentityCount: Int,
 			protectedIdentitySetChecksum: String,
+			identityFenceSetChecksum: String,
 			lineageAuthorityChecksum: String,
 		): String = ImportedPressureIdentity.digest(
 			"tracker-imported-pressure-retention-receipt-v1",
@@ -696,6 +745,7 @@ data class ImportedPressureRetentionReceiptEntity(
 				runDeletionSetChecksum,
 				protectedIdentityCount.toString(),
 				protectedIdentitySetChecksum,
+				identityFenceSetChecksum,
 				lineageAuthorityChecksum,
 			),
 		)
@@ -734,7 +784,163 @@ data class ImportedPressureRetainedIdentityEntity(
 	}
 }
 
-/** Current-epoch source-wide import fence. It grants no provider or local capture authority. */
+/**
+ * Permanent typed no-resurrection authority for one portable Pressure semantic identity.
+ *
+ * This row is not product history. It survives retention, selected deletion, source erase, and
+ * full collected-data clear so an old file cannot reuse or reparent an entry, run, or window.
+ */
+@Entity(
+	tableName = "imported_pressure_identity_fence",
+	primaryKeys = ["protected_identity"],
+	indices = [Index(
+		value = ["entry_identity"],
+		name = "idx_imported_pressure_identity_fence_entry",
+	)],
+)
+data class ImportedPressureIdentityFenceEntity(
+	@ColumnInfo(name = "protected_identity") val protectedIdentity: String,
+	@ColumnInfo(name = "identity_kind") val identityKind: String,
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
+	@ColumnInfo(name = "run_identity") val runIdentity: String?,
+	@ColumnInfo(name = "original_collected_data_epoch") val originalCollectedDataEpoch: Long,
+	@ColumnInfo(name = "fence_generation") val fenceGeneration: Long,
+	@ColumnInfo(name = "fenced_at_ms") val fencedAtMs: Long,
+	@ColumnInfo(name = "fence_reason") val fenceReason: String,
+	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
+) {
+	init {
+		listOf(protectedIdentity, entryIdentity, effectChecksum).forEach {
+			require(ImportedPressureIdentity.isOpaque(it))
+		}
+		require(identityKind in ALL_KINDS)
+		require(originalCollectedDataEpoch >= 0L && fenceGeneration == FIRST_GENERATION)
+		require(fencedAtMs >= 0L && fenceReason in ALL_REASONS)
+		when (identityKind) {
+			ENTRY -> require(protectedIdentity == entryIdentity && runIdentity == null)
+			RUN -> require(
+				protectedIdentity != entryIdentity &&
+					runIdentity == protectedIdentity,
+			)
+			WINDOW -> require(
+				protectedIdentity != entryIdentity &&
+					ImportedPressureIdentity.isOpaque(runIdentity),
+			)
+		}
+		require(effectChecksum == checksum(this))
+	}
+
+	fun hasSameOwner(
+		kind: String,
+		entry: String,
+		run: String?,
+	): Boolean = identityKind == kind && entryIdentity == entry && runIdentity == run
+
+	companion object {
+		const val ENTRY = "ENTRY"
+		const val RUN = "RUN"
+		const val WINDOW = "WINDOW"
+		const val REASON_RETENTION = "RETENTION"
+		const val REASON_SELECTED_DELETE = "SELECTED_DELETE"
+		const val REASON_SOURCE_ERASE = "SOURCE_ERASE"
+		const val REASON_FULL_CLEAR = "FULL_CLEAR"
+		const val FIRST_GENERATION = 1L
+		private val ALL_KINDS = setOf(ENTRY, RUN, WINDOW)
+		private val ALL_REASONS = setOf(
+			REASON_RETENTION,
+			REASON_SELECTED_DELETE,
+			REASON_SOURCE_ERASE,
+			REASON_FULL_CLEAR,
+		)
+
+		fun create(
+			protectedIdentity: String,
+			identityKind: String,
+			entryIdentity: String,
+			runIdentity: String?,
+			originalCollectedDataEpoch: Long,
+			fencedAtMs: Long,
+			fenceReason: String,
+		): ImportedPressureIdentityFenceEntity = ImportedPressureIdentityFenceEntity(
+			protectedIdentity = protectedIdentity,
+			identityKind = identityKind,
+			entryIdentity = entryIdentity,
+			runIdentity = runIdentity,
+			originalCollectedDataEpoch = originalCollectedDataEpoch,
+			fenceGeneration = FIRST_GENERATION,
+			fencedAtMs = fencedAtMs,
+			fenceReason = fenceReason,
+			effectChecksum = checksum(
+				protectedIdentity,
+				identityKind,
+				entryIdentity,
+				runIdentity,
+				originalCollectedDataEpoch,
+				FIRST_GENERATION,
+				fencedAtMs,
+				fenceReason,
+			),
+		)
+
+		fun checksumSet(values: List<ImportedPressureIdentityFenceEntity>): String {
+			require(values.size <= ImportedPressureMaintenanceBounds.MAX_SOURCE_IDENTITY_FENCES)
+			require(values.map { it.protectedIdentity }.distinct().size == values.size)
+			return ImportedPressureIdentity.digest(
+				"tracker-imported-pressure-identity-fence-set-v1",
+				listOf(values.size.toString()) + values.sortedBy { it.protectedIdentity }.flatMap {
+					listOf(
+						it.protectedIdentity,
+						it.identityKind,
+						it.entryIdentity,
+						it.runIdentity ?: "NONE",
+						it.originalCollectedDataEpoch.toString(),
+						it.fenceGeneration.toString(),
+						it.fencedAtMs.toString(),
+						it.fenceReason,
+						it.effectChecksum,
+					)
+				},
+			)
+		}
+
+		private fun checksum(value: ImportedPressureIdentityFenceEntity): String = checksum(
+			value.protectedIdentity,
+			value.identityKind,
+			value.entryIdentity,
+			value.runIdentity,
+			value.originalCollectedDataEpoch,
+			value.fenceGeneration,
+			value.fencedAtMs,
+			value.fenceReason,
+		)
+
+		@Suppress("LongParameterList")
+		private fun checksum(
+			protectedIdentity: String,
+			identityKind: String,
+			entryIdentity: String,
+			runIdentity: String?,
+			originalCollectedDataEpoch: Long,
+			fenceGeneration: Long,
+			fencedAtMs: Long,
+			fenceReason: String,
+		): String = ImportedPressureIdentity.digest(
+			"tracker-imported-pressure-identity-fence-v1",
+			listOf(
+				protectedIdentity,
+				identityKind,
+				entryIdentity,
+				runIdentity ?: "NONE",
+				originalCollectedDataEpoch.toString(),
+				fenceGeneration.toString(),
+				fencedAtMs.toString(),
+				fenceReason,
+			),
+		)
+	}
+}
+
+/** Current-epoch source-wide erase receipt. It grants no provider or local capture authority. */
 @Entity(tableName = "imported_pressure_source_erase", primaryKeys = ["id"])
 @Suppress("LongParameterList")
 data class ImportedPressureSourceEraseEntity(
@@ -742,28 +948,55 @@ data class ImportedPressureSourceEraseEntity(
 	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
 	@ColumnInfo(name = "source_evidence_revision") val sourceEvidenceRevision: Long,
 	@ColumnInfo(name = "erased_at_ms") val erasedAtMs: Long,
+	@ColumnInfo(name = "provider_registration_generation") val providerRegistrationGeneration: Long?,
+	@ColumnInfo(name = "legacy_write_fence_generation") val legacyWriteFenceGeneration: Long,
 	@ColumnInfo(name = "local_fact_revision_count") val localFactRevisionCount: Int,
 	@ColumnInfo(name = "local_wal_event_count") val localWalEventCount: Int,
+	@ColumnInfo(name = "legacy_sample_count") val legacySampleCount: Int,
+	@ColumnInfo(name = "legacy_sample_set_checksum") val legacySampleSetChecksum: String,
 	@ColumnInfo(name = "imported_entry_count") val importedEntryCount: Int,
 	@ColumnInfo(name = "imported_revision_count") val importedRevisionCount: Int,
 	@ColumnInfo(name = "imported_run_count") val importedRunCount: Int,
 	@ColumnInfo(name = "imported_window_count") val importedWindowCount: Int,
 	@ColumnInfo(name = "fenced_local_run_count") val fencedLocalRunCount: Int,
+	@ColumnInfo(name = "local_scope_set_checksum") val localScopeSetChecksum: String,
+	@ColumnInfo(name = "entry_deletion_count") val entryDeletionCount: Int,
+	@ColumnInfo(name = "entry_deletion_set_checksum") val entryDeletionSetChecksum: String,
+	@ColumnInfo(name = "run_deletion_count") val runDeletionCount: Int,
+	@ColumnInfo(name = "run_deletion_set_checksum") val runDeletionSetChecksum: String,
+	@ColumnInfo(name = "identity_fence_count") val identityFenceCount: Int,
+	@ColumnInfo(name = "identity_fence_set_checksum") val identityFenceSetChecksum: String,
 	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
 ) {
 	init {
 		require(id == SINGLETON_ID)
 		require(collectedDataEpoch >= 0L && sourceEvidenceRevision > 0L && erasedAtMs >= 0L)
+		require(providerRegistrationGeneration == null || providerRegistrationGeneration > 0L)
+		require(legacyWriteFenceGeneration >= 0L)
 		listOf(
 			localFactRevisionCount,
 			localWalEventCount,
+			legacySampleCount,
 			importedEntryCount,
 			importedRevisionCount,
 			importedRunCount,
 			importedWindowCount,
 			fencedLocalRunCount,
+			entryDeletionCount,
+			runDeletionCount,
+			identityFenceCount,
 		).forEach { require(it >= 0) }
-		require(ImportedPressureIdentity.isOpaque(effectChecksum))
+		if (localFactRevisionCount > 0 || localWalEventCount > 0 || legacySampleCount > 0 ||
+			providerRegistrationGeneration != null
+		) require(legacyWriteFenceGeneration > 0L)
+		listOf(
+			localScopeSetChecksum,
+			legacySampleSetChecksum,
+			entryDeletionSetChecksum,
+			runDeletionSetChecksum,
+			identityFenceSetChecksum,
+			effectChecksum,
+		).forEach { require(ImportedPressureIdentity.isOpaque(it)) }
 		require(effectChecksum == checksum(this))
 	}
 
@@ -775,49 +1008,153 @@ data class ImportedPressureSourceEraseEntity(
 			collectedDataEpoch: Long,
 			sourceEvidenceRevision: Long,
 			erasedAtMs: Long,
+			providerRegistrationGeneration: Long?,
+			legacyWriteFenceGeneration: Long,
 			localFactRevisionCount: Int,
 			localWalEventCount: Int,
+			legacySampleCount: Int,
+			legacySampleWitnesses: List<ImportedPressureSourceEraseWitnessEntity>,
 			importedEntryCount: Int,
 			importedRevisionCount: Int,
 			importedRunCount: Int,
 			importedWindowCount: Int,
-			fencedLocalRunCount: Int,
-		): ImportedPressureSourceEraseEntity = ImportedPressureSourceEraseEntity(
+			localFences: List<SourceDeletionFenceEntity>,
+			entryDeletions: List<ImportedPressureEntryDeletionEntity>,
+			runDeletions: List<ImportedPressureDeletionGenerationEntity>,
+			identityFences: List<ImportedPressureIdentityFenceEntity>,
+		): ImportedPressureSourceEraseEntity {
+			require(legacySampleWitnesses.size == legacySampleCount)
+			return ImportedPressureSourceEraseEntity(
 			collectedDataEpoch = collectedDataEpoch,
 			sourceEvidenceRevision = sourceEvidenceRevision,
 			erasedAtMs = erasedAtMs,
+			providerRegistrationGeneration = providerRegistrationGeneration,
+			legacyWriteFenceGeneration = legacyWriteFenceGeneration,
 			localFactRevisionCount = localFactRevisionCount,
 			localWalEventCount = localWalEventCount,
+			legacySampleCount = legacySampleCount,
+			legacySampleSetChecksum = checksumLegacySamples(legacySampleWitnesses),
 			importedEntryCount = importedEntryCount,
 			importedRevisionCount = importedRevisionCount,
 			importedRunCount = importedRunCount,
 			importedWindowCount = importedWindowCount,
-			fencedLocalRunCount = fencedLocalRunCount,
+			fencedLocalRunCount = localFences.size,
+			localScopeSetChecksum = checksumLocalFences(localFences),
+			entryDeletionCount = entryDeletions.size,
+			entryDeletionSetChecksum = checksumEntryDeletions(entryDeletions),
+			runDeletionCount = runDeletions.size,
+			runDeletionSetChecksum =
+				ImportedPressureRetentionReceiptEntity.checksumRunDeletions(runDeletions),
+			identityFenceCount = identityFences.size,
+			identityFenceSetChecksum =
+				ImportedPressureIdentityFenceEntity.checksumSet(identityFences),
 			effectChecksum = checksum(
 				collectedDataEpoch,
 				sourceEvidenceRevision,
 				erasedAtMs,
+				providerRegistrationGeneration,
+				legacyWriteFenceGeneration,
 				localFactRevisionCount,
 				localWalEventCount,
+				legacySampleCount,
+				checksumLegacySamples(legacySampleWitnesses),
 				importedEntryCount,
 				importedRevisionCount,
 				importedRunCount,
 				importedWindowCount,
-				fencedLocalRunCount,
+				localFences.size,
+				checksumLocalFences(localFences),
+				entryDeletions.size,
+				checksumEntryDeletions(entryDeletions),
+				runDeletions.size,
+				ImportedPressureRetentionReceiptEntity.checksumRunDeletions(runDeletions),
+				identityFences.size,
+				ImportedPressureIdentityFenceEntity.checksumSet(identityFences),
 			),
 		)
+		}
+
+		fun checksumLocalFences(values: List<SourceDeletionFenceEntity>): String {
+			require(values.size <= ImportedPressureMaintenanceBounds.MAX_SOURCE_LOCAL_FENCES)
+			require(values.map { it.scopeIdentityDigest }.distinct().size == values.size)
+			return ImportedPressureIdentity.digest(
+				"tracker-imported-pressure-source-erase-local-scopes-v1",
+				listOf(values.size.toString()) + values.sortedBy {
+					it.scopeIdentityDigest
+				}.flatMap {
+					listOf(
+						it.sourceKind.toString(),
+						it.purpose,
+						it.scopeKind,
+						it.scopeIdentityDigest,
+						it.fenceGeneration.toString(),
+						it.collectedDataEpoch.toString(),
+						it.deletedAtMs.toString(),
+						it.effectChecksum,
+					)
+				},
+			)
+		}
+
+		fun checksumEntryDeletions(
+			values: List<ImportedPressureEntryDeletionEntity>,
+		): String {
+			require(values.size <= ImportedPressureMaintenanceBounds.MAX_SOURCE_ENTRIES)
+			require(values.map { it.entryIdentity }.distinct().size == values.size)
+			return ImportedPressureIdentity.digest(
+				"tracker-imported-pressure-source-erase-entry-deletions-v1",
+				listOf(values.size.toString()) + values.sortedBy { it.entryIdentity }.flatMap {
+					listOf(
+						it.entryIdentity,
+						it.collectedDataEpoch.toString(),
+						it.deletedImportRevision.toString(),
+						it.deletedAtMs.toString(),
+						it.effectChecksum,
+					)
+				},
+			)
+		}
+
+		fun checksumLegacySamples(
+			values: List<ImportedPressureSourceEraseWitnessEntity>,
+		): String {
+			require(values.size <= ImportedPressureMaintenanceBounds.MAX_SOURCE_LEGACY_SAMPLES)
+			require(values.all {
+				it.witnessKind == ImportedPressureSourceEraseWitnessEntity.LEGACY_SAMPLE
+			})
+			require(values.map { it.witnessIdentity }.distinct().size == values.size)
+			return ImportedPressureIdentity.digest(
+				"tracker-imported-pressure-source-erase-legacy-samples-v1",
+				listOf(values.size.toString()) + values.sortedBy {
+					it.witnessIdentity
+				}.flatMap {
+					listOf(it.witnessIdentity, it.authorityChecksum, it.effectChecksum)
+				},
+			)
+		}
 
 		private fun checksum(value: ImportedPressureSourceEraseEntity): String = checksum(
 			value.collectedDataEpoch,
 			value.sourceEvidenceRevision,
 			value.erasedAtMs,
+			value.providerRegistrationGeneration,
+			value.legacyWriteFenceGeneration,
 			value.localFactRevisionCount,
 			value.localWalEventCount,
+			value.legacySampleCount,
+			value.legacySampleSetChecksum,
 			value.importedEntryCount,
 			value.importedRevisionCount,
 			value.importedRunCount,
 			value.importedWindowCount,
 			value.fencedLocalRunCount,
+			value.localScopeSetChecksum,
+			value.entryDeletionCount,
+			value.entryDeletionSetChecksum,
+			value.runDeletionCount,
+			value.runDeletionSetChecksum,
+			value.identityFenceCount,
+			value.identityFenceSetChecksum,
 		)
 
 		@Suppress("LongParameterList")
@@ -825,28 +1162,155 @@ data class ImportedPressureSourceEraseEntity(
 			collectedDataEpoch: Long,
 			sourceEvidenceRevision: Long,
 			erasedAtMs: Long,
+			providerRegistrationGeneration: Long?,
+			legacyWriteFenceGeneration: Long,
 			localFactRevisionCount: Int,
 			localWalEventCount: Int,
+			legacySampleCount: Int,
+			legacySampleSetChecksum: String,
 			importedEntryCount: Int,
 			importedRevisionCount: Int,
 			importedRunCount: Int,
 			importedWindowCount: Int,
 			fencedLocalRunCount: Int,
+			localScopeSetChecksum: String,
+			entryDeletionCount: Int,
+			entryDeletionSetChecksum: String,
+			runDeletionCount: Int,
+			runDeletionSetChecksum: String,
+			identityFenceCount: Int,
+			identityFenceSetChecksum: String,
 		): String = ImportedPressureIdentity.digest(
 			"tracker-imported-pressure-source-erase-v1",
 			listOf(
 				collectedDataEpoch,
 				sourceEvidenceRevision,
 				erasedAtMs,
+				providerRegistrationGeneration ?: "NONE",
+				legacyWriteFenceGeneration,
 				localFactRevisionCount,
 				localWalEventCount,
+				legacySampleCount,
+				legacySampleSetChecksum,
 				importedEntryCount,
 				importedRevisionCount,
 				importedRunCount,
 				importedWindowCount,
 				fencedLocalRunCount,
+				localScopeSetChecksum,
+				entryDeletionCount,
+				entryDeletionSetChecksum,
+				runDeletionCount,
+				runDeletionSetChecksum,
+				identityFenceCount,
+				identityFenceSetChecksum,
 			).map { it.toString() },
 		)
+	}
+}
+
+/** Exact authority row referenced by the current source-erase receipt. */
+@Entity(
+	tableName = "imported_pressure_source_erase_witness",
+	primaryKeys = ["witness_kind", "witness_identity"],
+	foreignKeys = [ForeignKey(
+		entity = ImportedPressureSourceEraseEntity::class,
+		parentColumns = ["id"],
+		childColumns = ["source_erase_id"],
+		onDelete = ForeignKey.CASCADE,
+	)],
+	indices = [Index(
+		value = ["source_erase_id"],
+		name = "idx_imported_pressure_source_erase_witness_receipt",
+	)],
+)
+data class ImportedPressureSourceEraseWitnessEntity(
+	@ColumnInfo(name = "source_erase_id") val sourceEraseId: Int =
+		ImportedPressureSourceEraseEntity.SINGLETON_ID,
+	@ColumnInfo(name = "witness_kind") val witnessKind: String,
+	@ColumnInfo(name = "witness_identity") val witnessIdentity: String,
+	@ColumnInfo(name = "authority_checksum") val authorityChecksum: String,
+	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
+) {
+	init {
+		require(sourceEraseId == ImportedPressureSourceEraseEntity.SINGLETON_ID)
+		require(witnessKind in ALL_KINDS)
+		when (witnessKind) {
+			LOCAL_SCOPE -> require(ImportedPressureIdentity.isRawDigest(witnessIdentity))
+			else -> require(ImportedPressureIdentity.isOpaque(witnessIdentity))
+		}
+		require(authorityChecksum.isNotBlank())
+		require(ImportedPressureIdentity.isOpaque(effectChecksum))
+		require(effectChecksum == checksum(this))
+	}
+
+	companion object {
+		const val LOCAL_SCOPE = "LOCAL_SCOPE"
+		const val LEGACY_SAMPLE = "LEGACY_SAMPLE"
+		const val ENTRY_DELETION = "ENTRY_DELETION"
+		const val RUN_DELETION = "RUN_DELETION"
+		const val IDENTITY_FENCE = "IDENTITY_FENCE"
+		private val ALL_KINDS = setOf(
+			LOCAL_SCOPE,
+			LEGACY_SAMPLE,
+			ENTRY_DELETION,
+			RUN_DELETION,
+			IDENTITY_FENCE,
+		)
+
+		fun local(fence: SourceDeletionFenceEntity) = create(
+			LOCAL_SCOPE,
+			fence.scopeIdentityDigest,
+			fence.effectChecksum,
+		)
+
+		fun entry(deletion: ImportedPressureEntryDeletionEntity) = create(
+			ENTRY_DELETION,
+			deletion.entryIdentity,
+			deletion.effectChecksum,
+		)
+
+		fun legacy(
+			identity: String,
+			authorityChecksum: String,
+		) = create(LEGACY_SAMPLE, identity, authorityChecksum)
+
+		fun run(deletion: ImportedPressureDeletionGenerationEntity) = create(
+			RUN_DELETION,
+			deletion.runIdentity,
+			deletion.effectChecksum,
+		)
+
+		fun identity(fence: ImportedPressureIdentityFenceEntity) = create(
+			IDENTITY_FENCE,
+			fence.protectedIdentity,
+			fence.effectChecksum,
+		)
+
+		private fun create(
+			kind: String,
+			identity: String,
+			authorityChecksum: String,
+		): ImportedPressureSourceEraseWitnessEntity =
+			ImportedPressureSourceEraseWitnessEntity(
+				witnessKind = kind,
+				witnessIdentity = identity,
+				authorityChecksum = authorityChecksum,
+				effectChecksum = ImportedPressureIdentity.digest(
+					"tracker-imported-pressure-source-erase-witness-v1",
+					listOf(kind, identity, authorityChecksum),
+				),
+			)
+
+		private fun checksum(value: ImportedPressureSourceEraseWitnessEntity): String =
+			ImportedPressureIdentity.digest(
+				"tracker-imported-pressure-source-erase-witness-v1",
+				listOf(
+					value.witnessKind,
+					value.witnessIdentity,
+					value.authorityChecksum,
+				),
+			)
 	}
 }
 
@@ -857,11 +1321,18 @@ private object ImportedPressureMaintenanceBounds {
 	const val MAX_WINDOW_ROWS = MAX_REVISIONS * 16_384
 	const val MAX_DISTINCT_RUNS = MAX_RUN_ROWS
 	const val MAX_PROTECTED_IDENTITIES = 1 + MAX_DISTINCT_RUNS + MAX_WINDOW_ROWS
+	const val MAX_SOURCE_ENTRIES = 65_536
+	const val MAX_SOURCE_LOCAL_FENCES = 65_536
+	const val MAX_SOURCE_LEGACY_SAMPLES = 65_536
+	const val MAX_SOURCE_RUN_DELETIONS = 262_144
+	const val MAX_SOURCE_IDENTITY_FENCES = 524_288
 }
 
 internal object ImportedPressureIdentity {
 	private val opaque = Regex("sha256:[0-9a-f]{64}")
+	private val rawDigest = Regex("[0-9a-f]{64}")
 	fun isOpaque(value: String?): Boolean = value != null && opaque.matches(value)
+	fun isRawDigest(value: String?): Boolean = value != null && rawDigest.matches(value)
 
 	fun digest(namespace: String, values: List<String>): String {
 		require(namespace.isNotBlank())

@@ -60,7 +60,6 @@ sealed interface TruncateImportedPressureRetentionResult {
 enum class ImportedPressureRetentionBlockedReason {
 	SOURCE_EVIDENCE_AUTHORITY_CHANGED,
 	STALE_REQUEST,
-	SOURCE_ALREADY_ERASED,
 }
 
 enum class ImportedPressureMaintenanceUnverifiableReason {
@@ -107,6 +106,7 @@ sealed interface ErasePressureSourceResult {
 	data class Erased(
 		val localFactRevisionCount: Int,
 		val localWalEventCount: Int,
+		val legacySampleCount: Int,
 		val importedEntryCount: Int,
 		val importedRevisionCount: Int,
 		val importedRunCount: Int,
@@ -117,6 +117,7 @@ sealed interface ErasePressureSourceResult {
 			listOf(
 				localFactRevisionCount,
 				localWalEventCount,
+				legacySampleCount,
 				importedEntryCount,
 				importedRevisionCount,
 				importedRunCount,
@@ -160,17 +161,39 @@ enum class PressureSourceEraseRetryableReason {
 
 /** Runtime-only barrier used by the source-wide service when local hardware evidence exists. */
 interface PressureSourceEraseBarrier {
+	/**
+	 * Settles the physical provider and the legacy Pressure persistence lane.
+	 *
+	 * The legacy fence must make pre-fence pending or in-memory Pressure samples ineligible for a
+	 * later `pressure_sample` flush, not merely unregister the SensorManager listener.
+	 */
 	suspend fun establish(expectedCollectedDataEpoch: Long): PressureSourceEraseBarrierResult
+
+	/**
+	 * Revalidates the exact settled token while the erase transaction is open.
+	 *
+	 * Runtime integration must use the same durable generation consulted by every legacy Pressure
+	 * writer so a delayed buffer cannot pass after this check.
+	 */
+	suspend fun verifySettled(
+		token: PressureSourceEraseBarrierToken,
+	): PressureSourceEraseBarrierVerification
 }
 
 sealed interface PressureSourceEraseBarrierResult {
-	data object NoLocalProvider : PressureSourceEraseBarrierResult
-
-	data class Established(
-		val registrationGeneration: Long,
+	data class NoLocalProvider(
+		val token: PressureSourceEraseBarrierToken,
 	) : PressureSourceEraseBarrierResult {
 		init {
-			require(registrationGeneration > 0L)
+			require(token.providerRegistrationGeneration == null)
+		}
+	}
+
+	data class Established(
+		val token: PressureSourceEraseBarrierToken,
+	) : PressureSourceEraseBarrierResult {
+		init {
+			requireNotNull(token.providerRegistrationGeneration)
 		}
 	}
 
@@ -181,6 +204,30 @@ sealed interface PressureSourceEraseBarrierResult {
 	data class Retryable(
 		val reason: PressureSourceEraseBarrierRetryableReason,
 	) : PressureSourceEraseBarrierResult
+}
+
+data class PressureSourceEraseBarrierToken(
+	val collectedDataEpoch: Long,
+	val providerRegistrationGeneration: Long?,
+	val legacyWriteFenceGeneration: Long,
+) {
+	init {
+		require(collectedDataEpoch >= 0L)
+		require(providerRegistrationGeneration == null || providerRegistrationGeneration > 0L)
+		require(legacyWriteFenceGeneration > 0L)
+	}
+}
+
+sealed interface PressureSourceEraseBarrierVerification {
+	data object Verified : PressureSourceEraseBarrierVerification
+
+	data class Blocked(
+		val reason: PressureSourceEraseBarrierBlockedReason,
+	) : PressureSourceEraseBarrierVerification
+
+	data class Retryable(
+		val reason: PressureSourceEraseBarrierRetryableReason,
+	) : PressureSourceEraseBarrierVerification
 }
 
 enum class PressureSourceEraseBarrierBlockedReason {

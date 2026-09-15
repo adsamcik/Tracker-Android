@@ -98,8 +98,8 @@ enum class PortablePressureImportBlockedReason {
 	OPAQUE_IDENTITY_CONFLICT,
 	DELETED_ENTRY,
 	DELETED_RUN,
+	DELETED_WINDOW,
 	RETENTION_TRUNCATED,
-	SOURCE_ERASED,
 }
 
 enum class PortablePressureImportUnverifiableReason {
@@ -111,6 +111,7 @@ enum class PortablePressureImportUnverifiableReason {
 	WINDOW_OVERFLOW,
 	TOTAL_WINDOW_OVERFLOW,
 	REVISION_OVERFLOW,
+	VALUE_OVERFLOW,
 }
 
 /** No-entry and unverifiable outcomes cannot be mistaken for successful empty data. */

@@ -7,10 +7,13 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 
 /** Deliberately narrow storage boundary for the dormant Pressure fact writer. */
 @Dao
@@ -514,6 +517,8 @@ interface PressureFactRevisionDao {
 	@Query(
 		"SELECT * FROM source_event_wal " +
 			"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
+			"AND (authorization_purpose_eligibility_mask & " +
+			"${SourceBrokerPurpose.MASK_SESSION_CAPTURE}) != 0 " +
 			"AND admission_ordinal > :afterAdmissionOrdinal " +
 			"AND LENGTH(payload) <= :maximumPayloadBytes " +
 			"ORDER BY admission_ordinal LIMIT :limit",
@@ -526,23 +531,66 @@ interface PressureFactRevisionDao {
 
 	@Query(
 		"SELECT COUNT(*) FROM source_event_wal " +
-			"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE}",
+			"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
+			"AND (authorization_purpose_eligibility_mask & " +
+			"${SourceBrokerPurpose.MASK_SESSION_CAPTURE}) != 0",
 	)
 	suspend fun sourceEraseWalCount(): Long
 
 	@Query(
 		"DELETE FROM source_event_wal " +
-			"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE}",
+			"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
+			"AND (authorization_purpose_eligibility_mask & " +
+			"${SourceBrokerPurpose.MASK_SESSION_CAPTURE}) != 0",
 	)
 	suspend fun deleteSourceEraseWal(): Int
 
 	@Query("DELETE FROM pressure_fact_revision")
 	suspend fun deleteFactsForSourceErase(): Int
 
+	@Query("SELECT COUNT(*) FROM pressure_sample")
+	suspend fun legacyPressureSampleCount(): Long
+
+	@Query("SELECT MAX(time_ms) FROM pressure_sample")
+	suspend fun latestLegacyPressureSampleTimeMs(): Long?
+
+	@Query(
+		"SELECT * FROM pressure_sample WHERE id > :afterId ORDER BY id LIMIT :limit",
+	)
+	suspend fun legacyPressureSampleErasePage(
+		afterId: Long,
+		limit: Int,
+	): List<PressureSample>
+
+	@Query("DELETE FROM pressure_sample")
+	suspend fun deleteLegacyPressureSamplesForSourceErase(): Int
+
+	@Query(
+		"SELECT * FROM source_deletion_fence " +
+			"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
+			"AND purpose = '${SessionManifestPurposeCode.SESSION_CAPTURE}' " +
+			"AND scope_kind = '${SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN}' " +
+			"AND (:afterDigest IS NULL OR scope_identity_digest > :afterDigest) " +
+			"ORDER BY scope_identity_digest LIMIT :limit",
+	)
+	suspend fun sourceEraseFencePage(
+		afterDigest: String?,
+		limit: Int,
+	): List<SourceDeletionFenceEntity>
+
+	@Query(
+		"SELECT COUNT(*) FROM source_deletion_fence " +
+			"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
+			"AND purpose = '${SessionManifestPurposeCode.SESSION_CAPTURE}' " +
+			"AND scope_kind = '${SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN}'",
+	)
+	suspend fun sourceEraseFenceCount(): Long
+
 	/** Full collected-data clear only; no scoped Pressure deletion API is authorized here. */
 	@Query("DELETE FROM pressure_fact_revision")
 	fun deleteAll()
 }
+
 
 /** Fact-bearing seed plus the recency of its complete reciprocal logical membership. */
 data class PressureLogicalHistoryCandidate(

@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.database
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -15,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import java.time.DateTimeException
 import java.time.ZoneId
 import kotlinx.coroutines.currentCoroutineContext
@@ -529,23 +531,27 @@ data class PressureSourceEraseLocalScope(
 data class PressureSourceEraseLocalAudit(
 	val factRevisionCount: Int,
 	val walEventCount: Int,
+	val legacySampleCount: Int,
+	val legacySampleWitnesses: List<PressureLegacySampleEraseWitness>,
 	val scopes: List<PressureSourceEraseLocalScope>,
 	val latestDurableTimeMs: Long,
 ) {
 	init {
-		listOf(factRevisionCount, walEventCount).forEach { require(it >= 0) }
+		listOf(factRevisionCount, walEventCount, legacySampleCount).forEach { require(it >= 0) }
+		require(legacySampleWitnesses.size == legacySampleCount)
 		require(scopes.distinct().size == scopes.size)
 		require(latestDurableTimeMs >= 0L)
 	}
 
 	val requiresHardwareAuthority: Boolean
-		get() = factRevisionCount > 0 || walEventCount > 0
+		get() = factRevisionCount > 0 || walEventCount > 0 || legacySampleCount > 0
 }
 
 data class PressureSourceEraseLocalLimits(
 	val maximumRuns: Int = 2_048,
 	val maximumFactRevisions: Int = 131_072,
 	val maximumWalEvents: Int = 65_536,
+	val maximumLegacySamples: Int = 65_536,
 	val maximumDirectDemands: Int = 256,
 	val maximumNonterminalRegistrations: Int = 64,
 ) {
@@ -554,6 +560,7 @@ data class PressureSourceEraseLocalLimits(
 			maximumRuns,
 			maximumFactRevisions,
 			maximumWalEvents,
+			maximumLegacySamples,
 			maximumDirectDemands,
 			maximumNonterminalRegistrations,
 		).forEach { require(it > 0) }
@@ -561,9 +568,32 @@ data class PressureSourceEraseLocalLimits(
 }
 
 /** Cheap payload-free preflight used to avoid inventing provider authority for import-only erase. */
-suspend fun AppDatabase.pressureSourceEraseRequiresHardwareAuthority(): Boolean =
-	pressureFactRevisionDao().count() > 0L ||
-		pressureFactRevisionDao().sourceEraseWalCount() > 0L
+suspend fun AppDatabase.pressureSourceEraseRequiresHardwareAuthority(
+	limits: PressureSourceEraseLocalLimits = PressureSourceEraseLocalLimits(),
+): Boolean {
+	val demands = sourceBrokerDao().activeDemandsBounded(
+		SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+		limits.maximumDirectDemands + 1,
+	)
+	val registrations = sourceBrokerDao().currentPhysicalRegistrationsBounded(
+		SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+		limits.maximumNonterminalRegistrations + 1,
+	)
+	val retiring = sourceBrokerDao().pendingProviderRemovalsBounded(
+		SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+		limits.maximumNonterminalRegistrations + 1,
+	)
+	if (demands.size > limits.maximumDirectDemands ||
+		registrations.size > limits.maximumNonterminalRegistrations ||
+		retiring.size > limits.maximumNonterminalRegistrations
+	) failPressureErase(PressureSourceEraseLocalFailureReason.MAINTENANCE_BOUND_EXCEEDED)
+	return pressureFactRevisionDao().count() > 0L ||
+		pressureFactRevisionDao().sourceEraseWalCount() > 0L ||
+		pressureFactRevisionDao().legacyPressureSampleCount() > 0L ||
+		demands.any {
+			it.purpose == SourceBrokerPurpose.SESSION_CAPTURE || it.persistenceEligible
+		} || registrations.isNotEmpty() || retiring.isNotEmpty()
+}
 
 /**
  * Authenticates every local Pressure retention dependency inside the caller's Room transaction.
@@ -578,6 +608,7 @@ suspend fun AppDatabase.auditPressureSourceEraseLocalAuthorityInTransaction(
 	expectedCurrentPolicyRevision: Long,
 	expectedRevokedConsentEpoch: Long,
 	erasedAtMs: Long,
+	requireRevokedAuthority: Boolean = false,
 	limits: PressureSourceEraseLocalLimits = PressureSourceEraseLocalLimits(),
 ): PressureSourceEraseLocalAudit {
 	require(expectedCollectedDataEpoch >= 0L)
@@ -593,33 +624,10 @@ suspend fun AppDatabase.auditPressureSourceEraseLocalAuthorityInTransaction(
 	val factDao = pressureFactRevisionDao()
 	val factCount = boundedInt(factDao.count(), limits.maximumFactRevisions)
 	val walCount = boundedInt(factDao.sourceEraseWalCount(), limits.maximumWalEvents)
-	if (factCount == 0 && walCount == 0) {
-		return PressureSourceEraseLocalAudit(0, 0, emptyList(), evidence.updatedAtMs)
-	}
-
-	val policyDao = sourcePolicyDao()
-	val policyAuthority = policyDao.authority()?.takeIf {
-		it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE &&
-			it.currentPolicyRevision == expectedCurrentPolicyRevision
-	} ?: failPressureErase(PressureSourceEraseLocalFailureReason.POLICY_AUTHORITY_UNAVAILABLE)
-	val policy = policyDao.policyAtRevision(
-		expectedCurrentPolicyRevision,
-		SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+	val legacySampleCount = boundedInt(
+		factDao.legacyPressureSampleCount(),
+		limits.maximumLegacySamples,
 	)
-	val revokedConsent = policyDao.latestConsentEpoch(
-		SourceDestinationOwnerEntity.SOURCE_PRESSURE,
-		SessionManifestPurposeCode.SESSION_CAPTURE,
-	)
-	if (policy == null || revokedConsent == null ||
-		revokedConsent.epoch != expectedRevokedConsentEpoch
-	) failPressureErase(PressureSourceEraseLocalFailureReason.POLICY_AUTHORITY_UNAVAILABLE)
-	if (policy.capturePersistenceEligible || policy.captureConsentEpoch != null ||
-		revokedConsent.eligible || revokedConsent.persistenceEligible ||
-		revokedConsent.policyRevision != policy.policyRevision ||
-		revokedConsent.effectiveBootId != policy.effectiveBootId ||
-		revokedConsent.effectiveElapsedRealtimeNanos != policy.effectiveElapsedRealtimeNanos ||
-		revokedConsent.effectiveWallTimeMs != policy.effectiveWallTimeMs
-	) failPressureErase(PressureSourceEraseLocalFailureReason.CAPTURE_CONSENT_STILL_ELIGIBLE)
 
 	val demands = sourceBrokerDao().activeDemandsBounded(
 		SourceDestinationOwnerEntity.SOURCE_PRESSURE,
@@ -645,6 +653,55 @@ suspend fun AppDatabase.auditPressureSourceEraseLocalAuthorityInTransaction(
 	if (currentRegistrations.isNotEmpty() || retiringRegistrations.isNotEmpty()) {
 		failPressureErase(PressureSourceEraseLocalFailureReason.CAPTURE_PROVIDER_NOT_QUIESCED)
 	}
+	if (!requireRevokedAuthority && factCount == 0 && walCount == 0 && legacySampleCount == 0) {
+		return PressureSourceEraseLocalAudit(
+			0,
+			0,
+			0,
+			emptyList(),
+			emptyList(),
+			evidence.updatedAtMs,
+		)
+	}
+
+	val policyDao = sourcePolicyDao()
+	val policyAuthority = policyDao.authority()?.takeIf {
+		it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE &&
+			it.currentPolicyRevision == expectedCurrentPolicyRevision
+	} ?: failPressureErase(PressureSourceEraseLocalFailureReason.POLICY_AUTHORITY_UNAVAILABLE)
+	val policy = policyDao.policyAtRevision(
+		expectedCurrentPolicyRevision,
+		SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+	)
+	val revokedConsent = policyDao.latestConsentEpoch(
+		SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+		SessionManifestPurposeCode.SESSION_CAPTURE,
+	)
+	if (policy == null || revokedConsent == null ||
+		revokedConsent.epoch != expectedRevokedConsentEpoch
+	) failPressureErase(PressureSourceEraseLocalFailureReason.POLICY_AUTHORITY_UNAVAILABLE)
+	if (policy.capturePersistenceEligible || policy.captureConsentEpoch != null ||
+		revokedConsent.eligible || revokedConsent.persistenceEligible ||
+		revokedConsent.policyRevision != policy.policyRevision ||
+		revokedConsent.effectiveBootId != policy.effectiveBootId ||
+		revokedConsent.effectiveElapsedRealtimeNanos != policy.effectiveElapsedRealtimeNanos ||
+		revokedConsent.effectiveWallTimeMs != policy.effectiveWallTimeMs
+	) failPressureErase(PressureSourceEraseLocalFailureReason.CAPTURE_CONSENT_STILL_ELIGIBLE)
+	if (factCount == 0 && walCount == 0 && legacySampleCount == 0) {
+		return PressureSourceEraseLocalAudit(
+			0,
+			0,
+			0,
+			emptyList(),
+			emptyList(),
+			maxOf(
+				evidence.updatedAtMs,
+				policyAuthority.updatedAtMs,
+				policy.effectiveWallTimeMs,
+				revokedConsent.effectiveWallTimeMs,
+			),
+		)
+	}
 
 	if (factCount > 0 || walCount > 0) {
 		val owner = sourceDestinationOwnerDao().get(
@@ -659,11 +716,33 @@ suspend fun AppDatabase.auditPressureSourceEraseLocalAuthorityInTransaction(
 	val budget = PressureRetentionTraversalBudget(DEFAULT_PRESSURE_RETENTION_TRAVERSAL_LIMITS)
 	val scopes = linkedSetOf<PressureSourceEraseLocalScope>()
 	var authenticatedFactCount = 0
+	val legacyWitnesses = mutableListOf<PressureLegacySampleEraseWitness>()
+	var legacyCursor = 0L
+	while (true) {
+		val page = factDao.legacyPressureSampleErasePage(
+			legacyCursor,
+			PRESSURE_ERASE_LEGACY_PAGE_SIZE,
+		)
+		if (page.isEmpty()) break
+		if (page.any { it.id <= legacyCursor } || page != page.sortedBy { it.id }) {
+			failPressureErase(PressureSourceEraseLocalFailureReason.FACT_AUTHORITY_UNVERIFIABLE)
+		}
+		legacyWitnesses += page.map(PressureLegacySampleEraseWitness::create)
+		if (legacyWitnesses.size > limits.maximumLegacySamples) {
+			failPressureErase(PressureSourceEraseLocalFailureReason.MAINTENANCE_BOUND_EXCEEDED)
+		}
+		legacyCursor = page.last().id
+		if (page.size < PRESSURE_ERASE_LEGACY_PAGE_SIZE) break
+	}
+	if (legacyWitnesses.size != legacySampleCount) {
+		failPressureErase(PressureSourceEraseLocalFailureReason.FACT_AUTHORITY_UNVERIFIABLE)
+	}
 	var latestDurableTimeMs = maxOf(
 		evidence.updatedAtMs,
 		policyAuthority.updatedAtMs,
 		policy.effectiveWallTimeMs,
 		revokedConsent.effectiveWallTimeMs,
+		factDao.latestLegacyPressureSampleTimeMs() ?: 0L,
 	)
 	var afterServiceRunId: String? = null
 	while (true) {
@@ -767,13 +846,15 @@ suspend fun AppDatabase.auditPressureSourceEraseLocalAuthorityInTransaction(
 	return PressureSourceEraseLocalAudit(
 		factRevisionCount = factCount,
 		walEventCount = walCount,
+		legacySampleCount = legacySampleCount,
+		legacySampleWitnesses = legacyWitnesses,
 		scopes = scopes.toList(),
 		latestDurableTimeMs = latestDurableTimeMs,
 	)
 }
 
-/** Installs every exact run fence before removing only Pressure-owned local payload. */
-suspend fun AppDatabase.applyPressureSourceEraseLocalMutationInTransaction(
+/** Installs every exact local run fence before any Pressure-owned payload is removed. */
+suspend fun AppDatabase.installPressureSourceEraseLocalFencesInTransaction(
 	audit: PressureSourceEraseLocalAudit,
 	expectedCollectedDataEpoch: Long,
 	erasedAtMs: Long,
@@ -800,11 +881,33 @@ suspend fun AppDatabase.applyPressureSourceEraseLocalMutationInTransaction(
 			) failPressureErase(PressureSourceEraseLocalFailureReason.DELETION_FENCE_CONFLICT)
 		}
 	}
+}
+
+/** Removes only Pressure-owned local payload after all local and imported fences are durable. */
+suspend fun AppDatabase.deletePressureSourceEraseLocalPayloadInTransaction(
+	audit: PressureSourceEraseLocalAudit,
+) {
 	val factDao = pressureFactRevisionDao()
 	if (factDao.deleteFactsForSourceErase() != audit.factRevisionCount ||
 		factDao.deleteSourceEraseWal() != audit.walEventCount ||
-		factDao.count() != 0L || factDao.sourceEraseWalCount() != 0L
+		factDao.deleteLegacyPressureSamplesForSourceErase() != audit.legacySampleCount ||
+		factDao.count() != 0L || factDao.sourceEraseWalCount() != 0L ||
+		factDao.legacyPressureSampleCount() != 0L
 	) failPressureErase(PressureSourceEraseLocalFailureReason.FACT_AUTHORITY_UNVERIFIABLE)
+}
+
+/** Compatibility seam for focused source-local callers that already own one Room transaction. */
+suspend fun AppDatabase.applyPressureSourceEraseLocalMutationInTransaction(
+	audit: PressureSourceEraseLocalAudit,
+	expectedCollectedDataEpoch: Long,
+	erasedAtMs: Long,
+) {
+	installPressureSourceEraseLocalFencesInTransaction(
+		audit,
+		expectedCollectedDataEpoch,
+		erasedAtMs,
+	)
+	deletePressureSourceEraseLocalPayloadInTransaction(audit)
 }
 
 private suspend fun AppDatabase.authenticatePressureEraseWalScopes(
@@ -851,6 +954,62 @@ private fun boundedInt(value: Long, maximum: Int): Int {
 
 private fun failPressureErase(reason: PressureSourceEraseLocalFailureReason): Nothing =
 	throw PressureSourceEraseLocalFailure(reason)
+
+data class PressureLegacySampleEraseWitness(
+	val identity: String,
+	val authorityChecksum: String,
+) {
+	init {
+		require(identity.startsWith("sha256:") && authorityChecksum.startsWith("sha256:"))
+	}
+
+	companion object {
+		fun create(row: PressureSample): PressureLegacySampleEraseWitness {
+			require(row.id > 0L && row.timeMs >= 0L && row.elapsedRealtimeNanos >= 0L)
+			require(row.pressureHpa.isFinite() && row.pressureHpa > 0f)
+			require(row.createdAt >= 0L)
+			val values = listOf(
+				row.id.toString(),
+				row.sourceSignalId ?: "NONE",
+				row.timeMs.toString(),
+				row.elapsedRealtimeNanos.toString(),
+				row.pressureHpa.toRawBits().toString(),
+				row.altitudeM.toRawBits().toString(),
+				row.bucketId?.toString() ?: "NONE",
+				row.createdAt.toString(),
+				row.sampleCount.toString(),
+				row.minPressureHpa?.toRawBits()?.toString() ?: "NONE",
+				row.maxPressureHpa?.toRawBits()?.toString() ?: "NONE",
+				row.standardDeviationHpa?.toRawBits()?.toString() ?: "NONE",
+				row.windowStartElapsedRealtimeNanos?.toString() ?: "NONE",
+				row.windowEndElapsedRealtimeNanos?.toString() ?: "NONE",
+				row.observationStamp.sourceTimeMs?.toString() ?: "NONE",
+				row.observationStamp.sourceElapsedRealtimeNanos?.toString() ?: "NONE",
+				row.observationStamp.sourceFirstElapsedRealtimeNanos?.toString() ?: "NONE",
+				row.observationStamp.receivedTimeMs?.toString() ?: "NONE",
+				row.observationStamp.receivedElapsedRealtimeNanos?.toString() ?: "NONE",
+				row.observationStamp.sourceSequence?.toString() ?: "NONE",
+				row.observationStamp.sourceFirstSequence?.toString() ?: "NONE",
+				row.observationStamp.clockDomainId ?: "NONE",
+				row.observationStamp.bootClockDomainId ?: "NONE",
+				row.observationStamp.sourceAgeMs?.toString() ?: "NONE",
+				row.observationStamp.timeUncertaintyMs?.toString() ?: "NONE",
+				row.observationStamp.capabilityFlags ?: "NONE",
+				row.observationStamp.permissionPrecision ?: "NONE",
+			)
+			return PressureLegacySampleEraseWitness(
+				identity = ImportedPressureIdentity.digest(
+					"tracker-pressure-legacy-sample-erase-identity-v1",
+					values.take(2),
+				),
+				authorityChecksum = ImportedPressureIdentity.digest(
+					"tracker-pressure-legacy-sample-erase-authority-v1",
+					values,
+				),
+			)
+		}
+	}
+}
 
 private data class PressureRetentionManifestKey(
 	val logicalTrackingId: String,
@@ -973,6 +1132,7 @@ private const val RETENTION_RUN_PAGE_SIZE = 8
 private const val RETENTION_FACT_PAGE_SIZE = 256
 private const val RETENTION_FACT_DELETE_BATCH_SIZE = 128
 private const val PRESSURE_ERASE_WAL_PAGE_SIZE = 256
+private const val PRESSURE_ERASE_LEGACY_PAGE_SIZE = 256
 private const val MAX_PRESSURE_ERASE_WAL_PAYLOAD_BYTES = 64 * 1_024
 private const val MAX_MANIFESTS_PER_RUN = 256
 private const val MAX_SOURCES_PER_MANIFEST = 12
