@@ -65,16 +65,27 @@ fun preserveImportedPressureFullClearAuthority(
 	var retainedCount = 0
 	var deletedCount = 0
 	var totalTextBytes = 0L
-	var cursorIdentity: String? = null
+	var ownerRowId = 0L
 	while (true) {
+		val nextOwnerRowId = sqlite.query(
+			"SELECT MIN(rowid) FROM imported_pressure_entry_revision GROUP BY identity " +
+				"HAVING MIN(rowid) > ? ORDER BY MIN(rowid) LIMIT 1",
+			arrayOf(ownerRowId),
+		).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else null } ?: break
+		check(nextOwnerRowId > ownerRowId)
+		val footprint = readLineageFootprint(sqlite, nextOwnerRowId)
+		footprint.requireWithinBounds()
 		val identity = sqlite.query(
-			"SELECT identity FROM imported_pressure_entry_revision " +
-				"WHERE (? IS NULL OR identity > ?) GROUP BY identity ORDER BY identity LIMIT 1",
-			arrayOf(cursorIdentity, cursorIdentity),
-		).use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null } ?: break
-		check(cursorIdentity == null || identity > requireNotNull(cursorIdentity))
-		cursorIdentity = identity
-		val lineage = loadAndAuthenticateLiveLineage(sqlite, identity, expectedCollectedDataEpoch)
+			"SELECT identity FROM imported_pressure_entry_revision WHERE rowid = ?",
+			arrayOf(nextOwnerRowId),
+		).use { cursor -> check(cursor.moveToFirst()); cursor.getString(0) }
+		ownerRowId = nextOwnerRowId
+		val lineage = loadAndAuthenticateLiveLineage(
+			sqlite,
+			identity,
+			expectedCollectedDataEpoch,
+			footprint,
+		)
 		totalTextBytes = checkedMaintenanceBytes(totalTextBytes, lineage.textBytes)
 		insertOrAuthenticateIdentityFences(
 			sqlite,
@@ -88,22 +99,33 @@ fun preserveImportedPressureFullClearAuthority(
 		check(liveCount <= MAX_SOURCE_ENTRIES)
 	}
 
-	cursorIdentity = null
+	ownerRowId = 0L
 	while (true) {
+		val nextOwnerRowId = sqlite.query(
+			"SELECT rowid FROM imported_pressure_retention_receipt WHERE rowid > ? " +
+				"ORDER BY rowid LIMIT 1",
+			arrayOf(ownerRowId),
+		).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else null } ?: break
+		check(nextOwnerRowId > ownerRowId)
+		val footprint = readRetainedFootprint(sqlite, nextOwnerRowId)
+		footprint.requireWithinBounds()
 		val identity = sqlite.query(
-			"SELECT entry_identity FROM imported_pressure_retention_receipt " +
-				"WHERE (? IS NULL OR entry_identity > ?) ORDER BY entry_identity LIMIT 1",
-			arrayOf(cursorIdentity, cursorIdentity),
-		).use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null } ?: break
-		check(cursorIdentity == null || identity > requireNotNull(cursorIdentity))
-		cursorIdentity = identity
-		val retained = loadAndAuthenticateRetainedLineage(sqlite, identity, expectedCollectedDataEpoch)
+			"SELECT entry_identity FROM imported_pressure_retention_receipt WHERE rowid = ?",
+			arrayOf(nextOwnerRowId),
+		).use { cursor -> check(cursor.moveToFirst()); cursor.getString(0) }
+		ownerRowId = nextOwnerRowId
+		val retained = loadAndAuthenticateRetainedLineage(
+			sqlite,
+			identity,
+			expectedCollectedDataEpoch,
+			footprint,
+		)
 		totalTextBytes = checkedMaintenanceBytes(totalTextBytes, retained.textBytes)
 		retainedCount = Math.addExact(retainedCount, 1)
 		check(retainedCount <= MAX_SOURCE_ENTRIES)
 	}
 
-	cursorIdentity = null
+	var cursorIdentity: String? = null
 	while (true) {
 		val identity = sqlite.query(
 			"SELECT entry_identity FROM imported_pressure_entry_deletion " +
@@ -158,9 +180,8 @@ private fun loadAndAuthenticateLiveLineage(
 	sqlite: SupportSQLiteDatabase,
 	identity: String,
 	expectedEpoch: Long,
+	footprint: FullClearLineageFootprint,
 ): FullClearLineage {
-	val footprint = readLineageFootprint(sqlite, identity)
-	footprint.requireWithinBounds()
 	val headers = sqlite.query(
 		"SELECT identity, import_revision, supersedes_import_revision, content_checksum, " +
 			"source_format, source_schema_version, start_time_ms, end_time_ms, " +
@@ -368,34 +389,8 @@ private fun loadAndAuthenticateRetainedLineage(
 	sqlite: SupportSQLiteDatabase,
 	identity: String,
 	expectedEpoch: Long,
+	footprint: FullClearRetainedFootprint,
 ): FullClearRetainedLineage {
-	val footprint = sqlite.query(
-		"SELECT " +
-			"(SELECT COUNT(*) FROM imported_pressure_retention_receipt WHERE entry_identity = ?), " +
-			"(SELECT COALESCE(SUM(LENGTH(CAST(entry_identity AS BLOB)) + " +
-			"LENGTH(CAST(latest_content_checksum AS BLOB)) + " +
-			"LENGTH(CAST(run_deletion_set_checksum AS BLOB)) + " +
-			"LENGTH(CAST(protected_identity_set_checksum AS BLOB)) + " +
-			"LENGTH(CAST(identity_fence_set_checksum AS BLOB)) + " +
-			"LENGTH(CAST(lineage_authority_checksum AS BLOB)) + " +
-			"LENGTH(CAST(effect_checksum AS BLOB))), 0) " +
-			"FROM imported_pressure_retention_receipt WHERE entry_identity = ?), " +
-			"(SELECT COUNT(*) FROM imported_pressure_retained_identity WHERE entry_identity = ?), " +
-			"(SELECT COALESCE(SUM(LENGTH(CAST(protected_identity AS BLOB)) + " +
-			"LENGTH(CAST(entry_identity AS BLOB)) + LENGTH(CAST(identity_kind AS BLOB))), 0) " +
-			"FROM imported_pressure_retained_identity WHERE entry_identity = ?)",
-		arrayOf(identity, identity, identity, identity),
-	).use { cursor ->
-		check(cursor.moveToFirst())
-		FullClearRetainedFootprint(
-			cursor.getLong(0),
-			cursor.getLong(1),
-			cursor.getLong(2),
-			cursor.getLong(3),
-		)
-	}
-	check(footprint.receiptCount == 1L)
-	check(footprint.totalTextBytes <= MAX_LINEAGE_TEXT_BYTES)
 	val receipt = sqlite.query(
 		"SELECT entry_identity, collected_data_epoch, source_evidence_revision, retained_from_ms, " +
 			"retained_at_ms, latest_import_revision, latest_content_checksum, start_time_ms, " +
@@ -756,32 +751,63 @@ private fun loadRunDeletion(
 
 private fun readLineageFootprint(
 	sqlite: SupportSQLiteDatabase,
-	identity: String,
+	ownerRowId: Long,
 ): FullClearLineageFootprint = sqlite.query(
-	"SELECT " +
-		"(SELECT COUNT(*) FROM imported_pressure_entry_revision WHERE identity = ?), " +
+	"WITH owner(identity) AS (" +
+		"SELECT identity FROM imported_pressure_entry_revision WHERE rowid = ?" +
+		") SELECT " +
+		"(SELECT COUNT(*) FROM imported_pressure_entry_revision " +
+		"WHERE identity = (SELECT identity FROM owner)), " +
 		"(SELECT COALESCE(SUM(LENGTH(CAST(identity AS BLOB)) + " +
 		"LENGTH(CAST(content_checksum AS BLOB)) + LENGTH(CAST(source_format AS BLOB)) + " +
 		"LENGTH(CAST(import_job_id AS BLOB)) + LENGTH(CAST(import_entry_key AS BLOB)) + " +
 		"LENGTH(CAST(import_source_name AS BLOB))), 0) " +
-		"FROM imported_pressure_entry_revision WHERE identity = ?), " +
-		"(SELECT COUNT(*) FROM imported_pressure_receipt WHERE entry_identity = ?), " +
+		"FROM imported_pressure_entry_revision WHERE identity = (SELECT identity FROM owner)), " +
+		"(SELECT COUNT(*) FROM imported_pressure_receipt " +
+		"WHERE entry_identity = (SELECT identity FROM owner)), " +
 		"(SELECT COALESCE(SUM(LENGTH(CAST(import_job_id AS BLOB)) + " +
 		"LENGTH(CAST(import_entry_key AS BLOB)) + LENGTH(CAST(import_source_name AS BLOB)) + " +
 		"LENGTH(CAST(entry_identity AS BLOB)) + LENGTH(CAST(entry_content_checksum AS BLOB))), 0) " +
-		"FROM imported_pressure_receipt WHERE entry_identity = ?), " +
-		"(SELECT COUNT(*) FROM imported_pressure_run WHERE entry_identity = ?), " +
+		"FROM imported_pressure_receipt WHERE entry_identity = (SELECT identity FROM owner)), " +
+		"(SELECT COUNT(*) FROM imported_pressure_run " +
+		"WHERE entry_identity = (SELECT identity FROM owner)), " +
 		"(SELECT COALESCE(SUM(LENGTH(CAST(entry_identity AS BLOB)) + " +
 		"LENGTH(CAST(identity AS BLOB)) + LENGTH(CAST(availability AS BLOB)) + " +
-		"LENGTH(CAST(coverage AS BLOB))), 0) FROM imported_pressure_run WHERE entry_identity = ?), " +
-		"(SELECT COUNT(*) FROM imported_pressure_window WHERE entry_identity = ?), " +
+		"LENGTH(CAST(coverage AS BLOB))), 0) FROM imported_pressure_run " +
+		"WHERE entry_identity = (SELECT identity FROM owner)), " +
+		"(SELECT COUNT(*) FROM imported_pressure_window " +
+		"WHERE entry_identity = (SELECT identity FROM owner)), " +
 		"(SELECT COALESCE(SUM(LENGTH(CAST(entry_identity AS BLOB)) + " +
 		"LENGTH(CAST(run_identity AS BLOB)) + LENGTH(CAST(identity AS BLOB)) + " +
 		"LENGTH(CAST(content_checksum AS BLOB)) + LENGTH(CAST(sensor_accuracy AS BLOB)) + " +
 		"LENGTH(CAST(closure_kind AS BLOB)) + LENGTH(CAST(qualification AS BLOB)) + " +
 		"LENGTH(CAST(stored_zone_id AS BLOB))), 0) " +
-		"FROM imported_pressure_window WHERE entry_identity = ?)",
-	arrayOf(identity, identity, identity, identity, identity, identity, identity, identity),
+		"FROM imported_pressure_window WHERE entry_identity = (SELECT identity FROM owner)), " +
+		"(SELECT COUNT(*) FROM imported_pressure_identity_fence " +
+		"WHERE entry_identity = (SELECT identity FROM owner)), " +
+		"(SELECT COALESCE(SUM(LENGTH(CAST(protected_identity AS BLOB)) + " +
+		"LENGTH(CAST(identity_kind AS BLOB)) + LENGTH(CAST(entry_identity AS BLOB)) + " +
+		"COALESCE(LENGTH(CAST(run_identity AS BLOB)), 0) + " +
+		"LENGTH(CAST(fence_reason AS BLOB)) + LENGTH(CAST(effect_checksum AS BLOB))), 0) " +
+		"FROM imported_pressure_identity_fence " +
+		"WHERE entry_identity = (SELECT identity FROM owner)), " +
+		"(SELECT COUNT(*) FROM imported_pressure_entry_deletion " +
+		"WHERE entry_identity = (SELECT identity FROM owner)), " +
+		"(SELECT COALESCE(SUM(LENGTH(CAST(entry_identity AS BLOB)) + " +
+		"LENGTH(CAST(run_deletion_set_checksum AS BLOB)) + " +
+		"LENGTH(CAST(identity_fence_set_checksum AS BLOB)) + " +
+		"LENGTH(CAST(effect_checksum AS BLOB))), 0) " +
+		"FROM imported_pressure_entry_deletion " +
+		"WHERE entry_identity = (SELECT identity FROM owner)), " +
+		"(SELECT COUNT(*) FROM imported_pressure_deletion_generation " +
+		"WHERE run_identity IN (SELECT identity FROM imported_pressure_run " +
+		"WHERE entry_identity = (SELECT identity FROM owner))), " +
+		"(SELECT COALESCE(SUM(LENGTH(CAST(run_identity AS BLOB)) + " +
+		"LENGTH(CAST(effect_checksum AS BLOB))), 0) " +
+		"FROM imported_pressure_deletion_generation " +
+		"WHERE run_identity IN (SELECT identity FROM imported_pressure_run " +
+		"WHERE entry_identity = (SELECT identity FROM owner)))",
+	arrayOf(ownerRowId),
 ).use { cursor ->
 	check(cursor.moveToFirst())
 	FullClearLineageFootprint(
@@ -793,6 +819,77 @@ private fun readLineageFootprint(
 		runTextBytes = cursor.getLong(5),
 		windowCount = cursor.getLong(6),
 		windowTextBytes = cursor.getLong(7),
+		identityFenceCount = cursor.getLong(8),
+		identityFenceTextBytes = cursor.getLong(9),
+		entryDeletionCount = cursor.getLong(10),
+		entryDeletionTextBytes = cursor.getLong(11),
+		runDeletionCount = cursor.getLong(12),
+		runDeletionTextBytes = cursor.getLong(13),
+	)
+}
+
+private fun readRetainedFootprint(
+	sqlite: SupportSQLiteDatabase,
+	ownerRowId: Long,
+): FullClearRetainedFootprint = sqlite.query(
+	"WITH owner(entry_identity) AS (" +
+		"SELECT entry_identity FROM imported_pressure_retention_receipt WHERE rowid = ?" +
+		") SELECT " +
+		"(SELECT COUNT(*) FROM imported_pressure_retention_receipt " +
+		"WHERE entry_identity = (SELECT entry_identity FROM owner)), " +
+		"(SELECT COALESCE(SUM(LENGTH(CAST(entry_identity AS BLOB)) + " +
+		"LENGTH(CAST(latest_content_checksum AS BLOB)) + " +
+		"LENGTH(CAST(run_deletion_set_checksum AS BLOB)) + " +
+		"LENGTH(CAST(protected_identity_set_checksum AS BLOB)) + " +
+		"LENGTH(CAST(identity_fence_set_checksum AS BLOB)) + " +
+		"LENGTH(CAST(lineage_authority_checksum AS BLOB)) + " +
+		"LENGTH(CAST(effect_checksum AS BLOB))), 0) " +
+		"FROM imported_pressure_retention_receipt " +
+		"WHERE entry_identity = (SELECT entry_identity FROM owner)), " +
+		"(SELECT COUNT(*) FROM imported_pressure_retained_identity " +
+		"WHERE entry_identity = (SELECT entry_identity FROM owner)), " +
+		"(SELECT COALESCE(SUM(LENGTH(CAST(protected_identity AS BLOB)) + " +
+		"LENGTH(CAST(entry_identity AS BLOB)) + LENGTH(CAST(identity_kind AS BLOB))), 0) " +
+		"FROM imported_pressure_retained_identity " +
+		"WHERE entry_identity = (SELECT entry_identity FROM owner)), " +
+		"(SELECT COUNT(*) FROM imported_pressure_identity_fence " +
+		"WHERE entry_identity = (SELECT entry_identity FROM owner)), " +
+		"(SELECT COALESCE(SUM(LENGTH(CAST(protected_identity AS BLOB)) + " +
+		"LENGTH(CAST(identity_kind AS BLOB)) + LENGTH(CAST(entry_identity AS BLOB)) + " +
+		"COALESCE(LENGTH(CAST(run_identity AS BLOB)), 0) + " +
+		"LENGTH(CAST(fence_reason AS BLOB)) + LENGTH(CAST(effect_checksum AS BLOB))), 0) " +
+		"FROM imported_pressure_identity_fence " +
+		"WHERE entry_identity = (SELECT entry_identity FROM owner)), " +
+		"(SELECT COUNT(*) FROM imported_pressure_entry_deletion " +
+		"WHERE entry_identity = (SELECT entry_identity FROM owner)), " +
+		"(SELECT COALESCE(SUM(LENGTH(CAST(entry_identity AS BLOB)) + " +
+		"LENGTH(CAST(run_deletion_set_checksum AS BLOB)) + " +
+		"LENGTH(CAST(identity_fence_set_checksum AS BLOB)) + " +
+		"LENGTH(CAST(effect_checksum AS BLOB))), 0) " +
+		"FROM imported_pressure_entry_deletion " +
+		"WHERE entry_identity = (SELECT entry_identity FROM owner)), " +
+		"(SELECT COUNT(*) FROM imported_pressure_deletion_generation " +
+		"WHERE run_identity IN (SELECT protected_identity FROM imported_pressure_identity_fence " +
+		"WHERE entry_identity = (SELECT entry_identity FROM owner) AND identity_kind = 'RUN')), " +
+		"(SELECT COALESCE(SUM(LENGTH(CAST(run_identity AS BLOB)) + " +
+		"LENGTH(CAST(effect_checksum AS BLOB))), 0) " +
+		"FROM imported_pressure_deletion_generation " +
+		"WHERE run_identity IN (SELECT protected_identity FROM imported_pressure_identity_fence " +
+		"WHERE entry_identity = (SELECT entry_identity FROM owner) AND identity_kind = 'RUN'))",
+	arrayOf(ownerRowId),
+).use { cursor ->
+	check(cursor.moveToFirst())
+	FullClearRetainedFootprint(
+		receiptCount = cursor.getLong(0),
+		receiptTextBytes = cursor.getLong(1),
+		markerCount = cursor.getLong(2),
+		markerTextBytes = cursor.getLong(3),
+		identityFenceCount = cursor.getLong(4),
+		identityFenceTextBytes = cursor.getLong(5),
+		entryDeletionCount = cursor.getLong(6),
+		entryDeletionTextBytes = cursor.getLong(7),
+		runDeletionCount = cursor.getLong(8),
+		runDeletionTextBytes = cursor.getLong(9),
 	)
 }
 
@@ -950,9 +1047,37 @@ private data class FullClearRetainedFootprint(
 	val receiptTextBytes: Long,
 	val markerCount: Long,
 	val markerTextBytes: Long,
+	val identityFenceCount: Long = 0L,
+	val identityFenceTextBytes: Long = 0L,
+	val entryDeletionCount: Long = 0L,
+	val entryDeletionTextBytes: Long = 0L,
+	val runDeletionCount: Long = 0L,
+	val runDeletionTextBytes: Long = 0L,
 ) {
 	val totalTextBytes: Long
-		get() = Math.addExact(receiptTextBytes, markerTextBytes)
+		get() = Math.addExact(
+			Math.addExact(receiptTextBytes, markerTextBytes),
+			Math.addExact(
+				Math.addExact(identityFenceTextBytes, entryDeletionTextBytes),
+				runDeletionTextBytes,
+			),
+		)
+
+	fun requireWithinBounds() {
+		check(receiptCount == 1L)
+		check(markerCount in 2L..MAX_IDENTITY_FENCES.toLong())
+		check(identityFenceCount == markerCount)
+		check(entryDeletionCount in 0L..1L)
+		check(runDeletionCount <= identityFenceCount)
+		check(listOf(
+			receiptTextBytes,
+			markerTextBytes,
+			identityFenceTextBytes,
+			entryDeletionTextBytes,
+			runDeletionTextBytes,
+		).all { it >= 0L })
+		check(totalTextBytes <= MAX_LINEAGE_TEXT_BYTES)
+	}
 
 	fun requireGlobalWithinBounds() {
 		check(receiptCount != 0L || markerCount == 0L)
@@ -972,11 +1097,23 @@ private data class FullClearLineageFootprint(
 	val runTextBytes: Long,
 	val windowCount: Long,
 	val windowTextBytes: Long,
+	val identityFenceCount: Long = 0L,
+	val identityFenceTextBytes: Long = 0L,
+	val entryDeletionCount: Long = 0L,
+	val entryDeletionTextBytes: Long = 0L,
+	val runDeletionCount: Long = 0L,
+	val runDeletionTextBytes: Long = 0L,
 ) {
 	val totalTextBytes: Long
 		get() = Math.addExact(
-			Math.addExact(headerTextBytes, receiptTextBytes),
-			Math.addExact(runTextBytes, windowTextBytes),
+			Math.addExact(
+				Math.addExact(headerTextBytes, receiptTextBytes),
+				Math.addExact(runTextBytes, windowTextBytes),
+			),
+			Math.addExact(
+				Math.addExact(identityFenceTextBytes, entryDeletionTextBytes),
+				runDeletionTextBytes,
+			),
 		)
 
 	fun requireWithinBounds() {
@@ -984,11 +1121,17 @@ private data class FullClearLineageFootprint(
 		check(receiptCount in headerCount..MAX_RECEIPTS.toLong())
 		check(runCount in headerCount..MAX_RUN_ROWS.toLong())
 		check(windowCount in 0L..MAX_WINDOW_ROWS.toLong())
+		check(identityFenceCount in 0L..MAX_IDENTITY_FENCES.toLong())
+		check(entryDeletionCount in 0L..1L)
+		check(runDeletionCount in 0L..MAX_RUN_ROWS.toLong())
 		check(listOf(
 			headerTextBytes,
 			receiptTextBytes,
 			runTextBytes,
 			windowTextBytes,
+			identityFenceTextBytes,
+			entryDeletionTextBytes,
+			runDeletionTextBytes,
 		).all { it >= 0L })
 		check(totalTextBytes <= MAX_LINEAGE_TEXT_BYTES)
 	}

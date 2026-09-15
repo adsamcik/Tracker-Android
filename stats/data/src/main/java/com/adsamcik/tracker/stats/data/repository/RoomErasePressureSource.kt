@@ -363,8 +363,8 @@ internal class RoomErasePressureSource internal constructor(
 		deleteLiveImportedPayload(state)
 		deleteRetainedImportedPayload(state)
 		checkpoint(PressureSourceEraseCheckpoint.IMPORTED_PAYLOAD_REMOVED)
-		if (dao.retentionCandidatePage(null, 1).isNotEmpty() ||
-			dao.retentionReceiptPage(null, 1).isNotEmpty()
+		if (dao.liveOwnerRowIdPage(0L, 1).isNotEmpty() ||
+			dao.retainedOwnerRowIdPage(0L, 1).isNotEmpty()
 		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
 		val remainingLive = dao.liveMaintenanceFootprint()
 		val remainingRetained = dao.retainedMaintenanceFootprint()
@@ -400,19 +400,23 @@ internal class RoomErasePressureSource internal constructor(
 		byteBudget: ImportedPressureMaintenanceByteBudget,
 	): PressureImportedEraseTotals {
 		val dao = database.importedPressureDao()
-		var cursor: String? = null
+		var ownerRowId = 0L
 		var totals = PressureImportedEraseTotals()
 		while (true) {
 			currentCoroutineContext().ensureActive()
-			val candidate = dao.retentionCandidatePage(cursor, 1).singleOrNull() ?: break
-			if (cursor?.let { candidate.identity <= it } == true) {
+			val nextOwnerRowId = dao.liveOwnerRowIdPage(ownerRowId, 1).singleOrNull() ?: break
+			if (nextOwnerRowId <= ownerRowId) {
 				unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 			}
-			cursor = candidate.identity
+			consumeFootprint(byteBudget, dao.liveOwnerFootprint(nextOwnerRowId))
+			val candidate = dao.liveCandidateByOwnerRowId(nextOwnerRowId)
+				?: unverifiable(
+					ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+			ownerRowId = nextOwnerRowId
 			val lineage = authenticateLineage(
 				candidate.identity,
 				state.collectedDataEpoch,
-				byteBudget,
 			)
 			if (dao.retentionReceipt(candidate.identity) != null ||
 				dao.entryDeletion(candidate.identity) != null
@@ -505,24 +509,27 @@ internal class RoomErasePressureSource internal constructor(
 		byteBudget: ImportedPressureMaintenanceByteBudget,
 	): PressureImportedEraseTotals {
 		val dao = database.importedPressureDao()
-		var cursor: String? = null
+		var ownerRowId = 0L
 		var totals = PressureImportedEraseTotals()
 		while (true) {
-			val receipt = dao.retentionReceiptPage(cursor, 1).singleOrNull() ?: break
-			if (cursor?.let { receipt.entryIdentity <= it } == true) {
+			val nextOwnerRowId = dao.retainedOwnerRowIdPage(ownerRowId, 1).singleOrNull() ?: break
+			if (nextOwnerRowId <= ownerRowId) {
 				unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 			}
-			cursor = receipt.entryIdentity
-			try {
-				byteBudget.consume(
-					dao.retainedFootprint(receipt.entryIdentity),
-					receipt.protectedIdentityCount,
-				)
-			} catch (_: ImportedPressureMaintenanceFootprintFailure.DependencyOverflow) {
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
-			} catch (_: ImportedPressureMaintenanceFootprintFailure.ValueOverflow) {
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
+			val footprint = dao.retainedOwnerFootprint(nextOwnerRowId)
+			if (footprint.receiptCount != 1L) {
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 			}
+			val markerCount = Math.toIntExact(footprint.markerCount)
+			consumeFootprint(byteBudget, footprint, markerCount)
+			val receipt = dao.retentionReceiptByOwnerRowId(nextOwnerRowId)
+				?: unverifiable(
+					ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+			if (receipt.protectedIdentityCount != markerCount) {
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+			}
+			ownerRowId = nextOwnerRowId
 			when (database.authenticateImportedPressureRetention(state, receipt)) {
 				ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
 					unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
@@ -582,17 +589,19 @@ internal class RoomErasePressureSource internal constructor(
 		state: SourceEvidenceState,
 	) {
 		val dao = database.importedPressureDao()
-		var cursor: String? = null
 		while (true) {
-			val candidate = dao.retentionCandidatePage(cursor, 1).singleOrNull() ?: break
-			cursor = candidate.identity
+			val ownerRowId = dao.liveOwnerRowIdPage(0L, 1).singleOrNull() ?: break
+			val candidate = dao.liveCandidateByOwnerRowId(ownerRowId)
+				?: unverifiable(
+					ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE,
+				)
 			val deletion = dao.entryDeletion(candidate.identity)
 				?: unverifiable(
 					ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE,
 				)
 			if (deletion.collectedDataEpoch != state.collectedDataEpoch ||
-				dao.deleteEntryRevisionLineage(candidate.identity) !=
-				deletion.deletedImportRevision.toInt()
+				dao.liveOwnerHeaderCount(ownerRowId) != deletion.deletedImportRevision ||
+				dao.deleteLiveOwnerByRowId(ownerRowId) != deletion.deletedImportRevision.toInt()
 			) {
 				unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
 			}
@@ -603,10 +612,16 @@ internal class RoomErasePressureSource internal constructor(
 		state: SourceEvidenceState,
 	) {
 		val dao = database.importedPressureDao()
-		var cursor: String? = null
 		while (true) {
-			val receipt = dao.retentionReceiptPage(cursor, 1).singleOrNull() ?: break
-			cursor = receipt.entryIdentity
+			val ownerRowId = dao.retainedOwnerRowIdPage(0L, 1).singleOrNull() ?: break
+			val footprint = dao.retainedOwnerFootprint(ownerRowId)
+			if (footprint.receiptCount != 1L) {
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
+			}
+			val receipt = dao.retentionReceiptByOwnerRowId(ownerRowId)
+				?: unverifiable(
+					ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE,
+				)
 			val markers = dao.retainedIdentitiesForEntries(
 				listOf(receipt.entryIdentity),
 				receipt.protectedIdentityCount + 1,
@@ -621,8 +636,9 @@ internal class RoomErasePressureSource internal constructor(
 			if (deletion.collectedDataEpoch != state.collectedDataEpoch ||
 				deletion.deletedImportRevision != receipt.latestImportRevision
 			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
-			if (dao.deleteRetainedIdentities(receipt.entryIdentity) != receipt.protectedIdentityCount ||
-				dao.deleteRetentionReceipt(receipt.entryIdentity) != 1
+			if (dao.deleteRetainedOwnerMarkersByRowId(ownerRowId) !=
+				receipt.protectedIdentityCount ||
+				dao.deleteRetentionReceiptByOwnerRowId(ownerRowId) != 1
 			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
 		}
 	}
@@ -871,6 +887,33 @@ internal class RoomErasePressureSource internal constructor(
 		}) unverifiable(ImportedPressureMaintenanceUnverifiableReason.PARTIAL_MAINTENANCE_STATE)
 	}
 
+	private fun consumeFootprint(
+		budget: ImportedPressureMaintenanceByteBudget,
+		footprint: com.adsamcik.tracker.shared.base.database.dao.ImportedPressureLineageFootprint,
+	) {
+		try {
+			budget.consume(footprint)
+		} catch (_: ImportedPressureMaintenanceFootprintFailure.DependencyOverflow) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+		} catch (_: ImportedPressureMaintenanceFootprintFailure.ValueOverflow) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
+		}
+	}
+
+	private fun consumeFootprint(
+		budget: ImportedPressureMaintenanceByteBudget,
+		footprint: com.adsamcik.tracker.shared.base.database.dao.ImportedPressureRetainedFootprint,
+		expectedMarkerCount: Int,
+	) {
+		try {
+			budget.consume(footprint, expectedMarkerCount)
+		} catch (_: ImportedPressureMaintenanceFootprintFailure.DependencyOverflow) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+		} catch (_: ImportedPressureMaintenanceFootprintFailure.ValueOverflow) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
+		}
+	}
+
 	private suspend fun authenticateEntryDeletionAuthority(
 		deletion: ImportedPressureEntryDeletionEntity,
 	) {
@@ -897,11 +940,9 @@ internal class RoomErasePressureSource internal constructor(
 	private suspend fun authenticateLineage(
 		identity: String,
 		expectedCollectedDataEpoch: Long,
-		byteBudget: ImportedPressureMaintenanceByteBudget,
 	): AuthenticatedImportedPressureLineage {
 		val dao = database.importedPressureDao()
 		return try {
-			byteBudget.consume(dao.lineageFootprint(identity))
 			ImportedPressureLineageAuthenticator.authenticate(
 				identity,
 				expectedCollectedDataEpoch,
@@ -910,10 +951,6 @@ internal class RoomErasePressureSource internal constructor(
 				dao.allRunsForAdmission(identity),
 				dao.allWindowsForAdmission(identity),
 			)
-		} catch (_: ImportedPressureMaintenanceFootprintFailure.DependencyOverflow) {
-			unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
-		} catch (_: ImportedPressureMaintenanceFootprintFailure.ValueOverflow) {
-			unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
 		} catch (failure: ImportedPressureLineageFailure) {
 			when (failure.reason) {
 				ImportedPressureLineageFailureReason.DEPENDENCY_OVERFLOW,

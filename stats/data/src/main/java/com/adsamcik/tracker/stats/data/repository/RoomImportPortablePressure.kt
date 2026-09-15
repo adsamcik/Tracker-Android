@@ -90,6 +90,7 @@ internal class RoomImportPortablePressure internal constructor(
 		}
 
 		val entry = request.entry
+		preflightKnownIdentityAuthority(dao, listOf(entry.identity.value))
 		val retainedFootprint = storedValue { dao.retainedFootprint(entry.identity.value) }
 		if (retainedFootprint.receiptCount !in 0L..1L ||
 			retainedFootprint.receiptTextBytes < 0L || retainedFootprint.markerTextBytes < 0L ||
@@ -116,6 +117,14 @@ internal class RoomImportPortablePressure internal constructor(
 			blocked(PortablePressureImportBlockedReason.DELETED_ENTRY)
 		}
 		val runIdentities = entry.runs.map { it.identity.value }
+		val incomingIdentities = buildList {
+			add(entry.identity.value)
+			entry.runs.forEach { run ->
+				add(run.identity.value)
+				addAll(run.windows.map { it.identity.value })
+			}
+		}
+		preflightKnownIdentityAuthority(dao, incomingIdentities)
 		val incomingRunDeletions = storedValue { dao.deletionGenerations(runIdentities) }
 		if (incomingRunDeletions.any { it.generation != 1L }) {
 			unverifiable(PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
@@ -396,13 +405,31 @@ internal class RoomImportPortablePressure internal constructor(
 		} catch (failure: ImportedPressureLineageFailure) {
 			unverifiable(failure.reason.toImportReason())
 		}
+	}
 
-		private suspend fun authenticateRetainedOwner(
-			state: SourceEvidenceState,
-			entryIdentity: String,
+	private suspend fun authenticateRetainedOwner(
+		state: SourceEvidenceState,
+		entryIdentity: String,
+	) {
+		when (storedValue {
+			database.authenticateImportedPressureRetainedOwner(state, entryIdentity)
+		}) {
+			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
+				unverifiable(PortablePressureImportUnverifiableReason.DEPENDENCY_OVERFLOW)
+			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
+				unverifiable(PortablePressureImportUnverifiableReason.VALUE_OVERFLOW)
+			ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
+			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			-> unverifiable(PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+			null -> Unit
+		}
+
+		private suspend fun preflightKnownIdentityAuthority(
+			dao: ImportedPressureDao,
+			identities: List<String>,
 		) {
-			when (storedValue {
-				database.authenticateImportedPressureRetainedOwner(state, entryIdentity)
+			when (val failure = storedValue {
+				dao.identityAuthorityFootprint(identities).validate(identities.size)
 			}) {
 				ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
 					unverifiable(PortablePressureImportUnverifiableReason.DEPENDENCY_OVERFLOW)
@@ -414,18 +441,18 @@ internal class RoomImportPortablePressure internal constructor(
 				null -> Unit
 			}
 		}
+	}
 
-		private suspend fun authenticatePermanentFence(
-			dao: ImportedPressureDao,
-			identity: String,
-			kind: String,
-			entryIdentity: String,
-			runIdentity: String?,
-		) {
-			val fences = storedValue { dao.identityFences(listOf(identity), 2) }
-			if (fences.singleOrNull()?.hasSameOwner(kind, entryIdentity, runIdentity) != true) {
-				unverifiable(PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-			}
+	private suspend fun authenticatePermanentFence(
+		dao: ImportedPressureDao,
+		identity: String,
+		kind: String,
+		entryIdentity: String,
+		runIdentity: String?,
+	) {
+		val fences = storedValue { dao.identityFences(listOf(identity), 2) }
+		if (fences.singleOrNull()?.hasSameOwner(kind, entryIdentity, runIdentity) != true) {
+			unverifiable(PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 		}
 	}
 

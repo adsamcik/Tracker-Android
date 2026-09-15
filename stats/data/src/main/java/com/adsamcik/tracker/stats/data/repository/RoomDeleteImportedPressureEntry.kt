@@ -84,6 +84,17 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 		}
 
 		val identity = request.identity.value
+		when (dao.identityAuthorityFootprint(listOf(identity)).validate(1)) {
+			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW,
+			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW,
+			-> unverifiable(ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW)
+			ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
+			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			-> unverifiable(
+				ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+			null -> Unit
+		}
 		when (val footprintFailure = dao.lineageFootprint(identity).validate()) {
 			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
 				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW)

@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureLineageFootprint
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureRetainedFootprint
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressurePrivacyFootprint
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureIdentityAuthorityFootprint
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetainedIdentityEntity
@@ -161,19 +162,29 @@ internal suspend fun ImportedPressureDao.authenticateImportedPressureEntryDeleti
 	}
 }
 
-internal fun ImportedPressureLineageFootprint.validate():
-	ImportedPressureRetentionAuthorityFailure? = try {
+internal fun ImportedPressureLineageFootprint.validate(
+	maximumTextBytes: Long = ImportedPressureDao.MAX_LINEAGE_TEXT_BYTES,
+): ImportedPressureRetentionAuthorityFailure? = try {
 		if (headerCount !in 0L..ImportedPressureDao.MAX_REVISIONS_PER_ENTRY.toLong() ||
 			receiptCount !in 0L..ImportedPressureDao.MAX_RECEIPTS_PER_ENTRY.toLong() ||
 			runCount !in 0L..ImportedPressureDao.MAX_TOTAL_RUNS_PER_ENTRY_LINEAGE.toLong() ||
 			windowCount !in 0L..ImportedPressureDao.MAX_TOTAL_WINDOWS_PER_ENTRY_LINEAGE.toLong() ||
+			identityFenceCount !in 0L..(
+				ImportedPressureDao.MAX_TOTAL_WINDOWS_PER_ENTRY_LINEAGE.toLong() +
+					ImportedPressureDao.MAX_TOTAL_RUNS_PER_ENTRY_LINEAGE.toLong() + 1L
+				) ||
+			entryDeletionCount !in 0L..1L ||
+			runDeletionCount !in 0L..ImportedPressureDao.MAX_TOTAL_RUNS_PER_ENTRY_LINEAGE.toLong() ||
 			listOf(
 				headerTextBytes,
 				receiptTextBytes,
 				runTextBytes,
 				windowTextBytes,
+				identityFenceTextBytes,
+				entryDeletionTextBytes,
+				runDeletionTextBytes,
 			).any { it < 0L } ||
-			totalTextBytes > ImportedPressureDao.MAX_LINEAGE_TEXT_BYTES
+			totalTextBytes > maximumTextBytes
 		) {
 			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW
 		} else {
@@ -204,7 +215,10 @@ internal fun ImportedPressureLineageFootprint.validateGlobal(
 			runTextBytes,
 			windowTextBytes,
 		).any { it < 0L } ||
-		totalTextBytes > maximumTextBytes
+		Math.addExact(
+			Math.addExact(headerTextBytes, receiptTextBytes),
+			Math.addExact(runTextBytes, windowTextBytes),
+		) > maximumTextBytes
 	) ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW else null
 } catch (_: ArithmeticException) {
 	ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW
@@ -220,7 +234,7 @@ internal fun ImportedPressureRetainedFootprint.validateGlobal(
 	} else if (receiptCount !in 0L..maximumReceipts ||
 		markerCount !in 0L..maximumMarkers ||
 		receiptTextBytes < 0L || markerTextBytes < 0L ||
-		totalTextBytes > maximumTextBytes
+		Math.addExact(receiptTextBytes, markerTextBytes) > maximumTextBytes
 	) ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW else null
 } catch (_: ArithmeticException) {
 	ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW
@@ -251,14 +265,42 @@ internal fun ImportedPressurePrivacyFootprint.validateGlobal(
 	ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW
 }
 
+internal fun ImportedPressureIdentityAuthorityFootprint.validate(
+	maximumIdentities: Int,
+): ImportedPressureRetentionAuthorityFailure? = try {
+	if (retainedMarkerCount !in 0L..maximumIdentities.toLong() ||
+		identityFenceCount !in 0L..maximumIdentities.toLong() ||
+		entryDeletionCount !in 0L..maximumIdentities.toLong() ||
+		runDeletionCount !in 0L..maximumIdentities.toLong() ||
+		listOf(
+			retainedMarkerTextBytes,
+			identityFenceTextBytes,
+			entryDeletionTextBytes,
+			runDeletionTextBytes,
+		).any { it < 0L } ||
+		totalTextBytes > ImportedPressureDao.MAX_LINEAGE_TEXT_BYTES
+	) ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW else null
+} catch (_: ArithmeticException) {
+	ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW
+}
+
 private fun ImportedPressureRetainedFootprint.validate(
 	expectedMarkerCount: Int,
+	maximumTextBytes: Long = ImportedPressureDao.MAX_LINEAGE_TEXT_BYTES,
 ): ImportedPressureRetentionAuthorityFailure? = try {
 	when {
 		receiptCount != 1L || markerCount != expectedMarkerCount.toLong() ->
 			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
-		receiptTextBytes < 0L || markerTextBytes < 0L ||
-			totalTextBytes > ImportedPressureDao.MAX_LINEAGE_TEXT_BYTES ->
+		identityFenceCount != markerCount || entryDeletionCount !in 0L..1L ||
+			runDeletionCount > identityFenceCount ||
+			listOf(
+				receiptTextBytes,
+				markerTextBytes,
+				identityFenceTextBytes,
+				entryDeletionTextBytes,
+				runDeletionTextBytes,
+			).any { it < 0L } ||
+			totalTextBytes > maximumTextBytes ->
 			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW
 		else -> null
 	}
@@ -272,7 +314,14 @@ internal class ImportedPressureMaintenanceByteBudget(
 	private var consumed = 0L
 
 	fun consume(footprint: ImportedPressureLineageFootprint) {
-		when (footprint.validate()) {
+		val remaining = maximumTextBytes - consumed
+		if (remaining < 0L) {
+			throw ImportedPressureMaintenanceFootprintFailure.DependencyOverflow
+		}
+		when (footprint.validate(minOf(
+			ImportedPressureDao.MAX_LINEAGE_TEXT_BYTES,
+			remaining,
+		))) {
 			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
 				throw ImportedPressureMaintenanceFootprintFailure.DependencyOverflow
 			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
@@ -293,7 +342,14 @@ internal class ImportedPressureMaintenanceByteBudget(
 		footprint: ImportedPressureRetainedFootprint,
 		expectedMarkerCount: Int,
 	) {
-		when (footprint.validate(expectedMarkerCount)) {
+		val remaining = maximumTextBytes - consumed
+		if (remaining < 0L) {
+			throw ImportedPressureMaintenanceFootprintFailure.DependencyOverflow
+		}
+		when (footprint.validate(expectedMarkerCount, minOf(
+			ImportedPressureDao.MAX_LINEAGE_TEXT_BYTES,
+			remaining,
+		))) {
 			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
 				throw ImportedPressureMaintenanceFootprintFailure.DependencyOverflow
 			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
