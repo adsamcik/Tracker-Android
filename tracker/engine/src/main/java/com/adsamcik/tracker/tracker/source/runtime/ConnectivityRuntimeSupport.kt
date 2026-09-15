@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
 import androidx.core.content.ContextCompat
+import com.adsamcik.tracker.shared.base.extension.WifiScanPlatformRequirements
 import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.tracker.source.model.CellMode
 import com.adsamcik.tracker.tracker.source.model.CellPlan
@@ -25,6 +26,9 @@ internal data class WifiDeviceState(
 	val fineLocationPermission: Boolean,
 	val locationServicesEnabled: Boolean,
 	val deviceIdle: Boolean,
+	val apiLevel: Int = Build.VERSION_CODES.Q,
+	val coarseLocationPermission: Boolean = false,
+	val changeWifiStatePermission: Boolean = false,
 )
 
 internal data class WifiPlanApplication(
@@ -37,11 +41,7 @@ internal data class WifiPlanApplication(
 internal object WifiPrerequisiteEvaluator {
 	fun evaluate(plan: WifiPlan, state: WifiDeviceState): WifiPlanApplication {
 		if (!plan.enabled) return WifiPlanApplication(plan, SourceApplyStatus.APPLIED)
-		val blockers = buildSet {
-			if (!state.wifiFeatureAvailable) add(SourceDegradedReason.HARDWARE_UNAVAILABLE)
-			if (!state.fineLocationPermission) add(SourceDegradedReason.PERMISSION_MISSING)
-			if (!state.locationServicesEnabled) add(SourceDegradedReason.PROVIDER_UNAVAILABLE)
-		}
+		val blockers = wifiPrerequisiteBlockers(state)
 		if (blockers.isNotEmpty()) return WifiPlanApplication(plan, SourceApplyStatus.BLOCKED, blockers)
 		val deferred = plan.mode == WifiMode.ACTIVE_ATTEMPTS && state.deviceIdle
 		return WifiPlanApplication(
@@ -50,6 +50,22 @@ internal object WifiPrerequisiteEvaluator {
 			if (deferred) setOf(SourceDegradedReason.DOZE) else emptySet(),
 			activeAttemptsDeferred = deferred,
 		)
+	}
+}
+
+internal fun wifiPrerequisiteBlockers(state: WifiDeviceState): Set<SourceDegradedReason> {
+	val hasRequiredPermission = WifiScanPlatformRequirements.hasRequiredPermission(
+		state.apiLevel,
+		state.coarseLocationPermission,
+		state.fineLocationPermission,
+		state.changeWifiStatePermission,
+	)
+	return buildSet {
+		if (!state.wifiFeatureAvailable) add(SourceDegradedReason.HARDWARE_UNAVAILABLE)
+		if (!hasRequiredPermission) add(SourceDegradedReason.PERMISSION_MISSING)
+		if (WifiScanPlatformRequirements.requiresLocationServices(state.apiLevel) &&
+			!state.locationServicesEnabled
+		) add(SourceDegradedReason.PROVIDER_UNAVAILABLE)
 	}
 }
 
@@ -101,6 +117,9 @@ internal class AndroidConnectivityDeviceStateProvider @Inject constructor(
 			fineLocationPermission = capabilities.preciseLocationGranted,
 			locationServicesEnabled = capabilities.locationServicesEnabled,
 			deviceIdle = context.getSystemService(PowerManager::class.java)?.isDeviceIdleMode == true,
+			apiLevel = capabilities.apiLevel,
+			coarseLocationPermission = capabilities.coarseLocationGranted,
+			changeWifiStatePermission = capabilities.changeWifiStateGranted,
 		)
 	}
 

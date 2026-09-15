@@ -13,6 +13,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @RunWith(RobolectricTestRunner::class)
@@ -24,6 +25,15 @@ class ContextualPermissionRequestTest {
 
 	private val context: Application
 		get() = ApplicationProvider.getApplicationContext()
+
+	@Test
+	fun `multiple permission result requires fine when coarse companion is granted`() {
+		val fine = android.Manifest.permission.ACCESS_FINE_LOCATION
+		val coarse = android.Manifest.permission.ACCESS_COARSE_LOCATION
+
+		assertFalse(mapOf(fine to false, coarse to true).hasRequiredPermissionGrants(setOf(fine)))
+		assertTrue(mapOf(fine to true, coarse to true).hasRequiredPermissionGrants(setOf(fine)))
+	}
 
 	@Test
 	fun `shows location rationale dialog`() {

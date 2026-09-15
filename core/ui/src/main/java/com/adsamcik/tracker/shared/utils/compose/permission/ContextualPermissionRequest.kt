@@ -98,6 +98,52 @@ fun ContextualPermissionRequest(
 }
 
 /**
+ * Contextual request for platform permissions that Android requires to be requested together.
+ * [requiredPermissions] controls success; companion permissions may still be declined by Android.
+ */
+@Composable
+fun ContextualMultiplePermissionRequest(
+	permissionType: PermissionType,
+	permissions: List<String>,
+	requiredPermissions: Set<String>,
+	onPermissionResult: (granted: Boolean) -> Unit,
+	onDismiss: () -> Unit,
+	rationaleMessageOverride: Int? = null,
+) {
+	require(permissions.isNotEmpty())
+	require(requiredPermissions.isNotEmpty() && permissions.containsAll(requiredPermissions))
+	val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+		contract = androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions(),
+		onResult = { grants ->
+			onPermissionResult(grants.hasRequiredPermissionGrants(requiredPermissions))
+		},
+	)
+	var showRationale by remember(permissionType, permissions, requiredPermissions) {
+		mutableStateOf(true)
+	}
+
+	if (showRationale) {
+		PermissionRationaleDialog(
+			permissionType = permissionType,
+			rationaleMessageOverride = rationaleMessageOverride,
+			onAllow = {
+				showRationale = false
+				permissionLauncher.launch(permissions.toTypedArray())
+			},
+			onDeny = {
+				showRationale = false
+				onDismiss()
+				onPermissionResult(false)
+			},
+		)
+	}
+}
+
+internal fun Map<String, Boolean>.hasRequiredPermissionGrants(
+	requiredPermissions: Set<String>,
+): Boolean = requiredPermissions.isNotEmpty() && requiredPermissions.all { this[it] == true }
+
+/**
  * Rationale dialog shown before system permission prompt.
  */
 @Composable

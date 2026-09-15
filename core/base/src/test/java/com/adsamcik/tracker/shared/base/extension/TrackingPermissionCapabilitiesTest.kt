@@ -39,13 +39,39 @@ class TrackingPermissionCapabilitiesTest {
 	}
 
 	@Test
-	fun `API 33 scan capability requires both precise and nearby Wi-Fi grants`() {
-		capabilities(api = 33, fine = true, nearby = false).wifiScan shouldBe
-			WifiScanCapability.MISSING_NEARBY_WIFI
+	fun `API 33 scan-only capability does not require nearby Wi-Fi grant`() {
+		val preciseWithoutNearby = capabilities(api = 33, fine = true, nearby = false)
+
+		preciseWithoutNearby.wifiScan shouldBe WifiScanCapability.AVAILABLE
+		preciseWithoutNearby.hasWifiScanPermissions shouldBe true
 		capabilities(api = 33, fine = false, nearby = true).wifiScan shouldBe
-			WifiScanCapability.MISSING_PRECISE_LOCATION
+			WifiScanCapability.MISSING_REQUIRED_PERMISSION
 		capabilities(api = 33, fine = true, nearby = true).wifiScan shouldBe
 			WifiScanCapability.AVAILABLE
+	}
+
+	@Test
+	fun `scan-only permission and Location Services matrix matches Android 8 through 10`() {
+		capabilities(api = 26, services = false, coarse = true).wifiScan shouldBe
+			WifiScanCapability.AVAILABLE
+		capabilities(api = 27, services = false, changeWifiState = true).wifiScan shouldBe
+			WifiScanCapability.AVAILABLE
+		capabilities(api = 27, services = false).wifiScan shouldBe
+			WifiScanCapability.MISSING_REQUIRED_PERMISSION
+
+		capabilities(api = 28, services = true, coarse = true).wifiScan shouldBe
+			WifiScanCapability.AVAILABLE
+		capabilities(api = 28, services = false, coarse = true).wifiScan shouldBe
+			WifiScanCapability.UNAVAILABLE
+		capabilities(api = 28, services = true, changeWifiState = true).wifiScan shouldBe
+			WifiScanCapability.MISSING_REQUIRED_PERMISSION
+
+		capabilities(api = 29, services = true, coarse = true).wifiScan shouldBe
+			WifiScanCapability.MISSING_REQUIRED_PERMISSION
+		capabilities(api = 29, services = true, fine = true).wifiScan shouldBe
+			WifiScanCapability.AVAILABLE
+		capabilities(api = 29, services = false, fine = true).wifiScan shouldBe
+			WifiScanCapability.UNAVAILABLE
 	}
 
 	@Test
@@ -85,6 +111,7 @@ class TrackingPermissionCapabilitiesTest {
 		fine: Boolean = false,
 		background: Boolean = false,
 		nearby: Boolean = false,
+		changeWifiState: Boolean = false,
 		history: PermissionGrantHistory = PermissionGrantHistory(),
 	) = TrackingPermissionCapabilities.evaluate(
 		apiLevel = api,
@@ -95,6 +122,7 @@ class TrackingPermissionCapabilitiesTest {
 		preciseLocationGranted = fine,
 		backgroundLocationGranted = background,
 		nearbyWifiGranted = nearby,
+		changeWifiStateGranted = changeWifiState,
 		history = history,
 	)
 }

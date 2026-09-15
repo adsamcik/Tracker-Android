@@ -274,19 +274,7 @@ fun WhatToCollectStep(
                         rationaleTestTag = "setup_perm_wifi_rationale",
                         grantButtonTestTag = "setup_perm_wifi_grant",
                         onGrant = {
-                            val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                arrayOf(
-                                    Manifest.permission.ACCESS_FINE_LOCATION,
-                                    Manifest.permission.ACCESS_COARSE_LOCATION,
-                                    Manifest.permission.NEARBY_WIFI_DEVICES,
-                                )
-                            } else {
-                                arrayOf(
-                                    Manifest.permission.ACCESS_FINE_LOCATION,
-                                    Manifest.permission.ACCESS_COARSE_LOCATION,
-                                )
-                            }
-                            wifiLauncher.launch(permissions)
+                            wifiLauncher.launch(wifiScanPermissions())
                         },
                     )
                 } else {
@@ -353,6 +341,12 @@ fun WhatToCollectStep(
         }
     }
 }
+
+/** Exact runtime permissions used by Tracker's scan-only Wi-Fi collection path. */
+internal fun wifiScanPermissions(): Array<String> = arrayOf(
+    Manifest.permission.ACCESS_FINE_LOCATION,
+    Manifest.permission.ACCESS_COARSE_LOCATION,
+)
 
 // region Private composables
 

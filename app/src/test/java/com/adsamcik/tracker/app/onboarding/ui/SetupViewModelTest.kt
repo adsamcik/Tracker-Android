@@ -52,7 +52,6 @@ private fun locationResults(
 private fun wifiResults(granted: Boolean = false): Map<String, Boolean> = mapOf(
 	Manifest.permission.ACCESS_FINE_LOCATION to granted,
 	Manifest.permission.ACCESS_COARSE_LOCATION to granted,
-	Manifest.permission.NEARBY_WIFI_DEVICES to granted,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -491,6 +490,28 @@ class SetupViewModelTest {
             vm.onWifiPermissionResult(wifiResults(granted = true))
             vm.state.value.wifiPermissionGranted shouldBe true
         }
+
+		@Test
+		fun `API 33 precise location grants scan-only Wi-Fi when nearby devices is denied`() {
+			currentCapabilities = TrackingPermissionCapabilities.evaluate(
+				apiLevel = 34,
+				locationFeatureAvailable = true,
+				wifiFeatureAvailable = true,
+				locationServicesEnabled = true,
+				coarseLocationGranted = false,
+				preciseLocationGranted = false,
+				backgroundLocationGranted = false,
+				nearbyWifiGranted = false,
+			)
+			val vm = createViewModel()
+			vm.setWifiEnabled(true)
+
+			vm.onWifiPermissionResult(wifiResults(granted = true))
+
+			vm.state.value.wifiEnabled shouldBe true
+			vm.state.value.wifiPermissionGranted shouldBe true
+			vm.state.value.permissionCapabilities.nearbyWifiGranted shouldBe false
+		}
 
         @Test
         fun `onCellPermissionResult updates state`() {

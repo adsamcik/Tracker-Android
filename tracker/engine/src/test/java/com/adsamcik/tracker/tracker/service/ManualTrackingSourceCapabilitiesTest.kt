@@ -51,6 +51,33 @@ class ManualTrackingSourceCapabilitiesTest {
 	}
 
 	@Test
+	fun `Wi-Fi manual admission follows the platform scan matrix`() {
+		val api27 = ALL_CAPABILITIES.copy(
+			apiLevel = 27,
+			locationHardwareAvailable = false,
+			cellHardwareAvailable = false,
+			hasAnyLocationPermission = false,
+			hasCoarseLocationPermission = false,
+			hasPreciseLocationPermission = false,
+			hasChangeWifiStatePermission = true,
+			locationServicesEnabled = false,
+		).toManualTrackingSourceCapabilities()
+		(SourceKind.WIFI in api27.availableSources) shouldBe true
+		(SourceKind.WIFI in api27.sourcesBlockedByLocationServices) shouldBe false
+
+		val api28 = api28CoarseDevice().toManualTrackingSourceCapabilities()
+		(SourceKind.WIFI in api28.availableSources) shouldBe true
+		val api28ServicesOff = api28CoarseDevice().copy(
+			locationServicesEnabled = false,
+		).toManualTrackingSourceCapabilities()
+		api28ServicesOff.sourcesBlockedByLocationServices shouldBe setOf(SourceKind.WIFI)
+
+		val api29Coarse = api28CoarseDevice().copy(apiLevel = 29)
+			.toManualTrackingSourceCapabilities()
+		api29Coarse.sourcesMissingPreciseLocationPermission shouldBe setOf(SourceKind.WIFI)
+	}
+
+	@Test
 	fun `Location Services blocks only Location Wi-Fi and Cell`() {
 		val result = ALL_CAPABILITIES.copy(
 			locationServicesEnabled = false,
@@ -82,7 +109,19 @@ class ManualTrackingSourceCapabilitiesTest {
 	}
 
 	private companion object {
+		fun api28CoarseDevice() = ALL_CAPABILITIES.copy(
+			apiLevel = 28,
+			locationHardwareAvailable = false,
+			cellHardwareAvailable = false,
+			hasAnyLocationPermission = true,
+			hasCoarseLocationPermission = true,
+			hasPreciseLocationPermission = false,
+			hasChangeWifiStatePermission = false,
+			locationServicesEnabled = true,
+		)
+
 		val ALL_CAPABILITIES = ManualTrackingDeviceCapabilities(
+			apiLevel = 29,
 			locationHardwareAvailable = true,
 			activityProviderAvailable = true,
 			stepCounterAvailable = true,
@@ -90,7 +129,9 @@ class ManualTrackingSourceCapabilitiesTest {
 			wifiHardwareAvailable = true,
 			cellHardwareAvailable = true,
 			hasAnyLocationPermission = true,
+			hasCoarseLocationPermission = true,
 			hasPreciseLocationPermission = true,
+			hasChangeWifiStatePermission = true,
 			hasActivityRecognitionPermission = true,
 			hasReadPhoneStatePermission = true,
 			locationServicesEnabled = true,

@@ -2,6 +2,7 @@ package com.adsamcik.tracker.dashboard.ui.compose
 
 import android.Manifest
 import android.app.Activity
+import android.os.Build
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarHostState
@@ -40,6 +41,7 @@ import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.shared.base.di.withQualifiedStepsPresence
 import com.adsamcik.tracker.shared.model.Trip
+import com.adsamcik.tracker.shared.utils.compose.permission.ContextualMultiplePermissionRequest
 import com.adsamcik.tracker.shared.utils.compose.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.utils.compose.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.utils.compose.permission.PermissionType
@@ -354,26 +356,38 @@ fun DashboardRoute(
 	// Contextual permission request dialog. Only an explicit start attempt reaches this state.
 	val permissionRequest = manualStartPermissionRequest?.toDashboardPermissionRequest()
 	if (permissionRequest != null) {
-		ContextualPermissionRequest(
-			permissionType = permissionRequest.type,
-			permission = permissionRequest.permission,
-			onPermissionResult = {
-				val repairedPrerequisite = permissionRequest.prerequisite
-				manualStartPermissionRequest = null
-				coroutineScope.launch {
-					val updated = TrackerServiceApi.readManualTrackingStartReadiness(context)
-					manualStartReadiness = updated
-					val sameRepair = (updated as? ManualTrackingStartReadiness.RepairRequired)
-						?.prerequisite == repairedPrerequisite
-					if (sameRepair) {
-						manualStartPermissionDenied = true
-					} else {
-						requestManualStart()
-					}
+		val onPermissionResult: (Boolean) -> Unit = {
+			val repairedPrerequisite = permissionRequest.prerequisite
+			manualStartPermissionRequest = null
+			coroutineScope.launch {
+				val updated = TrackerServiceApi.readManualTrackingStartReadiness(context)
+				manualStartReadiness = updated
+				val sameRepair = (updated as? ManualTrackingStartReadiness.RepairRequired)
+					?.prerequisite == repairedPrerequisite
+				if (sameRepair) {
+					manualStartPermissionDenied = true
+				} else {
+					requestManualStart()
 				}
-			},
-			onDismiss = { manualStartPermissionRequest = null },
-		)
+			}
+		}
+		val onDismiss = { manualStartPermissionRequest = null }
+		if (permissionRequest.permissions.size == 1) {
+			ContextualPermissionRequest(
+				permissionType = permissionRequest.type,
+				permission = permissionRequest.permissions.single(),
+				onPermissionResult = onPermissionResult,
+				onDismiss = onDismiss,
+			)
+		} else {
+			ContextualMultiplePermissionRequest(
+				permissionType = permissionRequest.type,
+				permissions = permissionRequest.permissions,
+				requiredPermissions = permissionRequest.requiredPermissions,
+				onPermissionResult = onPermissionResult,
+				onDismiss = onDismiss,
+			)
+		}
 	}
 
 	// Permission denied snackbar
@@ -503,28 +517,39 @@ internal fun DashboardPermissionResumeEffect(
 internal data class DashboardManualStartPermissionRequest(
 	val prerequisite: ManualTrackingStartPrerequisite,
 	val type: PermissionType,
-	val permission: String,
+	val permissions: List<String>,
+	val requiredPermissions: Set<String>,
 )
 
-internal fun ManualTrackingStartPrerequisite.toDashboardPermissionRequest():
+internal fun ManualTrackingStartPrerequisite.toDashboardPermissionRequest(
+	apiLevel: Int = Build.VERSION.SDK_INT,
+):
 	DashboardManualStartPermissionRequest? = when (this) {
 	ManualTrackingStartPrerequisite.PRECISE_LOCATION_PERMISSION ->
 		DashboardManualStartPermissionRequest(
 			prerequisite = this,
 			type = PermissionType.LOCATION_FOREGROUND,
-			permission = Manifest.permission.ACCESS_FINE_LOCATION,
+			permissions = buildList {
+				add(Manifest.permission.ACCESS_FINE_LOCATION)
+				if (apiLevel >= Build.VERSION_CODES.S) {
+					add(Manifest.permission.ACCESS_COARSE_LOCATION)
+				}
+			},
+			requiredPermissions = setOf(Manifest.permission.ACCESS_FINE_LOCATION),
 		)
 	ManualTrackingStartPrerequisite.ACTIVITY_RECOGNITION_PERMISSION ->
 		DashboardManualStartPermissionRequest(
 			prerequisite = this,
 			type = PermissionType.ACTIVITY_RECOGNITION,
-			permission = Manifest.permission.ACTIVITY_RECOGNITION,
+			permissions = listOf(Manifest.permission.ACTIVITY_RECOGNITION),
+			requiredPermissions = setOf(Manifest.permission.ACTIVITY_RECOGNITION),
 		)
 	ManualTrackingStartPrerequisite.READ_PHONE_STATE_PERMISSION ->
 		DashboardManualStartPermissionRequest(
 			prerequisite = this,
 			type = PermissionType.PHONE_STATE,
-			permission = Manifest.permission.READ_PHONE_STATE,
+			permissions = listOf(Manifest.permission.READ_PHONE_STATE),
+			requiredPermissions = setOf(Manifest.permission.READ_PHONE_STATE),
 		)
 	ManualTrackingStartPrerequisite.LOCATION_SERVICES -> null
 }
