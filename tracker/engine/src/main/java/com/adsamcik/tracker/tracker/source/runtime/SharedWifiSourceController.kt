@@ -213,9 +213,13 @@ class SharedWifiSourceController @Inject constructor(
 		}
 		val effective = effectivePlan(demands)
 		if (effective == null) {
-			physicalRuntime.close()
-			ambientAttached = false
-			return@withLock AmbientWifiRuntimeJoinResult.Inactive
+			val acknowledgement = physicalRuntime.closeShared()
+			return@withLock if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
+				ambientAttached = false
+				AmbientWifiRuntimeJoinResult.Inactive
+			} else {
+				AmbientWifiRuntimeJoinResult.Unavailable(emptySet(), retryable = true)
+			}
 		}
 		val result = applyEffective(effective, sessionClaim)
 		when (result) {
@@ -230,7 +234,11 @@ class SharedWifiSourceController @Inject constructor(
 			}
 			is SourceApplyResult.Degraded -> {
 				ambientAttached = ambientDemand != null
-				AmbientWifiRuntimeJoinResult.Degraded(result.state.degradedReasons)
+				AmbientWifiRuntimeJoinResult.Degraded(
+					result.state.sourceInstanceId,
+					result.state.registrationGeneration,
+					result.state.degradedReasons,
+				)
 			}
 			is SourceApplyResult.Failed -> AmbientWifiRuntimeJoinResult.Unavailable(
 				result.state.degradedReasons,
@@ -328,6 +336,8 @@ internal sealed interface AmbientWifiRuntimeJoinResult {
 		val registrationGeneration: Long?,
 	) : AmbientWifiRuntimeJoinResult
 	data class Degraded(
+		val sourceInstanceId: com.adsamcik.tracker.tracker.source.model.SourceInstanceId?,
+		val registrationGeneration: Long?,
 		val reasons: Set<com.adsamcik.tracker.tracker.source.model.SourceDegradedReason>,
 	) : AmbientWifiRuntimeJoinResult
 	data class Unavailable(

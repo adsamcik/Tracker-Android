@@ -123,6 +123,38 @@ class SharedAmbientRadioSourceControllerTest {
 		coVerify(exactly = 0) { wifi.close() }
 	}
 
+	@Test
+	fun `failed ambient Wi-Fi provider retirement remains typed unavailable`() = runTest {
+		val physical = mockk<WifiSourceRuntime>()
+		val broker = mockk<SourceBroker>()
+		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
+		every { physical.capabilities } returns MutableStateFlow(capabilities())
+		every { sinkFactory.unbound } returns unboundSink
+		val ambient = demand(SourceKind.WIFI, SourceBrokerPurpose.AMBIENT_PRODUCT)
+		coEvery { broker.authorizationDemands(SourceKind.WIFI) } returnsMany listOf(
+			listOf(ambient),
+			emptyList(),
+		)
+		coEvery { physical.refreshShared(any(), unboundSink, null) } returns null
+		coEvery { physical.reconfigure(any(), unboundSink) } answers {
+			SourceApplyResult.Applied(applied(SourceKind.WIFI, firstArg<WifiPlan>().revision, 9L))
+		}
+		coEvery { physical.closeShared() } returns completeAck(
+			SourceKind.WIFI,
+			9L,
+			RegistrationRemovalOutcome.FAILED,
+		).copy(status = SourceStopStatus.PROVIDER_FAILED, appDrainComplete = false)
+		val subject = SharedWifiSourceController(physical, broker, sinkFactory)
+
+		assertIs<AmbientWifiRuntimeJoinResult.Active>(subject.reconcileAmbientJoin())
+		val unavailable = assertIs<AmbientWifiRuntimeJoinResult.Unavailable>(
+			subject.reconcileAmbientJoin(),
+		)
+
+		assertEquals(true, unavailable.retryable)
+		coVerify(exactly = 1) { physical.closeShared() }
+	}
+
 	private fun demand(source: SourceKind, purpose: String) = SourceDemandEntity(
 		demandId = "${source.name}-$purpose",
 		consumerId = if (purpose == SourceBrokerPurpose.SESSION_CAPTURE) {

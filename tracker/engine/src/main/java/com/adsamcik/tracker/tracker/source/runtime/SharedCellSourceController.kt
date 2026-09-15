@@ -212,10 +212,14 @@ class SharedCellSourceController @Inject constructor(
 		}
 		val effective = effectivePlan(demands)
 		if (effective == null) {
-			physicalRuntime.close()
-			ambientAttached = false
-			ambientSubscriptionIds = emptySet()
-			return@withLock AmbientCellRuntimeJoinResult.Inactive
+			val acknowledgement = physicalRuntime.closeShared()
+			return@withLock if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
+				ambientAttached = false
+				ambientSubscriptionIds = emptySet()
+				AmbientCellRuntimeJoinResult.Inactive
+			} else {
+				AmbientCellRuntimeJoinResult.Unavailable(emptySet(), retryable = true)
+			}
 		}
 		when (val result = applyEffective(effective, sessionClaim)) {
 			is SourceApplyResult.Applied -> {
@@ -229,7 +233,11 @@ class SharedCellSourceController @Inject constructor(
 			}
 			is SourceApplyResult.Degraded -> {
 				ambientAttached = ambientDemand != null
-				AmbientCellRuntimeJoinResult.Degraded(result.state.degradedReasons)
+				AmbientCellRuntimeJoinResult.Degraded(
+					result.state.sourceInstanceId,
+					result.state.registrationGeneration,
+					result.state.degradedReasons,
+				)
 			}
 			is SourceApplyResult.Failed -> AmbientCellRuntimeJoinResult.Unavailable(
 				result.state.degradedReasons,
@@ -321,6 +329,8 @@ internal sealed interface AmbientCellRuntimeJoinResult {
 		val registrationGeneration: Long?,
 	) : AmbientCellRuntimeJoinResult
 	data class Degraded(
+		val sourceInstanceId: com.adsamcik.tracker.tracker.source.model.SourceInstanceId?,
+		val registrationGeneration: Long?,
 		val reasons: Set<com.adsamcik.tracker.tracker.source.model.SourceDegradedReason>,
 	) : AmbientCellRuntimeJoinResult
 	data class Unavailable(

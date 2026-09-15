@@ -299,6 +299,20 @@ class CellSourceRuntime @Inject internal constructor(
 		status = SourceStopStatus.TIMED_OUT,
 	)
 
+	/** Retires the whole shared Cell provider and returns the truthful physical acknowledgement. */
+	internal suspend fun closeShared(): SourceStopAck = lifecycleMutex.withLock {
+		when {
+			automaticFailureAck != null -> requireNotNull(automaticFailureAck)
+			currentPlan != null -> shutdownLocked(null)
+			reconcilePendingProviderRetirements() -> unavailableAck(null)
+			else -> unavailableAck(null).copy(
+				registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED,
+				appDrainComplete = false,
+				status = SourceStopStatus.PROVIDER_FAILED,
+			)
+		}
+	}
+
 	/**
 	 * Closes Cell callback entry, drains the exact FIFO prefix, and publishes its durable capture
 	 * barrier without stopping a compatible CONTROL-only provider.

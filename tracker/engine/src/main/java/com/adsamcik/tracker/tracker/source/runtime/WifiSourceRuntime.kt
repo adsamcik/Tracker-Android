@@ -238,6 +238,19 @@ class WifiSourceRuntime @Inject internal constructor(
 					status = SourceStopStatus.TIMED_OUT,
 				)
 			}
+
+	/** Retires the whole shared Wi-Fi provider and returns the truthful physical acknowledgement. */
+	internal suspend fun closeShared(): SourceStopAck = lifecycleMutex.withLock {
+			when {
+				currentPlan != null -> shutdownLocked(null)
+				reconcilePendingProviderRetirements() -> unavailableAck(null)
+				else -> unavailableAck(null).copy(
+					registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED,
+					appDrainComplete = false,
+					status = SourceStopStatus.PROVIDER_FAILED,
+				)
+			}
+	}
 			val completion = CompletableDeferred<RuntimeAdmissionSnapshot>()
 			val barrier = synchronized(callbackLock) {
 				if (!accepting || registration !== activeRegistration || queue !== activeQueue) {
