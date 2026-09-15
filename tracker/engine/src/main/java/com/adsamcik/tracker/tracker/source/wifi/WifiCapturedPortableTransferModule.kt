@@ -4,6 +4,7 @@ import com.adsamcik.tracker.stats.api.repository.DeleteSelectedWifiHistory
 import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifi
 import com.adsamcik.tracker.stats.api.repository.ImportPortableCapturedWifi
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluator
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentPageEvaluator
 import com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifi
 import com.adsamcik.tracker.stats.api.repository.ReexportImportedCapturedWifi
 import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryReader
@@ -34,6 +35,11 @@ internal interface WifiCapturedPortableTransferModule {
 	fun bindImportedWifiProductEvaluator(
 		implementation: RoomImportedWifiProductEvaluator,
 	): ImportedWifiProductEvaluator
+
+	@Binds
+	fun bindImportedWifiProductRecentPageEvaluator(
+		implementation: RoomImportedWifiProductEvaluator,
+	): ImportedWifiProductRecentPageEvaluator
 
 	@Binds
 	fun bindReexportImportedCapturedWifi(

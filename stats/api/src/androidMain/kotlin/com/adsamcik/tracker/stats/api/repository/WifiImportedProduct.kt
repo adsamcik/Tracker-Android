@@ -106,6 +106,40 @@ interface ImportedWifiProductEvaluator {
 	): ImportedWifiProductRangePage
 }
 
+/**
+ * Cursor-bearing recent-page authority for imported-only product consumers.
+ * Calls must remain inside the caller-owned Room transaction.
+ */
+interface ImportedWifiProductRecentPageEvaluator {
+	suspend fun selectRecentPageInTransaction(
+		request: ImportedWifiProductRecentRequest,
+	): ImportedWifiProductRecentPage
+}
+
+data class ImportedWifiProductRecentRequest(
+	val limit: Int,
+	val beforeNewestMemberStartTimeMs: Long? = null,
+	val beforeNewestMemberIdentity: PortableWifiOpaqueIdentity? = null,
+) {
+	init {
+		require(limit in 1..100)
+		require(
+			(beforeNewestMemberStartTimeMs == null) == (beforeNewestMemberIdentity == null),
+		)
+		require(beforeNewestMemberStartTimeMs?.let { it >= 0L } != false)
+	}
+}
+
+data class ImportedWifiProductRecentPage(
+	val evaluations: List<ImportedWifiProductEvaluation>,
+	val hasMore: Boolean,
+) {
+	init {
+		require(evaluations.size <= 100)
+		require(!hasMore || evaluations.isNotEmpty())
+	}
+}
+
 data class ImportedWifiProductRangeRequest(
 	val fromInclusiveMs: Long,
 	val toExclusiveMs: Long,

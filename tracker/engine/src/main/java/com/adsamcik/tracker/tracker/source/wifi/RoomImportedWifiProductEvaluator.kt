@@ -27,6 +27,9 @@ import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluator
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductFailure
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangePage
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangeRequest
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentPage
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentPageEvaluator
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentRequest
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiObservationV1
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiRunV1
@@ -55,7 +58,7 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 	private val database: AppDatabase,
 	private val checkpoint: suspend (ImportedWifiProductReadCheckpoint) -> Unit,
 	private val limits: ImportedWifiProductLimits,
-) : ImportedWifiProductEvaluator {
+) : ImportedWifiProductEvaluator, ImportedWifiProductRecentPageEvaluator {
 	@Inject
 	constructor(database: AppDatabase) : this(
 		database,
@@ -75,11 +78,30 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 
 	override suspend fun selectRecentInTransaction(limit: Int): List<ImportedWifiProductEvaluation> {
 		require(limit in 1..ImportedWifiDao.MAX_HISTORY_ENTRY_CANDIDATES)
-		val candidates = database.importedWifiDao().recentHistoryCandidatePage(limit, null, null)
-		if (!isValidCandidatePage(candidates, null, null)) {
-			throw IllegalArgumentException("Invalid imported Wi-Fi candidate page")
-		}
-		return evaluateSafely(candidates)
+		return selectRecentPageInTransaction(
+			ImportedWifiProductRecentRequest(limit),
+		).evaluations
+	}
+
+	override suspend fun selectRecentPageInTransaction(
+		request: ImportedWifiProductRecentRequest,
+	): ImportedWifiProductRecentPage {
+		val queryLimit = Math.addExact(request.limit, 1)
+		val candidates = database.importedWifiDao().recentHistoryCandidatePage(
+			queryLimit,
+			request.beforeNewestMemberStartTimeMs,
+			request.beforeNewestMemberIdentity?.value,
+		)
+		if (!isValidCandidatePage(
+				candidates,
+				request.beforeNewestMemberStartTimeMs,
+				request.beforeNewestMemberIdentity?.value,
+			)
+		) throw IllegalArgumentException("Invalid imported Wi-Fi recent candidate page")
+		return ImportedWifiProductRecentPage(
+			evaluations = evaluateSafely(candidates.take(request.limit)),
+			hasMore = candidates.size > request.limit,
+		)
 	}
 
 	override suspend fun selectRangeInTransaction(
