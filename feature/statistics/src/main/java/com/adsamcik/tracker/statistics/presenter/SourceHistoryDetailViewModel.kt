@@ -87,6 +87,11 @@ class SourceHistoryDetailViewModel @Inject constructor(
 
 	/** Releases destination ownership immediately when navigation leaves this detail. */
 	fun close() {
+		val source = ownedSelection?.entry?.source ?: when (val current = _state.value) {
+			is SourceHistoryDetailState.Loaded -> current.selection.entry.source
+			is SourceHistoryDetailState.Unavailable -> current.source
+			SourceHistoryDetailState.Loading -> null
+		}
 		++loadGeneration
 		loadJob?.cancel()
 		loadJob = null
@@ -94,6 +99,7 @@ class SourceHistoryDetailViewModel @Inject constructor(
 		ownershipExpiryJob = null
 		ownedSelection = null
 		selectionToken?.let(SourceHistoryDetailHandoff::release)
+		publishExpired(source)
 	}
 
 	override fun onCleared() {
