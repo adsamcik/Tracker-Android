@@ -768,6 +768,7 @@ abstract class ImportedPressureDao {
 		  (SELECT COALESCE(SUM(
 		    LENGTH(CAST(entry_identity AS BLOB)) +
 		    LENGTH(CAST(latest_content_checksum AS BLOB)) +
+		    LENGTH(CAST(recency_tie_identity AS BLOB)) +
 		    LENGTH(CAST(run_deletion_set_checksum AS BLOB)) +
 		    LENGTH(CAST(protected_identity_set_checksum AS BLOB)) +
 		    LENGTH(CAST(identity_fence_set_checksum AS BLOB)) +
@@ -896,6 +897,7 @@ abstract class ImportedPressureDao {
 		  (SELECT COALESCE(SUM(
 		    LENGTH(CAST(entry_identity AS BLOB)) +
 		    LENGTH(CAST(latest_content_checksum AS BLOB)) +
+		    LENGTH(CAST(recency_tie_identity AS BLOB)) +
 		    LENGTH(CAST(run_deletion_set_checksum AS BLOB)) +
 		    LENGTH(CAST(protected_identity_set_checksum AS BLOB)) +
 		    LENGTH(CAST(identity_fence_set_checksum AS BLOB)) +
@@ -956,6 +958,7 @@ abstract class ImportedPressureDao {
 		  (SELECT COALESCE(SUM(
 		    LENGTH(CAST(entry_identity AS BLOB)) +
 		    LENGTH(CAST(latest_content_checksum AS BLOB)) +
+		    LENGTH(CAST(recency_tie_identity AS BLOB)) +
 		    LENGTH(CAST(run_deletion_set_checksum AS BLOB)) +
 		    LENGTH(CAST(protected_identity_set_checksum AS BLOB)) +
 		    LENGTH(CAST(identity_fence_set_checksum AS BLOB)) +

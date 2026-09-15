@@ -325,6 +325,7 @@ internal class RoomTruncateImportedPressureRetention internal constructor(
 			fencedAtMs = request.retainedAtMs,
 			reason = ImportedPressureIdentityFenceEntity.REASON_RETENTION,
 		)
+		val recencyRun = latest.entry.runs.maxWith(pressureSourceRecencyRunOrder)
 		val receipt = ImportedPressureRetentionReceiptEntity.create(
 			entryIdentity = identity,
 			collectedDataEpoch = state.collectedDataEpoch,
@@ -336,6 +337,9 @@ internal class RoomTruncateImportedPressureRetention internal constructor(
 			startTimeMs = latest.header.startTimeMs,
 			endTimeMs = latest.header.endTimeMs,
 			receivedAtMs = latest.header.receivedAtMs,
+			recencyStartTimeMs = recencyRun.startTimeMs,
+			recencyEndTimeMs = recencyRun.endTimeMs,
+			recencyTieIdentity = recencyRun.identity.value,
 			revisionCount = lineage.revisions.size,
 			importReceiptCount = lineage.receipts.size,
 			runRowCount = lineage.revisions.fold(0) { count, revision ->

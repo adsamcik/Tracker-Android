@@ -79,6 +79,9 @@ internal suspend fun AppDatabase.authenticateImportedPressureRetention(
 		receipt.identityFenceSetChecksum
 	) return ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
 	val markerByIdentity = markers.associateBy { it.protectedIdentity }
+	if (markerByIdentity[receipt.recencyTieIdentity]?.identityKind !=
+		ImportedPressureRetainedIdentityEntity.RUN_SCOPE
+	) return ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
 	if (identityFences.any { fence ->
 		val marker = markerByIdentity[fence.protectedIdentity] ?: return@any true
 		fence.entryIdentity != receipt.entryIdentity || when (marker.identityKind) {

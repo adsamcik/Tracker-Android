@@ -485,6 +485,9 @@ data class ImportedPressureRetentionReceiptEntity(
 	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
 	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
 	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+	@ColumnInfo(name = "recency_start_time_ms") val recencyStartTimeMs: Long,
+	@ColumnInfo(name = "recency_end_time_ms") val recencyEndTimeMs: Long,
+	@ColumnInfo(name = "recency_tie_identity") val recencyTieIdentity: String,
 	@ColumnInfo(name = "revision_count") val revisionCount: Int,
 	@ColumnInfo(name = "import_receipt_count") val importReceiptCount: Int,
 	@ColumnInfo(name = "run_row_count") val runRowCount: Int,
@@ -501,6 +504,7 @@ data class ImportedPressureRetentionReceiptEntity(
 		listOf(
 			entryIdentity,
 			latestContentChecksum,
+			recencyTieIdentity,
 			runDeletionSetChecksum,
 			protectedIdentitySetChecksum,
 			identityFenceSetChecksum,
@@ -512,6 +516,9 @@ data class ImportedPressureRetentionReceiptEntity(
 		require(latestImportRevision > 0L && latestImportRevision == revisionCount.toLong())
 		require(startTimeMs >= 0L && endTimeMs >= startTimeMs)
 		require(receivedAtMs in 0L..retainedAtMs)
+		require(recencyStartTimeMs >= startTimeMs && recencyEndTimeMs >= recencyStartTimeMs)
+		require(recencyEndTimeMs <= endTimeMs)
+		require(ImportedPressureIdentity.isOpaque(recencyTieIdentity))
 		require(revisionCount in 1..ImportedPressureMaintenanceBounds.MAX_REVISIONS)
 		require(importReceiptCount in revisionCount..ImportedPressureMaintenanceBounds.MAX_RECEIPTS)
 		require(runRowCount in revisionCount..ImportedPressureMaintenanceBounds.MAX_RUN_ROWS)
@@ -542,6 +549,9 @@ data class ImportedPressureRetentionReceiptEntity(
 			startTimeMs: Long,
 			endTimeMs: Long,
 			receivedAtMs: Long,
+			recencyStartTimeMs: Long,
+			recencyEndTimeMs: Long,
+			recencyTieIdentity: String,
 			revisionCount: Int,
 			importReceiptCount: Int,
 			runRowCount: Int,
@@ -567,6 +577,9 @@ data class ImportedPressureRetentionReceiptEntity(
 				startTimeMs = startTimeMs,
 				endTimeMs = endTimeMs,
 				receivedAtMs = receivedAtMs,
+				recencyStartTimeMs = recencyStartTimeMs,
+				recencyEndTimeMs = recencyEndTimeMs,
+				recencyTieIdentity = recencyTieIdentity,
 				revisionCount = revisionCount,
 				importReceiptCount = importReceiptCount,
 				runRowCount = runRowCount,
@@ -588,6 +601,9 @@ data class ImportedPressureRetentionReceiptEntity(
 					startTimeMs,
 					endTimeMs,
 					receivedAtMs,
+					recencyStartTimeMs,
+					recencyEndTimeMs,
+					recencyTieIdentity,
 					revisionCount,
 					importReceiptCount,
 					runRowCount,
@@ -690,6 +706,9 @@ data class ImportedPressureRetentionReceiptEntity(
 			value.startTimeMs,
 			value.endTimeMs,
 			value.receivedAtMs,
+			value.recencyStartTimeMs,
+			value.recencyEndTimeMs,
+			value.recencyTieIdentity,
 			value.revisionCount,
 			value.importReceiptCount,
 			value.runRowCount,
@@ -714,6 +733,9 @@ data class ImportedPressureRetentionReceiptEntity(
 			startTimeMs: Long,
 			endTimeMs: Long,
 			receivedAtMs: Long,
+			recencyStartTimeMs: Long,
+			recencyEndTimeMs: Long,
+			recencyTieIdentity: String,
 			revisionCount: Int,
 			importReceiptCount: Int,
 			runRowCount: Int,
@@ -737,6 +759,9 @@ data class ImportedPressureRetentionReceiptEntity(
 				startTimeMs.toString(),
 				endTimeMs.toString(),
 				receivedAtMs.toString(),
+				recencyStartTimeMs.toString(),
+				recencyEndTimeMs.toString(),
+				recencyTieIdentity,
 				revisionCount.toString(),
 				importReceiptCount.toString(),
 				runRowCount.toString(),

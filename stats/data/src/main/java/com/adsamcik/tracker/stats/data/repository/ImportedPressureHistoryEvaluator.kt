@@ -138,8 +138,14 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 					listOf(
 						ImportedPressureHistoryEvaluation.Retained(
 							candidate = candidate,
+							collectedDataEpoch = receipt.collectedDataEpoch,
 							retainedFromMs = receipt.retainedFromMs,
 							retainedAtMs = receipt.retainedAtMs,
+							recencyStartTimeMs = receipt.recencyStartTimeMs,
+							recencyEndTimeMs = receipt.recencyEndTimeMs,
+							recencyTieIdentity = PortablePressureOpaqueIdentity(
+								receipt.recencyTieIdentity,
+							),
 							protectedIdentities = markers.map {
 								it.toRetainedPressureIdentity()
 							},
@@ -327,12 +333,19 @@ internal sealed interface ImportedPressureHistoryEvaluation {
 	/** Authenticated payload-free shell retained after the complete correction lineage was pruned. */
 	data class Retained(
 		override val candidate: ImportedPressureHistoryCandidate,
+		val collectedDataEpoch: Long,
 		val retainedFromMs: Long,
 		val retainedAtMs: Long,
+		val recencyStartTimeMs: Long,
+		val recencyEndTimeMs: Long,
+		val recencyTieIdentity: PortablePressureOpaqueIdentity,
 		val protectedIdentities: List<RetainedImportedPressureIdentity>,
 	) : ImportedPressureHistoryEvaluation {
 		init {
+			require(collectedDataEpoch >= 0L)
 			require(retainedFromMs >= 0L && retainedAtMs >= 0L)
+			require(recencyStartTimeMs >= candidate.startTimeMs)
+			require(recencyEndTimeMs in recencyStartTimeMs..candidate.endTimeMs)
 			require(protectedIdentities.isNotEmpty())
 			require(protectedIdentities.map { it.value }.distinct().size == protectedIdentities.size)
 			require(

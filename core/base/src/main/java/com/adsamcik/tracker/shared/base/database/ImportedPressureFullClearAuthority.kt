@@ -394,7 +394,8 @@ private fun loadAndAuthenticateRetainedLineage(
 	val receipt = sqlite.query(
 		"SELECT entry_identity, collected_data_epoch, source_evidence_revision, retained_from_ms, " +
 			"retained_at_ms, latest_import_revision, latest_content_checksum, start_time_ms, " +
-			"end_time_ms, received_at_ms, revision_count, import_receipt_count, run_row_count, " +
+			"end_time_ms, received_at_ms, recency_start_time_ms, recency_end_time_ms, " +
+			"recency_tie_identity, revision_count, import_receipt_count, run_row_count, " +
 			"window_row_count, run_deletion_count, run_deletion_set_checksum, " +
 			"protected_identity_count, protected_identity_set_checksum, identity_fence_set_checksum, " +
 			"lineage_authority_checksum, effect_checksum FROM imported_pressure_retention_receipt " +
@@ -413,17 +414,20 @@ private fun loadAndAuthenticateRetainedLineage(
 			startTimeMs = cursor.getLong(7),
 			endTimeMs = cursor.getLong(8),
 			receivedAtMs = cursor.getLong(9),
-			revisionCount = cursor.getInt(10),
-			importReceiptCount = cursor.getInt(11),
-			runRowCount = cursor.getInt(12),
-			windowRowCount = cursor.getInt(13),
-			runDeletionCount = cursor.getInt(14),
-			runDeletionSetChecksum = cursor.getString(15),
-			protectedIdentityCount = cursor.getInt(16),
-			protectedIdentitySetChecksum = cursor.getString(17),
-			identityFenceSetChecksum = cursor.getString(18),
-			lineageAuthorityChecksum = cursor.getString(19),
-			effectChecksum = cursor.getString(20),
+			recencyStartTimeMs = cursor.getLong(10),
+			recencyEndTimeMs = cursor.getLong(11),
+			recencyTieIdentity = cursor.getString(12),
+			revisionCount = cursor.getInt(13),
+			importReceiptCount = cursor.getInt(14),
+			runRowCount = cursor.getInt(15),
+			windowRowCount = cursor.getInt(16),
+			runDeletionCount = cursor.getInt(17),
+			runDeletionSetChecksum = cursor.getString(18),
+			protectedIdentityCount = cursor.getInt(19),
+			protectedIdentitySetChecksum = cursor.getString(20),
+			identityFenceSetChecksum = cursor.getString(21),
+			lineageAuthorityChecksum = cursor.getString(22),
+			effectChecksum = cursor.getString(23),
 		)
 	}
 	check(receipt.collectedDataEpoch == expectedEpoch)
@@ -839,6 +843,7 @@ private fun readRetainedFootprint(
 		"WHERE entry_identity = (SELECT entry_identity FROM owner)), " +
 		"(SELECT COALESCE(SUM(LENGTH(CAST(entry_identity AS BLOB)) + " +
 		"LENGTH(CAST(latest_content_checksum AS BLOB)) + " +
+		"LENGTH(CAST(recency_tie_identity AS BLOB)) + " +
 		"LENGTH(CAST(run_deletion_set_checksum AS BLOB)) + " +
 		"LENGTH(CAST(protected_identity_set_checksum AS BLOB)) + " +
 		"LENGTH(CAST(identity_fence_set_checksum AS BLOB)) + " +
@@ -938,6 +943,7 @@ private fun readGlobalRetainedFootprint(
 		"(SELECT COUNT(*) FROM imported_pressure_retention_receipt), " +
 		"(SELECT COALESCE(SUM(LENGTH(CAST(entry_identity AS BLOB)) + " +
 		"LENGTH(CAST(latest_content_checksum AS BLOB)) + " +
+		"LENGTH(CAST(recency_tie_identity AS BLOB)) + " +
 		"LENGTH(CAST(run_deletion_set_checksum AS BLOB)) + " +
 		"LENGTH(CAST(protected_identity_set_checksum AS BLOB)) + " +
 		"LENGTH(CAST(identity_fence_set_checksum AS BLOB)) + " +
