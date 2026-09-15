@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenera
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -15,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
@@ -401,12 +403,31 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 				run.startedElapsedNanos > selected.observedElapsedNanos
 			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH)
 			val maximumDeliveryOrdinal = decodedDelivery.maxOf { unit -> unit.wal.admissionOrdinal }
-			if (!session.hasValidLifecycleShape(maximumDeliveryOrdinal) ||
+			if (!session.hasValidLifecycleShape(maximumDeliveryOrdinal, run) ||
 				!run.hasValidLifecycleShape() || !run.hasValidRelationshipTo(session)
 			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH)
-			if (session.state !in TERMINAL_LIFECYCLE_STATES ||
-				run.state !in TERMINAL_LIFECYCLE_STATES
-			) return@transaction unavailable(
+			val completeness = sessionDao.completenessForServiceRun(logicalTrackingId, serviceRunId)
+				.singleOrNull { row ->
+					row.sourceKind == ACTIVITY_SOURCE &&
+						row.sourceInstanceId == selected.sourceInstanceId &&
+						row.registrationGeneration == selected.registrationGeneration
+				}
+			if (completeness?.isExactSettledActivityTail(maximumDeliveryOrdinal) != true) {
+				return@transaction unavailable(
+					ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW,
+				)
+			}
+			val terminalWindow = session.state in TERMINAL_LIFECYCLE_STATES &&
+				run.state in TERMINAL_LIFECYCLE_STATES
+			val currentIntent = session.currentIntentRevision?.let { intentRevision ->
+				sessionDao.lifecycleIntent(logicalTrackingId, intentRevision)
+			}
+			val settledStoppingWindow = session.isExactSettledStoppingWindow(
+				run,
+				currentIntent,
+				maximumDeliveryOrdinal,
+			)
+			if (!terminalWindow && !settledStoppingWindow) return@transaction unavailable(
 				ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW,
 			)
 			val sessionEnd = session.cutoffElapsedNanos
@@ -765,6 +786,7 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 
 	private fun LogicalTrackingSessionEntity.hasValidLifecycleShape(
 		maximumAdmissionOrdinal: Long,
+		run: SourceServiceRunEntity,
 	): Boolean {
 		if (state !in ALL_LIFECYCLE_STATES || lifecycleRevision <= 0L || desiredPlanRevision <= 0L ||
 			startedAtMs < 0L || startedElapsedNanos < 0L || lifecycleLeaseGeneration <= 0L ||
@@ -772,6 +794,9 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			(cutoffAtMs == null) != (cutoffElapsedNanos == null)
 		) return false
 		val terminal = state in TERMINAL_LIFECYCLE_STATES
+		val stoppingRelationship = run.state == LIFECYCLE_STOPPING &&
+			run.serviceRunId == currentServiceRunId &&
+			state in SETTLED_STOPPING_SESSION_STATES
 		if ((completedAtMs != null) != terminal ||
 			completedAtMs?.let { completed -> completed < startedAtMs } == true
 		) return false
@@ -779,16 +804,56 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 			if (cutoffAtMs == null || cutoffElapsedNanos == null || cutoffAtMs < startedAtMs ||
 				cutoffElapsedNanos < startedElapsedNanos
 		) return false
-		} else if (cutoffAtMs != null || cutoffElapsedNanos != null) {
+		} else if (!stoppingRelationship && (cutoffAtMs != null || cutoffElapsedNanos != null)) {
 			return false
 		}
 		return if (terminal) {
 			currentServiceRunId == null &&
 				finalAdmissionOrdinal?.let { ordinal -> ordinal >= maximumAdmissionOrdinal } == true
+		} else if (stoppingRelationship) {
+			currentServiceRunId == run.serviceRunId &&
+				finalAdmissionOrdinal?.let { ordinal -> ordinal >= maximumAdmissionOrdinal } != false
 		} else {
 			!currentServiceRunId.isNullOrBlank() && finalAdmissionOrdinal == null
 		}
 	}
+
+	private fun LogicalTrackingSessionEntity.isExactSettledStoppingWindow(
+		run: SourceServiceRunEntity,
+		intent: SessionLifecycleIntentVersionEntity?,
+		maximumAdmissionOrdinal: Long,
+	): Boolean {
+		val cutoffElapsed = cutoffElapsedNanos ?: return false
+		val cutoffWall = cutoffAtMs ?: return false
+		val finalOrdinal = finalAdmissionOrdinal ?: return false
+		val expectedDesiredState = when (state) {
+			LIFECYCLE_STOPPING -> "FINALIZED"
+			LIFECYCLE_ACTIVE -> "ACTIVE"
+			else -> return false
+		}
+		return run.state == LIFECYCLE_STOPPING &&
+			run.serviceRunId == currentServiceRunId &&
+			run.logicalTrackingId == logicalTrackingId &&
+			run.completedAtMs == null &&
+			finalOrdinal >= maximumAdmissionOrdinal &&
+			intent != null &&
+			intent.logicalTrackingId == logicalTrackingId &&
+			intent.intentRevision == currentIntentRevision &&
+			intent.manifestRevision == currentManifestRevision &&
+			intent.desiredState == expectedDesiredState &&
+			intent.requestBootId == run.bootId &&
+			intent.requestedElapsedRealtimeNanos == cutoffElapsed &&
+			intent.requestedWallTimeMs == cutoffWall &&
+			!intent.stopReason.isNullOrBlank()
+	}
+
+	private fun SourceSessionCompletenessEntity.isExactSettledActivityTail(
+		maximumAdmissionOrdinal: Long,
+	): Boolean = appDrainComplete &&
+		stopStatus == COMPLETE_STOP_STATUS &&
+		unresolvedSequenceStart == null &&
+		unresolvedSequenceEnd == null &&
+		lastAdmissionOrdinal?.let { it >= maximumAdmissionOrdinal } != false
 
 	private fun SourceServiceRunEntity.hasValidLifecycleShape(): Boolean {
 		if (state !in ALL_LIFECYCLE_STATES || serviceRunId.isBlank() || logicalTrackingId.isBlank() ||
@@ -919,9 +984,12 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 		const val KIND_RECOGNITION = 0
 		const val KIND_TRANSITION = 1
 		const val LIFECYCLE_STOPPING = "STOPPING"
+		const val LIFECYCLE_ACTIVE = "ACTIVE"
+		const val COMPLETE_STOP_STATUS = "COMPLETE"
 		val TERMINAL_LIFECYCLE_STATES = setOf("FINALIZED", "CLOSED", "FAILED")
 		val ALL_LIFECYCLE_STATES = TERMINAL_LIFECYCLE_STATES +
-			setOf("STARTING", "ACTIVE", "RECONFIGURING", LIFECYCLE_STOPPING)
+			setOf("STARTING", LIFECYCLE_ACTIVE, "RECONFIGURING", LIFECYCLE_STOPPING)
+		val SETTLED_STOPPING_SESSION_STATES = setOf(LIFECYCLE_ACTIVE, LIFECYCLE_STOPPING)
 		val LIVE_SESSION_RUN_STATE_PAIRS = setOf(
 			"STARTING" to "STARTING",
 			"STARTING" to "ACTIVE",

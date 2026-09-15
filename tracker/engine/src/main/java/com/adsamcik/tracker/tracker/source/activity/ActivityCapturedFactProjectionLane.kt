@@ -28,9 +28,8 @@ import kotlinx.coroutines.sync.withLock
  * Dormant source-local owner for captured Activity fact projection.
  *
  * A hint is process-local and conflated. The durable WAL, exact Activity product-lane cursor, and
- * terminal failure row own recovery. This binary deliberately does not advertise the Activity
- * binding in [ExecutableSourceLaneCatalog], so production remains inactive until a separate
- * catalog/rollout/destination-owner decision installs the exact canonical lane.
+ * terminal failure row own recovery. Catalog executability grants no authority by itself:
+ * production remains inactive until the explicit Activity owner/lane/rollout transition commits.
  */
 @Singleton
 @Suppress("LargeClass", "TooManyFunctions") // One source-local transactional projection owner.

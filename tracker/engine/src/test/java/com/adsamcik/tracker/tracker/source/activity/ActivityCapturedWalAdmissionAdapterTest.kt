@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenera
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -28,6 +29,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
@@ -120,9 +122,57 @@ class ActivityCapturedWalAdmissionAdapterTest {
 	fun `open provider and session cannot select a stable materialization window`() = runTest {
 		installFixture(settled = false)
 
-		subject().admit(EVENT_ID) shouldBe ActivityCapturedWalAdmissionResult.Unavailable(
-			ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW,
-		)
+		(subject().admit(EVENT_ID) is ActivityCapturedWalAdmissionResult.Admitted) shouldBe false
+	}
+
+	@Test
+	fun `exactly settled STOPPING session admits before final lifecycle commit`() = runTest {
+		installFixture()
+		installSettledStoppingWindow(sessionState = "STOPPING", desiredState = "FINALIZED")
+
+		(subject().admit(EVENT_ID) is ActivityCapturedWalAdmissionResult.Admitted) shouldBe true
+	}
+
+	@Test
+	fun `exactly settled suspended run admits while logical session remains active`() = runTest {
+		installFixture()
+		installSettledStoppingWindow(sessionState = "ACTIVE", desiredState = "ACTIVE")
+
+		(subject().admit(EVENT_ID) is ActivityCapturedWalAdmissionResult.Admitted) shouldBe true
+	}
+
+	@Test
+	fun `STOPPING without exact completeness remains unavailable`() = runTest {
+		installFixture()
+		installSettledStoppingWindow(sessionState = "STOPPING", desiredState = "FINALIZED")
+		database.sourceSessionDao().deleteAllCompleteness()
+
+		(subject().admit(EVENT_ID) is ActivityCapturedWalAdmissionResult.Admitted) shouldBe false
+	}
+
+	@Test
+	fun `cleared suspended settlement cannot revive Activity admission`() = runTest {
+		installFixture()
+		installSettledStoppingWindow(sessionState = "ACTIVE", desiredState = "ACTIVE")
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID))
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID))
+		database.sourceSessionDao().updateSession(
+			session.copy(
+				currentServiceRunId = null,
+				cutoffAtMs = null,
+				cutoffElapsedNanos = null,
+				finalAdmissionOrdinal = null,
+			),
+		) shouldBe 1
+		database.sourceSessionDao().updateServiceRun(
+			run.copy(
+				state = "FINALIZED",
+				completedAtMs = 2_000L,
+				completionReason = "ANDROID_RESTART",
+			),
+		) shouldBe 1
+
+		(subject().admit(EVENT_ID) is ActivityCapturedWalAdmissionResult.Admitted) shouldBe false
 	}
 
 	@Test
@@ -366,7 +416,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 				serviceRunId = SERVICE_RUN_ID,
 			),
 		)
-		installSession(segmentId, settled)
+		installSession(segmentId, settled, if (sampled) 1L else 2L)
 		installManifest()
 
 		val demand = if (controlOnly) controlDemand() else captureDemand()
@@ -522,7 +572,11 @@ class ActivityCapturedWalAdmissionAdapterTest {
 		}
 	}
 
-	private suspend fun installSession(segmentId: Long, settled: Boolean) {
+	private suspend fun installSession(
+		segmentId: Long,
+		settled: Boolean,
+		finalAdmissionOrdinal: Long,
+	) {
 		database.sourceSessionDao().insertSession(
 			LogicalTrackingSessionEntity(
 				logicalTrackingId = LOGICAL_TRACKING_ID,
@@ -537,7 +591,7 @@ class ActivityCapturedWalAdmissionAdapterTest {
 				cutoffAtMs = if (settled) 2_000L else null,
 				cutoffElapsedNanos = if (settled) SESSION_END_NANOS else null,
 				completedAtMs = if (settled) 2_000L else null,
-				finalAdmissionOrdinal = if (settled) 2L else null,
+				finalAdmissionOrdinal = finalAdmissionOrdinal.takeIf { settled },
 				failureCode = null,
 				sessionMode = "MANUAL",
 				currentManifestRevision = MANIFEST_REVISION,
@@ -581,6 +635,75 @@ class ActivityCapturedWalAdmissionAdapterTest {
 				presentationAcknowledgedAtMs = null,
 			),
 		)
+		if (settled) {
+			database.sourceSessionDao().saveCompleteness(
+				SourceSessionCompletenessEntity(
+					logicalTrackingId = LOGICAL_TRACKING_ID,
+					serviceRunId = SERVICE_RUN_ID,
+					sourceKind = ACTIVITY_SOURCE,
+					sourceInstanceId = SOURCE_INSTANCE_ID,
+					registrationGeneration = REGISTRATION_GENERATION,
+					lastAdmissionOrdinal = finalAdmissionOrdinal,
+					lastSourceSequence = finalAdmissionOrdinal,
+					appDrainComplete = true,
+					providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
+					stopStatus = "COMPLETE",
+					unresolvedSequenceStart = null,
+					unresolvedSequenceEnd = null,
+					updatedAtMs = 2_000L,
+				),
+			)
+		}
+	}
+
+	private suspend fun installSettledStoppingWindow(
+		sessionState: String,
+		desiredState: String,
+	) {
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_TRACKING_ID))
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID))
+		val intentRevision = 2L
+		database.sourceSessionDao().insertLifecycleIntent(
+			SessionLifecycleIntentVersionEntity(
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				intentRevision = intentRevision,
+				manifestRevision = MANIFEST_REVISION,
+				desiredState = desiredState,
+				startOrigin = if (desiredState == "ACTIVE") "RECOVERY" else "POLICY_RECONCILIATION",
+				requestBootId = BOOT_ID,
+				requestedElapsedRealtimeNanos = SESSION_END_NANOS,
+				requestedWallTimeMs = 2_000L,
+				automationEpoch = null,
+				triggerId = null,
+				triggerKind = null,
+				triggerBootId = null,
+				triggerObservedElapsedRealtimeNanos = null,
+				triggerReceivedElapsedRealtimeNanos = null,
+				triggerExpiresElapsedRealtimeNanos = null,
+				stopReason = "TEST_SETTLED_STOPPING",
+				stopDeadlineBootId = if (desiredState == "FINALIZED") BOOT_ID else null,
+				stopDeadlineElapsedRealtimeNanos =
+					if (desiredState == "FINALIZED") SESSION_END_NANOS + 1_000L else null,
+				intentChecksum = "settled-stopping-intent",
+			),
+		)
+		database.sourceSessionDao().updateSession(
+			session.copy(
+				state = sessionState,
+				completedAtMs = null,
+				currentIntentRevision = intentRevision,
+				currentServiceRunId = SERVICE_RUN_ID,
+			),
+		) shouldBe 1
+		database.sourceSessionDao().updateServiceRun(
+			run.copy(
+				state = "STOPPING",
+				completedAtMs = null,
+				completionReason = null,
+				runtimeAcknowledgement = "STOP_ACCEPTED",
+				runRevision = run.runRevision + 1L,
+			),
+		) shouldBe 1
 	}
 
 	private suspend fun installManifest() {

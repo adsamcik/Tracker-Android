@@ -38,6 +38,7 @@ class ExecutableSourceLaneCatalog internal constructor(
 		setOf(
 			STEPS_SESSION_FACTS_V1,
 			STEPS_SESSION_FACTS_V2,
+			ACTIVITY_SESSION_FACTS,
 			PRESSURE_SESSION_FACTS,
 			CELL_SESSION_FACTS,
 			WIFI_SESSION_FACTS,
@@ -119,6 +120,15 @@ class ExecutableSourceLaneCatalog internal constructor(
 
 		/** Prospective binding used only when no durable Steps lane supplies an exact generation. */
 		val PREFERRED_STEPS_SESSION_FACTS = STEPS_SESSION_FACTS_V2
+
+		/** Dormant source-local captured Activity writer; CONTROL remains a separate non-product lane. */
+		val ACTIVITY_SESSION_FACTS = ExecutableSourceLaneBinding(
+			source = SourceKind.ACTIVITY,
+			bindingGeneration = SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION,
+			projectionId = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
+			projectionVersion = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION,
+			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
+		)
 
 		/** Dormant source-local Pressure writer contract; executable does not imply activation. */
 		val PRESSURE_SESSION_FACTS = ExecutableSourceLaneBinding(
@@ -678,6 +688,15 @@ private suspend fun AppDatabase.hasExactCanonicalDestinationOwner(
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
 			) ?: return false
 			owner.owner == SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS &&
+				owner.ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+		}
+		SourceKind.ACTIVITY -> {
+			if (binding != ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS) return false
+			val owner = sourceDestinationOwnerDao().get(
+				SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
+			) ?: return false
+			owner.owner == SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS &&
 				owner.ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
 		}
 		SourceKind.CELL -> {

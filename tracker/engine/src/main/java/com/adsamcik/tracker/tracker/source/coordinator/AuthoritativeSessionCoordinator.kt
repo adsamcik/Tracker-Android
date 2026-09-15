@@ -45,6 +45,9 @@ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomaticStartServ
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainSignal
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEpochAuthority
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
+import com.adsamcik.tracker.tracker.source.activity.ActivityCapturedFactProjectionLane
+import com.adsamcik.tracker.tracker.source.cell.CellSessionFactProjectionLane
+import com.adsamcik.tracker.tracker.source.wifi.WifiSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.runtime.ProviderCoverage
 import com.adsamcik.tracker.tracker.source.runtime.ProviderFlushOutcome
 import com.adsamcik.tracker.tracker.source.runtime.RegistrationRemovalOutcome
@@ -94,6 +97,9 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 	private val rolloutStore: TrackingRolloutStateStore = RoomTrackingRolloutStateStore(database),
 	private val sourceBroker: SourceBroker = SourceBroker(database),
 	private val executableLaneCatalog: ExecutableSourceLaneCatalog = ExecutableSourceLaneCatalog(),
+	private val sourceProductDrainRouter: SourceProductDrainRouter = SourceProductDrainRouter { request ->
+		SourceProductDrainResult.Inactive(request, "SOURCE_PRODUCT_DRAIN_ROUTER_UNAVAILABLE")
+	},
 ) {
 	private data class BoundServiceRunTransition(
 		val session: LogicalTrackingSessionEntity,
@@ -114,6 +120,14 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val serviceRunId: String,
 		val claims: List<SourceRuntimeClaim>,
 	)
+	private sealed interface SettledSourceDrainBatch {
+		data class Complete(val results: List<SourceProductDrainResult>) : SettledSourceDrainBatch
+		data class Pending(
+			val results: List<SourceProductDrainResult>,
+			val failedSource: SourceKind?,
+			val reason: String,
+		) : SettledSourceDrainBatch
+	}
 	private data class VerifiedSessionManifest(
 		val manifest: SessionManifestVersionEntity,
 		val bindings: List<SessionManifestSourceEntity>,
@@ -2207,6 +2221,92 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		return binding
 	}
 
+	private suspend fun exactCandidateActivityBinding(
+		rolloutRevision: Long,
+		sessionMode: SessionMode,
+	): ExecutableSourceLaneBinding {
+		val rollout = requireNotNull(
+			database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull(),
+		) { "Activity rollout state is missing or unreadable" }
+		check(rollout.revision == rolloutRevision) { "Activity rollout revision changed" }
+		val lane = requireNotNull(
+			database.sourceProjectionStateDao().activeProductLane(SourceKind.ACTIVITY.stableCode),
+		) { "Activity candidate product lane is missing" }
+		val binding = requireNotNull(executableLaneCatalog.bindingFor(lane)) {
+			"Activity candidate product lane is not executable"
+		}
+		check(binding == ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS) {
+			"Activity candidate writer binding is unsupported"
+		}
+		val captureMode = requireNotNull(sessionMode.captureReachabilityModeOrNull()) {
+			"Activity candidate session mode is not attributable"
+		}
+		check(captureMode in binding.captureModes) {
+			"Activity candidate binding does not authorize ${captureMode.name}"
+		}
+		check(binding.projectionId == ActivityCapturedFactProjectionLane.WRITER_ID &&
+			binding.projectionVersion == ActivityCapturedFactProjectionLane.WRITER_VERSION
+		) { "Activity candidate writer identity is unsupported" }
+		check(lane.isCanonicalCaptureAuthorizedBy(database, rollout, executableLaneCatalog)) {
+			"Activity candidate product lane is not canonical capture authority"
+		}
+		return binding
+	}
+
+	private suspend fun exactCandidateWifiBinding(
+		rolloutRevision: Long,
+		sessionMode: SessionMode,
+	): ExecutableSourceLaneBinding {
+		check(sessionMode == SessionMode.MANUAL) {
+			"Wi-Fi candidate binding is manual-session-only"
+		}
+		val rollout = requireNotNull(
+			database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull(),
+		) { "Wi-Fi rollout state is missing or unreadable" }
+		check(rollout.revision == rolloutRevision) { "Wi-Fi rollout revision changed" }
+		val lane = requireNotNull(
+			database.sourceProjectionStateDao().activeProductLane(SourceKind.WIFI.stableCode),
+		) { "Wi-Fi candidate product lane is missing" }
+		val binding = requireNotNull(executableLaneCatalog.bindingFor(lane)) {
+			"Wi-Fi candidate product lane is not executable"
+		}
+		check(binding == ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS &&
+			binding.projectionId == WifiSessionFactProjectionLane.WRITER_ID &&
+			binding.projectionVersion == WifiSessionFactProjectionLane.WRITER_VERSION
+		) { "Wi-Fi candidate writer binding is unsupported" }
+		check(lane.isCanonicalCaptureAuthorizedBy(database, rollout, executableLaneCatalog)) {
+			"Wi-Fi candidate product lane is not canonical capture authority"
+		}
+		return binding
+	}
+
+	private suspend fun exactCandidateCellBinding(
+		rolloutRevision: Long,
+		sessionMode: SessionMode,
+	): ExecutableSourceLaneBinding {
+		check(sessionMode == SessionMode.MANUAL) {
+			"Cell candidate binding is manual-session-only"
+		}
+		val rollout = requireNotNull(
+			database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull(),
+		) { "Cell rollout state is missing or unreadable" }
+		check(rollout.revision == rolloutRevision) { "Cell rollout revision changed" }
+		val lane = requireNotNull(
+			database.sourceProjectionStateDao().activeProductLane(SourceKind.CELL.stableCode),
+		) { "Cell candidate product lane is missing" }
+		val binding = requireNotNull(executableLaneCatalog.bindingFor(lane)) {
+			"Cell candidate product lane is not executable"
+		}
+		check(binding == ExecutableSourceLaneCatalog.CELL_SESSION_FACTS &&
+			binding.projectionId == CellSessionFactProjectionLane.WRITER_ID &&
+			binding.projectionVersion == CellSessionFactProjectionLane.WRITER_VERSION
+		) { "Cell candidate writer binding is unsupported" }
+		check(lane.isCanonicalCaptureAuthorizedBy(database, rollout, executableLaneCatalog)) {
+			"Cell candidate product lane is not canonical capture authority"
+		}
+		return binding
+	}
+
 	private suspend fun buildManifestDraft(
 		logicalTrackingId: String,
 		manifestRevision: Long,
@@ -2290,6 +2390,51 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				pressureOwner.ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
 			else -> false
 		}) { "Unsupported Pressure destination owner ${pressureOwner?.owner}" }
+		val activityOwner = plan.plans[SourceKind.ACTIVITY]
+			?.takeIf(SourcePlan::enabled)
+			?.let {
+				requireNotNull(
+					database.sourceDestinationOwnerDao().get(
+						SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+						SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
+					),
+				) { "Activity destination owner is missing" }
+			}
+		check(activityOwner == null || when (activityOwner.owner) {
+			SourceDestinationOwnerEntity.OWNER_LEGACY_ACTIVITY_SNAPSHOT ->
+				activityOwner.ownerGeneration == SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+			SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS ->
+				activityOwner.ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+			else -> false
+		}) { "Unsupported Activity destination owner ${activityOwner?.owner}" }
+		val wifiOwner = plan.plans[SourceKind.WIFI]
+			?.takeIf(SourcePlan::enabled)
+			?.let {
+				requireNotNull(
+					database.sourceDestinationOwnerDao().get(
+						SourceDestinationOwnerEntity.SOURCE_WIFI,
+						SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI,
+					),
+				) { "Wi-Fi destination owner is missing" }
+			}
+		check(wifiOwner == null ||
+			wifiOwner.owner == SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS &&
+			wifiOwner.ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+		) { "Unsupported Wi-Fi destination owner ${wifiOwner?.owner}" }
+		val cellOwner = plan.plans[SourceKind.CELL]
+			?.takeIf(SourcePlan::enabled)
+			?.let {
+				requireNotNull(
+					database.sourceDestinationOwnerDao().get(
+						SourceDestinationOwnerEntity.SOURCE_CELL,
+						SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+					),
+				) { "Cell destination owner is missing" }
+			}
+		check(cellOwner == null ||
+			cellOwner.owner == SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS &&
+			cellOwner.ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+		) { "Unsupported Cell destination owner ${cellOwner?.owner}" }
 		val candidateStepsBinding = stepsOwner
 			?.takeIf { owner ->
 				owner.owner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
@@ -2300,6 +2445,15 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				owner.owner == SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS
 			}
 			?.let { exactCandidatePressureBinding(rolloutRevision, sessionMode) }
+		val candidateActivityBinding = activityOwner
+			?.takeIf { owner ->
+				owner.owner == SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS
+			}
+			?.let { exactCandidateActivityBinding(rolloutRevision, sessionMode) }
+		val candidateWifiBinding = wifiOwner
+			?.let { exactCandidateWifiBinding(rolloutRevision, sessionMode) }
+		val candidateCellBinding = cellOwner
+			?.let { exactCandidateCellBinding(rolloutRevision, sessionMode) }
 		val captureBindings = plan.plans.values.filter(SourcePlan::enabled).map { sourcePlan ->
 			val policy = requireNotNull(policies[sourcePlan.source.stableCode])
 			val consentEpoch = requireNotNull(policy.captureConsentEpoch)
@@ -2313,11 +2467,17 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			val writerOwner = when (sourcePlan.source) {
 				SourceKind.STEPS -> stepsOwner
 				SourceKind.PRESSURE -> pressureOwner
+				SourceKind.ACTIVITY -> activityOwner
+				SourceKind.WIFI -> wifiOwner
+				SourceKind.CELL -> cellOwner
 				else -> null
 			}
 			val candidateWriter = when (sourcePlan.source) {
 				SourceKind.STEPS -> candidateStepsBinding
 				SourceKind.PRESSURE -> candidatePressureBinding
+				SourceKind.ACTIVITY -> candidateActivityBinding
+				SourceKind.WIFI -> candidateWifiBinding
+				SourceKind.CELL -> candidateCellBinding
 				else -> null
 			}
 			SessionManifestSourceEntity(
@@ -2921,6 +3081,8 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val manifestEnvelope = requireNotNull(
 			verifiedManifest(session.logicalTrackingId, manifestRevision, run.serviceRunId),
 		) { "Suspend manifest integrity failed" }
+		val cutoffElapsedRealtimeNanos = session.cutoffElapsedNanos ?: request.elapsedRealtimeNanos
+		val cutoffWallTimeMs = session.cutoffAtMs ?: request.wallTimeMs
 		val intent = SessionLifecycleIntentVersionEntity(
 			logicalTrackingId = session.logicalTrackingId,
 			intentRevision = intentRevision,
@@ -2928,8 +3090,8 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			desiredState = LifecycleDesiredState.ACTIVE.name,
 			startOrigin = SessionStartOrigin.RECOVERY.name,
 			requestBootId = request.clockDomainId,
-			requestedElapsedRealtimeNanos = request.elapsedRealtimeNanos,
-			requestedWallTimeMs = request.wallTimeMs,
+			requestedElapsedRealtimeNanos = cutoffElapsedRealtimeNanos,
+			requestedWallTimeMs = cutoffWallTimeMs,
 			automationEpoch = session.automationEpoch,
 			triggerId = null,
 			triggerKind = null,
@@ -2947,10 +3109,16 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				LifecycleDesiredState.ACTIVE,
 				request.reason,
 				request.clockDomainId,
-				request.elapsedRealtimeNanos,
+				cutoffElapsedRealtimeNanos,
 			),
 		)
 		dao.insertLifecycleIntent(intent)
+		sourceBroker.markSessionDemandsRetiring(
+			session.logicalTrackingId,
+			request.clockDomainId,
+			cutoffElapsedRealtimeNanos,
+			cutoffWallTimeMs,
+		)
 		dao.insertLifecycleActions(
 			stopActions(
 				session,
@@ -2966,6 +3134,8 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			currentIntentRevision = intentRevision,
 			lifecycleLeaseGeneration = lease.generation,
 			lifecycleBootId = lease.bootId,
+			cutoffAtMs = cutoffWallTimeMs,
+			cutoffElapsedNanos = cutoffElapsedRealtimeNanos,
 		)
 		check(dao.updateSession(updated) == 1)
 		val updatedRun = run.copy(
@@ -3210,7 +3380,13 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					acknowledgeStopAction(cutoffSession.logicalTrackingId, bound.serviceRunId, ack, lease, request)
 				}
 			}
-			val finalOrdinal = database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L
+			val observedHighWaterOrdinal = durableSourceHighWater()
+			val finalOrdinal = freezeSettlementHighWater(
+				bound,
+				cutoff,
+				observedHighWaterOrdinal,
+				lease,
+			)
 			when (val drain = eventCoordinator.drainAvailable("${request.ownerToken}:projection")) {
 				is CoordinatorDrainResult.Complete -> {
 					if (drain.lastCompletedOrdinal < finalOrdinal) {
@@ -3219,11 +3395,26 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				}
 				else -> return SessionStopResult.DrainPending(cutoffSession.logicalTrackingId, finalOrdinal)
 			}
+			val sourceDrain = drainSettledSourceProducts(
+				cutoffSession.logicalTrackingId,
+				bound.serviceRunId,
+				cutoff,
+				finalOrdinal,
+			)
 			val incomplete = terminalRetirementIncomplete(
 				acks,
 				cutoffSession.logicalTrackingId,
 				bound.serviceRunId,
 			)
+			if (!incomplete && sourceDrain is SettledSourceDrainBatch.Pending) {
+				return SessionStopResult.DrainPending(
+					logicalTrackingId = cutoffSession.logicalTrackingId,
+					requiredOrdinal = finalOrdinal,
+					source = sourceDrain.failedSource,
+					reason = sourceDrain.reason,
+					sourceResults = sourceDrain.results,
+				)
+			}
 			database.withTransaction {
 				requireLeaseInTransaction(lease)
 				sourceBroker.retireSessionDemands(
@@ -3315,8 +3506,8 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			}
 			val cutoff = SessionCutoff(
 				logicalTrackingId = durableSession.logicalTrackingId,
-				elapsedRealtimeNanos = request.elapsedRealtimeNanos,
-				wallTimeMs = request.wallTimeMs,
+				elapsedRealtimeNanos = requireNotNull(durableSession.cutoffElapsedNanos),
+				wallTimeMs = requireNotNull(durableSession.cutoffAtMs),
 				deadlineElapsedRealtimeNanos = request.elapsedRealtimeNanos +
 					request.gracePeriodMs * NANOS_PER_MILLISECOND,
 			)
@@ -3331,18 +3522,39 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					acknowledgeSuspendAction(durableSession.logicalTrackingId, bound.serviceRunId, ack, lease, request)
 				}
 			}
-			val finalOrdinal = database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L
+			val observedHighWaterOrdinal = durableSourceHighWater()
+			val finalOrdinal = freezeSettlementHighWater(
+				bound,
+				cutoff,
+				observedHighWaterOrdinal,
+				lease,
+			)
 			when (val drain = eventCoordinator.drainAvailable("${request.ownerToken}:projection")) {
 				is CoordinatorDrainResult.Complete -> if (drain.lastCompletedOrdinal < finalOrdinal) {
 					return SessionSuspendResult.DrainPending(durableSession.logicalTrackingId, finalOrdinal)
 				}
 				else -> return SessionSuspendResult.DrainPending(durableSession.logicalTrackingId, finalOrdinal)
 			}
+			val sourceDrain = drainSettledSourceProducts(
+				durableSession.logicalTrackingId,
+				bound.serviceRunId,
+				cutoff,
+				finalOrdinal,
+			)
 			val incomplete = terminalRetirementIncomplete(
 				acks,
 				durableSession.logicalTrackingId,
 				bound.serviceRunId,
 			)
+			if (!incomplete && sourceDrain is SettledSourceDrainBatch.Pending) {
+				return SessionSuspendResult.DrainPending(
+					logicalTrackingId = durableSession.logicalTrackingId,
+					requiredOrdinal = finalOrdinal,
+					source = sourceDrain.failedSource,
+					reason = sourceDrain.reason,
+					sourceResults = sourceDrain.results,
+				)
+			}
 			database.withTransaction {
 				requireLeaseInTransaction(lease)
 				val serviceRun = requireBoundServiceRun(bound, SessionLifecycleState.STOPPING)
@@ -3364,6 +3576,12 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					) == 1)
 					return@withTransaction
 				}
+				sourceBroker.retireSessionDemands(
+					durableSession.logicalTrackingId,
+					lease.bootId,
+					cutoff.elapsedRealtimeNanos,
+					cutoff.wallTimeMs,
+				)
 				resolveCleanupRequiredActions(
 					durableSession.logicalTrackingId,
 					bound.serviceRunId,
@@ -3375,6 +3593,9 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 						currentServiceRunId = null,
 						lifecycleRevision = latest.lifecycleRevision + 1L,
 						failureCode = null,
+						cutoffAtMs = null,
+						cutoffElapsedNanos = null,
+						finalAdmissionOrdinal = null,
 					),
 				)
 				database.sourceSessionDao().updateServiceRun(
@@ -3871,6 +4092,78 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				updatedAtMs = nowMs,
 			),
 		)
+	}
+
+	private suspend fun freezeSettlementHighWater(
+		bound: BoundServiceRunTransition,
+		cutoff: SessionCutoff,
+		observedHighWaterOrdinal: Long,
+		lease: LifecycleLeaseToken,
+	): Long = database.withTransaction {
+		require(observedHighWaterOrdinal >= 0L)
+		requireLeaseInTransaction(lease)
+		requireBoundServiceRun(bound, SessionLifecycleState.STOPPING)
+		val current = requireNotNull(database.sourceSessionDao().session(bound.session.logicalTrackingId))
+		check(current.currentServiceRunId == bound.serviceRunId)
+		check(current.cutoffElapsedNanos == cutoff.elapsedRealtimeNanos)
+		check(current.cutoffAtMs == cutoff.wallTimeMs)
+		current.finalAdmissionOrdinal?.also { frozen ->
+			check(frozen <= observedHighWaterOrdinal) {
+				"Frozen settlement high-water cannot exceed the durable WAL high-water"
+			}
+			return@withTransaction frozen
+		}
+		check(
+			database.sourceSessionDao().updateSession(
+				current.copy(
+					lifecycleRevision = current.lifecycleRevision + 1L,
+					finalAdmissionOrdinal = observedHighWaterOrdinal,
+				),
+			) == 1,
+		)
+		observedHighWaterOrdinal
+	}
+
+	private suspend fun durableSourceHighWater(): Long = maxOf(
+		database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L,
+		database.sourceEvidenceStateDao().get()?.deletedSourceEventHighWaterOrdinal ?: 0L,
+	)
+
+	private suspend fun drainSettledSourceProducts(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		cutoff: SessionCutoff,
+		settlementHighWaterOrdinal: Long,
+	): SettledSourceDrainBatch {
+		val plan = buildSourceProductDrainPlan(
+			database = database,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			cutoffElapsedRealtimeNanos = cutoff.elapsedRealtimeNanos,
+			cutoffWallTimeMs = cutoff.wallTimeMs,
+			settlementHighWaterAdmissionOrdinal = settlementHighWaterOrdinal,
+		)
+		if (plan is SourceProductDrainPlan.Failed) {
+			return SettledSourceDrainBatch.Pending(
+				results = emptyList(),
+				failedSource = plan.source,
+				reason = plan.reason,
+			)
+		}
+		plan as SourceProductDrainPlan.Ready
+		val results = plan.requests.map { request ->
+			sourceProductDrainRouter.drainThrough(request)
+		}
+		val pending = results.firstOrNull { result -> result !is SourceProductDrainResult.Complete }
+		return if (pending == null) {
+			SettledSourceDrainBatch.Complete(results)
+		} else {
+			SettledSourceDrainBatch.Pending(
+				results = results,
+				failedSource = pending.request.source,
+				reason = pending.pendingReason(),
+			)
+		}
 	}
 
 	private suspend fun saveOwnedShutdownCompleteness(
@@ -4842,7 +5135,13 @@ sealed interface SessionStopResult {
 		val requiredOrdinal: Long,
 		val acknowledgements: List<SourceStopAck>,
 	) : SessionStopResult
-	data class DrainPending(val logicalTrackingId: String, val requiredOrdinal: Long) : SessionStopResult
+	data class DrainPending(
+		val logicalTrackingId: String,
+		val requiredOrdinal: Long,
+		val source: SourceKind? = null,
+		val reason: String? = null,
+		val sourceResults: List<SourceProductDrainResult> = emptyList(),
+	) : SessionStopResult
 	/** The requested stop could not be durably represented without violating lifecycle intent. */
 	data class InvalidIntent(val code: String) : SessionStopResult
 	data object NoActiveSession : SessionStopResult
@@ -4871,7 +5170,13 @@ sealed interface SessionSuspendResult {
 		val requiredOrdinal: Long,
 		val acknowledgements: List<SourceStopAck>,
 	) : SessionSuspendResult
-	data class DrainPending(val logicalTrackingId: String, val requiredOrdinal: Long) : SessionSuspendResult
+	data class DrainPending(
+		val logicalTrackingId: String,
+		val requiredOrdinal: Long,
+		val source: SourceKind? = null,
+		val reason: String? = null,
+		val sourceResults: List<SourceProductDrainResult> = emptyList(),
+	) : SessionSuspendResult
 	/** The requested suspension could not be durably represented without violating lifecycle intent. */
 	data class InvalidIntent(val code: String) : SessionSuspendResult
 	data object NoActiveSession : SessionSuspendResult
@@ -4886,3 +5191,11 @@ private fun List<SessionManifestSourceEntity>.captureSourceMask(): Long = asSequ
 		}
 		mask or (1L shl (binding.sourceKind - 1))
 	}
+
+private fun SourceProductDrainResult.pendingReason(): String = when (this) {
+	is SourceProductDrainResult.Complete -> "SOURCE_PRODUCT_DRAIN_COMPLETE"
+	is SourceProductDrainResult.Deferred -> reason
+	is SourceProductDrainResult.Inactive -> reason
+	is SourceProductDrainResult.Failed -> failureCode
+	is SourceProductDrainResult.AuthorityChanged -> reason
+}

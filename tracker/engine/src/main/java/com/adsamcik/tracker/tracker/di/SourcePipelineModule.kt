@@ -13,6 +13,10 @@ import com.adsamcik.tracker.tracker.source.runtime.LocationSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.CellSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.SharedStepSourceController
 import com.adsamcik.tracker.tracker.source.runtime.WifiSourceRuntime
+import com.adsamcik.tracker.tracker.source.coordinator.ProtectedLocationSourceDrain
+import com.adsamcik.tracker.tracker.source.coordinator.RequiredProtectedLocationSourceDrain
+import com.adsamcik.tracker.tracker.source.coordinator.RoomSourceProductDrainRouter
+import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainRouter
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -57,4 +61,16 @@ object SourcePipelineModule {
 	@Provides
 	@IntoSet
 	fun provideCellSourceRuntime(runtime: CellSourceRuntime): ClaimedSourceRuntime<out SourcePlan> = runtime
+
+	@Provides
+	@Singleton
+	fun provideProtectedLocationSourceDrain(
+		required: RequiredProtectedLocationSourceDrain,
+	): ProtectedLocationSourceDrain = required
+
+	@Provides
+	@Singleton
+	fun provideSourceProductDrainRouter(
+		router: RoomSourceProductDrainRouter,
+	): SourceProductDrainRouter = router
 }
