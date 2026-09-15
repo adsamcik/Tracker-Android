@@ -3,6 +3,7 @@ package com.adsamcik.tracker.impexp.importer.file
 import android.content.Context
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
+import com.adsamcik.tracker.impexp.portable.PortableStepsJsonException
 import com.adsamcik.tracker.impexp.portable.PortableStepsJsonV1Codec
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.stats.api.repository.ImportPortableSteps
@@ -43,8 +44,15 @@ internal class PortableStepsFileImport(
 	): ImportResult {
 		val importer = importerProvider(context)
 		var aggregate = ImportResult.EMPTY
-		PortableStepsJsonV1Codec().decode(stream) { entry ->
-			aggregate += importer.importEntry(entry).toFileResult()
+		try {
+			PortableStepsJsonV1Codec().decode(stream) { entry ->
+				aggregate += importer.importEntry(entry).toFileResult()
+			}
+		} catch (_: PortableStepsJsonException) {
+			aggregate += ImportResult(
+				failedCount = 1,
+				errors = listOf(PERMANENT_FORMAT_ERROR),
+			)
 		}
 		return aggregate
 	}
@@ -74,6 +82,8 @@ internal class PortableStepsFileImport(
 	internal companion object {
 		const val EXTENSION = StepsPortableFormatV1.FILE_EXTENSION
 		const val MAX_FILE_BYTES = StepsPortableFormatV1.MAX_FILE_BYTES
+		const val PERMANENT_FORMAT_ERROR =
+			"Portable Steps file is malformed, unsupported, or exceeds its limits."
 	}
 }
 

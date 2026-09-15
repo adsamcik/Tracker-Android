@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -64,7 +66,7 @@ fun ExportFormatDialog(
         title = { Text(stringResource(R.string.export_format_dialog_title)) },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 ExportFormat.supportedExportFormats().forEachIndexed { index, format ->
@@ -101,7 +103,7 @@ private fun ExportSensitivityDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.export_sensitivity_dialog_title)) },
+        title = { Text(stringResource(format.sensitivityTitleRes)) },
         text = { Text(message) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
@@ -161,6 +163,7 @@ enum class ExportFormat(
     @StringRes val displayNameRes: Int,
     @StringRes val descriptionRes: Int,
     @StringRes val sensitivityMessageRes: Int,
+    @StringRes val sensitivityTitleRes: Int = R.string.export_sensitivity_dialog_title,
 ) {
     GPX(
         formatId = "gpx",
@@ -185,6 +188,27 @@ enum class ExportFormat(
         displayNameRes = R.string.export_format_db_name,
         descriptionRes = R.string.export_format_db_desc,
         sensitivityMessageRes = R.string.export_sensitivity_db_message,
+    ),
+    PORTABLE_STEPS(
+        formatId = "portable-steps-v1",
+        displayNameRes = com.adsamcik.tracker.impexp.R.string.format_portable_steps,
+        descriptionRes = R.string.export_format_portable_steps_desc,
+        sensitivityMessageRes = R.string.export_sensitivity_portable_steps_message,
+        sensitivityTitleRes = R.string.export_sensitivity_portable_title,
+    ),
+    PORTABLE_ACTIVITY(
+        formatId = "portable-activity-v1",
+        displayNameRes = com.adsamcik.tracker.impexp.R.string.format_portable_activity,
+        descriptionRes = R.string.export_format_portable_activity_desc,
+        sensitivityMessageRes = R.string.export_sensitivity_portable_activity_message,
+        sensitivityTitleRes = R.string.export_sensitivity_portable_title,
+    ),
+    PORTABLE_PRESSURE(
+        formatId = "portable-pressure-v1",
+        displayNameRes = com.adsamcik.tracker.impexp.R.string.format_portable_pressure,
+        descriptionRes = R.string.export_format_portable_pressure_desc,
+        sensitivityMessageRes = R.string.export_sensitivity_portable_pressure_message,
+        sensitivityTitleRes = R.string.export_sensitivity_portable_title,
     );
 
     companion object {
@@ -202,6 +226,9 @@ private val ExportFormat.icon: ImageVector
         ExportFormat.KML -> Icons.Default.Map
         ExportFormat.JSON -> Icons.Default.Storage
         ExportFormat.DATABASE -> Icons.Default.Storage
+        ExportFormat.PORTABLE_STEPS,
+        ExportFormat.PORTABLE_ACTIVITY,
+        ExportFormat.PORTABLE_PRESSURE -> Icons.Default.Storage
     }
 
 /**

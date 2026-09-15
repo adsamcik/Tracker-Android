@@ -44,9 +44,13 @@ object ActivityCapturedPortableFormatV1 {
 	const val SCHEMA_VERSION = 1
 	const val MIME_TYPE = "application/vnd.adsamcik.tracker.captured-activity+json"
 	const val FILE_EXTENSION = "trackeractivity"
+	const val MAX_FILE_BYTES = 64L * 1_024L * 1_024L
 
 	const val MAX_ENTRIES = 4_096
 	const val MAX_RUNS = 16_384
+	const val MAX_ZONE_EPOCHS = 65_536
+	const val MAX_WINDOWS = 65_536
+	const val MAX_FRAGMENTS = 524_288
 	const val MAX_RUNS_PER_ENTRY = 64
 	const val MAX_WINDOWS_PER_RUN = 2_048
 	const val MAX_FRAGMENTS_PER_WINDOW = 1_024

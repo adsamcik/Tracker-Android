@@ -61,7 +61,7 @@ class RoomDeleteSelectedImportedActivity internal constructor(
 	}
 
 	@Suppress("LongMethod", "ComplexCondition", "CyclomaticComplexMethod", "NestedBlockDepth")
-	private suspend fun deleteInTransaction(
+	internal suspend fun deleteInTransaction(
 		request: DeleteSelectedImportedActivityRequest,
 	): DeleteSelectedImportedActivityResult {
 		writeCheckpoint(ImportedActivityDeletionCheckpoint.TRANSACTION_STARTED)
@@ -406,7 +406,7 @@ class RoomDeleteSelectedImportedActivity internal constructor(
 	private fun unverifiable(reason: ImportedActivityProductFailure): Nothing =
 		throw ImportedActivityDeletionAbort(DeleteSelectedImportedActivityResult.Unverifiable(reason))
 
-	private class ImportedActivityDeletionAbort(
+	internal class ImportedActivityDeletionAbort(
 		val result: DeleteSelectedImportedActivityResult,
 	) : RuntimeException(null, null, false, false)
 }

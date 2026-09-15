@@ -101,16 +101,24 @@ class RoomImportPortableCapturedActivity internal constructor(
 		val deletions = storedValue { dao.deletionGenerations(runIdentities) }
 		if (deletions.any { it.collectedDataEpoch != request.expectedCollectedDataEpoch }) storedCorrupt()
 		if (deletions.isNotEmpty()) blocked(PortableActivityImportBlockedReason.DELETED_RUN)
+		val requestedScopeDigests = entry.runs.mapTo(linkedSetOf()) {
+			it.deletionScopeDigest.value
+		}
 		val sourceDeletionFences = storedValue {
 			database.trackingHistoryReadDao().deletionFences(
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
 				purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
 				scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
-				scopeIdentityDigests = entry.runs.map { it.deletionScopeDigest.value }.distinct(),
+				scopeIdentityDigests = requestedScopeDigests.toList(),
 			)
 		}
 		if (sourceDeletionFences.any {
-				it.collectedDataEpoch != request.expectedCollectedDataEpoch
+				it.sourceKind != SourceDestinationOwnerEntity.SOURCE_ACTIVITY ||
+				it.purpose != SessionManifestPurposeCode.SESSION_CAPTURE ||
+				it.scopeKind != SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN ||
+				it.scopeIdentityDigest !in requestedScopeDigests ||
+					it.fenceGeneration != 1L ||
+					it.collectedDataEpoch > request.expectedCollectedDataEpoch
 			}
 		) storedCorrupt()
 		if (sourceDeletionFences.isNotEmpty()) {

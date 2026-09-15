@@ -1,8 +1,13 @@
 package com.adsamcik.tracker.impexp.format
 
 import com.adsamcik.tracker.impexp.exporter.Exporter
+import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.importer.file.FileImport
 import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
+import com.adsamcik.tracker.impexp.importer.DataImport
+import com.adsamcik.tracker.impexp.importer.file.PortableActivityFileImport
+import com.adsamcik.tracker.impexp.importer.file.PortablePressureFileImport
+import com.adsamcik.tracker.impexp.importer.worker.importSourceReadLimit
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldHaveAtLeastSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -46,7 +51,13 @@ class FormatRegistryTest {
 		fun `all import formats have importers`() {
 			FormatRegistry.allImportFormats().shouldNotBeEmpty()
 			FormatRegistry.allImportFormats().forEach { descriptor ->
-				FormatRegistry.importerForExtension(descriptor.extensions.first()).shouldNotBeNull()
+				val importer = FormatRegistry.allEntries()
+					.single { it.descriptor.id == descriptor.id }
+					.importer
+					.shouldNotBeNull()
+				importer.supportedExtensions.forEach { extension ->
+					FormatRegistry.importerForExtension(extension) shouldBe importer
+				}
 			}
 		}
 	}
@@ -82,6 +93,47 @@ class FormatRegistryTest {
 		}
 
 		@Test
+		fun `portable Activity and Pressure are available to both real file routes without Location`() {
+			val importerList = DataImport().activeImporterList
+			listOf(
+				"portable-activity-v1" to PortableActivityFileImport.EXTENSION,
+				"portable-pressure-v1" to PortablePressureFileImport.EXTENSION,
+			).forEach { (formatId, extension) ->
+				val entry = FormatRegistry.allEntries().single { it.descriptor.id == formatId }
+				val exporter = entry.exporter.shouldNotBeNull()
+				val importer = entry.importer.shouldNotBeNull()
+				FormatRegistry.exporterFor(formatId) shouldBe exporter
+				FormatRegistry.importerForExtension(extension.uppercase()) shouldBe importer
+				(importer in importerList) shouldBe true
+				importer.transactionMode shouldBe ImportTransactionMode.IMPORTER_MANAGED
+				entry.descriptor.supportsImport shouldBe true
+				entry.descriptor.supportsExport shouldBe true
+				entry.descriptor.supportsDateRange shouldBe true
+				entry.descriptor.mimeType shouldBe exporter.mimeType
+				exporter.canSelectDateRange shouldBe true
+				exporter.requiresLocationData shouldBe false
+				exporter.containsSensitiveLocationData shouldBe (formatId == "portable-pressure-v1")
+			}
+		}
+
+		@Test
+		fun `new portable source limits apply before the worker hashes direct input`() {
+			importSourceReadLimit("TRACKERACTIVITY") shouldBe PortableActivityFileImport.MAX_FILE_BYTES
+			importSourceReadLimit("trackerpressure") shouldBe PortablePressureFileImport.MAX_FILE_BYTES
+		}
+
+		@Test
+		fun `Pressure privacy confirmation does not claim exported route coordinates`() {
+			val pressure = FormatRegistry.exporterFor("portable-pressure-v1").shouldNotBeNull()
+			pressure.containsSensitiveLocationData shouldBe true
+			pressure.sensitivityTitleRes shouldBe R.string.export_pressure_sensitivity_title
+			pressure.sensitivityMessageRes shouldBe R.string.export_pressure_sensitivity_message
+			val gpx = FormatRegistry.exporterFor("gpx").shouldNotBeNull()
+			gpx.sensitivityTitleRes shouldBe R.string.export_sensitivity_title
+			gpx.sensitivityMessageRes shouldBe R.string.export_sensitivity_message
+		}
+
+		@Test
 		fun `exporterFor unknown returns null`() {
 			FormatRegistry.exporterFor("csv").shouldBeNull()
 		}
@@ -109,6 +161,14 @@ class FormatRegistryTest {
 		@Test
 		fun `importerForExtension db returns non-null`() {
 			FormatRegistry.importerForExtension("db").shouldNotBeNull()
+		}
+
+		@Test
+		fun `zip remains an archive route and never resolves to raw database merge`() {
+			FormatRegistry.importerForExtension("zip").shouldBeNull()
+			DataImport().activeArchiveExtractorList
+				.single { "zip" in it.supportedExtensions }
+				.supportedExtensions shouldContainAll setOf("zip")
 		}
 
 		@Test
@@ -149,6 +209,9 @@ class FormatRegistryTest {
 			val db = FormatRegistry.allEntries().first { it.descriptor.id == "db" }
 			db.descriptor.mimeType shouldBe "application/zip"
 			db.descriptor.extensions shouldContainAll setOf("zip", "db")
+			db.exporter.shouldNotBeNull().extension shouldBe "zip"
+			db.importer.shouldNotBeNull().supportedExtensions shouldContainAll setOf("db")
+			FormatRegistry.allImportExtensions().contains("zip") shouldBe false
 		}
 
 		@Test

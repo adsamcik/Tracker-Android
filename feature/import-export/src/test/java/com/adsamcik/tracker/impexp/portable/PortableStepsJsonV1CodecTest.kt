@@ -18,6 +18,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsProviderCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableStepsRunV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsSessionMode
 import com.adsamcik.tracker.stats.api.repository.PortableStepsTransferRetryableReason
+import com.adsamcik.tracker.stats.api.repository.StepsPortableFormatV1
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
@@ -25,6 +26,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -221,6 +223,98 @@ class PortableStepsJsonV1CodecTest {
 					PortableStepsEntrySink { error("An invalid entry must not reach its sink") },
 				)
 			}
+		}
+	}
+
+	@Test
+	fun `oversized known string unknown name and numeric tokens fail before full consumption`() =
+		runTest {
+			val invalidDocuments = listOf(
+				"{\"format\":\"${"x".repeat(10_000)}\"}",
+				"{\"${"n".repeat(10_000)}\":0}",
+				"{\"schemaVersion\":${"1".repeat(10_000)}}",
+			)
+
+			invalidDocuments.forEach { document ->
+				val bytes = document.encodeToByteArray()
+				val source = CountingInputStream(bytes)
+
+				shouldThrow<PortableStepsJsonException> {
+					PortableStepsJsonV1Codec().decode(source) {
+						error("An oversized lexical token must not reach its sink")
+					}
+				}
+
+				(source.bytesRead < bytes.size) shouldBe true
+				(source.bytesRead <= MAX_LEXICAL_FAILURE_PREFETCH_BYTES) shouldBe true
+			}
+		}
+
+	@Test
+		@Suppress("LongMethod")
+		fun `Steps lexical exact bounds preserve escaped canonical content checksum`() = runTest {
+		val tokenLimits = PortableJsonTokenLimits(
+			maxNameBytes = MAX_FIELD_NAME_LENGTH * JSON_ESCAPE_BYTES_PER_CHARACTER,
+			maxStringBytes =
+				StepsPortableFormatV1.MAX_ZONE_ID_LENGTH * JSON_ESCAPE_BYTES_PER_CHARACTER,
+			maxNumberBytes = MAX_LONG_LITERAL_LENGTH,
+			maxNestingDepth = MAX_JSON_NESTING_DEPTH,
+		)
+		val exactName = "\\u0061".repeat(MAX_FIELD_NAME_LENGTH)
+		val exactString = "\\u0041".repeat(StepsPortableFormatV1.MAX_ZONE_ID_LENGTH)
+		val exactNumber = "-" + "9".repeat(MAX_LONG_LITERAL_LENGTH - 1)
+		val boundaryDocument = "{\"$exactName\":\"$exactString\",\"n\":$exactNumber}"
+			.encodeToByteArray()
+
+		PortableJsonTokenLimitInputStream(
+			ByteArrayInputStream(boundaryDocument),
+			tokenLimits,
+		).readBytes().contentEquals(boundaryDocument) shouldBe true
+
+		val expected = entry()
+		val canonical = encode(listOf(expected))
+		val escapedIdentity = expected.identity.value
+			.joinToString(separator = "") { character -> "\\u%04x".format(character.code) }
+		val escapedWire = canonical.decodeToString()
+			.replaceFirst(expected.identity.value, escapedIdentity)
+			.encodeToByteArray()
+		val decoded = mutableListOf<PortableStepsEntryV1>()
+		val exactFileCodec = PortableStepsJsonV1Codec(
+			PortableStepsJsonLimits(
+				maxFileBytes = escapedWire.size.toLong(),
+				maxEntries = 1,
+				maxRunsPerEntry = 1,
+				maxManifestsPerRun = 1,
+				maxFactsPerRun = 1,
+			),
+		)
+
+		exactFileCodec.decode(
+			ByteArrayInputStream(escapedWire),
+			PortableStepsEntrySink { decoded += it },
+		) shouldBe 1
+		decoded shouldContainExactly listOf(expected)
+		decoded.single().contentChecksum shouldBe expected.contentChecksum
+		encode(decoded).contentEquals(canonical) shouldBe true
+	}
+
+	@Test
+	fun `Steps lexical nesting bound accepts the schema depth and rejects one deeper`() = runTest {
+		PortableStepsJsonV1Codec().decode(
+			ByteArrayInputStream(encode(listOf(entry()))),
+			PortableStepsEntrySink { },
+		) shouldBe 1
+
+		shouldThrow<PortableStepsJsonException> {
+			PortableStepsJsonV1Codec().decode(
+				ByteArrayInputStream(
+					("[".repeat(MAX_JSON_NESTING_DEPTH + 1) +
+						"]".repeat(MAX_JSON_NESTING_DEPTH + 1)).encodeToByteArray(),
+				),
+				PortableStepsEntrySink {
+					error("An invalid nested document must not reach its sink")
+				},
+			)
 		}
 	}
 
@@ -618,8 +712,27 @@ class PortableStepsJsonV1CodecTest {
 		}
 	}
 
+	private class CountingInputStream(
+		private val bytes: ByteArray,
+	) : InputStream() {
+		var bytesRead: Int = 0
+			private set
+
+		override fun read(): Int =
+			if (bytesRead >= bytes.size) {
+				-1
+			} else {
+				bytes[bytesRead++].toInt() and 0xff
+			}
+	}
+
 	private companion object {
 		const val ENVELOPE_PREFIX =
 			"{\"format\":\"tracker-portable-steps\",\"schemaVersion\":1,\"entries\":["
+		const val MAX_FIELD_NAME_LENGTH = 26
+		const val MAX_LONG_LITERAL_LENGTH = 20
+		const val MAX_JSON_NESTING_DEPTH = 7
+		const val JSON_ESCAPE_BYTES_PER_CHARACTER = 6
+		const val MAX_LEXICAL_FAILURE_PREFETCH_BYTES = 1_280
 	}
 }

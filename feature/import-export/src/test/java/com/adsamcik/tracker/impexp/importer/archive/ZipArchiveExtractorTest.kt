@@ -2,6 +2,7 @@ package com.adsamcik.tracker.impexp.importer.archive
 
 import android.content.Context
 import androidx.documentfile.provider.DocumentFile
+import com.adsamcik.tracker.impexp.importer.PermanentImportInputException
 import com.adsamcik.tracker.shared.base.extension.openInputStream
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
@@ -12,11 +13,15 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.EOFException
 import java.io.File
 import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
+import java.util.concurrent.CancellationException
+import java.util.zip.CRC32
 import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.test.runTest
@@ -57,6 +62,23 @@ class ZipArchiveExtractorTest {
 		return output.toByteArray()
 	}
 
+	private fun buildStoredZipBytes(name: String, data: ByteArray): ByteArray {
+		val crc = CRC32().apply { update(data) }
+		val entry = ZipEntry(name).apply {
+			method = ZipEntry.STORED
+			size = data.size.toLong()
+			compressedSize = data.size.toLong()
+			this.crc = crc.value
+		}
+		val output = ByteArrayOutputStream()
+		ZipOutputStream(output).use { zip ->
+			zip.putNextEntry(entry)
+			zip.write(data)
+			zip.closeEntry()
+		}
+		return output.toByteArray()
+	}
+
 	private fun mockFile(
 		bytes: ByteArray?,
 		isDirectory: Boolean = false,
@@ -69,6 +91,18 @@ class ZipArchiveExtractorTest {
 		every { file.openInputStream(mockContext) } answers {
 			bytes?.let(::ByteArrayInputStream)
 		}
+		return file
+	}
+
+	private fun mockStreamFile(
+		declaredLength: Long,
+		streamProvider: () -> InputStream,
+	): DocumentFile {
+		val file = mockk<DocumentFile> {
+			every { isDirectory } returns false
+			every { length() } returns declaredLength
+		}
+		every { file.openInputStream(mockContext) } answers { streamProvider() }
 		return file
 	}
 
@@ -126,8 +160,8 @@ class ZipArchiveExtractorTest {
 	@DisplayName("Preconditions")
 	inner class Preconditions {
 		@Test
-		fun `throws IllegalArgumentException when file is a directory`() = runTest {
-			assertFailsWith<IllegalArgumentException> {
+		fun `directory is a permanent invalid archive`() = runTest {
+			assertFailsWith<PermanentImportInputException> {
 				extractor.extract(mockContext, mockFile(null, isDirectory = true), { true }, {})
 			}
 		}
@@ -143,8 +177,43 @@ class ZipArchiveExtractorTest {
 				bytes = byteArrayOf(),
 				declaredLength = ZipArchiveExtractor.MAX_COMPRESSED_INPUT_BYTES + 1,
 			)
-			assertFailsWith<IOException> {
+			assertFailsWith<PermanentImportInputException> {
 				extractor.extract(mockContext, file, { true }, {})
+			}
+		}
+
+		@Test
+		fun `headerless input is a permanent invalid archive`() = runTest {
+			val file = mockFile("not a zip".encodeToByteArray())
+
+			assertFailsWith<PermanentImportInputException> {
+				extractor.classifyForMergeImport(mockContext, file)
+			}
+			assertFailsWith<PermanentImportInputException> {
+				extractor.extract(mockContext, file, { true }, {})
+			}
+		}
+
+		@Test
+		fun `source IOException and EOFException remain retryable through ZIP parsing`() = runTest {
+			val zip = buildZipBytes(listOf("track.gpx" to "<gpx/>".encodeToByteArray()))
+			listOf(
+				IOException("provider unavailable"),
+				EOFException("provider interrupted"),
+			).forEach { expected ->
+				val file = mockStreamFile(zip.size.toLong()) {
+					FailingSourceInputStream(zip, failAfterBytes = 6, expected)
+				}
+
+				val classifyFailure = assertFailsWith<IOException> {
+					extractor.classifyForMergeImport(mockContext, file)
+				}
+				classifyFailure shouldBe expected
+
+				val extractFailure = assertFailsWith<IOException> {
+					extractor.extract(mockContext, file, { true }, {})
+				}
+				extractFailure shouldBe expected
 			}
 		}
 	}
@@ -174,6 +243,56 @@ class ZipArchiveExtractorTest {
 
 			extractor.extract(mockContext, file, { true }, { it.readBytes() }) shouldBe true
 			archiveStream.closed shouldBe true
+		}
+
+		@Test
+		fun `consumer EOFException remains retryable rather than becoming invalid ZIP`() = runTest {
+			val expected = EOFException("importer source interrupted")
+			val zipBytes = buildZipBytes(listOf("export.json" to "{}".toByteArray()))
+
+			val failure = assertFailsWith<EOFException> {
+				extractor.extract(
+					mockContext,
+					mockFile(zipBytes),
+					shouldExtract = { true },
+					consume = { throw expected },
+				)
+			}
+
+			failure shouldBe expected
+			cachedFiles().shouldBeEmpty()
+		}
+
+		@Test
+		fun `successful bounded read cleanup never replaces consumer cancellation`() = runTest {
+			lateinit var guardedZip: GuardedZipInputStream
+			val guardedExtractor = ZipArchiveExtractor(
+				zipInputStreamFactory = { source ->
+					GuardedZipInputStream(
+						source = source,
+						entry = ZipEntry("entry.json"),
+						successfulReadsBeforeEof = 1,
+					).also { guardedZip = it }
+				},
+			)
+			val expected = CancellationException("cancel import")
+
+			val failure = assertFailsWith<CancellationException> {
+				guardedExtractor.extract(
+					mockContext,
+					mockFile(byteArrayOf(0x50, 0x4b, 0x03, 0x04)),
+					shouldExtract = { true },
+					consume = { throw expected },
+				)
+			}
+
+			failure shouldBe expected
+			failure.suppressed.single().message shouldBe "ZIP archive structure is invalid."
+			failure.suppressed.single().cause?.message shouldBe
+				"Rejected ZIP entry cleanup attempted to drain after failure"
+			guardedZip.closeEntryCalls shouldBe 1
+			guardedZip.closeCalls shouldBe 1
+			cachedFiles().shouldBeEmpty()
 		}
 
 		@Test
@@ -327,13 +446,89 @@ class ZipArchiveExtractorTest {
 	@DisplayName("Resource limits")
 	inner class ResourceLimits {
 		@Test
+		fun `classification manifest rejection closes the ZIP without draining the entry`() {
+			val archive = buildStoredZipBytes(
+				"manifest.json",
+				ByteArray(1_024 * 1_024) { index -> index.toByte() },
+			)
+			val guardedSource = ReadBudgetInputStream(
+				ByteArrayInputStream(archive),
+				maximumBytes = 128 * 1_024,
+			)
+			val file = mockStreamFile(archive.size.toLong()) { guardedSource }
+
+			val failure = assertFailsWith<PermanentImportInputException> {
+				extractor.classifyForMergeImport(mockContext, file)
+			}
+
+			failure.message.orEmpty().contains("extraction limit") shouldBe true
+			(guardedSource.bytesRead < guardedSource.maximumBytes) shouldBe true
+			(guardedSource.bytesRead < archive.size) shouldBe true
+		}
+
+		@Test
+		fun `rejected unsafe skipped and replayed entries are never drained by closeEntry`() = runTest {
+			data class RejectedEntryCase(
+				val name: String,
+				val shouldExtract: suspend (ArchiveEntryMetadata) -> Boolean,
+			)
+
+			val cases = listOf(
+				RejectedEntryCase("../unsafe.json") {
+					error("Unsafe entry must not reach the extraction callback")
+				},
+				RejectedEntryCase("selected.json") { true },
+				RejectedEntryCase("unsupported.txt") { false },
+				RejectedEntryCase("replayed.json") { false },
+			)
+
+			cases.forEach { case ->
+				lateinit var guardedZip: GuardedZipInputStream
+				val rejectedEntry = ZipEntry(case.name).apply {
+					compressedSize = 1L
+				}
+				val guardedExtractor = ZipArchiveExtractor(
+					zipInputStreamFactory = { source ->
+						GuardedZipInputStream(source, rejectedEntry).also { guardedZip = it }
+					},
+				)
+
+				val failure = assertFailsWith<PermanentImportInputException> {
+					guardedExtractor.extract(
+						mockContext,
+						mockFile(byteArrayOf(0x50, 0x4b, 0x03, 0x04)),
+						shouldExtract = case.shouldExtract,
+						consume = { error("Rejected entry must not reach its consumer") },
+					)
+				}
+
+				failure.message.orEmpty().contains("extraction limit") shouldBe true
+				guardedZip.readCalls shouldBe 1
+				guardedZip.closeEntryCalls shouldBe 0
+				guardedZip.closeCalls shouldBe 1
+			}
+		}
+
+		@Test
+		fun `archive at the exact entry count boundary remains structurally valid`() {
+			val entries = (0 until ZipArchiveExtractor.MAX_ENTRY_COUNT).map { index ->
+				"entry-$index.json" to byteArrayOf()
+			}
+
+			extractor.classifyForMergeImport(
+				mockContext,
+				mockFile(buildZipBytes(entries)),
+			) shouldBe ZipArchiveClassification.GENERAL_IMPORT
+		}
+
+		@Test
 		fun `archive exceeding maximum entry count is rejected`() = runTest {
 			val entries = (0..ZipArchiveExtractor.MAX_ENTRY_COUNT).map { index ->
 				"entry-$index.json" to byteArrayOf()
 			}
 			val file = mockFile(buildZipBytes(entries))
 
-			val failure = assertFailsWith<IOException> {
+			val failure = assertFailsWith<PermanentImportInputException> {
 				extractor.extract(mockContext, file, { true }, { it.readBytes() })
 			}
 
@@ -346,12 +541,131 @@ class ZipArchiveExtractorTest {
 			val highlyCompressible = ByteArray(4 * 1024 * 1024) { 'A'.code.toByte() }
 			val file = mockFile(buildZipBytes(listOf("bomb.json" to highlyCompressible)))
 
-			val failure = assertFailsWith<IOException> {
+			val failure = assertFailsWith<PermanentImportInputException> {
 				extractor.extract(mockContext, file, { true }, { it.readBytes() })
 			}
 
 			failure.message.orEmpty().contains("compression ratio") shouldBe true
 			cachedFiles().shouldBeEmpty()
+		}
+
+		@Test
+		fun `unsafe skipped entry still receives expansion and compression bounds`() = runTest {
+			val highlyCompressible = ByteArray(4 * 1024 * 1024) { 'A'.code.toByte() }
+			val file = mockFile(buildZipBytes(listOf("../bomb.json" to highlyCompressible)))
+			var callbackInvoked = false
+
+			val failure = assertFailsWith<PermanentImportInputException> {
+				extractor.extract(
+					mockContext,
+					file,
+					shouldExtract = {
+						callbackInvoked = true
+						true
+					},
+					consume = { error("Unsafe entries must not be materialized") },
+				)
+			}
+
+			failure.message.orEmpty().contains("compression ratio") shouldBe true
+			callbackInvoked shouldBe false
+			cachedFiles().shouldBeEmpty()
+		}
+	}
+
+	private class FailingSourceInputStream(
+		private val bytes: ByteArray,
+		private val failAfterBytes: Int,
+		private val failure: IOException,
+	) : InputStream() {
+		private var offset = 0
+
+		override fun read(): Int {
+			if (offset >= failAfterBytes) throw failure
+			if (offset >= bytes.size) return -1
+			return bytes[offset++].toInt() and 0xff
+		}
+
+		override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+			if (this.offset >= failAfterBytes) throw failure
+			if (this.offset >= bytes.size) return -1
+			val count = minOf(length, failAfterBytes - this.offset, bytes.size - this.offset)
+			bytes.copyInto(buffer, offset, this.offset, this.offset + count)
+			this.offset += count
+			return count
+		}
+	}
+
+	private class ReadBudgetInputStream(
+		delegate: InputStream,
+		val maximumBytes: Int,
+	) : FilterInputStream(delegate) {
+		var bytesRead: Int = 0
+			private set
+
+		override fun read(): Int {
+			val value = super.read()
+			if (value >= 0) record(1)
+			return value
+		}
+
+		override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+			val count = super.read(buffer, offset, length)
+			if (count > 0) record(count)
+			return count
+		}
+
+		private fun record(count: Int) {
+			bytesRead += count
+			if (bytesRead > maximumBytes) {
+				throw IOException("ZIP cleanup exceeded its guarded compressed-read budget")
+			}
+		}
+	}
+
+	private class GuardedZipInputStream(
+		source: InputStream,
+		private val entry: ZipEntry,
+		private val successfulReadsBeforeEof: Int? = null,
+	) : ZipInputStream(source) {
+		private var returnedEntry = false
+		var readCalls = 0
+			private set
+		var closeEntryCalls = 0
+			private set
+		var closeCalls = 0
+			private set
+
+		override fun getNextEntry(): ZipEntry? =
+			if (returnedEntry) {
+				null
+			} else {
+				returnedEntry = true
+				entry
+			}
+
+		override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+			if (successfulReadsBeforeEof != null && readCalls >= successfulReadsBeforeEof) {
+				return -1
+			}
+			readCalls++
+			val count = minOf(length, GUARDED_ENTRY_READ_BYTES)
+			buffer.fill(0, offset, offset + count)
+			return count
+		}
+
+		override fun closeEntry() {
+			closeEntryCalls++
+			throw IOException("Rejected ZIP entry cleanup attempted to drain after failure")
+		}
+
+		override fun close() {
+			closeCalls++
+			super.close()
+		}
+
+		private companion object {
+			const val GUARDED_ENTRY_READ_BYTES = 256
 		}
 	}
 }

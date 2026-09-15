@@ -2120,6 +2120,384 @@ class RoomImportPortableCapturedActivityTest {
 	}
 
 	@Test
+	fun `source erase reuses selected deletion marker before live imported cascade`() = runTest {
+		val erasedScope = PortableActivityDeletionScopeDigest.derive(
+			"source-erase-logical",
+			"source-erase-run",
+		)
+		val imported = request(
+			entry(
+				entryLocalId = "source-erase-entry",
+				runIdentity = identity(
+					PortableActivityIdentityKind.PHYSICAL_RUN,
+					"source-erase-run",
+				),
+				deletionScope = erasedScope,
+				windowIdentity = identity(
+					PortableActivityIdentityKind.CAPTURE_WINDOW,
+					"source-erase-window",
+				),
+			),
+		)
+		importer(testScheduler).importEntry(imported)
+		val subject = sourceEraser(testScheduler)
+		subject.probeRemaining(EPOCH) shouldBe ImportedActivityEraseRemainingResult.Remaining
+
+		subject.eraseNext(EPOCH, 100L) shouldBe
+			EraseNextImportedActivityResult.ErasedLive(1, 1)
+
+		val dao = database.importedActivityDao()
+		dao.latestEntryRevision(imported.entry.identity.value) shouldBe null
+		dao.entryDeletion(imported.entry.identity.value)?.deletedImportRevision shouldBe 1L
+		dao.entryDeletionReceipt(imported.entry.identity.value)?.expectedRunCount shouldBe 1
+		dao.deletionGenerations(listOf(imported.entry.runs.single().identity.value)).size shouldBe 1
+		database.sourceDeletionFenceDao().contains(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			imported.entry.runs.single().deletionScopeDigest.value,
+		) shouldBe true
+		val freshIdentityEntry = entry(
+			entryLocalId = "fresh-entry",
+			runIdentity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "fresh-run"),
+			deletionScope = erasedScope,
+			windowIdentity = identity(PortableActivityIdentityKind.CAPTURE_WINDOW, "fresh-window"),
+		)
+		importer(testScheduler).importEntry(
+			request(freshIdentityEntry, receipt("after-source-erase", 101L)),
+		) shouldBe ImportPortableCapturedActivityResult.Blocked(
+			PortableActivityImportBlockedReason.DELETED_SCOPE,
+		)
+		AppDatabase.deleteAllCollectedData(database, EPOCH + 1L, null, 300L)
+		database.sourceDeletionFenceDao().contains(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			erasedScope.value,
+		) shouldBe true
+		val afterFullClear = entry(
+			entryLocalId = "post-clear-entry",
+			runIdentity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "post-clear-run"),
+			deletionScope = erasedScope,
+			windowIdentity = identity(
+				PortableActivityIdentityKind.CAPTURE_WINDOW,
+				"post-clear-window",
+			),
+		)
+		importer(testScheduler).importEntry(
+			ImportPortableCapturedActivityRequest(
+				afterFullClear,
+				receipt("after-full-clear", 301L),
+				EPOCH + 1L,
+			),
+		) shouldBe ImportPortableCapturedActivityResult.Blocked(
+			PortableActivityImportBlockedReason.DELETED_SCOPE,
+		)
+		var sinkCalls = 0
+		RoomExportPortableCapturedActivity(
+			database,
+			SourceProductLaneExecutionAuthority { false },
+			UnconfinedTestDispatcher(testScheduler),
+		).export(ExportPortableCapturedActivityRequest(0L, Long.MAX_VALUE)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.NoEntries
+		sinkCalls shouldBe 0
+		subject.probeRemaining(EPOCH + 1L) shouldBe ImportedActivityEraseRemainingResult.Complete
+	}
+
+	@Test
+	fun `source erase redacts retained shell while preserving typed child and scope authority`() = runTest {
+		val imported = request()
+		importer(testScheduler).importEntry(imported)
+		establishRetentionFloor()
+		truncator(testScheduler).truncate(retentionRequest()) shouldBe
+			TruncateImportedActivityRetentionResult.Truncated(1, 1, 1, 1, 1)
+		val subject = sourceEraser(testScheduler)
+
+		subject.eraseNext(EPOCH, 200L) shouldBe
+			EraseNextImportedActivityResult.ErasedRetained(1, 1)
+
+		val dao = database.importedActivityDao()
+		val redacted = requireNotNull(dao.retentionReceipt(imported.entry.identity.value))
+		redacted.startTimeMs shouldBe 0L
+		redacted.endTimeMs shouldBe 0L
+		redacted.receivedAtMs shouldBe 0L
+		dao.retainedHistoryCandidate(imported.entry.identity.value) shouldBe null
+		dao.entryDeletion(imported.entry.identity.value)?.deletedImportRevision shouldBe 1L
+		dao.retainedIdentitiesForEntries(
+			listOf(imported.entry.identity.value),
+			redacted.protectedIdentityCount + 1,
+		).map { it.identityKind }.toSet() shouldBe setOf("ENTRY", "RUN", "WINDOW", "DELETION_SCOPE")
+		importer(testScheduler).importEntry(
+			imported.copy(receipt = receipt("retained-after-source-erase", 201L)),
+		) shouldBe ImportPortableCapturedActivityResult.Blocked(
+			PortableActivityImportBlockedReason.RETENTION_BOUNDARY,
+		)
+		var sinkCalls = 0
+		RoomExportPortableCapturedActivity(
+			database,
+			SourceProductLaneExecutionAuthority { false },
+			UnconfinedTestDispatcher(testScheduler),
+		).export(ExportPortableCapturedActivityRequest(0L, Long.MAX_VALUE)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.NoEntries
+		sinkCalls shouldBe 0
+		subject.eraseNext(EPOCH, 201L) shouldBe EraseNextImportedActivityResult.Complete
+	}
+
+	@Test
+	fun `source erase authenticates stored imported identity before mutation`() = runTest {
+		val imported = request()
+		importer(testScheduler).importEntry(imported)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_activity_run SET content_checksum = ? WHERE entry_identity = ?",
+			arrayOf("f".repeat(64), imported.entry.identity.value),
+		)
+
+		sourceEraser(testScheduler).eraseNext(EPOCH, 100L) shouldBe
+			EraseNextImportedActivityResult.Unverifiable(
+				ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		database.importedActivityDao().entryDeletion(imported.entry.identity.value) shouldBe null
+		database.importedActivityDao().latestEntryRevision(imported.entry.identity.value) shouldBe
+			database.importedActivityDao().entryRevision(imported.entry.identity.value, 1L)
+	}
+
+	@Test
+	fun `source erase propagates cancellation and types storage failure`() = runTest {
+		val imported = request()
+		importer(testScheduler).importEntry(imported)
+		val cancellingDeletion = deleter(testScheduler) { checkpoint ->
+			if (checkpoint == ImportedActivityDeletionCheckpoint.TRANSACTION_STARTED) {
+				throw CancellationException("cancelled")
+			}
+		}
+		val cancelling = RoomEraseNextImportedActivity(
+			database,
+			cancellingDeletion,
+			UnconfinedTestDispatcher(testScheduler),
+		)
+		shouldThrow<CancellationException> { cancelling.eraseNext(EPOCH, 100L) }
+		database.importedActivityDao().entryDeletion(imported.entry.identity.value) shouldBe null
+		database.sourceDeletionFenceDao().contains(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			imported.entry.runs.single().deletionScopeDigest.value,
+		) shouldBe false
+
+		val storageFailure = sourceEraser(testScheduler) { checkpoint ->
+			if (checkpoint == ImportedActivitySourceEraseCheckpoint.LIVE_SCOPE_FENCES_RECORDED) {
+				throw SQLiteException("live source erase failed")
+			}
+		}
+		storageFailure.eraseNext(EPOCH, 100L) shouldBe
+			EraseNextImportedActivityResult.RetryableFailure(
+				PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		database.importedActivityDao().latestEntryRevision(imported.entry.identity.value) shouldBe
+			database.importedActivityDao().entryRevision(imported.entry.identity.value, 1L)
+		database.sourceDeletionFenceDao().contains(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			imported.entry.runs.single().deletionScopeDigest.value,
+		) shouldBe false
+
+		val closed = newDatabase()
+		val failing = RoomEraseNextImportedActivity(
+			closed,
+			RoomDeleteSelectedImportedActivity(
+				closed,
+				UnconfinedTestDispatcher(testScheduler),
+			),
+			UnconfinedTestDispatcher(testScheduler),
+		)
+		closed.close()
+		failing.eraseNext(EPOCH, 100L) shouldBe
+			EraseNextImportedActivityResult.RetryableFailure(
+				PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
+			)
+	}
+
+	@Test
+	fun `older same generation live scope fence is reused and preserved during cascade`() = runTest {
+		val imported = request()
+		importer(testScheduler).importEntry(imported)
+		val scope = imported.entry.runs.single().deletionScopeDigest.value
+		val retainedFence =
+			SourceDeletionFenceEntity.createForOriginalRunDigest(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+				purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+				scopeIdentityDigest = scope,
+				fenceGeneration = 1L,
+				collectedDataEpoch = EPOCH,
+				deletedAtMs = 90L,
+			)
+		database.sourceDeletionFenceDao().insertIfAbsent(
+			retainedFence,
+		)
+
+		sourceEraser(testScheduler).eraseNext(EPOCH, 100L) shouldBe
+			EraseNextImportedActivityResult.ErasedLive(1, 1)
+		database.sourceDeletionFenceDao().get(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			scope,
+		) shouldBe retainedFence
+		database.importedActivityDao().latestEntryRevision(imported.entry.identity.value) shouldBe null
+		database.importedActivityDao().entryDeletion(imported.entry.identity.value)
+			?.deletedImportRevision shouldBe 1L
+	}
+
+	@Test
+	fun `newer same generation live scope fence blocks stale erase and preserves payload`() = runTest {
+		val imported = request()
+		importer(testScheduler).importEntry(imported)
+		val scope = imported.entry.runs.single().deletionScopeDigest.value
+		val newerFence = SourceDeletionFenceEntity.createForOriginalRunDigest(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+			scopeIdentityDigest = scope,
+			fenceGeneration = 1L,
+			collectedDataEpoch = EPOCH,
+			deletedAtMs = 110L,
+		)
+		database.sourceDeletionFenceDao().insertIfAbsent(newerFence)
+
+		sourceEraser(testScheduler).eraseNext(EPOCH, 100L) shouldBe
+			EraseNextImportedActivityResult.Blocked(
+				SelectedImportedActivityDeletionBlockedReason.STALE_REQUEST,
+			)
+		database.sourceDeletionFenceDao().get(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			scope,
+		) shouldBe newerFence
+		database.importedActivityDao().latestEntryRevision(imported.entry.identity.value) shouldBe
+			database.importedActivityDao().entryRevision(imported.entry.identity.value, 1L)
+		database.importedActivityDao().entryDeletion(imported.entry.identity.value) shouldBe null
+	}
+
+	@Test
+	fun `partial live fence retry preserves older fence and recreates only missing scope`() = runTest {
+		val firstRun = run(
+			identity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "partial-first-run"),
+			deletionScope = PortableActivityDeletionScopeDigest.derive(
+				"partial-logical",
+				"partial-first-run",
+			),
+			windowIdentity = identity(
+				PortableActivityIdentityKind.CAPTURE_WINDOW,
+				"partial-first-window",
+			),
+			startTimeMs = 1_000L,
+		)
+		val secondRun = run(
+			identity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "partial-second-run"),
+			deletionScope = PortableActivityDeletionScopeDigest.derive(
+				"partial-logical",
+				"partial-second-run",
+			),
+			windowIdentity = identity(
+				PortableActivityIdentityKind.CAPTURE_WINDOW,
+				"partial-second-window",
+			),
+			startTimeMs = 3_000L,
+		)
+		val imported = request(
+			entry(
+				entryLocalId = "partial-logical",
+				runs = listOf(firstRun, secondRun),
+			),
+		)
+		importer(testScheduler).importEntry(imported)
+		val retainedFence = SourceDeletionFenceEntity.createForOriginalRunDigest(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+			scopeIdentityDigest = firstRun.deletionScopeDigest.value,
+			fenceGeneration = 1L,
+			collectedDataEpoch = EPOCH,
+			deletedAtMs = 90L,
+		)
+		database.sourceDeletionFenceDao().insertIfAbsent(retainedFence)
+		val interrupted = sourceEraser(testScheduler) { checkpoint ->
+			if (checkpoint == ImportedActivitySourceEraseCheckpoint.LIVE_SCOPE_FENCES_RECORDED) {
+				throw SQLiteException("retry after fence preparation")
+			}
+		}
+
+		interrupted.eraseNext(EPOCH, 100L) shouldBe
+			EraseNextImportedActivityResult.RetryableFailure(
+				PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		database.sourceDeletionFenceDao().get(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			firstRun.deletionScopeDigest.value,
+		) shouldBe retainedFence
+		database.sourceDeletionFenceDao().contains(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			secondRun.deletionScopeDigest.value,
+		) shouldBe false
+		database.importedActivityDao().latestEntryRevision(imported.entry.identity.value) shouldBe
+			database.importedActivityDao().entryRevision(imported.entry.identity.value, 1L)
+
+		sourceEraser(testScheduler).eraseNext(EPOCH, 100L) shouldBe
+			EraseNextImportedActivityResult.ErasedLive(1, 2)
+		database.sourceDeletionFenceDao().get(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			firstRun.deletionScopeDigest.value,
+		) shouldBe retainedFence
+		database.sourceDeletionFenceDao().get(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			secondRun.deletionScopeDigest.value,
+		)?.deletedAtMs shouldBe 100L
+	}
+
+	@Test
+	fun `retained source erase storage failure after markers rolls back marker and redaction`() = runTest {
+		val imported = request()
+		importer(testScheduler).importEntry(imported)
+		establishRetentionFloor()
+		truncator(testScheduler).truncate(retentionRequest())
+		val originalReceipt = requireNotNull(
+			database.importedActivityDao().retentionReceipt(imported.entry.identity.value),
+		)
+		val failing = sourceEraser(testScheduler) { checkpoint ->
+			if (checkpoint == ImportedActivitySourceEraseCheckpoint.SOURCE_MARKERS_RECORDED) {
+				throw SQLiteException("retained erase failed")
+			}
+		}
+
+		failing.eraseNext(EPOCH, 200L) shouldBe
+			EraseNextImportedActivityResult.RetryableFailure(
+				PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		database.importedActivityDao().entryDeletion(imported.entry.identity.value) shouldBe null
+		database.importedActivityDao().retentionReceipt(imported.entry.identity.value) shouldBe
+			originalReceipt
+		database.importedActivityDao().deletionGenerations(
+			listOf(imported.entry.runs.single().identity.value),
+		) shouldBe emptyList()
+		database.sourceDeletionFenceDao().contains(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			imported.entry.runs.single().deletionScopeDigest.value,
+		) shouldBe false
+	}
+
+	@Test
 	fun `portable re-export maps imported storage failure without invoking the sink`() = runTest {
 		val closed = newDatabase()
 		closed.close()
@@ -2151,6 +2529,16 @@ class RoomImportPortableCapturedActivityTest {
 		checkpoint: suspend (ImportedActivityDeletionCheckpoint) -> Unit = {},
 	) = RoomDeleteSelectedImportedActivity(
 		database,
+		UnconfinedTestDispatcher(scheduler),
+		checkpoint,
+	)
+
+	private fun sourceEraser(
+		scheduler: TestCoroutineScheduler,
+		checkpoint: suspend (ImportedActivitySourceEraseCheckpoint) -> Unit = {},
+	) = RoomEraseNextImportedActivity(
+		database,
+		deleter(scheduler),
 		UnconfinedTestDispatcher(scheduler),
 		checkpoint,
 	)

@@ -11,6 +11,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.Operation
 import androidx.work.WorkManager
 import androidx.work.workDataOf
+import com.adsamcik.tracker.impexp.importer.archive.ArchiveEntryMetadata
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
 import com.adsamcik.tracker.impexp.importer.worker.ImportWorker
@@ -63,6 +64,34 @@ object DataImporter {
 
 private class ImportReceiptPreconditionException(message: String) : IOException(message)
 
+internal class PermanentImportInputException(
+	message: String,
+	cause: Throwable? = null,
+	val committedPrefix: ImportResult = ImportResult.EMPTY,
+) : IOException(message, cause) {
+	private val userMessage = message
+
+	fun withCommittedPrefix(prefix: ImportResult): PermanentImportInputException =
+		if (prefix == ImportResult.EMPTY) {
+			this
+		} else {
+			PermanentImportInputException(
+				message = userMessage,
+				cause = this,
+				committedPrefix = prefix + committedPrefix,
+			)
+		}
+
+	fun toImportResult(): ImportResult = committedPrefix + ImportResult(
+		failedCount = 1,
+		errors = listOf(userMessage),
+	)
+
+	private companion object {
+		const val serialVersionUID: Long = 1L
+	}
+}
+
 internal class ImportJobRunner(
 	private val receiptStore: ImportReceiptStore,
 	private val verifyCollectedDataAccess: () -> Unit = {},
@@ -105,32 +134,46 @@ internal class ImportJobRunner(
 		context: Context,
 		file: DocumentFile,
 		extractor: ArchiveExtractor,
+		isImportableEntry: (ArchiveEntryMetadata) -> Boolean = { true },
 		transactionModeForEntry: (FileImportStream) -> ImportTransactionMode = {
 			ImportTransactionMode.WORKER_MANAGED
 		},
 		importEntry: suspend (FileImportStream) -> ImportResult,
 	): ImportResult = operationMutex.withLock {
 		var aggregate = ImportResult.EMPTY
-		val opened = extractor.extract(
-			context = context,
-			file = file,
-			shouldExtract = { entry ->
-				val previous = successfulEntryResult(jobId, entry.receiptKey)
-				if (previous != null) aggregate += previous
-				previous == null
-			},
-			consume = { stream ->
-				aggregate += processEntry(
-					jobId = jobId,
-					entryKey = stream.receiptKey,
-					entryName = stream.fileName,
-					transactionMode = transactionModeForEntry(stream),
-				) {
-					importEntry(receiptBoundStream(jobId, stream))
-				}
-			},
-		)
+		var sawImportableEntry = false
+		val opened = try {
+			extractor.extract(
+				context = context,
+				file = file,
+				shouldExtract = shouldExtract@ { entry ->
+					if (!isImportableEntry(entry)) return@shouldExtract false
+					sawImportableEntry = true
+					val previous = successfulEntryResult(jobId, entry.receiptKey)
+					if (previous != null) aggregate += previous
+					previous == null
+				},
+				consume = { stream ->
+					aggregate += processEntry(
+						jobId = jobId,
+						entryKey = stream.receiptKey,
+						entryName = stream.fileName,
+						transactionMode = transactionModeForEntry(stream),
+					) {
+						importEntry(receiptBoundStream(jobId, stream))
+					}
+				},
+			)
+		} catch (failure: PermanentImportInputException) {
+			throw failure.withCommittedPrefix(aggregate)
+		}
 		if (!opened) throw IOException("Failed to extract ${file.name ?: "archive"}")
+		if (!sawImportableEntry) {
+			aggregate += ImportResult(
+				failedCount = 1,
+				errors = listOf(NO_IMPORTABLE_ARCHIVE_ENTRY_ERROR),
+			)
+		}
 		aggregate
 	}
 
@@ -372,7 +415,9 @@ internal fun computeImportJobId(
 			if (read <= 0) break
 			totalBytes += read
 			if (totalBytes > maxBytes) {
-				throw IOException("Import source exceeds size limit ($maxBytes bytes).")
+				throw PermanentImportInputException(
+					"Import source exceeds its size limit ($maxBytes bytes).",
+				)
 			}
 			digest.update(buffer, 0, read)
 		}
@@ -406,3 +451,5 @@ private fun ImportEntryReceiptEntity.toImportResult(): ImportResult = ImportResu
 )
 
 private const val MAX_RECEIPT_ERROR_LENGTH = 4_000
+internal const val NO_IMPORTABLE_ARCHIVE_ENTRY_ERROR =
+	"Archive contains no safe supported file entries."

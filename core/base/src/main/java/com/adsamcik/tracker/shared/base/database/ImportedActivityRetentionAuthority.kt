@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityDao
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetainedIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetentionReceiptEntity
@@ -65,6 +66,19 @@ internal suspend fun AppDatabase.authenticateImportedActivityRetentionBatch(
 	if (receipts.any { receipt ->
 		!receipt.authenticates(markersByEntry[receipt.entryIdentity].orEmpty())
 	}) return ImportedActivityRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
+	val sourceEraseMarkers = dao.entryDeletions(receipts.map { it.entryIdentity })
+	if (sourceEraseMarkers.distinctBy(ImportedActivityEntryDeletionEntity::entryIdentity).size !=
+		sourceEraseMarkers.size
+	) return ImportedActivityRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
+	val sourceEraseByEntry = sourceEraseMarkers.associateBy(ImportedActivityEntryDeletionEntity::entryIdentity)
+	if (receipts.any { receipt ->
+		sourceEraseByEntry[receipt.entryIdentity]?.let { deletion ->
+			deletion.collectedDataEpoch != receipt.collectedDataEpoch ||
+				deletion.deletedImportRevision != receipt.latestImportRevision ||
+				deletion.deletedAtMs != receipt.retainedAtMs ||
+				receipt.startTimeMs != 0L || receipt.endTimeMs != 0L || receipt.receivedAtMs != 0L
+		} == true
+	}) return ImportedActivityRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
 
 	val runMarkers = markers.filter { it.identityKind == ImportedActivityRetainedIdentityEntity.RUN }
 	val scopeMarkers = markers.filter {
@@ -121,6 +135,7 @@ internal suspend fun AppDatabase.authenticateImportedActivityRetentionBatch(
 		expect(RETENTION_RECEIPT_ENTRY_OWNER, receipt.entryIdentity)
 		expect(RETAINED_IDENTITY_ENTRY_OWNER, receipt.entryIdentity, receipt.protectedIdentityCount.toLong())
 	}
+	sourceEraseMarkers.forEach { marker -> expect(ENTRY_DELETION, marker.entryIdentity) }
 	markers.forEach { marker -> expect(RETAINED_IDENTITY, marker.protectedIdentity) }
 	runDeletions.forEach { marker -> expect(RUN_DELETION, marker.runIdentity) }
 	sourceFences.forEach { fence ->
@@ -164,6 +179,7 @@ private data class RetentionOwnerKey(
 private const val RETENTION_RECEIPT_ENTRY_OWNER = "RETENTION_RECEIPT_ENTRY_OWNER"
 private const val RETAINED_IDENTITY = "RETAINED_IDENTITY"
 private const val RETAINED_IDENTITY_ENTRY_OWNER = "RETAINED_IDENTITY_ENTRY_OWNER"
+private const val ENTRY_DELETION = "ENTRY_DELETION"
 private const val RUN_DELETION = "RUN_DELETION"
 private const val SOURCE_DELETION_SCOPE = "SOURCE_DELETION_SCOPE"
 private const val SQLITE_BIND_BATCH = 400

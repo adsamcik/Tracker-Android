@@ -418,8 +418,8 @@ fun ExportScreen(
                 pendingSensitiveAction.value?.let { action ->
                     AlertDialog(
                         onDismissRequest = { pendingSensitiveAction.value = null },
-                        title = { Text(stringResource(R.string.export_sensitivity_title)) },
-                        text = { Text(stringResource(R.string.export_sensitivity_message)) },
+                        title = { Text(stringResource(exporter.sensitivityTitleRes)) },
+                        text = { Text(stringResource(exporter.sensitivityMessageRes)) },
                         confirmButton = {
                             TextButton(
                                 onClick = {

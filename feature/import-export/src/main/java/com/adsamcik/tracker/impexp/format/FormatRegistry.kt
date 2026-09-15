@@ -7,12 +7,16 @@ import com.adsamcik.tracker.impexp.exporter.GpxExporter
 import com.adsamcik.tracker.impexp.exporter.JsonExporter
 import com.adsamcik.tracker.impexp.exporter.KmlExporter
 import com.adsamcik.tracker.impexp.exporter.PortableStepsExporter
+import com.adsamcik.tracker.impexp.exporter.PortableActivityExporter
+import com.adsamcik.tracker.impexp.exporter.PortablePressureExporter
 import com.adsamcik.tracker.impexp.importer.file.DatabaseImport
 import com.adsamcik.tracker.impexp.importer.file.FileImport
 import com.adsamcik.tracker.impexp.importer.file.GpxImport
 import com.adsamcik.tracker.impexp.importer.file.JsonImport
 import com.adsamcik.tracker.impexp.importer.file.KmlImport
 import com.adsamcik.tracker.impexp.importer.file.PortableStepsFileImport
+import com.adsamcik.tracker.impexp.importer.file.PortableActivityFileImport
+import com.adsamcik.tracker.impexp.importer.file.PortablePressureFileImport
 
 /**
  * Central registry that maps format identifiers to [Exporter] and [FileImport]
@@ -56,9 +60,13 @@ object FormatRegistry {
 	/** Look up an [Exporter] by format id (e.g. `"gpx"`). */
 	fun exporterFor(formatId: String): Exporter? = entries[formatId]?.exporter
 
-	/** Look up a [FileImport] whose descriptor extensions contain [ext]. */
+	/** Look up a [FileImport] using the extensions its backend actually accepts. */
 	fun importerForExtension(ext: String): FileImport? =
-		entries.values.firstOrNull { ext.lowercase() in it.descriptor.extensions }?.importer
+		entries.values
+			.mapNotNull(FormatEntry::importer)
+			.firstOrNull { importer ->
+				importer.supportedExtensions.any { it.equals(ext, ignoreCase = true) }
+			}
 
 	/** All descriptors that have an exporter registered. */
 	fun allExportFormats(): List<FormatDescriptor> =
@@ -71,8 +79,8 @@ object FormatRegistry {
 	/** Flat set of every extension that has an importer registered. */
 	fun allImportExtensions(): Set<String> =
 		entries.values
-			.filter { it.importer != null }
-			.flatMap { it.descriptor.extensions }
+			.mapNotNull(FormatEntry::importer)
+			.flatMap(FileImport::supportedExtensions)
 			.toSet()
 
 	/** All registered [FileImport] instances, in registration order. */
@@ -127,18 +135,21 @@ object FormatRegistry {
 			importer = JsonImport(),
 		)
 
+		val databaseExporter = DatabaseExporter()
+		val databaseImporter = DatabaseImport()
 		register(
 			descriptor = FormatDescriptor(
 				id = "db",
 				displayNameRes = R.string.format_database,
-				mimeType = "application/zip",
-				extensions = setOf("zip", "db"),
+				mimeType = databaseExporter.mimeType,
+				extensions = setOf(databaseExporter.extension) +
+					databaseImporter.supportedExtensions,
 				supportsExport = true,
 				supportsImport = true,
-				supportsDateRange = true,
+				supportsDateRange = databaseExporter.canSelectDateRange,
 			),
-			exporter = DatabaseExporter(),
-			importer = DatabaseImport(),
+			exporter = databaseExporter,
+			importer = databaseImporter,
 		)
 
 		register(
@@ -149,10 +160,40 @@ object FormatRegistry {
 				extensions = setOf(PortableStepsFileImport.EXTENSION),
 				supportsExport = true,
 				supportsImport = true,
-				supportsDateRange = false,
+				supportsDateRange = true,
 			),
 			exporter = PortableStepsExporter(),
 			importer = PortableStepsFileImport(),
+		)
+
+		val activityExporter = PortableActivityExporter()
+		register(
+			descriptor = FormatDescriptor(
+				id = "portable-activity-v1",
+				displayNameRes = R.string.format_portable_activity,
+				mimeType = activityExporter.mimeType,
+				extensions = setOf(PortableActivityFileImport.EXTENSION),
+				supportsExport = true,
+				supportsImport = true,
+				supportsDateRange = activityExporter.canSelectDateRange,
+			),
+			exporter = activityExporter,
+			importer = PortableActivityFileImport(),
+		)
+
+		val pressureExporter = PortablePressureExporter()
+		register(
+			descriptor = FormatDescriptor(
+				id = "portable-pressure-v1",
+				displayNameRes = R.string.format_portable_pressure,
+				mimeType = pressureExporter.mimeType,
+				extensions = setOf(PortablePressureFileImport.EXTENSION),
+				supportsExport = true,
+				supportsImport = true,
+				supportsDateRange = pressureExporter.canSelectDateRange,
+			),
+			exporter = pressureExporter,
+			importer = PortablePressureFileImport(),
 		)
 	}
 }

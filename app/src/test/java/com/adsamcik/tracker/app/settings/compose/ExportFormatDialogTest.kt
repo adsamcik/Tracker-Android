@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.adsamcik.tracker.app.settings.components.ExportFormat
 import com.adsamcik.tracker.app.settings.components.ExportFormatDialog
 import com.adsamcik.tracker.impexp.format.FormatRegistry
@@ -159,6 +160,38 @@ class ExportFormatDialogTest {
         val dialogIds = ExportFormat.supportedExportFormats().map { it.formatId }.toSet()
 
         assertEquals(registryIds, dialogIds)
+    }
+
+    @Test
+    fun portableStepsCanBeSelectedWithoutClaimingRouteCoordinates() {
+        selectPortableFormat(ExportFormat.PORTABLE_STEPS, "Portable Steps", "Steps counts")
+    }
+
+    @Test
+    fun portableActivityCanBeSelectedWithoutClaimingRouteCoordinates() {
+        selectPortableFormat(ExportFormat.PORTABLE_ACTIVITY, "Portable Activity", "captured movement bands")
+    }
+
+    @Test
+    fun portablePressureCanBeSelectedFromScrollableFormatList() {
+        selectPortableFormat(ExportFormat.PORTABLE_PRESSURE, "Portable Pressure", "pressure measurements")
+    }
+
+    private fun selectPortableFormat(format: ExportFormat, label: String, content: String) {
+        var selectedFormat: ExportFormat? = null
+        composeTestRule.setContent {
+            AppTheme(useDynamicColor = false) {
+                ExportFormatDialog(onDismiss = {}, onFormatSelected = { selectedFormat = it })
+            }
+        }
+
+        composeTestRule.onNodeWithText(label).performScrollTo().performClick()
+        composeTestRule.onNodeWithText("Export tracked history?").assertIsDisplayed()
+        composeTestRule.onNodeWithText(content, substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("does not contain route coordinates", substring = true).assertIsDisplayed()
+        assertEquals(null, selectedFormat)
+        composeTestRule.onNodeWithText("Continue export").performClick()
+        assertEquals(format, selectedFormat)
     }
 
     @Test
