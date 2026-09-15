@@ -2944,3 +2944,34 @@ Deferred focused command:
 The command was not run. Compilation, Room execution, portable import/round trip, file/UI action,
 shared product UI, automatic/ambient behavior, provider/process/reboot/device evidence, integration,
 activation, publication, and release remain unproven.
+
+## TI-B314 — Imported Activity retention contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `4f46e066c` (`0a365d005`, `d27596e83`, and
+`4f46e066c`). Authored entity/checksum, DAO, transaction, product/history/export composition,
+migration/full-clear, and Room/unit test sources cover current epoch and uncertainty-safe floor;
+complete revision/receipt/entry/run/window/fragment authority; entry/run/source fences; local and
+imported owner collisions; combined global/injected receipt and marker caps; checked arithmetic and
+pre-insert rollback; cancellation/storage failure; correction/replay/no-resurrection; payload-free
+typed retained entry/run/window/scope markers; value-free retained product state; and portable
+payload omission.
+
+Initial independent review rejected missing combined stored-plus-incoming caps, whole-candidate
+hierarchy accumulation, and lost retained child/scope ownership. `d27596e83` corrected those paths,
+but fresh review found that its batch-of-four visitor could still materialize roughly 524,000
+fragments in one Room list and that its one-fragment paging test did not prove the production bound.
+`4f46e066c` pages header shells, authenticates and reloads exactly one lineage through cap-plus-one
+batched queries, immediately reduces payload to compact receipt/marker authority, and preserves only
+checked aggregate counts plus cross-lineage protected identities. The dense two-lineage regression
+corrupts the already-compacted first payload before the second authentication and proves no reread.
+Final fresh full-lineage static review returned ACCEPT with no source-level blocker.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat ciUnitTest
+```
+
+The command was not run. Compilation, Room/schema agreement, migration execution, authored test
+outcomes, production retention invocation, source-wide erase, file/UI actions, device evidence,
+integration, activation, publication, and release remain unproven.

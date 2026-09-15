@@ -4093,3 +4093,20 @@ Each entry records repository evidence and does not duplicate the final architec
 - Portable output is identity-free count/band/quality/availability/coverage/completeness plus typed
   gaps/state. No SSID/BSSID, raw WAL, provider/local identity, Location inference, live authority,
   import, UI, activation, or rollout is added.
+
+## TI-D251 — Imported Activity retention authenticates and discards one lineage at a time
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-15; initial truncation `0a365d005`, cap/ownership
+  correction `d27596e83`, one-lineage correction `4f46e066c`; corrected independent reviews;
+  TI-B314.
+- One transaction authenticates the current epoch, uncertainty-safe floor, complete correction and
+  receipt hierarchy, entry/run/source fences, all local/imported owner kinds, and combined existing
+  plus incoming receipt/marker caps before any mutation. Counts use checked arithmetic.
+- Candidate pages contain header shells only. Exactly one lineage is authenticated at a time; one
+  selected lineage is reloaded with cap-plus-one batched queries, immediately reduced to a
+  self-verifying receipt plus payload-free typed entry/run/window/scope markers, and discarded before
+  the next candidate. Only aggregate counts and the complete protected-identity set survive across
+  visits; per-row query fan-out is prohibited.
+- Retained Activity is a typed unavailable product shell with no value or fragments. Its authority
+  remains visible to collision, correction, deletion-fence, and no-resurrection checks while portable
+  payload export omits it. Production invocation and source-wide erase remain separate open work.

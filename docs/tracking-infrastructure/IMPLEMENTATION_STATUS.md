@@ -261,6 +261,23 @@ corrected under-authenticated `AlreadyDeleted` and descendant owner-column gaps;
 pass accepted the full lineage. Imported retention/source erase, file/UI actions, shared UI,
 generated v28 schema, validation, and device evidence remain open.
 
+The same Activity transfer branch reaches independently accepted `4f46e066c` for imported
+retention (`0a365d005`, `d27596e83`, and `4f46e066c`). The source-specific truncator evaluates the
+current epoch and uncertainty-safe floor, authenticates complete revisions/receipts and every
+entry/run/window/fragment owner plus entry/run/source fence, preflights combined stored-and-incoming
+receipt/marker caps with checked arithmetic, and mutates only after the full scan succeeds. Initial
+review found missing combined caps, premature full-hierarchy accumulation, and lost retained child
+ownership. `d27596e83` closed cap and typed-ownership gaps, but a fresh reviewer rejected its
+batch-of-four visitor because one Room list could still materialize about 524,000 fragments.
+`4f46e066c` pages header shells, authenticates and reloads one selected lineage at a time through
+bounded cap-plus-one batched queries, immediately reduces it to a self-verifying receipt plus
+payload-free typed markers, and retains only exact aggregate counts and cross-lineage protected
+identities. A dense adjacent-lineage regression proves the first payload is not reread with the
+second. Final fresh static review returned ACCEPT. Retained Activity remains a typed unavailable
+shell with no fabricated value/fragments, is collision-visible, cannot be resurrected by import,
+and is omitted from portable payload export. Production retention invocation/source-wide erase,
+file/UI actions, generated v28 schema, validation, and device evidence remain open.
+
 The separate `codex/ti-activity-maintenance` branch is independently accepted through
 `dd19b4d33` for exact selected-session deletion. `09a2f1c96` adds a typed API, bounded reverse
 segment ownership, one source-local Room service, per-run maintenance fencing, exact fact/cursor/

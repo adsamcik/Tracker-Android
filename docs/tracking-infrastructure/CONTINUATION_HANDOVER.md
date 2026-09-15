@@ -194,6 +194,21 @@ closed. Delete/reimport/re-export cannot resurrect the entry, while unrelated im
 Activity, CONTROL, WAL, and live authority remain untouched. Imported retention/source-wide erase,
 file/UI actions, shared UI, schema generation, and validation remain open.
 
+The Activity transfer branch now reaches independently accepted `4f46e066c` for imported retention
+(`0a365d005`, `d27596e83`, and the one-lineage correction). One Room transaction authenticates the
+current epoch and uncertainty-safe floor, complete correction/receipt hierarchy, entry/run/source
+fences, all imported and local owner kinds, and combined existing-plus-new authority caps before its
+first mutation. Candidates are paged as header shells but authenticated exactly one lineage at a
+time; an affected lineage is reloaded alone with cap-plus-one batched queries, reduced immediately
+to a self-verifying receipt plus payload-free typed entry/run/window/scope markers, and discarded
+before the next candidate. Transaction-wide counts use checked arithmetic and preserve the complete
+cross-lineage protected-identity set. The retained product is a typed unavailable shell with no
+numeric value or fragments; it participates in collision/no-resurrection checks but is omitted from
+portable payload export. A fresh reviewer rejected the earlier batch-of-four shape because it could
+materialize roughly 524,000 fragments, then accepted the single-lineage correction and dense-neighbor
+regression. The truncator remains a callable source slice: retention scheduling/source-wide erase,
+file/UI action, schema generation, execution validation, and device evidence remain open.
+
 Exact Activity selected-session deletion is independently accepted on
 `codex/ti-activity-maintenance` through `dd19b4d33` (`09a2f1c96` plus its scoped-control
 correction). One bounded transaction proves bidirectional logical/run/segment replacement

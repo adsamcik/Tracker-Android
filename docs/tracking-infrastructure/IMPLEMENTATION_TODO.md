@@ -793,6 +793,17 @@ colliding, orphaned, or overflowing replay fails closed, and reimport/re-export 
 deleted hierarchy. TODOs remain unchecked until imported retention/source erase, shared file/UI
 actions, automatic behavior, generated schema convergence, and complete scenarios exist.
 
+Accepted imported-retention commits `0a365d005`, `d27596e83`, and `4f46e066c` implement further
+bounded portions of ACT-003/007/010 and PRIV-002/004/005/011. One transaction authenticates the
+uncertainty-safe retention set and all fences/owners, preflights combined authority caps, then
+processes exactly one lineage at a time: bounded header paging, cap-plus-one batched reload, compact
+self-verifying receipt and typed entry/run/window/scope markers, and immediate payload discard.
+Checked transaction-wide totals and protected identities preserve collision and no-resurrection
+authority; retained history is a value-free typed shell and retained payload is not exported. Fresh
+review rejected the intermediate batch-of-four memory shape and accepted the dense-lineage
+correction. TODOs remain unchecked until retention is invoked by production policy, source-wide
+erase and file/UI actions exist, schema converges, and complete scenarios are validated.
+
 Accepted selected-deletion commits `09a2f1c96` and `dd19b4d33` implement additional bounded
 portions of ACT-003/007/010 and PRIV-004/005/011. The service proves complete bidirectional logical
 replacement ownership and exact all-revision `{Activity}` capture authority, fences every run before
