@@ -42,6 +42,7 @@ class TrackingHistoryRepositoryTest {
 						steps = missingSteps(),
 					),
 				),
+				activity = ActivityHistoryQuery.Found(unavailableActivityHistory()),
 				pressure = PressureSessionHistoryQuery.Found(
 					PressureSessionHistory(
 						segmentId = 7L,
@@ -189,7 +190,7 @@ class TrackingHistoryRepositoryTest {
 	}
 
 	@Test
-	fun `Pressure-aware page keeps source-only identities opaque and physical echoes explicit`() {
+	fun `source-aware page keeps Pressure identities opaque and physical echoes explicit`() {
 		val pressure = PressureOnlyHistoryEntry(
 			key = TrackingHistoryEntryKey("pressure:logical:one"),
 			startTime = EpochMs(100L),
@@ -197,14 +198,138 @@ class TrackingHistoryRepositoryTest {
 			pressure = unavailablePressureHistory(),
 		)
 
-		val logicalRow = PressureAwareHistoryPageEntry.PressureOnly(pressure)
+		val logicalRow = SourceAwareHistoryPageEntry.PressureOnly(pressure)
 		assertEquals("TrackingHistoryEntryKey", logicalRow.history.key.toString())
 		assertEquals(
-			PressureAwareHistoryPageEntry.Physical(7L),
-			PressureAwareHistoryPageEntry.Physical(7L),
+			SourceAwareHistoryPageEntry.Physical(7L),
+			SourceAwareHistoryPageEntry.Physical(7L),
 		)
 		assertFailsWith<IllegalArgumentException> {
-			PressureAwareHistoryPageEntry.Physical(0L)
+			SourceAwareHistoryPageEntry.Physical(0L)
+		}
+	}
+
+	@Test
+	fun `source-aware Activity row requires exact Activity-only intent`() {
+		val activity = ActivityHistoryEntry(
+			key = ActivityHistoryEntryKey("activity"),
+			startTime = EpochMs(100L),
+			endTime = EpochMs(200L),
+			storedZoneIds = setOf("UTC"),
+			state = ActivityHistoryProductState.UNAVAILABLE,
+			coverage = ActivityHistoryCoverage.NONE,
+			activeTime = null,
+			fragments = emptyList(),
+			causes = setOf(ActivityHistoryCause.NO_QUALIFIED_FACTS),
+		)
+
+		assertFailsWith<IllegalArgumentException> {
+			SourceAwareHistoryPageEntry.ActivityOnly(activity)
+		}
+		assertEquals(
+			activity.copy(capturesOnlyActivity = true),
+			SourceAwareHistoryPageEntry.ActivityOnly(
+				activity.copy(capturesOnlyActivity = true),
+			).history,
+		)
+	}
+
+	@Test
+	fun `combined live snapshot rejects mixed found and missing source reads`() {
+		val session = SessionHistoryQuery.Found(
+			SessionHistory(
+				segmentId = 7L,
+				capture = HistoryCapture.Exact(
+					listOf(
+						HistoryCaptureRevision(
+							revision = 1L,
+							effectiveAt = EpochMs(100L),
+							capturedSources = setOf(HistorySource.ACTIVITY),
+							controlSources = emptySet(),
+						),
+					),
+				),
+				qualifiedSources = emptySet(),
+				steps = missingSteps(),
+			),
+		)
+
+		assertFailsWith<IllegalArgumentException> {
+			LiveSessionHistorySnapshot(
+				segmentId = 7L,
+				session = session,
+				activity = ActivityHistoryQuery.NotFound,
+				pressure = pressureQueryFor(session.history),
+			)
+		}
+	}
+
+	@Test
+	fun `combined live snapshot rejects unacknowledged common Activity-only intent`() {
+		val session = SessionHistory(
+			segmentId = 7L,
+			capture = HistoryCapture.Exact(
+				listOf(
+					HistoryCaptureRevision(
+						revision = 1L,
+						effectiveAt = EpochMs(100L),
+						capturedSources = setOf(HistorySource.ACTIVITY),
+						controlSources = emptySet(),
+					),
+				),
+			),
+			qualifiedSources = emptySet(),
+			steps = missingSteps(),
+		)
+
+		assertFailsWith<IllegalArgumentException> {
+			LiveSessionHistorySnapshot(
+				segmentId = session.segmentId,
+				session = SessionHistoryQuery.Found(session),
+				activity = ActivityHistoryQuery.Found(unavailableActivityHistory()),
+				pressure = pressureQueryFor(session),
+			)
+		}
+	}
+
+	@Test
+	fun `combined live snapshot rejects dual source-only truth`() {
+		val capture = HistoryCapture.Exact(
+			listOf(
+				HistoryCaptureRevision(
+					revision = 1L,
+					effectiveAt = EpochMs(100L),
+					capturedSources = setOf(HistorySource.PRESSURE),
+					controlSources = emptySet(),
+				),
+			),
+		)
+		val session = SessionHistory(
+			segmentId = 7L,
+			capture = capture,
+			qualifiedSources = emptySet(),
+			steps = missingSteps(),
+		)
+		val activity = ActivityHistoryEntry(
+			key = ActivityHistoryEntryKey("activity"),
+			startTime = EpochMs(100L),
+			endTime = EpochMs(200L),
+			storedZoneIds = setOf("UTC"),
+			state = ActivityHistoryProductState.UNAVAILABLE,
+			coverage = ActivityHistoryCoverage.NONE,
+			activeTime = null,
+			fragments = emptyList(),
+			causes = setOf(ActivityHistoryCause.NO_QUALIFIED_FACTS),
+			capturesOnlyActivity = true,
+		)
+
+		assertFailsWith<IllegalArgumentException> {
+			LiveSessionHistorySnapshot(
+				segmentId = 7L,
+				session = SessionHistoryQuery.Found(session),
+				activity = ActivityHistoryQuery.Found(activity),
+				pressure = pressureQueryFor(session),
+			)
 		}
 	}
 
@@ -350,6 +475,27 @@ class TrackingHistoryRepositoryTest {
 		productState = HistoryProductState.DEGRADED,
 		coverage = StepsHistoryCoverage.UNKNOWN,
 		causes = setOf(StepsHistoryCause.LEGACY_UNVERIFIED),
+	)
+
+	private fun pressureQueryFor(session: SessionHistory) = PressureSessionHistoryQuery.Found(
+		PressureSessionHistory(
+			segmentId = session.segmentId,
+			capture = session.capture,
+			qualifiedSources = emptySet(),
+			pressure = unavailablePressureHistory(),
+		),
+	)
+
+	private fun unavailableActivityHistory() = ActivityHistoryEntry(
+		key = ActivityHistoryEntryKey("activity:unavailable"),
+		startTime = EpochMs(100L),
+		endTime = EpochMs(200L),
+		storedZoneIds = setOf("UTC"),
+		state = ActivityHistoryProductState.UNAVAILABLE,
+		coverage = ActivityHistoryCoverage.NONE,
+		activeTime = null,
+		fragments = emptyList(),
+		causes = setOf(ActivityHistoryCause.NO_QUALIFIED_FACTS),
 	)
 
 	private fun unavailablePressureHistory() = PressureHistory(

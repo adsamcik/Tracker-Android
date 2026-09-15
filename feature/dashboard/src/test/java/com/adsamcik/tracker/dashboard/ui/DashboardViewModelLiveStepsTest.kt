@@ -12,6 +12,18 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveStepsValue
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
+import com.adsamcik.tracker.stats.api.repository.ActivityActiveTime
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryConfidence
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryFragment
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryMechanism
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryType
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryWallTimeContinuity
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistoryCaptureRevision
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
@@ -19,7 +31,6 @@ import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.LiveSessionHistorySnapshot
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
-import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
@@ -31,6 +42,7 @@ import com.adsamcik.tracker.stats.api.repository.PressureWindowClosure
 import com.adsamcik.tracker.stats.api.repository.PressureWindowQualification
 import com.adsamcik.tracker.stats.api.repository.SessionHistory
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
@@ -118,6 +130,33 @@ class DashboardViewModelLiveStepsTest {
 			repository.liveCancelled shouldContain SECOND_SEGMENT_ID
 			viewModel.liveSessionPresentation.value shouldBe
 				DashboardLiveSessionPresentation.Inactive
+			collection.cancel()
+		} finally {
+			Dispatchers.resetMain()
+		}
+	}
+
+	@Test
+	fun `rejected Activity-only authority mismatch is presented as history unavailable`() = runTest {
+		val mainDispatcher = StandardTestDispatcher(testScheduler)
+		Dispatchers.setMain(mainDispatcher)
+		try {
+			val running = MutableStateFlow(true)
+			val session = MutableStateFlow<TrackerSessionSnapshot?>(
+				TrackerSessionSnapshot(id = FIRST_SEGMENT_ID, start = 1L),
+			)
+			val repository = RecordingTrackingHistoryRepository().apply {
+				rejectLive(FIRST_SEGMENT_ID, "Activity-only truth contradicts common capture")
+			}
+			val viewModel = createViewModel(running, session, repository)
+			val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				viewModel.liveSessionPresentation.collect { }
+			}
+
+			advanceUntilIdle()
+
+			viewModel.liveSessionPresentation.value shouldBe
+				DashboardLiveSessionPresentation.HistoryUnavailable(FIRST_SEGMENT_ID)
 			collection.cancel()
 		} finally {
 			Dispatchers.resetMain()
@@ -307,6 +346,49 @@ class DashboardViewModelLiveStepsTest {
 		}
 	}
 
+	@Test
+	fun `exact Activity-only live snapshot exposes only retained captured evidence`() = runTest {
+		val mainDispatcher = StandardTestDispatcher(testScheduler)
+		Dispatchers.setMain(mainDispatcher)
+		try {
+			val running = MutableStateFlow(true)
+			val session = MutableStateFlow<TrackerSessionSnapshot?>(
+				TrackerSessionSnapshot(id = FIRST_SEGMENT_ID, start = 1L),
+			)
+			val repository = RecordingTrackingHistoryRepository()
+			repository.update(
+				FIRST_SEGMENT_ID,
+				SessionHistoryQuery.Found(activityOnlySessionHistory(FIRST_SEGMENT_ID)),
+			)
+			repository.updateActivity(
+				FIRST_SEGMENT_ID,
+				ActivityHistoryQuery.Found(capturedActivityEntry()),
+			)
+			val viewModel = createViewModel(running, session, repository)
+			val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				viewModel.liveSessionPresentation.collect { }
+			}
+
+			advanceUntilIdle()
+
+			viewModel.liveSessionPresentation.value shouldBe
+				DashboardLiveSessionPresentation.ActivityOnly(
+					segmentId = FIRST_SEGMENT_ID,
+					activity = com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveActivityValue(
+						state = ActivityHistoryProductState.PARTIAL,
+						coverage = ActivityHistoryCoverage.PARTIAL,
+						knownActiveDurationNanos = 2_000_000_000L,
+						latestMovementBand = ActivityHistoryType.WALKING,
+						gapCount = 0,
+						hasRetainedQualifiedEvidence = true,
+					),
+				)
+			collection.cancel()
+		} finally {
+			Dispatchers.resetMain()
+		}
+	}
+
 	private fun createViewModel(
 		running: MutableStateFlow<Boolean>,
 		session: MutableStateFlow<TrackerSessionSnapshot?>,
@@ -353,6 +435,49 @@ class DashboardViewModelLiveStepsTest {
 		// Capture authority, not post-observation qualification, selects the live layout.
 		qualifiedSources = emptySet(),
 		steps = materializingSteps(),
+	)
+
+	private fun activityOnlySessionHistory(segmentId: Long) = SessionHistory(
+		segmentId = segmentId,
+		capture = HistoryCapture.Exact(
+			listOf(
+				HistoryCaptureRevision(
+					revision = 1L,
+					effectiveAt = EpochMs(100L),
+					capturedSources = setOf(HistorySource.ACTIVITY),
+					controlSources = emptySet(),
+				),
+			),
+		),
+		qualifiedSources = emptySet(),
+		steps = materializingSteps(),
+	)
+
+	private fun capturedActivityEntry() = ActivityHistoryEntry(
+		key = ActivityHistoryEntryKey("activity"),
+		startTime = EpochMs(100L),
+		endTime = EpochMs(2_100L),
+		storedZoneIds = setOf("UTC"),
+		state = ActivityHistoryProductState.PARTIAL,
+		coverage = ActivityHistoryCoverage.PARTIAL,
+		activeTime = ActivityActiveTime(2_000_000_000L, 0L, 0L, 0L),
+		fragments = listOf(
+			ActivityHistoryFragment.Band(
+				storedZoneId = "UTC",
+				startTime = EpochMs(100L),
+				endTime = EpochMs(2_100L),
+				startUncertaintyMs = 0L,
+				endUncertaintyMs = 0L,
+				activity = ActivityHistoryType.WALKING,
+				mechanism = ActivityHistoryMechanism.TRANSITION,
+				refinedTransitionActivity = null,
+				confidence = ActivityHistoryConfidence.TransitionSignal,
+				wallTimeContinuity = ActivityHistoryWallTimeContinuity.SAME_ANCHOR,
+				durationNanos = 2_000_000_000L,
+			),
+		),
+		causes = setOf(ActivityHistoryCause.PROVIDER_GAP),
+		capturesOnlyActivity = true,
 	)
 
 	private fun mixedHistory(
@@ -495,20 +620,25 @@ class DashboardViewModelLiveStepsTest {
 
 private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 	private val snapshots = mutableMapOf<Long, MutableStateFlow<LiveSessionHistorySnapshot>>()
+	private val liveRejections = mutableMapOf<Long, String>()
 	val liveStarted = mutableListOf<Long>()
 	val liveCancelled = mutableListOf<Long>()
 
-	override fun observeSession(segmentId: Long): Flow<SessionHistoryQuery> = flowOf(
-		SessionHistoryQuery.NotFound,
-	)
+	override fun observeSession(segmentId: Long): Flow<SessionHistoryQuery> =
+		flowOf(SessionHistoryQuery.NotFound)
 
 	override fun observeLiveSession(segmentId: Long): Flow<LiveSessionHistorySnapshot> = flow {
 		liveStarted += segmentId
 		try {
+			liveRejections[segmentId]?.let { message -> throw IllegalArgumentException(message) }
 			emitAll(snapshotState(segmentId))
 		} finally {
 			liveCancelled += segmentId
 		}
+	}
+
+	fun rejectLive(segmentId: Long, message: String) {
+		liveRejections[segmentId] = message
 	}
 
 	override fun observeRecentStepsOnlyEntries(limit: Int): Flow<List<StepsOnlyHistoryEntry>> =
@@ -519,68 +649,121 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 		limit: Int,
 	): Flow<List<StepsAwareHistoryPageEntry>> = flowOf(emptyList())
 
-	override fun observeRecentPressureAwarePage(
+	override fun observeRecentSourceAwarePage(
 		candidateSegmentIds: List<Long>,
 		limit: Int,
-	): Flow<PressureAwareHistoryPageQuery> = flowOf(
-		PressureAwareHistoryPageQuery.Content(emptyList()),
-	)
+	): Flow<SourceAwareHistoryPageQuery> = flowOf(SourceAwareHistoryPageQuery.Content(emptyList()))
 
-	override fun observePressureSession(segmentId: Long): Flow<PressureSessionHistoryQuery> = flowOf(
-		PressureSessionHistoryQuery.NotFound,
-	)
+	override fun observePressureSession(segmentId: Long): Flow<PressureSessionHistoryQuery> =
+		flowOf(PressureSessionHistoryQuery.NotFound)
 
 	override fun observeRecentPressureOnlyEntries(
 		limit: Int,
 	): Flow<List<PressureOnlyHistoryEntry>> = flowOf(emptyList())
 
 	fun update(segmentId: Long, query: SessionHistoryQuery) {
-		val snapshot = when (query) {
+		snapshotState(segmentId).value = when (query) {
 			SessionHistoryQuery.NotFound -> missingSnapshot(segmentId)
-			is SessionHistoryQuery.Found -> LiveSessionHistorySnapshot(
-				segmentId = segmentId,
-				session = query,
-				pressure = PressureSessionHistoryQuery.Found(
-					PressureSessionHistory(
-						segmentId = segmentId,
-						capture = query.history.capture,
-						qualifiedSources = emptySet(),
-						pressure = missingPressureHistory(),
-					),
-				),
-			)
+			is SessionHistoryQuery.Found -> foundSnapshot(query)
 		}
-		snapshotState(segmentId).value = snapshot
 	}
 
 	fun updatePressure(segmentId: Long, query: PressureSessionHistoryQuery) {
-		val snapshot = when (query) {
-			PressureSessionHistoryQuery.NotFound -> missingSnapshot(segmentId)
-			is PressureSessionHistoryQuery.Found -> LiveSessionHistorySnapshot(
-				segmentId = segmentId,
-				session = SessionHistoryQuery.Found(
-					SessionHistory(
-						segmentId = segmentId,
-						capture = query.history.capture,
-						qualifiedSources = emptySet(),
-						steps = missingStepsHistory(),
-					),
-				),
-				pressure = query,
-			)
+		val found = when (query) {
+			PressureSessionHistoryQuery.NotFound -> {
+				snapshotState(segmentId).value = missingSnapshot(segmentId)
+				return
+			}
+			is PressureSessionHistoryQuery.Found -> query
 		}
-		snapshotState(segmentId).value = snapshot
+		val current = snapshotState(segmentId).value
+		val session = (current.session as? SessionHistoryQuery.Found)?.takeIf {
+			it.history.capture == found.history.capture
+		} ?: SessionHistoryQuery.Found(
+			SessionHistory(
+				segmentId = segmentId,
+				capture = found.history.capture,
+				qualifiedSources = emptySet(),
+				steps = missingStepsHistory(),
+			),
+		)
+		snapshotState(segmentId).value = LiveSessionHistorySnapshot(
+			segmentId = segmentId,
+			session = session,
+			activity = defaultActivityQuery(segmentId),
+			pressure = found,
+		)
 	}
 
-	private fun snapshotState(segmentId: Long): MutableStateFlow<LiveSessionHistorySnapshot> =
-		snapshots.getOrPut(segmentId) {
-			MutableStateFlow(missingSnapshot(segmentId))
+	fun updateActivity(segmentId: Long, query: ActivityHistoryQuery) {
+		val found = when (query) {
+			ActivityHistoryQuery.NotFound -> {
+				snapshotState(segmentId).value = missingSnapshot(segmentId)
+				return
+			}
+			is ActivityHistoryQuery.Found -> query
 		}
+		val current = snapshotState(segmentId).value
+		val session = current.session as? SessionHistoryQuery.Found
+			?: error("Activity update requires a common session snapshot")
+		val pressure = current.pressure as? PressureSessionHistoryQuery.Found
+			?: defaultPressureQuery(session.history)
+		snapshotState(segmentId).value = LiveSessionHistorySnapshot(
+			segmentId = segmentId,
+			session = session,
+			activity = found,
+			pressure = pressure,
+		)
+	}
+
+	private fun foundSnapshot(query: SessionHistoryQuery.Found) = LiveSessionHistorySnapshot(
+		segmentId = query.history.segmentId,
+		session = query,
+		activity = defaultActivityQuery(
+			segmentId = query.history.segmentId,
+			capturesOnlyActivity = (query.history.capture as? HistoryCapture.Exact)
+				?.revisions?.all { revision ->
+					revision.capturedSources == setOf(HistorySource.ACTIVITY)
+				} == true,
+		),
+		pressure = defaultPressureQuery(query.history),
+	)
+
+	private fun snapshotState(segmentId: Long): MutableStateFlow<LiveSessionHistorySnapshot> =
+		snapshots.getOrPut(segmentId) { MutableStateFlow(missingSnapshot(segmentId)) }
 
 	private fun missingSnapshot(segmentId: Long) = LiveSessionHistorySnapshot(
 		segmentId = segmentId,
 		session = SessionHistoryQuery.NotFound,
+		activity = ActivityHistoryQuery.NotFound,
 		pressure = PressureSessionHistoryQuery.NotFound,
+	)
+
+	private fun defaultActivityQuery(
+		segmentId: Long,
+		capturesOnlyActivity: Boolean = false,
+	) = ActivityHistoryQuery.Found(
+		ActivityHistoryEntry(
+			key = ActivityHistoryEntryKey("mixed:$segmentId"),
+			startTime = EpochMs(1L),
+			endTime = EpochMs(2L),
+			storedZoneIds = emptySet(),
+			state = ActivityHistoryProductState.UNAVAILABLE,
+			coverage = ActivityHistoryCoverage.NONE,
+			activeTime = null,
+			fragments = emptyList(),
+			causes = setOf(ActivityHistoryCause.SOURCE_NOT_CAPTURED),
+			capturesOnlyActivity = capturesOnlyActivity,
+		),
+	)
+
+	private fun defaultPressureQuery(session: SessionHistory) = PressureSessionHistoryQuery.Found(
+		PressureSessionHistory(
+			segmentId = session.segmentId,
+			capture = session.capture,
+			qualifiedSources = emptySet(),
+			pressure = missingPressureHistory(),
+		),
 	)
 
 	private fun missingStepsHistory() = StepsHistory(

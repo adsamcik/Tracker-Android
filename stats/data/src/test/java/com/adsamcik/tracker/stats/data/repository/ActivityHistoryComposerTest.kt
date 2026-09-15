@@ -14,13 +14,13 @@ import com.adsamcik.tracker.shared.base.database.PortableActivityOpaqueIdentity
 import com.adsamcik.tracker.shared.base.database.ReadLocalPortableCapturedActivityResult
 import com.adsamcik.tracker.shared.base.database.RoomImportPortableCapturedActivity
 import com.adsamcik.tracker.shared.base.database.RoomReadLocalPortableCapturedActivity
+import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
-import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -29,15 +29,15 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
-import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
@@ -51,12 +51,16 @@ import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryPage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.security.MessageDigest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -82,18 +86,32 @@ class ActivityHistoryComposerTest {
 	fun tearDown() = database.close()
 
 	@Test
-	fun `ordinary discovery finds an Activity-only zero-sample segment from its fact`() = runTest {
-		val fixture = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+	fun `ordinary discovery finds Activity-only intent before its first fact`() = runTest {
+		val fixture = fixture(listOf(RunSpec(1L, "run-a", "UTC"))).copy(
+			revisions = emptyList(),
+			cursors = emptyList(),
+			fragmentsByRevision = emptyMap(),
+			evidenceByRevision = emptyMap(),
+		)
 		val segment = fixture.expansion.segments.single()
 		segment.sampleCount shouldBe 0
-		database.sessionSegmentDao().insert(segment)
-		database.sourceSessionDao().insertServiceRun(fixture.runs.getValue("run-a"))
-		database.activityCapturedFactDao().insertRevision(fixture.revisions.single())
+		persistFixture(fixture)
 
-		val candidates = database.activityCapturedFactDao().logicalHistoryCandidatePage(10, null, null)
+		val candidates = database.activityCapturedFactDao().logicalHistoryCandidatePage(
+			10, null, null, ACTIVITY_SOURCE,
+		)
 
 		candidates shouldHaveSize 1
 		candidates.single().segment.id shouldBe segment.id
+		val repository = DefaultActivityHistoryRepository(
+			database,
+			EXECUTION_AUTHORITY,
+			UnconfinedTestDispatcher(testScheduler),
+		)
+		val entry = (repository.recent(1) as ActivityHistoryPage.Available).entries.single()
+		entry.capturesOnlyActivity shouldBe true
+		entry.activeTime shouldBe null
+		entry.fragments shouldBe emptyList()
 	}
 
 	@Test
@@ -701,6 +719,176 @@ class ActivityHistoryComposerTest {
 		badPolicyEntry.state shouldBe ActivityHistoryProductState.FAILED
 	}
 
+	@Test
+	fun `Activity live facade classifies capture and product in one Room snapshot`() = runTest {
+		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		persistFixture(snapshot)
+		var authorityChecks = 0
+		val authority = SourceProductLaneExecutionAuthority {
+			authorityChecks += 1
+			database.inTransaction()
+		}
+		val activityRepository = DefaultActivityHistoryRepository(
+			database,
+			authority,
+			UnconfinedTestDispatcher(testScheduler),
+		)
+		val stepsSelector = StepsSegmentHistorySelector(database, authority)
+		val repository = DefaultTrackingHistoryRepository(
+			database = database,
+			stepsSelector = stepsSelector,
+			logicalHistoryReader = LogicalTrackingHistoryReader(database, stepsSelector),
+			pressureSelector = PressureHistorySelector(database, authority),
+			activityHistoryRepository = activityRepository,
+			ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+		)
+
+		val live = repository.observeLiveSession(
+			snapshot.expansion.segments.single().id,
+		).first()
+
+		(live.session as SessionHistoryQuery.Found).history.segmentId shouldBe live.segmentId
+		val activity = (live.activity as ActivityHistoryQuery.Found).entry
+		activity.capturesOnlyActivity shouldBe true
+		activity.activeTime?.knownActiveDurationNanos shouldBe 100L
+		authorityChecks shouldBe 1
+	}
+
+	@Test
+	fun `Activity recency uses one newest member tuple when physical ids regress`() {
+		val snapshot = fixture(
+			listOf(
+				RunSpec(1L, "run-a", "UTC", segmentId = 900L),
+				RunSpec(2L, "run-b", "UTC", segmentId = 40L),
+			),
+		)
+
+		val composed = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single()
+
+		composed.recencyStartTimeMs shouldBe 1_500L
+		composed.recencySegmentId shouldBe 40L
+	}
+
+	@Test
+	fun `source-aware page replaces factless Activity group once from exact intent`() = runTest {
+		val snapshot = fixture(
+			listOf(RunSpec(1L, "run-a", "UTC"), RunSpec(2L, "run-b", "UTC")),
+		).copy(
+			revisions = emptyList(),
+			cursors = emptyList(),
+			fragmentsByRevision = emptyMap(),
+			evidenceByRevision = emptyMap(),
+		)
+		persistFixture(snapshot)
+		val activityRepository = DefaultActivityHistoryRepository(
+			database,
+			EXECUTION_AUTHORITY,
+			UnconfinedTestDispatcher(testScheduler),
+		)
+		val stepsSelector = StepsSegmentHistorySelector(database, EXECUTION_AUTHORITY)
+		val repository = DefaultTrackingHistoryRepository(
+			database = database,
+			stepsSelector = stepsSelector,
+			logicalHistoryReader = LogicalTrackingHistoryReader(database, stepsSelector),
+			pressureSelector = PressureHistorySelector(database, EXECUTION_AUTHORITY),
+			activityHistoryRepository = activityRepository,
+			ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+		)
+
+		val page = repository.observeRecentSourceAwarePage(
+			candidateSegmentIds = snapshot.expansion.segments.map(SessionSegment::id),
+			limit = 5,
+		).first() as SourceAwareHistoryPageQuery.Content
+
+		page.entries shouldHaveSize 1
+		val activity = (page.entries.single() as SourceAwareHistoryPageEntry.ActivityOnly).history
+		activity.capturesOnlyActivity shouldBe true
+		activity.activeTime shouldBe null
+		activity.fragments shouldBe emptyList()
+	}
+
+	@Test
+	fun `all-revision Activity-only intent rejects a mixed captured source`() {
+		val base = fixture(
+			listOf(RunSpec(1L, "run-a", "UTC"), RunSpec(2L, "run-b", "UTC")),
+		)
+		val key = ActivityManifestKey(LOGICAL_ID, 2L)
+		val activitySource = base.sourcesByManifest.getValue(key).single()
+		val locationSource = activitySource.copy(
+			sourceKind = SOURCE_LOCATION,
+			outputDestination = null,
+			writerOwner = null,
+			writerOwnerGeneration = null,
+			writerProjectionId = null,
+			writerProjectionVersion = null,
+			writerBindingGeneration = null,
+		)
+		val sources = listOf(activitySource, locationSource)
+		val unsignedManifest = base.manifestsByRun.getValue("run-b").single().copy(
+			manifestChecksum = "pending",
+		)
+		val mixedManifest = unsignedManifest.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, sources),
+		)
+		val snapshot = base.copy(
+			manifestsByRun = base.manifestsByRun + ("run-b" to listOf(mixedManifest)),
+			sourcesByManifest = base.sourcesByManifest + (key to sources),
+		)
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.capturesOnlyActivity shouldBe false
+	}
+
+	@Test
+	fun `Activity-only intent ignores a known nonpersistent capture membership`() {
+		val snapshot = fixtureWithAdditionalManifestSource { source ->
+			source.nonpersistentCopy(sourceKind = SOURCE_LOCATION)
+		}
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.capturesOnlyActivity shouldBe true
+	}
+
+	@Test
+	fun `Activity-only intent fails closed for an unknown nonpersistent source`() {
+		val snapshot = fixtureWithAdditionalManifestSource { source ->
+			source.nonpersistentCopy(sourceKind = Int.MAX_VALUE)
+		}
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.capturesOnlyActivity shouldBe false
+	}
+
+	@Test
+	fun `Activity-only intent fails closed for an unknown manifest purpose`() {
+		val snapshot = fixtureWithAdditionalManifestSource { source ->
+			source.nonpersistentCopy(
+				sourceKind = SOURCE_LOCATION,
+				purpose = "UNKNOWN_PURPOSE",
+			)
+		}
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.capturesOnlyActivity shouldBe false
+	}
+
+	@Test
+	fun `verified Activity-only intent survives later writer authority failure`() {
+		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "UTC"))).copy(lanes = emptyList())
+
+		val entry = ActivityHistoryComposer.composeRecent(snapshot, EXECUTION_AUTHORITY).single().entry
+
+		entry.state shouldBe ActivityHistoryProductState.FAILED
+		entry.causes shouldBe setOf(ActivityHistoryCause.WRITER_PROVENANCE_INVALID)
+		entry.capturesOnlyActivity shouldBe true
+		entry.activeTime shouldBe null
+		entry.fragments shouldBe emptyList()
+	}
+
 	private fun fixture(specs: List<RunSpec>): ActivityHistorySnapshot {
 		val built = specs.map(::buildRun)
 		val sessionStart = built.minOf { it.run.startedElapsedNanos }
@@ -873,6 +1061,39 @@ class ActivityHistoryComposerTest {
 		)
 	}
 
+	private fun fixtureWithAdditionalManifestSource(
+		additionalSource: (SessionManifestSourceEntity) -> SessionManifestSourceEntity,
+	): ActivityHistorySnapshot {
+		val base = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		val key = ActivityManifestKey(LOGICAL_ID, 1L)
+		val activitySource = base.sourcesByManifest.getValue(key).single()
+		val sources = listOf(activitySource, additionalSource(activitySource))
+		val original = base.manifestsByRun.getValue("run-a").single()
+		val manifest = original.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(original, sources),
+		)
+		return base.copy(
+			manifestsByRun = mapOf("run-a" to listOf(manifest)),
+			sourcesByManifest = mapOf(key to sources),
+		)
+	}
+
+	private fun SessionManifestSourceEntity.nonpersistentCopy(
+		sourceKind: Int,
+		purpose: String = this.purpose,
+	): SessionManifestSourceEntity = copy(
+		sourceKind = sourceKind,
+		purpose = purpose,
+		consentEpoch = 0L,
+		persistenceEligible = false,
+		outputDestination = null,
+		writerOwner = null,
+		writerOwnerGeneration = null,
+		writerProjectionId = null,
+		writerProjectionVersion = null,
+		writerBindingGeneration = null,
+	)
+
 	private suspend fun persistFixture(snapshot: ActivityHistorySnapshot) {
 		val sessionDao = database.sourceSessionDao()
 		val policyDao = database.sourcePolicyDao()
@@ -1017,7 +1238,7 @@ class ActivityHistoryComposerTest {
 	private fun buildRun(spec: RunSpec): BuiltRun {
 		val baseElapsed = 1_000L + (spec.revision - 1L) * 500L
 		val segment = SessionSegment(
-			id = spec.revision,
+			id = spec.segmentId,
 			startTimeMs = baseElapsed,
 			endTimeMs = baseElapsed + 500L,
 			distanceM = 0f,
@@ -1487,7 +1708,13 @@ class ActivityHistoryComposerTest {
 		updatedAtMs = 0L,
 	)
 
-	private data class RunSpec(val revision: Long, val runId: String, val zone: String, val gap: Boolean = false)
+	private data class RunSpec(
+		val revision: Long,
+		val runId: String,
+		val zone: String,
+		val gap: Boolean = false,
+		val segmentId: Long = revision,
+	)
 
 	@Suppress("LongParameterList")
 	private data class BuiltRun(
@@ -1510,6 +1737,7 @@ class ActivityHistoryComposerTest {
 	)
 
 	private companion object {
+		const val SOURCE_LOCATION = 1
 		const val LOGICAL_ID = "logical-activity"
 		const val ACTIVITY_BOOT_ID = "boot-activity"
 		val EXECUTION_AUTHORITY = SourceProductLaneExecutionAuthority { true }

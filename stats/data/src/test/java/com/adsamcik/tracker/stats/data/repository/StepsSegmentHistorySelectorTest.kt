@@ -153,6 +153,7 @@ class StepsSegmentHistorySelectorTest {
 			selector,
 			logicalHistoryReader,
 			PressureHistorySelector(database, executableLaneAuthority()),
+			activityHistoryRepository(),
 			Dispatchers.IO,
 		).observeSession(SEGMENT_ID).first() as
 			com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery.Found
@@ -1402,6 +1403,7 @@ class StepsSegmentHistorySelectorTest {
 			selector,
 			logicalHistoryReader,
 			PressureHistorySelector(database, executableLaneAuthority()),
+			activityHistoryRepository(),
 			Dispatchers.IO,
 		)
 
@@ -2454,6 +2456,7 @@ class StepsSegmentHistorySelectorTest {
 			selector,
 			logicalHistoryReader,
 			PressureHistorySelector(database, executableLaneAuthority()),
+			activityHistoryRepository(),
 			Dispatchers.IO,
 		)
 		val initialEmission = CompletableDeferred<Unit>()
@@ -2502,6 +2505,7 @@ class StepsSegmentHistorySelectorTest {
 			selector,
 			logicalHistoryReader,
 			PressureHistorySelector(database, executableLaneAuthority()),
+			activityHistoryRepository(),
 			Dispatchers.IO,
 		)
 		val initialEmission = CompletableDeferred<Unit>()
@@ -2576,6 +2580,7 @@ class StepsSegmentHistorySelectorTest {
 			selector,
 			logicalHistoryReader,
 			PressureHistorySelector(database, executableLaneAuthority()),
+			activityHistoryRepository(),
 			Dispatchers.IO,
 		)
 		val initialEmission = CompletableDeferred<Unit>()
@@ -2620,6 +2625,7 @@ class StepsSegmentHistorySelectorTest {
 			selector,
 			logicalHistoryReader,
 			PressureHistorySelector(database, executableLaneAuthority()),
+			activityHistoryRepository(),
 			Dispatchers.IO,
 		)
 		val initialEmission = CompletableDeferred<Unit>()
@@ -3431,6 +3437,13 @@ class StepsSegmentHistorySelectorTest {
 		stepsSelector = selector,
 		logicalHistoryReader = logicalHistoryReader,
 		pressureSelector = PressureHistorySelector(database, executableLaneAuthority()),
+		activityHistoryRepository = activityHistoryRepository(),
+		ioDispatcher = Dispatchers.IO,
+	)
+
+	private fun activityHistoryRepository() = DefaultActivityHistoryRepository(
+		database = database,
+		laneExecutionAuthority = executableLaneAuthority(),
 		ioDispatcher = Dispatchers.IO,
 	)
 

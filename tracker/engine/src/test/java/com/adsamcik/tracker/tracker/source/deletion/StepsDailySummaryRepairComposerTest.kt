@@ -153,7 +153,7 @@ class StepsDailySummaryRepairComposerTest {
 			presentationSteps = null,
 		)
 
-		val result = composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE)
+		val result = composer().compose(listOf(DAY), excludedSegmentId = 99_999_999L)
 
 		result shouldBe StepsDayRepairPreflight.Ready(
 			listOf(
@@ -200,7 +200,7 @@ class StepsDailySummaryRepairComposerTest {
 			steps = 5L,
 		)
 
-		composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+		composer().compose(listOf(DAY), excludedSegmentId = 99_999_999L) shouldBe
 			StepsDayRepairPreflight.Ready(emptyList())
 	}
 
@@ -223,7 +223,7 @@ class StepsDailySummaryRepairComposerTest {
 			arrayOf(runId),
 		)
 
-		composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+		composer().compose(listOf(DAY), excludedSegmentId = 99_999_999L) shouldBe
 			StepsDayRepairPreflight.Materializing
 	}
 
@@ -247,7 +247,7 @@ class StepsDailySummaryRepairComposerTest {
 			arrayOf(runId),
 		)
 
-		composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+		composer().compose(listOf(DAY), excludedSegmentId = 99_999_999L) shouldBe
 			StepsDayRepairPreflight.Unsupported(
 				StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
 			)
@@ -477,7 +477,7 @@ class StepsDailySummaryRepairComposerTest {
 				factEndElapsedRealtimeNanos = 1L + HOUR_MS * NANOS_PER_MILLISECOND,
 			)
 
-			val ready = composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE)
+			val ready = composer().compose(listOf(DAY), excludedSegmentId = 99_999_999L)
 				as StepsDayRepairPreflight.Ready
 
 			ready.plans.single().numericSteps shouldBe StepsDayNumericComposition.Complete(6L)
@@ -534,7 +534,7 @@ class StepsDailySummaryRepairComposerTest {
 				StepsDayRepairPreflight.Unsupported(
 					StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
 				)
-			composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+			composer().compose(listOf(DAY), excludedSegmentId = 99_999_999L) shouldBe
 				StepsDayRepairPreflight.Unsupported(
 					StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
 				)
@@ -567,7 +567,7 @@ class StepsDailySummaryRepairComposerTest {
 			val materialization = composer().composeForMaterialization(DAY, ZONE) as StepsDayRepairPreflight.Ready
 			materialization.plans.single().numericSteps shouldBe StepsDayNumericComposition.PartialCapture
 			materialization.plans.single().totals?.steps shouldBe before?.totalSteps
-			composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+			composer().compose(listOf(DAY), excludedSegmentId = 99_999_999L) shouldBe
 				StepsDayRepairPreflight.Unsupported(
 					StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
 				)
@@ -613,7 +613,7 @@ class StepsDailySummaryRepairComposerTest {
 			val materialization = composer().composeForMaterialization(summaryDay, summaryZone) as StepsDayRepairPreflight.Ready
 			materialization.plans.single().numericSteps shouldBe StepsDayNumericComposition.PartialCapture
 			materialization.plans.single().totals?.steps shouldBe before?.totalSteps
-			composer().compose(listOf(summaryDay), excludedSegmentId = Long.MIN_VALUE) shouldBe
+			composer().compose(listOf(summaryDay), excludedSegmentId = 99_999_999L) shouldBe
 				StepsDayRepairPreflight.Unsupported(
 					StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
 				)
@@ -2010,7 +2010,7 @@ class StepsDailySummaryRepairComposerTest {
 				zoneId = writerZone,
 			).materializeDayFromSegments(writerDay)
 
-			composer().compose(listOf(writerDay), excludedSegmentId = Long.MIN_VALUE) shouldBe
+			composer().compose(listOf(writerDay), excludedSegmentId = 99_999_999L) shouldBe
 				StepsDayRepairPreflight.Ready(
 					listOf(
 						StepsDayRepairPlan(
@@ -2066,7 +2066,7 @@ class StepsDailySummaryRepairComposerTest {
 				steps = 11L,
 			)
 
-			val result = composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE)
+			val result = composer().compose(listOf(DAY), excludedSegmentId = 99_999_999L)
 			val ready = result as StepsDayRepairPreflight.Ready
 
 			ready.plans.single().totals?.steps shouldBe 18
@@ -2094,7 +2094,7 @@ class StepsDailySummaryRepairComposerTest {
 			steps = 11L,
 		)
 
-		composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+		composer().compose(listOf(DAY), excludedSegmentId = 99_999_999L) shouldBe
 			StepsDayRepairPreflight.Unsupported(
 				StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
 			)
@@ -2120,7 +2120,7 @@ class StepsDailySummaryRepairComposerTest {
 			steps = 11L,
 		)
 
-		composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+		composer().compose(listOf(DAY), excludedSegmentId = 99_999_999L) shouldBe
 			StepsDayRepairPreflight.Unsupported(
 				StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
 			)
@@ -2137,7 +2137,7 @@ class StepsDailySummaryRepairComposerTest {
 			),
 		)
 
-		composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+		composer().compose(listOf(DAY), excludedSegmentId = 99_999_999L) shouldBe
 			StepsDayRepairPreflight.Unsupported(
 				StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
 			)
@@ -2154,7 +2154,7 @@ class StepsDailySummaryRepairComposerTest {
 			coverage = StepFactRevisionEntity.COVERAGE_PARTIAL,
 		)
 
-		composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+		composer().compose(listOf(DAY), excludedSegmentId = 99_999_999L) shouldBe
 			StepsDayRepairPreflight.Unsupported(
 				StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
 			)
@@ -2173,7 +2173,7 @@ class StepsDailySummaryRepairComposerTest {
 			admissionOrdinal = 3L,
 		)
 
-		composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+		composer().compose(listOf(DAY), excludedSegmentId = 99_999_999L) shouldBe
 			StepsDayRepairPreflight.Materializing
 	}
 
@@ -2717,7 +2717,7 @@ class StepsDailySummaryRepairComposerTest {
 			),
 		)
 
-		composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+		composer().compose(listOf(DAY), excludedSegmentId = 99_999_999L) shouldBe
 			StepsDayRepairPreflight.Ready(
 				listOf(
 					StepsDayRepairPlan(
@@ -2948,7 +2948,7 @@ class StepsDailySummaryRepairComposerTest {
 				logicalStartedAtMs = previousStart,
 			)
 
-			val ready = composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE)
+			val ready = composer().compose(listOf(DAY), excludedSegmentId = 99_999_999L)
 				as StepsDayRepairPreflight.Ready
 
 			ready.plans.single().totals?.steps shouldBe 8
@@ -3046,7 +3046,7 @@ class StepsDailySummaryRepairComposerTest {
 	}
 
 	private suspend fun assertDayUnverifiable() {
-		composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+		composer().compose(listOf(DAY), excludedSegmentId = 99_999_999L) shouldBe
 			StepsDayRepairPreflight.Unsupported(
 				StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
 			)

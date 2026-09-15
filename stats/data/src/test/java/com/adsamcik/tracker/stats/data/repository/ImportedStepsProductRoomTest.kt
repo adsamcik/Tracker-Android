@@ -29,8 +29,8 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsOpaqueIdentity
 import com.adsamcik.tracker.stats.api.repository.PortableStepsProviderCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableStepsRunV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsSessionMode
-import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageEntry
-import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageQuery
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.StepsAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
@@ -71,16 +71,18 @@ class ImportedStepsProductRoomTest {
 	fun tearDown() = database.close()
 
 	@Test
-	fun `Pressure-aware assembly preserves exact imported Steps origin instead of a physical row`() = runTest {
+	fun `source-aware assembly preserves exact imported Steps origin instead of a physical row`() = runTest {
 		seed(entry(listOf(run('2', 10L, 20L, 9L), run('3', 30L, 40L, 4L))))
-		val result = history.observeRecentPressureAwarePage(listOf(41L, 42L), 10).first()
-		val page = (result as PressureAwareHistoryPageQuery.Content).entries
-		val imported = (page.single() as PressureAwareHistoryPageEntry.ImportedSteps).history
+		val result = history.observeRecentSourceAwarePage(listOf(41L, 42L), 10).first()
+		val page = (result as SourceAwareHistoryPageQuery.Content).entries
+		val imported = (page.single() as SourceAwareHistoryPageEntry.ImportedSteps).history
 		imported.physicalMembers.map { it.segmentId } shouldBe listOf(41L, 42L)
 		imported.physicalMembers.map { it.steps.count } shouldBe listOf(9L, 4L)
 		database.trackingHistoryReadDao().serviceRuns(listOf("sha256:${"2".repeat(64)}")) shouldBe emptyList()
 		val snapshot = history.observeLiveSession(41L).first()
 		(snapshot.session as SessionHistoryQuery.Found).history.steps.count shouldBe 9L
+		(snapshot.activity as com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery.Found)
+			.entry.capturesOnlyActivity shouldBe false
 		(snapshot.pressure as com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery.Found)
 			.history.capture shouldBe (snapshot.session as SessionHistoryQuery.Found).history.capture
 	}

@@ -33,11 +33,11 @@ import com.adsamcik.tracker.stats.api.repository.PortablePressureExportUnverifia
 import com.adsamcik.tracker.stats.api.repository.PortablePressureImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
-import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageEntry
-import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageQuery
-import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
 import io.mockk.mockk
@@ -91,6 +91,7 @@ class PressureHistorySelectorTest {
 			stepsSelector = mockk(relaxed = true),
 			logicalHistoryReader = mockk(relaxed = true),
 			pressureSelector = selector,
+			activityHistoryRepository = activityHistoryRepository(),
 			ioDispatcher = UnconfinedTestDispatcher(testScheduler),
 		)
 
@@ -117,6 +118,7 @@ class PressureHistorySelectorTest {
 			stepsSelector = StepsSegmentHistorySelector(database, authority),
 			logicalHistoryReader = mockk(relaxed = true),
 			pressureSelector = PressureHistorySelector(database, authority),
+			activityHistoryRepository = activityHistoryRepository(),
 			ioDispatcher = UnconfinedTestDispatcher(testScheduler),
 		)
 
@@ -130,19 +132,19 @@ class PressureHistorySelectorTest {
 	}
 
 	@Test
-	fun pressureAwarePageReplacesCompleteDiscoverableLogicalGroupOnce() = runTest {
+	fun sourceAwarePageReplacesCompleteDiscoverablePressureGroupOnce() = runTest {
 		val first = insertFixture(factSemanticRevision = 1L, laneCursor = 2L)
 		val replacement = insertReplacementFixture()
 		val repository = pressureAwareRepository()
 
-		val query = repository.observeRecentPressureAwarePage(
+		val query = repository.observeRecentSourceAwarePage(
 			candidateSegmentIds = listOf(first.segmentId, replacement.segmentId),
 			limit = 10,
 		).first()
-		val page = (query as PressureAwareHistoryPageQuery.Content).entries
+		val page = (query as SourceAwareHistoryPageQuery.Content).entries
 
 		page.size shouldBe 1
-		val pressureOnly = page.single() as PressureAwareHistoryPageEntry.PressureOnly
+		val pressureOnly = page.single() as SourceAwareHistoryPageEntry.PressureOnly
 		pressureOnly.history.key.toString() shouldBe "TrackingHistoryEntryKey"
 		pressureOnly.history.startTime.raw shouldBe RUN_START_MS
 		pressureOnly.history.endTime.raw shouldBe REPLACEMENT_RUN_END_MS
@@ -151,52 +153,52 @@ class PressureHistorySelectorTest {
 	}
 
 	@Test
-	fun pressureAwarePageReplacesExactIntentBeforeFirstFact() = runTest {
+	fun sourceAwarePageReplacesExactPressureIntentBeforeFirstFact() = runTest {
 		val fixture = insertFixture(factSemanticRevision = null, laneCursor = 0L)
 		val repository = pressureAwareRepository()
 
-		val query = repository.observeRecentPressureAwarePage(
+		val query = repository.observeRecentSourceAwarePage(
 			candidateSegmentIds = listOf(fixture.segmentId),
 			limit = 10,
 		).first()
-		val page = (query as PressureAwareHistoryPageQuery.Content).entries
+		val page = (query as SourceAwareHistoryPageQuery.Content).entries
 
-		val pressureOnly = page.single() as PressureAwareHistoryPageEntry.PressureOnly
+		val pressureOnly = page.single() as SourceAwareHistoryPageEntry.PressureOnly
 		pressureOnly.history.state shouldBe PressureHistoryPresentationState.MATERIALIZING
 		pressureOnly.history.pressure.summary shouldBe null
 	}
 
 	@Test
-	fun pressureAwarePageRetainsExactPressureOnlyProviderUnavailableState() = runTest {
+	fun sourceAwarePageRetainsExactPressureOnlyProviderUnavailableState() = runTest {
 		val fixture = insertFixture(
 			factSemanticRevision = null,
 			laneCursor = 1L,
 			unavailablePressure = true,
 		)
 
-		val query = pressureAwareRepository().observeRecentPressureAwarePage(
+		val query = pressureAwareRepository().observeRecentSourceAwarePage(
 			candidateSegmentIds = listOf(fixture.segmentId),
 			limit = 10,
 		).first()
-		val pressureOnly = (query as PressureAwareHistoryPageQuery.Content).entries.single() as
-			PressureAwareHistoryPageEntry.PressureOnly
+		val pressureOnly = (query as SourceAwareHistoryPageQuery.Content).entries.single() as
+			SourceAwareHistoryPageEntry.PressureOnly
 
 		pressureOnly.history.state shouldBe PressureHistoryPresentationState.UNAVAILABLE
 		pressureOnly.history.pressure.summary shouldBe null
 	}
 
 	@Test
-	fun pressureAwarePageReturnsTypedUnavailableWhenLogicalMembershipExceedsBudget() = runTest {
+	fun sourceAwarePageReturnsTypedUnavailableWhenPressureMembershipExceedsBudget() = runTest {
 		val fixture = insertFixture(factSemanticRevision = null, laneCursor = 0L)
 		repeat(64) { index -> insertBareLogicalMember(index + 1) }
 
-		val query = pressureAwareRepository().observeRecentPressureAwarePage(
+		val query = pressureAwareRepository().observeRecentSourceAwarePage(
 			candidateSegmentIds = listOf(fixture.segmentId),
 			limit = 10,
 		).first()
 
-		query shouldBe PressureAwareHistoryPageQuery.Unavailable(
-			PressureAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
+		query shouldBe SourceAwareHistoryPageQuery.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
 		)
 	}
 
@@ -217,7 +219,7 @@ class PressureHistorySelectorTest {
 		}
 
 		query shouldBe PressureOnlyDiscoveryResult.Unavailable(
-			PressureAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
+			SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
 		)
 	}
 
@@ -297,6 +299,7 @@ class PressureHistorySelectorTest {
 			stepsSelector = mockk(relaxed = true),
 			logicalHistoryReader = mockk(relaxed = true),
 			pressureSelector = selector,
+			activityHistoryRepository = activityHistoryRepository(),
 			ioDispatcher = Dispatchers.IO,
 		)
 		val initialEmission = CompletableDeferred<Unit>()
@@ -388,6 +391,7 @@ class PressureHistorySelectorTest {
 			stepsSelector = mockk(relaxed = true),
 			logicalHistoryReader = mockk(relaxed = true),
 			pressureSelector = selector,
+			activityHistoryRepository = activityHistoryRepository(),
 			ioDispatcher = UnconfinedTestDispatcher(testScheduler),
 		)
 
@@ -429,6 +433,7 @@ class PressureHistorySelectorTest {
 			stepsSelector = mockk(relaxed = true),
 			logicalHistoryReader = mockk(relaxed = true),
 			pressureSelector = selector,
+			activityHistoryRepository = activityHistoryRepository(),
 			ioDispatcher = UnconfinedTestDispatcher(testScheduler),
 		)
 
@@ -478,6 +483,7 @@ class PressureHistorySelectorTest {
 			stepsSelector = mockk(relaxed = true),
 			logicalHistoryReader = mockk(relaxed = true),
 			pressureSelector = selector,
+			activityHistoryRepository = activityHistoryRepository(),
 			ioDispatcher = UnconfinedTestDispatcher(testScheduler),
 		)
 
@@ -1721,9 +1727,16 @@ class PressureHistorySelectorTest {
 			stepsSelector = stepsSelector,
 			logicalHistoryReader = LogicalTrackingHistoryReader(database, stepsSelector),
 			pressureSelector = selector,
+			activityHistoryRepository = activityHistoryRepository(),
 			ioDispatcher = Dispatchers.IO,
 		)
 	}
+
+	private fun activityHistoryRepository() = DefaultActivityHistoryRepository(
+		database = database,
+		laneExecutionAuthority = executableLaneAuthority(),
+		ioDispatcher = Dispatchers.IO,
+	)
 
 	private data class PressureFixture(
 		val segmentId: Long,

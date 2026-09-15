@@ -14,11 +14,12 @@ import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryEntry
 import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryState
 import com.adsamcik.tracker.dashboard.data.DashboardWeeklyTrend
 import com.adsamcik.tracker.dashboard.data.DashboardWidgetRegistry
-import com.adsamcik.tracker.dashboard.ui.compose.state.LatestAchievementUi
-import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveSessionPresentation
+import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
+import com.adsamcik.tracker.dashboard.ui.compose.state.LatestAchievementUi
 import com.adsamcik.tracker.dashboard.ui.compose.state.StreakState
 import com.adsamcik.tracker.dashboard.ui.compose.state.WeeklyTrend
+import com.adsamcik.tracker.dashboard.ui.compose.state.toDashboardLiveActivityValue
 import com.adsamcik.tracker.dashboard.ui.compose.state.toDashboardLivePressureValue
 import com.adsamcik.tracker.dashboard.ui.compose.state.toDashboardLiveStepsValue
 import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
@@ -28,6 +29,7 @@ import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.LiveSessionHistorySnapshot
@@ -365,7 +367,19 @@ private fun toLivePresentation(
 	if (snapshot.segmentId != requestedSegmentId) {
 		return DashboardLiveSessionPresentation.HistoryUnavailable(requestedSegmentId)
 	}
+	val activityEntry = (snapshot.activity as? ActivityHistoryQuery.Found)?.entry
 	val pressureHistory = (snapshot.pressure as? PressureSessionHistoryQuery.Found)?.history
+	if (activityEntry?.capturesOnlyActivity == true &&
+		pressureHistory?.hasExactPressureOnlyIntent == true
+	) {
+		return DashboardLiveSessionPresentation.HistoryUnavailable(requestedSegmentId)
+	}
+	if (activityEntry?.capturesOnlyActivity == true) {
+		return DashboardLiveSessionPresentation.ActivityOnly(
+			segmentId = requestedSegmentId,
+			activity = activityEntry.toDashboardLiveActivityValue(),
+		)
+	}
 	if (pressureHistory?.hasExactPressureOnlyIntent == true) {
 		return DashboardLiveSessionPresentation.PressureOnly(
 			segmentId = requestedSegmentId,
@@ -396,11 +410,7 @@ private fun SessionHistoryQuery.toLivePresentation(
 	}
 }
 
-/**
- * Location controls are hidden by exact Pressure-only capture intent, including truthful
- * materializing or unavailable states before the first Pressure fact. Mixed and unverifiable
- * histories retain the established Standard surface.
- */
+/** Exact source-only intent selects only its truthful product; mixed intent stays Standard. */
 private val PressureSessionHistory.hasExactPressureOnlyIntent: Boolean
 	get() = (capture as? HistoryCapture.Exact)?.revisions?.all { revision ->
 		revision.capturedSources == setOf(HistorySource.PRESSURE)

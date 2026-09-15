@@ -11,6 +11,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryEntry
@@ -30,6 +31,17 @@ import com.adsamcik.tracker.stats.api.repository.PressureSensorAccuracy
 import com.adsamcik.tracker.stats.api.repository.PressureWindowClosure
 import com.adsamcik.tracker.stats.api.repository.PressureWindowQualification
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.ActivityActiveTime
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryConfidence
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryFragment
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryMechanism
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryType
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryWallTimeContinuity
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
 import com.adsamcik.tracker.stats.api.value.EpochMs
@@ -118,6 +130,26 @@ class RecentTripsCardTest {
 	}
 
 	@Test
+	fun ActivityOnlyRowShowsCapturedEvidenceWithoutLocationMetricsOrAction() {
+		setContent(
+			DashboardRecentHistoryState.Content(
+				listOf(DashboardRecentHistoryEntry.ActivityOnly(activityEntry())),
+			),
+			onTripClick = { error("Activity-only rows must not expose a physical click identity") },
+		)
+
+		composeRule.onNodeWithTag("dashboard_recent_activity_row")
+			.assertIsDisplayed()
+			.assertHasNoClickAction()
+		composeRule.onNodeWithText("Activity session").assertIsDisplayed()
+		composeRule.onNodeWithText("Walking · active 1 m").assertIsDisplayed()
+		composeRule.onNodeWithText("Partial coverage").assertIsDisplayed()
+		composeRule.onAllNodesWithText("km", substring = true).assertCountEquals(0)
+		composeRule.onAllNodesWithText("Distance", substring = true).assertCountEquals(0)
+		composeRule.onAllNodesWithContentDescription("View details").assertCountEquals(0)
+	}
+
+	@Test
 	fun distinctOpaqueKeysWithIdenticalStringRepresentationRenderBothRows() {
 		val first = stepsEntry("first", StepsOnlyHistoryListState.AVAILABLE, 1_000L)
 		val second = stepsEntry("second", StepsOnlyHistoryListState.PARTIAL, 2_000L)
@@ -133,6 +165,26 @@ class RecentTripsCardTest {
 		)
 
 		composeRule.onAllNodesWithText("Steps session").assertCountEquals(2)
+	}
+
+	@Test
+	fun namespacedOpaqueKeysRenderStepsAndPressureWithTheSamePrivateValue() {
+		val now = System.currentTimeMillis()
+		setContent(
+			DashboardRecentHistoryState.Content(
+				listOf(
+					DashboardRecentHistoryEntry.StepsOnly(
+						stepsEntry("shared", StepsOnlyHistoryListState.AVAILABLE, now - 2_000L),
+					),
+					DashboardRecentHistoryEntry.PressureOnly(
+						pressureEntry(withWindow = false, key = "shared"),
+					),
+				),
+			),
+		)
+
+		composeRule.onNodeWithText("Steps session").assertIsDisplayed()
+		composeRule.onNodeWithText("Pressure session").assertIsDisplayed()
 	}
 
 	@Test
@@ -218,11 +270,14 @@ class RecentTripsCardTest {
 		state = state,
 	)
 
-	private fun pressureEntry(withWindow: Boolean): PressureOnlyHistoryEntry {
+	private fun pressureEntry(
+		withWindow: Boolean,
+		key: String = if (withWindow) "pressure-ready" else "pressure-unavailable",
+	): PressureOnlyHistoryEntry {
 		val now = System.currentTimeMillis()
 		val windows = if (withWindow) listOf(pressureWindow(now)) else emptyList()
 		return PressureOnlyHistoryEntry(
-			key = TrackingHistoryEntryKey(if (withWindow) "pressure-ready" else "pressure-unavailable"),
+			key = TrackingHistoryEntryKey(key),
 			startTime = EpochMs(now - 1_800_000L),
 			endTime = EpochMs(now),
 			pressure = PressureHistory(
@@ -268,4 +323,34 @@ class RecentTripsCardTest {
 		sourceQualityConfidence = 1f,
 		zoneId = "Europe/Prague",
 	)
+
+	private fun activityEntry(): ActivityHistoryEntry {
+		val now = System.currentTimeMillis()
+		return ActivityHistoryEntry(
+			key = ActivityHistoryEntryKey("activity"),
+			startTime = EpochMs(now - 60_000L),
+			endTime = EpochMs(now),
+			storedZoneIds = setOf("UTC"),
+			state = ActivityHistoryProductState.PARTIAL,
+			coverage = ActivityHistoryCoverage.PARTIAL,
+			activeTime = ActivityActiveTime(60_000_000_000L, 0L, 0L, 0L),
+			fragments = listOf(
+				ActivityHistoryFragment.Band(
+					storedZoneId = "UTC",
+					startTime = EpochMs(now - 60_000L),
+					endTime = EpochMs(now),
+					startUncertaintyMs = 0L,
+					endUncertaintyMs = 0L,
+					activity = ActivityHistoryType.WALKING,
+					mechanism = ActivityHistoryMechanism.TRANSITION,
+					refinedTransitionActivity = null,
+					confidence = ActivityHistoryConfidence.TransitionSignal,
+					wallTimeContinuity = ActivityHistoryWallTimeContinuity.SAME_ANCHOR,
+					durationNanos = 60_000_000_000L,
+				),
+			),
+			causes = setOf(ActivityHistoryCause.PROVIDER_GAP),
+			capturesOnlyActivity = true,
+		)
+	}
 }

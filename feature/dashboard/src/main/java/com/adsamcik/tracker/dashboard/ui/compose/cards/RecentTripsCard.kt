@@ -35,17 +35,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryEntry
 import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryState
+import com.adsamcik.tracker.dashboard.ui.compose.tracking.labelResource
 import com.adsamcik.tracker.shared.base.data.SessionActivityIds
-import com.adsamcik.tracker.shared.utils.style.compose.RidgelineCardDefaults
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
-import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
-import com.adsamcik.tracker.shared.preferences.extension.formatDistance
 import com.adsamcik.tracker.shared.model.Trip
+import com.adsamcik.tracker.shared.preferences.extension.formatDistance
+import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineCardDefaults
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryFragment
 import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
@@ -56,7 +60,8 @@ import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 /**
  * Card displaying the coordinated recent tracking page. Physical rows retain their established
  * actions while opaque source-only rows deliberately expose no physical detail identity. Pressure
- * rows show only retained direct Pressure values; they never derive elevation or ascent.
+ * rows show direct retained pressure rather than derived elevation; Activity rows show only captured
+ * movement truth.
  */
 @Composable
 internal fun RecentTripsCard(
@@ -107,7 +112,7 @@ private fun RecentHistoryRows(
 		} else {
 			recentHistory.entries.forEach { entry ->
 				when (entry) {
-					is DashboardRecentHistoryEntry.Physical -> key(entry.trip.id) {
+					is DashboardRecentHistoryEntry.Physical -> key("physical", entry.trip.id) {
 						val trip = entry.trip
 						RecentTripRow(
 							trip = trip,
@@ -121,14 +126,17 @@ private fun RecentHistoryRows(
 							onClick = onTripClick?.let { click -> { click(trip.id) } },
 						)
 					}
-					is DashboardRecentHistoryEntry.StepsOnly -> key(entry.history.key) {
+					is DashboardRecentHistoryEntry.StepsOnly -> key("steps-only", entry.history.key) {
 						RecentStepsOnlyRow(entry.history)
 					}
-					is DashboardRecentHistoryEntry.ImportedSteps -> key(entry.history.key) {
+					is DashboardRecentHistoryEntry.ImportedSteps -> key("imported-steps", entry.history.key) {
 						RecentImportedStepsRow(entry.history, onTripClick)
 					}
-					is DashboardRecentHistoryEntry.PressureOnly -> key(entry.history.key) {
+					is DashboardRecentHistoryEntry.PressureOnly -> key("pressure-only", entry.history.key) {
 						RecentPressureOnlyRow(entry.history)
+					}
+					is DashboardRecentHistoryEntry.ActivityOnly -> key("activity-only", entry.history.key) {
+						RecentActivityOnlyRow(entry.history)
 					}
 				}
 			}
@@ -145,7 +153,8 @@ private fun RecentPressureOnlyRow(
 		modifier = modifier
 			.fillMaxWidth()
 			.heightIn(min = 48.dp)
-			.padding(vertical = 8.dp, horizontal = 4.dp),
+			.padding(vertical = 8.dp, horizontal = 4.dp)
+			.testTag("dashboard_recent_pressure_row"),
 		verticalAlignment = Alignment.CenterVertically,
 		horizontalArrangement = Arrangement.spacedBy(12.dp),
 	) {
@@ -166,6 +175,61 @@ private fun RecentPressureOnlyRow(
 					.formatAsDuration(LocalContext.current),
 				style = MaterialTheme.typography.bodySmall,
 				color = MaterialTheme.colorScheme.onSurface,
+			)
+		}
+		Text(
+			text = relativeTime(history.startTime.raw),
+			style = MaterialTheme.typography.labelSmall,
+			color = MaterialTheme.colorScheme.onSurface,
+		)
+	}
+}
+
+@Composable
+private fun RecentActivityOnlyRow(
+	history: ActivityHistoryEntry,
+	modifier: Modifier = Modifier,
+) {
+	val band = history.fragments.filterIsInstance<ActivityHistoryFragment.Band>().lastOrNull()
+	val hasRetainedEvidence = band != null && history.activeTime != null
+	val activityText = band?.activity?.labelResource?.let { stringResource(it) }
+		.takeIf { hasRetainedEvidence } ?: stringResource(R.string.dashboard_live_value_missing)
+	val activeTimeText = history.activeTime?.knownActiveDurationNanos?.let { nanos ->
+		(nanos / NANOS_PER_MILLISECOND).formatAsDuration(LocalContext.current)
+	}.takeIf { hasRetainedEvidence } ?: stringResource(R.string.dashboard_live_value_missing)
+	Row(
+		modifier = modifier
+			.fillMaxWidth()
+			.heightIn(min = 48.dp)
+			.padding(vertical = 8.dp, horizontal = 4.dp)
+			.testTag("dashboard_recent_activity_row"),
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.spacedBy(12.dp),
+	) {
+		Column(modifier = Modifier.weight(1f)) {
+			Text(
+				text = stringResource(R.string.dashboard_recent_activity_title),
+				style = MaterialTheme.typography.bodyMedium,
+				color = MaterialTheme.colorScheme.onSurface,
+			)
+			Text(
+				text = stringResource(history.state.labelResource),
+				style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+			)
+			Text(
+				text = stringResource(
+					R.string.dashboard_recent_activity_summary,
+					activityText,
+					activeTimeText,
+				),
+				style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.onSurface,
+			)
+			Text(
+				text = stringResource(history.coverage.labelResource),
+				style = MaterialTheme.typography.labelSmall,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
 			)
 		}
 		Text(
@@ -280,6 +344,8 @@ internal fun relativeTime(startTimeMs: Long): String = DateUtils.getRelativeTime
 	DateUtils.MINUTE_IN_MILLIS,
 	DateUtils.FORMAT_ABBREV_RELATIVE,
 ).toString()
+
+private const val NANOS_PER_MILLISECOND = 1_000_000L
 
 @Composable
 private fun RecentTripRow(
