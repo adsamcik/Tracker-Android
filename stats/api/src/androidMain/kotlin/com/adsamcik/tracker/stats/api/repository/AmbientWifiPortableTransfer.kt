@@ -18,6 +18,7 @@ object AmbientWifiPortableFormatV1 {
 data class PortableAmbientWifiFactV1(
 	val identity: String,
 	val contentChecksum: String,
+	val effectChecksum: String,
 	val origin: AmbientWifiOrigin,
 	val coverageStartTimeMs: Long,
 	val observedTimeMs: Long,
@@ -37,15 +38,18 @@ data class PortableAmbientWifiFactV1(
 	val supersedesSemanticRevision: Long?,
 ) {
 	init {
-		require(DIGEST.matches(identity) && DIGEST.matches(contentChecksum))
+		require(
+			DIGEST.matches(identity) &&
+				DIGEST.matches(contentChecksum) &&
+				DIGEST.matches(effectChecksum),
+		)
 		val zone = ZoneId.of(storedZoneId)
 		require(
 			Instant.ofEpochMilli(observedTimeMs).atZone(zone).toLocalDate().toEpochDay() ==
 				structuralEpochDay,
 		)
 		require(
-			AmbientWifiPortableIntegrity.factChecksum(
-				identity,
+			AmbientWifiPortableIntegrity.factEffectChecksum(
 				origin,
 				coverageStartTimeMs,
 				observedTimeMs,
@@ -63,8 +67,9 @@ data class PortableAmbientWifiFactV1(
 				meanSignalDbm,
 				semanticRevision,
 				supersedesSemanticRevision,
-			) == contentChecksum,
+			) == effectChecksum,
 		)
+		require(AmbientWifiPortableIntegrity.factChecksum(this) == contentChecksum)
 		AmbientWifiFact(
 			identity,
 			origin,
@@ -91,6 +96,7 @@ data class PortableAmbientWifiFactV1(
 data class PortableAmbientWifiGapV1(
 	val identity: String,
 	val contentChecksum: String,
+	val effectChecksum: String,
 	val origin: AmbientWifiOrigin,
 	val structuralEpochDay: Long,
 	val startTimeMs: Long,
@@ -99,7 +105,11 @@ data class PortableAmbientWifiGapV1(
 	val reason: String,
 ) {
 	init {
-		require(DIGEST.matches(identity) && DIGEST.matches(contentChecksum))
+		require(
+			DIGEST.matches(identity) &&
+				DIGEST.matches(contentChecksum) &&
+				DIGEST.matches(effectChecksum),
+		)
 		val zone = ZoneId.of(storedZoneId)
 		require(
 			Instant.ofEpochMilli(startTimeMs).atZone(zone).toLocalDate().toEpochDay() ==
@@ -114,6 +124,7 @@ data class PortableAmbientWifiGapV1(
 			storedZoneId,
 			reason,
 		)
+		require(AmbientWifiPortableIntegrity.gapEffectChecksum(this) == effectChecksum)
 		require(AmbientWifiPortableIntegrity.gapChecksum(this) == contentChecksum)
 	}
 }
@@ -130,9 +141,11 @@ data class PortableAmbientWifiArchiveV1(
 		require(format == AmbientWifiPortableFormatV1.FORMAT)
 		require(schemaVersion == AmbientWifiPortableFormatV1.SCHEMA_VERSION)
 		require(DIGEST.matches(archiveId) && DIGEST.matches(contentChecksum))
-		require(facts.isNotEmpty() && facts.size <= AmbientWifiPortableFormatV1.MAX_FACTS)
+		require((facts.isNotEmpty() || gaps.isNotEmpty()) &&
+			facts.size <= AmbientWifiPortableFormatV1.MAX_FACTS)
 		require(gaps.size <= AmbientWifiPortableFormatV1.MAX_GAPS)
-		require(facts.map { it.identity }.distinct().size == facts.size)
+		require(facts.map { it.identity to it.semanticRevision }.distinct().size == facts.size)
+		require(facts.hasCompleteCorrectionLineages())
 		require(gaps.map { it.identity }.distinct().size == gaps.size)
 		require(
 			facts.mapTo(mutableSetOf()) { it.identity }
@@ -145,28 +158,28 @@ data class PortableAmbientWifiArchiveV1(
 
 object AmbientWifiPortableIntegrity {
 	fun createFact(fact: AmbientWifiFact): PortableAmbientWifiFactV1 =
-		PortableAmbientWifiFactV1(
+		factEffectChecksum(
+			fact.origin,
+			fact.coverageStartTimeMs,
+			fact.observedTimeMs,
+			fact.latestPossibleTimeMs,
+			fact.structuralEpochDay,
+			fact.storedZoneId,
+			fact.coverage,
+			fact.observationCount,
+			fact.twoPointFourGhzCount,
+			fact.fiveGhzCount,
+			fact.sixGhzCount,
+			fact.otherBandCount,
+			fact.strongestSignalDbm,
+			fact.weakestSignalDbm,
+			fact.meanSignalDbm,
+			fact.semanticRevision,
+			fact.supersedesSemanticRevision,
+		).let { effectChecksum -> PortableAmbientWifiFactV1(
 			identity = fact.identity,
-			contentChecksum = factChecksum(
-				fact.identity,
-				fact.origin,
-				fact.coverageStartTimeMs,
-				fact.observedTimeMs,
-				fact.latestPossibleTimeMs,
-				fact.structuralEpochDay,
-				fact.storedZoneId,
-				fact.coverage,
-				fact.observationCount,
-				fact.twoPointFourGhzCount,
-				fact.fiveGhzCount,
-				fact.sixGhzCount,
-				fact.otherBandCount,
-				fact.strongestSignalDbm,
-				fact.weakestSignalDbm,
-				fact.meanSignalDbm,
-				fact.semanticRevision,
-				fact.supersedesSemanticRevision,
-			),
+			contentChecksum = factChecksum(fact.identity, effectChecksum),
+			effectChecksum = effectChecksum,
 			origin = fact.origin,
 			coverageStartTimeMs = fact.coverageStartTimeMs,
 			observedTimeMs = fact.observedTimeMs,
@@ -184,14 +197,17 @@ object AmbientWifiPortableIntegrity {
 			meanSignalDbm = fact.meanSignalDbm,
 			semanticRevision = fact.semanticRevision,
 			supersedesSemanticRevision = fact.supersedesSemanticRevision,
-		)
+		) }
 
 	fun createArchive(
 		archiveId: String,
 		facts: List<PortableAmbientWifiFactV1>,
 		gaps: List<PortableAmbientWifiGapV1>,
 	): PortableAmbientWifiArchiveV1 {
-		val sortedFacts = facts.sortedBy { it.identity }
+		val sortedFacts = facts.sortedWith(compareBy(
+			PortableAmbientWifiFactV1::identity,
+			PortableAmbientWifiFactV1::semanticRevision,
+		))
 		val sortedGaps = gaps.sortedBy { it.identity }
 		return PortableAmbientWifiArchiveV1(
 			archiveId = archiveId,
@@ -202,27 +218,29 @@ object AmbientWifiPortableIntegrity {
 	}
 
 	fun createGap(gap: AmbientWifiGap): PortableAmbientWifiGapV1 =
-		PortableAmbientWifiGapV1(
+		gapEffectChecksum(
+			gap.origin,
+			gap.structuralEpochDay,
+			gap.startTimeMs,
+			gap.endTimeMs,
+			gap.storedZoneId,
+			gap.reason,
+		).let { effectChecksum -> PortableAmbientWifiGapV1(
 			identity = gap.identity,
-			contentChecksum = gapChecksum(
-				gap.identity,
-				gap.origin,
-				gap.structuralEpochDay,
-				gap.startTimeMs,
-				gap.endTimeMs,
-				gap.storedZoneId,
-				gap.reason,
-			),
+			contentChecksum = gapChecksum(gap.identity, effectChecksum),
+			effectChecksum = effectChecksum,
 			origin = gap.origin,
 			structuralEpochDay = gap.structuralEpochDay,
 			startTimeMs = gap.startTimeMs,
 			endTimeMs = gap.endTimeMs,
 			storedZoneId = gap.storedZoneId,
 			reason = gap.reason,
-		)
+		) }
 
-	fun gapChecksum(value: PortableAmbientWifiGapV1): String = gapChecksum(
-		value.identity,
+	fun gapChecksum(value: PortableAmbientWifiGapV1): String =
+		gapChecksum(value.identity, value.effectChecksum)
+
+	fun gapEffectChecksum(value: PortableAmbientWifiGapV1): String = gapEffectChecksum(
 		value.origin,
 		value.structuralEpochDay,
 		value.startTimeMs,
@@ -231,8 +249,7 @@ object AmbientWifiPortableIntegrity {
 		value.reason,
 	)
 
-	private fun gapChecksum(
-		identity: String,
+	private fun gapEffectChecksum(
 		origin: AmbientWifiOrigin,
 		structuralEpochDay: Long,
 		startTimeMs: Long,
@@ -240,8 +257,7 @@ object AmbientWifiPortableIntegrity {
 		storedZoneId: String,
 		reason: String,
 	): String = digest(
-		"ambient-wifi-portable-gap-v1",
-		identity,
+		"ambient-wifi-portable-gap-effect-v1",
 		origin,
 		structuralEpochDay,
 		startTimeMs,
@@ -250,9 +266,17 @@ object AmbientWifiPortableIntegrity {
 		reason,
 	)
 
+	private fun gapChecksum(identity: String, effectChecksum: String): String =
+		digest("ambient-wifi-portable-gap-v1", identity, effectChecksum)
+
+	fun factChecksum(value: PortableAmbientWifiFactV1): String =
+		factChecksum(value.identity, value.effectChecksum)
+
+	private fun factChecksum(identity: String, effectChecksum: String): String =
+		digest("ambient-wifi-portable-fact-v1", identity, effectChecksum)
+
 	@Suppress("LongParameterList")
-	fun factChecksum(
-		identity: String,
+	fun factEffectChecksum(
 		origin: AmbientWifiOrigin,
 		coverageStartTimeMs: Long,
 		observedTimeMs: Long,
@@ -271,8 +295,7 @@ object AmbientWifiPortableIntegrity {
 		semanticRevision: Long,
 		supersedesSemanticRevision: Long?,
 	): String = digest(
-		"ambient-wifi-portable-fact-v1",
-		identity,
+		"ambient-wifi-portable-fact-effect-v1",
 		origin,
 		coverageStartTimeMs,
 		observedTimeMs,
@@ -299,7 +322,12 @@ object AmbientWifiPortableIntegrity {
 	): String = digest(
 		"ambient-wifi-portable-archive-v1",
 		archiveId,
-		facts.sortedBy { it.identity }.joinToString { "${it.identity}:${it.contentChecksum}" },
+		facts.sortedWith(compareBy(
+			PortableAmbientWifiFactV1::identity,
+			PortableAmbientWifiFactV1::semanticRevision,
+		)).joinToString {
+			"${it.identity}:${it.semanticRevision}:${it.contentChecksum}"
+		},
 		gaps.sortedBy { it.identity }.joinToString {
 			"${it.identity}:${it.contentChecksum}"
 		},
@@ -361,11 +389,9 @@ data class PortableAmbientWifiImportReceipt(
 data class ImportPortableAmbientWifiRequest(
 	val archive: PortableAmbientWifiArchiveV1,
 	val receipt: PortableAmbientWifiImportReceipt,
-	val retentionPolicyId: String,
 	val expectedCollectedDataEpoch: Long,
 ) {
 	init {
-		require(retentionPolicyId.isNotBlank())
 		require(expectedCollectedDataEpoch >= 0L)
 	}
 }
@@ -391,9 +417,20 @@ sealed interface ImportPortableAmbientWifiResult {
 	data object InvalidReceipt : ImportPortableAmbientWifiResult
 	data object DeletedArchive : ImportPortableAmbientWifiResult
 	data object RetentionBoundary : ImportPortableAmbientWifiResult
+	data object RetentionAuthorityUnavailable : ImportPortableAmbientWifiResult
 	data object CollectedDataEpochChanged : ImportPortableAmbientWifiResult
 	data object DependencyOverflow : ImportPortableAmbientWifiResult
 	data object StorageUnavailable : ImportPortableAmbientWifiResult
 }
 
 private val DIGEST = Regex("[0-9a-f]{64}")
+
+private fun List<PortableAmbientWifiFactV1>.hasCompleteCorrectionLineages(): Boolean =
+	groupBy(PortableAmbientWifiFactV1::identity).values.all { lineage ->
+		val ordered = lineage.sortedBy(PortableAmbientWifiFactV1::semanticRevision)
+		ordered.withIndex().all { (index, fact) ->
+			val expectedRevision = index + 1L
+			fact.semanticRevision == expectedRevision &&
+				fact.supersedesSemanticRevision == expectedRevision.takeIf { it > 1L }?.minus(1L)
+		}
+	}

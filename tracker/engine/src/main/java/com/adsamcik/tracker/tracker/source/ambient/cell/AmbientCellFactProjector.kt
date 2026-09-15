@@ -8,6 +8,9 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactCursorEntit
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellReplayFootprintEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
@@ -106,7 +109,9 @@ internal class AmbientCellFactProjector @Inject constructor(
 			SourceBrokerPurpose.AMBIENT_PRODUCT,
 			ambientConsentEpoch,
 		)
-		if (policyAuthority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE ||
+		if (policyAuthority == null ||
+			policyAuthority.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE ||
+			policyAuthority.currentPolicyRevision != sourcePolicyRevision ||
 			policy == null ||
 			policy.ambientConsentEpoch != ambientConsentEpoch ||
 			!policy.ambientPersistenceEligible ||
@@ -124,21 +129,45 @@ internal class AmbientCellFactProjector @Inject constructor(
 			wal.clockDomainId,
 			wal.observedElapsedNanos,
 		)
-		if (authority?.state != AmbientCellAuthorityEntity.STATE_ACTIVE ||
+		if (authority == null ||
+			!AmbientCellAuthorityIntegrity.isAuthentic(authority) ||
+			authority.state != AmbientCellAuthorityEntity.STATE_ACTIVE ||
 			authority.writerId != AmbientCellFactRevisionEntity.WRITER_ID ||
 			authority.writerVersion != AmbientCellFactRevisionEntity.WRITER_VERSION ||
 			authority.writerOwnerGeneration != FIRST_WRITER_OWNER_GENERATION ||
 			authority.sourcePolicyRevision != sourcePolicyRevision ||
 			authority.ambientConsentEpoch != ambientConsentEpoch ||
-			authority.collectedDataEpoch != wal.capturedCollectedDataEpoch
+			authority.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
+			authority.demandId != ambient.demandId
 		) {
 			return cellUnverifiable(
 				AmbientCellProjectionUnverifiableReason.AMBIENT_AUTHORITY_MISMATCH,
 			)
 		}
-		val deletionGeneration = database.ambientCellFactDao()
+		val retention = database.ambientCellFactDao().retentionAuthorityAt(
+			AmbientCellRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			wal.clockDomainId,
+			wal.observedElapsedNanos,
+		)
+		if (retention == null ||
+			!AmbientCellRetentionAuthorityIntegrity.isAuthentic(retention) ||
+			!retention.isActive ||
+			retention.approvalRevision != authority.retentionApprovalRevision ||
+			retention.opaquePolicyId != authority.retentionPolicyId ||
+			retention.sourcePolicyRevision != sourcePolicyRevision ||
+			retention.ambientConsentEpoch != ambientConsentEpoch ||
+			retention.collectedDataEpoch != wal.capturedCollectedDataEpoch
+		) {
+			return cellUnverifiable(
+				AmbientCellProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH,
+			)
+		}
+		val deletionMarker = database.ambientCellFactDao()
 			.latestDeletionMarker(wal.capturedCollectedDataEpoch)
-			?.deletionGeneration ?: 0L
+		if (deletionMarker != null && !AmbientCellFactIntegrity.isAuthentic(deletionMarker)) {
+			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.DELETED_SCOPE)
+		}
+		val deletionGeneration = deletionMarker?.deletionGeneration ?: 0L
 		if (authority.scopeDeletionGeneration != deletionGeneration) {
 			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.DELETED_SCOPE)
 		}
@@ -161,8 +190,13 @@ internal class AmbientCellFactProjector @Inject constructor(
 		}.getOrNull() as? CellSnapshotPayload ?: return cellUnverifiable(
 			AmbientCellProjectionUnverifiableReason.PAYLOAD_UNVERIFIABLE,
 		)
+		val zone = payload.observationZoneId?.let {
+			runCatching { ZoneId.of(it) }.getOrNull()
+		} ?: return cellUnverifiable(
+			AmbientCellProjectionUnverifiableReason.OBSERVATION_ZONE_UNVERIFIABLE,
+		)
 		val aggregate = AmbientCellAggregate.from(payload)
-			?: return recordUnverifiableGap(wal, authority)
+			?: return recordUnverifiableGap(wal, authority, zone)
 		val dao = database.ambientCellFactDao()
 		val logicalFactId = AmbientCellFactIntegrity.logicalFactId(
 			deliveryIdentity,
@@ -170,6 +204,13 @@ internal class AmbientCellFactProjector @Inject constructor(
 			wal.capturedCollectedDataEpoch,
 			authority.scopeDeletionGeneration,
 		)
+		dao.replayFootprint(
+			AmbientCellReplayFootprintEntity.KIND_LOCAL_FACT,
+			logicalFactId,
+			1L,
+		)?.takeIf(AmbientCellFactIntegrity::isAuthentic)?.let {
+			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.DELETED_SCOPE)
+		}
 		val existingCursor = dao.cursor(
 			AmbientCellFactRevisionEntity.WRITER_ID,
 			AmbientCellFactRevisionEntity.WRITER_VERSION,
@@ -190,8 +231,7 @@ internal class AmbientCellFactProjector @Inject constructor(
 			wal.admissionOrdinal,
 		)
 		val unchanged = prior?.toAggregate() == aggregate
-		val wallTimeMs = wal.wallTimeMs ?: return recordUnverifiableGap(wal, authority)
-		val zone = ZoneId.systemDefault()
+		val wallTimeMs = wal.wallTimeMs ?: return recordUnverifiableGap(wal, authority, zone)
 		val day = Instant.ofEpochMilli(wallTimeMs).atZone(zone).toLocalDate()
 		val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
 		val dayEnd = day.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -298,10 +338,10 @@ internal class AmbientCellFactProjector @Inject constructor(
 	private suspend fun recordUnverifiableGap(
 		wal: SourceEventWalEntity,
 		authority: AmbientCellAuthorityEntity,
+		zone: ZoneId,
 	): AmbientCellProjectionResult {
 		val wallTimeMs = wal.wallTimeMs
 			?: return cellUnverifiable(AmbientCellProjectionUnverifiableReason.CLOCK_UNVERIFIABLE)
-		val zone = ZoneId.systemDefault()
 		val day = Instant.ofEpochMilli(wallTimeMs).atZone(zone).toLocalDate()
 		val gapId = AmbientCellAuthorityIntegrity.digest(
 			"ambient-cell-gap-v1",
@@ -309,6 +349,13 @@ internal class AmbientCellFactProjector @Inject constructor(
 			authority.authorityRevision,
 			authority.scopeDeletionGeneration,
 		)
+		database.ambientCellFactDao().replayFootprint(
+			AmbientCellReplayFootprintEntity.KIND_LOCAL_GAP,
+			gapId,
+			0L,
+		)?.takeIf(AmbientCellFactIntegrity::isAuthentic)?.let {
+			return cellUnverifiable(AmbientCellProjectionUnverifiableReason.DELETED_SCOPE)
+		}
 		database.ambientCellFactDao().insertGap(
 			AmbientCellFactIntegrity.createGap(
 				gapId,
@@ -320,6 +367,7 @@ internal class AmbientCellFactProjector @Inject constructor(
 				authority.sourcePolicyRevision,
 				authority.ambientConsentEpoch,
 				authority.retentionPolicyId,
+				authority.retentionApprovalRevision,
 				authority.collectedDataEpoch,
 				authority.scopeDeletionGeneration,
 				maxOf(wal.createdAtMs, wallTimeMs + 1L),
@@ -427,9 +475,11 @@ internal enum class AmbientCellProjectionUnverifiableReason {
 	AUTHORIZATION_MISMATCH,
 	POLICY_MISMATCH,
 	AMBIENT_AUTHORITY_MISMATCH,
+	RETENTION_AUTHORITY_MISMATCH,
 	REGISTRATION_MISMATCH,
 	DELETED_SCOPE,
 	PAYLOAD_UNVERIFIABLE,
+	OBSERVATION_ZONE_UNVERIFIABLE,
 	CLOCK_UNVERIFIABLE,
 	DELIVERY_IDENTITY_COLLISION,
 	DEPENDENCY_OVERFLOW,

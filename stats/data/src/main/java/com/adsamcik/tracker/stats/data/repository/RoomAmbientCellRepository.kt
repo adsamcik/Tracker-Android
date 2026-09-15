@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.AmbientCellEffectiveLocalRow
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellGapEntity
@@ -95,15 +96,12 @@ internal class RoomAmbientCellRepository @Inject constructor(
 							request.limit + 1,
 						)
 					} else emptyList()
-					val fromMs = local.minOfOrNull { it.fact.structuralDayStartTimeMs }
-						?: imported.minOfOrNull(ImportedAmbientCellFactEntity::coverageStartTimeMs)
-						?: 0L
-					val toMs = local.maxOfOrNull { it.fact.structuralDayEndTimeMs }
-						?: imported.maxOfOrNull(ImportedAmbientCellFactEntity::latestPossibleTimeMs)
-						?.plus(1L)
-						?: 1L
 					val gaps = if (AmbientCellOrigin.LOCAL_DEVICE in request.origins) {
-						dao.gapsOverWindow(fromMs, toMs, request.limit + 1)
+						dao.gapsForDay(
+							request.structuralEpochDay,
+							request.storedZoneId,
+							request.limit + 1,
+						)
 					} else emptyList()
 					val importedGaps = if (AmbientCellOrigin.PORTABLE_IMPORT in request.origins) {
 						dao.importedGapsForDay(
@@ -170,8 +168,10 @@ internal class RoomAmbientCellRepository @Inject constructor(
 				AmbientCellFact::identity,
 			))
 		val availability = if (
-			database.ambientCellFactDao().latestAuthority()?.state ==
-			AmbientCellAuthorityEntity.STATE_ACTIVE
+			database.ambientCellFactDao().latestAuthority()?.let {
+				AmbientCellAuthorityIntegrity.isAuthentic(it) &&
+					it.state == AmbientCellAuthorityEntity.STATE_ACTIVE
+			} == true
 		) AmbientCellAvailability.AVAILABLE else AmbientCellAvailability.DISABLED
 		return AmbientCellReadResult.Snapshot(
 			facts,
@@ -196,7 +196,7 @@ internal class RoomAmbientCellRepository @Inject constructor(
 	}
 }
 
-private fun AmbientCellEffectiveLocalRow.toApiFact(): AmbientCellFact? {
+internal fun AmbientCellEffectiveLocalRow.toApiFact(): AmbientCellFact? {
 	val source = fact
 	if (source.effectChecksum != AmbientCellFactIntegrity.effectChecksum(source)) return null
 	val count = source.observationCount ?: ownerObservationCount ?: return null
@@ -233,7 +233,7 @@ private fun AmbientCellEffectiveLocalRow.toApiFact(): AmbientCellFact? {
 	)
 }
 
-private fun ImportedAmbientCellFactEntity.toApiFact(): AmbientCellFact? {
+internal fun ImportedAmbientCellFactEntity.toApiFact(): AmbientCellFact? {
 	val sourceFact = AmbientCellFact(
 		factId,
 		AmbientCellOrigin.valueOf(portableOrigin),
@@ -258,13 +258,16 @@ private fun ImportedAmbientCellFactEntity.toApiFact(): AmbientCellFact? {
 		semanticRevision,
 		supersedesSemanticRevision,
 	)
-	if (AmbientCellPortableIntegrity.createFact(sourceFact).contentChecksum != contentChecksum) {
+	val portable = AmbientCellPortableIntegrity.createFact(sourceFact)
+	if (portable.contentChecksum != contentChecksum ||
+		portable.effectChecksum != portableEffectChecksum
+	) {
 		return null
 	}
 	return sourceFact.copy(origin = AmbientCellOrigin.PORTABLE_IMPORT)
 }
 
-private fun ImportedAmbientCellGapEntity.toApiGap(): AmbientCellGap? {
+internal fun ImportedAmbientCellGapEntity.toApiGap(): AmbientCellGap? {
 	val sourceGap = AmbientCellGap(
 		gapId,
 		AmbientCellOrigin.valueOf(portableOrigin),
@@ -274,7 +277,10 @@ private fun ImportedAmbientCellGapEntity.toApiGap(): AmbientCellGap? {
 		storedZoneId,
 		reason,
 	)
-	if (AmbientCellPortableIntegrity.createGap(sourceGap).contentChecksum != contentChecksum) {
+	val portable = AmbientCellPortableIntegrity.createGap(sourceGap)
+	if (portable.contentChecksum != contentChecksum ||
+		portable.effectChecksum != portableEffectChecksum
+	) {
 		return null
 	}
 	return sourceGap.copy(origin = AmbientCellOrigin.PORTABLE_IMPORT)

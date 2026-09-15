@@ -72,6 +72,73 @@ class AmbientRadioMigration27To28Test {
 				"idx_imported_ambient_cell_fact_revision",
 				listOf("fact_id", "semantic_revision"),
 			)
+			assertIndex(
+				database,
+				"idx_ambient_wifi_retention_effective",
+				listOf(
+					"scope",
+					"effective_boot_id",
+					"effective_elapsed_realtime_nanos",
+					"approval_revision",
+				),
+			)
+			assertIndex(
+				database,
+				"idx_ambient_wifi_authority_effective",
+				listOf(
+					"effective_boot_id",
+					"effective_elapsed_realtime_nanos",
+					"authority_revision",
+				),
+			)
+			assertIndex(
+				database,
+				"idx_ambient_cell_retention_effective",
+				listOf(
+					"scope",
+					"effective_boot_id",
+					"effective_elapsed_realtime_nanos",
+					"approval_revision",
+				),
+			)
+			assertIndex(
+				database,
+				"idx_ambient_cell_authority_effective",
+				listOf(
+					"effective_boot_id",
+					"effective_elapsed_realtime_nanos",
+					"authority_revision",
+				),
+			)
+			assertColumns(
+				database,
+				"ambient_wifi_authority",
+				listOf(
+					"rollout_revision",
+					"owner_cas_token",
+					"reconciliation_attempt",
+					"demand_id",
+				),
+			)
+			assertColumns(
+				database,
+				"imported_ambient_cell_fact",
+				listOf("portable_effect_checksum", "retention_approval_revision"),
+			)
+		}
+
+		private fun assertColumns(
+			database: androidx.sqlite.db.SupportSQLiteDatabase,
+			table: String,
+			expectedColumns: List<String>,
+		) {
+			val actual = buildSet {
+				database.query("PRAGMA table_info('$table')").use { cursor ->
+					val column = cursor.getColumnIndexOrThrow("name")
+					while (cursor.moveToNext()) add(cursor.getString(column))
+				}
+			}
+			assertTrue("$table missing ${expectedColumns - actual}", actual.containsAll(expectedColumns))
 		}
 	}
 
@@ -93,6 +160,7 @@ class AmbientRadioMigration27To28Test {
 		const val DATABASE = "migration-27-28-ambient-radio"
 		val TABLES = listOf(
 			"ambient_wifi_authority",
+			"ambient_wifi_retention_authority",
 			"ambient_wifi_fact_revision",
 			"ambient_wifi_fact_cursor",
 			"ambient_wifi_gap",
@@ -101,7 +169,9 @@ class AmbientRadioMigration27To28Test {
 			"imported_ambient_wifi_gap",
 			"imported_ambient_wifi_receipt",
 			"imported_ambient_wifi_tombstone",
+			"ambient_wifi_replay_footprint",
 			"ambient_cell_authority",
+			"ambient_cell_retention_authority",
 			"ambient_cell_fact_revision",
 			"ambient_cell_fact_cursor",
 			"ambient_cell_gap",
@@ -110,6 +180,7 @@ class AmbientRadioMigration27To28Test {
 			"imported_ambient_cell_gap",
 			"imported_ambient_cell_receipt",
 			"imported_ambient_cell_tombstone",
+			"ambient_cell_replay_footprint",
 		)
 	}
 }

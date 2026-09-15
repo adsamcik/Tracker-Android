@@ -10,6 +10,7 @@ import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOA
 import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
 import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
+import com.adsamcik.tracker.tracker.source.model.RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
@@ -62,7 +63,8 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 				if (
 					(source == SourceKind.LOCATION &&
 						payloadVersion >= LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) ||
-					payloadVersion >= PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION
+					payloadVersion >= PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION ||
+					payloadVersion >= RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 				) {
 					require(input.available() == 0) { "Trailing source-payload bytes" }
 				}
@@ -166,6 +168,9 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 				writeNullableLong(payload.resultAgeMs)
 			}
 			is WifiResultSnapshotPayload -> {
+				if (payloadVersion >= RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION) {
+					requireNotNull(payload.observationZoneId)
+				}
 				writeInt(TYPE_WIFI_RESULTS)
 				writeInt(payload.accessPoints.size)
 				payload.accessPoints.forEach { accessPoint ->
@@ -178,8 +183,14 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 				}
 				writeNullableLong(payload.platformTimestampMs)
 				writeNullableLong(payload.resultAgeMs)
+				if (payloadVersion >= RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION) {
+					writeUTF(requireNotNull(payload.observationZoneId))
+				}
 			}
 			is CellSnapshotPayload -> {
+				if (payloadVersion >= RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION) {
+					requireNotNull(payload.observationZoneId)
+				}
 				writeInt(TYPE_CELL_SNAPSHOT)
 				writeNullableInt(payload.subscriptionId)
 				writeInt(payload.observations.size)
@@ -191,6 +202,9 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 					writeNullableLong(observation.providerTimestampNanos)
 				}
 				writeInt(payload.refreshOutcome.ordinal)
+				if (payloadVersion >= RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION) {
+					writeUTF(requireNotNull(payload.observationZoneId))
+				}
 			}
 			else -> error("Unsupported source payload ${payload::class.java.name}")
 		}
@@ -233,6 +247,9 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 			},
 			platformTimestampMs = readNullableLong(),
 			resultAgeMs = readNullableLong(),
+			observationZoneId = if (payloadVersion >= RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION) {
+				readUTF()
+			} else null,
 		)
 		TYPE_CELL_SNAPSHOT -> CellSnapshotPayload(
 			subscriptionId = readNullableInt(),
@@ -246,6 +263,9 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 				)
 			},
 			refreshOutcome = CellRefreshOutcome.entries[readInt()],
+			observationZoneId = if (payloadVersion >= RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION) {
+				readUTF()
+			} else null,
 		)
 		else -> error("Unsupported source payload type $type")
 	}
@@ -345,7 +365,7 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 
 	private companion object {
 		const val MINIMUM_VERSION = 1
-		const val CURRENT_VERSION = PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION
+		const val CURRENT_VERSION = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 		const val LEGACY_V27_VERSION = 1
 		const val WIFI_ITEM_TIME_VERSION = 2
 		const val MAX_COLLECTION_SIZE = 100_000

@@ -108,6 +108,7 @@ class SharedWifiSourceController @Inject constructor(
 				)
 				val acknowledgement = quiesceLocked(cutoff)
 				return if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
+					if (sessionClaim == claim) sessionClaim = null
 					SourceApplyResult.Applied(disabledState(plan), stopAck = acknowledgement)
 				} else {
 					SourceApplyResult.Failed(

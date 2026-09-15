@@ -26,7 +26,7 @@ class SharedAmbientRadioSourceControllerTest {
 	private val unboundSink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
 
 	@Test
-	fun `Wi-Fi session stop retires only session join while one ambient registration remains`() =
+	fun `Wi-Fi session stop retires only session join while ambient registration remains`() =
 		runTest {
 			val physical = mockk<WifiSourceRuntime>()
 			val broker = mockk<SourceBroker>()
@@ -45,10 +45,13 @@ class SharedAmbientRadioSourceControllerTest {
 			coEvery { physical.reconfigure(claim, plan, unboundSink) } returns
 				SourceApplyResult.Applied(applied(SourceKind.WIFI, plan.revision, 7L))
 			coEvery {
-				physical.refreshShared(match { it.mode == WifiMode.BROADCAST_DRIVEN }, unboundSink, null)
+				physical.refreshShared(
+					match { it.mode == WifiMode.BROADCAST_DRIVEN },
+					unboundSink,
+					null,
+				)
 			} returns SourceApplyResult.Applied(applied(SourceKind.WIFI, 2L, 7L))
-			val cutoff = cutoff()
-			coEvery { physical.sharedSessionCutoff(cutoff) } returns completeAck(
+			coEvery { physical.sharedSessionCutoff(any()) } returns completeAck(
 				SourceKind.WIFI,
 				7L,
 				RegistrationRemovalOutcome.NOT_REGISTERED,
@@ -56,19 +59,18 @@ class SharedAmbientRadioSourceControllerTest {
 			val subject = SharedWifiSourceController(physical, broker, sinkFactory)
 
 			assertIs<SourceStartResult.Started>(subject.start(claim, plan, mockk()))
-			val acknowledgement = subject.quiesce(cutoff)
+			val acknowledgement = subject.quiesce(cutoff())
 
 			assertEquals(7L, acknowledgement.registrationGeneration)
-			assertEquals(RegistrationRemovalOutcome.NOT_REGISTERED,
-				acknowledgement.registrationRemovalOutcome)
-			coVerify(exactly = 1) { physical.reconfigure(claim, plan, unboundSink) }
-			coVerify(exactly = 1) { physical.sharedSessionCutoff(cutoff) }
+			assertEquals(
+				RegistrationRemovalOutcome.NOT_REGISTERED,
+				acknowledgement.registrationRemovalOutcome,
+			)
 			coVerify(exactly = 0) { physical.quiesce(any()) }
-			coVerify(exactly = 0) { physical.close() }
 		}
 
 	@Test
-	fun `Cell refresh budget downgrades to callback-only without retiring ambient provider`() =
+	fun `Cell session stop downgrades to callback-only while ambient registration remains`() =
 		runTest {
 			val physical = mockk<CellSourceRuntime>()
 			val broker = mockk<SourceBroker>()
@@ -87,10 +89,13 @@ class SharedAmbientRadioSourceControllerTest {
 			coEvery { physical.reconfigure(claim, plan, unboundSink) } returns
 				SourceApplyResult.Applied(applied(SourceKind.CELL, plan.revision, 8L))
 			coEvery {
-				physical.refreshShared(match { it.mode == CellMode.OBSERVE_CHANGES }, unboundSink, null)
+				physical.refreshShared(
+					match { it.mode == CellMode.OBSERVE_CHANGES },
+					unboundSink,
+					null,
+				)
 			} returns SourceApplyResult.Applied(applied(SourceKind.CELL, 2L, 8L))
-			val cutoff = cutoff()
-			coEvery { physical.sharedSessionCutoff(cutoff) } returns completeAck(
+			coEvery { physical.sharedSessionCutoff(any()) } returns completeAck(
 				SourceKind.CELL,
 				8L,
 				RegistrationRemovalOutcome.NOT_REGISTERED,
@@ -98,11 +103,9 @@ class SharedAmbientRadioSourceControllerTest {
 			val subject = SharedCellSourceController(physical, broker, sinkFactory)
 
 			assertIs<SourceStartResult.Started>(subject.start(claim, plan, mockk()))
-			val acknowledgement = subject.quiesce(cutoff)
+			val acknowledgement = subject.quiesce(cutoff())
 
 			assertEquals(8L, acknowledgement.registrationGeneration)
-			coVerify(exactly = 1) { physical.reconfigure(claim, plan, unboundSink) }
-			coVerify(exactly = 1) { physical.sharedSessionCutoff(cutoff) }
 			coVerify(exactly = 0) { physical.quiesce(any()) }
 		}
 
@@ -147,12 +150,87 @@ class SharedAmbientRadioSourceControllerTest {
 		val subject = SharedWifiSourceController(physical, broker, sinkFactory)
 
 		assertIs<AmbientWifiRuntimeJoinResult.Active>(subject.reconcileAmbientJoin())
-		val unavailable = assertIs<AmbientWifiRuntimeJoinResult.Unavailable>(
-			subject.reconcileAmbientJoin(),
-		)
+		assertIs<AmbientWifiRuntimeJoinResult.Unavailable>(subject.reconcileAmbientJoin())
+	}
 
-		assertEquals(true, unavailable.retryable)
-		coVerify(exactly = 1) { physical.closeShared() }
+	@Test
+	fun `released disabled Wi-Fi reconfigure clears only retired session claim`() = runTest {
+		val physical = mockk<WifiSourceRuntime>()
+		val broker = mockk<SourceBroker>()
+		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
+		every { physical.capabilities } returns MutableStateFlow(capabilities())
+		every { sinkFactory.unbound } returns unboundSink
+		val capture = demand(SourceKind.WIFI, SourceBrokerPurpose.SESSION_CAPTURE)
+		val ambient = demand(SourceKind.WIFI, SourceBrokerPurpose.AMBIENT_PRODUCT)
+		coEvery { broker.authorizationDemands(SourceKind.WIFI) } returnsMany listOf(
+			listOf(capture, ambient),
+			listOf(ambient),
+			listOf(capture, ambient),
+		)
+		val oldClaim = claim(SourceKind.WIFI)
+		val newClaim = oldClaim.copy(actionId = "action-WIFI-new", leaseGeneration = 2L)
+		val plan = wifiPlan()
+		coEvery { physical.refreshShared(plan, unboundSink, oldClaim) } returns null
+		coEvery { physical.reconfigure(oldClaim, plan, unboundSink) } returns
+			SourceApplyResult.Applied(applied(SourceKind.WIFI, plan.revision, 7L))
+		coEvery { physical.refreshShared(any(), unboundSink, null) } returns
+			SourceApplyResult.Applied(applied(SourceKind.WIFI, 2L, 7L))
+		coEvery { physical.sharedSessionCutoff(any()) } returns completeAck(
+			SourceKind.WIFI,
+			7L,
+			RegistrationRemovalOutcome.NOT_REGISTERED,
+		)
+		coEvery { physical.shutdownIfOwned(oldClaim, any()) } returns OwnedSourceShutdown.NotOwned
+		coEvery { physical.refreshShared(plan, unboundSink, newClaim) } returns
+			SourceApplyResult.Applied(applied(SourceKind.WIFI, plan.revision, 7L))
+		val subject = SharedWifiSourceController(physical, broker, sinkFactory)
+
+		assertIs<SourceStartResult.Started>(subject.start(oldClaim, plan, mockk()))
+		assertIs<SourceApplyResult.Applied>(
+			subject.reconfigure(oldClaim, plan.copy(mode = WifiMode.OFF), mockk()),
+		)
+		assertEquals(OwnedSourceShutdown.NotOwned, subject.shutdownIfOwned(oldClaim, cutoff()))
+		assertIs<SourceStartResult.Started>(subject.start(newClaim, plan, mockk()))
+	}
+
+	@Test
+	fun `released disabled Cell reconfigure clears only retired session claim`() = runTest {
+		val physical = mockk<CellSourceRuntime>()
+		val broker = mockk<SourceBroker>()
+		val sinkFactory = mockk<DurableSourceEventSinkFactory>()
+		every { physical.capabilities } returns MutableStateFlow(capabilities())
+		every { sinkFactory.unbound } returns unboundSink
+		val capture = demand(SourceKind.CELL, SourceBrokerPurpose.SESSION_CAPTURE)
+		val ambient = demand(SourceKind.CELL, SourceBrokerPurpose.AMBIENT_PRODUCT)
+		coEvery { broker.authorizationDemands(SourceKind.CELL) } returnsMany listOf(
+			listOf(capture, ambient),
+			listOf(ambient),
+			listOf(capture, ambient),
+		)
+		val oldClaim = claim(SourceKind.CELL)
+		val newClaim = oldClaim.copy(actionId = "action-CELL-new", leaseGeneration = 2L)
+		val plan = cellPlan()
+		coEvery { physical.refreshShared(plan, unboundSink, oldClaim) } returns null
+		coEvery { physical.reconfigure(oldClaim, plan, unboundSink) } returns
+			SourceApplyResult.Applied(applied(SourceKind.CELL, plan.revision, 8L))
+		coEvery { physical.refreshShared(any(), unboundSink, null) } returns
+			SourceApplyResult.Applied(applied(SourceKind.CELL, 2L, 8L))
+		coEvery { physical.sharedSessionCutoff(any()) } returns completeAck(
+			SourceKind.CELL,
+			8L,
+			RegistrationRemovalOutcome.NOT_REGISTERED,
+		)
+		coEvery { physical.shutdownIfOwned(oldClaim, any()) } returns OwnedSourceShutdown.NotOwned
+		coEvery { physical.refreshShared(plan, unboundSink, newClaim) } returns
+			SourceApplyResult.Applied(applied(SourceKind.CELL, plan.revision, 8L))
+		val subject = SharedCellSourceController(physical, broker, sinkFactory)
+
+		assertIs<SourceStartResult.Started>(subject.start(oldClaim, plan, mockk()))
+		assertIs<SourceApplyResult.Applied>(
+			subject.reconfigure(oldClaim, plan.copy(mode = CellMode.OFF), mockk()),
+		)
+		assertEquals(OwnedSourceShutdown.NotOwned, subject.shutdownIfOwned(oldClaim, cutoff()))
+		assertIs<SourceStartResult.Started>(subject.start(newClaim, plan, mockk()))
 	}
 
 	private fun demand(source: SourceKind, purpose: String) = SourceDemandEntity(

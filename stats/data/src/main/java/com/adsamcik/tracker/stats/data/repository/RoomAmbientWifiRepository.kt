@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.AmbientWifiEffectiveLocalRow
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiGapEntity
@@ -93,15 +94,12 @@ internal class RoomAmbientWifiRepository @Inject constructor(
 							request.limit + 1,
 						)
 					} else emptyList()
-					val fromMs = local.minOfOrNull { it.fact.structuralDayStartTimeMs }
-						?: imported.minOfOrNull(ImportedAmbientWifiFactEntity::coverageStartTimeMs)
-						?: 0L
-					val toMs = local.maxOfOrNull { it.fact.structuralDayEndTimeMs }
-						?: imported.maxOfOrNull(ImportedAmbientWifiFactEntity::latestPossibleTimeMs)
-						?.plus(1L)
-						?: 1L
 					val gaps = if (AmbientWifiOrigin.LOCAL_DEVICE in request.origins) {
-						dao.gapsOverWindow(fromMs, toMs, request.limit + 1)
+						dao.gapsForDay(
+							request.structuralEpochDay,
+							request.storedZoneId,
+							request.limit + 1,
+						)
 					} else emptyList()
 					val importedGaps = if (AmbientWifiOrigin.PORTABLE_IMPORT in request.origins) {
 						dao.importedGapsForDay(
@@ -166,8 +164,10 @@ internal class RoomAmbientWifiRepository @Inject constructor(
 			compareBy<AmbientWifiFact>(AmbientWifiFact::observedTimeMs, AmbientWifiFact::identity),
 		)
 		val availability = if (
-			database.ambientWifiFactDao().latestAuthority()?.state ==
-			AmbientWifiAuthorityEntity.STATE_ACTIVE
+			database.ambientWifiFactDao().latestAuthority()?.let {
+				AmbientWifiAuthorityIntegrity.isAuthentic(it) &&
+					it.state == AmbientWifiAuthorityEntity.STATE_ACTIVE
+			} == true
 		) {
 			AmbientWifiAvailability.AVAILABLE
 		} else AmbientWifiAvailability.DISABLED
@@ -194,7 +194,7 @@ internal class RoomAmbientWifiRepository @Inject constructor(
 	}
 }
 
-private fun AmbientWifiEffectiveLocalRow.toApiFact(): AmbientWifiFact? {
+internal fun AmbientWifiEffectiveLocalRow.toApiFact(): AmbientWifiFact? {
 	val source = fact
 	if (source.effectChecksum != AmbientWifiFactIntegrity.effectChecksum(source)) return null
 	val count = source.observationCount ?: ownerObservationCount ?: return null
@@ -227,7 +227,7 @@ private fun AmbientWifiEffectiveLocalRow.toApiFact(): AmbientWifiFact? {
 	)
 }
 
-private fun ImportedAmbientWifiFactEntity.toApiFact(): AmbientWifiFact? {
+internal fun ImportedAmbientWifiFactEntity.toApiFact(): AmbientWifiFact? {
 	val sourceFact = AmbientWifiFact(
 		factId,
 		AmbientWifiOrigin.valueOf(portableOrigin),
@@ -248,13 +248,16 @@ private fun ImportedAmbientWifiFactEntity.toApiFact(): AmbientWifiFact? {
 		semanticRevision,
 		supersedesSemanticRevision,
 	)
-	if (AmbientWifiPortableIntegrity.createFact(sourceFact).contentChecksum != contentChecksum) {
+	val portable = AmbientWifiPortableIntegrity.createFact(sourceFact)
+	if (portable.contentChecksum != contentChecksum ||
+		portable.effectChecksum != portableEffectChecksum
+	) {
 		return null
 	}
 	return sourceFact.copy(origin = AmbientWifiOrigin.PORTABLE_IMPORT)
 }
 
-private fun ImportedAmbientWifiGapEntity.toApiGap(): AmbientWifiGap? {
+internal fun ImportedAmbientWifiGapEntity.toApiGap(): AmbientWifiGap? {
 	val sourceGap = AmbientWifiGap(
 		gapId,
 		AmbientWifiOrigin.valueOf(portableOrigin),
@@ -264,7 +267,10 @@ private fun ImportedAmbientWifiGapEntity.toApiGap(): AmbientWifiGap? {
 		storedZoneId,
 		reason,
 	)
-	if (AmbientWifiPortableIntegrity.createGap(sourceGap).contentChecksum != contentChecksum) {
+	val portable = AmbientWifiPortableIntegrity.createGap(sourceGap)
+	if (portable.contentChecksum != contentChecksum ||
+		portable.effectChecksum != portableEffectChecksum
+	) {
 		return null
 	}
 	return sourceGap.copy(origin = AmbientWifiOrigin.PORTABLE_IMPORT)

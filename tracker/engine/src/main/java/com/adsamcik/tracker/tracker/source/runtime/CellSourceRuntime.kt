@@ -13,6 +13,7 @@ import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprin
 import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
+import com.adsamcik.tracker.tracker.source.model.RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
@@ -39,6 +40,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -1152,8 +1154,14 @@ class CellSourceRuntime @Inject internal constructor(
 			receivedElapsedRealtimeNanos = receivedNanos.coerceAtLeast(0L),
 			wallTimeMs = wallTime, wallTimeUncertaintyMs = 1L,
 			capturedCollectedDataEpoch = registration.state.collectedDataEpoch,
-			acquiredAtMs = wallTime, quality = SourceQuality(), payloadVersion = 1,
-			payload = minimizedCellSnapshotPayload(observations, CellRefreshOutcome.CALLBACK),
+			acquiredAtMs = wallTime,
+			quality = SourceQuality(),
+			payloadVersion = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+			payload = minimizedCellSnapshotPayload(
+				observations,
+				CellRefreshOutcome.CALLBACK,
+				ZoneId.systemDefault().id,
+			),
 		)
 		val intervalStart = observations.mapNotNull(CellObservationEvidence::providerTimestampNanos)
 			.minOrNull() ?: observed.coerceAtLeast(0L)
@@ -1523,10 +1531,12 @@ internal fun cellProviderDeliveryIdentity(
 internal fun minimizedCellSnapshotPayload(
 	observations: List<CellObservationEvidence>,
 	outcome: CellRefreshOutcome,
+	observationZoneId: String,
 ) = CellSnapshotPayload(
 	subscriptionId = null,
 	observations = observations,
 	refreshOutcome = outcome,
+	observationZoneId = observationZoneId,
 )
 
 private val CELL_OBSERVATION_ORDER = compareBy<CellObservationEvidence>(

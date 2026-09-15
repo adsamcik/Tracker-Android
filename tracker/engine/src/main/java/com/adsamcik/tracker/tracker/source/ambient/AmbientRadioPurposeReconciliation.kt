@@ -26,7 +26,9 @@ data class AmbientRadioReconciliationEvidence(
 	val rolloutRevision: Long,
 	val executionGeneration: Long?,
 	val authorityRevision: Long?,
+	val ownerCasToken: String?,
 	val reconciliationAttempt: Long,
+	val authorityReconciliationAttempt: Long?,
 	val demandId: String?,
 	val providerKey: SourceProviderKey?,
 ) {
@@ -37,8 +39,12 @@ data class AmbientRadioReconciliationEvidence(
 		require(rolloutRevision >= 0L)
 		require(executionGeneration == null || executionGeneration > 0L)
 		require(authorityRevision == null || authorityRevision > 0L)
+		require(ownerCasToken == null || ownerCasToken.isNotBlank())
 		require(reconciliationAttempt > 0L)
+		require(authorityReconciliationAttempt == null || authorityReconciliationAttempt > 0L)
 		require(demandId == null || demandId.isNotBlank())
+		require((executionGeneration == null) == (authorityRevision == null))
+		require((ownerCasToken == null) == (authorityReconciliationAttempt == null))
 	}
 
 	companion object {
@@ -48,22 +54,25 @@ data class AmbientRadioReconciliationEvidence(
 			demandId: String?,
 			sourceInstanceId: SourceInstanceId?,
 			registrationGeneration: Long?,
-		): AmbientRadioReconciliationEvidence = AmbientRadioReconciliationEvidence(
-			source = authority.source.toAmbientTrackingSource(),
-			policyRevision = authority.policyRevision,
-			ambientConsentEpoch = authority.ambientConsentEpoch,
-			collectedDataEpoch = authority.collectedDataEpoch,
-			rolloutRevision = authority.rolloutRevision,
-			executionGeneration = authority.executionGeneration,
-			authorityRevision = authority.authorityRevision,
-			reconciliationAttempt = reconciliationAttempt,
-			demandId = demandId,
-			providerKey = if (sourceInstanceId != null && registrationGeneration != null) {
-				SourceProviderKey(sourceInstanceId, registrationGeneration)
-			} else {
-				null
-			},
-		)
+		): AmbientRadioReconciliationEvidence =
+			AmbientRadioReconciliationEvidence(
+				source = authority.source.toAmbientTrackingSource(),
+				policyRevision = authority.policyRevision,
+				ambientConsentEpoch = authority.ambientConsentEpoch,
+				collectedDataEpoch = authority.collectedDataEpoch,
+				rolloutRevision = authority.rolloutRevision,
+				executionGeneration = authority.executionGeneration,
+				authorityRevision = authority.authorityRevision,
+				ownerCasToken = authority.ownerCasToken,
+				reconciliationAttempt = reconciliationAttempt,
+				authorityReconciliationAttempt = authority.reconciliationAttempt,
+				demandId = demandId,
+				providerKey = if (sourceInstanceId != null && registrationGeneration != null) {
+					SourceProviderKey(sourceInstanceId, registrationGeneration)
+				} else {
+					null
+				},
+			)
 	}
 }
 
@@ -80,7 +89,6 @@ sealed interface AmbientRadioReportPreparation {
 }
 
 enum class AmbientRadioReportPreparationRejection {
-	CANCELLED,
 	SOURCE_MISMATCH,
 	STALE_AUTHORITY,
 	NOT_RECONCILED,
@@ -92,12 +100,6 @@ internal fun prepareAmbientRadioReport(
 	evidence: AmbientRadioReconciliationEvidence,
 	availability: AmbientSourceOperationalAvailability,
 ): AmbientRadioReportPreparation {
-	if (lease.cancelled) {
-		return AmbientRadioReportPreparation.Rejected(
-			evidence,
-			AmbientRadioReportPreparationRejection.CANCELLED,
-		)
-	}
 	if (lease.identity.source != evidence.source || availability.source != evidence.source) {
 		return AmbientRadioReportPreparation.Rejected(
 			evidence,
@@ -107,12 +109,14 @@ internal fun prepareAmbientRadioReport(
 	val actualPolicyRevision = evidence.policyRevision
 	val actualConsentEpoch = evidence.ambientConsentEpoch
 	val actualCollectedDataEpoch = evidence.collectedDataEpoch
-	if (actualPolicyRevision == null || actualConsentEpoch == null || actualConsentEpoch <= 0L ||
+	if (actualPolicyRevision == null || actualConsentEpoch == null ||
 		actualCollectedDataEpoch == null ||
 		lease.identity.policyRevision != actualPolicyRevision ||
 		lease.identity.consentEpoch != actualConsentEpoch ||
 		lease.identity.collectedDataEpoch != actualCollectedDataEpoch ||
-		lease.identity.rolloutRevision != evidence.rolloutRevision
+		lease.identity.rolloutRevision != evidence.rolloutRevision ||
+		lease.identity.ownerCasToken != evidence.ownerCasToken ||
+		evidence.authorityReconciliationAttempt != evidence.reconciliationAttempt
 	) {
 		return AmbientRadioReportPreparation.Rejected(
 			evidence,

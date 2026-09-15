@@ -18,6 +18,7 @@ object AmbientCellPortableFormatV1 {
 data class PortableAmbientCellFactV1(
 	val identity: String,
 	val contentChecksum: String,
+	val effectChecksum: String,
 	val origin: AmbientCellOrigin,
 	val coverageStartTimeMs: Long,
 	val observedTimeMs: Long,
@@ -34,7 +35,11 @@ data class PortableAmbientCellFactV1(
 	val supersedesSemanticRevision: Long?,
 ) {
 	init {
-		require(CELL_DIGEST.matches(identity) && CELL_DIGEST.matches(contentChecksum))
+		require(
+			CELL_DIGEST.matches(identity) &&
+				CELL_DIGEST.matches(contentChecksum) &&
+				CELL_DIGEST.matches(effectChecksum),
+		)
 		val zone = ZoneId.of(storedZoneId)
 		require(
 			Instant.ofEpochMilli(observedTimeMs).atZone(zone).toLocalDate().toEpochDay() ==
@@ -57,6 +62,7 @@ data class PortableAmbientCellFactV1(
 			semanticRevision,
 			supersedesSemanticRevision,
 		)
+		require(AmbientCellPortableIntegrity.factEffectChecksum(this) == effectChecksum)
 		require(AmbientCellPortableIntegrity.factChecksum(this) == contentChecksum)
 	}
 }
@@ -64,6 +70,7 @@ data class PortableAmbientCellFactV1(
 data class PortableAmbientCellGapV1(
 	val identity: String,
 	val contentChecksum: String,
+	val effectChecksum: String,
 	val origin: AmbientCellOrigin,
 	val structuralEpochDay: Long,
 	val startTimeMs: Long,
@@ -72,7 +79,11 @@ data class PortableAmbientCellGapV1(
 	val reason: String,
 ) {
 	init {
-		require(CELL_DIGEST.matches(identity) && CELL_DIGEST.matches(contentChecksum))
+		require(
+			CELL_DIGEST.matches(identity) &&
+				CELL_DIGEST.matches(contentChecksum) &&
+				CELL_DIGEST.matches(effectChecksum),
+		)
 		val zone = ZoneId.of(storedZoneId)
 		require(
 			Instant.ofEpochMilli(startTimeMs).atZone(zone).toLocalDate().toEpochDay() ==
@@ -87,6 +98,7 @@ data class PortableAmbientCellGapV1(
 			storedZoneId,
 			reason,
 		)
+		require(AmbientCellPortableIntegrity.gapEffectChecksum(this) == effectChecksum)
 		require(AmbientCellPortableIntegrity.gapChecksum(this) == contentChecksum)
 	}
 }
@@ -103,9 +115,11 @@ data class PortableAmbientCellArchiveV1(
 		require(format == AmbientCellPortableFormatV1.FORMAT)
 		require(schemaVersion == AmbientCellPortableFormatV1.SCHEMA_VERSION)
 		require(CELL_DIGEST.matches(archiveId) && CELL_DIGEST.matches(contentChecksum))
-		require(facts.isNotEmpty() && facts.size <= AmbientCellPortableFormatV1.MAX_FACTS)
+		require((facts.isNotEmpty() || gaps.isNotEmpty()) &&
+			facts.size <= AmbientCellPortableFormatV1.MAX_FACTS)
 		require(gaps.size <= AmbientCellPortableFormatV1.MAX_GAPS)
-		require(facts.map { it.identity }.distinct().size == facts.size)
+		require(facts.map { it.identity to it.semanticRevision }.distinct().size == facts.size)
+		require(facts.hasCompleteCorrectionLineages())
 		require(gaps.map { it.identity }.distinct().size == gaps.size)
 		require(
 			facts.mapTo(mutableSetOf()) { it.identity }
@@ -118,25 +132,25 @@ data class PortableAmbientCellArchiveV1(
 
 object AmbientCellPortableIntegrity {
 	fun createFact(fact: AmbientCellFact): PortableAmbientCellFactV1 =
-		PortableAmbientCellFactV1(
+		factEffectChecksum(
+			fact.origin,
+			fact.coverageStartTimeMs,
+			fact.observedTimeMs,
+			fact.latestPossibleTimeMs,
+			fact.structuralEpochDay,
+			fact.storedZoneId,
+			fact.coverage,
+			fact.subscriptionCompleteness,
+			fact.observationCount,
+			fact.registeredObservationCount,
+			fact.technologyMix,
+			fact.qualityDistribution,
+			fact.semanticRevision,
+			fact.supersedesSemanticRevision,
+		).let { effectChecksum -> PortableAmbientCellFactV1(
 			identity = fact.identity,
-			contentChecksum = factChecksum(
-				fact.identity,
-				fact.origin,
-				fact.coverageStartTimeMs,
-				fact.observedTimeMs,
-				fact.latestPossibleTimeMs,
-				fact.structuralEpochDay,
-				fact.storedZoneId,
-				fact.coverage,
-				fact.subscriptionCompleteness,
-				fact.observationCount,
-				fact.registeredObservationCount,
-				fact.technologyMix,
-				fact.qualityDistribution,
-				fact.semanticRevision,
-				fact.supersedesSemanticRevision,
-			),
+			contentChecksum = factChecksum(fact.identity, effectChecksum),
+			effectChecksum = effectChecksum,
 			origin = fact.origin,
 			coverageStartTimeMs = fact.coverageStartTimeMs,
 			observedTimeMs = fact.observedTimeMs,
@@ -151,14 +165,17 @@ object AmbientCellPortableIntegrity {
 			qualityDistribution = fact.qualityDistribution,
 			semanticRevision = fact.semanticRevision,
 			supersedesSemanticRevision = fact.supersedesSemanticRevision,
-		)
+		) }
 
 	fun createArchive(
 		archiveId: String,
 		facts: List<PortableAmbientCellFactV1>,
 		gaps: List<PortableAmbientCellGapV1>,
 	): PortableAmbientCellArchiveV1 {
-		val sortedFacts = facts.sortedBy { it.identity }
+		val sortedFacts = facts.sortedWith(compareBy(
+			PortableAmbientCellFactV1::identity,
+			PortableAmbientCellFactV1::semanticRevision,
+		))
 		val sortedGaps = gaps.sortedBy { it.identity }
 		return PortableAmbientCellArchiveV1(
 			archiveId = archiveId,
@@ -169,27 +186,29 @@ object AmbientCellPortableIntegrity {
 	}
 
 	fun createGap(gap: AmbientCellGap): PortableAmbientCellGapV1 =
-		PortableAmbientCellGapV1(
+		gapEffectChecksum(
+			gap.origin,
+			gap.structuralEpochDay,
+			gap.startTimeMs,
+			gap.endTimeMs,
+			gap.storedZoneId,
+			gap.reason,
+		).let { effectChecksum -> PortableAmbientCellGapV1(
 			identity = gap.identity,
-			contentChecksum = gapChecksum(
-				gap.identity,
-				gap.origin,
-				gap.structuralEpochDay,
-				gap.startTimeMs,
-				gap.endTimeMs,
-				gap.storedZoneId,
-				gap.reason,
-			),
+			contentChecksum = gapChecksum(gap.identity, effectChecksum),
+			effectChecksum = effectChecksum,
 			origin = gap.origin,
 			structuralEpochDay = gap.structuralEpochDay,
 			startTimeMs = gap.startTimeMs,
 			endTimeMs = gap.endTimeMs,
 			storedZoneId = gap.storedZoneId,
 			reason = gap.reason,
-		)
+		) }
 
-	fun gapChecksum(value: PortableAmbientCellGapV1): String = gapChecksum(
-		value.identity,
+	fun gapChecksum(value: PortableAmbientCellGapV1): String =
+		gapChecksum(value.identity, value.effectChecksum)
+
+	fun gapEffectChecksum(value: PortableAmbientCellGapV1): String = gapEffectChecksum(
 		value.origin,
 		value.structuralEpochDay,
 		value.startTimeMs,
@@ -198,8 +217,7 @@ object AmbientCellPortableIntegrity {
 		value.reason,
 	)
 
-	private fun gapChecksum(
-		identity: String,
+	private fun gapEffectChecksum(
 		origin: AmbientCellOrigin,
 		structuralEpochDay: Long,
 		startTimeMs: Long,
@@ -207,8 +225,7 @@ object AmbientCellPortableIntegrity {
 		storedZoneId: String,
 		reason: String,
 	): String = digest(
-		"ambient-cell-portable-gap-v1",
-		identity,
+		"ambient-cell-portable-gap-effect-v1",
 		origin,
 		structuralEpochDay,
 		startTimeMs,
@@ -217,8 +234,16 @@ object AmbientCellPortableIntegrity {
 		reason,
 	)
 
-	fun factChecksum(value: PortableAmbientCellFactV1): String = factChecksum(
-		value.identity,
+	private fun gapChecksum(identity: String, effectChecksum: String): String =
+		digest("ambient-cell-portable-gap-v1", identity, effectChecksum)
+
+	fun factChecksum(value: PortableAmbientCellFactV1): String =
+		factChecksum(value.identity, value.effectChecksum)
+
+	private fun factChecksum(identity: String, effectChecksum: String): String =
+		digest("ambient-cell-portable-fact-v1", identity, effectChecksum)
+
+	fun factEffectChecksum(value: PortableAmbientCellFactV1): String = factEffectChecksum(
 		value.origin,
 		value.coverageStartTimeMs,
 		value.observedTimeMs,
@@ -236,8 +261,7 @@ object AmbientCellPortableIntegrity {
 	)
 
 	@Suppress("LongParameterList")
-	private fun factChecksum(
-		identity: String,
+	private fun factEffectChecksum(
 		origin: AmbientCellOrigin,
 		coverageStartTimeMs: Long,
 		observedTimeMs: Long,
@@ -253,8 +277,7 @@ object AmbientCellPortableIntegrity {
 		semanticRevision: Long,
 		supersedesSemanticRevision: Long?,
 	): String = digest(
-		"ambient-cell-portable-fact-v1",
-		identity,
+		"ambient-cell-portable-fact-effect-v1",
 		origin,
 		coverageStartTimeMs,
 		observedTimeMs,
@@ -278,7 +301,12 @@ object AmbientCellPortableIntegrity {
 	): String = digest(
 		"ambient-cell-portable-archive-v1",
 		archiveId,
-		facts.sortedBy { it.identity }.joinToString { "${it.identity}:${it.contentChecksum}" },
+		facts.sortedWith(compareBy(
+			PortableAmbientCellFactV1::identity,
+			PortableAmbientCellFactV1::semanticRevision,
+		)).joinToString {
+			"${it.identity}:${it.semanticRevision}:${it.contentChecksum}"
+		},
 		gaps.sortedBy { it.identity }.joinToString {
 			"${it.identity}:${it.contentChecksum}"
 		},
@@ -341,11 +369,9 @@ data class PortableAmbientCellImportReceipt(
 data class ImportPortableAmbientCellRequest(
 	val archive: PortableAmbientCellArchiveV1,
 	val receipt: PortableAmbientCellImportReceipt,
-	val retentionPolicyId: String,
 	val expectedCollectedDataEpoch: Long,
 ) {
 	init {
-		require(retentionPolicyId.isNotBlank())
 		require(expectedCollectedDataEpoch >= 0L)
 	}
 }
@@ -371,9 +397,20 @@ sealed interface ImportPortableAmbientCellResult {
 	data object InvalidReceipt : ImportPortableAmbientCellResult
 	data object DeletedArchive : ImportPortableAmbientCellResult
 	data object RetentionBoundary : ImportPortableAmbientCellResult
+	data object RetentionAuthorityUnavailable : ImportPortableAmbientCellResult
 	data object CollectedDataEpochChanged : ImportPortableAmbientCellResult
 	data object DependencyOverflow : ImportPortableAmbientCellResult
 	data object StorageUnavailable : ImportPortableAmbientCellResult
 }
 
 private val CELL_DIGEST = Regex("[0-9a-f]{64}")
+
+private fun List<PortableAmbientCellFactV1>.hasCompleteCorrectionLineages(): Boolean =
+	groupBy(PortableAmbientCellFactV1::identity).values.all { lineage ->
+		val ordered = lineage.sortedBy(PortableAmbientCellFactV1::semanticRevision)
+		ordered.withIndex().all { (index, fact) ->
+			val expectedRevision = index + 1L
+			fact.semanticRevision == expectedRevision &&
+				fact.supersedesSemanticRevision == expectedRevision.takeIf { it > 1L }?.minus(1L)
+		}
+	}

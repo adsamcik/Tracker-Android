@@ -54,10 +54,18 @@ class AmbientWifiPortableTransferTest {
 		assertEquals(date.toEpochDay(), archive.facts.single().structuralEpochDay)
 		assertEquals(portable.contentChecksum, archive.facts.single().contentChecksum)
 		assertEquals(AmbientWifiOrigin.LOCAL_DEVICE, archive.gaps.single().origin)
+		assertFailsWith<IllegalArgumentException> {
+			portable.copy(
+				contentChecksum = AmbientWifiPortableIntegrity.opaqueIdentity(
+					"corrupt",
+					portable.contentChecksum,
+				),
+			)
+		}
 	}
 
 	@Test
-	fun `reads exports and imports require explicit origin retention and receipt`() {
+	fun `reads and imports require explicit origin receipt and epoch`() {
 		assertFailsWith<IllegalArgumentException> {
 			AmbientWifiReadRequest(0L, 1L, emptySet(), 1)
 		}
@@ -68,8 +76,66 @@ class AmbientWifiPortableTransferTest {
 			ImportPortableAmbientWifiRequest(
 				archive = archive(),
 				receipt = PortableAmbientWifiImportReceipt("job", "entry", "source", 10L),
-				retentionPolicyId = "",
-				expectedCollectedDataEpoch = 1L,
+				expectedCollectedDataEpoch = -1L,
+			)
+		}
+	}
+
+	@Test
+	fun `gap-only archive is valid but a latest-only correction lineage is not`() {
+		val gap = AmbientWifiPortableIntegrity.createGap(
+			AmbientWifiGap(
+				AmbientWifiPortableIntegrity.opaqueIdentity("gap", "only"),
+				AmbientWifiOrigin.PORTABLE_IMPORT,
+				0L,
+				1L,
+				2L,
+				"UTC",
+				"PROVIDER_COMPLETENESS_UNVERIFIABLE",
+			),
+		)
+		val gapOnly = AmbientWifiPortableIntegrity.createArchive(
+			AmbientWifiPortableIntegrity.opaqueIdentity("archive", "gap-only"),
+			emptyList(),
+			listOf(gap),
+		)
+		assertEquals(1, gapOnly.gaps.size)
+		val revisionTwo = AmbientWifiPortableIntegrity.createFact(
+			archive().facts.single().let { stored ->
+				AmbientWifiFact(
+					stored.identity,
+					stored.origin,
+					stored.coverageStartTimeMs,
+					stored.observedTimeMs,
+					stored.latestPossibleTimeMs,
+					stored.structuralEpochDay,
+					stored.storedZoneId,
+					stored.coverage,
+					stored.observationCount,
+					stored.twoPointFourGhzCount,
+					stored.fiveGhzCount,
+					stored.sixGhzCount,
+					stored.otherBandCount,
+					stored.strongestSignalDbm,
+					stored.weakestSignalDbm,
+					stored.meanSignalDbm,
+					2L,
+					1L,
+				)
+			},
+		)
+		assertFailsWith<IllegalArgumentException> {
+			AmbientWifiPortableIntegrity.createArchive(
+				AmbientWifiPortableIntegrity.opaqueIdentity("archive", "latest-only"),
+				listOf(revisionTwo),
+				emptyList(),
+			)
+		}
+		assertFailsWith<IllegalArgumentException> {
+			AmbientWifiPortableIntegrity.createArchive(
+				AmbientWifiPortableIntegrity.opaqueIdentity("archive", "overflow"),
+				List(AmbientWifiPortableFormatV1.MAX_FACTS + 1) { archive().facts.single() },
+				emptyList(),
 			)
 		}
 	}

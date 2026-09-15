@@ -264,6 +264,7 @@ data class AmbientCellGapEntity(
 	@ColumnInfo(name = "source_policy_revision") val sourcePolicyRevision: Long,
 	@ColumnInfo(name = "ambient_consent_epoch") val ambientConsentEpoch: Long,
 	@ColumnInfo(name = "retention_policy_id") val retentionPolicyId: String,
+	@ColumnInfo(name = "retention_approval_revision") val retentionApprovalRevision: Long,
 	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
 	@ColumnInfo(name = "scope_deletion_generation") val scopeDeletionGeneration: Long,
 	@ColumnInfo(name = "created_at_ms") val createdAtMs: Long,
@@ -275,11 +276,11 @@ data class AmbientCellGapEntity(
 		require(gapStartTimeMs >= 0L && gapEndTimeMs > gapStartTimeMs)
 		val zone = ZoneId.of(storedZoneId)
 		require(
-			Instant.ofEpochMilli(observedTimeMs).atZone(zone).toLocalDate().toEpochDay() ==
+			Instant.ofEpochMilli(gapStartTimeMs).atZone(zone).toLocalDate().toEpochDay() ==
 				structuralEpochDay,
 		)
 		require(sourcePolicyRevision > 0L && ambientConsentEpoch >= 0L)
-		require(retentionPolicyId.isNotBlank())
+		require(retentionPolicyId.isNotBlank() && retentionApprovalRevision > 0L)
 		require(collectedDataEpoch >= 0L && scopeDeletionGeneration >= 0L)
 		require(createdAtMs >= gapEndTimeMs)
 		require(effectChecksum == AmbientCellFactIntegrity.gapChecksum(this))
@@ -342,6 +343,7 @@ data class ImportedAmbientCellFactEntity(
 	@ColumnInfo(name = "semantic_revision") val semanticRevision: Long,
 	@ColumnInfo(name = "supersedes_semantic_revision") val supersedesSemanticRevision: Long?,
 	@ColumnInfo(name = "content_checksum") val contentChecksum: String,
+	@ColumnInfo(name = "portable_effect_checksum") val portableEffectChecksum: String,
 	@ColumnInfo(name = "portable_origin") val portableOrigin: String,
 	@ColumnInfo(name = "coverage_start_time_ms") val coverageStartTimeMs: Long,
 	@ColumnInfo(name = "observed_time_ms") val observedTimeMs: Long,
@@ -365,6 +367,7 @@ data class ImportedAmbientCellFactEntity(
 	@ColumnInfo(name = "quality_good_count") val qualityGoodCount: Int,
 	@ColumnInfo(name = "quality_great_count") val qualityGreatCount: Int,
 	@ColumnInfo(name = "retention_policy_id") val retentionPolicyId: String,
+	@ColumnInfo(name = "retention_approval_revision") val retentionApprovalRevision: Long,
 	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
 	@ColumnInfo(name = "import_deletion_generation") val importDeletionGeneration: Long,
 	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
@@ -375,6 +378,7 @@ data class ImportedAmbientCellFactEntity(
 		require(semanticRevision in 1L..MAX_AMBIENT_CELL_SEMANTIC_REVISIONS)
 		require(supersedesSemanticRevision == semanticRevision.takeIf { it > 1L }?.minus(1L))
 		require(AmbientCellAuthorityIntegrity.isDigest(contentChecksum))
+		require(AmbientCellAuthorityIntegrity.isDigest(portableEffectChecksum))
 		require(portableOrigin in setOf("LOCAL_DEVICE", "PORTABLE_IMPORT"))
 		require(coverageStartTimeMs >= 0L && observedTimeMs >= coverageStartTimeMs)
 		require(latestPossibleTimeMs >= observedTimeMs)
@@ -399,7 +403,7 @@ data class ImportedAmbientCellFactEntity(
 			qualityUnknownCount + qualityNoneOrUnknownCount + qualityPoorCount +
 				qualityModerateCount + qualityGoodCount + qualityGreatCount == observationCount,
 		)
-		require(retentionPolicyId.isNotBlank())
+		require(retentionPolicyId.isNotBlank() && retentionApprovalRevision > 0L)
 		require(collectedDataEpoch >= 0L && importDeletionGeneration >= 0L)
 		require(receivedAtMs >= latestPossibleTimeMs)
 	}
@@ -424,6 +428,7 @@ data class ImportedAmbientCellGapEntity(
 	@ColumnInfo(name = "archive_id") val archiveId: String,
 	@ColumnInfo(name = "gap_id") val gapId: String,
 	@ColumnInfo(name = "content_checksum") val contentChecksum: String,
+	@ColumnInfo(name = "portable_effect_checksum") val portableEffectChecksum: String,
 	@ColumnInfo(name = "portable_origin") val portableOrigin: String,
 	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
 	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
@@ -431,6 +436,7 @@ data class ImportedAmbientCellGapEntity(
 	@ColumnInfo(name = "structural_epoch_day") val structuralEpochDay: Long,
 	@ColumnInfo(name = "reason") val reason: String,
 	@ColumnInfo(name = "retention_policy_id") val retentionPolicyId: String,
+	@ColumnInfo(name = "retention_approval_revision") val retentionApprovalRevision: Long,
 	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
 	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
 ) {
@@ -438,6 +444,7 @@ data class ImportedAmbientCellGapEntity(
 		require(AmbientCellAuthorityIntegrity.isDigest(archiveId))
 		require(AmbientCellAuthorityIntegrity.isDigest(gapId))
 		require(AmbientCellAuthorityIntegrity.isDigest(contentChecksum))
+		require(AmbientCellAuthorityIntegrity.isDigest(portableEffectChecksum))
 		require(portableOrigin in setOf("LOCAL_DEVICE", "PORTABLE_IMPORT"))
 		require(startTimeMs >= 0L && endTimeMs > startTimeMs)
 		val zone = ZoneId.of(storedZoneId)
@@ -445,7 +452,11 @@ data class ImportedAmbientCellGapEntity(
 			Instant.ofEpochMilli(startTimeMs).atZone(zone).toLocalDate().toEpochDay() ==
 				structuralEpochDay,
 		)
-		require(reason.isNotBlank() && retentionPolicyId.isNotBlank())
+		require(
+			reason.isNotBlank() &&
+				retentionPolicyId.isNotBlank() &&
+				retentionApprovalRevision > 0L,
+		)
 		require(collectedDataEpoch >= 0L && receivedAtMs >= endTimeMs)
 	}
 }
@@ -492,7 +503,111 @@ data class ImportedAmbientCellTombstoneEntity(
 	}
 }
 
+@Entity(
+	tableName = "ambient_cell_replay_footprint",
+	primaryKeys = ["footprint_kind", "identity_digest", "semantic_revision"],
+)
+data class AmbientCellReplayFootprintEntity(
+	@ColumnInfo(name = "footprint_kind") val footprintKind: String,
+	@ColumnInfo(name = "identity_digest") val identityDigest: String,
+	@ColumnInfo(name = "semantic_revision") val semanticRevision: Long,
+	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	@ColumnInfo(name = "deletion_generation") val deletionGeneration: Long,
+	@ColumnInfo(name = "recorded_at_ms") val recordedAtMs: Long,
+	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
+) {
+	init {
+		require(footprintKind in KINDS)
+		require(AmbientCellAuthorityIntegrity.isDigest(identityDigest))
+		require(semanticRevision >= 0L)
+		require(
+			(footprintKind == KIND_FACT_IDENTITY || footprintKind == KIND_LOCAL_FACT) ==
+				(semanticRevision > 0L),
+		)
+		require(collectedDataEpoch >= 0L && deletionGeneration > 0L && recordedAtMs >= 0L)
+		require(effectChecksum == AmbientCellFactIntegrity.replayFootprintChecksum(this))
+	}
+
+	companion object {
+		const val KIND_LOCAL_FACT = "LOCAL_FACT"
+		const val KIND_LOCAL_GAP = "LOCAL_GAP"
+		const val KIND_FACT_IDENTITY = "PORTABLE_FACT_IDENTITY"
+		const val KIND_FACT_EFFECT = "PORTABLE_FACT_EFFECT"
+		const val KIND_GAP_IDENTITY = "PORTABLE_GAP_IDENTITY"
+		const val KIND_GAP_EFFECT = "PORTABLE_GAP_EFFECT"
+		const val KIND_ARCHIVE_SCOPE = "ARCHIVE_SCOPE"
+		private val KINDS = setOf(
+			KIND_LOCAL_FACT,
+			KIND_LOCAL_GAP,
+			KIND_FACT_IDENTITY,
+			KIND_FACT_EFFECT,
+			KIND_GAP_IDENTITY,
+			KIND_GAP_EFFECT,
+			KIND_ARCHIVE_SCOPE,
+		)
+	}
+}
+
 object AmbientCellFactIntegrity {
+	fun createReplayFootprint(
+		footprintKind: String,
+		identityDigest: String,
+		semanticRevision: Long,
+		collectedDataEpoch: Long,
+		deletionGeneration: Long,
+		recordedAtMs: Long,
+	): AmbientCellReplayFootprintEntity =
+		AmbientCellReplayFootprintEntity(
+			footprintKind,
+			identityDigest,
+			semanticRevision,
+			collectedDataEpoch,
+			deletionGeneration,
+			recordedAtMs,
+			replayFootprintChecksum(
+				footprintKind,
+				identityDigest,
+				semanticRevision,
+				collectedDataEpoch,
+				deletionGeneration,
+				recordedAtMs,
+			),
+		)
+
+	fun replayFootprintChecksum(value: AmbientCellReplayFootprintEntity): String =
+		replayFootprintChecksum(
+			value.footprintKind,
+			value.identityDigest,
+			value.semanticRevision,
+			value.collectedDataEpoch,
+			value.deletionGeneration,
+			value.recordedAtMs,
+		)
+
+	private fun replayFootprintChecksum(
+		footprintKind: String,
+		identityDigest: String,
+		semanticRevision: Long,
+		collectedDataEpoch: Long,
+		deletionGeneration: Long,
+		recordedAtMs: Long,
+	): String =
+		AmbientCellAuthorityIntegrity.digest(
+			"ambient-cell-replay-footprint-v1",
+			footprintKind,
+			identityDigest,
+			semanticRevision,
+			collectedDataEpoch,
+			deletionGeneration,
+			recordedAtMs,
+		)
+
+	fun isAuthentic(value: AmbientCellDeletionMarkerEntity): Boolean =
+		value.effectChecksum == deletionChecksum(value)
+
+	fun isAuthentic(value: AmbientCellReplayFootprintEntity): Boolean =
+		value.effectChecksum == replayFootprintChecksum(value)
+
 	fun logicalFactId(
 		sourceDeliveryIdentity: String,
 		ambientConsentEpoch: Long,
@@ -632,6 +747,7 @@ object AmbientCellFactIntegrity {
 		sourcePolicyRevision: Long,
 		ambientConsentEpoch: Long,
 		retentionPolicyId: String,
+		retentionApprovalRevision: Long,
 		collectedDataEpoch: Long,
 		scopeDeletionGeneration: Long,
 		createdAtMs: Long,
@@ -645,6 +761,7 @@ object AmbientCellFactIntegrity {
 		sourcePolicyRevision,
 		ambientConsentEpoch,
 		retentionPolicyId,
+		retentionApprovalRevision,
 		collectedDataEpoch,
 		scopeDeletionGeneration,
 		createdAtMs,
@@ -658,6 +775,7 @@ object AmbientCellFactIntegrity {
 			sourcePolicyRevision,
 			ambientConsentEpoch,
 			retentionPolicyId,
+			retentionApprovalRevision,
 			collectedDataEpoch,
 			scopeDeletionGeneration,
 			createdAtMs,
@@ -674,6 +792,7 @@ object AmbientCellFactIntegrity {
 		value.sourcePolicyRevision,
 		value.ambientConsentEpoch,
 		value.retentionPolicyId,
+		value.retentionApprovalRevision,
 		value.collectedDataEpoch,
 		value.scopeDeletionGeneration,
 		value.createdAtMs,
@@ -689,6 +808,7 @@ object AmbientCellFactIntegrity {
 		sourcePolicyRevision: Long,
 		ambientConsentEpoch: Long,
 		retentionPolicyId: String,
+		retentionApprovalRevision: Long,
 		collectedDataEpoch: Long,
 		scopeDeletionGeneration: Long,
 		createdAtMs: Long,
@@ -703,6 +823,7 @@ object AmbientCellFactIntegrity {
 		sourcePolicyRevision,
 		ambientConsentEpoch,
 		retentionPolicyId,
+		retentionApprovalRevision,
 		collectedDataEpoch,
 		scopeDeletionGeneration,
 		createdAtMs,

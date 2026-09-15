@@ -44,7 +44,7 @@ class AmbientCellPortableTransferTest {
 	}
 
 	@Test
-	fun `Cell contracts reject missing explicit origin and retention approval`() {
+	fun `Cell contracts reject missing explicit origin and invalid import epoch`() {
 		assertFailsWith<IllegalArgumentException> {
 			AmbientCellDayReadRequest(0L, "UTC", emptySet(), 1)
 		}
@@ -52,8 +52,7 @@ class AmbientCellPortableTransferTest {
 			ImportPortableAmbientCellRequest(
 				archive(),
 				PortableAmbientCellImportReceipt("job", "entry", "source", 10L),
-				"",
-				1L,
+				-1L,
 			)
 		}
 	}

@@ -18,6 +18,7 @@ import com.adsamcik.tracker.tracker.source.model.WifiAccessPointEvidence
 import com.adsamcik.tracker.tracker.source.model.WifiMode
 import com.adsamcik.tracker.tracker.source.model.WifiPlan
 import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
+import com.adsamcik.tracker.tracker.source.model.RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +37,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -239,18 +241,6 @@ class WifiSourceRuntime @Inject internal constructor(
 				)
 			}
 
-	/** Retires the whole shared Wi-Fi provider and returns the truthful physical acknowledgement. */
-	internal suspend fun closeShared(): SourceStopAck = lifecycleMutex.withLock {
-			when {
-				currentPlan != null -> shutdownLocked(null)
-				reconcilePendingProviderRetirements() -> unavailableAck(null)
-				else -> unavailableAck(null).copy(
-					registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED,
-					appDrainComplete = false,
-					status = SourceStopStatus.PROVIDER_FAILED,
-				)
-			}
-	}
 			val completion = CompletableDeferred<RuntimeAdmissionSnapshot>()
 			val barrier = synchronized(callbackLock) {
 				if (!accepting || registration !== activeRegistration || queue !== activeQueue) {
@@ -278,6 +268,7 @@ class WifiSourceRuntime @Inject internal constructor(
 					status = SourceStopStatus.TIMED_OUT,
 				)
 			}
+
 			try {
 				activeQueue.submit(WifiRuntimeInput.SharedCutoff(completion))
 			} finally {
@@ -325,6 +316,19 @@ class WifiSourceRuntime @Inject internal constructor(
 				status = if (admission != null) SourceStopStatus.COMPLETE else SourceStopStatus.TIMED_OUT,
 			)
 		}
+
+	/** Retires the whole shared Wi-Fi provider and returns the truthful physical acknowledgement. */
+	internal suspend fun closeShared(): SourceStopAck = lifecycleMutex.withLock {
+		when {
+			currentPlan != null -> shutdownLocked(null)
+			reconcilePendingProviderRetirements() -> unavailableAck(null)
+			else -> unavailableAck(null).copy(
+				registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED,
+				appDrainComplete = false,
+				status = SourceStopStatus.PROVIDER_FAILED,
+			)
+		}
+	}
 
 	/**
 	 * Closes Wi-Fi callback entry, drains the exact FIFO prefix, and publishes its durable session
@@ -1238,6 +1242,7 @@ class WifiSourceRuntime @Inject internal constructor(
 				// Receipt-relative age is useful only for the live freshness decision above. Keeping
 				// it out of durable bytes makes an exact provider replay semantically identical.
 				resultAgeMs = null,
+				observationZoneId = ZoneId.systemDefault().id,
 			),
 			snapshotIdentity,
 		)
@@ -1375,7 +1380,7 @@ class WifiSourceRuntime @Inject internal constructor(
 	)
 
 	private companion object {
-		const val WIFI_PAYLOAD_VERSION = 2
+		const val WIFI_PAYLOAD_VERSION = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 		const val WAKEUP_ID = "wifi-active-attempt"
 		const val DEFAULT_DRAIN_TIMEOUT_MS = 3_000L
 		const val NANOS_PER_MILLISECOND = 1_000_000L

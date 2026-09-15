@@ -8,6 +8,9 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactCursorEntit
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiReplayFootprintEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
@@ -105,7 +108,9 @@ internal class AmbientWifiFactProjector @Inject constructor(
 			SourceBrokerPurpose.AMBIENT_PRODUCT,
 			ambientConsentEpoch,
 		)
-		if (policyAuthority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE ||
+		if (policyAuthority == null ||
+			policyAuthority.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE ||
+			policyAuthority.currentPolicyRevision != sourcePolicyRevision ||
 			policy == null ||
 			policy.ambientConsentEpoch != ambientConsentEpoch ||
 			!policy.ambientPersistenceEligible ||
@@ -123,19 +128,41 @@ internal class AmbientWifiFactProjector @Inject constructor(
 			wal.clockDomainId,
 			wal.observedElapsedNanos,
 		)
-		if (authority?.state != AmbientWifiAuthorityEntity.STATE_ACTIVE ||
+		if (authority == null ||
+			!AmbientWifiAuthorityIntegrity.isAuthentic(authority) ||
+			authority.state != AmbientWifiAuthorityEntity.STATE_ACTIVE ||
 			authority.writerId != AmbientWifiFactRevisionEntity.WRITER_ID ||
 			authority.writerVersion != AmbientWifiFactRevisionEntity.WRITER_VERSION ||
 			authority.writerOwnerGeneration != FIRST_WRITER_OWNER_GENERATION ||
 			authority.sourcePolicyRevision != sourcePolicyRevision ||
 			authority.ambientConsentEpoch != ambientConsentEpoch ||
-			authority.collectedDataEpoch != wal.capturedCollectedDataEpoch
+			authority.collectedDataEpoch != wal.capturedCollectedDataEpoch ||
+			authority.demandId != ambientMember.demandId
 		) {
 			return unverifiable(AmbientWifiProjectionUnverifiableReason.AMBIENT_AUTHORITY_MISMATCH)
 		}
-		val currentDeletionGeneration = database.ambientWifiFactDao()
+		val retention = database.ambientWifiFactDao().retentionAuthorityAt(
+			AmbientWifiRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			wal.clockDomainId,
+			wal.observedElapsedNanos,
+		)
+		if (retention == null ||
+			!AmbientWifiRetentionAuthorityIntegrity.isAuthentic(retention) ||
+			!retention.isActive ||
+			retention.approvalRevision != authority.retentionApprovalRevision ||
+			retention.opaquePolicyId != authority.retentionPolicyId ||
+			retention.sourcePolicyRevision != sourcePolicyRevision ||
+			retention.ambientConsentEpoch != ambientConsentEpoch ||
+			retention.collectedDataEpoch != wal.capturedCollectedDataEpoch
+		) {
+			return unverifiable(AmbientWifiProjectionUnverifiableReason.RETENTION_AUTHORITY_MISMATCH)
+		}
+		val deletionMarker = database.ambientWifiFactDao()
 			.latestDeletionMarker(wal.capturedCollectedDataEpoch)
-			?.deletionGeneration ?: 0L
+		if (deletionMarker != null && !AmbientWifiFactIntegrity.isAuthentic(deletionMarker)) {
+			return unverifiable(AmbientWifiProjectionUnverifiableReason.DELETED_SCOPE)
+		}
+		val currentDeletionGeneration = deletionMarker?.deletionGeneration ?: 0L
 		if (authority.scopeDeletionGeneration != currentDeletionGeneration) {
 			return unverifiable(AmbientWifiProjectionUnverifiableReason.DELETED_SCOPE)
 		}
@@ -158,8 +185,11 @@ internal class AmbientWifiFactProjector @Inject constructor(
 		}.getOrNull() as? WifiResultSnapshotPayload ?: return unverifiable(
 			AmbientWifiProjectionUnverifiableReason.PAYLOAD_UNVERIFIABLE,
 		)
+		val zone = payload.observationZoneId?.let {
+			runCatching { ZoneId.of(it) }.getOrNull()
+		} ?: return unverifiable(AmbientWifiProjectionUnverifiableReason.OBSERVATION_ZONE_UNVERIFIABLE)
 		val aggregate = AmbientWifiAggregate.from(payload)
-			?: return recordUnverifiableGap(wal, authority)
+			?: return recordUnverifiableGap(wal, authority, zone)
 		val dao = database.ambientWifiFactDao()
 		val logicalFactId = AmbientWifiFactIntegrity.logicalFactId(
 			deliveryIdentity,
@@ -167,6 +197,13 @@ internal class AmbientWifiFactProjector @Inject constructor(
 			wal.capturedCollectedDataEpoch,
 			authority.scopeDeletionGeneration,
 		)
+		dao.replayFootprint(
+			AmbientWifiReplayFootprintEntity.KIND_LOCAL_FACT,
+			logicalFactId,
+			1L,
+		)?.takeIf(AmbientWifiFactIntegrity::isAuthentic)?.let {
+			return unverifiable(AmbientWifiProjectionUnverifiableReason.DELETED_SCOPE)
+		}
 		val existingCursor = dao.cursor(
 			AmbientWifiFactRevisionEntity.WRITER_ID,
 			AmbientWifiFactRevisionEntity.WRITER_VERSION,
@@ -185,8 +222,7 @@ internal class AmbientWifiFactProjector @Inject constructor(
 			wal.admissionOrdinal,
 		)
 		val unchanged = prior?.toAggregate() == aggregate
-		val zone = ZoneId.systemDefault()
-		val wallTimeMs = wal.wallTimeMs ?: return recordUnverifiableGap(wal, authority)
+		val wallTimeMs = wal.wallTimeMs ?: return recordUnverifiableGap(wal, authority, zone)
 		val day = Instant.ofEpochMilli(wallTimeMs).atZone(zone).toLocalDate()
 		val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
 		val dayEnd = day.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -285,10 +321,10 @@ internal class AmbientWifiFactProjector @Inject constructor(
 	private suspend fun recordUnverifiableGap(
 		wal: SourceEventWalEntity,
 		authority: AmbientWifiAuthorityEntity,
+		zone: ZoneId,
 	): AmbientWifiProjectionResult {
 		val wallTimeMs = wal.wallTimeMs
 			?: return unverifiable(AmbientWifiProjectionUnverifiableReason.CLOCK_UNVERIFIABLE)
-		val zone = ZoneId.systemDefault()
 		val day = Instant.ofEpochMilli(wallTimeMs).atZone(zone).toLocalDate()
 		val gapId = AmbientWifiAuthorityIntegrity.digest(
 			"ambient-wifi-gap-v1",
@@ -296,6 +332,13 @@ internal class AmbientWifiFactProjector @Inject constructor(
 			authority.authorityRevision,
 			authority.scopeDeletionGeneration,
 		)
+		database.ambientWifiFactDao().replayFootprint(
+			AmbientWifiReplayFootprintEntity.KIND_LOCAL_GAP,
+			gapId,
+			0L,
+		)?.takeIf(AmbientWifiFactIntegrity::isAuthentic)?.let {
+			return unverifiable(AmbientWifiProjectionUnverifiableReason.DELETED_SCOPE)
+		}
 		database.ambientWifiFactDao().insertGap(
 			AmbientWifiFactIntegrity.createGap(
 				gapId,
@@ -307,6 +350,7 @@ internal class AmbientWifiFactProjector @Inject constructor(
 				authority.sourcePolicyRevision,
 				authority.ambientConsentEpoch,
 				authority.retentionPolicyId,
+				authority.retentionApprovalRevision,
 				authority.collectedDataEpoch,
 				authority.scopeDeletionGeneration,
 				maxOf(wal.createdAtMs, wallTimeMs + 1L),
@@ -397,9 +441,11 @@ internal enum class AmbientWifiProjectionUnverifiableReason {
 	AUTHORIZATION_MISMATCH,
 	POLICY_MISMATCH,
 	AMBIENT_AUTHORITY_MISMATCH,
+	RETENTION_AUTHORITY_MISMATCH,
 	REGISTRATION_MISMATCH,
 	DELETED_SCOPE,
 	PAYLOAD_UNVERIFIABLE,
+	OBSERVATION_ZONE_UNVERIFIABLE,
 	CLOCK_UNVERIFIABLE,
 	DELIVERY_IDENTITY_COLLISION,
 	DEPENDENCY_OVERFLOW,

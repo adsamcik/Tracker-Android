@@ -23,6 +23,10 @@ class AmbientRadioFactAuthorityTest {
 			effectiveBootId = "boot-7",
 			effectiveElapsedRealtimeNanos = 100L,
 			effectiveWallTimeMs = 200L,
+			rolloutRevision = 1L,
+			ownerCasToken = "wifi-owner",
+			reconciliationAttempt = 1L,
+			demandId = "wifi-demand",
 		)
 
 		assertTrue(authority.isActive)
@@ -46,6 +50,10 @@ class AmbientRadioFactAuthorityTest {
 			effectiveBootId = "boot-8",
 			effectiveElapsedRealtimeNanos = 101L,
 			effectiveWallTimeMs = 201L,
+			rolloutRevision = 1L,
+			ownerCasToken = "cell-owner",
+			reconciliationAttempt = 1L,
+			demandId = "cell-demand",
 		)
 
 		assertFalse(revoked.isActive)
@@ -85,6 +93,7 @@ class AmbientRadioFactAuthorityTest {
 			semanticRevision = 1L,
 			supersedesSemanticRevision = null,
 			contentChecksum = digest("wifi-content"),
+			portableEffectChecksum = digest("wifi-effect"),
 			portableOrigin = "PORTABLE_IMPORT",
 			coverageStartTimeMs = observed,
 			observedTimeMs = observed,
@@ -101,6 +110,7 @@ class AmbientRadioFactAuthorityTest {
 			weakestSignalDbm = -80,
 			meanSignalDbm = -60.0,
 			retentionPolicyId = "privacy:wifi:ambient:v1",
+			retentionApprovalRevision = 1L,
 			collectedDataEpoch = 1L,
 			importDeletionGeneration = 0L,
 			receivedAtMs = observed + 2L,
@@ -111,6 +121,7 @@ class AmbientRadioFactAuthorityTest {
 			semanticRevision = 1L,
 			supersedesSemanticRevision = null,
 			contentChecksum = digest("cell-content"),
+			portableEffectChecksum = digest("cell-effect"),
 			portableOrigin = "PORTABLE_IMPORT",
 			coverageStartTimeMs = observed,
 			observedTimeMs = observed,
@@ -134,6 +145,7 @@ class AmbientRadioFactAuthorityTest {
 			qualityGoodCount = 1,
 			qualityGreatCount = 0,
 			retentionPolicyId = "privacy:cell:ambient:v1",
+			retentionApprovalRevision = 1L,
 			collectedDataEpoch = 1L,
 			importDeletionGeneration = 0L,
 			receivedAtMs = observed + 2L,

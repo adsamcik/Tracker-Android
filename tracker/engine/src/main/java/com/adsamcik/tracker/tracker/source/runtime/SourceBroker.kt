@@ -6,8 +6,14 @@ import com.adsamcik.tracker.shared.base.database.reconcileActivityAutomationEpoc
 import com.adsamcik.tracker.shared.base.database.rotateCurrentSourceAuthorizationInTransaction
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
@@ -24,6 +30,8 @@ import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
 import com.adsamcik.tracker.tracker.source.model.SourceDemandContract
 import com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -39,8 +47,22 @@ import javax.inject.Singleton
 class SourceBroker @Inject constructor(
 	private val database: AppDatabase,
 	private val trackingRolloutStateStore: RoomTrackingRolloutStateStore,
+	private val ambientRadioMutationLeaseGuard: AmbientRadioMutationLeaseGuard,
 ) {
-	constructor(database: AppDatabase) : this(database, RoomTrackingRolloutStateStore(database))
+	constructor(database: AppDatabase) : this(
+		database,
+		RoomTrackingRolloutStateStore(database),
+		RejectingAmbientRadioMutationLeaseGuard,
+	)
+
+	constructor(
+		database: AppDatabase,
+		trackingRolloutStateStore: RoomTrackingRolloutStateStore,
+	) : this(
+		database,
+		trackingRolloutStateStore,
+		RejectingAmbientRadioMutationLeaseGuard,
+	)
 	fun sessionConsumerId(logicalTrackingId: String): String = "session:$logicalTrackingId"
 
 	/** Current durable authority vector used to reconcile the one physical source owner. */
@@ -592,43 +614,79 @@ class SourceBroker @Inject constructor(
 	internal suspend fun replaceAmbientWifiDemand(
 		consumerId: String,
 		requested: Boolean,
-		retentionApproval: AmbientRadioRetentionApproval?,
+		leaseIdentity: AmbientReconciliationIdentity,
+		reconciliationAttempt: Long,
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
-	): AmbientRadioDemandResult = database.withTransaction {
-		replaceAmbientRadioDemandInTransaction(
-			consumerId = consumerId,
-			source = SourceKind.WIFI,
-			requested = requested,
-			retentionApproval = retentionApproval,
-			bootId = bootId,
-			elapsedRealtimeNanos = elapsedRealtimeNanos,
-			wallTimeMs = wallTimeMs,
-			latestAuthority = { database.ambientWifiFactDao().latestAuthority()?.toRadioAuthority() },
-			maximumAuthorityRevision = { database.ambientWifiFactDao().maximumAuthorityRevision() },
-			insertAuthority = { authority ->
-				database.ambientWifiFactDao().insertAuthority(
-					AmbientWifiAuthorityIntegrity.create(
-						authority.authorityRevision,
-						authority.state,
-						authority.sourcePolicyRevision,
-						authority.ambientConsentEpoch,
-						authority.retentionPolicyId,
-						authority.retentionApprovalRevision,
-						authority.collectedDataEpoch,
-						authority.scopeDeletionGeneration,
-						authority.effectiveBootId,
-						authority.effectiveElapsedRealtimeNanos,
-						authority.effectiveWallTimeMs,
-					),
+	): AmbientRadioDemandResult =
+		ambientRadioMutationLeaseGuard.mutateIfCurrent(leaseIdentity) {
+			database.withTransaction {
+				replaceAmbientRadioDemandInTransaction(
+					consumerId = consumerId,
+					source = SourceKind.WIFI,
+					requested = requested,
+					leaseIdentity = leaseIdentity,
+					reconciliationAttempt = reconciliationAttempt,
+					bootId = bootId,
+					elapsedRealtimeNanos = elapsedRealtimeNanos,
+					wallTimeMs = wallTimeMs,
+					latestAuthority = {
+						database.ambientWifiFactDao().latestAuthority()
+							?.takeIf(AmbientWifiAuthorityIntegrity::isAuthentic)
+							?.toRadioAuthority()
+					},
+					maximumAuthorityRevision = {
+						database.ambientWifiFactDao().maximumAuthorityRevision()
+					},
+					insertAuthority = { authority ->
+						database.ambientWifiFactDao().insertAuthority(
+							AmbientWifiAuthorityIntegrity.create(
+								authority.authorityRevision,
+								authority.state,
+								authority.sourcePolicyRevision,
+								authority.ambientConsentEpoch,
+								authority.retentionPolicyId,
+								authority.retentionApprovalRevision,
+								authority.collectedDataEpoch,
+								authority.scopeDeletionGeneration,
+								authority.effectiveBootId,
+								authority.effectiveElapsedRealtimeNanos,
+								authority.effectiveWallTimeMs,
+								authority.rolloutRevision,
+								authority.ownerCasToken,
+								authority.reconciliationAttempt,
+								authority.demandId,
+							),
+						)
+					},
+					latestRetentionAuthority = {
+						database.ambientWifiFactDao().latestRetentionAuthority(
+							AmbientWifiRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+						)?.toRadioRetentionAuthority()
+					},
+					retireExactDemand = { demand ->
+						database.ambientWifiFactDao().retireExactAmbientDemand(
+							demand.demandId,
+							demand.consumerId,
+							demand.sourceKind,
+							demand.sourcePolicyRevision,
+							demand.consentEpoch,
+							bootId,
+							elapsedRealtimeNanos,
+							wallTimeMs,
+						)
+					},
+					currentDeletionGeneration = { epoch ->
+						val marker = database.ambientWifiFactDao().latestDeletionMarker(epoch)
+						if (marker == null) 0L else {
+							marker.takeIf(AmbientWifiFactIntegrity::isAuthentic)
+								?.deletionGeneration
+						}
+					},
 				)
-			},
-			currentDeletionGeneration = { epoch ->
-				database.ambientWifiFactDao().latestDeletionMarker(epoch)?.deletionGeneration ?: 0L
-			},
-		)
-	}
+			}
+		}.toDemandResult()
 
 	/**
 	 * Replaces the default-off Ambient Cell demand and its source-specific retention authority in
@@ -637,43 +695,79 @@ class SourceBroker @Inject constructor(
 	internal suspend fun replaceAmbientCellDemand(
 		consumerId: String,
 		requested: Boolean,
-		retentionApproval: AmbientRadioRetentionApproval?,
+		leaseIdentity: AmbientReconciliationIdentity,
+		reconciliationAttempt: Long,
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
-	): AmbientRadioDemandResult = database.withTransaction {
-		replaceAmbientRadioDemandInTransaction(
-			consumerId = consumerId,
-			source = SourceKind.CELL,
-			requested = requested,
-			retentionApproval = retentionApproval,
-			bootId = bootId,
-			elapsedRealtimeNanos = elapsedRealtimeNanos,
-			wallTimeMs = wallTimeMs,
-			latestAuthority = { database.ambientCellFactDao().latestAuthority()?.toRadioAuthority() },
-			maximumAuthorityRevision = { database.ambientCellFactDao().maximumAuthorityRevision() },
-			insertAuthority = { authority ->
-				database.ambientCellFactDao().insertAuthority(
-					AmbientCellAuthorityIntegrity.create(
-						authority.authorityRevision,
-						authority.state,
-						authority.sourcePolicyRevision,
-						authority.ambientConsentEpoch,
-						authority.retentionPolicyId,
-						authority.retentionApprovalRevision,
-						authority.collectedDataEpoch,
-						authority.scopeDeletionGeneration,
-						authority.effectiveBootId,
-						authority.effectiveElapsedRealtimeNanos,
-						authority.effectiveWallTimeMs,
-					),
+	): AmbientRadioDemandResult =
+		ambientRadioMutationLeaseGuard.mutateIfCurrent(leaseIdentity) {
+			database.withTransaction {
+				replaceAmbientRadioDemandInTransaction(
+					consumerId = consumerId,
+					source = SourceKind.CELL,
+					requested = requested,
+					leaseIdentity = leaseIdentity,
+					reconciliationAttempt = reconciliationAttempt,
+					bootId = bootId,
+					elapsedRealtimeNanos = elapsedRealtimeNanos,
+					wallTimeMs = wallTimeMs,
+					latestAuthority = {
+						database.ambientCellFactDao().latestAuthority()
+							?.takeIf(AmbientCellAuthorityIntegrity::isAuthentic)
+							?.toRadioAuthority()
+					},
+					maximumAuthorityRevision = {
+						database.ambientCellFactDao().maximumAuthorityRevision()
+					},
+					insertAuthority = { authority ->
+						database.ambientCellFactDao().insertAuthority(
+							AmbientCellAuthorityIntegrity.create(
+								authority.authorityRevision,
+								authority.state,
+								authority.sourcePolicyRevision,
+								authority.ambientConsentEpoch,
+								authority.retentionPolicyId,
+								authority.retentionApprovalRevision,
+								authority.collectedDataEpoch,
+								authority.scopeDeletionGeneration,
+								authority.effectiveBootId,
+								authority.effectiveElapsedRealtimeNanos,
+								authority.effectiveWallTimeMs,
+								authority.rolloutRevision,
+								authority.ownerCasToken,
+								authority.reconciliationAttempt,
+								authority.demandId,
+							),
+						)
+					},
+					latestRetentionAuthority = {
+						database.ambientCellFactDao().latestRetentionAuthority(
+							AmbientCellRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+						)?.toRadioRetentionAuthority()
+					},
+					retireExactDemand = { demand ->
+						database.ambientCellFactDao().retireExactAmbientDemand(
+							demand.demandId,
+							demand.consumerId,
+							demand.sourceKind,
+							demand.sourcePolicyRevision,
+							demand.consentEpoch,
+							bootId,
+							elapsedRealtimeNanos,
+							wallTimeMs,
+						)
+					},
+					currentDeletionGeneration = { epoch ->
+						val marker = database.ambientCellFactDao().latestDeletionMarker(epoch)
+						if (marker == null) 0L else {
+							marker.takeIf(AmbientCellFactIntegrity::isAuthentic)
+								?.deletionGeneration
+						}
+					},
 				)
-			},
-			currentDeletionGeneration = { epoch ->
-				database.ambientCellFactDao().latestDeletionMarker(epoch)?.deletionGeneration ?: 0L
-			},
-		)
-	}
+			}
+		}.toDemandResult()
 
 	internal suspend fun ambientRadioReconciliationAuthority(
 		source: SourceKind,
@@ -691,18 +785,32 @@ class SourceBroker @Inject constructor(
 		val rollout = trackingRolloutStateStore.load()
 		val sourceAuthority = when (source) {
 			SourceKind.WIFI -> database.ambientWifiFactDao().latestAuthority()?.takeIf {
+				AmbientWifiAuthorityIntegrity.isAuthentic(it) &&
 				it.sourcePolicyRevision == policyRevision &&
 					it.ambientConsentEpoch == consentEpoch &&
-					it.collectedDataEpoch == evidence?.collectedDataEpoch
+					it.collectedDataEpoch == evidence?.collectedDataEpoch &&
+					it.rolloutRevision == rollout.revision
 			}?.let {
-				AmbientRadioExecutionAuthority(it.authorityRevision, it.writerOwnerGeneration)
+				AmbientRadioExecutionAuthority(
+					it.authorityRevision,
+					it.writerOwnerGeneration,
+					it.ownerCasToken,
+					it.reconciliationAttempt,
+				)
 			}
 			SourceKind.CELL -> database.ambientCellFactDao().latestAuthority()?.takeIf {
+				AmbientCellAuthorityIntegrity.isAuthentic(it) &&
 				it.sourcePolicyRevision == policyRevision &&
 					it.ambientConsentEpoch == consentEpoch &&
-					it.collectedDataEpoch == evidence?.collectedDataEpoch
+					it.collectedDataEpoch == evidence?.collectedDataEpoch &&
+					it.rolloutRevision == rollout.revision
 			}?.let {
-				AmbientRadioExecutionAuthority(it.authorityRevision, it.writerOwnerGeneration)
+				AmbientRadioExecutionAuthority(
+					it.authorityRevision,
+					it.writerOwnerGeneration,
+					it.ownerCasToken,
+					it.reconciliationAttempt,
+				)
 			}
 			else -> null
 		}
@@ -714,6 +822,8 @@ class SourceBroker @Inject constructor(
 			rolloutRevision = rollout.revision,
 			executionGeneration = sourceAuthority?.executionGeneration,
 			authorityRevision = sourceAuthority?.authorityRevision,
+			ownerCasToken = sourceAuthority?.ownerCasToken,
+			reconciliationAttempt = sourceAuthority?.reconciliationAttempt,
 		)
 	}
 
@@ -722,84 +832,177 @@ class SourceBroker @Inject constructor(
 		consumerId: String,
 		source: SourceKind,
 		requested: Boolean,
-		retentionApproval: AmbientRadioRetentionApproval?,
+		leaseIdentity: AmbientReconciliationIdentity,
+		reconciliationAttempt: Long,
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
 		latestAuthority: suspend () -> AmbientRadioAuthority?,
 		maximumAuthorityRevision: suspend () -> Long,
 		insertAuthority: suspend (AmbientRadioAuthority) -> Unit,
-		currentDeletionGeneration: suspend (Long) -> Long,
+		latestRetentionAuthority: suspend () -> AmbientRadioRetentionAuthority?,
+		retireExactDemand: suspend (SourceDemandEntity) -> Int,
+		currentDeletionGeneration: suspend (Long) -> Long?,
 	): AmbientRadioDemandResult {
 		require(source == SourceKind.WIFI || source == SourceKind.CELL)
 		require(consumerId.isNotBlank())
+		require(reconciliationAttempt > 0L)
 		require(bootId.isNotBlank())
 		require(elapsedRealtimeNanos >= 0L && wallTimeMs >= 0L)
+		if (leaseIdentity.source != source.toAmbientTrackingSource()) {
+			return AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.STALE_RECONCILIATION_LEASE,
+			)
+		}
 		val dao = database.sourceBrokerDao()
 		val currentDemands = dao.currentDemands(consumerId)
-		val affectedSourceKinds = (
-			currentDemands.map(SourceDemandEntity::sourceKind) + source.stableCode
-		).toSet()
+		if (currentDemands.size > 1 || currentDemands.any {
+				it.sourceKind != source.stableCode ||
+					it.purpose != SourceBrokerPurpose.AMBIENT_PRODUCT
+			}
+		) {
+			return AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.OWNERSHIP_CONFLICT,
+			)
+		}
+		val currentDemand = currentDemands.singleOrNull()
 		val priorAuthority = latestAuthority()
+		val rollout = trackingRolloutStateStore.load()
+		val policyAuthority = database.sourcePolicyDao().authority()
+		val policy = policyAuthority?.takeIf {
+			it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE &&
+				it.currentPolicyRevision == leaseIdentity.policyRevision
+		}?.let {
+			database.sourcePolicyDao().policyAtRevision(
+				leaseIdentity.policyRevision,
+				source.stableCode,
+			)
+		}
+		val consent = database.sourcePolicyDao().latestConsentEpoch(
+			source.stableCode,
+			SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)
+		val evidence = database.sourceEvidenceStateDao().get()
+		if (policy == null ||
+			consent == null ||
+			consent.epoch != leaseIdentity.consentEpoch ||
+			consent.policyRevision != leaseIdentity.policyRevision ||
+			evidence?.collectedDataEpoch != leaseIdentity.collectedDataEpoch ||
+			rollout.revision != leaseIdentity.rolloutRevision
+		) {
+			return AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.STALE_RECONCILIATION_LEASE,
+			)
+		}
+		if (priorAuthority?.ownerCasToken == leaseIdentity.ownerCasToken &&
+			priorAuthority.reconciliationAttempt > reconciliationAttempt
+		) {
+			return AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.STALE_RECONCILIATION_ATTEMPT,
+			)
+		}
+		if (priorAuthority?.ownerCasToken == leaseIdentity.ownerCasToken &&
+			priorAuthority.reconciliationAttempt == reconciliationAttempt &&
+			(!requested || priorAuthority.state != AmbientWifiAuthorityEntity.STATE_ACTIVE)
+		) {
+			return AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.STALE_RECONCILIATION_ATTEMPT,
+			)
+		}
+		if (currentDemand != null &&
+			(priorAuthority?.state != AmbientWifiAuthorityEntity.STATE_ACTIVE ||
+				priorAuthority.demandId != currentDemand.demandId)
+		) {
+			return AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.OWNERSHIP_CONFLICT,
+			)
+		}
 
 		suspend fun nextAuthorityRevision(): Long? {
 			val current = maximumAuthorityRevision()
 			return if (current == Long.MAX_VALUE) null else current + 1L
 		}
 
+		suspend fun retireCurrentDemand(): Boolean {
+			val demand = currentDemand ?: return true
+			return retireExactDemand(demand) == 1
+		}
+
+		fun ownerReconciliationAuthority(
+			executionAuthority: AmbientRadioAuthority?,
+		): AmbientRadioReconciliationAuthority = AmbientRadioReconciliationAuthority(
+			source = source,
+			policyRevision = leaseIdentity.policyRevision,
+			ambientConsentEpoch = leaseIdentity.consentEpoch,
+			collectedDataEpoch = leaseIdentity.collectedDataEpoch,
+			rolloutRevision = rollout.revision,
+			executionGeneration = executionAuthority?.executionGeneration,
+			authorityRevision = executionAuthority?.authorityRevision,
+			ownerCasToken = leaseIdentity.ownerCasToken,
+			reconciliationAttempt = reconciliationAttempt,
+		)
+
 		suspend fun revoke(reason: AmbientRadioDemandInactiveReason): AmbientRadioDemandResult {
-			dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
-			var effectiveReason = reason
-			if (priorAuthority?.state == AmbientWifiAuthorityEntity.STATE_ACTIVE) {
-				val revision = nextAuthorityRevision()
-				if (revision == null) {
-					effectiveReason = AmbientRadioDemandInactiveReason.AUTHORITY_REVISION_EXHAUSTED
-				} else {
-					insertAuthority(
-						priorAuthority.copy(
-							authorityRevision = revision,
-							state = AmbientWifiAuthorityEntity.STATE_REVOKED,
-							effectiveBootId = bootId,
-							effectiveElapsedRealtimeNanos = elapsedRealtimeNanos,
-							effectiveWallTimeMs = wallTimeMs,
-						),
-					)
-				}
+			val revision = if (priorAuthority?.state == AmbientWifiAuthorityEntity.STATE_ACTIVE) {
+				nextAuthorityRevision() ?: return AmbientRadioDemandResult.Inactive(
+					AmbientRadioDemandInactiveReason.AUTHORITY_REVISION_EXHAUSTED,
+				)
+			} else {
+				null
 			}
-			rotateCurrentAuthorizationsInTransaction(
-				affectedSourceKinds,
-				bootId,
-				elapsedRealtimeNanos,
-				wallTimeMs,
+			if (!retireCurrentDemand()) {
+				return AmbientRadioDemandResult.Inactive(
+					AmbientRadioDemandInactiveReason.OWNERSHIP_CONFLICT,
+				)
+			}
+			val revokedAuthority = if (
+				priorAuthority?.state == AmbientWifiAuthorityEntity.STATE_ACTIVE
+			) {
+				priorAuthority.copy(
+					authorityRevision = requireNotNull(revision),
+					state = AmbientWifiAuthorityEntity.STATE_REVOKED,
+					sourcePolicyRevision = leaseIdentity.policyRevision,
+					ambientConsentEpoch = leaseIdentity.consentEpoch,
+					collectedDataEpoch = leaseIdentity.collectedDataEpoch,
+					effectiveBootId = bootId,
+					effectiveElapsedRealtimeNanos = elapsedRealtimeNanos,
+					effectiveWallTimeMs = wallTimeMs,
+					rolloutRevision = rollout.revision,
+					ownerCasToken = leaseIdentity.ownerCasToken,
+					reconciliationAttempt = reconciliationAttempt,
+				).also { insertAuthority(it) }
+			} else null
+			if (currentDemand != null) {
+				rotateCurrentAuthorizationInTransaction(
+					source.stableCode,
+					bootId,
+					elapsedRealtimeNanos,
+					wallTimeMs,
+				)
+			}
+			return AmbientRadioDemandResult.Inactive(
+				reason,
+				ownerReconciliationAuthority(revokedAuthority),
+				currentDemand?.demandId,
 			)
-			return AmbientRadioDemandResult.Inactive(effectiveReason)
 		}
 
 		if (!requested) return revoke(AmbientRadioDemandInactiveReason.REQUEST_DISABLED)
-		val approval = retentionApproval
-			?: return revoke(AmbientRadioDemandInactiveReason.RETENTION_APPROVAL_MISSING)
-		if (approval.source != source) {
-			return revoke(AmbientRadioDemandInactiveReason.RETENTION_APPROVAL_MISMATCH)
-		}
-		val policyAuthority = database.sourcePolicyDao().authority()
-		if (policyAuthority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE) {
-			return revoke(AmbientRadioDemandInactiveReason.AUTHORITY_INACTIVE)
-		}
-		val policy = database.sourcePolicyDao().policyAtRevision(
-			policyAuthority.currentPolicyRevision,
-			source.stableCode,
-		) ?: return revoke(AmbientRadioDemandInactiveReason.POLICY_MISSING)
 		val consentEpoch = policy.ambientConsentEpoch
 			?: return revoke(AmbientRadioDemandInactiveReason.CONSENT_REVOKED)
-		if (!policy.ambientPersistenceEligible) {
+		if (consentEpoch != leaseIdentity.consentEpoch || !consent.eligible) {
+			return revoke(AmbientRadioDemandInactiveReason.CONSENT_REVOKED)
+		}
+		if (!policy.ambientPersistenceEligible || !consent.persistenceEligible) {
 			return revoke(AmbientRadioDemandInactiveReason.PERSISTENCE_INELIGIBLE)
 		}
-		if (approval.sourcePolicyRevision != policy.policyRevision ||
-			approval.ambientConsentEpoch != consentEpoch
-		) {
-			return revoke(AmbientRadioDemandInactiveReason.RETENTION_APPROVAL_MISMATCH)
-		}
-		val rollout = trackingRolloutStateStore.load()
+		val approval = latestRetentionAuthority()
+			?: return revoke(AmbientRadioDemandInactiveReason.RETENTION_APPROVAL_MISSING)
+		if (!approval.isActive ||
+			approval.sourcePolicyRevision != leaseIdentity.policyRevision ||
+			approval.ambientConsentEpoch != leaseIdentity.consentEpoch ||
+			approval.collectedDataEpoch != leaseIdentity.collectedDataEpoch
+		) return revoke(AmbientRadioDemandInactiveReason.RETENTION_APPROVAL_MISMATCH)
 		if (!rollout.isCaptureReachable(
 				source,
 				CaptureReachabilityMode.AMBIENT,
@@ -807,9 +1010,8 @@ class SourceBroker @Inject constructor(
 		) {
 			return revoke(AmbientRadioDemandInactiveReason.ROLLOUT_CONTAINED)
 		}
-		val evidence = database.sourceEvidenceStateDao().get()
-			?: return revoke(AmbientRadioDemandInactiveReason.SOURCE_EVIDENCE_STATE_MISSING)
-		val deletionGeneration = currentDeletionGeneration(evidence.collectedDataEpoch)
+		val deletionGeneration = currentDeletionGeneration(leaseIdentity.collectedDataEpoch)
+			?: return revoke(AmbientRadioDemandInactiveReason.DELETION_AUTHORITY_MISMATCH)
 		val contract = SourceDemandContractFactory.forQos(
 			source,
 			qosCode = 0,
@@ -834,27 +1036,50 @@ class SourceBroker @Inject constructor(
 				authority.ambientConsentEpoch == consentEpoch &&
 				authority.retentionPolicyId == approval.opaquePolicyId &&
 				authority.retentionApprovalRevision == approval.approvalRevision &&
-				authority.collectedDataEpoch == evidence.collectedDataEpoch &&
+				authority.collectedDataEpoch == leaseIdentity.collectedDataEpoch &&
 				authority.scopeDeletionGeneration == deletionGeneration
 		}
 		if (unchangedDemand != null && unchangedAuthority != null) {
+			val exactRetry = unchangedAuthority.ownerCasToken == leaseIdentity.ownerCasToken &&
+				unchangedAuthority.reconciliationAttempt == reconciliationAttempt &&
+				unchangedAuthority.rolloutRevision == rollout.revision
+			val effectiveAuthority = if (exactRetry) {
+				unchangedAuthority
+			} else {
+				val revision = nextAuthorityRevision()
+					?: return revoke(
+						AmbientRadioDemandInactiveReason.AUTHORITY_REVISION_EXHAUSTED,
+					)
+				unchangedAuthority.copy(
+					authorityRevision = revision,
+					rolloutRevision = rollout.revision,
+					ownerCasToken = leaseIdentity.ownerCasToken,
+					reconciliationAttempt = reconciliationAttempt,
+				).also { insertAuthority(it) }
+			}
 			return AmbientRadioDemandResult.Active(
 				unchangedDemand,
-				unchangedAuthority.authorityRevision,
+				effectiveAuthority.authorityRevision,
 				AmbientRadioReconciliationAuthority(
 					source = source,
 					policyRevision = policy.policyRevision,
 					ambientConsentEpoch = consentEpoch,
-					collectedDataEpoch = evidence.collectedDataEpoch,
+					collectedDataEpoch = leaseIdentity.collectedDataEpoch,
 					rolloutRevision = rollout.revision,
-					executionGeneration = unchangedAuthority.executionGeneration,
-					authorityRevision = unchangedAuthority.authorityRevision,
+					executionGeneration = effectiveAuthority.executionGeneration,
+					authorityRevision = effectiveAuthority.authorityRevision,
+					ownerCasToken = effectiveAuthority.ownerCasToken,
+					reconciliationAttempt = effectiveAuthority.reconciliationAttempt,
 				),
 			)
 		}
 		val authorityRevision = nextAuthorityRevision()
 			?: return revoke(AmbientRadioDemandInactiveReason.AUTHORITY_REVISION_EXHAUSTED)
-		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
+		if (!retireCurrentDemand()) {
+			return AmbientRadioDemandResult.Inactive(
+				AmbientRadioDemandInactiveReason.OWNERSHIP_CONFLICT,
+			)
+		}
 		val demand = SourceDemandEntity(
 			demandId = demandId(
 				consumerId,
@@ -900,11 +1125,15 @@ class SourceBroker @Inject constructor(
 				ambientConsentEpoch = consentEpoch,
 				retentionPolicyId = approval.opaquePolicyId,
 				retentionApprovalRevision = approval.approvalRevision,
-				collectedDataEpoch = evidence.collectedDataEpoch,
+				collectedDataEpoch = leaseIdentity.collectedDataEpoch,
 				scopeDeletionGeneration = deletionGeneration,
 				effectiveBootId = bootId,
 				effectiveElapsedRealtimeNanos = elapsedRealtimeNanos,
 				effectiveWallTimeMs = wallTimeMs,
+				rolloutRevision = rollout.revision,
+				ownerCasToken = leaseIdentity.ownerCasToken,
+				reconciliationAttempt = reconciliationAttempt,
+				demandId = demand.demandId,
 				executionGeneration = when (source) {
 					SourceKind.WIFI -> AmbientWifiAuthorityEntity.FIRST_WRITER_OWNER_GENERATION
 					SourceKind.CELL -> AmbientCellAuthorityEntity.FIRST_WRITER_OWNER_GENERATION
@@ -912,8 +1141,8 @@ class SourceBroker @Inject constructor(
 				},
 			),
 		)
-		rotateCurrentAuthorizationsInTransaction(
-			affectedSourceKinds,
+		rotateCurrentAuthorizationInTransaction(
+			source.stableCode,
 			bootId,
 			elapsedRealtimeNanos,
 			wallTimeMs,
@@ -925,7 +1154,7 @@ class SourceBroker @Inject constructor(
 				source = source,
 				policyRevision = policy.policyRevision,
 				ambientConsentEpoch = consentEpoch,
-				collectedDataEpoch = evidence.collectedDataEpoch,
+				collectedDataEpoch = leaseIdentity.collectedDataEpoch,
 				rolloutRevision = rollout.revision,
 				executionGeneration = when (source) {
 					SourceKind.WIFI -> AmbientWifiAuthorityEntity.FIRST_WRITER_OWNER_GENERATION
@@ -933,6 +1162,8 @@ class SourceBroker @Inject constructor(
 					else -> error("Unsupported ambient radio source $source")
 				},
 				authorityRevision = authorityRevision,
+				ownerCasToken = leaseIdentity.ownerCasToken,
+				reconciliationAttempt = reconciliationAttempt,
 			),
 		)
 	}
@@ -1042,16 +1273,18 @@ internal enum class AmbientStepsDemandInactiveReason {
 	ROLLOUT_CONTAINED,
 }
 
-internal data class AmbientRadioRetentionApproval(
-	val source: SourceKind,
-	val sourcePolicyRevision: Long,
-	val ambientConsentEpoch: Long,
+private data class AmbientRadioRetentionAuthority(
+	val sourcePolicyRevision: Long?,
+	val ambientConsentEpoch: Long?,
+	val collectedDataEpoch: Long,
 	val opaquePolicyId: String,
 	val approvalRevision: Long,
+	val isActive: Boolean,
 ) {
 	init {
-		require(source == SourceKind.WIFI || source == SourceKind.CELL)
-		require(sourcePolicyRevision > 0L && ambientConsentEpoch >= 0L)
+		require(sourcePolicyRevision == null || sourcePolicyRevision > 0L)
+		require(ambientConsentEpoch == null || ambientConsentEpoch >= 0L)
+		require(collectedDataEpoch >= 0L)
 		require(opaquePolicyId.isNotBlank() && opaquePolicyId.length <= 256)
 		require(approvalRevision > 0L)
 	}
@@ -1072,7 +1305,23 @@ internal sealed interface AmbientRadioDemandResult {
 		}
 	}
 
-	data class Inactive(val reason: AmbientRadioDemandInactiveReason) : AmbientRadioDemandResult
+	data class Inactive(
+		val reason: AmbientRadioDemandInactiveReason,
+		val reconciliationAuthority: AmbientRadioReconciliationAuthority? = null,
+		val retiredDemandId: String? = null,
+	) : AmbientRadioDemandResult {
+		init {
+			require(retiredDemandId == null || retiredDemandId.isNotBlank())
+		}
+	}
+}
+
+private fun AmbientRadioLeaseMutation<AmbientRadioDemandResult>.toDemandResult():
+	AmbientRadioDemandResult = when (this) {
+	is AmbientRadioLeaseMutation.Applied -> value
+	AmbientRadioLeaseMutation.Stale -> AmbientRadioDemandResult.Inactive(
+		AmbientRadioDemandInactiveReason.STALE_RECONCILIATION_LEASE,
+	)
 }
 
 internal enum class AmbientRadioDemandInactiveReason {
@@ -1086,6 +1335,10 @@ internal enum class AmbientRadioDemandInactiveReason {
 	RETENTION_APPROVAL_MISMATCH,
 	SOURCE_EVIDENCE_STATE_MISSING,
 	AUTHORITY_REVISION_EXHAUSTED,
+	STALE_RECONCILIATION_LEASE,
+	STALE_RECONCILIATION_ATTEMPT,
+	OWNERSHIP_CONFLICT,
+	DELETION_AUTHORITY_MISMATCH,
 }
 
 data class AmbientRadioReconciliationAuthority(
@@ -1096,6 +1349,8 @@ data class AmbientRadioReconciliationAuthority(
 	val rolloutRevision: Long,
 	val executionGeneration: Long?,
 	val authorityRevision: Long?,
+	val ownerCasToken: String?,
+	val reconciliationAttempt: Long?,
 ) {
 	init {
 		require(source == SourceKind.WIFI || source == SourceKind.CELL)
@@ -1105,13 +1360,18 @@ data class AmbientRadioReconciliationAuthority(
 		require(rolloutRevision >= 0L)
 		require(executionGeneration == null || executionGeneration > 0L)
 		require(authorityRevision == null || authorityRevision > 0L)
+		require(ownerCasToken == null || ownerCasToken.isNotBlank())
+		require(reconciliationAttempt == null || reconciliationAttempt > 0L)
 		require((executionGeneration == null) == (authorityRevision == null))
+		require((ownerCasToken == null) == (reconciliationAttempt == null))
 	}
 }
 
 private data class AmbientRadioExecutionAuthority(
 	val authorityRevision: Long,
 	val executionGeneration: Long,
+	val ownerCasToken: String,
+	val reconciliationAttempt: Long,
 )
 
 private data class AmbientRadioAuthority(
@@ -1126,6 +1386,10 @@ private data class AmbientRadioAuthority(
 	val effectiveBootId: String,
 	val effectiveElapsedRealtimeNanos: Long,
 	val effectiveWallTimeMs: Long,
+	val rolloutRevision: Long,
+	val ownerCasToken: String,
+	val reconciliationAttempt: Long,
+	val demandId: String?,
 	val executionGeneration: Long,
 )
 
@@ -1141,6 +1405,10 @@ private fun AmbientWifiAuthorityEntity.toRadioAuthority() = AmbientRadioAuthorit
 	effectiveBootId,
 	effectiveElapsedRealtimeNanos,
 	effectiveWallTimeMs,
+	rolloutRevision,
+	ownerCasToken,
+	reconciliationAttempt,
+	demandId,
 	writerOwnerGeneration,
 )
 
@@ -1156,8 +1424,44 @@ private fun AmbientCellAuthorityEntity.toRadioAuthority() = AmbientRadioAuthorit
 	effectiveBootId,
 	effectiveElapsedRealtimeNanos,
 	effectiveWallTimeMs,
+	rolloutRevision,
+	ownerCasToken,
+	reconciliationAttempt,
+	demandId,
 	writerOwnerGeneration,
 )
+
+private fun AmbientWifiRetentionAuthorityEntity.toRadioRetentionAuthority():
+	AmbientRadioRetentionAuthority? {
+	if (!AmbientWifiRetentionAuthorityIntegrity.isAuthentic(this)) return null
+	return AmbientRadioRetentionAuthority(
+		sourcePolicyRevision,
+		ambientConsentEpoch,
+		collectedDataEpoch,
+		opaquePolicyId,
+		approvalRevision,
+		state == AmbientWifiRetentionAuthorityEntity.STATE_ACTIVE,
+	)
+}
+
+private fun AmbientCellRetentionAuthorityEntity.toRadioRetentionAuthority():
+	AmbientRadioRetentionAuthority? {
+	if (!AmbientCellRetentionAuthorityIntegrity.isAuthentic(this)) return null
+	return AmbientRadioRetentionAuthority(
+		sourcePolicyRevision,
+		ambientConsentEpoch,
+		collectedDataEpoch,
+		opaquePolicyId,
+		approvalRevision,
+		state == AmbientCellRetentionAuthorityEntity.STATE_ACTIVE,
+	)
+}
+
+private fun SourceKind.toAmbientTrackingSource(): AmbientTrackingSource = when (this) {
+	SourceKind.WIFI -> AmbientTrackingSource.WIFI
+	SourceKind.CELL -> AmbientTrackingSource.CELL
+	else -> error("$this is not an Ambient radio source")
+}
 
 internal fun SourceDemandEntity.toSourceDemandContract(): SourceDemandContract =
 	SourceDemandContract.decode(

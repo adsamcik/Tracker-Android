@@ -11,6 +11,8 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientCellDeletionMarkerE
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellReplayFootprintEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellFactEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellGapEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellReceiptEntity
@@ -56,6 +58,52 @@ interface AmbientCellFactDao {
 		bootId: String,
 		observedElapsedRealtimeNanos: Long,
 	): AmbientCellAuthorityEntity?
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	suspend fun insertRetentionAuthority(value: AmbientCellRetentionAuthorityEntity)
+
+	@Query(
+		"SELECT * FROM ambient_cell_retention_authority WHERE scope = :scope " +
+			"ORDER BY approval_revision DESC LIMIT 1",
+	)
+	suspend fun latestRetentionAuthority(scope: String): AmbientCellRetentionAuthorityEntity?
+
+	@Query(
+		"SELECT * FROM ambient_cell_retention_authority WHERE scope = :scope " +
+			"AND effective_boot_id = :bootId " +
+			"AND effective_elapsed_realtime_nanos <= :observedElapsedRealtimeNanos " +
+			"ORDER BY effective_elapsed_realtime_nanos DESC, approval_revision DESC LIMIT 1",
+	)
+	suspend fun retentionAuthorityAt(
+		scope: String,
+		bootId: String,
+		observedElapsedRealtimeNanos: Long,
+	): AmbientCellRetentionAuthorityEntity?
+
+	@Query(
+		"SELECT COALESCE(MAX(approval_revision), 0) FROM ambient_cell_retention_authority " +
+			"WHERE scope = :scope",
+	)
+	suspend fun maximumRetentionApprovalRevision(scope: String): Long
+
+	@Query(
+		"UPDATE source_demand SET status = 'RETIRED', retire_boot_id = :bootId, " +
+			"retire_elapsed_realtime_nanos = :elapsedRealtimeNanos, retired_at_ms = :wallTimeMs " +
+			"WHERE demand_id = :demandId AND consumer_id = :consumerId " +
+			"AND source_kind = :sourceKind AND purpose = 'AMBIENT_PRODUCT' " +
+			"AND source_policy_revision = :sourcePolicyRevision AND consent_epoch = :consentEpoch " +
+			"AND status IN ('ACTIVE','RETIRING','BLOCKED')",
+	)
+	suspend fun retireExactAmbientDemand(
+		demandId: String,
+		consumerId: String,
+		sourceKind: Int,
+		sourcePolicyRevision: Long,
+		consentEpoch: Long,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): Int
 
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertRevision(value: AmbientCellFactRevisionEntity): Long
@@ -207,6 +255,16 @@ interface AmbientCellFactDao {
 	): List<AmbientCellGapEntity>
 
 	@Query(
+		"SELECT * FROM ambient_cell_gap WHERE structural_epoch_day = :structuralEpochDay " +
+			"AND stored_zone_id = :storedZoneId ORDER BY gap_start_time_ms, gap_id LIMIT :limit",
+	)
+	suspend fun gapsForDay(
+		structuralEpochDay: Long,
+		storedZoneId: String,
+		limit: Int,
+	): List<AmbientCellGapEntity>
+
+	@Query(
 		"SELECT * FROM imported_ambient_cell_fact AS fact WHERE observed_time_ms >= :fromInclusiveMs " +
 			"AND observed_time_ms < :toExclusiveMs AND semantic_revision = " +
 			"(SELECT MAX(state.semantic_revision) FROM imported_ambient_cell_fact AS state " +
@@ -312,6 +370,19 @@ interface AmbientCellFactDao {
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertImportTombstones(values: List<ImportedAmbientCellTombstoneEntity>)
 
+	@Insert(onConflict = OnConflictStrategy.IGNORE)
+	suspend fun insertReplayFootprints(values: List<AmbientCellReplayFootprintEntity>): List<Long>
+
+	@Query(
+		"SELECT * FROM ambient_cell_replay_footprint WHERE footprint_kind = :kind " +
+			"AND identity_digest = :identityDigest AND semantic_revision = :semanticRevision LIMIT 1",
+	)
+	suspend fun replayFootprint(
+		kind: String,
+		identityDigest: String,
+		semanticRevision: Long,
+	): AmbientCellReplayFootprintEntity?
+
 	@Query(
 		"SELECT * FROM ambient_cell_deletion_marker WHERE collected_data_epoch = :collectedDataEpoch " +
 			"ORDER BY deletion_generation DESC LIMIT 1",
@@ -340,6 +411,48 @@ interface AmbientCellFactDao {
 		limit: Int,
 	): List<String>
 
+	@Query(
+		"SELECT * FROM ambient_cell_fact_revision WHERE logical_fact_id IN (:logicalFactIds) " +
+			"ORDER BY logical_fact_id, semantic_revision LIMIT :limit",
+	)
+	suspend fun localFactLineages(
+		logicalFactIds: List<String>,
+		limit: Int,
+	): List<AmbientCellFactRevisionEntity>
+
+	@Query(
+		"SELECT fact.*, owner.observation_count AS owner_observation_count, " +
+			"owner.registered_observation_count AS owner_registered_observation_count, " +
+			"owner.gsm_count AS owner_gsm_count, owner.cdma_count AS owner_cdma_count, " +
+			"owner.wcdma_count AS owner_wcdma_count, owner.tdscdma_count AS owner_tdscdma_count, " +
+			"owner.lte_count AS owner_lte_count, owner.nr_count AS owner_nr_count, " +
+			"owner.quality_unknown_count AS owner_quality_unknown_count, " +
+			"owner.quality_none_or_unknown_count AS owner_quality_none_or_unknown_count, " +
+			"owner.quality_poor_count AS owner_quality_poor_count, " +
+			"owner.quality_moderate_count AS owner_quality_moderate_count, " +
+			"owner.quality_good_count AS owner_quality_good_count, " +
+			"owner.quality_great_count AS owner_quality_great_count " +
+			"FROM ambient_cell_fact_revision AS fact " +
+			"LEFT JOIN ambient_cell_fact_revision AS owner ON owner.writer_id = fact.writer_id " +
+			"AND owner.writer_version = fact.writer_version " +
+			"AND owner.logical_fact_id = fact.aggregate_owner_logical_fact_id " +
+			"AND owner.semantic_revision = fact.aggregate_owner_semantic_revision " +
+			"WHERE fact.logical_fact_id IN (:logicalFactIds) " +
+			"ORDER BY fact.logical_fact_id, fact.semantic_revision LIMIT :limit",
+	)
+	suspend fun effectiveLocalLineages(
+		logicalFactIds: List<String>,
+		limit: Int,
+	): List<AmbientCellEffectiveLocalRow>
+
+	@Query(
+		"SELECT * FROM ambient_cell_fact_revision ORDER BY logical_fact_id, semantic_revision LIMIT :limit",
+	)
+	suspend fun allLocalFactRevisions(limit: Int): List<AmbientCellFactRevisionEntity>
+
+	@Query("SELECT * FROM ambient_cell_gap ORDER BY gap_id LIMIT :limit")
+	suspend fun allLocalGaps(limit: Int): List<AmbientCellGapEntity>
+
 	@Query("DELETE FROM ambient_cell_fact_cursor WHERE logical_fact_id IN (:logicalFactIds)")
 	suspend fun deleteLocalCursors(logicalFactIds: List<String>): Int
 
@@ -350,19 +463,82 @@ interface AmbientCellFactDao {
 	suspend fun deleteGapsBefore(beforeMs: Long): Int
 
 	@Query(
-		"WITH selected_fact AS (SELECT DISTINCT fact_id FROM imported_ambient_cell_fact " +
-			"WHERE observed_time_ms < :beforeMs AND retention_policy_id = :retentionPolicyId) " +
-			"SELECT archive_id FROM (" +
-			"SELECT DISTINCT archive_id FROM imported_ambient_cell_fact " +
-			"WHERE fact_id IN (SELECT fact_id FROM selected_fact) UNION " +
-			"SELECT archive_id FROM imported_ambient_cell_gap WHERE end_time_ms < :beforeMs " +
-			"AND retention_policy_id = :retentionPolicyId) ORDER BY archive_id LIMIT :limit",
+		"SELECT * FROM ambient_cell_gap WHERE gap_end_time_ms < :beforeMs " +
+			"AND retention_policy_id = :retentionPolicyId ORDER BY gap_id LIMIT :limit",
 	)
-	suspend fun importedArchiveIdsBefore(
+	suspend fun localGapsBefore(
+		beforeMs: Long,
+		retentionPolicyId: String,
+		limit: Int,
+	): List<AmbientCellGapEntity>
+
+	@Query("DELETE FROM ambient_cell_gap WHERE gap_id IN (:gapIds)")
+	suspend fun deleteLocalGapsByIdentity(gapIds: List<String>): Int
+
+	@Query(
+		"SELECT DISTINCT fact_id FROM imported_ambient_cell_fact " +
+			"WHERE observed_time_ms < :beforeMs AND retention_policy_id = :retentionPolicyId " +
+			"ORDER BY fact_id LIMIT :limit",
+	)
+	suspend fun importedFactIdsBefore(
 		beforeMs: Long,
 		retentionPolicyId: String,
 		limit: Int,
 	): List<String>
+
+	@Query(
+		"SELECT DISTINCT gap_id FROM imported_ambient_cell_gap WHERE end_time_ms < :beforeMs " +
+			"AND retention_policy_id = :retentionPolicyId ORDER BY gap_id LIMIT :limit",
+	)
+	suspend fun importedGapIdsBefore(
+		beforeMs: Long,
+		retentionPolicyId: String,
+		limit: Int,
+	): List<String>
+
+	@Query(
+		"SELECT * FROM imported_ambient_cell_fact WHERE fact_id IN (:factIds) " +
+			"ORDER BY fact_id, semantic_revision LIMIT :limit",
+	)
+	suspend fun importedFactLineages(
+		factIds: List<String>,
+		limit: Int,
+	): List<ImportedAmbientCellFactEntity>
+
+	@Query(
+		"SELECT * FROM imported_ambient_cell_gap WHERE gap_id IN (:gapIds) " +
+			"ORDER BY gap_id LIMIT :limit",
+	)
+	suspend fun importedGapRows(
+		gapIds: List<String>,
+		limit: Int,
+	): List<ImportedAmbientCellGapEntity>
+
+	@Query("DELETE FROM imported_ambient_cell_fact WHERE fact_id IN (:factIds)")
+	suspend fun deleteImportedFactsByIdentity(factIds: List<String>): Int
+
+	@Query("DELETE FROM imported_ambient_cell_gap WHERE gap_id IN (:gapIds)")
+	suspend fun deleteImportedGapsByIdentity(gapIds: List<String>): Int
+
+	@Query(
+		"SELECT DISTINCT receipt.archive_id FROM imported_ambient_cell_receipt AS receipt " +
+			"WHERE NOT EXISTS (SELECT 1 FROM imported_ambient_cell_fact AS fact " +
+			"WHERE fact.archive_id = receipt.archive_id) " +
+			"AND NOT EXISTS (SELECT 1 FROM imported_ambient_cell_gap AS gap " +
+			"WHERE gap.archive_id = receipt.archive_id) ORDER BY receipt.archive_id LIMIT :limit",
+	)
+	suspend fun emptyImportedArchiveIds(limit: Int): List<String>
+
+	@Query(
+		"SELECT * FROM imported_ambient_cell_fact ORDER BY archive_id, fact_id, semantic_revision " +
+			"LIMIT :limit",
+	)
+	suspend fun allImportedFacts(limit: Int): List<ImportedAmbientCellFactEntity>
+
+	@Query(
+		"SELECT * FROM imported_ambient_cell_gap ORDER BY archive_id, gap_id LIMIT :limit",
+	)
+	suspend fun allImportedGaps(limit: Int): List<ImportedAmbientCellGapEntity>
 
 	@Query("DELETE FROM imported_ambient_cell_fact WHERE archive_id IN (:archiveIds)")
 	suspend fun deleteImportedFacts(archiveIds: List<String>): Int
@@ -394,9 +570,18 @@ interface AmbientCellFactDao {
 	@Query("SELECT COUNT(*) FROM ambient_cell_fact_revision")
 	suspend fun localFactCount(): Long
 
+	@Query("SELECT COUNT(*) FROM ambient_cell_fact_cursor")
+	suspend fun localCursorCount(): Long
+
 	@Query("SELECT COUNT(*) FROM imported_ambient_cell_fact")
 	suspend fun importedFactCount(): Long
 
 	@Query("SELECT COUNT(*) FROM imported_ambient_cell_gap")
 	suspend fun importedGapCount(): Long
+
+	@Query("DELETE FROM ambient_cell_authority")
+	suspend fun deleteAllAuthorities(): Int
+
+	@Query("DELETE FROM ambient_cell_retention_authority")
+	suspend fun deleteAllRetentionAuthorities(): Int
 }

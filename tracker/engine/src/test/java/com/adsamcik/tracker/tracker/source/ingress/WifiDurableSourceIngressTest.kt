@@ -5,7 +5,12 @@ import android.os.SystemClock
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.AmbientRadioRetentionDecision
+import com.adsamcik.tracker.shared.base.database.applyAmbientWifiRetentionDecision
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -34,10 +39,13 @@ import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateS
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.coordinator.stableLifecycleChecksum
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
+import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
+import com.adsamcik.tracker.tracker.source.model.RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.RetryBackoff
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryUnit
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
@@ -49,6 +57,11 @@ import com.adsamcik.tracker.tracker.source.runtime.AndroidConnectivityDeviceStat
 import com.adsamcik.tracker.tracker.source.runtime.AndroidWifiSourceBackend
 import com.adsamcik.tracker.tracker.source.runtime.CoalescingSourceWakeupScheduler
 import com.adsamcik.tracker.tracker.source.runtime.SessionCutoff
+import com.adsamcik.tracker.tracker.source.runtime.AmbientWifiRuntimeJoinResult
+import com.adsamcik.tracker.tracker.source.runtime.SharedWifiSourceController
+import com.adsamcik.tracker.tracker.source.runtime.SourceApplyResult
+import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import com.adsamcik.tracker.tracker.source.runtime.SourceCapabilities
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionFailureCode
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionHandoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceDeliveryAdmissionHandoff
@@ -66,6 +79,9 @@ import com.adsamcik.tracker.tracker.source.runtime.WifiSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.qualifiedWifiProviderObservations
 import com.adsamcik.tracker.tracker.source.runtime.toMinimizedEvidence
 import com.adsamcik.tracker.tracker.source.runtime.wifiProviderDeliveryIdentity
+import com.adsamcik.tracker.tracker.source.ambient.wifi.AmbientWifiFactProjector
+import com.adsamcik.tracker.tracker.source.ambient.wifi.AmbientWifiProjectionResult
+import com.adsamcik.tracker.tracker.source.ambient.wifi.AmbientWifiProjectionUnverifiableReason
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -183,6 +199,151 @@ class WifiDurableSourceIngressTest {
 			?.providerProcessIncarnationId shouldBe "wifi-process-before"
 		database.sourceBrokerDao().registration(SourceKind.WIFI.stableCode, 2L)
 			?.providerProcessIncarnationId shouldBe "wifi-process-after"
+	}
+
+	@Test
+	fun `shared broker controller sink projector and Room reader form one ambient chain`() = runTest {
+		installWifiPolicy(includeAmbient = true)
+		database.sourcePolicyDao().insertConsentEpochs(
+			listOf(
+				SourceConsentEpochEntity(
+					SourceKind.WIFI.stableCode,
+					SourceBrokerPurpose.AMBIENT_PRODUCT,
+					1L,
+					eligible = true,
+					persistenceEligible = true,
+					policyRevision = 1L,
+					effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
+					effectiveElapsedRealtimeNanos = 6_000_000L,
+					effectiveWallTimeMs = 100L,
+					changeReason = "TEST_AMBIENT_CHAIN",
+				),
+			),
+		)
+		database.applyAmbientWifiRetentionDecision(
+			AmbientRadioRetentionDecision.GrantLiveAmbient(
+				"privacy:wifi:ambient:v1",
+				0L,
+				1L,
+				1L,
+				BOOT_CLOCK_DOMAIN_ID,
+				6_000_000L,
+				100L,
+			),
+		)
+		database.ambientWifiFactDao().insertAuthority(
+			AmbientWifiAuthorityIntegrity.create(
+				1L,
+				AmbientWifiAuthorityEntity.STATE_ACTIVE,
+				1L,
+				1L,
+				"privacy:wifi:ambient:v1",
+				1L,
+				0L,
+				0L,
+				BOOT_CLOCK_DOMAIN_ID,
+				6_000_000L,
+				100L,
+				1L,
+				"ambient-chain-owner",
+				1L,
+				WIFI_DEMAND_ID,
+			),
+		)
+		val physical = mockk<WifiSourceRuntime>()
+		every { physical.capabilities } returns MutableStateFlow(
+			SourceCapabilities(true, false, false, null, null),
+		)
+		val sinkFactory = DurableSourceEventSinkFactory(ingress)
+		var admissionOrdinal: Long? = null
+		coEvery { physical.refreshShared(any(), any(), null) } returns null
+		coEvery { physical.reconfigure(any<WifiPlan>(), any<SourceEventSink>()) } coAnswers {
+			val delivery = wifiDeliveryCandidate(
+				registrationGeneration = 1L,
+				authorizationRevision = 1L,
+				physicalConfigurationFingerprint = FIRST_PHYSICAL_CONFIGURATION,
+				receivedElapsedRealtimeNanos = 110_000_000L,
+				payloadVersion = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+				observationZoneId = "America/New_York",
+			)
+			val handoff = secondArg<SourceEventSink>().admit(delivery)
+				.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+			admissionOrdinal = handoff.admissionOrdinals.single()
+			SourceApplyResult.Applied(
+				AppliedSourcePlan(
+					desiredRevision = 1L,
+					appliedRevision = 1L,
+					source = SourceKind.WIFI,
+					sourceInstanceId = SourceInstanceId(WIFI_SOURCE_INSTANCE_ID),
+					registrationGeneration = 1L,
+					appliedAtElapsedRealtimeNanos = 110_000_000L,
+					status = SourceApplyStatus.APPLIED,
+				),
+			)
+		}
+		val controller = SharedWifiSourceController(
+			physical,
+			SourceBroker(
+				database,
+				RoomTrackingRolloutStateStore(database, WIFI_EXECUTABLE_LANE_CATALOG),
+			),
+			sinkFactory,
+		)
+
+		controller.reconcileAmbientJoin().shouldBeInstanceOf<AmbientWifiRuntimeJoinResult.Active>()
+		val projector = AmbientWifiFactProjector(
+			database,
+			DefaultSourcePayloadCodec(),
+			Dispatchers.Unconfined,
+		)
+		projector.project(requireNotNull(admissionOrdinal))
+			.shouldBeInstanceOf<AmbientWifiProjectionResult.FactWritten>()
+		val row = database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single()
+
+		row.fact.storedZoneId shouldBe "America/New_York"
+		row.fact.sourceAdmissionOrdinal shouldBe admissionOrdinal
+		val freshUnchanged = sinkFactory.unbound.admit(
+			wifiDeliveryCandidate(
+				registrationGeneration = 1L,
+				authorizationRevision = 1L,
+				physicalConfigurationFingerprint = FIRST_PHYSICAL_CONFIGURATION,
+				receivedElapsedRealtimeNanos = 111_000_000L,
+				accessPoints = listOf(
+					WifiAccessPointEvidence(
+						WITHHELD_RADIO_IDENTIFIER_TOKEN,
+						2_412,
+						-50,
+						101_000_000L,
+					),
+				),
+				payloadVersion = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+				observationZoneId = "America/New_York",
+			),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		projector.project(freshUnchanged.admissionOrdinals.single())
+			.shouldBeInstanceOf<AmbientWifiProjectionResult.CoverageCompacted>()
+		database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).size shouldBe 2
+		val zoneLessLegacy = sinkFactory.unbound.admit(
+			wifiDeliveryCandidate(
+				registrationGeneration = 1L,
+				authorizationRevision = 1L,
+				physicalConfigurationFingerprint = FIRST_PHYSICAL_CONFIGURATION,
+				receivedElapsedRealtimeNanos = 112_000_000L,
+				accessPoints = listOf(
+					WifiAccessPointEvidence(
+						WITHHELD_RADIO_IDENTIFIER_TOKEN,
+						2_412,
+						-50,
+						102_000_000L,
+					),
+				),
+				payloadVersion = WIFI_PAYLOAD_VERSION,
+			),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		projector.project(zoneLessLegacy.admissionOrdinals.single()) shouldBe
+			AmbientWifiProjectionResult.Unverifiable(
+				AmbientWifiProjectionUnverifiableReason.OBSERVATION_ZONE_UNVERIFIABLE,
+			)
 	}
 
 	@Test
@@ -959,6 +1120,8 @@ class WifiDurableSourceIngressTest {
 		),
 		purposeEligibilityMask: Long = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
 		eligibilityFingerprint: String = WIFI_ELIGIBILITY_FINGERPRINT,
+		payloadVersion: Int = WIFI_PAYLOAD_VERSION,
+		observationZoneId: String? = null,
 	): SourceDeliveryCandidate {
 		val observed = requireNotNull(accessPoints.mapNotNull { it.providerTimestampNanos }.maxOrNull())
 		val intervalStart = requireNotNull(accessPoints.mapNotNull { it.providerTimestampNanos }.minOrNull())
@@ -985,11 +1148,12 @@ class WifiDurableSourceIngressTest {
 			capturedCollectedDataEpoch = 0L,
 			acquiredAtMs = 100L,
 			quality = SourceQuality(),
-			payloadVersion = WIFI_PAYLOAD_VERSION,
+			payloadVersion = payloadVersion,
 			payload = WifiResultSnapshotPayload(
 				accessPoints = accessPoints,
 				platformTimestampMs = observed / NANOS_PER_MILLISECOND,
 				resultAgeMs = null,
+				observationZoneId = observationZoneId,
 			),
 		)
 		return SourceDeliveryCandidate(

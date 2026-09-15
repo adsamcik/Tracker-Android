@@ -10,6 +10,7 @@ import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOA
 import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
 import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
+import com.adsamcik.tracker.tracker.source.model.RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
@@ -150,6 +151,32 @@ class SourcePayloadCodecTest {
 		val encoded = codec.encode(payload, 2)
 
 		codec.decode(payload.source, 2, encoded.bytes) shouldBe payload
+	}
+
+	@Test
+	fun `version five freezes the admission-time zone for both radio products`() {
+		val wifi = WifiResultSnapshotPayload(
+			accessPoints = listOf(
+				WifiAccessPointEvidence("", 2_412, -45, providerTimestampNanos = 100L),
+			),
+			platformTimestampMs = 0L,
+			resultAgeMs = null,
+			observationZoneId = "America/New_York",
+		)
+		val cell = CellSnapshotPayload(
+			subscriptionId = null,
+			observations = listOf(CellObservationEvidence("", "LTE", true, -90, 100L)),
+			refreshOutcome = CellRefreshOutcome.CALLBACK,
+			observationZoneId = "Europe/Prague",
+		)
+
+		listOf(wifi, cell).forEach { payload ->
+			codec.decode(
+				payload.source,
+				RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+				codec.encode(payload, RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION).bytes,
+			) shouldBe payload
+		}
 	}
 
 	@Test

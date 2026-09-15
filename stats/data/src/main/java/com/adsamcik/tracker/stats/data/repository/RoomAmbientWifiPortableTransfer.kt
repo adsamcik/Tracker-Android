@@ -3,11 +3,16 @@ package com.adsamcik.tracker.stats.data.repository
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.AmbientWifiFactDao
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiReplayFootprintEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiFactEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiGapEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiReceiptEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiOrigin
+import com.adsamcik.tracker.stats.api.repository.AmbientWifiCoverage
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiPortableFormatV1
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiPortableIntegrity
 import com.adsamcik.tracker.stats.api.repository.AmbientWifiReadRequest
@@ -19,6 +24,8 @@ import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientWifi
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientWifiRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientWifiResult
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientWifiSink
+import com.adsamcik.tracker.stats.api.repository.PortableAmbientWifiFactV1
+import com.adsamcik.tracker.stats.api.repository.PortableAmbientWifiGapV1
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -51,9 +58,46 @@ internal class RoomAmbientWifiPortableTransfer @Inject constructor(
 			AmbientWifiReadResult.StorageUnavailable ->
 				return ExportPortableAmbientWifiResult.StorageUnavailable
 		}
-		if (snapshot.facts.isEmpty()) return ExportPortableAmbientWifiResult.NoData
-		val portableFacts = snapshot.facts.map(AmbientWifiPortableIntegrity::createFact)
-		val portableGaps = snapshot.gaps.map(AmbientWifiPortableIntegrity::createGap)
+		if (snapshot.facts.isEmpty() && snapshot.gaps.isEmpty()) {
+			return ExportPortableAmbientWifiResult.NoData
+		}
+		val localFactIds = snapshot.facts.filter {
+			it.origin == AmbientWifiOrigin.LOCAL_DEVICE
+		}.map { it.identity }
+		val localFacts = if (localFactIds.isEmpty()) emptyList() else {
+			database.ambientWifiFactDao().effectiveLocalLineages(
+				localFactIds,
+				AmbientWifiPortableFormatV1.MAX_FACTS + 1,
+			).map { row ->
+				AmbientWifiPortableIntegrity.createFact(
+					row.toApiFact() ?: return ExportPortableAmbientWifiResult.StorageUnavailable,
+				)
+			}
+		}
+		val importedFactIds = snapshot.facts
+			.filter { it.origin == AmbientWifiOrigin.PORTABLE_IMPORT }
+			.map { it.identity }
+		val importedFacts = if (importedFactIds.isEmpty()) emptyList() else {
+			loadFactRevisions(database.ambientWifiFactDao(), importedFactIds)
+				.map(ImportedAmbientWifiFactEntity::toPortableFact)
+		}
+		val portableFacts = localFacts + importedFacts
+		if (portableFacts.size > AmbientWifiPortableFormatV1.MAX_FACTS) {
+			return ExportPortableAmbientWifiResult.DependencyOverflow
+		}
+		val localGaps = snapshot.gaps.filter { it.origin == AmbientWifiOrigin.LOCAL_DEVICE }
+			.map(AmbientWifiPortableIntegrity::createGap)
+		val importedGapIds = snapshot.gaps
+			.filter { it.origin == AmbientWifiOrigin.PORTABLE_IMPORT }
+			.map { it.identity }
+		val importedGaps = if (importedGapIds.isEmpty()) emptyList() else {
+			loadGaps(database.ambientWifiFactDao(), importedGapIds)
+				.map(ImportedAmbientWifiGapEntity::toPortableGap)
+		}
+		val portableGaps = localGaps + importedGaps
+		if (portableGaps.size > AmbientWifiPortableFormatV1.MAX_GAPS) {
+			return ExportPortableAmbientWifiResult.DependencyOverflow
+		}
 		val archiveId = AmbientWifiPortableIntegrity.opaqueIdentity(
 			"archive",
 			listOf(
@@ -112,7 +156,53 @@ internal class RoomAmbientWifiPortableTransfer @Inject constructor(
 			return ImportPortableAmbientWifiResult.RetentionBoundary
 		}
 		val dao = database.ambientWifiFactDao()
-		if (dao.importTombstone(request.archive.archiveId) != null) {
+		val retention = dao.latestRetentionAuthority(
+			AmbientWifiRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
+		)?.takeIf {
+			AmbientWifiRetentionAuthorityIntegrity.isAuthentic(it) &&
+				it.isActive &&
+				it.collectedDataEpoch == request.expectedCollectedDataEpoch
+		} ?: return ImportPortableAmbientWifiResult.RetentionAuthorityUnavailable
+		dao.importTombstone(request.archive.archiveId)?.let { tombstone ->
+			if (tombstone.effectChecksum !=
+				AmbientWifiFactIntegrity.importTombstoneChecksum(tombstone)
+			) return ImportPortableAmbientWifiResult.StorageUnavailable
+			return ImportPortableAmbientWifiResult.DeletedArchive
+		}
+		val footprintStates = mutableListOf<ReplayFootprintState>()
+		footprintStates += dao.footprintState(
+				AmbientWifiReplayFootprintEntity.KIND_ARCHIVE_SCOPE,
+				request.archive.archiveId,
+				0L,
+			)
+		request.archive.facts.forEach { fact ->
+			footprintStates += dao.footprintState(
+					AmbientWifiReplayFootprintEntity.KIND_FACT_IDENTITY,
+					fact.identity,
+					fact.semanticRevision,
+				)
+			footprintStates += dao.footprintState(
+					AmbientWifiReplayFootprintEntity.KIND_FACT_EFFECT,
+					fact.effectChecksum,
+					0L,
+				)
+		}
+		request.archive.gaps.forEach { gap ->
+			footprintStates += dao.footprintState(
+					AmbientWifiReplayFootprintEntity.KIND_GAP_IDENTITY,
+					gap.identity,
+					0L,
+				)
+			footprintStates += dao.footprintState(
+					AmbientWifiReplayFootprintEntity.KIND_GAP_EFFECT,
+					gap.effectChecksum,
+					0L,
+				)
+		}
+		if (ReplayFootprintState.CORRUPT in footprintStates) {
+			return ImportPortableAmbientWifiResult.StorageUnavailable
+		}
+		if (ReplayFootprintState.AUTHENTIC in footprintStates) {
 			return ImportPortableAmbientWifiResult.DeletedArchive
 		}
 		val priorReceipt = dao.importReceipt(request.receipt.jobId, request.receipt.entryKey)
@@ -136,8 +226,8 @@ internal class RoomAmbientWifiPortableTransfer @Inject constructor(
 		}
 		val historiesByFact = histories.groupBy(ImportedAmbientWifiFactEntity::factId)
 		val duplicateRevisions = mutableSetOf<Pair<String, Long>>()
-		for (fact in request.archive.facts) {
-			val history = historiesByFact[fact.identity].orEmpty()
+		for ((factId, lineage) in request.archive.facts.groupBy { it.identity }) {
+			val history = historiesByFact[factId].orEmpty()
 			if (history.any {
 					it.collectedDataEpoch != request.expectedCollectedDataEpoch
 				}
@@ -146,20 +236,23 @@ internal class RoomAmbientWifiPortableTransfer @Inject constructor(
 					revision.semanticRevision != index.toLong() + 1L
 				}
 			) return ImportPortableAmbientWifiResult.ReceiptConflict
-			val sameRevision = history.singleOrNull {
-				it.semanticRevision == fact.semanticRevision
-			}
-			if (sameRevision != null) {
-				if (sameRevision.contentChecksum != fact.contentChecksum) {
-					return ImportPortableAmbientWifiResult.ReceiptConflict
+			var latestRevision = history.lastOrNull()?.semanticRevision ?: 0L
+			for (fact in lineage.sortedBy { it.semanticRevision }) {
+				val sameRevision = history.singleOrNull {
+					it.semanticRevision == fact.semanticRevision
 				}
-				duplicateRevisions += fact.identity to fact.semanticRevision
-				continue
+				if (sameRevision != null) {
+					if (sameRevision.contentChecksum != fact.contentChecksum ||
+						sameRevision.portableEffectChecksum != fact.effectChecksum
+					) return ImportPortableAmbientWifiResult.ReceiptConflict
+					duplicateRevisions += fact.identity to fact.semanticRevision
+					continue
+				}
+				if (fact.semanticRevision != latestRevision + 1L ||
+					fact.supersedesSemanticRevision != latestRevision.takeIf { it > 0L }
+				) return ImportPortableAmbientWifiResult.ReceiptConflict
+				latestRevision = fact.semanticRevision
 			}
-			val latestRevision = history.lastOrNull()?.semanticRevision ?: 0L
-			if (fact.semanticRevision != latestRevision + 1L ||
-				fact.supersedesSemanticRevision != latestRevision.takeIf { it > 0L }
-			) return ImportPortableAmbientWifiResult.ReceiptConflict
 		}
 		val storedGapIdentities = loadGaps(dao, request.archive.gaps.map { it.identity })
 		if (storedGapIdentities.size > AmbientWifiPortableFormatV1.MAX_GAPS) {
@@ -169,7 +262,9 @@ internal class RoomAmbientWifiPortableTransfer @Inject constructor(
 		val duplicateGapIds = mutableSetOf<String>()
 		for (gap in request.archive.gaps) {
 			val stored = storedGapsById[gap.identity] ?: continue
-			if (stored.contentChecksum != gap.contentChecksum) {
+			if (stored.contentChecksum != gap.contentChecksum ||
+				stored.portableEffectChecksum != gap.effectChecksum
+			) {
 				return ImportPortableAmbientWifiResult.ReceiptConflict
 			}
 			duplicateGapIds += gap.identity
@@ -190,13 +285,18 @@ internal class RoomAmbientWifiPortableTransfer @Inject constructor(
 		}
 		val requestedFacts = request.archive.facts.associateBy { it.identity to it.semanticRevision }
 		if (existing.any { stored ->
-				requestedFacts[stored.factId to stored.semanticRevision]?.contentChecksum !=
-					stored.contentChecksum
+				requestedFacts[stored.factId to stored.semanticRevision]?.let { requested ->
+					requested.contentChecksum == stored.contentChecksum &&
+						requested.effectChecksum == stored.portableEffectChecksum
+				} != true
 			}
 		) return ImportPortableAmbientWifiResult.ReceiptConflict
 		val requestedGaps = request.archive.gaps.associateBy { it.identity }
 		if (existingGaps.any { stored ->
-				requestedGaps[stored.gapId]?.contentChecksum != stored.contentChecksum
+				requestedGaps[stored.gapId]?.let { requested ->
+					requested.contentChecksum == stored.contentChecksum &&
+						requested.effectChecksum == stored.portableEffectChecksum
+				} != true
 			}
 		) {
 			return ImportPortableAmbientWifiResult.ReceiptConflict
@@ -210,6 +310,7 @@ internal class RoomAmbientWifiPortableTransfer @Inject constructor(
 					semanticRevision = fact.semanticRevision,
 					supersedesSemanticRevision = fact.supersedesSemanticRevision,
 					contentChecksum = fact.contentChecksum,
+					portableEffectChecksum = fact.effectChecksum,
 					portableOrigin = fact.origin.name,
 					coverageStartTimeMs = fact.coverageStartTimeMs,
 					observedTimeMs = fact.observedTimeMs,
@@ -225,7 +326,8 @@ internal class RoomAmbientWifiPortableTransfer @Inject constructor(
 					strongestSignalDbm = fact.strongestSignalDbm,
 					weakestSignalDbm = fact.weakestSignalDbm,
 					meanSignalDbm = fact.meanSignalDbm,
-					retentionPolicyId = request.retentionPolicyId,
+					retentionPolicyId = retention.opaquePolicyId,
+					retentionApprovalRevision = retention.approvalRevision,
 					collectedDataEpoch = request.expectedCollectedDataEpoch,
 					importDeletionGeneration = 0L,
 					receivedAtMs = request.receipt.receivedAtMs,
@@ -239,13 +341,15 @@ internal class RoomAmbientWifiPortableTransfer @Inject constructor(
 					request.archive.archiveId,
 					gap.identity,
 					gap.contentChecksum,
+					gap.effectChecksum,
 					gap.origin.name,
 					gap.startTimeMs,
 					gap.endTimeMs,
 					gap.storedZoneId,
 					gap.structuralEpochDay,
 					gap.reason,
-					request.retentionPolicyId,
+					retention.opaquePolicyId,
+					retention.approvalRevision,
 					request.expectedCollectedDataEpoch,
 					request.receipt.receivedAtMs,
 				),
@@ -259,8 +363,8 @@ internal class RoomAmbientWifiPortableTransfer @Inject constructor(
 			ImportPortableAmbientWifiResult.Duplicate
 		} else {
 			ImportPortableAmbientWifiResult.Applied(
-				request.archive.facts.size,
-				request.archive.gaps.size,
+				request.archive.facts.size - duplicateRevisions.size,
+				request.archive.gaps.size - duplicateGapIds.size,
 			)
 		}
 	}
@@ -304,3 +408,58 @@ internal class RoomAmbientWifiPortableTransfer @Inject constructor(
 		const val SQLITE_ID_CHUNK_SIZE = 400
 	}
 }
+
+private suspend fun AmbientWifiFactDao.footprintState(
+	kind: String,
+	identity: String,
+	semanticRevision: Long,
+): ReplayFootprintState {
+	val footprint = replayFootprint(kind, identity, semanticRevision)
+		?: return ReplayFootprintState.ABSENT
+	return if (AmbientWifiFactIntegrity.isAuthentic(footprint)) {
+		ReplayFootprintState.AUTHENTIC
+	} else {
+		ReplayFootprintState.CORRUPT
+	}
+}
+
+private enum class ReplayFootprintState {
+	ABSENT,
+	AUTHENTIC,
+	CORRUPT,
+}
+
+private fun ImportedAmbientWifiFactEntity.toPortableFact() = PortableAmbientWifiFactV1(
+	factId,
+	contentChecksum,
+	portableEffectChecksum,
+	AmbientWifiOrigin.valueOf(portableOrigin),
+	coverageStartTimeMs,
+	observedTimeMs,
+	latestPossibleTimeMs,
+	structuralEpochDay,
+	storedZoneId,
+	AmbientWifiCoverage.valueOf(coverageCompleteness),
+	observationCount,
+	twoPointFourGhzCount,
+	fiveGhzCount,
+	sixGhzCount,
+	otherBandCount,
+	strongestSignalDbm,
+	weakestSignalDbm,
+	meanSignalDbm,
+	semanticRevision,
+	supersedesSemanticRevision,
+)
+
+private fun ImportedAmbientWifiGapEntity.toPortableGap() = PortableAmbientWifiGapV1(
+	gapId,
+	contentChecksum,
+	portableEffectChecksum,
+	AmbientWifiOrigin.valueOf(portableOrigin),
+	structuralEpochDay,
+	startTimeMs,
+	endTimeMs,
+	storedZoneId,
+	reason,
+)
