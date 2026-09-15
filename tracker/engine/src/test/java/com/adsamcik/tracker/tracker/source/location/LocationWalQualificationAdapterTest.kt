@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.source.location
 import android.app.Application
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.data.LocationAcquisitionMode
+import com.adsamcik.tracker.shared.base.data.LocationRequestPriority
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
@@ -112,6 +114,14 @@ class LocationWalQualificationAdapterTest {
 		assertEquals(
 			LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
 			qualified.command.productEffect.durableEvidence.payloadVersion,
+		)
+		assertEquals(
+			LocationAcquisitionMode.PLATFORM_GPS,
+			evaluated.acquisitionMetadata.acquisitionMode,
+		)
+		assertEquals(
+			LocationRequestPriority.HIGH_ACCURACY,
+			evaluated.acquisitionMetadata.requestPriority,
 		)
 		assertEquals(EVENT_ID, qualified.command.mutation.identity.sourceEventId)
 		assertEquals(1L, database.sourceEventWalDao().countAll())

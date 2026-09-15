@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.service
 
+import androidx.room.withTransaction
 import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
 import android.content.Context
@@ -39,11 +40,13 @@ import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.pipeline.TrackingPipeline
 import com.adsamcik.tracker.tracker.pipeline.toLocationObservationSignal
+import com.adsamcik.tracker.tracker.pipeline.toProtectedLocationObservationSignal
 import com.adsamcik.tracker.tracker.pipeline.stages.DataCollectionStage
 import com.adsamcik.tracker.tracker.pipeline.stages.PolicyUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.PostProcessingStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SessionUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SignalDispatchStage
+import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import com.adsamcik.tracker.tracker.policy.RoomTrackerStateEvidenceWriter
 import com.adsamcik.tracker.tracker.presentation.SessionPresentationBinding
@@ -51,6 +54,14 @@ import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateS
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingSessionOwnership
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.SourceDemand
+import com.adsamcik.tracker.tracker.source.location.LocationCapturedFactCommand
+import com.adsamcik.tracker.tracker.source.location.LocationWalAcquisitionMetadata
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalReceipt
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriteResult
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriter
+import com.adsamcik.tracker.tracker.source.location.readProtectedLocationCanonicalReceipt
+import com.adsamcik.tracker.tracker.source.location.toProtectedLocationMockRejectionSignal
+import com.adsamcik.tracker.tracker.source.location.toProtectedLocationTrackingCycle
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationOutcome
@@ -109,7 +120,7 @@ internal class TrackingOrchestrator(
 	private val trackingControlOutputSink: TrackingControlOutputSink = NoOpTrackingControlOutputSink,
 	/** Delivers semantic settings plus policy evidence requirements to the event coordinator. */
 	private val onSourcePlanInputsChanged: suspend (TrackingParamsState, List<SourceDemand>) -> Unit = { _, _ -> },
-) {
+) : ProtectedLocationCanonicalWriter {
 	private val componentMutex = Mutex()
 
 	private var trackingPolicyManager: TrackingPolicyManager? = null
@@ -119,6 +130,7 @@ internal class TrackingOrchestrator(
 	private var sessionJob: Job? = null
 	private var pendingPresentationBinding: SessionPresentationBinding? = null
 	private var completedShutdownResult: ShutdownResult? = null
+	private var protectedLocationApplicationContext: Context? = null
 
 	@Volatile
 	private var controlLocationEnabled: Boolean = true
@@ -195,6 +207,7 @@ internal class TrackingOrchestrator(
 		}
 		pendingPresentationBinding = null
 		completedShutdownResult = null
+		protectedLocationApplicationContext = null
 
 		val newSessionJob = SupervisorJob(scope.coroutineContext[Job])
 		val sessionScope = CoroutineScope(scope.coroutineContext + newSessionJob)
@@ -412,6 +425,7 @@ internal class TrackingOrchestrator(
 			}
 		}
 		trackingPipeline = createTrackingPipeline(sessionScope)
+		protectedLocationApplicationContext = context.applicationContext
 
 		// Wire mutable references into tier escalation handler
 		tierEscalationHandler.processorPipeline = processorPipeline
@@ -434,6 +448,128 @@ internal class TrackingOrchestrator(
 			if (!controller.isServiceRunning) return
 
 			collectAndProcess(context, cycle)
+		}
+	}
+
+	/**
+	 * Serial canonical entrypoint for qualified protected Location WAL.
+	 *
+	 * This method deliberately reuses [componentMutex], so it cannot overlap ordinary cycles,
+	 * tier transitions, or shutdown. PersistenceProcessor remains the only Location destination
+	 * writer and rechecks the source/lane/owner authority in its existing Room transaction.
+	 */
+	override suspend fun write(
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+	): ProtectedLocationCanonicalWriteResult = componentMutex.withLock {
+		val context = protectedLocationApplicationContext
+			?: return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
+				"LOCATION_CANONICAL_PIPELINE_INACTIVE",
+			)
+		if (!controller.isServiceRunning) {
+			return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
+				"LOCATION_CANONICAL_SERVICE_INACTIVE",
+			)
+		}
+		val binding = pendingPresentationBinding
+			?: return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
+				"LOCATION_CANONICAL_SESSION_UNBOUND",
+			)
+		if (binding.logicalTrackingId != command.authority.logicalTrackingId.value ||
+			binding.serviceRunId != command.authority.serviceRunId.value ||
+			binding.sessionSegmentId != command.authority.sessionSegmentId
+		) {
+			return@withLock ProtectedLocationCanonicalWriteResult.AuthorityChanged(
+				"LOCATION_CANONICAL_ACTIVE_SESSION_CHANGED",
+			)
+		}
+		val pipeline = processorPipeline
+			?: return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
+				"LOCATION_CANONICAL_PROCESSOR_PIPELINE_INACTIVE",
+			)
+		val persistence = signalProcessors.filterIsInstance<PersistenceProcessor>().singleOrNull()
+			?: return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+				"LOCATION_CANONICAL_PERSISTENCE_PROCESSOR_UNAVAILABLE",
+				terminal = false,
+			)
+
+		try {
+			if (!persistence.flushProtectedLocationCanonicalHandoff()) {
+				return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
+					"LOCATION_CANONICAL_PENDING_COMMIT",
+				)
+			}
+			when (val receipt = appDatabase.withTransaction {
+				appDatabase.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
+			}) {
+				is ProtectedLocationCanonicalReceipt.Complete ->
+					return@withLock ProtectedLocationCanonicalWriteResult.Committed
+				is ProtectedLocationCanonicalReceipt.Invalid ->
+					return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+						receipt.reason,
+						terminal = true,
+					)
+				is ProtectedLocationCanonicalReceipt.Incomplete -> Unit
+			}
+
+			val policyName = trackingPolicyManager?.currentPolicy?.value?.name
+			val rawSignal = command.toProtectedLocationObservationSignal(
+				acquisitionMetadata = acquisitionMetadata,
+				policyTier = currentTier,
+				policyName = policyName,
+			)
+			if (!pipeline.checkpointDurableSignals(listOf(rawSignal))) {
+				return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
+					"LOCATION_CANONICAL_RAW_ADMISSION_DEFERRED",
+				)
+			}
+
+			if (command.productEffect.isMock) {
+				if (!pipeline.onSignal(
+					command.toProtectedLocationMockRejectionSignal(
+						acquisitionMetadata = acquisitionMetadata,
+						policyTier = currentTier,
+						policyName = policyName,
+					),
+				)) {
+					return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
+						"LOCATION_CANONICAL_DECISION_ADMISSION_DEFERRED",
+					)
+				}
+			} else {
+				collectAndProcess(
+					context,
+					command.toProtectedLocationTrackingCycle(acquisitionMetadata),
+				)
+			}
+
+			if (!persistence.flushProtectedLocationCanonicalHandoff()) {
+				return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
+					"LOCATION_CANONICAL_DESTINATION_COMMIT_DEFERRED",
+				)
+			}
+			when (val receipt = appDatabase.withTransaction {
+				appDatabase.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
+			}) {
+				is ProtectedLocationCanonicalReceipt.Complete ->
+					ProtectedLocationCanonicalWriteResult.Committed
+				is ProtectedLocationCanonicalReceipt.Incomplete ->
+					ProtectedLocationCanonicalWriteResult.Deferred(receipt.reason)
+				is ProtectedLocationCanonicalReceipt.Invalid ->
+					ProtectedLocationCanonicalWriteResult.Failed(
+						receipt.reason,
+						terminal = true,
+					)
+			}
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (failure: Exception) {
+			ProtectedLocationCanonicalWriteResult.Failed(
+				failure::class.java.simpleName.ifBlank {
+					"LOCATION_CANONICAL_WRITE_FAILED"
+				},
+				terminal = false,
+			)
 		}
 	}
 
@@ -462,6 +598,7 @@ internal class TrackingOrchestrator(
 		} finally {
 			sessionJob?.cancelAndJoin()
 			sessionJob = null
+			protectedLocationApplicationContext = null
 		}
 	}
 
@@ -495,6 +632,7 @@ internal class TrackingOrchestrator(
 		controller.updatePlaneState(null)
 		pendingPresentationBinding = null
 		completedShutdownResult = null
+		protectedLocationApplicationContext = null
 	}
 
 	fun markServiceStopped() {

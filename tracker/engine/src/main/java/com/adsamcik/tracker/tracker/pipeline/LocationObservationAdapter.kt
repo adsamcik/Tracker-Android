@@ -11,6 +11,9 @@ import com.adsamcik.tracker.stats.api.value.CoordinateE7
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.api.value.LatE7
 import com.adsamcik.tracker.stats.api.value.LonE7
+import com.adsamcik.tracker.tracker.source.location.LocationCapturedFactCommand
+import com.adsamcik.tracker.tracker.source.location.LocationWalAcquisitionMetadata
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalSignalIdentity
 
 /** Maps a trigger fix to the raw-observation-only signal consumed by persistence. */
 internal fun LocationProviderObservation.toLocationObservationSignal(
@@ -71,5 +74,52 @@ internal fun LocationProviderObservation.toLocationObservationSignal(
 		persistenceSignalId = fixMetadata.sourceEventId
 			?.takeIf(String::isNotBlank)
 			?.let { sourceEventId -> "location-observation:$sourceEventId" },
+	)
+}
+
+/** Reconstitutes exact qualified WAL evidence without accepting caller-supplied provider fields. */
+internal fun LocationCapturedFactCommand.toProtectedLocationObservationSignal(
+	acquisitionMetadata: LocationWalAcquisitionMetadata,
+	policyTier: PolicyTier,
+	policyName: String?,
+): TrackingSignal {
+	require(acquisitionMetadata != LocationWalAcquisitionMetadata.UNKNOWN)
+	val evidence = productEffect.durableEvidence
+	val clock = evidence.clockAuthority
+	val payload = evidence.payload
+	val eventId = evidence.sourceEventId.value
+	return TrackingSignal(
+		timestampMs = EpochMs(clock.observedWallTimeMs),
+		elapsedRealtimeNanos = clock.observedElapsedRealtimeNanos,
+		clockDomainId = clock.clockDomainId,
+		bootClockDomainId = clock.clockDomainId,
+		locationObservation = LocationObservationSignal(
+			rawFixTimeMs = clock.observedWallTimeMs,
+			coordinate = CoordinateE7(
+				lat = LatE7.fromDegrees(payload.latitudeDegrees),
+				lon = LonE7.fromDegrees(payload.longitudeDegrees),
+			),
+			horizontalAccuracyM = payload.horizontalAccuracyMeters,
+			altitudeM = payload.altitudeMeters?.toFloat(),
+			verticalAccuracyM = payload.verticalAccuracyMeters,
+			speedMps = payload.speedMetersPerSecond,
+			speedAccuracyMps = null,
+			bearingDeg = payload.bearingDegrees,
+			bearingAccuracyDeg = null,
+			provider = payload.provider,
+			receivedAtMs = clock.observedWallTimeMs,
+			receivedElapsedRealtimeNanos = clock.receivedElapsedRealtimeNanos,
+			acquisitionMode = acquisitionMetadata.acquisitionMode.name,
+			requestPriority = acquisitionMetadata.requestPriority.name,
+			permissionPrecision = authority.permissionPrecision.name,
+			batchIndex = evidence.deliveryUnitIndex,
+			batchSize = evidence.deliveryUnitCount,
+			isMock = evidence.isMock,
+			ingressDisposition = "DELIVERED_VALID",
+			callbackId = evidence.sourceDeliveryIdentity?.value,
+			sourceEventId = eventId,
+		),
+		policy = PolicySignal(policyTier, policyName),
+		persistenceSignalId = ProtectedLocationCanonicalSignalIdentity.rawObservation(eventId),
 	)
 }

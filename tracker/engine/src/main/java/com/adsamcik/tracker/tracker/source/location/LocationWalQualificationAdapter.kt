@@ -1,7 +1,9 @@
 package com.adsamcik.tracker.tracker.source.location
 
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.data.LocationAcquisitionMode
 import com.adsamcik.tracker.shared.base.data.LocationPermissionPrecision
+import com.adsamcik.tracker.shared.base.data.LocationRequestPriority
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -15,7 +17,9 @@ import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrN
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
+import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -69,9 +73,27 @@ internal enum class LocationWalAdapterRejection {
 internal sealed interface LocationWalAdapterResult {
 	data class Evaluated(
 		val qualification: LocationObservationQualification,
+		val acquisitionMetadata: LocationWalAcquisitionMetadata =
+			LocationWalAcquisitionMetadata.UNKNOWN,
 	) : LocationWalAdapterResult
 
 	data class Rejected(val reason: LocationWalAdapterRejection) : LocationWalAdapterResult
+}
+
+internal data class LocationWalAcquisitionMetadata(
+	val acquisitionMode: LocationAcquisitionMode,
+	val requestPriority: LocationRequestPriority,
+) {
+	companion object {
+		val UNKNOWN = LocationWalAcquisitionMetadata(
+			LocationAcquisitionMode.UNKNOWN,
+			LocationRequestPriority.UNKNOWN,
+		)
+	}
+}
+
+internal fun interface ProtectedLocationWalQualifier {
+	suspend fun qualify(eventId: SourceEventId): LocationWalAdapterResult
 }
 
 /**
@@ -87,9 +109,10 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 	private val database: AppDatabase,
 	private val payloadCodec: SourcePayloadCodec,
 	private val planCodec: SourcePlanCodec,
-) {
+) : ProtectedLocationWalQualifier {
 	@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
-	suspend fun qualify(eventId: SourceEventId): LocationWalAdapterResult = database.withTransaction {
+	override suspend fun qualify(eventId: SourceEventId): LocationWalAdapterResult =
+		database.withTransaction {
 		val walDao = database.sourceEventWalDao()
 		val selectedPreflight = walDao.payloadPreflightByEventId(eventId.value)
 			?: return@withTransaction rejected(LocationWalAdapterRejection.MISSING_EVENT)
@@ -510,7 +533,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 			isMock = requireNotNull(selectedPayload.isMock),
 		)
 		return@withTransaction LocationWalAdapterResult.Evaluated(
-			LocationQualifiedObservationQualifier.qualify(
+			qualification = LocationQualifiedObservationQualifier.qualify(
 				input = LocationObservationInput(
 					origin = LocationObservationOrigin.PROVIDER_CALLBACK,
 					outcome = LocationProviderOutcome.FIX,
@@ -522,6 +545,10 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 					currentCollectedDataEpoch = evidenceState.collectedDataEpoch,
 					retainedFromWallTimeMs = evidenceState.retainedFromMs,
 				),
+			),
+			acquisitionMetadata = LocationWalAcquisitionMetadata(
+				acquisitionMode = plan.canonicalAcquisitionMode(),
+				requestPriority = plan.canonicalRequestPriority(),
 			),
 		)
 	}
@@ -719,5 +746,28 @@ private fun LocationPlan.hasSupportedHistoricalShape(): Boolean =
 		minimumUpdateIntervalMs <= requestedIntervalMs &&
 		minimumDisplacementMeters.isFinite() && minimumDisplacementMeters >= 0f &&
 		maximumBatchDelayMs >= 0L && (probeDurationMs == null || probeDurationMs > 0L)
+
+private fun LocationPlan.canonicalAcquisitionMode(): LocationAcquisitionMode = when (backend) {
+	LocationBackend.FUSED -> LocationAcquisitionMode.FUSED
+	LocationBackend.FRAMEWORK -> if (mode == LocationMode.PASSIVE) {
+		LocationAcquisitionMode.PLATFORM_PASSIVE
+	} else {
+		LocationAcquisitionMode.PLATFORM_GPS
+	}
+}
+
+private fun LocationPlan.canonicalRequestPriority(): LocationRequestPriority = when (mode) {
+	LocationMode.DISABLED -> LocationRequestPriority.UNKNOWN
+	LocationMode.PASSIVE -> LocationRequestPriority.PASSIVE
+	LocationMode.LOW_POWER -> LocationRequestPriority.LOW_POWER
+	LocationMode.BALANCED -> LocationRequestPriority.BALANCED
+	LocationMode.HIGH_ACCURACY,
+	LocationMode.PROBE,
+	-> if (preciseLocationAvailable) {
+		LocationRequestPriority.HIGH_ACCURACY
+	} else {
+		LocationRequestPriority.BALANCED
+	}
+}
 
 private fun rejected(reason: LocationWalAdapterRejection) = LocationWalAdapterResult.Rejected(reason)

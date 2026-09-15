@@ -23,11 +23,13 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Backfills canonical provider observations for source events admitted by event-frame builds that
- * omitted [com.adsamcik.tracker.tracker.data.collection.TrackingCycle.locationObservations].
+ * Backfills canonical provider observations for legacy event-frame rows that omitted
+ * [com.adsamcik.tracker.tracker.data.collection.TrackingCycle.locationObservations].
  *
  * Repair runs before pending-signal recovery. That ordering lets a retained curated decision find
  * its immutable raw source and makes the operation idempotent through `source_event_id`.
+ * Fully bound protected Location WAL is excluded because its observation and curation receipt must
+ * commit through the existing serialized canonical writer.
  */
 @Singleton
 class RawLocationObservationRepair @Inject constructor(
@@ -58,6 +60,7 @@ class RawLocationObservationRepair @Inject constructor(
 	}
 
 	private fun SourceEventWalEntity.toRepairCandidateOrNull(): RawLocationRepairCandidate? {
+		if (isProtectedLocationCapture()) return null
 		val observation = toCanonicalObservationOrNull() ?: return null
 		return RawLocationRepairCandidate(
 			capturedCollectedDataEpoch = capturedCollectedDataEpoch,
@@ -137,9 +140,29 @@ class RawLocationObservationRepair @Inject constructor(
 		)
 	}
 
-	/** Frozen v1 bytes predate this evidence and retain their established conservative false repair. */
+	/** Frozen v1 bytes predate mock provenance and must not manufacture a false provider bit. */
 	private fun LocationFixPayload.repairedMockProvenance(payloadVersion: Int): Boolean? =
-		if (payloadVersion < LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) false else isMock
+		if (payloadVersion < LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) null else isMock
+
+	/**
+	 * Fully bound runtime WAL is owned by the protected canonical handoff. Repairing only its raw
+	 * observation would create a misleading partial product before route curation and its terminal
+	 * decision have committed through the existing writer.
+	 */
+	private fun SourceEventWalEntity.isProtectedLocationCapture(): Boolean =
+		providerDedupKey == null &&
+			deliveryIdentity != null &&
+			deliveryUnitIndex != null &&
+			deliveryUnitCount != null &&
+			logicalTrackingId != null &&
+			serviceRunId != null &&
+			physicalConfigurationFingerprint != null &&
+			authorizationRevision != null &&
+			authorizationFingerprint != null &&
+			sourcePolicyRevision != null &&
+			captureConsentEpoch != null &&
+			sessionManifestRevision != null &&
+			lifecycleLeaseGeneration != null
 
 	private fun SourceEventWalEntity.hasRepairableIntegrity(): Boolean =
 		hasQualifiedIntegrity() || hasVerifiedLegacyPayload() || hasPendingLegacyPayload()

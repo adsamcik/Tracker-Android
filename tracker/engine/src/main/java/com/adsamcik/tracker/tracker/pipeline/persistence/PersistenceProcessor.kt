@@ -54,6 +54,10 @@ import com.adsamcik.tracker.stats.api.signal.WifiSignal
 import com.adsamcik.tracker.tracker.data.withDatabaseRetry
 import com.adsamcik.tracker.tracker.pipeline.DurableAdmissionStatus
 import com.adsamcik.tracker.tracker.pipeline.DurableSignalProcessor
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalPendingDecision
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalPendingWrite
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalPersistenceGuard
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalSignalIdentity
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.MotionState
 import com.adsamcik.tracker.shared.model.SampleQuality
@@ -66,6 +70,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
+import javax.inject.Provider
 
 /**
  * Unified persistence processor that writes all tracking data to Room, backed
@@ -125,6 +130,9 @@ class PersistenceProcessor @Inject constructor(
 	private val transactor: TrackingPersistenceTransactor,
 	private val sourceDestinationOwnerDao: SourceDestinationOwnerDao,
 	private val rawLocationObservationRepair: RawLocationObservationRepair? = null,
+	private val protectedLocationCanonicalPersistenceGuardProvider:
+		Provider<ProtectedLocationCanonicalPersistenceGuard> =
+		Provider { ProtectedLocationCanonicalPersistenceGuard.unavailable() },
 ) : DurableSignalProcessor {
 
 	override val descriptor = ProcessorDescriptor(
@@ -281,6 +289,12 @@ class PersistenceProcessor @Inject constructor(
 		verifyCollectedDataAccess()
 		!recoveryIncomplete && !hasPendingEntries
 	}
+
+	/**
+	 * Flush seam for the protected Location handoff. The caller must own the same external
+	 * serialization as ordinary cycle delivery, tier changes, and shutdown.
+	 */
+	internal suspend fun flushProtectedLocationCanonicalHandoff(): Boolean = flushAll()
 
 	override suspend fun checkpointStagedSignals(): Boolean =
 		checkpointStagedSignalsStatus() == DurableAdmissionStatus.ADMITTED
@@ -908,6 +922,7 @@ class PersistenceProcessor @Inject constructor(
 		val steps = stepBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
 		val activities = activityBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
 
+		verifyProtectedLocationCanonicalWrites(observations, locations, decisions)
 		val sourceRevision = nextSourceRevisionOrNull(
 			hasSourceMutation = observations.isNotEmpty() ||
 				locations.isNotEmpty() ||
@@ -964,6 +979,91 @@ class PersistenceProcessor @Inject constructor(
 		}
 		activities.chunked(ACTIVITY_BATCH_SIZE).forEach { chunk ->
 			activitySnapshotDao.insert(chunk)
+		}
+	}
+
+	private suspend fun verifyProtectedLocationCanonicalWrites(
+		observations: List<LocationObservation>,
+		locations: List<LocationSample>,
+		decisions: List<BufferedLocationDecision>,
+	) {
+		observations.forEach { observation ->
+			ProtectedLocationCanonicalSignalIdentity.rawEventId(observation.sourceSignalId)
+				?.let { eventId ->
+					require(observation.sourceEventId == eventId) {
+						"Protected Location raw signal identity does not match its source event"
+					}
+				}
+		}
+		locations.forEach { sample ->
+			ProtectedLocationCanonicalSignalIdentity.canonicalEventId(sample.sourceSignalId)
+				?.let { eventId ->
+					require(sample.sourceEventId == eventId) {
+						"Protected Location sample identity does not match its source event"
+					}
+				}
+		}
+		decisions.forEach { buffered ->
+			ProtectedLocationCanonicalSignalIdentity.canonicalEventId(buffered.sourceSignalId)
+				?.let { eventId ->
+					require(buffered.signal.sourceEventId == eventId) {
+						"Protected Location decision identity does not match its source event"
+					}
+				}
+		}
+
+		val eventIds = buildSet {
+			observations.mapNotNullTo(this) { observation ->
+				ProtectedLocationCanonicalSignalIdentity.rawEventId(observation.sourceSignalId)
+			}
+			locations.mapNotNullTo(this) { sample ->
+				ProtectedLocationCanonicalSignalIdentity.canonicalEventId(sample.sourceSignalId)
+			}
+			decisions.mapNotNullTo(this) { buffered ->
+				ProtectedLocationCanonicalSignalIdentity.canonicalEventId(buffered.sourceSignalId)
+			}
+		}
+		if (eventIds.isEmpty()) return
+
+		val guard = protectedLocationCanonicalPersistenceGuardProvider.get()
+		eventIds.sorted().forEach { eventId ->
+			val observation = observations.singleOrNull { candidate ->
+				candidate.sourceEventId == eventId &&
+					ProtectedLocationCanonicalSignalIdentity.rawEventId(
+						candidate.sourceSignalId,
+					) == eventId
+			}
+			val sample = locations.singleOrNull { candidate ->
+				candidate.sourceEventId == eventId &&
+					ProtectedLocationCanonicalSignalIdentity.canonicalEventId(
+						candidate.sourceSignalId,
+					) == eventId
+			}
+			val bufferedDecision = decisions.singleOrNull { candidate ->
+				candidate.signal.sourceEventId == eventId &&
+					ProtectedLocationCanonicalSignalIdentity.canonicalEventId(
+						candidate.sourceSignalId,
+					) == eventId
+			}
+			guard.verifyInCurrentWriterTransaction(
+				ProtectedLocationCanonicalPendingWrite(
+					sourceEventId = eventId,
+					observation = observation,
+					decision = bufferedDecision?.let { buffered ->
+						ProtectedLocationCanonicalPendingDecision(
+							sourceEventId = buffered.signal.sourceEventId,
+							decision = buffered.signal.decision.name,
+							reason = buffered.signal.reason,
+							acceptedSampleSourceSignalId =
+								buffered.acceptedSampleSourceSignalId,
+							sourceSignalId = buffered.sourceSignalId,
+							clockDomainId = buffered.clockDomainId,
+							decidedAtMs = buffered.decidedAtMs,
+						)
+					},
+					sample = sample,
+				),
+			)
 		}
 	}
 

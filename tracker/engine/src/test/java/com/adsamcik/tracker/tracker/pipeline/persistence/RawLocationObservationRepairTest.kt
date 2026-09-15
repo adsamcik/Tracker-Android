@@ -32,27 +32,14 @@ class RawLocationObservationRepairTest {
 	fun tearDown() = database.close()
 
 	@Test
-	fun `repair reconstructs missing canonical observation from authoritative location WAL`() = runTest {
+	fun `repair leaves v1 WAL mock provenance typed unverifiable`() = runTest {
 		insertWal("location-event", payloadVersion = 1, isMock = null)
 		val repair = RawLocationObservationRepair(database, codec)
 
-		repair.repairMissingCanonicalObservations() shouldBe 1
 		repair.repairMissingCanonicalObservations() shouldBe 0
 
-		val observation = database.locationObservationDao()
-			.getBetween(0L, Long.MAX_VALUE)
-			.single()
-		observation.sourceEventId shouldBe "location-event"
-		observation.sourceSignalId shouldBe "location-observation:location-event"
-		observation.fixTimeMs shouldBe 10_000L
-		observation.receivedAtMs shouldBe 10_250L
-		observation.deliveryAgeMs shouldBe 250L
-		observation.latE7 shouldBe 500_870_000
-		observation.lonE7 shouldBe 144_210_000
-		observation.callbackId shouldBe "callback-1:0"
-		observation.isMock shouldBe false
-		observation.sourceRevision shouldBe 1L
-		database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
+		database.locationObservationDao().countAll() shouldBe 0L
+		(database.sourceEvidenceStateDao().get()?.revision ?: 0L) shouldBe 0L
 	}
 
 	@Test
@@ -69,11 +56,26 @@ class RawLocationObservationRepairTest {
 		observations.getValue("location-v2-mock").isMock shouldBe true
 	}
 
+	@Test
+	fun `repair does not claim a fully bound protected location product`() = runTest {
+		insertWal(
+			eventId = "protected-location",
+			payloadVersion = 2,
+			isMock = false,
+			protectedBinding = true,
+		)
+		val repair = RawLocationObservationRepair(database, codec)
+
+		repair.repairMissingCanonicalObservations() shouldBe 0
+		database.locationObservationDao().countAll() shouldBe 0L
+	}
+
 	private suspend fun insertWal(
 		eventId: String,
 		payloadVersion: Int,
 		isMock: Boolean?,
 		unitIndex: Int = 0,
+		protectedBinding: Boolean = false,
 	) {
 		val payload = LocationFixPayload(
 			latitudeDegrees = 50.087,
@@ -90,12 +92,20 @@ class RawLocationObservationRepairTest {
 		database.sourceEventWalDao().insertIgnoringDuplicate(
 			SourceEventWalEntity(
 				eventId = eventId,
-				providerDedupKey = "callback-1:$unitIndex",
+				providerDedupKey = if (protectedBinding) null else "callback-1:$unitIndex",
+				deliveryIdentity = "delivery-1".takeIf { protectedBinding },
+				deliveryUnitIndex = unitIndex.takeIf { protectedBinding },
+				deliveryUnitCount = 1.takeIf { protectedBinding },
 				logicalTrackingId = "tracking",
 				serviceRunId = "run",
 				sourceKind = SourceKind.LOCATION.stableCode,
 				sourceInstanceId = "location-runtime",
 				registrationGeneration = 1,
+				physicalConfigurationFingerprint = "location-fingerprint"
+					.takeIf { protectedBinding },
+				authorizationRevision = 1L.takeIf { protectedBinding },
+				authorizationFingerprint = "authorization-fingerprint"
+					.takeIf { protectedBinding },
 				sourceSequence = 7L + unitIndex,
 				configRevision = 1,
 				planAttribution = 1,
@@ -105,6 +115,10 @@ class RawLocationObservationRepairTest {
 				wallTimeMs = 10_000L + unitIndex,
 				wallTimeUncertaintyMs = 0,
 				capturedCollectedDataEpoch = 0,
+				sourcePolicyRevision = 1L.takeIf { protectedBinding },
+				captureConsentEpoch = 1L.takeIf { protectedBinding },
+				sessionManifestRevision = 1L.takeIf { protectedBinding },
+				lifecycleLeaseGeneration = 1L.takeIf { protectedBinding },
 				acquiredAtMs = 10_250L + unitIndex,
 				qualityFlags = 0,
 				qualityConfidence = null,
