@@ -1505,13 +1505,19 @@ class StepsSegmentHistorySelectorTest {
 	fun sourceAwarePageRetainsFactlessUnavailableIntentWithoutChangingOrdinaryDiscovery() = runTest {
 		val persisted = segment(RUN_ONE, steps = null, sampleCount = 0)
 		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
-		insertManifest(RUN_ONE, revision = 1L, owner = "UNSUPPORTED_STEPS_WRITER")
+		insertManifest(RUN_ONE, revision = 1L, owner = CANDIDATE_OWNER)
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 0L))
+		database.sourceEvidenceStateDao().updateLifecycle(
+			epoch = 0L,
+			retainedFromMs = persisted.endTimeMs + 1L,
+			updatedAtMs = persisted.endTimeMs + 2L,
+		) shouldBe 1
 		database.sessionSegmentDao().insert(persisted)
 
 		val evidence = selector.selectEvidence(persisted)
 		evidence.steps.count shouldBe null
 		evidence.steps.availability shouldBe StepsHistoryAvailability.UNAVAILABLE
-		evidence.steps.reasons shouldBe setOf(StepsHistoryReason.UNKNOWN_WRITER)
+		evidence.steps.reasons shouldBe setOf(StepsHistoryReason.OUTSIDE_RETAINED_FLOOR)
 		logicalHistoryReader.selectRecentEntries(limit = 10) shouldBe emptyList()
 		logicalHistoryReader.selectRecentStepsOnlyEntries(limit = 10) shouldBe emptyList()
 		historyRepository().observeRecentStepsAwarePage(
