@@ -28,6 +28,8 @@ import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.StepsAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
@@ -1451,6 +1453,249 @@ class StepsSegmentHistorySelectorTest {
 		row.history.startTime.raw shouldBe 1_000L
 		row.history.endTime.raw shouldBe 3_000L
 		row.history.state shouldBe StepsOnlyHistoryListState.PARTIAL
+	}
+
+	@Test
+	fun sourceAwarePageRetainsOneFactlessMaterializingReplacementForAllPhysicalSiblings() = runTest {
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 0L))
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertRun(RUN_TWO, sessionSegmentId = OTHER_SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = CANDIDATE_OWNER)
+		insertManifest(RUN_TWO, revision = 2L, owner = CANDIDATE_OWNER)
+		database.sourceSessionDao().saveCompleteness(completeness(RUN_ONE, lastOrdinal = 1L))
+		database.sourceSessionDao().saveCompleteness(completeness(RUN_TWO, lastOrdinal = 2L))
+		database.sessionSegmentDao().insert(
+			segment(RUN_ONE, steps = null, sampleCount = 0),
+		)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = RUN_TWO,
+				steps = null,
+				sampleCount = 0,
+				id = OTHER_SEGMENT_ID,
+				startTimeMs = 2_100L,
+				endTimeMs = 3_000L,
+			),
+		)
+
+		val internal = logicalHistoryReader.selectRecentSourceAwareStepsCandidatesInTransaction(
+			candidateSegmentIds = listOf(SEGMENT_ID, OTHER_SEGMENT_ID),
+			sourceOnlyLimit = 10,
+		)
+		val replacement = (internal.single() as HistoricalStepsAwarePageEntry.StepsOnly).history
+		replacement.physicalMembers.map { it.segment.id } shouldBe
+			listOf(SEGMENT_ID, OTHER_SEGMENT_ID)
+		replacement.physicalMembers.map { it.steps.count } shouldBe listOf(null, null)
+		replacement.physicalMembers.map { it.steps.materialization } shouldBe listOf(
+			StepsHistoryMaterialization.MATERIALIZING,
+			StepsHistoryMaterialization.MATERIALIZING,
+		)
+
+		val query = historyRepository().observeRecentSourceAwarePage(
+			candidateSegmentIds = listOf(SEGMENT_ID, OTHER_SEGMENT_ID),
+			limit = 10,
+		).first() as SourceAwareHistoryPageQuery.Content
+		val row = query.entries.single() as SourceAwareHistoryPageEntry.StepsOnly
+		row.history.startTime.raw shouldBe 1_000L
+		row.history.endTime.raw shouldBe 3_000L
+		row.history.state shouldBe StepsOnlyHistoryListState.MATERIALIZING
+	}
+
+	@Test
+	fun sourceAwarePageRetainsFactlessUnavailableIntentWithoutChangingOrdinaryDiscovery() = runTest {
+		val persisted = segment(RUN_ONE, steps = null, sampleCount = 0)
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = "UNSUPPORTED_STEPS_WRITER")
+		database.sessionSegmentDao().insert(persisted)
+
+		val evidence = selector.selectEvidence(persisted)
+		evidence.steps.count shouldBe null
+		evidence.steps.availability shouldBe StepsHistoryAvailability.UNAVAILABLE
+		evidence.steps.reasons shouldBe setOf(StepsHistoryReason.UNKNOWN_WRITER)
+		logicalHistoryReader.selectRecentEntries(limit = 10) shouldBe emptyList()
+		logicalHistoryReader.selectRecentStepsOnlyEntries(limit = 10) shouldBe emptyList()
+		historyRepository().observeRecentStepsAwarePage(
+			candidateSegmentIds = listOf(SEGMENT_ID),
+			limit = 10,
+		).first() shouldBe emptyList()
+
+		val query = historyRepository().observeRecentSourceAwarePage(
+			candidateSegmentIds = listOf(SEGMENT_ID),
+			limit = 10,
+		).first() as SourceAwareHistoryPageQuery.Content
+		val row = query.entries.single() as SourceAwareHistoryPageEntry.StepsOnly
+		row.history.state shouldBe StepsOnlyHistoryListState.PARTIAL
+	}
+
+	@Test
+	@Suppress("LongMethod")
+	fun sourceAwarePageDoesNotReplaceMixedGappedOrUnboundIntentGroups() = runTest {
+		val mixedLogicalId = "logical-mixed-source-aware"
+		val mixedSegmentId = 101L
+		insertRun("mixed-run", mixedLogicalId, sessionSegmentId = mixedSegmentId)
+		insertManifest(
+			runId = "mixed-run",
+			logicalId = mixedLogicalId,
+			revision = 1L,
+			owner = LEGACY_OWNER,
+			additionalSources = listOf(
+				sourceMembership(
+					revision = 1L,
+					source = TrackingSourceComponent.LOCATION,
+					purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+					logicalId = mixedLogicalId,
+				),
+			),
+		)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = "mixed-run",
+				logicalId = mixedLogicalId,
+				steps = 4,
+				id = mixedSegmentId,
+				startTimeMs = 5_000L,
+				endTimeMs = 5_500L,
+			),
+		)
+
+		val gappedLogicalId = "logical-gapped-source-aware"
+		val gappedFirstId = 102L
+		val gappedSecondId = 103L
+		insertRun("gapped-run-1", gappedLogicalId, sessionSegmentId = gappedFirstId)
+		insertRun("gapped-run-2", gappedLogicalId, sessionSegmentId = gappedSecondId)
+		insertManifest("gapped-run-1", gappedLogicalId, revision = 1L, owner = LEGACY_OWNER)
+		insertManifest("gapped-run-2", gappedLogicalId, revision = 3L, owner = LEGACY_OWNER)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = "gapped-run-1",
+				logicalId = gappedLogicalId,
+				steps = 2,
+				id = gappedFirstId,
+				startTimeMs = 3_000L,
+				endTimeMs = 3_500L,
+			),
+		)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = "gapped-run-2",
+				logicalId = gappedLogicalId,
+				steps = 3,
+				id = gappedSecondId,
+				startTimeMs = 4_000L,
+				endTimeMs = 4_500L,
+			),
+		)
+
+		val unboundLogicalId = "logical-unbound-source-aware"
+		val boundSegmentId = 104L
+		insertRun("bound-run", unboundLogicalId, sessionSegmentId = boundSegmentId)
+		insertRun("unbound-run", unboundLogicalId, sessionSegmentId = null)
+		insertManifest("bound-run", unboundLogicalId, revision = 1L, owner = LEGACY_OWNER)
+		insertManifest("unbound-run", unboundLogicalId, revision = 2L, owner = LEGACY_OWNER)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = "bound-run",
+				logicalId = unboundLogicalId,
+				steps = 1,
+				id = boundSegmentId,
+				startTimeMs = 2_000L,
+				endTimeMs = 2_500L,
+			),
+		)
+
+		val unverifiableLogicalId = "logical-unverifiable-source-aware"
+		val unverifiableSegmentId = 105L
+		insertRun(
+			"unverifiable-run",
+			unverifiableLogicalId,
+			sessionSegmentId = unverifiableSegmentId,
+		)
+		insertManifest(
+			"unverifiable-run",
+			unverifiableLogicalId,
+			revision = 1L,
+			owner = LEGACY_OWNER,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_version SET manifest_checksum = 'invalid' " +
+				"WHERE logical_tracking_id = ? AND manifest_revision = 1",
+			arrayOf(unverifiableLogicalId),
+		)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = "unverifiable-run",
+				logicalId = unverifiableLogicalId,
+				steps = 1,
+				id = unverifiableSegmentId,
+				startTimeMs = 1_000L,
+				endTimeMs = 1_500L,
+			),
+		)
+
+		val query = historyRepository().observeRecentSourceAwarePage(
+			candidateSegmentIds = listOf(
+				mixedSegmentId,
+				gappedFirstId,
+				gappedSecondId,
+				boundSegmentId,
+				unverifiableSegmentId,
+			),
+			limit = 10,
+		).first() as SourceAwareHistoryPageQuery.Content
+
+		query.entries shouldBe listOf(
+			SourceAwareHistoryPageEntry.Physical(mixedSegmentId),
+			SourceAwareHistoryPageEntry.Physical(gappedSecondId),
+			SourceAwareHistoryPageEntry.Physical(gappedFirstId),
+			SourceAwareHistoryPageEntry.Physical(boundSegmentId),
+			SourceAwareHistoryPageEntry.Physical(unverifiableSegmentId),
+		)
+	}
+
+	@Test
+	fun sourceAwareFactlessDiscoveryUsesNewestReplacementMemberBeforeLimit() = runTest {
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 0L))
+		val fixtures = listOf(
+			HistoryRunFixture("older-run", "logical-older", 1L, 201L, 1_000L, 1L),
+			HistoryRunFixture("newer-run-1", "logical-newer", 1L, 202L, 2_000L, 2L),
+			HistoryRunFixture("newer-run-2", "logical-newer", 2L, 203L, 5_000L, 3L),
+		)
+		fixtures.forEach { fixture ->
+			insertRun(fixture.runId, fixture.logicalId, sessionSegmentId = fixture.segmentId)
+			insertManifest(
+				fixture.runId,
+				fixture.logicalId,
+				revision = fixture.manifestRevision,
+				owner = CANDIDATE_OWNER,
+			)
+			database.sourceSessionDao().saveCompleteness(
+				completeness(
+					fixture.runId,
+					fixture.logicalId,
+					lastOrdinal = fixture.ordinal,
+				),
+			)
+			database.sessionSegmentDao().insert(
+				segment(
+					runId = fixture.runId,
+					logicalId = fixture.logicalId,
+					steps = null,
+					sampleCount = 0,
+					id = fixture.segmentId,
+					startTimeMs = fixture.startTimeMs,
+					endTimeMs = fixture.startTimeMs + 500L,
+				),
+			)
+		}
+
+		val query = historyRepository().observeRecentSourceAwarePage(
+			candidateSegmentIds = emptyList(),
+			limit = 1,
+		).first() as SourceAwareHistoryPageQuery.Content
+		val row = query.entries.single() as SourceAwareHistoryPageEntry.StepsOnly
+		row.history.startTime.raw shouldBe 2_000L
+		row.history.endTime.raw shouldBe 5_500L
+		row.history.state shouldBe StepsOnlyHistoryListState.MATERIALIZING
 	}
 
 	@Test

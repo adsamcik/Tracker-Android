@@ -16,9 +16,10 @@ import kotlinx.coroutines.ensureActive
  * Candidate entry keys are paged before the caller's result limit. Every explicitly related
  * physical sibling is then evaluated in bounded batches inside the same Room snapshot. Discovery
  * needs one evidence-bearing seed, while recency uses the newest membership-eligible physical
- * sibling. Membership requires an exact authoritative run-to-segment reverse binding, or the
- * explicit forward identity retained by a typed migrated unverifiable run; it is never inferred
- * from wall-time overlap.
+ * sibling. Ordinary discovery needs an evidence-bearing seed; the source-aware union may opt into
+ * exact Steps capture intent before facts exist. Membership requires an exact authoritative
+ * run-to-segment reverse binding, or the explicit forward identity retained by a typed migrated
+ * unverifiable run; it is never inferred from wall-time overlap.
  */
 internal class LogicalTrackingHistoryReader @Inject constructor(
 	private val database: AppDatabase,
@@ -39,7 +40,10 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 	): List<HistoricalTrackingEntryEvidence> {
 		validateLimit(limit)
 		return database.withTransaction {
-			selectRecentEntriesInTransaction(limit, HistoricalTrackingEntryEvidence::isContainedStepsOnlyEntry)
+			selectRecentEntriesInTransaction(
+				limit = limit,
+				accept = HistoricalTrackingEntryEvidence::isContainedStepsOnlyEntry,
+			)
 		}
 	}
 
@@ -77,6 +81,31 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 	internal suspend fun selectRecentStepsAwareCandidatesInTransaction(
 		candidateSegmentIds: List<Long>,
 		sourceOnlyLimit: Int,
+	): List<HistoricalStepsAwarePageEntry> = selectRecentStepsAwareCandidatesInTransaction(
+		candidateSegmentIds = candidateSegmentIds,
+		sourceOnlyLimit = sourceOnlyLimit,
+		discoveryMode = StepsOnlyDiscoveryMode.ORDINARY,
+	)
+
+	/**
+	 * Source-aware union discovery retains exact Steps-only intent before facts materialize.
+	 *
+	 * This mode remains private to the complete multi-source compositor. Standalone logical and
+	 * Steps-aware history keep their evidence-first discovery contract.
+	 */
+	internal suspend fun selectRecentSourceAwareStepsCandidatesInTransaction(
+		candidateSegmentIds: List<Long>,
+		sourceOnlyLimit: Int,
+	): List<HistoricalStepsAwarePageEntry> = selectRecentStepsAwareCandidatesInTransaction(
+		candidateSegmentIds = candidateSegmentIds,
+		sourceOnlyLimit = sourceOnlyLimit,
+		discoveryMode = StepsOnlyDiscoveryMode.EXACT_INTENT,
+	)
+
+	private suspend fun selectRecentStepsAwareCandidatesInTransaction(
+		candidateSegmentIds: List<Long>,
+		sourceOnlyLimit: Int,
+		discoveryMode: StepsOnlyDiscoveryMode,
 	): List<HistoricalStepsAwarePageEntry> {
 		validatePageRequest(candidateSegmentIds, sourceOnlyLimit)
 		val candidateSegments = if (candidateSegmentIds.isEmpty()) {
@@ -99,7 +128,13 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 			.map(HistoricalStepsAwarePageEntry::Physical)
 		val stepsOnlyRows = selectRecentEntriesInTransaction(
 			limit = sourceOnlyLimit,
-			accept = HistoricalTrackingEntryEvidence::isContainedStepsOnlyEntry,
+			discoveryMode = discoveryMode,
+			accept = when (discoveryMode) {
+				StepsOnlyDiscoveryMode.ORDINARY ->
+					HistoricalTrackingEntryEvidence::isContainedStepsOnlyEntry
+				StepsOnlyDiscoveryMode.EXACT_INTENT ->
+					HistoricalTrackingEntryEvidence::hasExactStepsOnlyIntent
+			},
 		).map(HistoricalStepsAwarePageEntry::StepsOnly)
 
 		return (physicalRows + stepsOnlyRows).sortedWith(stepsAwarePageOrder)
@@ -108,6 +143,7 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 	@Suppress("CyclomaticComplexMethod")
 	private suspend fun selectRecentEntriesInTransaction(
 		limit: Int,
+		discoveryMode: StepsOnlyDiscoveryMode = StepsOnlyDiscoveryMode.ORDINARY,
 		accept: (HistoricalTrackingEntryEvidence) -> Boolean,
 	): List<HistoricalTrackingEntryEvidence> {
 		val accepted = ArrayList<HistoricalTrackingEntryEvidence>(limit)
@@ -129,6 +165,7 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 				limit = acceptedPageLimit + if (finalBudgetPage) 1 else 0,
 				stepsSourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 				capturePurpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+				includeExactStepsOnlyIntent = discoveryMode == StepsOnlyDiscoveryMode.EXACT_INTENT,
 				beforeStartTimeMs = beforeStartTimeMs,
 				beforeSegmentId = beforeSegmentId,
 			)
@@ -143,7 +180,11 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 			for (candidate in candidates) {
 				val identity = candidate.toIdentity() ?: continue
 				val entry = entries[identity] ?: continue
-				if (!entry.isOrdinarilyDiscoverable || !accept(entry)) {
+				val isDiscoverable = when (discoveryMode) {
+					StepsOnlyDiscoveryMode.ORDINARY -> entry.isOrdinarilyDiscoverable
+					StepsOnlyDiscoveryMode.EXACT_INTENT -> entry.hasExactStepsOnlyIntent
+				}
+				if (!isDiscoverable || !accept(entry)) {
 					continue
 				}
 				accepted += entry
@@ -348,3 +389,5 @@ internal class LogicalHistoryPageDependencyOverflow(
 ) : IllegalStateException("Logical history dependency budget exceeded: $limit")
 
 internal enum class HistoryPageDependencyLimit { CANDIDATE_SCAN, LOGICAL_MEMBERSHIP }
+
+private enum class StepsOnlyDiscoveryMode { ORDINARY, EXACT_INTENT }

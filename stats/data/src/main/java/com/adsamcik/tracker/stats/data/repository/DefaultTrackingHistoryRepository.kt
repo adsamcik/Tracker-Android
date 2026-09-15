@@ -250,10 +250,11 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 					val liveCandidateIds = stableCandidateSegmentIds.filter {
 						candidateSegments[it]?.source != SegmentSource.PORTABLE_STEPS_IMPORT
 					}
-					val existingRows = logicalHistoryReader.selectRecentStepsAwareCandidatesInTransaction(
-						candidateSegmentIds = liveCandidateIds,
-						sourceOnlyLimit = limit,
-					)
+					val existingRows =
+						logicalHistoryReader.selectRecentSourceAwareStepsCandidatesInTransaction(
+							candidateSegmentIds = liveCandidateIds,
+							sourceOnlyLimit = limit,
+						)
 					val candidateActivity = activityHistoryRepository
 						.selectBySegmentIdsInTransaction(liveCandidateIds)
 					val candidateActivityGroups = when (candidateActivity) {
@@ -645,7 +646,7 @@ private fun List<HistoricalTrackingEntryEvidence>.mapToPublicStepsOnlyEntries() 
 	map(HistoricalTrackingEntryEvidence::toPublicStepsOnlyEntry)
 
 internal fun HistoricalTrackingEntryEvidence.toPublicStepsOnlyEntry(): StepsOnlyHistoryEntry {
-	check(isContainedStepsOnlyEntry) { "Steps-only reader returned a non-Steps-only entry" }
+	check(hasExactStepsOnlyIntent) { "Steps-only reader returned a non-Steps-only entry" }
 	val logicalIdentity = identity as? HistoricalEntryIdentity.Logical
 		?: error("Exact Steps-only entry requires logical identity")
 	return StepsOnlyHistoryEntry(
