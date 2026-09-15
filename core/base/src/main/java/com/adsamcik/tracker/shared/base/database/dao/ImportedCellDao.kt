@@ -272,9 +272,6 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellEntryRevisionEntity>
 
-	@Query("SELECT COUNT(*) FROM imported_cell_entry_revision WHERE identity IN (:identities)")
-	abstract suspend fun entryRevisionHistoryCount(identities: List<String>): Long
-
 	@Query(
 		"SELECT * FROM imported_cell_receipt WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity, entry_import_revision, import_job_id, import_entry_key LIMIT :limit",
@@ -284,9 +281,6 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellReceiptEntity>
 
-	@Query("SELECT COUNT(*) FROM imported_cell_receipt WHERE entry_identity IN (:identities)")
-	abstract suspend fun receiptHistoryCount(identities: List<String>): Long
-
 	@Query(
 		"SELECT * FROM imported_cell_run WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity, entry_import_revision, start_time_ms, end_time_ms, identity LIMIT :limit",
@@ -295,9 +289,6 @@ abstract class ImportedCellDao {
 		identities: List<String>,
 		limit: Int,
 	): List<ImportedCellRunEntity>
-
-	@Query("SELECT COUNT(*) FROM imported_cell_run WHERE entry_identity IN (:identities)")
-	abstract suspend fun runHistoryCount(identities: List<String>): Long
 
 	@Query(
 		"SELECT * FROM imported_cell_observation WHERE entry_identity IN (:identities) " +
@@ -309,9 +300,6 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellObservationEntity>
 
-	@Query("SELECT COUNT(*) FROM imported_cell_observation WHERE entry_identity IN (:identities)")
-	abstract suspend fun observationHistoryCount(identities: List<String>): Long
-
 	@Query(
 		"SELECT * FROM imported_cell_entry_deletion WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity LIMIT :limit",
@@ -321,9 +309,6 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<ImportedCellEntryDeletionEntity>
 
-	@Query("SELECT COUNT(*) FROM imported_cell_entry_deletion WHERE entry_identity IN (:identities)")
-	abstract suspend fun entryDeletionHistoryCount(identities: List<String>): Long
-
 	@Query(
 		"SELECT * FROM imported_cell_deletion_generation WHERE entry_identity IN (:identities) " +
 			"ORDER BY entry_identity, run_identity LIMIT :limit",
@@ -332,9 +317,6 @@ abstract class ImportedCellDao {
 		identities: List<String>,
 		limit: Int,
 	): List<ImportedCellDeletionGenerationEntity>
-
-	@Query("SELECT COUNT(*) FROM imported_cell_deletion_generation WHERE entry_identity IN (:identities)")
-	abstract suspend fun deletionGenerationHistoryCount(identities: List<String>): Long
 
 	@Query(
 		"SELECT * FROM imported_cell_deletion_generation WHERE run_identity IN (:identities) " +
@@ -448,6 +430,95 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<SourceDeletionFenceEntity>
 
+	/**
+	 * One typed collision probe across every imported/source owner namespace. Payload hierarchy
+	 * rows are already loaded separately; this UNION detects incompatible cross-kind ownership.
+	 */
+	@Query(
+		"""
+		SELECT 'ENTRY' AS owner_kind, identity AS protected_identity,
+		       identity AS entry_identity, NULL AS run_identity,
+		       NULL AS deletion_scope_digest, NULL AS aggregate_owner_identity,
+		       collected_data_epoch, NULL AS source_kind, NULL AS purpose,
+		       NULL AS scope_kind, NULL AS generation
+		FROM imported_cell_entry_revision
+		WHERE identity IN (:identities)
+		UNION ALL
+		SELECT 'RUN' AS owner_kind, identity AS protected_identity,
+		       entry_identity, identity AS run_identity,
+		       deletion_scope_digest, NULL AS aggregate_owner_identity,
+		       collected_data_epoch, NULL AS source_kind, NULL AS purpose,
+		       NULL AS scope_kind, scope_deletion_generation AS generation
+		FROM imported_cell_run
+		WHERE identity IN (:identities)
+		UNION ALL
+		SELECT 'SCOPE' AS owner_kind, deletion_scope_digest AS protected_identity,
+		       entry_identity, identity AS run_identity,
+		       deletion_scope_digest, NULL AS aggregate_owner_identity,
+		       collected_data_epoch, NULL AS source_kind, NULL AS purpose,
+		       NULL AS scope_kind, scope_deletion_generation AS generation
+		FROM imported_cell_run
+		WHERE deletion_scope_digest IN (:identities)
+		UNION ALL
+		SELECT 'OBSERVATION' AS owner_kind, identity AS protected_identity,
+		       entry_identity, run_identity, NULL AS deletion_scope_digest,
+		       aggregate_owner_identity, NULL AS collected_data_epoch,
+		       NULL AS source_kind, NULL AS purpose, NULL AS scope_kind,
+		       NULL AS generation
+		FROM imported_cell_observation
+		WHERE identity IN (:identities) OR aggregate_owner_identity IN (:identities)
+		UNION ALL
+		SELECT 'ENTRY_DELETION' AS owner_kind, entry_identity AS protected_identity,
+		       entry_identity, NULL AS run_identity, NULL AS deletion_scope_digest,
+		       NULL AS aggregate_owner_identity, collected_data_epoch,
+		       NULL AS source_kind, NULL AS purpose, NULL AS scope_kind,
+		       NULL AS generation
+		FROM imported_cell_entry_deletion
+		WHERE entry_identity IN (:identities)
+		UNION ALL
+		SELECT 'RUN_DELETION' AS owner_kind, run_identity AS protected_identity,
+		       entry_identity, run_identity, deletion_scope_digest,
+		       NULL AS aggregate_owner_identity, collected_data_epoch,
+		       NULL AS source_kind, NULL AS purpose, NULL AS scope_kind,
+		       generation
+		FROM imported_cell_deletion_generation
+		WHERE run_identity IN (:identities) OR entry_identity IN (:identities)
+		   OR deletion_scope_digest IN (:identities)
+		UNION ALL
+		SELECT 'SOURCE_FENCE' AS owner_kind, scope_identity_digest AS protected_identity,
+		       NULL AS entry_identity, NULL AS run_identity,
+		       scope_identity_digest AS deletion_scope_digest,
+		       NULL AS aggregate_owner_identity, collected_data_epoch,
+		       source_kind, purpose, scope_kind, fence_generation AS generation
+		FROM source_deletion_fence
+		WHERE scope_identity_digest IN (:identities)
+		UNION ALL
+		SELECT 'DELETION_RECEIPT' AS owner_kind, entry_identity AS protected_identity,
+		       entry_identity, NULL AS run_identity, NULL AS deletion_scope_digest,
+		       NULL AS aggregate_owner_identity, collected_data_epoch,
+		       NULL AS source_kind, NULL AS purpose, NULL AS scope_kind,
+		       NULL AS generation
+		FROM imported_cell_entry_deletion_receipt
+		WHERE entry_identity IN (:identities)
+		UNION ALL
+		SELECT 'DELETED_IDENTITY' AS owner_kind, protected_identity,
+		       entry_identity, run_identity,
+		       CASE WHEN identity_kind = 'DELETION_SCOPE' THEN protected_identity ELSE NULL END,
+		       aggregate_owner_identity, NULL AS collected_data_epoch,
+		       NULL AS source_kind, NULL AS purpose, NULL AS scope_kind,
+		       NULL AS generation
+		FROM imported_cell_deleted_identity
+		WHERE protected_identity IN (:identities) OR entry_identity IN (:identities)
+		   OR run_identity IN (:identities) OR aggregate_owner_identity IN (:identities)
+		ORDER BY owner_kind, protected_identity, entry_identity, run_identity
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun opaqueOwnerProbe(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellOpaqueOwnerRow>
+
 	@Query("DELETE FROM imported_cell_entry_revision WHERE identity = :identity")
 	abstract suspend fun deleteEntryRevisions(identity: String): Int
 
@@ -523,3 +594,29 @@ data class ImportedCellLiveCompletenessOwner(
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String,
 	@ColumnInfo(name = "service_run_id") val serviceRunId: String,
 )
+
+data class ImportedCellOpaqueOwnerRow(
+	@ColumnInfo(name = "owner_kind") val ownerKind: String,
+	@ColumnInfo(name = "protected_identity") val protectedIdentity: String,
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String?,
+	@ColumnInfo(name = "run_identity") val runIdentity: String?,
+	@ColumnInfo(name = "deletion_scope_digest") val deletionScopeDigest: String?,
+	@ColumnInfo(name = "aggregate_owner_identity") val aggregateOwnerIdentity: String?,
+	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long?,
+	@ColumnInfo(name = "source_kind") val sourceKind: Int?,
+	val purpose: String?,
+	@ColumnInfo(name = "scope_kind") val scopeKind: String?,
+	val generation: Long?,
+) {
+	companion object {
+		const val ENTRY = "ENTRY"
+		const val RUN = "RUN"
+		const val SCOPE = "SCOPE"
+		const val OBSERVATION = "OBSERVATION"
+		const val ENTRY_DELETION = "ENTRY_DELETION"
+		const val RUN_DELETION = "RUN_DELETION"
+		const val SOURCE_FENCE = "SOURCE_FENCE"
+		const val DELETION_RECEIPT = "DELETION_RECEIPT"
+		const val DELETED_IDENTITY = "DELETED_IDENTITY"
+	}
+}

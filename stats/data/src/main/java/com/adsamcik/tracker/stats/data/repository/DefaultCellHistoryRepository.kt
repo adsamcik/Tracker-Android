@@ -108,13 +108,55 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 						unverifiableLocalSelection(selection, CellHistoryCause.READ_BUDGET_EXCEEDED),
 					)
 				}
-				val segmentId = runs.firstNotNullOfOrNull(SourceServiceRunEntity::sessionSegmentId)
-					?: return@withTransaction CellHistoryQuery.NotFound
+				val selectedRun = runs.maxWithOrNull(
+					compareBy(SourceServiceRunEntity::startedAtMs, SourceServiceRunEntity::serviceRunId),
+				) ?: return@withTransaction CellHistoryQuery.Found(
+					unverifiableLocalSelection(
+						selection,
+						CellHistoryCause.PHYSICAL_MEMBERSHIP_INVALID,
+					),
+				)
+				val segmentId = selectedRun.sessionSegmentId
+					?: return@withTransaction CellHistoryQuery.Found(
+						unverifiableLocalSelection(
+							selection,
+							CellHistoryCause.PHYSICAL_MEMBERSHIP_INVALID,
+						),
+					)
 				val seed = database.trackingHistoryReadDao().segments(listOf(segmentId)).singleOrNull()
-					?: return@withTransaction CellHistoryQuery.NotFound
+					?: return@withTransaction CellHistoryQuery.Found(
+						unverifiableLocalSelection(
+							selection,
+							CellHistoryCause.PHYSICAL_MEMBERSHIP_INVALID,
+						),
+					)
+				if (seed.id != segmentId || seed.logicalTrackingId != logicalId ||
+					seed.serviceRunId != selectedRun.serviceRunId
+				) {
+					return@withTransaction CellHistoryQuery.Found(
+						unverifiableLocalSelection(
+							selection,
+							CellHistoryCause.PHYSICAL_MEMBERSHIP_INVALID,
+						),
+					)
+				}
 				val snapshot = loadSnapshot(expandMembership(listOf(seed)))
-				CellHistoryComposer.composeSelected(seed, snapshot, laneExecutionAuthority)
-					?.let(CellHistoryQuery::Found) ?: CellHistoryQuery.NotFound
+				val entry = CellHistoryComposer.composeSelected(seed, snapshot, laneExecutionAuthority)
+					?: return@withTransaction CellHistoryQuery.Found(
+						unverifiableLocalSelection(
+							selection,
+							CellHistoryCause.PHYSICAL_MEMBERSHIP_INVALID,
+						),
+					)
+				if (entry.selection != selection) {
+					return@withTransaction CellHistoryQuery.Found(
+						unverifiableLocalSelection(
+							selection,
+							CellHistoryCause.PHYSICAL_MEMBERSHIP_INVALID,
+						),
+					)
+				}
+				CellHistoryQuery.Found(entry)
 			}
 		}
 
@@ -177,18 +219,22 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 							),
 						)
 					}
-					val readable = evaluation as? ImportedCellProductEvaluation.Readable
-					val originConflict = readable?.let { imported ->
-						when (val local = importedProductReader.readLocalOriginInTransaction(
-							imported,
-							laneExecutionAuthority,
-						)) {
-							is ReadLocalPortableCapturedCellResult.Ready ->
-								local.entry != imported.entry
-							is ReadLocalPortableCapturedCellResult.Outcome -> true
-							null -> false
-						}
-					} == true
+					val originConflict = when (evaluation) {
+						is ImportedCellProductEvaluation.Readable ->
+							evaluation.localOriginHandle?.let { _ ->
+								when (val local = importedProductReader.readLocalOriginInTransaction(
+									evaluation,
+									laneExecutionAuthority,
+								)) {
+									is ReadLocalPortableCapturedCellResult.Ready ->
+										local.entry != evaluation.entry
+									is ReadLocalPortableCapturedCellResult.Outcome -> true
+									null -> false
+								}
+							} == true
+						is ImportedCellProductEvaluation.Unverifiable ->
+							evaluation.localOriginHandle != null
+					}
 					CellHistoryQuery.Found(
 						evaluation.toPublicCellEntry(
 							overrideFailure = CellHistoryCause.ORIGIN_IDENTITY_CONFLICT
@@ -267,8 +313,7 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 			CellSourceComposedEntry.Imported(
 				evaluation.toPublicCellEntry(
 					overrideFailure = CellHistoryCause.ORIGIN_IDENTITY_CONFLICT.takeIf {
-						evaluation is ImportedCellProductEvaluation.Readable &&
-							evaluation.localOriginHandle != null
+						evaluation.localOriginHandle != null
 					},
 				),
 			)
@@ -387,6 +432,10 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 			}
 		) return CellHistoryRangeBuild.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
 
+		val directLocalCollisionIds = imported.filter { it.localOriginHandle != null }
+			.mapTo(linkedSetOf()) { it.candidate.identity }
+		val directLocalCollisionIds = imported.filter { it.localOriginHandle != null }
+			.mapTo(linkedSetOf()) { it.candidate.identity }
 		val localCollisions = imported.filterIsInstance<ImportedCellProductEvaluation.Readable>()
 			.filter { it.localOriginHandle != null }
 			.associateBy { it.candidate.identity }
@@ -407,7 +456,7 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 				CellHistoryOriginComposer.compose(
 					live = live.map(ComposedCellEntry::entry),
 					visibleLocalEntryIdentities = visibleLocalEntryIdentities,
-					localCollisionIdentities = localCollisions.keys,
+					localCollisionIdentities = directLocalCollisionIds,
 					imported = imported,
 					localPortableEntriesByIdentity = localPortableEntries,
 					limit = live.size + imported.size,
@@ -493,7 +542,7 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 				CellHistoryOriginComposer.compose(
 					live = (live.page as CellHistoryPage.Available).entries,
 					visibleLocalEntryIdentities = visibleLocalEntryIdentities,
-					localCollisionIdentities = localCollisions.keys,
+					localCollisionIdentities = directLocalCollisionIds,
 					imported = imported,
 					localPortableEntriesByIdentity = localPortableEntries,
 					limit = limit,

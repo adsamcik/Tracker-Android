@@ -41,6 +41,7 @@ internal object ImportedCellLineageAuthenticator {
 
 		val expectedRevisions = (1L..headers.size.toLong()).toList()
 		if (headers.map { it.importRevision } != expectedRevisions ||
+			headers.map { it.contentChecksum }.distinct().size != headers.size ||
 			headers.any {
 				it.identity != identity || it.collectedDataEpoch != expectedCollectedDataEpoch
 			}
@@ -276,10 +277,12 @@ internal object ImportedCellLineageAuthenticator {
 internal fun PortableCapturedCellEntryV1.isMonotonicCorrectionOf(
 	previous: PortableCapturedCellEntryV1,
 ): Boolean {
+	if (this == previous || contentChecksum == previous.contentChecksum) return false
 	if (identity != previous.identity || sessionMode != previous.sessionMode ||
 		startTimeMs != previous.startTimeMs || endTimeMs != previous.endTimeMs ||
 		subscriptionGrouping != previous.subscriptionGrouping || runs.size != previous.runs.size
 	) return false
+	var changed = false
 	for ((current, prior) in runs.zip(previous.runs)) {
 		if (current.identity != prior.identity ||
 			current.deletionScopeDigest != prior.deletionScopeDigest ||
@@ -295,10 +298,16 @@ internal fun PortableCapturedCellEntryV1.isMonotonicCorrectionOf(
 			if (current != prior) return false
 			continue
 		}
+		if (current.availability != prior.availability ||
+			current.retentionLoss != prior.retentionLoss
+		) changed = true
 		val priorByIdentity = prior.observations.associateBy { it.identity }
 		val currentByIdentity = current.observations.associateBy { it.identity }
 		if (!priorByIdentity.keys.containsAll(currentByIdentity.keys)) return false
-		if (priorByIdentity.size != currentByIdentity.size && !current.retentionLoss) return false
+		if (priorByIdentity.size != currentByIdentity.size) {
+			if (!current.retentionLoss) return false
+			changed = true
+		}
 		for ((identity, observation) in currentByIdentity) {
 			val before = priorByIdentity.getValue(identity)
 			if (observation.aggregateOwnerIdentity != before.aggregateOwnerIdentity) return false
@@ -312,10 +321,20 @@ internal fun PortableCapturedCellEntryV1.isMonotonicCorrectionOf(
 				return false
 			}
 			if (observation.semanticRevision != nextRevision) return false
+			if (!observation.hasMaterialDifferenceFrom(before)) return false
+			changed = true
 		}
 	}
-	return true
+	return changed
 }
+
+private fun PortableCapturedCellObservationV1.hasMaterialDifferenceFrom(
+	previous: PortableCapturedCellObservationV1,
+): Boolean = copy(
+	semanticRevision = previous.semanticRevision,
+	supersedesSemanticRevision = previous.supersedesSemanticRevision,
+	contentChecksum = previous.contentChecksum,
+) != previous
 
 private val PORTABLE_OBSERVATION_ORDER = compareBy<PortableCapturedCellObservationV1>(
 	PortableCapturedCellObservationV1::coverageStartTimeMs,

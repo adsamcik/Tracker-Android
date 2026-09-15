@@ -2,7 +2,11 @@ package com.adsamcik.tracker.shared.base.database
 
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellHistoryCandidate
+import com.adsamcik.tracker.shared.base.database.dao.ImportedCellLiveCompletenessOwner
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellLiveFactOwner
+import com.adsamcik.tracker.shared.base.database.dao.ImportedCellLiveRunOwner
+import com.adsamcik.tracker.shared.base.database.dao.ImportedCellOpaqueOwnerRow
+import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryRevisionEntity
@@ -24,6 +28,12 @@ import kotlinx.coroutines.ensureActive
  */
 class ImportedCellProductReader(
 	private val database: AppDatabase,
+	private val batchCheckpoint: suspend (completedBatchCount: Int) -> Unit = {
+		currentCoroutineContext().ensureActive()
+	},
+	private val ownerChunkCheckpoint: suspend (completedChunkCount: Int) -> Unit = {
+		currentCoroutineContext().ensureActive()
+	},
 ) {
 	suspend fun readLocalOriginInTransaction(
 		evaluation: ImportedCellProductEvaluation.Readable,
@@ -148,45 +158,33 @@ class ImportedCellProductReader(
 		if (!isValidCandidatePage(candidates, beforeStartTimeMs, beforeIdentity, maximumSize)) {
 			return candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
 		}
-		return candidates.chunked(ImportedCellDao.HISTORY_EVALUATION_BATCH_SIZE).flatMap { batch ->
-			evaluateBatch(batch)
+		if (candidates.isEmpty()) return emptyList()
+		val context = try {
+			loadPageContext(candidates)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (failure: ImportedCellPageContextFailure) {
+			return candidates.unverifiable(failure.reason)
+		} catch (_: RuntimeException) {
+			return candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
 		}
+		val evaluated = mutableListOf<ImportedCellProductEvaluation>()
+		candidates.chunked(ImportedCellDao.HISTORY_EVALUATION_BATCH_SIZE)
+			.forEachIndexed { index, batch ->
+				batchCheckpoint(index)
+				evaluated += evaluateBatch(batch, context)
+			}
+		return evaluated
 	}
 
 	@Suppress("LongMethod")
 	private suspend fun evaluateBatch(
 		candidates: List<ImportedCellHistoryCandidate>,
+		context: ImportedCellPageContext,
 	): List<ImportedCellProductEvaluation> {
 		if (candidates.isEmpty()) return emptyList()
-		val state = try {
-			database.sourceEvidenceStateDao().get()
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (_: RuntimeException) {
-			return candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
-		} ?: return candidates.unverifiable(ImportedCellProductFailure.SOURCE_EVIDENCE_STATE_MISSING)
-		if (!state.hasValidImportedCellProductShape()) {
-			return candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
-		}
-
+		val state = context.state
 		val identities = candidates.map(ImportedCellHistoryCandidate::identity)
-		val cardinality = try {
-			ImportedCellProductCardinality(
-				headers = database.importedCellDao().entryRevisionHistoryCount(identities),
-				receipts = database.importedCellDao().receiptHistoryCount(identities),
-				runs = database.importedCellDao().runHistoryCount(identities),
-				observations = database.importedCellDao().observationHistoryCount(identities),
-				entryDeletions = database.importedCellDao().entryDeletionHistoryCount(identities),
-				runDeletions = database.importedCellDao().deletionGenerationHistoryCount(identities),
-			)
-		} catch (cancelled: CancellationException) {
-			throw cancelled
-		} catch (_: RuntimeException) {
-			return candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
-		}
-		if (cardinality.exceedsLimits(identities.size)) {
-			return candidates.unverifiable(ImportedCellProductFailure.DEPENDENCY_OVERFLOW)
-		}
 		val loaded = try {
 			ImportedCellProductBatch(
 				headers = database.importedCellDao().entryRevisionsForHistory(
@@ -217,15 +215,21 @@ class ImportedCellProductReader(
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: ArithmeticException) {
-			return candidates.unverifiable(ImportedCellProductFailure.DEPENDENCY_OVERFLOW)
+			return candidates.unverifiable(ImportedCellProductFailure.DEPENDENCY_OVERFLOW, context)
 		} catch (_: RuntimeException) {
-			return candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+			return candidates.unverifiable(
+				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+				context,
+			)
 		}
 		if (loaded.exceedsLimits(identities.size)) {
-			return candidates.unverifiable(ImportedCellProductFailure.DEPENDENCY_OVERFLOW)
+			return candidates.unverifiable(ImportedCellProductFailure.DEPENDENCY_OVERFLOW, context)
 		}
 		if (!loaded.belongsOnlyTo(identities)) {
-			return candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+			return candidates.unverifiable(
+				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+				context,
+			)
 		}
 
 		val headersByIdentity = loaded.headers.groupBy(ImportedCellEntryRevisionEntity::identity)
@@ -236,7 +240,10 @@ class ImportedCellProductReader(
 			ImportedCellEntryDeletionEntity::entryIdentity,
 		)
 		if (entryDeletionsByIdentity.size != loaded.entryDeletions.size) {
-			return candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+			return candidates.unverifiable(
+				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+				context,
+			)
 		}
 		val runDeletionsByEntry = loaded.runDeletions.groupBy(
 			ImportedCellDeletionGenerationEntity::entryIdentity,
@@ -313,7 +320,7 @@ class ImportedCellProductReader(
 					) ?: throw ImportedCellOwnershipFailure(
 						ImportedCellProductFailure.ORIGIN_IDENTITY_CONFLICT,
 					),
-					state = state,
+					context = context,
 				)
 			} catch (cancelled: CancellationException) {
 				throw cancelled
@@ -336,101 +343,114 @@ class ImportedCellProductReader(
 
 		return candidates.map { candidate ->
 			failures[candidate.identity]?.let { reason ->
-				ImportedCellProductEvaluation.Unverifiable(candidate, reason)
+				ImportedCellProductEvaluation.Unverifiable(
+					candidate,
+					reason,
+					context.localOriginHandle(candidate.identity),
+				)
 			} ?: authenticated.getValue(candidate.identity).toEvaluation(requireNotNull(audit), state)
 		}
+	}
+
+	private suspend fun loadPageContext(
+		candidates: List<ImportedCellHistoryCandidate>,
+	): ImportedCellPageContext {
+		val state = database.sourceEvidenceStateDao().get()
+			?: throw ImportedCellPageContextFailure(
+				ImportedCellProductFailure.SOURCE_EVIDENCE_STATE_MISSING,
+			)
+		if (!state.hasValidImportedCellProductShape()) {
+			throw ImportedCellPageContextFailure(
+				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		val dao = database.importedCellDao()
+		val limit = ImportedCellDao.MAX_LIVE_OWNER_ROWS + 1
+		val logicalIds = dao.liveLogicalTrackingIds(limit)
+		val runs = dao.liveServiceRunOwners(limit)
+		val facts = dao.liveCellFactOwners(limit)
+		val completeness = dao.liveCellCompletenessOwners(
+			SourceDestinationOwnerEntity.SOURCE_CELL,
+			limit,
+		)
+		val generations = dao.liveCellDeletionGenerations(limit)
+		if (listOf(
+				logicalIds.size,
+				runs.size,
+				facts.size,
+				completeness.size,
+				generations.size,
+			).any { it > ImportedCellDao.MAX_LIVE_OWNER_ROWS }
+		) {
+			throw ImportedCellPageContextFailure(ImportedCellProductFailure.DEPENDENCY_OVERFLOW)
+		}
+		if (logicalIds.any(String::isBlank) || logicalIds.distinct().size != logicalIds.size) {
+			throw ImportedCellPageContextFailure(
+				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		val candidateIdentities = candidates.mapTo(hashSetOf(), ImportedCellHistoryCandidate::identity)
+		val localLogicalClaims = (
+			logicalIds + runs.map { it.logicalTrackingId } +
+				facts.map { it.logicalTrackingId } +
+				completeness.map { it.logicalTrackingId } +
+				generations.map { it.logicalTrackingId }
+			).distinct()
+		if (localLogicalClaims.any(String::isBlank)) {
+			throw ImportedCellPageContextFailure(
+				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		val localLogicalByEntry = localLogicalClaims.mapNotNull { logicalId ->
+			val entryIdentity = PortableCellOpaqueIdentity.derive(
+				PortableCellIdentityKind.LOGICAL_ENTRY,
+				logicalId,
+			).value
+			(entryIdentity to logicalId).takeIf { entryIdentity in candidateIdentities }
+		}.groupBy({ it.first }, { it.second }).mapValues { (_, owners) ->
+			owners.distinct().singleOrNull() ?: throw ImportedCellPageContextFailure(
+				ImportedCellProductFailure.ORIGIN_IDENTITY_CONFLICT,
+			)
+		}
+		return ImportedCellPageContext(
+			state = state,
+			logicalIds = logicalIds,
+			runs = runs,
+			facts = facts,
+			completeness = completeness,
+			generations = generations,
+			directLocalLogicalByEntryIdentity = localLogicalByEntry,
+		)
 	}
 
 	@Suppress("LongMethod", "ComplexCondition")
 	private suspend fun authenticateOwnership(
 		dao: ImportedCellDao,
 		graph: ImportedCellProductIdentityGraph,
-		state: SourceEvidenceState,
+		context: ImportedCellPageContext,
 	): ImportedCellOwnershipAudit {
-		val sourceFences = linkedMapOf<String, SourceDeletionFenceEntity>()
-		for (values in graph.allProtectedValues.chunked(ImportedCellDao.MAX_IDENTITY_QUERY_CHUNK)) {
+		val state = context.state
+		val sourceFences = linkedMapOf<String, Long>()
+		graph.allProtectedValues.chunked(ImportedCellDao.MAX_IDENTITY_QUERY_CHUNK)
+			.forEachIndexed { index, values ->
+			ownerChunkCheckpoint(index)
 			currentCoroutineContext().ensureActive()
-			val limit = Math.addExact(values.size, 1)
-			val entries = dao.existingEntryIdentities(values, limit)
-			val runs = dao.existingRunIdentityOwners(values, limit)
-			val scopes = dao.existingRunScopeOwners(values, limit)
-			val observationLimit = Math.addExact(graph.observationOwners.size, 1)
-			val observations = dao.existingObservationIdentityOwners(values, observationLimit)
-			val entryDeletions = dao.entryDeletionOwners(values, limit)
-			val runDeletions = dao.deletionGenerationOwners(values, limit)
-			val fences = dao.sourceFenceOwners(values, limit)
-			val deletionReceipts = dao.entryDeletionReceiptOwners(values, limit)
-			val deletedIdentities = dao.deletedIdentityOwners(
-				values,
-				graph.allProtectedValues.size + 1,
+			val limit = Math.addExact(
+				Math.multiplyExact(graph.allProtectedValues.size, OWNER_PROBE_KIND_FACTOR),
+				1,
 			)
-			if (listOf(
-					entries.size,
-					runs.size,
-					scopes.size,
-					entryDeletions.size,
-					runDeletions.size,
-					fences.size,
-					deletionReceipts.size,
-				).any { it >= limit }
-			) dependencyOverflow()
-			if (observations.size >= observationLimit) dependencyOverflow()
-			if (deletedIdentities.size > graph.allProtectedValues.size) dependencyOverflow()
-			if (entryDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				runDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				fences.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				deletionReceipts.any { it.collectedDataEpoch != state.collectedDataEpoch }
-			) storedCorrupt()
-			if (entries.any { graph.kinds[it] != PortableCellIdentityKind.LOGICAL_ENTRY } ||
-				runs.any { owner ->
-					graph.kinds[owner.identity] != PortableCellIdentityKind.PHYSICAL_RUN ||
-						graph.runOwners[owner.identity] !=
-						(owner.entryIdentity to owner.deletionScopeDigest)
-				} || scopes.any { owner ->
-					graph.scopeOwners[owner.deletionScopeDigest] !=
-						(owner.entryIdentity to owner.identity)
-				} || observations.any { owner -> !graph.accepts(owner) } ||
-				entryDeletions.any {
-					graph.kinds[it.entryIdentity] != PortableCellIdentityKind.LOGICAL_ENTRY
-				} || runDeletions.any { marker ->
-					graph.runOwners[marker.runIdentity] !=
-						(marker.entryIdentity to marker.deletionScopeDigest)
-				}
-			) originConflict()
-			if (deletionReceipts.isNotEmpty() || deletedIdentities.isNotEmpty()) storedCorrupt()
-			fences.forEach { fence ->
-				val expected = graph.scopeOwners[fence.scopeIdentityDigest] ?: originConflict()
-				if (fence.sourceKind != SourceDestinationOwnerEntity.SOURCE_CELL ||
-					fence.purpose != SessionManifestPurposeCode.SESSION_CAPTURE ||
-					fence.scopeKind != SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN ||
-					graph.runOwners[expected.second] !=
-					(expected.first to fence.scopeIdentityDigest) ||
-					fence.fenceGeneration <= 0L
-				) originConflict()
-				if (sourceFences.put(fence.scopeIdentityDigest, fence) != null) storedCorrupt()
+			val rows = dao.opaqueOwnerProbe(values, limit)
+			if (rows.size >= limit) dependencyOverflow()
+			rows.forEach { row ->
+				authenticateImportedOwner(row, graph, state, sourceFences)
 			}
 		}
 
-		val liveLimit = ImportedCellDao.MAX_LIVE_OWNER_ROWS + 1
-		val logicalIds = dao.liveLogicalTrackingIds(liveLimit)
-		val liveRuns = dao.liveServiceRunOwners(liveLimit)
-		val facts = dao.liveCellFactOwners(liveLimit)
-		val completeness = dao.liveCellCompletenessOwners(
-			SourceDestinationOwnerEntity.SOURCE_CELL,
-			liveLimit,
-		)
-		val generations = dao.liveCellDeletionGenerations(liveLimit)
-		if (listOf(
-				logicalIds.size,
-				liveRuns.size,
-				facts.size,
-				completeness.size,
-				generations.size,
-			).any { it > ImportedCellDao.MAX_LIVE_OWNER_ROWS }
-		) dependencyOverflow()
-		if (logicalIds.any(String::isBlank) || logicalIds.distinct().size != logicalIds.size) {
-			storedCorrupt()
-		}
+		val logicalIds = context.logicalIds
+		val liveRuns = context.runs
+		val facts = context.facts
+		val completeness = context.completeness
+		val generations = context.generations
 		val logicalByEntryIdentity = linkedMapOf<String, String>()
 		logicalIds.forEach { logicalId ->
 			val entryIdentity = PortableCellOpaqueIdentity.derive(
@@ -560,15 +580,81 @@ class ImportedCellProductReader(
 		}
 		if (relevantGenerations.keys != sourceFences.keys ||
 			relevantGenerations.any { (scope, generation) ->
-				sourceFences.getValue(scope).fenceGeneration != generation
+				sourceFences.getValue(scope) != generation
 			}
 		) {
 			storedCorrupt()
 		}
 		return ImportedCellOwnershipAudit(
-			localLogicalTrackingIdsByEntryIdentity = logicalByEntryIdentity,
+			localLogicalTrackingIdsByEntryIdentity =
+				context.directLocalLogicalByEntryIdentity + logicalByEntryIdentity,
 			sourceDeletedScopeDigests = sourceFences.keys,
 		)
+	}
+
+	@Suppress("ComplexCondition")
+	private fun authenticateImportedOwner(
+		row: ImportedCellOpaqueOwnerRow,
+		graph: ImportedCellProductIdentityGraph,
+		state: SourceEvidenceState,
+		sourceFences: MutableMap<String, Long>,
+	) {
+		if (row.collectedDataEpoch?.let { it != state.collectedDataEpoch } == true) storedCorrupt()
+		when (row.ownerKind) {
+			ImportedCellOpaqueOwnerRow.ENTRY -> {
+				if (graph.kinds[row.protectedIdentity] != PortableCellIdentityKind.LOGICAL_ENTRY ||
+					row.entryIdentity != row.protectedIdentity
+				) originConflict()
+			}
+			ImportedCellOpaqueOwnerRow.RUN -> {
+				val entry = row.entryIdentity ?: originConflict()
+				val scope = row.deletionScopeDigest ?: originConflict()
+				if (graph.kinds[row.protectedIdentity] != PortableCellIdentityKind.PHYSICAL_RUN ||
+					graph.runOwners[row.protectedIdentity] != (entry to scope)
+				) originConflict()
+			}
+			ImportedCellOpaqueOwnerRow.SCOPE -> {
+				val entry = row.entryIdentity ?: originConflict()
+				val run = row.runIdentity ?: originConflict()
+				if (graph.scopeOwners[row.protectedIdentity] != (entry to run)) originConflict()
+			}
+			ImportedCellOpaqueOwnerRow.OBSERVATION -> {
+				if (!graph.accepts(
+						identity = row.protectedIdentity,
+						entryIdentity = row.entryIdentity ?: originConflict(),
+						runIdentity = row.runIdentity ?: originConflict(),
+						aggregateOwnerIdentity = row.aggregateOwnerIdentity,
+					)
+				) originConflict()
+			}
+			ImportedCellOpaqueOwnerRow.ENTRY_DELETION -> {
+				if (graph.kinds[row.protectedIdentity] != PortableCellIdentityKind.LOGICAL_ENTRY ||
+					row.entryIdentity != row.protectedIdentity
+				) originConflict()
+			}
+			ImportedCellOpaqueOwnerRow.RUN_DELETION -> {
+				val entry = row.entryIdentity ?: originConflict()
+				val scope = row.deletionScopeDigest ?: originConflict()
+				if (graph.runOwners[row.protectedIdentity] != (entry to scope) ||
+					row.generation != 1L
+				) originConflict()
+			}
+			ImportedCellOpaqueOwnerRow.SOURCE_FENCE -> {
+				val scope = row.deletionScopeDigest ?: originConflict()
+				val expected = graph.scopeOwners[scope] ?: originConflict()
+				val generation = row.generation ?: originConflict()
+				if (row.sourceKind != SourceDestinationOwnerEntity.SOURCE_CELL ||
+					row.purpose != SessionManifestPurposeCode.SESSION_CAPTURE ||
+					row.scopeKind != SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN ||
+					graph.runOwners[expected.second] != (expected.first to scope) ||
+					generation <= 0L || sourceFences.put(scope, generation) != null
+				) originConflict()
+			}
+			ImportedCellOpaqueOwnerRow.DELETION_RECEIPT,
+			ImportedCellOpaqueOwnerRow.DELETED_IDENTITY,
+			-> storedCorrupt()
+			else -> storedCorrupt()
+		}
 	}
 
 	private fun isValidCandidatePage(
@@ -615,11 +701,13 @@ class ImportedCellProductReader(
 
 	private companion object {
 		const val MAX_RANGE_CANDIDATES = 256
+		const val OWNER_PROBE_KIND_FACTOR = 24
 	}
 }
 
 sealed interface ImportedCellProductEvaluation {
 	val candidate: ImportedCellHistoryCandidate
+	val localOriginHandle: ImportedCellLocalOriginHandle?
 
 	data class Readable(
 		override val candidate: ImportedCellHistoryCandidate,
@@ -628,7 +716,7 @@ sealed interface ImportedCellProductEvaluation {
 		val deletedRunIdentities: Set<String>,
 		val retainedFromMs: Long?,
 		val retentionLimited: Boolean,
-		val localOriginHandle: ImportedCellLocalOriginHandle?,
+		override val localOriginHandle: ImportedCellLocalOriginHandle?,
 	) : ImportedCellProductEvaluation {
 		val isReExportable: Boolean
 			get() = !entryDeleted && deletedRunIdentities.isEmpty() && !retentionLimited
@@ -637,6 +725,7 @@ sealed interface ImportedCellProductEvaluation {
 	data class Unverifiable(
 		override val candidate: ImportedCellHistoryCandidate,
 		val reason: ImportedCellProductFailure,
+		override val localOriginHandle: ImportedCellLocalOriginHandle? = null,
 	) : ImportedCellProductEvaluation
 }
 
@@ -698,6 +787,23 @@ private data class ImportedCellOwnershipAudit(
 	val sourceDeletedScopeDigests: Set<String>,
 )
 
+private data class ImportedCellPageContext(
+	val state: SourceEvidenceState,
+	val logicalIds: List<String>,
+	val runs: List<ImportedCellLiveRunOwner>,
+	val facts: List<ImportedCellLiveFactOwner>,
+	val completeness: List<ImportedCellLiveCompletenessOwner>,
+	val generations: List<CellCaptureDeletionGenerationEntity>,
+	val directLocalLogicalByEntryIdentity: Map<String, String>,
+) {
+	fun localOriginHandle(identity: String): ImportedCellLocalOriginHandle? =
+		directLocalLogicalByEntryIdentity[identity]?.let(::ImportedCellLocalOriginHandle)
+}
+
+private class ImportedCellPageContextFailure(
+	val reason: ImportedCellProductFailure,
+) : IllegalArgumentException(reason.name)
+
 private data class ImportedCellProductBatch(
 	val headers: List<ImportedCellEntryRevisionEntity>,
 	val receipts: List<ImportedCellReceiptEntity>,
@@ -725,38 +831,6 @@ private data class ImportedCellProductBatch(
 	}
 }
 
-private data class ImportedCellProductCardinality(
-	val headers: Long,
-	val receipts: Long,
-	val runs: Long,
-	val observations: Long,
-	val entryDeletions: Long,
-	val runDeletions: Long,
-) {
-	fun exceedsLimits(identityCount: Int): Boolean {
-		if (listOf(headers, receipts, runs, observations, entryDeletions, runDeletions).any {
-				it < 0L
-			}) return true
-		val identities = identityCount.toLong()
-		return headers > Math.multiplyExact(
-			identities,
-			ImportedCellDao.MAX_REVISIONS_PER_ENTRY.toLong(),
-		) || receipts > Math.multiplyExact(
-			identities,
-			ImportedCellDao.MAX_RECEIPTS_PER_ENTRY.toLong(),
-		) || runs > Math.multiplyExact(
-			identities,
-			ImportedCellDao.MAX_RUN_ROWS_PER_LINEAGE.toLong(),
-		) || observations > Math.multiplyExact(
-			identities,
-			ImportedCellDao.MAX_OBSERVATION_ROWS_PER_LINEAGE.toLong(),
-		) || entryDeletions > identities || runDeletions > Math.multiplyExact(
-			identities,
-			ImportedCellDao.MAX_RUN_ROWS_PER_LINEAGE.toLong(),
-		)
-	}
-}
-
 private data class ImportedCellProductIdentityGraph(
 	val kinds: Map<String, PortableCellIdentityKind>,
 	val runOwners: Map<String, Pair<String, String>>,
@@ -765,14 +839,6 @@ private data class ImportedCellProductIdentityGraph(
 ) {
 	val allProtectedValues: List<String> =
 		(kinds.keys + scopeOwners.keys).distinct().sorted()
-
-	fun accepts(owner: com.adsamcik.tracker.shared.base.database.dao.ImportedCellObservationIdentityOwner):
-		Boolean = accepts(
-		identity = owner.identity,
-		entryIdentity = owner.entryIdentity,
-		runIdentity = owner.runIdentity,
-		aggregateOwnerIdentity = owner.aggregateOwnerIdentity,
-	)
 
 	fun accepts(
 		identity: String,
@@ -893,6 +959,17 @@ private fun ImportedCellHistoryCandidate.exactlyMatches(
 private fun List<ImportedCellHistoryCandidate>.unverifiable(
 	reason: ImportedCellProductFailure,
 ) = map { ImportedCellProductEvaluation.Unverifiable(it, reason) }
+
+private fun List<ImportedCellHistoryCandidate>.unverifiable(
+	reason: ImportedCellProductFailure,
+	context: ImportedCellPageContext,
+) = map { candidate ->
+	ImportedCellProductEvaluation.Unverifiable(
+		candidate,
+		reason,
+		context.localOriginHandle(candidate.identity),
+	)
+}
 
 private fun PortableCellImportUnverifiableReason.toProductFailure(): ImportedCellProductFailure =
 	when (this) {

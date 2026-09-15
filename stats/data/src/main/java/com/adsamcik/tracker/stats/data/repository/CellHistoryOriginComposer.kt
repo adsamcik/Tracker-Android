@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.PortableCapturedCellEntryV1
 import com.adsamcik.tracker.shared.base.database.PortableCellDigest
 import com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity
 import com.adsamcik.tracker.shared.base.database.PortableCellOpaqueOwnershipVerifier
+import com.adsamcik.tracker.shared.base.database.PortableCellOriginComparison
 import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
 import com.adsamcik.tracker.stats.api.repository.CellHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.CellHistoryOrigin
@@ -35,7 +36,11 @@ internal object CellHistoryOriginComposer {
 			}
 			if (!ownershipConflict && collidesWithLocalEntry &&
 				evaluation is ImportedCellProductEvaluation.Readable &&
-				evaluation.isReExportable && exactLocal == evaluation.entry &&
+				evaluation.isReExportable && exactLocal != null &&
+				PortableCellOriginComparison.areExactFullV1Duplicates(
+					exactLocal,
+					evaluation.entry,
+				) &&
 				evaluation.candidate.identity in visibleLocalEntryIdentities
 			) {
 				null

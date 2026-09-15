@@ -347,6 +347,15 @@ class PortableCellOpaqueOwnershipVerifier private constructor(
 	}
 }
 
+/** Exact source-specific duplicate rule shared by local/imported Cell composition tests. */
+object PortableCellOriginComparison {
+	fun areExactFullV1Duplicates(
+		local: PortableCapturedCellEntryV1,
+		imported: PortableCapturedCellEntryV1,
+	): Boolean = local == imported &&
+		PortableCellOpaqueOwnershipVerifier.fromEntries(listOf(local, imported)) != null
+}
+
 private data class PortableCellOpaqueOwner(
 	val kind: PortableCellIdentityKind,
 	val entryIdentity: String,
@@ -1552,7 +1561,7 @@ private fun List<SourceSessionCompletenessEntity>.hasValidPortableCellShape(
 				row.registrationGeneration >= 0L && row.hasValidPortableCellStopShape() &&
 				(row.lastAdmissionOrdinal == null) == (row.lastSourceSequence == null) &&
 				row.lastAdmissionOrdinal?.let { it > 0L } != false &&
-				row.lastSourceSequence?.let { it > 0L } != false &&
+				row.lastSourceSequence?.let { it >= 0L } != false &&
 				(row.unresolvedSequenceStart == null) == (row.unresolvedSequenceEnd == null) &&
 				row.unresolvedSequenceStart?.let { start ->
 					start > 0L && requireNotNull(row.unresolvedSequenceEnd) >= start
