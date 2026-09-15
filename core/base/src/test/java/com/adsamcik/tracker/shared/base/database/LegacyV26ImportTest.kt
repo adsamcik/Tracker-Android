@@ -67,7 +67,19 @@ class LegacyV26ImportTest {
 		context.getDatabasePath(ACTIVE_DATABASE_NAME).exists() shouldBe true
 		context.getDatabasePath(LEGACY_DATABASE_NAME).exists() shouldBe false
 		LegacyDatabaseRepository(context).currentState().database shouldBe null
-		count(raw, "source_destination_owner") shouldBe 4L
+		count(raw, "source_destination_owner") shouldBe 5L
+		stringValue(
+			raw,
+			"SELECT owner FROM source_destination_owner WHERE source_kind = " +
+				"${SourceDestinationOwnerEntity.SOURCE_LOCATION} AND destination = " +
+				"'${SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION}'",
+		) shouldBe SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE
+		longValue(
+			raw,
+			"SELECT owner_generation FROM source_destination_owner WHERE source_kind = " +
+				"${SourceDestinationOwnerEntity.SOURCE_LOCATION} AND destination = " +
+				"'${SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION}'",
+		) shouldBe SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION
 		stringValue(
 			raw,
 			"SELECT owner FROM source_destination_owner WHERE source_kind = " +
