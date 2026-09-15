@@ -6,6 +6,7 @@ import com.adsamcik.tracker.tracker.source.model.CellObservationEvidence
 import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
 import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
@@ -84,6 +85,54 @@ class SourcePayloadCodecTest {
 			codec.encode(payload, 1).bytes.toHex() shouldBe goldenHex
 			LegacyV27SourcePayloadDecoder.decode(payload.source, golden) shouldBe payload
 			codec.decode(payload.source, 1, golden) shouldBe payload
+		}
+	}
+
+	@Test
+	fun `Location version two canonically preserves mock provenance`() {
+		listOf(false, true).forEach { isMock ->
+			val payload = LocationFixPayload(
+				latitudeDegrees = 50.1,
+				longitudeDegrees = 14.4,
+				horizontalAccuracyMeters = 5f,
+				altitudeMeters = 200.0,
+				verticalAccuracyMeters = 3f,
+				speedMetersPerSecond = 2f,
+				bearingDegrees = 90f,
+				provider = "gps",
+				isMock = isMock,
+			)
+
+			val first = codec.encode(payload, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION)
+			val replay = codec.encode(payload, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION)
+
+			first.bytes.contentEquals(replay.bytes) shouldBe true
+			first.checksum shouldBe replay.checksum
+			first.bytes.toHex() shouldBe (LOCATION_V1_GOLDEN_HEX + if (isMock) "01" else "00")
+			codec.decode(
+				SourceKind.LOCATION,
+				LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+				first.bytes,
+			) shouldBe payload
+		}
+	}
+
+	@Test
+	fun `Location payload versions cannot silently add discard or trail mock provenance`() {
+		val legacy = LocationFixPayload(50.1, 14.4, 5f, 200.0, 3f, 2f, 90f, "gps")
+		val attributable = legacy.copy(isMock = false)
+
+		shouldThrow<IllegalArgumentException> { codec.encode(attributable, 1) }
+		shouldThrow<IllegalArgumentException> {
+			codec.encode(legacy, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION)
+		}
+		val encoded = codec.encode(attributable, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION).bytes
+		shouldThrow<IllegalArgumentException> {
+			codec.decode(
+				SourceKind.LOCATION,
+				LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+				encoded + byteArrayOf(0),
+			)
 		}
 	}
 
@@ -345,6 +394,9 @@ private const val MISMATCHED_ONE_SAMPLE_PRESSURE_V4_HEX =
 		"000000003b9aca00000000003b9aca0000000000000000010000000000000001" +
 		"447a0000447a0000000000000005000f42400000000000000000ee6b2800" +
 		"00000004000000000000000000000002"
+
+private const val LOCATION_V1_GOLDEN_HEX =
+	"0000000140490ccccccccccd402ccccccccccccd40a00000014069000000000000014040000001400000000142b400000003677073"
 
 private fun String.hexToByteArray(): ByteArray = chunked(2)
 	.map { it.toInt(16).toByte() }

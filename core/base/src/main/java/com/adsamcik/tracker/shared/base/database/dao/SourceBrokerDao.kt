@@ -184,6 +184,27 @@ interface SourceBrokerDao {
 		limit: Int,
 	): List<SourceAuthorizationEntity>
 
+	/**
+	 * The next immutable authorization boundary for one exact provider registration.
+	 *
+	 * Authorization revisions are allocated across a source, so a registration's timeline may be
+	 * sparse when another generation receives the intervening revision. Do not infer this boundary
+	 * with `authorizationRevision + 1` or from a mutable latest-registration pointer.
+	 */
+	@Query(
+		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND authorization_revision = (SELECT MIN(authorization_revision) " +
+			"FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND authorization_revision > :authorizationRevision) ORDER BY member_id",
+	)
+	suspend fun nextAuthorizationRevision(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		authorizationRevision: Long,
+	): List<SourceAuthorizationEntity>
+
 	@Query(
 		"SELECT EXISTS(SELECT 1 FROM source_authorization " +
 			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +

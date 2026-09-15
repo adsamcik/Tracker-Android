@@ -13,9 +13,14 @@ data class LocationFixPayload(
 	val speedMetersPerSecond: Float?,
 	val bearingDegrees: Float?,
 	val provider: String,
+	/** Null only for retained version-one bytes that predate durable mock provenance. */
+	val isMock: Boolean? = null,
 ) : SourcePayload {
 	override val source: SourceKind = SourceKind.LOCATION
 }
+
+/** First Location payload revision that durably binds the platform mock-provider provenance. */
+internal const val LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION = 2
 
 data class ActivityTransitionPayload(
 	val activityType: Int,
