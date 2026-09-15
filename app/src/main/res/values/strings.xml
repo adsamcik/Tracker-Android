@@ -360,11 +360,47 @@
     <string name="settings_tracking_section_battery_detail">Tracking quality</string>
     <string name="settings_tracking_section_data_collected">Data collected</string>
     <string name="settings_tracking_section_detail">Location filters</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">Outside trips (optional)</string>
     <string name="settings_tracking_section_notifications">Notifications</string>
     <string name="settings_source_policy_unavailable_title" tools:ignore="MissingTranslation">Tracking settings unavailable</string>
     <string name="settings_source_policy_unavailable_summary" tools:ignore="MissingTranslation">Your saved source choices have not been changed. Tracker is retrying the secure settings store automatically; collection remains off until it recovers.</string>
     <string name="settings_transition_detection_friendly_title">Battery-efficient motion detection</string>
     <string name="settings_transition_detection_friendly_summary">Uses Android activity changes to avoid frequent background checks. Automatic starts may react a little more slowly.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">Automatic tracking isn’t available</string>
+    <string name="settings_automatic_policy_unavailable_summary" tools:ignore="MissingTranslation">Your automatic mode choice is saved, but Activity control stays off until a bounded retention policy for control-only evidence is approved. Manual tracking is unchanged.</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">Your automatic mode choice is saved. Activity recognition permission is required before automatic starts can operate.</string>
+    <string name="settings_automatic_unavailable_summary" tools:ignore="MissingTranslation">Your automatic mode choice is saved, but automatic starts are not operational.</string>
+    <string name="settings_automatic_status_code" tools:ignore="MissingTranslation">Status: %1$s</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">These choices are independent from data collected during a trip. Turning one on saves consent intent only; it does not promise a provider, cadence, or complete day.</string>
+    <string name="settings_ambient_steps_title" tools:ignore="MissingTranslation">Steps outside trips</string>
+    <string name="settings_ambient_location_title" tools:ignore="MissingTranslation">Location outside trips</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi outside trips</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Cell outside trips</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Off. Tracker does not check a provider or create outside-trip demand for this source.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Saved as on. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">Outside-trip coverage is opportunistic and can contain permission, provider, process, reboot, or OS gaps. Tracker does not claim always-on collection or invent a retention duration.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">Collection stays off because the product retention policy is not yet available.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Waiting for the source owner to report operational availability; no provider is started from this setting alone.</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">Collection is safely contained by the current rollout.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Grant Steps access in Health Connect. Tracker will not silently switch to Local Recording when this grant is missing.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Health Connect can import while Tracker is foreground-capable. Optional background access may reduce gaps but does not promise a cadence.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">Health Connect mobile Steps is unavailable and no approved continuity provider is ready.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Update Health Connect before mobile Steps can be used.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Health Connect availability could not be verified, so Tracker will not fall back from an uncertain result.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Health Connect is genuinely unavailable. Local Recording requires Activity Recognition permission.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">Health Connect is genuinely unavailable and Local Recording is not available.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect mobile Steps is ready for source-owner reconciliation; coverage may still have explicit gaps.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Health Connect is genuinely unavailable, so Local Recording is ready for source-owner reconciliation; coverage may still have explicit gaps.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Background Location permission is required for passive outside-trip points. This setting does not change trip Location capture.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android’s Wi-Fi scan permission requirements are not met. Granting them does not enable Location capture.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android’s Cell callback permission requirements are not met. Granting them does not enable Location capture.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Passive Location is ready for source-owner reconciliation. It provides opportunistic points, not route continuity.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi scan-result callbacks are ready for source-owner reconciliation. No scan or wake cadence is promised.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Timestamp-qualified Cell change callbacks are ready for source-owner reconciliation. No forced refresh cadence is promised.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">The required platform or provider is unavailable, so collection stays off.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Off; no outside-trip provider check or demand</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Saved on; operational availability reported</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Saved on; not operational</string>
     <string name="settings_location_source_summary">Records your route, distance, and speed. Usually the largest battery cost.</string>
     <string name="settings_activity_source_summary">Recognizes walking, cycling, driving, and stillness to label trips and reduce unnecessary collection.</string>
     <string name="settings_steps_source_summary">Records step counts while walking or running using your phone’s step sensor.</string>
