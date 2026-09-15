@@ -539,12 +539,19 @@ class ImportedCellHistoryMapperTest {
 			)
 			val repository = repository()
 
-			(repository.recent(1) as CellHistoryPage.Available).entries.single().let { conflict ->
+			val publicConflict =
+				(repository.recent(1) as CellHistoryPage.Available).entries.single()
+			publicConflict.let { conflict ->
 				conflict.state shouldBe CellHistoryProductState.UNVERIFIABLE
 				conflict.causes shouldBe setOf(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT)
 				conflict.observations shouldBe emptyList()
 				conflict.origin shouldBe CellHistoryOrigin.Imported(selection)
 			}
+			val sourcePage = database.withTransaction {
+				repository.recentCellHistoryInTransaction(10)
+			} as CellSourceComposedPage.Available
+			(sourcePage.entries.single() as CellSourceComposedEntry.Imported).entry shouldBe
+				publicConflict
 			(repository.detail(selection) as CellHistoryQuery.Found).entry.let { conflict ->
 				conflict.state shouldBe CellHistoryProductState.UNVERIFIABLE
 				conflict.causes shouldBe setOf(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT)

@@ -309,7 +309,7 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 
 	/**
 	 * One caller-owned transaction producing local physical groups and explicit imported rows.
-	 * Cross-origin identity collisions remain typed instead of triggering per-entry portable reads.
+	 * Exact authenticated full-v1 duplicates collapse without discarding local physical ownership.
 	 */
 	internal suspend fun recentCellHistoryInTransaction(limit: Int): CellSourceComposedPage {
 		require(limit in 1..MAX_RESULTS)
@@ -330,20 +330,59 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 					.DEPENDENCY_OVERFLOW
 			}
 		) return CellSourceComposedPage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
-		val importedRows = imported.map { evaluation ->
-			CellSourceComposedEntry.Imported(
-				evaluation.toPublicCellEntry(
-					overrideFailure = CellHistoryCause.ORIGIN_IDENTITY_CONFLICT.takeIf {
-						evaluation.localOriginHandle != null
-					},
-				),
-			)
+		if (local.isEmpty() && imported.isEmpty()) {
+			return CellSourceComposedPage.Available(emptyList())
 		}
-		val combined = (
-			local.map { CellSourceComposedEntry.Local(it) } + importedRows
-			).sortedWith(cellSourceCompositionOrder)
+		val directLocalCollisionIds = imported.filter { it.localOriginHandle != null }
+			.mapTo(linkedSetOf()) { it.candidate.identity }
+		val localCollisions = imported.filterIsInstance<ImportedCellProductEvaluation.Readable>()
+			.filter { it.localOriginHandle != null }
+			.associateBy { it.candidate.identity }
+		if (localCollisions.size > MAX_RECENT_LOCAL_ORIGIN_COMPARISONS) {
+			return CellSourceComposedPage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+		}
+		val localPortableEntries = try {
+			loadLocalPortableCollisions(localCollisions)
+		} catch (cancelled: kotlinx.coroutines.CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			return CellSourceComposedPage.Failed(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		}
+		val visibleLocalEntryIdentities = local.mapTo(linkedSetOf()) { composed ->
+			PortableCellOpaqueIdentity.derive(
+				PortableCellIdentityKind.LOGICAL_ENTRY,
+				composed.logicalTrackingId,
+			).value
+		}
+		val localBySelection = local.mapNotNull { composed ->
+			composed.entry.selection?.let { selection -> selection to composed }
+		}.toMap()
+		if (localBySelection.size != local.size) {
+			return CellSourceComposedPage.Failed(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		}
+		val combined = try {
+			CellHistoryOriginComposer.compose(
+				live = local.map(ComposedCellEntry::entry),
+				visibleLocalEntryIdentities = visibleLocalEntryIdentities,
+				localCollisionIdentities = directLocalCollisionIds,
+				imported = imported,
+				localPortableEntriesByIdentity = localPortableEntries,
+				limit = local.size + imported.size,
+			).map { entry ->
+				when (entry.origin) {
+					CellHistoryOrigin.Local -> CellSourceComposedEntry.Local(
+						localBySelection[entry.selection]
+							?: throw ImportedCellHistoryCompositionFailure(),
+					)
+					is CellHistoryOrigin.Imported -> CellSourceComposedEntry.Imported(entry)
+				}
+			}
+		} catch (_: ImportedCellHistoryCompositionFailure) {
+			return CellSourceComposedPage.Failed(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		}
+		val selected = combined.sortedWith(cellSourceCompositionOrder)
 			.take(limit)
-		return CellSourceComposedPage.Available(combined)
+		return CellSourceComposedPage.Available(selected)
 	}
 
 	@Suppress("CyclomaticComplexMethod")
@@ -580,6 +619,9 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 		val localCollisions = imported.filterIsInstance<ImportedCellProductEvaluation.Readable>()
 			.filter { it.localOriginHandle != null }
 			.associateBy { it.candidate.identity }
+		if (localCollisions.size > MAX_RECENT_LOCAL_ORIGIN_COMPARISONS) {
+			return CellHistoryPage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+		}
 		val localPortableEntries = try {
 			loadLocalPortableCollisions(localCollisions)
 		} catch (cancelled: kotlinx.coroutines.CancellationException) {
@@ -917,6 +959,7 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 
 	private companion object {
 		const val MAX_RESULTS = 100
+		const val MAX_RECENT_LOCAL_ORIGIN_COMPARISONS = 4
 		const val MAX_RANGE_CANDIDATES_PER_ORIGIN = 256
 		const val CANDIDATE_PAGE_SIZE = 32
 		const val MAX_CANDIDATE_SCAN = 128

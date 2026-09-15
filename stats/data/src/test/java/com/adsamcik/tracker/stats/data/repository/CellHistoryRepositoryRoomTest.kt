@@ -4,8 +4,14 @@ import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedCellRequest
+import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedCellResult
+import com.adsamcik.tracker.shared.base.database.PortableCellImportReceipt
 import com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind
 import com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity
+import com.adsamcik.tracker.shared.base.database.ReadLocalPortableCapturedCellResult
+import com.adsamcik.tracker.shared.base.database.RoomImportPortableCapturedCell
+import com.adsamcik.tracker.shared.base.database.RoomReadLocalPortableCapturedCell
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
@@ -34,6 +40,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
+import com.adsamcik.tracker.stats.api.repository.CellHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.CellHistoryPage
 import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
@@ -128,6 +135,52 @@ class CellHistoryRepositoryRoomTest {
 			grouped.entries.single()
 		authorityChecks shouldBe 5
 	}
+
+	@Test
+	fun `public and transactional recent suppress an exact authenticated same-origin duplicate`() =
+		runTest {
+			val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
+			persist(listOf(group))
+			val authority = SourceProductLaneExecutionAuthority { database.inTransaction() }
+			val portable = database.withTransaction {
+				RoomReadLocalPortableCapturedCell(database, authority)
+					.readInTransaction(group.session.logicalTrackingId)
+			} as ReadLocalPortableCapturedCellResult.Ready
+			RoomImportPortableCapturedCell(
+				database,
+				UnconfinedTestDispatcher(testScheduler),
+			).importEntry(
+				ImportPortableCapturedCellRequest(
+					entry = portable.entry,
+					receipt = PortableCellImportReceipt(
+						jobId = "same-origin-exact",
+						entryKey = "same-origin-exact",
+						sourceName = "same-origin.trackercell",
+						receivedAtMs = portable.entry.endTimeMs,
+					),
+					expectedCollectedDataEpoch = 0L,
+				),
+			) shouldBe ImportPortableCapturedCellResult.Applied(
+				importRevision = 1L,
+				physicalRunCount = portable.entry.runs.size,
+				observationCount = portable.entry.runs.sumOf { it.observations.size },
+			)
+			val repository = repository { database.inTransaction() }
+
+			(repository.recent(10) as CellHistoryPage.Available).entries.single().let { entry ->
+				entry.origin shouldBe CellHistoryOrigin.Local
+				entry.selection shouldBe LocalCellHistorySelection(
+					LocalCellHistoryIdentity(portable.entry.identity.value),
+				)
+			}
+			val sourcePage = database.withTransaction {
+				repository.recentCellHistoryInTransaction(10)
+			} as CellSourceComposedPage.Available
+			val source = sourcePage.entries.single() as CellSourceComposedEntry.Local
+			source.group.logicalTrackingId shouldBe group.session.logicalTrackingId
+			source.group.physicalSegmentIds shouldBe listOf(group.runs.single().segment.id)
+			source.entry.origin shouldBe CellHistoryOrigin.Local
+		}
 
 	@Test
 	fun `recent pages thirty three logical candidates by exact logical recency`() = runTest {
