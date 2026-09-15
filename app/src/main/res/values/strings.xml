@@ -376,7 +376,7 @@
     <string name="settings_ambient_location_title" tools:ignore="MissingTranslation">Location outside trips</string>
     <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi outside trips</string>
     <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Cell outside trips</string>
-    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Off. Tracker does not check a provider or create outside-trip demand for this source.</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Saved setting is off. Current collection status is waiting for source-owner reconciliation.</string>
     <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Saved as on. %1$s</string>
     <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">Outside-trip coverage is opportunistic and can contain permission, provider, process, reboot, or OS gaps. Tracker does not claim always-on collection or invent a retention duration.</string>
     <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">Collection stays off because the product retention policy is not yet available.</string>
@@ -398,7 +398,7 @@
     <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi scan-result callbacks are ready for source-owner reconciliation. No scan or wake cadence is promised.</string>
     <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Timestamp-qualified Cell change callbacks are ready for source-owner reconciliation. No forced refresh cadence is promised.</string>
     <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">The required platform or provider is unavailable, so collection stays off.</string>
-    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Off; no outside-trip provider check or demand</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Saved off; operational status pending</string>
     <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Saved on; operational availability reported</string>
     <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Saved on; not operational</string>
     <string name="settings_location_source_summary">Records your route, distance, and speed. Usually the largest battery cost.</string>

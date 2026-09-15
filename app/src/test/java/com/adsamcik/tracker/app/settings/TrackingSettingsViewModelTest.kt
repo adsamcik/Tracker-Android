@@ -20,6 +20,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorTeleme
 import com.adsamcik.tracker.tracker.source.coordinator.EffectiveSourceState
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
+import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalState
 import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
@@ -305,8 +306,9 @@ class TrackingSettingsViewModelTest {
 				vm.uiState.value.ambientCellEnabled shouldBe true
 				vm.uiState.value.ambientSourceAvailability.values.forEach { availability ->
 					availability.isOperational shouldBe false
+					availability.state shouldBe AmbientSourceOperationalState.WAITING
 					availability.reason shouldBe
-						AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE
+						AmbientSourceUnavailableReason.RECONCILIATION_PENDING
 				}
 			}
 

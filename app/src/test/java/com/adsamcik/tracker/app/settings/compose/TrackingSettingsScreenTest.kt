@@ -330,6 +330,14 @@ class TrackingSettingsScreenTest {
 			.assertIsDisplayed()
 		scrollTo("does not claim always-on collection")
 		composeTestRule.onNodeWithTag("ambientRetentionExplanation").assertIsDisplayed()
+		composeTestRule.onNodeWithText(
+			"Current collection status is waiting for source-owner reconciliation",
+			substring = true,
+		).assertIsDisplayed()
+		composeTestRule.onNodeWithText(
+			"Collection stays off because the product retention policy",
+			substring = true,
+		).assertDoesNotExist()
 	}
 
 	@Test
@@ -350,6 +358,34 @@ class TrackingSettingsScreenTest {
 			.assert(hasStateDescription("Saved on; not operational"))
 			.performClick()
 		requested shouldBe false
+		composeTestRule.onNodeWithText(
+			"Waiting for the source owner",
+			substring = true,
+		).assertIsDisplayed()
+	}
+
+	@Test
+	fun actualRuntimeRetentionFailureIsDistinctFromPendingDefault() {
+		val availability = defaultUiState.ambientSourceAvailability +
+			(
+				AmbientTrackingSource.STEPS to AmbientSourceOperationalAvailability(
+					source = AmbientTrackingSource.STEPS,
+					state = AmbientSourceOperationalState.UNAVAILABLE,
+					reason = AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+				)
+			)
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(
+					uiState = defaultUiState.copy(
+						ambientStepsEnabled = true,
+						ambientSourceAvailability = availability,
+					),
+				)
+			}
+		}
+
+		scrollTo("retention policy is not yet available")
 		composeTestRule.onNodeWithText(
 			"retention policy is not yet available",
 			substring = true,
