@@ -38,12 +38,12 @@ State counts:
 
 | Implementation state | Items |
 | --- | ---: |
-| `active_correction` | 10 |
+| `active_correction` | 11 |
 | `active_documentation` | 1 |
 | `active_governance` | 1 |
 | `allowed_dependency` | 1 |
 | `approval_required` | 1 |
-| `committed_held` | 3 |
+| `committed_held` | 2 |
 | `completed_accepted_slice` | 5 |
 | `completed_foundation` | 1 |
 | `decision_required` | 8 |
@@ -51,7 +51,7 @@ State counts:
 | `partial_implemented` | 11 |
 | `planned` | 16 |
 
-Review states: `active` 6, `awaiting_focused_closure` 1, `blocked_findings` 9, `closed_except_decision` 1, `closed_static` 5, `continuous` 2, `historical_accepted` 1, `mixed` 7, `not_applicable` 9, `not_started` 21.
+Review states: `active` 4, `awaiting_focused_closure` 1, `blocked_findings` 11, `closed_except_decision` 1, `closed_static` 5, `continuous` 2, `historical_accepted` 1, `mixed` 7, `not_applicable` 9, `not_started` 21.
 
 Integration states: `held_branch` 2, `held_dependency` 1, `local_dev` 7, `local_only` 1, `mixed_source_refs` 7, `not_applicable` 9, `not_started` 21, `source_branch` 14.
 
@@ -81,7 +81,7 @@ Validation states: `deferred_implementation_only` 53, `not_applicable` 9.
 | `WI-STEPS-AMBIENT-FILES-001` | `planned` | `not_started` | `not_started` | Implement Ambient Steps file actions | Backlog only; do not start unless a later bounded assignment includes an owner receipt with actual authored-code evidence. |
 | `WI-PRESSURE-VERTICAL-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete the Pressure source-to-product vertical | Finish only the active maintenance and file reviews; hand over the rest. |
 | `WI-PRESSURE-MAINTENANCE-001` | `active_correction` | `active` | `source_branch` | Close Pressure maintenance privacy corrections | The existing reviewer checks 7dd72ab9 and 39198f5 against the six corrections; the owner fixes only resulting in-scope findings. |
-| `WI-PRESSURE-FILES-001` | `committed_held` | `active` | `source_branch` | Close Pressure portable file review | Close the existing f8ca404 review; do not add another format or UI action. |
+| `WI-PRESSURE-FILES-001` | `active_correction` | `blocked_findings` | `source_branch` | Close Pressure portable file review | The Pressure file owner corrects these two findings, authors focused regressions and propagates the exact helper update to Activity, Steps and the held e3f2ecd assembly; no new file feature. |
 | `WI-PRESSURE-PRODUCT-001` | `planned` | `not_started` | `not_started` | Build the remaining Pressure day and range product | Handover backlog; do not start. |
 | `WI-LOCATION-VERTICAL-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete protected Location without a second writer | Finish only the active Location handoff correction; hand over product and ambient successors. |
 | `WI-LOCATION-HANDOFF-001` | `active_correction` | `blocked_findings` | `source_branch` | Close protected Location WAL-to-writer handoff | Owner fixes only these blockers and returns the same focused reviewer to the corrected real-chain input. |
@@ -95,10 +95,10 @@ Validation states: `deferred_implementation_only` 53, `not_applicable` 9.
 | `WI-CELL-VERTICAL-001` | `partial_implemented` | `blocked_findings` | `source_branch` | Complete the Cell source-to-product vertical | Finish only the current correction/review; hand over retention, erase and files. |
 | `WI-CELL-PRODUCT-CORRECTION-001` | `active_correction` | `blocked_findings` | `source_branch` | Close Cell product, range and selected-delete corrections | Owner fixes only these findings and returns the frozen artifact to focused review. |
 | `WI-CELL-REMAINING-MAINTENANCE-001` | `planned` | `not_started` | `not_started` | Finish remaining Cell deleted ranges, retention, erase and files | Handover backlog; do not start. |
-| `WI-AMBIENT-RADIO-001` | `active_correction` | `active` | `source_branch` | Close passive ambient Wi-Fi and Cell artifact | Close only the current review/corrections; hand over all parent assembly. |
+| `WI-AMBIENT-RADIO-001` | `active_correction` | `blocked_findings` | `source_branch` | Close passive ambient Wi-Fi and Cell artifact | The owner first corrects declarations, then closes only these ten findings plus the real-chain test-source gap with the same reviewer; hand over all schema/runtime/DI/UI integration. |
 | `WI-PURPOSE-SETTINGS-001` | `active_correction` | `awaiting_focused_closure` | `source_branch` | Close purpose settings containment retry | Close the existing cancellation/key-bound backoff and orchestration-test correction; no Hilt/runtime collector successor. |
 | `WI-PURPOSE-PUBLICATION-001` | `planned` | `not_started` | `not_started` | Wire actual purpose authority publication | Handover backlog; do not start. |
-| `WI-SHARED-FILE-ASSEMBLY-001` | `committed_held` | `active` | `held_branch` | Close shared portable file assembly review | Close only the existing frozen e3f2ecd review and directly reported corrections. |
+| `WI-SHARED-FILE-ASSEMBLY-001` | `committed_held` | `active` | `held_branch` | Close shared portable file assembly review | After the Pressure owner commits the two helper/codec corrections, update only the existing Activity/Steps/e3f2ecd consumers and resume the frozen shared review. |
 | `WI-SHARED-HISTORY-UNION-001` | `active_correction` | `active` | `source_branch` | Close five-source recent, live and selected history union | Add only the two narrow producer bridges needed by this already-started union, then close its current focused review. |
 | `WI-SHARED-HISTORY-BRIDGES-001` | `allowed_dependency` | `not_started` | `not_started` | Add the two producer bridges required by the active history union | Parent assigns the two narrow bridges only if the active union reviewer confirms they are required. |
 | `WI-SHARED-HISTORY-CONSUMERS-001` | `planned` | `not_started` | `not_started` | Implement shared history feature consumers | Backlog only; do not start unless a later bounded assignment includes an owner receipt with actual authored-code evidence. |

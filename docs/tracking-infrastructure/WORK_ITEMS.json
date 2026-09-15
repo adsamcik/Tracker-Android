@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-15T19:34:25.904+02:00",
+  "updated_at": "2026-09-15T19:39:29.921+02:00",
   "repository": {
     "branch": "dev/v10",
     "local_head_at_task_start": "6744ced52037d531e56751777b519165167e6b19",
@@ -94,12 +94,12 @@
     "duplicate_primary_mappings": [],
     "work_item_count": 62,
     "implementation_state_counts": {
-      "active_correction": 10,
+      "active_correction": 11,
       "active_documentation": 1,
       "active_governance": 1,
       "allowed_dependency": 1,
       "approval_required": 1,
-      "committed_held": 3,
+      "committed_held": 2,
       "completed_accepted_slice": 5,
       "completed_foundation": 1,
       "decision_required": 8,
@@ -109,9 +109,9 @@
     }
   },
   "review_state_counts": {
-    "active": 6,
+    "active": 4,
     "awaiting_focused_closure": 1,
-    "blocked_findings": 9,
+    "blocked_findings": 11,
     "closed_except_decision": 1,
     "closed_static": 5,
     "continuous": 2,
@@ -1261,6 +1261,7 @@
           "dirty_paths": [
             "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ImportedAmbientStepsDao.kt",
             "stats\\api\\src\\commonMain\\kotlin\\com\\adsamcik\\tracker\\stats\\api\\repository\\AmbientStepsHistoryRepository.kt",
+            "stats\\api\\src\\commonTest\\kotlin\\com\\adsamcik\\tracker\\stats\\api\\repository\\AmbientStepsHistoryRepositoryTest.kt",
             "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\AmbientStepsDayComposer.kt",
             "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\AmbientStepsDayRepository.kt",
             "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultAmbientStepsHistoryRepository.kt",
@@ -1275,6 +1276,7 @@
           "dirty_status": [
             " M core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ImportedAmbientStepsDao.kt",
             " M stats/api/src/commonMain/kotlin/com/adsamcik/tracker/stats/api/repository/AmbientStepsHistoryRepository.kt",
+            " M stats/api/src/commonTest/kotlin/com/adsamcik/tracker/stats/api/repository/AmbientStepsHistoryRepositoryTest.kt",
             " M stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayComposer.kt",
             " M stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/AmbientStepsDayRepository.kt",
             " M stats/data/src/main/java/com/adsamcik/tracker/stats/data/repository/DefaultAmbientStepsHistoryRepository.kt",
@@ -1577,12 +1579,13 @@
       "outcome": "Finish the existing bounded Pressure codec/import/export adapter review and shared lexical-helper semantics.",
       "acceptance_criteria": [
         "Permanent format/prefix failures remain permanent and committed-prefix counts are exact.",
-        "Lexical token and aggregate byte limits apply before allocation/deep copy.",
-        "The shared token-limit stream remains Pressure-owned and Activity consumes it unchanged.",
+        "All unquoted literals, including huge alphabetic and invalid-number-suffix tokens, are bounded before allocation.",
+        "Raw transport EOFException remains retryable transport failure; only parser-confirmed truncation is permanent format failure.",
+        "The shared token-limit stream remains Pressure-owned and its exact correction propagates to Activity, Steps and the held shared file assembly.",
         "Exact boundary, rehash, reparent, producer I/O and real-runner tests remain authored."
       ],
-      "implementation_state": "committed_held",
-      "review_state": "active",
+      "implementation_state": "active_correction",
+      "review_state": "blocked_findings",
       "integration_state": "source_branch",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
@@ -1606,14 +1609,16 @@
         "WI-PRESSURE-MAINTENANCE-001"
       ],
       "known_blockers": [
-        "The Pressure helper reviewer has not closed the focused review."
+        "The shared lexer ignores huge bare alphabetic and invalid-number-suffix tokens; every unquoted literal needs a cap.",
+        "The Pressure codec misclassifies raw transport EOFException as permanent parser truncation.",
+        "Activity 483 remains source-consumer closed, but the shared helper dependency is not closed until the exact update reaches Activity, Steps and e3f2ecd."
       ],
-      "next_bounded_action": "Close the existing f8ca404 review; do not add another format or UI action.",
+      "next_bounded_action": "The Pressure file owner corrects these two findings, authors focused regressions and propagates the exact helper update to Activity, Steps and the held e3f2ecd assembly; no new file feature.",
       "evidence": {
         "branch": "codex/ti-pressure-file-actions-20260915",
-        "branch_tip_at_snapshot": "f8ca404069c28a60c541084a52a987569f317aa8",
+        "branch_tip_at_snapshot": "97f575e4d9efc10bb971c43f67c5f44423f62550",
         "merge_base_with_local_dev": "b07680b70aced42abd40161326683b572f3eccb4",
-        "tip_subject": "IMPLEMENTED_UNVALIDATED add Pressure adversarial sources",
+        "tip_subject": "IMPLEMENTED_UNVALIDATED preserve Pressure failure origin",
         "review_input_commit": "f8ca404069c28a60c541084a52a987569f317aa8",
         "changed_paths_at_snapshot": [
           "feature\\import-export\\src\\main\\java\\com\\adsamcik\\tracker\\impexp\\exporter\\PortablePressureExporter.kt",
@@ -1633,19 +1638,9 @@
         ],
         "worktree": {
           "path": "C:\\Users\\adam-\\GitHub\\Tracker-Android\\.worktrees\\ti-pressure-file-actions-20260915",
-          "head": "f8ca404069c28a60c541084a52a987569f317aa8",
-          "dirty_paths": [
-            "feature\\import-export\\src\\main\\java\\com\\adsamcik\\tracker\\impexp\\portable\\PortableJsonTokenLimitInputStream.kt",
-            "feature\\import-export\\src\\main\\java\\com\\adsamcik\\tracker\\impexp\\portable\\PortablePressureJsonV1Codec.kt",
-            "feature\\import-export\\src\\test\\java\\com\\adsamcik\\tracker\\impexp\\importer\\file\\PortablePressureFileImportTest.kt",
-            "feature\\import-export\\src\\test\\java\\com\\adsamcik\\tracker\\impexp\\portable\\PortablePressureJsonV1CodecTest.kt"
-          ],
-          "dirty_status": [
-            " M feature/import-export/src/main/java/com/adsamcik/tracker/impexp/portable/PortableJsonTokenLimitInputStream.kt",
-            " M feature/import-export/src/main/java/com/adsamcik/tracker/impexp/portable/PortablePressureJsonV1Codec.kt",
-            " M feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/PortablePressureFileImportTest.kt",
-            " M feature/import-export/src/test/java/com/adsamcik/tracker/impexp/portable/PortablePressureJsonV1CodecTest.kt"
-          ]
+          "head": "97f575e4d9efc10bb971c43f67c5f44423f62550",
+          "dirty_paths": [],
+          "dirty_status": []
         }
       },
       "related_requirement_ids": [],
@@ -2060,7 +2055,8 @@
       ],
       "dependencies": [],
       "known_blockers": [
-        "Shared lexer review remains Pressure-owned and the combined file branch is held."
+        "Activity 483 is source-consumer closed, but the Pressure-owned shared lexer still requires the two current corrections and exact propagation.",
+        "The combined e3f2ecd file branch remains held."
       ],
       "next_bounded_action": "No source edit. Parent consumes 483 only through the frozen shared-file integration after its review closes.",
       "evidence": {
@@ -2699,13 +2695,15 @@
       "title": "Close passive ambient Wi-Fi and Cell artifact",
       "outcome": "Review and correct the existing default-off passive radio controllers, facts, maintenance, transfer and versioned reporting without beginning parent assembly.",
       "acceptance_criteria": [
-        "One physical owner preserves source/purpose authority and no active ambient scans or refreshes are introduced.",
-        "Passive facts, maintenance and transfer remain identity-minimized and source-specific.",
-        "Availability reports are versioned and fenced.",
-        "Known payload-coverage limits remain explicit."
+        "Declarations are top-level/defined and stale leases cannot mutate demand or provider state before rejection.",
+        "Consent deletion installs WAL/source fences even for an empty product store.",
+        "Retention approval is authoritative rather than caller-authored, and imported retention is independent from current local consent.",
+        "Corrected rev2 imports, archive-only tombstones and mixed-age archive retention remain no-resurrection safe.",
+        "Structural day uses stored source time-zone authority; gap-only reads and exports remain visible.",
+        "Controller release removes stale session claims, and a real runtime-to-projector chain is covered without blind clearAllTables fence loss."
       ],
       "implementation_state": "active_correction",
-      "review_state": "active",
+      "review_state": "blocked_findings",
       "integration_state": "source_branch",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
@@ -2725,16 +2723,29 @@
       "public_interfaces": [
         "passive radio controllers",
         "ambient Wi-Fi/Cell facts",
-        "versioned availability report"
+        "versioned availability report",
+        "ambient radio maintenance and portable transfer"
       ],
       "dependencies": [
         "WI-PURPOSE-PUBLICATION-001",
         "WI-SCHEMA-MIGRATION-001"
       ],
       "known_blockers": [
-        "Adversarial review is active; parent 18-entity DDL/DI/lane/recovery/query/UI assembly is unstarted."
+        "Undefined or nested declarations.",
+        "A stale lease can mutate demand/provider state before rejection.",
+        "Empty-store consent deletion fails to install the WAL fence.",
+        "Retention approval is caller-authored and imported retention is incorrectly tied to local consent.",
+        "Corrected revision 2 cannot be freshly stored on import.",
+        "Archive-only tombstones permit rehashed resurrection.",
+        "Mixed-age archive retention deletes newer data.",
+        "Projection-time time-zone changes move structural day.",
+        "Gap-only reads and exports drop retained data.",
+        "Disabled controller release leaves a stale session claim.",
+        "Tests connect mocked halves rather than the actual projector chain, and blind clearAllTables loses fences.",
+        "The parent still needs 18 or more entities/DDL plus possible typed footprint/approval schema and runtime/DI/lease integration.",
+        "The owner's pre-review RAD001..012 COMMITTED/leaf-closed metadata is commit accounting only; adversarial blockers take precedence and no private retention approval is proven."
       ],
-      "next_bounded_action": "Close only the current review/corrections; hand over all parent assembly.",
+      "next_bounded_action": "The owner first corrects declarations, then closes only these ten findings plus the real-chain test-source gap with the same reviewer; hand over all schema/runtime/DI/UI integration.",
       "evidence": {
         "branch": "codex/ti-passive-ambient-radio-20260915",
         "branch_tip_at_snapshot": "306e9070d296a9b91f96177e9948090754779917",
@@ -2835,7 +2846,9 @@
             "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\ingress\\SourcePayloadCodecTest.kt",
             "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\AmbientRadioSourceBrokerTest.kt",
             "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\ConnectivityObservationAdmissionTest.kt",
-            "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\AmbientRadioRetentionAuthority.kt"
+            "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\SharedAmbientRadioSourceControllerTest.kt",
+            "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\AmbientRadioRetentionAuthority.kt",
+            "tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\AmbientRadioMutationLeaseGuard.kt"
           ],
           "dirty_status": [
             " M core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AmbientCellMaintenance.kt",
@@ -2874,7 +2887,9 @@
             " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/ingress/SourcePayloadCodecTest.kt",
             " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/AmbientRadioSourceBrokerTest.kt",
             " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/ConnectivityObservationAdmissionTest.kt",
-            "?? core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AmbientRadioRetentionAuthority.kt"
+            " M tracker/engine/src/test/java/com/adsamcik/tracker/tracker/source/runtime/SharedAmbientRadioSourceControllerTest.kt",
+            "?? core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AmbientRadioRetentionAuthority.kt",
+            "?? tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/AmbientRadioMutationLeaseGuard.kt"
           ]
         }
       },
@@ -3071,7 +3086,8 @@
       "acceptance_criteria": [
         "Pressure f8 and Activity 483 are composed with Steps 6f46 lexical/permanent-format/prefix handling.",
         "Registry, picker and privacy warnings remain structurally correct.",
-        "Pressure helper semantics are accepted by its owner review.",
+        "The Pressure-owned helper caps every unquoted literal and preserves raw transport EOFException as retryable.",
+        "The exact helper correction is propagated consistently to Activity, Steps and this held branch.",
         "No source-specific warning claims precise coordinates when absent."
       ],
       "implementation_state": "committed_held",
@@ -3102,9 +3118,10 @@
         "WI-PRESSURE-FILES-001"
       ],
       "known_blockers": [
-        "Shared reviewer is active; Pressure lexical-helper review remains pending."
+        "Shared review remains held on the Pressure helper correction.",
+        "The exact unquoted-literal cap and raw-transport EOF classification must propagate to Activity, Steps and e3f2ecd before closure."
       ],
-      "next_bounded_action": "Close only the existing frozen e3f2ecd review and directly reported corrections.",
+      "next_bounded_action": "After the Pressure owner commits the two helper/codec corrections, update only the existing Activity/Steps/e3f2ecd consumers and resume the frozen shared review.",
       "evidence": {
         "branch": "codex/ti-portable-file-assembly-20260915",
         "branch_tip_at_snapshot": "e3f2ecd4c730435e2652b35b73d7b94af5774213",
@@ -3181,8 +3198,20 @@
         "worktree": {
           "path": "C:\\Users\\adam-\\GitHub\\Tracker-Android\\.worktrees\\ti-portable-file-assembly-20260915",
           "head": "e3f2ecd4c730435e2652b35b73d7b94af5774213",
-          "dirty_paths": [],
-          "dirty_status": []
+          "dirty_paths": [
+            "feature\\import-export\\src\\main\\java\\com\\adsamcik\\tracker\\impexp\\format\\FormatRegistry.kt",
+            "feature\\import-export\\src\\main\\java\\com\\adsamcik\\tracker\\impexp\\importer\\DataImporter.kt",
+            "feature\\import-export\\src\\main\\java\\com\\adsamcik\\tracker\\impexp\\importer\\archive\\ZipArchiveExtractor.kt",
+            "feature\\import-export\\src\\main\\java\\com\\adsamcik\\tracker\\impexp\\importer\\worker\\ImportWorker.kt",
+            "feature\\import-export\\src\\main\\res\\values\\strings.xml"
+          ],
+          "dirty_status": [
+            " M feature/import-export/src/main/java/com/adsamcik/tracker/impexp/format/FormatRegistry.kt",
+            " M feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/DataImporter.kt",
+            " M feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/archive/ZipArchiveExtractor.kt",
+            " M feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt",
+            " M feature/import-export/src/main/res/values/strings.xml"
+          ]
         }
       },
       "related_requirement_ids": [],

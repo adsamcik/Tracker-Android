@@ -19,6 +19,32 @@ no files, and the reviewer was then restricted to source-read tools. This is a p
 not evidence that the Location artifact or any other source passes a validation gate. No regression,
 compiler, Gradle, lint, schema, device or CI gate has started for the current assembly.
 
+## TI-B329 - Pressure file and passive radio reviews remain blocked
+
+- Pressure input: `f8ca404069c28a60c541084a52a987569f317aa8`. Focused review reduced the
+  open set to two findings: the shared token limiter fails to cap huge unquoted alphabetic and
+  invalid-number-suffix literals, and the Pressure codec converts a raw transport `EOFException`
+  into permanent parser truncation instead of a retryable I/O failure. Prefix accounting, aggregate
+  budgets, semantic failures, cancellation and receipt cases are otherwise addressed.
+- The exact lexer correction is a shared dependency and must be propagated consistently to
+  Activity, Steps and held portable assembly `e3f2ecd4c730435e2652b35b73d7b94af5774213`.
+  Activity source input `483e8b59b790c5970d11b947d76d82746308bdac` remains statically closed;
+  this open helper dependency does not reopen its five source-semantic findings.
+- Passive radio input: `306e9070d296a9b91f96177e9948090754779917`. Adversarial review is
+  **BLOCKED** by ten production findings: undefined/nested declarations; stale-lease mutation
+  before rejection; empty-store consent deletion without a WAL fence; caller-authored retention
+  approval and imported retention tied to local consent; corrected revision-2 import rejection;
+  archive-only tombstone resurrection; mixed-age retention deleting new data; projection-time-zone
+  day movement; gap-only read/export loss; and stale session claims after disabled release.
+- The radio test source also lacks one real runtime-to-projector chain and uses a blind
+  `clearAllTables` shape that loses fences. Parent dependencies still include 18 or more entities,
+  possible typed footprint/approval schema, and runtime/DI/lease integration.
+- Earlier radio-owner `leaf closed`, `RAD001..012 COMMITTED`, or broader `RAD001..021` accounting
+  is commit/work breakdown only. It is not static acceptance, retention approval, execution proof
+  or permission to start a new feature wave. The adversarial blockers govern current status.
+- Outcome: both artifacts remain **IMPLEMENTED_UNVALIDATED / ACTIVE CORRECTION**. No compile,
+  test, Gradle, lint, schema, device, CI, push or activation occurred.
+
 ## TI-B328 - Activity source actions and lexical consumer statically closed
 
 - Input: `483e8b59b790c5970d11b947d76d82746308bdac` on

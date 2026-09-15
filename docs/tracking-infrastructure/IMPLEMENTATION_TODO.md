@@ -39,6 +39,16 @@ bridge required to close the already-started shared history union.
 The full tracking documentation request remains active. Continue registry and ledger maintenance
 as evidence arrives; the production finish-only scope does not freeze documentation work.
 
+Current correction-only receipts:
+
+- Pressure files `f8ca404069` may close only two remaining findings: cap every unquoted literal
+  in the shared lexer, and distinguish retryable raw transport EOF from permanent parser
+  truncation. Propagate the exact helper correction to Activity, Steps and `e3f2ecd4`; do not
+  reopen Activity's closed source semantics or start another file feature.
+- Passive ambient radio `306e9070d2` remains blocked by ten production findings plus a missing
+  actual runtime/projector-chain test. Correct only that artifact. Parent schema/runtime/DI/UI
+  integration remains backlog. Owner-authored `COMMITTED`/`leaf closed` labels are not acceptance.
+
 ## 2026-09-15 scope-expansion freeze
 
 TI-D262 changes execution of this ledger, not its coverage. This file remains the full

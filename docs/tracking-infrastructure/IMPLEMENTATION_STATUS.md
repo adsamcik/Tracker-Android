@@ -47,6 +47,25 @@ The registry incorporates the newer artifact state:
 The user-requested documentation and work-item tracking itself remains active. Production scope
 expansion is frozen; registry/ledger maintenance is not. TI-D264 records this distinction.
 
+Current focused-review receipts, with no new feature wave:
+
+- Pressure files `f8ca404069c28a60c541084a52a987569f317aa8` has two remaining findings.
+  The shared lexer must cap every unquoted literal, including huge bare alphabetic and invalid
+  number-suffix tokens. The Pressure codec must keep a raw transport `EOFException` retryable
+  rather than treating it as permanent parser truncation. Other prefix, budget, semantic,
+  cancellation and durable-receipt cases are addressed. The exact shared-helper correction must
+  propagate to Activity, Steps and held assembly `e3f2ecd4`; Activity `483e8b59` remains
+  source-consumer closed, but its helper dependency is not closed.
+- Passive ambient radios `306e9070d296a9b91f96177e9948090754779917` is blocked by ten
+  production findings plus a real-chain source gap. The owner is correcting declarations first.
+  The blockers cover declaration scope, stale-lease mutation, empty-store deletion fences,
+  retention authority/consent coupling, corrected-revision import, archive tombstone resurrection,
+  mixed-age retention, stored-zone day authority, gap-only reads/exports and stale session claims.
+  Existing tests join mocked halves and use a blind full clear that loses fences. Eighteen or more
+  entities plus possible typed footprint/approval schema and runtime/DI/lease integration remain
+  dependencies. Earlier `leaf closed` / `RAD001..012 COMMITTED` metadata means committed only;
+  adversarial blockers take precedence and no source/private retention approval is proven.
+
 ## Scope expansion frozen - finish started artifacts, hand over the backlog
 
 TI-D262 supersedes the earlier requirement to start every successor lane before returning.

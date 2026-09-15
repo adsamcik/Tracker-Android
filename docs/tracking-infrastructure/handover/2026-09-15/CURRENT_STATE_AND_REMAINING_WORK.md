@@ -45,6 +45,18 @@ The complete documentation/work-item request remains active. Continue local regi
 updates as owner receipts and closure results arrive; do not interpret the production scope freeze
 as a documentation freeze.
 
+Latest current-slice review receipts:
+
+- Pressure files `f8ca404069` has exactly two open findings: cap all unquoted lexer literals,
+  including huge alphabetic/invalid-number suffixes, and keep raw transport EOF retryable rather
+  than permanent parser truncation. Propagate the exact shared helper to Activity, Steps and
+  `e3f2ecd4`. Activity `483e8b59` remains source-consumer closed; only the helper dependency stays
+  open.
+- Passive radio `306e9070d2` remains blocked by ten production defects plus a missing real
+  runtime/projector-chain test. The owner is editing declaration scope first. Do not treat its
+  earlier `leaf closed` or `RAD001..012 COMMITTED` metadata as acceptance. Parent 18-plus entity/
+  DDL, typed footprint/approval, runtime/DI/lease and UI dependencies remain backlog.
+
 ## Scope-change handover - finish only what was already started
 
 TI-D262 supersedes the earlier instruction to continue into every next lane. Keep the entire
