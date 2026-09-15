@@ -4,7 +4,7 @@ Last updated: 2026-09-15
 
 ## Registry coverage and process-deviation note
 
-`WORK_ITEMS.json` maps all 293 stable TODO IDs to 62 work items with zero unmapped IDs. JSON
+`WORK_ITEMS.json` maps all 293 stable TODO IDs to 63 work items with zero unmapped IDs. JSON
 parsing, unique-ID, dependency-reference, acyclic-dependency and requirement-coverage checks are
 metadata consistency only; they are not compilation, tests, schema, runtime or device evidence.
 
@@ -18,6 +18,26 @@ One Location reviewer accidentally invoked `git diff --check`. It produced no ou
 no files, and the reviewer was then restricted to source-read tools. This is a process deviation,
 not evidence that the Location artifact or any other source passes a validation gate. No regression,
 compiler, Gradle, lint, schema, device or CI gate has started for the current assembly.
+
+## TI-B334 - Runtime shared contracts committed and held under review
+
+- Input: `43db9556d75daa8deb852896710bd2bdc080ff40` on
+  `codex/ti-runtime-settlement-20260915`, after shared contracts `92a264020b`, hardening
+  `89202124fd` and Location hint `9cbb8d8df`.
+- The committed artifact claims a durable Activity admission seal with nonnull hardware identity,
+  exact retirement intent and acknowledgement, contained rollback with monotonic generation
+  coordination, and an actual Pressure `39198f5` generation-token adapter.
+- Outcome: **IMPLEMENTED_UNVALIDATED; COMMITTED HELD; FOCUSED REVIEW ACTIVE.** These contract
+  claims are not accepted runtime completion or source activation.
+- Planned producer propagation remains explicit: real `LegacyPressureWriterLifecycleBarrier`,
+  the PersistenceProcessor live/offline lifecycle lease, generation-aware writer/reader/
+  maintenance support for four sources, SourceDestination constants/validation and protected
+  Location binding.
+- Required future DDL contains only `source_capture_admission_barrier` and
+  `source_run_retirement`. The current artifact removed the obsolete generic
+  `source_maintenance_authority` entity/DAO; ignore older `92a` three-table DDL receipts.
+- No producer propagation, schema integration, compilation, tests, Gradle, lint, schema
+  generation/drift, device, CI, push or activation occurred.
 
 ## TI-B333 - Shared schema scoped implementation cumulatively static-closed
 

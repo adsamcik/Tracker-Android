@@ -20,7 +20,7 @@ Last updated: 2026-09-15
 ## Authoritative execution mapping
 
 This checklist contains 293 stable requirements. The new
-[`WORK_ITEMS.json`](WORK_ITEMS.json) registry explicitly maps all 293 IDs to 62 coherent work
+[`WORK_ITEMS.json`](WORK_ITEMS.json) registry explicitly maps all 293 IDs to 63 coherent work
 items with zero unmapped IDs. [`WORK_ITEM_TRACKING.md`](WORK_ITEM_TRACKING.md) is the generated
 operating index and update protocol.
 
@@ -75,6 +75,12 @@ Latest exact deltas:
 - Activity's original five semantic findings remain closed, but the raw transport
   `EOFException` subtype case reopens only its decoder boundary. Preserve permanent parser EOF and
   lexical failures. No Activity successor started.
+- Runtime `43db9556d7` is a clean committed/held review input for shared admission, retirement,
+  rollback/generation and Pressure-token contracts. It is not full runtime completion. Real
+  Pressure/PersistenceProcessor lifecycle barriers, four-source producer propagation,
+  SourceDestination validation, protected Location binding and only the two required tables
+  (`source_capture_admission_barrier`, `source_run_retirement`) remain planned backlog. Do not
+  restore obsolete `source_maintenance_authority` or older three-table DDL.
 
 ## 2026-09-15 scope-expansion freeze
 

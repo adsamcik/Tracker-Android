@@ -30,7 +30,7 @@ Local documentation continued from `6744ced52037d531e56751777b519165167e6b19`.
 
 ## Coverage
 
-- Work items: **62**
+- Work items: **63**
 - Stable TODO requirements: **293**
 - Explicitly mapped: **293**
 - Unmapped: **0**
@@ -40,23 +40,24 @@ State counts:
 
 | Implementation state | Items |
 | --- | ---: |
-| `active_correction` | 12 |
+| `active_correction` | 10 |
 | `active_documentation` | 1 |
 | `active_governance` | 1 |
 | `allowed_dependency` | 1 |
 | `approval_required` | 1 |
+| `committed_held` | 1 |
 | `completed_accepted_slice` | 6 |
 | `completed_foundation` | 1 |
 | `decision_required` | 8 |
 | `gate_deferred` | 4 |
-| `partial_implemented` | 11 |
-| `planned` | 16 |
+| `partial_implemented` | 12 |
+| `planned` | 17 |
 
-Review states: `blocked_findings` 15, `closed_except_decision` 1, `closed_static` 6, `continuous` 2, `historical_accepted` 1, `mixed` 7, `not_applicable` 9, `not_started` 21.
+Review states: `active` 1, `blocked_findings` 13, `closed_except_decision` 1, `closed_static` 6, `continuous` 2, `historical_accepted` 1, `mixed` 8, `not_applicable` 9, `not_started` 22.
 
-Integration states: `held_branch` 2, `held_dependency` 1, `local_dev` 7, `local_only` 1, `mixed_source_refs` 7, `not_applicable` 9, `not_started` 21, `source_branch` 14.
+Integration states: `held_branch` 3, `held_dependency` 1, `local_dev` 7, `local_only` 1, `mixed_source_refs` 8, `not_applicable` 9, `not_started` 22, `source_branch` 12.
 
-Validation states: `deferred_implementation_only` 53, `not_applicable` 9.
+Validation states: `deferred_implementation_only` 54, `not_applicable` 9.
 
 
 ## Work-item index
@@ -70,7 +71,7 @@ Validation states: `deferred_implementation_only` 53, `not_applicable` 9.
 | `WI-SCHEMA-MIGRATION-001` | `completed_accepted_slice` | `closed_static` | `held_branch` | Close the bounded shared v28 schema assembly | Keep exact input fcc2162d held. Integrate only after its bundled source prerequisites close; do not start Pressure, Cell or radio schema assembly. |
 | `WI-AUTHORITY-PURPOSE-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete source and purpose authority semantics | Do not start a new authority wave; consume only closed current-purpose artifacts when a bounded integration is assigned. |
 | `WI-BROKER-PROVIDER-OWNERSHIP-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete one physical owner per source | Remain planned outside already-started runtime and purpose corrections. |
-| `WI-LIFECYCLE-RUNTIME-001` | `active_correction` | `blocked_findings` | `source_branch` | Close lifecycle, action and settlement semantics | Finish only the already-started runtime correction and test-source closure. |
+| `WI-LIFECYCLE-RUNTIME-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Close lifecycle, action and settlement semantics | Close the focused runtime review only; do not begin producer propagation. |
 | `WI-DATA-MAINTENANCE-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete durable admission, projection and maintenance | No new cross-source data-plane wave; finish only the active source and shared artifacts listed in this registry. |
 | `WI-QOS-BATTERY-001` | `planned` | `not_started` | `not_started` | Complete honest acquisition and battery semantics | Handover backlog; do not start during the finish-only scope. |
 | `WI-STEPS-PORTABLE-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Preserve completed imported Steps and portable round trip | Preserve; no new work in this scope. |
@@ -108,7 +109,8 @@ Validation states: `deferred_implementation_only` 53, `not_applicable` 9.
 | `WI-SOURCE-ACTIONS-EXPLANATION-001` | `planned` | `not_started` | `not_started` | Complete start, settings, source actions and recording explanation | Handover backlog; do not start. |
 | `WI-CROSS-SOURCE-PRIVACY-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete cross-source retention, transfer, deletion and no-resurrection | No new cross-source wave; finish current source artifacts and hand over the rest. |
 | `WI-NONSTEPS-EFFECTS-001` | `planned` | `not_started` | `not_started` | Qualify non-Steps widgets, achievements and effects | Handover backlog; do not start. |
-| `WI-RUNTIME-SETTLEMENT-001` | `active_correction` | `blocked_findings` | `source_branch` | Close active shared runtime settlement correction | Close the current six-plus-P0 correction and focused tests only; no source activation. |
+| `WI-RUNTIME-SETTLEMENT-001` | `committed_held` | `active` | `held_branch` | Close active shared runtime settlement correction | Hold exact input 43db9556 for the current focused review. Do not begin producer propagation, schema wiring or source activation. |
+| `WI-RUNTIME-PRODUCER-PROPAGATION-001` | `planned` | `not_started` | `not_started` | Propagate runtime generation and lifecycle contracts | Handover backlog. Do not start until the current runtime artifact and source prerequisites close under a new bounded assignment. |
 | `WI-CROSS-SOURCE-RECOVERY-001` | `planned` | `not_started` | `not_started` | Complete cross-source correction, recovery and provenance | Handover backlog; do not start. |
 | `WI-INTEGRATION-SCENARIOS-001` | `planned` | `not_started` | `not_started` | Author complete real integration scenario sources | Handover backlog; do not start. |
 | `WI-DEC-CONTROL-EVIDENCE-001` | `decision_required` | `not_applicable` | `not_applicable` | Approve exact automatic CONTROL evidence lifetime and shape | User/product owner decision; implementation must not invent a duration. |

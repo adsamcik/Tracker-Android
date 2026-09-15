@@ -5,7 +5,7 @@
 Start execution accounting with [`WORK_ITEMS.json`](../../WORK_ITEMS.json). It is the authoritative
 status/dependency/ownership registry. [`WORK_ITEM_TRACKING.md`](../../WORK_ITEM_TRACKING.md) is the
 overview and update protocol; `IMPLEMENTATION_TODO.md` remains the exhaustive stable requirement
-checklist. The initial registry has 62 work items and maps all 293 TODO IDs with zero unmapped.
+checklist. The registry has 63 work items and maps all 293 TODO IDs with zero unmapped.
 
 The user independently published `3dd1ff004a34beb339539c4961704919d781371c`. Local
 documentation continued from `6744ced52037d531e56751777b519165167e6b19`; no agent push is
@@ -84,6 +84,13 @@ Newest exact review state:
 - Activity `483e8b59` retains its five semantic closures, but a concrete raw
   `EOFException` subtype reopens only its decoder transport boundary. The source owner is
   correcting it without changing permanent parser EOF or lexical failures. No successor started.
+- Runtime `43db9556d7` is clean, committed and held under focused review for Activity admission,
+  exact retirement, rollback/generation coordination, Pressure token adaptation and Location
+  recovery hint. Do not call it complete: real Pressure/PersistenceProcessor lifecycle barriers,
+  four-source generation-aware producer propagation, SourceDestination validation, protected
+  Location binding and the exact two-table DDL remain planned backlog. The required tables are
+  only `source_capture_admission_barrier` and `source_run_retirement`; do not revive obsolete
+  `source_maintenance_authority` or older three-table DDL.
 
 ## Scope-change handover - finish only what was already started
 

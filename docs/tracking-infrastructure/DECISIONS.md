@@ -45,7 +45,7 @@ Last updated: 2026-09-15
   `WORK_ITEM_TRACKING.md` is an index/protocol generated from that registry and must not carry an
   independent competing status.
 - Every still-applicable TODO ID must map explicitly to a coherent `WI-*` item. The initial
-  registry maps all 293 IDs to 62 work items with zero unmapped IDs. Broad unchecked requirements
+  registry maps all 293 IDs to 63 work items with zero unmapped IDs. Broad unchecked requirements
   retain accepted sub-slice evidence and are not interpreted as wholly absent.
 - State changes require exact evidence: commit/ref, owner receipt, focused review, authorized local
   integration or executed proof on the exact commit. A branch, dirty worktree, authored test or

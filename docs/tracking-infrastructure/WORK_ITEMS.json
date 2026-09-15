@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-15T20:40:34.448+02:00",
+  "updated_at": "2026-09-15T20:52:00.331+02:00",
   "repository": {
     "branch": "dev/v10",
     "local_head_at_task_start": "6744ced52037d531e56751777b519165167e6b19",
@@ -72,8 +72,8 @@
     },
     {
       "id": "CONTRADICTION-RUNTIME-OWNER-GENERATIONS",
-      "description": "Runtime generation/owner constants claim support not implemented by all actual writers/readers.",
-      "resolution": "Require real repeated owner/rearm cycles in WI-RUNTIME-SETTLEMENT-001."
+      "description": "The committed runtime contracts do not yet have generation-aware writer/reader/maintenance propagation for four sources or the required SourceDestination validation and Location binding.",
+      "resolution": "Keep 43db9556 held and require real repeated owner/rearm cycles plus only source_capture_admission_barrier and source_run_retirement DDL in WI-RUNTIME-PRODUCER-PROPAGATION-001; do not restore source_maintenance_authority."
     },
     {
       "id": "CONTRADICTION-AMBIENT-STEPS-LANE",
@@ -93,43 +93,45 @@
     "mapped_requirement_count": 293,
     "unmapped_requirement_ids": [],
     "duplicate_primary_mappings": [],
-    "work_item_count": 62,
+    "work_item_count": 63,
     "implementation_state_counts": {
-      "active_correction": 12,
+      "active_correction": 10,
       "active_documentation": 1,
       "active_governance": 1,
       "allowed_dependency": 1,
       "approval_required": 1,
+      "committed_held": 1,
       "completed_accepted_slice": 6,
       "completed_foundation": 1,
       "decision_required": 8,
       "gate_deferred": 4,
-      "partial_implemented": 11,
-      "planned": 16
+      "partial_implemented": 12,
+      "planned": 17
     }
   },
   "review_state_counts": {
-    "blocked_findings": 15,
+    "active": 1,
+    "blocked_findings": 13,
     "closed_except_decision": 1,
     "closed_static": 6,
     "continuous": 2,
     "historical_accepted": 1,
-    "mixed": 7,
+    "mixed": 8,
     "not_applicable": 9,
-    "not_started": 21
+    "not_started": 22
   },
   "integration_state_counts": {
-    "held_branch": 2,
+    "held_branch": 3,
     "held_dependency": 1,
     "local_dev": 7,
     "local_only": 1,
-    "mixed_source_refs": 7,
+    "mixed_source_refs": 8,
     "not_applicable": 9,
-    "not_started": 21,
-    "source_branch": 14
+    "not_started": 22,
+    "source_branch": 12
   },
   "validation_state_counts": {
-    "deferred_implementation_only": 53,
+    "deferred_implementation_only": 54,
     "not_applicable": 9
   },
   "work_items": [
@@ -707,9 +709,9 @@
         "STOPPING and FINALIZED never restart after crash, reboot or stale action.",
         "FGS type and legality reflect accepted direct demands and real start origin."
       ],
-      "implementation_state": "active_correction",
-      "review_state": "blocked_findings",
-      "integration_state": "source_branch",
+      "implementation_state": "partial_implemented",
+      "review_state": "mixed",
+      "integration_state": "mixed_source_refs",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": null,
@@ -728,12 +730,14 @@
       "public_interfaces": [],
       "dependencies": [
         "WI-RUNTIME-SETTLEMENT-001",
+        "WI-RUNTIME-PRODUCER-PROPAGATION-001",
         "WI-PURPOSE-SETTINGS-001"
       ],
       "known_blockers": [
-        "The active runtime correction remains unaccepted; see WI-RUNTIME-SETTLEMENT-001."
+        "The committed runtime artifact is under focused review.",
+        "Real producer/writer/reader/maintenance propagation remains unstarted backlog."
       ],
-      "next_bounded_action": "Finish only the already-started runtime correction and test-source closure.",
+      "next_bounded_action": "Close the focused runtime review only; do not begin producer propagation.",
       "evidence": {},
       "related_requirement_ids": [],
       "requirement_ids": [
@@ -751,9 +755,7 @@
       "deferred_proof_commands": [
         ".\\gradlew.bat :tracker:engine:testDebugUnitTest --tests \"*Runtime*\" --tests \"*Settlement*\""
       ],
-      "authored_evidence_test_paths": [
-        "tracker\\engine\\src\\test\\**"
-      ]
+      "authored_evidence_test_paths": []
     },
     {
       "id": "WI-DATA-MAINTENANCE-001",
@@ -3552,17 +3554,17 @@
     {
       "id": "WI-RUNTIME-SETTLEMENT-001",
       "title": "Close active shared runtime settlement correction",
-      "outcome": "Resolve only the existing runtime drain, retirement, rollback, rearm, Pressure demand and legacy-write fencing defects.",
+      "outcome": "Review the committed shared runtime admission, retirement, rollback, generation and Pressure token contracts without claiming producer propagation.",
       "acceptance_criteria": [
-        "Activity callback drain/barrier handles null hardware and late callbacks observably.",
-        "Durable retirement acknowledgement replays exactly without synthetic completion.",
-        "Rollback generation and manifest compatibility accept the intended prior owner safely.",
-        "Repeated owner/rearm cycles work in actual writers/readers, Pressure demand uses CAS and AlreadyApplied is exact.",
-        "Legacy Pressure in-memory and durable pending writes are generation-fenced and verifySettled is positive."
+        "Activity admission has a durable seal and nonnull hardware identity.",
+        "Retirement intent and acknowledgement replay exactly.",
+        "Rollback remains contained and the generation coordinator is monotonic.",
+        "The Pressure 391 generation-token adapter uses the shared contract.",
+        "The obsolete generic source_maintenance_authority entity and DAO remain removed."
       ],
-      "implementation_state": "active_correction",
-      "review_state": "blocked_findings",
-      "integration_state": "source_branch",
+      "implementation_state": "committed_held",
+      "review_state": "active",
+      "integration_state": "held_branch",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": null,
@@ -3578,28 +3580,38 @@
       },
       "public_interfaces": [
         "SourceProductDrainRouter",
-        "source settlement transitions",
-        "Pressure erase barrier",
+        "durable Activity admission seal",
+        "source run retirement intent and acknowledgement",
+        "monotonic generation coordinator",
+        "Pressure generation-token adapter",
         "Location recovery hint"
       ],
       "dependencies": [],
       "known_blockers": [
-        "Exact Activity callback drain/barrier.",
-        "Durable retirement ACK replay.",
-        "Rollback generation/manifest compatibility.",
-        "Actual repeated owner/rearm support rather than constants.",
-        "Pressure demand TOCTOU.",
-        "Exact AlreadyApplied.",
-        "Legacy Pressure PersistenceProcessor pending-write fence."
+        "Focused review of 43db9556 is running; the artifact is not accepted yet.",
+        "Real LegacyPressureWriterLifecycleBarrier and PersistenceProcessor lifecycle lease are absent.",
+        "Generation-aware writer/reader/maintenance support for four sources is unstarted and remains default-unavailable.",
+        "SourceDestination contained constants/validation, Location binding and DDL for source_capture_admission_barrier plus source_run_retirement are absent."
       ],
-      "next_bounded_action": "Close the current six-plus-P0 correction and focused tests only; no source activation.",
+      "next_bounded_action": "Hold exact input 43db9556 for the current focused review. Do not begin producer propagation, schema wiring or source activation.",
       "evidence": {
         "branch": "codex/ti-runtime-settlement-20260915",
-        "branch_tip_at_snapshot": "410d26e28c648b5a35a17c024f2c1f8b63339314",
+        "branch_tip_at_snapshot": "43db9556d75daa8deb852896710bd2bdc080ff40",
         "merge_base_with_local_dev": "8ad24c8d8420150127ca9d8661e0fc906a7e814f",
-        "tip_subject": "feat(tracking): adapt protected Location drain contract",
-        "review_input_commit": "410d26e28c648b5a35a17c024f2c1f8b63339314",
+        "tip_subject": "fix(tracking): adopt Pressure erase barrier token",
+        "review_input_commit": "43db9556d75daa8deb852896710bd2bdc080ff40",
         "changed_paths_at_snapshot": [
+          "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SourceBrokerDao.kt",
+          "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SourceSessionDao.kt",
+          "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceCaptureAdmissionBarrierEntity.kt",
+          "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceRunRetirementEntity.kt",
+          "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceSessionEntities.kt",
+          "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceWriterGenerationContract.kt",
+          "core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceCaptureAdmissionBarrierEntityTest.kt",
+          "core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceRunRetirementEntityTest.kt",
+          "core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceWriterGenerationContractTest.kt",
+          "sensor\\activity\\src\\main\\java\\com\\adsamcik\\tracker\\activity\\api\\registration\\DefaultActivityRegistrationArbiter.kt",
+          "sensor\\activity\\src\\test\\java\\com\\adsamcik\\tracker\\activity\\api\\registration\\DefaultActivityRegistrationArbiterTest.kt",
           "tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\di\\SourcePipelineModule.kt",
           "tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\activity\\ActivityCapturedFactProjectionLane.kt",
           "tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\activity\\ActivityCapturedWalAdmissionAdapter.kt",
@@ -3610,8 +3622,12 @@
           "tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\TrackingRolloutStateStore.kt",
           "tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\deletion\\PressureDeletionModule.kt",
           "tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\ingress\\DurableSourceEventSink.kt",
+          "tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\ingress\\DurableSourceIngress.kt",
           "tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\pressure\\RuntimePressureSourceEraseBarrier.kt",
+          "tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\ActivitySourceRuntime.kt",
           "tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\PressureSourceRuntime.kt",
+          "tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\SourceRegistrationRepository.kt",
+          "tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\SourceRuntime.kt",
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\activity\\ActivityCapturedWalAdmissionAdapterTest.kt",
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\AuthoritativeSessionCoordinatorTest.kt",
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\SourcePipelineRecoveryTest.kt",
@@ -3619,10 +3635,16 @@
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\SourceSpecificWriterTransitionCoordinatorsTest.kt",
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\TrackingRolloutStateStoreTest.kt",
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\ingress\\DurableSourceEventSinkTest.kt",
+          "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\ingress\\RoomDurableSourceIngressTest.kt",
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\pressure\\RuntimePressureSourceEraseBarrierTest.kt",
+          "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\ActivitySourceRuntimeTest.kt",
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\PressureSourceRuntimeTest.kt"
         ],
         "authored_test_paths": [
+          "core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceCaptureAdmissionBarrierEntityTest.kt",
+          "core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceRunRetirementEntityTest.kt",
+          "core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceWriterGenerationContractTest.kt",
+          "sensor\\activity\\src\\test\\java\\com\\adsamcik\\tracker\\activity\\api\\registration\\DefaultActivityRegistrationArbiterTest.kt",
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\activity\\ActivityCapturedWalAdmissionAdapterTest.kt",
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\AuthoritativeSessionCoordinatorTest.kt",
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\SourcePipelineRecoveryTest.kt",
@@ -3630,7 +3652,9 @@
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\SourceSpecificWriterTransitionCoordinatorsTest.kt",
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\TrackingRolloutStateStoreTest.kt",
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\ingress\\DurableSourceEventSinkTest.kt",
+          "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\ingress\\RoomDurableSourceIngressTest.kt",
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\pressure\\RuntimePressureSourceEraseBarrierTest.kt",
+          "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\ActivitySourceRuntimeTest.kt",
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\PressureSourceRuntimeTest.kt"
         ],
         "worktree": {
@@ -3644,6 +3668,10 @@
         ".\\gradlew.bat :tracker:engine:testDebugUnitTest --tests \"*Settlement*\" --tests \"*Drain*\" --tests \"*Pressure*\""
       ],
       "authored_evidence_test_paths": [
+        "core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceCaptureAdmissionBarrierEntityTest.kt",
+        "core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceRunRetirementEntityTest.kt",
+        "core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\SourceWriterGenerationContractTest.kt",
+        "sensor\\activity\\src\\test\\java\\com\\adsamcik\\tracker\\activity\\api\\registration\\DefaultActivityRegistrationArbiterTest.kt",
         "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\activity\\ActivityCapturedWalAdmissionAdapterTest.kt",
         "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\AuthoritativeSessionCoordinatorTest.kt",
         "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\SourcePipelineRecoveryTest.kt",
@@ -3651,9 +3679,83 @@
         "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\SourceSpecificWriterTransitionCoordinatorsTest.kt",
         "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\coordinator\\TrackingRolloutStateStoreTest.kt",
         "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\ingress\\DurableSourceEventSinkTest.kt",
+        "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\ingress\\RoomDurableSourceIngressTest.kt",
         "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\pressure\\RuntimePressureSourceEraseBarrierTest.kt",
+        "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\ActivitySourceRuntimeTest.kt",
         "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\runtime\\PressureSourceRuntimeTest.kt"
       ]
+    },
+    {
+      "id": "WI-RUNTIME-PRODUCER-PROPAGATION-001",
+      "title": "Propagate runtime generation and lifecycle contracts",
+      "outcome": "Wire the reviewed runtime contracts into real Pressure, Location and remaining source writers/readers/maintenance plus the exact two-table schema.",
+      "acceptance_criteria": [
+        "LegacyPressureWriterLifecycleBarrier and the live/offline PersistenceProcessor lifecycle lease fence in-memory and durable pending writes.",
+        "Four source writer/reader/maintenance paths implement repeated generation/rearm cycles instead of remaining default-unavailable.",
+        "SourceDestination contained constants and validation match real producer support, including protected Location binding.",
+        "Add only source_capture_admission_barrier and source_run_retirement DDL; do not restore source_maintenance_authority.",
+        "Focused production and test source covers positive settlement, stale generation rejection and repeated cycles."
+      ],
+      "implementation_state": "planned",
+      "review_state": "not_started",
+      "integration_state": "not_started",
+      "validation_state": "deferred_implementation_only",
+      "owner_receipt": "not_applicable",
+      "parent_id": null,
+      "ownership": {
+        "source": "shared runtime producer propagation",
+        "modules": [
+          ":core:base",
+          ":tracker:engine",
+          ":app"
+        ],
+        "path_scopes": [
+          "future PersistenceProcessor lifecycle lease",
+          "future source writer/reader/maintenance generation propagation",
+          "future source_capture_admission_barrier and source_run_retirement DDL",
+          "future protected Location binding"
+        ]
+      },
+      "public_interfaces": [
+        "LegacyPressureWriterLifecycleBarrier",
+        "PersistenceProcessor lifecycle lease",
+        "SourceDestination generation validation",
+        "source_capture_admission_barrier",
+        "source_run_retirement"
+      ],
+      "dependencies": [
+        "WI-RUNTIME-SETTLEMENT-001",
+        "WI-PRESSURE-MAINTENANCE-001",
+        "WI-LOCATION-HANDOFF-001",
+        "WI-SCHEMA-MIGRATION-001"
+      ],
+      "known_blockers": [
+        "Scope freeze: producer propagation is explicitly future backlog.",
+        "The focused review of 43db9556 is still running.",
+        "Pressure and Location producer prerequisites remain blocked."
+      ],
+      "next_bounded_action": "Handover backlog. Do not start until the current runtime artifact and source prerequisites close under a new bounded assignment.",
+      "evidence": {},
+      "related_requirement_ids": [
+        "TODO-ACT-007",
+        "TODO-CELL-010",
+        "TODO-CORE-001",
+        "TODO-CORE-004",
+        "TODO-CORE-006",
+        "TODO-DATA-009",
+        "TODO-DATA-010",
+        "TODO-LIFE-004",
+        "TODO-LIFE-007",
+        "TODO-LOC-007",
+        "TODO-PRESS-004",
+        "TODO-PRESS-008",
+        "TODO-WIFI-010"
+      ],
+      "requirement_ids": [],
+      "deferred_proof_commands": [
+        ".\\gradlew.bat :core:base:testDebugUnitTest :tracker:engine:testDebugUnitTest :app:testDebugUnitTest --tests \"*Generation*\" --tests \"*Retirement*\" --tests \"*Pressure*Lifecycle*\""
+      ],
+      "authored_evidence_test_paths": []
     },
     {
       "id": "WI-CROSS-SOURCE-RECOVERY-001",
@@ -4350,7 +4452,7 @@
       "section": "How to use this ledger",
       "subsection": "Full implementation continuation",
       "text": "Finish Wi-Fi imported evaluator, bounded origin composition and authenticated latest reexport/roundtrip, then imported selected deletion/retention/source erase.",
-      "line": 154,
+      "line": 155,
       "primary_work_item_id": "WI-WIFI-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -4360,7 +4462,7 @@
       "section": "How to use this ledger",
       "subsection": "Full implementation continuation",
       "text": "Finish Cell imported evaluator, bounded origin composition and authenticated latest reexport/roundtrip, then imported/live selected deletion/retention/erase.",
-      "line": 156,
+      "line": 157,
       "primary_work_item_id": "WI-CELL-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -4370,7 +4472,7 @@
       "section": "How to use this ledger",
       "subsection": "Full implementation continuation",
       "text": "Finish Pressure imported retention and explicit local/import source erase, assemble required Room/worker/settings paths, and wire portable file/actions.",
-      "line": 158,
+      "line": 159,
       "primary_work_item_id": "WI-PRESSURE-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -4380,7 +4482,7 @@
       "section": "How to use this ledger",
       "subsection": "Full implementation continuation",
       "text": "Finish Activity local/import source erase and portable file/action backends, then wire exact-origin selected actions into existing product surfaces.",
-      "line": 160,
+      "line": 161,
       "primary_work_item_id": "WI-ACTIVITY-VERTICAL-001",
       "related_work_item_ids": [
         "WI-ACTIVITY-RANGE-001"
@@ -4392,7 +4494,7 @@
       "section": "How to use this ledger",
       "subsection": "Full implementation continuation",
       "text": "Finish Ambient Steps imported portable origin/read/reexport/maintenance and roundtrip, then source settings/remediation and partitioned day/numeric/product consumers.",
-      "line": 162,
+      "line": 163,
       "primary_work_item_id": "WI-STEPS-AMBIENT-001",
       "related_work_item_ids": [
         "WI-STEPS-AMBIENT-FILES-001"
@@ -4404,7 +4506,7 @@
       "section": "How to use this ledger",
       "subsection": "Full implementation continuation",
       "text": "Complete source-aware selected detail and source-only Today/Timeline/ Calendar/live/list products over actual source authority, preserving null/partial and exact origin.",
-      "line": 164,
+      "line": 165,
       "primary_work_item_id": "WI-UI-SURFACES-001",
       "related_work_item_ids": [
         "WI-SHARED-HISTORY-CONSUMERS-001"
@@ -4416,7 +4518,7 @@
       "section": "How to use this ledger",
       "subsection": "Full implementation continuation",
       "text": "Reconcile and close manual/automatic/default-off approved ambient runtime/lifecycle/source-local writer/query transitions and source-specific scenario sources.",
-      "line": 166,
+      "line": 167,
       "primary_work_item_id": "WI-LIFECYCLE-RUNTIME-001",
       "related_work_item_ids": []
     },
@@ -4426,7 +4528,7 @@
       "section": "How to use this ledger",
       "subsection": "Full implementation continuation",
       "text": "Integrate every producer/consumer/schema/action seam, close concrete adversarial findings, account for all original assembly IDs and freeze only the complete input.",
-      "line": 168,
+      "line": 169,
       "primary_work_item_id": "WI-ASSEMBLY-GATE-001",
       "related_work_item_ids": []
     },
@@ -4436,7 +4538,7 @@
       "section": "How to use this ledger",
       "subsection": "September 15 closure accounting",
       "text": "Close in-progress Cell/Wi-Fi import static-review corrections (`f8dd5d6d1`, `315ac6a83`) and Activity real-worker retention invocation (`b13765db7`), authoring regression sources without execution. TI-D252\u2013254 / TI-B315\u2013317 are static acceptance only.",
-      "line": 209,
+      "line": 210,
       "primary_work_item_id": "WI-HANDOVER-PRESERVATION-001",
       "related_work_item_ids": []
     },
@@ -4446,7 +4548,7 @@
       "section": "How to use this ledger",
       "subsection": "September 15 closure accounting",
       "text": "Locally assemble reviewed family histories and shared source unions for the requested dev/v10 transport checkpoint; retain original refs and unaccepted drafts.",
-      "line": 212,
+      "line": 213,
       "primary_work_item_id": "WI-HANDOVER-PRESERVATION-001",
       "related_work_item_ids": []
     },
@@ -4456,7 +4558,7 @@
       "section": "How to use this ledger",
       "subsection": "September 15 closure accounting",
       "text": "Write zero-context prompt, source map, dependency-ordered remaining work, assembly dispositions, quarantine rules and reproducible ZIP generator.",
-      "line": 214,
+      "line": 215,
       "primary_work_item_id": "WI-HANDOVER-PRESERVATION-001",
       "related_work_item_ids": []
     },
@@ -4466,7 +4568,7 @@
       "section": "How to use this ledger",
       "subsection": "September 15 closure accounting",
       "text": "Receiving agent reconciles composed remaining source/API/ UI/runtime/maintenance call sites and completes every still-open implementation dependency.",
-      "line": 216,
+      "line": 217,
       "primary_work_item_id": "WI-ASSEMBLY-GATE-001",
       "related_work_item_ids": []
     },
@@ -4476,7 +4578,7 @@
       "section": "How to use this ledger",
       "subsection": "September 15 closure accounting",
       "text": "Resolve/contain product choices (especially AUTO-005 and v28 shipped premise), freeze exact complete convergence input, then explicitly lift phase and run the single deferred validation/fix batch. Local transport does not check final readiness items.",
-      "line": 218,
+      "line": 219,
       "primary_work_item_id": "WI-ASSEMBLY-GATE-001",
       "related_work_item_ids": []
     },
@@ -4486,7 +4588,7 @@
       "section": "How to use this ledger",
       "subsection": "September 15 closure accounting",
       "text": "Author the bounded Location retained-WAL payload follow-up: existing payload-free selected/delivery preflights, SQL byte-bound reads and source-sequence identity projection; actual cap-plus-one and byte/scope regression sources. Source commit `57073947f8fa77021b75f5c16eff6bb15d78e0e5` on `codex/ti-location-wal-bounds-20260915`; exact three-file paths, static-review disposition and deferred commands are TI-D256 / TI-B319 and the receiving continuation in IMPLEMENTATION_STATUS.md. **IMPLEMENTED_UNVALIDATED** only. Does not check TODO-HANDOVER-20260915-004, TODO-CORE-008 or TODO-LOC-006/007/012 wholesale.",
-      "line": 221,
+      "line": 222,
       "primary_work_item_id": "WI-HANDOVER-PRESERVATION-001",
       "related_work_item_ids": []
     },
@@ -4496,7 +4598,7 @@
       "section": "How to use this ledger",
       "subsection": "September 15 closure accounting",
       "text": "Fix full-clear Wi-Fi self-FK ordering in AppDatabase and WifiCapturedFactDao: remove coverage dependents before aggregate owners without weakening ordinary RESTRICT ownership. Author full-clear/reopen and transaction-rollback regressions. Source `f0eb2d59ec935855ba33072d1392338402a2e772` plus test-only adversarial correction `fc1e540f5b135d2485a9267127c4435c5b067356` remain IMPLEMENTED_UNVALIDATED; focused static review is closed without a remaining blocker. Rebased source `285deba80c` is locally merged in `8767472d62`; exact reviewed input is retained (TI-B320).",
-      "line": 229,
+      "line": 230,
       "primary_work_item_id": "WI-HANDOVER-PRESERVATION-001",
       "related_work_item_ids": []
     },
@@ -4506,7 +4608,7 @@
       "section": "How to use this ledger",
       "subsection": "September 15 closure accounting",
       "text": "Wire captured Cell/Wi-Fi retention into the legacy DataRetentionWorker before pending-signal deferral and shared WAL pruning. Preserve lifecycle generation fences and author ordering, failure/cancellation and constructor-call-site sources. Source `de2a4ae2f3102ee28b12d332a6f1054f38d7c068` is IMPLEMENTED_UNVALIDATED; adversarial review found pre-radio deletion of required `session_segment` ownership evidence. TI-D258 correction `afa939b0fd84cc9e6ebda9262bf57bbf16a5eca0` delays pruning until both services accept; the active pipeline was already safe and unchanged. Focused review closed the blocker; rebased source `0e99c246cc` is locally merged in `5fc5f91e1c` (TI-B321/TI-B323).",
-      "line": 236,
+      "line": 237,
       "primary_work_item_id": "WI-HANDOVER-PRESERVATION-001",
       "related_work_item_ids": []
     },
@@ -4516,7 +4618,7 @@
       "section": "How to use this ledger",
       "subsection": "September 15 closure accounting",
       "text": "Make source-aware Steps replacement discovery intent-first for exact factless groups; retain materializing/unavailable instead of suppressing physical rows with no replacement. Keep ordinary evidence-first history semantics and bounded recency. Source `b138a23adb3263708028e24267729192b813018a` is IMPLEMENTED_UNVALIDATED; adversarial production review found no blocker, but an unsupported-writer unavailable fixture violates the manifest invariant. Test-only correction `771ce960b37e3c7589c077ef848a20759f5cab31` closed that finding; rebased source `a390b97645` is locally merged in `3b13656923` (TI-B322).",
-      "line": 244,
+      "line": 245,
       "primary_work_item_id": "WI-HANDOVER-PRESERVATION-001",
       "related_work_item_ids": []
     },
@@ -4526,7 +4628,7 @@
       "section": "How to use this ledger",
       "subsection": "September 15 closure accounting",
       "text": "Update this ledger after every coherent implementation commit.",
-      "line": 263,
+      "line": 264,
       "primary_work_item_id": "WI-TRACKING-REGISTRY-001",
       "related_work_item_ids": []
     },
@@ -4536,7 +4638,7 @@
       "section": "How to use this ledger",
       "subsection": "September 15 closure accounting",
       "text": "Record exact branch, commit, changed paths, dependency, and deferred validation command in IMPLEMENTATION_STATUS.md, DECISIONS.md when a decision changed, and VERIFICATION_MATRIX.md.",
-      "line": 264,
+      "line": 265,
       "primary_work_item_id": "WI-TRACKING-REGISTRY-001",
       "related_work_item_ids": []
     },
@@ -4546,7 +4648,7 @@
       "section": "How to use this ledger",
       "subsection": "September 15 closure accounting",
       "text": "Keep implementation work on source-owned branches and worktrees until all planned pieces exist.",
-      "line": 267,
+      "line": 268,
       "primary_work_item_id": "WI-REPOSITORY-SAFETY-001",
       "related_work_item_ids": []
     },
@@ -4556,7 +4658,7 @@
       "section": "How to use this ledger",
       "subsection": "September 15 closure accounting",
       "text": "Mark new slices **IMPLEMENTED_UNVALIDATED**; do not mark them DONE, accepted, verified, integration-ready, or production-ready.",
-      "line": 269,
+      "line": 270,
       "primary_work_item_id": "WI-REPOSITORY-SAFETY-001",
       "related_work_item_ids": []
     },
@@ -4566,7 +4668,7 @@
       "section": "How to use this ledger",
       "subsection": "September 15 closure accounting",
       "text": "Do not merge unvalidated source branches into local dev/v10 during this phase.",
-      "line": 271,
+      "line": 272,
       "primary_work_item_id": "WI-REPOSITORY-SAFETY-001",
       "related_work_item_ids": []
     },
@@ -4576,7 +4678,7 @@
       "section": "How to use this ledger",
       "subsection": "September 15 closure accounting",
       "text": "Do not push, activate a provider or writer, change rollout state, release, tag, deploy, or perform a destructive or backward-incompatible migration without fresh authorization.",
-      "line": 272,
+      "line": 273,
       "primary_work_item_id": "WI-REPOSITORY-SAFETY-001",
       "related_work_item_ids": []
     },
@@ -4586,7 +4688,7 @@
       "section": "How to use this ledger",
       "subsection": "September 15 closure accounting",
       "text": "Preserve exact physical ownership, source-specific semantics, and independently reviewable commits; do not use this checklist to justify a new universal framework.",
-      "line": 274,
+      "line": 275,
       "primary_work_item_id": "WI-REPOSITORY-SAFETY-001",
       "related_work_item_ids": []
     },
@@ -4596,7 +4698,7 @@
       "section": "Protected repository and worktree state",
       "subsection": "",
       "text": "Preserve the six protected dirty root-checkout paths named in CONTINUATION_HANDOVER.md; never alter, stage, commit, clean, reset, copy over, or push them.",
-      "line": 279,
+      "line": 280,
       "primary_work_item_id": "WI-REPOSITORY-SAFETY-001",
       "related_work_item_ids": []
     },
@@ -4606,7 +4708,7 @@
       "section": "Protected repository and worktree state",
       "subsection": "",
       "text": "Preserve the two frozen portable-import and qualified-awards draft worktrees as historical drafts; do not clean, rebase, or copy them wholesale.",
-      "line": 281,
+      "line": 282,
       "primary_work_item_id": "WI-REPOSITORY-SAFETY-001",
       "related_work_item_ids": []
     },
@@ -4616,7 +4718,7 @@
       "section": "Protected repository and worktree state",
       "subsection": "",
       "text": "Preserve the canonical ancestry of the clean imported Steps core, product, summary-authority, retention/action, and presentation commits until convergence.",
-      "line": 283,
+      "line": 284,
       "primary_work_item_id": "WI-REPOSITORY-SAFETY-001",
       "related_work_item_ids": []
     },
@@ -4626,7 +4728,7 @@
       "section": "Protected repository and worktree state",
       "subsection": "",
       "text": "Use the configured adsamcik identity for each coherent local commit.",
-      "line": 285,
+      "line": 286,
       "primary_work_item_id": "WI-REPOSITORY-SAFETY-001",
       "related_work_item_ids": []
     },
@@ -4636,7 +4738,7 @@
       "section": "Protected repository and worktree state",
       "subsection": "",
       "text": "Stage only reviewed paths for each commit and inspect the staged content without running deferred validation commands.",
-      "line": 286,
+      "line": 287,
       "primary_work_item_id": "WI-REPOSITORY-SAFETY-001",
       "related_work_item_ids": []
     },
@@ -4646,7 +4748,7 @@
       "section": "Protected repository and worktree state",
       "subsection": "",
       "text": "Keep the clean tracking-infra-integration worktree reserved for the eventual reviewed local dev/v10 integration.",
-      "line": 288,
+      "line": 289,
       "primary_work_item_id": "WI-REPOSITORY-SAFETY-001",
       "related_work_item_ids": []
     },
@@ -4656,7 +4758,7 @@
       "section": "Protected repository and worktree state",
       "subsection": "",
       "text": "Keep the current published boundary distinct from newer local-only work; never claim that a clone contains local branches or dirty drafts.",
-      "line": 290,
+      "line": 291,
       "primary_work_item_id": "WI-REPOSITORY-SAFETY-001",
       "related_work_item_ids": []
     },
@@ -4666,7 +4768,7 @@
       "section": "Existing foundation to preserve, not rebuild",
       "subsection": "",
       "text": "Room-backed SourcePolicy is the effective six-source authority.",
-      "line": 298,
+      "line": 299,
       "primary_work_item_id": "WI-FOUNDATION-BASE-001",
       "related_work_item_ids": []
     },
@@ -4676,7 +4778,7 @@
       "section": "Existing foundation to preserve, not rebuild",
       "subsection": "",
       "text": "Immutable manifests, logical entries, service runs, physical segments, desired actions, and boot or generation lifecycle fences exist.",
-      "line": 299,
+      "line": 300,
       "primary_work_item_id": "WI-FOUNDATION-BASE-001",
       "related_work_item_ids": []
     },
@@ -4686,7 +4788,7 @@
       "section": "Existing foundation to preserve, not rebuild",
       "subsection": "",
       "text": "Purpose-aware capture, control, and ambient demand models exist.",
-      "line": 301,
+      "line": 302,
       "primary_work_item_id": "WI-FOUNDATION-BASE-001",
       "related_work_item_ids": []
     },
@@ -4696,7 +4798,7 @@
       "section": "Existing foundation to preserve, not rebuild",
       "subsection": "",
       "text": "Durable source-event admission, WAL identity, source-local cursors, destination owner generations, and deletion fences exist as the bounded safety spine.",
-      "line": 302,
+      "line": 303,
       "primary_work_item_id": "WI-FOUNDATION-BASE-001",
       "related_work_item_ids": []
     },
@@ -4706,7 +4808,7 @@
       "section": "Existing foundation to preserve, not rebuild",
       "subsection": "",
       "text": "Existing Dashboard, History, Calendar, detail, map, import/export, widget, notification, game, goal, and achievement surfaces remain the product shells to repair.",
-      "line": 304,
+      "line": 305,
       "primary_work_item_id": "WI-FOUNDATION-BASE-001",
       "related_work_item_ids": []
     },
@@ -4716,7 +4818,7 @@
       "section": "Existing foundation to preserve, not rebuild",
       "subsection": "",
       "text": "Location remains protected by its existing canonical writer.",
-      "line": 306,
+      "line": 307,
       "primary_work_item_id": "WI-FOUNDATION-BASE-001",
       "related_work_item_ids": []
     },
@@ -4726,7 +4828,7 @@
       "section": "Existing foundation to preserve, not rebuild",
       "subsection": "",
       "text": "Dormant manual Steps facts, exact run-to-segment binding, logical replacement grouping, qualified history, selected deletion, numeric reads, portable export, and contained product surfaces provide the first concrete vertical.",
-      "line": 307,
+      "line": 308,
       "primary_work_item_id": "WI-FOUNDATION-BASE-001",
       "related_work_item_ids": []
     },
@@ -4736,7 +4838,7 @@
       "section": "Existing foundation to preserve, not rebuild",
       "subsection": "",
       "text": "Dormant Pressure session facts and exact selected-session deletion provide the second concrete source-specific storage pattern.",
-      "line": 310,
+      "line": 311,
       "primary_work_item_id": "WI-FOUNDATION-BASE-001",
       "related_work_item_ids": []
     },
@@ -4746,7 +4848,7 @@
       "section": "Existing foundation to preserve, not rebuild",
       "subsection": "",
       "text": "Activity durable callback admission and Wi-Fi or Cell freshness and privacy groundwork exist without constituting finished product verticals.",
-      "line": 312,
+      "line": 313,
       "primary_work_item_id": "WI-FOUNDATION-BASE-001",
       "related_work_item_ids": []
     },
@@ -4756,9 +4858,11 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Authority, schema, and migration",
       "text": "Finish the unreleased v28 shape only where the six concrete verticals require fields, indexes, constraints, or source-specific tables; retain every released v27 table and fact.",
-      "line": 319,
+      "line": 320,
       "primary_work_item_id": "WI-SCHEMA-MIGRATION-001",
-      "related_work_item_ids": []
+      "related_work_item_ids": [
+        "WI-RUNTIME-PRODUCER-PROPAGATION-001"
+      ]
     },
     {
       "id": "TODO-CORE-002",
@@ -4766,7 +4870,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Authority, schema, and migration",
       "text": "Complete exact effective authorization intervals for capture, control, and ambient purposes, including policy revision, consent epoch, boot domain, elapsed boundary, source use, and retention class.",
-      "line": 321,
+      "line": 322,
       "primary_work_item_id": "WI-AUTHORITY-PURPOSE-001",
       "related_work_item_ids": []
     },
@@ -4776,7 +4880,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Authority, schema, and migration",
       "text": "Persist immutable structural zone and civil-day allocation authority for every sessionless fact that can enter day history.",
-      "line": 324,
+      "line": 325,
       "primary_work_item_id": "WI-SCHEMA-MIGRATION-001",
       "related_work_item_ids": []
     },
@@ -4786,9 +4890,11 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Authority, schema, and migration",
       "text": "Keep physical provider configuration generation independent from authorization, manifest, policy, purpose, and consent revisions.",
-      "line": 326,
+      "line": 327,
       "primary_work_item_id": "WI-BROKER-PROVIDER-OWNERSHIP-001",
-      "related_work_item_ids": []
+      "related_work_item_ids": [
+        "WI-RUNTIME-PRODUCER-PROPAGATION-001"
+      ]
     },
     {
       "id": "TODO-CORE-005",
@@ -4796,7 +4902,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Authority, schema, and migration",
       "text": "Complete frozen v27 decoding and conservative legacy classification for every released source family; unverifiable legacy purpose remains LEGACY_UNKNOWN and cannot gain new capture authority.",
-      "line": 328,
+      "line": 329,
       "primary_work_item_id": "WI-SCHEMA-MIGRATION-001",
       "related_work_item_ids": []
     },
@@ -4806,9 +4912,11 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Authority, schema, and migration",
       "text": "Author migration and reopen tests for every new v28 field or table without executing them during the implementation-only phase.",
-      "line": 331,
+      "line": 332,
       "primary_work_item_id": "WI-SCHEMA-MIGRATION-001",
-      "related_work_item_ids": []
+      "related_work_item_ids": [
+        "WI-RUNTIME-PRODUCER-PROPAGATION-001"
+      ]
     },
     {
       "id": "TODO-CORE-007",
@@ -4816,7 +4924,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Authority, schema, and migration",
       "text": "Keep deletion, consent, and key epochs monotonic across rollback, migration, restore, import, and compatibility mirrors.",
-      "line": 333,
+      "line": 334,
       "primary_work_item_id": "WI-SCHEMA-MIGRATION-001",
       "related_work_item_ids": []
     },
@@ -4826,7 +4934,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Authority, schema, and migration",
       "text": "Add only the indexes and bounded batch queries required by real production consumers; prohibit per-row query fan-out.",
-      "line": 335,
+      "line": 336,
       "primary_work_item_id": "WI-SCHEMA-MIGRATION-001",
       "related_work_item_ids": []
     },
@@ -4836,7 +4944,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Demand, supervision, and provider ownership",
       "text": "Complete one app-scoped physical owner for each of Location, Wi-Fi, Cell, Activity, Steps, and Pressure.",
-      "line": 340,
+      "line": 341,
       "primary_work_item_id": "WI-BROKER-PROVIDER-OWNERSHIP-001",
       "related_work_item_ids": []
     },
@@ -4846,7 +4954,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Demand, supervision, and provider ownership",
       "text": "Make provider lifetime depend only on direct SESSION_CAPTURE, CONTROL, or AMBIENT_PRODUCT demand.",
-      "line": 342,
+      "line": 343,
       "primary_work_item_id": "WI-BROKER-PROVIDER-OWNERSHIP-001",
       "related_work_item_ids": []
     },
@@ -4856,7 +4964,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Demand, supervision, and provider ownership",
       "text": "Prohibit history, export, deletion, optional context, and enrichment paths from creating, escalating, or retaining provider demand.",
-      "line": 344,
+      "line": 345,
       "primary_work_item_id": "WI-BROKER-PROVIDER-OWNERSHIP-001",
       "related_work_item_ids": []
     },
@@ -4866,7 +4974,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Demand, supervision, and provider ownership",
       "text": "Merge compatible same-source demands into one real provider plan while keeping attribution and retention purpose-specific.",
-      "line": 346,
+      "line": 347,
       "primary_work_item_id": "WI-BROKER-PROVIDER-OWNERSHIP-001",
       "related_work_item_ids": []
     },
@@ -4876,7 +4984,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Demand, supervision, and provider ownership",
       "text": "Rotate authorization at the exact effective boundary without restarting unchanged physical hardware.",
-      "line": 348,
+      "line": 349,
       "primary_work_item_id": "WI-BROKER-PROVIDER-OWNERSHIP-001",
       "related_work_item_ids": []
     },
@@ -4886,7 +4994,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Demand, supervision, and provider ownership",
       "text": "Implement provider-specific reconfiguration: generation-addressable overlap only where the Android API supports it, otherwise fenced break-before-make with an explicit gap.",
-      "line": 350,
+      "line": 351,
       "primary_work_item_id": "WI-BROKER-PROVIDER-OWNERSHIP-001",
       "related_work_item_ids": []
     },
@@ -4896,7 +5004,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Demand, supervision, and provider ownership",
       "text": "Reconcile provider registration after process restart, boot, update, policy change, permission change, consent revocation, session stop, and collected-data deletion.",
-      "line": 352,
+      "line": 353,
       "primary_work_item_id": "WI-BROKER-PROVIDER-OWNERSHIP-001",
       "related_work_item_ids": []
     },
@@ -4906,7 +5014,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Demand, supervision, and provider ownership",
       "text": "Author source-specific registration-set tests for manual only-X, automatic only-X plus declared controls, and each supported ambient mode.",
-      "line": 354,
+      "line": 355,
       "primary_work_item_id": "WI-BROKER-PROVIDER-OWNERSHIP-001",
       "related_work_item_ids": []
     },
@@ -4916,7 +5024,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Lifecycle and Android actions",
       "text": "Complete durable intent-before-action handling for manual and automatic starts, stops, reconfiguration, provider registration, and foreground-service promotion.",
-      "line": 359,
+      "line": 360,
       "primary_work_item_id": "WI-LIFECYCLE-RUNTIME-001",
       "related_work_item_ids": []
     },
@@ -4926,7 +5034,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Lifecycle and Android actions",
       "text": "Require at least one requested source runtime to be accepted before ACTIVE; otherwise terminate with a truthful typed failure.",
-      "line": 361,
+      "line": 362,
       "primary_work_item_id": "WI-LIFECYCLE-RUNTIME-001",
       "related_work_item_ids": []
     },
@@ -4936,7 +5044,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Lifecycle and Android actions",
       "text": "Advance RECORDING only from durable source-qualified post-effective evidence, never from a request, registration, permission check, timer, cache read, or baseline alone.",
-      "line": 363,
+      "line": 364,
       "primary_work_item_id": "WI-LIFECYCLE-RUNTIME-001",
       "related_work_item_ids": []
     },
@@ -4946,9 +5054,11 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Lifecycle and Android actions",
       "text": "Advance MATERIALIZED only after the active canonical writer commits the exact source product and source-local cursor or receipt atomically.",
-      "line": 365,
+      "line": 366,
       "primary_work_item_id": "WI-LIFECYCLE-RUNTIME-001",
-      "related_work_item_ids": []
+      "related_work_item_ids": [
+        "WI-RUNTIME-PRODUCER-PROPAGATION-001"
+      ]
     },
     {
       "id": "TODO-LIFE-005",
@@ -4956,7 +5066,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Lifecycle and Android actions",
       "text": "Advance QUERYABLE only when the production history repository returns the materialized source fact with truthful completeness.",
-      "line": 367,
+      "line": 368,
       "primary_work_item_id": "WI-LIFECYCLE-RUNTIME-001",
       "related_work_item_ids": []
     },
@@ -4966,7 +5076,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Lifecycle and Android actions",
       "text": "Complete exact foreground-service type-mask composition from accepted direct demands and persist action acceptance or failure.",
-      "line": 369,
+      "line": 370,
       "primary_work_item_id": "WI-LIFECYCLE-RUNTIME-001",
       "related_work_item_ids": []
     },
@@ -4976,9 +5086,11 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Lifecycle and Android actions",
       "text": "Complete stale-run finalization and recovery so STOPPING and FINALIZED never restart and old boot, automation, policy, consent, owner, or deletion generations cannot commit.",
-      "line": 371,
+      "line": 372,
       "primary_work_item_id": "WI-LIFECYCLE-RUNTIME-001",
-      "related_work_item_ids": []
+      "related_work_item_ids": [
+        "WI-RUNTIME-PRODUCER-PROPAGATION-001"
+      ]
     },
     {
       "id": "TODO-LIFE-008",
@@ -4986,7 +5098,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Lifecycle and Android actions",
       "text": "Retire duplicate service ownership only after every required caller uses the durable action gateway; do not preserve parallel canonical owners.",
-      "line": 373,
+      "line": 374,
       "primary_work_item_id": "WI-LIFECYCLE-RUNTIME-001",
       "related_work_item_ids": []
     },
@@ -4996,7 +5108,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Lifecycle and Android actions",
       "text": "Author crash-point, redelivery, cancellation, process-restart, reboot, and stale action tests without executing them yet.",
-      "line": 375,
+      "line": 376,
       "primary_work_item_id": "WI-LIFECYCLE-RUNTIME-001",
       "related_work_item_ids": []
     },
@@ -5006,7 +5118,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Durable admission, projection, and maintenance",
       "text": "Complete source-native durable delivery identity for the five source adapters not yet fully using the admission seam.",
-      "line": 380,
+      "line": 381,
       "primary_work_item_id": "WI-DATA-MAINTENANCE-001",
       "related_work_item_ids": []
     },
@@ -5016,7 +5128,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Durable admission, projection, and maintenance",
       "text": "Split each delivery at observed-time authorization boundaries into authorization-homogeneous units without relabelling retained facts.",
-      "line": 382,
+      "line": 383,
       "primary_work_item_id": "WI-DATA-MAINTENANCE-001",
       "related_work_item_ids": []
     },
@@ -5026,7 +5138,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Durable admission, projection, and maintenance",
       "text": "Reject malformed, pre-effective, stale, future, wrong-boot, wrong-generation, revoked, deleted, or clock-unverifiable callbacks before product effect.",
-      "line": 384,
+      "line": 385,
       "primary_work_item_id": "WI-DATA-MAINTENANCE-001",
       "related_work_item_ids": []
     },
@@ -5036,7 +5148,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Durable admission, projection, and maintenance",
       "text": "Make exact replay with identical source content and provider time zero-effect across retry and process death.",
-      "line": 386,
+      "line": 387,
       "primary_work_item_id": "WI-DATA-MAINTENANCE-001",
       "related_work_item_ids": []
     },
@@ -5046,7 +5158,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Durable admission, projection, and maintenance",
       "text": "Preserve compact coverage evidence for a genuinely new qualified empty or unchanged delivery only where the source contract gives it product meaning.",
-      "line": 388,
+      "line": 389,
       "primary_work_item_id": "WI-DATA-MAINTENANCE-001",
       "related_work_item_ids": []
     },
@@ -5056,7 +5168,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Durable admission, projection, and maintenance",
       "text": "Complete one bounded, serialized projection lane per source so poison or retry in one source cannot block the other five.",
-      "line": 390,
+      "line": 391,
       "primary_work_item_id": "WI-DATA-MAINTENANCE-001",
       "related_work_item_ids": []
     },
@@ -5066,7 +5178,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Durable admission, projection, and maintenance",
       "text": "Commit source cursor, receipt, typed mutation, membership, completeness, and invalidation in the same source-local writer transaction.",
-      "line": 392,
+      "line": 393,
       "primary_work_item_id": "WI-DATA-MAINTENANCE-001",
       "related_work_item_ids": []
     },
@@ -5076,7 +5188,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Durable admission, projection, and maintenance",
       "text": "Implement stable logical fact identity plus source-specific UPSERT, DELETE, and bounded replacement semantics so corrections do not double count.",
-      "line": 394,
+      "line": 395,
       "primary_work_item_id": "WI-DATA-MAINTENANCE-001",
       "related_work_item_ids": []
     },
@@ -5086,9 +5198,11 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Durable admission, projection, and maintenance",
       "text": "Recheck destination owner generation inside every canonical destination transaction and fence both legacy and candidate writers.",
-      "line": 396,
+      "line": 397,
       "primary_work_item_id": "WI-DATA-MAINTENANCE-001",
-      "related_work_item_ids": []
+      "related_work_item_ids": [
+        "WI-RUNTIME-PRODUCER-PROPAGATION-001"
+      ]
     },
     {
       "id": "TODO-DATA-010",
@@ -5096,9 +5210,11 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Durable admission, projection, and maintenance",
       "text": "Make retention, import, deletion, repair, and backfill bounded, resumable, cancellation-safe, and unable to starve live admission.",
-      "line": 398,
+      "line": 399,
       "primary_work_item_id": "WI-DATA-MAINTENANCE-001",
-      "related_work_item_ids": []
+      "related_work_item_ids": [
+        "WI-RUNTIME-PRODUCER-PROPAGATION-001"
+      ]
     },
     {
       "id": "TODO-DATA-011",
@@ -5106,7 +5222,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Durable admission, projection, and maintenance",
       "text": "Author source-specific replay, collision, correction, deletion, retention-floor, cancellation, poison-isolation, and no-resurrection tests without running them yet.",
-      "line": 400,
+      "line": 401,
       "primary_work_item_id": "WI-DATA-MAINTENANCE-001",
       "related_work_item_ids": []
     },
@@ -5116,7 +5232,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Acquisition plans and battery semantics",
       "text": "Replace labels that map to identical provider behavior with the smallest honest source-specific mode ladder.",
-      "line": 405,
+      "line": 406,
       "primary_work_item_id": "WI-QOS-BATTERY-001",
       "related_work_item_ids": []
     },
@@ -5126,7 +5242,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Acquisition plans and battery semantics",
       "text": "Give every plan a real difference in quality, latency, batching, provider cost, write cost, or active-request budget.",
-      "line": 407,
+      "line": 408,
       "primary_work_item_id": "WI-QOS-BATTERY-001",
       "related_work_item_ids": []
     },
@@ -5136,7 +5252,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Acquisition plans and battery semantics",
       "text": "Prefer passive callbacks, provider batching, FIFO, coalesced processing, and longer acceptable latency when they satisfy the direct demand floor.",
-      "line": 409,
+      "line": 410,
       "primary_work_item_id": "WI-QOS-BATTERY-001",
       "related_work_item_ids": []
     },
@@ -5146,7 +5262,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Acquisition plans and battery semantics",
       "text": "Make paid Location, Wi-Fi, Cell, and high-rate work finite, direct-demand-only, cancellation-safe, and incapable of being authorized by enrichment.",
-      "line": 411,
+      "line": 412,
       "primary_work_item_id": "WI-QOS-BATTERY-001",
       "related_work_item_ids": []
     },
@@ -5156,7 +5272,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Acquisition plans and battery semantics",
       "text": "Preserve the sole requested source under saver, Doze, thermal, and inactivity adaptation; degrade only within its declared adaptable floor and expose the reason.",
-      "line": 413,
+      "line": 414,
       "primary_work_item_id": "WI-QOS-BATTERY-001",
       "related_work_item_ids": []
     },
@@ -5166,7 +5282,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Acquisition plans and battery semantics",
       "text": "Add hysteresis, minimum dwell, and cooldown only where concrete source adapters need them to prevent real provider-plan flapping.",
-      "line": 415,
+      "line": 416,
       "primary_work_item_id": "WI-QOS-BATTERY-001",
       "related_work_item_ids": []
     },
@@ -5176,7 +5292,7 @@
       "section": "Cross-cutting implementation closure",
       "subsection": "Acquisition plans and battery semantics",
       "text": "Author deterministic plan and demand-merging tests for each concrete source without claiming battery improvement before later measurement.",
-      "line": 417,
+      "line": 418,
       "primary_work_item_id": "WI-QOS-BATTERY-001",
       "related_work_item_ids": []
     },
@@ -5186,7 +5302,7 @@
       "section": "Steps vertical",
       "subsection": "Current imported-history lane",
       "text": "Review and finish the preserved eight-path imported Steps day-repair draft without relying on the stopped test run as proof.",
-      "line": 424,
+      "line": 425,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5196,7 +5312,7 @@
       "section": "Steps vertical",
       "subsection": "Current imported-history lane",
       "text": "Compose imported local-day contributions from exact retained portable fact identity, original structural zone, explicit coverage, gaps, baseline, correction, and truncation state.",
-      "line": 426,
+      "line": 427,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5206,7 +5322,7 @@
       "section": "Steps vertical",
       "subsection": "Current imported-history lane",
       "text": "Discover authenticated imported source facts that fall outside a presentation wall envelope without inferring ownership from wall-time overlap.",
-      "line": 429,
+      "line": 430,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5216,7 +5332,7 @@
       "section": "Steps vertical",
       "subsection": "Current imported-history lane",
       "text": "Preserve exact imported versus local ownership partition, replacement grouping, Long-valued counts, and null or partial state; never invent tracked duration.",
-      "line": 431,
+      "line": 432,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5226,7 +5342,7 @@
       "section": "Steps vertical",
       "subsection": "Current imported-history lane",
       "text": "Keep partial import materialization compatible with legacy summary consumers without turning missing or unavailable Steps into a qualified zero.",
-      "line": 433,
+      "line": 434,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5236,7 +5352,7 @@
       "section": "Steps vertical",
       "subsection": "Current imported-history lane",
       "text": "Author focused accumulator, Room, selected-deletion, and worker tests for imported day composition, then commit the coherent slice as IMPLEMENTED_UNVALIDATED.",
-      "line": 435,
+      "line": 436,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5246,7 +5362,7 @@
       "section": "Steps vertical",
       "subsection": "Production portable import and no-resurrection",
       "text": "Implement a real production portable Steps importer behind an inactive entry point using the frozen versioned format and strict codec.",
-      "line": 440,
+      "line": 441,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5256,7 +5372,7 @@
       "section": "Steps vertical",
       "subsection": "Production portable import and no-resurrection",
       "text": "Validate the complete bounded snapshot, checksums, correction lineage, original capture set, source qualification, settlement, deletion scope, and all limits before mutating production storage.",
-      "line": 442,
+      "line": 443,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5266,7 +5382,7 @@
       "section": "Steps vertical",
       "subsection": "Production portable import and no-resurrection",
       "text": "Stage and commit one import atomically, with entry-wide global identity uniqueness and typed collision or replay outcomes.",
-      "line": 445,
+      "line": 446,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5276,7 +5392,7 @@
       "section": "Steps vertical",
       "subsection": "Production portable import and no-resurrection",
       "text": "Persist original entry, run, segment, manifest, purpose, consent, policy, owner, deletion scope, fact, receipt, zone, and provenance identity verbatim where supplied.",
-      "line": 447,
+      "line": 448,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5286,7 +5402,7 @@
       "section": "Steps vertical",
       "subsection": "Production portable import and no-resurrection",
       "text": "Never fabricate a local service run, local elapsed time, local consent, local provider generation, full original capture set, or tracked duration for an imported fact.",
-      "line": 449,
+      "line": 450,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5296,7 +5412,7 @@
       "section": "Steps vertical",
       "subsection": "Production portable import and no-resurrection",
       "text": "Distinguish an identical replay from a conflicting reuse of entry, run, segment, fact, correction, receipt, or deletion-scope identity.",
-      "line": 451,
+      "line": 452,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5306,7 +5422,7 @@
       "section": "Steps vertical",
       "subsection": "Production portable import and no-resurrection",
       "text": "Invalidate exact source evidence, logical history, affected civil days, numeric consumers, and product observers after a committed import.",
-      "line": 453,
+      "line": 454,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5316,7 +5432,7 @@
       "section": "Steps vertical",
       "subsection": "Production portable import and no-resurrection",
       "text": "Make retained imported origins exportable without reconstructing facts from lossy compatibility aggregates.",
-      "line": 455,
+      "line": 456,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5326,7 +5442,7 @@
       "section": "Steps vertical",
       "subsection": "Production portable import and no-resurrection",
       "text": "Return a typed refusal when retention has removed identity required to reproduce the original portable scope.",
-      "line": 457,
+      "line": 458,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5336,7 +5452,7 @@
       "section": "Steps vertical",
       "subsection": "Production portable import and no-resurrection",
       "text": "Connect the production file import path and registry to the new importer without touching the six protected root-checkout drafts.",
-      "line": 459,
+      "line": 460,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5346,7 +5462,7 @@
       "section": "Steps vertical",
       "subsection": "Production portable import and no-resurrection",
       "text": "Author atomicity, malformed input, collision, replay, correction, cancellation, storage failure, reopen, and bounded-resource tests without executing them.",
-      "line": 461,
+      "line": 462,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5356,7 +5472,7 @@
       "section": "Steps vertical",
       "subsection": "Imported selected deletion and repair",
       "text": "Extend typed selected-session deletion to exact imported ownership without treating a portable source-qualified entry as locally candidate-owned.",
-      "line": 478,
+      "line": 479,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5366,7 +5482,7 @@
       "section": "Steps vertical",
       "subsection": "Imported selected deletion and repair",
       "text": "Validate complete original entry, run, segment, capture, manifest, purpose, zone, fact, correction, retention, and deletion-scope identity before mutation.",
-      "line": 480,
+      "line": 481,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5376,7 +5492,7 @@
       "section": "Steps vertical",
       "subsection": "Imported selected deletion and repair",
       "text": "Install original-scope and current local deletion fences before deleting imported facts, memberships, receipts, product rows, and presentation identity.",
-      "line": 482,
+      "line": 483,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5386,7 +5502,7 @@
       "section": "Steps vertical",
       "subsection": "Imported selected deletion and repair",
       "text": "Recompose every affected day from the complete surviving local and imported fact set in the stored zone.",
-      "line": 484,
+      "line": 485,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5396,7 +5512,7 @@
       "section": "Steps vertical",
       "subsection": "Imported selected deletion and repair",
       "text": "When a surviving imported remainder is partial, redact the legacy daily-summary Steps compatibility value so byte-level database export cannot leak a stale total; treat its zero sentinel as redaction, never as qualified product zero.",
-      "line": 486,
+      "line": 487,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5406,7 +5522,7 @@
       "section": "Steps vertical",
       "subsection": "Imported selected deletion and repair",
       "text": "Preserve typed blocked outcomes for retained-history loss, unverifiable original scope, active or unsettled work, unsupported mixed ownership, and retryable storage failure.",
-      "line": 489,
+      "line": 490,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5416,7 +5532,7 @@
       "section": "Steps vertical",
       "subsection": "Imported selected deletion and repair",
       "text": "Prove by authored tests that replay, re-import, delayed projection, correction, retention, restore, and process restart cannot resurrect deleted imported Steps.",
-      "line": 492,
+      "line": 493,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5426,7 +5542,7 @@
       "section": "Steps vertical",
       "subsection": "Portable round trip",
       "text": "Author a complete local export to import to history round-trip scenario.",
-      "line": 505,
+      "line": 506,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5436,7 +5552,7 @@
       "section": "Steps vertical",
       "subsection": "Portable round trip",
       "text": "Cover covered zero, positive, partial, replacement runs, corrections, retained prefixes or suffixes, and imported-only logical entries.",
-      "line": 506,
+      "line": 507,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5446,7 +5562,7 @@
       "section": "Steps vertical",
       "subsection": "Portable round trip",
       "text": "Cover imported correction followed by day repair, retention, selected deletion, full deletion, reopen, replay, and re-import.",
-      "line": 508,
+      "line": 509,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5456,7 +5572,7 @@
       "section": "Steps vertical",
       "subsection": "Portable round trip",
       "text": "Keep original portable bytes or canonical reconstructed output stable where all required identity remains retained.",
-      "line": 510,
+      "line": 511,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5466,7 +5582,7 @@
       "section": "Steps vertical",
       "subsection": "Portable round trip",
       "text": "Ensure control evidence, unrelated sources, raw radio identity, and fabricated local authority never enter a Steps portable artifact.",
-      "line": 512,
+      "line": 513,
       "primary_work_item_id": "WI-STEPS-PORTABLE-001",
       "related_work_item_ids": []
     },
@@ -5476,7 +5592,7 @@
       "section": "Steps vertical",
       "subsection": "Manual and session Steps completion",
       "text": "Connect every real manual-start surface to one centralized source-aware start decision and immutable manifest creation path.",
-      "line": 530,
+      "line": 531,
       "primary_work_item_id": "WI-STEPS-MANUAL-001",
       "related_work_item_ids": []
     },
@@ -5486,7 +5602,7 @@
       "section": "Steps vertical",
       "subsection": "Manual and session Steps completion",
       "text": "Make a Steps-only manual request register exactly Steps and no Location, Activity, Pressure, Wi-Fi, Cell, CONTROL, or AMBIENT demand.",
-      "line": 532,
+      "line": 533,
       "primary_work_item_id": "WI-STEPS-MANUAL-001",
       "related_work_item_ids": []
     },
@@ -5496,7 +5612,7 @@
       "section": "Steps vertical",
       "subsection": "Manual and session Steps completion",
       "text": "Complete app-scoped TYPE_STEP_COUNTER registration, post-effective baseline, boot or reset gap handling, positive fresh delta admission, and listener removal.",
-      "line": 534,
+      "line": 535,
       "primary_work_item_id": "WI-STEPS-MANUAL-001",
       "related_work_item_ids": []
     },
@@ -5506,7 +5622,7 @@
       "section": "Steps vertical",
       "subsection": "Manual and session Steps completion",
       "text": "Keep a baseline, missing interval, counter reset, unchanged boundary, covered zero, positive delta, partial coverage, unsupported sensor, permission limitation, and storage failure distinct.",
-      "line": 536,
+      "line": 537,
       "primary_work_item_id": "WI-STEPS-MANUAL-001",
       "related_work_item_ids": []
     },
@@ -5516,7 +5632,7 @@
       "section": "Steps vertical",
       "subsection": "Manual and session Steps completion",
       "text": "Wire the dormant canonical writer transition through contained activation, exact owner fencing, legacy drain, rollback, deletion rearm, and product invalidation without enabling it by default.",
-      "line": 539,
+      "line": 540,
       "primary_work_item_id": "WI-STEPS-MANUAL-001",
       "related_work_item_ids": []
     },
@@ -5526,7 +5642,7 @@
       "section": "Steps vertical",
       "subsection": "Manual and session Steps completion",
       "text": "Ensure a positive post-baseline delta can advance RECORDING, the one canonical writer can advance MATERIALIZED, and the production history path can advance QUERYABLE.",
-      "line": 542,
+      "line": 543,
       "primary_work_item_id": "WI-STEPS-MANUAL-001",
       "related_work_item_ids": []
     },
@@ -5536,7 +5652,7 @@
       "section": "Steps vertical",
       "subsection": "Manual and session Steps completion",
       "text": "Finish source-only recent or list, Today, Calendar, selected detail, and live state composition without requiring a Location trip or positive legacy sample count.",
-      "line": 544,
+      "line": 545,
       "primary_work_item_id": "WI-STEPS-MANUAL-001",
       "related_work_item_ids": []
     },
@@ -5546,7 +5662,7 @@
       "section": "Steps vertical",
       "subsection": "Manual and session Steps completion",
       "text": "Author the exact provider-to-WAL-to-writer-to-history-to-UI contract tests and listener teardown test without executing the physical scenario yet.",
-      "line": 546,
+      "line": 547,
       "primary_work_item_id": "WI-STEPS-MANUAL-001",
       "related_work_item_ids": []
     },
@@ -5556,7 +5672,7 @@
       "section": "Steps vertical",
       "subsection": "Qualified numeric consumers and effects",
       "text": "Audit every remaining read of daily_summary Steps, SessionSegment.steps, raw StepInterval, or nullable numeric fallback in product and effect code.",
-      "line": 564,
+      "line": 565,
       "primary_work_item_id": "WI-STEPS-NUMERIC-001",
       "related_work_item_ids": []
     },
@@ -5566,7 +5682,7 @@
       "section": "Steps vertical",
       "subsection": "Qualified numeric consumers and effects",
       "text": "Route goal progress and award mutation through exact qualified revision, stored zone, period, target, and completeness.",
-      "line": 566,
+      "line": 567,
       "primary_work_item_id": "WI-STEPS-NUMERIC-001",
       "related_work_item_ids": []
     },
@@ -5576,7 +5692,7 @@
       "section": "Steps vertical",
       "subsection": "Qualified numeric consumers and effects",
       "text": "Make streak creation, continuation, repair, and removal depend on qualified complete periods rather than raw totals.",
-      "line": 568,
+      "line": 569,
       "primary_work_item_id": "WI-STEPS-NUMERIC-001",
       "related_work_item_ids": []
     },
@@ -5586,7 +5702,7 @@
       "section": "Steps vertical",
       "subsection": "Qualified numeric consumers and effects",
       "text": "Make achievements, points, XP, badges, lifetime totals, best-day metrics, and game effects use qualified source facts and retract or repair after correction or deletion.",
-      "line": 570,
+      "line": 571,
       "primary_work_item_id": "WI-STEPS-NUMERIC-001",
       "related_work_item_ids": []
     },
@@ -5596,7 +5712,7 @@
       "section": "Steps vertical",
       "subsection": "Qualified numeric consumers and effects",
       "text": "Ensure widgets and notifications distinguish ready zero, positive, partial, materializing, unavailable, disabled, and storage failure without raw fallback.",
-      "line": 572,
+      "line": 573,
       "primary_work_item_id": "WI-STEPS-NUMERIC-001",
       "related_work_item_ids": []
     },
@@ -5606,7 +5722,7 @@
       "section": "Steps vertical",
       "subsection": "Qualified numeric consumers and effects",
       "text": "Prevent imported, ambient, session, or retained facts from awarding twice when their intervals overlap or their presentation grouping changes.",
-      "line": 574,
+      "line": 575,
       "primary_work_item_id": "WI-STEPS-NUMERIC-001",
       "related_work_item_ids": []
     },
@@ -5616,7 +5732,7 @@
       "section": "Steps vertical",
       "subsection": "Qualified numeric consumers and effects",
       "text": "Persist effect identity and revision so identical replay is zero-effect and correction or deletion performs an exact replace or retract.",
-      "line": 576,
+      "line": 577,
       "primary_work_item_id": "WI-STEPS-NUMERIC-001",
       "related_work_item_ids": []
     },
@@ -5626,7 +5742,7 @@
       "section": "Steps vertical",
       "subsection": "Qualified numeric consumers and effects",
       "text": "Author focused tests for every audited consumer and every positive, zero, partial, correction, deletion, retention, and imported-origin case without running them.",
-      "line": 578,
+      "line": 579,
       "primary_work_item_id": "WI-STEPS-NUMERIC-001",
       "related_work_item_ids": []
     },
@@ -5636,7 +5752,7 @@
       "section": "Steps vertical",
       "subsection": "Automatic Steps",
       "text": "Resolve the explicit product decision on optional Step corroboration; it must be a visible CONTROL demand or absent.",
-      "line": 640,
+      "line": 641,
       "primary_work_item_id": "WI-STEPS-AUTOMATIC-001",
       "related_work_item_ids": []
     },
@@ -5646,7 +5762,7 @@
       "section": "Steps vertical",
       "subsection": "Automatic Steps",
       "text": "Connect an eligible fresh Activity control trigger through the durable automatic gateway before Android service launch.",
-      "line": 642,
+      "line": 643,
       "primary_work_item_id": "WI-STEPS-AUTOMATIC-001",
       "related_work_item_ids": []
     },
@@ -5656,7 +5772,7 @@
       "section": "Steps vertical",
       "subsection": "Automatic Steps",
       "text": "Create an immutable automatic manifest with capture set exactly Steps and declared controls separately attributed.",
-      "line": 644,
+      "line": 645,
       "primary_work_item_id": "WI-STEPS-AUTOMATIC-001",
       "related_work_item_ids": []
     },
@@ -5666,7 +5782,7 @@
       "section": "Steps vertical",
       "subsection": "Automatic Steps",
       "text": "Reconcile provider demand so Steps is captured and Activity, when used, remains CONTROL only.",
-      "line": 646,
+      "line": 647,
       "primary_work_item_id": "WI-STEPS-AUTOMATIC-001",
       "related_work_item_ids": []
     },
@@ -5676,7 +5792,7 @@
       "section": "Steps vertical",
       "subsection": "Automatic Steps",
       "text": "Keep control evidence purpose-limited, short-lived, absent from normal history and portable export, and independently revocable and deletable.",
-      "line": 648,
+      "line": 649,
       "primary_work_item_id": "WI-DEC-CONTROL-EVIDENCE-001",
       "related_work_item_ids": []
     },
@@ -5686,7 +5802,7 @@
       "section": "Steps vertical",
       "subsection": "Automatic Steps",
       "text": "Fence stale triggers by observed and received clocks, boot identity, automation epoch, policy, consent, registration generation, action identity, and consumption.",
-      "line": 650,
+      "line": 651,
       "primary_work_item_id": "WI-STEPS-AUTOMATIC-001",
       "related_work_item_ids": []
     },
@@ -5696,7 +5812,7 @@
       "section": "Steps vertical",
       "subsection": "Automatic Steps",
       "text": "Complete automatic stop, interrupted-session finalization, process or reboot recovery, manual fallback, and rollback without reviving a finalized session.",
-      "line": 652,
+      "line": 653,
       "primary_work_item_id": "WI-STEPS-AUTOMATIC-001",
       "related_work_item_ids": []
     },
@@ -5706,7 +5822,7 @@
       "section": "Steps vertical",
       "subsection": "Automatic Steps",
       "text": "Author trigger-to-provider-to-query and control-nonleakage tests without running them.",
-      "line": 654,
+      "line": 655,
       "primary_work_item_id": "WI-STEPS-AUTOMATIC-001",
       "related_work_item_ids": []
     },
@@ -5716,7 +5832,7 @@
       "section": "Steps vertical",
       "subsection": "Default-off Ambient Steps",
       "text": "Resolve the continuity-provider and user promise decision: opportunistic versus visible-foreground continuity.",
-      "line": 684,
+      "line": 685,
       "primary_work_item_id": "WI-STEPS-AMBIENT-001",
       "related_work_item_ids": []
     },
@@ -5726,7 +5842,7 @@
       "section": "Steps vertical",
       "subsection": "Default-off Ambient Steps",
       "text": "Add a separate default-off ambient Steps setting, consent epoch, capability result, permission flow, retention class, explanation, and revocation path.",
-      "line": 686,
+      "line": 687,
       "primary_work_item_id": "WI-STEPS-AMBIENT-001",
       "related_work_item_ids": []
     },
@@ -5736,7 +5852,7 @@
       "section": "Steps vertical",
       "subsection": "Default-off Ambient Steps",
       "text": "Select exactly one capable ambient continuity provider and never add overlapping direct, Health Connect, and Recording intervals.",
-      "line": 688,
+      "line": 689,
       "primary_work_item_id": "WI-STEPS-AMBIENT-001",
       "related_work_item_ids": []
     },
@@ -5746,7 +5862,7 @@
       "section": "Steps vertical",
       "subsection": "Default-off Ambient Steps",
       "text": "Keep direct counter registration only for direct live demand; share boundaries with ambient composition without retaining a session listener unnecessarily.",
-      "line": 690,
+      "line": 691,
       "primary_work_item_id": "WI-STEPS-AMBIENT-001",
       "related_work_item_ids": []
     },
@@ -5756,7 +5872,7 @@
       "section": "Steps vertical",
       "subsection": "Default-off Ambient Steps",
       "text": "Persist sessionless structural day and zone identity, coverage, gaps, baselines, resets, provider precedence, and process or reboot discontinuity.",
-      "line": 692,
+      "line": 693,
       "primary_work_item_id": "WI-STEPS-AMBIENT-001",
       "related_work_item_ids": []
     },
@@ -5766,7 +5882,7 @@
       "section": "Steps vertical",
       "subsection": "Default-off Ambient Steps",
       "text": "Partition canonical totals into in-session and between-session facts exactly once while keeping the day total authoritative.",
-      "line": 694,
+      "line": 695,
       "primary_work_item_id": "WI-STEPS-AMBIENT-001",
       "related_work_item_ids": []
     },
@@ -5776,7 +5892,7 @@
       "section": "Steps vertical",
       "subsection": "Default-off Ambient Steps",
       "text": "Make ambient facts discoverable in Today, Timeline, Calendar, day detail, goals, widgets, notifications, export, and deletion without fabricating a session.",
-      "line": 696,
+      "line": 697,
       "primary_work_item_id": "WI-STEPS-AMBIENT-001",
       "related_work_item_ids": [
         "WI-STEPS-AMBIENT-FILES-001"
@@ -5788,7 +5904,7 @@
       "section": "Steps vertical",
       "subsection": "Default-off Ambient Steps",
       "text": "Complete retention, correction, consent reset, deletion, export/import, and no-resurrection behavior for ambient-only and overlapping days.",
-      "line": 698,
+      "line": 699,
       "primary_work_item_id": "WI-STEPS-AMBIENT-001",
       "related_work_item_ids": [
         "WI-STEPS-AMBIENT-FILES-001"
@@ -5800,7 +5916,7 @@
       "section": "Steps vertical",
       "subsection": "Default-off Ambient Steps",
       "text": "Author capability, provider precedence, overlap, DST, zone change, partial-day, process, reboot, consent, retention, export, and deletion tests without running them.",
-      "line": 700,
+      "line": 701,
       "primary_work_item_id": "WI-STEPS-AMBIENT-001",
       "related_work_item_ids": [
         "WI-STEPS-AMBIENT-FILES-001"
@@ -5812,7 +5928,7 @@
       "section": "Pressure vertical",
       "subsection": "",
       "text": "Complete the Pressure demand adapter and honest low, standard, and bounded high-rate acquisition plans using real sensor delay, FIFO, batching, latency, or write differences.",
-      "line": 776,
+      "line": 777,
       "primary_work_item_id": "WI-PRESSURE-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -5822,7 +5938,7 @@
       "section": "Pressure vertical",
       "subsection": "",
       "text": "Close qualified microsegments or windows with endpoints, count, range, mean, variance, trend or fit, accuracy, expected and actual coverage, and named gaps.",
-      "line": 778,
+      "line": 779,
       "primary_work_item_id": "WI-PRESSURE-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -5832,7 +5948,7 @@
       "section": "Pressure vertical",
       "subsection": "",
       "text": "Amortize callback and checkpoint writes; never persist one Room transaction per high-rate sensor callback.",
-      "line": 780,
+      "line": 781,
       "primary_work_item_id": "WI-PRESSURE-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -5842,9 +5958,11 @@
       "section": "Pressure vertical",
       "subsection": "",
       "text": "Complete the dormant source-local writer activation, cursor, correction, owner fencing, rollback, deletion rearm, and failure isolation without enabling it by default.",
-      "line": 782,
+      "line": 783,
       "primary_work_item_id": "WI-PRESSURE-VERTICAL-001",
-      "related_work_item_ids": []
+      "related_work_item_ids": [
+        "WI-RUNTIME-PRODUCER-PROPAGATION-001"
+      ]
     },
     {
       "id": "TODO-PRESS-005",
@@ -5852,7 +5970,7 @@
       "section": "Pressure vertical",
       "subsection": "",
       "text": "Advance RECORDING only after a qualified committed window, then expose exact MATERIALIZED and QUERYABLE transitions.",
-      "line": 784,
+      "line": 785,
       "primary_work_item_id": "WI-PRESSURE-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -5862,7 +5980,7 @@
       "section": "Pressure vertical",
       "subsection": "",
       "text": "Compose logical replacement runs and stored-zone day history without losing exact physical run ownership.",
-      "line": 786,
+      "line": 787,
       "primary_work_item_id": "WI-PRESSURE-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -5872,7 +5990,7 @@
       "section": "Pressure vertical",
       "subsection": "",
       "text": "Finish Today, Timeline, Calendar, selected detail, live or recent status, trend, range, coverage, partial, materializing, unavailable, and failure presentation.",
-      "line": 788,
+      "line": 789,
       "primary_work_item_id": "WI-PRESSURE-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -5882,9 +6000,11 @@
       "section": "Pressure vertical",
       "subsection": "",
       "text": "Complete correction-safe day repair, retention, portable export/import, selected deletion integration, all-data deletion, and no-resurrection.",
-      "line": 790,
+      "line": 791,
       "primary_work_item_id": "WI-PRESSURE-VERTICAL-001",
-      "related_work_item_ids": []
+      "related_work_item_ids": [
+        "WI-RUNTIME-PRODUCER-PROPAGATION-001"
+      ]
     },
     {
       "id": "TODO-PRESS-009",
@@ -5892,7 +6012,7 @@
       "section": "Pressure vertical",
       "subsection": "",
       "text": "Support automatic Pressure with separately consented Activity CONTROL; manual Pressure remains available when automatic control is unavailable.",
-      "line": 792,
+      "line": 793,
       "primary_work_item_id": "WI-PRESSURE-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -5902,7 +6022,7 @@
       "section": "Pressure vertical",
       "subsection": "",
       "text": "Keep continuous ambient Pressure unavailable by default and ensure no ambient demand is registered.",
-      "line": 794,
+      "line": 795,
       "primary_work_item_id": "WI-PRESSURE-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -5912,7 +6032,7 @@
       "section": "Pressure vertical",
       "subsection": "",
       "text": "Expose pressure trend only; do not create elevation, ascent, or vertical claims unless the separate calibrated-product decision is approved and implemented.",
-      "line": 796,
+      "line": 797,
       "primary_work_item_id": "WI-PRESSURE-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -5922,7 +6042,7 @@
       "section": "Pressure vertical",
       "subsection": "",
       "text": "Author FIFO and non-FIFO, batching, gap, correction, deletion, import/export, automatic-control, history, and UI contract tests without running them.",
-      "line": 798,
+      "line": 799,
       "primary_work_item_id": "WI-PRESSURE-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -5932,7 +6052,7 @@
       "section": "Protected Location vertical",
       "subsection": "",
       "text": "Keep the current canonical Location writer as the only active writer throughout implementation and convergence.",
-      "line": 876,
+      "line": 877,
       "primary_work_item_id": "WI-LOCATION-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -5942,7 +6062,7 @@
       "section": "Protected Location vertical",
       "subsection": "",
       "text": "Route manual, automatic, and approved ambient Location through SourcePolicy, immutable manifests, direct purpose demands, and one app-scoped provider owner.",
-      "line": 878,
+      "line": 879,
       "primary_work_item_id": "WI-LOCATION-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -5952,7 +6072,7 @@
       "section": "Protected Location vertical",
       "subsection": "",
       "text": "Make Location-only manual capture register no Activity, Steps, Pressure, Wi-Fi, or Cell demand.",
-      "line": 880,
+      "line": 881,
       "primary_work_item_id": "WI-LOCATION-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -5962,7 +6082,7 @@
       "section": "Protected Location vertical",
       "subsection": "",
       "text": "Keep automatic Location capture separate from explicit Activity CONTROL and preserve manual operation when control is unavailable.",
-      "line": 882,
+      "line": 883,
       "primary_work_item_id": "WI-LOCATION-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -5972,7 +6092,7 @@
       "section": "Protected Location vertical",
       "subsection": "",
       "text": "Implement real passive, low-power, balanced, high-accuracy, and bounded first-fix plans only where each rung changes provider behavior and satisfies a direct floor.",
-      "line": 884,
+      "line": 885,
       "primary_work_item_id": "WI-LOCATION-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -5982,7 +6102,7 @@
       "section": "Protected Location vertical",
       "subsection": "",
       "text": "Qualify post-effective points by provider time, freshness, accuracy, permission, boot, physical generation, authorization, consent, and deletion epochs.",
-      "line": 886,
+      "line": 887,
       "primary_work_item_id": "WI-LOCATION-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -5992,9 +6112,11 @@
       "section": "Protected Location vertical",
       "subsection": "",
       "text": "Complete durable source identity, exact replay suppression, correction, route and distance recomposition, gaps, retention, export/import, deletion, and no-resurrection around the protected writer. - Checkpoint `6e9d84f38` preserves authoritative v2 mock provenance through WAL identity, qualification, and crash repair while keeping frozen v1 typed unverifiable for the new path. The broader replay, recomposition, maintenance, transfer, and protected-writer work remains.",
-      "line": 888,
+      "line": 889,
       "primary_work_item_id": "WI-LOCATION-VERTICAL-001",
-      "related_work_item_ids": []
+      "related_work_item_ids": [
+        "WI-RUNTIME-PRODUCER-PROPAGATION-001"
+      ]
     },
     {
       "id": "TODO-LOC-008",
@@ -6002,7 +6124,7 @@
       "section": "Protected Location vertical",
       "subsection": "",
       "text": "Provide optional Location context only from compatible Location facts already being collected; no radio or other source may start or retain Location.",
-      "line": 894,
+      "line": 895,
       "primary_work_item_id": "WI-LOCATION-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6012,7 +6134,7 @@
       "section": "Protected Location vertical",
       "subsection": "",
       "text": "Resolve whether ambient Location offers a product beyond passive opportunistic points; keep it default-off and independently consented if approved.",
-      "line": 896,
+      "line": 897,
       "primary_work_item_id": "WI-LOCATION-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6022,7 +6144,7 @@
       "section": "Protected Location vertical",
       "subsection": "",
       "text": "Keep route, distance, places, point coverage, accuracy, completeness, Today, Timeline, Calendar, detail, and map consistent with the production history facade.",
-      "line": 898,
+      "line": 899,
       "primary_work_item_id": "WI-LOCATION-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6032,7 +6154,7 @@
       "section": "Protected Location vertical",
       "subsection": "",
       "text": "Implement a read-only shadow comparator and rollback-safe cutover state only if a replacement writer is still justified; do not implement or activate a second canonical writer.",
-      "line": 900,
+      "line": 901,
       "primary_work_item_id": "WI-LOCATION-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6042,7 +6164,7 @@
       "section": "Protected Location vertical",
       "subsection": "",
       "text": "Author manual, automatic, ambient-if-approved, freshness, accuracy, replay, correction, context, query, UI, and shadow tests without running them.",
-      "line": 902,
+      "line": 903,
       "primary_work_item_id": "WI-LOCATION-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6052,7 +6174,7 @@
       "section": "Activity vertical",
       "subsection": "",
       "text": "Preserve one physical Activity registration while carrying exact eligibility for CONTROL, SESSION_CAPTURE, and any independently approved ambient capture.",
-      "line": 916,
+      "line": 917,
       "primary_work_item_id": "WI-ACTIVITY-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6062,7 +6184,7 @@
       "section": "Activity vertical",
       "subsection": "",
       "text": "Complete captured Activity typed facts for coalesced movement bands, active time, confidence, coverage, gaps, and fresh STILL semantics.",
-      "line": 918,
+      "line": 919,
       "primary_work_item_id": "WI-ACTIVITY-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6072,7 +6194,7 @@
       "section": "Activity vertical",
       "subsection": "",
       "text": "Keep control-only events out of captured Activity history, summaries, goals, export, maps, and unrelated source history.",
-      "line": 920,
+      "line": 921,
       "primary_work_item_id": "WI-ACTIVITY-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6082,7 +6204,7 @@
       "section": "Activity vertical",
       "subsection": "",
       "text": "Implement transition-first acquisition and use sampled classification only for a direct capture quality need with a real latency or product benefit.",
-      "line": 922,
+      "line": 923,
       "primary_work_item_id": "WI-ACTIVITY-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6092,7 +6214,7 @@
       "section": "Activity vertical",
       "subsection": "",
       "text": "Complete automatic Activity-only trigger handoff: seed captured evidence only when capture was independently authorized at trigger observed time; otherwise preserve a partial initial interval.",
-      "line": 924,
+      "line": 925,
       "primary_work_item_id": "WI-ACTIVITY-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6102,7 +6224,7 @@
       "section": "Activity vertical",
       "subsection": "",
       "text": "Fence stale automation by provider time, expiry, boot, automation, policy, consent, registration, action, and deletion identity.",
-      "line": 927,
+      "line": 928,
       "primary_work_item_id": "WI-ACTIVITY-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6112,9 +6234,11 @@
       "section": "Activity vertical",
       "subsection": "",
       "text": "Complete source-local writer, cursor, correction, coalescing, retention, export/import, deletion, no-resurrection, and rollback.",
-      "line": 929,
+      "line": 930,
       "primary_work_item_id": "WI-ACTIVITY-VERTICAL-001",
-      "related_work_item_ids": []
+      "related_work_item_ids": [
+        "WI-RUNTIME-PRODUCER-PROPAGATION-001"
+      ]
     },
     {
       "id": "TODO-ACT-008",
@@ -6122,7 +6246,7 @@
       "section": "Activity vertical",
       "subsection": "",
       "text": "Expose manual and automatic Activity-only history through Today, Timeline, Calendar, detail, live or recent state, active-time composition, and explanation.",
-      "line": 931,
+      "line": 932,
       "primary_work_item_id": "WI-ACTIVITY-VERTICAL-001",
       "related_work_item_ids": [
         "WI-ACTIVITY-RANGE-001"
@@ -6134,7 +6258,7 @@
       "section": "Activity vertical",
       "subsection": "",
       "text": "Keep control retention bounded and independently revocable; do not create a captured ambient Activity product without a separate approved setting.",
-      "line": 933,
+      "line": 934,
       "primary_work_item_id": "WI-ACTIVITY-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6144,7 +6268,7 @@
       "section": "Activity vertical",
       "subsection": "",
       "text": "Author callback-batch, duplicate, coalescing, control-separation, trigger, process or reboot, correction, deletion, query, and UI tests without running them.",
-      "line": 935,
+      "line": 936,
       "primary_work_item_id": "WI-ACTIVITY-VERTICAL-001",
       "related_work_item_ids": [
         "WI-ACTIVITY-RANGE-001"
@@ -6156,7 +6280,7 @@
       "section": "Wi-Fi vertical",
       "subsection": "",
       "text": "Complete one app-scoped Wi-Fi callback owner and stable durable delivery identity across process restart.",
-      "line": 1065,
+      "line": 1066,
       "primary_work_item_id": "WI-WIFI-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6166,7 +6290,7 @@
       "section": "Wi-Fi vertical",
       "subsection": "",
       "text": "Treat scan attempts, timers, permission checks, getScanResults cache reads, and receipt-time substitution as operational state, never observations.",
-      "line": 1067,
+      "line": 1068,
       "primary_work_item_id": "WI-WIFI-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6176,7 +6300,7 @@
       "section": "Wi-Fi vertical",
       "subsection": "",
       "text": "Admit only item-level provider times that are positive, nonfuture, post-effective, within the source freshness limit, and valid for the exact generation and epoch.",
-      "line": 1069,
+      "line": 1070,
       "primary_work_item_id": "WI-WIFI-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6186,7 +6310,7 @@
       "section": "Wi-Fi vertical",
       "subsection": "",
       "text": "Distinguish confirmed fresh empty, fresh unchanged, fresh changed, absent, stale, failed, permission-limited, OS-throttled, and clock-unverifiable results.",
-      "line": 1071,
+      "line": 1072,
       "primary_work_item_id": "WI-WIFI-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6196,7 +6320,7 @@
       "section": "Wi-Fi vertical",
       "subsection": "",
       "text": "Store privacy-minimized identity-free facts for observation count, band mix, quality, availability, coverage, and completeness.",
-      "line": 1073,
+      "line": 1074,
       "primary_work_item_id": "WI-WIFI-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6206,7 +6330,7 @@
       "section": "Wi-Fi vertical",
       "subsection": "",
       "text": "Add per-install keyed HMAC identity, key epoch, rotation, and unique or new network products only if the explicit product and privacy decision approves identity-dependent behavior.",
-      "line": 1075,
+      "line": 1076,
       "primary_work_item_id": "WI-WIFI-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6216,7 +6340,7 @@
       "section": "Wi-Fi vertical",
       "subsection": "",
       "text": "Keep active scan attempts finite, budgeted, cancellation-safe, and available only to direct capture demand; stop after qualified evidence or terminal budget outcome.",
-      "line": 1078,
+      "line": 1079,
       "primary_work_item_id": "WI-WIFI-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6226,7 +6350,7 @@
       "section": "Wi-Fi vertical",
       "subsection": "",
       "text": "Keep ambient Wi-Fi default-off and opportunistic through fresh passive scan-result broadcasts; never run default active ambient scans.",
-      "line": 1080,
+      "line": 1081,
       "primary_work_item_id": "WI-WIFI-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6236,7 +6360,7 @@
       "section": "Wi-Fi vertical",
       "subsection": "",
       "text": "Compose optional uncertainty-labelled Location context only from compatible retained Location facts already available.",
-      "line": 1082,
+      "line": 1083,
       "primary_work_item_id": "WI-WIFI-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6246,9 +6370,11 @@
       "section": "Wi-Fi vertical",
       "subsection": "",
       "text": "Complete source-local writer, cursor, correction or supersession, retention, export/import, deletion, key rotation, no-resurrection, and rollback.",
-      "line": 1084,
+      "line": 1085,
       "primary_work_item_id": "WI-WIFI-VERTICAL-001",
-      "related_work_item_ids": []
+      "related_work_item_ids": [
+        "WI-RUNTIME-PRODUCER-PROPAGATION-001"
+      ]
     },
     {
       "id": "TODO-WIFI-011",
@@ -6256,7 +6382,7 @@
       "section": "Wi-Fi vertical",
       "subsection": "",
       "text": "Make Wi-Fi-only entries visible with zero distance and no Location segment in Today, Timeline, Calendar, detail, applicable radio map or truthful unavailable state, and export.",
-      "line": 1086,
+      "line": 1087,
       "primary_work_item_id": "WI-WIFI-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6266,7 +6392,7 @@
       "section": "Wi-Fi vertical",
       "subsection": "",
       "text": "Support automatic Wi-Fi-only capture with declared Activity CONTROL while keeping control out of Wi-Fi and Activity captured history.",
-      "line": 1088,
+      "line": 1089,
       "primary_work_item_id": "WI-WIFI-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6276,7 +6402,7 @@
       "section": "Wi-Fi vertical",
       "subsection": "",
       "text": "Author freshness, empty, unchanged, replay, restart, throttle, active-budget, privacy, context, deletion, query, UI, automatic, and ambient tests without running them.",
-      "line": 1090,
+      "line": 1091,
       "primary_work_item_id": "WI-WIFI-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6286,7 +6412,7 @@
       "section": "Cell vertical",
       "subsection": "",
       "text": "Complete one app-scoped Cell callback owner and stable durable delivery identity across process restart.",
-      "line": 1188,
+      "line": 1189,
       "primary_work_item_id": "WI-CELL-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6296,7 +6422,7 @@
       "section": "Cell vertical",
       "subsection": "",
       "text": "Prefer timestamp-qualified change callbacks and treat getAllCellInfo as cache retrieval, not fresh acquisition.",
-      "line": 1190,
+      "line": 1191,
       "primary_work_item_id": "WI-CELL-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6306,7 +6432,7 @@
       "section": "Cell vertical",
       "subsection": "",
       "text": "Keep requestCellInfoUpdate finite, explicit, rate-limited, non-guaranteed, and direct-demand-only; never promise a wake-reliable cadence.",
-      "line": 1192,
+      "line": 1193,
       "primary_work_item_id": "WI-CELL-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6316,7 +6442,7 @@
       "section": "Cell vertical",
       "subsection": "",
       "text": "Qualify every returned child independently by provider time, freshness, generation, authorization, consent, and deletion epochs.",
-      "line": 1194,
+      "line": 1195,
       "primary_work_item_id": "WI-CELL-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6326,7 +6452,7 @@
       "section": "Cell vertical",
       "subsection": "",
       "text": "Distinguish confirmed empty, partial multi-SIM, fresh unchanged, fresh changed, absent, stale, failed, permission-limited, and clock-unverifiable state.",
-      "line": 1196,
+      "line": 1197,
       "primary_work_item_id": "WI-CELL-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6336,7 +6462,7 @@
       "section": "Cell vertical",
       "subsection": "",
       "text": "Store identity-free technology mix, quality distribution, weak periods, availability, coverage, and completeness without raw tower or stable subscription identifiers.",
-      "line": 1198,
+      "line": 1199,
       "primary_work_item_id": "WI-CELL-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6346,7 +6472,7 @@
       "section": "Cell vertical",
       "subsection": "",
       "text": "Use ephemeral nonidentifying slot grouping or keyed identity only when necessary and explicitly approved; rotate keys on deletion or consent reset.",
-      "line": 1200,
+      "line": 1201,
       "primary_work_item_id": "WI-CELL-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6356,7 +6482,7 @@
       "section": "Cell vertical",
       "subsection": "",
       "text": "Keep ambient Cell default-off and callback-driven with no forced refresh or WorkManager sleep-cadence promise.",
-      "line": 1202,
+      "line": 1203,
       "primary_work_item_id": "WI-CELL-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6366,7 +6492,7 @@
       "section": "Cell vertical",
       "subsection": "",
       "text": "Compose optional uncertainty-labelled Location context only from compatible retained Location facts already available.",
-      "line": 1204,
+      "line": 1205,
       "primary_work_item_id": "WI-CELL-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6376,9 +6502,11 @@
       "section": "Cell vertical",
       "subsection": "",
       "text": "Complete source-local writer, cursor, correction or supersession, retention, export/import, deletion, key rotation, no-resurrection, and rollback.",
-      "line": 1206,
+      "line": 1207,
       "primary_work_item_id": "WI-CELL-VERTICAL-001",
-      "related_work_item_ids": []
+      "related_work_item_ids": [
+        "WI-RUNTIME-PRODUCER-PROPAGATION-001"
+      ]
     },
     {
       "id": "TODO-CELL-011",
@@ -6386,7 +6514,7 @@
       "section": "Cell vertical",
       "subsection": "",
       "text": "Make Cell-only entries visible with zero distance and no Location segment in Today, Timeline, Calendar, detail, applicable radio map or truthful unavailable state, and export.",
-      "line": 1208,
+      "line": 1209,
       "primary_work_item_id": "WI-CELL-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6396,7 +6524,7 @@
       "section": "Cell vertical",
       "subsection": "",
       "text": "Support automatic Cell-only capture with declared Activity CONTROL while keeping control out of Cell and Activity captured history.",
-      "line": 1210,
+      "line": 1211,
       "primary_work_item_id": "WI-CELL-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6406,7 +6534,7 @@
       "section": "Cell vertical",
       "subsection": "",
       "text": "Author callback, per-child freshness, multi-SIM, replay, restart, refresh budget, privacy, context, deletion, query, UI, automatic, and ambient tests without running them.",
-      "line": 1212,
+      "line": 1213,
       "primary_work_item_id": "WI-CELL-VERTICAL-001",
       "related_work_item_ids": []
     },
@@ -6416,7 +6544,7 @@
       "section": "Production history and UI",
       "subsection": "",
       "text": "Complete one read-only TrackingHistoryRepository facade for observeToday, observeDay, observeSession, stable fact lookup, and source completeness using existing data and product modules.",
-      "line": 1292,
+      "line": 1293,
       "primary_work_item_id": "WI-SHARED-HISTORY-DAY-RANGE-001",
       "related_work_item_ids": [
         "WI-SHARED-HISTORY-BRIDGES-001"
@@ -6428,7 +6556,7 @@
       "section": "Production history and UI",
       "subsection": "",
       "text": "Compose manual, automatic, and ambient facts under stable logical entries while retaining exact physical run, segment, fact, purpose, zone, and provenance ownership internally.",
-      "line": 1295,
+      "line": 1296,
       "primary_work_item_id": "WI-SHARED-HISTORY-DAY-RANGE-001",
       "related_work_item_ids": []
     },
@@ -6438,7 +6566,7 @@
       "section": "Production history and UI",
       "subsection": "",
       "text": "Discover source-only and imported-only facts without requiring Location, distance, route, a legacy trip row, or positive sample_count.",
-      "line": 1297,
+      "line": 1298,
       "primary_work_item_id": "WI-SHARED-HISTORY-DAY-RANGE-001",
       "related_work_item_ids": [
         "WI-SHARED-HISTORY-BRIDGES-001"
@@ -6450,7 +6578,7 @@
       "section": "Production history and UI",
       "subsection": "",
       "text": "Expose availability, evidence, product, coverage, gaps, repair cause, and revision independently for every selected source.",
-      "line": 1299,
+      "line": 1300,
       "primary_work_item_id": "WI-SHARED-HISTORY-DAY-RANGE-001",
       "related_work_item_ids": []
     },
@@ -6460,7 +6588,7 @@
       "section": "Production history and UI",
       "subsection": "",
       "text": "Distinguish disabled, unsupported, permission required, OS limited, waiting, active, recorded, materializing, partial, ready, degraded, failed, deleted, and storage unavailable.",
-      "line": 1301,
+      "line": 1302,
       "primary_work_item_id": "WI-SHARED-HISTORY-DAY-RANGE-001",
       "related_work_item_ids": [
         "WI-SHARED-HISTORY-CONSUMERS-001"
@@ -6472,7 +6600,7 @@
       "section": "Production history and UI",
       "subsection": "",
       "text": "Show numeric zero only when source-qualified coverage proves zero; preserve null or typed nonnumeric states elsewhere.",
-      "line": 1304,
+      "line": 1305,
       "primary_work_item_id": "WI-SHARED-HISTORY-DAY-RANGE-001",
       "related_work_item_ids": []
     },
@@ -6482,7 +6610,7 @@
       "section": "Production history and UI",
       "subsection": "",
       "text": "Partition additive metrics into total, in-session, and outside-session values without adding overlapping representations twice.",
-      "line": 1306,
+      "line": 1307,
       "primary_work_item_id": "WI-SHARED-HISTORY-DAY-RANGE-001",
       "related_work_item_ids": []
     },
@@ -6492,7 +6620,7 @@
       "section": "Production history and UI",
       "subsection": "",
       "text": "Keep nonadditive source products typed: routes, radio sets or distributions, activity bands, pressure trends, and coverage do not use a generic scalar sum.",
-      "line": 1308,
+      "line": 1309,
       "primary_work_item_id": "WI-SHARED-HISTORY-DAY-RANGE-001",
       "related_work_item_ids": []
     },
@@ -6502,7 +6630,7 @@
       "section": "Production history and UI",
       "subsection": "",
       "text": "Use stored structural zone and day identity so current-device zone changes do not move historical facts.",
-      "line": 1310,
+      "line": 1311,
       "primary_work_item_id": "WI-SHARED-HISTORY-DAY-RANGE-001",
       "related_work_item_ids": []
     },
@@ -6512,7 +6640,7 @@
       "section": "Production history and UI",
       "subsection": "",
       "text": "Implement the selected cross-midnight presentation and counting decision once resolved; split timestamped facts exactly and keep unverifiable legacy allocation partial.",
-      "line": 1312,
+      "line": 1313,
       "primary_work_item_id": "WI-SHARED-HISTORY-DAY-RANGE-001",
       "related_work_item_ids": []
     },
@@ -6522,7 +6650,7 @@
       "section": "Production history and UI",
       "subsection": "",
       "text": "Repair Today, Timeline, Calendar, selected-day or session detail, relevant maps, live or recent lists, export, and deletion to consume the same qualified facts.",
-      "line": 1314,
+      "line": 1315,
       "primary_work_item_id": "WI-UI-SURFACES-001",
       "related_work_item_ids": [
         "WI-SHARED-HISTORY-CONSUMERS-001"
@@ -6534,7 +6662,7 @@
       "section": "Production history and UI",
       "subsection": "",
       "text": "Provide a smallest truthful sole-source live and list surface for each source; no new UI platform or mandatory Days-first rewrite.",
-      "line": 1316,
+      "line": 1317,
       "primary_work_item_id": "WI-UI-SURFACES-001",
       "related_work_item_ids": [
         "WI-SHARED-HISTORY-BRIDGES-001",
@@ -6547,7 +6675,7 @@
       "section": "Production history and UI",
       "subsection": "",
       "text": "Add a stable Why was this recorded explanation with source, direct purpose, approximate time, controlling setting, session or ambient classification, and optional context provenance.",
-      "line": 1318,
+      "line": 1319,
       "primary_work_item_id": "WI-UI-SURFACES-001",
       "related_work_item_ids": []
     },
@@ -6557,7 +6685,7 @@
       "section": "Production history and UI",
       "subsection": "",
       "text": "Preserve access to retained typed-only facts during technical rollback even when new capture is disabled.",
-      "line": 1321,
+      "line": 1322,
       "primary_work_item_id": "WI-UI-SURFACES-001",
       "related_work_item_ids": []
     },
@@ -6567,7 +6695,7 @@
       "section": "Production history and UI",
       "subsection": "",
       "text": "Complete plain-language localization, accessibility semantics, large-text behavior, and truthful empty or failure copy in code and UI tests without running device review.",
-      "line": 1323,
+      "line": 1324,
       "primary_work_item_id": "WI-UI-SURFACES-001",
       "related_work_item_ids": []
     },
@@ -6577,7 +6705,7 @@
       "section": "Start, settings, permissions, and source actions",
       "subsection": "",
       "text": "Audit every manual start entry point and route it through the same current SourcePolicy and requested-source prerequisite decision.",
-      "line": 1343,
+      "line": 1344,
       "primary_work_item_id": "WI-SOURCE-ACTIONS-EXPLANATION-001",
       "related_work_item_ids": []
     },
@@ -6587,7 +6715,7 @@
       "section": "Start, settings, permissions, and source actions",
       "subsection": "",
       "text": "Ensure manual only-X requests exactly X platform prerequisites and never requires or enables another captured source.",
-      "line": 1345,
+      "line": 1346,
       "primary_work_item_id": "WI-SOURCE-ACTIONS-EXPLANATION-001",
       "related_work_item_ids": []
     },
@@ -6597,7 +6725,7 @@
       "section": "Start, settings, permissions, and source actions",
       "subsection": "",
       "text": "Let Wi-Fi and Cell request Location permission only when Android requires it for their own APIs; never convert that permission into Location capture.",
-      "line": 1347,
+      "line": 1348,
       "primary_work_item_id": "WI-SOURCE-ACTIONS-EXPLANATION-001",
       "related_work_item_ids": []
     },
@@ -6607,7 +6735,7 @@
       "section": "Start, settings, permissions, and source actions",
       "subsection": "",
       "text": "Keep automatic capture-source and control-source settings separate, visible, purpose-consented, and independently revocable.",
-      "line": 1349,
+      "line": 1350,
       "primary_work_item_id": "WI-PURPOSE-SETTINGS-001",
       "related_work_item_ids": []
     },
@@ -6617,7 +6745,7 @@
       "section": "Start, settings, permissions, and source actions",
       "subsection": "",
       "text": "Add separate default-off ambient settings only for approved Steps, Location, Wi-Fi, and Cell products; keep Pressure off and Activity control distinct from capture.",
-      "line": 1351,
+      "line": 1352,
       "primary_work_item_id": "WI-PURPOSE-SETTINGS-001",
       "related_work_item_ids": []
     },
@@ -6627,7 +6755,7 @@
       "section": "Start, settings, permissions, and source actions",
       "subsection": "",
       "text": "Present exact disabled, unsupported, permission, OS, control-unavailable, waiting, degraded, storage, and failure remediation.",
-      "line": 1353,
+      "line": 1354,
       "primary_work_item_id": "WI-PURPOSE-SETTINGS-001",
       "related_work_item_ids": []
     },
@@ -6637,7 +6765,7 @@
       "section": "Start, settings, permissions, and source actions",
       "subsection": "",
       "text": "Connect selected-entry deletion, day or purpose deletion, all-data deletion, export, and import to typed source-specific services.",
-      "line": 1355,
+      "line": 1356,
       "primary_work_item_id": "WI-SOURCE-ACTIONS-EXPLANATION-001",
       "related_work_item_ids": []
     },
@@ -6647,7 +6775,7 @@
       "section": "Start, settings, permissions, and source actions",
       "subsection": "",
       "text": "Author decision, navigation, permission-result, denial, revocation, and accessibility tests without executing them.",
-      "line": 1357,
+      "line": 1358,
       "primary_work_item_id": "WI-SOURCE-ACTIONS-EXPLANATION-001",
       "related_work_item_ids": []
     },
@@ -6657,7 +6785,7 @@
       "section": "Privacy, retention, export, import, and deletion",
       "subsection": "",
       "text": "Represent retention policy per source and purpose without choosing unresolved final product durations in code.",
-      "line": 1362,
+      "line": 1363,
       "primary_work_item_id": "WI-CROSS-SOURCE-PRIVACY-001",
       "related_work_item_ids": []
     },
@@ -6667,7 +6795,7 @@
       "section": "Privacy, retention, export, import, and deletion",
       "subsection": "",
       "text": "Apply source-local retention from authenticated fact identity and retained floors, preserve necessary boundary facts, and expose resulting partial coverage.",
-      "line": 1364,
+      "line": 1365,
       "primary_work_item_id": "WI-CROSS-SOURCE-PRIVACY-001",
       "related_work_item_ids": []
     },
@@ -6677,7 +6805,7 @@
       "section": "Privacy, retention, export, import, and deletion",
       "subsection": "",
       "text": "Remove old consent demand immediately, reject delayed old-epoch callbacks, and schedule exact scoped deletion where required.",
-      "line": 1366,
+      "line": 1367,
       "primary_work_item_id": "WI-CROSS-SOURCE-PRIVACY-001",
       "related_work_item_ids": []
     },
@@ -6687,7 +6815,7 @@
       "section": "Privacy, retention, export, import, and deletion",
       "subsection": "",
       "text": "Make selected entry, day, purpose, source, consent reset, and collected-data deletion use exact source identities rather than QUIESCED, wall overlap, sample count, or inferred Location ownership.",
-      "line": 1368,
+      "line": 1369,
       "primary_work_item_id": "WI-CROSS-SOURCE-PRIVACY-001",
       "related_work_item_ids": []
     },
@@ -6697,7 +6825,7 @@
       "section": "Privacy, retention, export, import, and deletion",
       "subsection": "",
       "text": "Ensure deletion fences precede removal and survive replay, backfill, import, restore, process restart, writer rollback, and key rotation.",
-      "line": 1371,
+      "line": 1372,
       "primary_work_item_id": "WI-CROSS-SOURCE-PRIVACY-001",
       "related_work_item_ids": []
     },
@@ -6707,7 +6835,7 @@
       "section": "Privacy, retention, export, import, and deletion",
       "subsection": "",
       "text": "Make portable export include released captured and ambient products with provenance, completeness, corrections, and deletion scope while excluding CONTROL evidence and concealed raw radio identities.",
-      "line": 1373,
+      "line": 1374,
       "primary_work_item_id": "WI-CROSS-SOURCE-PRIVACY-001",
       "related_work_item_ids": []
     },
@@ -6717,7 +6845,7 @@
       "section": "Privacy, retention, export, import, and deletion",
       "subsection": "",
       "text": "Make merge import stage validated provenance-bearing source facts through the source writer and never bypass policy, owner, retention, collision, or deletion fences.",
-      "line": 1376,
+      "line": 1377,
       "primary_work_item_id": "WI-CROSS-SOURCE-PRIVACY-001",
       "related_work_item_ids": []
     },
@@ -6727,7 +6855,7 @@
       "section": "Privacy, retention, export, import, and deletion",
       "subsection": "",
       "text": "Keep technical rollback nondestructive; only explicit deletion or consent policy performs destructive privacy work.",
-      "line": 1378,
+      "line": 1379,
       "primary_work_item_id": "WI-CROSS-SOURCE-PRIVACY-001",
       "related_work_item_ids": []
     },
@@ -6737,7 +6865,7 @@
       "section": "Privacy, retention, export, import, and deletion",
       "subsection": "",
       "text": "Keep diagnostics payload-free, local-only, and free of precise coordinates, radio identifiers, tracked facts, telemetry, analytics, or automatic upload.",
-      "line": 1380,
+      "line": 1381,
       "primary_work_item_id": "WI-CROSS-SOURCE-PRIVACY-001",
       "related_work_item_ids": []
     },
@@ -6747,7 +6875,7 @@
       "section": "Privacy, retention, export, import, and deletion",
       "subsection": "",
       "text": "Keep production network use within the existing controlled NetworkGateway and user-enabled map-resource policy; tracking infrastructure adds no new egress.",
-      "line": 1382,
+      "line": 1383,
       "primary_work_item_id": "WI-CROSS-SOURCE-PRIVACY-001",
       "related_work_item_ids": []
     },
@@ -6757,7 +6885,7 @@
       "section": "Privacy, retention, export, import, and deletion",
       "subsection": "",
       "text": "Author retention, consent, export, import, deletion, restore, key-rotation, and no-resurrection tests for every applicable source without running them.",
-      "line": 1384,
+      "line": 1385,
       "primary_work_item_id": "WI-CROSS-SOURCE-PRIVACY-001",
       "related_work_item_ids": []
     },
@@ -6767,7 +6895,7 @@
       "section": "Product decisions that must be resolved before affected activation",
       "subsection": "",
       "text": "Decide whether Step corroboration remains an explicit automatic CONTROL option.",
-      "line": 1389,
+      "line": 1390,
       "primary_work_item_id": "WI-FOUNDATION-BASE-001",
       "related_work_item_ids": []
     },
@@ -6777,7 +6905,7 @@
       "section": "Product decisions that must be resolved before affected activation",
       "subsection": "",
       "text": "Decide the single Ambient Steps continuity provider strategy and whether its promise is opportunistic or visible-foreground continuous.",
-      "line": 1390,
+      "line": 1391,
       "primary_work_item_id": "WI-FOUNDATION-BASE-001",
       "related_work_item_ids": []
     },
@@ -6787,7 +6915,7 @@
       "section": "Product decisions that must be resolved before affected activation",
       "subsection": "",
       "text": "Decide final retention durations and user-facing privacy copy for each source and purpose, including short-lived control evidence.",
-      "line": 1392,
+      "line": 1393,
       "primary_work_item_id": "WI-DEC-RETENTION-PRIVACY-001",
       "related_work_item_ids": []
     },
@@ -6797,7 +6925,7 @@
       "section": "Product decisions that must be resolved before affected activation",
       "subsection": "",
       "text": "Decide whether ambient Location offers a product beyond passive opportunistic points.",
-      "line": 1394,
+      "line": 1395,
       "primary_work_item_id": "WI-DEC-AMBIENT-LOCATION-001",
       "related_work_item_ids": []
     },
@@ -6807,7 +6935,7 @@
       "section": "Product decisions that must be resolved before affected activation",
       "subsection": "",
       "text": "Decide whether measured active Wi-Fi attempts become a user-selectable mode.",
-      "line": 1396,
+      "line": 1397,
       "primary_work_item_id": "WI-DEC-RADIO-MODES-IDENTITY-001",
       "related_work_item_ids": []
     },
@@ -6817,7 +6945,7 @@
       "section": "Product decisions that must be resolved before affected activation",
       "subsection": "",
       "text": "Decide whether measured Cell refresh attempts become a user-selectable mode.",
-      "line": 1397,
+      "line": 1398,
       "primary_work_item_id": "WI-DEC-RADIO-MODES-IDENTITY-001",
       "related_work_item_ids": []
     },
@@ -6827,7 +6955,7 @@
       "section": "Product decisions that must be resolved before affected activation",
       "subsection": "",
       "text": "Decide whether identity-dependent Wi-Fi or Cell unique or new products justify a keyed identity lifecycle; otherwise retain identity-free products only.",
-      "line": 1398,
+      "line": 1399,
       "primary_work_item_id": "WI-DEC-RADIO-MODES-IDENTITY-001",
       "related_work_item_ids": []
     },
@@ -6837,7 +6965,7 @@
       "section": "Product decisions that must be resolved before affected activation",
       "subsection": "",
       "text": "Decide whether a calibrated, fused, explicitly labelled Pressure-derived vertical estimate belongs in product scope.",
-      "line": 1400,
+      "line": 1401,
       "primary_work_item_id": "WI-DEC-PRESSURE-ELEVATION-001",
       "related_work_item_ids": []
     },
@@ -6847,7 +6975,7 @@
       "section": "Product decisions that must be resolved before affected activation",
       "subsection": "",
       "text": "Decide the final cross-midnight session counting and presentation rule.",
-      "line": 1402,
+      "line": 1403,
       "primary_work_item_id": "WI-DEC-CROSS-MIDNIGHT-001",
       "related_work_item_ids": []
     },
@@ -6857,7 +6985,7 @@
       "section": "Product decisions that must be resolved before affected activation",
       "subsection": "",
       "text": "Decide the allowed rollout evidence channel; no remote telemetry or canary claim is implied.",
-      "line": 1403,
+      "line": 1404,
       "primary_work_item_id": "WI-DEC-ROLLOUT-WRITER-001",
       "related_work_item_ids": []
     },
@@ -6867,7 +6995,7 @@
       "section": "Product decisions that must be resolved before affected activation",
       "subsection": "",
       "text": "Decide separately whether any legacy source writer is retired after its concrete candidate passes shadow, continuity, rollback, and product gates.",
-      "line": 1405,
+      "line": 1406,
       "primary_work_item_id": "WI-DEC-ROLLOUT-WRITER-001",
       "related_work_item_ids": []
     },
@@ -6877,7 +7005,7 @@
       "section": "Implementation-complete gate before any validation begins",
       "subsection": "",
       "text": "Every source has manual only-X production logic and focused tests authored.",
-      "line": 1410,
+      "line": 1411,
       "primary_work_item_id": "WI-ASSEMBLY-GATE-001",
       "related_work_item_ids": []
     },
@@ -6887,7 +7015,7 @@
       "section": "Implementation-complete gate before any validation begins",
       "subsection": "",
       "text": "Every source has automatic only-X logic with exactly declared controls and focused tests authored, or a deliberate typed unavailable product outcome where no legal control exists.",
-      "line": 1411,
+      "line": 1412,
       "primary_work_item_id": "WI-ASSEMBLY-GATE-001",
       "related_work_item_ids": []
     },
@@ -6897,7 +7025,7 @@
       "section": "Implementation-complete gate before any validation begins",
       "subsection": "",
       "text": "Every approved ambient mode is default-off, explicitly consented, sessionless, useful, retained, exportable, deletable, visible, and covered by authored tests.",
-      "line": 1414,
+      "line": 1415,
       "primary_work_item_id": "WI-ASSEMBLY-GATE-001",
       "related_work_item_ids": []
     },
@@ -6907,7 +7035,7 @@
       "section": "Implementation-complete gate before any validation begins",
       "subsection": "",
       "text": "Every source has durable admission, one source-local candidate or protected writer, replay or correction, retention, export/import, deletion, no-resurrection, history, and applicable UI code plus tests authored.",
-      "line": 1416,
+      "line": 1417,
       "primary_work_item_id": "WI-ASSEMBLY-GATE-001",
       "related_work_item_ids": []
     },
@@ -6917,7 +7045,7 @@
       "section": "Implementation-complete gate before any validation begins",
       "subsection": "",
       "text": "Every existing numeric and effect consumer has been audited and converted to qualified completeness semantics where applicable.",
-      "line": 1419,
+      "line": 1420,
       "primary_work_item_id": "WI-ASSEMBLY-GATE-001",
       "related_work_item_ids": []
     },
@@ -6927,7 +7055,7 @@
       "section": "Implementation-complete gate before any validation begins",
       "subsection": "",
       "text": "Every known source branch contains coherent IMPLEMENTED_UNVALIDATED commits, no accidental rollout activation, and an exact handover record.",
-      "line": 1421,
+      "line": 1422,
       "primary_work_item_id": "WI-ASSEMBLY-GATE-001",
       "related_work_item_ids": []
     },
@@ -6937,7 +7065,7 @@
       "section": "Implementation-complete gate before any validation begins",
       "subsection": "",
       "text": "All product decisions required by assembled code are resolved or their affected behavior remains explicitly unavailable and inactive.",
-      "line": 1423,
+      "line": 1424,
       "primary_work_item_id": "WI-ASSEMBLY-GATE-001",
       "related_work_item_ids": []
     },
@@ -6947,7 +7075,7 @@
       "section": "Implementation-complete gate before any validation begins",
       "subsection": "",
       "text": "Create one dedicated local convergence branch from the then-current clean local dev/v10 and compose only the reviewed source commits in dependency order.",
-      "line": 1425,
+      "line": 1426,
       "primary_work_item_id": "WI-ASSEMBLY-GATE-001",
       "related_work_item_ids": []
     },
@@ -6957,7 +7085,7 @@
       "section": "Implementation-complete gate before any validation begins",
       "subsection": "",
       "text": "Freeze convergence inputs and record expected failures, commands, device, and environment before lifting the implementation-only validation stop.",
-      "line": 1427,
+      "line": 1428,
       "primary_work_item_id": "WI-ASSEMBLY-GATE-001",
       "related_work_item_ids": []
     },
@@ -6967,7 +7095,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Source, schema, and repository gates",
       "text": "Compile every affected main, test, Android-test, Hilt, and release source set.",
-      "line": 1437,
+      "line": 1438,
       "primary_work_item_id": "WI-VALIDATION-HOST-SCHEMA-001",
       "related_work_item_ids": []
     },
@@ -6977,7 +7105,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Source, schema, and repository gates",
       "text": "Run the focused unit, contract, Robolectric, in-memory Room, and architecture tests authored for each source and fix failures.",
-      "line": 1438,
+      "line": 1439,
       "primary_work_item_id": "WI-VALIDATION-HOST-SCHEMA-001",
       "related_work_item_ids": []
     },
@@ -6987,7 +7115,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Source, schema, and repository gates",
       "text": "Run complete affected-module test suites and fix cross-module failures.",
-      "line": 1440,
+      "line": 1441,
       "primary_work_item_id": "WI-VALIDATION-HOST-SCHEMA-001",
       "related_work_item_ids": []
     },
@@ -6997,7 +7125,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Source, schema, and repository gates",
       "text": "Run the populated v27-to-v28 migration, production reopen, backup or restore, import, query, deletion, and no-resurrection cases on one representative emulator.",
-      "line": 1441,
+      "line": 1442,
       "primary_work_item_id": "WI-VALIDATION-HOST-SCHEMA-001",
       "related_work_item_ids": []
     },
@@ -7007,7 +7135,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Source, schema, and repository gates",
       "text": "Run root Detekt and affected-module lint; fix new findings without absorbing unrelated baseline debt or weakening rules.",
-      "line": 1443,
+      "line": 1444,
       "primary_work_item_id": "WI-VALIDATION-HOST-SCHEMA-001",
       "related_work_item_ids": []
     },
@@ -7017,7 +7145,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Source, schema, and repository gates",
       "text": "Run checkRoomSchemaDrift and review the exact committed v28 schema.",
-      "line": 1445,
+      "line": 1446,
       "primary_work_item_id": "WI-VALIDATION-HOST-SCHEMA-001",
       "related_work_item_ids": []
     },
@@ -7027,7 +7155,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Source, schema, and repository gates",
       "text": "Run ciUnitTest on the frozen convergence commit and fix all attributable failures.",
-      "line": 1446,
+      "line": 1447,
       "primary_work_item_id": "WI-VALIDATION-HOST-SCHEMA-001",
       "related_work_item_ids": []
     },
@@ -7037,7 +7165,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Source, schema, and repository gates",
       "text": "Run ciCheck --continue on the frozen convergence commit and fix all attributable failures.",
-      "line": 1448,
+      "line": 1449,
       "primary_work_item_id": "WI-VALIDATION-HOST-SCHEMA-001",
       "related_work_item_ids": []
     },
@@ -7047,7 +7175,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Source, schema, and repository gates",
       "text": "Repeat focused, affected-module, schema, ciUnitTest, and ciCheck gates after every convergence correction until the exact final commit is green.",
-      "line": 1450,
+      "line": 1451,
       "primary_work_item_id": "WI-VALIDATION-HOST-SCHEMA-001",
       "related_work_item_ids": []
     },
@@ -7057,7 +7185,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Representative Android evidence",
       "text": "Run the exact manual Steps-only scenario: capture set exactly Steps; no other capture, control, or ambient demand; positive post-baseline delta reaches RECORDING; one writer reaches MATERIALIZED; production history reaches QUERYABLE; UI is truthful; listener is removed.",
-      "line": 1455,
+      "line": 1456,
       "primary_work_item_id": "WI-VALIDATION-DEVICE-001",
       "related_work_item_ids": []
     },
@@ -7067,7 +7195,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Representative Android evidence",
       "text": "Run Pressure-only capture on one representative FIFO-capable or honestly non-FIFO device and inspect callback cadence, batching, windows, gaps, writer output, query, UI, and listener removal.",
-      "line": 1458,
+      "line": 1459,
       "primary_work_item_id": "WI-VALIDATION-DEVICE-001",
       "related_work_item_ids": []
     },
@@ -7077,7 +7205,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Representative Android evidence",
       "text": "Run protected Location-only manual capture and automatic capture with declared control, checking accuracy, freshness, route or coverage, FGS legality, history, and no second writer.",
-      "line": 1461,
+      "line": 1462,
       "primary_work_item_id": "WI-VALIDATION-DEVICE-001",
       "related_work_item_ids": []
     },
@@ -7087,7 +7215,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Representative Android evidence",
       "text": "Run Activity-only manual and automatic trigger-handoff scenarios, proving captured versus CONTROL separation and stale-trigger rejection.",
-      "line": 1464,
+      "line": 1465,
       "primary_work_item_id": "WI-VALIDATION-DEVICE-001",
       "related_work_item_ids": []
     },
@@ -7097,7 +7225,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Representative Android evidence",
       "text": "Run Wi-Fi-only manual, passive ambient, and automatic scenarios, proving fresh provider-time admission, bounded direct scans, OS throttling state, privacy-minimized product, query, UI, and no Location demand.",
-      "line": 1466,
+      "line": 1467,
       "primary_work_item_id": "WI-VALIDATION-DEVICE-001",
       "related_work_item_ids": []
     },
@@ -7107,7 +7235,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Representative Android evidence",
       "text": "Run Cell-only manual, passive ambient, and automatic scenarios, proving per-child timestamps, bounded refresh, multi-SIM partial state, privacy-minimized product, query, UI, and no Location demand.",
-      "line": 1469,
+      "line": 1470,
       "primary_work_item_id": "WI-VALIDATION-DEVICE-001",
       "related_work_item_ids": []
     },
@@ -7117,7 +7245,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Representative Android evidence",
       "text": "Run enable, disable, permission revoke, consent revoke, delayed callback, process death, reboot, app update, force-stop boundary, FGS rejection, deletion, replay, import, and rollback scenarios proportionally for each affected source.",
-      "line": 1472,
+      "line": 1473,
       "primary_work_item_id": "WI-VALIDATION-DEVICE-001",
       "related_work_item_ids": []
     },
@@ -7127,7 +7255,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Representative Android evidence",
       "text": "Inspect rendered Today, Timeline, Calendar, detail, live or recent, settings, permission, export, import, and deletion states with accessibility, large text, and truthful zero or partial representation.",
-      "line": 1475,
+      "line": 1476,
       "primary_work_item_id": "WI-VALIDATION-DEVICE-001",
       "related_work_item_ids": []
     },
@@ -7137,7 +7265,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Quality, battery, and cutover evidence",
       "text": "Measure provider registration duration, restarts, event and batch counts, writes or transactions, callback-to-durable latency, projection latency, CPU, wakeups, and energy for each real acquisition rung on representative hardware.",
-      "line": 1481,
+      "line": 1482,
       "primary_work_item_id": "WI-VALIDATION-MEASUREMENT-001",
       "related_work_item_ids": []
     },
@@ -7147,7 +7275,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Quality, battery, and cutover evidence",
       "text": "Remove or merge any acquisition rung without a demonstrated quality, latency, continuity, or battery difference.",
-      "line": 1484,
+      "line": 1485,
       "primary_work_item_id": "WI-VALIDATION-MEASUREMENT-001",
       "related_work_item_ids": []
     },
@@ -7157,7 +7285,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Quality, battery, and cutover evidence",
       "text": "Confirm paid active attempts are bounded, direct-demand-only, and stop on qualified evidence, cancellation, or budget exhaustion.",
-      "line": 1486,
+      "line": 1487,
       "primary_work_item_id": "WI-VALIDATION-MEASUREMENT-001",
       "related_work_item_ids": []
     },
@@ -7167,7 +7295,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Quality, battery, and cutover evidence",
       "text": "Confirm optional enrichment never changes provider registration or primary source completeness.",
-      "line": 1488,
+      "line": 1489,
       "primary_work_item_id": "WI-VALIDATION-MEASUREMENT-001",
       "related_work_item_ids": []
     },
@@ -7177,7 +7305,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Quality, battery, and cutover evidence",
       "text": "Shadow-compare every proposed legacy-writer replacement against its protected quality vector before any owner cutover.",
-      "line": 1490,
+      "line": 1491,
       "primary_work_item_id": "WI-VALIDATION-MEASUREMENT-001",
       "related_work_item_ids": []
     },
@@ -7187,7 +7315,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Quality, battery, and cutover evidence",
       "text": "Reject candidates that reduce quality without reducing cost or increase cost without a justified product improvement.",
-      "line": 1492,
+      "line": 1493,
       "primary_work_item_id": "WI-VALIDATION-MEASUREMENT-001",
       "related_work_item_ids": []
     },
@@ -7197,7 +7325,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Quality, battery, and cutover evidence",
       "text": "Rehearse source-local contain, drain, catch-up, cutover, rollback, deletion rearm, and retained-fact readability without two canonical writers.",
-      "line": 1494,
+      "line": 1495,
       "primary_work_item_id": "WI-VALIDATION-MEASUREMENT-001",
       "related_work_item_ids": []
     },
@@ -7207,7 +7335,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Quality, battery, and cutover evidence",
       "text": "Record the exact limits of host, emulator, provider, process, reboot, FGS, battery, OEM, rendered UI, and accessibility evidence; do not generalize one device into an OEM matrix or wake-reliable radio claim.",
-      "line": 1496,
+      "line": 1497,
       "primary_work_item_id": "WI-VALIDATION-MEASUREMENT-001",
       "related_work_item_ids": []
     },
@@ -7217,7 +7345,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Final review, local integration, and publication boundary",
       "text": "Run fresh proportional adversarial review at the converged storage and lifecycle boundary, product/history boundary, privacy/export/deletion boundary, and final diff.",
-      "line": 1502,
+      "line": 1503,
       "primary_work_item_id": "WI-FINAL-INTEGRATION-001",
       "related_work_item_ids": []
     },
@@ -7227,7 +7355,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Final review, local integration, and publication boundary",
       "text": "Resolve every scoped blocker and high-severity finding and rerun the affected proof on the corrected exact commit.",
-      "line": 1504,
+      "line": 1505,
       "primary_work_item_id": "WI-FINAL-INTEGRATION-001",
       "related_work_item_ids": []
     },
@@ -7237,7 +7365,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Final review, local integration, and publication boundary",
       "text": "Confirm every source has exactly one canonical writer, every only-X scenario has the exact registration set, and all product surfaces agree on source facts and completeness.",
-      "line": 1506,
+      "line": 1507,
       "primary_work_item_id": "WI-FINAL-INTEGRATION-001",
       "related_work_item_ids": []
     },
@@ -7247,7 +7375,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Final review, local integration, and publication boundary",
       "text": "Confirm the candidate paths remain default-off until their individual activation gate and rollback are authorized.",
-      "line": 1508,
+      "line": 1509,
       "primary_work_item_id": "WI-FINAL-INTEGRATION-001",
       "related_work_item_ids": []
     },
@@ -7257,7 +7385,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Final review, local integration, and publication boundary",
       "text": "Rebase the final convergence branch onto the latest clean local dev/v10 and rerun the required final gates on the rebased exact commit.",
-      "line": 1510,
+      "line": 1511,
       "primary_work_item_id": "WI-FINAL-INTEGRATION-001",
       "related_work_item_ids": []
     },
@@ -7267,7 +7395,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Final review, local integration, and publication boundary",
       "text": "Merge the completed branch into local dev/v10 from the clean integration worktree, then verify the local merge and preserve the six root protected paths.",
-      "line": 1512,
+      "line": 1513,
       "primary_work_item_id": "WI-FINAL-INTEGRATION-001",
       "related_work_item_ids": []
     },
@@ -7277,7 +7405,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Final review, local integration, and publication boundary",
       "text": "Remove only merged temporary worktrees and local branches after exact target verification; preserve any still-unmerged or user-owned work.",
-      "line": 1514,
+      "line": 1515,
       "primary_work_item_id": "WI-FINAL-INTEGRATION-001",
       "related_work_item_ids": []
     },
@@ -7287,7 +7415,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Final review, local integration, and publication boundary",
       "text": "Update IMPLEMENTATION_STATUS.md, DECISIONS.md, VERIFICATION_MATRIX.md, ROLLOUT_RUNBOOK.md, CONTINUATION_HANDOVER.md, and MACHINE_HANDOVER.md with exact final evidence and remaining authorization boundaries.",
-      "line": 1516,
+      "line": 1517,
       "primary_work_item_id": "WI-FINAL-INTEGRATION-001",
       "related_work_item_ids": []
     },
@@ -7297,7 +7425,7 @@
       "section": "Deferred validation and correction phase",
       "subsection": "Final review, local integration, and publication boundary",
       "text": "Do not push, publish, activate, tag, deploy, release, or begin external rollout without fresh user authorization after the local result is complete.",
-      "line": 1519,
+      "line": 1520,
       "primary_work_item_id": "WI-PUBLICATION-ACTIVATION-001",
       "related_work_item_ids": []
     }

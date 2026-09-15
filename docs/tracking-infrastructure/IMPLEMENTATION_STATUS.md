@@ -7,7 +7,7 @@ Last updated: 2026-09-15
 [`WORK_ITEMS.json`](WORK_ITEMS.json) is now the authoritative execution registry and
 [`WORK_ITEM_TRACKING.md`](WORK_ITEM_TRACKING.md) is its human-readable index/update protocol.
 `IMPLEMENTATION_TODO.md` remains the exhaustive stable requirement checklist. The initial registry
-contains 62 coherent work items and explicitly maps all 293 TODO IDs (71 checked, 222 unchecked,
+contains 63 coherent work items and explicitly maps all 293 TODO IDs (71 checked, 222 unchecked,
 zero unmapped). A broad unchecked requirement may contain accepted sub-slices; current execution,
 review, integration and validation state comes from the JSON registry.
 
@@ -38,7 +38,7 @@ The registry incorporates the newer artifact state:
   new dependency is the narrow Activity/Pressure transactional recent bridges; Location proof,
   structural day/range and feature consumers remain backlog.
 - Location `31c02288a8`, Cell `9d73fe4bb4`, Wi-Fi reviewed input `484c7d293f`, Ambient Steps
-  reviewed input `c8b96e328e`, Runtime review boundary `410d26e28c` and passive radios
+  reviewed input `c8b96e328e`, Runtime review boundary `43db9556d7` and passive radios
   `306e9070d2` retain the exact active blockers recorded in `WORK_ITEMS.json`. Purpose
   `cef95415e2` is separately static-closed. Newer branch tips or dirty edits are implementation
   evidence only, not acceptance.
@@ -103,6 +103,17 @@ bundled Ambient Steps, Location or Pressure prerequisites accepted, the complete
 or Cell/radio schema work started. Shared portable and the narrow Activity decoder boundary remain
 active corrections. Steps `6f46f8` is otherwise closed, but its shared lexer dependency remains
 open. No successor started.
+
+Runtime input `43db9556d75daa8deb852896710bd2bdc080ff40` is clean and held under focused
+review after `92a264020b`, `89202124fd` and `9cbb8d8df`. It claims durable Activity admission
+seal/nonnull hardware, exact retirement intent plus acknowledgement, contained rollback with a
+monotonic generation coordinator, and an actual Pressure `39198f5` token adapter. This is not
+runtime completion. Real `LegacyPressureWriterLifecycleBarrier`, the PersistenceProcessor
+live/offline lifecycle lease, four-source generation-aware writer/reader/maintenance support,
+SourceDestination constants/validation, protected Location binding and the exact two-table DDL
+remain planned producer propagation in `WI-RUNTIME-PRODUCER-PROPAGATION-001`. The only current
+runtime tables are `source_capture_admission_barrier` and `source_run_retirement`; obsolete
+three-table receipts and `source_maintenance_authority` must not be restored.
 
 ## Scope expansion frozen - finish started artifacts, hand over the backlog
 
