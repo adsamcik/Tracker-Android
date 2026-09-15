@@ -175,7 +175,7 @@ class DurableSourceEventSinkFactory private constructor(
 			SourceKind.PRESSURE -> recovery?.requestPressureSessionFactDrain()
 			SourceKind.CELL -> recovery?.requestCellSessionFactDrain()
 			SourceKind.WIFI -> recovery?.requestWifiSessionFactDrain()
-			else -> Unit
+			SourceKind.LOCATION -> recovery?.requestProtectedLocationCanonicalDrain()
 		}
 	}
 }

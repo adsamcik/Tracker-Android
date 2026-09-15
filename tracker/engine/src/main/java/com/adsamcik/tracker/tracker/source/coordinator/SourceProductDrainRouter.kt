@@ -11,6 +11,8 @@ import com.adsamcik.tracker.tracker.source.activity.ActivityCapturedFactDrainRes
 import com.adsamcik.tracker.tracker.source.activity.ActivityCapturedFactProjectionLane
 import com.adsamcik.tracker.tracker.source.cell.CellSessionFactDrainResult
 import com.adsamcik.tracker.tracker.source.cell.CellSessionFactProjectionLane
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalDrainResult
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalHandoff
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactDrainResult
 import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactProjectionLane
@@ -131,7 +133,12 @@ sealed interface SourceProductDrainResult {
 	data class Inactive(
 		override val request: SourceProductDrainRequest,
 		val reason: String,
-	) : SourceProductDrainResult
+		val lastMaterializedAdmissionOrdinal: Long = 0L,
+	) : SourceProductDrainResult {
+		init {
+			require(lastMaterializedAdmissionOrdinal >= 0L)
+		}
+	}
 
 	data class Failed(
 		override val request: SourceProductDrainRequest,
@@ -144,7 +151,12 @@ sealed interface SourceProductDrainResult {
 	data class AuthorityChanged(
 		override val request: SourceProductDrainRequest,
 		val reason: String,
-	) : SourceProductDrainResult
+		val lastMaterializedAdmissionOrdinal: Long = 0L,
+	) : SourceProductDrainResult {
+		init {
+			require(lastMaterializedAdmissionOrdinal >= 0L)
+		}
+	}
 }
 
 fun interface SourceProductDrainRouter {
@@ -155,17 +167,79 @@ fun interface SourceProductDrainRouter {
  * Location-owned implementation must advance only after the protected canonical writer exposes
  * its exact receipt. It must not create a second Location writer.
  */
-fun interface ProtectedLocationSourceDrain {
+interface ProtectedLocationSourceDrain {
+	fun requestDrain()
 	suspend fun drainThrough(request: SourceProductDrainRequest): SourceProductDrainResult
 }
 
 @Singleton
 class RequiredProtectedLocationSourceDrain @Inject constructor() : ProtectedLocationSourceDrain {
+	override fun requestDrain() = Unit
+
 	override suspend fun drainThrough(request: SourceProductDrainRequest): SourceProductDrainResult =
 		SourceProductDrainResult.Inactive(
 			request,
 			"PROTECTED_LOCATION_SOURCE_DRAIN_COLLABORATOR_REQUIRED",
 		)
+}
+
+/**
+ * Frozen adapter for the reviewed protected Location producer.
+ *
+ * It is intentionally not injectable yet: the parent must first provide the currently active
+ * orchestrator as [com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriter].
+ */
+internal class ProtectedLocationCanonicalSourceDrain(
+	private val handoff: ProtectedLocationCanonicalHandoff,
+) : ProtectedLocationSourceDrain {
+	override fun requestDrain() {
+		handoff.requestDrain()
+	}
+
+	override suspend fun drainThrough(
+		request: SourceProductDrainRequest,
+	): SourceProductDrainResult {
+		require(request.source == SourceKind.LOCATION)
+		require(request.target == SourceProductDrainTarget.ProtectedLocationWriter)
+		return when (val result = handoff.drainThrough(
+			logicalTrackingId = request.logicalTrackingId,
+			serviceRunId = request.serviceRunId,
+			throughAdmissionOrdinal = request.sourceHighWaterAdmissionOrdinal,
+		)) {
+			is ProtectedLocationCanonicalDrainResult.Complete -> completeResult(
+				request = request,
+				lastCompletedOrdinal = result.lastCommittedOrdinal,
+				factsInserted = result.observationsCommitted +
+					result.acceptedSamplesCommitted +
+					result.rejectedObservationsCommitted,
+				eventsValidated = result.observationsCommitted + result.lifecycleSettled,
+			)
+			is ProtectedLocationCanonicalDrainResult.Deferred -> SourceProductDrainResult.Deferred(
+				request = request,
+				lastMaterializedAdmissionOrdinal = result.lastCommittedOrdinal,
+				blockedAdmissionOrdinal = result.deferredOrdinal,
+				reason = result.reason,
+			)
+			is ProtectedLocationCanonicalDrainResult.Inactive -> SourceProductDrainResult.Inactive(
+				request = request,
+				reason = result.reason.name,
+				lastMaterializedAdmissionOrdinal = result.lastCommittedOrdinal,
+			)
+			is ProtectedLocationCanonicalDrainResult.Failed -> failureResult(
+				request = request,
+				lastCompletedOrdinal = result.lastCommittedOrdinal,
+				failedOrdinal = result.failedOrdinal,
+				failureCode = result.failureCode,
+				terminal = result.terminal,
+			)
+			is ProtectedLocationCanonicalDrainResult.AuthorityChanged ->
+				SourceProductDrainResult.AuthorityChanged(
+					request = request,
+					reason = result.reason,
+					lastMaterializedAdmissionOrdinal = result.lastCommittedOrdinal,
+				)
+		}
+	}
 }
 
 @Singleton
@@ -506,8 +580,9 @@ private fun completeResult(
 ): SourceProductDrainResult =
 	if (lastCompletedOrdinal < request.sourceHighWaterAdmissionOrdinal) {
 		SourceProductDrainResult.AuthorityChanged(
-			request,
-			"SOURCE_PRODUCT_LANE_CUTOFF_PRECEDES_REQUESTED_HIGH_WATER",
+			request = request,
+			reason = "SOURCE_PRODUCT_LANE_CUTOFF_PRECEDES_REQUESTED_HIGH_WATER",
+			lastMaterializedAdmissionOrdinal = lastCompletedOrdinal,
 		)
 	} else {
 		SourceProductDrainResult.Complete(

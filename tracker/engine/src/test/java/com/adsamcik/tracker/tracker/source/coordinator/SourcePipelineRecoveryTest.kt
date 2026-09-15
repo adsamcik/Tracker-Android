@@ -205,6 +205,7 @@ class SourcePipelineRecoveryTest {
 		val capturedActivityLane = mockk<ActivityCapturedFactProjectionLane>(relaxed = true)
 		val cellLane = mockk<CellSessionFactProjectionLane>(relaxed = true)
 		val wifiLane = mockk<WifiSessionFactProjectionLane>(relaxed = true)
+		val protectedLocationDrain = mockk<ProtectedLocationSourceDrain>(relaxed = true)
 		val scheduled = SourcePipelineRecovery(
 			legacy,
 			coordinator,
@@ -216,6 +217,7 @@ class SourcePipelineRecoveryTest {
 			cellLane,
 			wifiLane,
 			backgroundScope,
+			protectedLocationDrain,
 		)
 		coEvery { legacy.recover() } returns LegacyV27ProjectionRecoveryResult.NotRequired
 
@@ -225,12 +227,14 @@ class SourcePipelineRecoveryTest {
 		scheduled.requestActivityCapturedFactDrain()
 		scheduled.requestCellSessionFactDrain()
 		scheduled.requestWifiSessionFactDrain()
+		scheduled.requestProtectedLocationCanonicalDrain()
 
 		verify(exactly = 2) { stepsLane.requestDrain() }
 		verify(exactly = 2) { pressureLane.requestDrain() }
 		verify(exactly = 2) { capturedActivityLane.requestDrain() }
 		verify(exactly = 2) { cellLane.requestDrain() }
 		verify(exactly = 2) { wifiLane.requestDrain() }
+		verify(exactly = 1) { protectedLocationDrain.requestDrain() }
 		coVerify(exactly = 0) { stepsLane.drainAvailable() }
 		coVerify(exactly = 0) { pressureLane.drainAvailable() }
 		coVerify(exactly = 0) { capturedActivityLane.drainAvailable() }
