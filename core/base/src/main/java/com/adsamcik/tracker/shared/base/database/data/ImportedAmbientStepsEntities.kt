@@ -363,9 +363,13 @@ data class ImportedAmbientStepsDayFenceEntity(
 		require(retainedFromMs == null || retainedFromMs >= 0L)
 		require(latestImportRevision > 0L)
 		require(storedZoneId.isNotBlank())
-		ZoneId.of(storedZoneId)
-		require(structuralDayStartTimeMs >= 0L &&
-			structuralDayEndTimeMs > structuralDayStartTimeMs)
+		val zone = ZoneId.of(storedZoneId)
+		val date = LocalDate.ofEpochDay(structuralEpochDay)
+		require(date.atStartOfDay(zone).toInstant().toEpochMilli() == structuralDayStartTimeMs)
+		require(
+			date.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli() ==
+				structuralDayEndTimeMs,
+		)
 		require(revisionCount in 1..MAX_REVISIONS)
 		require(latestImportRevision == revisionCount.toLong())
 		require(archiveCount in 1..MAX_ARCHIVES)
@@ -379,11 +383,13 @@ data class ImportedAmbientStepsDayFenceEntity(
 		const val FENCE_SELECTED_DELETE = "SELECTED_DELETE"
 		const val FENCE_CONSENT_REVOKED = "CONSENT_REVOKED"
 		const val FENCE_RETENTION = "RETENTION"
+		const val FENCE_FULL_CLEAR = "FULL_CLEAR"
 
 		private val FENCE_KINDS = setOf(
 			FENCE_SELECTED_DELETE,
 			FENCE_CONSENT_REVOKED,
 			FENCE_RETENTION,
+			FENCE_FULL_CLEAR,
 		)
 		private const val MAX_REVISIONS = 16
 		private const val MAX_ARCHIVES = 256
@@ -468,6 +474,43 @@ data class ImportedAmbientStepsDayFenceEntity(
 			)
 		}
 
+		fun reepoch(
+			value: ImportedAmbientStepsDayFenceEntity,
+			collectedDataEpoch: Long,
+			sourceEvidenceRevision: Long,
+		): ImportedAmbientStepsDayFenceEntity {
+			val replacement = value.copy(
+				collectedDataEpoch = collectedDataEpoch,
+				sourceEvidenceRevision = sourceEvidenceRevision,
+				effectChecksum = ImportedAmbientStepsIdentity.digest(
+					"tracker-imported-ambient-steps-day-fence-v1",
+					listOf(
+						value.dayIdentity,
+						value.deletionScopeIdentity,
+						value.fenceKind,
+						collectedDataEpoch,
+						sourceEvidenceRevision,
+						value.fencedAtMs,
+						value.retainedFromMs,
+						value.latestImportRevision,
+						value.latestContentChecksum,
+						value.structuralEpochDay,
+						value.storedZoneId,
+						value.structuralDayStartTimeMs,
+						value.structuralDayEndTimeMs,
+						value.revisionCount,
+						value.archiveCount,
+						value.factRowCount,
+						value.gapRowCount,
+						value.protectedIdentityCount,
+						value.protectedIdentitySetChecksum,
+						value.lineageChecksum,
+					),
+				),
+			)
+			return replacement
+		}
+
 		private fun checksum(value: ImportedAmbientStepsDayFenceEntity) =
 			ImportedAmbientStepsIdentity.digest(
 				"tracker-imported-ambient-steps-day-fence-v1",
@@ -536,13 +579,32 @@ data class ImportedAmbientStepsSourceFenceEntity(
 	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
 	@ColumnInfo(name = "revoked_consent_epoch") val revokedConsentEpoch: Long,
 	@ColumnInfo(name = "deleted_at_ms") val deletedAtMs: Long,
+	@ColumnInfo(name = "deletion_completed") val deletionCompleted: Boolean,
+	@ColumnInfo(name = "completed_at_ms") val completedAtMs: Long?,
+	@ColumnInfo(name = "reopened_consent_epoch") val reopenedConsentEpoch: Long?,
+	@ColumnInfo(name = "reopened_at_ms") val reopenedAtMs: Long?,
 	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
 ) {
 	init {
 		require(id == SINGLETON_ID)
 		require(collectedDataEpoch >= 0L && revokedConsentEpoch >= 0L && deletedAtMs >= 0L)
+		require(deletionCompleted == (completedAtMs != null))
+		require(completedAtMs == null || completedAtMs >= deletedAtMs)
+		require((reopenedConsentEpoch == null) == (reopenedAtMs == null))
+		require(reopenedConsentEpoch == null || (
+			deletionCompleted && reopenedConsentEpoch > revokedConsentEpoch &&
+				requireNotNull(reopenedAtMs) >= requireNotNull(completedAtMs)
+			))
 		require(ImportedAmbientStepsIdentity.isDigest(effectChecksum))
-		require(effectChecksum == checksum(collectedDataEpoch, revokedConsentEpoch, deletedAtMs))
+		require(effectChecksum == checksum(
+			collectedDataEpoch,
+			revokedConsentEpoch,
+			deletedAtMs,
+			deletionCompleted,
+			completedAtMs,
+			reopenedConsentEpoch,
+			reopenedAtMs,
+		))
 	}
 
 	companion object {
@@ -556,16 +618,98 @@ data class ImportedAmbientStepsSourceFenceEntity(
 			collectedDataEpoch = collectedDataEpoch,
 			revokedConsentEpoch = revokedConsentEpoch,
 			deletedAtMs = deletedAtMs,
-			effectChecksum = checksum(collectedDataEpoch, revokedConsentEpoch, deletedAtMs),
+			deletionCompleted = false,
+			completedAtMs = null,
+			reopenedConsentEpoch = null,
+			reopenedAtMs = null,
+			effectChecksum = checksum(
+				collectedDataEpoch,
+				revokedConsentEpoch,
+				deletedAtMs,
+				false,
+				null,
+				null,
+				null,
+			),
+		)
+
+		fun completed(
+			value: ImportedAmbientStepsSourceFenceEntity,
+			completedAtMs: Long,
+		): ImportedAmbientStepsSourceFenceEntity = value.rebuild(
+			deletionCompleted = true,
+			completedAtMs = completedAtMs,
+			reopenedConsentEpoch = null,
+			reopenedAtMs = null,
+		)
+
+		fun reopened(
+			value: ImportedAmbientStepsSourceFenceEntity,
+			reopenedConsentEpoch: Long,
+			reopenedAtMs: Long,
+		): ImportedAmbientStepsSourceFenceEntity = value.rebuild(
+			deletionCompleted = true,
+			completedAtMs = value.completedAtMs,
+			reopenedConsentEpoch = reopenedConsentEpoch,
+			reopenedAtMs = reopenedAtMs,
+		)
+
+		fun reepoch(
+			value: ImportedAmbientStepsSourceFenceEntity,
+			collectedDataEpoch: Long,
+		): ImportedAmbientStepsSourceFenceEntity = value.copy(
+			collectedDataEpoch = collectedDataEpoch,
+			effectChecksum = checksum(
+				collectedDataEpoch,
+				value.revokedConsentEpoch,
+				value.deletedAtMs,
+				value.deletionCompleted,
+				value.completedAtMs,
+				value.reopenedConsentEpoch,
+				value.reopenedAtMs,
+			),
+		)
+
+		private fun ImportedAmbientStepsSourceFenceEntity.rebuild(
+			deletionCompleted: Boolean,
+			completedAtMs: Long?,
+			reopenedConsentEpoch: Long?,
+			reopenedAtMs: Long?,
+		) = copy(
+			deletionCompleted = deletionCompleted,
+			completedAtMs = completedAtMs,
+			reopenedConsentEpoch = reopenedConsentEpoch,
+			reopenedAtMs = reopenedAtMs,
+			effectChecksum = checksum(
+				collectedDataEpoch,
+				revokedConsentEpoch,
+				deletedAtMs,
+				deletionCompleted,
+				completedAtMs,
+				reopenedConsentEpoch,
+				reopenedAtMs,
+			),
 		)
 
 		private fun checksum(
 			collectedDataEpoch: Long,
 			revokedConsentEpoch: Long,
 			deletedAtMs: Long,
+			deletionCompleted: Boolean,
+			completedAtMs: Long?,
+			reopenedConsentEpoch: Long?,
+			reopenedAtMs: Long?,
 		) = ImportedAmbientStepsIdentity.digest(
 			"tracker-imported-ambient-steps-source-fence-v1",
-			listOf(collectedDataEpoch, revokedConsentEpoch, deletedAtMs),
+			listOf(
+				collectedDataEpoch,
+				revokedConsentEpoch,
+				deletedAtMs,
+				if (deletionCompleted) 1 else 0,
+				completedAtMs,
+				reopenedConsentEpoch,
+				reopenedAtMs,
+			),
 		)
 	}
 }

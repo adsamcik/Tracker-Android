@@ -121,8 +121,40 @@ data class AuthenticatedImportedAmbientStepsLineage(
 
 /** Pure complete-lineage authentication shared by import, read, deletion, and retention. */
 object ImportedAmbientStepsLineageAuthenticator {
-	@Suppress("LongMethod", "CyclomaticComplexMethod")
 	fun authenticate(
+		dayIdentity: String,
+		expectedCollectedDataEpoch: Long,
+		headers: List<ImportedAmbientStepsDayRevisionEntity>,
+		archives: List<ImportedAmbientStepsArchiveEntity>,
+		archiveDays: List<ImportedAmbientStepsArchiveDayEntity>,
+		receipts: List<ImportedAmbientStepsReceiptEntity>,
+		facts: List<ImportedAmbientStepsFactEntity>,
+		gaps: List<ImportedAmbientStepsGapEntity>,
+	): AuthenticatedImportedAmbientStepsLineage = try {
+		authenticateUnchecked(
+			dayIdentity,
+			expectedCollectedDataEpoch,
+			headers,
+			archives,
+			archiveDays,
+			receipts,
+			facts,
+			gaps,
+		)
+	} catch (failure: ImportedAmbientStepsLineageFailure) {
+		throw failure
+	} catch (_: IllegalArgumentException) {
+		corrupt()
+	} catch (_: IllegalStateException) {
+		corrupt()
+	} catch (_: ArithmeticException) {
+		corrupt()
+	} catch (_: java.time.DateTimeException) {
+		corrupt()
+	}
+
+	@Suppress("LongMethod", "CyclomaticComplexMethod")
+	private fun authenticateUnchecked(
 		dayIdentity: String,
 		expectedCollectedDataEpoch: Long,
 		headers: List<ImportedAmbientStepsDayRevisionEntity>,
@@ -310,112 +342,6 @@ suspend fun ImportedAmbientStepsDao.loadAuthenticatedAmbientStepsLineage(
 			ImportedAmbientStepsLineageFailureReason.DEPENDENCY_OVERFLOW,
 		)
 	}
-
-	suspend fun ImportedAmbientStepsDao.authenticateAllAmbientStepsFences(
-		expectedCollectedDataEpoch: Long,
-	) {
-		val fenceCount = fenceCount()
-		val markerCount = protectedIdentityCount()
-		if (fenceCount < 0L || fenceCount > ImportedAmbientStepsDao.MAX_GLOBAL_FENCES ||
-			markerCount < 0L ||
-			markerCount > ImportedAmbientStepsDao.MAX_GLOBAL_PROTECTED_IDENTITIES
-		) {
-			throw ImportedAmbientStepsLineageFailure(
-				ImportedAmbientStepsLineageFailureReason.DEPENDENCY_OVERFLOW,
-			)
-		}
-		val fences = allFences(Math.toIntExact(fenceCount + 1L))
-		if (fences.size.toLong() != fenceCount ||
-			fences.any { it.collectedDataEpoch != expectedCollectedDataEpoch }
-		) {
-			throw ImportedAmbientStepsLineageFailure(
-				ImportedAmbientStepsLineageFailureReason.STORED_EVIDENCE_UNVERIFIABLE,
-			)
-		}
-		val fencesByOwner = fences.associateBy(ImportedAmbientStepsDayFenceEntity::dayIdentity)
-		if (fencesByOwner.size != fences.size) {
-			throw ImportedAmbientStepsLineageFailure(
-				ImportedAmbientStepsLineageFailureReason.STORED_EVIDENCE_UNVERIFIABLE,
-			)
-		}
-		var loadedMarkers = 0L
-		var afterOwner: String? = null
-		var afterIdentity: String? = null
-		var currentOwner: String? = null
-		val currentMarkers = mutableListOf<ImportedAmbientStepsProtectedIdentityEntity>()
-		val authenticatedOwners = linkedSetOf<String>()
-
-		fun authenticateCurrent() {
-			val owner = currentOwner ?: return
-			val fence = fencesByOwner[owner] ?: throw ImportedAmbientStepsLineageFailure(
-				ImportedAmbientStepsLineageFailureReason.STORED_EVIDENCE_UNVERIFIABLE,
-			)
-			if (currentMarkers.size != fence.protectedIdentityCount ||
-				ImportedAmbientStepsIdentity.protectedIdentitySetChecksum(currentMarkers) !=
-				fence.protectedIdentitySetChecksum ||
-				!authenticatedOwners.add(owner)
-			) {
-				throw ImportedAmbientStepsLineageFailure(
-					ImportedAmbientStepsLineageFailureReason.STORED_EVIDENCE_UNVERIFIABLE,
-				)
-			}
-			currentMarkers.clear()
-		}
-
-		while (true) {
-			val priorOwner = afterOwner
-			val priorIdentity = afterIdentity
-			val page = protectedIdentityPage(
-				priorOwner,
-				priorIdentity,
-				ImportedAmbientStepsDao.FENCE_AUDIT_PAGE_SIZE,
-			)
-			if (page.isEmpty()) break
-			if (page.size > ImportedAmbientStepsDao.FENCE_AUDIT_PAGE_SIZE ||
-				page.zipWithNext().any { (left, right) ->
-					left.ownerDayIdentity > right.ownerDayIdentity ||
-						left.ownerDayIdentity == right.ownerDayIdentity &&
-						left.protectedIdentity >= right.protectedIdentity
-				} || priorOwner != null && (
-					page.first().ownerDayIdentity < priorOwner ||
-						page.first().ownerDayIdentity == priorOwner &&
-						page.first().protectedIdentity <= requireNotNull(priorIdentity)
-					)
-			) {
-				throw ImportedAmbientStepsLineageFailure(
-					ImportedAmbientStepsLineageFailureReason.STORED_EVIDENCE_UNVERIFIABLE,
-				)
-			}
-			page.forEach { marker ->
-				if (currentOwner != null && marker.ownerDayIdentity != currentOwner) {
-					authenticateCurrent()
-				}
-				currentOwner = marker.ownerDayIdentity
-				currentMarkers += marker
-			}
-			loadedMarkers = try {
-				Math.addExact(loadedMarkers, page.size.toLong())
-			} catch (_: ArithmeticException) {
-				throw ImportedAmbientStepsLineageFailure(
-					ImportedAmbientStepsLineageFailureReason.DEPENDENCY_OVERFLOW,
-				)
-			}
-			if (loadedMarkers > ImportedAmbientStepsDao.MAX_GLOBAL_PROTECTED_IDENTITIES) {
-				throw ImportedAmbientStepsLineageFailure(
-					ImportedAmbientStepsLineageFailureReason.DEPENDENCY_OVERFLOW,
-				)
-			}
-			afterOwner = page.last().ownerDayIdentity
-			afterIdentity = page.last().protectedIdentity
-			if (page.size < ImportedAmbientStepsDao.FENCE_AUDIT_PAGE_SIZE) break
-		}
-		authenticateCurrent()
-		if (loadedMarkers != markerCount || authenticatedOwners != fencesByOwner.keys) {
-			throw ImportedAmbientStepsLineageFailure(
-				ImportedAmbientStepsLineageFailureReason.STORED_EVIDENCE_UNVERIFIABLE,
-			)
-		}
-	}
 	val archiveIdentities = memberships.map { it.archiveIdentity }.distinct()
 	val archives = if (archiveIdentities.isEmpty()) emptyList() else {
 		archives(archiveIdentities, archiveIdentities.size + 1)
@@ -442,4 +368,110 @@ suspend fun ImportedAmbientStepsDao.loadAuthenticatedAmbientStepsLineage(
 		facts = factsForAdmission(dayIdentity),
 		gaps = gapsForAdmission(dayIdentity),
 	)
+}
+
+suspend fun ImportedAmbientStepsDao.authenticateAllAmbientStepsFences(
+	expectedCollectedDataEpoch: Long,
+) {
+	val fenceCount = fenceCount()
+	val markerCount = protectedIdentityCount()
+	if (fenceCount < 0L || fenceCount > ImportedAmbientStepsDao.MAX_GLOBAL_FENCES ||
+		markerCount < 0L ||
+		markerCount > ImportedAmbientStepsDao.MAX_GLOBAL_PROTECTED_IDENTITIES
+	) {
+		throw ImportedAmbientStepsLineageFailure(
+			ImportedAmbientStepsLineageFailureReason.DEPENDENCY_OVERFLOW,
+		)
+	}
+	val fences = allFences(Math.toIntExact(fenceCount + 1L))
+	if (fences.size.toLong() != fenceCount ||
+		fences.any { it.collectedDataEpoch != expectedCollectedDataEpoch }
+	) {
+		throw ImportedAmbientStepsLineageFailure(
+			ImportedAmbientStepsLineageFailureReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	}
+	val fencesByOwner = fences.associateBy(ImportedAmbientStepsDayFenceEntity::dayIdentity)
+	if (fencesByOwner.size != fences.size) {
+		throw ImportedAmbientStepsLineageFailure(
+			ImportedAmbientStepsLineageFailureReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	}
+	var loadedMarkers = 0L
+	var afterOwner: String? = null
+	var afterIdentity: String? = null
+	var currentOwner: String? = null
+	val currentMarkers = mutableListOf<ImportedAmbientStepsProtectedIdentityEntity>()
+	val authenticatedOwners = linkedSetOf<String>()
+
+	fun authenticateCurrent() {
+		val owner = currentOwner ?: return
+		val fence = fencesByOwner[owner] ?: throw ImportedAmbientStepsLineageFailure(
+			ImportedAmbientStepsLineageFailureReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		if (currentMarkers.size != fence.protectedIdentityCount ||
+			ImportedAmbientStepsIdentity.protectedIdentitySetChecksum(currentMarkers) !=
+			fence.protectedIdentitySetChecksum ||
+			!authenticatedOwners.add(owner)
+		) {
+			throw ImportedAmbientStepsLineageFailure(
+				ImportedAmbientStepsLineageFailureReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		currentMarkers.clear()
+	}
+
+	while (true) {
+		val priorOwner = afterOwner
+		val priorIdentity = afterIdentity
+		val page = protectedIdentityPage(
+			priorOwner,
+			priorIdentity,
+			ImportedAmbientStepsDao.FENCE_AUDIT_PAGE_SIZE,
+		)
+		if (page.isEmpty()) break
+		if (page.size > ImportedAmbientStepsDao.FENCE_AUDIT_PAGE_SIZE ||
+			page.zipWithNext().any { (left, right) ->
+				left.ownerDayIdentity > right.ownerDayIdentity ||
+					left.ownerDayIdentity == right.ownerDayIdentity &&
+					left.protectedIdentity >= right.protectedIdentity
+			} || priorOwner != null && (
+				page.first().ownerDayIdentity < priorOwner ||
+					page.first().ownerDayIdentity == priorOwner &&
+					page.first().protectedIdentity <= requireNotNull(priorIdentity)
+				)
+		) {
+			throw ImportedAmbientStepsLineageFailure(
+				ImportedAmbientStepsLineageFailureReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		page.forEach { marker ->
+			if (currentOwner != null && marker.ownerDayIdentity != currentOwner) {
+				authenticateCurrent()
+			}
+			currentOwner = marker.ownerDayIdentity
+			currentMarkers += marker
+		}
+		loadedMarkers = try {
+			Math.addExact(loadedMarkers, page.size.toLong())
+		} catch (_: ArithmeticException) {
+			throw ImportedAmbientStepsLineageFailure(
+				ImportedAmbientStepsLineageFailureReason.DEPENDENCY_OVERFLOW,
+			)
+		}
+		if (loadedMarkers > ImportedAmbientStepsDao.MAX_GLOBAL_PROTECTED_IDENTITIES) {
+			throw ImportedAmbientStepsLineageFailure(
+				ImportedAmbientStepsLineageFailureReason.DEPENDENCY_OVERFLOW,
+			)
+		}
+		afterOwner = page.last().ownerDayIdentity
+		afterIdentity = page.last().protectedIdentity
+		if (page.size < ImportedAmbientStepsDao.FENCE_AUDIT_PAGE_SIZE) break
+	}
+	authenticateCurrent()
+	if (loadedMarkers != markerCount || authenticatedOwners != fencesByOwner.keys) {
+		throw ImportedAmbientStepsLineageFailure(
+			ImportedAmbientStepsLineageFailureReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	}
 }

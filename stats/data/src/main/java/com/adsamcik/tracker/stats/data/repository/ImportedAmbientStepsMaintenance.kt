@@ -111,10 +111,6 @@ internal class RoomDeleteImportedAmbientStepsDay internal constructor(
 			DeleteImportedAmbientStepsDayResult.RetryableFailure(
 				PortableAmbientStepsTransferRetryableReason.STORAGE_UNAVAILABLE,
 			)
-		} catch (_: Exception) {
-			DeleteImportedAmbientStepsDayResult.RetryableFailure(
-				PortableAmbientStepsTransferRetryableReason.STORAGE_UNAVAILABLE,
-			)
 		}
 	}
 
@@ -211,7 +207,7 @@ internal class RoomTruncateImportedAmbientStepsRetention internal constructor(
 			TruncateImportedAmbientStepsRetentionResult.RetryableFailure(
 				PortableAmbientStepsTransferRetryableReason.CONCURRENT_STATE_CHANGE,
 			)
-		} catch (_: Exception) {
+		} catch (_: SQLiteException) {
 			TruncateImportedAmbientStepsRetentionResult.RetryableFailure(
 				PortableAmbientStepsTransferRetryableReason.STORAGE_UNAVAILABLE,
 			)
@@ -252,7 +248,12 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 				val sourceFenceChanged = ensureSourceFence(state, request)
 				val candidate = dao.nextDayCandidate()
 					?: run {
-						if (sourceFenceChanged) {
+						val completionChanged = completeSourceFence(
+							state,
+							request.expectedRevokedConsentEpoch,
+							request.deletedAtMs,
+						)
+						if (sourceFenceChanged || completionChanged) {
 							incrementImportedAmbientStepsEvidenceRevision(
 								database,
 								state,
@@ -297,7 +298,7 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 			DeleteImportedAmbientStepsAfterConsentResetResult.RetryableFailure(
 				PortableAmbientStepsTransferRetryableReason.CONCURRENT_STATE_CHANGE,
 			)
-		} catch (_: Exception) {
+		} catch (_: SQLiteException) {
 			DeleteImportedAmbientStepsAfterConsentResetResult.RetryableFailure(
 				PortableAmbientStepsTransferRetryableReason.STORAGE_UNAVAILABLE,
 			)
@@ -345,7 +346,7 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 		}
 		if (existing.collectedDataEpoch != state.collectedDataEpoch ||
 			existing.revokedConsentEpoch > request.expectedRevokedConsentEpoch ||
-			request.deletedAtMs < existing.deletedAtMs
+			request.deletedAtMs < maxOf(existing.deletedAtMs, existing.reopenedAtMs ?: 0L)
 		) {
 			unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 		}
@@ -355,14 +356,31 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 			request.expectedRevokedConsentEpoch,
 			request.deletedAtMs,
 		)
-		if (dao.advanceSourceFence(
-				expectedCollectedDataEpoch = state.collectedDataEpoch,
-				expectedRevokedConsentEpoch = existing.revokedConsentEpoch,
-				newRevokedConsentEpoch = replacement.revokedConsentEpoch,
-				deletedAtMs = replacement.deletedAtMs,
-				effectChecksum = replacement.effectChecksum,
-			) != 1
+		if (!dao.replaceSourceFence(existing, replacement)) {
+			unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.FENCE_INSERTED)
+		return true
+	}
+
+	private suspend fun completeSourceFence(
+		state: SourceEvidenceState,
+		revokedConsentEpoch: Long,
+		completedAtMs: Long,
+	): Boolean {
+		val existing = readSourceFence(dao)
+			?: unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		if (existing.collectedDataEpoch != state.collectedDataEpoch ||
+			existing.revokedConsentEpoch != revokedConsentEpoch
 		) {
+			unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		if (existing.deletionCompleted) return false
+		val replacement = ImportedAmbientStepsSourceFenceEntity.completed(
+			existing,
+			maxOf(completedAtMs, existing.deletedAtMs),
+		)
+		if (!dao.replaceSourceFence(existing, replacement)) {
 			unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 		}
 		checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.FENCE_INSERTED)
@@ -384,65 +402,96 @@ private suspend fun authenticateLineage(
 		ImportedAmbientStepsLineageFailureReason.STORED_EVIDENCE_UNVERIFIABLE ->
 			unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 	}
+} catch (_: IllegalArgumentException) {
+	unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+} catch (_: IllegalStateException) {
+	unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+} catch (_: ArithmeticException) {
+	unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+} catch (_: java.time.DateTimeException) {
+	unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+}
 
-	private suspend fun authenticateFenceAuthority(
-			dao: ImportedAmbientStepsDao,
-			state: SourceEvidenceState,
-	) {
-			try {
-				dao.authenticateAllAmbientStepsFences(state.collectedDataEpoch)
-			} catch (failure: ImportedAmbientStepsLineageFailure) {
-				when (failure.reason) {
-					ImportedAmbientStepsLineageFailureReason.DEPENDENCY_OVERFLOW,
-					ImportedAmbientStepsLineageFailureReason.REVISION_OVERFLOW,
-					-> unavailable(ImportedAmbientStepsMutationUnverifiableReason.DEPENDENCY_OVERFLOW)
-					ImportedAmbientStepsLineageFailureReason.STORED_EVIDENCE_UNVERIFIABLE ->
-						unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-				}
-			} catch (_: IllegalArgumentException) {
+private suspend fun authenticateFenceAuthority(
+	dao: ImportedAmbientStepsDao,
+	state: SourceEvidenceState,
+) {
+	try {
+		dao.authenticateAllAmbientStepsFences(state.collectedDataEpoch)
+	} catch (failure: ImportedAmbientStepsLineageFailure) {
+		when (failure.reason) {
+			ImportedAmbientStepsLineageFailureReason.DEPENDENCY_OVERFLOW,
+			ImportedAmbientStepsLineageFailureReason.REVISION_OVERFLOW,
+			-> unavailable(ImportedAmbientStepsMutationUnverifiableReason.DEPENDENCY_OVERFLOW)
+			ImportedAmbientStepsLineageFailureReason.STORED_EVIDENCE_UNVERIFIABLE ->
 				unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-			}
-	}
-
-	private suspend fun sourceDeletionActive(
-		database: AppDatabase,
-		dao: ImportedAmbientStepsDao,
-		state: SourceEvidenceState,
-	): Boolean {
-		val fence = readSourceFence(dao) ?: return false
-		if (fence.collectedDataEpoch != state.collectedDataEpoch) {
-			unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 		}
-		val authority = database.sourcePolicyDao().authority()
-		val policy = authority?.takeIf {
-			it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE
-		}?.let {
-			database.sourcePolicyDao().policyAtRevision(
-				it.currentPolicyRevision,
-				SourceDestinationOwnerEntity.SOURCE_STEPS,
-			)
-		}
-		val consent = database.sourcePolicyDao().latestConsentEpoch(
-			SourceDestinationOwnerEntity.SOURCE_STEPS,
-			SourceBrokerPurpose.AMBIENT_PRODUCT,
-		)
-		return policy == null || consent == null || !policy.enabled ||
-			!policy.ambientPersistenceEligible || policy.ambientConsentEpoch != consent.epoch ||
-			!consent.eligible || !consent.persistenceEligible ||
-			consent.policyRevision != policy.policyRevision ||
-			consent.epoch <= fence.revokedConsentEpoch
-	}
-
-	private suspend fun readSourceFence(
-		dao: ImportedAmbientStepsDao,
-	): ImportedAmbientStepsSourceFenceEntity? = try {
-		dao.sourceFence()
 	} catch (_: IllegalArgumentException) {
 		unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+	} catch (_: IllegalStateException) {
+		unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+	} catch (_: ArithmeticException) {
+		unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+	} catch (_: java.time.DateTimeException) {
+		unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 	}
+}
+
+private suspend fun sourceDeletionActive(
+	database: AppDatabase,
+	dao: ImportedAmbientStepsDao,
+	state: SourceEvidenceState,
+): Boolean {
+	val fence = readSourceFence(dao) ?: return false
+	if (fence.collectedDataEpoch != state.collectedDataEpoch) {
+	unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+	}
+	val authority = database.sourcePolicyDao().authority()
+	val policy = authority?.takeIf {
+		it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE
+	}?.let {
+		database.sourcePolicyDao().policyAtRevision(
+			it.currentPolicyRevision,
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+		)
+	}
+	val consent = database.sourcePolicyDao().latestConsentEpoch(
+		SourceDestinationOwnerEntity.SOURCE_STEPS,
+		SourceBrokerPurpose.AMBIENT_PRODUCT,
+	)
+	return policy == null || consent == null || !policy.enabled ||
+		!fence.deletionCompleted ||
+		!policy.ambientPersistenceEligible || policy.ambientConsentEpoch != consent.epoch ||
+		!consent.eligible || !consent.persistenceEligible ||
+		consent.policyRevision != policy.policyRevision ||
+		consent.epoch <= fence.revokedConsentEpoch ||
+		fence.reopenedConsentEpoch != consent.epoch
+}
+
+private suspend fun readSourceFence(
+	dao: ImportedAmbientStepsDao,
+): ImportedAmbientStepsSourceFenceEntity? = try {
+	dao.sourceFence()
 } catch (_: IllegalArgumentException) {
 	unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 }
+
+internal suspend fun ImportedAmbientStepsDao.replaceSourceFence(
+	expected: ImportedAmbientStepsSourceFenceEntity,
+	replacement: ImportedAmbientStepsSourceFenceEntity,
+): Boolean = replaceSourceFenceExact(
+	expectedCollectedDataEpoch = expected.collectedDataEpoch,
+	expectedRevokedConsentEpoch = expected.revokedConsentEpoch,
+	expectedEffectChecksum = expected.effectChecksum,
+	collectedDataEpoch = replacement.collectedDataEpoch,
+	revokedConsentEpoch = replacement.revokedConsentEpoch,
+	deletedAtMs = replacement.deletedAtMs,
+	deletionCompleted = replacement.deletionCompleted,
+	completedAtMs = replacement.completedAtMs,
+	reopenedConsentEpoch = replacement.reopenedConsentEpoch,
+	reopenedAtMs = replacement.reopenedAtMs,
+	effectChecksum = replacement.effectChecksum,
+) == 1
 
 private suspend fun fenceAndDeleteLineage(
 	dao: ImportedAmbientStepsDao,

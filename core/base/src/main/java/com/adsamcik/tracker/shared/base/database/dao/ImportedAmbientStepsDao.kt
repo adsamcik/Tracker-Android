@@ -41,7 +41,15 @@ abstract class ImportedAmbientStepsDao {
 	abstract suspend fun insertFence(value: ImportedAmbientStepsDayFenceEntity)
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract fun insertFenceForFullClear(value: ImportedAmbientStepsDayFenceEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertProtectedIdentities(
+		values: List<ImportedAmbientStepsProtectedIdentityEntity>,
+	)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract fun insertProtectedIdentitiesForFullClear(
 		values: List<ImportedAmbientStepsProtectedIdentityEntity>,
 	)
 
@@ -51,19 +59,52 @@ abstract class ImportedAmbientStepsDao {
 	@Query("SELECT * FROM imported_ambient_steps_source_fence WHERE id = 1")
 	abstract suspend fun sourceFence(): ImportedAmbientStepsSourceFenceEntity?
 
+	@Query("SELECT * FROM imported_ambient_steps_source_fence WHERE id = 1")
+	abstract fun sourceFenceForFullClear(): ImportedAmbientStepsSourceFenceEntity?
+
 	@Query(
-		"UPDATE imported_ambient_steps_source_fence SET " +
-			"revoked_consent_epoch = :newRevokedConsentEpoch, deleted_at_ms = :deletedAtMs, " +
+		"UPDATE imported_ambient_steps_source_fence SET collected_data_epoch = :collectedDataEpoch, " +
+			"revoked_consent_epoch = :revokedConsentEpoch, deleted_at_ms = :deletedAtMs, " +
+			"deletion_completed = :deletionCompleted, completed_at_ms = :completedAtMs, " +
+			"reopened_consent_epoch = :reopenedConsentEpoch, reopened_at_ms = :reopenedAtMs, " +
 			"effect_checksum = :effectChecksum WHERE id = 1 " +
 			"AND collected_data_epoch = :expectedCollectedDataEpoch " +
 			"AND revoked_consent_epoch = :expectedRevokedConsentEpoch " +
-			"AND :newRevokedConsentEpoch > revoked_consent_epoch",
+			"AND effect_checksum = :expectedEffectChecksum",
 	)
-	abstract suspend fun advanceSourceFence(
+	abstract suspend fun replaceSourceFenceExact(
 		expectedCollectedDataEpoch: Long,
 		expectedRevokedConsentEpoch: Long,
-		newRevokedConsentEpoch: Long,
+		expectedEffectChecksum: String,
+		collectedDataEpoch: Long,
+		revokedConsentEpoch: Long,
 		deletedAtMs: Long,
+		deletionCompleted: Boolean,
+		completedAtMs: Long?,
+		reopenedConsentEpoch: Long?,
+		reopenedAtMs: Long?,
+		effectChecksum: String,
+	): Int
+
+	@Query(
+		"UPDATE imported_ambient_steps_source_fence SET collected_data_epoch = :collectedDataEpoch, " +
+			"revoked_consent_epoch = :revokedConsentEpoch, deleted_at_ms = :deletedAtMs, " +
+			"deletion_completed = :deletionCompleted, completed_at_ms = :completedAtMs, " +
+			"reopened_consent_epoch = :reopenedConsentEpoch, reopened_at_ms = :reopenedAtMs, " +
+			"effect_checksum = :effectChecksum WHERE id = 1 " +
+			"AND collected_data_epoch = :expectedCollectedDataEpoch " +
+			"AND effect_checksum = :expectedEffectChecksum",
+	)
+	abstract fun replaceSourceFenceForFullClear(
+		expectedCollectedDataEpoch: Long,
+		expectedEffectChecksum: String,
+		collectedDataEpoch: Long,
+		revokedConsentEpoch: Long,
+		deletedAtMs: Long,
+		deletionCompleted: Boolean,
+		completedAtMs: Long?,
+		reopenedConsentEpoch: Long?,
+		reopenedAtMs: Long?,
 		effectChecksum: String,
 	): Int
 
@@ -108,6 +149,14 @@ abstract class ImportedAmbientStepsDao {
 	): List<ImportedAmbientStepsReceiptEntity>
 
 	@Query(
+		"SELECT COUNT(*) AS receipt_count, MIN(received_at_ms) AS earliest_received_at_ms " +
+			"FROM imported_ambient_steps_receipt WHERE archive_identity = :archiveIdentity",
+	)
+	abstract suspend fun receiptStats(
+		archiveIdentity: String,
+	): ImportedAmbientStepsReceiptStats
+
+	@Query(
 		"SELECT * FROM imported_ambient_steps_archive_day " +
 			"WHERE archive_identity = :archiveIdentity ORDER BY ordinal",
 	)
@@ -148,6 +197,15 @@ abstract class ImportedAmbientStepsDao {
 		limit: Int,
 	): List<ImportedAmbientStepsDayRevisionEntity>
 
+	@Query(
+		"SELECT * FROM imported_ambient_steps_day_revision WHERE day_identity = :dayIdentity " +
+			"ORDER BY import_revision LIMIT :limit",
+	)
+	abstract fun dayRevisionsForFullClear(
+		dayIdentity: String,
+		limit: Int,
+	): List<ImportedAmbientStepsDayRevisionEntity>
+
 	suspend fun factsForAdmission(dayIdentity: String): List<ImportedAmbientStepsFactEntity> =
 		loadFacts(dayIdentity, MAX_TOTAL_FACT_ROWS_PER_LINEAGE + 1)
 
@@ -156,6 +214,15 @@ abstract class ImportedAmbientStepsDao {
 			"ORDER BY day_import_revision, interval_start_time_ms, fact_identity LIMIT :limit",
 	)
 	protected abstract suspend fun loadFacts(
+		dayIdentity: String,
+		limit: Int,
+	): List<ImportedAmbientStepsFactEntity>
+
+	@Query(
+		"SELECT * FROM imported_ambient_steps_fact WHERE day_identity = :dayIdentity " +
+			"ORDER BY day_import_revision, interval_start_time_ms, fact_identity LIMIT :limit",
+	)
+	abstract fun factsForFullClear(
 		dayIdentity: String,
 		limit: Int,
 	): List<ImportedAmbientStepsFactEntity>
@@ -171,6 +238,75 @@ abstract class ImportedAmbientStepsDao {
 		dayIdentity: String,
 		limit: Int,
 	): List<ImportedAmbientStepsGapEntity>
+
+	@Query(
+		"SELECT * FROM imported_ambient_steps_gap WHERE day_identity = :dayIdentity " +
+			"ORDER BY day_import_revision, interval_start_time_ms, gap_identity LIMIT :limit",
+	)
+	abstract fun gapsForFullClear(
+		dayIdentity: String,
+		limit: Int,
+	): List<ImportedAmbientStepsGapEntity>
+
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT day_identity, MAX(import_revision) AS import_revision
+		  FROM imported_ambient_steps_day_revision
+		  GROUP BY day_identity
+		)
+		SELECT day.*
+		FROM imported_ambient_steps_day_revision AS day
+		INNER JOIN latest_revision AS latest
+		  ON latest.day_identity = day.day_identity
+		 AND latest.import_revision = day.import_revision
+		WHERE :afterDayIdentity IS NULL OR day.day_identity > :afterDayIdentity
+		ORDER BY day.day_identity
+		LIMIT :limit
+		""",
+	)
+	abstract fun fullClearDayCandidatePage(
+		afterDayIdentity: String?,
+		limit: Int,
+	): List<ImportedAmbientStepsDayRevisionEntity>
+
+	@Query(
+		"SELECT * FROM imported_ambient_steps_archive_day WHERE day_identity = :dayIdentity " +
+			"ORDER BY archive_identity LIMIT :limit",
+	)
+	abstract fun archiveDaysForFullClear(
+		dayIdentity: String,
+		limit: Int,
+	): List<ImportedAmbientStepsArchiveDayEntity>
+
+	@Query(
+		"SELECT * FROM imported_ambient_steps_archive " +
+			"WHERE archive_identity IN (:archiveIdentities) ORDER BY archive_identity LIMIT :limit",
+	)
+	abstract fun archivesForFullClear(
+		archiveIdentities: List<String>,
+		limit: Int,
+	): List<ImportedAmbientStepsArchiveEntity>
+
+	@Query(
+		"SELECT * FROM imported_ambient_steps_archive_day " +
+			"WHERE archive_identity IN (:archiveIdentities) " +
+			"ORDER BY archive_identity, ordinal LIMIT :limit",
+	)
+	abstract fun allArchiveDaysForFullClear(
+		archiveIdentities: List<String>,
+		limit: Int,
+	): List<ImportedAmbientStepsArchiveDayEntity>
+
+	@Query(
+		"SELECT * FROM imported_ambient_steps_receipt " +
+			"WHERE archive_identity IN (:archiveIdentities) " +
+			"ORDER BY archive_identity, import_job_id, archive_key LIMIT :limit",
+	)
+	abstract fun receiptsForFullClear(
+		archiveIdentities: List<String>,
+		limit: Int,
+	): List<ImportedAmbientStepsReceiptEntity>
 
 	@Query(
 		"""
@@ -390,6 +526,11 @@ abstract class ImportedAmbientStepsDao {
 	abstract suspend fun fence(dayIdentity: String): ImportedAmbientStepsDayFenceEntity?
 
 	@Query(
+		"SELECT * FROM imported_ambient_steps_day_fence WHERE day_identity = :dayIdentity",
+	)
+	abstract fun fenceForFullClear(dayIdentity: String): ImportedAmbientStepsDayFenceEntity?
+
+	@Query(
 		"SELECT * FROM imported_ambient_steps_day_fence " +
 			"WHERE day_identity IN (:dayIdentities) ORDER BY day_identity",
 	)
@@ -428,6 +569,16 @@ abstract class ImportedAmbientStepsDao {
 	abstract suspend fun allFences(limit: Int): List<ImportedAmbientStepsDayFenceEntity>
 
 	@Query(
+		"SELECT * FROM imported_ambient_steps_day_fence WHERE " +
+			":afterDayIdentity IS NULL OR day_identity > :afterDayIdentity " +
+			"ORDER BY day_identity LIMIT :limit",
+	)
+	abstract fun fencePageForFullClear(
+		afterDayIdentity: String?,
+		limit: Int,
+	): List<ImportedAmbientStepsDayFenceEntity>
+
+	@Query(
 		"SELECT * FROM imported_ambient_steps_protected_identity " +
 			"WHERE owner_day_identity = :dayIdentity " +
 			"ORDER BY protected_identity, identity_kind LIMIT :limit",
@@ -436,6 +587,42 @@ abstract class ImportedAmbientStepsDao {
 		dayIdentity: String,
 		limit: Int,
 	): List<ImportedAmbientStepsProtectedIdentityEntity>
+
+	@Query(
+		"SELECT * FROM imported_ambient_steps_protected_identity " +
+			"WHERE owner_day_identity = :dayIdentity " +
+			"ORDER BY protected_identity, identity_kind LIMIT :limit",
+	)
+	abstract fun protectedIdentitiesForFullClear(
+		dayIdentity: String,
+		limit: Int,
+	): List<ImportedAmbientStepsProtectedIdentityEntity>
+
+	@Query(
+		"SELECT DISTINCT protected_identity, identity_kind " +
+			"FROM imported_ambient_steps_protected_identity " +
+			"WHERE protected_identity IN (:identities) " +
+			"ORDER BY protected_identity, identity_kind LIMIT :limit",
+	)
+	abstract fun protectedIdentityKindsForFullClear(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedAmbientStepsProtectedIdentityKind>
+
+	@Query(
+		"UPDATE imported_ambient_steps_day_fence SET collected_data_epoch = :collectedDataEpoch, " +
+			"source_evidence_revision = :sourceEvidenceRevision, effect_checksum = :effectChecksum " +
+			"WHERE day_identity = :dayIdentity AND collected_data_epoch = :expectedCollectedDataEpoch " +
+			"AND effect_checksum = :expectedEffectChecksum",
+	)
+	abstract fun replaceFenceForFullClear(
+		dayIdentity: String,
+		expectedCollectedDataEpoch: Long,
+		expectedEffectChecksum: String,
+		collectedDataEpoch: Long,
+		sourceEvidenceRevision: Long,
+		effectChecksum: String,
+	): Int
 
 	@Query(
 		"SELECT * FROM imported_ambient_steps_protected_identity " +
@@ -543,8 +730,14 @@ abstract class ImportedAmbientStepsDao {
 	@Query("SELECT COUNT(*) FROM imported_ambient_steps_day_fence")
 	abstract suspend fun fenceCount(): Long
 
+	@Query("SELECT COUNT(*) FROM imported_ambient_steps_day_fence")
+	abstract fun fenceCountForFullClear(): Long
+
 	@Query("SELECT COUNT(*) FROM imported_ambient_steps_protected_identity")
 	abstract suspend fun protectedIdentityCount(): Long
+
+	@Query("SELECT COUNT(*) FROM imported_ambient_steps_protected_identity")
+	abstract fun protectedIdentityCountForFullClear(): Long
 
 	@Query("DELETE FROM imported_ambient_steps_day_revision")
 	abstract fun deleteAllDays()
@@ -554,15 +747,6 @@ abstract class ImportedAmbientStepsDao {
 
 	@Query("DELETE FROM imported_ambient_steps_archive")
 	abstract fun deleteAllArchives()
-
-	@Query("DELETE FROM imported_ambient_steps_protected_identity")
-	abstract fun deleteAllProtectedIdentities()
-
-	@Query("DELETE FROM imported_ambient_steps_day_fence")
-	abstract fun deleteAllFences()
-
-	@Query("DELETE FROM imported_ambient_steps_source_fence")
-	abstract fun deleteSourceFence()
 
 	companion object {
 		const val MAX_REVISIONS_PER_DAY = 16
@@ -612,4 +796,14 @@ data class ImportedAmbientStepsRecentDayCandidate(
 	@ColumnInfo(name = "structural_day_start_time_ms") val structuralDayStartTimeMs: Long,
 	@ColumnInfo(name = "structural_day_end_time_ms") val structuralDayEndTimeMs: Long,
 	@ColumnInfo(name = "latest_evidence_time_ms") val latestEvidenceTimeMs: Long,
+)
+
+data class ImportedAmbientStepsReceiptStats(
+	@ColumnInfo(name = "receipt_count") val receiptCount: Long,
+	@ColumnInfo(name = "earliest_received_at_ms") val earliestReceivedAtMs: Long?,
+)
+
+data class ImportedAmbientStepsProtectedIdentityKind(
+	@ColumnInfo(name = "protected_identity") val protectedIdentity: String,
+	@ColumnInfo(name = "identity_kind") val identityKind: String,
 )

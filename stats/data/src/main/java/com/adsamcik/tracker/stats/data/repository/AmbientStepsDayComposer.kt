@@ -188,6 +188,7 @@ internal fun composeAmbientStepsDay(
 	facts: List<QualifiedAmbientStepsFact>,
 	gaps: List<EffectiveAmbientStepsGap>,
 	sessions: List<QualifiedSessionStepsWindow>,
+	sourceCauses: Set<AmbientStepsDayCause> = emptySet(),
 ): AmbientStepsDayProduct {
 	val origins = facts.mapTo(linkedSetOf(), QualifiedAmbientStepsFact::origin)
 	val containedSessions = sessions.filter {
@@ -224,6 +225,7 @@ internal fun composeAmbientStepsDay(
 	if (orderedFacts.isEmpty()) {
 		val totalCauses = buildSet {
 			add(AmbientStepsDayCause.NO_AMBIENT_FACT)
+			addAll(sourceCauses)
 			if (gaps.any { it.endTimeMs > day.startTimeMs && it.startTimeMs < day.endTimeMs }) {
 				add(AmbientStepsDayCause.AMBIENT_GAP)
 			}
@@ -254,6 +256,7 @@ internal fun composeAmbientStepsDay(
 		orderedFacts.last().endTimeMs == day.endTimeMs &&
 		orderedFacts.zipWithNext().all { (left, right) -> left.endTimeMs == right.startTimeMs }
 	val totalCauses = buildSet {
+		addAll(sourceCauses)
 		if (!continuousCoverage) add(AmbientStepsDayCause.AMBIENT_COVERAGE_PARTIAL)
 		if (effectiveGap) add(AmbientStepsDayCause.AMBIENT_GAP)
 	}

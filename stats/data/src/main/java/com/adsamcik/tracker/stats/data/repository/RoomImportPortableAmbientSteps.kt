@@ -7,8 +7,8 @@ import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOriginReader
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwnerKind
+import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwnerState
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.AuthenticatedImportedAmbientStepsLineage
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailure
 import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailureReason
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
@@ -20,15 +20,18 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsFactEn
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsGapEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsIdentity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsSourceFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.loadAuthenticatedAmbientStepsLineage
 import com.adsamcik.tracker.shared.base.database.authenticateAllAmbientStepsFences
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
-import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV1
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsPartialCause
 import com.adsamcik.tracker.shared.model.steps.portable.deletionScopeIdentity
 import com.adsamcik.tracker.shared.model.steps.portable.identity
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientSteps
@@ -58,8 +61,9 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		currentCoroutineContext().ensureActive()
 	},
 	private val localOriginSource:
-		suspend () -> List<com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwner> = {
-			AmbientStepsPortableLocalOriginReader(database).readInTransaction()
+		suspend (Set<String>) ->
+		List<com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwner> = {
+			AmbientStepsPortableLocalOriginReader(database).readInTransaction(it)
 		},
 ) : ImportPortableAmbientSteps {
 	@Inject
@@ -92,10 +96,6 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			ImportPortableAmbientStepsResult.RetryableFailure(
 				PortableAmbientStepsTransferRetryableReason.STORAGE_UNAVAILABLE,
 			)
-		} catch (_: Exception) {
-			ImportPortableAmbientStepsResult.RetryableFailure(
-				PortableAmbientStepsTransferRetryableReason.STORAGE_UNAVAILABLE,
-			)
 		}
 	}
 
@@ -111,11 +111,18 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			blocked(PortableAmbientStepsImportBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
 		}
 		storedValue { dao.authenticateAllAmbientStepsFences(state.collectedDataEpoch) }
-		authenticateSourceDeletionFence(state.collectedDataEpoch)
+		authenticateSourceDeletionFence(state)
 
 		val archive = request.archive
 		val dayIdentities = archive.days.map { it.identity.value }
-		val incomingOwnership = IncomingAmbientStepsOwnership(archive)
+		val incomingOwnership = IncomingAmbientStepsOwnership(
+			archive,
+			ImportedAmbientStepsIdentity.receipt(
+				request.receipt.jobId,
+				request.receipt.archiveKey,
+			),
+		)
+		authenticateStructuralDayOwnership(archive)
 		val fences = storedValue { dao.fences(dayIdentities) }
 		if (fences.any { it.collectedDataEpoch != state.collectedDataEpoch }) storedCorrupt()
 		if (fences.any { it.fenceKind == ImportedAmbientStepsDayFenceEntity.FENCE_RETENTION }) {
@@ -134,12 +141,28 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 				blocked(PortableAmbientStepsImportBlockedReason.RETENTION_BOUNDARY)
 			}
 		}
-		authenticateNativeOverlap(archive)
+		authenticateNativeOverlap(archive, incomingOwnership)
 		authenticateImportedIdentityOwnership(incomingOwnership)
-		authenticateStructuralDayOwnership(archive)
 
-		val lineages = linkedMapOf<String, AuthenticatedImportedAmbientStepsLineage>()
-		archive.days.forEach { day ->
+		val storedReceipt = storedValue {
+			dao.receipt(request.receipt.jobId, request.receipt.archiveKey)
+		}
+		if (storedReceipt != null) {
+			authenticateReceiptReplay(request, storedReceipt)
+			return ImportPortableAmbientStepsResult.Duplicate(archive.identity, archive.days.size)
+		}
+		val storedArchive = storedValue { dao.archive(archive.identity.value) }
+		if (storedArchive != null) {
+			authenticateStoredArchive(request, storedArchive)
+			authenticatePostInsertReceipt(request, storedArchive)
+			authenticateCapacity(NewImportedAmbientStepsRows(receipts = 1L))
+			dao.insertReceipt(request.toReceiptEntity())
+			checkpoint(ImportedAmbientStepsWriteCheckpoint.RECEIPT_INSERTED)
+			incrementSourceEvidenceRevision(state.updatedAtMs, request.receipt.receivedAtMs)
+			return ImportPortableAmbientStepsResult.Duplicate(archive.identity, archive.days.size)
+		}
+
+		val plans = archive.days.map { day ->
 			val lineage = storedValue {
 				dao.loadAuthenticatedAmbientStepsLineage(
 					day.identity.value,
@@ -151,28 +174,14 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			if (baseline != null && !day.hasSameStructuralAuthority(baseline)) {
 				blocked(PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT)
 			}
-			lineages[day.identity.value] = lineage
-		}
-
-		val storedReceipt = storedValue {
-			dao.receipt(request.receipt.jobId, request.receipt.archiveKey)
-		}
-		if (storedReceipt != null) {
-			authenticateReceiptReplay(request, storedReceipt)
-			return ImportPortableAmbientStepsResult.Duplicate(archive.identity, archive.days.size)
-		}
-		val storedArchive = storedValue { dao.archive(archive.identity.value) }
-		if (storedArchive != null) {
-			authenticateStoredArchive(request, storedArchive, lineages)
-			authenticateCapacity(NewImportedAmbientStepsRows(receipts = 1L))
-			dao.insertReceipt(request.toReceiptEntity())
-			checkpoint(ImportedAmbientStepsWriteCheckpoint.RECEIPT_INSERTED)
-			incrementSourceEvidenceRevision(state.updatedAtMs, request.receipt.receivedAtMs)
-			return ImportPortableAmbientStepsResult.Duplicate(archive.identity, archive.days.size)
-		}
-
-		val plans = archive.days.map { day ->
-			val lineage = lineages.getValue(day.identity.value)
+			val archiveCount = lineage.archiveDays.asSequence()
+				.filter { it.dayIdentity == day.identity.value }
+				.map { it.archiveIdentity }
+				.distinct()
+				.count()
+			if (archiveCount >= ImportedAmbientStepsDao.MAX_ARCHIVES_PER_DAY) {
+				dependencyOverflow()
+			}
 			val identical = lineage.revisions.singleOrNull { it.day == day }
 			if (identical != null) {
 				AmbientStepsDayImportPlan(day, identical.header.importRevision, append = false)
@@ -282,7 +291,11 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			stored.collectedDataEpoch != request.expectedCollectedDataEpoch
 		) blocked(PortableAmbientStepsImportBlockedReason.RECEIPT_CONFLICT)
 		val archive = storedValue { dao.archive(stored.archiveIdentity) } ?: storedCorrupt()
-		authenticateStoredArchive(request, archive, emptyMap())
+		authenticateStoredArchive(request, archive)
+		val stats = storedValue { dao.receiptStats(archive.archiveIdentity) }
+		if (stats.receiptCount !in 1L..ImportedAmbientStepsDao.MAX_RECEIPTS_PER_ARCHIVE.toLong() ||
+			stats.earliestReceivedAtMs != archive.firstReceivedAtMs
+		) storedCorrupt()
 	}
 
 	private suspend fun authenticateReceiptIdentityOwnership(
@@ -306,9 +319,9 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		) blocked(PortableAmbientStepsImportBlockedReason.RECEIPT_CONFLICT)
 	}
 
-	private suspend fun authenticateSourceDeletionFence(collectedDataEpoch: Long) {
+	private suspend fun authenticateSourceDeletionFence(state: SourceEvidenceState) {
 		val fence = storedValue { dao.sourceFence() } ?: return
-		if (fence.collectedDataEpoch != collectedDataEpoch) storedCorrupt()
+		if (fence.collectedDataEpoch != state.collectedDataEpoch) storedCorrupt()
 		val authority = storedValue { database.sourcePolicyDao().authority() }
 		val policy = authority?.takeIf {
 			it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE
@@ -326,20 +339,33 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 				SourceBrokerPurpose.AMBIENT_PRODUCT,
 			)
 		}
-		val resetByLaterConsent = policy != null && consent != null && policy.enabled &&
-			policy.ambientPersistenceEligible && policy.ambientConsentEpoch == consent.epoch &&
-			consent.eligible && consent.persistenceEligible &&
-			consent.policyRevision == policy.policyRevision &&
-			consent.epoch > fence.revokedConsentEpoch
-		if (!resetByLaterConsent || storedValue { dao.dayRevisionCount() } != 0L) {
+		val eligiblePolicy = policy ?: blocked(PortableAmbientStepsImportBlockedReason.SOURCE_DELETED)
+		val eligibleConsent = consent ?: blocked(PortableAmbientStepsImportBlockedReason.SOURCE_DELETED)
+		if (!fence.deletionCompleted || !eligiblePolicy.enabled ||
+			!eligiblePolicy.ambientPersistenceEligible ||
+			eligiblePolicy.ambientConsentEpoch != eligibleConsent.epoch ||
+			!eligibleConsent.eligible || !eligibleConsent.persistenceEligible ||
+			eligibleConsent.policyRevision != eligiblePolicy.policyRevision ||
+			eligibleConsent.epoch <= fence.revokedConsentEpoch
+		) {
 			blocked(PortableAmbientStepsImportBlockedReason.SOURCE_DELETED)
 		}
+		if (fence.reopenedConsentEpoch == eligibleConsent.epoch) return
+		val replacement = ImportedAmbientStepsSourceFenceEntity.reopened(
+			fence,
+			eligibleConsent.epoch,
+			maxOf(
+				state.updatedAtMs,
+				eligiblePolicy.effectiveWallTimeMs,
+				eligibleConsent.effectiveWallTimeMs,
+			),
+		)
+		if (!storedValue { dao.replaceSourceFence(fence, replacement) }) storedCorrupt()
 	}
 
 	private suspend fun authenticateStoredArchive(
 		request: ImportPortableAmbientStepsRequest,
 		stored: ImportedAmbientStepsArchiveEntity,
-		lineages: Map<String, AuthenticatedImportedAmbientStepsLineage>,
 	) {
 		val archive = request.archive
 		if (stored.archiveIdentity != archive.identity.value ||
@@ -352,53 +378,91 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			stored.collectedDataEpoch != request.expectedCollectedDataEpoch
 		) storedCorrupt()
 		val members = storedValue { dao.archiveDays(stored.archiveIdentity) }
-		if (members.size != archive.days.size) storedCorrupt()
+		if (members.size != archive.days.size ||
+			members.withIndex().any { (index, member) -> member.ordinal != index }
+		) storedCorrupt()
+		val headers = mutableListOf<ImportedAmbientStepsDayRevisionEntity>()
+		members.map { it.dayIdentity }.distinct().chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { ids ->
+			val maximum = Math.multiplyExact(
+				members.size,
+				ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY,
+			)
+			val page = storedValue {
+				dao.dayRevisionsForHistory(
+					ids,
+					maximum - headers.size + 1,
+				)
+			}
+			headers += page
+			if (headers.size > maximum) dependencyOverflow()
+		}
 		members.zip(archive.days).forEach { (member, day) ->
 			if (member.archiveIdentity != archive.identity.value ||
 				member.dayIdentity != day.identity.value ||
 				member.dayContentChecksum != day.contentChecksum.value ||
 				member.factCount != day.facts.size || member.gapCount != day.gaps.size
 			) storedCorrupt()
-			val lineage = lineages[day.identity.value] ?: storedValue {
-				dao.loadAuthenticatedAmbientStepsLineage(
-					day.identity.value,
-					request.expectedCollectedDataEpoch,
-				)
-			}
-			val bound = lineage.revisions.singleOrNull {
-				it.header.importRevision == member.boundDayImportRevision
+			val bound = headers.singleOrNull {
+				it.dayIdentity == member.dayIdentity &&
+					it.importRevision == member.boundDayImportRevision
 			} ?: storedCorrupt()
-			if (bound.day != day) storedCorrupt()
+			if (bound.dayContentChecksum != day.contentChecksum.value ||
+				bound.structuralEpochDay != day.structuralEpochDay ||
+				bound.storedZoneId != day.storedZoneId ||
+				bound.structuralDayStartTimeMs != day.structuralDayStartTimeMs ||
+				bound.structuralDayEndTimeMs != day.structuralDayEndTimeMs ||
+				bound.factCount != day.facts.size || bound.gapCount != day.gaps.size ||
+				bound.collectedDataEpoch != request.expectedCollectedDataEpoch
+			) storedCorrupt()
 		}
 	}
 
-	private suspend fun authenticateNativeOverlap(archive: PortableAmbientStepsArchiveV1) {
+	private suspend fun authenticatePostInsertReceipt(
+		request: ImportPortableAmbientStepsRequest,
+		stored: ImportedAmbientStepsArchiveEntity,
+	) {
+		val stats = storedValue { dao.receiptStats(stored.archiveIdentity) }
+		if (stats.receiptCount < 1L ||
+			stats.receiptCount >= ImportedAmbientStepsDao.MAX_RECEIPTS_PER_ARCHIVE ||
+			stats.earliestReceivedAtMs != stored.firstReceivedAtMs
+		) {
+			if (stats.receiptCount >= ImportedAmbientStepsDao.MAX_RECEIPTS_PER_ARCHIVE) {
+				dependencyOverflow()
+			}
+			storedCorrupt()
+		}
+		if (request.receipt.receivedAtMs < stored.firstReceivedAtMs) {
+			blocked(PortableAmbientStepsImportBlockedReason.RECEIPT_CONFLICT)
+		}
+	}
+
+	private suspend fun authenticateNativeOverlap(
+		archive: PortableAmbientStepsArchiveV1,
+		incoming: IncomingAmbientStepsOwnership,
+	) {
 		val localOwners = try {
-			localOriginSource()
+			localOriginSource(incoming.allIdentities.toSet())
 		} catch (abort: ImportedAmbientStepsImportAbort) {
 			throw abort
 		} catch (_: IllegalArgumentException) {
 			storedCorrupt()
 		} catch (_: IllegalStateException) {
 			storedCorrupt()
-		}.associateBy { it.identity }
-		archive.days.forEach { day ->
-			day.facts.forEach { fact ->
-				localOwners[fact.identity.value]?.let { owner ->
-					if (owner.kind == AmbientStepsPortableLocalOwnerKind.FACT &&
-						owner.contentChecksum == fact.contentChecksum.value
-					) blocked(PortableAmbientStepsImportBlockedReason.LOCAL_ORIGIN_OVERLAP)
-					blocked(PortableAmbientStepsImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
-				}
+		}
+		val incomingFacts = archive.days.flatMap(PortableAmbientStepsDayV1::facts)
+			.associateBy { it.identity.value }
+		localOwners.forEach { owner ->
+			val incomingKind = incoming.kinds[owner.identity]
+				?: return@forEach
+			val fact = incomingFacts[owner.identity]
+			if (incomingKind == IncomingAmbientStepsIdentityKind.FACT &&
+				owner.kind == AmbientStepsPortableLocalOwnerKind.FACT &&
+				owner.state == AmbientStepsPortableLocalOwnerState.ACTIVE &&
+				fact != null && owner.contentChecksum == fact.contentChecksum.value
+			) {
+				blocked(PortableAmbientStepsImportBlockedReason.LOCAL_ORIGIN_OVERLAP)
 			}
-			day.gaps.forEach { gap ->
-				localOwners[gap.identity.value]?.let { owner ->
-					if (owner.kind == AmbientStepsPortableLocalOwnerKind.GAP &&
-						owner.contentChecksum == gap.contentChecksum.value
-					) blocked(PortableAmbientStepsImportBlockedReason.LOCAL_ORIGIN_OVERLAP)
-					blocked(PortableAmbientStepsImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
-				}
-			}
+			blocked(PortableAmbientStepsImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
 		}
 	}
 
@@ -418,19 +482,22 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 				gaps.size >= limit || protected.size >= limit
 			) dependencyOverflow()
 			if (protected.isNotEmpty() ||
-				archives.any { incoming.kinds[it] != AmbientStepsPortableIdentityKind.ARCHIVE } ||
-				receipts.isNotEmpty() ||
+				archives.any { incoming.kinds[it] != IncomingAmbientStepsIdentityKind.ARCHIVE } ||
+				receipts.any { incoming.kinds[it] != IncomingAmbientStepsIdentityKind.RECEIPT } ||
 				days.any { owner ->
 					val dayOwner = incoming.dayOwners[owner.dayIdentity]
 					val scopeOwner = incoming.scopeOwners[owner.deletionScopeIdentity]
-					dayOwner != owner.dayIdentity || scopeOwner != owner.dayIdentity
+					incoming.kinds[owner.dayIdentity] != IncomingAmbientStepsIdentityKind.DAY ||
+						incoming.kinds[owner.deletionScopeIdentity] !=
+						IncomingAmbientStepsIdentityKind.DELETION_SCOPE ||
+						dayOwner != owner.dayIdentity || scopeOwner != owner.dayIdentity
 				} ||
 				facts.any { owner ->
-					incoming.kinds[owner.factIdentity] != AmbientStepsPortableIdentityKind.FACT ||
+					incoming.kinds[owner.factIdentity] != IncomingAmbientStepsIdentityKind.FACT ||
 						incoming.factOwners[owner.factIdentity] != owner.dayIdentity
 				} ||
 				gaps.any { owner ->
-					incoming.kinds[owner.gapIdentity] != AmbientStepsPortableIdentityKind.GAP ||
+					incoming.kinds[owner.gapIdentity] != IncomingAmbientStepsIdentityKind.GAP ||
 						incoming.gapOwners[owner.gapIdentity] != owner.dayIdentity
 				}
 			) blocked(PortableAmbientStepsImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
@@ -474,15 +541,47 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 	private suspend fun authenticateStructuralDayOwnership(
 		archive: PortableAmbientStepsArchiveV1,
 	) {
+		val days = archive.days
+		val firstEpochDay = days.minOf(PortableAmbientStepsDayV1::structuralEpochDay)
+		val lastEpochDay = days.maxOf(PortableAmbientStepsDayV1::structuralEpochDay)
+		val zoneIds = days.map(PortableAmbientStepsDayV1::storedZoneId).distinct()
 		val owners = storedValue {
-			dao.allLatestDayOwners(
-				Math.toIntExact(ImportedAmbientStepsDao.MAX_GLOBAL_DAY_REVISIONS + 1L),
+			dao.latestDaysForStructuralRange(
+				firstEpochDay,
+				lastEpochDay,
+				zoneIds,
+				AmbientStepsPortableFormatV1.MAX_DAYS + 1,
 			)
 		}
-		if (owners.size.toLong() > ImportedAmbientStepsDao.MAX_GLOBAL_DAY_REVISIONS) {
+		val fences = storedValue {
+			dao.fencesForStructuralRange(
+				firstEpochDay,
+				lastEpochDay,
+				zoneIds,
+				AmbientStepsPortableFormatV1.MAX_DAYS + 1,
+			)
+		}
+		if (owners.size > AmbientStepsPortableFormatV1.MAX_DAYS ||
+			fences.size > AmbientStepsPortableFormatV1.MAX_DAYS
+		) {
 			dependencyOverflow()
 		}
-		val incoming = archive.days.associateBy(::StructuralAmbientStepsDayKey)
+		val incoming = days.associateBy(::StructuralAmbientStepsDayKey)
+		val matchingFences = fences.filter { fence ->
+			StructuralAmbientStepsDayKey(fence) in incoming
+		}
+		if (matchingFences.groupBy(::StructuralAmbientStepsDayKey).values.any { it.size != 1 }) {
+			storedCorrupt()
+		}
+		if (matchingFences.isNotEmpty()) {
+			if (matchingFences.any {
+					it.fenceKind == ImportedAmbientStepsDayFenceEntity.FENCE_RETENTION
+				}
+			) {
+				blocked(PortableAmbientStepsImportBlockedReason.RETAINED_DAY)
+			}
+			blocked(PortableAmbientStepsImportBlockedReason.DELETED_DAY)
+		}
 		owners.forEach { owner ->
 			val key = StructuralAmbientStepsDayKey(
 				owner.structuralEpochDay,
@@ -510,7 +609,33 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 	private fun snapshot(
 		request: ImportPortableAmbientStepsRequest,
 	): ImportPortableAmbientStepsRequest = incomingValue {
-		val days = request.archive.days.map { day ->
+		val rawDays = request.archive.days
+		if (rawDays.size !in 1..AmbientStepsPortableFormatV1.MAX_DAYS ||
+			rawDays.any {
+				it.facts.size !in 1..AmbientStepsPortableFormatV1.MAX_FACTS_PER_DAY ||
+					it.gaps.size > AmbientStepsPortableFormatV1.MAX_GAPS_PER_DAY ||
+					it.partialCauses.size > PortableAmbientStepsPartialCause.entries.size
+			}
+		) dependencyOverflow()
+		var rawFactCount = 0L
+		var rawGapCount = 0L
+		rawDays.forEach { day ->
+			rawFactCount = Math.addExact(rawFactCount, day.facts.size.toLong())
+			rawGapCount = Math.addExact(rawGapCount, day.gaps.size.toLong())
+		}
+		if (rawFactCount > AmbientStepsPortableFormatV1.MAX_FACTS ||
+			rawGapCount > AmbientStepsPortableFormatV1.MAX_GAPS ||
+			request.metadata.dayCount != rawDays.size ||
+			request.metadata.factCount.toLong() != rawFactCount ||
+			request.metadata.gapCount.toLong() != rawGapCount ||
+			request.metadata.archiveContentChecksum != request.archive.contentChecksum
+		) {
+			if (rawFactCount > AmbientStepsPortableFormatV1.MAX_FACTS ||
+				rawGapCount > AmbientStepsPortableFormatV1.MAX_GAPS
+			) dependencyOverflow()
+			unverifiable(PortableAmbientStepsImportUnverifiableReason.METADATA_MISMATCH)
+		}
+		val days = rawDays.map { day ->
 			day.copy(
 				partialCauses = day.partialCauses.toList(),
 				facts = day.facts.map { it.copy() },
@@ -528,7 +653,13 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		if (days.map { StructuralAmbientStepsDayKey(it) }.distinct().size != days.size) {
 			unverifiable(PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID)
 		}
-		IncomingAmbientStepsOwnership(archive)
+		IncomingAmbientStepsOwnership(
+			archive,
+			ImportedAmbientStepsIdentity.receipt(
+				request.receipt.jobId,
+				request.receipt.archiveKey,
+			),
+		)
 		request.copy(archive = archive)
 	}
 
@@ -547,13 +678,25 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		}
 	} catch (_: IllegalArgumentException) {
 		storedCorrupt()
+	} catch (_: IllegalStateException) {
+		storedCorrupt()
+	} catch (_: ArithmeticException) {
+		storedCorrupt()
+	} catch (_: java.time.DateTimeException) {
+		storedCorrupt()
 	}
 
 	private inline fun <T> incomingValue(block: () -> T): T = try {
 		block()
 	} catch (abort: ImportedAmbientStepsImportAbort) {
 		throw abort
-	} catch (_: RuntimeException) {
+	} catch (_: IllegalArgumentException) {
+		unverifiable(PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID)
+	} catch (_: IllegalStateException) {
+		unverifiable(PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID)
+	} catch (_: ArithmeticException) {
+		unverifiable(PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID)
+	} catch (_: java.time.DateTimeException) {
 		unverifiable(PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID)
 	}
 
@@ -618,26 +761,39 @@ private data class StructuralAmbientStepsDayKey(
 	)
 }
 
-private class IncomingAmbientStepsOwnership(archive: PortableAmbientStepsArchiveV1) {
-	val kinds = linkedMapOf<String, AmbientStepsPortableIdentityKind>()
+private enum class IncomingAmbientStepsIdentityKind {
+	ARCHIVE,
+	DAY,
+	DELETION_SCOPE,
+	FACT,
+	GAP,
+	RECEIPT,
+}
+
+private class IncomingAmbientStepsOwnership(
+	archive: PortableAmbientStepsArchiveV1,
+	receiptIdentity: String,
+) {
+	val kinds = linkedMapOf<String, IncomingAmbientStepsIdentityKind>()
 	val dayOwners = mutableMapOf<String, String>()
 	val scopeOwners = mutableMapOf<String, String>()
 	val factOwners = mutableMapOf<String, String>()
 	val gapOwners = mutableMapOf<String, String>()
 
 	init {
-		add(archive.identity.value, AmbientStepsPortableIdentityKind.ARCHIVE)
+		add(archive.identity.value, IncomingAmbientStepsIdentityKind.ARCHIVE)
+		add(receiptIdentity, IncomingAmbientStepsIdentityKind.RECEIPT)
 		archive.days.forEach { day ->
-			add(day.identity.value, AmbientStepsPortableIdentityKind.DAY)
+			add(day.identity.value, IncomingAmbientStepsIdentityKind.DAY)
 			dayOwners[day.identity.value] = day.identity.value
-			add(day.deletionScopeIdentity.value, AmbientStepsPortableIdentityKind.DELETION_SCOPE)
+			add(day.deletionScopeIdentity.value, IncomingAmbientStepsIdentityKind.DELETION_SCOPE)
 			scopeOwners[day.deletionScopeIdentity.value] = day.identity.value
 			day.facts.forEach { fact ->
-				add(fact.identity.value, AmbientStepsPortableIdentityKind.FACT)
+				add(fact.identity.value, IncomingAmbientStepsIdentityKind.FACT)
 				require(factOwners.put(fact.identity.value, day.identity.value) == null)
 			}
 			day.gaps.forEach { gap ->
-				add(gap.identity.value, AmbientStepsPortableIdentityKind.GAP)
+				add(gap.identity.value, IncomingAmbientStepsIdentityKind.GAP)
 				require(gapOwners.put(gap.identity.value, day.identity.value) == null)
 			}
 		}
@@ -646,10 +802,19 @@ private class IncomingAmbientStepsOwnership(archive: PortableAmbientStepsArchive
 	val allIdentities: List<String>
 		get() = kinds.keys.toList()
 
-	private fun add(identity: String, kind: AmbientStepsPortableIdentityKind) {
+	private fun add(identity: String, kind: IncomingAmbientStepsIdentityKind) {
 		require(kinds.put(identity, kind) == null)
 	}
 }
+
+private fun StructuralAmbientStepsDayKey(
+	fence: ImportedAmbientStepsDayFenceEntity,
+) = StructuralAmbientStepsDayKey(
+	fence.structuralEpochDay,
+	fence.storedZoneId,
+	fence.structuralDayStartTimeMs,
+	fence.structuralDayEndTimeMs,
+)
 
 private fun PortableAmbientStepsDayV1.crossesLocalRetentionFloor(floor: Long): Boolean {
 	if (structuralDayEndTimeMs <= floor) return true

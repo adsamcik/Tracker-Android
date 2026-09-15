@@ -6,7 +6,14 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwner
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwnerKind
+import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwnerState
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.deleteFullClearPayloadInCurrentTransaction
+import com.adsamcik.tracker.shared.base.database.prepareFullClearFencesInCurrentTransaction
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveDayEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsIdentity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
@@ -14,7 +21,9 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIntegrity
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsCoverage
@@ -219,6 +228,128 @@ class RoomImportedAmbientStepsTransferTest {
 	}
 
 	@Test
+	fun `alternate receipt cannot predate immutable archive first receipt`() = runTest {
+		val archive = archive(completeDay(LocalDate.of(2026, 1, 4), 4L))
+		val initial = request(archive)
+		importer(database).importArchive(initial) shouldBe applied(archive, 1)
+
+		importer(database).importArchive(
+			request(
+				archive,
+				jobId = "earlier",
+				archiveKey = "earlier",
+				receivedAtMs = initial.receipt.receivedAtMs - 1L,
+			),
+		) shouldBe ImportPortableAmbientStepsResult.Blocked(
+			PortableAmbientStepsImportBlockedReason.RECEIPT_CONFLICT,
+		)
+		val correction = archive(completeDay(LocalDate.of(2026, 1, 4), 6L))
+		importer(database).importArchive(
+			request(
+				correction,
+				jobId = "earlier-correction",
+				archiveKey = "earlier-correction",
+				receivedAtMs = initial.receipt.receivedAtMs - 1L,
+			),
+		) shouldBe ImportPortableAmbientStepsResult.Blocked(
+			PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT,
+		)
+		readReady(database, archive).archive shouldBe archive
+	}
+
+	@Test
+	fun `receipt cap accepts exact 256 and rejects 257 without poisoning reads`() = runTest {
+		val archive = archive(completeDay(LocalDate.of(2026, 1, 5), 4L))
+		val initial = request(archive)
+		importer(database).importArchive(initial) shouldBe applied(archive, 1)
+		val dao = database.importedAmbientStepsDao()
+		repeat(com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
+			.MAX_RECEIPTS_PER_ARCHIVE - 2
+		) { index ->
+			val job = "receipt-${index + 2}"
+			dao.insertReceipt(
+				ImportedAmbientStepsReceiptEntity(
+					importJobId = job,
+					archiveKey = job,
+					receiptIdentity = ImportedAmbientStepsIdentity.receipt(job, job),
+					sourceName = "backup.trackerambientsteps",
+					receivedAtMs = initial.receipt.receivedAtMs + index + 1L,
+					archiveIdentity = archive.identity.value,
+					archiveContentChecksum = archive.contentChecksum.value,
+					collectedDataEpoch = EPOCH,
+				),
+			)
+		}
+		importer(database).importArchive(
+			request(
+				archive,
+				jobId = "receipt-256",
+				archiveKey = "receipt-256",
+				receivedAtMs = initial.receipt.receivedAtMs + 300L,
+			),
+		) shouldBe ImportPortableAmbientStepsResult.Duplicate(archive.identity, 1)
+		dao.receiptCount() shouldBe 256L
+
+		importer(database).importArchive(
+			request(
+				archive,
+				jobId = "receipt-257",
+				archiveKey = "receipt-257",
+				receivedAtMs = initial.receipt.receivedAtMs + 301L,
+			),
+		) shouldBe ImportPortableAmbientStepsResult.Unverifiable(
+			PortableAmbientStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
+		)
+		dao.receiptCount() shouldBe 256L
+		readReady(database, archive).archive shouldBe archive
+	}
+
+	@Test
+	fun `day archive cap accepts exact 256 and rejects 257`() = runTest {
+		val firstDate = LocalDate.of(2027, 1, 1)
+		val sharedDay = completeDay(firstDate, 4L)
+		val initial = archive(sharedDay)
+		importer(database).importArchive(request(initial)) shouldBe applied(initial, 1)
+		repeat(com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
+			.MAX_ARCHIVES_PER_DAY - 2
+		) { index ->
+			val candidate = archive(
+				sharedDay,
+				completeDay(firstDate.plusDays(index + 1L), index + 1L),
+			)
+			importer(database).importArchive(
+				request(
+					candidate,
+					jobId = "day-archive-${index + 2}",
+					archiveKey = "day-archive-${index + 2}",
+				),
+			) shouldBe applied(candidate, 1)
+		}
+		val boundary = archive(
+			sharedDay,
+			completeDay(firstDate.plusDays(255L), 255L),
+		)
+		importer(database).importArchive(
+			request(boundary, jobId = "day-archive-256", archiveKey = "day-archive-256"),
+		) shouldBe applied(boundary, 1)
+
+		val overflow = archive(
+			sharedDay,
+			completeDay(firstDate.plusDays(256L), 256L),
+		)
+		importer(database).importArchive(
+			request(overflow, jobId = "day-archive-257", archiveKey = "day-archive-257"),
+		) shouldBe ImportPortableAmbientStepsResult.Unverifiable(
+			PortableAmbientStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
+		)
+		database.importedAmbientStepsDao().archiveDaysForDay(
+			sharedDay.identity.value,
+			257,
+		).size shouldBe 256
+		readReady(database, initial).archive shouldBe initial
+	}
+
+	@Test
 	fun `public range observation refreshes after import and correction without daily summary`() = runTest {
 		val initial = archive(completeDay(LocalDate.of(2026, 1, 3), 5L))
 		val request = historyRequest(initial)
@@ -276,6 +407,7 @@ class RoomImportedAmbientStepsTransferTest {
 					AmbientStepsPortableLocalOwner(
 						fact.identity.value,
 						AmbientStepsPortableLocalOwnerKind.FACT,
+						AmbientStepsPortableLocalOwnerState.ACTIVE,
 						fact.contentChecksum.value,
 					),
 				)
@@ -286,6 +418,87 @@ class RoomImportedAmbientStepsTransferTest {
 			PortableAmbientStepsImportBlockedReason.LOCAL_ORIGIN_OVERLAP,
 		)
 		database.importedAmbientStepsDao().archiveCount() shouldBe 0L
+	}
+
+	@Test
+	fun `receipt identity cannot be reused as an incoming fact`() = runTest {
+		val receiptIdentity = ImportedAmbientStepsIdentity.receipt("job-1", "archive-1")
+		val day = completeDay(LocalDate.of(2026, 2, 4), 3L)
+		val fact = PortableAmbientStepsFactV1.create(
+			AmbientStepsPortableOpaqueIdentity(receiptIdentity),
+			day.structuralDayStartTimeMs,
+			day.structuralDayEndTimeMs,
+			3L,
+		)
+		val collision = archive(
+			PortableAmbientStepsDayV1.create(
+				identity = day.identity,
+				structuralEpochDay = day.structuralEpochDay,
+				storedZoneId = day.storedZoneId,
+				structuralDayStartTimeMs = day.structuralDayStartTimeMs,
+				structuralDayEndTimeMs = day.structuralDayEndTimeMs,
+				retainedFromTimeMs = null,
+				coverage = PortableAmbientStepsCoverage.COMPLETE,
+				partialCauses = emptyList(),
+				retainedStepCount = 3L,
+				facts = listOf(fact),
+				gaps = emptyList(),
+			),
+		)
+
+		importer(database).importArchive(request(collision)) shouldBe
+			ImportPortableAmbientStepsResult.Unverifiable(
+				PortableAmbientStepsImportUnverifiableReason.ARCHIVE_INVALID,
+			)
+	}
+
+	@Test
+	fun `incoming day and gap cannot reuse native owner namespaces`() = runTest {
+		val dayArchive = archive(completeDay(LocalDate.of(2026, 2, 5), 3L))
+		val daySubject = RoomImportPortableAmbientSteps(
+			database,
+			database.importedAmbientStepsDao(),
+			Dispatchers.Unconfined,
+			localOriginSource = { identities ->
+				listOf(
+					AmbientStepsPortableLocalOwner(
+						identities.single { it == dayArchive.days.single().identity.value },
+						AmbientStepsPortableLocalOwnerKind.FACT,
+						AmbientStepsPortableLocalOwnerState.ACTIVE,
+						null,
+					),
+				)
+			},
+		)
+		daySubject.importArchive(
+			request(dayArchive, jobId = "day-native", archiveKey = "day-native"),
+		) shouldBe ImportPortableAmbientStepsResult.Blocked(
+			PortableAmbientStepsImportBlockedReason.OPAQUE_IDENTITY_CONFLICT,
+		)
+
+		val gapDay = partialDay(LocalDate.of(2026, 2, 6), 3L, "UTC")
+		val gapArchive = archive(gapDay)
+		val gapIdentity = gapDay.gaps.single().identity.value
+		val gapSubject = RoomImportPortableAmbientSteps(
+			database,
+			database.importedAmbientStepsDao(),
+			Dispatchers.Unconfined,
+			localOriginSource = {
+				listOf(
+					AmbientStepsPortableLocalOwner(
+						gapIdentity,
+						AmbientStepsPortableLocalOwnerKind.GAP,
+						AmbientStepsPortableLocalOwnerState.ACTIVE,
+						gapDay.gaps.single().contentChecksum.value,
+					),
+				)
+			},
+		)
+		gapSubject.importArchive(
+			request(gapArchive, jobId = "gap-native", archiveKey = "gap-native"),
+		) shouldBe ImportPortableAmbientStepsResult.Blocked(
+			PortableAmbientStepsImportBlockedReason.OPAQUE_IDENTITY_CONFLICT,
+		)
 	}
 
 	@Test
@@ -355,6 +568,67 @@ class RoomImportedAmbientStepsTransferTest {
 	}
 
 	@Test
+	fun `mutated over-cap fact list is rejected before snapshot copying`() = runTest {
+		val date = LocalDate.of(2026, 2, 7)
+		val original = completeDay(date, 1L)
+		val mutableFacts = original.facts.toMutableList()
+		val mutableDay = original.copy(facts = mutableFacts)
+		val mutableDays = mutableListOf(mutableDay)
+		val archive = PortableAmbientStepsArchiveV1.create(mutableDays)
+		repeat(AmbientStepsPortableFormatV1.MAX_FACTS_PER_DAY) {
+			mutableFacts += original.facts.single()
+		}
+
+		importer(database).importArchive(
+			request(archive).copy(
+				metadata = metadata(archive).copy(
+					factCount = AmbientStepsPortableFormatV1.MAX_FACTS_PER_DAY,
+				),
+			),
+		) shouldBe ImportPortableAmbientStepsResult.Unverifiable(
+			PortableAmbientStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
+		)
+		database.importedAmbientStepsDao().archiveCount() shouldBe 0L
+	}
+
+	@Test
+	fun `full-window outside-authority days remain partial for zero and positive counts`() = runTest {
+		val archive = archive(
+			outsideAuthorityDay(LocalDate.of(2026, 2, 8), 0L),
+			outsideAuthorityDay(LocalDate.of(2026, 2, 9), 9L),
+		)
+		importer(database).importArchive(request(archive)) shouldBe applied(archive, 2)
+
+		val snapshot = history(database).readRange(historyRequest(archive)) as
+			AmbientStepsHistoryRead.Snapshot
+		snapshot.days.map { it.total } shouldBe listOf(
+			AmbientStepsHistoryValue.Partial(
+				0L,
+				setOf(
+					com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause
+						.PARTIAL_COVERAGE,
+				),
+			),
+			AmbientStepsHistoryValue.Partial(
+				9L,
+				setOf(
+					com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause
+						.PARTIAL_COVERAGE,
+				),
+			),
+		)
+		val numeric = database.withTransaction {
+			val revision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+			history(database).readNumericRangeInCurrentTransaction(
+				historyRequest(archive),
+				revision,
+			)
+		} as AmbientStepsNumericRangeRead.Snapshot
+		numeric.days.map { it.total } shouldBe snapshot.days.map { it.total }
+		reexport(database, archive) shouldBe archive
+	}
+
+	@Test
 	fun `current epoch and retention floor are checked before duplicate shortcut`() = runTest {
 		val archive = archive(completeDay(LocalDate.of(2026, 3, 1), 8L))
 		val original = request(archive)
@@ -401,6 +675,16 @@ class RoomImportedAmbientStepsTransferTest {
 
 		importer(database).importArchive(
 			request(archive, jobId = "replay", archiveKey = "replay"),
+		) shouldBe ImportPortableAmbientStepsResult.Blocked(
+			PortableAmbientStepsImportBlockedReason.RETAINED_DAY,
+		)
+		val reidentified = archive(reidentifyDay(archive.days.single(), "retained-reidentified"))
+		importer(database).importArchive(
+			request(
+				reidentified,
+				jobId = "retained-reidentified",
+				archiveKey = "retained-reidentified",
+			),
 		) shouldBe ImportPortableAmbientStepsResult.Blocked(
 			PortableAmbientStepsImportBlockedReason.RETAINED_DAY,
 		)
@@ -461,11 +745,30 @@ class RoomImportedAmbientStepsTransferTest {
 		(history(database).readRange(historyRequest(archive)) as
 			AmbientStepsHistoryRead.Snapshot).days.single().importedDisposition shouldBe
 			AmbientStepsImportedDisposition.DELETED
+		val reidentified = archive(reidentifyDay(day, "deleted-reidentified"))
+		importer(database).importArchive(
+			request(
+				reidentified,
+				jobId = "deleted-reidentified",
+				archiveKey = "deleted-reidentified",
+			),
+		) shouldBe ImportPortableAmbientStepsResult.Blocked(
+			PortableAmbientStepsImportBlockedReason.DELETED_DAY,
+		)
 		val unrelated = archive(completeDay(LocalDate.of(2026, 5, 4), 2L))
-		importer(database).importArchive(request(unrelated)) shouldBe
-			ImportPortableAmbientStepsResult.Blocked(
-				PortableAmbientStepsImportBlockedReason.RECEIPT_CONFLICT,
-			)
+		importer(database).importArchive(
+			request(unrelated, jobId = "unrelated-day", archiveKey = "unrelated-day"),
+		) shouldBe applied(unrelated, 1)
+		val unrelatedZone = archive(
+			completeDay(LocalDate.of(2026, 5, 1), 3L, "Pacific/Honolulu"),
+		)
+		importer(database).importArchive(
+			request(
+				unrelatedZone,
+				jobId = "unrelated-zone",
+				archiveKey = "unrelated-zone",
+			),
+		) shouldBe applied(unrelatedZone, 1)
 	}
 
 	@Test
@@ -498,9 +801,75 @@ class RoomImportedAmbientStepsTransferTest {
 	}
 
 	@Test
+	fun `structurally corrupt rehashed fence is typed stored corruption`() = runTest {
+		val archive = archive(completeDay(LocalDate.of(2026, 5, 5), 8L))
+		importer(database).importArchive(request(archive)) shouldBe applied(archive, 1)
+		RoomDeleteImportedAmbientStepsDay(
+			database,
+			database.importedAmbientStepsDao(),
+			Dispatchers.Unconfined,
+		).deleteDay(
+			DeleteImportedAmbientStepsDayRequest(
+				archive.days.single().identity,
+				EPOCH,
+				archive.days.single().structuralDayEndTimeMs,
+			),
+		) shouldBe DeleteImportedAmbientStepsDayResult.Deleted(1)
+		val fence = requireNotNull(
+			database.importedAmbientStepsDao().fence(archive.days.single().identity.value),
+		)
+		val corruptZone = "Europe/Prague"
+		val rehashed = ImportedAmbientStepsIdentity.digest(
+			"tracker-imported-ambient-steps-day-fence-v1",
+			listOf(
+				fence.dayIdentity,
+				fence.deletionScopeIdentity,
+				fence.fenceKind,
+				fence.collectedDataEpoch,
+				fence.sourceEvidenceRevision,
+				fence.fencedAtMs,
+				fence.retainedFromMs,
+				fence.latestImportRevision,
+				fence.latestContentChecksum,
+				fence.structuralEpochDay,
+				corruptZone,
+				fence.structuralDayStartTimeMs,
+				fence.structuralDayEndTimeMs,
+				fence.revisionCount,
+				fence.archiveCount,
+				fence.factRowCount,
+				fence.gapRowCount,
+				fence.protectedIdentityCount,
+				fence.protectedIdentitySetChecksum,
+				fence.lineageChecksum,
+			),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_ambient_steps_day_fence SET stored_zone_id = ?, " +
+				"effect_checksum = ? WHERE day_identity = ?",
+			arrayOf(corruptZone, rehashed, archive.days.single().identity.value),
+		)
+
+		val unrelated = archive(completeDay(LocalDate.of(2026, 5, 6), 2L))
+		importer(database).importArchive(
+			request(
+				unrelated,
+				jobId = "after-fence-corrupt",
+				archiveKey = "after-fence-corrupt",
+			),
+		) shouldBe ImportPortableAmbientStepsResult.Unverifiable(
+			PortableAmbientStepsImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	}
+
+	@Test
 	fun `consent reset primitive requires revoked authority and deletes one lineage`() = runTest {
 		val archive = archive(completeDay(LocalDate.of(2026, 6, 1), 8L))
+		val secondArchive = archive(completeDay(LocalDate.of(2026, 6, 2), 2L))
 		importer(database).importArchive(request(archive)) shouldBe applied(archive, 1)
+		importer(database).importArchive(
+			request(secondArchive, jobId = "second-before-revoke", archiveKey = "second-before-revoke"),
+		) shouldBe applied(secondArchive, 1)
 		seedRevokedConsent(database)
 		val deleter = RoomDeleteImportedAmbientStepsAfterConsentReset(
 			database,
@@ -515,23 +884,43 @@ class RoomImportedAmbientStepsTransferTest {
 			),
 		)
 		result shouldBe DeleteImportedAmbientStepsAfterConsentResetResult.Deleted(1)
-		deleter.deleteNext(
-			DeleteImportedAmbientStepsAfterConsentResetRequest(
-				EPOCH,
-				REVOKED_CONSENT_EPOCH,
-				archive.days.single().structuralDayEndTimeMs,
-			),
-		) shouldBe DeleteImportedAmbientStepsAfterConsentResetResult.Complete
-		val later = archive(completeDay(LocalDate.of(2026, 6, 2), 3L))
+		seedEligibleConsent(database)
+		val later = archive(completeDay(LocalDate.of(2026, 6, 3), 3L))
 		importer(database).importArchive(
-			request(later, jobId = "after-revoke", archiveKey = "after-revoke"),
+			request(later, jobId = "before-delete-complete", archiveKey = "before-delete-complete"),
 		) shouldBe ImportPortableAmbientStepsResult.Blocked(
 			PortableAmbientStepsImportBlockedReason.SOURCE_DELETED,
 		)
-		seedEligibleConsent(database)
+		(history(database).readRange(historyRequest(secondArchive)) as
+			AmbientStepsHistoryRead.Snapshot).days.single().let { day ->
+			day.importedDisposition shouldBe AmbientStepsImportedDisposition.DELETED
+			day.total shouldBe AmbientStepsHistoryValue.Unavailable(
+				setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.NO_EVIDENCE),
+			)
+		}
+		seedSecondRevokedConsent(database)
+		deleter.deleteNext(
+			DeleteImportedAmbientStepsAfterConsentResetRequest(
+				EPOCH,
+				SECOND_REVOKED_CONSENT_EPOCH,
+				secondArchive.days.single().structuralDayEndTimeMs,
+			),
+		) shouldBe DeleteImportedAmbientStepsAfterConsentResetResult.Deleted(1)
+		deleter.deleteNext(
+			DeleteImportedAmbientStepsAfterConsentResetRequest(
+				EPOCH,
+				SECOND_REVOKED_CONSENT_EPOCH,
+				secondArchive.days.single().structuralDayEndTimeMs,
+			),
+		) shouldBe DeleteImportedAmbientStepsAfterConsentResetResult.Complete
+		seedSecondEligibleConsent(database)
 		importer(database).importArchive(
 			request(later, jobId = "after-reset", archiveKey = "after-reset"),
 		) shouldBe applied(later, 1)
+		val subsequent = archive(completeDay(LocalDate.of(2026, 6, 4), 4L))
+		importer(database).importArchive(
+			request(subsequent, jobId = "after-reset-2", archiveKey = "after-reset-2"),
+		) shouldBe applied(subsequent, 1)
 		importer(database).importArchive(
 			request(archive, jobId = "old-replay", archiveKey = "old-replay"),
 		) shouldBe ImportPortableAmbientStepsResult.Blocked(
@@ -598,6 +987,12 @@ class RoomImportedAmbientStepsTransferTest {
 		).read(range(archive)) shouldBe ImportedAmbientStepsSnapshot.Unverifiable(
 			ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
 		)
+		val unrelated = archive(completeDay(LocalDate.of(2026, 8, 2), 2L))
+		importer(database).importArchive(
+			request(unrelated, jobId = "after-corruption", archiveKey = "after-corruption"),
+		) shouldBe ImportPortableAmbientStepsResult.Unverifiable(
+			PortableAmbientStepsImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
 
 		database.close()
 		importer(database).importArchive(request(archive)) shouldBe
@@ -631,38 +1026,332 @@ class RoomImportedAmbientStepsTransferTest {
 	}
 
 	@Test
-	fun `full collected data epoch clear removes source fences before same archive can return`() = runTest {
-		val archive = archive(completeDay(LocalDate.of(2026, 9, 2), 8L))
-		importer(database).importArchive(request(archive)) shouldBe applied(archive, 1)
+	fun `full collected data clear preserves no resurrection authority across epoch`() = runTest {
+		val deletedArchive = archive(completeDay(LocalDate.of(2026, 9, 2), 8L))
+		val liveArchive = archive(completeDay(LocalDate.of(2026, 9, 3), 9L))
+		importer(database).importArchive(request(deletedArchive)) shouldBe applied(deletedArchive, 1)
+		importer(database).importArchive(
+			request(liveArchive, jobId = "live-before-clear", archiveKey = "live-before-clear"),
+		) shouldBe applied(liveArchive, 1)
 		RoomDeleteImportedAmbientStepsDay(
 			database,
 			database.importedAmbientStepsDao(),
 			Dispatchers.Unconfined,
 		).deleteDay(
 			DeleteImportedAmbientStepsDayRequest(
-				archive.days.single().identity,
+				deletedArchive.days.single().identity,
 				EPOCH,
-				archive.days.single().structuralDayEndTimeMs,
+				deletedArchive.days.single().structuralDayEndTimeMs,
 			),
 		) shouldBe DeleteImportedAmbientStepsDayResult.Deleted(1)
-		val dao = database.importedAmbientStepsDao()
-		dao.deleteAllDays()
-		dao.deleteAllReceipts()
-		dao.deleteAllArchives()
-		dao.deleteAllProtectedIdentities()
-		dao.deleteAllFences()
-		dao.deleteSourceFence()
-		database.sourceEvidenceStateDao().updateLifecycle(EPOCH + 1L, null, 1L) shouldBe 1
+		database.withTransaction {
+			val state = requireNotNull(database.sourceEvidenceStateDao().get())
+			val nextRevision = Math.addExact(state.revision, 1L)
+			val dao = database.importedAmbientStepsDao()
+			dao.prepareFullClearFencesInCurrentTransaction(
+				oldCollectedDataEpoch = EPOCH,
+				newCollectedDataEpoch = EPOCH + 1L,
+				sourceEvidenceRevision = nextRevision,
+				clearedAtMs = liveArchive.days.single().structuralDayEndTimeMs + 1L,
+			)
+			database.sourceEvidenceStateDao().updateAfterFullDeletion(
+				epoch = EPOCH + 1L,
+				retainedFromMs = null,
+				deletedSourceEventHighWaterOrdinal = state.deletedSourceEventHighWaterOrdinal,
+				updatedAtMs = liveArchive.days.single().structuralDayEndTimeMs + 1L,
+			) shouldBe 1
+			dao.deleteFullClearPayloadInCurrentTransaction(EPOCH + 1L)
+		}
+		(database.importedAmbientStepsDao().protectedIdentityCount() > 0L) shouldBe true
+		database.importedAmbientStepsDao().allFences(3).all {
+			it.collectedDataEpoch == EPOCH + 1L
+		} shouldBe true
 
 		importer(database).importArchive(
 			request(
-				archive,
-				jobId = "new-epoch",
-				archiveKey = "new-epoch",
+				deletedArchive,
+				jobId = "old-replay",
+				archiveKey = "old-replay",
 				expectedEpoch = EPOCH + 1L,
 			),
-		) shouldBe applied(archive, 1)
+		) shouldBe ImportPortableAmbientStepsResult.Blocked(
+			PortableAmbientStepsImportBlockedReason.DELETED_DAY,
+		)
+		importer(database).importArchive(
+			request(
+				liveArchive,
+				jobId = "live-replay",
+				archiveKey = "live-replay",
+				expectedEpoch = EPOCH + 1L,
+			),
+		) shouldBe ImportPortableAmbientStepsResult.Blocked(
+			PortableAmbientStepsImportBlockedReason.DELETED_DAY,
+		)
+		val reidentifiedLive = archive(
+			reidentifyDay(liveArchive.days.single(), "full-clear-reidentified"),
+		)
+		importer(database).importArchive(
+			request(
+				reidentifiedLive,
+				jobId = "full-clear-reidentified",
+				archiveKey = "full-clear-reidentified",
+				expectedEpoch = EPOCH + 1L,
+			),
+		) shouldBe ImportPortableAmbientStepsResult.Blocked(
+			PortableAmbientStepsImportBlockedReason.DELETED_DAY,
+		)
+		val unrelated = archive(completeDay(LocalDate.of(2026, 9, 4), 3L))
+		importer(database).importArchive(
+			request(
+				unrelated,
+				jobId = "unrelated-new-epoch",
+				archiveKey = "unrelated-new-epoch",
+				expectedEpoch = EPOCH + 1L,
+			),
+		) shouldBe applied(unrelated, 1)
 	}
+
+	@Test
+	fun `full clear preserves shared archive authority for every structural day`() = runTest {
+		val archive = archive(
+			completeDay(LocalDate.of(2026, 9, 5), 4L),
+			completeDay(LocalDate.of(2026, 9, 6), 5L),
+		)
+		importer(database).importArchive(request(archive)) shouldBe applied(archive, 2)
+		val dao = database.importedAmbientStepsDao()
+		database.withTransaction {
+			val state = requireNotNull(database.sourceEvidenceStateDao().get())
+			val clearedAtMs = archive.days.maxOf { it.structuralDayEndTimeMs }
+			dao.prepareFullClearFencesInCurrentTransaction(
+				oldCollectedDataEpoch = EPOCH,
+				newCollectedDataEpoch = EPOCH + 1L,
+				sourceEvidenceRevision = state.revision + 1L,
+				clearedAtMs = clearedAtMs,
+			)
+			database.sourceEvidenceStateDao().updateAfterFullDeletion(
+				epoch = EPOCH + 1L,
+				retainedFromMs = null,
+				deletedSourceEventHighWaterOrdinal = state.deletedSourceEventHighWaterOrdinal,
+				updatedAtMs = clearedAtMs,
+			) shouldBe 1
+			dao.deleteFullClearPayloadInCurrentTransaction(EPOCH + 1L)
+		}
+
+		archive.days.forEach { day ->
+			dao.fence(day.identity.value)?.fenceKind shouldBe
+				ImportedAmbientStepsDayFenceEntity.FENCE_FULL_CLEAR
+		}
+		dao.protectedIdentityOwners(listOf(archive.identity.value), 3)
+			.map { it.ownerDayIdentity }
+			.toSet() shouldBe archive.days.map { it.identity.value }.toSet()
+		dao.dayRevisionCount() shouldBe 0L
+	}
+
+	@Test
+	fun `full clear preparation cancellation rolls back fences epoch and payload`() = runTest {
+		val archive = archive(completeDay(LocalDate.of(2026, 9, 4), 8L))
+		importer(database).importArchive(request(archive)) shouldBe applied(archive, 1)
+		val before = requireNotNull(database.sourceEvidenceStateDao().get())
+
+		assertFailsWith<CancellationException> {
+			database.withTransaction {
+				database.importedAmbientStepsDao().prepareFullClearFencesInCurrentTransaction(
+					oldCollectedDataEpoch = EPOCH,
+					newCollectedDataEpoch = EPOCH + 1L,
+					sourceEvidenceRevision = before.revision + 1L,
+					clearedAtMs = archive.days.single().structuralDayEndTimeMs + 1L,
+				)
+				throw CancellationException("cancel full clear")
+			}
+		}
+
+		requireNotNull(database.sourceEvidenceStateDao().get()).collectedDataEpoch shouldBe EPOCH
+		database.importedAmbientStepsDao().fence(archive.days.single().identity.value) shouldBe null
+		readReady(database, archive).archive shouldBe archive
+		assertFailsWith<com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailure> {
+			database.withTransaction {
+				database.importedAmbientStepsDao().prepareFullClearFencesInCurrentTransaction(
+					oldCollectedDataEpoch = EPOCH + 1L,
+					newCollectedDataEpoch = EPOCH + 2L,
+					sourceEvidenceRevision = before.revision + 1L,
+					clearedAtMs = archive.days.single().structuralDayEndTimeMs + 1L,
+				)
+			}
+		}
+	}
+
+	@Test
+	fun `full clear failure after epoch write rolls back all authority changes`() = runTest {
+		val archive = archive(completeDay(LocalDate.of(2026, 9, 7), 8L))
+		importer(database).importArchive(request(archive)) shouldBe applied(archive, 1)
+		val before = requireNotNull(database.sourceEvidenceStateDao().get())
+
+		assertFailsWith<IllegalStateException> {
+			database.withTransaction {
+				val dao = database.importedAmbientStepsDao()
+				dao.prepareFullClearFencesInCurrentTransaction(
+					oldCollectedDataEpoch = EPOCH,
+					newCollectedDataEpoch = EPOCH + 1L,
+					sourceEvidenceRevision = before.revision + 1L,
+					clearedAtMs = archive.days.single().structuralDayEndTimeMs + 1L,
+				)
+				database.sourceEvidenceStateDao().updateAfterFullDeletion(
+					epoch = EPOCH + 1L,
+					retainedFromMs = null,
+					deletedSourceEventHighWaterOrdinal =
+						before.deletedSourceEventHighWaterOrdinal,
+					updatedAtMs = archive.days.single().structuralDayEndTimeMs + 1L,
+				) shouldBe 1
+				error("fail after epoch")
+			}
+		}
+
+		requireNotNull(database.sourceEvidenceStateDao().get()).collectedDataEpoch shouldBe EPOCH
+		database.importedAmbientStepsDao().fence(archive.days.single().identity.value) shouldBe null
+		readReady(database, archive).archive shouldBe archive
+	}
+
+	@Test
+	fun `full clear lineage overflow aborts before installing fences`() = runTest {
+		val archive = archive(completeDay(LocalDate.of(2026, 9, 8), 8L))
+		importer(database).importArchive(request(archive)) shouldBe applied(archive, 1)
+		val day = archive.days.single()
+		val dao = database.importedAmbientStepsDao()
+		repeat(com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
+			.MAX_ARCHIVES_PER_DAY
+		) { index ->
+			val checksum = "sha256:" + (index + 1).toString(16).padStart(64, '0')
+			val archiveIdentity = AmbientStepsPortableOpaqueIdentity.derive(
+				AmbientStepsPortableIdentityKind.ARCHIVE,
+				checksum,
+			).value
+			dao.insertArchive(
+				ImportedAmbientStepsArchiveEntity(
+					archiveIdentity = archiveIdentity,
+					contentChecksum = checksum,
+					sourceFormat = AmbientStepsPortableFormatV1.FORMAT,
+					sourceSchemaVersion = AmbientStepsPortableFormatV1.SCHEMA_VERSION,
+					encodedByteCount = 1L,
+					dayCount = 1,
+					factCount = 1,
+					gapCount = 0,
+					collectedDataEpoch = EPOCH,
+					firstReceivedAtMs = day.structuralDayEndTimeMs,
+				),
+			)
+			dao.insertArchiveDays(listOf(
+				ImportedAmbientStepsArchiveDayEntity(
+					archiveIdentity = archiveIdentity,
+					ordinal = 0,
+					dayIdentity = day.identity.value,
+					dayContentChecksum = day.contentChecksum.value,
+					boundDayImportRevision = 1L,
+					factCount = 1,
+					gapCount = 0,
+				),
+			))
+		}
+
+		val failure = assertFailsWith<
+			com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailure,
+		> {
+			database.withTransaction {
+				dao.prepareFullClearFencesInCurrentTransaction(
+					oldCollectedDataEpoch = EPOCH,
+					newCollectedDataEpoch = EPOCH + 1L,
+					sourceEvidenceRevision =
+						requireNotNull(database.sourceEvidenceStateDao().get()).revision + 1L,
+					clearedAtMs = day.structuralDayEndTimeMs + 1L,
+				)
+			}
+		}
+		failure.reason shouldBe
+			com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFailureReason
+				.DEPENDENCY_OVERFLOW
+		dao.fence(day.identity.value) shouldBe null
+		dao.dayRevisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `known zone and enum corruption is typed unverifiable rather than retryable storage`() = runTest {
+		val zoneArchive = archive(completeDay(LocalDate.of(2026, 9, 5), 8L))
+		importer(database).importArchive(request(zoneArchive)) shouldBe applied(zoneArchive, 1)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_ambient_steps_day_revision SET stored_zone_id = 'Not/AZone', " +
+				"day_content_checksum = ? WHERE day_identity = ?",
+			arrayOf("sha256:${"f".repeat(64)}", zoneArchive.days.single().identity.value),
+		)
+		ImportedAmbientStepsRoomReader(
+			database,
+			database.importedAmbientStepsDao(),
+			Dispatchers.Unconfined,
+		).read(range(zoneArchive)) shouldBe ImportedAmbientStepsSnapshot.Unverifiable(
+			ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
+		)
+
+		database.close()
+		database = newDatabase()
+		seedEvidence(database)
+		val enumArchive = archive(completeDay(LocalDate.of(2026, 9, 6), 8L))
+		importer(database).importArchive(request(enumArchive)) shouldBe applied(enumArchive, 1)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_ambient_steps_day_revision SET coverage = 'UNKNOWN_VALUE', " +
+				"day_content_checksum = ? WHERE day_identity = ?",
+			arrayOf("sha256:${"e".repeat(64)}", enumArchive.days.single().identity.value),
+		)
+		ImportedAmbientStepsRoomReader(
+			database,
+			database.importedAmbientStepsDao(),
+			Dispatchers.Unconfined,
+		).read(range(enumArchive)) shouldBe ImportedAmbientStepsSnapshot.Unverifiable(
+			ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
+		)
+	}
+
+	@Test
+	fun `rehashed arithmetic corruption is typed unverifiable rather than retryable storage`() =
+		runTest {
+			val date = LocalDate.of(2026, 9, 7)
+			val (start, end) = dayBounds(date, "UTC")
+			val boundary = start + (end - start) / 2L
+			val facts = listOf(
+				PortableAmbientStepsFactV1.create(
+					identity(AmbientStepsPortableIdentityKind.FACT, "overflow-first"),
+					start,
+					boundary,
+					1L,
+				),
+				PortableAmbientStepsFactV1.create(
+					identity(AmbientStepsPortableIdentityKind.FACT, "overflow-second"),
+					boundary,
+					end,
+					2L,
+				),
+			)
+			val archive = archive(portableDay(date, "UTC", facts, emptyList(), emptyList()))
+			importer(database).importArchive(request(archive)) shouldBe applied(archive, 1)
+			facts.forEach { fact ->
+				val checksum = AmbientStepsPortableIntegrity.factChecksum(
+					fact.identity,
+					fact.intervalStartTimeMs,
+					fact.intervalEndTimeMs,
+					Long.MAX_VALUE,
+				).value
+				database.openHelper.writableDatabase.execSQL(
+					"UPDATE imported_ambient_steps_fact SET step_count = ?, " +
+						"content_checksum = ? WHERE fact_identity = ?",
+					arrayOf(Long.MAX_VALUE, checksum, fact.identity.value),
+				)
+			}
+
+			ImportedAmbientStepsRoomReader(
+				database,
+				database.importedAmbientStepsDao(),
+				Dispatchers.Unconfined,
+			).read(range(archive)) shouldBe ImportedAmbientStepsSnapshot.Unverifiable(
+				ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
+			)
+		}
 
 	private fun importer(database: AppDatabase) = RoomImportPortableAmbientSteps(
 		database,
@@ -736,13 +1425,14 @@ class RoomImportedAmbientStepsTransferTest {
 		jobId: String = "job-1",
 		archiveKey: String = "archive-1",
 		expectedEpoch: Long = EPOCH,
+		receivedAtMs: Long = archive.days.maxOf { it.structuralDayEndTimeMs },
 	) = ImportPortableAmbientStepsRequest(
 		archive = archive,
 		receipt = PortableAmbientStepsImportReceipt(
 			jobId,
 			archiveKey,
 			"backup.trackerambientsteps",
-			archive.days.maxOf { it.structuralDayEndTimeMs },
+			receivedAtMs,
 		),
 		metadata = metadata(archive),
 		expectedCollectedDataEpoch = expectedEpoch,
@@ -851,6 +1541,36 @@ class RoomImportedAmbientStepsTransferTest {
 		)
 	}
 
+	private fun outsideAuthorityDay(
+		date: LocalDate,
+		count: Long,
+		zoneId: String = "UTC",
+	): PortableAmbientStepsDayV1 {
+		val (start, end) = dayBounds(date, zoneId)
+		val fact = PortableAmbientStepsFactV1.create(
+			identity(AmbientStepsPortableIdentityKind.FACT, "outside-fact-${date.toEpochDay()}"),
+			start,
+			end,
+			count,
+		)
+		return PortableAmbientStepsDayV1.create(
+			identity = identity(
+				AmbientStepsPortableIdentityKind.DAY,
+				"outside-${date.toEpochDay()}|$zoneId|$start|$end",
+			),
+			structuralEpochDay = date.toEpochDay(),
+			storedZoneId = zoneId,
+			structuralDayStartTimeMs = start,
+			structuralDayEndTimeMs = end,
+			retainedFromTimeMs = null,
+			coverage = PortableAmbientStepsCoverage.PARTIAL,
+			partialCauses = listOf(PortableAmbientStepsPartialCause.OUTSIDE_AUTHORITY),
+			retainedStepCount = count,
+			facts = listOf(fact),
+			gaps = emptyList(),
+		)
+	}
+
 	private fun portableDay(
 		date: LocalDate,
 		zoneId: String,
@@ -876,6 +1596,41 @@ class RoomImportedAmbientStepsTransferTest {
 			},
 			partialCauses = causes,
 			retainedStepCount = facts.sumOf { it.stepCount },
+			facts = facts,
+			gaps = gaps,
+		)
+	}
+
+	private fun reidentifyDay(
+		day: PortableAmbientStepsDayV1,
+		suffix: String,
+	): PortableAmbientStepsDayV1 {
+		val facts = day.facts.mapIndexed { index, fact ->
+			PortableAmbientStepsFactV1.create(
+				identity(AmbientStepsPortableIdentityKind.FACT, "$suffix-fact-$index"),
+				fact.intervalStartTimeMs,
+				fact.intervalEndTimeMs,
+				fact.stepCount,
+			)
+		}
+		val gaps = day.gaps.mapIndexed { index, gap ->
+			PortableAmbientStepsGapV1.create(
+				identity(AmbientStepsPortableIdentityKind.GAP, "$suffix-gap-$index"),
+				gap.intervalStartTimeMs,
+				gap.intervalEndTimeMs,
+				gap.reason,
+			)
+		}
+		return PortableAmbientStepsDayV1.create(
+			identity = identity(AmbientStepsPortableIdentityKind.DAY, "$suffix-day"),
+			structuralEpochDay = day.structuralEpochDay,
+			storedZoneId = day.storedZoneId,
+			structuralDayStartTimeMs = day.structuralDayStartTimeMs,
+			structuralDayEndTimeMs = day.structuralDayEndTimeMs,
+			retainedFromTimeMs = day.retainedFromTimeMs,
+			coverage = day.coverage,
+			partialCauses = day.partialCauses,
+			retainedStepCount = day.retainedStepCount,
 			facts = facts,
 			gaps = gaps,
 		)
@@ -986,6 +1741,99 @@ class RoomImportedAmbientStepsTransferTest {
 		) shouldBe 1
 	}
 
+	private suspend fun seedSecondRevokedConsent(database: AppDatabase) {
+		val policy = policyForConsent(
+			policyRevision = 4L,
+			consentEpoch = null,
+			eligible = false,
+			changeReason = "test second revoke",
+		)
+		val consent = consentForPolicy(
+			epoch = SECOND_REVOKED_CONSENT_EPOCH,
+			policyRevision = policy.policyRevision,
+			eligible = false,
+			changeReason = "test second revoke",
+		)
+		database.sourcePolicyDao().insertPolicies(listOf(policy))
+		database.sourcePolicyDao().insertConsentEpochs(listOf(consent))
+		database.sourcePolicyDao().compareAndSetAuthority(
+			expectedBootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			expectedRevision = 3L,
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			newRevision = policy.policyRevision,
+			legacySettingsFingerprint = null,
+			updatedAtMs = 4L,
+		) shouldBe 1
+	}
+
+	private suspend fun seedSecondEligibleConsent(database: AppDatabase) {
+		val policy = policyForConsent(
+			policyRevision = 5L,
+			consentEpoch = SECOND_ELIGIBLE_CONSENT_EPOCH,
+			eligible = true,
+			changeReason = "test second reset",
+		)
+		val consent = consentForPolicy(
+			epoch = SECOND_ELIGIBLE_CONSENT_EPOCH,
+			policyRevision = policy.policyRevision,
+			eligible = true,
+			changeReason = "test second reset",
+		)
+		database.sourcePolicyDao().insertPolicies(listOf(policy))
+		database.sourcePolicyDao().insertConsentEpochs(listOf(consent))
+		database.sourcePolicyDao().compareAndSetAuthority(
+			expectedBootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			expectedRevision = 4L,
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			newRevision = policy.policyRevision,
+			legacySettingsFingerprint = null,
+			updatedAtMs = 5L,
+		) shouldBe 1
+	}
+
+	private fun policyForConsent(
+		policyRevision: Long,
+		consentEpoch: Long?,
+		eligible: Boolean,
+		changeReason: String,
+	) = SourcePolicyEntity(
+		policyRevision = policyRevision,
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		enabled = true,
+		qosCode = 1,
+		locationMinTimeSeconds = null,
+		locationMinDistanceMeters = null,
+		locationRequiredAccuracyMeters = null,
+		capturePersistenceEligible = false,
+		controlPersistenceEligible = false,
+		ambientPersistenceEligible = eligible,
+		captureConsentEpoch = null,
+		controlConsentEpoch = null,
+		ambientConsentEpoch = consentEpoch,
+		effectiveBootId = "boot",
+		effectiveElapsedRealtimeNanos = policyRevision,
+		effectiveWallTimeMs = policyRevision,
+		changeReason = changeReason,
+	)
+
+	private fun consentForPolicy(
+		epoch: Long,
+		policyRevision: Long,
+		eligible: Boolean,
+		changeReason: String,
+	) = SourceConsentEpochEntity(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+		epoch = epoch,
+		eligible = eligible,
+		persistenceEligible = eligible,
+		policyRevision = policyRevision,
+		effectiveBootId = "boot",
+		effectiveElapsedRealtimeNanos = policyRevision,
+		effectiveWallTimeMs = policyRevision,
+		changeReason = changeReason,
+	)
+
 	private fun newDatabase(): AppDatabase = AppDatabase.testDatabase(
 		ApplicationProvider.getApplicationContext<Application>(),
 	)
@@ -1002,6 +1850,8 @@ class RoomImportedAmbientStepsTransferTest {
 		const val EPOCH = 7L
 		const val REVOKED_CONSENT_EPOCH = 2L
 		const val ELIGIBLE_CONSENT_EPOCH = 3L
+		const val SECOND_REVOKED_CONSENT_EPOCH = 4L
+		const val SECOND_ELIGIBLE_CONSENT_EPOCH = 5L
 		const val REOPEN_DATABASE = "imported-ambient-steps-reopen"
 	}
 }

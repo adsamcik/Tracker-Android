@@ -96,6 +96,61 @@ class ImportedAmbientStepsEntitiesTest {
 		shouldThrow<IllegalArgumentException> {
 			fence.copy(latestImportRevision = 2L)
 		}
+		shouldThrow<IllegalArgumentException> {
+			ImportedAmbientStepsDayFenceEntity.create(
+				dayIdentity = day.identity.value,
+				deletionScopeIdentity = day.deletionScopeIdentity.value,
+				fenceKind = ImportedAmbientStepsDayFenceEntity.FENCE_FULL_CLEAR,
+				collectedDataEpoch = 8L,
+				sourceEvidenceRevision = 4L,
+				fencedAtMs = day.structuralDayEndTimeMs + 2L,
+				retainedFromMs = null,
+				latestImportRevision = 1L,
+				latestContentChecksum = day.contentChecksum.value,
+				structuralEpochDay = day.structuralEpochDay + 1L,
+				storedZoneId = day.storedZoneId,
+				structuralDayStartTimeMs = day.structuralDayStartTimeMs,
+				structuralDayEndTimeMs = day.structuralDayEndTimeMs,
+				revisionCount = 1,
+				archiveCount = 1,
+				factRowCount = 1,
+				gapRowCount = 0,
+				protectedIdentities = markers,
+				lineageChecksum = archive.contentChecksum.value,
+			)
+		}
+	}
+
+	@Test
+	fun `source fence completion reopen and reepoch remain checksum authenticated`() {
+		val initial = ImportedAmbientStepsSourceFenceEntity.create(7L, 2L, 100L)
+		val completed = ImportedAmbientStepsSourceFenceEntity.completed(initial, 101L)
+		val reopened = ImportedAmbientStepsSourceFenceEntity.reopened(completed, 3L, 102L)
+		val reepoched = ImportedAmbientStepsSourceFenceEntity.reepoch(reopened, 8L)
+
+		initial.deletionCompleted shouldBe false
+		completed.deletionCompleted shouldBe true
+		reopened.reopenedConsentEpoch shouldBe 3L
+		reepoched.collectedDataEpoch shouldBe 8L
+		shouldThrow<IllegalArgumentException> {
+			reepoched.copy(reopenedConsentEpoch = 2L)
+		}
+		val contradictoryChecksum = ImportedAmbientStepsIdentity.digest(
+			"tracker-imported-ambient-steps-source-fence-v1",
+			listOf(7L, 2L, 100L, 0, 101L, null, null),
+		)
+		shouldThrow<IllegalArgumentException> {
+			ImportedAmbientStepsSourceFenceEntity(
+				collectedDataEpoch = 7L,
+				revokedConsentEpoch = 2L,
+				deletedAtMs = 100L,
+				deletionCompleted = false,
+				completedAtMs = 101L,
+				reopenedConsentEpoch = null,
+				reopenedAtMs = null,
+				effectChecksum = contradictoryChecksum,
+			)
+		}
 	}
 
 	@Test

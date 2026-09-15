@@ -67,6 +67,21 @@ class ImportedAmbientStepsMigration27To28Test {
 				"idx_imported_ambient_steps_fence_scope",
 				listOf("deletion_scope_identity"),
 			)
+			assertColumns(
+				database,
+				"imported_ambient_steps_source_fence",
+				listOf(
+					"id",
+					"collected_data_epoch",
+					"revoked_consent_epoch",
+					"deleted_at_ms",
+					"deletion_completed",
+					"completed_at_ms",
+					"reopened_consent_epoch",
+					"reopened_at_ms",
+					"effect_checksum",
+				),
+			)
 		}
 	}
 
@@ -82,6 +97,20 @@ class ImportedAmbientStepsMigration27To28Test {
 			}
 		}
 		assertEquals(name, expectedColumns, actual)
+	}
+
+	private fun assertColumns(
+		database: androidx.sqlite.db.SupportSQLiteDatabase,
+		table: String,
+		expectedColumns: List<String>,
+	) {
+		val actual = buildList {
+			database.query("PRAGMA table_info('$table')").use { cursor ->
+				val column = cursor.getColumnIndexOrThrow("name")
+				while (cursor.moveToNext()) add(cursor.getString(column))
+			}
+		}
+		assertEquals(table, expectedColumns, actual)
 	}
 
 	private companion object {

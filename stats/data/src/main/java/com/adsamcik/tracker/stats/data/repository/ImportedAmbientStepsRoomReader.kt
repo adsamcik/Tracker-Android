@@ -16,6 +16,8 @@ import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_AMBIENT_STEPS_DAY_ORDER
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsCoverage
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsPartialCause
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsResult
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsArchiveSink
@@ -82,9 +84,15 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 			ImportedAmbientStepsSnapshot.Unverifiable(
 				ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
 			)
+		} catch (_: ArithmeticException) {
+			ImportedAmbientStepsSnapshot.Unverifiable(
+				ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
+			)
+		} catch (_: java.time.DateTimeException) {
+			ImportedAmbientStepsSnapshot.Unverifiable(
+				ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
+			)
 		} catch (_: SQLiteException) {
-			ImportedAmbientStepsSnapshot.RetryableFailure
-		} catch (_: Exception) {
 			ImportedAmbientStepsSnapshot.RetryableFailure
 		}
 	}
@@ -122,11 +130,13 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 				SourceDestinationOwnerEntity.SOURCE_STEPS,
 				SourceBrokerPurpose.AMBIENT_PRODUCT,
 			)
-			val reset = policy != null && consent != null && policy.enabled &&
+			val reset = sourceFence.deletionCompleted &&
+				policy != null && consent != null && policy.enabled &&
 				policy.ambientPersistenceEligible && policy.ambientConsentEpoch == consent.epoch &&
 				consent.eligible && consent.persistenceEligible &&
 				consent.policyRevision == policy.policyRevision &&
-				consent.epoch > sourceFence.revokedConsentEpoch
+				consent.epoch > sourceFence.revokedConsentEpoch &&
+				sourceFence.reopenedConsentEpoch == consent.epoch
 			if (!reset) return ImportedAmbientStepsSnapshot.Deleted
 		}
 		val fences = dao.fencesOverlapping(
@@ -175,21 +185,29 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 				}
 			) return ImportedAmbientStepsSnapshot.Retained
 		}
-		val lineages = candidates.map { candidate ->
+		val days = mutableListOf<com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV1>()
+		val products = mutableListOf<AmbientStepsDayProduct>()
+		var factCount = 0
+		var gapCount = 0
+		candidates.forEach { candidate ->
 			currentCoroutineContext().ensureActive()
-			dao.loadAuthenticatedAmbientStepsLineage(
+			val lineage = dao.loadAuthenticatedAmbientStepsLineage(
 				candidate.dayIdentity,
 				state.collectedDataEpoch,
-			).also { lineage ->
-				check(lineage.latest.header == candidate)
-			}
-		}
-		val days = lineages.map { it.latest.day }.sortedWith(PORTABLE_AMBIENT_STEPS_DAY_ORDER)
-		check(days.map { StructuralImportedAmbientStepsDayKey(it) }.distinct().size == days.size)
-		val archive = PortableAmbientStepsArchiveV1.create(days)
-		val products = lineages.map { lineage ->
+			)
+			check(lineage.latest.header == candidate)
 			val revision = lineage.latest
 			val portableDay = revision.day
+			factCount = Math.addExact(factCount, portableDay.facts.size)
+			gapCount = Math.addExact(gapCount, portableDay.gaps.size)
+			if (factCount > AmbientStepsPortableFormatV1.MAX_FACTS ||
+				gapCount > AmbientStepsPortableFormatV1.MAX_GAPS
+			) {
+				throw ImportedAmbientStepsLineageFailure(
+					ImportedAmbientStepsLineageFailureReason.DEPENDENCY_OVERFLOW,
+				)
+			}
+			days += portableDay
 			val day = AmbientStepsDayIdentity(
 				epochDay = portableDay.structuralEpochDay,
 				storedZoneId = portableDay.storedZoneId,
@@ -201,7 +219,7 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 				dayIdentity = revision.header.dayIdentity,
 				dayImportRevision = revision.header.importRevision,
 			)
-			composeAmbientStepsDay(
+			products += composeAmbientStepsDay(
 				day = day,
 				facts = portableDay.facts.map { fact ->
 					QualifiedAmbientStepsFact(
@@ -221,9 +239,32 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 					EffectiveAmbientStepsGap(gap.intervalStartTimeMs, gap.intervalEndTimeMs)
 				},
 				sessions = emptyList(),
+				sourceCauses = portableDay.productCauses(),
 			)
-		}.sortedBy { it.day.startTimeMs }
-		return ImportedAmbientStepsSnapshot.Ready(archive, products)
+		}
+		days.sortWith(PORTABLE_AMBIENT_STEPS_DAY_ORDER)
+		check(days.map { StructuralImportedAmbientStepsDayKey(it) }.distinct().size == days.size)
+		val archive = PortableAmbientStepsArchiveV1.create(days)
+		return ImportedAmbientStepsSnapshot.Ready(
+			archive,
+			products.sortedBy { it.day.startTimeMs },
+		)
+	}
+
+	internal fun com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV1
+		.productCauses(): Set<AmbientStepsDayCause> = buildSet {
+		if (coverage == PortableAmbientStepsCoverage.PARTIAL) {
+			add(AmbientStepsDayCause.AMBIENT_COVERAGE_PARTIAL)
+		}
+		partialCauses.forEach { cause ->
+			when (cause) {
+				PortableAmbientStepsPartialCause.EXPLICIT_GAP ->
+					add(AmbientStepsDayCause.AMBIENT_GAP)
+				PortableAmbientStepsPartialCause.RETENTION,
+				PortableAmbientStepsPartialCause.OUTSIDE_AUTHORITY,
+				-> add(AmbientStepsDayCause.AMBIENT_COVERAGE_PARTIAL)
+			}
+		}
 	}
 }
 

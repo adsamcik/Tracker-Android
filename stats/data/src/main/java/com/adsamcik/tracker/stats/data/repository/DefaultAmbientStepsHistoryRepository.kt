@@ -100,8 +100,14 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 			AmbientStepsHistoryRead.Unavailable(
 				AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
 			)
-		} catch (_: Exception) {
-			AmbientStepsHistoryRead.StorageUnavailable
+		} catch (_: ArithmeticException) {
+			AmbientStepsHistoryRead.Unavailable(
+				AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
+			)
+		} catch (_: DateTimeException) {
+			AmbientStepsHistoryRead.Unavailable(
+				AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
+			)
 		}
 	}
 
@@ -248,8 +254,14 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 			AmbientStepsHistoryRecentRead.Unavailable(
 				AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
 			)
-		} catch (_: Exception) {
-			AmbientStepsHistoryRecentRead.StorageUnavailable
+		} catch (_: ArithmeticException) {
+			AmbientStepsHistoryRecentRead.Unavailable(
+				AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
+			)
+		} catch (_: DateTimeException) {
+			AmbientStepsHistoryRecentRead.Unavailable(
+				AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
+			)
 		}
 	}
 
@@ -262,7 +274,11 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 		readRange(request)
 	}.catch { failure ->
 		if (failure is CancellationException) throw failure
-		emit(AmbientStepsHistoryRead.StorageUnavailable)
+		if (failure is SQLiteException) {
+			emit(AmbientStepsHistoryRead.StorageUnavailable)
+		} else {
+			throw failure
+		}
 	}.distinctUntilChanged()
 
 	@Suppress("LongMethod", "CyclomaticComplexMethod")
@@ -462,7 +478,13 @@ private fun composePublicDay(
 	val facts = native.factsByDay[key].orEmpty() + imported.factsByDay[key].orEmpty()
 	val gaps = native.gapsByDay[key].orEmpty() + imported.gapsByDay[key].orEmpty()
 	val daySessions = sessions.mapNotNull { it.forDay(day) }
-	val base = composeAmbientStepsDay(day, facts, gaps, daySessions)
+	val base = composeAmbientStepsDay(
+		day,
+		facts,
+		gaps,
+		daySessions,
+		imported.causesByDay[key].orEmpty(),
+	)
 	val product = when {
 		key in native.unverifiableDays -> {
 			val unavailable = AmbientStepsNumericValue.Unavailable(
@@ -583,6 +605,7 @@ private sealed interface ImportedAmbientStepsRangeRead {
 	data class Ready(
 		val factsByDay: Map<AmbientStepsHistoryKey, List<QualifiedAmbientStepsFact>>,
 		val gapsByDay: Map<AmbientStepsHistoryKey, List<EffectiveAmbientStepsGap>>,
+		val causesByDay: Map<AmbientStepsHistoryKey, Set<AmbientStepsDayCause>>,
 		val dispositionByDay: Map<AmbientStepsHistoryKey, AmbientStepsImportedDisposition>,
 	) : ImportedAmbientStepsRangeRead
 
@@ -644,7 +667,12 @@ private class ImportedAmbientStepsRangeReader(
 			}
 		}.toMutableMap()
 		if (sourceDeleted) {
-			return ImportedAmbientStepsRangeRead.Ready(emptyMap(), emptyMap(), dispositions)
+			return ImportedAmbientStepsRangeRead.Ready(
+				emptyMap(),
+				emptyMap(),
+				emptyMap(),
+				dispositions,
+			)
 		}
 		val candidates = dao.latestDaysForStructuralRange(
 			range.firstEpochDay,
@@ -683,7 +711,12 @@ private class ImportedAmbientStepsRangeReader(
 			retained
 		}
 		if (live.isEmpty()) {
-			return ImportedAmbientStepsRangeRead.Ready(emptyMap(), emptyMap(), dispositions)
+			return ImportedAmbientStepsRangeRead.Ready(
+				emptyMap(),
+				emptyMap(),
+				emptyMap(),
+				dispositions,
+			)
 		}
 		val dayIds = live.map(ImportedAmbientStepsDayRevisionEntity::dayIdentity)
 		val headers = dao.dayRevisionsForHistory(dayIds, MAX_IMPORTED_DAY_REVISIONS + 1)
@@ -730,6 +763,7 @@ private class ImportedAmbientStepsRangeReader(
 		val receiptsByArchive = receipts.groupBy { it.archiveIdentity }
 		val resultFacts = linkedMapOf<AmbientStepsHistoryKey, List<QualifiedAmbientStepsFact>>()
 		val resultGaps = linkedMapOf<AmbientStepsHistoryKey, List<EffectiveAmbientStepsGap>>()
+		val resultCauses = linkedMapOf<AmbientStepsHistoryKey, Set<AmbientStepsDayCause>>()
 		for (candidate in live) {
 			currentCoroutineContext().ensureActive()
 			val relatedArchiveIds = directMembersByDay[candidate.dayIdentity].orEmpty()
@@ -790,9 +824,15 @@ private class ImportedAmbientStepsRangeReader(
 			resultGaps[key] = day.gaps.map {
 				EffectiveAmbientStepsGap(it.intervalStartTimeMs, it.intervalEndTimeMs)
 			}
+			resultCauses[key] = day.productCauses()
 			dispositions[key] = AmbientStepsImportedDisposition.PRESENT
 		}
-		return ImportedAmbientStepsRangeRead.Ready(resultFacts, resultGaps, dispositions)
+		return ImportedAmbientStepsRangeRead.Ready(
+			resultFacts,
+			resultGaps,
+			resultCauses,
+			dispositions,
+		)
 	}
 
 	private suspend fun sourceDeletionActive(evidence: SourceEvidenceState): Boolean {
@@ -813,11 +853,13 @@ private class ImportedAmbientStepsRangeReader(
 			SourceDestinationOwnerEntity.SOURCE_STEPS,
 			SourceBrokerPurpose.AMBIENT_PRODUCT,
 		)
-		val reset = policy != null && consent != null && policy.enabled &&
+		val reset = fence.deletionCompleted &&
+			policy != null && consent != null && policy.enabled &&
 			policy.ambientPersistenceEligible && policy.ambientConsentEpoch == consent.epoch &&
 			consent.eligible && consent.persistenceEligible &&
 			consent.policyRevision == policy.policyRevision &&
-			consent.epoch > fence.revokedConsentEpoch
+			consent.epoch > fence.revokedConsentEpoch &&
+			fence.reopenedConsentEpoch == consent.epoch
 		return !reset
 	}
 
