@@ -93,7 +93,9 @@ data class AmbientSourceOperationalAvailability(
 				"Permission remediation must match the source and selected mechanism"
 			}
 			AmbientSourceOperationalState.UNAVAILABLE -> require(
-				mechanism == null && reason in source.unavailableReasons(),
+				mechanism == null &&
+					reason != null &&
+					reason in source.unavailableReasons(),
 			) {
 				"Unavailable reason must match the source and must not imply an operational provider"
 			}
@@ -259,16 +261,18 @@ private fun AmbientTrackingSource.permissionReason(
 	AmbientTrackingSource.CELL -> AmbientSourceUnavailableReason.CELL_SCAN_PERMISSION_REQUIRED
 }
 
-private fun AmbientTrackingSource.unavailableReasons(): Set<AmbientSourceUnavailableReason> =
-	buildSet {
+private fun AmbientTrackingSource.unavailableReasons(): Set<AmbientSourceUnavailableReason> {
+	val source = this
+	return buildSet {
 		add(AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE)
 		add(AmbientSourceUnavailableReason.ROLLOUT_CONTAINED)
 		add(AmbientSourceUnavailableReason.PLATFORM_UNAVAILABLE)
 		add(AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE)
-		if (this@unavailableReasons == AmbientTrackingSource.STEPS) {
+		if (source == AmbientTrackingSource.STEPS) {
 			add(AmbientSourceUnavailableReason.HEALTH_CONNECT_UNAVAILABLE)
 			add(AmbientSourceUnavailableReason.HEALTH_CONNECT_UPDATE_REQUIRED)
 			add(AmbientSourceUnavailableReason.HEALTH_CONNECT_PROBE_FAILED)
 			add(AmbientSourceUnavailableReason.LOCAL_RECORDING_UNAVAILABLE)
 		}
 	}
+}

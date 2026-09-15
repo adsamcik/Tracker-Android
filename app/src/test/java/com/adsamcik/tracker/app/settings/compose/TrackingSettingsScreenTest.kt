@@ -451,6 +451,39 @@ class TrackingSettingsScreenTest {
 	}
 
 	@Test
+	fun HealthConnectForegroundReadyStateExplainsOptionalBackgroundGaps() {
+		val availability = defaultUiState.ambientSourceAvailability +
+			(
+				AmbientTrackingSource.STEPS to AmbientSourceOperationalAvailability(
+					source = AmbientTrackingSource.STEPS,
+					state = AmbientSourceOperationalState.DEGRADED,
+					mechanism = AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+					reason =
+						AmbientSourceUnavailableReason
+							.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL,
+				)
+			)
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(
+					uiState = defaultUiState.copy(
+						ambientStepsEnabled = true,
+						ambientSourceAvailability = availability,
+					),
+				)
+			}
+		}
+
+		scrollTo("Optional background access may reduce gaps")
+		composeTestRule.onNodeWithTag("ambientSource-steps")
+			.assert(hasStateDescription("Saved on; operational availability reported"))
+		composeTestRule.onNodeWithText(
+			"does not promise a cadence",
+			substring = true,
+		).assertIsDisplayed()
+	}
+
+	@Test
 	fun unsupportedHealthConnectDoesNotClaimAmbientStepsAreOperational() {
 		val availability = defaultUiState.ambientSourceAvailability +
 			(
