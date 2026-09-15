@@ -8,8 +8,14 @@ data class TrackingParamsState(
     val wifiEnabled: Boolean = false,
     val cellEnabled: Boolean = false,
     val barometerEnabled: Boolean = true,
+	/** Default-off consent intent for opportunistic Location outside a tracking session. */
+	val ambientLocationEnabled: Boolean = false,
 	/** Default-off consent intent for opportunistic Steps outside a tracking session. */
 	val ambientStepsEnabled: Boolean = false,
+	/** Default-off consent intent for opportunistic Wi-Fi outside a tracking session. */
+	val ambientWifiEnabled: Boolean = false,
+	/** Default-off consent intent for opportunistic Cell outside a tracking session. */
+	val ambientCellEnabled: Boolean = false,
     val autoTrackingMode: Int = 1,
     val transitionDetectionEnabled: Boolean = true,
     val notificationStyled: Boolean = true,
@@ -30,7 +36,7 @@ data class TrackingParamsState(
         const val DEFAULT_MIN_TIME = 2
         const val DEFAULT_REQUIRED_ACCURACY = 50
         const val DEFAULT_PRESET = "BALANCED"
-		const val CURRENT_SOURCE_SETTINGS_VERSION = 2
+		const val CURRENT_SOURCE_SETTINGS_VERSION = 3
     }
 
     val preset: TrackingPreset

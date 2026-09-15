@@ -144,6 +144,24 @@ class TrackingParamsRepositoryTest {
 		}
 
 		@Test
+		fun `approved ambient setters update only their independent intents`() = runTest {
+			repository.setAmbientLocationEnabled(true)
+			repository.setAmbientStepsEnabled(true)
+			repository.setAmbientWifiEnabled(true)
+			repository.setAmbientCellEnabled(true)
+
+			val state = repository.data.first()
+			state.ambientLocationEnabled shouldBe true
+			state.ambientStepsEnabled shouldBe true
+			state.ambientWifiEnabled shouldBe true
+			state.ambientCellEnabled shouldBe true
+			state.locationEnabled shouldBe true
+			state.stepsEnabled shouldBe true
+			state.wifiEnabled shouldBe false
+			state.cellEnabled shouldBe false
+		}
+
+		@Test
 		fun `setTransitionDetectionEnabled updates state`() = runTest {
 			repository.setTransitionDetectionEnabled(false)
 			repository.data.first().transitionDetectionEnabled shouldBe false

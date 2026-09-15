@@ -136,6 +136,79 @@ class RoomSourcePolicyRepositoryTest {
 	}
 
 	@Test
+	fun `approved ambient bootstrap grants only each requested ambient purpose`() = runTest {
+		val snapshot = repository.bootstrapFromLegacy(
+			readySettings().copy(
+				ambientLocationEnabled = true,
+				ambientStepsEnabled = true,
+				ambientWifiEnabled = true,
+				ambientCellEnabled = true,
+			),
+		)
+
+		val approved = setOf(
+			TrackingSourceComponent.LOCATION,
+			TrackingSourceComponent.STEPS,
+			TrackingSourceComponent.WIFI,
+			TrackingSourceComponent.CELL,
+		)
+		snapshot.policies.values.forEach { policy ->
+			policy.ambientConsentEpoch shouldBe 1L.takeIf { policy.source in approved }
+			policy.ambientPersistenceEligible shouldBe (policy.source in approved)
+		}
+	}
+
+	@Test
+	fun `approved ambient grants and revokes rotate only their own consent epochs`() = runTest {
+		var snapshot = repository.bootstrapFromLegacy(readySettings())
+		val approved = listOf(
+			TrackingSourceComponent.LOCATION,
+			TrackingSourceComponent.STEPS,
+			TrackingSourceComponent.WIFI,
+			TrackingSourceComponent.CELL,
+		)
+
+		approved.forEach { source ->
+			val before = snapshot[source]
+			val granted = repository.setNonCaptureConsent(
+				expectedPolicyRevision = snapshot.revision,
+				source = source,
+				purpose = SourcePurpose.AMBIENT_PRODUCT,
+				eligible = true,
+				persistenceEligible = true,
+				reason = "TEST_AMBIENT_GRANT",
+			)
+			val grantedSource = granted[source]
+			grantedSource.enabled shouldBe before.enabled
+			grantedSource.captureConsentEpoch shouldBe before.captureConsentEpoch
+			grantedSource.controlConsentEpoch shouldBe before.controlConsentEpoch
+			grantedSource.ambientConsentEpoch shouldBe 1L
+
+			val revoked = repository.setNonCaptureConsent(
+				expectedPolicyRevision = granted.revision,
+				source = source,
+				purpose = SourcePurpose.AMBIENT_PRODUCT,
+				eligible = false,
+				persistenceEligible = false,
+				reason = "TEST_AMBIENT_REVOKE",
+			)
+			val revokedSource = revoked[source]
+			revokedSource.enabled shouldBe before.enabled
+			revokedSource.captureConsentEpoch shouldBe before.captureConsentEpoch
+			revokedSource.controlConsentEpoch shouldBe before.controlConsentEpoch
+			revokedSource.ambientConsentEpoch shouldBe null
+			database.sourcePolicyDao()
+				.consentHistory(source.stableCode, SourcePurpose.AMBIENT_PRODUCT.stableName)
+				.map { it.epoch to it.eligible } shouldBe listOf(
+				0L to false,
+				1L to true,
+				2L to false,
+			)
+			snapshot = revoked
+		}
+	}
+
+	@Test
 	fun `ambient Steps revoke and regrant rotate only ambient consent`() = runTest {
 		val first = repository.bootstrapFromLegacy(readySettings())
 		val granted = repository.replaceCaptureSettings(
@@ -215,6 +288,55 @@ class RoomSourcePolicyRepositoryTest {
 			TEST_REGISTRATION_GENERATION,
 			TEST_BOOT_ID,
 			400L,
+		).toAuthorizationSnapshotOrNull()?.isDenied shouldBe true
+	}
+
+	@Test
+	fun `ambient Wi-Fi revoke retires only ambient authority without capture loss`() = runTest {
+		val first = repository.bootstrapFromLegacy(readySettings())
+		val granted = repository.setNonCaptureConsent(
+			expectedPolicyRevision = first.revision,
+			source = TrackingSourceComponent.WIFI,
+			purpose = SourcePurpose.AMBIENT_PRODUCT,
+			eligible = true,
+			persistenceEligible = true,
+			reason = "TEST_AMBIENT_WIFI_GRANT",
+		)
+		installLiveAuthority(
+			snapshot = granted,
+			source = TrackingSourceComponent.WIFI,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)
+		elapsedNanos = 500L
+		wallTimeMs = 5_000L
+
+		val revoked = repository.setNonCaptureConsent(
+			expectedPolicyRevision = granted.revision,
+			source = TrackingSourceComponent.WIFI,
+			purpose = SourcePurpose.AMBIENT_PRODUCT,
+			eligible = false,
+			persistenceEligible = false,
+			reason = "TEST_AMBIENT_WIFI_REVOKE",
+		)
+
+		val demand = database.sourceBrokerDao().demandHistory(TEST_AMBIENT_CONSUMER_ID).single()
+		demand.status shouldBe SourceDemandEntity.STATUS_RETIRING
+		demand.retireElapsedRealtimeNanos shouldBe 500L
+		revoked[TrackingSourceComponent.WIFI].enabled shouldBe
+			first[TrackingSourceComponent.WIFI].enabled
+		revoked[TrackingSourceComponent.WIFI].captureConsentEpoch shouldBe
+			first[TrackingSourceComponent.WIFI].captureConsentEpoch
+		database.sourceBrokerDao().authorizationAt(
+			TrackingSourceComponent.WIFI.stableCode,
+			TEST_REGISTRATION_GENERATION,
+			TEST_BOOT_ID,
+			499L,
+		).toAuthorizationSnapshotOrNull()?.authorizedMembers?.size shouldBe 1
+		database.sourceBrokerDao().authorizationAt(
+			TrackingSourceComponent.WIFI.stableCode,
+			TEST_REGISTRATION_GENERATION,
+			TEST_BOOT_ID,
+			500L,
 		).toAuthorizationSnapshotOrNull()?.isDenied shouldBe true
 	}
 

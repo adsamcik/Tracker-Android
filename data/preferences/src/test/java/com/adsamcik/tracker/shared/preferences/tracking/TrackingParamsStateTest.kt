@@ -25,8 +25,12 @@ class TrackingParamsStateTest {
 		}
 
 		@Test
-		fun `default state has ambient steps disabled`() {
-			TrackingParamsState().ambientStepsEnabled shouldBe false
+		fun `default state has every approved ambient product disabled`() {
+			val state = TrackingParamsState()
+			state.ambientLocationEnabled shouldBe false
+			state.ambientStepsEnabled shouldBe false
+			state.ambientWifiEnabled shouldBe false
+			state.ambientCellEnabled shouldBe false
 		}
 
 		@Test

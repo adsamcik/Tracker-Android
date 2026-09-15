@@ -178,6 +178,18 @@ class AuthoritativeTrackingParamsRepository(
 		withSourceEnabled(TrackingSourceComponent.PRESSURE, enabled)
 	}
 
+	override suspend fun setAmbientLocationEnabled(enabled: Boolean) =
+		setAmbientEnabled(TrackingSourceComponent.LOCATION, enabled)
+
+	override suspend fun setAmbientStepsEnabled(enabled: Boolean) =
+		setAmbientEnabled(TrackingSourceComponent.STEPS, enabled)
+
+	override suspend fun setAmbientWifiEnabled(enabled: Boolean) =
+		setAmbientEnabled(TrackingSourceComponent.WIFI, enabled)
+
+	override suspend fun setAmbientCellEnabled(enabled: Boolean) =
+		setAmbientEnabled(TrackingSourceComponent.CELL, enabled)
+
 	override suspend fun setTransitionDetectionEnabled(enabled: Boolean) = update {
 		copy(transitionDetectionEnabled = enabled)
 	}
@@ -213,11 +225,48 @@ class AuthoritativeTrackingParamsRepository(
 		copy(advancedSourceControlsEnabled = enabled)
 	}
 
+	private suspend fun setAmbientEnabled(
+		source: TrackingSourceComponent,
+		enabled: Boolean,
+	) {
+		check(source in APPROVED_AMBIENT_SOURCES) {
+			"$source is not an approved ambient product"
+		}
+		check(trackingStartupGate.reconcile() is TrackingStartupResult.Ready) {
+			"Ambient source settings cannot change before tracking startup recovery is ready"
+		}
+		data.first()
+		val effectiveRevision = mutationMutex.withLock {
+			val authority = sourcePolicyRepository.currentState()
+			check(authority is SourcePolicyAuthorityState.Active) {
+				"Ambient source settings cannot change while SourcePolicy is unavailable"
+			}
+			val effective = sourcePolicyRepository.setNonCaptureConsent(
+				expectedPolicyRevision = authority.snapshot.revision,
+				source = source,
+				purpose = SourcePurpose.AMBIENT_PRODUCT,
+				eligible = enabled,
+				persistenceEligible = enabled,
+				reason = REASON_USER_AMBIENT_SETTINGS,
+			)
+			legacy.update { withPolicy(effective) }
+			effective.revision
+		}
+		data.first { state -> state.sourcePolicyRevision == effectiveRevision }
+	}
+
 	private companion object {
 		const val BOOTSTRAP_RETRY_DELAY_MS = 250L
 		const val AUTHORITY_RETRY_DELAY_MS = 250L
 		const val MIRROR_RETRY_DELAY_MS = 250L
 		const val REASON_USER_SETTINGS = "USER_SOURCE_SETTINGS"
+		const val REASON_USER_AMBIENT_SETTINGS = "USER_AMBIENT_PRODUCT_SETTINGS"
+		val APPROVED_AMBIENT_SOURCES = setOf(
+			TrackingSourceComponent.LOCATION,
+			TrackingSourceComponent.STEPS,
+			TrackingSourceComponent.WIFI,
+			TrackingSourceComponent.CELL,
+		)
 	}
 }
 
@@ -228,7 +277,10 @@ private fun TrackingParamsState.matchesSourceProjection(other: TrackingParamsSta
 		wifiEnabled == other.wifiEnabled &&
 		cellEnabled == other.cellEnabled &&
 		barometerEnabled == other.barometerEnabled &&
+		ambientLocationEnabled == other.ambientLocationEnabled &&
 		ambientStepsEnabled == other.ambientStepsEnabled &&
+		ambientWifiEnabled == other.ambientWifiEnabled &&
+		ambientCellEnabled == other.ambientCellEnabled &&
 		minTimeSeconds == other.minTimeSeconds &&
 		minDistanceMeters == other.minDistanceMeters &&
 		requiredAccuracyMeters == other.requiredAccuracyMeters &&
@@ -248,8 +300,14 @@ private fun TrackingParamsState.withPolicy(snapshot: SourcePolicySnapshot): Trac
 		barometerEnabled = pressure.enabled,
 		wifiEnabled = wifi.enabled,
 		cellEnabled = cell.enabled,
+		ambientLocationEnabled = location.ambientConsentEpoch != null &&
+			location.ambientPersistenceEligible,
 		ambientStepsEnabled = steps.ambientConsentEpoch != null &&
 			steps.ambientPersistenceEligible,
+		ambientWifiEnabled = wifi.ambientConsentEpoch != null &&
+			wifi.ambientPersistenceEligible,
+		ambientCellEnabled = cell.ambientConsentEpoch != null &&
+			cell.ambientPersistenceEligible,
 		minTimeSeconds = requireNotNull(location.locationMinTimeSeconds),
 		minDistanceMeters = requireNotNull(location.locationMinDistanceMeters),
 		requiredAccuracyMeters = requireNotNull(location.locationRequiredAccuracyMeters),
@@ -274,7 +332,10 @@ private fun TrackingParamsState.withSourcesFailClosed(): TrackingParamsState = c
 	barometerEnabled = false,
 	wifiEnabled = false,
 	cellEnabled = false,
+	ambientLocationEnabled = false,
 	ambientStepsEnabled = false,
+	ambientWifiEnabled = false,
+	ambientCellEnabled = false,
 	sourcePolicyRevision = null,
 	sourceCollectionSettings = SourceCollectionSettings(
 		location = SourceCollectionFrequency.OFF,

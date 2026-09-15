@@ -22,6 +22,18 @@ interface TrackingParamsRepository {
 	suspend fun setAmbientStepsEnabled(enabled: Boolean) {
 		update { copy(ambientStepsEnabled = enabled) }
 	}
+	/** Changes only sessionless Ambient Location consent; live session Location remains independent. */
+	suspend fun setAmbientLocationEnabled(enabled: Boolean) {
+		update { copy(ambientLocationEnabled = enabled) }
+	}
+	/** Changes only sessionless Ambient Wi-Fi consent; live session Wi-Fi remains independent. */
+	suspend fun setAmbientWifiEnabled(enabled: Boolean) {
+		update { copy(ambientWifiEnabled = enabled) }
+	}
+	/** Changes only sessionless Ambient Cell consent; live session Cell remains independent. */
+	suspend fun setAmbientCellEnabled(enabled: Boolean) {
+		update { copy(ambientCellEnabled = enabled) }
+	}
     suspend fun setTransitionDetectionEnabled(enabled: Boolean)
     suspend fun setNotificationStyled(enabled: Boolean)
     suspend fun setMinDistanceMeters(meters: Int)

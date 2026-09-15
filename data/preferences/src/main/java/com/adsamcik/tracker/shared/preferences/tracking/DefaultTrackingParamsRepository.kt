@@ -41,7 +41,10 @@ private object TrackingParamsSerializer : Serializer<TrackingParamsProto> {
 		.setWifiFrequency(SourceCollectionFrequency.OFF.stableCode)
 		.setCellFrequency(SourceCollectionFrequency.OFF.stableCode)
 		.setSourceSettingsVersion(TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION)
-		.setAmbientStepsEnabled(false)
+		.setAmbientLocationEnabled(PreferenceKeys.AMBIENT_LOCATION_ENABLED_DEFAULT)
+		.setAmbientStepsEnabled(PreferenceKeys.AMBIENT_STEPS_ENABLED_DEFAULT)
+		.setAmbientWifiEnabled(PreferenceKeys.AMBIENT_WIFI_ENABLED_DEFAULT)
+		.setAmbientCellEnabled(PreferenceKeys.AMBIENT_CELL_ENABLED_DEFAULT)
         .setLegacyMigrated(false)
         .build()
 
@@ -328,7 +331,10 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
         } else {
             PreferenceKeys.BAROMETER_ENABLED_DEFAULT
         },
+		ambientLocationEnabled = ambientLocationEnabled,
 		ambientStepsEnabled = ambientStepsEnabled,
+		ambientWifiEnabled = ambientWifiEnabled,
+		ambientCellEnabled = ambientCellEnabled,
         autoTrackingMode = autoTrackingMode,
         transitionDetectionEnabled = transitionDetectionEnabled,
         notificationStyled = notificationStyled,
@@ -377,7 +383,10 @@ private fun TrackingParamsState.toProto(): TrackingParamsProto =
 		.setCellFrequency(sourceCollectionSettings.cell.stableCode)
 		.setAdvancedSourceControlsEnabled(advancedSourceControlsEnabled)
 		.setSourceSettingsVersion(TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION)
+		.setAmbientLocationEnabled(ambientLocationEnabled)
 		.setAmbientStepsEnabled(ambientStepsEnabled)
+		.setAmbientWifiEnabled(ambientWifiEnabled)
+		.setAmbientCellEnabled(ambientCellEnabled)
         .setLegacyMigrated(true)
         .build()
 
@@ -451,6 +460,28 @@ private fun TrackingParamsProto.withCurrentSourceSettings(): TrackingParamsProto
 		)
 		.setWifiFrequency(migratedFrequency(hasWifiFrequency(), wifiFrequency, effectiveWifiEnabled))
 		.setCellFrequency(migratedFrequency(hasCellFrequency(), cellFrequency, cellEnabled))
+		.setAmbientLocationEnabled(
+			if (sourceSettingsVersion >= 3) {
+				ambientLocationEnabled
+			} else {
+				PreferenceKeys.AMBIENT_LOCATION_ENABLED_DEFAULT
+			},
+		)
+		.setAmbientStepsEnabled(ambientStepsEnabled)
+		.setAmbientWifiEnabled(
+			if (sourceSettingsVersion >= 3) {
+				ambientWifiEnabled
+			} else {
+				PreferenceKeys.AMBIENT_WIFI_ENABLED_DEFAULT
+			},
+		)
+		.setAmbientCellEnabled(
+			if (sourceSettingsVersion >= 3) {
+				ambientCellEnabled
+			} else {
+				PreferenceKeys.AMBIENT_CELL_ENABLED_DEFAULT
+			},
+		)
 		.setSourceSettingsVersion(TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION)
 		.setLegacyMigrated(true)
 		.build()
