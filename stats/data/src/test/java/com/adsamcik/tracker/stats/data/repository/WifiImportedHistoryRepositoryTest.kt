@@ -136,6 +136,7 @@ class WifiImportedHistoryRepositoryTest {
 			selected,
 			evaluation.candidate.newestMemberStartTimeMs,
 			evaluation.candidate.newestMemberIdentity.value,
+			evaluation.candidate.selection,
 		)
 		ranged.entries.single() shouldBe selected
 		selected.origin shouldBe WifiHistoryOrigin.IMPORTED
@@ -198,9 +199,71 @@ class WifiImportedHistoryRepositoryTest {
 		val transactional = database.withTransaction {
 			repository.lookup(WifiHistorySelection.Imported(candidate.selection))
 		} as WifiHistoryQuery.Found
+		val sourceRecent = database.withTransaction {
+			repository.recentInTransaction(10)
+		} as WifiSourceRecentPage.Available
+		val sourceImported = sourceRecent.entries.single() as WifiSourceRecentEntry.Imported
 
 		public.selection shouldBe WifiHistorySelection.Imported(candidate.selection)
 		transactional.entry shouldBe public
+		sourceImported.entry shouldBe public
+		sourceImported.selection shouldBe candidate.selection
+		sourceImported.recencyStartTimeMs shouldBe candidate.newestMemberStartTimeMs
+		sourceImported.recencyIdentity shouldBe candidate.newestMemberIdentity.value
+	}
+
+	@Test
+	fun `recent producer fails instead of guessing an unauthenticated imported selector`() = runTest {
+		val entry = portableEntry()
+		val candidate = ImportedWifiProductCandidate(
+			entry.identity,
+			1L,
+			entry.contentChecksum,
+			entry.startTimeMs,
+			entry.endTimeMs,
+			3_000L,
+			entry.runs.single().startTimeMs,
+			entry.runs.single().identity,
+		)
+		val failure = ImportedWifiProductEvaluation.Unverifiable(
+			candidate,
+			com.adsamcik.tracker.stats.api.repository.ImportedWifiProductFailure
+				.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		val evaluator = object : ImportedWifiProductEvaluator {
+			override suspend fun selectIdentityInTransaction(
+				selection: WifiImportedHistorySelectionKey,
+			): ImportedWifiProductEvaluation = failure
+
+			override suspend fun selectRecentInTransaction(
+				limit: Int,
+			): List<ImportedWifiProductEvaluation> = listOf(failure)
+
+			override suspend fun selectRangeInTransaction(
+				request: ImportedWifiProductRangeRequest,
+			): ImportedWifiProductRangePage = ImportedWifiProductRangePage(listOf(failure), false)
+		}
+		val repository = DefaultWifiHistoryRepository(
+			database,
+			SourceProductLaneExecutionAuthority { false },
+			evaluator,
+			object : ReadLocalPortableCapturedWifi {
+				override suspend fun readInTransaction(
+					request: ExportPortableCapturedWifiRequest,
+				): ReadLocalPortableCapturedWifiResult = error("No local collision expected")
+			},
+			WifiDeletedHistoryReader { WifiDeletedHistoryResult.NotDeleted },
+			UnconfinedTestDispatcher(testScheduler),
+		)
+
+		database.withTransaction {
+			repository.recentInTransaction(10)
+		} shouldBe WifiSourceRecentPage.Failed(
+			WifiHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
+		)
+		repository.recent(10) shouldBe WifiHistoryPage.Failed(
+			WifiHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
+		)
 	}
 
 	private fun portableEntry(): PortableCapturedWifiEntryV1 {

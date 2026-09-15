@@ -199,6 +199,14 @@ class ImportedWifiHistoryMapperTest {
 			localPortableByLogicalId = mapOf("entry" to portable),
 			limit = 10,
 		).single().origin shouldBe WifiHistoryOrigin.LOCAL
+		WifiHistoryOriginComposer.composeSourceRecent(
+			live = listOf(local),
+			imported = listOf(imported),
+			localPortableByLogicalId = mapOf("entry" to portable),
+			limit = 10,
+		) shouldBe WifiSourceRecentPage.Available(
+			listOf(WifiSourceRecentEntry.Local(local)),
+		)
 
 		val mismatched = PortableWifiIntegrity.createEntry(
 			identity = portable.identity,
@@ -215,6 +223,12 @@ class ImportedWifiHistoryMapperTest {
 		).single { it.origin == WifiHistoryOrigin.IMPORTED }
 		failed.state shouldBe WifiHistoryProductState.FAILED
 		failed.causes shouldBe setOf(WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+		WifiHistoryOriginComposer.composeSourceRecent(
+			live = listOf(local),
+			imported = listOf(imported),
+			localPortableByLogicalId = mapOf("entry" to mismatched),
+			limit = 10,
+		) shouldBe WifiSourceRecentPage.Failed(WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT)
 	}
 
 	@Test

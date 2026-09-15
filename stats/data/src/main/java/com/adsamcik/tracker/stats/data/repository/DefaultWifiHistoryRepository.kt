@@ -290,28 +290,11 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			return WifiSourceRecentPage.Failed(WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT)
 		}
 		return try {
-			val composed = WifiHistoryOriginComposer.compose(live.entries, imported, localPortable, limit)
-			val localByEntry = live.entries.associateBy(ComposedWifiEntry::entry)
-			val importedBySelection = imported.associateBy { it.candidate.selection }
-			WifiSourceRecentPage.Available(
-				composed.map { entry ->
-					if (entry.origin == WifiHistoryOrigin.LOCAL) {
-						WifiSourceRecentEntry.Local(
-							localByEntry[entry] ?: throw ImportedWifiHistoryCompositionFailure(),
-						)
-					} else {
-						val evaluation = entry.importedSelection?.let(importedBySelection::get)
-							?: imported.singleOrNull { candidate ->
-								candidate.candidate.startTimeMs == entry.startTime.raw &&
-									candidate.candidate.endTimeMs == entry.endTime.raw
-							} ?: throw ImportedWifiHistoryCompositionFailure()
-						WifiSourceRecentEntry.Imported(
-							entry,
-							evaluation.candidate.newestMemberStartTimeMs,
-							evaluation.candidate.newestMemberIdentity.value,
-						)
-					}
-				},
+			WifiHistoryOriginComposer.composeSourceRecent(
+				live = live.entries,
+				imported = imported,
+				localPortableByLogicalId = localPortable,
+				limit = limit,
 			)
 		} catch (_: ImportedWifiHistoryCompositionFailure) {
 			WifiSourceRecentPage.Failed(WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT)

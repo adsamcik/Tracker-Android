@@ -39,6 +39,7 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryResultCompleteness
 import com.adsamcik.tracker.stats.api.repository.WifiHistorySignalQuality
+import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelection
 import com.adsamcik.tracker.stats.api.repository.PortableWifiIdentityKind
 import com.adsamcik.tracker.stats.api.repository.PortableWifiOpaqueIdentity
 import com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey
@@ -1232,10 +1233,12 @@ internal sealed interface WifiSourceRecentEntry {
 		override val entry: WifiHistoryEntry,
 		val recencyStartTimeMs: Long,
 		val recencyIdentity: String,
+		val selection: WifiImportedHistorySelection = requireNotNull(entry.importedSelection),
 	) : WifiSourceRecentEntry {
 		init {
 			require(entry.origin == WifiHistoryOrigin.IMPORTED)
 			require(entry.localSelection == null)
+			require(entry.importedSelection == selection)
 			require(recencyStartTimeMs >= 0L && recencyIdentity.isNotBlank())
 		}
 	}
