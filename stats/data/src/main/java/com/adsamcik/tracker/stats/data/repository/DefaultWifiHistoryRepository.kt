@@ -41,6 +41,8 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryRangePage
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryRangeRequest
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryStructuralDayPage
+import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryReader
+import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryResult
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
@@ -54,6 +56,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 	private val importedProductEvaluator: ImportedWifiProductEvaluator,
 	private val localPortableReader: ReadLocalPortableCapturedWifi,
+	private val deletedHistoryReader: WifiDeletedHistoryReader,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : WifiHistoryRepository {
 	override suspend fun session(segmentId: Long): WifiHistoryQuery {
@@ -93,6 +96,19 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 		withContext(ioDispatcher) {
 			database.withTransaction {
 				try {
+					when (val deleted = deletedHistoryReader.readDeletedInTransaction(selection)) {
+						is WifiDeletedHistoryResult.Deleted ->
+							return@withTransaction WifiHistoryQuery.Found(deleted.entry)
+						is WifiDeletedHistoryResult.Unverifiable ->
+							return@withTransaction WifiHistoryQuery.Failed(
+								if (selection is WifiHistorySelection.Imported) {
+									WifiHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE
+								} else {
+									WifiHistoryCause.FACT_INTEGRITY_FAILED
+								},
+							)
+						WifiDeletedHistoryResult.NotDeleted -> Unit
+					}
 					when (selection) {
 						is WifiHistorySelection.Imported -> {
 							val evaluation = importedProductEvaluator.selectIdentityInTransaction(

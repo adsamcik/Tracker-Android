@@ -13,6 +13,9 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunZoneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionProtectedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionRunMarker
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
@@ -49,6 +52,68 @@ class ImportedWifiDaoTest {
 		dao.insertDeletionGeneration(ImportedWifiDeletionGenerationEntity.create(
 			"9".repeat(64), "8".repeat(64), "a".repeat(64), EPOCH, 1L, 1_400L,
 		))
+		val deletionProtected = listOf(
+			WifiSelectedDeletionProtectedIdentityEntity.create(
+				"8".repeat(64),
+				WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+				WifiSelectedDeletionProtectedIdentityEntity.KIND_ENTRY,
+				"8".repeat(64),
+				"8".repeat(64),
+				null,
+				null,
+				null,
+				null,
+				1,
+				"b".repeat(64),
+				EPOCH,
+			),
+			WifiSelectedDeletionProtectedIdentityEntity.create(
+				"8".repeat(64),
+				WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+				WifiSelectedDeletionProtectedIdentityEntity.KIND_RUN,
+				"9".repeat(64),
+				"8".repeat(64),
+				"9".repeat(64),
+				"a".repeat(64),
+				null,
+				null,
+				1,
+				"c".repeat(64),
+				EPOCH,
+			),
+			WifiSelectedDeletionProtectedIdentityEntity.create(
+				"8".repeat(64),
+				WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+				WifiSelectedDeletionProtectedIdentityEntity.KIND_DELETION_SCOPE,
+				"a".repeat(64),
+				"8".repeat(64),
+				"9".repeat(64),
+				"a".repeat(64),
+				null,
+				null,
+				1,
+				"c".repeat(64),
+				EPOCH,
+			),
+		)
+		val deletionReceipt = WifiSelectedDeletionReceiptEntity.create(
+			"8".repeat(64),
+			WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+			EPOCH,
+			1L,
+			"d".repeat(64),
+			800L,
+			1_200L,
+			deletionProtected,
+			listOf(WifiSelectedDeletionRunMarker(
+				"9".repeat(64), "8".repeat(64), "a".repeat(64), EPOCH, 1L, 1_400L,
+			)),
+			emptyList(),
+			null,
+			1_400L,
+		)
+		dao.insertSelectedDeletionReceipt(deletionReceipt)
+		dao.insertSelectedDeletionProtectedIdentities(deletionProtected)
 
 		dao.entryRevisionsForAdmission(ENTRY) shouldBe listOf(entry())
 		dao.receiptsForAdmission(ENTRY) shouldBe listOf(receipt())
@@ -61,6 +126,17 @@ class ImportedWifiDaoTest {
 			.single().identity shouldBe OBSERVATION
 		dao.existingRunScopeOwners(listOf(SCOPE), 2).single().runIdentity shouldBe RUN
 		dao.deletionGenerationsByEntry(listOf("8".repeat(64)), 1).single().runIdentity shouldBe "9".repeat(64)
+		dao.selectedDeletionReceipt(
+			"8".repeat(64),
+			WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+		) shouldBe deletionReceipt
+		dao.selectedDeletionProtectedIdentities(
+			"8".repeat(64),
+			WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+			4,
+		).toSet() shouldBe
+			deletionProtected.toSet()
+		dao.selectedDeletionProtectedIdentityOwners(listOf("9".repeat(64)), 4).size shouldBe 1
 		database.sourceSessionDao().session(ENTRY) shouldBe null
 		database.sourceSessionDao().serviceRun(RUN) shouldBe null
 		database.wifiCapturedFactDao().revisionCount() shouldBe 0L

@@ -248,18 +248,25 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 			val runs = storedValue { dao.existingRunIdentityOwners(values, limit) }
 			val observations = storedValue { dao.existingObservationIdentityOwners(values, limit) }
 			val scopes = storedValue { dao.existingRunScopeOwners(values, limit) }
+			val selectedDeletions = storedValue {
+				dao.selectedDeletionProtectedIdentityOwners(values, limit)
+			}
 			val tombstones = storedValue { dao.entryDeletions(values) }
 			val generations = storedValue {
 				dao.deletionGenerationsByRun(values) + dao.deletionGenerationsByScope(values) +
 					dao.deletionGenerationsByEntry(values, 1)
 			}
-			if (entries.size >= limit || runs.size >= limit || observations.size >= limit || scopes.size >= limit) {
+			if (entries.size >= limit || runs.size >= limit || observations.size >= limit ||
+				scopes.size >= limit
+			) {
 				dependencyOverflow()
 			}
 			if (tombstones.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				generations.any { it.collectedDataEpoch != state.collectedDataEpoch }
+				generations.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
+				selectedDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch }
 			) storedCorrupt()
-			if (scopes.isNotEmpty() || tombstones.isNotEmpty() || generations.isNotEmpty() ||
+			if (scopes.isNotEmpty() || selectedDeletions.isNotEmpty() ||
+				tombstones.isNotEmpty() || generations.isNotEmpty() ||
 				entries.any {
 					ownership.identityOwners[it]?.kind != PortableWifiIdentityKind.LOGICAL_ENTRY
 				} ||
@@ -284,16 +291,21 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 			val runs = storedValue { dao.existingRunIdentityOwners(values, 1) }
 			val observations = storedValue { dao.existingObservationIdentityOwners(values, 1) }
 			val scopes = storedValue { dao.existingRunScopeOwners(values, limit) }
+			val selectedDeletions = storedValue {
+				dao.selectedDeletionProtectedIdentityOwners(values, limit)
+			}
 			val tombstones = storedValue { dao.entryDeletions(values) }
 			val generations = storedValue {
 				dao.deletionGenerationsByRun(values) + dao.deletionGenerationsByScope(values) +
 					dao.deletionGenerationsByEntry(values, 1)
 			}
 			if (tombstones.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				generations.any { it.collectedDataEpoch != state.collectedDataEpoch }
+				generations.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
+				selectedDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch }
 			) storedCorrupt()
 			if (entries.isNotEmpty() || runs.isNotEmpty() || observations.isNotEmpty() ||
-				tombstones.isNotEmpty() || generations.isNotEmpty() || scopes.size >= limit ||
+				selectedDeletions.isNotEmpty() || tombstones.isNotEmpty() ||
+				generations.isNotEmpty() || scopes.size >= limit ||
 				scopes.any { row ->
 					val owner = ownership.scopeOwners[row.deletionScopeDigest]
 					owner?.kind != PortableWifiIdentityKind.PHYSICAL_RUN ||
@@ -463,6 +475,8 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 			storedValue { dao.observationCount() } to added.observations,
 			storedValue { dao.entryDeletionCount() } to 0L,
 			storedValue { dao.deletionGenerationCount() } to 0L,
+			storedValue { dao.selectedDeletionReceiptCount() } to 0L,
+			storedValue { dao.selectedDeletionProtectedIdentityCount() } to 0L,
 		).fold(0L) { total, (existing, increment) ->
 			checkedAuthorityCount(total, checkedAuthorityCount(existing, increment))
 		}

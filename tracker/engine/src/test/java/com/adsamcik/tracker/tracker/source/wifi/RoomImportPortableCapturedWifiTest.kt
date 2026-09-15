@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.wifi
 
 import android.app.Application
+import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -16,6 +17,8 @@ import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIn
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.stats.api.repository.ImportPortableCapturedWifiRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortableCapturedWifiResult
+import com.adsamcik.tracker.stats.api.repository.DeleteSelectedWifiHistoryRequest
+import com.adsamcik.tracker.stats.api.repository.DeleteSelectedWifiHistoryResult
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductFailure
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangeRequest
@@ -40,14 +43,22 @@ import com.adsamcik.tracker.stats.api.repository.ReexportImportedCapturedWifiReq
 import com.adsamcik.tracker.stats.api.repository.ReexportImportedCapturedWifiResult
 import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelection
 import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey
+import com.adsamcik.tracker.stats.api.repository.WifiHistorySelection
+import com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifi
+import com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifiResult
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
+import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.stats.api.repository.isReciprocalCorrectionOf
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -206,8 +217,51 @@ class RoomImportPortableCapturedWifiTest {
 		importer(testScheduler).importEntry(request()) shouldBe ImportPortableCapturedWifiResult.Blocked(
 			PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT,
 		)
-		database.importedWifiDao().entryRevisionCount() shouldBe 0L
+		database.importedWifiDao().entryRevisionCount() shouldBe 1L
 	}
+
+	@Test
+	fun `selected local deletion retains matched original identity when reverse scope is missing`() =
+		runTest {
+			database.sourceSessionDao().insertSession(LogicalTrackingSessionEntity(
+				logicalTrackingId = "entry",
+				state = "FINALIZED",
+				lifecycleRevision = 1L,
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				startOrigin = "MANUAL_USER",
+				clockDomainId = "boot",
+				startedAtMs = 1L,
+				startedElapsedNanos = 1L,
+				cutoffAtMs = 2L,
+				cutoffElapsedNanos = 2L,
+				completedAtMs = 2L,
+				finalAdmissionOrdinal = 1L,
+				failureCode = null,
+				sessionMode = "MANUAL",
+				currentManifestRevision = 1L,
+				currentIntentRevision = 1L,
+				currentServiceRunId = null,
+				lifecycleLeaseGeneration = 1L,
+				lifecycleBootId = "boot",
+				automationEpoch = null,
+			))
+
+			deletionSubject().delete(
+				DeleteSelectedWifiHistoryRequest(
+					WifiHistorySelection.Local(
+						com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey(
+							identity(PortableWifiIdentityKind.LOGICAL_ENTRY, "entry").value,
+						),
+					),
+					EPOCH,
+					2_000L,
+				),
+			) shouldBe DeleteSelectedWifiHistoryResult.Blocked(
+				com.adsamcik.tracker.stats.api.repository.WifiHistoryDeletionBlockedReason
+					.ORIGINAL_SCOPE_MISSING,
+			)
+		}
 
 	@Test
 	fun `live cursor child and scope ownership survives missing parent rows and repeated projections`() = runTest {
@@ -263,7 +317,7 @@ class RoomImportPortableCapturedWifiTest {
 			importer.importEntry(request(collision, receipt("immutable-$index"))) shouldBe
 				ImportPortableCapturedWifiResult.Blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
 		}
-		database.importedWifiDao().entryRevisionCount() shouldBe 0L
+		database.importedWifiDao().entryRevisionCount() shouldBe 1L
 		database.importedWifiDao().receiptCount() shouldBe 0L
 		importer.importEntry(first) shouldBe ImportPortableCapturedWifiResult.Applied(1L, 1, 1)
 		// A newly retained live owner must also defeat an otherwise exact imported replay.
@@ -708,9 +762,15 @@ class RoomImportPortableCapturedWifiTest {
 		importer.importEntry(request(first)) shouldBe ImportPortableCapturedWifiResult.Applied(1L, 1, 1)
 		importer.importEntry(request(second, receipt("range-second-job", 50L))) shouldBe
 			ImportPortableCapturedWifiResult.Applied(1L, 1, 1)
+		var ownershipSnapshots = 0
+		val evaluator = productEvaluator(checkpoint = { checkpoint ->
+			if (checkpoint == ImportedWifiProductReadCheckpoint.OWNERSHIP_AUTHENTICATED) {
+				ownershipSnapshots += 1
+			}
+		})
 
 		val firstPage = database.withTransaction {
-			productEvaluator().selectRangeInTransaction(
+			evaluator.selectRangeInTransaction(
 				ImportedWifiProductRangeRequest(0L, 3_000L, 1),
 			)
 		}
@@ -718,7 +778,7 @@ class RoomImportPortableCapturedWifiTest {
 		val firstIdentity = firstPage.evaluations.single().candidate.identity
 		(firstIdentity in setOf(first.identity, second.identity)) shouldBe true
 		val secondPage = database.withTransaction {
-			productEvaluator().selectRangeInTransaction(
+			evaluator.selectRangeInTransaction(
 				ImportedWifiProductRangeRequest(
 					0L,
 					3_000L,
@@ -728,6 +788,7 @@ class RoomImportPortableCapturedWifiTest {
 				),
 			)
 		}
+		ownershipSnapshots shouldBe 2
 		secondPage.hasMore shouldBe false
 		setOf(firstIdentity, secondPage.evaluations.single().candidate.identity) shouldBe
 			setOf(first.identity, second.identity)
@@ -776,6 +837,18 @@ class RoomImportPortableCapturedWifiTest {
 			} as ImportedWifiProductEvaluation.Unverifiable
 
 			evaluated.reason shouldBe ImportedWifiProductFailure.ORIGIN_IDENTITY_CONFLICT
+			evaluated.collidingLocalLogicalTrackingId shouldBe "entry"
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE imported_wifi_observation SET content_checksum = ?",
+				arrayOf("f".repeat(64)),
+			)
+			val corrupt = database.withTransaction {
+				productEvaluator().selectIdentityInTransaction(
+					WifiImportedHistorySelectionKey(imported.identity.value),
+				)
+			} as ImportedWifiProductEvaluation.Unverifiable
+			corrupt.reason shouldBe ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE
+			corrupt.collidingLocalLogicalTrackingId shouldBe "entry"
 		}
 
 	@Test
@@ -1042,6 +1115,259 @@ class RoomImportPortableCapturedWifiTest {
 	}
 
 	@Test
+	fun `selected imported deletion records complete authority before cascade and blocks resurrection`() =
+		runTest {
+			val imported = entryWithObservations(
+				listOf(
+					observation("owner"),
+					observation(
+						"dependent",
+						aggregateOwnerIdentity = identity(PortableWifiIdentityKind.OBSERVATION, "owner"),
+					),
+				),
+			)
+			val unrelated = entry(
+				entryIdentity = identity(PortableWifiIdentityKind.LOGICAL_ENTRY, "unrelated-entry"),
+				runLocalId = "unrelated-run",
+				deletionScope = PortableWifiDeletionScopeDigest("6".repeat(64)),
+				observation = observation("unrelated-observation"),
+			)
+			val importer = importer(testScheduler)
+			importer.importEntry(request(imported))
+			importer.importEntry(request(unrelated, receipt("unrelated-job", 60L)))
+			val selection = WifiHistorySelection.Imported(importedSelection(imported))
+			val subject = deletionSubject()
+
+			subject.delete(
+				DeleteSelectedWifiHistoryRequest(selection, EPOCH, 2_000L),
+			) shouldBe DeleteSelectedWifiHistoryResult.Deleted(
+				com.adsamcik.tracker.stats.api.repository.WifiHistoryOrigin.IMPORTED,
+				1,
+				2,
+			)
+			database.importedWifiDao().entryRevisionCount() shouldBe 1L
+			database.importedWifiDao().entryRevisionsForAdmission(unrelated.identity.value).size shouldBe 1
+			database.importedWifiDao().observationCount() shouldBe 1L
+			database.importedWifiDao().allObservationsForAdmission(unrelated.identity.value).size shouldBe 1
+			database.importedWifiDao().selectedDeletionReceipt(
+				imported.identity.value,
+				com.adsamcik.tracker.shared.base.database.data
+					.WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+			)
+				.shouldNotBeNull()
+			database.importedWifiDao().selectedDeletionProtectedIdentities(
+				imported.identity.value,
+				com.adsamcik.tracker.shared.base.database.data
+					.WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+				16,
+			).size shouldBe 5
+
+			subject.delete(
+				DeleteSelectedWifiHistoryRequest(selection, EPOCH, 2_000L),
+			) shouldBe DeleteSelectedWifiHistoryResult.AlreadyDeleted(
+				com.adsamcik.tracker.stats.api.repository.WifiHistoryOrigin.IMPORTED,
+			)
+			val deleted = database.withTransaction {
+				subject.readDeletedInTransaction(selection)
+			} as com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryResult.Deleted
+			deleted.entry.state shouldBe
+				com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState.DELETED
+			deleted.entry.selection shouldBe selection
+			RoomReexportImportedCapturedWifi(
+				database,
+				productEvaluator(),
+				object : ReadLocalPortableCapturedWifi {
+					override suspend fun readInTransaction(
+						request: com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiRequest,
+					): ReadLocalPortableCapturedWifiResult =
+						error("Deleted imported reexport cannot read local source")
+				},
+				subject,
+				UnconfinedTestDispatcher(testScheduler),
+			).reexport(
+				ReexportImportedCapturedWifiRequest(importedSelection(imported), EPOCH),
+			) {} shouldBe ReexportImportedCapturedWifiResult.Deleted
+			importer.importEntry(
+				request(imported, receipt("deleted-reimport", 2_100L)),
+			) shouldBe ImportPortableCapturedWifiResult.Blocked(
+				PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT,
+			)
+
+			val reparented = entry(
+				entryIdentity = identity(PortableWifiIdentityKind.LOGICAL_ENTRY, "reparent-entry"),
+				runLocalId = "reparent-run",
+				deletionScope = PortableWifiDeletionScopeDigest("7".repeat(64)),
+				observation = observation("dependent"),
+			)
+			importer(testScheduler).importEntry(
+				request(reparented, receipt("reparent-job", 2_200L)),
+			) shouldBe ImportPortableCapturedWifiResult.Blocked(
+				PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT,
+			)
+		}
+
+	@Test
+	fun `selected imported deletion stale correction cancellation and storage failure are typed`() = runTest {
+		val original = entry()
+		val corrected = entry(observation(semanticRevision = 2L))
+		val importer = importer(testScheduler)
+		importer.importEntry(request(original))
+		importer.importEntry(request(corrected, receipt("corrected", 40L)))
+
+		deletionSubject().delete(
+			DeleteSelectedWifiHistoryRequest(
+				WifiHistorySelection.Imported(importedSelection(original)),
+				EPOCH,
+				2_000L,
+			),
+		) shouldBe DeleteSelectedWifiHistoryResult.Blocked(
+			com.adsamcik.tracker.stats.api.repository.WifiHistoryDeletionBlockedReason.STALE_SELECTION,
+		)
+		deletionSubject(
+			limits = WifiSelectedDeletionLimits(maximumProtectedIdentities = 1),
+		).delete(
+			DeleteSelectedWifiHistoryRequest(
+				WifiHistorySelection.Imported(importedSelection(corrected, 2L)),
+				EPOCH,
+				2_000L,
+			),
+		) shouldBe DeleteSelectedWifiHistoryResult.Unverifiable(
+			com.adsamcik.tracker.stats.api.repository.WifiHistoryDeletionUnverifiableReason
+				.DEPENDENCY_OVERFLOW,
+		)
+
+		val cancelling = deletionSubject { checkpoint ->
+			if (checkpoint == WifiSelectedDeletionCheckpoint.MARKERS_RECORDED) {
+				throw CancellationException("cancel after deletion markers")
+			}
+		}
+		shouldThrow<CancellationException> {
+			cancelling.delete(
+				DeleteSelectedWifiHistoryRequest(
+					WifiHistorySelection.Imported(importedSelection(corrected, 2L)),
+					EPOCH,
+					2_000L,
+				),
+			)
+		}
+		database.importedWifiDao().entryRevisionCount() shouldBe 2L
+		database.importedWifiDao().selectedDeletionReceiptCount() shouldBe 0L
+
+		val subject = deletionSubject()
+		database.close()
+		subject.delete(
+			DeleteSelectedWifiHistoryRequest(
+				WifiHistorySelection.Imported(importedSelection(corrected, 2L)),
+				EPOCH,
+				2_000L,
+			),
+		) shouldBe DeleteSelectedWifiHistoryResult.RetryableFailure(
+			com.adsamcik.tracker.stats.api.repository.WifiHistoryDeletionRetryableReason
+				.STORAGE_UNAVAILABLE,
+		)
+	}
+
+	@Test
+	fun `selected imported deletion receipt survives safe Room reopen and still blocks replay`(): Unit =
+		runBlocking {
+			val originalDatabase = database
+			val context: Application = ApplicationProvider.getApplicationContext()
+			val file = File(
+				System.getProperty("java.io.tmpdir"),
+				"wifi-selected-deletion-${System.nanoTime()}.db",
+			)
+			check(!file.exists() || file.delete())
+			var reopened: AppDatabase? = null
+			try {
+				val imported = entry()
+				importer(testScheduler).importEntry(request(imported))
+				val selection = WifiHistorySelection.Imported(importedSelection(imported))
+				deletionSubject().delete(
+					DeleteSelectedWifiHistoryRequest(selection, EPOCH, 2_000L),
+				) shouldBe DeleteSelectedWifiHistoryResult.Deleted(
+					com.adsamcik.tracker.stats.api.repository.WifiHistoryOrigin.IMPORTED,
+					1,
+					1,
+				)
+				database.openHelper.writableDatabase.execSQL("VACUUM INTO ?", arrayOf(file.path))
+				originalDatabase.close()
+				reopened = Room.databaseBuilder(context, AppDatabase::class.java, file.path)
+					.allowMainThreadQueries()
+					.build()
+				database = reopened
+
+				deletionSubject().delete(
+					DeleteSelectedWifiHistoryRequest(selection, EPOCH, 2_000L),
+				) shouldBe DeleteSelectedWifiHistoryResult.AlreadyDeleted(
+					com.adsamcik.tracker.stats.api.repository.WifiHistoryOrigin.IMPORTED,
+				)
+				importer(testScheduler).importEntry(
+					request(imported, receipt("reopen-replay", 3_000L)),
+				) shouldBe ImportPortableCapturedWifiResult.Blocked(
+					PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT,
+				)
+			} finally {
+				reopened?.close()
+				if (database === originalDatabase) originalDatabase.close()
+				database = AppDatabase.testDatabase(context)
+				file.delete()
+			}
+		}
+
+	@Test
+	fun `rehashed selected deletion child reparenting fails closed after payload removal`() = runTest {
+		val imported = entry()
+		importer(testScheduler).importEntry(request(imported))
+		val selection = WifiHistorySelection.Imported(importedSelection(imported))
+		val subject = deletionSubject()
+		subject.delete(DeleteSelectedWifiHistoryRequest(selection, EPOCH, 2_000L))
+		val observationMarker = database.importedWifiDao().selectedDeletionProtectedIdentities(
+			imported.identity.value,
+			com.adsamcik.tracker.shared.base.database.data
+				.WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+			16,
+		).single {
+			it.identityKind ==
+				com.adsamcik.tracker.shared.base.database.data
+					.WifiSelectedDeletionProtectedIdentityEntity.KIND_OBSERVATION
+		}
+		val reparented = com.adsamcik.tracker.shared.base.database.data
+			.WifiSelectedDeletionProtectedIdentityEntity.create(
+				selectionIdentity = observationMarker.selectionIdentity,
+				receiptOrigin = observationMarker.receiptOrigin,
+				identityKind = observationMarker.identityKind,
+				protectedIdentity = observationMarker.protectedIdentity,
+				ownerEntryIdentity = observationMarker.ownerEntryIdentity,
+				ownerRunIdentity = "e".repeat(64),
+				deletionScopeDigest = null,
+				aggregateOwnerIdentity = observationMarker.aggregateOwnerIdentity,
+				aggregateOwnerSemanticRevision = observationMarker.aggregateOwnerSemanticRevision,
+				revisionCount = observationMarker.revisionCount,
+				revisionSetChecksum = observationMarker.revisionSetChecksum,
+				collectedDataEpoch = observationMarker.collectedDataEpoch,
+			)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE wifi_selected_deletion_protected_identity SET owner_run_identity = ?, " +
+				"effect_checksum = ? WHERE selection_identity = ? AND identity_kind = ? " +
+				"AND protected_identity = ?",
+			arrayOf(
+				reparented.ownerRunIdentity,
+				reparented.effectChecksum,
+				reparented.selectionIdentity,
+				reparented.identityKind,
+				reparented.protectedIdentity,
+			),
+		)
+
+		database.withTransaction {
+			subject.readDeletedInTransaction(selection)
+		} shouldBe com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryResult.Unverifiable(
+			com.adsamcik.tracker.stats.api.repository.WifiHistoryDeletionUnverifiableReason
+				.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	}
+
+	@Test
 	fun `storage failure is typed and never reported as an admitted entry`() = runTest {
 		val importer = importer(testScheduler)
 		database.close()
@@ -1066,6 +1392,27 @@ class RoomImportPortableCapturedWifiTest {
 		limits: ImportedWifiProductLimits = ImportedWifiProductLimits(),
 		checkpoint: suspend (ImportedWifiProductReadCheckpoint) -> Unit = {},
 	) = RoomImportedWifiProductEvaluator(database, checkpoint, limits)
+
+	private fun deletionSubject(
+		checkpoint: suspend (WifiSelectedDeletionCheckpoint) -> Unit = {},
+		limits: WifiSelectedDeletionLimits = WifiSelectedDeletionLimits(),
+	) = RoomDeleteSelectedWifiHistory(
+		database = database,
+		importedEvaluator = productEvaluator(),
+		localPortableReader = object : ReadLocalPortableCapturedWifi {
+			override suspend fun readInTransaction(
+				request: com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiRequest,
+			): ReadLocalPortableCapturedWifiResult = error("Imported deletion cannot read local source")
+		},
+		maintenance = WifiCapturedFactMaintenance(
+			database,
+			DefaultSourcePayloadCodec(),
+			SourcePlanCodec(),
+		),
+		ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+		limits = limits,
+		checkpoint = checkpoint,
+	)
 
 	private fun request(
 		entry: PortableCapturedWifiEntryV1 = entry(),

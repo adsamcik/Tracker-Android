@@ -904,7 +904,7 @@ internal object WifiHistoryComposer {
 					logicalId,
 				).value,
 			)
-		}.getOrNull()
+		}.getOrNull().takeUnless { state == WifiHistoryProductState.FAILED }
 		return WifiHistoryEntry(WifiHistoryEntryKey("wifi-logical:$logicalId"), EpochMs(start), EpochMs(end),
 			zones, state, coverage, observations, causes, localSelection = selection,
 			capturesOnlyWifi = capturesOnlyWifi)
@@ -1090,7 +1090,6 @@ internal data class ComposedWifiEntry(
 		require(physicalSegmentIds.distinct().size == physicalSegmentIds.size)
 		require(recencySegmentId in physicalSegmentIds)
 		require(entry.origin == WifiHistoryOrigin.LOCAL)
-		require(entry.localSelection != null)
 	}
 }
 

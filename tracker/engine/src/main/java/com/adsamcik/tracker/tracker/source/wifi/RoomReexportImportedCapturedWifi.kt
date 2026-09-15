@@ -21,6 +21,9 @@ import com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifiRe
 import com.adsamcik.tracker.stats.api.repository.ReexportImportedCapturedWifi
 import com.adsamcik.tracker.stats.api.repository.ReexportImportedCapturedWifiRequest
 import com.adsamcik.tracker.stats.api.repository.ReexportImportedCapturedWifiResult
+import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryReader
+import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryResult
+import com.adsamcik.tracker.stats.api.repository.WifiHistorySelection
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -35,13 +38,20 @@ internal class RoomReexportImportedCapturedWifi @Inject constructor(
 	private val database: AppDatabase,
 	private val evaluator: ImportedWifiProductEvaluator,
 	private val localPortableReader: ReadLocalPortableCapturedWifi,
+	private val deletedHistoryReader: WifiDeletedHistoryReader,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : ReexportImportedCapturedWifi {
 	internal constructor(
 		database: AppDatabase,
 		evaluator: ImportedWifiProductEvaluator,
 		ioDispatcher: CoroutineDispatcher,
-	) : this(database, evaluator, RejectingLocalPortableWifiReader, ioDispatcher)
+	) : this(
+		database,
+		evaluator,
+		RejectingLocalPortableWifiReader,
+		WifiDeletedHistoryReader { WifiDeletedHistoryResult.NotDeleted },
+		ioDispatcher,
+	)
 
 	override suspend fun reexport(
 		request: ReexportImportedCapturedWifiRequest,
@@ -68,6 +78,21 @@ internal class RoomReexportImportedCapturedWifi @Inject constructor(
 							ImportedWifiReexportBlockedReason.COLLECTED_DATA_EPOCH_CHANGED,
 						),
 					)
+				}
+				when (val deleted = deletedHistoryReader.readDeletedInTransaction(
+					WifiHistorySelection.Imported(request.selection),
+				)) {
+					is WifiDeletedHistoryResult.Deleted ->
+						return@withTransaction ImportedWifiReexportSnapshot.Outcome(
+							ReexportImportedCapturedWifiResult.Deleted,
+						)
+					is WifiDeletedHistoryResult.Unverifiable ->
+						return@withTransaction ImportedWifiReexportSnapshot.Outcome(
+							ReexportImportedCapturedWifiResult.Unverifiable(
+								ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+							),
+						)
+					WifiDeletedHistoryResult.NotDeleted -> Unit
 				}
 				when (val evaluation = evaluator.selectIdentityInTransaction(request.selection.key)) {
 					null -> ImportedWifiReexportSnapshot.Outcome(

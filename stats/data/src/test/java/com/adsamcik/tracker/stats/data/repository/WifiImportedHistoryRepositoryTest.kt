@@ -33,6 +33,8 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryRangeRequest
 import com.adsamcik.tracker.stats.api.repository.WifiHistorySelection
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
 import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey
+import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryReader
+import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryResult
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.shouldBe
 import java.security.MessageDigest
@@ -107,6 +109,7 @@ class WifiImportedHistoryRepositoryTest {
 					request: ExportPortableCapturedWifiRequest,
 				): ReadLocalPortableCapturedWifiResult = error("No local collision expected")
 			},
+			WifiDeletedHistoryReader { WifiDeletedHistoryResult.NotDeleted },
 			UnconfinedTestDispatcher(testScheduler),
 		)
 

@@ -62,7 +62,13 @@ sealed interface ImportedWifiProductEvaluation {
 	data class Unverifiable(
 		override val candidate: ImportedWifiProductCandidate,
 		val reason: ImportedWifiProductFailure,
-	) : ImportedWifiProductEvaluation
+		/** Known top-level local collision retained even when imported descendants are corrupt. */
+		val collidingLocalLogicalTrackingId: String? = null,
+	) : ImportedWifiProductEvaluation {
+		init {
+			require(collidingLocalLogicalTrackingId?.isNotBlank() != false)
+		}
+	}
 }
 
 enum class ImportedWifiProductFailure {

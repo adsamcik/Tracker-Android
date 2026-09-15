@@ -2407,7 +2407,7 @@ private fun affectedDependencyClosure(
 }
 
 /** Foreign-key-safe bounded order: remove one-hop coverage dependents before their owner. */
-private fun List<WifiCapturedLineage>.dependencySafeDeletionOrder(): List<WifiCapturedLineage> =
+internal fun List<WifiCapturedLineage>.dependencySafeDeletionOrder(): List<WifiCapturedLineage> =
 	sortedWith(compareBy<WifiCapturedLineage> { it.aggregateOwnerLogicalFactId == null }
 		.thenBy(WifiCapturedLineage::logicalFactId))
 

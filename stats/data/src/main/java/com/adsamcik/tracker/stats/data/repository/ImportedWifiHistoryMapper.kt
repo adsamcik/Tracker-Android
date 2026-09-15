@@ -25,7 +25,13 @@ internal fun ImportedWifiProductEvaluation.toPublicWifiEntry(
 ): WifiHistoryEntry = when (this) {
 	is ImportedWifiProductEvaluation.Unverifiable -> when (val cause = reason.toPublicCause()) {
 		WifiHistoryCause.PRIVACY_EPOCH_MISMATCH -> unavailable(cause)
-		else -> failed(if (originConflict) WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT else cause)
+		else -> failed(
+			if (originConflict || collidingLocalLogicalTrackingId != null) {
+				WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT
+			} else {
+				cause
+			},
+		)
 	}
 	is ImportedWifiProductEvaluation.Readable -> when {
 		originConflict -> failed(WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT)

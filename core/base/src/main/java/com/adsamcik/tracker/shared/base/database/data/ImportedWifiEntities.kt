@@ -430,6 +430,452 @@ data class ImportedWifiDeletionGenerationEntity(
 	}
 }
 
+/** Value-free selected local/imported deletion receipt retained after payload cascade. */
+@Entity(
+	tableName = "wifi_selected_deletion_receipt",
+	primaryKeys = ["selection_identity", "origin"],
+)
+@Suppress("LongParameterList")
+data class WifiSelectedDeletionReceiptEntity(
+	@ColumnInfo(name = "selection_identity") val selectionIdentity: String,
+	@ColumnInfo(name = "origin") val origin: String,
+	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	@ColumnInfo(name = "selected_import_revision") val selectedImportRevision: Long?,
+	@ColumnInfo(name = "selected_content_checksum") val selectedContentChecksum: String?,
+	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
+	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
+	@ColumnInfo(name = "expected_run_count") val expectedRunCount: Int,
+	@ColumnInfo(name = "expected_observation_count") val expectedObservationCount: Int,
+	@ColumnInfo(name = "expected_protected_identity_count") val expectedProtectedIdentityCount: Int,
+	@ColumnInfo(name = "protected_identity_set_checksum") val protectedIdentitySetChecksum: String,
+	@ColumnInfo(name = "run_deletion_set_checksum") val runDeletionSetChecksum: String,
+	@ColumnInfo(name = "source_fence_set_checksum") val sourceFenceSetChecksum: String,
+	@ColumnInfo(name = "retained_from_ms") val retainedFromMs: Long?,
+	@ColumnInfo(name = "deleted_at_ms") val deletedAtMs: Long,
+	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
+) {
+	init {
+		requireWifiOpaque(selectionIdentity)
+		require(origin in ORIGINS)
+		require(collectedDataEpoch >= 0L)
+		require((origin == ORIGIN_IMPORTED) == (selectedImportRevision != null))
+		require((origin == ORIGIN_IMPORTED) == (selectedContentChecksum != null))
+		require(selectedImportRevision?.let { it > 0L } != false)
+		selectedContentChecksum?.let(::requireWifiOpaque)
+		require(startTimeMs >= 0L && endTimeMs >= startTimeMs)
+		require(expectedRunCount > 0)
+		require(expectedObservationCount >= 0)
+		require(expectedProtectedIdentityCount >= expectedRunCount + 1)
+		listOf(
+			protectedIdentitySetChecksum,
+			runDeletionSetChecksum,
+			sourceFenceSetChecksum,
+		).forEach(::requireWifiOpaque)
+		require(retainedFromMs?.let { it >= 0L } != false)
+		require(deletedAtMs >= 0L)
+		require(effectChecksum == checksum(this))
+	}
+
+	companion object {
+		const val ORIGIN_LOCAL = "LOCAL"
+		const val ORIGIN_IMPORTED = "IMPORTED"
+		private val ORIGINS = setOf(ORIGIN_LOCAL, ORIGIN_IMPORTED)
+
+		@Suppress("LongParameterList")
+		fun create(
+			selectionIdentity: String,
+			origin: String,
+			collectedDataEpoch: Long,
+			selectedImportRevision: Long?,
+			selectedContentChecksum: String?,
+			startTimeMs: Long,
+			endTimeMs: Long,
+			protectedIdentities: List<WifiSelectedDeletionProtectedIdentityEntity>,
+			runDeletionRows: List<WifiSelectedDeletionRunMarker>,
+			sourceFences: List<SourceDeletionFenceEntity>,
+			retainedFromMs: Long?,
+			deletedAtMs: Long,
+		): WifiSelectedDeletionReceiptEntity {
+			require(protectedIdentities.isNotEmpty())
+			require(protectedIdentities.all {
+				it.selectionIdentity == selectionIdentity && it.receiptOrigin == origin
+			})
+			require(protectedIdentities.distinctBy {
+				it.identityKind to it.protectedIdentity
+			}.size == protectedIdentities.size)
+			val expectedRunCount = protectedIdentities.count {
+				it.identityKind == WifiSelectedDeletionProtectedIdentityEntity.KIND_RUN
+			}
+			val expectedObservationCount = protectedIdentities.count {
+				it.identityKind == WifiSelectedDeletionProtectedIdentityEntity.KIND_OBSERVATION
+			}
+			val protectedChecksum = checksumProtectedIdentities(protectedIdentities)
+			val protectedRuns = protectedIdentities.filter {
+				it.identityKind == WifiSelectedDeletionProtectedIdentityEntity.KIND_RUN
+			}.mapTo(linkedSetOf(), WifiSelectedDeletionProtectedIdentityEntity::protectedIdentity)
+			val protectedScopes = protectedIdentities.filter {
+				it.identityKind == WifiSelectedDeletionProtectedIdentityEntity.KIND_DELETION_SCOPE
+			}.mapTo(linkedSetOf(), WifiSelectedDeletionProtectedIdentityEntity::protectedIdentity)
+			require(runDeletionRows.distinctBy(WifiSelectedDeletionRunMarker::runIdentity).size ==
+				runDeletionRows.size)
+			require(runDeletionRows.mapTo(linkedSetOf(), WifiSelectedDeletionRunMarker::runIdentity) ==
+				protectedRuns)
+			require(runDeletionRows.mapTo(linkedSetOf(), WifiSelectedDeletionRunMarker::deletionScopeDigest) ==
+				protectedScopes)
+			require(runDeletionRows.all {
+				it.entryIdentity == selectionIdentity && it.collectedDataEpoch == collectedDataEpoch &&
+					it.generation > 0L
+			})
+			require(sourceFences.all {
+				it.sourceKind == SourceDestinationOwnerEntity.SOURCE_WIFI &&
+					it.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
+					it.scopeKind == SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN &&
+					it.scopeIdentityDigest in protectedScopes &&
+					it.collectedDataEpoch == collectedDataEpoch && it.fenceGeneration > 0L
+			})
+			require(sourceFences.distinctBy(SourceDeletionFenceEntity::scopeIdentityDigest).size ==
+				sourceFences.size)
+			val runChecksum = checksumRunDeletions(runDeletionRows)
+			val fenceChecksum = checksumSourceFences(sourceFences)
+			return WifiSelectedDeletionReceiptEntity(
+				selectionIdentity = selectionIdentity,
+				origin = origin,
+				collectedDataEpoch = collectedDataEpoch,
+				selectedImportRevision = selectedImportRevision,
+				selectedContentChecksum = selectedContentChecksum,
+				startTimeMs = startTimeMs,
+				endTimeMs = endTimeMs,
+				expectedRunCount = expectedRunCount,
+				expectedObservationCount = expectedObservationCount,
+				expectedProtectedIdentityCount = protectedIdentities.size,
+				protectedIdentitySetChecksum = protectedChecksum,
+				runDeletionSetChecksum = runChecksum,
+				sourceFenceSetChecksum = fenceChecksum,
+				retainedFromMs = retainedFromMs,
+				deletedAtMs = deletedAtMs,
+				effectChecksum = checksum(
+					selectionIdentity,
+					origin,
+					collectedDataEpoch,
+					selectedImportRevision,
+					selectedContentChecksum,
+					startTimeMs,
+					endTimeMs,
+					expectedRunCount,
+					expectedObservationCount,
+					protectedIdentities.size,
+					protectedChecksum,
+					runChecksum,
+					fenceChecksum,
+					retainedFromMs,
+					deletedAtMs,
+				),
+			)
+		}
+
+		fun checksumProtectedIdentities(
+			values: List<WifiSelectedDeletionProtectedIdentityEntity>,
+		): String = wifiAuthorityDigest(
+			"tracker-wifi-selected-deletion-protected-set-v1",
+			*values.sortedWith(
+				compareBy<WifiSelectedDeletionProtectedIdentityEntity>(
+					WifiSelectedDeletionProtectedIdentityEntity::identityKind,
+					WifiSelectedDeletionProtectedIdentityEntity::protectedIdentity,
+				),
+			).flatMap { value ->
+				listOf(
+					value.identityKind,
+					value.protectedIdentity,
+					value.ownerEntryIdentity,
+					value.ownerRunIdentity ?: "NONE",
+					value.deletionScopeDigest ?: "NONE",
+					value.aggregateOwnerIdentity ?: "NONE",
+					value.aggregateOwnerSemanticRevision?.toString() ?: "NONE",
+					value.revisionCount.toString(),
+					value.revisionSetChecksum,
+				)
+			}.toTypedArray(),
+		)
+
+		fun checksumRunDeletions(values: List<WifiSelectedDeletionRunMarker>): String =
+			wifiAuthorityDigest(
+				"tracker-wifi-selected-deletion-run-set-v1",
+				*values.sortedBy(WifiSelectedDeletionRunMarker::runIdentity).flatMap { value ->
+					listOf(
+						value.runIdentity,
+						value.entryIdentity,
+						value.deletionScopeDigest,
+						value.collectedDataEpoch.toString(),
+						value.generation.toString(),
+						value.deletedAtMs.toString(),
+					)
+				}.toTypedArray(),
+			)
+
+		fun checksumSourceFences(values: List<SourceDeletionFenceEntity>): String =
+			wifiAuthorityDigest(
+				"tracker-wifi-selected-deletion-source-fence-set-v1",
+				*values.sortedBy(SourceDeletionFenceEntity::scopeIdentityDigest).flatMap { value ->
+					listOf(
+						value.sourceKind.toString(),
+						value.purpose,
+						value.scopeKind,
+						value.scopeIdentityDigest,
+						value.fenceGeneration.toString(),
+						value.collectedDataEpoch.toString(),
+						value.deletedAtMs.toString(),
+						value.effectChecksum,
+					)
+				}.toTypedArray(),
+			)
+
+		private fun checksum(value: WifiSelectedDeletionReceiptEntity): String = checksum(
+			value.selectionIdentity,
+			value.origin,
+			value.collectedDataEpoch,
+			value.selectedImportRevision,
+			value.selectedContentChecksum,
+			value.startTimeMs,
+			value.endTimeMs,
+			value.expectedRunCount,
+			value.expectedObservationCount,
+			value.expectedProtectedIdentityCount,
+			value.protectedIdentitySetChecksum,
+			value.runDeletionSetChecksum,
+			value.sourceFenceSetChecksum,
+			value.retainedFromMs,
+			value.deletedAtMs,
+		)
+
+		@Suppress("LongParameterList")
+		private fun checksum(
+			selectionIdentity: String,
+			origin: String,
+			collectedDataEpoch: Long,
+			selectedImportRevision: Long?,
+			selectedContentChecksum: String?,
+			startTimeMs: Long,
+			endTimeMs: Long,
+			expectedRunCount: Int,
+			expectedObservationCount: Int,
+			expectedProtectedIdentityCount: Int,
+			protectedIdentitySetChecksum: String,
+			runDeletionSetChecksum: String,
+			sourceFenceSetChecksum: String,
+			retainedFromMs: Long?,
+			deletedAtMs: Long,
+		): String = wifiAuthorityDigest(
+			"tracker-wifi-selected-deletion-receipt-v1",
+			selectionIdentity,
+			origin,
+			collectedDataEpoch,
+			selectedImportRevision ?: "NONE",
+			selectedContentChecksum ?: "NONE",
+			startTimeMs,
+			endTimeMs,
+			expectedRunCount,
+			expectedObservationCount,
+			expectedProtectedIdentityCount,
+			protectedIdentitySetChecksum,
+			runDeletionSetChecksum,
+			sourceFenceSetChecksum,
+			retainedFromMs ?: "NONE",
+			deletedAtMs,
+		)
+	}
+}
+
+/** Typed child-owner footprint retained after one selected Wi-Fi hierarchy is removed. */
+@Entity(
+	tableName = "wifi_selected_deletion_protected_identity",
+	primaryKeys = ["selection_identity", "receipt_origin", "identity_kind", "protected_identity"],
+	foreignKeys = [ForeignKey(
+		entity = WifiSelectedDeletionReceiptEntity::class,
+		parentColumns = ["selection_identity", "origin"],
+		childColumns = ["selection_identity", "receipt_origin"],
+		onDelete = ForeignKey.CASCADE,
+	)],
+	indices = [
+		Index(
+			value = ["selection_identity", "receipt_origin"],
+			name = "idx_wifi_selected_deletion_protected_receipt",
+		),
+		Index(value = ["protected_identity"], name = "idx_wifi_selected_deletion_protected_identity"),
+		Index(value = ["owner_entry_identity"], name = "idx_wifi_selected_deletion_owner_entry"),
+		Index(value = ["owner_run_identity"], name = "idx_wifi_selected_deletion_owner_run"),
+		Index(value = ["deletion_scope_digest"], name = "idx_wifi_selected_deletion_scope"),
+		Index(value = ["aggregate_owner_identity"], name = "idx_wifi_selected_deletion_aggregate_owner"),
+	],
+)
+@Suppress("LongParameterList")
+data class WifiSelectedDeletionProtectedIdentityEntity(
+	@ColumnInfo(name = "selection_identity") val selectionIdentity: String,
+	@ColumnInfo(name = "receipt_origin") val receiptOrigin: String,
+	@ColumnInfo(name = "identity_kind") val identityKind: String,
+	@ColumnInfo(name = "protected_identity") val protectedIdentity: String,
+	@ColumnInfo(name = "owner_entry_identity") val ownerEntryIdentity: String,
+	@ColumnInfo(name = "owner_run_identity") val ownerRunIdentity: String?,
+	@ColumnInfo(name = "deletion_scope_digest") val deletionScopeDigest: String?,
+	@ColumnInfo(name = "aggregate_owner_identity") val aggregateOwnerIdentity: String?,
+	@ColumnInfo(name = "aggregate_owner_semantic_revision") val aggregateOwnerSemanticRevision: Long?,
+	@ColumnInfo(name = "revision_count") val revisionCount: Int,
+	@ColumnInfo(name = "revision_set_checksum") val revisionSetChecksum: String,
+	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
+) {
+	init {
+		listOf(
+			selectionIdentity,
+			protectedIdentity,
+			ownerEntryIdentity,
+			revisionSetChecksum,
+			effectChecksum,
+		).forEach(::requireWifiOpaque)
+		require(identityKind in KINDS)
+		require(receiptOrigin in setOf(
+			WifiSelectedDeletionReceiptEntity.ORIGIN_LOCAL,
+			WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+		))
+		ownerRunIdentity?.let(::requireWifiOpaque)
+		deletionScopeDigest?.let(::requireWifiOpaque)
+		aggregateOwnerIdentity?.let(::requireWifiOpaque)
+		require((aggregateOwnerIdentity == null) == (aggregateOwnerSemanticRevision == null))
+		require(aggregateOwnerSemanticRevision?.let { it > 0L } != false)
+		require(revisionCount > 0 && collectedDataEpoch >= 0L)
+		when (identityKind) {
+			KIND_ENTRY -> require(
+				protectedIdentity == ownerEntryIdentity && ownerRunIdentity == null &&
+					deletionScopeDigest == null && aggregateOwnerIdentity == null,
+			)
+			KIND_RUN -> require(
+				protectedIdentity == ownerRunIdentity && deletionScopeDigest != null &&
+					aggregateOwnerIdentity == null,
+			)
+			KIND_OBSERVATION -> require(ownerRunIdentity != null && deletionScopeDigest == null)
+			KIND_DELETION_SCOPE -> require(
+				protectedIdentity == deletionScopeDigest && ownerRunIdentity != null &&
+					aggregateOwnerIdentity == null,
+			)
+		}
+		require(effectChecksum == checksum(this))
+	}
+
+	companion object {
+		const val KIND_ENTRY = "ENTRY"
+		const val KIND_RUN = "RUN"
+		const val KIND_OBSERVATION = "OBSERVATION"
+		const val KIND_DELETION_SCOPE = "DELETION_SCOPE"
+		private val KINDS = setOf(KIND_ENTRY, KIND_RUN, KIND_OBSERVATION, KIND_DELETION_SCOPE)
+
+		@Suppress("LongParameterList")
+		fun create(
+			selectionIdentity: String,
+			receiptOrigin: String,
+			identityKind: String,
+			protectedIdentity: String,
+			ownerEntryIdentity: String,
+			ownerRunIdentity: String?,
+			deletionScopeDigest: String?,
+			aggregateOwnerIdentity: String?,
+			aggregateOwnerSemanticRevision: Long?,
+			revisionCount: Int,
+			revisionSetChecksum: String,
+			collectedDataEpoch: Long,
+		): WifiSelectedDeletionProtectedIdentityEntity {
+			return WifiSelectedDeletionProtectedIdentityEntity(
+				selectionIdentity,
+				receiptOrigin,
+				identityKind,
+				protectedIdentity,
+				ownerEntryIdentity,
+				ownerRunIdentity,
+				deletionScopeDigest,
+				aggregateOwnerIdentity,
+				aggregateOwnerSemanticRevision,
+				revisionCount,
+				revisionSetChecksum,
+				collectedDataEpoch,
+				checksum(
+					selectionIdentity,
+					receiptOrigin,
+					identityKind,
+					protectedIdentity,
+					ownerEntryIdentity,
+					ownerRunIdentity,
+					deletionScopeDigest,
+					aggregateOwnerIdentity,
+					aggregateOwnerSemanticRevision,
+					revisionCount,
+					revisionSetChecksum,
+					collectedDataEpoch,
+				),
+			)
+		}
+
+		private fun checksum(value: WifiSelectedDeletionProtectedIdentityEntity): String =
+			checksum(
+				value.selectionIdentity,
+				value.receiptOrigin,
+				value.identityKind,
+				value.protectedIdentity,
+				value.ownerEntryIdentity,
+				value.ownerRunIdentity,
+				value.deletionScopeDigest,
+				value.aggregateOwnerIdentity,
+				value.aggregateOwnerSemanticRevision,
+				value.revisionCount,
+				value.revisionSetChecksum,
+				value.collectedDataEpoch,
+			)
+
+		@Suppress("LongParameterList")
+		private fun checksum(
+			selectionIdentity: String,
+			receiptOrigin: String,
+			identityKind: String,
+			protectedIdentity: String,
+			ownerEntryIdentity: String,
+			ownerRunIdentity: String?,
+			deletionScopeDigest: String?,
+			aggregateOwnerIdentity: String?,
+			aggregateOwnerSemanticRevision: Long?,
+			revisionCount: Int,
+			revisionSetChecksum: String,
+			collectedDataEpoch: Long,
+		): String = wifiAuthorityDigest(
+			"tracker-wifi-selected-deletion-protected-v1",
+			selectionIdentity,
+			receiptOrigin,
+			identityKind,
+			protectedIdentity,
+			ownerEntryIdentity,
+			ownerRunIdentity ?: "NONE",
+			deletionScopeDigest ?: "NONE",
+			aggregateOwnerIdentity ?: "NONE",
+			aggregateOwnerSemanticRevision ?: "NONE",
+			revisionCount,
+			revisionSetChecksum,
+			collectedDataEpoch,
+		)
+	}
+}
+
+data class WifiSelectedDeletionRunMarker(
+	val runIdentity: String,
+	val entryIdentity: String,
+	val deletionScopeDigest: String,
+	val collectedDataEpoch: Long,
+	val generation: Long,
+	val deletedAtMs: Long,
+) {
+	init {
+		requireWifiOpaque(runIdentity)
+		requireWifiOpaque(entryIdentity)
+		requireWifiOpaque(deletionScopeDigest)
+		require(collectedDataEpoch >= 0L && generation > 0L && deletedAtMs >= 0L)
+	}
+}
+
 private val WIFI_OPAQUE = Regex("[0-9a-f]{64}")
 private const val MAX_IMPORT_PROVENANCE_LENGTH = 4_096
 

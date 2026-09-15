@@ -46,6 +46,8 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryRangeContinuation
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryRangePage
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryReader
+import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryResult
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -507,6 +509,7 @@ class WifiHistoryRepositoryRoomTest {
 				request: ExportPortableCapturedWifiRequest,
 			): ReadLocalPortableCapturedWifiResult = error("No imported collision expected")
 		},
+		WifiDeletedHistoryReader { WifiDeletedHistoryResult.NotDeleted },
 		UnconfinedTestDispatcher(),
 	)
 
@@ -515,6 +518,7 @@ class WifiHistoryRepositoryRoomTest {
 		entry.state shouldBe WifiHistoryProductState.FAILED
 		entry.causes shouldBe setOf(WifiHistoryCause.FACT_INTEGRITY_FAILED)
 		entry.observations shouldBe emptyList()
+		entry.selection shouldBe null
 	}
 
 	private suspend fun assertRecentWriterFailure() {
@@ -522,6 +526,7 @@ class WifiHistoryRepositoryRoomTest {
 		entry.state shouldBe WifiHistoryProductState.FAILED
 		entry.causes shouldBe setOf(WifiHistoryCause.WRITER_PROVENANCE_INVALID)
 		entry.observations shouldBe emptyList()
+		entry.selection shouldBe null
 	}
 
 	private suspend fun persist(

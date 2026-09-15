@@ -13,6 +13,9 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedWifiReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunZoneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiCaptureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionProtectedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionReceiptEntity
 
 /** Wi-Fi-local imported-product storage. This DAO grants no live capture authority. */
 @Dao
@@ -40,8 +43,61 @@ abstract class ImportedWifiDao {
 		insertDeletionGenerationRow(row)
 	}
 
+	@Insert(onConflict = OnConflictStrategy.IGNORE)
+	abstract suspend fun insertImportedDeletionGenerations(
+		rows: List<ImportedWifiDeletionGenerationEntity>,
+	): List<Long>
+
+	@Insert(onConflict = OnConflictStrategy.IGNORE)
+	abstract suspend fun insertLocalDeletionGenerations(
+		rows: List<WifiCaptureDeletionGenerationEntity>,
+	): List<Long>
+
+	@Insert(onConflict = OnConflictStrategy.IGNORE)
+	abstract suspend fun insertSourceDeletionFences(rows: List<SourceDeletionFenceEntity>): List<Long>
+
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertEntryDeletion(row: ImportedWifiEntryDeletionEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertSelectedDeletionReceipt(row: WifiSelectedDeletionReceiptEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertSelectedDeletionProtectedIdentities(
+		rows: List<WifiSelectedDeletionProtectedIdentityEntity>,
+	)
+
+	@Query(
+		"SELECT * FROM wifi_selected_deletion_receipt WHERE selection_identity = :selection " +
+			"AND origin = :origin",
+	)
+	abstract suspend fun selectedDeletionReceipt(
+		selection: String,
+		origin: String,
+	): WifiSelectedDeletionReceiptEntity?
+
+	@Query(
+		"SELECT * FROM wifi_selected_deletion_protected_identity " +
+			"WHERE selection_identity = :selection AND receipt_origin = :origin " +
+			"ORDER BY identity_kind, protected_identity LIMIT :limit",
+	)
+	abstract suspend fun selectedDeletionProtectedIdentities(
+		selection: String,
+		origin: String,
+		limit: Int,
+	): List<WifiSelectedDeletionProtectedIdentityEntity>
+
+	@Query(
+		"SELECT * FROM wifi_selected_deletion_protected_identity " +
+			"WHERE protected_identity IN (:identities) OR owner_entry_identity IN (:identities) " +
+			"OR owner_run_identity IN (:identities) OR deletion_scope_digest IN (:identities) " +
+			"OR aggregate_owner_identity IN (:identities) " +
+			"ORDER BY selection_identity, receipt_origin, identity_kind, protected_identity LIMIT :limit",
+	)
+	abstract suspend fun selectedDeletionProtectedIdentityOwners(
+		identities: List<String>,
+		limit: Int,
+	): List<WifiSelectedDeletionProtectedIdentityEntity>
 
 	@Query(
 		"SELECT * FROM imported_wifi_entry_revision WHERE identity = :identity " +
@@ -305,6 +361,12 @@ abstract class ImportedWifiDao {
 	@Query("SELECT COUNT(*) FROM imported_wifi_deletion_generation")
 	abstract suspend fun deletionGenerationCount(): Long
 
+	@Query("SELECT COUNT(*) FROM wifi_selected_deletion_receipt")
+	abstract suspend fun selectedDeletionReceiptCount(): Long
+
+	@Query("SELECT COUNT(*) FROM wifi_selected_deletion_protected_identity")
+	abstract suspend fun selectedDeletionProtectedIdentityCount(): Long
+
 	/** Local identifiers are returned only to the Wi-Fi importer for in-memory irreversible hashing. */
 	@Query("SELECT COUNT(*) FROM logical_tracking_session")
 	abstract suspend fun localEntryOwnerCount(): Long
@@ -368,6 +430,31 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<WifiLocalRunOwner>
 
+	@Query(
+		"SELECT * FROM wifi_capture_deletion_generation " +
+			"WHERE (:afterLogicalTrackingId IS NULL OR logical_tracking_id > :afterLogicalTrackingId " +
+			"OR (logical_tracking_id = :afterLogicalTrackingId AND service_run_id > :afterServiceRunId)) " +
+			"ORDER BY logical_tracking_id, service_run_id LIMIT :limit",
+	)
+	abstract suspend fun localDeletionGenerationPage(
+		afterLogicalTrackingId: String?,
+		afterServiceRunId: String?,
+		limit: Int,
+	): List<WifiCaptureDeletionGenerationEntity>
+
+	@Query("SELECT COUNT(*) FROM ski_run_segment WHERE session_id IN (:segmentIds)")
+	abstract suspend fun selectedSkiSegmentCount(segmentIds: List<Long>): Long
+
+	@Query(
+		"DELETE FROM session_segment WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND id IN (:segmentIds) AND service_run_id IN (:serviceRunIds)",
+	)
+	abstract suspend fun deleteSelectedLocalSegments(
+		logicalTrackingId: String,
+		segmentIds: List<Long>,
+		serviceRunIds: List<String>,
+	): Int
+
 	@Query("DELETE FROM imported_wifi_receipt")
 	abstract fun deleteAllReceipts()
 
@@ -379,6 +466,18 @@ abstract class ImportedWifiDao {
 
 	@Query("DELETE FROM imported_wifi_deletion_generation")
 	abstract fun deleteAllDeletionGenerations()
+
+	@Query(
+		"DELETE FROM imported_wifi_observation WHERE entry_identity = :identity " +
+			"AND aggregate_owner_identity IS NOT NULL",
+	)
+	abstract suspend fun deleteDependentObservations(identity: String): Int
+
+	@Query("DELETE FROM imported_wifi_observation WHERE entry_identity = :identity")
+	abstract suspend fun deleteRemainingObservations(identity: String): Int
+
+	@Query("DELETE FROM imported_wifi_entry_revision WHERE identity = :identity")
+	abstract suspend fun deleteEntryRevisions(identity: String): Int
 
 	companion object {
 		private const val LOCAL_OBSERVATION_OWNER_UNION =

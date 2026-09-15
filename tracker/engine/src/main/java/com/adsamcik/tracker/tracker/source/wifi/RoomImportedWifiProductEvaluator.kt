@@ -19,6 +19,8 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionProtectedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionReceiptEntity
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductCandidate
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluator
@@ -106,27 +108,43 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 
 	private suspend fun evaluateSafely(
 		candidates: List<ImportedWifiHistoryCandidate>,
-	): List<ImportedWifiProductEvaluation> = try {
-		evaluate(candidates)
-	} catch (cancelled: CancellationException) {
-		throw cancelled
-	} catch (failure: ImportedWifiProductAbort) {
-		candidates.unverifiable(failure.reason)
-	} catch (storage: SQLiteException) {
-		throw storage
-	} catch (_: IllegalArgumentException) {
-		candidates.unverifiable(ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
-	} catch (_: ArithmeticException) {
-		candidates.unverifiable(ImportedWifiProductFailure.VALUE_OVERFLOW)
-	} catch (_: DateTimeException) {
-		candidates.unverifiable(ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
-	} catch (_: RuntimeException) {
-		candidates.unverifiable(ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+	): List<ImportedWifiProductEvaluation> {
+		if (candidates.isEmpty()) return emptyList()
+		var localOwners: LocalWifiOwnerSnapshot? = null
+		return try {
+			val snapshot = loadLocalOwnerSnapshot()
+			localOwners = snapshot
+			evaluate(candidates, snapshot)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (failure: ImportedWifiProductAbort) {
+			candidates.unverifiable(failure.reason, localOwners)
+		} catch (storage: SQLiteException) {
+			throw storage
+		} catch (_: IllegalArgumentException) {
+			candidates.unverifiable(
+				ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+				localOwners,
+			)
+		} catch (_: ArithmeticException) {
+			candidates.unverifiable(ImportedWifiProductFailure.VALUE_OVERFLOW, localOwners)
+		} catch (_: DateTimeException) {
+			candidates.unverifiable(
+				ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+				localOwners,
+			)
+		} catch (_: RuntimeException) {
+			candidates.unverifiable(
+				ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+				localOwners,
+			)
+		}
 	}
 
 	@Suppress("LongMethod")
 	private suspend fun evaluate(
 		candidates: List<ImportedWifiHistoryCandidate>,
+		localOwners: LocalWifiOwnerSnapshot,
 	): List<ImportedWifiProductEvaluation> {
 		if (candidates.isEmpty()) return emptyList()
 		checkpoint(ImportedWifiProductReadCheckpoint.CANDIDATES_SELECTED)
@@ -134,7 +152,10 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 			candidates.size > limits.maximumCandidates
 		) abort(ImportedWifiProductFailure.DEPENDENCY_OVERFLOW)
 		val state = database.sourceEvidenceStateDao().get()
-			?: return candidates.unverifiable(ImportedWifiProductFailure.SOURCE_EVIDENCE_STATE_MISSING)
+			?: return candidates.unverifiable(
+				ImportedWifiProductFailure.SOURCE_EVIDENCE_STATE_MISSING,
+				localOwners,
+			)
 		if (!state.hasValidImportedWifiProductShape()) storedCorrupt()
 
 		val identities = candidates.map(ImportedWifiHistoryCandidate::identity)
@@ -184,14 +205,14 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 		checkpoint(ImportedWifiProductReadCheckpoint.LINEAGES_AUTHENTICATED)
 		if (current.isEmpty()) {
 			return candidates.map {
-				it.unverifiable(ImportedWifiProductFailure.STALE_COLLECTED_DATA_EPOCH)
+				it.unverifiable(ImportedWifiProductFailure.STALE_COLLECTED_DATA_EPOCH, localOwners)
 			}
 		}
 
 		val ownership = WifiPortableOpaqueOwnershipSet.from(current.values.map { it.entry })
 			?: originConflict()
 		authenticateImportedOwnership(ownership, state)
-		val localCollisions = authenticateLocalOwnership(ownership)
+		val localCollisions = authenticateLocalOwnership(ownership, localOwners)
 		checkpoint(ImportedWifiProductReadCheckpoint.OWNERSHIP_AUTHENTICATED)
 
 		val entryDeletions = database.importedWifiDao().entryDeletionsForHistory(
@@ -218,7 +239,10 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 
 		return candidates.map { candidate ->
 			if (candidate.identity in stale) {
-				candidate.unverifiable(ImportedWifiProductFailure.STALE_COLLECTED_DATA_EPOCH)
+				candidate.unverifiable(
+					ImportedWifiProductFailure.STALE_COLLECTED_DATA_EPOCH,
+					localOwners,
+				)
 			} else {
 				val latest = current.getValue(candidate.identity)
 				val entry = latest.entry
@@ -279,6 +303,7 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 			val runs = dao.existingRunIdentityOwners(values, limit)
 			val observations = dao.existingObservationIdentityOwners(values, limit)
 			val scopes = dao.existingRunScopeOwners(values, limit)
+			val selectedDeletions = dao.selectedDeletionProtectedIdentityOwners(values, limit)
 			val tombstones = dao.entryDeletions(values)
 			val generationsByRun = dao.deletionGenerationsByRun(values)
 			val generationsByScope = dao.deletionGenerationsByScope(values)
@@ -291,6 +316,7 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 				runs.size,
 				observations.size,
 				scopes.size,
+				selectedDeletions.size,
 				tombstones.size,
 				generations.size,
 				fences.size,
@@ -308,9 +334,13 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 					.any { it >= limit } ||
 				tombstones.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
 				generations.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
+				selectedDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
 				fences.any { it.collectedDataEpoch != state.collectedDataEpoch }
 			) dependencyOverflow()
-			if (entries.any { identity ->
+			if (selectedDeletions.any { marker ->
+					marker.receiptOrigin == WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED ||
+						!marker.isCompatibleOppositeOriginMarker(ownership)
+				} || entries.any { identity ->
 					ownership.identityOwners[identity]?.kind != PortableWifiIdentityKind.LOGICAL_ENTRY
 				} || runs.any { row ->
 					val owner = ownership.identityOwners[row.identity]
@@ -346,8 +376,30 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 
 	private suspend fun authenticateLocalOwnership(
 		ownership: WifiPortableOpaqueOwnershipSet,
+		localOwners: LocalWifiOwnerSnapshot,
 	): Map<String, String> {
 		if (ownership.allValues.isEmpty()) return emptyMap()
+		val collisions = linkedMapOf<String, LocalWifiCollision>()
+		localOwners.entries.forEach { logicalId ->
+			recordLocalEntry(logicalId, ownership, collisions)
+		}
+		localOwners.runs.forEach { owner ->
+			recordLocalRun(owner, ownership, collisions)
+		}
+		localOwners.observations.forEach { owner ->
+			recordLocalObservation(owner, ownership, collisions)
+		}
+		localOwners.deletedRuns.forEach { owner ->
+			recordLocalRun(owner, ownership, collisions)
+		}
+		return collisions.mapValues { (entryIdentity, collision) ->
+			val logicalId = collision.logicalTrackingIds.singleOrNull() ?: originConflict()
+			if (collision.values != ownership.valuesByEntry[entryIdentity]) originConflict()
+			logicalId
+		}
+	}
+
+	private suspend fun loadLocalOwnerSnapshot(): LocalWifiOwnerSnapshot {
 		val dao = database.importedWifiDao()
 		val expectedCount = listOf(
 			dao.localEntryOwnerCount(),
@@ -357,24 +409,15 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 		)
 		if (expectedCount.any { it < 0L }) storedCorrupt()
 		expectedCount.fold(0L) { total, count -> addRowCount(total, count) }
-		val collisions = linkedMapOf<String, LocalWifiCollision>()
-		pageStrings(dao::localEntryOwnerPage, expectedCount[0]) { logicalId ->
-			recordLocalEntry(logicalId, ownership, collisions)
-		}
-		pageRuns(dao::localRunOwnerPage, expectedCount[1]) { owner ->
-			recordLocalRun(owner, ownership, collisions)
-		}
-		pageObservations(dao::localObservationOwnerPage, expectedCount[2]) { owner ->
-			recordLocalObservation(owner, ownership, collisions)
-		}
-		pageRuns(dao::localDeletionOwnerPage, expectedCount[3]) { owner ->
-			recordLocalRun(owner, ownership, collisions)
-		}
-		return collisions.mapValues { (entryIdentity, collision) ->
-			val logicalId = collision.logicalTrackingIds.singleOrNull() ?: originConflict()
-			if (collision.values != ownership.valuesByEntry[entryIdentity]) originConflict()
-			logicalId
-		}
+		val entries = mutableListOf<String>()
+		val runs = mutableListOf<WifiLocalRunOwner>()
+		val observations = mutableListOf<WifiLocalObservationOwner>()
+		val deletedRuns = mutableListOf<WifiLocalRunOwner>()
+		pageStrings(dao::localEntryOwnerPage, expectedCount[0]) { entries += it }
+		pageRuns(dao::localRunOwnerPage, expectedCount[1]) { runs += it }
+		pageObservations(dao::localObservationOwnerPage, expectedCount[2]) { observations += it }
+		pageRuns(dao::localDeletionOwnerPage, expectedCount[3]) { deletedRuns += it }
+		return LocalWifiOwnerSnapshot(entries, runs, observations, deletedRuns)
 	}
 
 	private fun recordLocalEntry(
@@ -688,6 +731,32 @@ private data class LocalWifiCollision(
 	val values: MutableSet<String> = linkedSetOf(),
 )
 
+private data class LocalWifiOwnerSnapshot(
+	val entries: List<String>,
+	val runs: List<WifiLocalRunOwner>,
+	val observations: List<WifiLocalObservationOwner>,
+	val deletedRuns: List<WifiLocalRunOwner>,
+) {
+	init {
+		require(entries.map { logicalId ->
+			PortableWifiOpaqueIdentity.derive(
+				PortableWifiIdentityKind.LOGICAL_ENTRY,
+				logicalId,
+			).value
+		}.distinct().size == entries.size)
+	}
+
+	fun topLevelCollision(identity: String): String? {
+		val matches = entries.filter { logicalId ->
+			PortableWifiOpaqueIdentity.derive(
+				PortableWifiIdentityKind.LOGICAL_ENTRY,
+				logicalId,
+			).value == identity
+		}
+		return matches.singleOrNull()
+	}
+}
+
 private class ImportedWifiProductAbort(
 	val reason: ImportedWifiProductFailure,
 ) : RuntimeException(null, null, false, false)
@@ -712,16 +781,57 @@ private fun ImportedWifiHistoryCandidate.toProductCandidate() = ImportedWifiProd
 	receivedAtMs = receivedAtMs,
 )
 
-private fun ImportedWifiHistoryCandidate.unverifiable(reason: ImportedWifiProductFailure) =
-	ImportedWifiProductEvaluation.Unverifiable(toProductCandidate(), reason)
+private fun ImportedWifiHistoryCandidate.unverifiable(
+	reason: ImportedWifiProductFailure,
+	localOwners: LocalWifiOwnerSnapshot? = null,
+) = ImportedWifiProductEvaluation.Unverifiable(
+	toProductCandidate(),
+	reason,
+	localOwners?.topLevelCollision(identity),
+)
 
-private fun List<ImportedWifiHistoryCandidate>.unverifiable(reason: ImportedWifiProductFailure) =
-	map { it.unverifiable(reason) }
+private fun List<ImportedWifiHistoryCandidate>.unverifiable(
+	reason: ImportedWifiProductFailure,
+	localOwners: LocalWifiOwnerSnapshot? = null,
+) = map { it.unverifiable(reason, localOwners) }
 
 private fun SourceDeletionFenceEntity.isExactWifiDeletionFence(): Boolean =
 	sourceKind == SourceDestinationOwnerEntity.SOURCE_WIFI &&
 		purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
 		scopeKind == SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN
+
+private fun WifiSelectedDeletionProtectedIdentityEntity.isCompatibleOppositeOriginMarker(
+	ownership: WifiPortableOpaqueOwnershipSet,
+): Boolean {
+	if (selectionIdentity != ownerEntryIdentity) return false
+	return when (identityKind) {
+		WifiSelectedDeletionProtectedIdentityEntity.KIND_ENTRY ->
+			ownership.identityOwners[protectedIdentity]?.let { owner ->
+				owner.kind == PortableWifiIdentityKind.LOGICAL_ENTRY &&
+					owner.entryIdentity == ownerEntryIdentity
+			} == true
+		WifiSelectedDeletionProtectedIdentityEntity.KIND_RUN ->
+			ownership.identityOwners[protectedIdentity]?.let { owner ->
+				owner.kind == PortableWifiIdentityKind.PHYSICAL_RUN &&
+					owner.entryIdentity == ownerEntryIdentity &&
+					owner.runIdentity == ownerRunIdentity &&
+					owner.deletionScopeDigest == deletionScopeDigest
+			} == true
+		WifiSelectedDeletionProtectedIdentityEntity.KIND_OBSERVATION ->
+			ownership.identityOwners[protectedIdentity]?.let { owner ->
+				owner.kind == PortableWifiIdentityKind.OBSERVATION &&
+					owner.entryIdentity == ownerEntryIdentity &&
+					owner.runIdentity == ownerRunIdentity
+			} == true
+		WifiSelectedDeletionProtectedIdentityEntity.KIND_DELETION_SCOPE ->
+			ownership.scopeOwners[protectedIdentity]?.let { owner ->
+				owner.kind == PortableWifiIdentityKind.PHYSICAL_RUN &&
+					owner.entryIdentity == ownerEntryIdentity &&
+					owner.runIdentity == ownerRunIdentity
+			} == true
+		else -> false
+	}
+}
 
 private fun ImportedWifiLineageAuthenticator.Reason.toProductFailure(): ImportedWifiProductFailure =
 	when (this) {
