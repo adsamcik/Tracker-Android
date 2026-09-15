@@ -2,6 +2,12 @@ package com.adsamcik.tracker.stats.data.repository
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ImportedCellProductEvaluation
+import com.adsamcik.tracker.shared.base.database.ImportedCellProductReader
+import com.adsamcik.tracker.shared.base.database.PortableCapturedCellEntryV1
+import com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind
+import com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity
+import com.adsamcik.tracker.shared.base.database.ReadLocalPortableCapturedCellResult
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
@@ -19,9 +25,16 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecution
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
+import com.adsamcik.tracker.stats.api.repository.CellHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.CellHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.CellHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.CellHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.CellHistoryPage
+import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.CellHistoryRepository
+import com.adsamcik.tracker.stats.api.repository.ImportedCellHistorySelection
+import com.adsamcik.tracker.stats.api.value.EpochMs
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
@@ -34,6 +47,8 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : CellHistoryRepository {
+	private val importedProductReader = ImportedCellProductReader(database)
+
 	override suspend fun session(segmentId: Long): CellHistoryQuery {
 		require(segmentId > 0L)
 		return withContext(ioDispatcher) {
@@ -47,12 +62,128 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 		}
 	}
 
+	override suspend fun imported(selection: ImportedCellHistorySelection): CellHistoryQuery =
+		withContext(ioDispatcher) {
+			try {
+				database.withTransaction {
+					val evaluation = importedProductReader.selectIdentityInTransaction(
+						PortableCellOpaqueIdentity(selection.identity.value),
+					) ?: return@withTransaction CellHistoryQuery.NotFound
+					if (evaluation.candidate.importRevision != selection.importRevision ||
+						evaluation.candidate.contentChecksum != selection.contentChecksum.value
+					) {
+						return@withTransaction CellHistoryQuery.Found(
+							unverifiableImportedSelection(
+								selection,
+								CellHistoryCause.IMPORTED_SELECTION_STALE,
+							),
+						)
+					}
+					val readable = evaluation as? ImportedCellProductEvaluation.Readable
+					val originConflict = readable?.let { imported ->
+						when (val local = importedProductReader.readLocalOriginInTransaction(
+							imported,
+							laneExecutionAuthority,
+						)) {
+							is ReadLocalPortableCapturedCellResult.Ready ->
+								local.entry != imported.entry
+							is ReadLocalPortableCapturedCellResult.Outcome -> true
+							null -> false
+						}
+					} == true
+					CellHistoryQuery.Found(
+						evaluation.toPublicCellEntry(
+							overrideFailure = CellHistoryCause.ORIGIN_IDENTITY_CONFLICT
+								.takeIf { originConflict },
+						),
+					)
+				}
+			} catch (cancelled: kotlinx.coroutines.CancellationException) {
+				throw cancelled
+			} catch (_: RuntimeException) {
+				CellHistoryQuery.Found(
+					unverifiableImportedSelection(
+						selection,
+						CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
+					),
+				)
+			}
+		}
+
 	override suspend fun recent(limit: Int): CellHistoryPage {
 		require(limit in 1..MAX_RESULTS)
-		return withContext(ioDispatcher) { database.withTransaction { loadRecent(limit) } }
+		return withContext(ioDispatcher) {
+			database.withTransaction { composeRecent(limit) }
+		}
 	}
 
-	private suspend fun loadRecent(limit: Int): CellHistoryPage {
+	private suspend fun composeRecent(limit: Int): CellHistoryPage {
+		val live = loadRecentLive(limit)
+		if (live.page is CellHistoryPage.Failed) return live.page
+		val imported = try {
+			importedProductReader.selectRecentInTransaction(limit)
+		} catch (cancelled: kotlinx.coroutines.CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			return CellHistoryPage.Failed(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		}
+		val localCollisions = imported.filterIsInstance<ImportedCellProductEvaluation.Readable>()
+			.filter { it.localOriginHandle != null }
+			.associateBy { it.candidate.identity }
+		val localPortableEntries = try {
+			loadLocalPortableCollisions(localCollisions)
+		} catch (cancelled: kotlinx.coroutines.CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			return CellHistoryPage.Failed(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		}
+		val visibleLocalEntryIdentities = live.logicalTrackingIds.mapTo(linkedSetOf()) { logicalId ->
+			PortableCellOpaqueIdentity.derive(
+				PortableCellIdentityKind.LOGICAL_ENTRY,
+				logicalId,
+			).value
+		}
+		return try {
+			CellHistoryPage.Available(
+				CellHistoryOriginComposer.compose(
+					live = (live.page as CellHistoryPage.Available).entries,
+					visibleLocalEntryIdentities = visibleLocalEntryIdentities,
+					localCollisionIdentities = localCollisions.keys,
+					imported = imported,
+					localPortableEntriesByIdentity = localPortableEntries,
+					limit = limit,
+				),
+			)
+		} catch (_: ImportedCellHistoryCompositionFailure) {
+			CellHistoryPage.Failed(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		}
+	}
+
+	private suspend fun loadLocalPortableCollisions(
+		evaluationsByEntryIdentity: Map<String, ImportedCellProductEvaluation.Readable>,
+	): Map<String, PortableCapturedCellEntryV1> {
+		if (evaluationsByEntryIdentity.isEmpty()) return emptyMap()
+		require(evaluationsByEntryIdentity.size <= MAX_RESULTS)
+		val entries = linkedMapOf<String, PortableCapturedCellEntryV1>()
+		for ((entryIdentity, evaluation) in evaluationsByEntryIdentity) {
+			currentCoroutineContext().ensureActive()
+			when (val result = importedProductReader.readLocalOriginInTransaction(
+				evaluation,
+				laneExecutionAuthority,
+			)) {
+				is ReadLocalPortableCapturedCellResult.Ready -> {
+					if (result.entry.identity.value != entryIdentity ||
+						entries.put(entryIdentity, result.entry) != null
+					) throw ImportedCellHistoryCompositionFailure()
+				}
+				is ReadLocalPortableCapturedCellResult.Outcome -> Unit
+				null -> throw ImportedCellHistoryCompositionFailure()
+			}
+		}
+		return entries
+	}
+
+	private suspend fun loadRecentLive(limit: Int): LiveCellHistoryPage {
 		val accepted = linkedMapOf<String, ComposedCellEntry>()
 		var beforeStart: Long? = null
 		var beforeId: Long? = null
@@ -71,7 +202,12 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 			scanned += candidates.size
 			val seeds = candidates.map { it.segment }
 			val snapshot = loadSnapshot(expandMembership(seeds))
-			if (snapshot.overflow) return CellHistoryPage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+			if (snapshot.overflow) {
+				return LiveCellHistoryPage(
+					CellHistoryPage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED),
+					emptySet(),
+				)
+			}
 			val requested = seeds.mapNotNull(SessionSegment::logicalTrackingId).toSet()
 			CellHistoryComposer.composeRecent(snapshot, laneExecutionAuthority)
 				.filter { it.logicalTrackingId in requested }
@@ -82,11 +218,18 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 			if (candidates.size < pageLimit) break
 		}
 		if (accepted.size < limit && scanned >= MAX_CANDIDATE_SCAN) {
-			return CellHistoryPage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+			return LiveCellHistoryPage(
+				CellHistoryPage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED),
+				emptySet(),
+			)
 		}
-		return CellHistoryPage.Available(
-			accepted.values.sortedWith(compareByDescending<ComposedCellEntry> { it.recencyStartTimeMs }
-				.thenByDescending { it.recencySegmentId }).take(limit).map(ComposedCellEntry::entry),
+		val selected = accepted.values.sortedWith(
+			compareByDescending<ComposedCellEntry> { it.recencyStartTimeMs }
+				.thenByDescending { it.recencySegmentId },
+		).take(limit)
+		return LiveCellHistoryPage(
+			CellHistoryPage.Available(selected.map(ComposedCellEntry::entry)),
+			selected.mapTo(linkedSetOf(), ComposedCellEntry::logicalTrackingId),
 		)
 	}
 
@@ -292,6 +435,11 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 
 	private data class CellFactLoad(val revisions: List<CellCapturedFactRevisionEntity>, val overflow: Boolean)
 
+	private data class LiveCellHistoryPage(
+		val page: CellHistoryPage,
+		val logicalTrackingIds: Set<String>,
+	)
+
 	private data class ServiceRunCursor(
 		val logicalId: String, val startedAtMs: Long, val serviceRunId: String,
 	) : Comparable<ServiceRunCursor> {
@@ -343,6 +491,21 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 		const val SQL_ID_BATCH = 400
 	}
 }
+
+private fun unverifiableImportedSelection(
+	selection: ImportedCellHistorySelection,
+	cause: CellHistoryCause,
+) = CellHistoryEntry(
+	key = CellHistoryEntryKey("cell-imported:${selection.identity.value}"),
+	startTime = EpochMs(0L),
+	endTime = EpochMs(0L),
+	storedZoneIds = emptySet(),
+	state = CellHistoryProductState.UNVERIFIABLE,
+	coverage = CellHistoryCoverage.NONE,
+	observations = emptyList(),
+	causes = setOf(cause),
+	origin = CellHistoryOrigin.Imported(selection),
+)
 
 internal fun isCellCaptureMembership(source: SessionManifestSourceEntity): Boolean =
 	source.sourceKind == CELL_SOURCE && source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&

@@ -104,6 +104,107 @@ abstract class ImportedCellDao {
 	abstract suspend fun entryDeletion(identity: String): ImportedCellEntryDeletionEntity?
 
 	@Query(
+		"SELECT entry.identity, entry.import_revision, entry.content_checksum, " +
+			"entry.start_time_ms, entry.end_time_ms, entry.received_at_ms " +
+			"FROM imported_cell_entry_revision AS entry " +
+			"WHERE entry.identity = :identity AND entry.import_revision = (" +
+			"SELECT MAX(candidate.import_revision) FROM imported_cell_entry_revision AS candidate " +
+			"WHERE candidate.identity = entry.identity) LIMIT 1",
+	)
+	abstract suspend fun latestHistoryCandidate(identity: String): ImportedCellHistoryCandidate?
+
+	@Query(
+		"SELECT entry.identity, entry.import_revision, entry.content_checksum, " +
+			"entry.start_time_ms, entry.end_time_ms, entry.received_at_ms " +
+			"FROM imported_cell_entry_revision AS entry " +
+			"WHERE entry.import_revision = (" +
+			"SELECT MAX(candidate.import_revision) FROM imported_cell_entry_revision AS candidate " +
+			"WHERE candidate.identity = entry.identity) " +
+			"AND (:beforeStartTimeMs IS NULL OR entry.start_time_ms < :beforeStartTimeMs OR " +
+			"(entry.start_time_ms = :beforeStartTimeMs AND " +
+			"entry.identity < COALESCE(:beforeIdentity, ''))) " +
+			"ORDER BY entry.start_time_ms DESC, entry.identity DESC LIMIT :limit",
+	)
+	abstract suspend fun recentHistoryCandidatePage(
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): List<ImportedCellHistoryCandidate>
+
+	@Query(
+		"SELECT * FROM imported_cell_entry_revision WHERE identity IN (:identities) " +
+			"ORDER BY identity, import_revision LIMIT :limit",
+	)
+	abstract suspend fun entryRevisionsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellEntryRevisionEntity>
+
+	@Query("SELECT COUNT(*) FROM imported_cell_entry_revision WHERE identity IN (:identities)")
+	abstract suspend fun entryRevisionHistoryCount(identities: List<String>): Long
+
+	@Query(
+		"SELECT * FROM imported_cell_receipt WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, import_job_id, import_entry_key LIMIT :limit",
+	)
+	abstract suspend fun receiptsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellReceiptEntity>
+
+	@Query("SELECT COUNT(*) FROM imported_cell_receipt WHERE entry_identity IN (:identities)")
+	abstract suspend fun receiptHistoryCount(identities: List<String>): Long
+
+	@Query(
+		"SELECT * FROM imported_cell_run WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, start_time_ms, end_time_ms, identity LIMIT :limit",
+	)
+	abstract suspend fun runsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellRunEntity>
+
+	@Query("SELECT COUNT(*) FROM imported_cell_run WHERE entry_identity IN (:identities)")
+	abstract suspend fun runHistoryCount(identities: List<String>): Long
+
+	@Query(
+		"SELECT * FROM imported_cell_observation WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, run_identity, coverage_start_time_ms, " +
+			"observed_time_ms, identity LIMIT :limit",
+	)
+	abstract suspend fun observationsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellObservationEntity>
+
+	@Query("SELECT COUNT(*) FROM imported_cell_observation WHERE entry_identity IN (:identities)")
+	abstract suspend fun observationHistoryCount(identities: List<String>): Long
+
+	@Query(
+		"SELECT * FROM imported_cell_entry_deletion WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity LIMIT :limit",
+	)
+	abstract suspend fun entryDeletionsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellEntryDeletionEntity>
+
+	@Query("SELECT COUNT(*) FROM imported_cell_entry_deletion WHERE entry_identity IN (:identities)")
+	abstract suspend fun entryDeletionHistoryCount(identities: List<String>): Long
+
+	@Query(
+		"SELECT * FROM imported_cell_deletion_generation WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, run_identity LIMIT :limit",
+	)
+	abstract suspend fun deletionGenerationsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellDeletionGenerationEntity>
+
+	@Query("SELECT COUNT(*) FROM imported_cell_deletion_generation WHERE entry_identity IN (:identities)")
+	abstract suspend fun deletionGenerationHistoryCount(identities: List<String>): Long
+
+	@Query(
 		"SELECT * FROM imported_cell_deletion_generation WHERE run_identity IN (:identities) " +
 			"OR entry_identity IN (:identities) OR deletion_scope_digest IN (:identities) " +
 			"ORDER BY run_identity LIMIT :limit",
@@ -237,8 +338,19 @@ abstract class ImportedCellDao {
 			MAX_REVISIONS_PER_ENTRY * MAX_OBSERVATIONS_PER_REVISION
 		const val MAX_LIVE_OWNER_ROWS = 4_096
 		const val MAX_IDENTITY_QUERY_CHUNK = 256
+		const val MAX_HISTORY_ENTRY_CANDIDATES = 100
+		const val HISTORY_EVALUATION_BATCH_SIZE = 4
 	}
 }
+
+data class ImportedCellHistoryCandidate(
+	val identity: String,
+	@ColumnInfo(name = "import_revision") val importRevision: Long,
+	@ColumnInfo(name = "content_checksum") val contentChecksum: String,
+	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
+	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
+	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+)
 
 data class ImportedCellRunIdentityOwner(
 	val identity: String,

@@ -7,6 +7,9 @@ interface CellHistoryRepository {
 	/** Resolves the complete logical replacement group containing one physical presentation row. */
 	suspend fun session(segmentId: Long): CellHistoryQuery
 
+	/** Resolves one exact imported-origin selection without treating it as a local session. */
+	suspend fun imported(selection: ImportedCellHistorySelection): CellHistoryQuery
+
 	/** Discovers recent logical entries from qualified Cell facts, never presentation counters. */
 	suspend fun recent(limit: Int): CellHistoryPage
 }
@@ -35,7 +38,52 @@ value class CellHistoryEntryKey(private val opaqueValue: String) {
 	override fun toString(): String = "CellHistoryEntryKey"
 }
 
-enum class CellHistoryProductState { MATERIALIZING, PARTIAL, READY, UNAVAILABLE, MISSING, FAILED }
+/** Proven presentation origin. Neither form grants mutation or live capture authority. */
+sealed interface CellHistoryOrigin {
+	data object Local : CellHistoryOrigin
+	data class Imported(val selection: ImportedCellHistorySelection) : CellHistoryOrigin
+}
+
+/** Stable source-supplied identity for selecting one imported Cell lineage. */
+@JvmInline
+value class ImportedCellHistoryIdentity(val value: String) {
+	init {
+		require(OPAQUE_CELL_IDENTITY.matches(value))
+	}
+
+	override fun toString(): String = "ImportedCellHistoryIdentity"
+}
+
+/** Exact latest imported revision selected by the product reader. */
+data class ImportedCellHistorySelection(
+	val identity: ImportedCellHistoryIdentity,
+	val importRevision: Long,
+	val contentChecksum: ImportedCellHistoryDigest,
+) {
+	init {
+		require(importRevision > 0L)
+	}
+}
+
+@JvmInline
+value class ImportedCellHistoryDigest(val value: String) {
+	init {
+		require(OPAQUE_CELL_IDENTITY.matches(value))
+	}
+
+	override fun toString(): String = "ImportedCellHistoryDigest"
+}
+
+enum class CellHistoryProductState {
+	MATERIALIZING,
+	PARTIAL,
+	READY,
+	UNAVAILABLE,
+	MISSING,
+	DELETED,
+	UNVERIFIABLE,
+	FAILED,
+}
 enum class CellHistoryCoverage { NONE, PARTIAL, COMPLETE, UNKNOWN }
 enum class CellHistoryAvailability { AVAILABLE }
 enum class CellHistorySubscriptionGrouping { UNKNOWN }
@@ -53,6 +101,11 @@ enum class CellHistoryCause(val isIntegrityFailure: Boolean = false) {
 	SUBSCRIPTION_GROUPING_UNKNOWN,
 	RETENTION_LIMIT,
 	PRIVACY_EPOCH_MISMATCH,
+	DELETED,
+	IMPORTED_PRIVACY_EPOCH_MISMATCH(isIntegrityFailure = true),
+	IMPORTED_EVIDENCE_UNVERIFIABLE(isIntegrityFailure = true),
+	IMPORTED_SELECTION_STALE(isIntegrityFailure = true),
+	ORIGIN_IDENTITY_CONFLICT(isIntegrityFailure = true),
 	READ_BUDGET_EXCEEDED(isIntegrityFailure = true),
 	PHYSICAL_MEMBERSHIP_INVALID(isIntegrityFailure = true),
 	MANIFEST_INTEGRITY_FAILED(isIntegrityFailure = true),
@@ -72,6 +125,7 @@ data class CellHistoryEntry(
 	val coverage: CellHistoryCoverage,
 	val observations: List<CellHistoryObservation>,
 	val causes: Set<CellHistoryCause> = emptySet(),
+	val origin: CellHistoryOrigin = CellHistoryOrigin.Local,
 ) {
 	init {
 		require(endTime >= startTime)
@@ -87,9 +141,17 @@ data class CellHistoryEntry(
 			CellHistoryProductState.MATERIALIZING,
 			CellHistoryProductState.UNAVAILABLE,
 			CellHistoryProductState.MISSING,
+			CellHistoryProductState.DELETED,
+			CellHistoryProductState.UNVERIFIABLE,
 			-> {
 				require(observations.isEmpty() && coverage == CellHistoryCoverage.NONE)
 				require(causes.isNotEmpty())
+				if (state == CellHistoryProductState.DELETED) {
+					require(CellHistoryCause.DELETED in causes)
+				}
+				if (state == CellHistoryProductState.UNVERIFIABLE) {
+					require(causes.any { it.isIntegrityFailure })
+				}
 			}
 			CellHistoryProductState.FAILED -> {
 				require(observations.isEmpty() && coverage == CellHistoryCoverage.NONE)
@@ -154,3 +216,5 @@ data class CellHistorySignalQuality(
 			goodCount, greatCount).sum()
 	val knownCount: Int get() = totalCount - unknownCount
 }
+
+private val OPAQUE_CELL_IDENTITY = Regex("[0-9a-f]{64}")
