@@ -147,26 +147,36 @@ class ActivitySourceRuntime @Inject constructor(
 			?: sessionIdentity
 			?: beforeClear.identity
 		val appliedRevision = currentPlan?.revision
-		val barrier = identity?.let { registration ->
-			database.sourceRegistrationStateDao()
-				.get(SourceKind.ACTIVITY.stableCode, ARBITER_OWNER_SCOPE)
-				?.takeIf { it.sourceInstanceId == registration.sourceInstanceId }
-				?.nextSequence
-				?.minus(1L)
-				?.coerceAtLeast(0L)
-		} ?: 0L
 		val result = arbiter.clearDemand(ActivityRegistrationOwner.ACTIVE_SESSION)
+		val durableBarrier = identity?.let { registration ->
+			database.sourceBrokerDao().captureAdmissionBarrier(
+				SourceKind.ACTIVITY.stableCode,
+				registration.registrationGeneration,
+			)?.takeIf { barrier ->
+				barrier.sourceInstanceId == registration.sourceInstanceId
+			}
+		}
+		val barrierSequence = durableBarrier?.lastSourceSequence ?: 0L
+		val exactAdmissionBarrier = result.activeSessionJoinReleased && durableBarrier != null
 		return SourceStopAck(
 			source = source,
 			sourceInstanceId = SourceInstanceId(identity?.sourceInstanceId ?: "activity-unregistered"),
 			registrationGeneration = identity?.registrationGeneration ?: 0L,
 			appliedRevision = appliedRevision,
-			callbackEntryBarrierSequence = barrier,
-			lastDurablyAdmittedSequence = barrier.takeIf { it > 0L },
-			lastAdmissionOrdinal = null,
+			callbackEntryBarrierSequence = barrierSequence,
+			lastDurablyAdmittedSequence = durableBarrier?.lastSourceSequence,
+			lastAdmissionOrdinal = durableBarrier?.lastAdmissionOrdinal,
 			failedAdmissionCount = 0L,
-			unresolvedSequenceStart = null,
-			unresolvedSequenceEndInclusive = null,
+			unresolvedSequenceStart = if (exactAdmissionBarrier || barrierSequence == 0L) {
+				null
+			} else {
+				1L
+			},
+			unresolvedSequenceEndInclusive = if (exactAdmissionBarrier || barrierSequence == 0L) {
+				null
+			} else {
+				barrierSequence
+			},
 			registrationRemovalOutcome = when {
 				!result.activeSessionJoinReleased -> RegistrationRemovalOutcome.FAILED
 				result.snapshot.active || identity == null -> RegistrationRemovalOutcome.NOT_REGISTERED
@@ -174,11 +184,11 @@ class ActivitySourceRuntime @Inject constructor(
 			},
 			providerFlushOutcome = ProviderFlushOutcome.NOT_SUPPORTED,
 			providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
-			appDrainComplete = true,
-			status = if (result.activeSessionJoinReleased) {
-				SourceStopStatus.COMPLETE
-			} else {
-				SourceStopStatus.PROVIDER_FAILED
+			appDrainComplete = exactAdmissionBarrier,
+			status = when {
+				!result.activeSessionJoinReleased -> SourceStopStatus.PROVIDER_FAILED
+				!exactAdmissionBarrier -> SourceStopStatus.TIMED_OUT
+				else -> SourceStopStatus.PARTIAL_UNOBSERVABLE
 			},
 		).withSessionMembership(runtimeClaim)
 	}
@@ -267,7 +277,6 @@ class ActivitySourceRuntime @Inject constructor(
 	}
 
 	private companion object {
-		const val ARBITER_OWNER_SCOPE = "source-broker:2"
 		val SESSION_ACTIVITY_TYPES = setOf(
 			DetectedActivityType.STILL,
 			DetectedActivityType.ON_FOOT,

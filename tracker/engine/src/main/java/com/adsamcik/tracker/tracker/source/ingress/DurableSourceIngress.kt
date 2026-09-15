@@ -291,6 +291,22 @@ class RoomDurableSourceIngress @Inject constructor(
 						AdmissionFailureCode.STALE_SOURCE_POLICY,
 					)
 				}
+				if (candidate.source == SourceKind.ACTIVITY &&
+					brokerDao.captureAdmissionBarrier(
+						candidate.source.stableCode,
+						candidate.registrationGeneration,
+					)?.let { barrier ->
+						barrier.sourceInstanceId == candidate.sourceInstanceId.value &&
+							barrier.throughAuthorizationRevision >=
+								observedTimeAuthorization.authorizationRevision &&
+							candidate.authorizationPurposeEligibilityMask and
+								SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
+					} == true
+				) {
+					return@transaction AdmissionResult.PermanentFailure(
+						AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED,
+					)
+				}
 				val intervalStart = candidate.observedIntervalStartElapsedRealtimeNanos()
 				if (intervalStart < candidate.observedElapsedRealtimeNanos) {
 					val startAuthorization = brokerDao.authorizationAt(
@@ -736,6 +752,22 @@ class RoomDurableSourceIngress @Inject constructor(
 					if (!qualifiedTimeAuthorization.matchesCapturedEnvelope(evidence)) {
 						emptyDeliveryFailure = AdmissionFailureCode.STALE_SOURCE_POLICY
 						continue
+					}
+					if (evidence.source == SourceKind.ACTIVITY &&
+						brokerDao.captureAdmissionBarrier(
+							evidence.source.stableCode,
+							evidence.registrationGeneration,
+						)?.let { barrier ->
+							barrier.sourceInstanceId == evidence.sourceInstanceId.value &&
+								barrier.throughAuthorizationRevision >=
+									qualifiedTimeAuthorization.authorizationRevision &&
+								evidence.authorizationPurposeEligibilityMask and
+									SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
+						} == true
+					) {
+						return@transaction DeliveryAdmissionResult.PermanentFailure(
+							AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED,
+						)
 					}
 					val authorization = qualifiedTimeAuthorization.qualifiedForFreshness(
 						brokerDao = brokerDao,

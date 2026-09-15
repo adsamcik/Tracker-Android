@@ -126,12 +126,21 @@ internal fun SourceStopAck.providerKeyOrNull(): SourceProviderKey? =
 	}
 
 internal fun SourceStopAck.toOwnedShutdown(): OwnedSourceShutdown {
-	return if (hasCompleteTerminalRetirement()) {
+	return if (hasReleasedProviderJoin()) {
 		OwnedSourceShutdown.Released(providerKeyOrNull(), this)
 	} else {
 		OwnedSourceShutdown.Incomplete(providerKeyOrNull(), this)
 	}
 }
+
+private fun SourceStopAck.hasReleasedProviderJoin(): Boolean =
+	status in setOf(SourceStopStatus.COMPLETE, SourceStopStatus.PARTIAL_UNOBSERVABLE) &&
+		registrationRemovalOutcome in setOf(
+			RegistrationRemovalOutcome.REMOVED,
+			RegistrationRemovalOutcome.NOT_REGISTERED,
+		) &&
+		providerFlushOutcome !in setOf(ProviderFlushOutcome.FAILED, ProviderFlushOutcome.TIMED_OUT) &&
+		appDrainComplete
 
 internal fun SourceStopAck.hasCompleteTerminalRetirement(): Boolean =
 	status == SourceStopStatus.COMPLETE &&
@@ -295,4 +304,11 @@ enum class ProviderCoverage {
 	PROVIDER_COMPLETENESS_UNOBSERVABLE,
 }
 
-enum class SourceStopStatus { COMPLETE, TIMED_OUT, PERMISSION_LOST, PROVIDER_FAILED, PROCESS_RESTARTED }
+enum class SourceStopStatus {
+	COMPLETE,
+	PARTIAL_UNOBSERVABLE,
+	TIMED_OUT,
+	PERMISSION_LOST,
+	PROVIDER_FAILED,
+	PROCESS_RESTARTED,
+}

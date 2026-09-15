@@ -97,6 +97,7 @@ import io.mockk.every
 import io.mockk.mockk
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.CompletableDeferred
@@ -237,6 +238,17 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceSessionDao().completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
 			.single { completeness -> completeness.sourceKind == SourceKind.STEPS.stableCode }
 			.appDrainComplete shouldBe true
+		database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single().let { receipt ->
+			receipt.sourceInstanceId shouldBe "steps-instance"
+			receipt.registrationGeneration shouldBe 1L
+			receipt.state shouldBe
+				com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity.STATE_ACKNOWLEDGED
+			receipt.stopStatus shouldBe SourceStopStatus.COMPLETE.name
+		}
 		database.sourceBrokerDao().currentDemands("session:${started.logicalTrackingId}") shouldBe emptyList()
 		database.sourceBrokerDao().demandHistory("session:${started.logicalTrackingId}")
 			.single().status shouldBe SourceDemandEntity.STATUS_RETIRED
@@ -422,6 +434,85 @@ class AuthoritativeSessionCoordinatorTest {
 			session.currentServiceRunId shouldBe started.serviceRunId
 			session.finalAdmissionOrdinal shouldBe 0L
 		}
+	}
+
+	@Test
+	fun `process death after physical retirement replays an exact partial receipt without revival`() = runTest {
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "retirement-crash-gap",
+				serviceRunId = "retirement-crash-run",
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.cancelAfterPhysicalShutdown = true
+
+		assertFailsWith<CancellationException> {
+			subject.stop(
+				SessionStopRequest(
+					"retirement-crash-owner",
+					"USER_STOP",
+					2_000L,
+					2_000_000L,
+					"boot-1",
+				),
+			)
+		}
+
+		database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single().state shouldBe
+			com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity.STATE_REQUESTED
+		database.sourceBrokerDao().insertRegistration(
+			ProviderRegistrationGenerationEntity(
+				sourceKind = SourceKind.STEPS.stableCode,
+				registrationGeneration = 1L,
+				sourceInstanceId = "steps-instance",
+				ownerScope = "source-broker:${SourceKind.STEPS.stableCode}",
+				clockDomainId = "boot-1",
+				physicalConfigurationFingerprint = "retired-steps",
+				collectedDataEpoch = 0L,
+				providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+				providerProcessIncarnationId = "prior-process",
+				status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+				reservedAtMs = 1_000L,
+				reservedElapsedRealtimeNanos = 1_000_000L,
+				acceptedAtMs = 1_000L,
+				acceptedElapsedRealtimeNanos = 1_000_000L,
+				retiredAtMs = 2_000L,
+				retiredElapsedRealtimeNanos = 2_000_000L,
+				failureCode = "PRIOR_PROCESS_ENDED",
+			),
+		)
+		replaceRuntime(FakeStepsRuntime(database))
+
+		val stopped = subject.stop(
+			SessionStopRequest(
+				"retirement-crash-retry",
+				"USER_STOP",
+				2_100L,
+				2_100_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+		stopped.acknowledgements.single().let { acknowledgement ->
+			acknowledgement.sourceInstanceId.value shouldBe "steps-instance"
+			acknowledgement.registrationGeneration shouldBe 1L
+			acknowledgement.status shouldBe SourceStopStatus.PROCESS_RESTARTED
+			acknowledgement.appDrainComplete shouldBe false
+		}
+		database.sourceSessionDao().session(started.logicalTrackingId)?.let { session ->
+			session.state shouldBe SessionLifecycleState.FINALIZED.name
+			session.failureCode shouldBe "STOP_PARTIAL"
+		}
+		database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single().state shouldBe
+			com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity.STATE_INTERRUPTED
 	}
 
 	@Test
@@ -3750,6 +3841,25 @@ class AuthoritativeSessionCoordinatorTest {
 		)
 	}
 
+	private fun replaceRuntime(replacement: FakeStepsRuntime) {
+		val ingress = mockk<DurableSourceIngress>(relaxed = true)
+		runtime = replacement
+		subject = AuthoritativeSessionCoordinator(
+			database,
+			RoomSourcePlanStore(database, SourcePlanCodec()),
+			SourceRuntimeRegistry(setOf(runtime, locationRuntime)),
+			DurableSourceEventSinkFactory(ingress),
+			TrackingCoordinator(database, ingress, ProjectionDispatcher(database, emptySet())),
+			ActivityAutomaticStartActionRepository(database, ReadyTrackingStartupGate),
+			activityAutomationDrainSignal,
+			activityAutomationEpochAuthority,
+			BootClockDomainProvider { currentBootId },
+			leaseClock,
+			rolloutStore = fixedEventRolloutStore(),
+			sourceProductDrainRouter = sourceProductDrainRouter,
+		)
+	}
+
 	private fun fixedEventRolloutStore() = object : TrackingRolloutStateStore {
 		override suspend fun load() = rolloutSnapshot
 
@@ -3831,6 +3941,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 	var registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED
 	var stopProviderFlushOutcome = ProviderFlushOutcome.COMPLETE
 	var retainProviderOnIncompleteShutdown = false
+	var cancelAfterPhysicalShutdown = false
 	var closeFailure: Throwable? = null
 	var acknowledgementLogicalTrackingId: String? = null
 	var acknowledgementServiceRunId: String? = null
@@ -3918,6 +4029,9 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 			active = false
 			closed = true
 			ownedClaim = null
+			if (cancelAfterPhysicalShutdown) {
+				throw CancellationException("simulated process death after provider retirement")
+			}
 			OwnedSourceShutdown.Released(
 				provider = null,
 				stopAck = acknowledgement,

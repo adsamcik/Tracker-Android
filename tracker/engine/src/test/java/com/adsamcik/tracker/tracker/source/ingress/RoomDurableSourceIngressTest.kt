@@ -827,6 +827,47 @@ class RoomDurableSourceIngressTest {
 	}
 
 	@Test
+	fun `durable Activity admission seal rejects a delayed pre-cutoff delivery`() = runTest {
+		val first = delivery(candidate(sequence = 0L)).copy(
+			identity = sourceDeliveryIdentity("activity-before-seal".encodeToByteArray()),
+		)
+		subject.admit(first).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		val brokerDao = database.sourceBrokerDao()
+		val throughAuthorizationRevision = brokerDao.maximumCaptureAuthorizationRevision(
+			SourceKind.ACTIVITY.stableCode,
+			1L,
+		)
+		brokerDao.acknowledgeCaptureCallbackBarrier(
+			SourceKind.ACTIVITY.stableCode,
+			1L,
+			"activity-instance",
+			throughAuthorizationRevision,
+		) shouldBe 1
+		brokerDao.sealCaptureAdmissionBarrier(
+			sourceKind = SourceKind.ACTIVITY.stableCode,
+			registrationGeneration = 1L,
+			sourceInstanceId = "activity-instance",
+			throughAuthorizationRevision = throughAuthorizationRevision,
+			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			sealedElapsedRealtimeNanos = 101L,
+			sealedAtMs = 1_001L,
+		) shouldBe 1
+
+		val delayed = delivery(candidate(sequence = 0L)).copy(
+			identity = sourceDeliveryIdentity("activity-after-seal".encodeToByteArray()),
+		)
+		subject.admit(delayed) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED,
+		)
+		database.sourceEventWalDao().deliveryUnits(
+			SourceKind.ACTIVITY.stableCode,
+			0L,
+			"boot",
+			delayed.identity.value,
+		) shouldBe emptyList()
+	}
+
+	@Test
 	@Suppress("LongMethod")
 	fun `Activity adapter settles provider and authorization filtered siblings after real Room admission`() = runTest {
 		val recovery = mockk<SourcePipelineRecovery>()

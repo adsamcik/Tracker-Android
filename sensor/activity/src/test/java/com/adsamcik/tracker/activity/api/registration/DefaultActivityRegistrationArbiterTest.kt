@@ -1112,6 +1112,15 @@ class DefaultActivityRegistrationArbiterTest {
 			identity.registrationGeneration,
 		)?.captureCallbackBarrierAuthorizationRevision shouldBe
 			captureAuthorization.authorizationRevision
+		database.sourceBrokerDao().captureAdmissionBarrier(
+			ACTIVITY_SOURCE_KIND,
+			identity.registrationGeneration,
+		)?.let { barrier ->
+			barrier.sourceInstanceId shouldBe identity.sourceInstanceId
+			barrier.throughAuthorizationRevision shouldBe captureAuthorization.authorizationRevision
+			barrier.lastAdmissionOrdinal shouldBe 0L
+			barrier.lastSourceSequence shouldBe 0L
+		}
 		checkNotNull(callbackAdmissionBarrier.tryEnter(identity)).complete()
 		coVerify(exactly = 0) { backend.removeRegistration(identity) }
 	}

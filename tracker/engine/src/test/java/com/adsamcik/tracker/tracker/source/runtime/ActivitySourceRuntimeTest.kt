@@ -11,6 +11,8 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationSnapsh
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.SourceRegistrationStateDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceBrokerDao
+import com.adsamcik.tracker.shared.base.database.data.SourceCaptureAdmissionBarrierEntity
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
@@ -193,6 +195,55 @@ class ActivitySourceRuntimeTest {
 	}
 
 	@Test
+	fun `missing durable Activity admission barrier remains incomplete`() = runTest {
+		val fixture = fixture(admissionBarrier = null)
+		val owner = claim("missing-admission-barrier")
+		assertIs<SourceStartResult.Started>(
+			fixture.runtime.start(owner, enabledPlan(1L), DISCARDING_SINK),
+		)
+
+		val incomplete = assertIs<OwnedSourceShutdown.Incomplete>(
+			fixture.runtime.shutdownIfOwned(owner, CUTOFF),
+		)
+
+		requireNotNull(incomplete.stopAck).let { acknowledgement ->
+			assertEquals(null, acknowledgement.lastAdmissionOrdinal)
+			assertEquals(null, acknowledgement.lastDurablyAdmittedSequence)
+			assertFalse(acknowledgement.appDrainComplete)
+			assertEquals(
+				ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+				acknowledgement.providerCoverage,
+			)
+			assertEquals(SourceStopStatus.TIMED_OUT, acknowledgement.status)
+		}
+	}
+
+	@Test
+	fun `durable Activity admission barrier supplies exact nonnull high-water`() = runTest {
+		val fixture = fixture()
+		val owner = claim("durable-admission-barrier")
+		assertIs<SourceStartResult.Started>(
+			fixture.runtime.start(owner, enabledPlan(1L), DISCARDING_SINK),
+		)
+
+		val released = assertIs<OwnedSourceShutdown.Released>(
+			fixture.runtime.shutdownIfOwned(owner, CUTOFF),
+		)
+
+		requireNotNull(released.stopAck).let { acknowledgement ->
+			assertEquals(23L, acknowledgement.lastAdmissionOrdinal)
+			assertEquals(17L, acknowledgement.lastDurablyAdmittedSequence)
+			assertEquals(17L, acknowledgement.callbackEntryBarrierSequence)
+			assertTrue(acknowledgement.appDrainComplete)
+			assertEquals(
+				ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+				acknowledgement.providerCoverage,
+			)
+			assertEquals(SourceStopStatus.PARTIAL_UNOBSERVABLE, acknowledgement.status)
+		}
+	}
+
+	@Test
 	fun `successful disabled reconfigure leaves no owned join`() = runTest {
 		val fixture = fixture(setOf(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR))
 		val first = claim("start-action", leaseGeneration = 1L)
@@ -217,12 +268,18 @@ class ActivitySourceRuntimeTest {
 
 	private fun fixture(
 		initialOwners: Set<ActivityRegistrationOwner> = emptySet(),
+		admissionBarrier: SourceCaptureAdmissionBarrierEntity? = activityAdmissionBarrier(),
 	): ActivityRuntimeFixture {
 		val arbiter = RecordingActivityRegistrationArbiter(initialOwners)
 		val registrationStateDao = mockk<SourceRegistrationStateDao>()
 		coEvery { registrationStateDao.get(any(), any()) } returns null
 		val database = mockk<AppDatabase>()
 		every { database.sourceRegistrationStateDao() } returns registrationStateDao
+		val sourceBrokerDao = mockk<SourceBrokerDao>()
+		coEvery {
+			sourceBrokerDao.captureAdmissionBarrier(SourceKind.ACTIVITY.stableCode, ACTIVITY_GENERATION)
+		} returns admissionBarrier
+		every { database.sourceBrokerDao() } returns sourceBrokerDao
 		return ActivityRuntimeFixture(
 			runtime = ActivitySourceRuntime(arbiter, database, SourcePlanCodec()),
 			arbiter = arbiter,
@@ -237,6 +294,17 @@ class ActivitySourceRuntimeTest {
 	)
 
 	private companion object {
+		fun activityAdmissionBarrier() = SourceCaptureAdmissionBarrierEntity(
+			sourceKind = SourceKind.ACTIVITY.stableCode,
+			registrationGeneration = ACTIVITY_GENERATION,
+			sourceInstanceId = ACTIVITY_INSTANCE_ID,
+			throughAuthorizationRevision = 4L,
+			lastAdmissionOrdinal = 23L,
+			lastSourceSequence = 17L,
+			sealedElapsedRealtimeNanos = 10L,
+			sealedAtMs = 20L,
+		)
+
 		val DISCARDING_SINK = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
 		val CUTOFF = SessionCutoff(
 			logicalTrackingId = "logical-session",

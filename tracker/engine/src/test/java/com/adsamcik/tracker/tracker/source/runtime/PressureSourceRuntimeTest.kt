@@ -109,6 +109,61 @@ class PressureSourceRuntimeTest {
 	}
 
 	@Test
+	fun `source erase barrier fails closed when durable maintenance exclusion is lost`() = runTest {
+		val activePlan = plan(revision = 1L)
+		val fixture = fixture(
+			scope = this,
+			registrationsToReturn = listOf(
+				registration(
+					activePlan,
+					authorizationRevision = 1L,
+					requiresAcceptance = true,
+					purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
+				),
+			),
+			maintenanceAuthorityActive = false,
+		)
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan, RecordingPressureSink()))
+
+		assertEquals(
+			PressureSourceEraseBarrierResult.Blocked(
+				PressureSourceEraseBarrierBlockedReason.STALE_LIFECYCLE,
+			),
+			fixture.runtime.establishSourceEraseBarrier(1L),
+		)
+
+		verify(exactly = 0) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `maintenance fence expiry during retirement withholds erase success`() = runTest {
+		val activePlan = plan(revision = 1L)
+		val fixture = fixture(
+			scope = this,
+			registrationsToReturn = listOf(
+				registration(
+					activePlan,
+					authorizationRevision = 1L,
+					requiresAcceptance = true,
+					purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
+				),
+			),
+			maintenanceAuthorityResults = listOf(true, false),
+		)
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan, RecordingPressureSink()))
+
+		assertEquals(
+			PressureSourceEraseBarrierResult.Blocked(
+				PressureSourceEraseBarrierBlockedReason.STALE_LIFECYCLE,
+			),
+			fixture.runtime.establishSourceEraseBarrier(1L),
+		)
+
+		verify(exactly = 1) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+	}
+
+	@Test
 	fun `active capture authorization blocks source erase without creating a cutoff`() = runTest {
 		val activePlan = plan(revision = 1L)
 		val fixture = fixture(
@@ -1556,6 +1611,8 @@ class PressureSourceRuntimeTest {
 		sensorMaximumDelayMicros: Int = 60_000_000,
 		fifoMaxEventCount: Int = 0,
 		flushResult: Boolean = false,
+		maintenanceAuthorityActive: Boolean = true,
+		maintenanceAuthorityResults: List<Boolean> = emptyList(),
 	): Fixture {
 		val context = mockk<Context>()
 		val sensorManager = mockk<SensorManager>()
@@ -1605,6 +1662,13 @@ class PressureSourceRuntimeTest {
 			}
 		}
 		coEvery { registrations.loadRuntimeState(any()) } returns null
+		var maintenanceAuthorityIndex = 0
+		coEvery {
+			registrations.hasActiveSourceEraseAuthority(SourceKind.PRESSURE, any())
+		} answers {
+			maintenanceAuthorityResults.getOrNull(maintenanceAuthorityIndex++)
+				?: maintenanceAuthorityActive
+		}
 		coEvery { registrations.beginRetirement(any(), any(), any(), any()) } coAnswers {
 			operationEvents?.add("begin-retirement")
 			beginRetirement(firstArg(), secondArg(), thirdArg(), arg(3))

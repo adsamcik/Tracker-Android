@@ -270,6 +270,11 @@ class PressureSourceRuntime @Inject constructor(
 		return lifecycleMutex.withLock {
 			val activeRegistration = registration ?: return@withLock
 				PressureSourceEraseBarrierResult.NoLocalProvider
+			if (!registrations.hasActiveSourceEraseAuthority(source, expectedCollectedDataEpoch)) {
+				return@withLock PressureSourceEraseBarrierResult.Blocked(
+					PressureSourceEraseBarrierBlockedReason.STALE_LIFECYCLE,
+				)
+			}
 			if (activeRegistration.state.collectedDataEpoch != expectedCollectedDataEpoch) {
 				return@withLock PressureSourceEraseBarrierResult.Blocked(
 					PressureSourceEraseBarrierBlockedReason.STALE_LIFECYCLE,
@@ -304,6 +309,11 @@ class PressureSourceRuntime @Inject constructor(
 			if (acknowledgement.registrationRemovalOutcome != RegistrationRemovalOutcome.REMOVED) {
 				return@withLock PressureSourceEraseBarrierResult.Retryable(
 					PressureSourceEraseBarrierRetryableReason.PROVIDER_REMOVAL_FAILED,
+				)
+			}
+			if (!registrations.hasActiveSourceEraseAuthority(source, expectedCollectedDataEpoch)) {
+				return@withLock PressureSourceEraseBarrierResult.Blocked(
+					PressureSourceEraseBarrierBlockedReason.STALE_LIFECYCLE,
 				)
 			}
 			clearClaimIfReleased(acknowledgement)

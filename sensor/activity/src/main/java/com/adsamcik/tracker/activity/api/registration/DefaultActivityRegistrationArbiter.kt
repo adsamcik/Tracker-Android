@@ -1096,6 +1096,22 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			identity.sourceInstanceId,
 			throughRevision,
 		) == 1) { "Activity registration changed before its callback barrier acknowledgement" }
+		val sealed = dao.sealCaptureAdmissionBarrier(
+			sourceKind = ACTIVITY_SOURCE_KIND,
+			registrationGeneration = identity.registrationGeneration,
+			sourceInstanceId = identity.sourceInstanceId,
+			throughAuthorizationRevision = throughRevision,
+			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			sealedElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
+			sealedAtMs = System.currentTimeMillis(),
+		)
+		check(sealed == 1 || dao.captureAdmissionBarrier(
+			ACTIVITY_SOURCE_KIND,
+			identity.registrationGeneration,
+		)?.let { barrier ->
+			barrier.sourceInstanceId == identity.sourceInstanceId &&
+				barrier.throughAuthorizationRevision == throughRevision
+		} == true) { "Activity registration changed before its durable admission barrier" }
 	}
 
 	private suspend fun awaitCallbackBarrier(

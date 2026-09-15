@@ -403,6 +403,7 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 				run.startedElapsedNanos > selected.observedElapsedNanos
 			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH)
 			val maximumDeliveryOrdinal = decodedDelivery.maxOf { unit -> unit.wal.admissionOrdinal }
+			val maximumDeliverySequence = decodedDelivery.maxOf { unit -> unit.wal.sourceSequence }
 			if (!session.hasValidLifecycleShape(maximumDeliveryOrdinal, run) ||
 				!run.hasValidLifecycleShape() || !run.hasValidRelationshipTo(session)
 			) return@transaction rejected(ActivityCapturedWalAdmissionRejection.SESSION_MISMATCH)
@@ -412,7 +413,11 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 						row.sourceInstanceId == selected.sourceInstanceId &&
 						row.registrationGeneration == selected.registrationGeneration
 				}
-			if (completeness?.isExactSettledActivityTail(maximumDeliveryOrdinal) != true) {
+			if (completeness?.isExactSettledActivityTail(
+					maximumDeliveryOrdinal,
+					maximumDeliverySequence,
+				) != true
+			) {
 				return@transaction unavailable(
 					ActivityCapturedWalAdmissionUnavailable.UNSETTLED_FINITE_WINDOW,
 				)
@@ -849,11 +854,13 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 
 	private fun SourceSessionCompletenessEntity.isExactSettledActivityTail(
 		maximumAdmissionOrdinal: Long,
+		maximumSourceSequence: Long,
 	): Boolean = appDrainComplete &&
-		stopStatus == COMPLETE_STOP_STATUS &&
+		stopStatus in SETTLED_STOP_STATUSES &&
 		unresolvedSequenceStart == null &&
 		unresolvedSequenceEnd == null &&
-		lastAdmissionOrdinal?.let { it >= maximumAdmissionOrdinal } != false
+		lastAdmissionOrdinal?.let { it >= maximumAdmissionOrdinal } == true &&
+		lastSourceSequence?.let { it >= maximumSourceSequence } == true
 
 	private fun SourceServiceRunEntity.hasValidLifecycleShape(): Boolean {
 		if (state !in ALL_LIFECYCLE_STATES || serviceRunId.isBlank() || logicalTrackingId.isBlank() ||
@@ -985,7 +992,7 @@ internal class ActivityCapturedWalAdmissionAdapter @Inject constructor(
 		const val KIND_TRANSITION = 1
 		const val LIFECYCLE_STOPPING = "STOPPING"
 		const val LIFECYCLE_ACTIVE = "ACTIVE"
-		const val COMPLETE_STOP_STATUS = "COMPLETE"
+		val SETTLED_STOP_STATUSES = setOf("COMPLETE", "PARTIAL_UNOBSERVABLE")
 		val TERMINAL_LIFECYCLE_STATES = setOf("FINALIZED", "CLOSED", "FAILED")
 		val ALL_LIFECYCLE_STATES = TERMINAL_LIFECYCLE_STATES +
 			setOf("STARTING", LIFECYCLE_ACTIVE, "RECONFIGURING", LIFECYCLE_STOPPING)

@@ -134,6 +134,25 @@ class ActivityCapturedWalAdmissionAdapterTest {
 	}
 
 	@Test
+	fun `provider-unobservable Activity remains partial but materializes its exact admitted prefix`() =
+		runTest {
+			installFixture()
+			installSettledStoppingWindow(sessionState = "STOPPING", desiredState = "FINALIZED")
+			val current = database.sourceSessionDao().completenessForServiceRun(
+				LOGICAL_TRACKING_ID,
+				SERVICE_RUN_ID,
+			).single()
+			database.sourceSessionDao().saveCompleteness(
+				current.copy(
+					stopStatus = "PARTIAL_UNOBSERVABLE",
+					providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
+				),
+			)
+
+			(subject().admit(EVENT_ID) is ActivityCapturedWalAdmissionResult.Admitted) shouldBe true
+		}
+
+	@Test
 	fun `exactly settled suspended run admits while logical session remains active`() = runTest {
 		installFixture()
 		installSettledStoppingWindow(sessionState = "ACTIVE", desiredState = "ACTIVE")
@@ -146,6 +165,19 @@ class ActivityCapturedWalAdmissionAdapterTest {
 		installFixture()
 		installSettledStoppingWindow(sessionState = "STOPPING", desiredState = "FINALIZED")
 		database.sourceSessionDao().deleteAllCompleteness()
+
+		(subject().admit(EVENT_ID) is ActivityCapturedWalAdmissionResult.Admitted) shouldBe false
+	}
+
+	@Test
+	fun `STOPPING completeness with nullable admitted high-water remains unavailable`() = runTest {
+		installFixture()
+		installSettledStoppingWindow(sessionState = "STOPPING", desiredState = "FINALIZED")
+		val current = database.sourceSessionDao().completenessForServiceRun(
+			LOGICAL_TRACKING_ID,
+			SERVICE_RUN_ID,
+		).single()
+		database.sourceSessionDao().saveCompleteness(current.copy(lastAdmissionOrdinal = null))
 
 		(subject().admit(EVENT_ID) is ActivityCapturedWalAdmissionResult.Admitted) shouldBe false
 	}

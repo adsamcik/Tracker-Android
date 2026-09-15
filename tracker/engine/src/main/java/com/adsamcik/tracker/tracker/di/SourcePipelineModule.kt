@@ -17,12 +17,18 @@ import com.adsamcik.tracker.tracker.source.coordinator.ProtectedLocationSourceDr
 import com.adsamcik.tracker.tracker.source.coordinator.RequiredProtectedLocationSourceDrain
 import com.adsamcik.tracker.tracker.source.coordinator.RoomSourceProductDrainRouter
 import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainRouter
+import com.adsamcik.tracker.tracker.source.coordinator.LegacySourceWriterTransitionBoundary
+import com.adsamcik.tracker.tracker.source.coordinator.UnavailableLegacySourceWriterTransitionBoundary
+import com.adsamcik.tracker.tracker.source.coordinator.SourceWriterRearmAuthority
+import com.adsamcik.tracker.tracker.source.coordinator.UnavailableSourceWriterRearmAuthority
+import com.adsamcik.tracker.tracker.source.coordinator.MonotonicRearmSourceWriterSupport
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
+import dagger.multibindings.Multibinds
 import javax.inject.Singleton
 
 @Module
@@ -73,4 +79,23 @@ object SourcePipelineModule {
 	fun provideSourceProductDrainRouter(
 		router: RoomSourceProductDrainRouter,
 	): SourceProductDrainRouter = router
+
+	@Provides
+	@Singleton
+	fun provideLegacySourceWriterTransitionBoundary(
+		unavailable: UnavailableLegacySourceWriterTransitionBoundary,
+	): LegacySourceWriterTransitionBoundary = unavailable
+
+	@Provides
+	@Singleton
+	fun provideSourceWriterRearmAuthority(
+		unavailable: UnavailableSourceWriterRearmAuthority,
+	): SourceWriterRearmAuthority = unavailable
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+internal interface SourceWriterCapabilityModule {
+	@Multibinds
+	fun monotonicRearmSourceWriterSupport(): Set<MonotonicRearmSourceWriterSupport>
 }

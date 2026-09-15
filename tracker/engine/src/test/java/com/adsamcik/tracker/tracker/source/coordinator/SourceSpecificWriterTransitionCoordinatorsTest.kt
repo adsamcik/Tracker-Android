@@ -62,8 +62,15 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 	fun `Pressure activation is blocked while the legacy persistence owner is not quiescent`() = runTest {
 		seedContainedRollout()
 		seedInitialOwner(SourceWriterTransitionSpec.PRESSURE)
-		val activeLegacyWriter = object : LegacySourceWriterQuiescence {
-			override suspend fun <T : Any> runIfQuiescent(operation: suspend () -> T): T? = null
+		val requestedSources = mutableListOf<SourceKind>()
+		val activeLegacyWriter = object : LegacySourceWriterTransitionBoundary {
+			override suspend fun <T : Any> runIfQuiescent(
+				source: SourceKind,
+				operation: suspend () -> T,
+			): T? {
+				requestedSources += source
+				return null
+			}
 		}
 		val coordinator = PressureSessionFactWriterTransitionCoordinator(
 			database,
@@ -76,12 +83,38 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
 
 		blocked.blocker shouldBe SourceWriterTransitionBlocker.LEGACY_WRITER_NOT_QUIESCENT
+		requestedSources shouldBe listOf(SourceKind.PRESSURE)
 		rollout().isAcquisitionReachable(SourceKind.PRESSURE) shouldBe false
 		database.sourceDestinationOwnerDao().get(
 			SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 			SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
 		)?.owner shouldBe SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE
 	}
+
+	@Test
+	fun `Pressure rollback uses a contained owner rather than advertising legacy generation three`() =
+		runTest {
+			seedContainedRollout()
+			seedInitialOwner(SourceWriterTransitionSpec.PRESSURE)
+			val coordinator = PressureSessionFactWriterTransitionCoordinator(
+				database,
+				catalog,
+				dependencies(),
+			)
+			coordinator.installInertCandidate(1L, 10L)
+			coordinator.activateCandidate(2L, 11L)
+			coordinator.beginCandidateRollback(3L, 12L)
+			coordinator.completeCandidateRollback(4L, 0L, 13L)
+
+			database.sourceDestinationOwnerDao().get(
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			)?.let { owner ->
+				owner.owner shouldBe CONTAINED_PRESSURE_SESSION_OWNER
+				owner.ownerGeneration shouldBe 3L
+			}
+			rollout().isAcquisitionReachable(SourceKind.PRESSURE) shouldBe false
+		}
 
 	@Test
 	fun `Wi-Fi first activation installs exact owner only inside the canonical transaction`() = runTest {
@@ -132,6 +165,63 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 		coordinator.rearmAfterFullDeletion(14L)
 			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
 			.blocker shouldBe SourceWriterTransitionBlocker.REARM_BINDING_CONTRACT_UNAVAILABLE
+	}
+
+	@Test
+	fun `monotonic rearm contract supports repeated owner and binding generations`() = runTest {
+		val rearmCatalog = ExecutableSourceLaneCatalog.explicitRearmable(
+			ExecutableSourceLaneCatalog.CELL_SESSION_FACTS,
+		)
+		RoomTrackingRolloutStateStore(database, rearmCatalog).load() shouldBe
+			TrackingRolloutState.contained(revision = 1L)
+		val coordinator = CellSessionFactWriterTransitionCoordinator(
+			database,
+			rearmCatalog,
+			dependencies(rearmAuthority = SourceWriterRearmAuthority.ALWAYS),
+		)
+
+		coordinator.installInertCandidate(1L, 10L)
+		coordinator.activateCandidate(2L, 11L)
+		coordinator.beginCandidateRollback(3L, 12L)
+		coordinator.completeCandidateRollback(4L, 0L, 13L)
+		coordinator.rearmAfterFullDeletion(14L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+		database.sourceProjectionStateDao().activeProductLane(SourceKind.CELL.stableCode)
+			?.bindingGeneration shouldBe 2L
+		coordinator.activateCandidate(5L, 15L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+		database.sourceDestinationOwnerDao().get(
+			SourceDestinationOwnerEntity.SOURCE_CELL,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+		)?.ownerGeneration shouldBe 4L
+
+		coordinator.beginCandidateRollback(6L, 16L)
+		coordinator.completeCandidateRollback(7L, 0L, 17L)
+		coordinator.rearmAfterFullDeletion(18L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+		database.sourceProjectionStateDao().activeProductLane(SourceKind.CELL.stableCode)
+			?.bindingGeneration shouldBe 3L
+		database.sourceDestinationOwnerDao().get(
+			SourceDestinationOwnerEntity.SOURCE_CELL,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+		)?.ownerGeneration shouldBe 5L
+	}
+
+	@Test
+	fun `corrupt fenced lane cannot impersonate an already begun rollback`() = runTest {
+		seedContainedRollout()
+		val coordinator = WifiSessionFactWriterTransitionCoordinator(database, catalog, dependencies())
+		coordinator.installInertCandidate(1L, 10L)
+		coordinator.activateCandidate(2L, 11L)
+		coordinator.beginCandidateRollback(3L, 12L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_product_projection_lane SET projection_id = ? WHERE source_kind = ?",
+			arrayOf<Any>("corrupt-wifi-writer", SourceKind.WIFI.stableCode),
+		)
+
+		coordinator.beginCandidateRollback(3L, 13L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+			.blocker shouldBe SourceWriterTransitionBlocker.BINDING_NOT_EXECUTABLE
 	}
 
 	@Test
@@ -214,13 +304,16 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 		requireNotNull(database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull())
 
 	private fun dependencies(
-		legacyWriterQuiescence: LegacySourceWriterQuiescence = LegacySourceWriterQuiescence.ALWAYS,
+		legacyWriterQuiescence: LegacySourceWriterTransitionBoundary =
+			LegacySourceWriterTransitionBoundary.ALWAYS,
+		rearmAuthority: SourceWriterRearmAuthority = UnavailableSourceWriterRearmAuthority(),
 		requestDrain: (SourceKind) -> Unit = {},
 	) = SourceWriterTransitionTestDependencies(
 		startupGate = ReadyStartupGate,
 		bootClockDomainProvider = BootClockDomainProvider { BOOT_ID },
 		clock = FixedClock(fixedTimeMillis = 1_000L, fixedRealtimeNanos = 1_000L),
 		legacyWriterQuiescence = legacyWriterQuiescence,
+		rearmAuthority = rearmAuthority,
 		requestDrain = requestDrain,
 	)
 

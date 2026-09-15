@@ -376,6 +376,11 @@ internal suspend fun buildSourceProductDrainPlan(
 		if (memberships.isEmpty()) {
 			return SourceProductDrainPlan.Failed(source, "SOURCE_DRAIN_COMPLETENESS_MISSING")
 		}
+		if (memberships.any { membership -> !membership.isExactCompleteSettlement() }) {
+			// Terminal interrupted acquisition is truthful lifecycle evidence, not materialization
+			// authority. Do not route it to a product lane or convert it into QUERYABLE success.
+			continue
+		}
 		val sourceWalHighWater = sourceRunHighWater(
 			database,
 			source,
@@ -390,6 +395,12 @@ internal suspend fun buildSourceProductDrainPlan(
 		if (sourceHighWater > settlementHighWaterAdmissionOrdinal) {
 			return SourceProductDrainPlan.Failed(source, "SOURCE_DRAIN_HIGH_WATER_EXCEEDS_SETTLEMENT")
 		}
+
+		private fun SourceDrainMembership.isExactCompleteSettlement(): Boolean =
+			appDrainComplete &&
+				stopStatus in setOf("COMPLETE", "PARTIAL_UNOBSERVABLE") &&
+				unresolvedSequenceStart == null &&
+				unresolvedSequenceEndInclusive == null
 		requests += SourceProductDrainRequest(
 			source = source,
 			logicalTrackingId = logicalTrackingId,
