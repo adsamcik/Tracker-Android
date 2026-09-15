@@ -303,8 +303,9 @@ data class ImportedActivityFragmentEntity(
 
 /**
  * Payload-free proof that one complete imported Activity correction lineage was removed by the
- * already-durable global retention floor. It is deliberately separate from user deletion
- * tombstones: retention must remain distinguishable from both "never imported" and "deleted".
+ * already-durable global retention floor. Selected entry deletion does not reuse this receipt.
+ * Source-wide Activity erasure may retain a redacted zero-time receipt alongside an entry deletion
+ * marker so typed child/scope collision authority survives without keeping a visible timing shell.
  */
 @Entity(tableName = "imported_activity_retention_receipt", primaryKeys = ["entry_identity"])
 @Suppress("LongParameterList")

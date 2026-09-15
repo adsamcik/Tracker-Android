@@ -5,6 +5,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedPortableFormatV1
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
@@ -47,6 +48,9 @@ abstract class ImportedActivityDao {
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertRetentionReceipts(values: List<ImportedActivityRetentionReceiptEntity>)
+
+	@Update(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun updateRetentionReceipt(value: ImportedActivityRetentionReceiptEntity): Int
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertRetainedIdentities(values: List<ImportedActivityRetainedIdentityEntity>)
@@ -93,7 +97,9 @@ abstract class ImportedActivityDao {
 		"SELECT entry_identity AS identity, latest_import_revision AS import_revision, " +
 			"latest_content_checksum AS content_checksum, start_time_ms, end_time_ms, received_at_ms, " +
 			"'RETAINED' AS candidate_state FROM imported_activity_retention_receipt " +
-			"WHERE entry_identity = :identity",
+			"WHERE entry_identity = :identity AND NOT EXISTS (" +
+			"SELECT 1 FROM imported_activity_entry_deletion AS deletion " +
+			"WHERE deletion.entry_identity = imported_activity_retention_receipt.entry_identity)",
 	)
 	abstract suspend fun retainedHistoryCandidate(identity: String): ImportedActivityHistoryCandidate?
 
@@ -131,12 +137,18 @@ abstract class ImportedActivityDao {
 		       retained.received_at_ms,
 		       'RETAINED' AS candidate_state
 		FROM imported_activity_retention_receipt AS retained
-		WHERE :beforeStartTimeMs IS NULL
-		   OR retained.start_time_ms < :beforeStartTimeMs
-		   OR (
-		     retained.start_time_ms = :beforeStartTimeMs
-		     AND retained.entry_identity < COALESCE(:beforeIdentity, '')
-		   )
+		WHERE NOT EXISTS (
+		  SELECT 1 FROM imported_activity_entry_deletion AS deletion
+		  WHERE deletion.entry_identity = retained.entry_identity
+		)
+		  AND (
+		    :beforeStartTimeMs IS NULL
+		    OR retained.start_time_ms < :beforeStartTimeMs
+		    OR (
+		      retained.start_time_ms = :beforeStartTimeMs
+		      AND retained.entry_identity < COALESCE(:beforeIdentity, '')
+		    )
+		  )
 		ORDER BY start_time_ms DESC, identity DESC, candidate_state
 		LIMIT :limit
 		""",
@@ -187,6 +199,10 @@ abstract class ImportedActivityDao {
 		FROM imported_activity_retention_receipt AS retained
 		WHERE retained.start_time_ms < :toExclusiveMs
 		  AND retained.end_time_ms > :fromInclusiveMs
+		  AND NOT EXISTS (
+		    SELECT 1 FROM imported_activity_entry_deletion AS deletion
+		    WHERE deletion.entry_identity = retained.entry_identity
+		  )
 		  AND (
 		    :beforeStartTimeMs IS NULL
 		    OR retained.start_time_ms < :beforeStartTimeMs
