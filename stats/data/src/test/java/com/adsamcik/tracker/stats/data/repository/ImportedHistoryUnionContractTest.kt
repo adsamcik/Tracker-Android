@@ -42,6 +42,7 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 class ImportedHistoryUnionContractTest {
@@ -74,6 +75,20 @@ class ImportedHistoryUnionContractTest {
 				SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
 			)
 		}
+	}
+
+	@Test
+	fun `pending producer bindings fail closed without an eligible page`() = runTest {
+		val unavailable = ImportedHistoryEligiblePage.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
+		)
+
+		PendingWifiImportedHistoryEligibleReader
+			.recentImportedEligibleForSharedHistoryInTransaction(1) shouldBe unavailable
+		PendingCellImportedHistoryEligibleReader
+			.recentImportedEligibleForSharedHistoryInTransaction(1) shouldBe unavailable
+		PendingActivityImportedHistoryEligibleReader
+			.recentImportedEligibleForSharedHistoryInTransaction(1) shouldBe unavailable
 	}
 
 	@Test

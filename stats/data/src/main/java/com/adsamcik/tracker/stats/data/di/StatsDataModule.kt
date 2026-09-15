@@ -27,6 +27,8 @@ import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
 import com.adsamcik.tracker.stats.data.metric.DefaultMetricDirtyTracker
 import com.adsamcik.tracker.stats.data.metric.DefaultPersistentDirtyState
 import com.adsamcik.tracker.stats.data.metric.DurableMetricDirtyTracker
+import com.adsamcik.tracker.stats.data.repository.ActivityImportedHistoryEligibleReader
+import com.adsamcik.tracker.stats.data.repository.CellImportedHistoryEligibleReader
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultActivityHistoryRepository
@@ -46,7 +48,13 @@ import com.adsamcik.tracker.stats.data.repository.DefaultTrackingHistorySourceUn
 import com.adsamcik.tracker.stats.data.repository.DefaultWifiHistoryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWifiObservationRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWindowedMetricsProvider
+import com.adsamcik.tracker.stats.data.repository.PendingActivityImportedHistoryEligibleReader
+import com.adsamcik.tracker.stats.data.repository.PendingCellImportedHistoryEligibleReader
+import com.adsamcik.tracker.stats.data.repository.PendingWifiImportedHistoryEligibleReader
+import com.adsamcik.tracker.stats.data.repository.PressureHistoryPageReader
+import com.adsamcik.tracker.stats.data.repository.PressureImportedHistoryEligibleReader
 import com.adsamcik.tracker.stats.data.repository.TrackingHistorySourceUnionReader
+import com.adsamcik.tracker.stats.data.repository.WifiImportedHistoryEligibleReader
 import com.adsamcik.tracker.stats.data.scheduler.WorkManagerAchievementEvaluationScheduler
 import com.adsamcik.tracker.stats.data.worker.AchievementEvaluationTransactionRunner
 import com.adsamcik.tracker.stats.data.worker.RoomAchievementEvaluationTransactionRunner
@@ -190,6 +198,32 @@ internal abstract class TrackingHistoryDataModule {
 	abstract fun bindTrackingHistorySourceUnionReader(
 		impl: DefaultTrackingHistorySourceUnionReader,
 	): TrackingHistorySourceUnionReader
+
+	@Binds
+	@Singleton
+	abstract fun bindPressureImportedHistoryEligibleReader(
+		impl: PressureHistoryPageReader,
+	): PressureImportedHistoryEligibleReader
+}
+
+/** Pending bindings are replaced by source-owned implementations after their closed commits merge. */
+@Module
+@InstallIn(SingletonComponent::class)
+internal object PendingImportedHistoryEligibleDataModule {
+	@Provides
+	@Singleton
+	fun provideWifiImportedHistoryEligibleReader(): WifiImportedHistoryEligibleReader =
+		PendingWifiImportedHistoryEligibleReader
+
+	@Provides
+	@Singleton
+	fun provideCellImportedHistoryEligibleReader(): CellImportedHistoryEligibleReader =
+		PendingCellImportedHistoryEligibleReader
+
+	@Provides
+	@Singleton
+	fun provideActivityImportedHistoryEligibleReader(): ActivityImportedHistoryEligibleReader =
+		PendingActivityImportedHistoryEligibleReader
 }
 
 /** Keeps the source-specific Activity fact reader independent of the shared history facade. */

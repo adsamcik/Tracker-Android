@@ -195,3 +195,35 @@ internal interface PressureImportedHistoryEligibleReader {
 		limit: Int,
 	): ImportedHistoryEligiblePage<PressureImportedHistoryEligibleEntry>
 }
+
+internal object PendingWifiImportedHistoryEligibleReader : WifiImportedHistoryEligibleReader {
+	override suspend fun recentImportedEligibleForSharedHistoryInTransaction(
+		limit: Int,
+	): ImportedHistoryEligiblePage<WifiImportedHistoryEligibleEntry> {
+		require(limit > 0)
+		return pendingImportedHistoryBridge()
+	}
+}
+
+internal object PendingCellImportedHistoryEligibleReader : CellImportedHistoryEligibleReader {
+	override suspend fun recentImportedEligibleForSharedHistoryInTransaction(
+		limit: Int,
+	): ImportedHistoryEligiblePage<CellImportedHistoryEligibleEntry> {
+		require(limit > 0)
+		return pendingImportedHistoryBridge()
+	}
+}
+
+internal object PendingActivityImportedHistoryEligibleReader :
+	ActivityImportedHistoryEligibleReader {
+	override suspend fun recentImportedEligibleForSharedHistoryInTransaction(
+		limit: Int,
+	): ImportedHistoryEligiblePage<ActivityImportedHistoryEligibleEntry> {
+		require(limit > 0)
+		return pendingImportedHistoryBridge()
+	}
+}
+
+private fun pendingImportedHistoryBridge() = ImportedHistoryEligiblePage.Unavailable(
+	SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
+)
