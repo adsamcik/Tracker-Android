@@ -675,6 +675,48 @@ class SourceBroker @Inject constructor(
 		)
 	}
 
+	internal suspend fun ambientRadioReconciliationAuthority(
+		source: SourceKind,
+	): AmbientRadioReconciliationAuthority = database.withTransaction {
+		require(source == SourceKind.WIFI || source == SourceKind.CELL)
+		val policyAuthority = database.sourcePolicyDao().authority()
+		val policyRevision = policyAuthority?.takeIf {
+			it.bootstrapState == SourcePolicyAuthorityEntity.STATE_ACTIVE
+		}?.currentPolicyRevision
+		val consentEpoch = database.sourcePolicyDao().latestConsentEpoch(
+			source.stableCode,
+			SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)?.epoch
+		val evidence = database.sourceEvidenceStateDao().get()
+		val rollout = trackingRolloutStateStore.load()
+		val sourceAuthority = when (source) {
+			SourceKind.WIFI -> database.ambientWifiFactDao().latestAuthority()?.takeIf {
+				it.sourcePolicyRevision == policyRevision &&
+					it.ambientConsentEpoch == consentEpoch &&
+					it.collectedDataEpoch == evidence?.collectedDataEpoch
+			}?.let {
+				AmbientRadioExecutionAuthority(it.authorityRevision, it.writerOwnerGeneration)
+			}
+			SourceKind.CELL -> database.ambientCellFactDao().latestAuthority()?.takeIf {
+				it.sourcePolicyRevision == policyRevision &&
+					it.ambientConsentEpoch == consentEpoch &&
+					it.collectedDataEpoch == evidence?.collectedDataEpoch
+			}?.let {
+				AmbientRadioExecutionAuthority(it.authorityRevision, it.writerOwnerGeneration)
+			}
+			else -> null
+		}
+		AmbientRadioReconciliationAuthority(
+			source = source,
+			policyRevision = policyRevision,
+			ambientConsentEpoch = consentEpoch,
+			collectedDataEpoch = evidence?.collectedDataEpoch,
+			rolloutRevision = rollout.revision,
+			executionGeneration = sourceAuthority?.executionGeneration,
+			authorityRevision = sourceAuthority?.authorityRevision,
+		)
+	}
+
 	@Suppress("LongMethod", "LongParameterList", "CyclomaticComplexMethod", "ReturnCount")
 	private suspend fun replaceAmbientRadioDemandInTransaction(
 		consumerId: String,
@@ -757,7 +799,8 @@ class SourceBroker @Inject constructor(
 		) {
 			return revoke(AmbientRadioDemandInactiveReason.RETENTION_APPROVAL_MISMATCH)
 		}
-		if (!trackingRolloutStateStore.load().isCaptureReachable(
+		val rollout = trackingRolloutStateStore.load()
+		if (!rollout.isCaptureReachable(
 				source,
 				CaptureReachabilityMode.AMBIENT,
 			)
@@ -798,6 +841,15 @@ class SourceBroker @Inject constructor(
 			return AmbientRadioDemandResult.Active(
 				unchangedDemand,
 				unchangedAuthority.authorityRevision,
+				AmbientRadioReconciliationAuthority(
+					source = source,
+					policyRevision = policy.policyRevision,
+					ambientConsentEpoch = consentEpoch,
+					collectedDataEpoch = evidence.collectedDataEpoch,
+					rolloutRevision = rollout.revision,
+					executionGeneration = unchangedAuthority.executionGeneration,
+					authorityRevision = unchangedAuthority.authorityRevision,
+				),
 			)
 		}
 		val authorityRevision = nextAuthorityRevision()
@@ -853,6 +905,11 @@ class SourceBroker @Inject constructor(
 				effectiveBootId = bootId,
 				effectiveElapsedRealtimeNanos = elapsedRealtimeNanos,
 				effectiveWallTimeMs = wallTimeMs,
+				executionGeneration = when (source) {
+					SourceKind.WIFI -> AmbientWifiAuthorityEntity.FIRST_WRITER_OWNER_GENERATION
+					SourceKind.CELL -> AmbientCellAuthorityEntity.FIRST_WRITER_OWNER_GENERATION
+					else -> error("Unsupported ambient radio source $source")
+				},
 			),
 		)
 		rotateCurrentAuthorizationsInTransaction(
@@ -861,7 +918,23 @@ class SourceBroker @Inject constructor(
 			elapsedRealtimeNanos,
 			wallTimeMs,
 		)
-		return AmbientRadioDemandResult.Active(demand, authorityRevision)
+		return AmbientRadioDemandResult.Active(
+			demand,
+			authorityRevision,
+			AmbientRadioReconciliationAuthority(
+				source = source,
+				policyRevision = policy.policyRevision,
+				ambientConsentEpoch = consentEpoch,
+				collectedDataEpoch = evidence.collectedDataEpoch,
+				rolloutRevision = rollout.revision,
+				executionGeneration = when (source) {
+					SourceKind.WIFI -> AmbientWifiAuthorityEntity.FIRST_WRITER_OWNER_GENERATION
+					SourceKind.CELL -> AmbientCellAuthorityEntity.FIRST_WRITER_OWNER_GENERATION
+					else -> error("Unsupported ambient radio source $source")
+				},
+				authorityRevision = authorityRevision,
+			),
+		)
 	}
 
 	suspend fun registrationAuthorization(
@@ -988,7 +1061,16 @@ internal sealed interface AmbientRadioDemandResult {
 	data class Active(
 		val demand: SourceDemandEntity,
 		val authorityRevision: Long,
-	) : AmbientRadioDemandResult
+		val reconciliationAuthority: AmbientRadioReconciliationAuthority,
+	) : AmbientRadioDemandResult {
+		init {
+			require(authorityRevision > 0L)
+			require(reconciliationAuthority.authorityRevision == authorityRevision)
+			require(reconciliationAuthority.source.stableCode == demand.sourceKind)
+			require(reconciliationAuthority.policyRevision == demand.sourcePolicyRevision)
+			require(reconciliationAuthority.ambientConsentEpoch == demand.consentEpoch)
+		}
+	}
 
 	data class Inactive(val reason: AmbientRadioDemandInactiveReason) : AmbientRadioDemandResult
 }
@@ -1006,6 +1088,32 @@ internal enum class AmbientRadioDemandInactiveReason {
 	AUTHORITY_REVISION_EXHAUSTED,
 }
 
+data class AmbientRadioReconciliationAuthority(
+	val source: SourceKind,
+	val policyRevision: Long?,
+	val ambientConsentEpoch: Long?,
+	val collectedDataEpoch: Long?,
+	val rolloutRevision: Long,
+	val executionGeneration: Long?,
+	val authorityRevision: Long?,
+) {
+	init {
+		require(source == SourceKind.WIFI || source == SourceKind.CELL)
+		require(policyRevision == null || policyRevision > 0L)
+		require(ambientConsentEpoch == null || ambientConsentEpoch >= 0L)
+		require(collectedDataEpoch == null || collectedDataEpoch >= 0L)
+		require(rolloutRevision >= 0L)
+		require(executionGeneration == null || executionGeneration > 0L)
+		require(authorityRevision == null || authorityRevision > 0L)
+		require((executionGeneration == null) == (authorityRevision == null))
+	}
+}
+
+private data class AmbientRadioExecutionAuthority(
+	val authorityRevision: Long,
+	val executionGeneration: Long,
+)
+
 private data class AmbientRadioAuthority(
 	val authorityRevision: Long,
 	val state: String,
@@ -1018,6 +1126,7 @@ private data class AmbientRadioAuthority(
 	val effectiveBootId: String,
 	val effectiveElapsedRealtimeNanos: Long,
 	val effectiveWallTimeMs: Long,
+	val executionGeneration: Long,
 )
 
 private fun AmbientWifiAuthorityEntity.toRadioAuthority() = AmbientRadioAuthority(
@@ -1032,6 +1141,7 @@ private fun AmbientWifiAuthorityEntity.toRadioAuthority() = AmbientRadioAuthorit
 	effectiveBootId,
 	effectiveElapsedRealtimeNanos,
 	effectiveWallTimeMs,
+	writerOwnerGeneration,
 )
 
 private fun AmbientCellAuthorityEntity.toRadioAuthority() = AmbientRadioAuthority(
@@ -1046,6 +1156,7 @@ private fun AmbientCellAuthorityEntity.toRadioAuthority() = AmbientRadioAuthorit
 	effectiveBootId,
 	effectiveElapsedRealtimeNanos,
 	effectiveWallTimeMs,
+	writerOwnerGeneration,
 )
 
 internal fun SourceDemandEntity.toSourceDemandContract(): SourceDemandContract =

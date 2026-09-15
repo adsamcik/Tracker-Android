@@ -8,12 +8,13 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicySnapshot
 import com.adsamcik.tracker.shared.preferences.tracking.SourceQos
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalState
 import com.adsamcik.tracker.tracker.api.AmbientSourceReconciliationResult
 import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
-import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReporter
 import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellActivationRequest
 import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellDemandBlockReason
 import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellDemandReconciler
@@ -28,6 +29,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.runtime.AmbientCellRuntimeJoinResult
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioDemandInactiveReason
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioDemandResult
+import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioReconciliationAuthority
 import com.adsamcik.tracker.tracker.source.runtime.AmbientWifiRuntimeJoinResult
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SharedCellSourceController
@@ -35,9 +37,7 @@ import com.adsamcik.tracker.tracker.source.runtime.SharedWifiSourceController
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.flow.emptyFlow
@@ -48,7 +48,6 @@ class AmbientRadioDemandGateTest {
 	fun `missing Wi-Fi retention approval retires demand before runtime capability`() = runTest {
 		val broker = mockk<SourceBroker>()
 		val controller = mockk<SharedWifiSourceController>()
-		val reporter = mockk<TrackingPurposeAvailabilityReporter>(relaxed = true)
 		val events = mutableListOf<String>()
 		coEvery {
 			broker.replaceAmbientWifiDemand(any(), false, null, any(), any(), any())
@@ -57,11 +56,11 @@ class AmbientRadioDemandGateTest {
 		)
 		coEvery { controller.reconcileAmbientJoin() } answers {
 			events += "runtime"
-			AmbientWifiRuntimeJoinResult.Inactive
+			AmbientWifiRuntimeJoinResult.Inactive(providerKey = null)
 		}
-		every { reporter.reportAmbientSource(any()) } answers {
-			events += "report"
-			Unit
+		coEvery { broker.ambientRadioReconciliationAuthority(SourceKind.WIFI) } answers {
+			events += "evidence"
+			authority(SourceKind.WIFI)
 		}
 		val subject = AmbientWifiDemandReconciler(
 			activePolicyRepository(TrackingSourceComponent.WIFI),
@@ -69,7 +68,6 @@ class AmbientRadioDemandGateTest {
 			broker,
 			controller,
 			BootClockDomainProvider { "boot-1" },
-			reporter,
 		)
 
 		val result = subject.reconcile(AmbientWifiActivationRequest(true, null))
@@ -78,7 +76,7 @@ class AmbientRadioDemandGateTest {
 			AmbientWifiDemandReconciliation.Inactive(
 				AmbientWifiDemandBlockReason.RETENTION_APPROVAL_MISSING,
 			),
-			result,
+			result.outcome,
 		)
 		coVerify(exactly = 1) {
 			broker.replaceAmbientWifiDemand(any(), false, null, any(), any(), any())
@@ -86,34 +84,29 @@ class AmbientRadioDemandGateTest {
 		coVerify(exactly = 0) {
 			broker.replaceAmbientWifiDemand(any(), true, any(), any(), any(), any())
 		}
-		verify(exactly = 1) {
-			reporter.reportAmbientSource(
-				AmbientSourceOperationalAvailability.retentionPolicyUnavailable(
-					AmbientTrackingSource.WIFI,
-				),
-			)
-		}
-		assertEquals(listOf("runtime", "report"), events)
+		assertEquals(1L, result.evidence.reconciliationAttempt)
+		assertEquals(listOf("runtime", "evidence"), events)
 	}
 
 	@Test
 	fun `default-off Cell request retires demand without provider activation`() = runTest {
 		val broker = mockk<SourceBroker>()
 		val controller = mockk<SharedCellSourceController>()
-		val reporter = mockk<TrackingPurposeAvailabilityReporter>(relaxed = true)
 		coEvery {
 			broker.replaceAmbientCellDemand(any(), false, null, any(), any(), any())
 		} returns AmbientRadioDemandResult.Inactive(
 			AmbientRadioDemandInactiveReason.REQUEST_DISABLED,
 		)
-		coEvery { controller.reconcileAmbientJoin() } returns AmbientCellRuntimeJoinResult.Inactive
+		coEvery { controller.reconcileAmbientJoin() } returns
+			AmbientCellRuntimeJoinResult.Inactive(providerKey = null)
+		coEvery { broker.ambientRadioReconciliationAuthority(SourceKind.CELL) } returns
+			authority(SourceKind.CELL)
 		val subject = AmbientCellDemandReconciler(
 			activePolicyRepository(TrackingSourceComponent.CELL),
 			mockk<TrackingRolloutStateStore>(),
 			broker,
 			controller,
 			BootClockDomainProvider { "boot-1" },
-			reporter,
 		)
 
 		val result = subject.reconcile(AmbientCellActivationRequest(false, null))
@@ -122,150 +115,312 @@ class AmbientRadioDemandGateTest {
 			AmbientCellDemandReconciliation.Inactive(
 				AmbientCellDemandBlockReason.REQUEST_DISABLED,
 			),
-			result,
+			result.outcome,
 		)
 		coVerify(exactly = 0) {
 			broker.replaceAmbientCellDemand(any(), true, any(), any(), any(), any())
 		}
-		verify(exactly = 1) {
-			reporter.reportAmbientSource(
-				AmbientSourceOperationalAvailability.retentionPolicyUnavailable(
-					AmbientTrackingSource.CELL,
+		assertEquals(1L, result.evidence.reconciliationAttempt)
+		assertEquals(
+			AmbientSourceOperationalAvailability.reconciliationPending(
+				AmbientTrackingSource.CELL,
+			),
+			result.outcome.toOperationalAvailability(),
+		)
+		assertEquals(
+			AmbientRadioReportPreparation.Rejected(
+				result.evidence,
+				AmbientRadioReportPreparationRejection.NOT_RECONCILED,
+			),
+			result.prepareReport(lease(AmbientTrackingSource.CELL)),
+		)
+	}
+
+	@Test
+	fun `late Wi-Fi ready carries exact owner evidence and stale lease is rejected`() {
+		val unsettled = AmbientWifiDemandReconciliation.Active(
+			demandId = "wifi-demand",
+			authorityRevision = 3L,
+			reconciliationAuthority = authority(SourceKind.WIFI, authorityRevision = 3L),
+			sourceInstanceId = null,
+			registrationGeneration = null,
+		).toOperationalAvailability()
+		val evidence = AmbientRadioReconciliationEvidence.from(
+			authority = authority(SourceKind.WIFI, authorityRevision = 3L),
+			reconciliationAttempt = 9L,
+			demandId = "wifi-demand",
+			sourceInstanceId = SourceInstanceId("wifi-1"),
+			registrationGeneration = 7L,
+		)
+		val ready = com.adsamcik.tracker.tracker.source.ambient.wifi.AmbientWifiOwnerReconciliation(
+			outcome = AmbientWifiDemandReconciliation.Active(
+				demandId = "wifi-demand",
+				authorityRevision = 3L,
+				reconciliationAuthority = authority(
+					SourceKind.WIFI,
+					authorityRevision = 3L,
 				),
+				sourceInstanceId = SourceInstanceId("wifi-1"),
+				registrationGeneration = 7L,
+			),
+			evidence = evidence,
+		)
+
+		assertEquals(
+			AmbientSourceOperationalAvailability(
+				source = AmbientTrackingSource.WIFI,
+				state = AmbientSourceOperationalState.UNAVAILABLE,
+				reason = AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
+			),
+			unsettled,
+		)
+		val prepared = ready.prepareReport(lease(AmbientTrackingSource.WIFI))
+		assertEquals(10L, evidence.policyRevision)
+		assertEquals(3L, evidence.ambientConsentEpoch)
+		assertEquals(2L, evidence.collectedDataEpoch)
+		assertEquals(4L, evidence.rolloutRevision)
+		assertEquals(1L, evidence.executionGeneration)
+		assertEquals(9L, evidence.reconciliationAttempt)
+		assertEquals(
+			com.adsamcik.tracker.tracker.source.runtime.SourceProviderKey(
+				SourceInstanceId("wifi-1"),
+				7L,
+			),
+			evidence.providerKey,
+		)
+		assertEquals(
+			AmbientRadioReportPreparation.Prepared(
+				AmbientSourceReconciliationResult.Reconciled(
+					com.adsamcik.tracker.tracker.api.AmbientSourceReconciliationReport(
+						identity = lease(AmbientTrackingSource.WIFI).identity,
+						availability = AmbientSourceOperationalAvailability(
+							source = AmbientTrackingSource.WIFI,
+							state = AmbientSourceOperationalState.READY,
+							mechanism = AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS,
+						),
+					),
+				),
+				evidence,
+			),
+			prepared,
+		)
+		assertEquals(
+			AmbientRadioReportPreparation.Rejected(
+				evidence,
+				AmbientRadioReportPreparationRejection.STALE_AUTHORITY,
+			),
+			ready.prepareReport(
+				lease(AmbientTrackingSource.WIFI).copy(
+					identity = lease(AmbientTrackingSource.WIFI).identity.copy(
+						policyRevision = 11L,
+						consentEpoch = 12L,
+					),
+				),
+			),
+		)
+		listOf(
+			lease(AmbientTrackingSource.WIFI).copy(
+				identity = lease(AmbientTrackingSource.WIFI).identity.copy(
+					collectedDataEpoch = 3L,
+				),
+			),
+			lease(AmbientTrackingSource.WIFI).copy(
+				identity = lease(AmbientTrackingSource.WIFI).identity.copy(
+					rolloutRevision = 5L,
+				),
+			),
+		).forEach { staleLease ->
+			assertEquals(
+				AmbientRadioReportPreparation.Rejected(
+					evidence,
+					AmbientRadioReportPreparationRejection.STALE_AUTHORITY,
+				),
+				ready.prepareReport(staleLease),
 			)
 		}
 	}
 
 	@Test
-	fun `Wi-Fi is ready only after a real provider generation settles`() {
-		val waiting = AmbientWifiDemandReconciliation.Active(
-			demandId = "wifi-demand",
-			authorityRevision = 3L,
-			sourceInstanceId = null,
-			registrationGeneration = null,
-		).toPurposeAvailabilityResult()
-		val ready = AmbientWifiDemandReconciliation.Active(
-			demandId = "wifi-demand",
-			authorityRevision = 3L,
-			sourceInstanceId = SourceInstanceId("wifi-1"),
-			registrationGeneration = 7L,
-		).toPurposeAvailabilityResult()
-
-		assertEquals(
-			AmbientSourceReconciliationResult.Unavailable(
-				AmbientSourceOperationalAvailability(
-					source = AmbientTrackingSource.WIFI,
-					state = AmbientSourceOperationalState.WAITING,
-					mechanism = AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS,
-					reason = AmbientSourceUnavailableReason.RECONCILIATION_PENDING,
-				),
-			),
-			waiting,
-		)
-		assertEquals(
-			AmbientSourceReconciliationResult.Reconciled(
-				AmbientSourceOperationalAvailability(
-					source = AmbientTrackingSource.WIFI,
-					state = AmbientSourceOperationalState.READY,
-					mechanism = AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS,
-				),
-			),
-			ready,
-		)
-	}
-
-	@Test
-	fun `Cell permission and degraded provider outcomes map without guessing grants`() {
+	fun `Cell permission and provider failure map through the strict source matrix`() {
 		val permission = AmbientCellDemandReconciliation.Unavailable(
 			reasons = setOf(SourceDegradedReason.PERMISSION_MISSING),
 			retryable = false,
-		).toPurposeAvailabilityResult()
+		).toOperationalAvailability()
 		val degraded = AmbientCellDemandReconciliation.Degraded(
 			demandId = "cell-demand",
 			authorityRevision = 4L,
+			reconciliationAuthority = authority(SourceKind.CELL, authorityRevision = 4L),
 			sourceInstanceId = SourceInstanceId("cell-1"),
 			registrationGeneration = 8L,
 			reasons = setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE),
-		).toPurposeAvailabilityResult()
+		).toOperationalAvailability()
 
 		assertEquals(
-			AmbientSourceReconciliationResult.Unavailable(
-				AmbientSourceOperationalAvailability(
-					source = AmbientTrackingSource.CELL,
-					state = AmbientSourceOperationalState.PERMISSION_REQUIRED,
-					mechanism = AmbientAcquisitionMechanism.CELL_CHANGE_CALLBACKS,
-					reason = AmbientSourceUnavailableReason.CELL_SCAN_PERMISSION_REQUIRED,
-				),
+			AmbientSourceOperationalAvailability(
+				source = AmbientTrackingSource.CELL,
+				state = AmbientSourceOperationalState.PERMISSION_REQUIRED,
+				mechanism = AmbientAcquisitionMechanism.CELL_CHANGE_CALLBACKS,
+				reason = AmbientSourceUnavailableReason.CELL_SCAN_PERMISSION_REQUIRED,
 			),
 			permission,
 		)
 		assertEquals(
-			AmbientSourceReconciliationResult.Reconciled(
-				AmbientSourceOperationalAvailability(
-					source = AmbientTrackingSource.CELL,
-					state = AmbientSourceOperationalState.DEGRADED,
-					mechanism = AmbientAcquisitionMechanism.CELL_CHANGE_CALLBACKS,
-					reason = AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
-				),
+			AmbientSourceOperationalAvailability(
+				source = AmbientTrackingSource.CELL,
+				state = AmbientSourceOperationalState.UNAVAILABLE,
+				reason = AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
 			),
 			degraded,
 		)
 	}
 
 	@Test
-	fun `rollout containment is unavailable and failed retirement remains pending`() {
+	fun `rollout containment is unavailable and failed retirement is provider unavailable`() {
 		assertEquals(
-			AmbientSourceUnavailableReason.ROLLOUT_CONTAINED,
+			AmbientSourceOperationalAvailability(
+				source = AmbientTrackingSource.WIFI,
+				state = AmbientSourceOperationalState.UNAVAILABLE,
+				reason = AmbientSourceUnavailableReason.ROLLOUT_CONTAINED,
+			),
 			AmbientWifiDemandReconciliation.Inactive(
 				AmbientWifiDemandBlockReason.ROLLOUT_CONTAINED,
-			).toOperationalAvailability().reason,
+			).toOperationalAvailability(),
 		)
 		assertEquals(
-			AmbientSourceOperationalState.WAITING,
+			AmbientSourceOperationalAvailability(
+				source = AmbientTrackingSource.CELL,
+				state = AmbientSourceOperationalState.UNAVAILABLE,
+				reason = AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
+			),
 			AmbientCellDemandReconciliation.Unavailable(
 				reasons = emptySet(),
 				retryable = true,
-			).toOperationalAvailability().state,
+			).toOperationalAvailability(),
 		)
 	}
 
 	@Test
-	fun `failed policy-blocked provider retirement reports pending instead of safe-looking ready`() =
+	fun `cancelled lease never prepares a completed owner report`() {
+		val evidence = AmbientRadioReconciliationEvidence.from(
+			authority = authority(SourceKind.CELL, authorityRevision = 4L),
+			reconciliationAttempt = 4L,
+			demandId = "cell-demand",
+			sourceInstanceId = SourceInstanceId("cell-1"),
+			registrationGeneration = 8L,
+		)
+		val owner = com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellOwnerReconciliation(
+			outcome = AmbientCellDemandReconciliation.Active(
+				"cell-demand",
+				4L,
+				authority(SourceKind.CELL, authorityRevision = 4L),
+				SourceInstanceId("cell-1"),
+				8L,
+			),
+			evidence = evidence,
+		)
+
+		assertEquals(
+			AmbientRadioReportPreparation.Rejected(
+				evidence,
+				AmbientRadioReportPreparationRejection.CANCELLED,
+			),
+			owner.prepareReport(
+				lease(AmbientTrackingSource.CELL).copy(cancelled = true),
+			),
+		)
+	}
+
+	@Test
+	fun `cancelled callback lease performs no policy broker or provider work`() = runTest {
+		val policy = mockk<SourcePolicyRepository>()
+		val rollout = mockk<TrackingRolloutStateStore>()
+		val broker = mockk<SourceBroker>()
+		val controller = mockk<SharedWifiSourceController>()
+		val subject = AmbientWifiDemandReconciler(
+			policy,
+			rollout,
+			broker,
+			controller,
+			BootClockDomainProvider { "boot-1" },
+		)
+
+		assertEquals(
+			AmbientRadioReportPreparation.Rejected(
+				evidence = null,
+				reason = AmbientRadioReportPreparationRejection.CANCELLED,
+			),
+			subject.reconcilePurposeAvailability(
+				lease(AmbientTrackingSource.WIFI).copy(cancelled = true),
+				AmbientWifiActivationRequest(enabled = false, retentionApproval = null),
+			),
+		)
+		coVerify(exactly = 0) { policy.currentState() }
+		coVerify(exactly = 0) { rollout.load() }
+		coVerify(exactly = 0) {
+			broker.replaceAmbientWifiDemand(any(), any(), any(), any(), any(), any())
+		}
+		coVerify(exactly = 0) { controller.reconcileAmbientJoin() }
+	}
+
+	@Test
+	fun `failed policy-blocked provider retirement returns evidence without publishing globally`() =
 		runTest {
 			val broker = mockk<SourceBroker>()
 			val controller = mockk<SharedWifiSourceController>()
-			val reporter = mockk<TrackingPurposeAvailabilityReporter>(relaxed = true)
 			coEvery {
 				broker.replaceAmbientWifiDemand(any(), false, null, any(), any(), any())
 			} returns AmbientRadioDemandResult.Inactive(
 				AmbientRadioDemandInactiveReason.REQUEST_DISABLED,
 			)
 			coEvery { controller.reconcileAmbientJoin() } returns
-				AmbientWifiRuntimeJoinResult.Unavailable(emptySet(), retryable = true)
+				AmbientWifiRuntimeJoinResult.Unavailable(
+					providerKey = null,
+					reasons = emptySet(),
+					retryable = true,
+				)
+			coEvery { broker.ambientRadioReconciliationAuthority(SourceKind.WIFI) } returns
+				authority(SourceKind.WIFI)
 			val subject = AmbientWifiDemandReconciler(
 				activePolicyRepository(TrackingSourceComponent.WIFI),
 				mockk<TrackingRolloutStateStore>(),
 				broker,
 				controller,
 				BootClockDomainProvider { "boot-1" },
-				reporter,
 			)
+
+			val owner = subject.reconcile(AmbientWifiActivationRequest(true, null))
 
 			assertEquals(
 				AmbientWifiDemandReconciliation.Unavailable(emptySet(), retryable = true),
-				subject.reconcile(AmbientWifiActivationRequest(true, null)),
+				owner.outcome,
 			)
-			verify(exactly = 1) {
-				reporter.reportAmbientSource(
-					AmbientSourceOperationalAvailability(
-						source = AmbientTrackingSource.WIFI,
-						state = AmbientSourceOperationalState.WAITING,
-						mechanism = AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS,
-						reason = AmbientSourceUnavailableReason.RECONCILIATION_PENDING,
-					),
-				)
-			}
+			assertEquals(1L, owner.evidence.reconciliationAttempt)
+			assertEquals(null, owner.evidence.providerKey)
 		}
+
+	private fun authority(
+		source: SourceKind,
+		authorityRevision: Long = 7L,
+	) = AmbientRadioReconciliationAuthority(
+		source = source,
+		policyRevision = 10L,
+		ambientConsentEpoch = 3L,
+		collectedDataEpoch = 2L,
+		rolloutRevision = 4L,
+		executionGeneration = 1L,
+		authorityRevision = authorityRevision,
+	)
+
+	private fun lease(source: AmbientTrackingSource) = AmbientReconciliationLease(
+		AmbientReconciliationIdentity(
+			source = source,
+			policyRevision = 10L,
+			consentEpoch = 3L,
+			collectedDataEpoch = 2L,
+			rolloutRevision = 4L,
+			ownerCasToken = "owner-cas-1",
+		),
+	)
 
 	private fun activePolicyRepository(ambientSource: TrackingSourceComponent) =
 		object : SourcePolicyRepository {

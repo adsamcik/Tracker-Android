@@ -5,24 +5,29 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthoritySta
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalState
-import com.adsamcik.tracker.tracker.api.AmbientSourceReconciliationResult
 import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
-import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReporter
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
+import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReconciliationEvidence
+import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReportPreparation
+import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReportPreparationRejection
+import com.adsamcik.tracker.tracker.source.ambient.prepareAmbientRadioReport
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioDemandInactiveReason
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioDemandResult
+import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioReconciliationAuthority
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioRetentionApproval
 import com.adsamcik.tracker.tracker.source.runtime.AmbientWifiRuntimeJoinResult
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SharedWifiSourceController
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -62,9 +67,31 @@ class AmbientWifiDemandReconciler @Inject constructor(
 	private val sourceBroker: SourceBroker,
 	private val sharedController: SharedWifiSourceController,
 	private val clockDomainProvider: BootClockDomainProvider,
-	private val availabilityReporter: TrackingPurposeAvailabilityReporter,
 ) {
+	private val reconciliationAttempts = AtomicLong(0L)
+
 	suspend fun reconcile(
+		request: AmbientWifiActivationRequest,
+	): AmbientWifiOwnerReconciliation {
+		val attempt = reconciliationAttempts.updateAndGet { previous ->
+			Math.addExact(previous, 1L)
+		}
+		val outcome = reconcileOutcome(request)
+		val authority = outcome.reconciliationAuthorityOrNull()
+			?: sourceBroker.ambientRadioReconciliationAuthority(SourceKind.WIFI)
+		return AmbientWifiOwnerReconciliation(
+			outcome = outcome,
+			evidence = AmbientRadioReconciliationEvidence.from(
+				authority = authority,
+				reconciliationAttempt = attempt,
+				demandId = outcome.demandIdOrNull(),
+				sourceInstanceId = outcome.sourceInstanceIdOrNull(),
+				registrationGeneration = outcome.registrationGenerationOrNull(),
+			),
+		)
+	}
+
+	private suspend fun reconcileOutcome(
 		request: AmbientWifiActivationRequest,
 	): AmbientWifiDemandReconciliation {
 		val policyBlock = policyBlockReason(request)
@@ -82,10 +109,8 @@ class AmbientWifiDemandReconciler @Inject constructor(
 				elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
 				wallTimeMs = boundary.wallTimeMs,
 			)
-			return report(
-				policyBlock.afterAmbientJoinRetirement(
-					sharedController.reconcileAmbientJoin(),
-				),
+			return policyBlock.afterAmbientJoinRetirement(
+				sharedController.reconcileAmbientJoin(),
 			)
 		}
 		val approval = requireNotNull(request.retentionApproval)
@@ -104,14 +129,16 @@ class AmbientWifiDemandReconciler @Inject constructor(
 			is AmbientRadioDemandResult.Active -> when (val runtime =
 				sharedController.reconcileAmbientJoin()
 			) {
-				AmbientWifiRuntimeJoinResult.Inactive ->
+				is AmbientWifiRuntimeJoinResult.Inactive ->
 					AmbientWifiDemandReconciliation.Inactive(
 						AmbientWifiDemandBlockReason.RUNTIME_JOIN_RETIRED,
+						runtime.providerKey,
 					)
 				is AmbientWifiRuntimeJoinResult.Active ->
 					AmbientWifiDemandReconciliation.Active(
 						demand.demand.demandId,
 						demand.authorityRevision,
+						demand.reconciliationAuthority,
 						runtime.sourceInstanceId,
 						runtime.registrationGeneration,
 					)
@@ -119,6 +146,7 @@ class AmbientWifiDemandReconciler @Inject constructor(
 					AmbientWifiDemandReconciliation.Degraded(
 						demand.demand.demandId,
 						demand.authorityRevision,
+						demand.reconciliationAuthority,
 						runtime.sourceInstanceId,
 						runtime.registrationGeneration,
 						runtime.reasons,
@@ -127,20 +155,30 @@ class AmbientWifiDemandReconciler @Inject constructor(
 					AmbientWifiDemandReconciliation.Unavailable(
 						runtime.reasons,
 						runtime.retryable,
+						runtime.providerKey,
 					)
 			}
 		}
-		return report(result)
+		return result
 	}
 
 	suspend fun reconcilePurposeAvailability(
+		lease: AmbientReconciliationLease,
 		request: AmbientWifiActivationRequest,
-	): AmbientSourceReconciliationResult = reconcile(request).toPurposeAvailabilityResult()
-
-	private fun report(
-		result: AmbientWifiDemandReconciliation,
-	): AmbientWifiDemandReconciliation = result.also {
-		availabilityReporter.reportAmbientSource(it.toOperationalAvailability())
+	): AmbientRadioReportPreparation {
+		if (lease.cancelled) {
+			return AmbientRadioReportPreparation.Rejected(
+				evidence = null,
+				reason = AmbientRadioReportPreparationRejection.CANCELLED,
+			)
+		}
+		if (lease.identity.source != AmbientTrackingSource.WIFI) {
+			return AmbientRadioReportPreparation.Rejected(
+				evidence = null,
+				reason = AmbientRadioReportPreparationRejection.SOURCE_MISMATCH,
+			)
+		}
+		return reconcile(request).prepareReport(lease)
 	}
 
 	private suspend fun policyBlockReason(
@@ -150,6 +188,26 @@ class AmbientWifiDemandReconciler @Inject constructor(
 		val authority = sourcePolicyRepository.currentState()
 		if (authority !is SourcePolicyAuthorityState.Active) {
 			return AmbientWifiDemandBlockReason.AUTHORITY_INACTIVE
+		}
+
+		data class AmbientWifiOwnerReconciliation(
+			val outcome: AmbientWifiDemandReconciliation,
+			val evidence: AmbientRadioReconciliationEvidence,
+		) {
+			init {
+				require(evidence.source == AmbientTrackingSource.WIFI)
+				outcome.authorityRevisionOrNull()?.let { revision ->
+					require(evidence.authorityRevision == revision)
+				}
+			}
+
+			fun prepareReport(
+				lease: AmbientReconciliationLease,
+			): AmbientRadioReportPreparation = prepareAmbientRadioReport(
+				lease,
+				evidence,
+				outcome.toOperationalAvailability(),
+			)
 		}
 		val policy = authority.snapshot[TrackingSourceComponent.WIFI]
 		if (policy.ambientConsentEpoch == null) {
@@ -190,24 +248,40 @@ sealed interface AmbientWifiDemandReconciliation {
 	data class Active(
 		val demandId: String,
 		val authorityRevision: Long,
+		val reconciliationAuthority: AmbientRadioReconciliationAuthority,
 		val sourceInstanceId: SourceInstanceId?,
 		val registrationGeneration: Long?,
-	) : AmbientWifiDemandReconciliation
+	) : AmbientWifiDemandReconciliation {
+		init {
+			require(reconciliationAuthority.source == SourceKind.WIFI)
+			require(reconciliationAuthority.authorityRevision == authorityRevision)
+		}
+	}
 
 	data class Degraded(
 		val demandId: String,
 		val authorityRevision: Long,
+		val reconciliationAuthority: AmbientRadioReconciliationAuthority,
 		val sourceInstanceId: SourceInstanceId?,
 		val registrationGeneration: Long?,
 		val reasons: Set<SourceDegradedReason>,
-	) : AmbientWifiDemandReconciliation
+	) : AmbientWifiDemandReconciliation {
+		init {
+			require(reconciliationAuthority.source == SourceKind.WIFI)
+			require(reconciliationAuthority.authorityRevision == authorityRevision)
+		}
+	}
 
-	data class Inactive(val reason: AmbientWifiDemandBlockReason) :
+	data class Inactive(
+		val reason: AmbientWifiDemandBlockReason,
+		val providerKey: com.adsamcik.tracker.tracker.source.runtime.SourceProviderKey? = null,
+	) :
 		AmbientWifiDemandReconciliation
 
 	data class Unavailable(
 		val reasons: Set<SourceDegradedReason>,
 		val retryable: Boolean,
+		val providerKey: com.adsamcik.tracker.tracker.source.runtime.SourceProviderKey? = null,
 	) : AmbientWifiDemandReconciliation
 }
 
@@ -261,18 +335,17 @@ private fun AmbientWifiDemandBlockReason.afterAmbientJoinRetirement(
 	runtime: AmbientWifiRuntimeJoinResult,
 ): AmbientWifiDemandReconciliation = when (runtime) {
 	is AmbientWifiRuntimeJoinResult.Unavailable ->
-		AmbientWifiDemandReconciliation.Unavailable(runtime.reasons, runtime.retryable)
-	else -> AmbientWifiDemandReconciliation.Inactive(this)
-}
-
-fun AmbientWifiDemandReconciliation.toPurposeAvailabilityResult():
-	AmbientSourceReconciliationResult {
-	val availability = toOperationalAvailability()
-	return if (availability.isOperational) {
-		AmbientSourceReconciliationResult.Reconciled(availability)
-	} else {
-		AmbientSourceReconciliationResult.Unavailable(availability)
-	}
+		AmbientWifiDemandReconciliation.Unavailable(
+			runtime.reasons,
+			runtime.retryable,
+			runtime.providerKey,
+		)
+	is AmbientWifiRuntimeJoinResult.Inactive ->
+		AmbientWifiDemandReconciliation.Inactive(this, runtime.providerKey)
+	is AmbientWifiRuntimeJoinResult.Active ->
+		AmbientWifiDemandReconciliation.Inactive(this, runtime.providerKeyOrNull())
+	is AmbientWifiRuntimeJoinResult.Degraded ->
+		AmbientWifiDemandReconciliation.Inactive(this, runtime.providerKeyOrNull())
 }
 
 fun AmbientWifiDemandReconciliation.toOperationalAvailability():
@@ -282,12 +355,12 @@ fun AmbientWifiDemandReconciliation.toOperationalAvailability():
 	) {
 		ambientWifiAvailability(AmbientSourceOperationalState.READY)
 	} else {
-		ambientWifiWaiting()
+		ambientWifiProviderUnavailable()
 	}
 	is AmbientWifiDemandReconciliation.Degraded -> if (
 		sourceInstanceId == null || registrationGeneration == null
 	) {
-		ambientWifiWaiting()
+		ambientWifiProviderUnavailable()
 	} else if (SourceDegradedReason.PERMISSION_MISSING in reasons) {
 		ambientWifiAvailability(
 			state = AmbientSourceOperationalState.PERMISSION_REQUIRED,
@@ -300,29 +373,27 @@ fun AmbientWifiDemandReconciliation.toOperationalAvailability():
 		)
 	} else {
 		ambientWifiAvailability(
-			state = AmbientSourceOperationalState.DEGRADED,
+			state = AmbientSourceOperationalState.UNAVAILABLE,
 			reason = reasons.toAmbientWifiReason(),
 		)
 	}
 	is AmbientWifiDemandReconciliation.Inactive -> when (reason) {
-		AmbientWifiDemandBlockReason.REQUEST_DISABLED,
-		AmbientWifiDemandBlockReason.CONSENT_REVOKED,
-		AmbientWifiDemandBlockReason.PERSISTENCE_INELIGIBLE,
 		AmbientWifiDemandBlockReason.RETENTION_APPROVAL_MISSING,
 		AmbientWifiDemandBlockReason.RETENTION_APPROVAL_MISMATCH,
-		-> AmbientSourceOperationalAvailability.retentionPolicyUnavailable(
-			AmbientTrackingSource.WIFI,
-		)
+		-> ambientWifiRetentionUnavailable()
 		AmbientWifiDemandBlockReason.ROLLOUT_CONTAINED -> ambientWifiAvailability(
 			state = AmbientSourceOperationalState.UNAVAILABLE,
 			reason = AmbientSourceUnavailableReason.ROLLOUT_CONTAINED,
 		)
 		AmbientWifiDemandBlockReason.AUTHORITY_INACTIVE,
 		AmbientWifiDemandBlockReason.POLICY_MISSING,
+		AmbientWifiDemandBlockReason.REQUEST_DISABLED,
+		AmbientWifiDemandBlockReason.CONSENT_REVOKED,
+		AmbientWifiDemandBlockReason.PERSISTENCE_INELIGIBLE,
 		AmbientWifiDemandBlockReason.SOURCE_EVIDENCE_STATE_MISSING,
 		AmbientWifiDemandBlockReason.AUTHORITY_REVISION_EXHAUSTED,
-		AmbientWifiDemandBlockReason.RUNTIME_JOIN_RETIRED,
-		-> ambientWifiWaiting()
+		-> AmbientSourceOperationalAvailability.reconciliationPending(AmbientTrackingSource.WIFI)
+		AmbientWifiDemandBlockReason.RUNTIME_JOIN_RETIRED -> ambientWifiProviderUnavailable()
 	}
 	is AmbientWifiDemandReconciliation.Unavailable -> reasons.toAmbientWifiUnavailable()
 }
@@ -335,7 +406,7 @@ private fun Set<SourceDegradedReason>.toAmbientWifiUnavailable():
 			reason = AmbientSourceUnavailableReason.WIFI_SCAN_PERMISSION_REQUIRED,
 		)
 	}
-	if (isEmpty()) return ambientWifiWaiting()
+	if (isEmpty()) return ambientWifiProviderUnavailable()
 	return ambientWifiAvailability(
 		state = AmbientSourceOperationalState.UNAVAILABLE,
 		reason = toAmbientWifiReason(),
@@ -351,9 +422,14 @@ private fun Set<SourceDegradedReason>.toAmbientWifiReason(): AmbientSourceUnavai
 		else -> AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE
 	}
 
-private fun ambientWifiWaiting() = ambientWifiAvailability(
-	state = AmbientSourceOperationalState.WAITING,
-	reason = AmbientSourceUnavailableReason.RECONCILIATION_PENDING,
+private fun ambientWifiProviderUnavailable() = ambientWifiAvailability(
+	state = AmbientSourceOperationalState.UNAVAILABLE,
+	reason = AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
+)
+
+private fun ambientWifiRetentionUnavailable() = ambientWifiAvailability(
+	state = AmbientSourceOperationalState.UNAVAILABLE,
+	reason = AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
 )
 
 private fun ambientWifiAvailability(
@@ -362,7 +438,15 @@ private fun ambientWifiAvailability(
 ) = AmbientSourceOperationalAvailability(
 	source = AmbientTrackingSource.WIFI,
 	state = state,
-	mechanism = AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS,
+	mechanism = when (state) {
+		AmbientSourceOperationalState.READY,
+		AmbientSourceOperationalState.PERMISSION_REQUIRED,
+		-> AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS
+		AmbientSourceOperationalState.UNAVAILABLE -> null
+		AmbientSourceOperationalState.WAITING -> null
+		AmbientSourceOperationalState.DEGRADED ->
+			error("The purpose matrix does not permit degraded Ambient Wi-Fi")
+	},
 	reason = reason,
 )
 
@@ -381,3 +465,64 @@ private val NONOPERATIONAL_PLATFORM_REASONS = setOf(
 	SourceDegradedReason.BACKGROUND_START_ILLEGAL,
 	SourceDegradedReason.FOREGROUND_CAPABILITY_MISSING,
 )
+
+private fun AmbientWifiDemandReconciliation.demandIdOrNull(): String? = when (this) {
+	is AmbientWifiDemandReconciliation.Active -> demandId
+	is AmbientWifiDemandReconciliation.Degraded -> demandId
+	is AmbientWifiDemandReconciliation.Inactive,
+	is AmbientWifiDemandReconciliation.Unavailable,
+	-> null
+}
+
+private fun AmbientWifiDemandReconciliation.sourceInstanceIdOrNull(): SourceInstanceId? =
+	when (this) {
+		is AmbientWifiDemandReconciliation.Active -> sourceInstanceId
+		is AmbientWifiDemandReconciliation.Degraded -> sourceInstanceId
+		is AmbientWifiDemandReconciliation.Inactive -> providerKey?.sourceInstanceId
+		is AmbientWifiDemandReconciliation.Unavailable -> providerKey?.sourceInstanceId
+	}
+
+private fun AmbientWifiDemandReconciliation.registrationGenerationOrNull(): Long? =
+	when (this) {
+		is AmbientWifiDemandReconciliation.Active -> registrationGeneration
+		is AmbientWifiDemandReconciliation.Degraded -> registrationGeneration
+		is AmbientWifiDemandReconciliation.Inactive -> providerKey?.registrationGeneration
+		is AmbientWifiDemandReconciliation.Unavailable -> providerKey?.registrationGeneration
+	}
+
+private fun AmbientWifiDemandReconciliation.reconciliationAuthorityOrNull():
+	AmbientRadioReconciliationAuthority? = when (this) {
+	is AmbientWifiDemandReconciliation.Active -> reconciliationAuthority
+	is AmbientWifiDemandReconciliation.Degraded -> reconciliationAuthority
+	is AmbientWifiDemandReconciliation.Inactive,
+	is AmbientWifiDemandReconciliation.Unavailable,
+	-> null
+}
+
+private fun AmbientWifiDemandReconciliation.authorityRevisionOrNull(): Long? = when (this) {
+	is AmbientWifiDemandReconciliation.Active -> authorityRevision
+	is AmbientWifiDemandReconciliation.Degraded -> authorityRevision
+	is AmbientWifiDemandReconciliation.Inactive,
+	is AmbientWifiDemandReconciliation.Unavailable,
+	-> null
+}
+
+private fun AmbientWifiRuntimeJoinResult.Active.providerKeyOrNull() =
+	if (sourceInstanceId != null && registrationGeneration != null) {
+		com.adsamcik.tracker.tracker.source.runtime.SourceProviderKey(
+			sourceInstanceId,
+			registrationGeneration,
+		)
+	} else {
+		null
+	}
+
+private fun AmbientWifiRuntimeJoinResult.Degraded.providerKeyOrNull() =
+	if (sourceInstanceId != null && registrationGeneration != null) {
+		com.adsamcik.tracker.tracker.source.runtime.SourceProviderKey(
+			sourceInstanceId,
+			registrationGeneration,
+		)
+	} else {
+		null
+	}

@@ -208,7 +208,7 @@ class SharedCellSourceController @Inject constructor(
 			it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT
 		}
 		if (ambientDemand == null && !ambientAttached && sessionPlan == null) {
-			return@withLock AmbientCellRuntimeJoinResult.Inactive
+			return@withLock AmbientCellRuntimeJoinResult.Inactive(providerKey = null)
 		}
 		val effective = effectivePlan(demands)
 		if (effective == null) {
@@ -216,16 +216,20 @@ class SharedCellSourceController @Inject constructor(
 			return@withLock if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
 				ambientAttached = false
 				ambientSubscriptionIds = emptySet()
-				AmbientCellRuntimeJoinResult.Inactive
+				AmbientCellRuntimeJoinResult.Inactive(acknowledgement.providerKeyOrNull())
 			} else {
-				AmbientCellRuntimeJoinResult.Unavailable(emptySet(), retryable = true)
+				AmbientCellRuntimeJoinResult.Unavailable(
+					acknowledgement.providerKeyOrNull(),
+					emptySet(),
+					retryable = true,
+				)
 			}
 		}
 		when (val result = applyEffective(effective, sessionClaim)) {
 			is SourceApplyResult.Applied -> {
 				ambientAttached = ambientDemand != null
 				if (ambientDemand == null) {
-					AmbientCellRuntimeJoinResult.Inactive
+					AmbientCellRuntimeJoinResult.Inactive(result.state.providerKeyOrNull())
 				} else AmbientCellRuntimeJoinResult.Active(
 					result.state.sourceInstanceId,
 					result.state.registrationGeneration,
@@ -240,10 +244,12 @@ class SharedCellSourceController @Inject constructor(
 				)
 			}
 			is SourceApplyResult.Failed -> AmbientCellRuntimeJoinResult.Unavailable(
+				result.state.providerKeyOrNull(),
 				result.state.degradedReasons,
 				result.retryable,
 			)
 			is SourceApplyResult.RolledBack -> AmbientCellRuntimeJoinResult.Unavailable(
+				result.state.providerKeyOrNull(),
 				result.state.degradedReasons,
 				retryable = true,
 			)
@@ -323,7 +329,9 @@ class SharedCellSourceController @Inject constructor(
 }
 
 internal sealed interface AmbientCellRuntimeJoinResult {
-	data object Inactive : AmbientCellRuntimeJoinResult
+	data class Inactive(
+		val providerKey: SourceProviderKey?,
+	) : AmbientCellRuntimeJoinResult
 	data class Active(
 		val sourceInstanceId: com.adsamcik.tracker.tracker.source.model.SourceInstanceId?,
 		val registrationGeneration: Long?,
@@ -334,6 +342,7 @@ internal sealed interface AmbientCellRuntimeJoinResult {
 		val reasons: Set<com.adsamcik.tracker.tracker.source.model.SourceDegradedReason>,
 	) : AmbientCellRuntimeJoinResult
 	data class Unavailable(
+		val providerKey: SourceProviderKey?,
 		val reasons: Set<com.adsamcik.tracker.tracker.source.model.SourceDegradedReason>,
 		val retryable: Boolean,
 	) : AmbientCellRuntimeJoinResult

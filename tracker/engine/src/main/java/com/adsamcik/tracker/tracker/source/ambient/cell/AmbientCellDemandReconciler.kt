@@ -5,12 +5,15 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthoritySta
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
+import com.adsamcik.tracker.tracker.api.AmbientReconciliationLease
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalState
-import com.adsamcik.tracker.tracker.api.AmbientSourceReconciliationResult
 import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
-import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReporter
+import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReconciliationEvidence
+import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReportPreparation
+import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReportPreparationRejection
+import com.adsamcik.tracker.tracker.source.ambient.prepareAmbientRadioReport
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
@@ -19,10 +22,12 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.AmbientCellRuntimeJoinResult
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioDemandInactiveReason
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioDemandResult
+import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioReconciliationAuthority
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioRetentionApproval
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SharedCellSourceController
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -56,9 +61,31 @@ class AmbientCellDemandReconciler @Inject constructor(
 	private val sourceBroker: SourceBroker,
 	private val sharedController: SharedCellSourceController,
 	private val clockDomainProvider: BootClockDomainProvider,
-	private val availabilityReporter: TrackingPurposeAvailabilityReporter,
 ) {
+	private val reconciliationAttempts = AtomicLong(0L)
+
 	suspend fun reconcile(
+		request: AmbientCellActivationRequest,
+	): AmbientCellOwnerReconciliation {
+		val attempt = reconciliationAttempts.updateAndGet { previous ->
+			Math.addExact(previous, 1L)
+		}
+		val outcome = reconcileOutcome(request)
+		val authority = outcome.reconciliationAuthorityOrNull()
+			?: sourceBroker.ambientRadioReconciliationAuthority(SourceKind.CELL)
+		return AmbientCellOwnerReconciliation(
+			outcome = outcome,
+			evidence = AmbientRadioReconciliationEvidence.from(
+				authority = authority,
+				reconciliationAttempt = attempt,
+				demandId = outcome.demandIdOrNull(),
+				sourceInstanceId = outcome.sourceInstanceIdOrNull(),
+				registrationGeneration = outcome.registrationGenerationOrNull(),
+			),
+		)
+	}
+
+	private suspend fun reconcileOutcome(
 		request: AmbientCellActivationRequest,
 	): AmbientCellDemandReconciliation {
 		val policyBlock = policyBlockReason(request)
@@ -74,10 +101,8 @@ class AmbientCellDemandReconciler @Inject constructor(
 				elapsedRealtimeNanos = elapsedRealtimeNanos,
 				wallTimeMs = wallTimeMs,
 			)
-			return report(
-				policyBlock.afterAmbientJoinRetirement(
-					sharedController.reconcileAmbientJoin(),
-				),
+			return policyBlock.afterAmbientJoinRetirement(
+				sharedController.reconcileAmbientJoin(),
 			)
 		}
 		val approval = requireNotNull(request.retentionApproval)
@@ -96,14 +121,16 @@ class AmbientCellDemandReconciler @Inject constructor(
 			is AmbientRadioDemandResult.Active -> when (val runtime =
 				sharedController.reconcileAmbientJoin()
 			) {
-				AmbientCellRuntimeJoinResult.Inactive ->
+				is AmbientCellRuntimeJoinResult.Inactive ->
 					AmbientCellDemandReconciliation.Inactive(
 						AmbientCellDemandBlockReason.RUNTIME_JOIN_RETIRED,
+						runtime.providerKey,
 					)
 				is AmbientCellRuntimeJoinResult.Active ->
 					AmbientCellDemandReconciliation.Active(
 						demand.demand.demandId,
 						demand.authorityRevision,
+						demand.reconciliationAuthority,
 						runtime.sourceInstanceId,
 						runtime.registrationGeneration,
 					)
@@ -111,6 +138,7 @@ class AmbientCellDemandReconciler @Inject constructor(
 					AmbientCellDemandReconciliation.Degraded(
 						demand.demand.demandId,
 						demand.authorityRevision,
+						demand.reconciliationAuthority,
 						runtime.sourceInstanceId,
 						runtime.registrationGeneration,
 						runtime.reasons,
@@ -119,20 +147,30 @@ class AmbientCellDemandReconciler @Inject constructor(
 					AmbientCellDemandReconciliation.Unavailable(
 						runtime.reasons,
 						runtime.retryable,
+						runtime.providerKey,
 					)
 			}
 		}
-		return report(result)
+		return result
 	}
 
 	suspend fun reconcilePurposeAvailability(
+		lease: AmbientReconciliationLease,
 		request: AmbientCellActivationRequest,
-	): AmbientSourceReconciliationResult = reconcile(request).toPurposeAvailabilityResult()
-
-	private fun report(
-		result: AmbientCellDemandReconciliation,
-	): AmbientCellDemandReconciliation = result.also {
-		availabilityReporter.reportAmbientSource(it.toOperationalAvailability())
+	): AmbientRadioReportPreparation {
+		if (lease.cancelled) {
+			return AmbientRadioReportPreparation.Rejected(
+				evidence = null,
+				reason = AmbientRadioReportPreparationRejection.CANCELLED,
+			)
+		}
+		if (lease.identity.source != AmbientTrackingSource.CELL) {
+			return AmbientRadioReportPreparation.Rejected(
+				evidence = null,
+				reason = AmbientRadioReportPreparationRejection.SOURCE_MISMATCH,
+			)
+		}
+		return reconcile(request).prepareReport(lease)
 	}
 
 	private suspend fun policyBlockReason(
@@ -142,6 +180,26 @@ class AmbientCellDemandReconciler @Inject constructor(
 		val authority = sourcePolicyRepository.currentState()
 		if (authority !is SourcePolicyAuthorityState.Active) {
 			return AmbientCellDemandBlockReason.AUTHORITY_INACTIVE
+		}
+
+		data class AmbientCellOwnerReconciliation(
+			val outcome: AmbientCellDemandReconciliation,
+			val evidence: AmbientRadioReconciliationEvidence,
+		) {
+			init {
+				require(evidence.source == AmbientTrackingSource.CELL)
+				outcome.authorityRevisionOrNull()?.let { revision ->
+					require(evidence.authorityRevision == revision)
+				}
+			}
+
+			fun prepareReport(
+				lease: AmbientReconciliationLease,
+			): AmbientRadioReportPreparation = prepareAmbientRadioReport(
+				lease,
+				evidence,
+				outcome.toOperationalAvailability(),
+			)
 		}
 		val policy = authority.snapshot[TrackingSourceComponent.CELL]
 		if (policy.ambientConsentEpoch == null) {
@@ -176,21 +234,37 @@ sealed interface AmbientCellDemandReconciliation {
 	data class Active(
 		val demandId: String,
 		val authorityRevision: Long,
+		val reconciliationAuthority: AmbientRadioReconciliationAuthority,
 		val sourceInstanceId: SourceInstanceId?,
 		val registrationGeneration: Long?,
-	) : AmbientCellDemandReconciliation
+	) : AmbientCellDemandReconciliation {
+		init {
+			require(reconciliationAuthority.source == SourceKind.CELL)
+			require(reconciliationAuthority.authorityRevision == authorityRevision)
+		}
+	}
 	data class Degraded(
 		val demandId: String,
 		val authorityRevision: Long,
+		val reconciliationAuthority: AmbientRadioReconciliationAuthority,
 		val sourceInstanceId: SourceInstanceId?,
 		val registrationGeneration: Long?,
 		val reasons: Set<SourceDegradedReason>,
-	) : AmbientCellDemandReconciliation
-	data class Inactive(val reason: AmbientCellDemandBlockReason) :
+	) : AmbientCellDemandReconciliation {
+		init {
+			require(reconciliationAuthority.source == SourceKind.CELL)
+			require(reconciliationAuthority.authorityRevision == authorityRevision)
+		}
+	}
+	data class Inactive(
+		val reason: AmbientCellDemandBlockReason,
+		val providerKey: com.adsamcik.tracker.tracker.source.runtime.SourceProviderKey? = null,
+	) :
 		AmbientCellDemandReconciliation
 	data class Unavailable(
 		val reasons: Set<SourceDegradedReason>,
 		val retryable: Boolean,
+		val providerKey: com.adsamcik.tracker.tracker.source.runtime.SourceProviderKey? = null,
 	) : AmbientCellDemandReconciliation
 }
 
@@ -244,18 +318,17 @@ private fun AmbientCellDemandBlockReason.afterAmbientJoinRetirement(
 	runtime: AmbientCellRuntimeJoinResult,
 ): AmbientCellDemandReconciliation = when (runtime) {
 	is AmbientCellRuntimeJoinResult.Unavailable ->
-		AmbientCellDemandReconciliation.Unavailable(runtime.reasons, runtime.retryable)
-	else -> AmbientCellDemandReconciliation.Inactive(this)
-}
-
-fun AmbientCellDemandReconciliation.toPurposeAvailabilityResult():
-	AmbientSourceReconciliationResult {
-	val availability = toOperationalAvailability()
-	return if (availability.isOperational) {
-		AmbientSourceReconciliationResult.Reconciled(availability)
-	} else {
-		AmbientSourceReconciliationResult.Unavailable(availability)
-	}
+		AmbientCellDemandReconciliation.Unavailable(
+			runtime.reasons,
+			runtime.retryable,
+			runtime.providerKey,
+		)
+	is AmbientCellRuntimeJoinResult.Inactive ->
+		AmbientCellDemandReconciliation.Inactive(this, runtime.providerKey)
+	is AmbientCellRuntimeJoinResult.Active ->
+		AmbientCellDemandReconciliation.Inactive(this, runtime.providerKeyOrNull())
+	is AmbientCellRuntimeJoinResult.Degraded ->
+		AmbientCellDemandReconciliation.Inactive(this, runtime.providerKeyOrNull())
 }
 
 fun AmbientCellDemandReconciliation.toOperationalAvailability():
@@ -265,12 +338,12 @@ fun AmbientCellDemandReconciliation.toOperationalAvailability():
 	) {
 		ambientCellAvailability(AmbientSourceOperationalState.READY)
 	} else {
-		ambientCellWaiting()
+		ambientCellProviderUnavailable()
 	}
 	is AmbientCellDemandReconciliation.Degraded -> if (
 		sourceInstanceId == null || registrationGeneration == null
 	) {
-		ambientCellWaiting()
+		ambientCellProviderUnavailable()
 	} else if (SourceDegradedReason.PERMISSION_MISSING in reasons) {
 		ambientCellAvailability(
 			state = AmbientSourceOperationalState.PERMISSION_REQUIRED,
@@ -283,29 +356,27 @@ fun AmbientCellDemandReconciliation.toOperationalAvailability():
 		)
 	} else {
 		ambientCellAvailability(
-			state = AmbientSourceOperationalState.DEGRADED,
+			state = AmbientSourceOperationalState.UNAVAILABLE,
 			reason = reasons.toAmbientCellReason(),
 		)
 	}
 	is AmbientCellDemandReconciliation.Inactive -> when (reason) {
-		AmbientCellDemandBlockReason.REQUEST_DISABLED,
-		AmbientCellDemandBlockReason.CONSENT_REVOKED,
-		AmbientCellDemandBlockReason.PERSISTENCE_INELIGIBLE,
 		AmbientCellDemandBlockReason.RETENTION_APPROVAL_MISSING,
 		AmbientCellDemandBlockReason.RETENTION_APPROVAL_MISMATCH,
-		-> AmbientSourceOperationalAvailability.retentionPolicyUnavailable(
-			AmbientTrackingSource.CELL,
-		)
+		-> ambientCellRetentionUnavailable()
 		AmbientCellDemandBlockReason.ROLLOUT_CONTAINED -> ambientCellAvailability(
 			state = AmbientSourceOperationalState.UNAVAILABLE,
 			reason = AmbientSourceUnavailableReason.ROLLOUT_CONTAINED,
 		)
 		AmbientCellDemandBlockReason.AUTHORITY_INACTIVE,
 		AmbientCellDemandBlockReason.POLICY_MISSING,
+		AmbientCellDemandBlockReason.REQUEST_DISABLED,
+		AmbientCellDemandBlockReason.CONSENT_REVOKED,
+		AmbientCellDemandBlockReason.PERSISTENCE_INELIGIBLE,
 		AmbientCellDemandBlockReason.SOURCE_EVIDENCE_STATE_MISSING,
 		AmbientCellDemandBlockReason.AUTHORITY_REVISION_EXHAUSTED,
-		AmbientCellDemandBlockReason.RUNTIME_JOIN_RETIRED,
-		-> ambientCellWaiting()
+		-> AmbientSourceOperationalAvailability.reconciliationPending(AmbientTrackingSource.CELL)
+		AmbientCellDemandBlockReason.RUNTIME_JOIN_RETIRED -> ambientCellProviderUnavailable()
 	}
 	is AmbientCellDemandReconciliation.Unavailable -> reasons.toAmbientCellUnavailable()
 }
@@ -318,7 +389,7 @@ private fun Set<SourceDegradedReason>.toAmbientCellUnavailable():
 			reason = AmbientSourceUnavailableReason.CELL_SCAN_PERMISSION_REQUIRED,
 		)
 	}
-	if (isEmpty()) return ambientCellWaiting()
+	if (isEmpty()) return ambientCellProviderUnavailable()
 	return ambientCellAvailability(
 		state = AmbientSourceOperationalState.UNAVAILABLE,
 		reason = toAmbientCellReason(),
@@ -334,9 +405,14 @@ private fun Set<SourceDegradedReason>.toAmbientCellReason(): AmbientSourceUnavai
 		else -> AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE
 	}
 
-private fun ambientCellWaiting() = ambientCellAvailability(
-	state = AmbientSourceOperationalState.WAITING,
-	reason = AmbientSourceUnavailableReason.RECONCILIATION_PENDING,
+private fun ambientCellProviderUnavailable() = ambientCellAvailability(
+	state = AmbientSourceOperationalState.UNAVAILABLE,
+	reason = AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
+)
+
+private fun ambientCellRetentionUnavailable() = ambientCellAvailability(
+	state = AmbientSourceOperationalState.UNAVAILABLE,
+	reason = AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
 )
 
 private fun ambientCellAvailability(
@@ -345,7 +421,15 @@ private fun ambientCellAvailability(
 ) = AmbientSourceOperationalAvailability(
 	source = AmbientTrackingSource.CELL,
 	state = state,
-	mechanism = AmbientAcquisitionMechanism.CELL_CHANGE_CALLBACKS,
+	mechanism = when (state) {
+		AmbientSourceOperationalState.READY,
+		AmbientSourceOperationalState.PERMISSION_REQUIRED,
+		-> AmbientAcquisitionMechanism.CELL_CHANGE_CALLBACKS
+		AmbientSourceOperationalState.UNAVAILABLE -> null
+		AmbientSourceOperationalState.WAITING -> null
+		AmbientSourceOperationalState.DEGRADED ->
+			error("The purpose matrix does not permit degraded Ambient Cell")
+	},
 	reason = reason,
 )
 
@@ -364,3 +448,64 @@ private val CELL_NONOPERATIONAL_PLATFORM_REASONS = setOf(
 	SourceDegradedReason.BACKGROUND_START_ILLEGAL,
 	SourceDegradedReason.FOREGROUND_CAPABILITY_MISSING,
 )
+
+private fun AmbientCellDemandReconciliation.demandIdOrNull(): String? = when (this) {
+	is AmbientCellDemandReconciliation.Active -> demandId
+	is AmbientCellDemandReconciliation.Degraded -> demandId
+	is AmbientCellDemandReconciliation.Inactive,
+	is AmbientCellDemandReconciliation.Unavailable,
+	-> null
+}
+
+private fun AmbientCellDemandReconciliation.sourceInstanceIdOrNull(): SourceInstanceId? =
+	when (this) {
+		is AmbientCellDemandReconciliation.Active -> sourceInstanceId
+		is AmbientCellDemandReconciliation.Degraded -> sourceInstanceId
+		is AmbientCellDemandReconciliation.Inactive -> providerKey?.sourceInstanceId
+		is AmbientCellDemandReconciliation.Unavailable -> providerKey?.sourceInstanceId
+	}
+
+private fun AmbientCellDemandReconciliation.registrationGenerationOrNull(): Long? =
+	when (this) {
+		is AmbientCellDemandReconciliation.Active -> registrationGeneration
+		is AmbientCellDemandReconciliation.Degraded -> registrationGeneration
+		is AmbientCellDemandReconciliation.Inactive -> providerKey?.registrationGeneration
+		is AmbientCellDemandReconciliation.Unavailable -> providerKey?.registrationGeneration
+	}
+
+private fun AmbientCellDemandReconciliation.reconciliationAuthorityOrNull():
+	AmbientRadioReconciliationAuthority? = when (this) {
+	is AmbientCellDemandReconciliation.Active -> reconciliationAuthority
+	is AmbientCellDemandReconciliation.Degraded -> reconciliationAuthority
+	is AmbientCellDemandReconciliation.Inactive,
+	is AmbientCellDemandReconciliation.Unavailable,
+	-> null
+}
+
+private fun AmbientCellDemandReconciliation.authorityRevisionOrNull(): Long? = when (this) {
+	is AmbientCellDemandReconciliation.Active -> authorityRevision
+	is AmbientCellDemandReconciliation.Degraded -> authorityRevision
+	is AmbientCellDemandReconciliation.Inactive,
+	is AmbientCellDemandReconciliation.Unavailable,
+	-> null
+}
+
+private fun AmbientCellRuntimeJoinResult.Active.providerKeyOrNull() =
+	if (sourceInstanceId != null && registrationGeneration != null) {
+		com.adsamcik.tracker.tracker.source.runtime.SourceProviderKey(
+			sourceInstanceId,
+			registrationGeneration,
+		)
+	} else {
+		null
+	}
+
+private fun AmbientCellRuntimeJoinResult.Degraded.providerKeyOrNull() =
+	if (sourceInstanceId != null && registrationGeneration != null) {
+		com.adsamcik.tracker.tracker.source.runtime.SourceProviderKey(
+			sourceInstanceId,
+			registrationGeneration,
+		)
+	} else {
+		null
+	}

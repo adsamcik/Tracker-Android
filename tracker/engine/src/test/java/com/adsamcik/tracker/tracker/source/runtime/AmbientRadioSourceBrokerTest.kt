@@ -101,6 +101,15 @@ class AmbientRadioSourceBrokerTest {
 		val demand = database.sourceBrokerDao().currentDemands("app:ambient:wifi").single()
 		assertEquals(SourceBrokerPurpose.AMBIENT_PRODUCT, demand.purpose)
 		assertEquals(result.demand, demand)
+		assertEquals(policy.revision, result.reconciliationAuthority.policyRevision)
+		assertEquals(
+			policy[TrackingSourceComponent.WIFI].ambientConsentEpoch,
+			result.reconciliationAuthority.ambientConsentEpoch,
+		)
+		assertEquals(3L, result.reconciliationAuthority.collectedDataEpoch)
+		assertEquals(1L, result.reconciliationAuthority.rolloutRevision)
+		assertEquals(1L, result.reconciliationAuthority.executionGeneration)
+		assertEquals(result.authorityRevision, result.reconciliationAuthority.authorityRevision)
 		val authority = database.ambientWifiFactDao().latestAuthority()
 		assertEquals(AmbientWifiAuthorityEntity.STATE_ACTIVE, authority?.state)
 		assertEquals(approval.opaquePolicyId, authority?.retentionPolicyId)

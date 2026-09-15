@@ -209,16 +209,20 @@ class SharedWifiSourceController @Inject constructor(
 			it.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT
 		}
 		if (ambientDemand == null && !ambientAttached && sessionPlan == null) {
-			return@withLock AmbientWifiRuntimeJoinResult.Inactive
+			return@withLock AmbientWifiRuntimeJoinResult.Inactive(providerKey = null)
 		}
 		val effective = effectivePlan(demands)
 		if (effective == null) {
 			val acknowledgement = physicalRuntime.closeShared()
 			return@withLock if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) {
 				ambientAttached = false
-				AmbientWifiRuntimeJoinResult.Inactive
+				AmbientWifiRuntimeJoinResult.Inactive(acknowledgement.providerKeyOrNull())
 			} else {
-				AmbientWifiRuntimeJoinResult.Unavailable(emptySet(), retryable = true)
+				AmbientWifiRuntimeJoinResult.Unavailable(
+					acknowledgement.providerKeyOrNull(),
+					emptySet(),
+					retryable = true,
+				)
 			}
 		}
 		val result = applyEffective(effective, sessionClaim)
@@ -226,7 +230,7 @@ class SharedWifiSourceController @Inject constructor(
 			is SourceApplyResult.Applied -> {
 				ambientAttached = ambientDemand != null
 				if (ambientDemand == null) {
-					AmbientWifiRuntimeJoinResult.Inactive
+					AmbientWifiRuntimeJoinResult.Inactive(result.state.providerKeyOrNull())
 				} else AmbientWifiRuntimeJoinResult.Active(
 					result.state.sourceInstanceId,
 					result.state.registrationGeneration,
@@ -241,10 +245,12 @@ class SharedWifiSourceController @Inject constructor(
 				)
 			}
 			is SourceApplyResult.Failed -> AmbientWifiRuntimeJoinResult.Unavailable(
+				result.state.providerKeyOrNull(),
 				result.state.degradedReasons,
 				result.retryable,
 			)
 			is SourceApplyResult.RolledBack -> AmbientWifiRuntimeJoinResult.Unavailable(
+				result.state.providerKeyOrNull(),
 				result.state.degradedReasons,
 				retryable = true,
 			)
@@ -330,7 +336,9 @@ class SharedWifiSourceController @Inject constructor(
 }
 
 internal sealed interface AmbientWifiRuntimeJoinResult {
-	data object Inactive : AmbientWifiRuntimeJoinResult
+	data class Inactive(
+		val providerKey: SourceProviderKey?,
+	) : AmbientWifiRuntimeJoinResult
 	data class Active(
 		val sourceInstanceId: com.adsamcik.tracker.tracker.source.model.SourceInstanceId?,
 		val registrationGeneration: Long?,
@@ -341,7 +349,13 @@ internal sealed interface AmbientWifiRuntimeJoinResult {
 		val reasons: Set<com.adsamcik.tracker.tracker.source.model.SourceDegradedReason>,
 	) : AmbientWifiRuntimeJoinResult
 	data class Unavailable(
+		val providerKey: SourceProviderKey?,
 		val reasons: Set<com.adsamcik.tracker.tracker.source.model.SourceDegradedReason>,
 		val retryable: Boolean,
 	) : AmbientWifiRuntimeJoinResult
+}
+
+internal fun com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan.providerKeyOrNull():
+	SourceProviderKey? = sourceInstanceId?.let { instance ->
+	registrationGeneration?.let { generation -> SourceProviderKey(instance, generation) }
 }
