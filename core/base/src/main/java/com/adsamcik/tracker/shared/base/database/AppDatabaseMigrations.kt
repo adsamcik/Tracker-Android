@@ -1443,6 +1443,11 @@ val MIGRATION_27_28: Migration = object : Migration(
 			execSQL(
 				"INSERT OR IGNORE INTO source_destination_owner " +
 					"(source_kind, destination, owner, owner_generation, updated_at_ms) " +
+					"VALUES (2, 'SESSION_ACTIVITY', 'LEGACY_ACTIVITY_SNAPSHOT', 1, 0)",
+			)
+			execSQL(
+				"INSERT OR IGNORE INTO source_destination_owner " +
+					"(source_kind, destination, owner, owner_generation, updated_at_ms) " +
 					"VALUES (3, 'SESSION_STEPS', 'LEGACY_STEP_INTERVAL', 1, 0)",
 			)
 			execSQL(
@@ -2037,6 +2042,266 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS imported_activity_entry_revision (
+					identity TEXT NOT NULL,
+					import_revision INTEGER NOT NULL,
+					supersedes_import_revision INTEGER,
+					content_checksum TEXT NOT NULL,
+					source_format TEXT NOT NULL,
+					source_schema_version INTEGER NOT NULL,
+					session_mode TEXT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					import_job_id TEXT NOT NULL,
+					import_entry_key TEXT NOT NULL,
+					import_source_name TEXT NOT NULL,
+					received_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(identity, import_revision)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_activity_entry_original_receipt " +
+					"ON imported_activity_entry_revision(import_job_id, import_entry_key)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_activity_receipt (
+					import_job_id TEXT NOT NULL,
+					import_entry_key TEXT NOT NULL,
+					import_source_name TEXT NOT NULL,
+					received_at_ms INTEGER NOT NULL,
+					entry_identity TEXT NOT NULL,
+					entry_import_revision INTEGER NOT NULL,
+					entry_content_checksum TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					PRIMARY KEY(import_job_id, import_entry_key),
+					FOREIGN KEY(entry_identity, entry_import_revision)
+						REFERENCES imported_activity_entry_revision(identity, import_revision)
+						ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_activity_receipt_entry " +
+					"ON imported_activity_receipt(entry_identity, entry_import_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_activity_run (
+					entry_identity TEXT NOT NULL,
+					entry_import_revision INTEGER NOT NULL,
+					identity TEXT NOT NULL,
+					deletion_scope_digest TEXT NOT NULL,
+					content_checksum TEXT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					capture_coverage TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					scope_deletion_generation INTEGER NOT NULL,
+					PRIMARY KEY(entry_identity, entry_import_revision, identity),
+					FOREIGN KEY(entry_identity, entry_import_revision)
+						REFERENCES imported_activity_entry_revision(identity, import_revision)
+						ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_activity_run_entry " +
+					"ON imported_activity_run(entry_identity, entry_import_revision)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_activity_run_identity " +
+					"ON imported_activity_run(identity)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_activity_run_scope " +
+					"ON imported_activity_run(deletion_scope_digest)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_activity_zone_epoch (
+					entry_identity TEXT NOT NULL,
+					entry_import_revision INTEGER NOT NULL,
+					run_identity TEXT NOT NULL,
+					ordinal INTEGER NOT NULL,
+					effective_wall_time_ms INTEGER NOT NULL,
+					zone_id TEXT NOT NULL,
+					PRIMARY KEY(entry_identity, entry_import_revision, run_identity, ordinal),
+					FOREIGN KEY(entry_identity, entry_import_revision, run_identity)
+						REFERENCES imported_activity_run(entry_identity, entry_import_revision, identity)
+						ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_activity_zone_run " +
+					"ON imported_activity_zone_epoch(entry_identity, entry_import_revision, run_identity)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_activity_window (
+					entry_identity TEXT NOT NULL,
+					entry_import_revision INTEGER NOT NULL,
+					run_identity TEXT NOT NULL,
+					identity TEXT NOT NULL,
+					content_checksum TEXT NOT NULL,
+					start_offset_nanos INTEGER NOT NULL,
+					end_offset_nanos INTEGER NOT NULL,
+					stored_zone_id TEXT NOT NULL,
+					coverage TEXT NOT NULL,
+					known_active_duration_nanos INTEGER NOT NULL,
+					known_inactive_duration_nanos INTEGER NOT NULL,
+					unknown_activity_duration_nanos INTEGER NOT NULL,
+					unobserved_duration_nanos INTEGER NOT NULL,
+					PRIMARY KEY(entry_identity, entry_import_revision, run_identity, identity),
+					FOREIGN KEY(entry_identity, entry_import_revision, run_identity)
+						REFERENCES imported_activity_run(entry_identity, entry_import_revision, identity)
+						ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_activity_window_run " +
+					"ON imported_activity_window(entry_identity, entry_import_revision, run_identity)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_activity_window_identity " +
+					"ON imported_activity_window(identity)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_activity_fragment (
+					entry_identity TEXT NOT NULL,
+					entry_import_revision INTEGER NOT NULL,
+					run_identity TEXT NOT NULL,
+					window_identity TEXT NOT NULL,
+					ordinal INTEGER NOT NULL,
+					fragment_kind TEXT NOT NULL,
+					start_offset_nanos INTEGER NOT NULL,
+					end_offset_nanos INTEGER NOT NULL,
+					gap_reason TEXT,
+					activity TEXT,
+					mechanism TEXT,
+					refined_transition_activity TEXT,
+					confidence_kind TEXT,
+					confidence_minimum_percent INTEGER,
+					confidence_maximum_percent INTEGER,
+					confidence_observation_count INTEGER,
+					start_wall_time_ms INTEGER,
+					start_wall_time_uncertainty_ms INTEGER,
+					start_boundary_kind TEXT,
+					end_wall_time_ms INTEGER,
+					end_wall_time_uncertainty_ms INTEGER,
+					end_boundary_kind TEXT,
+					wall_time_continuity TEXT,
+					PRIMARY KEY(
+						entry_identity, entry_import_revision, run_identity, window_identity, ordinal
+					),
+					FOREIGN KEY(entry_identity, entry_import_revision, run_identity, window_identity)
+						REFERENCES imported_activity_window(
+							entry_identity, entry_import_revision, run_identity, identity
+						) ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_activity_fragment_window " +
+					"ON imported_activity_fragment(" +
+					"entry_identity, entry_import_revision, run_identity, window_identity)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_activity_retention_receipt (
+					entry_identity TEXT NOT NULL PRIMARY KEY,
+					collected_data_epoch INTEGER NOT NULL,
+					source_evidence_revision INTEGER NOT NULL,
+					retained_from_ms INTEGER NOT NULL,
+					retained_at_ms INTEGER NOT NULL,
+					latest_import_revision INTEGER NOT NULL,
+					latest_content_checksum TEXT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					received_at_ms INTEGER NOT NULL,
+					revision_count INTEGER NOT NULL,
+					import_receipt_count INTEGER NOT NULL,
+					run_row_count INTEGER NOT NULL,
+					zone_epoch_row_count INTEGER NOT NULL,
+					window_row_count INTEGER NOT NULL,
+					fragment_row_count INTEGER NOT NULL,
+					run_deletion_count INTEGER NOT NULL,
+					run_deletion_set_checksum TEXT NOT NULL,
+					source_fence_count INTEGER NOT NULL,
+					source_fence_set_checksum TEXT NOT NULL,
+					protected_identity_count INTEGER NOT NULL,
+					protected_identity_set_checksum TEXT NOT NULL,
+					lineage_authority_checksum TEXT NOT NULL,
+					effect_checksum TEXT NOT NULL
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_activity_retained_identity (
+					protected_identity TEXT NOT NULL PRIMARY KEY,
+					entry_identity TEXT NOT NULL,
+					identity_kind TEXT NOT NULL,
+					FOREIGN KEY(entry_identity)
+						REFERENCES imported_activity_retention_receipt(entry_identity) ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_activity_retained_identity_entry " +
+					"ON imported_activity_retained_identity(entry_identity)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_activity_entry_deletion (
+					entry_identity TEXT NOT NULL PRIMARY KEY,
+					collected_data_epoch INTEGER NOT NULL,
+					deleted_import_revision INTEGER NOT NULL,
+					deleted_at_ms INTEGER NOT NULL,
+					effect_checksum TEXT NOT NULL
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_activity_entry_deletion_receipt (
+					entry_identity TEXT NOT NULL PRIMARY KEY,
+					collected_data_epoch INTEGER NOT NULL,
+					deleted_import_revision INTEGER NOT NULL,
+					deleted_content_checksum TEXT NOT NULL,
+					expected_run_count INTEGER NOT NULL,
+					run_scope_set_checksum TEXT NOT NULL,
+					expected_window_count INTEGER NOT NULL,
+					window_identity_set_checksum TEXT NOT NULL,
+					run_deletion_set_checksum TEXT NOT NULL,
+					source_fence_count INTEGER NOT NULL,
+					source_fence_set_checksum TEXT NOT NULL,
+					retained_from_ms INTEGER,
+					deleted_at_ms INTEGER NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					FOREIGN KEY(entry_identity)
+						REFERENCES imported_activity_entry_deletion(entry_identity) ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_activity_deletion_generation (
+					run_identity TEXT NOT NULL PRIMARY KEY,
+					collected_data_epoch INTEGER NOT NULL,
+					generation INTEGER NOT NULL,
+					deleted_at_ms INTEGER NOT NULL,
+					effect_checksum TEXT NOT NULL
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS pressure_fact_revision (
 					logical_fact_id TEXT NOT NULL,
 					semantic_revision INTEGER NOT NULL,
@@ -2111,6 +2376,189 @@ val MIGRATION_27_28: Migration = object : Migration(
 					"ON pressure_fact_revision(service_run_id, logical_tracking_id, " +
 					"writer_projection_id, writer_projection_version, logical_fact_id, " +
 					"semantic_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS activity_captured_registration_plan (
+					source_instance_id TEXT NOT NULL,
+					registration_generation INTEGER NOT NULL,
+					configuration_revision INTEGER NOT NULL,
+					desired_plan_payload_version INTEGER NOT NULL,
+					desired_plan_payload BLOB NOT NULL,
+					desired_plan_payload_checksum TEXT NOT NULL,
+					physical_configuration_fingerprint TEXT NOT NULL,
+					applied_at_elapsed_realtime_nanos INTEGER NOT NULL,
+					apply_status TEXT NOT NULL,
+					binding_identity TEXT NOT NULL,
+					PRIMARY KEY(source_instance_id, registration_generation)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_activity_captured_registration_plan_configuration " +
+					"ON activity_captured_registration_plan(configuration_revision, " +
+					"desired_plan_payload_checksum)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS activity_captured_window_revision (
+					writer_projection_id TEXT NOT NULL,
+					writer_projection_version INTEGER NOT NULL,
+					writer_binding_generation INTEGER NOT NULL,
+					writer_owner_generation INTEGER NOT NULL,
+					logical_window_id TEXT NOT NULL,
+					semantic_revision INTEGER NOT NULL,
+					supersedes_semantic_revision INTEGER,
+					mutation_id TEXT NOT NULL,
+					logical_tracking_id TEXT NOT NULL,
+					service_run_id TEXT NOT NULL,
+					session_segment_id INTEGER NOT NULL,
+					purpose TEXT NOT NULL,
+					source_instance_id TEXT NOT NULL,
+					registration_generation INTEGER NOT NULL,
+					configuration_revision INTEGER NOT NULL,
+					physical_configuration_fingerprint TEXT NOT NULL,
+					authorization_revision INTEGER NOT NULL,
+					authorization_fingerprint TEXT NOT NULL,
+					purpose_eligibility_mask INTEGER NOT NULL,
+					source_policy_revision INTEGER NOT NULL,
+					capture_consent_epoch INTEGER NOT NULL,
+					manifest_revision INTEGER NOT NULL,
+					lifecycle_lease_generation INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					clock_domain_id TEXT NOT NULL,
+					stored_zone_id TEXT NOT NULL,
+					provider_acceptance_start_nanos INTEGER NOT NULL,
+					provider_acceptance_end_nanos INTEGER NOT NULL,
+					authorization_effect_start_nanos INTEGER NOT NULL,
+					authorization_effect_end_nanos INTEGER NOT NULL,
+					session_run_effect_start_nanos INTEGER NOT NULL,
+					session_run_effect_end_nanos INTEGER NOT NULL,
+					window_start_elapsed_realtime_nanos INTEGER NOT NULL,
+					window_end_elapsed_realtime_nanos INTEGER NOT NULL,
+					coverage TEXT NOT NULL,
+					known_active_duration_nanos INTEGER NOT NULL,
+					known_inactive_duration_nanos INTEGER NOT NULL,
+					unknown_activity_duration_nanos INTEGER NOT NULL,
+					unobserved_duration_nanos INTEGER NOT NULL,
+					exact_duplicate_count INTEGER NOT NULL,
+					semantic_duplicate_count INTEGER NOT NULL,
+					unchanged_evidence_count INTEGER NOT NULL,
+					scope_deletion_generation INTEGER NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					applied_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(writer_projection_id, writer_projection_version, logical_window_id, semantic_revision)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_captured_window_mutation " +
+					"ON activity_captured_window_revision(writer_projection_id, " +
+					"writer_projection_version, mutation_id)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_activity_captured_window_run_scope " +
+					"ON activity_captured_window_revision(service_run_id, logical_tracking_id, " +
+					"session_segment_id)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS activity_captured_fragment (
+					writer_projection_id TEXT NOT NULL,
+					writer_projection_version INTEGER NOT NULL,
+					logical_window_id TEXT NOT NULL,
+					semantic_revision INTEGER NOT NULL,
+					fragment_ordinal INTEGER NOT NULL,
+					fragment_kind TEXT NOT NULL,
+					band_ordinal INTEGER,
+					interval_start_elapsed_realtime_nanos INTEGER NOT NULL,
+					interval_end_elapsed_realtime_nanos INTEGER NOT NULL,
+					gap_reason TEXT,
+					activity TEXT,
+					mechanism TEXT,
+					refined_transition_activity TEXT,
+					confidence_kind TEXT,
+					confidence_minimum_percent INTEGER,
+					confidence_maximum_percent INTEGER,
+					confidence_observation_count INTEGER,
+					start_wall_time_ms INTEGER,
+					start_wall_time_uncertainty_ms INTEGER,
+					start_boundary_kind TEXT,
+					start_anchor_source_event_id TEXT,
+					start_anchor_provider_elapsed_nanos INTEGER,
+					end_wall_time_ms INTEGER,
+					end_wall_time_uncertainty_ms INTEGER,
+					end_boundary_kind TEXT,
+					end_anchor_source_event_id TEXT,
+					end_anchor_provider_elapsed_nanos INTEGER,
+					wall_time_continuity TEXT,
+					PRIMARY KEY(writer_projection_id, writer_projection_version, logical_window_id, semantic_revision, fragment_ordinal),
+					FOREIGN KEY(writer_projection_id, writer_projection_version, logical_window_id, semantic_revision)
+						REFERENCES activity_captured_window_revision(writer_projection_id, writer_projection_version, logical_window_id, semantic_revision)
+						ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_activity_captured_fragment_parent " +
+					"ON activity_captured_fragment(writer_projection_id, writer_projection_version, " +
+					"logical_window_id, semantic_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS activity_captured_evidence (
+					writer_projection_id TEXT NOT NULL,
+					writer_projection_version INTEGER NOT NULL,
+					logical_window_id TEXT NOT NULL,
+					semantic_revision INTEGER NOT NULL,
+					fragment_ordinal INTEGER NOT NULL,
+					evidence_ordinal INTEGER NOT NULL,
+					source_event_id TEXT NOT NULL,
+					source_admission_ordinal INTEGER NOT NULL,
+					source_sequence INTEGER NOT NULL,
+					provider_elapsed_realtime_nanos INTEGER NOT NULL,
+					received_elapsed_realtime_nanos INTEGER NOT NULL,
+					observation_kind TEXT NOT NULL,
+					observed_activity TEXT NOT NULL,
+					transition_change TEXT,
+					confidence_percent INTEGER,
+					coverage_end_exclusive_elapsed_realtime_nanos INTEGER,
+					PRIMARY KEY(writer_projection_id, writer_projection_version, logical_window_id, semantic_revision, fragment_ordinal, evidence_ordinal),
+					FOREIGN KEY(writer_projection_id, writer_projection_version, logical_window_id, semantic_revision, fragment_ordinal)
+						REFERENCES activity_captured_fragment(writer_projection_id, writer_projection_version, logical_window_id, semantic_revision, fragment_ordinal)
+						ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_activity_captured_evidence_fragment " +
+					"ON activity_captured_evidence(writer_projection_id, writer_projection_version, " +
+					"logical_window_id, semantic_revision, fragment_ordinal)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS activity_captured_window_cursor (
+					writer_projection_id TEXT NOT NULL,
+					writer_projection_version INTEGER NOT NULL,
+					logical_window_id TEXT NOT NULL,
+					writer_owner_generation INTEGER NOT NULL,
+					logical_tracking_id TEXT NOT NULL,
+					service_run_id TEXT NOT NULL,
+					session_segment_id INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					latest_semantic_revision INTEGER NOT NULL,
+					latest_mutation_id TEXT NOT NULL,
+					latest_effect_checksum TEXT NOT NULL,
+					cursor_revision INTEGER NOT NULL,
+					updated_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(writer_projection_id, writer_projection_version, logical_window_id)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_activity_captured_cursor_run_scope " +
+					"ON activity_captured_window_cursor(service_run_id, logical_tracking_id, " +
+					"session_segment_id)",
 			)
 			execSQL(
 				"""

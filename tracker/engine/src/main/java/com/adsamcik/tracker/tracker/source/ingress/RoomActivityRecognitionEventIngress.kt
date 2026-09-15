@@ -6,7 +6,9 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityIngressResult
 import com.adsamcik.tracker.activity.api.ingress.ActivityIngressStartContext
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationPlanAttribution
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -87,6 +89,40 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 		) {
 			return ActivityIngressResult.rejected(0, 0, ACTIVITY_REGISTRATION_NOT_ACTIVE)
 		}
+		val storedPlan = runCatchingNonCancellation {
+			database.activityCapturedFactDao().registrationPlanBinding(
+				capturedIdentity.sourceInstanceId,
+				capturedIdentity.registrationGeneration,
+			)
+		}.getOrElse { failure ->
+			return ActivityIngressResult.retryable(0, 0, failure.failureCode())
+		}
+		if (storedPlan != null &&
+			(storedPlan.applyStatus !in ActivityCapturedRegistrationPlanEntity.APPLIED_STATUSES ||
+				storedPlan.bindingIdentity != storedPlan.calculatedBindingIdentity())
+		) {
+			return ActivityIngressResult.rejected(0, 0, ACTIVITY_REGISTRATION_PLAN_MISMATCH)
+		}
+		val appliedPlan = storedPlan?.let { binding ->
+			runCatching {
+				ActivityRegistrationPlanAttribution(
+					configurationRevision = binding.configurationRevision,
+					payloadVersion = binding.desiredPlanPayloadVersion,
+					payload = binding.desiredPlanPayload,
+					payloadChecksum = binding.desiredPlanPayloadChecksum,
+					physicalConfigurationFingerprint =
+						binding.physicalConfigurationFingerprint,
+				)
+			}.getOrElse {
+				return ActivityIngressResult.rejected(0, 0, ACTIVITY_REGISTRATION_PLAN_MISMATCH)
+			}
+		}
+		if (appliedPlan != null &&
+			appliedPlan.physicalConfigurationFingerprint !=
+				capturedIdentity.physicalConfigurationFingerprint
+		) {
+			return ActivityIngressResult.rejected(0, 0, ACTIVITY_REGISTRATION_PLAN_MISMATCH)
+		}
 		val automationAuthority = runCatchingNonCancellation {
 			automationEpochAuthority.epochForCallbackAdmission()
 		}.getOrElse { failure ->
@@ -97,6 +133,7 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 				batch = batch,
 				identity = capturedIdentity,
 				automationAuthority = automationAuthority,
+				appliedPlan = appliedPlan,
 				minimumObservedElapsedRealtimeNanos = acceptedElapsedRealtimeNanos,
 				cutoffElapsedRealtimeNanos = cutoffElapsedRealtimeNanos,
 			)
@@ -184,6 +221,9 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 		}
 		val discardedCount = providerDiscardedCount +
 			(delivery.candidate.units.size - orderedUnits.size)
+		// The delivery transaction is already durable. Captured projection is deliberately only a
+		// conflated hint and never consumes the callback's Android start exemption.
+		sourcePipelineRecovery.requestActivityCapturedFactDrain()
 		val completion = runCatchingNonCancellation {
 			val loaded = orderedUnits.map { unit -> loadExactCommittedEvent(unit) }
 			val targetOrdinal = orderedUnits.maxOf(
@@ -302,6 +342,7 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 		const val ACTIVITY_REGISTRATION_ACTIVATION_PENDING =
 			"ACTIVITY_REGISTRATION_ACTIVATION_PENDING"
 		const val ACTIVITY_REGISTRATION_NOT_ACTIVE = "ACTIVITY_REGISTRATION_NOT_ACTIVE"
+		const val ACTIVITY_REGISTRATION_PLAN_MISMATCH = "ACTIVITY_REGISTRATION_PLAN_MISMATCH"
 		const val SESSION_CUTOFF_REQUIRES_SOURCE_PARTITION =
 			"SESSION_CUTOFF_REQUIRES_SOURCE_PARTITION"
 	}

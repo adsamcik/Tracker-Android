@@ -7,10 +7,12 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbite
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationDemand
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationOwner
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationPlanAttribution
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.stats.api.DetectedActivityType
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
 import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
@@ -18,6 +20,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +33,7 @@ import kotlinx.coroutines.sync.withLock
 class ActivitySourceRuntime @Inject constructor(
 	private val arbiter: ActivityRegistrationArbiter,
 	private val database: AppDatabase,
+	private val planCodec: SourcePlanCodec,
 ) : ClaimedSourceRuntime<ActivityPlan> {
 	override val source: SourceKind = SourceKind.ACTIVITY
 	private val mutex = Mutex()
@@ -181,6 +185,7 @@ class ActivitySourceRuntime @Inject constructor(
 
 	private suspend fun applyPlan(plan: ActivityPlan): ActivityRegistrationResult {
 		if (!plan.enabled) return arbiter.clearDemand(ActivityRegistrationOwner.ACTIVE_SESSION)
+		val encodedPlan = planCodec.encode(plan)
 		val transitions = if (plan.mode == ActivityMode.TRANSITIONS_ONLY) {
 			val requestedTypes = plan.transitionTypes.mapNotNull { code ->
 				ActivityTransitionType.entries.firstOrNull { it.value == code }
@@ -198,6 +203,13 @@ class ActivitySourceRuntime @Inject constructor(
 				} else null,
 				transitions = transitions,
 				planRevision = plan.revision,
+				capturedPlan = ActivityRegistrationPlanAttribution(
+					configurationRevision = plan.revision,
+					payloadVersion = SourcePlanCodec.FORMAT_VERSION,
+					payload = encodedPlan.bytes,
+					payloadChecksum = encodedPlan.checksum,
+					physicalConfigurationFingerprint = plan.physicalConfigurationFingerprint(),
+				),
 			),
 		)
 		return result

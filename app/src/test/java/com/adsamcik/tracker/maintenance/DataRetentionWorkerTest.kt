@@ -12,6 +12,8 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.SynchronousExecutor
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.RoomTruncateImportedActivityRetention
+import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionResult
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.QuarantinedSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -67,6 +69,9 @@ class DataRetentionWorkerTest {
     private val migrationBackupRepository: DatabaseMigrationBackupRepository = mockk(relaxed = true)
 	private val collectedDataLifecycleStore: CollectedDataLifecycleStore = mockk(relaxed = true)
 	private val stepsProjectionLane: StepsSessionFactProjectionLane = mockk(relaxed = true)
+	private val importedActivityRetention: RoomTruncateImportedActivityRetention = mockk {
+		coEvery { truncate(any()) } returns TruncateImportedActivityRetentionResult.NoChange
+	}
 
     @Before
     fun setUp() {
@@ -98,6 +103,7 @@ class DataRetentionWorkerTest {
 						collectedDataLifecycleStore,
 						READY_STARTUP_GATE,
 						Provider { stepsProjectionLane },
+						Provider { importedActivityRetention },
 					)
                 }
             })
@@ -107,6 +113,7 @@ class DataRetentionWorkerTest {
         val result = worker.doWork()
         assertEquals(ListenableWorker.Result.success(), result)
 		coVerify(exactly = 0) { stepsProjectionLane.drainAvailable() }
+		coVerify(exactly = 0) { importedActivityRetention.truncate(any()) }
     }
 
 	@Test
@@ -156,6 +163,7 @@ class DataRetentionWorkerTest {
 						lifecycleStore,
 						READY_STARTUP_GATE,
 						Provider { lane },
+						Provider { importedActivityRetention },
 					)
 				})
 				.build() as DataRetentionWorker

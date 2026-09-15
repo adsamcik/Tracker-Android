@@ -881,6 +881,12 @@ class AppDatabaseMigration27To28Test {
 		)
 		// Legacy pressure_sample rows lack v4 qualification and must never be backfilled.
 		assertTableCount(database, "pressure_fact_revision", 0)
+		// Legacy Activity snapshots lack captured-window authority and must never be backfilled.
+		assertTableCount(database, "activity_captured_registration_plan", 0)
+		assertTableCount(database, "activity_captured_window_revision", 0)
+		assertTableCount(database, "activity_captured_fragment", 0)
+		assertTableCount(database, "activity_captured_evidence", 0)
+		assertTableCount(database, "activity_captured_window_cursor", 0)
 		assertIndexColumns(
 			database = database,
 			indexName = "idx_pressure_fact_revision_service_run_scope",
@@ -894,7 +900,15 @@ class AppDatabaseMigration27To28Test {
 			),
 		)
 		assertTableCount(database, "source_deletion_fence", 0)
-		assertTableCount(database, "source_destination_owner", 3)
+		assertTableCount(database, "source_destination_owner", 4)
+		database.query(
+			"SELECT owner, owner_generation FROM source_destination_owner " +
+				"WHERE source_kind = 2 AND destination = 'SESSION_ACTIVITY'",
+		).use { cursor ->
+			assertTrue(cursor.moveToFirst())
+			assertEquals("LEGACY_ACTIVITY_SNAPSHOT", cursor.getString(0))
+			assertEquals(1L, cursor.getLong(1))
+		}
 		database.query(
 			"SELECT owner, owner_generation FROM source_destination_owner " +
 				"WHERE source_kind = 3 AND destination = 'SESSION_STEPS'",
@@ -1362,6 +1376,11 @@ class AppDatabaseMigration27To28Test {
 		assertEquals(123_456L, evidenceState.retainedFromMs)
 		assertEquals(1L, evidenceState.deletedSourceEventHighWaterOrdinal)
 		assertEquals(1L, requireNotNull(database.activityAutomationEpochDao().current()).epoch)
+		val activityOwner = requireNotNull(
+			database.sourceDestinationOwnerDao().get(2, "SESSION_ACTIVITY"),
+		)
+		assertEquals("LEGACY_ACTIVITY_SNAPSHOT", activityOwner.owner)
+		assertEquals(1L, activityOwner.ownerGeneration)
 		val owner = requireNotNull(database.sourceDestinationOwnerDao().get(3, "SESSION_STEPS"))
 		assertEquals("LEGACY_STEP_INTERVAL", owner.owner)
 		assertEquals(1L, owner.ownerGeneration)

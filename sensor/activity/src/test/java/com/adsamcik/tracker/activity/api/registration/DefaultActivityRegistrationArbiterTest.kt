@@ -10,10 +10,12 @@ import com.adsamcik.tracker.activity.receiver.ActivityCallbackGapCode
 import com.adsamcik.tracker.activity.receiver.ActivityCallbackRetryOwner
 import com.adsamcik.tracker.activity.receiver.finalizeActivityCallbackAuthority
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
@@ -33,6 +35,7 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.verify
 import java.io.File
+import java.security.MessageDigest
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Provider
 import kotlinx.coroutines.CancellationException
@@ -173,6 +176,147 @@ class DefaultActivityRegistrationArbiterTest {
 		result.failureCode shouldBe ActivityRegistrationFailureCode.MISSING_DURABLE_DEMAND
 		result.snapshot.active shouldBe false
 		coVerify(exactly = 0) { backend.applyRegistration(any(), any()) }
+	}
+
+	@Test
+	fun `accepted captured provider persists exact plan independently of generation`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 3L, true)),
+		)
+		val plan = capturedPlan(configurationRevision = 41L, fingerprint = "capture-plan-a")
+		installDesiredPlan(plan)
+
+		val result = subject.setDemand(
+			ActivityRegistrationOwner.ACTIVE_SESSION,
+			ActivityRegistrationDemand(
+				continuousRecognitionIntervalSeconds = 5,
+				planRevision = plan.configurationRevision,
+				capturedPlan = plan,
+			),
+		)
+
+		result.status shouldBe ActivityRegistrationStatus.APPLIED
+		val identity = requireNotNull(result.snapshot.identity)
+		identity.registrationGeneration shouldBe 1L
+		identity.registrationGeneration shouldNotBe plan.configurationRevision
+		identity.physicalConfigurationFingerprint shouldBe plan.physicalConfigurationFingerprint
+		val stored = requireNotNull(
+			database.activityCapturedFactDao().registrationPlanBinding(
+				identity.sourceInstanceId,
+				identity.registrationGeneration,
+			),
+		)
+		stored.configurationRevision shouldBe plan.configurationRevision
+		stored.desiredPlanPayloadVersion shouldBe plan.payloadVersion
+		stored.desiredPlanPayload.contentEquals(plan.payload) shouldBe true
+		stored.desiredPlanPayloadChecksum shouldBe plan.payloadChecksum
+		stored.physicalConfigurationFingerprint shouldBe plan.physicalConfigurationFingerprint
+	}
+
+	@Test
+	fun `captured plan replacement retains both immutable registration bindings`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 3L, true)),
+		)
+		val firstPlan = capturedPlan(configurationRevision = 41L, fingerprint = "capture-plan")
+		installDesiredPlan(firstPlan)
+		val first = subject.setDemand(
+			ActivityRegistrationOwner.ACTIVE_SESSION,
+			ActivityRegistrationDemand(
+				continuousRecognitionIntervalSeconds = 5,
+				planRevision = 41L,
+				capturedPlan = firstPlan,
+			),
+		)
+		val secondPlan = capturedPlan(configurationRevision = 42L, fingerprint = "capture-plan")
+		installDesiredPlan(secondPlan)
+		val second = subject.setDemand(
+			ActivityRegistrationOwner.ACTIVE_SESSION,
+			ActivityRegistrationDemand(
+				continuousRecognitionIntervalSeconds = 5,
+				planRevision = 42L,
+				capturedPlan = secondPlan,
+			),
+		)
+
+		val firstIdentity = requireNotNull(first.snapshot.identity)
+		val secondIdentity = requireNotNull(second.snapshot.identity)
+		second.status shouldBe ActivityRegistrationStatus.APPLIED
+		secondIdentity.registrationGeneration shouldBe firstIdentity.registrationGeneration + 1L
+		database.activityCapturedFactDao().registrationPlanBinding(
+			firstIdentity.sourceInstanceId,
+			firstIdentity.registrationGeneration,
+		)?.configurationRevision shouldBe 41L
+		database.activityCapturedFactDao().registrationPlanBinding(
+			secondIdentity.sourceInstanceId,
+			secondIdentity.registrationGeneration,
+		)?.configurationRevision shouldBe 42L
+		removedIdentities shouldBe listOf(firstIdentity)
+	}
+
+	@Test
+	fun `desired plan mismatch rolls back provider activation and plan binding`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 3L, true)),
+		)
+		val durable = capturedPlan(
+			configurationRevision = 41L,
+			fingerprint = "capture-plan",
+			payloadTag = "durable",
+		)
+		installDesiredPlan(durable)
+		val requested = capturedPlan(
+			configurationRevision = 41L,
+			fingerprint = "capture-plan",
+			payloadTag = "forged",
+		)
+
+		val result = subject.setDemand(
+			ActivityRegistrationOwner.ACTIVE_SESSION,
+			ActivityRegistrationDemand(
+				continuousRecognitionIntervalSeconds = 5,
+				planRevision = 41L,
+				capturedPlan = requested,
+			),
+		)
+
+		result.status shouldBe ActivityRegistrationStatus.FAILED
+		result.failureCode shouldBe ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE
+		database.sourceRegistrationStateDao().get(ACTIVITY_SOURCE_KIND, OWNER_SCOPE) shouldBe null
+		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, 1L)?.status shouldBe
+			ProviderRegistrationGenerationEntity.STATUS_FAILED
+		database.activityCapturedFactDao().registrationPlanBinding(
+			appliedIdentities.single().sourceInstanceId,
+			1L,
+		) shouldBe null
+		removedIdentities.size shouldBe 1
+	}
+
+	@Test
+	fun `missing captured binding blocks session and control cannot carry one`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 3L, true)),
+		)
+		val missing = subject.setDemand(
+			ActivityRegistrationOwner.ACTIVE_SESSION,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5, planRevision = 41L),
+		)
+
+		missing.status shouldBe ActivityRegistrationStatus.BLOCKED
+		missing.failureCode shouldBe ActivityRegistrationFailureCode.MISSING_CAPTURE_PLAN_BINDING
+		coVerify(exactly = 0) { backend.applyRegistration(any(), any()) }
+
+		val controlPlan = capturedPlan(configurationRevision = 1L, fingerprint = "control-forbidden")
+		kotlin.runCatching {
+			subject.setDemand(
+				ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+				ActivityRegistrationDemand(
+					continuousRecognitionIntervalSeconds = 5,
+					planRevision = 1L,
+					capturedPlan = controlPlan,
+				),
+			)
+		}.isFailure shouldBe true
 	}
 
 	@Test
@@ -1876,6 +2020,47 @@ class DefaultActivityRegistrationArbiterTest {
 		retireElapsedRealtimeNanos = null,
 		retiredAtMs = null,
 	)
+
+	private fun capturedPlan(
+		configurationRevision: Long,
+		fingerprint: String,
+		payloadTag: String = "canonical",
+	): ActivityRegistrationPlanAttribution {
+		val payload = "activity-plan-$configurationRevision-$payloadTag".toByteArray()
+		val checksum = MessageDigest.getInstance("SHA-256")
+			.digest(payload)
+			.joinToString(separator = "") { byte -> "%02x".format(byte) }
+		return ActivityRegistrationPlanAttribution(
+			configurationRevision = configurationRevision,
+			payloadVersion = 1,
+			payload = payload,
+			payloadChecksum = checksum,
+			physicalConfigurationFingerprint = fingerprint,
+		)
+	}
+
+	private suspend fun installDesiredPlan(plan: ActivityRegistrationPlanAttribution) {
+		database.sourcePlanStateDao().insertRevision(
+			AcquisitionPlanRevisionEntity(
+				revision = plan.configurationRevision,
+				planId = "activity-plan-${plan.configurationRevision}",
+				createdAtMs = plan.configurationRevision,
+				status = "EFFECTIVE",
+				sourcePolicyRevision = 5L,
+			),
+		)
+		database.sourcePlanStateDao().insertDesiredPlans(
+			listOf(
+				SourceDesiredPlanEntity(
+					revision = plan.configurationRevision,
+					sourceKind = ACTIVITY_SOURCE_KIND,
+					payloadVersion = plan.payloadVersion,
+					payload = plan.payload,
+					payloadChecksum = plan.payloadChecksum,
+				),
+			),
+		)
+	}
 
 	private companion object {
 		const val ACTIVITY_SOURCE_KIND = 2

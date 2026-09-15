@@ -6,16 +6,47 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
 import com.adsamcik.tracker.activity.api.ingress.ActivityTransitionEvidence
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationPlanAttribution
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import java.security.MessageDigest
 import org.junit.Test
 
 class ActivitySourceDeliveryFactoryTest {
 	private val subject = ActivitySourceDeliveryFactory()
+
+	@Test
+	fun `delivery uses exact plan revision rather than registration generation`() {
+		val attribution = planAttribution(configurationRevision = 41L)
+
+		val evidence = subject.create(
+			batch(recognitions = listOf(recognition(10L))),
+			identity(),
+			automationAuthority(),
+			attribution,
+		).candidate.units.single().evidence
+
+		evidence.registrationGeneration shouldBe 2L
+		evidence.configRevision shouldBe 41L
+		evidence.physicalConfigurationFingerprint shouldBe attribution.physicalConfigurationFingerprint
+	}
+
+	@Test
+	fun `missing captured plan remains receive-time-only instead of fabricating control attribution`() {
+		val evidence = subject.create(
+			batch(recognitions = listOf(recognition(10L))),
+			identity(),
+			automationAuthority(),
+			appliedPlan = null,
+		).candidate.units.single().evidence
+
+		evidence.configRevision shouldBe null
+		evidence.planAttribution shouldBe com.adsamcik.tracker.tracker.source.model.PlanAttribution.RECEIVE_TIME_ONLY
+	}
 
 	@Test
 	fun `identity is independent of callback ordering while original indexes remain mapping metadata`() {
@@ -364,6 +395,20 @@ class ActivitySourceDeliveryFactoryTest {
 		clockDomainId = "boot-1",
 		physicalConfigurationFingerprint = "physical-config",
 	)
+
+	private fun planAttribution(configurationRevision: Long): ActivityRegistrationPlanAttribution {
+		val payload = byteArrayOf(1, 2, 3)
+		val checksum = MessageDigest.getInstance("SHA-256")
+			.digest(payload)
+			.joinToString(separator = "") { byte -> "%02x".format(byte) }
+		return ActivityRegistrationPlanAttribution(
+			configurationRevision = configurationRevision,
+			payloadVersion = 1,
+			payload = payload,
+			payloadChecksum = checksum,
+			physicalConfigurationFingerprint = identity().physicalConfigurationFingerprint,
+		)
+	}
 
 	private fun automationAuthority(
 		epoch: Long = AUTOMATION_EPOCH,

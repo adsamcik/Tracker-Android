@@ -18,10 +18,29 @@ interface SourceEventWalDao {
 	@Query("SELECT * FROM source_event_wal WHERE event_id = :eventId LIMIT 1")
 	suspend fun getByEventId(eventId: String): SourceEventWalEntity?
 
+	/** Payload-free size and delivery identity checked before a source adapter may read one BLOB. */
+	@Query(
+		"SELECT event_id, source_kind, captured_collected_data_epoch, clock_domain_id, " +
+			"delivery_identity, delivery_unit_index, delivery_unit_count, LENGTH(payload) AS payload_bytes " +
+			"FROM source_event_wal WHERE event_id = :eventId LIMIT 1",
+	)
+	suspend fun payloadPreflightByEventId(eventId: String): SourceEventWalPayloadPreflightRow?
+
+	/** Loads one event only when SQLite has enforced the adapter's payload bound. */
+	@Query(
+		"SELECT * FROM source_event_wal WHERE event_id = :eventId " +
+			"AND LENGTH(payload) <= :maximumPayloadBytes LIMIT 1",
+	)
+	suspend fun boundedPayloadByEventId(
+		eventId: String,
+		maximumPayloadBytes: Int,
+	): SourceEventWalEntity?
+
 	/** Loads the payload-free authority needed to reconcile one projection failure. */
 	@Query(
 		"SELECT admission_ordinal, source_kind, captured_collected_data_epoch, " +
-			"acquired_at_ms, wall_time_ms, authorization_purpose_eligibility_mask, " +
+			"acquired_at_ms, wall_time_ms, wall_time_uncertainty_ms, " +
+			"authorization_purpose_eligibility_mask, " +
 			"logical_tracking_id, service_run_id " +
 			"FROM source_event_wal " +
 			"WHERE admission_ordinal = :admissionOrdinal LIMIT 1",
@@ -96,6 +115,40 @@ interface SourceEventWalDao {
 		deliveryIdentity: String,
 	): List<SourceDeliveryUnitIdentityRow>
 
+	/** Payload-free bounded delivery scan used before any Activity payload BLOB is materialized. */
+	@Query(
+		"SELECT event_id, delivery_unit_index, delivery_unit_count, " +
+			"LENGTH(payload) AS payload_bytes FROM source_event_wal " +
+			"WHERE source_kind = :sourceKind " +
+			"AND captured_collected_data_epoch = :collectedDataEpoch " +
+			"AND clock_domain_id = :clockDomainId AND delivery_identity = :deliveryIdentity " +
+			"ORDER BY delivery_unit_index ASC LIMIT :limit",
+	)
+	suspend fun deliveryPayloadPreflight(
+		sourceKind: Int,
+		collectedDataEpoch: Long,
+		clockDomainId: String,
+		deliveryIdentity: String,
+		limit: Int,
+	): List<SourceEventWalDeliveryPayloadPreflightRow>
+
+	/** Full delivery read whose per-row payload bound remains enforced by SQLite. */
+	@Query(
+		"SELECT * FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND captured_collected_data_epoch = :collectedDataEpoch " +
+			"AND clock_domain_id = :clockDomainId AND delivery_identity = :deliveryIdentity " +
+			"AND LENGTH(payload) <= :maximumPayloadBytes " +
+			"ORDER BY delivery_unit_index ASC LIMIT :limit",
+	)
+	suspend fun deliveryEventsWithBoundedPayload(
+		sourceKind: Int,
+		collectedDataEpoch: Long,
+		clockDomainId: String,
+		deliveryIdentity: String,
+		maximumPayloadBytes: Int,
+		limit: Int,
+	): List<SourceEventWalEntity>
+
 	@Query(
 		"SELECT * FROM source_event_wal WHERE admission_ordinal > :afterOrdinal " +
 			"ORDER BY admission_ordinal ASC LIMIT :limit",
@@ -151,6 +204,20 @@ interface SourceEventWalDao {
 		throughOrdinal: Long,
 		limit: Int,
 	): List<SourceEventWalEntity>
+
+	/** Payload-free ordered preflight for a bounded source-local projection pass. */
+	@Query(
+		"SELECT event_id, admission_ordinal FROM source_event_wal " +
+			"WHERE source_kind = :sourceKind AND admission_ordinal > :afterOrdinal " +
+			"AND admission_ordinal <= :throughOrdinal " +
+			"ORDER BY admission_ordinal ASC LIMIT :limit",
+	)
+	suspend fun sourceProjectionEventsAfterThrough(
+		sourceKind: Int,
+		afterOrdinal: Long,
+		throughOrdinal: Long,
+		limit: Int,
+	): List<SourceProjectionEventIdentityRow>
 
 	@Query("SELECT MAX(admission_ordinal) FROM source_event_wal")
 	suspend fun maximumAdmissionOrdinal(): Long?
@@ -237,10 +304,17 @@ data class SourceEventProjectionEligibilityRow(
 	@ColumnInfo(name = "captured_collected_data_epoch") val capturedCollectedDataEpoch: Long,
 	@ColumnInfo(name = "acquired_at_ms") val acquiredAtMs: Long,
 	@ColumnInfo(name = "wall_time_ms") val wallTimeMs: Long?,
+	@ColumnInfo(name = "wall_time_uncertainty_ms") val wallTimeUncertaintyMs: Long?,
 	@ColumnInfo(name = "authorization_purpose_eligibility_mask")
 	val authorizationPurposeEligibilityMask: Long,
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
 	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
+)
+
+/** Payload-free identity used to prove a decoded source projection page is complete. */
+data class SourceProjectionEventIdentityRow(
+	@ColumnInfo(name = "event_id") val eventId: String,
+	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
 )
 
 /** Payload-free projection used to recognize an exact replay of a process-stable delivery. */
@@ -258,4 +332,24 @@ data class SourceDeliveryUnitIdentityRow(
 	@ColumnInfo(name = "observed_interval_start_nanos") val observedIntervalStartNanos: Long?,
 	@ColumnInfo(name = "payload_version") val payloadVersion: Int,
 	@ColumnInfo(name = "payload_checksum") val payloadChecksum: String,
+)
+
+/** Payload-free preflight for the selected WAL event. */
+data class SourceEventWalPayloadPreflightRow(
+	@ColumnInfo(name = "event_id") val eventId: String,
+	@ColumnInfo(name = "source_kind") val sourceKind: Int,
+	@ColumnInfo(name = "captured_collected_data_epoch") val capturedCollectedDataEpoch: Long,
+	@ColumnInfo(name = "clock_domain_id") val clockDomainId: String,
+	@ColumnInfo(name = "delivery_identity") val deliveryIdentity: String?,
+	@ColumnInfo(name = "delivery_unit_index") val deliveryUnitIndex: Int?,
+	@ColumnInfo(name = "delivery_unit_count") val deliveryUnitCount: Int?,
+	@ColumnInfo(name = "payload_bytes") val payloadBytes: Long,
+)
+
+/** Bounded payload-free delivery member used to reject oversized siblings before BLOB reads. */
+data class SourceEventWalDeliveryPayloadPreflightRow(
+	@ColumnInfo(name = "event_id") val eventId: String,
+	@ColumnInfo(name = "delivery_unit_index") val deliveryUnitIndex: Int?,
+	@ColumnInfo(name = "delivery_unit_count") val deliveryUnitCount: Int?,
+	@ColumnInfo(name = "payload_bytes") val payloadBytes: Long,
 )

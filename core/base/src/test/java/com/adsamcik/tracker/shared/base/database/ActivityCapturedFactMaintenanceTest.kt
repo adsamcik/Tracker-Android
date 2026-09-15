@@ -1,0 +1,2726 @@
+package com.adsamcik.tracker.shared.base.database
+
+import android.app.Application
+import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.model.SegmentSource
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.shouldBe
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
+import java.security.MessageDigest
+import java.util.concurrent.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.runTest
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class ActivityCapturedFactMaintenanceTest {
+	private lateinit var database: AppDatabase
+
+	@Before
+	fun setUp() {
+		val context: Application = ApplicationProvider.getApplicationContext()
+		database = AppDatabase.testDatabase(context)
+	}
+
+	@After
+	fun tearDown() = database.close()
+
+	private fun portableReader(
+		limits: PortableActivityReadLimits = PortableActivityReadLimits(),
+	): PortableCapturedActivityRoomReader = PortableCapturedActivityRoomReader(
+		database = database,
+		laneExecutionAuthority = ACTIVITY_LANE_AUTHORITY,
+		limits = limits,
+	)
+
+	private fun portableExporter(): RoomExportPortableCapturedActivity =
+		RoomExportPortableCapturedActivity(
+			database = database,
+			laneExecutionAuthority = ACTIVITY_LANE_AUTHORITY,
+			ioDispatcher = Dispatchers.Unconfined,
+		)
+
+	@Test
+	fun `retention removes the complete correction lineage at an uncertain floor`() = runTest {
+		seedCapturedActivity(retainedFromMs = 1_990L, semanticRevisions = 2)
+
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(
+			beforeMs = 1_990L,
+			expectedCollectedDataEpoch = 0L,
+			markedAtMs = 5_000L,
+		) shouldBe ActivityCapturedRetentionResult.Pruned(1, 2)
+
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+		database.activityCapturedFactDao().fragmentCount() shouldBe 0L
+		database.activityCapturedFactDao().evidenceCount() shouldBe 0L
+		database.activityCapturedFactDao().cursorCount() shouldBe 0L
+		database.activityCapturedFactDao().registrationPlanBindingCount() shouldBe 1L
+	}
+
+	@Test
+	fun `retention removes a gap-only lineage whose wall placement is unverifiable`() = runTest {
+		seedCapturedActivity(retainedFromMs = 1_000L, gapOnly = true)
+
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(
+			beforeMs = 1_000L,
+			expectedCollectedDataEpoch = 0L,
+			markedAtMs = 5_000L,
+		) shouldBe ActivityCapturedRetentionResult.Pruned(1, 1)
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+		database.activityCapturedFactDao().cursorCount() shouldBe 0L
+	}
+
+	@Test
+	fun `revision overflow blocks retention before any lineage mutation`() = runTest {
+		seedCapturedActivity(retainedFromMs = 1_990L, semanticRevisions = 2)
+		val limits = ActivityCapturedMaintenanceLimits(
+			revisionPageSize = 1,
+			maximumRevisions = 1,
+			maximumLogicalWindows = 1,
+		)
+
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(
+			beforeMs = 1_990L,
+			expectedCollectedDataEpoch = 0L,
+			markedAtMs = 5_000L,
+			limits = limits,
+			checkpoint = {},
+		) shouldBe ActivityCapturedRetentionResult.Blocked(
+			ActivityCapturedRetentionBlockedReason.MAINTENANCE_BOUND_EXCEEDED,
+		)
+
+		database.activityCapturedFactDao().revisionCount() shouldBe 2L
+		database.activityCapturedFactDao().cursorCount() shouldBe 1L
+	}
+
+	@Test
+	fun `retention authenticates a live current run with an open session boundary`() = runTest {
+		seedCapturedActivity(retainedFromMs = 1_000L, sessionRunEffectEndNanos = Long.MAX_VALUE)
+		makeCurrentRunLive()
+
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(
+			beforeMs = 1_000L,
+			expectedCollectedDataEpoch = 0L,
+			markedAtMs = 5_000L,
+		) shouldBe ActivityCapturedRetentionResult.NoChange
+	}
+
+	@Test
+	fun `retention authenticates an open old-run fact after a live replacement`() = runTest {
+		seedCapturedActivity(retainedFromMs = 1_000L, sessionRunEffectEndNanos = Long.MAX_VALUE)
+		installLiveReplacement()
+
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(
+			beforeMs = 1_000L,
+			expectedCollectedDataEpoch = 0L,
+			markedAtMs = 5_000L,
+		) shouldBe ActivityCapturedRetentionResult.NoChange
+	}
+
+	@Test
+	fun `retention accepts the exact terminal cutoff and rejects a changed cutoff`() = runTest {
+		seedCapturedActivity(retainedFromMs = 1_000L)
+
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(
+			beforeMs = 1_000L,
+			expectedCollectedDataEpoch = 0L,
+			markedAtMs = 5_000L,
+		) shouldBe ActivityCapturedRetentionResult.NoChange
+
+		val sessionDao = database.sourceSessionDao()
+		val session = requireNotNull(sessionDao.session(LOGICAL_TRACKING_ID))
+		sessionDao.updateSession(session.copy(cutoffElapsedNanos = 501L)) shouldBe 1
+		database.pruneCapturedActivityFactsAffectedByRetentionFloor(
+			beforeMs = 1_000L,
+			expectedCollectedDataEpoch = 0L,
+			markedAtMs = 5_000L,
+		) shouldBe ActivityCapturedRetentionResult.Blocked(
+			ActivityCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `revoked capture deletion fences every run and preserves CONTROL demand`() = runTest {
+		seedCapturedActivity(revokedCapture = true)
+		database.sourceBrokerDao().insertDemands(listOf(controlDemand()))
+
+		database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 5_000L) shouldBe
+			ActivityCapturedSourceDeletionResult.Deleted(1, 1, 1, 1)
+
+		val digest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+			ACTIVITY_SOURCE,
+			SourceBrokerPurpose.SESSION_CAPTURE,
+			LOGICAL_TRACKING_ID,
+			SERVICE_RUN_ID,
+		)
+		database.sourceDeletionFenceDao().contains(
+			ACTIVITY_SOURCE,
+			SourceBrokerPurpose.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			digest,
+		) shouldBe true
+		database.activityCapturedFactDao().revisionCount() shouldBe 0L
+		database.activityCapturedFactDao().registrationPlanBindingCount() shouldBe 0L
+		database.sourceBrokerDao().activeDemands(ACTIVITY_SOURCE).single().purpose shouldBe
+			SourceBrokerPurpose.CONTROL_AUTOSTART
+	}
+
+	@Test
+	fun `nonterminal capture demand blocks deletion without touching facts`() = runTest {
+		seedCapturedActivity(revokedCapture = true)
+		database.sourceBrokerDao().insertDemands(listOf(captureDemand()))
+
+		database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 5_000L) shouldBe
+			ActivityCapturedSourceDeletionResult.Blocked(
+				ActivityCapturedSourceDeletionBlockedReason.CAPTURE_DEMAND_NOT_QUIESCED,
+			)
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `compatible active provider blocks deletion before fact audit`() = runTest {
+		seedCapturedActivity(revokedCapture = true, providerActive = true)
+
+		database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 5_000L) shouldBe
+			ActivityCapturedSourceDeletionResult.Blocked(
+				ActivityCapturedSourceDeletionBlockedReason.CAPTURE_PROVIDER_NOT_QUIESCED,
+			)
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `malformed fact payload blocks source deletion instead of being skipped`() = runTest {
+		seedCapturedActivity(revokedCapture = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE activity_captured_window_revision SET effect_checksum = 'corrupt'",
+		)
+
+		database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 5_000L) shouldBe
+			ActivityCapturedSourceDeletionResult.Blocked(
+				ActivityCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+			)
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `foreign payload-bearing revision blocks complete source deletion audit`() = runTest {
+		seedCapturedActivity(revokedCapture = true)
+		database.openHelper.writableDatabase.execSQL(
+			"""
+			INSERT INTO activity_captured_window_revision SELECT
+				'foreign-activity-writer', writer_projection_version, writer_binding_generation,
+				writer_owner_generation, 'foreign-' || logical_window_id, semantic_revision,
+				supersedes_semantic_revision, 'foreign-' || mutation_id, logical_tracking_id,
+				service_run_id, session_segment_id, purpose, source_instance_id,
+				registration_generation, configuration_revision, physical_configuration_fingerprint,
+				authorization_revision, authorization_fingerprint, purpose_eligibility_mask,
+				source_policy_revision, capture_consent_epoch, manifest_revision,
+				lifecycle_lease_generation, collected_data_epoch, clock_domain_id, stored_zone_id,
+				provider_acceptance_start_nanos, provider_acceptance_end_nanos,
+				authorization_effect_start_nanos, authorization_effect_end_nanos,
+				session_run_effect_start_nanos, session_run_effect_end_nanos,
+				window_start_elapsed_realtime_nanos, window_end_elapsed_realtime_nanos, coverage,
+				known_active_duration_nanos, known_inactive_duration_nanos,
+				unknown_activity_duration_nanos, unobserved_duration_nanos, exact_duplicate_count,
+				semantic_duplicate_count, unchanged_evidence_count, scope_deletion_generation,
+				effect_checksum, applied_at_ms
+			FROM activity_captured_window_revision LIMIT 1
+			""".trimIndent(),
+		)
+
+		database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 5_000L) shouldBe
+			ActivityCapturedSourceDeletionResult.Blocked(
+				ActivityCapturedSourceDeletionBlockedReason.UNRECOGNIZED_PAYLOAD_PRESENT,
+			)
+		database.activityCapturedFactDao().revisionCount() shouldBe 2L
+	}
+
+	@Test
+	fun `orphan fragment blocks source deletion before AlreadyDeleted`() = runTest {
+		seedCapturedActivity(revokedCapture = true)
+		corruptWithoutForeignKeys(
+			"DELETE FROM activity_captured_evidence",
+			"DELETE FROM activity_captured_window_cursor",
+			"DELETE FROM activity_captured_window_revision",
+			"DELETE FROM activity_captured_registration_plan",
+		)
+
+		database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 5_000L) shouldBe
+			ActivityCapturedSourceDeletionResult.Blocked(
+				ActivityCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+			)
+		database.activityCapturedFactDao().fragmentCount() shouldBe 1L
+	}
+
+	@Test
+	fun `orphan evidence blocks source deletion before AlreadyDeleted`() = runTest {
+		seedCapturedActivity(revokedCapture = true)
+		corruptWithoutForeignKeys(
+			"DELETE FROM activity_captured_fragment",
+			"DELETE FROM activity_captured_window_cursor",
+			"DELETE FROM activity_captured_window_revision",
+			"DELETE FROM activity_captured_registration_plan",
+		)
+
+		database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 5_000L) shouldBe
+			ActivityCapturedSourceDeletionResult.Blocked(
+				ActivityCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+			)
+		database.activityCapturedFactDao().evidenceCount() shouldBe 1L
+	}
+
+	@Test
+	fun `orphan cursor blocks source deletion before AlreadyDeleted`() = runTest {
+		seedCapturedActivity(revokedCapture = true)
+		corruptWithoutForeignKeys(
+			"DELETE FROM activity_captured_evidence",
+			"DELETE FROM activity_captured_fragment",
+			"DELETE FROM activity_captured_window_revision",
+			"DELETE FROM activity_captured_registration_plan",
+		)
+
+		database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 5_000L) shouldBe
+			ActivityCapturedSourceDeletionResult.Blocked(
+				ActivityCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+			)
+		database.activityCapturedFactDao().cursorCount() shouldBe 1L
+	}
+
+	@Test
+	fun `bare revision blocks source deletion before an empty-source result`() = runTest {
+		seedCapturedActivity(revokedCapture = true)
+		corruptWithoutForeignKeys(
+			"DELETE FROM activity_captured_evidence",
+			"DELETE FROM activity_captured_fragment",
+			"DELETE FROM activity_captured_window_cursor",
+			"DELETE FROM activity_captured_registration_plan",
+		)
+
+		database.deleteCapturedActivityFactsAfterConsentReset(0L, 1L, 5_000L) shouldBe
+			ActivityCapturedSourceDeletionResult.Blocked(
+				ActivityCapturedSourceDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+			)
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `portable export emits only the latest authenticated correction with opaque identities`() = runTest {
+		seedCapturedActivity(semanticRevisions = 2)
+		database.sourceBrokerDao().insertDemands(listOf(controlDemand()))
+
+		val snapshot = portableReader().read(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) as PortableCapturedActivitySnapshot.Ready
+
+		val entry = snapshot.envelope.entries.single()
+		val run = entry.runs.single()
+		val window = run.windows.single()
+		entry.identity.value shouldBe PortableActivityOpaqueIdentity.derive(
+			PortableActivityIdentityKind.LOGICAL_ENTRY,
+			LOGICAL_TRACKING_ID,
+		).value
+		window.coverage shouldBe PortableActivityWindowCoverage.COMPLETE
+		window.fragments.size shouldBe 1
+		(snapshot.envelope.toString().contains(LOGICAL_TRACKING_ID)) shouldBe false
+		(snapshot.envelope.toString().contains(SERVICE_RUN_ID)) shouldBe false
+		(snapshot.envelope.toString().contains(SOURCE_INSTANCE_ID)) shouldBe false
+		(snapshot.envelope.toString().contains("CONTROL_AUTOSTART")) shouldBe false
+	}
+
+	@Test
+	fun `portable re-export emits one entry for exact local and imported origins`() = runTest {
+		seedCapturedActivity()
+		val local = (portableReader().read(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) as PortableCapturedActivitySnapshot.Ready).envelope.entries.single()
+		RoomImportPortableCapturedActivity(database, Dispatchers.Unconfined).importEntry(
+			ImportPortableCapturedActivityRequest(
+				local,
+				PortableActivityImportReceipt("round-trip", "entry", "same-device.trackeractivity", 4_000L),
+				0L,
+			),
+		) shouldBe ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+
+		var emitted: PortableActivityEnvelopeV1? = null
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			emitted = it
+		} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+		emitted?.entries shouldBe listOf(local)
+	}
+
+	@Test
+	fun `portable re-export rejects divergent local and imported origins sharing an identity`() = runTest {
+		seedCapturedActivity()
+		val local = (portableReader().read(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) as PortableCapturedActivitySnapshot.Ready).envelope.entries.single()
+		val divergent = correctedPortableEntry(local)
+		RoomImportPortableCapturedActivity(database, Dispatchers.Unconfined).importEntry(
+			ImportPortableCapturedActivityRequest(
+				divergent,
+				PortableActivityImportReceipt("conflict", "entry", "foreign.trackeractivity", 4_000L),
+				0L,
+			),
+		) shouldBe ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+
+		var sinkCalls = 0
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable re-export rejects a foreign entry reusing local run ownership`() = runTest {
+		seedCapturedActivity()
+		val local = (portableReader().read(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) as PortableCapturedActivitySnapshot.Ready).envelope.entries.single()
+		val foreignIdentity = PortableActivityOpaqueIdentity.derive(
+			PortableActivityIdentityKind.LOGICAL_ENTRY,
+			"foreign-entry",
+		)
+		val foreign = local.copy(
+			identity = foreignIdentity,
+			contentChecksum = ActivityCapturedPortableIntegrity.entryChecksum(
+				foreignIdentity,
+				local.sessionMode,
+				local.startTimeMs,
+				local.endTimeMs,
+				local.runs,
+			),
+		)
+		RoomImportPortableCapturedActivity(database, Dispatchers.Unconfined).importEntry(
+			ImportPortableCapturedActivityRequest(
+				foreign,
+				PortableActivityImportReceipt(
+					"owner-conflict", "entry", "foreign.trackeractivity", 4_000L,
+				),
+				0L,
+			),
+		) shouldBe ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+
+		var sinkCalls = 0
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export retains an explicit gap without inventing a numeric Activity value`() = runTest {
+		seedCapturedActivity(gapOnly = true)
+
+		val snapshot = portableReader().read(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) as PortableCapturedActivitySnapshot.Ready
+
+		val window = snapshot.envelope.entries.single().runs.single().windows.single()
+		window.coverage shouldBe PortableActivityWindowCoverage.NONE
+		window.knownActiveDurationNanos shouldBe 0L
+		window.knownInactiveDurationNanos shouldBe 0L
+		window.unknownActivityDurationNanos shouldBe 0L
+		window.unobservedDurationNanos shouldBe 200L
+		window.fragments.single() shouldBe PortableActivityFragmentV1.Gap(
+			startOffsetNanos = 0L,
+			endOffsetNanos = 200L,
+			reason = "NO_QUALIFIED_EVIDENCE",
+		)
+	}
+
+	@Test
+	fun `portable range selects a complete group through an overlapping factless replacement`() = runTest {
+		seedCapturedActivity()
+		installTerminalReplacement(capturesActivity = false)
+
+		val snapshot = portableReader().read(
+			ExportPortableCapturedActivityRequest(3_000L, 4_001L),
+		) as PortableCapturedActivitySnapshot.Ready
+
+		val runs = snapshot.envelope.entries.single().runs
+		runs.size shouldBe 2
+		runs.first().captureCoverage shouldBe PortableActivityCaptureCoverage.WHOLE_RUN
+		runs.last().captureCoverage shouldBe PortableActivityCaptureCoverage.NOT_CAPTURED
+		runs.last().windows shouldBe emptyList()
+	}
+
+	@Test
+	fun `portable range uses exact half-open replacement boundaries`() = runTest {
+		seedCapturedActivity()
+		installTerminalReplacement(capturesActivity = false)
+
+		portableReader().read(
+			ExportPortableCapturedActivityRequest(3_000L, 3_100L),
+		) shouldBe PortableCapturedActivitySnapshot.Outcome(
+			ExportPortableCapturedActivityResult.NoEntries,
+		)
+	}
+
+	@Test
+	fun `portable range rejects a corrupt overlapping replacement binding`() = runTest {
+		seedCapturedActivity()
+		installTerminalReplacement(capturesActivity = false)
+		corruptWithoutForeignKeys(
+			"UPDATE session_segment SET service_run_id = 'foreign-run' " +
+				"WHERE service_run_id = '$REPLACEMENT_SERVICE_RUN_ID'",
+		)
+
+		portableReader().read(
+			ExportPortableCapturedActivityRequest(3_000L, 4_001L),
+		) shouldBe PortableCapturedActivitySnapshot.Outcome(
+			ExportPortableCapturedActivityResult.Unverifiable(
+				PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+			),
+		)
+	}
+
+	@Test
+	fun `portable export waits for the lane to drain a later admitted Activity event`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(1L)
+		insertActivityWalEvent(2L)
+		replaceActivityCompleteness(lastAdmissionOrdinal = 2L, lastSourceSequence = 2L)
+		updateFinalAdmissionOrdinal(2L)
+		replaceActivityLane(activityProductLane(contiguousAdmissionOrdinal = 1L))
+		var sinkCalls = 0
+
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.ENTRY_MATERIALIZING,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export treats retained WAL above stale completeness as materializing`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(2L)
+		var sinkCalls = 0
+
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.ENTRY_MATERIALIZING,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export accepts retained WAL only at the exact drained target`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(2L)
+		replaceActivityCompleteness(lastAdmissionOrdinal = 2L, lastSourceSequence = 2L)
+		updateFinalAdmissionOrdinal(2L)
+		replaceActivityLane(activityProductLane(contiguousAdmissionOrdinal = 2L))
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export rejects WAL observed after a later deny-all authorization`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 2L,
+			observedElapsedNanos = 600L,
+			receivedElapsedNanos = 610L,
+		)
+		settleActivityWalTarget(2L)
+		var sinkCalls = 0
+
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export rejects WAL observed after capture rotates to CONTROL only`() = runTest {
+		seedCapturedActivity(providerActive = true)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			observedElapsedNanos = 600L,
+			receivedElapsedNanos = 610L,
+		)
+		settleActivityWalTarget(2L)
+		var sinkCalls = 0
+
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export rejects a stale capture callback barrier`() = runTest {
+		seedCapturedActivity()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation " +
+				"SET capture_callback_barrier_authorization_revision = 0 " +
+				"WHERE source_kind = $ACTIVITY_SOURCE AND registration_generation = 1",
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export accepts an active system rearmable provider after a CONTROL successor`() = runTest {
+		seedCapturedActivity(providerActive = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation " +
+				"SET provider_residency = 'SYSTEM_REARMABLE', provider_process_incarnation_id = NULL " +
+				"WHERE source_kind = $ACTIVITY_SOURCE AND registration_generation = 1",
+		)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export accepts a retained captured unit when a denied delivery sibling was omitted`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
+			deliveryUnitCount = 2,
+		)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export rejects a noncanonical delivery identity before sibling expansion`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = "A".repeat(64),
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects duplicate delivery unit indices`() = runTest {
+		seedCapturedActivity()
+		database.openHelper.writableDatabase.execSQL("DROP INDEX idx_source_event_wal_delivery_unit")
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 2,
+			receivedElapsedNanos = 220L,
+		)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 2,
+			receivedElapsedNanos = 220L,
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects mixed immutable authority within one delivery`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 2,
+			receivedElapsedNanos = 220L,
+		)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
+			deliveryUnitIndex = 1,
+			deliveryUnitCount = 2,
+			receivedElapsedNanos = 221L,
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export accepts strictly increasing retained delivery source sequence gaps`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 2,
+			sourceSequence = 0L,
+			receivedElapsedNanos = 220L,
+		)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
+			deliveryUnitIndex = 1,
+			deliveryUnitCount = 2,
+			sourceSequence = 3L,
+			receivedElapsedNanos = 220L,
+		)
+		settleActivityWalTarget(2L, lastSourceSequence = 3L)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export accepts sparse original unit indices after sibling omission`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 3,
+			sourceSequence = 0L,
+			receivedElapsedNanos = 220L,
+		)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
+			deliveryUnitIndex = 2,
+			deliveryUnitCount = 3,
+			sourceSequence = 2L,
+			receivedElapsedNanos = 220L,
+		)
+		settleActivityWalTarget(2L)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export rejects retained delivery source sequence regression`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 2,
+			sourceSequence = 2L,
+			receivedElapsedNanos = 220L,
+		)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
+			deliveryUnitIndex = 1,
+			deliveryUnitCount = 2,
+			sourceSequence = 1L,
+			receivedElapsedNanos = 220L,
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export authenticates retained CONTROL sibling without selecting it`() = runTest {
+		seedCapturedActivity(providerActive = true)
+		insertCaptureAndControlDelivery()
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export reproduces mixed per-unit freshness before capture attribution`() = runTest {
+		seedCapturedActivity(
+			sharedControlAuthorization = true,
+			historicalCaptureMaximumAgeMs = 0L,
+		)
+		val capture = historicalCaptureDemand(maximumAgeMs = 0L)
+		val control = historicalControlDemand()
+		val authorizationMembers = listOf(capture, control)
+		val authorizationFingerprint = SourceBrokerAuthorization.fingerprint(authorizationMembers)
+		val deliveryIdentity = canonicalDeliveryIdentity("mixed-freshness")
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = deliveryIdentity,
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 2,
+			sourceSequence = 0L,
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+			authorizationFingerprint = authorizationFingerprint,
+			captureAttributed = false,
+			observedElapsedNanos = 190L,
+			receivedElapsedNanos = 200L,
+		)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			deliveryIdentity = deliveryIdentity,
+			deliveryUnitIndex = 1,
+			deliveryUnitCount = 2,
+			sourceSequence = 1L,
+			authorizationPurposeEligibilityMask =
+				SourceBrokerAuthorization.purposeMask(authorizationMembers),
+			authorizationFingerprint = authorizationFingerprint,
+			observedElapsedNanos = 200L,
+			receivedElapsedNanos = 200L,
+		)
+		settleActivityWalTarget(2L, lastSourceSequence = 1L)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export rejects retained capture that production freshness would omit`() = runTest {
+		seedCapturedActivity(historicalCaptureMaximumAgeMs = 0L)
+		insertActivityWalEvent(
+			ordinal = 1L,
+			sourceSequence = 0L,
+			authorizationFingerprint = historicalAuthorizationFingerprint(maximumAgeMs = 0L),
+			observedElapsedNanos = 200L,
+			receivedElapsedNanos = 201L,
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects retained capture with a foreign authorization fingerprint`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			authorizationFingerprint = "0".repeat(64),
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export saturates maximum age conversion for a delayed capture`() = runTest {
+		seedCapturedActivity(historicalCaptureMaximumAgeMs = Long.MAX_VALUE)
+		insertActivityWalEvent(
+			ordinal = 1L,
+			sourceSequence = 0L,
+			authorizationFingerprint = historicalAuthorizationFingerprint(Long.MAX_VALUE),
+			observedElapsedNanos = 200L,
+			receivedElapsedNanos = Long.MAX_VALUE,
+			createdAtMs = 3_100L,
+		)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export cannot hide a retained CONTROL sibling in another data epoch`() = runTest {
+		seedCapturedActivity(providerActive = true)
+		insertCaptureAndControlDelivery(controlCollectedDataEpoch = 1L)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects retained CONTROL sibling with a capture purpose mask`() = runTest {
+		seedCapturedActivity(providerActive = true)
+		insertCaptureAndControlDelivery(
+			controlPurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects retained CONTROL sibling with a foreign authorization fingerprint`() = runTest {
+		seedCapturedActivity(providerActive = true)
+		insertCaptureAndControlDelivery(controlAuthorizationFingerprint = "0".repeat(64))
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects an interval start that differs from provider observation`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			observedElapsedNanos = 201L,
+			observedIntervalStartNanos = 200L,
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export accepts an exact settled multi-unit delivery`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 2,
+			receivedElapsedNanos = 220L,
+		)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			deliveryIdentity = canonicalDeliveryIdentity("batch"),
+			deliveryUnitIndex = 1,
+			deliveryUnitCount = 2,
+			receivedElapsedNanos = 220L,
+		)
+		settleActivityWalTarget(2L)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export fails closed when retained WAL target proof exceeds its bound`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(1L)
+		insertActivityWalEvent(2L)
+		val reader = portableReader(
+			limits = PortableActivityReadLimits(maximumCapturedWalRows = 1),
+		)
+
+		reader.read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.DEPENDENCY_OVERFLOW,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export cannot hide retained WAL by clearing its capture purpose mask`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(2L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = 0 " +
+				"WHERE event_id = 'activity-event-2'",
+		)
+		var sinkCalls = 0
+
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export fails closed on a malformed selected-run WAL header`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(2L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET source_policy_revision = 99 " +
+				"WHERE event_id = 'activity-event-2'",
+		)
+		var sinkCalls = 0
+
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export accepts the exact settled Activity lane target`() = runTest {
+		seedCapturedActivity()
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export accepts the production system rearmable Activity registration`() = runTest {
+		seedCapturedActivity()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation " +
+				"SET provider_residency = 'SYSTEM_REARMABLE', provider_process_incarnation_id = NULL " +
+				"WHERE source_kind = $ACTIVITY_SOURCE AND registration_generation = 1",
+		)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export authenticates a complete shared capture and CONTROL authorization`() = runTest {
+		seedCapturedActivity(sharedControlAuthorization = true)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+	}
+
+	@Test
+	fun `portable export rejects a corrupted authorization fingerprint`() = runTest {
+		seedCapturedActivity()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_authorization SET authorization_fingerprint = 'corrupt-fingerprint' " +
+				"WHERE source_kind = $ACTIVITY_SOURCE AND registration_generation = 1 " +
+				"AND authorization_revision = 1",
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects a missing CONTROL sibling in a shared authorization`() = runTest {
+		seedCapturedActivity(sharedControlAuthorization = true)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_authorization WHERE member_id = 'demand:historic-control-demand'",
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects an unexpected CONTROL sibling`() = runTest {
+		seedCapturedActivity()
+		val control = historicalControlDemand()
+		database.sourceBrokerDao().insertDemands(listOf(control))
+		val unexpected = authorizationRows(
+			registrationGeneration = 1L,
+			authorizationRevision = 1L,
+			demands = listOf(historicalCaptureDemand(), control),
+			effectiveElapsedNanos = 150L,
+			effectiveWallTimeMs = 1_500L,
+		).single { row -> row.purpose == SourceBrokerPurpose.CONTROL_AUTOSTART }
+		database.sourceBrokerDao().insertAuthorizations(listOf(unexpected))
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects changed demand terms behind an authorization`() = runTest {
+		seedCapturedActivity()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET maximum_age_ms = 1 " +
+				"WHERE demand_id = 'historic-capture-demand'",
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects final admission below the Activity completeness target`() = runTest {
+		seedCapturedActivity()
+		replaceActivityCompleteness(lastAdmissionOrdinal = 2L, lastSourceSequence = 2L)
+		replaceActivityLane(activityProductLane(contiguousAdmissionOrdinal = 2L))
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export authenticates a factless replacement provider before emission`() = runTest {
+		seedCapturedActivity()
+		installTerminalReplacement(capturesActivity = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET owner_scope = 'foreign-owner' " +
+				"WHERE source_kind = $ACTIVITY_SOURCE AND registration_generation = 2",
+		)
+		var sinkCalls = 0
+
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 4_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export rejects missing or mismatched completeness and lane authority`() = runTest {
+		seedCapturedActivity()
+		database.sourceSessionDao().deleteAllCompleteness()
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+
+		database.sourceSessionDao().saveCompleteness(
+			activityCompleteness().copy(sourceInstanceId = "foreign-activity-provider"),
+		)
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+
+		database.sourceSessionDao().deleteAllCompleteness()
+		database.sourceSessionDao().saveCompleteness(activityCompleteness())
+		replaceActivityLane(activityProductLane().copy(productStage = "CORRUPT"))
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects a terminal Activity projection failure`() = runTest {
+		seedCapturedActivity()
+		database.sourceProjectionStateDao().saveFailure(
+			SourceProjectionFailureEntity(
+				projectionId = WRITER_ID,
+				projectionVersion = WRITER_VERSION,
+				admissionOrdinal = 1L,
+				attemptCount = 1,
+				failureCode = "ACTIVITY_TEST_FAILURE",
+				terminal = true,
+				lastAttemptAtMs = 3_000L,
+			),
+		)
+
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export accepts only an exactly drained retired Activity lane`() = runTest {
+		seedCapturedActivity()
+		replaceActivityLane(
+			activityProductLane(
+				contiguousAdmissionOrdinal = 1L,
+				captureAdmissionCutoffOrdinal = 1L,
+				retentionRequired = false,
+				status = SourceProductProjectionLaneEntity.STATUS_RETIRED,
+				terminalDisposition = SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN,
+				terminalAtMs = 3_000L,
+			),
+		)
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+
+		replaceActivityLane(
+			activityProductLane(
+				contiguousAdmissionOrdinal = 1L,
+				captureAdmissionCutoffOrdinal = 1L,
+				retentionRequired = false,
+				status = SourceProductProjectionLaneEntity.STATUS_RETIRED,
+				terminalDisposition = null,
+				terminalAtMs = null,
+			),
+		)
+		portableReader().read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export rejects retained gap-only authority without a wall anchor`() = runTest {
+		seedCapturedActivity(retainedFromMs = 1_000L, gapOnly = true)
+
+		portableReader().read(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) shouldBe PortableCapturedActivitySnapshot.Outcome(
+			ExportPortableCapturedActivityResult.Unverifiable(
+				PortableActivityExportUnverifiableReason.RETENTION_CROSSES_ENTRY,
+			),
+		)
+	}
+
+	@Test
+	fun `portable export rejects a live member before any sink IO`() = runTest {
+		seedCapturedActivity(sessionRunEffectEndNanos = Long.MAX_VALUE)
+		makeCurrentRunLive()
+		var sinkCalls = 0
+		val result = portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {
+			sinkCalls++
+		}
+
+		result shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.ENTRY_MATERIALIZING,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export rejects a fenced run before any sink IO`() = runTest {
+		seedCapturedActivity()
+		database.sourceDeletionFenceDao().insertIfAbsent(
+			SourceDeletionFenceEntity.createLogicalServiceRun(
+				sourceKind = ACTIVITY_SOURCE,
+				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				serviceRunId = SERVICE_RUN_ID,
+				fenceGeneration = 1L,
+				collectedDataEpoch = 0L,
+				deletedAtMs = 4_000L,
+			),
+		)
+		var sinkCalls = 0
+		val result = portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) { sinkCalls++ }
+
+		result shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.DELETED_SCOPE,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export rejects one corrupt correction lineage before any sink IO`() = runTest {
+		seedCapturedActivity(semanticRevisions = 2)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE activity_captured_window_revision SET effect_checksum = 'corrupt' " +
+				"WHERE semantic_revision = 1",
+		)
+		var sinkCalls = 0
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) { sinkCalls++ } shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export bounds complete replacement membership before emission`() = runTest {
+		seedCapturedActivity(sessionRunEffectEndNanos = Long.MAX_VALUE)
+		installLiveReplacement()
+		val reader = PortableCapturedActivityRoomReader(
+			database = database,
+			laneExecutionAuthority = ACTIVITY_LANE_AUTHORITY,
+			limits = PortableActivityReadLimits(maximumRuns = 1),
+		)
+
+		reader.read(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) shouldBe
+			PortableCapturedActivitySnapshot.Outcome(
+				ExportPortableCapturedActivityResult.Unverifiable(
+					PortableActivityExportUnverifiableReason.DEPENDENCY_OVERFLOW,
+				),
+			)
+	}
+
+	@Test
+	fun `portable export cancellation leaves the immutable snapshot unpublished`() = runTest {
+		seedCapturedActivity()
+		val reader = PortableCapturedActivityRoomReader(
+			database = database,
+			laneExecutionAuthority = ACTIVITY_LANE_AUTHORITY,
+			checkpoint = { point ->
+				if (point == PortableActivityReadCheckpoint.REPLACEMENT_MEMBERS_LOADED) {
+					throw CancellationException("cancel before snapshot publication")
+				}
+			},
+		)
+
+		shouldThrow<CancellationException> {
+			reader.read(ExportPortableCapturedActivityRequest(1_000L, 3_001L))
+		}
+	}
+
+	@Test
+	fun `portable sink runs only after the Room snapshot transaction`() = runTest {
+		seedCapturedActivity()
+		var observedInsideTransaction: Boolean? = null
+
+		portableExporter().export(
+			ExportPortableCapturedActivityRequest(1_000L, 3_001L),
+		) {
+			observedInsideTransaction = database.inTransaction()
+		} shouldBe ExportPortableCapturedActivityResult.Exported(1)
+		observedInsideTransaction shouldBe false
+	}
+
+	@Test
+	fun `cancellation after payload removal rolls back facts and run fence`() = runTest {
+		seedCapturedActivity(revokedCapture = true)
+
+		shouldThrow<CancellationException> {
+			database.deleteCapturedActivityFactsAfterConsentReset(
+				expectedCollectedDataEpoch = 0L,
+				expectedRevokedConsentEpoch = 1L,
+				deletedAtMs = 5_000L,
+				limits = ActivityCapturedMaintenanceLimits(),
+				checkpoint = { checkpoint ->
+					if (checkpoint == ActivityCapturedMaintenanceCheckpoint.PAYLOAD_REMOVED) {
+						throw CancellationException("test cancellation")
+					}
+				},
+			)
+		}
+
+		database.activityCapturedFactDao().revisionCount() shouldBe 1L
+		database.activityCapturedFactDao().cursorCount() shouldBe 1L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	private suspend fun replaceActivityCompleteness(
+		lastAdmissionOrdinal: Long,
+		lastSourceSequence: Long,
+	) {
+		database.sourceSessionDao().deleteAllCompleteness()
+		database.sourceSessionDao().saveCompleteness(
+			activityCompleteness(lastAdmissionOrdinal, lastSourceSequence),
+		)
+	}
+
+	private suspend fun updateFinalAdmissionOrdinal(value: Long) {
+		val dao = database.sourceSessionDao()
+		val session = requireNotNull(dao.session(LOGICAL_TRACKING_ID))
+		dao.updateSession(session.copy(finalAdmissionOrdinal = value)) shouldBe 1
+	}
+
+	private suspend fun replaceActivityLane(lane: SourceProductProjectionLaneEntity) {
+		database.sourceProjectionStateDao().deleteAllProductLanes()
+		database.sourceProjectionStateDao().installProductLane(lane)
+	}
+
+	private suspend fun settleActivityWalTarget(
+		ordinal: Long,
+		lastSourceSequence: Long = ordinal,
+	) {
+		replaceActivityCompleteness(
+			lastAdmissionOrdinal = ordinal,
+			lastSourceSequence = lastSourceSequence,
+		)
+		updateFinalAdmissionOrdinal(ordinal)
+		replaceActivityLane(activityProductLane(contiguousAdmissionOrdinal = ordinal))
+	}
+
+	private suspend fun insertCaptureAndControlDelivery(
+		controlCollectedDataEpoch: Long = 0L,
+		controlPurposeMask: Long = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+		controlAuthorizationFingerprint: String? = null,
+	) {
+		val activeControl = historicalControlDemand().copy(
+			status = SourceDemandEntity.STATUS_ACTIVE,
+			retireBootId = null,
+			retireElapsedRealtimeNanos = null,
+			retiredAtMs = null,
+		)
+		insertActivityWalEvent(
+			ordinal = 1L,
+			deliveryIdentity = canonicalDeliveryIdentity("authorization-rotation"),
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 2,
+			sourceSequence = 0L,
+			observedElapsedNanos = 200L,
+			receivedElapsedNanos = 610L,
+			createdAtMs = 3_100L,
+		)
+		insertActivityWalEvent(
+			ordinal = 2L,
+			deliveryIdentity = canonicalDeliveryIdentity("authorization-rotation"),
+			deliveryUnitIndex = 1,
+			deliveryUnitCount = 2,
+			sourceSequence = 1L,
+			authorizationRevision = 2L,
+			authorizationPurposeEligibilityMask = controlPurposeMask,
+			authorizationFingerprint = controlAuthorizationFingerprint
+				?: SourceBrokerAuthorization.fingerprint(listOf(activeControl)),
+			captureAttributed = false,
+			observedElapsedNanos = 600L,
+			receivedElapsedNanos = 610L,
+			wallTimeMs = 3_100L,
+			capturedCollectedDataEpoch = controlCollectedDataEpoch,
+			createdAtMs = 3_100L,
+		)
+	}
+
+	private suspend fun insertActivityWalEvent(
+		ordinal: Long,
+		deliveryIdentity: String = canonicalDeliveryIdentity("single-$ordinal"),
+		deliveryUnitIndex: Int = 0,
+		deliveryUnitCount: Int = 1,
+		sourceSequence: Long = ordinal,
+		authorizationRevision: Long = 1L,
+		authorizationPurposeEligibilityMask: Long = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		authorizationFingerprint: String = historicalAuthorizationFingerprint(),
+		captureAttributed: Boolean = true,
+		observedElapsedNanos: Long = 200L + ordinal,
+		observedIntervalStartNanos: Long = observedElapsedNanos,
+		receivedElapsedNanos: Long = 210L + ordinal,
+		wallTimeMs: Long = 2_000L + ordinal,
+		acquiredAtMs: Long = wallTimeMs,
+		capturedCollectedDataEpoch: Long = 0L,
+		createdAtMs: Long = acquiredAtMs,
+	) {
+		val payload = byteArrayOf(ordinal.toByte())
+		val checksum = sha256(payload)
+		val unsealed = SourceEventWalEntity(
+			admissionOrdinal = ordinal,
+			eventId = "activity-event-$ordinal",
+			providerDedupKey = null,
+			deliveryIdentity = deliveryIdentity,
+			deliveryUnitIndex = deliveryUnitIndex,
+			deliveryUnitCount = deliveryUnitCount,
+			logicalTrackingId = LOGICAL_TRACKING_ID.takeIf { captureAttributed },
+			serviceRunId = SERVICE_RUN_ID.takeIf { captureAttributed },
+			sourceKind = ACTIVITY_SOURCE,
+			sourceInstanceId = SOURCE_INSTANCE_ID,
+			registrationGeneration = 1L,
+			physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
+			authorizationRevision = authorizationRevision,
+			authorizationPurposeEligibilityMask = authorizationPurposeEligibilityMask,
+			authorizationFingerprint = authorizationFingerprint,
+			sourceSequence = sourceSequence,
+			configRevision = 1L,
+			planAttribution = if (captureAttributed) 0 else 2,
+			clockDomainId = BOOT_ID,
+			observedElapsedNanos = observedElapsedNanos,
+			observedIntervalStartNanos = observedIntervalStartNanos,
+			receivedElapsedNanos = receivedElapsedNanos,
+			wallTimeMs = wallTimeMs,
+			wallTimeUncertaintyMs = 5L,
+			capturedCollectedDataEpoch = capturedCollectedDataEpoch,
+			sourcePolicyRevision = 1L.takeIf { captureAttributed },
+			captureConsentEpoch = 0L.takeIf { captureAttributed },
+			sessionManifestRevision = 1L.takeIf { captureAttributed },
+			lifecycleLeaseGeneration = 1L.takeIf { captureAttributed },
+			acquiredAtMs = acquiredAtMs,
+			qualityFlags = 0L,
+			qualityConfidence = null,
+			payloadVersion = 1,
+			payload = payload,
+			payloadChecksum = checksum,
+			integrityIdentity = "pending",
+			createdAtMs = createdAtMs,
+		)
+		val sealed = unsealed.copy(integrityIdentity = unsealed.calculatedIntegrityIdentity())
+		database.sourceEventWalDao().insertIgnoringDuplicate(sealed) shouldBe ordinal
+	}
+
+	private suspend fun seedCapturedActivity(
+		retainedFromMs: Long? = null,
+		semanticRevisions: Int = 1,
+		revokedCapture: Boolean = false,
+		providerActive: Boolean = false,
+		sessionRunEffectEndNanos: Long = 500L,
+		gapOnly: Boolean = false,
+		sharedControlAuthorization: Boolean = false,
+		historicalCaptureMaximumAgeMs: Long = 1_000L,
+		historicalControlMaximumAgeMs: Long = 1_000L,
+	) {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(collectedDataEpoch = 0L, retainedFromMs = retainedFromMs),
+		)
+		database.sourceDestinationOwnerDao().insertIfAbsent(
+			SourceDestinationOwnerEntity(
+				sourceKind = ACTIVITY_SOURCE,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
+				owner = SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS,
+				ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+				updatedAtMs = 1_000L,
+			),
+		)
+		database.sourceProjectionStateDao().installProductLane(activityProductLane())
+		val segmentId = database.sessionSegmentDao().insert(
+			SessionSegment(
+				startTimeMs = 1_000L,
+				endTimeMs = 3_000L,
+				distanceM = 0f,
+				steps = null,
+				primaryActivity = null,
+				activityConfidence = null,
+				sampleCount = 0,
+				source = SegmentSource.USER_CREATED,
+				inferenceVersion = null,
+				createdAt = 1_000L,
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				serviceRunId = SERVICE_RUN_ID,
+			),
+		)
+		database.sourceSessionDao().insertSession(logicalSession())
+		database.sourceSessionDao().insertServiceRun(serviceRun(segmentId))
+		val source = manifestSource()
+		val unsignedManifest = manifest()
+		database.sourceSessionDao().insertManifest(
+			unsignedManifest.copy(
+				manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, listOf(source)),
+			),
+		)
+		database.sourceSessionDao().insertManifestSources(listOf(source))
+		database.sourceSessionDao().insertLifecycleActions(listOf(captureStartAction()))
+		val policies = mutableListOf(historicalPolicy())
+		if (revokedCapture) policies += revokedPolicy()
+		database.sourcePolicyDao().insertPolicies(policies)
+		val consents = mutableListOf(historicalConsent())
+		if (revokedCapture) consents += revokedConsent()
+		database.sourcePolicyDao().insertConsentEpochs(consents)
+		database.sourcePolicyDao().ensureAuthority(
+			SourcePolicyAuthorityEntity(
+				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+				currentPolicyRevision = if (revokedCapture) 2L else 1L,
+				legacySettingsFingerprint = null,
+				updatedAtMs = if (revokedCapture) 4_000L else 1_000L,
+			),
+		)
+		database.sourcePlanStateDao().insertRevision(
+			AcquisitionPlanRevisionEntity(1L, "plan-1", 1_000L, "APPLIED", 1L),
+		)
+		val planPayload = activityPlanPayload()
+		val planChecksum = sha256(planPayload)
+		database.sourcePlanStateDao().insertDesiredPlans(
+			listOf(SourceDesiredPlanEntity(1L, ACTIVITY_SOURCE, 1, planPayload, planChecksum)),
+		)
+		database.activityCapturedFactDao().insertRegistrationPlanBinding(
+			ActivityCapturedRegistrationPlanEntity.create(
+				sourceInstanceId = SOURCE_INSTANCE_ID,
+				registrationGeneration = 1L,
+				configurationRevision = 1L,
+				desiredPlanPayloadVersion = 1,
+				desiredPlanPayload = planPayload,
+				desiredPlanPayloadChecksum = planChecksum,
+				physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
+				appliedAtElapsedRealtimeNanos = 100L,
+				applyStatus = "APPLIED",
+			),
+		)
+		database.sourceBrokerDao().insertRegistration(registration(providerActive))
+		val historicalCapture = historicalCaptureDemand(maximumAgeMs = historicalCaptureMaximumAgeMs)
+		val historicalControl = historicalControlDemand(maximumAgeMs = historicalControlMaximumAgeMs)
+		val activeControl = historicalControl.copy(
+			status = SourceDemandEntity.STATUS_ACTIVE,
+			retireBootId = null,
+			retireElapsedRealtimeNanos = null,
+			retiredAtMs = null,
+		)
+		val sharedControl = if (providerActive) activeControl else historicalControl
+		val authorizationDemands = buildList {
+			add(historicalCapture)
+			if (sharedControlAuthorization) add(sharedControl)
+		}
+		database.sourceBrokerDao().insertDemands(authorizationDemands)
+		database.sourceBrokerDao().insertAuthorizations(
+			authorizationRows(
+				registrationGeneration = 1L,
+				authorizationRevision = 1L,
+				demands = authorizationDemands,
+				effectiveElapsedNanos = 150L,
+				effectiveWallTimeMs = 1_500L,
+			),
+		)
+		if (providerActive && !sharedControlAuthorization) {
+			database.sourceBrokerDao().insertDemands(listOf(activeControl))
+		}
+		database.sourceBrokerDao().insertAuthorizations(
+			authorizationRows(
+				registrationGeneration = 1L,
+				authorizationRevision = 2L,
+				demands = if (providerActive) listOf(activeControl) else emptyList(),
+				effectiveElapsedNanos = 500L,
+				effectiveWallTimeMs = 3_000L,
+			),
+		)
+		database.sourceSessionDao().saveCompleteness(activityCompleteness())
+		insertFactLineage(
+			segmentId = segmentId,
+			semanticRevisions = semanticRevisions,
+			sessionRunEffectEndNanos = sessionRunEffectEndNanos,
+			gapOnly = gapOnly,
+			authorizationFingerprint = SourceBrokerAuthorization.fingerprint(authorizationDemands),
+			purposeEligibilityMask = SourceBrokerAuthorization.purposeMask(authorizationDemands),
+		)
+	}
+
+	private suspend fun makeCurrentRunLive() {
+		val sessionDao = database.sourceSessionDao()
+		val session = requireNotNull(sessionDao.session(LOGICAL_TRACKING_ID))
+		val run = requireNotNull(sessionDao.serviceRun(SERVICE_RUN_ID))
+		sessionDao.updateSession(session.copy(
+			state = "ACTIVE",
+			cutoffAtMs = null,
+			cutoffElapsedNanos = null,
+			completedAtMs = null,
+			finalAdmissionOrdinal = null,
+			currentServiceRunId = SERVICE_RUN_ID,
+		)) shouldBe 1
+		sessionDao.updateServiceRun(run.copy(
+			state = "ACTIVE",
+			completedAtMs = null,
+			completionReason = null,
+			runtimeAcknowledgement = "START_ACCEPTED",
+			runRevision = 3L,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+			presentationAcknowledgedAtMs = null,
+		)) shouldBe 1
+	}
+
+	private suspend fun installLiveReplacement() {
+		val sessionDao = database.sourceSessionDao()
+		val replacementSegmentId = database.sessionSegmentDao().insert(
+			SessionSegment(
+				startTimeMs = 3_100L,
+				endTimeMs = 3_100L,
+				distanceM = 0f,
+				steps = null,
+				primaryActivity = null,
+				activityConfidence = null,
+				sampleCount = 0,
+				source = SegmentSource.USER_CREATED,
+				inferenceVersion = null,
+				createdAt = 3_100L,
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+			),
+		)
+		val replacementRun = serviceRun(replacementSegmentId).copy(
+			serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+			state = "ACTIVE",
+			startedAtMs = 3_100L,
+			startedElapsedNanos = 600L,
+			completedAtMs = null,
+			completionReason = null,
+			leaseGeneration = 2L,
+			runtimeAcknowledgement = "START_ACCEPTED",
+			runRevision = 1L,
+			startDeliveryToken = "delivery-replacement",
+			preparedManifestRevision = 2L,
+			preparedIntentRevision = 2L,
+			androidDeliveryUpdatedAtMs = 3_100L,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+			presentationAcknowledgedAtMs = null,
+		)
+		sessionDao.insertServiceRun(replacementRun)
+		val replacementSource = manifestSource().copy(manifestRevision = 2L)
+		val unsignedManifest = manifest().copy(
+			manifestRevision = 2L,
+			serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+			effectiveElapsedRealtimeNanos = 600L,
+			effectiveWallTimeMs = 3_100L,
+			changeReason = "REPLACEMENT_START",
+			manifestChecksum = "",
+		)
+		sessionDao.insertManifest(unsignedManifest.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, listOf(replacementSource)),
+		))
+		sessionDao.insertManifestSources(listOf(replacementSource))
+		val session = requireNotNull(sessionDao.session(LOGICAL_TRACKING_ID))
+		sessionDao.updateSession(session.copy(
+			state = "ACTIVE",
+			cutoffAtMs = null,
+			cutoffElapsedNanos = null,
+			completedAtMs = null,
+			finalAdmissionOrdinal = null,
+			currentManifestRevision = 2L,
+			currentIntentRevision = 2L,
+			currentServiceRunId = REPLACEMENT_SERVICE_RUN_ID,
+			lifecycleLeaseGeneration = 2L,
+		)) shouldBe 1
+	}
+
+	private suspend fun installTerminalReplacement(capturesActivity: Boolean) {
+		val sessionDao = database.sourceSessionDao()
+		val replacementSegmentId = database.sessionSegmentDao().insert(
+			SessionSegment(
+				startTimeMs = 3_100L,
+				endTimeMs = 4_000L,
+				distanceM = 0f,
+				steps = null,
+				primaryActivity = null,
+				activityConfidence = null,
+				sampleCount = 0,
+				source = SegmentSource.USER_CREATED,
+				inferenceVersion = null,
+				createdAt = 3_100L,
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+			),
+		)
+		sessionDao.insertServiceRun(
+			serviceRun(replacementSegmentId).copy(
+				serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+				startedAtMs = 3_100L,
+				startedElapsedNanos = 600L,
+				completedAtMs = 4_000L,
+				leaseGeneration = 2L,
+				runRevision = 2L,
+				startDeliveryToken = "delivery-replacement-terminal",
+				preparedManifestRevision = 2L,
+				preparedIntentRevision = 2L,
+				androidDeliveryUpdatedAtMs = 4_000L,
+				presentationAcknowledgedAtMs = 4_000L,
+			),
+		)
+		val replacementSources = if (capturesActivity) {
+			listOf(manifestSource().copy(manifestRevision = 2L))
+		} else {
+			emptyList()
+		}
+		val unsignedManifest = manifest().copy(
+			manifestRevision = 2L,
+			serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+			effectiveElapsedRealtimeNanos = 600L,
+			effectiveWallTimeMs = 3_100L,
+			changeReason = "REPLACEMENT_START",
+			manifestChecksum = "",
+		)
+		sessionDao.insertManifest(
+			unsignedManifest.copy(
+				manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, replacementSources),
+			),
+		)
+		if (replacementSources.isNotEmpty()) {
+			sessionDao.insertManifestSources(replacementSources)
+			val planPayload = activityPlanPayload()
+			val planChecksum = sha256(planPayload)
+			database.activityCapturedFactDao().insertRegistrationPlanBinding(
+				ActivityCapturedRegistrationPlanEntity.create(
+					sourceInstanceId = REPLACEMENT_SOURCE_INSTANCE_ID,
+					registrationGeneration = 2L,
+					configurationRevision = 1L,
+					desiredPlanPayloadVersion = 1,
+					desiredPlanPayload = planPayload,
+					desiredPlanPayloadChecksum = planChecksum,
+					physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
+					appliedAtElapsedRealtimeNanos = 600L,
+					applyStatus = "APPLIED",
+				),
+			)
+			database.sourceBrokerDao().insertRegistration(
+				registration(
+					active = false,
+					registrationGeneration = 2L,
+					sourceInstanceId = REPLACEMENT_SOURCE_INSTANCE_ID,
+					reservedAtMs = 3_000L,
+					reservedElapsedNanos = 590L,
+					acceptedAtMs = 3_100L,
+					acceptedElapsedNanos = 600L,
+					retiredAtMs = 3_900L,
+					retiredElapsedNanos = 890L,
+					callbackBarrierRevision = 3L,
+				),
+			)
+			sessionDao.insertLifecycleActions(
+				listOf(
+					captureStartAction(
+						serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+						manifestRevision = 2L,
+						actionRevision = 2L,
+						leaseGeneration = 2L,
+						requestedAtMs = 3_100L,
+						requestedElapsedNanos = 600L,
+						sourceInstanceId = REPLACEMENT_SOURCE_INSTANCE_ID,
+						registrationGeneration = 2L,
+					),
+				),
+			)
+			val replacementDemand = historicalCaptureDemand(
+				demandId = "historic-replacement-capture-demand",
+				consumerId = "historic-replacement-capture-consumer",
+				serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+				manifestRevision = 2L,
+				leaseGeneration = 2L,
+				requestedAtMs = 3_100L,
+				requestedElapsedNanos = 600L,
+			)
+			database.sourceBrokerDao().insertDemands(listOf(replacementDemand))
+			database.sourceBrokerDao().insertAuthorizations(
+				authorizationRows(
+					registrationGeneration = 2L,
+					authorizationRevision = 3L,
+					demands = listOf(replacementDemand),
+					effectiveElapsedNanos = 600L,
+					effectiveWallTimeMs = 3_100L,
+				),
+			)
+			database.sourceBrokerDao().insertAuthorizations(
+				authorizationRows(
+					registrationGeneration = 2L,
+					authorizationRevision = 4L,
+					demands = emptyList(),
+					effectiveElapsedNanos = 880L,
+					effectiveWallTimeMs = 3_900L,
+				),
+			)
+		}
+		sessionDao.saveCompleteness(
+			if (capturesActivity) {
+				activityCompleteness().copy(
+					serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+					logicalTrackingId = LOGICAL_TRACKING_ID,
+					sourceInstanceId = REPLACEMENT_SOURCE_INSTANCE_ID,
+					registrationGeneration = 2L,
+					updatedAtMs = 4_000L,
+				)
+			} else {
+				SourceSessionCompletenessEntity(
+					logicalTrackingId = LOGICAL_TRACKING_ID,
+					serviceRunId = REPLACEMENT_SERVICE_RUN_ID,
+					sourceKind = ACTIVITY_SOURCE,
+					sourceInstanceId = "not-owned-activity",
+					registrationGeneration = 0L,
+					lastAdmissionOrdinal = null,
+					lastSourceSequence = null,
+					appDrainComplete = true,
+					providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
+					stopStatus = "COMPLETE",
+					unresolvedSequenceStart = null,
+					unresolvedSequenceEnd = null,
+					updatedAtMs = 4_000L,
+				)
+			},
+		)
+		val session = requireNotNull(sessionDao.session(LOGICAL_TRACKING_ID))
+		sessionDao.updateSession(
+			session.copy(
+				cutoffAtMs = 4_000L,
+				cutoffElapsedNanos = 900L,
+				completedAtMs = 4_000L,
+				currentManifestRevision = 2L,
+				currentIntentRevision = 2L,
+				lifecycleLeaseGeneration = 2L,
+			),
+		) shouldBe 1
+	}
+
+	private fun corruptWithoutForeignKeys(vararg statements: String) {
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL("PRAGMA foreign_keys = OFF")
+		try {
+			statements.forEach { statement -> sqlite.execSQL(statement) }
+		} finally {
+			sqlite.execSQL("PRAGMA foreign_keys = ON")
+		}
+	}
+
+	private suspend fun insertFactLineage(
+		segmentId: Long,
+		semanticRevisions: Int,
+		sessionRunEffectEndNanos: Long,
+		gapOnly: Boolean,
+		authorizationFingerprint: String,
+		purposeEligibilityMask: Long,
+	) {
+		require(semanticRevisions in 1..2)
+		val dao = database.activityCapturedFactDao()
+		val persisted = (1..semanticRevisions).map { ordinal ->
+			persistedRevision(
+				segmentId = segmentId,
+				semanticRevision = ordinal.toLong(),
+				complete = ordinal == 2,
+				sessionRunEffectEndNanos = sessionRunEffectEndNanos,
+				gapOnly = gapOnly,
+				authorizationFingerprint = authorizationFingerprint,
+				purposeEligibilityMask = purposeEligibilityMask,
+			)
+		}
+		persisted.forEach { value ->
+			dao.insertRevision(value.revision)
+			dao.insertFragments(value.fragments)
+			dao.insertEvidence(value.evidence)
+		}
+		val latest = persisted.last().revision
+		dao.insertCursor(
+			ActivityCapturedWindowCursorEntity(
+				writerProjectionId = WRITER_ID,
+				writerProjectionVersion = WRITER_VERSION,
+				logicalWindowId = latest.logicalWindowId,
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				serviceRunId = SERVICE_RUN_ID,
+				sessionSegmentId = segmentId,
+				writerOwnerGeneration = 1L,
+				latestSemanticRevision = latest.semanticRevision,
+				latestMutationId = latest.mutationId,
+				latestEffectChecksum = latest.effectChecksum,
+				cursorRevision = latest.semanticRevision,
+				collectedDataEpoch = 0L,
+				updatedAtMs = latest.appliedAtMs,
+			),
+		)
+	}
+
+	private fun persistedRevision(
+		segmentId: Long,
+		semanticRevision: Long,
+		complete: Boolean,
+		sessionRunEffectEndNanos: Long,
+		gapOnly: Boolean,
+		authorizationFingerprint: String,
+		purposeEligibilityMask: Long,
+	): PersistedTestRevision {
+		val logicalWindowId = logicalWindowId(
+			sessionRunEffectEndNanos,
+			authorizationFingerprint,
+			purposeEligibilityMask,
+		)
+		val fragments = if (gapOnly) {
+			listOf(gapFragment(logicalWindowId, semanticRevision, 0, 200L, 400L))
+		} else if (complete) {
+			listOf(bandFragment(logicalWindowId, semanticRevision, 0, 200L, 400L))
+		} else {
+			listOf(
+				bandFragment(logicalWindowId, semanticRevision, 0, 200L, 300L),
+				gapFragment(logicalWindowId, semanticRevision, 1, 300L, 400L),
+			)
+		}
+		val evidence = if (gapOnly) emptyList() else listOf(evidence(logicalWindowId, semanticRevision))
+		val unsigned = ActivityCapturedWindowRevisionEntity(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			writerBindingGeneration = 1L,
+			writerOwnerGeneration = 1L,
+			logicalWindowId = logicalWindowId,
+			semanticRevision = semanticRevision,
+			supersedesSemanticRevision = semanticRevision.takeIf { it > 1L }?.minus(1L),
+			mutationId = mutationId(logicalWindowId, semanticRevision),
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = SERVICE_RUN_ID,
+			sessionSegmentId = segmentId,
+			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+			sourceInstanceId = SOURCE_INSTANCE_ID,
+			registrationGeneration = 1L,
+			configurationRevision = 1L,
+			physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
+			authorizationRevision = 1L,
+			authorizationFingerprint = authorizationFingerprint,
+			purposeEligibilityMask = purposeEligibilityMask,
+			sourcePolicyRevision = 1L,
+			captureConsentEpoch = 0L,
+			manifestRevision = 1L,
+			lifecycleLeaseGeneration = 1L,
+			collectedDataEpoch = 0L,
+			clockDomainId = BOOT_ID,
+			storedZoneId = "Europe/Prague",
+			providerAcceptanceStartNanos = 100L,
+			providerAcceptanceEndNanos = 1_000L,
+			authorizationEffectStartNanos = 150L,
+			authorizationEffectEndNanos = Long.MAX_VALUE,
+			sessionRunEffectStartNanos = 100L,
+			sessionRunEffectEndNanos = sessionRunEffectEndNanos,
+			windowStartElapsedRealtimeNanos = 200L,
+			windowEndElapsedRealtimeNanos = 400L,
+			coverage = if (gapOnly) "NONE" else if (complete) "COMPLETE" else "PARTIAL",
+			knownActiveDurationNanos = if (gapOnly) 0L else if (complete) 200L else 100L,
+			knownInactiveDurationNanos = 0L,
+			unknownActivityDurationNanos = 0L,
+			unobservedDurationNanos = if (gapOnly) 200L else if (complete) 0L else 100L,
+			exactDuplicateCount = 0,
+			semanticDuplicateCount = 0,
+			unchangedEvidenceCount = 0,
+			scopeDeletionGeneration = 0L,
+			effectChecksum = "pending",
+			appliedAtMs = 2_200L + semanticRevision,
+		)
+		val checksum = effectChecksum(unsigned, fragments, evidence)
+		return PersistedTestRevision(unsigned.copy(effectChecksum = checksum), fragments, evidence)
+	}
+
+	private fun bandFragment(
+		logicalWindowId: String,
+		semanticRevision: Long,
+		fragmentOrdinal: Int,
+		startNanos: Long,
+		endNanos: Long,
+	) = ActivityCapturedFragmentEntity(
+		writerProjectionId = WRITER_ID,
+		writerProjectionVersion = WRITER_VERSION,
+		logicalWindowId = logicalWindowId,
+		semanticRevision = semanticRevision,
+		fragmentOrdinal = fragmentOrdinal,
+		fragmentKind = ActivityCapturedFragmentEntity.KIND_BAND,
+		bandOrdinal = 0,
+		intervalStartElapsedRealtimeNanos = startNanos,
+		intervalEndElapsedRealtimeNanos = endNanos,
+		gapReason = null,
+		activity = "WALKING",
+		mechanism = "TRANSITION",
+		refinedTransitionActivity = null,
+		confidenceKind = ActivityCapturedFragmentEntity.CONFIDENCE_TRANSITION,
+		confidenceMinimumPercent = null,
+		confidenceMaximumPercent = null,
+		confidenceObservationCount = null,
+		startWallTimeMs = 2_000L,
+		startWallTimeUncertaintyMs = 25L,
+		startBoundaryKind = "EXACT_PROVIDER_OBSERVATION",
+		startAnchorSourceEventId = "activity-event-1",
+		startAnchorProviderElapsedNanos = 200L,
+		endWallTimeMs = 2_001L,
+		endWallTimeUncertaintyMs = 26L,
+		endBoundaryKind = "SAME_CLOCK_EXTRAPOLATION",
+		endAnchorSourceEventId = "activity-event-1",
+		endAnchorProviderElapsedNanos = 200L,
+		wallTimeContinuity = "SAME_ANCHOR",
+	)
+
+	private fun gapFragment(
+		logicalWindowId: String,
+		semanticRevision: Long,
+		fragmentOrdinal: Int,
+		startNanos: Long,
+		endNanos: Long,
+	) = ActivityCapturedFragmentEntity(
+		writerProjectionId = WRITER_ID,
+		writerProjectionVersion = WRITER_VERSION,
+		logicalWindowId = logicalWindowId,
+		semanticRevision = semanticRevision,
+		fragmentOrdinal = fragmentOrdinal,
+		fragmentKind = ActivityCapturedFragmentEntity.KIND_GAP,
+		bandOrdinal = null,
+		intervalStartElapsedRealtimeNanos = startNanos,
+		intervalEndElapsedRealtimeNanos = endNanos,
+		gapReason = "NO_QUALIFIED_EVIDENCE",
+		activity = null,
+		mechanism = null,
+		refinedTransitionActivity = null,
+		confidenceKind = null,
+		confidenceMinimumPercent = null,
+		confidenceMaximumPercent = null,
+		confidenceObservationCount = null,
+		startWallTimeMs = null,
+		startWallTimeUncertaintyMs = null,
+		startBoundaryKind = null,
+		startAnchorSourceEventId = null,
+		startAnchorProviderElapsedNanos = null,
+		endWallTimeMs = null,
+		endWallTimeUncertaintyMs = null,
+		endBoundaryKind = null,
+		endAnchorSourceEventId = null,
+		endAnchorProviderElapsedNanos = null,
+		wallTimeContinuity = null,
+	)
+
+	private fun evidence(logicalWindowId: String, semanticRevision: Long) =
+		ActivityCapturedEvidenceEntity(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			logicalWindowId = logicalWindowId,
+			semanticRevision = semanticRevision,
+			fragmentOrdinal = 0,
+			evidenceOrdinal = 0,
+			sourceEventId = "activity-event-1",
+			sourceAdmissionOrdinal = 1L,
+			sourceSequence = 1L,
+			providerElapsedRealtimeNanos = 200L,
+			receivedElapsedRealtimeNanos = 210L,
+			observationKind = ActivityCapturedEvidenceEntity.KIND_TRANSITION,
+			observedActivity = "WALKING",
+			transitionChange = "ENTER",
+			confidencePercent = null,
+			coverageEndExclusiveElapsedRealtimeNanos = null,
+		)
+
+	private fun logicalSession() = LogicalTrackingSessionEntity(
+		logicalTrackingId = LOGICAL_TRACKING_ID,
+		state = "FINALIZED",
+		lifecycleRevision = 2L,
+		desiredPlanRevision = 1L,
+		rolloutRevision = 1L,
+		startOrigin = "MANUAL_FOREGROUND_START",
+		clockDomainId = BOOT_ID,
+		startedAtMs = 1_000L,
+		startedElapsedNanos = 100L,
+		cutoffAtMs = 3_000L,
+		cutoffElapsedNanos = 500L,
+		completedAtMs = 3_000L,
+		finalAdmissionOrdinal = 1L,
+		failureCode = null,
+		sessionMode = "MANUAL",
+		currentManifestRevision = 1L,
+		currentIntentRevision = 1L,
+		currentServiceRunId = null,
+		lifecycleLeaseGeneration = 1L,
+		lifecycleBootId = BOOT_ID,
+		automationEpoch = null,
+	)
+
+	private fun serviceRun(segmentId: Long) = SourceServiceRunEntity(
+		serviceRunId = SERVICE_RUN_ID,
+		logicalTrackingId = LOGICAL_TRACKING_ID,
+		state = "FINALIZED",
+		desiredPlanRevision = 1L,
+		rolloutRevision = 1L,
+		foregroundCapabilityFlags = 0L,
+		startedAtMs = 1_000L,
+		startedElapsedNanos = 100L,
+		completedAtMs = 3_000L,
+		completionReason = "TEST",
+		bootId = BOOT_ID,
+		leaseGeneration = 1L,
+		startOrigin = "MANUAL_FOREGROUND_START",
+		desiredForegroundCapabilityFlags = 0L,
+		appliedForegroundCapabilityFlags = 0L,
+		runtimeAcknowledgement = "STOPPED",
+		runtimeFailureCode = null,
+		runRevision = 2L,
+		startDeliveryToken = "delivery-1",
+		startCommandGeneration = 1L,
+		preparedManifestRevision = 1L,
+		preparedIntentRevision = 1L,
+		androidDeliveryState = "SETTLED",
+		androidDeliveryUpdatedAtMs = 3_000L,
+		startIsUserInitiated = true,
+		startIsAmbient = false,
+		sessionSegmentId = segmentId,
+		presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_QUIESCED,
+		presentationAcknowledgedAtMs = 3_000L,
+	)
+
+	private fun manifest() = SessionManifestVersionEntity(
+		logicalTrackingId = LOGICAL_TRACKING_ID,
+		manifestRevision = 1L,
+		serviceRunId = SERVICE_RUN_ID,
+		sessionMode = "MANUAL",
+		sourcePolicyRevision = 1L,
+		acquisitionPlanRevision = 1L,
+		rolloutRevision = 1L,
+		startOrigin = "MANUAL_FOREGROUND_START",
+		effectiveBootId = BOOT_ID,
+		effectiveElapsedRealtimeNanos = 100L,
+		effectiveWallTimeMs = 1_000L,
+		zoneId = "Europe/Prague",
+		automationEpoch = null,
+		changeReason = "TEST",
+		manifestChecksum = "",
+	)
+
+	private fun manifestSource() = SessionManifestSourceEntity(
+		logicalTrackingId = LOGICAL_TRACKING_ID,
+		manifestRevision = 1L,
+		sourceKind = ACTIVITY_SOURCE,
+		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+		consentEpoch = 0L,
+		persistenceEligible = true,
+		qosCode = 1,
+		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
+		writerOwner = SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS,
+		writerOwnerGeneration = 1L,
+		writerProjectionId = WRITER_ID,
+		writerProjectionVersion = WRITER_VERSION,
+		writerBindingGeneration = 1L,
+	)
+
+	private fun historicalPolicy() = policy(1L, enabled = true, captureEligible = true, consent = 0L)
+
+	private fun revokedPolicy() = policy(2L, enabled = true, captureEligible = false, consent = null)
+
+	private fun policy(
+		revision: Long,
+		enabled: Boolean,
+		captureEligible: Boolean,
+		consent: Long?,
+	) = SourcePolicyEntity(
+		policyRevision = revision,
+		sourceKind = ACTIVITY_SOURCE,
+		enabled = enabled,
+		qosCode = 1,
+		locationMinTimeSeconds = null,
+		locationMinDistanceMeters = null,
+		locationRequiredAccuracyMeters = null,
+		capturePersistenceEligible = captureEligible,
+		controlPersistenceEligible = enabled,
+		ambientPersistenceEligible = false,
+		captureConsentEpoch = consent,
+		controlConsentEpoch = 0L.takeIf { enabled },
+		ambientConsentEpoch = null,
+		effectiveBootId = BOOT_ID,
+		effectiveElapsedRealtimeNanos = if (revision == 1L) 100L else 600L,
+		effectiveWallTimeMs = if (revision == 1L) 1_000L else 4_000L,
+		changeReason = "TEST",
+	)
+
+	private fun historicalConsent() = SourceConsentEpochEntity(
+		sourceKind = ACTIVITY_SOURCE,
+		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+		epoch = 0L,
+		eligible = true,
+		persistenceEligible = true,
+		policyRevision = 1L,
+		effectiveBootId = BOOT_ID,
+		effectiveElapsedRealtimeNanos = 100L,
+		effectiveWallTimeMs = 1_000L,
+		changeReason = "TEST",
+	)
+
+	private fun revokedConsent() = historicalConsent().copy(
+		epoch = 1L,
+		eligible = false,
+		persistenceEligible = false,
+		policyRevision = 2L,
+		effectiveElapsedRealtimeNanos = 600L,
+		effectiveWallTimeMs = 4_000L,
+	)
+
+	private fun registration(
+		active: Boolean,
+		registrationGeneration: Long = 1L,
+		sourceInstanceId: String = SOURCE_INSTANCE_ID,
+		reservedAtMs: Long = 900L,
+		reservedElapsedNanos: Long = 90L,
+		acceptedAtMs: Long = 1_000L,
+		acceptedElapsedNanos: Long = 100L,
+		retiredAtMs: Long = 3_500L,
+		retiredElapsedNanos: Long = 1_000L,
+		callbackBarrierRevision: Long = 1L,
+	) = ProviderRegistrationGenerationEntity(
+		sourceKind = ACTIVITY_SOURCE,
+		registrationGeneration = registrationGeneration,
+		sourceInstanceId = sourceInstanceId,
+		ownerScope = "source-broker:$ACTIVITY_SOURCE",
+		clockDomainId = BOOT_ID,
+		physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
+		collectedDataEpoch = 0L,
+		providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+		providerProcessIncarnationId = "process-1",
+		status = if (active) ProviderRegistrationGenerationEntity.STATUS_ACTIVE else
+			ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+		reservedAtMs = reservedAtMs,
+		reservedElapsedRealtimeNanos = reservedElapsedNanos,
+		acceptedAtMs = acceptedAtMs,
+		acceptedElapsedRealtimeNanos = acceptedElapsedNanos,
+		retiredAtMs = retiredAtMs.takeUnless { active },
+		retiredElapsedRealtimeNanos = retiredElapsedNanos.takeUnless { active },
+		failureCode = null,
+		captureCallbackBarrierAuthorizationRevision = callbackBarrierRevision,
+	)
+
+	private fun captureStartAction(
+		serviceRunId: String = SERVICE_RUN_ID,
+		manifestRevision: Long = 1L,
+		actionRevision: Long = 1L,
+		leaseGeneration: Long = 1L,
+		requestedAtMs: Long = 1_000L,
+		requestedElapsedNanos: Long = 100L,
+		sourceInstanceId: String = SOURCE_INSTANCE_ID,
+		registrationGeneration: Long = 1L,
+	) = LifecycleDesiredActionEntity(
+		actionId = "activity-start-$serviceRunId-$manifestRevision",
+		logicalTrackingId = LOGICAL_TRACKING_ID,
+		serviceRunId = serviceRunId,
+		manifestRevision = manifestRevision,
+		actionRevision = actionRevision,
+		actionFamily = "SOURCE_RUNTIME",
+		sourceKind = ACTIVITY_SOURCE,
+		desiredState = "STARTED",
+		desiredPlanRevision = 1L,
+		sourcePolicyRevision = 1L,
+		consentEpoch = 0L,
+		startOrigin = "MANUAL_FOREGROUND_START",
+		bootId = BOOT_ID,
+		leaseGeneration = leaseGeneration,
+		requestedAtMs = requestedAtMs,
+		requestedElapsedRealtimeNanos = requestedElapsedNanos,
+		status = "START_ACCEPTED",
+		attemptCount = 1,
+		acknowledgedAtMs = requestedAtMs,
+		acknowledgedElapsedRealtimeNanos = requestedElapsedNanos,
+		failureCode = null,
+		retryTrigger = null,
+		sourceInstanceId = sourceInstanceId,
+		registrationGeneration = registrationGeneration,
+	)
+
+	private fun activityCompleteness(
+		lastAdmissionOrdinal: Long = 1L,
+		lastSourceSequence: Long = 1L,
+	) = SourceSessionCompletenessEntity(
+		logicalTrackingId = LOGICAL_TRACKING_ID,
+		serviceRunId = SERVICE_RUN_ID,
+		sourceKind = ACTIVITY_SOURCE,
+		sourceInstanceId = SOURCE_INSTANCE_ID,
+		registrationGeneration = 1L,
+		lastAdmissionOrdinal = lastAdmissionOrdinal,
+		lastSourceSequence = lastSourceSequence,
+		appDrainComplete = true,
+		providerCoverage = "CALLBACKS_ENTERED_BEFORE_BARRIER",
+		stopStatus = "COMPLETE",
+		unresolvedSequenceStart = null,
+		unresolvedSequenceEnd = null,
+		updatedAtMs = 3_000L,
+	)
+
+	private fun activityProductLane(
+		contiguousAdmissionOrdinal: Long = 1L,
+		captureAdmissionCutoffOrdinal: Long? = null,
+		retentionRequired: Boolean = true,
+		status: String = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+		terminalDisposition: String? = null,
+		terminalAtMs: Long? = null,
+	) = SourceProductProjectionLaneEntity(
+		sourceKind = ACTIVITY_SOURCE,
+		bindingGeneration = 1L,
+		projectionId = WRITER_ID,
+		projectionVersion = WRITER_VERSION,
+		captureModeMask = 1L,
+		productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+		activatedRolloutRevision = 1L,
+		activationOrdinal = 1L,
+		contiguousAdmissionOrdinal = contiguousAdmissionOrdinal,
+		captureAdmissionCutoffOrdinal = captureAdmissionCutoffOrdinal,
+		retentionRequired = retentionRequired,
+		status = status,
+		terminalDisposition = terminalDisposition,
+		terminalAtMs = terminalAtMs,
+		installedAtMs = 900L,
+		updatedAtMs = terminalAtMs ?: 3_000L,
+	)
+
+	private fun authorizationRows(
+		registrationGeneration: Long,
+		authorizationRevision: Long,
+		demands: List<SourceDemandEntity>,
+		effectiveElapsedNanos: Long,
+		effectiveWallTimeMs: Long,
+	): List<SourceAuthorizationEntity> = SourceBrokerAuthorization.rows(
+		sourceKind = ACTIVITY_SOURCE,
+		registrationGeneration = registrationGeneration,
+		authorizationRevision = authorizationRevision,
+		demands = demands,
+		effectiveBootId = BOOT_ID,
+		effectiveElapsedRealtimeNanos = effectiveElapsedNanos,
+		effectiveWallTimeMs = effectiveWallTimeMs,
+	)
+
+	private fun historicalCaptureDemand(
+		demandId: String = "historic-capture-demand",
+		consumerId: String = "historic-capture-consumer",
+		serviceRunId: String = SERVICE_RUN_ID,
+		manifestRevision: Long = 1L,
+		leaseGeneration: Long = 1L,
+		requestedAtMs: Long = 1_000L,
+		requestedElapsedNanos: Long = 100L,
+		maximumAgeMs: Long = 1_000L,
+	) = SourceDemandEntity(
+		demandId = demandId,
+		consumerId = consumerId,
+		sourceKind = ACTIVITY_SOURCE,
+		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+		logicalTrackingId = LOGICAL_TRACKING_ID,
+		serviceRunId = serviceRunId,
+		manifestRevision = manifestRevision,
+		lifecycleLeaseGeneration = leaseGeneration,
+		sourcePolicyRevision = 1L,
+		consentEpoch = 0L,
+		persistenceEligible = true,
+		qosCode = 1,
+		maximumAgeMs = maximumAgeMs,
+		desiredLatencyMs = 0L,
+		requestedBootId = BOOT_ID,
+		requestedElapsedRealtimeNanos = requestedElapsedNanos,
+		requestedAtMs = requestedAtMs,
+		status = SourceDemandEntity.STATUS_RETIRED,
+		retireBootId = BOOT_ID,
+		retireElapsedRealtimeNanos = requestedElapsedNanos + 1L,
+		retiredAtMs = requestedAtMs + 1L,
+	)
+
+	private fun historicalControlDemand(maximumAgeMs: Long = 1_000L) = SourceDemandEntity(
+		demandId = "historic-control-demand",
+		consumerId = "historic-control-consumer",
+		sourceKind = ACTIVITY_SOURCE,
+		purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
+		logicalTrackingId = null,
+		serviceRunId = null,
+		manifestRevision = null,
+		lifecycleLeaseGeneration = null,
+		sourcePolicyRevision = 1L,
+		consentEpoch = 0L,
+		persistenceEligible = false,
+		qosCode = 1,
+		maximumAgeMs = maximumAgeMs,
+		desiredLatencyMs = 0L,
+		requestedBootId = BOOT_ID,
+		requestedElapsedRealtimeNanos = 100L,
+		requestedAtMs = 1_000L,
+		status = SourceDemandEntity.STATUS_RETIRED,
+		retireBootId = BOOT_ID,
+		retireElapsedRealtimeNanos = 101L,
+		retiredAtMs = 1_001L,
+	)
+
+	private fun historicalAuthorizationFingerprint(maximumAgeMs: Long = 1_000L): String =
+		SourceBrokerAuthorization.fingerprint(
+			listOf(historicalCaptureDemand(maximumAgeMs = maximumAgeMs)),
+		)
+
+	private fun captureDemand() = SourceDemandEntity(
+		demandId = "live-capture-demand",
+		consumerId = "live-capture-consumer",
+		sourceKind = ACTIVITY_SOURCE,
+		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+		logicalTrackingId = LOGICAL_TRACKING_ID,
+		serviceRunId = SERVICE_RUN_ID,
+		manifestRevision = 1L,
+		lifecycleLeaseGeneration = 1L,
+		sourcePolicyRevision = 1L,
+		consentEpoch = 0L,
+		persistenceEligible = true,
+		qosCode = 1,
+		maximumAgeMs = 0L,
+		desiredLatencyMs = 0L,
+		requestedBootId = BOOT_ID,
+		requestedElapsedRealtimeNanos = 200L,
+		requestedAtMs = 2_000L,
+		status = SourceDemandEntity.STATUS_ACTIVE,
+		retireBootId = null,
+		retireElapsedRealtimeNanos = null,
+		retiredAtMs = null,
+	)
+
+	private fun controlDemand() = SourceDemandEntity(
+		demandId = "control-demand",
+		consumerId = "control-consumer",
+		sourceKind = ACTIVITY_SOURCE,
+		purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
+		logicalTrackingId = null,
+		serviceRunId = null,
+		manifestRevision = null,
+		lifecycleLeaseGeneration = null,
+		sourcePolicyRevision = 2L,
+		consentEpoch = 0L,
+		persistenceEligible = false,
+		qosCode = 1,
+		maximumAgeMs = 0L,
+		desiredLatencyMs = 0L,
+		requestedBootId = BOOT_ID,
+		requestedElapsedRealtimeNanos = 700L,
+		requestedAtMs = 4_100L,
+		status = SourceDemandEntity.STATUS_ACTIVE,
+		retireBootId = null,
+		retireElapsedRealtimeNanos = null,
+		retiredAtMs = null,
+	)
+
+	private fun logicalWindowId(
+		sessionRunEffectEndNanos: Long,
+		authorizationFingerprint: String,
+		purposeEligibilityMask: Long,
+	): String = digest(
+		"activity-captured-window-v1",
+		listOf(
+			LOGICAL_TRACKING_ID,
+			SERVICE_RUN_ID,
+			SOURCE_INSTANCE_ID,
+			"1",
+			"1",
+			PHYSICAL_FINGERPRINT,
+			"1",
+			authorizationFingerprint,
+			purposeEligibilityMask.toString(),
+			"1",
+			"0",
+			"1",
+			"1",
+			"0",
+			BOOT_ID,
+			"100",
+			"1000",
+			"150",
+			Long.MAX_VALUE.toString(),
+			"100",
+			sessionRunEffectEndNanos.toString(),
+			"200",
+			"400",
+		),
+	)
+
+	private fun mutationId(logicalWindowId: String, semanticRevision: Long): String = digest(
+		"activity-captured-mutation-v1",
+		listOf(logicalWindowId, semanticRevision.toString()),
+	)
+
+	private fun effectChecksum(
+		revision: ActivityCapturedWindowRevisionEntity,
+		fragments: List<ActivityCapturedFragmentEntity>,
+		evidence: List<ActivityCapturedEvidenceEntity>,
+	): String = digest(
+		"activity-captured-effect-v1",
+		listOf(
+			revision.logicalWindowId,
+			revision.storedZoneId,
+			revision.coverage,
+			revision.knownActiveDurationNanos.toString(),
+			revision.knownInactiveDurationNanos.toString(),
+			revision.unknownActivityDurationNanos.toString(),
+			revision.unobservedDurationNanos.toString(),
+		) + fragments.flatMap { fragment ->
+			listOf(
+				fragment.fragmentOrdinal,
+				fragment.fragmentKind,
+				fragment.bandOrdinal,
+				fragment.intervalStartElapsedRealtimeNanos,
+				fragment.intervalEndElapsedRealtimeNanos,
+				fragment.gapReason,
+				fragment.activity,
+				fragment.mechanism,
+				fragment.refinedTransitionActivity,
+				fragment.confidenceKind,
+				fragment.confidenceMinimumPercent,
+				fragment.confidenceMaximumPercent,
+				fragment.confidenceObservationCount,
+				fragment.startWallTimeMs,
+				fragment.startWallTimeUncertaintyMs,
+				fragment.startBoundaryKind,
+				fragment.startAnchorSourceEventId,
+				fragment.startAnchorProviderElapsedNanos,
+				fragment.endWallTimeMs,
+				fragment.endWallTimeUncertaintyMs,
+				fragment.endBoundaryKind,
+				fragment.endAnchorSourceEventId,
+				fragment.endAnchorProviderElapsedNanos,
+				fragment.wallTimeContinuity,
+			).map { field -> field?.toString() ?: "null" }
+		} + evidence.flatMap { item ->
+			listOf(
+				item.fragmentOrdinal.toString(),
+				item.evidenceOrdinal.toString(),
+				item.sourceEventId,
+				item.sourceAdmissionOrdinal.toString(),
+				item.sourceSequence.toString(),
+				item.providerElapsedRealtimeNanos.toString(),
+				item.receivedElapsedRealtimeNanos.toString(),
+				item.observationKind,
+				item.observedActivity,
+				item.transitionChange ?: "null",
+				item.confidencePercent?.toString() ?: "null",
+				item.coverageEndExclusiveElapsedRealtimeNanos?.toString() ?: "null",
+			)
+		},
+	)
+
+	private fun digest(domain: String, values: List<String>): String {
+		val canonical = (listOf(domain) + values).joinToString(separator = "") { value ->
+			"${value.length}:$value"
+		}
+		return sha256(canonical.toByteArray(Charsets.UTF_8))
+	}
+
+	private fun activityPlanPayload(): ByteArray = ByteArrayOutputStream().use { buffer ->
+		DataOutputStream(buffer).use { output ->
+			output.writeInt(1)
+			output.writeUTF("ACTIVITY")
+			output.writeLong(1L)
+			output.writeUTF("TRANSITIONS_ONLY")
+			output.writeLong(1_000L)
+			output.writeInt(50)
+			output.writeInt(1)
+			output.writeInt(7)
+		}
+		buffer.toByteArray()
+	}
+
+	private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+		.digest(bytes)
+		.joinToString(separator = "") { byte -> "%02x".format(byte) }
+
+	private fun canonicalDeliveryIdentity(label: String): String =
+		sha256(label.toByteArray(Charsets.UTF_8))
+
+	private fun correctedPortableEntry(entry: PortableActivityEntryV1): PortableActivityEntryV1 {
+		val run = entry.runs.single()
+		val window = run.windows.single()
+		val band = window.fragments.single() as PortableActivityFragmentV1.Band
+		val fragments = listOf(band.copy(endWallTimeUncertaintyMs = band.endWallTimeUncertaintyMs + 1L))
+		val correctedWindow = window.copy(
+			contentChecksum = ActivityCapturedPortableIntegrity.windowChecksum(
+				window.identity,
+				window.startOffsetNanos,
+				window.endOffsetNanos,
+				window.storedZoneId,
+				window.coverage,
+				window.knownActiveDurationNanos,
+				window.knownInactiveDurationNanos,
+				window.unknownActivityDurationNanos,
+				window.unobservedDurationNanos,
+				fragments,
+			),
+			fragments = fragments,
+		)
+		val windows = listOf(correctedWindow)
+		val correctedRun = run.copy(
+			contentChecksum = ActivityCapturedPortableIntegrity.runChecksum(
+				run.identity,
+				run.deletionScopeDigest,
+				run.startTimeMs,
+				run.endTimeMs,
+				run.captureCoverage,
+				run.zoneEpochs,
+				windows,
+			),
+			windows = windows,
+		)
+		val runs = listOf(correctedRun)
+		return entry.copy(
+			contentChecksum = ActivityCapturedPortableIntegrity.entryChecksum(
+				entry.identity,
+				entry.sessionMode,
+				entry.startTimeMs,
+				entry.endTimeMs,
+				runs,
+			),
+			runs = runs,
+		)
+	}
+
+	private data class PersistedTestRevision(
+		val revision: ActivityCapturedWindowRevisionEntity,
+		val fragments: List<ActivityCapturedFragmentEntity>,
+		val evidence: List<ActivityCapturedEvidenceEntity>,
+	)
+
+	companion object {
+		private val ACTIVITY_LANE_AUTHORITY = SourceProductLaneExecutionAuthority { lane ->
+			lane.sourceKind == ACTIVITY_SOURCE && lane.bindingGeneration == 1L &&
+				lane.projectionId == WRITER_ID && lane.projectionVersion == WRITER_VERSION
+		}
+		private const val ACTIVITY_SOURCE = SourceDestinationOwnerEntity.SOURCE_ACTIVITY
+		private const val WRITER_ID = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID
+		private const val WRITER_VERSION = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION
+		private const val LOGICAL_TRACKING_ID = "activity-maintenance-logical"
+		private const val SERVICE_RUN_ID = "activity-maintenance-run"
+		private const val REPLACEMENT_SERVICE_RUN_ID = "activity-maintenance-replacement-run"
+		private const val SOURCE_INSTANCE_ID = "activity-maintenance-provider"
+		private const val REPLACEMENT_SOURCE_INSTANCE_ID = "activity-maintenance-replacement-provider"
+		private const val PHYSICAL_FINGERPRINT =
+			"9f472d9529dc1da87eadbc931567884a453cc8dfd499ffb2f7a733520f854a6f"
+		private const val BOOT_ID = "activity-maintenance-boot"
+	}
+}

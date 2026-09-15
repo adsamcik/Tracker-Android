@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.coordinator
 import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.tracker.source.activity.ActivityCapturedFactProjectionLane
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationOutboxDispatcher
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
@@ -32,6 +33,7 @@ class SourcePipelineRecovery private constructor(
 	private val activityEffects: ActivityAutomationOutboxDispatcher,
 	private val stepsProjectionLane: StepsSessionFactProjectionLane?,
 	private val pressureProjectionLane: PressureSessionFactProjectionLane?,
+	private val capturedActivityProjectionLane: ActivityCapturedFactProjectionLane?,
 	applicationScope: CoroutineScope?,
 	private val startupGateProvider: Provider<TrackingStartupGate>?,
 	@Suppress("UNUSED_PARAMETER") constructionMarker: Unit,
@@ -42,13 +44,14 @@ class SourcePipelineRecovery private constructor(
 	@Volatile private var terminalLegacyResult: LegacyV27ProjectionRecoveryResult? = null
 
 	@Inject
-	constructor(
+	internal constructor(
 		legacyRecovery: LegacyV27ProjectionRecovery,
 		coordinator: TrackingCoordinator,
 		activityProjectionLane: ActivityAutomationProjectionLane,
 		activityEffects: ActivityAutomationOutboxDispatcher,
 		stepsProjectionLane: StepsSessionFactProjectionLane,
 		pressureProjectionLane: PressureSessionFactProjectionLane,
+		capturedActivityProjectionLane: ActivityCapturedFactProjectionLane,
 		@ApplicationScope applicationScope: CoroutineScope,
 		startupGateProvider: Provider<TrackingStartupGate>,
 	) : this(
@@ -58,6 +61,7 @@ class SourcePipelineRecovery private constructor(
 		activityEffects,
 		stepsProjectionLane,
 		pressureProjectionLane,
+		capturedActivityProjectionLane,
 		applicationScope,
 		startupGateProvider,
 		Unit,
@@ -76,6 +80,7 @@ class SourcePipelineRecovery private constructor(
 		activityEffects,
 		null,
 		null,
+		null,
 		applicationScope,
 		null,
 		Unit,
@@ -91,6 +96,7 @@ class SourcePipelineRecovery private constructor(
 		coordinator,
 		activityProjectionLane,
 		activityEffects,
+		null,
 		null,
 		null,
 		null,
@@ -112,6 +118,7 @@ class SourcePipelineRecovery private constructor(
 		activityEffects,
 		null,
 		null,
+		null,
 		applicationScope,
 		startupGateProvider,
 		Unit,
@@ -130,6 +137,7 @@ class SourcePipelineRecovery private constructor(
 		activityProjectionLane,
 		activityEffects,
 		stepsProjectionLane,
+		null,
 		null,
 		applicationScope,
 		null,
@@ -151,6 +159,29 @@ class SourcePipelineRecovery private constructor(
 		activityEffects,
 		stepsProjectionLane,
 		pressureProjectionLane,
+		null,
+		applicationScope,
+		null,
+		Unit,
+	)
+
+	internal constructor(
+		legacyRecovery: LegacyV27ProjectionRecovery,
+		coordinator: TrackingCoordinator,
+		activityProjectionLane: ActivityAutomationProjectionLane,
+		activityEffects: ActivityAutomationOutboxDispatcher,
+		stepsProjectionLane: StepsSessionFactProjectionLane,
+		pressureProjectionLane: PressureSessionFactProjectionLane,
+		capturedActivityProjectionLane: ActivityCapturedFactProjectionLane,
+		applicationScope: CoroutineScope,
+	) : this(
+		legacyRecovery,
+		coordinator,
+		activityProjectionLane,
+		activityEffects,
+		stepsProjectionLane,
+		pressureProjectionLane,
+		capturedActivityProjectionLane,
 		applicationScope,
 		null,
 		Unit,
@@ -193,6 +224,11 @@ class SourcePipelineRecovery private constructor(
 		pressureProjectionLane?.requestDrain()
 	}
 
+	/** Source-local captured Activity hint; CONTROL projection remains on its existing lane. */
+	fun requestActivityCapturedFactDrain() {
+		capturedActivityProjectionLane?.requestDrain()
+	}
+
 	/** Recovers durable projections only; it deliberately cannot invoke application consumers. */
 	suspend fun recoverDurableState(): SourceRecoveryResult {
 		val legacyResult = recoverStartupAuthority()
@@ -222,6 +258,7 @@ class SourcePipelineRecovery private constructor(
 		// poisoned fact cannot block an independently viable source or cause polling.
 		stepsProjectionLane?.requestDrain()
 		pressureProjectionLane?.requestDrain()
+		capturedActivityProjectionLane?.requestDrain()
 		return legacyResult
 	}
 
