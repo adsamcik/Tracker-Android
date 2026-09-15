@@ -194,6 +194,8 @@ internal fun ImportedActivityProductFailure.toHistoryCause(): ActivityHistoryCau
 		ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT
 	ImportedActivityProductFailure.DEPENDENCY_OVERFLOW ->
 		ActivityHistoryCause.READ_BUDGET_EXCEEDED
+	ImportedActivityProductFailure.TEMPORAL_AUTHORITY_UNAVAILABLE ->
+		ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE
 	ImportedActivityProductFailure.VALUE_OVERFLOW -> ActivityHistoryCause.VALUE_OVERFLOW
 }
 

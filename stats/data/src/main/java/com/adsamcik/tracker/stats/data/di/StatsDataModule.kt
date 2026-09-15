@@ -30,6 +30,7 @@ import com.adsamcik.tracker.stats.data.metric.DurableMetricDirtyTracker
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultActivityHistoryRepository
+import com.adsamcik.tracker.stats.data.repository.ActivityImportedHistoryEligibleReader
 import com.adsamcik.tracker.stats.data.repository.DefaultCellHistoryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultCellSignalRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultDailySummaryRepository
@@ -192,6 +193,12 @@ internal abstract class ActivityHistoryDataModule {
 	abstract fun bindActivityHistoryRepository(
 		impl: DefaultActivityHistoryRepository,
 	): ActivityHistoryRepository
+
+	@Binds
+	@Singleton
+	abstract fun bindActivityImportedHistoryEligibleReader(
+		impl: DefaultActivityHistoryRepository,
+	): ActivityImportedHistoryEligibleReader
 }
 
 /** Keeps identity-free captured Cell history independent of the legacy radio repository. */
