@@ -66,22 +66,26 @@ or check the broader assembly/completion items. Test sources are authored, never
   and the receiving continuation in IMPLEMENTATION_STATUS.md. **IMPLEMENTED_UNVALIDATED** only.
   Does not check TODO-HANDOVER-20260915-004, TODO-CORE-008 or TODO-LOC-006/007/012 wholesale.
 
-- [ ] TODO-HANDOVER-20260915-007 Fix full-clear Wi-Fi self-FK ordering in AppDatabase and
+- [x] TODO-HANDOVER-20260915-007 Fix full-clear Wi-Fi self-FK ordering in AppDatabase and
   WifiCapturedFactDao: remove coverage dependents before aggregate owners without weakening
   ordinary RESTRICT ownership. Author full-clear/reopen and transaction-rollback regressions.
   Source `f0eb2d59ec935855ba33072d1392338402a2e772` plus test-only adversarial correction
   `fc1e540f5b135d2485a9267127c4435c5b067356` remain IMPLEMENTED_UNVALIDATED; focused
-  correction review and local integration remain pending (TI-B320).
+  static review is closed without a remaining blocker. Local integration is pending (TI-B320).
 - [ ] TODO-HANDOVER-20260915-008 Wire captured Cell/Wi-Fi retention into the legacy
   DataRetentionWorker before pending-signal deferral and shared WAL pruning. Preserve lifecycle
   generation fences and author ordering, failure/cancellation and constructor-call-site sources.
   Source `de2a4ae2f3102ee28b12d332a6f1054f38d7c068` is IMPLEMENTED_UNVALIDATED; adversarial
-  static review and local integration remain pending (TI-B321).
+  review found pre-radio deletion of required `session_segment` ownership evidence. TI-D258
+  requires delayed pruning after both services accept, including the same active-pipeline
+  defect if present. Correction/review closure and local integration remain pending (TI-B321).
 - [ ] TODO-HANDOVER-20260915-009 Make source-aware Steps replacement discovery intent-first
   for exact factless groups; retain materializing/unavailable instead of suppressing physical
   rows with no replacement. Keep ordinary evidence-first history semantics and bounded recency.
   Source `b138a23adb3263708028e24267729192b813018a` is IMPLEMENTED_UNVALIDATED; adversarial
-  static review and local integration remain pending (TI-B322).
+  production review found no blocker, but an unsupported-writer unavailable fixture violates
+  the manifest invariant. Fixture correction, focused closure and local integration remain
+  pending (TI-B322).
 
 Receiving next slice: close the three concrete shared Room/worker/history static-review findings,
 then continue the Wi-Fi imported evaluator and bounded product/reexport lane. Keep new source

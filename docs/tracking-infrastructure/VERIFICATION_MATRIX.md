@@ -14,9 +14,11 @@ Last updated: 2026-09-15
   in `stats\data`. Cases include materializing/unavailable groups, exact sibling suppression,
   mixed/gapped/unbound/unverifiable exclusion, recency/limits, unchanged ordinary APIs and no zero
   manufactured from missing facts. Exact paths are in IMPLEMENTATION_STATUS.md.
-- Disposition: **IMPLEMENTED_UNVALIDATED**; independent adversarial ownership/query/union review
-  pending alongside the other two slices. No compilation, test, Gradle, schema, diff-check,
-  device, CI or other execution gate ran.
+- Disposition: **IMPLEMENTED_UNVALIDATED; TEST-SOURCE CORRECTION REQUIRED**. Independent
+  adversarial review found the production source-aware gating and bounded composition coherent,
+  but the unavailable fixture's unsupported manifest writer violates the entity constructor.
+  Replace it with invariant-valid candidate provenance and a real retained-floor unavailable
+  state. No compilation, test, Gradle, schema, diff-check, device, CI or execution gate ran.
 - Deferred only after the authorized frozen convergence:
   `.\gradlew.bat :core:base:testDebugUnitTest :stats:data:testDebugUnitTest --tests "*TrackingHistoryReadDaoTest" --tests "*StepsSegmentHistorySelectorTest.sourceAware*"`.
 
@@ -32,7 +34,11 @@ Last updated: 2026-09-15
   and `app\src\test\java\com\adsamcik\tracker\app\maintenance\ActivityRetentionWorkerRobolectricTest.kt`.
   Ordering, pruned/deferred paths, typed rejection/failure/cancellation, generation changes and
   disabled/zero-retention exits are source assertions only.
-- Disposition: **IMPLEMENTED_UNVALIDATED**; parallel adversarial service/transaction review pending.
+- Disposition: **IMPLEMENTED_UNVALIDATED; STATIC PRODUCTION BLOCKER**. The adversary traced
+  pre-radio `session_segment` deletion to both real radio services' required exact ownership
+  reads. Existing failure mocks use the pending-signal branch and miss committed authority loss.
+  A bounded delayed-pruning correction and non-pending regression sources are in progress
+  (TI-D258); the initial input must not be integrated without that correction.
   No compilation, test, Hilt, Gradle, schema, diff-check, device, CI or execution gate ran.
 - Deferred after the authorized frozen final convergence only:
   `.\gradlew.bat :app:testDebugUnitTest --tests "com.adsamcik.tracker.maintenance.DataRetentionWorkerTest" --tests "com.adsamcik.tracker.app.maintenance.ActivityRetentionWorkerRobolectricTest"`.
@@ -51,7 +57,9 @@ Last updated: 2026-09-15
   valid owner/coverage graph, FK restriction, both full-clear overloads, repeated clear/reopen,
   epoch/WAL-high-water authority, no resurrection and transaction rollback.
 - Disposition: **IMPLEMENTED_UNVALIDATED**. Initial adversarial review found no production defect;
-  its three regression-source findings have authored corrections under focused review.
+  focused review of `fc1e540f5b` closed all three regression-source findings without a remaining
+  static integration blocker. Parent source inspection confirms the bounded two-file production
+  delta; local integration remains pending the rest of the wave.
   No compilation, test, Gradle, schema, diff-check, device, CI or other execution gate ran.
 - Deferred only after authorized frozen final convergence:
   `.\gradlew.bat :core:base:testDebugUnitTest --tests "com.adsamcik.tracker.shared.base.database.WifiCapturedFullClearTest"`.

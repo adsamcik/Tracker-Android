@@ -13,9 +13,9 @@ All three implementation worktrees started clean from that local baseline:
 
 | Slice | Branch / worktree suffix | Exclusive production ownership | Current disposition |
 | --- | --- | --- | --- |
-| 007 | `codex/ti-wifi-full-clear-20260915` / `.worktrees\ti-wifi-full-clear-20260915` | AppDatabase and WifiCapturedFactDao | `f0eb2d59ec` plus `fc1e540f5b135d2485a9267127c4435c5b067356`; focused adversarial correction review pending |
-| 008 | `codex/ti-legacy-radio-retention-20260915` / `.worktrees\ti-legacy-radio-retention-20260915` | DataRetentionWorker and exact app constructor callers | `de2a4ae2f3102ee28b12d332a6f1054f38d7c068` implemented; adversarial static review pending |
-| 009 | `codex/ti-factless-steps-history-20260915` / `.worktrees\ti-factless-steps-history-20260915` | Source-aware Steps history and its candidate-query seam | `b138a23adb3263708028e24267729192b813018a` implemented; adversarial static review pending |
+| 007 | `codex/ti-wifi-full-clear-20260915` / `.worktrees\ti-wifi-full-clear-20260915` | AppDatabase and WifiCapturedFactDao | `f0eb2d59ec` plus `fc1e540f5b`; static review closed, local merge pending |
+| 008 | `codex/ti-legacy-radio-retention-20260915` / `.worktrees\ti-legacy-radio-retention-20260915` | Legacy worker, same-cause pipeline ordering and exact app callers/tests | `de2a4ae2f3` blocked by pre-radio segment-authority deletion; correction in progress |
+| 009 | `codex/ti-factless-steps-history-20260915` / `.worktrees\ti-factless-steps-history-20260915` | Source-aware Steps history and its candidate-query seam | `b138a23adb` production review coherent; invalid unavailable fixture under correction |
 
 Each slice gets a separate adversarial static review of its committed production/test changes.
 The parent serializes any shared interface correction and local merges, then records exact source
@@ -32,8 +32,9 @@ The adversary found no production defect but exposed a weak rollback failure ora
 fixture WAL/fact references and missing immutable-correction coverage. Test-only correction
 `fc1e540f5b135d2485a9267127c4435c5b067356` requires the injected trigger marker, derives fact
 references from two integrity-qualified WAL rows, and covers A1/A2 plus C1/C2 owner/dependent
-lineages. The same reviewer is assessing that bounded correction; TI-B320 records the deferred
-command. No passing behavior, provider authenticity or local merge is claimed yet.
+lineages. The same reviewer closed all three findings at `fc1e540f5b` without a remaining static
+integration blocker; TI-B320 records the deferred command. No passing behavior, provider
+authenticity or local merge is claimed yet.
 
 Slice 008's committed paths are
 `app\src\main\java\com\adsamcik\tracker\maintenance\DataRetentionWorker.kt`,
@@ -44,6 +45,11 @@ pending signals defer legacy cleanup; rejection/failure retries, cancellation pr
 startup-generation changes fence later work. Regression sources cover both raw-result paths,
 ordering, failures/cancellation, generation changes and disabled/zero-retention exits. TI-B321
 records the deferred cohort. Its independent service/transaction review runs alongside slice 007's.
+The review found a production blocker: the pre-radio raw transaction deletes `session_segment`,
+but both real radio services need that exact ownership evidence. Non-pending failure can therefore
+strand retry permanently despite preserved WAL. TI-D258 requires delayed, generation-fenced
+segment pruning only after both services accept, with equivalent active-pipeline inspection and
+non-pending authority-preservation regression sources. Do not integrate `de2a4ae2f3` alone.
 
 Slice 009's committed production paths are
 `core\base\src\main\java\com\adsamcik\tracker\shared\base\database\dao\TrackingHistoryReadDao.kt`,
@@ -55,6 +61,10 @@ The slice adds source-aware-only intent discovery for exact factless Steps group
 ordinary evidence-first APIs. Materializing/unavailable, exact suppression, invalid-group exclusion,
 recency/limits and no fabricated zero have authored assertions (TI-B322). Its independent adversarial
 review runs in parallel with the Wi-Fi and worker reviews; no local source integration is claimed yet.
+The adversary found no production blocker, but the new unavailable-state test uses a manifest
+writer rejected by `SessionManifestSourceEntity` before its assertions. A focused fixture
+correction must use valid candidate provenance and a genuine unavailable condition such as the
+retention floor, without weakening the production invariant or manufacturing a zero.
 
 ## September 15 receiving continuation - Location WAL payload preflight
 

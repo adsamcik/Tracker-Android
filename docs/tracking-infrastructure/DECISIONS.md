@@ -2,6 +2,24 @@
 
 Last updated: 2026-09-15
 
+## TI-D258 - Radio retention must precede destruction of its physical ownership evidence
+
+- Status: adversarial production blocker identified; bounded correction in progress, unvalidated.
+- Counterexample in worker input `de2a4ae2f3`: legacy raw pruning commits deletion of an expired
+  `session_segment`, then Cell/Wi-Fi maintenance requires that exact segment to authenticate its
+  captured revisions. No FK retains the segment, so retry cannot restore the missing authority.
+  Preserving WAL alone is insufficient.
+- Decision: retain the physical segment until both source-specific radio services accept
+  retention. Only a genuinely pruned raw branch may subsequently delete old segments, under
+  startup-generation and Room transaction fencing, before shared WAL pruning. Pending signals
+  and radio rejection/failure must preserve this authority.
+- The worker slice may also correct the active RetentionPipelineWorker if static source tracing
+  demonstrates the identical ordering defect. This is one source-ownership dependency fix, not
+  permission to redesign retention services or widen core/stats/UI ownership.
+- Author non-pending expired-segment regressions whose service answers inspect actual retained
+  authority, including acceptance, either rejection, errors/cancellation and generation changes.
+  No execution, compilation or integration of the blocked input is authorized by this decision.
+
 ## TI-D257 - Explicit local integration authority for the three receiving seam slices
 
 - Status: authorized implementation-only work, not a completed assembly or execution gate.
