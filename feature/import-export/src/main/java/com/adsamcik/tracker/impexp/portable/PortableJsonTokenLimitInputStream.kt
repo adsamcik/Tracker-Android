@@ -62,15 +62,15 @@ internal class PortableJsonTokenLimitInputStream(
 				stringBytes = 0
 				escaped = false
 			}
-			MINUS, in DIGIT_ZERO..DIGIT_NINE -> {
-				inNumber = true
-				numberBytes = 1
-			}
 			OBJECT_START -> push(OBJECT)
 			ARRAY_START -> push(ARRAY)
 			OBJECT_END, ARRAY_END -> if (depth > 0) depth--
 			COLON -> if (topContainer() == OBJECT) objectExpectsName[depth - 1] = false
 			COMMA -> if (topContainer() == OBJECT) objectExpectsName[depth - 1] = true
+			else -> if (value == MINUS || value in DIGIT_ZERO..DIGIT_NINE) {
+				inNumber = true
+				numberBytes = 1
+			}
 		}
 	}
 
@@ -156,7 +156,7 @@ internal class PortableJsonTokenLimitInputStream(
 }
 
 /**
- * Raw lexical limits. Six bytes per decoded character admits fully `\uXXXX`-escaped valid fields.
+ * Raw lexical limits. Six bytes per decoded character admits fully `\\uXXXX`-escaped valid fields.
  */
 internal data class PortableJsonTokenLimits(
 	val maxNameBytes: Int = 64 * MAX_ESCAPED_BYTES_PER_CHARACTER,

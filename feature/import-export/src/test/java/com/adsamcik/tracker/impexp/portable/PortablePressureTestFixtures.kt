@@ -3,6 +3,7 @@ package com.adsamcik.tracker.impexp.portable
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureResult
 import com.adsamcik.tracker.stats.api.repository.PortablePressureAvailability
 import com.adsamcik.tracker.stats.api.repository.PortablePressureCoverage
+import com.adsamcik.tracker.stats.api.repository.PortablePressureDigest
 import com.adsamcik.tracker.stats.api.repository.PortablePressureEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortablePressureIdentityKind
 import com.adsamcik.tracker.stats.api.repository.PortablePressureOpaqueIdentity
@@ -12,6 +13,7 @@ import com.adsamcik.tracker.stats.api.repository.PortablePressureWindowClosure
 import com.adsamcik.tracker.stats.api.repository.PortablePressureWindowQualification
 import com.adsamcik.tracker.stats.api.repository.PortablePressureWindowV1
 import java.io.ByteArrayOutputStream
+import java.security.MessageDigest
 
 internal suspend fun encodePressureEntries(
 	entries: List<PortablePressureEntryV1>,
@@ -168,3 +170,97 @@ internal fun pressureIdentity(
 	kind: PortablePressureIdentityKind,
 	seed: String,
 ): PortablePressureOpaqueIdentity = PortablePressureOpaqueIdentity.derive(kind, seed)
+
+internal fun rehashedPressureWindowChecksum(
+	window: PortablePressureWindowV1,
+	meanHectopascals: Double = window.meanHectopascals,
+): PortablePressureDigest = testPressureDigest(
+	"tracker-portable-pressure-window-v1",
+	listOf(
+		window.identity.value,
+		window.intervalStartTimeMs,
+		window.intervalEndTimeMs,
+		window.wallTimeUncertaintyMs,
+		window.observedDurationNanos,
+		window.sampleCount,
+		window.expectedSampleCount,
+		meanHectopascals,
+		window.sumSquaredDeviations,
+		window.minimumHectopascals,
+		window.maximumHectopascals,
+		window.firstHectopascals,
+		window.latestHectopascals,
+		window.slopeHectopascalsPerSecond,
+		window.rSquared,
+		window.sensorAccuracy.name,
+		window.effectiveSamplePeriodMicros,
+		window.effectiveMaximumReportLatencyMicros,
+		window.targetWindowDurationNanos,
+		window.maximumInterSampleGapNanos,
+		window.closure.name,
+		window.qualification.name,
+		window.sourceQualityFlags,
+		window.sourceQualityConfidence,
+		window.zoneId,
+	),
+)
+
+internal fun rehashedPressureEntryChecksum(
+	entry: PortablePressureEntryV1,
+	startTimeMs: Long = entry.startTimeMs,
+): PortablePressureDigest = testPressureDigest(
+	"tracker-portable-pressure-entry-v1",
+	listOf(
+		entry.identity.value,
+		startTimeMs,
+		entry.endTimeMs,
+		entry.runs.map { run ->
+			listOf(
+				run.identity.value,
+				run.startTimeMs,
+				run.endTimeMs,
+				run.capturedForWholeRun,
+				run.availability.name,
+				run.coverage.name,
+				run.retentionLoss,
+				run.windows.map { window ->
+					listOf(window.identity.value, window.contentChecksum.value)
+				},
+			)
+		},
+	),
+)
+
+private fun testPressureDigest(namespace: String, values: Any?): PortablePressureDigest {
+	val digest = MessageDigest.getInstance("SHA-256")
+	digest.appendCanonical(listOf(namespace, values))
+	return PortablePressureDigest("sha256:" + digest.digest().joinToString("") { byte ->
+		(byte.toInt() and 0xff).toString(16).padStart(2, '0')
+	})
+}
+
+@Suppress("CyclomaticComplexMethod")
+private fun MessageDigest.appendCanonical(value: Any?) {
+	when (value) {
+		null -> appendUtf8("N;")
+		is Boolean -> appendUtf8(if (value) "B1;" else "B0;")
+		is Int -> appendUtf8("I$value;")
+		is Long -> appendUtf8("I$value;")
+		is Float -> appendUtf8("F${value.toRawBits()};")
+		is Double -> appendUtf8("D${value.toRawBits()};")
+		is String -> {
+			val bytes = value.toByteArray(Charsets.UTF_8)
+			appendUtf8("S${bytes.size}:")
+			update(bytes)
+			appendUtf8(";")
+		}
+		is Collection<*> -> {
+			appendUtf8("L${value.size}[")
+			value.forEach { item -> appendCanonical(item) }
+			appendUtf8("];")
+		}
+		else -> error("Unsupported Pressure test checksum value ${value::class.java.name}")
+	}
+}
+
+private fun MessageDigest.appendUtf8(value: String) = update(value.toByteArray(Charsets.UTF_8))

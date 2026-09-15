@@ -3,10 +3,13 @@ package com.adsamcik.tracker.impexp.portable
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureResult
 import com.adsamcik.tracker.stats.api.repository.PortablePressureEntrySink
 import com.adsamcik.tracker.stats.api.repository.PortablePressureEntryV1
+import com.adsamcik.tracker.stats.api.repository.PortablePressureRunV1
+import com.adsamcik.tracker.stats.api.repository.PortablePressureWindowV1
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -189,6 +192,86 @@ class PortablePressureJsonV1CodecTest {
 	}
 
 	@Test
+	fun `rehashed semantically invalid window and entry are rejected before mutation`() = runTest {
+		val entry = pressureEntry()
+		val window = entry.runs.single().windows.single()
+		val original = encodePressureEntries(listOf(entry)).decodeToString()
+		val invalidMean = -1.0
+		val invalidWindowChecksum = rehashedPressureWindowChecksum(
+			window,
+			meanHectopascals = invalidMean,
+		)
+		val invalidWindow = original
+			.replaceFirst(window.contentChecksum.value, invalidWindowChecksum.value)
+			.replaceFirst(
+				"\"meanHectopascals\":${window.meanHectopascals}",
+				"\"meanHectopascals\":$invalidMean",
+			)
+		val invalidStart = entry.startTimeMs - 1L
+		val invalidEntryChecksum = rehashedPressureEntryChecksum(entry, invalidStart)
+		val invalidEntry = original
+			.replaceFirst(entry.contentChecksum.value, invalidEntryChecksum.value)
+			.replaceFirst(
+				"\"startTimeMs\":${entry.startTimeMs}",
+				"\"startTimeMs\":$invalidStart",
+			)
+
+		invalidWindowChecksum shouldNotBe window.contentChecksum
+		invalidEntryChecksum shouldNotBe entry.contentChecksum
+		listOf(invalidWindow, invalidEntry).forEach { document ->
+			val emitted = mutableListOf<PortablePressureEntryV1>()
+			shouldThrow<PortablePressureJsonException> {
+				PortablePressureJsonV1Codec().decode(
+					ByteArrayInputStream(document.encodeToByteArray()),
+					PortablePressureEntrySink { emitted += it },
+				)
+			}
+			emitted.shouldBeEmpty()
+		}
+	}
+
+	@Test
+	fun `lexical token bounds reject huge tokens without consuming the whole token`() = runTest {
+		val huge = "x".repeat(10_000)
+		val hugeNumber = "1".repeat(10_000)
+		val documents = listOf(
+			"""{"format":"$huge","schemaVersion":1,"entries":[]}""",
+			"""{"$huge":true}""",
+			"""{"format":"tracker-portable-pressure","schemaVersion":$hugeNumber,"entries":[]}""",
+		)
+
+		documents.forEach { document ->
+			val input = CountingInputStream(document.encodeToByteArray())
+			shouldThrow<PortablePressureJsonException> {
+				PortablePressureJsonV1Codec().decode(input) {
+					error("Oversized lexical tokens must not reach the sink")
+				}
+			}
+			(input.bytesRead < document.length / 2) shouldBe true
+		}
+	}
+
+	@Test
+	fun `valid escaped strings names and exponent numerics remain accepted`() = runTest {
+		val entry = pressureEntry()
+		val escaped = encodePressureEntries(listOf(entry)).decodeToString()
+			.replaceFirst("\"format\":", "\"for\\u006dat\":")
+			.replaceFirst(
+				"\"tracker-portable-pressure\"",
+				"\"\\u0074racker-portable-pressure\"",
+			)
+			.replaceFirst("\"meanHectopascals\":1000.25", "\"meanHectopascals\":1.00025e3")
+			.replaceFirst("\"Europe/Prague\"", "\"Europe\\/Prague\"")
+		val decoded = mutableListOf<PortablePressureEntryV1>()
+
+		PortablePressureJsonV1Codec().decode(
+			ByteArrayInputStream(escaped.encodeToByteArray()),
+			PortablePressureEntrySink { decoded += it },
+		) shouldBe 1
+		decoded shouldContainExactly listOf(entry)
+	}
+
+	@Test
 	fun `trailing content is rejected after only the authenticated prefix`() = runTest {
 		val entry = pressureEntry()
 		val trailing = encodePressureEntries(listOf(entry)).decodeToString() + " true"
@@ -216,6 +299,12 @@ class PortablePressureJsonV1CodecTest {
 			totalBounded.decode(ByteArrayInputStream(encoded)) { calls++ }
 		}
 		calls shouldBe 0
+		shouldThrow<PortablePressureJsonException> {
+			totalBounded.encode(ByteArrayOutputStream()) { sink ->
+				sink.emit(entry)
+				ExportPortablePressureResult.Exported(1)
+			}
+		}
 
 		val byteBounded = PortablePressureJsonV1Codec(
 			PortablePressureJsonLimits(maxFileBytes = 32L),
@@ -280,6 +369,86 @@ class PortablePressureJsonV1CodecTest {
 	}
 
 	@Test
+	fun `exact narrowed byte run window and document totals are accepted`() = runTest {
+		val entry = pressureEntry(runCount = 2, windowsPerRun = 2)
+		val encoded = encodePressureEntries(listOf(entry))
+		val codec = PortablePressureJsonV1Codec(
+			PortablePressureJsonLimits(
+				maxFileBytes = encoded.size.toLong(),
+				maxEntries = 1,
+				maxRunsPerEntry = 2,
+				maxWindowsPerRun = 2,
+				maxTotalRuns = 2,
+				maxTotalWindows = 4,
+			),
+		)
+		val decoded = mutableListOf<PortablePressureEntryV1>()
+
+		codec.decode(ByteArrayInputStream(encoded)) { decoded += it } shouldBe 1
+		decoded shouldContainExactly listOf(entry)
+		val output = ByteArrayOutputStream()
+		codec.encode(output) { sink ->
+			sink.emit(entry)
+			ExportPortablePressureResult.Exported(1)
+		}
+		output.toByteArray().contentEquals(encoded) shouldBe true
+	}
+
+	@Test
+	fun `raw mutable graph overflow is rejected before deep copy or checksum revalidation`() = runTest {
+		val original = pressureEntry()
+		val guardedRuns = GuardedMutableList(original.runs)
+		val mutableRunsEntry = PortablePressureEntryV1(
+			identity = original.identity,
+			contentChecksum = original.contentChecksum,
+			startTimeMs = original.startTimeMs,
+			endTimeMs = original.endTimeMs,
+			runs = guardedRuns,
+		)
+		guardedRuns.add(pressureEntry("later", 5_000L).runs.single())
+		guardedRuns.throwOnElementRead = true
+
+		shouldThrow<PortablePressureJsonException> {
+			PortablePressureJsonV1Codec(
+				PortablePressureJsonLimits(maxTotalRuns = 1),
+			).encode(ByteArrayOutputStream()) { sink ->
+				sink.emit(mutableRunsEntry)
+				ExportPortablePressureResult.Exported(1)
+			}
+		}
+
+		val originalRun = original.runs.single()
+		val guardedWindows = GuardedMutableList(originalRun.windows)
+		val mutableRun = PortablePressureRunV1(
+			identity = originalRun.identity,
+			startTimeMs = originalRun.startTimeMs,
+			endTimeMs = originalRun.endTimeMs,
+			capturedForWholeRun = originalRun.capturedForWholeRun,
+			availability = originalRun.availability,
+			coverage = originalRun.coverage,
+			retentionLoss = originalRun.retentionLoss,
+			windows = guardedWindows,
+		)
+		val mutableWindowsEntry = PortablePressureEntryV1.create(
+			identity = original.identity,
+			startTimeMs = mutableRun.startTimeMs,
+			endTimeMs = mutableRun.endTimeMs,
+			runs = listOf(mutableRun),
+		)
+		guardedWindows.add(pressureWindow("later-window", 2_000L))
+		guardedWindows.throwOnElementRead = true
+
+		shouldThrow<PortablePressureJsonException> {
+			PortablePressureJsonV1Codec(
+				PortablePressureJsonLimits(maxTotalWindows = 1),
+			).encode(ByteArrayOutputStream()) { sink ->
+				sink.emit(mutableWindowsEntry)
+				ExportPortablePressureResult.Exported(1)
+			}
+		}
+	}
+
+	@Test
 	fun `canonical order and global kind owner identity uniqueness are mandatory`() = runTest {
 		val first = pressureEntry("first", 1_000L)
 		val later = pressureEntry("later", 5_000L)
@@ -310,6 +479,24 @@ class PortablePressureJsonV1CodecTest {
 			)
 		}
 		emitted shouldContainExactly listOf(first)
+
+		val movedRun = pressureEntryWithWindows(
+			seed = "moved-owner",
+			windows = listOf(pressureWindow("moved-owner", 5_000L)),
+			runIdentity = first.runs.single().identity,
+		)
+		shouldThrow<PortablePressureJsonException> {
+			encodePressureEntries(listOf(first, movedRun))
+		}
+		val movedOwnerDocument = envelope(entryFragment(first), entryFragment(movedRun))
+		val movedOwnerPrefix = mutableListOf<PortablePressureEntryV1>()
+		shouldThrow<PortablePressureJsonException> {
+			PortablePressureJsonV1Codec().decode(
+				ByteArrayInputStream(movedOwnerDocument.encodeToByteArray()),
+				PortablePressureEntrySink { movedOwnerPrefix += it },
+			)
+		}
+		movedOwnerPrefix shouldContainExactly listOf(first)
 	}
 
 	@Test
@@ -386,6 +573,16 @@ class PortablePressureJsonV1CodecTest {
 		}
 		outputFailure.message shouldBe "write failed"
 
+		val producerOutput = CloseTrackingOutputStream()
+		val producerFailure = shouldThrow<IOException> {
+			PortablePressureJsonV1Codec().encode(producerOutput) { sink ->
+				sink.emit(pressureEntry())
+				throw IOException("producer failed")
+			}
+		}
+		producerFailure.message shouldBe "producer failed"
+		producerOutput.closed shouldBe false
+
 		val successfulOutput = CloseTrackingOutputStream()
 		PortablePressureJsonV1Codec().encode(successfulOutput) { sink ->
 			sink.emit(pressureEntry())
@@ -409,6 +606,45 @@ class PortablePressureJsonV1CodecTest {
 		const val ENVELOPE_PREFIX =
 			"""{"format":"tracker-portable-pressure","schemaVersion":1,"entries":["""
 	}
+}
+
+private class GuardedMutableList<T>(
+	values: List<T>,
+) : AbstractMutableList<T>() {
+	private val delegate = values.toMutableList()
+	var throwOnElementRead: Boolean = false
+
+	override val size: Int get() = delegate.size
+
+	override fun get(index: Int): T {
+		check(!throwOnElementRead) { "Element access occurred before count rejection" }
+		return delegate[index]
+	}
+
+	override fun set(index: Int, element: T): T = delegate.set(index, element)
+
+	override fun add(index: Int, element: T) {
+		delegate.add(index, element)
+	}
+
+	override fun removeAt(index: Int): T = delegate.removeAt(index)
+}
+
+private class CountingInputStream(
+	bytes: ByteArray,
+) : InputStream() {
+	private val delegate = ByteArrayInputStream(bytes)
+	var bytesRead: Int = 0
+		private set
+
+	override fun read(): Int = delegate.read().also { value ->
+		if (value >= 0) bytesRead++
+	}
+
+	override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+		delegate.read(buffer, offset, length).also { count ->
+			if (count > 0) bytesRead += count
+		}
 }
 
 private class CloseTrackingInputStream(
