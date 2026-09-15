@@ -91,10 +91,28 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 	@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
 	suspend fun qualify(eventId: SourceEventId): LocationWalAdapterResult = database.withTransaction {
 		val walDao = database.sourceEventWalDao()
-		val wal = walDao.getByEventId(eventId.value)
+		val selectedPreflight = walDao.payloadPreflightByEventId(eventId.value)
 			?: return@withTransaction rejected(LocationWalAdapterRejection.MISSING_EVENT)
-		if (wal.sourceKind != LOCATION_SOURCE) {
+		if (selectedPreflight.sourceKind != LOCATION_SOURCE) {
 			return@withTransaction rejected(LocationWalAdapterRejection.WRONG_SOURCE)
+		}
+		if (selectedPreflight.payloadBytes > MAX_LOCATION_PAYLOAD_BYTES) {
+			return@withTransaction rejected(LocationWalAdapterRejection.DELIVERY_TOO_LARGE)
+		}
+		if (selectedPreflight.payloadBytes <= 0L) {
+			return@withTransaction rejected(LocationWalAdapterRejection.MALFORMED_DELIVERY)
+		}
+		val wal = walDao.boundedPayloadByEventId(eventId.value, MAX_LOCATION_PAYLOAD_BYTES)
+			?: return@withTransaction rejected(LocationWalAdapterRejection.MALFORMED_DELIVERY)
+		if (wal.eventId != selectedPreflight.eventId || wal.sourceKind != selectedPreflight.sourceKind ||
+			wal.capturedCollectedDataEpoch != selectedPreflight.capturedCollectedDataEpoch ||
+			wal.clockDomainId != selectedPreflight.clockDomainId ||
+			wal.deliveryIdentity != selectedPreflight.deliveryIdentity ||
+			wal.deliveryUnitIndex != selectedPreflight.deliveryUnitIndex ||
+			wal.deliveryUnitCount != selectedPreflight.deliveryUnitCount ||
+			wal.payload.size.toLong() != selectedPreflight.payloadBytes
+		) {
+			return@withTransaction rejected(LocationWalAdapterRejection.MALFORMED_DELIVERY)
 		}
 		if (!wal.hasQualifiedIntegrity()) {
 			return@withTransaction rejected(LocationWalAdapterRejection.WAL_INTEGRITY_MISMATCH)
@@ -105,7 +123,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		if (wal.sourceSequence <= 0L || wal.sourceSequence > MAX_DURABLE_SOURCE_SEQUENCE) {
 			return@withTransaction rejected(LocationWalAdapterRejection.SOURCE_SEQUENCE_MISMATCH)
 		}
-		val sequenceRow = walDao.getBySourceSequence(
+		val sequenceRow = walDao.identityBySourceSequence(
 			LOCATION_SOURCE,
 			wal.sourceInstanceId,
 			wal.sourceSequence,
@@ -126,15 +144,44 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		) {
 			return@withTransaction rejected(LocationWalAdapterRejection.INCOMPLETE_CAPTURE_BINDING)
 		}
-		val delivery = walDao.deliveryEvents(
+		if (deliveryUnitCount > MAX_LOCATION_DELIVERY_UNITS) {
+			return@withTransaction rejected(LocationWalAdapterRejection.DELIVERY_TOO_LARGE)
+		}
+		val deliveryPreflight = walDao.deliveryPayloadPreflight(
 			sourceKind = LOCATION_SOURCE,
 			collectedDataEpoch = wal.capturedCollectedDataEpoch,
 			clockDomainId = wal.clockDomainId,
 			deliveryIdentity = deliveryIdentity.value,
 			limit = MAX_LOCATION_DELIVERY_UNITS + 1,
 		)
-		if (delivery.size > MAX_LOCATION_DELIVERY_UNITS) {
+		if (deliveryPreflight.size > MAX_LOCATION_DELIVERY_UNITS ||
+			deliveryPreflight.any { it.payloadBytes > MAX_LOCATION_PAYLOAD_BYTES }
+		) {
 			return@withTransaction rejected(LocationWalAdapterRejection.DELIVERY_TOO_LARGE)
+		}
+		if (deliveryPreflight.size != deliveryUnitCount ||
+			deliveryPreflight.any { it.payloadBytes <= 0L || it.deliveryUnitCount != deliveryUnitCount } ||
+			deliveryPreflight.mapNotNull { it.deliveryUnitIndex } != deliveryPreflight.indices.toList() ||
+			deliveryPreflight[deliveryUnitIndex].eventId != wal.eventId
+		) {
+			return@withTransaction rejected(LocationWalAdapterRejection.MALFORMED_DELIVERY)
+		}
+		val delivery = walDao.deliveryEventsWithBoundedPayload(
+			sourceKind = LOCATION_SOURCE,
+			collectedDataEpoch = wal.capturedCollectedDataEpoch,
+			clockDomainId = wal.clockDomainId,
+			deliveryIdentity = deliveryIdentity.value,
+			maximumPayloadBytes = MAX_LOCATION_PAYLOAD_BYTES,
+			limit = MAX_LOCATION_DELIVERY_UNITS + 1,
+		)
+		if (delivery.size != deliveryPreflight.size || delivery.indices.any { index ->
+			val row = delivery[index]
+			val preflight = deliveryPreflight[index]
+			row.eventId != preflight.eventId || row.deliveryUnitIndex != preflight.deliveryUnitIndex ||
+				row.deliveryUnitCount != preflight.deliveryUnitCount ||
+				row.payload.size.toLong() != preflight.payloadBytes
+		}) {
+			return@withTransaction rejected(LocationWalAdapterRejection.MALFORMED_DELIVERY)
 		}
 		val decodedDelivery = decodeAndAuthenticateDelivery(delivery, wal)
 			?: return@withTransaction rejected(LocationWalAdapterRejection.MALFORMED_DELIVERY)
@@ -495,7 +542,8 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		}.getOrNull() ?: return null
 		if (firstSequence <= 0L || lastSequence > MAX_DURABLE_SOURCE_SEQUENCE) return null
 		val decoded = delivery.mapIndexed { index, row ->
-			if (!row.hasQualifiedIntegrity() || row.deliveryUnitCount != declaredCount ||
+			if (row.payload.size !in 1..MAX_LOCATION_PAYLOAD_BYTES ||
+				!row.hasQualifiedIntegrity() || row.deliveryUnitCount != declaredCount ||
 				row.deliveryIdentity != target.deliveryIdentity || row.sourceKind != LOCATION_SOURCE ||
 				row.payloadVersion != target.payloadVersion ||
 				row.providerDedupKey != null || row.admissionOrdinal <= 0L ||
@@ -640,6 +688,8 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		const val LOCATION_SOURCE = 1
 		const val PLAN_PAYLOAD_VERSION = 1
 		const val MAX_LOCATION_DELIVERY_UNITS = 256
+		// DataOutputStream.writeUTF permits 65,535 provider bytes; all v2 fields add at most 51.
+		const val MAX_LOCATION_PAYLOAD_BYTES = 65_535 + 51
 		const val MAX_DURABLE_SOURCE_SEQUENCE = Long.MAX_VALUE - 1L
 		const val MAX_MANIFESTS_PER_RUN = 256
 		const val MAX_MANIFEST_SOURCE_ROWS = 4_096

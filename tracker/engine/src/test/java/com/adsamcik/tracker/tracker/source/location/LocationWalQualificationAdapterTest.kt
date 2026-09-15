@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.location
 
 import android.app.Application
+import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
@@ -37,6 +38,8 @@ import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.model.toStableFlags
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executor
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -58,11 +61,24 @@ class LocationWalQualificationAdapterTest {
 	private val payloadCodec = DefaultSourcePayloadCodec()
 	private val planCodec = SourcePlanCodec()
 	private lateinit var subject: LocationWalQualificationAdapter
+	private val walPayloadQueries = CopyOnWriteArrayList<String>()
+	private val walCoveringQueries = CopyOnWriteArrayList<String>()
 
 	@Before
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
-		database = AppDatabase.testDatabase(context)
+		database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+			.allowMainThreadQueries()
+			.setQueryCallback({ sql, _ ->
+				if (sql.startsWith("SELECT ") && "FROM source_event_wal" in sql) {
+					if (sql.startsWith("SELECT * FROM source_event_wal")) {
+						walPayloadQueries.add(sql)
+					} else {
+						walCoveringQueries.add(sql)
+					}
+				}
+			}, Executor(Runnable::run))
+			.build()
 		subject = LocationWalQualificationAdapter(database, payloadCodec, planCodec)
 	}
 
@@ -113,6 +129,143 @@ class LocationWalQualificationAdapterTest {
 
 		assertTrue(qualified.command.productEffect.isMock)
 		assertTrue(requireNotNull(qualified.command.productEffect.payload.isMock))
+	}
+
+	@Test
+	fun `maximum canonical location payload qualifies through only SQL bounded blob reads`() = runTest {
+		val payload = locationPayload(isMock = false).copy(provider = "p".repeat(65_535))
+		assertEquals(
+			MAX_LOCATION_PAYLOAD_BYTES,
+			payloadCodec.encode(payload, LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION).bytes.size,
+		)
+		installValidFixture(
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(payload),
+		)
+		walPayloadQueries.clear()
+		walCoveringQueries.clear()
+
+		val evaluated = assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		assertIs<LocationObservationQualification.Qualified>(evaluated.qualification)
+		assertEquals(2, walPayloadQueries.size)
+		assertTrue(walPayloadQueries.all { "LENGTH(payload) <=" in it })
+		assertPayloadFreeCoveringReads()
+	}
+
+	@Test
+	fun `maximum modified UTF legacy provider remains mock provenance unverifiable`() = runTest {
+		val payload = locationPayload().copy(provider = "\u0800".repeat(21_845))
+		assertEquals(
+			MAX_LOCATION_PAYLOAD_BYTES - 1,
+			payloadCodec.encode(payload, LEGACY_LOCATION_PAYLOAD_VERSION).bytes.size,
+		)
+		installValidFixture(deliveryPayloads = listOf(payload))
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.MOCK_PROVENANCE_UNVERIFIABLE),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
+	fun `selected payload one byte beyond canonical maximum is rejected without loading a blob`() = runTest {
+		installValidFixture()
+		replacePayloadWithZeroBlob(EVENT_ID.value, MAX_LOCATION_PAYLOAD_BYTES + 1)
+		walPayloadQueries.clear()
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.DELIVERY_TOO_LARGE),
+			subject.qualify(EVENT_ID),
+		)
+		assertTrue(walPayloadQueries.isEmpty())
+	}
+
+	@Test
+	fun `oversized required sibling is rejected before full delivery loading`() = runTest {
+		installValidFixture(
+			deliveryPayloads = listOf(locationPayload(), locationPayload().copy(provider = "network")),
+		)
+		replacePayloadWithZeroBlob("location-event-sibling-1", MAX_LOCATION_PAYLOAD_BYTES + 1)
+		walPayloadQueries.clear()
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.DELIVERY_TOO_LARGE),
+			subject.qualify(EVENT_ID),
+		)
+		assertOnlySelectedPayloadWasRead()
+	}
+
+	@Test
+	fun `empty selected payload is malformed without loading a blob`() = runTest {
+		installValidFixture()
+		replacePayloadWithZeroBlob(EVENT_ID.value, 0)
+		walPayloadQueries.clear()
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.MALFORMED_DELIVERY),
+			subject.qualify(EVENT_ID),
+		)
+		assertTrue(walPayloadQueries.isEmpty())
+	}
+
+	@Test
+	fun `empty required sibling is rejected before full delivery loading`() = runTest {
+		installValidFixture(
+			deliveryPayloads = listOf(locationPayload(), locationPayload().copy(provider = "network")),
+		)
+		replacePayloadWithZeroBlob("location-event-sibling-1", 0)
+		walPayloadQueries.clear()
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.MALFORMED_DELIVERY),
+			subject.qualify(EVENT_ID),
+		)
+		assertOnlySelectedPayloadWasRead()
+	}
+
+	@Test
+	fun `maximum delivery cardinality qualifies without an unbounded sequence lookup`() = runTest {
+		installValidFixture(
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = List(256) { index ->
+				locationPayload(isMock = false).copy(provider = "provider-${index.toString().padStart(3, '0')}")
+			},
+		)
+		walPayloadQueries.clear()
+
+		val evaluated = assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		assertIs<LocationObservationQualification.Qualified>(evaluated.qualification)
+		assertEquals(2, walPayloadQueries.size)
+		assertTrue(walPayloadQueries.all { "LENGTH(payload) <=" in it })
+	}
+
+	@Test
+	fun `declared delivery overflow is rejected before full delivery loading`() = runTest {
+		installValidFixture(
+			deliveryPayloads = List(257) { index -> locationPayload().copy(provider = "provider-$index") },
+		)
+		walPayloadQueries.clear()
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.DELIVERY_TOO_LARGE),
+			subject.qualify(EVENT_ID),
+		)
+		assertOnlySelectedPayloadWasRead()
+	}
+
+	@Test
+	fun `undeclared extra delivery member is discovered by cap plus one preflight`() = runTest {
+		installValidFixture(
+			deliveryPayloads = List(257) { index -> locationPayload().copy(provider = "provider-$index") },
+			declaredUnitCount = 256,
+		)
+		walPayloadQueries.clear()
+
+		assertEquals(
+			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.DELIVERY_TOO_LARGE),
+			subject.qualify(EVENT_ID),
+		)
+		assertOnlySelectedPayloadWasRead()
 	}
 
 	@Test
@@ -319,11 +472,13 @@ class LocationWalQualificationAdapterTest {
 			"DELETE FROM source_event_wal WHERE delivery_identity = ? AND delivery_unit_index = 1",
 			arrayOf(requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value)).deliveryIdentity),
 		)
+		walPayloadQueries.clear()
 
 		assertEquals(
 			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.MALFORMED_DELIVERY),
 			subject.qualify(EVENT_ID),
 		)
+		assertOnlySelectedPayloadWasRead()
 	}
 
 	@Test
@@ -408,6 +563,36 @@ class LocationWalQualificationAdapterTest {
 		)
 	}
 
+	private fun replacePayloadWithZeroBlob(eventId: String, byteCount: Int) {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET payload = zeroblob(?) WHERE event_id = ?",
+			arrayOf(byteCount, eventId),
+		)
+	}
+
+	private fun assertOnlySelectedPayloadWasRead() {
+		assertEquals(1, walPayloadQueries.size)
+		assertTrue("WHERE event_id = ?" in walPayloadQueries.single())
+		assertTrue("LENGTH(payload) <=" in walPayloadQueries.single())
+	}
+
+	private fun assertPayloadFreeCoveringReads() {
+		assertEquals(
+			listOf(
+				"SELECT event_id, source_kind, captured_collected_data_epoch, clock_domain_id, " +
+					"delivery_identity, delivery_unit_index, delivery_unit_count, LENGTH(payload) AS payload_bytes",
+				"SELECT event_id, admission_ordinal, provider_dedup_key, source_instance_id, " +
+					"registration_generation, physical_configuration_fingerprint, authorization_revision, " +
+					"authorization_purpose_eligibility_mask, authorization_fingerprint, " +
+					"source_sequence, activity_automation_epoch, source_policy_revision, " +
+					"capture_consent_epoch, session_manifest_revision, lifecycle_lease_generation, " +
+					"payload_version, payload_checksum, integrity_identity",
+				"SELECT event_id, delivery_unit_index, delivery_unit_count, LENGTH(payload) AS payload_bytes",
+			),
+			walCoveringQueries.map { it.substringBefore(" FROM source_event_wal") },
+		)
+	}
+
 	private suspend fun installValidFixture(
 		plan: LocationPlan = locationPlan(PLAN_REVISION),
 		providerFingerprint: String = plan.physicalConfigurationFingerprint(),
@@ -416,6 +601,7 @@ class LocationWalQualificationAdapterTest {
 		sourceSequence: Long = SOURCE_SEQUENCE,
 		payloadVersion: Int = LEGACY_LOCATION_PAYLOAD_VERSION,
 		deliveryPayloads: List<LocationFixPayload> = listOf(locationPayload()),
+		declaredUnitCount: Int = deliveryPayloads.size,
 		selectedUnitIndex: Int = 0,
 		zoneId: String = ZONE_ID,
 		segmentRunId: String = RUN_ID,
@@ -451,7 +637,7 @@ class LocationWalQualificationAdapterTest {
 				providerDedupKey = null,
 				deliveryIdentity = deliveryIdentity,
 				deliveryUnitIndex = index,
-				deliveryUnitCount = deliveryPayloads.size,
+				deliveryUnitCount = declaredUnitCount,
 				logicalTrackingId = LOGICAL_ID,
 				serviceRunId = RUN_ID,
 				sourceKind = LOCATION_SOURCE,
@@ -796,6 +982,7 @@ class LocationWalQualificationAdapterTest {
 		const val SEGMENT_ID = 1L
 		const val SOURCE_SEQUENCE = 1L
 		const val LEGACY_LOCATION_PAYLOAD_VERSION = 1
+		const val MAX_LOCATION_PAYLOAD_BYTES = 65_586
 		const val QOS_CODE = 2
 		const val START_ORIGIN = "MANUAL_FOREGROUND_START"
 		const val RUN_START_NANOS = 100L

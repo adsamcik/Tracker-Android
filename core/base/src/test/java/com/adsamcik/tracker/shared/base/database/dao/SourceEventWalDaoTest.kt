@@ -78,6 +78,75 @@ class SourceEventWalDaoTest {
 	}
 
 	@Test
+	fun `payload preflight keeps oversized sibling authority while SQL bounded read excludes its blob`() = runTest {
+		val dao = database.sourceEventWalDao()
+		val first = event("bounded", 1L).copy(
+			deliveryIdentity = "delivery",
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 2,
+			payload = ByteArray(8),
+		)
+		val oversized = first.copy(
+			eventId = "oversized",
+			sourceSequence = 2L,
+			deliveryUnitIndex = 1,
+			payload = ByteArray(9),
+		)
+		dao.insertDeliveryUnits(listOf(first, oversized))
+
+		dao.payloadPreflightByEventId("oversized") shouldBe SourceEventWalPayloadPreflightRow(
+			eventId = "oversized",
+			sourceKind = 1,
+			capturedCollectedDataEpoch = 0L,
+			clockDomainId = "boot",
+			deliveryIdentity = "delivery",
+			deliveryUnitIndex = 1,
+			deliveryUnitCount = 2,
+			payloadBytes = 9L,
+		)
+		dao.deliveryPayloadPreflight(1, 0L, "boot", "delivery", 3) shouldBe listOf(
+			SourceEventWalDeliveryPayloadPreflightRow("bounded", 0, 2, 8L),
+			SourceEventWalDeliveryPayloadPreflightRow("oversized", 1, 2, 9L),
+		)
+		dao.boundedPayloadByEventId("bounded", 8)?.payload?.size shouldBe 8
+		dao.boundedPayloadByEventId("oversized", 8) shouldBe null
+		dao.deliveryEventsWithBoundedPayload(1, 0L, "boot", "delivery", 8, 3)
+			.map { it.eventId } shouldBe listOf("bounded")
+		dao.countAll() shouldBe 2L
+	}
+
+	@Test
+	fun `delivery payload preflight preserves cap plus one and exact source epoch boot identity`() = runTest {
+		val dao = database.sourceEventWalDao()
+		val first = event("member-0", 1L).copy(
+			deliveryIdentity = "delivery",
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 3,
+		)
+		val members = List(3) { index ->
+			first.copy(
+				eventId = "member-$index",
+				sourceSequence = index + 1L,
+				deliveryUnitIndex = index,
+			)
+		}
+		val unrelated = listOf(
+			first.copy(eventId = "other-source", sourceKind = 2),
+			first.copy(eventId = "other-epoch", sourceSequence = 4L, capturedCollectedDataEpoch = 1L),
+			first.copy(eventId = "other-boot", sourceSequence = 5L, clockDomainId = "other-boot"),
+			first.copy(eventId = "other-delivery", sourceSequence = 6L, deliveryIdentity = "other-delivery"),
+		)
+		dao.insertDeliveryUnits(members + unrelated)
+
+		dao.deliveryPayloadPreflight(1, 0L, "boot", "delivery", 2).map { it.eventId } shouldBe
+			listOf("member-0", "member-1")
+		dao.deliveryPayloadPreflight(1, 0L, "boot", "delivery", 3).map { it.eventId } shouldBe
+			listOf("member-0", "member-1", "member-2")
+		dao.deliveryEventsWithBoundedPayload(1, 0L, "boot", "delivery", 1, 3)
+			.map { it.eventId } shouldBe listOf("member-0", "member-1", "member-2")
+	}
+
+	@Test
 	fun `source scoped recovery read excludes unrelated ordinals and honors upper bound`() = runTest {
 		val dao = database.sourceEventWalDao()
 		dao.insertIgnoringDuplicate(event("activity-old", 1L).copy(sourceKind = 2)) shouldBe 1L
