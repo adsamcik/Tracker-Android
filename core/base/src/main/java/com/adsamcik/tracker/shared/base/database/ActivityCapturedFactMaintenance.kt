@@ -116,6 +116,215 @@ sealed interface ActivityCapturedSourceDeletionResult {
 	) : ActivityCapturedSourceDeletionResult
 }
 
+/** Immutable physical owner expected to be removed with one selected logical Activity entry. */
+data class ActivityCapturedSelectedRunScope(
+	val serviceRunId: String,
+	val sessionSegmentId: Long,
+) {
+	init {
+		require(serviceRunId.isNotBlank())
+		require(sessionSegmentId > 0L)
+	}
+}
+
+/** Fail-closed outcomes from exact selected captured-Activity payload maintenance. */
+enum class ActivityCapturedSelectedDeletionBlockedReason {
+	MAINTENANCE_BOUND_EXCEEDED,
+	FACT_AUTHORITY_UNVERIFIABLE,
+	STALE_COLLECTED_DATA_EPOCH,
+	STALE_REQUEST,
+	DELETION_FENCE_CONFLICT,
+}
+
+/** Result of authenticated selected captured-Activity payload maintenance. */
+sealed interface ActivityCapturedSelectedDeletionResult {
+	/** Exact counts removed after every selected physical run was fenced. */
+	data class Deleted(
+		val logicalWindowCount: Int,
+		val revisionCount: Int,
+		val fencedServiceRunCount: Int,
+	) : ActivityCapturedSelectedDeletionResult
+
+	/** No mutation was accepted because selected payload authority could not be proven. */
+	data class Blocked(
+		val reason: ActivityCapturedSelectedDeletionBlockedReason,
+	) : ActivityCapturedSelectedDeletionResult
+}
+
+/** Forces the caller's enclosing Room transaction to roll back after a mutation-time race. */
+class ActivityCapturedSelectedDeletionConcurrentMutationException internal constructor() :
+	IllegalStateException("Captured Activity selected deletion changed during mutation")
+
+/**
+ * Authenticates and removes only captured Activity payload owned by one exact logical run set.
+ *
+ * The caller must already hold its presentation-day locks and a Room transaction. Session, run,
+ * manifest, authorization, CONTROL WAL, registration-plan, and completeness authority is retained
+ * so the installed per-run fences remain independently auditable and prevent resurrection.
+ */
+suspend fun AppDatabase.deleteSelectedCapturedActivityFactsInTransaction(
+	logicalTrackingId: String,
+	runScopes: List<ActivityCapturedSelectedRunScope>,
+	expectedCollectedDataEpoch: Long,
+	deletedAtMs: Long,
+): ActivityCapturedSelectedDeletionResult = deleteSelectedCapturedActivityFactsInTransaction(
+	logicalTrackingId = logicalTrackingId,
+	runScopes = runScopes,
+	expectedCollectedDataEpoch = expectedCollectedDataEpoch,
+	deletedAtMs = deletedAtMs,
+	limits = DEFAULT_ACTIVITY_CAPTURED_MAINTENANCE_LIMITS,
+	checkpoint = { currentCoroutineContext().ensureActive() },
+)
+
+internal suspend fun AppDatabase.deleteSelectedCapturedActivityFactsInTransaction(
+	logicalTrackingId: String,
+	runScopes: List<ActivityCapturedSelectedRunScope>,
+	expectedCollectedDataEpoch: Long,
+	deletedAtMs: Long,
+	limits: ActivityCapturedMaintenanceLimits,
+	checkpoint: suspend (ActivityCapturedMaintenanceCheckpoint) -> Unit,
+): ActivityCapturedSelectedDeletionResult {
+	require(logicalTrackingId.isNotBlank())
+	require(runScopes.isNotEmpty())
+	require(expectedCollectedDataEpoch >= 0L)
+	require(deletedAtMs >= 0L)
+	val runIds = runScopes.map(ActivityCapturedSelectedRunScope::serviceRunId)
+	val segmentIds = runScopes.map(ActivityCapturedSelectedRunScope::sessionSegmentId)
+	if (runIds.distinct().size != runIds.size ||
+		segmentIds.distinct().size != runScopes.size
+	) {
+		return ActivityCapturedSelectedDeletionResult.Blocked(
+			ActivityCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+	var mutationStarted = false
+	return try {
+		val evidenceState = sourceEvidenceStateDao().get()
+		if (evidenceState?.collectedDataEpoch != expectedCollectedDataEpoch) {
+			return ActivityCapturedSelectedDeletionResult.Blocked(
+				ActivityCapturedSelectedDeletionBlockedReason.STALE_COLLECTED_DATA_EPOCH,
+			)
+		}
+		val scope = ActivityCapturedAuditScope(
+			logicalTrackingId = logicalTrackingId,
+			runs = runScopes.associateBy(ActivityCapturedSelectedRunScope::serviceRunId),
+		)
+		val audit = auditCapturedActivityFacts(
+			limits = limits,
+			checkpoint = checkpoint,
+			requireOwnerWhenEmpty = false,
+			selectedScope = scope,
+		)
+		if (deletedAtMs < audit.latestDurableTimeMs) {
+			return ActivityCapturedSelectedDeletionResult.Blocked(
+				ActivityCapturedSelectedDeletionBlockedReason.STALE_REQUEST,
+			)
+		}
+		if (audit.lineages.any { lineage ->
+				lineage.revisions.any { persisted ->
+					persisted.revision.collectedDataEpoch != expectedCollectedDataEpoch
+				}
+			}
+		) {
+			return ActivityCapturedSelectedDeletionResult.Blocked(
+				ActivityCapturedSelectedDeletionBlockedReason.STALE_COLLECTED_DATA_EPOCH,
+			)
+		}
+
+		val fenceDao = sourceDeletionFenceDao()
+		val missingFences = mutableListOf<SourceDeletionFenceEntity>()
+		for (runScope in runScopes) {
+			val expected = SourceDeletionFenceEntity.createLogicalServiceRun(
+				sourceKind = ACTIVITY_SOURCE,
+				purpose = CAPTURE_PURPOSE,
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = runScope.serviceRunId,
+				fenceGeneration = FIRST_DELETION_GENERATION,
+				collectedDataEpoch = expectedCollectedDataEpoch,
+				deletedAtMs = deletedAtMs,
+			)
+			val retained = try {
+				fenceDao.get(
+					expected.sourceKind,
+					expected.purpose,
+					expected.scopeKind,
+					expected.scopeIdentityDigest,
+				)
+			} catch (_: IllegalArgumentException) {
+				return ActivityCapturedSelectedDeletionResult.Blocked(
+					ActivityCapturedSelectedDeletionBlockedReason.DELETION_FENCE_CONFLICT,
+				)
+			}
+			if (retained == null) {
+				missingFences += expected
+			} else if (
+				retained.sourceKind != expected.sourceKind || retained.purpose != expected.purpose ||
+				retained.scopeKind != expected.scopeKind ||
+				retained.scopeIdentityDigest != expected.scopeIdentityDigest ||
+				retained.fenceGeneration != FIRST_DELETION_GENERATION ||
+				retained.collectedDataEpoch != expectedCollectedDataEpoch
+			) {
+				return ActivityCapturedSelectedDeletionResult.Blocked(
+					ActivityCapturedSelectedDeletionBlockedReason.DELETION_FENCE_CONFLICT,
+				)
+			}
+		}
+		mutationStarted = true
+		for (fence in missingFences) {
+			if (fenceDao.insertIfAbsent(fence) == INSERT_IGNORED) {
+				throw ActivityCapturedSelectedDeletionConcurrentMutationException()
+			}
+		}
+		checkpoint(ActivityCapturedMaintenanceCheckpoint.DELETION_FENCES_INSTALLED)
+		if (sourceEvidenceStateDao().incrementRevision(deletedAtMs) != 1) {
+			throw ActivityCapturedSelectedDeletionConcurrentMutationException()
+		}
+
+		val dao = activityCapturedFactDao()
+		var removedRevisions = 0
+		for (batch in audit.lineages.chunked(DELETE_BATCH_SIZE)) {
+			val ids = batch.map(ActivityCapturedLineage::logicalWindowId)
+			if (dao.deleteExactCursors(WRITER_ID, WRITER_VERSION, ids) != batch.size) {
+				throw ActivityCapturedSelectedDeletionConcurrentMutationException()
+			}
+			val expectedRevisions = batch.sumOf { lineage -> lineage.revisions.size }
+			val deleted = dao.deleteExactRevisionLineages(WRITER_ID, WRITER_VERSION, ids)
+			if (deleted != expectedRevisions) {
+				throw ActivityCapturedSelectedDeletionConcurrentMutationException()
+			}
+			removedRevisions = Math.addExact(removedRevisions, deleted)
+			checkpoint(ActivityCapturedMaintenanceCheckpoint.PAYLOAD_REMOVED)
+		}
+		if (dao.selectedRevisionCount(logicalTrackingId, runIds, segmentIds) != 0L ||
+			dao.selectedFragmentCount(logicalTrackingId, runIds, segmentIds) != 0L ||
+			dao.selectedEvidenceCount(logicalTrackingId, runIds, segmentIds) != 0L ||
+			dao.selectedCursorCount(logicalTrackingId, runIds, segmentIds) != 0L
+		) {
+			throw ActivityCapturedSelectedDeletionConcurrentMutationException()
+		}
+		ActivityCapturedSelectedDeletionResult.Deleted(
+			logicalWindowCount = audit.lineages.size,
+			revisionCount = removedRevisions,
+			fencedServiceRunCount = runScopes.size,
+		)
+	} catch (blocked: ActivityCapturedRetentionBlockedException) {
+		if (mutationStarted) throw ActivityCapturedSelectedDeletionConcurrentMutationException()
+		ActivityCapturedSelectedDeletionResult.Blocked(
+			ActivityCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	} catch (@Suppress("SwallowedException") _: ActivityCapturedMaintenanceLimitExceeded) {
+		if (mutationStarted) throw ActivityCapturedSelectedDeletionConcurrentMutationException()
+		ActivityCapturedSelectedDeletionResult.Blocked(
+			ActivityCapturedSelectedDeletionBlockedReason.MAINTENANCE_BOUND_EXCEEDED,
+		)
+	} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
+		if (mutationStarted) throw ActivityCapturedSelectedDeletionConcurrentMutationException()
+		ActivityCapturedSelectedDeletionResult.Blocked(
+			ActivityCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+}
+
 /**
  * Removes whole authenticated captured-Activity window lineages affected by the global floor.
  *
@@ -379,13 +588,14 @@ internal suspend fun AppDatabase.auditCapturedActivityFacts(
 	limits: ActivityCapturedMaintenanceLimits,
 	checkpoint: suspend (ActivityCapturedMaintenanceCheckpoint) -> Unit,
 	requireOwnerWhenEmpty: Boolean = true,
+	selectedScope: ActivityCapturedAuditScope? = null,
 ): ActivityCapturedFactAudit {
 	val dao = activityCapturedFactDao()
-	if (dao.unsupportedRevisionCount(WRITER_ID, WRITER_VERSION) != 0L ||
+	if (selectedScope == null && (dao.unsupportedRevisionCount(WRITER_ID, WRITER_VERSION) != 0L ||
 		dao.unsupportedFragmentCount(WRITER_ID, WRITER_VERSION) != 0L ||
 		dao.unsupportedEvidenceCount(WRITER_ID, WRITER_VERSION) != 0L ||
 		dao.unsupportedCursorCount(WRITER_ID, WRITER_VERSION) != 0L
-	) block(ActivityCapturedRetentionBlockedReason.UNRECOGNIZED_PAYLOAD_PRESENT)
+	)) block(ActivityCapturedRetentionBlockedReason.UNRECOGNIZED_PAYLOAD_PRESENT)
 
 	val owner = sourceDestinationOwnerDao().get(
 		ACTIVITY_SOURCE,
@@ -402,18 +612,33 @@ internal suspend fun AppDatabase.auditCapturedActivityFacts(
 	var evidenceCount = 0
 	var current = mutableListOf<ActivityCapturedPersistedRevision>()
 	while (true) {
-		val page = dao.maintenanceRevisionPage(
-			WRITER_ID,
-			WRITER_VERSION,
-			afterWindowId,
-			afterRevision,
-			limits.revisionPageSize,
+		val page = selectedScope?.let { scope ->
+			dao.selectedRevisionPage(
+				logicalTrackingId = scope.logicalTrackingId,
+				serviceRunIds = scope.runs.keys.toList(),
+				sessionSegmentIds = scope.runs.values.map(
+					ActivityCapturedSelectedRunScope::sessionSegmentId,
+				),
+				afterLogicalWindowId = afterWindowId,
+				afterSemanticRevision = afterRevision,
+				limit = limits.revisionPageSize,
+			)
+		} ?: dao.maintenanceRevisionPage(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			afterLogicalWindowId = afterWindowId,
+			afterSemanticRevision = afterRevision,
+			limit = limits.revisionPageSize,
 		)
 		if (page.isEmpty()) break
 		revisionCount = Math.addExact(revisionCount, page.size)
 		if (revisionCount > limits.maximumRevisions) throw ActivityCapturedMaintenanceLimitExceeded()
 		checkpoint(ActivityCapturedMaintenanceCheckpoint.REVISION_PAGE_LOADED)
 		for (revision in page) {
+			if (revision.writerProjectionId != WRITER_ID ||
+				revision.writerProjectionVersion != WRITER_VERSION ||
+				selectedScope?.containsExactly(revision) == false
+			) block(ActivityCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 			if (current.isNotEmpty() && current.last().revision.logicalWindowId != revision.logicalWindowId) {
 				lineages += authenticateActivityCapturedLineage(current, limits)
 				current = mutableListOf()
@@ -455,11 +680,53 @@ internal suspend fun AppDatabase.auditCapturedActivityFacts(
 		block(ActivityCapturedRetentionBlockedReason.DESTINATION_OWNER_CHANGED)
 	}
 
-	val cursors = loadActivityCapturedCursors(limits)
-	if (dao.revisionCount() != revisionCount.toLong() ||
-		dao.fragmentCount() != fragmentCount.toLong() ||
-		dao.evidenceCount() != evidenceCount.toLong() ||
-		dao.cursorCount() != cursors.size.toLong()
+	val cursors = loadActivityCapturedCursors(limits, selectedScope)
+	val runIds = selectedScope?.runs?.keys?.toList()
+	val segmentIds = selectedScope?.runs?.values?.map(
+		ActivityCapturedSelectedRunScope::sessionSegmentId,
+	)
+	val selectedWindowIds = (lineages.map(ActivityCapturedLineage::logicalWindowId) + cursors.keys)
+		.distinct()
+	val exactRevisionCount = if (selectedScope == null) dao.revisionCount() else {
+		dao.selectedRevisionCount(
+			selectedScope.logicalTrackingId,
+			requireNotNull(runIds),
+			requireNotNull(segmentIds),
+		)
+	}
+	val exactFragmentCount = if (selectedScope == null) dao.fragmentCount() else {
+		if (selectedWindowIds.isEmpty()) {
+			dao.selectedFragmentCount(
+				selectedScope.logicalTrackingId,
+				requireNotNull(runIds),
+				requireNotNull(segmentIds),
+			)
+		} else {
+			dao.payloadFragmentCountForWindows(selectedWindowIds)
+		}
+	}
+	val exactEvidenceCount = if (selectedScope == null) dao.evidenceCount() else {
+		if (selectedWindowIds.isEmpty()) {
+			dao.selectedEvidenceCount(
+				selectedScope.logicalTrackingId,
+				requireNotNull(runIds),
+				requireNotNull(segmentIds),
+			)
+		} else {
+			dao.payloadEvidenceCountForWindows(selectedWindowIds)
+		}
+	}
+	val exactCursorCount = if (selectedScope == null) dao.cursorCount() else {
+		dao.selectedCursorCount(
+			selectedScope.logicalTrackingId,
+			requireNotNull(runIds),
+			requireNotNull(segmentIds),
+		)
+	}
+	if (exactRevisionCount != revisionCount.toLong() ||
+		exactFragmentCount != fragmentCount.toLong() ||
+		exactEvidenceCount != evidenceCount.toLong() ||
+		exactCursorCount != cursors.size.toLong()
 	) block(ActivityCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 	if (cursors.size != lineages.size || cursors.keys != lineages.mapTo(mutableSetOf()) {
 			lineage -> lineage.logicalWindowId
@@ -695,30 +962,54 @@ private suspend fun AppDatabase.authenticateActivityCapturedAuthority(
 
 private suspend fun AppDatabase.loadActivityCapturedCursors(
 	limits: ActivityCapturedMaintenanceLimits,
+	selectedScope: ActivityCapturedAuditScope? = null,
 ): Map<String, ActivityCapturedWindowCursorEntity> {
 	val rows = mutableListOf<ActivityCapturedWindowCursorEntity>()
 	var after: String? = null
 	while (true) {
 		val remaining = limits.maximumCursors - rows.size
 		if (remaining <= 0) {
-			if (activityCapturedFactDao().maintenanceCursorPage(
-					WRITER_ID,
-					WRITER_VERSION,
+			val overflow = selectedScope?.let { scope ->
+				activityCapturedFactDao().selectedCursorPage(
+					scope.logicalTrackingId,
+					scope.runs.keys.toList(),
+					scope.runs.values.map(ActivityCapturedSelectedRunScope::sessionSegmentId),
 					after,
 					1,
-				).isNotEmpty()
+				)
+			} ?: activityCapturedFactDao().maintenanceCursorPage(
+				WRITER_ID,
+				WRITER_VERSION,
+				after,
+				1,
+			)
+			if (overflow.isNotEmpty()
 			) throw ActivityCapturedMaintenanceLimitExceeded()
 			break
 		}
-		val page = activityCapturedFactDao().maintenanceCursorPage(
-			WRITER_ID,
-			WRITER_VERSION,
-			after,
-			minOf(remaining, CURSOR_PAGE_SIZE),
+		val page = selectedScope?.let { scope ->
+			activityCapturedFactDao().selectedCursorPage(
+				logicalTrackingId = scope.logicalTrackingId,
+				serviceRunIds = scope.runs.keys.toList(),
+				sessionSegmentIds = scope.runs.values.map(
+					ActivityCapturedSelectedRunScope::sessionSegmentId,
+				),
+				afterLogicalWindowId = after,
+				limit = minOf(remaining, CURSOR_PAGE_SIZE),
+			)
+		} ?: activityCapturedFactDao().maintenanceCursorPage(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			afterLogicalWindowId = after,
+			limit = minOf(remaining, CURSOR_PAGE_SIZE),
 		)
 		if (page.isEmpty()) break
 		if (page != page.sortedBy(ActivityCapturedWindowCursorEntity::logicalWindowId) ||
-			page.distinctBy(ActivityCapturedWindowCursorEntity::logicalWindowId).size != page.size
+			page.distinctBy(ActivityCapturedWindowCursorEntity::logicalWindowId).size != page.size ||
+			page.any { cursor ->
+				cursor.writerProjectionId != WRITER_ID || cursor.writerProjectionVersion != WRITER_VERSION ||
+					selectedScope?.containsExactly(cursor) == false
+			}
 		) block(ActivityCapturedRetentionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
 		rows += page
 		after = page.last().logicalWindowId
@@ -999,6 +1290,19 @@ private data class ActivityCapturedRunScope(
 	val logicalTrackingId: String,
 	val serviceRunId: String,
 )
+
+internal data class ActivityCapturedAuditScope(
+	val logicalTrackingId: String,
+	val runs: Map<String, ActivityCapturedSelectedRunScope>,
+) {
+	fun containsExactly(revision: ActivityCapturedWindowRevisionEntity): Boolean =
+		revision.logicalTrackingId == logicalTrackingId &&
+			runs[revision.serviceRunId]?.sessionSegmentId == revision.sessionSegmentId
+
+	fun containsExactly(cursor: ActivityCapturedWindowCursorEntity): Boolean =
+		cursor.logicalTrackingId == logicalTrackingId &&
+			runs[cursor.serviceRunId]?.sessionSegmentId == cursor.sessionSegmentId
+}
 
 internal class ActivityCapturedRetentionBlockedException(
 	val reason: ActivityCapturedRetentionBlockedReason,

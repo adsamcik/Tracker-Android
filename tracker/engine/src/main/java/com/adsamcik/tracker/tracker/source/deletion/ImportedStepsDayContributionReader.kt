@@ -108,7 +108,7 @@ internal class ImportedStepsDayContributionReader(private val database: AppDatab
 		presentationSegments: List<SessionSegment>,
 		factRunIds: List<String>,
 		accumulator: StepsNumericDayWindowAccumulator,
-		excludedSegmentId: Long?,
+		excludedSegmentIds: Set<Long>,
 	): ImportedStepsDayContributions? {
 		val dao = database.importedStepsDao()
 		val entries = dao.entriesOverlapping(fromMs, toMs, StepsPortableFormatV1.MAX_ENTRIES + 1)
@@ -120,7 +120,7 @@ internal class ImportedStepsDayContributionReader(private val database: AppDatab
 			dao.runsForSegmentIds(ids, ids.size + 1)
 		}
 		val entryIds = (entries.map { it.identity } + candidateRuns.map { it.entryIdentity }).distinct()
-		val retained = authenticate(entryIds, accumulator, excludedSegmentId) ?: return null
+		val retained = authenticate(entryIds, accumulator, excludedSegmentIds) ?: return null
 		val segments = retained.segments.associateBy(SessionSegment::id)
 		return if (importedSegments.any { segments[it.id] != it } || candidateRuns.any { it.identity !in retained.runIds }) {
 			null
@@ -132,7 +132,7 @@ internal class ImportedStepsDayContributionReader(private val database: AppDatab
 	private suspend fun authenticate(
 		entryIds: List<String>,
 		accumulator: StepsNumericDayWindowAccumulator,
-		excludedSegmentId: Long?,
+		excludedSegmentIds: Set<Long>,
 	): ImportedStepsDayContributions? {
 		if (entryIds.size > StepsPortableFormatV1.MAX_ENTRIES) { return null }
 		val segments = mutableListOf<SessionSegment>()
@@ -144,7 +144,7 @@ internal class ImportedStepsDayContributionReader(private val database: AppDatab
 			}
 			val batchRuns = result.entries.flatMap { it.runs }.map(ImportedStepsRunEntity::identity)
 			if (runIds.size + batchRuns.size > MAX_RUN_METADATA || batchRuns.any { it in runIds } ||
-				!ImportedStepsDayBatch(result.entries).addTo(accumulator, excludedSegmentId)
+				!ImportedStepsDayBatch(result.entries).addTo(accumulator, excludedSegmentIds)
 			) {
 				return null
 			}
@@ -217,10 +217,10 @@ internal data class ImportedStepsDayContributions(
 
 /** Retained Steps are not local provider runs and never enter local manifest/lane qualification. */
 private class ImportedStepsDayBatch(private val entries: List<RetainedImportedStepsEntry>) {
-	fun addTo(accumulator: StepsNumericDayWindowAccumulator, excludedSegmentId: Long?): Boolean {
+	fun addTo(accumulator: StepsNumericDayWindowAccumulator, excludedSegmentIds: Set<Long>): Boolean {
 		for (entry in entries) {
 			val runs = entry.portableRunsById.values.filterNot { run ->
-				entry.segmentsByRun.getValue(run.identity.value).id == excludedSegmentId
+				entry.segmentsByRun.getValue(run.identity.value).id in excludedSegmentIds
 			}
 			if (runs.isEmpty()) { continue }
 			val contributions = runs.map { run -> run.toContribution(entry) }

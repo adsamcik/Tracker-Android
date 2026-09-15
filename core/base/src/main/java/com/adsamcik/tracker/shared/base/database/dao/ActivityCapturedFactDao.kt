@@ -138,6 +138,28 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 	): List<ActivityCapturedWindowRevisionEntity>
 
+	/**
+	 * Bounded selected-session audit. The union deliberately includes either side of the immutable
+	 * logical/run identity so a row that disagrees with its claimed scope cannot be skipped.
+	 */
+	@Query(
+		"SELECT * FROM activity_captured_window_revision WHERE " +
+			"(logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds) " +
+			"OR session_segment_id IN (:sessionSegmentIds)) AND (" +
+			":afterLogicalWindowId IS NULL OR logical_window_id > :afterLogicalWindowId OR " +
+			"(logical_window_id = :afterLogicalWindowId " +
+			"AND semantic_revision > :afterSemanticRevision)) " +
+			"ORDER BY logical_window_id, semantic_revision LIMIT :limit",
+	)
+	suspend fun selectedRevisionPage(
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+		sessionSegmentIds: List<Long>,
+		afterLogicalWindowId: String?,
+		afterSemanticRevision: Long?,
+		limit: Int,
+	): List<ActivityCapturedWindowRevisionEntity>
+
 	/** Stable bounded cursor keyset used to prove one current head per retained lineage. */
 	@Query(
 		"SELECT * FROM activity_captured_window_cursor " +
@@ -152,6 +174,91 @@ interface ActivityCapturedFactDao {
 		afterLogicalWindowId: String?,
 		limit: Int,
 	): List<ActivityCapturedWindowCursorEntity>
+
+	@Query(
+		"SELECT * FROM activity_captured_window_cursor WHERE " +
+			"(logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds) " +
+			"OR session_segment_id IN (:sessionSegmentIds)) " +
+			"AND (:afterLogicalWindowId IS NULL OR logical_window_id > :afterLogicalWindowId) " +
+			"ORDER BY logical_window_id LIMIT :limit",
+	)
+	suspend fun selectedCursorPage(
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+		sessionSegmentIds: List<Long>,
+		afterLogicalWindowId: String?,
+		limit: Int,
+	): List<ActivityCapturedWindowCursorEntity>
+
+	@Query(
+		"SELECT COUNT(*) FROM activity_captured_window_revision WHERE " +
+			"logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds) " +
+			"OR session_segment_id IN (:sessionSegmentIds)",
+	)
+	suspend fun selectedRevisionCount(
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+		sessionSegmentIds: List<Long>,
+	): Long
+
+	@Query(
+		"SELECT COUNT(*) FROM activity_captured_window_cursor WHERE " +
+			"logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds) " +
+			"OR session_segment_id IN (:sessionSegmentIds)",
+	)
+	suspend fun selectedCursorCount(
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+		sessionSegmentIds: List<Long>,
+	): Long
+
+	@Query(
+		"SELECT COUNT(*) FROM activity_captured_fragment AS fragment " +
+			"INNER JOIN activity_captured_window_revision AS revision " +
+			"ON revision.writer_projection_id = fragment.writer_projection_id " +
+			"AND revision.writer_projection_version = fragment.writer_projection_version " +
+			"AND revision.logical_window_id = fragment.logical_window_id " +
+			"AND revision.semantic_revision = fragment.semantic_revision " +
+			"WHERE revision.logical_tracking_id = :logicalTrackingId " +
+			"OR revision.service_run_id IN (:serviceRunIds) " +
+			"OR revision.session_segment_id IN (:sessionSegmentIds)",
+	)
+	suspend fun selectedFragmentCount(
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+		sessionSegmentIds: List<Long>,
+	): Long
+
+	@Query(
+		"SELECT COUNT(*) FROM activity_captured_evidence AS evidence " +
+			"INNER JOIN activity_captured_window_revision AS revision " +
+			"ON revision.writer_projection_id = evidence.writer_projection_id " +
+			"AND revision.writer_projection_version = evidence.writer_projection_version " +
+			"AND revision.logical_window_id = evidence.logical_window_id " +
+			"AND revision.semantic_revision = evidence.semantic_revision " +
+			"WHERE revision.logical_tracking_id = :logicalTrackingId " +
+			"OR revision.service_run_id IN (:serviceRunIds) " +
+			"OR revision.session_segment_id IN (:sessionSegmentIds)",
+	)
+	suspend fun selectedEvidenceCount(
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+		sessionSegmentIds: List<Long>,
+	): Long
+
+	/** Includes unsupported and orphaned child rows that still claim a selected window identity. */
+	@Query(
+		"SELECT COUNT(*) FROM activity_captured_fragment " +
+			"WHERE logical_window_id IN (:logicalWindowIds)",
+	)
+	suspend fun payloadFragmentCountForWindows(logicalWindowIds: List<String>): Long
+
+	/** Includes unsupported and orphaned evidence that still claims a selected window identity. */
+	@Query(
+		"SELECT COUNT(*) FROM activity_captured_evidence " +
+			"WHERE logical_window_id IN (:logicalWindowIds)",
+	)
+	suspend fun payloadEvidenceCountForWindows(logicalWindowIds: List<String>): Long
 
 	/** SQLite-enforced fragment cap; callers request one overflow row. */
 	@Query(
@@ -547,7 +654,22 @@ interface ActivityCapturedFactDao {
 		limit: Int,
 	): List<SourceDemandEntity>
 
+	@Query(
+		"SELECT * FROM source_demand WHERE source_kind = :sourceKind AND purpose = :purpose " +
+			"AND status IN ('ACTIVE', 'RETIRING', 'BLOCKED') " +
+			"AND (logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds)) " +
+			"ORDER BY demand_id LIMIT :limit",
+	)
+	suspend fun selectedCapturedActivityDemands(
+		sourceKind: Int,
+		purpose: String,
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<SourceDemandEntity>
+
 	/** All physical registrations that could still deliver a captured callback. */
+	/** Latest immutable authorization revision identity without materializing its members. */
 	@Query(
 		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
 			"AND status IN ('RESERVED', 'ACTIVE', 'RETIRING') " +
@@ -569,6 +691,15 @@ interface ActivityCapturedFactDao {
 		authorizationRevision: Long,
 		limit: Int,
 	): List<SourceAuthorizationEntity>
+
+	@Query(
+		"SELECT MAX(authorization_revision) FROM source_authorization " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration",
+	)
+	suspend fun latestAuthorizationRevision(
+		sourceKind: Int,
+		registrationGeneration: Long,
+	): Long?
 
 	@Query(
 		"SELECT * FROM source_desired_plan WHERE revision = :revision " +

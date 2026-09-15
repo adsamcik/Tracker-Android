@@ -62,15 +62,25 @@ internal class StepsDailySummaryRepairComposer(
 		epochDays: List<Long>,
 		excludedSegmentId: Long,
 	): StepsDayRepairPreflight {
+		return compose(epochDays, setOf(excludedSegmentId))
+	}
+
+	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+	suspend fun compose(
+		epochDays: List<Long>,
+		excludedSegmentIds: Set<Long>,
+	): StepsDayRepairPreflight {
 		val sortedDays = epochDays.distinct().sorted()
-		if (sortedDays.isEmpty()) {
+		if (sortedDays.isEmpty() || excludedSegmentIds.isEmpty() ||
+			excludedSegmentIds.any { segmentId -> segmentId <= 0L }
+		) {
 			return unverifiable()
 		}
 		val requested = sortedDays.toSet()
 		val summaries = database.dailySummaryDao()
 			.getBetween(sortedDays.first(), sortedDays.last())
 			.filter { summary -> summary.dateEpochDay in requested }
-		return compose(epochDays, excludedSegmentId, summaries)
+		return compose(epochDays, excludedSegmentIds, summaries)
 	}
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
@@ -79,10 +89,20 @@ internal class StepsDailySummaryRepairComposer(
 		excludedSegmentId: Long,
 		dailySummaries: List<DailySummaryEntity>,
 	): StepsDayRepairPreflight {
+		return compose(epochDays, setOf(excludedSegmentId), dailySummaries)
+	}
+
+	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+	suspend fun compose(
+		epochDays: List<Long>,
+		excludedSegmentIds: Set<Long>,
+		dailySummaries: List<DailySummaryEntity>,
+	): StepsDayRepairPreflight {
 		val sortedDays = epochDays.distinct().sorted()
 		val sortedDaySet = sortedDays.toSet()
 		if (sortedDays.isEmpty() || dailySummaries.any { it.dateEpochDay !in sortedDaySet } ||
-			dailySummaries.map(DailySummaryEntity::dateEpochDay).distinct().size != dailySummaries.size
+			dailySummaries.map(DailySummaryEntity::dateEpochDay).distinct().size != dailySummaries.size ||
+			excludedSegmentIds.isEmpty() || excludedSegmentIds.any { segmentId -> segmentId <= 0L }
 		) {
 			return unverifiable()
 		}
@@ -97,7 +117,7 @@ internal class StepsDailySummaryRepairComposer(
 		}
 		val queryBounds = allZoneQueryBounds(sortedDays) ?: return unverifiable()
 		return composeQualifiedDays(
-			excludedSegmentId = excludedSegmentId,
+			excludedSegmentIds = excludedSegmentIds,
 			zoneByDay = zoneByDay,
 			queryBounds = queryBounds,
 			discoverSourceRuns = true,
@@ -113,7 +133,7 @@ internal class StepsDailySummaryRepairComposer(
 		val fromMs = startOfDayMs(epochDay, zoneId) ?: return unverifiable()
 		val toMs = startOfDayMs(epochDay + 1L, zoneId) ?: return unverifiable()
 		return composeQualifiedDays(
-			excludedSegmentId = null,
+			excludedSegmentIds = emptySet(),
 			zoneByDay = linkedMapOf(epochDay to zoneId),
 			queryBounds = QueryBounds(fromMs = fromMs, toMs = toMs),
 			discoverSourceRuns = true,
@@ -133,7 +153,7 @@ internal class StepsDailySummaryRepairComposer(
 		val orderedZones = zoneByDay.toSortedMap()
 		val queryBounds = stepsNumericReadQueryBounds(orderedZones) ?: return unverifiable()
 		return composeQualifiedDays(
-			excludedSegmentId = null,
+			excludedSegmentIds = emptySet(),
 			zoneByDay = orderedZones,
 			queryBounds = QueryBounds(queryBounds.fromMs, queryBounds.toMs),
 			requireNonOverlappingLogicalSessions = true,
@@ -156,7 +176,7 @@ internal class StepsDailySummaryRepairComposer(
 		val orderedZones = zoneByDay.toSortedMap()
 		val queryBounds = stepsNumericReadQueryBounds(orderedZones) ?: return unverifiable()
 		return composeQualifiedDays(
-			excludedSegmentId = null,
+			excludedSegmentIds = emptySet(),
 			zoneByDay = orderedZones,
 			queryBounds = QueryBounds(queryBounds.fromMs, queryBounds.toMs),
 			requireNonOverlappingLogicalSessions = true,
@@ -202,7 +222,7 @@ internal class StepsDailySummaryRepairComposer(
 		if (queryBounds.toMs <= queryBounds.fromMs) {
 			return StepsRetainedDayAuthorityDiscovery.Ready(emptyMap())
 		}
-		val presentationSegments = sourceRepairSegments(queryBounds, excludedSegmentId = null)
+		val presentationSegments = sourceRepairSegments(queryBounds, excludedSegmentIds = emptySet())
 			?: return StepsRetainedDayAuthorityDiscovery.Unverifiable
 		val factRunIds = factServiceRunCandidateIds(queryBounds)
 			?: return StepsRetainedDayAuthorityDiscovery.Unverifiable
@@ -340,7 +360,7 @@ internal class StepsDailySummaryRepairComposer(
 		val orderedZones = zoneByDay.toSortedMap()
 		val queryBounds = allZoneQueryBounds(orderedZones.keys.toList()) ?: return unverifiable()
 		return composeQualifiedDays(
-			excludedSegmentId = null,
+			excludedSegmentIds = emptySet(),
 			zoneByDay = orderedZones,
 			queryBounds = queryBounds,
 			discoverSourceRuns = true,
@@ -368,7 +388,7 @@ internal class StepsDailySummaryRepairComposer(
 		val orderedZones = zoneByDay.toSortedMap()
 		val queryBounds = allZoneQueryBounds(orderedZones.keys.toList()) ?: return unverifiable()
 		return composeQualifiedDays(
-			excludedSegmentId = null,
+			excludedSegmentIds = emptySet(),
 			zoneByDay = orderedZones,
 			queryBounds = queryBounds,
 			discoverSourceRuns = true,
@@ -378,7 +398,7 @@ internal class StepsDailySummaryRepairComposer(
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private suspend fun composeQualifiedDays(
-		excludedSegmentId: Long?,
+		excludedSegmentIds: Set<Long>,
 		zoneByDay: Map<Long, ZoneId>,
 		queryBounds: QueryBounds,
 		requireNonOverlappingLogicalSessions: Boolean = false,
@@ -400,7 +420,7 @@ internal class StepsDailySummaryRepairComposer(
 		}
 		val presentationSegments = sourceRepairSegments(
 			queryBounds = queryBounds,
-			excludedSegmentId = excludedSegmentId,
+			excludedSegmentIds = excludedSegmentIds,
 		) ?: return unverifiable()
 		val factRunIds = if (discoverSourceRuns) {
 			factServiceRunCandidateIds(queryBounds) ?: return unverifiable()
@@ -411,16 +431,16 @@ internal class StepsDailySummaryRepairComposer(
 		// read-only accumulator; no derived row is written before all origin partitions validate.
 		val accumulator = when {
 			zoneByDay.isNotEmpty() -> StepsNumericDayWindowAccumulator.create(zoneByDay)
-			excludedSegmentId != null -> StepsNumericDayWindowAccumulator.createEmptyValidationOnly()
+			excludedSegmentIds.isNotEmpty() -> StepsNumericDayWindowAccumulator.createEmptyValidationOnly()
 			else -> null
 		} ?: return unverifiable()
 		val imported = ImportedStepsDayContributionReader(database).read(
 			queryBounds.fromMs, queryBounds.toMs, presentationSegments, factRunIds,
-			accumulator, excludedSegmentId,
+			accumulator, excludedSegmentIds,
 		) ?: return unverifiable()
 		val discoveredSourceRuns = if (discoverSourceRuns) {
 			(allSourceRunCandidates(queryBounds, factRunIds - imported.runIds) ?: return unverifiable()).filterNot { run ->
-				excludedSegmentId != null && run.sessionSegmentId == excludedSegmentId
+				run.sessionSegmentId in excludedSegmentIds
 			}
 		} else {
 			emptyList()
@@ -450,7 +470,7 @@ internal class StepsDailySummaryRepairComposer(
 		if (sourceOwnedSegments.map(SessionSegment::id).toSet() != referencedSegmentIds) {
 			return unverifiable()
 		}
-		val importedSegments = imported.segments.filterNot { it.id == excludedSegmentId }
+		val importedSegments = imported.segments.filterNot { it.id in excludedSegmentIds }
 		val segments = (presentationSegments.filterNot { it.source == SegmentSource.PORTABLE_STEPS_IMPORT } + sourceOwnedSegments)
 			.distinctBy(SessionSegment::id)
 			.sortedWith(compareBy<SessionSegment>(SessionSegment::startTimeMs).thenBy(SessionSegment::id))
@@ -593,9 +613,11 @@ internal class StepsDailySummaryRepairComposer(
 
 	private suspend fun sourceRepairSegments(
 		queryBounds: QueryBounds,
-		excludedSegmentId: Long?,
+		excludedSegmentIds: Set<Long>,
 	): List<SessionSegment>? {
 		val rows = mutableListOf<SessionSegment>()
+		var previousRaw: SessionSegment? = null
+		var rawRowCount = 0
 		var afterStartTimeMs: Long? = null
 		var afterSegmentId: Long? = null
 		var pageSize: Int
@@ -603,20 +625,22 @@ internal class StepsDailySummaryRepairComposer(
 			val page = database.sessionSegmentDao().sourceRepairSegmentPage(
 				fromMs = queryBounds.fromMs,
 				toMs = queryBounds.toMs,
-				excludedSegmentId = excludedSegmentId,
+				excludedSegmentId = null,
 				limit = READ_PAGE_SIZE,
 				afterStartTimeMs = afterStartTimeMs,
 				afterSegmentId = afterSegmentId,
 			)
-			val orderedPage = rows.lastOrNull()?.let { previous -> listOf(previous) + page } ?: page
+			val orderedPage = previousRaw?.let { previous -> listOf(previous) + page } ?: page
 			if (page.any { segment -> segment.id <= 0L } || orderedPage.zipWithNext().any { (left, right) ->
 				right.startTimeMs < left.startTimeMs ||
 					right.startTimeMs == left.startTimeMs && right.id <= left.id
 			}) {
 				return null
 			}
-			rows += page
-			if (rows.size > MAX_SOURCE_METADATA_ROWS) return null
+			rawRowCount += page.size
+			if (rawRowCount > MAX_SOURCE_METADATA_ROWS) return null
+			rows += page.filterNot { segment -> segment.id in excludedSegmentIds }
+			previousRaw = page.lastOrNull() ?: previousRaw
 			afterStartTimeMs = page.lastOrNull()?.startTimeMs
 			afterSegmentId = page.lastOrNull()?.id
 			pageSize = page.size

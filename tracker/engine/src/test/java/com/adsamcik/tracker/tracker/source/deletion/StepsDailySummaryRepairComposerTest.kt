@@ -120,6 +120,18 @@ class StepsDailySummaryRepairComposerTest {
 		plan.totals?.durationMs shouldBe HOUR_MS
 		plan.totals?.distanceM shouldBe 10f
 		plan.totals?.tripCount shouldBe 2
+		// Shared selected-session repair now accepts a set. An imported member must not leak
+		// back through envelope/fact discovery when another selected physical id is present.
+		val excludedImported = database.withTransaction {
+			composer().compose(listOf(DAY), excludedSegmentIds = setOf(9_000L, 99_999L))
+		} as StepsDayRepairPreflight.Ready
+		excludedImported.plans.single().numericSteps shouldBe StepsDayNumericComposition.Complete(5L)
+		val liveSegmentId = requireNotNull(database.trackingHistoryReadDao()
+			.serviceRuns(listOf("live-run")).single().sessionSegmentId)
+		val excludedLive = database.withTransaction {
+			composer().compose(listOf(DAY), excludedSegmentIds = setOf(liveSegmentId, 99_999L))
+		} as StepsDayRepairPreflight.Ready
+		excludedLive.plans.single().numericSteps shouldBe StepsDayNumericComposition.Complete(7L)
 		database.openHelper.writableDatabase.execSQL("DELETE FROM source_consent_epoch")
 		val invalidLive = database.withTransaction {
 			composer().composeForNumericRead(mapOf(DAY to ZONE))
