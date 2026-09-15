@@ -81,15 +81,23 @@ class ImportedCellDaoTest {
 		val identities = listOf(
 			ImportedCellDeletedIdentityEntity.create(
 				ENTRY, ENTRY, ImportedCellDeletedIdentityEntity.ENTRY,
+				contentChecksum = digest('4'),
 			),
 			ImportedCellDeletedIdentityEntity.create(
 				RUN, ENTRY, ImportedCellDeletedIdentityEntity.RUN, RUN,
+				deletionScopeDigest = SCOPE,
+				runStartTimeMs = 1L,
+				runEndTimeMs = 2L,
+				contentChecksum = digest('6'),
 			),
 			ImportedCellDeletedIdentityEntity.create(
 				SCOPE, ENTRY, ImportedCellDeletedIdentityEntity.DELETION_SCOPE, RUN,
+				deletionScopeDigest = SCOPE,
 			),
 			ImportedCellDeletedIdentityEntity.create(
 				digest('7'), ENTRY, ImportedCellDeletedIdentityEntity.OBSERVATION, RUN,
+				contentChecksum = digest('7'),
+				observationOrdinal = 0,
 			),
 		)
 		dao.insertEntryDeletion(deletion)
@@ -97,6 +105,8 @@ class ImportedCellDaoTest {
 			ImportedCellEntryDeletionReceiptEntity.create(
 				deletion,
 				digest('4'),
+				"MANUAL",
+				"UNKNOWN",
 				1L,
 				2L,
 				8L,

@@ -76,18 +76,26 @@ class ImportedCellMigration27To28Test {
 					val identities = listOf(
 						ImportedCellDeletedIdentityEntity.create(
 							ENTRY, ENTRY, ImportedCellDeletedIdentityEntity.ENTRY,
+							contentChecksum = CONTENT,
 						),
 						ImportedCellDeletedIdentityEntity.create(
 							RUN, ENTRY, ImportedCellDeletedIdentityEntity.RUN, RUN,
+							deletionScopeDigest = SCOPE,
+							runStartTimeMs = 10L,
+							runEndTimeMs = 20L,
+							contentChecksum = CONTENT,
 						),
 						ImportedCellDeletedIdentityEntity.create(
 							SCOPE, ENTRY, ImportedCellDeletedIdentityEntity.DELETION_SCOPE, RUN,
+							deletionScopeDigest = SCOPE,
 						),
 						ImportedCellDeletedIdentityEntity.create(
 							OBSERVATION,
 							ENTRY,
 							ImportedCellDeletedIdentityEntity.OBSERVATION,
 							RUN,
+							contentChecksum = CONTENT,
+							observationOrdinal = 0,
 						),
 					)
 					database.importedCellDao().insertEntryDeletion(deletion)
@@ -95,6 +103,8 @@ class ImportedCellMigration27To28Test {
 						ImportedCellEntryDeletionReceiptEntity.create(
 							deletion,
 							CONTENT,
+							"MANUAL",
+							"UNKNOWN",
 							10L,
 							20L,
 							30L,
@@ -161,11 +171,16 @@ class ImportedCellMigration27To28Test {
 			"imported_cell_deletion_generation",
 			"imported_cell_entry_deletion_receipt",
 			"imported_cell_deleted_identity",
+			"cell_captured_entry_deletion_receipt",
+			"cell_captured_deleted_run",
 		)
 		val INDICES = listOf(
 			"idx_imported_cell_entry_time_range",
 			"idx_imported_cell_observation_time_range",
 			"idx_imported_cell_deleted_identity_entry",
+			"idx_cell_captured_entry_deletion_identity",
+			"idx_cell_captured_deleted_run_segment",
+			"idx_cell_captured_deleted_run_scope",
 		)
 	}
 }

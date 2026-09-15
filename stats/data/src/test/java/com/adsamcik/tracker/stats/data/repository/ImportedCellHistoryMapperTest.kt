@@ -27,6 +27,7 @@ import com.adsamcik.tracker.shared.base.database.RoomImportPortableCapturedCell
 import com.adsamcik.tracker.shared.base.database.RoomDeleteSelectedImportedCell
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellHistoryCandidate
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
@@ -360,6 +361,120 @@ class ImportedCellHistoryMapperTest {
 			entry.structuralDays shouldBe setOf(CellHistoryStructuralDay(dstDay, dstZone))
 			entry.structuralDayCompleteness shouldBe CellHistoryStructuralDayCompleteness.EXACT
 		}
+	}
+
+	@Test
+	fun `structural range verifies stored zone membership before accepting broad SQL candidates`() =
+		runTest {
+			database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+			val targetDay = 20_000L
+			val dayStart = targetDay * 86_400_000L
+			val correct = cellEntry(
+				logicalLocal = "target-day",
+				runLocal = "target-run",
+				observation = cellObservation(
+					localId = "target-observation",
+					coverageStartTimeMs = dayStart + 3_600_000L,
+					observedTimeMs = dayStart + 3_600_000L,
+					wallTimeUncertaintyMs = 0L,
+					storedZoneId = "UTC",
+				),
+				startTimeMs = dayStart,
+				endTimeMs = dayStart + 7_200_000L,
+			)
+			val previousDay = cellEntry(
+				logicalLocal = "previous-zone-day",
+				runLocal = "previous-zone-run",
+				observation = cellObservation(
+					localId = "previous-zone-observation",
+					coverageStartTimeMs = dayStart + 5L * 3_600_000L,
+					observedTimeMs = dayStart + 5L * 3_600_000L,
+					wallTimeUncertaintyMs = 0L,
+					storedZoneId = "-12:00",
+				),
+				startTimeMs = dayStart,
+				endTimeMs = dayStart + 6L * 3_600_000L,
+			)
+			val nextDay = cellEntry(
+				logicalLocal = "next-zone-day",
+				runLocal = "next-zone-run",
+				observation = cellObservation(
+					localId = "next-zone-observation",
+					coverageStartTimeMs = dayStart + 12L * 3_600_000L,
+					observedTimeMs = dayStart + 12L * 3_600_000L,
+					wallTimeUncertaintyMs = 0L,
+					storedZoneId = "+14:00",
+				),
+				startTimeMs = dayStart + 11L * 3_600_000L,
+				endTimeMs = dayStart + 13L * 3_600_000L,
+			)
+			val importer = RoomImportPortableCapturedCell(database, Dispatchers.Unconfined)
+			listOf(correct, previousDay, nextDay).forEachIndexed { index, entry ->
+				importer.importEntry(importRequest(entry, "zone-$index")) shouldBe
+					ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+			}
+			val request = CellHistoryRangeRequest(
+				CellHistoryRangeScope.StructuralDays(targetDay, targetDay),
+				limit = 10,
+			)
+
+			(repository().range(request) as CellHistoryRangePage.Available).entries
+				.map { it.entry.origin } shouldBe listOf(CellHistoryOrigin.Imported(correct.toSelection()))
+
+			val run = correct.runs.single()
+			database.importedCellDao().insertDeletionGeneration(
+				ImportedCellDeletionGenerationEntity.create(
+					run.identity.value,
+					correct.identity.value,
+					run.deletionScopeDigest.value,
+					EPOCH,
+					1L,
+					600L,
+				),
+			)
+			(repository().range(request) as CellHistoryRangePage.Available).entries shouldBe emptyList()
+
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE imported_cell_observation SET known_quality_observation_count = 0 " +
+					"WHERE entry_identity = ?",
+				arrayOf(previousDay.identity.value),
+			)
+			repository().range(request) shouldBe CellHistoryRangePage.Failed(
+				CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+
+	@Test
+	fun `structural range omits authenticated imported entries outside the retained floor`() = runTest {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+		val targetDay = 20_000L
+		val observed = targetDay * 86_400_000L + 1_000L
+		val value = cellEntry(
+			logicalLocal = "retained-out",
+			runLocal = "retained-out-run",
+			observation = cellObservation(
+				localId = "retained-out-observation",
+				coverageStartTimeMs = observed,
+				observedTimeMs = observed,
+				wallTimeUncertaintyMs = 0L,
+			),
+			startTimeMs = observed,
+			endTimeMs = observed + 1_000L,
+		)
+		RoomImportPortableCapturedCell(database, Dispatchers.Unconfined).importEntry(
+			importRequest(value, "retained-out"),
+		) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_evidence_state SET retained_from_ms = ? WHERE id = 1",
+			arrayOf(observed + 1L),
+		)
+
+		(repository().range(
+			CellHistoryRangeRequest(
+				CellHistoryRangeScope.StructuralDays(targetDay, targetDay),
+				limit = 10,
+			),
+		) as CellHistoryRangePage.Available).entries shouldBe emptyList()
 	}
 
 	@Test

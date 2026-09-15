@@ -1090,6 +1090,163 @@ class RoomImportPortableCapturedCellTest {
 		}
 
 	@Test
+	fun `rehashed deleted hierarchy topology corruption blocks detail and reexport`() = runTest {
+		repeat(6) { corruption ->
+			if (corruption > 0) {
+				database.close()
+				database = AppDatabase.testDatabase(
+					ApplicationProvider.getApplicationContext<Application>(),
+				)
+			}
+			seedEvidence()
+			val owner = observation("deleted-owner")
+			val firstDependent = observation(
+				"deleted-dependent-1",
+				aggregateOwnerIdentity = owner.identity,
+				aggregateOwnerSemanticRevision = owner.semanticRevision,
+			)
+			val secondDependent = observation(
+				"deleted-dependent-2",
+				aggregateOwnerIdentity = owner.identity,
+				aggregateOwnerSemanticRevision = owner.semanticRevision,
+			)
+			val value = entry(
+				runDefinitions = listOf(
+					RunDefinition(
+						"run",
+						10L,
+						20L,
+						listOf(owner, firstDependent, secondDependent),
+					),
+				),
+			)
+			val request = DeleteSelectedImportedCellRequest(
+				value.identity,
+				1L,
+				value.contentChecksum,
+				EPOCH,
+				600L,
+			)
+			importer().importEntry(request(value)) shouldBe
+				ImportPortableCapturedCellResult.Applied(1L, 1, 3)
+			RoomDeleteSelectedImportedCell(database, Dispatchers.Unconfined).delete(request) shouldBe
+				DeleteSelectedImportedCellResult.Deleted(1, 1, 3)
+			val markers = database.importedCellDao()
+				.deletedIdentitiesForEntry(value.identity.value, 10)
+			val runMarker = markers.single {
+				it.identityKind == ImportedCellDeletedIdentityEntity.RUN
+			}
+			val scopeMarker = markers.single {
+				it.identityKind == ImportedCellDeletedIdentityEntity.DELETION_SCOPE
+			}
+			val observationMarkers = markers.filter {
+				it.identityKind == ImportedCellDeletedIdentityEntity.OBSERVATION
+			}
+			val changed = when (corruption) {
+				0 -> markers.map { marker ->
+					if (marker == runMarker) marker.rehashed(
+						deletionScopeDigest = "a".repeat(64),
+					) else marker
+				}
+				1 -> markers - scopeMarker
+				2 -> markers + scopeMarker.rehashed(protectedIdentity = "b".repeat(64),
+					deletionScopeDigest = "b".repeat(64))
+				3 -> markers.map { marker ->
+					if (marker == observationMarkers.last()) marker.rehashed(
+						runIdentity = "c".repeat(64),
+					) else marker
+				}
+				4 -> markers.map { marker ->
+					if (marker == observationMarkers.last()) marker.rehashed(
+						aggregateOwnerIdentity = observationMarkers[1].protectedIdentity,
+					) else marker
+				}
+				else -> markers.map { marker ->
+					if (marker == runMarker) marker.rehashed(
+						runStartTimeMs = requireNotNull(marker.runStartTimeMs) + 1L,
+					) else marker
+				}
+			}
+			replaceDeletedAuthority(value.identity.value, changed)
+
+			database.withTransaction {
+				database.authenticateDeletedImportedCellSelectionInTransaction(
+					value.identity,
+					1L,
+					value.contentChecksum,
+				)
+			} shouldBe DeletedImportedCellSelectionAuthentication.Unverifiable
+			var sinkReached = false
+			RoomReexportImportedPortableCapturedCell(database, Dispatchers.Unconfined).reexport(
+				ReexportImportedPortableCapturedCellRequest(
+					value.identity,
+					1L,
+					value.contentChecksum,
+				),
+			) { sinkReached = true } shouldBe ExportPortableCapturedCellResult.Unverifiable(
+				PortableCellUnverifiableReason.IMPORTED_EVIDENCE_UNVERIFIABLE,
+			)
+			sinkReached shouldBe false
+		}
+	}
+
+	@Test
+	fun `deleted authority rejects rehashed fence generation mismatch and malformed source state`() =
+		runTest {
+			seedEvidence()
+			val value = entry()
+			importer().importEntry(request(value)) shouldBe
+				ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+			RoomDeleteSelectedImportedCell(database, Dispatchers.Unconfined).delete(
+				DeleteSelectedImportedCellRequest(
+					value.identity,
+					1L,
+					value.contentChecksum,
+					EPOCH,
+					600L,
+				),
+			) shouldBe DeleteSelectedImportedCellResult.Deleted(1, 1, 1)
+			database.cellCapturedFactDao().insertDeletionGeneration(
+				CellCaptureDeletionGenerationEntity(LOGICAL_LOCAL, "run", EPOCH, 1L, 600L),
+			)
+			database.sourceDeletionFenceDao().insertIfAbsent(
+				SourceDeletionFenceEntity.createLogicalServiceRun(
+					SourceDestinationOwnerEntity.SOURCE_CELL,
+					SessionManifestPurposeCode.SESSION_CAPTURE,
+					LOGICAL_LOCAL,
+					"run",
+					2L,
+					EPOCH,
+					600L,
+				),
+			)
+			database.withTransaction {
+				database.authenticateDeletedImportedCellSelectionInTransaction(
+					value.identity,
+					1L,
+					value.contentChecksum,
+				)
+			} shouldBe DeletedImportedCellSelectionAuthentication.Unverifiable
+
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM source_deletion_fence",
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM cell_capture_deletion_generation",
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_evidence_state SET revision = -1 WHERE id = 1",
+			)
+			database.withTransaction {
+				database.authenticateDeletedImportedCellSelectionInTransaction(
+					value.identity,
+					1L,
+					value.contentChecksum,
+				)
+			} shouldBe DeletedImportedCellSelectionAuthentication.Unverifiable
+		}
+
+	@Test
 	fun `selected imported deletion cancellation and storage failure never publish partial authority`() =
 		runTest {
 			seedEvidence()
@@ -1376,6 +1533,41 @@ class RoomImportPortableCapturedCellTest {
 			cursor.getLong(0)
 		}
 
+	private suspend fun replaceDeletedAuthority(
+		entryIdentity: String,
+		markers: List<ImportedCellDeletedIdentityEntity>,
+	) {
+		val dao = database.importedCellDao()
+		val deletion = requireNotNull(dao.entryDeletion(entryIdentity))
+		val receipt = requireNotNull(dao.entryDeletionReceipt(entryIdentity))
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM imported_cell_entry_deletion_receipt WHERE entry_identity = ?",
+			arrayOf(entryIdentity),
+		)
+		dao.insertEntryDeletionReceipt(
+			ImportedCellEntryDeletionReceiptEntity.create(
+				entryDeletion = deletion,
+				deletedContentChecksum = receipt.deletedContentChecksum,
+				sessionMode = receipt.sessionMode,
+				subscriptionGrouping = receipt.subscriptionGrouping,
+				startTimeMs = markers.filter {
+					it.identityKind == ImportedCellDeletedIdentityEntity.RUN
+				}.minOfOrNull { requireNotNull(it.runStartTimeMs) } ?: receipt.startTimeMs,
+				endTimeMs = markers.filter {
+					it.identityKind == ImportedCellDeletedIdentityEntity.RUN
+				}.maxOfOrNull { requireNotNull(it.runEndTimeMs) } ?: receipt.endTimeMs,
+				receivedAtMs = receipt.receivedAtMs,
+				retainedFromMs = receipt.retainedFromMs,
+				revisionCount = receipt.expectedRevisionCount,
+				receiptCount = receipt.expectedReceiptCount,
+				runCount = receipt.expectedRunCount,
+				observationCount = receipt.expectedObservationCount,
+				protectedIdentities = markers,
+			),
+		)
+		dao.insertDeletedIdentities(markers)
+	}
+
 	/** Rehash all three v1 levels independently; rejection must not rely on a stale checksum. */
 	private fun rehashStoredObservation(entry: PortableCapturedCellEntryV1, observation: PortableCellObservationPayload) {
 		val run = entry.runs.single()
@@ -1450,6 +1642,32 @@ private data class RunDefinition(
 	val availability: PortableCellRunAvailability = PortableCellRunAvailability.RETAINED,
 	val completeness: PortableCellAcquisitionCompleteness = PortableCellAcquisitionCompleteness.COMPLETE,
 	val retentionLoss: Boolean = false,
+)
+
+private fun ImportedCellDeletedIdentityEntity.rehashed(
+	protectedIdentity: String = this.protectedIdentity,
+	runIdentity: String? = this.runIdentity,
+	aggregateOwnerIdentity: String? = this.aggregateOwnerIdentity,
+	deletionScopeDigest: String? = this.deletionScopeDigest,
+	runStartTimeMs: Long? = this.runStartTimeMs,
+	runEndTimeMs: Long? = this.runEndTimeMs,
+) = ImportedCellDeletedIdentityEntity.create(
+	protectedIdentity = protectedIdentity,
+	entryIdentity = entryIdentity,
+	identityKind = identityKind,
+	runIdentity = runIdentity,
+	aggregateOwnerIdentity = aggregateOwnerIdentity,
+	contentChecksum = contentChecksum,
+	includedInLatest = includedInLatest,
+	observationOrdinal = observationOrdinal,
+	deletionScopeDigest = deletionScopeDigest,
+	runStartTimeMs = runStartTimeMs,
+	runEndTimeMs = runEndTimeMs,
+	captureCoverage = captureCoverage,
+	availability = availability,
+	acquisitionCompleteness = acquisitionCompleteness,
+	retentionLoss = retentionLoss,
+	subscriptionGrouping = subscriptionGrouping,
 )
 
 private fun entry(

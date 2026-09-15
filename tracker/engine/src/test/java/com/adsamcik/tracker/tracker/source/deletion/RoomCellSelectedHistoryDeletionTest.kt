@@ -1,11 +1,14 @@
 package com.adsamcik.tracker.tracker.source.deletion
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.DeleteSelectedImportedCell
 import com.adsamcik.tracker.shared.base.database.DeleteSelectedImportedCellRequest
 import com.adsamcik.tracker.shared.base.database.DeleteSelectedImportedCellResult
+import com.adsamcik.tracker.shared.base.database.DeletedCapturedCellSelectionAuthentication
+import com.adsamcik.tracker.shared.base.database.authenticateDeletedCapturedCellSelectionInTransaction
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -106,6 +109,43 @@ class RoomCellSelectedHistoryDeletionTest {
 	}
 
 	@Test
+	fun `positive local identity owner with no runs is invalid replacement scope`() = runTest {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 7L))
+		val logicalId = "known-without-runs"
+		database.sourceSessionDao().insertSession(
+			LogicalTrackingSessionEntity(
+				logicalTrackingId = logicalId,
+				state = "FINALIZED",
+				lifecycleRevision = 1L,
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				startOrigin = "MANUAL",
+				clockDomainId = "boot",
+				startedAtMs = 1L,
+				startedElapsedNanos = 1L,
+				cutoffAtMs = 2L,
+				cutoffElapsedNanos = 2L,
+				completedAtMs = 2L,
+				finalAdmissionOrdinal = 0L,
+				failureCode = null,
+			),
+		)
+		val selection = LocalCellHistorySelection(
+			LocalCellHistoryIdentity(
+				com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity.derive(
+					com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind.LOGICAL_ENTRY,
+					logicalId,
+				).value,
+			),
+		)
+
+		service().delete(DeleteCellHistoryRequest(selection, 900L)) shouldBe
+			DeleteCellHistoryResult.Unverifiable(
+				CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID,
+			)
+	}
+
+	@Test
 	fun `local opaque lookup cap is explicit unavailable rather than false not found`() = runTest {
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 7L))
 		repeat(4_097) { index ->
@@ -129,66 +169,6 @@ class RoomCellSelectedHistoryDeletionTest {
 			)
 		}
 
-		@Test
-		fun `active exact Cell owner blocks without using presentation quiescence as deletion proof`() =
-			runTest {
-				val selection = seedLocalScope(
-					sessionState = "ACTIVE",
-					runState = "ACTIVE",
-					completedAtMs = null,
-					captureSources = listOf(SourceDestinationOwnerEntity.SOURCE_CELL),
-				)
-
-				service().delete(DeleteCellHistoryRequest(selection, 900L)) shouldBe
-					DeleteCellHistoryResult.Blocked(CellHistoryDeletionBlockedReason.ACTIVE_CAPTURE)
-				database.sourceDeletionFenceDao().countAll() shouldBe 0L
-				database.sessionSegmentDao().getById(1L)?.logicalTrackingId shouldBe LOGICAL_ID
-			}
-
-		@Test
-		fun `mixed captured source membership blocks before any Cell payload or presentation mutation`() =
-			runTest {
-				val selection = seedLocalScope(
-					sessionState = "FINALIZED",
-					runState = "FINALIZED",
-					completedAtMs = 200L,
-					captureSources = listOf(
-						SourceDestinationOwnerEntity.SOURCE_CELL,
-						SourceDestinationOwnerEntity.SOURCE_PRESSURE,
-					),
-				)
-
-				service().delete(DeleteCellHistoryRequest(selection, 900L)) shouldBe
-					DeleteCellHistoryResult.Blocked(
-						CellHistoryDeletionBlockedReason.MIXED_OR_INCOMPLETE_CAPTURE_SET,
-					)
-				database.sourceDeletionFenceDao().countAll() shouldBe 0L
-				database.sessionSegmentDao().getById(1L)?.logicalTrackingId shouldBe LOGICAL_ID
-			}
-
-	@Test
-	fun `terminal exact factless Cell session deletes presentation and exact scopes idempotently`() =
-			runTest {
-				val selection = seedLocalScope(
-					sessionState = "FINALIZED",
-					runState = "FINALIZED",
-					completedAtMs = 200L,
-					captureSources = listOf(SourceDestinationOwnerEntity.SOURCE_CELL),
-				)
-				installFactlessCellAuthority()
-				val service = service(ownsLane = true)
-
-				service.delete(DeleteCellHistoryRequest(selection, 900L)) shouldBe
-					DeleteCellHistoryResult.Deleted(1, 1, 0)
-				database.sessionSegmentDao().getById(1L) shouldBe null
-				database.sourceDeletionFenceDao().countAll() shouldBe 1L
-				database.cellCapturedFactDao().deletionGenerationCount() shouldBe 1L
-				service.delete(DeleteCellHistoryRequest(selection, 899L)) shouldBe
-					DeleteCellHistoryResult.Blocked(CellHistoryDeletionBlockedReason.STALE_REQUEST)
-				service.delete(DeleteCellHistoryRequest(selection, 900L)) shouldBe
-					DeleteCellHistoryResult.AlreadyDeleted
-			}
-
 		service().delete(
 			DeleteCellHistoryRequest(
 				LocalCellHistorySelection(LocalCellHistoryIdentity("f".repeat(64))),
@@ -198,6 +178,104 @@ class RoomCellSelectedHistoryDeletionTest {
 			CellHistoryDeletionUnverifiableReason.SELECTION_LOOKUP_BUDGET_EXCEEDED,
 		)
 	}
+
+	@Test
+	fun `active exact Cell owner blocks without using presentation quiescence as deletion proof`() =
+		runTest {
+			val selection = seedLocalScope(
+				sessionState = "ACTIVE",
+				runState = "ACTIVE",
+				completedAtMs = null,
+				captureSources = listOf(SourceDestinationOwnerEntity.SOURCE_CELL),
+			)
+
+			service().delete(DeleteCellHistoryRequest(selection, 900L)) shouldBe
+				DeleteCellHistoryResult.Blocked(CellHistoryDeletionBlockedReason.ACTIVE_CAPTURE)
+			database.sourceDeletionFenceDao().countAll() shouldBe 0L
+			database.sessionSegmentDao().getById(1L)?.logicalTrackingId shouldBe LOGICAL_ID
+		}
+
+	@Test
+	fun `mixed captured source membership blocks before any Cell payload or presentation mutation`() =
+		runTest {
+			val selection = seedLocalScope(
+				sessionState = "FINALIZED",
+				runState = "FINALIZED",
+				completedAtMs = 200L,
+				captureSources = listOf(
+					SourceDestinationOwnerEntity.SOURCE_CELL,
+					SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				),
+			)
+
+			service().delete(DeleteCellHistoryRequest(selection, 900L)) shouldBe
+				DeleteCellHistoryResult.Blocked(
+					CellHistoryDeletionBlockedReason.MIXED_OR_INCOMPLETE_CAPTURE_SET,
+				)
+			database.sourceDeletionFenceDao().countAll() shouldBe 0L
+			database.sessionSegmentDao().getById(1L)?.logicalTrackingId shouldBe LOGICAL_ID
+		}
+
+	@Test
+	fun `terminal exact factless Cell session deletes presentation and exact scopes idempotently`() =
+		runTest {
+			val selection = seedLocalScope(
+				sessionState = "FINALIZED",
+				runState = "FINALIZED",
+				completedAtMs = 200L,
+				captureSources = listOf(SourceDestinationOwnerEntity.SOURCE_CELL),
+			)
+			installFactlessCellAuthority()
+			val service = service(ownsLane = true)
+
+			service.delete(DeleteCellHistoryRequest(selection, 900L)) shouldBe
+				DeleteCellHistoryResult.Deleted(1, 1, 0)
+			database.sessionSegmentDao().getById(1L) shouldBe null
+			database.sourceDeletionFenceDao().countAll() shouldBe 1L
+			database.cellCapturedFactDao().deletionGenerationCount() shouldBe 1L
+			database.cellCapturedFactDao().entryDeletionReceipt(LOGICAL_ID)
+				?.deletedAtMs shouldBe 900L
+			database.cellCapturedFactDao().deletedRuns(LOGICAL_ID, 2).size shouldBe 1
+			database.withTransaction {
+				database.authenticateDeletedCapturedCellSelectionInTransaction(
+					LOGICAL_ID,
+					com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity(
+						selection.identity.value,
+					),
+				)
+			} shouldBe DeletedCapturedCellSelectionAuthentication.Exact(
+				requireNotNull(database.cellCapturedFactDao().entryDeletionReceipt(LOGICAL_ID)),
+			)
+			service.delete(DeleteCellHistoryRequest(selection, 0L)) shouldBe
+				DeleteCellHistoryResult.Blocked(CellHistoryDeletionBlockedReason.STALE_REQUEST)
+			service.delete(DeleteCellHistoryRequest(selection, 899L)) shouldBe
+				DeleteCellHistoryResult.Blocked(CellHistoryDeletionBlockedReason.STALE_REQUEST)
+			service.delete(DeleteCellHistoryRequest(selection, 900L)) shouldBe
+				DeleteCellHistoryResult.AlreadyDeleted
+			service.delete(DeleteCellHistoryRequest(selection, 901L)) shouldBe
+				DeleteCellHistoryResult.AlreadyDeleted
+			database.withTransaction {
+				database.authenticateDeletedCapturedCellSelectionInTransaction(
+					LOGICAL_ID,
+					com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity(
+						selection.identity.value,
+					),
+				)
+			} shouldBe DeletedCapturedCellSelectionAuthentication.Exact(
+				requireNotNull(database.cellCapturedFactDao().entryDeletionReceipt(LOGICAL_ID)),
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_deletion_fence SET fence_generation = 2",
+			)
+			database.withTransaction {
+				database.authenticateDeletedCapturedCellSelectionInTransaction(
+					LOGICAL_ID,
+					com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity(
+						selection.identity.value,
+					),
+				)
+			} shouldBe DeletedCapturedCellSelectionAuthentication.Unverifiable
+		}
 
 	@Test
 	fun `imported action cancellation propagates without mutation typing`() = runTest {

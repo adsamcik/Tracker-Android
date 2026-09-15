@@ -1220,6 +1220,31 @@ class CellCapturedFactMaintenanceTest {
 			exported = entry
 		}
 		val original = requireNotNull(exported)
+		RoomImportPortableCapturedCell(database, Dispatchers.Unconfined).importEntry(
+			ImportPortableCapturedCellRequest(
+				entry = original,
+				receipt = PortableCellImportReceipt(
+					jobId = "same-db-sequence-zero",
+					entryKey = "cell-entry",
+					sourceName = "source.trackercell",
+					receivedAtMs = original.endTimeMs,
+				),
+				expectedCollectedDataEpoch = 0L,
+			),
+		) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		val sameOrigin = database.withTransaction {
+			ImportedCellProductReader(database).selectIdentityInTransaction(original.identity)
+		} as ImportedCellProductEvaluation.Readable
+		val local = database.withTransaction {
+			ImportedCellProductReader(database).readLocalOriginInTransaction(
+				sameOrigin,
+				SourceProductLaneExecutionAuthority { true },
+			)
+		} as ReadLocalPortableCapturedCellResult.Ready
+		PortableCellOriginComparison.areExactFullV1Duplicates(
+			local.entry,
+			sameOrigin.entry,
+		) shouldBe true
 		val target = AppDatabase.testDatabase(
 			ApplicationProvider.getApplicationContext<Application>(),
 		)

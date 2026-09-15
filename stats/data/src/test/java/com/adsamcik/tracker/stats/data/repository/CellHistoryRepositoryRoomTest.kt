@@ -10,6 +10,8 @@ import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEnt
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedDeletedRunEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -179,6 +181,11 @@ class CellHistoryRepositoryRoomTest {
 					1,
 					firstPage.continuation,
 				),
+			) shouldBe CellHistoryRangePage.Unavailable(
+				CellHistoryRangeUnavailableReason.INVALID_CONTINUATION,
+			)
+			repository { true }.range(
+				wallRequest.copy(continuation = firstPage.continuation),
 			) shouldBe CellHistoryRangePage.Unavailable(
 				CellHistoryRangeUnavailableReason.INVALID_CONTINUATION,
 			)
@@ -379,6 +386,99 @@ class CellHistoryRepositoryRoomTest {
 			)
 
 			assertInvalidLocalSelection(repository, selection)
+		}
+
+	@Test
+	fun `authenticated local deletion receipt returns deleted until one fence pair is corrupt`() =
+		runTest {
+			val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
+			persist(listOf(group))
+			val built = group.runs.single()
+			val repository = repository { true }
+			val selection = requireNotNull(
+				(repository.session(built.segment.id) as CellHistoryQuery.Found).entry.selection,
+			) as LocalCellHistorySelection
+			val deletedRun = CellCapturedDeletedRunEntity.create(
+				logicalTrackingId = group.session.logicalTrackingId,
+				serviceRunId = built.run.serviceRunId,
+				sessionSegmentId = built.segment.id,
+				startTimeMs = built.segment.startTimeMs,
+				endTimeMs = built.segment.endTimeMs,
+				collectedDataEpoch = 0L,
+				deletedAtMs = 900L,
+			)
+			database.withTransaction {
+				val dao = database.cellCapturedFactDao()
+				dao.insertEntryDeletionReceipt(
+					CellCapturedEntryDeletionReceiptEntity.create(
+						logicalTrackingId = group.session.logicalTrackingId,
+						entryIdentity = selection.identity.value,
+						collectedDataEpoch = 0L,
+						runFootprints = listOf(deletedRun),
+						deletedAtMs = 900L,
+					),
+				)
+				dao.insertDeletedRuns(listOf(deletedRun))
+				database.sourceDeletionFenceDao().insertIfAbsent(
+					SourceDeletionFenceEntity.createLogicalServiceRun(
+						SourceDestinationOwnerEntity.SOURCE_CELL,
+						SessionManifestPurposeCode.SESSION_CAPTURE,
+						group.session.logicalTrackingId,
+						built.run.serviceRunId,
+						1L,
+						0L,
+						900L,
+					),
+				)
+				dao.insertDeletionGeneration(
+					com.adsamcik.tracker.shared.base.database.data
+						.CellCaptureDeletionGenerationEntity(
+							group.session.logicalTrackingId,
+							built.run.serviceRunId,
+							0L,
+							1L,
+							900L,
+						),
+				)
+				val ids = built.cursors.map { it.logicalFactId }
+				dao.deleteExactCursors(
+					SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+					SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+					ids,
+				)
+				dao.deleteExactRevisionLineages(
+					SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+					SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+					ids,
+				)
+				database.sessionSegmentDao().deleteExact(
+					built.segment.id,
+					group.session.logicalTrackingId,
+					built.run.serviceRunId,
+				)
+				database.sourceEvidenceStateDao().incrementRevision(900L)
+			}
+
+			repeat(2) {
+				(repository.detail(selection) as CellHistoryQuery.Found).entry.let { deleted ->
+					deleted.selection shouldBe selection
+					deleted.state shouldBe CellHistoryProductState.DELETED
+					deleted.causes shouldBe setOf(CellHistoryCause.DELETED)
+					deleted.startTime.raw shouldBe built.segment.startTimeMs
+					deleted.endTime.raw shouldBe built.segment.endTimeMs
+					deleted.observations shouldBe emptyList()
+				}
+			}
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE cell_capture_deletion_generation SET generation = 2 " +
+					"WHERE logical_tracking_id = ? AND service_run_id = ?",
+				arrayOf(group.session.logicalTrackingId, built.run.serviceRunId),
+			)
+			(repository.detail(selection) as CellHistoryQuery.Found).entry.let { corrupt ->
+				corrupt.state shouldBe CellHistoryProductState.FAILED
+				corrupt.causes shouldBe setOf(CellHistoryCause.FACT_INTEGRITY_FAILED)
+				corrupt.observations shouldBe emptyList()
+			}
 		}
 
 	@Test
