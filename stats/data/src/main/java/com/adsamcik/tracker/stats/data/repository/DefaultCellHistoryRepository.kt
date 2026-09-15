@@ -121,14 +121,17 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 	override suspend fun session(segmentId: Long): CellHistoryQuery {
 		require(segmentId > 0L)
 		return withContext(ioDispatcher) {
-			database.withTransaction {
-				val seed = database.trackingHistoryReadDao().segments(listOf(segmentId)).singleOrNull()
-					?: return@withTransaction CellHistoryQuery.NotFound
-				val snapshot = loadSnapshot(expandMembership(listOf(seed)))
-				CellHistoryComposer.composeSelected(seed, snapshot, laneExecutionAuthority)
-					?.let(CellHistoryQuery::Found) ?: CellHistoryQuery.NotFound
-			}
+			database.withTransaction { sessionInTransaction(segmentId) }
 		}
+	}
+
+	internal suspend fun sessionInTransaction(segmentId: Long): CellHistoryQuery {
+		require(segmentId > 0L)
+		val seed = database.trackingHistoryReadDao().segments(listOf(segmentId)).singleOrNull()
+			?: return CellHistoryQuery.NotFound
+		val snapshot = loadSnapshot(expandMembership(listOf(seed)))
+		return CellHistoryComposer.composeSelected(seed, snapshot, laneExecutionAuthority)
+			?.let(CellHistoryQuery::Found) ?: CellHistoryQuery.NotFound
 	}
 
 	override suspend fun imported(selection: ImportedCellHistorySelection): CellHistoryQuery =
@@ -210,6 +213,119 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 		return withContext(ioDispatcher) {
 			database.withTransaction { composeRecent(limit) }
 		}
+	}
+
+	/** Exact local Cell groups for one bounded caller-owned physical candidate generation. */
+	internal suspend fun selectBySegmentIdsInTransaction(
+		segmentIds: List<Long>,
+	): CellComposedPage {
+		require(segmentIds.size <= MAX_RESULTS)
+		require(segmentIds.all { it > 0L } && segmentIds.distinct().size == segmentIds.size)
+		if (segmentIds.isEmpty()) return CellComposedPage.Available(emptyList())
+		val seeds = database.trackingHistoryReadDao().segments(segmentIds)
+		val expansion = expandMembership(seeds)
+		val snapshot = loadSnapshot(expansion)
+		if (snapshot.overflow) return CellComposedPage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+		val logicalIds = seeds.mapNotNull(SessionSegment::logicalTrackingId).toSet()
+		return CellComposedPage.Available(
+			CellHistoryComposer.composeRecent(snapshot, laneExecutionAuthority)
+				.filter { it.logicalTrackingId in logicalIds }
+				.sortedWith(cellCompositionOrder),
+		)
+	}
+
+	/** Intent-first local entries whose complete authenticated capture set is exactly Cell. */
+	internal suspend fun recentCellOnlyInTransaction(limit: Int): CellComposedPage {
+		require(limit in 1..MAX_RESULTS)
+		return loadRecentCellCompositions(limit) { it.capturesOnlyCell }
+	}
+
+	/**
+	 * One caller-owned transaction producing local physical groups and explicit imported rows.
+	 * Cross-origin identity collisions remain typed instead of triggering per-entry portable reads.
+	 */
+	internal suspend fun recentCellHistoryInTransaction(limit: Int): CellSourceComposedPage {
+		require(limit in 1..MAX_RESULTS)
+		val local = when (val page = loadRecentCellCompositions(limit) { true }) {
+			is CellComposedPage.Failed -> return CellSourceComposedPage.Failed(page.cause)
+			is CellComposedPage.Available -> page.entries
+		}
+		val imported = try {
+			importedProductReader.selectRecentInTransaction(limit)
+		} catch (cancelled: kotlinx.coroutines.CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			return CellSourceComposedPage.Failed(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		}
+		if (imported.any {
+			it is ImportedCellProductEvaluation.Unverifiable &&
+				it.reason == com.adsamcik.tracker.shared.base.database.ImportedCellProductFailure
+					.DEPENDENCY_OVERFLOW
+			}
+		) return CellSourceComposedPage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+		val importedRows = imported.map { evaluation ->
+			CellSourceComposedEntry.Imported(
+				evaluation.toPublicCellEntry(
+					overrideFailure = CellHistoryCause.ORIGIN_IDENTITY_CONFLICT.takeIf {
+						evaluation is ImportedCellProductEvaluation.Readable &&
+							evaluation.localOriginHandle != null
+					},
+				),
+			)
+		}
+		val combined = (
+			local.map { CellSourceComposedEntry.Local(it) } + importedRows
+			).sortedWith(cellSourceCompositionOrder)
+			.take(limit)
+		return CellSourceComposedPage.Available(combined)
+	}
+
+	@Suppress("CyclomaticComplexMethod")
+	private suspend fun loadRecentCellCompositions(
+		limit: Int,
+		accept: (ComposedCellEntry) -> Boolean,
+	): CellComposedPage {
+		val accepted = mutableListOf<ComposedCellEntry>()
+		var scanned = 0
+		var beforeStartTimeMs: Long? = null
+		var beforeSegmentId: Long? = null
+		while (accepted.size < limit) {
+			currentCoroutineContext().ensureActive()
+			val remaining = MAX_CANDIDATE_SCAN - scanned
+			if (remaining == 0) {
+				return CellComposedPage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+			}
+			val pageLimit = minOf(CANDIDATE_PAGE_SIZE, remaining)
+			val page = database.cellCapturedFactDao().logicalHistoryCandidatePageInWallRange(
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				SourceDestinationOwnerEntity.SOURCE_CELL,
+				0L,
+				Long.MAX_VALUE,
+				pageLimit,
+				beforeStartTimeMs,
+				beforeSegmentId,
+			)
+			if (page.isEmpty()) break
+			if (page.size > pageLimit ||
+				!page.hasValidRangeKeyset(beforeStartTimeMs, beforeSegmentId)
+			) return CellComposedPage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+			scanned += page.size
+			val seeds = page.map { it.segment }
+			val snapshot = loadSnapshot(expandMembership(seeds))
+			if (snapshot.overflow) {
+				return CellComposedPage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+			}
+			val candidateIds = seeds.mapNotNull(SessionSegment::logicalTrackingId).toSet()
+			accepted += CellHistoryComposer.composeRecent(snapshot, laneExecutionAuthority)
+				.filter { it.logicalTrackingId in candidateIds && accept(it) }
+				.sortedWith(cellCompositionOrder)
+			val last = page.last()
+			beforeStartTimeMs = last.logicalRecencyStartMs
+			beforeSegmentId = last.logicalRecencySegmentId
+			if (page.size < pageLimit) break
+		}
+		return CellComposedPage.Available(accepted.sortedWith(cellCompositionOrder).take(limit))
 	}
 
 	override suspend fun range(request: CellHistoryRangeRequest): CellHistoryRangePage {
@@ -929,6 +1045,54 @@ private fun CellHistoryEntry.toRangeEntry(
 private const val MILLIS_PER_DAY = 86_400_000L
 private const val MAX_ZONE_OFFSET_MILLIS = 18L * 60L * 60L * 1_000L
 private const val MAX_STRUCTURAL_DAYS_PER_RANGE_ENTRY = 370L
+
+internal sealed interface CellComposedPage {
+	data class Available(val entries: List<ComposedCellEntry>) : CellComposedPage
+	data class Failed(val cause: CellHistoryCause) : CellComposedPage
+}
+
+internal sealed interface CellSourceComposedEntry {
+	val entry: CellHistoryEntry
+
+	data class Local(
+		val group: ComposedCellEntry,
+	) : CellSourceComposedEntry {
+		override val entry: CellHistoryEntry get() = group.entry
+	}
+
+	data class Imported(
+		override val entry: CellHistoryEntry,
+	) : CellSourceComposedEntry {
+		init {
+			require(entry.origin is CellHistoryOrigin.Imported)
+		}
+	}
+}
+
+internal sealed interface CellSourceComposedPage {
+	data class Available(
+		val entries: List<CellSourceComposedEntry>,
+	) : CellSourceComposedPage
+
+	data class Failed(val cause: CellHistoryCause) : CellSourceComposedPage
+}
+
+internal val cellCompositionOrder =
+	compareByDescending<ComposedCellEntry> { it.recencyStartTimeMs }
+		.thenByDescending { it.recencySegmentId }
+
+internal val cellSourceCompositionOrder =
+	compareByDescending<CellSourceComposedEntry> { value ->
+		when (value) {
+			is CellSourceComposedEntry.Local -> value.group.recencyStartTimeMs
+			is CellSourceComposedEntry.Imported -> value.entry.startTime.raw
+		}
+	}.thenByDescending { value ->
+		when (value) {
+			is CellSourceComposedEntry.Local -> value.group.recencySegmentId
+			is CellSourceComposedEntry.Imported -> value.entry.endTime.raw
+		}
+	}.thenBy { it is CellSourceComposedEntry.Imported }
 
 internal fun isCellCaptureMembership(source: SessionManifestSourceEntity): Boolean =
 	source.sourceKind == CELL_SOURCE && source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&

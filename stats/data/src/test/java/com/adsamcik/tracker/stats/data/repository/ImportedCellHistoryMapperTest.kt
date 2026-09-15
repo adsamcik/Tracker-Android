@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.DeleteSelectedImportedCellRequest
@@ -119,6 +120,15 @@ class ImportedCellHistoryMapperTest {
 		}
 		repository.imported(origin.selection) shouldBe CellHistoryQuery.Found(public)
 		repository.detail(requireNotNull(public.selection)) shouldBe CellHistoryQuery.Found(public)
+		val sourcePage = database.withTransaction {
+			repository.recentCellHistoryInTransaction(10)
+		} as CellSourceComposedPage.Available
+		sourcePage.entries.single().let { source ->
+			source shouldBe CellSourceComposedEntry.Imported(public)
+			source.entry.origin shouldBe origin
+			source.toString().contains("segment") shouldBe false
+			source.toString().contains("run") shouldBe false
+		}
 		listOf(
 			"source_event_wal",
 			"source_demand",

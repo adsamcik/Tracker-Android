@@ -74,13 +74,46 @@ internal object CellHistoryComposer {
 		.mapNotNull { logicalId ->
 			val members = members(logicalId, snapshot)
 			val entry = composeGroup(logicalId, snapshot, laneExecutionAuthority) ?: return@mapNotNull null
+			val recency = members.maxWithOrNull(
+				compareBy(SessionSegment::startTimeMs, SessionSegment::id),
+			) ?: return@mapNotNull null
 			ComposedCellEntry(
 				logicalTrackingId = logicalId,
-				recencyStartTimeMs = members.maxOfOrNull(SessionSegment::startTimeMs) ?: 0L,
-				recencySegmentId = members.maxOfOrNull(SessionSegment::id) ?: 0L,
+				recencyStartTimeMs = recency.startTimeMs,
+				recencySegmentId = recency.id,
+				physicalSegmentIds = members.map(SessionSegment::id),
+				capturesOnlyCell = hasExactCellOnlyCaptureIntent(logicalId, snapshot),
 				entry = entry,
 			)
 		}.toList()
+
+	internal fun hasExactCellOnlyCaptureIntent(
+		logicalId: String,
+		snapshot: CellHistorySnapshot,
+	): Boolean {
+		val segments = members(logicalId, snapshot)
+		val runIds = segments.mapNotNull(SessionSegment::serviceRunId)
+		if (segments.isEmpty() || runIds.size != segments.size || runIds.distinct().size != runIds.size) {
+			return false
+		}
+		val runs = runIds.mapNotNull(snapshot.runs::get)
+		if (runs.size != runIds.size) return false
+		val manifestsByRun = runs.associate { run ->
+			run.serviceRunId to snapshot.manifestsByRun[run.serviceRunId].orEmpty()
+				.sortedBy(SessionManifestVersionEntity::manifestRevision)
+		}
+		if (!hasValidManifestHistory(logicalId, runs, manifestsByRun, snapshot)) return false
+		return manifestsByRun.values.flatten().all { manifest ->
+			val membership = snapshot.sourcesByManifest[
+				CellManifestKey(logicalId, manifest.manifestRevision)
+			].orEmpty()
+			val captured = membership.filter {
+				it.purpose == SessionManifestPurposeCode.SESSION_CAPTURE
+			}
+			captured.size == 1 && captured.single().sourceKind == CELL_SOURCE &&
+				captured.single().persistenceEligible
+		}
+	}
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private fun composeGroup(
@@ -903,7 +936,17 @@ internal data class ComposedCellEntry(
 	val logicalTrackingId: String,
 	val recencyStartTimeMs: Long,
 	val recencySegmentId: Long,
+	val physicalSegmentIds: List<Long>,
+	val capturesOnlyCell: Boolean,
 	val entry: CellHistoryEntry,
-)
+) {
+	init {
+		require(logicalTrackingId.isNotBlank())
+		require(recencyStartTimeMs >= 0L && recencySegmentId > 0L)
+		require(physicalSegmentIds.isNotEmpty() && physicalSegmentIds.distinct().size ==
+			physicalSegmentIds.size)
+		require(recencySegmentId in physicalSegmentIds)
+	}
+}
 
 internal const val CELL_SOURCE = SourceDestinationOwnerEntity.SOURCE_CELL

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
@@ -103,7 +104,25 @@ class CellHistoryRepositoryRoomTest {
 		selectedEntry.observations shouldHaveSize 2
 		selectedEntry.state shouldBe CellHistoryProductState.PARTIAL
 		selectedEntry.causes shouldBe setOf(CellHistoryCause.SUBSCRIPTION_GROUPING_UNKNOWN)
-		authorityChecks shouldBe 3
+		val grouped = database.withTransaction {
+			repository.selectBySegmentIdsInTransaction(
+				listOf(group.runs.first().segment.id, group.runs.last().segment.id),
+			)
+		} as CellComposedPage.Available
+		grouped.entries.single().let { composed ->
+			composed.logicalTrackingId shouldBe group.session.logicalTrackingId
+			composed.physicalSegmentIds shouldBe group.runs.map { it.segment.id }
+			composed.recencyStartTimeMs shouldBe group.runs.last().segment.startTimeMs
+			composed.recencySegmentId shouldBe group.runs.last().segment.id
+			composed.capturesOnlyCell shouldBe true
+			composed.entry shouldBe selectedEntry
+		}
+		val sourcePage = database.withTransaction {
+			repository.recentCellHistoryInTransaction(1)
+		} as CellSourceComposedPage.Available
+		(sourcePage.entries.single() as CellSourceComposedEntry.Local).group shouldBe
+			grouped.entries.single()
+		authorityChecks shouldBe 5
 	}
 
 	@Test
@@ -227,7 +246,61 @@ class CellHistoryRepositoryRoomTest {
 			range.entries.single().entry.observations shouldBe emptyList()
 			range.entries.single().structuralDayCompleteness shouldBe
 				CellHistoryStructuralDayCompleteness.UNAVAILABLE
+			val sourcePage = database.withTransaction {
+				repository { true }.recentCellOnlyInTransaction(1)
+			} as CellComposedPage.Available
+			sourcePage.entries.single().let { composed ->
+				composed.capturesOnlyCell shouldBe true
+				composed.physicalSegmentIds shouldBe listOf(segment.id)
+				composed.entry.state shouldBe CellHistoryProductState.UNAVAILABLE
+				composed.entry.observations shouldBe emptyList()
+			}
 		}
+
+	@Test
+	fun `bounded source batch reports membership overflow instead of returning partial physical owners`() =
+		runTest {
+			val group = buildGroup(groupIndex = 1, runCount = 129, factRunIndexes = setOf(0))
+			persist(listOf(group))
+
+			database.withTransaction {
+				repository { true }.selectBySegmentIdsInTransaction(
+					listOf(group.runs.first().segment.id),
+				)
+			} shouldBe CellComposedPage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+		}
+
+	@Test
+	fun `Cell fact presence cannot fabricate exact only Cell capture intent`() = runTest {
+		val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
+		persist(listOf(group))
+		val run = group.runs.single()
+		val pressure = run.source.copy(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			consentEpoch = run.source.consentEpoch + 10L,
+			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			writerOwner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+			writerProjectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+			writerProjectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+			writerBindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+		)
+		database.sourceSessionDao().insertManifestSources(listOf(pressure))
+		val checksum = SessionManifestIntegrity.compute(run.manifest, listOf(run.source, pressure))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_version SET manifest_checksum = ? " +
+				"WHERE logical_tracking_id = ? AND manifest_revision = ?",
+			arrayOf(checksum, group.session.logicalTrackingId, run.manifest.manifestRevision),
+		)
+		val repository = repository { true }
+
+		val grouped = database.withTransaction {
+			repository.selectBySegmentIdsInTransaction(listOf(run.segment.id))
+		} as CellComposedPage.Available
+		grouped.entries.single().capturesOnlyCell shouldBe false
+		(database.withTransaction {
+			repository.recentCellOnlyInTransaction(1)
+		} as CellComposedPage.Available).entries shouldBe emptyList()
+	}
 
 	@Test
 	fun `cursor-carried scope exposes a moved current lineage as integrity failure`() = runTest {
