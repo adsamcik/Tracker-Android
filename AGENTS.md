@@ -19,13 +19,25 @@ started merely because tests or validation commands are documented.
   response to their execution is deferred to the single final convergence batch.
 - Static source inspection and review, exact-path staging, and coherent local commits are allowed.
   Mark those commits `IMPLEMENTED_UNVALIDATED`; a written test is not evidence that it passes.
-- Keep source branches out of `dev/v10` and do not push or activate candidate providers/writers.
+- Normally keep source branches out of `dev/v10`; do not push or activate candidate providers/writers.
 - After every planned production and test-source slice exists, freeze one convergence input set.
   Only then run validation in one batch, fix the resulting issues, rerun the complete gates, and
   locally integrate after the full result is proven ready.
 
 Every tracking-infrastructure handover and delegated task must repeat this phase boundary. Do not
 silently resume validation after a context compaction or machine handoff.
+
+### 2026-09-15 local handover exception
+
+The user explicitly requested a committed local `dev/v10` checkpoint containing reviewed tracking
+implementation for a zero-context receiving agent. Local assembly is authorized for this handover
+only, without running the deferred gates. This overrides the earlier no-unvalidated-integration
+instruction, not the implementation-only rule. Label the checkpoint `IMPLEMENTED_UNVALIDATED`:
+it is not implementation completion, integration readiness, provider/writer activation, or release
+approval. Do not push. Retain original source refs and excluded dirty drafts for transport rather
+than deleting them under the generic worktree-cleanup instruction. Never stage or alter the six
+protected root paths or apply frozen importer/awards drafts wholesale. Start with
+`docs/tracking-infrastructure/handover/2026-09-15/README_START_HERE.md` and its standalone prompt.
 
 ## Investigate before editing
 

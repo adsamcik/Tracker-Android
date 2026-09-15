@@ -1,6 +1,52 @@
 # Tracking Infrastructure Verification Matrix
 
-Last updated: 2026-09-14
+Last updated: 2026-09-15
+
+## TI-B315 — Cell imported closure assertions authored, not executed
+
+- Input: `e4bc07df3` + independently statically accepted `f8dd5d6d1`.
+- Assertions: imported-only bounded complete hierarchy; current epoch/floor/tombstones/fences;
+  atomic replay/successor correction; unclamped uncertainty lower bound and exact summary buckets
+  on both incoming and fully rehashed stored graphs, including overflow/corruption shortcuts.
+- Outcome: **IMPLEMENTED_UNVALIDATED**; no test/compile/Gradle/schema/device commands executed.
+- Deferred command cohort: RoomImportPortableCapturedCellTest, ImportedCellDaoTest and
+  ImportedCellEntityTest; exact command in handover SOURCE_MAP_AND_DEFERRED_VALIDATION.md.
+- No imported runtime product, provider authenticity, UI or roundtrip completion inferred.
+
+## TI-B316 — Wi-Fi imported namespace/fence closure assertions authored
+
+- Input: `88c0d310b` + independently statically accepted `315ac6a83`.
+- Assertions: complete bounded opaque owner union for cursors/revisions/aggregate references,
+  identical count/page tuples, cap+1 strict paging, foreign-source/purpose fence authentication,
+  no collision shortcut on exact replay, exact capture deleted-scope precedence, cancellation.
+- Outcome: **IMPLEMENTED_UNVALIDATED**. Focused format/entity/DAO/import tests authored only.
+- Deferred cohort and commands: Wi-Fi block in handover SOURCE_MAP_AND_DEFERRED_VALIDATION.md.
+- Imported reader/reexport/delete/retention/source erase/file/shared UI and radio proof remain open.
+
+## TI-B317 — Activity real-worker retention ordering assertions authored
+
+- Input: independent static acceptance `b13765db7`; both real worker call sites.
+- Assertions: compact imported data before signal deferral/pruning; exactly empty dormant store
+  without owner skips canonical pruning, any of four captured stores authenticates; typed storage
+  rejection rolls back/retries, cancellation propagates; CONTROL/WAL/demand/Location isolation.
+- Outcome: **IMPLEMENTED_UNVALIDATED**. New ActivityRetentionWorkerRobolectricTest plus retained
+  worker mock/Room suites authored; no execution/heap/battery/process evidence.
+- Deferred exact app cohort command: handover SOURCE_MAP_AND_DEFERRED_VALIDATION.md.
+
+## TI-B318 — September 15 local transport assembly, no quality gate
+
+- Input: local first-parent assembly commits, source refs and final ZIP CHECKPOINT_RECEIPT.json.
+- Commands performed: read-only status/log/cherry/ancestry/source diffs, exact git add/commit,
+  local no-ff source merges and final dev/v10 fast-forward; artifact archive/bundle/copy/ZIP creation.
+- Static inspection: additive Room/full-clear unions, exact source purpose/owner, source-local
+  recovery/ingress, worker authentication before WAL pruning, imported Steps/shared UI union;
+  retained constructor fixtures and regression sources from both parents. Not compiler proof.
+- Outcome: **IMPLEMENTED_UNVALIDATED**, not DONE/readiness/completed assembly. No Gradle,
+  compilation, tests, Detekt/lint, schema generation/drift, diff-check, UI/device/battery/CI/release,
+  candidate activation or push. All deferred commands are documented, not run.
+- Debt: stale v28 JSON; possible composed compilation/Hilt/test defects; earlier stopped-run
+  failures; remaining TODO product/actions/runtime work and unresolved AUTO-005. Original source
+  refs and six protected/two frozen draft inventories remain preserved and excluded.
 
 Status meanings: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `IN_REVIEW`, `DONE`. `DONE` requires production repository evidence, not provider registration alone.
 

@@ -1,5 +1,20 @@
 # Tracking Infrastructure Completion TODO
 
+## 2026-09-15 superseding local handover notice
+
+Start with [the zero-context handover](handover/2026-09-15/README_START_HERE.md) and its
+[standalone prompt](handover/2026-09-15/HANDOVER_PROMPT.md). The user explicitly authorized
+local `dev/v10` assembly of reviewed implementation for transfer **without validation**.
+This narrowly supersedes older no-unvalidated-integration passages and chronological local
+head/worktree descriptions below. It does not declare the whole implementation complete or lift
+IMPLEMENTATION_ONLY: author tests but do not run/compile them or run Gradle, quality/schema,
+diff-check, device, CI, activation, or release gates. No push occurred in this handover.
+The historical remote receipt remains `0460f12a54a3550244f8e8ea5c9fb1f5e2ef27d2`;
+it was not refreshed today. Exact final local HEAD is in the package CHECKPOINT_RECEIPT.json.
+Preserve six protected root paths and two frozen unaccepted importer/awards drafts; the ZIP
+quarantines their exact patches/files rather than merging them. The canonical stable-ID TODO
+remains open: transport assembly is not final convergence/readiness. Original refs are retained.
+
 Last updated: 2026-09-14
 
 This is the canonical remaining-work ledger for the six source-to-product verticals. It translates
@@ -21,6 +36,25 @@ product/action slice, freeze the complete convergence input, then run and repair
 suite as one batch.
 
 ## How to use this ledger
+
+### September 15 closure accounting
+
+- [x] TODO-HANDOVER-20260915-001 Close in-progress Cell/Wi-Fi import static-review corrections
+  (`f8dd5d6d1`, `315ac6a83`) and Activity real-worker retention invocation (`b13765db7`), authoring
+  regression sources without execution. TI-D252–254 / TI-B315–317 are static acceptance only.
+- [x] TODO-HANDOVER-20260915-002 Locally assemble reviewed family histories and shared source
+  unions for the requested dev/v10 transport checkpoint; retain original refs and unaccepted drafts.
+- [x] TODO-HANDOVER-20260915-003 Write zero-context prompt, source map, dependency-ordered
+  remaining work, assembly dispositions, quarantine rules and reproducible ZIP generator.
+- [ ] TODO-HANDOVER-20260915-004 Receiving agent reconciles composed remaining source/API/
+  UI/runtime/maintenance call sites and completes every still-open implementation dependency.
+- [ ] TODO-HANDOVER-20260915-005 Resolve/contain product choices (especially AUTO-005 and v28
+  shipped premise), freeze exact complete convergence input, then explicitly lift phase and run
+  the single deferred validation/fix batch. Local transport does not check final readiness items.
+
+For this dated transport checkpoint only, TODO-META-003/005 and TODO-GIT-006's no-integration
+constraints are superseded by TI-D255; they resume as conservative future-work guidance unless
+new user authority says otherwise. All safety, no-validation and no-activation rules remain.
 
 - [ ] TODO-META-001 Update this ledger after every coherent implementation commit.
 - [ ] TODO-META-002 Record exact branch, commit, changed paths, dependency, and deferred validation

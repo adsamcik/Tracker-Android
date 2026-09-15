@@ -1,5 +1,20 @@
 # Tracking Infrastructure Rollout Runbook
 
+## 2026-09-15 superseding local handover notice
+
+Start with [the zero-context handover](handover/2026-09-15/README_START_HERE.md) and its
+[standalone prompt](handover/2026-09-15/HANDOVER_PROMPT.md). The user explicitly authorized
+local `dev/v10` assembly of reviewed implementation for transfer **without validation**.
+This narrowly supersedes older no-unvalidated-integration passages and chronological local
+head/worktree descriptions below. It does not declare the whole implementation complete or lift
+IMPLEMENTATION_ONLY: author tests but do not run/compile them or run Gradle, quality/schema,
+diff-check, device, CI, activation, or release gates. No push occurred in this handover.
+The historical remote receipt remains `0460f12a54a3550244f8e8ea5c9fb1f5e2ef27d2`;
+it was not refreshed today. Exact final local HEAD is in the package CHECKPOINT_RECEIPT.json.
+Preserve six protected root paths and two frozen unaccepted importer/awards drafts; the ZIP
+quarantines their exact patches/files rather than merging them. The canonical stable-ID TODO
+remains open: transport assembly is not final convergence/readiness. Original refs are retained.
+
 Last updated: 2026-09-09
 
 External rollout, deployment, and remote configuration remain unauthorized. The user has now

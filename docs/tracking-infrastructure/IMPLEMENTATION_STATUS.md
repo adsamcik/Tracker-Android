@@ -1,6 +1,45 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-09-14
+Last updated: 2026-09-15
+
+## September 15 zero-context local handover checkpoint
+
+The user's fresh request authorizes local `dev/v10` assembly for transport only. Read
+[handover/2026-09-15/README_START_HERE.md](handover/2026-09-15/README_START_HERE.md), the standalone
+prompt, source map and exhaustive remaining-work guide before resuming. All assembled source is
+**IMPLEMENTED_UNVALIDATED**. No compilation, tests, Gradle, lint, Detekt, schema generation/drift,
+diff-check, emulator/device, UI, battery, CI, activation, release, or push occurred in closure.
+Static inspection and independent reviews are not execution evidence. The original branch refs
+and histories remain available in the package; protected root files and two frozen dirty drafts
+remain untouched and are copied only to an explicitly unaccepted quarantine.
+
+Accepted static closure slices:
+
+- Cell import `e4bc07df3` + correction `f8dd5d6d1`: source-specific opaque hierarchy, complete
+  bounded lineage/receipt ownership and epoch/floor/fence authentication, atomic imported-only
+  replay/correction. Review exposed unclamped uncertainty and quality-summary inconsistencies;
+  the successor enforces nonnegative coverage lower bounds and exact known/weak bucket equations
+  on incoming and stored graphs, with authored boundary/rehashed-corruption tests. TI-D252/TI-B315.
+- Wi-Fi import `88c0d310b` + correction `315ac6a83`: seven source-local tables and typed bounded
+  imported admission; reviewer namespace holes repaired by identical cursor/revision/aggregate
+  reference owner unions plus authenticated all-source/all-purpose opaque fences, strict cap+1
+  paging and exact deletion precedence. Regression sources cover cursorless/orphan ownership,
+  foreign-purpose/source fences, corruption and overflow. TI-D253/TI-B316.
+- Activity retention invocation `b13765db7`: both real maintenance workers compact imported
+  hierarchy before pending-signal deferral/physical deletion; typed failures roll back/retry and
+  cancellation propagates. Only exactly empty dormant captured stores without canonical owner
+  skip captured pruning; any of four captured stores or exact canonical owner requires
+  authentication. Authored worker mock/Room ordering, storage/cancellation and isolation tests.
+  TI-D254/TI-B317. Earlier one-lineage memory-bound repair remains TI-D251/TI-B314.
+
+Local assembly preserves imported Steps origin/actions/qualified numeric effects, shared
+Activity/Pressure recent/live/UI variants, source-local deletion and correction-safe repair,
+all six additive Room families, protected Location provenance, and Cell/Wi-Fi recovery hooks.
+Exact merge decisions and source tip dispositions live in ASSEMBLY_MANIFEST.md and generated
+branch-and-path-inventory.json. TI-D255/TI-B318 records the narrow handover exception and debt.
+There is no completed six-source runtime/product gate, candidate activation, or ready-to-ship claim.
+Cell/Wi-Fi imported read/reexport/deletion/retention/actions, source erase, Ambient Steps completion,
+runtime/shared product convergence, AUTO-005 and the final frozen validation batch remain open.
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and

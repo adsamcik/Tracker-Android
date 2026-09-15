@@ -1,6 +1,58 @@
 # Tracking Infrastructure Decisions
 
-Last updated: 2026-09-12
+Last updated: 2026-09-15
+
+## TI-D252 — Cell imported uncertainty and summary closure
+
+- Status: `IMPLEMENTED_UNVALIDATED`; independent static acceptance through `f8dd5d6d1`.
+- Evidence: import `e4bc07df3` and five-path correction `f8dd5d6d1`; portable constructor,
+  incoming graph and stored-lineage authenticator all enforce unclamped coverage lower-bound
+  arithmetic and exact known-quality = total-minus-unknown / weak = none-plus-poor equations.
+- Decision: fail typed on negative lower bound, arithmetic overflow or rehashed inconsistent
+  summaries before any replay/correction shortcut; do not clamp impossible evidence to zero.
+- Authored coverage: exact boundaries, all buckets, negative/overflow and fully rehashed stored
+  receipt corruption. Tests are not compiled or run. Imported data grants no live authority.
+- Remaining: imported evaluator/product/reexport/roundtrip/deletion producer/retention/actions.
+
+## TI-D253 — Wi-Fi opaque ownership covers retained revisions and foreign fences
+
+- Status: `IMPLEMENTED_UNVALIDATED`; independent static acceptance through `315ac6a83`.
+- Evidence: import `88c0d310b`, corrected DAO/writer and focused tests in `315ac6a83`.
+- Decision: one identical bounded owner relation for count/page includes cursors, immutable
+  revisions and nonnull aggregate references; exact tuples deduplicate, ambiguous owners fail.
+  All-source/all-purpose opaque fence candidates must authenticate before replay/import. Exact
+  Wi-Fi SESSION_CAPTURE deleted-scope precedence is retained. Do not narrow to convenient cursors.
+- Authored coverage: orphan/cursorless/257-item cap paging, contradictory identity, foreign Cell/
+  Wi-Fi CONTROL/unknown-purpose and corrupt fence cases; no execution or provider claim.
+- Remaining: imported evaluator/read/reexport/delete/retention/source erase/file/shared UI.
+
+## TI-D254 — Invoke imported Activity retention before legacy deferral
+
+- Status: `IMPLEMENTED_UNVALIDATED`; independent static acceptance through `b13765db7`.
+- Decision: both real retention workers authenticate and compact imported Activity before
+  pending signals can defer legacy physical/WAL cleanup. Typed rejection requests retry under
+  outer transaction rollback; cancellation propagates. Exactly empty dormant captured stores
+  without exact canonical owner skip canonical pruning; any retained captured row requires it.
+- Evidence: two production workers, new ActivityRetentionWorkerRobolectricTest and two updated
+  worker tests. Ordering, storage/cancellation rollback, compact-before-deferral and CONTROL/
+  demand/Location isolation assertions are authored. No build/test execution.
+- Remaining: Activity source-wide erase, file/actions and runtime/product final convergence.
+
+## TI-D255 — Unvalidated local dev/v10 transport checkpoint is a narrow user exception
+
+- Status: `IMPLEMENTED_UNVALIDATED`; coordinator/date 2026-09-15.
+- Authority: user requested zero-context prompt + ZIP, all reviewed tracking work committed
+  locally onto dev/v10, closing only in-progress efforts. This supersedes no-integration guidance
+  solely for transport. It does not authorize validation, push, activation or destructive migration.
+- Decision: preserve coherent source histories in additive family merges; serialize shared
+  Room/broker/recovery/worker/UI ownership, retain original refs, quarantine excluded drafts.
+  The ZIP contains full committed source/history/docs and exact local HEAD receipt, not secrets.
+- Evidence: first-parent local assembly history and ASSEMBLY_MANIFEST.md; static reviewers
+  resolved concrete Cell/Wi-Fi importer flaws and source union/call-site omissions. Test sources
+  retained/authored without execution. Protected six paths and frozen a347 drafts not integrated.
+- Remaining: exhaustive TODO and CURRENT_STATE_AND_REMAINING_WORK.md. v28 JSON stays stale;
+  released-v27 preservation, compilation/Hilt, tests and all six representative provider/product
+  gates are deferred. Historical remote receipt is not refreshed or advanced by this checkpoint.
 
 Each entry records repository evidence and does not duplicate the final architecture document.
 
