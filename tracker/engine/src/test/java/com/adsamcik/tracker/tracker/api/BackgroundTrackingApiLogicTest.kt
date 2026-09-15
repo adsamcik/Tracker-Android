@@ -106,11 +106,55 @@ class BackgroundTrackingApiLogicTest {
 	}
 
 	@Test
-	fun `scheduler failure cannot prevent immediate cleanup or escape the containment task`() = runTest {
+	fun `scheduler failure retries automatically without a new settings or policy emission`() = runTest {
+		var cleanupStarts = 0
+		var schedulerCalls = 0
+		val retryDelays = mutableListOf<Long>()
+		val failures = mutableListOf<String>()
+
+		val result = runAutomaticControlContainmentRetryLoop(
+			isCurrent = { true },
+			startImmediateCleanup = {
+				cleanupStarts++
+				CompletableDeferred(AutomaticControlRecoveryResult.RETRYABLE)
+			},
+			establishRetryOwnership = {
+				schedulerCalls++
+				if (schedulerCalls == 1) {
+					throw IllegalStateException("scheduler unavailable")
+				}
+			},
+			waitBeforeRetry = { delayMillis -> retryDelays += delayMillis },
+			onAttemptCompleted = { attempt ->
+				attempt.retryOwnershipFailure?.message?.let(failures::add)
+			},
+			initialRetryDelayMillis = 250L,
+			maxRetryDelayMillis = 2_000L,
+		)
+
+		result shouldBe AutomaticControlContainmentLoopResult.Handled(
+			attempts = 2,
+			lastAttempt = AutomaticControlContainmentAttemptResult(
+				cleanupResult = AutomaticControlRecoveryResult.RETRYABLE,
+				retryOwnershipEstablished = true,
+				cleanupFailure = null,
+				retryOwnershipFailure = null,
+			),
+		)
+		cleanupStarts shouldBe 2
+		schedulerCalls shouldBe 2
+		retryDelays shouldBe listOf(250L)
+		failures shouldBe listOf("scheduler unavailable")
+	}
+
+	@Test
+	fun `authority change cancels the containment retry loop before a second cleanup`() = runTest {
+		var current = true
 		var cleanupStarts = 0
 		var schedulerCalls = 0
 
-		val first = runAutomaticControlContainmentAttempt(
+		val result = runAutomaticControlContainmentRetryLoop(
+			isCurrent = { current },
 			startImmediateCleanup = {
 				cleanupStarts++
 				CompletableDeferred(AutomaticControlRecoveryResult.RETRYABLE)
@@ -119,27 +163,40 @@ class BackgroundTrackingApiLogicTest {
 				schedulerCalls++
 				throw IllegalStateException("scheduler unavailable")
 			},
+			waitBeforeRetry = { current = false },
+			initialRetryDelayMillis = 250L,
+			maxRetryDelayMillis = 2_000L,
 		)
 
-		first.isHandled shouldBe false
-		first.cleanupResult shouldBe AutomaticControlRecoveryResult.RETRYABLE
-		first.retryOwnershipEstablished shouldBe false
-		first.retryOwnershipFailure?.message shouldBe "scheduler unavailable"
+		result shouldBe AutomaticControlContainmentLoopResult.Cancelled(attempts = 1)
 		cleanupStarts shouldBe 1
 		schedulerCalls shouldBe 1
+	}
 
-		val laterBoundary = runAutomaticControlContainmentAttempt(
+	@Test
+	fun `containment retry delay grows exponentially and remains capped until cancellation`() = runTest {
+		val delays = mutableListOf<Long>()
+		var current = true
+
+		val result = runAutomaticControlContainmentRetryLoop(
+			isCurrent = { current },
 			startImmediateCleanup = {
-				cleanupStarts++
 				CompletableDeferred(AutomaticControlRecoveryResult.RETRYABLE)
 			},
-			establishRetryOwnership = { schedulerCalls++ },
+			establishRetryOwnership = {
+				throw IllegalStateException("scheduler unavailable")
+			},
+			waitBeforeRetry = { delayMillis ->
+				delays += delayMillis
+				if (delays.size == 4) current = false
+			},
+			initialRetryDelayMillis = 250L,
+			maxRetryDelayMillis = 1_000L,
 		)
 
-		laterBoundary.isHandled shouldBe true
-		laterBoundary.retryOwnershipEstablished shouldBe true
-		cleanupStarts shouldBe 2
-		schedulerCalls shouldBe 2
+		result shouldBe AutomaticControlContainmentLoopResult.Cancelled(attempts = 4)
+		result.attempts shouldBe 4
+		delays shouldBe listOf(250L, 500L, 1_000L, 1_000L)
 	}
 
 	@Test

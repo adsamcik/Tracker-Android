@@ -35,10 +35,12 @@ import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatal
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryResult
+import com.adsamcik.tracker.tracker.api.AutomaticControlContainmentAttemptResult
+import com.adsamcik.tracker.tracker.api.AutomaticControlContainmentLoopResult
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
 import com.adsamcik.tracker.tracker.api.reconcileUnavailableAutomaticControl
-import com.adsamcik.tracker.tracker.api.runAutomaticControlContainmentAttempt
+import com.adsamcik.tracker.tracker.api.runAutomaticControlContainmentRetryLoop
 import com.adsamcik.tracker.tracker.source.model.ActivityAcquisitionCapability
 import com.adsamcik.tracker.tracker.source.model.ActivityAcquisitionFloor
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionFloor
@@ -214,10 +216,12 @@ class SourceBrokerTest {
 			)
 
 			var schedulerCalls = 0
+			val attempts = mutableListOf<AutomaticControlRecoveryResult?>()
 			val unavailable = AutomaticTrackingOperationalAvailability.Unavailable(
 				AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
 			)
-			val first = runAutomaticControlContainmentAttempt(
+			val result = runAutomaticControlContainmentRetryLoop(
+				isCurrent = { true },
 				startImmediateCleanup = {
 					async {
 						requireNotNull(reconcileUnavailableAutomaticControl(
@@ -235,13 +239,30 @@ class SourceBrokerTest {
 				},
 				establishRetryOwnership = {
 					schedulerCalls++
-					throw IllegalStateException("scheduler unavailable")
+					if (schedulerCalls == 1) {
+						throw IllegalStateException("scheduler unavailable")
+					}
 				},
+				waitBeforeRetry = {},
+				onAttemptCompleted = { attempt -> attempts += attempt.cleanupResult },
+				initialRetryDelayMillis = 0L,
+				maxRetryDelayMillis = 0L,
 			)
 
-			first.cleanupResult shouldBe AutomaticControlRecoveryResult.RETRYABLE
-			first.isHandled shouldBe false
-			first.retryOwnershipFailure?.message shouldBe "scheduler unavailable"
+			result shouldBe AutomaticControlContainmentLoopResult.Handled(
+				attempts = 2,
+				lastAttempt = AutomaticControlContainmentAttemptResult(
+					cleanupResult =
+						AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED,
+					retryOwnershipEstablished = true,
+					cleanupFailure = null,
+					retryOwnershipFailure = null,
+				),
+			)
+			attempts shouldBe listOf(
+				AutomaticControlRecoveryResult.RETRYABLE,
+				AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED,
+			)
 			database.sourceBrokerDao()
 				.currentDemands("app:automatic-start:activity")
 				.shouldBeEmpty()
@@ -261,27 +282,6 @@ class SourceBrokerTest {
 			(policyRepository.currentState() as SourcePolicyAuthorityState.Active)
 				.snapshot[TrackingSourceComponent.ACTIVITY]
 				.controlConsentEpoch shouldBe activityPolicy.controlConsentEpoch
-
-			val laterBoundary = runAutomaticControlContainmentAttempt(
-				startImmediateCleanup = {
-					async {
-						requireNotNull(reconcileUnavailableAutomaticControl(
-							availability = unavailable,
-							reconcileDisabled = {
-								monitor.reconcile(
-									enabled = false,
-									useTransitionApi = false,
-									continuousIntervalSeconds = 10,
-									transitions = emptySet(),
-								)
-							},
-						))
-					}
-				},
-				establishRetryOwnership = { schedulerCalls++ },
-			)
-
-			laterBoundary.isHandled shouldBe true
 			schedulerCalls shouldBe 2
 			arbiter.snapshot().owners shouldBe setOf(ActivityRegistrationOwner.ACTIVE_SESSION)
 		}

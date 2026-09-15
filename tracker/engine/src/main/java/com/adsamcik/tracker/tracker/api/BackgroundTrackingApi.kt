@@ -138,6 +138,7 @@ object BackgroundTrackingApi {
 
 	private const val DEFAULT_ACTIVITY_FREQ_SECONDS = 10
 	private const val SOURCE_POLICY_RETRY_DELAY_MILLIS = 250L
+	private const val AUTOMATIC_CONTAINMENT_MAX_RETRY_DELAY_MILLIS = 30_000L
 	@Volatile
 	private var automaticControlAvailability =
 		TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.automaticControl
@@ -201,6 +202,50 @@ object BackgroundTrackingApi {
 				context.applicationContext,
 				BackgroundTrackingApiEntryPoint::class.java
 			).also { entryPoint = it }
+		}
+	}
+
+	internal sealed interface AutomaticControlContainmentLoopResult {
+		val attempts: Int
+
+		data class Handled(
+			override val attempts: Int,
+			val lastAttempt: AutomaticControlContainmentAttemptResult,
+		) : AutomaticControlContainmentLoopResult
+
+		data class Cancelled(
+			override val attempts: Int,
+		) : AutomaticControlContainmentLoopResult
+	}
+
+	internal suspend fun runAutomaticControlContainmentRetryLoop(
+		isCurrent: () -> Boolean,
+		startImmediateCleanup: () -> Deferred<AutomaticControlRecoveryResult>,
+		establishRetryOwnership: () -> Unit,
+		waitBeforeRetry: suspend (Long) -> Unit,
+		initialRetryDelayMillis: Long,
+		maxRetryDelayMillis: Long,
+		onAttemptCompleted: (AutomaticControlContainmentAttemptResult) -> Unit = {},
+	): AutomaticControlContainmentLoopResult {
+		require(initialRetryDelayMillis >= 0L)
+		require(maxRetryDelayMillis >= initialRetryDelayMillis)
+
+		var retryDelayMillis = initialRetryDelayMillis
+		var attempts = 0
+		while (true) {
+			if (!isCurrent()) return AutomaticControlContainmentLoopResult.Cancelled(attempts)
+			val attempt = runAutomaticControlContainmentAttempt(
+				startImmediateCleanup = startImmediateCleanup,
+				establishRetryOwnership = establishRetryOwnership,
+			)
+			attempts++
+			onAttemptCompleted(attempt)
+			if (!isCurrent()) return AutomaticControlContainmentLoopResult.Cancelled(attempts)
+			if (attempt.isHandled) {
+				return AutomaticControlContainmentLoopResult.Handled(attempts, attempt)
+			}
+			waitBeforeRetry(retryDelayMillis)
+			retryDelayMillis = (retryDelayMillis * 2L).coerceAtMost(maxRetryDelayMillis)
 		}
 	}
 
@@ -1082,7 +1127,22 @@ object BackgroundTrackingApi {
 		automaticContainmentJob?.cancel()
 		pendingAutomaticContainmentKey = key
 		automaticContainmentJob = scope.launch {
-			val result = runAutomaticControlContainmentAttempt(
+			val result = runAutomaticControlContainmentRetryLoop(
+				isCurrent = {
+					generation == automaticContainmentGeneration &&
+						pendingAutomaticContainmentKey == key &&
+						automaticControlContainmentKeyOrNull(
+							paramsInitialized = activityAutomationAuthority.paramsInitialized,
+							activePolicyRevision =
+								activityAutomationAuthority.activePolicyRevision,
+							paramsPolicyRevision =
+								activityAutomationAuthority.paramsPolicyRevision,
+							controlConsentEpoch =
+								activityAutomationAuthority.activityControlConsentEpoch,
+							configuredMode = cachedParamsSnapshot().autoTrackingMode,
+							availability = automaticControlAvailability,
+						) == key
+				},
 				startImmediateCleanup = {
 					CompletableDeferred<AutomaticControlRecoveryResult>().also { completion ->
 						disable(context, completion)
@@ -1100,17 +1160,37 @@ object BackgroundTrackingApi {
 				establishRetryOwnership = {
 					getEntryPoint(context).automaticControlRecoveryScheduler().enqueue()
 				},
+				waitBeforeRetry = { delayMillis -> delay(delayMillis) },
+				onAttemptCompleted = { attempt ->
+					attempt.cleanupFailure?.let { error ->
+						Tracebox.log.error(
+							error,
+							TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED,
+						)
+					}
+					attempt.retryOwnershipFailure?.let { error ->
+						Tracebox.log.error(
+							error,
+							TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED,
+						)
+					}
+				},
+				initialRetryDelayMillis = SOURCE_POLICY_RETRY_DELAY_MILLIS,
+				maxRetryDelayMillis = AUTOMATIC_CONTAINMENT_MAX_RETRY_DELAY_MILLIS,
 			)
-			result.cleanupFailure?.let { error ->
-				Tracebox.log.error(error, TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED)
-			}
-			result.retryOwnershipFailure?.let { error ->
-				Tracebox.log.error(error, TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED)
-			}
 			if (generation != automaticContainmentGeneration) return@launch
-			pendingAutomaticContainmentKey = null
-			handledAutomaticContainmentKey = key.takeIf { result.isHandled }
-			automaticContainmentJob = null
+			when (result) {
+				is AutomaticControlContainmentLoopResult.Handled -> {
+					pendingAutomaticContainmentKey = null
+					handledAutomaticContainmentKey = key
+					automaticContainmentJob = null
+				}
+				is AutomaticControlContainmentLoopResult.Cancelled -> {
+					pendingAutomaticContainmentKey = null
+					handledAutomaticContainmentKey = null
+					automaticContainmentJob = null
+				}
+			}
 		}
 	}
 }
