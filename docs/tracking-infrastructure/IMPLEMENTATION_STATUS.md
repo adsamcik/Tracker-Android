@@ -185,6 +185,26 @@ generic evidence through later CONTROL without blocking an exact already-deleted
 full-lineage static review accepted the correction. Transfer, file/UI action, shared UI, automatic/
 ambient product behavior, validation, and device evidence remain open.
 
+The Wi-Fi branch then reaches independently accepted `2bde6f967` for captured portable export
+(`1e8a76ada` plus its correction). The typed identity-free v1 contract and Hilt-bound exporter take
+one bounded selected-entry Room snapshot, authenticate reciprocal run/segment replacement ownership,
+captured manifest/plan/policy/consent/provider/lifecycle/lane/deletion/retention/zone authority,
+source-filtered fact/cursor/generation/WAL/completeness and aggregate closure, then invoke the
+deterministic sink after transaction settlement. The initial review rejected full-purpose-mask
+comparison instead of ingress-equivalent per-demand freshness, false COMPLETE provider coverage,
+missing retirement/closing proof, weak zero/gap plan binding, omitted trailing WAL, per-row Room
+fan-out, and an unrelated-corruption fixture that inserted nothing. `2bde6f967` uses one batched
+authority snapshot, preserves the original full authorization/fingerprint while recomputing the
+qualified mask with overflow-safe freshness, authenticates every CONTROL/AMBIENT sibling without
+emitting it, proves every positive completeness row's retirement/closing/noncapture continuation and
+tail WAL/replay, binds zero/gap to the exact demand/manifest/plan/registration contract, and maps
+provider-unobservable coverage to partial. Fresh static re-review accepted the full lineage. Durable
+source sequence zero remains valid and separate from callback high-water. Output contains only
+identity-free count/band/quality/availability/coverage/completeness and typed gap/state; no SSID,
+BSSID, raw WAL, provider/local ID, Location inference, provider activation, demand, writer, import,
+or UI path is added. Portable import/round trip, file/UI action, shared UI, automatic/ambient
+behavior, validation, and device evidence remain open.
+
 The separate `codex/ti-activity-transfer` branch is independently accepted through `8f0842354`
 for captured Activity portable export. One bounded Room snapshot authenticates exact logical and
 physical replacement ownership, captured fact/cursor/writer authority, immutable plans, provider

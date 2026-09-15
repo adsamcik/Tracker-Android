@@ -4073,3 +4073,23 @@ Each entry records repository evidence and does not duplicate the final architec
 - Portable output contains only identity-free technology/quality/availability/coverage/completeness
   evidence and typed gaps/state. It exposes no tower, subscription, provider, WAL, local identity, or
   Location inference and creates no provider/demand/writer/import/UI/rollout authority.
+
+## TI-D250 — Wi-Fi export separates full authorization from freshness-qualified capture
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-14; initial export `1e8a76ada`, authority correction
+  `2bde6f967`; corrected independent review; TI-B313.
+- One bounded selected-entry Room transaction authenticates exact reciprocal replacement ownership,
+  manifest/plan/policy/consent/provider/lifecycle/lane/deletion/retention/clocks/zone authority and
+  source-filtered fact/cursor/generation/WAL/completeness/aggregate closure before deterministic sink
+  I/O. Batched authority snapshots prohibit per-WAL Room fan-out.
+- The original full authorization member set and fingerprint remain immutable evidence; per-demand
+  observed-time freshness recomputes the qualified purpose mask with overflow-safe clocks. Exactly
+  one matching qualified capture member is required, while every CONTROL/AMBIENT sibling is fully
+  authenticated but never emitted.
+- Durable source sequence zero is separate from callback completeness. Every positive settlement
+  proves capture-demand retirement, closing authorization, compatible noncapture continuation,
+  exact demand/manifest/plan/registration contract, and trailing WAL or legitimate replay.
+  `PROVIDER_COMPLETENESS_UNOBSERVABLE` remains partial rather than fabricated complete.
+- Portable output is identity-free count/band/quality/availability/coverage/completeness plus typed
+  gaps/state. No SSID/BSSID, raw WAL, provider/local identity, Location inference, live authority,
+  import, UI, activation, or rollout is added.

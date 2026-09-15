@@ -2913,3 +2913,34 @@ Deferred focused command:
 The command was not run. Compilation, Room execution, portable import/round trip, file/UI action,
 shared product UI, automatic/ambient behavior, provider/process/reboot/device evidence, integration,
 activation, publication, and release remain unproven.
+
+## TI-B313 — Captured Wi-Fi portable-export contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `2bde6f967` (`1e8a76ada` plus its authority correction).
+Authored typed v1/API/Hilt exporter, DAO/maintenance/qualifier/entity/history corrections, and
+format/Room/source tests cover deterministic identity-free output; durable sequence zero; reciprocal
+run/segment replacement membership; source-filtered fact/cursor/generation/WAL/completeness and
+aggregate closure; ingress-equivalent per-demand freshness; original full member/fingerprint versus
+qualified mask; CONTROL/AMBIENT exclusion; truthful partial provider coverage; zero-callback/gap;
+deletion/retention; missing/trailing/replayed WAL; terminal failure before lag; sink failure;
+cancellation; storage; unrelated isolation; and bounded query count.
+
+Independent review rejected the initial export for comparing the full authorization mask directly
+to freshness-qualified WAL, falsely mapping unobservable coverage to COMPLETE, bypassing capture
+retirement/closing authority for fact-backed settlement, weak zero/gap plan binding, silently omitted
+trailing WAL, per-row Room fan-out, and a corruption test whose duplicate insert was ignored.
+`2bde6f967` reconstructs all full members from one batched authority snapshot, recomputes qualified
+purpose per ingress semantics, proves exact retirement/closing/noncapture continuation and tail WAL/
+replay for every positive completeness row, binds the exact demand/manifest/plan/registration
+contract, and fixes the distinct corruption fixture. Fresh full-lineage static review returned
+ACCEPT with no remaining blocker.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:api:testAndroidHostTest --tests '*WifiCapturedPortableFormatV1Test' :stats:data:testDebugUnitTest --tests '*WifiHistoryRepositoryRoomTest' :tracker:engine:testDebugUnitTest --tests '*WifiWalQualificationAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, portable import/round trip, file/UI action,
+shared product UI, automatic/ambient behavior, provider/process/reboot/device evidence, integration,
+activation, publication, and release remain unproven.

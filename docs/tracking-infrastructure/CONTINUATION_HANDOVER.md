@@ -145,6 +145,21 @@ preflight high-water participates in the time fence, while newer such capture ev
 No provider activation or hidden demand is introduced. Transfer, file/UI actions, shared UI,
 automatic/ambient product behavior, and validation remain open.
 
+Captured Wi-Fi portable export is independently accepted through `2bde6f967` (`1e8a76ada` plus its
+authority correction). The deterministic identity-free v1 exporter resolves one selected logical
+entry and authenticates reciprocal replacement membership, exact captured manifest/plan/policy/
+consent/provider/lifecycle/lane/deletion/retention/zone authority, fact/cursor/generation/WAL/
+completeness and aggregate closure in one bounded Room transaction; sink I/O follows settlement.
+Production source sequence zero is valid and distinct from callback completeness. Full authorization
+members and fingerprint are authenticated separately from the per-demand freshness-qualified mask;
+exactly one qualified capture member is emitted while CONTROL/AMBIENT siblings remain nonproduct.
+Every positive completeness row proves capture-demand retirement, closing authorization, compatible
+noncapture continuation, exact plan contract, and its trailing WAL or replay. Unobservable provider
+coverage remains partial. Batched authority snapshots replace per-WAL query fan-out. Output contains
+only identity-free observation count, band/quality/availability/coverage/completeness and typed gaps;
+no SSID/BSSID, raw WAL, provider/local IDs, or Location inference. Portable import/round trip,
+file/UI actions, shared UI, automatic/ambient product behavior, and validation remain open.
+
 Activity portable export is independently accepted through `8f0842354`. Its one-transaction reader
 expands all retained rows behind each canonical 64-hex delivery identity, authenticates the exact
 observed-time authorization revision and production per-demand freshness, recomputes the qualified

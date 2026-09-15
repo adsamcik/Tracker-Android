@@ -922,6 +922,18 @@ capture-bearing WAL above the preflight high-water contributes to staleness. Wi-
 unchecked until transfer, shared UI/actions, automatic/ambient product behavior, and complete
 scenarios exist.
 
+Accepted portable-export commits `1e8a76ada` and `2bde6f967` implement further bounded portions of
+WIFI-001/003/004/005/010/011/013 and PRIV-006/011. One selected-entry transaction uses a batched
+authority snapshot to authenticate exact reciprocal replacement ownership, ingress-equivalent
+per-demand freshness and full authorization fingerprints, immutable source authority, settlement,
+fact/WAL/completeness/aggregate closure, deletion, retention, clocks, and zone. Durable source
+sequence zero is distinct from callback completeness; provider-unobservable coverage is partial;
+every positive settlement proves demand retirement, closing authorization, exact plan contract and
+tail WAL/replay. CONTROL/AMBIENT siblings are authenticated but never emitted. Only deterministic
+identity-free Wi-Fi evidence reaches the post-transaction sink. Wi-Fi TODOs remain unchecked until
+portable import/round trip, shared file/UI actions, automatic/ambient behavior, and complete
+scenarios exist.
+
 ## Cell vertical
 
 - [ ] TODO-CELL-001 Complete one app-scoped Cell callback owner and stable durable delivery identity
