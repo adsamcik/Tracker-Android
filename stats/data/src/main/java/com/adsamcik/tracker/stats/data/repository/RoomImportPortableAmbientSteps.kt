@@ -182,17 +182,23 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			if (archiveCount >= ImportedAmbientStepsDao.MAX_ARCHIVES_PER_DAY) {
 				dependencyOverflow()
 			}
+			if (!importedAmbientStepsLineageAdditionFits(
+					existingArchiveMemberCount = lineage.archiveDays.size,
+					existingReceiptCount = lineage.receipts.size,
+					incomingArchiveMemberCount = archive.days.size,
+				)
+			) dependencyOverflow()
+			val latestDurableTime = maxOf(
+				lineage.revisions.lastOrNull()?.header?.receivedAtMs ?: 0L,
+				lineage.receipts.maxOfOrNull { it.receivedAtMs } ?: 0L,
+			)
+			if (request.receipt.receivedAtMs < latestDurableTime) {
+				blocked(PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT)
+			}
 			val identical = lineage.revisions.singleOrNull { it.day == day }
 			if (identical != null) {
 				AmbientStepsDayImportPlan(day, identical.header.importRevision, append = false)
 			} else {
-				val latestDurableTime = maxOf(
-					lineage.revisions.lastOrNull()?.header?.receivedAtMs ?: 0L,
-					lineage.receipts.maxOfOrNull { it.receivedAtMs } ?: 0L,
-				)
-				if (request.receipt.receivedAtMs < latestDurableTime) {
-					blocked(PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT)
-				}
 				if (lineage.revisions.size >= ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY) {
 					unverifiable(PortableAmbientStepsImportUnverifiableReason.REVISION_OVERFLOW)
 				}
@@ -746,6 +752,19 @@ private data class NewImportedAmbientStepsRows(
 	val facts: Long = 0L,
 	val gaps: Long = 0L,
 )
+
+internal fun importedAmbientStepsLineageAdditionFits(
+	existingArchiveMemberCount: Int,
+	existingReceiptCount: Int,
+	incomingArchiveMemberCount: Int,
+): Boolean {
+	require(existingArchiveMemberCount >= 0)
+	require(existingReceiptCount >= 0)
+	require(incomingArchiveMemberCount > 0)
+	return existingArchiveMemberCount.toLong() + incomingArchiveMemberCount <=
+		ImportedAmbientStepsDao.MAX_ARCHIVE_MEMBERS_PER_LINEAGE &&
+		existingReceiptCount.toLong() + 1L <= ImportedAmbientStepsDao.MAX_RECEIPTS_PER_LINEAGE
+}
 
 private data class StructuralAmbientStepsDayKey(
 	val epochDay: Long,

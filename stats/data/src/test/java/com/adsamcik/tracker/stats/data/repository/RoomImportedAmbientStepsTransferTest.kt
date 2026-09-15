@@ -244,6 +244,7 @@ class RoomImportedAmbientStepsTransferTest {
 			PortableAmbientStepsImportBlockedReason.RECEIPT_CONFLICT,
 		)
 		val correction = archive(completeDay(LocalDate.of(2026, 1, 4), 6L))
+		val correctionReceivedAtMs = initial.receipt.receivedAtMs + 100L
 		importer(database).importArchive(
 			request(
 				correction,
@@ -254,7 +255,29 @@ class RoomImportedAmbientStepsTransferTest {
 		) shouldBe ImportPortableAmbientStepsResult.Blocked(
 			PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT,
 		)
-		readReady(database, archive).archive shouldBe archive
+		importer(database).importArchive(
+			request(
+				correction,
+				jobId = "later-correction",
+				archiveKey = "later-correction",
+				receivedAtMs = correctionReceivedAtMs,
+			),
+		) shouldBe applied(correction, 1)
+		val unseenArchive = archive(
+			completeDay(LocalDate.of(2026, 1, 3), 2L),
+			archive.days.single(),
+		)
+		importer(database).importArchive(
+			request(
+				unseenArchive,
+				jobId = "unseen-stale-membership",
+				archiveKey = "unseen-stale-membership",
+				receivedAtMs = correctionReceivedAtMs - 1L,
+			),
+		) shouldBe ImportPortableAmbientStepsResult.Blocked(
+			PortableAmbientStepsImportBlockedReason.CORRECTION_CONFLICT,
+		)
+		readReady(database, correction).archive shouldBe correction
 	}
 
 	@Test
@@ -347,6 +370,34 @@ class RoomImportedAmbientStepsTransferTest {
 			257,
 		).size shouldBe 256
 		readReady(database, initial).archive shouldBe initial
+	}
+
+	@Test
+	fun `lineage dependency admission accepts exact bounds and rejects overflow`() {
+		importedAmbientStepsLineageAdditionFits(
+			existingArchiveMemberCount =
+				com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
+					.MAX_ARCHIVE_MEMBERS_PER_LINEAGE - AmbientStepsPortableFormatV1.MAX_DAYS,
+			existingReceiptCount =
+				com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
+					.MAX_RECEIPTS_PER_LINEAGE - 1,
+			incomingArchiveMemberCount = AmbientStepsPortableFormatV1.MAX_DAYS,
+		) shouldBe true
+		importedAmbientStepsLineageAdditionFits(
+			existingArchiveMemberCount =
+				com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
+					.MAX_ARCHIVE_MEMBERS_PER_LINEAGE -
+					AmbientStepsPortableFormatV1.MAX_DAYS + 1,
+			existingReceiptCount = 0,
+			incomingArchiveMemberCount = AmbientStepsPortableFormatV1.MAX_DAYS,
+		) shouldBe false
+		importedAmbientStepsLineageAdditionFits(
+			existingArchiveMemberCount = 0,
+			existingReceiptCount =
+				com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
+					.MAX_RECEIPTS_PER_LINEAGE,
+			incomingArchiveMemberCount = 1,
+		) shouldBe false
 	}
 
 	@Test
