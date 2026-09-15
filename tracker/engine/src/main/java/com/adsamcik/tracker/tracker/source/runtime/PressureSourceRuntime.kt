@@ -6,8 +6,12 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener2
 import android.hardware.SensorManager
 import android.os.SystemClock
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierBlockedReason
+import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierResult
+import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierRetryableReason
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.altitude.BarometricAltitudeFormula
 import com.adsamcik.tracker.tracker.source.ingress.PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION
@@ -249,6 +253,81 @@ class PressureSourceRuntime @Inject constructor(
 				runtimeClaim = null
 			}
 		}
+	}
+
+	/**
+	 * Settles only an already-authorized local Pressure provider before source-wide payload erase.
+	 *
+	 * Revoking consent does not itself retire callbacks. A still-active capture authorization blocks
+	 * this method unless an earlier stop already closed callback entry at an observed cutoff and left
+	 * the exact provider retirement pending. No provider is started or replaced here.
+	 */
+	internal suspend fun establishSourceEraseBarrier(
+		expectedCollectedDataEpoch: Long,
+	): PressureSourceEraseBarrierResult {
+		require(expectedCollectedDataEpoch >= 0L)
+		fenceCapacityResume()
+		return lifecycleMutex.withLock {
+			val activeRegistration = registration ?: return@withLock
+				PressureSourceEraseBarrierResult.NoLocalProvider
+			if (activeRegistration.state.collectedDataEpoch != expectedCollectedDataEpoch) {
+				return@withLock PressureSourceEraseBarrierResult.Blocked(
+					PressureSourceEraseBarrierBlockedReason.STALE_LIFECYCLE,
+				)
+			}
+			val exactStoppingRetirement = hasExactObservedStoppingRetirement(activeRegistration)
+			if (!exactStoppingRetirement &&
+				activeRegistration.authorization.authorizedMembers.any { member ->
+					member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+				}
+			) {
+				return@withLock PressureSourceEraseBarrierResult.Blocked(
+					PressureSourceEraseBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
+				)
+			}
+
+			val acknowledgement = shutdownLocked(null)
+			if (acknowledgement.source != SourceKind.PRESSURE ||
+				acknowledgement.sourceInstanceId.value != activeRegistration.state.sourceInstanceId ||
+				acknowledgement.registrationGeneration !=
+				activeRegistration.state.registrationGeneration
+			) {
+				return@withLock PressureSourceEraseBarrierResult.Blocked(
+					PressureSourceEraseBarrierBlockedReason.STALE_LIFECYCLE,
+				)
+			}
+			if (!acknowledgement.appDrainComplete) {
+				return@withLock PressureSourceEraseBarrierResult.Retryable(
+					PressureSourceEraseBarrierRetryableReason.CALLBACK_DRAIN_TIMED_OUT,
+				)
+			}
+			if (acknowledgement.registrationRemovalOutcome != RegistrationRemovalOutcome.REMOVED) {
+				return@withLock PressureSourceEraseBarrierResult.Retryable(
+					PressureSourceEraseBarrierRetryableReason.PROVIDER_REMOVAL_FAILED,
+				)
+			}
+			clearClaimIfReleased(acknowledgement)
+			PressureSourceEraseBarrierResult.Established(
+				activeRegistration.state.registrationGeneration,
+			)
+		}
+	}
+
+	private fun hasExactObservedStoppingRetirement(
+		activeRegistration: SourceRegistration,
+	): Boolean = synchronized(callbackLock) {
+		val intent = retirementIntent ?: return@synchronized false
+		val authorizationEffectiveAt =
+			activeRegistration.authorization.effectiveElapsedRealtimeNanos
+		val requestedCutoff = cutoffElapsedNanos
+		terminalSettlementInProgress &&
+			!acceptingCallbacks &&
+			intent.registration.samePressureRegistrationAs(activeRegistration) &&
+			intent.listener === listener &&
+			intent.callbackToken === callbackToken &&
+			!callbackGate.accepts(intent.callbackToken) &&
+			intent.retiredElapsedRealtimeNanos >= authorizationEffectiveAt &&
+			(requestedCutoff == null || intent.retiredElapsedRealtimeNanos >= requestedCutoff)
 	}
 
 	private fun clearClaimIfReleased(acknowledgement: SourceStopAck) {
