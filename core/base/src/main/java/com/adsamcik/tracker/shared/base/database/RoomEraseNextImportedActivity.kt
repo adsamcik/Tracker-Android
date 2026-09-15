@@ -357,27 +357,13 @@ class RoomEraseNextImportedActivity internal constructor(
 			database.sourceEvidenceStateDao().get()?.revision ?: abortCorrupt(),
 			1L,
 		)
-		val redactedReceipt = ImportedActivityRetentionReceiptEntity.create(
-			entryIdentity = receipt.entryIdentity,
-			collectedDataEpoch = expectedCollectedDataEpoch,
+		val redactedReceipt = ImportedActivityRetentionReceiptEntity.createRedacted(
+			original = receipt,
 			sourceEvidenceRevision = nextRevision,
-			retainedFromMs = database.sourceEvidenceStateDao().get()?.retainedFromMs ?: abortCorrupt(),
 			retainedAtMs = deletedAtMs,
-			latestImportRevision = receipt.latestImportRevision,
-			latestContentChecksum = receipt.latestContentChecksum,
-			startTimeMs = 0L,
-			endTimeMs = 0L,
-			receivedAtMs = 0L,
-			revisionCount = receipt.revisionCount,
-			importReceiptCount = receipt.importReceiptCount,
-			runRowCount = receipt.runRowCount,
-			zoneEpochRowCount = receipt.zoneEpochRowCount,
-			windowRowCount = receipt.windowRowCount,
-			fragmentRowCount = receipt.fragmentRowCount,
 			runDeletions = finalRunDeletions,
 			sourceFences = finalSourceFences,
 			markers = markers,
-			lineageAuthorityChecksum = receipt.lineageAuthorityChecksum,
 		)
 		if (dao.updateRetentionReceipt(redactedReceipt) != 1 ||
 			database.sourceEvidenceStateDao().incrementRevision(deletedAtMs) != 1

@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.toImportedActivityRetainedTemporalAuthority
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -297,6 +298,7 @@ class RoomTruncateImportedActivityRetention internal constructor(
 		val entryScopes = latest.entry.runs.mapTo(hashSetOf()) { it.deletionScopeDigest.value }
 		val entryRunDeletions = runDeletions.filter { it.runIdentity in entryRunIds }
 		val entrySourceFences = sourceFences.filter { it.scopeIdentityDigest in entryScopes }
+		val temporalAuthority = latest.entry.toImportedActivityRetainedTemporalAuthority()
 		val retainedReceipt = ImportedActivityRetentionReceiptEntity.create(
 			entryIdentity = identity,
 			collectedDataEpoch = state.collectedDataEpoch,
@@ -319,6 +321,10 @@ class RoomTruncateImportedActivityRetention internal constructor(
 			markers = markers,
 			lineageAuthorityChecksum =
 				ImportedActivityRetentionReceiptEntity.lineageAuthorityChecksum(headers, receipts),
+			latestMemberStartTimeMs = temporalAuthority.latestMemberStartTimeMs,
+			latestMemberIdentity = temporalAuthority.latestMemberIdentity,
+			structuralZoneRanges = temporalAuthority.ranges,
+			structuralZoneCoverageComplete = temporalAuthority.complete,
 		)
 		val authenticatedRows = ImportedActivityRetentionAuthenticatedRows(
 			retainedReceipt,

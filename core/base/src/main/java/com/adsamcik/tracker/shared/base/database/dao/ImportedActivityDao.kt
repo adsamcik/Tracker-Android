@@ -223,6 +223,179 @@ abstract class ImportedActivityDao {
 		beforeIdentity: String?,
 	): List<ImportedActivityHistoryCandidate>
 
+	/** Latest imported entries ordered by their newest physical member tuple before LIMIT. */
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_activity_entry_revision
+		  GROUP BY identity
+		), newest_run AS (
+		  SELECT run.*
+		  FROM imported_activity_run AS run
+		  INNER JOIN latest_revision AS latest
+		    ON latest.identity = run.entry_identity
+		   AND latest.import_revision = run.entry_import_revision
+		  WHERE NOT EXISTS (
+		    SELECT 1
+		    FROM imported_activity_run AS newer
+		    WHERE newer.entry_identity = run.entry_identity
+		      AND newer.entry_import_revision = run.entry_import_revision
+		      AND (
+		        newer.start_time_ms > run.start_time_ms
+		        OR (newer.start_time_ms = run.start_time_ms AND newer.identity > run.identity)
+		      )
+		  )
+		), candidate AS (
+		  SELECT entry.identity,
+		         entry.import_revision,
+		         entry.content_checksum,
+		         entry.start_time_ms,
+		         entry.end_time_ms,
+		         entry.received_at_ms,
+		         'LIVE' AS candidate_state,
+		         COALESCE(newest.start_time_ms, entry.start_time_ms) AS recency_start_time_ms,
+		         COALESCE(newest.identity, entry.identity) AS recency_member_identity
+		  FROM imported_activity_entry_revision AS entry
+		  INNER JOIN latest_revision AS latest
+		    ON latest.identity = entry.identity
+		   AND latest.import_revision = entry.import_revision
+		  LEFT JOIN newest_run AS newest
+		    ON newest.entry_identity = entry.identity
+		   AND newest.entry_import_revision = entry.import_revision
+		  UNION ALL
+		  SELECT retained.entry_identity,
+		         retained.latest_import_revision,
+		         retained.latest_content_checksum,
+		         retained.start_time_ms,
+		         retained.end_time_ms,
+		         retained.received_at_ms,
+		         'RETAINED' AS candidate_state,
+		         COALESCE(retained.latest_member_start_time_ms, retained.start_time_ms),
+		         COALESCE(retained.latest_member_identity, retained.entry_identity)
+		  FROM imported_activity_retention_receipt AS retained
+		  WHERE NOT EXISTS (
+		      SELECT 1 FROM imported_activity_entry_deletion AS deletion
+		      WHERE deletion.entry_identity = retained.entry_identity
+		    )
+		)
+		SELECT * FROM candidate
+		WHERE :beforeRecencyStartTimeMs IS NULL
+		   OR recency_start_time_ms < :beforeRecencyStartTimeMs
+		   OR (
+		     recency_start_time_ms = :beforeRecencyStartTimeMs
+		     AND recency_member_identity < COALESCE(:beforeRecencyMemberIdentity, '')
+		   )
+		ORDER BY recency_start_time_ms DESC, recency_member_identity DESC
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun orderedRecentCandidatePage(
+		limit: Int,
+		beforeRecencyStartTimeMs: Long?,
+		beforeRecencyMemberIdentity: String?,
+	): List<ImportedActivityOrderedHistoryCandidate>
+
+	/** Wall-range candidates are filtered before LIMIT and ordered by newest physical member. */
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_activity_entry_revision
+		  GROUP BY identity
+		), newest_run AS (
+		  SELECT run.*
+		  FROM imported_activity_run AS run
+		  INNER JOIN latest_revision AS latest
+		    ON latest.identity = run.entry_identity
+		   AND latest.import_revision = run.entry_import_revision
+		  WHERE NOT EXISTS (
+		    SELECT 1
+		    FROM imported_activity_run AS newer
+		    WHERE newer.entry_identity = run.entry_identity
+		      AND newer.entry_import_revision = run.entry_import_revision
+		      AND (
+		        newer.start_time_ms > run.start_time_ms
+		        OR (newer.start_time_ms = run.start_time_ms AND newer.identity > run.identity)
+		      )
+		  )
+		), candidate AS (
+		  SELECT entry.identity,
+		         entry.import_revision,
+		         entry.content_checksum,
+		         entry.start_time_ms,
+		         entry.end_time_ms,
+		         entry.received_at_ms,
+		         'LIVE' AS candidate_state,
+		         COALESCE(newest.start_time_ms, entry.start_time_ms) AS recency_start_time_ms,
+		         COALESCE(newest.identity, entry.identity) AS recency_member_identity
+		  FROM imported_activity_entry_revision AS entry
+		  INNER JOIN latest_revision AS latest
+		    ON latest.identity = entry.identity
+		   AND latest.import_revision = entry.import_revision
+		  LEFT JOIN newest_run AS newest
+		    ON newest.entry_identity = entry.identity
+		   AND newest.entry_import_revision = entry.import_revision
+		  WHERE entry.start_time_ms < :toExclusiveMs
+		    AND entry.end_time_ms > :fromInclusiveMs
+		  UNION ALL
+		  SELECT retained.entry_identity,
+		         retained.latest_import_revision,
+		         retained.latest_content_checksum,
+		         retained.start_time_ms,
+		         retained.end_time_ms,
+		         retained.received_at_ms,
+		         'RETAINED' AS candidate_state,
+		         COALESCE(retained.latest_member_start_time_ms, retained.start_time_ms),
+		         COALESCE(retained.latest_member_identity, retained.entry_identity)
+		  FROM imported_activity_retention_receipt AS retained
+		  WHERE retained.start_time_ms < :toExclusiveMs
+		    AND retained.end_time_ms > :fromInclusiveMs
+		    AND NOT EXISTS (
+		      SELECT 1 FROM imported_activity_entry_deletion AS deletion
+		      WHERE deletion.entry_identity = retained.entry_identity
+		    )
+		)
+		SELECT * FROM candidate
+		WHERE :beforeRecencyStartTimeMs IS NULL
+		   OR recency_start_time_ms < :beforeRecencyStartTimeMs
+		   OR (
+		     recency_start_time_ms = :beforeRecencyStartTimeMs
+		     AND recency_member_identity < COALESCE(:beforeRecencyMemberIdentity, '')
+		   )
+		ORDER BY recency_start_time_ms DESC, recency_member_identity DESC
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun orderedRangeCandidatePage(
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
+		limit: Int,
+		beforeRecencyStartTimeMs: Long?,
+		beforeRecencyMemberIdentity: String?,
+	): List<ImportedActivityOrderedHistoryCandidate>
+
+	/** One-row imported Activity mutation fingerprint for continuation invalidation. */
+	@Query(
+		"""
+		SELECT
+		  (SELECT COUNT(*) FROM imported_activity_entry_revision) AS entry_revision_count,
+		  (SELECT COUNT(*) FROM imported_activity_receipt) AS receipt_count,
+		  (SELECT COUNT(*) FROM imported_activity_run) AS run_count,
+		  (SELECT COUNT(*) FROM imported_activity_zone_epoch) AS zone_epoch_count,
+		  (SELECT COUNT(*) FROM imported_activity_window) AS window_count,
+		  (SELECT COUNT(*) FROM imported_activity_fragment) AS fragment_count,
+		  (SELECT COUNT(*) FROM imported_activity_entry_deletion) AS entry_deletion_count,
+		  (SELECT COUNT(*) FROM imported_activity_entry_deletion_receipt) AS
+		    entry_deletion_receipt_count,
+		  (SELECT COUNT(*) FROM imported_activity_deletion_generation) AS
+		    deletion_generation_count,
+		  (SELECT COUNT(*) FROM imported_activity_retention_receipt) AS retention_receipt_count,
+		  (SELECT COUNT(*) FROM imported_activity_retained_identity) AS retained_identity_count
+		""",
+	)
+	abstract suspend fun productRevisionSnapshot(): ImportedActivityProductRevisionSnapshot
+
 	/** Read-only continuation probe; deleted retained shells are intentionally not actionable. */
 	@Query(
 		"""
@@ -841,6 +1014,60 @@ data class ImportedActivityHistoryCandidate(
 	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
 	@ColumnInfo(name = "candidate_state") val candidateState: String = IMPORTED_ACTIVITY_CANDIDATE_LIVE,
 )
+
+data class ImportedActivityOrderedHistoryCandidate(
+	val identity: String,
+	@ColumnInfo(name = "import_revision") val importRevision: Long,
+	@ColumnInfo(name = "content_checksum") val contentChecksum: String,
+	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
+	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
+	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+	@ColumnInfo(name = "candidate_state") val candidateState: String,
+	@ColumnInfo(name = "recency_start_time_ms") val recencyStartTimeMs: Long?,
+	@ColumnInfo(name = "recency_member_identity") val recencyMemberIdentity: String?,
+) {
+	fun toHistoryCandidate() = ImportedActivityHistoryCandidate(
+		identity = identity,
+		importRevision = importRevision,
+		contentChecksum = contentChecksum,
+		startTimeMs = startTimeMs,
+		endTimeMs = endTimeMs,
+		receivedAtMs = receivedAtMs,
+		candidateState = candidateState,
+	)
+}
+
+data class ImportedActivityProductRevisionSnapshot(
+	@ColumnInfo(name = "entry_revision_count") val entryRevisionCount: Long,
+	@ColumnInfo(name = "receipt_count") val receiptCount: Long,
+	@ColumnInfo(name = "run_count") val runCount: Long,
+	@ColumnInfo(name = "zone_epoch_count") val zoneEpochCount: Long,
+	@ColumnInfo(name = "window_count") val windowCount: Long,
+	@ColumnInfo(name = "fragment_count") val fragmentCount: Long,
+	@ColumnInfo(name = "entry_deletion_count") val entryDeletionCount: Long,
+	@ColumnInfo(name = "entry_deletion_receipt_count") val entryDeletionReceiptCount: Long,
+	@ColumnInfo(name = "deletion_generation_count") val deletionGenerationCount: Long,
+	@ColumnInfo(name = "retention_receipt_count") val retentionReceiptCount: Long,
+	@ColumnInfo(name = "retained_identity_count") val retainedIdentityCount: Long,
+) {
+	init {
+		require(
+			listOf(
+				entryRevisionCount,
+				receiptCount,
+				runCount,
+				zoneEpochCount,
+				windowCount,
+				fragmentCount,
+				entryDeletionCount,
+				entryDeletionReceiptCount,
+				deletionGenerationCount,
+				retentionReceiptCount,
+				retainedIdentityCount,
+			).all { it >= 0L },
+		)
+	}
+}
 
 const val IMPORTED_ACTIVITY_CANDIDATE_LIVE = "LIVE"
 const val IMPORTED_ACTIVITY_CANDIDATE_RETAINED = "RETAINED"

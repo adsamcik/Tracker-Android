@@ -120,6 +120,13 @@ class ImportedActivityDaoTest {
 					listOf(retainedHeader),
 					listOf(retainedImportReceipt),
 				),
+				latestMemberStartTimeMs = 1L,
+				latestMemberIdentity = digest('c'),
+				structuralZoneRanges = listOf(
+					com.adsamcik.tracker.shared.base.database.data
+						.ImportedActivityRetainedZoneRange(1L, 8L, "UTC"),
+				),
+				structuralZoneCoverageComplete = true,
 			),
 		))
 		dao.insertRetainedIdentities(retainedMarkers)

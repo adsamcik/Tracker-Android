@@ -2,6 +2,8 @@ package com.adsamcik.tracker.shared.base.database
 
 import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityHistoryCandidate
+import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityOrderedHistoryCandidate
+import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityProductRevisionSnapshot
 import com.adsamcik.tracker.shared.base.database.dao.IMPORTED_ACTIVITY_CANDIDATE_LIVE
 import com.adsamcik.tracker.shared.base.database.dao.IMPORTED_ACTIVITY_CANDIDATE_RETAINED
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
@@ -11,6 +13,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedActivityFragmentEn
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetainedIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetentionReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetainedZoneRange
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityWindowEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityZoneEpochEntity
@@ -112,6 +115,104 @@ class ImportedActivityProductReader(
 			ImportedActivityDao.MAX_HISTORY_ENTRY_CANDIDATES,
 		)
 	}
+
+	suspend fun selectOrderedRecentPageInTransaction(
+		limit: Int,
+		beforeRecencyStartTimeMs: Long?,
+		beforeRecencyMemberIdentity: PortableActivityOpaqueIdentity?,
+	): ImportedActivityOrderedProductPage = selectOrderedPageInTransaction(limit) {
+		database.importedActivityDao().orderedRecentCandidatePage(
+			limit = limit + 1,
+			beforeRecencyStartTimeMs = beforeRecencyStartTimeMs,
+			beforeRecencyMemberIdentity = beforeRecencyMemberIdentity?.value,
+		)
+	}
+
+	suspend fun selectOrderedRangePageInTransaction(
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
+		limit: Int,
+		beforeRecencyStartTimeMs: Long?,
+		beforeRecencyMemberIdentity: PortableActivityOpaqueIdentity?,
+	): ImportedActivityOrderedProductPage {
+		require(fromInclusiveMs >= 0L && toExclusiveMs > fromInclusiveMs)
+		return selectOrderedPageInTransaction(limit) {
+			database.importedActivityDao().orderedRangeCandidatePage(
+				fromInclusiveMs = fromInclusiveMs,
+				toExclusiveMs = toExclusiveMs,
+				limit = limit + 1,
+				beforeRecencyStartTimeMs = beforeRecencyStartTimeMs,
+				beforeRecencyMemberIdentity = beforeRecencyMemberIdentity?.value,
+			)
+		}
+	}
+
+	suspend fun productRevisionSnapshotInTransaction(): ImportedActivityProductRevisionSnapshot =
+		database.importedActivityDao().productRevisionSnapshot()
+
+	private suspend fun selectOrderedPageInTransaction(
+		limit: Int,
+		load: suspend () -> List<ImportedActivityOrderedHistoryCandidate>,
+	): ImportedActivityOrderedProductPage {
+		require(limit in 1..ImportedActivityDao.MAX_HISTORY_ENTRY_CANDIDATES)
+		val loaded = load()
+		if (loaded.size > limit + 1 || !isValidOrderedCandidatePage(loaded)) {
+			return ImportedActivityOrderedProductPage.Unverifiable(
+				ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		val selected = loaded.take(limit)
+		val evaluations = selected.chunked(ImportedActivityDao.HISTORY_EVALUATION_BATCH_SIZE)
+			.flatMap { batch ->
+				evaluateBatch(batch.map(ImportedActivityOrderedHistoryCandidate::toHistoryCandidate), null)
+			}
+		if (evaluations.size != selected.size || evaluations.indices.any { index ->
+			evaluations[index].candidate.identity != selected[index].identity
+		}) {
+			return ImportedActivityOrderedProductPage.Unverifiable(
+				ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		return ImportedActivityOrderedProductPage.Ready(
+			evaluations = evaluations.indices.map { index ->
+				ImportedActivityOrderedProductEvaluation(
+					evaluation = evaluations[index],
+					recencyStartTimeMs = requireNotNull(selected[index].recencyStartTimeMs),
+					recencyMemberIdentity = PortableActivityOpaqueIdentity(
+						requireNotNull(selected[index].recencyMemberIdentity),
+					),
+				)
+			},
+			hasMore = loaded.size > limit,
+		)
+	}
+
+	private fun isValidOrderedCandidatePage(
+		candidates: List<ImportedActivityOrderedHistoryCandidate>,
+	): Boolean = candidates.all { candidate ->
+		candidate.importRevision > 0L &&
+			candidate.startTimeMs >= 0L &&
+			candidate.endTimeMs >= candidate.startTimeMs &&
+			candidate.receivedAtMs >= 0L &&
+			candidate.recencyStartTimeMs != null &&
+			candidate.recencyStartTimeMs in candidate.startTimeMs..candidate.endTimeMs &&
+			candidate.recencyMemberIdentity != null &&
+			candidate.candidateState in setOf(
+				IMPORTED_ACTIVITY_CANDIDATE_LIVE,
+				IMPORTED_ACTIVITY_CANDIDATE_RETAINED,
+			) &&
+			runCatching {
+				PortableActivityOpaqueIdentity(candidate.identity)
+				PortableActivityOpaqueIdentity(candidate.recencyMemberIdentity)
+			}.isSuccess
+	} && candidates.map(ImportedActivityOrderedHistoryCandidate::identity).distinct().size ==
+		candidates.size &&
+		candidates.zipWithNext().all { (left, right) ->
+			requireNotNull(left.recencyStartTimeMs) > requireNotNull(right.recencyStartTimeMs) ||
+				left.recencyStartTimeMs == right.recencyStartTimeMs &&
+				requireNotNull(left.recencyMemberIdentity) >
+				requireNotNull(right.recencyMemberIdentity)
+		}
 
 	suspend fun selectForExportInTransaction(
 		request: ExportPortableCapturedActivityRequest,
@@ -228,6 +329,12 @@ class ImportedActivityProductReader(
 				candidate = receipt.toHistoryCandidate(),
 				retainedFromMs = receipt.retainedFromMs,
 				retainedAtMs = receipt.retainedAtMs,
+				latestMemberStartTimeMs = requireNotNull(receipt.latestMemberStartTimeMs),
+				latestMemberIdentity = PortableActivityOpaqueIdentity(
+					requireNotNull(receipt.latestMemberIdentity),
+				),
+				structuralZoneRanges = receipt.structuralZoneRanges(),
+				structuralZoneCoverageComplete = receipt.structuralZoneCoverageComplete,
 				protectedIdentities = retainedMarkersByEntry[receipt.entryIdentity].orEmpty()
 					.map(ImportedActivityRetainedIdentityEntity::toProductIdentity),
 			)
@@ -499,14 +606,37 @@ sealed interface ImportedActivityProductEvaluation {
 			get() = !entryDeleted && deletedRunIdentities.isEmpty() && !retentionLimited
 	}
 
+	data class ImportedActivityOrderedProductEvaluation(
+		val evaluation: ImportedActivityProductEvaluation,
+		val recencyStartTimeMs: Long,
+		val recencyMemberIdentity: PortableActivityOpaqueIdentity,
+	)
+
+	sealed interface ImportedActivityOrderedProductPage {
+		data class Ready(
+			val evaluations: List<ImportedActivityOrderedProductEvaluation>,
+			val hasMore: Boolean,
+		) : ImportedActivityOrderedProductPage
+
+		data class Unverifiable(
+			val reason: ImportedActivityProductFailure,
+		) : ImportedActivityOrderedProductPage
+	}
+
 	/** Payload-free, authenticated proof that this imported entry was truncated by retention. */
 	data class Retained(
 		override val candidate: ImportedActivityHistoryCandidate,
 		val retainedFromMs: Long,
 		val retainedAtMs: Long,
+		val latestMemberStartTimeMs: Long,
+		val latestMemberIdentity: PortableActivityOpaqueIdentity,
+		val structuralZoneRanges: List<ImportedActivityRetainedZoneRange>,
+		val structuralZoneCoverageComplete: Boolean,
 		val protectedIdentities: List<RetainedImportedActivityIdentity>,
 	) : ImportedActivityProductEvaluation {
 		init {
+			require(latestMemberStartTimeMs in candidate.startTimeMs..candidate.endTimeMs)
+			require(structuralZoneRanges.isNotEmpty())
 			require(protectedIdentities.isNotEmpty())
 			require(protectedIdentities.map { it.value }.distinct().size == protectedIdentities.size)
 			val entryMarkers = protectedIdentities.filterIsInstance<RetainedImportedActivityIdentity.Entry>()

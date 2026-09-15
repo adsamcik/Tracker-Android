@@ -72,12 +72,17 @@ internal suspend fun AppDatabase.authenticateImportedActivityRetentionBatch(
 	) return ImportedActivityRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
 	val sourceEraseByEntry = sourceEraseMarkers.associateBy(ImportedActivityEntryDeletionEntity::entryIdentity)
 	if (receipts.any { receipt ->
-		sourceEraseByEntry[receipt.entryIdentity]?.let { deletion ->
+		val deletion = sourceEraseByEntry[receipt.entryIdentity]
+		if (deletion == null) {
+			receipt.temporalAuthorityState !=
+				ImportedActivityRetentionReceiptEntity.TEMPORAL_AUTHORITY_AVAILABLE
+		} else {
 			deletion.collectedDataEpoch != receipt.collectedDataEpoch ||
 				deletion.deletedImportRevision != receipt.latestImportRevision ||
 				deletion.deletedAtMs != receipt.retainedAtMs ||
-				receipt.startTimeMs != 0L || receipt.endTimeMs != 0L || receipt.receivedAtMs != 0L
-		} == true
+				receipt.temporalAuthorityState !=
+				ImportedActivityRetentionReceiptEntity.TEMPORAL_AUTHORITY_REDACTED
+		}
 	}) return ImportedActivityRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
 
 	val runMarkers = markers.filter { it.identityKind == ImportedActivityRetainedIdentityEntity.RUN }

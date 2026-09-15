@@ -343,38 +343,54 @@ interface ActivityCapturedFactDao {
 	/**
 	 * Discovers one Activity-intent segment per logical entry without consulting sample_count.
 	 *
-	 * This deliberately admits a broad candidate when any immutable manifest revision declares
-	 * persistence-eligible captured Activity. The bounded product composer authenticates the complete
-	 * manifest union and decides whether every revision is Activity-only; candidate SQL never treats
-	 * the absence of a fact as the absence of capture intent.
+	 * This deliberately admits a broad candidate when immutable intent or an Activity fact exists.
+	 * The bounded product composer authenticates the complete manifest union and every fact; a
+	 * relevant corrupt fact therefore becomes a typed failure instead of disappearing as not found.
+	 * Candidate SQL never treats the absence of a fact as the absence of capture intent.
 	 * The reader expands and authenticates every replacement member before returning product data.
 	 */
 	@Query(
 		"""
-		WITH activity_intent_member AS (
+		WITH activity_candidate_member AS (
 		  SELECT segment.*
 		  FROM session_segment AS segment
 		  INNER JOIN source_service_run AS run
 		    ON run.session_segment_id = segment.id
 		   AND run.service_run_id = segment.service_run_id
 		   AND run.logical_tracking_id = segment.logical_tracking_id
-		  WHERE EXISTS (
-		    SELECT 1
-		    FROM session_manifest_version AS manifest
-		    INNER JOIN session_manifest_source AS source
-		      ON source.logical_tracking_id = manifest.logical_tracking_id
-		     AND source.manifest_revision = manifest.manifest_revision
-		    WHERE manifest.service_run_id = run.service_run_id
-		      AND manifest.logical_tracking_id = run.logical_tracking_id
-		      AND source.source_kind = :activitySourceKind
-		      AND source.purpose = 'SESSION_CAPTURE'
-		      AND source.persistence_eligible = 1
+		  WHERE (
+		    EXISTS (
+		      SELECT 1
+		      FROM session_manifest_version AS manifest
+		      INNER JOIN session_manifest_source AS source
+		        ON source.logical_tracking_id = manifest.logical_tracking_id
+		       AND source.manifest_revision = manifest.manifest_revision
+		      WHERE manifest.service_run_id = run.service_run_id
+		        AND manifest.logical_tracking_id = run.logical_tracking_id
+		        AND source.source_kind = :activitySourceKind
+		        AND source.purpose = 'SESSION_CAPTURE'
+		        AND source.persistence_eligible = 1
+		    )
+		    OR EXISTS (
+		      SELECT 1
+		      FROM activity_captured_window_revision AS fact
+		      WHERE fact.logical_tracking_id = run.logical_tracking_id
+		        AND fact.service_run_id = run.service_run_id
+		        AND fact.session_segment_id = segment.id
+		    )
 		  )
+		  UNION
+		  SELECT segment.*
+		  FROM session_segment AS segment
+		  INNER JOIN activity_captured_window_revision AS fact
+		    ON fact.session_segment_id = segment.id
+		   AND fact.service_run_id = segment.service_run_id
+		   AND fact.logical_tracking_id = segment.logical_tracking_id
 		), logical_seed AS (
 		  SELECT member.*
-		  FROM activity_intent_member AS member
+		  FROM activity_candidate_member AS member
 		  WHERE NOT EXISTS (
-		    SELECT 1 FROM activity_intent_member AS newer
+		    SELECT 1 FROM activity_candidate_member AS newer
 		    WHERE newer.logical_tracking_id = member.logical_tracking_id
 		      AND (
 		        newer.start_time_ms > member.start_time_ms OR
@@ -384,28 +400,16 @@ interface ActivityCapturedFactDao {
 		), ranked_seed AS (
 		  SELECT seed.*,
 		    (SELECT MAX(member_segment.start_time_ms)
-		     FROM source_service_run AS member_run
-		     INNER JOIN session_segment AS member_segment
-		       ON member_segment.id = member_run.session_segment_id
-		      AND member_segment.service_run_id = member_run.service_run_id
-		      AND member_segment.logical_tracking_id = member_run.logical_tracking_id
-		     WHERE member_run.logical_tracking_id = seed.logical_tracking_id
+		     FROM activity_candidate_member AS member_segment
+		     WHERE member_segment.logical_tracking_id = seed.logical_tracking_id
 		    ) AS logical_recency_start_ms,
 		    (SELECT MAX(member_segment.id)
-		     FROM source_service_run AS member_run
-		     INNER JOIN session_segment AS member_segment
-		       ON member_segment.id = member_run.session_segment_id
-		      AND member_segment.service_run_id = member_run.service_run_id
-		      AND member_segment.logical_tracking_id = member_run.logical_tracking_id
-		     WHERE member_run.logical_tracking_id = seed.logical_tracking_id
+		     FROM activity_candidate_member AS member_segment
+		     WHERE member_segment.logical_tracking_id = seed.logical_tracking_id
 		       AND member_segment.start_time_ms = (
 		         SELECT MAX(latest_segment.start_time_ms)
-		         FROM source_service_run AS latest_run
-		         INNER JOIN session_segment AS latest_segment
-		           ON latest_segment.id = latest_run.session_segment_id
-		          AND latest_segment.service_run_id = latest_run.service_run_id
-		          AND latest_segment.logical_tracking_id = latest_run.logical_tracking_id
-		         WHERE latest_run.logical_tracking_id = seed.logical_tracking_id
+		         FROM activity_candidate_member AS latest_segment
+		         WHERE latest_segment.logical_tracking_id = seed.logical_tracking_id
 		       )
 		    ) AS logical_recency_segment_id
 		  FROM logical_seed AS seed
@@ -427,6 +431,175 @@ interface ActivityCapturedFactDao {
 		beforeSegmentId: Long?,
 		activitySourceKind: Int,
 	): List<ActivityLogicalHistoryCandidate>
+
+	/**
+	 * Bounded wall-range seeds ordered by the newest physical member tuple.
+	 *
+	 * Range overlap is decided from the complete logical member envelope before LIMIT. The caller
+	 * must still expand and authenticate every replacement member before exposing product values.
+	 */
+	@Query(
+		"""
+		WITH activity_candidate AS (
+		  SELECT DISTINCT run.logical_tracking_id
+		  FROM source_service_run AS run
+		  INNER JOIN session_segment AS segment
+		    ON segment.id = run.session_segment_id
+		   AND segment.service_run_id = run.service_run_id
+		   AND segment.logical_tracking_id = run.logical_tracking_id
+		  WHERE (
+		    EXISTS (
+		      SELECT 1
+		      FROM session_manifest_version AS manifest
+		      INNER JOIN session_manifest_source AS source
+		        ON source.logical_tracking_id = manifest.logical_tracking_id
+		       AND source.manifest_revision = manifest.manifest_revision
+		      WHERE manifest.service_run_id = run.service_run_id
+		        AND manifest.logical_tracking_id = run.logical_tracking_id
+		        AND source.source_kind = :activitySourceKind
+		        AND source.purpose = 'SESSION_CAPTURE'
+		        AND source.persistence_eligible = 1
+		    )
+		    OR EXISTS (
+		      SELECT 1
+		      FROM activity_captured_window_revision AS fact
+		      WHERE fact.logical_tracking_id = run.logical_tracking_id
+		        AND fact.service_run_id = run.service_run_id
+		        AND fact.session_segment_id = segment.id
+		    )
+		  )
+		  UNION
+		  SELECT DISTINCT fact.logical_tracking_id
+		  FROM activity_captured_window_revision AS fact
+		  INNER JOIN session_segment AS segment
+		    ON segment.id = fact.session_segment_id
+		   AND segment.service_run_id = fact.service_run_id
+		   AND segment.logical_tracking_id = fact.logical_tracking_id
+		), logical_member AS (
+		  SELECT segment.*
+		  FROM activity_candidate AS candidate
+		  INNER JOIN session_segment AS segment
+		    ON segment.logical_tracking_id = candidate.logical_tracking_id
+		  WHERE EXISTS (
+		    SELECT 1
+		    FROM source_service_run AS run
+		    WHERE run.logical_tracking_id = segment.logical_tracking_id
+		      AND run.service_run_id = segment.service_run_id
+		      AND run.session_segment_id = segment.id
+		  ) OR EXISTS (
+		    SELECT 1
+		    FROM activity_captured_window_revision AS fact
+		    WHERE fact.logical_tracking_id = segment.logical_tracking_id
+		      AND fact.service_run_id = segment.service_run_id
+		      AND fact.session_segment_id = segment.id
+		  )
+		), logical_bounds AS (
+		  SELECT logical_tracking_id,
+		         MIN(start_time_ms) AS logical_start_time_ms,
+		         MAX(end_time_ms) AS logical_end_time_ms
+		  FROM logical_member
+		  GROUP BY logical_tracking_id
+		), newest_member AS (
+		  SELECT member.*
+		  FROM logical_member AS member
+		  WHERE NOT EXISTS (
+		    SELECT 1
+		    FROM logical_member AS newer
+		    WHERE newer.logical_tracking_id = member.logical_tracking_id
+		      AND (
+		        newer.start_time_ms > member.start_time_ms OR
+		        (newer.start_time_ms = member.start_time_ms AND newer.id > member.id)
+		      )
+		  )
+		)
+		SELECT newest_member.*,
+		       logical_bounds.logical_start_time_ms,
+		       logical_bounds.logical_end_time_ms,
+		       newest_member.start_time_ms AS logical_recency_start_ms,
+		       newest_member.id AS logical_recency_segment_id
+		FROM newest_member
+		INNER JOIN logical_bounds
+		  ON logical_bounds.logical_tracking_id = newest_member.logical_tracking_id
+		WHERE logical_bounds.logical_start_time_ms < :toExclusiveMs
+		  AND logical_bounds.logical_end_time_ms > :fromInclusiveMs
+		  AND (
+		    :beforeRecencyStartTimeMs IS NULL
+		    OR newest_member.start_time_ms < :beforeRecencyStartTimeMs
+		    OR (
+		      newest_member.start_time_ms = :beforeRecencyStartTimeMs
+		      AND newest_member.id < COALESCE(:beforeRecencySegmentId, 9223372036854775807)
+		    )
+		  )
+		ORDER BY logical_recency_start_ms DESC, logical_recency_segment_id DESC
+		LIMIT :limit
+		""",
+	)
+	suspend fun logicalHistoryRangeCandidatePage(
+		activitySourceKind: Int,
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
+		limit: Int,
+		beforeRecencyStartTimeMs: Long?,
+		beforeRecencySegmentId: Long?,
+	): List<ActivityLogicalRangeCandidate>
+
+	/** Compact local Activity mutation fingerprint for opaque continuation invalidation. */
+	@Query(
+		"""
+		WITH activity_logical AS (
+		  SELECT DISTINCT logical_tracking_id
+		  FROM session_manifest_source
+		  WHERE source_kind = :activitySourceKind
+		    AND purpose = 'SESSION_CAPTURE'
+		    AND persistence_eligible = 1
+		  UNION
+		  SELECT DISTINCT logical_tracking_id
+		  FROM activity_captured_window_revision
+		), activity_runs AS (
+		  SELECT service_run_id
+		  FROM source_service_run
+		  WHERE logical_tracking_id IN (SELECT logical_tracking_id FROM activity_logical)
+		)
+		SELECT
+		  (SELECT COUNT(*) FROM logical_tracking_session
+		   WHERE logical_tracking_id IN (SELECT logical_tracking_id FROM activity_logical)) AS
+		    logical_session_count,
+		  (SELECT COUNT(*) FROM activity_runs) AS service_run_count,
+		  (SELECT COUNT(*) FROM session_segment
+		   WHERE logical_tracking_id IN (SELECT logical_tracking_id FROM activity_logical)) AS
+		    session_segment_count,
+		  (SELECT COUNT(*) FROM session_manifest_version
+		   WHERE service_run_id IN (SELECT service_run_id FROM activity_runs)) AS manifest_count,
+		  (SELECT COUNT(*) FROM session_manifest_source
+		   WHERE logical_tracking_id IN (SELECT logical_tracking_id FROM activity_logical)
+		  ) AS
+		    activity_manifest_source_count,
+		  (SELECT COUNT(*) FROM source_policy WHERE source_kind = :activitySourceKind) AS policy_count,
+		  (SELECT COUNT(*) FROM source_consent_epoch WHERE source_kind = :activitySourceKind) AS
+		    consent_count,
+		  (SELECT COUNT(*) FROM provider_registration_generation
+		   WHERE source_kind = :activitySourceKind) AS provider_count,
+		  (SELECT COUNT(*) FROM source_authorization
+		   WHERE source_kind = :activitySourceKind) AS authorization_count,
+		  (SELECT COUNT(*) FROM source_demand WHERE source_kind = :activitySourceKind) AS demand_count,
+		  (SELECT COUNT(*) FROM source_session_completeness
+		   WHERE source_kind = :activitySourceKind) AS completeness_count,
+		  (SELECT COUNT(*) FROM source_product_projection_lane
+		   WHERE source_kind = :activitySourceKind) AS lane_count,
+		  (SELECT COUNT(*) FROM source_deletion_fence
+		   WHERE source_kind = :activitySourceKind) AS deletion_fence_count,
+		  (SELECT COUNT(*) FROM activity_captured_registration_plan) AS registration_plan_count,
+		  (SELECT COUNT(*) FROM source_desired_plan
+		   WHERE source_kind = :activitySourceKind) AS desired_plan_count,
+		  (SELECT COUNT(*) FROM activity_captured_window_revision) AS revision_count,
+		  (SELECT COUNT(*) FROM activity_captured_window_cursor) AS cursor_count,
+		  (SELECT COUNT(*) FROM activity_captured_fragment) AS fragment_count,
+		  (SELECT COUNT(*) FROM activity_captured_evidence) AS evidence_count
+		""",
+	)
+	suspend fun productRevisionSnapshot(
+		activitySourceKind: Int,
+	): ActivityProductRevisionSnapshot
 
 	/** Pages a correction-expanded fact universe for exact physical/logical candidates. */
 	@Query(
@@ -921,3 +1094,59 @@ data class ActivityLogicalHistoryCandidate(
 	@ColumnInfo(name = "logical_recency_start_ms") val logicalRecencyStartMs: Long,
 	@ColumnInfo(name = "logical_recency_segment_id") val logicalRecencySegmentId: Long,
 )
+
+data class ActivityLogicalRangeCandidate(
+	@Embedded val segment: SessionSegment,
+	@ColumnInfo(name = "logical_start_time_ms") val logicalStartTimeMs: Long,
+	@ColumnInfo(name = "logical_end_time_ms") val logicalEndTimeMs: Long,
+	@ColumnInfo(name = "logical_recency_start_ms") val logicalRecencyStartMs: Long,
+	@ColumnInfo(name = "logical_recency_segment_id") val logicalRecencySegmentId: Long,
+)
+
+data class ActivityProductRevisionSnapshot(
+	@ColumnInfo(name = "logical_session_count") val logicalSessionCount: Long,
+	@ColumnInfo(name = "service_run_count") val serviceRunCount: Long,
+	@ColumnInfo(name = "session_segment_count") val sessionSegmentCount: Long,
+	@ColumnInfo(name = "manifest_count") val manifestCount: Long,
+	@ColumnInfo(name = "activity_manifest_source_count") val activityManifestSourceCount: Long,
+	@ColumnInfo(name = "policy_count") val policyCount: Long,
+	@ColumnInfo(name = "consent_count") val consentCount: Long,
+	@ColumnInfo(name = "provider_count") val providerCount: Long,
+	@ColumnInfo(name = "authorization_count") val authorizationCount: Long,
+	@ColumnInfo(name = "demand_count") val demandCount: Long,
+	@ColumnInfo(name = "completeness_count") val completenessCount: Long,
+	@ColumnInfo(name = "lane_count") val laneCount: Long,
+	@ColumnInfo(name = "deletion_fence_count") val deletionFenceCount: Long,
+	@ColumnInfo(name = "registration_plan_count") val registrationPlanCount: Long,
+	@ColumnInfo(name = "desired_plan_count") val desiredPlanCount: Long,
+	@ColumnInfo(name = "revision_count") val revisionCount: Long,
+	@ColumnInfo(name = "cursor_count") val cursorCount: Long,
+	@ColumnInfo(name = "fragment_count") val fragmentCount: Long,
+	@ColumnInfo(name = "evidence_count") val evidenceCount: Long,
+) {
+	init {
+		require(
+			listOf(
+				logicalSessionCount,
+				serviceRunCount,
+				sessionSegmentCount,
+				manifestCount,
+				activityManifestSourceCount,
+				policyCount,
+				consentCount,
+				providerCount,
+				authorizationCount,
+				demandCount,
+				completenessCount,
+				laneCount,
+				deletionFenceCount,
+				registrationPlanCount,
+				desiredPlanCount,
+				revisionCount,
+				cursorCount,
+				fragmentCount,
+				evidenceCount,
+			).all { it >= 0L },
+		)
+	}
+}

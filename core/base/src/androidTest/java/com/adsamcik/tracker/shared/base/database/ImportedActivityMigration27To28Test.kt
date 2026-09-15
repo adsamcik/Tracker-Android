@@ -196,6 +196,13 @@ class ImportedActivityMigration27To28Test {
 						listOf(retainedHeader),
 						listOf(retainedImportReceipt),
 					),
+				latestMemberStartTimeMs = 1L,
+				latestMemberIdentity = RETAINED_RUN,
+				structuralZoneRanges = listOf(
+					com.adsamcik.tracker.shared.base.database.data
+						.ImportedActivityRetainedZoneRange(1L, 8L, "UTC"),
+				),
+				structuralZoneCoverageComplete = true,
 			),
 		))
 		dao.insertRetainedIdentities(retainedMarkers)

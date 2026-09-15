@@ -1564,6 +1564,18 @@ class RoomImportPortableCapturedActivityTest {
 			receipt.latestContentChecksum shouldBe sourceScopedEntry.contentChecksum.value
 			receipt.runDeletionCount shouldBe 1
 			receipt.sourceFenceCount shouldBe 1
+			receipt.temporalAuthorityState shouldBe
+				ImportedActivityRetentionReceiptEntity.TEMPORAL_AUTHORITY_AVAILABLE
+			receipt.latestMemberStartTimeMs shouldBe sourceScopedEntry.runs.single().startTimeMs
+			receipt.latestMemberIdentity shouldBe sourceScopedEntry.runs.single().identity.value
+			receipt.structuralZoneCoverageComplete shouldBe true
+			receipt.structuralZoneRanges() shouldBe listOf(
+				com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetainedZoneRange(
+					sourceScopedEntry.runs.single().startTimeMs,
+					sourceScopedEntry.runs.single().endTimeMs - 1L,
+					sourceScopedEntry.runs.single().zoneEpochs.single().zoneId,
+				),
+			)
 			dao.retainedIdentitiesForEntries(listOf(sourceScopedEntry.identity.value), 5).size shouldBe 4
 			dao.deletionGenerations(listOf(runDeletion.runIdentity)).single() shouldBe runDeletion
 			database.sourceDeletionFenceDao().get(
@@ -1579,6 +1591,8 @@ class RoomImportPortableCapturedActivityTest {
 			val retainedProduct = retained as ImportedActivityProductEvaluation.Retained
 			retainedProduct.retainedFromMs shouldBe RETENTION_FLOOR
 			retainedProduct.retainedAtMs shouldBe RETENTION_MARKED_AT
+			retainedProduct.latestMemberIdentity shouldBe sourceScopedEntry.runs.single().identity
+			retainedProduct.structuralZoneCoverageComplete shouldBe true
 			retainedProduct.protectedIdentities.toSet() shouldBe setOf(
 				RetainedImportedActivityIdentity.Entry(sourceScopedEntry.identity),
 				RetainedImportedActivityIdentity.Run(sourceScopedEntry.runs.single().identity),
@@ -2222,6 +2236,11 @@ class RoomImportPortableCapturedActivityTest {
 		redacted.startTimeMs shouldBe 0L
 		redacted.endTimeMs shouldBe 0L
 		redacted.receivedAtMs shouldBe 0L
+		redacted.temporalAuthorityState shouldBe
+			ImportedActivityRetentionReceiptEntity.TEMPORAL_AUTHORITY_REDACTED
+		redacted.latestMemberStartTimeMs shouldBe null
+		redacted.latestMemberIdentity shouldBe null
+		redacted.structuralZoneRanges() shouldBe emptyList()
 		dao.retainedHistoryCandidate(imported.entry.identity.value) shouldBe null
 		dao.entryDeletion(imported.entry.identity.value)?.deletedImportRevision shouldBe 1L
 		dao.retainedIdentitiesForEntries(
