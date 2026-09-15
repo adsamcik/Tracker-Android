@@ -133,6 +133,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			val results: List<SourceProductDrainResult>,
 			val failedSource: SourceKind?,
 			val reason: String,
+			val memberships: List<SourceDrainMembership> = emptyList(),
 		) : SettledSourceDrainBatch
 	}
 	private data class VerifiedSessionManifest(
@@ -3430,6 +3431,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					source = sourceDrain.failedSource,
 					reason = sourceDrain.reason,
 					sourceResults = sourceDrain.results,
+					sourceMemberships = sourceDrain.memberships,
 				)
 			}
 			database.withTransaction {
@@ -3572,6 +3574,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					source = sourceDrain.failedSource,
 					reason = sourceDrain.reason,
 					sourceResults = sourceDrain.results,
+					sourceMemberships = sourceDrain.memberships,
 				)
 			}
 			database.withTransaction {
@@ -4407,6 +4410,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				results = emptyList(),
 				failedSource = plan.source,
 				reason = plan.reason,
+				memberships = plan.memberships,
 			)
 		}
 		plan as SourceProductDrainPlan.Ready
@@ -4421,6 +4425,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				results = results,
 				failedSource = pending.request.source,
 				reason = pending.pendingReason(),
+				memberships = pending.request.memberships,
 			)
 		}
 	}
@@ -5413,6 +5418,7 @@ sealed interface SessionStopResult {
 		val source: SourceKind? = null,
 		val reason: String? = null,
 		val sourceResults: List<SourceProductDrainResult> = emptyList(),
+		val sourceMemberships: List<SourceDrainMembership> = emptyList(),
 	) : SessionStopResult
 	/** The requested stop could not be durably represented without violating lifecycle intent. */
 	data class InvalidIntent(val code: String) : SessionStopResult
@@ -5448,6 +5454,7 @@ sealed interface SessionSuspendResult {
 		val source: SourceKind? = null,
 		val reason: String? = null,
 		val sourceResults: List<SourceProductDrainResult> = emptyList(),
+		val sourceMemberships: List<SourceDrainMembership> = emptyList(),
 	) : SessionSuspendResult
 	/** The requested suspension could not be durably represented without violating lifecycle intent. */
 	data class InvalidIntent(val code: String) : SessionSuspendResult

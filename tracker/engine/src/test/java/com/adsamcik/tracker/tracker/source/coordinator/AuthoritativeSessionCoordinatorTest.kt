@@ -253,6 +253,7 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceBrokerDao().demandHistory("session:${started.logicalTrackingId}")
 			.single().status shouldBe SourceDemandEntity.STATUS_RETIRED
 		runtime.closed shouldBe true
+		sourceProductDrainRouter.requests shouldBe emptyList()
 	}
 
 	@Test
@@ -438,10 +439,12 @@ class AuthoritativeSessionCoordinatorTest {
 
 	@Test
 	fun `process death after physical retirement replays an exact partial receipt without revival`() = runTest {
+		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
 		val started = subject.start(
 			startRequest().copy(
 				logicalTrackingId = "retirement-crash-gap",
 				serviceRunId = "retirement-crash-run",
+				rolloutRevision = rolloutSnapshot.revision,
 			),
 		).shouldBeInstanceOf<SessionStartResult.Started>()
 		runtime.cancelAfterPhysicalShutdown = true
@@ -487,7 +490,7 @@ class AuthoritativeSessionCoordinatorTest {
 		)
 		replaceRuntime(FakeStepsRuntime(database))
 
-		val stopped = subject.stop(
+		val pending = subject.stop(
 			SessionStopRequest(
 				"retirement-crash-retry",
 				"USER_STOP",
@@ -495,17 +498,19 @@ class AuthoritativeSessionCoordinatorTest {
 				2_100_000L,
 				"boot-1",
 			),
-		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+		).shouldBeInstanceOf<SessionStopResult.DrainPending>()
 
-		stopped.acknowledgements.single().let { acknowledgement ->
-			acknowledgement.sourceInstanceId.value shouldBe "steps-instance"
-			acknowledgement.registrationGeneration shouldBe 1L
-			acknowledgement.status shouldBe SourceStopStatus.PROCESS_RESTARTED
-			acknowledgement.appDrainComplete shouldBe false
+		pending.source shouldBe SourceKind.STEPS
+		pending.reason shouldBe "SOURCE_DRAIN_SETTLEMENT_INCOMPLETE"
+		pending.sourceResults shouldBe emptyList()
+		pending.sourceMemberships.single().let { membership ->
+			membership.sourceInstanceId shouldBe "steps-instance"
+			membership.registrationGeneration shouldBe 1L
+			membership.stopStatus shouldBe SourceStopStatus.PROCESS_RESTARTED.name
+			membership.appDrainComplete shouldBe false
 		}
 		database.sourceSessionDao().session(started.logicalTrackingId)?.let { session ->
-			session.state shouldBe SessionLifecycleState.FINALIZED.name
-			session.failureCode shouldBe "STOP_PARTIAL"
+			session.state shouldBe SessionLifecycleState.STOPPING.name
 		}
 		database.sourceSessionDao().runRetirements(
 			started.logicalTrackingId,
@@ -513,6 +518,46 @@ class AuthoritativeSessionCoordinatorTest {
 			SourceKind.STEPS.stableCode,
 		).single().state shouldBe
 			com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity.STATE_INTERRUPTED
+	}
+
+	@Test
+	fun `candidate plan reports an exact incomplete membership instead of Ready empty`() = runTest {
+		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "incomplete-candidate-plan",
+				serviceRunId = "incomplete-candidate-run",
+				rolloutRevision = rolloutSnapshot.revision,
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.stopStatus = SourceStopStatus.TIMED_OUT
+
+		subject.stop(
+			SessionStopRequest(
+				"incomplete-candidate-owner",
+				"USER_STOP",
+				2_000L,
+				2_000_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+		val session = requireNotNull(database.sourceSessionDao().session(started.logicalTrackingId))
+		val plan = buildSourceProductDrainPlan(
+			database = database,
+			logicalTrackingId = started.logicalTrackingId,
+			serviceRunId = started.serviceRunId,
+			cutoffElapsedRealtimeNanos = requireNotNull(session.cutoffElapsedNanos),
+			cutoffWallTimeMs = requireNotNull(session.cutoffAtMs),
+			settlementHighWaterAdmissionOrdinal = requireNotNull(session.finalAdmissionOrdinal),
+		).shouldBeInstanceOf<SourceProductDrainPlan.Failed>()
+
+		plan.source shouldBe SourceKind.STEPS
+		plan.reason shouldBe "SOURCE_DRAIN_SETTLEMENT_INCOMPLETE"
+		plan.memberships.single().let { membership ->
+			membership.sourceInstanceId shouldBe "steps-instance"
+			membership.registrationGeneration shouldBe 1L
+			membership.stopStatus shouldBe SourceStopStatus.TIMED_OUT.name
+		}
 	}
 
 	@Test

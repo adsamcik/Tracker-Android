@@ -289,7 +289,11 @@ class RoomSourceProductDrainRouter @Inject internal constructor(
 
 internal sealed interface SourceProductDrainPlan {
 	data class Ready(val requests: List<SourceProductDrainRequest>) : SourceProductDrainPlan
-	data class Failed(val source: SourceKind?, val reason: String) : SourceProductDrainPlan
+	data class Failed(
+		val source: SourceKind?,
+		val reason: String,
+		val memberships: List<SourceDrainMembership> = emptyList(),
+	) : SourceProductDrainPlan
 }
 
 internal suspend fun buildSourceProductDrainPlan(
@@ -380,7 +384,11 @@ internal suspend fun buildSourceProductDrainPlan(
 		if (memberships.any { membership -> !membership.isExactCompleteSettlement() }) {
 			// Terminal interrupted acquisition is truthful lifecycle evidence, not materialization
 			// authority. Do not route it to a product lane or convert it into QUERYABLE success.
-			continue
+			return SourceProductDrainPlan.Failed(
+				source = source,
+				reason = "SOURCE_DRAIN_SETTLEMENT_INCOMPLETE",
+				memberships = memberships,
+			)
 		}
 		val sourceWalHighWater = sourceRunHighWater(
 			database,
@@ -397,11 +405,6 @@ internal suspend fun buildSourceProductDrainPlan(
 			return SourceProductDrainPlan.Failed(source, "SOURCE_DRAIN_HIGH_WATER_EXCEEDS_SETTLEMENT")
 		}
 
-		private fun SourceDrainMembership.isExactCompleteSettlement(): Boolean =
-			appDrainComplete &&
-				stopStatus in setOf("COMPLETE", "PARTIAL_UNOBSERVABLE") &&
-				unresolvedSequenceStart == null &&
-				unresolvedSequenceEndInclusive == null
 		requests += SourceProductDrainRequest(
 			source = source,
 			logicalTrackingId = logicalTrackingId,
@@ -416,6 +419,12 @@ internal suspend fun buildSourceProductDrainPlan(
 	}
 	return SourceProductDrainPlan.Ready(requests)
 }
+
+private fun SourceDrainMembership.isExactCompleteSettlement(): Boolean =
+	appDrainComplete &&
+		stopStatus in setOf("COMPLETE", "PARTIAL_UNOBSERVABLE") &&
+		unresolvedSequenceStart == null &&
+		unresolvedSequenceEndInclusive == null
 
 private sealed interface SourceDrainAuthority {
 	data class Ready(

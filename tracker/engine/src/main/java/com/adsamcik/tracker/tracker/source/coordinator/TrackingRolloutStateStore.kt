@@ -787,16 +787,16 @@ private suspend fun AppDatabase.hasExactCanonicalDestinationOwner(
 				com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 					.canonicalOwnerGeneration(binding.bindingGeneration)
 		}
-
-		private fun ExecutableSourceLaneBinding.hasSameWriterSemanticsAs(
-			base: ExecutableSourceLaneBinding,
-		): Boolean = source == base.source &&
-			projectionId == base.projectionId &&
-			projectionVersion == base.projectionVersion &&
-			captureModes == base.captureModes
 		else -> true
 	}
 }
+
+private fun ExecutableSourceLaneBinding.hasSameWriterSemanticsAs(
+	base: ExecutableSourceLaneBinding,
+): Boolean = source == base.source &&
+	projectionId == base.projectionId &&
+	projectionVersion == base.projectionVersion &&
+	captureModes == base.captureModes
 
 /**
  * Transaction-local defense for durable capture admission. An executable lane alone is not
