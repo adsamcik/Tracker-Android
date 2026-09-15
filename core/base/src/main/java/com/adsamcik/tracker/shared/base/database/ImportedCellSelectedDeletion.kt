@@ -363,55 +363,60 @@ class RoomDeleteSelectedImportedCell internal constructor(
 			contentChecksum = lineage.revisions.last().entry.contentChecksum.value,
 		))
 		val latestRevision = lineage.revisions.last()
+		latestRevision.entry.runs.forEach { run ->
+			bind(ImportedCellDeletedIdentityEntity.create(
+				run.identity.value,
+				entryIdentity,
+				ImportedCellDeletedIdentityEntity.RUN,
+				run.identity.value,
+				deletionScopeDigest = run.deletionScopeDigest.value,
+				runStartTimeMs = run.startTimeMs,
+				runEndTimeMs = run.endTimeMs,
+				contentChecksum = run.contentChecksum.value,
+				includedInLatest = true,
+				captureCoverage = run.captureCoverage.name,
+				availability = run.availability.name,
+				acquisitionCompleteness = run.acquisitionCompleteness.name,
+				retentionLoss = run.retentionLoss,
+				subscriptionGrouping = run.subscriptionGrouping.name,
+			))
+			bind(ImportedCellDeletedIdentityEntity.create(
+				run.deletionScopeDigest.value,
+				entryIdentity,
+				ImportedCellDeletedIdentityEntity.DELETION_SCOPE,
+				run.identity.value,
+				deletionScopeDigest = run.deletionScopeDigest.value,
+				includedInLatest = true,
+			))
+		}
+		val terminalObservations =
+			linkedMapOf<String, Pair<String, PortableCapturedCellObservationV1>>()
 		lineage.revisions.forEach { revision ->
 			revision.entry.runs.forEach { run ->
-				val latestRun = latestRevision.entry.runs.singleOrNull {
-					it.identity == run.identity
-				}
-				bind(ImportedCellDeletedIdentityEntity.create(
-					run.identity.value,
-					entryIdentity,
-					ImportedCellDeletedIdentityEntity.RUN,
-					run.identity.value,
-					deletionScopeDigest = run.deletionScopeDigest.value,
-					runStartTimeMs = run.startTimeMs,
-					runEndTimeMs = run.endTimeMs,
-					contentChecksum = latestRun?.contentChecksum?.value ?: run.contentChecksum.value,
-					includedInLatest = latestRun != null,
-					captureCoverage = run.captureCoverage.name,
-					availability = run.availability.name,
-					acquisitionCompleteness = run.acquisitionCompleteness.name,
-					retentionLoss = run.retentionLoss,
-					subscriptionGrouping = run.subscriptionGrouping.name,
-				))
-				bind(ImportedCellDeletedIdentityEntity.create(
-					run.deletionScopeDigest.value,
-					entryIdentity,
-					ImportedCellDeletedIdentityEntity.DELETION_SCOPE,
-					run.identity.value,
-					deletionScopeDigest = run.deletionScopeDigest.value,
-					includedInLatest = latestRun != null,
-				))
 				run.observations.forEach { observation ->
-					val latestObservation = latestRun?.observations?.singleOrNull {
-						it.identity == observation.identity
-					}
-					val latestOrdinal = latestRun?.observations?.indexOfFirst {
-						it.identity == observation.identity
-					}?.takeIf { it >= 0 }
-					bind(ImportedCellDeletedIdentityEntity.create(
-						observation.identity.value,
-						entryIdentity,
-						ImportedCellDeletedIdentityEntity.OBSERVATION,
-						run.identity.value,
-						observation.aggregateOwnerIdentity?.value,
-						contentChecksum =
-						latestObservation?.contentChecksum?.value ?: observation.contentChecksum.value,
-						includedInLatest = latestObservation != null,
-						observationOrdinal = latestOrdinal,
-					))
+					terminalObservations[observation.identity.value] =
+						run.identity.value to observation
 				}
 			}
+		}
+		val latestObservationOrdinals = latestRevision.entry.runs.flatMap { run ->
+			run.observations.mapIndexed { ordinal, observation ->
+				observation.identity.value to ordinal
+			}
+		}.toMap()
+		terminalObservations.forEach { (_, terminal) ->
+			val (runIdentity, observation) = terminal
+			val latestOrdinal = latestObservationOrdinals[observation.identity.value]
+			bind(ImportedCellDeletedIdentityEntity.create(
+				observation.identity.value,
+				entryIdentity,
+				ImportedCellDeletedIdentityEntity.OBSERVATION,
+				runIdentity,
+				observation.aggregateOwnerIdentity?.value,
+				contentChecksum = observation.contentChecksum.value,
+				includedInLatest = latestOrdinal != null,
+				observationOrdinal = latestOrdinal,
+			))
 		}
 		if (markers.size > ImportedCellEntryDeletionReceiptEntity.MAX_PROTECTED_IDENTITIES) {
 			unverifiable(ImportedCellProductFailure.DEPENDENCY_OVERFLOW)

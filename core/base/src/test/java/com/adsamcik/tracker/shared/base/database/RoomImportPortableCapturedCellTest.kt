@@ -1058,6 +1058,82 @@ class RoomImportPortableCapturedCellTest {
 	}
 
 	@Test
+	fun `selected deletion preserves terminal corrected observation after retention removal`() =
+		runTest {
+			seedEvidence()
+			val owner = observation("terminal-owner")
+			val dependent = observation(
+				"terminal-dependent",
+				aggregateOwnerIdentity = owner.identity,
+				aggregateOwnerSemanticRevision = owner.semanticRevision,
+			)
+			val correctedDependent = observation(
+				"terminal-dependent",
+				semanticRevision = 2L,
+				qualityFlags = 1L,
+				aggregateOwnerIdentity = owner.identity,
+				aggregateOwnerSemanticRevision = owner.semanticRevision,
+			)
+			val original = entry(
+				runDefinitions = listOf(
+					RunDefinition("run", 10L, 20L, listOf(owner, dependent)),
+				),
+			)
+			val corrected = entry(
+				runDefinitions = listOf(
+					RunDefinition("run", 10L, 20L, listOf(owner, correctedDependent)),
+				),
+			)
+			val retained = entry(
+				runDefinitions = listOf(
+					RunDefinition("run", 10L, 20L, listOf(owner), retentionLoss = true),
+				),
+			)
+			importer().importEntry(request(original)) shouldBe
+				ImportPortableCapturedCellResult.Applied(1L, 1, 2)
+			importer().importEntry(request(corrected, "correction", "entry-2")) shouldBe
+				ImportPortableCapturedCellResult.Applied(2L, 1, 2)
+			importer().importEntry(request(retained, "retention", "entry-3")) shouldBe
+				ImportPortableCapturedCellResult.Applied(3L, 1, 1)
+			val deletion = DeleteSelectedImportedCellRequest(
+				retained.identity,
+				3L,
+				retained.contentChecksum,
+				EPOCH,
+				600L,
+			)
+			val deleter = RoomDeleteSelectedImportedCell(database, Dispatchers.Unconfined)
+
+			deleter.delete(deletion) shouldBe DeleteSelectedImportedCellResult.Deleted(3, 1, 2)
+
+			val markers = database.importedCellDao().deletedIdentitiesForEntry(
+				retained.identity.value,
+				6,
+			)
+			markers.single {
+				it.identityKind == ImportedCellDeletedIdentityEntity.RUN
+			}.let { run ->
+				run.contentChecksum shouldBe retained.runs.single().contentChecksum.value
+				run.retentionLoss shouldBe true
+				run.availability shouldBe retained.runs.single().availability.name
+			}
+			markers.single {
+				it.protectedIdentity == dependent.identity.value
+			}.let { terminal ->
+				terminal.runIdentity shouldBe retained.runs.single().identity.value
+				terminal.aggregateOwnerIdentity shouldBe owner.identity.value
+				terminal.contentChecksum shouldBe correctedDependent.contentChecksum.value
+				terminal.includedInLatest shouldBe false
+				terminal.observationOrdinal shouldBe null
+			}
+			deleter.delete(deletion) shouldBe DeleteSelectedImportedCellResult.AlreadyDeleted
+			importer().importEntry(request(retained, "resurrection", "entry-4")) shouldBe
+				ImportPortableCapturedCellResult.Blocked(
+					PortableCellImportBlockedReason.DELETED_ENTRY,
+				)
+		}
+
+	@Test
 	fun `deleted imported replay reauthenticates every marker and stale selections stay blocked`() =
 		runTest {
 			seedEvidence()
