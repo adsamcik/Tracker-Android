@@ -42,8 +42,6 @@ import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
-import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
-import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityStore
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import com.adsamcik.tracker.tracker.source.runtime.AutomaticStartTransitionMonitor
@@ -92,7 +90,6 @@ interface BackgroundTrackingApiEntryPoint {
 	fun trackerStateReader(): TrackerStateReader
 	fun trackingParamsRepository(): TrackingParamsRepository
 	fun sourcePolicyRepository(): SourcePolicyRepository
-	fun trackingPurposeAvailabilityStore(): TrackingPurposeAvailabilityStore
 	fun activityWatcherController(): ActivityWatcherController
 	fun automaticControlRecoveryScheduler(): AutomaticControlRecoveryScheduler
 	fun trackingStartupGate(): TrackingStartupGate
@@ -125,7 +122,6 @@ object BackgroundTrackingApi {
 	private var preferenceScope: CoroutineScope? = null
 	private var trackingParamsJob: Job? = null
 	private var sourcePolicyJob: Job? = null
-	private var purposeAvailabilityJob: Job? = null
 	private var disabledRechargeJob: Job? = null
 	private var activityFreqJob: Job? = null
 	private var activityWatcherJob: Job? = null
@@ -141,6 +137,8 @@ object BackgroundTrackingApi {
 
 	private const val DEFAULT_ACTIVITY_FREQ_SECONDS = 10
 	private const val SOURCE_POLICY_RETRY_DELAY_MILLIS = 250L
+	private val AUTOMATIC_CONTROL_AVAILABILITY =
+		TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.automaticControl
 	/** Allows a contradictory automatic-activity update to be corrected before a terminal stop. */
 	private const val AUTOMATIC_STOP_GRACE_MILLIS = 30_000L
 	private var appContext: Context? = null
@@ -176,8 +174,6 @@ object BackgroundTrackingApi {
 	private var activeSourcePolicyRevision: Long? = null
 	@Volatile
 	private var activityControlEligible = false
-	@Volatile
-	private var automaticControlPolicyAvailable = false
 	@Volatile
 	private var activityControlConsentEpoch: Long? = null
 	@Volatile
@@ -492,6 +488,7 @@ object BackgroundTrackingApi {
 					useTransitionApi = useTransitionApi,
 					continuousIntervalSeconds = activityFreqSeconds,
 					transitions = buildTransitions().toSet(),
+					controlAvailability = AUTOMATIC_CONTROL_AVAILABILITY,
 				)
 				recoveryResult = automaticControlRecoveryResult(result)
 				check(recoveryResult == AutomaticControlRecoveryResult.ACCEPTED) {
@@ -554,6 +551,7 @@ object BackgroundTrackingApi {
 							useTransitionApi = false,
 							continuousIntervalSeconds = activityFreqSeconds,
 							transitions = emptySet(),
+							controlAvailability = AUTOMATIC_CONTROL_AVAILABILITY,
 						)
 						val cleanupRecoveryResult = automaticControlDisabledRecoveryResult(cleanup)
 						if (cleanupRecoveryResult == AutomaticControlRecoveryResult.RETRYABLE) {
@@ -649,6 +647,7 @@ object BackgroundTrackingApi {
 						useTransitionApi = false,
 						continuousIntervalSeconds = activityFreqSeconds,
 						transitions = emptySet(),
+						controlAvailability = AUTOMATIC_CONTROL_AVAILABILITY,
 					)
 					recoveryResult = automaticControlDisabledRecoveryResult(result)
 					check(recoveryResult != AutomaticControlRecoveryResult.RETRYABLE) {
@@ -709,28 +708,6 @@ object BackgroundTrackingApi {
 		val scope = CoroutineScope(SupervisorJob() + mainImmediate)
 		preferenceScope = scope
 
-		purposeAvailabilityJob = entryPoint.trackingPurposeAvailabilityStore().availability
-			.onEach { availability ->
-				val nextAvailable = availability.automaticControl.isOperational
-				val availabilityChanged = nextAvailable != automaticControlPolicyAvailable
-				automaticControlPolicyAvailable = nextAvailable
-				reconcileControlEligibility(
-					activityEligible = effectiveAutomaticControlEligibility(
-						controlConsentEligible = activityControlConsentEpoch != null,
-						availability = availability.automaticControl,
-					),
-					activityAuthorityChanged = availabilityChanged,
-				)
-				publishActivityAutomationAuthority()
-			}
-			.catch { error ->
-				automaticControlPolicyAvailable = false
-				reconcileControlEligibility(activityEligible = false)
-				publishActivityAutomationAuthority()
-				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
-			}
-			.launchIn(scope)
-
 		sourcePolicyJob = entryPoint.sourcePolicyRepository().states
 			.onEach { authority ->
 				val snapshot = (authority as? SourcePolicyAuthorityState.Active)?.snapshot
@@ -747,8 +724,10 @@ object BackgroundTrackingApi {
 				activeSourcePolicyRevision = nextPolicyRevision
 				activityControlConsentEpoch = nextActivityConsentEpoch
 				reconcileControlEligibility(
-					activityEligible = nextActivityConsentEpoch != null &&
-						automaticControlPolicyAvailable,
+					activityEligible = effectiveAutomaticControlEligibility(
+						controlConsentEligible = nextActivityConsentEpoch != null,
+						availability = AUTOMATIC_CONTROL_AVAILABILITY,
+					),
 					activityAuthorityChanged = authorityChanged,
 				)
 				publishActivityAutomationAuthority()
@@ -976,8 +955,6 @@ object BackgroundTrackingApi {
 		trackingParamsJob = null
 		sourcePolicyJob?.cancel()
 		sourcePolicyJob = null
-		purposeAvailabilityJob?.cancel()
-		purposeAvailabilityJob = null
 		disabledRechargeJob?.cancel()
 		disabledRechargeJob = null
 		activityFreqJob?.cancel()
@@ -1009,7 +986,6 @@ object BackgroundTrackingApi {
 		paramsInitialized = false
 		activeSourcePolicyRevision = null
 		activityControlEligible = false
-		automaticControlPolicyAvailable = false
 		activityControlConsentEpoch = null
 		publishActivityAutomationAuthority()
 	}

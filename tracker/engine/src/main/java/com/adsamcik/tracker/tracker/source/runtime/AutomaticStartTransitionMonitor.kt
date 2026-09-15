@@ -8,7 +8,8 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationOwner
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import android.os.SystemClock
-import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityStore
+import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.TrackingJoinSpecs
@@ -22,13 +23,14 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 	private val sourceBroker: SourceBroker,
 	private val clockDomainProvider: BootClockDomainProvider,
 	private val activityProjectionLane: ActivityAutomationProjectionLane,
-	private val purposeAvailabilityStore: TrackingPurposeAvailabilityStore,
 ) {
 	suspend fun reconcile(
 		enabled: Boolean,
 		useTransitionApi: Boolean,
 		continuousIntervalSeconds: Int,
 		transitions: Set<ActivityTransitionData>,
+		controlAvailability: AutomaticTrackingOperationalAvailability =
+			TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.automaticControl,
 	): ActivityRegistrationResult {
 		val elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
 		val desiredLatencyMs = continuousIntervalSeconds.coerceAtLeast(1) * 1_000L
@@ -36,7 +38,7 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 		// context used by automatic cold start. Continuous recognition remains a capture mechanism;
 		// it must never be registered as a hidden fallback control.
 		val transitionControlEnabled = enabled &&
-			purposeAvailabilityStore.availability.value.automaticControl.isOperational &&
+			controlAvailability.isOperational &&
 			useTransitionApi &&
 			transitions.isNotEmpty()
 		if (transitionControlEnabled) {

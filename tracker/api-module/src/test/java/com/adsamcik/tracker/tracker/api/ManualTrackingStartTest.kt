@@ -19,7 +19,7 @@ class ManualTrackingStartTest {
 
 	@Test
 	fun `automatic control policy containment does not change manual source readiness`() {
-		val automatic = TrackingPurposeAvailabilityStore().availability.value.automaticControl
+		val automatic = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.automaticControl
 
 		automatic shouldBe AutomaticTrackingOperationalAvailability.Unavailable(
 			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,

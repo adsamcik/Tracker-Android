@@ -1,11 +1,6 @@
 package com.adsamcik.tracker.tracker.api
 
-import javax.inject.Inject
-import javax.inject.Singleton
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 
 enum class AutomaticTrackingUnavailableReason(val stableCode: String) {
 	CONTROL_RETENTION_POLICY_UNAVAILABLE("CONTROL_RETENTION_POLICY_UNAVAILABLE"),
@@ -108,13 +103,19 @@ data class TrackingPurposeAvailabilitySnapshot(
 			"Ambient availability keys must match their source values"
 		}
 	}
+
+	companion object {
+		val SAFE_DEFAULT = TrackingPurposeAvailabilitySnapshot()
+	}
 }
 
 interface TrackingPurposeAvailabilityReader {
+	/** Parent-owned runtime catalog; reading it must not itself probe or register a provider. */
 	val availability: StateFlow<TrackingPurposeAvailabilitySnapshot>
 }
 
 interface TrackingPurposeAvailabilityReporter {
+	/** Publishes only after the owning runtime has reconciled policy, permission, rollout, and provider. */
 	fun reportAutomaticControl(availability: AutomaticTrackingOperationalAvailability)
 	fun reportAmbientSource(availability: AmbientSourceOperationalAvailability)
 }
@@ -138,34 +139,6 @@ sealed interface AmbientSourceReconciliationResult {
 }
 
 fun interface AmbientSourceReconciliationCallback {
+	/** Parent-owned lifecycle entry point. Settings UI never invokes this merely from preference state. */
 	suspend fun reconcile(source: AmbientTrackingSource): AmbientSourceReconciliationResult
-}
-
-/**
- * Shared, side-effect-free availability projection. Runtime owners publish only after their own
- * policy, permission, rollout, and provider reconciliation; reading this store never probes or
- * registers a provider.
- */
-@Singleton
-class TrackingPurposeAvailabilityStore @Inject constructor() :
-	TrackingPurposeAvailabilityReader,
-	TrackingPurposeAvailabilityReporter {
-	private val mutable = MutableStateFlow(TrackingPurposeAvailabilitySnapshot())
-
-	override val availability: StateFlow<TrackingPurposeAvailabilitySnapshot> =
-		mutable.asStateFlow()
-
-	override fun reportAutomaticControl(
-		availability: AutomaticTrackingOperationalAvailability,
-	) {
-		mutable.update { current -> current.copy(automaticControl = availability) }
-	}
-
-	override fun reportAmbientSource(availability: AmbientSourceOperationalAvailability) {
-		mutable.update { current ->
-			current.copy(
-				ambientSources = current.ambientSources + (availability.source to availability),
-			)
-		}
-	}
 }

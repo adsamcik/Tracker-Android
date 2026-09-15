@@ -10,8 +10,6 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
-import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
-import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityStore
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
 import io.kotest.assertions.throwables.shouldThrow
@@ -27,15 +25,11 @@ class AutomaticStartTransitionMonitorTest {
 	private val arbiter = mockk<ActivityRegistrationArbiter>()
 	private val broker = mockk<SourceBroker>()
 	private val activityProjectionLane = mockk<ActivityAutomationProjectionLane>()
-	private val purposeAvailabilityStore = TrackingPurposeAvailabilityStore().apply {
-		reportAutomaticControl(AutomaticTrackingOperationalAvailability.Ready)
-	}
 	private val subject = AutomaticStartTransitionMonitor(
 		arbiter = arbiter,
 		sourceBroker = broker,
 		clockDomainProvider = BootClockDomainProvider { "boot:test" },
 		activityProjectionLane = activityProjectionLane,
-		purposeAvailabilityStore = purposeAvailabilityStore,
 	)
 
 	@Test
@@ -48,6 +42,7 @@ class AutomaticStartTransitionMonitorTest {
 			useTransitionApi = false,
 			continuousIntervalSeconds = 5,
 			transitions = setOf(walkingEnter()),
+			controlAvailability = AutomaticTrackingOperationalAvailability.Ready,
 		)
 
 		coVerify(exactly = 1) {
@@ -80,6 +75,7 @@ class AutomaticStartTransitionMonitorTest {
 			useTransitionApi = true,
 			continuousIntervalSeconds = 30,
 			transitions = emptySet(),
+			controlAvailability = AutomaticTrackingOperationalAvailability.Ready,
 		)
 
 		coVerify(exactly = 1) {
@@ -93,11 +89,6 @@ class AutomaticStartTransitionMonitorTest {
 	@Test
 	fun `unapproved control retention policy clears demand without registering Activity control`() =
 		runTest {
-			purposeAvailabilityStore.reportAutomaticControl(
-				AutomaticTrackingOperationalAvailability.Unavailable(
-					AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
-				),
-			)
 			coEvery {
 				broker.replaceAutomaticControlDemand(
 					any(),
@@ -152,6 +143,7 @@ class AutomaticStartTransitionMonitorTest {
 			useTransitionApi = true,
 			continuousIntervalSeconds = 30,
 			transitions = setOf(walkingEnter()),
+			controlAvailability = AutomaticTrackingOperationalAvailability.Ready,
 		)
 
 		coVerify(exactly = 1) { arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR) }
@@ -173,6 +165,7 @@ class AutomaticStartTransitionMonitorTest {
 			useTransitionApi = true,
 			continuousIntervalSeconds = 30,
 			transitions = setOf(transition),
+			controlAvailability = AutomaticTrackingOperationalAvailability.Ready,
 		)
 
 		coVerifyOrder {
@@ -207,6 +200,7 @@ class AutomaticStartTransitionMonitorTest {
 				useTransitionApi = true,
 				continuousIntervalSeconds = 30,
 				transitions = setOf(walkingEnter()),
+				controlAvailability = AutomaticTrackingOperationalAvailability.Ready,
 			)
 		}
 

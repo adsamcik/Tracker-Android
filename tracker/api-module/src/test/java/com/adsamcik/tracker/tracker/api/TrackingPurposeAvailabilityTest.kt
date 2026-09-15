@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test
 class TrackingPurposeAvailabilityTest {
 	@Test
 	fun `safe default contains automatic control and every approved ambient source`() {
-		val snapshot = TrackingPurposeAvailabilityStore().availability.value
+		val snapshot = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT
 
 		snapshot.automaticControl shouldBe AutomaticTrackingOperationalAvailability.Unavailable(
 			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
@@ -28,8 +28,8 @@ class TrackingPurposeAvailabilityTest {
 	}
 
 	@Test
-	fun `reported source readiness changes only that source`() {
-		val store = TrackingPurposeAvailabilityStore()
+	fun `availability snapshot can replace one source without changing siblings`() {
+		val initial = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT
 		val steps = AmbientSourceOperationalAvailability(
 			source = AmbientTrackingSource.STEPS,
 			state = AmbientSourceOperationalState.PERMISSION_REQUIRED,
@@ -37,10 +37,13 @@ class TrackingPurposeAvailabilityTest {
 			reason = AmbientSourceUnavailableReason.HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED,
 		)
 
-		store.reportAmbientSource(steps)
+		val changed = initial.copy(
+			ambientSources = initial.ambientSources +
+				(AmbientTrackingSource.STEPS to steps),
+		)
 
-		store.availability.value.ambientSources.getValue(AmbientTrackingSource.STEPS) shouldBe steps
-		store.availability.value.ambientSources.getValue(AmbientTrackingSource.LOCATION).reason shouldBe
+		changed.ambientSources.getValue(AmbientTrackingSource.STEPS) shouldBe steps
+		changed.ambientSources.getValue(AmbientTrackingSource.LOCATION).reason shouldBe
 			AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE
 	}
 }

@@ -20,14 +20,9 @@ import com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorTeleme
 import com.adsamcik.tracker.tracker.source.coordinator.EffectiveSourceState
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
-import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
-import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
-import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalState
 import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
-import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
-import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityStore
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
@@ -59,9 +54,8 @@ class TrackingSettingsViewModelTest {
 
     // Backing state for the fake repository
 	private val paramsFlow = MutableStateFlow(TrackingParamsState(sourcePolicyRevision = 1L))
-    private val trackingParamsRepository: TrackingParamsRepository = mockk()
-    private val activityWatcherController: ActivityWatcherController = mockk(relaxed = true)
-	private lateinit var trackingPurposeAvailabilityStore: TrackingPurposeAvailabilityStore
+	private val trackingParamsRepository: TrackingParamsRepository = mockk()
+	private val activityWatcherController: ActivityWatcherController = mockk(relaxed = true)
     private val trackingStatusProvider = DefaultTrackingSettingsStatusProvider(
         SemanticAcquisitionPlanFactory(),
         SourcePlanResolver(),
@@ -72,7 +66,6 @@ class TrackingSettingsViewModelTest {
     @BeforeEach
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-		trackingPurposeAvailabilityStore = TrackingPurposeAvailabilityStore()
 
         // Mock hasSelfPermission (called by inline hasPreciseLocationPermission)
         mockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
@@ -172,7 +165,6 @@ class TrackingSettingsViewModelTest {
             trackingParamsRepository,
             trackingStatusProvider,
             activityWatcherController,
-			trackingPurposeAvailabilityStore,
         )
     }
 
@@ -435,60 +427,8 @@ class TrackingSettingsViewModelTest {
             vm.uiState.value.autoTrackingEnabled shouldBe false
         }
 
-		@Test
-		fun `approved automatic control still requires permission before it is operational`() =
-			runTest(testDispatcher) {
-				permissionsGranted = false
-				trackingPurposeAvailabilityStore.reportAutomaticControl(
-					AutomaticTrackingOperationalAvailability.Ready,
-				)
-				paramsFlow.value = TrackingParamsState()
-				val vm = TrackingSettingsViewModel(
-					context,
-					trackingParamsRepository,
-					trackingStatusProvider,
-					activityWatcherController,
-					trackingPurposeAvailabilityStore,
-				)
-				advanceUntilIdle()
-
-				vm.setAutoTrackingMode(1)
-				advanceUntilIdle()
-
-				vm.uiState.value.autoTrackingEnabled shouldBe true
-				vm.uiState.value.automaticTrackingPermissionRequired shouldBe true
-				vm.uiState.value.automaticTrackingOperational shouldBe false
-				io.mockk.verify { activityWatcherController.applyAutoTrackingMode(0) }
-			}
-
-		@Test
-		fun `Health Connect permission state is surfaced without a Local Recording fallback`() =
-			runTest(testDispatcher) {
-				trackingPurposeAvailabilityStore.reportAmbientSource(
-					AmbientSourceOperationalAvailability(
-						source = AmbientTrackingSource.STEPS,
-						state = AmbientSourceOperationalState.PERMISSION_REQUIRED,
-						mechanism = AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
-						reason =
-							AmbientSourceUnavailableReason.HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED,
-					),
-				)
-				val vm = createViewModel()
-				advanceUntilIdle()
-
-				val steps = vm.uiState.value.ambientSourceAvailability
-					.getValue(AmbientTrackingSource.STEPS)
-				steps.mechanism shouldBe
-					AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS
-				steps.reason shouldBe
-					AmbientSourceUnavailableReason.HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED
-			}
-
         @Test
         fun `granted auto tracking permission applies requested mode`() = runTest(testDispatcher) {
-			trackingPurposeAvailabilityStore.reportAutomaticControl(
-				AutomaticTrackingOperationalAvailability.Ready,
-			)
             val vm = createViewModel()
             advanceUntilIdle()
 
@@ -503,9 +443,6 @@ class TrackingSettingsViewModelTest {
 
         @Test
         fun `denied auto tracking permission preserves current mode`() = runTest(testDispatcher) {
-			trackingPurposeAvailabilityStore.reportAutomaticControl(
-				AutomaticTrackingOperationalAvailability.Ready,
-			)
             val vm = createViewModel()
             advanceUntilIdle()
 
@@ -703,7 +640,6 @@ class TrackingSettingsViewModelTest {
                     trackingParamsRepository,
                     trackingStatusProvider,
                     activityWatcherController,
-					trackingPurposeAvailabilityStore,
                 )
                 advanceUntilIdle()
 
@@ -740,7 +676,6 @@ class TrackingSettingsViewModelTest {
                     trackingParamsRepository,
                     trackingStatusProvider,
                     activityWatcherController,
-					trackingPurposeAvailabilityStore,
                 )
                 advanceUntilIdle()
                 vm.uiState.value.wifiEnabled shouldBe true
