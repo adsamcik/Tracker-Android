@@ -38,6 +38,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
@@ -238,6 +239,100 @@ class AmbientRadioDemandGateTest {
 					any(), lease.identity, 1L, demand.demandId, any(), any(), any(),
 				)
 			}
+		}
+
+	@Test
+	fun `compensation DAO failure is suppressed onto the primary cancellation`() = runTest {
+		val broker = mockk<SourceBroker>()
+		val controller = mockk<SharedWifiSourceController>()
+		val lease = lease(AmbientTrackingSource.WIFI)
+		val demand = ambientDemand(SourceKind.WIFI, "wifi-dao-failure-demand")
+		val activeAuthority = authority(SourceKind.WIFI)
+		val primary = CancellationException("primary cancellation")
+		val compensationFailure = IllegalStateException("compensation DAO failure")
+		coEvery {
+			broker.withAmbientRadioMutationLease(
+				lease.identity,
+				any<suspend () -> AmbientWifiDemandReconciliation>(),
+			)
+		} coAnswers {
+			AmbientRadioLeaseMutation.Applied(
+				secondArg<suspend () -> AmbientWifiDemandReconciliation>().invoke(),
+			)
+		}
+		coEvery {
+			broker.replaceAmbientWifiDemandUnderHeldLease(
+				any(), true, lease.identity, 1L, any(), any(), any(),
+			)
+		} returns AmbientRadioDemandResult.Active(demand, 7L, activeAuthority)
+		coEvery { controller.reconcileAmbientJoin() } throws primary
+		coEvery {
+			broker.compensateAmbientWifiDemandUnderHeldLease(
+				any(), lease.identity, 1L, demand.demandId, any(), any(), any(),
+			)
+		} throws compensationFailure
+		val subject = AmbientWifiDemandReconciler(
+			broker,
+			controller,
+			BootClockDomainProvider { "boot-1" },
+		)
+
+		val thrown = assertFailsWith<CancellationException> {
+			subject.reconcile(lease, AmbientWifiActivationRequest(enabled = true))
+		}
+
+		assertSame(primary, thrown)
+		assertEquals(listOf(compensationFailure), thrown.suppressedExceptions)
+	}
+
+	@Test
+	fun `cleanup provider failure is suppressed onto the primary reconciliation failure`() =
+		runTest {
+			val broker = mockk<SourceBroker>()
+			val controller = mockk<SharedCellSourceController>()
+			val lease = lease(AmbientTrackingSource.CELL)
+			val demand = ambientDemand(SourceKind.CELL, "cell-provider-failure-demand")
+			val activeAuthority = authority(SourceKind.CELL)
+			val primary = IllegalArgumentException("primary provider failure")
+			val cleanupFailure = IllegalStateException("cleanup provider failure")
+			var providerCalls = 0
+			coEvery {
+				broker.withAmbientRadioMutationLease(
+					lease.identity,
+					any<suspend () -> AmbientCellDemandReconciliation>(),
+				)
+			} coAnswers {
+				AmbientRadioLeaseMutation.Applied(
+					secondArg<suspend () -> AmbientCellDemandReconciliation>().invoke(),
+				)
+			}
+			coEvery {
+				broker.replaceAmbientCellDemandUnderHeldLease(
+					any(), true, lease.identity, 1L, any(), any(), any(),
+				)
+			} returns AmbientRadioDemandResult.Active(demand, 7L, activeAuthority)
+			coEvery { controller.reconcileAmbientJoin() } answers {
+				providerCalls += 1
+				if (providerCalls == 1) throw primary
+				throw cleanupFailure
+			}
+			coEvery {
+				broker.compensateAmbientCellDemandUnderHeldLease(
+					any(), lease.identity, 1L, demand.demandId, any(), any(), any(),
+				)
+			} returns activeAuthority.copy(authorityRevision = 8L)
+			val subject = AmbientCellDemandReconciler(
+				broker,
+				controller,
+				BootClockDomainProvider { "boot-1" },
+			)
+
+			val thrown = assertFailsWith<IllegalArgumentException> {
+				subject.reconcile(lease, AmbientCellActivationRequest(enabled = true))
+			}
+
+			assertSame(primary, thrown)
+			assertEquals(listOf(cleanupFailure), thrown.suppressedExceptions)
 		}
 
 	@Test

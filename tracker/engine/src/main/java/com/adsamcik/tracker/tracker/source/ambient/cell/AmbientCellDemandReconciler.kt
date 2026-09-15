@@ -11,7 +11,6 @@ import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReconciliationEvi
 import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReportPreparation
 import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReportPreparationRejection
 import com.adsamcik.tracker.tracker.source.ambient.prepareAmbientRadioReport
-import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -179,7 +178,41 @@ class AmbientCellDemandReconciler @Inject constructor(
 	) {
 		val active = demand as? AmbientRadioDemandResult.Active ?: return
 		withContext(NonCancellable) {
-			val compensated = sourceBroker.compensateAmbientCellDemandUnderHeldLease(
+			val compensated = try {
+				sourceBroker.compensateAmbientCellDemandUnderHeldLease(
+					CONSUMER_ID,
+					lease.identity,
+					reconciliationAttempt,
+					active.demand.demandId,
+					clockDomainProvider.current(),
+					Time.elapsedRealtimeNanos,
+					Time.nowMillis,
+				)
+			} catch (@Suppress("TooGenericExceptionCaught") compensationFailure: Throwable) {
+				if (compensationFailure !== failure) failure.addSuppressed(compensationFailure)
+				return@withContext
+			}
+			if (compensated == null) {
+				failure.addSuppressed(
+					IllegalStateException("Unable to compensate exact Ambient Cell demand"),
+				)
+				return@withContext
+			}
+			try {
+				sharedController.reconcileAmbientJoin()
+			} catch (@Suppress("TooGenericExceptionCaught") cleanupFailure: Throwable) {
+				if (cleanupFailure !== failure) failure.addSuppressed(cleanupFailure)
+			}
+		}
+	}
+
+	private suspend fun compensateRejectedRuntime(
+		active: AmbientRadioDemandResult.Active,
+		lease: AmbientReconciliationLease,
+		reconciliationAttempt: Long,
+	): AmbientRadioReconciliationAuthority {
+		val compensated = requireNotNull(
+			sourceBroker.compensateAmbientCellDemandUnderHeldLease(
 				CONSUMER_ID,
 				lease.identity,
 				reconciliationAttempt,
@@ -187,37 +220,10 @@ class AmbientCellDemandReconciler @Inject constructor(
 				clockDomainProvider.current(),
 				Time.elapsedRealtimeNanos,
 				Time.nowMillis,
-			)
-			if (compensated == null) {
-				failure.addSuppressed(
-					IllegalStateException("Unable to compensate exact Ambient Cell demand"),
-				)
-				return@withContext
-			}
-
-			private suspend fun compensateRejectedRuntime(
-				active: AmbientRadioDemandResult.Active,
-				lease: AmbientReconciliationLease,
-				reconciliationAttempt: Long,
-			): AmbientRadioReconciliationAuthority {
-				val compensated = requireNotNull(
-					sourceBroker.compensateAmbientCellDemandUnderHeldLease(
-						CONSUMER_ID,
-						lease.identity,
-						reconciliationAttempt,
-						active.demand.demandId,
-						clockDomainProvider.current(),
-						Time.elapsedRealtimeNanos,
-						Time.nowMillis,
-					),
-				) { "Unable to compensate rejected Ambient Cell runtime reconciliation" }
-				sharedController.reconcileAmbientJoin()
-				return compensated
-			}
-			runCatchingNonCancellation {
-				sharedController.reconcileAmbientJoin()
-			}.exceptionOrNull()?.let(failure::addSuppressed)
-		}
+			),
+		) { "Unable to compensate rejected Ambient Cell runtime reconciliation" }
+		sharedController.reconcileAmbientJoin()
+		return compensated
 	}
 
 	suspend fun reconcilePurposeAvailability(
