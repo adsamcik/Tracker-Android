@@ -14,6 +14,11 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiv
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsIdentity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
@@ -21,6 +26,12 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIntegrity
@@ -624,6 +635,25 @@ class RoomImportedAmbientStepsTransferTest {
 	}
 
 	@Test
+	fun `recent limit plus one candidates fail closed when their structural span is unbounded`() =
+		runTest {
+			val older = archive(completeDay(LocalDate.of(2024, 1, 1), 2L))
+			val newer = archive(completeDay(LocalDate.of(2026, 1, 1), 3L))
+			importer(database).importArchive(request(older)) shouldBe applied(older, 1)
+			importer(database).importArchive(
+				request(newer, jobId = "span-newer", archiveKey = "span-newer"),
+			) shouldBe applied(newer, 1)
+
+			history(database).readRecent(
+				com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRequest(1),
+			) shouldBe com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRead
+				.Unavailable(
+					com.adsamcik.tracker.stats.api.repository
+						.AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
+				)
+		}
+
+	@Test
 	fun `exact native portable fact identity blocks import before any payload mutation`() = runTest {
 		val archive = archive(completeDay(LocalDate.of(2026, 2, 1), 10L))
 		val fact = archive.days.single().facts.single()
@@ -952,6 +982,59 @@ class RoomImportedAmbientStepsTransferTest {
 				StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
 			)
 		}
+
+	@Test
+	fun `pending imported deletion affects only imported-owned numeric days`() = runTest {
+		val sessionOnlyDay = completeDay(LocalDate.of(2026, 6, 20), 7L)
+		val importedDay = completeDay(LocalDate.of(2026, 6, 21), 9L)
+		seedCompleteSessionDay(sessionOnlyDay, 7L, 1)
+		seedCompleteSessionDay(importedDay, 4L, 2)
+		seedSessionCaptureWithAmbientRevoked()
+		val archive = archive(importedDay)
+		importer(database).importArchive(request(archive)) shouldBe applied(archive, 1)
+		RoomDeleteImportedAmbientStepsAfterConsentReset(
+			database,
+			database.importedAmbientStepsDao(),
+			Dispatchers.Unconfined,
+		).deleteNext(
+			DeleteImportedAmbientStepsAfterConsentResetRequest(
+				EPOCH,
+				SESSION_AMBIENT_REVOKED_CONSENT,
+				importedDay.structuralDayEndTimeMs + 1L,
+			),
+		) shouldBe DeleteImportedAmbientStepsAfterConsentResetResult.Deleted(1)
+		val numeric = RoomStepsNumericSummaryRepository(
+			database,
+			Dispatchers.Unconfined,
+			history(database),
+		)
+
+		numeric.read(
+			StepsNumericSummaryRequest(
+				sessionOnlyDay.structuralEpochDay,
+				sessionOnlyDay.structuralEpochDay,
+				"UTC",
+			),
+		) shouldBe StepsNumericSummary.Ready(
+			listOf(StepsNumericDay(sessionOnlyDay.structuralEpochDay, 7L)),
+		)
+		numeric.read(
+			StepsNumericSummaryRequest(
+				importedDay.structuralEpochDay,
+				importedDay.structuralEpochDay,
+				"UTC",
+			),
+		) shouldBe StepsNumericSummary.Unverifiable(
+			StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+		)
+		(history(database).readRange(historyRequest(archive)) as
+			AmbientStepsHistoryRead.Snapshot).days.single().let { day ->
+			day.importedDisposition shouldBe AmbientStepsImportedDisposition.DELETED
+			day.total shouldBe AmbientStepsHistoryValue.Unavailable(
+				setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.DELETED),
+			)
+		}
+	}
 
 	@Test
 	fun `current epoch and retention floor are checked before duplicate shortcut`() = runTest {
@@ -2066,6 +2149,271 @@ class RoomImportedAmbientStepsTransferTest {
 		}
 	}
 
+	@Suppress("LongMethod")
+	private suspend fun seedCompleteSessionDay(
+		day: PortableAmbientStepsDayV1,
+		steps: Long,
+		index: Int,
+	) {
+		require(index in 1..2)
+		val logicalId = "pending-delete-logical-$index"
+		val runId = "pending-delete-run-$index"
+		val admissionOrdinal = SESSION_ADMISSION_BASE + index
+		val endTimeMs = day.structuralDayStartTimeMs + SESSION_DURATION_MS
+		if (index == 1) {
+			database.sourceProjectionStateDao().installProductLane(
+				SourceProductProjectionLaneEntity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					bindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+					projectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+					projectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+					captureModeMask = 1L,
+					productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+					activatedRolloutRevision = 1L,
+					activationOrdinal = 1L,
+					contiguousAdmissionOrdinal = SESSION_ADMISSION_BASE + 2L,
+					captureAdmissionCutoffOrdinal = null,
+					retentionRequired = true,
+					status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+					installedAtMs = 1L,
+					updatedAtMs = 2L,
+				),
+			)
+		}
+		database.sourceSessionDao().insertSession(
+			LogicalTrackingSessionEntity(
+				logicalTrackingId = logicalId,
+				state = "FINALIZED",
+				lifecycleRevision = 2L,
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				startOrigin = SESSION_START_ORIGIN,
+				clockDomainId = SESSION_BOOT_ID,
+				startedAtMs = day.structuralDayStartTimeMs,
+				startedElapsedNanos = 1L,
+				cutoffAtMs = endTimeMs,
+				cutoffElapsedNanos = 1L + SESSION_DURATION_MS * 1_000_000L,
+				completedAtMs = endTimeMs,
+				finalAdmissionOrdinal = admissionOrdinal,
+				failureCode = null,
+				sessionMode = "MANUAL",
+				currentManifestRevision = 1L,
+				currentIntentRevision = 1L,
+				currentServiceRunId = null,
+				lifecycleLeaseGeneration = 1L,
+				lifecycleBootId = SESSION_BOOT_ID,
+			),
+		)
+		val segmentId = database.sessionSegmentDao().insert(
+			SessionSegment(
+				startTimeMs = day.structuralDayStartTimeMs,
+				endTimeMs = endTimeMs,
+				distanceM = 0f,
+				steps = null,
+				primaryActivity = null,
+				activityConfidence = null,
+				sampleCount = 0,
+				source = SegmentSource.USER_CREATED,
+				inferenceVersion = null,
+				createdAt = endTimeMs,
+				logicalTrackingId = logicalId,
+				serviceRunId = runId,
+			),
+		)
+		database.sourceSessionDao().insertServiceRun(
+			SourceServiceRunEntity(
+				serviceRunId = runId,
+				logicalTrackingId = logicalId,
+				state = "FINALIZED",
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				foregroundCapabilityFlags = 0L,
+				startedAtMs = day.structuralDayStartTimeMs,
+				startedElapsedNanos = 1L,
+				completedAtMs = endTimeMs,
+				completionReason = "USER_STOP",
+				bootId = SESSION_BOOT_ID,
+				leaseGeneration = 1L,
+				startOrigin = SESSION_START_ORIGIN,
+				desiredForegroundCapabilityFlags = 0L,
+				appliedForegroundCapabilityFlags = 0L,
+				runtimeAcknowledgement = "STOP_ACCEPTED",
+				runtimeFailureCode = null,
+				runRevision = 2L,
+				startDeliveryToken = "pending-delete-delivery-$index",
+				startCommandGeneration = index.toLong(),
+				preparedManifestRevision = 1L,
+				preparedIntentRevision = 1L,
+				androidDeliveryState = "FOREGROUND_ACCEPTED",
+				androidDeliveryUpdatedAtMs = endTimeMs,
+				startIsUserInitiated = true,
+				startIsAmbient = false,
+				sessionSegmentId = segmentId,
+				presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_QUIESCED,
+				presentationAcknowledgedAtMs = endTimeMs,
+			),
+		)
+		val source = SessionManifestSourceEntity(
+			logicalTrackingId = logicalId,
+			manifestRevision = 1L,
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			consentEpoch = SESSION_CAPTURE_CONSENT,
+			persistenceEligible = true,
+			qosCode = 1,
+			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			writerOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			writerProjectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+			writerBindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+		)
+		val unsignedManifest = SessionManifestVersionEntity(
+			logicalTrackingId = logicalId,
+			manifestRevision = 1L,
+			serviceRunId = runId,
+			sessionMode = "MANUAL",
+			sourcePolicyRevision = SESSION_POLICY_REVISION,
+			acquisitionPlanRevision = 1L,
+			rolloutRevision = 1L,
+			startOrigin = SESSION_START_ORIGIN,
+			effectiveBootId = SESSION_BOOT_ID,
+			effectiveElapsedRealtimeNanos = 1L,
+			effectiveWallTimeMs = day.structuralDayStartTimeMs,
+			zoneId = day.storedZoneId,
+			automationEpoch = null,
+			changeReason = "TEST",
+			manifestChecksum = "",
+		)
+		database.sourceSessionDao().insertManifest(
+			unsignedManifest.copy(
+				manifestChecksum = SessionManifestIntegrity.compute(
+					unsignedManifest,
+					listOf(source),
+				),
+			),
+		)
+		database.sourceSessionDao().insertManifestSources(listOf(source))
+		database.sourceSessionDao().saveCompleteness(
+			SourceSessionCompletenessEntity(
+				logicalTrackingId = logicalId,
+				serviceRunId = runId,
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				sourceInstanceId = "pending-delete-instance-$index",
+				registrationGeneration = index.toLong(),
+				lastAdmissionOrdinal = admissionOrdinal,
+				lastSourceSequence = 1L,
+				appDrainComplete = true,
+				providerCoverage = "CALLBACKS_ENTERED_BEFORE_BARRIER",
+				stopStatus = "COMPLETE",
+				unresolvedSequenceStart = null,
+				unresolvedSequenceEnd = null,
+				updatedAtMs = endTimeMs,
+			),
+		)
+		val sourceEventId = "pending-delete-event-$index"
+		val logicalFactId = "${SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID}:$sourceEventId"
+		val unsignedFact = StepFactRevisionEntity(
+			logicalFactId = logicalFactId,
+			semanticRevision = 1L,
+			mutationId = "$logicalFactId:1:${StepFactRevisionEntity.OPERATION_UPSERT}",
+			stepIntervalId = null,
+			sourceEventId = sourceEventId,
+			sourceAdmissionOrdinal = admissionOrdinal,
+			originKind = StepFactRevisionEntity.ORIGIN_LIVE_WAL,
+			originIdentity = sourceEventId,
+			writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			writerProjectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+			writerBindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+			operation = StepFactRevisionEntity.OPERATION_UPSERT,
+			intervalStartTimeMs = day.structuralDayStartTimeMs,
+			intervalEndTimeMs = endTimeMs,
+			intervalStartElapsedRealtimeNanos = 1L,
+			intervalEndElapsedRealtimeNanos = 1L + SESSION_DURATION_MS * 1_000_000L,
+			clockDomainId = SESSION_BOOT_ID,
+			bootClockDomainId = SESSION_BOOT_ID,
+			cumulativeStepCountStart = 100L,
+			cumulativeStepCountEnd = 100L + steps,
+			wallTimeUncertaintyMs = 0L,
+			coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
+			effectiveStepCount = steps,
+			logicalTrackingId = logicalId,
+			serviceRunId = runId,
+			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			manifestRevision = 1L,
+			sourcePolicyRevision = SESSION_POLICY_REVISION,
+			captureConsentEpoch = SESSION_CAPTURE_CONSENT,
+			collectedDataEpoch = EPOCH,
+			scopeDeletionGeneration = 0L,
+			effectChecksum = "pending",
+			appliedAtMs = endTimeMs,
+		)
+		database.stepFactRevisionDao().insert(
+			unsignedFact.copy(
+				effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsignedFact),
+			),
+		)
+	}
+
+	private suspend fun seedSessionCaptureWithAmbientRevoked() {
+		val policy = SourcePolicyEntity(
+			policyRevision = SESSION_POLICY_REVISION,
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			enabled = true,
+			qosCode = 1,
+			locationMinTimeSeconds = null,
+			locationMinDistanceMeters = null,
+			locationRequiredAccuracyMeters = null,
+			capturePersistenceEligible = true,
+			controlPersistenceEligible = false,
+			ambientPersistenceEligible = false,
+			captureConsentEpoch = SESSION_CAPTURE_CONSENT,
+			controlConsentEpoch = null,
+			ambientConsentEpoch = null,
+			effectiveBootId = SESSION_BOOT_ID,
+			effectiveElapsedRealtimeNanos = 1L,
+			effectiveWallTimeMs = 0L,
+			changeReason = "test pending imported deletion",
+		)
+		database.sourcePolicyDao().insertPolicies(listOf(policy))
+		database.sourcePolicyDao().insertConsentEpochs(
+			listOf(
+				SourceConsentEpochEntity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+					epoch = SESSION_CAPTURE_CONSENT,
+					eligible = true,
+					persistenceEligible = true,
+					policyRevision = SESSION_POLICY_REVISION,
+					effectiveBootId = SESSION_BOOT_ID,
+					effectiveElapsedRealtimeNanos = 1L,
+					effectiveWallTimeMs = 0L,
+					changeReason = "test session capture",
+				),
+				SourceConsentEpochEntity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+					epoch = SESSION_AMBIENT_REVOKED_CONSENT,
+					eligible = false,
+					persistenceEligible = false,
+					policyRevision = SESSION_POLICY_REVISION,
+					effectiveBootId = SESSION_BOOT_ID,
+					effectiveElapsedRealtimeNanos = 1L,
+					effectiveWallTimeMs = 0L,
+					changeReason = "test ambient revoke",
+				),
+			),
+		)
+		database.sourcePolicyDao().ensureAuthority(
+			SourcePolicyAuthorityEntity(
+				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+				currentPolicyRevision = SESSION_POLICY_REVISION,
+				legacySettingsFingerprint = null,
+				updatedAtMs = 1L,
+			),
+		)
+	}
+
 	private suspend fun seedRevokedConsent(database: AppDatabase) {
 		val policy = SourcePolicyEntity(
 			policyRevision = 2L,
@@ -2265,6 +2613,13 @@ class RoomImportedAmbientStepsTransferTest {
 		const val ELIGIBLE_CONSENT_EPOCH = 3L
 		const val SECOND_REVOKED_CONSENT_EPOCH = 4L
 		const val SECOND_ELIGIBLE_CONSENT_EPOCH = 5L
+		const val SESSION_POLICY_REVISION = 6L
+		const val SESSION_CAPTURE_CONSENT = 7L
+		const val SESSION_AMBIENT_REVOKED_CONSENT = 8L
+		const val SESSION_ADMISSION_BASE = 20L
+		const val SESSION_DURATION_MS = 60L * 60L * 1_000L
+		const val SESSION_START_ORIGIN = "MANUAL_FOREGROUND_START"
+		const val SESSION_BOOT_ID = "pending-delete-boot"
 		const val REOPEN_DATABASE = "imported-ambient-steps-reopen"
 	}
 }

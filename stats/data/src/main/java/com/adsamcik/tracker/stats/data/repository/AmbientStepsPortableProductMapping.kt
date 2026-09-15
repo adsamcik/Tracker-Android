@@ -4,8 +4,9 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsCove
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsPartialCause
 
-internal fun PortableAmbientStepsDayV1.toAmbientStepsProductCauses():
-	Set<AmbientStepsDayCause> = buildSet {
+/** Converts retained portable coverage limitations into the shared Ambient day product causes. */
+internal fun PortableAmbientStepsDayV1.toAmbientStepsProductCauses(): Set<AmbientStepsDayCause> =
+	buildSet {
 	if (coverage == PortableAmbientStepsCoverage.PARTIAL) {
 		add(AmbientStepsDayCause.AMBIENT_COVERAGE_PARTIAL)
 	}

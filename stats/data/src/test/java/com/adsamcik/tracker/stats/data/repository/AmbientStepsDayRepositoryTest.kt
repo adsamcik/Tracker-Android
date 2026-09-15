@@ -176,7 +176,7 @@ class AmbientStepsDayRepositoryTest {
 		val first = historyRepository().readRecent(AmbientStepsHistoryRecentRequest(1)) as
 			AmbientStepsHistoryRecentRead.Page
 		first.days.single().day.epochDay shouldBe 1L
-		requireNotNull(first.next).opaqueDayIdentity.startsWith("sha256:") shouldBe true
+		requireNotNull(first.next).publicDayIdentity.startsWith("sha256:") shouldBe true
 
 		val second = historyRepository().readRecent(
 			AmbientStepsHistoryRecentRequest(1, requireNotNull(first.next)),

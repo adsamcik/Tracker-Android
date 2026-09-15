@@ -774,29 +774,6 @@ private class ImportedAmbientStepsRangeReader(
 				AmbientStepsHistoryKey(it.structuralEpochDay, it.storedZoneId)
 			}.values.any { it.size != 1 }
 		) return ImportedAmbientStepsRangeRead.Unverifiable
-		val dispositions = range.keys.associateWith { key ->
-			val fence = matchingFences.singleOrNull {
-				it.structuralEpochDay == key.epochDay && it.storedZoneId == key.storedZoneId
-			}
-			when {
-				sourceDeleted -> AmbientStepsImportedDisposition.DELETED
-				fence?.fenceKind == ImportedAmbientStepsDayFenceEntity.FENCE_RETENTION ->
-					AmbientStepsImportedDisposition.RETAINED
-				fence != null -> AmbientStepsImportedDisposition.DELETED
-				else -> AmbientStepsImportedDisposition.NONE
-			}
-		}.toMutableMap()
-		if (sourceDeleted) {
-			val causes = dispositions.mapValues {
-				setOf(AmbientStepsDayCause.AMBIENT_IMPORTED_DELETED)
-			}
-			return ImportedAmbientStepsRangeRead.Ready(
-				emptyMap(),
-				emptyMap(),
-				causes,
-				dispositions,
-			)
-		}
 		val candidates = dao.latestDaysForStructuralRange(
 			range.firstEpochDay,
 			range.lastEpochDayInclusive,
@@ -817,6 +794,41 @@ private class ImportedAmbientStepsRangeReader(
 				matchingFences.any { it.dayIdentity == candidate.dayIdentity }
 			}
 		) return ImportedAmbientStepsRangeRead.Unverifiable
+		val importedOwnedKeys = buildSet {
+			matchingFences.mapTo(this) {
+				AmbientStepsHistoryKey(it.structuralEpochDay, it.storedZoneId)
+			}
+			selected.mapTo(this) {
+				AmbientStepsHistoryKey(it.structuralEpochDay, it.storedZoneId)
+			}
+		}
+		val dispositions = range.keys.associateWith { key ->
+			val fence = matchingFences.singleOrNull {
+				it.structuralEpochDay == key.epochDay && it.storedZoneId == key.storedZoneId
+			}
+			when {
+				sourceDeleted && key in importedOwnedKeys -> AmbientStepsImportedDisposition.DELETED
+				fence?.fenceKind == ImportedAmbientStepsDayFenceEntity.FENCE_RETENTION ->
+					AmbientStepsImportedDisposition.RETAINED
+				fence != null -> AmbientStepsImportedDisposition.DELETED
+				else -> AmbientStepsImportedDisposition.NONE
+			}
+		}.toMutableMap()
+		if (sourceDeleted) {
+			val causes = dispositions.mapValues { (_, disposition) ->
+				if (disposition == AmbientStepsImportedDisposition.DELETED) {
+					setOf(AmbientStepsDayCause.AMBIENT_IMPORTED_DELETED)
+				} else {
+					emptySet()
+				}
+			}
+			return ImportedAmbientStepsRangeRead.Ready(
+				emptyMap(),
+				emptyMap(),
+				causes,
+				dispositions,
+			)
+		}
 		val retainedFloor = evidence.retainedFromMs
 		val live = selected.filterNot { candidate ->
 			val retained = retainedFloor != null && (

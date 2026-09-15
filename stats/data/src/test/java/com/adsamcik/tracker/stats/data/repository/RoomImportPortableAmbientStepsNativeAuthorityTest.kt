@@ -25,8 +25,11 @@ import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArch
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsCoverage
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV1
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsFactV1
+import com.adsamcik.tracker.shared.model.steps.portable.identity
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsResult
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRead
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRequest
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportBlockedReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportMetadata
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportReceipt
@@ -94,6 +97,58 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 		numeric.read(
 			StepsNumericSummaryRequest(0L, 0L, "Europe/Prague"),
 		) shouldBe StepsNumericSummary.Ready(listOf(StepsNumericDay(0L, 5L)))
+	}
+
+	@Test
+	fun `recent pagination emits exact native imported duplicate only once`() = runTest {
+		val fixture = seedNative(revoked = false)
+		database.ambientStepsFactRevisionDao().insert(fixture.fact)
+		val bypassNativeCollision = RoomImportPortableAmbientSteps(
+			database,
+			database.importedAmbientStepsDao(),
+			Dispatchers.Unconfined,
+			localOriginSource = { emptyList() },
+		)
+		bypassNativeCollision.importArchive(
+			request(fixture.archive, "duplicate-first", DAY_END + 10L),
+		) shouldBe ImportPortableAmbientStepsResult.Applied(
+			fixture.archive.identity,
+			1,
+			1,
+			1,
+			0,
+		)
+		bypassNativeCollision.importArchive(
+			request(fixture.archive, "duplicate-later", DAY_END + 100L),
+		) shouldBe ImportPortableAmbientStepsResult.Duplicate(fixture.archive.identity, 1)
+		val laterArchive = portableArchive(1L, 7L, "later")
+		importer().importArchive(
+			request(laterArchive, "later-day", 2L * DAY_END),
+		) shouldBe ImportPortableAmbientStepsResult.Applied(
+			laterArchive.identity,
+			1,
+			1,
+			1,
+			0,
+		)
+		val history = DefaultAmbientStepsHistoryRepository(
+			database,
+			database.importedAmbientStepsDao(),
+			StepsSegmentHistorySelector(
+				database,
+				SourceProductLaneExecutionAuthority { false },
+			),
+			Dispatchers.Unconfined,
+		)
+
+		val first = history.readRecent(AmbientStepsHistoryRecentRequest(1)) as
+			AmbientStepsHistoryRecentRead.Page
+		val second = history.readRecent(
+			AmbientStepsHistoryRecentRequest(1, requireNotNull(first.next)),
+		) as AmbientStepsHistoryRecentRead.Page
+		first.days.single().day.epochDay shouldBe 1L
+		second.days.single().day.epochDay shouldBe 0L
+		second.next shouldBe null
 	}
 
 	@Test
@@ -440,13 +495,17 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 			changeReason = "test",
 		)
 
-	private fun request(archive: PortableAmbientStepsArchiveV1) = ImportPortableAmbientStepsRequest(
+	private fun request(
+		archive: PortableAmbientStepsArchiveV1,
+		receiptKey: String = "native-authority",
+		receivedAtMs: Long = DAY_END,
+	) = ImportPortableAmbientStepsRequest(
 		archive = archive,
 		receipt = PortableAmbientStepsImportReceipt(
-			"native-authority-job",
-			"native-authority-archive",
+			"$receiptKey-job",
+			"$receiptKey-archive",
 			"backup.trackerambientsteps",
-			DAY_END,
+			receivedAtMs,
 		),
 		metadata = PortableAmbientStepsImportMetadata(
 			encodedByteCount = 1_024L,
@@ -457,6 +516,44 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 		),
 		expectedCollectedDataEpoch = EPOCH,
 	)
+
+	private fun portableArchive(
+		epochDay: Long,
+		count: Long,
+		suffix: String,
+	): PortableAmbientStepsArchiveV1 {
+		val start = Math.multiplyExact(epochDay, DAY_END)
+		val end = Math.addExact(start, DAY_END)
+		val fact = PortableAmbientStepsFactV1.create(
+			AmbientStepsPortableOpaqueIdentity.derive(
+				AmbientStepsPortableIdentityKind.FACT,
+				"$suffix-fact",
+			),
+			start,
+			end,
+			count,
+		)
+		return PortableAmbientStepsArchiveV1.create(
+			listOf(
+				PortableAmbientStepsDayV1.create(
+					identity = AmbientStepsPortableOpaqueIdentity.derive(
+						AmbientStepsPortableIdentityKind.DAY,
+						"$suffix-day",
+					),
+					structuralEpochDay = epochDay,
+					storedZoneId = "UTC",
+					structuralDayStartTimeMs = start,
+					structuralDayEndTimeMs = end,
+					retainedFromTimeMs = null,
+					coverage = PortableAmbientStepsCoverage.COMPLETE,
+					partialCauses = emptyList(),
+					retainedStepCount = count,
+					facts = listOf(fact),
+					gaps = emptyList(),
+				),
+			),
+		)
+	}
 
 	private fun importer() = RoomImportPortableAmbientSteps(
 		database,
