@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.importer.file
 
 import android.content.Context
+import com.adsamcik.tracker.impexp.importer.FileImportReceiptContext
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.impexp.portable.PortablePressureJsonV1Codec
@@ -37,14 +38,10 @@ internal data class PortablePressureImportDependencies(
 /**
  * Strict `.trackerpressure` adapter using source-managed per-entry transactions.
  *
- * The shared worker does not expose its content-addressed job id or start time to a [FileImport].
- * This adapter therefore derives a bounded stable receipt namespace from the authenticated entry,
- * source name, and [FileImportStream.receiptKey], and uses received-at zero as an explicit
- * "durable worker timestamp unavailable" sentinel. These hashes provide stable replay identity and
- * content integrity only; they grant no live provider, capture, or lifecycle authority.
- *
- * A valid prefix may commit before a later malformed entry. Replay is safe because every entry uses
- * the same deterministic source receipt and the authoritative importer handles duplicate receipts.
+ * A valid prefix may commit before a later malformed entry. Replay is safe because the shared
+ * worker binds the real durable file job once, while this adapter derives only a subordinate
+ * per-entry key from that file-entry key and the authenticated portable entry identity. The
+ * subordinate hash grants no live provider, capture, or lifecycle authority.
  */
 internal class PortablePressureFileImport(
 	private val dependenciesProvider: (Context) -> PortablePressureImportDependencies = { context ->
@@ -67,12 +64,14 @@ internal class PortablePressureFileImport(
 		database: AppDatabase,
 		stream: FileImportStream,
 	): ImportResult {
+		val fileReceipt = stream.importReceipt
+			?: throw PortablePressureImportReceiptContextException()
 		val dependencies = dependenciesProvider(context)
 		var aggregate = ImportResult.EMPTY
 		codec.decode(stream) { entry ->
 			val request = ImportPortablePressureRequest(
 				entry = entry,
-				receipt = PortablePressureFileReceipt.create(stream, entry),
+				receipt = PortablePressureFileReceipt.create(fileReceipt, entry),
 				expectedCollectedDataEpoch = dependencies.lifecycleStore.snapshot().epoch,
 			)
 			aggregate += dependencies.importer.importEntry(request).toFileResult()
@@ -124,45 +123,30 @@ internal class PortablePressureRetryableImportException(
 	}
 }
 
+/** Rejects direct adapter use that bypasses the durable file-job runner. */
+internal class PortablePressureImportReceiptContextException :
+	IOException("Portable Pressure import requires durable file-job receipt context.") {
+	private companion object {
+		const val serialVersionUID: Long = 1L
+	}
+}
+
 private object PortablePressureFileReceipt {
-	private const val JOB_NAMESPACE = "tracker-portable-pressure-file-job-v1"
 	private const val ENTRY_NAMESPACE = "tracker-portable-pressure-file-entry-v1"
 	private const val HASH_PREFIX = "sha256:"
-	private const val UNKNOWN_RECEIVED_AT_MS = 0L
 
 	fun create(
-		stream: FileImportStream,
+		fileReceipt: FileImportReceiptContext,
 		entry: PortablePressureEntryV1,
-	): PortablePressureImportReceipt {
-		val sourceName = boundedField("pressure-source", stream.fileName)
-		val entryKey = boundedField("pressure-entry", stream.receiptKey)
-		val jobId = digest(
-			JOB_NAMESPACE,
-			listOf(
-				PressurePortableFormatV1.FORMAT,
-				PressurePortableFormatV1.SCHEMA_VERSION.toString(),
-				sourceName,
-				entryKey,
-				entry.identity.value,
-				entry.contentChecksum.value,
-			),
-		)
-		return PortablePressureImportReceipt(
-			jobId = jobId,
-			entryKey = digest(
-				ENTRY_NAMESPACE,
-				listOf(entryKey, entry.identity.value),
-			),
-			sourceName = sourceName,
-			receivedAtMs = UNKNOWN_RECEIVED_AT_MS,
-		)
-	}
-
-	private fun boundedField(namespace: String, value: String): String =
-		value.takeIf {
-			it.isNotBlank() &&
-				it.length <= PressurePortableFormatV1.MAX_IMPORT_RECEIPT_FIELD_LENGTH
-		} ?: digest(namespace, listOf(value))
+	): PortablePressureImportReceipt = PortablePressureImportReceipt(
+		jobId = fileReceipt.jobId,
+		entryKey = digest(
+			ENTRY_NAMESPACE,
+			listOf(fileReceipt.entryKey, entry.identity.value),
+		),
+		sourceName = fileReceipt.sourceName,
+		receivedAtMs = fileReceipt.receivedAtMs,
+	)
 
 	private fun digest(namespace: String, values: List<String>): String {
 		val digest = MessageDigest.getInstance("SHA-256")

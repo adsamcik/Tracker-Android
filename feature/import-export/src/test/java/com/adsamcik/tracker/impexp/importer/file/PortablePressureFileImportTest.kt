@@ -71,21 +71,43 @@ class PortablePressureFileImportTest {
 			}
 		}
 
-		importer.import(context, database, stream(encodePressureEntries(listOf(original)))) shouldBe
-			ImportResult(successCount = 1)
-		importer.import(context, database, stream(encodePressureEntries(listOf(original)))) shouldBe
-			ImportResult(skippedCount = 1)
-		importer.import(context, database, stream(encodePressureEntries(listOf(correction)))) shouldBe
-			ImportResult(successCount = 1)
+		importer.import(
+			context,
+			database,
+			stream(
+				encodePressureEntries(listOf(original)),
+				jobId = "original-content-job",
+				receivedAtMs = 123L,
+			),
+		) shouldBe ImportResult(successCount = 1)
+		importer.import(
+			context,
+			database,
+			stream(
+				encodePressureEntries(listOf(original)),
+				jobId = "original-content-job",
+				receivedAtMs = 123L,
+			),
+		) shouldBe ImportResult(skippedCount = 1)
+		importer.import(
+			context,
+			database,
+			stream(
+				encodePressureEntries(listOf(correction)),
+				jobId = "corrected-content-job",
+				receivedAtMs = 456L,
+			),
+		) shouldBe ImportResult(successCount = 1)
 
 		requests.map { it.expectedCollectedDataEpoch } shouldContainExactly listOf(7L, 7L, 7L)
 		requests[0].receipt shouldBe requests[1].receipt
 		requests[2].receipt.entryKey shouldBe requests[0].receipt.entryKey
-		requests[2].receipt.jobId shouldNotBe requests[0].receipt.jobId
-		requests.forEach { request ->
-			request.receipt.sourceName shouldBe "pressure.trackerpressure"
-			request.receipt.receivedAtMs shouldBe 0L
-		}
+		requests[0].receipt.jobId shouldBe "original-content-job"
+		requests[0].receipt.receivedAtMs shouldBe 123L
+		requests[2].receipt.jobId shouldBe "corrected-content-job"
+		requests[2].receipt.receivedAtMs shouldBe 456L
+		requests.map { it.receipt.sourceName }.distinct() shouldContainExactly
+			listOf("pressure.trackerpressure")
 	}
 
 	@Test
@@ -96,8 +118,10 @@ class PortablePressureFileImportTest {
 		)
 		val lifecycle = FakeLifecycleStore(4L)
 		val epochs = mutableListOf<Long>()
+		val receipts = mutableListOf<PortablePressureImportReceipt>()
 		val importer = adapter(lifecycle) { request ->
 			epochs += request.expectedCollectedDataEpoch
+			receipts += request.receipt
 			if (epochs.size == 1) lifecycle.epoch = 5L
 			ImportPortablePressureResult.Applied(1L, 1, 1)
 		}
@@ -105,10 +129,14 @@ class PortablePressureFileImportTest {
 		importer.import(context, database, stream(encodePressureEntries(entries))) shouldBe
 			ImportResult(successCount = 2)
 		epochs shouldContainExactly listOf(4L, 5L)
+		receipts.map { it.jobId }.distinct() shouldContainExactly listOf(DEFAULT_JOB_ID)
+		receipts.map { it.receivedAtMs }.distinct() shouldContainExactly
+			listOf(DEFAULT_RECEIVED_AT_MS)
+		receipts[0].entryKey shouldNotBe receipts[1].entryKey
 	}
 
 	@Test
-	fun `receipt fields remain bounded stable for oversized file metadata`() = runTest {
+	fun `subordinate entry receipt remains bounded stable from the maximum file entry key`() = runTest {
 		val lifecycle = FakeLifecycleStore(2L)
 		val receipts = mutableListOf<PortablePressureImportReceipt>()
 		val importer = adapter(lifecycle) { request ->
@@ -116,26 +144,55 @@ class PortablePressureFileImportTest {
 			ImportPortablePressureResult.Applied(1L, 1, 1)
 		}
 		val bytes = encodePressureEntries(listOf(pressureEntry()))
-		val oversized = "x".repeat(PressurePortableFormatV1.MAX_IMPORT_RECEIPT_FIELD_LENGTH + 1)
+		val maximumEntryKey =
+			"x".repeat(PressurePortableFormatV1.MAX_IMPORT_RECEIPT_FIELD_LENGTH)
 
 		repeat(2) {
 			importer.import(
 				context,
 				database,
-				FileImportStream(
-					fileName = oversized,
-					receiptKey = oversized,
-					streamProvider = { ByteArrayInputStream(bytes) },
+				stream(
+					bytes = bytes,
+					entryKey = maximumEntryKey,
+					jobId = "real-content-job",
+					receivedAtMs = 789L,
 				),
 			)
 		}
 
 		receipts[0] shouldBe receipts[1]
 		receipts.forEach { receipt ->
-			receipt.jobId.length shouldBe 71
+			receipt.jobId shouldBe "real-content-job"
 			receipt.entryKey.length shouldBe 71
-			receipt.sourceName.length shouldBe 71
+			receipt.sourceName shouldBe "pressure.trackerpressure"
+			receipt.receivedAtMs shouldBe 789L
 		}
+	}
+
+	@Test
+	fun `missing durable receipt context fails before stream or source mutation`() = runTest {
+		var dependencyCalls = 0
+		var opens = 0
+		val bytes = encodePressureEntries(listOf(pressureEntry()))
+		val importer = PortablePressureFileImport(
+			dependenciesProvider = {
+				dependencyCalls++
+				error("Missing receipt must fail before dependency resolution")
+			},
+		)
+		val unbound = FileImportStream(
+			fileName = "pressure.trackerpressure",
+			streamProvider = {
+				opens++
+				ByteArrayInputStream(bytes)
+			},
+		)
+
+		shouldThrow<PortablePressureImportReceiptContextException> {
+			importer.import(context, database, unbound)
+		}.let { failure -> failure is IOException shouldBe true }
+		dependencyCalls shouldBe 0
+		opens shouldBe 0
 	}
 
 	@Test
@@ -180,17 +237,35 @@ class PortablePressureFileImportTest {
 	}
 
 	@Test
-	fun `retryable source refusal is an IOException and cancellation is not converted`() = runTest {
+	fun `retry preserves the real file receipt and cancellation is not converted`() = runTest {
 		val bytes = encodePressureEntries(listOf(pressureEntry()))
-		val retryable = adapter(FakeLifecycleStore(1L)) {
-			ImportPortablePressureResult.RetryableFailure(
-				PortablePressureTransferRetryableReason.STORAGE_UNAVAILABLE,
-			)
+		val receipts = mutableListOf<PortablePressureImportReceipt>()
+		var attempts = 0
+		val retryable = adapter(FakeLifecycleStore(1L)) { request ->
+			receipts += request.receipt
+			attempts++
+			if (attempts == 1) {
+				ImportPortablePressureResult.RetryableFailure(
+					PortablePressureTransferRetryableReason.STORAGE_UNAVAILABLE,
+				)
+			} else {
+				ImportPortablePressureResult.Applied(1L, 1, 1)
+			}
 		}
 
 		shouldThrow<PortablePressureRetryableImportException> {
-			retryable.import(context, database, stream(bytes))
+			retryable.import(
+				context,
+				database,
+				stream(bytes, jobId = "retry-job", receivedAtMs = 321L),
+			)
 		}.let { failure -> failure is IOException shouldBe true }
+		retryable.import(
+			context,
+			database,
+			stream(bytes, jobId = "retry-job", receivedAtMs = 321L),
+		) shouldBe ImportResult(successCount = 1)
+		receipts[0] shouldBe receipts[1]
 
 		val cancelled = adapter(FakeLifecycleStore(1L)) {
 			throw CancellationException("cancel")
@@ -222,7 +297,8 @@ class PortablePressureFileImportTest {
 			importer.import(
 				context,
 				database,
-				FileImportStream(underlying, "pressure.trackerpressure"),
+				FileImportStream(underlying, "pressure.trackerpressure")
+					.withImportReceipt(DEFAULT_JOB_ID, DEFAULT_RECEIVED_AT_MS),
 			)
 		}
 		imported.map { it.entry } shouldContainExactly listOf(entries.first())
@@ -245,10 +321,21 @@ class PortablePressureFileImportTest {
 		},
 	)
 
-	private fun stream(bytes: ByteArray): FileImportStream = FileImportStream(
-		ByteArrayInputStream(bytes),
-		"pressure.trackerpressure",
-	)
+	private fun stream(
+		bytes: ByteArray,
+		entryKey: String = "direct-source-v1",
+		jobId: String = DEFAULT_JOB_ID,
+		receivedAtMs: Long = DEFAULT_RECEIVED_AT_MS,
+	): FileImportStream = FileImportStream(
+		fileName = "pressure.trackerpressure",
+		receiptKey = entryKey,
+		streamProvider = { ByteArrayInputStream(bytes) },
+	).withImportReceipt(jobId, receivedAtMs)
+
+	private companion object {
+		const val DEFAULT_JOB_ID = "content-addressed-job"
+		const val DEFAULT_RECEIVED_AT_MS = 100L
+	}
 }
 
 private class FakeLifecycleStore(initialEpoch: Long) : CollectedDataLifecycleStore {
