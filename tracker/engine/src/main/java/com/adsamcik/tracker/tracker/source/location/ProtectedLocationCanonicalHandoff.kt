@@ -227,7 +227,81 @@ internal class ProtectedLocationCanonicalHandoff(
 				changed.reason,
 			)
 		}
+		val continuityFailure = database.withTransaction {
+			verifyGlobalLocationContinuity(
+				afterOrdinal = lane.contiguousAdmissionOrdinal,
+				throughOrdinal = target,
+			)
+		}
+		if (continuityFailure != null) return@withLock continuityFailure
 		drainLocked(lane, target, expectedLogicalTrackingId = null, expectedServiceRunId = null)
+	}
+
+	private suspend fun verifyGlobalLocationContinuity(
+		afterOrdinal: Long,
+		throughOrdinal: Long,
+	): ProtectedLocationCanonicalDrainResult? {
+		var pageAfter = afterOrdinal
+		val expectedByRegistration =
+			mutableMapOf<ProtectedLocationRegistrationIdentity, Long>()
+		while (pageAfter < throughOrdinal) {
+			val page = database.sourceEventWalDao().continuityEventsAfterThrough(
+				afterOrdinal = pageAfter,
+				throughOrdinal = throughOrdinal,
+				limit = CONTINUITY_PAGE_SIZE,
+			)
+			if (page.isEmpty()) break
+			page.forEach { row ->
+				if (row.sourceKind != SOURCE_LOCATION) return@forEach
+				val logicalTrackingId = row.logicalTrackingId
+					?: return ProtectedLocationCanonicalDrainResult.Failed(
+						afterOrdinal,
+						row.admissionOrdinal,
+						"LOCATION_DRAIN_CONTINUITY_AUTHORITY_MISSING",
+						terminal = true,
+					)
+				val serviceRunId = row.serviceRunId
+					?: return ProtectedLocationCanonicalDrainResult.Failed(
+						afterOrdinal,
+						row.admissionOrdinal,
+						"LOCATION_DRAIN_CONTINUITY_AUTHORITY_MISSING",
+						terminal = true,
+					)
+				val registration = ProtectedLocationRegistrationIdentity(
+					row.sourceInstanceId,
+					row.registrationGeneration,
+					logicalTrackingId,
+					serviceRunId,
+				)
+				val previous = expectedByRegistration[registration]
+					?: loadLocationContinuityAnchor(registration)?.sourceSequence
+					?: database.sourceEventWalDao().latestContinuityEventAtOrBefore(
+						sourceKind = SOURCE_LOCATION,
+						sourceInstanceId = row.sourceInstanceId,
+						registrationGeneration = row.registrationGeneration,
+						throughOrdinal = afterOrdinal,
+					)?.sourceSequence
+					?: 0L
+				val expected = runCatching { Math.addExact(previous, 1L) }.getOrNull()
+					?: return ProtectedLocationCanonicalDrainResult.Failed(
+						afterOrdinal,
+						row.admissionOrdinal,
+						"LOCATION_DRAIN_SOURCE_SEQUENCE_OVERFLOW",
+						terminal = true,
+					)
+				if (row.sourceSequence != expected) {
+					return ProtectedLocationCanonicalDrainResult.Failed(
+						afterOrdinal,
+						row.admissionOrdinal,
+						"LOCATION_DRAIN_INTERIOR_SEQUENCE_GAP",
+						terminal = true,
+					)
+				}
+				expectedByRegistration[registration] = row.sourceSequence
+			}
+			pageAfter = page.last().admissionOrdinal
+		}
+		return null
 	}
 
 	/**
@@ -406,6 +480,8 @@ internal class ProtectedLocationCanonicalHandoff(
 				val registration = ProtectedLocationRegistrationIdentity(
 					row.sourceInstanceId,
 					row.registrationGeneration,
+					logicalTrackingId,
+					serviceRunId,
 				)
 				observedSequences.getOrPut(registration, ::mutableSetOf)
 					.add(row.sourceSequence)
@@ -429,9 +505,12 @@ internal class ProtectedLocationCanonicalHandoff(
 			val registration = ProtectedLocationRegistrationIdentity(
 				row.sourceInstanceId,
 				row.registrationGeneration,
+				logicalTrackingId,
+				serviceRunId,
 			)
 			val observed = observedSequences[registration].orEmpty()
-			val prior = database.sourceEventWalDao().latestContinuityEventAtOrBefore(
+			val prior = loadLocationContinuityAnchor(registration)?.sourceSequence
+				?: database.sourceEventWalDao().latestContinuityEventAtOrBefore(
 				sourceKind = SOURCE_LOCATION,
 				sourceInstanceId = row.sourceInstanceId,
 				registrationGeneration = row.registrationGeneration,
@@ -467,6 +546,22 @@ internal class ProtectedLocationCanonicalHandoff(
 				}
 				expected++
 			}
+		}
+		val completenessRegistrations = completeness.mapTo(mutableSetOf()) {
+			ProtectedLocationRegistrationIdentity(
+				it.sourceInstanceId,
+				it.registrationGeneration,
+				logicalTrackingId,
+				serviceRunId,
+			)
+		}
+		val missingCompleteness = observedSequences.keys - completenessRegistrations
+		if (missingCompleteness.isNotEmpty()) {
+			return ProtectedLocationCanonicalDrainResult.Deferred(
+				lastCommittedOrdinal,
+				throughOrdinal,
+				"LOCATION_DRAIN_OBSERVED_REGISTRATION_MISSING_COMPLETENESS",
+			)
 		}
 		return null
 	}
@@ -837,6 +932,9 @@ internal class ProtectedLocationCanonicalHandoff(
 				WRITER_VERSION,
 				throughOrdinal,
 			)
+			database.saveLocationContinuityAnchor(
+				command = command,
+			)
 			advanceCursor(initialLane, expectedCursor, throughOrdinal)
 			val receiptKey = protectedLocationReceiptKey(
 				command.mutation.identity.sourceEventId.value,
@@ -1009,6 +1107,11 @@ internal class ProtectedLocationCanonicalHandoff(
 			"Exact protected Location lane changed before cursor commit"
 		}
 	}
+
+	private suspend fun loadLocationContinuityAnchor(
+		registration: ProtectedLocationRegistrationIdentity,
+	): ProtectedLocationContinuityAnchor? =
+		database.loadLocationContinuityAnchor(registration)
 
 	private fun nowMs(): Long = System.currentTimeMillis().coerceAtLeast(0L)
 
@@ -1297,7 +1400,7 @@ internal suspend fun AppDatabase.recordProtectedLocationCanonicalReceiptInCurren
 		"Protected Location prepared curation authority changed"
 	}
 	val preparedState = ProtectedLocationPreparedCurationStateCodec.decode(prepared.payload)
-	check(preparedState.expectedOutput == verified.expectedOutput &&
+	check(preparedState.expectedOutput.contentEquals(verified.expectedOutput) &&
 		preparedState.expectedOutput.matches(decision, sample)
 	) {
 		"Protected Location stored destination differs from prepared canonical output"
@@ -1324,22 +1427,11 @@ internal suspend fun AppDatabase.recordProtectedLocationCanonicalReceiptInCurren
 			updatedAtMs = System.currentTimeMillis().coerceAtLeast(0L),
 		),
 	)
-	sourceProjectionStateDao().saveJoinState(
-		SourceProjectionJoinStateEntity(
-			projectionId = ProtectedLocationCanonicalHandoff.WRITER_ID,
-			projectionVersion = ProtectedLocationCanonicalHandoff.WRITER_VERSION,
-			stateKey = protectedLocationRunCurationKey(
-				command.authority.logicalTrackingId.value,
-				command.authority.serviceRunId.value,
-			),
-			logicalTrackingId = command.authority.logicalTrackingId.value,
-			minimumRequiredOrdinal = runCatching {
-				Math.addExact(command.mutation.identity.sourceAdmissionOrdinal, 1L)
-			}.getOrDefault(Long.MAX_VALUE),
-			payloadVersion = ProtectedLocationCanonicalCurationStateCodec.VERSION,
-			payload = committedCurationState,
-			updatedAtMs = System.currentTimeMillis().coerceAtLeast(0L),
-		),
+	saveProtectedLocationRunCurationCheckpoint(
+		logicalTrackingId = command.authority.logicalTrackingId.value,
+		serviceRunId = command.authority.serviceRunId.value,
+		committedThroughOrdinal = command.mutation.identity.sourceAdmissionOrdinal,
+		payload = committedCurationState,
 	)
 	sourceProjectionStateDao().deleteJoinState(
 		ProtectedLocationCanonicalHandoff.WRITER_ID,
@@ -1651,24 +1743,193 @@ private fun protectedLocationRunCurationKey(
 
 private const val SHA_256_BYTES = 32
 
+private fun protectedLocationContinuityKey(
+	registration: ProtectedLocationRegistrationIdentity,
+): String = buildString {
+	append("continuity:")
+	append(registration.logicalTrackingId.length)
+	append(':')
+	append(registration.logicalTrackingId)
+	append(':')
+	append(registration.serviceRunId.length)
+	append(':')
+	append(registration.serviceRunId)
+	append(':')
+	append(registration.sourceInstanceId.length)
+	append(':')
+	append(registration.sourceInstanceId)
+	append(':')
+	append(registration.registrationGeneration)
+}
+
+private suspend fun AppDatabase.loadLocationContinuityAnchor(
+	registration: ProtectedLocationRegistrationIdentity,
+): ProtectedLocationContinuityAnchor? {
+	val stored = sourceProjectionStateDao().joinState(
+		ProtectedLocationCanonicalHandoff.WRITER_ID,
+		ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+		protectedLocationContinuityKey(registration),
+	) ?: return null
+	check(stored.logicalTrackingId == registration.logicalTrackingId &&
+		stored.payloadVersion == ProtectedLocationContinuityAnchorCodec.VERSION
+	) {
+		"Protected Location continuity anchor authority changed"
+	}
+	return ProtectedLocationContinuityAnchorCodec.decode(stored.payload)
+}
+
+private suspend fun AppDatabase.saveLocationContinuityAnchor(
+	command: LocationCapturedFactCommand,
+) {
+	val evidence = command.productEffect.durableEvidence
+	val registration = ProtectedLocationRegistrationIdentity(
+		command.authority.sourceInstanceId.value,
+		command.authority.registrationGeneration,
+		command.authority.logicalTrackingId.value,
+		command.authority.serviceRunId.value,
+	)
+	val anchor = ProtectedLocationContinuityAnchor(
+		admissionOrdinal = evidence.sourceAdmissionOrdinal,
+		sourceSequence = evidence.sourceSequence,
+	)
+	val entity = SourceProjectionJoinStateEntity(
+		projectionId = ProtectedLocationCanonicalHandoff.WRITER_ID,
+		projectionVersion = ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+		stateKey = protectedLocationContinuityKey(registration),
+		logicalTrackingId = command.authority.logicalTrackingId.value,
+		minimumRequiredOrdinal = runCatching {
+			Math.addExact(evidence.sourceAdmissionOrdinal, 1L)
+		}.getOrDefault(Long.MAX_VALUE),
+		payloadVersion = ProtectedLocationContinuityAnchorCodec.VERSION,
+		payload = ProtectedLocationContinuityAnchorCodec.encode(anchor),
+		updatedAtMs = System.currentTimeMillis().coerceAtLeast(0L),
+	)
+	if (sourceProjectionStateDao().insertJoinStateIfAbsent(entity) != -1L) return
+	val existing = requireNotNull(sourceProjectionStateDao().joinState(
+		entity.projectionId,
+		entity.projectionVersion,
+		entity.stateKey,
+	))
+	when {
+		existing.minimumRequiredOrdinal > entity.minimumRequiredOrdinal -> return
+		existing.minimumRequiredOrdinal == entity.minimumRequiredOrdinal -> check(
+			existing.logicalTrackingId == entity.logicalTrackingId &&
+				existing.payloadVersion == entity.payloadVersion &&
+				existing.payload.contentEquals(entity.payload),
+		) {
+			"Protected Location continuity anchor cannot change at one ordinal"
+		}
+		else -> sourceProjectionStateDao().saveJoinState(entity)
+	}
+}
+
+private object ProtectedLocationContinuityAnchorCodec {
+	const val VERSION = 1
+	private const val MAGIC = 0x504c4341
+
+	fun encode(anchor: ProtectedLocationContinuityAnchor): ByteArray =
+		canonicalLocationReceiptBytes {
+			writeInt(MAGIC)
+			writeInt(VERSION)
+			writeLong(anchor.admissionOrdinal)
+			writeLong(anchor.sourceSequence)
+		}.withSha256Trailer()
+
+	fun decode(payload: ByteArray): ProtectedLocationContinuityAnchor =
+		DataInputStream(ByteArrayInputStream(payload.verifiedSha256Body())).use { input ->
+			require(input.readInt() == MAGIC)
+			require(input.readInt() == VERSION)
+			val anchor = ProtectedLocationContinuityAnchor(
+				admissionOrdinal = input.readLong(),
+				sourceSequence = input.readLong(),
+			)
+			require(anchor.admissionOrdinal > 0L && anchor.sourceSequence > 0L)
+			require(input.available() == 0)
+			anchor
+		}
+}
+
+internal data class ProtectedLocationCommittedCurationState(
+	val committedThroughOrdinal: Long,
+	val state: LocationCanonicalCurationState,
+)
+
 internal suspend fun AppDatabase.loadProtectedLocationCanonicalCurationState(
 	command: LocationCapturedFactCommand,
 ): LocationCanonicalCurationState {
+	val checkpoint = loadProtectedLocationCommittedCurationState(
+		command.authority.logicalTrackingId.value,
+		command.authority.serviceRunId.value,
+	) ?: return LocationCanonicalCurationState.EMPTY
+	check(
+		checkpoint.committedThroughOrdinal <
+			command.mutation.identity.sourceAdmissionOrdinal,
+	) {
+		"Protected Location curation checkpoint is not before the pending event"
+	}
+	return checkpoint.state
+}
+
+internal suspend fun AppDatabase.loadProtectedLocationCommittedCurationState(
+	logicalTrackingId: String,
+	serviceRunId: String,
+): ProtectedLocationCommittedCurationState? {
 	val stored = sourceProjectionStateDao().joinState(
 		ProtectedLocationCanonicalHandoff.WRITER_ID,
 		ProtectedLocationCanonicalHandoff.WRITER_VERSION,
 		protectedLocationRunCurationKey(
-			command.authority.logicalTrackingId.value,
-			command.authority.serviceRunId.value,
+			logicalTrackingId,
+			serviceRunId,
 		),
-	) ?: return LocationCanonicalCurationState.EMPTY
-	check(stored.logicalTrackingId == command.authority.logicalTrackingId.value &&
+	) ?: return null
+	check(stored.logicalTrackingId == logicalTrackingId &&
 		stored.payloadVersion == ProtectedLocationCanonicalCurationStateCodec.VERSION &&
-		stored.minimumRequiredOrdinal <= command.mutation.identity.sourceAdmissionOrdinal
+		stored.minimumRequiredOrdinal > 0L
 	) {
 		"Protected Location curation state authority changed"
 	}
-	return ProtectedLocationCanonicalCurationStateCodec.decode(stored.payload)
+	return ProtectedLocationCommittedCurationState(
+		committedThroughOrdinal = stored.minimumRequiredOrdinal - 1L,
+		state = ProtectedLocationCanonicalCurationStateCodec.decode(stored.payload),
+	)
+}
+
+private suspend fun AppDatabase.saveProtectedLocationRunCurationCheckpoint(
+	logicalTrackingId: String,
+	serviceRunId: String,
+	committedThroughOrdinal: Long,
+	payload: ByteArray,
+) {
+	val nextOrdinal = runCatching {
+		Math.addExact(committedThroughOrdinal, 1L)
+	}.getOrDefault(Long.MAX_VALUE)
+	val entity = SourceProjectionJoinStateEntity(
+		projectionId = ProtectedLocationCanonicalHandoff.WRITER_ID,
+		projectionVersion = ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+		stateKey = protectedLocationRunCurationKey(logicalTrackingId, serviceRunId),
+		logicalTrackingId = logicalTrackingId,
+		minimumRequiredOrdinal = nextOrdinal,
+		payloadVersion = ProtectedLocationCanonicalCurationStateCodec.VERSION,
+		payload = payload,
+		updatedAtMs = System.currentTimeMillis().coerceAtLeast(0L),
+	)
+	if (sourceProjectionStateDao().insertJoinStateIfAbsent(entity) != -1L) return
+	val existing = requireNotNull(sourceProjectionStateDao().joinState(
+		entity.projectionId,
+		entity.projectionVersion,
+		entity.stateKey,
+	))
+	when {
+		existing.minimumRequiredOrdinal > entity.minimumRequiredOrdinal -> return
+		existing.minimumRequiredOrdinal == entity.minimumRequiredOrdinal -> check(
+			existing.logicalTrackingId == entity.logicalTrackingId &&
+				existing.payloadVersion == entity.payloadVersion &&
+				existing.payload.contentEquals(entity.payload),
+		) {
+			"Protected Location curation checkpoint cannot change at one ordinal"
+		}
+		else -> sourceProjectionStateDao().saveJoinState(entity)
+	}
 }
 
 internal suspend fun AppDatabase.prepareProtectedLocationCanonicalCurationState(
@@ -1678,26 +1939,44 @@ internal suspend fun AppDatabase.prepareProtectedLocationCanonicalCurationState(
 	expectedOutput: ProtectedLocationPreparedCanonicalOutput,
 ) {
 	requireProtectedLocationWriterAuthority()
-	sourceProjectionStateDao().saveJoinState(
-		SourceProjectionJoinStateEntity(
-			projectionId = ProtectedLocationCanonicalHandoff.WRITER_ID,
-			projectionVersion = ProtectedLocationCanonicalHandoff.WRITER_VERSION,
-			stateKey = protectedLocationPreparedCurationKey(
-				command.mutation.identity.sourceEventId.value,
-			),
-			logicalTrackingId = command.authority.logicalTrackingId.value,
-			minimumRequiredOrdinal = command.mutation.identity.sourceAdmissionOrdinal,
-			payloadVersion = ProtectedLocationPreparedCurationStateCodec.VERSION,
-			payload = ProtectedLocationPreparedCurationStateCodec.encode(
-				ProtectedLocationPreparedCurationState(
-					stateBefore,
-					stateAfter,
-					expectedOutput,
-				),
-			),
-			updatedAtMs = System.currentTimeMillis().coerceAtLeast(0L),
+	val entity = SourceProjectionJoinStateEntity(
+		projectionId = ProtectedLocationCanonicalHandoff.WRITER_ID,
+		projectionVersion = ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+		stateKey = protectedLocationPreparedCurationKey(
+			command.mutation.identity.sourceEventId.value,
 		),
+		logicalTrackingId = command.authority.logicalTrackingId.value,
+		minimumRequiredOrdinal = command.mutation.identity.sourceAdmissionOrdinal,
+		payloadVersion = ProtectedLocationPreparedCurationStateCodec.VERSION,
+		payload = ProtectedLocationPreparedCurationStateCodec.encode(
+			ProtectedLocationPreparedCurationState(
+				stateBefore,
+				stateAfter,
+				expectedOutput,
+			),
+		),
+		updatedAtMs = System.currentTimeMillis().coerceAtLeast(0L),
 	)
+	val inserted = sourceProjectionStateDao().insertJoinStateIfAbsent(entity)
+	if (inserted == -1L) {
+		val existing = requireNotNull(sourceProjectionStateDao().joinState(
+			entity.projectionId,
+			entity.projectionVersion,
+			entity.stateKey,
+		)) {
+			"Protected Location prepared curation disappeared after insert conflict"
+		}
+		check(existing.projectionId == entity.projectionId &&
+			existing.projectionVersion == entity.projectionVersion &&
+			existing.stateKey == entity.stateKey &&
+			existing.logicalTrackingId == entity.logicalTrackingId &&
+			existing.minimumRequiredOrdinal == entity.minimumRequiredOrdinal &&
+			existing.payloadVersion == entity.payloadVersion &&
+			existing.payload.contentEquals(entity.payload)
+		) {
+			"Protected Location prepared event cannot be replaced with different output"
+		}
+	}
 	requireProtectedLocationWriterAuthority()
 }
 
@@ -1729,7 +2008,8 @@ internal fun LocationWalAcquisitionMetadata.toCanonicalCurationContext(
 		com.adsamcik.tracker.shared.model.AltitudeContractVersions.MODEL_VERSION &&
 		altitudeEstimatorVersion ==
 		com.adsamcik.tracker.shared.model.AltitudeContractVersions.ESTIMATOR_VERSION &&
-		altitudeCalibrationVersion == 0
+		altitudeCalibrationVersion ==
+		com.adsamcik.tracker.shared.model.AltitudeContractVersions.CALIBRATION_VERSION
 	) {
 		"Protected Location curation contract is unsupported by this writer"
 	}
@@ -1904,6 +2184,11 @@ internal data class ProtectedLocationPreparedCanonicalOutput(
 	val decision: ByteArray,
 	val sample: ByteArray?,
 ) {
+	fun contentEquals(other: ProtectedLocationPreparedCanonicalOutput?): Boolean =
+		other != null &&
+			decision.contentEquals(other.decision) &&
+			sample.contentEqualsNullable(other.sample)
+
 	fun matches(
 		decision: LocationObservationDecision,
 		sample: StoredLocationSample?,
@@ -2296,7 +2581,7 @@ private fun StoredLocationSample.matchesQualifiedEvidence(
 		batchSize == evidence.deliveryUnitCount &&
 		!isMock &&
 		estimatorVersion == acquisitionMetadata.altitudeEstimatorVersion &&
-		calibrationVersion == acquisitionMetadata.altitudeCalibrationVersion &&
+		calibrationVersion in 0..acquisitionMetadata.altitudeCalibrationVersion &&
 		altitudeModelVersion == acquisitionMetadata.altitudeModelVersion &&
 		clockDomainId == evidence.clockAuthority.clockDomainId &&
 		bootClockDomainId == evidence.clockAuthority.clockDomainId
@@ -2399,6 +2684,13 @@ private data class ProtectedLocationQualifiedCandidate(
 private data class ProtectedLocationRegistrationIdentity(
 	val sourceInstanceId: String,
 	val registrationGeneration: Long,
+	val logicalTrackingId: String,
+	val serviceRunId: String,
+)
+
+private data class ProtectedLocationContinuityAnchor(
+	val admissionOrdinal: Long,
+	val sourceSequence: Long,
 )
 
 private fun SourceSessionCompletenessEntity.hasSettledLocationContinuity(): Boolean =

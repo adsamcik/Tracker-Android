@@ -231,7 +231,8 @@ internal class LocationTrackerComponent(
 				canonicalCuration.altitudeModelVersion != AltitudeContractVersions.MODEL_VERSION ||
 				canonicalCuration.altitudeEstimatorVersion !=
 				AltitudeContractVersions.ESTIMATOR_VERSION ||
-				canonicalCuration.altitudeCalibrationVersion != 0
+				canonicalCuration.altitudeCalibrationVersion !=
+				AltitudeContractVersions.CALIBRATION_VERSION
 			) {
 				completeCanonicalCuration(
 					canonicalCuration,

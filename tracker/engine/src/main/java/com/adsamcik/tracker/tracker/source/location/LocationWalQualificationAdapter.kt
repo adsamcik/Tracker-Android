@@ -593,7 +593,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 				curationVersion = PROTECTED_LOCATION_CANONICAL_CURATION_VERSION,
 				altitudeModelVersion = AltitudeContractVersions.MODEL_VERSION,
 				altitudeEstimatorVersion = AltitudeContractVersions.ESTIMATOR_VERSION,
-				altitudeCalibrationVersion = 0,
+				altitudeCalibrationVersion = AltitudeContractVersions.CALIBRATION_VERSION,
 			),
 		)
 	}

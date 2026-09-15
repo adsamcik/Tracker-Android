@@ -60,6 +60,16 @@ internal data class LocationCanonicalCurationState(
 			altitudeProcessorState = AltitudeProcessor.initialState(),
 		)
 	}
+
+	fun isAheadOf(other: LocationCanonicalCurationState): Boolean =
+		latestElapsedRealtimeNanos() > other.latestElapsedRealtimeNanos() ||
+			altitudeProcessorState.fusionState.kalmanState.lastElapsedTimeMs >
+			other.altitudeProcessorState.fusionState.kalmanState.lastElapsedTimeMs
+
+	private fun latestElapsedRealtimeNanos(): Long = maxOf(
+		lastAccepted?.elapsedRealtimeNanos ?: 0L,
+		pendingReacquisition?.elapsedRealtimeNanos ?: 0L,
+	)
 }
 
 internal class LocationCanonicalCurationOutcome(

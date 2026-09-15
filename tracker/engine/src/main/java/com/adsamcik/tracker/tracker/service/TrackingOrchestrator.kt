@@ -63,6 +63,7 @@ import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWr
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationPreparedCanonicalOutput
 import com.adsamcik.tracker.tracker.source.location.prepareProtectedLocationCanonicalCurationState
 import com.adsamcik.tracker.tracker.source.location.loadPreparedProtectedLocationCanonicalCurationState
+import com.adsamcik.tracker.tracker.source.location.loadProtectedLocationCommittedCurationState
 import com.adsamcik.tracker.tracker.source.location.readProtectedLocationCanonicalReceipt
 import com.adsamcik.tracker.tracker.source.location.toCanonicalCurationContext
 import com.adsamcik.tracker.tracker.source.location.toProtectedLocationMockRejectionSignal
@@ -136,6 +137,7 @@ internal class TrackingOrchestrator(
 	private var pendingPresentationBinding: SessionPresentationBinding? = null
 	private var completedShutdownResult: ShutdownResult? = null
 	private var protectedLocationApplicationContext: Context? = null
+	private var protectedLocationCurationSeededThroughOrdinal: Long? = null
 
 	@Volatile
 	private var controlLocationEnabled: Boolean = true
@@ -213,6 +215,7 @@ internal class TrackingOrchestrator(
 		pendingPresentationBinding = null
 		completedShutdownResult = null
 		protectedLocationApplicationContext = null
+		protectedLocationCurationSeededThroughOrdinal = null
 
 		val newSessionJob = SupervisorJob(scope.coroutineContext[Job])
 		val sessionScope = CoroutineScope(scope.coroutineContext + newSessionJob)
@@ -451,6 +454,19 @@ internal class TrackingOrchestrator(
 	) {
 		componentMutex.withLock {
 			if (!controller.isServiceRunning) return
+			if (cycle.location != null) {
+				val persistence = signalProcessors.filterIsInstance<PersistenceProcessor>()
+					.singleOrNull()
+				if (persistence != null &&
+					!persistence.flushProtectedLocationCanonicalHandoff()
+				) {
+					Tracebox.log.error(
+						TrackerTraceboxTemplates.TRACKING_SIGNAL_CHECKPOINT_FAILED,
+					)
+					return@withLock
+				}
+				seedCommittedProtectedLocationCurationIfNeeded()
+			}
 
 			collectAndProcess(context, cycle)
 		}
@@ -496,6 +512,30 @@ internal class TrackingOrchestrator(
 				"LOCATION_CANONICAL_CURATION_COMPONENT_UNAVAILABLE",
 				terminal = false,
 			)
+		if (!persistence.flushProtectedLocationCanonicalHandoff()) {
+			return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
+				"LOCATION_CANONICAL_PENDING_COMMIT",
+			)
+		}
+		when (val receipt = appDatabase.withTransaction {
+			appDatabase.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
+		}) {
+			is ProtectedLocationCanonicalReceipt.Complete -> {
+				applyCommittedProtectedLocationCuration(
+					locationComponent,
+					command.mutation.identity.sourceAdmissionOrdinal,
+					receipt.curationState,
+				)
+				return@withLock ProtectedLocationCanonicalWriteResult.Committed
+			}
+			is ProtectedLocationCanonicalReceipt.Invalid ->
+				return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+					receipt.reason,
+					terminal = true,
+				)
+			is ProtectedLocationCanonicalReceipt.Incomplete -> Unit
+		}
+		seedCommittedProtectedLocationCurationIfNeeded()
 		val curationStateBefore = try {
 			appDatabase.withTransaction {
 				appDatabase.loadPreparedProtectedLocationCanonicalCurationState(command)
@@ -522,23 +562,6 @@ internal class TrackingOrchestrator(
 			)
 		}
 		return@withLock try {
-			if (!persistence.flushProtectedLocationCanonicalHandoff()) {
-				return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
-					"LOCATION_CANONICAL_PENDING_COMMIT",
-				)
-			}
-			when (val receipt = appDatabase.withTransaction {
-				appDatabase.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
-			}) {
-				is ProtectedLocationCanonicalReceipt.Complete ->
-					return@withLock ProtectedLocationCanonicalWriteResult.Committed
-				is ProtectedLocationCanonicalReceipt.Invalid ->
-					return@withLock ProtectedLocationCanonicalWriteResult.Failed(
-						receipt.reason,
-						terminal = true,
-					)
-				is ProtectedLocationCanonicalReceipt.Incomplete -> Unit
-			}
 			if (!pipeline.checkpointDurableSignals(
 				listOf(command.toProtectedLocationObservationSignal(
 					acquisitionMetadata = acquisitionMetadata,
@@ -621,8 +644,14 @@ internal class TrackingOrchestrator(
 			when (val receipt = appDatabase.withTransaction {
 				appDatabase.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
 			}) {
-				is ProtectedLocationCanonicalReceipt.Complete ->
+				is ProtectedLocationCanonicalReceipt.Complete -> {
+					applyCommittedProtectedLocationCuration(
+						locationComponent,
+						command.mutation.identity.sourceAdmissionOrdinal,
+						receipt.curationState,
+					)
 					ProtectedLocationCanonicalWriteResult.Committed
+				}
 				is ProtectedLocationCanonicalReceipt.Incomplete ->
 					ProtectedLocationCanonicalWriteResult.Deferred(receipt.reason)
 				is ProtectedLocationCanonicalReceipt.Invalid ->
@@ -641,6 +670,40 @@ internal class TrackingOrchestrator(
 				terminal = false,
 			)
 		}
+	}
+
+	private suspend fun seedCommittedProtectedLocationCurationIfNeeded() {
+		val binding = pendingPresentationBinding ?: return
+		val component = dataComponentList.filterIsInstance<LocationTrackerComponent>()
+			.singleOrNull() ?: return
+		val checkpoint = appDatabase.withTransaction {
+			appDatabase.loadProtectedLocationCommittedCurationState(
+				binding.logicalTrackingId,
+				binding.serviceRunId,
+			)
+		} ?: return
+		val seededThrough = protectedLocationCurationSeededThroughOrdinal
+		if (seededThrough != null && seededThrough >= checkpoint.committedThroughOrdinal) return
+		applyCommittedProtectedLocationCuration(
+			component,
+			checkpoint.committedThroughOrdinal,
+			checkpoint.state,
+		)
+	}
+
+	private fun applyCommittedProtectedLocationCuration(
+		component: LocationTrackerComponent,
+		committedThroughOrdinal: Long,
+		state: com.adsamcik.tracker.tracker.data.collection.LocationCanonicalCurationState,
+	) {
+		val current = component.snapshotCanonicalState()
+		if (!current.isAheadOf(state)) {
+			component.restoreCanonicalState(state)
+		}
+		protectedLocationCurationSeededThroughOrdinal = maxOf(
+			protectedLocationCurationSeededThroughOrdinal ?: 0L,
+			committedThroughOrdinal,
+		)
 	}
 
 	/**
@@ -669,6 +732,7 @@ internal class TrackingOrchestrator(
 			sessionJob?.cancelAndJoin()
 			sessionJob = null
 			protectedLocationApplicationContext = null
+			protectedLocationCurationSeededThroughOrdinal = null
 		}
 	}
 
@@ -703,6 +767,7 @@ internal class TrackingOrchestrator(
 		pendingPresentationBinding = null
 		completedShutdownResult = null
 		protectedLocationApplicationContext = null
+		protectedLocationCurationSeededThroughOrdinal = null
 	}
 
 	fun markServiceStopped() {
