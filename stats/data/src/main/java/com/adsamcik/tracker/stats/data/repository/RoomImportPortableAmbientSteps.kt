@@ -6,6 +6,8 @@ import android.database.sqlite.SQLiteConstraintException
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOriginReader
+import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOriginFailure
+import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOriginFailureReason
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwnerKind
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwnerState
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -153,7 +155,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		}
 		val storedArchive = storedValue { dao.archive(archive.identity.value) }
 		if (storedArchive != null) {
-			authenticateStoredArchive(request, storedArchive)
+			authenticateStoredArchive(request, storedArchive, addedReceiptCount = 1)
 			authenticatePostInsertReceipt(request, storedArchive)
 			authenticateCapacity(NewImportedAmbientStepsRows(receipts = 1L))
 			dao.insertReceipt(request.toReceiptEntity())
@@ -297,7 +299,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			stored.collectedDataEpoch != request.expectedCollectedDataEpoch
 		) blocked(PortableAmbientStepsImportBlockedReason.RECEIPT_CONFLICT)
 		val archive = storedValue { dao.archive(stored.archiveIdentity) } ?: storedCorrupt()
-		authenticateStoredArchive(request, archive)
+		authenticateStoredArchive(request, archive, addedReceiptCount = 0)
 		val stats = storedValue { dao.receiptStats(archive.archiveIdentity) }
 		if (stats.receiptCount !in 1L..ImportedAmbientStepsDao.MAX_RECEIPTS_PER_ARCHIVE.toLong() ||
 			stats.earliestReceivedAtMs != archive.firstReceivedAtMs
@@ -372,12 +374,15 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 	private suspend fun authenticateStoredArchive(
 		request: ImportPortableAmbientStepsRequest,
 		stored: ImportedAmbientStepsArchiveEntity,
+		addedReceiptCount: Int,
 	) {
+		require(addedReceiptCount in 0..1)
 		val archive = request.archive
 		if (stored.archiveIdentity != archive.identity.value ||
 			stored.contentChecksum != archive.contentChecksum.value ||
 			stored.sourceFormat != archive.format ||
 			stored.sourceSchemaVersion != archive.schemaVersion ||
+			stored.encodedByteCount != request.metadata.encodedByteCount ||
 			stored.dayCount != archive.days.size ||
 			stored.factCount != archive.days.sumOf { it.facts.size } ||
 			stored.gapCount != archive.days.sumOf { it.gaps.size } ||
@@ -387,39 +392,37 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		if (members.size != archive.days.size ||
 			members.withIndex().any { (index, member) -> member.ordinal != index }
 		) storedCorrupt()
-		val headers = mutableListOf<ImportedAmbientStepsDayRevisionEntity>()
-		members.map { it.dayIdentity }.distinct().chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { ids ->
-			val maximum = Math.multiplyExact(
-				members.size,
-				ImportedAmbientStepsDao.MAX_REVISIONS_PER_DAY,
-			)
-			val page = storedValue {
-				dao.dayRevisionsForHistory(
-					ids,
-					maximum - headers.size + 1,
-				)
-			}
-			headers += page
-			if (headers.size > maximum) dependencyOverflow()
-		}
 		members.zip(archive.days).forEach { (member, day) ->
 			if (member.archiveIdentity != archive.identity.value ||
 				member.dayIdentity != day.identity.value ||
 				member.dayContentChecksum != day.contentChecksum.value ||
 				member.factCount != day.facts.size || member.gapCount != day.gaps.size
 			) storedCorrupt()
-			val bound = headers.singleOrNull {
-				it.dayIdentity == member.dayIdentity &&
-					it.importRevision == member.boundDayImportRevision
+			val lineage = storedValue {
+				dao.loadAuthenticatedAmbientStepsLineage(
+					member.dayIdentity,
+					request.expectedCollectedDataEpoch,
+				)
+			}
+			val bound = lineage.revisions.singleOrNull {
+				it.header.importRevision == member.boundDayImportRevision
 			} ?: storedCorrupt()
-			if (bound.dayContentChecksum != day.contentChecksum.value ||
-				bound.structuralEpochDay != day.structuralEpochDay ||
-				bound.storedZoneId != day.storedZoneId ||
-				bound.structuralDayStartTimeMs != day.structuralDayStartTimeMs ||
-				bound.structuralDayEndTimeMs != day.structuralDayEndTimeMs ||
-				bound.factCount != day.facts.size || bound.gapCount != day.gaps.size ||
-				bound.collectedDataEpoch != request.expectedCollectedDataEpoch
+			if (bound.day != day ||
+				lineage.archives.singleOrNull {
+					it.archiveIdentity == stored.archiveIdentity
+				} != stored ||
+				lineage.archiveDays.singleOrNull {
+					it.archiveIdentity == stored.archiveIdentity &&
+						it.dayIdentity == member.dayIdentity
+				} != member
 			) storedCorrupt()
+			if (!importedAmbientStepsLineageAdditionFits(
+					existingArchiveMemberCount = lineage.archiveDays.size,
+					existingReceiptCount = lineage.receipts.size,
+					incomingArchiveMemberCount = 0,
+					addedReceiptCount = addedReceiptCount,
+				)
+			) dependencyOverflow()
 		}
 	}
 
@@ -450,6 +453,13 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			localOriginSource(incoming.allIdentities.toSet())
 		} catch (abort: ImportedAmbientStepsImportAbort) {
 			throw abort
+		} catch (failure: AmbientStepsPortableLocalOriginFailure) {
+			when (failure.reason) {
+				AmbientStepsPortableLocalOriginFailureReason.DEPENDENCY_OVERFLOW ->
+					dependencyOverflow()
+				AmbientStepsPortableLocalOriginFailureReason.STORED_EVIDENCE_UNVERIFIABLE ->
+					storedCorrupt()
+			}
 		} catch (_: IllegalArgumentException) {
 			storedCorrupt()
 		} catch (_: IllegalStateException) {
@@ -757,13 +767,16 @@ internal fun importedAmbientStepsLineageAdditionFits(
 	existingArchiveMemberCount: Int,
 	existingReceiptCount: Int,
 	incomingArchiveMemberCount: Int,
+	addedReceiptCount: Int = 1,
 ): Boolean {
 	require(existingArchiveMemberCount >= 0)
 	require(existingReceiptCount >= 0)
-	require(incomingArchiveMemberCount > 0)
+	require(incomingArchiveMemberCount >= 0)
+	require(addedReceiptCount >= 0)
 	return existingArchiveMemberCount.toLong() + incomingArchiveMemberCount <=
 		ImportedAmbientStepsDao.MAX_ARCHIVE_MEMBERS_PER_LINEAGE &&
-		existingReceiptCount.toLong() + 1L <= ImportedAmbientStepsDao.MAX_RECEIPTS_PER_LINEAGE
+		existingReceiptCount.toLong() + addedReceiptCount <=
+		ImportedAmbientStepsDao.MAX_RECEIPTS_PER_LINEAGE
 }
 
 private data class StructuralAmbientStepsDayKey(

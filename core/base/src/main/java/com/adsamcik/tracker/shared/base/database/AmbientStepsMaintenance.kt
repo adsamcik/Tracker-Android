@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
@@ -374,6 +375,45 @@ internal suspend fun AppDatabase.loadAuthenticatedAmbientStepsState(
 	checkpoint: suspend (AmbientStepsMaintenanceCheckpoint) -> Unit,
 	authenticateRetractedPayloadAuthority: Boolean = true,
 ): AmbientStepsMaintenanceAudit {
+	val lineages = mutableListOf<AmbientStepsFactLineage>()
+	val authority = visitAuthenticatedAmbientStepsState(
+		limits,
+		checkpoint,
+		authenticateRetractedPayloadAuthority,
+	) { lineage ->
+		lineages += lineage
+	}
+	return AmbientStepsMaintenanceAudit(
+		lineages,
+		authority.cursors,
+		authority.gaps,
+		authority.transitions,
+	)
+}
+
+internal data class AmbientStepsAuthenticatedAuthorityState(
+	val evidence: SourceEvidenceState,
+	val cursors: List<AmbientStepsImportCursorEntity>,
+	val gaps: List<AmbientStepsImportGapEntity>,
+	val transitions: List<AmbientStepsImportAuthorityTransitionEntity>,
+)
+
+/**
+ * Authenticates native Ambient Steps authority once, then supplies one complete correction lineage
+ * at a time. The visitor must not retain provider payload beyond its bounded use.
+ */
+internal suspend fun AppDatabase.visitAuthenticatedAmbientStepsState(
+	limits: AmbientStepsMaintenanceLimits,
+	checkpoint: suspend (AmbientStepsMaintenanceCheckpoint) -> Unit,
+	authenticateRetractedPayloadAuthority: Boolean = true,
+	visitLineage: suspend (AmbientStepsFactLineage) -> Unit,
+): AmbientStepsAuthenticatedAuthorityState {
+	check(
+		ambientStepsFactRevisionDao().countUnrecognizedPayloadRows(
+			AmbientStepsFactRevisionEntity.WRITER_ID,
+			AmbientStepsFactRevisionEntity.WRITER_VERSION,
+		) == 0L,
+	) { "Ambient Steps authority contains an unrecognized payload-bearing row" }
 	val owner = requireNotNull(sourceDestinationOwnerDao().get(
 		SourceDestinationOwnerEntity.SOURCE_STEPS,
 		SourceDestinationOwnerEntity.DESTINATION_AMBIENT_STEPS,
@@ -384,11 +424,6 @@ internal suspend fun AppDatabase.loadAuthenticatedAmbientStepsState(
 	val evidence = requireNotNull(sourceEvidenceStateDao().get()) {
 		"Ambient Steps maintenance requires source-evidence state"
 	}
-	val lineages = auditAmbientStepsFacts(limits, checkpoint)
-	requireMaintenanceBound(
-		lineages.size <= limits.maximumLogicalFacts,
-		"Ambient Steps logical-fact maintenance bound exceeded",
-	)
 	val stateDao = ambientStepsImportStateDao()
 	val cursors = stateDao.maintenanceCursors(limits.maximumCursors + 1)
 	requireMaintenanceBound(
@@ -411,10 +446,6 @@ internal suspend fun AppDatabase.loadAuthenticatedAmbientStepsState(
 		gaps.all { it.collectedDataEpoch == evidence.collectedDataEpoch } &&
 		transitions.all { it.collectedDataEpoch == evidence.collectedDataEpoch }
 	) { "Ambient Steps import state belongs to another collected-data epoch" }
-	check(lineages.all { lineage ->
-		lineage.latest.collectedDataEpoch == evidence.collectedDataEpoch &&
-			lineage.latest.writerOwnerGeneration == owner.ownerGeneration
-	}) { "Ambient Steps facts do not match current epoch/owner authority" }
 	val cursorsByGeneration = cursors.associateBy(AmbientStepsImportCursorEntity::registrationGeneration)
 	check(cursorsByGeneration.size == cursors.size) { "Ambient Steps cursor generations collide" }
 	val gapsByRegistration = gaps.groupBy(AmbientStepsImportGapEntity::registrationGeneration)
@@ -454,27 +485,26 @@ internal suspend fun AppDatabase.loadAuthenticatedAmbientStepsState(
 		transitionsByRegistration.keys.all(cursorsByGeneration::containsKey)
 	) { "Ambient Steps import state has a dangling cursor reference" }
 	val authenticatedAuthorities = mutableMapOf<AmbientStepsFactAuthorityKey, Boolean>()
-	lineages.forEach { lineage ->
-		if (!authenticateRetractedPayloadAuthority &&
-			lineage.latest.operation == AmbientStepsFactRevisionEntity.OPERATION_RETRACT
+	visitAmbientStepsFactLineages(limits, checkpoint) { lineage ->
+		check(lineage.latest.collectedDataEpoch == evidence.collectedDataEpoch &&
+			lineage.latest.writerOwnerGeneration == owner.ownerGeneration
+		) { "Ambient Steps facts do not match current epoch/owner authority" }
+		if (authenticateRetractedPayloadAuthority ||
+			lineage.latest.operation != AmbientStepsFactRevisionEntity.OPERATION_RETRACT
 		) {
-			// Export and cleanup authenticate the terminal redaction and complete correction chain,
-			// without requiring provider state that source deletion deliberately removed.
-			return@forEach
-		}
-		lineage.upserts.forEach { fact ->
-			val cursor = fact.registrationGeneration?.let(cursorsByGeneration::get)
-			check(cursor != null && cursor.provider == fact.provider &&
+			lineage.upserts.forEach { fact ->
+				val cursor = fact.registrationGeneration?.let(cursorsByGeneration::get)
+				check(cursor != null && cursor.provider == fact.provider &&
 				cursor.sourceInstanceId == fact.sourceInstanceId &&
 				cursor.importedThroughTimeMs >= requireNotNull(fact.windowEndTimeMs) &&
 				requireNotNull(fact.continuitySegmentGeneration) <=
-				cursor.continuitySegmentGeneration
-			) { "Ambient Steps fact is outside its exact cursor authority" }
-			check(fact.hasHistoricalAuthority(cursor, transitionsByRegistration[
+					cursor.continuitySegmentGeneration
+				) { "Ambient Steps fact is outside its exact cursor authority" }
+				check(fact.hasHistoricalAuthority(cursor, transitionsByRegistration[
 				cursor.registrationGeneration
-			].orEmpty())) { "Ambient Steps fact has no exact authority phase" }
-			val authorityKey = fact.authorityKey()
-			val authenticated = authenticatedAuthorities[authorityKey] ?: run {
+				].orEmpty())) { "Ambient Steps fact has no exact authority phase" }
+				val authorityKey = fact.authorityKey()
+				val authenticated = authenticatedAuthorities[authorityKey] ?: run {
 				requireMaintenanceBound(
 					authenticatedAuthorities.size < limits.maximumAuthorizationRevisions,
 					"Ambient Steps authorization-revision maintenance bound exceeded",
@@ -482,24 +512,37 @@ internal suspend fun AppDatabase.loadAuthenticatedAmbientStepsState(
 				authenticateAmbientFactAuthority(fact, cursor, limits).also { result ->
 					authenticatedAuthorities[authorityKey] = result
 				}
-			}
-			check(authenticated) {
+				}
+				check(authenticated) {
 				"Ambient Steps fact policy/consent/authorization authority is invalid"
+				}
 			}
 		}
+		visitLineage(lineage)
 	}
-	return AmbientStepsMaintenanceAudit(lineages, cursors, gaps, transitions)
+	return AmbientStepsAuthenticatedAuthorityState(evidence, cursors, gaps, transitions)
 }
 
-private suspend fun AppDatabase.auditAmbientStepsFacts(
+private suspend fun AppDatabase.visitAmbientStepsFactLineages(
 	limits: AmbientStepsMaintenanceLimits,
 	checkpoint: suspend (AmbientStepsMaintenanceCheckpoint) -> Unit,
-): List<AmbientStepsFactLineage> {
-	val result = mutableListOf<AmbientStepsFactLineage>()
+	visitLineage: suspend (AmbientStepsFactLineage) -> Unit,
+) {
 	var afterLogicalFactId: String? = null
 	var afterSemanticRevision: Long? = null
 	var revisionCount = 0
+	var lineageCount = 0
 	var current = mutableListOf<AmbientStepsFactRevisionEntity>()
+	suspend fun emitCurrent() {
+		if (current.isEmpty()) return
+		lineageCount = Math.addExact(lineageCount, 1)
+		requireMaintenanceBound(
+			lineageCount <= limits.maximumLogicalFacts,
+			"Ambient Steps logical-fact maintenance bound exceeded",
+		)
+		visitLineage(current.toAuthenticatedLineage())
+		current = mutableListOf()
+	}
 	while (true) {
 		val page = ambientStepsFactRevisionDao().maintenanceRevisionPage(
 			AmbientStepsFactRevisionEntity.WRITER_ID,
@@ -520,12 +563,7 @@ private suspend fun AppDatabase.auditAmbientStepsFacts(
 				"Ambient Steps maintenance encountered unauthenticated fact state"
 			}
 			if (current.isNotEmpty() && current.last().logicalFactId != fact.logicalFactId) {
-				result += current.toAuthenticatedLineage()
-				requireMaintenanceBound(
-					result.size <= limits.maximumLogicalFacts,
-					"Ambient Steps logical-fact maintenance bound exceeded",
-				)
-				current = mutableListOf()
+				emitCurrent()
 			}
 			current += fact
 		}
@@ -537,12 +575,7 @@ private suspend fun AppDatabase.auditAmbientStepsFacts(
 		afterSemanticRevision = last.semanticRevision
 		if (page.size < limits.factPageSize) break
 	}
-	if (current.isNotEmpty()) result += current.toAuthenticatedLineage()
-	requireMaintenanceBound(
-		result.size <= limits.maximumLogicalFacts,
-		"Ambient Steps logical-fact maintenance bound exceeded",
-	)
-	return result
+	emitCurrent()
 }
 
 private fun List<AmbientStepsFactRevisionEntity>.toAuthenticatedLineage(): AmbientStepsFactLineage {

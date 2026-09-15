@@ -228,6 +228,67 @@ class RoomImportedAmbientStepsTransferTest {
 	}
 
 	@Test
+	fun `exact receipt replay authenticates rehashed stored fact payload`() = runTest {
+		val archive = archive(completeDay(LocalDate.of(2026, 1, 6), 4L))
+		val request = request(archive)
+		importer(database).importArchive(request) shouldBe applied(archive, 1)
+		val fact = archive.days.single().facts.single()
+		val corruptCount = fact.stepCount + 1L
+		val rehashed = AmbientStepsPortableIntegrity.factChecksum(
+			fact.identity,
+			fact.intervalStartTimeMs,
+			fact.intervalEndTimeMs,
+			corruptCount,
+		)
+		val beforeRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_ambient_steps_fact SET step_count = ?, content_checksum = ? " +
+				"WHERE fact_identity = ?",
+			arrayOf(corruptCount, rehashed.value, fact.identity.value),
+		)
+
+		importer(database).importArchive(request) shouldBe
+			ImportPortableAmbientStepsResult.Unverifiable(
+				PortableAmbientStepsImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		database.importedAmbientStepsDao().receiptCount() shouldBe 1L
+		database.importedAmbientStepsDao().dayRevisionCount() shouldBe 1L
+		requireNotNull(database.sourceEvidenceStateDao().get()).revision shouldBe beforeRevision
+	}
+
+	@Test
+	fun `alternate receipt authenticates every archive member and rejects rehashed gap`() = runTest {
+		val archive = archive(
+			completeDay(LocalDate.of(2026, 1, 7), 2L),
+			partialDay(LocalDate.of(2026, 1, 8), 3L, "UTC"),
+		)
+		importer(database).importArchive(request(archive)) shouldBe applied(archive, 2)
+		val gap = archive.days.last().gaps.single()
+		val corruptReason = PortableAmbientStepsGapReason.PROVIDER_CHANGED
+		val rehashed = AmbientStepsPortableIntegrity.gapChecksum(
+			gap.identity,
+			gap.intervalStartTimeMs,
+			gap.intervalEndTimeMs,
+			corruptReason,
+		)
+		val beforeRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_ambient_steps_gap SET reason = ?, content_checksum = ? " +
+				"WHERE gap_identity = ?",
+			arrayOf(corruptReason.name, rehashed.value, gap.identity.value),
+		)
+
+		importer(database).importArchive(
+			request(archive, jobId = "alternate-corrupt", archiveKey = "alternate-corrupt"),
+		) shouldBe ImportPortableAmbientStepsResult.Unverifiable(
+			PortableAmbientStepsImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		database.importedAmbientStepsDao().receiptCount() shouldBe 1L
+		database.importedAmbientStepsDao().dayRevisionCount() shouldBe 2L
+		requireNotNull(database.sourceEvidenceStateDao().get()).revision shouldBe beforeRevision
+	}
+
+	@Test
 	fun `alternate receipt cannot predate immutable archive first receipt`() = runTest {
 		val archive = archive(completeDay(LocalDate.of(2026, 1, 4), 4L))
 		val initial = request(archive)
@@ -1041,7 +1102,10 @@ class RoomImportedAmbientStepsTransferTest {
 		val unrelated = archive(completeDay(LocalDate.of(2026, 8, 2), 2L))
 		importer(database).importArchive(
 			request(unrelated, jobId = "after-corruption", archiveKey = "after-corruption"),
-		) shouldBe ImportPortableAmbientStepsResult.Unverifiable(
+		) shouldBe applied(unrelated, 1)
+		readReady(database, unrelated).archive shouldBe unrelated
+		importer(database).importArchive(request(archive)) shouldBe
+			ImportPortableAmbientStepsResult.Unverifiable(
 			PortableAmbientStepsImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
 		)
 
@@ -1357,6 +1421,68 @@ class RoomImportedAmbientStepsTransferTest {
 		).read(range(enumArchive)) shouldBe ImportedAmbientStepsSnapshot.Unverifiable(
 			ImportedAmbientStepsReadFailure.CORRUPT_RETAINED_STATE,
 		)
+	}
+
+	@Test
+	fun `retention maps corrupt candidate zone without authority mutation`() = runTest {
+		val archive = archive(completeDay(LocalDate.of(2026, 9, 9), 8L))
+		importer(database).importArchive(request(archive)) shouldBe applied(archive, 1)
+		val day = archive.days.single()
+		val floor = day.structuralDayEndTimeMs
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, floor, floor) shouldBe 1
+		val beforeRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_ambient_steps_day_revision SET stored_zone_id = 'Not/AZone' " +
+				"WHERE day_identity = ?",
+			arrayOf(day.identity.value),
+		)
+
+		RoomTruncateImportedAmbientStepsRetention(
+			database,
+			database.importedAmbientStepsDao(),
+			Dispatchers.Unconfined,
+		).truncateNext(
+			TruncateImportedAmbientStepsRetentionRequest(floor, EPOCH, floor + 1L),
+		) shouldBe TruncateImportedAmbientStepsRetentionResult.Unverifiable(
+			com.adsamcik.tracker.stats.api.repository
+				.ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		database.importedAmbientStepsDao().fence(day.identity.value) shouldBe null
+		database.importedAmbientStepsDao().dayRevisionCount() shouldBe 1L
+		requireNotNull(database.sourceEvidenceStateDao().get()).revision shouldBe beforeRevision
+	}
+
+	@Test
+	fun `consent deletion maps corrupt candidate coverage and rolls back source fence`() = runTest {
+		val archive = archive(completeDay(LocalDate.of(2026, 9, 10), 8L))
+		importer(database).importArchive(request(archive)) shouldBe applied(archive, 1)
+		seedRevokedConsent(database)
+		val day = archive.days.single()
+		val beforeRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_ambient_steps_day_revision SET coverage = 'UNKNOWN_VALUE' " +
+				"WHERE day_identity = ?",
+			arrayOf(day.identity.value),
+		)
+
+		RoomDeleteImportedAmbientStepsAfterConsentReset(
+			database,
+			database.importedAmbientStepsDao(),
+			Dispatchers.Unconfined,
+		).deleteNext(
+			DeleteImportedAmbientStepsAfterConsentResetRequest(
+				EPOCH,
+				REVOKED_CONSENT_EPOCH,
+				day.structuralDayEndTimeMs,
+			),
+		) shouldBe DeleteImportedAmbientStepsAfterConsentResetResult.Unverifiable(
+			com.adsamcik.tracker.stats.api.repository
+				.ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		database.importedAmbientStepsDao().sourceFence() shouldBe null
+		database.importedAmbientStepsDao().fence(day.identity.value) shouldBe null
+		database.importedAmbientStepsDao().dayRevisionCount() shouldBe 1L
+		requireNotNull(database.sourceEvidenceStateDao().get()).revision shouldBe beforeRevision
 	}
 
 	@Test

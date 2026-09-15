@@ -63,7 +63,7 @@ internal class RoomDeleteImportedAmbientStepsDay internal constructor(
 		request: DeleteImportedAmbientStepsDayRequest,
 	): DeleteImportedAmbientStepsDayResult = withContext(ioDispatcher) {
 		try {
-			database.withTransaction {
+			database.withPermanentAmbientStepsMaintenanceMapping {
 				checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.TRANSACTION_STARTED)
 				val state = requireState(request.expectedCollectedDataEpoch)
 				authenticateFenceAuthority(dao, state)
@@ -156,7 +156,7 @@ internal class RoomTruncateImportedAmbientStepsRetention internal constructor(
 		request: TruncateImportedAmbientStepsRetentionRequest,
 	): TruncateImportedAmbientStepsRetentionResult = withContext(ioDispatcher) {
 		try {
-			database.withTransaction {
+			database.withPermanentAmbientStepsMaintenanceMapping {
 				checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.TRANSACTION_STARTED)
 				val state = database.sourceEvidenceStateDao().get()
 					?: unavailable(
@@ -234,7 +234,7 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 		request: DeleteImportedAmbientStepsAfterConsentResetRequest,
 	): DeleteImportedAmbientStepsAfterConsentResetResult = withContext(ioDispatcher) {
 		try {
-			database.withTransaction {
+			database.withPermanentAmbientStepsMaintenanceMapping {
 				checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.TRANSACTION_STARTED)
 				val state = database.sourceEvidenceStateDao().get()
 					?: unavailable(
@@ -589,6 +589,30 @@ private sealed interface MaintenanceFailure {
 	data class Unverifiable(
 		val reason: ImportedAmbientStepsMutationUnverifiableReason,
 	) : MaintenanceFailure
+}
+
+private suspend inline fun <T> AppDatabase.withPermanentAmbientStepsMaintenanceMapping(
+	crossinline block: suspend () -> T,
+): T = try {
+	withTransaction { block() }
+} catch (cancelled: CancellationException) {
+	throw cancelled
+} catch (failure: ImportedAmbientStepsLineageFailure) {
+	when (failure.reason) {
+		ImportedAmbientStepsLineageFailureReason.DEPENDENCY_OVERFLOW,
+		ImportedAmbientStepsLineageFailureReason.REVISION_OVERFLOW,
+		-> unavailable(ImportedAmbientStepsMutationUnverifiableReason.DEPENDENCY_OVERFLOW)
+		ImportedAmbientStepsLineageFailureReason.STORED_EVIDENCE_UNVERIFIABLE ->
+			unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+	}
+} catch (_: IllegalArgumentException) {
+	unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+} catch (_: IllegalStateException) {
+	unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+} catch (_: ArithmeticException) {
+	unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+} catch (_: java.time.DateTimeException) {
+	unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 }
 
 private class ImportedAmbientStepsMaintenanceAbort(
