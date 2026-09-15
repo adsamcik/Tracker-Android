@@ -1,6 +1,16 @@
 package com.adsamcik.tracker.tracker.source.summary
 
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryValue
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericHistoryDay
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsStructuralDay
+import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
+import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
+import com.adsamcik.tracker.tracker.source.deletion.StepsDayNumericComposition
+import com.adsamcik.tracker.tracker.source.deletion.StepsDayRepairPlan
+import com.adsamcik.tracker.tracker.source.deletion.StepsDayRepairPreflight
 import io.kotest.matchers.shouldBe
 import java.time.LocalDate
 import java.time.ZoneId
@@ -322,6 +332,97 @@ class StepsNumericDayWindowAccumulatorTest {
 		result.hasNonStepsCapture shouldBe true
 	}
 
+	@Test
+	fun `authoritative ambient total replaces rather than adds session total`() {
+		val base = baseComposition(10L to StepsDayNumericComposition.Complete(5L))
+
+		mergeAmbientNumericDays(base, listOf(ambientDay(10L, AmbientStepsHistoryValue.Exact(12L)))) shouldBe
+			StepsNumericSummary.Ready(listOf(StepsNumericDay(10L, 12L)))
+	}
+
+	@Test
+	fun `ambient absence keeps qualified session value`() {
+		val base = baseComposition(10L to StepsDayNumericComposition.Complete(5L))
+		val missing = AmbientStepsHistoryValue.Unavailable(
+			setOf(AmbientStepsHistoryCause.NO_EVIDENCE),
+		)
+
+		mergeAmbientNumericDays(
+			base,
+			listOf(ambientDay(10L, missing)),
+		) shouldBe StepsNumericSummary.Ready(listOf(StepsNumericDay(10L, 5L)))
+	}
+
+	@Test
+	fun `mixed ambient and session days preserve one value per structural day`() {
+		val base = baseComposition(
+			10L to StepsDayNumericComposition.NotCaptured,
+			11L to StepsDayNumericComposition.Complete(7L),
+		)
+		val missing = AmbientStepsHistoryValue.Unavailable(
+			setOf(AmbientStepsHistoryCause.NO_EVIDENCE),
+		)
+
+		mergeAmbientNumericDays(
+			base,
+			listOf(
+				ambientDay(10L, AmbientStepsHistoryValue.Exact(12L)),
+				ambientDay(11L, missing),
+			),
+		) shouldBe StepsNumericSummary.Ready(
+			listOf(StepsNumericDay(10L, 12L), StepsNumericDay(11L, 7L)),
+		)
+	}
+
+	@Test
+	fun `partial and materializing ambient authority never fall back to session zero`() {
+		val base = baseComposition(10L to StepsDayNumericComposition.Complete(0L))
+
+		mergeAmbientNumericDays(
+			base,
+			listOf(
+				ambientDay(
+					10L,
+					AmbientStepsHistoryValue.Partial(
+						0L,
+						setOf(AmbientStepsHistoryCause.PARTIAL_COVERAGE),
+					),
+				),
+			),
+		) shouldBe StepsNumericSummary.Unverifiable(
+			StepsNumericUnverifiableReason.PARTIAL_CAPTURE,
+		)
+		mergeAmbientNumericDays(
+			base,
+			listOf(
+				ambientDay(
+					10L,
+					AmbientStepsHistoryValue.Unavailable(
+						setOf(AmbientStepsHistoryCause.MATERIALIZING),
+					),
+				),
+			),
+		) shouldBe StepsNumericSummary.Materializing
+	}
+
+	@Test
+	fun `ambient range overflow is unverifiable instead of wrapped`() {
+		val base = baseComposition(
+			10L to StepsDayNumericComposition.NotCaptured,
+			11L to StepsDayNumericComposition.NotCaptured,
+		)
+
+		mergeAmbientNumericDays(
+			base,
+			listOf(
+				ambientDay(10L, AmbientStepsHistoryValue.Exact(Long.MAX_VALUE)),
+				ambientDay(11L, AmbientStepsHistoryValue.Exact(1L)),
+			),
+		) shouldBe StepsNumericSummary.Unverifiable(
+			StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+		)
+	}
+
 	private fun contribution(
 		zone: ZoneId,
 		startMs: Long,
@@ -362,6 +463,28 @@ class StepsNumericDayWindowAccumulatorTest {
 
 	private fun startOfDayMs(epochDay: Long, zoneId: ZoneId): Long =
 		LocalDate.ofEpochDay(epochDay).atStartOfDay(zoneId).toInstant().toEpochMilli()
+
+	private fun ambientDay(
+		epochDay: Long,
+		total: AmbientStepsHistoryValue,
+	): AmbientStepsNumericHistoryDay =
+		AmbientStepsNumericHistoryDay(
+			day = AmbientStepsStructuralDay(epochDay, "UTC"),
+			total = total,
+		)
+
+	private fun baseComposition(
+		vararg values: Pair<Long, StepsDayNumericComposition>,
+	): StepsDayRepairPreflight = StepsDayRepairPreflight.Ready(
+		values.map { (epochDay, value) ->
+			StepsDayRepairPlan(
+				epochDay = epochDay,
+				zoneId = ZoneId.of("UTC"),
+				totals = null,
+				numericSteps = value,
+			)
+		},
+	)
 
 	private companion object {
 		const val RUN_ID = "run"

@@ -16,12 +16,13 @@ import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_AMBIENT_STEPS_DAY_ORDER
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
-import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientSteps
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsResult
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsArchiveSink
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsExportRetryableReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsExportUnverifiableReason
+import com.adsamcik.tracker.stats.api.repository.ReexportImportedAmbientSteps
+import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
@@ -51,7 +52,7 @@ internal enum class ImportedAmbientStepsReadFailure {
 }
 
 /** One-transaction portable-origin read; callers may compose these products with native facts. */
-internal class ImportedAmbientStepsRoomReader(
+internal class ImportedAmbientStepsRoomReader @Inject constructor(
 	private val database: AppDatabase,
 	private val dao: ImportedAmbientStepsDao,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
@@ -213,6 +214,7 @@ internal class ImportedAmbientStepsRoomReader(
 						portableIdentity = fact.identity.value,
 						origin = QualifiedAmbientStepsFactOrigin.PORTABLE_IMPORT,
 						importedProvenance = provenance,
+						correctionRevision = revision.header.importRevision,
 					)
 				},
 				gaps = portableDay.gaps.map { gap ->
@@ -226,10 +228,10 @@ internal class ImportedAmbientStepsRoomReader(
 }
 
 /** Imported-only re-export primitive. Parent assembly owns native/imported range union. */
-internal class RoomReexportImportedAmbientSteps(
+internal class RoomReexportImportedAmbientSteps @Inject constructor(
 	private val reader: ImportedAmbientStepsRoomReader,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
-) : ExportPortableAmbientSteps {
+) : ReexportImportedAmbientSteps {
 	override suspend fun export(
 		request: ExportPortableAmbientStepsRequest,
 		sink: PortableAmbientStepsArchiveSink,

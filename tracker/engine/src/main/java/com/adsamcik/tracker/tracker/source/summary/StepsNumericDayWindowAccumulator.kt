@@ -1,6 +1,15 @@
 package com.adsamcik.tracker.tracker.source.summary
 
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryValue
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericHistoryDay
+import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
+import com.adsamcik.tracker.tracker.source.deletion.StepsDayNumericComposition
+import com.adsamcik.tracker.tracker.source.deletion.StepsDayRepairPlan
+import com.adsamcik.tracker.tracker.source.deletion.StepsDayRepairPreflight
 import java.math.BigInteger
 import java.time.DateTimeException
 import java.time.Instant
@@ -561,4 +570,82 @@ private data class WeightedDay(
 	val epochDay: Long,
 	val base: Long,
 	val remainder: BigInteger,
+)
+
+/**
+ * Applies authoritative Ambient Steps totals without adding already represented session deltas.
+ *
+ * A day with no Ambient evidence keeps the existing qualified session result. Partial, conflicting,
+ * or materializing Ambient evidence can only withhold a number; it never falls back to a cache.
+ */
+internal fun mergeAmbientNumericDays(
+	base: StepsDayRepairPreflight,
+	ambientDays: List<AmbientStepsNumericHistoryDay>,
+): StepsNumericSummary {
+	if (ambientDays.isEmpty()) return ambientSourceUnavailable()
+	val baseByDay = (base as? StepsDayRepairPreflight.Ready)
+		?.plans
+		.orEmpty()
+		.associateBy(StepsDayRepairPlan::epochDay)
+	val values = mutableListOf<Pair<Long, StepsDayNumericComposition>>()
+	for (ambientDay in ambientDays) {
+		when (val total = ambientDay.total) {
+			is AmbientStepsHistoryValue.Exact -> {
+				values += ambientDay.day.epochDay to StepsDayNumericComposition.Complete(total.count)
+			}
+			is AmbientStepsHistoryValue.Partial -> {
+				values += ambientDay.day.epochDay to StepsDayNumericComposition.PartialCapture
+			}
+			is AmbientStepsHistoryValue.Unavailable -> {
+				if (AmbientStepsHistoryCause.MATERIALIZING in total.causes) {
+					return StepsNumericSummary.Materializing
+				}
+				if (total.causes == setOf(AmbientStepsHistoryCause.NO_EVIDENCE)) {
+					val baseValue = baseByDay[ambientDay.day.epochDay]?.numericSteps
+						?: return when (base) {
+							StepsDayRepairPreflight.Materializing -> StepsNumericSummary.Materializing
+							is StepsDayRepairPreflight.Unsupported -> ambientSourceUnavailable()
+							is StepsDayRepairPreflight.Ready -> ambientSourceUnavailable()
+						}
+					values += ambientDay.day.epochDay to baseValue
+				} else if (
+					AmbientStepsHistoryCause.EXPLICIT_GAP in total.causes ||
+					AmbientStepsHistoryCause.PARTIAL_COVERAGE in total.causes
+				) {
+					values += ambientDay.day.epochDay to StepsDayNumericComposition.PartialCapture
+				} else {
+					return ambientSourceUnavailable()
+				}
+			}
+		}
+	}
+	if (values.size != ambientDays.size) return ambientSourceUnavailable()
+	if (values.any { it.second == StepsDayNumericComposition.PartialCapture }) {
+		return StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE)
+	}
+	val notCapturedCount = values.count { it.second == StepsDayNumericComposition.NotCaptured }
+	if (notCapturedCount == values.size) {
+		return StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED)
+	}
+	if (notCapturedCount > 0) {
+		return StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE)
+	}
+	var total = 0L
+	val days = values.map { (epochDay, value) ->
+		val count = (value as StepsDayNumericComposition.Complete).steps
+		total = try {
+			Math.addExact(total, count)
+		} catch (_: ArithmeticException) {
+			return ambientSourceUnavailable()
+		}
+		StepsNumericDay(
+			epochDay,
+			count,
+		)
+	}.sortedBy(StepsNumericDay::epochDay)
+	return StepsNumericSummary.Ready(days)
+}
+
+private fun ambientSourceUnavailable() = StepsNumericSummary.Unverifiable(
+	StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
 )

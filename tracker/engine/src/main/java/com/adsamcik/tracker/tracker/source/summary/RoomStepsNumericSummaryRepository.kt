@@ -1,10 +1,19 @@
 package com.adsamcik.tracker.tracker.source.summary
 
+import android.database.sqlite.SQLiteException
 import androidx.room.deferredTransaction
 import androidx.room.useReaderConnection
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryUnavailableReason
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryValue
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericHistoryDay
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericRangeRead
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericRangeReader
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsStructuralDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericCalendarAuthority
 import com.adsamcik.tracker.stats.api.repository.StepsNumericCalendarDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
@@ -27,6 +36,7 @@ import java.io.DataOutputStream
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.DateTimeException
+import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -46,7 +56,13 @@ import kotlinx.coroutines.withContext
 class RoomStepsNumericSummaryRepository @Inject constructor(
 	private val database: AppDatabase,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+	private val ambientStepsReader: AmbientStepsNumericRangeReader,
 ) : StepsNumericSummaryRepository, StepsNumericDecisionRepository {
+	internal constructor(
+		database: AppDatabase,
+		ioDispatcher: CoroutineDispatcher,
+	) : this(database, ioDispatcher, NoAmbientStepsNumericRangeReader)
+
 	override fun observe(request: StepsNumericSummaryRequest): Flow<StepsNumericSummary> =
 		observeBatch(listOf(request)).map { batch -> batch.summaries.single() }
 
@@ -127,7 +143,11 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 		connection.deferredTransaction {
 			val before = database.sourceEvidenceStateDao().get()
 				?: return@deferredTransaction StepsNumericDecisionBatch.StorageUnavailable
-			val windows = requests.map { request -> readInCurrentTransaction(request) }
+			val baseWindows = requests.map { request -> readInCurrentTransaction(request) }
+			val windows = mergeAmbientStepsWindows(
+				baseWindows,
+				before.revision,
+			) ?: return@deferredTransaction StepsNumericDecisionBatch.StorageUnavailable
 			val after = database.sourceEvidenceStateDao().get()
 				?: return@deferredTransaction StepsNumericDecisionBatch.StorageUnavailable
 			check(before.revision == after.revision) {
@@ -146,7 +166,11 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 		connection.deferredTransaction {
 			val before = database.sourceEvidenceStateDao().get()
 				?: return@deferredTransaction StepsNumericDecisionBatch.StorageUnavailable
-			val windows = requests.map { exact -> readInCurrentTransaction(exact) }
+			val baseWindows = requests.map { exact -> readInCurrentTransaction(exact) }
+			val windows = mergeAmbientStepsWindows(
+				baseWindows,
+				before.revision,
+			) ?: return@deferredTransaction StepsNumericDecisionBatch.StorageUnavailable
 			val after = database.sourceEvidenceStateDao().get()
 				?: return@deferredTransaction StepsNumericDecisionBatch.StorageUnavailable
 			check(before.revision == after.revision) {
@@ -158,33 +182,44 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 
 	private suspend fun readInCurrentTransaction(
 		exact: StepsNumericExactDecisionRequest,
-	): StepsNumericDecisionWindow {
+	): StepsNumericWindowDraft {
 		val zoneByDay = linkedMapOf<Long, ZoneId>()
 		for (day in exact.calendarAuthority.days) {
 			zoneByDay[day.epochDay] = parseZone(day.zoneId)
-				?: return decisionWindow(
-					exact.request,
-					calendarUnavailable(),
-					exact.calendarAuthority,
+				?: return StepsNumericWindowDraft(
+					decisionWindow(
+						exact.request,
+						calendarUnavailable(),
+						exact.calendarAuthority,
+					),
+					baseComposition = null,
 				)
 		}
 		if (stepsNumericReadQueryBounds(zoneByDay) == null) {
-			return decisionWindow(
-				exact.request,
-				calendarUnavailable(),
-				exact.calendarAuthority,
+			return StepsNumericWindowDraft(
+				decisionWindow(
+					exact.request,
+					calendarUnavailable(),
+					exact.calendarAuthority,
+				),
+				baseComposition = null,
 			)
 		}
-		val summary = StepsDailySummaryRepairComposer(database)
-			.composeForNumericRead(zoneByDay)
-			.toNumericSummary(exact.request, zoneByDay)
-		return decisionWindow(exact.request, summary, exact.calendarAuthority)
+		val composition = StepsDailySummaryRepairComposer(database).composeForNumericRead(zoneByDay)
+		return StepsNumericWindowDraft(
+			decisionWindow(
+				exact.request,
+				composition.toNumericSummary(exact.request, zoneByDay),
+				exact.calendarAuthority,
+			),
+			composition,
+		)
 	}
 
 	@Suppress("LongMethod", "ReturnCount")
 	private suspend fun readInCurrentTransaction(
 		request: StepsNumericSummaryRequest,
-	): StepsNumericDecisionWindow {
+	): StepsNumericWindowDraft {
 		val summaries = database.dailySummaryDao().getBetween(
 			request.firstEpochDay,
 			request.lastEpochDayInclusive,
@@ -193,10 +228,13 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 		if (summariesByDay.size != summaries.size || summariesByDay.keys.any { day ->
 			day !in request.firstEpochDay..request.lastEpochDayInclusive
 		}) {
-			return decisionWindow(
-				request,
-				calendarUnavailable(),
-				StepsNumericCalendarAuthority.Unavailable,
+			return StepsNumericWindowDraft(
+				decisionWindow(
+					request,
+					calendarUnavailable(),
+					StepsNumericCalendarAuthority.Unavailable,
+				),
+				baseComposition = null,
 			)
 		}
 		val zoneByDay = linkedMapOf<Long, ZoneId>()
@@ -204,23 +242,32 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 			val storedZone = summariesByDay[epochDay]?.let { summary ->
 				parseZone(
 					summary.calendarZoneId
-						?: return decisionWindow(
-							request,
-							calendarUnavailable(),
-							StepsNumericCalendarAuthority.Unavailable,
+						?: return StepsNumericWindowDraft(
+							decisionWindow(
+								request,
+								calendarUnavailable(),
+								StepsNumericCalendarAuthority.Unavailable,
+							),
+							baseComposition = null,
 						),
-				) ?: return decisionWindow(
-					request,
-					calendarUnavailable(),
-					StepsNumericCalendarAuthority.Unavailable,
+				) ?: return StepsNumericWindowDraft(
+					decisionWindow(
+						request,
+						calendarUnavailable(),
+						StepsNumericCalendarAuthority.Unavailable,
+					),
+					baseComposition = null,
 				)
 			}
 			zoneByDay[epochDay] = storedZone
 				?: parseZone(request.fallbackCalendarZoneId)
-				?: return decisionWindow(
-					request,
-					calendarUnavailable(),
-					StepsNumericCalendarAuthority.Unavailable,
+				?: return StepsNumericWindowDraft(
+					decisionWindow(
+						request,
+						calendarUnavailable(),
+						StepsNumericCalendarAuthority.Unavailable,
+					),
+					baseComposition = null,
 				)
 		}
 		val authority = StepsNumericCalendarAuthority.Exact(
@@ -229,17 +276,63 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 			},
 		)
 		if (stepsNumericReadQueryBounds(zoneByDay) == null) {
-			return decisionWindow(request, calendarUnavailable(), authority)
+			return StepsNumericWindowDraft(
+				decisionWindow(request, calendarUnavailable(), authority),
+				baseComposition = null,
+			)
 		}
-		val summary = StepsDailySummaryRepairComposer(database)
-			.composeForNumericRead(zoneByDay)
-			.toNumericSummary(request, zoneByDay)
-		return decisionWindow(request, summary, authority)
+		val composition = StepsDailySummaryRepairComposer(database).composeForNumericRead(zoneByDay)
+		return StepsNumericWindowDraft(
+			decisionWindow(request, composition.toNumericSummary(request, zoneByDay), authority),
+			composition,
+		)
 	}
 
 	private fun requireValidBatch(requests: List<StepsNumericSummaryRequest>) {
 		require(requests.size in 1..StepsNumericSummaryBatch.MAX_SUMMARY_COUNT) {
 			"Steps numeric summary batch requires one or two requested windows"
+		}
+	}
+
+	private suspend fun mergeAmbientStepsWindows(
+		drafts: List<StepsNumericWindowDraft>,
+		expectedSourceEvidenceRevision: Long,
+	): List<StepsNumericDecisionWindow>? {
+		val structuralDays = drafts.flatMap { draft ->
+			val window = draft.window
+			(window.calendarAuthority as? StepsNumericCalendarAuthority.Exact)
+				?.days
+				.orEmpty()
+				.map { AmbientStepsStructuralDay(it.epochDay, it.zoneId) }
+		}.distinct().sortedWith(
+			compareBy(AmbientStepsStructuralDay::epochDay)
+				.thenBy(AmbientStepsStructuralDay::storedZoneId),
+		)
+		if (structuralDays.isEmpty()) return drafts.map(StepsNumericWindowDraft::window)
+		val ambient = try {
+			ambientStepsReader.readNumericRangeInCurrentTransaction(
+				AmbientStepsHistoryRangeRequest(structuralDays),
+				expectedSourceEvidenceRevision,
+			)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: SQLiteException) {
+			return null
+		} catch (_: IllegalArgumentException) {
+			return drafts.map { it.window.copyWithSummary(sourceEvidenceUnavailable()) }
+		} catch (_: IllegalStateException) {
+			return drafts.map { it.window.copyWithSummary(sourceEvidenceUnavailable()) }
+		} catch (_: ArithmeticException) {
+			return drafts.map { it.window.copyWithSummary(sourceEvidenceUnavailable()) }
+		}
+		if (ambient == AmbientStepsNumericRangeRead.StorageUnavailable) return null
+		if (ambient is AmbientStepsNumericRangeRead.Snapshot &&
+			ambient.sourceEvidenceRevision != expectedSourceEvidenceRevision
+		) {
+			return drafts.map { it.window.copyWithSummary(sourceEvidenceUnavailable()) }
+		}
+		return drafts.map { draft ->
+			draft.withAmbientSteps(ambient)
 		}
 	}
 
@@ -281,15 +374,20 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 		sourceResultDigest = stepsSourceResultDigest(request, calendarAuthority, summary),
 	)
 
-	private companion object {
+	internal companion object {
 		val NUMERIC_SUMMARY_DEPENDENCY_TABLES = arrayOf(
 			"daily_summary",
 			"logical_tracking_session",
 			"source_service_run",
 			"session_manifest_version",
 			"session_manifest_source",
+			"source_policy_authority",
 			"source_policy",
 			"source_consent_epoch",
+			"source_destination_owner",
+			"source_authorization",
+			"source_demand",
+			"source_registration_state",
 			"source_session_completeness",
 			"source_product_projection_lane",
 			"source_projection_failure",
@@ -300,7 +398,114 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 			"imported_steps_entry",
 			"imported_steps_run",
 			"imported_steps_manifest",
+			"import_job_receipt",
+			"import_entry_receipt",
+			"ambient_steps_fact_revision",
+			"ambient_steps_import_cursor",
+			"ambient_steps_import_gap",
+			"ambient_steps_import_authority_transition",
+			"imported_ambient_steps_archive",
+			"imported_ambient_steps_receipt",
+			"imported_ambient_steps_archive_day",
+			"imported_ambient_steps_day_revision",
+			"imported_ambient_steps_fact",
+			"imported_ambient_steps_gap",
+			"imported_ambient_steps_day_fence",
+			"imported_ambient_steps_protected_identity",
+			"imported_ambient_steps_source_fence",
 		)
+	}
+}
+
+private data class StepsNumericWindowDraft(
+	val window: StepsNumericDecisionWindow,
+	val baseComposition: StepsDayRepairPreflight?,
+)
+
+private fun StepsNumericWindowDraft.withAmbientSteps(
+	ambient: AmbientStepsNumericRangeRead,
+): StepsNumericDecisionWindow {
+	if (baseComposition == null) return window
+	val decision = window
+	val calendar = decision.calendarAuthority as? StepsNumericCalendarAuthority.Exact
+		?: return decision
+	val merged = when (ambient) {
+		is AmbientStepsNumericRangeRead.Snapshot -> {
+			val byDay = ambient.days.associateBy { day ->
+				AmbientStepsStructuralDay(day.day.epochDay, day.day.storedZoneId)
+			}
+			val selected = calendar.days.map { day ->
+				byDay[AmbientStepsStructuralDay(day.epochDay, day.zoneId)]
+					?: return decision.copyWithSummary(sourceEvidenceUnavailable())
+			}
+			mergeAmbientNumericDays(baseComposition, selected)
+		}
+		is AmbientStepsNumericRangeRead.DependencyOverflow,
+		is AmbientStepsNumericRangeRead.Unavailable,
+		-> sourceEvidenceUnavailable()
+		AmbientStepsNumericRangeRead.StorageUnavailable -> return decision
+	}
+	return decision.copyWithSummary(merged)
+}
+
+private fun StepsNumericDecisionWindow.copyWithSummary(
+	replacement: StepsNumericSummary,
+): StepsNumericDecisionWindow = copy(
+	summary = replacement,
+	sourceResultDigest = stepsSourceResultDigest(request, calendarAuthority, replacement),
+)
+
+private object NoAmbientStepsNumericRangeReader : AmbientStepsNumericRangeReader {
+	override suspend fun readNumericRangeInCurrentTransaction(
+		request: AmbientStepsHistoryRangeRequest,
+		expectedSourceEvidenceRevision: Long,
+	): AmbientStepsNumericRangeRead {
+		val days = request.days.map { day ->
+			val zone = try {
+				ZoneId.of(day.storedZoneId)
+			} catch (_: DateTimeException) {
+				return AmbientStepsNumericRangeRead.Unavailable(
+					AmbientStepsHistoryUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
+				)
+			}
+			val date = try {
+				LocalDate.ofEpochDay(day.epochDay)
+			} catch (_: DateTimeException) {
+				return AmbientStepsNumericRangeRead.Unavailable(
+					AmbientStepsHistoryUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
+				)
+			}
+			try {
+				date.atStartOfDay(zone).toInstant().toEpochMilli()
+			} catch (_: DateTimeException) {
+				return AmbientStepsNumericRangeRead.Unavailable(
+					AmbientStepsHistoryUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
+				)
+			} catch (_: ArithmeticException) {
+				return AmbientStepsNumericRangeRead.Unavailable(
+					AmbientStepsHistoryUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
+				)
+			}
+			try {
+				date.plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli()
+			} catch (_: DateTimeException) {
+				return AmbientStepsNumericRangeRead.Unavailable(
+					AmbientStepsHistoryUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
+				)
+			} catch (_: ArithmeticException) {
+				return AmbientStepsNumericRangeRead.Unavailable(
+					AmbientStepsHistoryUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
+				)
+			}
+			val unavailable = AmbientStepsHistoryValue.Unavailable(
+				setOf(AmbientStepsHistoryCause.NO_EVIDENCE),
+			)
+			AmbientStepsNumericHistoryDay(
+				day = day,
+				total = unavailable,
+			)
+		}
+		return AmbientStepsNumericRangeRead.Snapshot(expectedSourceEvidenceRevision, days)
 	}
 }
 

@@ -37,6 +37,7 @@ import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsResul
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportBlockedReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsTransferRetryableReason
+import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -45,8 +46,8 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 /**
- * Ambient Steps portable-origin admission. Parent assembly supplies the new Room DAO accessor and
- * DI binding; this source does not register or activate any provider.
+ * Ambient Steps portable-origin admission. Parent assembly supplies the new Room DAO accessor;
+ * this source does not register or activate any provider.
  */
 @Singleton
 internal class RoomImportPortableAmbientSteps internal constructor(
@@ -61,6 +62,13 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			AmbientStepsPortableLocalOriginReader(database).readInTransaction()
 		},
 ) : ImportPortableAmbientSteps {
+	@Inject
+	constructor(
+		database: AppDatabase,
+		dao: ImportedAmbientStepsDao,
+		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+	) : this(database, dao, ioDispatcher, { currentCoroutineContext().ensureActive() })
+
 	override suspend fun importArchive(
 		request: ImportPortableAmbientStepsRequest,
 	): ImportPortableAmbientStepsResult = withContext(ioDispatcher) {
@@ -159,6 +167,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			authenticateCapacity(NewImportedAmbientStepsRows(receipts = 1L))
 			dao.insertReceipt(request.toReceiptEntity())
 			checkpoint(ImportedAmbientStepsWriteCheckpoint.RECEIPT_INSERTED)
+			incrementSourceEvidenceRevision(state.updatedAtMs, request.receipt.receivedAtMs)
 			return ImportPortableAmbientStepsResult.Duplicate(archive.identity, archive.days.size)
 		}
 
@@ -246,6 +255,7 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		checkpoint(ImportedAmbientStepsWriteCheckpoint.ARCHIVE_MEMBERS_INSERTED)
 		dao.insertReceipt(request.toReceiptEntity())
 		checkpoint(ImportedAmbientStepsWriteCheckpoint.RECEIPT_INSERTED)
+		incrementSourceEvidenceRevision(state.updatedAtMs, request.receipt.receivedAtMs)
 		return ImportPortableAmbientStepsResult.Applied(
 			archiveIdentity = archive.identity,
 			appendedDayRevisionCount = appended.size,
@@ -448,6 +458,17 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			0L,
 			ImportedAmbientStepsDao.MAX_GLOBAL_PROTECTED_IDENTITIES,
 		)
+	}
+
+	private suspend fun incrementSourceEvidenceRevision(
+		currentUpdatedAtMs: Long,
+		changedAtMs: Long,
+	) {
+		check(
+			database.sourceEvidenceStateDao().incrementRevision(
+				maxOf(currentUpdatedAtMs, changedAtMs),
+			) == 1,
+		) { "Ambient Steps import could not advance source-evidence revision" }
 	}
 
 	private suspend fun authenticateStructuralDayOwnership(

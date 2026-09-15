@@ -151,6 +151,19 @@ interface AmbientStepsFactRevisionDao {
 		limit: Int,
 	): List<AmbientStepsFactRevisionEntity>
 
+	/** Complete correction lineages for one bounded product fact batch. */
+	@Query(
+		"SELECT * FROM ambient_steps_fact_revision WHERE writer_id = :writerId " +
+			"AND writer_version = :writerVersion AND logical_fact_id IN (:logicalFactIds) " +
+			"ORDER BY logical_fact_id, semantic_revision LIMIT :limit",
+	)
+	suspend fun revisionsForLogicalFacts(
+		writerId: String,
+		writerVersion: Int,
+		logicalFactIds: List<String>,
+		limit: Int,
+	): List<AmbientStepsFactRevisionEntity>
+
 	/**
 	 * Discovers sessionless structural days directly from latest-effective Ambient Steps facts.
 	 * Neither a tracking session nor Location/sample-count evidence participates in this page.

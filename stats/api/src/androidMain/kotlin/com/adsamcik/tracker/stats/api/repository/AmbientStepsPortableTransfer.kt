@@ -32,6 +32,9 @@ interface ExportPortableAmbientSteps {
 	): ExportPortableAmbientStepsResult
 }
 
+/** Imported-origin-only re-export. Native/imported union remains a separate product assembly. */
+interface ReexportImportedAmbientSteps : ExportPortableAmbientSteps
+
 /** Immutable file/import provenance copied into Ambient Steps portable-origin storage. */
 data class PortableAmbientStepsImportReceipt(
 	val jobId: String,

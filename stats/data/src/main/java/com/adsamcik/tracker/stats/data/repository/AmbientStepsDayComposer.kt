@@ -12,7 +12,6 @@ internal data class AmbientStepsDayIdentity(
 ) {
 	init {
 		require(storedZoneId.isNotBlank())
-		require(startTimeMs >= 0L)
 		require(endTimeMs > startTimeMs)
 		val zone = ZoneId.of(storedZoneId)
 		val date = LocalDate.ofEpochDay(epochDay)
@@ -46,6 +45,7 @@ internal data class QualifiedAmbientStepsFact(
 	val portableIdentity: String = logicalFactId,
 	val origin: QualifiedAmbientStepsFactOrigin = QualifiedAmbientStepsFactOrigin.LOCAL_PROVIDER,
 	val importedProvenance: ImportedAmbientStepsFactProvenance? = null,
+	val correctionRevision: Long = 1L,
 ) {
 	init {
 		require(logicalFactId.isNotBlank())
@@ -54,6 +54,7 @@ internal data class QualifiedAmbientStepsFact(
 		require(endTimeMs <= day.endTimeMs)
 		require(endTimeMs > startTimeMs)
 		require(stepCount >= 0L)
+		require(correctionRevision > 0L)
 		require(
 			(origin == QualifiedAmbientStepsFactOrigin.LOCAL_PROVIDER &&
 				provenance != null && importedProvenance == null) ||
@@ -139,6 +140,7 @@ internal enum class AmbientStepsDayCause {
 	AMBIENT_COUNT_OVERFLOW,
 	AMBIENT_DAY_AUTHORITY_MISMATCH,
 	AMBIENT_AUTHORITY_UNVERIFIABLE,
+	AMBIENT_MATERIALIZING,
 	SESSION_OUTSIDE_DAY,
 	SESSION_VALUE_UNAVAILABLE,
 	SESSION_OVERLAP,
@@ -220,9 +222,15 @@ internal fun composeAmbientStepsDay(
 		compareBy(QualifiedAmbientStepsFact::startTimeMs, QualifiedAmbientStepsFact::logicalFactId),
 	)
 	if (orderedFacts.isEmpty()) {
-		val total = AmbientStepsNumericValue.Unavailable(setOf(AmbientStepsDayCause.NO_AMBIENT_FACT))
-		val between = AmbientStepsNumericValue.Unavailable(buildSet {
+		val totalCauses = buildSet {
 			add(AmbientStepsDayCause.NO_AMBIENT_FACT)
+			if (gaps.any { it.endTimeMs > day.startTimeMs && it.startTimeMs < day.endTimeMs }) {
+				add(AmbientStepsDayCause.AMBIENT_GAP)
+			}
+		}
+		val total = AmbientStepsNumericValue.Unavailable(totalCauses)
+		val between = AmbientStepsNumericValue.Unavailable(buildSet {
+			addAll(totalCauses)
 			if (outsideSession) add(AmbientStepsDayCause.SESSION_OUTSIDE_DAY)
 		})
 		return AmbientStepsDayProduct(day, total, containedSessions, between, origins)

@@ -29,6 +29,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsTransferRet
 import com.adsamcik.tracker.stats.api.repository.TruncateImportedAmbientStepsRetention
 import com.adsamcik.tracker.stats.api.repository.TruncateImportedAmbientStepsRetentionRequest
 import com.adsamcik.tracker.stats.api.repository.TruncateImportedAmbientStepsRetentionResult
+import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
@@ -51,6 +52,13 @@ internal class RoomDeleteImportedAmbientStepsDay internal constructor(
 		currentCoroutineContext().ensureActive()
 	},
 ) : DeleteImportedAmbientStepsDay {
+	@Inject
+	constructor(
+		database: AppDatabase,
+		dao: ImportedAmbientStepsDao,
+		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+	) : this(database, dao, ioDispatcher, { currentCoroutineContext().ensureActive() })
+
 	override suspend fun deleteDay(
 		request: DeleteImportedAmbientStepsDayRequest,
 	): DeleteImportedAmbientStepsDayResult = withContext(ioDispatcher) {
@@ -78,6 +86,11 @@ internal class RoomDeleteImportedAmbientStepsDay internal constructor(
 					ImportedAmbientStepsDayFenceEntity.FENCE_SELECTED_DELETE,
 					request.deletedAtMs,
 					retainedFromMs = null,
+				)
+				incrementImportedAmbientStepsEvidenceRevision(
+					database,
+					state,
+					request.deletedAtMs,
 				)
 				DeleteImportedAmbientStepsDayResult.Deleted(removed)
 			}
@@ -136,6 +149,13 @@ internal class RoomTruncateImportedAmbientStepsRetention internal constructor(
 		currentCoroutineContext().ensureActive()
 	},
 ) : TruncateImportedAmbientStepsRetention {
+	@Inject
+	constructor(
+		database: AppDatabase,
+		dao: ImportedAmbientStepsDao,
+		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+	) : this(database, dao, ioDispatcher, { currentCoroutineContext().ensureActive() })
+
 	override suspend fun truncateNext(
 		request: TruncateImportedAmbientStepsRetentionRequest,
 	): TruncateImportedAmbientStepsRetentionResult = withContext(ioDispatcher) {
@@ -171,6 +191,11 @@ internal class RoomTruncateImportedAmbientStepsRetention internal constructor(
 					request.retainedFromMs,
 					checkpoint,
 				)
+				incrementImportedAmbientStepsEvidenceRevision(
+					database,
+					state,
+					request.retainedAtMs,
+				)
 				TruncateImportedAmbientStepsRetentionResult.Retained(removed)
 			}
 		} catch (cancelled: CancellationException) {
@@ -202,6 +227,13 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 		currentCoroutineContext().ensureActive()
 	},
 ) : DeleteImportedAmbientStepsAfterConsentReset {
+	@Inject
+	constructor(
+		database: AppDatabase,
+		dao: ImportedAmbientStepsDao,
+		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+	) : this(database, dao, ioDispatcher, { currentCoroutineContext().ensureActive() })
+
 	override suspend fun deleteNext(
 		request: DeleteImportedAmbientStepsAfterConsentResetRequest,
 	): DeleteImportedAmbientStepsAfterConsentResetResult = withContext(ioDispatcher) {
@@ -217,9 +249,19 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 				}
 				authenticateFenceAuthority(dao, state)
 				requireRevokedConsent(request.expectedRevokedConsentEpoch)
-				ensureSourceFence(state, request)
+				val sourceFenceChanged = ensureSourceFence(state, request)
 				val candidate = dao.nextDayCandidate()
-					?: return@withTransaction DeleteImportedAmbientStepsAfterConsentResetResult.Complete
+					?: run {
+						if (sourceFenceChanged) {
+							incrementImportedAmbientStepsEvidenceRevision(
+								database,
+								state,
+								request.deletedAtMs,
+							)
+						}
+						return@withTransaction
+							DeleteImportedAmbientStepsAfterConsentResetResult.Complete
+					}
 				val lineage = authenticateLineage(dao, candidate.dayIdentity, state)
 				if (lineage.latest.header != candidate) {
 					unavailable(
@@ -234,6 +276,11 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 					request.deletedAtMs,
 					retainedFromMs = null,
 					checkpoint,
+				)
+				incrementImportedAmbientStepsEvidenceRevision(
+					database,
+					state,
+					request.deletedAtMs,
 				)
 				DeleteImportedAmbientStepsAfterConsentResetResult.Deleted(removed)
 			}
@@ -283,7 +330,7 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 	private suspend fun ensureSourceFence(
 		state: SourceEvidenceState,
 		request: DeleteImportedAmbientStepsAfterConsentResetRequest,
-	) {
+	): Boolean {
 		val existing = readSourceFence(dao)
 		if (existing == null) {
 			dao.insertSourceFence(
@@ -294,7 +341,7 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 				),
 			)
 			checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.FENCE_INSERTED)
-			return
+			return true
 		}
 		if (existing.collectedDataEpoch != state.collectedDataEpoch ||
 			existing.revokedConsentEpoch > request.expectedRevokedConsentEpoch ||
@@ -302,7 +349,7 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 		) {
 			unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 		}
-		if (existing.revokedConsentEpoch == request.expectedRevokedConsentEpoch) return
+		if (existing.revokedConsentEpoch == request.expectedRevokedConsentEpoch) return false
 		val replacement = ImportedAmbientStepsSourceFenceEntity.create(
 			state.collectedDataEpoch,
 			request.expectedRevokedConsentEpoch,
@@ -319,6 +366,7 @@ internal class RoomDeleteImportedAmbientStepsAfterConsentReset internal construc
 			unavailable(ImportedAmbientStepsMutationUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 		}
 		checkpoint(ImportedAmbientStepsMaintenanceCheckpoint.FENCE_INSERTED)
+		return true
 	}
 }
 
@@ -503,3 +551,15 @@ private fun blocked(reason: ImportedAmbientStepsMutationBlockedReason): Nothing 
 
 private fun unavailable(reason: ImportedAmbientStepsMutationUnverifiableReason): Nothing =
 	throw ImportedAmbientStepsMaintenanceAbort(MaintenanceFailure.Unverifiable(reason))
+
+private suspend fun incrementImportedAmbientStepsEvidenceRevision(
+	database: AppDatabase,
+	state: SourceEvidenceState,
+	changedAtMs: Long,
+) {
+	check(
+		database.sourceEvidenceStateDao().incrementRevision(
+			maxOf(state.updatedAtMs, changedAtMs),
+		) == 1,
+	) { "Imported Ambient Steps maintenance could not advance source-evidence revision" }
+}

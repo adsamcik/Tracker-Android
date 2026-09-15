@@ -5,6 +5,8 @@ import app.cash.turbine.test
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -21,6 +23,12 @@ import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessE
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryValue
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericHistoryDay
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericRangeRead
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericRangeReader
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsStructuralDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericCalendarAuthority
 import com.adsamcik.tracker.stats.api.repository.StepsNumericCalendarDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDecisionBatch
@@ -139,6 +147,86 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		repository.read(request()) shouldBe StepsNumericSummary.Ready(
 			listOf(StepsNumericDay(epochDay = DAY, steps = 0L)),
 		)
+	}
+
+	@Test
+	fun `ambient authority replaces session total without adding it twice`() = runBlocking<Unit> {
+		insertCoveredCandidate(stepsPerFact = 5L)
+		val ambientRepository = RoomStepsNumericSummaryRepository(
+			database,
+			Dispatchers.IO,
+			FakeAmbientStepsTransactionReader { request, revision ->
+				AmbientStepsNumericRangeRead.Snapshot(
+					revision,
+					request.days.map { day ->
+						ambientDay(day, 12L)
+					},
+				)
+			},
+		)
+
+		ambientRepository.read(request()) shouldBe StepsNumericSummary.Ready(
+			listOf(StepsNumericDay(DAY, 12L)),
+		)
+	}
+
+	@Test
+	fun `numeric observer declares every native and imported ambient dependency`() {
+		RoomStepsNumericSummaryRepository.NUMERIC_SUMMARY_DEPENDENCY_TABLES.toSet()
+			.containsAll(
+				setOf(
+					"ambient_steps_fact_revision",
+					"ambient_steps_import_cursor",
+					"ambient_steps_import_gap",
+					"ambient_steps_import_authority_transition",
+					"imported_ambient_steps_day_revision",
+					"imported_ambient_steps_fact",
+					"imported_ambient_steps_gap",
+					"imported_ambient_steps_day_fence",
+					"imported_ambient_steps_source_fence",
+				),
+			) shouldBe true
+	}
+
+	@Test
+	fun `numeric observation refreshes when ambient fact storage changes`() = runBlocking<Unit> {
+		insertCoveredCandidate(stepsPerFact = 5L)
+		val ambientRepository = RoomStepsNumericSummaryRepository(
+			database,
+			Dispatchers.IO,
+			FakeAmbientStepsTransactionReader { request, revision ->
+				val latest = database.ambientStepsFactRevisionDao().latestEffectiveOverlapping(
+					AmbientStepsFactRevisionEntity.WRITER_ID,
+					AmbientStepsFactRevisionEntity.WRITER_VERSION,
+					DAY_START,
+					DAY_START + 24L * HOUR_MS,
+					2,
+				).singleOrNull()
+				AmbientStepsNumericRangeRead.Snapshot(
+					revision,
+					request.days.map { day ->
+						AmbientStepsNumericHistoryDay(
+							day,
+							latest?.stepCount?.let(AmbientStepsHistoryValue::Exact)
+								?: AmbientStepsHistoryValue.Unavailable(
+									setOf(AmbientStepsHistoryCause.NO_EVIDENCE),
+								),
+						)
+					},
+				)
+			},
+		)
+
+		ambientRepository.observe(request()).test {
+			awaitItem() shouldBe StepsNumericSummary.Ready(
+				listOf(StepsNumericDay(DAY, 5L)),
+			)
+			database.ambientStepsFactRevisionDao().insert(ambientFact(12L)) shouldBe 1L
+			awaitItem() shouldBe StepsNumericSummary.Ready(
+				listOf(StepsNumericDay(DAY, 12L)),
+			)
+			cancelAndIgnoreRemainingEvents()
+		}
 	}
 
 	@Test
@@ -896,6 +984,57 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 	private fun elapsedAt(wallTimeMs: Long): Long = RUN_START_ELAPSED_NANOS +
 		(wallTimeMs - DAY_START) * NANOS_PER_MILLISECOND
 
+	private fun ambientFact(count: Long): AmbientStepsFactRevisionEntity {
+		val logicalFactId = AmbientStepsFactIntegrity.logicalFactId(
+			AmbientStepsFactRevisionEntity.PROVIDER_LOCAL_RECORDING_STEPS,
+			1L,
+			1L,
+			"ambient-instance",
+			DAY_START,
+			DAY,
+			ZONE.id,
+			EPOCH,
+		)
+		val unsigned = AmbientStepsFactRevisionEntity(
+			logicalFactId = logicalFactId,
+			semanticRevision = 1L,
+			mutationId = AmbientStepsFactIntegrity.mutationId(
+				logicalFactId,
+				1L,
+				AmbientStepsFactRevisionEntity.OPERATION_UPSERT,
+			),
+			writerId = AmbientStepsFactRevisionEntity.WRITER_ID,
+			writerVersion = AmbientStepsFactRevisionEntity.WRITER_VERSION,
+			writerOwnerGeneration = 1L,
+			operation = AmbientStepsFactRevisionEntity.OPERATION_UPSERT,
+			originKind = AmbientStepsFactRevisionEntity.ORIGIN_PROVIDER_AGGREGATE,
+			provider = AmbientStepsFactRevisionEntity.PROVIDER_LOCAL_RECORDING_STEPS,
+			registrationGeneration = 1L,
+			continuitySegmentGeneration = 1L,
+			sourceInstanceId = "ambient-instance",
+			authorizationRevision = 1L,
+			authorizationFingerprint = "a".repeat(64),
+			windowStartTimeMs = DAY_START,
+			windowEndTimeMs = DAY_START + 24L * HOUR_MS,
+			observedAtMs = DAY_START + 24L * HOUR_MS,
+			structuralEpochDay = DAY,
+			storedZoneId = ZONE.id,
+			structuralDayStartTimeMs = DAY_START,
+			structuralDayEndTimeMs = DAY_START + 24L * HOUR_MS,
+			stepCount = count,
+			purpose = AmbientStepsFactRevisionEntity.PURPOSE_AMBIENT_PRODUCT,
+			sourcePolicyRevision = 1L,
+			ambientConsentEpoch = 1L,
+			collectedDataEpoch = EPOCH,
+			scopeDeletionGeneration = 0L,
+			effectChecksum = "0".repeat(64),
+			appliedAtMs = DAY_START + 24L * HOUR_MS,
+		)
+		return unsigned.copy(
+			effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsigned),
+		)
+	}
+
 	private fun request(
 		fallbackZoneId: String = ZONE.id,
 		lastEpochDay: Long = DAY,
@@ -912,6 +1051,15 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 	private fun calendarUnavailable() = StepsNumericSummary.Unverifiable(
 		StepsNumericUnverifiableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
 	)
+
+	private fun ambientDay(
+		day: AmbientStepsStructuralDay,
+		count: Long,
+	): AmbientStepsNumericHistoryDay =
+		AmbientStepsNumericHistoryDay(
+			day = day,
+			total = AmbientStepsHistoryValue.Exact(count),
+		)
 
 	private companion object {
 		val ZONE: ZoneId = ZoneId.of("Europe/Prague")
@@ -932,4 +1080,16 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		const val RUN_ID = "numeric-room-run"
 		const val REPLACEMENT_RUN_ID = "numeric-room-replacement-run"
 	}
+}
+
+private class FakeAmbientStepsTransactionReader(
+	private val reader: suspend (
+		AmbientStepsHistoryRangeRequest,
+		Long,
+	) -> AmbientStepsNumericRangeRead,
+) : AmbientStepsNumericRangeReader {
+	override suspend fun readNumericRangeInCurrentTransaction(
+		request: AmbientStepsHistoryRangeRequest,
+		expectedSourceEvidenceRevision: Long,
+	): AmbientStepsNumericRangeRead = reader(request, expectedSourceEvidenceRevision)
 }

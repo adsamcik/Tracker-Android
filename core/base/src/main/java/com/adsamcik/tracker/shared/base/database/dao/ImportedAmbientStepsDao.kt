@@ -196,6 +196,129 @@ abstract class ImportedAmbientStepsDao {
 		limit: Int,
 	): List<ImportedAmbientStepsDayRevisionEntity>
 
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT day_identity, MAX(import_revision) AS import_revision
+		  FROM imported_ambient_steps_day_revision
+		  GROUP BY day_identity
+		)
+		SELECT day.*
+		FROM imported_ambient_steps_day_revision AS day
+		INNER JOIN latest_revision AS latest
+		  ON latest.day_identity = day.day_identity
+		 AND latest.import_revision = day.import_revision
+		WHERE day.structural_epoch_day BETWEEN :firstEpochDay AND :lastEpochDayInclusive
+		  AND day.stored_zone_id IN (:storedZoneIds)
+		ORDER BY day.structural_epoch_day, day.stored_zone_id, day.day_identity
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun latestDaysForStructuralRange(
+		firstEpochDay: Long,
+		lastEpochDayInclusive: Long,
+		storedZoneIds: List<String>,
+		limit: Int,
+	): List<ImportedAmbientStepsDayRevisionEntity>
+
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT day_identity, MAX(import_revision) AS import_revision
+		  FROM imported_ambient_steps_day_revision
+		  GROUP BY day_identity
+		)
+		SELECT day.day_identity,
+		       day.structural_epoch_day,
+		       day.stored_zone_id,
+		       day.structural_day_start_time_ms,
+		       day.structural_day_end_time_ms,
+		       MAX(fact.interval_end_time_ms) AS latest_evidence_time_ms
+		FROM imported_ambient_steps_day_revision AS day
+		INNER JOIN latest_revision AS latest
+		  ON latest.day_identity = day.day_identity
+		 AND latest.import_revision = day.import_revision
+		INNER JOIN imported_ambient_steps_fact AS fact
+		  ON fact.day_identity = day.day_identity
+		 AND fact.day_import_revision = day.import_revision
+		GROUP BY day.day_identity,
+		         day.import_revision,
+		         day.structural_epoch_day,
+		         day.stored_zone_id,
+		         day.structural_day_start_time_ms,
+		         day.structural_day_end_time_ms
+		HAVING :beforeLatestEvidenceTimeMs IS NULL
+		    OR MAX(fact.interval_end_time_ms) < :beforeLatestEvidenceTimeMs
+		    OR (
+		      MAX(fact.interval_end_time_ms) = :beforeLatestEvidenceTimeMs
+		      AND day.structural_epoch_day < :beforeEpochDay
+		    )
+		    OR (
+		      MAX(fact.interval_end_time_ms) = :beforeLatestEvidenceTimeMs
+		      AND day.structural_epoch_day = :beforeEpochDay
+		      AND (
+		        day.stored_zone_id > :beforeStoredZoneId
+		        OR (
+		          day.stored_zone_id = :beforeStoredZoneId
+		          AND day.day_identity > :beforeDayIdentity
+		        )
+		      )
+		    )
+		ORDER BY latest_evidence_time_ms DESC,
+		         day.structural_epoch_day DESC,
+		         day.stored_zone_id ASC,
+		         day.day_identity ASC
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun recentDayCandidatePage(
+		beforeLatestEvidenceTimeMs: Long?,
+		beforeEpochDay: Long?,
+		beforeStoredZoneId: String?,
+		beforeDayIdentity: String?,
+		limit: Int,
+	): List<ImportedAmbientStepsRecentDayCandidate>
+
+	@Query(
+		"SELECT * FROM imported_ambient_steps_day_revision " +
+			"WHERE day_identity IN (:dayIdentities) " +
+			"ORDER BY day_identity, import_revision LIMIT :limit",
+	)
+	abstract suspend fun dayRevisionsForHistory(
+		dayIdentities: List<String>,
+		limit: Int,
+	): List<ImportedAmbientStepsDayRevisionEntity>
+
+	@Query(
+		"SELECT * FROM imported_ambient_steps_archive_day " +
+			"WHERE day_identity IN (:dayIdentities) " +
+			"ORDER BY day_identity, archive_identity LIMIT :limit",
+	)
+	abstract suspend fun archiveDaysForHistory(
+		dayIdentities: List<String>,
+		limit: Int,
+	): List<ImportedAmbientStepsArchiveDayEntity>
+
+	@Query(
+		"SELECT * FROM imported_ambient_steps_fact WHERE day_identity IN (:dayIdentities) " +
+			"ORDER BY day_identity, day_import_revision, interval_start_time_ms, fact_identity " +
+			"LIMIT :limit",
+	)
+	abstract suspend fun factsForHistory(
+		dayIdentities: List<String>,
+		limit: Int,
+	): List<ImportedAmbientStepsFactEntity>
+
+	@Query(
+		"SELECT * FROM imported_ambient_steps_gap WHERE day_identity IN (:dayIdentities) " +
+			"ORDER BY day_identity, day_import_revision, interval_start_time_ms, gap_identity " +
+			"LIMIT :limit",
+	)
+	abstract suspend fun gapsForHistory(
+		dayIdentities: List<String>,
+		limit: Int,
+	): List<ImportedAmbientStepsGapEntity>
+
 	/** Global bounded structural-owner audit used to prevent parallel identities for one civil day. */
 	@Query(
 		"""
@@ -283,6 +406,19 @@ abstract class ImportedAmbientStepsDao {
 	abstract suspend fun fencesOverlapping(
 		fromInclusiveMs: Long,
 		toExclusiveMs: Long,
+		limit: Int,
+	): List<ImportedAmbientStepsDayFenceEntity>
+
+	@Query(
+		"SELECT * FROM imported_ambient_steps_day_fence " +
+			"WHERE structural_epoch_day BETWEEN :firstEpochDay AND :lastEpochDayInclusive " +
+			"AND stored_zone_id IN (:storedZoneIds) " +
+			"ORDER BY structural_epoch_day, stored_zone_id, day_identity LIMIT :limit",
+	)
+	abstract suspend fun fencesForStructuralRange(
+		firstEpochDay: Long,
+		lastEpochDayInclusive: Long,
+		storedZoneIds: List<String>,
 		limit: Int,
 	): List<ImportedAmbientStepsDayFenceEntity>
 
@@ -467,4 +603,13 @@ data class ImportedAmbientStepsFactIdentityOwner(
 data class ImportedAmbientStepsGapIdentityOwner(
 	@ColumnInfo(name = "gap_identity") val gapIdentity: String,
 	@ColumnInfo(name = "day_identity") val dayIdentity: String,
+)
+
+data class ImportedAmbientStepsRecentDayCandidate(
+	@ColumnInfo(name = "day_identity") val dayIdentity: String,
+	@ColumnInfo(name = "structural_epoch_day") val structuralEpochDay: Long,
+	@ColumnInfo(name = "stored_zone_id") val storedZoneId: String,
+	@ColumnInfo(name = "structural_day_start_time_ms") val structuralDayStartTimeMs: Long,
+	@ColumnInfo(name = "structural_day_end_time_ms") val structuralDayEndTimeMs: Long,
+	@ColumnInfo(name = "latest_evidence_time_ms") val latestEvidenceTimeMs: Long,
 )

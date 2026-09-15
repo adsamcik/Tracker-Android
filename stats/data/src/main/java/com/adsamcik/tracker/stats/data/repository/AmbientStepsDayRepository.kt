@@ -1022,6 +1022,7 @@ private fun AmbientStepsFactRevisionEntity.toQualifiedFact(
 		AmbientStepsPortableIdentityKind.FACT,
 		logicalFactId,
 	).value,
+	correctionRevision = semanticRevision,
 )
 
 private fun unavailableDay(

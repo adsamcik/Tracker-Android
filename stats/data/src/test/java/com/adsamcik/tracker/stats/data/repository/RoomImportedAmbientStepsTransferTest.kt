@@ -2,6 +2,7 @@ package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
 import androidx.room.Room
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwner
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableLocalOwnerKind
@@ -12,6 +13,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
@@ -27,6 +29,13 @@ import com.adsamcik.tracker.stats.api.repository.DeleteImportedAmbientStepsAfter
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedAmbientStepsAfterConsentResetResult
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedAmbientStepsDayRequest
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedAmbientStepsDayResult
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryFactOriginKind
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRead
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryValue
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsImportedDisposition
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericRangeRead
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsStructuralDay
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsResult
 import com.adsamcik.tracker.stats.api.repository.ImportPortableAmbientStepsRequest
@@ -45,7 +54,11 @@ import java.time.ZoneId
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -76,6 +89,10 @@ class RoomImportedAmbientStepsTransferTest {
 			partialDay(LocalDate.of(2026, 10, 26), count = 12L, zoneId = "Europe/Prague"),
 		)
 		importer(database).importArchive(request(archive)) shouldBe applied(archive, 2)
+		database.sourceDestinationOwnerDao().get(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			SourceDestinationOwnerEntity.DESTINATION_AMBIENT_STEPS,
+		) shouldBe null
 		database.ambientStepsFactRevisionDao().countAll() shouldBe 0L
 		database.ambientStepsImportStateDao().countCursors() shouldBe 0L
 		database.ambientStepsImportStateDao().countGaps() shouldBe 0L
@@ -90,6 +107,63 @@ class RoomImportedAmbientStepsTransferTest {
 				AmbientStepsDayCause.AMBIENT_GAP,
 			),
 		)
+		val publicHistory = history(database).readRange(historyRequest(archive)) as
+			AmbientStepsHistoryRead.Snapshot
+		publicHistory.days.first().total shouldBe AmbientStepsHistoryValue.Exact(0L)
+		publicHistory.days.last().total shouldBe AmbientStepsHistoryValue.Partial(
+			12L,
+			setOf(
+				com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.PARTIAL_COVERAGE,
+				com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.EXPLICIT_GAP,
+			),
+		)
+		publicHistory.days.all {
+			it.importedDisposition == AmbientStepsImportedDisposition.PRESENT &&
+				it.factOrigins.all { origin ->
+					origin.kind == AmbientStepsHistoryFactOriginKind.PORTABLE_IMPORT
+				}
+		} shouldBe true
+		publicHistory.days.map { it.opaqueDayIdentity } shouldBe
+			archive.days.map { it.identity.value }
+		val recent = history(database).readRecent(
+			com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRequest(2),
+		) as com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRead.Page
+		recent.days.map { it.day.epochDay } shouldBe
+			archive.days.map { it.structuralEpochDay }.sortedDescending()
+		recent.next shouldBe null
+		val numeric = database.withTransaction {
+			val revision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+			history(database).readNumericRangeInCurrentTransaction(
+				historyRequest(archive),
+				revision,
+			)
+		} as AmbientStepsNumericRangeRead.Snapshot
+		numeric.days.map { it.total } shouldBe listOf(
+			AmbientStepsHistoryValue.Exact(0L),
+			AmbientStepsHistoryValue.Partial(
+				12L,
+				setOf(
+					com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause
+						.PARTIAL_COVERAGE,
+					com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause
+						.EXPLICIT_GAP,
+				),
+			),
+		)
+		val wrongZone = history(database).readRange(
+			AmbientStepsHistoryRangeRequest(
+				listOf(
+					AmbientStepsStructuralDay(
+						archive.days.first().structuralEpochDay,
+						"UTC",
+					),
+				),
+			),
+		) as AmbientStepsHistoryRead.Snapshot
+		wrongZone.days.single().total shouldBe AmbientStepsHistoryValue.Unavailable(
+			setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.NO_EVIDENCE),
+		)
+		wrongZone.days.single().factOrigins shouldBe emptyList()
 		val exported = reexport(database, archive)
 		exported shouldBe archive
 
@@ -111,8 +185,10 @@ class RoomImportedAmbientStepsTransferTest {
 		val initial = archive(completeDay(LocalDate.of(2026, 1, 1), 10L))
 		val initialRequest = request(initial)
 		importer(database).importArchive(initialRequest) shouldBe applied(initial, 1)
+		val initialRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
 		importer(database).importArchive(initialRequest) shouldBe
 			ImportPortableAmbientStepsResult.Duplicate(initial.identity, 1)
+		requireNotNull(database.sourceEvidenceStateDao().get()).revision shouldBe initialRevision
 		val conflictingReceipt = archive(completeDay(LocalDate.of(2026, 1, 2), 3L))
 		importer(database).importArchive(
 			request(conflictingReceipt),
@@ -127,14 +203,64 @@ class RoomImportedAmbientStepsTransferTest {
 		importer(database).importArchive(
 			request(correction, jobId = "correction", archiveKey = "correction"),
 		) shouldBe applied(correction, 1)
+		requireNotNull(database.sourceEvidenceStateDao().get()).revision shouldBe
+			initialRevision + 2L
 		readReady(database, correction).products.single().total shouldBe
 			AmbientStepsNumericValue.Exact(12L)
+		(history(database).readRange(historyRequest(correction)) as
+			AmbientStepsHistoryRead.Snapshot).days.single().total shouldBe
+			AmbientStepsHistoryValue.Exact(12L)
 
 		importer(database).importArchive(
 			request(initial, jobId = "late-copy", archiveKey = "late-copy"),
 		) shouldBe ImportPortableAmbientStepsResult.Duplicate(initial.identity, 1)
 		readReady(database, correction).archive shouldBe correction
 		database.importedAmbientStepsDao().dayRevisionCount() shouldBe 2L
+	}
+
+	@Test
+	fun `public range observation refreshes after import and correction without daily summary`() = runTest {
+		val initial = archive(completeDay(LocalDate.of(2026, 1, 3), 5L))
+		val request = historyRequest(initial)
+		val repository = history(database)
+		val emissions = async {
+			repository.observeRange(request).take(3).toList()
+		}
+		yield()
+		importer(database).importArchive(
+			request(initial, jobId = "observe-initial", archiveKey = "observe-initial"),
+		) shouldBe applied(initial, 1)
+		yield()
+		val correction = archive(completeDay(LocalDate.of(2026, 1, 3), 9L))
+		importer(database).importArchive(
+			request(correction, jobId = "observe-correction", archiveKey = "observe-correction"),
+		) shouldBe applied(correction, 1)
+
+		val snapshots = emissions.await().map { it as AmbientStepsHistoryRead.Snapshot }
+		snapshots[0].days.single().total shouldBe AmbientStepsHistoryValue.Unavailable(
+			setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.NO_EVIDENCE),
+		)
+		snapshots[1].days.single().total shouldBe AmbientStepsHistoryValue.Exact(5L)
+		snapshots[2].days.single().total shouldBe AmbientStepsHistoryValue.Exact(9L)
+		database.dailySummaryDao().getByDay(initial.days.single().structuralEpochDay) shouldBe null
+	}
+
+	@Test
+	fun `thirty two imported structural days compose through one bounded range snapshot`() = runTest {
+		val first = LocalDate.of(2026, 1, 10)
+		val archive = archive(
+			*(0 until 32).map { offset ->
+				completeDay(first.plusDays(offset.toLong()), offset.toLong())
+			}.toTypedArray(),
+		)
+		importer(database).importArchive(request(archive)) shouldBe applied(archive, 32)
+
+		val snapshot = history(database).readRange(historyRequest(archive)) as
+			AmbientStepsHistoryRead.Snapshot
+
+		snapshot.days.size shouldBe 32
+		snapshot.days.map { (it.total as AmbientStepsHistoryValue.Exact).count } shouldBe
+			(0L until 32L).toList()
 	}
 
 	@Test
@@ -281,6 +407,13 @@ class RoomImportedAmbientStepsTransferTest {
 		reexportResult(database, archive) shouldBe ExportPortableAmbientStepsResult.Unverifiable(
 			PortableAmbientStepsExportUnverifiableReason.IMPORTED_DAY_RETAINED,
 		)
+		(history(database).readRange(historyRequest(archive)) as
+			AmbientStepsHistoryRead.Snapshot).days.single().let { day ->
+			day.importedDisposition shouldBe AmbientStepsImportedDisposition.RETAINED
+			day.total shouldBe AmbientStepsHistoryValue.Unavailable(
+				setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.NO_EVIDENCE),
+			)
+		}
 	}
 
 	@Test
@@ -325,6 +458,9 @@ class RoomImportedAmbientStepsTransferTest {
 		reexportResult(database, archive) shouldBe ExportPortableAmbientStepsResult.Unverifiable(
 			PortableAmbientStepsExportUnverifiableReason.IMPORTED_DAY_DELETED,
 		)
+		(history(database).readRange(historyRequest(archive)) as
+			AmbientStepsHistoryRead.Snapshot).days.single().importedDisposition shouldBe
+			AmbientStepsImportedDisposition.DELETED
 		val unrelated = archive(completeDay(LocalDate.of(2026, 5, 4), 2L))
 		importer(database).importArchive(request(unrelated)) shouldBe
 			ImportPortableAmbientStepsResult.Blocked(
@@ -532,6 +668,24 @@ class RoomImportedAmbientStepsTransferTest {
 		database,
 		database.importedAmbientStepsDao(),
 		Dispatchers.Unconfined,
+	)
+
+	private fun history(database: AppDatabase) = DefaultAmbientStepsHistoryRepository(
+		database,
+		database.importedAmbientStepsDao(),
+		StepsSegmentHistorySelector(database, SourceProductLaneExecutionAuthority { false }),
+		Dispatchers.Unconfined,
+	)
+
+	private fun historyRequest(
+		archive: PortableAmbientStepsArchiveV1,
+	) = AmbientStepsHistoryRangeRequest(
+		archive.days.map {
+			AmbientStepsStructuralDay(it.structuralEpochDay, it.storedZoneId)
+		}.sortedWith(
+			compareBy(AmbientStepsStructuralDay::epochDay)
+				.thenBy(AmbientStepsStructuralDay::storedZoneId),
+		),
 	)
 
 	private suspend fun readReady(
