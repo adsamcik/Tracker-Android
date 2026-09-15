@@ -3,6 +3,12 @@ package com.adsamcik.tracker.statistics.presenter
 import app.cash.turbine.test
 import arrow.core.left
 import arrow.core.right
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
 import com.adsamcik.tracker.stats.api.error.StatsError
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
@@ -74,7 +80,60 @@ class TripDetailPresenterTest {
 			loaded.shouldBeInstanceOf<TripDetailState.Loaded>()
 			loaded.trip shouldBe sampleTrip
 			loaded.steps shouldBe TripDetailStepsState.Complete(300L)
-			loaded.sourcePresentation shouldBe TripDetailSourcePresentation.Standard
+			loaded.sourcePresentation shouldBe TripDetailSourcePresentation.LegacyUnverifiable
+		}
+	}
+
+	@Test
+	fun `exact Activity-only capture selects retained Activity detail`() = runTest {
+		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
+		val activity = unavailableActivity(capturesOnlyActivity = true)
+		every { trackingHistoryRepository.observeLiveSession(42L) } returns flowOf(
+			foundHistory(
+				segmentId = 42L,
+				count = null,
+				capture = exactCapture(
+					sources = setOf(HistorySource.ACTIVITY),
+					controlSources = setOf(HistorySource.LOCATION),
+				),
+				activity = activity,
+			),
+		)
+		val events = MutableSharedFlow<TripDetailEvent>()
+
+		presenter.present(events).test {
+			events.emit(TripDetailEvent.LoadTrip(42L))
+			awaitItem() shouldBe TripDetailState.Loading
+			awaitItem() shouldBe resolvingState()
+			awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>().sourcePresentation shouldBe
+				TripDetailSourcePresentation.ActivityOnly(activity)
+		}
+	}
+
+	@Test
+	fun `exact Steps-only capture selects retained Steps detail and covered zero`() = runTest {
+		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
+		val steps = completeSteps(0L)
+		every { trackingHistoryRepository.observeLiveSession(42L) } returns flowOf(
+			foundHistory(
+				segmentId = 42L,
+				count = null,
+				capture = exactCapture(
+					sources = setOf(HistorySource.STEPS),
+					controlSources = setOf(HistorySource.ACTIVITY),
+				),
+				steps = steps,
+			),
+		)
+		val events = MutableSharedFlow<TripDetailEvent>()
+
+		presenter.present(events).test {
+			events.emit(TripDetailEvent.LoadTrip(42L))
+			awaitItem() shouldBe TripDetailState.Loading
+			awaitItem() shouldBe resolvingState()
+			val loaded = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
+			loaded.steps shouldBe TripDetailStepsState.Complete(0L)
+			loaded.sourcePresentation shouldBe TripDetailSourcePresentation.StepsOnly(steps)
 		}
 	}
 
@@ -98,6 +157,29 @@ class TripDetailPresenterTest {
 			awaitItem() shouldBe resolvingState()
 			val loaded = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
 			loaded.sourcePresentation shouldBe TripDetailSourcePresentation.PressureOnly(pressure)
+		}
+	}
+
+	@Test
+	fun `exact mixed capture without Location never falls back to Location detail`() = runTest {
+		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
+		every { trackingHistoryRepository.observeLiveSession(42L) } returns flowOf(
+			foundHistory(
+				segmentId = 42L,
+				count = null,
+				capture = exactCapture(setOf(HistorySource.ACTIVITY, HistorySource.STEPS)),
+			),
+		)
+		val events = MutableSharedFlow<TripDetailEvent>()
+
+		presenter.present(events).test {
+			events.emit(TripDetailEvent.LoadTrip(42L))
+			awaitItem() shouldBe TripDetailState.Loading
+			awaitItem() shouldBe resolvingState()
+			awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>().sourcePresentation shouldBe
+				TripDetailSourcePresentation.CapturedWithoutLocation(
+					setOf(HistorySource.ACTIVITY, HistorySource.STEPS),
+				)
 		}
 	}
 
@@ -300,6 +382,7 @@ class TripDetailPresenterTest {
 			awaitItem() shouldBe TripDetailState.Loaded(
 				trip = sampleTrip,
 				steps = TripDetailStepsState.Complete(280L),
+				sourcePresentation = TripDetailSourcePresentation.LegacyUnverifiable,
 			)
 		}
 	}
@@ -309,6 +392,10 @@ class TripDetailPresenterTest {
 		count: Long?,
 		capture: HistoryCapture = HistoryCapture.Unverifiable,
 		pressure: PressureHistory = unavailablePressure(),
+		steps: StepsHistory = count?.let(::completeSteps) ?: notCapturedSteps(),
+		activity: ActivityHistoryEntry = unavailableActivity(
+			capturesOnlyActivity = capture.capturesOnlyActivity(),
+		),
 	): LiveSessionHistorySnapshot = LiveSessionHistorySnapshot(
 		segmentId = segmentId,
 		session = SessionHistoryQuery.Found(
@@ -316,9 +403,10 @@ class TripDetailPresenterTest {
 				segmentId = segmentId,
 				capture = capture,
 				qualifiedSources = emptySet(),
-				steps = count?.let(::completeSteps) ?: notCapturedSteps(),
+				steps = steps,
 			),
 		),
+		activity = ActivityHistoryQuery.Found(activity),
 		pressure = PressureSessionHistoryQuery.Found(
 			PressureSessionHistory(
 				segmentId = segmentId,
@@ -336,6 +424,7 @@ class TripDetailPresenterTest {
 	private fun notFoundHistory(segmentId: Long) = LiveSessionHistorySnapshot(
 		segmentId = segmentId,
 		session = SessionHistoryQuery.NotFound,
+		activity = ActivityHistoryQuery.NotFound,
 		pressure = PressureSessionHistoryQuery.NotFound,
 	)
 
@@ -346,15 +435,36 @@ class TripDetailPresenterTest {
 			sourcePresentation = TripDetailSourcePresentation.Resolving,
 		)
 
-	private fun exactCapture(sources: Set<HistorySource>) = HistoryCapture.Exact(
+	private fun exactCapture(
+		sources: Set<HistorySource>,
+		controlSources: Set<HistorySource> = emptySet(),
+	) = HistoryCapture.Exact(
 		listOf(
 			HistoryCaptureRevision(
 				revision = 1L,
 				effectiveAt = EpochMs(1_000L),
 				capturedSources = sources,
-				controlSources = emptySet(),
+				controlSources = controlSources,
 			),
 		),
+	)
+
+	private fun HistoryCapture.capturesOnlyActivity(): Boolean =
+		(this as? HistoryCapture.Exact)?.revisions?.all { revision ->
+			revision.capturedSources == setOf(HistorySource.ACTIVITY)
+		} == true
+
+	private fun unavailableActivity(capturesOnlyActivity: Boolean) = ActivityHistoryEntry(
+		key = ActivityHistoryEntryKey("activity"),
+		startTime = EpochMs(1_000L),
+		endTime = EpochMs(5_000L),
+		storedZoneIds = setOf("UTC"),
+		state = ActivityHistoryProductState.UNAVAILABLE,
+		coverage = ActivityHistoryCoverage.NONE,
+		activeTime = null,
+		fragments = emptyList(),
+		causes = setOf(ActivityHistoryCause.NO_QUALIFIED_FACTS),
+		capturesOnlyActivity = capturesOnlyActivity,
 	)
 
 	private fun unavailablePressure() = PressureHistory(

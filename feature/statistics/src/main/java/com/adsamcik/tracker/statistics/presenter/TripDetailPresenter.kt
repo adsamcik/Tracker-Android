@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.statistics.presenter
 
 import com.adsamcik.tracker.stats.api.presenter.Presenter
-import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.TripRepository
@@ -20,7 +19,7 @@ sealed interface TripDetailState {
 	data class Loaded(
 		val trip: TripSummary,
 		val steps: TripDetailStepsState,
-		val sourcePresentation: TripDetailSourcePresentation = TripDetailSourcePresentation.Standard,
+		val sourcePresentation: TripDetailSourcePresentation = TripDetailSourcePresentation.Resolving,
 	) : TripDetailState
 	data class NotFound(val tripId: Long) : TripDetailState
 	data class Error(val message: String) : TripDetailState
@@ -68,13 +67,10 @@ class TripDetailPresenter @Inject constructor(
 									latestState = when (val session = snapshot.session) {
 										SessionHistoryQuery.NotFound -> TripDetailState.NotFound(event.tripId)
 										is SessionHistoryQuery.Found -> {
-											val pressure = requireNotNull(
-												snapshot.pressure as? PressureSessionHistoryQuery.Found,
-											) { "Live history snapshot resolved only one source product" }
 											TripDetailState.Loaded(
 												trip = trip,
 												steps = session.history.steps.toTripDetailStepsState(),
-												sourcePresentation = pressure.history
+												sourcePresentation = snapshot
 													.toTripDetailSourcePresentation(),
 											)
 										}

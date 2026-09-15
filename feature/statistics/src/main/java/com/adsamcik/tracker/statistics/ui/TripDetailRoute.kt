@@ -66,6 +66,7 @@ import com.adsamcik.tracker.statistics.presenter.TripDetailPresenterViewModel
 import com.adsamcik.tracker.statistics.presenter.TripDetailSourcePresentation
 import com.adsamcik.tracker.statistics.presenter.TripDetailState
 import com.adsamcik.tracker.statistics.presenter.TripDetailStepsState
+import com.adsamcik.tracker.statistics.presenter.hasUnavailableSourceActions
 import com.adsamcik.tracker.statistics.presenter.RouteEmptyReason
 import com.adsamcik.tracker.statistics.presenter.resolveRouteEmptyReason
 import com.adsamcik.tracker.statistics.presenter.supportsLocationPresentation
@@ -157,6 +158,26 @@ fun TripDetailRoute(
 								)
 							}
 						}
+					} else if (loadedState != null &&
+						(loadedState.hasUnavailableSourceActions ||
+							loadedState.trip.source == SegmentSource.PORTABLE_STEPS_IMPORT)
+					) {
+						Box {
+							IconButton(onClick = { showMenu = true }) {
+								Icon(
+									Icons.Filled.MoreVert,
+									contentDescription = stringResource(
+										R.string.trip_detail_more_options,
+									),
+								)
+							}
+							DropdownMenu(
+								expanded = showMenu,
+								onDismissRequest = { showMenu = false },
+							) {
+								TripDetailUnavailableActions()
+							}
+						}
 					}
 				},
 				colors = TopAppBarDefaults.topAppBarColors(
@@ -179,7 +200,9 @@ fun TripDetailRoute(
 				}
 
 				is TripDetailState.Loaded -> {
-					if (s.trip.source == SegmentSource.PORTABLE_STEPS_IMPORT) {
+					if (s.sourcePresentation is TripDetailSourcePresentation.ImportedSteps ||
+						s.trip.source == SegmentSource.PORTABLE_STEPS_IMPORT
+					) {
 						ImportedStepsOverview(s.trip, s.steps, viewModel::retry)
 					} else {
 						TripOverview(
@@ -253,6 +276,17 @@ internal fun TripDetailActions(
 	)
 }
 
+/** Source-local delete/export contracts are not yet bound to this selected physical row. */
+@Composable
+@Suppress("FunctionNaming") // Internal only so Compose tests can guard physical action authority.
+internal fun TripDetailUnavailableActions() {
+	DropdownMenuItem(
+		text = { Text(stringResource(R.string.trip_detail_source_actions_unavailable)) },
+		onClick = {},
+		enabled = false,
+	)
+}
+
 private val dateTimeFormatter: DateTimeFormatter by lazy {
 	DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.MEDIUM)
 }
@@ -317,6 +351,33 @@ private fun TripOverview(
 			)
 			return
 		}
+		is TripDetailSourcePresentation.ActivityOnly -> {
+			TripDetailActivityOverview(
+				activity = sourcePresentation.activity,
+			)
+			return
+		}
+		is TripDetailSourcePresentation.StepsOnly -> {
+			TripDetailStepsOverview(
+				trip = trip,
+				stepsHistory = sourcePresentation.steps,
+				stepsState = steps,
+				onRetry = onRetrySteps,
+			)
+			return
+		}
+		is TripDetailSourcePresentation.CapturedWithoutLocation -> {
+			TripDetailCapturedWithoutLocationOverview(
+				trip = trip,
+				capturedSources = sourcePresentation.capturedSources,
+			)
+			return
+		}
+		is TripDetailSourcePresentation.ImportedSteps -> {
+			ImportedStepsOverview(trip, steps, onRetrySteps)
+			return
+		}
+		TripDetailSourcePresentation.LegacyUnverifiable,
 		TripDetailSourcePresentation.Standard -> Unit
 	}
 
@@ -371,6 +432,9 @@ private fun TripOverview(
 			.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 32.dp + navBottom),
 		verticalArrangement = Arrangement.spacedBy(16.dp)
 	) {
+		if (sourcePresentation == TripDetailSourcePresentation.LegacyUnverifiable) {
+			TripDetailLegacyCaptureNotice()
+		}
 		GlassCard(modifier = Modifier.fillMaxWidth()) {
 			Row(
 				modifier = Modifier.fillMaxWidth(),
@@ -770,7 +834,7 @@ internal fun TripFactsCard(
 }
 
 @Composable
-private fun FactRow(
+internal fun FactRow(
 	label: String,
 	value: String,
 ) {
@@ -790,7 +854,7 @@ private fun FactRow(
 }
 
 @Composable
-private fun MetricCard(
+internal fun MetricCard(
 	label: String,
 	value: String,
 	modifier: Modifier = Modifier,
@@ -828,7 +892,7 @@ private fun MetricCard(
 }
 
 @Composable
-private fun TripDetailStepsState.metricValue(): String = when (this) {
+internal fun TripDetailStepsState.metricValue(): String = when (this) {
 	is TripDetailStepsState.Complete -> count.formatReadable()
 	is TripDetailStepsState.LowerBound -> "≥ ${count.formatReadable()}"
 	is TripDetailStepsState.LegacyUnverified -> recordedCount?.let {
@@ -840,12 +904,13 @@ private fun TripDetailStepsState.metricValue(): String = when (this) {
 // Exhaustiveness is deliberate: every durable product state must retain distinct UI copy.
 @Composable
 @Suppress("CyclomaticComplexMethod")
-private fun TripDetailStepsState.metricStatus(): String = stringResource(
+internal fun TripDetailStepsState.metricStatus(): String = stringResource(
 	when (this) {
 		is TripDetailStepsState.Complete -> R.string.trip_detail_steps_complete
 		is TripDetailStepsState.LowerBound -> R.string.trip_detail_steps_partial
 		is TripDetailStepsState.LegacyUnverified -> R.string.trip_detail_steps_legacy_unverified
 		TripDetailStepsState.Materializing -> R.string.trip_detail_steps_materializing
+		TripDetailStepsState.Partial -> R.string.trip_detail_steps_partial_without_value
 		TripDetailStepsState.NotCaptured -> R.string.trip_detail_steps_not_captured
 		TripDetailStepsState.Disabled -> R.string.trip_detail_steps_disabled
 		TripDetailStepsState.Unsupported -> R.string.trip_detail_steps_unsupported

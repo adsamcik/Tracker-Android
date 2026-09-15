@@ -19,6 +19,9 @@ sealed interface TripDetailStepsState {
 	/** Durable projection work has not reached a stable product result. */
 	data object Materializing : TripDetailStepsState
 
+	/** The product is partial, but no correction-safe numeric lower bound is available. */
+	data object Partial : TripDetailStepsState
+
 	/** The effective session manifest did not request captured Steps. */
 	data object NotCaptured : TripDetailStepsState
 
@@ -64,6 +67,7 @@ internal fun StepsHistory.toTripDetailStepsState(): TripDetailStepsState {
 		StepsHistoryCause.SOURCE_NOT_CAPTURED in causes -> TripDetailStepsState.NotCaptured
 		unavailablePresentation != null -> unavailablePresentation
 		productState == HistoryProductState.MATERIALIZING -> TripDetailStepsState.Materializing
+		productState == HistoryProductState.PARTIAL -> TripDetailStepsState.Partial
 		else -> fallbackState()
 	}
 }

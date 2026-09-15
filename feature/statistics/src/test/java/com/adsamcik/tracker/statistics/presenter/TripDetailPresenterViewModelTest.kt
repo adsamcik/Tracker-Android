@@ -13,6 +13,12 @@ import com.adsamcik.tracker.shared.model.SampleQuality
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.statistics.export.GpxShareHelper
 import com.adsamcik.tracker.stats.api.TransportMode
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
@@ -46,6 +52,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -291,6 +298,111 @@ class TripDetailPresenterViewModelTest {
 	}
 
 	@Test
+	fun `exact Activity-only detail never reads or exports Location presentation`() = runTest {
+		val trip = sessionTrip()
+		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
+		every { trackingHistoryRepository.observeLiveSession(TRIP_ID) } returns flowOf(
+			activityOnlyHistory(TRIP_ID),
+		)
+
+		val viewModel = createViewModel()
+		val stateCollector = backgroundScope.launch { viewModel.state.collect() }
+		advanceUntilIdle()
+
+		viewModel.loadSupplementalData()
+		viewModel.exportTripGpx(mockk(relaxed = true))
+		advanceUntilIdle()
+
+		coVerify(exactly = 0) { tripPresentationRepository.getTripProjection(any()) }
+		coVerify(exactly = 0) {
+			locationSampleRepository.getOrderedChunkBetween(any(), any(), any(), any(), any())
+		}
+		coVerify(exactly = 0) { skiRunSegmentRepository.getSegmentsByTimeRange(any(), any()) }
+		coVerify(exactly = 0) { gpxShareHelper.exportAndShare(any(), any(), any(), any()) }
+		stateCollector.cancel()
+	}
+
+	@Test
+	fun `exact Steps-only detail never reads or exports Location presentation`() = runTest {
+		val trip = sessionTrip()
+		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
+		every { trackingHistoryRepository.observeLiveSession(TRIP_ID) } returns flowOf(
+			stepsOnlyHistory(TRIP_ID),
+		)
+
+		val viewModel = createViewModel()
+		val stateCollector = backgroundScope.launch { viewModel.state.collect() }
+		advanceUntilIdle()
+
+		viewModel.loadSupplementalData()
+		viewModel.exportTripGpx(mockk(relaxed = true))
+		advanceUntilIdle()
+
+		coVerify(exactly = 0) { tripPresentationRepository.getTripProjection(any()) }
+		coVerify(exactly = 0) {
+			locationSampleRepository.getOrderedChunkBetween(any(), any(), any(), any(), any())
+		}
+		coVerify(exactly = 0) { skiRunSegmentRepository.getSegmentsByTimeRange(any(), any()) }
+		coVerify(exactly = 0) { gpxShareHelper.exportAndShare(any(), any(), any(), any()) }
+		stateCollector.cancel()
+	}
+
+	@Test
+	fun `history observer failure clears stale Location supplements and keeps retry state`() = runTest {
+		val trip = sessionTrip().copy(distance = DistanceM(1_000f))
+		val failHistory = CompletableDeferred<Unit>()
+		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
+		every { trackingHistoryRepository.observeLiveSession(TRIP_ID) } returns flow {
+			emit(
+				completeHistory(
+					segmentId = TRIP_ID,
+					capture = exactCapture(setOf(HistorySource.LOCATION)),
+				),
+			)
+			failHistory.await()
+			throw IllegalStateException("history failed")
+		}
+		coEvery { tripPresentationRepository.getTripProjection(TRIP_ID) } returns null
+		coEvery {
+			locationSampleRepository.getOrderedChunkBetween(
+				fromMs = TRIP_START_MS,
+				toMs = TRIP_END_MS,
+				afterTimeMs = null,
+				afterId = null,
+				limit = any(),
+			)
+		} returns listOf(
+			sample(
+				id = 1L,
+				timeMs = TRIP_START_MS,
+				latE7 = 500_000_000,
+				lonE7 = 140_000_000,
+			),
+		)
+		coEvery {
+			skiRunSegmentRepository.getSegmentsByTimeRange(TRIP_START_MS, TRIP_END_MS)
+		} returns emptyList()
+
+		val viewModel = createViewModel()
+		val stateCollector = backgroundScope.launch { viewModel.state.collect() }
+		advanceUntilIdle()
+		viewModel.loadSupplementalData()
+		advanceUntilIdle()
+		viewModel.insights.value.routePoints.isNotEmpty() shouldBe true
+
+		failHistory.complete(Unit)
+		advanceUntilIdle()
+		(viewModel.state.value as TripDetailState.Loaded).sourcePresentation shouldBe
+			TripDetailSourcePresentation.Failed
+		viewModel.loadSupplementalData()
+		advanceUntilIdle()
+
+		viewModel.insights.value shouldBe TripDetailInsights()
+		viewModel.skiSegments.value shouldBe emptyList()
+		stateCollector.cancel()
+	}
+
+	@Test
 	fun `supplemental reads require a visible-screen request and keep one job`() = runTest {
 		val trip = sessionTrip()
 		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
@@ -463,6 +575,9 @@ class TripDetailPresenterViewModelTest {
 		capture: HistoryCapture = HistoryCapture.Unverifiable,
 		pressure: PressureHistory = unavailablePressure(),
 		steps: StepsHistory = completeSteps(),
+		activity: ActivityHistoryEntry = unavailableActivity(
+			capturesOnlyActivity = capture.capturesOnlyActivity(),
+		),
 	): LiveSessionHistorySnapshot = LiveSessionHistorySnapshot(
 		segmentId = segmentId,
 		session = SessionHistoryQuery.Found(
@@ -473,6 +588,7 @@ class TripDetailPresenterViewModelTest {
 				steps = steps,
 			),
 		),
+		activity = ActivityHistoryQuery.Found(activity),
 		pressure = PressureSessionHistoryQuery.Found(
 			PressureSessionHistory(
 				segmentId = segmentId,
@@ -501,6 +617,57 @@ class TripDetailPresenterViewModelTest {
 		),
 		pressure = unavailablePressure(),
 		steps = notCapturedSteps(),
+	)
+
+	private fun activityOnlyHistory(segmentId: Long): LiveSessionHistorySnapshot {
+		val capture = exactCapture(setOf(HistorySource.ACTIVITY))
+		return completeHistory(
+			segmentId = segmentId,
+			capture = capture,
+			steps = notCapturedSteps(),
+			activity = unavailableActivity(capturesOnlyActivity = true),
+		)
+	}
+
+	private fun stepsOnlyHistory(segmentId: Long): LiveSessionHistorySnapshot = completeHistory(
+		segmentId = segmentId,
+		capture = exactCapture(
+			sources = setOf(HistorySource.STEPS),
+			controlSources = setOf(HistorySource.ACTIVITY),
+		),
+		steps = completeSteps(),
+	)
+
+	private fun exactCapture(
+		sources: Set<HistorySource>,
+		controlSources: Set<HistorySource> = emptySet(),
+	) = HistoryCapture.Exact(
+		listOf(
+			HistoryCaptureRevision(
+				revision = 1L,
+				effectiveAt = EpochMs(TRIP_START_MS),
+				capturedSources = sources,
+				controlSources = controlSources,
+			),
+		),
+	)
+
+	private fun HistoryCapture.capturesOnlyActivity(): Boolean =
+		(this as? HistoryCapture.Exact)?.revisions?.all { revision ->
+			revision.capturedSources == setOf(HistorySource.ACTIVITY)
+		} == true
+
+	private fun unavailableActivity(capturesOnlyActivity: Boolean) = ActivityHistoryEntry(
+		key = ActivityHistoryEntryKey("activity"),
+		startTime = EpochMs(TRIP_START_MS),
+		endTime = EpochMs(TRIP_END_MS),
+		storedZoneIds = setOf("UTC"),
+		state = ActivityHistoryProductState.UNAVAILABLE,
+		coverage = ActivityHistoryCoverage.NONE,
+		activeTime = null,
+		fragments = emptyList(),
+		causes = setOf(ActivityHistoryCause.NO_QUALIFIED_FACTS),
+		capturesOnlyActivity = capturesOnlyActivity,
 	)
 
 	private fun unavailablePressure() = PressureHistory(
