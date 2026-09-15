@@ -1881,6 +1881,193 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS imported_cell_entry_revision (
+					identity TEXT NOT NULL,
+					import_revision INTEGER NOT NULL,
+					supersedes_import_revision INTEGER,
+					content_checksum TEXT NOT NULL,
+					source_format TEXT NOT NULL,
+					source_schema_version INTEGER NOT NULL,
+					session_mode TEXT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					subscription_grouping TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					import_job_id TEXT NOT NULL,
+					import_entry_key TEXT NOT NULL,
+					import_source_name TEXT NOT NULL,
+					received_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(identity, import_revision)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_cell_entry_original_receipt " +
+					"ON imported_cell_entry_revision(import_job_id, import_entry_key)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_cell_receipt (
+					import_job_id TEXT NOT NULL,
+					import_entry_key TEXT NOT NULL,
+					import_source_name TEXT NOT NULL,
+					received_at_ms INTEGER NOT NULL,
+					entry_identity TEXT NOT NULL,
+					entry_import_revision INTEGER NOT NULL,
+					entry_content_checksum TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					PRIMARY KEY(import_job_id, import_entry_key),
+					FOREIGN KEY(entry_identity, entry_import_revision)
+						REFERENCES imported_cell_entry_revision(identity, import_revision)
+						ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_cell_receipt_entry " +
+					"ON imported_cell_receipt(entry_identity, entry_import_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_cell_run (
+					entry_identity TEXT NOT NULL,
+					entry_import_revision INTEGER NOT NULL,
+					identity TEXT NOT NULL,
+					deletion_scope_digest TEXT NOT NULL,
+					content_checksum TEXT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					capture_coverage TEXT NOT NULL,
+					availability TEXT NOT NULL,
+					acquisition_completeness TEXT NOT NULL,
+					retention_loss INTEGER NOT NULL,
+					subscription_grouping TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					scope_deletion_generation INTEGER NOT NULL,
+					PRIMARY KEY(entry_identity, entry_import_revision, identity),
+					FOREIGN KEY(entry_identity, entry_import_revision)
+						REFERENCES imported_cell_entry_revision(identity, import_revision)
+						ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_cell_run_entry " +
+					"ON imported_cell_run(entry_identity, entry_import_revision)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_cell_run_identity " +
+					"ON imported_cell_run(identity)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_cell_run_scope " +
+					"ON imported_cell_run(deletion_scope_digest)",
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_cell_run_revision_scope " +
+					"ON imported_cell_run(entry_identity, entry_import_revision, deletion_scope_digest)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_cell_observation (
+					entry_identity TEXT NOT NULL,
+					entry_import_revision INTEGER NOT NULL,
+					run_identity TEXT NOT NULL,
+					identity TEXT NOT NULL,
+					semantic_revision INTEGER NOT NULL,
+					supersedes_semantic_revision INTEGER,
+					aggregate_owner_identity TEXT,
+					aggregate_owner_semantic_revision INTEGER,
+					content_checksum TEXT NOT NULL,
+					coverage_start_time_ms INTEGER NOT NULL,
+					observed_time_ms INTEGER NOT NULL,
+					latest_possible_time_ms INTEGER NOT NULL,
+					wall_time_uncertainty_ms INTEGER NOT NULL,
+					stored_zone_id TEXT NOT NULL,
+					child_completeness TEXT NOT NULL,
+					subscription_grouping TEXT NOT NULL,
+					submitted_child_count INTEGER NOT NULL,
+					accepted_child_count INTEGER NOT NULL,
+					stale_child_count INTEGER NOT NULL,
+					future_time_child_count INTEGER NOT NULL,
+					missing_time_child_count INTEGER NOT NULL,
+					clock_unverifiable_child_count INTEGER NOT NULL,
+					authority_mismatch_child_count INTEGER NOT NULL,
+					unsupported_technology_child_count INTEGER NOT NULL,
+					observation_count INTEGER NOT NULL,
+					registered_observation_count INTEGER NOT NULL,
+					gsm_count INTEGER NOT NULL,
+					cdma_count INTEGER NOT NULL,
+					wcdma_count INTEGER NOT NULL,
+					tdscdma_count INTEGER NOT NULL,
+					lte_count INTEGER NOT NULL,
+					nr_count INTEGER NOT NULL,
+					quality_unknown_count INTEGER NOT NULL,
+					quality_none_or_unknown_count INTEGER NOT NULL,
+					quality_poor_count INTEGER NOT NULL,
+					quality_moderate_count INTEGER NOT NULL,
+					quality_good_count INTEGER NOT NULL,
+					quality_great_count INTEGER NOT NULL,
+					weak_observation_count INTEGER NOT NULL,
+					known_quality_observation_count INTEGER NOT NULL,
+					all_known_quality_is_weak INTEGER NOT NULL,
+					quality_flags INTEGER NOT NULL,
+					quality_confidence REAL,
+					PRIMARY KEY(entry_identity, entry_import_revision, run_identity, identity),
+					FOREIGN KEY(entry_identity, entry_import_revision, run_identity)
+						REFERENCES imported_cell_run(entry_identity, entry_import_revision, identity)
+						ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_cell_observation_run " +
+					"ON imported_cell_observation(entry_identity, entry_import_revision, run_identity)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_cell_observation_identity " +
+					"ON imported_cell_observation(identity)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_cell_observation_owner " +
+					"ON imported_cell_observation(aggregate_owner_identity)",
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_cell_observation_revision_identity " +
+					"ON imported_cell_observation(entry_identity, entry_import_revision, identity)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_cell_entry_deletion (
+					entry_identity TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					deleted_import_revision INTEGER NOT NULL,
+					deleted_at_ms INTEGER NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					PRIMARY KEY(entry_identity)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_cell_deletion_generation (
+					run_identity TEXT NOT NULL,
+					entry_identity TEXT NOT NULL,
+					deletion_scope_digest TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					generation INTEGER NOT NULL,
+					deleted_at_ms INTEGER NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					PRIMARY KEY(run_identity)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_cell_deletion_generation_scope " +
+					"ON imported_cell_deletion_generation(deletion_scope_digest)",
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS legacy_v27_projection_drain (
 					id INTEGER NOT NULL,
 					source_schema_version INTEGER NOT NULL,

@@ -52,6 +52,7 @@ object CellCapturedPortableFormatV1 {
 	const val MAX_OBSERVATIONS_PER_RUN = 4_096
 	const val MAX_OBSERVATIONS_PER_ENTRY = 4_096
 	const val MAX_TEXT_LENGTH = 128
+	const val MAX_IMPORT_RECEIPT_FIELD_LENGTH = 4_096
 }
 
 enum class PortableCellIdentityKind {
@@ -277,6 +278,93 @@ interface ExportPortableCapturedCell {
 		request: ExportPortableCapturedCellRequest,
 		sink: PortableCapturedCellSink,
 	): ExportPortableCapturedCellResult
+}
+
+/** Bounded provenance copied into Cell-local immutable imported-product authority. */
+data class PortableCellImportReceipt(
+	val jobId: String,
+	val entryKey: String,
+	val sourceName: String,
+	val receivedAtMs: Long,
+) {
+	init {
+		listOf(jobId, entryKey, sourceName).forEach { value ->
+			require(value.isNotBlank())
+			require(value.length <= CellCapturedPortableFormatV1.MAX_IMPORT_RECEIPT_FIELD_LENGTH)
+		}
+		require(receivedAtMs >= 0L)
+	}
+}
+
+/** One Cell-only admission transaction over an already-decoded captured-product entry. */
+data class ImportPortableCapturedCellRequest(
+	val entry: PortableCapturedCellEntryV1,
+	val receipt: PortableCellImportReceipt,
+	val expectedCollectedDataEpoch: Long,
+) {
+	init {
+		require(expectedCollectedDataEpoch >= 0L)
+	}
+}
+
+/** Admission stores imported product evidence only and never grants live Cell authority. */
+interface ImportPortableCapturedCell {
+	suspend fun importEntry(request: ImportPortableCapturedCellRequest): ImportPortableCapturedCellResult
+}
+
+sealed interface ImportPortableCapturedCellResult {
+	data class Applied(
+		val importRevision: Long,
+		val physicalRunCount: Int,
+		val observationCount: Int,
+	) : ImportPortableCapturedCellResult {
+		init {
+			require(importRevision > 0L)
+			require(physicalRunCount > 0)
+			require(observationCount > 0)
+		}
+	}
+
+	data class Duplicate(val importRevision: Long) : ImportPortableCapturedCellResult {
+		init {
+			require(importRevision > 0L)
+		}
+	}
+
+	data class Blocked(val reason: PortableCellImportBlockedReason) : ImportPortableCapturedCellResult
+	data class Unverifiable(
+		val reason: PortableCellImportUnverifiableReason,
+	) : ImportPortableCapturedCellResult
+	data class RetryableFailure(
+		val reason: PortableCellImportRetryableReason,
+	) : ImportPortableCapturedCellResult
+}
+
+enum class PortableCellImportBlockedReason {
+	COLLECTED_DATA_EPOCH_CHANGED,
+	RETENTION_BOUNDARY,
+	RECEIPT_CONFLICT,
+	CORRECTION_CONFLICT,
+	OPAQUE_IDENTITY_CONFLICT,
+	DELETED_ENTRY,
+	DELETED_RUN,
+	DELETED_SCOPE,
+}
+
+enum class PortableCellImportUnverifiableReason {
+	ENTRY_INVALID,
+	SOURCE_EVIDENCE_STATE_MISSING,
+	STORED_EVIDENCE_UNVERIFIABLE,
+	DEPENDENCY_OVERFLOW,
+	RUN_OVERFLOW,
+	OBSERVATION_OVERFLOW,
+	TOTAL_OBSERVATION_OVERFLOW,
+	REVISION_OVERFLOW,
+}
+
+enum class PortableCellImportRetryableReason {
+	CONCURRENT_STATE_CHANGE,
+	STORAGE_UNAVAILABLE,
 }
 
 sealed interface ExportPortableCapturedCellResult {
