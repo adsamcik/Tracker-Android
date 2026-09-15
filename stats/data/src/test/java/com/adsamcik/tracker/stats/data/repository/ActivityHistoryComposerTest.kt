@@ -271,6 +271,8 @@ class ActivityHistoryComposerTest {
 				ActivityComposedPage.Available).entries shouldHaveSize 1
 			(repository.recentActivityHistoryInTransaction(10) as
 				ActivitySourceComposedPage.Available).entries shouldHaveSize 2
+			(repository.recentInTransaction(10) as
+				ActivityHistoryPage.Available).entries shouldHaveSize 2
 		}
 	}
 

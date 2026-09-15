@@ -102,13 +102,22 @@ internal class DefaultActivityHistoryRepository @Inject constructor(
 	override suspend fun recent(limit: Int): ActivityHistoryPage {
 		require(limit in 1..MAX_ACTIVITY_HISTORY_RESULTS)
 		return withContext(ioDispatcher) {
-			database.withTransaction {
-				when (val page = recentActivityHistoryInTransaction(limit)) {
-					is ActivitySourceComposedPage.Available ->
-						ActivityHistoryPage.Available(page.entries.map(ActivitySourceComposedEntry::entry))
-					is ActivitySourceComposedPage.Failed -> ActivityHistoryPage.Failed(page.cause)
-				}
-			}
+			database.withTransaction { recentInTransaction(limit) }
+		}
+	}
+
+	/**
+	 * Shared-facade bridge over the authenticated combined Activity producer.
+	 *
+	 * The caller owns the Room transaction; newest-member ordering, origin normalization, complete
+	 * source authentication, and final cutoff remain inside [recentActivityHistoryInTransaction].
+	 */
+	internal suspend fun recentInTransaction(limit: Int): ActivityHistoryPage {
+		require(limit in 1..MAX_ACTIVITY_HISTORY_RESULTS)
+		return when (val page = recentActivityHistoryInTransaction(limit)) {
+			is ActivitySourceComposedPage.Available ->
+				ActivityHistoryPage.Available(page.entries.map(ActivitySourceComposedEntry::entry))
+			is ActivitySourceComposedPage.Failed -> ActivityHistoryPage.Failed(page.cause)
 		}
 	}
 
