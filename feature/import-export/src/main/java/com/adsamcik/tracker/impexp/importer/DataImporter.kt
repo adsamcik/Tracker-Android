@@ -21,6 +21,8 @@ import com.adsamcik.tracker.shared.base.extension.openInputStream
 import java.io.IOException
 import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Exposes import start to other packages.
@@ -59,18 +61,23 @@ object DataImporter {
 	const val UNIQUE_WORK_NAME = "data-import"
 }
 
+private class ImportReceiptPreconditionException(message: String) : IOException(message)
+
 internal class ImportJobRunner(
 	private val receiptStore: ImportReceiptStore,
 	private val verifyCollectedDataAccess: () -> Unit = {},
 	private val nowMs: () -> Long = System::currentTimeMillis,
 ) {
+	// One runner belongs to one uniquely scheduled ImportWorker. Completion cannot race its imports.
+	private val operationMutex = Mutex()
+
 	suspend fun start(
 		jobId: String,
 		sourceName: String,
 		sourceSizeBytes: Long,
-	): Boolean {
+	): Boolean = operationMutex.withLock {
 		verifyCollectedDataAccess()
-		return receiptStore.transaction {
+		receiptStore.transaction {
 			verifyCollectedDataAccess()
 			if (receiptStore.getJob(jobId)?.status == ImportJobReceiptEntity.STATUS_COMPLETE) {
 				return@transaction false
@@ -102,7 +109,7 @@ internal class ImportJobRunner(
 			ImportTransactionMode.WORKER_MANAGED
 		},
 		importEntry: suspend (FileImportStream) -> ImportResult,
-	): ImportResult {
+	): ImportResult = operationMutex.withLock {
 		var aggregate = ImportResult.EMPTY
 		val opened = extractor.extract(
 			context = context,
@@ -119,12 +126,12 @@ internal class ImportJobRunner(
 					entryName = stream.fileName,
 					transactionMode = transactionModeForEntry(stream),
 				) {
-					importEntry(stream)
+					importEntry(receiptBoundStream(jobId, stream))
 				}
 			},
 		)
 		if (!opened) throw IOException("Failed to extract ${file.name ?: "archive"}")
-		return aggregate
+		aggregate
 	}
 
 	suspend fun importSingle(
@@ -132,11 +139,24 @@ internal class ImportJobRunner(
 		stream: FileImportStream,
 		transactionMode: ImportTransactionMode = ImportTransactionMode.WORKER_MANAGED,
 		importEntry: suspend (FileImportStream) -> ImportResult,
-	): ImportResult = processEntry(jobId, stream.receiptKey, stream.fileName, transactionMode) {
-		importEntry(stream)
+	): ImportResult = operationMutex.withLock {
+		processEntry(jobId, stream.receiptKey, stream.fileName, transactionMode) {
+			importEntry(receiptBoundStream(jobId, stream))
+		}
 	}
 
-	suspend fun completeIfSuccessful(jobId: String, result: ImportResult) {
+	private suspend fun receiptBoundStream(jobId: String, stream: FileImportStream): FileImportStream {
+		verifyCollectedDataAccess()
+		val job = receiptStore.getJob(jobId)
+			?: throw ImportReceiptPreconditionException("Source import requires its durable file-job receipt")
+		if (job.jobId != jobId || job.status != ImportJobReceiptEntity.STATUS_IN_PROGRESS) {
+			throw ImportReceiptPreconditionException("Source import requires the current in-progress file job")
+		}
+		verifyCollectedDataAccess()
+		return stream.withImportReceipt(jobId, job.startedAt)
+	}
+
+	suspend fun completeIfSuccessful(jobId: String, result: ImportResult): Unit = operationMutex.withLock {
 		if (result.failedCount == 0) {
 			verifyCollectedDataAccess()
 			receiptStore.transaction {
@@ -179,6 +199,8 @@ internal class ImportJobRunner(
 					importEntry = importEntry,
 				)
 			}
+		} catch (precondition: ImportReceiptPreconditionException) {
+			throw precondition
 		} catch (rollback: ImportEntryRollback) {
 			recordFailure(jobId, entryKey, entryName, rollback.result)
 			rollback.result

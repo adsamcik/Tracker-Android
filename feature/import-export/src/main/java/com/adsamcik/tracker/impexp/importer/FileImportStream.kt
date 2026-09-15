@@ -15,7 +15,7 @@ class FileImportStream private constructor(
 		/** Stable identity within a content-addressed import job. */
 		val receiptKey: String,
 		private val onClose: () -> Unit = {},
-		initialStream: InputStream? = null
+		initialStream: InputStream? = null,
 ) : InputStream() {
 	constructor(
 			stream: InputStream,
@@ -38,6 +38,22 @@ class FileImportStream private constructor(
 
 	private var stream: InputStream? = initialStream
 	private var closed: Boolean = false
+	@Volatile
+	internal var importReceipt: FileImportReceiptContext? = null
+		private set
+
+	/** Binds durable file-job provenance without opening, copying, or re-identifying the content. */
+	@Synchronized
+	internal fun withImportReceipt(jobId: String, receivedAtMs: Long): FileImportStream {
+		check(!closed) { "Cannot bind a closed import stream" }
+		val receipt = FileImportReceiptContext(jobId, receiptKey, fileName, receivedAtMs)
+		importReceipt?.let { existing ->
+			require(existing == receipt) { "Import stream already belongs to another receipt" }
+			return this
+		}
+		importReceipt = receipt
+		return this
+	}
 
 	/**
 	 * File extension.
@@ -62,5 +78,22 @@ class FileImportStream private constructor(
 		} finally {
 			onClose()
 		}
+	}
+
+}
+
+/**
+ * File-job provenance only. It grants no collected-data epoch, consent, provider, or writer access.
+ * A source importer still authenticates its own complete payload and current storage authority.
+ */
+internal data class FileImportReceiptContext(
+	val jobId: String,
+	val entryKey: String,
+	val sourceName: String,
+	val receivedAtMs: Long,
+) {
+	init {
+		require(listOf(jobId, entryKey, sourceName).all { it.isNotBlank() && it.length <= 4_096 })
+		require(receivedAtMs >= 0L)
 	}
 }

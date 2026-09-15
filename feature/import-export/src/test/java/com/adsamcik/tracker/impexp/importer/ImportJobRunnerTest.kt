@@ -21,6 +21,10 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runCurrent
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -182,6 +186,134 @@ class ImportJobRunnerTest {
 		store.entryStatus(JOB_ID, "steps.trackersteps") shouldBe
 			ImportEntryReceiptEntity.STATUS_FAILURE
 	}
+
+	@Test
+	fun `source receipt uses durable job start across failed import retries`() = runTest {
+		val store = FakeImportReceiptStore()
+		var now = 100L
+		val runner = ImportJobRunner(store, nowMs = { now })
+		runner.start(JOB_ID, "pressure.trackerpressure", 10L)
+		val receipts = mutableListOf<FileImportReceiptContext>()
+
+		assertFailsWith<IOException> {
+			runner.importSingle(
+				JOB_ID,
+				FileImportStream("pressure.trackerpressure", "direct-entry", { ByteArrayInputStream(byteArrayOf(1)) }),
+				ImportTransactionMode.IMPORTER_MANAGED,
+			) { stream ->
+				receipts += requireNotNull(stream.importReceipt)
+				stream.read() shouldBe 1
+				throw IOException("source failure")
+			}
+		}
+		now = 200L
+		runner.start(JOB_ID, "pressure.trackerpressure", 10L)
+		runner.importSingle(
+			JOB_ID,
+			FileImportStream("pressure.trackerpressure", "direct-entry", { ByteArrayInputStream(byteArrayOf(1)) }),
+			ImportTransactionMode.IMPORTER_MANAGED,
+		) { stream ->
+			receipts += requireNotNull(stream.importReceipt)
+			ImportResult(successCount = 1)
+		}
+
+		receipts shouldBe List(2) {
+			FileImportReceiptContext(JOB_ID, "direct-entry", "pressure.trackerpressure", 100L)
+		}
+	}
+
+	@Test
+	fun `archive sources receive exact distinct entry receipt keys and one durable job time`() = runTest {
+		val bytes = buildZip("one.json" to "one", "two.json" to "two")
+		val file = mockArchive(bytes)
+		val runner = ImportJobRunner(FakeImportReceiptStore(), nowMs = { 300L })
+		runner.start(JOB_ID, "archive.zip", bytes.size.toLong())
+		val receipts = mutableListOf<FileImportReceiptContext>()
+
+		runner.importArchive(JOB_ID, context, file, ZipArchiveExtractor()) { stream ->
+			val receipt = requireNotNull(stream.importReceipt)
+			receipt.entryKey shouldBe stream.receiptKey
+			receipt.sourceName shouldBe stream.fileName
+			receipts += receipt
+			ImportResult(successCount = 1)
+		}
+
+		receipts.size shouldBe 2
+		receipts.map { it.jobId }.toSet() shouldBe setOf(JOB_ID)
+		receipts.map { it.receivedAtMs }.toSet() shouldBe setOf(300L)
+		receipts.map { it.entryKey }.distinct().size shouldBe 2
+	}
+
+	@Test
+	fun `source importer is not called without durable job provenance`() = runTest {
+		var called = false
+		val store = FakeImportReceiptStore()
+		val runner = ImportJobRunner(store)
+
+		assertFailsWith<IOException> {
+			runner.importSingle(JOB_ID, createSourceStream()) {
+				called = true
+				ImportResult(successCount = 1)
+			}
+		}
+		called shouldBe false
+		store.getEntry(JOB_ID, "source.json") shouldBe null
+		store.lastPutWasTransactional shouldBe null
+	}
+
+	@Test
+	fun `completed job cannot create a new source failure receipt`() = runTest {
+		val store = FakeImportReceiptStore()
+		val runner = ImportJobRunner(store)
+		runner.start(JOB_ID, "source.json", 1L)
+		runner.completeIfSuccessful(JOB_ID, ImportResult(successCount = 1))
+		var called = false
+
+		assertFailsWith<IOException> {
+			runner.importSingle(JOB_ID, createSourceStream(), ImportTransactionMode.IMPORTER_MANAGED) {
+				called = true
+				ImportResult(successCount = 1)
+			}
+		}
+
+		called shouldBe false
+		store.getEntry(JOB_ID, "source.json") shouldBe null
+		store.lastPutWasTransactional shouldBe null
+	}
+
+	@OptIn(ExperimentalCoroutinesApi::class)
+	@Test
+	fun `job completion cannot race an importer managed source callback`() = runTest {
+		val store = FakeImportReceiptStore()
+		val runner = ImportJobRunner(store)
+		runner.start(JOB_ID, "source.json", 1L)
+		val entered = CompletableDeferred<Unit>()
+		val resume = CompletableDeferred<Unit>()
+		val importing = async {
+			runner.importSingle(JOB_ID, createSourceStream(), ImportTransactionMode.IMPORTER_MANAGED) {
+				entered.complete(Unit)
+				resume.await()
+				ImportResult(successCount = 1)
+			}
+		}
+		entered.await()
+		val completing = async {
+			runner.completeIfSuccessful(JOB_ID, ImportResult(successCount = 1))
+		}
+		runCurrent()
+
+		completing.isCompleted shouldBe false
+		store.jobStatus(JOB_ID) shouldBe ImportJobReceiptEntity.STATUS_IN_PROGRESS
+		resume.complete(Unit)
+		importing.await()
+		completing.await()
+		store.jobStatus(JOB_ID) shouldBe ImportJobReceiptEntity.STATUS_COMPLETE
+	}
+
+	private fun createSourceStream() = FileImportStream(
+		ByteArrayInputStream(byteArrayOf(1)),
+		"source.json",
+	)
 
 	private fun mockArchive(bytes: ByteArray): DocumentFile = mockFile("backup.zip", bytes).also {
 		every { it.isDirectory } returns false
