@@ -28,6 +28,7 @@ internal class PortableJsonTokenLimitInputStream(
 	private var escaped = false
 	private var inLiteral = false
 	private var literalBytes = 0
+	private var literalStartedAsNumber = false
 
 	override fun read(): Int {
 		val value = super.read()
@@ -56,6 +57,7 @@ internal class PortableJsonTokenLimitInputStream(
 			}
 			inLiteral = false
 			literalBytes = 0
+			literalStartedAsNumber = false
 		}
 		when (value) {
 			QUOTE -> {
@@ -72,6 +74,7 @@ internal class PortableJsonTokenLimitInputStream(
 			else -> if (!isWhitespace(value)) {
 				inLiteral = true
 				literalBytes = 1
+				literalStartedAsNumber = value == MINUS || value in DIGIT_ZERO..DIGIT_NINE
 			}
 		}
 	}
@@ -108,8 +111,16 @@ internal class PortableJsonTokenLimitInputStream(
 
 	private fun recordLiteralByte() {
 		literalBytes++
-		if (literalBytes > limits.maxLiteralBytes) {
-			throw PortableJsonTokenLimitException("JSON bare literal exceeds its lexical byte bound")
+		val maximum = if (literalStartedAsNumber) {
+			limits.maxNumberBytes
+		} else {
+			limits.maxLiteralBytes
+		}
+		if (literalBytes > maximum) {
+			throw PortableJsonTokenLimitException(
+				if (literalStartedAsNumber) "JSON number exceeds its lexical byte bound"
+				else "JSON bare literal exceeds its lexical byte bound",
+			)
 		}
 	}
 
@@ -152,6 +163,9 @@ internal class PortableJsonTokenLimitInputStream(
 		const val ARRAY_END = ']'.code
 		const val COLON = ':'.code
 		const val COMMA = ','.code
+		const val MINUS = '-'.code
+		const val DIGIT_ZERO = '0'.code
+		const val DIGIT_NINE = '9'.code
 		const val SPACE = ' '.code
 		const val TAB = '\t'.code
 		const val CARRIAGE_RETURN = '\r'.code
@@ -165,13 +179,15 @@ internal class PortableJsonTokenLimitInputStream(
 internal data class PortableJsonTokenLimits(
 	val maxNameBytes: Int = 64 * MAX_ESCAPED_BYTES_PER_CHARACTER,
 	val maxStringBytes: Int = 128 * MAX_ESCAPED_BYTES_PER_CHARACTER,
-	val maxLiteralBytes: Int = 64,
+	val maxNumberBytes: Int = 64,
 	val maxNestingDepth: Int = 32,
 	val maxReadChunkBytes: Int = 256,
+	val maxLiteralBytes: Int = 64,
 ) {
 	init {
 		require(maxNameBytes > 0)
 		require(maxStringBytes >= maxNameBytes)
+		require(maxNumberBytes > 0)
 		require(maxLiteralBytes >= MIN_JSON_KEYWORD_BYTES)
 		require(maxNestingDepth > 0)
 		require(maxReadChunkBytes > 0)

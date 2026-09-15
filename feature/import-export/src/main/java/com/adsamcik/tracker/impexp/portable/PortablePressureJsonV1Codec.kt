@@ -999,7 +999,7 @@ private class BoundedPressureInputStream(
 
 private class PressureTransportIOException(
 	val original: IOException,
-) : IOException(null, original, false, false)
+) : RuntimeException(null, original, false, false)
 
 private class BoundedPressureOutputStream(
 	output: OutputStream,

@@ -254,20 +254,36 @@ class PortablePressureJsonV1CodecTest {
 
 	@Test
 	fun `shared lexical guard bounds every bare literal candidate and invalid number suffix`() {
-		val limits = PortableJsonTokenLimits()
-		val candidates = listOf(
-			"x".repeat(10_000),
-			"1_" + "x".repeat(10_000),
-			"@".repeat(10_000),
-		)
+		val positionalCompatibility = PortableJsonTokenLimits(12, 24, 32, 8, 128)
+		positionalCompatibility.maxNumberBytes shouldBe 32
+		positionalCompatibility.maxNestingDepth shouldBe 8
+		positionalCompatibility.maxReadChunkBytes shouldBe 128
+		positionalCompatibility.maxLiteralBytes shouldBe 64
 
-		candidates.forEach { candidate ->
-			val input = CountingInputStream(candidate.encodeToByteArray())
-			shouldThrow<PortableJsonTokenLimitException> {
-				PortableJsonTokenLimitInputStream(input, limits).readBytes()
-			}
-			(input.bytesRead <= limits.maxLiteralBytes + limits.maxReadChunkBytes) shouldBe true
-		}
+		val limits = PortableJsonTokenLimits(
+			maxNumberBytes = 32,
+			maxLiteralBytes = 8,
+		)
+		val alphabetic = CountingInputStream("x".repeat(10_000).encodeToByteArray())
+		shouldThrow<PortableJsonTokenLimitException> {
+			PortableJsonTokenLimitInputStream(alphabetic, limits).readBytes()
+		}.message shouldBe "JSON bare literal exceeds its lexical byte bound"
+		(alphabetic.bytesRead <= limits.maxLiteralBytes + limits.maxReadChunkBytes) shouldBe true
+
+		val malformedNumber = CountingInputStream(
+			("1_" + "x".repeat(10_000)).encodeToByteArray(),
+		)
+		shouldThrow<PortableJsonTokenLimitException> {
+			PortableJsonTokenLimitInputStream(malformedNumber, limits).readBytes()
+		}.message shouldBe "JSON number exceeds its lexical byte bound"
+		(malformedNumber.bytesRead <= limits.maxNumberBytes + limits.maxReadChunkBytes) shouldBe true
+
+		val punctuation = CountingInputStream("@".repeat(10_000).encodeToByteArray())
+		shouldThrow<PortableJsonTokenLimitException> {
+			PortableJsonTokenLimitInputStream(punctuation, limits).readBytes()
+		}.message shouldBe "JSON bare literal exceeds its lexical byte bound"
+		(punctuation.bytesRead <= limits.maxLiteralBytes + limits.maxReadChunkBytes) shouldBe true
+
 		val valid = "true false null -1.25e+2".encodeToByteArray()
 		PortableJsonTokenLimitInputStream(ByteArrayInputStream(valid), limits)
 			.readBytes()
