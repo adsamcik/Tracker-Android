@@ -75,8 +75,7 @@ internal data class HistoricalSegmentEvidence(
 			val capture = captureAuthority as? HistoricalCaptureAuthority.Exact ?: return@buildSet
 			if (
 				TrackingSourceComponent.STEPS in capture.capturedInAnyRevision &&
-				steps.availability == StepsHistoryAvailability.AVAILABLE &&
-				steps.evidence in qualifiedStepsEvidence
+				steps.toPublicHistory().hasQualifiedRetainedProof
 			) {
 				add(TrackingSourceComponent.STEPS)
 			}
@@ -87,8 +86,18 @@ internal data class HistoricalSegmentEvidence(
 	 * even those qualify no source. Attributed v28 rows need exact source-local evidence.
 	 */
 	val isOrdinarilyDiscoverable: Boolean
-		get() = isLegacyCompatibilityRow || qualifiedSources.isNotEmpty() ||
+		get() = isLegacyCompatibilityRow || hasVisibleLegacyStepsValue ||
+			qualifiedSources.isNotEmpty() ||
 			hasAuthenticatedRetentionTruncationEvidence
+
+	/** Exact historical Steps intent may retain a legacy positive value without qualifying it. */
+	private val hasVisibleLegacyStepsValue: Boolean
+		get() {
+			val capture = captureAuthority as? HistoricalCaptureAuthority.Exact ?: return false
+			return TrackingSourceComponent.STEPS in capture.capturedInAnyRevision &&
+				steps.count != null &&
+				steps.evidence == StepsHistoryEvidence.LEGACY_RECORDED
+		}
 
 	/** Authenticated loss evidence keeps the entry visible but never qualifies a numeric source. */
 	val hasAuthenticatedRetentionTruncationEvidence: Boolean
@@ -107,13 +116,6 @@ internal data class HistoricalSegmentEvidence(
 			)
 		)
 
-	private companion object {
-		val qualifiedStepsEvidence = setOf(
-			StepsHistoryEvidence.COVERED_ZERO,
-			StepsHistoryEvidence.RECORDED,
-			StepsHistoryEvidence.LEGACY_RECORDED,
-		)
-	}
 }
 
 /** Stable product identity for a logical tracking entry or one unattributed compatibility row. */

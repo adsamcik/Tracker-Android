@@ -3,6 +3,7 @@ package com.adsamcik.tracker.stats.data.repository
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ImportedStepsDao
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsAdmissionRows
+import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsReadFailure
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedRead
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedReader
 import com.adsamcik.tracker.shared.base.database.steps.imported.RetainedImportedStepsEntry
@@ -31,6 +32,51 @@ import org.junit.jupiter.api.Test
 
 /** Shared-reader authentication has its own Room tests; this seam verifies consumer read budgeting. */
 class ImportedStepsProductReaderTest {
+	@Test
+	fun `typed recent read exposes entry failure while legacy list preserves omission`() = runTest {
+		val database = mockk<AppDatabase>()
+		val dao = mockk<ImportedStepsDao>()
+		val retained = mockk<ImportedStepsRetainedReader>()
+		val wire = entry(1, large = false)
+		val metadata = ImportedStepsAdmissionRows.entry(wire, epoch = 0L, ownerGeneration = 7L)
+		every { database.importedStepsDao() } returns dao
+		coEvery { dao.recentEntries(1) } returns listOf(metadata)
+		coEvery { retained.readEntriesInTransaction(listOf(metadata.identity)) } returnsMany
+			listOf(
+				ImportedStepsRetainedRead.Ready(
+					entries = emptyList(),
+					unverifiableEntries = mapOf(
+						metadata.identity to ImportedStepsReadFailure.INTEGRITY,
+					),
+				),
+				ImportedStepsRetainedRead.Unverifiable(ImportedStepsReadFailure.INTEGRITY),
+			)
+		val reader = ImportedStepsProductReader(database, retained)
+
+		reader.recentSourceAwareInTransaction(1) shouldBe
+			ImportedStepsRecentRead.Unavailable(ImportedStepsReadFailure.INTEGRITY)
+		reader.recentInTransaction(1) shouldBe emptyList()
+		coVerify(exactly = 2) {
+			retained.readEntriesInTransaction(listOf(metadata.identity))
+		}
+	}
+
+	@Test
+	fun `typed recent read rejects an incomplete successful batch`() = runTest {
+		val database = mockk<AppDatabase>()
+		val dao = mockk<ImportedStepsDao>()
+		val retained = mockk<ImportedStepsRetainedReader>()
+		val wire = entry(1, large = false)
+		val metadata = ImportedStepsAdmissionRows.entry(wire, epoch = 0L, ownerGeneration = 7L)
+		every { database.importedStepsDao() } returns dao
+		coEvery { dao.recentEntries(1) } returns listOf(metadata)
+		coEvery { retained.readEntriesInTransaction(listOf(metadata.identity)) } returns
+			ImportedStepsRetainedRead.Ready(emptyList())
+
+		ImportedStepsProductReader(database, retained).recentSourceAwareInTransaction(1) shouldBe
+			ImportedStepsRecentRead.Unavailable(ImportedStepsReadFailure.MISSING)
+	}
+
 	@Test
 	fun `export rejects an exhausted batch before requesting the next authenticated entry batch`() = runTest {
 		val database = mockk<AppDatabase>()

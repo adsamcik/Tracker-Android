@@ -3,7 +3,6 @@ package com.adsamcik.tracker.stats.data.repository
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
-import com.adsamcik.tracker.stats.api.repository.ActivityHistoryPage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
@@ -12,7 +11,6 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
-import com.adsamcik.tracker.stats.api.repository.PressureHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryProducts
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
@@ -93,23 +91,76 @@ internal data class HistoricalSourceOnlyMembership(
 	}
 }
 
-/** One source-owned row plus authenticated recency and optional native replacement membership. */
-internal data class HistoricalSourceUnionEntry(
-	val entry: SourceAwareHistoryPageEntry,
-	val recencyStartTimeMs: Long,
-	val recencyTieBreaker: Long,
-	val nativeMembership: HistoricalSourceOnlyMembership?,
-) {
-	init {
-		require(recencyStartTimeMs >= 0L && recencyTieBreaker >= 0L)
-		require(entry.source != null)
-		require(
-			(entry.intent == SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY) ==
-				(nativeMembership != null),
-		) {
-			"Only exact native source rows may carry physical replacement membership"
+/** Native rows keep their member tuple; imported rows keep their opaque source tuple. */
+internal sealed interface HistoricalSourceUnionRecency {
+	val startTimeMs: Long
+
+	data class Native(
+		override val startTimeMs: Long,
+		val segmentId: Long,
+	) : HistoricalSourceUnionRecency {
+		init {
+			require(startTimeMs >= 0L && segmentId > 0L)
 		}
-		require(nativeMembership == null || nativeMembership.source == entry.source)
+	}
+
+	data class Imported(
+		val value: ImportedHistoryRecency,
+	) : HistoricalSourceUnionRecency {
+		override val startTimeMs: Long get() = value.newestMemberStartTimeMs
+	}
+}
+
+/**
+ * One source-owned row retaining complete native membership or the exact imported eligible carrier.
+ */
+internal sealed interface HistoricalSourceUnionEntry {
+	val entry: SourceAwareHistoryPageEntry
+	val recency: HistoricalSourceUnionRecency
+	val nativeMembership: HistoricalSourceOnlyMembership?
+
+	data class Native(
+		override val entry: SourceAwareHistoryPageEntry,
+		override val recency: HistoricalSourceUnionRecency.Native,
+		override val nativeMembership: HistoricalSourceOnlyMembership,
+	) : HistoricalSourceUnionEntry {
+		init {
+			require(entry.source == nativeMembership.source)
+			require(entry.intent == SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY)
+			require(recency.segmentId in nativeMembership.physicalSegmentIds)
+		}
+	}
+
+	data class ImportedWifi(
+		val eligible: WifiImportedHistoryEligibleEntry,
+	) : HistoricalSourceUnionEntry {
+		override val entry = SourceAwareHistoryPageEntry.WifiOnly(eligible.entry)
+		override val recency = HistoricalSourceUnionRecency.Imported(eligible.recency)
+		override val nativeMembership: HistoricalSourceOnlyMembership? = null
+	}
+
+	data class ImportedCell(
+		val eligible: CellImportedHistoryEligibleEntry,
+	) : HistoricalSourceUnionEntry {
+		override val entry = SourceAwareHistoryPageEntry.CellOnly(eligible.entry)
+		override val recency = HistoricalSourceUnionRecency.Imported(eligible.recency)
+		override val nativeMembership: HistoricalSourceOnlyMembership? = null
+	}
+
+	data class ImportedActivity(
+		val eligible: ActivityImportedHistoryEligibleEntry,
+	) : HistoricalSourceUnionEntry {
+		override val entry = SourceAwareHistoryPageEntry.ActivityOnly(eligible.entry)
+		override val recency = HistoricalSourceUnionRecency.Imported(eligible.recency)
+		override val nativeMembership: HistoricalSourceOnlyMembership? = null
+	}
+
+	data class ImportedPressure(
+		val eligible: PressureImportedHistoryEligibleEntry,
+	) : HistoricalSourceUnionEntry {
+		override val entry = SourceAwareHistoryPageEntry.PressureOnly(eligible.entry)
+		override val recency = HistoricalSourceUnionRecency.Imported(eligible.recency)
+		override val nativeMembership: HistoricalSourceOnlyMembership? = null
 	}
 }
 
@@ -123,7 +174,12 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 	private val cell: DefaultCellHistoryRepository,
 	private val activity: DefaultActivityHistoryRepository,
 	private val pressureSelector: PressureHistorySelector,
-	private val pressurePageReader: PressureHistoryPageReader,
+	private val wifiImported: WifiImportedHistoryEligibleReader,
+	private val cellImported: CellImportedHistoryEligibleReader,
+	private val activityImported: ActivityImportedHistoryEligibleReader,
+	private val pressureImported: PressureImportedHistoryEligibleReader,
+	private val integrationObserver: TrackingHistoryIntegrationObserver =
+		TrackingHistoryIntegrationObserver(),
 ) : TrackingHistorySourceUnionReader {
 	override suspend fun sessionInTransaction(
 		segment: SessionSegment,
@@ -134,6 +190,19 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 		cellQuery.failureOrNull()?.let { return it }
 		val activityQuery = activity.sessionInTransaction(segment.id)
 		activityQuery.failureOrNull()?.let { return it }
+		val activityEntry = when (activityQuery) {
+			is ActivityHistoryQuery.Found -> activityQuery.entry
+			ActivityHistoryQuery.NotFound -> return HistoricalSessionSourceRead.Unavailable(
+				TrackingHistoryUnavailableReason.PHYSICAL_MEMBERSHIP_INVALID,
+				HistorySource.ACTIVITY,
+			)
+		}
+		if (activityEntry.origin != ActivityHistoryOrigin.LOCAL) {
+			return HistoricalSessionSourceRead.Unavailable(
+				TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+				HistorySource.ACTIVITY,
+			)
+		}
 		val pressureQuery = pressureSelector.selectManyInTransaction(listOf(segment))
 			.singleOrNull { selected -> selected.segment.id == segment.id }
 			?.let { selected ->
@@ -183,7 +252,7 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 			wifiGroups.mapTo(this, ComposedWifiEntry::toNativeMembership)
 			cellGroups.mapTo(this, ComposedCellEntry::toNativeMembership)
 			activityGroups.mapTo(this, ComposedActivityEntry::toNativeMembership)
-			pressureGroups.filter(PressureLogicalHistoryEntry::hasExactPressureOnlyIntent)
+			pressureGroups.filter(PressureLogicalHistoryEntry::isSharedSourceOnlyEligible)
 				.mapTo(this, PressureLogicalHistoryEntry::toNativeMembership)
 		})
 	}
@@ -196,40 +265,47 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 			is WifiComposedPage.Failed ->
 				return page.cause.toUnionFailure(HistorySource.WIFI)
 		}
-		val wifiImported = when (val page = wifi.recentInTransaction(limit)) {
-			is WifiSourceRecentPage.Available ->
-				page.entries.filterIsInstance<WifiSourceRecentEntry.Imported>()
-			is WifiSourceRecentPage.Failed ->
-				return page.cause.toUnionFailure(HistorySource.WIFI)
-		}
-		if (wifiImported.any { it.entry.selection == null }) {
-			return HistoricalSourceUnionRead.Unavailable(
-				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-				HistorySource.WIFI,
-			)
+		val wifiImportedEntries = when (
+			val page = wifiImported.recentImportedEligibleForSharedHistoryInTransaction(limit)
+		) {
+			is ImportedHistoryEligiblePage.Available -> page.entries
+			is ImportedHistoryEligiblePage.Unavailable ->
+				return page.toUnionFailure(HistorySource.WIFI)
 		}
 		val cellOnly = when (val page = cell.recentCellOnlyInTransaction(limit)) {
 			is CellComposedPage.Available -> page.entries
 			is CellComposedPage.Failed ->
 				return page.cause.toUnionFailure(HistorySource.CELL)
 		}
-		val cellImported = when (val page = cell.recentCellHistoryInTransaction(limit)) {
-			is CellSourceComposedPage.Available ->
-				page.entries.filterIsInstance<CellSourceComposedEntry.Imported>()
-			is CellSourceComposedPage.Failed ->
-				return page.cause.toUnionFailure(HistorySource.CELL)
+		val cellImportedEntries = when (
+			val page = cellImported.recentImportedEligibleForSharedHistoryInTransaction(limit)
+		) {
+			is ImportedHistoryEligiblePage.Available -> page.entries
+			is ImportedHistoryEligiblePage.Unavailable ->
+				return page.toUnionFailure(HistorySource.CELL)
 		}
 		val activityOnly = when (val page = activity.recentActivityOnlyInTransaction(limit)) {
 			is ActivityComposedPage.Available -> page.entries
 			is ActivityComposedPage.Failed ->
 				return page.cause.toUnionFailure(HistorySource.ACTIVITY)
 		}
-		val activityImported = when (val page = activity.recent(limit)) {
-			is ActivityHistoryPage.Available ->
-				page.entries.filter { it.origin == ActivityHistoryOrigin.IMPORTED }
-			is ActivityHistoryPage.Failed ->
-				return page.cause.toUnionFailure(HistorySource.ACTIVITY)
+		val activityImportedEntries = when (
+			val page = activityImported.recentImportedEligibleForSharedHistoryInTransaction(limit)
+		) {
+			is ImportedHistoryEligiblePage.Available -> page.entries
+			is ImportedHistoryEligiblePage.Unavailable ->
+				return page.toUnionFailure(HistorySource.ACTIVITY)
 		}
+		val pressureImportedEntries = when (
+			val page = pressureImported.recentImportedEligibleForSharedHistoryInTransaction(limit)
+		) {
+			is ImportedHistoryEligiblePage.Available -> page.entries
+			is ImportedHistoryEligiblePage.Unavailable ->
+				return page.toUnionFailure(HistorySource.PRESSURE)
+		}
+		integrationObserver.record(
+			TrackingHistoryIntegrationCheckpoint.PRESSURE_LIVE_SELECTOR,
+		)
 		val pressureOnly = when (
 			val result = pressureSelector.discoverRecentPressureOnlyIntentInTransaction(limit)
 		) {
@@ -239,21 +315,19 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 				HistorySource.PRESSURE,
 			)
 		}
-		val pressureImported = try {
-			pressurePageReader.selectRecent(limit)
-				.filter { it.origin is PressureHistoryOrigin.Imported }
-		} catch (overflow: PressureHistoryPageDependencyOverflow) {
-			return HistoricalSourceUnionRead.Unavailable(overflow.reason, HistorySource.PRESSURE)
-		}
 		return HistoricalSourceUnionRead.Available(buildList {
 			wifiOnly.mapTo(this, ComposedWifiEntry::toUnionEntry)
-			wifiImported.mapTo(this) { it.entry.toImportedWifiUnionEntry() }
+			wifiImportedEntries.mapTo(this) { HistoricalSourceUnionEntry.ImportedWifi(it) }
 			cellOnly.mapTo(this, ComposedCellEntry::toUnionEntry)
-			cellImported.mapTo(this) { it.entry.toImportedCellUnionEntry() }
+			cellImportedEntries.mapTo(this) { HistoricalSourceUnionEntry.ImportedCell(it) }
 			activityOnly.mapTo(this, ComposedActivityEntry::toUnionEntry)
-			activityImported.mapTo(this) { it.toImportedActivityUnionEntry() }
+			activityImportedEntries.mapTo(this) {
+				HistoricalSourceUnionEntry.ImportedActivity(it)
+			}
 			pressureOnly.mapNotNullTo(this, PressureLogicalHistoryEntry::toUnionEntryOrNull)
-			pressureImported.mapTo(this) { it.toImportedPressureUnionEntry() }
+			pressureImportedEntries.mapTo(this) {
+				HistoricalSourceUnionEntry.ImportedPressure(it)
+			}
 		})
 	}
 }
@@ -265,7 +339,8 @@ internal class DefaultTrackingHistorySourceUnionReader @Inject constructor(
 internal class LegacyTrackingHistorySourceUnionReader(
 	private val activity: DefaultActivityHistoryRepository,
 	private val pressureSelector: PressureHistorySelector,
-	private val pressurePageReader: PressureHistoryPageReader,
+	private val activityImported: ActivityImportedHistoryEligibleReader,
+	private val pressureImported: PressureImportedHistoryEligibleReader,
 ) : TrackingHistorySourceUnionReader {
 	override suspend fun sessionInTransaction(
 		segment: SessionSegment,
@@ -298,7 +373,7 @@ internal class LegacyTrackingHistorySourceUnionReader(
 		}
 		return HistoricalSourceUnionRead.Available(buildList {
 			activityGroups.mapTo(this, ComposedActivityEntry::toNativeMembership)
-			pressureGroups.filter(PressureLogicalHistoryEntry::hasExactPressureOnlyIntent)
+			pressureGroups.filter(PressureLogicalHistoryEntry::isSharedSourceOnlyEligible)
 				.mapTo(this, PressureLogicalHistoryEntry::toNativeMembership)
 		})
 	}
@@ -311,11 +386,19 @@ internal class LegacyTrackingHistorySourceUnionReader(
 			is ActivityComposedPage.Failed ->
 				return page.cause.toUnionFailure(HistorySource.ACTIVITY)
 		}
-		val activityImported = when (val page = activity.recent(limit)) {
-			is ActivityHistoryPage.Available ->
-				page.entries.filter { it.origin == ActivityHistoryOrigin.IMPORTED }
-			is ActivityHistoryPage.Failed ->
-				return page.cause.toUnionFailure(HistorySource.ACTIVITY)
+		val activityImportedEntries = when (
+			val page = activityImported.recentImportedEligibleForSharedHistoryInTransaction(limit)
+		) {
+			is ImportedHistoryEligiblePage.Available -> page.entries
+			is ImportedHistoryEligiblePage.Unavailable ->
+				return page.toUnionFailure(HistorySource.ACTIVITY)
+		}
+		val pressureImportedEntries = when (
+			val page = pressureImported.recentImportedEligibleForSharedHistoryInTransaction(limit)
+		) {
+			is ImportedHistoryEligiblePage.Available -> page.entries
+			is ImportedHistoryEligiblePage.Unavailable ->
+				return page.toUnionFailure(HistorySource.PRESSURE)
 		}
 		val pressureOnly = when (
 			val result = pressureSelector.discoverRecentPressureOnlyIntentInTransaction(limit)
@@ -326,17 +409,15 @@ internal class LegacyTrackingHistorySourceUnionReader(
 				HistorySource.PRESSURE,
 			)
 		}
-		val pressureImported = try {
-			pressurePageReader.selectRecent(limit)
-				.filter { it.origin is PressureHistoryOrigin.Imported }
-		} catch (overflow: PressureHistoryPageDependencyOverflow) {
-			return HistoricalSourceUnionRead.Unavailable(overflow.reason, HistorySource.PRESSURE)
-		}
 		return HistoricalSourceUnionRead.Available(buildList {
 			activityOnly.mapTo(this, ComposedActivityEntry::toUnionEntry)
-			activityImported.mapTo(this) { it.toImportedActivityUnionEntry() }
+			activityImportedEntries.mapTo(this) {
+				HistoricalSourceUnionEntry.ImportedActivity(it)
+			}
 			pressureOnly.mapNotNullTo(this, PressureLogicalHistoryEntry::toUnionEntryOrNull)
-			pressureImported.mapTo(this) { it.toImportedPressureUnionEntry() }
+			pressureImportedEntries.mapTo(this) {
+				HistoricalSourceUnionEntry.ImportedPressure(it)
+			}
 		})
 	}
 }
@@ -465,6 +546,10 @@ private fun ActivityHistoryCause.toUnionFailure(
 	source,
 )
 
+private fun ImportedHistoryEligiblePage.Unavailable.toUnionFailure(
+	source: HistorySource,
+) = HistoricalSourceUnionRead.Unavailable(reason, source)
+
 private fun ComposedWifiEntry.toNativeMembership() = HistoricalSourceOnlyMembership(
 	HistorySource.WIFI,
 	logicalTrackingId,
@@ -483,74 +568,48 @@ private fun ComposedActivityEntry.toNativeMembership() = HistoricalSourceOnlyMem
 	physicalSegmentIds,
 )
 
-private fun PressureLogicalHistoryEntry.toNativeMembership() = HistoricalSourceOnlyMembership(
-	source = HistorySource.PRESSURE,
-	logicalTrackingId = (identity as PressureHistoryEntryIdentity.Logical).logicalTrackingId,
-	physicalSegmentIds = physicalMembers.map { it.segment.id },
-)
+private fun PressureLogicalHistoryEntry.toNativeMembership(): HistoricalSourceOnlyMembership {
+	val logicalIdentity = when (val value = identity) {
+		is PressureHistoryEntryIdentity.Logical -> value
+		is PressureHistoryEntryIdentity.Physical ->
+			error("Pressure-only union requires logical membership")
+	}
+	return HistoricalSourceOnlyMembership(
+		source = HistorySource.PRESSURE,
+		logicalTrackingId = logicalIdentity.logicalTrackingId,
+		physicalSegmentIds = physicalMembers.map { it.segment.id },
+	)
+}
 
-private fun ComposedWifiEntry.toUnionEntry() = HistoricalSourceUnionEntry(
+private fun ComposedWifiEntry.toUnionEntry() = HistoricalSourceUnionEntry.Native(
 	entry = SourceAwareHistoryPageEntry.WifiOnly(entry),
-	recencyStartTimeMs = recencyStartTimeMs,
-	recencyTieBreaker = recencySegmentId,
+	recency = HistoricalSourceUnionRecency.Native(recencyStartTimeMs, recencySegmentId),
 	nativeMembership = toNativeMembership(),
 )
 
-private fun com.adsamcik.tracker.stats.api.repository.WifiHistoryEntry
-	.toImportedWifiUnionEntry() = HistoricalSourceUnionEntry(
-	entry = SourceAwareHistoryPageEntry.WifiOnly(this),
-	recencyStartTimeMs = startTime.raw,
-	recencyTieBreaker = endTime.raw,
-	nativeMembership = null,
-)
-
-private fun ComposedCellEntry.toUnionEntry() = HistoricalSourceUnionEntry(
+private fun ComposedCellEntry.toUnionEntry() = HistoricalSourceUnionEntry.Native(
 	entry = SourceAwareHistoryPageEntry.CellOnly(entry),
-	recencyStartTimeMs = recencyStartTimeMs,
-	recencyTieBreaker = recencySegmentId,
+	recency = HistoricalSourceUnionRecency.Native(recencyStartTimeMs, recencySegmentId),
 	nativeMembership = toNativeMembership(),
 )
 
-private fun com.adsamcik.tracker.stats.api.repository.CellHistoryEntry
-	.toImportedCellUnionEntry() = HistoricalSourceUnionEntry(
-	entry = SourceAwareHistoryPageEntry.CellOnly(this),
-	recencyStartTimeMs = startTime.raw,
-	recencyTieBreaker = endTime.raw,
-	nativeMembership = null,
-)
-
-private fun ComposedActivityEntry.toUnionEntry() = HistoricalSourceUnionEntry(
+private fun ComposedActivityEntry.toUnionEntry() = HistoricalSourceUnionEntry.Native(
 	entry = SourceAwareHistoryPageEntry.ActivityOnly(entry),
-	recencyStartTimeMs = recencyStartTimeMs,
-	recencyTieBreaker = recencySegmentId,
+	recency = HistoricalSourceUnionRecency.Native(recencyStartTimeMs, recencySegmentId),
 	nativeMembership = toNativeMembership(),
-)
-
-private fun com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
-	.toImportedActivityUnionEntry() = HistoricalSourceUnionEntry(
-	entry = SourceAwareHistoryPageEntry.ActivityOnly(this),
-	recencyStartTimeMs = startTime.raw,
-	recencyTieBreaker = endTime.raw,
-	nativeMembership = null,
 )
 
 private fun PressureLogicalHistoryEntry.toUnionEntryOrNull(): HistoricalSourceUnionEntry? =
-	toPublicPressureOnlyEntryOrNull()?.let { public ->
-		HistoricalSourceUnionEntry(
+	toSharedPressureOnlyEntryOrNull()?.let { public ->
+		HistoricalSourceUnionEntry.Native(
 			entry = SourceAwareHistoryPageEntry.PressureOnly(public),
-			recencyStartTimeMs = recencyMember.segment.startTimeMs,
-			recencyTieBreaker = recencyMember.segment.id,
+			recency = HistoricalSourceUnionRecency.Native(
+				recencyMember.segment.startTimeMs,
+				recencyMember.segment.id,
+			),
 			nativeMembership = toNativeMembership(),
 		)
 	}
-
-private fun com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
-	.toImportedPressureUnionEntry() = HistoricalSourceUnionEntry(
-	entry = SourceAwareHistoryPageEntry.PressureOnly(this),
-	recencyStartTimeMs = startTime.raw,
-	recencyTieBreaker = endTime.raw,
-	nativeMembership = null,
-)
 
 private val List<PressureLogicalHistoryEntry>.hasDependencyOverflow: Boolean
 	get() = any { entry ->

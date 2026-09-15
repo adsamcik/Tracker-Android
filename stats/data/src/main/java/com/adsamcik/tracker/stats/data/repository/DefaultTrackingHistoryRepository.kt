@@ -3,6 +3,7 @@ package com.adsamcik.tracker.stats.data.repository
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsReadFailure
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
@@ -60,6 +61,8 @@ internal class DefaultTrackingHistoryRepository private constructor(
 	private val pressurePageReader: PressureHistoryPageReader,
 	private val sourceUnionReader: TrackingHistorySourceUnionReader,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+	private val integrationObserver: TrackingHistoryIntegrationObserver =
+		TrackingHistoryIntegrationObserver(),
 ) : TrackingHistoryRepository {
 	private val importedReader = ImportedStepsProductReader(database)
 
@@ -72,6 +75,8 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		pressurePageReader: PressureHistoryPageReader,
 		sourceUnionReader: TrackingHistorySourceUnionReader,
 		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+		integrationObserver: TrackingHistoryIntegrationObserver =
+			TrackingHistoryIntegrationObserver(),
 	) : this(
 		database = database,
 		stepsSelector = stepsSelector,
@@ -80,6 +85,7 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		pressurePageReader = pressurePageReader,
 		sourceUnionReader = sourceUnionReader,
 		ioDispatcher = ioDispatcher,
+		integrationObserver = integrationObserver,
 	)
 
 	/** Steps-only host fixtures install no active Pressure lane. Production uses Hilt. */
@@ -136,6 +142,7 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		sourceUnionReader = LegacyTrackingHistorySourceUnionReader(
 			activityHistoryRepository,
 			pressureSelector,
+			activityHistoryRepository,
 			PressureHistoryPageReader(
 				database = database,
 				liveSelector = pressureSelector,
@@ -383,8 +390,17 @@ internal class DefaultTrackingHistoryRepository private constructor(
 	): Flow<SourceAwareHistoryPageQuery> {
 		validateSourceAwarePageRequest(candidateSegmentIds, limit)
 		val stableCandidateSegmentIds = candidateSegmentIds.toList()
-		return historyInvalidations().mapLatest {
-			try {
+		return historyInvalidations().mapLatest { invalidatedTables ->
+			if (LIFECYCLE_DESIRED_ACTION_TABLE in invalidatedTables) {
+				integrationObserver.record(
+					TrackingHistoryIntegrationCheckpoint
+						.SOURCE_AWARE_LIFECYCLE_INVALIDATION_READ,
+				)
+			}
+			integrationObserver.record(
+				TrackingHistoryIntegrationCheckpoint.SOURCE_AWARE_READ_STARTED,
+			)
+			val result = try {
 				database.withTransaction {
 					val readSnapshot = database.sourceEvidenceStateDao().get()
 						?.takeIf { it.hasValidHistorySnapshotShape() }
@@ -451,8 +467,17 @@ internal class DefaultTrackingHistoryRepository private constructor(
 								sourceRead.source,
 							)
 					}
-					val importedRows = importedReader.recentInTransaction(limit).map {
-						HistoricalSourceAwarePageEntry.ImportedSteps(it)
+					val importedRows = when (
+						val imported = importedReader.recentSourceAwareInTransaction(limit)
+					) {
+						is ImportedStepsRecentRead.Ready -> imported.entries.map(
+							HistoricalSourceAwarePageEntry::ImportedSteps,
+						)
+						is ImportedStepsRecentRead.Unavailable ->
+							return@withTransaction SourceAwareHistoryPageQuery.Unavailable(
+								reason = imported.reason.toSourceAwareUnavailableReason(),
+								source = HistorySource.STEPS,
+							)
 					}
 					val combined = retainedExistingRows + sourceRows + importedRows
 					if (combined.hasSourceIdentityCollision) {
@@ -478,6 +503,10 @@ internal class DefaultTrackingHistoryRepository private constructor(
 					},
 				)
 			}
+			integrationObserver.record(
+				TrackingHistoryIntegrationCheckpoint.SOURCE_AWARE_READ_FINISHED,
+			)
+			result
 		}.distinctUntilChanged()
 			.flowOn(ioDispatcher)
 	}
@@ -578,6 +607,7 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		PROVIDER_REGISTRATION_TABLE,
 		SOURCE_AUTHORIZATION_TABLE,
 		SOURCE_SESSION_TABLE,
+		LIFECYCLE_DESIRED_ACTION_TABLE,
 		SESSION_COMPLETENESS_TABLE,
 		"imported_steps_entry",
 		"imported_steps_run",
@@ -653,6 +683,7 @@ internal class DefaultTrackingHistoryRepository private constructor(
 		const val PROVIDER_REGISTRATION_TABLE = "provider_registration_generation"
 		const val SOURCE_AUTHORIZATION_TABLE = "source_authorization"
 		const val SOURCE_SESSION_TABLE = "logical_tracking_session"
+		const val LIFECYCLE_DESIRED_ACTION_TABLE = "lifecycle_desired_action"
 		const val SESSION_COMPLETENESS_TABLE = "source_session_completeness"
 		const val IMPORTED_WIFI_ENTRY_TABLE = "imported_wifi_entry_revision"
 		const val IMPORTED_WIFI_RECEIPT_TABLE = "imported_wifi_receipt"
@@ -706,6 +737,18 @@ private fun SourceEvidenceState.toHistoryReadSnapshot() = TrackingHistoryReadSna
 	sourceEvidenceRevision = revision,
 )
 
+private fun ImportedStepsReadFailure.toSourceAwareUnavailableReason():
+	SourceAwareHistoryPageUnavailableReason =
+	when (this) {
+		ImportedStepsReadFailure.DEPENDENCY_OVERFLOW ->
+			SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
+		ImportedStepsReadFailure.RETENTION,
+		ImportedStepsReadFailure.DELETION,
+		ImportedStepsReadFailure.INTEGRITY,
+		ImportedStepsReadFailure.MISSING,
+		-> SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE
+	}
+
 private data class RecentProductPageRow(
 	val entry: StepsAwareHistoryPageEntry,
 	val startTimeMs: Long,
@@ -713,16 +756,17 @@ private data class RecentProductPageRow(
 )
 
 private sealed interface HistoricalSourceAwarePageEntry {
-	val recencyStartTimeMs: Long
-	val recencyTieBreaker: Long
+	val recency: HistoricalSourceUnionRecency
 	val logicalTrackingId: String?
 	val nativePhysicalSegmentIds: List<Long>
 
 	data class Existing(
 		val entry: HistoricalStepsAwarePageEntry,
 	) : HistoricalSourceAwarePageEntry {
-		override val recencyStartTimeMs: Long get() = entry.recencyStartTimeMs
-		override val recencyTieBreaker: Long get() = entry.recencySegmentId
+		override val recency = HistoricalSourceUnionRecency.Native(
+			entry.recencyStartTimeMs,
+			entry.recencySegmentId,
+		)
 		override val logicalTrackingId: String?
 			get() = when (entry) {
 				is HistoricalStepsAwarePageEntry.Physical -> entry.segment.logicalTrackingId
@@ -746,16 +790,17 @@ private sealed interface HistoricalSourceAwarePageEntry {
 		private val newest = history.physicalMembers.maxWith(
 			compareBy<ImportedStepsHistoryMember> { it.startTime }.thenBy { it.segmentId },
 		)
-		override val recencyStartTimeMs: Long get() = newest.startTime.raw
-		override val recencyTieBreaker: Long get() = newest.segmentId
+		override val recency = HistoricalSourceUnionRecency.Native(
+			newest.startTime.raw,
+			newest.segmentId,
+		)
 		override val nativePhysicalSegmentIds: List<Long> get() = emptyList()
 	}
 
 	data class SourceOnly(
 		val history: HistoricalSourceUnionEntry,
 	) : HistoricalSourceAwarePageEntry {
-		override val recencyStartTimeMs: Long get() = history.recencyStartTimeMs
-		override val recencyTieBreaker: Long get() = history.recencyTieBreaker
+		override val recency: HistoricalSourceUnionRecency get() = history.recency
 		override val logicalTrackingId: String?
 			get() = history.nativeMembership?.logicalTrackingId
 		override val nativePhysicalSegmentIds: List<Long>
@@ -790,9 +835,30 @@ private val List<HistoricalSourceAwarePageEntry>.hasSourceIdentityCollision: Boo
 				.any(nativePhysicalIds.toHashSet()::contains)
 	}
 
-private val sourceAwarePageOrder =
-compareByDescending<HistoricalSourceAwarePageEntry> { it.recencyStartTimeMs }
-	.thenByDescending { it.recencyTieBreaker }
+private val sourceAwarePageOrder = Comparator<HistoricalSourceAwarePageEntry> { left, right ->
+	val leftRecency = left.recency
+	val rightRecency = right.recency
+	val startOrder = compareValues(rightRecency.startTimeMs, leftRecency.startTimeMs)
+	if (startOrder != 0) {
+		startOrder
+	} else {
+		when (leftRecency) {
+			is HistoricalSourceUnionRecency.Native -> when (rightRecency) {
+				is HistoricalSourceUnionRecency.Native ->
+					compareValues(rightRecency.segmentId, leftRecency.segmentId)
+				is HistoricalSourceUnionRecency.Imported -> -1
+			}
+			is HistoricalSourceUnionRecency.Imported -> when (rightRecency) {
+				is HistoricalSourceUnionRecency.Native -> 1
+				is HistoricalSourceUnionRecency.Imported ->
+					importedHistoryRecencyOrder.compare(
+						leftRecency.value,
+						rightRecency.value,
+					)
+			}
+		}
+	}
+}
 
 private fun HistoricalSourceAwarePageEntry.toPublicPageEntry(): SourceAwareHistoryPageEntry =
 	when (this) {

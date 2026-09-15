@@ -27,6 +27,16 @@ import com.adsamcik.tracker.stats.api.repository.StepsPortableFormatV1
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
 import com.adsamcik.tracker.stats.api.value.EpochMs
 
+internal sealed interface ImportedStepsRecentRead {
+	data class Ready(
+		val entries: List<ImportedStepsHistoryEntry>,
+	) : ImportedStepsRecentRead
+
+	data class Unavailable(
+		val reason: ImportedStepsReadFailure,
+	) : ImportedStepsRecentRead
+}
+
 /** Caller owns one Room snapshot; all retained source validation is shared with deletion/retention. */
 internal class ImportedStepsProductReader(
 	private val database: AppDatabase,
@@ -65,13 +75,53 @@ internal class ImportedStepsProductReader(
 	suspend fun recentInTransaction(limit: Int): List<ImportedStepsHistoryEntry> {
 		require(limit in 1..100)
 		val entries = database.importedStepsDao().recentEntries(limit)
-		if (entries.isEmpty()) { return emptyList() }
+		if (entries.isEmpty()) return emptyList()
 		return entries.chunked(ImportedStepsRetainedReader.MAX_ENTRY_BATCH).flatMap { batch ->
 			when (val result = retained.readEntriesInTransaction(batch.map { it.identity })) {
 				is ImportedStepsRetainedRead.Ready -> result.entries.map { it.toListEntry() }
 				is ImportedStepsRetainedRead.Unverifiable -> emptyList()
 			}
 		}
+	}
+
+	/**
+	 * Typed recent read for coordinated history.
+	 *
+	 * One failed candidate makes the whole bounded origin unavailable so a corrupt newest entry
+	 * cannot disappear and reveal an older row as if the page were complete.
+	 */
+	suspend fun recentSourceAwareInTransaction(limit: Int): ImportedStepsRecentRead {
+		require(limit in 1..100)
+		val entries = database.importedStepsDao().recentEntries(limit)
+		if (entries.isEmpty()) return ImportedStepsRecentRead.Ready(emptyList())
+		val publicEntries = mutableListOf<ImportedStepsHistoryEntry>()
+		for (batch in entries.chunked(ImportedStepsRetainedReader.MAX_ENTRY_BATCH)) {
+			val batchIds = batch.map { it.identity }
+			when (val result = retained.readEntriesInTransaction(batch.map { it.identity })) {
+				is ImportedStepsRetainedRead.Unverifiable ->
+					return ImportedStepsRecentRead.Unavailable(result.reason)
+				is ImportedStepsRetainedRead.Ready -> {
+					val failed = batchIds.firstNotNullOfOrNull(result.unverifiableEntries::get)
+					if (failed != null) return ImportedStepsRecentRead.Unavailable(failed)
+					if (result.unverifiableEntries.keys.any { it !in batchIds }) {
+						return ImportedStepsRecentRead.Unavailable(
+							ImportedStepsReadFailure.INTEGRITY,
+						)
+					}
+					val returnedIds = result.entries.map { it.metadata.identity }
+					if (
+						returnedIds.size != batchIds.size ||
+						returnedIds.toSet() != batchIds.toSet()
+					) {
+						return ImportedStepsRecentRead.Unavailable(
+							ImportedStepsReadFailure.MISSING,
+						)
+					}
+					publicEntries += result.entries.map { it.toListEntry() }
+				}
+			}
+		}
+		return ImportedStepsRecentRead.Ready(publicEntries)
 	}
 
 	suspend fun exportInTransaction(request: ExportPortableStepsRequest): PortableStepsSnapshot {

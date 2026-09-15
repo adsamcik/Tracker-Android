@@ -86,6 +86,7 @@ class StepsSegmentHistorySelectorTest {
 			coverage = StepsHistoryCoverage.UNKNOWN,
 			reasons = setOf(StepsHistoryReason.LEGACY_REPLAY_UNVERIFIED),
 		)
+		selector.selectEvidence(segment(RUN_ONE, steps = 14)).qualifiedSources shouldBe emptySet()
 		val zero = selector.select(segment(RUN_ONE, steps = 0))
 		zero.count shouldBe null
 		zero.evidence shouldBe StepsHistoryEvidence.NO_OBSERVATION
@@ -93,6 +94,22 @@ class StepsSegmentHistorySelectorTest {
 			StepsHistoryReason.LEGACY_REPLAY_UNVERIFIED,
 			StepsHistoryReason.LEGACY_ZERO_UNVERIFIED,
 		)
+	}
+
+	@Test
+	fun exactManifestLegacyWriterRetainsTwelveStepsWithoutQualifyingTheSource() = runTest {
+		insertRun(RUN_ONE)
+		insertManifest(RUN_ONE, revision = 1L, owner = LEGACY_OWNER)
+		val segment = segment(RUN_ONE, steps = 12, sampleCount = 0)
+
+		val selected = selector.selectEvidence(segment)
+		selected.steps.count shouldBe 12L
+		selected.steps.evidence shouldBe StepsHistoryEvidence.LEGACY_RECORDED
+		selected.steps.coverage shouldBe StepsHistoryCoverage.UNKNOWN
+		selected.qualifiedSources shouldBe emptySet()
+
+		database.sessionSegmentDao().insert(segment)
+		selectRecentEvidence(limit = 1).single().qualifiedSources shouldBe emptySet()
 	}
 
 	@Test
@@ -185,7 +202,9 @@ class StepsSegmentHistorySelectorTest {
 			reasons = setOf(StepsHistoryReason.LEGACY_REPLAY_UNVERIFIED),
 		)
 		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = 14, sampleCount = 0))
-		selectRecentEvidence(limit = 1).single().segment.id shouldBe SEGMENT_ID
+		val recent = selectRecentEvidence(limit = 1).single()
+		recent.segment.id shouldBe SEGMENT_ID
+		recent.qualifiedSources shouldBe emptySet()
 	}
 
 	@Test
