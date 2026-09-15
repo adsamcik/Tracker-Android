@@ -12,6 +12,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.EOFException
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -248,6 +249,55 @@ class PortablePressureJsonV1CodecTest {
 				}
 			}
 			(input.bytesRead < document.length / 2) shouldBe true
+		}
+	}
+
+	@Test
+	fun `shared lexical guard bounds every bare literal candidate and invalid number suffix`() {
+		val limits = PortableJsonTokenLimits()
+		val candidates = listOf(
+			"x".repeat(10_000),
+			"1_" + "x".repeat(10_000),
+			"@".repeat(10_000),
+		)
+
+		candidates.forEach { candidate ->
+			val input = CountingInputStream(candidate.encodeToByteArray())
+			shouldThrow<PortableJsonTokenLimitException> {
+				PortableJsonTokenLimitInputStream(input, limits).readBytes()
+			}
+			(input.bytesRead <= limits.maxLiteralBytes + limits.maxReadChunkBytes) shouldBe true
+		}
+		val valid = "true false null -1.25e+2".encodeToByteArray()
+		PortableJsonTokenLimitInputStream(ByteArrayInputStream(valid), limits)
+			.readBytes()
+			.contentEquals(valid) shouldBe true
+	}
+
+	@Test
+	fun `Pressure codec bounds alphabetic suffixed numeric and punctuation literals`() = runTest {
+		val prefix =
+			"""{"format":"tracker-portable-pressure","schemaVersion":"""
+		val suffix = ""","entries":[]}"""
+		val limits = PortableJsonTokenLimits()
+		listOf(
+			"x".repeat(10_000),
+			"1_" + "x".repeat(10_000),
+			"@".repeat(10_000),
+		).forEach { literal ->
+			val document = prefix + literal + suffix
+			val input = CountingInputStream(document.encodeToByteArray())
+			shouldThrow<PortablePressureJsonException> {
+				PortablePressureJsonV1Codec().decode(input) {
+					error("Oversized literal must not reach the sink")
+				}
+			}
+			(
+				input.bytesRead <=
+					prefix.encodeToByteArray().size +
+					limits.maxLiteralBytes +
+					limits.maxReadChunkBytes
+				) shouldBe true
 		}
 	}
 
@@ -558,6 +608,24 @@ class PortablePressureJsonV1CodecTest {
 		}
 		inputFailure.message shouldBe "read failed"
 
+		val transportEof = EOFException("source transport EOF")
+		var eofPrefixCount = 0
+		val propagatedEof = shouldThrow<EOFException> {
+			PortablePressureJsonV1Codec().decode(
+				PrefixThenFailingInputStream(bytes, transportEof),
+			) {
+				eofPrefixCount++
+			}
+		}
+		(propagatedEof === transportEof) shouldBe true
+		eofPrefixCount shouldBe 1
+		val genuinelyTruncated = bytes.copyOf(bytes.size - 1)
+		shouldThrow<PortablePressureJsonException> {
+			PortablePressureJsonV1Codec().decode(ByteArrayInputStream(genuinelyTruncated)) {
+				error("Truncated document must not reach the sink")
+			}
+		}
+
 		val sinkFailure = shouldThrow<IOException> {
 			PortablePressureJsonV1Codec().decode(ByteArrayInputStream(bytes)) {
 				throw IOException("sink failed")
@@ -671,6 +739,18 @@ private class FailingInputStream : InputStream() {
 	override fun read(): Int = throw IOException("read failed")
 	override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
 		throw IOException("read failed")
+}
+
+private class PrefixThenFailingInputStream(
+	bytes: ByteArray,
+	private val failure: IOException,
+) : InputStream() {
+	private val delegate = ByteArrayInputStream(bytes)
+
+	override fun read(): Int = delegate.read().takeUnless { it < 0 } ?: throw failure
+
+	override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+		delegate.read(buffer, offset, length).takeUnless { it < 0 } ?: throw failure
 }
 
 private class FailingOutputStream : OutputStream() {

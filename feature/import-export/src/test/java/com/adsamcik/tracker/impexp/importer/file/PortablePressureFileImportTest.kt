@@ -26,6 +26,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.mockk.mockk
 import java.io.ByteArrayInputStream
+import java.io.EOFException
 import java.io.IOException
 import java.io.InputStream
 import java.util.ArrayDeque
@@ -377,13 +378,43 @@ class PortablePressureFileImportTest {
 		}
 		val stream = FileImportStream(
 			fileName = "pressure.trackerpressure",
-			streamProvider = { FailingPressureInputStream() },
+			streamProvider = { FailingPressureInputStream(IOException("transport failed")) },
 		).withImportReceipt(DEFAULT_JOB_ID, DEFAULT_RECEIVED_AT_MS)
 
 		shouldThrow<IOException> {
 			importer.import(context, database, stream)
 		}.message shouldBe "transport failed"
 		sourceCalls shouldBe 0
+
+		val valid = encodePressureEntries(listOf(pressureEntry()))
+		val transportEof = EOFException("transport EOF")
+		val propagatedEof = shouldThrow<EOFException> {
+			importer.import(
+				context,
+				database,
+				FileImportStream(
+					fileName = "pressure.trackerpressure",
+					streamProvider = {
+						PrefixThenFailingPressureInputStream(valid, transportEof)
+					},
+				).withImportReceipt(DEFAULT_JOB_ID, DEFAULT_RECEIVED_AT_MS),
+			)
+		}
+		(propagatedEof === transportEof) shouldBe true
+		sourceCalls shouldBe 1
+
+		val truncated = valid.decodeToString()
+			.substringBefore("\"zoneId\"")
+			.encodeToByteArray()
+		importer.import(
+			context,
+			database,
+			stream(truncated, entryKey = "truncated"),
+		) shouldBe ImportResult(
+			failedCount = 1,
+			errors = listOf(PortablePressureFileImport.PERMANENT_FORMAT_ERROR),
+		)
+		sourceCalls shouldBe 1
 	}
 
 	private fun adapter(
@@ -456,10 +487,23 @@ private class CloseTrackingInputStream(
 	}
 }
 
-private class FailingPressureInputStream : InputStream() {
-	override fun read(): Int = throw IOException("transport failed")
+private class FailingPressureInputStream(
+	private val failure: IOException,
+) : InputStream() {
+	override fun read(): Int = throw failure
+	override fun read(buffer: ByteArray, offset: Int, length: Int): Int = throw failure
+}
+
+private class PrefixThenFailingPressureInputStream(
+	bytes: ByteArray,
+	private val failure: IOException,
+) : InputStream() {
+	private val delegate = ByteArrayInputStream(bytes)
+
+	override fun read(): Int = delegate.read().takeUnless { it < 0 } ?: throw failure
+
 	override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
-		throw IOException("transport failed")
+		delegate.read(buffer, offset, length).takeUnless { it < 0 } ?: throw failure
 }
 
 private class PressureImportReceiptStore : ImportReceiptStore {

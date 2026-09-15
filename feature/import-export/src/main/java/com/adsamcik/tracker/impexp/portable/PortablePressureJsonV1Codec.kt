@@ -149,6 +149,8 @@ internal class PortablePressureJsonV1Codec(
 		throw cancelled
 	} catch (failure: PressureSinkFailure) {
 		throw failure.original
+	} catch (failure: PressureTransportIOException) {
+		throw failure.original
 	} catch (failure: PortableJsonTokenLimitException) {
 		throw PortablePressureJsonException("Portable Pressure token exceeds its bound", failure)
 	} catch (failure: PortablePressureJsonException) {
@@ -968,15 +970,21 @@ private class BoundedPressureInputStream(
 	private var bytesRead = 0L
 
 	override fun read(): Int {
-		val value = super.read()
+		val value = transportRead { super.read() }
 		if (value >= 0) record(1L)
 		return value
 	}
 
 	override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-		val count = super.read(buffer, offset, length)
+		val count = transportRead { super.read(buffer, offset, length) }
 		if (count > 0) record(count.toLong())
 		return count
+	}
+
+	private inline fun <T> transportRead(block: () -> T): T = try {
+		block()
+	} catch (failure: IOException) {
+		throw PressureTransportIOException(failure)
 	}
 
 	private fun record(count: Long) {
@@ -986,6 +994,10 @@ private class BoundedPressureInputStream(
 		bytesRead += count
 	}
 }
+
+private class PressureTransportIOException(
+	val original: IOException,
+) : IOException(null, original, false, false)
 
 private class BoundedPressureOutputStream(
 	output: OutputStream,
