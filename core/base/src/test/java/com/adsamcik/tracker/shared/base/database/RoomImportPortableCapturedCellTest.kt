@@ -15,6 +15,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
@@ -210,6 +212,73 @@ class RoomImportPortableCapturedCellTest {
 			)
 		importer().importEntry(request(oldCoverage, expectedEpoch = 4L)) shouldBe
 			ImportPortableCapturedCellResult.Blocked(PortableCellImportBlockedReason.RETENTION_BOUNDARY)
+	}
+
+	@Test
+	fun `canonical Cell v1 coverage cannot conceal the observation uncertainty lower bound`() {
+		val payload = observationPayload("one")
+		payload.copy(coverageStartTimeMs = 108L).toPortableValue().coverageStartTimeMs shouldBe 108L
+		shouldThrow<IllegalArgumentException> {
+			payload.copy(coverageStartTimeMs = 110L).toPortableValue()
+		}
+		shouldThrow<IllegalArgumentException> {
+			payload.copy(coverageStartTimeMs = 0L, observedTimeMs = 1L,
+				wallTimeUncertaintyMs = 2L, latestPossibleTimeMs = 3L).toPortableValue()
+		}
+		shouldThrow<IllegalArgumentException> {
+			payload.copy(coverageStartTimeMs = 0L, observedTimeMs = 0L,
+				wallTimeUncertaintyMs = Long.MAX_VALUE, latestPossibleTimeMs = Long.MAX_VALUE).toPortableValue()
+		}
+	}
+
+	@Test
+	fun `earliest possible Cell observation before the floor is blocked with exact boundary allowed`() = runTest {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH, retainedFromMs = 110L))
+		val beforeFloor = observationPayload("one").copy(coverageStartTimeMs = 108L).toPortableValue()
+		importer().importEntry(request(entry(observation = beforeFloor))) shouldBe
+			ImportPortableCapturedCellResult.Blocked(PortableCellImportBlockedReason.RETENTION_BOUNDARY)
+		rowCount("imported_cell_entry_revision") shouldBe 0L
+
+		val atFloor = observationPayload("one").copy(coverageStartTimeMs = 110L,
+			observedTimeMs = 112L, latestPossibleTimeMs = 114L).toPortableValue()
+		importer().importEntry(request(entry(observation = atFloor))) shouldBe
+			ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+	}
+
+	@Test
+	fun `incoming uncertainty upper overflow is typed before imported Room writes`() = runTest {
+		seedEvidence()
+		val overflowing = observationPayload("one").copy(observedTimeMs = Long.MAX_VALUE,
+			wallTimeUncertaintyMs = 1L, latestPossibleTimeMs = Long.MAX_VALUE).toPortableValue()
+		importer().importEntry(request(entry(observation = overflowing))) shouldBe
+			ImportPortableCapturedCellResult.Unverifiable(PortableCellImportUnverifiableReason.ENTRY_INVALID)
+		rowCount("imported_cell_entry_revision") shouldBe 0L
+		rowCount("imported_cell_receipt") shouldBe 0L
+	}
+
+	@Test
+	fun `canonical Cell v1 known and weak quality summaries equal their exact buckets`() {
+		val payload = observationPayload("one")
+		shouldThrow<IllegalArgumentException> {
+			payload.copy(knownQualityObservationCount = 0).toPortableValue()
+		}
+		shouldThrow<IllegalArgumentException> {
+			payload.copy(weakObservationCount = 1, allKnownQualityIsWeak = true).toPortableValue()
+		}
+		val allBuckets = payload.copy(submittedChildCount = 6, acceptedChildCount = 6,
+			observationCount = 6, registeredObservationCount = 6, lteCount = 6,
+			qualityUnknownCount = 1, qualityNoneOrUnknownCount = 1, qualityPoorCount = 1,
+			qualityModerateCount = 1, qualityGoodCount = 1, qualityGreatCount = 1,
+			weakObservationCount = 2, knownQualityObservationCount = 5).toPortableValue()
+		allBuckets.knownQualityObservationCount shouldBe 5
+		allBuckets.weakObservationCount shouldBe 2
+		allBuckets.allKnownQualityIsWeak shouldBe false
+		shouldThrow<ArithmeticException> {
+			payload.copy(submittedChildCount = Int.MAX_VALUE, acceptedChildCount = Int.MAX_VALUE,
+				observationCount = Int.MAX_VALUE, lteCount = Int.MAX_VALUE,
+				qualityNoneOrUnknownCount = Int.MAX_VALUE, qualityPoorCount = 1,
+				qualityGoodCount = 0, knownQualityObservationCount = Int.MAX_VALUE).toPortableValue()
+		}
 	}
 
 	@Test
@@ -455,6 +524,44 @@ class RoomImportPortableCapturedCellTest {
 	}
 
 	@Test
+	fun `rehashed stored timing and bucket contradictions fail before replay or correction`() = runTest {
+		seedEvidence()
+		val validPayload = observationPayload("one")
+		val invalidPayloads = listOf(
+			validPayload.copy(coverageStartTimeMs = 110L),
+			validPayload.copy(knownQualityObservationCount = 0),
+			validPayload.copy(weakObservationCount = 1, allKnownQualityIsWeak = true),
+			validPayload.copy(coverageStartTimeMs = 0L, observedTimeMs = 1L,
+				wallTimeUncertaintyMs = 2L, latestPossibleTimeMs = 3L),
+			validPayload.copy(observedTimeMs = Long.MAX_VALUE,
+				wallTimeUncertaintyMs = 1L, latestPossibleTimeMs = Long.MAX_VALUE),
+		)
+		for ((index, invalid) in invalidPayloads.withIndex()) {
+			val validCurrent = validPayload.copy(identity = PortableCellOpaqueIdentity.derive(
+				PortableCellIdentityKind.OBSERVATION, "stored-observation-$index"))
+			val original = entry(logicalLocal = "stored-$index", observation = validCurrent.toPortableValue(),
+				runDefinitions = listOf(RunDefinition("stored-run-$index", 10L, 20L, listOf(validCurrent.toPortableValue()))))
+			val originalRequest = request(original, "stored-job-$index", "entry-$index")
+			importer().importEntry(originalRequest) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+			// Pin the independent test encoder to the native format before rehashing corruption.
+			rehashStoredObservation(original, validCurrent)
+			importer().importEntry(originalRequest) shouldBe ImportPortableCapturedCellResult.Duplicate(1L)
+			rehashStoredObservation(original, invalid.copy(identity = validCurrent.identity))
+
+			importer().importEntry(originalRequest) shouldBe ImportPortableCapturedCellResult.Unverifiable(
+				PortableCellImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+			val corrected = validCurrent.copy(semanticRevision = 2L, supersedesSemanticRevision = 1L,
+				qualityFlags = 7L).toPortableValue()
+			val correction = entry(logicalLocal = "stored-$index", observation = corrected,
+				runDefinitions = listOf(RunDefinition("stored-run-$index", 10L, 20L, listOf(corrected))))
+			importer().importEntry(request(correction, "correction-$index", "entry-$index")) shouldBe
+				ImportPortableCapturedCellResult.Unverifiable(PortableCellImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+			database.importedCellDao().boundedEntryRevisions(original.identity.value).size shouldBe 1
+			database.importedCellDao().receiptsForAdmission(original.identity.value).size shouldBe 1
+		}
+	}
+
+	@Test
 	fun `mutable decoded collection exceeding the run cap is typed before Room`() = runTest {
 		seedEvidence()
 		val original = entry()
@@ -625,6 +732,48 @@ class RoomImportPortableCapturedCellTest {
 			cursor.getLong(0)
 		}
 
+	/** Rehash all three v1 levels independently; rejection must not rely on a stale checksum. */
+	private fun rehashStoredObservation(entry: PortableCapturedCellEntryV1, observation: PortableCellObservationPayload) {
+		val run = entry.runs.single()
+		val observationChecksum = CellCapturedPortableIntegrity.observationChecksum(observation).value
+		val runChecksum = testCanonicalChecksum("tracker-portable-cell-run-v1") {
+			writeCellString(run.identity.value)
+			writeCellString(run.deletionScopeDigest.value)
+			writeLong(run.startTimeMs)
+			writeLong(run.endTimeMs)
+			writeCellString(run.captureCoverage.name)
+			writeCellString(run.availability.name)
+			writeCellString(run.acquisitionCompleteness.name)
+			writeBoolean(run.retentionLoss)
+			writeCellString(run.subscriptionGrouping.name)
+			writeInt(1)
+			writeCellString(observation.identity.value)
+			writeCellString(observationChecksum)
+		}
+		val entryChecksum = testCanonicalChecksum("tracker-portable-cell-entry-v1") {
+			writeCellString(CellCapturedPortableFormatV1.FORMAT)
+			writeInt(CellCapturedPortableFormatV1.SCHEMA_VERSION)
+			writeCellString(entry.identity.value)
+			writeCellString(entry.sessionMode.name)
+			writeLong(entry.startTimeMs)
+			writeLong(entry.endTimeMs)
+			writeCellString(entry.subscriptionGrouping.name)
+			writeInt(1)
+			writeCellString(run.identity.value)
+			writeCellString(runChecksum)
+		}
+		val sql = database.openHelper.writableDatabase
+		sql.execSQL("UPDATE imported_cell_observation SET coverage_start_time_ms = ?, observed_time_ms = ?, " +
+			"latest_possible_time_ms = ?, wall_time_uncertainty_ms = ?, known_quality_observation_count = ?, " +
+			"weak_observation_count = ?, all_known_quality_is_weak = ?, content_checksum = ? WHERE entry_identity = ?",
+			arrayOf(observation.coverageStartTimeMs, observation.observedTimeMs, observation.latestPossibleTimeMs,
+				observation.wallTimeUncertaintyMs, observation.knownQualityObservationCount, observation.weakObservationCount,
+				if (observation.allKnownQualityIsWeak) 1 else 0, observationChecksum, entry.identity.value))
+		sql.execSQL("UPDATE imported_cell_run SET content_checksum = ? WHERE entry_identity = ?", arrayOf(runChecksum, entry.identity.value))
+		sql.execSQL("UPDATE imported_cell_entry_revision SET content_checksum = ? WHERE identity = ?", arrayOf(entryChecksum, entry.identity.value))
+		sql.execSQL("UPDATE imported_cell_receipt SET entry_content_checksum = ? WHERE entry_identity = ?", arrayOf(entryChecksum, entry.identity.value))
+	}
+
 	private fun sourceFenceChecksum(purpose: String, scope: String): String {
 		val values = listOf(
 			"tracker-source-deletion-fence-v1",
@@ -730,7 +879,20 @@ private fun observation(
 	aggregateOwnerIdentity: PortableCellOpaqueIdentity? = null,
 	aggregateOwnerSemanticRevision: Long? = null,
 ): PortableCapturedCellObservationV1 {
-	val payload = PortableCellObservationPayload(
+	return observationPayload(localId, semanticRevision, coverageStartTimeMs, latestPossibleTimeMs,
+		qualityFlags, aggregateOwnerIdentity, aggregateOwnerSemanticRevision).toPortableValue()
+}
+
+@Suppress("LongParameterList")
+private fun observationPayload(
+	localId: String,
+	semanticRevision: Long = 1L,
+	coverageStartTimeMs: Long = 100L,
+	latestPossibleTimeMs: Long = 112L,
+	qualityFlags: Long = 0L,
+	aggregateOwnerIdentity: PortableCellOpaqueIdentity? = null,
+	aggregateOwnerSemanticRevision: Long? = null,
+) = PortableCellObservationPayload(
 		identity = PortableCellOpaqueIdentity.derive(PortableCellIdentityKind.OBSERVATION, localId),
 		semanticRevision = semanticRevision,
 		supersedesSemanticRevision = semanticRevision.takeIf { it > 1L }?.minus(1L),
@@ -771,6 +933,9 @@ private fun observation(
 		qualityFlags = qualityFlags,
 		qualityConfidence = 1.0,
 	)
+
+private fun PortableCellObservationPayload.toPortableValue(): PortableCapturedCellObservationV1 {
+	val payload = this
 	return PortableCapturedCellObservationV1(
 		payload.identity, payload.semanticRevision, payload.supersedesSemanticRevision,
 		payload.aggregateOwnerIdentity, payload.aggregateOwnerSemanticRevision,
@@ -788,4 +953,19 @@ private fun observation(
 		payload.weakObservationCount, payload.knownQualityObservationCount,
 		payload.allKnownQualityIsWeak, payload.qualityFlags, payload.qualityConfidence,
 	)
+}
+
+private fun testCanonicalChecksum(namespace: String, content: DataOutputStream.() -> Unit): String {
+	val bytes = ByteArrayOutputStream()
+	DataOutputStream(bytes).use {
+		it.writeUTF(namespace)
+		it.content()
+	}
+	return MessageDigest.getInstance("SHA-256").digest(bytes.toByteArray())
+		.joinToString("") { "%02x".format(it.toInt() and 0xff) }
+}
+
+private fun DataOutputStream.writeCellString(value: String?) {
+	writeBoolean(value != null)
+	if (value != null) writeUTF(value)
 }

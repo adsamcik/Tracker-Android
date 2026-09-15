@@ -213,6 +213,17 @@ internal object ImportedCellLineageAuthenticator {
 		entry.runs.forEach { run ->
 			val byIdentity = run.observations.associateBy { it.identity.value }
 			run.observations.forEach { dependent ->
+				if (dependent.coverageStartTimeMs > Math.subtractExact(
+						dependent.observedTimeMs,
+						dependent.wallTimeUncertaintyMs,
+					) || dependent.knownQualityObservationCount != Math.subtractExact(
+						dependent.observationCount,
+						dependent.qualityUnknownCount,
+					) || dependent.weakObservationCount != Math.addExact(
+						dependent.qualityNoneOrUnknownCount,
+						dependent.qualityPoorCount,
+					)
+				) corrupt()
 				if (dependent.latestPossibleTimeMs != exactLatest(
 						dependent.observedTimeMs,
 						dependent.wallTimeUncertaintyMs,

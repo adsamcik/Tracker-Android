@@ -164,6 +164,9 @@ data class PortableCapturedCellObservationV1(
 		require(aggregateOwnerSemanticRevision?.let { it > 0L } != false)
 		require(coverageStartTimeMs >= 0L && observedTimeMs >= coverageStartTimeMs)
 		require(latestPossibleTimeMs >= observedTimeMs && wallTimeUncertaintyMs >= 0L)
+		// Native coverage can start earlier than the observation, but never later than its
+		// earliest possible wall time. The exporter uses checked subtraction without a clamp.
+		require(coverageStartTimeMs <= Math.subtractExact(observedTimeMs, wallTimeUncertaintyMs))
 		require(storedZoneId.isNotBlank() && storedZoneId.length <= CellCapturedPortableFormatV1.MAX_TEXT_LENGTH)
 		requireValidZone(storedZoneId)
 		val counts = listOf(
@@ -191,8 +194,8 @@ data class PortableCapturedCellObservationV1(
 			qualityUnknownCount, qualityNoneOrUnknownCount, qualityPoorCount,
 			qualityModerateCount, qualityGoodCount, qualityGreatCount,
 		) == observationCount)
-		require(weakObservationCount <= knownQualityObservationCount &&
-			knownQualityObservationCount <= observationCount)
+		require(knownQualityObservationCount == Math.subtractExact(observationCount, qualityUnknownCount))
+		require(weakObservationCount == Math.addExact(qualityNoneOrUnknownCount, qualityPoorCount))
 		require(allKnownQualityIsWeak ==
 			(knownQualityObservationCount > 0 && weakObservationCount == knownQualityObservationCount))
 		require(qualityFlags >= 0L)

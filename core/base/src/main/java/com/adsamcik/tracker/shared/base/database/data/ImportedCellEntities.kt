@@ -238,6 +238,7 @@ data class ImportedCellObservationEntity(
 		require(aggregateOwnerSemanticRevision?.let { it > 0L } != false)
 		require(coverageStartTimeMs >= 0L && observedTimeMs >= coverageStartTimeMs)
 		require(wallTimeUncertaintyMs >= 0L)
+		require(coverageStartTimeMs <= Math.subtractExact(observedTimeMs, wallTimeUncertaintyMs))
 		require(latestPossibleTimeMs == Math.addExact(observedTimeMs, wallTimeUncertaintyMs))
 		require(storedZoneId.isNotBlank() && storedZoneId.length <= MAX_ZONE_LENGTH)
 		ZoneId.of(storedZoneId)
@@ -253,6 +254,10 @@ data class ImportedCellObservationEntity(
 			knownQualityObservationCount,
 		)
 		require(counts.all { it >= 0 })
+		require(knownQualityObservationCount == Math.subtractExact(observationCount, qualityUnknownCount))
+		require(weakObservationCount == Math.addExact(qualityNoneOrUnknownCount, qualityPoorCount))
+		require(allKnownQualityIsWeak ==
+			(knownQualityObservationCount > 0 && weakObservationCount == knownQualityObservationCount))
 		require(qualityFlags >= 0L)
 		require(qualityConfidence?.let { it.isFinite() && it in 0.0..1.0 } != false)
 	}

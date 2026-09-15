@@ -20,6 +20,35 @@ class ImportedCellEntityTest {
 	}
 
 	@Test
+	fun `imported observation authenticates conservative uncertainty lower bound without clamping`() {
+		observation().copy(coverageStartTimeMs = 108L).coverageStartTimeMs shouldBe 108L
+		shouldThrow<IllegalArgumentException> { observation().copy(coverageStartTimeMs = 110L) }
+		shouldThrow<IllegalArgumentException> {
+			observation().copy(coverageStartTimeMs = 0L, observedTimeMs = 1L,
+				wallTimeUncertaintyMs = 2L, latestPossibleTimeMs = 3L)
+		}
+	}
+
+	@Test
+	fun `imported observation authenticates known and weak quality bucket arithmetic`() {
+		shouldThrow<IllegalArgumentException> { observation().copy(knownQualityObservationCount = 0) }
+		shouldThrow<IllegalArgumentException> {
+			observation().copy(weakObservationCount = 1, allKnownQualityIsWeak = true)
+		}
+		val weak = observation().copy(qualityGoodCount = 0, qualityPoorCount = 1,
+			weakObservationCount = 1, allKnownQualityIsWeak = true)
+		weak.knownQualityObservationCount shouldBe 1
+		weak.weakObservationCount shouldBe 1
+		val unknown = observation().copy(qualityGoodCount = 0, qualityUnknownCount = 1,
+			knownQualityObservationCount = 0)
+		unknown.knownQualityObservationCount shouldBe 0
+		unknown.allKnownQualityIsWeak shouldBe false
+		shouldThrow<ArithmeticException> {
+			observation().copy(qualityNoneOrUnknownCount = Int.MAX_VALUE, qualityPoorCount = 1)
+		}
+	}
+
+	@Test
 	fun `run deletion marker authenticates entry scope and generation`() {
 		val marker = ImportedCellDeletionGenerationEntity.create(
 			runIdentity = digest('1'),
