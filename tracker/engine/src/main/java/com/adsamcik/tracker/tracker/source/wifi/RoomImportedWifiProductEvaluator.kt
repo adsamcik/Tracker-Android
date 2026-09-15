@@ -5,6 +5,7 @@ package com.adsamcik.tracker.tracker.source.wifi
 import android.database.sqlite.SQLiteException
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiAuthorityOwner
 import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiHistoryCandidate
 import com.adsamcik.tracker.shared.base.database.dao.WifiLocalObservationOwner
 import com.adsamcik.tracker.shared.base.database.dao.WifiLocalRunOwner
@@ -19,7 +20,6 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
-import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionProtectedIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionReceiptEntity
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductCandidate
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
@@ -298,77 +298,16 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 		var authenticatedRows = 0L
 		for (values in ownership.allValues.chunked(SQLITE_BIND_BATCH)) {
 			currentCoroutineContext().ensureActive()
-			val limit = checkedLimit(values.size)
-			val entries = dao.existingEntryIdentities(values, limit)
-			val runs = dao.existingRunIdentityOwners(values, limit)
-			val observations = dao.existingObservationIdentityOwners(values, limit)
-			val scopes = dao.existingRunScopeOwners(values, limit)
-			val selectedDeletions = dao.selectedDeletionProtectedIdentityOwners(values, limit)
-			val tombstones = dao.entryDeletions(values)
-			val generationsByRun = dao.deletionGenerationsByRun(values)
-			val generationsByScope = dao.deletionGenerationsByScope(values)
-			val generationsByEntry = dao.deletionGenerationsByEntry(values, limit)
-			val generations = (generationsByRun + generationsByScope + generationsByEntry)
-				.distinctBy(ImportedWifiDeletionGenerationEntity::runIdentity)
-			val fences = dao.deletionFenceIdentityOwners(values, limit)
-			listOf(
-				entries.size,
-				runs.size,
-				observations.size,
-				scopes.size,
-				selectedDeletions.size,
-				tombstones.size,
-				generations.size,
-				fences.size,
-			).forEach { count ->
-				authenticatedRows = addRowCount(authenticatedRows, count.toLong())
-			}
-			if (listOf(
-					entries.size,
-					runs.size,
-					observations.size,
-					scopes.size,
-					generationsByEntry.size,
-					fences.size,
-				)
-					.any { it >= limit } ||
-				tombstones.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				generations.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				selectedDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				fences.any { it.collectedDataEpoch != state.collectedDataEpoch }
-			) dependencyOverflow()
-			if (selectedDeletions.any { marker ->
-					marker.receiptOrigin == WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED ||
-						!marker.isCompatibleOppositeOriginMarker(ownership)
-				} || entries.any { identity ->
-					ownership.identityOwners[identity]?.kind != PortableWifiIdentityKind.LOGICAL_ENTRY
-				} || runs.any { row ->
-					val owner = ownership.identityOwners[row.identity]
-					owner?.kind != PortableWifiIdentityKind.PHYSICAL_RUN ||
-						owner.entryIdentity != row.entryIdentity ||
-						owner.runIdentity != row.identity ||
-						owner.deletionScopeDigest != row.deletionScopeDigest
-				} || observations.any { row ->
-					val owner = ownership.identityOwners[row.identity]
-					owner?.kind != PortableWifiIdentityKind.OBSERVATION ||
-						owner.entryIdentity != row.entryIdentity ||
-						owner.runIdentity != row.runIdentity
-				} || scopes.any { row ->
-					val owner = ownership.scopeOwners[row.deletionScopeDigest]
-					owner?.entryIdentity != row.entryIdentity || owner.runIdentity != row.runIdentity
-				} || tombstones.any {
-					ownership.identityOwners[it.entryIdentity]?.kind !=
-						PortableWifiIdentityKind.LOGICAL_ENTRY
-				} ||
-				generations.any { marker ->
-					val owner = ownership.identityOwners[marker.runIdentity]
-					owner?.kind != PortableWifiIdentityKind.PHYSICAL_RUN ||
-						owner.entryIdentity != marker.entryIdentity ||
-						owner.deletionScopeDigest != marker.deletionScopeDigest
-				} || fences.any { fence ->
-					fence.scopeIdentityDigest !in ownership.scopeOwners &&
-						fence.scopeIdentityDigest in ownership.identityOwners ||
-						fence.scopeIdentityDigest in ownership.scopeOwners && !fence.isExactWifiDeletionFence()
+			val limit = minOf(
+				checkedLimit(limits.maximumAuthorityRows),
+				Math.addExact(Math.multiplyExact(values.size, MAX_AUTHORITY_OWNER_ROWS_PER_VALUE), 1),
+			)
+			val owners = dao.authorityOwners(values, limit)
+			authenticatedRows = addRowCount(authenticatedRows, owners.size.toLong())
+			if (owners.size >= limit) dependencyOverflow()
+			if (owners.any { owner ->
+					owner.collectedDataEpoch != state.collectedDataEpoch ||
+						!owner.matchesExpectedOwnership(ownership)
 				}
 			) originConflict()
 		}
@@ -661,8 +600,10 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 				runCatching {
 					PortableWifiOpaqueIdentity(candidate.identity)
 					PortableWifiDigest(candidate.contentChecksum)
+					PortableWifiOpaqueIdentity(candidate.newestMemberIdentity)
 					candidate.importRevision > 0L && candidate.startTimeMs >= 0L &&
-						candidate.endTimeMs >= candidate.startTimeMs && candidate.receivedAtMs >= 0L
+						candidate.endTimeMs >= candidate.startTimeMs && candidate.receivedAtMs >= 0L &&
+						candidate.newestMemberStartTimeMs in candidate.startTimeMs..candidate.endTimeMs
 				}.getOrDefault(false).not()
 			}
 		) return false
@@ -670,7 +611,7 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 			if (beforeStartTimeMs != null && beforeIdentity != null) {
 				add(beforeStartTimeMs to beforeIdentity)
 			}
-			addAll(candidates.map { it.startTimeMs to it.identity })
+			addAll(candidates.map { it.newestMemberStartTimeMs to it.newestMemberIdentity })
 		}
 		return cursors.zipWithNext().all { (left, right) ->
 			left.first > right.first || left.first == right.first && left.second > right.second
@@ -684,6 +625,7 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 
 	private companion object {
 		const val SQLITE_BIND_BATCH = 256
+		const val MAX_AUTHORITY_OWNER_ROWS_PER_VALUE = 16
 	}
 }
 
@@ -768,9 +710,18 @@ private fun SourceEvidenceState.hasValidImportedWifiProductShape(): Boolean =
 
 private fun ImportedWifiHistoryCandidate.exactlyMatches(
 	latest: AuthenticatedImportedWifiRevision,
-): Boolean = identity == latest.header.identity && importRevision == latest.header.importRevision &&
-	contentChecksum == latest.header.contentChecksum && startTimeMs == latest.header.startTimeMs &&
-	endTimeMs == latest.header.endTimeMs && receivedAtMs == latest.header.receivedAtMs
+): Boolean {
+	val newest = latest.entry.runs.maxWith(
+		compareBy<PortableCapturedWifiRunV1>(
+			{ it.startTimeMs },
+			{ it.identity.value },
+		),
+	)
+	return identity == latest.header.identity && importRevision == latest.header.importRevision &&
+		contentChecksum == latest.header.contentChecksum && startTimeMs == latest.header.startTimeMs &&
+		endTimeMs == latest.header.endTimeMs && receivedAtMs == latest.header.receivedAtMs &&
+		newestMemberStartTimeMs == newest.startTimeMs && newestMemberIdentity == newest.identity.value
+}
 
 private fun ImportedWifiHistoryCandidate.toProductCandidate() = ImportedWifiProductCandidate(
 	identity = PortableWifiOpaqueIdentity(identity),
@@ -779,6 +730,8 @@ private fun ImportedWifiHistoryCandidate.toProductCandidate() = ImportedWifiProd
 	startTimeMs = startTimeMs,
 	endTimeMs = endTimeMs,
 	receivedAtMs = receivedAtMs,
+	newestMemberStartTimeMs = newestMemberStartTimeMs,
+	newestMemberIdentity = PortableWifiOpaqueIdentity(newestMemberIdentity),
 )
 
 private fun ImportedWifiHistoryCandidate.unverifiable(
@@ -800,37 +753,55 @@ private fun SourceDeletionFenceEntity.isExactWifiDeletionFence(): Boolean =
 		purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
 		scopeKind == SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN
 
-private fun WifiSelectedDeletionProtectedIdentityEntity.isCompatibleOppositeOriginMarker(
+private fun ImportedWifiAuthorityOwner.matchesExpectedOwnership(
 	ownership: WifiPortableOpaqueOwnershipSet,
-): Boolean {
-	if (selectionIdentity != ownerEntryIdentity) return false
-	return when (identityKind) {
-		WifiSelectedDeletionProtectedIdentityEntity.KIND_ENTRY ->
+): Boolean = when (ownerKind) {
+	ImportedWifiAuthorityOwner.ENTRY -> ownership.identityOwners[protectedIdentity]?.let { owner ->
+		owner.kind == PortableWifiIdentityKind.LOGICAL_ENTRY &&
+			owner.entryIdentity == entryIdentity
+	} == true
+	ImportedWifiAuthorityOwner.RUN -> ownership.identityOwners[protectedIdentity]?.let { owner ->
+		owner.kind == PortableWifiIdentityKind.PHYSICAL_RUN &&
+			owner.entryIdentity == entryIdentity && owner.runIdentity == runIdentity &&
+			owner.deletionScopeDigest == deletionScopeDigest
+	} == true
+	ImportedWifiAuthorityOwner.OBSERVATION ->
+		ownership.identityOwners[protectedIdentity]?.let { owner ->
+			owner.kind == PortableWifiIdentityKind.OBSERVATION &&
+				owner.entryIdentity == entryIdentity && owner.runIdentity == runIdentity
+		} == true
+	ImportedWifiAuthorityOwner.DELETION_SCOPE ->
+		ownership.scopeOwners[protectedIdentity]?.let { owner ->
+			owner.kind == PortableWifiIdentityKind.PHYSICAL_RUN &&
+				owner.entryIdentity == entryIdentity && owner.runIdentity == runIdentity &&
+				owner.deletionScopeDigest == deletionScopeDigest
+		} == true
+	ImportedWifiAuthorityOwner.ENTRY_DELETION ->
+		ownership.identityOwners[protectedIdentity]?.kind == PortableWifiIdentityKind.LOGICAL_ENTRY
+	ImportedWifiAuthorityOwner.RUN_DELETION ->
+		ownership.identityOwners[protectedIdentity]?.let { owner ->
+			owner.kind == PortableWifiIdentityKind.PHYSICAL_RUN &&
+				owner.entryIdentity == entryIdentity &&
+				owner.deletionScopeDigest == deletionScopeDigest
+		} == true
+	ImportedWifiAuthorityOwner.SOURCE_FENCE ->
+		protectedIdentity in ownership.scopeOwners &&
+			sourceKind == SourceDestinationOwnerEntity.SOURCE_WIFI &&
+			purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
+			scopeKind == SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN
+	ImportedWifiAuthorityOwner.SELECTED_PROTECTED ->
+		receiptOrigin == WifiSelectedDeletionReceiptEntity.ORIGIN_LOCAL &&
+			selectionIdentity == entryIdentity && entryIdentity != null && (
 			ownership.identityOwners[protectedIdentity]?.let { owner ->
-				owner.kind == PortableWifiIdentityKind.LOGICAL_ENTRY &&
-					owner.entryIdentity == ownerEntryIdentity
-			} == true
-		WifiSelectedDeletionProtectedIdentityEntity.KIND_RUN ->
-			ownership.identityOwners[protectedIdentity]?.let { owner ->
-				owner.kind == PortableWifiIdentityKind.PHYSICAL_RUN &&
-					owner.entryIdentity == ownerEntryIdentity &&
-					owner.runIdentity == ownerRunIdentity &&
-					owner.deletionScopeDigest == deletionScopeDigest
-			} == true
-		WifiSelectedDeletionProtectedIdentityEntity.KIND_OBSERVATION ->
-			ownership.identityOwners[protectedIdentity]?.let { owner ->
-				owner.kind == PortableWifiIdentityKind.OBSERVATION &&
-					owner.entryIdentity == ownerEntryIdentity &&
-					owner.runIdentity == ownerRunIdentity
-			} == true
-		WifiSelectedDeletionProtectedIdentityEntity.KIND_DELETION_SCOPE ->
-			ownership.scopeOwners[protectedIdentity]?.let { owner ->
-				owner.kind == PortableWifiIdentityKind.PHYSICAL_RUN &&
-					owner.entryIdentity == ownerEntryIdentity &&
-					owner.runIdentity == ownerRunIdentity
-			} == true
-		else -> false
-	}
+				owner.entryIdentity == entryIdentity && owner.runIdentity == runIdentity &&
+					(deletionScopeDigest == null || owner.deletionScopeDigest == deletionScopeDigest)
+			} == true ||
+				ownership.scopeOwners[protectedIdentity]?.let { owner ->
+					owner.entryIdentity == entryIdentity && owner.runIdentity == runIdentity &&
+						owner.deletionScopeDigest == deletionScopeDigest
+				} == true
+			)
+	else -> false
 }
 
 private fun ImportedWifiLineageAuthenticator.Reason.toProductFailure(): ImportedWifiProductFailure =

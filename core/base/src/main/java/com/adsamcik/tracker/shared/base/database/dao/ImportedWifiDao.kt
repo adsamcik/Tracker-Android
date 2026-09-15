@@ -100,6 +100,78 @@ abstract class ImportedWifiDao {
 	): List<WifiSelectedDeletionProtectedIdentityEntity>
 
 	@Query(
+		"""
+		SELECT DISTINCT 'ENTRY' AS owner_kind,
+		       identity AS protected_identity,
+		       identity AS entry_identity,
+		       NULL AS run_identity,
+		       NULL AS deletion_scope_digest,
+		       NULL AS source_kind,
+		       NULL AS purpose,
+		       NULL AS scope_kind,
+		       collected_data_epoch,
+		       NULL AS receipt_origin,
+		       NULL AS selection_identity
+		FROM imported_wifi_entry_revision
+		WHERE identity IN (:identities)
+		UNION ALL
+		SELECT DISTINCT 'RUN', identity, entry_identity, identity, deletion_scope_digest,
+		       NULL, NULL, NULL, collected_data_epoch, NULL, NULL
+		FROM imported_wifi_run
+		WHERE identity IN (:identities)
+		UNION ALL
+		SELECT DISTINCT 'OBSERVATION', identity, entry_identity, run_identity, NULL,
+		       NULL, NULL, NULL,
+		       (SELECT header.collected_data_epoch
+		        FROM imported_wifi_entry_revision AS header
+		        WHERE header.identity = imported_wifi_observation.entry_identity
+		          AND header.import_revision = imported_wifi_observation.entry_import_revision),
+		       NULL,
+		       NULL
+		FROM imported_wifi_observation
+		WHERE identity IN (:identities)
+		UNION ALL
+		SELECT DISTINCT 'DELETION_SCOPE', deletion_scope_digest, entry_identity, identity,
+		       deletion_scope_digest, NULL, NULL, NULL, collected_data_epoch, NULL, NULL
+		FROM imported_wifi_run
+		WHERE deletion_scope_digest IN (:identities)
+		UNION ALL
+		SELECT 'ENTRY_DELETION', entry_identity, entry_identity, NULL, NULL,
+		       NULL, NULL, NULL, collected_data_epoch, NULL, NULL
+		FROM imported_wifi_entry_deletion
+		WHERE entry_identity IN (:identities)
+		UNION ALL
+		SELECT 'RUN_DELETION', run_identity, entry_identity, run_identity,
+		       deletion_scope_digest, NULL, NULL, NULL, collected_data_epoch, NULL, NULL
+		FROM imported_wifi_deletion_generation
+		WHERE run_identity IN (:identities)
+		   OR entry_identity IN (:identities)
+		   OR deletion_scope_digest IN (:identities)
+		UNION ALL
+		SELECT 'SOURCE_FENCE', scope_identity_digest, NULL, NULL, scope_identity_digest,
+		       source_kind, purpose, scope_kind, collected_data_epoch, NULL, NULL
+		FROM source_deletion_fence
+		WHERE scope_identity_digest IN (:identities)
+		UNION ALL
+		SELECT 'SELECTED_PROTECTED', protected_identity, owner_entry_identity, owner_run_identity,
+		       deletion_scope_digest, NULL, NULL, NULL, collected_data_epoch, receipt_origin,
+		       selection_identity
+		FROM wifi_selected_deletion_protected_identity
+		WHERE protected_identity IN (:identities)
+		   OR owner_entry_identity IN (:identities)
+		   OR owner_run_identity IN (:identities)
+		   OR deletion_scope_digest IN (:identities)
+		   OR aggregate_owner_identity IN (:identities)
+		ORDER BY protected_identity, owner_kind, entry_identity, run_identity
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun authorityOwners(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedWifiAuthorityOwner>
+
+	@Query(
 		"SELECT * FROM imported_wifi_entry_revision WHERE identity = :identity " +
 			"ORDER BY import_revision LIMIT :limit",
 	)
@@ -213,16 +285,52 @@ abstract class ImportedWifiDao {
 	): List<ImportedWifiObservationEntity>
 
 	@Query(
-		"SELECT revision.identity, revision.import_revision, revision.content_checksum, " +
-			"revision.start_time_ms, revision.end_time_ms, revision.received_at_ms " +
-			"FROM imported_wifi_entry_revision AS revision " +
-			"WHERE revision.import_revision = (" +
-			"SELECT MAX(latest.import_revision) FROM imported_wifi_entry_revision AS latest " +
-			"WHERE latest.identity = revision.identity) " +
-			"AND (:beforeStartTimeMs IS NULL OR revision.start_time_ms < :beforeStartTimeMs OR " +
-			"(revision.start_time_ms = :beforeStartTimeMs AND " +
-			"revision.identity < COALESCE(:beforeIdentity, ''))) " +
-			"ORDER BY revision.start_time_ms DESC, revision.identity DESC LIMIT :limit",
+		"""
+		WITH latest_revision AS (
+		  SELECT revision.*
+		  FROM imported_wifi_entry_revision AS revision
+		  WHERE revision.import_revision = (
+		    SELECT MAX(latest.import_revision)
+		    FROM imported_wifi_entry_revision AS latest
+		    WHERE latest.identity = revision.identity
+		  )
+		), candidate AS (
+		  SELECT latest_revision.identity,
+		         latest_revision.import_revision,
+		         latest_revision.content_checksum,
+		         latest_revision.start_time_ms,
+		         latest_revision.end_time_ms,
+		         latest_revision.received_at_ms,
+		         COALESCE((
+		           SELECT MAX(run.start_time_ms)
+		           FROM imported_wifi_run AS run
+		           WHERE run.entry_identity = latest_revision.identity
+		             AND run.entry_import_revision = latest_revision.import_revision
+		         ), latest_revision.start_time_ms) AS newest_member_start_time_ms,
+		         COALESCE((
+		           SELECT MAX(run.identity)
+		           FROM imported_wifi_run AS run
+		           WHERE run.entry_identity = latest_revision.identity
+		             AND run.entry_import_revision = latest_revision.import_revision
+		             AND run.start_time_ms = (
+		               SELECT MAX(latest_run.start_time_ms)
+		               FROM imported_wifi_run AS latest_run
+		               WHERE latest_run.entry_identity = latest_revision.identity
+		                 AND latest_run.entry_import_revision = latest_revision.import_revision
+		             )
+		         ), latest_revision.identity) AS newest_member_identity
+		  FROM latest_revision
+		)
+		SELECT * FROM candidate
+		WHERE :beforeStartTimeMs IS NULL
+		   OR newest_member_start_time_ms < :beforeStartTimeMs
+		   OR (
+		     newest_member_start_time_ms = :beforeStartTimeMs
+		     AND newest_member_identity < COALESCE(:beforeIdentity, '')
+		   )
+		ORDER BY newest_member_start_time_ms DESC, newest_member_identity DESC
+		LIMIT :limit
+		""",
 	)
 	abstract suspend fun recentHistoryCandidatePage(
 		limit: Int,
@@ -231,17 +339,54 @@ abstract class ImportedWifiDao {
 	): List<ImportedWifiHistoryCandidate>
 
 	@Query(
-		"SELECT revision.identity, revision.import_revision, revision.content_checksum, " +
-			"revision.start_time_ms, revision.end_time_ms, revision.received_at_ms " +
-			"FROM imported_wifi_entry_revision AS revision " +
-			"WHERE revision.import_revision = (" +
-			"SELECT MAX(latest.import_revision) FROM imported_wifi_entry_revision AS latest " +
-			"WHERE latest.identity = revision.identity) " +
-			"AND revision.end_time_ms > :fromInclusiveMs AND revision.start_time_ms < :toExclusiveMs " +
-			"AND (:beforeStartTimeMs IS NULL OR revision.start_time_ms < :beforeStartTimeMs OR " +
-			"(revision.start_time_ms = :beforeStartTimeMs AND " +
-			"revision.identity < COALESCE(:beforeIdentity, ''))) " +
-			"ORDER BY revision.start_time_ms DESC, revision.identity DESC LIMIT :limit",
+		"""
+		WITH latest_revision AS (
+		  SELECT revision.*
+		  FROM imported_wifi_entry_revision AS revision
+		  WHERE revision.import_revision = (
+		    SELECT MAX(latest.import_revision)
+		    FROM imported_wifi_entry_revision AS latest
+		    WHERE latest.identity = revision.identity
+		  )
+		), candidate AS (
+		  SELECT latest_revision.identity,
+		         latest_revision.import_revision,
+		         latest_revision.content_checksum,
+		         latest_revision.start_time_ms,
+		         latest_revision.end_time_ms,
+		         latest_revision.received_at_ms,
+		         COALESCE((
+		           SELECT MAX(run.start_time_ms)
+		           FROM imported_wifi_run AS run
+		           WHERE run.entry_identity = latest_revision.identity
+		             AND run.entry_import_revision = latest_revision.import_revision
+		         ), latest_revision.start_time_ms) AS newest_member_start_time_ms,
+		         COALESCE((
+		           SELECT MAX(run.identity)
+		           FROM imported_wifi_run AS run
+		           WHERE run.entry_identity = latest_revision.identity
+		             AND run.entry_import_revision = latest_revision.import_revision
+		             AND run.start_time_ms = (
+		               SELECT MAX(latest_run.start_time_ms)
+		               FROM imported_wifi_run AS latest_run
+		               WHERE latest_run.entry_identity = latest_revision.identity
+		                 AND latest_run.entry_import_revision = latest_revision.import_revision
+		             )
+		         ), latest_revision.identity) AS newest_member_identity
+		  FROM latest_revision
+		  WHERE latest_revision.end_time_ms > :fromInclusiveMs
+		    AND latest_revision.start_time_ms < :toExclusiveMs
+		)
+		SELECT * FROM candidate
+		WHERE :beforeStartTimeMs IS NULL
+		   OR newest_member_start_time_ms < :beforeStartTimeMs
+		   OR (
+		     newest_member_start_time_ms = :beforeStartTimeMs
+		     AND newest_member_identity < COALESCE(:beforeIdentity, '')
+		   )
+		ORDER BY newest_member_start_time_ms DESC, newest_member_identity DESC
+		LIMIT :limit
+		""",
 	)
 	abstract suspend fun historyCandidateRangePage(
 		fromInclusiveMs: Long,
@@ -253,7 +398,19 @@ abstract class ImportedWifiDao {
 
 	@Query(
 		"SELECT revision.identity, revision.import_revision, revision.content_checksum, " +
-			"revision.start_time_ms, revision.end_time_ms, revision.received_at_ms " +
+			"revision.start_time_ms, revision.end_time_ms, revision.received_at_ms, " +
+			"COALESCE((SELECT MAX(run.start_time_ms) FROM imported_wifi_run AS run " +
+			"WHERE run.entry_identity = revision.identity " +
+			"AND run.entry_import_revision = revision.import_revision), revision.start_time_ms) " +
+			"AS newest_member_start_time_ms, " +
+			"COALESCE((SELECT MAX(run.identity) FROM imported_wifi_run AS run " +
+			"WHERE run.entry_identity = revision.identity " +
+			"AND run.entry_import_revision = revision.import_revision " +
+			"AND run.start_time_ms = (SELECT MAX(latest_run.start_time_ms) " +
+			"FROM imported_wifi_run AS latest_run " +
+			"WHERE latest_run.entry_identity = revision.identity " +
+			"AND latest_run.entry_import_revision = revision.import_revision)), revision.identity) " +
+			"AS newest_member_identity " +
 			"FROM imported_wifi_entry_revision AS revision " +
 			"WHERE revision.identity = :identity AND revision.import_revision = (" +
 			"SELECT MAX(latest.import_revision) FROM imported_wifi_entry_revision AS latest " +
@@ -512,6 +669,8 @@ data class ImportedWifiHistoryCandidate(
 	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
 	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
 	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+	@ColumnInfo(name = "newest_member_start_time_ms") val newestMemberStartTimeMs: Long,
+	@ColumnInfo(name = "newest_member_identity") val newestMemberIdentity: String,
 )
 
 data class ImportedWifiRunIdentityOwner(
@@ -519,6 +678,31 @@ data class ImportedWifiRunIdentityOwner(
 	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
 	@ColumnInfo(name = "deletion_scope_digest") val deletionScopeDigest: String,
 )
+
+data class ImportedWifiAuthorityOwner(
+	@ColumnInfo(name = "owner_kind") val ownerKind: String,
+	@ColumnInfo(name = "protected_identity") val protectedIdentity: String,
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String?,
+	@ColumnInfo(name = "run_identity") val runIdentity: String?,
+	@ColumnInfo(name = "deletion_scope_digest") val deletionScopeDigest: String?,
+	@ColumnInfo(name = "source_kind") val sourceKind: Int?,
+	val purpose: String?,
+	@ColumnInfo(name = "scope_kind") val scopeKind: String?,
+	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long?,
+	@ColumnInfo(name = "receipt_origin") val receiptOrigin: String?,
+	@ColumnInfo(name = "selection_identity") val selectionIdentity: String?,
+) {
+	companion object {
+		const val ENTRY = "ENTRY"
+		const val RUN = "RUN"
+		const val OBSERVATION = "OBSERVATION"
+		const val DELETION_SCOPE = "DELETION_SCOPE"
+		const val ENTRY_DELETION = "ENTRY_DELETION"
+		const val RUN_DELETION = "RUN_DELETION"
+		const val SOURCE_FENCE = "SOURCE_FENCE"
+		const val SELECTED_PROTECTED = "SELECTED_PROTECTED"
+	}
+}
 
 data class ImportedWifiObservationIdentityOwner(
 	val identity: String,

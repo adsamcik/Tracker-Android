@@ -156,6 +156,18 @@ internal class RoomReexportImportedCapturedWifi @Inject constructor(
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
+		} catch (blocked: WifiCapturedRetentionBlockedException) {
+			return@withContext ReexportImportedCapturedWifiResult.Unverifiable(
+				when (blocked.reason) {
+					WifiCapturedRetentionBlockedReason.MAINTENANCE_BOUND_EXCEEDED ->
+						ImportedWifiProductFailure.DEPENDENCY_OVERFLOW
+					else -> ImportedWifiProductFailure.ORIGIN_IDENTITY_CONFLICT
+				},
+			)
+		} catch (_: WifiCapturedMaintenanceLimitExceeded) {
+			return@withContext ReexportImportedCapturedWifiResult.Unverifiable(
+				ImportedWifiProductFailure.DEPENDENCY_OVERFLOW,
+			)
 		} catch (_: IllegalArgumentException) {
 			return@withContext ReexportImportedCapturedWifiResult.Unverifiable(
 				ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE,

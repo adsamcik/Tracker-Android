@@ -8,11 +8,14 @@ data class ImportedWifiProductCandidate(
 	val startTimeMs: Long,
 	val endTimeMs: Long,
 	val receivedAtMs: Long,
+	val newestMemberStartTimeMs: Long = startTimeMs,
+	val newestMemberIdentity: PortableWifiOpaqueIdentity = identity,
 ) {
 	init {
 		require(importRevision > 0L)
 		require(startTimeMs >= 0L && endTimeMs >= startTimeMs)
 		require(receivedAtMs >= 0L)
+		require(newestMemberStartTimeMs in startTimeMs..endTimeMs)
 	}
 
 	val selection: WifiImportedHistorySelection

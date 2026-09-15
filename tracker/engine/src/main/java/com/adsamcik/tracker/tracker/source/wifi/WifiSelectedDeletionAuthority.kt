@@ -18,6 +18,9 @@ internal data class WifiSelectedDeletionAuthority(
 	init {
 		require(protectedIdentities.isNotEmpty())
 		require(protectedIdentities.all { it.selectionIdentity == selectionIdentity })
+		require(protectedIdentities.map {
+			it.receiptOrigin
+		}.distinct().size == 1)
 		require(runMarkers.isNotEmpty())
 		require(runMarkers.map(WifiSelectedDeletionRunMarker::runIdentity).distinct().size ==
 			runMarkers.size)

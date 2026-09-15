@@ -1802,6 +1802,19 @@ class WifiWalQualificationAdapterTest {
 	@Test
 	fun `two database production export import read and latest reexport roundtrip is exact`() = runTest {
 		installPortableExportFixture()
+		assertTrue(database.sourceEventWalDao().countAll() > 0L)
+		assertTrue(database.wifiCapturedFactDao().revisionCount() > 0L)
+		val sourceRevisions = database.wifiCapturedFactDao().portableRevisionClosure(
+			LOGICAL_ID,
+			listOf(RUN_ID),
+			8,
+		)
+		for (revision in sourceRevisions) {
+			val wal = requireNotNull(database.sourceEventWalDao().get(revision.sourceEventId))
+			assertEquals(wal.admissionOrdinal, revision.sourceAdmissionOrdinal)
+			assertEquals(wal.integrityIdentity, revision.walIntegrityIdentity)
+			assertEquals(wal.payloadChecksum, revision.payloadChecksum)
+		}
 		val exported = mutableListOf<PortableCapturedWifiEntryV1>()
 		assertIs<ExportPortableCapturedWifiResult.Exported>(
 			portableExporter().export(ExportPortableCapturedWifiRequest(LOGICAL_ID)) {

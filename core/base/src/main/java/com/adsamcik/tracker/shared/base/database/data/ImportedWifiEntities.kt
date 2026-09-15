@@ -584,6 +584,7 @@ data class WifiSelectedDeletionReceiptEntity(
 				),
 			).flatMap { value ->
 				listOf(
+					value.receiptOrigin,
 					value.identityKind,
 					value.protectedIdentity,
 					value.ownerEntryIdentity,

@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiAuthorityOwner
 import com.adsamcik.tracker.shared.base.database.dao.WifiLocalObservationOwner
 import com.adsamcik.tracker.shared.base.database.dao.WifiLocalRunOwner
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiEntryRevisionEntity
@@ -242,77 +243,17 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 		state: SourceEvidenceState,
 	) {
 		val ownership = WifiPortableOpaqueOwnership(entry)
-		ownership.identityOwners.keys.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { values ->
-			val limit = Math.addExact(values.size, 1)
-			val entries = storedValue { dao.existingEntryIdentities(values, limit) }
-			val runs = storedValue { dao.existingRunIdentityOwners(values, limit) }
-			val observations = storedValue { dao.existingObservationIdentityOwners(values, limit) }
-			val scopes = storedValue { dao.existingRunScopeOwners(values, limit) }
-			val selectedDeletions = storedValue {
-				dao.selectedDeletionProtectedIdentityOwners(values, limit)
-			}
-			val tombstones = storedValue { dao.entryDeletions(values) }
-			val generations = storedValue {
-				dao.deletionGenerationsByRun(values) + dao.deletionGenerationsByScope(values) +
-					dao.deletionGenerationsByEntry(values, 1)
-			}
-			if (entries.size >= limit || runs.size >= limit || observations.size >= limit ||
-				scopes.size >= limit
-			) {
-				dependencyOverflow()
-			}
-			if (tombstones.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				generations.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				selectedDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch }
-			) storedCorrupt()
-			if (scopes.isNotEmpty() || selectedDeletions.isNotEmpty() ||
-				tombstones.isNotEmpty() || generations.isNotEmpty() ||
-				entries.any {
-					ownership.identityOwners[it]?.kind != PortableWifiIdentityKind.LOGICAL_ENTRY
-				} ||
-				runs.any { row ->
-					val owner = ownership.identityOwners[row.identity]
-					owner?.kind != PortableWifiIdentityKind.PHYSICAL_RUN ||
-						owner.entryIdentity != row.entryIdentity ||
-						owner.runIdentity != row.identity ||
-						owner.deletionScopeDigest != row.deletionScopeDigest
-				} ||
-				observations.any { row ->
-					val owner = ownership.identityOwners[row.identity]
-					owner?.kind != PortableWifiIdentityKind.OBSERVATION ||
-						owner.entryIdentity != row.entryIdentity ||
-						owner.runIdentity != row.runIdentity
+		ownership.allValues.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { values ->
+			val limit = Math.addExact(Math.multiplyExact(values.size, 16), 1)
+			val owners = storedValue { dao.authorityOwners(values, limit) }
+			if (owners.size >= limit) dependencyOverflow()
+			if (owners.any { owner ->
+					owner.collectedDataEpoch != state.collectedDataEpoch
 				}
-			) blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
-		}
-		ownership.scopeOwners.keys.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { values ->
-			val limit = Math.addExact(values.size, 1)
-			val entries = storedValue { dao.existingEntryIdentities(values, 1) }
-			val runs = storedValue { dao.existingRunIdentityOwners(values, 1) }
-			val observations = storedValue { dao.existingObservationIdentityOwners(values, 1) }
-			val scopes = storedValue { dao.existingRunScopeOwners(values, limit) }
-			val selectedDeletions = storedValue {
-				dao.selectedDeletionProtectedIdentityOwners(values, limit)
-			}
-			val tombstones = storedValue { dao.entryDeletions(values) }
-			val generations = storedValue {
-				dao.deletionGenerationsByRun(values) + dao.deletionGenerationsByScope(values) +
-					dao.deletionGenerationsByEntry(values, 1)
-			}
-			if (tombstones.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				generations.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				selectedDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch }
 			) storedCorrupt()
-			if (entries.isNotEmpty() || runs.isNotEmpty() || observations.isNotEmpty() ||
-				selectedDeletions.isNotEmpty() || tombstones.isNotEmpty() ||
-				generations.isNotEmpty() || scopes.size >= limit ||
-				scopes.any { row ->
-					val owner = ownership.scopeOwners[row.deletionScopeDigest]
-					owner?.kind != PortableWifiIdentityKind.PHYSICAL_RUN ||
-						owner.entryIdentity != row.entryIdentity ||
-						owner.runIdentity != row.runIdentity
-				}
-			) blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
+			if (owners.any { owner -> !owner.isCompatibleExistingOwner(ownership) }) {
+				blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
+			}
 		}
 	}
 
@@ -761,4 +702,29 @@ private fun ImportedWifiLineageAuthenticator.Reason.toImportReason() = when (thi
 		PortableCapturedWifiImportUnverifiableReason.OBSERVATION_OVERFLOW
 	ImportedWifiLineageAuthenticator.Reason.REVISION_OVERFLOW ->
 		PortableCapturedWifiImportUnverifiableReason.REVISION_OVERFLOW
+}
+
+private fun ImportedWifiAuthorityOwner.isCompatibleExistingOwner(
+	ownership: WifiPortableOpaqueOwnership,
+): Boolean = when (ownerKind) {
+	ImportedWifiAuthorityOwner.ENTRY -> ownership.identityOwners[protectedIdentity]?.let { owner ->
+		owner.kind == PortableWifiIdentityKind.LOGICAL_ENTRY &&
+			owner.entryIdentity == entryIdentity
+	} == true
+	ImportedWifiAuthorityOwner.RUN -> ownership.identityOwners[protectedIdentity]?.let { owner ->
+		owner.kind == PortableWifiIdentityKind.PHYSICAL_RUN &&
+			owner.entryIdentity == entryIdentity && owner.runIdentity == runIdentity &&
+			owner.deletionScopeDigest == deletionScopeDigest
+	} == true
+	ImportedWifiAuthorityOwner.OBSERVATION ->
+		ownership.identityOwners[protectedIdentity]?.let { owner ->
+			owner.kind == PortableWifiIdentityKind.OBSERVATION &&
+				owner.entryIdentity == entryIdentity && owner.runIdentity == runIdentity
+		} == true
+	ImportedWifiAuthorityOwner.DELETION_SCOPE ->
+		ownership.scopeOwners[protectedIdentity]?.let { owner ->
+			owner.entryIdentity == entryIdentity && owner.runIdentity == runIdentity &&
+				owner.deletionScopeDigest == deletionScopeDigest
+		} == true
+	else -> false
 }

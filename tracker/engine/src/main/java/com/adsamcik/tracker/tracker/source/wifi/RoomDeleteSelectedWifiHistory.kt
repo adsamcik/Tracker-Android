@@ -320,7 +320,11 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		if (segmentIds.size != runs.size || segmentIds.distinct().size != segmentIds.size) {
 			blocked(WifiHistoryDeletionBlockedReason.ORIGINAL_SCOPE_REBOUND)
 		}
-		val segments = database.trackingHistoryReadDao().segments(segmentIds)
+		val segments = database.wifiCapturedFactDao().rawHistorySegments(
+			listOf(logicalTrackingId),
+			runs.map(SourceServiceRunEntity::serviceRunId),
+			MAX_SELECTED_RUNS + 1,
+		)
 		if (segments.size != segmentIds.size || segments.any { segment ->
 				segment.logicalTrackingId != logicalTrackingId ||
 					runs.singleOrNull { it.serviceRunId == segment.serviceRunId }?.sessionSegmentId != segment.id
@@ -797,11 +801,15 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 		for (identities in authority.protectedIdentities.map { it.protectedIdentity }
 			.chunked(PROTECTED_QUERY_BATCH_SIZE)
 		) {
+			val ownerLimit = minOf(
+				limits.maximumProtectedIdentities + 1,
+				Math.addExact(Math.multiplyExact(identities.size, 16), 1),
+			)
 			val owners = dao.selectedDeletionProtectedIdentityOwners(
 				identities,
-				limits.maximumProtectedIdentities + 1,
+				ownerLimit,
 			)
-			if (owners.size > limits.maximumProtectedIdentities ||
+			if (owners.size >= ownerLimit ||
 				owners.any { owner ->
 					val expected = expectedByKey[owner.identityKind to owner.protectedIdentity]
 					owner.collectedDataEpoch != state.collectedDataEpoch || expected == null ||
@@ -815,9 +823,9 @@ internal class RoomDeleteSelectedWifiHistory internal constructor(
 			) originConflict()
 			val fences = dao.deletionFenceIdentityOwners(
 				identities,
-				limits.maximumProtectedIdentities + 1,
+				identities.size + 1,
 			)
-			if (fences.size > limits.maximumProtectedIdentities ||
+			if (fences.size > identities.size ||
 				fences.any { fence ->
 					fence.collectedDataEpoch != state.collectedDataEpoch ||
 						fence.scopeIdentityDigest !in authority.runMarkers.map {

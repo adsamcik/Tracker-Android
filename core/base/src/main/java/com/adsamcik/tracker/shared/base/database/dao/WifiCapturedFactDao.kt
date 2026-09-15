@@ -505,14 +505,13 @@ interface WifiCapturedFactDao {
 		  AND logical_bounds.logical_start_time_ms < :toExclusiveMs
 		  AND (
 		    :beforeStartTimeMs IS NULL OR
-		    logical_bounds.logical_start_time_ms < :beforeStartTimeMs OR
+		    latest_member.start_time_ms < :beforeStartTimeMs OR
 		    (
-		      logical_bounds.logical_start_time_ms = :beforeStartTimeMs
-		      AND logical_bounds.logical_tracking_id < COALESCE(:beforeLogicalTrackingId, '')
+		      latest_member.start_time_ms = :beforeStartTimeMs
+		      AND latest_member.id < COALESCE(:beforeSegmentId, 9223372036854775807)
 		    )
 		  )
-		ORDER BY logical_bounds.logical_start_time_ms DESC,
-		         logical_bounds.logical_tracking_id DESC
+		ORDER BY latest_member.start_time_ms DESC, latest_member.id DESC
 		LIMIT :limit
 		""",
 	)
@@ -523,8 +522,24 @@ interface WifiCapturedFactDao {
 		toExclusiveMs: Long,
 		limit: Int,
 		beforeStartTimeMs: Long?,
-		beforeLogicalTrackingId: String?,
+		beforeSegmentId: Long?,
 	): List<WifiLogicalRangeCandidate>
+
+	/**
+	 * Raw batched reverse membership for Wi-Fi history. Both claimant directions are included so a
+	 * segment cannot disappear by keeping the selected logical id while pointing at another run, or
+	 * by keeping a selected run id while claiming another logical entry.
+	 */
+	@Query(
+		"SELECT * FROM session_segment WHERE logical_tracking_id IN (:logicalTrackingIds) " +
+			"OR service_run_id IN (:serviceRunIds) " +
+			"ORDER BY logical_tracking_id, start_time_ms, id LIMIT :limit",
+	)
+	suspend fun rawHistorySegments(
+		logicalTrackingIds: List<String>,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<SessionSegment>
 
 	@Query(
 		"SELECT * FROM wifi_captured_fact_cursor WHERE writer_projection_id = :writerProjectionId " +

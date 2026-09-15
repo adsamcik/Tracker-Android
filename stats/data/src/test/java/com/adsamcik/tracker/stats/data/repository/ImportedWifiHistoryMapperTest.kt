@@ -77,6 +77,48 @@ class ImportedWifiHistoryMapperTest {
 	}
 
 	@Test
+	fun `visible empty run prevents deleted or ready fabrication`() {
+		val deletedRun = run("deleted-run", observation("deleted-observation", 900L))
+		val emptyRun = PortableWifiIntegrity.createRun(
+			identity = identity(PortableWifiIdentityKind.PHYSICAL_RUN, "empty-run"),
+			deletionScopeDigest = PortableWifiDeletionScopeDigest(
+				sha256("test-imported-wifi-scope:empty-run"),
+			),
+			startTimeMs = 2_000L,
+			endTimeMs = 3_000L,
+			storedZoneIds = listOf("Europe/Prague"),
+			captureCoverage = PortableWifiCaptureCoverage.WHOLE_RUN,
+			availability = PortableWifiRunAvailability.NO_RETAINED_OBSERVATION,
+			acquisitionCompleteness = PortableWifiAcquisitionCompleteness.COMPLETE,
+			hasUnresolvedProviderRange = false,
+			retentionLoss = false,
+			observations = emptyList(),
+		)
+		val entry = entry(listOf(deletedRun, emptyRun))
+		val noVisibleValues = readable(
+			entry,
+			deletedRuns = setOf(deletedRun.identity),
+			retained = emptySet(),
+		).toPublicWifiEntry()
+		noVisibleValues.state shouldBe WifiHistoryProductState.MISSING
+		noVisibleValues.causes shouldBe setOf(
+			WifiHistoryCause.DELETED,
+			WifiHistoryCause.NO_QUALIFIED_FACTS,
+		)
+
+		val retainedRun = run(
+			"retained-run",
+			observation("retained-observation", 3_100L),
+			start = 3_000L,
+			end = 4_000L,
+		)
+		val partiallyEmpty = entry(listOf(emptyRun, retainedRun))
+		val public = readable(partiallyEmpty).toPublicWifiEntry()
+		public.state shouldBe WifiHistoryProductState.PARTIAL
+		public.causes shouldBe setOf(WifiHistoryCause.NO_QUALIFIED_FACTS)
+	}
+
+	@Test
 	fun `entry deletion and stale epoch are distinct value-free states`() {
 		val entry = entry(listOf(run("run", observation("observation", 1_100L))))
 		val deleted = readable(
@@ -154,6 +196,66 @@ class ImportedWifiHistoryMapperTest {
 		failed.causes shouldBe setOf(WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT)
 	}
 
+	@Test
+	fun `origin composition orders and limits by newest physical member rather than entry start`() {
+		val importedOlderMember = entryFor(
+			"imported-older-member",
+			listOf(run("imported-old-run", observation("imported-old-observation", 50L), 50L, 60L)),
+		)
+		val importedNewerMember = entryFor(
+			"imported-newer-member",
+			listOf(
+				run("imported-new-first", observation("imported-new-first-observation", 10L), 0L, 20L),
+				run("imported-new-last", observation("imported-new-last-observation", 100L), 100L, 120L),
+			),
+		)
+		val importedWinner = WifiHistoryOriginComposer.compose(
+			live = emptyList(),
+			imported = listOf(readable(importedOlderMember), readable(importedNewerMember)),
+			localPortableByLogicalId = emptyMap(),
+			limit = 1,
+		).single()
+		importedWinner.importedSelection?.key?.value shouldBe importedNewerMember.identity.value
+
+		val localPublic = readable(importedNewerMember).toPublicWifiEntry().copy(
+			origin = WifiHistoryOrigin.LOCAL,
+			importedSelection = null,
+			localSelection = com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey(
+				identity(PortableWifiIdentityKind.LOGICAL_ENTRY, "local-recency").value,
+			),
+		)
+		val local = ComposedWifiEntry(
+			logicalTrackingId = "local-recency",
+			recencyStartTimeMs = 100L,
+			recencySegmentId = 9L,
+			physicalSegmentIds = listOf(8L, 9L),
+			entry = localPublic,
+		)
+		WifiHistoryOriginComposer.compose(
+			live = listOf(local),
+			imported = listOf(readable(importedOlderMember)),
+			localPortableByLogicalId = emptyMap(),
+			limit = 1,
+		).single().origin shouldBe WifiHistoryOrigin.LOCAL
+		val localOlder = local.copy(
+			logicalTrackingId = "local-older",
+			recencyStartTimeMs = 50L,
+			recencySegmentId = 7L,
+			physicalSegmentIds = listOf(7L),
+			entry = localPublic.copy(
+				localSelection = com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey(
+					identity(PortableWifiIdentityKind.LOGICAL_ENTRY, "local-older").value,
+				),
+			),
+		)
+		WifiHistoryOriginComposer.compose(
+			live = listOf(localOlder, local),
+			imported = emptyList(),
+			localPortableByLogicalId = emptyMap(),
+			limit = 1,
+		).single().localSelection shouldBe local.entry.localSelection
+	}
+
 	private fun readable(
 		entry: PortableCapturedWifiEntryV1,
 		entryDeleted: Boolean = false,
@@ -180,11 +282,24 @@ class ImportedWifiHistoryMapperTest {
 		startTimeMs = entry.startTimeMs,
 		endTimeMs = entry.endTimeMs,
 		receivedAtMs = 4_000L,
+		newestMemberStartTimeMs = entry.runs.maxOf { it.startTimeMs },
+		newestMemberIdentity = entry.runs.maxWith(
+			compareBy<com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiRunV1>(
+				{ it.startTimeMs },
+				{ it.identity.value },
+			),
+		).identity,
 	)
 
 	private fun entry(runs: List<com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiRunV1>) =
+		entryFor("entry", runs)
+
+	private fun entryFor(
+		seed: String,
+		runs: List<com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiRunV1>,
+	) =
 		PortableWifiIntegrity.createEntry(
-			identity = identity(PortableWifiIdentityKind.LOGICAL_ENTRY, "entry"),
+			identity = identity(PortableWifiIdentityKind.LOGICAL_ENTRY, seed),
 			sessionMode = PortableWifiSessionMode.MANUAL,
 			startTimeMs = runs.minOf { it.startTimeMs },
 			endTimeMs = runs.maxOf { it.endTimeMs },

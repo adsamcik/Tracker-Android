@@ -71,6 +71,8 @@ class WifiImportedHistoryRepositoryTest {
 				entry.startTimeMs,
 				entry.endTimeMs,
 				3_000L,
+				entry.runs.single().startTimeMs,
+				entry.runs.single().identity,
 			),
 			entry = entry,
 			entryDeleted = false,
@@ -130,7 +132,11 @@ class WifiImportedHistoryRepositoryTest {
 
 		recent shouldBe selected
 		lookedUp shouldBe selected
-		sourceRecent.entries.single() shouldBe WifiSourceRecentEntry.Imported(selected)
+		sourceRecent.entries.single() shouldBe WifiSourceRecentEntry.Imported(
+			selected,
+			evaluation.candidate.newestMemberStartTimeMs,
+			evaluation.candidate.newestMemberIdentity.value,
+		)
 		ranged.entries.single() shouldBe selected
 		selected.origin shouldBe WifiHistoryOrigin.IMPORTED
 		selected.state shouldBe WifiHistoryProductState.READY

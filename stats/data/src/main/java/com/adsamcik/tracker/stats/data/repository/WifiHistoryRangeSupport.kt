@@ -15,13 +15,13 @@ internal data class WifiHistoryRangeCursor(
 	val fromInclusiveMs: Long,
 	val toExclusiveMs: Long,
 	val localStartTimeMs: Long?,
-	val localLogicalTrackingId: String?,
+	val localSegmentId: Long?,
 	val importedStartTimeMs: Long?,
 	val importedIdentity: String?,
 ) {
 	init {
 		require(fromInclusiveMs >= 0L && toExclusiveMs > fromInclusiveMs)
-		require((localStartTimeMs == null) == (localLogicalTrackingId == null))
+		require((localStartTimeMs == null) == (localSegmentId == null))
 		require((importedStartTimeMs == null) == (importedIdentity == null))
 	}
 }
@@ -33,7 +33,7 @@ internal object WifiHistoryRangeCursorCodec {
 			cursor.fromInclusiveMs.toString(),
 			cursor.toExclusiveMs.toString(),
 			cursor.localStartTimeMs?.toString() ?: NULL,
-			cursor.localLogicalTrackingId?.let(::encodeText) ?: NULL,
+			cursor.localSegmentId?.toString() ?: NULL,
 			cursor.importedStartTimeMs?.toString() ?: NULL,
 			cursor.importedIdentity?.let(::encodeText) ?: NULL,
 		).joinToString(SEPARATOR)
@@ -64,7 +64,7 @@ internal object WifiHistoryRangeCursorCodec {
 				fromInclusiveMs = parts[1].toLong(),
 				toExclusiveMs = parts[2].toLong(),
 				localStartTimeMs = parts[3].takeUnless { it == NULL }?.toLong(),
-				localLogicalTrackingId = parts[4].takeUnless { it == NULL }?.let(::decodeText),
+				localSegmentId = parts[4].takeUnless { it == NULL }?.toLong(),
 				importedStartTimeMs = parts[5].takeUnless { it == NULL }?.toLong(),
 				importedIdentity = parts[6].takeUnless { it == NULL }?.let(::decodeText),
 			)

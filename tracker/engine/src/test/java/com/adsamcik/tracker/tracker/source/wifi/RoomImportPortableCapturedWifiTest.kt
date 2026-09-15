@@ -53,6 +53,8 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import java.io.File
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestCoroutineScheduler
@@ -71,10 +73,21 @@ import org.robolectric.annotation.Config
 @OptIn(ExperimentalCoroutinesApi::class)
 class RoomImportPortableCapturedWifiTest {
 	private lateinit var database: AppDatabase
+	private val ownershipQueries = CopyOnWriteArrayList<String>()
 
 	@Before
 	fun setUp() = runTest {
-		database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>())
+		database = Room.inMemoryDatabaseBuilder(
+			ApplicationProvider.getApplicationContext<Application>(),
+			AppDatabase::class.java,
+		).allowMainThreadQueries().setQueryCallback({ sql, _ ->
+			if ("SELECT DISTINCT 'ENTRY' AS owner_kind" in sql ||
+				"FROM logical_tracking_session" in sql ||
+				"FROM source_service_run" in sql && "COUNT(*)" in sql ||
+				"FROM wifi_captured_fact_cursor" in sql && "COUNT(*)" in sql ||
+				"FROM wifi_capture_deletion_generation" in sql && "COUNT(*)" in sql
+			) ownershipQueries += sql
+		}, Executor(Runnable::run)).build()
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
 	}
 
@@ -610,6 +623,42 @@ class RoomImportPortableCapturedWifiTest {
 	}
 
 	@Test
+	fun `four max-shape entries use one union per identity chunk and one local owner snapshot`() = runTest {
+		val importer = importer(testScheduler)
+		repeat(4) { entryIndex ->
+			val observations = (0 until WifiCapturedPortableFormatV1.MAX_OBSERVATIONS_PER_ENTRY).map {
+				observationIndex ->
+				observation("dense-$entryIndex-$observationIndex")
+			}
+			val entry = entryWithObservations(
+				observations,
+				entryLocalId = "dense-entry-$entryIndex",
+				runLocalId = "dense-run-$entryIndex",
+				deletionScope = PortableWifiDeletionScopeDigest(
+					sha256("dense-scope-$entryIndex"),
+				),
+			)
+			importer.importEntry(
+				request(entry, receipt("dense-job-$entryIndex", 100L + entryIndex)),
+			) shouldBe ImportPortableCapturedWifiResult.Applied(
+				1L,
+				1,
+				WifiCapturedPortableFormatV1.MAX_OBSERVATIONS_PER_ENTRY,
+			)
+		}
+		ownershipQueries.clear()
+
+		database.withTransaction { productEvaluator().selectRecentInTransaction(4) }
+
+		val authorityUnionQueries = ownershipQueries.count {
+			"SELECT DISTINCT 'ENTRY' AS owner_kind" in it
+		}
+		val localOwnerQueries = ownershipQueries.size - authorityUnionQueries
+		authorityUnionQueries shouldBe 65
+		(localOwnerQueries <= 8) shouldBe true
+	}
+
+	@Test
 	fun `existing plus new global rows and injected entry cap reject without mutation`() = runTest {
 		val importer = importer(testScheduler)
 		importer.importEntry(request()) shouldBe ImportPortableCapturedWifiResult.Applied(1L, 1, 1)
@@ -783,8 +832,8 @@ class RoomImportPortableCapturedWifiTest {
 					0L,
 					3_000L,
 					1,
-					firstPage.evaluations.single().candidate.startTimeMs,
-					firstPage.evaluations.single().candidate.identity,
+					firstPage.evaluations.single().candidate.newestMemberStartTimeMs,
+					firstPage.evaluations.single().candidate.newestMemberIdentity,
 				),
 			)
 		}
@@ -1060,6 +1109,75 @@ class RoomImportPortableCapturedWifiTest {
 				),
 			) { throw IllegalStateException("imported sink failed") }
 		}
+	}
+
+	@Test
+	fun `imported reexport maps local collision authority and budget failures as nonretryable`() = runTest {
+		val imported = entry()
+		val evaluation = ImportedWifiProductEvaluation.Readable(
+			candidate = com.adsamcik.tracker.stats.api.repository.ImportedWifiProductCandidate(
+				imported.identity,
+				1L,
+				imported.contentChecksum,
+				imported.startTimeMs,
+				imported.endTimeMs,
+				30L,
+				imported.runs.single().startTimeMs,
+				imported.runs.single().identity,
+			),
+			entry = imported,
+			entryDeleted = false,
+			deletedRunIdentities = emptySet(),
+			retainedObservationIdentities = imported.runs.flatMapTo(linkedSetOf()) { run ->
+				run.observations.map { it.identity }
+			},
+			retentionLimited = false,
+			collidingLocalLogicalTrackingId = "local-collision",
+		)
+		val evaluator = object : com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluator {
+			override suspend fun selectIdentityInTransaction(
+				selection: WifiImportedHistorySelectionKey,
+			): ImportedWifiProductEvaluation = evaluation
+
+			override suspend fun selectRecentInTransaction(
+				limit: Int,
+			): List<ImportedWifiProductEvaluation> = listOf(evaluation)
+
+			override suspend fun selectRangeInTransaction(
+				request: ImportedWifiProductRangeRequest,
+			) = com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangePage(
+				listOf(evaluation),
+				false,
+			)
+		}
+		suspend fun result(error: RuntimeException): ReexportImportedCapturedWifiResult =
+			RoomReexportImportedCapturedWifi(
+				database,
+				evaluator,
+				object : ReadLocalPortableCapturedWifi {
+					override suspend fun readInTransaction(
+						request: com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiRequest,
+					): ReadLocalPortableCapturedWifiResult = throw error
+				},
+				com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryReader {
+					com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryResult.NotDeleted
+				},
+				UnconfinedTestDispatcher(testScheduler),
+			).reexport(
+				ReexportImportedCapturedWifiRequest(importedSelection(imported), EPOCH),
+			) {}
+
+		result(WifiCapturedMaintenanceLimitExceeded()) shouldBe
+			ReexportImportedCapturedWifiResult.Unverifiable(
+				ImportedWifiProductFailure.DEPENDENCY_OVERFLOW,
+			)
+		result(
+			WifiCapturedRetentionBlockedException(
+				WifiCapturedRetentionBlockedReason.DESTINATION_OWNER_CHANGED,
+			),
+		) shouldBe ReexportImportedCapturedWifiResult.Unverifiable(
+			ImportedWifiProductFailure.ORIGIN_IDENTITY_CONFLICT,
+		)
 	}
 
 	@Test

@@ -137,6 +137,18 @@ class ImportedWifiDaoTest {
 		).toSet() shouldBe
 			deletionProtected.toSet()
 		dao.selectedDeletionProtectedIdentityOwners(listOf("9".repeat(64)), 4).size shouldBe 1
+		dao.authorityOwners(
+			listOf(ENTRY, RUN, OBSERVATION, SCOPE, "8".repeat(64), "9".repeat(64), "a".repeat(64)),
+			32,
+		).map { it.ownerKind }.toSet() shouldBe setOf(
+			ImportedWifiAuthorityOwner.ENTRY,
+			ImportedWifiAuthorityOwner.RUN,
+			ImportedWifiAuthorityOwner.OBSERVATION,
+			ImportedWifiAuthorityOwner.DELETION_SCOPE,
+			ImportedWifiAuthorityOwner.ENTRY_DELETION,
+			ImportedWifiAuthorityOwner.RUN_DELETION,
+			ImportedWifiAuthorityOwner.SELECTED_PROTECTED,
+		)
 		database.sourceSessionDao().session(ENTRY) shouldBe null
 		database.sourceSessionDao().serviceRun(RUN) shouldBe null
 		database.wifiCapturedFactDao().revisionCount() shouldBe 0L
@@ -150,6 +162,15 @@ class ImportedWifiDaoTest {
 			dao.insertRunZone(zone())
 			dao.insertObservation(observation())
 			dao.insertReceipt(receipt())
+			dao.insertRun(run().copy(
+				identity = "e".repeat(64),
+				deletionScopeDigest = "f".repeat(64),
+				contentChecksum = "a".repeat(64),
+				startTimeMs = 1_100L,
+				captureCoverage = "NOT_CAPTURED",
+				availability = "NOT_CAPTURED",
+				acquisitionCompleteness = "UNKNOWN",
+			))
 			val secondIdentity = "b".repeat(64)
 			val second = entry().copy(
 				identity = secondIdentity,
@@ -173,21 +194,21 @@ class ImportedWifiDaoTest {
 
 			val page = dao.recentHistoryCandidatePage(2, null, null)
 			page.map { it.identity to it.importRevision } shouldBe
-				listOf(secondIdentity to 2L, ENTRY to 1L)
+				listOf(ENTRY to 1L, secondIdentity to 2L)
 			dao.latestHistoryCandidate(secondIdentity)?.importRevision shouldBe 2L
 			dao.recentHistoryCandidatePage(
 				2,
-				page.first().startTimeMs,
-				page.first().identity,
-			).map { it.identity } shouldBe listOf(ENTRY)
+				page.first().newestMemberStartTimeMs,
+				page.first().newestMemberIdentity,
+			).map { it.identity } shouldBe listOf(secondIdentity)
 			dao.historyCandidateRangePage(900L, 1_300L, 3, null, null)
 				.map { it.identity to it.importRevision } shouldBe
-				listOf(secondIdentity to 2L, ENTRY to 1L)
+				listOf(ENTRY to 1L, secondIdentity to 2L)
 			dao.historyCandidateRangePage(1_300L, 1_400L, 3, null, null)
 				.map { it.identity } shouldBe listOf(secondIdentity)
 			dao.entryRevisionsForHistory(listOf(ENTRY, secondIdentity), 4).size shouldBe 3
 			dao.receiptsForHistory(listOf(ENTRY, secondIdentity), 2) shouldBe listOf(receipt())
-			dao.runsForHistory(listOf(ENTRY, secondIdentity), 2) shouldBe listOf(run())
+			dao.runsForHistory(listOf(ENTRY, secondIdentity), 3).size shouldBe 2
 			dao.runZonesForHistory(listOf(ENTRY, secondIdentity), 2) shouldBe listOf(zone())
 			dao.observationsForHistory(listOf(ENTRY, secondIdentity), 2) shouldBe listOf(observation())
 		}

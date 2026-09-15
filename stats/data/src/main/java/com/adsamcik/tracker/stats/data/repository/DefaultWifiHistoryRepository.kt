@@ -223,6 +223,9 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			?: return WifiHistoryQuery.Failed(WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
 		val query = sessionInTransaction(seed.id)
 		val found = query as? WifiHistoryQuery.Found ?: return query
+		found.entry.causes.firstOrNull { it.isIntegrityFailure }?.let {
+			return WifiHistoryQuery.Failed(it)
+		}
 		return if (found.entry.localSelection == selection) {
 			found
 		} else {
@@ -289,6 +292,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 		return try {
 			val composed = WifiHistoryOriginComposer.compose(live.entries, imported, localPortable, limit)
 			val localByEntry = live.entries.associateBy(ComposedWifiEntry::entry)
+			val importedBySelection = imported.associateBy { it.candidate.selection }
 			WifiSourceRecentPage.Available(
 				composed.map { entry ->
 					if (entry.origin == WifiHistoryOrigin.LOCAL) {
@@ -296,7 +300,16 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 							localByEntry[entry] ?: throw ImportedWifiHistoryCompositionFailure(),
 						)
 					} else {
-						WifiSourceRecentEntry.Imported(entry)
+						val evaluation = entry.importedSelection?.let(importedBySelection::get)
+							?: imported.singleOrNull { candidate ->
+								candidate.candidate.startTimeMs == entry.startTime.raw &&
+									candidate.candidate.endTimeMs == entry.endTime.raw
+							} ?: throw ImportedWifiHistoryCompositionFailure()
+						WifiSourceRecentEntry.Imported(
+							entry,
+							evaluation.candidate.newestMemberStartTimeMs,
+							evaluation.candidate.newestMemberIdentity.value,
+						)
 					}
 				},
 			)
@@ -321,6 +334,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			return WifiComposedPage.Failed(WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
 		}
 		val expansion = expandMembership(seeds)
+		expansion.failures.values.firstOrNull()?.let { return WifiComposedPage.Failed(it) }
 		val snapshot = loadSnapshot(expansion)
 		if (snapshot.overflow) {
 			return WifiComposedPage.Failed(WifiHistoryCause.READ_BUDGET_EXCEEDED)
@@ -373,6 +387,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 				return WifiComposedPage.Failed(WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
 			}
 			val expansion = expandMembership(seeds)
+			expansion.failures.values.firstOrNull()?.let { return WifiComposedPage.Failed(it) }
 			val snapshot = loadSnapshot(expansion)
 			if (snapshot.overflow) {
 				return WifiComposedPage.Failed(WifiHistoryCause.READ_BUDGET_EXCEEDED)
@@ -436,7 +451,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			toExclusiveMs = request.toExclusive.raw,
 			limit = RANGE_SOURCE_CANDIDATE_LIMIT + 1,
 			beforeStartTimeMs = cursor.localStartTimeMs,
-			beforeLogicalTrackingId = cursor.localLogicalTrackingId,
+			beforeSegmentId = cursor.localSegmentId,
 		)
 		if (localRows.size > RANGE_SOURCE_CANDIDATE_LIMIT + 1) {
 			return WifiHistoryRangePage.Failed(WifiHistoryCause.READ_BUDGET_EXCEEDED)
@@ -446,6 +461,9 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			emptyMap()
 		} else {
 			val expansion = expandMembership(selectedLocalRows.map { it.segment })
+			expansion.failures.values.firstOrNull()?.let {
+				return WifiHistoryRangePage.Failed(it)
+			}
 			val snapshot = loadSnapshot(expansion)
 			if (snapshot.overflow) {
 				return WifiHistoryRangePage.Failed(WifiHistoryCause.READ_BUDGET_EXCEEDED)
@@ -461,7 +479,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			if (composed.entry.startTime.raw != row.logicalStartTimeMs ||
 				composed.entry.endTime.raw != row.logicalEndTimeMs
 			) return WifiHistoryRangePage.Failed(WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
-			WifiRangeWorkItem.Local(row.logicalStartTimeMs, logicalId, composed)
+			WifiRangeWorkItem.Local(composed.recencyStartTimeMs, logicalId, composed)
 		}
 
 		val importedPage = try {
@@ -513,8 +531,8 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 				}
 			}
 			WifiRangeWorkItem.Imported(
-				startTimeMs = evaluation.candidate.startTimeMs,
-				identity = evaluation.candidate.identity.value,
+				startTimeMs = evaluation.candidate.newestMemberStartTimeMs,
+				identity = evaluation.candidate.newestMemberIdentity.value,
 				entry = publicEntry,
 			)
 		}
@@ -522,7 +540,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 		val work = (localItems + importedItems).sortedWith(WIFI_RANGE_WORK_ORDER)
 		val output = mutableListOf<WifiHistoryEntry>()
 		var localStart = cursor.localStartTimeMs
-		var localIdentity = cursor.localLogicalTrackingId
+		var localSegmentId = cursor.localSegmentId
 		var importedStart = cursor.importedStartTimeMs
 		var importedIdentity = cursor.importedIdentity
 		var consumed = 0
@@ -531,7 +549,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			when (item) {
 				is WifiRangeWorkItem.Local -> {
 					localStart = item.startTimeMs
-					localIdentity = item.logicalTrackingId
+					localSegmentId = item.composed.recencySegmentId
 					output += item.composed.entry
 				}
 				is WifiRangeWorkItem.Imported -> {
@@ -552,7 +570,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 					fromInclusiveMs = request.fromInclusive.raw,
 					toExclusiveMs = request.toExclusive.raw,
 					localStartTimeMs = localStart,
-					localLogicalTrackingId = localIdentity,
+					localSegmentId = localSegmentId,
 					importedStartTimeMs = importedStart,
 					importedIdentity = importedIdentity,
 				),
@@ -583,7 +601,11 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			if (candidates.isEmpty()) break
 			scanned += candidates.size
 			val seeds = candidates.map { it.segment }
-			val snapshot = loadSnapshot(expandMembership(seeds))
+			val expansion = expandMembership(seeds)
+			expansion.failures.values.firstOrNull()?.let {
+				return LiveWifiHistoryPage(WifiHistoryPage.Failed(it), emptyList())
+			}
+			val snapshot = loadSnapshot(expansion)
 			if (snapshot.overflow) {
 				return LiveWifiHistoryPage(
 					WifiHistoryPage.Failed(WifiHistoryCause.READ_BUDGET_EXCEEDED),
@@ -640,12 +662,32 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			if (page.size < pageLimit) break
 		}
 		currentCoroutineContext().ensureActive()
-		val segmentIds = runs.mapNotNull(SourceServiceRunEntity::sessionSegmentId).distinct()
-		val loaded = if (segmentIds.isEmpty()) emptyList() else
-			database.trackingHistoryReadDao().segments(segmentIds)
-		val segments = (loaded + seeds).distinctBy(SessionSegment::id)
+		val runIds = runs.map(SourceServiceRunEntity::serviceRunId)
+		val rawSegments = database.wifiCapturedFactDao().rawHistorySegments(
+			logicalTrackingIds = logicalIds,
+			serviceRunIds = runIds,
+			limit = MAX_LOGICAL_MEMBERS + 1,
+		)
+		if (rawSegments.size > MAX_LOGICAL_MEMBERS) {
+			return WifiMembershipExpansion(
+				rawSegments.take(MAX_LOGICAL_MEMBERS),
+				logicalIds.associateWith { WifiHistoryCause.READ_BUDGET_EXCEEDED },
+				overflow = true,
+			)
+		}
+		val segments = rawSegments.sortedWith(compareBy(
+			SessionSegment::logicalTrackingId,
+			SessionSegment::startTimeMs,
+			SessionSegment::id,
+		))
 		val byId = segments.associateBy(SessionSegment::id)
+		val runById = runs.associateBy(SourceServiceRunEntity::serviceRunId)
 		val failures = linkedMapOf<String, WifiHistoryCause>()
+		if (segments.size != runs.size || byId.size != segments.size ||
+			runById.size != runs.size
+		) {
+			logicalIds.forEach { failures[it] = WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID }
+		}
 		logicalIds.forEach { logical ->
 			if (runs.none { it.logicalTrackingId == logical }) {
 				failures[logical] = WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID
@@ -657,9 +699,24 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 				segment.serviceRunId != run.serviceRunId
 			) failures[run.logicalTrackingId] = WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID
 		}
+		segments.forEach { segment ->
+			val claimedLogical = segment.logicalTrackingId
+			val claimedRun = segment.serviceRunId?.let(runById::get)
+			if (claimedLogical !in logicalIds || claimedRun == null ||
+				claimedRun.logicalTrackingId != claimedLogical ||
+				claimedRun.sessionSegmentId != segment.id
+			) {
+				claimedLogical?.takeIf { it in logicalIds }?.let {
+					failures[it] = WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID
+				}
+				claimedRun?.logicalTrackingId?.takeIf { it in logicalIds }?.let {
+					failures[it] = WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID
+				}
+			}
+		}
 		seeds.forEach { seed ->
 			val logical = seed.logicalTrackingId ?: return@forEach
-			val run = runs.singleOrNull { it.serviceRunId == seed.serviceRunId }
+			val run = seed.serviceRunId?.let(runById::get)
 			if (run == null || run.logicalTrackingId != logical || run.sessionSegmentId != seed.id) {
 				failures[logical] = WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID
 			}
