@@ -41,7 +41,6 @@ class PortableActivityFileImportTest {
 					ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
 				}
 			},
-			currentTimeMs = { 9_000L },
 		)
 		val envelope = activityEnvelope(
 			activityEntry("first", 1_000L),
@@ -51,16 +50,24 @@ class PortableActivityFileImportTest {
 		val result = importer.import(
 			context = mockk<Context>(relaxed = true),
 			database = database(epoch = 7L),
-			stream = stream(encode(envelope), "activity.trackeractivity", "receipt-a"),
+			stream = stream(
+				encode(envelope),
+				"activity.trackeractivity",
+				"receipt-a",
+				jobId = "content-job",
+				receivedAtMs = 9_000L,
+			),
 		)
 
 		result.successCount shouldBe 2
 		requests shouldHaveSize 2
 		requests.all { it.expectedCollectedDataEpoch == 7L } shouldBe true
-		requests.map { it.receipt.entryKey } shouldBe envelope.entries.mapIndexed { index, entry ->
-			"$index:${entry.identity.value}"
-		}
-		requests.map { it.receipt.jobId }.distinct().size shouldBe 1
+		requests.map { it.receipt.entryKey }.distinct().size shouldBe 2
+		requests.all { it.receipt.entryKey.length == 64 } shouldBe true
+		requests.map { it.receipt.jobId }.toSet() shouldBe setOf("content-job")
+		requests.map { it.receipt.sourceName }.toSet() shouldBe
+			setOf("activity.trackeractivity")
+		requests.map { it.receipt.receivedAtMs }.toSet() shouldBe setOf(9_000L)
 		importer.supportedExtensions shouldBe listOf(PortableActivityFileImport.EXTENSION)
 		importer.transactionMode shouldBe ImportTransactionMode.IMPORTER_MANAGED
 	}
@@ -107,20 +114,48 @@ class PortableActivityFileImportTest {
 				ImportPortableCapturedActivityResult.Duplicate(1L)
 			}
 		}
-		val importer = PortableActivityFileImport({ source }, currentTimeMs = { 10_000L })
+		val importer = PortableActivityFileImport { source }
 		val bytes = encode(activityEnvelope(activityEntry()))
 		val database = database(epoch = 2L)
 
 		importer.import(
 			mockk(relaxed = true),
 			database,
-			stream(bytes, "first.trackeractivity", "same-receipt"),
+			stream(
+				bytes,
+				"first.trackeractivity",
+				"same-receipt",
+				jobId = "same-job",
+				receivedAtMs = 10_000L,
+			),
 		).successCount shouldBe 1
 		importer.import(
 			mockk(relaxed = true),
 			database,
-			stream(bytes, "renamed.trackeractivity", "same-receipt"),
+			stream(
+				bytes,
+				"renamed.trackeractivity",
+				"same-receipt",
+				jobId = "same-job",
+				receivedAtMs = 10_000L,
+			),
 		).failedCount shouldBe 1
+	}
+
+	@Test
+	fun `missing durable receipt fails before decode or source import`() = runTest {
+		var providerCalls = 0
+		val importer = PortableActivityFileImport {
+			providerCalls++
+			fakeImporter { ImportPortableCapturedActivityResult.Duplicate(1L) }
+		}
+
+		importer.import(
+			mockk(relaxed = true),
+			database(epoch = 1L),
+			unboundStream("{not-json".encodeToByteArray(), "activity.trackeractivity", "entry"),
+		).failedCount shouldBe 1
+		providerCalls shouldBe 0
 	}
 
 	@Test
@@ -183,11 +218,23 @@ class PortableActivityFileImportTest {
 		): ImportPortableCapturedActivityResult = block(request)
 	}
 
-	private fun stream(bytes: ByteArray, name: String, receipt: String) = FileImportStream(
-		fileName = name,
-		receiptKey = receipt,
-		streamProvider = { ByteArrayInputStream(bytes) },
-	)
+	private fun stream(
+		bytes: ByteArray,
+		name: String,
+		receipt: String,
+		jobId: String = "job",
+		receivedAtMs: Long = 100L,
+	) = unboundStream(bytes, name, receipt).withImportReceipt(jobId, receivedAtMs)
+
+	private fun unboundStream(
+		bytes: ByteArray,
+		name: String,
+		receipt: String,
+	) = FileImportStream(
+			fileName = name,
+			receiptKey = receipt,
+			streamProvider = { ByteArrayInputStream(bytes) },
+		)
 
 	private suspend fun encode(
 		envelope: com.adsamcik.tracker.shared.base.database.PortableActivityEnvelopeV1,

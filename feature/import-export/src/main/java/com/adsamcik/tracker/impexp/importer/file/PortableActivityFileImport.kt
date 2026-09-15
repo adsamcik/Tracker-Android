@@ -4,7 +4,6 @@ import android.content.Context
 import android.database.sqlite.SQLiteException
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
-import com.adsamcik.tracker.impexp.portable.PortableActivityJsonException
 import com.adsamcik.tracker.impexp.portable.PortableActivityJsonV1Codec
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedPortableFormatV1
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -41,7 +40,6 @@ internal class PortableActivityFileImport(
 			PortableActivityImportEntryPoint::class.java,
 		).importPortableCapturedActivity()
 	},
-	private val currentTimeMs: () -> Long = System::currentTimeMillis,
 ) : FileImport {
 	override val supportedExtensions: Collection<String> = listOf(EXTENSION)
 	override val transactionMode: ImportTransactionMode = ImportTransactionMode.IMPORTER_MANAGED
@@ -51,6 +49,10 @@ internal class PortableActivityFileImport(
 		database: AppDatabase,
 		stream: FileImportStream,
 	): ImportResult {
+		val fileReceipt = stream.importReceipt ?: return ImportResult(
+			failedCount = 1,
+			errors = listOf("Portable Activity import is missing durable file-job provenance."),
+		)
 		val envelope = PortableActivityJsonV1Codec().decode(stream)
 		val state = try {
 			database.sourceEvidenceStateDao().get()
@@ -64,27 +66,21 @@ internal class PortableActivityFileImport(
 			failedCount = envelope.entries.size,
 			errors = listOf("Portable Activity source evidence is unavailable."),
 		)
-		val receivedAtMs = currentTimeMs()
-		if (receivedAtMs < 0L) {
-			throw PortableActivityJsonException("Portable Activity receipt time is invalid")
-		}
-		val sourceName = stream.fileName
-		if (sourceName.isBlank() ||
-			sourceName.length > ActivityCapturedPortableFormatV1.MAX_IMPORT_RECEIPT_FIELD_LENGTH
-		) throw PortableActivityJsonException("Portable Activity source name is invalid")
-		val jobId = receiptJobId(stream.receiptKey, envelope.contentChecksum.value, receivedAtMs)
 		val importer = importerProvider(context)
 		var aggregate = ImportResult.EMPTY
-		envelope.entries.forEachIndexed { index, entry ->
+		envelope.entries.forEach { entry ->
 			try {
 				aggregate += importer.importEntry(
 					ImportPortableCapturedActivityRequest(
 						entry = entry,
 						receipt = PortableActivityImportReceipt(
-							jobId = jobId,
-							entryKey = "$index:${entry.identity.value}",
-							sourceName = sourceName,
-							receivedAtMs = receivedAtMs,
+							jobId = fileReceipt.jobId,
+							entryKey = subordinateEntryKey(
+								fileReceipt.entryKey,
+								entry.identity.value,
+							),
+							sourceName = fileReceipt.sourceName,
+							receivedAtMs = fileReceipt.receivedAtMs,
 						),
 						expectedCollectedDataEpoch = state.collectedDataEpoch,
 					),
@@ -125,27 +121,19 @@ internal class PortableActivityFileImport(
 		const val EXTENSION = ActivityCapturedPortableFormatV1.FILE_EXTENSION
 		const val MAX_FILE_BYTES = ActivityCapturedPortableFormatV1.MAX_FILE_BYTES
 
-		private fun receiptJobId(
-			receiptKey: String,
-			envelopeChecksum: String,
-			receivedAtMs: Long,
+		private fun subordinateEntryKey(
+			fileEntryKey: String,
+			sourceIdentity: String,
 		): String {
-			if (receiptKey.isBlank()) {
-				throw PortableActivityJsonException("Portable Activity receipt identity is missing")
-			}
-			val canonical = listOf(
-				RECEIPT_DOMAIN,
-				receiptKey,
-				envelopeChecksum,
-				receivedAtMs.toString(),
-			)
+			val canonical = listOf(SUBORDINATE_RECEIPT_DOMAIN, fileEntryKey, sourceIdentity)
 				.joinToString(separator = "") { "${it.length}:$it" }
 			return MessageDigest.getInstance("SHA-256")
 				.digest(canonical.toByteArray(Charsets.UTF_8))
 				.joinToString(separator = "") { byte -> "%02x".format(byte) }
 		}
 
-		private const val RECEIPT_DOMAIN = "tracker-portable-activity-file-receipt-v1"
+		private const val SUBORDINATE_RECEIPT_DOMAIN =
+			"tracker-portable-activity-subordinate-entry-receipt-v1"
 	}
 }
 
