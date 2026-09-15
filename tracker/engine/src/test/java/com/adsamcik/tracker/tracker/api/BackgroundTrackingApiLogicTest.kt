@@ -30,6 +30,28 @@ class BackgroundTrackingApiLogicTest {
 	}
 
 	@Test
+	fun `unapproved retention policy contains automatic control despite retained consent intent`() {
+		effectiveAutomaticControlEligibility(
+			controlConsentEligible = true,
+			availability = AutomaticTrackingOperationalAvailability.Unavailable(
+				AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+			),
+		) shouldBe false
+	}
+
+	@Test
+	fun `approved control policy still requires independent consent`() {
+		effectiveAutomaticControlEligibility(
+			controlConsentEligible = false,
+			availability = AutomaticTrackingOperationalAvailability.Ready,
+		) shouldBe false
+		effectiveAutomaticControlEligibility(
+			controlConsentEligible = true,
+			availability = AutomaticTrackingOperationalAvailability.Ready,
+		) shouldBe true
+	}
+
+	@Test
 	fun `automatic control recovery accepts applied and only terminally degraded registration`() {
 		automaticControlRecoveryResult(
 			activityRegistrationResult(ActivityRegistrationStatus.APPLIED),
