@@ -7,7 +7,6 @@ import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
-import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryUnit
@@ -202,6 +201,119 @@ class WifiSourceRuntime @Inject internal constructor(
 	}
 
 	/**
+	 * Shared-controller authorization refresh. A direct-attempt plan may downgrade to passive
+	 * callbacks without unregistering the receiver; the retained generation still names the same
+	 * physical callback handle while the actor cancels all direct-attempt work.
+	 */
+	internal suspend fun refreshShared(
+		plan: WifiPlan,
+		sink: SourceEventSink,
+		claim: SourceRuntimeClaim? = null,
+	): SourceApplyResult? = lifecycleMutex.withLock {
+		refreshCompatibleLocked(claim, plan, sink, allowPassiveDowngrade = true)
+	}
+
+	/** Drains the retired session prefix while an independently authorized ambient join remains. */
+	internal suspend fun sharedSessionCutoff(cutoff: SessionCutoff): SourceStopAck =
+		lifecycleMutex.withLock {
+			val activeRegistration = registration ?: return@withLock unavailableAck(cutoff)
+			val activeQueue = queue
+			val activeActor = actor
+			if (activeQueue == null || activeActor == null || !activeActor.isActive) {
+				return@withLock SourceStopAck(
+					source = source,
+					sourceInstanceId = SourceInstanceId(activeRegistration.state.sourceInstanceId),
+					registrationGeneration = activeRegistration.state.registrationGeneration,
+					appliedRevision = currentPlan?.revision,
+					callbackEntryBarrierSequence = callbackSequence,
+					lastDurablyAdmittedSequence = null,
+					lastAdmissionOrdinal = null,
+					failedAdmissionCount = 0L,
+					unresolvedSequenceStart = null,
+					unresolvedSequenceEndInclusive = null,
+					registrationRemovalOutcome = RegistrationRemovalOutcome.NOT_REGISTERED,
+					providerFlushOutcome = ProviderFlushOutcome.NOT_REQUESTED,
+					providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+					appDrainComplete = false,
+					status = SourceStopStatus.TIMED_OUT,
+				)
+			}
+			val completion = CompletableDeferred<RuntimeAdmissionSnapshot>()
+			val barrier = synchronized(callbackLock) {
+				if (!accepting || registration !== activeRegistration || queue !== activeQueue) {
+					return@synchronized null
+				}
+				accepting = false
+				callbackSequence
+			}
+			if (barrier == null) {
+				return@withLock SourceStopAck(
+					source = source,
+					sourceInstanceId = SourceInstanceId(activeRegistration.state.sourceInstanceId),
+					registrationGeneration = activeRegistration.state.registrationGeneration,
+					appliedRevision = currentPlan?.revision,
+					callbackEntryBarrierSequence = callbackSequence,
+					lastDurablyAdmittedSequence = null,
+					lastAdmissionOrdinal = null,
+					failedAdmissionCount = 0L,
+					unresolvedSequenceStart = null,
+					unresolvedSequenceEndInclusive = null,
+					registrationRemovalOutcome = RegistrationRemovalOutcome.NOT_REGISTERED,
+					providerFlushOutcome = ProviderFlushOutcome.NOT_REQUESTED,
+					providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+					appDrainComplete = false,
+					status = SourceStopStatus.TIMED_OUT,
+				)
+			}
+			try {
+				activeQueue.submit(WifiRuntimeInput.SharedCutoff(completion))
+			} finally {
+				synchronized(callbackLock) {
+					if (registration === activeRegistration && queue === activeQueue &&
+						activeActor.isActive && cutoffElapsedNanos == null &&
+						retirementIntent == null
+					) {
+						accepting = true
+					}
+				}
+			}
+			val remainingMs =
+				((cutoff.deadlineElapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos()) /
+					NANOS_PER_MILLISECOND).coerceAtLeast(1L)
+			val admission = withTimeoutOrNull(remainingMs) { completion.await() }
+			if (admission == null) {
+				val firstUnresolved = processedCallbackSequence.value + 1L
+				if (firstUnresolved <= barrier) {
+					metrics.recordFailure(
+						firstUnresolved,
+						barrier,
+						RuntimeGapClassification.DRAIN_TIMED_OUT,
+					)
+				}
+			}
+			val settled = admission ?: metrics.snapshot()
+			SourceStopAck(
+				source = source,
+				sourceInstanceId = SourceInstanceId(activeRegistration.state.sourceInstanceId),
+				registrationGeneration = activeRegistration.state.registrationGeneration,
+				appliedRevision = currentPlan?.revision,
+				callbackEntryBarrierSequence = barrier,
+				lastDurablyAdmittedSequence = settled.lastDurablyAdmittedSequence
+					?.takeIf { it <= barrier },
+				lastAdmissionOrdinal = settled.lastAdmissionOrdinal
+					.takeIf { settled.lastDurablyAdmittedSequence?.let { it <= barrier } == true },
+				failedAdmissionCount = settled.failedAdmissionCount,
+				unresolvedSequenceStart = settled.unresolvedSequenceStart,
+				unresolvedSequenceEndInclusive = settled.unresolvedSequenceEndInclusive,
+				registrationRemovalOutcome = RegistrationRemovalOutcome.NOT_REGISTERED,
+				providerFlushOutcome = ProviderFlushOutcome.NOT_SUPPORTED,
+				providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+				appDrainComplete = admission != null,
+				status = if (admission != null) SourceStopStatus.COMPLETE else SourceStopStatus.TIMED_OUT,
+			)
+		}
+
+	/**
 	 * Closes Wi-Fi callback entry, drains the exact FIFO prefix, and publishes its durable session
 	 * capture barrier without stopping a receiver still justified by CONTROL or AMBIENT_PRODUCT.
 	 */
@@ -379,6 +491,7 @@ class WifiSourceRuntime @Inject internal constructor(
 		claim: SourceRuntimeClaim?,
 		plan: WifiPlan,
 		sink: SourceEventSink,
+		allowPassiveDowngrade: Boolean = false,
 	): SourceApplyResult? {
 		val activePlan = currentPlan ?: return null
 		val activeRegistration = registration ?: return null
@@ -386,9 +499,21 @@ class WifiSourceRuntime @Inject internal constructor(
 				accepting && queue != null && registration === activeRegistration
 			}
 		) return null
-		if (!plan.enabled ||
-			activePlan.physicalConfigurationFingerprint() != plan.physicalConfigurationFingerprint()
-		) return null
+		val requestedFingerprint = plan.physicalConfigurationFingerprint()
+		val retainedPhysicalFingerprint = when {
+			allowPassiveDowngrade &&
+				activeRegistration.physicalConfigurationFingerprint == requestedFingerprint ->
+				requestedFingerprint
+			activePlan.physicalConfigurationFingerprint() == requestedFingerprint ->
+				if (allowPassiveDowngrade) {
+					activeRegistration.physicalConfigurationFingerprint
+				} else {
+					requestedFingerprint
+				}
+			allowPassiveDowngrade && activePlan.canRetainWifiProviderFor(plan) ->
+				activeRegistration.physicalConfigurationFingerprint
+			else -> return null
+		}
 		val application = prerequisiteGate.application(plan) ?: return SourceApplyResult.Failed(
 			appliedState(source, plan.revision, activeRegistration, SourceApplyStatus.FAILED,
 				SystemClock.elapsedRealtimeNanos()),
@@ -422,7 +547,7 @@ class WifiSourceRuntime @Inject internal constructor(
 						source,
 						activeRegistration,
 						plan.revision,
-						plan.physicalConfigurationFingerprint(),
+						retainedPhysicalFingerprint,
 						System.currentTimeMillis(),
 						refreshBoundary,
 					)
@@ -853,6 +978,7 @@ class WifiSourceRuntime @Inject internal constructor(
 			try {
 				when (input) {
 				is WifiRuntimeInput.CaptureBarrier -> input.completion.complete(Unit)
+				is WifiRuntimeInput.SharedCutoff -> input.completion.complete(metrics.snapshot())
 				WifiRuntimeInput.Attempt -> {
 					val execution = providerOperationMutex.withLock {
 						val plan = synchronized(callbackLock) {
@@ -1213,6 +1339,9 @@ class WifiSourceRuntime @Inject internal constructor(
 		data class CaptureBarrier(
 			val completion: CompletableDeferred<Unit>,
 		) : WifiRuntimeInput
+		data class SharedCutoff(
+			val completion: CompletableDeferred<RuntimeAdmissionSnapshot>,
+		) : WifiRuntimeInput
 		data class Backend(
 			val event: WifiBackendEvent,
 			val callbackSequence: Long,
@@ -1398,6 +1527,11 @@ private fun SourceRegistration.samePhysicalRegistration(other: SourceRegistratio
 	state.sourceInstanceId == other.state.sourceInstanceId &&
 		state.registrationGeneration == other.state.registrationGeneration &&
 		physicalConfigurationFingerprint == other.physicalConfigurationFingerprint
+
+private fun WifiPlan.canRetainWifiProviderFor(successor: WifiPlan): Boolean =
+		enabled && successor.enabled &&
+			mode == WifiMode.ACTIVE_ATTEMPTS &&
+			successor.mode in setOf(WifiMode.BROADCAST_DRIVEN, WifiMode.CACHED_ONLY)
 
 private const val WIFI_CALLBACK_BUFFER_CAPACITY = 64
 private val WIFI_ADMISSION_RETRY_DELAYS_MS = longArrayOf(25L, 250L, 1_000L)
