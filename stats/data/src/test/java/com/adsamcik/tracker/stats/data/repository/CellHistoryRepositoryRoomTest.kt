@@ -32,6 +32,8 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
 import com.adsamcik.tracker.stats.api.repository.CellHistoryPage
 import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.LocalCellHistoryIdentity
+import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import java.io.ByteArrayOutputStream
@@ -82,13 +84,19 @@ class CellHistoryRepositoryRoomTest {
 
 		val selectedEntry = (selected as CellHistoryQuery.Found).entry
 		val recentEntry = (recent as CellHistoryPage.Available).entries.single()
+		repository.detail(requireNotNull(selectedEntry.selection)) shouldBe selected
+		selectedEntry.selection.toString() shouldBe
+			"LocalCellHistorySelection(identity=LocalCellHistoryIdentity)"
+		repository.detail(
+			LocalCellHistorySelection(LocalCellHistoryIdentity("f".repeat(64))),
+		) shouldBe CellHistoryQuery.NotFound
 		selectedEntry shouldBe recentEntry
 		selectedEntry.startTime.raw shouldBe group.runs.first().segment.startTimeMs
 		selectedEntry.endTime.raw shouldBe group.runs.last().segment.endTimeMs
 		selectedEntry.observations shouldHaveSize 2
 		selectedEntry.state shouldBe CellHistoryProductState.PARTIAL
 		selectedEntry.causes shouldBe setOf(CellHistoryCause.SUBSCRIPTION_GROUPING_UNKNOWN)
-		authorityChecks shouldBe 2
+		authorityChecks shouldBe 3
 	}
 
 	@Test

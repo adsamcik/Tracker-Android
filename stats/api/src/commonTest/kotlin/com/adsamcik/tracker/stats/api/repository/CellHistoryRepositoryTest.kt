@@ -4,6 +4,7 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
+import kotlinx.coroutines.test.runTest
 
 class CellHistoryRepositoryTest {
 	@Test
@@ -55,12 +56,17 @@ class CellHistoryRepositoryTest {
 			setOf(CellHistoryCause.SUBSCRIPTION_GROUPING_UNKNOWN),
 			CellHistoryOrigin.Imported(selection),
 		)
-		val local = imported.copy(origin = CellHistoryOrigin.Local)
+		val local = imported.copy(origin = CellHistoryOrigin.Local, selection = null)
 
 		(imported.origin as CellHistoryOrigin.Imported).selection shouldBe selection
+		imported.selection shouldBe selection
 		local.origin shouldBe CellHistoryOrigin.Local
+		local.selection shouldBe null
 		identity.toString() shouldBe "ImportedCellHistoryIdentity"
 		selection.contentChecksum.toString() shouldBe "ImportedCellHistoryDigest"
+		LocalCellHistorySelection(
+			LocalCellHistoryIdentity("c".repeat(64)),
+		).toString() shouldBe "LocalCellHistorySelection(identity=LocalCellHistoryIdentity)"
 	}
 
 	@Test
@@ -85,6 +91,23 @@ class CellHistoryRepositoryTest {
 			emptyList(),
 			setOf(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE),
 		).state shouldBe CellHistoryProductState.UNVERIFIABLE
+	}
+
+	@Test
+	fun `legacy repository implementors retain honest unsupported imported defaults`() = runTest {
+		val selection = ImportedCellHistorySelection(
+			ImportedCellHistoryIdentity("a".repeat(64)),
+			1L,
+			ImportedCellHistoryDigest("b".repeat(64)),
+		)
+		val legacy = object : CellHistoryRepository {
+			override suspend fun session(segmentId: Long): CellHistoryQuery = CellHistoryQuery.NotFound
+			override suspend fun recent(limit: Int): CellHistoryPage =
+				CellHistoryPage.Available(emptyList())
+		}
+
+		legacy.imported(selection) shouldBe CellHistoryQuery.NotFound
+		legacy.detail(selection) shouldBe CellHistoryQuery.NotFound
 	}
 
 	private fun observation() = CellHistoryObservation(

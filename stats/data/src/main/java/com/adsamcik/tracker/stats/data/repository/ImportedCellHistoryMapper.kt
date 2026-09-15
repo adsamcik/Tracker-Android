@@ -93,6 +93,7 @@ private fun ImportedCellProductEvaluation.Readable.toReadablePublicEntry(): Cell
 	}
 	// Captured Cell v1 intentionally does not claim complete subscription grouping.
 	causes += CellHistoryCause.SUBSCRIPTION_GROUPING_UNKNOWN
+	val selection = importedSelection()
 	return CellHistoryEntry(
 		key = importedKey(candidate.identity),
 		startTime = EpochMs(entry.startTimeMs),
@@ -102,7 +103,8 @@ private fun ImportedCellProductEvaluation.Readable.toReadablePublicEntry(): Cell
 		coverage = if (causes.isEmpty()) CellHistoryCoverage.COMPLETE else CellHistoryCoverage.PARTIAL,
 		observations = observations,
 		causes = causes,
-		origin = importedOrigin(),
+		origin = CellHistoryOrigin.Imported(selection),
+		selection = selection,
 	)
 }
 
@@ -159,25 +161,27 @@ private fun PortableCapturedCellObservationV1.toPublicObservation(): CellHistory
 private fun ImportedCellProductEvaluation.publicShell(
 	state: CellHistoryProductState,
 	cause: CellHistoryCause,
-) = CellHistoryEntry(
-	key = importedKey(candidate.identity),
-	startTime = EpochMs(candidate.startTimeMs),
-	endTime = EpochMs(candidate.endTimeMs),
-	storedZoneIds = emptySet(),
-	state = state,
-	coverage = CellHistoryCoverage.NONE,
-	observations = emptyList(),
-	causes = setOf(cause),
-	origin = importedOrigin(),
-)
+) = importedSelection().let { selection ->
+	CellHistoryEntry(
+		key = importedKey(candidate.identity),
+		startTime = EpochMs(candidate.startTimeMs),
+		endTime = EpochMs(candidate.endTimeMs),
+		storedZoneIds = emptySet(),
+		state = state,
+		coverage = CellHistoryCoverage.NONE,
+		observations = emptyList(),
+		causes = setOf(cause),
+		origin = CellHistoryOrigin.Imported(selection),
+		selection = selection,
+	)
+}
 
-private fun ImportedCellProductEvaluation.importedOrigin() = CellHistoryOrigin.Imported(
+private fun ImportedCellProductEvaluation.importedSelection() =
 	ImportedCellHistorySelection(
 		identity = ImportedCellHistoryIdentity(candidate.identity),
 		importRevision = candidate.importRevision,
 		contentChecksum = ImportedCellHistoryDigest(candidate.contentChecksum),
-	),
-)
+	)
 
 private fun ImportedCellProductFailure.toPublicCause(): CellHistoryCause = when (this) {
 	ImportedCellProductFailure.SOURCE_EVIDENCE_STATE_MISSING,

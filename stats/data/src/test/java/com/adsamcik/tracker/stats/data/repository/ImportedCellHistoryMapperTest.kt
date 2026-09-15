@@ -32,6 +32,8 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryPage
 import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.CellHistoryTechnology
+import com.adsamcik.tracker.stats.api.repository.LocalCellHistoryIdentity
+import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.maps.shouldContainExactly
@@ -106,6 +108,7 @@ class ImportedCellHistoryMapperTest {
 			observation.rejectedChildCount shouldBe 1
 		}
 		repository.imported(origin.selection) shouldBe CellHistoryQuery.Found(public)
+		repository.detail(requireNotNull(public.selection)) shouldBe CellHistoryQuery.Found(public)
 		listOf(
 			"source_event_wal",
 			"source_demand",
@@ -149,6 +152,9 @@ class ImportedCellHistoryMapperTest {
 		val local = imported.toPublicCellEntry().copy(
 			key = CellHistoryEntryKey("cell-logical:same"),
 			origin = CellHistoryOrigin.Local,
+			selection = LocalCellHistorySelection(
+				LocalCellHistoryIdentity(exact.identity.value),
+			),
 		)
 		val exactPage = CellHistoryOriginComposer.compose(
 			live = listOf(local),

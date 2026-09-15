@@ -4,11 +4,16 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 
 /** Read-only, identity-free access to captured Cell history. */
 interface CellHistoryRepository {
+	/** Resolves one repository-issued opaque selection without exposing its backing identity. */
+	suspend fun detail(selection: CellHistoryEntrySelection): CellHistoryQuery =
+		if (selection is ImportedCellHistorySelection) imported(selection) else CellHistoryQuery.NotFound
+
 	/** Resolves the complete logical replacement group containing one physical presentation row. */
 	suspend fun session(segmentId: Long): CellHistoryQuery
 
 	/** Resolves one exact imported-origin selection without treating it as a local session. */
-	suspend fun imported(selection: ImportedCellHistorySelection): CellHistoryQuery
+	suspend fun imported(selection: ImportedCellHistorySelection): CellHistoryQuery =
+		CellHistoryQuery.NotFound
 
 	/** Discovers recent logical entries from qualified Cell facts, never presentation counters. */
 	suspend fun recent(limit: Int): CellHistoryPage
@@ -38,6 +43,26 @@ value class CellHistoryEntryKey(private val opaqueValue: String) {
 	override fun toString(): String = "CellHistoryEntryKey"
 }
 
+/**
+ * Repository-issued exact source-local selection. Consumers may retain and return it, but cannot
+ * derive local physical ownership from the contract.
+ */
+interface CellHistoryEntrySelection
+
+/** Repository-issued opaque identity for one exact local logical Cell entry. */
+@JvmInline
+value class LocalCellHistoryIdentity(val value: String) {
+	init {
+		require(OPAQUE_CELL_IDENTITY.matches(value))
+	}
+
+	override fun toString(): String = "LocalCellHistoryIdentity"
+}
+
+data class LocalCellHistorySelection(
+	val identity: LocalCellHistoryIdentity,
+) : CellHistoryEntrySelection
+
 /** Proven presentation origin. Neither form grants mutation or live capture authority. */
 sealed interface CellHistoryOrigin {
 	data object Local : CellHistoryOrigin
@@ -59,7 +84,7 @@ data class ImportedCellHistorySelection(
 	val identity: ImportedCellHistoryIdentity,
 	val importRevision: Long,
 	val contentChecksum: ImportedCellHistoryDigest,
-) {
+) : CellHistoryEntrySelection {
 	init {
 		require(importRevision > 0L)
 	}
@@ -126,10 +151,16 @@ data class CellHistoryEntry(
 	val observations: List<CellHistoryObservation>,
 	val causes: Set<CellHistoryCause> = emptySet(),
 	val origin: CellHistoryOrigin = CellHistoryOrigin.Local,
+	val selection: CellHistoryEntrySelection? =
+		(origin as? CellHistoryOrigin.Imported)?.selection,
 ) {
 	init {
 		require(endTime >= startTime)
 		require(storedZoneIds.none(String::isBlank))
+		when (origin) {
+			CellHistoryOrigin.Local -> require(selection !is ImportedCellHistorySelection)
+			is CellHistoryOrigin.Imported -> require(selection == origin.selection)
+		}
 		when (state) {
 			CellHistoryProductState.READY -> {
 				require(observations.isNotEmpty())

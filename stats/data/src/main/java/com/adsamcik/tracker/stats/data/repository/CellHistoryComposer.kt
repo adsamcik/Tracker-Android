@@ -26,6 +26,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind
+import com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity
 import com.adsamcik.tracker.stats.api.repository.CellHistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
 import com.adsamcik.tracker.stats.api.repository.CellHistoryChildCompleteness
@@ -37,6 +39,8 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistorySignalQuality
 import com.adsamcik.tracker.stats.api.repository.CellHistorySubscriptionGrouping
 import com.adsamcik.tracker.stats.api.repository.CellHistoryTechnology
+import com.adsamcik.tracker.stats.api.repository.LocalCellHistoryIdentity
+import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import java.io.ByteArrayInputStream
 import java.io.DataInputStream
@@ -733,7 +737,8 @@ internal object CellHistoryComposer {
 		val start = segments.minOf(SessionSegment::startTimeMs).coerceAtLeast(0L)
 		val end = segments.maxOf(SessionSegment::endTimeMs).coerceAtLeast(start)
 		return CellHistoryEntry(CellHistoryEntryKey("cell-logical:$logicalId"), EpochMs(start), EpochMs(end),
-			zones, state, coverage, observations, causes)
+			zones, state, coverage, observations, causes,
+			selection = localSelection(logicalId))
 	}
 
 	private fun failed(logicalId: String, segments: List<SessionSegment>, cause: CellHistoryCause) =
@@ -758,6 +763,16 @@ internal object CellHistoryComposer {
 		EpochMs(segment.endTimeMs.coerceAtLeast(segment.startTimeMs.coerceAtLeast(0L))), emptySet(),
 		CellHistoryProductState.UNAVAILABLE, CellHistoryCoverage.NONE, emptyList(),
 		setOf(CellHistoryCause.SOURCE_NOT_CAPTURED),
+		selection = segment.logicalTrackingId?.takeIf(String::isNotBlank)?.let(::localSelection),
+	)
+
+	private fun localSelection(logicalId: String) = LocalCellHistorySelection(
+		LocalCellHistoryIdentity(
+			PortableCellOpaqueIdentity.derive(
+				PortableCellIdentityKind.LOGICAL_ENTRY,
+				logicalId,
+			).value,
+		),
 	)
 
 	private fun maxOfOrNull(left: Long?, right: Long?): Long? = when {
