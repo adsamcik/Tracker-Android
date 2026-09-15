@@ -45,15 +45,14 @@ State counts:
 | `active_governance` | 1 |
 | `allowed_dependency` | 1 |
 | `approval_required` | 1 |
-| `committed_held` | 1 |
-| `completed_accepted_slice` | 5 |
+| `completed_accepted_slice` | 6 |
 | `completed_foundation` | 1 |
 | `decision_required` | 8 |
 | `gate_deferred` | 4 |
 | `partial_implemented` | 11 |
 | `planned` | 16 |
 
-Review states: `active` 1, `blocked_findings` 15, `closed_except_decision` 1, `closed_static` 5, `continuous` 2, `historical_accepted` 1, `mixed` 7, `not_applicable` 9, `not_started` 21.
+Review states: `blocked_findings` 15, `closed_except_decision` 1, `closed_static` 6, `continuous` 2, `historical_accepted` 1, `mixed` 7, `not_applicable` 9, `not_started` 21.
 
 Integration states: `held_branch` 2, `held_dependency` 1, `local_dev` 7, `local_only` 1, `mixed_source_refs` 7, `not_applicable` 9, `not_started` 21, `source_branch` 14.
 
@@ -68,7 +67,7 @@ Validation states: `deferred_implementation_only` 53, `not_applicable` 9.
 | `WI-HANDOVER-PRESERVATION-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Preserve accepted transport and receiving seams | Preserve as historical evidence; do not reopen or expand without a bounded request. |
 | `WI-REPOSITORY-SAFETY-001` | `active_governance` | `continuous` | `local_only` | Preserve repository, worktree and publication boundaries | Apply these boundaries to every owner receipt and local integration decision. |
 | `WI-FOUNDATION-BASE-001` | `completed_foundation` | `historical_accepted` | `local_dev` | Preserve the accepted tracking safety foundation | Use as immutable architectural constraints for remaining items. |
-| `WI-SCHEMA-MIGRATION-001` | `committed_held` | `active` | `held_branch` | Close the bounded shared v28 schema assembly | Hold exact input fcc2162d for the final shared review. Do not merge Pressure or begin Cell/radio schema work. |
+| `WI-SCHEMA-MIGRATION-001` | `completed_accepted_slice` | `closed_static` | `held_branch` | Close the bounded shared v28 schema assembly | Keep exact input fcc2162d held. Integrate only after its bundled source prerequisites close; do not start Pressure, Cell or radio schema assembly. |
 | `WI-AUTHORITY-PURPOSE-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete source and purpose authority semantics | Do not start a new authority wave; consume only closed current-purpose artifacts when a bounded integration is assigned. |
 | `WI-BROKER-PROVIDER-OWNERSHIP-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete one physical owner per source | Remain planned outside already-started runtime and purpose corrections. |
 | `WI-LIFECYCLE-RUNTIME-001` | `active_correction` | `blocked_findings` | `source_branch` | Close lifecycle, action and settlement semantics | Finish only the already-started runtime correction and test-source closure. |

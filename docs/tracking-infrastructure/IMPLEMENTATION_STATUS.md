@@ -29,7 +29,7 @@ The registry incorporates the newer artifact state:
   the six corrections. Runtime generation/settlement fencing and shared schema fields remain.
 - Shared schema `fcc2162d5aa70c81c53bcd4f5336f3a20ab0c43f` contains only the duplicate-
   test and actual file-backed Room reopen source correction atop `cba0b116`; final review is
-  running and producer semantics remain held. Shared portable input
+  cumulatively closed and producer semantics remain held. Shared portable input
   `e3f2ecd4c730435e2652b35b73d7b94af5774213` completed review with three blockers under
   correction: endless retry for permanent direct/archive limits, EMPTY success for a headerless
   ZIP with no importable entry, and incorrect database-registry range/ZIP importer roles. Neither
@@ -85,7 +85,7 @@ Latest closure refinements:
   dependencies.
 - Shared schema `fcc2162d5aa70c81c53bcd4f5336f3a20ab0c43f` contains the duplicate-`@Test`
   and real file-backed Ambient full-clear fence close/reopen source corrections atop production-
-  coherent `cba0b116`. Final review is running; Pressure `39198f5` is not merged.
+  coherent `cba0b116`. Cumulative static review is closed; Pressure `39198f5` is not merged.
 - Shared history `1c94219ac3d67baa5fd870ac2f79d96d081bdcac` is blocked by six owned
   findings plus a missing real five-producer Room chain: Steps legacy/unknown qualification,
   imported Activity granting native qualification, pre-eligibility mixed limits, imported oldest-
@@ -97,10 +97,12 @@ Individual source-owner receipts are authoritative only for their owned artifact
 entire-effort tables cannot override parent global state, requirement coverage, shared dependencies
 or adversarial blockers. TI-D265 records this evidence-precedence rule.
 
-TI-B332 records the newest schema/portable/Activity boundary: Purpose remains fully scoped
-static-closed; schema awaits final review at `fcc2162d`; shared portable and the narrow Activity
-decoder boundary are active corrections. Steps `6f46f8` is otherwise closed, but its shared lexer
-dependency remains open. No successor started.
+TI-B333 supersedes TI-B332's interim schema status: `fcc2162d` is now a scoped
+**IMPLEMENTED_UNVALIDATED / STATIC-CLOSED / INTEGRATION-HELD** artifact. This does not make the
+bundled Ambient Steps, Location or Pressure prerequisites accepted, the complete database ready,
+or Cell/radio schema work started. Shared portable and the narrow Activity decoder boundary remain
+active corrections. Steps `6f46f8` is otherwise closed, but its shared lexer dependency remains
+open. No successor started.
 
 ## Scope expansion frozen - finish started artifacts, hand over the backlog
 

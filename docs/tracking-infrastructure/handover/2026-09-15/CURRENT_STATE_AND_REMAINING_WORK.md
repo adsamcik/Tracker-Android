@@ -74,9 +74,10 @@ blockers govern cross-source state.
 Newest exact review state:
 
 - Purpose `cef95415e2` remains fully scoped static-closed; no successor began.
-- Shared schema is frozen at `fcc2162d5a`, containing only the duplicate-test and actual
-  file-backed Room reopen source correction. Final review is running; producer semantics remain
-  held and Pressure is not merged.
+- Shared schema `fcc2162d5a` is cumulatively static-closed for `600c`/`cba` production plus the
+  duplicate-test and actual file-backed Room reopen source correction. Integration remains held:
+  bundled Ambient Steps/Location prerequisites are blocked, Pressure is not merged, and no Cell/
+  radio schema successor began. This is not full-source or database readiness.
 - Shared portable `e3f2ecd4c7` is correcting three review blockers: permanent direct/archive
   retry, headerless/no-importable ZIP EMPTY success, and database-registry range/ZIP role mismatch.
   Steps `6f46f8` is otherwise closed but still depends on the shared lexer correction.

@@ -65,8 +65,9 @@ dependencies or review blockers.
 
 Latest exact deltas:
 
-- Shared schema `fcc2162d5a` has the duplicate-test and actual file-backed Room reopen source
-  corrections; final review is running and producer semantics remain held.
+- Shared schema `fcc2162d5a` has cumulative static closure for `600c`/`cba` production plus the
+  duplicate-test and actual file-backed Room reopen source corrections. Integration remains held
+  on blocked bundled source prerequisites. No Pressure, Cell or radio assembly successor started.
 - Shared portable `e3f2ecd4c7` is correcting only three review findings: permanent direct/archive
   limits must not retry forever, a headerless ZIP with no importable entry must not complete EMPTY,
   and database registry range/ZIP importer roles must be exact.

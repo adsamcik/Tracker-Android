@@ -19,14 +19,29 @@ no files, and the reviewer was then restricted to source-read tools. This is a p
 not evidence that the Location artifact or any other source passes a validation gate. No regression,
 compiler, Gradle, lint, schema, device or CI gate has started for the current assembly.
 
+## TI-B333 - Shared schema scoped implementation cumulatively static-closed
+
+- Input: `fcc2162d5aa70c81c53bcd4f5336f3a20ab0c43f` on
+  `codex/ti-imported-schema-assembly-20260915`.
+- Cumulative review closes `600c`/`cba` production semantics plus the duplicate-annotation and
+  actual file-backed Room reopen/Ambient full-clear fence source corrections.
+- Outcome: **IMPLEMENTED_UNVALIDATED; CUMULATIVE STATIC REVIEW CLOSED; INTEGRATION HELD.**
+  This is scoped schema implementation/review completion, not a complete source, database-ready,
+  migration-proven or release-ready state.
+- The held branch still bundles original Ambient Steps and protected Location source prerequisites
+  that remain blocked. Pressure `39198f5` is not merged. Two Cell deletion entities and passive-
+  radio 18-plus entity/approval schema remain unstarted backlog.
+- No new Pressure, Cell or radio assembly began. No compilation, tests, Gradle, schema generation/
+  drift, device, CI, push or activation occurred.
+
 ## TI-B332 - Schema final review and portable/Activity corrections
 
 - Purpose `cef95415e2f5e77fb9e12ea3e95776ef26e36efe` remains fully scoped
   static-closed under TI-B331. No successor began.
-- Shared schema input is now `fcc2162d5aa70c81c53bcd4f5336f3a20ab0c43f`, containing only
+- Shared schema input became `fcc2162d5aa70c81c53bcd4f5336f3a20ab0c43f`, containing only
   the duplicate-`@Test` and actual file-backed Room reopen/full-clear fence source corrections
-  after `cba0b116`. Final focused review is running. Producer semantics remain held, Pressure is
-  not merged, and no Cell/radio schema wave began.
+  after `cba0b116`. At this interim receipt final focused review was running; TI-B333 records its
+  closure. Producer semantics remain held, Pressure is not merged, and no Cell/radio schema wave began.
 - Shared portable review of `e3f2ecd4c730435e2652b35b73d7b94af5774213` returned three
   blockers: permanent direct/archive limits retry indefinitely; a headerless ZIP with no importable
   entry completes as EMPTY success; and the database registry assigns incorrect range/ZIP importer
@@ -37,9 +52,10 @@ compiler, Gradle, lint, schema, device or CI gate has started for the current as
   boundary of `483e8b59b790c5970d11b947d76d82746308bdac`. The original five Activity
   semantic findings remain closed. The correction must keep raw transport EOF retryable while
   parser EOF and lexical failures remain permanent.
-- Outcome: schema is **IMPLEMENTED_UNVALIDATED / COMMITTED HELD / FINAL REVIEW ACTIVE**.
-  Shared portable and Activity decoder boundaries are **ACTIVE CORRECTION**. No execution,
-  integration, successor wave, push or activation occurred.
+- Outcome at this interim receipt: schema was **IMPLEMENTED_UNVALIDATED / COMMITTED HELD /
+  FINAL REVIEW ACTIVE**; TI-B333 closes its scoped static review. Shared portable and Activity
+  decoder boundaries remain **ACTIVE CORRECTION**. No execution, integration, successor wave,
+  push or activation occurred.
 
 ## TI-B331 - Purpose containment artifact cumulatively static-closed
 
