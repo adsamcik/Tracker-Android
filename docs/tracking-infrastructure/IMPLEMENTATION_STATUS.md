@@ -24,9 +24,16 @@ The first dependency wave owns only demonstrated source-local gaps:
 | Ambient Steps portable imported origin | `codex/ti-ambient-steps-import-20260915` | Ambient-specific model/storage/stats files and tests | Parent additive Room, partitioned products, settings and numeric effects |
 | Activity/Steps truthful selected detail | `codex/ti-source-detail-product-20260915` | Existing Trip Detail shell, source composables/resources/tests | Radio detail after its source APIs settle; typed exact actions |
 | Pressure portable file backends | `codex/ti-pressure-file-actions-20260915` | New Pressure-specific codec/import/export adapters/tests | Parent shared format registry, resources and explicit actions |
+| Runtime provenance/transitions/stop settlement | `codex/ti-runtime-settlement-20260915` | Shared engine coordinator/catalog, source-lane drain contracts and tests | Protected Location collaborator, lifecycle proof and scenarios |
+| Protected Location canonical handoff | `codex/ti-protected-location-handoff-20260915` | Existing canonical pipeline serialization, Location-specific handoff/receipts and owner constants | Parent runtime catalog/sink/recovery and exact product proof |
+| Source-purpose settings and containment | `codex/ti-purpose-settings-20260915` | Tracking preferences/policy, app settings, automatic control-policy availability and tests | Actual ambient lifecycle owners and source-specific actions |
 
-One read-only runtime mapping thread reconciles broad unchecked authority/broker/lifecycle/QoS/
-Location/automatic/ambient TODOs against actual callers and test sources. It owns no code.
+The read-only runtime map found concrete missing joins: protected Location WAL has no canonical
+pipeline handoff; stop/suspend awaits only global control projection rather than source-product
+lanes; Activity catalog and Activity/Wi-Fi/Cell manifest writer provenance are incomplete; and
+Ambient Steps incorrectly consults a session-lane AMBIENT gate. The existing broker, runtime
+retirement, five source-local writers and ingress mechanisms are retained. The map is static
+evidence, not permission to activate providers or invent a new generic platform.
 The coordinator alone owns AppDatabase/accessor/additive migration/full-clear unions, shared
 history APIs/composition, global format registration, maintenance worker invocations and these
 ledgers. Source leaves report exact producer APIs and necessary schema wiring before dependent
@@ -39,6 +46,33 @@ restarted. Unresolved paid radio, calibrated Pressure, expanded ambient Location
 lifetime/privacy copy and cross-midnight choices must be safely contained or explicitly resolved,
 never invented to check a box. Candidate writers stay dormant and canonical Location is protected.
 The assembly gate is still open; per-slice commits and reviews alone cannot close it.
+
+### First artifact and shared receipt interface
+
+- Selected-detail source `69571dbf6a2263cafc2807020f42622adbcbdbf3` is committed in its worktree,
+  with Activity/Steps/imported Steps/exact no-Location presentation and source-action containment.
+  Its independent adversarial static review is active; later radio variants and real actions remain.
+- Pressure file backend `ea577ac7bcc1b534aace119d9cd35c8792f65924` is authored, but its
+  placeholder receipt time must be replaced before acceptance. The shared producer below now
+  provides actual durable provenance; registry/resource/read-limit wiring remains coordinator-owned.
+- Parent shared receipt source `ba73b7a6f3d3e49c413d54e253ad03802f6ccb59` is locally integrated.
+  Exact paths: `feature\import-export\src\main\java\com\adsamcik\tracker\impexp\importer\FileImportStream.kt`,
+  `DataImporter.kt`, and matching `FileImportStreamTest.kt` / `ImportJobRunnerTest.kt` under
+  `feature\import-export\src\test\java\com\adsamcik\tracker\impexp\importer`.
+  `FileImportReceiptContext(jobId, entryKey, sourceName, receivedAtMs)` is package-internal,
+  bounded and immutable; `FileImportStream.importReceipt` is bind-once on the original stream.
+  Both direct and archive callbacks receive the content-addressed job identity, exact file-entry
+  key/name and durable job start time. The runner serializes import/completion, preserving
+  importer-managed transaction ordering. Missing/completed provenance cannot write failure
+  receipts or invoke the source importer. This carries no provider/consent/writer authority.
+- Static receipt review exposed nested-type, wrapper lifetime/alias and job-precondition/race
+  defects; authored corrections bind the original stream once, retain ordinary close semantics,
+  serialize the runner and fence precondition errors. Focused static review closed these findings.
+  Assertions cover retry-stable time, distinct archive keys, bounds, close-before-read, alias
+  conflicts, missing/completed job and completion serialization. No execution occurred.
+- Deferred receipt cohort, not run:
+  `.\gradlew.bat :feature:import-export:testDebugUnitTest --tests "*FileImportStreamTest" --tests "*ImportJobRunnerTest" --tests "*ImportJobRunnerRoomTransactionTest"`.
+  File backends must consume this actual context rather than fabricate a receipt or zero time.
 
 ## Locally integrated receiving seam wave - IMPLEMENTED_UNVALIDATED
 

@@ -2,6 +2,21 @@
 
 Last updated: 2026-09-15
 
+## TI-B324 - Durable portable file receipt propagation, source evidence only
+
+- Input: `ba73b7a6f3d3e49c413d54e253ad03802f6ccb59`, local `dev/v10`; TI-D260.
+- Production: FileImportStream bind-once context and ImportJobRunner direct/archive propagation
+  from persisted job start time, with per-runner serialization and precondition failure isolation.
+- Authored sources: FileImportStreamTest and ImportJobRunnerTest in `feature\import-export`.
+  Exact metadata, retry-stable time, archive key separation, lazy/close-before-read behavior,
+  alias conflict, all metadata caps, missing/completed job no-write and concurrent completion.
+- Independent static review found concrete initial lifetime/alias/type/precondition gaps;
+  focused corrections closed them. Parent tightened independent source-name-boundary assertions.
+- Outcome: **IMPLEMENTED_UNVALIDATED**, no execution. Adapters consuming this API and their
+  real registry/actions remain separate integration dependencies; no provider authenticity follows.
+- Deferred only after complete frozen convergence:
+  `.\gradlew.bat :feature:import-export:testDebugUnitTest --tests "*FileImportStreamTest" --tests "*ImportJobRunnerTest" --tests "*ImportJobRunnerRoomTransactionTest"`.
+
 ## TI-B323 - Three parallel seam slices locally integrated, execution still deferred
 
 - User authority: TI-D257. Source integration checkpoint:

@@ -2,6 +2,22 @@
 
 Last updated: 2026-09-15
 
+## TI-D260 - Portable file adapters consume durable job provenance
+
+- Status: **IMPLEMENTED_UNVALIDATED**, locally integrated source `ba73b7a6f3`.
+- The file runner already owns the content-addressed job and deterministic archive/direct entry
+  key, but source adapters previously received neither job identity nor durable start time.
+  Propagate that existing authority as bounded bind-once `FileImportReceiptContext` on the
+  original `FileImportStream`; do not invent receipt time zero or a substitute source job.
+- A runner belongs to one uniquely scheduled ImportWorker and serializes start/import/completion.
+  Source-managed callbacks still run outside the receipt transaction. Missing/completed job
+  provenance fails before callback and does not create orphan or completed-job failure entries.
+- The context is provenance only, never local capture/session/provider/consent/WAL/writer
+  authority. Each source importer must authenticate its own complete graph and current epoch.
+- Static review findings were corrected and focused source review closed them. No compilation or
+  test execution; dependent Activity/Pressure and future radio/ambient file adapters still need
+  to consume the context and be registered through the existing shared file pipeline.
+
 ## TI-D259 - Complete the remaining implementation through source-owned dependency waves
 
 - Status: active implementation continuation from `28d270cd99`; assembly gate remains open.
