@@ -5,7 +5,7 @@
 Start execution accounting with [`WORK_ITEMS.json`](../../WORK_ITEMS.json). It is the authoritative
 status/dependency/ownership registry. [`WORK_ITEM_TRACKING.md`](../../WORK_ITEM_TRACKING.md) is the
 overview and update protocol; `IMPLEMENTATION_TODO.md` remains the exhaustive stable requirement
-checklist. The registry has 63 work items and maps all 293 TODO IDs with zero unmapped.
+checklist. The registry has 71 work items and maps all 293 TODO IDs with zero unmapped.
 
 The user independently published `3dd1ff004a34beb339539c4961704919d781371c`. Local
 documentation continued from `6744ced52037d531e56751777b519165167e6b19`; no agent push is
@@ -40,6 +40,24 @@ all-six Location proof, structural day/range/Today, shared product surfaces/acti
 widgets and non-Steps effects, cross-source recovery/privacy/scenarios, assembly, validation,
 publication and activation—is explicitly represented in the registry as planned, decision-gated,
 deferred or approval-required.
+
+Independent audit `8e` is corrected in the repository registry. The important structural handover
+changes are: broad CORE work belongs to all-source schema convergence rather than `fcc2162d`;
+lifecycle product states are separate from runtime/action lifecycle; purpose publication and broker
+ordering is acyclic; shared day/range names real producer children; Ambient execution and P5
+count-domain receipts are explicit; TODO-STEPS-NUM-006 no longer overclaims completed Ambient
+partition proof; existing QoS/UI/actions/scenarios/effects are partial; passive Location baseline
+is already approved; and assembly names every six-source/shared prerequisite.
+
+Current bounded inputs after that correction:
+
+- Ambient product `f6ada48c35` remains blocked on additional bounded fixes; P5 and execution
+  authority are separate planned items.
+- Shared history closure is contract `0d8d1ece` plus union `58c6c1fb` and exactly four current
+  producer bridges: Activity `630fad31`, Pressure `dbe8740c`, Wi-Fi `81fe0653`, Cell `5c4455f8`.
+  This is not structural range work.
+- Pressure `dbe` retained-recency columns are under focused review. Shared consumer `707a1f52`
+  has only the surviving-ViewModel Expired/teardown correction remaining. No wider UI started.
 
 The complete documentation/work-item request remains active. Continue local registry and ledger
 updates as owner receipts and closure results arrive; do not interpret the production scope freeze

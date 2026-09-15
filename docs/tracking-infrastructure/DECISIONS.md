@@ -2,6 +2,34 @@
 
 Last updated: 2026-09-15
 
+## TI-D269 - Correct registry structure without changing stable requirement history
+
+- Status: accepted documentation correction after independent audit `8e`, 2026-09-15.
+- Preserve one primary work-item owner for every one of the 293 stable TODO IDs. Concrete child
+  artifacts carry `related_requirement_ids`, and `requirement_index` carries the reciprocal child
+  links. A child commit no longer floats outside requirement accounting.
+- Scoped schema `fcc2162d` remains a closed held Ambient/Location slice. Planned
+  `WI-SCHEMA-CONVERGENCE-001` owns broad CORE-001/003/005/006/007/008 and all remaining Pressure,
+  Cell, radio, runtime, full-clear, index, v27 migration and safe development-v28 work.
+- The phase order is runtime contracts -> purpose publication -> broker/providers/source products
+  -> shared history -> lifecycle product proof. Purpose publication no longer depends on the
+  lifecycle item whose old scope included QUERYABLE, eliminating the hidden cycle.
+- LIFE-003/004/005 move to `WI-LIFECYCLE-PRODUCT-PROOF-001`. The lifecycle runtime item retains
+  intent/action, ACTIVE, FGS, stop/recovery and listener-retirement ownership.
+- Ambient Steps gains exact planned execution-authority and P5 count-domain receipt items.
+  Historical checked TODO-STEPS-NUM-006 moves to P5 as primary; accepted numeric infrastructure is
+  related partial evidence and is not duplicated.
+- QoS, UI surfaces, source actions/explanation, integration scenarios and non-Steps effects are
+  partial implementations because relevant plans, callbacks, shells, actions, chains and collectors
+  exist. Actual deferred measurements remain solely in the measurement gate.
+- The passive/opportunistic default-off Location baseline is approved and does not depend on the
+  optional decision for behavior beyond passive points. Unresolved CONTROL retention may produce
+  truthful `CONTROL_RETENTION_POLICY_UNAVAILABLE` without blocking any manual source baseline.
+- Assembly completion has explicit dependencies on all six source boundaries, all-source schema,
+  purpose publication, broker, lifecycle/product proof, privacy, files/actions, day/range, UI,
+  effects, scenarios and recovery. Optional decisions may be explicitly contained; assembly does
+  not automatically approve them.
+
 ## TI-D268 - Source-local runtime contract closure is not executable producer support
 
 - Status: accepted scope/evidence distinction, 2026-09-15.
@@ -81,7 +109,7 @@ Last updated: 2026-09-15
   `WORK_ITEM_TRACKING.md` is an index/protocol generated from that registry and must not carry an
   independent competing status.
 - Every still-applicable TODO ID must map explicitly to a coherent `WI-*` item. The initial
-  registry maps all 293 IDs to 63 work items with zero unmapped IDs. Broad unchecked requirements
+  registry maps all 293 IDs to 71 work items with zero unmapped IDs. Broad unchecked requirements
   retain accepted sub-slice evidence and are not interpreted as wholly absent.
 - State changes require exact evidence: commit/ref, owner receipt, focused review, authorized local
   integration or executed proof on the exact commit. A branch, dirty worktree, authored test or

@@ -20,7 +20,7 @@ Last updated: 2026-09-15
 ## Authoritative execution mapping
 
 This checklist contains 293 stable requirements. The new
-[`WORK_ITEMS.json`](WORK_ITEMS.json) registry explicitly maps all 293 IDs to 63 coherent work
+[`WORK_ITEMS.json`](WORK_ITEMS.json) registry explicitly maps all 293 IDs to 71 coherent work
 items with zero unmapped IDs. [`WORK_ITEM_TRACKING.md`](WORK_ITEM_TRACKING.md) is the generated
 operating index and update protocol.
 
@@ -38,6 +38,19 @@ close the already-started shared history union.
 
 The full tracking documentation request remains active. Continue registry and ledger maintenance
 as evidence arrives; the production finish-only scope does not freeze documentation work.
+
+Registry audit `8e` is structurally corrected without changing this checklist's stable IDs or
+checkbox history. Broad CORE ownership now belongs to planned all-source schema convergence;
+LIFE-003/004/005 belong to planned lifecycle product proof; and historical checked
+TODO-STEPS-NUM-006 belongs to the planned P5 Ambient/session count-domain receipt with existing
+numeric infrastructure retained as related partial evidence. Concrete source/shared children now
+link reciprocally to their applicable TODO IDs.
+
+Current bounded closure work remains: Ambient product `f6ada48c35` additional corrections;
+shared history contract `0d8d1ece` / union `58c6c1fb` plus four narrow Activity/Pressure/Wi-Fi/Cell
+producer bridges; Pressure bridge `dbe8740c3c` focused review; and shared consumer `707a1f52e2`
+single-ViewModel expiry/teardown correction. None authorizes structural day/range or another UI
+wave.
 
 Current correction-only receipts:
 

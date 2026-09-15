@@ -7,7 +7,7 @@ Last updated: 2026-09-15
 [`WORK_ITEMS.json`](WORK_ITEMS.json) is now the authoritative execution registry and
 [`WORK_ITEM_TRACKING.md`](WORK_ITEM_TRACKING.md) is its human-readable index/update protocol.
 `IMPLEMENTATION_TODO.md` remains the exhaustive stable requirement checklist. The initial registry
-contains 63 coherent work items and explicitly maps all 293 TODO IDs (71 checked, 222 unchecked,
+contains 71 coherent work items and explicitly maps all 293 TODO IDs (71 checked, 222 unchecked,
 zero unmapped). A broad unchecked requirement may contain accepted sub-slices; current execution,
 review, integration and validation state comes from the JSON registry.
 
@@ -51,6 +51,41 @@ The registry incorporates the newer artifact state:
 
 The user-requested documentation and work-item tracking itself remains active. Production scope
 expansion is frozen; registry/ledger maintenance is not. TI-D264 records this distinction.
+
+Independent audit `8e` at frozen documentation input
+`c77b1202321b2a2c8b6cc581dc6da2c9c0c7a237` found nine registry structure/actionability
+defects. TI-D269/TI-B337 record their correction:
+
+- every concrete child now has reciprocal stable requirement links;
+- scoped schema `fcc2162d` no longer owns broad CORE completion; planned
+  `WI-SCHEMA-CONVERGENCE-001` owns the remaining all-source shape;
+- runtime, purpose publication, broker and lifecycle product proof have an acyclic phase order;
+- shared day/range names its actual source producer dependencies;
+- Ambient Steps has explicit execution-authority and P5 count-domain receipt work items;
+- historical TODO-STEPS-NUM-006 no longer falsely completes Ambient partition proof;
+- existing QoS, UI, action, scenario and non-Steps effect primitives are marked partial, not absent;
+- approved passive Location no longer depends on the optional expanded-ambient decision; and
+- the assembly gate explicitly depends on all six sources and every required shared boundary.
+
+The registry remains one-primary-owner per TODO ID. Child evidence is reciprocal through
+`requirement_index[].related_work_item_ids`.
+
+Current closure inputs are kept separate from the future wide product wave:
+
+- Ambient Steps base/product input `f6ada48c35148367771b3bbc66405c41e3182dd0` remains an
+  active correction after additional bounded base/product findings. It is not accepted. The
+  separate P5 count-domain receipt and Ambient execution authority remain planned.
+- Shared history owned contract inputs are `0d8d1eced590f8f8e4072bb8d949708bd0a1eae1` and
+  `58c6c1fb5db1870d65826760572632e6070d9030`. Their current closure requires four narrow
+  source producer bridges, not the future structural range wave: Activity `630fad31ad`, Pressure
+  `dbe8740c3c`, Wi-Fi `81fe0653c8` and Cell `5c4455f8c1`.
+- Pressure bridge `dbe8740c3c7c0ace16e5c914081f7d910d38e248` is under focused review for
+  three nonnull checksum-bound retained-recency columns. Activity/Cell bridge work remains
+  current correction; Wi-Fi `81fe` is held under review.
+- Shared history consumers are now at `707a1f52e2100023b942fceded162b31ee1b7403`. Earlier radio,
+  test-scope and handoff guards are closed; only the surviving navigation ViewModel's missing
+  `Expired` transition/same-ViewModel teardown regression remains. This does not accept shared
+  producer `58c`.
 
 Earlier focused-review receipts, superseded where newer closure is stated below:
 

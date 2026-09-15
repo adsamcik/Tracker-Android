@@ -4,20 +4,64 @@ Last updated: 2026-09-15
 
 ## Registry coverage and process-deviation note
 
-`WORK_ITEMS.json` maps all 293 stable TODO IDs to 63 work items with zero unmapped IDs. JSON
+`WORK_ITEMS.json` maps all 293 stable TODO IDs to 71 work items with zero unmapped IDs. JSON
 parsing, unique-ID, dependency-reference, acyclic-dependency and requirement-coverage checks are
 metadata consistency only; they are not compilation, tests, schema, runtime or device evidence.
 
 Parent freeze inspection initially found three successor paths absent. TI-D267/TI-B335 record
 concrete late owner receipts proving Ambient Steps file actions and shared history consumers were
 already running before their queued freeze arrived. Activity range remains planned. This is
-scope/accounting evidence, not execution validation. Narrow Activity/Pressure transactional recent
-producer bridges remain possible direct dependencies of the already-started shared history union.
+scope/accounting evidence, not execution validation. TI-B338 records the four narrow source
+producer bridges now in the already-started shared history closure; they are not the future
+structural range wave.
 
 One Location reviewer accidentally invoked `git diff --check`. It produced no output and changed
 no files, and the reviewer was then restricted to source-read tools. This is a process deviation,
 not evidence that the Location artifact or any other source passes a validation gate. No regression,
 compiler, Gradle, lint, schema, device or CI gate has started for the current assembly.
+
+## TI-B338 - Current Ambient, history bridge and consumer inputs
+
+- Ambient Steps base/product input `f6ada48c35148367771b3bbc66405c41e3182dd0` remains
+  **ACTIVE CORRECTION** after additional bounded base/product findings. No acceptance is inferred
+  from later branch commits. P5 count-domain receipt and execution authority are separate planned
+  work.
+- Shared history contract `0d8d1eced590f8f8e4072bb8d949708bd0a1eae1` and union
+  `58c6c1fb5db1870d65826760572632e6070d9030` are the current held closure, not the future
+  structural range product.
+- Four source-owned bridge children are explicit: Activity `630fad31adab62dd1316b8cc0509aa1c18a70e84`,
+  Pressure `dbe8740c3c7c0ace16e5c914081f7d910d38e248`, Wi-Fi
+  `81fe0653c844038ac048bddb44d8252e1cfc7c76`, and Cell
+  `5c4455f8c1663006373994f8be5cd0694f91a08e`.
+- Pressure `dbe` is under focused review for retained recency represented by three nonnull,
+  checksum-bound columns. Activity and Cell remain active bridge corrections; Wi-Fi is committed
+  and under review. A real nonempty producer chain remains required before `58c` closure.
+- Shared consumer current input `707a1f52e2100023b942fceded162b31ee1b7403` has one bounded
+  correction remaining: close clears ownership/cancels TTL but leaves `Loaded` in the surviving
+  navigation ViewModel; add the `Expired` transition and same-ViewModel teardown regression.
+- All inputs remain **IMPLEMENTED_UNVALIDATED**. No wide range, Location/day, additional UI,
+  compilation, tests, schema, device, CI, push or activation occurred.
+
+## TI-B337 - Registry structural audit corrections applied
+
+- Audit input: documentation checkpoint `c77b1202321b2a2c8b6cc581dc6da2c9c0c7a237`;
+  independent audit receipt `8e`; nine findings.
+- Metadata result: 293 stable TODO IDs, 293 primary mappings, zero unmapped, zero duplicate primary
+  owners, 71 work items and an acyclic dependency graph.
+- Concrete runtime, Location, Ambient, Pressure, Wi-Fi, Cell, radio, shared file/history and
+  Activity child artifacts now have explicit related requirements; reciprocal
+  `requirement_index[].related_work_item_ids` are generated from the same registry.
+- Broad CORE ownership moved from scoped `fcc2162d` to planned all-source schema convergence.
+  LIFE product states moved to a separate proof item. Purpose publication/broker/lifecycle ordering
+  is acyclic. Shared day/range has actual producer dependencies.
+- Ambient execution authority and P5 count-domain receipt are explicit. TODO-STEPS-NUM-006 retains
+  its historical checked checkbox but now maps primarily to the unstarted P5 receipt; current
+  numeric infrastructure is accepted partial evidence only.
+- QoS, UI, actions/explanation, scenarios and non-Steps effects are partial rather than absent.
+  Passive Location baseline is independent from optional expansion. Assembly has explicit complete
+  prerequisites with decision containment rather than implicit approval.
+- This is metadata consistency/static documentation evidence only. No production review,
+  compilation, test, Gradle, lint, schema, device or CI gate ran.
 
 ## TI-B336 - Runtime and Ambient file scopes source-locally static-closed
 
