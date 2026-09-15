@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -105,44 +106,58 @@ class BackgroundTrackingApiLogicTest {
 	}
 
 	@Test
-	fun `initial and operational to unavailable boundaries enqueue one retry owned containment`() {
-		val key = AutomaticControlContainmentKey(
-			policyRevision = 12L,
-			controlConsentEpoch = 5L,
-			configuredMode = 1,
-			unavailableReason =
-				AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
-		)
-		var enqueued = 0
-		var contained = 0
+	fun `scheduler failure cannot prevent immediate cleanup or escape the containment task`() = runTest {
+		var cleanupStarts = 0
+		var schedulerCalls = 0
 
-		val first = applyAutomaticControlContainmentBoundary(
-			previousKey = null,
-			nextKey = key,
-			enqueueRetryOwner = { enqueued++ },
-			containImmediately = { contained++ },
+		val first = runAutomaticControlContainmentAttempt(
+			startImmediateCleanup = {
+				cleanupStarts++
+				CompletableDeferred(AutomaticControlRecoveryResult.RETRYABLE)
+			},
+			establishRetryOwnership = {
+				schedulerCalls++
+				throw IllegalStateException("scheduler unavailable")
+			},
 		)
-		applyAutomaticControlContainmentBoundary(
-			previousKey = first,
-			nextKey = key,
-			enqueueRetryOwner = { enqueued++ },
-			containImmediately = { contained++ },
-		) shouldBe key
-		val operational = applyAutomaticControlContainmentBoundary(
-			previousKey = key,
-			nextKey = null,
-			enqueueRetryOwner = { enqueued++ },
-			containImmediately = { contained++ },
-		)
-		applyAutomaticControlContainmentBoundary(
-			previousKey = operational,
-			nextKey = key,
-			enqueueRetryOwner = { enqueued++ },
-			containImmediately = { contained++ },
-		) shouldBe key
 
-		enqueued shouldBe 2
-		contained shouldBe 2
+		first.isHandled shouldBe false
+		first.cleanupResult shouldBe AutomaticControlRecoveryResult.RETRYABLE
+		first.retryOwnershipEstablished shouldBe false
+		first.retryOwnershipFailure?.message shouldBe "scheduler unavailable"
+		cleanupStarts shouldBe 1
+		schedulerCalls shouldBe 1
+
+		val laterBoundary = runAutomaticControlContainmentAttempt(
+			startImmediateCleanup = {
+				cleanupStarts++
+				CompletableDeferred(AutomaticControlRecoveryResult.RETRYABLE)
+			},
+			establishRetryOwnership = { schedulerCalls++ },
+		)
+
+		laterBoundary.isHandled shouldBe true
+		laterBoundary.retryOwnershipEstablished shouldBe true
+		cleanupStarts shouldBe 2
+		schedulerCalls shouldBe 2
+	}
+
+	@Test
+	fun `terminal immediate cleanup is handled even when retry scheduling fails`() = runTest {
+		val result = runAutomaticControlContainmentAttempt(
+			startImmediateCleanup = {
+				CompletableDeferred(
+					AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED,
+				)
+			},
+			establishRetryOwnership = {
+				throw IllegalStateException("scheduler unavailable")
+			},
+		)
+
+		result.isHandled shouldBe true
+		result.retryOwnershipEstablished shouldBe false
+		result.retryOwnershipFailure?.message shouldBe "scheduler unavailable"
 	}
 
 	@Test

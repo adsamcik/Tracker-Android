@@ -6,6 +6,7 @@ import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.api.registration.ActivityProviderCleanupResult
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationDemand
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationFailureCode
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationOwner
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
@@ -37,6 +38,7 @@ import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryResult
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
 import com.adsamcik.tracker.tracker.api.reconcileUnavailableAutomaticControl
+import com.adsamcik.tracker.tracker.api.runAutomaticControlContainmentAttempt
 import com.adsamcik.tracker.tracker.source.model.ActivityAcquisitionCapability
 import com.adsamcik.tracker.tracker.source.model.ActivityAcquisitionFloor
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionFloor
@@ -50,6 +52,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeBlank
 import io.mockk.mockk
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -201,6 +204,7 @@ class SourceBrokerTest {
 					ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
 					ActivityRegistrationOwner.ACTIVE_SESSION,
 				),
+				retryableClearCount = 1,
 			)
 			val monitor = AutomaticStartTransitionMonitor(
 				arbiter = arbiter,
@@ -209,21 +213,35 @@ class SourceBrokerTest {
 				activityProjectionLane = mockk<ActivityAutomationProjectionLane>(relaxed = true),
 			)
 
-			val result = reconcileUnavailableAutomaticControl(
-				availability = AutomaticTrackingOperationalAvailability.Unavailable(
-					AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
-				),
-				reconcileDisabled = {
-					monitor.reconcile(
-						enabled = false,
-						useTransitionApi = false,
-						continuousIntervalSeconds = 10,
-						transitions = emptySet(),
-					)
+			var schedulerCalls = 0
+			val unavailable = AutomaticTrackingOperationalAvailability.Unavailable(
+				AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+			)
+			val first = runAutomaticControlContainmentAttempt(
+				startImmediateCleanup = {
+					async {
+						requireNotNull(reconcileUnavailableAutomaticControl(
+							availability = unavailable,
+							reconcileDisabled = {
+								monitor.reconcile(
+									enabled = false,
+									useTransitionApi = false,
+									continuousIntervalSeconds = 10,
+									transitions = emptySet(),
+								)
+							},
+						))
+					}
+				},
+				establishRetryOwnership = {
+					schedulerCalls++
+					throw IllegalStateException("scheduler unavailable")
 				},
 			)
 
-			result shouldBe AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
+			first.cleanupResult shouldBe AutomaticControlRecoveryResult.RETRYABLE
+			first.isHandled shouldBe false
+			first.retryOwnershipFailure?.message shouldBe "scheduler unavailable"
 			database.sourceBrokerDao()
 				.currentDemands("app:automatic-start:activity")
 				.shouldBeEmpty()
@@ -243,6 +261,29 @@ class SourceBrokerTest {
 			(policyRepository.currentState() as SourcePolicyAuthorityState.Active)
 				.snapshot[TrackingSourceComponent.ACTIVITY]
 				.controlConsentEpoch shouldBe activityPolicy.controlConsentEpoch
+
+			val laterBoundary = runAutomaticControlContainmentAttempt(
+				startImmediateCleanup = {
+					async {
+						requireNotNull(reconcileUnavailableAutomaticControl(
+							availability = unavailable,
+							reconcileDisabled = {
+								monitor.reconcile(
+									enabled = false,
+									useTransitionApi = false,
+									continuousIntervalSeconds = 10,
+									transitions = emptySet(),
+								)
+							},
+						))
+					}
+				},
+				establishRetryOwnership = { schedulerCalls++ },
+			)
+
+			laterBoundary.isHandled shouldBe true
+			schedulerCalls shouldBe 2
+			arbiter.snapshot().owners shouldBe setOf(ActivityRegistrationOwner.ACTIVE_SESSION)
 		}
 
 	@Test
@@ -971,6 +1012,7 @@ class SourceBrokerTest {
 
 private class RecordingAutomaticContainmentArbiter(
 	initialOwners: Set<ActivityRegistrationOwner>,
+	private var retryableClearCount: Int = 0,
 ) : ActivityRegistrationArbiter {
 	private val owners = initialOwners.toMutableSet()
 
@@ -986,7 +1028,17 @@ private class RecordingAutomaticContainmentArbiter(
 		owner: ActivityRegistrationOwner,
 	): ActivityRegistrationResult {
 		owners -= owner
-		return result()
+		return if (retryableClearCount > 0) {
+			retryableClearCount--
+			ActivityRegistrationResult(
+				status = ActivityRegistrationStatus.DEGRADED,
+				snapshot = snapshotValue(),
+				failureCode = ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED,
+				retryable = true,
+			)
+		} else {
+			result()
+		}
 	}
 
 	override suspend fun reconcileDurableDemands(): ActivityRegistrationResult = result()

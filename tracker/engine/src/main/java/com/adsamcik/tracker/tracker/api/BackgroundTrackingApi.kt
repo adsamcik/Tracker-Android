@@ -61,6 +61,7 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.SupervisorJob
@@ -140,7 +141,10 @@ object BackgroundTrackingApi {
 	@Volatile
 	private var automaticControlAvailability =
 		TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.automaticControl
-	private var lastAutomaticContainmentKey: AutomaticControlContainmentKey? = null
+	private var handledAutomaticContainmentKey: AutomaticControlContainmentKey? = null
+	private var pendingAutomaticContainmentKey: AutomaticControlContainmentKey? = null
+	private var automaticContainmentJob: Job? = null
+	private var automaticContainmentGeneration = 0L
 	/** Allows a contradictory automatic-activity update to be corrected before a terminal stop. */
 	private const val AUTOMATIC_STOP_GRACE_MILLIS = 30_000L
 	private var appContext: Context? = null
@@ -1003,6 +1007,8 @@ object BackgroundTrackingApi {
 		activityWatcherJob = null
 		recognitionUpdatesJob?.cancel()
 		recognitionUpdatesJob = null
+		automaticContainmentJob?.cancel()
+		automaticContainmentJob = null
 		cancelAutomaticStopGrace()
 		val scope = preferenceScope
 		val finalMutation = requestMutationJob
@@ -1029,7 +1035,9 @@ object BackgroundTrackingApi {
 		activityControlConsentEpoch = null
 		automaticControlAvailability =
 			TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.automaticControl
-		lastAutomaticContainmentKey = null
+		handledAutomaticContainmentKey = null
+		pendingAutomaticContainmentKey = null
+		automaticContainmentGeneration = 0L
 		publishActivityAutomationAuthority()
 	}
 
@@ -1059,25 +1067,51 @@ object BackgroundTrackingApi {
 			configuredMode = cachedParamsSnapshot().autoTrackingMode,
 			availability = automaticControlAvailability,
 		)
-		lastAutomaticContainmentKey = applyAutomaticControlContainmentBoundary(
-			previousKey = lastAutomaticContainmentKey,
-			nextKey = key,
-			enqueueRetryOwner = {
-				getEntryPoint(context).automaticControlRecoveryScheduler().enqueue()
-			},
-			containImmediately = {
-				disable(context)
-				if (TrackerServiceApi.isActive(context)) {
-					val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value
-					if (sessionInfo?.isInitiatedByUser == false) {
-						TrackerServiceApi.stopService(
-							context,
-							TrackingStopCandidateReason.EXPLICIT_REQUEST,
-						)
+		if (key == null) {
+			automaticContainmentGeneration++
+			automaticContainmentJob?.cancel()
+			automaticContainmentJob = null
+			handledAutomaticContainmentKey = null
+			pendingAutomaticContainmentKey = null
+			return
+		}
+		if (handledAutomaticContainmentKey == key || pendingAutomaticContainmentKey == key) return
+
+		val scope = preferenceScope ?: return
+		val generation = ++automaticContainmentGeneration
+		automaticContainmentJob?.cancel()
+		pendingAutomaticContainmentKey = key
+		automaticContainmentJob = scope.launch {
+			val result = runAutomaticControlContainmentAttempt(
+				startImmediateCleanup = {
+					CompletableDeferred<AutomaticControlRecoveryResult>().also { completion ->
+						disable(context, completion)
+						if (TrackerServiceApi.isActive(context)) {
+							val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value
+							if (sessionInfo?.isInitiatedByUser == false) {
+								TrackerServiceApi.stopService(
+									context,
+									TrackingStopCandidateReason.EXPLICIT_REQUEST,
+								)
+							}
+						}
 					}
-				}
+				},
+				establishRetryOwnership = {
+					getEntryPoint(context).automaticControlRecoveryScheduler().enqueue()
+				},
+			)
+			result.cleanupFailure?.let { error ->
+				Tracebox.log.error(error, TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED)
 			}
-		)
+			result.retryOwnershipFailure?.let { error ->
+				Tracebox.log.error(error, TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED)
+			}
+			if (generation != automaticContainmentGeneration) return@launch
+			pendingAutomaticContainmentKey = null
+			handledAutomaticContainmentKey = key.takeIf { result.isHandled }
+			automaticContainmentJob = null
+		}
 	}
 }
 
@@ -1113,17 +1147,56 @@ internal fun automaticControlContainmentKeyOrNull(
 	)
 }
 
-internal fun applyAutomaticControlContainmentBoundary(
-	previousKey: AutomaticControlContainmentKey?,
-	nextKey: AutomaticControlContainmentKey?,
-	enqueueRetryOwner: () -> Unit,
-	containImmediately: () -> Unit,
-): AutomaticControlContainmentKey? {
-	if (nextKey == null) return null
-	if (previousKey == nextKey) return previousKey
-	enqueueRetryOwner()
-	containImmediately()
-	return nextKey
+internal data class AutomaticControlContainmentAttemptResult(
+	val cleanupResult: AutomaticControlRecoveryResult?,
+	val retryOwnershipEstablished: Boolean,
+	val cleanupFailure: Exception?,
+	val retryOwnershipFailure: Exception?,
+) {
+	val isHandled: Boolean
+		get() = cleanupResult == AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED ||
+			retryOwnershipEstablished
+}
+
+internal suspend fun runAutomaticControlContainmentAttempt(
+	startImmediateCleanup: () -> Deferred<AutomaticControlRecoveryResult>,
+	establishRetryOwnership: () -> Unit,
+): AutomaticControlContainmentAttemptResult {
+	var cleanupFailure: Exception? = null
+	val cleanup = try {
+		startImmediateCleanup()
+	} catch (cancellation: CancellationException) {
+		throw cancellation
+	} catch (error: Exception) {
+		cleanupFailure = error
+		null
+	}
+
+	var retryOwnershipFailure: Exception? = null
+	val retryOwnershipEstablished = try {
+		establishRetryOwnership()
+		true
+	} catch (cancellation: CancellationException) {
+		throw cancellation
+	} catch (error: Exception) {
+		retryOwnershipFailure = error
+		false
+	}
+
+	val cleanupResult = try {
+		cleanup?.await()
+	} catch (cancellation: CancellationException) {
+		throw cancellation
+	} catch (error: Exception) {
+		cleanupFailure = error
+		null
+	}
+	return AutomaticControlContainmentAttemptResult(
+		cleanupResult = cleanupResult,
+		retryOwnershipEstablished = retryOwnershipEstablished,
+		cleanupFailure = cleanupFailure,
+		retryOwnershipFailure = retryOwnershipFailure,
+	)
 }
 
 internal suspend fun reconcileUnavailableAutomaticControl(
