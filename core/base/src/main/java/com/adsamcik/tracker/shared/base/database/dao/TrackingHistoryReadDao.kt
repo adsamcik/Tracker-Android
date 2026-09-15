@@ -28,15 +28,17 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 @Suppress("LargeClass") // Cohesive batched history reads; a second Room DAO has no independent owner.
 interface TrackingHistoryReadDao {
 	/**
-	 * Evidence-bearing logical-entry candidate page.
+	 * Evidence-bearing logical-entry candidate page with an opt-in exact Steps-intent seed.
 	 *
 	 * Exactly bound attributed rows and attributed migrated rows are grouped by their explicit logical
 	 * id before [limit] is applied. Only null/null unattributed legacy rows use their physical segment
 	 * id. An exact reverse-bound Steps manifest is a coarse seed so an authenticated, payload-free
-	 * retention marker can keep a pruned entry discoverable. It is not source qualification: Kotlin
-	 * still requires either authenticated source facts or that exact marker, verifies checksums, epoch,
-	 * fence, lane, completeness, and every physical member, and keysets until enough accepted entries
-	 * are filled. Entry recency uses the newest membership-eligible sibling and physical-id tiebreaker.
+	 * retention marker can keep a pruned entry discoverable. [includeExactStepsOnlyIntent] additionally
+	 * admits an exact bound Steps capture manifest without consulting facts or generic sample counts;
+	 * only the source-aware union enables it. Neither path is source qualification: Kotlin still
+	 * verifies the complete manifest union, checksums, policy, epoch, fence, lane, completeness, and
+	 * every physical member before accepting a row. Entry recency uses the newest membership-eligible
+	 * sibling and physical-id tiebreaker.
 	 */
 	@Query(
 		"""
@@ -77,9 +79,10 @@ interface TrackingHistoryReadDao {
 				 AND source.purpose = :capturePurpose
 				 AND source.persistence_eligible = 1
 				 AND (
-				   (source.writer_owner = 'LEGACY_STEP_INTERVAL' AND segment.steps > 0)
+				   :includeExactStepsOnlyIntent = 1
 				   OR (
-					 source.writer_owner = 'STEPS_SESSION_FACTS'
+					 (source.writer_owner = 'LEGACY_STEP_INTERVAL' AND segment.steps > 0)
+					 OR source.writer_owner = 'STEPS_SESSION_FACTS'
 				   )
 				 )
 			 ) THEN 1 ELSE 0 END AS exact_candidate
@@ -165,6 +168,7 @@ interface TrackingHistoryReadDao {
 		limit: Int,
 		stepsSourceKind: Int,
 		capturePurpose: String,
+		includeExactStepsOnlyIntent: Boolean,
 		beforeStartTimeMs: Long?,
 		beforeSegmentId: Long?,
 	): List<RecentHistoryEntryCandidate>
