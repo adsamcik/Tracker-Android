@@ -14,7 +14,7 @@ All three implementation worktrees started clean from that local baseline:
 | Slice | Branch / worktree suffix | Exclusive production ownership | Current disposition |
 | --- | --- | --- | --- |
 | 007 | `codex/ti-wifi-full-clear-20260915` / `.worktrees\ti-wifi-full-clear-20260915` | AppDatabase and WifiCapturedFactDao | Static review closed; local merge `8767472d62fe77ee30e2c7d46765ed7f4b8d45dc` |
-| 008 | `codex/ti-legacy-radio-retention-20260915` / `.worktrees\ti-legacy-radio-retention-20260915` | Legacy worker, same-cause pipeline ordering and exact app callers/tests | `de2a4ae2f3` blocked by pre-radio segment-authority deletion; correction in progress |
+| 008 | `codex/ti-legacy-radio-retention-20260915` / `.worktrees\ti-legacy-radio-retention-20260915` | Legacy worker and exact app callers/tests; active pipeline unchanged | `de2a4ae2f3` plus `afa939b0fd84cc9e6ebda9262bf57bbf16a5eca0`; focused authority-order review pending |
 | 009 | `codex/ti-factless-steps-history-20260915` / `.worktrees\ti-factless-steps-history-20260915` | Source-aware Steps history and its candidate-query seam | Static review closed; local merge `3b1365692380ff1d98ab47ef6d869e8beea23981` |
 
 Each slice gets a separate adversarial static review of its committed production/test changes.
@@ -53,6 +53,12 @@ but both real radio services need that exact ownership evidence. Non-pending fai
 strand retry permanently despite preserved WAL. TI-D258 requires delayed, generation-fenced
 segment pruning only after both services accept, with equivalent active-pipeline inspection and
 non-pending authority-preservation regression sources. Do not integrate `de2a4ae2f3` alone.
+Correction `afa939b0fd84cc9e6ebda9262bf57bbf16a5eca0` changes only DataRetentionWorker and its
+test source: physical segment deletion is delayed until both radio services accept, only for the
+pruned raw branch, in a generation-fenced transaction before WAL cleanup. Non-pending attributed
+segment cases cover acceptance, either rejection, service failure/cancellation and generation
+changes. The active pipeline already deletes segments later in `purgeTripData` and is unchanged.
+The same adversary is assessing focused closure; no execution or worker integration is claimed.
 
 Slice 009's committed production paths are
 `core\base\src\main\java\com\adsamcik\tracker\shared\base\database\dao\TrackingHistoryReadDao.kt`,

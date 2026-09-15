@@ -33,6 +33,8 @@ Last updated: 2026-09-15
 - Input: `de2a4ae2f3102ee28b12d332a6f1054f38d7c068` on
   `codex/ti-legacy-radio-retention-20260915`, baseline `13ca528ccb`;
   TODO-HANDOVER-20260915-008.
+- Production/test correction: `afa939b0fd84cc9e6ebda9262bf57bbf16a5eca0` delays physical
+  segment pruning until both radio services accept and adds non-pending exact-segment assertions.
 - Production: `app\src\main\java\com\adsamcik\tracker\maintenance\DataRetentionWorker.kt`.
   Reuse captured Cell/Wi-Fi services before shared WAL pruning, also on pending-signal deferral;
   preserve lifecycle/Activity maintenance, conditional Steps drain and generation fences.
@@ -43,8 +45,9 @@ Last updated: 2026-09-15
 - Disposition: **IMPLEMENTED_UNVALIDATED; STATIC PRODUCTION BLOCKER**. The adversary traced
   pre-radio `session_segment` deletion to both real radio services' required exact ownership
   reads. Existing failure mocks use the pending-signal branch and miss committed authority loss.
-  A bounded delayed-pruning correction and non-pending regression sources are in progress
-  (TI-D258); the initial input must not be integrated without that correction.
+  The bounded correction and non-pending regression sources are authored in `afa939b0fd`
+  (TI-D258), with focused adversarial review pending. Active-pipeline segment pruning was traced
+  as already later and was not changed. Do not integrate the initial input without correction.
   No compilation, test, Hilt, Gradle, schema, diff-check, device, CI or execution gate ran.
 - Deferred after the authorized frozen final convergence only:
   `.\gradlew.bat :app:testDebugUnitTest --tests "com.adsamcik.tracker.maintenance.DataRetentionWorkerTest" --tests "com.adsamcik.tracker.app.maintenance.ActivityRetentionWorkerRobolectricTest"`.

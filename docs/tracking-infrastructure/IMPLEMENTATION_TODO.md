@@ -78,8 +78,9 @@ or check the broader assembly/completion items. Test sources are authored, never
   generation fences and author ordering, failure/cancellation and constructor-call-site sources.
   Source `de2a4ae2f3102ee28b12d332a6f1054f38d7c068` is IMPLEMENTED_UNVALIDATED; adversarial
   review found pre-radio deletion of required `session_segment` ownership evidence. TI-D258
-  requires delayed pruning after both services accept, including the same active-pipeline
-  defect if present. Correction/review closure and local integration remain pending (TI-B321).
+  correction `afa939b0fd84cc9e6ebda9262bf57bbf16a5eca0` delays pruning until both services
+  accept; the active pipeline was already safe and unchanged. Focused review closure and local
+  integration remain pending (TI-B321).
 - [x] TODO-HANDOVER-20260915-009 Make source-aware Steps replacement discovery intent-first
   for exact factless groups; retain materializing/unavailable instead of suppressing physical
   rows with no replacement. Keep ordinary evidence-first history semantics and bounded recency.

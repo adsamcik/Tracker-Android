@@ -4,7 +4,8 @@ Last updated: 2026-09-15
 
 ## TI-D258 - Radio retention must precede destruction of its physical ownership evidence
 
-- Status: adversarial production blocker identified; bounded correction in progress, unvalidated.
+- Status: adversarial production blocker has authored correction
+  `afa939b0fd84cc9e6ebda9262bf57bbf16a5eca0`; focused static review pending, unvalidated.
 - Counterexample in worker input `de2a4ae2f3`: legacy raw pruning commits deletion of an expired
   `session_segment`, then Cell/Wi-Fi maintenance requires that exact segment to authenticate its
   captured revisions. No FK retains the segment, so retry cannot restore the missing authority.
@@ -19,6 +20,9 @@ Last updated: 2026-09-15
 - Author non-pending expired-segment regressions whose service answers inspect actual retained
   authority, including acceptance, either rejection, errors/cancellation and generation changes.
   No execution, compilation or integration of the blocked input is authorized by this decision.
+- The owner traced the active pipeline to `purgeTripData`, which already deletes segments after
+  radio maintenance/WAL. It is unchanged. The correction changes only the legacy worker and its
+  focused test source; it does not widen production service APIs.
 
 ## TI-D257 - Explicit local integration authority for the three receiving seam slices
 
