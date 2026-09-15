@@ -48,6 +48,7 @@ import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
 import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryDigest
 import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.ImportedCellHistorySelection
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.maps.shouldContainExactly
@@ -548,6 +549,16 @@ class ImportedCellHistoryMapperTest {
 				source.recency.memberStartTimeMs shouldBe value.runs.single().startTimeMs
 				source.recency.tieIdentity shouldBe value.runs.single().identity
 			}
+			val readableEligible = database.withTransaction {
+				repository.recentImportedEligibleForSharedHistoryInTransaction(10)
+			} as ImportedHistoryEligiblePage.Available<*>
+			(readableEligible.entries.single() as CellImportedHistoryEligibleEntry).let { eligible ->
+				eligible.entry shouldBe readableConflict
+				eligible.selection shouldBe value.toSelection()
+				eligible.recency.newestMemberStartTimeMs shouldBe value.runs.single().startTimeMs
+				eligible.recency.newestMemberTieIdentity shouldBe
+					ImportedHistoryRecencyTieIdentity(value.runs.single().identity.value)
+			}
 
 			val corruptChecksum = rehashStoredKnownQualityCount(value, 0)
 			val selection = ImportedCellHistorySelection(
@@ -566,11 +577,47 @@ class ImportedCellHistoryMapperTest {
 			database.withTransaction {
 				repository.recentCellHistoryInTransaction(10)
 			} shouldBe CellSourceComposedPage.Failed(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+			database.withTransaction {
+				repository.recentImportedEligibleForSharedHistoryInTransaction(10)
+			} shouldBe ImportedHistoryEligiblePage.Unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+			)
 			(repository.detail(selection) as CellHistoryQuery.Found).entry.let { conflict ->
 				conflict.state shouldBe CellHistoryProductState.UNVERIFIABLE
 				conflict.causes shouldBe setOf(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT)
 				conflict.observations shouldBe emptyList()
 			}
+		}
+
+	@Test
+	fun `eligible imported page reports source budget instead of returning an incomplete limit`() =
+		runTest {
+			database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+			val importer = RoomImportPortableCapturedCell(database, Dispatchers.Unconfined)
+			repeat(257) { index ->
+				val startTimeMs = 1_000L + index * 100L
+				val value = cellEntry(
+					logicalLocal = "eligible-budget-$index",
+					runLocal = "eligible-budget-run-$index",
+					observation = cellObservation(
+						localId = "eligible-budget-observation-$index",
+						coverageStartTimeMs = startTimeMs + 1L,
+						observedTimeMs = startTimeMs + 2L,
+						wallTimeUncertaintyMs = 1L,
+					),
+					startTimeMs = startTimeMs,
+					endTimeMs = startTimeMs + 10L,
+				)
+				importer.importEntry(
+					importRequest(value, "eligible-budget-$index"),
+				) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+			}
+
+			database.withTransaction {
+				repository().recentImportedEligibleForSharedHistoryInTransaction(1)
+			} shouldBe ImportedHistoryEligiblePage.Unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
+			)
 		}
 
 	private fun repository() = DefaultCellHistoryRepository(

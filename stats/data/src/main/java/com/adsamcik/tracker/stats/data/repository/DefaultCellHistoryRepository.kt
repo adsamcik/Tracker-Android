@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.PortableCapturedCellEntryV1
 import com.adsamcik.tracker.shared.base.database.PortableCapturedCellRunV1
 import com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind
 import com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity
+import com.adsamcik.tracker.shared.base.database.PortableCellOriginComparison
 import com.adsamcik.tracker.shared.base.database.ReadLocalPortableCapturedCellResult
 import com.adsamcik.tracker.shared.base.database.authenticateDeletedImportedCellSelectionInTransaction
 import com.adsamcik.tracker.shared.base.database.authenticateDeletedCapturedCellSelectionInTransaction
@@ -51,10 +52,12 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeUnavailableReas
 import com.adsamcik.tracker.stats.api.repository.CellHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDay
 import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDayCompleteness
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryDigest
 import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.ImportedCellHistorySelection
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import java.time.Instant
 import java.time.ZoneId
@@ -69,7 +72,7 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 	private val database: AppDatabase,
 	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
-) : CellHistoryRepository {
+) : CellHistoryRepository, CellImportedHistoryEligibleReader {
 	private val importedProductReader = ImportedCellProductReader(database)
 	private val rangeContinuationIssuer = Any()
 
@@ -431,6 +434,149 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 		val selected = combined.sortedWith(cellSourceCompositionOrder)
 			.take(limit)
 		return CellSourceComposedPage.Available(selected)
+	}
+
+	override suspend fun recentImportedEligibleForSharedHistoryInTransaction(
+		limit: Int,
+	): ImportedHistoryEligiblePage<CellImportedHistoryEligibleEntry> {
+		require(limit in 1..MAX_RESULTS)
+		val accepted = mutableListOf<CellImportedHistoryEligibleEntry>()
+		var scanned = 0
+		var localOriginComparisons = 0
+		var beforeStartTimeMs: Long? = null
+		var beforeIdentity: String? = null
+		while (true) {
+			currentCoroutineContext().ensureActive()
+			val remaining = MAX_SHARED_HISTORY_IMPORTED_CANDIDATES - scanned
+			val pageLimit = minOf(SHARED_HISTORY_IMPORTED_PAGE_SIZE, remaining + 1)
+			val evaluations = try {
+				importedProductReader.selectRecentPageInTransaction(
+					limit = pageLimit,
+					beforeStartTimeMs = beforeStartTimeMs,
+					beforeIdentity = beforeIdentity,
+				)
+			} catch (cancelled: kotlinx.coroutines.CancellationException) {
+				throw cancelled
+			} catch (_: RuntimeException) {
+				return importedEligibleUnavailable(
+					SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+				)
+			}
+			if (evaluations.isEmpty()) break
+			if (evaluations.size > remaining) {
+				return importedEligibleUnavailable(
+					SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
+				)
+			}
+			scanned += evaluations.size
+			for (evaluation in evaluations) {
+				currentCoroutineContext().ensureActive()
+				val readable = when (evaluation) {
+					is ImportedCellProductEvaluation.Readable -> evaluation
+					is ImportedCellProductEvaluation.Unverifiable -> {
+						return importedEligibleUnavailable(
+							when (evaluation.reason) {
+								ImportedCellProductFailure.DEPENDENCY_OVERFLOW ->
+									SourceAwareHistoryPageUnavailableReason
+										.SOURCE_READ_BUDGET_EXCEEDED
+								else -> SourceAwareHistoryPageUnavailableReason
+									.SOURCE_INTEGRITY_FAILURE
+							},
+						)
+					}
+				}
+				val newest = readable.entry.runs.maxWithOrNull(
+					compareBy<PortableCapturedCellRunV1>(
+						PortableCapturedCellRunV1::startTimeMs,
+						{ it.identity.value },
+					),
+				) ?: return importedEligibleUnavailable(
+					SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
+				)
+				if (newest.startTimeMs !in readable.entry.startTimeMs..readable.entry.endTimeMs) {
+					return importedEligibleUnavailable(
+						SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
+					)
+				}
+				var originConflict = false
+				if (readable.localOriginHandle != null) {
+					localOriginComparisons += 1
+					if (localOriginComparisons > MAX_SHARED_HISTORY_LOCAL_ORIGIN_COMPARISONS) {
+						return importedEligibleUnavailable(
+							SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
+						)
+					}
+					val local = try {
+						importedProductReader.readLocalOriginInTransaction(
+							readable,
+							laneExecutionAuthority,
+						)
+					} catch (cancelled: kotlinx.coroutines.CancellationException) {
+						throw cancelled
+					} catch (_: RuntimeException) {
+						return importedEligibleUnavailable(
+							SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+						)
+					}
+					when (local) {
+						is ReadLocalPortableCapturedCellResult.Ready -> {
+							val exact = PortableCellOriginComparison.areExactFullV1Duplicates(
+								local.entry,
+								readable.entry,
+							)
+							if (exact && readable.isReExportable) continue
+							originConflict = !exact
+						}
+						is ReadLocalPortableCapturedCellResult.Outcome -> originConflict = true
+						null -> return importedEligibleUnavailable(
+							SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+						)
+					}
+				}
+				val entry = try {
+					readable.toPublicCellEntry(
+						overrideFailure = CellHistoryCause.ORIGIN_IDENTITY_CONFLICT
+							.takeIf { originConflict },
+					)
+				} catch (_: RuntimeException) {
+					return importedEligibleUnavailable(
+						SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+					)
+				}
+				val selection = ImportedCellHistorySelection(
+					identity = ImportedCellHistoryIdentity(readable.candidate.identity),
+					importRevision = readable.candidate.importRevision,
+					contentChecksum = ImportedCellHistoryDigest(readable.candidate.contentChecksum),
+				)
+				val carrier = try {
+					CellImportedHistoryEligibleEntry(
+						entry = entry,
+						selection = selection,
+						recency = ImportedHistoryRecency(
+							source = HistorySource.CELL,
+							newestMemberStartTimeMs = newest.startTimeMs,
+							newestMemberTieIdentity = ImportedHistoryRecencyTieIdentity(
+								newest.identity.value,
+							),
+						),
+					)
+				} catch (_: IllegalArgumentException) {
+					return importedEligibleUnavailable(
+						SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+					)
+				}
+				accepted += carrier
+			}
+			val last = evaluations.last().candidate
+			beforeStartTimeMs = last.startTimeMs
+			beforeIdentity = last.identity
+			if (evaluations.size < pageLimit) break
+		}
+		return ImportedHistoryEligiblePage.Available(
+			accepted.sortedWith { left, right ->
+				importedHistoryRecencyOrder.compare(left.recency, right.recency)
+			}.take(limit),
+		)
 	}
 
 	@Suppress("CyclomaticComplexMethod")
@@ -1007,6 +1153,9 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 	private companion object {
 		const val MAX_RESULTS = 100
 		const val MAX_RECENT_LOCAL_ORIGIN_COMPARISONS = 4
+		const val MAX_SHARED_HISTORY_LOCAL_ORIGIN_COMPARISONS = 4
+		const val MAX_SHARED_HISTORY_IMPORTED_CANDIDATES = 256
+		const val SHARED_HISTORY_IMPORTED_PAGE_SIZE = 32
 		const val MAX_RANGE_CANDIDATES_PER_ORIGIN = 256
 		const val CANDIDATE_PAGE_SIZE = 32
 		const val MAX_CANDIDATE_SCAN = 128
@@ -1364,6 +1513,10 @@ internal sealed interface CellSourceComposedPage {
 
 	data class Failed(val cause: CellHistoryCause) : CellSourceComposedPage
 }
+
+private fun importedEligibleUnavailable(
+	reason: SourceAwareHistoryPageUnavailableReason,
+): ImportedHistoryEligiblePage.Unavailable = ImportedHistoryEligiblePage.Unavailable(reason)
 
 /** Authenticated newest physical member ordering without exposing its native database identity. */
 internal data class CellSourceRecency(

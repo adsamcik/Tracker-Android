@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedCellRequest
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedCellResult
+import com.adsamcik.tracker.shared.base.database.PortableCapturedCellRunV1
 import com.adsamcik.tracker.shared.base.database.PortableCellImportReceipt
 import com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind
 import com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity
@@ -50,6 +51,7 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeScope
 import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDay
 import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDayCompleteness
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
 import com.adsamcik.tracker.stats.api.value.EpochMs
@@ -191,6 +193,84 @@ class CellHistoryRepositoryRoomTest {
 			source.entry.origin shouldBe CellHistoryOrigin.Local
 			source.recency.memberStartTimeMs shouldBe group.runs.single().segment.startTimeMs
 			source.recency.tieIdentity shouldBe portable.entry.runs.single().identity
+			database.withTransaction {
+				repository.recentImportedEligibleForSharedHistoryInTransaction(10)
+			} shouldBe ImportedHistoryEligiblePage.Available(
+				emptyList<CellImportedHistoryEligibleEntry>(),
+			)
+		}
+
+	@Test
+	fun `eligible imported page is not starved by newer local candidates and uses newest run recency`() =
+		runTest {
+			val source = AppDatabase.testDatabase(
+				ApplicationProvider.getApplicationContext<Application>(),
+			)
+			try {
+				val importedGroup = buildGroup(
+					groupIndex = 1,
+					runCount = 3,
+					factRunIndexes = setOf(0, 1, 2),
+				)
+				persist(listOf(importedGroup), target = source)
+				val portable = source.withTransaction {
+					RoomReadLocalPortableCapturedCell(
+						source,
+						SourceProductLaneExecutionAuthority { source.inTransaction() },
+					).readInTransaction(importedGroup.session.logicalTrackingId)
+				} as ReadLocalPortableCapturedCellResult.Ready
+				persist(
+					(2..6).map { index ->
+						buildGroup(index, runCount = 1, factRunIndexes = setOf(0))
+					},
+				)
+				RoomImportPortableCapturedCell(
+					database,
+					UnconfinedTestDispatcher(testScheduler),
+				).importEntry(
+					ImportPortableCapturedCellRequest(
+						entry = portable.entry,
+						receipt = PortableCellImportReceipt(
+							jobId = "shared-history-older-import",
+							entryKey = "shared-history-older-import",
+							sourceName = "shared-history.trackercell",
+							receivedAtMs = portable.entry.endTimeMs,
+						),
+						expectedCollectedDataEpoch = 0L,
+					),
+				) shouldBe ImportPortableCapturedCellResult.Applied(
+					importRevision = 1L,
+					physicalRunCount = portable.entry.runs.size,
+					observationCount = portable.entry.runs.sumOf { it.observations.size },
+				)
+				val repository = repository { database.inTransaction() }
+
+				(repository.recent(1) as CellHistoryPage.Available).entries.single().origin shouldBe
+					CellHistoryOrigin.Local
+				val page = database.withTransaction {
+					repository.recentImportedEligibleForSharedHistoryInTransaction(1)
+				} as ImportedHistoryEligiblePage.Available<*>
+				val eligible = page.entries.single() as CellImportedHistoryEligibleEntry
+				val newest = portable.entry.runs.maxWithOrNull(
+					compareBy<PortableCapturedCellRunV1>(
+						PortableCapturedCellRunV1::startTimeMs,
+						{ it.identity.value },
+					),
+				)
+				requireNotNull(newest)
+				eligible.selection shouldBe
+					(eligible.entry.origin as CellHistoryOrigin.Imported).selection
+				eligible.recency.source shouldBe HistorySource.CELL
+				eligible.recency.newestMemberStartTimeMs shouldBe newest.startTimeMs
+				eligible.recency.newestMemberTieIdentity shouldBe
+					ImportedHistoryRecencyTieIdentity(newest.identity.value)
+				eligible.recency.newestMemberStartTimeMs shouldBe
+					importedGroup.runs.last().segment.startTimeMs
+				eligible.recency.newestMemberStartTimeMs shouldBe
+					(portable.entry.startTimeMs + 2_000L)
+			} finally {
+				source.close()
+			}
 		}
 
 	@Test
@@ -648,16 +728,17 @@ class CellHistoryRepositoryRoomTest {
 	private suspend fun persist(
 		groups: List<Group>,
 		evidenceState: SourceEvidenceState = SourceEvidenceState(collectedDataEpoch = 0L),
+		target: AppDatabase = database,
 	) {
 		val runs = groups.flatMap(Group::runs)
-		val sessionDao = database.sourceSessionDao()
-		val policyDao = database.sourcePolicyDao()
-		val planDao = database.sourcePlanStateDao()
-		val brokerDao = database.sourceBrokerDao()
-		val factDao = database.cellCapturedFactDao()
-		database.sourceEvidenceStateDao().ensure(evidenceState)
+		val sessionDao = target.sourceSessionDao()
+		val policyDao = target.sourcePolicyDao()
+		val planDao = target.sourcePlanStateDao()
+		val brokerDao = target.sourceBrokerDao()
+		val factDao = target.cellCapturedFactDao()
+		target.sourceEvidenceStateDao().ensure(evidenceState)
 		groups.map(Group::session).forEach { sessionDao.insertSession(it) }
-		database.sessionSegmentDao().insert(runs.map(BuiltRun::segment))
+		target.sessionSegmentDao().insert(runs.map(BuiltRun::segment))
 		runs.sortedBy { it.run.startedAtMs }.forEach { sessionDao.insertServiceRun(it.run) }
 		runs.sortedBy { it.manifest.manifestRevision }.forEach { sessionDao.insertManifest(it.manifest) }
 		sessionDao.insertManifestSources(runs.map(BuiltRun::source))
@@ -670,7 +751,7 @@ class CellHistoryRepositoryRoomTest {
 		runs.mapNotNull(BuiltRun::provider).sortedBy(ProviderRegistrationGenerationEntity::registrationGeneration)
 			.forEach { brokerDao.insertRegistration(it) }
 		brokerDao.insertAuthorizations(runs.flatMap(BuiltRun::authorizations))
-		database.sourceProjectionStateDao().installProductLane(lane(runs.flatMap(BuiltRun::facts)
+		target.sourceProjectionStateDao().installProductLane(lane(runs.flatMap(BuiltRun::facts)
 			.maxOfOrNull(CellCapturedFactRevisionEntity::sourceAdmissionOrdinal) ?: 1L))
 		runs.forEach { sessionDao.saveCompleteness(it.completeness) }
 		runs.flatMap(BuiltRun::facts).sortedWith(compareBy(

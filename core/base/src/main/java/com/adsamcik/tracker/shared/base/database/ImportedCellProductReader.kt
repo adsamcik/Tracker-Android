@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerat
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellIdentity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellObservationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellRunEntity
@@ -54,17 +55,32 @@ class ImportedCellProductReader(
 	}
 
 	suspend fun selectRecentInTransaction(limit: Int): List<ImportedCellProductEvaluation> {
-		require(limit in 1..ImportedCellDao.MAX_HISTORY_ENTRY_CANDIDATES)
-		val candidates = database.importedCellDao().recentHistoryCandidatePage(
+		return selectRecentPageInTransaction(
 			limit = limit,
 			beforeStartTimeMs = null,
 			beforeIdentity = null,
 		)
+	}
+
+	suspend fun selectRecentPageInTransaction(
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): List<ImportedCellProductEvaluation> {
+		require(limit in 1..ImportedCellDao.MAX_HISTORY_ENTRY_CANDIDATES)
+		require((beforeStartTimeMs == null) == (beforeIdentity == null))
+		require(beforeStartTimeMs?.let { it >= 0L } != false)
+		require(beforeIdentity?.let { ImportedCellIdentity.isDigest(it) } != false)
+		val candidates = database.importedCellDao().recentHistoryCandidatePage(
+			limit = limit,
+			beforeStartTimeMs = beforeStartTimeMs,
+			beforeIdentity = beforeIdentity,
+		)
 		return evaluateCandidates(
 			candidates = candidates,
-			beforeStartTimeMs = null,
-			beforeIdentity = null,
-			maximumSize = ImportedCellDao.MAX_HISTORY_ENTRY_CANDIDATES,
+			beforeStartTimeMs = beforeStartTimeMs,
+			beforeIdentity = beforeIdentity,
+			maximumSize = limit,
 		)
 	}
 
