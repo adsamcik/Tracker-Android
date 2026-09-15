@@ -282,6 +282,10 @@ class ActivityRetentionWorkerRobolectricTest {
 				) else RetentionPipelineWorker(
 					appContext, parameters, store, lifecycle, Provider { db }, mockk(relaxed = true),
 					READY_GATE, Provider { lane }, Provider { imported },
+					mockk<CellCapturedRetentionService> {
+						coEvery { prune(any(), any(), any()) } returns
+							com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult.NoChange
+					},
 				)
 		}
 		return if (path == WorkerPath.LEGACY) {

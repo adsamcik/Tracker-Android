@@ -571,6 +571,24 @@ class CellWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `fact backed history discovery finds a Cell only zero sample segment`() = runTest {
+		installValidFixture(candidateWriter = true)
+		assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+
+		val candidates = database.cellCapturedFactDao().logicalHistoryCandidatePage(
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+			10,
+			null,
+			null,
+		)
+
+		assertEquals(1, candidates.size)
+		assertEquals(SEGMENT_ID, candidates.single().segment.id)
+		assertEquals(0, candidates.single().segment.sampleCount)
+	}
+
+	@Test
 	fun `exact WAL replay is a zero mutation idempotent result`() = runTest {
 		installValidFixture(candidateWriter = true)
 		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))

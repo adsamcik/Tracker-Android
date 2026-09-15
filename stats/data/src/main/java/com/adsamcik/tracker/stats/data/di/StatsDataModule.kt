@@ -8,6 +8,7 @@ import com.adsamcik.tracker.stats.api.metric.PersistentDirtyState
 import com.adsamcik.tracker.stats.api.repository.AchievementMetricsProvider
 import com.adsamcik.tracker.stats.api.repository.AchievementRepository
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryRepository
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.CellSignalRepository
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
@@ -28,6 +29,7 @@ import com.adsamcik.tracker.stats.data.metric.DurableMetricDirtyTracker
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultActivityHistoryRepository
+import com.adsamcik.tracker.stats.data.repository.DefaultCellHistoryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultCellSignalRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultDailySummaryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultDomainEventRepository
@@ -188,6 +190,17 @@ internal abstract class ActivityHistoryDataModule {
 	abstract fun bindActivityHistoryRepository(
 		impl: DefaultActivityHistoryRepository,
 	): ActivityHistoryRepository
+}
+
+/** Keeps identity-free captured Cell history independent of the legacy radio repository. */
+@Module
+@InstallIn(SingletonComponent::class)
+internal abstract class CellHistoryDataModule {
+	@Binds
+	@Singleton
+	abstract fun bindCellHistoryRepository(
+		impl: DefaultCellHistoryRepository,
+	): CellHistoryRepository
 }
 
 /**
