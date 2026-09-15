@@ -57,7 +57,30 @@ sealed interface ActivitySourceEraseResult {
 
 	data class Blocked(
 		val reason: ActivitySourceEraseBlockedReason,
-	) : ActivitySourceEraseResult
+		val localProductErasedBeforeFailure: Boolean = false,
+		val importedEntriesErasedBeforeFailure: Int = 0,
+	) : ActivitySourceEraseResult {
+		init {
+			require(importedEntriesErasedBeforeFailure >= 0)
+		}
+	}
+
+	/** The bounded call erased its full batch and confirmed additional imported product remains. */
+	data class ContinuationRequired(
+		val localProductErasedBeforeContinuation: Boolean,
+		val importedLiveEntryCount: Int,
+		val importedRetainedEntryCount: Int,
+		val importedPhysicalRunCount: Int,
+	) : ActivitySourceEraseResult {
+		init {
+			listOf(
+				importedLiveEntryCount,
+				importedRetainedEntryCount,
+				importedPhysicalRunCount,
+			).forEach { require(it >= 0) }
+			require(importedLiveEntryCount > 0 || importedRetainedEntryCount > 0)
+		}
+	}
 
 	data class Unverifiable(
 		val reason: ActivitySourceEraseUnverifiableReason,

@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.ActivityCapturedSourceDeletionB
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedSourceDeletionResult
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.EraseNextImportedActivityResult
+import com.adsamcik.tracker.shared.base.database.ImportedActivityEraseRemainingResult
 import com.adsamcik.tracker.shared.base.database.ImportedActivityProductFailure
 import com.adsamcik.tracker.shared.base.database.PortableActivityTransferRetryableReason
 import com.adsamcik.tracker.shared.base.database.RoomEraseNextImportedActivity
@@ -82,26 +83,17 @@ internal class RoomActivitySourceErase @Inject constructor(
 		var liveEntries = 0
 		var retainedEntries = 0
 		var physicalRuns = 0
-		repeat(ActivityCapturedPortableFormatV1.MAX_ENTRIES + 1) { index ->
+		repeat(ActivityCapturedPortableFormatV1.MAX_ENTRIES) {
 			when (val next = importedErase.eraseNext(
 				expectedCollectedDataEpoch = request.expectedCollectedDataEpoch,
 				deletedAtMs = request.deletedAtMs,
 			)) {
-				EraseNextImportedActivityResult.Complete -> {
-					val importedCount = Math.addExact(liveEntries, retainedEntries)
-					if (localCounts == LocalEraseCounts.EMPTY && importedCount == 0) {
-						return@withContext ActivitySourceEraseResult.AlreadyErased
-					}
-					return@withContext ActivitySourceEraseResult.Erased(
-						localLogicalWindowCount = localCounts.logicalWindowCount,
-						localRevisionCount = localCounts.revisionCount,
-						localRegistrationPlanCount = localCounts.registrationPlanCount,
-						localFencedServiceRunCount = localCounts.fencedServiceRunCount,
-						importedLiveEntryCount = liveEntries,
-						importedRetainedEntryCount = retainedEntries,
-						importedPhysicalRunCount = physicalRuns,
-					)
-				}
+				EraseNextImportedActivityResult.Complete -> return@withContext completedResult(
+					localCounts,
+					liveEntries,
+					retainedEntries,
+					physicalRuns,
+				)
 				is EraseNextImportedActivityResult.ErasedLive -> {
 					liveEntries = Math.addExact(liveEntries, 1)
 					physicalRuns = Math.addExact(physicalRuns, next.physicalRunCount)
@@ -111,7 +103,14 @@ internal class RoomActivitySourceErase @Inject constructor(
 					physicalRuns = Math.addExact(physicalRuns, next.physicalRunCount)
 				}
 				is EraseNextImportedActivityResult.Blocked -> return@withContext
-					ActivitySourceEraseResult.Blocked(next.reason.toPublicReason())
+					ActivitySourceEraseResult.Blocked(
+						reason = next.reason.toPublicReason(),
+						localProductErasedBeforeFailure = localCounts != LocalEraseCounts.EMPTY,
+						importedEntriesErasedBeforeFailure = Math.addExact(
+							liveEntries,
+							retainedEntries,
+						),
+					)
 				is EraseNextImportedActivityResult.Unverifiable -> return@withContext
 					ActivitySourceEraseResult.Unverifiable(
 						reason = next.reason.toPublicReason(),
@@ -125,19 +124,45 @@ internal class RoomActivitySourceErase @Inject constructor(
 						importedEntriesErasedBeforeFailure = Math.addExact(liveEntries, retainedEntries),
 					)
 			}
-			if (index == ActivityCapturedPortableFormatV1.MAX_ENTRIES) {
-				return@withContext ActivitySourceEraseResult.Unverifiable(
-					reason = ActivitySourceEraseUnverifiableReason.DEPENDENCY_OVERFLOW,
-					localProductErasedBeforeFailure = localCounts != LocalEraseCounts.EMPTY,
-					importedEntriesErasedBeforeFailure = Math.addExact(liveEntries, retainedEntries),
-				)
-			}
 		}
-		ActivitySourceEraseResult.Unverifiable(
-			reason = ActivitySourceEraseUnverifiableReason.DEPENDENCY_OVERFLOW,
-			localProductErasedBeforeFailure = localCounts != LocalEraseCounts.EMPTY,
-			importedEntriesErasedBeforeFailure = Math.addExact(liveEntries, retainedEntries),
-		)
+		when (val remaining = importedErase.probeRemaining(request.expectedCollectedDataEpoch)) {
+			ImportedActivityEraseRemainingResult.Complete -> completedResult(
+				localCounts,
+				liveEntries,
+				retainedEntries,
+				physicalRuns,
+			)
+			ImportedActivityEraseRemainingResult.Remaining ->
+				ActivitySourceEraseResult.ContinuationRequired(
+					localProductErasedBeforeContinuation = localCounts != LocalEraseCounts.EMPTY,
+					importedLiveEntryCount = liveEntries,
+					importedRetainedEntryCount = retainedEntries,
+					importedPhysicalRunCount = physicalRuns,
+				)
+			is ImportedActivityEraseRemainingResult.Blocked -> ActivitySourceEraseResult.Blocked(
+				reason = remaining.reason.toPublicReason(),
+				localProductErasedBeforeFailure = localCounts != LocalEraseCounts.EMPTY,
+				importedEntriesErasedBeforeFailure = Math.addExact(liveEntries, retainedEntries),
+			)
+			is ImportedActivityEraseRemainingResult.Unverifiable ->
+				ActivitySourceEraseResult.Unverifiable(
+					reason = remaining.reason.toPublicReason(),
+					localProductErasedBeforeFailure = localCounts != LocalEraseCounts.EMPTY,
+					importedEntriesErasedBeforeFailure = Math.addExact(
+						liveEntries,
+						retainedEntries,
+					),
+				)
+			is ImportedActivityEraseRemainingResult.RetryableFailure ->
+				ActivitySourceEraseResult.RetryableFailure(
+					reason = remaining.reason.toPublicReason(),
+					localProductErasedBeforeFailure = localCounts != LocalEraseCounts.EMPTY,
+					importedEntriesErasedBeforeFailure = Math.addExact(
+						liveEntries,
+						retainedEntries,
+					),
+				)
+		}
 	}
 }
 
@@ -149,6 +174,28 @@ private data class LocalEraseCounts(
 ) {
 	companion object {
 		val EMPTY = LocalEraseCounts(0, 0, 0, 0)
+	}
+}
+
+private fun completedResult(
+	local: LocalEraseCounts,
+	importedLiveEntries: Int,
+	importedRetainedEntries: Int,
+	importedPhysicalRuns: Int,
+): ActivitySourceEraseResult {
+	val importedCount = Math.addExact(importedLiveEntries, importedRetainedEntries)
+	return if (local == LocalEraseCounts.EMPTY && importedCount == 0) {
+		ActivitySourceEraseResult.AlreadyErased
+	} else {
+		ActivitySourceEraseResult.Erased(
+			localLogicalWindowCount = local.logicalWindowCount,
+			localRevisionCount = local.revisionCount,
+			localRegistrationPlanCount = local.registrationPlanCount,
+			localFencedServiceRunCount = local.fencedServiceRunCount,
+			importedLiveEntryCount = importedLiveEntries,
+			importedRetainedEntryCount = importedRetainedEntries,
+			importedPhysicalRunCount = importedPhysicalRuns,
+		)
 	}
 }
 

@@ -2121,9 +2121,27 @@ class RoomImportPortableCapturedActivityTest {
 
 	@Test
 	fun `source erase reuses selected deletion marker before live imported cascade`() = runTest {
-		val imported = request()
+		val erasedScope = PortableActivityDeletionScopeDigest.derive(
+			"source-erase-logical",
+			"source-erase-run",
+		)
+		val imported = request(
+			entry(
+				entryLocalId = "source-erase-entry",
+				runIdentity = identity(
+					PortableActivityIdentityKind.PHYSICAL_RUN,
+					"source-erase-run",
+				),
+				deletionScope = erasedScope,
+				windowIdentity = identity(
+					PortableActivityIdentityKind.CAPTURE_WINDOW,
+					"source-erase-window",
+				),
+			),
+		)
 		importer(testScheduler).importEntry(imported)
 		val subject = sourceEraser(testScheduler)
+		subject.probeRemaining(EPOCH) shouldBe ImportedActivityEraseRemainingResult.Remaining
 
 		subject.eraseNext(EPOCH, 100L) shouldBe
 			EraseNextImportedActivityResult.ErasedLive(1, 1)
@@ -2139,15 +2157,41 @@ class RoomImportPortableCapturedActivityTest {
 			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
 			imported.entry.runs.single().deletionScopeDigest.value,
 		) shouldBe true
-		importer(testScheduler).importEntry(
-			imported.copy(receipt = receipt("after-source-erase", 101L)),
-		) shouldBe ImportPortableCapturedActivityResult.Blocked(
-			PortableActivityImportBlockedReason.DELETED_ENTRY,
+		val freshIdentityEntry = entry(
+			entryLocalId = "fresh-entry",
+			runIdentity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "fresh-run"),
+			deletionScope = erasedScope,
+			windowIdentity = identity(PortableActivityIdentityKind.CAPTURE_WINDOW, "fresh-window"),
 		)
 		importer(testScheduler).importEntry(
-			request(entry(endUncertaintyMs = 12L), receipt("corrected-after-source-erase", 102L)),
+			request(freshIdentityEntry, receipt("after-source-erase", 101L)),
 		) shouldBe ImportPortableCapturedActivityResult.Blocked(
-			PortableActivityImportBlockedReason.DELETED_ENTRY,
+			PortableActivityImportBlockedReason.DELETED_SCOPE,
+		)
+		AppDatabase.deleteAllCollectedData(database, EPOCH + 1L, null, 300L)
+		database.sourceDeletionFenceDao().contains(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			erasedScope.value,
+		) shouldBe true
+		val afterFullClear = entry(
+			entryLocalId = "post-clear-entry",
+			runIdentity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "post-clear-run"),
+			deletionScope = erasedScope,
+			windowIdentity = identity(
+				PortableActivityIdentityKind.CAPTURE_WINDOW,
+				"post-clear-window",
+			),
+		)
+		importer(testScheduler).importEntry(
+			ImportPortableCapturedActivityRequest(
+				afterFullClear,
+				receipt("after-full-clear", 301L),
+				EPOCH + 1L,
+			),
+		) shouldBe ImportPortableCapturedActivityResult.Blocked(
+			PortableActivityImportBlockedReason.DELETED_SCOPE,
 		)
 		var sinkCalls = 0
 		RoomExportPortableCapturedActivity(
@@ -2158,7 +2202,7 @@ class RoomImportPortableCapturedActivityTest {
 			sinkCalls++
 		} shouldBe ExportPortableCapturedActivityResult.NoEntries
 		sinkCalls shouldBe 0
-		subject.eraseNext(EPOCH, 101L) shouldBe EraseNextImportedActivityResult.Complete
+		subject.probeRemaining(EPOCH + 1L) shouldBe ImportedActivityEraseRemainingResult.Complete
 	}
 
 	@Test
@@ -2235,6 +2279,30 @@ class RoomImportPortableCapturedActivityTest {
 		)
 		shouldThrow<CancellationException> { cancelling.eraseNext(EPOCH, 100L) }
 		database.importedActivityDao().entryDeletion(imported.entry.identity.value) shouldBe null
+		database.sourceDeletionFenceDao().contains(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			imported.entry.runs.single().deletionScopeDigest.value,
+		) shouldBe false
+
+		val storageFailure = sourceEraser(testScheduler) { checkpoint ->
+			if (checkpoint == ImportedActivitySourceEraseCheckpoint.LIVE_SCOPE_FENCES_RECORDED) {
+				throw SQLiteException("live source erase failed")
+			}
+		}
+		storageFailure.eraseNext(EPOCH, 100L) shouldBe
+			EraseNextImportedActivityResult.RetryableFailure(
+				PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		database.importedActivityDao().latestEntryRevision(imported.entry.identity.value) shouldBe
+			database.importedActivityDao().entryRevision(imported.entry.identity.value, 1L)
+		database.sourceDeletionFenceDao().contains(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			imported.entry.runs.single().deletionScopeDigest.value,
+		) shouldBe false
 
 		val closed = newDatabase()
 		val failing = RoomEraseNextImportedActivity(
@@ -2250,6 +2318,31 @@ class RoomImportPortableCapturedActivityTest {
 			EraseNextImportedActivityResult.RetryableFailure(
 				PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
 			)
+	}
+
+	@Test
+	fun `stale preexisting live scope fence fails closed without cascading payload`() = runTest {
+		val imported = request()
+		importer(testScheduler).importEntry(imported)
+		val scope = imported.entry.runs.single().deletionScopeDigest.value
+		database.sourceDeletionFenceDao().insertIfAbsent(
+			SourceDeletionFenceEntity.createForOriginalRunDigest(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+				purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+				scopeIdentityDigest = scope,
+				fenceGeneration = 1L,
+				collectedDataEpoch = EPOCH,
+				deletedAtMs = 90L,
+			),
+		)
+
+		sourceEraser(testScheduler).eraseNext(EPOCH, 100L) shouldBe
+			EraseNextImportedActivityResult.Unverifiable(
+				ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		database.importedActivityDao().latestEntryRevision(imported.entry.identity.value) shouldBe
+			database.importedActivityDao().entryRevision(imported.entry.identity.value, 1L)
+		database.importedActivityDao().entryDeletion(imported.entry.identity.value) shouldBe null
 	}
 
 	@Test

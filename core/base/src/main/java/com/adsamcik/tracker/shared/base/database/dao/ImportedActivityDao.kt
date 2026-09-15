@@ -223,6 +223,26 @@ abstract class ImportedActivityDao {
 		beforeIdentity: String?,
 	): List<ImportedActivityHistoryCandidate>
 
+	/** Read-only continuation probe; deleted retained shells are intentionally not actionable. */
+	@Query(
+		"""
+		SELECT (
+		  EXISTS(SELECT 1 FROM imported_activity_entry_revision LIMIT 1)
+		  OR EXISTS(
+		    SELECT 1
+		    FROM imported_activity_retention_receipt AS retained
+		    WHERE NOT EXISTS (
+		      SELECT 1
+		      FROM imported_activity_entry_deletion AS deletion
+		      WHERE deletion.entry_identity = retained.entry_identity
+		    )
+		    LIMIT 1
+		  )
+		)
+		""",
+	)
+	abstract suspend fun hasErasableProductCandidate(): Boolean
+
 	suspend fun entryRevisionsForAdmission(identity: String): List<ImportedActivityEntryRevisionEntity> =
 		loadEntryRevisions(identity, MAX_REVISIONS_PER_ENTRY + 1)
 

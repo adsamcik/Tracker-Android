@@ -80,6 +80,52 @@ class RoomEraseNextImportedActivity internal constructor(
 		}
 	}
 
+	/** Read-only probe used after the bounded mutation budget is exhausted. */
+	suspend fun probeRemaining(
+		expectedCollectedDataEpoch: Long,
+	): ImportedActivityEraseRemainingResult = withContext(ioDispatcher) {
+		require(expectedCollectedDataEpoch >= 0L)
+		try {
+			database.withTransaction {
+				val state = database.sourceEvidenceStateDao().get()
+					?: return@withTransaction ImportedActivityEraseRemainingResult.Unverifiable(
+						ImportedActivityProductFailure.SOURCE_EVIDENCE_STATE_MISSING,
+					)
+				if (state.collectedDataEpoch != expectedCollectedDataEpoch) {
+					return@withTransaction ImportedActivityEraseRemainingResult.Blocked(
+						SelectedImportedActivityDeletionBlockedReason.COLLECTED_DATA_EPOCH_CHANGED,
+					)
+				}
+				if (state.revision < 0L || state.updatedAtMs < 0L ||
+					state.retainedFromMs?.let { it < 0L } == true
+				) {
+					return@withTransaction ImportedActivityEraseRemainingResult.Unverifiable(
+						ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+					)
+				}
+				if (database.importedActivityDao().hasErasableProductCandidate()) {
+					ImportedActivityEraseRemainingResult.Remaining
+				} else {
+					ImportedActivityEraseRemainingResult.Complete
+				}
+			}
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: SQLiteException) {
+			ImportedActivityEraseRemainingResult.RetryableFailure(
+				PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		} catch (_: ArithmeticException) {
+			ImportedActivityEraseRemainingResult.Unverifiable(
+				ImportedActivityProductFailure.VALUE_OVERFLOW,
+			)
+		} catch (_: IllegalArgumentException) {
+			ImportedActivityEraseRemainingResult.Unverifiable(
+				ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+	}
+
 	private suspend fun eraseNextInTransaction(
 		expectedCollectedDataEpoch: Long,
 		deletedAtMs: Long,
@@ -143,6 +189,7 @@ class RoomEraseNextImportedActivity internal constructor(
 				run.windows.map { window -> window.identity }
 			},
 		)
+		installLiveScopeFences(selected, expectedCollectedDataEpoch, deletedAtMs)
 		return selectedDeletion.deleteInTransaction(
 			DeleteSelectedImportedActivityRequest(
 				selected = selected,
@@ -150,6 +197,42 @@ class RoomEraseNextImportedActivity internal constructor(
 				deletedAtMs = deletedAtMs,
 			),
 		).toSourceEraseResult()
+	}
+
+	private suspend fun installLiveScopeFences(
+		selected: SelectedImportedActivityIdentity,
+		expectedCollectedDataEpoch: Long,
+		deletedAtMs: Long,
+	) {
+		selected.runDeletionScopes.forEach { run ->
+			val expected = SourceDeletionFenceEntity.createForOriginalRunDigest(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+				purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+				scopeIdentityDigest = run.deletionScopeDigest.value,
+				fenceGeneration = FIRST_DELETION_GENERATION,
+				collectedDataEpoch = expectedCollectedDataEpoch,
+				deletedAtMs = deletedAtMs,
+			)
+			if (database.sourceDeletionFenceDao().insertIfAbsent(expected) == INSERT_IGNORED) {
+				val retained = database.sourceDeletionFenceDao().get(
+					expected.sourceKind,
+					expected.purpose,
+					expected.scopeKind,
+					expected.scopeIdentityDigest,
+				)
+				if (retained != expected) {
+					if (retained != null &&
+						retained.collectedDataEpoch == expectedCollectedDataEpoch &&
+						retained.fenceGeneration == FIRST_DELETION_GENERATION &&
+						retained.deletedAtMs > deletedAtMs
+					) {
+						abortBlocked(SelectedImportedActivityDeletionBlockedReason.STALE_REQUEST)
+					}
+					abortCorrupt()
+				}
+			}
+		}
+		writeCheckpoint(ImportedActivitySourceEraseCheckpoint.LIVE_SCOPE_FENCES_RECORDED)
 	}
 
 	@Suppress("LongMethod", "ComplexCondition")
@@ -318,6 +401,9 @@ class RoomEraseNextImportedActivity internal constructor(
 
 	private fun abortCorrupt(): Nothing = throw ImportedActivitySourceEraseAbort(corrupt())
 
+	private fun abortBlocked(reason: SelectedImportedActivityDeletionBlockedReason): Nothing =
+		throw ImportedActivitySourceEraseAbort(EraseNextImportedActivityResult.Blocked(reason))
+
 	private companion object {
 		const val FIRST_DELETION_GENERATION = 1L
 		const val INSERT_IGNORED = -1L
@@ -331,6 +417,7 @@ private class ImportedActivitySourceEraseAbort(
 internal enum class ImportedActivitySourceEraseCheckpoint {
 	TRANSACTION_STARTED,
 	LINEAGE_AUTHENTICATED,
+	LIVE_SCOPE_FENCES_RECORDED,
 	SOURCE_MARKERS_RECORDED,
 	RETAINED_RECEIPT_REDACTED,
 }
@@ -359,6 +446,24 @@ sealed interface EraseNextImportedActivityResult {
 	data class RetryableFailure(
 		val reason: PortableActivityTransferRetryableReason,
 	) : EraseNextImportedActivityResult
+}
+
+sealed interface ImportedActivityEraseRemainingResult {
+	data object Complete : ImportedActivityEraseRemainingResult
+
+	data object Remaining : ImportedActivityEraseRemainingResult
+
+	data class Blocked(
+		val reason: SelectedImportedActivityDeletionBlockedReason,
+	) : ImportedActivityEraseRemainingResult
+
+	data class Unverifiable(
+		val reason: ImportedActivityProductFailure,
+	) : ImportedActivityEraseRemainingResult
+
+	data class RetryableFailure(
+		val reason: PortableActivityTransferRetryableReason,
+	) : ImportedActivityEraseRemainingResult
 }
 
 private fun DeleteSelectedImportedActivityResult.toSourceEraseResult():

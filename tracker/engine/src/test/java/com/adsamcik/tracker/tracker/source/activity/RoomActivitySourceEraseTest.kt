@@ -3,9 +3,11 @@ package com.adsamcik.tracker.tracker.source.activity
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedSourceDeletionBlockedReason
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedSourceDeletionResult
 import com.adsamcik.tracker.shared.base.database.EraseNextImportedActivityResult
+import com.adsamcik.tracker.shared.base.database.ImportedActivityEraseRemainingResult
 import com.adsamcik.tracker.shared.base.database.ImportedActivityProductFailure
 import com.adsamcik.tracker.shared.base.database.PortableActivityTransferRetryableReason
 import com.adsamcik.tracker.shared.base.database.RoomEraseNextImportedActivity
+import com.adsamcik.tracker.shared.base.database.SelectedImportedActivityDeletionBlockedReason
 import com.adsamcik.tracker.stats.api.repository.ActivitySourceEraseBlockedReason
 import com.adsamcik.tracker.stats.api.repository.ActivitySourceEraseRequest
 import com.adsamcik.tracker.stats.api.repository.ActivitySourceEraseResult
@@ -88,6 +90,30 @@ class RoomActivitySourceEraseTest {
 	}
 
 	@Test
+	fun `blocked imported continuation reports every previously committed source effect`() = runTest {
+		val imported = mockk<RoomEraseNextImportedActivity>()
+		coEvery { imported.eraseNext(EPOCH, DELETED_AT) } returnsMany listOf(
+			EraseNextImportedActivityResult.ErasedLive(1, 2),
+			EraseNextImportedActivityResult.Blocked(
+				SelectedImportedActivityDeletionBlockedReason.STALE_REQUEST,
+			),
+		)
+		val subject = RoomActivitySourceErase(
+			ActivityCapturedLocalErase {
+				ActivityCapturedSourceDeletionResult.Deleted(1, 1, 0, 1)
+			},
+			imported,
+			StandardTestDispatcher(testScheduler),
+		)
+
+		subject.erase(request()) shouldBe ActivitySourceEraseResult.Blocked(
+			reason = ActivitySourceEraseBlockedReason.STALE_REQUEST,
+			localProductErasedBeforeFailure = true,
+			importedEntriesErasedBeforeFailure = 1,
+		)
+	}
+
+	@Test
 	fun `corrupt imported authority fails closed and cancellation propagates`() = runTest {
 		val imported = mockk<RoomEraseNextImportedActivity>()
 		coEvery { imported.eraseNext(EPOCH, DELETED_AT) } returns
@@ -120,6 +146,62 @@ class RoomActivitySourceEraseTest {
 		)
 
 		subject.erase(request()) shouldBe ActivitySourceEraseResult.AlreadyErased
+	}
+
+	@Test
+	fun `mutation budget stops at 4096 and returns continuation after read only probe`() = runTest {
+		val imported = mockk<RoomEraseNextImportedActivity>()
+		var mutations = 0
+		coEvery { imported.eraseNext(EPOCH, DELETED_AT) } coAnswers {
+			mutations++
+			EraseNextImportedActivityResult.ErasedLive(1, 1)
+		}
+		coEvery { imported.probeRemaining(EPOCH) } returns
+			ImportedActivityEraseRemainingResult.Remaining
+		val subject = RoomActivitySourceErase(
+			ActivityCapturedLocalErase { ActivityCapturedSourceDeletionResult.AlreadyDeleted },
+			imported,
+			StandardTestDispatcher(testScheduler),
+		)
+
+		subject.erase(request()) shouldBe ActivitySourceEraseResult.ContinuationRequired(
+			localProductErasedBeforeContinuation = false,
+			importedLiveEntryCount = 4_096,
+			importedRetainedEntryCount = 0,
+			importedPhysicalRunCount = 4_096,
+		)
+		mutations shouldBe 4_096
+		coVerify(exactly = 4_096) { imported.eraseNext(EPOCH, DELETED_AT) }
+		coVerify(exactly = 1) { imported.probeRemaining(EPOCH) }
+	}
+
+	@Test
+	fun `exact 4096th deletion completes without a 4097th destructive call`() = runTest {
+		val imported = mockk<RoomEraseNextImportedActivity>()
+		var mutations = 0
+		coEvery { imported.eraseNext(EPOCH, DELETED_AT) } coAnswers {
+			mutations++
+			EraseNextImportedActivityResult.ErasedLive(1, 1)
+		}
+		coEvery { imported.probeRemaining(EPOCH) } returns
+			ImportedActivityEraseRemainingResult.Complete
+		val subject = RoomActivitySourceErase(
+			ActivityCapturedLocalErase { ActivityCapturedSourceDeletionResult.AlreadyDeleted },
+			imported,
+			StandardTestDispatcher(testScheduler),
+		)
+
+		subject.erase(request()) shouldBe ActivitySourceEraseResult.Erased(
+			localLogicalWindowCount = 0,
+			localRevisionCount = 0,
+			localRegistrationPlanCount = 0,
+			localFencedServiceRunCount = 0,
+			importedLiveEntryCount = 4_096,
+			importedRetainedEntryCount = 0,
+			importedPhysicalRunCount = 4_096,
+		)
+		mutations shouldBe 4_096
+		coVerify(exactly = 4_096) { imported.eraseNext(EPOCH, DELETED_AT) }
 	}
 
 	private fun request() = ActivitySourceEraseRequest(EPOCH, 9L, DELETED_AT)

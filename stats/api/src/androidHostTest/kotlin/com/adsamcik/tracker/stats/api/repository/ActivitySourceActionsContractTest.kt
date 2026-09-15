@@ -25,6 +25,20 @@ class ActivitySourceActionsContractTest {
 				importedEntriesErasedBeforeFailure = -1,
 			)
 		}
+		shouldThrow<IllegalArgumentException> {
+			ActivitySourceEraseResult.Blocked(
+				ActivitySourceEraseBlockedReason.STALE_REQUEST,
+				importedEntriesErasedBeforeFailure = -1,
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			ActivitySourceEraseResult.ContinuationRequired(
+				localProductErasedBeforeContinuation = false,
+				importedLiveEntryCount = 0,
+				importedRetainedEntryCount = 0,
+				importedPhysicalRunCount = 0,
+			)
+		}
 	}
 
 	@Test
