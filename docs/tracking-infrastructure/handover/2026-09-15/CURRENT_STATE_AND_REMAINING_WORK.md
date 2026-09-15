@@ -1,5 +1,61 @@
 # Current state and remaining implementation — 2026-09-15
 
+## Scope-change handover - finish only what was already started
+
+TI-D262 supersedes the earlier instruction to continue into every next lane. Keep the entire
+remaining effort in `IMPLEMENTATION_TODO.md`, but do not begin an unstarted successor. Each
+current owner may finish only the artifact already under implementation/review, its directly
+necessary correction and matching test-source/static-review closure. Preserve all dirty work.
+After closing that artifact, remain idle until a specific bounded request. The parent owns
+dependency tracking and authorized local integration of closed scopes.
+
+This documentation leaf had one started artifact: the five-ledger checkpoint
+`3dd1ff004a34beb339539c4961704919d781371c`. It is committed and the user independently pushed
+it. Its owned paths are:
+
+- `docs\tracking-infrastructure\IMPLEMENTATION_STATUS.md`
+- `docs\tracking-infrastructure\IMPLEMENTATION_TODO.md`
+- `docs\tracking-infrastructure\DECISIONS.md`
+- `docs\tracking-infrastructure\VERIFICATION_MATRIX.md`
+- `docs\tracking-infrastructure\handover\2026-09-15\CURRENT_STATE_AND_REMAINING_WORK.md`
+
+It has no production/test public interface, no source-code blocker and no successor lane. This
+amendment records the scope freeze and complete backlog interpretation; after its clean local
+commit this leaf is idle. The user's push does not authorize any agent push.
+
+Current implementation disposition:
+
+- **Closed local:** selected detail through `9c545380d6`, reviewed/rebased `cda6aff87c`, merged
+  at `5ed7d1c5db`. Keep actions, radio detail and Location proof planned.
+- **Finish only:** Cell `9d73fe4bb4`; close its frozen five-fix plus range/selected-delete review
+  and necessary correction/tests. Do not start unimplemented range enumeration, retention, erase
+  or files.
+- **Finish only:** Wi-Fi `484c7d293f`; close its seven blockers and necessary tests. Preserve any
+  range/selected-delete edits already present at the boundary, but treat any unstarted remainder,
+  retention, erase, files and shared UI as planned.
+- **Finish only:** Activity `483e8b59b7` final compatibility-fence review; Pressure files
+  `f8ca404069` review; Purpose `3db3d5a955` containment/atomic-publication correction; Location
+  `31c02288a8` seven-fix/real-chain closure; Ambient Steps `c8b96e328e` two-review closure; Runtime
+  `410d26e28c` existing six-blocker/P0 correction; and passive radios `306e9070d2` active review.
+  Do not extend any of them into the named future integrations in the older sections below.
+- **Finish dirty work only:** preserve and close the roughly 24 Pressure-maintenance correction
+  files based on `660e8c9ee8`, including the bounded parent additions, under the original owner.
+- **Finish shared work only:** schema checkpoint `1f372e7a` is bounded to committed Ambient Steps
+  `c8` plus Location `31c` full-clear/DDL/owner-WAL assembly; file checkpoint `3dc4c112` is bounded
+  to Pressure `f8` plus Activity `287`/`483` and confirmed analogous Steps fixes; history checkpoint
+  `7a88653c` is bounded to the already-started five-source recent/live/selected union.
+- **Held:** original Ambient import `876ca17547`, schema input `3baf9e144` and file input
+  `8e1a01df` remain preserved evidence. Do not revive or expand them.
+- **Planned handover backlog:** every other unchecked stable ID, including future source retention/
+  erase/files/actions, Purpose publisher/callback integration, new Location/runtime wiring,
+  passive-radio 18-entity parent assembly, Location proof and structural day/range/UI history,
+  Dashboard/Timeline/Calendar/Trips/widgets, ambient Location, non-Steps achievement qualification,
+  final assembly accounting and the frozen convergence batch.
+
+Scope expansion is frozen, but the assembly input is not frozen. **IMPLEMENTATION_ONLY** still
+forbids compilation, tests, Gradle, lint/Detekt, schema generation/drift, diff-check, device/UI,
+battery, CI, push, activation, release and rollout.
+
 ## Current direct-source checkpoint
 
 This section supersedes older local-head and ownership statements below. Local `dev/v10` is

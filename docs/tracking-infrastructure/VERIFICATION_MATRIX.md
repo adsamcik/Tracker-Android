@@ -2,6 +2,19 @@
 
 Last updated: 2026-09-15
 
+## Scope-freeze interpretation
+
+TI-D262 creates no new execution evidence and does not change any result below. A currently
+started artifact may finish only its directly necessary production/test-source corrections and
+focused static review. Every unstarted successor is `PLANNED`; no verification cohort for it may
+start. Closing a leaf remains **IMPLEMENTED_UNVALIDATED** until the separately authorized final
+convergence phase.
+
+Documentation checkpoint `3dd1ff004a34beb339539c4961704919d781371c` was independently pushed by
+the user. That push is not test, build, schema, device, runtime or release evidence and does not
+authorize an agent push. TI-B327 remains the latest accepted source-slice entry. This
+scope-accounting update adds no TI-B entry because it verifies no production behavior.
+
 ## TI-B327 - Selected-detail static closure and local integration
 
 - Input: `69571dbf6a2263cafc2807020f42622adbcbdbf3`,

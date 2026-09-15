@@ -2,6 +2,49 @@
 
 Last updated: 2026-09-15
 
+## Scope expansion frozen - finish started artifacts, hand over the backlog
+
+TI-D262 supersedes the earlier requirement to start every successor lane before returning.
+The full effort remains recorded in `IMPLEMENTATION_TODO.md`, but implementation may now finish
+only an artifact or correction/test-source closure that was already started at the scope-change
+boundary. Do not begin a queued successor, broaden an existing artifact into a future feature or
+infer an assembly freeze. Unstarted work is **PLANNED** for handover. Existing dirty work must be
+preserved. Parent work is dependency tracking and local integration of statically closed scopes.
+
+This documentation leaf's completed artifact is commit
+`3dd1ff004a34beb339539c4961704919d781371c`, independently pushed by the user. It owns only
+`IMPLEMENTATION_STATUS.md`, `IMPLEMENTATION_TODO.md`, `DECISIONS.md`, `VERIFICATION_MATRIX.md`
+and `handover\2026-09-15\CURRENT_STATE_AND_REMAINING_WORK.md`. It introduces no production or
+test API and has no source-code blocker. This scope-accounting amendment is the leaf's final
+bounded work; after its clean local commit the leaf has no successor assignment and remains idle
+until explicitly assigned another bounded closure. The user's push does not authorize agent push.
+
+Disposition at the scope-change boundary:
+
+| State | Artifact allowed to finish | Frozen boundary; do not expand into |
+| --- | --- | --- |
+| `CLOSED_LOCAL` | Selected detail through `9c545380d65042ee6f85dc0d300353cc6640d50d`, reviewed/rebased `cda6aff87cb87b9642bde8f352458d31a8cd57fd`, merged at `5ed7d1c5dbf1b6437ea8bdec65dd2380e7812c95` | Real actions, radio detail and Location-fact proof remain `PLANNED` |
+| `FINISH_ONLY` | Cell `9d73fe4bb404e3e2daa1f5dece56686ca7476496`: close the frozen review and directly necessary corrections/tests for the already-authored five fixes plus range/selected deletion | Deletion-range enumeration not already authored, retention, source erase and file backends |
+| `FINISH_ONLY` | Wi-Fi `484c7d293f2b2a82bab68f24c167fc179ede8248`: close its seven reported blockers and directly necessary tests. Preserve any range/selected-delete edits already present at the boundary; no exact newer committed artifact was reported here | Any unstarted range/delete remainder, retention, source erase, files and shared UI |
+| `FINISH_ONLY` | Activity `483e8b59b790c5970d11b947d76d82746308bdac`: close the final compatibility-fence review/correction | Full UI/settings actions |
+| `FINISH_ONLY` | Pressure files `f8ca404069c28a60c541084a52a987569f317aa8`: close focused review/corrections while retaining Pressure ownership of the shared lexical helper | Additional source actions or new file families |
+| `FINISH_ONLY` | Purpose `3db3d5a955405e34f51ea06bee2108dea4e68c54`: finish the already-started containment and atomic-publication correction/test source | Actual publisher/callback integration |
+| `FINISH_ONLY` | Location `31c02288a8d8fc18ffab246dbca7121d1f680307`: close the seven fixes and already-started real-chain source/review | New catalog/manifest/DI/router/sink/recovery/shared-query work outside the started shared assembly |
+| `FINISH_ONLY` | Ambient Steps `c8b96e328e749ac157fa299429bc7d975d04b10e`: close the two active reviews and necessary corrections | New runtime, settings, UI or source-action successors |
+| `FINISH_ONLY` | Runtime `410d26e28c648b5a35a17c024f2c1f8b63339314`: finish only the already-started six-blocker/P0 shared-contract correction and matching tests | Wider runtime, provider or UI expansion |
+| `FINISH_ONLY_DIRTY` | Pressure maintenance based on `660e8c9ee864bf8dd9b2d3068f06a4c0e6791f67`: preserve and finish the roughly 24 dirty correction files plus the bounded parent additions, then commit and review | Any new Pressure lane beyond the existing correction set |
+| `FINISH_ONLY` | Passive ambient radios `306e9070d296a9b91f96177e9948090754779917`: close the active adversarial review and directly necessary corrections/tests | Parent 18-entity/DDL/DI/registry/lane/recovery/query/UI assembly |
+| `FINISH_ONLY` | Shared schema ownership checkpoint `1f372e7a`: finish the already-started committed Ambient Steps `c8` plus Location `31c` full-clear/DDL/owner-WAL assembly | Dirty Pressure copying, passive-radio 18-table assembly or additional source schemas |
+| `FINISH_ONLY` | Shared file ownership checkpoint `3dc4c112`: finish the already-started Pressure `f8` plus Activity `287`/`483` integration and confirmed analogous Steps corrections | New file formats, actions or unrelated source wiring |
+| `FINISH_ONLY` | Shared history branch `codex/ti-shared-history-union-20260915` at ownership checkpoint `7a88653c`: finish its already-started five-source recent/live/selected union | Location proof, structural day/range, UI or further source expansion |
+
+The old blocked/held inputs remain evidence, not new work: Ambient import `876ca17547`, schema
+assembly `3baf9e144`, portable-file assembly `8e1a01df` and all other blocked source deltas stay
+out of `dev/v10` unless their already-started replacement closes and the parent integrates that
+bounded result. All remaining unchecked stable IDs, including future retention, source erase,
+day/today/range, Dashboard/Timeline/Calendar/Trips/widgets, exact actions/settings, ambient
+Location, non-Steps achievement qualification and final convergence, remain `PLANNED`.
+
 ## Direct-source continuation checkpoint - active, not frozen
 
 Local `dev/v10` is currently `5ed7d1c5dbf1b6437ea8bdec65dd2380e7812c95`. The user's

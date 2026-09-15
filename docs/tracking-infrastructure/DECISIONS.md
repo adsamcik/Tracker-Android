@@ -2,6 +2,28 @@
 
 Last updated: 2026-09-15
 
+## TI-D262 - Freeze expansion and hand over every unstarted successor
+
+- Status: active scope boundary from 2026-09-15; this supersedes TI-D259 only where TI-D259
+  required starting additional lanes before final handoff. Existing architecture, safety and
+  evidence decisions remain in force.
+- User authority: retain a complete TODO/work-item ledger for the entire effort, but finish only
+  an artifact, correction and matching test-source/static-review closure that was already started
+  at this boundary. A queued or unstarted successor remains **PLANNED** and must not be started.
+- Scope expansion is frozen; the assembly input is not frozen. Closing a current leaf does not
+  authorize validation, activate a provider/writer, or check its broad `CONT`/`ASSEMBLY` parent.
+- Preserve all existing dirty work. In particular, the Pressure-maintenance correction set and
+  bounded parent additions remain with the original owner for completion, commit and review.
+  Do not discard, relocate wholesale or expand that work into another lane.
+- Parent responsibility is dependency tracking and authorized local integration of statically
+  closed bounded scopes. After its current artifact closes, each leaf remains idle until a new
+  specific bounded closure request.
+- The user independently pushed documentation checkpoint
+  `3dd1ff004a34beb339539c4961704919d781371c` and confirmed continuation is local-only. No agent
+  push is authorized.
+- **IMPLEMENTATION_ONLY** remains unchanged: no compilation, test/Gradle, lint/Detekt, Room
+  schema generation/drift, diff-check, device/UI, battery, CI, release, rollout or activation.
+
 ## TI-D261 - Direct source leaves own current coding and review
 
 - Status: active implementation ownership at local `dev/v10`

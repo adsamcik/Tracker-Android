@@ -17,6 +17,41 @@ remains open: transport assembly is not final convergence/readiness. Original re
 
 Last updated: 2026-09-15
 
+## 2026-09-15 scope-expansion freeze
+
+TI-D262 changes execution of this ledger, not its coverage. This file remains the full
+TODO/work-item ledger for the entire effort. Every unchecked stable ID remains visible for
+handover, but no unchecked item authorizes starting work. Finish only production/test-source
+artifacts and correction/review loops already in progress at the scope-change boundary. Leave
+every queued or unstarted successor **PLANNED**. Preserve dirty work; do not discard it, widen it,
+or use it as authority to start a dependent lane.
+
+Status interpretation for the complete ledger:
+
+- `CLOSED_LOCAL`: the selected-detail leaf in TI-B327 is statically closed and locally merged.
+  Its real actions, radio variants and Location-fact proof are still backlog.
+- `FINISH_ONLY`: Cell `9d73fe4bb4`, Wi-Fi `484c7d293f`, Activity `483e8b59b7`, Pressure files
+  `f8ca404069`, Purpose `3db3d5a955`, Location `31c02288a8`, Ambient Steps `c8b96e328e`,
+  Runtime `410d26e28c`, passive radios `306e9070d2`, shared schema `1f372e7a`, shared files
+  `3dc4c112` and shared history `7a88653c` may close only their already-started artifact,
+  directly necessary corrections and test-source review.
+- `FINISH_ONLY_DIRTY`: the Pressure-maintenance work based on `660e8c9ee8`, including roughly
+  24 preserved dirty correction files and the bounded parent additions, remains with its original
+  owner until committed and reviewed. No new Pressure successor may start.
+- `HELD`: original Ambient import `876ca17547`, schema input `3baf9e144` and file input
+  `8e1a01df` remain preserved evidence while their already-started replacement work closes.
+- `PLANNED`: all other unchecked items in this file. In particular, do not begin remaining
+  Cell/Wi-Fi retention/erase/files, Activity UI/settings actions, Purpose publisher integration,
+  new Location/runtime wiring, passive-radio parent assembly, Location/day/range/UI history,
+  future ambient/file work, consumer surfaces, achievements or convergence validation.
+
+The broad TODO-CONT-20260915-010 through 017 items remain unchecked. A started sub-artifact may
+close without checking its broad parent item; all unstarted remainder is handed over as planned
+backlog. Parent work is limited to dependency accounting and authorized local integration of a
+closed bounded scope. After an owner closes its current artifact, it remains idle until a new
+specific bounded request. The user's independent push of `3dd1ff004a34beb339539c4961704919d781371c`
+does not authorize any agent push.
+
 This is the canonical remaining-work ledger for the six source-to-product verticals. It translates
 the vision, final design, adaptive acquisition design, execution ledger, decisions, current
 implementation status, and handovers into checkable work. Repository evidence wins whenever this
