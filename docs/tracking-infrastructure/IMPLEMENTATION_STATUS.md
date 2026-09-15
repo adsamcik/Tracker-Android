@@ -15,7 +15,7 @@ All three implementation worktrees started clean from that local baseline:
 | --- | --- | --- | --- |
 | 007 | `codex/ti-wifi-full-clear-20260915` / `.worktrees\ti-wifi-full-clear-20260915` | AppDatabase and WifiCapturedFactDao | Static review closed; local merge `8767472d62fe77ee30e2c7d46765ed7f4b8d45dc` |
 | 008 | `codex/ti-legacy-radio-retention-20260915` / `.worktrees\ti-legacy-radio-retention-20260915` | Legacy worker, same-cause pipeline ordering and exact app callers/tests | `de2a4ae2f3` blocked by pre-radio segment-authority deletion; correction in progress |
-| 009 | `codex/ti-factless-steps-history-20260915` / `.worktrees\ti-factless-steps-history-20260915` | Source-aware Steps history and its candidate-query seam | `b138a23adb` plus `771ce960b37e3c7589c077ef848a20759f5cab31`; focused fixture review pending |
+| 009 | `codex/ti-factless-steps-history-20260915` / `.worktrees\ti-factless-steps-history-20260915` | Source-aware Steps history and its candidate-query seam | Static review closed; local merge `3b1365692380ff1d98ab47ef6d869e8beea23981` |
 
 Each slice gets a separate adversarial static review of its committed production/test changes.
 The parent serializes any shared interface correction and local merges, then records exact source
@@ -63,12 +63,16 @@ and `stats\data\src\test\java\com\adsamcik\tracker\stats\data\repository\StepsSe
 The slice adds source-aware-only intent discovery for exact factless Steps groups while retaining
 ordinary evidence-first APIs. Materializing/unavailable, exact suppression, invalid-group exclusion,
 recency/limits and no fabricated zero have authored assertions (TI-B322). Its independent adversarial
-review runs in parallel with the Wi-Fi and worker reviews; no local source integration is claimed yet.
+review ran in parallel with the Wi-Fi and worker reviews.
 The adversary found no production blocker, but the new unavailable-state test used a manifest
 writer rejected by `SessionManifestSourceEntity` before its assertions. Test-only correction
 `771ce960b37e3c7589c077ef848a20759f5cab31` uses valid candidate provenance, a valid lane and a
 retention floor beyond the segment; it expects UNAVAILABLE/OUTSIDE_RETAINED_FLOOR with no numeric
-count and one opaque source-aware PARTIAL row. The same reviewer is assessing focused closure.
+count and one opaque source-aware PARTIAL row.
+Focused review closed the fixture finding at `771ce960b3` without a remaining static blocker.
+Rebased source tip `a390b976452b2cb0ae497a4b54c377e14148bc85` preserves all five reviewed paths;
+local merge is `3b1365692380ff1d98ab47ef6d869e8beea23981`. The original reviewed tip remains under
+`refs/remotes/handover/reviewed/ti-factless-steps-history-20260915`. No execution is implied.
 
 ## September 15 receiving continuation - Location WAL payload preflight
 

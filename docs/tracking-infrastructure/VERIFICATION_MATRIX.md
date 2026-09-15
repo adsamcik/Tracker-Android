@@ -16,12 +16,15 @@ Last updated: 2026-09-15
   in `stats\data`. Cases include materializing/unavailable groups, exact sibling suppression,
   mixed/gapped/unbound/unverifiable exclusion, recency/limits, unchanged ordinary APIs and no zero
   manufactured from missing facts. Exact paths are in IMPLEMENTATION_STATUS.md.
-- Disposition: **IMPLEMENTED_UNVALIDATED; TEST-SOURCE CORRECTION REQUIRED**. Independent
+- Disposition: **IMPLEMENTED_UNVALIDATED; STATIC REVIEW CLOSED**. Independent
   adversarial review found the production source-aware gating and bounded composition coherent,
   but the unavailable fixture's unsupported manifest writer violates the entity constructor.
   The authored correction preserves null count, ordinary non-discovery and the opaque PARTIAL
-  source-aware replacement; focused adversarial closure is pending. No compilation, test,
-  Gradle, schema, diff-check, device, CI or execution gate ran.
+  source-aware replacement; focused review closed the finding at `771ce960b3` without a remaining
+  static blocker. Rebased tip `a390b97645` preserves all five source paths and is locally merged
+  at `3b1365692380ff1d98ab47ef6d869e8beea23981`; the reviewed tip remains under
+  `refs/remotes/handover/reviewed/ti-factless-steps-history-20260915`.
+  No compilation, test, Gradle, schema, diff-check, device, CI or execution gate ran.
 - Deferred only after the authorized frozen convergence:
   `.\gradlew.bat :core:base:testDebugUnitTest :stats:data:testDebugUnitTest --tests "*TrackingHistoryReadDaoTest" --tests "*StepsSegmentHistorySelectorTest.sourceAware*"`.
 

@@ -80,13 +80,13 @@ or check the broader assembly/completion items. Test sources are authored, never
   review found pre-radio deletion of required `session_segment` ownership evidence. TI-D258
   requires delayed pruning after both services accept, including the same active-pipeline
   defect if present. Correction/review closure and local integration remain pending (TI-B321).
-- [ ] TODO-HANDOVER-20260915-009 Make source-aware Steps replacement discovery intent-first
+- [x] TODO-HANDOVER-20260915-009 Make source-aware Steps replacement discovery intent-first
   for exact factless groups; retain materializing/unavailable instead of suppressing physical
   rows with no replacement. Keep ordinary evidence-first history semantics and bounded recency.
   Source `b138a23adb3263708028e24267729192b813018a` is IMPLEMENTED_UNVALIDATED; adversarial
   production review found no blocker, but an unsupported-writer unavailable fixture violates
   the manifest invariant. Test-only correction `771ce960b37e3c7589c077ef848a20759f5cab31`
-  is under focused review; local integration remains pending (TI-B322).
+  closed that finding; rebased source `a390b97645` is locally merged in `3b13656923` (TI-B322).
 
 Receiving next slice: close the three concrete shared Room/worker/history static-review findings,
 then continue the Wi-Fi imported evaluator and bounded product/reexport lane. Keep new source
