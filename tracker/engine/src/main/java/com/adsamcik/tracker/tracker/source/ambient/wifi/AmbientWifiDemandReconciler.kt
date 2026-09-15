@@ -11,11 +11,13 @@ import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReconciliationEvi
 import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReportPreparation
 import com.adsamcik.tracker.tracker.source.ambient.AmbientRadioReportPreparationRejection
 import com.adsamcik.tracker.tracker.source.ambient.prepareAmbientRadioReport
+import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioDemandInactiveReason
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioDemandResult
+import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioLeaseMutation
 import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioReconciliationAuthority
 import com.adsamcik.tracker.tracker.source.runtime.AmbientWifiRuntimeJoinResult
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
@@ -24,6 +26,9 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 
 data class AmbientWifiActivationRequest(val enabled: Boolean)
 
@@ -66,13 +71,27 @@ class AmbientWifiDemandReconciler @Inject constructor(
 		lease: AmbientReconciliationLease,
 		request: AmbientWifiActivationRequest,
 		reconciliationAttempt: Long,
+	): AmbientWifiDemandReconciliation =
+		when (val guarded = sourceBroker.withAmbientRadioMutationLease(lease.identity) {
+			reconcileOutcomeUnderHeldLease(lease, request, reconciliationAttempt)
+		}) {
+			is AmbientRadioLeaseMutation.Applied -> guarded.value
+			AmbientRadioLeaseMutation.Stale -> AmbientWifiDemandReconciliation.Inactive(
+				AmbientWifiDemandBlockReason.STALE_RECONCILIATION_LEASE,
+			)
+		}
+
+	private suspend fun reconcileOutcomeUnderHeldLease(
+		lease: AmbientReconciliationLease,
+		request: AmbientWifiActivationRequest,
+		reconciliationAttempt: Long,
 	): AmbientWifiDemandReconciliation {
 		val boundary = AmbientWifiDemandBoundary(
 			clockDomainProvider.current(),
 			Time.elapsedRealtimeNanos,
 			Time.nowMillis,
 		)
-		val result = when (val demand = sourceBroker.replaceAmbientWifiDemand(
+		val demand = sourceBroker.replaceAmbientWifiDemandUnderHeldLease(
 			consumerId = CONSUMER_ID,
 			requested = request.enabled,
 			leaseIdentity = lease.identity,
@@ -80,7 +99,9 @@ class AmbientWifiDemandReconciler @Inject constructor(
 			bootId = boundary.bootId,
 			elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
 			wallTimeMs = boundary.wallTimeMs,
-		)) {
+		)
+		return try {
+			when (demand) {
 			is AmbientRadioDemandResult.Inactive -> {
 				val reason = demand.reason.toPublicReason()
 				if (demand.reason.isStaleReconciliation()) {
@@ -100,13 +121,19 @@ class AmbientWifiDemandReconciler @Inject constructor(
 			is AmbientRadioDemandResult.Active -> when (val runtime =
 				sharedController.reconcileAmbientJoin()
 			) {
-				is AmbientWifiRuntimeJoinResult.Inactive ->
+				is AmbientWifiRuntimeJoinResult.Inactive -> {
+					val compensated = compensateRejectedRuntime(
+						demand,
+						lease,
+						reconciliationAttempt,
+					)
 					AmbientWifiDemandReconciliation.Inactive(
 						AmbientWifiDemandBlockReason.RUNTIME_JOIN_RETIRED,
 						runtime.providerKey,
-						demand.reconciliationAuthority,
+						compensated,
 						demand.demand.demandId,
 					)
+				}
 				is AmbientWifiRuntimeJoinResult.Active ->
 					AmbientWifiDemandReconciliation.Active(
 						demand.demand.demandId,
@@ -124,17 +151,78 @@ class AmbientWifiDemandReconciler @Inject constructor(
 						runtime.registrationGeneration,
 						runtime.reasons,
 					)
-				is AmbientWifiRuntimeJoinResult.Unavailable ->
+				is AmbientWifiRuntimeJoinResult.Unavailable -> {
+					val compensated = compensateRejectedRuntime(
+						demand,
+						lease,
+						reconciliationAttempt,
+					)
 					AmbientWifiDemandReconciliation.Unavailable(
 						runtime.reasons,
 						runtime.retryable,
 						runtime.providerKey,
-						demand.reconciliationAuthority,
+						compensated,
 						demand.demand.demandId,
 					)
+				}
 			}
+			}
+		} catch (cancelled: CancellationException) {
+			compensateFailedReconciliation(demand, lease, reconciliationAttempt, cancelled)
+			throw cancelled
+		} catch (failure: Exception) {
+			compensateFailedReconciliation(demand, lease, reconciliationAttempt, failure)
+			throw failure
 		}
-		return result
+	}
+
+	private suspend fun compensateFailedReconciliation(
+		demand: AmbientRadioDemandResult,
+		lease: AmbientReconciliationLease,
+		reconciliationAttempt: Long,
+		failure: Exception,
+	) {
+		val active = demand as? AmbientRadioDemandResult.Active ?: return
+		withContext(NonCancellable) {
+			val compensated = sourceBroker.compensateAmbientWifiDemandUnderHeldLease(
+				CONSUMER_ID,
+				lease.identity,
+				reconciliationAttempt,
+				active.demand.demandId,
+				clockDomainProvider.current(),
+				Time.elapsedRealtimeNanos,
+				Time.nowMillis,
+			)
+			if (compensated == null) {
+				failure.addSuppressed(
+					IllegalStateException("Unable to compensate exact Ambient Wi-Fi demand"),
+				)
+				return@withContext
+			}
+
+			private suspend fun compensateRejectedRuntime(
+				active: AmbientRadioDemandResult.Active,
+				lease: AmbientReconciliationLease,
+				reconciliationAttempt: Long,
+			): AmbientRadioReconciliationAuthority {
+				val compensated = requireNotNull(
+					sourceBroker.compensateAmbientWifiDemandUnderHeldLease(
+						CONSUMER_ID,
+						lease.identity,
+						reconciliationAttempt,
+						active.demand.demandId,
+						clockDomainProvider.current(),
+						Time.elapsedRealtimeNanos,
+						Time.nowMillis,
+					),
+				) { "Unable to compensate rejected Ambient Wi-Fi runtime reconciliation" }
+				sharedController.reconcileAmbientJoin()
+				return compensated
+			}
+			runCatchingNonCancellation {
+				sharedController.reconcileAmbientJoin()
+			}.exceptionOrNull()?.let(failure::addSuppressed)
+		}
 	}
 
 	suspend fun reconcilePurposeAvailability(

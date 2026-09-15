@@ -42,13 +42,11 @@ class AmbientRadioFullClearTest {
 	fun `source clear preserves exact and rehashed replay footprints`() = runTest {
 		val archiveId = digest("archive")
 		val factId = digest("fact")
-		val portableEffect = digest("portable-effect")
 		database.ambientWifiFactDao().insertAuthority(wifiAuthority())
 		database.ambientCellFactDao().insertAuthority(cellAuthority())
-		database.ambientWifiFactDao().insertImportedFact(
-			ImportedAmbientWifiFactEntity(
-				archiveId = archiveId,
-				factId = factId,
+		val draft = ImportedAmbientWifiFactEntity(
+			archiveId = archiveId,
+			factId = factId,
 				semanticRevision = 1L,
 				supersedesSemanticRevision = null,
 				contentChecksum = digest("content"),
@@ -73,6 +71,14 @@ class AmbientRadioFullClearTest {
 				collectedDataEpoch = 4L,
 				importDeletionGeneration = 0L,
 				receivedAtMs = 4L,
+		)
+		val withEffect = draft.copy(
+			portableEffectChecksum = AmbientWifiFactIntegrity.importedFactEffectChecksum(draft),
+		)
+		val portableEffect = withEffect.portableEffectChecksum
+		database.ambientWifiFactDao().insertImportedFact(
+			withEffect.copy(
+				contentChecksum = AmbientWifiFactIntegrity.importedFactContentChecksum(withEffect),
 			),
 		)
 

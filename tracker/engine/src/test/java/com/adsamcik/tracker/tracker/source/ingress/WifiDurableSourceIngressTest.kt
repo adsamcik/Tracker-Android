@@ -10,6 +10,9 @@ import com.adsamcik.tracker.shared.base.database.applyAmbientWifiRetentionDecisi
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiReplayFootprintEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -291,12 +294,68 @@ class WifiDurableSourceIngressTest {
 		)
 
 		controller.reconcileAmbientJoin().shouldBeInstanceOf<AmbientWifiRuntimeJoinResult.Active>()
+		val originalOrdinal = requireNotNull(admissionOrdinal)
+		val zoneOnlyReplay = sinkFactory.unbound.admit(
+			wifiDeliveryCandidate(
+				registrationGeneration = 1L,
+				authorizationRevision = 1L,
+				physicalConfigurationFingerprint = FIRST_PHYSICAL_CONFIGURATION,
+				receivedElapsedRealtimeNanos = 111_000_000L,
+				payloadVersion = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+				observationZoneId = "UTC",
+			),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Duplicate>()
+		zoneOnlyReplay.existingAdmissionOrdinals shouldBe listOf(originalOrdinal)
+		val versionFourReplay = sinkFactory.unbound.admit(
+			wifiDeliveryCandidate(
+				registrationGeneration = 1L,
+				authorizationRevision = 1L,
+				physicalConfigurationFingerprint = FIRST_PHYSICAL_CONFIGURATION,
+				receivedElapsedRealtimeNanos = 112_000_000L,
+				payloadVersion = 4,
+			),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Duplicate>()
+		versionFourReplay.existingAdmissionOrdinals shouldBe listOf(originalOrdinal)
+		ingress.admit(
+			wifiDeliveryCandidate(
+				registrationGeneration = 1L,
+				authorizationRevision = 1L,
+				physicalConfigurationFingerprint = FIRST_PHYSICAL_CONFIGURATION,
+				receivedElapsedRealtimeNanos = 113_000_000L,
+				payloadVersion = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+				observationZoneId = "UTC",
+				resultAgeMs = 1L,
+			),
+		) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.IDENTITY_COLLISION,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 1L
+		val originalPolicy = requireNotNull(
+			database.sourcePolicyDao().policyAtRevision(1L, SourceKind.WIFI.stableCode),
+		)
+		database.sourcePolicyDao().insertPolicies(
+			listOf(
+				originalPolicy.copy(
+					policyRevision = 2L,
+					effectiveElapsedRealtimeNanos = 120_000_000L,
+					changeReason = "UNRELATED_SOURCE_CHANGE",
+				),
+			),
+		)
+		database.sourcePolicyDao().compareAndSetAuthority(
+			expectedBootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			expectedRevision = 1L,
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			newRevision = 2L,
+			legacySettingsFingerprint = null,
+			updatedAtMs = 120L,
+		) shouldBe 1
 		val projector = AmbientWifiFactProjector(
 			database,
 			DefaultSourcePayloadCodec(),
 			Dispatchers.Unconfined,
 		)
-		projector.project(requireNotNull(admissionOrdinal))
+		projector.project(originalOrdinal)
 			.shouldBeInstanceOf<AmbientWifiProjectionResult.FactWritten>()
 		val row = database.ambientWifiFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single()
 
@@ -344,6 +403,199 @@ class WifiDurableSourceIngressTest {
 			AmbientWifiProjectionResult.Unverifiable(
 				AmbientWifiProjectionUnverifiableReason.OBSERVATION_ZONE_UNVERIFIABLE,
 			)
+		val blockedAccessPoints = listOf(
+			WifiAccessPointEvidence(
+				WITHHELD_RADIO_IDENTIFIER_TOKEN,
+				2_412,
+				-50,
+				103_000_000L,
+			),
+		)
+		val blockedLogicalFactId = AmbientWifiFactIntegrity.logicalFactId(
+			wifiProviderDeliveryIdentity(BOOT_CLOCK_DOMAIN_ID, blockedAccessPoints).value,
+			1L,
+			0L,
+			0L,
+		)
+		val footprint = AmbientWifiFactIntegrity.createReplayFootprint(
+			AmbientWifiReplayFootprintEntity.KIND_LOCAL_FACT,
+			blockedLogicalFactId,
+			1L,
+			0L,
+			1L,
+			200L,
+		)
+		database.ambientWifiFactDao().insertReplayFootprints(listOf(footprint))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE ambient_wifi_replay_footprint SET effect_checksum = ? " +
+				"WHERE footprint_kind = ? AND identity_digest = ? AND semantic_revision = 1",
+			arrayOf(
+				"0".repeat(64),
+				AmbientWifiReplayFootprintEntity.KIND_LOCAL_FACT,
+				blockedLogicalFactId,
+			),
+		)
+		val corruptFootprintDelivery = sinkFactory.unbound.admit(
+			wifiDeliveryCandidate(
+				registrationGeneration = 1L,
+				authorizationRevision = 1L,
+				physicalConfigurationFingerprint = FIRST_PHYSICAL_CONFIGURATION,
+				receivedElapsedRealtimeNanos = 113_000_000L,
+				accessPoints = blockedAccessPoints,
+				payloadVersion = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+				observationZoneId = "America/New_York",
+			),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		projector.project(corruptFootprintDelivery.admissionOrdinals.single()) shouldBe
+			AmbientWifiProjectionResult.Unverifiable(
+				AmbientWifiProjectionUnverifiableReason.REPLAY_FOOTPRINT_CORRUPT,
+			)
+		database.ambientWifiFactDao().cursor(
+			AmbientWifiFactRevisionEntity.WRITER_ID,
+			AmbientWifiFactRevisionEntity.WRITER_VERSION,
+			blockedLogicalFactId,
+		) shouldBe null
+		val pendingRevocation = sinkFactory.unbound.admit(
+			wifiDeliveryCandidate(
+				registrationGeneration = 1L,
+				authorizationRevision = 1L,
+				physicalConfigurationFingerprint = FIRST_PHYSICAL_CONFIGURATION,
+				receivedElapsedRealtimeNanos = 114_000_000L,
+				accessPoints = listOf(
+					WifiAccessPointEvidence(
+						WITHHELD_RADIO_IDENTIFIER_TOKEN,
+						2_412,
+						-51,
+						104_000_000L,
+					),
+				),
+				payloadVersion = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+				observationZoneId = "America/New_York",
+			),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		database.sourcePolicyDao().insertPolicies(
+			listOf(
+				originalPolicy.copy(
+					policyRevision = 3L,
+					ambientPersistenceEligible = false,
+					ambientConsentEpoch = null,
+					effectiveElapsedRealtimeNanos = 200_000_000L,
+					changeReason = "WIFI_AMBIENT_REVOKED",
+				),
+			),
+		)
+		database.sourcePolicyDao().insertConsentEpochs(
+			listOf(
+				SourceConsentEpochEntity(
+					SourceKind.WIFI.stableCode,
+					SourceBrokerPurpose.AMBIENT_PRODUCT,
+					2L,
+					eligible = false,
+					persistenceEligible = false,
+					policyRevision = 3L,
+					effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
+					effectiveElapsedRealtimeNanos = 200_000_000L,
+					effectiveWallTimeMs = 200L,
+					changeReason = "WIFI_AMBIENT_REVOKED",
+				),
+			),
+		)
+		database.sourcePolicyDao().compareAndSetAuthority(
+			expectedBootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			expectedRevision = 2L,
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			newRevision = 3L,
+			legacySettingsFingerprint = null,
+			updatedAtMs = 200L,
+		) shouldBe 1
+		database.ambientWifiFactDao().insertAuthority(
+			AmbientWifiAuthorityIntegrity.create(
+				2L,
+				AmbientWifiAuthorityEntity.STATE_REVOKED,
+				3L,
+				2L,
+				"privacy:wifi:ambient:v1",
+				1L,
+				0L,
+				0L,
+				BOOT_CLOCK_DOMAIN_ID,
+				200_000_000L,
+				200L,
+				1L,
+				"ambient-chain-owner-revoked",
+				2L,
+				WIFI_DEMAND_ID,
+			),
+		)
+		projector.project(pendingRevocation.admissionOrdinals.single()) shouldBe
+			AmbientWifiProjectionResult.Unverifiable(
+				AmbientWifiProjectionUnverifiableReason.POLICY_MISMATCH,
+			)
+	}
+
+	@Test
+	fun `session capture treats radio v4 and v5 zone wrappers as one provider replay`() = runTest {
+		installWifiSessionCaptureAuthority(includeAmbient = false)
+		upgradeWifiCaptureLaneForManualSession()
+		val registration = currentWifiRuntimeRegistration()
+		val sink = DurableSourceEventSinkFactory(ingress).unbound
+		val versionFour = wifiDeliveryCandidate(
+			registrationGeneration = registration.state.registrationGeneration,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			receivedElapsedRealtimeNanos = 110_000_000L,
+			purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			eligibilityFingerprint = WIFI_CAPTURE_ELIGIBILITY_FINGERPRINT,
+			payloadVersion = 4,
+		)
+		val durable = sink.admit(versionFour)
+			.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		val versionFive = wifiDeliveryCandidate(
+			registrationGeneration = registration.state.registrationGeneration,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			receivedElapsedRealtimeNanos = 111_000_000L,
+			purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			eligibilityFingerprint = WIFI_CAPTURE_ELIGIBILITY_FINGERPRINT,
+			payloadVersion = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+			observationZoneId = "Europe/Prague",
+		)
+
+		val duplicate = sink.admit(versionFive)
+			.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Duplicate>()
+
+		duplicate.existingAdmissionOrdinals shouldBe durable.admissionOrdinals
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `zone replay fails closed when the stored WAL integrity is corrupt`() = runTest {
+		val first = wifiDeliveryCandidate(
+			1L,
+			1L,
+			FIRST_PHYSICAL_CONFIGURATION,
+			110_000_000L,
+			payloadVersion = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+			observationZoneId = "Europe/Prague",
+		)
+		ingress.admit(first).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET payload_checksum = ? WHERE delivery_identity = ?",
+			arrayOf("0".repeat(64), first.identity.value),
+		)
+		val replay = wifiDeliveryCandidate(
+			1L,
+			1L,
+			FIRST_PHYSICAL_CONFIGURATION,
+			111_000_000L,
+			payloadVersion = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+			observationZoneId = "UTC",
+		)
+
+		ingress.admit(replay) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.IDENTITY_COLLISION,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 1L
 	}
 
 	@Test
@@ -1122,6 +1374,7 @@ class WifiDurableSourceIngressTest {
 		eligibilityFingerprint: String = WIFI_ELIGIBILITY_FINGERPRINT,
 		payloadVersion: Int = WIFI_PAYLOAD_VERSION,
 		observationZoneId: String? = null,
+		resultAgeMs: Long? = null,
 	): SourceDeliveryCandidate {
 		val observed = requireNotNull(accessPoints.mapNotNull { it.providerTimestampNanos }.maxOrNull())
 		val intervalStart = requireNotNull(accessPoints.mapNotNull { it.providerTimestampNanos }.minOrNull())
@@ -1152,7 +1405,7 @@ class WifiDurableSourceIngressTest {
 			payload = WifiResultSnapshotPayload(
 				accessPoints = accessPoints,
 				platformTimestampMs = observed / NANOS_PER_MILLISECOND,
-				resultAgeMs = null,
+				resultAgeMs = resultAgeMs,
 				observationZoneId = observationZoneId,
 			),
 		)

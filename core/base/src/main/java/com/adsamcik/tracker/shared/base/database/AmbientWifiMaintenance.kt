@@ -145,6 +145,8 @@ suspend fun AppDatabase.pruneAmbientWifi(
 		importedGaps.size > LIMIT ||
 		localLineages.any { AmbientWifiFactIntegrity.effectChecksum(it) != it.effectChecksum } ||
 		localGaps.any { AmbientWifiFactIntegrity.gapChecksum(it) != it.effectChecksum } ||
+		importedLineages.any { !AmbientWifiFactIntegrity.isAuthentic(it) } ||
+		importedGaps.any { !AmbientWifiFactIntegrity.isAuthentic(it) } ||
 		!localLineages.completeLocalWifiLineages() ||
 		!importedLineages.completeImportedWifiLineages()
 	) {
@@ -159,12 +161,39 @@ suspend fun AppDatabase.pruneAmbientWifi(
 		)
 	}
 	val generation = maxOf(1L, marker?.deletionGeneration ?: 0L)
+	val selectedFactIds = importedIds.toSet()
+	val selectedGapIds = importedGapIds.toSet()
+	val allImportedFacts = if (selectedFactIds.isEmpty() && selectedGapIds.isEmpty()) {
+		emptyList()
+	} else {
+		dao.allImportedFacts(LIMIT + 1)
+	}
+	val allImportedGaps = if (selectedFactIds.isEmpty() && selectedGapIds.isEmpty()) {
+		emptyList()
+	} else {
+		dao.allImportedGaps(LIMIT + 1)
+	}
+	if (allImportedFacts.size > LIMIT || allImportedGaps.size > LIMIT) {
+		return@withTransaction wifiRetentionUnavailable(
+			AmbientWifiMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
+		)
+	}
+	val candidateArchives = (
+		importedLineages.map(ImportedAmbientWifiFactEntity::archiveId) +
+			importedGaps.map(ImportedAmbientWifiGapEntity::archiveId)
+	).distinct()
+	val emptiedArchives = candidateArchives.filter { archiveId ->
+		allImportedFacts.filter { it.archiveId == archiveId }
+			.all { it.factId in selectedFactIds } &&
+			allImportedGaps.filter { it.archiveId == archiveId }
+				.all { it.gapId in selectedGapIds }
+	}
 	val footprints = wifiReplayFootprints(
 		localLineages,
 		localGaps,
 		importedLineages,
 		importedGaps,
-		emptyList(),
+		emptiedArchives,
 		command.expectedCollectedDataEpoch,
 		generation,
 		command.appliedAtMs,
@@ -174,7 +203,11 @@ suspend fun AppDatabase.pruneAmbientWifi(
 			AmbientWifiMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
 		)
 	}
-	dao.insertReplayFootprints(footprints)
+	if (!dao.installVerifiedWifiFootprints(footprints)) {
+		return@withTransaction wifiRetentionUnavailable(
+			AmbientWifiMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+		)
+	}
 	localIds.chunked(SQLITE_ID_CHUNK_SIZE).forEach { ids ->
 		dao.deleteLocalCursors(ids)
 		dao.deleteLocalFacts(ids)
@@ -188,25 +221,7 @@ suspend fun AppDatabase.pruneAmbientWifi(
 	importedGapIds.chunked(SQLITE_ID_CHUNK_SIZE).forEach {
 		dao.deleteImportedGapsByIdentity(it)
 	}
-	val emptiedArchives = dao.emptyImportedArchiveIds(LIMIT + 1)
-	if (emptiedArchives.size > LIMIT) {
-		return@withTransaction wifiRetentionUnavailable(
-			AmbientWifiMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
-		)
-	}
 	if (emptiedArchives.isNotEmpty()) {
-		dao.insertReplayFootprints(
-			wifiReplayFootprints(
-				emptyList(),
-				emptyList(),
-				emptyList(),
-				emptyList(),
-				emptiedArchives,
-				command.expectedCollectedDataEpoch,
-				generation,
-				command.appliedAtMs,
-			),
-		)
 		emptiedArchives.chunked(SQLITE_ID_CHUNK_SIZE).forEach { archiveIds ->
 			dao.insertImportTombstones(archiveIds.map { archiveId ->
 				AmbientWifiFactIntegrity.createImportTombstone(
@@ -304,6 +319,9 @@ suspend fun AppDatabase.deleteAmbientWifiAfterConsentReset(
 		?: return@withTransaction wifiDeletionUnavailable(
 			AmbientWifiMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
 		)
+	if (!scope.isAuthentic) return@withTransaction wifiDeletionUnavailable(
+		AmbientWifiMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+	)
 	val previous = dao.latestDeletionMarker(expectedCollectedDataEpoch)
 	if (previous != null && !AmbientWifiFactIntegrity.isAuthentic(previous)) {
 		return@withTransaction wifiDeletionUnavailable(
@@ -317,6 +335,15 @@ suspend fun AppDatabase.deleteAmbientWifiAfterConsentReset(
 		?: return@withTransaction wifiDeletionUnavailable(
 			AmbientWifiMaintenanceUnavailableReason.DELETION_GENERATION_EXHAUSTED,
 		)
+	val footprints = scope.footprints(expectedCollectedDataEpoch, generation, deletedAtMs)
+	if (footprints.size > LIMIT) return@withTransaction wifiDeletionUnavailable(
+		AmbientWifiMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
+	)
+	if (!dao.installVerifiedWifiFootprints(footprints)) {
+		return@withTransaction wifiDeletionUnavailable(
+			AmbientWifiMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+		)
+	}
 	dao.insertDeletionMarker(AmbientWifiFactIntegrity.createDeletionMarker(
 		expectedCollectedDataEpoch,
 		generation,
@@ -324,11 +351,6 @@ suspend fun AppDatabase.deleteAmbientWifiAfterConsentReset(
 		"AMBIENT_WIFI_CONSENT_RESET",
 		deletedAtMs,
 	))
-	val footprints = scope.footprints(expectedCollectedDataEpoch, generation, deletedAtMs)
-	if (footprints.size > LIMIT) return@withTransaction wifiDeletionUnavailable(
-		AmbientWifiMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
-	)
-	dao.insertReplayFootprints(footprints)
 	dao.installWifiArchiveTombstones(scope.archiveIds, expectedCollectedDataEpoch, generation, deletedAtMs)
 	dao.deleteWholeWifiPayload(scope.archiveIds)
 	check(sourceEvidenceStateDao().incrementRevision(deletedAtMs) == 1)
@@ -363,6 +385,9 @@ suspend fun AppDatabase.clearAmbientWifiProductPreservingReplayFootprints(
 		?: return@withTransaction wifiDeletionUnavailable(
 			AmbientWifiMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
 		)
+	if (!scope.isAuthentic) return@withTransaction wifiDeletionUnavailable(
+		AmbientWifiMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+	)
 	val previous = dao.latestDeletionMarker(expectedCollectedDataEpoch)
 	if (previous != null && !AmbientWifiFactIntegrity.isAuthentic(previous)) {
 		return@withTransaction wifiDeletionUnavailable(
@@ -379,6 +404,15 @@ suspend fun AppDatabase.clearAmbientWifiProductPreservingReplayFootprints(
 		?: return@withTransaction wifiDeletionUnavailable(
 			AmbientWifiMaintenanceUnavailableReason.DELETION_GENERATION_EXHAUSTED,
 		)
+	val footprints = scope.footprints(expectedCollectedDataEpoch, generation, clearedAtMs)
+	if (footprints.size > LIMIT) return@withTransaction wifiDeletionUnavailable(
+		AmbientWifiMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
+	)
+	if (!dao.installVerifiedWifiFootprints(footprints)) {
+		return@withTransaction wifiDeletionUnavailable(
+			AmbientWifiMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+		)
+	}
 	dao.insertDeletionMarker(AmbientWifiFactIntegrity.createDeletionMarker(
 		expectedCollectedDataEpoch,
 		generation,
@@ -386,11 +420,6 @@ suspend fun AppDatabase.clearAmbientWifiProductPreservingReplayFootprints(
 		"AMBIENT_WIFI_FULL_CLEAR",
 		clearedAtMs,
 	))
-	val footprints = scope.footprints(expectedCollectedDataEpoch, generation, clearedAtMs)
-	if (footprints.size > LIMIT) return@withTransaction wifiDeletionUnavailable(
-		AmbientWifiMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
-	)
-	dao.insertReplayFootprints(footprints)
 	dao.installWifiArchiveTombstones(scope.archiveIds, expectedCollectedDataEpoch, generation, clearedAtMs)
 	dao.deleteWholeWifiPayload(scope.archiveIds)
 	dao.deleteAllAuthorities()
@@ -415,6 +444,12 @@ private data class WifiStoredScope(
 	val isEmpty: Boolean
 		get() = localCursorCount == 0L && localFacts.isEmpty() && localGaps.isEmpty() &&
 			importedFacts.isEmpty() && importedGaps.isEmpty() && archiveIds.isEmpty()
+
+	val isAuthentic: Boolean
+		get() = localFacts.all { AmbientWifiFactIntegrity.effectChecksum(it) == it.effectChecksum } &&
+			localGaps.all { AmbientWifiFactIntegrity.gapChecksum(it) == it.effectChecksum } &&
+			importedFacts.all(AmbientWifiFactIntegrity::isAuthentic) &&
+			importedGaps.all(AmbientWifiFactIntegrity::isAuthentic)
 
 	fun footprints(epoch: Long, generation: Long, recordedAtMs: Long) =
 		wifiReplayFootprints(
@@ -444,9 +479,7 @@ private suspend fun AmbientWifiFactDao.loadWholeWifiScope(): WifiStoredScope? {
 			importedFacts,
 			importedGaps,
 			archiveIds,
-		).any { it.size > LIMIT } ||
-		localFacts.any { AmbientWifiFactIntegrity.effectChecksum(it) != it.effectChecksum } ||
-		localGaps.any { AmbientWifiFactIntegrity.gapChecksum(it) != it.effectChecksum }
+		).any { it.size > LIMIT }
 	) return null
 	return WifiStoredScope(
 		localCursorCount,
@@ -563,6 +596,46 @@ private suspend fun AmbientWifiFactDao.deleteWholeWifiPayload(archiveIds: List<S
 		deleteImportedFacts(ids)
 	}
 }
+
+private suspend fun AmbientWifiFactDao.installVerifiedWifiFootprints(
+	values: List<AmbientWifiReplayFootprintEntity>,
+): Boolean {
+	if (values.isEmpty()) return true
+	val identities = values.map(AmbientWifiReplayFootprintEntity::identityDigest).distinct()
+	val existing = buildList {
+		identities.chunked(SQLITE_ID_CHUNK_SIZE).forEach { chunk ->
+			addAll(replayFootprintsByIdentityDigests(chunk, LIMIT + 1 - size))
+			if (size > LIMIT) return@buildList
+		}
+	}
+	if (existing.size > LIMIT || existing.any { !AmbientWifiFactIntegrity.isAuthentic(it) }) {
+		return false
+	}
+	val expectedByKey = values.associateBy(AmbientWifiReplayFootprintEntity::storageKey)
+	val existingByKey = existing.associateBy(AmbientWifiReplayFootprintEntity::storageKey)
+	if (expectedByKey.any { (key, expected) ->
+			existingByKey[key]?.let { it != expected } == true
+		}
+	) return false
+	val missing = expectedByKey.filterKeys { it !in existingByKey }.values.toList()
+	if (missing.isNotEmpty()) insertReplayFootprints(missing)
+	val storedRows = buildList {
+		identities.chunked(SQLITE_ID_CHUNK_SIZE).forEach { chunk ->
+			addAll(replayFootprintsByIdentityDigests(chunk, LIMIT + 1 - size))
+			if (size > LIMIT) return@buildList
+		}
+	}
+	if (storedRows.size > LIMIT ||
+		storedRows.any { !AmbientWifiFactIntegrity.isAuthentic(it) }
+	) return false
+	val stored = storedRows.associateBy(AmbientWifiReplayFootprintEntity::storageKey)
+	return expectedByKey.all { (key, expected) ->
+		stored[key] == expected
+	}
+}
+
+private fun AmbientWifiReplayFootprintEntity.storageKey(): Triple<String, String, Long> =
+	Triple(footprintKind, identityDigest, semanticRevision)
 
 private fun List<AmbientWifiFactRevisionEntity>.completeLocalWifiLineages(): Boolean =
 	groupBy(AmbientWifiFactRevisionEntity::logicalFactId).values.all { lineage ->

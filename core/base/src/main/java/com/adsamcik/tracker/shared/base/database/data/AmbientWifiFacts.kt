@@ -492,7 +492,7 @@ data class AmbientWifiReplayFootprintEntity(
 				(semanticRevision > 0L),
 		)
 		require(collectedDataEpoch >= 0L && deletionGeneration > 0L && recordedAtMs >= 0L)
-		require(effectChecksum == AmbientWifiFactIntegrity.replayFootprintChecksum(this))
+		require(AmbientWifiAuthorityIntegrity.isDigest(effectChecksum))
 	}
 
 	companion object {
@@ -574,6 +574,61 @@ object AmbientWifiFactIntegrity {
 
 	fun isAuthentic(value: AmbientWifiReplayFootprintEntity): Boolean =
 		value.effectChecksum == replayFootprintChecksum(value)
+
+	fun isAuthentic(value: ImportedAmbientWifiFactEntity): Boolean =
+		value.portableEffectChecksum == importedFactEffectChecksum(value) &&
+			value.contentChecksum == importedFactContentChecksum(value)
+
+	fun isAuthentic(value: ImportedAmbientWifiGapEntity): Boolean =
+		value.portableEffectChecksum == importedGapEffectChecksum(value) &&
+			value.contentChecksum == importedGapContentChecksum(value)
+
+	fun importedFactContentChecksum(value: ImportedAmbientWifiFactEntity): String =
+		AmbientWifiAuthorityIntegrity.digest(
+			"ambient-wifi-portable-fact-v1",
+			value.factId,
+			value.portableEffectChecksum,
+		)
+
+	fun importedGapContentChecksum(value: ImportedAmbientWifiGapEntity): String =
+		AmbientWifiAuthorityIntegrity.digest(
+			"ambient-wifi-portable-gap-v1",
+			value.gapId,
+			value.portableEffectChecksum,
+		)
+
+	fun importedFactEffectChecksum(value: ImportedAmbientWifiFactEntity): String =
+		AmbientWifiAuthorityIntegrity.digest(
+			"ambient-wifi-portable-fact-effect-v1",
+			value.portableOrigin,
+			value.coverageStartTimeMs,
+			value.observedTimeMs,
+			value.latestPossibleTimeMs,
+			value.structuralEpochDay,
+			value.storedZoneId,
+			value.coverageCompleteness,
+			value.observationCount,
+			value.twoPointFourGhzCount,
+			value.fiveGhzCount,
+			value.sixGhzCount,
+			value.otherBandCount,
+			value.strongestSignalDbm,
+			value.weakestSignalDbm,
+			value.meanSignalDbm,
+			value.semanticRevision,
+			value.supersedesSemanticRevision,
+		)
+
+	fun importedGapEffectChecksum(value: ImportedAmbientWifiGapEntity): String =
+		AmbientWifiAuthorityIntegrity.digest(
+			"ambient-wifi-portable-gap-effect-v1",
+			value.portableOrigin,
+			value.structuralEpochDay,
+			value.startTimeMs,
+			value.endTimeMs,
+			value.storedZoneId,
+			value.reason,
+		)
 
 	fun logicalFactId(
 		sourceDeliveryIdentity: String,

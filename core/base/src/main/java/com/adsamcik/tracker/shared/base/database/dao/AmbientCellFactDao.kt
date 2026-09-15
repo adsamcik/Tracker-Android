@@ -384,6 +384,16 @@ interface AmbientCellFactDao {
 	): AmbientCellReplayFootprintEntity?
 
 	@Query(
+		"SELECT * FROM ambient_cell_replay_footprint " +
+			"WHERE identity_digest IN (:identityDigests) " +
+			"ORDER BY footprint_kind, identity_digest, semantic_revision LIMIT :limit",
+	)
+	suspend fun replayFootprintsByIdentityDigests(
+		identityDigests: List<String>,
+		limit: Int,
+	): List<AmbientCellReplayFootprintEntity>
+
+	@Query(
 		"SELECT * FROM ambient_cell_deletion_marker WHERE collected_data_epoch = :collectedDataEpoch " +
 			"ORDER BY deletion_generation DESC LIMIT 1",
 	)
@@ -396,8 +406,12 @@ interface AmbientCellFactDao {
 
 	@Query(
 		"WITH RECURSIVE selected(logical_fact_id) AS (" +
-			"SELECT logical_fact_id FROM ambient_cell_fact_revision " +
-			"WHERE observed_wall_time_ms < :beforeMs AND retention_policy_id = :retentionPolicyId " +
+			"SELECT latest.logical_fact_id FROM ambient_cell_fact_revision AS latest " +
+			"WHERE latest.semantic_revision = (" +
+			"SELECT MAX(history.semantic_revision) FROM ambient_cell_fact_revision AS history " +
+			"WHERE history.logical_fact_id = latest.logical_fact_id) " +
+			"AND latest.observed_wall_time_ms < :beforeMs " +
+			"AND latest.retention_policy_id = :retentionPolicyId " +
 			"UNION SELECT aggregate_owner_logical_fact_id FROM ambient_cell_fact_revision AS child " +
 			"JOIN selected ON selected.logical_fact_id = child.logical_fact_id " +
 			"WHERE child.aggregate_owner_logical_fact_id IS NOT NULL " +
@@ -476,9 +490,13 @@ interface AmbientCellFactDao {
 	suspend fun deleteLocalGapsByIdentity(gapIds: List<String>): Int
 
 	@Query(
-		"SELECT DISTINCT fact_id FROM imported_ambient_cell_fact " +
-			"WHERE observed_time_ms < :beforeMs AND retention_policy_id = :retentionPolicyId " +
-			"ORDER BY fact_id LIMIT :limit",
+		"SELECT latest.fact_id FROM imported_ambient_cell_fact AS latest " +
+			"WHERE latest.semantic_revision = (" +
+			"SELECT MAX(history.semantic_revision) FROM imported_ambient_cell_fact AS history " +
+			"WHERE history.fact_id = latest.fact_id) " +
+			"AND latest.observed_time_ms < :beforeMs " +
+			"AND latest.retention_policy_id = :retentionPolicyId " +
+			"ORDER BY latest.fact_id LIMIT :limit",
 	)
 	suspend fun importedFactIdsBefore(
 		beforeMs: Long,

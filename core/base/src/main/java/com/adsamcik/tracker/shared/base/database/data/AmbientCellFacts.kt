@@ -525,7 +525,7 @@ data class AmbientCellReplayFootprintEntity(
 				(semanticRevision > 0L),
 		)
 		require(collectedDataEpoch >= 0L && deletionGeneration > 0L && recordedAtMs >= 0L)
-		require(effectChecksum == AmbientCellFactIntegrity.replayFootprintChecksum(this))
+		require(AmbientCellAuthorityIntegrity.isDigest(effectChecksum))
 	}
 
 	companion object {
@@ -607,6 +607,76 @@ object AmbientCellFactIntegrity {
 
 	fun isAuthentic(value: AmbientCellReplayFootprintEntity): Boolean =
 		value.effectChecksum == replayFootprintChecksum(value)
+
+	fun isAuthentic(value: ImportedAmbientCellFactEntity): Boolean =
+		value.portableEffectChecksum == importedFactEffectChecksum(value) &&
+			value.contentChecksum == importedFactContentChecksum(value)
+
+	fun isAuthentic(value: ImportedAmbientCellGapEntity): Boolean =
+		value.portableEffectChecksum == importedGapEffectChecksum(value) &&
+			value.contentChecksum == importedGapContentChecksum(value)
+
+	fun importedFactContentChecksum(value: ImportedAmbientCellFactEntity): String =
+		AmbientCellAuthorityIntegrity.digest(
+			"ambient-cell-portable-fact-v1",
+			value.factId,
+			value.portableEffectChecksum,
+		)
+
+	fun importedGapContentChecksum(value: ImportedAmbientCellGapEntity): String =
+		AmbientCellAuthorityIntegrity.digest(
+			"ambient-cell-portable-gap-v1",
+			value.gapId,
+			value.portableEffectChecksum,
+		)
+
+	fun importedFactEffectChecksum(value: ImportedAmbientCellFactEntity): String =
+		AmbientCellAuthorityIntegrity.digest(
+			"ambient-cell-portable-fact-effect-v1",
+			value.portableOrigin,
+			value.coverageStartTimeMs,
+			value.observedTimeMs,
+			value.latestPossibleTimeMs,
+			value.structuralEpochDay,
+			value.storedZoneId,
+			value.coverageCompleteness,
+			value.subscriptionCompleteness,
+			value.observationCount,
+			value.registeredObservationCount,
+			cellTechnologyMixString(value),
+			cellQualityDistributionString(value),
+			value.semanticRevision,
+			value.supersedesSemanticRevision,
+		)
+
+	fun importedGapEffectChecksum(value: ImportedAmbientCellGapEntity): String =
+		AmbientCellAuthorityIntegrity.digest(
+			"ambient-cell-portable-gap-effect-v1",
+			value.portableOrigin,
+			value.structuralEpochDay,
+			value.startTimeMs,
+			value.endTimeMs,
+			value.storedZoneId,
+			value.reason,
+		)
+
+	private fun cellTechnologyMixString(value: ImportedAmbientCellFactEntity): String =
+		"AmbientCellTechnologyMix(" +
+			"gsmCount=${value.gsmCount}, " +
+			"cdmaCount=${value.cdmaCount}, " +
+			"wcdmaCount=${value.wcdmaCount}, " +
+			"tdscdmaCount=${value.tdscdmaCount}, " +
+			"lteCount=${value.lteCount}, " +
+			"nrCount=${value.nrCount})"
+
+	private fun cellQualityDistributionString(value: ImportedAmbientCellFactEntity): String =
+		"AmbientCellQualityDistribution(" +
+			"unknownCount=${value.qualityUnknownCount}, " +
+			"noneOrUnknownCount=${value.qualityNoneOrUnknownCount}, " +
+			"poorCount=${value.qualityPoorCount}, " +
+			"moderateCount=${value.qualityModerateCount}, " +
+			"goodCount=${value.qualityGoodCount}, " +
+			"greatCount=${value.qualityGreatCount})"
 
 	fun logicalFactId(
 		sourceDeliveryIdentity: String,

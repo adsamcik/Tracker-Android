@@ -5,9 +5,11 @@ import com.adsamcik.tracker.tracker.api.AmbientReconciliationIdentity
 /**
  * Parent-owned CAS bridge for ambient radio mutations.
  *
- * An implementation must keep [identity] current for the complete [mutation] call. Lease
- * replacement or cancellation must wait, or cause [Stale] before [mutation] starts. A one-shot
- * check that releases its store lock before invoking [mutation] does not satisfy this contract.
+ * An implementation must keep [identity] current for the complete [mutation] call, including the
+ * broker Room transaction, physical-provider reconciliation, and exact-attempt compensation.
+ * Lease replacement or cancellation must wait, or cause [Stale] before [mutation] starts. A
+ * one-shot check that releases its store lock before invoking [mutation] does not satisfy this
+ * contract.
  */
 interface AmbientRadioMutationLeaseGuard {
 	suspend fun <T> mutateIfCurrent(

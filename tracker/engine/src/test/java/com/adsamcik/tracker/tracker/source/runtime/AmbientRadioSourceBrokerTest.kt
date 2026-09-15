@@ -348,6 +348,64 @@ class AmbientRadioSourceBrokerTest {
 		)
 	}
 
+	@Test
+	fun `exact attempt compensation preserves another consumer session demand`() = runTest {
+		val policy = grant(TrackingSourceComponent.WIFI)
+		val consent = policy[TrackingSourceComponent.WIFI].ambientConsentEpoch!!
+		database.applyAmbientWifiRetentionDecision(
+			AmbientRadioRetentionDecision.GrantLiveAmbient(
+				"privacy:wifi:ambient:v1",
+				3L,
+				policy.revision,
+				consent,
+				"boot-1",
+				90L,
+				90L,
+			),
+		)
+		val identity =
+			lease(AmbientTrackingSource.WIFI, policy.revision, consent, "wifi-owner")
+		val active = assertIs<AmbientRadioDemandResult.Active>(
+			broker.replaceAmbientWifiDemand(
+				"app:ambient:wifi",
+				true,
+				identity,
+				1L,
+				"boot-1",
+				100L,
+				100L,
+			),
+		)
+		val sessionDemand = active.demand.copy(
+			demandId = "session-wifi-demand",
+			consumerId = "session:logical-1",
+			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+			logicalTrackingId = "logical-1",
+			serviceRunId = "run-1",
+			manifestRevision = 1L,
+			lifecycleLeaseGeneration = 1L,
+			qosCode = 2,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(sessionDemand))
+
+		val compensated = broker.compensateAmbientWifiDemandUnderHeldLease(
+			"app:ambient:wifi",
+			identity,
+			1L,
+			active.demand.demandId,
+			"boot-1",
+			200L,
+			200L,
+		)
+
+		assertTrue(compensated != null)
+		assertTrue(database.sourceBrokerDao().currentDemands("app:ambient:wifi").isEmpty())
+		assertEquals(
+			sessionDemand.demandId,
+			database.sourceBrokerDao().currentDemands("session:logical-1").single().demandId,
+		)
+	}
+
 	private suspend fun grant(source: TrackingSourceComponent) =
 		policyRepository.setNonCaptureConsent(
 			expectedPolicyRevision =

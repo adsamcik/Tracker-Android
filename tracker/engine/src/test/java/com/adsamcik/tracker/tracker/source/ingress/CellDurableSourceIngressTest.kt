@@ -8,6 +8,8 @@ import com.adsamcik.tracker.shared.base.database.applyAmbientCellRetentionDecisi
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellReplayFootprintEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -54,6 +56,7 @@ import com.adsamcik.tracker.tracker.source.runtime.WITHHELD_RADIO_IDENTIFIER_TOK
 import com.adsamcik.tracker.tracker.source.runtime.cellProviderDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellFactProjector
 import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellProjectionResult
+import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellProjectionUnverifiableReason
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -278,11 +281,54 @@ class CellDurableSourceIngressTest {
 		)
 
 		controller.reconcileAmbientJoin().shouldBeInstanceOf<AmbientCellRuntimeJoinResult.Active>()
+		val originalOrdinal = requireNotNull(admissionOrdinal)
+		val zoneOnlyReplay = sinkFactory.unbound.admit(
+			cellDeliveryCandidate(
+				1L,
+				1L,
+				FIRST_PHYSICAL_CONFIGURATION,
+				111L,
+				RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+				"UTC",
+			),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Duplicate>()
+		zoneOnlyReplay.existingAdmissionOrdinals shouldBe listOf(originalOrdinal)
+		val versionFourReplay = sinkFactory.unbound.admit(
+			cellDeliveryCandidate(
+				1L,
+				1L,
+				FIRST_PHYSICAL_CONFIGURATION,
+				112L,
+				4,
+			),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Duplicate>()
+		versionFourReplay.existingAdmissionOrdinals shouldBe listOf(originalOrdinal)
+		database.sourceEventWalDao().countAll() shouldBe 1L
+		val originalPolicy = requireNotNull(
+			database.sourcePolicyDao().policyAtRevision(1L, SourceKind.CELL.stableCode),
+		)
+		database.sourcePolicyDao().insertPolicies(
+			listOf(
+				originalPolicy.copy(
+					policyRevision = 2L,
+					effectiveElapsedRealtimeNanos = 120L,
+					changeReason = "UNRELATED_SOURCE_CHANGE",
+				),
+			),
+		)
+		database.sourcePolicyDao().compareAndSetAuthority(
+			expectedBootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			expectedRevision = 1L,
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			newRevision = 2L,
+			legacySettingsFingerprint = null,
+			updatedAtMs = 120L,
+		) shouldBe 1
 		AmbientCellFactProjector(
 			database,
 			DefaultSourcePayloadCodec(),
 			Dispatchers.Unconfined,
-		).project(requireNotNull(admissionOrdinal))
+		).project(originalOrdinal)
 			.shouldBeInstanceOf<AmbientCellProjectionResult.FactWritten>()
 		val row = database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single()
 
@@ -305,6 +351,80 @@ class CellDurableSourceIngressTest {
 			Dispatchers.Unconfined,
 		).project(freshUnchanged.admissionOrdinals.single())
 			.shouldBeInstanceOf<AmbientCellProjectionResult.CoverageCompacted>()
+		val gapDelivery = sinkFactory.unbound.admit(
+			cellDeliveryCandidate(
+				1L,
+				1L,
+				FIRST_PHYSICAL_CONFIGURATION,
+				113L,
+				RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+				"Europe/Prague",
+				102L,
+				subscriptionId = 1,
+			),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		val gapOrdinal = gapDelivery.admissionOrdinals.single()
+		val gapWal = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(gapOrdinal))
+		val gapId = AmbientCellAuthorityIntegrity.digest(
+			"ambient-cell-gap-v1",
+			gapWal.eventId,
+			1L,
+			0L,
+		)
+		val footprint = AmbientCellFactIntegrity.createReplayFootprint(
+			AmbientCellReplayFootprintEntity.KIND_LOCAL_GAP,
+			gapId,
+			0L,
+			0L,
+			1L,
+			200L,
+		)
+		database.ambientCellFactDao().insertReplayFootprints(listOf(footprint))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE ambient_cell_replay_footprint SET effect_checksum = ? " +
+				"WHERE footprint_kind = ? AND identity_digest = ? AND semantic_revision = 0",
+			arrayOf(
+				"0".repeat(64),
+				AmbientCellReplayFootprintEntity.KIND_LOCAL_GAP,
+				gapId,
+			),
+		)
+
+		AmbientCellFactProjector(
+			database,
+			DefaultSourcePayloadCodec(),
+			Dispatchers.Unconfined,
+		).project(gapOrdinal) shouldBe AmbientCellProjectionResult.Unverifiable(
+			AmbientCellProjectionUnverifiableReason.REPLAY_FOOTPRINT_CORRUPT,
+		)
+		val pendingDeletion = sinkFactory.unbound.admit(
+			cellDeliveryCandidate(
+				1L,
+				1L,
+				FIRST_PHYSICAL_CONFIGURATION,
+				114L,
+				RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+				"Europe/Prague",
+				103L,
+			),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		database.ambientCellFactDao().insertDeletionMarker(
+			AmbientCellFactIntegrity.createDeletionMarker(
+				0L,
+				1L,
+				1L,
+				"TEST_CELL_DELETION",
+				200L,
+			),
+		)
+		AmbientCellFactProjector(
+			database,
+			DefaultSourcePayloadCodec(),
+			Dispatchers.Unconfined,
+		).project(pendingDeletion.admissionOrdinals.single()) shouldBe
+			AmbientCellProjectionResult.Unverifiable(
+				AmbientCellProjectionUnverifiableReason.DELETED_SCOPE,
+			)
 	}
 
 	private fun cellDeliveryCandidate(
@@ -315,6 +435,7 @@ class CellDurableSourceIngressTest {
 		payloadVersion: Int = 1,
 		observationZoneId: String? = null,
 		providerTimestampNanos: Long = PROVIDER_TIMESTAMP_NANOS,
+		subscriptionId: Int? = null,
 	): SourceDeliveryCandidate {
 		val observations = listOf(
 			CellObservationEvidence(
@@ -350,7 +471,7 @@ class CellDurableSourceIngressTest {
 			quality = SourceQuality(),
 			payloadVersion = payloadVersion,
 			payload = CellSnapshotPayload(
-				subscriptionId = null,
+				subscriptionId = subscriptionId,
 				observations = observations,
 				refreshOutcome = CellRefreshOutcome.CALLBACK,
 				observationZoneId = observationZoneId,

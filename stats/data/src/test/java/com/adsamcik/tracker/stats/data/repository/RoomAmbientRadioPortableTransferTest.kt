@@ -9,6 +9,8 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.applyAmbientCellRetentionDecision
 import com.adsamcik.tracker.shared.base.database.applyAmbientWifiRetentionDecision
 import com.adsamcik.tracker.shared.base.database.clearAmbientWifiProductPreservingReplayFootprints
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactIntegrity
 import com.adsamcik.tracker.shared.base.database.pruneAmbientWifi
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.stats.api.repository.AmbientCellCoverage
@@ -101,6 +103,11 @@ class RoomAmbientRadioPortableTransferTest {
 		)
 		assertEquals(listOf(1L, 2L), exported?.facts?.map { it.semanticRevision })
 		assertEquals(1, exported?.gaps?.size)
+		assertEquals(
+			true,
+			database.ambientWifiFactDao().importedForArchive(corrected.archiveId, 10)
+				.all(AmbientWifiFactIntegrity::isAuthentic),
+		)
 	}
 
 	@Test
@@ -125,6 +132,7 @@ class RoomAmbientRadioPortableTransferTest {
 			} finally {
 				fresh.close()
 			}
+		}
 
 	@Test
 	fun `portable import is default deny without durable import retention authority`() = runTest {
@@ -154,7 +162,6 @@ class RoomAmbientRadioPortableTransferTest {
 				fresh.close()
 			}
 	}
-		}
 
 	@Test
 	fun `gap-only Wi-Fi archive imports reads and reexports without fabricated facts`() = runTest {
@@ -261,18 +268,38 @@ class RoomAmbientRadioPortableTransferTest {
 			),
 		)
 		assertEquals(AmbientCellOrigin.PORTABLE_IMPORT, read.facts.single().origin)
+		assertEquals(
+			true,
+			database.ambientCellFactDao().importedForArchive(archive.archiveId, 10)
+				.all(AmbientCellFactIntegrity::isAuthentic),
+		)
 	}
 
 	@Test
-	fun `retention prunes old archive members without deleting newer membership or receipt`() =
+	fun `retention uses effective correction time and preserves its complete lineage`() =
 		runTest {
 			val repository = RoomAmbientWifiRepository(database, dispatcher)
 			val transfer = RoomAmbientWifiPortableTransfer(database, repository, dispatcher)
-			val old = portableWifiFact("old", 1_000L)
-			val newer = portableWifiFact("newer", 2_000L)
+			val oldEffective = portableWifiFact("old-effective", 1_000L)
+			val correctedIdentity =
+				AmbientWifiPortableIntegrity.opaqueIdentity("fact", "mixed-correction")
+			val correctionV1 = portableWifiRevision(
+				correctedIdentity,
+				1L,
+				null,
+				1_000L,
+				-60.0,
+			)
+			val correctionV2 = portableWifiRevision(
+				correctedIdentity,
+				2L,
+				1L,
+				2_000L,
+				-55.0,
+			)
 			val archive = AmbientWifiPortableIntegrity.createArchive(
 				AmbientWifiPortableIntegrity.opaqueIdentity("archive", "cutoff-straddling"),
-				listOf(old, newer),
+				listOf(oldEffective, correctionV1, correctionV2),
 				emptyList(),
 			)
 			val request = wifiRequest(archive, "straddling", 10_000L)
@@ -294,9 +321,12 @@ class RoomAmbientRadioPortableTransferTest {
 
 			assertEquals(0, result.importedArchives)
 			assertEquals(
-				listOf(newer.identity),
+				listOf(
+					correctedIdentity to 1L,
+					correctedIdentity to 2L,
+				),
 				database.ambientWifiFactDao().importedForArchive(archive.archiveId, 10)
-					.map { it.factId },
+					.map { it.factId to it.semanticRevision },
 			)
 			assertEquals(
 				archive.archiveId,
@@ -449,9 +479,24 @@ class RoomAmbientRadioPortableTransferTest {
 	}
 
 	private fun portableWifiFact(key: String, observedTimeMs: Long) =
+		portableWifiRevision(
+			AmbientWifiPortableIntegrity.opaqueIdentity("fact", key),
+			1L,
+			null,
+			observedTimeMs,
+			-50.0,
+		)
+
+	private fun portableWifiRevision(
+		identity: String,
+		semanticRevision: Long,
+		supersedesSemanticRevision: Long?,
+		observedTimeMs: Long,
+		meanSignalDbm: Double,
+	) =
 		AmbientWifiPortableIntegrity.createFact(
 			AmbientWifiFact(
-				AmbientWifiPortableIntegrity.opaqueIdentity("fact", key),
+				identity,
 				AmbientWifiOrigin.PORTABLE_IMPORT,
 				observedTimeMs - 100L,
 				observedTimeMs,
@@ -464,9 +509,11 @@ class RoomAmbientRadioPortableTransferTest {
 				0,
 				0,
 				0,
-				-50,
-				-50,
-				-50.0,
+				-40,
+				-80,
+				meanSignalDbm,
+				semanticRevision,
+				supersedesSemanticRevision,
 			),
 		)
 }

@@ -6,8 +6,11 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiReplayFootprintEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiFactEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
@@ -217,6 +220,172 @@ class AmbientRadioAuthorityRoomTest {
 		)
 	}
 
+	@Test
+	fun `corrupt imported portable value leaves retention transaction unchanged`() = runTest {
+		installWifiImportRetention()
+		val fact = importedWifiFact()
+		database.ambientWifiFactDao().insertImportedFact(fact)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_ambient_wifi_fact SET strongest_signal_dbm = -49 WHERE fact_id = ?",
+			arrayOf(fact.factId),
+		)
+
+		val result = assertIs<AmbientWifiRetentionResult.Unavailable>(
+			database.pruneAmbientWifi(
+				AmbientWifiRetentionCommand(1_500L, 4L, 2_000L),
+			),
+		)
+
+		assertEquals(
+			AmbientWifiMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+			result.reason,
+		)
+		assertEquals(1L, database.ambientWifiFactDao().importedFactCount())
+		assertNull(database.ambientWifiFactDao().replayFootprint(
+			AmbientWifiReplayFootprintEntity.KIND_FACT_IDENTITY,
+			fact.factId,
+			1L,
+		))
+	}
+
+	@Test
+	fun `corrupt imported effect checksum leaves retention transaction unchanged`() = runTest {
+		installWifiImportRetention()
+		val fact = importedWifiFact()
+		database.ambientWifiFactDao().insertImportedFact(fact)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_ambient_wifi_fact SET portable_effect_checksum = ? " +
+				"WHERE fact_id = ?",
+			arrayOf("0".repeat(64), fact.factId),
+		)
+
+		assertIs<AmbientWifiRetentionResult.Unavailable>(
+			database.pruneAmbientWifi(
+				AmbientWifiRetentionCommand(1_500L, 4L, 2_000L),
+			),
+		)
+		assertEquals(1L, database.ambientWifiFactDao().importedFactCount())
+	}
+
+	@Test
+	fun `corrupt imported content checksum leaves retention transaction unchanged`() = runTest {
+		installWifiImportRetention()
+		val fact = importedWifiFact()
+		database.ambientWifiFactDao().insertImportedFact(fact)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_ambient_wifi_fact SET content_checksum = ? WHERE fact_id = ?",
+			arrayOf("0".repeat(64), fact.factId),
+		)
+
+		assertIs<AmbientWifiRetentionResult.Unavailable>(
+			database.pruneAmbientWifi(
+				AmbientWifiRetentionCommand(1_500L, 4L, 2_000L),
+			),
+		)
+		assertEquals(1L, database.ambientWifiFactDao().importedFactCount())
+	}
+
+	@Test
+	fun `corrupt existing replay footprint prevents retention cascade`() = runTest {
+		installWifiImportRetention()
+		val fact = importedWifiFact()
+		database.ambientWifiFactDao().insertImportedFact(fact)
+		database.ambientWifiFactDao().insertReplayFootprints(
+			listOf(
+				AmbientWifiFactIntegrity.createReplayFootprint(
+					AmbientWifiReplayFootprintEntity.KIND_FACT_IDENTITY,
+					fact.factId,
+					1L,
+					4L,
+					1L,
+					2_000L,
+				),
+			),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE ambient_wifi_replay_footprint SET effect_checksum = ? " +
+				"WHERE footprint_kind = ? AND identity_digest = ? AND semantic_revision = 1",
+			arrayOf(
+				"0".repeat(64),
+				AmbientWifiReplayFootprintEntity.KIND_FACT_IDENTITY,
+				fact.factId,
+			),
+		)
+
+		val result = assertIs<AmbientWifiRetentionResult.Unavailable>(
+			database.pruneAmbientWifi(
+				AmbientWifiRetentionCommand(1_500L, 4L, 2_000L),
+			),
+		)
+
+		assertEquals(
+			AmbientWifiMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+			result.reason,
+		)
+		assertEquals(1L, database.ambientWifiFactDao().importedFactCount())
+	}
+
+	private suspend fun installWifiImportRetention() {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(
+				collectedDataEpoch = 4L,
+				retainedFromMs = 1_500L,
+				updatedAtMs = 1L,
+			),
+		)
+		database.ambientWifiFactDao().insertRetentionAuthority(
+			AmbientWifiRetentionAuthorityIntegrity.create(
+				AmbientWifiRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
+				1L,
+				AmbientWifiRetentionAuthorityEntity.STATE_ACTIVE,
+				"privacy:wifi:import:v1",
+				null,
+				null,
+				4L,
+				"boot-1",
+				1L,
+				1L,
+			),
+		)
+	}
+
+	private fun importedWifiFact(): ImportedAmbientWifiFactEntity {
+		val draft = ImportedAmbientWifiFactEntity(
+			archiveId = digest("archive"),
+			factId = digest("fact"),
+			semanticRevision = 1L,
+			supersedesSemanticRevision = null,
+			contentChecksum = "0".repeat(64),
+			portableEffectChecksum = "0".repeat(64),
+			portableOrigin = "PORTABLE_IMPORT",
+			coverageStartTimeMs = 900L,
+			observedTimeMs = 1_000L,
+			latestPossibleTimeMs = 1_001L,
+			storedZoneId = "UTC",
+			structuralEpochDay = 0L,
+			coverageCompleteness = "UNVERIFIABLE",
+			observationCount = 1,
+			twoPointFourGhzCount = 1,
+			fiveGhzCount = 0,
+			sixGhzCount = 0,
+			otherBandCount = 0,
+			strongestSignalDbm = -50,
+			weakestSignalDbm = -50,
+			meanSignalDbm = -50.0,
+			retentionPolicyId = "privacy:wifi:import:v1",
+			retentionApprovalRevision = 1L,
+			collectedDataEpoch = 4L,
+			importDeletionGeneration = 0L,
+			receivedAtMs = 2_000L,
+		)
+		val withEffect = draft.copy(
+			portableEffectChecksum = AmbientWifiFactIntegrity.importedFactEffectChecksum(draft),
+		)
+		return withEffect.copy(
+			contentChecksum = AmbientWifiFactIntegrity.importedFactContentChecksum(withEffect),
+		)
+	}
+
 	private fun wifiAuthority() = AmbientWifiAuthorityIntegrity.create(
 		authorityRevision = 1L,
 		state = AmbientWifiAuthorityEntity.STATE_ACTIVE,
@@ -252,4 +421,6 @@ class AmbientRadioAuthorityRoomTest {
 		reconciliationAttempt = 1L,
 		demandId = "cell-demand",
 	)
+
+	private fun digest(value: String) = AmbientWifiAuthorityIntegrity.digest("test", value)
 }

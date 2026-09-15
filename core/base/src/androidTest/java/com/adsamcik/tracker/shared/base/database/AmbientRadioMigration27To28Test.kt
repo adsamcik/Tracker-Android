@@ -126,20 +126,20 @@ class AmbientRadioMigration27To28Test {
 				listOf("portable_effect_checksum", "retention_approval_revision"),
 			)
 		}
+	}
 
-		private fun assertColumns(
-			database: androidx.sqlite.db.SupportSQLiteDatabase,
-			table: String,
-			expectedColumns: List<String>,
-		) {
-			val actual = buildSet {
-				database.query("PRAGMA table_info('$table')").use { cursor ->
-					val column = cursor.getColumnIndexOrThrow("name")
-					while (cursor.moveToNext()) add(cursor.getString(column))
-				}
+	private fun assertColumns(
+		database: androidx.sqlite.db.SupportSQLiteDatabase,
+		table: String,
+		expectedColumns: List<String>,
+	) {
+		val actual = buildSet {
+			database.query("PRAGMA table_info('$table')").use { cursor ->
+				val column = cursor.getColumnIndexOrThrow("name")
+				while (cursor.moveToNext()) add(cursor.getString(column))
 			}
-			assertTrue("$table missing ${expectedColumns - actual}", actual.containsAll(expectedColumns))
 		}
+		assertTrue("$table missing ${expectedColumns - actual}", actual.containsAll(expectedColumns))
 	}
 
 	private fun assertIndex(
