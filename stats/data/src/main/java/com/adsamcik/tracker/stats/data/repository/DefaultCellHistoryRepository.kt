@@ -5,8 +5,10 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.DeletedCapturedCellSelectionAuthentication
 import com.adsamcik.tracker.shared.base.database.DeletedImportedCellSelectionAuthentication
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductEvaluation
+import com.adsamcik.tracker.shared.base.database.ImportedCellProductFailure
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductReader
 import com.adsamcik.tracker.shared.base.database.PortableCapturedCellEntryV1
+import com.adsamcik.tracker.shared.base.database.PortableCapturedCellRunV1
 import com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind
 import com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity
 import com.adsamcik.tracker.shared.base.database.ReadLocalPortableCapturedCellResult
@@ -49,6 +51,8 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeUnavailableReas
 import com.adsamcik.tracker.stats.api.repository.CellHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDay
 import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDayCompleteness
+import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryDigest
+import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.ImportedCellHistorySelection
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
 import com.adsamcik.tracker.stats.api.value.EpochMs
@@ -317,6 +321,10 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 			is CellComposedPage.Failed -> return CellSourceComposedPage.Failed(page.cause)
 			is CellComposedPage.Available -> page.entries
 		}
+		local.asSequence()
+			.flatMap { it.entry.causes.asSequence() }
+			.firstOrNull { it.isIntegrityFailure }
+			?.let { cause -> return CellSourceComposedPage.Failed(cause) }
 		val imported = try {
 			importedProductReader.selectRecentInTransaction(limit)
 		} catch (cancelled: kotlinx.coroutines.CancellationException) {
@@ -326,10 +334,14 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 		}
 		if (imported.any {
 			it is ImportedCellProductEvaluation.Unverifiable &&
-				it.reason == com.adsamcik.tracker.shared.base.database.ImportedCellProductFailure
-					.DEPENDENCY_OVERFLOW
+				it.reason == ImportedCellProductFailure.DEPENDENCY_OVERFLOW
 			}
 		) return CellSourceComposedPage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+		imported.filterIsInstance<ImportedCellProductEvaluation.Unverifiable>()
+			.firstOrNull()
+			?.let { unavailable ->
+				return CellSourceComposedPage.Failed(unavailable.toSourceFailure())
+			}
 		if (local.isEmpty() && imported.isEmpty()) {
 			return CellSourceComposedPage.Available(emptyList())
 		}
@@ -360,6 +372,37 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 		if (localBySelection.size != local.size) {
 			return CellSourceComposedPage.Failed(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
 		}
+		val importedRecencyBySelection =
+			linkedMapOf<ImportedCellHistorySelection, CellSourceRecency>()
+		for (evaluation in imported) {
+			val readable = evaluation as? ImportedCellProductEvaluation.Readable
+				?: return CellSourceComposedPage.Failed(
+					CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
+				)
+			val newest = readable.entry.runs.maxWithOrNull(
+				compareBy<PortableCapturedCellRunV1>(
+					PortableCapturedCellRunV1::startTimeMs,
+					{ it.identity.value },
+				),
+			) ?: return CellSourceComposedPage.Failed(
+				CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
+			)
+			val selection = ImportedCellHistorySelection(
+				identity = ImportedCellHistoryIdentity(readable.candidate.identity),
+				importRevision = readable.candidate.importRevision,
+				contentChecksum = ImportedCellHistoryDigest(readable.candidate.contentChecksum),
+			)
+			if (importedRecencyBySelection.put(
+					selection,
+					CellSourceRecency(
+						memberStartTimeMs = newest.startTimeMs,
+						tieIdentity = newest.identity,
+					),
+				) != null
+			) {
+				return CellSourceComposedPage.Failed(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+			}
+		}
 		val combined = try {
 			CellHistoryOriginComposer.compose(
 				live = local.map(ComposedCellEntry::entry),
@@ -374,7 +417,12 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 						localBySelection[entry.selection]
 							?: throw ImportedCellHistoryCompositionFailure(),
 					)
-					is CellHistoryOrigin.Imported -> CellSourceComposedEntry.Imported(entry)
+					is CellHistoryOrigin.Imported -> CellSourceComposedEntry.Imported(
+						entry = entry,
+						selection = entry.origin.selection,
+						recency = importedRecencyBySelection[entry.origin.selection]
+							?: throw ImportedCellHistoryCompositionFailure(),
+					)
 				}
 			}
 		} catch (_: ImportedCellHistoryCompositionFailure) {
@@ -496,8 +544,7 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 		}
 		if (imported.any {
 				it is ImportedCellProductEvaluation.Unverifiable &&
-					it.reason == com.adsamcik.tracker.shared.base.database.ImportedCellProductFailure
-						.DEPENDENCY_OVERFLOW
+					it.reason == ImportedCellProductFailure.DEPENDENCY_OVERFLOW
 			}
 		) return CellHistoryRangeBuild.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
 		val importedStructuralMemberships = if (scope is CellHistoryRangeScope.StructuralDays) {
@@ -1286,18 +1333,26 @@ internal sealed interface CellComposedPage {
 
 internal sealed interface CellSourceComposedEntry {
 	val entry: CellHistoryEntry
+	val recency: CellSourceRecency
 
 	data class Local(
 		val group: ComposedCellEntry,
 	) : CellSourceComposedEntry {
 		override val entry: CellHistoryEntry get() = group.entry
+		override val recency: CellSourceRecency = CellSourceRecency(
+			memberStartTimeMs = group.recencyStartTimeMs,
+			tieIdentity = group.recencyTieIdentity,
+		)
 	}
 
 	data class Imported(
 		override val entry: CellHistoryEntry,
+		val selection: ImportedCellHistorySelection,
+		override val recency: CellSourceRecency,
 	) : CellSourceComposedEntry {
 		init {
-			require(entry.origin is CellHistoryOrigin.Imported)
+			require(entry.origin == CellHistoryOrigin.Imported(selection))
+			require(entry.selection == selection)
 		}
 	}
 }
@@ -1310,22 +1365,42 @@ internal sealed interface CellSourceComposedPage {
 	data class Failed(val cause: CellHistoryCause) : CellSourceComposedPage
 }
 
+/** Authenticated newest physical member ordering without exposing its native database identity. */
+internal data class CellSourceRecency(
+	val memberStartTimeMs: Long,
+	val tieIdentity: PortableCellOpaqueIdentity,
+) {
+	init {
+		require(memberStartTimeMs >= 0L)
+	}
+}
+
 internal val cellCompositionOrder =
 	compareByDescending<ComposedCellEntry> { it.recencyStartTimeMs }
 		.thenByDescending { it.recencySegmentId }
 
 internal val cellSourceCompositionOrder =
-	compareByDescending<CellSourceComposedEntry> { value ->
-		when (value) {
-			is CellSourceComposedEntry.Local -> value.group.recencyStartTimeMs
-			is CellSourceComposedEntry.Imported -> value.entry.startTime.raw
+	compareByDescending<CellSourceComposedEntry> { it.recency.memberStartTimeMs }
+		.thenByDescending { it.recency.tieIdentity.value }
+		.thenBy { it is CellSourceComposedEntry.Imported }
+
+private fun ImportedCellProductEvaluation.Unverifiable.toSourceFailure(): CellHistoryCause =
+	if (localOriginHandle != null) {
+		CellHistoryCause.ORIGIN_IDENTITY_CONFLICT
+	} else {
+		when (reason) {
+			ImportedCellProductFailure.DEPENDENCY_OVERFLOW ->
+				CellHistoryCause.READ_BUDGET_EXCEEDED
+			ImportedCellProductFailure.STALE_COLLECTED_DATA_EPOCH ->
+				CellHistoryCause.IMPORTED_PRIVACY_EPOCH_MISMATCH
+			ImportedCellProductFailure.ORIGIN_IDENTITY_CONFLICT ->
+				CellHistoryCause.ORIGIN_IDENTITY_CONFLICT
+			ImportedCellProductFailure.SOURCE_EVIDENCE_STATE_MISSING,
+			ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			ImportedCellProductFailure.VALUE_OVERFLOW,
+			-> CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE
 		}
-	}.thenByDescending { value ->
-		when (value) {
-			is CellSourceComposedEntry.Local -> value.group.recencySegmentId
-			is CellSourceComposedEntry.Imported -> value.entry.endTime.raw
-		}
-	}.thenBy { it is CellSourceComposedEntry.Imported }
+	}
 
 internal fun isCellCaptureMembership(source: SessionManifestSourceEntity): Boolean =
 	source.sourceKind == CELL_SOURCE && source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&

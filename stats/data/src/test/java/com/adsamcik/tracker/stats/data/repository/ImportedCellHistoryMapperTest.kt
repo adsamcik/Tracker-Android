@@ -128,9 +128,12 @@ class ImportedCellHistoryMapperTest {
 		val sourcePage = database.withTransaction {
 			repository.recentCellHistoryInTransaction(10)
 		} as CellSourceComposedPage.Available
-		sourcePage.entries.single().let { source ->
-			source shouldBe CellSourceComposedEntry.Imported(public)
+		(sourcePage.entries.single() as CellSourceComposedEntry.Imported).let { source ->
+			source.entry shouldBe public
 			source.entry.origin shouldBe origin
+			source.selection shouldBe origin.selection
+			source.recency.memberStartTimeMs shouldBe value.runs.single().startTimeMs
+			source.recency.tieIdentity shouldBe value.runs.single().identity
 			source.toString().contains("segment") shouldBe false
 			source.toString().contains("run") shouldBe false
 		}
@@ -505,7 +508,7 @@ class ImportedCellHistoryMapperTest {
 	}
 
 	@Test
-	fun `same-origin rehashed corrupt child is value-free origin conflict in recent and detail`() =
+	fun `same-origin conflict carries source recency while rehashed corrupt source page fails`() =
 		runTest {
 			database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
 			val logicalId = "same-origin-corrupt"
@@ -531,14 +534,27 @@ class ImportedCellHistoryMapperTest {
 					failureCode = null,
 				),
 			)
+			val repository = repository()
+
+			val readableConflict =
+				(repository.recent(1) as CellHistoryPage.Available).entries.single()
+			readableConflict.causes shouldBe setOf(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+			val readableSourcePage = database.withTransaction {
+				repository.recentCellHistoryInTransaction(10)
+			} as CellSourceComposedPage.Available
+			(readableSourcePage.entries.single() as CellSourceComposedEntry.Imported).let { source ->
+				source.entry shouldBe readableConflict
+				source.selection shouldBe value.toSelection()
+				source.recency.memberStartTimeMs shouldBe value.runs.single().startTimeMs
+				source.recency.tieIdentity shouldBe value.runs.single().identity
+			}
+
 			val corruptChecksum = rehashStoredKnownQualityCount(value, 0)
 			val selection = ImportedCellHistorySelection(
 				ImportedCellHistoryIdentity(value.identity.value),
 				1L,
 				ImportedCellHistoryDigest(corruptChecksum),
 			)
-			val repository = repository()
-
 			val publicConflict =
 				(repository.recent(1) as CellHistoryPage.Available).entries.single()
 			publicConflict.let { conflict ->
@@ -547,11 +563,9 @@ class ImportedCellHistoryMapperTest {
 				conflict.observations shouldBe emptyList()
 				conflict.origin shouldBe CellHistoryOrigin.Imported(selection)
 			}
-			val sourcePage = database.withTransaction {
+			database.withTransaction {
 				repository.recentCellHistoryInTransaction(10)
-			} as CellSourceComposedPage.Available
-			(sourcePage.entries.single() as CellSourceComposedEntry.Imported).entry shouldBe
-				publicConflict
+			} shouldBe CellSourceComposedPage.Failed(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT)
 			(repository.detail(selection) as CellHistoryQuery.Found).entry.let { conflict ->
 				conflict.state shouldBe CellHistoryProductState.UNVERIFIABLE
 				conflict.causes shouldBe setOf(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT)

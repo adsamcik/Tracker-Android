@@ -81,6 +81,11 @@ internal object CellHistoryComposer {
 				logicalTrackingId = logicalId,
 				recencyStartTimeMs = recency.startTimeMs,
 				recencySegmentId = recency.id,
+				recencyTieIdentity = PortableCellOpaqueIdentity.derive(
+					PortableCellIdentityKind.PHYSICAL_RUN,
+					recency.serviceRunId?.takeIf(String::isNotBlank)
+						?: "cell-source-segment:${recency.id}",
+				),
 				physicalSegmentIds = members.map(SessionSegment::id),
 				capturesOnlyCell = hasExactCellOnlyCaptureIntent(logicalId, snapshot),
 				entry = entry,
@@ -936,6 +941,7 @@ internal data class ComposedCellEntry(
 	val logicalTrackingId: String,
 	val recencyStartTimeMs: Long,
 	val recencySegmentId: Long,
+	val recencyTieIdentity: PortableCellOpaqueIdentity,
 	val physicalSegmentIds: List<Long>,
 	val capturesOnlyCell: Boolean,
 	val entry: CellHistoryEntry,

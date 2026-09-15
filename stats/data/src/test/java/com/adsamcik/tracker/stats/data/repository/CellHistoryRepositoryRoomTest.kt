@@ -125,14 +125,23 @@ class CellHistoryRepositoryRoomTest {
 			composed.physicalSegmentIds shouldBe group.runs.map { it.segment.id }
 			composed.recencyStartTimeMs shouldBe group.runs.last().segment.startTimeMs
 			composed.recencySegmentId shouldBe group.runs.last().segment.id
+			composed.recencyTieIdentity shouldBe PortableCellOpaqueIdentity.derive(
+				PortableCellIdentityKind.PHYSICAL_RUN,
+				group.runs.last().run.serviceRunId,
+			)
 			composed.capturesOnlyCell shouldBe true
 			composed.entry shouldBe selectedEntry
 		}
 		val sourcePage = database.withTransaction {
 			repository.recentCellHistoryInTransaction(1)
 		} as CellSourceComposedPage.Available
-		(sourcePage.entries.single() as CellSourceComposedEntry.Local).group shouldBe
-			grouped.entries.single()
+		(sourcePage.entries.single() as CellSourceComposedEntry.Local).let { source ->
+			source.group shouldBe grouped.entries.single()
+			source.recency.memberStartTimeMs shouldBe source.group.recencyStartTimeMs
+			source.recency.memberStartTimeMs shouldBe group.runs.last().segment.startTimeMs
+			source.entry.startTime.raw shouldBe group.runs.first().segment.startTimeMs
+			source.recency.tieIdentity shouldBe source.group.recencyTieIdentity
+		}
 		authorityChecks shouldBe 5
 	}
 
@@ -180,6 +189,8 @@ class CellHistoryRepositoryRoomTest {
 			source.group.logicalTrackingId shouldBe group.session.logicalTrackingId
 			source.group.physicalSegmentIds shouldBe listOf(group.runs.single().segment.id)
 			source.entry.origin shouldBe CellHistoryOrigin.Local
+			source.recency.memberStartTimeMs shouldBe group.runs.single().segment.startTimeMs
+			source.recency.tieIdentity shouldBe portable.entry.runs.single().identity
 		}
 
 	@Test
