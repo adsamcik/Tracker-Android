@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.api
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 
 class TrackingPurposeAvailabilityTest {
@@ -155,7 +156,8 @@ class TrackingPurposeAvailabilityTest {
 	}
 
 	@Test
-	fun `delayed result is rejected after regrant rollout change or cancellation`() {
+	fun `first report is accepted and the same terminal token cannot publish twice`() {
+		val store = AtomicTrackingPurposeAvailabilityStore()
 		val old = identity(policy = 10L, consent = 3L, rollout = 4L, token = "lease-old")
 		val report = AmbientSourceReconciliationReport(
 			identity = old,
@@ -164,40 +166,163 @@ class TrackingPurposeAvailabilityTest {
 				AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
 			),
 		)
+		store.beginOrReplaceAmbientLease(old).shouldBeInstanceOf<AmbientLeaseStartResult.Started>()
 
-		acceptAmbientReconciliationReport(
-			AmbientReconciliationLease(old),
-			report,
-		) shouldBe AmbientReconciliationReportAcceptance.Accepted
-		acceptAmbientReconciliationReport(
-			AmbientReconciliationLease(old.copy(policyRevision = 11L, consentEpoch = 4L)),
-			report,
-		) shouldBe AmbientReconciliationReportAcceptance.Rejected(
-			AmbientReconciliationReportRejection.STALE_IDENTITY,
+		store.tryAccept(report).shouldBeInstanceOf<AmbientPublicationAcceptance.Accepted>()
+		store.tryAccept(
+			report.copy(
+				availability = AmbientSourceOperationalAvailability(
+					source = AmbientTrackingSource.STEPS,
+					state = AmbientSourceOperationalState.UNAVAILABLE,
+					reason = AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
+				),
+			),
+		) shouldBe AmbientPublicationAcceptance.Rejected(
+			AmbientPublicationRejection.TOKEN_CONSUMED,
 		)
-		acceptAmbientReconciliationReport(
-			AmbientReconciliationLease(old.copy(rolloutRevision = 5L)),
-			report,
-		) shouldBe AmbientReconciliationReportAcceptance.Rejected(
-			AmbientReconciliationReportRejection.STALE_IDENTITY,
+		store.beginOrReplaceAmbientLease(old) shouldBe AmbientLeaseStartResult.Rejected(
+			AmbientPublicationRejection.TOKEN_CONSUMED,
 		)
-		acceptAmbientReconciliationReport(
-			AmbientReconciliationLease(old.copy(collectedDataEpoch = 3L)),
-			report,
-		) shouldBe AmbientReconciliationReportAcceptance.Rejected(
-			AmbientReconciliationReportRejection.STALE_IDENTITY,
+		store.beginOrReplaceAmbientLease(
+			old.copy(policyRevision = 11L, consentEpoch = 4L),
+		) shouldBe AmbientLeaseStartResult.Rejected(
+			AmbientPublicationRejection.TOKEN_CONSUMED,
 		)
-		acceptAmbientReconciliationReport(
-			AmbientReconciliationLease(old.copy(ownerCasToken = "lease-new")),
-			report,
-		) shouldBe AmbientReconciliationReportAcceptance.Rejected(
-			AmbientReconciliationReportRejection.STALE_IDENTITY,
+	}
+
+	@Test
+	fun `cancel atomically clears a published ready state and invalidates its completion`() {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val current = identity(policy = 10L, consent = 3L, rollout = 4L, token = "lease-current")
+		val report = AmbientSourceReconciliationReport(
+			identity = current,
+			availability = ready(
+				AmbientTrackingSource.STEPS,
+				AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+			),
 		)
-		acceptAmbientReconciliationReport(
-			AmbientReconciliationLease(old, cancelled = true),
-			report,
-		) shouldBe AmbientReconciliationReportAcceptance.Rejected(
-			AmbientReconciliationReportRejection.CANCELLED,
+		store.beginOrReplaceAmbientLease(current)
+			.shouldBeInstanceOf<AmbientLeaseStartResult.Started>()
+		store.tryAccept(report).shouldBeInstanceOf<AmbientPublicationAcceptance.Accepted>()
+
+		store.cancelAmbientLease(current).shouldBeInstanceOf<AmbientPublicationAcceptance.Accepted>()
+
+		store.availability.value.ambientSources.getValue(AmbientTrackingSource.STEPS) shouldBe
+			AmbientSourceOperationalAvailability.reconciliationPending(AmbientTrackingSource.STEPS)
+		store.tryAccept(report) shouldBe AmbientPublicationAcceptance.Rejected(
+			AmbientPublicationRejection.CANCELLED,
+		)
+	}
+
+	@Test
+	fun `old completion is rejected after policy regrant rollout or owner token replacement`() {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val old = identity(policy = 10L, consent = 3L, rollout = 4L, token = "lease-old")
+		val report = AmbientSourceReconciliationReport(
+			identity = old,
+			availability = ready(
+				AmbientTrackingSource.STEPS,
+				AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+			),
+		)
+		store.beginOrReplaceAmbientLease(old).shouldBeInstanceOf<AmbientLeaseStartResult.Started>()
+
+		listOf(
+			old.copy(
+				policyRevision = 11L,
+				consentEpoch = 4L,
+				ownerCasToken = "lease-regrant",
+			),
+			old.copy(rolloutRevision = 5L, ownerCasToken = "lease-rollout"),
+			old.copy(collectedDataEpoch = 3L, ownerCasToken = "lease-data"),
+			old.copy(ownerCasToken = "lease-new"),
+		).forEach { replacement ->
+			store.beginOrReplaceAmbientLease(replacement)
+				.shouldBeInstanceOf<AmbientLeaseStartResult.Started>()
+			store.tryAccept(report) shouldBe AmbientPublicationAcceptance.Rejected(
+				AmbientPublicationRejection.STALE_IDENTITY,
+			)
+		}
+	}
+
+	@Test
+	fun `changed authority vector cannot reuse an active owner CAS token`() {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val current = identity(policy = 10L, consent = 3L, rollout = 4L, token = "lease-current")
+		store.beginOrReplaceAmbientLease(current)
+			.shouldBeInstanceOf<AmbientLeaseStartResult.Started>()
+
+		store.beginOrReplaceAmbientLease(
+			current.copy(policyRevision = 11L, consentEpoch = 4L),
+		) shouldBe AmbientLeaseStartResult.Rejected(
+			AmbientPublicationRejection.TOKEN_REUSED,
+		)
+	}
+
+	@Test
+	fun `replacement lease atomically clears the previous ready publication`() {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val old = identity(policy = 10L, consent = 3L, rollout = 4L, token = "lease-old")
+		val fresh = old.copy(policyRevision = 11L, consentEpoch = 4L, ownerCasToken = "lease-fresh")
+		store.beginOrReplaceAmbientLease(old).shouldBeInstanceOf<AmbientLeaseStartResult.Started>()
+		store.tryAccept(
+			AmbientSourceReconciliationReport(
+				identity = old,
+				availability = ready(
+					AmbientTrackingSource.STEPS,
+					AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+				),
+			),
+		).shouldBeInstanceOf<AmbientPublicationAcceptance.Accepted>()
+
+		val started = store.beginOrReplaceAmbientLease(fresh)
+			.shouldBeInstanceOf<AmbientLeaseStartResult.Started>()
+
+		started.snapshot.ambientSources.getValue(AmbientTrackingSource.STEPS) shouldBe
+			AmbientSourceOperationalAvailability.reconciliationPending(AmbientTrackingSource.STEPS)
+		store.tryAccept(
+			AmbientSourceReconciliationReport(
+				identity = old,
+				availability = ready(
+					AmbientTrackingSource.STEPS,
+					AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+				),
+			),
+		) shouldBe AmbientPublicationAcceptance.Rejected(
+			AmbientPublicationRejection.STALE_IDENTITY,
+		)
+	}
+
+	@Test
+	fun `new process store never recreates a stale ready publication`() {
+		val firstProcess = AtomicTrackingPurposeAvailabilityStore()
+		val identity = identity(policy = 10L, consent = 3L, rollout = 4L, token = "lease-ready")
+		firstProcess.beginOrReplaceAmbientLease(identity)
+			.shouldBeInstanceOf<AmbientLeaseStartResult.Started>()
+		firstProcess.tryAccept(
+			AmbientSourceReconciliationReport(
+				identity = identity,
+				availability = ready(
+					AmbientTrackingSource.STEPS,
+					AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+				),
+			),
+		).shouldBeInstanceOf<AmbientPublicationAcceptance.Accepted>()
+
+		val recreated = AtomicTrackingPurposeAvailabilityStore()
+
+		recreated.availability.value.ambientSources.getValue(AmbientTrackingSource.STEPS) shouldBe
+			AmbientSourceOperationalAvailability.reconciliationPending(AmbientTrackingSource.STEPS)
+		recreated.tryAccept(
+			AmbientSourceReconciliationReport(
+				identity = identity,
+				availability = ready(
+					AmbientTrackingSource.STEPS,
+					AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+				),
+			),
+		) shouldBe AmbientPublicationAcceptance.Rejected(
+			AmbientPublicationRejection.STALE_IDENTITY,
 		)
 	}
 
