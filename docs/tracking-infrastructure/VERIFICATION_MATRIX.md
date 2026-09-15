@@ -19,14 +19,37 @@ no files, and the reviewer was then restricted to source-read tools. This is a p
 not evidence that the Location artifact or any other source passes a validation gate. No regression,
 compiler, Gradle, lint, schema, device or CI gate has started for the current assembly.
 
+## TI-B336 - Runtime and Ambient file scopes source-locally static-closed
+
+- Runtime input `e71c739ea3899538e409bb8e807189ce331678e6` supersedes the interim
+  `43db9556` review state. The same reviewer closes the final private-helper scope and incomplete
+  product-membership classification corrections.
+- RT02 durable Activity admission seal, RT04 contained rollback and RT07 exact idempotence are
+  source-locally closed. Genuine empty and partial-unobservable admitted prefixes remain valid;
+  incomplete membership is typed pending/failure rather than Ready/Complete(empty).
+- Outcome: **IMPLEMENTED_UNVALIDATED / SOURCE-LOCAL STATIC-CLOSED / INTEGRATION HELD.** Shared
+  arithmetic/extension contracts exist, but RT01/RT06 real Pressure/PersistenceProcessor lifecycle
+  barriers and RT05 four-source writer/reader/maintenance generation propagation are unimplemented.
+  No source support is advertised.
+- Only `source_capture_admission_barrier` and `source_run_retirement` are required future tables.
+  `source_maintenance_authority` remains removed. SourceDestination validation, protected Location
+  binding and producer propagation are separate backlog.
+- Ambient Steps file input is now `220a2721825272bdf84f5f8ece80c52f8dc37c50`. Bounded review
+  closes the 12 owned file paths originally delivered at `798613dd`; prerequisite merges preserve
+  those paths and helper/numeric limits.
+- Ambient file outcome: **IMPLEMENTED_UNVALIDATED / SOURCE-LOCAL STATIC-CLOSED / INTEGRATION
+  HELD**. Native/imported origins remain separate. No union export, continuation, registry enable,
+  picker wiring, compilation, tests, Gradle, schema, device, CI, push or activation occurred.
+
 ## TI-B335 - Late-start artifacts and current portable-file closure
 
 - Ambient Steps file actions have a concrete late-start receipt. Initial clean artifact
   `798613ddf171702ad870e4ea9befe7a42e94d4f2` contains production
   `d6cc1a0b537531bb75b8c2a5030e9cbe00e13525` and tests
   `6a264416f23f5cead5e75aed3b2b803a387d70a0` plus `798`. Current held input is
-  `13e535cf958017d3b74bf5a79a7dd8e2e671c6b8`. Classification:
-  **IMPLEMENTED_UNVALIDATED / COMMITTED UNREVIEWED / HELD**. One bounded review is pending.
+  `13e535cf958017d3b74bf5a79a7dd8e2e671c6b8`. At this interim receipt classification was
+  **IMPLEMENTED_UNVALIDATED / COMMITTED UNREVIEWED / HELD**. TI-B336 records later source-local
+  closure at `220a2721`.
 - That Ambient artifact is limited to its 12 owned file/resource/test paths. Native and imported
   origins remain separate. No union export/continuation or registry/picker integration is present.
   Ambient product and shared portable inputs remain held prerequisites.

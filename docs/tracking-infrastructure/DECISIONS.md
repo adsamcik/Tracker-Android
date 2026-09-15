@@ -2,15 +2,32 @@
 
 Last updated: 2026-09-15
 
+## TI-D268 - Source-local runtime contract closure is not executable producer support
+
+- Status: accepted scope/evidence distinction, 2026-09-15.
+- Shared runtime contract input `e71c739ea3899538e409bb8e807189ce331678e6` may be marked
+  source-locally static-closed for RT02 Activity admission seal, RT04 contained rollback, RT07 exact
+  idempotence, helper scope and typed incomplete-membership handling.
+- That closure does not advertise executable four-source rearm, writer, reader or maintenance
+  support. RT01/RT06 real Pressure/PersistenceProcessor lifecycle and RT05 actual source-generation
+  propagation remain a separate planned work item, default-unavailable until implemented.
+- Future schema contains only `source_capture_admission_barrier` and `source_run_retirement`.
+  `source_maintenance_authority` was removed and must not be restored from obsolete receipts.
+- The same evidence rule applies to Ambient file input `220a272182`: its 12-file scope may be
+  static-closed and held without enabling registry/picker integration, union continuation or the
+  blocked Ambient product.
+
 ## TI-D267 - Concrete late owner receipts supersede point-in-time directory absence
 
-- Status: accepted scope-classification correction, 2026-09-15.
+- Status: accepted scope-classification correction, 2026-09-15; TI-D268 records the later
+  source-local closure dispositions.
 - The early parent filesystem inspection was valid only for that instant. Later owner-authored
   commit receipts prove Ambient Steps file actions and shared history consumers were already
   running before their queued freeze instructions were received.
-- Ambient files are therefore `committed_held` and unreviewed, not planned or accepted. Shared
-  history consumers are an `active_correction`, not planned or accepted. Activity range still has
-  no contrary authored-source receipt and remains planned.
+- At this receipt Ambient files were `committed_held` and unreviewed, not planned or accepted;
+  TI-D268 later records their bounded static closure. Shared history consumers remain an
+  `active_correction`, not planned or accepted. Activity range still has no contrary
+  authored-source receipt and remains planned.
 - A late receipt preserves only the exact already-authored artifact and directly necessary review
   corrections. It does not authorize feature expansion, successors, union continuation, registry/
   picker wiring, day/range work or acceptance by branch existence.

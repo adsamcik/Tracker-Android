@@ -82,17 +82,17 @@ Newest exact review state:
 - Activity `483e8b59` retains its five semantic closures, but a concrete raw
   `EOFException` subtype reopens only its decoder transport boundary. The source owner is
   correcting it without changing permanent parser EOF or lexical failures. No successor started.
-- Runtime `43db9556d7` is clean, committed and held under focused review for Activity admission,
-  exact retirement, rollback/generation coordination, Pressure token adaptation and Location
-  recovery hint. Do not call it complete: real Pressure/PersistenceProcessor lifecycle barriers,
+- Runtime `e71c739ea3` is source-locally static-closed for Activity admission, exact retirement,
+  contained rollback/generation coordination, idempotence and Pressure token adaptation. Do not
+  call it executable runtime completion: real Pressure/PersistenceProcessor lifecycle barriers,
   four-source generation-aware producer propagation, SourceDestination validation, protected
   Location binding and the exact two-table DDL remain planned backlog. The required tables are
   only `source_capture_admission_barrier` and `source_run_retirement`; do not revive obsolete
   `source_maintenance_authority` or older three-table DDL.
-- Ambient Steps files: preserve current held input `13e535cf95`, derived from clean artifact
+- Ambient Steps files: preserve source-locally closed held input `220a272182`, derived from clean artifact
   `798613ddf1` with production `d6cc1a0b53` and tests `6a264416f2`/`798`. It was already running
-  before the queued freeze reached its owner. Review only the existing 12-file scope; no union
-  continuation or registry/picker integration.
+  before the queued freeze reached its owner. Its 12-file scope is closed; no union continuation,
+  registry enable or picker integration.
 - Pressure files/helper are static-closed at `8ba72248ba` / `76739a3555`. Shared portable is
   static-closed/held at `5705ce7704` and awaits only Activity raw-EOF correction.
 - Shared history consumers `719e772071` / `63d92a4c9e` have a late-start receipt and three current

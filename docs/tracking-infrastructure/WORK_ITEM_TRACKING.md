@@ -45,15 +45,15 @@ State counts:
 | `active_governance` | 1 |
 | `allowed_dependency` | 1 |
 | `approval_required` | 1 |
-| `committed_held` | 3 |
-| `completed_accepted_slice` | 7 |
+| `committed_held` | 1 |
+| `completed_accepted_slice` | 9 |
 | `completed_foundation` | 1 |
 | `decision_required` | 8 |
 | `gate_deferred` | 4 |
 | `partial_implemented` | 12 |
 | `planned` | 15 |
 
-Review states: `active` 1, `blocked_findings` 12, `closed_except_decision` 1, `closed_static` 8, `continuous` 2, `historical_accepted` 1, `mixed` 8, `not_applicable` 9, `not_started` 21.
+Review states: `blocked_findings` 12, `closed_except_decision` 1, `closed_static` 10, `continuous` 2, `historical_accepted` 1, `mixed` 8, `not_applicable` 9, `not_started` 20.
 
 Integration states: `held_branch` 4, `held_dependency` 1, `local_dev` 7, `local_only` 1, `mixed_source_refs` 8, `not_applicable` 9, `not_started` 20, `source_branch` 13.
 
@@ -71,7 +71,7 @@ Validation states: `deferred_implementation_only` 54, `not_applicable` 9.
 | `WI-SCHEMA-MIGRATION-001` | `completed_accepted_slice` | `closed_static` | `held_branch` | Close the bounded shared v28 schema assembly | Keep exact input fcc2162d held. Integrate only after its bundled source prerequisites close; do not start Pressure, Cell or radio schema assembly. |
 | `WI-AUTHORITY-PURPOSE-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete source and purpose authority semantics | Do not start a new authority wave; consume only closed current-purpose artifacts when a bounded integration is assigned. |
 | `WI-BROKER-PROVIDER-OWNERSHIP-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete one physical owner per source | Remain planned outside already-started runtime and purpose corrections. |
-| `WI-LIFECYCLE-RUNTIME-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Close lifecycle, action and settlement semantics | Close the focused runtime review only; do not begin producer propagation. |
+| `WI-LIFECYCLE-RUNTIME-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Close lifecycle, action and settlement semantics | Preserve the closed shared runtime contracts and do not begin producer propagation. |
 | `WI-DATA-MAINTENANCE-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete durable admission, projection and maintenance | No new cross-source data-plane wave; finish only the active source and shared artifacts listed in this registry. |
 | `WI-QOS-BATTERY-001` | `planned` | `not_started` | `not_started` | Complete honest acquisition and battery semantics | Handover backlog; do not start during the finish-only scope. |
 | `WI-STEPS-PORTABLE-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Preserve completed imported Steps and portable round trip | Preserve; no new work in this scope. |
@@ -80,7 +80,7 @@ Validation states: `deferred_implementation_only` 54, `not_applicable` 9.
 | `WI-STEPS-AUTOMATIC-001` | `partial_implemented` | `closed_except_decision` | `local_dev` | Complete automatic Steps with bounded control evidence | Keep control behavior contained and inactive; do not invent a duration. |
 | `WI-STEPS-AMBIENT-001` | `partial_implemented` | `blocked_findings` | `source_branch` | Complete the Ambient Steps vertical | During this scope, close only the active c8/4d5 product correction. Hand over all other Ambient Steps work. |
 | `WI-STEPS-AMBIENT-PRODUCT-CORRECTION-001` | `active_correction` | `blocked_findings` | `source_branch` | Close Ambient Steps base and product review findings | Owner applies only these nine corrections and returns both existing reviewers to the exact corrected input. |
-| `WI-STEPS-AMBIENT-FILES-001` | `committed_held` | `not_started` | `held_branch` | Review the committed Ambient Steps file artifact | Parent performs one bounded static review of the existing 12-file artifact. Do not add union export, continuation, registry/picker wiring or another feature. |
+| `WI-STEPS-AMBIENT-FILES-001` | `completed_accepted_slice` | `closed_static` | `held_branch` | Review the committed Ambient Steps file artifact | Preserve source-closed held input 220a2721. Do not add union export, continuation, registry/picker wiring or another feature. |
 | `WI-PRESSURE-VERTICAL-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete the Pressure source-to-product vertical | Finish only the active maintenance and file reviews; hand over the rest. |
 | `WI-PRESSURE-MAINTENANCE-001` | `active_correction` | `blocked_findings` | `source_branch` | Close Pressure maintenance privacy corrections | The owner corrects only helper declaration scope and complete early per-owner TEXT preflight, then returns 39198f5 to the same reviewer; runtime and shared schema remain dependencies. |
 | `WI-PRESSURE-FILES-001` | `completed_accepted_slice` | `closed_static` | `source_branch` | Close Pressure portable file review | Preserve reviewed source 8ba72248 and exact helper 76739a35. No new Pressure file feature; shared consumers integrate through their held artifacts. |
@@ -109,8 +109,8 @@ Validation states: `deferred_implementation_only` 54, `not_applicable` 9.
 | `WI-SOURCE-ACTIONS-EXPLANATION-001` | `planned` | `not_started` | `not_started` | Complete start, settings, source actions and recording explanation | Handover backlog; do not start. |
 | `WI-CROSS-SOURCE-PRIVACY-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete cross-source retention, transfer, deletion and no-resurrection | No new cross-source wave; finish current source artifacts and hand over the rest. |
 | `WI-NONSTEPS-EFFECTS-001` | `planned` | `not_started` | `not_started` | Qualify non-Steps widgets, achievements and effects | Handover backlog; do not start. |
-| `WI-RUNTIME-SETTLEMENT-001` | `committed_held` | `active` | `held_branch` | Close active shared runtime settlement correction | Hold exact input 43db9556 for the current focused review. Do not begin producer propagation, schema wiring or source activation. |
-| `WI-RUNTIME-PRODUCER-PROPAGATION-001` | `planned` | `not_started` | `not_started` | Propagate runtime generation and lifecycle contracts | Handover backlog. Do not start until the current runtime artifact and source prerequisites close under a new bounded assignment. |
+| `WI-RUNTIME-SETTLEMENT-001` | `completed_accepted_slice` | `closed_static` | `held_branch` | Close active shared runtime settlement correction | Preserve source-locally closed input e71c739e as held. Do not begin producer propagation, schema wiring or source activation. |
+| `WI-RUNTIME-PRODUCER-PROPAGATION-001` | `planned` | `not_started` | `not_started` | Propagate runtime generation and lifecycle contracts | Handover backlog. Do not start until Pressure/Location prerequisites close and a new bounded producer-propagation assignment is issued. |
 | `WI-CROSS-SOURCE-RECOVERY-001` | `planned` | `not_started` | `not_started` | Complete cross-source correction, recovery and provenance | Handover backlog; do not start. |
 | `WI-INTEGRATION-SCENARIOS-001` | `planned` | `not_started` | `not_started` | Author complete real integration scenario sources | Handover backlog; do not start. |
 | `WI-DEC-CONTROL-EVIDENCE-001` | `decision_required` | `not_applicable` | `not_applicable` | Approve exact automatic CONTROL evidence lifetime and shape | User/product owner decision; implementation must not invent a duration. |

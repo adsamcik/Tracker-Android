@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-15T20:56:01.197+02:00",
+  "updated_at": "2026-09-15T21:15:52.900+02:00",
   "repository": {
     "branch": "dev/v10",
     "local_head_at_task_start": "6744ced52037d531e56751777b519165167e6b19",
@@ -112,8 +112,8 @@
       "active_governance": 1,
       "allowed_dependency": 1,
       "approval_required": 1,
-      "committed_held": 3,
-      "completed_accepted_slice": 7,
+      "committed_held": 1,
+      "completed_accepted_slice": 9,
       "completed_foundation": 1,
       "decision_required": 8,
       "gate_deferred": 4,
@@ -122,15 +122,14 @@
     }
   },
   "review_state_counts": {
-    "active": 1,
     "blocked_findings": 12,
     "closed_except_decision": 1,
-    "closed_static": 8,
+    "closed_static": 10,
     "continuous": 2,
     "historical_accepted": 1,
     "mixed": 8,
     "not_applicable": 9,
-    "not_started": 21
+    "not_started": 20
   },
   "integration_state_counts": {
     "held_branch": 4,
@@ -746,10 +745,10 @@
         "WI-PURPOSE-SETTINGS-001"
       ],
       "known_blockers": [
-        "The committed runtime artifact is under focused review.",
+        "Shared runtime contracts are source-locally closed, but they are not executable across all producers.",
         "Real producer/writer/reader/maintenance propagation remains unstarted backlog."
       ],
-      "next_bounded_action": "Close the focused runtime review only; do not begin producer propagation.",
+      "next_bounded_action": "Preserve the closed shared runtime contracts and do not begin producer propagation.",
       "evidence": {},
       "related_requirement_ids": [],
       "requirement_ids": [
@@ -1298,8 +1297,8 @@
         "Native and imported origins remain separate; no union export or continuation is invented.",
         "Registry/picker wiring remains a separate shared integration dependency."
       ],
-      "implementation_state": "committed_held",
-      "review_state": "not_started",
+      "implementation_state": "completed_accepted_slice",
+      "review_state": "closed_static",
       "integration_state": "held_branch",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "late_start_confirmed",
@@ -1322,17 +1321,16 @@
         "WI-SHARED-FILE-ASSEMBLY-001"
       ],
       "known_blockers": [
-        "Bounded review of the existing 12-file artifact has not started.",
         "Ambient product c8 and shared portable e3/5705 remain held prerequisites.",
-        "No registry/picker integration is present."
+        "Activity and registry/picker integration remain held or unstarted."
       ],
-      "next_bounded_action": "Parent performs one bounded static review of the existing 12-file artifact. Do not add union export, continuation, registry/picker wiring or another feature.",
+      "next_bounded_action": "Preserve source-closed held input 220a2721. Do not add union export, continuation, registry/picker wiring or another feature.",
       "evidence": {
         "branch": "codex/ti-ambient-steps-file-actions-20260915",
-        "branch_tip_at_snapshot": "13e535cf958017d3b74bf5a79a7dd8e2e671c6b8",
+        "branch_tip_at_snapshot": "220a2721825272bdf84f5f8ece80c52f8dc37c50",
         "merge_base_with_local_dev": "3dd1ff004a34beb339539c4961704919d781371c",
-        "tip_subject": "IMPLEMENTED_UNVALIDATED merge reviewed portable lexer",
-        "review_input_commit": "13e535cf958017d3b74bf5a79a7dd8e2e671c6b8",
+        "tip_subject": "IMPLEMENTED_UNVALIDATED merge reviewed Ambient prerequisite",
+        "review_input_commit": "220a2721825272bdf84f5f8ece80c52f8dc37c50",
         "changed_paths_at_snapshot": [
           "app\\src\\main\\java\\com\\adsamcik\\tracker\\app\\settings\\components\\ExportFormatDialog.kt",
           "app\\src\\main\\res\\values\\tracking_portable_export_strings.xml",
@@ -1341,6 +1339,7 @@
           "app\\src\\test\\java\\com\\adsamcik\\tracker\\app\\tracking\\PortableAmbientStepsFileProductionRoundTripTest.kt",
           "core\\base\\src\\androidTest\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\ImportedAmbientStepsMigration27To28Test.kt",
           "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\ActivityCapturedPortableTransfer.kt",
+          "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\AmbientStepsMaintenance.kt",
           "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\AmbientStepsPortableLocalOriginReader.kt",
           "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\ImportedActivityProductReader.kt",
           "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\ImportedActivityRetentionAuthority.kt",
@@ -1402,12 +1401,14 @@
           "stats\\api\\src\\commonMain\\kotlin\\com\\adsamcik\\tracker\\stats\\api\\repository\\AmbientStepsHistoryRepository.kt",
           "stats\\api\\src\\commonMain\\kotlin\\com\\adsamcik\\tracker\\stats\\api\\repository\\StepsNumericSummaryRepository.kt",
           "stats\\api\\src\\commonTest\\kotlin\\com\\adsamcik\\tracker\\stats\\api\\repository\\AmbientStepsHistoryRepositoryTest.kt",
+          "stats\\data\\build.gradle.kts",
           "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\di\\ActivitySelectionActionDataModule.kt",
           "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\di\\AmbientStepsDataModule.kt",
           "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\di\\PortableActivityTransferDataModule.kt",
           "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\di\\PortableAmbientStepsFileDataModule.kt",
           "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\AmbientStepsDayComposer.kt",
           "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\AmbientStepsDayRepository.kt",
+          "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\AmbientStepsPortableProductMapping.kt",
           "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultAmbientStepsHistoryRepository.kt",
           "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\ImportedAmbientStepsMaintenance.kt",
           "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\ImportedAmbientStepsRoomReader.kt",
@@ -1418,6 +1419,7 @@
           "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\AmbientStepsDayRepositoryTest.kt",
           "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultAmbientStepsHistoryRepositoryContractTest.kt",
           "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\RoomActivitySelectionDeletionTest.kt",
+          "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\RoomImportPortableAmbientStepsNativeAuthorityTest.kt",
           "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\RoomImportedAmbientStepsTransferTest.kt",
           "tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\activity\\RoomActivitySourceErase.kt",
           "tracker\\engine\\src\\main\\java\\com\\adsamcik\\tracker\\tracker\\source\\deletion\\ActivityDeletionModule.kt",
@@ -1459,6 +1461,7 @@
           "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\AmbientStepsDayRepositoryTest.kt",
           "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultAmbientStepsHistoryRepositoryContractTest.kt",
           "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\RoomActivitySelectionDeletionTest.kt",
+          "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\RoomImportPortableAmbientStepsNativeAuthorityTest.kt",
           "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\RoomImportedAmbientStepsTransferTest.kt",
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\activity\\RoomActivitySourceEraseTest.kt",
           "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\summary\\RoomStepsNumericSummaryRepositoryRoomTest.kt",
@@ -1476,6 +1479,11 @@
             "798613ddf171702ad870e4ea9befe7a42e94d4f2"
           ],
           "scope": "Task was already running before the owner received the queued freeze; early directory absence was only point-in-time evidence."
+        },
+        "bounded_review": {
+          "reviewer_receipt": "e8003",
+          "review_input": "798613ddf171702ad870e4ea9befe7a42e94d4f2",
+          "disposition": "The 12 owned file paths are source-locally closed; subsequent prerequisite merges preserve those paths."
         }
       },
       "related_requirement_ids": [
@@ -1518,6 +1526,7 @@
         "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\AmbientStepsDayRepositoryTest.kt",
         "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultAmbientStepsHistoryRepositoryContractTest.kt",
         "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\RoomActivitySelectionDeletionTest.kt",
+        "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\RoomImportPortableAmbientStepsNativeAuthorityTest.kt",
         "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\RoomImportedAmbientStepsTransferTest.kt",
         "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\activity\\RoomActivitySourceEraseTest.kt",
         "tracker\\engine\\src\\test\\java\\com\\adsamcik\\tracker\\tracker\\source\\summary\\RoomStepsNumericSummaryRepositoryRoomTest.kt",
@@ -3989,10 +3998,12 @@
         "Retirement intent and acknowledgement replay exactly.",
         "Rollback remains contained and the generation coordinator is monotonic.",
         "The Pressure 391 generation-token adapter uses the shared contract.",
+        "Private helpers remain callable outside SourceProductDrainRouter loops and TrackingRolloutStateStore branches.",
+        "Incomplete product membership is typed pending/failure rather than Ready/Complete(empty), while genuine empty and partial unobservable admitted prefixes remain valid.",
         "The obsolete generic source_maintenance_authority entity and DAO remain removed."
       ],
-      "implementation_state": "committed_held",
-      "review_state": "active",
+      "implementation_state": "completed_accepted_slice",
+      "review_state": "closed_static",
       "integration_state": "held_branch",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
@@ -4017,18 +4028,17 @@
       ],
       "dependencies": [],
       "known_blockers": [
-        "Focused review of 43db9556 is running; the artifact is not accepted yet.",
         "Real LegacyPressureWriterLifecycleBarrier and PersistenceProcessor lifecycle lease are absent.",
         "Generation-aware writer/reader/maintenance support for four sources is unstarted and remains default-unavailable.",
         "SourceDestination contained constants/validation, Location binding and DDL for source_capture_admission_barrier plus source_run_retirement are absent."
       ],
-      "next_bounded_action": "Hold exact input 43db9556 for the current focused review. Do not begin producer propagation, schema wiring or source activation.",
+      "next_bounded_action": "Preserve source-locally closed input e71c739e as held. Do not begin producer propagation, schema wiring or source activation.",
       "evidence": {
         "branch": "codex/ti-runtime-settlement-20260915",
-        "branch_tip_at_snapshot": "43db9556d75daa8deb852896710bd2bdc080ff40",
+        "branch_tip_at_snapshot": "e71c739ea3899538e409bb8e807189ce331678e6",
         "merge_base_with_local_dev": "8ad24c8d8420150127ca9d8661e0fc906a7e814f",
-        "tip_subject": "fix(tracking): adopt Pressure erase barrier token",
-        "review_input_commit": "43db9556d75daa8deb852896710bd2bdc080ff40",
+        "tip_subject": "fix(tracking): preserve incomplete source drain membership",
+        "review_input_commit": "e71c739ea3899538e409bb8e807189ce331678e6",
         "changed_paths_at_snapshot": [
           "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SourceBrokerDao.kt",
           "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\SourceSessionDao.kt",
@@ -4089,7 +4099,20 @@
         "worktree": {
           "path": "C:\\Users\\adam-\\GitHub\\Tracker-Android\\.worktrees\\ti-runtime-settlement-20260915",
           "evidence_scope": "reference_only; moving worktree state is not authoritative for the pinned review input"
-        }
+        },
+        "closure_lineage": [
+          "43db9556d75daa8deb852896710bd2bdc080ff40",
+          "e71c739ea3899538e409bb8e807189ce331678e6"
+        ],
+        "closed_scopes": [
+          "RT02 Activity admission seal",
+          "RT04 contained rollback",
+          "RT07 exact idempotence"
+        ],
+        "explicitly_unimplemented_scopes": [
+          "RT01 and RT06 real PersistenceProcessor lifecycle/barrier",
+          "RT05 actual source-generation writer/reader/maintenance propagation"
+        ]
       },
       "related_requirement_ids": [],
       "requirement_ids": [],
@@ -4160,10 +4183,9 @@
       ],
       "known_blockers": [
         "Scope freeze: producer propagation is explicitly future backlog.",
-        "The focused review of 43db9556 is still running.",
         "Pressure and Location producer prerequisites remain blocked."
       ],
-      "next_bounded_action": "Handover backlog. Do not start until the current runtime artifact and source prerequisites close under a new bounded assignment.",
+      "next_bounded_action": "Handover backlog. Do not start until Pressure/Location prerequisites close and a new bounded producer-propagation assignment is issued.",
       "evidence": {},
       "related_requirement_ids": [
         "TODO-ACT-007",

@@ -38,10 +38,10 @@ The registry incorporates the newer artifact state:
   new dependency is the narrow Activity/Pressure transactional recent bridges; Location proof,
   structural day/range and feature consumers remain backlog.
 - Location `31c02288a8`, Cell `9d73fe4bb4`, Wi-Fi reviewed input `484c7d293f`, Ambient Steps
-  reviewed input `c8b96e328e`, Runtime review boundary `43db9556d7` and passive radios
-  `306e9070d2` retain the exact active blockers recorded in `WORK_ITEMS.json`. Purpose
-  `cef95415e2` is separately static-closed. Newer branch tips or dirty edits are implementation
-  evidence only, not acceptance.
+  reviewed input `c8b96e328e` and passive radios `306e9070d2` retain the exact active blockers
+  recorded in `WORK_ITEMS.json`. Purpose `cef95415e2` and shared runtime `e71c739ea3` are
+  separately source-locally static-closed with explicit future integration dependencies. Newer
+  branch tips or dirty edits are implementation evidence only, not acceptance.
 - Parent freeze inspection initially found no Activity range, Ambient Steps file-action or shared
   history consumer worktree. Later concrete owner receipts supersede that point-in-time absence for
   Ambient files and shared consumers only. Activity range remains `planned`. Ambient files are
@@ -104,10 +104,10 @@ Authoritative machine-readable metadata further advances the current file/consum
 - Ambient Steps files were already running before the owner received the queued freeze. Initial
   clean artifact `798613ddf171702ad870e4ea9befe7a42e94d4f2` contains production
   `d6cc1a0b537531bb75b8c2a5030e9cbe00e13525` and tests `6a264416f23f5cead5e75aed3b2b803a387d70a0`
-  plus `798`. Current held input `13e535cf958017d3b74bf5a79a7dd8e2e671c6b8`
-  incorporates reviewed file/helper prerequisites only. Preserve as
-  **COMMITTED_UNREVIEWED_HELD** for one bounded review; native/imported origins remain separate,
-  with no union continuation or registry/picker wiring.
+  plus `798`. Current held input `220a2721825272bdf84f5f8ece80c52f8dc37c50`
+  incorporates only reviewed file/helper/Ambient core prerequisites while preserving all 12
+  reviewed file paths. The scoped file artifact is now static-closed and held; native/imported
+  origins remain separate, with no union continuation or registry/picker wiring.
 - Pressure files are cumulatively static-closed at
   `8ba72248ba2b9ade2908947d1858ec6420e74c3d`, after `97f575e4` and `9ee6ed83`,
   with exact helper `76739a355582ac20a4e4b456126b1b2e2f637258`. The shared lexer/Pressure
@@ -122,16 +122,16 @@ Authoritative machine-readable metadata further advances the current file/consum
   composables, non-consuming/stale handoff retry behavior and nested regression tests; the existing
   owner is correcting only those paths. The provisional shared `1c` contract remains blocked.
 
-Runtime input `43db9556d75daa8deb852896710bd2bdc080ff40` is clean and held under focused
-review after `92a264020b`, `89202124fd` and `9cbb8d8df`. It claims durable Activity admission
-seal/nonnull hardware, exact retirement intent plus acknowledgement, contained rollback with a
-monotonic generation coordinator, and an actual Pressure `39198f5` token adapter. This is not
-runtime completion. Real `LegacyPressureWriterLifecycleBarrier`, the PersistenceProcessor
-live/offline lifecycle lease, four-source generation-aware writer/reader/maintenance support,
-SourceDestination constants/validation, protected Location binding and the exact two-table DDL
-remain planned producer propagation in `WI-RUNTIME-PRODUCER-PROPAGATION-001`. The only current
-runtime tables are `source_capture_admission_barrier` and `source_run_retirement`; obsolete
-three-table receipts and `source_maintenance_authority` must not be restored.
+Runtime input `e71c739ea3899538e409bb8e807189ce331678e6` is now source-locally static-closed
+after `43db9556`: RT02 Activity admission seal, RT04 contained rollback and RT07 exact idempotence
+are closed, as are callable helper scope and typed incomplete-membership handling. Shared
+arithmetic/extension contracts are implemented, but executable four-source rearm is not. Real
+`LegacyPressureWriterLifecycleBarrier`, the PersistenceProcessor live/offline lifecycle lease,
+four-source generation-aware writer/reader/maintenance support, SourceDestination constants/
+validation, protected Location binding and the exact two-table DDL remain planned producer
+propagation in `WI-RUNTIME-PRODUCER-PROPAGATION-001`. The only required runtime tables are
+`source_capture_admission_barrier` and `source_run_retirement`; obsolete three-table receipts and
+`source_maintenance_authority` must not be restored.
 
 ## Scope expansion frozen - finish started artifacts, hand over the backlog
 

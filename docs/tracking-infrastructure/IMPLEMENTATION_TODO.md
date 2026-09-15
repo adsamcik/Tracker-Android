@@ -73,15 +73,16 @@ Latest exact deltas:
 - Activity's original five semantic findings remain closed, but the raw transport
   `EOFException` subtype case reopens only its decoder boundary. Preserve permanent parser EOF and
   lexical failures. No Activity successor started.
-- Runtime `43db9556d7` is a clean committed/held review input for shared admission, retirement,
-  rollback/generation and Pressure-token contracts. It is not full runtime completion. Real
+- Runtime `e71c739ea3` is source-locally static-closed for shared admission, retirement,
+  rollback/generation, idempotence and Pressure-token contracts. It is not executable runtime
+  completion. Real
   Pressure/PersistenceProcessor lifecycle barriers, four-source producer propagation,
   SourceDestination validation, protected Location binding and only the two required tables
   (`source_capture_admission_barrier`, `source_run_retirement`) remain planned backlog. Do not
   restore obsolete `source_maintenance_authority` or older three-table DDL.
-- Ambient file input `13e535cf95` is a late-receipt, already-started artifact derived from clean
-  `798613ddf1` (production `d6cc1a0b53`, tests `6a264416f2` plus `798`). Preserve for bounded
-  review only; no union continuation or registry/picker wiring.
+- Ambient file input `220a272182` is source-locally static-closed after bounded review of the
+  late-receipt `798613ddf1` artifact (production `d6cc1a0b53`, tests `6a264416f2` plus `798`).
+  Preserve held; no union continuation, registry enable or picker wiring.
 - Pressure file/helper input is cumulatively static-closed at `8ba72248ba` with helper
   `76739a3555`. Shared portable `5705ce7704` is also static-closed/held and now waits only for
   the narrow Activity raw-EOF decoder correction.
