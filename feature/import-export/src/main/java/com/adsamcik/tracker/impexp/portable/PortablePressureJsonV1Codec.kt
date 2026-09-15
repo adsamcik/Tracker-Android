@@ -66,8 +66,8 @@ internal class PortablePressureJsonV1Codec(
 		}
 		val claims = mutableMapOf<PortablePressureOpaqueIdentity, PressureIdentityClaim>()
 		var entryCount = 0
-		var totalRuns = 0
-		var totalWindows = 0
+		var totalRuns = 0L
+		var totalWindows = 0L
 		var previous: PortablePressureEntryV1? = null
 		var started = false
 
@@ -77,19 +77,23 @@ internal class PortablePressureJsonV1Codec(
 				if (entryCount >= limits.maxEntries) {
 					formatFailure("Portable Pressure entry count exceeds ${limits.maxEntries}")
 				}
+				val counts = preflightCandidate(
+					candidate,
+					remainingRuns = limits.maxTotalRuns.toLong() - totalRuns,
+					remainingWindows = limits.maxTotalWindows.toLong() - totalWindows,
+				)
 				val entry = authenticatedSnapshot(candidate)
 				previous?.let { prior ->
 					if (PORTABLE_PRESSURE_ENTRY_ORDER.compare(prior, entry) >= 0) {
 						formatFailure("Portable Pressure entries are not in canonical order")
 					}
 				}
-				val entryRuns = entry.runs.size
-				val entryWindows = entry.runs.sumOf { run -> run.windows.size }
-				if (totalRuns > limits.maxTotalRuns - entryRuns) {
-					formatFailure("Portable Pressure document exceeds its total run bound")
-				}
-				if (totalWindows > limits.maxTotalWindows - entryWindows) {
-					formatFailure("Portable Pressure document exceeds its total window bound")
+				if (entry.runs.size.toLong() != counts.runs ||
+					entry.runs.fold(0L) { count, run ->
+						Math.addExact(count, run.windows.size.toLong())
+					} != counts.windows
+				) {
+					formatFailure("Portable Pressure entry changed while being snapshotted")
 				}
 				claimEntry(entry, claims)
 				if (!started) {
@@ -102,8 +106,8 @@ internal class PortablePressureJsonV1Codec(
 				}
 				writeEntry(writer, entry)
 				entryCount++
-				totalRuns += entryRuns
-				totalWindows += entryWindows
+				totalRuns += counts.runs
+				totalWindows += counts.windows
 				previous = entry
 			},
 		)
@@ -145,6 +149,8 @@ internal class PortablePressureJsonV1Codec(
 		throw cancelled
 	} catch (failure: PressureSinkFailure) {
 		throw failure.original
+	} catch (failure: PortableJsonTokenLimitException) {
+		throw PortablePressureJsonException("Portable Pressure token exceeds its bound", failure)
 	} catch (failure: PortablePressureJsonException) {
 		throw failure
 	} catch (failure: EOFException) {
@@ -162,7 +168,9 @@ internal class PortablePressureJsonV1Codec(
 	): Int {
 		val reader = JsonReader(
 			InputStreamReader(
-				BoundedPressureInputStream(inputStream, limits.maxFileBytes),
+				PortableJsonTokenLimitInputStream(
+					BoundedPressureInputStream(inputStream, limits.maxFileBytes),
+				),
 				Charsets.UTF_8,
 			),
 		).apply {
@@ -235,6 +243,36 @@ internal class PortablePressureJsonV1Codec(
 		}
 		currentCoroutineContext().ensureActive()
 		return count
+	}
+
+	private fun preflightCandidate(
+		entry: PortablePressureEntryV1,
+		remainingRuns: Long,
+		remainingWindows: Long,
+	): PressureCandidateCounts {
+		val runs = entry.runs.size.toLong()
+		if (runs > limits.maxRunsPerEntry.toLong()) {
+			formatFailure("Portable Pressure entry exceeds its run bound")
+		}
+		if (runs > remainingRuns) {
+			formatFailure("Portable Pressure document exceeds its total run bound")
+		}
+		var windows = 0L
+		for (run in entry.runs) {
+			val runWindows = run.windows.size.toLong()
+			if (runWindows > limits.maxWindowsPerRun.toLong()) {
+				formatFailure("Portable Pressure run exceeds its window bound")
+			}
+			windows = try {
+				Math.addExact(windows, runWindows)
+			} catch (_: ArithmeticException) {
+				formatFailure("Portable Pressure window count overflows")
+			}
+			if (windows > remainingWindows) {
+				formatFailure("Portable Pressure document exceeds its total window bound")
+			}
+		}
+		return PressureCandidateCounts(runs, windows)
 	}
 
 	private suspend fun emitToSink(
@@ -881,6 +919,11 @@ private data class PressureIdentityClaim(
 private data class PressureReadBudget(
 	var totalRuns: Int = 0,
 	var totalWindows: Int = 0,
+)
+
+private data class PressureCandidateCounts(
+	val runs: Long,
+	val windows: Long,
 )
 
 private class PressureSinkFailure(
