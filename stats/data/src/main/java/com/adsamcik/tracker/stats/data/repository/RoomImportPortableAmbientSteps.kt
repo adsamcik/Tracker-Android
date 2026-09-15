@@ -453,6 +453,8 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 			localOriginSource(incoming.allIdentities.toSet())
 		} catch (abort: ImportedAmbientStepsImportAbort) {
 			throw abort
+		} catch (cancelled: CancellationException) {
+			throw cancelled
 		} catch (failure: AmbientStepsPortableLocalOriginFailure) {
 			when (failure.reason) {
 				AmbientStepsPortableLocalOriginFailureReason.DEPENDENCY_OVERFLOW ->
@@ -683,6 +685,8 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 		block()
 	} catch (abort: ImportedAmbientStepsImportAbort) {
 		throw abort
+	} catch (cancelled: CancellationException) {
+		throw cancelled
 	} catch (failure: ImportedAmbientStepsLineageFailure) {
 		when (failure.reason) {
 			ImportedAmbientStepsLineageFailureReason.DEPENDENCY_OVERFLOW ->

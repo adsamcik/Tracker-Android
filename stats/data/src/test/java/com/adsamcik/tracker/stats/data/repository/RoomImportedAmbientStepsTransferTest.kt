@@ -1297,6 +1297,29 @@ class RoomImportedAmbientStepsTransferTest {
 	}
 
 	@Test
+	fun `native overlap cancellation propagates identically without imported mutation`() = runTest {
+		val archive = archive(completeDay(LocalDate.of(2026, 7, 2), 8L))
+		val cancellation = CancellationException("cancel native overlap")
+		val revision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+		val subject = RoomImportPortableAmbientSteps(
+			database,
+			database.importedAmbientStepsDao(),
+			Dispatchers.Unconfined,
+			localOriginSource = { throw cancellation },
+		)
+
+		assertFailsWith<CancellationException> {
+			subject.importArchive(request(archive))
+		} shouldBe cancellation
+		val dao = database.importedAmbientStepsDao()
+		dao.archiveCount() shouldBe 0L
+		dao.receiptCount() shouldBe 0L
+		dao.dayRevisionCount() shouldBe 0L
+		dao.fenceCount() shouldBe 0L
+		requireNotNull(database.sourceEvidenceStateDao().get()).revision shouldBe revision
+	}
+
+	@Test
 	fun `corrupt retained hierarchy and closed storage return typed failures`() = runTest {
 		val archive = archive(completeDay(LocalDate.of(2026, 8, 1), 8L))
 		importer(database).importArchive(request(archive)) shouldBe applied(archive, 1)
