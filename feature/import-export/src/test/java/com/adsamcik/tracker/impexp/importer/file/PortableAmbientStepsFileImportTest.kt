@@ -28,6 +28,7 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
 import java.io.ByteArrayInputStream
+import java.io.EOFException
 import java.io.IOException
 import java.io.InputStream
 import java.time.LocalDate
@@ -152,6 +153,32 @@ class PortableAmbientStepsFileImportTest {
 			val archive = ambientArchive(
 				completeAmbientDay(LocalDate.of(2026, 1, 1), 1L),
 			)
+			val valid = encodeAmbientStepsArchive(archive)
+			val transportEof = EOFException("transport EOF")
+			val propagatedEof = shouldThrow<EOFException> {
+				importer.import(
+					context,
+					database,
+					FileImportStream(
+						fileName = "ambient.trackerambientsteps",
+						streamProvider = {
+							PrefixThenFailingAmbientImportStream(valid, transportEof)
+						},
+					).withImportReceipt("eof-job", 2L),
+				)
+			}
+			(propagatedEof === transportEof) shouldBe true
+			calls shouldBe 0
+			importer.import(
+				context,
+				database,
+				stream(valid.copyOf(valid.size - 1), "truncated"),
+			) shouldBe ImportResult(
+				failedCount = 1,
+				errors = listOf(PortableAmbientStepsFileImport.PERMANENT_FORMAT_ERROR),
+			)
+			calls shouldBe 0
+
 			val cancelled = adapter(FakeAmbientLifecycleStore(1L)) {
 				throw CancellationException("cancelled")
 			}
@@ -163,6 +190,35 @@ class PortableAmbientStepsFileImportTest {
 				)
 			}
 		}
+
+	@Test
+	fun `out of domain structural date is permanent before source mutation`() = runTest {
+		val archive = ambientArchive(
+			completeAmbientDay(LocalDate.of(2026, 1, 1), 1L),
+		)
+		val day = archive.days.single()
+		val invalid = encodeAmbientStepsArchive(archive).decodeToString()
+			.replaceFirst(
+				"\"structuralEpochDay\":${day.structuralEpochDay}",
+				"\"structuralEpochDay\":${Long.MAX_VALUE}",
+			)
+			.encodeToByteArray()
+		var calls = 0
+		val importer = adapter(FakeAmbientLifecycleStore(1L)) {
+			calls++
+			ImportPortableAmbientStepsResult.Duplicate(it.archive.identity, it.archive.days.size)
+		}
+
+		importer.import(
+			context,
+			database,
+			stream(invalid, "invalid-date"),
+		) shouldBe ImportResult(
+			failedCount = 1,
+			errors = listOf(PortableAmbientStepsFileImport.PERMANENT_FORMAT_ERROR),
+		)
+		calls shouldBe 0
+	}
 
 	@Test
 	fun `missing receipt fails before decode dependencies or stream open`() = runTest {
@@ -381,6 +437,18 @@ private class FailingAmbientImportStream : InputStream() {
 	override fun read(): Int = throw IOException("transport failed")
 	override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
 		throw IOException("transport failed")
+}
+
+private class PrefixThenFailingAmbientImportStream(
+	bytes: ByteArray,
+	private val failure: IOException,
+) : InputStream() {
+	private val delegate = ByteArrayInputStream(bytes)
+
+	override fun read(): Int = delegate.read().takeUnless { it < 0 } ?: throw failure
+
+	override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+		delegate.read(buffer, offset, length).takeUnless { it < 0 } ?: throw failure
 }
 
 private class CloseTrackingAmbientImportStream(

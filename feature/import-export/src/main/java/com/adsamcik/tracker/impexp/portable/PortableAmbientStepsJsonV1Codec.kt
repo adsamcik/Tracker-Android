@@ -28,6 +28,7 @@ import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStream
 import java.io.OutputStreamWriter
+import java.time.DateTimeException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -117,6 +118,8 @@ internal class PortableAmbientStepsJsonV1Codec @JvmOverloads constructor(
 			)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
+		} catch (failure: AmbientStepsTransportIOException) {
+			throw failure.original
 		} catch (format: PortableAmbientStepsFormatException) {
 			throw format
 		} catch (failure: PortableJsonTokenLimitException) {
@@ -139,6 +142,11 @@ internal class PortableAmbientStepsJsonV1Codec @JvmOverloads constructor(
 		} catch (failure: ArithmeticException) {
 			throw PortableAmbientStepsFormatException(
 				"Portable Ambient Steps count overflow",
+				failure,
+			)
+		} catch (failure: DateTimeException) {
+			throw PortableAmbientStepsFormatException(
+				"Invalid portable Ambient Steps structural date",
 				failure,
 			)
 		} catch (failure: IllegalArgumentException) {
@@ -749,15 +757,23 @@ private class BoundedAmbientInputStream(
 		private set
 
 	override fun read(): Int {
-		val value = super.read()
+		val value = transportRead { super.read() }
 		if (value >= 0) record(1L)
 		return value
 	}
 
 	override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-		val count = super.read(buffer, offset, length)
+		val count = transportRead { super.read(buffer, offset, length) }
 		if (count > 0) record(count.toLong())
 		return count
+	}
+
+	// Only delegated raw reads receive a transport marker. Byte and lexical limit failures occur
+	// outside this block and retain their permanent format classification.
+	private inline fun <T> transportRead(block: () -> T): T = try {
+		block()
+	} catch (failure: IOException) {
+		throw AmbientStepsTransportIOException(failure)
 	}
 
 	private fun record(count: Long) {
@@ -767,6 +783,10 @@ private class BoundedAmbientInputStream(
 		bytesRead += count
 	}
 }
+
+private class AmbientStepsTransportIOException(
+	val original: IOException,
+) : RuntimeException(null, original, false, false)
 
 private class BoundedAmbientOutputStream(
 	output: OutputStream,

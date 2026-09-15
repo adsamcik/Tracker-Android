@@ -87,6 +87,25 @@ class PortableAmbientStepsJsonV1CodecTest {
 	}
 
 	@Test
+	fun `out of domain structural date is a permanent format failure`() = runTest {
+		val archive = ambientArchive(
+			completeAmbientDay(LocalDate.of(2026, 1, 1), 1L),
+		)
+		val day = archive.days.single()
+		val invalid = encodeAmbientStepsArchive(archive).decodeToString()
+			.replaceFirst(
+				"\"structuralEpochDay\":${day.structuralEpochDay}",
+				"\"structuralEpochDay\":${Long.MAX_VALUE}",
+			)
+
+		shouldThrow<PortableAmbientStepsFormatException> {
+			PortableAmbientStepsJsonV1Codec().decode(
+				ByteArrayInputStream(invalid.encodeToByteArray()),
+			)
+		}
+	}
+
+	@Test
 	fun `unknown duplicate header ordering version trailing and truncation fail closed`() = runTest {
 		val original = encodeAmbientStepsArchive(
 			ambientArchive(completeAmbientDay(LocalDate.of(2026, 1, 1), 1L)),
@@ -402,6 +421,18 @@ class PortableAmbientStepsJsonV1CodecTest {
 		shouldThrow<IOException> {
 			PortableAmbientStepsJsonV1Codec().decode(FailingAmbientInputStream())
 		}.message shouldBe "transport failed"
+		val transportEof = EOFException("transport EOF")
+		val propagatedEof = shouldThrow<EOFException> {
+			PortableAmbientStepsJsonV1Codec().decode(
+				PrefixThenFailingAmbientInputStream(bytes, transportEof),
+			)
+		}
+		(propagatedEof === transportEof) shouldBe true
+		shouldThrow<PortableAmbientStepsFormatException> {
+			PortableAmbientStepsJsonV1Codec().decode(
+				ByteArrayInputStream(bytes.copyOf(bytes.size - 1)),
+			)
+		}
 		val producerOutput = ByteArrayOutputStream()
 		shouldThrow<IOException> {
 			PortableAmbientStepsJsonV1Codec().encode(producerOutput) { sink ->
@@ -499,4 +530,16 @@ private class FailingAmbientInputStream : InputStream() {
 	override fun read(): Int = throw IOException("transport failed")
 	override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
 		throw IOException("transport failed")
+}
+
+private class PrefixThenFailingAmbientInputStream(
+	bytes: ByteArray,
+	private val failure: IOException,
+) : InputStream() {
+	private val delegate = ByteArrayInputStream(bytes)
+
+	override fun read(): Int = delegate.read().takeUnless { it < 0 } ?: throw failure
+
+	override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+		delegate.read(buffer, offset, length).takeUnless { it < 0 } ?: throw failure
 }
