@@ -131,15 +131,24 @@ internal suspend fun AppDatabase.pruneAuthenticatedAmbientStepsFactsAffectedByRe
 			AmbientStepsFactRevisionEntity.WRITER_VERSION,
 		) == 0L,
 	) { "Ambient Steps retention encountered an unrecognized payload-bearing row" }
-	val audit = loadAuthenticatedAmbientStepsState(limits, checkpoint)
+	val audit = loadAuthenticatedAmbientStepsState(
+		limits,
+		checkpoint,
+		authenticateRetractedPayloadAuthority = false,
+	)
 	checkpoint(AmbientStepsMaintenanceCheckpoint.AUTHORITY_AUTHENTICATED)
 	check(markedAtMs >= audit.latestDurableTimeMs) {
 		"Ambient Steps retention time precedes retained source authority"
 	}
 	val selected = audit.lineages.filter { lineage ->
-		val latest = lineage.latest
-		latest.operation == AmbientStepsFactRevisionEntity.OPERATION_UPSERT &&
-			requireNotNull(latest.windowStartTimeMs) < beforeMs
+		when (lineage.latest.operation) {
+			AmbientStepsFactRevisionEntity.OPERATION_UPSERT ->
+				requireNotNull(lineage.latest.windowStartTimeMs) < beforeMs
+			AmbientStepsFactRevisionEntity.OPERATION_RETRACT -> lineage.upserts.any { fact ->
+				requireNotNull(fact.windowStartTimeMs) < beforeMs
+			}
+			else -> error("Unsupported Ambient Steps fact operation")
+		}
 	}
 	var deleted = 0
 	selected.chunked(DELETE_BATCH_SIZE).forEach { batch ->
@@ -288,7 +297,11 @@ internal suspend fun AppDatabase.deleteAmbientStepsAfterConsentReset(
 		)
 	}
 	val audit = try {
-		loadAuthenticatedAmbientStepsState(limits, checkpoint)
+		loadAuthenticatedAmbientStepsState(
+			limits,
+			checkpoint,
+			authenticateRetractedPayloadAuthority = false,
+		)
 	} catch (@Suppress("SwallowedException") _: AmbientStepsMaintenanceLimitExceeded) {
 		return@withTransaction blocked(
 			AmbientStepsSourceDeletionBlockedReason.MAINTENANCE_BOUND_EXCEEDED,
@@ -301,6 +314,7 @@ internal suspend fun AppDatabase.deleteAmbientStepsAfterConsentReset(
 	val latestUpserts = audit.lineages.filter { lineage ->
 		lineage.latest.operation == AmbientStepsFactRevisionEntity.OPERATION_UPSERT
 	}
+	val payloadLineages = audit.lineages.filter { lineage -> lineage.upsertRevisionCount > 0 }
 	val priorGeneration = audit.lineages.maxOfOrNull { lineage ->
 		lineage.latest.scopeDeletionGeneration
 	} ?: 0L
@@ -326,7 +340,7 @@ internal suspend fun AppDatabase.deleteAmbientStepsAfterConsentReset(
 	}
 	checkpoint(AmbientStepsMaintenanceCheckpoint.RETRACTIONS_INSTALLED)
 	var removedPayloads = 0
-	latestUpserts.chunked(DELETE_BATCH_SIZE).forEach { batch ->
+	payloadLineages.chunked(DELETE_BATCH_SIZE).forEach { batch ->
 		val expected = batch.sumOf { lineage -> lineage.upsertRevisionCount }
 		val actual = factDao.deleteUpsertsForLogicalFacts(
 			AmbientStepsFactRevisionEntity.WRITER_ID,
@@ -343,7 +357,7 @@ internal suspend fun AppDatabase.deleteAmbientStepsAfterConsentReset(
 	check(stateDao.countAuthorityTransitions() == 0L && stateDao.countGaps() == 0L &&
 		stateDao.countCursors() == 0L && factDao.countPayloadBearingRows() == 0L
 	) { "Ambient Steps source deletion did not remove all fenced source state" }
-	if (latestUpserts.isEmpty() && audit.cursors.isEmpty() && audit.gaps.isEmpty() &&
+	if (payloadLineages.isEmpty() && audit.cursors.isEmpty() && audit.gaps.isEmpty() &&
 		audit.transitions.isEmpty()
 	) {
 		return@withTransaction AmbientStepsSourceDeletionResult.AlreadyDeleted
@@ -444,8 +458,8 @@ internal suspend fun AppDatabase.loadAuthenticatedAmbientStepsState(
 		if (!authenticateRetractedPayloadAuthority &&
 			lineage.latest.operation == AmbientStepsFactRevisionEntity.OPERATION_RETRACT
 		) {
-			// Export authenticates the redacted terminal revision and complete correction chain above,
-			// but deliberately does not require provider state that source deletion already removed.
+			// Export and cleanup authenticate the terminal redaction and complete correction chain,
+			// without requiring provider state that source deletion deliberately removed.
 			return@forEach
 		}
 		lineage.upserts.forEach { fact ->
