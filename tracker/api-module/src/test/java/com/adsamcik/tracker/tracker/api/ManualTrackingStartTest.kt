@@ -17,6 +17,19 @@ class ManualTrackingStartTest {
 			ManualTrackingStartReadiness.Ready(2L)
 	}
 
+	@Test
+	fun `automatic control policy containment does not change manual source readiness`() {
+		val automatic = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.automaticControl
+
+		automatic shouldBe AutomaticTrackingOperationalAvailability.Unavailable(
+			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+		)
+		resolve(
+			source = TrackingCaptureSource.STEPS,
+			availableSources = setOf(TrackingCaptureSource.STEPS),
+		) shouldBe ManualTrackingStartReadiness.Ready(2L)
+	}
+
 	@ParameterizedTest(name = "{0}-only requests {1}")
 	@MethodSource("onlySourceRepairCases")
 	fun `only-source repair exposes its exact prerequisite`(

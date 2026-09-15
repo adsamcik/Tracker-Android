@@ -111,6 +111,19 @@ data class SourcePolicy(
 	}
 }
 
+internal val AMBIENT_PRODUCT_SOURCES = setOf(
+	TrackingSourceComponent.LOCATION,
+	TrackingSourceComponent.STEPS,
+	TrackingSourceComponent.WIFI,
+	TrackingSourceComponent.CELL,
+)
+
+internal fun TrackingSourceComponent.supportsPurpose(purpose: SourcePurpose): Boolean = when (purpose) {
+	SourcePurpose.SESSION_CAPTURE -> true
+	SourcePurpose.CONTROL -> this == TrackingSourceComponent.ACTIVITY
+	SourcePurpose.AMBIENT_PRODUCT -> this in AMBIENT_PRODUCT_SOURCES
+}
+
 data class SourcePolicySnapshot(
 	val revision: Long,
 	val policies: Map<TrackingSourceComponent, SourcePolicy>,
@@ -147,8 +160,8 @@ interface SourcePolicyRepository {
 	suspend fun bootstrapFromLegacy(settings: TrackingParamsState): SourcePolicySnapshot
 
 	/**
-	 * Reconciles capture policy, automatic-tracking control intent, and default-off Ambient Steps
-	 * consent at an explicit revision; frequency can never revive a false capture toggle.
+	 * Reconciles capture policy, automatic-tracking control intent, and approved default-off
+	 * ambient consent at an explicit revision; frequency can never revive a false capture toggle.
 	 */
 	suspend fun replaceCaptureSettings(
 		expectedPolicyRevision: Long,

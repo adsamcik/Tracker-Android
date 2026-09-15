@@ -67,6 +67,11 @@ message TrackingParamsProto {
   // Default-off consent intent for opportunistic, sessionless Steps continuity. This is
   // independent from steps_enabled, which controls live session capture.
   bool ambient_steps_enabled = 28;
+  // Independent default-off intents for other approved sessionless products. These fields do not
+  // enable session capture, automatic control, a provider, or a collection cadence by themselves.
+  bool ambient_location_enabled = 29;
+  bool ambient_wifi_enabled = 30;
+  bool ambient_cell_enabled = 31;
 
   // Internal migration marker so legacy Preferences import runs only once.
   bool legacy_migrated = 1000;

@@ -8,6 +8,8 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationOwner
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import android.os.SystemClock
+import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.TrackingJoinSpecs
@@ -27,13 +29,18 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 		useTransitionApi: Boolean,
 		continuousIntervalSeconds: Int,
 		transitions: Set<ActivityTransitionData>,
+		controlAvailability: AutomaticTrackingOperationalAvailability =
+			TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.automaticControl,
 	): ActivityRegistrationResult {
 		val elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
 		val desiredLatencyMs = continuousIntervalSeconds.coerceAtLeast(1) * 1_000L
 		// Only Activity Transition callbacks carry the live, non-replayable background-start
 		// context used by automatic cold start. Continuous recognition remains a capture mechanism;
 		// it must never be registered as a hidden fallback control.
-		val transitionControlEnabled = enabled && useTransitionApi && transitions.isNotEmpty()
+		val transitionControlEnabled = enabled &&
+			controlAvailability.isOperational &&
+			useTransitionApi &&
+			transitions.isNotEmpty()
 		if (transitionControlEnabled) {
 			// An Activity capture registration may already be physically active. Persist the control
 			// consumer before appending the authorization revision so a callback cannot become control

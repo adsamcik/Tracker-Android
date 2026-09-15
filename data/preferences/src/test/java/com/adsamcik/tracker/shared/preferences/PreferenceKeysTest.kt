@@ -86,6 +86,14 @@ class PreferenceKeysTest {
 	@Nested
 	inner class `default values` {
 		@Test
+		fun `approved ambient products default off`() {
+			PreferenceKeys.AMBIENT_LOCATION_ENABLED_DEFAULT shouldBe false
+			PreferenceKeys.AMBIENT_STEPS_ENABLED_DEFAULT shouldBe false
+			PreferenceKeys.AMBIENT_WIFI_ENABLED_DEFAULT shouldBe false
+			PreferenceKeys.AMBIENT_CELL_ENABLED_DEFAULT shouldBe false
+		}
+
+		@Test
 		fun `ACTIVITY_ENABLED_DEFAULT is true`() {
 			PreferenceKeys.ACTIVITY_ENABLED_DEFAULT shouldBe true
 		}

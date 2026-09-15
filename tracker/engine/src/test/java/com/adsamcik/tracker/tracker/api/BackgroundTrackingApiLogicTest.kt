@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -27,6 +28,207 @@ class BackgroundTrackingApiLogicTest {
 		automaticControlAuthorityChanged(5L, 8L, 6L, 8L) shouldBe true
 		automaticControlAuthorityChanged(5L, 8L, 6L, 9L) shouldBe true
 		automaticControlAuthorityChanged(5L, 8L, 5L, 8L) shouldBe false
+	}
+
+	@Test
+	fun `unapproved retention policy contains automatic control despite retained consent intent`() {
+		effectiveAutomaticControlEligibility(
+			controlConsentEligible = true,
+			availability = AutomaticTrackingOperationalAvailability.Unavailable(
+				AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+			),
+		) shouldBe false
+	}
+
+	@Test
+	fun `approved control policy still requires independent consent`() {
+		effectiveAutomaticControlEligibility(
+			controlConsentEligible = false,
+			availability = AutomaticTrackingOperationalAvailability.Ready,
+		) shouldBe false
+		effectiveAutomaticControlEligibility(
+			controlConsentEligible = true,
+			availability = AutomaticTrackingOperationalAvailability.Ready,
+		) shouldBe true
+	}
+
+	@Test
+	fun `coherent unavailable initialization schedules containment regardless process active state`() {
+		val unavailable = AutomaticTrackingOperationalAvailability.Unavailable(
+			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+		)
+
+		automaticControlContainmentKeyOrNull(
+			paramsInitialized = true,
+			activePolicyRevision = 12L,
+			paramsPolicyRevision = 12L,
+			controlConsentEpoch = 5L,
+			configuredMode = GroupedActivity.ON_FOOT.ordinal,
+			availability = unavailable,
+		) shouldBe AutomaticControlContainmentKey(
+			policyRevision = 12L,
+			controlConsentEpoch = 5L,
+			configuredMode = GroupedActivity.ON_FOOT.ordinal,
+			unavailableReason =
+				AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+		)
+	}
+
+	@Test
+	fun `containment waits for coherent authority and resets while operational`() {
+		val unavailable = AutomaticTrackingOperationalAvailability.Unavailable(
+			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+		)
+		automaticControlContainmentKeyOrNull(
+			paramsInitialized = false,
+			activePolicyRevision = 12L,
+			paramsPolicyRevision = 12L,
+			controlConsentEpoch = 5L,
+			configuredMode = 1,
+			availability = unavailable,
+		) shouldBe null
+		automaticControlContainmentKeyOrNull(
+			paramsInitialized = true,
+			activePolicyRevision = 12L,
+			paramsPolicyRevision = 13L,
+			controlConsentEpoch = 5L,
+			configuredMode = 1,
+			availability = unavailable,
+		) shouldBe null
+		automaticControlContainmentKeyOrNull(
+			paramsInitialized = true,
+			activePolicyRevision = 12L,
+			paramsPolicyRevision = 12L,
+			controlConsentEpoch = 5L,
+			configuredMode = 1,
+			availability = AutomaticTrackingOperationalAvailability.Ready,
+		) shouldBe null
+	}
+
+	@Test
+	fun `scheduler failure retries automatically without a new settings or policy emission`() = runTest {
+		var cleanupStarts = 0
+		var schedulerCalls = 0
+		val retryDelays = mutableListOf<Long>()
+		val failures = mutableListOf<String>()
+
+		val result = runAutomaticControlContainmentRetryLoop(
+			isCurrent = { true },
+			startImmediateCleanup = {
+				cleanupStarts++
+				CompletableDeferred(AutomaticControlRecoveryResult.RETRYABLE)
+			},
+			establishRetryOwnership = {
+				schedulerCalls++
+				if (schedulerCalls == 1) {
+					throw IllegalStateException("scheduler unavailable")
+				}
+			},
+			waitBeforeRetry = { delayMillis -> retryDelays += delayMillis },
+			onAttemptCompleted = { attempt ->
+				attempt.retryOwnershipFailure?.message?.let(failures::add)
+			},
+			initialRetryDelayMillis = 250L,
+			maxRetryDelayMillis = 2_000L,
+		)
+
+		result shouldBe AutomaticControlContainmentLoopResult.Handled(
+			attempts = 2,
+			lastAttempt = AutomaticControlContainmentAttemptResult(
+				cleanupResult = AutomaticControlRecoveryResult.RETRYABLE,
+				retryOwnershipEstablished = true,
+				cleanupFailure = null,
+				retryOwnershipFailure = null,
+			),
+		)
+		cleanupStarts shouldBe 2
+		schedulerCalls shouldBe 2
+		retryDelays shouldBe listOf(250L)
+		failures shouldBe listOf("scheduler unavailable")
+	}
+
+	@Test
+	fun `authority change cancels the containment retry loop before a second cleanup`() = runTest {
+		var current = true
+		var cleanupStarts = 0
+		var schedulerCalls = 0
+
+		val result = runAutomaticControlContainmentRetryLoop(
+			isCurrent = { current },
+			startImmediateCleanup = {
+				cleanupStarts++
+				CompletableDeferred(AutomaticControlRecoveryResult.RETRYABLE)
+			},
+			establishRetryOwnership = {
+				schedulerCalls++
+				throw IllegalStateException("scheduler unavailable")
+			},
+			waitBeforeRetry = { current = false },
+			initialRetryDelayMillis = 250L,
+			maxRetryDelayMillis = 2_000L,
+		)
+
+		result shouldBe AutomaticControlContainmentLoopResult.Cancelled(attempts = 1)
+		cleanupStarts shouldBe 1
+		schedulerCalls shouldBe 1
+	}
+
+	@Test
+	fun `containment retry delay grows exponentially and remains capped until cancellation`() = runTest {
+		val delays = mutableListOf<Long>()
+		var current = true
+
+		val result = runAutomaticControlContainmentRetryLoop(
+			isCurrent = { current },
+			startImmediateCleanup = {
+				CompletableDeferred(AutomaticControlRecoveryResult.RETRYABLE)
+			},
+			establishRetryOwnership = {
+				throw IllegalStateException("scheduler unavailable")
+			},
+			waitBeforeRetry = { delayMillis ->
+				delays += delayMillis
+				if (delays.size == 4) current = false
+			},
+			initialRetryDelayMillis = 250L,
+			maxRetryDelayMillis = 1_000L,
+		)
+
+		result shouldBe AutomaticControlContainmentLoopResult.Cancelled(attempts = 4)
+		result.attempts shouldBe 4
+		delays shouldBe listOf(250L, 500L, 1_000L, 1_000L)
+	}
+
+	@Test
+	fun `terminal immediate cleanup is handled even when retry scheduling fails`() = runTest {
+		val result = runAutomaticControlContainmentAttempt(
+			startImmediateCleanup = {
+				CompletableDeferred(
+					AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED,
+				)
+			},
+			establishRetryOwnership = {
+				throw IllegalStateException("scheduler unavailable")
+			},
+		)
+
+		result.isHandled shouldBe true
+		result.retryOwnershipEstablished shouldBe false
+		result.retryOwnershipFailure?.message shouldBe "scheduler unavailable"
+	}
+
+	@Test
+	fun `operational automatic control does not execute the unavailable cleanup`() = runTest {
+		var reconciliations = 0
+
+		reconcileUnavailableAutomaticControl(
+			availability = AutomaticTrackingOperationalAvailability.Ready,
+			reconcileDisabled = {
+				reconciliations++
+				activityRegistrationResult(ActivityRegistrationStatus.APPLIED)
+			},
+		) shouldBe null
+		reconciliations shouldBe 0
 	}
 
 	@Test

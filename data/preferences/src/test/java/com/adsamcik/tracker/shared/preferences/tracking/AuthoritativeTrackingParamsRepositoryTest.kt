@@ -103,29 +103,41 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	}
 
 	@Test
-	fun `ambient Steps mutation commits independent persistent consent and mirror`() = runTest {
+	fun `approved ambient mutations commit independent persistent consent and mirror`() = runTest {
 		repository.data.first { it.sourcePolicyRevision == 1L }
-		val captureEpoch = (policy.currentState() as SourcePolicyAuthorityState.Active)
-			.snapshot[TrackingSourceComponent.STEPS].captureConsentEpoch
+		val approved = listOf(
+			TrackingSourceComponent.LOCATION,
+			TrackingSourceComponent.STEPS,
+			TrackingSourceComponent.WIFI,
+			TrackingSourceComponent.CELL,
+		)
 
-		repository.setAmbientStepsEnabled(true)
+		approved.forEach { source ->
+			val before = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot[source]
+			setAmbient(source, true)
 
-		val enabled = repository.data.first { it.sourcePolicyRevision == 2L }
-		enabled.ambientStepsEnabled.shouldBeTrue()
-		enabled.stepsEnabled.shouldBeTrue()
-		legacy.current.ambientStepsEnabled.shouldBeTrue()
-		val active = (policy.currentState() as SourcePolicyAuthorityState.Active)
-			.snapshot[TrackingSourceComponent.STEPS]
-		active.captureConsentEpoch shouldBe captureEpoch
-		active.ambientConsentEpoch shouldBe 1L
-		active.ambientPersistenceEligible.shouldBeTrue()
+			val enabled = repository.data.first { state -> state.ambientEnabled(source) }
+			enabled.ambientEnabled(source).shouldBeTrue()
+			legacy.current.ambientEnabled(source).shouldBeTrue()
+			val active = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot[source]
+			active.enabled shouldBe before.enabled
+			active.captureConsentEpoch shouldBe before.captureConsentEpoch
+			active.controlConsentEpoch shouldBe before.controlConsentEpoch
+			active.ambientConsentEpoch shouldBe 1L
+			active.ambientPersistenceEligible.shouldBeTrue()
 
-		repository.setAmbientStepsEnabled(false)
+			setAmbient(source, false)
 
-		val disabled = repository.data.first { it.sourcePolicyRevision == 3L }
-		disabled.ambientStepsEnabled.shouldBeFalse()
-		disabled.stepsEnabled.shouldBeTrue()
-		legacy.current.ambientStepsEnabled.shouldBeFalse()
+			val disabled = repository.data.first { state -> !state.ambientEnabled(source) }
+			disabled.ambientEnabled(source).shouldBeFalse()
+			legacy.current.ambientEnabled(source).shouldBeFalse()
+			val revoked = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot[source]
+			revoked.enabled shouldBe before.enabled
+			revoked.captureConsentEpoch shouldBe before.captureConsentEpoch
+			revoked.controlConsentEpoch shouldBe before.controlConsentEpoch
+			revoked.ambientConsentEpoch shouldBe null
+			revoked.ambientPersistenceEligible.shouldBeFalse()
+		}
 	}
 
 	@Test
@@ -274,6 +286,26 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		TrackingSourceComponent.PRESSURE -> barometerEnabled
 		TrackingSourceComponent.WIFI -> wifiEnabled
 		TrackingSourceComponent.CELL -> cellEnabled
+	}
+
+	private suspend fun setAmbient(source: TrackingSourceComponent, enabled: Boolean) = when (source) {
+		TrackingSourceComponent.LOCATION -> repository.setAmbientLocationEnabled(enabled)
+		TrackingSourceComponent.STEPS -> repository.setAmbientStepsEnabled(enabled)
+		TrackingSourceComponent.WIFI -> repository.setAmbientWifiEnabled(enabled)
+		TrackingSourceComponent.CELL -> repository.setAmbientCellEnabled(enabled)
+		TrackingSourceComponent.ACTIVITY,
+		TrackingSourceComponent.PRESSURE,
+		-> error("$source is not an approved ambient source")
+	}
+
+	private fun TrackingParamsState.ambientEnabled(source: TrackingSourceComponent): Boolean = when (source) {
+		TrackingSourceComponent.LOCATION -> ambientLocationEnabled
+		TrackingSourceComponent.STEPS -> ambientStepsEnabled
+		TrackingSourceComponent.WIFI -> ambientWifiEnabled
+		TrackingSourceComponent.CELL -> ambientCellEnabled
+		TrackingSourceComponent.ACTIVITY,
+		TrackingSourceComponent.PRESSURE,
+		-> false
 	}
 }
 

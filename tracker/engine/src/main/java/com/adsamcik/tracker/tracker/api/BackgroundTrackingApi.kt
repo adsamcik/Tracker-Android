@@ -61,6 +61,7 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.SupervisorJob
@@ -137,6 +138,14 @@ object BackgroundTrackingApi {
 
 	private const val DEFAULT_ACTIVITY_FREQ_SECONDS = 10
 	private const val SOURCE_POLICY_RETRY_DELAY_MILLIS = 250L
+	private const val AUTOMATIC_CONTAINMENT_MAX_RETRY_DELAY_MILLIS = 30_000L
+	@Volatile
+	private var automaticControlAvailability =
+		TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.automaticControl
+	private var handledAutomaticContainmentKey: AutomaticControlContainmentKey? = null
+	private var pendingAutomaticContainmentKey: AutomaticControlContainmentKey? = null
+	private var automaticContainmentJob: Job? = null
+	private var automaticContainmentGeneration = 0L
 	/** Allows a contradictory automatic-activity update to be corrected before a terminal stop. */
 	private const val AUTOMATIC_STOP_GRACE_MILLIS = 30_000L
 	private var appContext: Context? = null
@@ -486,6 +495,7 @@ object BackgroundTrackingApi {
 					useTransitionApi = useTransitionApi,
 					continuousIntervalSeconds = activityFreqSeconds,
 					transitions = buildTransitions().toSet(),
+					controlAvailability = automaticControlAvailability,
 				)
 				recoveryResult = automaticControlRecoveryResult(result)
 				check(recoveryResult == AutomaticControlRecoveryResult.ACCEPTED) {
@@ -548,6 +558,7 @@ object BackgroundTrackingApi {
 							useTransitionApi = false,
 							continuousIntervalSeconds = activityFreqSeconds,
 							transitions = emptySet(),
+							controlAvailability = automaticControlAvailability,
 						)
 						val cleanupRecoveryResult = automaticControlDisabledRecoveryResult(cleanup)
 						if (cleanupRecoveryResult == AutomaticControlRecoveryResult.RETRYABLE) {
@@ -638,15 +649,28 @@ object BackgroundTrackingApi {
 				val removed = reconcileActivityRequestRemoval(
 					shouldContinue = { generation == requestMutationGeneration && !isActive },
 				) {
-					val result = monitor.reconcile(
-						enabled = false,
-						useTransitionApi = false,
-						continuousIntervalSeconds = activityFreqSeconds,
-						transitions = emptySet(),
+					recoveryResult = reconcileUnavailableAutomaticControl(
+						availability = automaticControlAvailability,
+						reconcileDisabled = {
+							monitor.reconcile(
+								enabled = false,
+								useTransitionApi = false,
+								continuousIntervalSeconds = activityFreqSeconds,
+								transitions = emptySet(),
+								controlAvailability = automaticControlAvailability,
+							)
+						},
+					) ?: automaticControlDisabledRecoveryResult(
+						monitor.reconcile(
+							enabled = false,
+							useTransitionApi = false,
+							continuousIntervalSeconds = activityFreqSeconds,
+							transitions = emptySet(),
+							controlAvailability = automaticControlAvailability,
+						),
 					)
-					recoveryResult = automaticControlDisabledRecoveryResult(result)
 					check(recoveryResult != AutomaticControlRecoveryResult.RETRYABLE) {
-						"Unable to clear automatic activity demand: ${result.failureCode}"
+						"Unable to clear automatic activity demand"
 					}
 				}
 				legacyStepRetirementFailure?.let { throw it }
@@ -719,7 +743,10 @@ object BackgroundTrackingApi {
 				activeSourcePolicyRevision = nextPolicyRevision
 				activityControlConsentEpoch = nextActivityConsentEpoch
 				reconcileControlEligibility(
-					activityEligible = nextActivityConsentEpoch != null,
+					activityEligible = effectiveAutomaticControlEligibility(
+						controlConsentEligible = nextActivityConsentEpoch != null,
+						availability = automaticControlAvailability,
+					),
 					activityAuthorityChanged = authorityChanged,
 				)
 				publishActivityAutomationAuthority()
@@ -881,7 +908,7 @@ object BackgroundTrackingApi {
 		activityControlEligible = activityEligible
 		val context = appContext ?: return
 		when {
-			!activityEligible && isActive ->
+			!activityEligible && isActive && automaticControlAvailability.isOperational ->
 				handleTrackingActivityPreferenceChange(cachedParamsSnapshot().autoTrackingMode)
 			activityEligible && !previousActivityEligibility && paramsInitialized ->
 				handleTrackingActivityPreferenceChange(cachedParamsSnapshot().autoTrackingMode)
@@ -889,6 +916,32 @@ object BackgroundTrackingApi {
 				paramsInitialized ->
 				handleTrackingActivityPreferenceChange(cachedParamsSnapshot().autoTrackingMode)
 		}
+	}
+
+	/**
+	 * Parent-owned policy publication hook. Operational availability is not authority; the monitor
+	 * repeats current SourcePolicy, rollout, demand, and provider checks before any registration.
+	 */
+	@MainThread
+	fun onAutomaticControlAvailabilityChanged(
+		context: Context,
+		availability: AutomaticTrackingOperationalAvailability,
+	) {
+		if (appContext == null) {
+			automaticControlAvailability = availability
+			initialize(context)
+			return
+		}
+		val changed = automaticControlAvailability != availability
+		automaticControlAvailability = availability
+		reconcileControlEligibility(
+			activityEligible = effectiveAutomaticControlEligibility(
+				controlConsentEligible = activityControlConsentEpoch != null,
+				availability = availability,
+			),
+			activityAuthorityChanged = changed,
+		)
+		publishActivityAutomationAuthority()
 	}
 
 	private fun handleTransitionPreferenceChange(enabled: Boolean) {
@@ -955,6 +1008,8 @@ object BackgroundTrackingApi {
 		activityWatcherJob = null
 		recognitionUpdatesJob?.cancel()
 		recognitionUpdatesJob = null
+		automaticContainmentJob?.cancel()
+		automaticContainmentJob = null
 		cancelAutomaticStopGrace()
 		val scope = preferenceScope
 		val finalMutation = requestMutationJob
@@ -979,6 +1034,11 @@ object BackgroundTrackingApi {
 		activeSourcePolicyRevision = null
 		activityControlEligible = false
 		activityControlConsentEpoch = null
+		automaticControlAvailability =
+			TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.automaticControl
+		handledAutomaticContainmentKey = null
+		pendingAutomaticContainmentKey = null
+		automaticContainmentGeneration = 0L
 		publishActivityAutomationAuthority()
 	}
 
@@ -993,7 +1053,243 @@ object BackgroundTrackingApi {
 		)
 		activityAutomationAuthority = snapshot
 		_activityAutomationAuthorityReady.value = snapshot.isCoherent
+		reconcileAutomaticControlContainment(snapshot)
 	}
+
+	private fun reconcileAutomaticControlContainment(
+		authority: ActivityAutomationAuthoritySnapshot,
+	) {
+		val context = appContext ?: return
+		val key = automaticControlContainmentKeyOrNull(
+			paramsInitialized = authority.paramsInitialized,
+			activePolicyRevision = authority.activePolicyRevision,
+			paramsPolicyRevision = authority.paramsPolicyRevision,
+			controlConsentEpoch = authority.activityControlConsentEpoch,
+			configuredMode = cachedParamsSnapshot().autoTrackingMode,
+			availability = automaticControlAvailability,
+		)
+		if (key == null) {
+			automaticContainmentGeneration++
+			automaticContainmentJob?.cancel()
+			automaticContainmentJob = null
+			handledAutomaticContainmentKey = null
+			pendingAutomaticContainmentKey = null
+			return
+		}
+		if (handledAutomaticContainmentKey == key || pendingAutomaticContainmentKey == key) return
+
+		val scope = preferenceScope ?: return
+		val generation = ++automaticContainmentGeneration
+		automaticContainmentJob?.cancel()
+		pendingAutomaticContainmentKey = key
+		automaticContainmentJob = scope.launch {
+			val result = runAutomaticControlContainmentRetryLoop(
+				isCurrent = {
+					generation == automaticContainmentGeneration &&
+						pendingAutomaticContainmentKey == key &&
+						automaticControlContainmentKeyOrNull(
+							paramsInitialized = activityAutomationAuthority.paramsInitialized,
+							activePolicyRevision =
+								activityAutomationAuthority.activePolicyRevision,
+							paramsPolicyRevision =
+								activityAutomationAuthority.paramsPolicyRevision,
+							controlConsentEpoch =
+								activityAutomationAuthority.activityControlConsentEpoch,
+							configuredMode = cachedParamsSnapshot().autoTrackingMode,
+							availability = automaticControlAvailability,
+						) == key
+				},
+				startImmediateCleanup = {
+					CompletableDeferred<AutomaticControlRecoveryResult>().also { completion ->
+						disable(context, completion)
+						if (TrackerServiceApi.isActive(context)) {
+							val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value
+							if (sessionInfo?.isInitiatedByUser == false) {
+								TrackerServiceApi.stopService(
+									context,
+									TrackingStopCandidateReason.EXPLICIT_REQUEST,
+								)
+							}
+						}
+					}
+				},
+				establishRetryOwnership = {
+					getEntryPoint(context).automaticControlRecoveryScheduler().enqueue()
+				},
+				waitBeforeRetry = { delayMillis -> delay(delayMillis) },
+				onAttemptCompleted = { attempt ->
+					attempt.cleanupFailure?.let { error ->
+						Tracebox.log.error(
+							error,
+							TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED,
+						)
+					}
+					attempt.retryOwnershipFailure?.let { error ->
+						Tracebox.log.error(
+							error,
+							TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED,
+						)
+					}
+				},
+				initialRetryDelayMillis = SOURCE_POLICY_RETRY_DELAY_MILLIS,
+				maxRetryDelayMillis = AUTOMATIC_CONTAINMENT_MAX_RETRY_DELAY_MILLIS,
+			)
+			if (generation != automaticContainmentGeneration) return@launch
+			when (result) {
+				is AutomaticControlContainmentLoopResult.Handled -> {
+					pendingAutomaticContainmentKey = null
+					handledAutomaticContainmentKey = key
+					automaticContainmentJob = null
+				}
+				is AutomaticControlContainmentLoopResult.Cancelled -> {
+					pendingAutomaticContainmentKey = null
+					handledAutomaticContainmentKey = null
+					automaticContainmentJob = null
+				}
+			}
+		}
+	}
+}
+
+internal data class AutomaticControlContainmentKey(
+	val policyRevision: Long,
+	val controlConsentEpoch: Long?,
+	val configuredMode: Int,
+	val unavailableReason: AutomaticTrackingUnavailableReason,
+)
+
+internal fun automaticControlContainmentKeyOrNull(
+	paramsInitialized: Boolean,
+	activePolicyRevision: Long?,
+	paramsPolicyRevision: Long?,
+	controlConsentEpoch: Long?,
+	configuredMode: Int,
+	availability: AutomaticTrackingOperationalAvailability,
+): AutomaticControlContainmentKey? {
+	if (
+		!isActivityAutomationAuthorityCoherent(
+			paramsInitialized = paramsInitialized,
+			activePolicyRevision = activePolicyRevision,
+			paramsPolicyRevision = paramsPolicyRevision,
+		) || availability.isOperational
+	) {
+		return null
+	}
+	return AutomaticControlContainmentKey(
+		policyRevision = requireNotNull(activePolicyRevision),
+		controlConsentEpoch = controlConsentEpoch,
+		configuredMode = configuredMode,
+		unavailableReason = (availability as AutomaticTrackingOperationalAvailability.Unavailable).reason,
+	)
+}
+
+internal data class AutomaticControlContainmentAttemptResult(
+	val cleanupResult: AutomaticControlRecoveryResult?,
+	val retryOwnershipEstablished: Boolean,
+	val cleanupFailure: Exception?,
+	val retryOwnershipFailure: Exception?,
+) {
+	val isHandled: Boolean
+		get() = cleanupResult == AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED ||
+			retryOwnershipEstablished
+}
+
+internal sealed interface AutomaticControlContainmentLoopResult {
+	val attempts: Int
+
+	data class Handled(
+		override val attempts: Int,
+		val lastAttempt: AutomaticControlContainmentAttemptResult,
+	) : AutomaticControlContainmentLoopResult
+
+	data class Cancelled(
+		override val attempts: Int,
+	) : AutomaticControlContainmentLoopResult
+}
+
+/**
+ * Retries the same coherent containment key without depending on another policy or preference
+ * emission. Each failed attempt waits before retrying; the delay is capped, and authority changes
+ * cancel through [isCurrent]. Immediate cleanup starts before retry ownership is attempted.
+ */
+internal suspend fun runAutomaticControlContainmentRetryLoop(
+	isCurrent: () -> Boolean,
+	startImmediateCleanup: () -> Deferred<AutomaticControlRecoveryResult>,
+	establishRetryOwnership: () -> Unit,
+	waitBeforeRetry: suspend (Long) -> Unit,
+	initialRetryDelayMillis: Long,
+	maxRetryDelayMillis: Long,
+	onAttemptCompleted: (AutomaticControlContainmentAttemptResult) -> Unit = {},
+): AutomaticControlContainmentLoopResult {
+	require(initialRetryDelayMillis >= 0L)
+	require(maxRetryDelayMillis >= initialRetryDelayMillis)
+
+	var retryDelayMillis = initialRetryDelayMillis
+	var attempts = 0
+	while (true) {
+		if (!isCurrent()) return AutomaticControlContainmentLoopResult.Cancelled(attempts)
+		val attempt = runAutomaticControlContainmentAttempt(
+			startImmediateCleanup = startImmediateCleanup,
+			establishRetryOwnership = establishRetryOwnership,
+		)
+		attempts++
+		onAttemptCompleted(attempt)
+		if (!isCurrent()) return AutomaticControlContainmentLoopResult.Cancelled(attempts)
+		if (attempt.isHandled) {
+			return AutomaticControlContainmentLoopResult.Handled(attempts, attempt)
+		}
+		waitBeforeRetry(retryDelayMillis)
+		retryDelayMillis = (retryDelayMillis * 2L).coerceAtMost(maxRetryDelayMillis)
+	}
+}
+
+internal suspend fun runAutomaticControlContainmentAttempt(
+	startImmediateCleanup: () -> Deferred<AutomaticControlRecoveryResult>,
+	establishRetryOwnership: () -> Unit,
+): AutomaticControlContainmentAttemptResult {
+	var cleanupFailure: Exception? = null
+	val cleanup = try {
+		startImmediateCleanup()
+	} catch (cancellation: CancellationException) {
+		throw cancellation
+	} catch (error: Exception) {
+		cleanupFailure = error
+		null
+	}
+
+	var retryOwnershipFailure: Exception? = null
+	val retryOwnershipEstablished = try {
+		establishRetryOwnership()
+		true
+	} catch (cancellation: CancellationException) {
+		throw cancellation
+	} catch (error: Exception) {
+		retryOwnershipFailure = error
+		false
+	}
+
+	val cleanupResult = try {
+		cleanup?.await()
+	} catch (cancellation: CancellationException) {
+		throw cancellation
+	} catch (error: Exception) {
+		cleanupFailure = error
+		null
+	}
+	return AutomaticControlContainmentAttemptResult(
+		cleanupResult = cleanupResult,
+		retryOwnershipEstablished = retryOwnershipEstablished,
+		cleanupFailure = cleanupFailure,
+		retryOwnershipFailure = retryOwnershipFailure,
+	)
+}
+
+internal suspend fun reconcileUnavailableAutomaticControl(
+	availability: AutomaticTrackingOperationalAvailability,
+	reconcileDisabled: suspend () -> ActivityRegistrationResult,
+): AutomaticControlRecoveryResult? {
+	if (availability.isOperational) return null
+	return automaticControlDisabledRecoveryResult(reconcileDisabled())
 }
 
 private data class ActivityAutomationAuthoritySnapshot(
@@ -1300,6 +1596,11 @@ internal enum class AutoTrackingPreferenceAction { NONE, ENABLE, DISABLE, REINIT
 
 internal fun effectiveAutomaticControlMode(configuredMode: Int, controlEligible: Boolean): Int =
 	configuredMode.takeIf { controlEligible } ?: GroupedActivity.STILL.ordinal
+
+internal fun effectiveAutomaticControlEligibility(
+	controlConsentEligible: Boolean,
+	availability: AutomaticTrackingOperationalAvailability,
+): Boolean = controlConsentEligible && availability.isOperational
 
 internal fun automaticControlAuthorityChanged(
 	previousPolicyRevision: Long?,

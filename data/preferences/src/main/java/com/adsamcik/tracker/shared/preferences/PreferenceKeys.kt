@@ -1,6 +1,11 @@
 package com.adsamcik.tracker.shared.preferences
 
 object PreferenceKeys {
+    const val AMBIENT_LOCATION_ENABLED_DEFAULT = false
+    const val AMBIENT_STEPS_ENABLED_DEFAULT = false
+    const val AMBIENT_WIFI_ENABLED_DEFAULT = false
+    const val AMBIENT_CELL_ENABLED_DEFAULT = false
+
     const val ACTIVITY_ENABLED = "trackingActivityEnabled"
     const val ACTIVITY_ENABLED_DEFAULT = true
 

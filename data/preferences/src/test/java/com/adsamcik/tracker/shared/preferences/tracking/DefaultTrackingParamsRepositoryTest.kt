@@ -126,22 +126,79 @@ class DefaultTrackingParamsRepositoryTest {
     }
 
 	@Test
-	fun `ambient steps is default off and persists independently from session steps`() = runTest {
+	fun `approved ambient intents are default off and persist independently from capture`() = runTest {
 		val repo = DefaultTrackingParamsRepository(context, Dispatchers.IO)
 
-		assertFalse(repo.data.first().ambientStepsEnabled)
+		val defaults = repo.data.first()
+		assertFalse(defaults.ambientLocationEnabled)
+		assertFalse(defaults.ambientStepsEnabled)
+		assertFalse(defaults.ambientWifiEnabled)
+		assertFalse(defaults.ambientCellEnabled)
+		repo.setAmbientLocationEnabled(true)
 		repo.setAmbientStepsEnabled(true)
+		repo.setAmbientWifiEnabled(true)
+		repo.setAmbientCellEnabled(true)
+		repo.setLocationEnabled(false)
 		repo.setStepsEnabled(false)
+		repo.setWifiEnabled(false)
+		repo.setCellEnabled(false)
 
 		val enabled = repo.data.first()
+		assertTrue(enabled.ambientLocationEnabled)
 		assertTrue(enabled.ambientStepsEnabled)
+		assertTrue(enabled.ambientWifiEnabled)
+		assertTrue(enabled.ambientCellEnabled)
+		assertFalse(enabled.locationEnabled)
 		assertFalse(enabled.stepsEnabled)
+		assertFalse(enabled.wifiEnabled)
+		assertFalse(enabled.cellEnabled)
+		assertTrue(readTrackingProto().ambientLocationEnabled)
 		assertTrue(readTrackingProto().ambientStepsEnabled)
+		assertTrue(readTrackingProto().ambientWifiEnabled)
+		assertTrue(readTrackingProto().ambientCellEnabled)
 
+		repo.setAmbientLocationEnabled(false)
 		repo.setAmbientStepsEnabled(false)
-		assertFalse(repo.data.first().ambientStepsEnabled)
+		repo.setAmbientWifiEnabled(false)
+		repo.setAmbientCellEnabled(false)
+		val disabled = repo.data.first()
+		assertFalse(disabled.ambientLocationEnabled)
+		assertFalse(disabled.ambientStepsEnabled)
+		assertFalse(disabled.ambientWifiEnabled)
+		assertFalse(disabled.ambientCellEnabled)
+		assertFalse(readTrackingProto().ambientLocationEnabled)
 		assertFalse(readTrackingProto().ambientStepsEnabled)
+		assertFalse(readTrackingProto().ambientWifiEnabled)
+		assertFalse(readTrackingProto().ambientCellEnabled)
 	}
+
+	@Test
+	fun `version two proto migration preserves ambient Steps and defaults new ambient intents off`() =
+		runTest {
+			writeTrackingProto(
+				TrackingParamsProto.newBuilder()
+					.setLegacyMigrated(true)
+					.setSourceSettingsVersion(2)
+					.setAmbientLocationEnabled(true)
+					.setAmbientStepsEnabled(true)
+					.setAmbientWifiEnabled(true)
+					.setAmbientCellEnabled(true)
+					.build(),
+			)
+
+			val state = DefaultTrackingParamsRepository(context, Dispatchers.IO).data.first()
+
+			assertFalse(state.ambientLocationEnabled)
+			assertTrue(state.ambientStepsEnabled)
+			assertFalse(state.ambientWifiEnabled)
+			assertFalse(state.ambientCellEnabled)
+			val persisted = readTrackingProto()
+			assertEquals(TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION, persisted.sourceSettingsVersion)
+			assertFalse(persisted.ambientLocationEnabled)
+			assertTrue(persisted.ambientStepsEnabled)
+			assertFalse(persisted.ambientWifiEnabled)
+			assertFalse(persisted.ambientCellEnabled)
+		}
 
     @Test
     fun `shared preferences upgrade maps every legacy source to an explicit frequency`() = runTest {

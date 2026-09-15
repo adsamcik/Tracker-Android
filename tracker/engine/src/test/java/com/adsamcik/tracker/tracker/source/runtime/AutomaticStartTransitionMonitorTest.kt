@@ -9,6 +9,7 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationSnapsh
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.stats.api.DetectedActivityType
+import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
 import io.kotest.assertions.throwables.shouldThrow
@@ -41,6 +42,7 @@ class AutomaticStartTransitionMonitorTest {
 			useTransitionApi = false,
 			continuousIntervalSeconds = 5,
 			transitions = setOf(walkingEnter()),
+			controlAvailability = AutomaticTrackingOperationalAvailability.Ready,
 		)
 
 		coVerify(exactly = 1) {
@@ -73,6 +75,7 @@ class AutomaticStartTransitionMonitorTest {
 			useTransitionApi = true,
 			continuousIntervalSeconds = 30,
 			transitions = emptySet(),
+			controlAvailability = AutomaticTrackingOperationalAvailability.Ready,
 		)
 
 		coVerify(exactly = 1) {
@@ -82,6 +85,52 @@ class AutomaticStartTransitionMonitorTest {
 		coVerify(exactly = 0) { activityProjectionLane.ensureRegisteredAtLiveTail() }
 		result.status shouldBe ActivityRegistrationStatus.BLOCKED
 	}
+
+	@Test
+	fun `unapproved control retention policy clears demand without registering Activity control`() =
+		runTest {
+			coEvery {
+				broker.replaceAutomaticControlDemand(
+					any(),
+					any(),
+					false,
+					any(),
+					any(),
+					any(),
+					any(),
+					any(),
+				)
+			} returns null
+			coEvery {
+				arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+			} returns cleared()
+
+			val result = subject.reconcile(
+				enabled = true,
+				useTransitionApi = true,
+				continuousIntervalSeconds = 30,
+				transitions = setOf(walkingEnter()),
+			)
+
+			coVerify(exactly = 1) {
+				broker.replaceAutomaticControlDemand(
+					any(),
+					SourceKind.ACTIVITY,
+					false,
+					any(),
+					any(),
+					any(),
+					any(),
+					any(),
+				)
+			}
+			coVerify(exactly = 1) {
+				arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+			}
+			coVerify(exactly = 0) { activityProjectionLane.ensureRegisteredAtLiveTail() }
+			coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
+			result.status shouldBe ActivityRegistrationStatus.BLOCKED
+		}
 
 	@Test
 	fun `rollout-contained automatic demand clears the provider owner`() = runTest {
@@ -94,6 +143,7 @@ class AutomaticStartTransitionMonitorTest {
 			useTransitionApi = true,
 			continuousIntervalSeconds = 30,
 			transitions = setOf(walkingEnter()),
+			controlAvailability = AutomaticTrackingOperationalAvailability.Ready,
 		)
 
 		coVerify(exactly = 1) { arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR) }
@@ -115,6 +165,7 @@ class AutomaticStartTransitionMonitorTest {
 			useTransitionApi = true,
 			continuousIntervalSeconds = 30,
 			transitions = setOf(transition),
+			controlAvailability = AutomaticTrackingOperationalAvailability.Ready,
 		)
 
 		coVerifyOrder {
@@ -149,6 +200,7 @@ class AutomaticStartTransitionMonitorTest {
 				useTransitionApi = true,
 				continuousIntervalSeconds = 30,
 				transitions = setOf(walkingEnter()),
+				controlAvailability = AutomaticTrackingOperationalAvailability.Ready,
 			)
 		}
 

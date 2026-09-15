@@ -122,7 +122,8 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
         uiState = uiState,
         onPresetSelected = { trackingVm.applyPreset(it) },
         onAutoTrackingModeChanged = { mode ->
-            if (mode > 0 && !uiState.activityPermissionGranted &&
+            if (mode > 0 && uiState.automaticControlAvailability.isOperational &&
+				!uiState.activityPermissionGranted &&
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
             ) {
                 pendingAutoTrackingMode = mode
@@ -156,6 +157,10 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
             }
         },
         onBarometerEnabledChanged = { trackingVm.setBarometerEnabled(it) },
+		onAmbientLocationEnabledChanged = { trackingVm.setAmbientLocationEnabled(it) },
+		onAmbientStepsEnabledChanged = { trackingVm.setAmbientStepsEnabled(it) },
+		onAmbientWifiEnabledChanged = { trackingVm.setAmbientWifiEnabled(it) },
+		onAmbientCellEnabledChanged = { trackingVm.setAmbientCellEnabled(it) },
         onAdvancedSourceControlsChanged = { trackingVm.setAdvancedSourceControlsEnabled(it) },
         onSourceFrequencyChanged = trackingVm::setSourceFrequency,
         onWifiEnabledChanged = { enabled ->
@@ -200,6 +205,10 @@ internal fun TrackingSettingsContent(
     onActivityEnabledChanged: (Boolean) -> Unit = {},
     onStepsEnabledChanged: (Boolean) -> Unit = {},
     onBarometerEnabledChanged: (Boolean) -> Unit = {},
+	onAmbientLocationEnabledChanged: (Boolean) -> Unit = {},
+	onAmbientStepsEnabledChanged: (Boolean) -> Unit = {},
+	onAmbientWifiEnabledChanged: (Boolean) -> Unit = {},
+	onAmbientCellEnabledChanged: (Boolean) -> Unit = {},
     onWifiEnabledChanged: (Boolean) -> Unit = {},
     onCellEnabledChanged: (Boolean) -> Unit = {},
     onAdvancedSourceControlsChanged: (Boolean) -> Unit = {},
@@ -307,7 +316,10 @@ internal fun TrackingSettingsContent(
                 onModeSelected = onAutoTrackingModeChanged,
             )
         }
-        if (uiState.autoTrackingEnabled && uiState.locationEnabled &&
+		item {
+			AutomaticTrackingAvailabilityCard(uiState)
+		}
+        if (uiState.automaticTrackingOperational && uiState.locationEnabled &&
             uiState.permissionCapabilities.isManualLocationOnly
         ) {
             item {
@@ -330,7 +342,7 @@ internal fun TrackingSettingsContent(
                 }
             }
         }
-        if (uiState.autoTrackingEnabled) {
+        if (uiState.automaticTrackingOperational) {
             item {
                 SwitchSettingsItemWithHelp(
                     title = stringResource(com.adsamcik.tracker.R.string.settings_transition_detection_friendly_title),
@@ -470,6 +482,21 @@ internal fun TrackingSettingsContent(
                 }
             }
         }
+		item {
+			SectionHeader(
+				stringResource(com.adsamcik.tracker.R.string.settings_tracking_section_ambient),
+				icon = Icons.AutoMirrored.Filled.DirectionsWalk,
+			)
+		}
+		item {
+			AmbientSourcePurposeSettings(
+				uiState = uiState,
+				onLocationEnabledChanged = onAmbientLocationEnabledChanged,
+				onStepsEnabledChanged = onAmbientStepsEnabledChanged,
+				onWifiEnabledChanged = onAmbientWifiEnabledChanged,
+				onCellEnabledChanged = onAmbientCellEnabledChanged,
+			)
+		}
         item {
             SettingsGroupCard(modifier = Modifier.padding(top = 8.dp)) {
                 SettingsItem(

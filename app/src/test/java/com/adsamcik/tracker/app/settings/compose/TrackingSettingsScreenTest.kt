@@ -1,7 +1,11 @@
 package com.adsamcik.tracker.app.settings.compose
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -27,6 +31,13 @@ import com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorMetric
 import com.adsamcik.tracker.tracker.source.coordinator.SemanticAcquisitionPlanFactory
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanEnvironment
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
+import com.adsamcik.tracker.tracker.api.AmbientAcquisitionMechanism
+import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
+import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalState
+import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
+import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import io.kotest.matchers.shouldBe
 import org.junit.Rule
@@ -58,6 +69,8 @@ class TrackingSettingsScreenTest {
         cellEnabled = false,
         autoTrackingMode = 1,
         autoTrackingEnabled = true,
+		automaticTrackingOperational = true,
+		automaticControlAvailability = AutomaticTrackingOperationalAvailability.Ready,
         transitionDetectionEnabled = true,
         notificationStyled = true,
         minDistance = 10,
@@ -160,6 +173,35 @@ class TrackingSettingsScreenTest {
 
         selectedMode shouldBe 2
     }
+
+	@Test
+	fun automaticIntentShowsStablePolicyUnavailableStatusWithoutOperationalControls() {
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(
+					uiState = defaultUiState.copy(
+						automaticTrackingOperational = false,
+						automaticControlAvailability =
+							AutomaticTrackingOperationalAvailability.Unavailable(
+								AutomaticTrackingUnavailableReason
+									.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+							),
+					),
+				)
+			}
+		}
+
+		scrollTo("Automatic tracking isn’t available")
+		composeTestRule.onNodeWithTag("automaticTrackingUnavailable").assertIsDisplayed()
+		composeTestRule.onNodeWithText(
+			"CONTROL_RETENTION_POLICY_UNAVAILABLE",
+			substring = true,
+		).assertIsDisplayed()
+		composeTestRule.onNodeWithText("Manual tracking is unchanged.", substring = true)
+			.assertIsDisplayed()
+		composeTestRule.onNodeWithText("Battery-efficient motion detection", substring = true)
+			.assertDoesNotExist()
+	}
 
     @Test
     fun transitionDetectionIsHiddenWhenAutomaticTrackingIsDisabled() {
@@ -265,6 +307,211 @@ class TrackingSettingsScreenTest {
         scrollTo("Barometer")
         composeTestRule.onNodeWithText("Barometer").assertIsDisplayed()
     }
+
+	@Test
+	fun ambientSourceSettingsAreIndependentDefaultOffSwitchesWithGapAndRetentionCopy() {
+		composeTestRule.setContent {
+			AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
+		}
+
+		mapOf(
+			"steps" to "Steps outside trips",
+			"location" to "Location outside trips",
+			"wifi" to "Wi-Fi outside trips",
+			"cell" to "Cell outside trips",
+		).forEach { (source, title) ->
+			scrollTo(title)
+			composeTestRule.onNodeWithTag("ambientSource-$source")
+				.assertIsDisplayed()
+				.assertIsOff()
+		}
+		scrollTo("does not promise a provider")
+		composeTestRule.onNodeWithText("does not promise a provider", substring = true)
+			.assertIsDisplayed()
+		scrollTo("does not claim always-on collection")
+		composeTestRule.onNodeWithTag("ambientRetentionExplanation").assertIsDisplayed()
+		composeTestRule.onNodeWithText(
+			"Current collection status is waiting for source-owner reconciliation",
+			substring = true,
+		).assertIsDisplayed()
+		composeTestRule.onNodeWithText(
+			"Collection stays off because the product retention policy",
+			substring = true,
+		).assertDoesNotExist()
+	}
+
+	@Test
+	fun ambientToggleChangesOnlySavedIntentAndAnnouncesUnavailableOperationalState() {
+		var requested: Boolean? = null
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(
+					uiState = defaultUiState.copy(ambientStepsEnabled = true),
+					onAmbientStepsEnabledChanged = { requested = it },
+				)
+			}
+		}
+
+		scrollTo("Steps outside trips")
+		composeTestRule.onNodeWithTag("ambientSource-steps")
+			.assertIsOn()
+			.assert(hasStateDescription("Saved on; not operational"))
+			.performClick()
+		requested shouldBe false
+		composeTestRule.onNodeWithText(
+			"Waiting for the source owner",
+			substring = true,
+		).assertIsDisplayed()
+	}
+
+	@Test
+	fun actualRuntimeRetentionFailureIsDistinctFromPendingDefault() {
+		val availability = defaultUiState.ambientSourceAvailability +
+			(
+				AmbientTrackingSource.STEPS to AmbientSourceOperationalAvailability(
+					source = AmbientTrackingSource.STEPS,
+					state = AmbientSourceOperationalState.UNAVAILABLE,
+					reason = AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+				)
+			)
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(
+					uiState = defaultUiState.copy(
+						ambientStepsEnabled = true,
+						ambientSourceAvailability = availability,
+					),
+				)
+			}
+		}
+
+		scrollTo("retention policy is not yet available")
+		composeTestRule.onNodeWithText(
+			"retention policy is not yet available",
+			substring = true,
+		).assertIsDisplayed()
+	}
+
+	@Test
+	fun missingHealthConnectGrantNeverAdvertisesLocalRecordingFallback() {
+		val availability = defaultUiState.ambientSourceAvailability +
+			(
+				AmbientTrackingSource.STEPS to AmbientSourceOperationalAvailability(
+					source = AmbientTrackingSource.STEPS,
+					state = AmbientSourceOperationalState.PERMISSION_REQUIRED,
+					mechanism = AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+					reason =
+						AmbientSourceUnavailableReason.HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED,
+				)
+			)
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(
+					uiState = defaultUiState.copy(
+						ambientStepsEnabled = true,
+						ambientSourceAvailability = availability,
+					),
+				)
+			}
+		}
+
+		scrollTo("Grant Steps access in Health Connect")
+		composeTestRule.onNodeWithText(
+			"will not silently switch to Local Recording",
+			substring = true,
+		).assertIsDisplayed()
+	}
+
+	@Test
+	fun localRecordingReadinessExplainsThatHealthConnectIsGenuinelyUnavailable() {
+		val availability = defaultUiState.ambientSourceAvailability +
+			(
+				AmbientTrackingSource.STEPS to AmbientSourceOperationalAvailability(
+					source = AmbientTrackingSource.STEPS,
+					state = AmbientSourceOperationalState.READY,
+					mechanism = AmbientAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+				)
+			)
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(
+					uiState = defaultUiState.copy(
+						ambientStepsEnabled = true,
+						ambientSourceAvailability = availability,
+					),
+				)
+			}
+		}
+
+		scrollTo("Health Connect is genuinely unavailable")
+		composeTestRule.onNodeWithText(
+			"Local Recording is ready",
+			substring = true,
+		).assertIsDisplayed()
+	}
+
+	@Test
+	fun HealthConnectForegroundReadyStateExplainsOptionalBackgroundGaps() {
+		val availability = defaultUiState.ambientSourceAvailability +
+			(
+				AmbientTrackingSource.STEPS to AmbientSourceOperationalAvailability(
+					source = AmbientTrackingSource.STEPS,
+					state = AmbientSourceOperationalState.DEGRADED,
+					mechanism = AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+					reason =
+						AmbientSourceUnavailableReason
+							.HEALTH_CONNECT_BACKGROUND_PERMISSION_OPTIONAL,
+				)
+			)
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(
+					uiState = defaultUiState.copy(
+						ambientStepsEnabled = true,
+						ambientSourceAvailability = availability,
+					),
+				)
+			}
+		}
+
+		scrollTo("Optional background access may reduce gaps")
+		composeTestRule.onNodeWithTag("ambientSource-steps")
+			.assert(hasStateDescription("Saved on; operational availability reported"))
+		composeTestRule.onNodeWithText(
+			"does not promise a cadence",
+			substring = true,
+		).assertIsDisplayed()
+	}
+
+	@Test
+	fun unsupportedHealthConnectDoesNotClaimAmbientStepsAreOperational() {
+		val availability = defaultUiState.ambientSourceAvailability +
+			(
+				AmbientTrackingSource.STEPS to AmbientSourceOperationalAvailability(
+					source = AmbientTrackingSource.STEPS,
+					state = AmbientSourceOperationalState.UNAVAILABLE,
+					reason = AmbientSourceUnavailableReason.HEALTH_CONNECT_UNAVAILABLE,
+				)
+			)
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(
+					uiState = defaultUiState.copy(
+						ambientStepsEnabled = true,
+						ambientSourceAvailability = availability,
+					),
+				)
+			}
+		}
+
+		scrollTo("Health Connect mobile Steps is unavailable")
+		composeTestRule.onNodeWithTag("ambientSource-steps")
+			.assert(hasStateDescription("Saved on; not operational"))
+		composeTestRule.onNodeWithText(
+			"no approved continuity provider is ready",
+			substring = true,
+		).assertIsDisplayed()
+	}
 
     @Test
     fun effectiveStatusExplainsThatIdlePreviewIsNotAnAppliedPlan() {

@@ -35,6 +35,10 @@ import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
+import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
+import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -57,6 +61,12 @@ data class TrackingSettingsUiState(
     val wifiEnabled: Boolean = true,
     val cellEnabled: Boolean = false,
     val barometerEnabled: Boolean = true,
+	val ambientLocationEnabled: Boolean = false,
+	val ambientStepsEnabled: Boolean = false,
+	val ambientWifiEnabled: Boolean = false,
+	val ambientCellEnabled: Boolean = false,
+	val ambientSourceAvailability: Map<AmbientTrackingSource, AmbientSourceOperationalAvailability> =
+		TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.ambientSources,
     val barometerAvailable: Boolean = true,
     val activityPermissionGranted: Boolean = false,
     val stepCounterAvailable: Boolean = true,
@@ -65,6 +75,10 @@ data class TrackingSettingsUiState(
     val permissionCapabilities: TrackingPermissionCapabilities = TrackingPermissionCapabilities.denied(),
     val autoTrackingMode: Int = 0,
     val autoTrackingEnabled: Boolean = false,
+	val automaticTrackingOperational: Boolean = false,
+	val automaticTrackingPermissionRequired: Boolean = false,
+	val automaticControlAvailability: AutomaticTrackingOperationalAvailability =
+		TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.automaticControl,
     val transitionDetectionEnabled: Boolean = true,
     val notificationStyled: Boolean = true,
     val minDistance: Int = 10,
@@ -104,7 +118,7 @@ class TrackingSettingsViewModel @Inject constructor(
             combine(
                 trackingParamsRepository.data,
                 trackingStatusProvider.runtimeStatus,
-            ) { params, runtimeStatus -> params to runtimeStatus }
+			) { params, runtimeStatus -> params to runtimeStatus }
                 .collect { (params, runtimeStatus) ->
                 latestParams = params
                 updateUiState(params, runtimeStatus, trackingStatusProvider.telemetry.value)
@@ -175,6 +189,30 @@ class TrackingSettingsViewModel @Inject constructor(
         }
     }
 
+	fun setAmbientLocationEnabled(enabled: Boolean) {
+		viewModelScope.launch {
+			trackingParamsRepository.setAmbientLocationEnabled(enabled)
+		}
+	}
+
+	fun setAmbientStepsEnabled(enabled: Boolean) {
+		viewModelScope.launch {
+			trackingParamsRepository.setAmbientStepsEnabled(enabled)
+		}
+	}
+
+	fun setAmbientWifiEnabled(enabled: Boolean) {
+		viewModelScope.launch {
+			trackingParamsRepository.setAmbientWifiEnabled(enabled)
+		}
+	}
+
+	fun setAmbientCellEnabled(enabled: Boolean) {
+		viewModelScope.launch {
+			trackingParamsRepository.setAmbientCellEnabled(enabled)
+		}
+	}
+
     fun setAdvancedSourceControlsEnabled(enabled: Boolean) {
         viewModelScope.launch {
             trackingParamsRepository.setAdvancedSourceControlsEnabled(enabled)
@@ -224,7 +262,8 @@ class TrackingSettingsViewModel @Inject constructor(
      * The persisted values intentionally match [GroupedActivity] ordinals:
      * STILL (0) disables automation, ON_FOOT (1) starts for walking/running, and
      * IN_VEHICLE (2) accepts all known movement. [BackgroundTrackingApi] observes
-     * this state and immediately reconciles its activity-recognition registration.
+     * this state, but registration remains contained until the separate control-retention policy
+     * availability boundary reports that automatic control is operational.
      */
     fun setAutoTrackingMode(mode: Int) {
         require(mode in AUTO_TRACKING_MODE_DISABLED..AUTO_TRACKING_MODE_ALL_MOVEMENT) {
@@ -232,7 +271,11 @@ class TrackingSettingsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             trackingParamsRepository.update { copy(autoTrackingMode = mode) }
-            activityWatcherController.applyAutoTrackingMode(mode)
+			val effectiveMode = mode.takeIf {
+            	TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.automaticControl.isOperational &&
+            		context.hasActivityPermission
+            } ?: AUTO_TRACKING_MODE_DISABLED
+            activityWatcherController.applyAutoTrackingMode(effectiveMode)
         }
     }
 
@@ -320,6 +363,7 @@ class TrackingSettingsViewModel @Inject constructor(
         runtimeStatus: TrackingRuntimeStatus,
         telemetry: TrackingCoordinatorMetrics,
     ) {
+		val purposeAvailability = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT
         val capabilities = context.trackingPermissionCapabilities(permissionHistory)
         permissionHistory = capabilities.recordGrants(permissionHistory)
         val wifiPermissionGranted = capabilities.hasWifiScanPermissions
@@ -342,6 +386,11 @@ class TrackingSettingsViewModel @Inject constructor(
                 wifiEnabled = params.wifiEnabled,
                 cellEnabled = params.cellEnabled,
                 barometerEnabled = params.barometerEnabled,
+				ambientLocationEnabled = params.ambientLocationEnabled,
+				ambientStepsEnabled = params.ambientStepsEnabled,
+				ambientWifiEnabled = params.ambientWifiEnabled,
+				ambientCellEnabled = params.ambientCellEnabled,
+				ambientSourceAvailability = purposeAvailability.ambientSources,
                 barometerAvailable = barometerAvailable,
                 activityPermissionGranted = activityPermissionGranted,
                 stepCounterAvailable = stepCounterAvailable,
@@ -350,6 +399,13 @@ class TrackingSettingsViewModel @Inject constructor(
                 permissionCapabilities = capabilities,
                 autoTrackingMode = params.autoTrackingMode,
                 autoTrackingEnabled = params.autoTrackingMode > 0,
+				automaticTrackingOperational = params.autoTrackingMode > 0 &&
+					purposeAvailability.automaticControl.isOperational &&
+					activityPermissionGranted,
+				automaticTrackingPermissionRequired = params.autoTrackingMode > 0 &&
+					purposeAvailability.automaticControl.isOperational &&
+					!activityPermissionGranted,
+				automaticControlAvailability = purposeAvailability.automaticControl,
                 transitionDetectionEnabled = params.transitionDetectionEnabled,
                 notificationStyled = params.notificationStyled,
                 minDistance = params.minDistanceMeters,
