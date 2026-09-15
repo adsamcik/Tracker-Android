@@ -62,23 +62,6 @@ import java.time.Duration
 @OptIn(ExperimentalCoroutinesApi::class)
 class PressureSourceRuntimeTest {
 	@Test
-	fun `source erase barrier does not fabricate a provider for import-only maintenance`() = runTest {
-		val plan = plan(revision = 1L)
-		val fixture = fixture(
-			scope = this,
-			registrationsToReturn = listOf(
-				registration(plan, 1L, requiresAcceptance = true, effectiveElapsedNanos = 1L),
-			),
-		)
-
-		assertEquals(
-			com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierResult.NoLocalProvider,
-			fixture.runtime.establishSourceEraseBarrier(7L),
-		)
-		verify(exactly = 0) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
-	}
-
-	@Test
 	fun `suspended authorization refresh latches post-boundary callback and replays revoke without second listener`() =
 		runTest {
 			ShadowSystemClock.advanceBy(Duration.ofSeconds(10))

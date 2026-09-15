@@ -1,8 +1,6 @@
 package com.adsamcik.tracker.tracker.source.deletion
 
 import com.adsamcik.tracker.stats.api.repository.PressureSessionDeletion
-import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrier
-import com.adsamcik.tracker.tracker.source.pressure.RuntimePressureSourceEraseBarrier
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -15,9 +13,4 @@ internal interface PressureDeletionModule {
 	fun bindPressureSessionDeletion(
 		implementation: RoomPressureSelectedSessionDeletionService,
 	): PressureSessionDeletion
-
-	@Binds
-	fun bindPressureSourceEraseBarrier(
-		implementation: RuntimePressureSourceEraseBarrier,
-	): PressureSourceEraseBarrier
 }
