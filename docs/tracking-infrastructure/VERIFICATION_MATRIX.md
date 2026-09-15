@@ -2,6 +2,22 @@
 
 Last updated: 2026-09-15
 
+## TI-B320 - Wi-Fi full-clear regression sources, adversarial review pending
+
+- Input: `f0eb2d59ec935855ba33072d1392338402a2e772` on
+  `codex/ti-wifi-full-clear-20260915`, baseline `13ca528ccb`; TODO-HANDOVER-20260915-007.
+- Changed production: AppDatabase dependent-first clear call and WifiCapturedFactDao's explicit
+  dependent-revision delete. Ordinary self-FK RESTRICT remains, with no schema/migration change.
+- Authored `core\base\src\test\java\com\adsamcik\tracker\shared\base\database\WifiCapturedFullClearTest.kt`:
+  valid owner/coverage graph, FK restriction, both full-clear overloads, repeated clear/reopen,
+  epoch/WAL-high-water authority, no resurrection and transaction rollback.
+- Disposition: **IMPLEMENTED_UNVALIDATED**, independent adversarial static review pending.
+  No compilation, test, Gradle, schema, diff-check, device, CI or other execution gate ran.
+- Deferred only after authorized frozen final convergence:
+  `.\gradlew.bat :core:base:testDebugUnitTest --tests "com.adsamcik.tracker.shared.base.database.WifiCapturedFullClearTest"`.
+- Exact production/test paths and integration status are in IMPLEMENTATION_STATUS.md; this
+  authored-source entry does not establish passing behavior or whole-source completion.
+
 ## TI-B319 - Location WAL byte and membership regression sources authored
 
 - Input: `57073947f8fa77021b75f5c16eff6bb15d78e0e5`,

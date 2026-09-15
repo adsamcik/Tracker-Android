@@ -13,7 +13,7 @@ All three implementation worktrees started clean from that local baseline:
 
 | Slice | Branch / worktree suffix | Exclusive production ownership | Current disposition |
 | --- | --- | --- | --- |
-| 007 | `codex/ti-wifi-full-clear-20260915` / `.worktrees\ti-wifi-full-clear-20260915` | AppDatabase and WifiCapturedFactDao | Implementation and regression-source authorship in progress |
+| 007 | `codex/ti-wifi-full-clear-20260915` / `.worktrees\ti-wifi-full-clear-20260915` | AppDatabase and WifiCapturedFactDao | `f0eb2d59ec935855ba33072d1392338402a2e772` implemented; adversarial static review pending |
 | 008 | `codex/ti-legacy-radio-retention-20260915` / `.worktrees\ti-legacy-radio-retention-20260915` | DataRetentionWorker and exact app constructor callers | Implementation and regression-source authorship in progress |
 | 009 | `codex/ti-factless-steps-history-20260915` / `.worktrees\ti-factless-steps-history-20260915` | Source-aware Steps history and its candidate-query seam | Implementation and regression-source authorship in progress |
 
@@ -21,6 +21,14 @@ Each slice gets a separate adversarial static review of its committed production
 The parent serializes any shared interface correction and local merges, then records exact source
 and integration commits. This wave does not authorize execution or complete the larger assembly:
 **IMPLEMENTATION_ONLY / IMPLEMENTED_UNVALIDATED**, with every frozen-convergence command deferred.
+
+Slice 007's committed paths are
+`core\base\src\main\java\com\adsamcik\tracker\shared\base\database\AppDatabase.kt`,
+`core\base\src\main\java\com\adsamcik\tracker\shared\base\database\dao\WifiCapturedFactDao.kt`,
+and `core\base\src\test\java\com\adsamcik\tracker\shared\base\database\WifiCapturedFullClearTest.kt`.
+It adds dependent-first Wi-Fi full-clear ordering without changing the self-FK. Authored source
+covers both full-clear overloads, repeated clear/reopen, epoch/high-water persistence and rollback.
+TI-B320 records the deferred command. No adversarial acceptance or local merge is claimed yet.
 
 ## September 15 receiving continuation - Location WAL payload preflight
 
