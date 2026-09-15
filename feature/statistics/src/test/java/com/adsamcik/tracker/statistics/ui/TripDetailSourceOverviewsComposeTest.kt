@@ -60,7 +60,7 @@ class TripDetailSourceOverviewsComposeTest {
 			text(R.string.trip_detail_activity_active_time),
 			text(R.string.trip_detail_activity_coverage_partial),
 			text(R.string.trip_detail_activity_walking),
-			text(R.string.trip_detail_activity_confidence_sampled, 70, 90, 3),
+			pluralText(R.plurals.trip_detail_activity_confidence_sampled, 3, 70, 90, 3),
 			text(R.string.trip_detail_activity_known_gap),
 			text(R.string.trip_detail_activity_gap_provider),
 		).forEach { label ->
@@ -117,7 +117,20 @@ class TripDetailSourceOverviewsComposeTest {
 	}
 
 	@Test
-	fun `Steps-only partial history without a count stays nonnumeric`() {
+	fun `sampled Activity confidence uses singular observation copy`() {
+		composeRule.setContent {
+			MaterialTheme {
+				TripDetailActivityOverview(readyActivity(observationCount = 1))
+			}
+		}
+
+		composeRule.onNodeWithText(
+			pluralText(R.plurals.trip_detail_activity_confidence_sampled, 1, 70, 90, 1),
+		).performScrollTo().assertIsDisplayed()
+	}
+
+	@Test
+	fun `Steps-only partial history with partial coverage stays nonnumeric`() {
 		val history = steps(
 			count = null,
 			evidence = HistoryEvidence.NONE,
@@ -132,6 +145,44 @@ class TripDetailSourceOverviewsComposeTest {
 		composeRule.onNodeWithText(text(R.string.trip_detail_steps_coverage_partial))
 			.assertIsDisplayed()
 		composeRule.onNodeWithText("0").assertDoesNotExist()
+	}
+
+	@Test
+	fun `Steps-only partial history with no coverage does not claim partial coverage`() {
+		val history = steps(
+			count = null,
+			evidence = HistoryEvidence.NONE,
+			productState = HistoryProductState.PARTIAL,
+			coverage = StepsHistoryCoverage.NONE,
+			causes = setOf(StepsHistoryCause.FACTS_MISSING),
+		)
+		renderSteps(history)
+
+		composeRule.onNodeWithText(text(R.string.trip_detail_steps_partial_without_value))
+			.assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_steps_coverage_none))
+			.assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_steps_coverage_partial))
+			.assertDoesNotExist()
+	}
+
+	@Test
+	fun `Steps-only partial history with unknown coverage keeps coverage unavailable`() {
+		val history = steps(
+			count = null,
+			evidence = HistoryEvidence.NONE,
+			productState = HistoryProductState.PARTIAL,
+			coverage = StepsHistoryCoverage.UNKNOWN,
+			causes = setOf(StepsHistoryCause.EVIDENCE_STATE_UNAVAILABLE),
+		)
+		renderSteps(history)
+
+		composeRule.onNodeWithText(text(R.string.trip_detail_steps_partial_without_value))
+			.assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_steps_coverage_unknown))
+			.assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_steps_coverage_partial))
+			.assertDoesNotExist()
 	}
 
 	@Test
@@ -247,7 +298,7 @@ class TripDetailSourceOverviewsComposeTest {
 		}
 	}
 
-	private fun readyActivity() = ActivityHistoryEntry(
+	private fun readyActivity(observationCount: Int = 3) = ActivityHistoryEntry(
 		key = ActivityHistoryEntryKey("activity"),
 		startTime = EpochMs(1_000L),
 		endTime = EpochMs(5_000L),
@@ -273,7 +324,7 @@ class TripDetailSourceOverviewsComposeTest {
 				confidence = ActivityHistoryConfidence.Sampled(
 					minimumPercent = 70,
 					maximumPercent = 90,
-					observationCount = 3,
+					observationCount = observationCount,
 				),
 				wallTimeContinuity = ActivityHistoryWallTimeContinuity.SAME_ANCHOR,
 				durationNanos = 2_000_000_000L,
@@ -329,4 +380,7 @@ class TripDetailSourceOverviewsComposeTest {
 
 	private fun text(id: Int, vararg args: Any): String =
 		RuntimeEnvironment.getApplication().getString(id, *args)
+
+	private fun pluralText(id: Int, quantity: Int, vararg args: Any): String =
+		RuntimeEnvironment.getApplication().resources.getQuantityString(id, quantity, *args)
 }

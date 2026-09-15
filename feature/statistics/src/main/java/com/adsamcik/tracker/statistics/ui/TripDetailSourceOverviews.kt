@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -331,8 +332,9 @@ private fun formatActivityDuration(durationNanos: Long): String =
 private fun ActivityHistoryConfidence.label(): String = when (this) {
 	ActivityHistoryConfidence.TransitionSignal ->
 		stringResource(R.string.trip_detail_activity_confidence_transition)
-	is ActivityHistoryConfidence.Sampled -> stringResource(
-		R.string.trip_detail_activity_confidence_sampled,
+	is ActivityHistoryConfidence.Sampled -> pluralStringResource(
+		R.plurals.trip_detail_activity_confidence_sampled,
+		observationCount,
 		minimumPercent,
 		maximumPercent,
 		observationCount,

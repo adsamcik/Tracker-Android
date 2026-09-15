@@ -109,7 +109,7 @@
     <string name="trip_detail_steps">Steps</string>
     <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Complete coverage</string>
     <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">At least this many · partial coverage</string>
-    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Partial coverage · no trustworthy count available</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Partial history · no trustworthy count available</string>
     <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Unverified: %1$s</string>
     <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Legacy value · completeness unverified</string>
     <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">Updating history…</string>
@@ -168,7 +168,10 @@
     <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">Approximate duration</string>
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Confidence</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Activity transition signal</string>
-    <string name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">About %1$d–%2$d%% from %3$d retained observations</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">About %1$d–%2$d%% from %3$d retained observation</item>
+        <item quantity="other">About %1$d–%2$d%% from %3$d retained observations</item>
+    </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Evidence type</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Refined transition</string>
     <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">Known gap</string>

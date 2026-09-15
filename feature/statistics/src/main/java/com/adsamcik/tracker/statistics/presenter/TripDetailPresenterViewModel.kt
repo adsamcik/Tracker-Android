@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -54,8 +55,14 @@ class TripDetailPresenterViewModel @Inject constructor(
 	private val tripId: Long = requireNotNull(savedStateHandle["tripId"])
 
 	private val events = MutableSharedFlow<TripDetailEvent>(replay = 1)
+	private val _skiSegments = MutableStateFlow<List<SkiRunSegment>>(emptyList())
+	val skiSegments: StateFlow<List<SkiRunSegment>> = _skiSegments.asStateFlow()
+	private val _insights = MutableStateFlow(TripDetailInsights())
+	val insights: StateFlow<TripDetailInsights> = _insights.asStateFlow()
+	private var supplementalDataJob: Job? = null
 
 	val state: StateFlow<TripDetailState> = presenter.present(events)
+		.onEach(::onTripDetailStateChanged)
 		.stateIn(
 			scope = viewModelScope,
 			started = SharingStarted.WhileSubscribed(
@@ -65,13 +72,6 @@ class TripDetailPresenterViewModel @Inject constructor(
 			initialValue = TripDetailState.Loading,
 		)
 
-	private val _skiSegments = MutableStateFlow<List<SkiRunSegment>>(emptyList())
-	val skiSegments: StateFlow<List<SkiRunSegment>> = _skiSegments.asStateFlow()
-
-	private val _insights = MutableStateFlow(TripDetailInsights())
-	val insights: StateFlow<TripDetailInsights> = _insights.asStateFlow()
-	private var supplementalDataJob: Job? = null
-
 	init {
 		events.tryEmit(TripDetailEvent.LoadTrip(tripId))
 	}
@@ -79,13 +79,11 @@ class TripDetailPresenterViewModel @Inject constructor(
 	/** Load optional Location/Ski presentation data only while Trip Detail is composed. */
 	fun loadSupplementalData() {
 		val loaded = state.value as? TripDetailState.Loaded ?: return
-		supplementalDataJob?.cancel()
 		if (!loaded.supportsLocationPresentation || loaded.trip.source == SegmentSource.PORTABLE_STEPS_IMPORT) {
-			// Neither contained source-only facts nor an imported wall envelope own Location/Ski samples.
-			_skiSegments.value = emptyList()
-			_insights.value = TripDetailInsights()
+			clearSupplementalData()
 			return
 		}
+		supplementalDataJob?.cancel()
 		supplementalDataJob = viewModelScope.launch {
 			try {
 				loadSupplementalDataForTrip(loaded)
@@ -93,6 +91,23 @@ class TripDetailPresenterViewModel @Inject constructor(
 				// Supplemental data is optional — don't break trip detail on failure
 			}
 		}
+	}
+
+	private fun onTripDetailStateChanged(state: TripDetailState) {
+		val loaded = state as? TripDetailState.Loaded
+		if (loaded == null ||
+			!loaded.supportsLocationPresentation ||
+			loaded.trip.source == SegmentSource.PORTABLE_STEPS_IMPORT
+		) {
+			clearSupplementalData()
+		}
+	}
+
+	private fun clearSupplementalData() {
+		supplementalDataJob?.cancel()
+		supplementalDataJob = null
+		_skiSegments.value = emptyList()
+		_insights.value = TripDetailInsights()
 	}
 
 	private suspend fun loadSupplementalDataForTrip(loaded: TripDetailState.Loaded) {
