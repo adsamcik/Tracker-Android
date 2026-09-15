@@ -206,19 +206,31 @@ internal class ProtectedLocationCanonicalHandoff(
 				)
 			}
 		}
-		val target = try {
+		val snapshot = try {
 			database.withTransaction {
 				val exact = requireExactLane(lane, lane.contiguousAdmissionOrdinal)
 				val evidence = database.sourceEvidenceStateDao().get()
 					?: throw ProtectedLocationAuthorityChangedException(
 						"SOURCE_EVIDENCE_STATE_MISSING",
 					)
-				minOf(
+				val target = minOf(
 					maxOf(
 						database.sourceEventWalDao().admissionAllocatorHighWater(),
 						evidence.deletedSourceEventHighWaterOrdinal,
 					),
 					exact.captureAdmissionCutoffOrdinal ?: Long.MAX_VALUE,
+				)
+				ProtectedLocationGlobalDrainSnapshot(
+					targetAdmissionOrdinal = target,
+					deletedSourceEventHighWaterOrdinal =
+						evidence.deletedSourceEventHighWaterOrdinal,
+					firstTerminalFailureOrdinal = database.sourceProjectionStateDao()
+						.firstTerminalFailureAfterThrough(
+							WRITER_ID,
+							WRITER_VERSION,
+							lane.contiguousAdmissionOrdinal,
+							target,
+						)?.admissionOrdinal,
 				)
 			}
 		} catch (changed: ProtectedLocationAuthorityChangedException) {
@@ -227,21 +239,49 @@ internal class ProtectedLocationCanonicalHandoff(
 				changed.reason,
 			)
 		}
-		val continuityFailure = database.withTransaction {
+		val continuity = database.withTransaction {
 			verifyGlobalLocationContinuity(
 				afterOrdinal = lane.contiguousAdmissionOrdinal,
-				throughOrdinal = target,
+				throughOrdinal = snapshot.targetAdmissionOrdinal,
 			)
 		}
-		if (continuityFailure != null) return@withLock continuityFailure
-		drainLocked(lane, target, expectedLogicalTrackingId = null, expectedServiceRunId = null)
+		continuity.failure?.let { return@withLock it }
+		val provenTarget = maxOf(
+			lane.contiguousAdmissionOrdinal,
+			minOf(
+				snapshot.targetAdmissionOrdinal,
+				snapshot.deletedSourceEventHighWaterOrdinal,
+			),
+			continuity.highestObservedLocationOrdinal ?: lane.contiguousAdmissionOrdinal,
+			snapshot.firstTerminalFailureOrdinal ?: lane.contiguousAdmissionOrdinal,
+		)
+		val result = drainLocked(
+			lane,
+			provenTarget,
+			expectedLogicalTrackingId = null,
+			expectedServiceRunId = null,
+		)
+		if (result is ProtectedLocationCanonicalDrainResult.Complete &&
+			provenTarget < snapshot.targetAdmissionOrdinal
+		) {
+			ProtectedLocationCanonicalDrainResult.Deferred(
+				lastCommittedOrdinal = result.lastCommittedOrdinal,
+				deferredOrdinal = runCatching {
+					Math.addExact(provenTarget, 1L)
+				}.getOrNull(),
+				reason = "LOCATION_DRAIN_TRAILING_RANGE_UNPROVEN",
+			)
+		} else {
+			result
+		}
 	}
 
 	private suspend fun verifyGlobalLocationContinuity(
 		afterOrdinal: Long,
 		throughOrdinal: Long,
-	): ProtectedLocationCanonicalDrainResult? {
+	): ProtectedLocationGlobalContinuityProof {
 		var pageAfter = afterOrdinal
+		var highestObservedLocationOrdinal: Long? = null
 		val expectedByRegistration =
 			mutableMapOf<ProtectedLocationRegistrationIdentity, Long>()
 		while (pageAfter < throughOrdinal) {
@@ -254,18 +294,24 @@ internal class ProtectedLocationCanonicalHandoff(
 			page.forEach { row ->
 				if (row.sourceKind != SOURCE_LOCATION) return@forEach
 				val logicalTrackingId = row.logicalTrackingId
-					?: return ProtectedLocationCanonicalDrainResult.Failed(
-						afterOrdinal,
-						row.admissionOrdinal,
-						"LOCATION_DRAIN_CONTINUITY_AUTHORITY_MISSING",
-						terminal = true,
+					?: return ProtectedLocationGlobalContinuityProof(
+						highestObservedLocationOrdinal,
+						ProtectedLocationCanonicalDrainResult.Failed(
+							afterOrdinal,
+							row.admissionOrdinal,
+							"LOCATION_DRAIN_CONTINUITY_AUTHORITY_MISSING",
+							terminal = true,
+						),
 					)
 				val serviceRunId = row.serviceRunId
-					?: return ProtectedLocationCanonicalDrainResult.Failed(
-						afterOrdinal,
-						row.admissionOrdinal,
-						"LOCATION_DRAIN_CONTINUITY_AUTHORITY_MISSING",
-						terminal = true,
+					?: return ProtectedLocationGlobalContinuityProof(
+						highestObservedLocationOrdinal,
+						ProtectedLocationCanonicalDrainResult.Failed(
+							afterOrdinal,
+							row.admissionOrdinal,
+							"LOCATION_DRAIN_CONTINUITY_AUTHORITY_MISSING",
+							terminal = true,
+						),
 					)
 				val registration = ProtectedLocationRegistrationIdentity(
 					row.sourceInstanceId,
@@ -283,25 +329,32 @@ internal class ProtectedLocationCanonicalHandoff(
 					)?.sourceSequence
 					?: 0L
 				val expected = runCatching { Math.addExact(previous, 1L) }.getOrNull()
-					?: return ProtectedLocationCanonicalDrainResult.Failed(
-						afterOrdinal,
-						row.admissionOrdinal,
-						"LOCATION_DRAIN_SOURCE_SEQUENCE_OVERFLOW",
-						terminal = true,
+					?: return ProtectedLocationGlobalContinuityProof(
+						highestObservedLocationOrdinal,
+						ProtectedLocationCanonicalDrainResult.Failed(
+							afterOrdinal,
+							row.admissionOrdinal,
+							"LOCATION_DRAIN_SOURCE_SEQUENCE_OVERFLOW",
+							terminal = true,
+						),
 					)
 				if (row.sourceSequence != expected) {
-					return ProtectedLocationCanonicalDrainResult.Failed(
-						afterOrdinal,
-						row.admissionOrdinal,
-						"LOCATION_DRAIN_INTERIOR_SEQUENCE_GAP",
-						terminal = true,
+					return ProtectedLocationGlobalContinuityProof(
+						highestObservedLocationOrdinal,
+						ProtectedLocationCanonicalDrainResult.Failed(
+							afterOrdinal,
+							row.admissionOrdinal,
+							"LOCATION_DRAIN_INTERIOR_SEQUENCE_GAP",
+							terminal = true,
+						),
 					)
 				}
 				expectedByRegistration[registration] = row.sourceSequence
+				highestObservedLocationOrdinal = row.admissionOrdinal
 			}
 			pageAfter = page.last().admissionOrdinal
 		}
-		return null
+		return ProtectedLocationGlobalContinuityProof(highestObservedLocationOrdinal)
 	}
 
 	/**
@@ -2679,6 +2732,17 @@ private sealed interface ProtectedLocationCandidateEffect {
 private data class ProtectedLocationQualifiedCandidate(
 	val command: LocationCapturedFactCommand,
 	val acquisitionMetadata: LocationWalAcquisitionMetadata,
+)
+
+private data class ProtectedLocationGlobalDrainSnapshot(
+	val targetAdmissionOrdinal: Long,
+	val deletedSourceEventHighWaterOrdinal: Long,
+	val firstTerminalFailureOrdinal: Long?,
+)
+
+private data class ProtectedLocationGlobalContinuityProof(
+	val highestObservedLocationOrdinal: Long?,
+	val failure: ProtectedLocationCanonicalDrainResult? = null,
 )
 
 private data class ProtectedLocationRegistrationIdentity(
