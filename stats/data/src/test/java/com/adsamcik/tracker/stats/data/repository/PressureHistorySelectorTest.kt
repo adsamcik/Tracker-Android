@@ -1094,6 +1094,16 @@ class PressureHistorySelectorTest {
 			UnconfinedTestDispatcher(testScheduler),
 		) {}.importEntry(importRequest(local, "same")) shouldBe
 			ImportPortablePressureResult.Applied(1L, 1, 1)
+		val sourcePage = database.withTransaction {
+			sourcePageReader().selectRecentInTransaction(10)
+		} as PressureSourceComposedPage.Available
+		val localRow = sourcePage.rows.single() as PressureSourceComposedRow.Local
+		localRow.portable shouldBe local
+		localRow.recency shouldBe PressureSourceRecency(
+			localRow.logical.recencyMember.segment.startTimeMs,
+			localRow.logical.recencyMember.segment.endTimeMs,
+			local.runs.single().identity,
+		)
 		val emitted = mutableListOf<PortablePressureEntryV1>()
 		val result = RoomExportPortablePressure(
 			PortablePressureRoomReader(database, selector),
@@ -1142,6 +1152,11 @@ class PressureHistorySelectorTest {
 			UnconfinedTestDispatcher(testScheduler),
 		) {}.importEntry(importRequest(divergent, "divergent")) shouldBe
 			ImportPortablePressureResult.Applied(1L, 1, 1)
+		database.withTransaction {
+			sourcePageReader().selectRecentInTransaction(10)
+		} shouldBe PressureSourceComposedPage.Failed(
+			PressureSourceComposedFailure.ORIGIN_CONFLICT,
+		)
 		val emitted = mutableListOf<PortablePressureEntryV1>()
 
 		val result = RoomExportPortablePressure(
@@ -1176,6 +1191,16 @@ class PressureHistorySelectorTest {
 		fromInclusiveMs = RUN_START_MS,
 		toExclusiveMs = REPLACEMENT_RUN_END_MS + 1L,
 	)
+
+	private fun sourcePageReader(): PressureHistoryPageReader {
+		val evaluator = ImportedPressureHistoryEvaluator(database)
+		return PressureHistoryPageReader(
+			database,
+			selector,
+			evaluator,
+			PortablePressureRoomReader(database, selector, evaluator),
+		)
+	}
 
 	private fun importRequest(
 		entry: PortablePressureEntryV1,

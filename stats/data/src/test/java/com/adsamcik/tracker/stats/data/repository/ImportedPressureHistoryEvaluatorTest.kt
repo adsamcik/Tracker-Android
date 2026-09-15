@@ -31,6 +31,7 @@ import com.adsamcik.tracker.stats.api.repository.PortablePressureWindowV1
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.TruncateImportedPressureRetentionRequest
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestCoroutineScheduler
@@ -77,6 +78,80 @@ class ImportedPressureHistoryEvaluatorTest {
 		public.pressure.zoneAuthorities shouldBe setOf("Europe/Prague")
 		database.pressureFactRevisionDao().count() shouldBe 0L
 		database.sourceSessionDao().serviceRun(request.entry.runs.single().identity.value) shouldBe null
+	}
+
+	@Test
+	fun `transaction bridge carries authenticated imported recency and actionable selector`() = runTest {
+		val request = request()
+		importer(database, testScheduler).importEntry(request)
+
+		val page = database.withTransaction {
+			pageReader(database).selectRecentInTransaction(10)
+		} as PressureSourceComposedPage.Available
+		val row = page.rows.single() as PressureSourceComposedRow.Imported
+		val newest = request.entry.runs.maxWith(pressureSourceRecencyRunOrder)
+
+		row.recency shouldBe PressureSourceRecency(
+			newest.startTimeMs,
+			newest.endTimeMs,
+			newest.identity,
+		)
+		row.selection shouldBe PressureImportedSelection.Actionable(
+			request.entry.identity,
+			1L,
+			EPOCH,
+		)
+		row.evaluation::class shouldBe ImportedPressureHistoryEvaluation.Readable::class
+	}
+
+	@Test
+	fun `retained shell bridge uses stored newest member tuple not public envelope`() = runTest {
+		val older = entry(runLocalId = "older-run", windowLocalId = "older-window")
+		val newestRun = PortablePressureRunV1(
+			identity = identity(PortablePressureIdentityKind.PHYSICAL_RUN, "newest-run"),
+			startTimeMs = 2_100L,
+			endTimeMs = 2_200L,
+			capturedForWholeRun = true,
+			availability = PortablePressureAvailability.NO_RETAINED_OBSERVATION,
+			coverage = PortablePressureCoverage.PARTIAL,
+			retentionLoss = true,
+			windows = emptyList(),
+		)
+		val retainedEntry = PortablePressureEntryV1.create(
+			identity = older.identity,
+			startTimeMs = older.startTimeMs,
+			endTimeMs = newestRun.endTimeMs,
+			runs = older.runs + newestRun,
+		)
+		val request = request(retainedEntry)
+		importer(database, testScheduler).importEntry(request)
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 1_100L, 50L) shouldBe 1
+		RoomTruncateImportedPressureRetention(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+			{},
+		).truncate(
+			TruncateImportedPressureRetentionRequest(EPOCH, 1L, 1_100L, 50L),
+		)
+
+		val page = database.withTransaction {
+			pageReader(database).selectRecentInTransaction(10)
+		} as PressureSourceComposedPage.Available
+		val row = page.rows.single() as PressureSourceComposedRow.Imported
+
+		row.recency shouldBe PressureSourceRecency(
+			newestRun.startTimeMs,
+			newestRun.endTimeMs,
+			newestRun.identity,
+		)
+		row.recency.newestMemberStartTimeMs shouldBe 2_100L
+		row.public.startTime.raw shouldBe 1_000L
+		row.selection shouldBe PressureImportedSelection.RetentionBoundary(
+			request.entry.identity,
+			1L,
+			EPOCH,
+		)
+		row.evaluation::class shouldBe ImportedPressureHistoryEvaluation.Retained::class
 	}
 
 	@Test
