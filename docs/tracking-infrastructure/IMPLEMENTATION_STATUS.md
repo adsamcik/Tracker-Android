@@ -13,7 +13,7 @@ All three implementation worktrees started clean from that local baseline:
 
 | Slice | Branch / worktree suffix | Exclusive production ownership | Current disposition |
 | --- | --- | --- | --- |
-| 007 | `codex/ti-wifi-full-clear-20260915` / `.worktrees\ti-wifi-full-clear-20260915` | AppDatabase and WifiCapturedFactDao | `f0eb2d59ec935855ba33072d1392338402a2e772` implemented; adversarial static review pending |
+| 007 | `codex/ti-wifi-full-clear-20260915` / `.worktrees\ti-wifi-full-clear-20260915` | AppDatabase and WifiCapturedFactDao | `f0eb2d59ec` plus `fc1e540f5b135d2485a9267127c4435c5b067356`; focused adversarial correction review pending |
 | 008 | `codex/ti-legacy-radio-retention-20260915` / `.worktrees\ti-legacy-radio-retention-20260915` | DataRetentionWorker and exact app constructor callers | `de2a4ae2f3102ee28b12d332a6f1054f38d7c068` implemented; adversarial static review pending |
 | 009 | `codex/ti-factless-steps-history-20260915` / `.worktrees\ti-factless-steps-history-20260915` | Source-aware Steps history and its candidate-query seam | `b138a23adb3263708028e24267729192b813018a` implemented; adversarial static review pending |
 
@@ -28,7 +28,12 @@ Slice 007's committed paths are
 and `core\base\src\test\java\com\adsamcik\tracker\shared\base\database\WifiCapturedFullClearTest.kt`.
 It adds dependent-first Wi-Fi full-clear ordering without changing the self-FK. Authored source
 covers both full-clear overloads, repeated clear/reopen, epoch/high-water persistence and rollback.
-TI-B320 records the deferred command. No adversarial acceptance or local merge is claimed yet.
+The adversary found no production defect but exposed a weak rollback failure oracle, inconsistent
+fixture WAL/fact references and missing immutable-correction coverage. Test-only correction
+`fc1e540f5b135d2485a9267127c4435c5b067356` requires the injected trigger marker, derives fact
+references from two integrity-qualified WAL rows, and covers A1/A2 plus C1/C2 owner/dependent
+lineages. The same reviewer is assessing that bounded correction; TI-B320 records the deferred
+command. No passing behavior, provider authenticity or local merge is claimed yet.
 
 Slice 008's committed paths are
 `app\src\main\java\com\adsamcik\tracker\maintenance\DataRetentionWorker.kt`,

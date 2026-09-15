@@ -69,8 +69,9 @@ or check the broader assembly/completion items. Test sources are authored, never
 - [ ] TODO-HANDOVER-20260915-007 Fix full-clear Wi-Fi self-FK ordering in AppDatabase and
   WifiCapturedFactDao: remove coverage dependents before aggregate owners without weakening
   ordinary RESTRICT ownership. Author full-clear/reopen and transaction-rollback regressions.
-  Source `f0eb2d59ec935855ba33072d1392338402a2e772` is IMPLEMENTED_UNVALIDATED; adversarial
-  static review and local integration remain pending (TI-B320).
+  Source `f0eb2d59ec935855ba33072d1392338402a2e772` plus test-only adversarial correction
+  `fc1e540f5b135d2485a9267127c4435c5b067356` remain IMPLEMENTED_UNVALIDATED; focused
+  correction review and local integration remain pending (TI-B320).
 - [ ] TODO-HANDOVER-20260915-008 Wire captured Cell/Wi-Fi retention into the legacy
   DataRetentionWorker before pending-signal deferral and shared WAL pruning. Preserve lifecycle
   generation fences and author ordering, failure/cancellation and constructor-call-site sources.

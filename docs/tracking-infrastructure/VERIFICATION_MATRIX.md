@@ -41,12 +41,17 @@ Last updated: 2026-09-15
 
 - Input: `f0eb2d59ec935855ba33072d1392338402a2e772` on
   `codex/ti-wifi-full-clear-20260915`, baseline `13ca528ccb`; TODO-HANDOVER-20260915-007.
+- Test-only adversarial correction: `fc1e540f5b135d2485a9267127c4435c5b067356`.
+  Require the injected late-delete trigger marker rather than arbitrary failure, derive native
+  fact references from two matching integrity-qualified WAL rows (high-water 2, next ordinal 3),
+  and retain A1/A2 plus C1/C2 correction lineages in the clear/reopen fixture.
 - Changed production: AppDatabase dependent-first clear call and WifiCapturedFactDao's explicit
   dependent-revision delete. Ordinary self-FK RESTRICT remains, with no schema/migration change.
 - Authored `core\base\src\test\java\com\adsamcik\tracker\shared\base\database\WifiCapturedFullClearTest.kt`:
   valid owner/coverage graph, FK restriction, both full-clear overloads, repeated clear/reopen,
   epoch/WAL-high-water authority, no resurrection and transaction rollback.
-- Disposition: **IMPLEMENTED_UNVALIDATED**, independent adversarial static review pending.
+- Disposition: **IMPLEMENTED_UNVALIDATED**. Initial adversarial review found no production defect;
+  its three regression-source findings have authored corrections under focused review.
   No compilation, test, Gradle, schema, diff-check, device, CI or other execution gate ran.
 - Deferred only after authorized frozen final convergence:
   `.\gradlew.bat :core:base:testDebugUnitTest --tests "com.adsamcik.tracker.shared.base.database.WifiCapturedFullClearTest"`.
