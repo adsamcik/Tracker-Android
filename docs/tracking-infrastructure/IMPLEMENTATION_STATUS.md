@@ -74,6 +74,42 @@ The assembly gate is still open; per-slice commits and reviews alone cannot clos
   `.\gradlew.bat :feature:import-export:testDebugUnitTest --tests "*FileImportStreamTest" --tests "*ImportJobRunnerTest" --tests "*ImportJobRunnerRoomTransactionTest"`.
   File backends must consume this actual context rather than fabricate a receipt or zero time.
 
+### Source artifacts and held integration inputs
+
+The following are implementation checkpoints, not completion or activation evidence:
+
+| Artifact | Exact source input | Current review/integration boundary |
+| --- | --- | --- |
+| Pressure imported retention/erase | `1dcee8f937771b419afb90cebca5e6a965cdc3ee` + `660e8c9ee864bf8dd9b2d3068f06a4c0e6791f67` | Semantic adversarial review active; runtime `PressureSourceEraseBarrier`, real worker invocation and safe full-clear footprint still required |
+| Ambient Steps portable origin | `876ca17547d6e3d48940d399057ffe121964780b` | Semantic adversarial review active; native/import union, DI/file/worker/product wiring and safe full-clear footprint still required |
+| Activity source/actions/files | rebased `47d3c08e09`, `48a834dd98`, `c5baeecc71`, final `bd5ce4eecdddc3365ceaf05094b38e51b1206584` | Semantic adversarial review active; exact-origin UI/settings invocation still required |
+| Pressure portable files | rebased `27612b5623`, corrected `c57f70f45de41b6f0386e4aa8226b724c199f6dc` | Uses actual durable receipt context; semantic codec/backend review active |
+| Purpose settings/containment | `ed9e1c163e`, `90aa563063`, `d10f4eb4fb`, final `2dd943bd3e12013cc80f183f2ddfe8daa176eeee` | Independent review active; actual runtime availability publication/reconciliation remains a producer dependency |
+| Selected detail | `69571dbf6a2263cafc2807020f42622adbcbdbf3` | Review found false partial-coverage wording, quantity copy and invalid/proxy fixtures; original owner is correcting them |
+
+Coordinator-only `codex/ti-imported-schema-assembly-20260915` provisionally composes the Pressure
+and Ambient Steps source inputs. Parent commit `3baf9e144bc35accac88a7a636e791fa5056b42d`
+registers three Pressure-maintenance and nine imported Ambient Steps entities, the ambient DAO,
+and additive migration DDL. `ImportedSourceSchemaAssemblyTest` authors twelve-table Room/DDL
+column/PK/FK/index comparison and additive-helper idempotence. Independent structural static
+review is closed, but this branch is **held out of dev/v10**: full-clear must not discard the
+value-free identity/deletion footprints and permit old portable input to resurrect.
+
+Coordinator-only `codex/ti-portable-file-assembly-20260915` provisionally composes Activity and
+Pressure file inputs. Parent commit `8e1a01dfcd34cf1c83cf51cce6c3ce33cce0b763` wires the real
+format registry, worker input limits, resources and app picker. Static review exposed the picker's
+hard-coded four-format filtering; Steps/Activity/Pressure are now selectable in a scrollable list.
+Pressure still requires privacy confirmation, but source-specific warning resources no longer
+claim full-precision route coordinates. Exact registry/picker/UI source assertions were authored
+and focused static integration review is closed. This branch remains **held out of dev/v10**
+until the underlying Activity/Pressure semantic findings are settled.
+
+The source-purpose contracts are `TrackingPurposeAvailabilityReader`,
+`TrackingPurposeAvailabilityReporter` and `AmbientSourceReconciliationCallback`. Their safe
+default is explicitly unavailable while retention policy is unapproved. Only actual lifecycle
+reconciliation may publish availability; settings/metadata cannot manufacture provider readiness.
+No schema generation, compilation, test, emulator, CI, push or activation has occurred.
+
 ## Locally integrated receiving seam wave - IMPLEMENTED_UNVALIDATED
 
 The user explicitly requested parallel completion of TODO-HANDOVER-20260915-007/008/009,

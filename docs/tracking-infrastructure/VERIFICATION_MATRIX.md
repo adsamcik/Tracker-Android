@@ -2,6 +2,39 @@
 
 Last updated: 2026-09-15
 
+## TI-B325 - Imported Pressure/Ambient Steps structural assembly held
+
+- Input: coordinator `3baf9e144bc35accac88a7a636e791fa5056b42d`, composing source
+  `660e8c9ee8` and `876ca17547` on `codex/ti-imported-schema-assembly-20260915`.
+- Parent paths: AppDatabase entity/accessor registration, AppDatabaseMigrations helper calls,
+  new ImportedAmbientStepsSchema and ImportedSourceSchemaAssemblyTest in `core\base`.
+- Authored assertions compare all twelve Room/helper table shapes (columns/PK/FK/indexes) and
+  repeat the additive helper without altering an unrelated fixture. Existing source-owned
+  populated-v27/migration/reopen cohorts remain deferred.
+- Independent source-only structural review found matching declarations; no SQL/helper/test
+  execution, schema generation/drift, compilation or KSP occurred.
+- **IMPLEMENTED_UNVALIDATED; NOT INTEGRATION-READY.** Source semantic reviews and full-clear
+  no-resurrection footprints remain unresolved; no blind deletion of safety markers is accepted.
+  Runtime barrier, worker/DI, native/import union and shared product calls still require assembly.
+- Deferred after the full freeze only:
+  `.\gradlew.bat :core:base:testDebugUnitTest --tests "*ImportedSourceSchemaAssemblyTest"`.
+
+## TI-B326 - Portable registry/picker wiring held for source review
+
+- Input: coordinator `8e1a01dfcd34cf1c83cf51cce6c3ce33cce0b763`, composing Activity
+  `bd5ce4eecd` and Pressure `c57f70f45` on `codex/ti-portable-file-assembly-20260915`.
+- Parent paths: FormatRegistry, ImportWorker limits, Exporter warning resource defaults,
+  shared ImportExportComposeActivity, two Pressure warning properties, module resources,
+  app ExportFormatDialog/dedicated strings and associated registry/picker source tests.
+- Focused review exposed unavailable picker entries and an inaccurate generic coordinate
+  warning. The corrected source exposes Steps/Activity/Pressure, preserves confirmation,
+  uses truthful per-source text, and keeps legacy formats' warning behavior unchanged.
+- **IMPLEMENTED_UNVALIDATED.** Focused static integration closure is not source codec/action
+  acceptance; independent semantic reviews remain active and the coordinator branch is held.
+  No compilation, tests, UI/device, schema, Gradle, lint or CI was executed.
+- Deferred after full freeze only:
+  `.\gradlew.bat :feature:import-export:testDebugUnitTest :app:testDebugUnitTest --tests "*FormatRegistryTest" --tests "*ExportFormatDialogTest" --tests "*PortableActivity*" --tests "*PortablePressure*"`.
+
 ## TI-B324 - Durable portable file receipt propagation, source evidence only
 
 - Input: `ba73b7a6f3d3e49c413d54e253ad03802f6ccb59`, local `dev/v10`; TI-D260.
