@@ -3,12 +3,16 @@ package com.adsamcik.tracker.tracker.source.wifi
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIntegrity
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.stats.api.repository.ImportPortableCapturedWifiRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortableCapturedWifiResult
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
@@ -227,6 +231,155 @@ class RoomImportPortableCapturedWifiTest {
 		importer.importEntry(request()) shouldBe ImportPortableCapturedWifiResult.Applied(1L, 1, 1)
 		rowCount("logical_tracking_session") shouldBe 0L
 		rowCount("source_service_run") shouldBe 0L
+	}
+
+	@Test
+	fun `cursorless immutable facts reserve every live identity and scope before admission or replay`() = runTest {
+		val first = request()
+		val importer = importer(testScheduler)
+		val live = nativeRevision("immutable-logical", "immutable-run")
+		database.wifiCapturedFactDao().insertRevision(live).let { (it > 0L) shouldBe true }
+		database.wifiCapturedFactDao().cursorCount() shouldBe 0L
+		database.importedWifiDao().localObservationOwnerCount() shouldBe 1L
+		val liveScope = PortableWifiDeletionScopeDigest(SourceDeletionFenceEntity.logicalServiceRunIdentity(
+			SourceDestinationOwnerEntity.SOURCE_WIFI, "SESSION_CAPTURE", live.logicalTrackingId, live.serviceRunId,
+		))
+		listOf(
+			entry(entryIdentity = identity(PortableWifiIdentityKind.LOGICAL_ENTRY, live.logicalTrackingId)),
+			entry(runLocalId = live.serviceRunId),
+			entry(observation(localId = live.logicalFactId)),
+			entry(deletionScope = liveScope),
+		).forEachIndexed { index, collision ->
+			importer.importEntry(request(collision, receipt("immutable-$index"))) shouldBe
+				ImportPortableCapturedWifiResult.Blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
+		}
+		database.importedWifiDao().entryRevisionCount() shouldBe 0L
+		database.importedWifiDao().receiptCount() shouldBe 0L
+		importer.importEntry(first) shouldBe ImportPortableCapturedWifiResult.Applied(1L, 1, 1)
+		// A newly retained live owner must also defeat an otherwise exact imported replay.
+		val replayOwner = nativeRevision("entry", "replay-run")
+		database.wifiCapturedFactDao().insertRevision(replayOwner).let { (it > 0L) shouldBe true }
+		importer.importEntry(first) shouldBe ImportPortableCapturedWifiResult.Blocked(
+			PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT,
+		)
+		database.importedWifiDao().entryRevisionCount() shouldBe 1L
+		database.importedWifiDao().receiptCount() shouldBe 1L
+		database.wifiCapturedFactDao().revisionCount() shouldBe 2L
+		rowCount("logical_tracking_session") shouldBe 0L
+		rowCount("source_service_run") shouldBe 0L
+	}
+
+	@Test
+	fun `orphan aggregate reference reserves the absent immutable owner identity`() = runTest {
+		val owner = nativeRevision("aggregate-logical", "aggregate-run")
+		val dependent = nativeRevision("aggregate-logical", "aggregate-run", "dependent", owner.logicalFactId)
+		database.wifiCapturedFactDao().insertRevision(owner).let { (it > 0L) shouldBe true }
+		database.wifiCapturedFactDao().insertRevision(dependent).let { (it > 0L) shouldBe true }
+		database.importedWifiDao().localObservationOwnerCount() shouldBe 2L
+		// Deliberate raw-storage corruption: authenticate namespaces without requiring the missing parent.
+		val storage = database.openHelper.writableDatabase
+		storage.setForeignKeyConstraintsEnabled(false)
+		try {
+			storage.execSQL("DELETE FROM wifi_captured_fact_revision WHERE logical_fact_id = ?", arrayOf(owner.logicalFactId))
+		} finally {
+			storage.setForeignKeyConstraintsEnabled(true)
+		}
+		database.wifiCapturedFactDao().revisionCount() shouldBe 1L
+		database.wifiCapturedFactDao().cursorCount() shouldBe 0L
+		database.importedWifiDao().localObservationOwnerCount() shouldBe 2L
+
+		importer(testScheduler).importEntry(request(entry(observation(localId = owner.logicalFactId)))) shouldBe
+			ImportPortableCapturedWifiResult.Blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
+		database.importedWifiDao().entryRevisionCount() shouldBe 0L
+		database.importedWifiDao().receiptCount() shouldBe 0L
+		database.wifiCapturedFactDao().revisionCount() shouldBe 1L
+	}
+
+	@Test
+	fun `immutable union owners are paged boundedly and conflicting ownership fails closed`() = runTest {
+		val dao = database.importedWifiDao()
+		(0..ImportedWifiDao.OWNER_PAGE_SIZE).forEach { index ->
+			database.wifiCapturedFactDao().insertRevision(nativeRevision("paged-logical", "paged-run-$index"))
+				.let { (it > 0L) shouldBe true }
+		}
+		dao.localObservationOwnerCount() shouldBe 257L
+		val first = dao.localObservationOwnerPage(null, ImportedWifiDao.OWNER_PAGE_SIZE)
+		first.size shouldBe 256
+		dao.localObservationOwnerPage(first.last().logicalFactId, ImportedWifiDao.OWNER_PAGE_SIZE).size shouldBe 1
+		importer(testScheduler, WifiImportLimits(maximumGlobalAuthorityRows = 256L)).importEntry(request()) shouldBe
+			ImportPortableCapturedWifiResult.Unverifiable(PortableCapturedWifiImportUnverifiableReason.DEPENDENCY_OVERFLOW)
+		dao.entryRevisionCount() shouldBe 0L
+		importer(testScheduler).importEntry(request()) shouldBe ImportPortableCapturedWifiResult.Applied(1L, 1, 1)
+
+		val repeated = nativeRevision("paged-logical", "paged-run-0", "contradictory")
+		database.wifiCapturedFactDao().insertRevision(repeated).let { (it > 0L) shouldBe true }
+		// Deliberately reuse its raw fact ID under another owner; never skip that reverse authority.
+		database.openHelper.writableDatabase.execSQL(
+			"INSERT INTO wifi_captured_fact_cursor (writer_projection_id, writer_projection_version, " +
+				"logical_fact_id, logical_tracking_id, service_run_id, session_segment_id, " +
+				"writer_owner_generation, collected_data_epoch, scope_deletion_generation, " +
+				"latest_semantic_revision, latest_mutation_id, latest_effect_checksum, " +
+				"latest_source_admission_ordinal, cursor_revision, updated_at_ms) " +
+				"VALUES (?, 1, ?, 'contradictory-logical', 'contradictory-run', 1, 1, ?, 0, 1, 'mutation', ?, 1, 1, 1000)",
+			arrayOf("projection", repeated.logicalFactId, EPOCH, "a".repeat(64)),
+		)
+		importer(testScheduler).importEntry(request()) shouldBe ImportPortableCapturedWifiResult.Unverifiable(
+			PortableCapturedWifiImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		dao.receiptCount() shouldBe 1L
+	}
+
+	@Test
+	fun `all source purpose and opaque fence namespaces are preserved and block reuse`() = runTest {
+		val fences = listOf(
+			SourceDeletionFenceEntity.createLogicalServiceRun(SourceKind.CELL.stableCode,
+				"SESSION_CAPTURE", "cell-logical", "cell-run", 1L, EPOCH, 20L),
+			SourceDeletionFenceEntity.createLogicalServiceRun(SourceDestinationOwnerEntity.SOURCE_WIFI,
+				"CONTROL_CONTINUATION", "control-logical", "control-run", 1L, EPOCH, 20L),
+			SourceDeletionFenceEntity.createLogicalServiceRun(99, "OPAQUE_PURPOSE", "unknown-logical",
+				"unknown-run", 1L, EPOCH, 20L),
+		)
+		fences.forEach { database.sourceDeletionFenceDao().upsert(it) }
+		val importer = importer(testScheduler)
+		fences.forEachIndexed { index, fence ->
+			listOf(
+				entry(entryIdentity = PortableWifiOpaqueIdentity(fence.scopeIdentityDigest)),
+				entry(deletionScope = PortableWifiDeletionScopeDigest(fence.scopeIdentityDigest)),
+			).forEach { collision ->
+				importer.importEntry(request(collision, receipt("fence-$index"))) shouldBe
+					ImportPortableCapturedWifiResult.Blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
+			}
+		}
+		database.importedWifiDao().entryRevisionCount() shouldBe 0L
+		database.importedWifiDao().receiptCount() shouldBe 0L
+		database.importedWifiDao().deletionFenceIdentityOwners(fences.map { it.scopeIdentityDigest }, 4).toSet() shouldBe
+			fences.toSet()
+		rowCount("source_deletion_fence") shouldBe 3L
+		rowCount("source_event_wal") shouldBe 0L
+		rowCount("source_demand") shouldBe 0L
+		rowCount("provider_registration_generation") shouldBe 0L
+	}
+
+	@Test
+	fun `foreign fence epoch or checksum corruption is typed before receipt writes`() = runTest {
+		val fence = SourceDeletionFenceEntity.createLogicalServiceRun(SourceKind.CELL.stableCode,
+			"CONTROL_AUTOSTART", "stale-logical", "stale-run", 1L, EPOCH + 1L, 20L)
+		database.sourceDeletionFenceDao().upsert(fence)
+		val collision = entry(entryIdentity = PortableWifiOpaqueIdentity(fence.scopeIdentityDigest))
+		val importer = importer(testScheduler)
+		importer.importEntry(request(collision)) shouldBe ImportPortableCapturedWifiResult.Unverifiable(
+			PortableCapturedWifiImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_deletion_fence SET effect_checksum = ? WHERE scope_identity_digest = ?",
+			arrayOf("0".repeat(64), fence.scopeIdentityDigest),
+		)
+		importer.importEntry(request(collision)) shouldBe ImportPortableCapturedWifiResult.Unverifiable(
+			PortableCapturedWifiImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		database.importedWifiDao().entryRevisionCount() shouldBe 0L
+		database.importedWifiDao().receiptCount() shouldBe 0L
+		rowCount("source_deletion_fence") shouldBe 1L
 	}
 
 	@Test
@@ -582,6 +735,57 @@ class RoomImportPortableCapturedWifiTest {
 
 	private fun identity(kind: PortableWifiIdentityKind, local: String) =
 		PortableWifiOpaqueIdentity.derive(kind, local)
+
+	/** Real native value/checksum shape, intentionally without session/run/cursor parent authority. */
+	private fun nativeRevision(
+		logical: String,
+		run: String,
+		delivery: String = run,
+		aggregateOwner: String? = null,
+	): WifiCapturedFactRevisionEntity {
+		val deliveryIdentity = identity(PortableWifiIdentityKind.OBSERVATION, "delivery-$delivery").value
+		val factIdentity = WifiCapturedFactRevisionIntegrity.logicalFactId(deliveryIdentity, logical, run, 1L, 1L, EPOCH, 0L)
+		val aggregate = aggregateOwner == null
+		val unsigned = WifiCapturedFactRevisionEntity(
+			writerProjectionId = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+			writerProjectionVersion = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION,
+			writerBindingGeneration = SourceDestinationOwnerEntity.WIFI_FACT_BINDING_GENERATION,
+			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			logicalFactId = factIdentity, semanticRevision = 1L, supersedesSemanticRevision = null,
+			mutationId = WifiCapturedFactRevisionIntegrity.mutationId(factIdentity, 1L),
+			factKind = if (aggregate) "AGGREGATE" else "COVERAGE_ONLY",
+			aggregateOwnerLogicalFactId = aggregateOwner,
+			aggregateOwnerSemanticRevision = if (aggregate) null else 1L,
+			aggregateOwnerCursorRevision = if (aggregate) null else 1L,
+			logicalTrackingId = logical, serviceRunId = run, sessionSegmentId = 1L,
+			purpose = "SESSION_CAPTURE", capturedSourceCodes = SourceDestinationOwnerEntity.SOURCE_WIFI.toString(),
+			controlSourceCodes = "", sourceEventId = "event-$delivery", sourceAdmissionOrdinal = 1L,
+			walIntegrityIdentity = "a".repeat(64), payloadChecksum = "b".repeat(64), sourceDeliveryIdentity = deliveryIdentity,
+			deliveryUnitIndex = 0, deliveryUnitCount = 1, sourceSequence = 0L,
+			planAttribution = "CAPTURED_REGISTRATION", sourceInstanceId = "wifi-instance", registrationGeneration = 1L,
+			configurationRevision = 1L, physicalConfigurationFingerprint = "configuration", authorizationRevision = 1L,
+			authorizationFingerprint = "c".repeat(64), purposeEligibilityMask = 4L,
+			sourcePolicyRevision = 1L, captureConsentEpoch = 1L, manifestRevision = 1L, lifecycleLeaseGeneration = 1L,
+			collectedDataEpoch = EPOCH, scopeDeletionGeneration = 0L, clockDomainId = "boot", storedZoneId = "Europe/Prague",
+			planPayloadVersion = 1, planPayloadChecksum = "d".repeat(64), maximumObservationAgeNanos = 1_000_000_000L,
+			resultContract = "ANDROID_SCAN_RESULTS_V1", registrationAppliedAtNanos = 0L,
+			providerAcceptanceStartNanos = 1L, providerAcceptanceEndNanos = 2_000_000_000L,
+			authorizationEffectStartNanos = 1L, authorizationEffectEndNanos = 2_000_000_000L,
+			sessionRunEffectStartNanos = 1L, sessionRunEffectEndNanos = 2_000_000_000L,
+			observedIntervalStartNanos = 1_000_000_000L, observedElapsedNanos = 1_000_000_000L,
+			receivedElapsedNanos = 1_100_000_000L, coverageIntervalStartNanos = 1_000_000_000L,
+			coverageIntervalEndNanos = 1_000_000_000L, observedWallTimeMs = 1_000L, wallTimeUncertaintyMs = 10L,
+			acquiredAtMs = 1_000L, qualityFlags = 0L, qualityConfidence = 1f, availability = "AVAILABLE",
+			submittedResultCount = 1, acceptedResultCount = 1, staleResultCount = 0,
+			clockUnverifiableResultCount = 0, malformedResultCount = 0, coverageCompleteness = "COMPLETE",
+			observationCount = if (aggregate) 1 else null, twoPointFourGhzCount = if (aggregate) 1 else null,
+			fiveGhzCount = if (aggregate) 0 else null, sixGhzCount = if (aggregate) 0 else null,
+			otherBandCount = if (aggregate) 0 else null, strongestSignalDbm = if (aggregate) -50 else null,
+			weakestSignalDbm = if (aggregate) -50 else null, signalSumDbm = if (aggregate) -50L else null,
+			effectChecksum = "0".repeat(64), appliedAtMs = 1_000L,
+		)
+		return unsigned.copy(effectChecksum = WifiCapturedFactRevisionIntegrity.effectChecksum(unsigned))
+	}
 
 	private fun rowCount(table: String): Long = database.openHelper.readableDatabase
 		.query("SELECT COUNT(*) FROM $table")

@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedWifiObservationEnt
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunZoneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 
 /** Wi-Fi-local imported-product storage. This DAO grants no live capture authority. */
 @Dao
@@ -218,20 +219,28 @@ abstract class ImportedWifiDao {
 		limit: Int,
 	): List<WifiLocalRunOwner>
 
-	@Query("SELECT COUNT(*) FROM (SELECT DISTINCT logical_fact_id, logical_tracking_id, service_run_id " +
-		"FROM wifi_captured_fact_cursor)")
+	@Query("SELECT COUNT(*) FROM (" + LOCAL_OBSERVATION_OWNER_UNION + ")")
 	abstract suspend fun localObservationOwnerCount(): Long
 
 	@Query(
-		"SELECT DISTINCT logical_fact_id, logical_tracking_id, service_run_id " +
-			"FROM wifi_captured_fact_cursor " +
+		"SELECT * FROM (" + LOCAL_OBSERVATION_OWNER_UNION + ") " +
 			"WHERE (:afterIdentity IS NULL OR logical_fact_id > :afterIdentity) " +
-			"ORDER BY logical_fact_id LIMIT :limit",
+			"ORDER BY logical_fact_id, logical_tracking_id, service_run_id LIMIT :limit",
 	)
 	abstract suspend fun localObservationOwnerPage(
 		afterIdentity: String?,
 		limit: Int,
 	): List<WifiLocalObservationOwner>
+
+	/** All fence namespaces reserve their opaque identity; this query never grants deletion authority. */
+	@Query(
+		"SELECT * FROM source_deletion_fence WHERE scope_identity_digest IN (:identities) " +
+			"ORDER BY scope_identity_digest, source_kind, purpose, scope_kind LIMIT :limit",
+	)
+	abstract suspend fun deletionFenceIdentityOwners(
+		identities: List<String>,
+		limit: Int,
+	): List<SourceDeletionFenceEntity>
 
 	@Query("SELECT COUNT(*) FROM wifi_capture_deletion_generation")
 	abstract suspend fun localDeletionOwnerCount(): Long
@@ -259,6 +268,14 @@ abstract class ImportedWifiDao {
 	abstract fun deleteAllDeletionGenerations()
 
 	companion object {
+		private const val LOCAL_OBSERVATION_OWNER_UNION =
+			"SELECT logical_fact_id, logical_tracking_id, service_run_id FROM wifi_captured_fact_cursor " +
+				"UNION SELECT logical_fact_id, logical_tracking_id, service_run_id " +
+				"FROM wifi_captured_fact_revision " +
+				"UNION SELECT aggregate_owner_logical_fact_id AS logical_fact_id, " +
+				"logical_tracking_id, service_run_id FROM wifi_captured_fact_revision " +
+				"WHERE aggregate_owner_logical_fact_id IS NOT NULL"
+
 		const val MAX_IMPORTED_ENTRIES = 4_096
 		const val MAX_REVISIONS_PER_ENTRY = 16
 		const val MAX_RECEIPTS_PER_ENTRY = 256

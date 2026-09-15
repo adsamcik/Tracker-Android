@@ -295,14 +295,11 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 	) {
 		val incoming = WifiIncomingOwnership(entry).allValues
 		incoming.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { values ->
+			val limit = Math.toIntExact(limits.maximumGlobalAuthorityRows + 1L)
 			val fences = storedValue {
-				database.trackingHistoryReadDao().deletionFences(
-					sourceKind = SourceDestinationOwnerEntity.SOURCE_WIFI,
-					purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
-					scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
-					scopeIdentityDigests = values,
-				)
+				dao.deletionFenceIdentityOwners(values, limit)
 			}
+			if (fences.size >= limit) dependencyOverflow()
 			if (fences.any { it.collectedDataEpoch != state.collectedDataEpoch }) storedCorrupt()
 			if (fences.isNotEmpty()) {
 				blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)

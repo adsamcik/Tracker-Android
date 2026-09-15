@@ -11,6 +11,8 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedWifiReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunZoneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
@@ -87,6 +89,25 @@ class ImportedWifiDaoTest {
 		dao.observationCount() shouldBe 0L
 		dao.entryDeletionCount() shouldBe 0L
 		dao.deletionGenerationCount() shouldBe 0L
+	}
+
+	@Test
+	fun `bounded fence ownership query authenticates every source purpose without mutating authority`() = runTest {
+		val fences = listOf(
+			SourceDeletionFenceEntity.createLogicalServiceRun(6,
+				"SESSION_CAPTURE", "cell-entry", "cell-run", 1L, EPOCH, 1_400L),
+			SourceDeletionFenceEntity.createLogicalServiceRun(SourceDestinationOwnerEntity.SOURCE_WIFI,
+				"CONTROL_CONTINUATION", "control-entry", "control-run", 1L, EPOCH, 1_400L),
+		)
+		fences.forEach { database.sourceDeletionFenceDao().upsert(it) }
+		val identities = fences.map { it.scopeIdentityDigest }
+
+		dao.deletionFenceIdentityOwners(identities, 1).size shouldBe 1
+		dao.deletionFenceIdentityOwners(identities, 3).toSet() shouldBe fences.toSet()
+		dao.deletionFenceIdentityOwners(listOf("f".repeat(64)), 1) shouldBe emptyList()
+		dao.deletionFenceIdentityOwners(identities, 3).toSet() shouldBe fences.toSet()
+		dao.entryRevisionCount() shouldBe 0L
+		dao.receiptCount() shouldBe 0L
 	}
 
 	private fun entry() = ImportedWifiEntryRevisionEntity(
