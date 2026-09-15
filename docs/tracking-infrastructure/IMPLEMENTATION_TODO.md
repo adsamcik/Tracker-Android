@@ -85,8 +85,8 @@ or check the broader assembly/completion items. Test sources are authored, never
   rows with no replacement. Keep ordinary evidence-first history semantics and bounded recency.
   Source `b138a23adb3263708028e24267729192b813018a` is IMPLEMENTED_UNVALIDATED; adversarial
   production review found no blocker, but an unsupported-writer unavailable fixture violates
-  the manifest invariant. Fixture correction, focused closure and local integration remain
-  pending (TI-B322).
+  the manifest invariant. Test-only correction `771ce960b37e3c7589c077ef848a20759f5cab31`
+  is under focused review; local integration remains pending (TI-B322).
 
 Receiving next slice: close the three concrete shared Room/worker/history static-review findings,
 then continue the Wi-Fi imported evaluator and bounded product/reexport lane. Keep new source

@@ -7,6 +7,8 @@ Last updated: 2026-09-15
 - Input: `b138a23adb3263708028e24267729192b813018a` on
   `codex/ti-factless-steps-history-20260915`, baseline `13ca528ccb`;
   TODO-HANDOVER-20260915-009.
+- Test-only correction: `771ce960b37e3c7589c077ef848a20759f5cab31`, replacing the invalid
+  unsupported-writer fixture with a valid candidate owner/lane and post-segment retention floor.
 - Production: TrackingHistoryReadDao candidate discovery, LogicalTrackingHistoryReader's
   source-aware mode and DefaultTrackingHistoryRepository composition. Ordinary discovery remains
   evidence-first; exact factless source-aware groups retain typed Steps-only presentation.
@@ -17,8 +19,9 @@ Last updated: 2026-09-15
 - Disposition: **IMPLEMENTED_UNVALIDATED; TEST-SOURCE CORRECTION REQUIRED**. Independent
   adversarial review found the production source-aware gating and bounded composition coherent,
   but the unavailable fixture's unsupported manifest writer violates the entity constructor.
-  Replace it with invariant-valid candidate provenance and a real retained-floor unavailable
-  state. No compilation, test, Gradle, schema, diff-check, device, CI or execution gate ran.
+  The authored correction preserves null count, ordinary non-discovery and the opaque PARTIAL
+  source-aware replacement; focused adversarial closure is pending. No compilation, test,
+  Gradle, schema, diff-check, device, CI or execution gate ran.
 - Deferred only after the authorized frozen convergence:
   `.\gradlew.bat :core:base:testDebugUnitTest :stats:data:testDebugUnitTest --tests "*TrackingHistoryReadDaoTest" --tests "*StepsSegmentHistorySelectorTest.sourceAware*"`.
 

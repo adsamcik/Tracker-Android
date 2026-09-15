@@ -15,7 +15,7 @@ All three implementation worktrees started clean from that local baseline:
 | --- | --- | --- | --- |
 | 007 | `codex/ti-wifi-full-clear-20260915` / `.worktrees\ti-wifi-full-clear-20260915` | AppDatabase and WifiCapturedFactDao | Static review closed; local merge `8767472d62fe77ee30e2c7d46765ed7f4b8d45dc` |
 | 008 | `codex/ti-legacy-radio-retention-20260915` / `.worktrees\ti-legacy-radio-retention-20260915` | Legacy worker, same-cause pipeline ordering and exact app callers/tests | `de2a4ae2f3` blocked by pre-radio segment-authority deletion; correction in progress |
-| 009 | `codex/ti-factless-steps-history-20260915` / `.worktrees\ti-factless-steps-history-20260915` | Source-aware Steps history and its candidate-query seam | `b138a23adb` production review coherent; invalid unavailable fixture under correction |
+| 009 | `codex/ti-factless-steps-history-20260915` / `.worktrees\ti-factless-steps-history-20260915` | Source-aware Steps history and its candidate-query seam | `b138a23adb` plus `771ce960b37e3c7589c077ef848a20759f5cab31`; focused fixture review pending |
 
 Each slice gets a separate adversarial static review of its committed production/test changes.
 The parent serializes any shared interface correction and local merges, then records exact source
@@ -64,10 +64,11 @@ The slice adds source-aware-only intent discovery for exact factless Steps group
 ordinary evidence-first APIs. Materializing/unavailable, exact suppression, invalid-group exclusion,
 recency/limits and no fabricated zero have authored assertions (TI-B322). Its independent adversarial
 review runs in parallel with the Wi-Fi and worker reviews; no local source integration is claimed yet.
-The adversary found no production blocker, but the new unavailable-state test uses a manifest
-writer rejected by `SessionManifestSourceEntity` before its assertions. A focused fixture
-correction must use valid candidate provenance and a genuine unavailable condition such as the
-retention floor, without weakening the production invariant or manufacturing a zero.
+The adversary found no production blocker, but the new unavailable-state test used a manifest
+writer rejected by `SessionManifestSourceEntity` before its assertions. Test-only correction
+`771ce960b37e3c7589c077ef848a20759f5cab31` uses valid candidate provenance, a valid lane and a
+retention floor beyond the segment; it expects UNAVAILABLE/OUTSIDE_RETAINED_FLOOR with no numeric
+count and one opaque source-aware PARTIAL row. The same reviewer is assessing focused closure.
 
 ## September 15 receiving continuation - Location WAL payload preflight
 
