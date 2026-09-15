@@ -355,6 +355,12 @@ class RoomSourcePolicyRepository(
 		require(!persistenceEligible || eligible) {
 			"Persistence cannot be eligible when purpose consent is denied"
 		}
+		require(!eligible || source.supportsPurpose(purpose)) {
+			"$source cannot be eligible for $purpose"
+		}
+		require(purpose != SourcePurpose.CONTROL || !persistenceEligible) {
+			"Persistent CONTROL consent is unavailable until its retention policy is approved"
+		}
 		require(reason.isNotBlank()) { "Consent change reason must not be blank" }
 		return database.withTransaction {
 			val current = activeSnapshotAtExpectedRevision(expectedPolicyRevision)
@@ -546,12 +552,31 @@ class RoomSourcePolicyRepository(
 				),
 				policyRevision = entity.policyRevision,
 			)
+			validatePurposeMatrix(policy)
 			validateConsentReference(policy, SourcePurpose.SESSION_CAPTURE)
 			validateConsentReference(policy, SourcePurpose.CONTROL)
 			validateConsentReference(policy, SourcePurpose.AMBIENT_PRODUCT)
 			source to policy
 		}
 		return SourcePolicySnapshot(authority.currentPolicyRevision, mapped)
+	}
+
+	private fun validatePurposeMatrix(policy: SourcePolicy) {
+		check(
+			policy.source == TrackingSourceComponent.ACTIVITY ||
+				(policy.controlConsentEpoch == null && !policy.controlPersistenceEligible),
+		) {
+			"CONTROL is supported only for Activity"
+		}
+		check(!policy.controlPersistenceEligible) {
+			"Persistent CONTROL evidence is unavailable until its retention policy is approved"
+		}
+		check(
+			policy.source in AMBIENT_PRODUCT_SOURCES ||
+				(policy.ambientConsentEpoch == null && !policy.ambientPersistenceEligible),
+		) {
+			"AMBIENT_PRODUCT is not supported for ${policy.source}"
+		}
 	}
 
 	private suspend fun validateConsentReference(policy: SourcePolicy, purpose: SourcePurpose) {

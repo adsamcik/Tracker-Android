@@ -98,6 +98,19 @@ data class SourcePolicy(
 		}
 	}
 
+	internal val AMBIENT_PRODUCT_SOURCES = setOf(
+		TrackingSourceComponent.LOCATION,
+		TrackingSourceComponent.STEPS,
+		TrackingSourceComponent.WIFI,
+		TrackingSourceComponent.CELL,
+	)
+
+	internal fun TrackingSourceComponent.supportsPurpose(purpose: SourcePurpose): Boolean = when (purpose) {
+		SourcePurpose.SESSION_CAPTURE -> true
+		SourcePurpose.CONTROL -> this == TrackingSourceComponent.ACTIVITY
+		SourcePurpose.AMBIENT_PRODUCT -> this in AMBIENT_PRODUCT_SOURCES
+	}
+
 	fun consentEpoch(purpose: SourcePurpose): Long? = when (purpose) {
 		SourcePurpose.SESSION_CAPTURE -> captureConsentEpoch
 		SourcePurpose.CONTROL -> controlConsentEpoch

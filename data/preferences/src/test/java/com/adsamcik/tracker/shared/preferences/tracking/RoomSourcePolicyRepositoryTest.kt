@@ -512,6 +512,148 @@ class RoomSourcePolicyRepositoryTest {
 	}
 
 	@Test
+	fun `forbidden noncapture purpose grants and persistent control are rejected atomically`() =
+		runTest {
+			val initial = repository.bootstrapFromLegacy(readySettings().copy(autoTrackingMode = 0))
+			installLiveCaptureAuthority(initial, TrackingSourceComponent.STEPS)
+			val before = purposeMutationSnapshot()
+			val invalid = buildList {
+				TrackingSourceComponent.entries
+					.filter { source -> source != TrackingSourceComponent.ACTIVITY }
+					.forEach { source ->
+						add(Triple(source, SourcePurpose.CONTROL, false))
+					}
+				listOf(
+					TrackingSourceComponent.ACTIVITY,
+					TrackingSourceComponent.PRESSURE,
+				).forEach { source ->
+					add(Triple(source, SourcePurpose.AMBIENT_PRODUCT, true))
+				}
+				add(Triple(TrackingSourceComponent.ACTIVITY, SourcePurpose.CONTROL, true))
+			}
+
+			invalid.forEach { (source, purpose, persistenceEligible) ->
+				shouldThrow<IllegalArgumentException> {
+					repository.setNonCaptureConsent(
+						expectedPolicyRevision = initial.revision,
+						source = source,
+						purpose = purpose,
+						eligible = true,
+						persistenceEligible = persistenceEligible,
+						reason = "TEST_FORBIDDEN_PURPOSE",
+					)
+				}
+				purposeMutationSnapshot() shouldBe before
+			}
+		}
+
+	@Test
+	fun `bootstrap retains explicit deny epoch zero rows for forbidden purpose pairs`() = runTest {
+		repository.bootstrapFromLegacy(readySettings().copy(autoTrackingMode = 0))
+		val forbidden = buildList {
+			TrackingSourceComponent.entries
+				.filter { source -> source != TrackingSourceComponent.ACTIVITY }
+				.forEach { source -> add(source to SourcePurpose.CONTROL) }
+			add(TrackingSourceComponent.ACTIVITY to SourcePurpose.AMBIENT_PRODUCT)
+			add(TrackingSourceComponent.PRESSURE to SourcePurpose.AMBIENT_PRODUCT)
+		}
+
+		forbidden.forEach { (source, purpose) ->
+			database.sourcePolicyDao().consentHistory(source.stableCode, purpose.stableName)
+				.map { row -> Triple(row.epoch, row.eligible, row.persistenceEligible) } shouldBe
+				listOf(Triple(0L, false, false))
+		}
+	}
+
+	@Test
+	fun `approved identical ambient grant is idempotent`() = runTest {
+		val initial = repository.bootstrapFromLegacy(readySettings())
+		val granted = repository.setNonCaptureConsent(
+			expectedPolicyRevision = initial.revision,
+			source = TrackingSourceComponent.LOCATION,
+			purpose = SourcePurpose.AMBIENT_PRODUCT,
+			eligible = true,
+			persistenceEligible = true,
+			reason = "TEST_LOCATION_AMBIENT_GRANT",
+		)
+		val history = database.sourcePolicyDao().consentHistory(
+			TrackingSourceComponent.LOCATION.stableCode,
+			SourcePurpose.AMBIENT_PRODUCT.stableName,
+		)
+
+		val repeated = repository.setNonCaptureConsent(
+			expectedPolicyRevision = granted.revision,
+			source = TrackingSourceComponent.LOCATION,
+			purpose = SourcePurpose.AMBIENT_PRODUCT,
+			eligible = true,
+			persistenceEligible = true,
+			reason = "TEST_LOCATION_AMBIENT_GRANT_REPEAT",
+		)
+
+		repeated shouldBe granted
+		database.sourcePolicyDao().consentHistory(
+			TrackingSourceComponent.LOCATION.stableCode,
+			SourcePurpose.AMBIENT_PRODUCT.stableName,
+		) shouldBe history
+	}
+
+	@Test
+	fun `loaded policy rejects Activity ambient eligibility`() = runTest {
+		val initial = repository.bootstrapFromLegacy(readySettings())
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_policy SET ambient_consent_epoch = 1, " +
+				"ambient_persistence_eligible = 1 WHERE policy_revision = ${initial.revision} " +
+				"AND source_kind = ${TrackingSourceComponent.ACTIVITY.stableCode}",
+		)
+
+		repository.currentState().shouldBeInstanceOf<SourcePolicyAuthorityState.Invalid>()
+	}
+
+	@Test
+	fun `loaded policy rejects non Activity control eligibility`() = runTest {
+		val initial = repository.bootstrapFromLegacy(readySettings())
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_policy SET control_consent_epoch = 1 " +
+				"WHERE policy_revision = ${initial.revision} " +
+				"AND source_kind = ${TrackingSourceComponent.STEPS.stableCode}",
+		)
+
+		repository.currentState().shouldBeInstanceOf<SourcePolicyAuthorityState.Invalid>()
+	}
+
+	@Test
+	fun `loaded policy rejects persistent Activity control`() = runTest {
+		val initial = repository.bootstrapFromLegacy(readySettings())
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_policy SET control_persistence_eligible = 1 " +
+				"WHERE policy_revision = ${initial.revision} " +
+				"AND source_kind = ${TrackingSourceComponent.ACTIVITY.stableCode}",
+		)
+
+		repository.currentState().shouldBeInstanceOf<SourcePolicyAuthorityState.Invalid>()
+	}
+
+	@Test
+	fun `Location ambient revoke retires only its ambient authority`() = runTest {
+		assertAmbientRevoke(TrackingSourceComponent.LOCATION)
+	}
+
+	@Test
+	fun `Cell ambient revoke retires only its ambient authority`() = runTest {
+		assertAmbientRevoke(TrackingSourceComponent.CELL)
+	}
+
+	@Test
+	fun `Location ambient revoke rollback preserves demand and authorization`() = runTest {
+		assertAmbientRevokeRollback(TrackingSourceComponent.LOCATION)
+	}
+
+	@Test
+	fun `Cell ambient revoke rollback preserves demand and authorization`() = runTest {
+		assertAmbientRevokeRollback(TrackingSourceComponent.CELL)
+	}
+
+	@Test
 	fun `automatic mode changes append nonpersistent activity control epochs`() = runTest {
 		val first = repository.bootstrapFromLegacy(readySettings().copy(autoTrackingMode = 0))
 		val enabled = repository.replaceCaptureSettings(
@@ -666,6 +808,105 @@ class RoomSourcePolicyRepositoryTest {
 		)
 	}
 
+	private suspend fun purposeMutationSnapshot() = PurposeMutationSnapshot(
+		authority = database.sourcePolicyDao().authority(),
+		policies = database.sourcePolicyDao().currentPolicies(),
+		consentHistory = TrackingSourceComponent.entries.flatMap { source ->
+			SourcePurpose.entries.flatMap { purpose ->
+				database.sourcePolicyDao().consentHistory(source.stableCode, purpose.stableName)
+			}
+		},
+		captureDemandHistory = database.sourceBrokerDao().demandHistory(TEST_CONSUMER_ID),
+		authorizationRevisions = TrackingSourceComponent.entries.associateWith { source ->
+			database.sourceBrokerDao().maximumAuthorizationRevision(source.stableCode)
+		},
+	)
+
+	private suspend fun assertAmbientRevoke(source: TrackingSourceComponent) {
+		val initial = repository.bootstrapFromLegacy(readySettings())
+		val granted = repository.setNonCaptureConsent(
+			expectedPolicyRevision = initial.revision,
+			source = source,
+			purpose = SourcePurpose.AMBIENT_PRODUCT,
+			eligible = true,
+			persistenceEligible = true,
+			reason = "TEST_${source.name}_AMBIENT_GRANT",
+		)
+		installLiveAuthority(granted, source, SourceBrokerPurpose.AMBIENT_PRODUCT)
+		val before = granted[source]
+		elapsedNanos = 800L
+		wallTimeMs = 8_000L
+
+		val revoked = repository.setNonCaptureConsent(
+			expectedPolicyRevision = granted.revision,
+			source = source,
+			purpose = SourcePurpose.AMBIENT_PRODUCT,
+			eligible = false,
+			persistenceEligible = false,
+			reason = "TEST_${source.name}_AMBIENT_REVOKE",
+		)
+
+		val demand = database.sourceBrokerDao().demandHistory(TEST_AMBIENT_CONSUMER_ID).single()
+		demand.status shouldBe SourceDemandEntity.STATUS_RETIRING
+		demand.retireElapsedRealtimeNanos shouldBe 800L
+		revoked[source].enabled shouldBe before.enabled
+		revoked[source].captureConsentEpoch shouldBe before.captureConsentEpoch
+		revoked[source].controlConsentEpoch shouldBe before.controlConsentEpoch
+		revoked[source].ambientConsentEpoch shouldBe null
+	}
+
+	private suspend fun assertAmbientRevokeRollback(source: TrackingSourceComponent) {
+		val initial = repository.bootstrapFromLegacy(readySettings())
+		val granted = repository.setNonCaptureConsent(
+			expectedPolicyRevision = initial.revision,
+			source = source,
+			purpose = SourcePurpose.AMBIENT_PRODUCT,
+			eligible = true,
+			persistenceEligible = true,
+			reason = "TEST_${source.name}_AMBIENT_GRANT",
+		)
+		installLiveAuthority(granted, source, SourceBrokerPurpose.AMBIENT_PRODUCT)
+		val beforeDemand = database.sourceBrokerDao()
+			.demandHistory(TEST_AMBIENT_CONSUMER_ID)
+			.single()
+		val beforeAuthorization = database.sourceBrokerDao().latestAuthorization(
+			source.stableCode,
+			TEST_REGISTRATION_GENERATION,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"CREATE TRIGGER fail_ambient_policy_insert BEFORE INSERT ON source_policy " +
+				"WHEN NEW.policy_revision = ${granted.revision + 1L} " +
+				"BEGIN SELECT RAISE(ABORT, 'ambient policy write fault'); END",
+		)
+
+		try {
+			shouldThrow<SQLiteException> {
+				repository.setNonCaptureConsent(
+					expectedPolicyRevision = granted.revision,
+					source = source,
+					purpose = SourcePurpose.AMBIENT_PRODUCT,
+					eligible = false,
+					persistenceEligible = false,
+					reason = "TEST_${source.name}_AMBIENT_REVOKE_ROLLBACK",
+				)
+			}
+
+			database.sourceBrokerDao()
+				.demandHistory(TEST_AMBIENT_CONSUMER_ID)
+				.single() shouldBe beforeDemand
+			database.sourceBrokerDao().latestAuthorization(
+				source.stableCode,
+				TEST_REGISTRATION_GENERATION,
+			) shouldBe beforeAuthorization
+			database.sourcePolicyDao().authority()?.currentPolicyRevision shouldBe granted.revision
+			repository.currentState() shouldBe SourcePolicyAuthorityState.Active(granted)
+		} finally {
+			database.openHelper.writableDatabase.execSQL(
+				"DROP TRIGGER fail_ambient_policy_insert",
+			)
+		}
+	}
+
 	private companion object {
 		const val TEST_BOOT_ID = "boot-7"
 		const val TEST_DEMAND_ID = "capture-steps"
@@ -674,4 +915,13 @@ class RoomSourcePolicyRepositoryTest {
 		const val TEST_AMBIENT_CONSUMER_ID = "ambient:steps"
 		const val TEST_REGISTRATION_GENERATION = 1L
 	}
+
+	private data class PurposeMutationSnapshot(
+		val authority: com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity?,
+		val policies: List<com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity>,
+		val consentHistory:
+			List<com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity>,
+		val captureDemandHistory: List<SourceDemandEntity>,
+		val authorizationRevisions: Map<TrackingSourceComponent, Long>,
+	)
 }
