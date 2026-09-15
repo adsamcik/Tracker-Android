@@ -131,6 +131,8 @@ enum class LocationIngressDisposition {
 	REJECTED_INVALID_COORDINATE,
 	/** The raw provider time is retained for audit, but cannot enter the typed epoch-time pipeline. */
 	REJECTED_INVALID_TIMESTAMP,
+	/** Released legacy bytes preserved without claiming an unavailable mock-provider bit. */
+	MIGRATED_MOCK_PROVENANCE_UNKNOWN,
 }
 
 enum class LocationAcquisitionMode {

@@ -95,6 +95,8 @@ data class SourceEventWalEntity(
 	val observedIntervalStartNanos: Long? = null,
 	@ColumnInfo(name = "received_elapsed_nanos")
 	val receivedElapsedNanos: Long,
+	@ColumnInfo(name = "received_wall_time_ms")
+	val receivedWallTimeMs: Long? = null,
 	@ColumnInfo(name = "wall_time_ms")
 	val wallTimeMs: Long?,
 	@ColumnInfo(name = "wall_time_uncertainty_ms")
@@ -131,7 +133,7 @@ data class SourceEventWalEntity(
 	fun calculatedPayloadChecksum(): String = payload.sha256()
 
 	fun calculatedIntegrityIdentity(): String {
-		val canonical = listOf(
+		val legacyCanonical = listOf(
 			deliveryIdentity,
 			deliveryUnitIndex,
 			deliveryUnitCount,
@@ -165,7 +167,14 @@ data class SourceEventWalEntity(
 			qualityConfidence,
 			payloadVersion,
 			calculatedPayloadChecksum(),
-		).joinToString(separator = "") { value ->
+		)
+		// Keep the released encoding byte-for-byte stable for rows written before this nullable
+		// envelope field existed. New rows bind callback wall time by appending it.
+		val canonical = if (receivedWallTimeMs == null) {
+			legacyCanonical
+		} else {
+			legacyCanonical + receivedWallTimeMs
+		}.joinToString(separator = "") { value ->
 			val text = value?.toString()
 			if (text == null) "-1:" else "${text.length}:$text"
 		}

@@ -49,6 +49,32 @@ class LocationSourceDeliveryTest {
 			it.evidence.payloadVersion == LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
 		})
 		assertTrue(delivery.units.all { (it.evidence.payload as LocationFixPayload).isMock == false })
+		assertTrue(delivery.units.all { it.evidence.receivedWallTimeMs == 10_000L })
+	}
+
+	@Test
+	fun `callback receipt wall is retained without changing provider replay identity`() {
+		val fix = location("gps", elapsedNanos = 700L, wallTimeMs = 7L)
+		val first = locationDeliveryCandidate(
+			locations = listOf(fix),
+			observedTimes = listOf(700L),
+			receivedElapsedNanos = 1_000L,
+			receivedWallTimeMs = 10_000L,
+			attribution = ATTRIBUTION,
+			approximate = false,
+		)
+		val replay = locationDeliveryCandidate(
+			locations = listOf(copyLocation(fix)),
+			observedTimes = listOf(700L),
+			receivedElapsedNanos = 1_500L,
+			receivedWallTimeMs = 15_000L,
+			attribution = ATTRIBUTION,
+			approximate = false,
+		)
+
+		assertEquals(first.identity, replay.identity)
+		assertEquals(10_000L, first.units.single().evidence.receivedWallTimeMs)
+		assertEquals(15_000L, replay.units.single().evidence.receivedWallTimeMs)
 	}
 
 	@Test

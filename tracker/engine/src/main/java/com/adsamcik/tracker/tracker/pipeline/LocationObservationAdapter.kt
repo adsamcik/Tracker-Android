@@ -86,6 +86,9 @@ internal fun LocationCapturedFactCommand.toProtectedLocationObservationSignal(
 	require(acquisitionMetadata != LocationWalAcquisitionMetadata.UNKNOWN)
 	val evidence = productEffect.durableEvidence
 	val clock = evidence.clockAuthority
+	val receivedWallTimeMs = requireNotNull(clock.receivedWallTimeMs) {
+		"Protected Location evidence requires callback receipt wall time"
+	}
 	val payload = evidence.payload
 	val eventId = evidence.sourceEventId.value
 	return TrackingSignal(
@@ -107,7 +110,7 @@ internal fun LocationCapturedFactCommand.toProtectedLocationObservationSignal(
 			bearingDeg = payload.bearingDegrees,
 			bearingAccuracyDeg = null,
 			provider = payload.provider,
-			receivedAtMs = clock.observedWallTimeMs,
+			receivedAtMs = receivedWallTimeMs,
 			receivedElapsedRealtimeNanos = clock.receivedElapsedRealtimeNanos,
 			acquisitionMode = acquisitionMetadata.acquisitionMode.name,
 			requestPriority = acquisitionMetadata.requestPriority.name,

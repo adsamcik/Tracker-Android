@@ -123,6 +123,10 @@ class LocationWalQualificationAdapterTest {
 			LocationRequestPriority.HIGH_ACCURACY,
 			evaluated.acquisitionMetadata.requestPriority,
 		)
+		assertEquals(
+			RECEIVED_WALL_MS,
+			qualified.command.productEffect.durableEvidence.clockAuthority.receivedWallTimeMs,
+		)
 		assertEquals(EVENT_ID, qualified.command.mutation.identity.sourceEventId)
 		assertEquals(1L, database.sourceEventWalDao().countAll())
 	}
@@ -664,6 +668,7 @@ class LocationWalQualificationAdapterTest {
 				observedElapsedNanos = OBSERVED_NANOS,
 				observedIntervalStartNanos = OBSERVED_NANOS,
 				receivedElapsedNanos = RECEIVED_NANOS,
+				receivedWallTimeMs = RECEIVED_WALL_MS,
 				wallTimeMs = OBSERVED_WALL_MS,
 				wallTimeUncertaintyMs = wallTimeUncertaintyMs,
 				capturedCollectedDataEpoch = 0L,
@@ -1005,5 +1010,6 @@ class LocationWalQualificationAdapterTest {
 		const val SESSION_END_NANOS = 900L
 		const val RUN_START_WALL_MS = 1_000L
 		const val OBSERVED_WALL_MS = 1_500L
+		const val RECEIVED_WALL_MS = 6_500L
 	}
 }

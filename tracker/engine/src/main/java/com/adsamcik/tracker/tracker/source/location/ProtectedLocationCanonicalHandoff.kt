@@ -1242,6 +1242,9 @@ internal fun LocationCapturedFactCommand.toProtectedLocationTrackingCycle(
 	}
 	val evidence = productEffect.durableEvidence
 	val clock = evidence.clockAuthority
+	val receivedWallTimeMs = requireNotNull(clock.receivedWallTimeMs) {
+		"Protected Location evidence requires callback receipt wall time"
+	}
 	val payload = evidence.payload
 	val location = Location(payload.provider).apply {
 		time = clock.observedWallTimeMs
@@ -1259,7 +1262,7 @@ internal fun LocationCapturedFactCommand.toProtectedLocationTrackingCycle(
 		sourceEventId = evidence.sourceEventId.value,
 		clockDomainId = clock.clockDomainId,
 		bootClockDomainId = clock.clockDomainId,
-		receivedAtMs = clock.observedWallTimeMs,
+		receivedAtMs = receivedWallTimeMs,
 		receivedElapsedRealtimeNanos = clock.receivedElapsedRealtimeNanos,
 		acquisitionMode = acquisitionMetadata.acquisitionMode,
 		requestPriority = acquisitionMetadata.requestPriority,
@@ -1371,7 +1374,7 @@ private fun LocationObservation.matchesQualifiedEvidence(
 		) &&
 		fixTimeMs == clock.observedWallTimeMs &&
 		fixElapsedRealtimeNanos == clock.observedElapsedRealtimeNanos &&
-		receivedAtMs == clock.observedWallTimeMs &&
+		receivedAtMs == clock.receivedWallTimeMs &&
 		receivedElapsedRealtimeNanos == clock.receivedElapsedRealtimeNanos &&
 		deliveryAgeMs == expectedDeliveryAgeMs &&
 		latE7 == LatE7.fromDegrees(payload.latitudeDegrees).raw &&

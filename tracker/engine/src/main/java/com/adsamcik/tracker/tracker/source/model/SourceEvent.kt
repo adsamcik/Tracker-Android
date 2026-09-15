@@ -17,6 +17,8 @@ data class SourceEvidenceCandidate<T : SourcePayload>(
 	val clockDomainId: String,
 	val observedElapsedRealtimeNanos: Long,
 	val receivedElapsedRealtimeNanos: Long,
+	/** Wall clock when the provider callback reached the app, independent of provider fix time. */
+	val receivedWallTimeMs: Long? = null,
 	val wallTimeMs: Long?,
 	val wallTimeUncertaintyMs: Long?,
 	val capturedCollectedDataEpoch: Long,
@@ -46,6 +48,9 @@ data class SourceEvidenceCandidate<T : SourcePayload>(
 		require(clockDomainId.isNotBlank()) { "Clock domain ID must not be blank" }
 		require(observedElapsedRealtimeNanos >= 0L) { "Observed monotonic time must not be negative" }
 		require(receivedElapsedRealtimeNanos >= 0L) { "Received monotonic time must not be negative" }
+		require(receivedWallTimeMs == null || receivedWallTimeMs >= 0L) {
+			"Received wall time must not be negative"
+		}
 		require(wallTimeUncertaintyMs == null || wallTimeUncertaintyMs >= 0L) {
 			"Wall-time uncertainty must not be negative"
 		}

@@ -142,6 +142,7 @@ internal data class LocationDurableClockAuthority(
 	val observedElapsedRealtimeNanos: Long,
 	val receivedElapsedRealtimeNanos: Long,
 	val observedWallTimeMs: Long,
+	val receivedWallTimeMs: Long? = null,
 	val wallTimeUncertaintyMs: Long,
 )
 

@@ -20,8 +20,10 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.string.shouldContain
+import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -75,6 +77,27 @@ class SourceEventWalDaoTest {
 		stored.registrationGeneration shouldBe 7L
 		stored.physicalConfigurationFingerprint shouldBe "physical-v7"
 		stored.authorizationRevision shouldBe 11L
+	}
+
+	@Test
+	fun `nullable callback wall preserves legacy integrity and binds new envelopes`() {
+		val payload = byteArrayOf(1, 2, 3)
+		val legacy = event("legacy-integrity", sourceSequence = 5L).copy(
+			payload = payload,
+			payloadChecksum = payload.sha256(),
+		)
+		legacy.calculatedIntegrityIdentity() shouldBe legacyIntegrityIdentity(legacy)
+
+		val withCallbackWall = legacy.copy(receivedWallTimeMs = 15_000L)
+		withCallbackWall.calculatedIntegrityIdentity() shouldBe
+			legacyIntegrityIdentity(withCallbackWall, receivedWallTimeMs = 15_000L)
+		withCallbackWall.calculatedIntegrityIdentity() shouldNotBe
+			withCallbackWall.copy(receivedWallTimeMs = 15_001L).calculatedIntegrityIdentity()
+		(
+			withCallbackWall.copy(
+				integrityIdentity = withCallbackWall.calculatedIntegrityIdentity(),
+			).hasQualifiedIntegrity()
+		) shouldBe true
 	}
 
 	@Test
@@ -1028,6 +1051,56 @@ class SourceEventWalDaoTest {
 		installedAtMs = 1,
 		updatedAtMs = 1,
 	)
+
+	private fun legacyIntegrityIdentity(
+		entity: SourceEventWalEntity,
+		receivedWallTimeMs: Long? = null,
+	): String {
+		val values = listOf(
+			entity.deliveryIdentity,
+			entity.deliveryUnitIndex,
+			entity.deliveryUnitCount,
+			entity.logicalTrackingId,
+			entity.serviceRunId,
+			entity.sourceKind,
+			entity.sourceInstanceId,
+			entity.registrationGeneration,
+			entity.physicalConfigurationFingerprint,
+			entity.authorizationRevision,
+			entity.authorizationPurposeEligibilityMask,
+			entity.authorizationFingerprint,
+			entity.sourceSequence,
+			entity.providerDedupKey,
+			entity.configRevision,
+			entity.planAttribution,
+			entity.clockDomainId,
+			entity.observedElapsedNanos,
+			entity.observedIntervalStartNanos,
+			entity.receivedElapsedNanos,
+			entity.wallTimeMs,
+			entity.wallTimeUncertaintyMs,
+			entity.capturedCollectedDataEpoch,
+			entity.activityAutomationEpoch,
+			entity.sourcePolicyRevision,
+			entity.captureConsentEpoch,
+			entity.sessionManifestRevision,
+			entity.lifecycleLeaseGeneration,
+			entity.acquiredAtMs,
+			entity.qualityFlags,
+			entity.qualityConfidence,
+			entity.payloadVersion,
+			entity.payload.sha256(),
+		) + listOfNotNull(receivedWallTimeMs)
+		val canonical = values.joinToString(separator = "") { value ->
+			val text = value?.toString()
+			if (text == null) "-1:" else "${text.length}:$text"
+		}
+		return canonical.encodeToByteArray().sha256()
+	}
+
+	private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")
+		.digest(this)
+		.joinToString(separator = "") { byte -> "%02x".format(byte) }
 
 	private fun event(eventId: String, sourceSequence: Long) = SourceEventWalEntity(
 		eventId = eventId,

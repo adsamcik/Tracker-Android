@@ -520,6 +520,7 @@ class TrackingOrchestratorIntegrationTest {
 				observedElapsedRealtimeNanos = elapsedRealtimeNanos,
 				receivedElapsedRealtimeNanos = elapsedRealtimeNanos + 100_000_000L,
 				observedWallTimeMs = wallTimeMs,
+				receivedWallTimeMs = wallTimeMs + 100L,
 				wallTimeUncertaintyMs = 0L,
 			),
 			payloadVersion = 2,

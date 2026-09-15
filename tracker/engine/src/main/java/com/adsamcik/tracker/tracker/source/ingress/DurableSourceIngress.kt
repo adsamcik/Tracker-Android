@@ -1306,6 +1306,7 @@ private fun SourceEvidenceCandidate<*>.toEntity(
 		observedElapsedNanos = observedElapsedRealtimeNanos,
 		observedIntervalStartNanos = observedIntervalStartNanos,
 		receivedElapsedNanos = receivedElapsedRealtimeNanos,
+		receivedWallTimeMs = receivedWallTimeMs,
 		wallTimeMs = wallTimeMs,
 		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
 		capturedCollectedDataEpoch = capturedCollectedDataEpoch,

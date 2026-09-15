@@ -10,6 +10,9 @@ import com.adsamcik.tracker.shared.base.data.LocationPermissionPrecision
 import com.adsamcik.tracker.shared.base.data.LocationRequestPriority
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationObservation
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.stats.api.value.LatE7
 import com.adsamcik.tracker.stats.api.value.LonE7
@@ -54,37 +57,48 @@ class RawLocationObservationRepair @Inject constructor(
 	}
 
 	private suspend fun repairPage(page: List<SourceEventWalEntity>): Int {
-		val candidates = page.mapNotNull { row -> row.toRepairCandidateOrNull() }
-		if (candidates.isEmpty()) return 0
-		return database.withTransaction { insertEligibleCandidates(candidates) }
+		return database.withTransaction {
+			val stateDao = database.sourceEvidenceStateDao()
+			stateDao.ensure()
+			val state = requireNotNull(stateDao.get()) {
+				"Source-evidence state disappeared during raw-location repair"
+			}
+			val candidates = page.mapNotNull { row ->
+				row.toRepairCandidateOrNull(state)
+			}
+			if (candidates.isEmpty()) return@withTransaction 0
+			check(database.sourceDestinationOwnerDao().isExactOwner(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+				owner = SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE,
+				ownerGeneration = SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION,
+			)) {
+				"Existing canonical Location writer does not own legacy observation repair"
+			}
+			insertEligibleCandidates(candidates, state)
+		}
 	}
 
-	private fun SourceEventWalEntity.toRepairCandidateOrNull(): RawLocationRepairCandidate? {
-		if (isProtectedLocationCapture()) return null
+	private fun SourceEventWalEntity.toRepairCandidateOrNull(
+		state: SourceEvidenceState,
+	): RawLocationRepairCandidate? {
+		if (!isReleasedLegacyObservation() || !isCurrentFor(state)) return null
 		val observation = toCanonicalObservationOrNull() ?: return null
-		return RawLocationRepairCandidate(
-			capturedCollectedDataEpoch = capturedCollectedDataEpoch,
-			acquiredAtMs = acquiredAtMs,
-			observation = observation,
-		)
+		return RawLocationRepairCandidate(observation)
 	}
 
-	private suspend fun insertEligibleCandidates(candidates: List<RawLocationRepairCandidate>): Int {
+	private suspend fun insertEligibleCandidates(
+		candidates: List<RawLocationRepairCandidate>,
+		state: SourceEvidenceState,
+	): Int {
 		val stateDao = database.sourceEvidenceStateDao()
-		stateDao.ensure()
-		val state = requireNotNull(stateDao.get()) {
-			"Source-evidence state disappeared during raw-location repair"
-		}
-		val eligible = candidates.filter { candidate ->
-			candidate.isEligibleFor(state.collectedDataEpoch, state.retainedFromMs)
-		}
-		if (eligible.isEmpty()) return 0
+		if (candidates.isEmpty()) return 0
 		check(stateDao.incrementRevision(Time.nowMillis) == 1) {
 			"Unable to advance source-evidence revision during raw-location repair"
 		}
 		val revision = requireNotNull(stateDao.get()).revision
 		val inserted = database.locationObservationDao().insert(
-			eligible.map { candidate -> candidate.observation.copy(sourceRevision = revision) },
+			candidates.map { candidate -> candidate.observation.copy(sourceRevision = revision) },
 		)
 		return inserted.count { rowId -> rowId != -1L }
 	}
@@ -101,11 +115,11 @@ class RawLocationObservationRepair @Inject constructor(
 	private fun SourceEventWalEntity.toCanonicalObservationOrNull(): LocationObservation? {
 		if (!hasRepairableIntegrity()) return null
 		val decodedPayload = decodeLocationPayloadOrNull() ?: return null
-		val isMock = decodedPayload.repairedMockProvenance(payloadVersion) ?: return null
+		val mockProvenance = decodedPayload.repairedMockProvenance(payloadVersion) ?: return null
 		val coordinates = decodedPayload.toStoredCoordinatesOrNull()
 		val elapsedTimeIsValid = hasValidElapsedTime()
 		val repairedBatch = repairedBatchPosition()
-		val receivedAt = acquiredAtMs
+		val receivedAt = receivedWallTimeMs ?: acquiredAtMs
 		return LocationObservation(
 			fixTimeMs = wallTimeMs ?: acquiredAtMs,
 			fixElapsedRealtimeNanos = observedElapsedNanos,
@@ -127,8 +141,12 @@ class RawLocationObservationRepair @Inject constructor(
 			permissionPrecision = LocationPermissionPrecision.UNKNOWN.name,
 			batchIndex = repairedBatch.index,
 			batchSize = repairedBatch.size,
-			isMock = isMock,
-			ingressDisposition = repairedIngressDisposition(coordinates, elapsedTimeIsValid).name,
+			isMock = mockProvenance.storedIsMock,
+			ingressDisposition = repairedIngressDisposition(
+				coordinates,
+				elapsedTimeIsValid,
+				mockProvenance,
+			).name,
 			estimatorVersion = PersistenceProcessor.CURRENT_ESTIMATOR_VERSION,
 			calibrationVersion = PersistenceProcessor.CURRENT_CALIBRATION_VERSION,
 			createdAt = wallTimeMs ?: acquiredAtMs,
@@ -140,9 +158,14 @@ class RawLocationObservationRepair @Inject constructor(
 		)
 	}
 
-	/** Frozen v1 bytes predate mock provenance and must not manufacture a false provider bit. */
-	private fun LocationFixPayload.repairedMockProvenance(payloadVersion: Int): Boolean? =
-		if (payloadVersion < LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION) null else isMock
+	private fun LocationFixPayload.repairedMockProvenance(
+		payloadVersion: Int,
+	): RepairedMockProvenance? = when {
+		payloadVersion < LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION ->
+			RepairedMockProvenance.LegacyUnknown
+		isMock == null -> null
+		else -> RepairedMockProvenance.Known(isMock)
+	}
 
 	/**
 	 * Fully bound runtime WAL is owned by the protected canonical handoff. Repairing only its raw
@@ -163,6 +186,38 @@ class RawLocationObservationRepair @Inject constructor(
 			captureConsentEpoch != null &&
 			sessionManifestRevision != null &&
 			lifecycleLeaseGeneration != null
+
+	private fun SourceEventWalEntity.isReleasedLegacyObservation(): Boolean =
+		!isProtectedLocationCapture() &&
+			payloadVersion < LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION &&
+			(integrityIdentity == SourceEventWalEntity.LEGACY_PENDING_CHECKSUM ||
+				integrityIdentity == SourceEventWalEntity.LEGACY_CHECKSUM_VERIFIED) &&
+			!providerDedupKey.isNullOrBlank() &&
+			deliveryIdentity == null &&
+			deliveryUnitIndex == null &&
+			deliveryUnitCount == null &&
+			physicalConfigurationFingerprint == null &&
+			authorizationRevision == null &&
+			authorizationFingerprint == null &&
+			authorizationPurposeEligibilityMask == 0L &&
+			sourcePolicyRevision == null &&
+			captureConsentEpoch == null &&
+			sessionManifestRevision == null &&
+			lifecycleLeaseGeneration == null
+
+	private fun SourceEventWalEntity.isCurrentFor(state: SourceEvidenceState): Boolean =
+		capturedCollectedDataEpoch == state.collectedDataEpoch &&
+			admissionOrdinal > state.deletedSourceEventHighWaterOrdinal &&
+			(state.retainedFromMs == null ||
+				earliestPossibleWallTimeMs()?.let { it >= state.retainedFromMs } == true) &&
+			authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L
+
+	private fun SourceEventWalEntity.earliestPossibleWallTimeMs(): Long? {
+		val observedWall = wallTimeMs ?: return null
+		val uncertainty = wallTimeUncertaintyMs ?: return null
+		if (observedWall < 0L || uncertainty < 0L || observedWall < uncertainty) return null
+		return observedWall - uncertainty
+	}
 
 	private fun SourceEventWalEntity.hasRepairableIntegrity(): Boolean =
 		hasQualifiedIntegrity() || hasVerifiedLegacyPayload() || hasPendingLegacyPayload()
@@ -201,9 +256,12 @@ class RawLocationObservationRepair @Inject constructor(
 	private fun repairedIngressDisposition(
 		coordinates: RawLocationRepairCoordinates?,
 		hasValidElapsedTime: Boolean,
+		mockProvenance: RepairedMockProvenance,
 	): LocationIngressDisposition = when {
 		coordinates == null -> LocationIngressDisposition.REJECTED_INVALID_COORDINATE
 		!hasValidElapsedTime -> LocationIngressDisposition.REJECTED_INVALID_TIMESTAMP
+		mockProvenance == RepairedMockProvenance.LegacyUnknown ->
+			LocationIngressDisposition.MIGRATED_MOCK_PROVENANCE_UNKNOWN
 		else -> LocationIngressDisposition.DELIVERED_VALID
 	}
 
@@ -221,17 +279,8 @@ class RawLocationObservationRepair @Inject constructor(
 }
 
 private data class RawLocationRepairCandidate(
-	val capturedCollectedDataEpoch: Long,
-	val acquiredAtMs: Long,
 	val observation: LocationObservation,
-) {
-	fun isEligibleFor(collectedDataEpoch: Long, retainedFromMs: Long?): Boolean {
-		if (capturedCollectedDataEpoch != collectedDataEpoch) {
-			return false
-		}
-		return retainedFromMs == null || acquiredAtMs >= retainedFromMs
-	}
-}
+)
 
 private data class RawLocationRepairCoordinates(
 	val latE7: Int,
@@ -242,3 +291,15 @@ private data class RawLocationRepairBatch(
 	val index: Int,
 	val size: Int,
 )
+
+private sealed interface RepairedMockProvenance {
+	val storedIsMock: Boolean
+
+	data object LegacyUnknown : RepairedMockProvenance {
+		override val storedIsMock: Boolean = false
+	}
+
+	data class Known(
+		override val storedIsMock: Boolean,
+	) : RepairedMockProvenance
+}

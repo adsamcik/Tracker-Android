@@ -410,6 +410,8 @@ class ProtectedLocationCanonicalHandoffTest {
 					receivedElapsedNanos =
 						command.productEffect.durableEvidence.clockAuthority
 							.receivedElapsedRealtimeNanos,
+					receivedWallTimeMs =
+						command.productEffect.durableEvidence.clockAuthority.receivedWallTimeMs,
 					wallTimeMs =
 						command.productEffect.durableEvidence.clockAuthority.observedWallTimeMs,
 					wallTimeUncertaintyMs = 0L,
@@ -483,6 +485,7 @@ class ProtectedLocationCanonicalHandoffTest {
 				observedElapsedRealtimeNanos = OBSERVED_NANOS,
 				receivedElapsedRealtimeNanos = RECEIVED_NANOS,
 				observedWallTimeMs = WALL_TIME_MS,
+				receivedWallTimeMs = RECEIVED_WALL_TIME_MS,
 				wallTimeUncertaintyMs = 0L,
 			),
 			payloadVersion = 2,
@@ -539,8 +542,9 @@ class ProtectedLocationCanonicalHandoffTest {
 		const val EVENT_ID = "location-event"
 		const val ADMISSION_ORDINAL = 10L
 		const val OBSERVED_NANOS = 2_000_000_000L
-		const val RECEIVED_NANOS = 2_250_000_000L
+		const val RECEIVED_NANOS = 7_000_000_000L
 		const val WALL_TIME_MS = 10_000L
+		const val RECEIVED_WALL_TIME_MS = 15_000L
 		const val CLOCK_ID = "boot-location"
 		val DELIVERY_IDENTITY = "b".repeat(64)
 	}
@@ -610,7 +614,7 @@ private fun LocationCapturedFactCommand.toObservation(
 	return LocationObservation(
 		fixTimeMs = clock.observedWallTimeMs,
 		fixElapsedRealtimeNanos = clock.observedElapsedRealtimeNanos,
-		receivedAtMs = clock.observedWallTimeMs,
+		receivedAtMs = requireNotNull(clock.receivedWallTimeMs),
 		receivedElapsedRealtimeNanos = clock.receivedElapsedRealtimeNanos,
 		deliveryAgeMs =
 			(clock.receivedElapsedRealtimeNanos - clock.observedElapsedRealtimeNanos) / 1_000_000L,

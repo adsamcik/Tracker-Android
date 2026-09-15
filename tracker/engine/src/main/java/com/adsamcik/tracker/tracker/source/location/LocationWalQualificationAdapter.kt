@@ -490,9 +490,11 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 			)
 		}.getOrNull() ?: return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_MISMATCH)
 		val wallTime = wal.wallTimeMs
+		val receivedWallTime = wal.receivedWallTimeMs
 		val wallUncertainty = wal.wallTimeUncertaintyMs
 		val knownQualityMask = SourceQualityFlag.entries.fold(0L) { mask, flag -> mask or flag.bit }
-		if (wallTime == null || wallUncertainty == null || wallUncertainty < 0L ||
+		if (wallTime == null || receivedWallTime == null || receivedWallTime < 0L ||
+			wallUncertainty == null || wallUncertainty < 0L ||
 			wal.qualityFlags and knownQualityMask != wal.qualityFlags ||
 			wal.qualityConfidence?.let { confidence -> !confidence.isFinite() || confidence !in 0f..1f } == true
 		) {
@@ -525,6 +527,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 				observedElapsedRealtimeNanos = wal.observedElapsedNanos,
 				receivedElapsedRealtimeNanos = wal.receivedElapsedNanos,
 				observedWallTimeMs = wallTime,
+				receivedWallTimeMs = receivedWallTime,
 				wallTimeUncertaintyMs = wallUncertainty,
 			),
 			payloadVersion = wal.payloadVersion,
@@ -590,6 +593,8 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 				row.clockDomainId != target.clockDomainId || row.activityAutomationEpoch != null ||
 				row.observedIntervalStartNanos != row.observedElapsedNanos ||
 				row.receivedElapsedNanos < row.observedElapsedNanos ||
+				row.receivedWallTimeMs == null ||
+				row.receivedWallTimeMs != target.receivedWallTimeMs ||
 				row.wallTimeMs == null || row.wallTimeUncertaintyMs == null ||
 				row.wallTimeUncertaintyMs !in 0L..1L ||
 				row.sourceSequence != runCatching { Math.addExact(firstSequence, index.toLong()) }.getOrNull()
@@ -630,6 +635,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 			observedElapsedNanos == other.observedElapsedNanos &&
 			observedIntervalStartNanos == other.observedIntervalStartNanos &&
 			receivedElapsedNanos == other.receivedElapsedNanos &&
+			receivedWallTimeMs == other.receivedWallTimeMs &&
 			wallTimeMs == other.wallTimeMs &&
 			wallTimeUncertaintyMs == other.wallTimeUncertaintyMs &&
 			capturedCollectedDataEpoch == other.capturedCollectedDataEpoch &&
