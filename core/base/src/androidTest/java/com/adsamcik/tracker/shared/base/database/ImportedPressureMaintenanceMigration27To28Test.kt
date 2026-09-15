@@ -43,7 +43,9 @@ class ImportedPressureMaintenanceMigration27To28Test {
 			listOf(
 				"imported_pressure_retention_receipt",
 				"imported_pressure_retained_identity",
+				"imported_pressure_identity_fence",
 				"imported_pressure_source_erase",
+				"imported_pressure_source_erase_witness",
 			).forEach { table ->
 				database.query("SELECT COUNT(*) FROM $table").use { cursor ->
 					assertTrue(cursor.moveToFirst())

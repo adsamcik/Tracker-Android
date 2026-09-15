@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureRequest
@@ -13,6 +14,11 @@ import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureResult
+import com.adsamcik.tracker.stats.api.repository.DeleteImportedPressureEntryRequest
+import com.adsamcik.tracker.stats.api.repository.DeleteImportedPressureEntryResult
+import com.adsamcik.tracker.stats.api.repository.ImportedPressureEntryDeletionUnverifiableReason
+import com.adsamcik.tracker.stats.api.repository.ImportedPressureHistoryIdentity
+import com.adsamcik.tracker.stats.api.repository.ImportedPressureMaintenanceUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortablePressureAvailability
 import com.adsamcik.tracker.stats.api.repository.PortablePressureCoverage
 import com.adsamcik.tracker.stats.api.repository.PortablePressureEntrySink
@@ -162,6 +168,167 @@ class RoomTruncateImportedPressureRetentionTest {
 		)
 	}
 
+	@Test
+	fun `missing retained marker is unverifiable for replay selected deletion and no-change`() =
+		runTest {
+		val imported = importRequest(entry(), 1)
+		importer(testScheduler).importEntry(imported)
+		publishFloor()
+		subject(testScheduler).truncate(request()) shouldBe
+			TruncateImportedPressureRetentionResult.Truncated(1, 1, 1, 1)
+		importer(testScheduler).importEntry(imported) shouldBe
+			ImportPortablePressureResult.Blocked(
+				com.adsamcik.tracker.stats.api.repository
+					.PortablePressureImportBlockedReason.RETENTION_TRUNCATED,
+			)
+		val deleter = RoomDeleteImportedPressureEntry(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+			{ RETAINED_AT_MS + 1L },
+			{},
+		)
+		deleter.delete(
+			DeleteImportedPressureEntryRequest(
+				ImportedPressureHistoryIdentity(imported.entry.identity.value),
+				1L,
+				EPOCH,
+			),
+		) shouldBe DeleteImportedPressureEntryResult.Unverifiable(
+			ImportedPressureEntryDeletionUnverifiableReason.RETENTION_BOUNDARY,
+		)
+		subject(testScheduler).truncate(request(expectedRevision = 2L)) shouldBe
+			TruncateImportedPressureRetentionResult.NoChange
+		val missing = database.importedPressureDao().retainedIdentitiesForEntries(
+			listOf(imported.entry.identity.value),
+			4,
+		).last()
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM imported_pressure_retained_identity WHERE protected_identity = ?",
+			arrayOf(missing.protectedIdentity),
+		)
+
+		importer(testScheduler).importEntry(imported) shouldBe
+			ImportPortablePressureResult.Unverifiable(
+				com.adsamcik.tracker.stats.api.repository
+					.PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		deleter.delete(
+			DeleteImportedPressureEntryRequest(
+				ImportedPressureHistoryIdentity(imported.entry.identity.value),
+				1L,
+				EPOCH,
+			),
+		) shouldBe DeleteImportedPressureEntryResult.Unverifiable(
+			ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		subject(testScheduler).truncate(request(expectedRevision = 2L)) shouldBe
+			TruncateImportedPressureRetentionResult.Unverifiable(
+				ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		val unrelated = importRequest(
+			entry("unrelated", "unrelated-run", "unrelated-window", uncertaintyMs = 0L),
+			2,
+		)
+		importer(testScheduler).importEntry(unrelated) shouldBe
+			ImportPortablePressureResult.Applied(1L, 1, 1)
+		}
+
+	@Test
+	fun `self-checksummed retention receipt with false deletion set is unverifiable`() = runTest {
+		val imported = importRequest(entry(), 1)
+		importer(testScheduler).importEntry(imported)
+		publishFloor()
+		subject(testScheduler).truncate(request())
+		val dao = database.importedPressureDao()
+		val original = requireNotNull(dao.retentionReceipt(imported.entry.identity.value))
+		val markers = dao.retainedIdentitiesForEntries(
+		listOf(imported.entry.identity.value),
+		original.protectedIdentityCount + 1,
+		)
+		val fences = dao.identityFencesForEntry(
+		imported.entry.identity.value,
+		original.identityFenceCountForTest() + 1,
+		)
+		val fakeDeletion = ImportedPressureDeletionGenerationEntity.create(
+		imported.entry.runs.single().identity.value,
+		EPOCH,
+		1L,
+		RETAINED_AT_MS,
+		)
+		val forged = com.adsamcik.tracker.shared.base.database.data
+		.ImportedPressureRetentionReceiptEntity.create(
+			entryIdentity = original.entryIdentity,
+			collectedDataEpoch = original.collectedDataEpoch,
+			sourceEvidenceRevision = original.sourceEvidenceRevision,
+			retainedFromMs = original.retainedFromMs,
+			retainedAtMs = original.retainedAtMs,
+			latestImportRevision = original.latestImportRevision,
+			latestContentChecksum = original.latestContentChecksum,
+			startTimeMs = original.startTimeMs,
+			endTimeMs = original.endTimeMs,
+			receivedAtMs = original.receivedAtMs,
+			revisionCount = original.revisionCount,
+			importReceiptCount = original.importReceiptCount,
+			runRowCount = original.runRowCount,
+			windowRowCount = original.windowRowCount,
+			runDeletions = listOf(fakeDeletion),
+			markers = markers,
+			identityFences = fences,
+			lineageAuthorityChecksum = original.lineageAuthorityChecksum,
+		)
+		database.openHelper.writableDatabase.execSQL(
+		"UPDATE imported_pressure_retention_receipt SET run_deletion_count = ?, " +
+			"run_deletion_set_checksum = ?, effect_checksum = ? WHERE entry_identity = ?",
+		arrayOf(
+			forged.runDeletionCount,
+			forged.runDeletionSetChecksum,
+			forged.effectChecksum,
+			forged.entryIdentity,
+		),
+		)
+
+		importer(testScheduler).importEntry(imported) shouldBe
+		ImportPortablePressureResult.Unverifiable(
+			com.adsamcik.tracker.stats.api.repository
+				.PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		subject(testScheduler).truncate(request(expectedRevision = 2L)) shouldBe
+		TruncateImportedPressureRetentionResult.Unverifiable(
+			ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `older same-owner typed fence is accepted without timestamp replacement`() = runTest {
+		val imported = importRequest(entry(), 1)
+		importer(testScheduler).importEntry(imported)
+		publishFloor()
+		subject(testScheduler).truncate(request())
+		val dao = database.importedPressureDao()
+		val retained = dao.identityFencesForEntry(imported.entry.identity.value, 4)
+		val entryFence = retained.single {
+		it.identityKind == com.adsamcik.tracker.shared.base.database.data
+			.ImportedPressureIdentityFenceEntity.ENTRY
+		}
+		val laterEquivalent =
+		com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity.create(
+			entryFence.protectedIdentity,
+			entryFence.identityKind,
+			entryFence.entryIdentity,
+			entryFence.runIdentity,
+			entryFence.originalCollectedDataEpoch,
+			entryFence.fencedAtMs + 100L,
+			com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
+				.REASON_FULL_CLEAR,
+		)
+
+		dao.insertOrAuthenticateIdentityFences(listOf(laterEquivalent))
+
+		dao.identityFencesForEntry(imported.entry.identity.value, 4).single {
+		it.protectedIdentity == entryFence.protectedIdentity
+		} shouldBe entryFence
+	}
+
 	private suspend fun publishFloor() {
 		database.sourceEvidenceStateDao().updateLifecycle(
 			EPOCH,
@@ -192,10 +359,13 @@ class RoomTruncateImportedPressureRetentionTest {
 		)
 	}
 
-	private fun request(expectedEpoch: Long = EPOCH) =
+	private fun request(
+		expectedEpoch: Long = EPOCH,
+		expectedRevision: Long = FLOOR_REVISION,
+	) =
 		TruncateImportedPressureRetentionRequest(
 			expectedCollectedDataEpoch = expectedEpoch,
-			expectedSourceEvidenceRevision = FLOOR_REVISION,
+			expectedSourceEvidenceRevision = expectedRevision,
 			retainedFromMs = RETENTION_FLOOR_MS,
 			retainedAtMs = RETAINED_AT_MS,
 		)
@@ -279,3 +449,6 @@ class RoomTruncateImportedPressureRetentionTest {
 		const val RETAINED_AT_MS = 3_000L
 	}
 }
+
+private fun com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetentionReceiptEntity
+	.identityFenceCountForTest(): Int = protectedIdentityCount

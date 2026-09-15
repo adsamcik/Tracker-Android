@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
@@ -71,13 +72,41 @@ class ImportedPressureDaoTest {
 	}
 
 	@Test
-	fun `rollback cascades only one receipt while privacy generation remains until full clear`() = runTest {
+	fun `rollback cascades one receipt while deletion authority survives full clear`() = runTest {
 		dao.insertEntryRevision(entry())
 		dao.insertRun(run())
 		dao.insertWindow(window())
 		dao.insertReceipt(receipt())
-		val generation = ImportedPressureDeletionGenerationEntity.create(RUN, 7L, 1L, 50L)
-		val entryDeletion = ImportedPressureEntryDeletionEntity.create(OTHER, 7L, 2L, 55L)
+		val generation = ImportedPressureDeletionGenerationEntity.create(OTHER_RUN, 7L, 1L, 50L)
+		val fences = listOf(
+			ImportedPressureIdentityFenceEntity.create(
+				OTHER,
+				ImportedPressureIdentityFenceEntity.ENTRY,
+				OTHER,
+				null,
+				7L,
+				55L,
+				ImportedPressureIdentityFenceEntity.REASON_SELECTED_DELETE,
+			),
+			ImportedPressureIdentityFenceEntity.create(
+				OTHER_RUN,
+				ImportedPressureIdentityFenceEntity.RUN,
+				OTHER,
+				OTHER_RUN,
+				7L,
+				55L,
+				ImportedPressureIdentityFenceEntity.REASON_SELECTED_DELETE,
+			),
+		)
+		val entryDeletion = ImportedPressureEntryDeletionEntity.create(
+			OTHER,
+			7L,
+			2L,
+			55L,
+			listOf(generation),
+			fences,
+		)
+		dao.insertIdentityFences(fences)
 		dao.insertDeletionGeneration(generation)
 		dao.insertEntryDeletion(entryDeletion)
 
@@ -85,12 +114,16 @@ class ImportedPressureDaoTest {
 		dao.receipt("job-1", "entry-1") shouldBe null
 		dao.runs(ENTRY, 1L) shouldBe emptyList()
 		dao.windows(ENTRY, 1L, RUN) shouldBe emptyList()
-		dao.deletionGeneration(RUN) shouldBe generation
+		dao.deletionGeneration(OTHER_RUN) shouldBe generation
 		dao.entryDeletion(OTHER) shouldBe entryDeletion
 
 		AppDatabase.deleteAllCollectedData(database, 8L, null, 60L)
-		dao.deletionGeneration(RUN) shouldBe null
-		dao.entryDeletion(OTHER) shouldBe null
+		dao.deletionGeneration(OTHER_RUN) shouldBe generation
+		dao.entryDeletion(OTHER) shouldBe entryDeletion
+		dao.identityFencesForEntry(OTHER, 3) shouldBe fences.sortedWith(
+			compareBy(ImportedPressureIdentityFenceEntity::identityKind)
+				.thenBy(ImportedPressureIdentityFenceEntity::protectedIdentity),
+		)
 	}
 
 	@Test
@@ -178,6 +211,7 @@ class ImportedPressureDaoTest {
 		val WINDOW = opaque('3')
 		val CHECKSUM = opaque('4')
 		val OTHER = opaque('5')
+		val OTHER_RUN = opaque('6')
 		fun opaque(character: Char): String = "sha256:${character.toString().repeat(64)}"
 	}
 }

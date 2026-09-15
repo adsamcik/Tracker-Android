@@ -6,6 +6,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.applyPressureSourceEraseLocalMutationInTransaction
 import com.adsamcik.tracker.shared.base.database.auditPressureSourceEraseLocalAuthorityInTransaction
+import com.adsamcik.tracker.shared.base.database.PressureSourceEraseLocalFailure
+import com.adsamcik.tracker.shared.base.database.PressureSourceEraseLocalFailureReason
 import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
@@ -155,6 +157,28 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			database.sourceSessionDao().serviceRun(fixture.runId)?.serviceRunId shouldBe fixture.runId
 			exactFence(fixture)?.fenceGeneration shouldBe 1L
 		}
+
+	@Test
+	fun `source erase blocks exact direct Pressure demand before local mutation`() = runTest {
+		val fixture = insertPressureSession("source-erase-demand", 1L, 1_000L, 2_000L)
+		database.sourceBrokerDao().insertDemands(listOf(activeDemand(fixture)))
+
+		val failure = shouldThrow<PressureSourceEraseLocalFailure> {
+			database.withTransaction {
+				database.auditPressureSourceEraseLocalAuthorityInTransaction(
+					expectedCollectedDataEpoch = COLLECTED_DATA_EPOCH,
+					expectedDeletedSourceEventHighWaterOrdinal = 0L,
+					expectedCurrentPolicyRevision = POLICY_REVISION,
+					expectedRevokedConsentEpoch = CONSENT_EPOCH,
+					erasedAtMs = 3_000L,
+				)
+			}
+		}
+
+		failure.reason shouldBe PressureSourceEraseLocalFailureReason.DIRECT_DEMAND_NOT_QUIESCED
+		database.pressureFactRevisionDao().count() shouldBe 1L
+		exactFence(fixture) shouldBe null
+	}
 
 	@Test
 	@Suppress("LongMethod")

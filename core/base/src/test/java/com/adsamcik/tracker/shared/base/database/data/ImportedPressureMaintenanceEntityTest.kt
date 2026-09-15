@@ -26,6 +26,35 @@ class ImportedPressureMaintenanceEntityTest {
 		)
 		val header = header()
 		val importReceipt = receipt()
+		val identityFences = listOf(
+			ImportedPressureIdentityFenceEntity.create(
+				ENTRY,
+				ImportedPressureIdentityFenceEntity.ENTRY,
+				ENTRY,
+				null,
+				7L,
+				2_100L,
+				ImportedPressureIdentityFenceEntity.REASON_RETENTION,
+			),
+			ImportedPressureIdentityFenceEntity.create(
+				RUN,
+				ImportedPressureIdentityFenceEntity.RUN,
+				ENTRY,
+				RUN,
+				7L,
+				2_100L,
+				ImportedPressureIdentityFenceEntity.REASON_RETENTION,
+			),
+			ImportedPressureIdentityFenceEntity.create(
+				WINDOW,
+				ImportedPressureIdentityFenceEntity.WINDOW,
+				ENTRY,
+				RUN,
+				7L,
+				2_100L,
+				ImportedPressureIdentityFenceEntity.REASON_RETENTION,
+			),
+		)
 		val retained = ImportedPressureRetentionReceiptEntity.create(
 			entryIdentity = ENTRY,
 			collectedDataEpoch = 7L,
@@ -43,6 +72,7 @@ class ImportedPressureMaintenanceEntityTest {
 			windowRowCount = 1,
 			runDeletions = emptyList(),
 			markers = markers,
+			identityFences = identityFences,
 			lineageAuthorityChecksum = ImportedPressureRetentionReceiptEntity
 				.lineageAuthorityChecksum(listOf(header), listOf(importReceipt)),
 		)
@@ -57,13 +87,33 @@ class ImportedPressureMaintenanceEntityTest {
 			collectedDataEpoch = 7L,
 			sourceEvidenceRevision = 5L,
 			erasedAtMs = 3_000L,
+			providerRegistrationGeneration = 2L,
+			legacyWriteFenceGeneration = 3L,
 			localFactRevisionCount = 2,
 			localWalEventCount = 1,
-			importedEntryCount = 1,
-			importedRevisionCount = 2,
-			importedRunCount = 2,
-			importedWindowCount = 2,
-			fencedLocalRunCount = 1,
+			legacySampleCount = 3,
+			legacySampleWitnesses = listOf(
+				ImportedPressureSourceEraseWitnessEntity.legacy(
+					"sha256:${"9".repeat(64)}",
+					"sha256:${"a".repeat(64)}",
+				),
+				ImportedPressureSourceEraseWitnessEntity.legacy(
+					"sha256:${"b".repeat(64)}",
+					"sha256:${"c".repeat(64)}",
+				),
+				ImportedPressureSourceEraseWitnessEntity.legacy(
+					"sha256:${"d".repeat(64)}",
+					"sha256:${"e".repeat(64)}",
+				),
+			),
+			importedEntryCount = 0,
+			importedRevisionCount = 0,
+			importedRunCount = 0,
+			importedWindowCount = 0,
+			localFences = emptyList(),
+			entryDeletions = emptyList(),
+			runDeletions = emptyList(),
+			identityFences = emptyList(),
 		)
 
 		shouldThrow<IllegalArgumentException> {

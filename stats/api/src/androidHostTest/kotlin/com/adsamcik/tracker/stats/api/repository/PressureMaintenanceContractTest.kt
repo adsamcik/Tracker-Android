@@ -25,6 +25,7 @@ class PressureMaintenanceContractTest {
 		val expected = ErasePressureSourceResult.Erased(
 			localFactRevisionCount = 2,
 			localWalEventCount = 1,
+			legacySampleCount = 3,
 			importedEntryCount = 1,
 			importedRevisionCount = 2,
 			importedRunCount = 2,
@@ -47,10 +48,18 @@ class PressureMaintenanceContractTest {
 		val importOnly = object : PressureSourceEraseBarrier {
 			override suspend fun establish(
 				expectedCollectedDataEpoch: Long,
-			): PressureSourceEraseBarrierResult =
-				PressureSourceEraseBarrierResult.NoLocalProvider
+			): PressureSourceEraseBarrierResult = PressureSourceEraseBarrierResult.NoLocalProvider(
+				PressureSourceEraseBarrierToken(expectedCollectedDataEpoch, null, 1L),
+			)
+
+			override suspend fun verifySettled(
+				token: PressureSourceEraseBarrierToken,
+			): PressureSourceEraseBarrierVerification =
+				PressureSourceEraseBarrierVerification.Verified
 		}
 
-		importOnly.establish(7L) shouldBe PressureSourceEraseBarrierResult.NoLocalProvider
+		importOnly.establish(7L) shouldBe PressureSourceEraseBarrierResult.NoLocalProvider(
+			PressureSourceEraseBarrierToken(7L, null, 1L),
+		)
 	}
 }
