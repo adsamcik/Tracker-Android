@@ -4,6 +4,7 @@ import android.content.Context
 import com.adsamcik.tracker.impexp.importer.FileImportReceiptContext
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
+import com.adsamcik.tracker.impexp.portable.PortablePressureJsonException
 import com.adsamcik.tracker.impexp.portable.PortablePressureJsonV1Codec
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
@@ -68,13 +69,20 @@ internal class PortablePressureFileImport(
 			?: throw PortablePressureImportReceiptContextException()
 		val dependencies = dependenciesProvider(context)
 		var aggregate = ImportResult.EMPTY
-		codec.decode(stream) { entry ->
-			val request = ImportPortablePressureRequest(
-				entry = entry,
-				receipt = PortablePressureFileReceipt.create(fileReceipt, entry),
-				expectedCollectedDataEpoch = dependencies.lifecycleStore.snapshot().epoch,
+		try {
+			codec.decode(stream) { entry ->
+				val request = ImportPortablePressureRequest(
+					entry = entry,
+					receipt = PortablePressureFileReceipt.create(fileReceipt, entry),
+					expectedCollectedDataEpoch = dependencies.lifecycleStore.snapshot().epoch,
+				)
+				aggregate += dependencies.importer.importEntry(request).toFileResult()
+			}
+		} catch (_: PortablePressureJsonException) {
+			aggregate += ImportResult(
+				failedCount = 1,
+				errors = listOf(PERMANENT_FORMAT_ERROR),
 			)
-			aggregate += dependencies.importer.importEntry(request).toFileResult()
 		}
 		return aggregate
 	}
@@ -111,6 +119,8 @@ internal class PortablePressureFileImport(
 	internal companion object {
 		const val EXTENSION = PressurePortableFormatV1.FILE_EXTENSION
 		const val MAX_FILE_BYTES = PortablePressureJsonV1Codec.MAX_FILE_BYTES
+		const val PERMANENT_FORMAT_ERROR =
+			"Portable Pressure file is malformed, unsupported, or exceeds its limits."
 	}
 }
 

@@ -2,11 +2,14 @@ package com.adsamcik.tracker.impexp.importer.file
 
 import android.content.Context
 import com.adsamcik.tracker.impexp.importer.FileImportStream
+import com.adsamcik.tracker.impexp.importer.ImportJobRunner
+import com.adsamcik.tracker.impexp.importer.ImportReceiptStore
 import com.adsamcik.tracker.impexp.importer.ImportResult
-import com.adsamcik.tracker.impexp.portable.PortablePressureJsonException
 import com.adsamcik.tracker.impexp.portable.encodePressureEntries
 import com.adsamcik.tracker.impexp.portable.pressureEntry
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportJobReceiptEntity
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressure
@@ -276,7 +279,7 @@ class PortablePressureFileImportTest {
 	}
 
 	@Test
-	fun `malformed suffix leaves only a replay safe authenticated prefix and stream open`() = runTest {
+	fun `malformed suffix becomes one permanent failure while retaining the applied prefix`() = runTest {
 		val entries = listOf(
 			pressureEntry("first", 1_000L),
 			pressureEntry("second", 5_000L),
@@ -293,16 +296,94 @@ class PortablePressureFileImportTest {
 			ImportPortablePressureResult.Applied(1L, 1, 1)
 		}
 
-		shouldThrow<PortablePressureJsonException> {
-			importer.import(
-				context,
-				database,
-				FileImportStream(underlying, "pressure.trackerpressure")
-					.withImportReceipt(DEFAULT_JOB_ID, DEFAULT_RECEIVED_AT_MS),
-			)
-		}
+		val result = importer.import(
+			context,
+			database,
+			FileImportStream(underlying, "pressure.trackerpressure")
+				.withImportReceipt(DEFAULT_JOB_ID, DEFAULT_RECEIVED_AT_MS),
+		)
+		result shouldBe ImportResult(
+			successCount = 1,
+			failedCount = 1,
+			errors = listOf(PortablePressureFileImport.PERMANENT_FORMAT_ERROR),
+		)
 		imported.map { it.entry } shouldContainExactly listOf(entries.first())
 		underlying.closed shouldBe false
+	}
+
+	@Test
+	fun `real job runner retains prefix counts and stable source receipt on malformed retry`() = runTest {
+		val entries = listOf(
+			pressureEntry("first", 1_000L),
+			pressureEntry("second", 5_000L),
+		)
+		val original = encodePressureEntries(entries).decodeToString()
+		val invalid = original.replaceFirst(
+			"\"identity\":\"${entries[1].identity.value}\"",
+			"\"unexpected\":true,\"identity\":\"${entries[1].identity.value}\"",
+		).encodeToByteArray()
+		val store = PressureImportReceiptStore()
+		val runner = ImportJobRunner(store, nowMs = { 777L })
+		runner.start("real-content-job", "pressure.trackerpressure", invalid.size.toLong())
+		val receipts = mutableListOf<PortablePressureImportReceipt>()
+		val applied = hashSetOf<String>()
+		val importer = adapter(FakeLifecycleStore(9L)) { request ->
+			receipts += request.receipt
+			if (applied.add(request.entry.identity.value)) {
+				ImportPortablePressureResult.Applied(1L, 1, 1)
+			} else {
+				ImportPortablePressureResult.Duplicate(1L)
+			}
+		}
+
+		suspend fun importThroughRunner(): ImportResult = runner.importSingle(
+			jobId = "real-content-job",
+			stream = FileImportStream(
+				fileName = "pressure.trackerpressure",
+				receiptKey = "archive-entry-pressure",
+				streamProvider = { ByteArrayInputStream(invalid) },
+			),
+			transactionMode = ImportTransactionMode.IMPORTER_MANAGED,
+		) { boundStream ->
+			importer.import(context, database, boundStream)
+		}
+
+		importThroughRunner() shouldBe ImportResult(
+			successCount = 1,
+			failedCount = 1,
+			errors = listOf(PortablePressureFileImport.PERMANENT_FORMAT_ERROR),
+		)
+		importThroughRunner() shouldBe ImportResult(
+			skippedCount = 1,
+			failedCount = 1,
+			errors = listOf(PortablePressureFileImport.PERMANENT_FORMAT_ERROR),
+		)
+		receipts.size shouldBe 2
+		receipts[0] shouldBe receipts[1]
+		receipts.first().jobId shouldBe "real-content-job"
+		receipts.first().sourceName shouldBe "pressure.trackerpressure"
+		receipts.first().receivedAtMs shouldBe 777L
+		receipts.first().entryKey.length shouldBe 71
+		store.entryStatus("real-content-job", "archive-entry-pressure") shouldBe
+			ImportEntryReceiptEntity.STATUS_FAILURE
+	}
+
+	@Test
+	fun `raw transport IO remains retryable and never becomes a permanent format result`() = runTest {
+		var sourceCalls = 0
+		val importer = adapter(FakeLifecycleStore(1L)) {
+			sourceCalls++
+			ImportPortablePressureResult.Applied(1L, 1, 1)
+		}
+		val stream = FileImportStream(
+			fileName = "pressure.trackerpressure",
+			streamProvider = { FailingPressureInputStream() },
+		).withImportReceipt(DEFAULT_JOB_ID, DEFAULT_RECEIVED_AT_MS)
+
+		shouldThrow<IOException> {
+			importer.import(context, database, stream)
+		}.message shouldBe "transport failed"
+		sourceCalls shouldBe 0
 	}
 
 	private fun adapter(
@@ -373,4 +454,58 @@ private class CloseTrackingInputStream(
 		closed = true
 		delegate.close()
 	}
+}
+
+private class FailingPressureInputStream : InputStream() {
+	override fun read(): Int = throw IOException("transport failed")
+	override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+		throw IOException("transport failed")
+}
+
+private class PressureImportReceiptStore : ImportReceiptStore {
+	private val jobs = mutableMapOf<String, ImportJobReceiptEntity>()
+	private val entries = mutableMapOf<Pair<String, String>, ImportEntryReceiptEntity>()
+
+	override suspend fun <T> transaction(block: suspend () -> T): T = block()
+
+	override suspend fun getJob(jobId: String): ImportJobReceiptEntity? = jobs[jobId]
+
+	override suspend fun insertJob(job: ImportJobReceiptEntity) {
+		jobs.putIfAbsent(job.jobId, job)
+	}
+
+	override suspend fun markJobInProgress(
+		jobId: String,
+		sourceName: String,
+		sourceSizeBytes: Long,
+		updatedAt: Long,
+	) {
+		jobs[jobId] = jobs.getValue(jobId).copy(
+			sourceName = sourceName,
+			sourceSizeBytes = sourceSizeBytes,
+			status = ImportJobReceiptEntity.STATUS_IN_PROGRESS,
+			completedAt = null,
+			updatedAt = updatedAt,
+		)
+	}
+
+	override suspend fun markJobComplete(jobId: String, completedAt: Long) {
+		jobs[jobId] = jobs.getValue(jobId).copy(
+			status = ImportJobReceiptEntity.STATUS_COMPLETE,
+			completedAt = completedAt,
+			updatedAt = completedAt,
+		)
+	}
+
+	override suspend fun getEntry(
+		jobId: String,
+		entryKey: String,
+	): ImportEntryReceiptEntity? = entries[jobId to entryKey]
+
+	override suspend fun putEntry(entry: ImportEntryReceiptEntity) {
+		entries[entry.jobId to entry.entryKey] = entry
+	}
+
+	fun entryStatus(jobId: String, entryKey: String): String? =
+		entries[jobId to entryKey]?.status
 }
