@@ -22,6 +22,8 @@ object WifiCapturedPortableFormatV1 {
 	const val MAX_TERMINAL_FAILURES = 256
 	const val MAX_OBSERVATIONS_PER_RUN = 4_096
 	const val MAX_OBSERVATIONS_PER_ENTRY = 4_096
+	const val MAX_STORED_ZONES_PER_RUN = 256
+	const val MAX_IMPORT_RECEIPT_FIELD_LENGTH = 4_096
 	const val MAX_TEXT_LENGTH = 128
 	const val MAX_LOCAL_IDENTITY_LENGTH = 4_096
 }

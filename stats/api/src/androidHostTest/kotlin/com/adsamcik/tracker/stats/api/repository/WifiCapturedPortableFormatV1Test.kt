@@ -8,6 +8,39 @@ import org.junit.jupiter.api.Test
 
 class WifiCapturedPortableFormatV1Test {
 	@Test
+	fun `Wi-Fi import receipt and result are typed and bounded`() {
+		val receipt = PortableCapturedWifiImportReceipt("job", "entry", "portable.trackerwifi", 10L)
+		val request = ImportPortableCapturedWifiRequest(
+			entry = PortableWifiIntegrity.createEntry(
+				identity = identity(PortableWifiIdentityKind.LOGICAL_ENTRY, "import-entry"),
+				sessionMode = PortableWifiSessionMode.MANUAL,
+				startTimeMs = 1_000L,
+				endTimeMs = 2_000L,
+				runs = listOf(retainedRun(observation("import-observation"))),
+			),
+			receipt = receipt,
+			expectedCollectedDataEpoch = 4L,
+		)
+
+		assertEquals(receipt, request.receipt)
+		assertEquals(
+			3,
+			(ImportPortableCapturedWifiResult.Applied(1L, 1, 3)).observationCount,
+		)
+		assertFailsWith<IllegalArgumentException> {
+			PortableCapturedWifiImportReceipt("", "entry", "source", 0L)
+		}
+		assertFailsWith<IllegalArgumentException> {
+			PortableCapturedWifiImportReceipt(
+				"j".repeat(WifiCapturedPortableFormatV1.MAX_IMPORT_RECEIPT_FIELD_LENGTH + 1),
+				"entry",
+				"source",
+				0L,
+			)
+		}
+	}
+
+	@Test
 	fun `opaque Wi-Fi identities are stable namespaced hashes without local identity`() {
 		val raw = "logical/run/provider-visible-identity"
 		val entry = PortableWifiOpaqueIdentity.derive(PortableWifiIdentityKind.LOGICAL_ENTRY, raw)

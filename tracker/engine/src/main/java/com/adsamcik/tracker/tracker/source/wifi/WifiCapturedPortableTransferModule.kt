@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.wifi
 
 import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifi
+import com.adsamcik.tracker.stats.api.repository.ImportPortableCapturedWifi
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -13,4 +14,9 @@ internal interface WifiCapturedPortableTransferModule {
 	fun bindExportPortableCapturedWifi(
 		implementation: RoomExportPortableCapturedWifi,
 	): ExportPortableCapturedWifi
+
+	@Binds
+	fun bindImportPortableCapturedWifi(
+		implementation: RoomImportPortableCapturedWifi,
+	): ImportPortableCapturedWifi
 }

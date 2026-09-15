@@ -29,6 +29,7 @@ import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StepFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedStepsDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceDeletionFenceDao
@@ -63,6 +64,13 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsManifestEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiObservationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunZoneEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -182,6 +190,13 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			WifiCapturedFactRevisionEntity::class,
 			WifiCapturedFactCursorEntity::class,
 			WifiCaptureDeletionGenerationEntity::class,
+			ImportedWifiEntryRevisionEntity::class,
+			ImportedWifiReceiptEntity::class,
+			ImportedWifiRunEntity::class,
+			ImportedWifiRunZoneEntity::class,
+			ImportedWifiObservationEntity::class,
+			ImportedWifiEntryDeletionEntity::class,
+			ImportedWifiDeletionGenerationEntity::class,
 			SourceDeletionFenceEntity::class,
 			SourceDestinationOwnerEntity::class,
 			ActivitySnapshot::class,
@@ -305,6 +320,9 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Dormant identity-free Wi-Fi captured-fact persistence. */
 	abstract fun wifiCapturedFactDao(): WifiCapturedFactDao
+
+	/** Dormant imported captured Wi-Fi product evidence; never live source authority. */
+	abstract fun importedWifiDao(): ImportedWifiDao
 
 	/** Provides payload-free source/run deletion authority for source mutation paths. */
 	abstract fun sourceDeletionFenceDao(): SourceDeletionFenceDao
@@ -628,6 +646,10 @@ abstract class AppDatabase : RoomDatabase() {
 			database.wifiCapturedFactDao().deleteAllCursors()
 			database.wifiCapturedFactDao().deleteAllRevisions()
 			database.wifiCapturedFactDao().deleteAllDeletionGenerations()
+			database.importedWifiDao().deleteAllReceipts()
+			database.importedWifiDao().deleteAllEntryRevisions()
+			database.importedWifiDao().deleteAllEntryDeletions()
+			database.importedWifiDao().deleteAllDeletionGenerations()
 			database.stepIntervalDao().deleteAll()
 			database.activitySnapshotDao().deleteAll()
 			database.cellSampleDao().deleteAll()

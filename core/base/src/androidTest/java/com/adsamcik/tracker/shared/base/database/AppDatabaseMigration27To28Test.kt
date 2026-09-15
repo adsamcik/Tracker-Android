@@ -1161,6 +1161,13 @@ class AppDatabaseMigration27To28Test {
 		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
 		assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
 		assertEquals(0L, database.wifiCapturedFactDao().deletionGenerationCount())
+		assertEquals(0L, database.importedWifiDao().entryRevisionCount())
+		assertEquals(0L, database.importedWifiDao().receiptCount())
+		assertEquals(0L, database.importedWifiDao().runCount())
+		assertEquals(0L, database.importedWifiDao().runZoneCount())
+		assertEquals(0L, database.importedWifiDao().observationCount())
+		assertEquals(0L, database.importedWifiDao().entryDeletionCount())
+		assertEquals(0L, database.importedWifiDao().deletionGenerationCount())
 	}
 
 	private suspend fun seedMigratedStepFactRevision(database: AppDatabase) {
