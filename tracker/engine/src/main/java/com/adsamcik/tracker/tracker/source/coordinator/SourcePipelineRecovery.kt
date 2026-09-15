@@ -308,6 +308,9 @@ class SourcePipelineRecovery private constructor(
 		capturedActivityProjectionLane?.requestDrain()
 		cellProjectionLane?.requestDrain()
 		wifiProjectionLane?.requestDrain()
+		// The bound implementation remains inactive until the reviewed writer chain is assembled.
+		// Once present, its offline branch can settle crashed/quiesced runs without provider revival.
+		protectedLocationDrain?.requestDrain()
 		return legacyResult
 	}
 

@@ -186,8 +186,9 @@ class RequiredProtectedLocationSourceDrain @Inject constructor() : ProtectedLoca
 /**
  * Frozen adapter for the reviewed protected Location producer.
  *
- * It is intentionally not injectable yet: the parent must first provide the currently active
- * orchestrator as [com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriter].
+ * It is intentionally not injectable yet: the parent must first accept and assemble the reviewed
+ * live/offline [com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriter]
+ * chain.
  */
 internal class ProtectedLocationCanonicalSourceDrain(
 	private val handoff: ProtectedLocationCanonicalHandoff,

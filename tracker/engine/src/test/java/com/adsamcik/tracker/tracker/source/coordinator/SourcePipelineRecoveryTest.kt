@@ -234,7 +234,7 @@ class SourcePipelineRecoveryTest {
 		verify(exactly = 2) { capturedActivityLane.requestDrain() }
 		verify(exactly = 2) { cellLane.requestDrain() }
 		verify(exactly = 2) { wifiLane.requestDrain() }
-		verify(exactly = 1) { protectedLocationDrain.requestDrain() }
+		verify(exactly = 2) { protectedLocationDrain.requestDrain() }
 		coVerify(exactly = 0) { stepsLane.drainAvailable() }
 		coVerify(exactly = 0) { pressureLane.drainAvailable() }
 		coVerify(exactly = 0) { capturedActivityLane.drainAvailable() }
