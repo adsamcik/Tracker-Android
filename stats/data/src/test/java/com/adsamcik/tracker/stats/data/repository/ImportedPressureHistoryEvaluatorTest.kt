@@ -16,6 +16,7 @@ import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureResult
 import com.adsamcik.tracker.stats.api.repository.ImportedPressureHistoryIdentity
+import com.adsamcik.tracker.stats.api.repository.PORTABLE_PRESSURE_RUN_ORDER
 import com.adsamcik.tracker.stats.api.repository.PortablePressureAvailability
 import com.adsamcik.tracker.stats.api.repository.PortablePressureCoverage
 import com.adsamcik.tracker.stats.api.repository.PortablePressureEntrySink
@@ -32,6 +33,7 @@ import com.adsamcik.tracker.stats.api.repository.PortablePressureWindowQualifica
 import com.adsamcik.tracker.stats.api.repository.PortablePressureWindowV1
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
+import com.adsamcik.tracker.stats.api.repository.PressurePortableFormatV1
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.TruncateImportedPressureRetentionRequest
@@ -183,6 +185,95 @@ class ImportedPressureHistoryEvaluatorTest {
 		}
 		page.entries.map { it.recency.newestMemberStartTimeMs } shouldBe listOf(2_000L, 2_000L)
 	}
+
+	@Test
+	fun `shared bridge scans past a filled envelope page before applying recency cutoff`() = runTest {
+		val newerEnvelope = retentionOnlyEntry(
+			entryLocalId = "newer-envelope-entry",
+			olderRunLocalId = "newer-envelope-old-run",
+			newestRunLocalId = "newer-envelope-new-run",
+			envelopeStartTimeMs = 1_000L,
+			newestStartTimeMs = 2_000L,
+		)
+		val olderEnvelopeNewerMember = retentionOnlyEntry(
+			entryLocalId = "older-envelope-entry",
+			olderRunLocalId = "older-envelope-old-run",
+			newestRunLocalId = "older-envelope-new-run",
+			envelopeStartTimeMs = 100L,
+			newestStartTimeMs = 3_000L,
+		)
+		val writer = importer(database, testScheduler)
+		writer.importEntry(request(
+			newerEnvelope,
+			receipt("newer-envelope-job", "newer-envelope-entry"),
+		)) shouldBe ImportPortablePressureResult.Applied(1L, 2, 0)
+		writer.importEntry(request(
+			olderEnvelopeNewerMember,
+			receipt("older-envelope-job", "older-envelope-entry"),
+		)) shouldBe ImportPortablePressureResult.Applied(1L, 2, 0)
+
+		val page = database.withTransaction {
+			pageReader(database).recentImportedEligibleForSharedHistoryInTransaction(1)
+		} as ImportedHistoryEligiblePage.Available
+
+		page.entries.single().identity shouldBe
+			ImportedPressureHistoryIdentity(olderEnvelopeNewerMember.identity.value)
+		page.entries.single().recency.newestMemberStartTimeMs shouldBe 3_000L
+	}
+
+	@Test
+	fun `shared bridge returns source budget failure when an imported candidate remains beyond cap`() =
+		runTest {
+			val writer = importer(database, testScheduler)
+			repeat(PressurePortableFormatV1.MAX_ENTRIES + 1) { index ->
+				val entry = retentionOnlyEntry(
+					entryLocalId = "budget-entry-$index",
+					olderRunLocalId = "budget-old-run-$index",
+					newestRunLocalId = "budget-new-run-$index",
+					envelopeStartTimeMs = index * 10L,
+					newestStartTimeMs = 10_000L + index,
+				)
+				writer.importEntry(request(
+					entry,
+					receipt("budget-job-$index", "budget-entry-$index"),
+				)) shouldBe ImportPortablePressureResult.Applied(1L, 2, 0)
+			}
+
+			database.withTransaction {
+				pageReader(database).recentImportedEligibleForSharedHistoryInTransaction(1)
+			} shouldBe ImportedHistoryEligiblePage.Unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
+			)
+		}
+
+	@Test
+	fun `equal run starts select opaque identity rather than longer end for live and retained recency`() =
+		runTest {
+			val entry = equalStartIdentityOrderedEntry()
+			val expectedNewest = entry.runs.filter { it.startTimeMs == 2_000L }
+				.maxBy { it.identity.value }
+			val writer = importer(database, testScheduler)
+			writer.importEntry(request(entry)) shouldBe
+				ImportPortablePressureResult.Applied(1L, 3, 0)
+
+			val live = database.withTransaction {
+				pageReader(database).recentImportedEligibleForSharedHistoryInTransaction(1)
+			} as ImportedHistoryEligiblePage.Available
+			live.entries.single().recency.newestMemberTieIdentity shouldBe
+				ImportedHistoryRecencyTieIdentity(expectedNewest.identity.value)
+
+			database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 1_100L, 50L) shouldBe 1
+			RoomTruncateImportedPressureRetention(
+				database,
+				UnconfinedTestDispatcher(testScheduler),
+				{},
+			).truncate(
+				TruncateImportedPressureRetentionRequest(EPOCH, 1L, 1_100L, 50L),
+			)
+			val retained = database.importedPressureDao().retentionReceipt(entry.identity.value)
+			retained?.recencyTieIdentity shouldBe expectedNewest.identity.value
+			retained?.recencyEndTimeMs shouldBe expectedNewest.endTimeMs
+		}
 
 	@Test
 	fun `latest authenticated correction is the only imported product revision`() = runTest {
@@ -631,6 +722,51 @@ class ImportedPressureHistoryEvaluatorTest {
 			startTimeMs = envelopeStartTimeMs,
 			endTimeMs = newest.endTimeMs,
 			runs = listOf(older, newest),
+		)
+	}
+
+	private fun equalStartIdentityOrderedEntry(): PortablePressureEntryV1 {
+		val identities = listOf(
+			identity(PortablePressureIdentityKind.PHYSICAL_RUN, "same-start-a"),
+			identity(PortablePressureIdentityKind.PHYSICAL_RUN, "same-start-z"),
+		).sortedBy { it.value }
+		val older = PortablePressureRunV1(
+			identity = identity(PortablePressureIdentityKind.PHYSICAL_RUN, "same-start-older"),
+			startTimeMs = 1_000L,
+			endTimeMs = 1_100L,
+			capturedForWholeRun = true,
+			availability = PortablePressureAvailability.NO_RETAINED_OBSERVATION,
+			coverage = PortablePressureCoverage.PARTIAL,
+			retentionLoss = true,
+			windows = emptyList(),
+		)
+		val longerLowerIdentity = PortablePressureRunV1(
+			identity = identities.first(),
+			startTimeMs = 2_000L,
+			endTimeMs = 2_300L,
+			capturedForWholeRun = true,
+			availability = PortablePressureAvailability.NO_RETAINED_OBSERVATION,
+			coverage = PortablePressureCoverage.PARTIAL,
+			retentionLoss = true,
+			windows = emptyList(),
+		)
+		val shorterHigherIdentity = PortablePressureRunV1(
+			identity = identities.last(),
+			startTimeMs = 2_000L,
+			endTimeMs = 2_100L,
+			capturedForWholeRun = true,
+			availability = PortablePressureAvailability.NO_RETAINED_OBSERVATION,
+			coverage = PortablePressureCoverage.PARTIAL,
+			retentionLoss = true,
+			windows = emptyList(),
+		)
+		val runs = listOf(older, longerLowerIdentity, shorterHigherIdentity)
+			.sortedWith(PORTABLE_PRESSURE_RUN_ORDER)
+		return PortablePressureEntryV1.create(
+			identity = identity(PortablePressureIdentityKind.LOGICAL_ENTRY, "same-start-entry"),
+			startTimeMs = older.startTimeMs,
+			endTimeMs = longerLowerIdentity.endTimeMs,
+			runs = runs,
 		)
 	}
 

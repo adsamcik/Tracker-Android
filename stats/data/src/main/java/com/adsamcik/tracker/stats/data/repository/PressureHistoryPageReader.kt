@@ -62,7 +62,7 @@ internal class PressureHistoryPageReader @Inject constructor(
 		var beforeStartTimeMs: Long? = null
 		var beforeIdentity: String? = null
 		var scannedCandidates = 0
-		while (accepted.size < limit && scannedCandidates < PRESSURE_IMPORTED_ELIGIBLE_SCAN_BUDGET) {
+		while (scannedCandidates < PRESSURE_IMPORTED_ELIGIBLE_SCAN_BUDGET) {
 			currentCoroutineContext().ensureActive()
 			val remainingBudget = PRESSURE_IMPORTED_ELIGIBLE_SCAN_BUDGET - scannedCandidates
 			val pageLimit = minOf(PRESSURE_IMPORTED_ELIGIBLE_PAGE_SIZE, remainingBudget)
@@ -82,7 +82,7 @@ internal class PressureHistoryPageReader @Inject constructor(
 				)
 			}
 			if (candidateProbe.isEmpty()) break
-			if (!importedEvaluator.isValidCandidatePage(
+			if (!isValidImportedPressureHistoryCandidatePage(
 					candidateProbe,
 					beforeStartTimeMs,
 					beforeIdentity,
@@ -90,6 +90,12 @@ internal class PressureHistoryPageReader @Inject constructor(
 			) {
 				return unavailable(
 					SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+				)
+			}
+			val candidateBudgetExceeded = finalBudgetPage && candidateProbe.size > pageLimit
+			if (candidateBudgetExceeded) {
+				return unavailable(
+					SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
 				)
 			}
 			val localDiscovery = try {
@@ -125,7 +131,6 @@ internal class PressureHistoryPageReader @Inject constructor(
 				is PressureLocalDuplicateAuthorityRead.Ready -> localDiscovery.authorities
 			}
 			localAuthorities = duplicateAuthorities
-			val candidateBudgetExceeded = finalBudgetPage && candidateProbe.size > pageLimit
 			val candidates = candidateProbe.take(pageLimit)
 			for (candidate in candidates) {
 				currentCoroutineContext().ensureActive()
@@ -145,13 +150,6 @@ internal class PressureHistoryPageReader @Inject constructor(
 					is PressureImportedEligibilityDecision.Unavailable ->
 						return unavailable(decision.reason)
 				}
-				if (accepted.size >= limit) break
-			}
-			if (accepted.size >= limit) break
-			if (candidateBudgetExceeded) {
-				return unavailable(
-					SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
-				)
 			}
 			if (candidateProbe.size < probeLimit) break
 			val last = candidates.last()
@@ -314,7 +312,6 @@ internal class PressureHistoryPageReader @Inject constructor(
 internal val pressureSourceRecencyRunOrder =
 	compareBy<com.adsamcik.tracker.stats.api.repository.PortablePressureRunV1>(
 		{ it.startTimeMs },
-		{ it.endTimeMs },
 		{ it.identity.value },
 	)
 

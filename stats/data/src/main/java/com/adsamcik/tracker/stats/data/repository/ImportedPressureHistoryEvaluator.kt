@@ -60,7 +60,12 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 				beforeIdentity = beforeIdentity,
 			)
 			if (page.isEmpty()) break
-			if (!isValidCandidatePage(page, beforeStartTimeMs, beforeIdentity)) {
+			if (!isValidImportedPressureHistoryCandidatePage(
+					page,
+					beforeStartTimeMs,
+					beforeIdentity,
+				)
+			) {
 				return selected + page.take(1).unverifiable(
 					ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
 				)
@@ -85,7 +90,7 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 	private suspend fun evaluateCandidates(
 		candidates: List<ImportedPressureHistoryCandidate>,
 	): List<ImportedPressureHistoryEvaluation> {
-		if (!isValidCandidatePage(candidates, null, null)) {
+		if (!isValidImportedPressureHistoryCandidatePage(candidates, null, null)) {
 			return candidates.unverifiable(
 				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
 			)
@@ -99,7 +104,7 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 	): List<ImportedPressureHistoryEvaluation> {
 		if (candidates.isEmpty()) return emptyList()
 		require(candidates.size == 1)
-		if (!isValidCandidatePage(candidates, null, null)) {
+		if (!isValidImportedPressureHistoryCandidatePage(candidates, null, null)) {
 			return candidates.unverifiable(
 				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
 			)
@@ -289,32 +294,32 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 		}
 	}
 
-	internal fun isValidCandidatePage(
-		candidates: List<ImportedPressureHistoryCandidate>,
-		beforeStartTimeMs: Long?,
-		beforeIdentity: String?,
-	): Boolean {
-		if (candidates.size > ImportedPressureDao.MAX_HISTORY_ENTRY_CANDIDATES) return false
-		if (candidates.map { it.identity }.distinct().size != candidates.size) return false
-		if (candidates.any {
-			it.identity.isBlank() || it.importRevision <= 0L || it.startTimeMs < 0L ||
-				it.endTimeMs < it.startTimeMs || it.receivedAtMs < 0L ||
-				it.candidateState !in setOf(
-					IMPORTED_PRESSURE_CANDIDATE_LIVE,
-					IMPORTED_PRESSURE_CANDIDATE_RETAINED,
-				)
-		}) return false
-		val cursors = buildList {
-			if (beforeStartTimeMs != null && beforeIdentity != null) {
-				add(beforeStartTimeMs to beforeIdentity)
-			}
-			addAll(candidates.map { it.startTimeMs to it.identity })
-		}
-		return cursors.zipWithNext().all { (left, right) ->
-			left.first > right.first || left.first == right.first && left.second > right.second
-		}
-	}
+}
 
+internal fun isValidImportedPressureHistoryCandidatePage(
+	candidates: List<ImportedPressureHistoryCandidate>,
+	beforeStartTimeMs: Long?,
+	beforeIdentity: String?,
+): Boolean {
+	if (candidates.size > ImportedPressureDao.MAX_HISTORY_ENTRY_CANDIDATES) return false
+	if (candidates.map { it.identity }.distinct().size != candidates.size) return false
+	if (candidates.any {
+		it.identity.isBlank() || it.importRevision <= 0L || it.startTimeMs < 0L ||
+			it.endTimeMs < it.startTimeMs || it.receivedAtMs < 0L ||
+			it.candidateState !in setOf(
+				IMPORTED_PRESSURE_CANDIDATE_LIVE,
+				IMPORTED_PRESSURE_CANDIDATE_RETAINED,
+			)
+	}) return false
+	val cursors = buildList {
+		if (beforeStartTimeMs != null && beforeIdentity != null) {
+			add(beforeStartTimeMs to beforeIdentity)
+		}
+		addAll(candidates.map { it.startTimeMs to it.identity })
+	}
+	return cursors.zipWithNext().all { (left, right) ->
+		left.first > right.first || left.first == right.first && left.second > right.second
+	}
 }
 
 internal sealed interface ImportedPressureHistoryEvaluation {
