@@ -180,6 +180,20 @@ abstract class ImportedCellDao {
 	): List<ImportedCellHistoryCandidate>
 
 	@Query(
+		"SELECT EXISTS(SELECT 1 FROM imported_cell_entry_revision AS entry " +
+			"WHERE entry.import_revision = (" +
+			"SELECT MAX(candidate.import_revision) FROM imported_cell_entry_revision AS candidate " +
+			"WHERE candidate.identity = entry.identity) " +
+			"AND (:beforeStartTimeMs IS NULL OR entry.start_time_ms < :beforeStartTimeMs OR " +
+			"(entry.start_time_ms = :beforeStartTimeMs AND " +
+			"entry.identity < COALESCE(:beforeIdentity, ''))) LIMIT 1)",
+	)
+	abstract suspend fun hasRecentHistoryCandidate(
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): Boolean
+
+	@Query(
 		"""
 		WITH latest_revision AS (
 		  SELECT identity, MAX(import_revision) AS import_revision

@@ -36,6 +36,8 @@ class ImportedCellProductReader(
 		currentCoroutineContext().ensureActive()
 	},
 ) {
+	private val scanContextIssuer = Any()
+
 	suspend fun readLocalOriginInTransaction(
 		evaluation: ImportedCellProductEvaluation.Readable,
 		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
@@ -67,6 +69,62 @@ class ImportedCellProductReader(
 		beforeStartTimeMs: Long?,
 		beforeIdentity: String?,
 	): List<ImportedCellProductEvaluation> {
+		val context = try {
+			openRecentScanContextInTransaction()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (failure: ImportedCellProductScanContextFailure) {
+			val candidates = loadRecentCandidates(limit, beforeStartTimeMs, beforeIdentity)
+			return candidates.unverifiable(failure.reason)
+		}
+		return selectRecentPageInTransaction(
+			context,
+			limit,
+			beforeStartTimeMs,
+			beforeIdentity,
+		)
+	}
+
+	suspend fun openRecentScanContextInTransaction(): ImportedCellProductScanContext =
+		loadPageContext()
+
+	suspend fun selectRecentPageInTransaction(
+		context: ImportedCellProductScanContext,
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): List<ImportedCellProductEvaluation> {
+		val candidates = loadRecentCandidates(limit, beforeStartTimeMs, beforeIdentity)
+		if (context.issuer !== scanContextIssuer) {
+			return candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		return evaluateCandidates(
+			candidates = candidates,
+			beforeStartTimeMs = beforeStartTimeMs,
+			beforeIdentity = beforeIdentity,
+			maximumSize = limit,
+			context = context,
+		)
+	}
+
+	suspend fun hasRecentCandidateInTransaction(
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): Boolean {
+		require((beforeStartTimeMs == null) == (beforeIdentity == null))
+		require(beforeStartTimeMs?.let { it >= 0L } != false)
+		require(beforeIdentity?.let { ImportedCellIdentity.isDigest(it) } != false)
+		return database.importedCellDao().hasRecentHistoryCandidate(
+			beforeStartTimeMs,
+			beforeIdentity,
+		)
+	}
+
+	private suspend fun loadRecentCandidates(
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): List<ImportedCellHistoryCandidate> {
 		require(limit in 1..ImportedCellDao.MAX_HISTORY_ENTRY_CANDIDATES)
 		require((beforeStartTimeMs == null) == (beforeIdentity == null))
 		require(beforeStartTimeMs?.let { it >= 0L } != false)
@@ -76,12 +134,7 @@ class ImportedCellProductReader(
 			beforeStartTimeMs = beforeStartTimeMs,
 			beforeIdentity = beforeIdentity,
 		)
-		return evaluateCandidates(
-			candidates = candidates,
-			beforeStartTimeMs = beforeStartTimeMs,
-			beforeIdentity = beforeIdentity,
-			maximumSize = limit,
-		)
+		return candidates
 	}
 
 	suspend fun selectWallRangeInTransaction(
@@ -170,16 +223,17 @@ class ImportedCellProductReader(
 		beforeStartTimeMs: Long?,
 		beforeIdentity: String?,
 		maximumSize: Int,
+		context: ImportedCellProductScanContext? = null,
 	): List<ImportedCellProductEvaluation> {
 		if (!isValidCandidatePage(candidates, beforeStartTimeMs, beforeIdentity, maximumSize)) {
 			return candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
 		}
 		if (candidates.isEmpty()) return emptyList()
-		val context = try {
-			loadPageContext(candidates)
+		val sourceContext = try {
+			context ?: loadPageContext()
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (failure: ImportedCellPageContextFailure) {
+		} catch (failure: ImportedCellProductScanContextFailure) {
 			return candidates.unverifiable(failure.reason)
 		} catch (_: RuntimeException) {
 			return candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
@@ -188,7 +242,7 @@ class ImportedCellProductReader(
 		candidates.chunked(ImportedCellDao.HISTORY_EVALUATION_BATCH_SIZE)
 			.forEachIndexed { index, batch ->
 				batchCheckpoint(index)
-				evaluated += evaluateBatch(batch, context)
+				evaluated += evaluateBatch(batch, sourceContext)
 			}
 		return evaluated
 	}
@@ -196,7 +250,7 @@ class ImportedCellProductReader(
 	@Suppress("LongMethod")
 	private suspend fun evaluateBatch(
 		candidates: List<ImportedCellHistoryCandidate>,
-		context: ImportedCellPageContext,
+		context: ImportedCellProductScanContext,
 	): List<ImportedCellProductEvaluation> {
 		if (candidates.isEmpty()) return emptyList()
 		val state = context.state
@@ -368,15 +422,13 @@ class ImportedCellProductReader(
 		}
 	}
 
-	private suspend fun loadPageContext(
-		candidates: List<ImportedCellHistoryCandidate>,
-	): ImportedCellPageContext {
+	private suspend fun loadPageContext(): ImportedCellProductScanContext {
 		val state = database.sourceEvidenceStateDao().get()
-			?: throw ImportedCellPageContextFailure(
+			?: throw ImportedCellProductScanContextFailure(
 				ImportedCellProductFailure.SOURCE_EVIDENCE_STATE_MISSING,
 			)
 		if (!state.hasValidImportedCellProductShape()) {
-			throw ImportedCellPageContextFailure(
+			throw ImportedCellProductScanContextFailure(
 				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
 			)
 		}
@@ -398,14 +450,13 @@ class ImportedCellProductReader(
 				generations.size,
 			).any { it > ImportedCellDao.MAX_LIVE_OWNER_ROWS }
 		) {
-			throw ImportedCellPageContextFailure(ImportedCellProductFailure.DEPENDENCY_OVERFLOW)
+			throw ImportedCellProductScanContextFailure(ImportedCellProductFailure.DEPENDENCY_OVERFLOW)
 		}
 		if (logicalIds.any(String::isBlank) || logicalIds.distinct().size != logicalIds.size) {
-			throw ImportedCellPageContextFailure(
+			throw ImportedCellProductScanContextFailure(
 				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
 			)
 		}
-		val candidateIdentities = candidates.mapTo(hashSetOf(), ImportedCellHistoryCandidate::identity)
 		val localLogicalClaims = (
 			logicalIds + runs.map { it.logicalTrackingId } +
 				facts.map { it.logicalTrackingId } +
@@ -413,22 +464,23 @@ class ImportedCellProductReader(
 				generations.map { it.logicalTrackingId }
 			).distinct()
 		if (localLogicalClaims.any(String::isBlank)) {
-			throw ImportedCellPageContextFailure(
+			throw ImportedCellProductScanContextFailure(
 				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
 			)
 		}
-		val localLogicalByEntry = localLogicalClaims.mapNotNull { logicalId ->
+		val localLogicalByEntry = localLogicalClaims.map { logicalId ->
 			val entryIdentity = PortableCellOpaqueIdentity.derive(
 				PortableCellIdentityKind.LOGICAL_ENTRY,
 				logicalId,
 			).value
-			(entryIdentity to logicalId).takeIf { entryIdentity in candidateIdentities }
+			entryIdentity to logicalId
 		}.groupBy({ it.first }, { it.second }).mapValues { (_, owners) ->
-			owners.distinct().singleOrNull() ?: throw ImportedCellPageContextFailure(
+			owners.distinct().singleOrNull() ?: throw ImportedCellProductScanContextFailure(
 				ImportedCellProductFailure.ORIGIN_IDENTITY_CONFLICT,
 			)
 		}
-		return ImportedCellPageContext(
+		return ImportedCellProductScanContext(
+			issuer = scanContextIssuer,
 			state = state,
 			logicalIds = logicalIds,
 			runs = runs,
@@ -443,7 +495,7 @@ class ImportedCellProductReader(
 	private suspend fun authenticateOwnership(
 		dao: ImportedCellDao,
 		graph: ImportedCellProductIdentityGraph,
-		context: ImportedCellPageContext,
+		context: ImportedCellProductScanContext,
 	): ImportedCellOwnershipAudit {
 		val state = context.state
 		val sourceFences = linkedMapOf<String, Long>()
@@ -803,20 +855,21 @@ private data class ImportedCellOwnershipAudit(
 	val sourceDeletedScopeDigests: Set<String>,
 )
 
-private data class ImportedCellPageContext(
-	val state: SourceEvidenceState,
-	val logicalIds: List<String>,
-	val runs: List<ImportedCellLiveRunOwner>,
-	val facts: List<ImportedCellLiveFactOwner>,
-	val completeness: List<ImportedCellLiveCompletenessOwner>,
-	val generations: List<CellCaptureDeletionGenerationEntity>,
-	val directLocalLogicalByEntryIdentity: Map<String, String>,
+class ImportedCellProductScanContext internal constructor(
+	internal val issuer: Any,
+	internal val state: SourceEvidenceState,
+	internal val logicalIds: List<String>,
+	internal val runs: List<ImportedCellLiveRunOwner>,
+	internal val facts: List<ImportedCellLiveFactOwner>,
+	internal val completeness: List<ImportedCellLiveCompletenessOwner>,
+	internal val generations: List<CellCaptureDeletionGenerationEntity>,
+	internal val directLocalLogicalByEntryIdentity: Map<String, String>,
 ) {
 	fun localOriginHandle(identity: String): ImportedCellLocalOriginHandle? =
 		directLocalLogicalByEntryIdentity[identity]?.let(::ImportedCellLocalOriginHandle)
 }
 
-private class ImportedCellPageContextFailure(
+class ImportedCellProductScanContextFailure(
 	val reason: ImportedCellProductFailure,
 ) : IllegalArgumentException(reason.name)
 
@@ -978,7 +1031,7 @@ private fun List<ImportedCellHistoryCandidate>.unverifiable(
 
 private fun List<ImportedCellHistoryCandidate>.unverifiable(
 	reason: ImportedCellProductFailure,
-	context: ImportedCellPageContext,
+	context: ImportedCellProductScanContext,
 ) = map { candidate ->
 	ImportedCellProductEvaluation.Unverifiable(
 		candidate,

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
+import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -53,11 +54,15 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.maps.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.kotest.assertions.throwables.shouldThrow
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneId
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executor
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -592,6 +597,22 @@ class ImportedCellHistoryMapperTest {
 	@Test
 	fun `eligible imported page reports source budget instead of returning an incomplete limit`() =
 		runTest {
+			database.close()
+			val statements = CopyOnWriteArrayList<String>()
+			database = Room.inMemoryDatabaseBuilder(
+				ApplicationProvider.getApplicationContext<Application>(),
+				AppDatabase::class.java,
+			).allowMainThreadQueries()
+				.setQueryCallback(
+					{ sql, _ ->
+						val normalized = sql.trimStart()
+						if (normalized.startsWith("SELECT", true) ||
+							normalized.startsWith("WITH", true)
+						) statements += normalized
+					},
+					Executor { command -> command.run() },
+				)
+				.build()
 			database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
 			val importer = RoomImportPortableCapturedCell(database, Dispatchers.Unconfined)
 			repeat(257) { index ->
@@ -612,12 +633,101 @@ class ImportedCellHistoryMapperTest {
 					importRequest(value, "eligible-budget-$index"),
 				) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
 			}
+			statements.clear()
 
 			database.withTransaction {
 				repository().recentImportedEligibleForSharedHistoryInTransaction(1)
 			} shouldBe ImportedHistoryEligiblePage.Unavailable(
 				SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
 			)
+			statements.count {
+				it.contains("FROM imported_cell_entry_revision AS entry", true) &&
+					it.contains("ORDER BY entry.start_time_ms DESC", true)
+			} shouldBe 8
+			statements.count { it.startsWith("SELECT EXISTS", true) } shouldBe 1
+			statements.count { it.contains("UNION ALL", true) } shouldBe 64
+		}
+
+	@Test
+	fun `eligible imported scan reuses one source context and cancellation stops before next page`() =
+		runTest {
+			database.close()
+			val statements = CopyOnWriteArrayList<String>()
+			database = Room.inMemoryDatabaseBuilder(
+				ApplicationProvider.getApplicationContext<Application>(),
+				AppDatabase::class.java,
+			).allowMainThreadQueries()
+				.setQueryCallback(
+					{ sql, _ ->
+						val normalized = sql.trimStart()
+						if (normalized.startsWith("SELECT", true) ||
+							normalized.startsWith("WITH", true)
+						) statements += normalized
+					},
+					Executor { command -> command.run() },
+				)
+				.build()
+			database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+			val importer = RoomImportPortableCapturedCell(database, Dispatchers.Unconfined)
+			repeat(40) { index ->
+				val startTimeMs = 1_000L + index * 100L
+				val value = cellEntry(
+					logicalLocal = "eligible-context-$index",
+					runLocal = "eligible-context-run-$index",
+					observation = cellObservation(
+						localId = "eligible-context-observation-$index",
+						coverageStartTimeMs = startTimeMs + 1L,
+						observedTimeMs = startTimeMs + 2L,
+						wallTimeUncertaintyMs = 1L,
+					),
+					startTimeMs = startTimeMs,
+					endTimeMs = startTimeMs + 10L,
+				)
+				importer.importEntry(
+					importRequest(value, "eligible-context-$index"),
+				) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+			}
+			statements.clear()
+
+			val page = database.withTransaction {
+				repository().recentImportedEligibleForSharedHistoryInTransaction(40)
+			} as ImportedHistoryEligiblePage.Available<*>
+
+			page.entries shouldHaveSize 40
+			statements.count { it.contains("FROM source_evidence_state", true) } shouldBe 1
+			statements.count { it.contains("FROM logical_tracking_session", true) } shouldBe 1
+			statements.count { it.contains("FROM source_service_run", true) } shouldBe 1
+			statements.count { it.contains("FROM cell_captured_fact_revision", true) } shouldBe 1
+			statements.count { it.contains("FROM source_session_completeness", true) } shouldBe 1
+			statements.count {
+				it.contains("FROM cell_capture_deletion_generation", true)
+			} shouldBe 1
+			statements.count { it.contains("UNION ALL", true) } shouldBe 10
+			statements.count {
+				it.contains("FROM imported_cell_entry_revision AS entry", true) &&
+					it.contains("ORDER BY entry.start_time_ms DESC", true)
+			} shouldBe 2
+
+			statements.clear()
+			val cancelling = DefaultCellHistoryRepository(
+				database,
+				SourceProductLaneExecutionAuthority { false },
+				Dispatchers.Unconfined,
+			) { completedPageCount ->
+				if (completedPageCount == 1) {
+					throw CancellationException("cancel before second eligible Cell page")
+				}
+			}
+			shouldThrow<CancellationException> {
+				database.withTransaction {
+					cancelling.recentImportedEligibleForSharedHistoryInTransaction(40)
+				}
+			}
+			statements.count {
+				it.contains("FROM imported_cell_entry_revision AS entry", true) &&
+					it.contains("ORDER BY entry.start_time_ms DESC", true)
+			} shouldBe 1
+			statements.count { it.contains("UNION ALL", true) } shouldBe 8
 		}
 
 	private fun repository() = DefaultCellHistoryRepository(

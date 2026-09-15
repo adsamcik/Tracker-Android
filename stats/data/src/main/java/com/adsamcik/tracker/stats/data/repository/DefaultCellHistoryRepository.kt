@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.DeletedImportedCellSelectionAut
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductEvaluation
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductFailure
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductReader
+import com.adsamcik.tracker.shared.base.database.ImportedCellProductScanContextFailure
 import com.adsamcik.tracker.shared.base.database.PortableCapturedCellEntryV1
 import com.adsamcik.tracker.shared.base.database.PortableCapturedCellRunV1
 import com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind
@@ -68,11 +69,24 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 /** Source-local Cell facade. Every dependency for a call is read in one bounded Room transaction. */
-internal class DefaultCellHistoryRepository @Inject constructor(
+internal class DefaultCellHistoryRepository internal constructor(
 	private val database: AppDatabase,
 	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
-	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+	private val ioDispatcher: CoroutineDispatcher,
+	private val sharedHistoryPageCheckpoint: suspend (completedPageCount: Int) -> Unit,
 ) : CellHistoryRepository, CellImportedHistoryEligibleReader {
+	@Inject
+	constructor(
+		database: AppDatabase,
+		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
+		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+	) : this(
+		database,
+		laneExecutionAuthority,
+		ioDispatcher,
+		{ currentCoroutineContext().ensureActive() },
+	)
+
 	private val importedProductReader = ImportedCellProductReader(database)
 	private val rangeContinuationIssuer = Any()
 
@@ -445,12 +459,52 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 		var localOriginComparisons = 0
 		var beforeStartTimeMs: Long? = null
 		var beforeIdentity: String? = null
+		val scanContext = try {
+			importedProductReader.openRecentScanContextInTransaction()
+		} catch (cancelled: kotlinx.coroutines.CancellationException) {
+			throw cancelled
+		} catch (failure: ImportedCellProductScanContextFailure) {
+			return importedEligibleUnavailable(
+				if (failure.reason == ImportedCellProductFailure.DEPENDENCY_OVERFLOW) {
+					SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
+				} else {
+					SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE
+				},
+			)
+		} catch (_: RuntimeException) {
+			return importedEligibleUnavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+			)
+		}
+		var completedPageCount = 0
 		while (true) {
 			currentCoroutineContext().ensureActive()
+			sharedHistoryPageCheckpoint(completedPageCount)
 			val remaining = MAX_SHARED_HISTORY_IMPORTED_CANDIDATES - scanned
-			val pageLimit = minOf(SHARED_HISTORY_IMPORTED_PAGE_SIZE, remaining + 1)
+			if (remaining == 0) {
+				val hasMore = try {
+					importedProductReader.hasRecentCandidateInTransaction(
+						beforeStartTimeMs,
+						beforeIdentity,
+					)
+				} catch (cancelled: kotlinx.coroutines.CancellationException) {
+					throw cancelled
+				} catch (_: RuntimeException) {
+					return importedEligibleUnavailable(
+						SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+					)
+				}
+				if (hasMore) {
+					return importedEligibleUnavailable(
+						SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
+					)
+				}
+				break
+			}
+			val pageLimit = minOf(SHARED_HISTORY_IMPORTED_PAGE_SIZE, remaining)
 			val evaluations = try {
 				importedProductReader.selectRecentPageInTransaction(
+					context = scanContext,
 					limit = pageLimit,
 					beforeStartTimeMs = beforeStartTimeMs,
 					beforeIdentity = beforeIdentity,
@@ -463,11 +517,6 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 				)
 			}
 			if (evaluations.isEmpty()) break
-			if (evaluations.size > remaining) {
-				return importedEligibleUnavailable(
-					SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
-				)
-			}
 			scanned += evaluations.size
 			for (evaluation in evaluations) {
 				currentCoroutineContext().ensureActive()
@@ -570,6 +619,7 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 			val last = evaluations.last().candidate
 			beforeStartTimeMs = last.startTimeMs
 			beforeIdentity = last.identity
+			completedPageCount += 1
 			if (evaluations.size < pageLimit) break
 		}
 		return ImportedHistoryEligiblePage.Available(
