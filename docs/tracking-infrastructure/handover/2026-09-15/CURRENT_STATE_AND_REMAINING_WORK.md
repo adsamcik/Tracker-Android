@@ -2,6 +2,12 @@
 
 ## Checkpoint meaning
 
+Superseding receiving-wave authority: the user has now requested parallel worktree completion
+and parallel adversarial static reviews for TODO-HANDOVER-20260915-007/008/009, followed by
+local `dev/v10` integration (TI-D257). The committed Location/ledger baseline `13ca528ccb` has
+been fast-forwarded locally. These local operations do not lift IMPLEMENTATION_ONLY or authorize
+any execution gate, push or activation; all work remains IMPLEMENTED_UNVALIDATED.
+
 Receiving continuation: the local package receipt and clean `dev/v10` match `29323cfab`.
 The original 39 tracking refs have been preserved from the local bundle under
 `refs/remotes/handover/codex/ti-*`. Source follow-up `57073947f8fa77021b75f5c16eff6bb15d78e0e5`

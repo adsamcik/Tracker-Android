@@ -2,6 +2,29 @@
 
 Last updated: 2026-09-15
 
+## TI-D257 - Explicit local integration authority for the three receiving seam slices
+
+- Status: authorized implementation-only work, not a completed assembly or execution gate.
+- User authority, 2026-09-15: complete the three identified slices in parallel worktrees, run
+  parallel adversarial reviews of the implemented changes, and merge completed slices back into
+  local `dev/v10`. This specifically supersedes the earlier source-branch-only instruction for
+  TODO-HANDOVER-20260915-007/008/009 and their already committed Location/ledger baseline.
+- The clean local baseline was fast-forwarded to `13ca528ccb2022f2d6fb06ad0dd67513a41db7d4`
+  before creating all three worktrees from local `dev/v10`, not its remote-tracking branch.
+- Write ownership is disjoint: Wi-Fi full clear owns AppDatabase/WifiCapturedFactDao and its
+  focused tests; legacy radio retention owns DataRetentionWorker and its exact app callers;
+  factless Steps history owns the source-aware reader/candidate DAO and its tests. The parent
+  alone owns shared ledgers and serial local integration.
+- Review the exact committed slices independently and adversarially in parallel. Address concrete
+  counterexamples before local integration; review agreement is not execution or architecture
+  proof. No requirement for broad redesign, a generic platform, or repeated review voting.
+- **IMPLEMENTATION_ONLY remains in force.** Production and regression-source authorship plus
+  static review/local commits only; no compilation, test/Gradle, schema, lint/Detekt, diff-check,
+  CI, device/UI, battery or rollout execution. All slices and local merges remain
+  **IMPLEMENTED_UNVALIDATED**. No push, provider/writer activation, release or destructive migration.
+- The remaining six-source mission and its frozen final convergence batch are still open.
+  Preserve original handover refs, protected root paths, quarantined drafts and unrelated worktrees.
+
 ## TI-D256 - Reuse SQL payload bounds for dormant Location qualification
 
 - Status: **IMPLEMENTED_UNVALIDATED**; source `57073947f8fa77021b75f5c16eff6bb15d78e0e5`

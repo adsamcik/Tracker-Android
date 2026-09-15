@@ -39,6 +39,13 @@ suite as one batch.
 
 ### September 15 closure accounting
 
+Current authority: TI-D257 records the user's explicit request to complete 007/008/009 in
+parallel worktrees, adversarially review the committed slices in parallel, and merge them
+locally into `dev/v10`. Their committed Location/ledger baseline `13ca528ccb` is already local.
+This narrowly supersedes source-branch-only/no-integration passages for this wave, including
+TODO-META-005 and TODO-GIT-006. It does not lift IMPLEMENTATION_ONLY, permit a push/activation,
+or check the broader assembly/completion items. Test sources are authored, never executed here.
+
 - [x] TODO-HANDOVER-20260915-001 Close in-progress Cell/Wi-Fi import static-review corrections
   (`f8dd5d6d1`, `315ac6a83`) and Activity real-worker retention invocation (`b13765db7`), authoring
   regression sources without execution. TI-D252–254 / TI-B315–317 are static acceptance only.
@@ -71,7 +78,7 @@ suite as one batch.
 
 Receiving next slice: close the three concrete shared Room/worker/history static-review findings,
 then continue the Wi-Fi imported evaluator and bounded product/reexport lane. Keep new source
-work separate from local `dev/v10`, retain the
+work isolated until the requested static reviews and serial local integration, retain the
 39 original source refs under `refs/remotes/handover/codex/ti-*`, and leave all execution deferred.
 
 For this dated transport checkpoint only, TODO-META-003/005 and TODO-GIT-006's no-integration

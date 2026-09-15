@@ -2,6 +2,26 @@
 
 Last updated: 2026-09-15
 
+## Current receiving wave - parallel seam slices and local integration authorized
+
+The user explicitly requested parallel completion of TODO-HANDOVER-20260915-007/008/009,
+parallel adversarial static reviews, and local `dev/v10` integration. TI-D257 records the bounded
+authority. The already committed Location and continuation baseline is now on local `dev/v10`
+at `13ca528ccb`; earlier source-branch-only statements below are chronological.
+
+All three implementation worktrees started clean from that local baseline:
+
+| Slice | Branch / worktree suffix | Exclusive production ownership | Current disposition |
+| --- | --- | --- | --- |
+| 007 | `codex/ti-wifi-full-clear-20260915` / `.worktrees\ti-wifi-full-clear-20260915` | AppDatabase and WifiCapturedFactDao | Implementation and regression-source authorship in progress |
+| 008 | `codex/ti-legacy-radio-retention-20260915` / `.worktrees\ti-legacy-radio-retention-20260915` | DataRetentionWorker and exact app constructor callers | Implementation and regression-source authorship in progress |
+| 009 | `codex/ti-factless-steps-history-20260915` / `.worktrees\ti-factless-steps-history-20260915` | Source-aware Steps history and its candidate-query seam | Implementation and regression-source authorship in progress |
+
+Each slice gets a separate adversarial static review of its committed production/test changes.
+The parent serializes any shared interface correction and local merges, then records exact source
+and integration commits. This wave does not authorize execution or complete the larger assembly:
+**IMPLEMENTATION_ONLY / IMPLEMENTED_UNVALIDATED**, with every frozen-convergence command deferred.
+
 ## September 15 receiving continuation - Location WAL payload preflight
 
 **IMPLEMENTED_UNVALIDATED**, source commit `57073947f8fa77021b75f5c16eff6bb15d78e0e5`
