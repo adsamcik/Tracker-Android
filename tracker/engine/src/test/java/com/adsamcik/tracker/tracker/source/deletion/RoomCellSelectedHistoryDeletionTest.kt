@@ -183,6 +183,8 @@ class RoomCellSelectedHistoryDeletionTest {
 				database.sessionSegmentDao().getById(1L) shouldBe null
 				database.sourceDeletionFenceDao().countAll() shouldBe 1L
 				database.cellCapturedFactDao().deletionGenerationCount() shouldBe 1L
+				service.delete(DeleteCellHistoryRequest(selection, 899L)) shouldBe
+					DeleteCellHistoryResult.Blocked(CellHistoryDeletionBlockedReason.STALE_REQUEST)
 				service.delete(DeleteCellHistoryRequest(selection, 900L)) shouldBe
 					DeleteCellHistoryResult.AlreadyDeleted
 			}

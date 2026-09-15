@@ -141,7 +141,7 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 		requestedAtMs: Long,
 	): DeleteCellHistoryResult = withContext(ioDispatcher) {
 		try {
-			when (val preflight = selectedLocalScope(selection)) {
+			when (val preflight = selectedLocalScope(selection, requestedAtMs)) {
 				is LocalSelectionPreflight.Outcome -> preflight.result
 				is LocalSelectionPreflight.Ready -> {
 					DailySummaryAggregator(
@@ -150,7 +150,7 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 						preflight.scope.lockZone,
 					).withDayLocks(preflight.scope.affectedDays) { lockedDays ->
 						database.withTransaction {
-							val current = selectedLocalScope(selection)
+							val current = selectedLocalScope(selection, requestedAtMs)
 							val scope = (current as? LocalSelectionPreflight.Ready)?.scope
 								?: concurrentMutation()
 							if (scope != preflight.scope) concurrentMutation()
@@ -336,6 +336,7 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 	@Suppress("LongMethod")
 	private suspend fun selectedLocalScope(
 		selection: LocalCellHistorySelection,
+		requestedAtMs: Long,
 	): LocalSelectionPreflight {
 		val logicalIds = database.importedCellDao().liveLogicalTrackingIds(
 			ImportedCellDao.MAX_LIVE_OWNER_ROWS + 1,
@@ -388,7 +389,7 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 					state.collectedDataEpoch,
 					state.updatedAtMs,
 				),
-				0L,
+				requestedAtMs,
 			))
 		}
 		if (segmentsById.size != segmentIds.size) return outcome(unverifiable(

@@ -632,11 +632,31 @@ interface CellCapturedFactDao {
 		   AND segment.logical_tracking_id = fact_cursor.logical_tracking_id
 		  WHERE fact_cursor.writer_projection_id = :writerProjectionId
 		    AND fact_cursor.writer_projection_version = :writerProjectionVersion
+		), intent_member AS (
+		  SELECT DISTINCT segment.*
+		  FROM source_service_run AS run
+		  INNER JOIN session_segment AS segment
+		    ON segment.id = run.session_segment_id
+		   AND segment.service_run_id = run.service_run_id
+		   AND segment.logical_tracking_id = run.logical_tracking_id
+		  INNER JOIN session_manifest_version AS manifest
+		    ON manifest.service_run_id = run.service_run_id
+		   AND manifest.logical_tracking_id = run.logical_tracking_id
+		  INNER JOIN session_manifest_source AS source
+		    ON source.logical_tracking_id = manifest.logical_tracking_id
+		   AND source.manifest_revision = manifest.manifest_revision
+		  WHERE source.source_kind = :cellSourceKind
+		    AND source.purpose = 'SESSION_CAPTURE'
+		    AND source.persistence_eligible = 1
+		), candidate_member AS (
+		  SELECT * FROM cursor_member
+		  UNION
+		  SELECT * FROM intent_member
 		), logical_seed AS (
 		  SELECT member.*
-		  FROM cursor_member AS member
+		  FROM candidate_member AS member
 		  WHERE NOT EXISTS (
-		    SELECT 1 FROM cursor_member AS newer
+		    SELECT 1 FROM candidate_member AS newer
 		    WHERE newer.logical_tracking_id = member.logical_tracking_id
 		      AND (newer.start_time_ms > member.start_time_ms OR
 		        (newer.start_time_ms = member.start_time_ms AND newer.id > member.id))
@@ -772,6 +792,7 @@ interface CellCapturedFactDao {
 	suspend fun logicalHistoryCandidatePageInWallRange(
 		writerProjectionId: String,
 		writerProjectionVersion: Int,
+		cellSourceKind: Int,
 		fromInclusiveMs: Long,
 		toExclusiveMs: Long,
 		limit: Int,

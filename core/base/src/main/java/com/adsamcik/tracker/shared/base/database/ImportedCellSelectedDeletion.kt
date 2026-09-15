@@ -302,6 +302,18 @@ class RoomDeleteSelectedImportedCell internal constructor(
 				runMarkers.maxOfOrNull { it.deletedAtMs } ?: 0L,
 			)
 		) blocked(ImportedCellDeletionBlockedReason.STALE_REQUEST)
+		when (database.authenticateDeletedImportedCellSelectionInTransaction(
+			request.identity,
+			request.expectedImportRevision,
+			request.expectedContentChecksum,
+		)) {
+			is DeletedImportedCellSelectionAuthentication.Exact -> Unit
+			DeletedImportedCellSelectionAuthentication.Stale ->
+				blocked(ImportedCellDeletionBlockedReason.STALE_SELECTION)
+			DeletedImportedCellSelectionAuthentication.Absent,
+			DeletedImportedCellSelectionAuthentication.Unverifiable,
+			-> unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+		}
 		return DeleteSelectedImportedCellResult.AlreadyDeleted
 	}
 
@@ -500,6 +512,120 @@ suspend fun AppDatabase.authenticateDeletedImportedCellSelectionInTransaction(
 			dao.deletedIdentityOwners(identities, markers.size + 1).any {
 				markerByIdentity[it.protectedIdentity] != it
 			}
+		) return DeletedImportedCellSelectionAuthentication.Unverifiable
+		val sourceFences = dao.sourceFenceOwners(identities, limit)
+		if (sourceFences.size >= limit || sourceFences.any { fence ->
+			val marker = markerByIdentity[fence.scopeIdentityDigest]
+			marker?.identityKind != ImportedCellDeletedIdentityEntity.DELETION_SCOPE ||
+				fence.sourceKind !=
+				com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity.SOURCE_CELL ||
+				fence.purpose !=
+				com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode.SESSION_CAPTURE ||
+				fence.scopeKind !=
+				com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+					.SCOPE_LOGICAL_SERVICE_RUN ||
+				fence.collectedDataEpoch != state.collectedDataEpoch
+		}) return DeletedImportedCellSelectionAuthentication.Unverifiable
+	}
+	val liveLimit = ImportedCellDao.MAX_LIVE_OWNER_ROWS + 1
+	val logicalIds = dao.liveLogicalTrackingIds(liveLimit)
+	val liveRuns = dao.liveServiceRunOwners(liveLimit)
+	val liveFacts = dao.liveCellFactOwners(liveLimit)
+	val liveCompleteness = dao.liveCellCompletenessOwners(
+		com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity.SOURCE_CELL,
+		liveLimit,
+	)
+	if (listOf(logicalIds.size, liveRuns.size, liveFacts.size, liveCompleteness.size).any {
+			it > ImportedCellDao.MAX_LIVE_OWNER_ROWS
+		}
+	) return DeletedImportedCellSelectionAuthentication.Unverifiable
+	val logicalByEntry = logicalIds.associateBy { logicalId ->
+		PortableCellOpaqueIdentity.derive(
+			PortableCellIdentityKind.LOGICAL_ENTRY,
+			logicalId,
+		).value
+	}
+	for ((entryIdentity, _) in logicalByEntry) {
+		val marker = markerByIdentity[entryIdentity] ?: continue
+		if (marker.identityKind != ImportedCellDeletedIdentityEntity.ENTRY ||
+			marker.entryIdentity != entryIdentity
+		) return DeletedImportedCellSelectionAuthentication.Unverifiable
+	}
+	val liveRunById = liveRuns.associateBy { it.serviceRunId }
+	if (liveRunById.size != liveRuns.size) {
+		return DeletedImportedCellSelectionAuthentication.Unverifiable
+	}
+	for (run in liveRuns) {
+		val entryIdentity = PortableCellOpaqueIdentity.derive(
+			PortableCellIdentityKind.LOGICAL_ENTRY,
+			run.logicalTrackingId,
+		).value
+		val runIdentity = PortableCellOpaqueIdentity.derive(
+			PortableCellIdentityKind.PHYSICAL_RUN,
+			run.serviceRunId,
+		).value
+		val scope = PortableCellDeletionScopeDigest.derive(
+			run.logicalTrackingId,
+			run.serviceRunId,
+		).value
+		val intersections = listOf(entryIdentity, runIdentity, scope)
+			.mapNotNull(markerByIdentity::get)
+		if (intersections.any { marker ->
+			when (marker.identityKind) {
+				ImportedCellDeletedIdentityEntity.ENTRY ->
+					marker.protectedIdentity != entryIdentity
+				ImportedCellDeletedIdentityEntity.RUN ->
+					marker.protectedIdentity != runIdentity ||
+						marker.entryIdentity != entryIdentity || marker.runIdentity != runIdentity
+				ImportedCellDeletedIdentityEntity.DELETION_SCOPE ->
+					marker.protectedIdentity != scope ||
+						marker.entryIdentity != entryIdentity || marker.runIdentity != runIdentity
+				else -> true
+			}
+		}) return DeletedImportedCellSelectionAuthentication.Unverifiable
+	}
+	for (row in liveCompleteness) {
+		val run = liveRunById[row.serviceRunId]
+			?: return DeletedImportedCellSelectionAuthentication.Unverifiable
+		if (run.logicalTrackingId != row.logicalTrackingId) {
+			return DeletedImportedCellSelectionAuthentication.Unverifiable
+		}
+	}
+	for (fact in liveFacts) {
+		val run = liveRunById[fact.serviceRunId]
+			?: return DeletedImportedCellSelectionAuthentication.Unverifiable
+		if (run.logicalTrackingId != fact.logicalTrackingId) {
+			return DeletedImportedCellSelectionAuthentication.Unverifiable
+		}
+		val entryIdentity = PortableCellOpaqueIdentity.derive(
+			PortableCellIdentityKind.LOGICAL_ENTRY,
+			fact.logicalTrackingId,
+		).value
+		val runIdentity = PortableCellOpaqueIdentity.derive(
+			PortableCellIdentityKind.PHYSICAL_RUN,
+			fact.serviceRunId,
+		).value
+		val observationIdentity = PortableCellOpaqueIdentity.derive(
+			PortableCellIdentityKind.OBSERVATION,
+			fact.logicalFactId,
+		).value
+		val ownerIdentity = fact.aggregateOwnerLogicalFactId?.let { owner ->
+			PortableCellOpaqueIdentity.derive(
+				PortableCellIdentityKind.OBSERVATION,
+				owner,
+			).value
+		}
+		val direct = markerByIdentity[observationIdentity]
+		val owner = ownerIdentity?.let(markerByIdentity::get)
+		if (direct != null && (
+			direct.identityKind != ImportedCellDeletedIdentityEntity.OBSERVATION ||
+				direct.entryIdentity != entryIdentity || direct.runIdentity != runIdentity ||
+				direct.aggregateOwnerIdentity != ownerIdentity
+			) || owner != null && (
+			owner.identityKind != ImportedCellDeletedIdentityEntity.OBSERVATION ||
+				owner.entryIdentity != entryIdentity || owner.runIdentity != runIdentity ||
+				owner.aggregateOwnerIdentity != null
+			)
 		) return DeletedImportedCellSelectionAuthentication.Unverifiable
 	}
 	return DeletedImportedCellSelectionAuthentication.Exact(receipt)

@@ -206,6 +206,30 @@ class CellHistoryRepositoryRoomTest {
 	}
 
 	@Test
+	fun `range discovers exact Cell intent before the first fact without fabricating observations`() =
+		runTest {
+			val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = emptySet())
+			persist(listOf(group))
+			val segment = group.runs.single().segment
+
+			val range = repository { true }.range(
+				CellHistoryRangeRequest(
+					CellHistoryRangeScope.WallTime(
+						EpochMs(segment.startTimeMs),
+						EpochMs(segment.endTimeMs + 1L),
+					),
+					limit = 10,
+				),
+			) as CellHistoryRangePage.Available
+
+			range.entries.single().entry.state shouldBe CellHistoryProductState.UNAVAILABLE
+			range.entries.single().entry.causes shouldBe setOf(CellHistoryCause.PROVIDER_UNAVAILABLE)
+			range.entries.single().entry.observations shouldBe emptyList()
+			range.entries.single().structuralDayCompleteness shouldBe
+				CellHistoryStructuralDayCompleteness.UNAVAILABLE
+		}
+
+	@Test
 	fun `cursor-carried scope exposes a moved current lineage as integrity failure`() = runTest {
 		val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
 		persist(listOf(group))

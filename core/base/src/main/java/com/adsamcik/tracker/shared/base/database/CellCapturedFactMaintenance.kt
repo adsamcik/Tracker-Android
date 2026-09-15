@@ -174,6 +174,7 @@ suspend fun AppDatabase.deleteSelectedCapturedCellFactsInTransaction(
 	require(logicalTrackingId.isNotBlank())
 	require(serviceRunIds.isNotEmpty() && serviceRunIds.distinct().size == serviceRunIds.size)
 	require(expectedCollectedDataEpoch >= 0L && deletedAtMs >= 0L)
+	check(inTransaction()) { "Selected captured Cell deletion requires one caller-owned transaction" }
 	val limits = DEFAULT_CELL_CAPTURED_MAINTENANCE_LIMITS
 	return try {
 		checkpoint(CellCapturedSelectedDeletionCheckpoint.TRANSACTION_STARTED)

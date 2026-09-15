@@ -317,6 +317,7 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 			val candidates = database.cellCapturedFactDao().logicalHistoryCandidatePageInWallRange(
 				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
 				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				SourceDestinationOwnerEntity.SOURCE_CELL,
 				bounds.fromInclusiveMs,
 				bounds.toExclusiveMs,
 				pageLimit,
