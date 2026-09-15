@@ -48,8 +48,8 @@ interface TrackingHistoryRepository {
 	): Flow<List<StepsAwareHistoryPageEntry>>
 
 	/**
-	 * Observe one finite recent-history page with exact Steps-, Activity-, and Pressure-only
-	 * replacement.
+	 * Observe one finite recent-history page with exact Steps-, Wi-Fi-, Cell-, Activity-, and
+	 * Pressure-only replacement plus explicit portable source origins.
 	 *
 	 * A physical row is suppressed only after its complete logical manifest union authenticates one
 	 * exact source-only intent. Materializing and unavailable source-only products remain visible;
@@ -80,12 +80,17 @@ data class LiveSessionHistorySnapshot(
 	val session: SessionHistoryQuery,
 	val activity: ActivityHistoryQuery,
 	val pressure: PressureSessionHistoryQuery,
+	val wifi: WifiHistoryQuery? = null,
+	val cell: CellHistoryQuery? = null,
+	val readSnapshot: TrackingHistoryReadSnapshot? = null,
 ) {
 	init {
 		require(segmentId > 0L) { "Live session snapshot requires a persisted segment identity" }
 		val foundSession = (session as? SessionHistoryQuery.Found)?.history
 		val foundActivity = (activity as? ActivityHistoryQuery.Found)?.entry
 		val foundPressure = (pressure as? PressureSessionHistoryQuery.Found)?.history
+		val foundWifi = (wifi as? WifiHistoryQuery.Found)?.entry
+		val foundCell = (cell as? CellHistoryQuery.Found)?.entry
 		require(listOf(foundSession, foundActivity, foundPressure).all { it == null } ||
 			listOf(foundSession, foundActivity, foundPressure).all { it != null }
 		) {
@@ -106,6 +111,39 @@ data class LiveSessionHistorySnapshot(
 		require(foundActivity?.capturesOnlyActivity != true ||
 			foundPressure?.capture?.capturesOnly(HistorySource.PRESSURE) != true
 		) { "One logical snapshot cannot be both Activity-only and Pressure-only" }
+		require(
+			foundSession?.capture !is HistoryCapture.Exact ||
+				foundActivity == null ||
+				foundActivity.origin == ActivityHistoryOrigin.LOCAL,
+		) { "A native selected session cannot acquire imported Activity evidence" }
+		foundSession?.sourceProducts?.let { products ->
+			require(wifi == null || wifi == products.wifi) {
+				"Live Wi-Fi history must match the common selected product snapshot"
+			}
+			require(cell == null || cell == products.cell) {
+				"Live Cell history must match the common selected product snapshot"
+			}
+			require(activity == products.activity) {
+				"Live Activity history must match the common selected product snapshot"
+			}
+			require(pressure == products.pressure) {
+				"Live Pressure history must match the common selected product snapshot"
+			}
+		}
+		require(foundWifi == null || foundWifi.origin == WifiHistoryOrigin.LOCAL) {
+			"A physical live session cannot acquire imported Wi-Fi ownership"
+		}
+		require(foundCell == null || foundCell.origin == CellHistoryOrigin.Local) {
+			"A physical live session cannot acquire imported Cell ownership"
+		}
+		val sessionSnapshot = when (session) {
+			is SessionHistoryQuery.Found -> session.history.readSnapshot
+			is SessionHistoryQuery.Unavailable -> session.readSnapshot
+			SessionHistoryQuery.NotFound -> null
+		}
+		require(readSnapshot == null || sessionSnapshot == null || readSnapshot == sessionSnapshot) {
+			"Live session products must share one source-evidence snapshot"
+		}
 	}
 }
 
@@ -125,6 +163,20 @@ sealed interface SessionHistoryQuery {
 	data class Found(
 		val history: SessionHistory,
 	) : SessionHistoryQuery
+
+	/** The segment may exist, but its complete five-source snapshot could not be proven safely. */
+	data class Unavailable(
+		val reason: TrackingHistoryUnavailableReason,
+		val source: HistorySource? = null,
+		val readSnapshot: TrackingHistoryReadSnapshot? = null,
+	) : SessionHistoryQuery {
+		init {
+			require(
+				source != null ||
+					reason == TrackingHistoryUnavailableReason.SOURCE_EVIDENCE_STATE_UNAVAILABLE,
+			) { "Source-specific history failures require the affected source" }
+		}
+	}
 }
 
 /** Source-qualified history attached to one session segment. */
@@ -133,6 +185,8 @@ data class SessionHistory(
 	val capture: HistoryCapture,
 	val qualifiedSources: Set<HistorySource>,
 	val steps: StepsHistory,
+	val sourceProducts: SessionHistoryProducts? = null,
+	val readSnapshot: TrackingHistoryReadSnapshot? = null,
 ) {
 	init {
 		require(segmentId > 0L) { "Session history requires a persisted segment identity" }
@@ -144,6 +198,37 @@ data class SessionHistory(
 		require(qualifiedSources.all(capturedSources::contains)) {
 			"Qualified history sources require exact historical capture authority"
 		}
+		sourceProducts?.let { products ->
+			require(products.segmentId == segmentId) {
+				"Selected source products must own the same physical segment"
+			}
+			require(
+				qualifiedSources == deriveQualifiedSources(capture, steps, products),
+			) {
+				"Qualified history sources must be derived from authenticated retained source facts"
+			}
+			val pressure = (products.pressure as? PressureSessionHistoryQuery.Found)?.history
+			require(pressure == null || pressure.segmentId == segmentId) {
+				"Pressure history does not own the selected physical segment"
+			}
+			require(pressure == null || pressure.capture == capture) {
+				"Pressure history must share selected capture authority"
+			}
+			val wifi = (products.wifi as? WifiHistoryQuery.Found)?.entry
+			require(wifi == null || wifi.origin == WifiHistoryOrigin.LOCAL) {
+				"Selected physical Wi-Fi history must remain local"
+			}
+			val cell = (products.cell as? CellHistoryQuery.Found)?.entry
+			require(cell == null || cell.origin == CellHistoryOrigin.Local) {
+				"Selected physical Cell history must remain local"
+			}
+			val activity = (products.activity as? ActivityHistoryQuery.Found)?.entry
+			require(
+				capture !is HistoryCapture.Exact ||
+					activity == null ||
+					activity.origin == ActivityHistoryOrigin.LOCAL,
+			) { "Selected native Activity history must remain local" }
+		}
 	}
 
 	/** True only when every retained manifest revision captured Steps and no other source. */
@@ -151,6 +236,86 @@ data class SessionHistory(
 		get() = (capture as? HistoryCapture.Exact)?.revisions?.all { revision ->
 			revision.capturedSources == setOf(HistorySource.STEPS)
 		} == true
+
+	companion object {
+		/**
+		 * Derives public qualification only from retained source-local product evidence.
+		 *
+		 * Capture intent remains independent: a factless source-only row is still visible, but it
+		 * does not become a qualified numeric or observational source.
+		 */
+		fun deriveQualifiedSources(
+			capture: HistoryCapture,
+			steps: StepsHistory,
+			products: SessionHistoryProducts,
+		): Set<HistorySource> {
+			val capturedSources = when (capture) {
+				is HistoryCapture.Exact ->
+					capture.revisions.flatMapTo(linkedSetOf()) { it.capturedSources }
+				is HistoryCapture.ImportedSteps -> setOf(HistorySource.STEPS)
+				HistoryCapture.Unverifiable -> emptySet()
+			}
+			return buildSet {
+				if (
+					HistorySource.STEPS in capturedSources &&
+					steps.hasQualifiedRetainedProof
+				) add(HistorySource.STEPS)
+				val wifi = (products.wifi as? WifiHistoryQuery.Found)?.entry
+				if (
+					HistorySource.WIFI in capturedSources &&
+					wifi?.observations?.isNotEmpty() == true
+				) add(HistorySource.WIFI)
+				val cell = (products.cell as? CellHistoryQuery.Found)?.entry
+				if (
+					HistorySource.CELL in capturedSources &&
+					cell?.observations?.isNotEmpty() == true
+				) add(HistorySource.CELL)
+				val activity = (products.activity as? ActivityHistoryQuery.Found)?.entry
+				if (
+					HistorySource.ACTIVITY in capturedSources &&
+					activity?.origin == ActivityHistoryOrigin.LOCAL &&
+					activity?.fragments?.any { it is ActivityHistoryFragment.Band } == true
+				) add(HistorySource.ACTIVITY)
+				val pressure = (products.pressure as? PressureSessionHistoryQuery.Found)?.history
+				if (
+					HistorySource.PRESSURE in capturedSources &&
+					pressure?.pressure?.productState != HistoryProductState.FAILED &&
+					pressure?.pressure?.windows?.isNotEmpty() == true
+				) add(HistorySource.PRESSURE)
+			}
+		}
+	}
+}
+
+/** Five-source products resolved against one selected physical segment. */
+data class SessionHistoryProducts(
+	val segmentId: Long,
+	val wifi: WifiHistoryQuery,
+	val cell: CellHistoryQuery,
+	val activity: ActivityHistoryQuery,
+	val pressure: PressureSessionHistoryQuery,
+) {
+	init {
+		require(segmentId > 0L)
+	}
+}
+
+/** Durable source-evidence authority shared by one composed read. */
+data class TrackingHistoryReadSnapshot(
+	val collectedDataEpoch: Long,
+	val sourceEvidenceRevision: Long,
+) {
+	init {
+		require(collectedDataEpoch >= 0L)
+		require(sourceEvidenceRevision >= 0L)
+	}
+}
+
+enum class TrackingHistoryUnavailableReason {
+	SOURCE_EVIDENCE_STATE_UNAVAILABLE,
+	SOURCE_READ_BUDGET_EXCEEDED,
+	SOURCE_INTEGRITY_FAILURE,
+	PHYSICAL_MEMBERSHIP_INVALID,
 }
 
 /** Stable source names used by historical capture and source-qualification evidence. */
@@ -306,6 +471,43 @@ data class ImportedStepsHistoryMember(
  * and never imply Location, distance, route, elevation, or a fabricated numeric zero.
  */
 sealed interface SourceAwareHistoryPageEntry {
+	val source: HistorySource?
+		get() = when (this) {
+			is Physical -> null
+			is StepsOnly, is ImportedSteps -> HistorySource.STEPS
+			is ActivityOnly -> HistorySource.ACTIVITY
+			is PressureOnly -> HistorySource.PRESSURE
+			is WifiOnly -> HistorySource.WIFI
+			is CellOnly -> HistorySource.CELL
+		}
+
+	val intent: SourceOnlyHistoryIntent?
+		get() = when (this) {
+			is Physical -> null
+			is StepsOnly -> SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY
+			is ImportedSteps -> SourceOnlyHistoryIntent.PORTABLE_SOURCE_MEMBERSHIP
+			is ActivityOnly -> if (history.origin == ActivityHistoryOrigin.LOCAL) {
+				SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY
+			} else {
+				SourceOnlyHistoryIntent.PORTABLE_SOURCE_MEMBERSHIP
+			}
+			is PressureOnly -> if (history.origin == PressureHistoryOrigin.Local) {
+				SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY
+			} else {
+				SourceOnlyHistoryIntent.PORTABLE_SOURCE_MEMBERSHIP
+			}
+			is WifiOnly -> if (history.origin == WifiHistoryOrigin.LOCAL) {
+				SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY
+			} else {
+				SourceOnlyHistoryIntent.PORTABLE_SOURCE_MEMBERSHIP
+			}
+			is CellOnly -> if (history.origin == CellHistoryOrigin.Local) {
+				SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY
+			} else {
+				SourceOnlyHistoryIntent.PORTABLE_SOURCE_MEMBERSHIP
+			}
+		}
+
 	val actionTarget: TrackingHistoryActionTarget
 		get() = when (this) {
 			is Physical -> TrackingHistoryActionTarget.PhysicalSegment(segmentId)
@@ -313,18 +515,22 @@ sealed interface SourceAwareHistoryPageEntry {
 				source = HistorySource.STEPS,
 				reason = TrackingHistoryNonActionableReason.LOCAL_STEPS_SELECTOR_UNAVAILABLE,
 			)
-			is ActivityOnly -> history.selection?.let(TrackingHistoryActionTarget::Activity)
+			is ImportedSteps -> TrackingHistoryActionTarget.ImportedStepsMembers(
+				history.physicalMembers,
+			)
+			is ActivityOnly -> history.selection
+				?.takeIf { history.state != ActivityHistoryProductState.FAILED }
+				?.let(TrackingHistoryActionTarget::Activity)
 				?: TrackingHistoryActionTarget.NonActionable(
 					source = HistorySource.ACTIVITY,
 					reason = TrackingHistoryNonActionableReason.ACTIVITY_SELECTOR_UNAVAILABLE,
 				)
-			is ImportedSteps -> TrackingHistoryActionTarget.ImportedStepsMembers(
-				history.physicalMembers,
-			)
 			is PressureOnly -> TrackingHistoryActionTarget.NonActionable(
 				source = HistorySource.PRESSURE,
 				reason = TrackingHistoryNonActionableReason.PRESSURE_SELECTOR_UNAVAILABLE,
 			)
+			is WifiOnly -> TrackingHistoryActionTarget.Wifi(requireNotNull(history.selection))
+			is CellOnly -> TrackingHistoryActionTarget.Cell(requireNotNull(history.selection))
 		}
 
 	/** A caller-supplied candidate that remains eligible for existing Trip presentation. */
@@ -341,7 +547,7 @@ sealed interface SourceAwareHistoryPageEntry {
 		val history: StepsOnlyHistoryEntry,
 	) : SourceAwareHistoryPageEntry
 
-	/** An opaque, non-selectable exact Activity-only logical row. */
+	/** Exact native-only or explicit portable-origin Activity captured product. */
 	data class ActivityOnly(
 		val history: ActivityHistoryEntry,
 	) : SourceAwareHistoryPageEntry {
@@ -361,13 +567,51 @@ sealed interface SourceAwareHistoryPageEntry {
 		val history: ImportedStepsHistoryEntry,
 	) : SourceAwareHistoryPageEntry
 
-	/** An opaque, non-selectable exact Pressure-only logical row. */
+	/** Exact native-only or explicit portable-origin Pressure captured product. */
 	data class PressureOnly(
 		val history: PressureOnlyHistoryEntry,
 	) : SourceAwareHistoryPageEntry
+
+	/** Exact native-only or explicit portable-origin Wi-Fi captured product. */
+	data class WifiOnly(
+		val history: WifiHistoryEntry,
+	) : SourceAwareHistoryPageEntry {
+		init {
+			require(history.selection != null) {
+				"Wi-Fi history rows require the producer-issued opaque selector"
+			}
+			require(
+				(history.origin == WifiHistoryOrigin.LOCAL && history.capturesOnlyWifi) ||
+					(history.origin == WifiHistoryOrigin.IMPORTED && !history.capturesOnlyWifi),
+			) {
+				"Wi-Fi rows require exact native-only intent or explicit portable membership"
+			}
+		}
+	}
+
+	/** Exact native-only or explicit portable-origin Cell captured product. */
+	data class CellOnly(
+		val history: CellHistoryEntry,
+	) : SourceAwareHistoryPageEntry {
+		init {
+			require(history.selection != null) {
+				"Cell history rows require the producer-issued opaque selector"
+			}
+		}
+	}
 }
 
-/** Producer-issued action authority; opaque selections are retained without decoding. */
+enum class SourceOnlyHistoryIntent {
+	EXACT_NATIVE_ONLY,
+	PORTABLE_SOURCE_MEMBERSHIP,
+}
+
+/**
+ * Existing producer-issued action authority carried without decoding opaque identities.
+ *
+ * The page-level [TrackingHistoryReadSnapshot] supplies the epoch/revision authority needed by
+ * later optimistic actions. A non-actionable target is explicit rather than a fabricated scope.
+ */
 sealed interface TrackingHistoryActionTarget {
 	data class PhysicalSegment(val segmentId: Long) : TrackingHistoryActionTarget {
 		init {
@@ -382,6 +626,10 @@ sealed interface TrackingHistoryActionTarget {
 			require(members.isNotEmpty())
 		}
 	}
+
+	data class Wifi(val selection: WifiHistorySelection) : TrackingHistoryActionTarget
+
+	data class Cell(val selection: CellHistoryEntrySelection) : TrackingHistoryActionTarget
 
 	data class Activity(
 		val selection: ActivityHistorySelection,
@@ -404,18 +652,35 @@ sealed interface SourceAwareHistoryPageQuery {
 	/** The complete requested page within the declared candidate and membership budgets. */
 	data class Content(
 		val entries: List<SourceAwareHistoryPageEntry>,
+		val readSnapshot: TrackingHistoryReadSnapshot? = null,
 	) : SourceAwareHistoryPageQuery
 
 	/** Exact source-only replacement could not be decided truthfully within one bounded read. */
 	data class Unavailable(
 		val reason: SourceAwareHistoryPageUnavailableReason,
-	) : SourceAwareHistoryPageQuery
+		val source: HistorySource? = null,
+	) : SourceAwareHistoryPageQuery {
+		init {
+			if (
+				reason == SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED ||
+				reason == SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE ||
+				reason ==
+				SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE
+			) {
+				require(source != null) { "Source read failures require the affected source" }
+			}
+		}
+	}
 }
 
 enum class SourceAwareHistoryPageUnavailableReason {
 	CANDIDATE_SCAN_LIMIT,
 	LOGICAL_MEMBERSHIP_LIMIT,
 	SOURCE_IDENTITY_COLLISION,
+	SOURCE_EVIDENCE_STATE_UNAVAILABLE,
+	SOURCE_READ_BUDGET_EXCEEDED,
+	SOURCE_INTEGRITY_FAILURE,
+	SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
 }
 
 /** Policy/capability availability, independent of acquisition and product progress. */
@@ -527,4 +792,44 @@ data class StepsHistory(
 	/** A correction-safe retained count that covers only part of the requested session. */
 	val isLowerBound: Boolean
 		get() = count != null && coverage == StepsHistoryCoverage.PARTIAL
+
+	/**
+	 * True only when a retained numeric value is backed by covered non-failed evidence.
+	 *
+	 * Historical qualification deliberately ignores current capability availability. Legacy
+	 * replay with unknown coverage and recorded-but-value-free materialization are not proof.
+	 */
+	val hasQualifiedRetainedProof: Boolean
+		get() = count != null &&
+			evidence in setOf(HistoryEvidence.ACTIVE, HistoryEvidence.RECORDED) &&
+			coverage in setOf(StepsHistoryCoverage.COMPLETE, StepsHistoryCoverage.PARTIAL) &&
+			productState != HistoryProductState.FAILED &&
+			causes.none(StepsHistoryCause::invalidatesQualifiedRetainedProof)
 }
+
+private val StepsHistoryCause.invalidatesQualifiedRetainedProof: Boolean
+	get() = when (this) {
+		StepsHistoryCause.SOURCE_NOT_CAPTURED,
+		StepsHistoryCause.BASELINE_ONLY,
+		StepsHistoryCause.NO_OBSERVATION,
+		StepsHistoryCause.HISTORY_MEMBERSHIP_UNAVAILABLE,
+		StepsHistoryCause.HISTORY_INTEGRITY_FAILED,
+		StepsHistoryCause.WRITER_PROVENANCE_INVALID,
+		StepsHistoryCause.LEGACY_UNVERIFIED,
+		StepsHistoryCause.MATERIALIZATION_UNAVAILABLE,
+		StepsHistoryCause.FACTS_MISSING,
+		StepsHistoryCause.DELETED,
+		StepsHistoryCause.EVIDENCE_STATE_UNAVAILABLE,
+		StepsHistoryCause.PRIVACY_EPOCH_MISMATCH,
+		StepsHistoryCause.VALUE_OVERFLOW,
+		-> true
+
+		StepsHistoryCause.AVAILABILITY_UNAVAILABLE,
+		StepsHistoryCause.CAPTURE_PARTIAL,
+		StepsHistoryCause.SESSION_STILL_ACTIVE,
+		StepsHistoryCause.MATERIALIZATION_BEHIND,
+		StepsHistoryCause.ACQUISITION_INCOMPLETE,
+		StepsHistoryCause.PROVIDER_GAP,
+		StepsHistoryCause.RETENTION_LIMIT,
+		-> false
+	}

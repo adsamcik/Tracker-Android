@@ -235,6 +235,437 @@ class TrackingHistoryRepositoryTest {
 	}
 
 	@Test
+	fun `factless native-only intent stays visible without qualifying a source`() {
+		val capture = HistoryCapture.Exact(
+			listOf(
+				HistoryCaptureRevision(
+					revision = 1L,
+					effectiveAt = EpochMs(100L),
+					capturedSources = setOf(HistorySource.WIFI),
+					controlSources = emptySet(),
+				),
+			),
+		)
+		val wifi = WifiHistoryQuery.Found(
+			WifiHistoryEntry(
+				key = WifiHistoryEntryKey("wifi"),
+				startTime = EpochMs(100L),
+				endTime = EpochMs(200L),
+				storedZoneIds = emptySet(),
+				state = WifiHistoryProductState.MATERIALIZING,
+				coverage = WifiHistoryCoverage.NONE,
+				observations = emptyList(),
+				causes = setOf(WifiHistoryCause.MATERIALIZATION_BEHIND),
+				localSelection = WifiLocalHistorySelectionKey("a".repeat(64)),
+				capturesOnlyWifi = true,
+			),
+		)
+		val products = SessionHistoryProducts(
+			segmentId = 7L,
+			wifi = wifi,
+			cell = CellHistoryQuery.Found(unavailableCellHistory()),
+			activity = ActivityHistoryQuery.Found(unavailableActivityHistory()),
+			pressure = pressureQueryFor(
+				SessionHistory(
+					segmentId = 7L,
+					capture = capture,
+					qualifiedSources = emptySet(),
+					steps = missingSteps(),
+				),
+			),
+		)
+
+		SessionHistory(
+			segmentId = 7L,
+			capture = capture,
+			qualifiedSources = emptySet(),
+			steps = missingSteps(),
+			sourceProducts = products,
+			readSnapshot = TrackingHistoryReadSnapshot(3L, 9L),
+		)
+		assertFailsWith<IllegalArgumentException> {
+			SessionHistory(
+				segmentId = 7L,
+				capture = capture,
+				qualifiedSources = setOf(HistorySource.WIFI),
+				steps = missingSteps(),
+				sourceProducts = products,
+			)
+		}
+	}
+
+	@Test
+	fun `retained radio observation qualifies captured Wi-Fi without a fact count proxy`() {
+		val capture = HistoryCapture.Exact(
+			listOf(
+				HistoryCaptureRevision(
+					revision = 1L,
+					effectiveAt = EpochMs(100L),
+					capturedSources = setOf(HistorySource.WIFI),
+					controlSources = emptySet(),
+				),
+			),
+		)
+		val products = SessionHistoryProducts(
+			segmentId = 7L,
+			wifi = WifiHistoryQuery.Found(
+				WifiHistoryEntry(
+					key = WifiHistoryEntryKey("wifi"),
+					startTime = EpochMs(100L),
+					endTime = EpochMs(200L),
+					storedZoneIds = setOf("UTC"),
+					state = WifiHistoryProductState.READY,
+					coverage = WifiHistoryCoverage.COMPLETE,
+					observations = listOf(
+						WifiHistoryObservation(
+							intervalStartTime = EpochMs(100L),
+							observedTime = EpochMs(150L),
+							wallTimeUncertaintyMs = 0L,
+							availability = WifiHistoryAvailability.AVAILABLE,
+							resultCompleteness = WifiHistoryResultCompleteness.COMPLETE,
+							submittedResultCount = 1,
+							acceptedResultCount = 1,
+							rejectedResultCount = 0,
+							observationCount = 1,
+							bandMix = mapOf(WifiHistoryBand.FIVE_GHZ to 1),
+							signalQuality = WifiHistorySignalQuality(-40, -40, -40.0, 1),
+							sourceQualityFlags = 0L,
+							sourceQualityConfidence = null,
+							storedZoneId = "UTC",
+						),
+					),
+					localSelection = WifiLocalHistorySelectionKey("a".repeat(64)),
+					capturesOnlyWifi = true,
+				),
+			),
+			cell = CellHistoryQuery.Found(unavailableCellHistory()),
+			activity = ActivityHistoryQuery.Found(unavailableActivityHistory()),
+			pressure = pressureQueryFor(
+				SessionHistory(7L, capture, emptySet(), missingSteps()),
+			),
+		)
+
+		val history = SessionHistory(
+			segmentId = 7L,
+			capture = capture,
+			qualifiedSources = setOf(HistorySource.WIFI),
+			steps = missingSteps(),
+			sourceProducts = products,
+		)
+
+		assertEquals(setOf(HistorySource.WIFI), history.qualifiedSources)
+	}
+
+	@Test
+	fun `Steps qualification requires retained covered value but ignores current capability`() {
+		val retainedAfterCapabilityChange = StepsHistory(
+			count = 12L,
+			availability = HistoryAvailability.DISABLED,
+			evidence = HistoryEvidence.RECORDED,
+			productState = HistoryProductState.PARTIAL,
+			coverage = StepsHistoryCoverage.PARTIAL,
+			causes = setOf(StepsHistoryCause.PROVIDER_GAP),
+		)
+		val legacyUnknown = retainedAfterCapabilityChange.copy(
+			availability = HistoryAvailability.UNAVAILABLE,
+			productState = HistoryProductState.DEGRADED,
+			coverage = StepsHistoryCoverage.UNKNOWN,
+			causes = setOf(StepsHistoryCause.LEGACY_UNVERIFIED),
+		)
+		val recordedWithoutValue = StepsHistory(
+			count = null,
+			availability = HistoryAvailability.AVAILABLE,
+			evidence = HistoryEvidence.RECORDED,
+			productState = HistoryProductState.MATERIALIZING,
+			coverage = StepsHistoryCoverage.PARTIAL,
+			causes = setOf(StepsHistoryCause.MATERIALIZATION_BEHIND),
+		)
+
+		assertTrue(retainedAfterCapabilityChange.hasQualifiedRetainedProof)
+		assertFalse(legacyUnknown.hasQualifiedRetainedProof)
+		assertFalse(recordedWithoutValue.hasQualifiedRetainedProof)
+	}
+
+	@Test
+	fun `covered count with invalid authority cause cannot qualify Steps`() {
+		val invalidatingCauses = listOf(
+			StepsHistoryCause.SOURCE_NOT_CAPTURED,
+			StepsHistoryCause.BASELINE_ONLY,
+			StepsHistoryCause.NO_OBSERVATION,
+			StepsHistoryCause.HISTORY_MEMBERSHIP_UNAVAILABLE,
+			StepsHistoryCause.HISTORY_INTEGRITY_FAILED,
+			StepsHistoryCause.WRITER_PROVENANCE_INVALID,
+			StepsHistoryCause.LEGACY_UNVERIFIED,
+			StepsHistoryCause.MATERIALIZATION_UNAVAILABLE,
+			StepsHistoryCause.FACTS_MISSING,
+			StepsHistoryCause.DELETED,
+			StepsHistoryCause.EVIDENCE_STATE_UNAVAILABLE,
+			StepsHistoryCause.PRIVACY_EPOCH_MISMATCH,
+			StepsHistoryCause.VALUE_OVERFLOW,
+		)
+
+		invalidatingCauses.forEach { cause ->
+			val history = StepsHistory(
+				count = 12L,
+				availability = HistoryAvailability.UNAVAILABLE,
+				evidence = HistoryEvidence.RECORDED,
+				productState = HistoryProductState.PARTIAL,
+				coverage = StepsHistoryCoverage.PARTIAL,
+				causes = setOf(cause),
+			)
+
+			assertFalse(history.hasQualifiedRetainedProof, cause.name)
+		}
+	}
+
+	@Test
+	fun `covered count remains qualified through explicit lower-bound and capability causes`() {
+		val eligibleCauses = listOf(
+			StepsHistoryCause.AVAILABILITY_UNAVAILABLE,
+			StepsHistoryCause.CAPTURE_PARTIAL,
+			StepsHistoryCause.SESSION_STILL_ACTIVE,
+			StepsHistoryCause.MATERIALIZATION_BEHIND,
+			StepsHistoryCause.ACQUISITION_INCOMPLETE,
+			StepsHistoryCause.PROVIDER_GAP,
+			StepsHistoryCause.RETENTION_LIMIT,
+		)
+
+		eligibleCauses.forEach { cause ->
+			val history = StepsHistory(
+				count = 12L,
+				availability = HistoryAvailability.UNAVAILABLE,
+				evidence = HistoryEvidence.RECORDED,
+				productState = HistoryProductState.PARTIAL,
+				coverage = StepsHistoryCoverage.PARTIAL,
+				causes = setOf(cause),
+			)
+
+			assertTrue(history.hasQualifiedRetainedProof, cause.name)
+		}
+	}
+
+	@Test
+	fun `native selected session rejects imported Activity bands`() {
+		val capture = HistoryCapture.Exact(
+			listOf(
+				HistoryCaptureRevision(
+					revision = 1L,
+					effectiveAt = EpochMs(100L),
+					capturedSources = setOf(HistorySource.ACTIVITY, HistorySource.STEPS),
+					controlSources = emptySet(),
+				),
+			),
+		)
+		val importedActivity = ActivityHistoryEntry(
+			key = ActivityHistoryEntryKey("activity-imported"),
+			startTime = EpochMs(100L),
+			endTime = EpochMs(200L),
+			storedZoneIds = setOf("UTC"),
+			state = ActivityHistoryProductState.READY,
+			coverage = ActivityHistoryCoverage.COMPLETE,
+			activeTime = ActivityActiveTime(100L, 0L, 0L, 0L),
+			fragments = listOf(
+				ActivityHistoryFragment.Band(
+					storedZoneId = "UTC",
+					startTime = EpochMs(100L),
+					endTime = EpochMs(200L),
+					startUncertaintyMs = 0L,
+					endUncertaintyMs = 0L,
+					activity = ActivityHistoryType.WALKING,
+					mechanism = ActivityHistoryMechanism.TRANSITION,
+					refinedTransitionActivity = null,
+					confidence = ActivityHistoryConfidence.TransitionSignal,
+					wallTimeContinuity = ActivityHistoryWallTimeContinuity.SAME_ANCHOR,
+					durationNanos = 100L,
+				),
+			),
+			origin = ActivityHistoryOrigin.IMPORTED,
+			capturesOnlyActivity = false,
+		)
+		val base = SessionHistory(
+			segmentId = 7L,
+			capture = capture,
+			qualifiedSources = emptySet(),
+			steps = missingSteps(),
+		)
+		val products = SessionHistoryProducts(
+			segmentId = 7L,
+			wifi = WifiHistoryQuery.Found(
+				WifiHistoryEntry(
+					key = WifiHistoryEntryKey("wifi"),
+					startTime = EpochMs(100L),
+					endTime = EpochMs(200L),
+					storedZoneIds = emptySet(),
+					state = WifiHistoryProductState.UNAVAILABLE,
+					coverage = WifiHistoryCoverage.NONE,
+					observations = emptyList(),
+					causes = setOf(WifiHistoryCause.SOURCE_NOT_CAPTURED),
+				),
+			),
+			cell = CellHistoryQuery.Found(unavailableCellHistory()),
+			activity = ActivityHistoryQuery.Found(importedActivity),
+			pressure = pressureQueryFor(base),
+		)
+
+		assertEquals(
+			emptySet(),
+			SessionHistory.deriveQualifiedSources(capture, missingSteps(), products),
+		)
+		assertFailsWith<IllegalArgumentException> {
+			base.copy(sourceProducts = products)
+		}
+		assertFailsWith<IllegalArgumentException> {
+			LiveSessionHistorySnapshot(
+				segmentId = 7L,
+				session = SessionHistoryQuery.Found(base),
+				activity = ActivityHistoryQuery.Found(importedActivity),
+				pressure = pressureQueryFor(base),
+			)
+		}
+	}
+
+	@Test
+	fun `portable source rows preserve producer action authority without native membership`() {
+		val wifiSelection = WifiImportedHistorySelection(
+			key = WifiImportedHistorySelectionKey("a".repeat(64)),
+			importRevision = 4L,
+			contentChecksum = "b".repeat(64),
+		)
+		val wifi = SourceAwareHistoryPageEntry.WifiOnly(
+			WifiHistoryEntry(
+				key = WifiHistoryEntryKey("wifi-imported"),
+				startTime = EpochMs(100L),
+				endTime = EpochMs(200L),
+				storedZoneIds = emptySet(),
+				state = WifiHistoryProductState.FAILED,
+				coverage = WifiHistoryCoverage.NONE,
+				observations = emptyList(),
+				causes = setOf(WifiHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE),
+				origin = WifiHistoryOrigin.IMPORTED,
+				importedSelection = wifiSelection,
+			),
+		)
+		val cellSelection = ImportedCellHistorySelection(
+			identity = ImportedCellHistoryIdentity("c".repeat(64)),
+			importRevision = 5L,
+			contentChecksum = ImportedCellHistoryDigest("d".repeat(64)),
+		)
+		val cell = SourceAwareHistoryPageEntry.CellOnly(
+			unavailableCellHistory().copy(
+				state = CellHistoryProductState.UNVERIFIABLE,
+				causes = setOf(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE),
+				origin = CellHistoryOrigin.Imported(cellSelection),
+				selection = cellSelection,
+			),
+		)
+		val activityEntry = unavailableActivityHistory().copy(
+			state = ActivityHistoryProductState.FAILED,
+			causes = setOf(ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE),
+			origin = ActivityHistoryOrigin.IMPORTED,
+		)
+		val activity = SourceAwareHistoryPageEntry.ActivityOnly(activityEntry)
+		val pressure = SourceAwareHistoryPageEntry.PressureOnly(
+			PressureOnlyHistoryEntry(
+				key = TrackingHistoryEntryKey("pressure-imported"),
+				origin = PressureHistoryOrigin.Imported(
+					ImportedPressureHistoryIdentity("sha256:${"e".repeat(64)}"),
+				),
+				startTime = EpochMs(100L),
+				endTime = EpochMs(200L),
+				pressure = unavailablePressureHistory().copy(
+					causes = setOf(PressureHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE),
+				),
+			),
+		)
+
+		assertEquals(
+			TrackingHistoryActionTarget.Wifi(WifiHistorySelection.Imported(wifiSelection)),
+			wifi.actionTarget,
+		)
+		assertEquals(TrackingHistoryActionTarget.Cell(cellSelection), cell.actionTarget)
+		assertEquals(
+			TrackingHistoryActionTarget.NonActionable(
+				HistorySource.ACTIVITY,
+				TrackingHistoryNonActionableReason.ACTIVITY_SELECTOR_UNAVAILABLE,
+			),
+			activity.actionTarget,
+		)
+		assertEquals(
+			TrackingHistoryActionTarget.NonActionable(
+				HistorySource.PRESSURE,
+				TrackingHistoryNonActionableReason.PRESSURE_SELECTOR_UNAVAILABLE,
+			),
+			pressure.actionTarget,
+		)
+		assertEquals(SourceOnlyHistoryIntent.PORTABLE_SOURCE_MEMBERSHIP, wifi.intent)
+		assertEquals(SourceOnlyHistoryIntent.PORTABLE_SOURCE_MEMBERSHIP, cell.intent)
+		assertEquals(SourceOnlyHistoryIntent.PORTABLE_SOURCE_MEMBERSHIP, activity.intent)
+		assertEquals(SourceOnlyHistoryIntent.PORTABLE_SOURCE_MEMBERSHIP, pressure.intent)
+	}
+
+	@Test
+	fun `Wi-Fi source row rejects a missing producer selector`() {
+		assertFailsWith<IllegalArgumentException> {
+			SourceAwareHistoryPageEntry.WifiOnly(
+				WifiHistoryEntry(
+					key = WifiHistoryEntryKey("wifi-unverifiable"),
+					startTime = EpochMs(100L),
+					endTime = EpochMs(200L),
+					storedZoneIds = emptySet(),
+					state = WifiHistoryProductState.FAILED,
+					coverage = WifiHistoryCoverage.NONE,
+					observations = emptyList(),
+					causes = setOf(WifiHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE),
+					origin = WifiHistoryOrigin.IMPORTED,
+				),
+			)
+		}
+	}
+
+	@Test
+	fun `live snapshot rejects a different source evidence revision`() {
+		val session = SessionHistory(
+			segmentId = 7L,
+			capture = HistoryCapture.Unverifiable,
+			qualifiedSources = emptySet(),
+			steps = missingSteps(),
+			readSnapshot = TrackingHistoryReadSnapshot(3L, 9L),
+		)
+
+		assertFailsWith<IllegalArgumentException> {
+			LiveSessionHistorySnapshot(
+				segmentId = 7L,
+				session = SessionHistoryQuery.Found(session),
+				activity = ActivityHistoryQuery.Found(unavailableActivityHistory()),
+				pressure = pressureQueryFor(session),
+				readSnapshot = TrackingHistoryReadSnapshot(3L, 10L),
+			)
+		}
+	}
+
+	@Test
+	fun `source-specific unavailable query requires its source`() {
+		assertFailsWith<IllegalArgumentException> {
+			SessionHistoryQuery.Unavailable(
+				TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+			)
+		}
+		assertFailsWith<IllegalArgumentException> {
+			SourceAwareHistoryPageQuery.Unavailable(
+				SourceAwareHistoryPageUnavailableReason
+					.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
+			)
+		}
+		assertEquals(
+			TrackingHistoryReadSnapshot(7L, 11L),
+			SourceAwareHistoryPageQuery.Content(
+				entries = emptyList(),
+				readSnapshot = TrackingHistoryReadSnapshot(7L, 11L),
+			).readSnapshot,
+		)
+	}
+
+	@Test
 	fun `Activity action target retains exact selection and fails closed when absent`() {
 		val local = unavailableActivityHistory().copy(capturesOnlyActivity = true)
 		val importedSelection = importedActivitySelection(local.key)
@@ -243,7 +674,14 @@ class TrackingHistoryRepositoryTest {
 			capturesOnlyActivity = false,
 			importedSelection = importedSelection,
 		)
-		val unavailableImported = imported.copy(importedSelection = null)
+		val retainedImported = imported.copy(
+			causes = setOf(ActivityHistoryCause.RETENTION_LIMIT),
+			importedSelection = null,
+		)
+		val failedLocal = local.copy(
+			state = ActivityHistoryProductState.FAILED,
+			causes = setOf(ActivityHistoryCause.MANIFEST_INTEGRITY_FAILED),
+		)
 
 		assertEquals(
 			TrackingHistoryActionTarget.Activity(ActivityHistorySelection.Local(local.key)),
@@ -260,7 +698,14 @@ class TrackingHistoryRepositoryTest {
 				HistorySource.ACTIVITY,
 				TrackingHistoryNonActionableReason.ACTIVITY_SELECTOR_UNAVAILABLE,
 			),
-			SourceAwareHistoryPageEntry.ActivityOnly(unavailableImported).actionTarget,
+			SourceAwareHistoryPageEntry.ActivityOnly(retainedImported).actionTarget,
+		)
+		assertEquals(
+			TrackingHistoryActionTarget.NonActionable(
+				HistorySource.ACTIVITY,
+				TrackingHistoryNonActionableReason.ACTIVITY_SELECTOR_UNAVAILABLE,
+			),
+			SourceAwareHistoryPageEntry.ActivityOnly(failedLocal).actionTarget,
 		)
 	}
 
@@ -526,6 +971,17 @@ class TrackingHistoryRepositoryTest {
 		activeTime = null,
 		fragments = emptyList(),
 		causes = setOf(ActivityHistoryCause.NO_QUALIFIED_FACTS),
+	)
+
+	private fun unavailableCellHistory() = CellHistoryEntry(
+		key = CellHistoryEntryKey("cell:unavailable"),
+		startTime = EpochMs(100L),
+		endTime = EpochMs(200L),
+		storedZoneIds = emptySet(),
+		state = CellHistoryProductState.UNAVAILABLE,
+		coverage = CellHistoryCoverage.NONE,
+		observations = emptyList(),
+		causes = setOf(CellHistoryCause.SOURCE_NOT_CAPTURED),
 	)
 
 	private fun importedActivitySelection(

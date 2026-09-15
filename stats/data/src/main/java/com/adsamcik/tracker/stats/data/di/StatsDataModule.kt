@@ -42,9 +42,11 @@ import com.adsamcik.tracker.stats.data.repository.DefaultSessionStatsRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultSkiRunSegmentRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultTripRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultTrackingHistoryRepository
+import com.adsamcik.tracker.stats.data.repository.DefaultTrackingHistorySourceUnionReader
 import com.adsamcik.tracker.stats.data.repository.DefaultWifiHistoryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWifiObservationRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWindowedMetricsProvider
+import com.adsamcik.tracker.stats.data.repository.TrackingHistorySourceUnionReader
 import com.adsamcik.tracker.stats.data.scheduler.WorkManagerAchievementEvaluationScheduler
 import com.adsamcik.tracker.stats.data.worker.AchievementEvaluationTransactionRunner
 import com.adsamcik.tracker.stats.data.worker.RoomAchievementEvaluationTransactionRunner
@@ -182,6 +184,12 @@ internal abstract class TrackingHistoryDataModule {
 	abstract fun bindTrackingHistoryRepository(
 		impl: DefaultTrackingHistoryRepository,
 	): TrackingHistoryRepository
+
+	@Binds
+	@Singleton
+	abstract fun bindTrackingHistorySourceUnionReader(
+		impl: DefaultTrackingHistorySourceUnionReader,
+	): TrackingHistorySourceUnionReader
 }
 
 /** Keeps the source-specific Activity fact reader independent of the shared history facade. */
