@@ -205,50 +205,6 @@ object BackgroundTrackingApi {
 		}
 	}
 
-	internal sealed interface AutomaticControlContainmentLoopResult {
-		val attempts: Int
-
-		data class Handled(
-			override val attempts: Int,
-			val lastAttempt: AutomaticControlContainmentAttemptResult,
-		) : AutomaticControlContainmentLoopResult
-
-		data class Cancelled(
-			override val attempts: Int,
-		) : AutomaticControlContainmentLoopResult
-	}
-
-	internal suspend fun runAutomaticControlContainmentRetryLoop(
-		isCurrent: () -> Boolean,
-		startImmediateCleanup: () -> Deferred<AutomaticControlRecoveryResult>,
-		establishRetryOwnership: () -> Unit,
-		waitBeforeRetry: suspend (Long) -> Unit,
-		initialRetryDelayMillis: Long,
-		maxRetryDelayMillis: Long,
-		onAttemptCompleted: (AutomaticControlContainmentAttemptResult) -> Unit = {},
-	): AutomaticControlContainmentLoopResult {
-		require(initialRetryDelayMillis >= 0L)
-		require(maxRetryDelayMillis >= initialRetryDelayMillis)
-
-		var retryDelayMillis = initialRetryDelayMillis
-		var attempts = 0
-		while (true) {
-			if (!isCurrent()) return AutomaticControlContainmentLoopResult.Cancelled(attempts)
-			val attempt = runAutomaticControlContainmentAttempt(
-				startImmediateCleanup = startImmediateCleanup,
-				establishRetryOwnership = establishRetryOwnership,
-			)
-			attempts++
-			onAttemptCompleted(attempt)
-			if (!isCurrent()) return AutomaticControlContainmentLoopResult.Cancelled(attempts)
-			if (attempt.isHandled) {
-				return AutomaticControlContainmentLoopResult.Handled(attempts, attempt)
-			}
-			waitBeforeRetry(retryDelayMillis)
-			retryDelayMillis = (retryDelayMillis * 2L).coerceAtMost(maxRetryDelayMillis)
-		}
-	}
-
 	private fun cachedParamsSnapshot(): TrackingParamsState = synchronized(paramsLock) { cachedParams }
 
 	private fun updateCachedParams(newParams: TrackingParamsState): TrackingParamsState =
@@ -1236,6 +1192,55 @@ internal data class AutomaticControlContainmentAttemptResult(
 	val isHandled: Boolean
 		get() = cleanupResult == AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED ||
 			retryOwnershipEstablished
+}
+
+internal sealed interface AutomaticControlContainmentLoopResult {
+	val attempts: Int
+
+	data class Handled(
+		override val attempts: Int,
+		val lastAttempt: AutomaticControlContainmentAttemptResult,
+	) : AutomaticControlContainmentLoopResult
+
+	data class Cancelled(
+		override val attempts: Int,
+	) : AutomaticControlContainmentLoopResult
+}
+
+/**
+ * Retries the same coherent containment key without depending on another policy or preference
+ * emission. Each failed attempt waits before retrying; the delay is capped, and authority changes
+ * cancel through [isCurrent]. Immediate cleanup starts before retry ownership is attempted.
+ */
+internal suspend fun runAutomaticControlContainmentRetryLoop(
+	isCurrent: () -> Boolean,
+	startImmediateCleanup: () -> Deferred<AutomaticControlRecoveryResult>,
+	establishRetryOwnership: () -> Unit,
+	waitBeforeRetry: suspend (Long) -> Unit,
+	initialRetryDelayMillis: Long,
+	maxRetryDelayMillis: Long,
+	onAttemptCompleted: (AutomaticControlContainmentAttemptResult) -> Unit = {},
+): AutomaticControlContainmentLoopResult {
+	require(initialRetryDelayMillis >= 0L)
+	require(maxRetryDelayMillis >= initialRetryDelayMillis)
+
+	var retryDelayMillis = initialRetryDelayMillis
+	var attempts = 0
+	while (true) {
+		if (!isCurrent()) return AutomaticControlContainmentLoopResult.Cancelled(attempts)
+		val attempt = runAutomaticControlContainmentAttempt(
+			startImmediateCleanup = startImmediateCleanup,
+			establishRetryOwnership = establishRetryOwnership,
+		)
+		attempts++
+		onAttemptCompleted(attempt)
+		if (!isCurrent()) return AutomaticControlContainmentLoopResult.Cancelled(attempts)
+		if (attempt.isHandled) {
+			return AutomaticControlContainmentLoopResult.Handled(attempts, attempt)
+		}
+		waitBeforeRetry(retryDelayMillis)
+		retryDelayMillis = (retryDelayMillis * 2L).coerceAtMost(maxRetryDelayMillis)
+	}
 }
 
 internal suspend fun runAutomaticControlContainmentAttempt(
