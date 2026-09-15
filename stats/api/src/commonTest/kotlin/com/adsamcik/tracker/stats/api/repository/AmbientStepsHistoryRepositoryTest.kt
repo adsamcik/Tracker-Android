@@ -23,8 +23,16 @@ class AmbientStepsHistoryRepositoryTest {
 			AmbientStepsHistoryRecentRequest(0)
 		}
 		assertFailsWith<IllegalArgumentException> {
-			AmbientStepsHistoryRecentCursor(1L, 10L, "UTC", "not-opaque")
+			AmbientStepsHistoryRecentCursor(-1L, 1L, 1L, 10L, "UTC", "not-opaque")
 		}
+		assertFailsWith<IllegalArgumentException> {
+			AmbientStepsHistoryRecentCursor(1L, 1L, 1L, 10L, "UTC", "not-opaque")
+		}
+		val identity = "sha256:" + "a".repeat(64)
+		assertEquals(
+			AmbientStepsHistoryRecentCursor(2L, 3L, 4L, 10L, "UTC", identity),
+			AmbientStepsHistoryRecentCursor(2L, 3L, 4L, 10L, "UTC", identity),
+		)
 	}
 
 	@Test

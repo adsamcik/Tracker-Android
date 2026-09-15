@@ -172,10 +172,64 @@ class AmbientStepsDayComposerTest {
 			listOf(session(40L, 60L, 10L)),
 		)
 
-		result.total shouldBe AmbientStepsNumericValue.Exact(100L)
-		result.betweenSession shouldBe AmbientStepsNumericValue.Unavailable(
-			setOf(AmbientStepsDayCause.SESSION_NOT_COVERED_BY_COMPATIBLE_AMBIENT_FACT),
+		result.total shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.AMBIENT_ORIGIN_IDENTITY_CONFLICT),
 		)
+		result.betweenSession shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.AMBIENT_ORIGIN_IDENTITY_CONFLICT),
+		)
+	}
+
+	@Test
+	fun `adjacent facts from different native providers are not additive`() {
+		val other = AmbientStepsProviderProvenance("provider-b", "instance-b", 2L, 1L)
+		val result = composeAmbientStepsDay(
+			day,
+			listOf(
+				fact(0L, 50L, 1L),
+				fact(50L, DAY_END, 2L, "b").copy(provenance = other),
+			),
+			emptyList(),
+			emptyList(),
+		)
+
+		result.total shouldBe AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.AMBIENT_ORIGIN_IDENTITY_CONFLICT),
+		)
+	}
+
+	@Test
+	fun `adjacent native and imported facts are not additive for zero or positive splits`() {
+		listOf(0L, 2L).forEach { importedCount ->
+			val result = composeAmbientStepsDay(
+				day,
+				listOf(
+					fact(0L, 50L, 1L),
+					importedFact(50L, DAY_END, importedCount, "portable-$importedCount"),
+				),
+				emptyList(),
+				emptyList(),
+			)
+
+			result.total shouldBe AmbientStepsNumericValue.Unavailable(
+				setOf(AmbientStepsDayCause.AMBIENT_ORIGIN_IDENTITY_CONFLICT),
+			)
+		}
+	}
+
+	@Test
+	fun `adjacent imported facts from one authenticated day revision remain additive`() {
+		val result = composeAmbientStepsDay(
+			day,
+			listOf(
+				importedFact(0L, 50L, 1L, "portable-a"),
+				importedFact(50L, DAY_END, 2L, "portable-b"),
+			),
+			emptyList(),
+			emptyList(),
+		)
+
+		result.total shouldBe AmbientStepsNumericValue.Exact(3L)
 	}
 
 	@Test
@@ -205,8 +259,11 @@ class AmbientStepsDayComposerTest {
 
 	@Test
 	fun `exact local and imported portable identity is counted once with both origins explicit`() {
-		val local = fact(0L, DAY_END, 10L, id = "local").copy(portableIdentity = "portable")
 		val imported = importedFact(0L, DAY_END, 10L, "portable")
+		val local = fact(0L, DAY_END, 10L, id = "local").copy(
+			portableIdentity = "portable",
+			contentChecksum = imported.contentChecksum,
+		)
 
 		val result = composeAmbientStepsDay(day, listOf(local, imported), emptyList(), emptyList())
 
@@ -219,8 +276,11 @@ class AmbientStepsDayComposerTest {
 
 	@Test
 	fun `exact imported duplicate cannot hide local provider compatibility`() {
-		val local = fact(0L, DAY_END, 10L, id = "local").copy(portableIdentity = "portable")
 		val imported = importedFact(0L, DAY_END, 10L, "portable")
+		val local = fact(0L, DAY_END, 10L, id = "local").copy(
+			portableIdentity = "portable",
+			contentChecksum = imported.contentChecksum,
+		)
 
 		val result = composeAmbientStepsDay(
 			day,
@@ -240,7 +300,7 @@ class AmbientStepsDayComposerTest {
 
 		composeAmbientStepsDay(day, listOf(local, imported), emptyList(), emptyList()).total shouldBe
 			AmbientStepsNumericValue.Unavailable(
-				setOf(AmbientStepsDayCause.AMBIENT_FACT_OVERLAP),
+				setOf(AmbientStepsDayCause.AMBIENT_ORIGIN_IDENTITY_CONFLICT),
 			)
 	}
 
@@ -259,7 +319,13 @@ class AmbientStepsDayComposerTest {
 	private val provenance = AmbientStepsProviderProvenance("provider", "instance", 1L, 1L)
 
 	private fun fact(start: Long, end: Long, count: Long, id: String = "a") = QualifiedAmbientStepsFact(
-		id, day, start, end, count, provenance,
+		id,
+		day,
+		start,
+		end,
+		count,
+		provenance,
+		contentChecksum = "native-$id-$start-$end-$count",
 	)
 
 	private fun importedFact(
@@ -277,6 +343,7 @@ class AmbientStepsDayComposerTest {
 		portableIdentity = identity,
 		origin = QualifiedAmbientStepsFactOrigin.PORTABLE_IMPORT,
 		importedProvenance = ImportedAmbientStepsFactProvenance("archive", "day", 1L),
+		contentChecksum = "portable-$identity-$start-$end-$count",
 	)
 
 	private fun session(

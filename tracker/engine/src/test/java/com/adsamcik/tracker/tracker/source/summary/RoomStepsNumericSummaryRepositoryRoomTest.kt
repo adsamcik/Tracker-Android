@@ -28,6 +28,7 @@ import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryValue
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericHistoryDay
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericRangeRead
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericRangeReader
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsNumericStructuralDayRead
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsStructuralDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericCalendarAuthority
 import com.adsamcik.tracker.stats.api.repository.StepsNumericCalendarDay
@@ -1088,6 +1089,20 @@ private class FakeAmbientStepsTransactionReader(
 		Long,
 	) -> AmbientStepsNumericRangeRead,
 ) : AmbientStepsNumericRangeReader {
+	override suspend fun discoverNumericStructuralDaysInCurrentTransaction(
+		firstEpochDay: Long,
+		lastEpochDayInclusive: Long,
+		sessionCalendarDays: List<AmbientStepsStructuralDay>,
+		expectedSourceEvidenceRevision: Long,
+	): AmbientStepsNumericStructuralDayRead = if (sessionCalendarDays.isEmpty()) {
+		AmbientStepsNumericStructuralDayRead.NoAmbientAuthority
+	} else {
+		AmbientStepsNumericStructuralDayRead.Exact(
+			expectedSourceEvidenceRevision,
+			sessionCalendarDays,
+		)
+	}
+
 	override suspend fun readNumericRangeInCurrentTransaction(
 		request: AmbientStepsHistoryRangeRequest,
 		expectedSourceEvidenceRevision: Long,

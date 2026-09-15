@@ -36,7 +36,7 @@ class DefaultAmbientStepsHistoryRepositoryContractTest {
 			emptyList(),
 			emptyList(),
 		).total shouldBe AmbientStepsNumericValue.Unavailable(
-			setOf(AmbientStepsDayCause.AMBIENT_FACT_OVERLAP),
+			setOf(AmbientStepsDayCause.AMBIENT_ORIGIN_IDENTITY_CONFLICT),
 		)
 	}
 
@@ -97,6 +97,7 @@ class DefaultAmbientStepsHistoryRepositoryContractTest {
 		stepCount = count,
 		provenance = AmbientStepsProviderProvenance("provider", "instance", 1L, 1L),
 		portableIdentity = identity,
+		contentChecksum = "checksum-$identity-$count",
 	)
 
 	private fun importedFact(
@@ -113,6 +114,7 @@ class DefaultAmbientStepsHistoryRepositoryContractTest {
 		portableIdentity = identity,
 		origin = QualifiedAmbientStepsFactOrigin.PORTABLE_IMPORT,
 		importedProvenance = ImportedAmbientStepsFactProvenance("archive", "day", 1L),
+		contentChecksum = "checksum-$identity-$count",
 	)
 
 	private fun AmbientStepsNumericValue.toPublicTestValue(): AmbientStepsHistoryValue = when (this) {

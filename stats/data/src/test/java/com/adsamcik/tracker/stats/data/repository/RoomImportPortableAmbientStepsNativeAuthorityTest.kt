@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
@@ -30,6 +31,10 @@ import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportBlock
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportMetadata
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportUnverifiableReason
+import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
+import com.adsamcik.tracker.tracker.source.summary.RoomStepsNumericSummaryRepository
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
@@ -65,6 +70,30 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 				PortableAmbientStepsImportBlockedReason.LOCAL_ORIGIN_OVERLAP,
 			)
 		database.importedAmbientStepsDao().archiveCount() shouldBe 0L
+	}
+
+	@Test
+	fun `production numeric chain discovers native structural zone before fallback`() = runTest {
+		val fixture = seedNative(revoked = false)
+		database.ambientStepsFactRevisionDao().insert(fixture.fact)
+		val history = DefaultAmbientStepsHistoryRepository(
+			database,
+			database.importedAmbientStepsDao(),
+			StepsSegmentHistorySelector(
+				database,
+				SourceProductLaneExecutionAuthority { false },
+			),
+			Dispatchers.Unconfined,
+		)
+		val numeric = RoomStepsNumericSummaryRepository(
+			database,
+			Dispatchers.Unconfined,
+			history,
+		)
+
+		numeric.read(
+			StepsNumericSummaryRequest(0L, 0L, "Europe/Prague"),
+		) shouldBe StepsNumericSummary.Ready(listOf(StepsNumericDay(0L, 5L)))
 	}
 
 	@Test

@@ -46,6 +46,7 @@ internal data class QualifiedAmbientStepsFact(
 	val origin: QualifiedAmbientStepsFactOrigin = QualifiedAmbientStepsFactOrigin.LOCAL_PROVIDER,
 	val importedProvenance: ImportedAmbientStepsFactProvenance? = null,
 	val correctionRevision: Long = 1L,
+	val contentChecksum: String,
 ) {
 	init {
 		require(logicalFactId.isNotBlank())
@@ -55,6 +56,7 @@ internal data class QualifiedAmbientStepsFact(
 		require(endTimeMs > startTimeMs)
 		require(stepCount >= 0L)
 		require(correctionRevision > 0L)
+		require(contentChecksum.isNotBlank())
 		require(
 			(origin == QualifiedAmbientStepsFactOrigin.LOCAL_PROVIDER &&
 				provenance != null && importedProvenance == null) ||
@@ -141,6 +143,8 @@ internal enum class AmbientStepsDayCause {
 	AMBIENT_DAY_AUTHORITY_MISMATCH,
 	AMBIENT_AUTHORITY_UNVERIFIABLE,
 	AMBIENT_MATERIALIZING,
+	AMBIENT_IMPORTED_DELETED,
+	AMBIENT_IMPORTED_RETAINED,
 	SESSION_OUTSIDE_DAY,
 	SESSION_VALUE_UNAVAILABLE,
 	SESSION_OVERLAP,
@@ -208,7 +212,8 @@ internal fun composeAmbientStepsDay(
 				candidate.day != group.first().day ||
 					candidate.startTimeMs != group.first().startTimeMs ||
 					candidate.endTimeMs != group.first().endTimeMs ||
-					candidate.stepCount != group.first().stepCount
+					candidate.stepCount != group.first().stepCount ||
+					candidate.contentChecksum != group.first().contentChecksum
 			}
 		}
 	if (conflictingPortableIdentity) {
@@ -236,6 +241,28 @@ internal fun composeAmbientStepsDay(
 			if (outsideSession) add(AmbientStepsDayCause.SESSION_OUTSIDE_DAY)
 		})
 		return AmbientStepsDayProduct(day, total, containedSessions, between, origins)
+	}
+	val authorityDomains = orderedFacts.mapTo(linkedSetOf()) { fact ->
+		when (fact.origin) {
+			QualifiedAmbientStepsFactOrigin.LOCAL_PROVIDER -> {
+				val provenance = requireNotNull(fact.provenance)
+				AmbientStepsCountDomain.Native(provenance.provider, provenance.sourceInstanceId)
+			}
+			QualifiedAmbientStepsFactOrigin.PORTABLE_IMPORT ->
+				requireNotNull(fact.importedProvenance).let { provenance ->
+					AmbientStepsCountDomain.Portable(
+						provenance.archiveIdentity,
+						provenance.dayIdentity,
+						provenance.dayImportRevision,
+					)
+				}
+		}
+	}
+	if (authorityDomains.size != 1) {
+		val unavailable = AmbientStepsNumericValue.Unavailable(
+			setOf(AmbientStepsDayCause.AMBIENT_ORIGIN_IDENTITY_CONFLICT),
+		)
+		return AmbientStepsDayProduct(day, unavailable, containedSessions, unavailable, origins)
 	}
 	if (orderedFacts.zipWithNext().any { (left, right) -> right.startTimeMs < left.endTimeMs }) {
 		val unavailable = AmbientStepsNumericValue.Unavailable(setOf(AmbientStepsDayCause.AMBIENT_FACT_OVERLAP))
@@ -306,6 +333,19 @@ internal fun composeAmbientStepsDay(
 		AmbientStepsNumericValue.Unavailable(betweenCauses)
 	}
 	return AmbientStepsDayProduct(day, total, containedSessions, between, origins)
+}
+
+private sealed interface AmbientStepsCountDomain {
+	data class Native(
+		val provider: String,
+		val sourceInstanceId: String,
+	) : AmbientStepsCountDomain
+
+	data class Portable(
+		val archiveIdentity: String,
+		val dayIdentity: String,
+		val dayImportRevision: Long,
+	) : AmbientStepsCountDomain
 }
 
 private fun List<QualifiedAmbientStepsFact>.covers(startTimeMs: Long, endTimeMs: Long): Boolean {

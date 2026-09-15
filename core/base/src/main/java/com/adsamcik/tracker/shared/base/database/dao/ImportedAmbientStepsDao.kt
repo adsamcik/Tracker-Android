@@ -364,6 +364,29 @@ abstract class ImportedAmbientStepsDao {
 		  FROM imported_ambient_steps_day_revision
 		  GROUP BY day_identity
 		)
+		SELECT day.*
+		FROM imported_ambient_steps_day_revision AS day
+		INNER JOIN latest_revision AS latest
+		  ON latest.day_identity = day.day_identity
+		 AND latest.import_revision = day.import_revision
+		WHERE day.structural_epoch_day BETWEEN :firstEpochDay AND :lastEpochDayInclusive
+		ORDER BY day.structural_epoch_day, day.stored_zone_id, day.day_identity
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun latestDaysForEpochRange(
+		firstEpochDay: Long,
+		lastEpochDayInclusive: Long,
+		limit: Int,
+	): List<ImportedAmbientStepsDayRevisionEntity>
+
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT day_identity, MAX(import_revision) AS import_revision
+		  FROM imported_ambient_steps_day_revision
+		  GROUP BY day_identity
+		)
 		SELECT day.day_identity,
 		       day.structural_epoch_day,
 		       day.stored_zone_id,
@@ -560,6 +583,17 @@ abstract class ImportedAmbientStepsDao {
 		firstEpochDay: Long,
 		lastEpochDayInclusive: Long,
 		storedZoneIds: List<String>,
+		limit: Int,
+	): List<ImportedAmbientStepsDayFenceEntity>
+
+	@Query(
+		"SELECT * FROM imported_ambient_steps_day_fence " +
+			"WHERE structural_epoch_day BETWEEN :firstEpochDay AND :lastEpochDayInclusive " +
+			"ORDER BY structural_epoch_day, stored_zone_id, day_identity LIMIT :limit",
+	)
+	abstract suspend fun fencesForEpochRange(
+		firstEpochDay: Long,
+		lastEpochDayInclusive: Long,
 		limit: Int,
 	): List<ImportedAmbientStepsDayFenceEntity>
 

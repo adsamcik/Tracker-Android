@@ -57,6 +57,11 @@ import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsImportUnver
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsTransferRetryableReason
 import com.adsamcik.tracker.stats.api.repository.TruncateImportedAmbientStepsRetentionRequest
 import com.adsamcik.tracker.stats.api.repository.TruncateImportedAmbientStepsRetentionResult
+import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
+import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
+import com.adsamcik.tracker.tracker.source.summary.RoomStepsNumericSummaryRepository
 import io.kotest.matchers.shouldBe
 import java.time.LocalDate
 import java.time.ZoneId
@@ -507,6 +512,118 @@ class RoomImportedAmbientStepsTransferTest {
 	}
 
 	@Test
+	fun `recent cursor continues across noncanonical imported day identity`() = runTest {
+		val older = archive(
+			reidentifyDay(
+				completeDay(LocalDate.of(2026, 1, 20), 2L),
+				"noncanonical-older",
+			),
+		)
+		val newer = archive(completeDay(LocalDate.of(2026, 1, 21), 3L))
+		importer(database).importArchive(request(older)) shouldBe applied(older, 1)
+		importer(database).importArchive(
+			request(newer, jobId = "recent-newer", archiveKey = "recent-newer"),
+		) shouldBe applied(newer, 1)
+
+		val first = history(database).readRecent(
+			com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRequest(1),
+		) as com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRead.Page
+		first.days.single().day.epochDay shouldBe newer.days.single().structuralEpochDay
+		val cursor = requireNotNull(first.next)
+		val second = history(database).readRecent(
+			com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRequest(1, cursor),
+		) as com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRead.Page
+		second.days.single().day.epochDay shouldBe older.days.single().structuralEpochDay
+		second.days.single().opaqueDayIdentity shouldBe AmbientStepsPortableOpaqueIdentity.derive(
+			AmbientStepsPortableIdentityKind.DAY,
+			"${older.days.single().structuralEpochDay}|${older.days.single().storedZoneId}|" +
+				"${older.days.single().structuralDayStartTimeMs}|" +
+				older.days.single().structuralDayEndTimeMs,
+		).value
+	}
+
+	@Test
+	fun `recent cursor is rejected after correction deletion or full-clear epoch change`() = runTest {
+		suspend fun seededCursor(): Pair<
+			PortableAmbientStepsArchiveV1,
+			com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentCursor,
+		> {
+			val first = archive(completeDay(LocalDate.of(2026, 1, 22), 2L))
+			val second = archive(completeDay(LocalDate.of(2026, 1, 23), 3L))
+			importer(database).importArchive(request(first)) shouldBe applied(first, 1)
+			importer(database).importArchive(
+				request(second, jobId = "cursor-second", archiveKey = "cursor-second"),
+			) shouldBe applied(second, 1)
+			val page = history(database).readRecent(
+				com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRequest(1),
+			) as com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRead.Page
+			return second to requireNotNull(page.next)
+		}
+		suspend fun assertRejected(
+			cursor: com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentCursor,
+		) {
+			history(database).readRecent(
+				com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRequest(1, cursor),
+			) shouldBe com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRead
+				.Unavailable(
+					com.adsamcik.tracker.stats.api.repository
+						.AmbientStepsHistoryUnavailableReason.CORRUPT_RETAINED_STATE,
+				)
+		}
+
+		var (latest, cursor) = seededCursor()
+		val correction = archive(completeDay(LocalDate.of(2026, 1, 23), 4L))
+		importer(database).importArchive(
+			request(correction, jobId = "cursor-correction", archiveKey = "cursor-correction"),
+		) shouldBe applied(correction, 1)
+		assertRejected(cursor)
+
+		database.close()
+		database = newDatabase()
+		seedEvidence(database)
+		val deletionSeed = seededCursor()
+		latest = deletionSeed.first
+		cursor = deletionSeed.second
+		RoomDeleteImportedAmbientStepsDay(
+			database,
+			database.importedAmbientStepsDao(),
+			Dispatchers.Unconfined,
+		).deleteDay(
+			DeleteImportedAmbientStepsDayRequest(
+				latest.days.single().identity,
+				EPOCH,
+				latest.days.single().structuralDayEndTimeMs,
+			),
+		) shouldBe DeleteImportedAmbientStepsDayResult.Deleted(1)
+		assertRejected(cursor)
+
+		database.close()
+		database = newDatabase()
+		seedEvidence(database)
+		val clearSeed = seededCursor()
+		cursor = clearSeed.second
+		database.withTransaction {
+			val state = requireNotNull(database.sourceEvidenceStateDao().get())
+			val clearedAtMs = clearSeed.first.days.single().structuralDayEndTimeMs + 1L
+			database.importedAmbientStepsDao().prepareFullClearFencesInCurrentTransaction(
+				EPOCH,
+				EPOCH + 1L,
+				state.revision + 1L,
+				clearedAtMs,
+			)
+			database.sourceEvidenceStateDao().updateAfterFullDeletion(
+				EPOCH + 1L,
+				null,
+				state.deletedSourceEventHighWaterOrdinal,
+				clearedAtMs,
+			) shouldBe 1
+			database.importedAmbientStepsDao()
+				.deleteFullClearPayloadInCurrentTransaction(EPOCH + 1L)
+		}
+		assertRejected(cursor)
+	}
+
+	@Test
 	fun `exact native portable fact identity blocks import before any payload mutation`() = runTest {
 		val archive = archive(completeDay(LocalDate.of(2026, 2, 1), 10L))
 		val fact = archive.days.single().facts.single()
@@ -741,6 +858,102 @@ class RoomImportedAmbientStepsTransferTest {
 	}
 
 	@Test
+	fun `production numeric chain discovers imported DST zone before fallback and tracks mutations`() =
+		runTest {
+			val day = completeDay(LocalDate.of(2026, 10, 25), 5L, "Europe/Prague")
+			val archive = archive(day)
+			importer(database).importArchive(request(archive)) shouldBe applied(archive, 1)
+			val numeric = RoomStepsNumericSummaryRepository(
+				database,
+				Dispatchers.Unconfined,
+				history(database),
+			)
+			val request = StepsNumericSummaryRequest(
+				day.structuralEpochDay,
+				day.structuralEpochDay,
+				"UTC",
+			)
+			numeric.read(request) shouldBe StepsNumericSummary.Ready(
+				listOf(StepsNumericDay(day.structuralEpochDay, 5L)),
+			)
+			val observed = async { numeric.observe(request).take(3).toList() }
+			yield()
+
+			val correction = archive(
+				completeDay(LocalDate.of(2026, 10, 25), 8L, "Europe/Prague"),
+			)
+			importer(database).importArchive(
+				request(correction, jobId = "numeric-correction", archiveKey = "numeric-correction"),
+			) shouldBe applied(correction, 1)
+			yield()
+			numeric.read(request) shouldBe StepsNumericSummary.Ready(
+				listOf(StepsNumericDay(day.structuralEpochDay, 8L)),
+			)
+
+			RoomDeleteImportedAmbientStepsDay(
+				database,
+				database.importedAmbientStepsDao(),
+				Dispatchers.Unconfined,
+			).deleteDay(
+				DeleteImportedAmbientStepsDayRequest(
+					day.identity,
+					EPOCH,
+					day.structuralDayEndTimeMs + 1L,
+				),
+			) shouldBe DeleteImportedAmbientStepsDayResult.Deleted(2)
+			numeric.read(request) shouldBe StepsNumericSummary.Unverifiable(
+				StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+			)
+			observed.await() shouldBe listOf(
+				StepsNumericSummary.Ready(
+					listOf(StepsNumericDay(day.structuralEpochDay, 5L)),
+				),
+				StepsNumericSummary.Ready(
+					listOf(StepsNumericDay(day.structuralEpochDay, 8L)),
+				),
+				StepsNumericSummary.Unverifiable(
+					StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+				),
+			)
+		}
+
+	@Test
+	fun `production numeric chain preserves 23 hour authority and rejects stored-zone conflict`() =
+		runTest {
+			val day = completeDay(LocalDate.of(2026, 3, 29), 6L, "Europe/Prague")
+			day.structuralDayEndTimeMs - day.structuralDayStartTimeMs shouldBe 23L * 60L * 60L * 1_000L
+			val archive = archive(day)
+			importer(database).importArchive(request(archive)) shouldBe applied(archive, 1)
+			val numeric = RoomStepsNumericSummaryRepository(
+				database,
+				Dispatchers.Unconfined,
+				history(database),
+			)
+			val request = StepsNumericSummaryRequest(
+				day.structuralEpochDay,
+				day.structuralEpochDay,
+				"Pacific/Honolulu",
+			)
+			numeric.read(request) shouldBe StepsNumericSummary.Ready(
+				listOf(StepsNumericDay(day.structuralEpochDay, 6L)),
+			)
+
+			database.dailySummaryDao().upsert(
+				dateEpochDay = day.structuralEpochDay,
+				totalDistanceM = 0f,
+				totalSteps = 0,
+				totalDurationMs = 0L,
+				tripCount = 0,
+				activeTrackingMs = 0L,
+				lastUpdatedMs = day.structuralDayEndTimeMs,
+				calendarZoneId = "UTC",
+			)
+			numeric.read(request) shouldBe StepsNumericSummary.Unverifiable(
+				StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+			)
+		}
+
+	@Test
 	fun `current epoch and retention floor are checked before duplicate shortcut`() = runTest {
 		val archive = archive(completeDay(LocalDate.of(2026, 3, 1), 8L))
 		val original = request(archive)
@@ -807,7 +1020,7 @@ class RoomImportedAmbientStepsTransferTest {
 			AmbientStepsHistoryRead.Snapshot).days.single().let { day ->
 			day.importedDisposition shouldBe AmbientStepsImportedDisposition.RETAINED
 			day.total shouldBe AmbientStepsHistoryValue.Unavailable(
-				setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.NO_EVIDENCE),
+				setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.RETAINED),
 			)
 		}
 	}
@@ -1007,7 +1220,7 @@ class RoomImportedAmbientStepsTransferTest {
 			AmbientStepsHistoryRead.Snapshot).days.single().let { day ->
 			day.importedDisposition shouldBe AmbientStepsImportedDisposition.DELETED
 			day.total shouldBe AmbientStepsHistoryValue.Unavailable(
-				setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.NO_EVIDENCE),
+				setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.DELETED),
 			)
 		}
 		seedSecondRevokedConsent(database)

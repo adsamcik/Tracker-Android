@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntit
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
+import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsFactV1
 import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryDependency
 
 internal sealed interface NativeAmbientStepsRangeRead {
@@ -472,6 +473,15 @@ private fun AmbientStepsFactRevisionEntity.toNativeQualifiedFact(
 		logicalFactId,
 	).value,
 	correctionRevision = semanticRevision,
+	contentChecksum = PortableAmbientStepsFactV1.create(
+		AmbientStepsPortableOpaqueIdentity.derive(
+			AmbientStepsPortableIdentityKind.FACT,
+			logicalFactId,
+		),
+		requireNotNull(windowStartTimeMs),
+		requireNotNull(windowEndTimeMs),
+		requireNotNull(stepCount),
+	).contentChecksum.value,
 )
 
 private data class NativeAmbientAuthorizationKey(

@@ -22,10 +22,47 @@ interface AmbientStepsHistoryRepository {
 
 /** Narrow source total boundary for numeric consumers that already own the Room transaction. */
 interface AmbientStepsNumericRangeReader {
+	/**
+	 * Discovers exact stored structural-day authority for the requested epoch range. Session
+	 * calendar candidates are constraints, not defaults; conflicting authorities fail closed.
+	 */
+	suspend fun discoverNumericStructuralDaysInCurrentTransaction(
+		firstEpochDay: Long,
+		lastEpochDayInclusive: Long,
+		sessionCalendarDays: List<AmbientStepsStructuralDay>,
+		expectedSourceEvidenceRevision: Long,
+	): AmbientStepsNumericStructuralDayRead
+
 	suspend fun readNumericRangeInCurrentTransaction(
 		request: AmbientStepsHistoryRangeRequest,
 		expectedSourceEvidenceRevision: Long,
 	): AmbientStepsNumericRangeRead
+}
+
+sealed interface AmbientStepsNumericStructuralDayRead {
+	data class Exact(
+		val sourceEvidenceRevision: Long,
+		val days: List<AmbientStepsStructuralDay>,
+	) : AmbientStepsNumericStructuralDayRead {
+		init {
+			require(sourceEvidenceRevision >= 0L)
+			require(days.isNotEmpty())
+			require(days.size <= AmbientStepsHistoryRangeRequest.MAX_DAY_COUNT)
+			require(days.map(AmbientStepsStructuralDay::epochDay).distinct().size == days.size)
+			require(days == days.sortedWith(
+				compareBy(AmbientStepsStructuralDay::epochDay)
+					.thenBy(AmbientStepsStructuralDay::storedZoneId),
+			))
+		}
+	}
+
+	data object NoAmbientAuthority : AmbientStepsNumericStructuralDayRead
+
+	data class Unavailable(
+		val reason: AmbientStepsHistoryUnavailableReason,
+	) : AmbientStepsNumericStructuralDayRead
+
+	data object StorageUnavailable : AmbientStepsNumericStructuralDayRead
 }
 
 data class AmbientStepsStructuralDay(
@@ -67,16 +104,20 @@ data class AmbientStepsHistoryRangeRequest(
 }
 
 data class AmbientStepsHistoryRecentCursor(
+	val sourceEvidenceRevision: Long,
+	val collectedDataEpoch: Long,
 	val latestEvidenceTimeMs: Long,
 	val epochDay: Long,
 	val storedZoneId: String,
-	val opaqueDayIdentity: String,
+	val publicDayIdentity: String,
 ) {
 	init {
+		require(sourceEvidenceRevision >= 0L)
+		require(collectedDataEpoch >= 0L)
 		require(latestEvidenceTimeMs >= 0L)
 		require(storedZoneId.isNotBlank())
 		require(storedZoneId.length <= AmbientStepsStructuralDay.MAX_ZONE_ID_LENGTH)
-		require(OPAQUE_DIGEST.matches(opaqueDayIdentity))
+		require(OPAQUE_DIGEST.matches(publicDayIdentity))
 	}
 }
 

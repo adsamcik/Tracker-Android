@@ -16,8 +16,6 @@ import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.PORTABLE_AMBIENT_STEPS_DAY_ORDER
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsArchiveV1
-import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsCoverage
-import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsPartialCause
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableAmbientStepsResult
 import com.adsamcik.tracker.stats.api.repository.PortableAmbientStepsArchiveSink
@@ -233,13 +231,14 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 						origin = QualifiedAmbientStepsFactOrigin.PORTABLE_IMPORT,
 						importedProvenance = provenance,
 						correctionRevision = revision.header.importRevision,
+						contentChecksum = fact.contentChecksum.value,
 					)
 				},
 				gaps = portableDay.gaps.map { gap ->
 					EffectiveAmbientStepsGap(gap.intervalStartTimeMs, gap.intervalEndTimeMs)
 				},
 				sessions = emptyList(),
-				sourceCauses = portableDay.productCauses(),
+				sourceCauses = portableDay.toAmbientStepsProductCauses(),
 			)
 		}
 		days.sortWith(PORTABLE_AMBIENT_STEPS_DAY_ORDER)
@@ -251,21 +250,6 @@ internal class ImportedAmbientStepsRoomReader @Inject constructor(
 		)
 	}
 
-	internal fun com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsDayV1
-		.productCauses(): Set<AmbientStepsDayCause> = buildSet {
-		if (coverage == PortableAmbientStepsCoverage.PARTIAL) {
-			add(AmbientStepsDayCause.AMBIENT_COVERAGE_PARTIAL)
-		}
-		partialCauses.forEach { cause ->
-			when (cause) {
-				PortableAmbientStepsPartialCause.EXPLICIT_GAP ->
-					add(AmbientStepsDayCause.AMBIENT_GAP)
-				PortableAmbientStepsPartialCause.RETENTION,
-				PortableAmbientStepsPartialCause.OUTSIDE_AUTHORITY,
-				-> add(AmbientStepsDayCause.AMBIENT_COVERAGE_PARTIAL)
-			}
-		}
-	}
 }
 
 /** Imported-only re-export primitive. Parent assembly owns native/imported range union. */
