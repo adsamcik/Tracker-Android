@@ -15,7 +15,7 @@ Preserve six protected root paths and two frozen unaccepted importer/awards draf
 quarantines their exact patches/files rather than merging them. The canonical stable-ID TODO
 remains open: transport assembly is not final convergence/readiness. Original refs are retained.
 
-Last updated: 2026-09-14
+Last updated: 2026-09-15
 
 This is the canonical remaining-work ledger for the six source-to-product verticals. It translates
 the vision, final design, adaptive acquisition design, execution ledger, decisions, current
@@ -51,6 +51,28 @@ suite as one batch.
 - [ ] TODO-HANDOVER-20260915-005 Resolve/contain product choices (especially AUTO-005 and v28
   shipped premise), freeze exact complete convergence input, then explicitly lift phase and run
   the single deferred validation/fix batch. Local transport does not check final readiness items.
+- [x] TODO-HANDOVER-20260915-006 Author the bounded Location retained-WAL payload follow-up:
+  existing payload-free selected/delivery preflights, SQL byte-bound reads and source-sequence
+  identity projection; actual cap-plus-one and byte/scope regression sources. Source commit
+  `57073947f8fa77021b75f5c16eff6bb15d78e0e5` on `codex/ti-location-wal-bounds-20260915`;
+  exact three-file paths, static-review disposition and deferred commands are TI-D256 / TI-B319
+  and the receiving continuation in IMPLEMENTATION_STATUS.md. **IMPLEMENTED_UNVALIDATED** only.
+  Does not check TODO-HANDOVER-20260915-004, TODO-CORE-008 or TODO-LOC-006/007/012 wholesale.
+
+- [ ] TODO-HANDOVER-20260915-007 Fix full-clear Wi-Fi self-FK ordering in AppDatabase and
+  WifiCapturedFactDao: remove coverage dependents before aggregate owners without weakening
+  ordinary RESTRICT ownership. Author full-clear/reopen and transaction-rollback regressions.
+- [ ] TODO-HANDOVER-20260915-008 Wire captured Cell/Wi-Fi retention into the legacy
+  DataRetentionWorker before pending-signal deferral and shared WAL pruning. Preserve lifecycle
+  generation fences and author ordering, failure/cancellation and constructor-call-site sources.
+- [ ] TODO-HANDOVER-20260915-009 Make source-aware Steps replacement discovery intent-first
+  for exact factless groups; retain materializing/unavailable instead of suppressing physical
+  rows with no replacement. Keep ordinary evidence-first history semantics and bounded recency.
+
+Receiving next slice: close the three concrete shared Room/worker/history static-review findings,
+then continue the Wi-Fi imported evaluator and bounded product/reexport lane. Keep new source
+work separate from local `dev/v10`, retain the
+39 original source refs under `refs/remotes/handover/codex/ti-*`, and leave all execution deferred.
 
 For this dated transport checkpoint only, TODO-META-003/005 and TODO-GIT-006's no-integration
 constraints are superseded by TI-D255; they resume as conservative future-work guidance unless

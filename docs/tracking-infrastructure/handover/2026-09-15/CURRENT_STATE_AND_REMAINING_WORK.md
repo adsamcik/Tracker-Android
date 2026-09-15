@@ -2,6 +2,14 @@
 
 ## Checkpoint meaning
 
+Receiving continuation: the local package receipt and clean `dev/v10` match `29323cfab`.
+The original 39 tracking refs have been preserved from the local bundle under
+`refs/remotes/handover/codex/ti-*`. Source follow-up `57073947f8fa77021b75f5c16eff6bb15d78e0e5`
+on `codex/ti-location-wal-bounds-20260915` adds the dormant Location payload-bound slice described
+below and in TI-D256/TI-B319. It remains **IMPLEMENTED_UNVALIDATED** on its own source branch;
+the original transfer receipt and local `dev/v10` are not advanced by this continuation.
+All earlier transport statements below remain historical evidence, not current readiness.
+
 Local `dev/v10` is being assembled for transfer at the user's request. This is an
 **IMPLEMENTED_UNVALIDATED handover**, not a complete assembly gate or proven usable six-source
 product. No test, compilation, Gradle, lint, Detekt, schema generation/drift, diff-check, device,
@@ -39,10 +47,19 @@ semantics, exact imported Steps origin, and shared Activity/Pressure UI guards. 
 coverage from both parents. Original source refs make any merge decision inspectable. Unknown
 compilation/Hilt/schema/test defects remain deferred; do not guess that absence of conflict proves parity.
 
-One bounded follow-up audit is the protected Location `deliveryEvents` fetch: number-bounded
-delivery reads alone are not a proof that retained WAL payloads have a per-BLOB byte bound. Preserve
-the newer Activity payload-preflight APIs and inspect that concrete Location ingress/read seam
-before claiming memory-bound parity; this handover did not measure heap usage or execute it.
+The protected Location `deliveryEvents` per-BLOB follow-up now has source implementation in
+`57073947f8`: it reuses the newer Activity payload-preflight APIs, bounds selected and complete
+delivery reads in SQL, and uses a payload-free sequence lookup. The 65,586-byte codec-derived
+ceiling and actual cap-plus-one 256-unit guard have authored Room/adapter assertions, including
+exact covering SELECT projections. No heap measurement, compilation or execution occurred;
+this closes that implementation slice only, not all Location ingress/recovery/runtime bounds.
+
+Receiving static review identified three concrete follow-ups, recorded as
+TODO-HANDOVER-20260915-007/008/009: captured Wi-Fi full clear must remove coverage dependents
+before self-FK-restricted aggregate owners; the legacy DataRetentionWorker must invoke captured
+Cell/Wi-Fi retention before deferral/WAL pruning; and factless exact Steps-only source-aware
+history needs intent-first replacements instead of disappearing after physical suppression.
+The Location query-callback test builder retains the original in-memory factory setup.
 
 ### 2. Wi-Fi imported product lane
 

@@ -2,6 +2,36 @@
 
 Last updated: 2026-09-15
 
+## TI-B319 - Location WAL byte and membership regression sources authored
+
+- Input: `57073947f8fa77021b75f5c16eff6bb15d78e0e5`,
+  `codex/ti-location-wal-bounds-20260915`, transferred baseline `29323cfab`.
+- Production: `tracker\engine\src\main\java\com\adsamcik\tracker\tracker\source\location\LocationWalQualificationAdapter.kt`.
+- Authored sources:
+  `tracker\engine\src\test\java\com\adsamcik\tracker\tracker\source\location\LocationWalQualificationAdapterTest.kt`
+  and `core\base\src\test\java\com\adsamcik\tracker\shared\base\database\dao\SourceEventWalDaoTest.kt`.
+- Assertions: canonical v2 maximum 65,586 bytes and modified-UTF legacy maximum; selected/sibling
+  oversize and empty payloads; exact 256 units, declared overflow and an undeclared 257th member;
+  missing siblings before delivery fetch; payload-free covering SELECT lists and SQL-bounded
+  payload reads; source/epoch/boot/delivery scope and retained oversized-member metadata.
+- Static review: no concrete production defect identified; two test-source gaps were addressed
+  without execution. Source inspection preserves v1/v2 provenance and existing exact-value
+  authentication. No provider/writer registration, activation, migration or schema change.
+- Outcome: **IMPLEMENTED_UNVALIDATED**. No Gradle, compilation, tests, diff-check, schema,
+  lint/Detekt, CI, device/UI, heap or battery execution. This does not close a source vertical.
+- Deferred smallest command, only after the complete frozen convergence phase is authorized:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest :tracker:engine:testDebugUnitTest `
+  --tests "com.adsamcik.tracker.shared.base.database.dao.SourceEventWalDaoTest" `
+  --tests "com.adsamcik.tracker.tracker.source.location.LocationWalQualificationAdapterTest" `
+  --no-daemon --console=plain
+```
+
+The final affected-source/Hilt/release compilation, populated v27 migration/reopen, schema work,
+module gates, `ciUnitTest`, `ciCheck --continue` and representative Android evidence remain
+deferred as a single complete convergence/fix batch, not follow-up commands to run now.
+
 ## TI-B315 — Cell imported closure assertions authored, not executed
 
 - Input: `e4bc07df3` + independently statically accepted `f8dd5d6d1`.

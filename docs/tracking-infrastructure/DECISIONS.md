@@ -2,6 +2,26 @@
 
 Last updated: 2026-09-15
 
+## TI-D256 - Reuse SQL payload bounds for dormant Location qualification
+
+- Status: **IMPLEMENTED_UNVALIDATED**; source `57073947f8fa77021b75f5c16eff6bb15d78e0e5`
+  on `codex/ti-location-wal-bounds-20260915`, based on transferred local `dev/v10` `29323cfab`.
+- Decision: use existing Activity-era `SourceEventWalDao` selected/delivery size preflights,
+  SQL-bounded single/delivery BLOB reads and payload-free source-sequence identity lookup.
+  Row count alone is not a payload byte bound. Reject oversize before decoding, authenticate
+  metadata against loaded bytes, and reject incomplete or cap-plus-one delivery membership.
+- The byte ceiling is derived from the existing codec, not a new provider-name restriction:
+  65,535 modified-UTF provider bytes plus at most 51 bytes for all v2 scalar/optional fields.
+  The established 256-unit ceiling remains. This is not a measured heap or runtime claim.
+- Preserve legacy v1 typed mock-provenance rejection, exact v2 mock evidence, scalar/content
+  equality and downstream ownership/consent/retention qualification. No schema/API expansion,
+  provider activation, canonical Location writer replacement or product authority is introduced.
+- Static review identified two missing regression assertions; authored follow-ups cover actual
+  undeclared overflow and payload-free covering SELECT lists. No execution or compilation.
+- Remaining: other static assembly seams, Wi-Fi/Cell imported product lanes, the exhaustive
+  source/product/runtime TODOs and the later frozen convergence batch. New work stays on its
+  source branch; the dated transport exception is not treated as blanket integration authority.
+
 ## TI-D252 — Cell imported uncertainty and summary closure
 
 - Status: `IMPLEMENTED_UNVALIDATED`; independent static acceptance through `f8dd5d6d1`.

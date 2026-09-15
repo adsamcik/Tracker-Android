@@ -2,6 +2,50 @@
 
 Last updated: 2026-09-15
 
+## September 15 receiving continuation - Location WAL payload preflight
+
+**IMPLEMENTED_UNVALIDATED**, source commit `57073947f8fa77021b75f5c16eff6bb15d78e0e5`
+on `codex/ti-location-wal-bounds-20260915`, based on the clean transferred local `dev/v10`
+at `29323cfabe445ddb0278413b1710a31cdaab8073`. The package receipt matches that baseline.
+The receiving checkout's existing `origin/dev/v10` also names the baseline; no remote fetch or
+push was performed. All 39 original tracking refs were preserved from the receipt-matching local
+bundle under `refs/remotes/handover/codex/ti-*`, without replaying or overwriting source branches.
+The new slice remains on its source branch; local `dev/v10` is not advanced.
+
+Changed paths:
+
+- `tracker\engine\src\main\java\com\adsamcik\tracker\tracker\source\location\LocationWalQualificationAdapter.kt`
+- `tracker\engine\src\test\java\com\adsamcik\tracker\tracker\source\location\LocationWalQualificationAdapterTest.kt`
+- `core\base\src\test\java\com\adsamcik\tracker\shared\base\database\dao\SourceEventWalDaoTest.kt`
+
+The dormant adapter now uses the assembled payload-free selected/delivery preflights and
+SQL-bounded payload reads, replaces the full source-sequence lookup with its identity projection,
+and authenticates complete metadata-to-payload correspondence before decoding. The canonical
+Location v2 byte ceiling is 65,586 (65,535 modified-UTF provider bytes plus at most 51 other bytes);
+the existing 256-unit ceiling uses an actual cap-plus-one probe as well as declared-count rejection.
+No DAO/schema, provider, canonical writer, policy, consent, lifecycle, UI, or rollout authority changed.
+Legacy v1 remains mock-provenance-unverifiable; v2 mock flags and exact persisted-value comparison remain.
+
+Independent static production/test-source review found no concrete production defect and identified
+two regression gaps. Authored follow-ups cover an undeclared 257th physical member and exact
+payload-free SELECT projections, in addition to byte boundaries, empty/oversized siblings,
+cardinality, missing members, SQL payload exclusion and exact delivery scope. These are authored
+assertions, not executed results or measured heap evidence. See TI-D256 / TI-B319.
+
+The independent shared Room/worker/history/UI review identified three concrete remaining seams:
+Wi-Fi aggregate self-FK `RESTRICT` can abort full clear; the legacy DataRetentionWorker omits
+captured Cell/Wi-Fi retention before deferral/WAL pruning; and factless exact Steps-only entries
+can be suppressed without a source-aware replacement. These are tracked as
+TODO-HANDOVER-20260915-007/008/009 and require production plus regression-source fixes.
+The reviewer also confirmed that the Location test's explicit in-memory builder preserves
+`AppDatabase.testDatabase` setup and adds only the synchronous query callback.
+
+Dependencies: TODO-HANDOVER-20260915-004, TODO-CORE-008, TODO-DATA-010/011 and
+TODO-LOC-006/007/012. The broad composition items remain unchecked. Address the concrete shared
+seams before the Wi-Fi imported evaluator, bounded composition and authenticated reexport lane.
+AUTO-005 and the v28 handling premise remain contained; the assembly is not frozen and no
+validation phase is authorized.
+
 ## September 15 zero-context local handover checkpoint
 
 The user's fresh request authorizes local `dev/v10` assembly for transport only. Read
