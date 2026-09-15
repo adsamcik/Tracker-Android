@@ -99,7 +99,9 @@ class TripDetailPresenterViewModelTest {
 	@BeforeEach
 	fun setUp() {
 		Dispatchers.setMain(testDispatcher)
-		every { trackingHistoryRepository.observeLiveSession(any()) } returns flowOf(completeHistory(TRIP_ID))
+		every { trackingHistoryRepository.observeLiveSession(any()) } returns flowOf(
+			locationHistory(TRIP_ID),
+		)
 	}
 
 	@AfterEach
@@ -111,8 +113,33 @@ class TripDetailPresenterViewModelTest {
 	fun `imported Steps never reads overlapping local supplements or exports GPX`() = runTest {
 		val trip = sessionTrip().copy(source = com.adsamcik.tracker.shared.model.SegmentSource.PORTABLE_STEPS_IMPORT)
 		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
+		val importedSnapshot = importedStepsHistory(TRIP_ID)
+		(importedSnapshot.session as SessionHistoryQuery.Found).history.let { session ->
+			session.qualifiedSources shouldBe setOf(HistorySource.STEPS)
+			session.steps shouldBe StepsHistory(
+				count = 0L,
+				availability = HistoryAvailability.RETAINED_IMPORTED,
+				evidence = HistoryEvidence.ACTIVE,
+				productState = HistoryProductState.READY,
+				coverage = StepsHistoryCoverage.COMPLETE,
+			)
+		}
+		(importedSnapshot.activity as ActivityHistoryQuery.Found).entry.let { activity ->
+			activity.state shouldBe ActivityHistoryProductState.UNAVAILABLE
+			activity.coverage shouldBe ActivityHistoryCoverage.NONE
+			activity.activeTime shouldBe null
+			activity.fragments shouldBe emptyList()
+			activity.causes shouldBe setOf(ActivityHistoryCause.SOURCE_NOT_CAPTURED)
+			activity.origin shouldBe ActivityHistoryOrigin.IMPORTED
+			activity.storedZoneIds shouldBe emptySet<String>()
+			activity.capturesOnlyActivity shouldBe false
+		}
+		(importedSnapshot.pressure as PressureSessionHistoryQuery.Found).history.let { pressure ->
+			pressure.qualifiedSources shouldBe emptySet<HistorySource>()
+			pressure.pressure shouldBe verifiedImportedStepsPressure()
+		}
 		every { trackingHistoryRepository.observeLiveSession(TRIP_ID) } returns flowOf(
-			importedStepsHistory(TRIP_ID),
+			importedSnapshot,
 		)
 		val viewModel = createViewModel()
 		val collector = backgroundScope.launch { viewModel.state.collect() }
@@ -252,7 +279,7 @@ class TripDetailPresenterViewModelTest {
 		var historyCancelled = false
 		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
 		every { trackingHistoryRepository.observeLiveSession(TRIP_ID) } returns flow {
-			emit(completeHistory(TRIP_ID))
+			emit(locationHistory(TRIP_ID))
 			try {
 				awaitCancellation()
 			} finally {
@@ -277,8 +304,13 @@ class TripDetailPresenterViewModelTest {
 	fun `exact Pressure-only detail never reads or exports Location presentation`() = runTest {
 		val trip = sessionTrip()
 		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
+		val pressureSnapshot = pressureOnlyHistory(TRIP_ID)
+		(pressureSnapshot.pressure as PressureSessionHistoryQuery.Found).history.let { pressure ->
+			pressure.qualifiedSources shouldBe emptySet<HistorySource>()
+			pressure.pressure shouldBe providerUnavailablePressure()
+		}
 		every { trackingHistoryRepository.observeLiveSession(TRIP_ID) } returns flowOf(
-			pressureOnlyHistory(TRIP_ID),
+			pressureSnapshot,
 		)
 
 		val viewModel = createViewModel()
@@ -287,7 +319,7 @@ class TripDetailPresenterViewModelTest {
 
 		val loaded = viewModel.state.value as TripDetailState.Loaded
 		loaded.sourcePresentation shouldBe TripDetailSourcePresentation.PressureOnly(
-			unavailablePressure(),
+			providerUnavailablePressure(),
 		)
 		viewModel.loadSupplementalData()
 		viewModel.exportTripGpx(mockk(relaxed = true))
@@ -359,10 +391,7 @@ class TripDetailPresenterViewModelTest {
 		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
 		every { trackingHistoryRepository.observeLiveSession(TRIP_ID) } returns flow {
 			emit(
-				completeHistory(
-					segmentId = TRIP_ID,
-					capture = exactCapture(setOf(HistorySource.LOCATION)),
-				),
+				locationHistory(TRIP_ID),
 			)
 			failHistory.await()
 			throw IllegalStateException("history failed")
@@ -572,25 +601,20 @@ class TripDetailPresenterViewModelTest {
 		clockDomainId = "test-clock",
 	)
 
-	private fun completeHistory(
+	private fun exactHistory(
 		segmentId: Long,
-		capture: HistoryCapture = exactCapture(setOf(HistorySource.LOCATION)),
-		pressure: PressureHistory = pressureFor(capture),
-		steps: StepsHistory = stepsFor(capture),
-		activity: ActivityHistoryEntry = activityFor(capture),
+		capture: HistoryCapture,
+		qualifiedSources: Set<HistorySource>,
+		pressure: PressureHistory,
+		steps: StepsHistory,
+		activity: ActivityHistoryEntry,
 	): LiveSessionHistorySnapshot = LiveSessionHistorySnapshot(
 		segmentId = segmentId,
 		session = SessionHistoryQuery.Found(
 			SessionHistory(
 				segmentId = segmentId,
 				capture = capture,
-				qualifiedSources = if (
-					steps.count != null && capture.captures(HistorySource.STEPS)
-				) {
-					setOf(HistorySource.STEPS)
-				} else {
-					emptySet()
-				},
+				qualifiedSources = qualifiedSources,
 				steps = steps,
 			),
 		),
@@ -599,17 +623,22 @@ class TripDetailPresenterViewModelTest {
 			PressureSessionHistory(
 				segmentId = segmentId,
 				capture = capture,
-				qualifiedSources = if (pressure.hasRetainedObservation) {
-					setOf(HistorySource.PRESSURE)
-				} else {
-					emptySet()
-				},
+				qualifiedSources = emptySet(),
 				pressure = pressure,
 			),
 		),
 	)
 
-	private fun pressureOnlyHistory(segmentId: Long): LiveSessionHistorySnapshot = completeHistory(
+	private fun locationHistory(segmentId: Long): LiveSessionHistorySnapshot = exactHistory(
+		segmentId = segmentId,
+		capture = exactCapture(setOf(HistorySource.LOCATION)),
+		qualifiedSources = emptySet(),
+		steps = physicalStepsSourceNotCaptured(),
+		activity = activitySourceNotCaptured(),
+		pressure = physicalPressureSourceNotCaptured(),
+	)
+
+	private fun pressureOnlyHistory(segmentId: Long): LiveSessionHistorySnapshot = exactHistory(
 		segmentId = segmentId,
 		capture = HistoryCapture.Exact(
 			listOf(
@@ -621,36 +650,46 @@ class TripDetailPresenterViewModelTest {
 				),
 			),
 		),
-		pressure = unavailablePressure(),
-		steps = notCapturedSteps(),
+		qualifiedSources = emptySet(),
+		pressure = providerUnavailablePressure(),
+		steps = physicalStepsSourceNotCaptured(),
+		activity = activitySourceNotCaptured(),
 	)
 
 	private fun activityOnlyHistory(segmentId: Long): LiveSessionHistorySnapshot {
 		val capture = exactCapture(setOf(HistorySource.ACTIVITY))
-		return completeHistory(
+		return exactHistory(
 			segmentId = segmentId,
 			capture = capture,
-			steps = notCapturedSteps(),
+			qualifiedSources = emptySet(),
+			steps = physicalStepsSourceNotCaptured(),
 			activity = unavailableActivity(capturesOnlyActivity = true),
+			pressure = physicalPressureSourceNotCaptured(),
 		)
 	}
 
-	private fun stepsOnlyHistory(segmentId: Long): LiveSessionHistorySnapshot = completeHistory(
+	private fun stepsOnlyHistory(segmentId: Long): LiveSessionHistorySnapshot = exactHistory(
 		segmentId = segmentId,
 		capture = exactCapture(
 			sources = setOf(HistorySource.STEPS),
 			controlSources = setOf(HistorySource.ACTIVITY),
 		),
+		qualifiedSources = setOf(HistorySource.STEPS),
 		steps = completeSteps(),
+		activity = activitySourceNotCaptured(),
+		pressure = physicalPressureSourceNotCaptured(),
 	)
 
 	private fun importedStepsHistory(segmentId: Long): LiveSessionHistorySnapshot =
-		completeHistory(
+		exactHistory(
 			segmentId = segmentId,
 			capture = HistoryCapture.ImportedSteps(
 				listOf(ImportedStepsCaptureRevision(1L, EpochMs(TRIP_START_MS))),
 			),
+			qualifiedSources = setOf(HistorySource.STEPS),
 			steps = completeSteps(availability = HistoryAvailability.RETAINED_IMPORTED),
+			activity = verifiedImportedStepsActivity(),
+			pressure = verifiedImportedStepsPressure(),
 		)
 
 	private fun exactCapture(
@@ -667,44 +706,16 @@ class TripDetailPresenterViewModelTest {
 		),
 	)
 
-	private fun HistoryCapture.capturesOnlyActivity(): Boolean =
-		(this as? HistoryCapture.Exact)?.revisions?.all { revision ->
-			revision.capturedSources == setOf(HistorySource.ACTIVITY)
-		} == true
-
-	private fun HistoryCapture.captures(source: HistorySource): Boolean = when (this) {
-		is HistoryCapture.Exact -> revisions.any { revision -> source in revision.capturedSources }
-		is HistoryCapture.ImportedSteps -> source == HistorySource.STEPS
-		HistoryCapture.Unverifiable -> false
-	}
-
-	private fun activityFor(capture: HistoryCapture): ActivityHistoryEntry {
-		val cause = when {
-			capture == HistoryCapture.Unverifiable -> ActivityHistoryCause.LEGACY_UNVERIFIABLE
-			capture is HistoryCapture.ImportedSteps -> ActivityHistoryCause.LEGACY_UNVERIFIABLE
-			capture.captures(HistorySource.ACTIVITY) -> ActivityHistoryCause.NO_QUALIFIED_FACTS
-			else -> ActivityHistoryCause.SOURCE_NOT_CAPTURED
-		}
-		return unavailableActivity(
-			capturesOnlyActivity = capture.capturesOnlyActivity(),
-			cause = cause,
-			origin = if (capture is HistoryCapture.ImportedSteps) {
-				ActivityHistoryOrigin.IMPORTED
-			} else {
-				ActivityHistoryOrigin.LOCAL
-			},
-		)
-	}
-
 	private fun unavailableActivity(
 		capturesOnlyActivity: Boolean,
 		cause: ActivityHistoryCause = ActivityHistoryCause.NO_QUALIFIED_FACTS,
 		origin: ActivityHistoryOrigin = ActivityHistoryOrigin.LOCAL,
+		storedZoneIds: Set<String> = setOf("UTC"),
 	) = ActivityHistoryEntry(
 		key = ActivityHistoryEntryKey("activity"),
 		startTime = EpochMs(TRIP_START_MS),
 		endTime = EpochMs(TRIP_END_MS),
-		storedZoneIds = setOf("UTC"),
+		storedZoneIds = storedZoneIds,
 		state = ActivityHistoryProductState.UNAVAILABLE,
 		coverage = ActivityHistoryCoverage.NONE,
 		activeTime = null,
@@ -714,56 +725,47 @@ class TripDetailPresenterViewModelTest {
 		capturesOnlyActivity = capturesOnlyActivity,
 	)
 
-	private fun pressureFor(capture: HistoryCapture): PressureHistory {
-		val cause = when {
-			capture == HistoryCapture.Unverifiable -> PressureHistoryCause.LEGACY_UNATTRIBUTED
-			capture is HistoryCapture.ImportedSteps ->
-				PressureHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE
-			capture.captures(HistorySource.PRESSURE) ->
-				PressureHistoryCause.PROVIDER_UNAVAILABLE
-			else -> PressureHistoryCause.SOURCE_NOT_CAPTURED
-		}
-		return unavailablePressure(cause)
-	}
+	private fun activitySourceNotCaptured(
+		origin: ActivityHistoryOrigin = ActivityHistoryOrigin.LOCAL,
+		storedZoneIds: Set<String> = setOf("UTC"),
+	) = unavailableActivity(
+		capturesOnlyActivity = false,
+		cause = ActivityHistoryCause.SOURCE_NOT_CAPTURED,
+		origin = origin,
+		storedZoneIds = storedZoneIds,
+	)
 
-	private fun unavailablePressure(
-		cause: PressureHistoryCause = PressureHistoryCause.PROVIDER_UNAVAILABLE,
-	) = PressureHistory(
+	private fun verifiedImportedStepsActivity() = activitySourceNotCaptured(
+		origin = ActivityHistoryOrigin.IMPORTED,
+		storedZoneIds = emptySet(),
+	)
+
+	private fun providerUnavailablePressure() = PressureHistory(
 		availability = HistoryAvailability.UNAVAILABLE,
 		evidence = HistoryEvidence.NONE,
 		productState = HistoryProductState.DEGRADED,
-		coverage = PressureHistoryCoverage.UNKNOWN,
+		coverage = PressureHistoryCoverage.NONE,
 		windows = emptyList(),
-		causes = setOf(cause),
+		causes = setOf(PressureHistoryCause.PROVIDER_UNAVAILABLE),
 	)
 
-	private fun stepsFor(capture: HistoryCapture): StepsHistory = when {
-		capture == HistoryCapture.Unverifiable -> StepsHistory(
-			count = null,
-			availability = HistoryAvailability.UNAVAILABLE,
-			evidence = HistoryEvidence.NONE,
-			productState = HistoryProductState.DEGRADED,
-			coverage = StepsHistoryCoverage.UNKNOWN,
-			causes = setOf(StepsHistoryCause.LEGACY_UNVERIFIED),
-		)
-		capture is HistoryCapture.ImportedSteps -> StepsHistory(
-			count = null,
-			availability = HistoryAvailability.RETAINED_IMPORTED,
-			evidence = HistoryEvidence.NONE,
-			productState = HistoryProductState.PARTIAL,
-			coverage = StepsHistoryCoverage.NONE,
-			causes = setOf(StepsHistoryCause.FACTS_MISSING),
-		)
-		capture.captures(HistorySource.STEPS) -> StepsHistory(
-			count = null,
-			availability = HistoryAvailability.AVAILABLE,
-			evidence = HistoryEvidence.NONE,
-			productState = HistoryProductState.PARTIAL,
-			coverage = StepsHistoryCoverage.NONE,
-			causes = setOf(StepsHistoryCause.NO_OBSERVATION),
-		)
-		else -> notCapturedSteps()
-	}
+	private fun physicalPressureSourceNotCaptured() = PressureHistory(
+		availability = HistoryAvailability.UNAVAILABLE,
+		evidence = HistoryEvidence.NONE,
+		productState = HistoryProductState.FAILED,
+		coverage = PressureHistoryCoverage.UNKNOWN,
+		windows = emptyList(),
+		causes = setOf(PressureHistoryCause.SOURCE_NOT_CAPTURED),
+	)
+
+	private fun verifiedImportedStepsPressure() = PressureHistory(
+		availability = HistoryAvailability.DISABLED,
+		evidence = HistoryEvidence.NONE,
+		productState = HistoryProductState.DEGRADED,
+		coverage = PressureHistoryCoverage.NONE,
+		windows = emptyList(),
+		causes = setOf(PressureHistoryCause.SOURCE_NOT_CAPTURED),
+	)
 
 	private fun completeSteps(
 		availability: HistoryAvailability = HistoryAvailability.AVAILABLE,
@@ -775,13 +777,16 @@ class TripDetailPresenterViewModelTest {
 		coverage = StepsHistoryCoverage.COMPLETE,
 	)
 
-	private fun notCapturedSteps() = StepsHistory(
+	private fun physicalStepsSourceNotCaptured() = StepsHistory(
 		count = null,
 		availability = HistoryAvailability.UNAVAILABLE,
 		evidence = HistoryEvidence.NONE,
-		productState = HistoryProductState.PARTIAL,
-		coverage = StepsHistoryCoverage.NONE,
-		causes = setOf(StepsHistoryCause.SOURCE_NOT_CAPTURED),
+		productState = HistoryProductState.FAILED,
+		coverage = StepsHistoryCoverage.UNKNOWN,
+		causes = setOf(
+			StepsHistoryCause.SOURCE_NOT_CAPTURED,
+			StepsHistoryCause.AVAILABILITY_UNAVAILABLE,
+		),
 	)
 
 	private fun sessionTrip(): TripSummary = TripSummary(
