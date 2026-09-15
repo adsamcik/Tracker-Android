@@ -29,11 +29,15 @@ state. Consult the JSON registry for implementation, review, integration, valida
 dependencies, blockers, evidence and next bounded action. In particular, an unchecked source or
 assembly item may contain accepted implementation slices and must not be treated as absent.
 
-Three successor worktrees currently remain `awaiting_owner_receipt`: Activity range product,
-Ambient Steps file actions and shared history feature consumers. Git/dirty-work evidence is
-preserved, but none is accepted or permitted to expand until the parent reconciles its pre-freeze
-owner receipt. The only narrow unstarted dependency presently allowed is the Activity/Pressure
-transactional recent bridge required to close the already-started shared history union.
+Parent freeze inspection confirmed that Activity range product, Ambient Steps file actions and
+shared history feature consumers were unstarted; their owners were explicitly told not to create
+them. All three are `planned` backlog unless a later owner receipt identifies actual authored code
+elsewhere. A local ref or worktree registration alone does not change that classification. The
+only narrow unstarted dependency presently allowed is the Activity/Pressure transactional recent
+bridge required to close the already-started shared history union.
+
+The full tracking documentation request remains active. Continue registry and ledger maintenance
+as evidence arrives; the production finish-only scope does not freeze documentation work.
 
 ## 2026-09-15 scope-expansion freeze
 

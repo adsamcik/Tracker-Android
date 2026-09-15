@@ -18,8 +18,9 @@ requirement is not complete, not that no implementation exists.
 
 Scope expansion is frozen. Finish only artifacts demonstrably started before the boundary,
 their directly necessary corrections/test source and focused static review. Preserve dirty
-work. Three successor worktrees have Git evidence but await owner receipts; they are not
-accepted. All other unstarted work is planned backlog. Assembly is not frozen and validation
+work. Parent freeze inspection confirmed the three named successor assignments were unstarted,
+and owners were told not to create them. They are planned backlog. Assembly is not frozen
+and validation
 remains deferred. No agent push or provider/writer activation is authorized.
 
 The user independently published `3dd1ff004a34beb339539c4961704919d781371c`.
@@ -38,22 +39,21 @@ State counts:
 | Implementation state | Items |
 | --- | ---: |
 | `active_correction` | 10 |
+| `active_documentation` | 1 |
 | `active_governance` | 1 |
 | `allowed_dependency` | 1 |
 | `approval_required` | 1 |
-| `awaiting_owner_receipt` | 3 |
 | `committed_held` | 3 |
 | `completed_accepted_slice` | 5 |
-| `completed_documentation` | 1 |
 | `completed_foundation` | 1 |
 | `decision_required` | 8 |
 | `gate_deferred` | 4 |
 | `partial_implemented` | 11 |
-| `planned` | 13 |
+| `planned` | 16 |
 
-Review states: `active` 6, `awaiting_focused_closure` 1, `blocked_findings` 9, `closed_except_decision` 1, `closed_static` 5, `continuous` 1, `historical_accepted` 1, `mixed` 7, `not_applicable` 9, `not_started` 21, `static_metadata_checked` 1.
+Review states: `active` 6, `awaiting_focused_closure` 1, `blocked_findings` 9, `closed_except_decision` 1, `closed_static` 5, `continuous` 2, `historical_accepted` 1, `mixed` 7, `not_applicable` 9, `not_started` 21.
 
-Integration states: `held_branch` 2, `held_dependency` 1, `local_dev` 7, `local_only` 1, `mixed_source_refs` 7, `not_applicable` 9, `not_started` 18, `source_branch` 14, `source_branch_unaccepted` 3.
+Integration states: `held_branch` 2, `held_dependency` 1, `local_dev` 7, `local_only` 1, `mixed_source_refs` 7, `not_applicable` 9, `not_started` 21, `source_branch` 14.
 
 Validation states: `deferred_implementation_only` 53, `not_applicable` 9.
 
@@ -62,7 +62,7 @@ Validation states: `deferred_implementation_only` 53, `not_applicable` 9.
 
 | ID | State | Review | Integration | Title | Next bounded action |
 | --- | --- | --- | --- | --- | --- |
-| `WI-TRACKING-REGISTRY-001` | `completed_documentation` | `static_metadata_checked` | `local_dev` | Maintain the authoritative work-item registry | After this initial registry commit, wait for parent-supplied owner receipts and final correction dispositions before one bounded refresh. |
+| `WI-TRACKING-REGISTRY-001` | `active_documentation` | `continuous` | `local_dev` | Maintain the authoritative work-item registry | Continue authorized tracking-only updates as owner receipts, correction closures and integration dispositions arrive; do not start production work. |
 | `WI-HANDOVER-PRESERVATION-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Preserve accepted transport and receiving seams | Preserve as historical evidence; do not reopen or expand without a bounded request. |
 | `WI-REPOSITORY-SAFETY-001` | `active_governance` | `continuous` | `local_only` | Preserve repository, worktree and publication boundaries | Apply these boundaries to every owner receipt and local integration decision. |
 | `WI-FOUNDATION-BASE-001` | `completed_foundation` | `historical_accepted` | `local_dev` | Preserve the accepted tracking safety foundation | Use as immutable architectural constraints for remaining items. |
@@ -78,7 +78,7 @@ Validation states: `deferred_implementation_only` 53, `not_applicable` 9.
 | `WI-STEPS-AUTOMATIC-001` | `partial_implemented` | `closed_except_decision` | `local_dev` | Complete automatic Steps with bounded control evidence | Keep control behavior contained and inactive; do not invent a duration. |
 | `WI-STEPS-AMBIENT-001` | `partial_implemented` | `blocked_findings` | `source_branch` | Complete the Ambient Steps vertical | During this scope, close only the active c8/4d5 product correction. Hand over all other Ambient Steps work. |
 | `WI-STEPS-AMBIENT-PRODUCT-CORRECTION-001` | `active_correction` | `blocked_findings` | `source_branch` | Close Ambient Steps base and product review findings | Owner applies only these nine corrections and returns both existing reviewers to the exact corrected input. |
-| `WI-STEPS-AMBIENT-FILES-001` | `awaiting_owner_receipt` | `not_started` | `source_branch_unaccepted` | Determine whether Ambient Steps file actions began before freeze | Parent records the owner receipt; until then preserve the worktree and make no edits. |
+| `WI-STEPS-AMBIENT-FILES-001` | `planned` | `not_started` | `not_started` | Implement Ambient Steps file actions | Backlog only; do not start unless a later bounded assignment includes an owner receipt with actual authored-code evidence. |
 | `WI-PRESSURE-VERTICAL-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete the Pressure source-to-product vertical | Finish only the active maintenance and file reviews; hand over the rest. |
 | `WI-PRESSURE-MAINTENANCE-001` | `active_correction` | `active` | `source_branch` | Close Pressure maintenance privacy corrections | The existing reviewer checks 7dd72ab9 and 39198f5 against the six corrections; the owner fixes only resulting in-scope findings. |
 | `WI-PRESSURE-FILES-001` | `committed_held` | `active` | `source_branch` | Close Pressure portable file review | Close the existing f8ca404 review; do not add another format or UI action. |
@@ -88,7 +88,7 @@ Validation states: `deferred_implementation_only` 53, `not_applicable` 9.
 | `WI-LOCATION-AMBIENT-PRODUCT-001` | `planned` | `not_started` | `not_started` | Decide and implement passive ambient Location product | Handover backlog; do not start. |
 | `WI-ACTIVITY-VERTICAL-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete captured Activity and control separation | No new Activity lane; integrate only the closed 483 source when shared review permits. |
 | `WI-ACTIVITY-ACTIONS-001` | `completed_accepted_slice` | `closed_static` | `held_dependency` | Preserve closed Activity source actions and file semantics | No source edit. Parent consumes 483 only through the frozen shared-file integration after its review closes. |
-| `WI-ACTIVITY-RANGE-001` | `awaiting_owner_receipt` | `not_started` | `source_branch_unaccepted` | Determine whether Activity range product began before freeze | Parent obtains the receipt; preserve the worktree and do not edit meanwhile. |
+| `WI-ACTIVITY-RANGE-001` | `planned` | `not_started` | `not_started` | Implement Activity structural range product | Backlog only; do not start unless a later bounded assignment includes an owner receipt with actual authored-code evidence. |
 | `WI-WIFI-VERTICAL-001` | `partial_implemented` | `blocked_findings` | `source_branch` | Complete the Wi-Fi source-to-product vertical | Finish only the existing product/range/selected-delete correction; hand over retention/erase/files/UI. |
 | `WI-WIFI-PRODUCT-CORRECTION-001` | `active_correction` | `blocked_findings` | `source_branch` | Close Wi-Fi product, range and selected-delete corrections | Owner closes these findings and the already-present range/selected-delete edits; no retention/source-erase/file successor. |
 | `WI-WIFI-REMAINING-MAINTENANCE-001` | `planned` | `not_started` | `not_started` | Finish remaining Wi-Fi retention, erase and file actions | Handover backlog; do not start. |
@@ -101,7 +101,7 @@ Validation states: `deferred_implementation_only` 53, `not_applicable` 9.
 | `WI-SHARED-FILE-ASSEMBLY-001` | `committed_held` | `active` | `held_branch` | Close shared portable file assembly review | Close only the existing frozen e3f2ecd review and directly reported corrections. |
 | `WI-SHARED-HISTORY-UNION-001` | `active_correction` | `active` | `source_branch` | Close five-source recent, live and selected history union | Add only the two narrow producer bridges needed by this already-started union, then close its current focused review. |
 | `WI-SHARED-HISTORY-BRIDGES-001` | `allowed_dependency` | `not_started` | `not_started` | Add the two producer bridges required by the active history union | Parent assigns the two narrow bridges only if the active union reviewer confirms they are required. |
-| `WI-SHARED-HISTORY-CONSUMERS-001` | `awaiting_owner_receipt` | `not_started` | `source_branch_unaccepted` | Determine whether shared history feature consumers began before freeze | Parent records the receipt; preserve the worktree and make no edits meanwhile. |
+| `WI-SHARED-HISTORY-CONSUMERS-001` | `planned` | `not_started` | `not_started` | Implement shared history feature consumers | Backlog only; do not start unless a later bounded assignment includes an owner receipt with actual authored-code evidence. |
 | `WI-SHARED-HISTORY-DAY-RANGE-001` | `planned` | `not_started` | `not_started` | Complete all-six structural day, range and Today history | Handover backlog; do not start. |
 | `WI-UI-SURFACES-001` | `planned` | `not_started` | `not_started` | Wire truthful shared product surfaces | Handover backlog; do not start. |
 | `WI-SOURCE-ACTIONS-EXPLANATION-001` | `planned` | `not_started` | `not_started` | Complete start, settings, source actions and recording explanation | Handover backlog; do not start. |
@@ -125,15 +125,15 @@ Validation states: `deferred_implementation_only` 53, `not_applicable` 9.
 | `WI-FINAL-INTEGRATION-001` | `gate_deferred` | `not_started` | `not_started` | Perform final review and local integration | Handover backlog; no final integration during implementation-only. |
 | `WI-PUBLICATION-ACTIVATION-001` | `approval_required` | `not_applicable` | `not_applicable` | Obtain separate publication and activation approval | Wait for explicit user approval after local completion. |
 
-## Awaiting owner receipt
+## Explicitly unstarted successor backlog
 
-These branches/worktrees contain Git evidence, including dirty paths, but their pre-freeze
-semantic scope has not been received. Preserve them and make no further edits until the parent
-records the owner receipt:
+Parent freeze inspection confirmed these named successors were unstarted and owners were told
+not to create them. They remain planned unless a later bounded assignment includes an owner
+receipt with actual authored-code evidence:
 
-- `WI-STEPS-AMBIENT-FILES-001` — `codex/ti-ambient-steps-file-actions-20260915`; 0 dirty paths at snapshot.
-- `WI-ACTIVITY-RANGE-001` — `codex/ti-activity-range-product-20260915`; 16 dirty paths at snapshot.
-- `WI-SHARED-HISTORY-CONSUMERS-001` — `codex/ti-source-history-consumers-20260915`; 31 dirty paths at snapshot.
+- `WI-ACTIVITY-RANGE-001` — Implement Activity structural range product.
+- `WI-STEPS-AMBIENT-FILES-001` — Implement Ambient Steps file actions.
+- `WI-SHARED-HISTORY-CONSUMERS-001` — Implement shared history feature consumers.
 
 ## Update protocol
 

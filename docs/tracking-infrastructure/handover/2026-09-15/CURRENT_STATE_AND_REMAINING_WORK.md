@@ -26,8 +26,13 @@ Current finish-only artifacts:
   their precise registry blockers and may close only their already-started scope.
 - Shared history may add only the two narrow Activity/Pressure transactional recent producer
   bridges needed to close `1c94219ac3`; Location proof, day/range and UI remain backlog.
-- Activity range, Ambient Steps file actions and shared history consumers have branch/worktree
-  evidence but await owner receipts. Preserve them without claiming acceptance or starting more.
+- Parent freeze inspection confirmed Activity range, Ambient Steps file actions and shared history
+  consumers were unstarted, and their owners were explicitly told not to create them. Treat all
+  three as planned backlog unless a later owner receipt identifies actual authored code elsewhere.
+  Local refs or worktree registrations alone do not authorize continuation.
+- Only the narrow Activity/Pressure transactional recent producer bridges may still be assigned
+  when required to close existing shared history `1c94219ac3`; this does not authorize wider
+  history, range or feature-consumer work.
 
 Every remaining item—including Wi-Fi/Cell retention/erase/files, Pressure day/range/full hPa
 product, Ambient Steps execution/settings, passive ambient Location, purpose publication,
@@ -35,6 +40,10 @@ all-six Location proof, structural day/range/Today, shared product surfaces/acti
 widgets and non-Steps effects, cross-source recovery/privacy/scenarios, assembly, validation,
 publication and activation—is explicitly represented in the registry as planned, decision-gated,
 deferred or approval-required.
+
+The complete documentation/work-item request remains active. Continue local registry and ledger
+updates as owner receipts and closure results arrive; do not interpret the production scope freeze
+as a documentation freeze.
 
 ## Scope-change handover - finish only what was already started
 

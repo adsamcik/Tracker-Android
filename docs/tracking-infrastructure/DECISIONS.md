@@ -2,6 +2,23 @@
 
 Last updated: 2026-09-15
 
+## TI-D264 - Freeze evidence marks three successors planned, not started
+
+- Status: accepted registry clarification from parent inspection on 2026-09-15.
+- The Activity range product, Ambient Steps file-action and shared history feature-consumer
+  successors did not exist at the authoritative freeze inspection. Their owners were explicitly
+  told not to create them. Classify all three as `planned`, not `awaiting_owner_receipt`,
+  `active`, `held` or completed.
+- A local ref or worktree registration without an owner report of actual authored code elsewhere
+  is not authority to reclassify or continue one of these successors. A future start requires a
+  new bounded assignment and owner receipt.
+- The only potential narrow successor permitted by the existing closure boundary remains the
+  Activity/Pressure transactional recent producer bridges required by shared history
+  `1c94219ac3d67baa5fd870ac2f79d96d081bdcac`.
+- The user's full documentation/work-item request remains active. TI-D262 freezes production scope
+  expansion, not documentation tracking. The documentation owner continues local registry/ledger
+  updates and never starts production code or pushes.
+
 ## TI-D263 - Separate stable requirements from authoritative execution state
 
 - Status: accepted documentation control at the 2026-09-15 finish-only boundary.
@@ -16,8 +33,8 @@ Last updated: 2026-09-15
 - State changes require exact evidence: commit/ref, owner receipt, focused review, authorized local
   integration or executed proof on the exact commit. A branch, dirty worktree, authored test or
   reviewer agreement alone cannot make a work item fully complete.
-- Successor work with Git evidence but no owner receipt is `awaiting_owner_receipt`; preserve it
-  without further edits. Unstarted work is `planned`. Validation remains
+- Unstarted work is `planned`; TI-D264 records the parent-confirmed classification for the three
+  named successor assignments. Validation remains
   `deferred_implementation_only`; publication/activation remains a separate approval gate.
 - The registry records user publication of `3dd1ff004a34beb339539c4961704919d781371c`
   separately from later local-only documentation. It also records the Location reviewer's

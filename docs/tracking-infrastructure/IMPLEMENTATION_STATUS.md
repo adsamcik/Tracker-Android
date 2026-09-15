@@ -37,9 +37,15 @@ The registry incorporates the newer artifact state:
   `410d26e28c` and passive radios `306e9070d2` retain the exact active blockers recorded in
   `WORK_ITEMS.json`. Newer branch tips or dirty edits are implementation evidence only, not
   acceptance.
-- The Activity range, Ambient Steps file-action and shared history consumer successor worktrees
-  have Git evidence but no reconciled owner receipt. They are `awaiting_owner_receipt`, not
-  accepted or automatically authorized to continue.
+- Parent freeze inspection confirmed that the named Activity range, Ambient Steps file-action and
+  shared history consumer successors were unstarted, and their owners were explicitly told not to
+  create them. All three are `planned` backlog unless a later owner receipt identifies actual
+  authored code elsewhere. Local refs or worktree registrations without that receipt do not
+  establish an authorized start. Only the narrow Activity/Pressure transactional recent producer
+  bridges remain a potential direct closure dependency of shared history `1c94219ac3`.
+
+The user-requested documentation and work-item tracking itself remains active. Production scope
+expansion is frozen; registry/ledger maintenance is not. TI-D264 records this distinction.
 
 ## Scope expansion frozen - finish started artifacts, hand over the backlog
 
