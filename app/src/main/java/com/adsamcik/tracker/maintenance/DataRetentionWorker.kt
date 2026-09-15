@@ -117,6 +117,12 @@ class DataRetentionWorker @AssistedInject constructor(
 			}
 			when (rawRetentionResult) {
 				RawRetentionPruneResult.PRUNED -> {
+					// Captured radio revisions authenticate their exact attributed segment.
+					pruneExpiredSessionSegments(
+						appDatabase,
+						cutoff,
+						startupGeneration,
+					)
 					requireReadyGeneration(startupGeneration)
 					appDatabase.pruneSourceEventStorageBefore(
 						createdBeforeMs = cutoff,
@@ -262,7 +268,6 @@ class DataRetentionWorker @AssistedInject constructor(
 				appDatabase.skiRunSegmentDao().deleteOlderThan(cutoffMillis)
 				appDatabase.wifiObservationDao().deleteOlderThan(cutoffMillis)
 				appDatabase.cellSampleDao().deleteOlderThan(cutoffMillis)
-				appDatabase.sessionSegmentDao().deleteOlderThan(cutoffMillis)
 				appDatabase.pruneImportedStepsSegmentsBefore(cutoffMillis, updatedAtMs)
 				appDatabase.quarantinedSignalDao().deleteAcquiredBefore(cutoffMillis)
 				true
@@ -284,6 +289,22 @@ class DataRetentionWorker @AssistedInject constructor(
 			trackingStartupGate.currentGeneration != startupGeneration
 		) {
 			throw StartupGenerationChangedException
+		}
+	}
+
+	private suspend fun pruneExpiredSessionSegments(
+		appDatabase: AppDatabase,
+		cutoffMillis: Long,
+		startupGeneration: Long,
+	) {
+		requireReadyGeneration(startupGeneration)
+		appDatabase.withTransaction {
+			requireReadyGeneration(startupGeneration)
+			try {
+				appDatabase.sessionSegmentDao().deleteOlderThan(cutoffMillis)
+			} finally {
+				requireReadyGeneration(startupGeneration)
+			}
 		}
 	}
 

@@ -28,8 +28,10 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
@@ -139,10 +141,12 @@ class DataRetentionWorkerTest {
     }
 
 	@Test
-	fun `enabled retention settles Steps and captured radio before source WAL pruning`() = runTest {
+	fun `enabled retention preserves attributed segment through radio before segment and WAL pruning`() = runTest {
 		val database = AppDatabase.testDatabase(context)
 		val operations = mutableListOf<String>()
 		val walCountsAtRadioRetention = mutableListOf<Long>()
+		val attributedSegment = expiredAttributedSegment()
+		var attributedSegmentId = 0L
 		val enabledStore: RetentionConfigStore = mockk {
 			every { config } returns flowOf(
 				RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 1),
@@ -159,6 +163,10 @@ class DataRetentionWorkerTest {
 		val cellRetention: CellCapturedRetentionService = mockk {
 			coEvery { prune(database, 3L, any()) } coAnswers {
 				operations += "cell"
+				assertEquals(
+					attributedSegment.copy(id = attributedSegmentId),
+					database.sessionSegmentDao().getById(attributedSegmentId),
+				)
 				walCountsAtRadioRetention += database.sourceEventWalDao().countAll()
 				CellCapturedRetentionResult.NoChange
 			}
@@ -166,12 +174,17 @@ class DataRetentionWorkerTest {
 		val wifiRetention: WifiCapturedRetentionService = mockk {
 			coEvery { prune(database, 3L, any()) } coAnswers {
 				operations += "wifi"
+				assertEquals(
+					attributedSegment.copy(id = attributedSegmentId),
+					database.sessionSegmentDao().getById(attributedSegmentId),
+				)
 				walCountsAtRadioRetention += database.sourceEventWalDao().countAll()
 				WifiCapturedRetentionResult.NoChange
 			}
 		}
 		try {
-			insertExpiredStepsHistory(database)
+			attributedSegmentId = database.sessionSegmentDao().insert(attributedSegment)
+			insertExpiredStepsHistory(database, attributedSegmentId)
 			val (imported, importedSegmentId) = seedExpiredImportedSteps(database, 1L)
 			database.sourceEventWalDao().insertIgnoringDuplicate(staleRawCellEvent())
 			database.sourceEventWalDao().insertIgnoringDuplicate(staleRawWifiEvent())
@@ -234,6 +247,7 @@ class DataRetentionWorkerTest {
 			assertEquals(0, database.quarantinedSignalDao().countAll())
 			assertEquals(listOf("steps", "cell", "wifi"), operations)
 			assertEquals(listOf(2L, 2L), walCountsAtRadioRetention)
+			assertEquals(null, database.sessionSegmentDao().getById(attributedSegmentId))
 			assertEquals(0L, database.sourceEventWalDao().countAll())
 			coVerify(exactly = 1) { lane.drainAvailable() }
 			coVerify(exactly = 1) { cellRetention.prune(database, 3L, any()) }
@@ -247,9 +261,15 @@ class DataRetentionWorkerTest {
 	fun `pending signals still run both captured radio retention services without pruning WAL`() = runTest {
 		val database = AppDatabase.testDatabase(context)
 		val operations = mutableListOf<String>()
+		val attributedSegment = expiredAttributedSegment()
+		var attributedSegmentId = 0L
 		val cellRetention: CellCapturedRetentionService = mockk {
 			coEvery { prune(database, 3L, any()) } coAnswers {
 				operations += "cell"
+				assertEquals(
+					attributedSegment.copy(id = attributedSegmentId),
+					database.sessionSegmentDao().getById(attributedSegmentId),
+				)
 				assertEquals(2L, database.sourceEventWalDao().countAll())
 				CellCapturedRetentionResult.NoChange
 			}
@@ -257,12 +277,18 @@ class DataRetentionWorkerTest {
 		val wifiRetention: WifiCapturedRetentionService = mockk {
 			coEvery { prune(database, 3L, any()) } coAnswers {
 				operations += "wifi"
+				assertEquals(
+					attributedSegment.copy(id = attributedSegmentId),
+					database.sessionSegmentDao().getById(attributedSegmentId),
+				)
 				assertEquals(2L, database.sourceEventWalDao().countAll())
 				WifiCapturedRetentionResult.NoChange
 			}
 		}
 		val lane = inactiveLane()
 		try {
+			attributedSegmentId = database.sessionSegmentDao().insert(attributedSegment)
+			insertExpiredStepsHistory(database, attributedSegmentId)
 			seedPendingRetention(database)
 			database.sourceEventWalDao().insertIgnoringDuplicate(staleRawWifiEvent())
 
@@ -279,6 +305,10 @@ class DataRetentionWorkerTest {
 			)
 
 			assertEquals(listOf("cell", "wifi"), operations)
+			assertEquals(
+				attributedSegment.copy(id = attributedSegmentId),
+				database.sessionSegmentDao().getById(attributedSegmentId),
+			)
 			assertEquals(2L, database.sourceEventWalDao().countAll())
 			coVerify(exactly = 0) { lane.drainAvailable() }
 			coVerify(exactly = 1) { cellRetention.prune(database, 3L, any()) }
@@ -289,29 +319,47 @@ class DataRetentionWorkerTest {
 	}
 
 	@Test
-	fun `each captured radio rejection requests retry after both services run once`() = runTest {
+	fun `each captured radio rejection keeps attributed segment and WAL after both services run once`() = runTest {
 		for (rejectedSource in RadioSource.entries) {
 			val database = AppDatabase.testDatabase(context)
-			val cellRetention = cellRetentionService(
-				if (rejectedSource == RadioSource.CELL) {
-					CellCapturedRetentionResult.Blocked(
-						CellCapturedRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED,
+			val attributedSegment = expiredAttributedSegment()
+			var attributedSegmentId = 0L
+			val cellResult = if (rejectedSource == RadioSource.CELL) {
+				CellCapturedRetentionResult.Blocked(
+					CellCapturedRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED,
+				)
+			} else {
+				CellCapturedRetentionResult.NoChange
+			}
+			val wifiResult = if (rejectedSource == RadioSource.WIFI) {
+				WifiCapturedRetentionResult.Blocked(
+					WifiCapturedRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED,
+				)
+			} else {
+				WifiCapturedRetentionResult.NoChange
+			}
+			val cellRetention: CellCapturedRetentionService = mockk {
+				coEvery { prune(database, 3L, any()) } coAnswers {
+					assertEquals(
+						attributedSegment.copy(id = attributedSegmentId),
+						database.sessionSegmentDao().getById(attributedSegmentId),
 					)
-				} else {
-					CellCapturedRetentionResult.NoChange
-				},
-			)
-			val wifiRetention = wifiRetentionService(
-				if (rejectedSource == RadioSource.WIFI) {
-					WifiCapturedRetentionResult.Blocked(
-						WifiCapturedRetentionBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED,
+					cellResult
+				}
+			}
+			val wifiRetention: WifiCapturedRetentionService = mockk {
+				coEvery { prune(database, 3L, any()) } coAnswers {
+					assertEquals(
+						attributedSegment.copy(id = attributedSegmentId),
+						database.sessionSegmentDao().getById(attributedSegmentId),
 					)
-				} else {
-					WifiCapturedRetentionResult.NoChange
-				},
-			)
+					wifiResult
+				}
+			}
 			try {
-				seedPendingRetention(database)
+				attributedSegmentId = database.sessionSegmentDao().insert(attributedSegment)
+				insertExpiredStepsHistory(database, attributedSegmentId)
+				database.sourceEventWalDao().insertIgnoringDuplicate(staleRawCellEvent())
 
 				assertEquals(
 					ListenableWorker.Result.retry(),
@@ -324,9 +372,13 @@ class DataRetentionWorkerTest {
 					).doWork(),
 				)
 
+				assertEquals(
+					attributedSegment.copy(id = attributedSegmentId),
+					database.sessionSegmentDao().getById(attributedSegmentId),
+				)
 				assertEquals(1L, database.sourceEventWalDao().countAll())
-				coVerify(exactly = 1) { cellRetention.prune(database, any(), any()) }
-				coVerify(exactly = 1) { wifiRetention.prune(database, any(), any()) }
+				coVerify(exactly = 1) { cellRetention.prune(database, 3L, any()) }
+				coVerify(exactly = 1) { wifiRetention.prune(database, 3L, any()) }
 			} finally {
 				database.close()
 			}
@@ -334,22 +386,42 @@ class DataRetentionWorkerTest {
 	}
 
 	@Test
-	fun `each captured radio storage failure requests retry and fences later work`() = runTest {
+	fun `each captured radio storage failure keeps attributed segment and WAL for retry`() = runTest {
 		for (failedSource in RadioSource.entries) {
 			val database = AppDatabase.testDatabase(context)
+			val attributedSegment = expiredAttributedSegment()
+			var attributedSegmentId = 0L
 			val cellRetention: CellCapturedRetentionService = mockk()
 			val wifiRetention: WifiCapturedRetentionService = mockk()
 			if (failedSource == RadioSource.CELL) {
-				coEvery { cellRetention.prune(any(), any(), any()) } throws
-					IllegalStateException("cell-retention-storage")
-				coEvery { wifiRetention.prune(any(), any(), any()) } returns WifiCapturedRetentionResult.NoChange
+				coEvery { cellRetention.prune(database, 3L, any()) } coAnswers {
+					assertEquals(
+						attributedSegment.copy(id = attributedSegmentId),
+						database.sessionSegmentDao().getById(attributedSegmentId),
+					)
+					throw IllegalStateException("cell-retention-storage")
+				}
+				coEvery { wifiRetention.prune(database, 3L, any()) } returns WifiCapturedRetentionResult.NoChange
 			} else {
-				coEvery { cellRetention.prune(any(), any(), any()) } returns CellCapturedRetentionResult.NoChange
-				coEvery { wifiRetention.prune(any(), any(), any()) } throws
-					IllegalStateException("wifi-retention-storage")
+				coEvery { cellRetention.prune(database, 3L, any()) } coAnswers {
+					assertEquals(
+						attributedSegment.copy(id = attributedSegmentId),
+						database.sessionSegmentDao().getById(attributedSegmentId),
+					)
+					CellCapturedRetentionResult.NoChange
+				}
+				coEvery { wifiRetention.prune(database, 3L, any()) } coAnswers {
+					assertEquals(
+						attributedSegment.copy(id = attributedSegmentId),
+						database.sessionSegmentDao().getById(attributedSegmentId),
+					)
+					throw IllegalStateException("wifi-retention-storage")
+				}
 			}
 			try {
-				seedPendingRetention(database)
+				attributedSegmentId = database.sessionSegmentDao().insert(attributedSegment)
+				insertExpiredStepsHistory(database, attributedSegmentId)
+				database.sourceEventWalDao().insertIgnoringDuplicate(staleRawCellEvent())
 
 				assertEquals(
 					ListenableWorker.Result.retry(),
@@ -362,10 +434,14 @@ class DataRetentionWorkerTest {
 					).doWork(),
 				)
 
+				assertEquals(
+					attributedSegment.copy(id = attributedSegmentId),
+					database.sessionSegmentDao().getById(attributedSegmentId),
+				)
 				assertEquals(1L, database.sourceEventWalDao().countAll())
-				coVerify(exactly = 1) { cellRetention.prune(database, any(), any()) }
+				coVerify(exactly = 1) { cellRetention.prune(database, 3L, any()) }
 				coVerify(exactly = if (failedSource == RadioSource.CELL) 0 else 1) {
-					wifiRetention.prune(database, any(), any())
+					wifiRetention.prune(database, 3L, any())
 				}
 			} finally {
 				database.close()
@@ -374,22 +450,42 @@ class DataRetentionWorkerTest {
 	}
 
 	@Test
-	fun `each captured radio cancellation propagates and fences later work`() = runTest {
+	fun `each captured radio cancellation propagates with attributed segment and WAL intact`() = runTest {
 		for (cancelledSource in RadioSource.entries) {
 			val database = AppDatabase.testDatabase(context)
+			val attributedSegment = expiredAttributedSegment()
+			var attributedSegmentId = 0L
 			val cellRetention: CellCapturedRetentionService = mockk()
 			val wifiRetention: WifiCapturedRetentionService = mockk()
 			if (cancelledSource == RadioSource.CELL) {
-				coEvery { cellRetention.prune(any(), any(), any()) } throws
-					CancellationException("cancel-cell-retention")
-				coEvery { wifiRetention.prune(any(), any(), any()) } returns WifiCapturedRetentionResult.NoChange
+				coEvery { cellRetention.prune(database, 3L, any()) } coAnswers {
+					assertEquals(
+						attributedSegment.copy(id = attributedSegmentId),
+						database.sessionSegmentDao().getById(attributedSegmentId),
+					)
+					throw CancellationException("cancel-cell-retention")
+				}
+				coEvery { wifiRetention.prune(database, 3L, any()) } returns WifiCapturedRetentionResult.NoChange
 			} else {
-				coEvery { cellRetention.prune(any(), any(), any()) } returns CellCapturedRetentionResult.NoChange
-				coEvery { wifiRetention.prune(any(), any(), any()) } throws
-					CancellationException("cancel-wifi-retention")
+				coEvery { cellRetention.prune(database, 3L, any()) } coAnswers {
+					assertEquals(
+						attributedSegment.copy(id = attributedSegmentId),
+						database.sessionSegmentDao().getById(attributedSegmentId),
+					)
+					CellCapturedRetentionResult.NoChange
+				}
+				coEvery { wifiRetention.prune(database, 3L, any()) } coAnswers {
+					assertEquals(
+						attributedSegment.copy(id = attributedSegmentId),
+						database.sessionSegmentDao().getById(attributedSegmentId),
+					)
+					throw CancellationException("cancel-wifi-retention")
+				}
 			}
 			try {
-				seedPendingRetention(database)
+				attributedSegmentId = database.sessionSegmentDao().insert(attributedSegment)
+				insertExpiredStepsHistory(database, attributedSegmentId)
+				database.sourceEventWalDao().insertIgnoringDuplicate(staleRawCellEvent())
 
 				assertFailsWith<CancellationException> {
 					worker(
@@ -401,10 +497,14 @@ class DataRetentionWorkerTest {
 					).doWork()
 				}
 
+				assertEquals(
+					attributedSegment.copy(id = attributedSegmentId),
+					database.sessionSegmentDao().getById(attributedSegmentId),
+				)
 				assertEquals(1L, database.sourceEventWalDao().countAll())
-				coVerify(exactly = 1) { cellRetention.prune(database, any(), any()) }
+				coVerify(exactly = 1) { cellRetention.prune(database, 3L, any()) }
 				coVerify(exactly = if (cancelledSource == RadioSource.CELL) 0 else 1) {
-					wifiRetention.prune(database, any(), any())
+					wifiRetention.prune(database, 3L, any())
 				}
 			} finally {
 				database.close()
@@ -417,19 +517,31 @@ class DataRetentionWorkerTest {
 		for (changedSource in RadioSource.entries) {
 			val database = AppDatabase.testDatabase(context)
 			val gate = MutableStartupGate()
+			val attributedSegment = expiredAttributedSegment()
+			var attributedSegmentId = 0L
 			val cellRetention: CellCapturedRetentionService = mockk {
-				coEvery { prune(database, any(), any()) } coAnswers {
+				coEvery { prune(database, 3L, any()) } coAnswers {
+					assertEquals(
+						attributedSegment.copy(id = attributedSegmentId),
+						database.sessionSegmentDao().getById(attributedSegmentId),
+					)
 					if (changedSource == RadioSource.CELL) gate.generation += 1L
 					CellCapturedRetentionResult.NoChange
 				}
 			}
 			val wifiRetention: WifiCapturedRetentionService = mockk {
-				coEvery { prune(database, any(), any()) } coAnswers {
+				coEvery { prune(database, 3L, any()) } coAnswers {
+					assertEquals(
+						attributedSegment.copy(id = attributedSegmentId),
+						database.sessionSegmentDao().getById(attributedSegmentId),
+					)
 					if (changedSource == RadioSource.WIFI) gate.generation += 1L
 					WifiCapturedRetentionResult.NoChange
 				}
 			}
 			try {
+				attributedSegmentId = database.sessionSegmentDao().insert(attributedSegment)
+				insertExpiredStepsHistory(database, attributedSegmentId)
 				database.sourceEventWalDao().insertIgnoringDuplicate(staleRawCellEvent())
 
 				assertEquals(
@@ -444,10 +556,14 @@ class DataRetentionWorkerTest {
 					).doWork(),
 				)
 
+				assertEquals(
+					attributedSegment.copy(id = attributedSegmentId),
+					database.sessionSegmentDao().getById(attributedSegmentId),
+				)
 				assertEquals(1L, database.sourceEventWalDao().countAll())
-				coVerify(exactly = 1) { cellRetention.prune(database, any(), any()) }
+				coVerify(exactly = 1) { cellRetention.prune(database, 3L, any()) }
 				coVerify(exactly = if (changedSource == RadioSource.CELL) 0 else 1) {
-					wifiRetention.prune(database, any(), any())
+					wifiRetention.prune(database, 3L, any())
 				}
 			} finally {
 				database.close()
@@ -576,8 +692,8 @@ class DataRetentionWorkerTest {
 		admissionOrdinal = 1L,
 		eventId = "stale-cell-event",
 		providerDedupKey = "stale-cell-dedup",
-		logicalTrackingId = "session-1",
-		serviceRunId = "run-1",
+		logicalTrackingId = "expired-session",
+		serviceRunId = "expired-run",
 		sourceKind = SourceKind.CELL.stableCode,
 		sourceInstanceId = "cell-provider",
 		registrationGeneration = 1L,
@@ -619,11 +735,29 @@ class DataRetentionWorkerTest {
 		sourceSequence = 2L,
 	)
 
-	private suspend fun insertExpiredStepsHistory(database: AppDatabase) {
+	private suspend fun insertExpiredStepsHistory(
+		database: AppDatabase,
+		sessionSegmentId: Long? = null,
+	) {
 		database.sourceSessionDao().insertSession(expiredLogicalSession())
-		database.sourceSessionDao().insertServiceRun(expiredServiceRun())
+		database.sourceSessionDao().insertServiceRun(expiredServiceRun(sessionSegmentId))
 		database.stepFactRevisionDao().insert(expiredStepFactRevision())
 	}
+
+	private fun expiredAttributedSegment() = SessionSegment(
+		startTimeMs = 1L,
+		endTimeMs = 2L,
+		distanceM = 0f,
+		steps = null,
+		primaryActivity = null,
+		activityConfidence = null,
+		sampleCount = 0,
+		source = SegmentSource.INFERRED_HIGH_CONFIDENCE,
+		inferenceVersion = "radio-authority-fixture",
+		createdAt = 2L,
+		logicalTrackingId = "expired-session",
+		serviceRunId = "expired-run",
+	)
 
 	private fun expiredLogicalSession() = LogicalTrackingSessionEntity(
 		logicalTrackingId = "expired-session",
@@ -648,7 +782,7 @@ class DataRetentionWorkerTest {
 		lifecycleBootId = "boot-1",
 	)
 
-	private fun expiredServiceRun() = SourceServiceRunEntity(
+	private fun expiredServiceRun(sessionSegmentId: Long? = null) = SourceServiceRunEntity(
 		serviceRunId = "expired-run",
 		logicalTrackingId = "expired-session",
 		state = "FINALIZED",
@@ -674,6 +808,7 @@ class DataRetentionWorkerTest {
 		androidDeliveryUpdatedAtMs = 2L,
 		startIsUserInitiated = true,
 		startIsAmbient = false,
+		sessionSegmentId = sessionSegmentId,
 	)
 
 	private fun expiredStepFactRevision(): StepFactRevisionEntity {
