@@ -25,11 +25,13 @@ import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductCandidate
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluator
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductFailure
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductReadLimitExceeded
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangePage
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangeRequest
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentPage
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentPageEvaluator
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentRequest
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentScan
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiObservationV1
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiRunV1
@@ -69,11 +71,14 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 	override suspend fun selectIdentityInTransaction(
 		selection: WifiImportedHistorySelectionKey,
 	): ImportedWifiProductEvaluation? {
+		val state = ImportedWifiProductReadState(limits)
+		state.budget.recordQuery()
 		val candidate = database.importedWifiDao().latestHistoryCandidate(selection.value) ?: return null
+		state.budget.recordRows(listOf(candidate))
 		if (!isValidCandidatePage(listOf(candidate), null, null)) {
 			throw IllegalArgumentException("Invalid imported Wi-Fi candidate")
 		}
-		return evaluateSafely(listOf(candidate)).single()
+		return evaluateSafely(listOf(candidate), state).single()
 	}
 
 	override suspend fun selectRecentInTransaction(limit: Int): List<ImportedWifiProductEvaluation> {
@@ -85,13 +90,24 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 
 	override suspend fun selectRecentPageInTransaction(
 		request: ImportedWifiProductRecentRequest,
+	): ImportedWifiProductRecentPage =
+		openRecentScanInTransaction().selectPageInTransaction(request)
+
+	override suspend fun openRecentScanInTransaction(): ImportedWifiProductRecentScan =
+		RoomImportedWifiProductRecentScan(ImportedWifiProductReadState(limits))
+
+	private suspend fun selectRecentPageInTransaction(
+		request: ImportedWifiProductRecentRequest,
+		state: ImportedWifiProductReadState,
 	): ImportedWifiProductRecentPage {
 		val queryLimit = Math.addExact(request.limit, 1)
+		state.budget.recordQuery()
 		val candidates = database.importedWifiDao().recentHistoryCandidatePage(
 			queryLimit,
 			request.beforeNewestMemberStartTimeMs,
 			request.beforeNewestMemberIdentity?.value,
 		)
+		state.budget.recordRows(candidates)
 		if (!isValidCandidatePage(
 				candidates,
 				request.beforeNewestMemberStartTimeMs,
@@ -99,7 +115,7 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 			)
 		) throw IllegalArgumentException("Invalid imported Wi-Fi recent candidate page")
 		return ImportedWifiProductRecentPage(
-			evaluations = evaluateSafely(candidates.take(request.limit)),
+			evaluations = evaluateSafely(candidates.take(request.limit), state),
 			hasMore = candidates.size > request.limit,
 		)
 	}
@@ -107,7 +123,9 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 	override suspend fun selectRangeInTransaction(
 		request: ImportedWifiProductRangeRequest,
 	): ImportedWifiProductRangePage {
+		val state = ImportedWifiProductReadState(limits)
 		val queryLimit = Math.addExact(request.limit, 1)
+		state.budget.recordQuery()
 		val candidates = database.importedWifiDao().historyCandidateRangePage(
 			fromInclusiveMs = request.fromInclusiveMs,
 			toExclusiveMs = request.toExclusiveMs,
@@ -115,6 +133,7 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 			beforeStartTimeMs = request.beforeStartTimeMs,
 			beforeIdentity = request.beforeIdentity?.value,
 		)
+		state.budget.recordRows(candidates)
 		if (!isValidCandidatePage(
 				candidates,
 				request.beforeStartTimeMs,
@@ -123,47 +142,53 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 		) throw IllegalArgumentException("Invalid imported Wi-Fi range candidate page")
 		val selected = candidates.take(request.limit)
 		return ImportedWifiProductRangePage(
-			evaluations = evaluateSafely(selected),
+			evaluations = evaluateSafely(selected, state),
 			hasMore = candidates.size > request.limit,
 		)
 	}
 
 	private suspend fun evaluateSafely(
 		candidates: List<ImportedWifiHistoryCandidate>,
+		state: ImportedWifiProductReadState,
 	): List<ImportedWifiProductEvaluation> {
 		if (candidates.isEmpty()) return emptyList()
-		var localOwners: LocalWifiOwnerSnapshot? = null
 		val authenticatedSelections = linkedSetOf<String>()
 		return try {
-			val snapshot = loadLocalOwnerSnapshot()
-			localOwners = snapshot
-			evaluate(candidates, snapshot, authenticatedSelections)
+			val snapshot = state.localOwners ?: loadLocalOwnerSnapshot(state.budget).also {
+				state.localOwners = it
+			}
+			evaluate(candidates, snapshot, authenticatedSelections, state.budget)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
+		} catch (_: ImportedWifiProductReadLimitExceeded) {
+			candidates.unverifiable(
+				ImportedWifiProductFailure.DEPENDENCY_OVERFLOW,
+				state.localOwners,
+			)
 		} catch (failure: ImportedWifiProductAbort) {
-			candidates.unverifiable(failure.reason, localOwners)
+			candidates.unverifiable(failure.reason, state.localOwners)
 		} catch (storage: SQLiteException) {
 			throw storage
 		} catch (_: IllegalArgumentException) {
 			candidates.unverifiable(
 				ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
-				localOwners,
+				state.localOwners,
 			)
 		} catch (_: ArithmeticException) {
 			candidates.unverifiable(
 				ImportedWifiProductFailure.VALUE_OVERFLOW,
-				localOwners,
+				state.localOwners,
 				authenticatedSelections,
 			)
 		} catch (_: DateTimeException) {
 			candidates.unverifiable(
 				ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
-				localOwners,
+				state.localOwners,
 			)
 		} catch (_: RuntimeException) {
 			candidates.unverifiable(
 				ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
-				localOwners,
+				state.localOwners,
 			)
 		}
 	}
@@ -173,21 +198,24 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 		candidates: List<ImportedWifiHistoryCandidate>,
 		localOwners: LocalWifiOwnerSnapshot,
 		authenticatedSelections: MutableSet<String>,
+		budget: ImportedWifiProductReadBudget,
 	): List<ImportedWifiProductEvaluation> {
 		if (candidates.isEmpty()) return emptyList()
 		checkpoint(ImportedWifiProductReadCheckpoint.CANDIDATES_SELECTED)
 		if (!isValidCandidatePage(candidates, null, null) ||
 			candidates.size > limits.maximumCandidates
 		) abort(ImportedWifiProductFailure.DEPENDENCY_OVERFLOW)
+		budget.recordQuery()
 		val state = database.sourceEvidenceStateDao().get()
 			?: return candidates.unverifiable(
 				ImportedWifiProductFailure.SOURCE_EVIDENCE_STATE_MISSING,
 				localOwners,
 			)
+		budget.recordRows(listOf(state))
 		if (!state.hasValidImportedWifiProductShape()) storedCorrupt()
 
 		val identities = candidates.map(ImportedWifiHistoryCandidate::identity)
-		val batch = loadBatch(identities)
+		val batch = loadBatch(identities, budget)
 		if (!batch.belongsOnlyTo(identities)) storedCorrupt()
 		checkpoint(ImportedWifiProductReadCheckpoint.LINEAGES_LOADED)
 
@@ -240,18 +268,22 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 
 		val ownership = WifiPortableOpaqueOwnershipSet.from(current.values.map { it.entry })
 			?: originConflict()
-		authenticateImportedOwnership(ownership, state)
+		authenticateImportedOwnership(ownership, state, budget)
 		val localCollisions = authenticateLocalOwnership(ownership, localOwners)
 		checkpoint(ImportedWifiProductReadCheckpoint.OWNERSHIP_AUTHENTICATED)
 
+		budget.recordQuery()
 		val entryDeletions = database.importedWifiDao().entryDeletionsForHistory(
 			current.keys.toList(),
 			checkedLimit(current.size),
 		)
+		budget.recordRows(entryDeletions)
+		budget.recordQuery()
 		val generations = database.importedWifiDao().deletionGenerationsForHistory(
 			current.keys.toList(),
 			checkedLimit(limits.maximumAuthorityRows),
 		)
+		budget.recordRows(generations)
 		countRows(entryDeletions.size, generations.size)
 		if (entryDeletions.distinctBy(ImportedWifiEntryDeletionEntity::entryIdentity).size !=
 			entryDeletions.size ||
@@ -264,7 +296,7 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 			ImportedWifiEntryDeletionEntity::entryIdentity,
 		)
 		val generationByRun = generations.associateBy(ImportedWifiDeletionGenerationEntity::runIdentity)
-		val exactFences = loadExactWifiFences(ownership, state)
+		val exactFences = loadExactWifiFences(ownership, state, budget)
 
 		return candidates.map { candidate ->
 			if (candidate.identity in stale) {
@@ -303,18 +335,31 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 		}
 	}
 
-	private suspend fun loadBatch(identities: List<String>): ImportedWifiProductBatch {
+	private suspend fun loadBatch(
+		identities: List<String>,
+		budget: ImportedWifiProductReadBudget,
+	): ImportedWifiProductBatch {
 		val dao = database.importedWifiDao()
-		var remaining = limits.maximumAuthorityRows
+		var remaining = minOf(limits.maximumAuthorityRows, budget.remainingRows())
+		budget.recordQuery()
 		val headers = dao.entryRevisionsForHistory(identities, checkedLimit(remaining))
+		budget.recordRows(headers)
 		remaining = consumeRows(remaining, headers.size)
+		budget.recordQuery()
 		val receipts = dao.receiptsForHistory(identities, checkedLimit(remaining))
+		budget.recordRows(receipts)
 		remaining = consumeRows(remaining, receipts.size)
+		budget.recordQuery()
 		val runs = dao.runsForHistory(identities, checkedLimit(remaining))
+		budget.recordRows(runs)
 		remaining = consumeRows(remaining, runs.size)
+		budget.recordQuery()
 		val zones = dao.runZonesForHistory(identities, checkedLimit(remaining))
+		budget.recordRows(zones)
 		remaining = consumeRows(remaining, zones.size)
+		budget.recordQuery()
 		val observations = dao.observationsForHistory(identities, checkedLimit(remaining))
+		budget.recordRows(observations)
 		consumeRows(remaining, observations.size)
 		return ImportedWifiProductBatch(headers, receipts, runs, zones, observations)
 	}
@@ -322,16 +367,19 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 	private suspend fun authenticateImportedOwnership(
 		ownership: WifiPortableOpaqueOwnershipSet,
 		state: SourceEvidenceState,
+		budget: ImportedWifiProductReadBudget,
 	) {
 		val dao = database.importedWifiDao()
 		var authenticatedRows = 0L
 		for (values in ownership.allValues.chunked(SQLITE_BIND_BATCH)) {
 			currentCoroutineContext().ensureActive()
 			val limit = minOf(
-				checkedLimit(limits.maximumAuthorityRows),
+				checkedLimit(minOf(limits.maximumAuthorityRows, budget.remainingRows())),
 				Math.addExact(Math.multiplyExact(values.size, MAX_AUTHORITY_OWNER_ROWS_PER_VALUE), 1),
 			)
+			budget.recordQuery()
 			val owners = dao.authorityOwners(values, limit)
+			budget.recordRows(owners)
 			authenticatedRows = addRowCount(authenticatedRows, owners.size.toLong())
 			if (owners.size >= limit) dependencyOverflow()
 			if (owners.any { owner ->
@@ -367,13 +415,27 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 		}
 	}
 
-	private suspend fun loadLocalOwnerSnapshot(): LocalWifiOwnerSnapshot {
+	private suspend fun loadLocalOwnerSnapshot(
+		budget: ImportedWifiProductReadBudget,
+	): LocalWifiOwnerSnapshot {
 		val dao = database.importedWifiDao()
+		budget.recordQuery()
+		val entryCount = dao.localEntryOwnerCount()
+		budget.recordScalar(entryCount)
+		budget.recordQuery()
+		val runCount = dao.localRunOwnerCount()
+		budget.recordScalar(runCount)
+		budget.recordQuery()
+		val observationCount = dao.localObservationOwnerCount()
+		budget.recordScalar(observationCount)
+		budget.recordQuery()
+		val deletionCount = dao.localDeletionOwnerCount()
+		budget.recordScalar(deletionCount)
 		val expectedCount = listOf(
-			dao.localEntryOwnerCount(),
-			dao.localRunOwnerCount(),
-			dao.localObservationOwnerCount(),
-			dao.localDeletionOwnerCount(),
+			entryCount,
+			runCount,
+			observationCount,
+			deletionCount,
 		)
 		if (expectedCount.any { it < 0L }) storedCorrupt()
 		expectedCount.fold(0L) { total, count -> addRowCount(total, count) }
@@ -381,10 +443,12 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 		val runs = mutableListOf<WifiLocalRunOwner>()
 		val observations = mutableListOf<WifiLocalObservationOwner>()
 		val deletedRuns = mutableListOf<WifiLocalRunOwner>()
-		pageStrings(dao::localEntryOwnerPage, expectedCount[0]) { entries += it }
-		pageRuns(dao::localRunOwnerPage, expectedCount[1]) { runs += it }
-		pageObservations(dao::localObservationOwnerPage, expectedCount[2]) { observations += it }
-		pageRuns(dao::localDeletionOwnerPage, expectedCount[3]) { deletedRuns += it }
+		pageStrings(dao::localEntryOwnerPage, expectedCount[0], budget) { entries += it }
+		pageRuns(dao::localRunOwnerPage, expectedCount[1], budget) { runs += it }
+		pageObservations(dao::localObservationOwnerPage, expectedCount[2], budget) {
+			observations += it
+		}
+		pageRuns(dao::localDeletionOwnerPage, expectedCount[3], budget) { deletedRuns += it }
 		return LocalWifiOwnerSnapshot(entries, runs, observations, deletedRuns)
 	}
 
@@ -489,13 +553,16 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 	private suspend fun pageStrings(
 		loader: suspend (String?, Int) -> List<String>,
 		expectedCount: Long,
+		budget: ImportedWifiProductReadBudget,
 		visitor: (String) -> Unit,
 	) {
 		var after: String? = null
 		var loaded = 0L
 		while (true) {
 			currentCoroutineContext().ensureActive()
+			budget.recordQuery()
 			val page = loader(after, ImportedWifiDao.OWNER_PAGE_SIZE)
+			budget.recordRows(page)
 			if (page.isEmpty()) break
 			if (page.size > ImportedWifiDao.OWNER_PAGE_SIZE ||
 				page.zipWithNext().any { (left, right) -> left >= right } ||
@@ -512,13 +579,16 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 	private suspend fun pageRuns(
 		loader: suspend (String?, Int) -> List<WifiLocalRunOwner>,
 		expectedCount: Long,
+		budget: ImportedWifiProductReadBudget,
 		visitor: (WifiLocalRunOwner) -> Unit,
 	) {
 		var after: String? = null
 		var loaded = 0L
 		while (true) {
 			currentCoroutineContext().ensureActive()
+			budget.recordQuery()
 			val page = loader(after, ImportedWifiDao.OWNER_PAGE_SIZE)
+			budget.recordRows(page)
 			if (page.isEmpty()) break
 			if (page.size > ImportedWifiDao.OWNER_PAGE_SIZE ||
 				page.zipWithNext().any { (left, right) -> left.serviceRunId >= right.serviceRunId } ||
@@ -535,13 +605,16 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 	private suspend fun pageObservations(
 		loader: suspend (String?, Int) -> List<WifiLocalObservationOwner>,
 		expectedCount: Long,
+		budget: ImportedWifiProductReadBudget,
 		visitor: (WifiLocalObservationOwner) -> Unit,
 	) {
 		var after: String? = null
 		var loaded = 0L
 		while (true) {
 			currentCoroutineContext().ensureActive()
+			budget.recordQuery()
 			val page = loader(after, ImportedWifiDao.OWNER_PAGE_SIZE)
+			budget.recordRows(page)
 			if (page.isEmpty()) break
 			if (page.size > ImportedWifiDao.OWNER_PAGE_SIZE ||
 				page.zipWithNext().any { (left, right) -> left.logicalFactId >= right.logicalFactId } ||
@@ -558,13 +631,16 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 	private suspend fun loadExactWifiFences(
 		ownership: WifiPortableOpaqueOwnershipSet,
 		state: SourceEvidenceState,
+		budget: ImportedWifiProductReadBudget,
 	): Set<String> {
 		val fences = mutableListOf<SourceDeletionFenceEntity>()
 		for (scopes in ownership.scopeOwners.keys.chunked(SQLITE_BIND_BATCH)) {
+			budget.recordQuery()
 			val page = database.importedWifiDao().deletionFenceIdentityOwners(
 				scopes,
 				checkedLimit(scopes.size),
 			)
+			budget.recordRows(page)
 			if (page.size > scopes.size || page.any {
 					it.collectedDataEpoch != state.collectedDataEpoch ||
 						!it.isExactWifiDeletionFence()
@@ -652,6 +728,15 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 	private fun originConflict(): Nothing = abort(ImportedWifiProductFailure.ORIGIN_IDENTITY_CONFLICT)
 	private fun abort(reason: ImportedWifiProductFailure): Nothing = throw ImportedWifiProductAbort(reason)
 
+	private inner class RoomImportedWifiProductRecentScan(
+		private val state: ImportedWifiProductReadState,
+	) : ImportedWifiProductRecentScan {
+		override suspend fun selectPageInTransaction(
+			request: ImportedWifiProductRecentRequest,
+		): ImportedWifiProductRecentPage =
+			selectRecentPageInTransaction(request, state)
+	}
+
 	private companion object {
 		const val SQLITE_BIND_BATCH = 256
 		const val MAX_AUTHORITY_OWNER_ROWS_PER_VALUE = 16
@@ -668,11 +753,66 @@ internal enum class ImportedWifiProductReadCheckpoint {
 internal data class ImportedWifiProductLimits(
 	val maximumCandidates: Int = ImportedWifiDao.MAX_HISTORY_ENTRY_CANDIDATES,
 	val maximumAuthorityRows: Int = ImportedWifiDao.MAX_GLOBAL_AUTHORITY_ROWS,
+	val maximumAuthorityBytes: Long = 64L * 1024L * 1024L,
+	val maximumQueries: Int = 16_384,
 ) {
 	init {
 		require(maximumCandidates in 1..ImportedWifiDao.MAX_HISTORY_ENTRY_CANDIDATES)
 		require(maximumAuthorityRows in 1..ImportedWifiDao.MAX_GLOBAL_AUTHORITY_ROWS)
+		require(maximumAuthorityBytes > 0L)
+		require(maximumQueries > 0)
 	}
+}
+
+private data class ImportedWifiProductReadState(
+	val budget: ImportedWifiProductReadBudget,
+	var localOwners: LocalWifiOwnerSnapshot? = null,
+) {
+	constructor(limits: ImportedWifiProductLimits) : this(
+		ImportedWifiProductReadBudget(limits),
+	)
+}
+
+private class ImportedWifiProductReadBudget(
+	private val limits: ImportedWifiProductLimits,
+) {
+	private var rows = 0L
+	private var bytes = 0L
+	private var queries = 0
+
+	fun recordQuery() {
+		queries = try {
+			Math.addExact(queries, 1)
+		} catch (_: ArithmeticException) {
+			throw ImportedWifiProductReadLimitExceeded()
+		}
+		if (queries > limits.maximumQueries) throw ImportedWifiProductReadLimitExceeded()
+	}
+
+	fun recordScalar(value: Any?) = recordRows(listOf(value))
+
+	fun recordRows(values: Collection<*>) {
+		try {
+			rows = Math.addExact(rows, values.size.toLong())
+			bytes = values.fold(bytes) { total, value ->
+				Math.addExact(total, value.estimatedReadBytes())
+			}
+		} catch (_: ArithmeticException) {
+			throw ImportedWifiProductReadLimitExceeded()
+		}
+		if (rows > limits.maximumAuthorityRows || bytes > limits.maximumAuthorityBytes) {
+			throw ImportedWifiProductReadLimitExceeded()
+		}
+	}
+
+	fun remainingRows(): Int =
+		(limits.maximumAuthorityRows.toLong() - rows).coerceAtLeast(0L).toInt()
+}
+
+private fun Any?.estimatedReadBytes(): Long {
+	if (this == null) return 1L
+	val textBytes = Math.multiplyExact(toString().length.toLong(), 2L)
+	return Math.addExact(32L, textBytes)
 }
 
 private data class ImportedWifiProductBatch(

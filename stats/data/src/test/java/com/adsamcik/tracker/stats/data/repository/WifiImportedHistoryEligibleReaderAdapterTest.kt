@@ -11,6 +11,7 @@ import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductFailure
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentPage
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentPageEvaluator
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentRequest
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentScan
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableWifiAcquisitionCompleteness
 import com.adsamcik.tracker.stats.api.repository.PortableWifiAvailability
@@ -85,6 +86,7 @@ class WifiImportedHistoryEligibleReaderAdapterTest {
 			ImportedHistoryRecencyTieIdentity(accepted.runs.single().identity.value),
 		)
 		evaluator.requestCount shouldBe 3
+		evaluator.openCount shouldBe 1
 		localReads shouldBe listOf("local-first", "local-second")
 	}
 
@@ -345,6 +347,16 @@ class WifiImportedHistoryEligibleReaderAdapterTest {
 		)
 		var requestCount = 0
 			private set
+		var openCount = 0
+			private set
+
+		override suspend fun openRecentScanInTransaction(): ImportedWifiProductRecentScan {
+			check(database.inTransaction())
+			openCount++
+			return ImportedWifiProductRecentScan { request ->
+				selectRecentPageInTransaction(request)
+			}
+		}
 
 		override suspend fun selectRecentPageInTransaction(
 			request: ImportedWifiProductRecentRequest,

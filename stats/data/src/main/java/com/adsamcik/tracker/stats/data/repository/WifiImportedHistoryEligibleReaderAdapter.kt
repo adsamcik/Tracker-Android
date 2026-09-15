@@ -7,6 +7,7 @@ import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductCandidate
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductFailure
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductReadLimitExceeded
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentPage
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentPageEvaluator
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentRequest
@@ -43,6 +44,15 @@ internal class WifiImportedHistoryEligibleReaderAdapter internal constructor(
 		val accepted = ArrayList<WifiImportedHistoryEligibleEntry>(limit)
 		val localPortableByLogicalId =
 			mutableMapOf<String, ReadLocalPortableCapturedWifiResult>()
+		val scan = try {
+			pageEvaluator.openRecentScanInTransaction()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: ImportedWifiProductReadLimitExceeded) {
+			return unavailable(readBudgetExceeded)
+		} catch (_: RuntimeException) {
+			return unavailable(sourceIntegrityFailure)
+		}
 		var scannedCandidates = 0
 		var beforeStartTimeMs: Long? = null
 		var beforeIdentity: PortableWifiOpaqueIdentity? = null
@@ -57,9 +67,11 @@ internal class WifiImportedHistoryEligibleReaderAdapter internal constructor(
 				beforeNewestMemberIdentity = beforeIdentity,
 			)
 			val page = try {
-				pageEvaluator.selectRecentPageInTransaction(request)
+				scan.selectPageInTransaction(request)
 			} catch (cancelled: CancellationException) {
 				throw cancelled
+			} catch (_: ImportedWifiProductReadLimitExceeded) {
+				return unavailable(readBudgetExceeded)
 			} catch (_: RuntimeException) {
 				return unavailable(sourceIntegrityFailure)
 			}

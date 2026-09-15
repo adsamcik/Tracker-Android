@@ -114,7 +114,21 @@ interface ImportedWifiProductRecentPageEvaluator {
 	suspend fun selectRecentPageInTransaction(
 		request: ImportedWifiProductRecentRequest,
 	): ImportedWifiProductRecentPage
+
+	suspend fun openRecentScanInTransaction(): ImportedWifiProductRecentScan =
+		ImportedWifiProductRecentScan { request ->
+			selectRecentPageInTransaction(request)
+		}
 }
+
+fun interface ImportedWifiProductRecentScan {
+	suspend fun selectPageInTransaction(
+		request: ImportedWifiProductRecentRequest,
+	): ImportedWifiProductRecentPage
+}
+
+class ImportedWifiProductReadLimitExceeded :
+	RuntimeException(null, null, false, false)
 
 data class ImportedWifiProductRecentRequest(
 	val limit: Int,

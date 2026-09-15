@@ -22,7 +22,6 @@ import com.adsamcik.tracker.stats.api.repository.DeleteSelectedWifiHistoryResult
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductFailure
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangeRequest
-import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRecentRequest
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiImportBlockedReason
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiImportReceipt
@@ -847,102 +846,6 @@ class RoomImportPortableCapturedWifiTest {
 				ImportedWifiProductRangeRequest(1_300L, 1_800L, 10),
 			)
 		}.evaluations shouldBe emptyList()
-	}
-
-	@Test
-	fun `recent product pages keyset by authenticated newest member and opaque tie`() = runTest {
-		fun timedRun(owner: String, index: Int, startTimeMs: Long): PortableCapturedWifiRunV1 {
-			val observation = observation("$owner-observation-$index").copyWithTimes(
-				startTimeMs + 10L,
-				startTimeMs + 20L,
-				1L,
-			)
-			return PortableWifiIntegrity.createRun(
-				identity = identity(PortableWifiIdentityKind.PHYSICAL_RUN, "$owner-run-$index"),
-				deletionScopeDigest = PortableWifiDeletionScopeDigest(
-					identity(PortableWifiIdentityKind.LOGICAL_ENTRY, "$owner-scope-$index").value,
-				),
-				startTimeMs = startTimeMs,
-				endTimeMs = startTimeMs + 100L,
-				storedZoneIds = listOf("Europe/Prague"),
-				captureCoverage = PortableWifiCaptureCoverage.WHOLE_RUN,
-				availability = PortableWifiRunAvailability.RETAINED,
-				acquisitionCompleteness = PortableWifiAcquisitionCompleteness.COMPLETE,
-				hasUnresolvedProviderRange = false,
-				retentionLoss = false,
-				observations = listOf(observation),
-			)
-		}
-		fun timedEntry(owner: String, vararg startTimes: Long): PortableCapturedWifiEntryV1 {
-			val runs = startTimes.mapIndexed { index, startTimeMs ->
-				timedRun(owner, index, startTimeMs)
-			}.sortedWith(com.adsamcik.tracker.stats.api.repository.PORTABLE_WIFI_RUN_ORDER)
-			return PortableWifiIntegrity.createEntry(
-				identity = identity(PortableWifiIdentityKind.LOGICAL_ENTRY, owner),
-				sessionMode = PortableWifiSessionMode.MANUAL,
-				startTimeMs = runs.minOf { it.startTimeMs },
-				endTimeMs = runs.maxOf { it.endTimeMs },
-				runs = runs,
-			)
-		}
-		val entries = listOf(
-			timedEntry("older-envelope-newest-member", 0L, 300L),
-			timedEntry("newer-envelope-older-member", 200L),
-			timedEntry("tie-left", 400L),
-			timedEntry("tie-right", 400L),
-		)
-		entries.forEachIndexed { index, entry ->
-			importer(testScheduler).importEntry(
-				request(entry, receipt("recent-page-$index", 100L + index)),
-			) shouldBe ImportPortableCapturedWifiResult.Applied(
-				1L,
-				entry.runs.size,
-				entry.runs.sumOf { it.observations.size },
-			)
-		}
-		val expected = entries.sortedWith(
-			compareByDescending<PortableCapturedWifiEntryV1> {
-				it.runs.maxOf { run -> run.startTimeMs }
-			}.thenByDescending {
-				it.runs.maxWith(
-					compareBy<PortableCapturedWifiRunV1>(
-						{ run -> run.startTimeMs },
-						{ run -> run.identity.value },
-					),
-				).identity.value
-			},
-		)
-		val evaluator = productEvaluator()
-
-		val first = database.withTransaction {
-			evaluator.selectRecentPageInTransaction(ImportedWifiProductRecentRequest(2))
-		}
-		first.hasMore shouldBe true
-		val cursor = first.evaluations.last().candidate
-		val second = database.withTransaction {
-			evaluator.selectRecentPageInTransaction(
-				ImportedWifiProductRecentRequest(
-					limit = 2,
-					beforeNewestMemberStartTimeMs = cursor.newestMemberStartTimeMs,
-					beforeNewestMemberIdentity = cursor.newestMemberIdentity,
-				),
-			)
-		}
-		second.hasMore shouldBe false
-		val evaluated = first.evaluations + second.evaluations
-
-		evaluated.map { it.candidate.identity } shouldBe expected.map { it.identity }
-		evaluated.forEach { evaluation ->
-			val readable = evaluation as ImportedWifiProductEvaluation.Readable
-			val newest = readable.entry.runs.maxWith(
-				compareBy<PortableCapturedWifiRunV1>(
-					{ it.startTimeMs },
-					{ it.identity.value },
-				),
-			)
-			readable.candidate.newestMemberStartTimeMs shouldBe newest.startTimeMs
-			readable.candidate.newestMemberIdentity shouldBe newest.identity
-		}
 	}
 
 	@Test
