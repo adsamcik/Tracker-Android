@@ -7,13 +7,21 @@ interface WifiHistoryRepository {
 	/** Resolves the complete logical replacement group containing one physical presentation row. */
 	suspend fun session(segmentId: Long): WifiHistoryQuery
 
-	/** Discovers recent logical entries from durable Wi-Fi fact carriers, never presentation counts. */
+	/** Resolves one exact imported-origin selection without inferring native membership. */
+	suspend fun imported(selection: WifiImportedHistorySelectionKey): WifiHistoryQuery
+
+	/** Discovers recent local and imported entries from authenticated source facts. */
 	suspend fun recent(limit: Int): WifiHistoryPage
 }
 
 sealed interface WifiHistoryQuery {
 	data object NotFound : WifiHistoryQuery
 	data class Found(val entry: WifiHistoryEntry) : WifiHistoryQuery
+	data class Failed(val cause: WifiHistoryCause) : WifiHistoryQuery {
+		init {
+			require(cause.isIntegrityFailure)
+		}
+	}
 }
 
 sealed interface WifiHistoryPage {
@@ -35,7 +43,32 @@ value class WifiHistoryEntryKey(private val opaqueValue: String) {
 	override fun toString(): String = "WifiHistoryEntryKey"
 }
 
-enum class WifiHistoryProductState { MATERIALIZING, PARTIAL, READY, UNAVAILABLE, MISSING, FAILED }
+/** Opaque imported entry identity suitable only for exact imported-origin selection. */
+@JvmInline
+value class WifiImportedHistorySelectionKey(val value: String) {
+	init {
+		require(LOWERCASE_SHA_256.matches(value))
+	}
+
+	override fun toString(): String = "WifiImportedHistorySelectionKey"
+}
+
+/** Exact imported revision selected from an authenticated current-origin history snapshot. */
+data class WifiImportedHistorySelection(
+	val key: WifiImportedHistorySelectionKey,
+	val importRevision: Long,
+	val contentChecksum: String,
+) {
+	init {
+		require(importRevision > 0L)
+		require(LOWERCASE_SHA_256.matches(contentChecksum))
+	}
+
+	override fun toString(): String = "WifiImportedHistorySelection"
+}
+
+enum class WifiHistoryOrigin { LOCAL, IMPORTED }
+enum class WifiHistoryProductState { MATERIALIZING, PARTIAL, READY, UNAVAILABLE, MISSING, DELETED, FAILED }
 enum class WifiHistoryCoverage { NONE, PARTIAL, COMPLETE, UNKNOWN }
 enum class WifiHistoryAvailability { AVAILABLE }
 enum class WifiHistoryResultCompleteness { COMPLETE, PARTIAL }
@@ -50,7 +83,10 @@ enum class WifiHistoryCause(val isIntegrityFailure: Boolean = false) {
 	ACQUISITION_INCOMPLETE,
 	RESULT_SET_PARTIAL,
 	RETENTION_LIMIT,
+	DELETED,
 	PRIVACY_EPOCH_MISMATCH,
+	IMPORTED_EVIDENCE_UNVERIFIABLE(isIntegrityFailure = true),
+	ORIGIN_IDENTITY_CONFLICT(isIntegrityFailure = true),
 	READ_BUDGET_EXCEEDED(isIntegrityFailure = true),
 	PHYSICAL_MEMBERSHIP_INVALID(isIntegrityFailure = true),
 	MANIFEST_INTEGRITY_FAILED(isIntegrityFailure = true),
@@ -58,6 +94,7 @@ enum class WifiHistoryCause(val isIntegrityFailure: Boolean = false) {
 	WRITER_PROVENANCE_INVALID(isIntegrityFailure = true),
 	FACT_INTEGRITY_FAILED(isIntegrityFailure = true),
 	STORED_ZONE_INVALID(isIntegrityFailure = true),
+	VALUE_OVERFLOW(isIntegrityFailure = true),
 }
 
 /** One logical Wi-Fi entry without SSID, BSSID, route, or Location-derived values. */
@@ -70,10 +107,16 @@ data class WifiHistoryEntry(
 	val coverage: WifiHistoryCoverage,
 	val observations: List<WifiHistoryObservation>,
 	val causes: Set<WifiHistoryCause> = emptySet(),
+	val origin: WifiHistoryOrigin = WifiHistoryOrigin.LOCAL,
+	val importedSelection: WifiImportedHistorySelection? = null,
+	/** Exact local manifest proof only; imported portable evidence never grants this claim. */
+	val capturesOnlyWifi: Boolean = false,
 ) {
 	init {
 		require(endTime >= startTime)
 		require(storedZoneIds.none(String::isBlank))
+		require((origin == WifiHistoryOrigin.IMPORTED) == (importedSelection != null))
+		require(origin == WifiHistoryOrigin.LOCAL || !capturesOnlyWifi)
 		when (state) {
 			WifiHistoryProductState.READY -> {
 				require(observations.isNotEmpty())
@@ -86,15 +129,19 @@ data class WifiHistoryEntry(
 			WifiHistoryProductState.MATERIALIZING,
 			WifiHistoryProductState.UNAVAILABLE,
 			WifiHistoryProductState.MISSING,
+			WifiHistoryProductState.DELETED,
 			-> {
 				require(observations.isEmpty() && coverage == WifiHistoryCoverage.NONE)
 				require(causes.isNotEmpty())
+				require((state == WifiHistoryProductState.DELETED) ==
+					(causes == setOf(WifiHistoryCause.DELETED)))
 			}
 			WifiHistoryProductState.FAILED -> {
 				require(observations.isEmpty() && coverage == WifiHistoryCoverage.NONE)
 				require(causes.any { it.isIntegrityFailure })
 			}
 		}
+
 	}
 }
 
@@ -143,3 +190,5 @@ data class WifiHistorySignalQuality(
 		require(meanSignalDbm in weakestSignalDbm.toDouble()..strongestSignalDbm.toDouble())
 	}
 }
+
+private val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")

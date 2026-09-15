@@ -29,6 +29,12 @@ import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEnti
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIntegrity
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiRequest
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluator
+import com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifi
+import com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifiResult
+import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryBand
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryPage
@@ -83,6 +89,7 @@ class WifiHistoryRepositoryRoomTest {
 		val recentEntry = (recent as WifiHistoryPage.Available).entries.single()
 		selectedEntry shouldBe recentEntry
 		selectedEntry.state shouldBe WifiHistoryProductState.READY
+		selectedEntry.capturesOnlyWifi shouldBe true
 		selectedEntry.observations shouldHaveSize 1
 		selectedEntry.observations.single().observationCount shouldBe 2
 		selectedEntry.observations.single().bandMix shouldBe mapOf(
@@ -375,7 +382,23 @@ class WifiHistoryRepositoryRoomTest {
 	}
 
 	private fun repository(authority: () -> Boolean) = DefaultWifiHistoryRepository(
-		database, SourceProductLaneExecutionAuthority { authority() }, UnconfinedTestDispatcher(),
+		database,
+		SourceProductLaneExecutionAuthority { authority() },
+		object : ImportedWifiProductEvaluator {
+			override suspend fun selectIdentityInTransaction(
+				selection: WifiImportedHistorySelectionKey,
+			): ImportedWifiProductEvaluation? = null
+
+			override suspend fun selectRecentInTransaction(
+				limit: Int,
+			): List<ImportedWifiProductEvaluation> = emptyList()
+		},
+		object : ReadLocalPortableCapturedWifi {
+			override suspend fun readInTransaction(
+				request: ExportPortableCapturedWifiRequest,
+			): ReadLocalPortableCapturedWifiResult = error("No imported collision expected")
+		},
+		UnconfinedTestDispatcher(),
 	)
 
 	private suspend fun assertRecentFactFailure() {

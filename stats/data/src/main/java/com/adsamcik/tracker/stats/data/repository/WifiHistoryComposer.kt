@@ -232,10 +232,13 @@ internal object WifiHistoryComposer {
 		if (retained.any { it.first.coverageCompleteness == WifiCapturedFactRevisionEntity.COVERAGE_PARTIAL }) {
 			causes += WifiHistoryCause.RESULT_SET_PARTIAL
 		}
+		val capturesOnlyWifi = manifests.all { manifest ->
+			snapshot.manifestAuthorityShape(logicalId, manifest.manifestRevision)?.first == setOf(WIFI_SOURCE)
+		}
 		return if (causes.isEmpty()) entry(logicalId, segments, zones, WifiHistoryProductState.READY,
-			WifiHistoryCoverage.COMPLETE, observations, emptySet()) else
+			WifiHistoryCoverage.COMPLETE, observations, emptySet(), capturesOnlyWifi) else
 			entry(logicalId, segments, zones, WifiHistoryProductState.PARTIAL,
-				WifiHistoryCoverage.PARTIAL, observations, causes)
+				WifiHistoryCoverage.PARTIAL, observations, causes, capturesOnlyWifi)
 	}
 
 	private fun hasValidManifestHistory(
@@ -883,11 +886,12 @@ internal object WifiHistoryComposer {
 		coverage: WifiHistoryCoverage,
 		observations: List<WifiHistoryObservation>,
 		causes: Set<WifiHistoryCause>,
+		capturesOnlyWifi: Boolean = false,
 	): WifiHistoryEntry {
 		val start = segments.minOf(SessionSegment::startTimeMs).coerceAtLeast(0L)
 		val end = segments.maxOf(SessionSegment::endTimeMs).coerceAtLeast(start)
 		return WifiHistoryEntry(WifiHistoryEntryKey("wifi-logical:$logicalId"), EpochMs(start), EpochMs(end),
-			zones, state, coverage, observations, causes)
+			zones, state, coverage, observations, causes, capturesOnlyWifi = capturesOnlyWifi)
 	}
 
 	private fun failed(logicalId: String, segments: List<SessionSegment>, cause: WifiHistoryCause) =

@@ -36,13 +36,21 @@ import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIn
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiResult
+import com.adsamcik.tracker.stats.api.repository.ImportPortableCapturedWifiRequest
+import com.adsamcik.tracker.stats.api.repository.ImportPortableCapturedWifiResult
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
+import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PortableWifiAcquisitionCompleteness
 import com.adsamcik.tracker.stats.api.repository.PortableWifiCaptureCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableWifiRunAvailability
 import com.adsamcik.tracker.stats.api.repository.PortableWifiUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.PortableWifiUnverifiableReason
+import com.adsamcik.tracker.stats.api.repository.ReexportImportedCapturedWifiRequest
+import com.adsamcik.tracker.stats.api.repository.ReexportImportedCapturedWifiResult
 import com.adsamcik.tracker.stats.api.repository.WifiCapturedPortableFormatV1
+import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelection
+import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
@@ -1782,6 +1790,77 @@ class WifiWalQualificationAdapterTest {
 		assertTrue(RUN_ID !in entry.toString())
 		assertTrue(SOURCE_INSTANCE !in entry.toString())
 		assertTrue(BOOT_ID !in entry.toString())
+	}
+
+	@Test
+	fun `two database production export import read and latest reexport roundtrip is exact`() = runTest {
+		installPortableExportFixture()
+		val exported = mutableListOf<PortableCapturedWifiEntryV1>()
+		assertIs<ExportPortableCapturedWifiResult.Exported>(
+			portableExporter().export(ExportPortableCapturedWifiRequest(LOGICAL_ID)) {
+				exported += it
+			},
+		)
+		val sourceEntry = exported.single()
+		val target = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>())
+		try {
+			target.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
+			val importer = RoomImportPortableCapturedWifi(target, Dispatchers.IO)
+			assertEquals(
+				ImportPortableCapturedWifiResult.Applied(
+					importRevision = 1L,
+					physicalRunCount = sourceEntry.runs.size,
+					observationCount = sourceEntry.runs.sumOf { it.observations.size },
+				),
+				importer.importEntry(
+					ImportPortableCapturedWifiRequest(
+						sourceEntry,
+						PortableCapturedWifiImportReceipt(
+							"roundtrip-job",
+							"roundtrip-entry",
+							"native.trackerwifi",
+							10_000L,
+						),
+						0L,
+					),
+				),
+			)
+			val evaluator = RoomImportedWifiProductEvaluator(target)
+			val selected = target.withTransaction {
+				evaluator.selectIdentityInTransaction(
+					WifiImportedHistorySelectionKey(sourceEntry.identity.value),
+				)
+			}
+			assertEquals(sourceEntry, assertIs<ImportedWifiProductEvaluation.Readable>(selected).entry)
+
+			val reexported = mutableListOf<PortableCapturedWifiEntryV1>()
+			var sinkInTransaction = true
+			val result = RoomReexportImportedCapturedWifi(
+				target,
+				evaluator,
+				Dispatchers.IO,
+			).reexport(
+				ReexportImportedCapturedWifiRequest(
+					WifiImportedHistorySelection(
+						WifiImportedHistorySelectionKey(sourceEntry.identity.value),
+						1L,
+						sourceEntry.contentChecksum.value,
+					),
+					0L,
+				),
+			) {
+				sinkInTransaction = target.openHelper.writableDatabase.inTransaction()
+				reexported += it
+			}
+			assertIs<ReexportImportedCapturedWifiResult.Exported>(result)
+			assertTrue(!sinkInTransaction)
+			assertEquals(sourceEntry, reexported.single())
+			assertEquals(0L, target.wifiCapturedFactDao().revisionCount())
+			assertEquals(0L, target.sourceEventWalDao().countAll())
+			assertEquals(null, target.sourceSessionDao().session(LOGICAL_ID))
+		} finally {
+			target.close()
+		}
 	}
 
 	@Test

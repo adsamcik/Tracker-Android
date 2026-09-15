@@ -48,6 +48,8 @@ import com.adsamcik.tracker.stats.api.repository.PortableWifiRunAvailability
 import com.adsamcik.tracker.stats.api.repository.PortableWifiSessionMode
 import com.adsamcik.tracker.stats.api.repository.PortableWifiUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.PortableWifiUnverifiableReason
+import com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifi
+import com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifiResult
 import com.adsamcik.tracker.stats.api.repository.WifiCapturedPortableFormatV1
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -72,7 +74,7 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 	private val planCodec: SourcePlanCodec,
 	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
-) : ExportPortableCapturedWifi {
+) : ExportPortableCapturedWifi, ReadLocalPortableCapturedWifi {
 	override suspend fun export(
 		request: ExportPortableCapturedWifiRequest,
 		sink: PortableCapturedWifiSink,
@@ -110,24 +112,24 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 		}
 
 		when (snapshot) {
-			is PortableWifiRead.Entry -> {
+			is ReadLocalPortableCapturedWifiResult.Ready -> {
 				currentCoroutineContext().ensureActive()
-				sink.emit(snapshot.value)
+				sink.emit(snapshot.entry)
 				ExportPortableCapturedWifiResult.Exported(
-					snapshot.value.identity,
-					snapshot.value.contentChecksum,
-					snapshot.value.runs.size,
-					snapshot.value.runs.sumOf { it.observations.size },
+					snapshot.entry.identity,
+					snapshot.entry.contentChecksum,
+					snapshot.entry.runs.size,
+					snapshot.entry.runs.sumOf { it.observations.size },
 				)
 			}
-			is PortableWifiRead.Outcome -> snapshot.value
+			is ReadLocalPortableCapturedWifiResult.Outcome -> snapshot.result
 		}
 	}
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
-	private suspend fun readInTransaction(
+	override suspend fun readInTransaction(
 		request: ExportPortableCapturedWifiRequest,
-	): PortableWifiRead {
+	): ReadLocalPortableCapturedWifiResult {
 		currentCoroutineContext().ensureActive()
 		val evidence = database.sourceEvidenceStateDao().get()
 			?: return outcome(unverifiable(PortableWifiUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING))
@@ -600,13 +602,8 @@ internal class RoomExportPortableCapturedWifi @Inject constructor(
 			endTimeMs = runsOut.maxOf(PortableCapturedWifiRunV1::endTimeMs),
 			runs = runsOut,
 		)
-		return PortableWifiRead.Entry(entry)
+		return ReadLocalPortableCapturedWifiResult.Ready(entry)
 	}
-}
-
-private sealed interface PortableWifiRead {
-	data class Entry(val value: PortableCapturedWifiEntryV1) : PortableWifiRead
-	data class Outcome(val value: ExportPortableCapturedWifiResult) : PortableWifiRead
 }
 
 private fun WifiCapturedLineage.toPortableObservation(
@@ -1121,7 +1118,8 @@ private fun hasValidZone(zoneId: String): Boolean = try {
 	false
 }
 
-private fun outcome(value: ExportPortableCapturedWifiResult) = PortableWifiRead.Outcome(value)
+private fun outcome(value: ExportPortableCapturedWifiResult) =
+	ReadLocalPortableCapturedWifiResult.Outcome(value)
 private fun unverifiable(reason: PortableWifiUnverifiableReason) =
 	ExportPortableCapturedWifiResult.Unverifiable(reason)
 private fun unverifiableFact() = unverifiable(PortableWifiUnverifiableReason.FACT_AUTHORITY_UNVERIFIABLE)

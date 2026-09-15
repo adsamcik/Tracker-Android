@@ -18,7 +18,14 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecution
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiRequest
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluator
+import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
+import com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifi
+import com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifiResult
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
+import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryPage
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryRepository
@@ -32,6 +39,8 @@ import kotlinx.coroutines.withContext
 internal class DefaultWifiHistoryRepository @Inject constructor(
 	private val database: AppDatabase,
 	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
+	private val importedProductEvaluator: ImportedWifiProductEvaluator,
+	private val localPortableReader: ReadLocalPortableCapturedWifi,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : WifiHistoryRepository {
 	override suspend fun session(segmentId: Long): WifiHistoryQuery {
@@ -47,12 +56,93 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 		}
 	}
 
+	override suspend fun imported(selection: WifiImportedHistorySelectionKey): WifiHistoryQuery =
+		withContext(ioDispatcher) {
+			database.withTransaction {
+				try {
+					val evaluation = importedProductEvaluator.selectIdentityInTransaction(selection)
+						?: return@withTransaction WifiHistoryQuery.NotFound
+					val readable = evaluation as? ImportedWifiProductEvaluation.Readable
+					val collision = readable?.collidingLocalLogicalTrackingId
+					val originConflict = if (collision == null) {
+						false
+					} else {
+						val colliding = requireNotNull(readable)
+						when (val local = localPortableReader.readInTransaction(
+							ExportPortableCapturedWifiRequest(collision),
+						)) {
+							is ReadLocalPortableCapturedWifiResult.Ready ->
+								!colliding.isReExportable || colliding.entry != local.entry
+							is ReadLocalPortableCapturedWifiResult.Outcome -> true
+						}
+					}
+					WifiHistoryQuery.Found(evaluation.toPublicWifiEntry(originConflict))
+				} catch (cancelled: kotlinx.coroutines.CancellationException) {
+					throw cancelled
+				} catch (_: ArithmeticException) {
+					WifiHistoryQuery.Failed(WifiHistoryCause.VALUE_OVERFLOW)
+				} catch (_: RuntimeException) {
+					WifiHistoryQuery.Failed(WifiHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+				}
+			}
+		}
+
 	override suspend fun recent(limit: Int): WifiHistoryPage {
 		require(limit in 1..MAX_RESULTS)
-		return withContext(ioDispatcher) { database.withTransaction { loadRecent(limit) } }
+		return withContext(ioDispatcher) {
+			database.withTransaction { composeRecentHistory(limit) }
+		}
 	}
 
-	private suspend fun loadRecent(limit: Int): WifiHistoryPage {
+	private suspend fun composeRecentHistory(limit: Int): WifiHistoryPage {
+		val live = loadRecentLocal(limit)
+		if (live.page is WifiHistoryPage.Failed) return live.page
+		val imported = try {
+			importedProductEvaluator.selectRecentInTransaction(limit)
+		} catch (cancelled: kotlinx.coroutines.CancellationException) {
+			throw cancelled
+		} catch (_: ArithmeticException) {
+			return WifiHistoryPage.Failed(WifiHistoryCause.VALUE_OVERFLOW)
+		} catch (_: RuntimeException) {
+			return WifiHistoryPage.Failed(WifiHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		}
+		val collisions = imported.filterIsInstance<ImportedWifiProductEvaluation.Readable>()
+			.mapNotNull(ImportedWifiProductEvaluation.Readable::collidingLocalLogicalTrackingId)
+			.distinct()
+		if (collisions.size > MAX_EXACT_ORIGIN_COLLISIONS) {
+			return WifiHistoryPage.Failed(WifiHistoryCause.READ_BUDGET_EXCEEDED)
+		}
+		val localPortable = linkedMapOf<String, PortableCapturedWifiEntryV1>()
+		try {
+			for (logicalId in collisions) {
+				currentCoroutineContext().ensureActive()
+				when (val read = localPortableReader.readInTransaction(
+					ExportPortableCapturedWifiRequest(logicalId),
+				)) {
+					is ReadLocalPortableCapturedWifiResult.Ready -> localPortable[logicalId] = read.entry
+					is ReadLocalPortableCapturedWifiResult.Outcome ->
+						return WifiHistoryPage.Failed(WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+				}
+			}
+		} catch (cancelled: kotlinx.coroutines.CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			return WifiHistoryPage.Failed(WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+		}
+		return try {
+			WifiHistoryPage.Available(
+				WifiHistoryOriginComposer.compose(live.entries, imported, localPortable, limit),
+			)
+		} catch (_: ImportedWifiHistoryCompositionFailure) {
+			WifiHistoryPage.Failed(WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+		} catch (_: ArithmeticException) {
+			WifiHistoryPage.Failed(WifiHistoryCause.VALUE_OVERFLOW)
+		} catch (_: RuntimeException) {
+			WifiHistoryPage.Failed(WifiHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		}
+	}
+
+	private suspend fun loadRecentLocal(limit: Int): LiveWifiHistoryPage {
 		val accepted = linkedMapOf<String, ComposedWifiEntry>()
 		var beforeStart: Long? = null
 		var beforeId: Long? = null
@@ -73,7 +163,12 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			scanned += candidates.size
 			val seeds = candidates.map { it.segment }
 			val snapshot = loadSnapshot(expandMembership(seeds))
-			if (snapshot.overflow) return WifiHistoryPage.Failed(WifiHistoryCause.READ_BUDGET_EXCEEDED)
+			if (snapshot.overflow) {
+				return LiveWifiHistoryPage(
+					WifiHistoryPage.Failed(WifiHistoryCause.READ_BUDGET_EXCEEDED),
+					emptyList(),
+				)
+			}
 			val requested = seeds.mapNotNull(SessionSegment::logicalTrackingId).toSet()
 			WifiHistoryComposer.composeRecent(snapshot, laneExecutionAuthority)
 				.filter { it.logicalTrackingId in requested }
@@ -84,11 +179,18 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 			if (candidates.size < pageLimit) break
 		}
 		if (accepted.size < limit && scanned >= MAX_CANDIDATE_SCAN) {
-			return WifiHistoryPage.Failed(WifiHistoryCause.READ_BUDGET_EXCEEDED)
+			return LiveWifiHistoryPage(
+				WifiHistoryPage.Failed(WifiHistoryCause.READ_BUDGET_EXCEEDED),
+				emptyList(),
+			)
 		}
-		return WifiHistoryPage.Available(
-			accepted.values.sortedWith(compareByDescending<ComposedWifiEntry> { it.recencyStartTimeMs }
-				.thenByDescending { it.recencySegmentId }).take(limit).map(ComposedWifiEntry::entry),
+		val entries = accepted.values.sortedWith(
+			compareByDescending<ComposedWifiEntry> { it.recencyStartTimeMs }
+				.thenByDescending { it.recencySegmentId },
+		).take(limit)
+		return LiveWifiHistoryPage(
+			WifiHistoryPage.Available(entries.map(ComposedWifiEntry::entry)),
+			entries,
 		)
 	}
 
@@ -376,6 +478,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 
 	private companion object {
 		const val MAX_RESULTS = 100
+		const val MAX_EXACT_ORIGIN_COLLISIONS = 1
 		const val CANDIDATE_PAGE_SIZE = 32
 		const val MAX_CANDIDATE_SCAN = 128
 		const val MEMBER_PAGE_SIZE = 32
@@ -402,6 +505,11 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 		const val SQL_ID_BATCH = 400
 	}
 }
+
+private data class LiveWifiHistoryPage(
+	val page: WifiHistoryPage,
+	val entries: List<ComposedWifiEntry>,
+)
 
 internal fun isWifiCaptureMembership(source: SessionManifestSourceEntity): Boolean =
 	source.sourceKind == WIFI_SOURCE && source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&

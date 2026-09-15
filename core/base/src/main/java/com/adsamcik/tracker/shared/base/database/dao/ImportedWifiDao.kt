@@ -56,6 +56,15 @@ abstract class ImportedWifiDao {
 		loadEntryRevisions(identity, MAX_REVISIONS_PER_ENTRY + 1)
 
 	@Query(
+		"SELECT * FROM imported_wifi_entry_revision WHERE identity IN (:identities) " +
+			"ORDER BY identity, import_revision LIMIT :limit",
+	)
+	abstract suspend fun entryRevisionsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedWifiEntryRevisionEntity>
+
+	@Query(
 		"SELECT * FROM imported_wifi_receipt WHERE entry_identity = :identity " +
 			"ORDER BY entry_import_revision, import_job_id, import_entry_key LIMIT :limit",
 	)
@@ -66,6 +75,15 @@ abstract class ImportedWifiDao {
 
 	suspend fun receiptsForAdmission(identity: String): List<ImportedWifiReceiptEntity> =
 		loadReceipts(identity, MAX_RECEIPTS_PER_ENTRY + 1)
+
+	@Query(
+		"SELECT * FROM imported_wifi_receipt WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, import_job_id, import_entry_key LIMIT :limit",
+	)
+	abstract suspend fun receiptsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedWifiReceiptEntity>
 
 	@Query(
 		"SELECT * FROM imported_wifi_receipt " +
@@ -86,6 +104,15 @@ abstract class ImportedWifiDao {
 		loadAllRuns(identity, MAX_TOTAL_RUNS_PER_ENTRY_LINEAGE + 1)
 
 	@Query(
+		"SELECT * FROM imported_wifi_run WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, start_time_ms, identity LIMIT :limit",
+	)
+	abstract suspend fun runsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedWifiRunEntity>
+
+	@Query(
 		"SELECT * FROM imported_wifi_run_zone WHERE entry_identity = :identity " +
 			"ORDER BY entry_import_revision, run_identity, ordinal LIMIT :limit",
 	)
@@ -96,6 +123,15 @@ abstract class ImportedWifiDao {
 
 	suspend fun allRunZonesForAdmission(identity: String): List<ImportedWifiRunZoneEntity> =
 		loadAllRunZones(identity, MAX_TOTAL_ZONES_PER_ENTRY_LINEAGE + 1)
+
+	@Query(
+		"SELECT * FROM imported_wifi_run_zone WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, run_identity, ordinal LIMIT :limit",
+	)
+	abstract suspend fun runZonesForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedWifiRunZoneEntity>
 
 	@Query(
 		"SELECT * FROM imported_wifi_observation WHERE entry_identity = :identity " +
@@ -109,6 +145,44 @@ abstract class ImportedWifiDao {
 
 	suspend fun allObservationsForAdmission(identity: String): List<ImportedWifiObservationEntity> =
 		loadAllObservations(identity, MAX_TOTAL_OBSERVATIONS_PER_ENTRY_LINEAGE + 1)
+
+	@Query(
+		"SELECT * FROM imported_wifi_observation WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, run_identity, coverage_start_time_ms, " +
+			"observed_time_ms, identity LIMIT :limit",
+	)
+	abstract suspend fun observationsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedWifiObservationEntity>
+
+	@Query(
+		"SELECT revision.identity, revision.import_revision, revision.content_checksum, " +
+			"revision.start_time_ms, revision.end_time_ms, revision.received_at_ms " +
+			"FROM imported_wifi_entry_revision AS revision " +
+			"WHERE revision.import_revision = (" +
+			"SELECT MAX(latest.import_revision) FROM imported_wifi_entry_revision AS latest " +
+			"WHERE latest.identity = revision.identity) " +
+			"AND (:beforeStartTimeMs IS NULL OR revision.start_time_ms < :beforeStartTimeMs OR " +
+			"(revision.start_time_ms = :beforeStartTimeMs AND " +
+			"revision.identity < COALESCE(:beforeIdentity, ''))) " +
+			"ORDER BY revision.start_time_ms DESC, revision.identity DESC LIMIT :limit",
+	)
+	abstract suspend fun recentHistoryCandidatePage(
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): List<ImportedWifiHistoryCandidate>
+
+	@Query(
+		"SELECT revision.identity, revision.import_revision, revision.content_checksum, " +
+			"revision.start_time_ms, revision.end_time_ms, revision.received_at_ms " +
+			"FROM imported_wifi_entry_revision AS revision " +
+			"WHERE revision.identity = :identity AND revision.import_revision = (" +
+			"SELECT MAX(latest.import_revision) FROM imported_wifi_entry_revision AS latest " +
+			"WHERE latest.identity = revision.identity) LIMIT 1",
+	)
+	abstract suspend fun latestHistoryCandidate(identity: String): ImportedWifiHistoryCandidate?
 
 	@Query(
 		"SELECT DISTINCT identity FROM imported_wifi_entry_revision " +
@@ -146,6 +220,15 @@ abstract class ImportedWifiDao {
 	@Query("SELECT * FROM imported_wifi_entry_deletion WHERE entry_identity IN (:identities)")
 	abstract suspend fun entryDeletions(identities: List<String>): List<ImportedWifiEntryDeletionEntity>
 
+	@Query(
+		"SELECT * FROM imported_wifi_entry_deletion WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity LIMIT :limit",
+	)
+	abstract suspend fun entryDeletionsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedWifiEntryDeletionEntity>
+
 	@Query("SELECT * FROM imported_wifi_entry_deletion WHERE entry_identity = :identity")
 	abstract suspend fun entryDeletion(identity: String): ImportedWifiEntryDeletionEntity?
 
@@ -156,6 +239,15 @@ abstract class ImportedWifiDao {
 
 	@Query("SELECT * FROM imported_wifi_deletion_generation WHERE entry_identity IN (:identities) LIMIT :limit")
 	abstract suspend fun deletionGenerationsByEntry(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedWifiDeletionGenerationEntity>
+
+	@Query(
+		"SELECT * FROM imported_wifi_deletion_generation WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, run_identity LIMIT :limit",
+	)
+	abstract suspend fun deletionGenerationsForHistory(
 		identities: List<String>,
 		limit: Int,
 	): List<ImportedWifiDeletionGenerationEntity>
@@ -277,6 +369,7 @@ abstract class ImportedWifiDao {
 				"WHERE aggregate_owner_logical_fact_id IS NOT NULL"
 
 		const val MAX_IMPORTED_ENTRIES = 4_096
+		const val MAX_HISTORY_ENTRY_CANDIDATES = 100
 		const val MAX_REVISIONS_PER_ENTRY = 16
 		const val MAX_RECEIPTS_PER_ENTRY = 256
 		const val MAX_RUNS_PER_ENTRY = 64
@@ -291,6 +384,15 @@ abstract class ImportedWifiDao {
 		const val OWNER_PAGE_SIZE = 256
 	}
 }
+
+data class ImportedWifiHistoryCandidate(
+	val identity: String,
+	@ColumnInfo(name = "import_revision") val importRevision: Long,
+	@ColumnInfo(name = "content_checksum") val contentChecksum: String,
+	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
+	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
+	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+)
 
 data class ImportedWifiRunIdentityOwner(
 	val identity: String,

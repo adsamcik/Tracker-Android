@@ -67,6 +67,51 @@ class ImportedWifiDaoTest {
 	}
 
 	@Test
+	fun `history candidates select only latest revisions and batch dependencies without row fanout`() =
+		runTest {
+			dao.insertEntryRevision(entry())
+			dao.insertRun(run())
+			dao.insertRunZone(zone())
+			dao.insertObservation(observation())
+			dao.insertReceipt(receipt())
+			val secondIdentity = "b".repeat(64)
+			val second = entry().copy(
+				identity = secondIdentity,
+				contentChecksum = "c".repeat(64),
+				startTimeMs = 1_000L,
+				endTimeMs = 1_500L,
+				importJobId = "job-2",
+				importEntryKey = "entry-2",
+				receivedAtMs = 1_600L,
+			)
+			dao.insertEntryRevision(second)
+			val correction = second.copy(
+				importRevision = 2L,
+				supersedesImportRevision = 1L,
+				contentChecksum = "d".repeat(64),
+				importJobId = "job-3",
+				importEntryKey = "entry-3",
+				receivedAtMs = 1_700L,
+			)
+			dao.insertEntryRevision(correction)
+
+			val page = dao.recentHistoryCandidatePage(2, null, null)
+			page.map { it.identity to it.importRevision } shouldBe
+				listOf(secondIdentity to 2L, ENTRY to 1L)
+			dao.latestHistoryCandidate(secondIdentity)?.importRevision shouldBe 2L
+			dao.recentHistoryCandidatePage(
+				2,
+				page.first().startTimeMs,
+				page.first().identity,
+			).map { it.identity } shouldBe listOf(ENTRY)
+			dao.entryRevisionsForHistory(listOf(ENTRY, secondIdentity), 4).size shouldBe 3
+			dao.receiptsForHistory(listOf(ENTRY, secondIdentity), 2) shouldBe listOf(receipt())
+			dao.runsForHistory(listOf(ENTRY, secondIdentity), 2) shouldBe listOf(run())
+			dao.runZonesForHistory(listOf(ENTRY, secondIdentity), 2) shouldBe listOf(zone())
+			dao.observationsForHistory(listOf(ENTRY, secondIdentity), 2) shouldBe listOf(observation())
+		}
+
+	@Test
 	fun `foreign hierarchy is atomic and full collected clear removes every imported row`() = runTest {
 		shouldThrow<android.database.sqlite.SQLiteConstraintException> { dao.insertRun(run()) }
 		dao.insertEntryRevision(entry())

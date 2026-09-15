@@ -19,6 +19,21 @@ interface ExportPortableCapturedWifi {
 	): ExportPortableCapturedWifiResult
 }
 
+/**
+ * Exact selected native portable snapshot for same-transaction origin collision resolution.
+ * This read grants no imported, deletion, provider, or writer authority and performs no sink I/O.
+ */
+interface ReadLocalPortableCapturedWifi {
+	suspend fun readInTransaction(
+		request: ExportPortableCapturedWifiRequest,
+	): ReadLocalPortableCapturedWifiResult
+}
+
+sealed interface ReadLocalPortableCapturedWifiResult {
+	data class Ready(val entry: PortableCapturedWifiEntryV1) : ReadLocalPortableCapturedWifiResult
+	data class Outcome(val result: ExportPortableCapturedWifiResult) : ReadLocalPortableCapturedWifiResult
+}
+
 /** Bounded provenance copied into immutable Wi-Fi-local imported authority. */
 data class PortableCapturedWifiImportReceipt(
 	val jobId: String,

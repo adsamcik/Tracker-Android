@@ -193,6 +193,94 @@ data class PortableCapturedWifiEntryV1(
 	}
 }
 
+/**
+ * Structural verifier for already-authenticated portable Wi-Fi hierarchies.
+ * It exposes no identities and grants no local capture, deletion, provider, or writer authority.
+ */
+class PortableWifiOpaqueOwnershipVerifier private constructor(
+	private val identityOwners: MutableMap<String, PortableWifiOpaqueOwner>,
+	private val deletionScopeOwners: MutableMap<String, PortableWifiOpaqueOwner>,
+) {
+	/** Atomically includes one compatible hierarchy; false leaves this verifier unchanged. */
+	fun tryInclude(entry: PortableCapturedWifiEntryV1): Boolean {
+		val candidate = ownershipOf(entry) ?: return false
+		if (candidate.identityOwners.keys.any { it in deletionScopeOwners } ||
+			candidate.deletionScopeOwners.keys.any { it in identityOwners } ||
+			candidate.identityOwners.any { (identity, owner) ->
+				identityOwners[identity]?.let { it != owner } == true
+			} || candidate.deletionScopeOwners.any { (scope, owner) ->
+				deletionScopeOwners[scope]?.let { it != owner } == true
+			}
+		) return false
+		identityOwners.putAll(candidate.identityOwners)
+		deletionScopeOwners.putAll(candidate.deletionScopeOwners)
+		return true
+	}
+
+	companion object {
+		fun fromEntries(entries: Collection<PortableCapturedWifiEntryV1>):
+			PortableWifiOpaqueOwnershipVerifier? {
+			val verifier = PortableWifiOpaqueOwnershipVerifier(linkedMapOf(), linkedMapOf())
+			return verifier.takeIf { entries.all(verifier::tryInclude) }
+		}
+
+		private fun ownershipOf(entry: PortableCapturedWifiEntryV1):
+			PortableWifiOpaqueOwnershipVerifier? {
+			val verifier = PortableWifiOpaqueOwnershipVerifier(linkedMapOf(), linkedMapOf())
+			val entryIdentity = entry.identity.value
+			if (!verifier.bindIdentity(
+					entryIdentity,
+					PortableWifiOpaqueOwner(PortableWifiIdentityKind.LOGICAL_ENTRY, entryIdentity),
+				)
+			) return null
+			entry.runs.forEach { run ->
+				val runIdentity = run.identity.value
+				val runOwner = PortableWifiOpaqueOwner(
+					PortableWifiIdentityKind.PHYSICAL_RUN,
+					entryIdentity,
+					runIdentity,
+					run.deletionScopeDigest.value,
+				)
+				if (!verifier.bindIdentity(runIdentity, runOwner) ||
+					!verifier.bindScope(run.deletionScopeDigest.value, runOwner)
+				) return null
+				run.observations.forEach { observation ->
+					if (!verifier.bindIdentity(
+							observation.identity.value,
+							PortableWifiOpaqueOwner(
+								PortableWifiIdentityKind.OBSERVATION,
+								entryIdentity,
+								runIdentity,
+							),
+						)
+					) return null
+				}
+			}
+			if (verifier.identityOwners.keys.any { it in verifier.deletionScopeOwners }) return null
+			return verifier
+		}
+	}
+
+	private fun bindIdentity(identity: String, owner: PortableWifiOpaqueOwner): Boolean {
+		val previous = identityOwners[identity]
+		if (previous == null) identityOwners[identity] = owner
+		return previous == null || previous == owner
+	}
+
+	private fun bindScope(scope: String, owner: PortableWifiOpaqueOwner): Boolean {
+		val previous = deletionScopeOwners[scope]
+		if (previous == null) deletionScopeOwners[scope] = owner
+		return previous == null || previous == owner
+	}
+}
+
+private data class PortableWifiOpaqueOwner(
+	val kind: PortableWifiIdentityKind,
+	val entryIdentity: String,
+	val runIdentity: String? = null,
+	val deletionScopeDigest: String? = null,
+)
+
 val PORTABLE_WIFI_OBSERVATION_ORDER: Comparator<PortableCapturedWifiObservationV1> =
 	compareBy<PortableCapturedWifiObservationV1>(
 		PortableCapturedWifiObservationV1::coverageStartTimeMs,

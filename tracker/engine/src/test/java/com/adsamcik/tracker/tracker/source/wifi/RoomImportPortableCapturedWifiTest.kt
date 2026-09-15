@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.wifi
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiDao
@@ -15,11 +16,14 @@ import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIn
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.stats.api.repository.ImportPortableCapturedWifiRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortableCapturedWifiResult
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductFailure
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiImportBlockedReason
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiImportUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiObservationV1
+import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiRunV1
 import com.adsamcik.tracker.stats.api.repository.PortableWifiAcquisitionCompleteness
 import com.adsamcik.tracker.stats.api.repository.PortableWifiAvailability
 import com.adsamcik.tracker.stats.api.repository.PortableWifiCaptureCoverage
@@ -31,6 +35,11 @@ import com.adsamcik.tracker.stats.api.repository.PortableWifiResultCompleteness
 import com.adsamcik.tracker.stats.api.repository.PortableWifiRetryableReason
 import com.adsamcik.tracker.stats.api.repository.PortableWifiRunAvailability
 import com.adsamcik.tracker.stats.api.repository.PortableWifiSessionMode
+import com.adsamcik.tracker.stats.api.repository.ReexportImportedCapturedWifiRequest
+import com.adsamcik.tracker.stats.api.repository.ReexportImportedCapturedWifiResult
+import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelection
+import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey
+import com.adsamcik.tracker.stats.api.repository.isReciprocalCorrectionOf
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CancellationException
@@ -626,6 +635,369 @@ class RoomImportPortableCapturedWifiTest {
 	}
 
 	@Test
+	fun `product evaluator authenticates complete replacement hierarchy and latest correction`() = runTest {
+		val first = entryWithRuns(
+			run("run-a", "a".repeat(64), listOf(observation("observation-a"))),
+			run("run-b", "b".repeat(64), listOf(observation("observation-b"))),
+		)
+		val corrected = entryWithRuns(
+			run("run-a", "a".repeat(64), listOf(observation("observation-a", semanticRevision = 2L))),
+			run("run-b", "b".repeat(64), listOf(observation("observation-b"))),
+		)
+		val importer = importer(testScheduler)
+		importer.importEntry(request(first)) shouldBe ImportPortableCapturedWifiResult.Applied(1L, 2, 2)
+		importer.importEntry(request(corrected, receipt("correction", 40L))) shouldBe
+			ImportPortableCapturedWifiResult.Applied(2L, 2, 2)
+
+		val evaluated = database.withTransaction {
+			productEvaluator().selectIdentityInTransaction(
+				WifiImportedHistorySelectionKey(first.identity.value),
+			)
+		}
+		val readable = evaluated as ImportedWifiProductEvaluation.Readable
+		readable.candidate.importRevision shouldBe 2L
+		readable.entry shouldBe corrected
+		readable.deletedRunIdentities shouldBe emptySet()
+		readable.retentionLimited shouldBe false
+		readable.retainedObservationIdentities.size shouldBe 2
+		RoomReexportImportedCapturedWifi(
+			database,
+			productEvaluator(),
+			UnconfinedTestDispatcher(testScheduler),
+		).reexport(
+			ReexportImportedCapturedWifiRequest(importedSelection(first), EPOCH),
+		) {} shouldBe ReexportImportedCapturedWifiResult.Blocked(
+			com.adsamcik.tracker.stats.api.repository.ImportedWifiReexportBlockedReason.STALE_SELECTION,
+		)
+		val emitted = mutableListOf<PortableCapturedWifiEntryV1>()
+		val reexported = RoomReexportImportedCapturedWifi(
+			database,
+			productEvaluator(),
+			UnconfinedTestDispatcher(testScheduler),
+		).reexport(
+			ReexportImportedCapturedWifiRequest(
+				WifiImportedHistorySelection(
+					WifiImportedHistorySelectionKey(first.identity.value),
+					2L,
+					corrected.contentChecksum.value,
+				),
+				EPOCH,
+			),
+		) { emitted += it }
+		reexported shouldBe ReexportImportedCapturedWifiResult.Exported(
+			2L,
+			corrected.identity,
+			corrected.contentChecksum,
+			2,
+			2,
+		)
+		emitted.single() shouldBe corrected
+	}
+
+	@Test
+	fun `product evaluator fails typed when a later local origin reuses only part of imported identity`() =
+		runTest {
+			val imported = entry()
+			importer(testScheduler).importEntry(request(imported))
+			database.sourceSessionDao().insertSession(
+				LogicalTrackingSessionEntity(
+					logicalTrackingId = "entry",
+					state = "FINALIZED",
+					lifecycleRevision = 1L,
+					desiredPlanRevision = 1L,
+					rolloutRevision = 1L,
+					startOrigin = "MANUAL_USER",
+					clockDomainId = "boot",
+					startedAtMs = 1L,
+					startedElapsedNanos = 1L,
+					cutoffAtMs = null,
+					cutoffElapsedNanos = null,
+					completedAtMs = 2L,
+					finalAdmissionOrdinal = null,
+					failureCode = null,
+					sessionMode = "MANUAL",
+					currentManifestRevision = null,
+					currentIntentRevision = null,
+					currentServiceRunId = null,
+					lifecycleLeaseGeneration = 1L,
+					lifecycleBootId = "boot",
+					automationEpoch = null,
+				),
+			)
+
+			val evaluated = database.withTransaction {
+				productEvaluator().selectIdentityInTransaction(
+					WifiImportedHistorySelectionKey(imported.identity.value),
+				)
+			} as ImportedWifiProductEvaluation.Unverifiable
+
+			evaluated.reason shouldBe ImportedWifiProductFailure.ORIGIN_IDENTITY_CONFLICT
+		}
+
+	@Test
+	fun `product evaluator applies retention and exact run deletion before returning values`() = runTest {
+		val imported = entryWithRuns(
+			run("run-old", "a".repeat(64), listOf(observation("old"))),
+			run(
+				"run-current",
+				"b".repeat(64),
+				listOf(observation("current").copyWithTimes(1_100L, 1_200L, 10L)),
+			),
+		)
+		importer(testScheduler).importEntry(request(imported))
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 1_000L, 50L) shouldBe 1
+		val deletedRun = imported.runs.last()
+		database.importedWifiDao().insertDeletionGeneration(
+			ImportedWifiDeletionGenerationEntity.create(
+				deletedRun.identity.value,
+				imported.identity.value,
+				deletedRun.deletionScopeDigest.value,
+				EPOCH,
+				1L,
+				51L,
+			),
+		)
+		database.sourceDeletionFenceDao().upsert(
+			SourceDeletionFenceEntity.createForOriginalRunDigest(
+				SourceDestinationOwnerEntity.SOURCE_WIFI,
+				"SESSION_CAPTURE",
+				deletedRun.deletionScopeDigest.value,
+				1L,
+				EPOCH,
+				51L,
+			),
+		)
+
+		val evaluated = database.withTransaction {
+			productEvaluator().selectIdentityInTransaction(
+				WifiImportedHistorySelectionKey(imported.identity.value),
+			)
+		} as ImportedWifiProductEvaluation.Readable
+		evaluated.retentionLimited shouldBe true
+		evaluated.retainedObservationIdentities shouldBe
+			setOf(deletedRun.observations.single().identity)
+		evaluated.deletedRunIdentities shouldBe setOf(deletedRun.identity)
+	}
+
+	@Test
+	fun `product evaluator rejects rehashed aggregate corruption overflow and cancellation`() = runTest {
+		val owner = observation("owner")
+		val dependent = observation("dependent", aggregateOwnerIdentity = owner.identity)
+		val imported = entryWithObservations(listOf(owner, dependent))
+		importer(testScheduler).importEntry(request(imported))
+
+		val corruptedDependent = PortableWifiIntegrity.createObservation(
+			identity = dependent.identity,
+			semanticRevision = dependent.semanticRevision,
+			supersedesSemanticRevision = dependent.supersedesSemanticRevision,
+			aggregateOwnerIdentity = owner.identity,
+			aggregateOwnerSemanticRevision = owner.semanticRevision,
+			coverageStartTimeMs = dependent.coverageStartTimeMs,
+			observedTimeMs = dependent.observedTimeMs,
+			latestPossibleTimeMs = dependent.latestPossibleTimeMs,
+			wallTimeUncertaintyMs = dependent.wallTimeUncertaintyMs,
+			storedZoneId = dependent.storedZoneId,
+			availability = dependent.availability,
+			resultCompleteness = dependent.resultCompleteness,
+			submittedResultCount = dependent.submittedResultCount,
+			acceptedResultCount = dependent.acceptedResultCount,
+			staleResultCount = dependent.staleResultCount,
+			clockUnverifiableResultCount = dependent.clockUnverifiableResultCount,
+			malformedResultCount = dependent.malformedResultCount,
+			observationCount = dependent.observationCount,
+			twoPointFourGhzCount = dependent.twoPointFourGhzCount,
+			fiveGhzCount = dependent.fiveGhzCount,
+			sixGhzCount = dependent.sixGhzCount,
+			otherBandCount = dependent.otherBandCount,
+			strongestSignalDbm = -39,
+			weakestSignalDbm = dependent.weakestSignalDbm,
+			meanSignalDbm = dependent.meanSignalDbm,
+			sourceQualityFlags = dependent.sourceQualityFlags,
+			sourceQualityConfidence = dependent.sourceQualityConfidence,
+		)
+		val corruptRun = PortableWifiIntegrity.createRun(
+			identity = imported.runs.single().identity,
+			deletionScopeDigest = imported.runs.single().deletionScopeDigest,
+			startTimeMs = imported.runs.single().startTimeMs,
+			endTimeMs = imported.runs.single().endTimeMs,
+			storedZoneIds = imported.runs.single().storedZoneIds,
+			captureCoverage = imported.runs.single().captureCoverage,
+			availability = imported.runs.single().availability,
+			acquisitionCompleteness = imported.runs.single().acquisitionCompleteness,
+			hasUnresolvedProviderRange = false,
+			retentionLoss = false,
+			observations = listOf(owner, corruptedDependent).sortedWith(
+				com.adsamcik.tracker.stats.api.repository.PORTABLE_WIFI_OBSERVATION_ORDER,
+			),
+		)
+		val corruptEntry = PortableWifiIntegrity.createEntry(
+			imported.identity,
+			imported.sessionMode,
+			imported.startTimeMs,
+			imported.endTimeMs,
+			listOf(corruptRun),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_wifi_observation SET content_checksum = ?, strongest_signal_dbm = ? " +
+				"WHERE identity = ?",
+			arrayOf(corruptedDependent.contentChecksum.value, -39, dependent.identity.value),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_wifi_run SET content_checksum = ?",
+			arrayOf(corruptRun.contentChecksum.value),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_wifi_entry_revision SET content_checksum = ?",
+			arrayOf(corruptEntry.contentChecksum.value),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_wifi_receipt SET entry_content_checksum = ?",
+			arrayOf(corruptEntry.contentChecksum.value),
+		)
+		val corrupt = database.withTransaction {
+			productEvaluator().selectIdentityInTransaction(
+				WifiImportedHistorySelectionKey(imported.identity.value),
+			)
+		} as ImportedWifiProductEvaluation.Unverifiable
+		corrupt.reason shouldBe ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE
+
+		val overflow = database.withTransaction {
+			productEvaluator(ImportedWifiProductLimits(maximumAuthorityRows = 1))
+				.selectIdentityInTransaction(WifiImportedHistorySelectionKey(imported.identity.value))
+		} as ImportedWifiProductEvaluation.Unverifiable
+		overflow.reason shouldBe ImportedWifiProductFailure.DEPENDENCY_OVERFLOW
+
+		val cancelling = productEvaluator(checkpoint = { stage ->
+			if (stage == ImportedWifiProductReadCheckpoint.LINEAGES_LOADED) {
+				throw CancellationException("cancel imported product read")
+			}
+		})
+		shouldThrow<CancellationException> {
+			database.withTransaction {
+				cancelling.selectIdentityInTransaction(
+					WifiImportedHistorySelectionKey(imported.identity.value),
+				)
+			}
+		}
+
+	}
+
+	@Test
+	fun `product evaluator authenticates an old complete lineage but withholds stale epoch values`() = runTest {
+		val imported = entry()
+		importer(testScheduler).importEntry(request(imported))
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH + 1L, null, 60L) shouldBe 1
+
+		val stale = database.withTransaction {
+			productEvaluator().selectIdentityInTransaction(
+				WifiImportedHistorySelectionKey(imported.identity.value),
+			)
+		} as ImportedWifiProductEvaluation.Unverifiable
+
+		stale.reason shouldBe ImportedWifiProductFailure.STALE_COLLECTED_DATA_EPOCH
+	}
+
+	@Test
+	fun `latest imported reexport emits only after Room snapshot and propagates sink cancellation`() = runTest {
+		val imported = entry()
+		importer(testScheduler).importEntry(request(imported))
+		val reexport = RoomReexportImportedCapturedWifi(
+			database,
+			productEvaluator(),
+			UnconfinedTestDispatcher(testScheduler),
+		)
+		var sinkInTransaction = true
+		val emitted = mutableListOf<PortableCapturedWifiEntryV1>()
+		val result = reexport.reexport(
+			ReexportImportedCapturedWifiRequest(
+				importedSelection(imported),
+				EPOCH,
+			),
+		) { entry ->
+			sinkInTransaction = database.openHelper.writableDatabase.inTransaction()
+			emitted += entry
+		}
+		result shouldBe ReexportImportedCapturedWifiResult.Exported(
+			1L,
+			imported.identity,
+			imported.contentChecksum,
+			1,
+			1,
+		)
+		sinkInTransaction shouldBe false
+		emitted.single() shouldBe imported
+
+		shouldThrow<CancellationException> {
+			reexport.reexport(
+				ReexportImportedCapturedWifiRequest(
+					importedSelection(imported),
+					EPOCH,
+				),
+			) { throw CancellationException("cancel imported sink") }
+		}
+		shouldThrow<IllegalStateException> {
+			reexport.reexport(
+				ReexportImportedCapturedWifiRequest(
+					importedSelection(imported),
+					EPOCH,
+				),
+			) { throw IllegalStateException("imported sink failed") }
+		}
+	}
+
+	@Test
+	fun `imported reexport withholds retention deletion epoch change and closed storage`() = runTest {
+		val imported = entry()
+		importer(testScheduler).importEntry(request(imported))
+		val selection = importedSelection(imported)
+		fun reexporter() = RoomReexportImportedCapturedWifi(
+			database,
+			productEvaluator(),
+			UnconfinedTestDispatcher(testScheduler),
+		)
+
+		reexporter().reexport(
+			ReexportImportedCapturedWifiRequest(selection, EPOCH + 1L),
+		) {} shouldBe ReexportImportedCapturedWifiResult.Blocked(
+			com.adsamcik.tracker.stats.api.repository.ImportedWifiReexportBlockedReason
+				.COLLECTED_DATA_EPOCH_CHANGED,
+		)
+
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 901L, 70L) shouldBe 1
+		reexporter().reexport(
+			ReexportImportedCapturedWifiRequest(selection, EPOCH),
+		) {} shouldBe ReexportImportedCapturedWifiResult.Unavailable(
+			com.adsamcik.tracker.stats.api.repository.ImportedWifiReexportUnavailableReason.RETENTION_LIMIT,
+		)
+
+		database.close()
+		database = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>())
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+		importer(testScheduler).importEntry(request(imported))
+		val run = imported.runs.single()
+		database.importedWifiDao().insertDeletionGeneration(
+			ImportedWifiDeletionGenerationEntity.create(
+				run.identity.value,
+				imported.identity.value,
+				run.deletionScopeDigest.value,
+				EPOCH,
+				1L,
+				71L,
+			),
+		)
+		reexporter().reexport(
+			ReexportImportedCapturedWifiRequest(selection, EPOCH),
+		) {} shouldBe ReexportImportedCapturedWifiResult.Deleted
+
+		database.close()
+		reexporter().reexport(
+			ReexportImportedCapturedWifiRequest(selection, EPOCH),
+		) {} shouldBe ReexportImportedCapturedWifiResult.RetryableFailure(
+			PortableWifiRetryableReason.STORAGE_UNAVAILABLE,
+		)
+	}
+
+	@Test
 	fun `storage failure is typed and never reported as an admitted entry`() = runTest {
 		val importer = importer(testScheduler)
 		database.close()
@@ -646,6 +1018,11 @@ class RoomImportPortableCapturedWifiTest {
 		limits,
 	)
 
+	private fun productEvaluator(
+		limits: ImportedWifiProductLimits = ImportedWifiProductLimits(),
+		checkpoint: suspend (ImportedWifiProductReadCheckpoint) -> Unit = {},
+	) = RoomImportedWifiProductEvaluator(database, checkpoint, limits)
+
 	private fun request(
 		entry: PortableCapturedWifiEntryV1 = entry(),
 		receipt: PortableCapturedWifiImportReceipt = receipt(),
@@ -653,6 +1030,15 @@ class RoomImportPortableCapturedWifiTest {
 
 	private fun receipt(jobId: String = "job-1", receivedAtMs: Long = 30L) =
 		PortableCapturedWifiImportReceipt(jobId, "entry-1", "backup.trackerwifi", receivedAtMs)
+
+	private fun importedSelection(
+		entry: PortableCapturedWifiEntryV1,
+		importRevision: Long = 1L,
+	) = WifiImportedHistorySelection(
+		WifiImportedHistorySelectionKey(entry.identity.value),
+		importRevision,
+		entry.contentChecksum.value,
+	)
 
 	private fun entry(
 		observation: PortableCapturedWifiObservationV1 = observation(),
@@ -698,6 +1084,39 @@ class RoomImportPortableCapturedWifiTest {
 		)
 	}
 
+	private fun entryWithRuns(
+		vararg runs: PortableCapturedWifiRunV1,
+	): PortableCapturedWifiEntryV1 {
+		val ordered = runs.sortedWith(com.adsamcik.tracker.stats.api.repository.PORTABLE_WIFI_RUN_ORDER)
+		return PortableWifiIntegrity.createEntry(
+			identity = identity(PortableWifiIdentityKind.LOGICAL_ENTRY, "entry"),
+			sessionMode = PortableWifiSessionMode.MANUAL,
+			startTimeMs = ordered.minOf { it.startTimeMs },
+			endTimeMs = ordered.maxOf { it.endTimeMs },
+			runs = ordered,
+		)
+	}
+
+	private fun run(
+		localId: String,
+		deletionScope: String,
+		observations: List<PortableCapturedWifiObservationV1>,
+	): PortableCapturedWifiRunV1 = PortableWifiIntegrity.createRun(
+		identity = identity(PortableWifiIdentityKind.PHYSICAL_RUN, localId),
+		deletionScopeDigest = PortableWifiDeletionScopeDigest(deletionScope),
+		startTimeMs = 800L,
+		endTimeMs = 1_200L,
+		storedZoneIds = listOf("Europe/Prague"),
+		captureCoverage = PortableWifiCaptureCoverage.WHOLE_RUN,
+		availability = PortableWifiRunAvailability.RETAINED,
+		acquisitionCompleteness = PortableWifiAcquisitionCompleteness.COMPLETE,
+		hasUnresolvedProviderRange = false,
+		retentionLoss = false,
+		observations = observations.sortedWith(
+			com.adsamcik.tracker.stats.api.repository.PORTABLE_WIFI_OBSERVATION_ORDER,
+		),
+	)
+
 	private fun observation(
 		localId: String = "observation",
 		semanticRevision: Long = 1L,
@@ -731,6 +1150,40 @@ class RoomImportPortableCapturedWifiTest {
 		meanSignalDbm = -50.0,
 		sourceQualityFlags = 0L,
 		sourceQualityConfidence = 1f,
+	)
+
+	private fun PortableCapturedWifiObservationV1.copyWithTimes(
+		coverageStartTimeMs: Long,
+		observedTimeMs: Long,
+		wallTimeUncertaintyMs: Long,
+	): PortableCapturedWifiObservationV1 = PortableWifiIntegrity.createObservation(
+		identity = identity,
+		semanticRevision = semanticRevision,
+		supersedesSemanticRevision = supersedesSemanticRevision,
+		aggregateOwnerIdentity = aggregateOwnerIdentity,
+		aggregateOwnerSemanticRevision = aggregateOwnerSemanticRevision,
+		coverageStartTimeMs = coverageStartTimeMs,
+		observedTimeMs = observedTimeMs,
+		latestPossibleTimeMs = Math.addExact(observedTimeMs, wallTimeUncertaintyMs),
+		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+		storedZoneId = storedZoneId,
+		availability = availability,
+		resultCompleteness = resultCompleteness,
+		submittedResultCount = submittedResultCount,
+		acceptedResultCount = acceptedResultCount,
+		staleResultCount = staleResultCount,
+		clockUnverifiableResultCount = clockUnverifiableResultCount,
+		malformedResultCount = malformedResultCount,
+		observationCount = observationCount,
+		twoPointFourGhzCount = twoPointFourGhzCount,
+		fiveGhzCount = fiveGhzCount,
+		sixGhzCount = sixGhzCount,
+		otherBandCount = otherBandCount,
+		strongestSignalDbm = strongestSignalDbm,
+		weakestSignalDbm = weakestSignalDbm,
+		meanSignalDbm = meanSignalDbm,
+		sourceQualityFlags = sourceQualityFlags,
+		sourceQualityConfidence = sourceQualityConfidence,
 	)
 
 	private fun identity(kind: PortableWifiIdentityKind, local: String) =

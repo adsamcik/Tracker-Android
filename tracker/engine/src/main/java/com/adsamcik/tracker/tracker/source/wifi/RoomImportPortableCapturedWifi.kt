@@ -31,6 +31,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableWifiIdentityKind
 import com.adsamcik.tracker.stats.api.repository.PortableWifiOpaqueIdentity
 import com.adsamcik.tracker.stats.api.repository.PortableWifiRetryableReason
 import com.adsamcik.tracker.stats.api.repository.WifiCapturedPortableFormatV1
+import com.adsamcik.tracker.stats.api.repository.isReciprocalCorrectionOf
 import java.time.DateTimeException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -240,8 +241,8 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 		entry: PortableCapturedWifiEntryV1,
 		state: SourceEvidenceState,
 	) {
-		val ownership = WifiIncomingOwnership(entry)
-		ownership.identities.keys.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { values ->
+		val ownership = WifiPortableOpaqueOwnership(entry)
+		ownership.identityOwners.keys.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { values ->
 			val limit = Math.addExact(values.size, 1)
 			val entries = storedValue { dao.existingEntryIdentities(values, limit) }
 			val runs = storedValue { dao.existingRunIdentityOwners(values, limit) }
@@ -259,11 +260,22 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 				generations.any { it.collectedDataEpoch != state.collectedDataEpoch }
 			) storedCorrupt()
 			if (scopes.isNotEmpty() || tombstones.isNotEmpty() || generations.isNotEmpty() ||
-				entries.any { ownership.identities[it] != PortableWifiIdentityKind.LOGICAL_ENTRY } ||
-				runs.any { row -> ownership.runOwners[row.identity] !=
-					(row.entryIdentity to row.deletionScopeDigest) } ||
-				observations.any { row -> ownership.observationOwners[row.identity] !=
-					(row.entryIdentity to row.runIdentity) }
+				entries.any {
+					ownership.identityOwners[it]?.kind != PortableWifiIdentityKind.LOGICAL_ENTRY
+				} ||
+				runs.any { row ->
+					val owner = ownership.identityOwners[row.identity]
+					owner?.kind != PortableWifiIdentityKind.PHYSICAL_RUN ||
+						owner.entryIdentity != row.entryIdentity ||
+						owner.runIdentity != row.identity ||
+						owner.deletionScopeDigest != row.deletionScopeDigest
+				} ||
+				observations.any { row ->
+					val owner = ownership.identityOwners[row.identity]
+					owner?.kind != PortableWifiIdentityKind.OBSERVATION ||
+						owner.entryIdentity != row.entryIdentity ||
+						owner.runIdentity != row.runIdentity
+				}
 			) blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
 		}
 		ownership.scopeOwners.keys.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { values ->
@@ -282,8 +294,12 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 			) storedCorrupt()
 			if (entries.isNotEmpty() || runs.isNotEmpty() || observations.isNotEmpty() ||
 				tombstones.isNotEmpty() || generations.isNotEmpty() || scopes.size >= limit ||
-				scopes.any { row -> ownership.scopeOwners[row.deletionScopeDigest] !=
-					(row.entryIdentity to row.runIdentity) }
+				scopes.any { row ->
+					val owner = ownership.scopeOwners[row.deletionScopeDigest]
+					owner?.kind != PortableWifiIdentityKind.PHYSICAL_RUN ||
+						owner.entryIdentity != row.entryIdentity ||
+						owner.runIdentity != row.runIdentity
+				}
 			) blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
 		}
 	}
@@ -293,7 +309,7 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 		entry: PortableCapturedWifiEntryV1,
 		state: SourceEvidenceState,
 	) {
-		val incoming = WifiIncomingOwnership(entry).allValues
+		val incoming = WifiPortableOpaqueOwnership(entry).allValues
 		incoming.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { values ->
 			val limit = Math.toIntExact(limits.maximumGlobalAuthorityRows + 1L)
 			val fences = storedValue {
@@ -609,26 +625,6 @@ private data class NewWifiRows(
 	val zones: Long = 0L,
 	val observations: Long = 0L,
 )
-
-private class WifiIncomingOwnership(entry: PortableCapturedWifiEntryV1) {
-	val identities: Map<String, PortableWifiIdentityKind> = buildMap {
-		put(entry.identity.value, PortableWifiIdentityKind.LOGICAL_ENTRY)
-		entry.runs.forEach { run ->
-			put(run.identity.value, PortableWifiIdentityKind.PHYSICAL_RUN)
-			run.observations.forEach { put(it.identity.value, PortableWifiIdentityKind.OBSERVATION) }
-		}
-	}
-	val runOwners: Map<String, Pair<String, String>> = entry.runs.associate {
-		it.identity.value to (entry.identity.value to it.deletionScopeDigest.value)
-	}
-	val observationOwners: Map<String, Pair<String, String>> = entry.runs.flatMap { run ->
-		run.observations.map { it.identity.value to (entry.identity.value to run.identity.value) }
-	}.toMap()
-	val scopeOwners: Map<String, Pair<String, String>> = entry.runs.associate {
-		it.deletionScopeDigest.value to (entry.identity.value to it.identity.value)
-	}
-	val allValues: Set<String> = identities.keys + scopeOwners.keys
-}
 
 private fun SourceEvidenceState.hasValidWifiImportShape(): Boolean =
 	id == SourceEvidenceState.SINGLETON_ID && revision >= 0L && collectedDataEpoch >= 0L &&
