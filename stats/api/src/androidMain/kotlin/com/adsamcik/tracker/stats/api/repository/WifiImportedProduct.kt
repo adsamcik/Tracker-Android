@@ -67,9 +67,16 @@ sealed interface ImportedWifiProductEvaluation {
 		val reason: ImportedWifiProductFailure,
 		/** Known top-level local collision retained even when imported descendants are corrupt. */
 		val collidingLocalLogicalTrackingId: String? = null,
+		/** Present only when current selector authority was authenticated independently of the failure. */
+		val authenticatedSelection: WifiImportedHistorySelection? = null,
 	) : ImportedWifiProductEvaluation {
 		init {
 			require(collidingLocalLogicalTrackingId?.isNotBlank() != false)
+			require(authenticatedSelection == null || authenticatedSelection == candidate.selection)
+			require(
+				authenticatedSelection == null ||
+					reason == ImportedWifiProductFailure.VALUE_OVERFLOW,
+			)
 		}
 	}
 }

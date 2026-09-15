@@ -150,6 +150,59 @@ class WifiImportedHistoryRepositoryTest {
 		repository.session(1L) shouldBe WifiHistoryQuery.NotFound
 	}
 
+	@Test
+	fun `public and transactional lookup preserve only authenticated failed selection`() = runTest {
+		val entry = portableEntry()
+		val candidate = ImportedWifiProductCandidate(
+			entry.identity,
+			1L,
+			entry.contentChecksum,
+			entry.startTimeMs,
+			entry.endTimeMs,
+			3_000L,
+			entry.runs.single().startTimeMs,
+			entry.runs.single().identity,
+		)
+		val failure = ImportedWifiProductEvaluation.Unverifiable(
+			candidate,
+			com.adsamcik.tracker.stats.api.repository.ImportedWifiProductFailure.VALUE_OVERFLOW,
+			authenticatedSelection = candidate.selection,
+		)
+		val evaluator = object : ImportedWifiProductEvaluator {
+			override suspend fun selectIdentityInTransaction(
+				selection: WifiImportedHistorySelectionKey,
+			): ImportedWifiProductEvaluation = failure
+
+			override suspend fun selectRecentInTransaction(
+				limit: Int,
+			): List<ImportedWifiProductEvaluation> = listOf(failure)
+
+			override suspend fun selectRangeInTransaction(
+				request: ImportedWifiProductRangeRequest,
+			): ImportedWifiProductRangePage = ImportedWifiProductRangePage(listOf(failure), false)
+		}
+		val repository = DefaultWifiHistoryRepository(
+			database,
+			SourceProductLaneExecutionAuthority { false },
+			evaluator,
+			object : ReadLocalPortableCapturedWifi {
+				override suspend fun readInTransaction(
+					request: ExportPortableCapturedWifiRequest,
+				): ReadLocalPortableCapturedWifiResult = error("No local collision expected")
+			},
+			WifiDeletedHistoryReader { WifiDeletedHistoryResult.NotDeleted },
+			UnconfinedTestDispatcher(testScheduler),
+		)
+
+		val public = (repository.imported(candidate.selection.key) as WifiHistoryQuery.Found).entry
+		val transactional = database.withTransaction {
+			repository.lookup(WifiHistorySelection.Imported(candidate.selection))
+		} as WifiHistoryQuery.Found
+
+		public.selection shouldBe WifiHistorySelection.Imported(candidate.selection)
+		transactional.entry shouldBe public
+	}
+
 	private fun portableEntry(): PortableCapturedWifiEntryV1 {
 		val observation = PortableWifiIntegrity.createObservation(
 			identity = identity(PortableWifiIdentityKind.OBSERVATION, "observation"),

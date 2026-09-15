@@ -26,11 +26,12 @@ internal fun ImportedWifiProductEvaluation.toPublicWifiEntry(
 	is ImportedWifiProductEvaluation.Unverifiable -> when (val cause = reason.toPublicCause()) {
 		WifiHistoryCause.PRIVACY_EPOCH_MISMATCH -> unavailable(cause)
 		else -> failed(
-			if (originConflict || collidingLocalLogicalTrackingId != null) {
+			cause = if (originConflict || collidingLocalLogicalTrackingId != null) {
 				WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT
 			} else {
 				cause
 			},
+			selection = authenticatedSelection,
 		)
 	}
 	is ImportedWifiProductEvaluation.Readable -> when {
@@ -173,8 +174,10 @@ private fun PortableCapturedWifiObservationV1.toPublicObservation(): WifiHistory
 	)
 }
 
-private fun ImportedWifiProductEvaluation.failed(cause: WifiHistoryCause) =
-	publicShell(WifiHistoryProductState.FAILED, cause)
+private fun ImportedWifiProductEvaluation.failed(
+	cause: WifiHistoryCause,
+	selection: com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelection? = null,
+) = publicShell(WifiHistoryProductState.FAILED, cause, selection)
 
 private fun ImportedWifiProductEvaluation.unavailable(cause: WifiHistoryCause) =
 	publicShell(WifiHistoryProductState.UNAVAILABLE, cause, authenticatedSelection())

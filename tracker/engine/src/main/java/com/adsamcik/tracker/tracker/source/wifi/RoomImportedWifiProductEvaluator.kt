@@ -111,10 +111,11 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 	): List<ImportedWifiProductEvaluation> {
 		if (candidates.isEmpty()) return emptyList()
 		var localOwners: LocalWifiOwnerSnapshot? = null
+		val authenticatedSelections = linkedSetOf<String>()
 		return try {
 			val snapshot = loadLocalOwnerSnapshot()
 			localOwners = snapshot
-			evaluate(candidates, snapshot)
+			evaluate(candidates, snapshot, authenticatedSelections)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (failure: ImportedWifiProductAbort) {
@@ -127,7 +128,11 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 				localOwners,
 			)
 		} catch (_: ArithmeticException) {
-			candidates.unverifiable(ImportedWifiProductFailure.VALUE_OVERFLOW, localOwners)
+			candidates.unverifiable(
+				ImportedWifiProductFailure.VALUE_OVERFLOW,
+				localOwners,
+				authenticatedSelections,
+			)
 		} catch (_: DateTimeException) {
 			candidates.unverifiable(
 				ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
@@ -145,6 +150,7 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 	private suspend fun evaluate(
 		candidates: List<ImportedWifiHistoryCandidate>,
 		localOwners: LocalWifiOwnerSnapshot,
+		authenticatedSelections: MutableSet<String>,
 	): List<ImportedWifiProductEvaluation> {
 		if (candidates.isEmpty()) return emptyList()
 		checkpoint(ImportedWifiProductReadCheckpoint.CANDIDATES_SELECTED)
@@ -200,6 +206,7 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 				stale += candidate.identity
 			} else {
 				current[candidate.identity] = latest
+				authenticatedSelections += candidate.identity
 			}
 		}
 		checkpoint(ImportedWifiProductReadCheckpoint.LINEAGES_AUTHENTICATED)
@@ -737,16 +744,26 @@ private fun ImportedWifiHistoryCandidate.toProductCandidate() = ImportedWifiProd
 private fun ImportedWifiHistoryCandidate.unverifiable(
 	reason: ImportedWifiProductFailure,
 	localOwners: LocalWifiOwnerSnapshot? = null,
+	authenticatedSelections: Set<String> = emptySet(),
 ) = ImportedWifiProductEvaluation.Unverifiable(
 	toProductCandidate(),
 	reason,
 	localOwners?.topLevelCollision(identity),
+	authenticatedSelection = candidateSelectionIfAuthenticated(reason, authenticatedSelections),
 )
 
 private fun List<ImportedWifiHistoryCandidate>.unverifiable(
 	reason: ImportedWifiProductFailure,
 	localOwners: LocalWifiOwnerSnapshot? = null,
-) = map { it.unverifiable(reason, localOwners) }
+	authenticatedSelections: Set<String> = emptySet(),
+) = map { it.unverifiable(reason, localOwners, authenticatedSelections) }
+
+private fun ImportedWifiHistoryCandidate.candidateSelectionIfAuthenticated(
+	reason: ImportedWifiProductFailure,
+	authenticatedSelections: Set<String>,
+) = toProductCandidate().selection.takeIf {
+	reason == ImportedWifiProductFailure.VALUE_OVERFLOW && identity in authenticatedSelections
+}
 
 private fun SourceDeletionFenceEntity.isExactWifiDeletionFence(): Boolean =
 	sourceKind == SourceDestinationOwnerEntity.SOURCE_WIFI &&

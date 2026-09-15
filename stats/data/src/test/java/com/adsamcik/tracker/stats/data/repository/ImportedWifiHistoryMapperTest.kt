@@ -159,6 +159,27 @@ class ImportedWifiHistoryMapperTest {
 	}
 
 	@Test
+	fun `failed shell preserves only an independently authenticated current selector`() {
+		val entry = entry(listOf(run("run", observation("observation", 1_100L))))
+		val candidate = candidate(entry)
+		val selected = ImportedWifiProductEvaluation.Unverifiable(
+			candidate = candidate,
+			reason = ImportedWifiProductFailure.VALUE_OVERFLOW,
+			authenticatedSelection = candidate.selection,
+		).toPublicWifiEntry()
+		selected.state shouldBe WifiHistoryProductState.FAILED
+		selected.selection shouldBe com.adsamcik.tracker.stats.api.repository.WifiHistorySelection.Imported(
+			candidate.selection,
+		)
+
+		val corrupt = ImportedWifiProductEvaluation.Unverifiable(
+			candidate,
+			ImportedWifiProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+		).toPublicWifiEntry()
+		corrupt.selection shouldBe null
+	}
+
+	@Test
 	fun `exact full portable duplicate may collapse but payload mismatch fails typed`() {
 		val portable = entry(listOf(run("run", observation("observation", 1_100L))))
 		val imported = readable(portable, collidingLocalLogicalId = "entry")
