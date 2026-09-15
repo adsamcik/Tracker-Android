@@ -784,6 +784,8 @@ abstract class AppDatabase : RoomDatabase() {
 			database.importedCellDao().deleteAllEntryDeletions()
 			database.importedCellDao().deleteAllDeletionGenerations()
 			database.wifiCapturedFactDao().deleteAllCursors()
+			// Wi-Fi coverage revisions reference aggregate owners through an immediate RESTRICT FK.
+			database.wifiCapturedFactDao().deleteAllDependentRevisions()
 			database.wifiCapturedFactDao().deleteAllRevisions()
 			database.wifiCapturedFactDao().deleteAllDeletionGenerations()
 			database.importedWifiDao().deleteAllReceipts()

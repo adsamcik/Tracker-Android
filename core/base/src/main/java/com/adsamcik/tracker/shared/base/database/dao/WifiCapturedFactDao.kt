@@ -915,6 +915,12 @@ interface WifiCapturedFactDao {
 	@Query("DELETE FROM wifi_captured_fact_cursor")
 	fun deleteAllCursors()
 
+	@Query(
+		"DELETE FROM wifi_captured_fact_revision WHERE fact_kind = 'COVERAGE_ONLY' " +
+			"OR aggregate_owner_logical_fact_id IS NOT NULL",
+	)
+	fun deleteAllDependentRevisions()
+
 	@Query("DELETE FROM wifi_captured_fact_revision")
 	fun deleteAllRevisions()
 
