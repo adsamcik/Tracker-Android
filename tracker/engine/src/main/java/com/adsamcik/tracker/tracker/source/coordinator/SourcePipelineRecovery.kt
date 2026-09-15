@@ -4,7 +4,6 @@ import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.tracker.source.activity.ActivityCapturedFactProjectionLane
-
 import com.adsamcik.tracker.tracker.source.cell.CellSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationOutboxDispatcher
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
@@ -15,6 +14,7 @@ import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjection
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecovery
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecoveryResult
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
+import com.adsamcik.tracker.tracker.source.wifi.WifiSessionFactProjectionLane
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Provider
@@ -36,8 +36,8 @@ class SourcePipelineRecovery private constructor(
 	private val stepsProjectionLane: StepsSessionFactProjectionLane?,
 	private val pressureProjectionLane: PressureSessionFactProjectionLane?,
 	private val capturedActivityProjectionLane: ActivityCapturedFactProjectionLane?,
-
 	private val cellProjectionLane: CellSessionFactProjectionLane?,
+	private val wifiProjectionLane: WifiSessionFactProjectionLane?,
 	applicationScope: CoroutineScope?,
 	private val startupGateProvider: Provider<TrackingStartupGate>?,
 	@Suppress("UNUSED_PARAMETER") constructionMarker: Unit,
@@ -56,8 +56,8 @@ class SourcePipelineRecovery private constructor(
 		stepsProjectionLane: StepsSessionFactProjectionLane,
 		pressureProjectionLane: PressureSessionFactProjectionLane,
 		capturedActivityProjectionLane: ActivityCapturedFactProjectionLane,
-
 		cellProjectionLane: CellSessionFactProjectionLane,
+		wifiProjectionLane: WifiSessionFactProjectionLane,
 		@ApplicationScope applicationScope: CoroutineScope,
 		startupGateProvider: Provider<TrackingStartupGate>,
 	) : this(
@@ -68,8 +68,8 @@ class SourcePipelineRecovery private constructor(
 		stepsProjectionLane,
 		pressureProjectionLane,
 		capturedActivityProjectionLane,
-
 		cellProjectionLane,
+		wifiProjectionLane,
 		applicationScope,
 		startupGateProvider,
 		Unit,
@@ -90,6 +90,7 @@ class SourcePipelineRecovery private constructor(
 		null,
 		null,
 		null,
+		null,
 		applicationScope,
 		null,
 		Unit,
@@ -111,6 +112,7 @@ class SourcePipelineRecovery private constructor(
 		null,
 		null,
 		null,
+		null,
 		Unit,
 	)
 
@@ -126,6 +128,7 @@ class SourcePipelineRecovery private constructor(
 		coordinator,
 		activityProjectionLane,
 		activityEffects,
+		null,
 		null,
 		null,
 		null,
@@ -148,6 +151,7 @@ class SourcePipelineRecovery private constructor(
 		activityProjectionLane,
 		activityEffects,
 		stepsProjectionLane,
+		null,
 		null,
 		null,
 		null,
@@ -171,6 +175,7 @@ class SourcePipelineRecovery private constructor(
 		activityEffects,
 		stepsProjectionLane,
 		pressureProjectionLane,
+		null,
 		null,
 		null,
 		applicationScope,
@@ -186,8 +191,8 @@ class SourcePipelineRecovery private constructor(
 		stepsProjectionLane: StepsSessionFactProjectionLane,
 		pressureProjectionLane: PressureSessionFactProjectionLane,
 		capturedActivityProjectionLane: ActivityCapturedFactProjectionLane,
-
 		cellProjectionLane: CellSessionFactProjectionLane,
+		wifiProjectionLane: WifiSessionFactProjectionLane,
 		applicationScope: CoroutineScope,
 	) : this(
 		legacyRecovery,
@@ -197,8 +202,8 @@ class SourcePipelineRecovery private constructor(
 		stepsProjectionLane,
 		pressureProjectionLane,
 		capturedActivityProjectionLane,
-
 		cellProjectionLane,
+		wifiProjectionLane,
 		applicationScope,
 		null,
 		Unit,
@@ -251,6 +256,11 @@ class SourcePipelineRecovery private constructor(
 		cellProjectionLane?.requestDrain()
 	}
 
+	/** Source-local Wi-Fi hint; callbacks never join an active scan or sibling lane. */
+	fun requestWifiSessionFactDrain() {
+		wifiProjectionLane?.requestDrain()
+	}
+
 	/** Recovers durable projections only; it deliberately cannot invoke application consumers. */
 	suspend fun recoverDurableState(): SourceRecoveryResult {
 		val legacyResult = recoverStartupAuthority()
@@ -281,8 +291,8 @@ class SourcePipelineRecovery private constructor(
 		stepsProjectionLane?.requestDrain()
 		pressureProjectionLane?.requestDrain()
 		capturedActivityProjectionLane?.requestDrain()
-
 		cellProjectionLane?.requestDrain()
+		wifiProjectionLane?.requestDrain()
 		return legacyResult
 	}
 

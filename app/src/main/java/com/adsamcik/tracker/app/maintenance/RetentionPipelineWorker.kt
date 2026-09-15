@@ -32,6 +32,7 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
+import com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionService
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
@@ -52,6 +53,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
 	private val importedActivityRetentionProvider: Provider<RoomTruncateImportedActivityRetention>,
 
 	private val cellCapturedRetentionService: CellCapturedRetentionService,
+	private val wifiCapturedRetentionService: WifiCapturedRetentionService,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
@@ -100,6 +102,8 @@ class RetentionPipelineWorker @AssistedInject constructor(
 			// Captured Cell maintenance authenticates retained WAL, so it must precede physical
 			// source-event pruning while remaining after source-evidence/Steps settlement.
 			pruneCapturedCellData(appDatabase, config, now, startupGeneration)
+			// Wi-Fi authenticates its own retained WAL before the shared physical pruning pass.
+			pruneCapturedWifiData(appDatabase, config, now, startupGeneration)
 			if (rawCutoff != null) {
 				requireReadyGeneration(startupGeneration)
 				appDatabase.pruneSourceEventStorageBefore(
@@ -263,6 +267,25 @@ class RetentionPipelineWorker @AssistedInject constructor(
 			)
 		} ?: throw StartupGenerationChangedException
     }
+
+	private suspend fun pruneCapturedWifiData(
+		db: AppDatabase,
+		config: RetentionConfigState,
+		now: Long,
+		startupGeneration: Long,
+	) {
+		if (config.wifiCellRetentionDays == 0) return
+		requireReadyGeneration(startupGeneration)
+		val cutoff = computeWifiCellCutoffMillis(config.wifiCellRetentionDays, now)
+		requireReadyGeneration(startupGeneration)
+		trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
+			wifiCapturedRetentionService.prune(
+				database = db,
+				beforeMs = cutoff,
+				markedAtMs = now,
+			)
+		} ?: throw StartupGenerationChangedException
+	}
 
     private suspend fun purgeWifiCellData(
 		db: AppDatabase,

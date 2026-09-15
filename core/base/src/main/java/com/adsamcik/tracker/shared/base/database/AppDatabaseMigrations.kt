@@ -2379,6 +2379,150 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS wifi_captured_fact_revision (
+					writer_projection_id TEXT NOT NULL,
+					writer_projection_version INTEGER NOT NULL,
+					writer_binding_generation INTEGER NOT NULL,
+					writer_owner_generation INTEGER NOT NULL,
+					logical_fact_id TEXT NOT NULL,
+					semantic_revision INTEGER NOT NULL,
+					supersedes_semantic_revision INTEGER,
+					mutation_id TEXT NOT NULL,
+					fact_kind TEXT NOT NULL,
+					aggregate_owner_logical_fact_id TEXT,
+					aggregate_owner_semantic_revision INTEGER,
+					aggregate_owner_cursor_revision INTEGER,
+					logical_tracking_id TEXT NOT NULL,
+					service_run_id TEXT NOT NULL,
+					session_segment_id INTEGER NOT NULL,
+					purpose TEXT NOT NULL,
+					captured_source_codes TEXT NOT NULL,
+					control_source_codes TEXT NOT NULL,
+					source_event_id TEXT NOT NULL,
+					source_admission_ordinal INTEGER NOT NULL,
+					wal_integrity_identity TEXT NOT NULL,
+					payload_checksum TEXT NOT NULL,
+					source_delivery_identity TEXT NOT NULL,
+					delivery_unit_index INTEGER NOT NULL,
+					delivery_unit_count INTEGER NOT NULL,
+					source_sequence INTEGER NOT NULL,
+					plan_attribution TEXT NOT NULL,
+					source_instance_id TEXT NOT NULL,
+					registration_generation INTEGER NOT NULL,
+					configuration_revision INTEGER NOT NULL,
+					physical_configuration_fingerprint TEXT NOT NULL,
+					authorization_revision INTEGER NOT NULL,
+					authorization_fingerprint TEXT NOT NULL,
+					purpose_eligibility_mask INTEGER NOT NULL,
+					source_policy_revision INTEGER NOT NULL,
+					capture_consent_epoch INTEGER NOT NULL,
+					manifest_revision INTEGER NOT NULL,
+					lifecycle_lease_generation INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					scope_deletion_generation INTEGER NOT NULL,
+					clock_domain_id TEXT NOT NULL,
+					stored_zone_id TEXT NOT NULL,
+					plan_payload_version INTEGER NOT NULL,
+					plan_payload_checksum TEXT NOT NULL,
+					maximum_observation_age_nanos INTEGER NOT NULL,
+					result_contract TEXT NOT NULL,
+					registration_applied_at_nanos INTEGER NOT NULL,
+					provider_acceptance_start_nanos INTEGER NOT NULL,
+					provider_acceptance_end_nanos INTEGER NOT NULL,
+					authorization_effect_start_nanos INTEGER NOT NULL,
+					authorization_effect_end_nanos INTEGER NOT NULL,
+					session_run_effect_start_nanos INTEGER NOT NULL,
+					session_run_effect_end_nanos INTEGER NOT NULL,
+					observed_interval_start_nanos INTEGER NOT NULL,
+					observed_elapsed_nanos INTEGER NOT NULL,
+					received_elapsed_nanos INTEGER NOT NULL,
+					coverage_interval_start_nanos INTEGER NOT NULL,
+					coverage_interval_end_nanos INTEGER NOT NULL,
+					observed_wall_time_ms INTEGER NOT NULL,
+					wall_time_uncertainty_ms INTEGER NOT NULL,
+					acquired_at_ms INTEGER NOT NULL,
+					quality_flags INTEGER NOT NULL,
+					quality_confidence REAL,
+					availability TEXT NOT NULL,
+					submitted_result_count INTEGER NOT NULL,
+					accepted_result_count INTEGER NOT NULL,
+					stale_result_count INTEGER NOT NULL,
+					clock_unverifiable_result_count INTEGER NOT NULL,
+					malformed_result_count INTEGER NOT NULL,
+					coverage_completeness TEXT NOT NULL,
+					observation_count INTEGER,
+					two_point_four_ghz_count INTEGER,
+					five_ghz_count INTEGER,
+					six_ghz_count INTEGER,
+					other_band_count INTEGER,
+					strongest_signal_dbm INTEGER,
+					weakest_signal_dbm INTEGER,
+					signal_sum_dbm INTEGER,
+					effect_checksum TEXT NOT NULL,
+					applied_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(writer_projection_id, writer_projection_version, logical_fact_id, semantic_revision),
+					FOREIGN KEY(writer_projection_id, writer_projection_version,
+						aggregate_owner_logical_fact_id, aggregate_owner_semantic_revision)
+						REFERENCES wifi_captured_fact_revision(writer_projection_id,
+						writer_projection_version, logical_fact_id, semantic_revision)
+						ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_wifi_captured_fact_mutation " +
+					"ON wifi_captured_fact_revision(writer_projection_id, writer_projection_version, mutation_id)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_wifi_captured_fact_admission " +
+					"ON wifi_captured_fact_revision(writer_projection_id, writer_projection_version, " +
+					"source_admission_ordinal)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_wifi_captured_fact_run_scope " +
+					"ON wifi_captured_fact_revision(service_run_id, logical_tracking_id, session_segment_id)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_wifi_captured_fact_aggregate_owner " +
+					"ON wifi_captured_fact_revision(writer_projection_id, writer_projection_version, " +
+					"aggregate_owner_logical_fact_id, aggregate_owner_semantic_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS wifi_captured_fact_cursor (
+					writer_projection_id TEXT NOT NULL,
+					writer_projection_version INTEGER NOT NULL,
+					logical_fact_id TEXT NOT NULL,
+					logical_tracking_id TEXT NOT NULL,
+					service_run_id TEXT NOT NULL,
+					session_segment_id INTEGER NOT NULL,
+					writer_owner_generation INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					scope_deletion_generation INTEGER NOT NULL,
+					latest_semantic_revision INTEGER NOT NULL,
+					latest_mutation_id TEXT NOT NULL,
+					latest_effect_checksum TEXT NOT NULL,
+					latest_source_admission_ordinal INTEGER NOT NULL,
+					cursor_revision INTEGER NOT NULL,
+					updated_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(writer_projection_id, writer_projection_version, logical_fact_id)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS wifi_capture_deletion_generation (
+					logical_tracking_id TEXT NOT NULL,
+					service_run_id TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					generation INTEGER NOT NULL,
+					updated_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(logical_tracking_id, service_run_id)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS cell_captured_fact_revision (
 					writer_projection_id TEXT NOT NULL,
 					writer_projection_version INTEGER NOT NULL,
@@ -3634,6 +3778,210 @@ val MIGRATION_27_28: Migration = object : Migration(
 					legacy_settings_fingerprint, updated_at_ms
 				) VALUES (1, 'UNINITIALIZED', 0, NULL, 0)
 				""".trimIndent(),
+			)
+			// Captured Wi-Fi portable imports are a separate identity-free product origin. These
+			// rows never backfill live provider, demand, writer, WAL, or location authority.
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_wifi_entry_revision (
+					identity TEXT NOT NULL,
+					import_revision INTEGER NOT NULL,
+					supersedes_import_revision INTEGER,
+					content_checksum TEXT NOT NULL,
+					source_format TEXT NOT NULL,
+					source_schema_version INTEGER NOT NULL,
+					session_mode TEXT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					import_job_id TEXT NOT NULL,
+					import_entry_key TEXT NOT NULL,
+					import_source_name TEXT NOT NULL,
+					received_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(identity, import_revision)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_wifi_entry_receipt " +
+					"ON imported_wifi_entry_revision(import_job_id, import_entry_key)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_wifi_receipt (
+					import_job_id TEXT NOT NULL,
+					import_entry_key TEXT NOT NULL,
+					import_source_name TEXT NOT NULL,
+					received_at_ms INTEGER NOT NULL,
+					entry_identity TEXT NOT NULL,
+					entry_import_revision INTEGER NOT NULL,
+					entry_content_checksum TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					PRIMARY KEY(import_job_id, import_entry_key),
+					FOREIGN KEY(entry_identity, entry_import_revision)
+						REFERENCES imported_wifi_entry_revision(identity, import_revision)
+						ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_wifi_receipt_entry " +
+					"ON imported_wifi_receipt(entry_identity, entry_import_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_wifi_run (
+					entry_identity TEXT NOT NULL,
+					entry_import_revision INTEGER NOT NULL,
+					identity TEXT NOT NULL,
+					deletion_scope_digest TEXT NOT NULL,
+					content_checksum TEXT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					capture_coverage TEXT NOT NULL,
+					availability TEXT NOT NULL,
+					acquisition_completeness TEXT NOT NULL,
+					has_unresolved_provider_range INTEGER NOT NULL,
+					retention_loss INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					scope_deletion_generation INTEGER NOT NULL,
+					PRIMARY KEY(entry_identity, entry_import_revision, identity),
+					FOREIGN KEY(entry_identity, entry_import_revision)
+						REFERENCES imported_wifi_entry_revision(identity, import_revision)
+						ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_wifi_run_entry " +
+					"ON imported_wifi_run(entry_identity, entry_import_revision)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_wifi_run_identity " +
+					"ON imported_wifi_run(identity)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_wifi_run_scope " +
+					"ON imported_wifi_run(deletion_scope_digest)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_wifi_run_zone (
+					entry_identity TEXT NOT NULL,
+					entry_import_revision INTEGER NOT NULL,
+					run_identity TEXT NOT NULL,
+					ordinal INTEGER NOT NULL,
+					zone_id TEXT NOT NULL,
+					PRIMARY KEY(entry_identity, entry_import_revision, run_identity, ordinal),
+					FOREIGN KEY(entry_identity, entry_import_revision, run_identity)
+						REFERENCES imported_wifi_run(entry_identity, entry_import_revision, identity)
+						ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_wifi_run_zone_run " +
+					"ON imported_wifi_run_zone(entry_identity, entry_import_revision, run_identity)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_wifi_observation (
+					entry_identity TEXT NOT NULL,
+					entry_import_revision INTEGER NOT NULL,
+					run_identity TEXT NOT NULL,
+					identity TEXT NOT NULL,
+					semantic_revision INTEGER NOT NULL,
+					supersedes_semantic_revision INTEGER,
+					aggregate_owner_identity TEXT,
+					aggregate_owner_semantic_revision INTEGER,
+					content_checksum TEXT NOT NULL,
+					coverage_start_time_ms INTEGER NOT NULL,
+					observed_time_ms INTEGER NOT NULL,
+					latest_possible_time_ms INTEGER NOT NULL,
+					wall_time_uncertainty_ms INTEGER NOT NULL,
+					stored_zone_id TEXT NOT NULL,
+					availability TEXT NOT NULL,
+					result_completeness TEXT NOT NULL,
+					submitted_result_count INTEGER NOT NULL,
+					accepted_result_count INTEGER NOT NULL,
+					stale_result_count INTEGER NOT NULL,
+					clock_unverifiable_result_count INTEGER NOT NULL,
+					malformed_result_count INTEGER NOT NULL,
+					observation_count INTEGER NOT NULL,
+					two_point_four_ghz_count INTEGER NOT NULL,
+					five_ghz_count INTEGER NOT NULL,
+					six_ghz_count INTEGER NOT NULL,
+					other_band_count INTEGER NOT NULL,
+					strongest_signal_dbm INTEGER NOT NULL,
+					weakest_signal_dbm INTEGER NOT NULL,
+					mean_signal_dbm REAL NOT NULL,
+					source_quality_flags INTEGER NOT NULL,
+					source_quality_confidence REAL,
+					PRIMARY KEY(entry_identity, entry_import_revision, run_identity, identity),
+					FOREIGN KEY(entry_identity, entry_import_revision, run_identity)
+						REFERENCES imported_wifi_run(entry_identity, entry_import_revision, identity)
+						ON UPDATE NO ACTION ON DELETE CASCADE,
+					FOREIGN KEY(
+						entry_identity, entry_import_revision, run_identity,
+						aggregate_owner_identity, aggregate_owner_semantic_revision
+					) REFERENCES imported_wifi_observation(
+						entry_identity, entry_import_revision, run_identity, identity, semantic_revision
+					) ON UPDATE NO ACTION ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_wifi_observation_run " +
+					"ON imported_wifi_observation(entry_identity, entry_import_revision, run_identity)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_wifi_observation_identity " +
+					"ON imported_wifi_observation(identity)",
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_wifi_observation_semantic_owner " +
+					"ON imported_wifi_observation(" +
+					"entry_identity, entry_import_revision, run_identity, identity, semantic_revision)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_wifi_observation_aggregate_owner " +
+					"ON imported_wifi_observation(" +
+					"entry_identity, entry_import_revision, run_identity, " +
+					"aggregate_owner_identity, aggregate_owner_semantic_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_wifi_entry_deletion (
+					entry_identity TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					deleted_import_revision INTEGER NOT NULL,
+					deleted_at_ms INTEGER NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					PRIMARY KEY(entry_identity)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_wifi_deletion_generation (
+					run_identity TEXT NOT NULL,
+					entry_identity TEXT NOT NULL,
+					deletion_scope_digest TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					generation INTEGER NOT NULL,
+					deleted_at_ms INTEGER NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					PRIMARY KEY(run_identity)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_wifi_deletion_entry " +
+					"ON imported_wifi_deletion_generation(entry_identity)",
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_wifi_deletion_scope " +
+					"ON imported_wifi_deletion_generation(deletion_scope_digest)",
 			)
 		}
 	}

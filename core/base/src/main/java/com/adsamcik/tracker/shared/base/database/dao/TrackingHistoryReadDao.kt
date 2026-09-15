@@ -189,6 +189,18 @@ interface TrackingHistoryReadDao {
 		limit: Int,
 	): List<SessionSegment>
 
+	/** Raw reverse side of one logical entry; callers must authenticate every run/segment pair. */
+	@Query(
+		"SELECT * FROM session_segment WHERE logical_tracking_id = :logicalTrackingId " +
+			"OR service_run_id IN (:serviceRunIds) " +
+			"ORDER BY start_time_ms, id LIMIT :limit",
+	)
+	suspend fun rawLogicalEntrySegments(
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<SessionSegment>
+
 	/** Keyset page of exact or explicitly attributed migrated siblings for logical entries. */
 	@Query(
 		"SELECT segment.* FROM session_segment AS segment " +
@@ -596,6 +608,19 @@ interface TrackingHistoryReadDao {
 	)
 	suspend fun sourceCompleteness(
 		sourceKind: Int,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<SourceSessionCompletenessEntity>
+
+	/** Source-local bounded settlement read for product consumers that must ignore sibling sources. */
+	@Query(
+		"SELECT * FROM source_session_completeness WHERE source_kind = :sourceKind " +
+			"AND (logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds)) " +
+			"ORDER BY service_run_id, source_instance_id, registration_generation LIMIT :limit",
+	)
+	suspend fun completenessForSource(
+		sourceKind: Int,
+		logicalTrackingId: String,
 		serviceRunIds: List<String>,
 		limit: Int,
 	): List<SourceSessionCompletenessEntity>

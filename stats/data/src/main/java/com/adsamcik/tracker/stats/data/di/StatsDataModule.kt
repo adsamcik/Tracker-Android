@@ -21,6 +21,7 @@ import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.repository.TripRepository
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.WindowedMetricsProvider
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.WifiObservationRepository
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
 import com.adsamcik.tracker.stats.data.metric.DefaultMetricDirtyTracker
@@ -40,6 +41,7 @@ import com.adsamcik.tracker.stats.data.repository.DefaultSessionStatsRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultSkiRunSegmentRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultTripRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultTrackingHistoryRepository
+import com.adsamcik.tracker.stats.data.repository.DefaultWifiHistoryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWifiObservationRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWindowedMetricsProvider
 import com.adsamcik.tracker.stats.data.scheduler.WorkManagerAchievementEvaluationScheduler
@@ -201,6 +203,17 @@ internal abstract class CellHistoryDataModule {
 	abstract fun bindCellHistoryRepository(
 		impl: DefaultCellHistoryRepository,
 	): CellHistoryRepository
+}
+
+/** Keeps the source-specific Wi-Fi reader dormant from shared product composition. */
+@Module
+@InstallIn(SingletonComponent::class)
+internal abstract class WifiHistoryDataModule {
+	@Binds
+	@Singleton
+	abstract fun bindWifiHistoryRepository(
+		impl: DefaultWifiHistoryRepository,
+	): WifiHistoryRepository
 }
 
 /**

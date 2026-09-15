@@ -27,6 +27,7 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -1527,6 +1528,251 @@ class WifiSourceRuntimeTest {
 		coVerify(exactly = 2) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
 		verify(exactly = 2) { fixture.backend.start(any()) }
 		verify(exactly = 1) { fixture.backend.stop() }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `capture deletion barrier drains FIFO and resumes ambient callbacks without provider effects`() =
+		runTest {
+			val ambient = registration(
+				plan(1L),
+				authorizationRevision = 2L,
+				purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+			)
+			val fixture = runtimeFixture(this, registrationsToReturn = listOf(ambient))
+			val firstEntered = CompletableDeferred<Unit>()
+			val releaseFirst = CompletableDeferred<Unit>()
+			val frequencies = mutableListOf<Int>()
+			val sink = wifiCandidateSink { candidate ->
+				val frequency = (candidate.payload as WifiResultSnapshotPayload)
+					.accessPoints.single().frequencyMhz
+				frequencies += frequency
+				if (frequencies.size == 1) {
+					firstEntered.complete(Unit)
+					releaseFirst.await()
+				}
+				SourceAdmissionHandoff.Durable(frequencies.size.toLong())
+			}
+			coEvery {
+				fixture.registrations.publishWifiCaptureCallbackBarrier(ambient, 1L)
+			} returns WifiCaptureCallbackBarrierPublication.Established(2L)
+			fixture.start(sink)
+
+			fixture.emit(resultEvent(frequencyMhz = 2_412, receivedNanos = 10_000_000L))
+			firstEntered.await()
+			val barrier = async { fixture.runtime.establishCaptureDeletionBarrier(1L) }
+			runCurrent()
+			assertFalse(barrier.isCompleted)
+			fixture.emit(resultEvent(frequencyMhz = 5_180, receivedNanos = 20_000_000L))
+			releaseFirst.complete(Unit)
+			advanceUntilIdle()
+
+			assertEquals(WifiCaptureDeletionBarrierResult.Established(2L), barrier.await())
+			fixture.emit(resultEvent(frequencyMhz = 5_500, receivedNanos = 30_000_000L))
+			advanceUntilIdle()
+			assertEquals(listOf(2_412, 5_500), frequencies)
+			verify(exactly = 1) { fixture.backend.start(any()) }
+			verify(exactly = 0) { fixture.backend.stop() }
+			verify(exactly = 0) { fixture.backend.requestScan() }
+			coVerify(exactly = 1) {
+				fixture.registrations.publishWifiCaptureCallbackBarrier(ambient, 1L)
+			}
+			fixture.runtime.close()
+		}
+
+	@Test
+	fun `capture deletion barrier refuses active session capture without touching provider`() = runTest {
+		val capture = registration(plan(1L), authorizationRevision = 1L)
+		val fixture = runtimeFixture(this, registrationsToReturn = listOf(capture))
+		fixture.start(wifiCandidateSink { SourceAdmissionHandoff.Durable(1L) })
+
+		assertEquals(
+			WifiCaptureDeletionBarrierResult.Blocked(
+				WifiCaptureDeletionBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
+			),
+			fixture.runtime.establishCaptureDeletionBarrier(1L),
+		)
+		coVerify(exactly = 0) {
+			fixture.registrations.publishWifiCaptureCallbackBarrier(any(), any())
+		}
+		verify(exactly = 1) { fixture.backend.start(any()) }
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `capture deletion drain timeout resumes exact ambient callback lane`() = runTest {
+		val ambient = registration(
+			plan(1L),
+			authorizationRevision = 2L,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)
+		val fixture = runtimeFixture(this, registrationsToReturn = listOf(ambient))
+		val firstEntered = CompletableDeferred<Unit>()
+		val releaseFirst = CompletableDeferred<Unit>()
+		val admitted = mutableListOf<Int>()
+		fixture.start(wifiCandidateSink { candidate ->
+			admitted += (candidate.payload as WifiResultSnapshotPayload)
+				.accessPoints.single().frequencyMhz
+			if (admitted.size == 1) {
+				firstEntered.complete(Unit)
+				releaseFirst.await()
+			}
+			SourceAdmissionHandoff.Durable(admitted.size.toLong())
+		})
+		fixture.emit(resultEvent(frequencyMhz = 2_412, receivedNanos = 10_000_000L))
+		firstEntered.await()
+		val barrier = async { fixture.runtime.establishCaptureDeletionBarrier(1L) }
+		runCurrent()
+		advanceTimeBy(3_001L)
+		runCurrent()
+
+		assertEquals(
+			WifiCaptureDeletionBarrierResult.Retryable(
+				WifiCaptureDeletionBarrierRetryableReason.CALLBACK_DRAIN_TIMED_OUT,
+			),
+			barrier.await(),
+		)
+		releaseFirst.complete(Unit)
+		advanceUntilIdle()
+		fixture.emit(resultEvent(frequencyMhz = 5_500, receivedNanos = 30_000_000L))
+		advanceUntilIdle()
+		assertEquals(listOf(2_412, 5_500), admitted)
+		coVerify(exactly = 0) {
+			fixture.registrations.publishWifiCaptureCallbackBarrier(any(), any())
+		}
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `capture deletion barrier publication failure resumes ambient callback lane`() = runTest {
+		val ambient = registration(
+			plan(1L),
+			authorizationRevision = 2L,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)
+		val fixture = runtimeFixture(this, registrationsToReturn = listOf(ambient))
+		coEvery {
+			fixture.registrations.publishWifiCaptureCallbackBarrier(ambient, 1L)
+		} throws IllegalStateException("storage unavailable")
+		fixture.start(wifiCandidateSink { SourceAdmissionHandoff.Durable(1L) })
+
+		assertEquals(
+			WifiCaptureDeletionBarrierResult.Retryable(
+				WifiCaptureDeletionBarrierRetryableReason.BARRIER_PUBLICATION_FAILED,
+			),
+			fixture.runtime.establishCaptureDeletionBarrier(1L),
+		)
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.emit(resultEvent(receivedNanos = 10_000_000L))
+		advanceUntilIdle()
+		coVerify(exactly = 1) {
+			fixture.registrations.publishWifiCaptureCallbackBarrier(ambient, 1L)
+		}
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `unverifiable barrier publication resumes only the retained ambient callback lane`() = runTest {
+		val ambient = registration(
+			plan(1L),
+			authorizationRevision = 2L,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)
+		val fixture = runtimeFixture(this, registrationsToReturn = listOf(ambient))
+		var admitted = 0
+		coEvery {
+			fixture.registrations.publishWifiCaptureCallbackBarrier(ambient, 1L)
+		} returns WifiCaptureCallbackBarrierPublication.Blocked(
+			WifiCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
+		)
+		fixture.start(wifiCandidateSink {
+			admitted += 1
+			SourceAdmissionHandoff.Durable(admitted.toLong())
+		})
+
+		assertEquals(
+			WifiCaptureDeletionBarrierResult.Blocked(
+				WifiCaptureDeletionBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
+			),
+			fixture.runtime.establishCaptureDeletionBarrier(1L),
+		)
+		fixture.emit(resultEvent(receivedNanos = 10_000_000L))
+		advanceUntilIdle()
+
+		assertEquals(1, admitted)
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `stale lifecycle discovered during barrier publication never reopens callback admission`() =
+		runTest {
+			val ambient = registration(
+				plan(1L),
+				authorizationRevision = 2L,
+				purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+			)
+			val fixture = runtimeFixture(this, registrationsToReturn = listOf(ambient))
+			var admitted = 0
+			coEvery {
+				fixture.registrations.publishWifiCaptureCallbackBarrier(ambient, 1L)
+			} returns WifiCaptureCallbackBarrierPublication.Blocked(
+				WifiCaptureCallbackBarrierBlockedReason.STALE_LIFECYCLE,
+			)
+			fixture.start(wifiCandidateSink {
+				admitted += 1
+				SourceAdmissionHandoff.Durable(admitted.toLong())
+			})
+
+			assertEquals(
+				WifiCaptureDeletionBarrierResult.Blocked(
+					WifiCaptureDeletionBarrierBlockedReason.STALE_LIFECYCLE,
+				),
+				fixture.runtime.establishCaptureDeletionBarrier(1L),
+			)
+			fixture.emit(resultEvent(receivedNanos = 10_000_000L))
+			advanceUntilIdle()
+
+			assertEquals(0, admitted)
+			verify(exactly = 0) { fixture.backend.stop() }
+			fixture.runtime.close()
+		}
+
+	@Test
+	fun `cancellation while draining attempts to resume the exact ambient callback lane`() = runTest {
+		val ambient = registration(
+			plan(1L),
+			authorizationRevision = 2L,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)
+		val fixture = runtimeFixture(this, registrationsToReturn = listOf(ambient))
+		val firstEntered = CompletableDeferred<Unit>()
+		val releaseFirst = CompletableDeferred<Unit>()
+		val admitted = mutableListOf<Int>()
+		fixture.start(wifiCandidateSink { candidate ->
+			admitted += (candidate.payload as WifiResultSnapshotPayload)
+				.accessPoints.single().frequencyMhz
+			if (admitted.size == 1) {
+				firstEntered.complete(Unit)
+				releaseFirst.await()
+			}
+			SourceAdmissionHandoff.Durable(admitted.size.toLong())
+		})
+		fixture.emit(resultEvent(frequencyMhz = 2_412, receivedNanos = 10_000_000L))
+		firstEntered.await()
+		val barrier = async { fixture.runtime.establishCaptureDeletionBarrier(1L) }
+		runCurrent()
+		barrier.cancel(CancellationException("cancel deletion"))
+		assertFailsWith<CancellationException> { barrier.await() }
+		releaseFirst.complete(Unit)
+		advanceUntilIdle()
+
+		fixture.emit(resultEvent(frequencyMhz = 5_500, receivedNanos = 30_000_000L))
+		advanceUntilIdle()
+		assertEquals(listOf(2_412, 5_500), admitted)
+		verify(exactly = 0) { fixture.backend.stop() }
 		fixture.runtime.close()
 	}
 

@@ -40,6 +40,7 @@ class ExecutableSourceLaneCatalog internal constructor(
 			STEPS_SESSION_FACTS_V2,
 			PRESSURE_SESSION_FACTS,
 			CELL_SESSION_FACTS,
+			WIFI_SESSION_FACTS,
 		),
 	)
 
@@ -134,6 +135,15 @@ class ExecutableSourceLaneCatalog internal constructor(
 			bindingGeneration = SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION,
 			projectionId = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
 			projectionVersion = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
+		)
+
+		/** Dormant source-local Wi-Fi writer contract; executable does not imply activation. */
+		val WIFI_SESSION_FACTS = ExecutableSourceLaneBinding(
+			source = SourceKind.WIFI,
+			bindingGeneration = SourceDestinationOwnerEntity.WIFI_FACT_BINDING_GENERATION,
+			projectionId = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+			projectionVersion = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION,
 			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
 		)
 
@@ -677,6 +687,15 @@ private suspend fun AppDatabase.hasExactCanonicalDestinationOwner(
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
 			) ?: return false
 			owner.owner == SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS &&
+				owner.ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+		}
+		SourceKind.WIFI -> {
+			if (binding != ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS) return false
+			val owner = sourceDestinationOwnerDao().get(
+				SourceDestinationOwnerEntity.SOURCE_WIFI,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI,
+			) ?: return false
+			owner.owner == SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS &&
 				owner.ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
 		}
 		else -> true

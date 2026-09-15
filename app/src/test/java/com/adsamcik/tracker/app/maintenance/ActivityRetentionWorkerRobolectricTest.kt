@@ -286,6 +286,10 @@ class ActivityRetentionWorkerRobolectricTest {
 						coEvery { prune(any(), any(), any()) } returns
 							com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult.NoChange
 					},
+					mockk<com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionService> {
+						coEvery { prune(any(), any(), any()) } returns
+							com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionResult.NoChange
+					},
 				)
 		}
 		return if (path == WorkerPath.LEGACY) {

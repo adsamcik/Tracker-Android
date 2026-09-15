@@ -891,6 +891,10 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "cell_captured_fact_revision", 0)
 		assertTableCount(database, "cell_captured_fact_cursor", 0)
 		assertTableCount(database, "cell_capture_deletion_generation", 0)
+		// Legacy Wi-Fi observations have no v28 WAL/provider authority and remain unpromoted.
+		assertTableCount(database, "wifi_captured_fact_revision", 0)
+		assertTableCount(database, "wifi_captured_fact_cursor", 0)
+		assertTableCount(database, "wifi_capture_deletion_generation", 0)
 		assertIndexColumns(
 			database = database,
 			indexName = "idx_pressure_fact_revision_service_run_scope",
@@ -1402,6 +1406,16 @@ class AppDatabaseMigration27To28Test {
 		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
 		assertEquals(0L, database.cellCapturedFactDao().cursorCount())
 		assertEquals(0L, database.cellCapturedFactDao().deletionGenerationCount())
+		assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
+		assertEquals(0L, database.wifiCapturedFactDao().deletionGenerationCount())
+		assertEquals(0L, database.importedWifiDao().entryRevisionCount())
+		assertEquals(0L, database.importedWifiDao().receiptCount())
+		assertEquals(0L, database.importedWifiDao().runCount())
+		assertEquals(0L, database.importedWifiDao().runZoneCount())
+		assertEquals(0L, database.importedWifiDao().observationCount())
+		assertEquals(0L, database.importedWifiDao().entryDeletionCount())
+		assertEquals(0L, database.importedWifiDao().deletionGenerationCount())
 	}
 
 	private suspend fun seedMigratedAmbientStepsFactRevision(database: AppDatabase) {

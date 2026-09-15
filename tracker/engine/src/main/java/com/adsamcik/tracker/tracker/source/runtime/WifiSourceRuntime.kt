@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.os.SystemClock
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
@@ -22,6 +23,7 @@ import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprin
 import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
@@ -37,6 +39,35 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+
+internal enum class WifiCaptureDeletionBarrierBlockedReason {
+	CAPTURE_AUTHORIZATION_ACTIVE,
+	STALE_LIFECYCLE,
+	STALE_REGISTRATION,
+	AUTHORIZATION_UNVERIFIABLE,
+}
+
+internal enum class WifiCaptureDeletionBarrierRetryableReason {
+	CALLBACK_DRAIN_TIMED_OUT,
+	CALLBACK_LANE_UNAVAILABLE,
+	BARRIER_PUBLICATION_FAILED,
+}
+
+internal sealed interface WifiCaptureDeletionBarrierResult {
+	data object NoLocalProvider : WifiCaptureDeletionBarrierResult
+
+	data class Established(
+		val throughAuthorizationRevision: Long,
+	) : WifiCaptureDeletionBarrierResult
+
+	data class Blocked(
+		val reason: WifiCaptureDeletionBarrierBlockedReason,
+	) : WifiCaptureDeletionBarrierResult
+
+	data class Retryable(
+		val reason: WifiCaptureDeletionBarrierRetryableReason,
+	) : WifiCaptureDeletionBarrierResult
+}
 
 @Singleton
 class WifiSourceRuntime @Inject internal constructor(
@@ -169,6 +200,180 @@ class WifiSourceRuntime @Inject internal constructor(
 			shutdownLocked(cutoff).toOwnedShutdown()
 		}
 	}
+
+	/**
+	 * Closes Wi-Fi callback entry, drains the exact FIFO prefix, and publishes its durable session
+	 * capture barrier without stopping a receiver still justified by CONTROL or AMBIENT_PRODUCT.
+	 */
+	internal suspend fun establishCaptureDeletionBarrier(
+		expectedCollectedDataEpoch: Long,
+	): WifiCaptureDeletionBarrierResult = lifecycleMutex.withLock {
+		require(expectedCollectedDataEpoch >= 0L)
+		val activeRegistration = registration ?: return@withLock
+			WifiCaptureDeletionBarrierResult.NoLocalProvider
+		if (activeRegistration.state.collectedDataEpoch != expectedCollectedDataEpoch) {
+			return@withLock WifiCaptureDeletionBarrierResult.Blocked(
+				WifiCaptureDeletionBarrierBlockedReason.STALE_LIFECYCLE,
+			)
+		}
+		if (activeRegistration.authorization.authorizedMembers.any { member ->
+				member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+			}
+		) return@withLock WifiCaptureDeletionBarrierResult.Blocked(
+			WifiCaptureDeletionBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
+		)
+		if (!activeRegistration.authorization.hasCompatibleWifiNoncaptureAuthorization()) {
+			return@withLock WifiCaptureDeletionBarrierResult.Blocked(
+				WifiCaptureDeletionBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
+			)
+		}
+
+		val activeQueue = queue
+		val activeActor = actor
+		if (activeQueue == null || activeActor == null || !activeActor.isActive) {
+			return@withLock WifiCaptureDeletionBarrierResult.Retryable(
+				WifiCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
+			)
+		}
+		val closed = synchronized(callbackLock) {
+			if (!accepting || refreshAdmissionFenced || registration !== activeRegistration ||
+				queue !== activeQueue
+			) {
+				false
+			} else {
+				accepting = false
+				true
+			}
+		}
+		if (!closed) return@withLock WifiCaptureDeletionBarrierResult.Retryable(
+			WifiCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
+		)
+
+		var cancellation: CancellationException? = null
+		var resumed = false
+		var outcome: WifiCaptureDeletionBarrierResult? = null
+		try {
+			try {
+				wakeups.cancel(WAKEUP_ID)
+				val completion = CompletableDeferred<Unit>()
+				val drained = try {
+					withTimeoutOrNull(DEFAULT_DRAIN_TIMEOUT_MS) {
+						activeQueue.submit(WifiRuntimeInput.CaptureBarrier(completion))
+						completion.await()
+						true
+					} ?: false
+				} catch (cancelled: CancellationException) {
+					throw cancelled
+				} catch (@Suppress("SwallowedException") _: Exception) {
+					null
+				}
+				outcome = when (drained) {
+					null -> WifiCaptureDeletionBarrierResult.Retryable(
+						WifiCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
+					)
+					false -> WifiCaptureDeletionBarrierResult.Retryable(
+						WifiCaptureDeletionBarrierRetryableReason.CALLBACK_DRAIN_TIMED_OUT,
+					)
+					true -> publishCaptureDeletionBarrier(
+						activeRegistration,
+						expectedCollectedDataEpoch,
+					)
+				}
+			} catch (cancelled: CancellationException) {
+				cancellation = cancelled
+			} catch (@Suppress("SwallowedException") _: Exception) {
+				outcome = WifiCaptureDeletionBarrierResult.Retryable(
+					WifiCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
+				)
+			}
+		} finally {
+			// Callback closure is only a session-capture fence. Try to restore the exact compatible
+			// passive/control/ambient lane on every abort, publication failure, and cancellation.
+			resumed = resumeCaptureDeletionBarrierLane(
+				activeRegistration,
+				activeQueue,
+				activeActor,
+				allowResume = outcome.allowsNoncaptureLaneResumption(),
+			)
+		}
+		cancellation?.let { throw it }
+		if (!outcome.allowsNoncaptureLaneResumption()) {
+			requireNotNull(outcome)
+		} else if (!resumed) {
+			WifiCaptureDeletionBarrierResult.Retryable(
+				WifiCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
+			)
+		} else requireNotNull(outcome)
+	}
+
+	private suspend fun publishCaptureDeletionBarrier(
+		activeRegistration: SourceRegistration,
+		expectedCollectedDataEpoch: Long,
+	): WifiCaptureDeletionBarrierResult {
+		val publication = try {
+			registrations.publishWifiCaptureCallbackBarrier(
+				activeRegistration,
+				expectedCollectedDataEpoch,
+			)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (@Suppress("SwallowedException") _: Exception) {
+			return WifiCaptureDeletionBarrierResult.Retryable(
+				WifiCaptureDeletionBarrierRetryableReason.BARRIER_PUBLICATION_FAILED,
+			)
+		}
+		return when (publication) {
+			is WifiCaptureCallbackBarrierPublication.Blocked ->
+				WifiCaptureDeletionBarrierResult.Blocked(
+					when (publication.reason) {
+						WifiCaptureCallbackBarrierBlockedReason.STALE_LIFECYCLE ->
+							WifiCaptureDeletionBarrierBlockedReason.STALE_LIFECYCLE
+						WifiCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION ->
+							WifiCaptureDeletionBarrierBlockedReason.STALE_REGISTRATION
+						WifiCaptureCallbackBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE ->
+							WifiCaptureDeletionBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE
+						WifiCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE ->
+							WifiCaptureDeletionBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE
+					},
+				)
+			is WifiCaptureCallbackBarrierPublication.Established ->
+				WifiCaptureDeletionBarrierResult.Established(
+					publication.throughAuthorizationRevision,
+				)
+		}
+	}
+
+	private fun resumeCaptureDeletionBarrierLane(
+		activeRegistration: SourceRegistration,
+		activeQueue: WifiCallbackLane<WifiRuntimeInput>,
+		activeActor: Job,
+		allowResume: Boolean,
+	): Boolean = synchronized(callbackLock) {
+		val currentRegistration = registration ?: return@synchronized false
+		if (!allowResume || accepting || refreshAdmissionFenced ||
+			currentRegistration !== activeRegistration || queue !== activeQueue || actor !== activeActor ||
+			!activeActor.isActive || cutoffElapsedNanos != null || retirementIntent != null ||
+			currentPlan?.enabled != true || currentSink == null ||
+			!currentRegistration.authorization.hasCompatibleWifiNoncaptureAuthorization()
+		) {
+			false
+		} else {
+			val notified = activeQueue.offer(WifiRuntimeInput.Reconfigured(activeRegistration)) ==
+				WifiLaneOffer.ACCEPTED
+			accepting = notified
+			notified
+		}
+	}
+
+	private fun WifiCaptureDeletionBarrierResult?.allowsNoncaptureLaneResumption(): Boolean =
+		when (this) {
+			is WifiCaptureDeletionBarrierResult.Blocked -> reason !in setOf(
+				WifiCaptureDeletionBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
+				WifiCaptureDeletionBarrierBlockedReason.STALE_LIFECYCLE,
+				WifiCaptureDeletionBarrierBlockedReason.STALE_REGISTRATION,
+			)
+			else -> true
+		}
 
 	private suspend fun refreshCompatibleLocked(
 		claim: SourceRuntimeClaim?,
@@ -647,6 +852,7 @@ class WifiSourceRuntime @Inject internal constructor(
 		inputs.consume inputLoop@{ input ->
 			try {
 				when (input) {
+				is WifiRuntimeInput.CaptureBarrier -> input.completion.complete(Unit)
 				WifiRuntimeInput.Attempt -> {
 					val execution = providerOperationMutex.withLock {
 						val plan = synchronized(callbackLock) {
@@ -1004,6 +1210,9 @@ class WifiSourceRuntime @Inject internal constructor(
 	private sealed interface WifiRuntimeInput {
 		data object Attempt : WifiRuntimeInput
 		data class Reconfigured(val registration: SourceRegistration) : WifiRuntimeInput
+		data class CaptureBarrier(
+			val completion: CompletableDeferred<Unit>,
+		) : WifiRuntimeInput
 		data class Backend(
 			val event: WifiBackendEvent,
 			val callbackSequence: Long,
@@ -1032,6 +1241,15 @@ class WifiSourceRuntime @Inject internal constructor(
 		const val MAX_ACTIVE_ATTEMPTS_PER_REGISTRATION = 1
 	}
 }
+
+private fun SourceAuthorizationSnapshot.hasCompatibleWifiNoncaptureAuthorization(): Boolean =
+	authorizedMembers.isNotEmpty() && authorizedMembers.all { member ->
+		member.purpose in setOf(
+			SourceBrokerPurpose.CONTROL_AUTOSTART,
+			SourceBrokerPurpose.CONTROL_CONTINUATION,
+			SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)
+	}
 
 private enum class WifiProviderRetirement { NOT_DURABLE, PENDING, COMPLETE }
 
@@ -1085,6 +1303,8 @@ internal class WifiCallbackLane<T>(
 			else -> WifiLaneOffer.CAPACITY_EXHAUSTED
 		}
 	}
+
+	suspend fun submit(input: T) = channel.send(input)
 
 	fun close() = channel.close()
 

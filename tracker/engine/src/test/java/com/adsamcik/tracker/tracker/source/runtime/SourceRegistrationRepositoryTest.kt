@@ -967,6 +967,145 @@ class SourceRegistrationRepositoryTest {
 			).toAuthorizationSnapshotOrNull()?.isDenied shouldBe true
 		}
 
+	@Test
+	fun `Wi-Fi callback barrier authenticates exact ambient successor without retiring demands`() =
+		runTest {
+			val capture = wifiDemand(
+				id = "wifi-capture",
+				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				logicalTrackingId = "wifi-session",
+				persistenceEligible = true,
+			)
+			database.sourceBrokerDao().insertDemands(listOf(capture))
+			val reserved = subject.begin(SourceKind.WIFI, 1L, PHYSICAL_CONFIG, 100L, 100L)
+			subject.markAccepted(reserved, 110L, 110L)
+			val ambient = wifiDemand(
+				id = "wifi-ambient",
+				purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+				logicalTrackingId = null,
+				persistenceEligible = true,
+			).copy(
+				requestedElapsedRealtimeNanos = 200L,
+				requestedAtMs = 200L,
+			)
+			database.withTransaction {
+				database.sourceBrokerDao().insertDemands(listOf(ambient))
+				database.fenceSourcePurposesInTransaction(
+					sourceKind = SourceKind.WIFI.stableCode,
+					purposes = listOf(SourceBrokerPurpose.SESSION_CAPTURE),
+					bootId = "boot-7",
+					elapsedRealtimeNanos = 200L,
+					wallTimeMs = 200L,
+				)
+			}
+			val refreshed = requireNotNull(
+				subject.refreshActiveAuthorization(
+					source = SourceKind.WIFI,
+					expectedRegistration = reserved,
+					appliedRevision = 2L,
+					physicalConfigurationFingerprint = PHYSICAL_CONFIG,
+					updatedAtMs = 210L,
+					updatedElapsedRealtimeNanos = 210L,
+				),
+			)
+
+			subject.publishWifiCaptureCallbackBarrier(refreshed, 3L) shouldBe
+				WifiCaptureCallbackBarrierPublication.Established(2L)
+			database.sourceBrokerDao().registration(
+				SourceKind.WIFI.stableCode,
+				refreshed.state.registrationGeneration,
+			)?.captureCallbackBarrierAuthorizationRevision shouldBe 2L
+			database.sourceBrokerDao().demandsByIds(listOf(capture.demandId, ambient.demandId))
+				.associateBy(SourceDemandEntity::demandId)
+				.let { retained ->
+					retained.getValue(capture.demandId).status shouldBe SourceDemandEntity.STATUS_RETIRING
+					retained.getValue(ambient.demandId).status shouldBe SourceDemandEntity.STATUS_ACTIVE
+				}
+	}
+
+	@Test
+	fun `Wi-Fi callback barrier rejects stale lifecycle and stale registration without publication`() =
+		runTest {
+			val ambient = wifiDemand(
+				id = "wifi-ambient",
+				purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+				logicalTrackingId = null,
+				persistenceEligible = true,
+			)
+			database.sourceBrokerDao().insertDemands(listOf(ambient))
+			val registration = subject.begin(SourceKind.WIFI, 1L, PHYSICAL_CONFIG, 100L, 100L)
+			subject.markAccepted(registration, 110L, 110L)
+			val accepted = registration.copy(
+				requiresProviderAcceptance = false,
+				providerAcceptedElapsedRealtimeNanos = 110L,
+			)
+			val staleLifecycle = SourceRegistrationRepository(
+				database,
+				FakeCollectedDataLifecycleStore(CollectedDataLifecycleSnapshot(4L, null)),
+				object : BootClockDomainProvider {
+					override fun current(): String = "boot-7"
+				},
+				processIncarnationIdProvider,
+				rolloutStore,
+			)
+
+			staleLifecycle.publishWifiCaptureCallbackBarrier(accepted, 3L) shouldBe
+				WifiCaptureCallbackBarrierPublication.Blocked(
+					WifiCaptureCallbackBarrierBlockedReason.STALE_LIFECYCLE,
+				)
+			subject.publishWifiCaptureCallbackBarrier(
+				accepted.copy(
+					state = accepted.state.copy(sourceInstanceId = "stale-wifi-instance"),
+				),
+				3L,
+			) shouldBe WifiCaptureCallbackBarrierPublication.Blocked(
+				WifiCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION,
+			)
+			database.sourceBrokerDao().registration(
+				SourceKind.WIFI.stableCode,
+				accepted.state.registrationGeneration,
+			)?.captureCallbackBarrierAuthorizationRevision shouldBe 0L
+		}
+
+	@Test
+	fun `Wi-Fi callback barrier rejects an active demand not represented by current authorization`() =
+		runTest {
+			val ambient = wifiDemand(
+				id = "wifi-ambient",
+				purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+				logicalTrackingId = null,
+				persistenceEligible = true,
+			)
+			database.sourceBrokerDao().insertDemands(listOf(ambient))
+			val reserved = subject.begin(SourceKind.WIFI, 1L, PHYSICAL_CONFIG, 100L, 100L)
+			subject.markAccepted(reserved, 110L, 110L)
+			val accepted = reserved.copy(
+				requiresProviderAcceptance = false,
+				providerAcceptedElapsedRealtimeNanos = 110L,
+			)
+			val racedDemand = ambient.copy(
+				demandId = "wifi-ambient-raced",
+				consumerId = "app:wifi-ambient-raced",
+				requestedElapsedRealtimeNanos = 120L,
+				requestedAtMs = 120L,
+			)
+			database.sourceBrokerDao().insertDemands(listOf(racedDemand))
+
+			subject.publishWifiCaptureCallbackBarrier(accepted, 3L) shouldBe
+				WifiCaptureCallbackBarrierPublication.Blocked(
+					WifiCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
+				)
+			database.sourceBrokerDao().registration(
+				SourceKind.WIFI.stableCode,
+				accepted.state.registrationGeneration,
+			)?.captureCallbackBarrierAuthorizationRevision shouldBe 0L
+			database.sourceBrokerDao().demandsByIds(listOf(ambient.demandId, racedDemand.demandId))
+				.map(SourceDemandEntity::status) shouldBe listOf(
+				SourceDemandEntity.STATUS_ACTIVE,
+				SourceDemandEntity.STATUS_ACTIVE,
+			)
+		}
+
 	private fun demand(
 		id: String,
 		consumerId: String,
@@ -1042,6 +1181,20 @@ class SourceRegistrationRepositoryTest {
 		manifestRevision,
 		persistenceEligible,
 	).copy(sourceKind = SourceKind.CELL.stableCode)
+
+	private fun wifiDemand(
+		id: String,
+		purpose: String,
+		logicalTrackingId: String?,
+		persistenceEligible: Boolean,
+	): SourceDemandEntity = demand(
+		id = id,
+		consumerId = logicalTrackingId?.let { "session:$it" } ?: "app:$id",
+		purpose = purpose,
+		logicalTrackingId = logicalTrackingId,
+		manifestRevision = logicalTrackingId?.let { 1L },
+		persistenceEligible = persistenceEligible,
+	).copy(sourceKind = SourceKind.WIFI.stableCode)
 
 	private companion object {
 		const val PHYSICAL_CONFIG = "physical-config-v1"

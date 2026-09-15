@@ -96,6 +96,14 @@ class RetentionPipelineWorkerTest {
 				RetentionPipelineWorker.computeWifiCellCutoffMillis(1, Long.MIN_VALUE),
 			)
 		}
+
+		@Test
+		fun wifiCellCutoffSaturatesBeforeUnixEpoch() {
+			assertEquals(
+				0L,
+				RetentionPipelineWorker.computeWifiCellCutoffMillis(Int.MAX_VALUE, fixedNow),
+			)
+		}
 	}
 
 	@Nested

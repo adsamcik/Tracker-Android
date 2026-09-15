@@ -39,6 +39,7 @@ import com.adsamcik.tracker.shared.base.database.dao.StepsGoalRepairDayDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedStepsDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceDeletionFenceDao
@@ -49,6 +50,7 @@ import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.dao.TrajectoryReconstructionDao
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
+import com.adsamcik.tracker.shared.base.database.dao.WifiCapturedFactDao
 import com.adsamcik.tracker.shared.base.database.dao.XpLedgerDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
@@ -109,6 +111,13 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetentionR
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityWindowEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityZoneEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiObservationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunZoneEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -120,6 +129,9 @@ import com.adsamcik.tracker.shared.base.database.data.TrajectorySourceLinkEntity
 import com.adsamcik.tracker.shared.base.database.data.TrajectoryStateEntity
 import com.adsamcik.tracker.shared.base.database.data.VisitIntervalEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
+import com.adsamcik.tracker.shared.base.database.data.WifiCaptureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
@@ -259,6 +271,16 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedCellObservationEntity::class,
 			ImportedCellEntryDeletionEntity::class,
 			ImportedCellDeletionGenerationEntity::class,
+			WifiCapturedFactRevisionEntity::class,
+			WifiCapturedFactCursorEntity::class,
+			WifiCaptureDeletionGenerationEntity::class,
+			ImportedWifiEntryRevisionEntity::class,
+			ImportedWifiReceiptEntity::class,
+			ImportedWifiRunEntity::class,
+			ImportedWifiRunZoneEntity::class,
+			ImportedWifiObservationEntity::class,
+			ImportedWifiEntryDeletionEntity::class,
+			ImportedWifiDeletionGenerationEntity::class,
 			SourceDeletionFenceEntity::class,
 			SourceDestinationOwnerEntity::class,
 			ActivitySnapshot::class,
@@ -405,6 +427,11 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Cell-specific imported product storage; this accessor grants no live capture authority. */
 	abstract fun importedCellDao(): ImportedCellDao
+	/** Dormant identity-free Wi-Fi captured-fact persistence. */
+	abstract fun wifiCapturedFactDao(): WifiCapturedFactDao
+
+	/** Dormant imported captured Wi-Fi product evidence; never live source authority. */
+	abstract fun importedWifiDao(): ImportedWifiDao
 
 	/** Provides payload-free source/run deletion authority for source mutation paths. */
 	abstract fun sourceDeletionFenceDao(): SourceDeletionFenceDao
@@ -756,6 +783,13 @@ abstract class AppDatabase : RoomDatabase() {
 			database.importedCellDao().deleteAllEntries()
 			database.importedCellDao().deleteAllEntryDeletions()
 			database.importedCellDao().deleteAllDeletionGenerations()
+			database.wifiCapturedFactDao().deleteAllCursors()
+			database.wifiCapturedFactDao().deleteAllRevisions()
+			database.wifiCapturedFactDao().deleteAllDeletionGenerations()
+			database.importedWifiDao().deleteAllReceipts()
+			database.importedWifiDao().deleteAllEntryRevisions()
+			database.importedWifiDao().deleteAllEntryDeletions()
+			database.importedWifiDao().deleteAllDeletionGenerations()
 			database.stepIntervalDao().deleteAll()
 			database.activitySnapshotDao().deleteAll()
 			database.cellSampleDao().deleteAll()

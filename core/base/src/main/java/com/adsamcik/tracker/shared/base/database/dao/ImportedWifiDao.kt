@@ -1,0 +1,322 @@
+package com.adsamcik.tracker.shared.base.database.dao
+
+import androidx.room.ColumnInfo
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiObservationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunZoneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+
+/** Wi-Fi-local imported-product storage. This DAO grants no live capture authority. */
+@Dao
+abstract class ImportedWifiDao {
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertEntryRevision(row: ImportedWifiEntryRevisionEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertReceipt(row: ImportedWifiReceiptEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertRun(row: ImportedWifiRunEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertRunZone(row: ImportedWifiRunZoneEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertObservation(row: ImportedWifiObservationEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	protected abstract suspend fun insertDeletionGenerationRow(row: ImportedWifiDeletionGenerationEntity)
+
+	suspend fun insertDeletionGeneration(row: ImportedWifiDeletionGenerationEntity) {
+		require(row.generation == 1L)
+		insertDeletionGenerationRow(row)
+	}
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertEntryDeletion(row: ImportedWifiEntryDeletionEntity)
+
+	@Query(
+		"SELECT * FROM imported_wifi_entry_revision WHERE identity = :identity " +
+			"ORDER BY import_revision LIMIT :limit",
+	)
+	protected abstract suspend fun loadEntryRevisions(
+		identity: String,
+		limit: Int,
+	): List<ImportedWifiEntryRevisionEntity>
+
+	suspend fun entryRevisionsForAdmission(identity: String): List<ImportedWifiEntryRevisionEntity> =
+		loadEntryRevisions(identity, MAX_REVISIONS_PER_ENTRY + 1)
+
+	@Query(
+		"SELECT * FROM imported_wifi_receipt WHERE entry_identity = :identity " +
+			"ORDER BY entry_import_revision, import_job_id, import_entry_key LIMIT :limit",
+	)
+	protected abstract suspend fun loadReceipts(
+		identity: String,
+		limit: Int,
+	): List<ImportedWifiReceiptEntity>
+
+	suspend fun receiptsForAdmission(identity: String): List<ImportedWifiReceiptEntity> =
+		loadReceipts(identity, MAX_RECEIPTS_PER_ENTRY + 1)
+
+	@Query(
+		"SELECT * FROM imported_wifi_receipt " +
+			"WHERE import_job_id = :jobId AND import_entry_key = :entryKey",
+	)
+	abstract suspend fun receipt(jobId: String, entryKey: String): ImportedWifiReceiptEntity?
+
+	@Query(
+		"SELECT * FROM imported_wifi_run WHERE entry_identity = :identity " +
+			"ORDER BY entry_import_revision, start_time_ms, identity LIMIT :limit",
+	)
+	protected abstract suspend fun loadAllRuns(
+		identity: String,
+		limit: Int,
+	): List<ImportedWifiRunEntity>
+
+	suspend fun allRunsForAdmission(identity: String): List<ImportedWifiRunEntity> =
+		loadAllRuns(identity, MAX_TOTAL_RUNS_PER_ENTRY_LINEAGE + 1)
+
+	@Query(
+		"SELECT * FROM imported_wifi_run_zone WHERE entry_identity = :identity " +
+			"ORDER BY entry_import_revision, run_identity, ordinal LIMIT :limit",
+	)
+	protected abstract suspend fun loadAllRunZones(
+		identity: String,
+		limit: Int,
+	): List<ImportedWifiRunZoneEntity>
+
+	suspend fun allRunZonesForAdmission(identity: String): List<ImportedWifiRunZoneEntity> =
+		loadAllRunZones(identity, MAX_TOTAL_ZONES_PER_ENTRY_LINEAGE + 1)
+
+	@Query(
+		"SELECT * FROM imported_wifi_observation WHERE entry_identity = :identity " +
+			"ORDER BY entry_import_revision, run_identity, coverage_start_time_ms, observed_time_ms, identity " +
+			"LIMIT :limit",
+	)
+	protected abstract suspend fun loadAllObservations(
+		identity: String,
+		limit: Int,
+	): List<ImportedWifiObservationEntity>
+
+	suspend fun allObservationsForAdmission(identity: String): List<ImportedWifiObservationEntity> =
+		loadAllObservations(identity, MAX_TOTAL_OBSERVATIONS_PER_ENTRY_LINEAGE + 1)
+
+	@Query(
+		"SELECT DISTINCT identity FROM imported_wifi_entry_revision " +
+			"WHERE identity IN (:identities) LIMIT :limit",
+	)
+	abstract suspend fun existingEntryIdentities(identities: List<String>, limit: Int): List<String>
+
+	@Query(
+		"SELECT DISTINCT identity, entry_identity, deletion_scope_digest FROM imported_wifi_run " +
+			"WHERE identity IN (:identities) LIMIT :limit",
+	)
+	abstract suspend fun existingRunIdentityOwners(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedWifiRunIdentityOwner>
+
+	@Query(
+		"SELECT DISTINCT identity, entry_identity, run_identity FROM imported_wifi_observation " +
+			"WHERE identity IN (:identities) LIMIT :limit",
+	)
+	abstract suspend fun existingObservationIdentityOwners(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedWifiObservationIdentityOwner>
+
+	@Query(
+		"SELECT DISTINCT deletion_scope_digest, entry_identity, identity FROM imported_wifi_run " +
+			"WHERE deletion_scope_digest IN (:digests) LIMIT :limit",
+	)
+	abstract suspend fun existingRunScopeOwners(
+		digests: List<String>,
+		limit: Int,
+	): List<ImportedWifiRunScopeOwner>
+
+	@Query("SELECT * FROM imported_wifi_entry_deletion WHERE entry_identity IN (:identities)")
+	abstract suspend fun entryDeletions(identities: List<String>): List<ImportedWifiEntryDeletionEntity>
+
+	@Query("SELECT * FROM imported_wifi_entry_deletion WHERE entry_identity = :identity")
+	abstract suspend fun entryDeletion(identity: String): ImportedWifiEntryDeletionEntity?
+
+	@Query("SELECT * FROM imported_wifi_deletion_generation WHERE run_identity IN (:identities)")
+	abstract suspend fun deletionGenerationsByRun(
+		identities: List<String>,
+	): List<ImportedWifiDeletionGenerationEntity>
+
+	@Query("SELECT * FROM imported_wifi_deletion_generation WHERE entry_identity IN (:identities) LIMIT :limit")
+	abstract suspend fun deletionGenerationsByEntry(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedWifiDeletionGenerationEntity>
+
+	@Query(
+		"SELECT * FROM imported_wifi_deletion_generation " +
+			"WHERE deletion_scope_digest IN (:digests)",
+	)
+	abstract suspend fun deletionGenerationsByScope(
+		digests: List<String>,
+	): List<ImportedWifiDeletionGenerationEntity>
+
+	@Query("SELECT COUNT(*) FROM imported_wifi_entry_revision")
+	abstract suspend fun entryRevisionCount(): Long
+
+	@Query("SELECT COUNT(DISTINCT identity) FROM imported_wifi_entry_revision")
+	abstract suspend fun distinctEntryCount(): Long
+
+	@Query("SELECT COUNT(*) FROM imported_wifi_receipt")
+	abstract suspend fun receiptCount(): Long
+
+	@Query("SELECT COUNT(*) FROM imported_wifi_run")
+	abstract suspend fun runCount(): Long
+
+	@Query("SELECT COUNT(*) FROM imported_wifi_run_zone")
+	abstract suspend fun runZoneCount(): Long
+
+	@Query("SELECT COUNT(*) FROM imported_wifi_observation")
+	abstract suspend fun observationCount(): Long
+
+	@Query("SELECT COUNT(*) FROM imported_wifi_entry_deletion")
+	abstract suspend fun entryDeletionCount(): Long
+
+	@Query("SELECT COUNT(*) FROM imported_wifi_deletion_generation")
+	abstract suspend fun deletionGenerationCount(): Long
+
+	/** Local identifiers are returned only to the Wi-Fi importer for in-memory irreversible hashing. */
+	@Query("SELECT COUNT(*) FROM logical_tracking_session")
+	abstract suspend fun localEntryOwnerCount(): Long
+
+	@Query(
+		"SELECT logical_tracking_id FROM logical_tracking_session " +
+			"WHERE (:afterIdentity IS NULL OR logical_tracking_id > :afterIdentity) " +
+			"ORDER BY logical_tracking_id LIMIT :limit",
+	)
+	abstract suspend fun localEntryOwnerPage(
+		afterIdentity: String?,
+		limit: Int,
+	): List<String>
+
+	@Query("SELECT COUNT(*) FROM source_service_run")
+	abstract suspend fun localRunOwnerCount(): Long
+
+	@Query(
+		"SELECT logical_tracking_id, service_run_id FROM source_service_run " +
+			"WHERE (:afterIdentity IS NULL OR service_run_id > :afterIdentity) " +
+			"ORDER BY service_run_id LIMIT :limit",
+	)
+	abstract suspend fun localRunOwnerPage(
+		afterIdentity: String?,
+		limit: Int,
+	): List<WifiLocalRunOwner>
+
+	@Query("SELECT COUNT(*) FROM (" + LOCAL_OBSERVATION_OWNER_UNION + ")")
+	abstract suspend fun localObservationOwnerCount(): Long
+
+	@Query(
+		"SELECT * FROM (" + LOCAL_OBSERVATION_OWNER_UNION + ") " +
+			"WHERE (:afterIdentity IS NULL OR logical_fact_id > :afterIdentity) " +
+			"ORDER BY logical_fact_id, logical_tracking_id, service_run_id LIMIT :limit",
+	)
+	abstract suspend fun localObservationOwnerPage(
+		afterIdentity: String?,
+		limit: Int,
+	): List<WifiLocalObservationOwner>
+
+	/** All fence namespaces reserve their opaque identity; this query never grants deletion authority. */
+	@Query(
+		"SELECT * FROM source_deletion_fence WHERE scope_identity_digest IN (:identities) " +
+			"ORDER BY scope_identity_digest, source_kind, purpose, scope_kind LIMIT :limit",
+	)
+	abstract suspend fun deletionFenceIdentityOwners(
+		identities: List<String>,
+		limit: Int,
+	): List<SourceDeletionFenceEntity>
+
+	@Query("SELECT COUNT(*) FROM wifi_capture_deletion_generation")
+	abstract suspend fun localDeletionOwnerCount(): Long
+
+	@Query(
+		"SELECT logical_tracking_id, service_run_id FROM wifi_capture_deletion_generation " +
+			"WHERE (:afterIdentity IS NULL OR service_run_id > :afterIdentity) " +
+			"ORDER BY service_run_id LIMIT :limit",
+	)
+	abstract suspend fun localDeletionOwnerPage(
+		afterIdentity: String?,
+		limit: Int,
+	): List<WifiLocalRunOwner>
+
+	@Query("DELETE FROM imported_wifi_receipt")
+	abstract fun deleteAllReceipts()
+
+	@Query("DELETE FROM imported_wifi_entry_revision")
+	abstract fun deleteAllEntryRevisions()
+
+	@Query("DELETE FROM imported_wifi_entry_deletion")
+	abstract fun deleteAllEntryDeletions()
+
+	@Query("DELETE FROM imported_wifi_deletion_generation")
+	abstract fun deleteAllDeletionGenerations()
+
+	companion object {
+		private const val LOCAL_OBSERVATION_OWNER_UNION =
+			"SELECT logical_fact_id, logical_tracking_id, service_run_id FROM wifi_captured_fact_cursor " +
+				"UNION SELECT logical_fact_id, logical_tracking_id, service_run_id " +
+				"FROM wifi_captured_fact_revision " +
+				"UNION SELECT aggregate_owner_logical_fact_id AS logical_fact_id, " +
+				"logical_tracking_id, service_run_id FROM wifi_captured_fact_revision " +
+				"WHERE aggregate_owner_logical_fact_id IS NOT NULL"
+
+		const val MAX_IMPORTED_ENTRIES = 4_096
+		const val MAX_REVISIONS_PER_ENTRY = 16
+		const val MAX_RECEIPTS_PER_ENTRY = 256
+		const val MAX_RUNS_PER_ENTRY = 64
+		const val MAX_ZONES_PER_RUN = 256
+		const val MAX_OBSERVATIONS_PER_ENTRY = 4_096
+		const val MAX_TOTAL_RUNS_PER_ENTRY_LINEAGE = MAX_REVISIONS_PER_ENTRY * MAX_RUNS_PER_ENTRY
+		const val MAX_TOTAL_ZONES_PER_ENTRY_LINEAGE =
+			MAX_TOTAL_RUNS_PER_ENTRY_LINEAGE * MAX_ZONES_PER_RUN
+		const val MAX_TOTAL_OBSERVATIONS_PER_ENTRY_LINEAGE =
+			MAX_REVISIONS_PER_ENTRY * MAX_OBSERVATIONS_PER_ENTRY
+		const val MAX_GLOBAL_AUTHORITY_ROWS = 262_144
+		const val OWNER_PAGE_SIZE = 256
+	}
+}
+
+data class ImportedWifiRunIdentityOwner(
+	val identity: String,
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
+	@ColumnInfo(name = "deletion_scope_digest") val deletionScopeDigest: String,
+)
+
+data class ImportedWifiObservationIdentityOwner(
+	val identity: String,
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
+	@ColumnInfo(name = "run_identity") val runIdentity: String,
+)
+
+data class ImportedWifiRunScopeOwner(
+	@ColumnInfo(name = "deletion_scope_digest") val deletionScopeDigest: String,
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
+	@ColumnInfo(name = "identity") val runIdentity: String,
+)
+
+data class WifiLocalRunOwner(
+	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String,
+	@ColumnInfo(name = "service_run_id") val serviceRunId: String,
+)
+
+data class WifiLocalObservationOwner(
+	@ColumnInfo(name = "logical_fact_id") val logicalFactId: String,
+	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String,
+	@ColumnInfo(name = "service_run_id") val serviceRunId: String,
+)
