@@ -6,6 +6,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.EOFException
 import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.CancellationException
@@ -130,6 +131,19 @@ class PortableActivityJsonV1CodecTest {
 		}
 
 	@Test
+	fun `raw source EOF after a valid prefix escapes with exact identity`() = runTest {
+		val bytes = encode(activityEnvelope(activityEntry()))
+		val original = EOFException("transport interrupted")
+		val failure = shouldThrow<EOFException> {
+			PortableActivityJsonV1Codec().decode(
+				FailingSourceInputStream(bytes.dropLast(1).toByteArray(), original),
+			)
+		}
+
+		(failure === original) shouldBe true
+	}
+
+	@Test
 	fun `lexical guard permanently rejects oversized known string name number and depth`() = runTest {
 		val invalidDocuments = listOf(
 			"{\"format\":\"${"x".repeat(769)}\"}",
@@ -214,6 +228,26 @@ class PortableActivityJsonV1CodecTest {
 			val count = minOf(length, bytes.size - bytesRead)
 			bytes.copyInto(buffer, offset, bytesRead, bytesRead + count)
 			bytesRead += count
+			return count
+		}
+	}
+
+	private class FailingSourceInputStream(
+		private val prefix: ByteArray,
+		private val failure: IOException,
+	) : InputStream() {
+		private var offset = 0
+
+		override fun read(): Int {
+			if (offset >= prefix.size) throw failure
+			return prefix[offset++].toInt() and 0xff
+		}
+
+		override fun read(buffer: ByteArray, targetOffset: Int, length: Int): Int {
+			if (offset >= prefix.size) throw failure
+			val count = minOf(length, prefix.size - offset)
+			prefix.copyInto(buffer, targetOffset, offset, offset + count)
+			offset += count
 			return count
 		}
 	}

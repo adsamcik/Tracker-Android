@@ -91,6 +91,8 @@ internal class PortableActivityJsonV1Codec(
 			envelope
 		} catch (cancelled: CancellationException) {
 			throw cancelled
+		} catch (failure: ActivitySourceReadFailure) {
+			throw failure.original
 		} catch (format: PortableActivityFormatException) {
 			throw format
 		} catch (failure: PortableJsonTokenLimitException) {
@@ -802,15 +804,21 @@ private class BoundedInputStream(
 	private var count = 0L
 
 	override fun read(): Int {
-		val value = super.read()
+		val value = readSource { super.read() }
 		if (value >= 0) include(1)
 		return value
 	}
 
 	override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-		val read = super.read(buffer, offset, length)
+		val read = readSource { super.read(buffer, offset, length) }
 		if (read > 0) include(read)
 		return read
+	}
+
+	private inline fun <T> readSource(block: () -> T): T = try {
+		block()
+	} catch (failure: IOException) {
+		throw ActivitySourceReadFailure(failure)
 	}
 
 	private fun include(bytes: Int) {
@@ -818,6 +826,10 @@ private class BoundedInputStream(
 		if (count > maximumBytes) formatFailure("Portable Activity file exceeds $maximumBytes bytes")
 	}
 }
+
+private class ActivitySourceReadFailure(
+	val original: IOException,
+) : RuntimeException(null, null, false, false)
 
 private class BoundedOutputStream(
 	output: OutputStream,

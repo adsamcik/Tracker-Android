@@ -25,6 +25,7 @@ import io.mockk.every
 import io.mockk.mockk
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.EOFException
 import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.CancellationException
@@ -96,6 +97,45 @@ class PortableActivityFileImportTest {
 			database(epoch = 3L),
 			stream(truncated, "activity.trackeractivity", "receipt"),
 		).failedCount shouldBe 1
+		calls shouldBe 0
+	}
+
+	@Test
+	fun `file adapter preserves raw EOF identity but keeps lexical violation permanent`() = runTest {
+		var calls = 0
+		val importer = PortableActivityFileImport {
+			fakeImporter {
+				calls++
+				ImportPortableCapturedActivityResult.Duplicate(1L)
+			}
+		}
+		val bytes = encode(activityEnvelope(activityEntry()))
+		val original = EOFException("transport interrupted")
+		val rawFailure = shouldThrow<EOFException> {
+			importer.import(
+				mockk(relaxed = true),
+				database(epoch = 1L),
+				FileImportStream(
+					fileName = "activity.trackeractivity",
+					receiptKey = "raw-eof",
+					streamProvider = {
+						FailingSourceInputStream(bytes.dropLast(1).toByteArray(), original)
+					},
+				).withImportReceipt("raw-eof-job", 100L),
+			)
+		}
+		(rawFailure === original) shouldBe true
+
+		val lexical = importer.import(
+			mockk(relaxed = true),
+			database(epoch = 1L),
+			stream(
+				"{\"format\":\"${"x".repeat(769)}\"}".encodeToByteArray(),
+				"activity.trackeractivity",
+				"lexical",
+			),
+		)
+		lexical.failedCount shouldBe 1
 		calls shouldBe 0
 	}
 
@@ -227,11 +267,12 @@ class PortableActivityFileImportTest {
 			fakeImporter { ImportPortableCapturedActivityResult.Duplicate(1L) }
 		}
 		runner.start("format-job", "activity.trackeractivity", 10L)
+		val truncatedBytes = encode(activityEnvelope(activityEntry())).dropLast(1).toByteArray()
 
-		val malformed = runner.importSingle(
+		val truncated = runner.importSingle(
 			jobId = "format-job",
 			stream = unboundStream(
-				"{not-json".encodeToByteArray(),
+				truncatedBytes,
 				"activity.trackeractivity",
 				"direct-entry",
 			),
@@ -240,21 +281,23 @@ class PortableActivityFileImportTest {
 			importer.import(mockk(relaxed = true), database(epoch = 1L), stream)
 		}
 
-		malformed.failedCount shouldBe 1
+		truncated.failedCount shouldBe 1
 		store.entry("format-job", "direct-entry")?.status shouldBe
 			ImportEntryReceiptEntity.STATUS_FAILURE
 
 		runner.start("transport-job", "activity.trackeractivity", 10L)
+		val original = EOFException("transport interrupted")
 		val transport = FileImportStream(
 			fileName = "activity.trackeractivity",
 			receiptKey = "direct-entry",
 			streamProvider = {
-				object : InputStream() {
-					override fun read(): Int = throw IOException("transport unavailable")
-				}
+				FailingSourceInputStream(
+					"{\"format\":\"tracker-portable-captured-activity\"".encodeToByteArray(),
+					original,
+				)
 			},
 		)
-		shouldThrow<IOException> {
+		val transportFailure = shouldThrow<EOFException> {
 			runner.importSingle(
 				jobId = "transport-job",
 				stream = transport,
@@ -262,8 +305,25 @@ class PortableActivityFileImportTest {
 			) { stream ->
 				importer.import(mockk(relaxed = true), database(epoch = 1L), stream)
 			}
-		}.message shouldBe "transport unavailable"
+		}
+		(transportFailure === original) shouldBe true
 		store.entry("transport-job", "direct-entry")?.status shouldBe
+			ImportEntryReceiptEntity.STATUS_FAILURE
+
+		runner.start("lexical-job", "activity.trackeractivity", 10L)
+		val lexical = runner.importSingle(
+			jobId = "lexical-job",
+			stream = unboundStream(
+				"{\"format\":\"${"x".repeat(769)}\"}".encodeToByteArray(),
+				"activity.trackeractivity",
+				"direct-entry",
+			),
+			transactionMode = ImportTransactionMode.IMPORTER_MANAGED,
+		) { stream ->
+			importer.import(mockk(relaxed = true), database(epoch = 1L), stream)
+		}
+		lexical.failedCount shouldBe 1
+		store.entry("lexical-job", "direct-entry")?.status shouldBe
 			ImportEntryReceiptEntity.STATUS_FAILURE
 	}
 
@@ -301,7 +361,27 @@ class PortableActivityFileImportTest {
 			streamProvider = { ByteArrayInputStream(bytes) },
 		)
 
-	private suspend fun encode(
+		private class FailingSourceInputStream(
+			private val prefix: ByteArray,
+			private val failure: IOException,
+		) : InputStream() {
+			private var offset = 0
+
+			override fun read(): Int {
+				if (offset >= prefix.size) throw failure
+				return prefix[offset++].toInt() and 0xff
+			}
+
+			override fun read(buffer: ByteArray, targetOffset: Int, length: Int): Int {
+				if (offset >= prefix.size) throw failure
+				val count = minOf(length, prefix.size - offset)
+				prefix.copyInto(buffer, targetOffset, offset, offset + count)
+				offset += count
+				return count
+			}
+		}
+
+		private suspend fun encode(
 		envelope: com.adsamcik.tracker.shared.base.database.PortableActivityEnvelopeV1,
 	): ByteArray {
 		val output = ByteArrayOutputStream()
