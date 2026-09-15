@@ -42,8 +42,14 @@ fun NavGraphBuilder.dashboardGraph(
             },
             onSourceHistoryDetailClick = { selection ->
                 onSetTripDetailFallback(Dashboard)
-                navController.navigate(SourceHistoryDetailHandoff.register(selection)) {
-                    launchSingleTop = true
+                val route = SourceHistoryDetailHandoff.register(selection)
+                try {
+                    navController.navigate(route) {
+                        launchSingleTop = true
+                    }
+                } catch (error: RuntimeException) {
+                    SourceHistoryDetailHandoff.release(route.selectionToken)
+                    throw error
                 }
             },
             // No extra contentPadding: the DashboardScreen's Scaffold declares
@@ -55,7 +61,6 @@ fun NavGraphBuilder.dashboardGraph(
         )
     }
 }
-
 
 
 

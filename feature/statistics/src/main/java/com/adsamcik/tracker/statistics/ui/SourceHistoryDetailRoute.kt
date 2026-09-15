@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,7 +48,14 @@ fun SourceHistoryDetailRoute(
 	onBack: () -> Unit,
 	viewModel: SourceHistoryDetailViewModel = hiltViewModel(),
 ) {
-	BackHandler(onBack = onBack)
+	val leaveDetail = {
+		viewModel.close()
+		onBack()
+	}
+	BackHandler(onBack = leaveDetail)
+	DisposableEffect(viewModel) {
+		onDispose(viewModel::close)
+	}
 	val state by viewModel.state.collectAsStateWithLifecycle()
 	var showMenu by remember { mutableStateOf(false) }
 	Scaffold(
@@ -55,7 +63,7 @@ fun SourceHistoryDetailRoute(
 			TopAppBar(
 				title = { Text(stringResource(R.string.source_history_detail_title)) },
 				navigationIcon = {
-					IconButton(onClick = onBack) {
+					IconButton(onClick = leaveDetail) {
 						Icon(
 							Icons.AutoMirrored.Filled.ArrowBack,
 							contentDescription = stringResource(R.string.action_navigate_back),
@@ -173,6 +181,8 @@ private fun sourceHistoryUnavailableMessage(
 				R.string.source_history_detail_not_found
 			SourceHistoryDetailUnavailableReason.SOURCE_INTEGRITY_FAILURE ->
 				R.string.source_history_detail_integrity
+			SourceHistoryDetailUnavailableReason.SNAPSHOT_UNAVAILABLE ->
+				R.string.source_history_detail_snapshot_unavailable
 			SourceHistoryDetailUnavailableReason.SELECTION_CHANGED ->
 				R.string.source_history_detail_changed
 			SourceHistoryDetailUnavailableReason.RETRYABLE_FAILURE ->

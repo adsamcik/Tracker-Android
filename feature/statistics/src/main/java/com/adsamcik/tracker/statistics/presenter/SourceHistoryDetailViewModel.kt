@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailHandoff
+import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailSelection
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -24,25 +26,33 @@ class SourceHistoryDetailViewModel @Inject constructor(
 	)
 	val state: StateFlow<SourceHistoryDetailState> = _state.asStateFlow()
 	private var loadJob: Job? = null
+	private var ownedSelection: SourceHistoryDetailSelection? = null
+	private var tokenConsumed = false
+	private var activityPresented = false
+	private var loadGeneration = 0L
 
 	init {
 		retry()
 	}
 
 	fun retry() {
-		val token = selectionToken
-		val selection = token?.let(SourceHistoryDetailHandoff::resolve)
+		val generation = ++loadGeneration
+		loadJob?.cancel()
+		loadJob = null
+		val selection = ownedSelection ?: consumeInitialSelection()
 		if (selection == null) {
-			_state.value = SourceHistoryDetailState.Unavailable(
-				reason = SourceHistoryDetailUnavailableReason.SELECTION_EXPIRED,
-				source = null,
-			)
+			publishExpired()
 			return
 		}
-		loadJob?.cancel()
+		if (activityPresented && selection.entry is SourceAwareHistoryPageEntry.ActivityOnly) {
+			ownedSelection = null
+			publishExpired(selection.entry.source)
+			return
+		}
+		ownedSelection = selection
+		_state.value = SourceHistoryDetailState.Loading
 		loadJob = viewModelScope.launch {
-			_state.value = SourceHistoryDetailState.Loading
-			_state.value = try {
+			val result = try {
 				presenter.load(selection)
 			} catch (cancellation: CancellationException) {
 				throw cancellation
@@ -52,6 +62,47 @@ class SourceHistoryDetailViewModel @Inject constructor(
 					source = selection.entry.source,
 				)
 			}
+			if (generation == loadGeneration && ownedSelection == selection) {
+				_state.value = result
+				if (
+					result is SourceHistoryDetailState.Loaded &&
+					result.selection.entry is SourceAwareHistoryPageEntry.ActivityOnly
+				) {
+					activityPresented = true
+				} else if (
+					result is SourceHistoryDetailState.Unavailable &&
+					selection.entry is SourceAwareHistoryPageEntry.ActivityOnly
+				) {
+					ownedSelection = null
+				}
+			}
 		}
+	}
+
+	/** Releases destination ownership immediately when navigation leaves this detail. */
+	fun close() {
+		++loadGeneration
+		loadJob?.cancel()
+		loadJob = null
+		ownedSelection = null
+		selectionToken?.let(SourceHistoryDetailHandoff::release)
+	}
+
+	override fun onCleared() {
+		close()
+		super.onCleared()
+	}
+
+	private fun consumeInitialSelection(): SourceHistoryDetailSelection? {
+		if (tokenConsumed) return null
+		tokenConsumed = true
+		return selectionToken?.let(SourceHistoryDetailHandoff::consume)
+	}
+
+	private fun publishExpired(source: com.adsamcik.tracker.stats.api.repository.HistorySource? = null) {
+		_state.value = SourceHistoryDetailState.Unavailable(
+			reason = SourceHistoryDetailUnavailableReason.SELECTION_EXPIRED,
+			source = source,
+		)
 	}
 }

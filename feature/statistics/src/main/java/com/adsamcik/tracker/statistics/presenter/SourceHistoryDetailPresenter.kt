@@ -25,6 +25,7 @@ enum class SourceHistoryDetailUnavailableReason {
 	SELECTION_EXPIRED,
 	NOT_FOUND,
 	SOURCE_INTEGRITY_FAILURE,
+	SNAPSHOT_UNAVAILABLE,
 	SELECTION_CHANGED,
 	RETRYABLE_FAILURE,
 }
@@ -36,8 +37,14 @@ class SourceHistoryDetailPresenter @Inject constructor(
 ) {
 	suspend fun load(selection: SourceHistoryDetailSelection): SourceHistoryDetailState =
 		when (val entry = selection.entry) {
-			is SourceAwareHistoryPageEntry.ActivityOnly ->
+			is SourceAwareHistoryPageEntry.ActivityOnly -> if (selection.readSnapshot == null) {
+				SourceHistoryDetailState.Unavailable(
+					reason = SourceHistoryDetailUnavailableReason.SNAPSHOT_UNAVAILABLE,
+					source = HistorySource.ACTIVITY,
+				)
+			} else {
 				SourceHistoryDetailState.Loaded(selection)
+			}
 			is SourceAwareHistoryPageEntry.WifiOnly -> loadWifi(selection)
 			is SourceAwareHistoryPageEntry.CellOnly -> loadCell(selection)
 			is SourceAwareHistoryPageEntry.Physical,

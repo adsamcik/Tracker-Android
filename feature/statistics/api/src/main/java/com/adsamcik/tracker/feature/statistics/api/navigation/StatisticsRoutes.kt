@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.feature.statistics.api.navigation
 
+import com.adsamcik.tracker.shared.base.time.SystemClock
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryActionTarget
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
@@ -61,34 +62,72 @@ data class SourceHistoryDetailSelection(
  */
 object SourceHistoryDetailHandoff {
 	private const val MAX_RETAINED_SELECTIONS = 32
+	private const val SELECTION_TTL_NANOS = 120_000_000_000L
 	private val lock = Any()
-	private val selections = object : LinkedHashMap<String, SourceHistoryDetailSelection>(
-		MAX_RETAINED_SELECTIONS,
-		0.75f,
-		true,
-	) {
-		override fun removeEldestEntry(
-			eldest: MutableMap.MutableEntry<String, SourceHistoryDetailSelection>?,
-		): Boolean = size > MAX_RETAINED_SELECTIONS
-	}
+	private val selections = LinkedHashMap<String, PendingSelection>()
 
-	fun register(selection: SourceHistoryDetailSelection): SourceHistoryDetail {
+	fun register(
+		selection: SourceHistoryDetailSelection,
+		nowElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
+	): SourceHistoryDetail {
+		require(nowElapsedRealtimeNanos >= 0L)
 		val token = UUID.randomUUID().toString()
 		synchronized(lock) {
-			selections[token] = selection
+			pruneExpired(nowElapsedRealtimeNanos)
+			while (selections.size >= MAX_RETAINED_SELECTIONS) {
+				selections.remove(selections.keys.first())
+			}
+			selections[token] = PendingSelection(
+				selection = selection,
+				expiresAtElapsedRealtimeNanos = saturatedAdd(
+					nowElapsedRealtimeNanos,
+					SELECTION_TTL_NANOS,
+				),
+			)
 		}
 		return SourceHistoryDetail(token)
 	}
 
-	fun resolve(selectionToken: String): SourceHistoryDetailSelection? = synchronized(lock) {
-		selections[selectionToken]
+	/**
+	 * Atomically transfers one selection to its destination owner.
+	 *
+	 * A token is single-use: the pending registry removes it before returning the selection.
+	 */
+	fun consume(
+		selectionToken: String,
+		nowElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
+	): SourceHistoryDetailSelection? = synchronized(lock) {
+		require(nowElapsedRealtimeNanos >= 0L)
+		pruneExpired(nowElapsedRealtimeNanos)
+		val pending = selections.remove(selectionToken) ?: return@synchronized null
+		pending.selection.takeIf {
+			pending.expiresAtElapsedRealtimeNanos > nowElapsedRealtimeNanos
+		}
 	}
 
+	/** Releases an unresolved navigation token after failed navigation or abandoned ownership. */
 	fun release(selectionToken: String) {
 		synchronized(lock) {
 			selections.remove(selectionToken)
 		}
 	}
+
+	private fun pruneExpired(nowElapsedRealtimeNanos: Long) {
+		val iterator = selections.entries.iterator()
+		while (iterator.hasNext()) {
+			if (iterator.next().value.expiresAtElapsedRealtimeNanos <= nowElapsedRealtimeNanos) {
+				iterator.remove()
+			}
+		}
+	}
+
+	private fun saturatedAdd(left: Long, right: Long): Long =
+		if (left <= Long.MAX_VALUE - right) left + right else Long.MAX_VALUE
+
+	private data class PendingSelection(
+		val selection: SourceHistoryDetailSelection,
+		val expiresAtElapsedRealtimeNanos: Long,
+	)
 }
 
 @Serializable

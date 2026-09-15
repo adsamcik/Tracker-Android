@@ -121,87 +121,6 @@ class DashboardScreenTest {
 				)
 			}
 
-			@Test
-			fun exactWifiOnlyTracking_showsIdentityFreePartialRadioSurface() {
-				val segmentId = 42L
-				composeRule.setContent {
-					AppTheme(useDynamicColor = false) {
-						DashboardScreen(
-							state = DashboardUiState(
-								dashboardMode = DashboardMode.TRACKING,
-								isTracking = true,
-								sessionData = TrackerSessionSnapshot(id = segmentId, start = 1L),
-								liveSessionPresentation = DashboardLiveSessionPresentation.WifiOnly(
-									segmentId = segmentId,
-									history = DashboardRadioHistoryValue(
-										source = HistorySource.WIFI,
-										origin = DashboardRadioOrigin.LOCAL,
-										state = DashboardRadioProductState.PARTIAL,
-										coverage = DashboardRadioCoverage.PARTIAL,
-										deliveryCount = 1,
-										retainedRecordCount = 2,
-										partialDeliveryCount = 1,
-									),
-								),
-							),
-							onSettingsClick = {},
-							onMapClick = {},
-							onToggleTracking = {},
-							onRequestPermission = {},
-							onGameClick = null,
-							onSessionDetailClick = null,
-							snackbarHostState = remember { SnackbarHostState() },
-						)
-					}
-				}
-
-				composeRule.onNodeWithTag("dashboard_wifi_only_tracking").assertIsDisplayed()
-				composeRule.onNodeWithText("Partial retained radio history").assertIsDisplayed()
-				composeRule.onNodeWithText("2 retained scan results").assertIsDisplayed()
-				composeRule.onAllNodesWithText("GPS", substring = true).assertCountEquals(0)
-				composeRule.onAllNodesWithText("Distance", substring = true).assertCountEquals(0)
-			}
-
-			@Test
-			fun exactCellOnlyTracking_factlessIntentNeverRendersZeroOrTowerIdentity() {
-				val segmentId = 42L
-				composeRule.setContent {
-					AppTheme(useDynamicColor = false) {
-						DashboardScreen(
-							state = DashboardUiState(
-								dashboardMode = DashboardMode.TRACKING,
-								isTracking = true,
-								sessionData = TrackerSessionSnapshot(id = segmentId, start = 1L),
-								liveSessionPresentation = DashboardLiveSessionPresentation.CellOnly(
-									segmentId = segmentId,
-									history = DashboardRadioHistoryValue(
-										source = HistorySource.CELL,
-										origin = DashboardRadioOrigin.LOCAL,
-										state = DashboardRadioProductState.MATERIALIZING,
-										coverage = DashboardRadioCoverage.NONE,
-										deliveryCount = 0,
-										retainedRecordCount = 0,
-										partialDeliveryCount = 0,
-									),
-								),
-							),
-							onSettingsClick = {},
-							onMapClick = {},
-							onToggleTracking = {},
-							onRequestPermission = {},
-							onGameClick = null,
-							onSessionDetailClick = null,
-							snackbarHostState = remember { SnackbarHostState() },
-						)
-					}
-				}
-
-				composeRule.onNodeWithTag("dashboard_cell_only_tracking").assertIsDisplayed()
-				composeRule.onNodeWithText("Waiting for retained radio observations").assertIsDisplayed()
-				composeRule.onNodeWithText("0").assertDoesNotExist()
-				composeRule.onAllNodesWithText("tower", substring = true, ignoreCase = true)
-					.assertCountEquals(0)
-			}
 		}
 
 		composeRule.onNodeWithTag("dashboard_steps_only_tracking_card").assertIsDisplayed()
@@ -210,6 +129,88 @@ class DashboardScreenTest {
 		composeRule.onAllNodesWithText("Enable location", substring = true)
 			.assertCountEquals(0)
 		composeRule.onNodeWithText("Stop").assertIsDisplayed()
+	}
+
+	@Test
+	fun exactWifiOnlyTracking_showsIdentityFreePartialRadioSurface() {
+		val segmentId = 42L
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				DashboardScreen(
+					state = DashboardUiState(
+						dashboardMode = DashboardMode.TRACKING,
+						isTracking = true,
+						sessionData = TrackerSessionSnapshot(id = segmentId, start = 1L),
+						liveSessionPresentation = DashboardLiveSessionPresentation.WifiOnly(
+							segmentId = segmentId,
+							history = DashboardRadioHistoryValue(
+								source = HistorySource.WIFI,
+								origin = DashboardRadioOrigin.LOCAL,
+								state = DashboardRadioProductState.PARTIAL,
+								coverage = DashboardRadioCoverage.PARTIAL,
+								deliveryCount = 1,
+								retainedRecordCount = 2,
+								partialDeliveryCount = 1,
+							),
+						),
+					),
+					onSettingsClick = {},
+					onMapClick = {},
+					onToggleTracking = {},
+					onRequestPermission = {},
+					onGameClick = null,
+					onSessionDetailClick = null,
+					snackbarHostState = remember { SnackbarHostState() },
+				)
+			}
+		}
+
+		composeRule.onNodeWithTag("dashboard_wifi_only_tracking").assertIsDisplayed()
+		composeRule.onNodeWithText("Partial retained radio history").assertIsDisplayed()
+		composeRule.onNodeWithText("2 retained scan results").assertIsDisplayed()
+		composeRule.onAllNodesWithText("GPS", substring = true).assertCountEquals(0)
+		composeRule.onAllNodesWithText("Distance", substring = true).assertCountEquals(0)
+	}
+
+	@Test
+	fun exactCellOnlyTracking_factlessIntentNeverRendersZeroOrTowerIdentity() {
+		val segmentId = 42L
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				DashboardScreen(
+					state = DashboardUiState(
+						dashboardMode = DashboardMode.TRACKING,
+						isTracking = true,
+						sessionData = TrackerSessionSnapshot(id = segmentId, start = 1L),
+						liveSessionPresentation = DashboardLiveSessionPresentation.CellOnly(
+							segmentId = segmentId,
+							history = DashboardRadioHistoryValue(
+								source = HistorySource.CELL,
+								origin = DashboardRadioOrigin.LOCAL,
+								state = DashboardRadioProductState.MATERIALIZING,
+								coverage = DashboardRadioCoverage.NONE,
+								deliveryCount = 0,
+								retainedRecordCount = 0,
+								partialDeliveryCount = 0,
+							),
+						),
+					),
+					onSettingsClick = {},
+					onMapClick = {},
+					onToggleTracking = {},
+					onRequestPermission = {},
+					onGameClick = null,
+					onSessionDetailClick = null,
+					snackbarHostState = remember { SnackbarHostState() },
+				)
+			}
+		}
+
+		composeRule.onNodeWithTag("dashboard_cell_only_tracking").assertIsDisplayed()
+		composeRule.onNodeWithText("Waiting for retained radio observations").assertIsDisplayed()
+		composeRule.onNodeWithText("0").assertDoesNotExist()
+		composeRule.onAllNodesWithText("tower", substring = true, ignoreCase = true)
+			.assertCountEquals(0)
 	}
 
 	@Test

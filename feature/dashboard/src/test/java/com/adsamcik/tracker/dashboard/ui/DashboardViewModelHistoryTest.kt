@@ -143,38 +143,39 @@ class DashboardViewModelHistoryTest {
 				viewModel.recentHistory.collect()
 			}
 
-			@Test
-			fun `typed recent history failure retains affected source`() = runTest {
-				val mainDispatcher = StandardTestDispatcher(testScheduler)
-				Dispatchers.setMain(mainDispatcher)
-				try {
-					val repository = QueuedDashboardHistoryRepository(
-						successfulHistory(),
-						recentFlow = flow {
-							throw DashboardHistoryPageUnavailable(
-								reason = SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-								source = HistorySource.WIFI,
-							)
-						},
-					)
-					val viewModel = createViewModel(repository)
-					val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-						viewModel.recentHistory.collect()
-					}
-					advanceUntilIdle()
-
-					viewModel.recentHistory.value shouldBe DashboardRecentHistoryState.Unavailable(
-						reason = SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-						source = HistorySource.WIFI,
-					)
-					collection.cancel()
-				} finally {
-					Dispatchers.resetMain()
-				}
-			}
 			advanceUntilIdle()
 
 			viewModel.recentHistory.value shouldBe DashboardRecentHistoryState.Unavailable()
+			collection.cancel()
+		} finally {
+			Dispatchers.resetMain()
+		}
+	}
+
+	@Test
+	fun `typed recent history failure retains affected source`() = runTest {
+		val mainDispatcher = StandardTestDispatcher(testScheduler)
+		Dispatchers.setMain(mainDispatcher)
+		try {
+			val repository = QueuedDashboardHistoryRepository(
+				successfulHistory(),
+				recentFlow = flow {
+					throw DashboardHistoryPageUnavailable(
+						reason = SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+						source = HistorySource.WIFI,
+					)
+				},
+			)
+			val viewModel = createViewModel(repository)
+			val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				viewModel.recentHistory.collect()
+			}
+			advanceUntilIdle()
+
+			viewModel.recentHistory.value shouldBe DashboardRecentHistoryState.Unavailable(
+				reason = SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+				source = HistorySource.WIFI,
+			)
 			collection.cancel()
 		} finally {
 			Dispatchers.resetMain()

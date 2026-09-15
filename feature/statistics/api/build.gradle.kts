@@ -9,6 +9,7 @@ android {
 
 dependencies {
     api(project(":core:model"))
+    implementation(project(":core:common"))
     api(project(":stats:api"))
     implementation(libs.navigation.compose)
 }

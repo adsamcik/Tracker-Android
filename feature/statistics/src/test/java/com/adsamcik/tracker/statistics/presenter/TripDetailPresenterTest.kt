@@ -459,51 +459,52 @@ class TripDetailPresenterTest {
 			refreshed.supportsLocationPresentation shouldBe true
 		}
 
-		@Test
-		fun `typed unavailable clears previously loaded Location and Steps detail`() = runTest {
-			coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
-			val capture = exactCapture(setOf(HistorySource.LOCATION, HistorySource.STEPS))
-			every { trackingHistoryRepository.observeLiveSession(42L) } returns flow {
-				emit(
-					exactHistory(
-						segmentId = 42L,
-						capture = capture,
-						qualifiedSources = setOf(HistorySource.STEPS),
-						steps = completeSteps(24L),
-						activity = activitySourceNotCaptured(),
-						pressure = physicalPressureSourceNotCaptured(),
-					),
-				)
-				emit(
-					LiveSessionHistorySnapshot(
-						segmentId = 42L,
-						session = SessionHistoryQuery.Unavailable(
-							reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-							source = HistorySource.WIFI,
-						),
-						activity = ActivityHistoryQuery.NotFound,
-						pressure = PressureSessionHistoryQuery.NotFound,
-					),
-				)
-			}
-			val events = MutableSharedFlow<TripDetailEvent>()
+	}
 
-			presenter.present(events).test {
-				events.emit(TripDetailEvent.LoadTrip(42L))
-				awaitItem() shouldBe TripDetailState.Loading
-				awaitItem() shouldBe resolvingState()
-				val loaded = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
-				loaded.supportsLocationPresentation shouldBe true
-				loaded.steps shouldBe TripDetailStepsState.Complete(24L)
+	@Test
+	fun `typed unavailable clears previously loaded Location and Steps detail`() = runTest {
+		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
+		val capture = exactCapture(setOf(HistorySource.LOCATION, HistorySource.STEPS))
+		every { trackingHistoryRepository.observeLiveSession(42L) } returns flow {
+			emit(
+				exactHistory(
+					segmentId = 42L,
+					capture = capture,
+					qualifiedSources = setOf(HistorySource.STEPS),
+					steps = completeSteps(24L),
+					activity = activitySourceNotCaptured(),
+					pressure = physicalPressureSourceNotCaptured(),
+				),
+			)
+			emit(
+				LiveSessionHistorySnapshot(
+					segmentId = 42L,
+					session = SessionHistoryQuery.Unavailable(
+						reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+						source = HistorySource.WIFI,
+					),
+					activity = ActivityHistoryQuery.NotFound,
+					pressure = PressureSessionHistoryQuery.NotFound,
+				),
+			)
+		}
+		val events = MutableSharedFlow<TripDetailEvent>()
 
-				val unavailable = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
-				unavailable.supportsLocationPresentation shouldBe false
-				unavailable.steps shouldBe TripDetailStepsState.Failed
-				unavailable.sourcePresentation shouldBe TripDetailSourcePresentation.Unavailable(
-					reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-					source = HistorySource.WIFI,
-				)
-			}
+		presenter.present(events).test {
+			events.emit(TripDetailEvent.LoadTrip(42L))
+			awaitItem() shouldBe TripDetailState.Loading
+			awaitItem() shouldBe resolvingState()
+			val loaded = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
+			loaded.supportsLocationPresentation shouldBe true
+			loaded.steps shouldBe TripDetailStepsState.Complete(24L)
+
+			val unavailable = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
+			unavailable.supportsLocationPresentation shouldBe false
+			unavailable.steps shouldBe TripDetailStepsState.Failed
+			unavailable.sourcePresentation shouldBe TripDetailSourcePresentation.Unavailable(
+				reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+				source = HistorySource.WIFI,
+			)
 		}
 	}
 
