@@ -35,6 +35,8 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveStepsValue
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineCardDefaults
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
+import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryUnavailableReason
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 
 /** Minimal live product surface for a session whose exact capture set is Steps only. */
@@ -131,6 +133,8 @@ private fun StepsOnlyMetric(steps: DashboardLiveStepsValue) {
 @Composable
 internal fun TrackingHistoryResolutionContent(
 	historyUnavailable: Boolean,
+	source: HistorySource? = null,
+	reason: TrackingHistoryUnavailableReason? = null,
 	modifier: Modifier = Modifier,
 	bottomClearance: Dp = DashboardLayoutDefaults.PillClearance,
 ) {
@@ -150,17 +154,61 @@ internal fun TrackingHistoryResolutionContent(
 				shape = RidgelineCardDefaults.shape,
 			) {
 				Text(
-					text = stringResource(
-						if (historyUnavailable) {
-							R.string.dashboard_live_history_unavailable
-						} else {
-							R.string.dashboard_live_history_resolving
-						},
-					),
+					text = if (!historyUnavailable) {
+						stringResource(R.string.dashboard_live_history_resolving)
+					} else {
+						historyUnavailableMessage(source, reason)
+					},
 					modifier = Modifier.padding(RidgelineSpacing.Lg),
 					style = MaterialTheme.typography.bodyLarge,
 					color = MaterialTheme.colorScheme.onSurfaceVariant,
 				)
+			}
+		}
+
+		@Composable
+		private fun historyUnavailableMessage(
+			source: HistorySource?,
+			reason: TrackingHistoryUnavailableReason?,
+		): String {
+			val sourceLabel = source?.let {
+				stringResource(
+					when (it) {
+						HistorySource.LOCATION -> R.string.dashboard_history_source_location
+						HistorySource.WIFI -> R.string.dashboard_history_source_wifi
+						HistorySource.CELL -> R.string.dashboard_history_source_cell
+						HistorySource.ACTIVITY -> R.string.dashboard_history_source_activity
+						HistorySource.STEPS -> R.string.dashboard_history_source_steps
+						HistorySource.PRESSURE -> R.string.dashboard_history_source_pressure
+					},
+				)
+			}
+			val reasonLabel = reason?.let {
+				stringResource(
+					when (it) {
+						TrackingHistoryUnavailableReason.SOURCE_EVIDENCE_STATE_UNAVAILABLE ->
+							R.string.dashboard_live_history_evidence_unavailable
+						TrackingHistoryUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED ->
+							R.string.dashboard_live_history_budget_unavailable
+						TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE ->
+							R.string.dashboard_live_history_integrity_unavailable
+						TrackingHistoryUnavailableReason.PHYSICAL_MEMBERSHIP_INVALID ->
+							R.string.dashboard_live_history_membership_unavailable
+					},
+				)
+			}
+			return when {
+				sourceLabel != null && reasonLabel != null -> stringResource(
+					R.string.dashboard_live_history_source_reason,
+					sourceLabel,
+					reasonLabel,
+				)
+				sourceLabel != null -> stringResource(
+					R.string.dashboard_recent_history_source_unavailable,
+					sourceLabel,
+				)
+				reasonLabel != null -> reasonLabel
+				else -> stringResource(R.string.dashboard_live_history_unavailable)
 			}
 		}
 	}

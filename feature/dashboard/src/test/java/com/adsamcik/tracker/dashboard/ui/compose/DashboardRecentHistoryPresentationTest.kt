@@ -62,7 +62,7 @@ class DashboardRecentHistoryPresentationTest {
 	fun `loading and unavailable remain reachable idle states while empty content stays empty`() {
 		listOf(
 			DashboardRecentHistoryState.Loading,
-			DashboardRecentHistoryState.Unavailable,
+			DashboardRecentHistoryState.Unavailable(),
 		).forEach { state ->
 			resolveDashboardMode(false, false, null, state) shouldBe DashboardMode.IDLE
 		}

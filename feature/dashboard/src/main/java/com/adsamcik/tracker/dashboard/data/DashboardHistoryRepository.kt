@@ -15,11 +15,16 @@ import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.stats.data.repository.AchievementMetricQualification
 import com.adsamcik.tracker.stats.api.repository.ImportedStepsHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.CellHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntry
+import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailSelection
 import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -51,8 +56,44 @@ sealed interface DashboardRecentHistoryEntry {
 	/** Opaque logical Pressure-only row with direct Pressure facts and no physical action identity. */
 	data class PressureOnly(val history: PressureOnlyHistoryEntry) : DashboardRecentHistoryEntry
 
-	/** Opaque Activity-only row with captured bands and no route/detail action identity. */
-	data class ActivityOnly(val history: ActivityHistoryEntry) : DashboardRecentHistoryEntry
+	/** Source-issued Activity detail selection with no physical Trip identity. */
+	data class ActivityOnly(
+		val history: ActivityHistoryEntry,
+		val detailSelection: SourceHistoryDetailSelection,
+	) : DashboardRecentHistoryEntry {
+		init {
+			require(
+				(detailSelection.entry as? SourceAwareHistoryPageEntry.ActivityOnly)?.history ==
+					history,
+			)
+		}
+	}
+
+	/** Source-issued Wi-Fi detail selection with identity-free retained radio facts. */
+	data class WifiOnly(
+		val history: WifiHistoryEntry,
+		val detailSelection: SourceHistoryDetailSelection,
+	) : DashboardRecentHistoryEntry {
+		init {
+			require(
+				(detailSelection.entry as? SourceAwareHistoryPageEntry.WifiOnly)?.history ==
+					history,
+			)
+		}
+	}
+
+	/** Source-issued Cell detail selection with identity-free retained radio facts. */
+	data class CellOnly(
+		val history: CellHistoryEntry,
+		val detailSelection: SourceHistoryDetailSelection,
+	) : DashboardRecentHistoryEntry {
+		init {
+			require(
+				(detailSelection.entry as? SourceAwareHistoryPageEntry.CellOnly)?.history ==
+					history,
+			)
+		}
+	}
 }
 
 /** Explicit recent-history state; failures never fall back to raw physical rows. */
@@ -66,7 +107,10 @@ sealed interface DashboardRecentHistoryState {
 	) : DashboardRecentHistoryState
 
 	/** The coordinated page failed; raw physical candidates must not replace it. */
-	data object Unavailable : DashboardRecentHistoryState
+	data class Unavailable(
+		val reason: SourceAwareHistoryPageUnavailableReason? = null,
+		val source: HistorySource? = null,
+	) : DashboardRecentHistoryState
 }
 
 sealed interface DashboardHistorySection<out T> {
@@ -261,13 +305,14 @@ private class DashboardPhysicalCandidateGeneration(
 	val candidateIds: List<Long> = candidates.map(Trip::id)
 
 	fun mapPage(query: SourceAwareHistoryPageQuery): List<DashboardRecentHistoryEntry> {
-		val page = when (query) {
-			is SourceAwareHistoryPageQuery.Content -> query.entries
+		val content = when (query) {
+			is SourceAwareHistoryPageQuery.Content -> query
 			is SourceAwareHistoryPageQuery.Unavailable -> throw DashboardHistoryPageUnavailable(
-				"Stats source-aware page unavailable: ${query.reason}",
+				reason = query.reason,
+				source = query.source,
 			)
 		}
-		val mapped = page.map { entry ->
+		val mapped = content.entries.map { entry ->
 			when (entry) {
 				is SourceAwareHistoryPageEntry.Physical -> DashboardRecentHistoryEntry.Physical(
 					checkNotNull(candidatesById[entry.segmentId]) {
@@ -280,13 +325,24 @@ private class DashboardPhysicalCandidateGeneration(
 					DashboardRecentHistoryEntry.ImportedSteps(entry.history)
 				is SourceAwareHistoryPageEntry.PressureOnly ->
 					DashboardRecentHistoryEntry.PressureOnly(entry.history)
-				is SourceAwareHistoryPageEntry.ActivityOnly ->
-					DashboardRecentHistoryEntry.ActivityOnly(entry.history)
+				is SourceAwareHistoryPageEntry.ActivityOnly -> DashboardRecentHistoryEntry.ActivityOnly(
+					history = entry.history,
+					detailSelection = SourceHistoryDetailSelection(entry, content.readSnapshot),
+				)
+				is SourceAwareHistoryPageEntry.WifiOnly -> DashboardRecentHistoryEntry.WifiOnly(
+					history = entry.history,
+					detailSelection = SourceHistoryDetailSelection(entry, content.readSnapshot),
+				)
+				is SourceAwareHistoryPageEntry.CellOnly -> DashboardRecentHistoryEntry.CellOnly(
+					history = entry.history,
+					detailSelection = SourceHistoryDetailSelection(entry, content.readSnapshot),
+				)
 			}
 		}
 		if (candidateBudgetExceeded && mapped.size < RECENT_HISTORY_LIMIT) {
 			throw DashboardHistoryPageUnavailable(
-				"Physical candidate budget exhausted before the recent page was filled",
+				reason = SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
+				source = null,
 			)
 		}
 		return mapped
@@ -298,4 +354,7 @@ private class DashboardPhysicalCandidateGeneration(
 	}
 }
 
-private class DashboardHistoryPageUnavailable(message: String) : IllegalStateException(message)
+internal class DashboardHistoryPageUnavailable(
+	val reason: SourceAwareHistoryPageUnavailableReason,
+	val source: HistorySource?,
+) : IllegalStateException("Stats source-aware page unavailable: $reason")

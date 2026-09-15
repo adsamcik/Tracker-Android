@@ -32,6 +32,7 @@ import com.adsamcik.tracker.dashboard.data.DashboardWidget
 import com.adsamcik.tracker.dashboard.ui.compose.DashboardLayoutDefaults
 import com.adsamcik.tracker.dashboard.ui.compose.components.MotivationalText
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
+import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailSelection
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 import com.adsamcik.tracker.shared.utils.style.compose.rememberContentColumnCount
@@ -57,6 +58,7 @@ internal fun IdleContent(
 	onMapClick: () -> Unit,
 	onGameClick: (() -> Unit)?,
 	onSessionDetailClick: ((Long) -> Unit)?,
+	onSourceHistoryDetailClick: ((SourceHistoryDetailSelection) -> Unit)?,
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
 	modifier: Modifier = Modifier,
@@ -87,6 +89,7 @@ internal fun IdleContent(
 				onMapClick = onMapClick,
 				onGameClick = onGameClick,
 				onSessionDetailClick = onSessionDetailClick,
+				onSourceHistoryDetailClick = onSourceHistoryDetailClick,
 				onToggleTracking = onToggleTracking,
 				onRequestPermission = onRequestPermission,
 			)
@@ -120,6 +123,7 @@ internal fun IdleContent(
 				onMapClick = onMapClick,
 				onGameClick = onGameClick,
 				onSessionDetailClick = onSessionDetailClick,
+				onSourceHistoryDetailClick = onSourceHistoryDetailClick,
 				onToggleTracking = onToggleTracking,
 				onRequestPermission = onRequestPermission,
 			)
@@ -136,6 +140,7 @@ private fun LazyListScope.renderWidgets(
 	onMapClick: () -> Unit,
 	onGameClick: (() -> Unit)?,
 	onSessionDetailClick: ((Long) -> Unit)?,
+	onSourceHistoryDetailClick: ((SourceHistoryDetailSelection) -> Unit)?,
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
 ) {
@@ -147,6 +152,7 @@ private fun LazyListScope.renderWidgets(
 				onMapClick = onMapClick,
 				onGameClick = onGameClick,
 				onSessionDetailClick = onSessionDetailClick,
+				onSourceHistoryDetailClick = onSourceHistoryDetailClick,
 				onToggleTracking = onToggleTracking,
 				onRequestPermission = onRequestPermission,
 				modifier = Modifier.animateContentSize(),
@@ -165,6 +171,7 @@ private fun LazyGridScope.renderGridWidgets(
 	onMapClick: () -> Unit,
 	onGameClick: (() -> Unit)?,
 	onSessionDetailClick: ((Long) -> Unit)?,
+	onSourceHistoryDetailClick: ((SourceHistoryDetailSelection) -> Unit)?,
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
 ) {
@@ -182,6 +189,7 @@ private fun LazyGridScope.renderGridWidgets(
 				onMapClick = onMapClick,
 				onGameClick = onGameClick,
 				onSessionDetailClick = onSessionDetailClick,
+				onSourceHistoryDetailClick = onSourceHistoryDetailClick,
 				onToggleTracking = onToggleTracking,
 				onRequestPermission = onRequestPermission,
 			)
@@ -200,6 +208,7 @@ private fun WidgetContent(
 	onMapClick: () -> Unit,
 	onGameClick: (() -> Unit)?,
 	onSessionDetailClick: ((Long) -> Unit)?,
+	onSourceHistoryDetailClick: ((SourceHistoryDetailSelection) -> Unit)?,
 	onToggleTracking: () -> Unit,
 	onRequestPermission: () -> Unit,
 	modifier: Modifier = Modifier,
@@ -241,6 +250,7 @@ private fun WidgetContent(
 		DashboardWidget.RecentTrips -> RecentTripsCard(
 			recentHistory = state.recentHistory,
 			onTripClick = onSessionDetailClick,
+			onSourceHistoryClick = onSourceHistoryDetailClick,
 			modifier = modifier,
 		)
 		DashboardWidget.Exploration -> ExplorationCard(

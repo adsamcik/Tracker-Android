@@ -7,6 +7,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.dashboard.data.DashboardHistoryRepository
+import com.adsamcik.tracker.dashboard.data.DashboardHistoryPageUnavailable
 import com.adsamcik.tracker.dashboard.data.DashboardHistorySection
 import com.adsamcik.tracker.dashboard.data.DashboardLayout
 import com.adsamcik.tracker.dashboard.data.DashboardLayoutStore
@@ -22,6 +23,7 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.WeeklyTrend
 import com.adsamcik.tracker.dashboard.ui.compose.state.toDashboardLiveActivityValue
 import com.adsamcik.tracker.dashboard.ui.compose.state.toDashboardLivePressureValue
 import com.adsamcik.tracker.dashboard.ui.compose.state.toDashboardLiveStepsValue
+import com.adsamcik.tracker.dashboard.ui.compose.state.toDashboardRadioHistoryValue
 import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
@@ -30,13 +32,15 @@ import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.LiveSessionHistorySnapshot
-import com.adsamcik.tracker.stats.api.repository.PressureSessionHistory
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryQuery
 import com.adsamcik.tracker.tracker.insights.SessionInsight
 import com.adsamcik.tracker.tracker.insights.SessionInsightsGenerator
 import com.adsamcik.tracker.tracker.controller.LockManager
@@ -129,7 +133,13 @@ class DashboardViewModel @Inject constructor(
 						.onStart { emit(DashboardRecentHistoryState.Loading) }
 						.catch { throwable ->
 							if (throwable is CancellationException) throw throwable
-							emit(DashboardRecentHistoryState.Unavailable)
+							val unavailable = throwable as? DashboardHistoryPageUnavailable
+							emit(
+								DashboardRecentHistoryState.Unavailable(
+									reason = unavailable?.reason,
+									source = unavailable?.source,
+								),
+							)
 						}
 				}
 			}.stateIn(
@@ -367,51 +377,104 @@ private fun toLivePresentation(
 	if (snapshot.segmentId != requestedSegmentId) {
 		return DashboardLiveSessionPresentation.HistoryUnavailable(requestedSegmentId)
 	}
-	val activityEntry = (snapshot.activity as? ActivityHistoryQuery.Found)?.entry
-	val pressureHistory = (snapshot.pressure as? PressureSessionHistoryQuery.Found)?.history
-	if (activityEntry?.capturesOnlyActivity == true &&
-		pressureHistory?.hasExactPressureOnlyIntent == true
-	) {
-		return DashboardLiveSessionPresentation.HistoryUnavailable(requestedSegmentId)
-	}
-	if (activityEntry?.capturesOnlyActivity == true) {
-		return DashboardLiveSessionPresentation.ActivityOnly(
-			segmentId = requestedSegmentId,
-			activity = activityEntry.toDashboardLiveActivityValue(),
-		)
-	}
-	if (pressureHistory?.hasExactPressureOnlyIntent == true) {
-		return DashboardLiveSessionPresentation.PressureOnly(
-			segmentId = requestedSegmentId,
-			pressure = pressureHistory.pressure.toDashboardLivePressureValue(),
-		)
-	}
-	return snapshot.session.toLivePresentation(requestedSegmentId)
+	return snapshot.session.toLivePresentation(requestedSegmentId, snapshot)
 }
 
 private fun SessionHistoryQuery.toLivePresentation(
 	requestedSegmentId: Long,
+	snapshot: LiveSessionHistorySnapshot,
 ): DashboardLiveSessionPresentation = when (this) {
 	SessionHistoryQuery.NotFound ->
 		DashboardLiveSessionPresentation.HistoryUnavailable(requestedSegmentId)
+	is SessionHistoryQuery.Unavailable -> DashboardLiveSessionPresentation.HistoryUnavailable(
+		segmentId = requestedSegmentId,
+		reason = reason,
+		source = source,
+	)
 	is SessionHistoryQuery.Found -> when {
 		history.segmentId != requestedSegmentId ->
 			DashboardLiveSessionPresentation.HistoryUnavailable(requestedSegmentId)
-		history.capturesOnlySteps -> DashboardLiveSessionPresentation.StepsOnly(
+		else -> history.toLivePresentation(requestedSegmentId, snapshot)
+	}
+}
+
+private fun com.adsamcik.tracker.stats.api.repository.SessionHistory.toLivePresentation(
+	requestedSegmentId: Long,
+	snapshot: LiveSessionHistorySnapshot,
+): DashboardLiveSessionPresentation {
+	val exactCapture = capture as? HistoryCapture.Exact
+	val sourceProducts = sourceProducts
+	return when {
+		exactCapture.capturesOnly(HistorySource.WIFI) -> when (
+			val query = sourceProducts?.wifi ?: snapshot.wifi
+		) {
+			is WifiHistoryQuery.Found -> DashboardLiveSessionPresentation.WifiOnly(
+				segmentId = requestedSegmentId,
+				history = query.entry.toDashboardRadioHistoryValue(),
+			)
+			is WifiHistoryQuery.Failed -> DashboardLiveSessionPresentation.HistoryUnavailable(
+				segmentId = requestedSegmentId,
+				reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+				source = HistorySource.WIFI,
+			)
+			null,
+			WifiHistoryQuery.NotFound -> DashboardLiveSessionPresentation.HistoryUnavailable(
+				segmentId = requestedSegmentId,
+				source = HistorySource.WIFI,
+			)
+		}
+		exactCapture.capturesOnly(HistorySource.CELL) -> when (
+			val query = sourceProducts?.cell ?: snapshot.cell
+		) {
+			is CellHistoryQuery.Found -> DashboardLiveSessionPresentation.CellOnly(
+				segmentId = requestedSegmentId,
+				history = query.entry.toDashboardRadioHistoryValue(),
+			)
+			null,
+			CellHistoryQuery.NotFound -> DashboardLiveSessionPresentation.HistoryUnavailable(
+				segmentId = requestedSegmentId,
+				source = HistorySource.CELL,
+			)
+		}
+		exactCapture.capturesOnly(HistorySource.ACTIVITY) -> when (
+			val query = sourceProducts?.activity ?: snapshot.activity
+		) {
+			is ActivityHistoryQuery.Found -> DashboardLiveSessionPresentation.ActivityOnly(
+				segmentId = requestedSegmentId,
+				activity = query.entry.toDashboardLiveActivityValue(),
+			)
+			null,
+			ActivityHistoryQuery.NotFound -> DashboardLiveSessionPresentation.HistoryUnavailable(
+				segmentId = requestedSegmentId,
+				source = HistorySource.ACTIVITY,
+			)
+		}
+		exactCapture.capturesOnly(HistorySource.PRESSURE) -> when (
+			val query = sourceProducts?.pressure ?: snapshot.pressure
+		) {
+			is PressureSessionHistoryQuery.Found -> DashboardLiveSessionPresentation.PressureOnly(
+				segmentId = requestedSegmentId,
+				pressure = query.history.pressure.toDashboardLivePressureValue(),
+			)
+			null,
+			PressureSessionHistoryQuery.NotFound ->
+				DashboardLiveSessionPresentation.HistoryUnavailable(
+					segmentId = requestedSegmentId,
+					source = HistorySource.PRESSURE,
+				)
+		}
+		capturesOnlySteps -> DashboardLiveSessionPresentation.StepsOnly(
 			segmentId = requestedSegmentId,
-			steps = history.steps.toDashboardLiveStepsValue(),
+			steps = steps.toDashboardLiveStepsValue(),
 		)
 		else -> DashboardLiveSessionPresentation.Standard(
 			segmentId = requestedSegmentId,
-			steps = history.steps
-				.takeIf { HistorySource.STEPS in history.qualifiedSources }
+			steps = steps
+				.takeIf { HistorySource.STEPS in qualifiedSources }
 				?.toDashboardLiveStepsValue(),
 		)
 	}
 }
 
-/** Exact source-only intent selects only its truthful product; mixed intent stays Standard. */
-private val PressureSessionHistory.hasExactPressureOnlyIntent: Boolean
-	get() = (capture as? HistoryCapture.Exact)?.revisions?.all { revision ->
-		revision.capturedSources == setOf(HistorySource.PRESSURE)
-	} == true
+private fun HistoryCapture.Exact?.capturesOnly(source: HistorySource): Boolean =
+	this?.revisions?.all { revision -> revision.capturedSources == setOf(source) } == true

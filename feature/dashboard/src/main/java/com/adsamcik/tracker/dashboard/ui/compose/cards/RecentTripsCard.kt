@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -41,7 +40,11 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryEntry
 import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryState
+import com.adsamcik.tracker.dashboard.ui.compose.DashboardRadioHistoryFacts
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.labelResource
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardRadioHistoryValue
+import com.adsamcik.tracker.dashboard.ui.compose.state.toDashboardRadioHistoryValue
+import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailSelection
 import com.adsamcik.tracker.shared.base.data.SessionActivityIds
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.model.Trip
@@ -50,8 +53,11 @@ import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineCardDefaults
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryFragment
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
@@ -67,6 +73,7 @@ import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 internal fun RecentTripsCard(
 	recentHistory: DashboardRecentHistoryState,
 	onTripClick: ((Long) -> Unit)?,
+	onSourceHistoryClick: ((SourceHistoryDetailSelection) -> Unit)? = null,
 	modifier: Modifier = Modifier,
 ) {
 	Card(
@@ -88,7 +95,7 @@ internal fun RecentTripsCard(
 				color = MaterialTheme.colorScheme.onSurfaceVariant,
 			)
 
-			RecentHistoryRows(recentHistory, onTripClick)
+			RecentHistoryRows(recentHistory, onTripClick, onSourceHistoryClick)
 		}
 	}
 }
@@ -97,6 +104,7 @@ internal fun RecentTripsCard(
 private fun RecentHistoryRows(
 	recentHistory: DashboardRecentHistoryState,
 	onTripClick: ((Long) -> Unit)?,
+	onSourceHistoryClick: ((SourceHistoryDetailSelection) -> Unit)?,
 ) {
 	val context = LocalContext.current
 	val settings = TrackerSettingsQuick.snapshot(context)
@@ -104,8 +112,8 @@ private fun RecentHistoryRows(
 		DashboardRecentHistoryState.Loading -> RecentHistoryMessage(
 			text = stringResource(R.string.dashboard_recent_history_loading),
 		)
-		DashboardRecentHistoryState.Unavailable -> RecentHistoryMessage(
-			text = stringResource(R.string.dashboard_recent_history_unavailable),
+		is DashboardRecentHistoryState.Unavailable -> RecentHistoryMessage(
+			text = recentHistory.unavailableMessage(),
 		)
 		is DashboardRecentHistoryState.Content -> if (recentHistory.entries.isEmpty()) {
 			RecentHistoryMessage(text = stringResource(R.string.dashboard_recent_trips_empty))
@@ -136,7 +144,32 @@ private fun RecentHistoryRows(
 						RecentPressureOnlyRow(entry.history)
 					}
 					is DashboardRecentHistoryEntry.ActivityOnly -> key("activity-only", entry.history.key) {
-						RecentActivityOnlyRow(entry.history)
+						RecentActivityOnlyRow(
+							history = entry.history,
+							onClick = onSourceHistoryClick?.let { click ->
+								{ click(entry.detailSelection) }
+							},
+						)
+					}
+					is DashboardRecentHistoryEntry.WifiOnly -> key("wifi-only", entry.history.key) {
+						RecentRadioOnlyRow(
+							title = stringResource(R.string.dashboard_recent_wifi_title),
+							value = entry.history.toDashboardRadioHistoryValue(),
+							startTimeMs = entry.history.startTime.raw,
+							selection = entry.detailSelection,
+							onSourceHistoryClick = onSourceHistoryClick,
+							tag = "dashboard_recent_wifi_row",
+						)
+					}
+					is DashboardRecentHistoryEntry.CellOnly -> key("cell-only", entry.history.key) {
+						RecentRadioOnlyRow(
+							title = stringResource(R.string.dashboard_recent_cell_title),
+							value = entry.history.toDashboardRadioHistoryValue(),
+							startTimeMs = entry.history.startTime.raw,
+							selection = entry.detailSelection,
+							onSourceHistoryClick = onSourceHistoryClick,
+							tag = "dashboard_recent_cell_row",
+						)
 					}
 				}
 			}
@@ -169,6 +202,11 @@ private fun RecentPressureOnlyRow(
 				style = MaterialTheme.typography.bodySmall,
 				color = MaterialTheme.colorScheme.onSurfaceVariant,
 			)
+			Text(
+				text = stringResource(history.origin.labelResource),
+				style = MaterialTheme.typography.labelSmall,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+			)
 			PressureSummary(history.pressure)
 			Text(
 				text = (history.endTime - history.startTime)
@@ -188,6 +226,7 @@ private fun RecentPressureOnlyRow(
 @Composable
 private fun RecentActivityOnlyRow(
 	history: ActivityHistoryEntry,
+	onClick: (() -> Unit)?,
 	modifier: Modifier = Modifier,
 ) {
 	val band = history.fragments.filterIsInstance<ActivityHistoryFragment.Band>().lastOrNull()
@@ -197,12 +236,21 @@ private fun RecentActivityOnlyRow(
 	val activeTimeText = history.activeTime?.knownActiveDurationNanos?.let { nanos ->
 		(nanos / NANOS_PER_MILLISECOND).formatAsDuration(LocalContext.current)
 	}.takeIf { hasRetainedEvidence } ?: stringResource(R.string.dashboard_live_value_missing)
-	Row(
-		modifier = modifier
+	val rowModifier = if (onClick == null) {
+		modifier
 			.fillMaxWidth()
 			.heightIn(min = 48.dp)
 			.padding(vertical = 8.dp, horizontal = 4.dp)
-			.testTag("dashboard_recent_activity_row"),
+	} else {
+		modifier
+			.fillMaxWidth()
+			.heightIn(min = 48.dp)
+			.clip(MaterialTheme.shapes.medium)
+			.clickable(onClick = onClick)
+			.padding(vertical = 8.dp, horizontal = 4.dp)
+	}
+	Row(
+		modifier = rowModifier.testTag("dashboard_recent_activity_row"),
 		verticalAlignment = Alignment.CenterVertically,
 		horizontalArrangement = Arrangement.spacedBy(12.dp),
 	) {
@@ -215,6 +263,11 @@ private fun RecentActivityOnlyRow(
 			Text(
 				text = stringResource(history.state.labelResource),
 				style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+			)
+			Text(
+				text = stringResource(history.origin.labelResource),
+				style = MaterialTheme.typography.labelSmall,
 				color = MaterialTheme.colorScheme.onSurfaceVariant,
 			)
 			Text(
@@ -237,8 +290,107 @@ private fun RecentActivityOnlyRow(
 			style = MaterialTheme.typography.labelSmall,
 			color = MaterialTheme.colorScheme.onSurface,
 		)
+		if (onClick != null) {
+			SourceHistoryArrow()
+		}
 	}
 }
+
+@Composable
+private fun RecentRadioOnlyRow(
+	title: String,
+	value: DashboardRadioHistoryValue,
+	startTimeMs: Long,
+	selection: SourceHistoryDetailSelection,
+	onSourceHistoryClick: ((SourceHistoryDetailSelection) -> Unit)?,
+	tag: String,
+	modifier: Modifier = Modifier,
+) {
+	val onClick = onSourceHistoryClick?.let { click -> { click(selection) } }
+	val rowModifier = if (onClick == null) {
+		modifier
+			.fillMaxWidth()
+			.heightIn(min = 48.dp)
+			.padding(vertical = 8.dp, horizontal = 4.dp)
+	} else {
+		modifier
+			.fillMaxWidth()
+			.heightIn(min = 48.dp)
+			.clip(MaterialTheme.shapes.medium)
+			.clickable(onClick = onClick)
+			.padding(vertical = 8.dp, horizontal = 4.dp)
+	}
+	Row(
+		modifier = rowModifier.testTag(tag),
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.spacedBy(12.dp),
+	) {
+		Column(modifier = Modifier.weight(1f)) {
+			Text(
+				text = title,
+				style = MaterialTheme.typography.bodyMedium,
+				color = MaterialTheme.colorScheme.onSurface,
+			)
+			DashboardRadioHistoryFacts(value)
+		}
+		Text(
+			text = relativeTime(startTimeMs),
+			style = MaterialTheme.typography.labelSmall,
+			color = MaterialTheme.colorScheme.onSurface,
+		)
+		if (onClick != null) {
+			SourceHistoryArrow()
+		}
+	}
+}
+
+@Composable
+private fun SourceHistoryArrow() {
+	Box(
+		modifier = Modifier.size(48.dp),
+		contentAlignment = Alignment.Center,
+	) {
+		Icon(
+			imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+			contentDescription = stringResource(R.string.dashboard_cd_forward_arrow),
+			tint = MaterialTheme.colorScheme.onSurface,
+			modifier = Modifier.size(20.dp),
+		)
+	}
+}
+
+@Composable
+private fun DashboardRecentHistoryState.Unavailable.unavailableMessage(): String {
+	val sourceLabel = source?.let { source ->
+		stringResource(
+			when (source) {
+				HistorySource.LOCATION -> R.string.dashboard_history_source_location
+				HistorySource.WIFI -> R.string.dashboard_history_source_wifi
+				HistorySource.CELL -> R.string.dashboard_history_source_cell
+				HistorySource.ACTIVITY -> R.string.dashboard_history_source_activity
+				HistorySource.STEPS -> R.string.dashboard_history_source_steps
+				HistorySource.PRESSURE -> R.string.dashboard_history_source_pressure
+			},
+		)
+	}
+	return if (sourceLabel == null) {
+		stringResource(R.string.dashboard_recent_history_unavailable)
+	} else {
+		stringResource(R.string.dashboard_recent_history_source_unavailable, sourceLabel)
+	}
+}
+
+private val ActivityHistoryOrigin.labelResource: Int
+	get() = when (this) {
+		ActivityHistoryOrigin.LOCAL -> R.string.dashboard_radio_origin_local
+		ActivityHistoryOrigin.IMPORTED -> R.string.dashboard_radio_origin_imported
+	}
+
+private val PressureHistoryOrigin.labelResource: Int
+	get() = when (this) {
+		PressureHistoryOrigin.Local -> R.string.dashboard_radio_origin_local
+		is PressureHistoryOrigin.Imported -> R.string.dashboard_radio_origin_imported
+	}
 
 @Composable
 private fun PressureSummary(pressure: PressureHistory) {
@@ -270,6 +422,9 @@ private val PressureHistoryPresentationState.labelResource: Int
 			R.string.dashboard_recent_pressure_materializing
 		PressureHistoryPresentationState.PARTIAL -> R.string.dashboard_recent_pressure_partial
 		PressureHistoryPresentationState.READY -> R.string.dashboard_recent_pressure_available
+		PressureHistoryPresentationState.DELETED -> R.string.dashboard_recent_pressure_deleted
+		PressureHistoryPresentationState.UNVERIFIABLE ->
+			R.string.dashboard_recent_pressure_unverifiable
 		PressureHistoryPresentationState.UNAVAILABLE -> R.string.dashboard_recent_pressure_unavailable
 		PressureHistoryPresentationState.FAILED -> R.string.dashboard_recent_pressure_failed
 	}

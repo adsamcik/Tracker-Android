@@ -6,6 +6,7 @@ import com.adsamcik.tracker.dashboard.data.DashboardAchievementHistory
 import com.adsamcik.tracker.dashboard.data.DashboardExplorationHistory
 import com.adsamcik.tracker.dashboard.data.DashboardHistory
 import com.adsamcik.tracker.dashboard.data.DashboardHistoryRepository
+import com.adsamcik.tracker.dashboard.data.DashboardHistoryPageUnavailable
 import com.adsamcik.tracker.dashboard.data.DashboardHistorySection
 import com.adsamcik.tracker.dashboard.data.DashboardLayout
 import com.adsamcik.tracker.dashboard.data.DashboardLayoutStore
@@ -18,6 +19,8 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.AchievementTier
+import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
@@ -139,9 +142,39 @@ class DashboardViewModelHistoryTest {
 			val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
 				viewModel.recentHistory.collect()
 			}
+
+			@Test
+			fun `typed recent history failure retains affected source`() = runTest {
+				val mainDispatcher = StandardTestDispatcher(testScheduler)
+				Dispatchers.setMain(mainDispatcher)
+				try {
+					val repository = QueuedDashboardHistoryRepository(
+						successfulHistory(),
+						recentFlow = flow {
+							throw DashboardHistoryPageUnavailable(
+								reason = SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+								source = HistorySource.WIFI,
+							)
+						},
+					)
+					val viewModel = createViewModel(repository)
+					val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+						viewModel.recentHistory.collect()
+					}
+					advanceUntilIdle()
+
+					viewModel.recentHistory.value shouldBe DashboardRecentHistoryState.Unavailable(
+						reason = SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+						source = HistorySource.WIFI,
+					)
+					collection.cancel()
+				} finally {
+					Dispatchers.resetMain()
+				}
+			}
 			advanceUntilIdle()
 
-			viewModel.recentHistory.value shouldBe DashboardRecentHistoryState.Unavailable
+			viewModel.recentHistory.value shouldBe DashboardRecentHistoryState.Unavailable()
 			collection.cancel()
 		} finally {
 			Dispatchers.resetMain()

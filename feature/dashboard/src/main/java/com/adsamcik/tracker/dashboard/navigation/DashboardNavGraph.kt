@@ -1,16 +1,13 @@
 package com.adsamcik.tracker.dashboard.navigation
 
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
 import com.adsamcik.tracker.feature.game.api.navigation.Game
 import com.adsamcik.tracker.feature.map.api.navigation.Map
+import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailHandoff
 import com.adsamcik.tracker.feature.statistics.api.navigation.TripDetail
 
 /**
@@ -43,6 +40,12 @@ fun NavGraphBuilder.dashboardGraph(
                     launchSingleTop = true
                 }
             },
+            onSourceHistoryDetailClick = { selection ->
+                onSetTripDetailFallback(Dashboard)
+                navController.navigate(SourceHistoryDetailHandoff.register(selection)) {
+                    launchSingleTop = true
+                }
+            },
             // No extra contentPadding: the DashboardScreen's Scaffold declares
             // contentWindowInsets = WindowInsets(0) and the internal LazyColumn content applies
             // its own nav-bar clearance via DashboardLayoutDefaults.contentBottomClearance.
@@ -52,8 +55,6 @@ fun NavGraphBuilder.dashboardGraph(
         )
     }
 }
-
-
 
 
 

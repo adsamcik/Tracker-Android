@@ -48,10 +48,13 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.allowsRuntimeMilestones
 import com.adsamcik.tracker.dashboard.ui.compose.state.qualifiedMilestoneSteps
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.ActivityOnlyTrackingContent
+import com.adsamcik.tracker.dashboard.ui.compose.tracking.CellOnlyTrackingContent
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.PressureOnlyTrackingContent
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.StepsOnlyTrackingContent
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.TrackingContent
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.TrackingHistoryResolutionContent
+import com.adsamcik.tracker.dashboard.ui.compose.tracking.WifiOnlyTrackingContent
+import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailSelection
 import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLayout
 
 /**
@@ -78,6 +81,7 @@ internal fun DashboardScreen(
 	onRequestPermission: () -> Unit,
 	onGameClick: (() -> Unit)?,
 	onSessionDetailClick: ((Long) -> Unit)?,
+	onSourceHistoryDetailClick: ((SourceHistoryDetailSelection) -> Unit)? = null,
 	onCustomizeClick: () -> Unit = {},
 	onReorderWidgets: (List<String>) -> Unit = {},
 	onToggleWidgetVisibility: (String) -> Unit = {},
@@ -216,6 +220,7 @@ internal fun DashboardScreen(
 						onMapClick = onMapClick,
 						onGameClick = onGameClick,
 						onSessionDetailClick = onSessionDetailClick,
+						onSourceHistoryDetailClick = onSourceHistoryDetailClick,
 						onToggleTracking = wrappedToggle,
 						onRequestPermission = wrappedPermission,
 					)
@@ -265,6 +270,36 @@ internal fun DashboardScreen(
 								)
 							}
 						}
+						is DashboardLiveSessionPresentation.WifiOnly -> {
+							val session = state.sessionData
+							if (session != null && session.id == presentation.segmentId) {
+								WifiOnlyTrackingContent(
+									sessionData = session,
+									presentation = presentation,
+									bottomClearance = bottomClearance,
+								)
+							} else {
+								TrackingHistoryResolutionContent(
+									historyUnavailable = false,
+									bottomClearance = bottomClearance,
+								)
+							}
+						}
+						is DashboardLiveSessionPresentation.CellOnly -> {
+							val session = state.sessionData
+							if (session != null && session.id == presentation.segmentId) {
+								CellOnlyTrackingContent(
+									sessionData = session,
+									presentation = presentation,
+									bottomClearance = bottomClearance,
+								)
+							} else {
+								TrackingHistoryResolutionContent(
+									historyUnavailable = false,
+									bottomClearance = bottomClearance,
+								)
+							}
+						}
 						is DashboardLiveSessionPresentation.Standard -> {
 							if (state.sessionData?.id == presentation.segmentId) {
 								TrackingContent(
@@ -282,6 +317,8 @@ internal fun DashboardScreen(
 						is DashboardLiveSessionPresentation.HistoryUnavailable ->
 							TrackingHistoryResolutionContent(
 								historyUnavailable = true,
+								source = presentation.source,
+								reason = presentation.reason,
 								bottomClearance = bottomClearance,
 							)
 						DashboardLiveSessionPresentation.Inactive,
