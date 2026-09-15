@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
 import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletedIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
@@ -926,6 +927,152 @@ class RoomImportPortableCapturedCellTest {
 						PortableCellRetryableReason.STORAGE_UNAVAILABLE,
 					)
 			}
+
+	@Test
+	fun `selected imported deletion records complete value-free authority before cascade`() = runTest {
+		seedEvidence()
+		val owner = observation("owner")
+		val dependent = observation(
+			"dependent",
+			aggregateOwnerIdentity = owner.identity,
+			aggregateOwnerSemanticRevision = owner.semanticRevision,
+		)
+		val value = entry(
+			runDefinitions = listOf(
+				RunDefinition("run", 10L, 20L, listOf(owner, dependent)),
+			),
+		)
+		importer().importEntry(request(value)) shouldBe
+			ImportPortableCapturedCellResult.Applied(1L, 1, 2)
+		val deletionRequest = DeleteSelectedImportedCellRequest(
+			value.identity,
+			1L,
+			value.contentChecksum,
+			EPOCH,
+			600L,
+		)
+
+		RoomDeleteSelectedImportedCell(database, Dispatchers.Unconfined).delete(deletionRequest) shouldBe
+			DeleteSelectedImportedCellResult.Deleted(1, 1, 2)
+
+		rowCount("imported_cell_entry_revision") shouldBe 0L
+		rowCount("imported_cell_receipt") shouldBe 0L
+		rowCount("imported_cell_run") shouldBe 0L
+		rowCount("imported_cell_observation") shouldBe 0L
+		rowCount("imported_cell_entry_deletion") shouldBe 1L
+		rowCount("imported_cell_deletion_generation") shouldBe 1L
+		rowCount("imported_cell_entry_deletion_receipt") shouldBe 1L
+		rowCount("imported_cell_deleted_identity") shouldBe 5L
+		database.importedCellDao().deletedIdentitiesForEntry(value.identity.value, 6)
+			.map { it.identityKind }.toSet() shouldBe setOf(
+			ImportedCellDeletedIdentityEntity.ENTRY,
+			ImportedCellDeletedIdentityEntity.RUN,
+			ImportedCellDeletedIdentityEntity.DELETION_SCOPE,
+			ImportedCellDeletedIdentityEntity.OBSERVATION,
+		)
+		RoomDeleteSelectedImportedCell(database, Dispatchers.Unconfined).delete(deletionRequest) shouldBe
+			DeleteSelectedImportedCellResult.AlreadyDeleted
+		importer().importEntry(request(value, "resurrection", "entry-2")) shouldBe
+			ImportPortableCapturedCellResult.Blocked(PortableCellImportBlockedReason.DELETED_ENTRY)
+		RoomReexportImportedPortableCapturedCell(database, Dispatchers.Unconfined).reexport(
+			ReexportImportedPortableCapturedCellRequest(value.identity, 1L, value.contentChecksum),
+		) { error("Deleted imported Cell must not reexport") } shouldBe
+			ExportPortableCapturedCellResult.Deleted
+	}
+
+	@Test
+	fun `deleted imported replay reauthenticates every marker and stale selections stay blocked`() =
+		runTest {
+			seedEvidence()
+			val value = entry()
+			importer().importEntry(request(value)) shouldBe
+				ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+			val deletion = DeleteSelectedImportedCellRequest(
+				value.identity,
+				1L,
+				value.contentChecksum,
+				EPOCH,
+				600L,
+			)
+			val deleter = RoomDeleteSelectedImportedCell(database, Dispatchers.Unconfined)
+			deleter.delete(deletion) shouldBe DeleteSelectedImportedCellResult.Deleted(1, 1, 1)
+			deleter.delete(
+				deletion.copy(expectedContentChecksum = PortableCellDigest("a".repeat(64))),
+			) shouldBe DeleteSelectedImportedCellResult.Blocked(
+				ImportedCellDeletionBlockedReason.STALE_SELECTION,
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE imported_cell_deleted_identity SET effect_checksum = ? " +
+					"WHERE identity_kind = ?",
+				arrayOf("b".repeat(64), ImportedCellDeletedIdentityEntity.OBSERVATION),
+			)
+
+			deleter.delete(deletion) shouldBe DeleteSelectedImportedCellResult.Unverifiable(
+				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+
+	@Test
+	fun `selected imported deletion cancellation and storage failure never publish partial authority`() =
+		runTest {
+			seedEvidence()
+			val value = entry()
+			importer().importEntry(request(value)) shouldBe
+				ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+			val deletionRequest = DeleteSelectedImportedCellRequest(
+				value.identity,
+				1L,
+				value.contentChecksum,
+				EPOCH,
+				600L,
+			)
+			val cancelling = RoomDeleteSelectedImportedCell(
+				database,
+				Dispatchers.Unconfined,
+			) { checkpoint ->
+				if (checkpoint == ImportedCellDeletionCheckpoint.MARKERS_RECORDED) {
+					throw CancellationException("cancel selected imported Cell deletion")
+				}
+			}
+			shouldThrow<CancellationException> { cancelling.delete(deletionRequest) }
+			rowCount("imported_cell_entry_revision") shouldBe 1L
+			rowCount("imported_cell_entry_deletion") shouldBe 0L
+			rowCount("imported_cell_entry_deletion_receipt") shouldBe 0L
+			rowCount("imported_cell_deleted_identity") shouldBe 0L
+			database.close()
+			RoomDeleteSelectedImportedCell(database, Dispatchers.Unconfined)
+				.delete(deletionRequest) shouldBe
+				DeleteSelectedImportedCellResult.RetryableFailure(
+					ImportedCellDeletionRetryableReason.STORAGE_UNAVAILABLE,
+				)
+		}
+
+	@Test
+	fun `full collected-data clear preserves value-free selected deletion identity authority`() = runTest {
+		seedEvidence()
+		val value = entry()
+		importer().importEntry(request(value)) shouldBe
+			ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		RoomDeleteSelectedImportedCell(database, Dispatchers.Unconfined).delete(
+			DeleteSelectedImportedCellRequest(
+				value.identity,
+				1L,
+				value.contentChecksum,
+				EPOCH,
+				600L,
+			),
+		) shouldBe DeleteSelectedImportedCellResult.Deleted(1, 1, 1)
+
+		AppDatabase.deleteAllCollectedData(database, EPOCH + 1L, null, 700L)
+
+		rowCount("imported_cell_entry_deletion_receipt") shouldBe 1L
+		rowCount("imported_cell_deleted_identity") shouldBe 4L
+		importer().importEntry(
+			request(value, "after-clear", "entry-2", expectedEpoch = EPOCH + 1L),
+		) shouldBe ImportPortableCapturedCellResult.Unverifiable(
+			PortableCellImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	}
 
 	@Test
 	fun `cancellation between child writes rolls back the whole admission`() = runTest {

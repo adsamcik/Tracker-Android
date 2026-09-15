@@ -35,6 +35,7 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.CellHistoryRangePage
 import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeRequest
 import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeScope
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDay
 import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDayCompleteness
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistoryIdentity
@@ -148,6 +149,18 @@ class CellHistoryRepositoryRoomTest {
 			val secondPage = repository.range(
 				wallRequest.copy(continuation = firstPage.continuation),
 			) as CellHistoryRangePage.Available
+			repository.range(
+				CellHistoryRangeRequest(
+					CellHistoryRangeScope.WallTime(
+						EpochMs(oldest.startTimeMs + 1L),
+						EpochMs(newest.endTimeMs + 1L),
+					),
+					1,
+					firstPage.continuation,
+				),
+			) shouldBe CellHistoryRangePage.Unavailable(
+				CellHistoryRangeUnavailableReason.INVALID_CONTINUATION,
+			)
 			val thirdPage = repository.range(
 				wallRequest.copy(continuation = secondPage.continuation),
 			) as CellHistoryRangePage.Available

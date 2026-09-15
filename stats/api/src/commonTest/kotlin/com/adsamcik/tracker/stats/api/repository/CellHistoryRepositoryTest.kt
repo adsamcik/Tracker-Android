@@ -148,6 +148,24 @@ class CellHistoryRepositoryTest {
 		).structuralDays shouldBe emptySet()
 	}
 
+	@Test
+	fun `selected deletion request accepts only explicit source-local selection and nonnegative time`() {
+		val imported = ImportedCellHistorySelection(
+			ImportedCellHistoryIdentity("a".repeat(64)),
+			1L,
+			ImportedCellHistoryDigest("b".repeat(64)),
+		)
+
+		DeleteCellHistoryRequest(imported, 0L).selection shouldBe imported
+		DeleteCellHistoryResult.Deleted(1, 1, 0).deletedFactOrObservationCount shouldBe 0
+		shouldThrow<IllegalArgumentException> {
+			DeleteCellHistoryRequest(imported, -1L)
+		}
+		shouldThrow<IllegalArgumentException> {
+			DeleteCellHistoryResult.Deleted(2, 1, 1)
+		}
+	}
+
 	private fun observation() = CellHistoryObservation(
 		intervalStartTime = EpochMs(1L),
 		observedTime = EpochMs(2L),

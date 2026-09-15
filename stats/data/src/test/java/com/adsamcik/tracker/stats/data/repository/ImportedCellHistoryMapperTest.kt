@@ -3,6 +3,8 @@ package com.adsamcik.tracker.stats.data.repository
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.DeleteSelectedImportedCellRequest
+import com.adsamcik.tracker.shared.base.database.DeleteSelectedImportedCellResult
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedCellRequest
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedCellResult
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductEvaluation
@@ -21,6 +23,7 @@ import com.adsamcik.tracker.shared.base.database.PortableCellRunAvailability
 import com.adsamcik.tracker.shared.base.database.PortableCellSessionMode
 import com.adsamcik.tracker.shared.base.database.PortableCellSubscriptionGrouping
 import com.adsamcik.tracker.shared.base.database.RoomImportPortableCapturedCell
+import com.adsamcik.tracker.shared.base.database.RoomDeleteSelectedImportedCell
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellHistoryCandidate
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
@@ -342,6 +345,33 @@ class ImportedCellHistoryMapperTest {
 		dstRange.entries.single().let { entry ->
 			entry.structuralDays shouldBe setOf(CellHistoryStructuralDay(dstDay, dstZone))
 			entry.structuralDayCompleteness shouldBe CellHistoryStructuralDayCompleteness.EXACT
+		}
+	}
+
+	@Test
+	fun `exact imported detail remains truthfully deleted after selected payload cascade`() = runTest {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+		val value = cellEntry(logicalLocal = "deleted", runLocal = "deleted-run")
+		RoomImportPortableCapturedCell(database, Dispatchers.Unconfined).importEntry(
+			importRequest(value, "deleted"),
+		) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		val selection = value.toSelection()
+
+		RoomDeleteSelectedImportedCell(database, Dispatchers.Unconfined).delete(
+			DeleteSelectedImportedCellRequest(
+				value.identity,
+				1L,
+				value.contentChecksum,
+				EPOCH,
+				600L,
+			),
+		) shouldBe DeleteSelectedImportedCellResult.Deleted(1, 1, 1)
+
+		(repository().detail(selection) as CellHistoryQuery.Found).entry.let { deleted ->
+			deleted.state shouldBe CellHistoryProductState.DELETED
+			deleted.causes shouldBe setOf(CellHistoryCause.DELETED)
+			deleted.origin shouldBe CellHistoryOrigin.Imported(selection)
+			deleted.selection shouldBe selection
 		}
 	}
 

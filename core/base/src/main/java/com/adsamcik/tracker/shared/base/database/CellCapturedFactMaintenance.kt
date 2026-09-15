@@ -131,6 +131,284 @@ sealed interface CellCapturedSourceDeletionResult {
 	) : CellCapturedSourceDeletionResult
 }
 
+enum class CellCapturedSelectedDeletionBlockedReason {
+	STALE_COLLECTED_DATA_EPOCH,
+	STALE_REQUEST,
+	DELETION_FENCE_CONFLICT,
+	FACT_AUTHORITY_UNVERIFIABLE,
+	MAINTENANCE_BOUND_EXCEEDED,
+}
+
+sealed interface CellCapturedSelectedDeletionResult {
+	data class Deleted(
+		val logicalFactCount: Int,
+		val revisionCount: Int,
+		val fencedServiceRunCount: Int,
+	) : CellCapturedSelectedDeletionResult
+
+	data object AlreadyDeleted : CellCapturedSelectedDeletionResult
+	data class Blocked(val reason: CellCapturedSelectedDeletionBlockedReason) :
+		CellCapturedSelectedDeletionResult
+}
+
+enum class CellCapturedSelectedDeletionCheckpoint {
+	TRANSACTION_STARTED,
+	AUTHORITY_AUTHENTICATED,
+	DELETION_FENCES_INSTALLED,
+	PAYLOAD_REMOVED,
+}
+
+/**
+ * Low-level exact selected Cell fact deletion. The caller authenticates replacement membership,
+ * manifests, terminal lifecycle, active-demand absence and day repair before entering this call.
+ */
+suspend fun AppDatabase.deleteSelectedCapturedCellFactsInTransaction(
+	logicalTrackingId: String,
+	serviceRunIds: List<String>,
+	expectedCollectedDataEpoch: Long,
+	deletedAtMs: Long,
+	checkpoint: suspend (CellCapturedSelectedDeletionCheckpoint) -> Unit = {
+		currentCoroutineContext().ensureActive()
+	},
+): CellCapturedSelectedDeletionResult {
+	require(logicalTrackingId.isNotBlank())
+	require(serviceRunIds.isNotEmpty() && serviceRunIds.distinct().size == serviceRunIds.size)
+	require(expectedCollectedDataEpoch >= 0L && deletedAtMs >= 0L)
+	val limits = DEFAULT_CELL_CAPTURED_MAINTENANCE_LIMITS
+	return try {
+		checkpoint(CellCapturedSelectedDeletionCheckpoint.TRANSACTION_STARTED)
+		val state = sourceEvidenceStateDao().get()
+		if (state == null || state.collectedDataEpoch != expectedCollectedDataEpoch) {
+			selectedBlock(CellCapturedSelectedDeletionBlockedReason.STALE_COLLECTED_DATA_EPOCH)
+		}
+		val revisions = mutableListOf<CellCapturedFactRevisionEntity>()
+		var cursor: CellSelectedRevisionCursor? = null
+		while (true) {
+			currentCoroutineContext().ensureActive()
+			val remaining = limits.maximumRevisions - revisions.size
+			val page = cellCapturedFactDao().historyRevisionPage(
+				serviceRunIds,
+				listOf(logicalTrackingId),
+				minOf(limits.revisionPageSize, remaining + 1),
+				cursor?.projectionId,
+				cursor?.projectionVersion,
+				cursor?.logicalFactId,
+				cursor?.semanticRevision,
+			)
+			if (page.size > remaining) throw CellCapturedMaintenanceLimitExceeded()
+			if (page.any {
+				it.logicalTrackingId != logicalTrackingId || it.serviceRunId !in serviceRunIds
+			}) selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			if (page.isEmpty()) break
+			val next = CellSelectedRevisionCursor(page.last())
+			if (cursor != null && next <= cursor) {
+				selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			}
+			revisions += page
+			cursor = next
+			if (page.size < minOf(limits.revisionPageSize, remaining + 1)) break
+		}
+		val lineages = revisions.groupBy(CellCapturedFactRevisionEntity::logicalFactId)
+			.values.map(::authenticateCellCapturedLineage)
+		if (lineages.size > limits.maximumLogicalFacts) throw CellCapturedMaintenanceLimitExceeded()
+		val byId = lineages.associateBy(CellCapturedLineage::logicalFactId)
+		if (byId.size != lineages.size) {
+			selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		}
+		val cursorRows = cellCapturedFactDao().historyCursorsForScopes(
+			WRITER_ID,
+			WRITER_VERSION,
+			serviceRunIds,
+			listOf(logicalTrackingId),
+			limits.maximumCursors + 1,
+		)
+		if (cursorRows.size > limits.maximumCursors) throw CellCapturedMaintenanceLimitExceeded()
+		val cursors = cursorRows.associateBy(CellCapturedFactCursorEntity::logicalFactId)
+		if (cursors.size != cursorRows.size || cursors.keys != byId.keys ||
+			cursorRows.any {
+				it.logicalTrackingId != logicalTrackingId || it.serviceRunId !in serviceRunIds
+			}
+		) selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		val owner = sourceDestinationOwnerDao().get(
+			CELL_SOURCE,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+		)
+		if (lineages.isNotEmpty() && (owner == null ||
+			owner.owner != SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS ||
+			owner.ownerGeneration != SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
+		) selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		val reuseAuthority = mutableMapOf<String, CellAggregateReuseAuthority>()
+		val aggregates = mutableMapOf<String, CellHistoricalIdentityFreeAggregate>()
+		var latestDurableTimeMs = maxOf(state.updatedAtMs, owner?.updatedAtMs ?: 0L)
+		for (lineage in lineages) {
+			currentCoroutineContext().ensureActive()
+			val latest = lineage.revisions.last()
+			if (cursors[lineage.logicalFactId]?.matchesCurrent(latest) != true ||
+				latest.collectedDataEpoch != expectedCollectedDataEpoch ||
+				latest.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal
+			) selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			val authority = authenticateCellCapturedAuthority(latest, limits)
+			reuseAuthority[lineage.logicalFactId] = authority.reuseAuthority
+			aggregates[lineage.logicalFactId] = authority.aggregate
+			latestDurableTimeMs = maxOf(
+				latestDurableTimeMs,
+				authority.walCreatedAtMs,
+				lineage.revisions.maxOf(CellCapturedFactRevisionEntity::appliedAtMs),
+				requireNotNull(cursors[lineage.logicalFactId]).updatedAtMs,
+			)
+		}
+		authenticateAggregateDependencies(lineages, byId, reuseAuthority, aggregates)
+		val generations = cellCapturedFactDao().portableDeletionGenerationClosure(
+			logicalTrackingId,
+			serviceRunIds,
+			limits.maximumDeletionGenerations + 1,
+		)
+		if (generations.size > limits.maximumDeletionGenerations) {
+			throw CellCapturedMaintenanceLimitExceeded()
+		}
+		val generationsByRun = generations.associateBy(CellCaptureDeletionGenerationEntity::serviceRunId)
+		if (generationsByRun.size != generations.size || generations.any {
+			it.logicalTrackingId != logicalTrackingId ||
+				it.serviceRunId !in serviceRunIds ||
+				it.collectedDataEpoch != expectedCollectedDataEpoch ||
+				it.generation != 1L
+		}) selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		val scopeByRun = serviceRunIds.associateWith { runId ->
+			SourceDeletionFenceEntity.logicalServiceRunIdentity(
+				CELL_SOURCE,
+				CAPTURE_PURPOSE,
+				logicalTrackingId,
+				runId,
+			)
+		}
+		val fences = trackingHistoryReadDao().deletionFences(
+			CELL_SOURCE,
+			CAPTURE_PURPOSE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			scopeByRun.values.toList(),
+		)
+		val fenceByScope = fences.associateBy(SourceDeletionFenceEntity::scopeIdentityDigest)
+		if (fenceByScope.size != fences.size || fences.any {
+			it.scopeIdentityDigest !in scopeByRun.values ||
+				it.collectedDataEpoch != expectedCollectedDataEpoch || it.fenceGeneration != 1L
+		}) selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		if (serviceRunIds.any { runId ->
+			(runId in generationsByRun) != (scopeByRun.getValue(runId) in fenceByScope)
+		}) selectedBlock(CellCapturedSelectedDeletionBlockedReason.DELETION_FENCE_CONFLICT)
+		latestDurableTimeMs = maxOf(
+			latestDurableTimeMs,
+			generations.maxOfOrNull(CellCaptureDeletionGenerationEntity::updatedAtMs) ?: 0L,
+			fences.maxOfOrNull(SourceDeletionFenceEntity::deletedAtMs) ?: 0L,
+		)
+		if (deletedAtMs < latestDurableTimeMs) {
+			selectedBlock(CellCapturedSelectedDeletionBlockedReason.STALE_REQUEST)
+		}
+		if (lineages.isEmpty() && serviceRunIds.all(generationsByRun::containsKey)) {
+			return CellCapturedSelectedDeletionResult.AlreadyDeleted
+		}
+		checkpoint(CellCapturedSelectedDeletionCheckpoint.AUTHORITY_AUTHENTICATED)
+		for (runId in serviceRunIds.filterNot(generationsByRun::containsKey)) {
+			val fence = SourceDeletionFenceEntity.createLogicalServiceRun(
+				CELL_SOURCE,
+				CAPTURE_PURPOSE,
+				logicalTrackingId,
+				runId,
+				1L,
+				expectedCollectedDataEpoch,
+				deletedAtMs,
+			)
+			if (sourceDeletionFenceDao().insertIfAbsent(fence) == INSERT_IGNORED &&
+				sourceDeletionFenceDao().get(
+					fence.sourceKind,
+					fence.purpose,
+					fence.scopeKind,
+					fence.scopeIdentityDigest,
+				) != fence
+			) selectedBlock(CellCapturedSelectedDeletionBlockedReason.DELETION_FENCE_CONFLICT)
+			cellCapturedFactDao().insertDeletionGeneration(
+				CellCaptureDeletionGenerationEntity(
+					logicalTrackingId,
+					runId,
+					expectedCollectedDataEpoch,
+					1L,
+					deletedAtMs,
+				),
+			)
+		}
+		checkpoint(CellCapturedSelectedDeletionCheckpoint.DELETION_FENCES_INSTALLED)
+		var deletedRevisionCount = 0
+		lineages.chunked(DELETE_BATCH_SIZE).forEach { batch ->
+			val ids = batch.map(CellCapturedLineage::logicalFactId)
+			if (cellCapturedFactDao().deleteExactCursors(WRITER_ID, WRITER_VERSION, ids) != ids.size) {
+				selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			}
+			val expected = batch.sumOf { it.revisions.size }
+			val deleted = cellCapturedFactDao().deleteExactRevisionLineages(
+				WRITER_ID,
+				WRITER_VERSION,
+				ids,
+			)
+			if (deleted != expected) {
+				selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			}
+			deletedRevisionCount = Math.addExact(deletedRevisionCount, deleted)
+		}
+		if (sourceEvidenceStateDao().incrementRevision(deletedAtMs) != 1) {
+			selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		}
+		checkpoint(CellCapturedSelectedDeletionCheckpoint.PAYLOAD_REMOVED)
+		CellCapturedSelectedDeletionResult.Deleted(
+			lineages.size,
+			deletedRevisionCount,
+			serviceRunIds.count { it !in generationsByRun },
+		)
+	} catch (blocked: CellCapturedSelectedDeletionBlockedException) {
+		CellCapturedSelectedDeletionResult.Blocked(blocked.reason)
+	} catch (_: CellCapturedRetentionBlockedException) {
+		CellCapturedSelectedDeletionResult.Blocked(
+			CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	} catch (_: CellCapturedMaintenanceLimitExceeded) {
+		CellCapturedSelectedDeletionResult.Blocked(
+			CellCapturedSelectedDeletionBlockedReason.MAINTENANCE_BOUND_EXCEEDED,
+		)
+	} catch (_: IllegalArgumentException) {
+		CellCapturedSelectedDeletionResult.Blocked(
+			CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+}
+
+private data class CellSelectedRevisionCursor(
+	val projectionId: String,
+	val projectionVersion: Int,
+	val logicalFactId: String,
+	val semanticRevision: Long,
+) : Comparable<CellSelectedRevisionCursor> {
+	constructor(value: CellCapturedFactRevisionEntity) : this(
+		value.writerProjectionId,
+		value.writerProjectionVersion,
+		value.logicalFactId,
+		value.semanticRevision,
+	)
+
+	override fun compareTo(other: CellSelectedRevisionCursor): Int = compareValuesBy(
+		this,
+		other,
+		CellSelectedRevisionCursor::projectionId,
+		CellSelectedRevisionCursor::projectionVersion,
+		CellSelectedRevisionCursor::logicalFactId,
+		CellSelectedRevisionCursor::semanticRevision,
+	)
+}
+
+private fun selectedBlock(reason: CellCapturedSelectedDeletionBlockedReason): Nothing =
+	throw CellCapturedSelectedDeletionBlockedException(reason)
+
+private class CellCapturedSelectedDeletionBlockedException(
+	val reason: CellCapturedSelectedDeletionBlockedReason,
+) : RuntimeException(null, null, false, false)
+
 /**
  * Removes complete authenticated Cell correction/dependency closures affected by the global floor.
  *

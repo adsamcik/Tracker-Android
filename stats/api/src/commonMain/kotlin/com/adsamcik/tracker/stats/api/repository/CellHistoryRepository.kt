@@ -136,6 +136,65 @@ enum class CellHistoryRangeUnavailableReason {
 	INVALID_CONTINUATION,
 }
 
+data class DeleteCellHistoryRequest(
+	val selection: CellHistoryEntrySelection,
+	val requestedAtMs: Long,
+) {
+	init {
+		require(requestedAtMs >= 0L)
+	}
+}
+
+interface DeleteCellHistory {
+	suspend fun delete(request: DeleteCellHistoryRequest): DeleteCellHistoryResult
+}
+
+sealed interface DeleteCellHistoryResult {
+	data class Deleted(
+		val deletedLogicalEntryCount: Int,
+		val deletedPhysicalRunCount: Int,
+		val deletedFactOrObservationCount: Int,
+	) : DeleteCellHistoryResult {
+		init {
+			require(deletedLogicalEntryCount == 1)
+			require(deletedPhysicalRunCount > 0 && deletedFactOrObservationCount >= 0)
+		}
+	}
+
+	data object AlreadyDeleted : DeleteCellHistoryResult
+	data object NotFound : DeleteCellHistoryResult
+	data class Blocked(val reason: CellHistoryDeletionBlockedReason) : DeleteCellHistoryResult
+	data class Unverifiable(val reason: CellHistoryDeletionUnverifiableReason) :
+		DeleteCellHistoryResult
+	data class RetryableFailure(val reason: CellHistoryDeletionRetryableReason) :
+		DeleteCellHistoryResult
+}
+
+enum class CellHistoryDeletionBlockedReason {
+	ACTIVE_CAPTURE,
+	STALE_SELECTION,
+	STALE_REQUEST,
+	RETENTION_BOUNDARY,
+	MIXED_OR_INCOMPLETE_CAPTURE_SET,
+	PARTIAL_DELETION_STATE,
+}
+
+enum class CellHistoryDeletionUnverifiableReason {
+	SOURCE_EVIDENCE_STATE_MISSING,
+	SELECTION_LOOKUP_BUDGET_EXCEEDED,
+	REPLACEMENT_SCOPE_INVALID,
+	MANIFEST_INTEGRITY_FAILED,
+	WRITER_OR_FACT_AUTHORITY_INVALID,
+	OPAQUE_IDENTITY_CONFLICT,
+	STORED_EVIDENCE_UNVERIFIABLE,
+	DAY_REPAIR_UNAVAILABLE,
+}
+
+enum class CellHistoryDeletionRetryableReason {
+	CONCURRENT_STATE_CHANGE,
+	STORAGE_UNAVAILABLE,
+}
+
 /** Opaque logical identity. Physical run, segment, subscription, and tower identities stay private. */
 @JvmInline
 value class CellHistoryEntryKey(private val opaqueValue: String) {

@@ -585,9 +585,28 @@ class RoomReexportImportedPortableCapturedCell @Inject constructor(
 		request: ReexportImportedPortableCapturedCellRequest,
 		sink: PortableCapturedCellSink,
 	): ExportPortableCapturedCellResult = withContext(ioDispatcher) {
-		val selected = try {
+		val snapshot = try {
 			database.withTransaction {
-				ImportedCellProductReader(database).selectIdentityInTransaction(request.identity)
+				val selected = ImportedCellProductReader(database)
+					.selectIdentityInTransaction(request.identity)
+				if (selected != null) {
+					ImportedCellReexportSnapshot.Readable(selected)
+				} else {
+					when (database.authenticateDeletedImportedCellSelectionInTransaction(
+						request.identity,
+						request.expectedImportRevision,
+						request.expectedContentChecksum,
+					)) {
+						DeletedImportedCellSelectionAuthentication.Absent ->
+							ImportedCellReexportSnapshot.Missing
+						is DeletedImportedCellSelectionAuthentication.Exact ->
+							ImportedCellReexportSnapshot.Deleted
+						DeletedImportedCellSelectionAuthentication.Stale ->
+							ImportedCellReexportSnapshot.Stale
+						DeletedImportedCellSelectionAuthentication.Unverifiable ->
+							ImportedCellReexportSnapshot.Unverifiable
+					}
+				}
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
@@ -595,9 +614,26 @@ class RoomReexportImportedPortableCapturedCell @Inject constructor(
 			return@withContext ExportPortableCapturedCellResult.RetryableFailure(
 				PortableCellRetryableReason.STORAGE_UNAVAILABLE,
 			)
-		} ?: return@withContext ExportPortableCapturedCellResult.Unavailable(
-			PortableCellUnavailableReason.ENTRY_NOT_FOUND,
-		)
+		}
+		if (snapshot == ImportedCellReexportSnapshot.Missing) {
+			return@withContext ExportPortableCapturedCellResult.Unavailable(
+				PortableCellUnavailableReason.ENTRY_NOT_FOUND,
+			)
+		}
+		if (snapshot == ImportedCellReexportSnapshot.Deleted) {
+			return@withContext ExportPortableCapturedCellResult.Deleted
+		}
+		if (snapshot == ImportedCellReexportSnapshot.Stale) {
+			return@withContext ExportPortableCapturedCellResult.Unverifiable(
+				PortableCellUnverifiableReason.IMPORTED_SELECTION_STALE,
+			)
+		}
+		if (snapshot == ImportedCellReexportSnapshot.Unverifiable) {
+			return@withContext ExportPortableCapturedCellResult.Unverifiable(
+				PortableCellUnverifiableReason.IMPORTED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		val selected = (snapshot as ImportedCellReexportSnapshot.Readable).evaluation
 		val candidate = selected.candidate
 		if (candidate.importRevision != request.expectedImportRevision ||
 			candidate.contentChecksum != request.expectedContentChecksum.value
@@ -636,6 +672,16 @@ class RoomReexportImportedPortableCapturedCell @Inject constructor(
 			}
 		}
 	}
+}
+
+private sealed interface ImportedCellReexportSnapshot {
+	data class Readable(
+		val evaluation: ImportedCellProductEvaluation,
+	) : ImportedCellReexportSnapshot
+	data object Missing : ImportedCellReexportSnapshot
+	data object Deleted : ImportedCellReexportSnapshot
+	data object Stale : ImportedCellReexportSnapshot
+	data object Unverifiable : ImportedCellReexportSnapshot
 }
 
 sealed interface ReadLocalPortableCapturedCellResult {

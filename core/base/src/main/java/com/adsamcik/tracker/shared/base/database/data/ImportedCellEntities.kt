@@ -11,11 +11,17 @@ import java.time.ZoneId
 @Entity(
 	tableName = "imported_cell_entry_revision",
 	primaryKeys = ["identity", "import_revision"],
-	indices = [Index(
-		value = ["import_job_id", "import_entry_key"],
-		unique = true,
-		name = "idx_imported_cell_entry_original_receipt",
-	)],
+	indices = [
+		Index(
+			value = ["import_job_id", "import_entry_key"],
+			unique = true,
+			name = "idx_imported_cell_entry_original_receipt",
+		),
+		Index(
+			value = ["start_time_ms", "end_time_ms", "identity"],
+			name = "idx_imported_cell_entry_time_range",
+		),
+	],
 )
 data class ImportedCellEntryRevisionEntity(
 	@ColumnInfo(name = "identity") val identity: String,
@@ -174,6 +180,10 @@ data class ImportedCellRunEntity(
 		),
 		Index(value = ["identity"], name = "idx_imported_cell_observation_identity"),
 		Index(value = ["aggregate_owner_identity"], name = "idx_imported_cell_observation_owner"),
+		Index(
+			value = ["latest_possible_time_ms", "coverage_start_time_ms", "entry_identity"],
+			name = "idx_imported_cell_observation_time_range",
+		),
 		Index(
 			value = ["entry_identity", "entry_import_revision", "identity"],
 			unique = true,
@@ -374,6 +384,280 @@ data class ImportedCellDeletionGenerationEntity(
 	}
 }
 
+/** Self-verifying imported Cell deletion authority retained after the payload hierarchy is gone. */
+@Entity(
+	tableName = "imported_cell_entry_deletion_receipt",
+	primaryKeys = ["entry_identity"],
+)
+@Suppress("LongParameterList")
+data class ImportedCellEntryDeletionReceiptEntity(
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
+	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	@ColumnInfo(name = "deleted_import_revision") val deletedImportRevision: Long,
+	@ColumnInfo(name = "deleted_content_checksum") val deletedContentChecksum: String,
+	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
+	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
+	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+	@ColumnInfo(name = "retained_from_ms") val retainedFromMs: Long?,
+	@ColumnInfo(name = "expected_revision_count") val expectedRevisionCount: Int,
+	@ColumnInfo(name = "expected_receipt_count") val expectedReceiptCount: Int,
+	@ColumnInfo(name = "expected_run_count") val expectedRunCount: Int,
+	@ColumnInfo(name = "expected_observation_count") val expectedObservationCount: Int,
+	@ColumnInfo(name = "expected_protected_identity_count") val expectedProtectedIdentityCount: Int,
+	@ColumnInfo(name = "protected_identity_set_checksum") val protectedIdentitySetChecksum: String,
+	@ColumnInfo(name = "deleted_at_ms") val deletedAtMs: Long,
+	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
+) {
+	init {
+		listOf(
+			entryIdentity,
+			deletedContentChecksum,
+			protectedIdentitySetChecksum,
+			effectChecksum,
+		).forEach { require(ImportedCellIdentity.isDigest(it)) }
+		require(collectedDataEpoch >= 0L && deletedImportRevision > 0L)
+		require(startTimeMs >= 0L && endTimeMs >= startTimeMs && receivedAtMs >= 0L)
+		require(retainedFromMs?.let { it >= 0L } != false)
+		require(expectedRevisionCount in 1..MAX_REVISIONS)
+		require(expectedReceiptCount in expectedRevisionCount..MAX_RECEIPTS)
+		require(expectedRunCount in 1..MAX_RUNS)
+		require(expectedObservationCount in 1..MAX_OBSERVATIONS)
+		require(expectedProtectedIdentityCount in 4..MAX_PROTECTED_IDENTITIES)
+		require(effectChecksum == checksum(
+			entryIdentity,
+			collectedDataEpoch,
+			deletedImportRevision,
+			deletedContentChecksum,
+			startTimeMs,
+			endTimeMs,
+			receivedAtMs,
+			retainedFromMs,
+			expectedRevisionCount,
+			expectedReceiptCount,
+			expectedRunCount,
+			expectedObservationCount,
+			expectedProtectedIdentityCount,
+			protectedIdentitySetChecksum,
+			deletedAtMs,
+		))
+	}
+
+	companion object {
+		const val MAX_REVISIONS = 16
+		const val MAX_RECEIPTS = 256
+		const val MAX_RUNS = MAX_REVISIONS * 64
+		const val MAX_OBSERVATIONS = MAX_REVISIONS * 4_096
+		const val MAX_PROTECTED_IDENTITIES = 1 + MAX_RUNS * 2 + MAX_OBSERVATIONS
+
+		fun create(
+			entryDeletion: ImportedCellEntryDeletionEntity,
+			deletedContentChecksum: String,
+			startTimeMs: Long,
+			endTimeMs: Long,
+			receivedAtMs: Long,
+			retainedFromMs: Long?,
+			revisionCount: Int,
+			receiptCount: Int,
+			runCount: Int,
+			observationCount: Int,
+			protectedIdentities: List<ImportedCellDeletedIdentityEntity>,
+		): ImportedCellEntryDeletionReceiptEntity {
+			val protectedChecksum = checksumProtectedIdentities(protectedIdentities)
+			val effectChecksum = checksum(
+				entryDeletion.entryIdentity,
+				entryDeletion.collectedDataEpoch,
+				entryDeletion.deletedImportRevision,
+				deletedContentChecksum,
+				startTimeMs,
+				endTimeMs,
+				receivedAtMs,
+				retainedFromMs,
+				revisionCount,
+				receiptCount,
+				runCount,
+				observationCount,
+				protectedIdentities.size,
+				protectedChecksum,
+				entryDeletion.deletedAtMs,
+			)
+			return ImportedCellEntryDeletionReceiptEntity(
+				entryIdentity = entryDeletion.entryIdentity,
+				collectedDataEpoch = entryDeletion.collectedDataEpoch,
+				deletedImportRevision = entryDeletion.deletedImportRevision,
+				deletedContentChecksum = deletedContentChecksum,
+				startTimeMs = startTimeMs,
+				endTimeMs = endTimeMs,
+				receivedAtMs = receivedAtMs,
+				retainedFromMs = retainedFromMs,
+				expectedRevisionCount = revisionCount,
+				expectedReceiptCount = receiptCount,
+				expectedRunCount = runCount,
+				expectedObservationCount = observationCount,
+				expectedProtectedIdentityCount = protectedIdentities.size,
+				protectedIdentitySetChecksum = protectedChecksum,
+				deletedAtMs = entryDeletion.deletedAtMs,
+				effectChecksum = effectChecksum,
+			)
+		}
+
+		fun checksumProtectedIdentities(
+			values: List<ImportedCellDeletedIdentityEntity>,
+		): String = checksum(
+			"tracker-imported-cell-deleted-identity-set-v1",
+			*values.sortedWith(
+				compareBy(ImportedCellDeletedIdentityEntity::protectedIdentity)
+					.thenBy(ImportedCellDeletedIdentityEntity::identityKind),
+			).flatMap { value ->
+				listOf(
+					value.protectedIdentity,
+					value.entryIdentity,
+					value.identityKind,
+					value.runIdentity,
+					value.aggregateOwnerIdentity,
+					value.effectChecksum,
+				)
+			}.toTypedArray(),
+		)
+
+		@Suppress("LongParameterList")
+		private fun checksum(
+			entryIdentity: String,
+			collectedDataEpoch: Long,
+			deletedImportRevision: Long,
+			deletedContentChecksum: String,
+			startTimeMs: Long,
+			endTimeMs: Long,
+			receivedAtMs: Long,
+			retainedFromMs: Long?,
+			expectedRevisionCount: Int,
+			expectedReceiptCount: Int,
+			expectedRunCount: Int,
+			expectedObservationCount: Int,
+			expectedProtectedIdentityCount: Int,
+			protectedIdentitySetChecksum: String,
+			deletedAtMs: Long,
+		): String = checksum(
+			"tracker-imported-cell-entry-deletion-receipt-v1",
+			entryIdentity,
+			collectedDataEpoch,
+			deletedImportRevision,
+			deletedContentChecksum,
+			startTimeMs,
+			endTimeMs,
+			receivedAtMs,
+			retainedFromMs,
+			expectedRevisionCount,
+			expectedReceiptCount,
+			expectedRunCount,
+			expectedObservationCount,
+			expectedProtectedIdentityCount,
+			protectedIdentitySetChecksum,
+			deletedAtMs,
+		)
+	}
+}
+
+/** Value-free complete opaque identity/owner footprint retained after imported Cell deletion. */
+@Entity(
+	tableName = "imported_cell_deleted_identity",
+	primaryKeys = ["protected_identity"],
+	foreignKeys = [ForeignKey(
+		entity = ImportedCellEntryDeletionReceiptEntity::class,
+		parentColumns = ["entry_identity"],
+		childColumns = ["entry_identity"],
+		onDelete = ForeignKey.CASCADE,
+	)],
+	indices = [Index(value = ["entry_identity"], name = "idx_imported_cell_deleted_identity_entry")],
+)
+data class ImportedCellDeletedIdentityEntity(
+	@ColumnInfo(name = "protected_identity") val protectedIdentity: String,
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
+	@ColumnInfo(name = "identity_kind") val identityKind: String,
+	@ColumnInfo(name = "run_identity") val runIdentity: String?,
+	@ColumnInfo(name = "aggregate_owner_identity") val aggregateOwnerIdentity: String?,
+	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
+) {
+	init {
+		listOf(protectedIdentity, entryIdentity, effectChecksum).forEach {
+			require(ImportedCellIdentity.isDigest(it))
+		}
+		runIdentity?.let { require(ImportedCellIdentity.isDigest(it)) }
+		aggregateOwnerIdentity?.let { require(ImportedCellIdentity.isDigest(it)) }
+		require(identityKind in ALL_KINDS)
+		when (identityKind) {
+			ENTRY -> require(
+				protectedIdentity == entryIdentity && runIdentity == null &&
+					aggregateOwnerIdentity == null,
+			)
+			RUN -> require(
+				protectedIdentity != entryIdentity && runIdentity == protectedIdentity &&
+					aggregateOwnerIdentity == null,
+			)
+			OBSERVATION -> require(
+				protectedIdentity != entryIdentity && runIdentity != null &&
+					runIdentity != protectedIdentity,
+			)
+			DELETION_SCOPE -> require(
+				protectedIdentity != entryIdentity && runIdentity != null &&
+					aggregateOwnerIdentity == null,
+			)
+		}
+		require(effectChecksum == checksum(
+			protectedIdentity,
+			entryIdentity,
+			identityKind,
+			runIdentity,
+			aggregateOwnerIdentity,
+		))
+	}
+
+	companion object {
+		const val ENTRY = "ENTRY"
+		const val RUN = "RUN"
+		const val OBSERVATION = "OBSERVATION"
+		const val DELETION_SCOPE = "DELETION_SCOPE"
+		private val ALL_KINDS = setOf(ENTRY, RUN, OBSERVATION, DELETION_SCOPE)
+
+		fun create(
+			protectedIdentity: String,
+			entryIdentity: String,
+			identityKind: String,
+			runIdentity: String? = null,
+			aggregateOwnerIdentity: String? = null,
+		): ImportedCellDeletedIdentityEntity {
+			return ImportedCellDeletedIdentityEntity(
+				protectedIdentity,
+				entryIdentity,
+				identityKind,
+				runIdentity,
+				aggregateOwnerIdentity,
+				checksum(
+					protectedIdentity,
+					entryIdentity,
+					identityKind,
+					runIdentity,
+					aggregateOwnerIdentity,
+				),
+			)
+		}
+
+		private fun checksum(
+			protectedIdentity: String,
+			entryIdentity: String,
+			identityKind: String,
+			runIdentity: String?,
+			aggregateOwnerIdentity: String?,
+		): String = checksum(
+			"tracker-imported-cell-deleted-identity-v1",
+			protectedIdentity,
+			entryIdentity,
+			identityKind,
+			runIdentity,
+			aggregateOwnerIdentity,
+		)
+	}
+}
+
 internal object ImportedCellIdentity {
 	private val digest = Regex("[0-9a-f]{64}")
 
@@ -388,8 +672,9 @@ internal object ImportedCellIdentity {
 	private const val MAX_PROVENANCE_LENGTH = 4_096
 }
 
-private fun checksum(namespace: String, vararg values: Any): String {
-	val canonical = (listOf(namespace) + values.map(Any::toString)).joinToString(separator = "") {
+private fun checksum(namespace: String, vararg values: Any?): String {
+	val canonical = (listOf(namespace) + values.map { it?.toString() ?: "<null>" })
+		.joinToString(separator = "") {
 		"${it.length}:$it"
 	}
 	return MessageDigest.getInstance("SHA-256")

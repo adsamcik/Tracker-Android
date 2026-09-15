@@ -284,6 +284,19 @@ interface CellCapturedFactDao {
 		limit: Int,
 	): List<SourceDemandEntity>
 
+	@Query(
+		"SELECT * FROM source_demand WHERE source_kind = :sourceKind " +
+			"AND purpose = 'SESSION_CAPTURE' " +
+			"AND (logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds)) " +
+			"AND status IN ('ACTIVE', 'RETIRING', 'BLOCKED') ORDER BY demand_id LIMIT :limit",
+	)
+	suspend fun selectedCellCaptureDemandsForDeletion(
+		sourceKind: Int,
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<SourceDemandEntity>
+
 	/** Exact bounded demand vector from which the current Cell authorization is derived. */
 	@Query(
 		"SELECT * FROM source_demand WHERE source_kind = :sourceKind AND status = 'ACTIVE' " +

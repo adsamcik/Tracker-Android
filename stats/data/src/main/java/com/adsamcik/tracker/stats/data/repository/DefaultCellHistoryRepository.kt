@@ -2,12 +2,14 @@ package com.adsamcik.tracker.stats.data.repository
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.DeletedImportedCellSelectionAuthentication
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductEvaluation
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductReader
 import com.adsamcik.tracker.shared.base.database.PortableCapturedCellEntryV1
 import com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind
 import com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity
 import com.adsamcik.tracker.shared.base.database.ReadLocalPortableCapturedCellResult
+import com.adsamcik.tracker.shared.base.database.authenticateDeletedImportedCellSelectionInTransaction
 import com.adsamcik.tracker.shared.base.database.dao.CellLogicalHistoryCandidate
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
@@ -135,7 +137,33 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 				database.withTransaction {
 					val evaluation = importedProductReader.selectIdentityInTransaction(
 						PortableCellOpaqueIdentity(selection.identity.value),
-					) ?: return@withTransaction CellHistoryQuery.NotFound
+					) ?: return@withTransaction when (val deleted =
+						database.authenticateDeletedImportedCellSelectionInTransaction(
+							PortableCellOpaqueIdentity(selection.identity.value),
+							selection.importRevision,
+							com.adsamcik.tracker.shared.base.database.PortableCellDigest(
+								selection.contentChecksum.value,
+							),
+						)
+					) {
+						DeletedImportedCellSelectionAuthentication.Absent -> CellHistoryQuery.NotFound
+						is DeletedImportedCellSelectionAuthentication.Exact ->
+							CellHistoryQuery.Found(deletedImportedSelection(
+								selection,
+								deleted.receipt.startTimeMs,
+								deleted.receipt.endTimeMs,
+							))
+						DeletedImportedCellSelectionAuthentication.Stale ->
+							CellHistoryQuery.Found(unverifiableImportedSelection(
+								selection,
+								CellHistoryCause.IMPORTED_SELECTION_STALE,
+							))
+						DeletedImportedCellSelectionAuthentication.Unverifiable ->
+							CellHistoryQuery.Found(unverifiableImportedSelection(
+								selection,
+								CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
+							))
+					}
 					if (evaluation.candidate.importRevision != selection.importRevision ||
 						evaluation.candidate.contentChecksum != selection.contentChecksum.value
 					) {
@@ -705,6 +733,23 @@ private fun unverifiableImportedSelection(
 	coverage = CellHistoryCoverage.NONE,
 	observations = emptyList(),
 	causes = setOf(cause),
+	origin = CellHistoryOrigin.Imported(selection),
+	selection = selection,
+)
+
+private fun deletedImportedSelection(
+	selection: ImportedCellHistorySelection,
+	startTimeMs: Long,
+	endTimeMs: Long,
+) = CellHistoryEntry(
+	key = CellHistoryEntryKey("cell-imported:${selection.identity.value}"),
+	startTime = EpochMs(startTimeMs),
+	endTime = EpochMs(endTimeMs),
+	storedZoneIds = emptySet(),
+	state = CellHistoryProductState.DELETED,
+	coverage = CellHistoryCoverage.NONE,
+	observations = emptyList(),
+	causes = setOf(CellHistoryCause.DELETED),
 	origin = CellHistoryOrigin.Imported(selection),
 	selection = selection,
 )

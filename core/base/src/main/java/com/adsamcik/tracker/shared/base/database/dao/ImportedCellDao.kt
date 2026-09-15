@@ -7,7 +7,9 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletedIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellObservationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellReceiptEntity
@@ -44,6 +46,16 @@ abstract class ImportedCellDao {
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertEntryDeletion(deletion: ImportedCellEntryDeletionEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertEntryDeletionReceipt(
+		receipt: ImportedCellEntryDeletionReceiptEntity,
+	)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertDeletedIdentities(
+		identities: List<ImportedCellDeletedIdentityEntity>,
+	)
 
 	@Query(
 		"SELECT * FROM imported_cell_receipt WHERE import_job_id = :jobId " +
@@ -102,6 +114,42 @@ abstract class ImportedCellDao {
 
 	@Query("SELECT * FROM imported_cell_entry_deletion WHERE entry_identity = :identity LIMIT 1")
 	abstract suspend fun entryDeletion(identity: String): ImportedCellEntryDeletionEntity?
+
+	@Query(
+		"SELECT * FROM imported_cell_entry_deletion_receipt WHERE entry_identity = :identity LIMIT 1",
+	)
+	abstract suspend fun entryDeletionReceipt(
+		identity: String,
+	): ImportedCellEntryDeletionReceiptEntity?
+
+	@Query(
+		"SELECT * FROM imported_cell_deleted_identity WHERE entry_identity = :identity " +
+			"ORDER BY protected_identity LIMIT :limit",
+	)
+	abstract suspend fun deletedIdentitiesForEntry(
+		identity: String,
+		limit: Int,
+	): List<ImportedCellDeletedIdentityEntity>
+
+	@Query(
+		"SELECT * FROM imported_cell_entry_deletion_receipt WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity LIMIT :limit",
+	)
+	abstract suspend fun entryDeletionReceiptOwners(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellEntryDeletionReceiptEntity>
+
+	@Query(
+		"SELECT * FROM imported_cell_deleted_identity WHERE protected_identity IN (:identities) " +
+			"OR entry_identity IN (:identities) OR run_identity IN (:identities) " +
+			"OR aggregate_owner_identity IN (:identities) " +
+			"ORDER BY protected_identity LIMIT :limit",
+	)
+	abstract suspend fun deletedIdentityOwners(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellDeletedIdentityEntity>
 
 	@Query(
 		"SELECT entry.identity, entry.import_revision, entry.content_checksum, " +
@@ -399,6 +447,9 @@ abstract class ImportedCellDao {
 		digests: List<String>,
 		limit: Int,
 	): List<SourceDeletionFenceEntity>
+
+	@Query("DELETE FROM imported_cell_entry_revision WHERE identity = :identity")
+	abstract suspend fun deleteEntryRevisions(identity: String): Int
 
 	@Query("DELETE FROM imported_cell_receipt")
 	abstract fun deleteAllReceipts()

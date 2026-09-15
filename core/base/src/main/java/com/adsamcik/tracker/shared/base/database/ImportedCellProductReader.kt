@@ -359,6 +359,11 @@ class ImportedCellProductReader(
 			val entryDeletions = dao.entryDeletionOwners(values, limit)
 			val runDeletions = dao.deletionGenerationOwners(values, limit)
 			val fences = dao.sourceFenceOwners(values, limit)
+			val deletionReceipts = dao.entryDeletionReceiptOwners(values, limit)
+			val deletedIdentities = dao.deletedIdentityOwners(
+				values,
+				graph.allProtectedValues.size + 1,
+			)
 			if (listOf(
 					entries.size,
 					runs.size,
@@ -366,12 +371,15 @@ class ImportedCellProductReader(
 					entryDeletions.size,
 					runDeletions.size,
 					fences.size,
+					deletionReceipts.size,
 				).any { it >= limit }
 			) dependencyOverflow()
 			if (observations.size >= observationLimit) dependencyOverflow()
+			if (deletedIdentities.size > graph.allProtectedValues.size) dependencyOverflow()
 			if (entryDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
 				runDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				fences.any { it.collectedDataEpoch != state.collectedDataEpoch }
+				fences.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
+				deletionReceipts.any { it.collectedDataEpoch != state.collectedDataEpoch }
 			) storedCorrupt()
 			if (entries.any { graph.kinds[it] != PortableCellIdentityKind.LOGICAL_ENTRY } ||
 				runs.any { owner ->
@@ -389,6 +397,7 @@ class ImportedCellProductReader(
 						(marker.entryIdentity to marker.deletionScopeDigest)
 				}
 			) originConflict()
+			if (deletionReceipts.isNotEmpty() || deletedIdentities.isNotEmpty()) storedCorrupt()
 			fences.forEach { fence ->
 				val expected = graph.scopeOwners[fence.scopeIdentityDigest] ?: originConflict()
 				if (fence.sourceKind != SourceDestinationOwnerEntity.SOURCE_CELL ||

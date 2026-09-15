@@ -1280,6 +1280,60 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `selected Cell fact deletion fences exact run preserves WAL and replays without resurrection`() =
+		runTest {
+			seedCapturedCell(semanticRevisions = 2, withPortableExportState = true)
+
+			database.withTransaction {
+				database.deleteSelectedCapturedCellFactsInTransaction(
+					LOGICAL_TRACKING_ID,
+					listOf(SERVICE_RUN_ID),
+					0L,
+					DELETION_TIME_MS,
+				)
+			} shouldBe CellCapturedSelectedDeletionResult.Deleted(1, 2, 1)
+
+			database.cellCapturedFactDao().revisionCount() shouldBe 0L
+			database.cellCapturedFactDao().cursorCount() shouldBe 0L
+			database.cellCapturedFactDao().maintenanceWalCount(CELL_SOURCE) shouldBe 1L
+			database.sessionSegmentDao().getById(SEGMENT_ID) shouldBe segment()
+			database.withTransaction {
+				database.deleteSelectedCapturedCellFactsInTransaction(
+					LOGICAL_TRACKING_ID,
+					listOf(SERVICE_RUN_ID),
+					0L,
+					DELETION_TIME_MS,
+				)
+			} shouldBe CellCapturedSelectedDeletionResult.AlreadyDeleted
+		}
+
+	@Test
+	fun `selected Cell fact deletion cancellation after fences rolls back markers and payload`() =
+		runTest {
+			seedCapturedCell(withPortableExportState = true)
+
+			shouldThrow<CancellationException> {
+				database.withTransaction {
+					database.deleteSelectedCapturedCellFactsInTransaction(
+						LOGICAL_TRACKING_ID,
+						listOf(SERVICE_RUN_ID),
+						0L,
+						DELETION_TIME_MS,
+					) { checkpoint ->
+						if (checkpoint ==
+							CellCapturedSelectedDeletionCheckpoint.DELETION_FENCES_INSTALLED
+						) throw CancellationException("cancel selected Cell deletion")
+					}
+				}
+			}
+
+			database.cellCapturedFactDao().revisionCount() shouldBe 1L
+			database.cellCapturedFactDao().cursorCount() shouldBe 1L
+			database.cellCapturedFactDao().deletionGenerationCount() shouldBe 0L
+			database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		}
+
+	@Test
 	fun `portable export preserves one-hop aggregate reuse without exposing owner identity`() = runTest {
 		val owner = seedCapturedCell(withPortableExportState = true)
 		insertCapturedFact(

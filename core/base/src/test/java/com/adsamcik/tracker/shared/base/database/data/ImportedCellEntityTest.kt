@@ -63,6 +63,64 @@ class ImportedCellEntityTest {
 		shouldThrow<IllegalArgumentException> { marker.copy(entryIdentity = digest('4')) }
 	}
 
+	@Test
+	fun `deleted identity footprint and receipt authenticate owner shape and set checksum`() {
+		val entryDeletion = ImportedCellEntryDeletionEntity.create(
+			digest('1'),
+			4L,
+			1L,
+			50L,
+		)
+		val markers = listOf(
+			ImportedCellDeletedIdentityEntity.create(
+				digest('1'),
+				digest('1'),
+				ImportedCellDeletedIdentityEntity.ENTRY,
+			),
+			ImportedCellDeletedIdentityEntity.create(
+				digest('2'),
+				digest('1'),
+				ImportedCellDeletedIdentityEntity.RUN,
+				digest('2'),
+			),
+			ImportedCellDeletedIdentityEntity.create(
+				digest('3'),
+				digest('1'),
+				ImportedCellDeletedIdentityEntity.DELETION_SCOPE,
+				digest('2'),
+			),
+			ImportedCellDeletedIdentityEntity.create(
+				digest('4'),
+				digest('1'),
+				ImportedCellDeletedIdentityEntity.OBSERVATION,
+				digest('2'),
+			),
+		)
+		val receipt = ImportedCellEntryDeletionReceiptEntity.create(
+			entryDeletion = entryDeletion,
+			deletedContentChecksum = digest('5'),
+			startTimeMs = 10L,
+			endTimeMs = 20L,
+			receivedAtMs = 30L,
+			retainedFromMs = null,
+			revisionCount = 1,
+			receiptCount = 1,
+			runCount = 1,
+			observationCount = 1,
+			protectedIdentities = markers,
+		)
+
+		receipt.expectedProtectedIdentityCount shouldBe 4
+		receipt.protectedIdentitySetChecksum shouldBe
+			ImportedCellEntryDeletionReceiptEntity.checksumProtectedIdentities(markers.reversed())
+		shouldThrow<IllegalArgumentException> {
+			markers.last().copy(runIdentity = digest('6'))
+		}
+		shouldThrow<IllegalArgumentException> {
+			receipt.copy(expectedObservationCount = 2)
+		}
+	}
+
 	private fun observation(
 		observedTimeMs: Long = 110L,
 		latestPossibleTimeMs: Long = 112L,

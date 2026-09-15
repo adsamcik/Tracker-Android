@@ -6,6 +6,9 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.CellCapturedPortableFormatV1
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellRunEntity
@@ -67,6 +70,51 @@ class ImportedCellDaoTest {
 
 		dao.deletionGenerationOwners(listOf(RUN), 2) shouldBe listOf(marker)
 		dao.deletionGenerationOwners(listOf(SCOPE), 2) shouldBe listOf(marker)
+	}
+
+	@Test
+	fun `entry deletion receipt retains complete identity owners after payload cascade`() = runTest {
+		dao.insertEntryRevision(header())
+		dao.insertRun(run())
+		dao.insertReceipt(receipt())
+		val deletion = ImportedCellEntryDeletionEntity.create(ENTRY, 3L, 1L, 9L)
+		val identities = listOf(
+			ImportedCellDeletedIdentityEntity.create(
+				ENTRY, ENTRY, ImportedCellDeletedIdentityEntity.ENTRY,
+			),
+			ImportedCellDeletedIdentityEntity.create(
+				RUN, ENTRY, ImportedCellDeletedIdentityEntity.RUN, RUN,
+			),
+			ImportedCellDeletedIdentityEntity.create(
+				SCOPE, ENTRY, ImportedCellDeletedIdentityEntity.DELETION_SCOPE, RUN,
+			),
+			ImportedCellDeletedIdentityEntity.create(
+				digest('7'), ENTRY, ImportedCellDeletedIdentityEntity.OBSERVATION, RUN,
+			),
+		)
+		dao.insertEntryDeletion(deletion)
+		dao.insertEntryDeletionReceipt(
+			ImportedCellEntryDeletionReceiptEntity.create(
+				deletion,
+				digest('4'),
+				1L,
+				2L,
+				8L,
+				null,
+				1,
+				1,
+				1,
+				1,
+				identities,
+			),
+		)
+		dao.insertDeletedIdentities(identities)
+		dao.deleteEntryRevisions(ENTRY) shouldBe 1
+
+		dao.boundedEntryRevisions(ENTRY) shouldBe emptyList()
+		dao.entryDeletionReceipt(ENTRY)?.expectedProtectedIdentityCount shouldBe 4
+		dao.deletedIdentitiesForEntry(ENTRY, 5).toSet() shouldBe identities.toSet()
+		dao.deletedIdentityOwners(listOf(digest('7')), 5).single().entryIdentity shouldBe ENTRY
 	}
 
 	private fun header() = ImportedCellEntryRevisionEntity(
