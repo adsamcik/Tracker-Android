@@ -38,6 +38,9 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryObservation
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryResultCompleteness
 import com.adsamcik.tracker.stats.api.repository.WifiHistorySignalQuality
+import com.adsamcik.tracker.stats.api.repository.PortableWifiIdentityKind
+import com.adsamcik.tracker.stats.api.repository.PortableWifiOpaqueIdentity
+import com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import java.io.ByteArrayInputStream
 import java.io.DataInputStream
@@ -890,8 +893,17 @@ internal object WifiHistoryComposer {
 	): WifiHistoryEntry {
 		val start = segments.minOf(SessionSegment::startTimeMs).coerceAtLeast(0L)
 		val end = segments.maxOf(SessionSegment::endTimeMs).coerceAtLeast(start)
+		val selection = runCatching {
+			WifiLocalHistorySelectionKey(
+				PortableWifiOpaqueIdentity.derive(
+					PortableWifiIdentityKind.LOGICAL_ENTRY,
+					logicalId,
+				).value,
+			)
+		}.getOrNull()
 		return WifiHistoryEntry(WifiHistoryEntryKey("wifi-logical:$logicalId"), EpochMs(start), EpochMs(end),
-			zones, state, coverage, observations, causes, capturesOnlyWifi = capturesOnlyWifi)
+			zones, state, coverage, observations, causes, localSelection = selection,
+			capturesOnlyWifi = capturesOnlyWifi)
 	}
 
 	private fun failed(logicalId: String, segments: List<SessionSegment>, cause: WifiHistoryCause) =

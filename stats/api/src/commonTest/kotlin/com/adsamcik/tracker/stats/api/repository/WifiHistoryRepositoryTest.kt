@@ -44,11 +44,24 @@ class WifiHistoryRepositoryTest {
 			importedSelection = selection,
 		)
 		assertEquals(selection, imported.importedSelection)
-		assertFailsWith<IllegalArgumentException> {
-			imported.copy(importedSelection = null)
-		}
+		assertEquals(WifiHistorySelection.Imported(selection), imported.selection)
 		assertFailsWith<IllegalArgumentException> {
 			imported.copy(capturesOnlyWifi = true)
+		}
+		assertFailsWith<IllegalArgumentException> {
+			imported.copy(
+				localSelection = WifiLocalHistorySelectionKey("c".repeat(64)),
+			)
+		}
+	}
+
+	@Test
+	fun `local source-issued selection is opaque and origin bound`() {
+		val key = WifiLocalHistorySelectionKey("d".repeat(64))
+		val local = readyEntry().copy(localSelection = key)
+		assertEquals(WifiHistorySelection.Local(key), local.selection)
+		assertFailsWith<IllegalArgumentException> {
+			local.copy(origin = WifiHistoryOrigin.IMPORTED)
 		}
 	}
 

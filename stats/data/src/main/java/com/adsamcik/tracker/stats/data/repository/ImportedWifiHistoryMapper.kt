@@ -129,17 +129,22 @@ private fun ImportedWifiProductEvaluation.failed(cause: WifiHistoryCause) =
 	publicShell(WifiHistoryProductState.FAILED, cause)
 
 private fun ImportedWifiProductEvaluation.unavailable(cause: WifiHistoryCause) =
-	publicShell(WifiHistoryProductState.UNAVAILABLE, cause)
+	publicShell(WifiHistoryProductState.UNAVAILABLE, cause, authenticatedSelection())
 
 private fun ImportedWifiProductEvaluation.missing(cause: WifiHistoryCause) =
-	publicShell(WifiHistoryProductState.MISSING, cause)
+	publicShell(WifiHistoryProductState.MISSING, cause, authenticatedSelection())
 
 private fun ImportedWifiProductEvaluation.deleted() =
-	publicShell(WifiHistoryProductState.DELETED, WifiHistoryCause.DELETED)
+	publicShell(
+		WifiHistoryProductState.DELETED,
+		WifiHistoryCause.DELETED,
+		authenticatedSelection(),
+	)
 
 private fun ImportedWifiProductEvaluation.publicShell(
 	state: WifiHistoryProductState,
 	cause: WifiHistoryCause,
+	selection: com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelection? = null,
 ) = WifiHistoryEntry(
 	key = importedKey(candidate.identity.value),
 	startTime = EpochMs(candidate.startTimeMs),
@@ -150,8 +155,11 @@ private fun ImportedWifiProductEvaluation.publicShell(
 	observations = emptyList(),
 	causes = setOf(cause),
 	origin = WifiHistoryOrigin.IMPORTED,
-	importedSelection = candidate.selection,
+	importedSelection = selection,
 )
+
+private fun ImportedWifiProductEvaluation.authenticatedSelection() =
+	(this as? ImportedWifiProductEvaluation.Readable)?.candidate?.selection
 
 private fun ImportedWifiProductFailure.toPublicCause(): WifiHistoryCause = when (this) {
 	ImportedWifiProductFailure.SOURCE_EVIDENCE_STATE_MISSING,

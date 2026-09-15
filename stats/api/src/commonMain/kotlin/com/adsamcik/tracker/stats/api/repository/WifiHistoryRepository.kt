@@ -10,6 +10,9 @@ interface WifiHistoryRepository {
 	/** Resolves one exact imported-origin selection without inferring native membership. */
 	suspend fun imported(selection: WifiImportedHistorySelectionKey): WifiHistoryQuery
 
+	/** Resolves one source-issued opaque selection; callers never derive or decode the key. */
+	suspend fun lookup(selection: WifiHistorySelection): WifiHistoryQuery
+
 	/** Discovers recent local and imported entries from authenticated source facts. */
 	suspend fun recent(limit: Int): WifiHistoryPage
 }
@@ -53,6 +56,16 @@ value class WifiImportedHistorySelectionKey(val value: String) {
 	override fun toString(): String = "WifiImportedHistorySelectionKey"
 }
 
+/** Opaque local logical-entry key issued only by the authenticated Wi-Fi history repository. */
+@JvmInline
+value class WifiLocalHistorySelectionKey(val value: String) {
+	init {
+		require(LOWERCASE_SHA_256.matches(value))
+	}
+
+	override fun toString(): String = "WifiLocalHistorySelectionKey"
+}
+
 /** Exact imported revision selected from an authenticated current-origin history snapshot. */
 data class WifiImportedHistorySelection(
 	val key: WifiImportedHistorySelectionKey,
@@ -65,6 +78,18 @@ data class WifiImportedHistorySelection(
 	}
 
 	override fun toString(): String = "WifiImportedHistorySelection"
+}
+
+sealed interface WifiHistorySelection {
+	val origin: WifiHistoryOrigin
+
+	data class Local(val key: WifiLocalHistorySelectionKey) : WifiHistorySelection {
+		override val origin: WifiHistoryOrigin = WifiHistoryOrigin.LOCAL
+	}
+
+	data class Imported(val selected: WifiImportedHistorySelection) : WifiHistorySelection {
+		override val origin: WifiHistoryOrigin = WifiHistoryOrigin.IMPORTED
+	}
 }
 
 enum class WifiHistoryOrigin { LOCAL, IMPORTED }
@@ -87,6 +112,7 @@ enum class WifiHistoryCause(val isIntegrityFailure: Boolean = false) {
 	PRIVACY_EPOCH_MISMATCH,
 	IMPORTED_EVIDENCE_UNVERIFIABLE(isIntegrityFailure = true),
 	ORIGIN_IDENTITY_CONFLICT(isIntegrityFailure = true),
+	STALE_SELECTION(isIntegrityFailure = true),
 	READ_BUDGET_EXCEEDED(isIntegrityFailure = true),
 	PHYSICAL_MEMBERSHIP_INVALID(isIntegrityFailure = true),
 	MANIFEST_INTEGRITY_FAILED(isIntegrityFailure = true),
@@ -109,13 +135,23 @@ data class WifiHistoryEntry(
 	val causes: Set<WifiHistoryCause> = emptySet(),
 	val origin: WifiHistoryOrigin = WifiHistoryOrigin.LOCAL,
 	val importedSelection: WifiImportedHistorySelection? = null,
+	val localSelection: WifiLocalHistorySelectionKey? = null,
 	/** Exact local manifest proof only; imported portable evidence never grants this claim. */
 	val capturesOnlyWifi: Boolean = false,
 ) {
+	val selection: WifiHistorySelection?
+		get() = when {
+			localSelection != null -> WifiHistorySelection.Local(localSelection)
+			importedSelection != null -> WifiHistorySelection.Imported(importedSelection)
+			else -> null
+		}
+
 	init {
 		require(endTime >= startTime)
 		require(storedZoneIds.none(String::isBlank))
-		require((origin == WifiHistoryOrigin.IMPORTED) == (importedSelection != null))
+		require(importedSelection == null || origin == WifiHistoryOrigin.IMPORTED)
+		require(localSelection == null || origin == WifiHistoryOrigin.LOCAL)
+		require(importedSelection == null || localSelection == null)
 		require(origin == WifiHistoryOrigin.LOCAL || !capturesOnlyWifi)
 		when (state) {
 			WifiHistoryProductState.READY -> {

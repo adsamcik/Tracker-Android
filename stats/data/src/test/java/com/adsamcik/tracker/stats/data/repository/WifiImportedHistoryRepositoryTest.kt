@@ -25,6 +25,8 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryPage
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.WifiHistorySelection
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
 import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey
 import io.kotest.matchers.shouldBe
 import java.security.MessageDigest
@@ -96,12 +98,22 @@ class WifiImportedHistoryRepositoryTest {
 		val selected = (
 			repository.imported(evaluation.candidate.selection.key) as WifiHistoryQuery.Found
 			).entry
+		val lookedUp = (
+			repository.lookup(WifiHistorySelection.Imported(evaluation.candidate.selection)) as
+				WifiHistoryQuery.Found
+			).entry
 
 		recent shouldBe selected
+		lookedUp shouldBe selected
 		selected.origin shouldBe WifiHistoryOrigin.IMPORTED
 		selected.state shouldBe WifiHistoryProductState.READY
 		selected.importedSelection shouldBe evaluation.candidate.selection
 		selected.capturesOnlyWifi shouldBe false
+		repository.lookup(
+			WifiHistorySelection.Imported(
+				evaluation.candidate.selection.copy(contentChecksum = "f".repeat(64)),
+			),
+		) shouldBe WifiHistoryQuery.Failed(WifiHistoryCause.STALE_SELECTION)
 		repository.session(1L) shouldBe WifiHistoryQuery.NotFound
 	}
 

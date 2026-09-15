@@ -37,6 +37,9 @@ class ImportedWifiHistoryMapperTest {
 
 		public.origin shouldBe WifiHistoryOrigin.IMPORTED
 		public.importedSelection?.key?.value shouldBe entry.identity.value
+		public.selection shouldBe com.adsamcik.tracker.stats.api.repository.WifiHistorySelection.Imported(
+			readable(entry).candidate.selection,
+		)
 		public.state shouldBe WifiHistoryProductState.READY
 		public.observations.map { it.observedTime.raw } shouldContainExactly listOf(1_200L, 2_200L)
 		public.capturesOnlyWifi shouldBe false
@@ -91,6 +94,7 @@ class ImportedWifiHistoryMapperTest {
 		).toPublicWifiEntry()
 		stale.state shouldBe WifiHistoryProductState.UNAVAILABLE
 		stale.causes shouldBe setOf(WifiHistoryCause.PRIVACY_EPOCH_MISMATCH)
+		stale.selection shouldBe null
 	}
 
 	@Test
@@ -108,6 +112,7 @@ class ImportedWifiHistoryMapperTest {
 				.toPublicWifiEntry()
 			public.state shouldBe WifiHistoryProductState.FAILED
 			public.causes shouldBe setOf(cause)
+			public.selection shouldBe null
 		}
 	}
 

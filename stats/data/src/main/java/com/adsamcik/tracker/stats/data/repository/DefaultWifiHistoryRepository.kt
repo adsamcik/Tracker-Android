@@ -2,6 +2,7 @@ package com.adsamcik.tracker.stats.data.repository
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiDao
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -22,10 +23,15 @@ import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiReque
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluator
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
+import com.adsamcik.tracker.stats.api.repository.PortableWifiIdentityKind
+import com.adsamcik.tracker.stats.api.repository.PortableWifiOpaqueIdentity
 import com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifi
 import com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifiResult
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
+import com.adsamcik.tracker.stats.api.repository.WifiHistorySelection
+import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelection
 import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey
+import com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryPage
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryRepository
@@ -46,14 +52,16 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 	override suspend fun session(segmentId: Long): WifiHistoryQuery {
 		require(segmentId > 0L)
 		return withContext(ioDispatcher) {
-			database.withTransaction {
-				val seed = database.trackingHistoryReadDao().segments(listOf(segmentId)).singleOrNull()
-					?: return@withTransaction WifiHistoryQuery.NotFound
-				val snapshot = loadSnapshot(expandMembership(listOf(seed)))
-				WifiHistoryComposer.composeSelected(seed, snapshot, laneExecutionAuthority)
-					?.let(WifiHistoryQuery::Found) ?: WifiHistoryQuery.NotFound
-			}
+			database.withTransaction { sessionInTransaction(segmentId) }
 		}
+	}
+
+	private suspend fun sessionInTransaction(segmentId: Long): WifiHistoryQuery {
+		val seed = database.trackingHistoryReadDao().segments(listOf(segmentId)).singleOrNull()
+			?: return WifiHistoryQuery.NotFound
+		val snapshot = loadSnapshot(expandMembership(listOf(seed)))
+		return WifiHistoryComposer.composeSelected(seed, snapshot, laneExecutionAuthority)
+			?.let(WifiHistoryQuery::Found) ?: WifiHistoryQuery.NotFound
 	}
 
 	override suspend fun imported(selection: WifiImportedHistorySelectionKey): WifiHistoryQuery =
@@ -62,21 +70,7 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 				try {
 					val evaluation = importedProductEvaluator.selectIdentityInTransaction(selection)
 						?: return@withTransaction WifiHistoryQuery.NotFound
-					val readable = evaluation as? ImportedWifiProductEvaluation.Readable
-					val collision = readable?.collidingLocalLogicalTrackingId
-					val originConflict = if (collision == null) {
-						false
-					} else {
-						val colliding = requireNotNull(readable)
-						when (val local = localPortableReader.readInTransaction(
-							ExportPortableCapturedWifiRequest(collision),
-						)) {
-							is ReadLocalPortableCapturedWifiResult.Ready ->
-								!colliding.isReExportable || colliding.entry != local.entry
-							is ReadLocalPortableCapturedWifiResult.Outcome -> true
-						}
-					}
-					WifiHistoryQuery.Found(evaluation.toPublicWifiEntry(originConflict))
+					importedQueryInTransaction(evaluation, null)
 				} catch (cancelled: kotlinx.coroutines.CancellationException) {
 					throw cancelled
 				} catch (_: ArithmeticException) {
@@ -86,6 +80,130 @@ internal class DefaultWifiHistoryRepository @Inject constructor(
 				}
 			}
 		}
+
+	override suspend fun lookup(selection: WifiHistorySelection): WifiHistoryQuery =
+		withContext(ioDispatcher) {
+			database.withTransaction {
+				try {
+					when (selection) {
+						is WifiHistorySelection.Imported -> {
+							val evaluation = importedProductEvaluator.selectIdentityInTransaction(
+								selection.selected.key,
+							) ?: return@withTransaction WifiHistoryQuery.NotFound
+							importedQueryInTransaction(evaluation, selection.selected)
+						}
+						is WifiHistorySelection.Local -> localQueryInTransaction(selection.key)
+					}
+				} catch (cancelled: kotlinx.coroutines.CancellationException) {
+					throw cancelled
+				} catch (_: ArithmeticException) {
+					WifiHistoryQuery.Failed(WifiHistoryCause.VALUE_OVERFLOW)
+				} catch (_: RuntimeException) {
+					WifiHistoryQuery.Failed(
+						if (selection is WifiHistorySelection.Imported) {
+							WifiHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE
+						} else {
+							WifiHistoryCause.FACT_INTEGRITY_FAILED
+						},
+					)
+				}
+			}
+		}
+
+	private suspend fun importedQueryInTransaction(
+		evaluation: ImportedWifiProductEvaluation,
+		expected: WifiImportedHistorySelection?,
+	): WifiHistoryQuery {
+		if (expected != null && evaluation.candidate.selection != expected) {
+			return WifiHistoryQuery.Failed(WifiHistoryCause.STALE_SELECTION)
+		}
+		val readable = evaluation as? ImportedWifiProductEvaluation.Readable
+		val collision = readable?.collidingLocalLogicalTrackingId
+		val originConflict = if (collision == null) {
+			false
+		} else {
+			val colliding = requireNotNull(readable)
+			when (val local = localPortableReader.readInTransaction(
+				ExportPortableCapturedWifiRequest(collision),
+			)) {
+				is ReadLocalPortableCapturedWifiResult.Ready ->
+					!colliding.isReExportable || colliding.entry != local.entry
+				is ReadLocalPortableCapturedWifiResult.Outcome -> true
+			}
+		}
+		return WifiHistoryQuery.Found(evaluation.toPublicWifiEntry(originConflict))
+	}
+
+	private suspend fun localQueryInTransaction(
+		selection: WifiLocalHistorySelectionKey,
+	): WifiHistoryQuery {
+		val dao = database.importedWifiDao()
+		val expectedCount = dao.localEntryOwnerCount()
+		if (expectedCount < 0L ||
+			expectedCount > ImportedWifiDao.MAX_GLOBAL_AUTHORITY_ROWS
+		) return WifiHistoryQuery.Failed(WifiHistoryCause.READ_BUDGET_EXCEEDED)
+		val matches = mutableListOf<String>()
+		var after: String? = null
+		var loaded = 0L
+		while (true) {
+			currentCoroutineContext().ensureActive()
+			val page = dao.localEntryOwnerPage(after, ImportedWifiDao.OWNER_PAGE_SIZE)
+			if (page.size > ImportedWifiDao.OWNER_PAGE_SIZE ||
+				page.zipWithNext().any { (left, right) -> left >= right } ||
+				after?.let { previous ->
+					page.firstOrNull()?.let { first -> first <= previous }
+				} == true
+			) return WifiHistoryQuery.Failed(WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+			page.forEach { logicalId ->
+				val key = PortableWifiOpaqueIdentity.derive(
+					PortableWifiIdentityKind.LOGICAL_ENTRY,
+					logicalId,
+				).value
+				if (key == selection.value) matches += logicalId
+			}
+			loaded = Math.addExact(loaded, page.size.toLong())
+			if (loaded > expectedCount) {
+				return WifiHistoryQuery.Failed(WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+			}
+			if (page.isEmpty() || page.size < ImportedWifiDao.OWNER_PAGE_SIZE) break
+			after = page.last()
+		}
+		if (loaded != expectedCount) {
+			return WifiHistoryQuery.Failed(WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+		}
+		val logicalId = matches.singleOrNull() ?: return if (matches.isEmpty()) {
+			WifiHistoryQuery.NotFound
+		} else {
+			WifiHistoryQuery.Failed(WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+		}
+		val runs = database.trackingHistoryReadDao().logicalEntryServiceRunPage(
+			listOf(logicalId),
+			MAX_LOGICAL_MEMBERS + 1,
+			null,
+			null,
+			null,
+		)
+		if (runs.size > MAX_LOGICAL_MEMBERS) {
+			return WifiHistoryQuery.Failed(WifiHistoryCause.READ_BUDGET_EXCEEDED)
+		}
+		val segmentIds = runs.mapNotNull(SourceServiceRunEntity::sessionSegmentId).distinct()
+		if (segmentIds.size != runs.size || segmentIds.isEmpty()) {
+			return WifiHistoryQuery.Failed(WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+		}
+		val segments = database.trackingHistoryReadDao().segments(segmentIds)
+		if (segments.size != segmentIds.size) {
+			return WifiHistoryQuery.Failed(WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+		}
+		val seed = segments.minByOrNull(SessionSegment::id)
+			?: return WifiHistoryQuery.Failed(WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+		val query = sessionInTransaction(seed.id)
+		val found = query as? WifiHistoryQuery.Found ?: return query
+		return if (found.entry.localSelection == selection) {
+			found
+		} else {
+			WifiHistoryQuery.Failed(WifiHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+		}
+	}
 
 	override suspend fun recent(limit: Int): WifiHistoryPage {
 		require(limit in 1..MAX_RESULTS)

@@ -88,8 +88,15 @@ class WifiHistoryRepositoryRoomTest {
 		val selectedEntry = (selected as WifiHistoryQuery.Found).entry
 		val recentEntry = (recent as WifiHistoryPage.Available).entries.single()
 		selectedEntry shouldBe recentEntry
+		(repository.lookup(requireNotNull(selectedEntry.selection)) as WifiHistoryQuery.Found).entry shouldBe
+			selectedEntry
 		selectedEntry.state shouldBe WifiHistoryProductState.READY
 		selectedEntry.capturesOnlyWifi shouldBe true
+		selectedEntry.localSelection?.value shouldBe
+			com.adsamcik.tracker.stats.api.repository.PortableWifiOpaqueIdentity.derive(
+				com.adsamcik.tracker.stats.api.repository.PortableWifiIdentityKind.LOGICAL_ENTRY,
+				group.session.logicalTrackingId,
+			).value
 		selectedEntry.observations shouldHaveSize 1
 		selectedEntry.observations.single().observationCount shouldBe 2
 		selectedEntry.observations.single().bandMix shouldBe mapOf(
@@ -97,7 +104,7 @@ class WifiHistoryRepositoryRoomTest {
 			WifiHistoryBand.FIVE_GHZ to 1,
 		)
 		group.runs.single().segment.sampleCount shouldBe 0
-		authorityChecks shouldBe 2
+		authorityChecks shouldBe 3
 	}
 
 	@Test
