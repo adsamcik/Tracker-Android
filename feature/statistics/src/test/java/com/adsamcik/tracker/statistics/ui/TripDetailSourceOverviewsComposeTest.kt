@@ -1,10 +1,12 @@
 package com.adsamcik.tracker.statistics.ui
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import com.adsamcik.tracker.shared.base.extension.formatReadable
@@ -23,14 +25,41 @@ import com.adsamcik.tracker.stats.api.repository.ActivityHistoryMechanism
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryType
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryWallTimeContinuity
+import com.adsamcik.tracker.stats.api.repository.CellHistoryAvailability
+import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
+import com.adsamcik.tracker.stats.api.repository.CellHistoryChildCompleteness
+import com.adsamcik.tracker.stats.api.repository.CellHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.CellHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.CellHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.CellHistoryObservation
+import com.adsamcik.tracker.stats.api.repository.CellHistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.CellHistorySignalQuality
+import com.adsamcik.tracker.stats.api.repository.CellHistorySubscriptionGrouping
+import com.adsamcik.tracker.stats.api.repository.CellHistoryTechnology
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryDigest
+import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryIdentity
+import com.adsamcik.tracker.stats.api.repository.ImportedCellHistorySelection
+import com.adsamcik.tracker.stats.api.repository.SourceOnlyHistoryIntent
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.TripSummary
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryAvailability
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryBand
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryObservation
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryResultCompleteness
+import com.adsamcik.tracker.stats.api.repository.WifiHistorySignalQuality
+import com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
@@ -239,6 +268,95 @@ class TripDetailSourceOverviewsComposeTest {
 	}
 
 	@Test
+	fun `partial Wi-Fi detail reports retained results without unique network claims`() {
+		composeRule.setContent {
+			MaterialTheme {
+				TripDetailWifiOverview(
+					history = partialWifi(),
+					intent = SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY,
+				)
+			}
+		}
+
+		composeRule.onNodeWithText(text(R.string.trip_detail_radio_partial)).assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_source_purpose_exact))
+			.assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_source_purpose_exact_explanation))
+			.assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_radio_coverage_partial))
+			.assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_wifi_retained_results))
+			.performScrollTo()
+			.assertIsDisplayed()
+		composeRule.onAllNodesWithText("unique", substring = true, ignoreCase = true)
+			.assertCountEquals(0)
+		composeRule.onAllNodesWithText("SSID", substring = true).assertCountEquals(0)
+		composeRule.onAllNodesWithText("BSSID", substring = true).assertCountEquals(0)
+		assertLocationProductsAbsent()
+	}
+
+	@Test
+	fun `factless Wi-Fi intent stays waiting and never becomes zero`() {
+		composeRule.setContent {
+			MaterialTheme {
+				TripDetailWifiOverview(
+					history = materializingWifi(),
+					intent = SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY,
+				)
+			}
+		}
+
+		composeRule.onNodeWithText(text(R.string.trip_detail_radio_waiting)).assertIsDisplayed()
+		composeRule.onNodeWithText("0").assertDoesNotExist()
+	}
+
+	@Test
+	fun `partial Cell detail reports record coverage without tower or subscriber identity`() {
+		composeRule.setContent {
+			MaterialTheme {
+				TripDetailCellOverview(
+					history = partialCell(),
+					intent = SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY,
+				)
+			}
+		}
+
+		composeRule.onNodeWithText(text(R.string.trip_detail_radio_partial)).assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_radio_coverage_partial))
+			.assertIsDisplayed()
+		composeRule.onAllNodesWithText("unique tower", substring = true, ignoreCase = true)
+			.assertCountEquals(0)
+		composeRule.onAllNodesWithText("SIM", substring = true, ignoreCase = true)
+			.assertCountEquals(0)
+		composeRule.onAllNodesWithText("operator", substring = true, ignoreCase = true)
+			.assertCountEquals(0)
+		assertLocationProductsAbsent()
+	}
+
+	@Test
+	fun `deleted imported Cell detail keeps imported origin and no fabricated values`() {
+		composeRule.setContent {
+			MaterialTheme {
+				TripDetailCellOverview(
+					history = deletedImportedCell(),
+					intent = SourceOnlyHistoryIntent.PORTABLE_SOURCE_MEMBERSHIP,
+				)
+			}
+		}
+
+		composeRule.onNodeWithText(text(R.string.trip_detail_source_origin_imported))
+			.assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_source_purpose_imported))
+			.assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_source_purpose_imported_explanation))
+			.assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_radio_deleted)).assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_radio_deleted_explanation))
+			.assertIsDisplayed()
+		composeRule.onNodeWithText("0").assertDoesNotExist()
+	}
+
+	@Test
 	fun `source-only action menu exposes disabled typed unavailability`() {
 		composeRule.setContent {
 			MaterialTheme {
@@ -351,6 +469,115 @@ class TripDetailSourceOverviewsComposeTest {
 		causes = setOf(ActivityHistoryCause.PROVIDER_UNAVAILABLE),
 		capturesOnlyActivity = true,
 	)
+
+	private fun partialWifi() = WifiHistoryEntry(
+		key = WifiHistoryEntryKey("wifi"),
+		startTime = EpochMs(1_000L),
+		endTime = EpochMs(5_000L),
+		storedZoneIds = setOf("UTC"),
+		state = WifiHistoryProductState.PARTIAL,
+		coverage = WifiHistoryCoverage.PARTIAL,
+		observations = listOf(
+			WifiHistoryObservation(
+				intervalStartTime = EpochMs(1_000L),
+				observedTime = EpochMs(2_000L),
+				wallTimeUncertaintyMs = 100L,
+				availability = WifiHistoryAvailability.AVAILABLE,
+				resultCompleteness = WifiHistoryResultCompleteness.PARTIAL,
+				submittedResultCount = 2,
+				acceptedResultCount = 1,
+				rejectedResultCount = 1,
+				observationCount = 1,
+				bandMix = mapOf(WifiHistoryBand.FIVE_GHZ to 1),
+				signalQuality = WifiHistorySignalQuality(
+					strongestSignalDbm = -45,
+					weakestSignalDbm = -45,
+					meanSignalDbm = -45.0,
+					sampleCount = 1,
+				),
+				sourceQualityFlags = 0L,
+				sourceQualityConfidence = 1f,
+				storedZoneId = "UTC",
+			),
+		),
+		causes = setOf(WifiHistoryCause.RESULT_SET_PARTIAL),
+		localSelection = WifiLocalHistorySelectionKey("a".repeat(64)),
+		capturesOnlyWifi = true,
+	)
+
+	private fun materializingWifi() = WifiHistoryEntry(
+		key = WifiHistoryEntryKey("wifi-waiting"),
+		startTime = EpochMs(1_000L),
+		endTime = EpochMs(5_000L),
+		storedZoneIds = setOf("UTC"),
+		state = WifiHistoryProductState.MATERIALIZING,
+		coverage = WifiHistoryCoverage.NONE,
+		observations = emptyList(),
+		causes = setOf(WifiHistoryCause.MATERIALIZATION_BEHIND),
+		localSelection = WifiLocalHistorySelectionKey("b".repeat(64)),
+		capturesOnlyWifi = true,
+	)
+
+	private fun partialCell() = CellHistoryEntry(
+		key = CellHistoryEntryKey("cell"),
+		startTime = EpochMs(1_000L),
+		endTime = EpochMs(5_000L),
+		storedZoneIds = setOf("UTC"),
+		state = CellHistoryProductState.PARTIAL,
+		coverage = CellHistoryCoverage.PARTIAL,
+		observations = listOf(
+			CellHistoryObservation(
+				intervalStartTime = EpochMs(1_000L),
+				observedTime = EpochMs(2_000L),
+				wallTimeUncertaintyMs = 100L,
+				availability = CellHistoryAvailability.AVAILABLE,
+				subscriptionGrouping = CellHistorySubscriptionGrouping.UNKNOWN,
+				childCompleteness = CellHistoryChildCompleteness.PARTIAL,
+				submittedChildCount = 2,
+				acceptedChildCount = 1,
+				rejectedChildCount = 1,
+				registeredObservationCount = 1,
+				technologyMix = mapOf(CellHistoryTechnology.LTE to 1),
+				signalQuality = CellHistorySignalQuality(
+					unknownCount = 0,
+					noneOrUnknownCount = 0,
+					poorCount = 0,
+					moderateCount = 0,
+					goodCount = 1,
+					greatCount = 0,
+				),
+				weakObservationCount = 0,
+				allKnownQualityIsWeak = false,
+				sourceQualityFlags = 0L,
+				sourceQualityConfidence = 1f,
+				storedZoneId = "UTC",
+			),
+		),
+		causes = setOf(CellHistoryCause.CHILDREN_PARTIAL),
+		selection = com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection(
+			com.adsamcik.tracker.stats.api.repository.LocalCellHistoryIdentity("c".repeat(64)),
+		),
+	)
+
+	private fun deletedImportedCell(): CellHistoryEntry {
+		val selection = ImportedCellHistorySelection(
+			identity = ImportedCellHistoryIdentity("d".repeat(64)),
+			importRevision = 2L,
+			contentChecksum = ImportedCellHistoryDigest("e".repeat(64)),
+		)
+		return CellHistoryEntry(
+			key = CellHistoryEntryKey("cell-imported"),
+			startTime = EpochMs(1_000L),
+			endTime = EpochMs(5_000L),
+			storedZoneIds = setOf("UTC"),
+			state = CellHistoryProductState.DELETED,
+			coverage = CellHistoryCoverage.NONE,
+			observations = emptyList(),
+			causes = setOf(CellHistoryCause.DELETED),
+			origin = CellHistoryOrigin.Imported(selection),
+			selection = selection,
+		)
+	}
 
 	private fun steps(
 		count: Long?,

@@ -73,6 +73,8 @@ import com.adsamcik.tracker.statistics.presenter.supportsLocationPresentation
 import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
+import com.adsamcik.tracker.stats.api.repository.SourceOnlyHistoryIntent
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.TripSummary
 import com.adsamcik.tracker.shared.model.SegmentSource
 import java.time.Instant
@@ -344,6 +346,14 @@ private fun TripOverview(
 			TripDetailSourceFailure(onRetry = onRetrySteps)
 			return
 		}
+		is TripDetailSourcePresentation.Unavailable -> {
+			TripDetailSourceFailure(
+				onRetry = onRetrySteps,
+				reason = sourcePresentation.reason,
+				source = sourcePresentation.source,
+			)
+			return
+		}
 		is TripDetailSourcePresentation.PressureOnly -> {
 			TripDetailPressureOverview(
 				trip = trip,
@@ -354,6 +364,21 @@ private fun TripOverview(
 		is TripDetailSourcePresentation.ActivityOnly -> {
 			TripDetailActivityOverview(
 				activity = sourcePresentation.activity,
+				intent = SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY,
+			)
+			return
+		}
+		is TripDetailSourcePresentation.WifiOnly -> {
+			TripDetailWifiOverview(
+				history = sourcePresentation.history,
+				intent = SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY,
+			)
+			return
+		}
+		is TripDetailSourcePresentation.CellOnly -> {
+			TripDetailCellOverview(
+				history = sourcePresentation.history,
+				intent = SourceOnlyHistoryIntent.EXACT_NATIVE_ONLY,
 			)
 			return
 		}
@@ -534,6 +559,15 @@ private fun TripDetailSourceResolving() {
 @Composable
 @Suppress("FunctionNaming") // Internal so Compose tests can guard the failure affordances.
 internal fun TripDetailSourceFailure(onRetry: () -> Unit) {
+	TripDetailSourceFailure(onRetry = onRetry, reason = null, source = null)
+}
+
+@Composable
+private fun TripDetailSourceFailure(
+	onRetry: () -> Unit,
+	reason: TrackingHistoryUnavailableReason?,
+	source: com.adsamcik.tracker.stats.api.repository.HistorySource?,
+) {
 	Box(
 		modifier = Modifier
 			.fillMaxSize()
@@ -545,13 +579,49 @@ internal fun TripDetailSourceFailure(onRetry: () -> Unit) {
 			EmptyStateCard(
 				icon = Icons.Filled.ErrorOutline,
 				title = stringResource(R.string.trip_detail_source_failed),
-				subtitle = stringResource(R.string.trip_detail_source_failed_subtitle),
+				subtitle = when {
+					reason == null -> stringResource(R.string.trip_detail_source_failed_subtitle)
+					source == null -> stringResource(reason.detailMessageResource)
+					else -> stringResource(
+						R.string.trip_detail_source_failed_for_source,
+						stringResource(source.detailLabelResource),
+						stringResource(reason.detailMessageResource),
+					)
+				},
 			)
 			Spacer(Modifier.height(16.dp))
 			androidx.compose.material3.Button(onClick = onRetry) {
 				Text(stringResource(R.string.trip_detail_retry))
 			}
 		}
+
+		private val TrackingHistoryUnavailableReason.detailMessageResource: Int
+			get() = when (this) {
+				TrackingHistoryUnavailableReason.SOURCE_EVIDENCE_STATE_UNAVAILABLE ->
+					R.string.trip_detail_source_failure_evidence
+				TrackingHistoryUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED ->
+					R.string.trip_detail_source_failure_budget
+				TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE ->
+					R.string.trip_detail_source_failure_integrity
+				TrackingHistoryUnavailableReason.PHYSICAL_MEMBERSHIP_INVALID ->
+					R.string.trip_detail_source_failure_membership
+			}
+
+		private val com.adsamcik.tracker.stats.api.repository.HistorySource.detailLabelResource: Int
+			get() = when (this) {
+				com.adsamcik.tracker.stats.api.repository.HistorySource.LOCATION ->
+					R.string.trip_detail_source_location
+				com.adsamcik.tracker.stats.api.repository.HistorySource.WIFI ->
+					R.string.trip_detail_source_wifi
+				com.adsamcik.tracker.stats.api.repository.HistorySource.CELL ->
+					R.string.trip_detail_source_cell
+				com.adsamcik.tracker.stats.api.repository.HistorySource.ACTIVITY ->
+					R.string.trip_detail_source_activity
+				com.adsamcik.tracker.stats.api.repository.HistorySource.STEPS ->
+					R.string.trip_detail_source_steps
+				com.adsamcik.tracker.stats.api.repository.HistorySource.PRESSURE ->
+					R.string.trip_detail_source_pressure
+			}
 	}
 }
 
@@ -667,6 +737,8 @@ private val PressureHistoryPresentationState.labelResource: Int
 			R.string.trip_detail_pressure_materializing
 		PressureHistoryPresentationState.PARTIAL -> R.string.trip_detail_pressure_partial
 		PressureHistoryPresentationState.READY -> R.string.trip_detail_pressure_ready
+		PressureHistoryPresentationState.DELETED -> R.string.trip_detail_pressure_deleted
+		PressureHistoryPresentationState.UNVERIFIABLE -> R.string.trip_detail_pressure_unverifiable
 		PressureHistoryPresentationState.UNAVAILABLE -> R.string.trip_detail_pressure_unavailable
 		PressureHistoryPresentationState.FAILED -> R.string.trip_detail_pressure_failed
 	}
