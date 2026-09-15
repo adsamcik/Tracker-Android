@@ -30,9 +30,13 @@ import com.adsamcik.tracker.stats.api.repository.PortablePressureCoverage
 import com.adsamcik.tracker.stats.api.repository.PortablePressureEntrySink
 import com.adsamcik.tracker.stats.api.repository.PortablePressureEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortablePressureExportUnverifiableReason
+import com.adsamcik.tracker.stats.api.repository.PortablePressureIdentityKind
 import com.adsamcik.tracker.stats.api.repository.PortablePressureImportReceipt
+import com.adsamcik.tracker.stats.api.repository.PortablePressureOpaqueIdentity
+import com.adsamcik.tracker.stats.api.repository.PortablePressureRunV1
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
+import com.adsamcik.tracker.stats.api.repository.PressurePortableFormatV1
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
@@ -1095,15 +1099,9 @@ class PressureHistorySelectorTest {
 		) {}.importEntry(importRequest(local, "same")) shouldBe
 			ImportPortablePressureResult.Applied(1L, 1, 1)
 		val sourcePage = database.withTransaction {
-			sourcePageReader().selectRecentInTransaction(10)
-		} as PressureSourceComposedPage.Available
-		val localRow = sourcePage.rows.single() as PressureSourceComposedRow.Local
-		localRow.portable shouldBe local
-		localRow.recency shouldBe PressureSourceRecency(
-			localRow.logical.recencyMember.segment.startTimeMs,
-			localRow.logical.recencyMember.segment.endTimeMs,
-			local.runs.single().identity,
-		)
+			sourcePageReader().recentImportedEligibleForSharedHistoryInTransaction(10)
+		} as ImportedHistoryEligiblePage.Available
+		sourcePage.entries shouldBe emptyList()
 		val emitted = mutableListOf<PortablePressureEntryV1>()
 		val result = RoomExportPortablePressure(
 			PortablePressureRoomReader(database, selector),
@@ -1153,9 +1151,9 @@ class PressureHistorySelectorTest {
 		) {}.importEntry(importRequest(divergent, "divergent")) shouldBe
 			ImportPortablePressureResult.Applied(1L, 1, 1)
 		database.withTransaction {
-			sourcePageReader().selectRecentInTransaction(10)
-		} shouldBe PressureSourceComposedPage.Failed(
-			PressureSourceComposedFailure.ORIGIN_CONFLICT,
+			sourcePageReader().recentImportedEligibleForSharedHistoryInTransaction(10)
+		} shouldBe ImportedHistoryEligiblePage.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
 		)
 		val emitted = mutableListOf<PortablePressureEntryV1>()
 
@@ -1168,6 +1166,54 @@ class PressureHistorySelectorTest {
 			PortablePressureExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY,
 		)
 		emitted shouldBe emptyList()
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun importedEligiblePagingFillsPastOnePageOfExactLocalDuplicates() = runTest {
+		insertFixture(factSemanticRevision = 1L, laneCursor = 100L)
+		repeat(32) { index ->
+			insertIndependentPressureFixture(
+				index = index,
+				startTimeMs = 4_000L + index * 2_000L,
+			)
+		}
+		val local = PortablePressureRoomReader(database, selector).read(
+			ExportPortablePressureRequest(0L, 100_000L),
+		) as PortablePressureSnapshot.Ready
+		val writer = RoomImportPortablePressure(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+		) {}
+		local.entries.forEachIndexed { index, entry ->
+			writer.importEntry(importRequest(entry, "duplicate-$index")) shouldBe
+				ImportPortablePressureResult.Applied(1L, 1, 1)
+		}
+		val oldImported = importedRetentionOnlyEntry(
+			entryLocalId = "old-imported-entry",
+			runLocalId = "old-imported-run",
+			startTimeMs = 100L,
+		)
+		writer.importEntry(importRequest(oldImported, "old-imported")) shouldBe
+			ImportPortablePressureResult.Applied(1L, 1, 0)
+
+		val page = database.withTransaction {
+			sourcePageReader().recentImportedEligibleForSharedHistoryInTransaction(1)
+		} as ImportedHistoryEligiblePage.Available
+
+		page.entries.single().identity.value shouldBe oldImported.identity.value
+		page.entries.single().contentChecksum shouldBe oldImported.contentChecksum
+	}
+
+	@Test
+	fun importedEligibleReaderRejectsLimitAboveSourceBudget() = runTest {
+		database.withTransaction {
+			sourcePageReader().recentImportedEligibleForSharedHistoryInTransaction(
+				PressurePortableFormatV1.MAX_ENTRIES + 1,
+			)
+		} shouldBe ImportedHistoryEligiblePage.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
+		)
 	}
 
 	@Test
@@ -1215,6 +1261,35 @@ class PressureHistorySelectorTest {
 		),
 		expectedCollectedDataEpoch = 0L,
 	)
+
+	private fun importedRetentionOnlyEntry(
+		entryLocalId: String,
+		runLocalId: String,
+		startTimeMs: Long,
+	): PortablePressureEntryV1 {
+		val run = PortablePressureRunV1(
+			identity = PortablePressureOpaqueIdentity.derive(
+				PortablePressureIdentityKind.PHYSICAL_RUN,
+				runLocalId,
+			),
+			startTimeMs = startTimeMs,
+			endTimeMs = startTimeMs + 100L,
+			capturedForWholeRun = true,
+			availability = PortablePressureAvailability.NO_RETAINED_OBSERVATION,
+			coverage = PortablePressureCoverage.PARTIAL,
+			retentionLoss = true,
+			windows = emptyList(),
+		)
+		return PortablePressureEntryV1.create(
+			identity = PortablePressureOpaqueIdentity.derive(
+				PortablePressureIdentityKind.LOGICAL_ENTRY,
+				entryLocalId,
+			),
+			startTimeMs = run.startTimeMs,
+			endTimeMs = run.endTimeMs,
+			runs = listOf(run),
+		)
+	}
 
 	@Suppress("LongMethod")
 	private suspend fun insertFixture(

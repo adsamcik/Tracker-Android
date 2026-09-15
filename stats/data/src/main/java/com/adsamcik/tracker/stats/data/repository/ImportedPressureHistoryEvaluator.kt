@@ -38,6 +38,10 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 		return evaluateCandidates(candidates)
 	}
 
+	internal suspend fun evaluateCandidateInTransaction(
+		candidate: ImportedPressureHistoryCandidate,
+	): ImportedPressureHistoryEvaluation = evaluateBatch(listOf(candidate)).single()
+
 	internal suspend fun selectForExportInTransaction(
 		request: ExportPortablePressureRequest,
 	): List<ImportedPressureHistoryEvaluation> {
@@ -285,7 +289,7 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 		}
 	}
 
-	private fun isValidCandidatePage(
+	internal fun isValidCandidatePage(
 		candidates: List<ImportedPressureHistoryCandidate>,
 		beforeStartTimeMs: Long?,
 		beforeIdentity: String?,

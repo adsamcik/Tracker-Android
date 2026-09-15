@@ -9,11 +9,13 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureResult
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureResult
+import com.adsamcik.tracker.stats.api.repository.ImportedPressureHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.PortablePressureAvailability
 import com.adsamcik.tracker.stats.api.repository.PortablePressureCoverage
 import com.adsamcik.tracker.stats.api.repository.PortablePressureEntrySink
@@ -30,6 +32,7 @@ import com.adsamcik.tracker.stats.api.repository.PortablePressureWindowQualifica
 import com.adsamcik.tracker.stats.api.repository.PortablePressureWindowV1
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.TruncateImportedPressureRetentionRequest
 import io.kotest.matchers.shouldBe
@@ -81,27 +84,24 @@ class ImportedPressureHistoryEvaluatorTest {
 	}
 
 	@Test
-	fun `transaction bridge carries authenticated imported recency and actionable selector`() = runTest {
+	fun `shared bridge carries exact lineage metadata and authenticated imported recency`() = runTest {
 		val request = request()
 		importer(database, testScheduler).importEntry(request)
 
 		val page = database.withTransaction {
-			pageReader(database).selectRecentInTransaction(10)
-		} as PressureSourceComposedPage.Available
-		val row = page.rows.single() as PressureSourceComposedRow.Imported
+			pageReader(database).recentImportedEligibleForSharedHistoryInTransaction(10)
+		} as ImportedHistoryEligiblePage.Available
+		val row = page.entries.single()
 		val newest = request.entry.runs.maxWith(pressureSourceRecencyRunOrder)
 
-		row.recency shouldBe PressureSourceRecency(
+		row.identity shouldBe ImportedPressureHistoryIdentity(request.entry.identity.value)
+		row.importRevision shouldBe 1L
+		row.contentChecksum shouldBe request.entry.contentChecksum
+		row.recency shouldBe ImportedHistoryRecency(
+			HistorySource.PRESSURE,
 			newest.startTimeMs,
-			newest.endTimeMs,
-			newest.identity,
+			ImportedHistoryRecencyTieIdentity(newest.identity.value),
 		)
-		row.selection shouldBe PressureImportedSelection.Actionable(
-			request.entry.identity,
-			1L,
-			EPOCH,
-		)
-		row.evaluation::class shouldBe ImportedPressureHistoryEvaluation.Readable::class
 	}
 
 	@Test
@@ -135,23 +135,53 @@ class ImportedPressureHistoryEvaluatorTest {
 		)
 
 		val page = database.withTransaction {
-			pageReader(database).selectRecentInTransaction(10)
-		} as PressureSourceComposedPage.Available
-		val row = page.rows.single() as PressureSourceComposedRow.Imported
+			pageReader(database).recentImportedEligibleForSharedHistoryInTransaction(10)
+		} as ImportedHistoryEligiblePage.Available
+		val row = page.entries.single()
 
-		row.recency shouldBe PressureSourceRecency(
+		row.recency shouldBe ImportedHistoryRecency(
+			HistorySource.PRESSURE,
 			newestRun.startTimeMs,
-			newestRun.endTimeMs,
-			newestRun.identity,
+			ImportedHistoryRecencyTieIdentity(newestRun.identity.value),
 		)
 		row.recency.newestMemberStartTimeMs shouldBe 2_100L
-		row.public.startTime.raw shouldBe 1_000L
-		row.selection shouldBe PressureImportedSelection.RetentionBoundary(
-			request.entry.identity,
-			1L,
-			EPOCH,
+		row.entry.startTime.raw shouldBe 1_000L
+		row.identity shouldBe ImportedPressureHistoryIdentity(request.entry.identity.value)
+		row.importRevision shouldBe 1L
+		row.contentChecksum shouldBe request.entry.contentChecksum
+	}
+
+	@Test
+	fun `shared bridge orders equal newest starts by opaque newest run tie identity`() = runTest {
+		val first = retentionOnlyEntry(
+			entryLocalId = "tie-entry-a",
+			olderRunLocalId = "tie-older-a",
+			newestRunLocalId = "tie-newest-a",
+			envelopeStartTimeMs = 100L,
+			newestStartTimeMs = 2_000L,
 		)
-		row.evaluation::class shouldBe ImportedPressureHistoryEvaluation.Retained::class
+		val second = retentionOnlyEntry(
+			entryLocalId = "tie-entry-b",
+			olderRunLocalId = "tie-older-b",
+			newestRunLocalId = "tie-newest-b",
+			envelopeStartTimeMs = 1_000L,
+			newestStartTimeMs = 2_000L,
+		)
+		val writer = importer(database, testScheduler)
+		writer.importEntry(request(first, receipt("tie-job-a", "tie-entry-a")))
+		writer.importEntry(request(second, receipt("tie-job-b", "tie-entry-b")))
+
+		val page = database.withTransaction {
+			pageReader(database).recentImportedEligibleForSharedHistoryInTransaction(2)
+		} as ImportedHistoryEligiblePage.Available
+		val expected = listOf(first, second).sortedByDescending {
+			it.runs.maxWith(pressureSourceRecencyRunOrder).identity.value
+		}
+
+		page.entries.map { it.identity } shouldBe expected.map {
+			ImportedPressureHistoryIdentity(it.identity.value)
+		}
+		page.entries.map { it.recency.newestMemberStartTimeMs } shouldBe listOf(2_000L, 2_000L)
 	}
 
 	@Test
@@ -168,6 +198,11 @@ class ImportedPressureHistoryEvaluatorTest {
 		val selected = evaluate(database).single() as ImportedPressureHistoryEvaluation.Readable
 		selected.latest.header.importRevision shouldBe 2L
 		selected.latest.entry shouldBe corrected.entry
+		val eligible = database.withTransaction {
+			pageReader(database).recentImportedEligibleForSharedHistoryInTransaction(1)
+		} as ImportedHistoryEligiblePage.Available
+		eligible.entries.single().importRevision shouldBe 2L
+		eligible.entries.single().contentChecksum shouldBe corrected.entry.contentChecksum
 	}
 
 	@Test
@@ -377,6 +412,23 @@ class ImportedPressureHistoryEvaluatorTest {
 		)
 		selected.toPublicPressureOnlyEntry().state shouldBe
 			PressureHistoryPresentationState.UNVERIFIABLE
+		database.withTransaction {
+			pageReader(database).recentImportedEligibleForSharedHistoryInTransaction(1)
+		} shouldBe ImportedHistoryEligiblePage.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+		)
+	}
+
+	@Test
+	fun `missing source evidence returns unavailable imported recency authority`() = runTest {
+		importer(database, testScheduler).importEntry(request())
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_evidence_state")
+
+		database.withTransaction {
+			pageReader(database).recentImportedEligibleForSharedHistoryInTransaction(1)
+		} shouldBe ImportedHistoryEligiblePage.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
+		)
 	}
 
 	@Test
@@ -431,6 +483,11 @@ class ImportedPressureHistoryEvaluatorTest {
 		selected shouldBe ImportedPressureHistoryEvaluation.Unverifiable(
 			selected.candidate,
 			ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW,
+		)
+		database.withTransaction {
+			pageReader(database).recentImportedEligibleForSharedHistoryInTransaction(1)
+		} shouldBe ImportedHistoryEligiblePage.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
 		)
 	}
 
@@ -522,6 +579,7 @@ class ImportedPressureHistoryEvaluatorTest {
 		wallTimeUncertaintyMs: Long = 25L,
 		runLocalId: String = "run",
 		windowLocalId: String = "window",
+		entryLocalId: String = "entry",
 	): PortablePressureEntryV1 {
 		val run = PortablePressureRunV1(
 			identity = identity(PortablePressureIdentityKind.PHYSICAL_RUN, runLocalId),
@@ -534,10 +592,45 @@ class ImportedPressureHistoryEvaluatorTest {
 			windows = listOf(window(wallTimeUncertaintyMs, windowLocalId)),
 		)
 		return PortablePressureEntryV1.create(
-			identity = identity(PortablePressureIdentityKind.LOGICAL_ENTRY, "entry"),
+			identity = identity(PortablePressureIdentityKind.LOGICAL_ENTRY, entryLocalId),
 			startTimeMs = run.startTimeMs,
 			endTimeMs = run.endTimeMs,
 			runs = listOf(run),
+		)
+	}
+
+	private fun retentionOnlyEntry(
+		entryLocalId: String,
+		olderRunLocalId: String,
+		newestRunLocalId: String,
+		envelopeStartTimeMs: Long,
+		newestStartTimeMs: Long,
+	): PortablePressureEntryV1 {
+		val older = PortablePressureRunV1(
+			identity = identity(PortablePressureIdentityKind.PHYSICAL_RUN, olderRunLocalId),
+			startTimeMs = envelopeStartTimeMs,
+			endTimeMs = envelopeStartTimeMs + 100L,
+			capturedForWholeRun = true,
+			availability = PortablePressureAvailability.NO_RETAINED_OBSERVATION,
+			coverage = PortablePressureCoverage.PARTIAL,
+			retentionLoss = true,
+			windows = emptyList(),
+		)
+		val newest = PortablePressureRunV1(
+			identity = identity(PortablePressureIdentityKind.PHYSICAL_RUN, newestRunLocalId),
+			startTimeMs = newestStartTimeMs,
+			endTimeMs = newestStartTimeMs + 100L,
+			capturedForWholeRun = true,
+			availability = PortablePressureAvailability.NO_RETAINED_OBSERVATION,
+			coverage = PortablePressureCoverage.PARTIAL,
+			retentionLoss = true,
+			windows = emptyList(),
+		)
+		return PortablePressureEntryV1.create(
+			identity = identity(PortablePressureIdentityKind.LOGICAL_ENTRY, entryLocalId),
+			startTimeMs = envelopeStartTimeMs,
+			endTimeMs = newest.endTimeMs,
+			runs = listOf(older, newest),
 		)
 	}
 

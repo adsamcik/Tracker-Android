@@ -128,13 +128,24 @@ internal class PressureHistorySelector @Inject constructor(
 		memberBudget = memberBudget,
 	)
 
+	/** Complete bounded local authority used only to resolve imported full-v1 duplicates. */
+	internal suspend fun discoverPressureOnlyDuplicateAuthorityInTransaction():
+		PressureOnlyDiscoveryResult = discoverRecentPressureOnlyInTransaction(
+			limit = PRESSURE_DISCOVERY_CANDIDATE_BUDGET,
+			mode = PressureOnlyDiscoveryMode.ORDINARY,
+			candidateBudget = PRESSURE_DISCOVERY_CANDIDATE_BUDGET,
+			memberBudget = PRESSURE_DISCOVERY_MEMBER_BUDGET,
+			requireSourceExhaustionAtLimit = true,
+		)
+
 	private suspend fun discoverRecentPressureOnlyInTransaction(
 		limit: Int,
 		mode: PressureOnlyDiscoveryMode,
 		candidateBudget: Int = PRESSURE_DISCOVERY_CANDIDATE_BUDGET,
 		memberBudget: Int = PRESSURE_DISCOVERY_MEMBER_BUDGET,
+		requireSourceExhaustionAtLimit: Boolean = false,
 	): PressureOnlyDiscoveryResult {
-		require(limit in 1..PRESSURE_HISTORY_SEGMENT_BATCH_CAP)
+		require(limit in 1..candidateBudget)
 		require(candidateBudget > 0 && memberBudget > 0)
 		val accepted = linkedMapOf<PressureHistoryEntryIdentity, PressureLogicalHistoryEntry>()
 		var beforeLogicalRecencyStartMs: Long? = null
@@ -187,10 +198,13 @@ internal class PressureHistorySelector @Inject constructor(
 					accepted.putIfAbsent(entry.identity, entry)
 				}
 			}
-			if (accepted.size >= limit) break
-			if (candidateBudgetExceeded) return PressureOnlyDiscoveryResult.Unavailable(
+			if (candidateBudgetExceeded && (
+					requireSourceExhaustionAtLimit || accepted.size < limit
+				)
+			) return PressureOnlyDiscoveryResult.Unavailable(
 				SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
 			)
+			if (accepted.size >= limit) break
 
 			val lastScanned = candidates.last()
 			beforeLogicalRecencyStartMs = lastScanned.logicalRecencyStartMs
