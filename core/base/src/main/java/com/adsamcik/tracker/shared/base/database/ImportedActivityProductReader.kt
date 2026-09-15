@@ -28,7 +28,13 @@ import kotlinx.coroutines.ensureActive
 class ImportedActivityProductReader(
 	private val database: AppDatabase,
 ) {
-	internal suspend fun selectIdentityInTransaction(
+	/**
+	 * Authenticates one imported Activity identity inside the caller's existing Room transaction.
+	 *
+	 * The result is a read-only product snapshot. It grants no provider, session, writer, deletion,
+	 * or retention authority, and must not be carried across the transaction boundary for mutation.
+	 */
+	suspend fun selectIdentityInTransaction(
 		identity: PortableActivityOpaqueIdentity,
 	): ImportedActivityProductEvaluation? {
 		val dao = database.importedActivityDao()
