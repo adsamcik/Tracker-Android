@@ -56,6 +56,18 @@ Latest current-slice review receipts:
   runtime/projector-chain test. The owner is editing declaration scope first. Do not treat its
   earlier `leaf closed` or `RAD001..012 COMMITTED` metadata as acceptance. Parent 18-plus entity/
   DDL, typed footprint/approval, runtime/DI/lease and UI dependencies remain backlog.
+- Purpose is frozen at `cef95415e2` for only the final double-failure review case.
+- Pressure maintenance `39198f5a96` has two source corrections remaining: private helper scope and
+  complete early per-owner TEXT preflight. Runtime/schema dependencies remain open.
+- Shared schema `cba0b116d1` is production-coherent and correcting only duplicate-test and real
+  file-backed Ambient full-clear reopen test gaps; Pressure is not merged.
+- Shared history `1c94219ac3` remains blocked by six owned qualification/limit/recency/corruption/
+  invalidation defects plus its missing real five-producer Room chain. Only its narrow producer
+  APIs may be proposed; Location/day/range/UI remain backlog.
+
+Never promote an individual source receipt's generic entire-effort table into global truth. Its
+owned artifact facts are evidence; parent requirements, dependency accounting and adversarial
+blockers govern cross-source state.
 
 ## Scope-change handover - finish only what was already started
 

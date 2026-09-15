@@ -19,6 +19,30 @@ no files, and the reviewer was then restricted to source-read tools. This is a p
 not evidence that the Location artifact or any other source passes a validation gate. No regression,
 compiler, Gradle, lint, schema, device or CI gate has started for the current assembly.
 
+## TI-B330 - Purpose, Pressure, schema and history focused review receipts
+
+- Purpose input `cef95415e2f5e77fb9e12ea3e95776ef26e36efe` after `0be815ec47` is
+  frozen. Autonomous key/generation-bound cancellable capped backoff and helper scope are authored.
+  The same reviewer is checking only the unchanged-key cleanup plus scheduler double-failure case;
+  prior atomic-store/default/matrix/isolation findings are closed.
+- Pressure maintenance input `39198f5a966e724fc5f38d350d27786ad4595340` closes original
+  findings 1-5 source-locally. Two source findings remain: importer private helpers are nested in
+  `storedValue`, and per-owner TEXT preflight is late/incomplete. Runtime barrier and shared schema
+  remain separate dependencies.
+- Shared schema input `cba0b116d1a5bb9208fb13192a5e6cf2793d20f0` is production-coherent.
+  Only a duplicate `@Test` declaration and missing real file-backed Ambient full-clear fence
+  close/reopen source test remain. Pressure `39198f5` is not merged.
+- Shared history input `1c94219ac3d67baa5fd870ac2f79d96d081bdcac` remains **BLOCKED**:
+  Steps unknown/legacy coverage is wrongly qualified through current availability; imported
+  Activity qualifies native Activity; the mixed producer limit precedes imported eligibility;
+  imported recency uses oldest start; corrupt imported Steps is silently omitted; and
+  `lifecycle_desired_action` invalidation is absent. A real five-producer Room chain is also missing.
+- The history owner may correct owned code and propose only narrow Activity/Pressure transactional
+  plus imported-eligibility/newest-member producer APIs needed to close `1c94219`. Location proof,
+  structural day/range and feature consumers remain backlog.
+- Outcome: Purpose and schema are frozen/held for focused closure; Pressure and history remain
+  active corrections. All are **IMPLEMENTED_UNVALIDATED**. No execution or new feature wave.
+
 ## TI-B329 - Pressure file and passive radio reviews remain blocked
 
 - Pressure input: `f8ca404069c28a60c541084a52a987569f317aa8`. Focused review reduced the

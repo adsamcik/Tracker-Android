@@ -2,6 +2,23 @@
 
 Last updated: 2026-09-15
 
+## TI-D265 - Source-owner receipts cannot redefine global program state
+
+- Status: accepted work-item evidence rule, 2026-09-15.
+- An owner receipt is authoritative for the named artifact, its owned paths, commits, blockers and
+  directly necessary closure dependencies. It is not authoritative for unowned sources, shared
+  integration, the exhaustive requirement ledger, assembly status, validation or activation.
+- Generic `entire effort`, `next unstarted`, `absent`, `leaf closed`, `COMMITTED`, or similar tables
+  in an individual source receipt must not overwrite parent global accounting. Preserve useful
+  child breakdowns, but reconcile them against `WORK_ITEMS.json`, parent freeze evidence and the
+  current adversarial review.
+- A committed slice with unresolved review findings remains blocked or held. A written test remains
+  unvalidated. Source-private retention approval cannot be inferred from an owner's metadata.
+- Narrow producer APIs may be added only when they are direct dependencies of a named already-
+  started artifact, such as the Activity/Pressure transactional and imported-eligibility/newest-
+  member producers required to close shared history `1c94219ac3`. This does not start a new
+  structural day, range or feature-consumer wave.
+
 ## TI-D264 - Freeze evidence marks three successors planned, not started
 
 - Status: accepted registry clarification from parent inspection on 2026-09-15.

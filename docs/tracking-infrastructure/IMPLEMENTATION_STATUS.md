@@ -66,6 +66,30 @@ Current focused-review receipts, with no new feature wave:
   dependencies. Earlier `leaf closed` / `RAD001..012 COMMITTED` metadata means committed only;
   adversarial blockers take precedence and no source/private retention approval is proven.
 
+Latest closure refinements:
+
+- Purpose is frozen at `cef95415e2f5e77fb9e12ea3e95776ef26e36efe` after `0be815ec47`.
+  Autonomous key/generation-bound cancellable capped backoff and helper scope are authored.
+  The same reviewer is checking only the final unchanged-key cleanup plus scheduler double-failure
+  case; atomic store, defaults, matrix and isolation are closed. No successor started.
+- Pressure maintenance review of `39198f5a966e724fc5f38d350d27786ad4595340` closes original
+  findings 1-5 source-locally. Only importer private helpers accidentally nested in `storedValue`
+  and late/incomplete per-owner TEXT preflight remain. Runtime barrier and shared schema are still
+  dependencies.
+- Shared schema `cba0b116d1a5bb9208fb13192a5e6cf2793d20f0` is production-coherent.
+  Only a duplicate `@Test` and missing real file-backed Ambient full-clear fence close/reopen test
+  remain under correction. Pressure `39198f5` is not merged.
+- Shared history `1c94219ac3d67baa5fd870ac2f79d96d081bdcac` is blocked by six owned
+  findings plus a missing real five-producer Room chain: Steps legacy/unknown qualification,
+  imported Activity granting native qualification, pre-eligibility mixed limits, imported oldest-
+  start recency, silently omitted corrupt imported Steps and missing
+  `lifecycle_desired_action` invalidation. Only narrow transactional/imported-eligibility/newest-
+  member producer APIs may be proposed as direct closure dependencies; no day or UI wave.
+
+Individual source-owner receipts are authoritative only for their owned artifact. Their generic
+entire-effort tables cannot override parent global state, requirement coverage, shared dependencies
+or adversarial blockers. TI-D265 records this evidence-precedence rule.
+
 ## Scope expansion frozen - finish started artifacts, hand over the backlog
 
 TI-D262 supersedes the earlier requirement to start every successor lane before returning.

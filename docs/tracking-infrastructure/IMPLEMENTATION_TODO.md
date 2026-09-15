@@ -48,6 +48,18 @@ Current correction-only receipts:
 - Passive ambient radio `306e9070d2` remains blocked by ten production findings plus a missing
   actual runtime/projector-chain test. Correct only that artifact. Parent schema/runtime/DI/UI
   integration remains backlog. Owner-authored `COMMITTED`/`leaf closed` labels are not acceptance.
+- Purpose `cef95415e2` is frozen for a final focused double-failure review; no successor exists.
+- Pressure maintenance `39198f5a96` has two remaining source findings: nested private helpers and
+  incomplete early per-owner TEXT preflight. Runtime/schema dependencies remain separate.
+- Shared schema `cba0b116d1` has only duplicate-test and real file-backed Ambient full-clear reopen
+  test-source corrections remaining; Pressure is not merged.
+- Shared history `1c94219ac3` must correct its six owned qualification/limit/recency/corruption/
+  invalidation findings and add a real five-producer Room chain. Only the narrow producer APIs
+  needed for that closure are allowed; no new day/UI work.
+
+Treat each source-owner receipt as authoritative only within its named ownership. Do not copy its
+generic entire-effort table into cross-source status or use it to erase parent requirements,
+dependencies or review blockers.
 
 ## 2026-09-15 scope-expansion freeze
 
