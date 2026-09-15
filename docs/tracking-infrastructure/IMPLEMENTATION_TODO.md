@@ -29,22 +29,21 @@ state. Consult the JSON registry for implementation, review, integration, valida
 dependencies, blockers, evidence and next bounded action. In particular, an unchecked source or
 assembly item may contain accepted implementation slices and must not be treated as absent.
 
-Parent freeze inspection confirmed that Activity range product, Ambient Steps file actions and
-shared history feature consumers were unstarted; their owners were explicitly told not to create
-them. All three are `planned` backlog unless a later owner receipt identifies actual authored code
-elsewhere. A local ref or worktree registration alone does not change that classification. The
-only narrow unstarted dependency presently allowed is the Activity/Pressure transactional recent
-bridge required to close the already-started shared history union.
+Parent freeze inspection initially found no Activity range, Ambient Steps file-action or shared
+history consumer worktree. Concrete late owner receipts supersede that point-in-time absence for
+Ambient files and shared consumers only. Activity range remains planned. Ambient files are
+committed/unreviewed/held; shared consumers are an active correction. The only narrow unstarted
+dependency presently allowed is the Activity/Pressure transactional recent bridge required to
+close the already-started shared history union.
 
 The full tracking documentation request remains active. Continue registry and ledger maintenance
 as evidence arrives; the production finish-only scope does not freeze documentation work.
 
 Current correction-only receipts:
 
-- Pressure files `f8ca404069` may close only two remaining findings: cap every unquoted literal
-  in the shared lexer, and distinguish retryable raw transport EOF from permanent parser
-  truncation. Propagate the exact helper correction to Activity, Steps and `e3f2ecd4`; do not
-  reopen Activity's closed source semantics or start another file feature.
+- Pressure files/shared lexer are cumulatively static-closed at `8ba72248ba` / `76739a3555`.
+  The earlier unquoted-literal and raw transport EOF findings are closed. Activity's later concrete
+  decoder subtype case remains a separate narrow correction.
 - Passive ambient radio `306e9070d2` remains blocked by ten production findings plus a missing
   actual runtime/projector-chain test. Correct only that artifact. Parent schema/runtime/DI/UI
   integration remains backlog. Owner-authored `COMMITTED`/`leaf closed` labels are not acceptance.
@@ -68,10 +67,9 @@ Latest exact deltas:
 - Shared schema `fcc2162d5a` has cumulative static closure for `600c`/`cba` production plus the
   duplicate-test and actual file-backed Room reopen source corrections. Integration remains held
   on blocked bundled source prerequisites. No Pressure, Cell or radio assembly successor started.
-- Shared portable `e3f2ecd4c7` is correcting only three review findings: permanent direct/archive
-  limits must not retry forever, a headerless ZIP with no importable entry must not complete EMPTY,
-  and database registry range/ZIP importer roles must be exact.
-- Steps `6f46f8` remains otherwise closed. Its shared lexer dependency stays open.
+- Shared portable `5705ce7704` has static closure for permanent direct/archive limits,
+  headerless/no-importable ZIP and database-registry roles. It remains held for Activity raw-EOF.
+  Steps `6f46f8` and helper `76739a3555` are closed.
 - Activity's original five semantic findings remain closed, but the raw transport
   `EOFException` subtype case reopens only its decoder boundary. Preserve permanent parser EOF and
   lexical failures. No Activity successor started.
@@ -81,6 +79,15 @@ Latest exact deltas:
   SourceDestination validation, protected Location binding and only the two required tables
   (`source_capture_admission_barrier`, `source_run_retirement`) remain planned backlog. Do not
   restore obsolete `source_maintenance_authority` or older three-table DDL.
+- Ambient file input `13e535cf95` is a late-receipt, already-started artifact derived from clean
+  `798613ddf1` (production `d6cc1a0b53`, tests `6a264416f2` plus `798`). Preserve for bounded
+  review only; no union continuation or registry/picker wiring.
+- Pressure file/helper input is cumulatively static-closed at `8ba72248ba` with helper
+  `76739a3555`. Shared portable `5705ce7704` is also static-closed/held and now waits only for
+  the narrow Activity raw-EOF decoder correction.
+- Shared history consumer input `63d92a4c9e` after production `719e772071` is a late-start active
+  correction for three bounded UI/navigation/test findings. It does not authorize new day/range,
+  Location or other consumer work.
 
 ## 2026-09-15 scope-expansion freeze
 

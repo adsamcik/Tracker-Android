@@ -8,16 +8,42 @@ Last updated: 2026-09-15
 parsing, unique-ID, dependency-reference, acyclic-dependency and requirement-coverage checks are
 metadata consistency only; they are not compilation, tests, schema, runtime or device evidence.
 
-Parent freeze inspection is the classification evidence for three unstarted successors: Activity
-range product, Ambient Steps file actions and shared history feature consumers are `planned`
-backlog, and their owners were instructed not to create them. This is scope/accounting evidence,
-not source review or validation. Only the narrow Activity/Pressure transactional recent producer
-bridges remain a possible direct dependency of the already-started shared history union.
+Parent freeze inspection initially found three successor paths absent. TI-D267/TI-B335 record
+concrete late owner receipts proving Ambient Steps file actions and shared history consumers were
+already running before their queued freeze arrived. Activity range remains planned. This is
+scope/accounting evidence, not execution validation. Narrow Activity/Pressure transactional recent
+producer bridges remain possible direct dependencies of the already-started shared history union.
 
 One Location reviewer accidentally invoked `git diff --check`. It produced no output and changed
 no files, and the reviewer was then restricted to source-read tools. This is a process deviation,
 not evidence that the Location artifact or any other source passes a validation gate. No regression,
 compiler, Gradle, lint, schema, device or CI gate has started for the current assembly.
+
+## TI-B335 - Late-start artifacts and current portable-file closure
+
+- Ambient Steps file actions have a concrete late-start receipt. Initial clean artifact
+  `798613ddf171702ad870e4ea9befe7a42e94d4f2` contains production
+  `d6cc1a0b537531bb75b8c2a5030e9cbe00e13525` and tests
+  `6a264416f23f5cead5e75aed3b2b803a387d70a0` plus `798`. Current held input is
+  `13e535cf958017d3b74bf5a79a7dd8e2e671c6b8`. Classification:
+  **IMPLEMENTED_UNVALIDATED / COMMITTED UNREVIEWED / HELD**. One bounded review is pending.
+- That Ambient artifact is limited to its 12 owned file/resource/test paths. Native and imported
+  origins remain separate. No union export/continuation or registry/picker integration is present.
+  Ambient product and shared portable inputs remain held prerequisites.
+- Pressure file source and shared lexer are cumulatively static-closed at
+  `8ba72248ba2b9ade2908947d1858ec6420e74c3d`, with correction lineage `97f575e4`,
+  `9ee6ed83` and exact helper `76739a355582ac20a4e4b456126b1b2e2f637258`.
+- Shared portable integration is cumulatively static-closed and held at
+  `5705ce7704a19f6e82f138be5293d0f97d9d0133`. Its permanent-limit retry,
+  headerless/no-importable ZIP and range/ZIP registry-role findings are closed. It awaits the
+  Activity raw-EOF decoder correction; Ambient registry/picker wiring is outside this scope.
+- Shared history consumer production `719e7720719d4324b0e4e33225959c9b68aa9405` and artifact
+  `63d92a4c9efc68ba27f720532d87669f173556d3` also arrived after the early absence
+  inspection. Bounded review found nested radio composables, non-consuming/no-expiry or stale
+  handoff retry behavior, and nested regression tests. Classification:
+  **IMPLEMENTED_UNVALIDATED / ACTIVE CORRECTION** against a still-provisional shared history input.
+- Activity range has no contrary authored-source receipt and remains planned. No compilation,
+  tests, Gradle, lint, schema, device, CI, push or activation occurred.
 
 ## TI-B334 - Runtime shared contracts committed and held under review
 

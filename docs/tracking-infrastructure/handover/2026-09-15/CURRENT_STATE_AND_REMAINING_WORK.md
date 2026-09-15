@@ -26,10 +26,10 @@ Current finish-only artifacts:
   their precise registry blockers and may close only their already-started scope.
 - Shared history may add only the two narrow Activity/Pressure transactional recent producer
   bridges needed to close `1c94219ac3`; Location proof, day/range and UI remain backlog.
-- Parent freeze inspection confirmed Activity range, Ambient Steps file actions and shared history
-  consumers were unstarted, and their owners were explicitly told not to create them. Treat all
-  three as planned backlog unless a later owner receipt identifies actual authored code elsewhere.
-  Local refs or worktree registrations alone do not authorize continuation.
+- Parent freeze inspection initially found Activity range, Ambient Steps file actions and shared
+  history consumers absent. Concrete late owner receipts supersede that point-in-time evidence for
+  Ambient files and shared consumers only. Activity range remains planned. Ambient files are held
+  for review; shared consumers are under bounded correction.
 - Only the narrow Activity/Pressure transactional recent producer bridges may still be assigned
   when required to close existing shared history `1c94219ac3`; this does not authorize wider
   history, range or feature-consumer work.
@@ -47,11 +47,9 @@ as a documentation freeze.
 
 Latest current-slice review receipts:
 
-- Pressure files `f8ca404069` has exactly two open findings: cap all unquoted lexer literals,
-  including huge alphabetic/invalid-number suffixes, and keep raw transport EOF retryable rather
-  than permanent parser truncation. Propagate the exact shared helper to Activity, Steps and
-  `e3f2ecd4`. Activity `483e8b59` remains source-consumer closed; only the helper dependency stays
-  open.
+- Pressure files/shared lexer are static-closed at `8ba72248ba` / `76739a3555`; the earlier
+  unquoted-literal and raw transport EOF findings are closed. Activity's later concrete decoder
+  subtype case remains a separate narrow correction.
 - Passive radio `306e9070d2` remains blocked by ten production defects plus a missing real
   runtime/projector-chain test. The owner is editing declaration scope first. Do not treat its
   earlier `leaf closed` or `RAD001..012 COMMITTED` metadata as acceptance. Parent 18-plus entity/
@@ -78,9 +76,9 @@ Newest exact review state:
   duplicate-test and actual file-backed Room reopen source correction. Integration remains held:
   bundled Ambient Steps/Location prerequisites are blocked, Pressure is not merged, and no Cell/
   radio schema successor began. This is not full-source or database readiness.
-- Shared portable `e3f2ecd4c7` is correcting three review blockers: permanent direct/archive
-  retry, headerless/no-importable ZIP EMPTY success, and database-registry range/ZIP role mismatch.
-  Steps `6f46f8` is otherwise closed but still depends on the shared lexer correction.
+- Shared portable `5705ce7704` is static-closed/held after correcting permanent direct/archive
+  retry, headerless/no-importable ZIP EMPTY success and database-registry range/ZIP roles.
+  Steps `6f46f8` and helper `76739a3555` are closed; the held assembly awaits Activity raw EOF.
 - Activity `483e8b59` retains its five semantic closures, but a concrete raw
   `EOFException` subtype reopens only its decoder transport boundary. The source owner is
   correcting it without changing permanent parser EOF or lexical failures. No successor started.
@@ -91,6 +89,15 @@ Newest exact review state:
   Location binding and the exact two-table DDL remain planned backlog. The required tables are
   only `source_capture_admission_barrier` and `source_run_retirement`; do not revive obsolete
   `source_maintenance_authority` or older three-table DDL.
+- Ambient Steps files: preserve current held input `13e535cf95`, derived from clean artifact
+  `798613ddf1` with production `d6cc1a0b53` and tests `6a264416f2`/`798`. It was already running
+  before the queued freeze reached its owner. Review only the existing 12-file scope; no union
+  continuation or registry/picker integration.
+- Pressure files/helper are static-closed at `8ba72248ba` / `76739a3555`. Shared portable is
+  static-closed/held at `5705ce7704` and awaits only Activity raw-EOF correction.
+- Shared history consumers `719e772071` / `63d92a4c9e` have a late-start receipt and three current
+  UI/navigation/test correction findings. The shared `1c` producer contract remains blocked and no
+  new consumer wave is authorized.
 
 ## Scope-change handover - finish only what was already started
 

@@ -20,10 +20,10 @@ entire-effort statements cannot override parent global state or adversarial bloc
 
 Scope expansion is frozen. Finish only artifacts demonstrably started before the boundary,
 their directly necessary corrections/test source and focused static review. Preserve dirty
-work. Parent freeze inspection confirmed the three named successor assignments were unstarted,
-and owners were told not to create them. They are planned backlog. Assembly is not frozen
-and validation
-remains deferred. No agent push or provider/writer activation is authorized.
+work. Activity range remains confirmed unstarted. Later owner receipts prove Ambient Steps
+files and shared history consumers were already running before their queued freeze arrived;
+those exact artifacts are preserved without allowing further expansion. Assembly is not frozen
+and validation remains deferred. No agent push or provider/writer activation is authorized.
 
 The user independently published `3dd1ff004a34beb339539c4961704919d781371c`.
 Local documentation continued from `6744ced52037d531e56751777b519165167e6b19`.
@@ -40,22 +40,22 @@ State counts:
 
 | Implementation state | Items |
 | --- | ---: |
-| `active_correction` | 10 |
+| `active_correction` | 9 |
 | `active_documentation` | 1 |
 | `active_governance` | 1 |
 | `allowed_dependency` | 1 |
 | `approval_required` | 1 |
-| `committed_held` | 1 |
-| `completed_accepted_slice` | 6 |
+| `committed_held` | 3 |
+| `completed_accepted_slice` | 7 |
 | `completed_foundation` | 1 |
 | `decision_required` | 8 |
 | `gate_deferred` | 4 |
 | `partial_implemented` | 12 |
-| `planned` | 17 |
+| `planned` | 15 |
 
-Review states: `active` 1, `blocked_findings` 13, `closed_except_decision` 1, `closed_static` 6, `continuous` 2, `historical_accepted` 1, `mixed` 8, `not_applicable` 9, `not_started` 22.
+Review states: `active` 1, `blocked_findings` 12, `closed_except_decision` 1, `closed_static` 8, `continuous` 2, `historical_accepted` 1, `mixed` 8, `not_applicable` 9, `not_started` 21.
 
-Integration states: `held_branch` 3, `held_dependency` 1, `local_dev` 7, `local_only` 1, `mixed_source_refs` 8, `not_applicable` 9, `not_started` 22, `source_branch` 12.
+Integration states: `held_branch` 4, `held_dependency` 1, `local_dev` 7, `local_only` 1, `mixed_source_refs` 8, `not_applicable` 9, `not_started` 20, `source_branch` 13.
 
 Validation states: `deferred_implementation_only` 54, `not_applicable` 9.
 
@@ -80,10 +80,10 @@ Validation states: `deferred_implementation_only` 54, `not_applicable` 9.
 | `WI-STEPS-AUTOMATIC-001` | `partial_implemented` | `closed_except_decision` | `local_dev` | Complete automatic Steps with bounded control evidence | Keep control behavior contained and inactive; do not invent a duration. |
 | `WI-STEPS-AMBIENT-001` | `partial_implemented` | `blocked_findings` | `source_branch` | Complete the Ambient Steps vertical | During this scope, close only the active c8/4d5 product correction. Hand over all other Ambient Steps work. |
 | `WI-STEPS-AMBIENT-PRODUCT-CORRECTION-001` | `active_correction` | `blocked_findings` | `source_branch` | Close Ambient Steps base and product review findings | Owner applies only these nine corrections and returns both existing reviewers to the exact corrected input. |
-| `WI-STEPS-AMBIENT-FILES-001` | `planned` | `not_started` | `not_started` | Implement Ambient Steps file actions | Backlog only; do not start unless a later bounded assignment includes an owner receipt with actual authored-code evidence. |
+| `WI-STEPS-AMBIENT-FILES-001` | `committed_held` | `not_started` | `held_branch` | Review the committed Ambient Steps file artifact | Parent performs one bounded static review of the existing 12-file artifact. Do not add union export, continuation, registry/picker wiring or another feature. |
 | `WI-PRESSURE-VERTICAL-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete the Pressure source-to-product vertical | Finish only the active maintenance and file reviews; hand over the rest. |
 | `WI-PRESSURE-MAINTENANCE-001` | `active_correction` | `blocked_findings` | `source_branch` | Close Pressure maintenance privacy corrections | The owner corrects only helper declaration scope and complete early per-owner TEXT preflight, then returns 39198f5 to the same reviewer; runtime and shared schema remain dependencies. |
-| `WI-PRESSURE-FILES-001` | `active_correction` | `blocked_findings` | `source_branch` | Close Pressure portable file review | The Pressure file owner corrects these two findings, authors focused regressions and propagates the exact helper update to Activity, Steps and the held e3f2ecd assembly; no new file feature. |
+| `WI-PRESSURE-FILES-001` | `completed_accepted_slice` | `closed_static` | `source_branch` | Close Pressure portable file review | Preserve reviewed source 8ba72248 and exact helper 76739a35. No new Pressure file feature; shared consumers integrate through their held artifacts. |
 | `WI-PRESSURE-PRODUCT-001` | `planned` | `not_started` | `not_started` | Build the remaining Pressure day and range product | Handover backlog; do not start. |
 | `WI-LOCATION-VERTICAL-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete protected Location without a second writer | Finish only the active Location handoff correction; hand over product and ambient successors. |
 | `WI-LOCATION-HANDOFF-001` | `active_correction` | `blocked_findings` | `source_branch` | Close protected Location WAL-to-writer handoff | Owner fixes only these blockers and returns the same focused reviewer to the corrected real-chain input. |
@@ -100,10 +100,10 @@ Validation states: `deferred_implementation_only` 54, `not_applicable` 9.
 | `WI-AMBIENT-RADIO-001` | `active_correction` | `blocked_findings` | `source_branch` | Close passive ambient Wi-Fi and Cell artifact | The owner first corrects declarations, then closes only these ten findings plus the real-chain test-source gap with the same reviewer; hand over all schema/runtime/DI/UI integration. |
 | `WI-PURPOSE-SETTINGS-001` | `completed_accepted_slice` | `closed_static` | `source_branch` | Close purpose settings containment retry | Parent inspects the exact closed cef95415 artifact for serialized local integration. Do not begin authority-issuer, Hilt/runtime reporting or feature-collector successors. |
 | `WI-PURPOSE-PUBLICATION-001` | `planned` | `not_started` | `not_started` | Wire actual purpose authority publication | Handover backlog; do not start. |
-| `WI-SHARED-FILE-ASSEMBLY-001` | `active_correction` | `blocked_findings` | `held_branch` | Close shared portable file assembly review | The shared file owner fixes only the three reported registry/archive retry defects while the Pressure owner supplies the exact lexer/EOF correction for Activity, Steps and e3f2ecd; then return the held branch to focused review. |
+| `WI-SHARED-FILE-ASSEMBLY-001` | `committed_held` | `closed_static` | `held_branch` | Close shared portable file assembly review | Preserve closed shared input 5705ce77 and merge only the eventual Activity raw EOF correction. Do not add Ambient registry/picker wiring or another format. |
 | `WI-SHARED-HISTORY-UNION-001` | `active_correction` | `blocked_findings` | `source_branch` | Close five-source recent, live and selected history union | Correct the six owned union findings and real five-producer Room chain. Propose only the narrow imported-eligible/newest-member and Activity/Pressure transactional producer APIs needed to close 1c; do not start day/UI work. |
 | `WI-SHARED-HISTORY-BRIDGES-001` | `allowed_dependency` | `not_started` | `not_started` | Add narrow producer APIs required by the active history union | Parent assigns only the reviewer-confirmed Activity/Pressure transaction and imported-eligible/newest-member APIs; no day/range/UI expansion. |
-| `WI-SHARED-HISTORY-CONSUMERS-001` | `planned` | `not_started` | `not_started` | Implement shared history feature consumers | Backlog only; do not start unless a later bounded assignment includes an owner receipt with actual authored-code evidence. |
+| `WI-SHARED-HISTORY-CONSUMERS-001` | `active_correction` | `blocked_findings` | `source_branch` | Correct the started shared history feature consumers | The existing owner fixes only these three consumer findings and returns commit 63d92a4c lineage to bounded review. Do not start Location/day/range or additional UI. |
 | `WI-SHARED-HISTORY-DAY-RANGE-001` | `planned` | `not_started` | `not_started` | Complete all-six structural day, range and Today history | Handover backlog; do not start. |
 | `WI-UI-SURFACES-001` | `planned` | `not_started` | `not_started` | Wire truthful shared product surfaces | Handover backlog; do not start. |
 | `WI-SOURCE-ACTIONS-EXPLANATION-001` | `planned` | `not_started` | `not_started` | Complete start, settings, source actions and recording explanation | Handover backlog; do not start. |
@@ -128,15 +128,14 @@ Validation states: `deferred_implementation_only` 54, `not_applicable` 9.
 | `WI-FINAL-INTEGRATION-001` | `gate_deferred` | `not_started` | `not_started` | Perform final review and local integration | Handover backlog; no final integration during implementation-only. |
 | `WI-PUBLICATION-ACTIVATION-001` | `approval_required` | `not_applicable` | `not_applicable` | Obtain separate publication and activation approval | Wait for explicit user approval after local completion. |
 
-## Explicitly unstarted successor backlog
+## Scope-receipt classification
 
-Parent freeze inspection confirmed these named successors were unstarted and owners were told
-not to create them. They remain planned unless a later bounded assignment includes an owner
-receipt with actual authored-code evidence:
+Point-in-time directory absence is superseded only by a concrete owner-authored-code receipt.
+Current classification:
 
 - `WI-ACTIVITY-RANGE-001` — Implement Activity structural range product.
-- `WI-STEPS-AMBIENT-FILES-001` — Implement Ambient Steps file actions.
-- `WI-SHARED-HISTORY-CONSUMERS-001` — Implement shared history feature consumers.
+- `WI-STEPS-AMBIENT-FILES-001` — Review the committed Ambient Steps file artifact.
+- `WI-SHARED-HISTORY-CONSUMERS-001` — Correct the started shared history feature consumers.
 
 ## Update protocol
 

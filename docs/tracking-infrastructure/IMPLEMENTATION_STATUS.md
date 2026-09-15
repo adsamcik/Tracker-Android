@@ -28,12 +28,12 @@ The registry incorporates the newer artifact state:
   plus tests `39198f5a966e724fc5f38d350d27786ad4595340`; its existing reviewer is checking
   the six corrections. Runtime generation/settlement fencing and shared schema fields remain.
 - Shared schema `fcc2162d5aa70c81c53bcd4f5336f3a20ab0c43f` contains only the duplicate-
-  test and actual file-backed Room reopen source correction atop `cba0b116`; final review is
-  cumulatively closed and producer semantics remain held. Shared portable input
-  `e3f2ecd4c730435e2652b35b73d7b94af5774213` completed review with three blockers under
-  correction: endless retry for permanent direct/archive limits, EMPTY success for a headerless
-  ZIP with no importable entry, and incorrect database-registry range/ZIP importer roles. Neither
-  held input is on local `dev/v10`.
+  test and actual file-backed Room reopen source correction atop `cba0b116`; cumulative review is
+  closed and producer semantics remain held. Shared portable input
+  `5705ce7704a19f6e82f138be5293d0f97d9d0133` is cumulatively static-closed after the
+  permanent direct/archive retry, headerless/no-importable ZIP and database-registry range/ZIP
+  corrections. It remains held for Activity raw-EOF correction. Neither held input is on local
+  `dev/v10`.
 - Shared history `1c94219ac3d67baa5fd870ac2f79d96d081bdcac` is under review. Its only allowed
   new dependency is the narrow Activity/Pressure transactional recent bridges; Location proof,
   structural day/range and feature consumers remain backlog.
@@ -42,25 +42,20 @@ The registry incorporates the newer artifact state:
   `306e9070d2` retain the exact active blockers recorded in `WORK_ITEMS.json`. Purpose
   `cef95415e2` is separately static-closed. Newer branch tips or dirty edits are implementation
   evidence only, not acceptance.
-- Parent freeze inspection confirmed that the named Activity range, Ambient Steps file-action and
-  shared history consumer successors were unstarted, and their owners were explicitly told not to
-  create them. All three are `planned` backlog unless a later owner receipt identifies actual
-  authored code elsewhere. Local refs or worktree registrations without that receipt do not
-  establish an authorized start. Only the narrow Activity/Pressure transactional recent producer
+- Parent freeze inspection initially found no Activity range, Ambient Steps file-action or shared
+  history consumer worktree. Later concrete owner receipts supersede that point-in-time absence for
+  Ambient files and shared consumers only. Activity range remains `planned`. Ambient files are
+  committed/unreviewed/held, and shared consumers are an active correction. TI-D267 records the
+  corrected classification. Only the narrow Activity/Pressure transactional recent producer
   bridges remain a potential direct closure dependency of shared history `1c94219ac3`.
 
 The user-requested documentation and work-item tracking itself remains active. Production scope
 expansion is frozen; registry/ledger maintenance is not. TI-D264 records this distinction.
 
-Current focused-review receipts, with no new feature wave:
+Earlier focused-review receipts, superseded where newer closure is stated below:
 
-- Pressure files `f8ca404069c28a60c541084a52a987569f317aa8` has two remaining findings.
-  The shared lexer must cap every unquoted literal, including huge bare alphabetic and invalid
-  number-suffix tokens. The Pressure codec must keep a raw transport `EOFException` retryable
-  rather than treating it as permanent parser truncation. Other prefix, budget, semantic,
-  cancellation and durable-receipt cases are addressed. The exact shared-helper correction must
-  propagate to Activity, Steps and held assembly `e3f2ecd4`; Activity `483e8b59` remains
-  source-consumer closed, but its helper dependency is not closed.
+- Pressure files `f8ca404069c28a60c541084a52a987569f317aa8` had two remaining findings;
+  current closure is `8ba72248ba` with exact helper `76739a3555`.
 - Passive ambient radios `306e9070d296a9b91f96177e9948090754779917` is blocked by ten
   production findings plus a real-chain source gap. The owner is correcting declarations first.
   The blockers cover declaration scope, stale-lease mutation, empty-store deletion fences,
@@ -100,9 +95,32 @@ or adversarial blockers. TI-D265 records this evidence-precedence rule.
 TI-B333 supersedes TI-B332's interim schema status: `fcc2162d` is now a scoped
 **IMPLEMENTED_UNVALIDATED / STATIC-CLOSED / INTEGRATION-HELD** artifact. This does not make the
 bundled Ambient Steps, Location or Pressure prerequisites accepted, the complete database ready,
-or Cell/radio schema work started. Shared portable and the narrow Activity decoder boundary remain
-active corrections. Steps `6f46f8` is otherwise closed, but its shared lexer dependency remains
-open. No successor started.
+or Cell/radio schema work started. TI-B335 supersedes the portable portion: shared portable
+`5705ce77`, Steps `6f46f8` and helper `76739a35` are static-closed; only the narrow Activity
+decoder boundary remains active.
+
+Authoritative machine-readable metadata further advances the current file/consumer receipts:
+
+- Ambient Steps files were already running before the owner received the queued freeze. Initial
+  clean artifact `798613ddf171702ad870e4ea9befe7a42e94d4f2` contains production
+  `d6cc1a0b537531bb75b8c2a5030e9cbe00e13525` and tests `6a264416f23f5cead5e75aed3b2b803a387d70a0`
+  plus `798`. Current held input `13e535cf958017d3b74bf5a79a7dd8e2e671c6b8`
+  incorporates reviewed file/helper prerequisites only. Preserve as
+  **COMMITTED_UNREVIEWED_HELD** for one bounded review; native/imported origins remain separate,
+  with no union continuation or registry/picker wiring.
+- Pressure files are cumulatively static-closed at
+  `8ba72248ba2b9ade2908947d1858ec6420e74c3d`, after `97f575e4` and `9ee6ed83`,
+  with exact helper `76739a355582ac20a4e4b456126b1b2e2f637258`. The shared lexer/Pressure
+  source boundary is closed; downstream consumers remain separate held integration.
+- Shared portable is static-closed and held at
+  `5705ce7704a19f6e82f138be5293d0f97d9d0133`, with the three registry/archive retry
+  findings corrected and reviewed Pressure/helper input incorporated. It awaits only the Activity
+  raw-EOF decoder correction; Ambient registry/picker wiring is not part of this artifact.
+- Shared history consumers also have a late-start receipt: production
+  `719e7720719d4324b0e4e33225959c9b68aa9405`, artifact
+  `63d92a4c9efc68ba27f720532d87669f173556d3`. Bounded review found nested radio
+  composables, non-consuming/stale handoff retry behavior and nested regression tests; the existing
+  owner is correcting only those paths. The provisional shared `1c` contract remains blocked.
 
 Runtime input `43db9556d75daa8deb852896710bd2bdc080ff40` is clean and held under focused
 review after `92a264020b`, `89202124fd` and `9cbb8d8df`. It claims durable Activity admission

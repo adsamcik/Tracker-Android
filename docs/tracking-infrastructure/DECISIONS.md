@@ -2,6 +2,23 @@
 
 Last updated: 2026-09-15
 
+## TI-D267 - Concrete late owner receipts supersede point-in-time directory absence
+
+- Status: accepted scope-classification correction, 2026-09-15.
+- The early parent filesystem inspection was valid only for that instant. Later owner-authored
+  commit receipts prove Ambient Steps file actions and shared history consumers were already
+  running before their queued freeze instructions were received.
+- Ambient files are therefore `committed_held` and unreviewed, not planned or accepted. Shared
+  history consumers are an `active_correction`, not planned or accepted. Activity range still has
+  no contrary authored-source receipt and remains planned.
+- A late receipt preserves only the exact already-authored artifact and directly necessary review
+  corrections. It does not authorize feature expansion, successors, union continuation, registry/
+  picker wiring, day/range work or acceptance by branch existence.
+- Current machine-readable parent metadata takes precedence over older supplied intermediate
+  commit receipts where it records a later exact input: Pressure files `8ba72248`, shared helper
+  `76739a35`, portable assembly `5705ce77`, Ambient files `13e535cf` and shared consumers
+  `63d92a4c`.
+
 ## TI-D265 - Source-owner receipts cannot redefine global program state
 
 - Status: accepted work-item evidence rule, 2026-09-15.
@@ -21,7 +38,7 @@ Last updated: 2026-09-15
 
 ## TI-D264 - Freeze evidence marks three successors planned, not started
 
-- Status: accepted registry clarification from parent inspection on 2026-09-15.
+- Status: partially superseded by TI-D267.
 - The Activity range product, Ambient Steps file-action and shared history feature-consumer
   successors did not exist at the authoritative freeze inspection. Their owners were explicitly
   told not to create them. Classify all three as `planned`, not `awaiting_owner_receipt`,
@@ -32,6 +49,8 @@ Last updated: 2026-09-15
 - The only potential narrow successor permitted by the existing closure boundary remains the
   Activity/Pressure transactional recent producer bridges required by shared history
   `1c94219ac3d67baa5fd870ac2f79d96d081bdcac`.
+- TI-D267 supersedes the Ambient-file and shared-consumer classifications after concrete late
+  owner receipts. Activity range remains planned.
 - The user's full documentation/work-item request remains active. TI-D262 freezes production scope
   expansion, not documentation tracking. The documentation owner continues local registry/ledger
   updates and never starts production code or pushes.
