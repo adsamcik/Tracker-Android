@@ -132,6 +132,90 @@ abstract class ImportedCellDao {
 	): List<ImportedCellHistoryCandidate>
 
 	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_cell_entry_revision
+		  GROUP BY identity
+		)
+		SELECT entry.identity,
+		       entry.import_revision,
+		       entry.content_checksum,
+		       entry.start_time_ms,
+		       entry.end_time_ms,
+		       entry.received_at_ms
+		FROM imported_cell_entry_revision AS entry
+		INNER JOIN latest_revision AS latest
+		  ON latest.identity = entry.identity
+		 AND latest.import_revision = entry.import_revision
+		WHERE entry.start_time_ms < :toExclusiveMs
+		  AND entry.end_time_ms > :fromInclusiveMs
+		  AND (
+		    :beforeStartTimeMs IS NULL
+		    OR entry.start_time_ms < :beforeStartTimeMs
+		    OR (
+		      entry.start_time_ms = :beforeStartTimeMs
+		      AND entry.identity < COALESCE(:beforeIdentity, '')
+		    )
+		  )
+		ORDER BY entry.start_time_ms DESC, entry.identity DESC
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun historyCandidatePageInWallRange(
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): List<ImportedCellHistoryCandidate>
+
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_cell_entry_revision
+		  GROUP BY identity
+		)
+		SELECT entry.identity,
+		       entry.import_revision,
+		       entry.content_checksum,
+		       entry.start_time_ms,
+		       entry.end_time_ms,
+		       entry.received_at_ms
+		FROM imported_cell_entry_revision AS entry
+		INNER JOIN latest_revision AS latest
+		  ON latest.identity = entry.identity
+		 AND latest.import_revision = entry.import_revision
+		WHERE EXISTS (
+		  SELECT 1
+		  FROM imported_cell_observation AS observation
+		  WHERE observation.entry_identity = entry.identity
+		    AND observation.entry_import_revision = entry.import_revision
+		    AND observation.latest_possible_time_ms >= :broadFromInclusiveMs
+		    AND observation.coverage_start_time_ms < :broadToExclusiveMs
+		)
+		  AND (
+		    :beforeStartTimeMs IS NULL
+		    OR entry.start_time_ms < :beforeStartTimeMs
+		    OR (
+		      entry.start_time_ms = :beforeStartTimeMs
+		      AND entry.identity < COALESCE(:beforeIdentity, '')
+		    )
+		  )
+		ORDER BY entry.start_time_ms DESC, entry.identity DESC
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun historyCandidatePageForStructuralDays(
+		broadFromInclusiveMs: Long,
+		broadToExclusiveMs: Long,
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): List<ImportedCellHistoryCandidate>
+
+	@Query(
 		"SELECT * FROM imported_cell_entry_revision WHERE identity IN (:identities) " +
 			"ORDER BY identity, import_revision LIMIT :limit",
 	)

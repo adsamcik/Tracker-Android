@@ -674,6 +674,98 @@ interface CellCapturedFactDao {
 		beforeSegmentId: Long?,
 	): List<CellLogicalHistoryCandidate>
 
+	/**
+	 * Complete keyset candidate relation for logical Cell entries with any exact member segment
+	 * overlapping one half-open wall-time range. Product authentication still happens afterwards.
+	 */
+	@Query(
+		"""
+		WITH cursor_member AS (
+		  SELECT DISTINCT segment.*
+		  FROM cell_captured_fact_cursor AS fact_cursor
+		  INNER JOIN source_service_run AS run
+		    ON run.service_run_id = fact_cursor.service_run_id
+		   AND run.logical_tracking_id = fact_cursor.logical_tracking_id
+		   AND run.session_segment_id = fact_cursor.session_segment_id
+		  INNER JOIN session_segment AS segment
+		    ON segment.id = fact_cursor.session_segment_id
+		   AND segment.service_run_id = fact_cursor.service_run_id
+		   AND segment.logical_tracking_id = fact_cursor.logical_tracking_id
+		  WHERE fact_cursor.writer_projection_id = :writerProjectionId
+		    AND fact_cursor.writer_projection_version = :writerProjectionVersion
+		), logical_seed AS (
+		  SELECT member.*
+		  FROM cursor_member AS member
+		  WHERE NOT EXISTS (
+		    SELECT 1 FROM cursor_member AS newer
+		    WHERE newer.logical_tracking_id = member.logical_tracking_id
+		      AND (newer.start_time_ms > member.start_time_ms OR
+		        (newer.start_time_ms = member.start_time_ms AND newer.id > member.id))
+		  )
+		), ranked_seed AS (
+		  SELECT seed.*,
+		    (SELECT MAX(member_segment.start_time_ms)
+		     FROM source_service_run AS member_run
+		     INNER JOIN session_segment AS member_segment
+		       ON member_segment.id = member_run.session_segment_id
+		      AND member_segment.service_run_id = member_run.service_run_id
+		      AND member_segment.logical_tracking_id = member_run.logical_tracking_id
+		     WHERE member_run.logical_tracking_id = seed.logical_tracking_id
+		    ) AS logical_recency_start_ms,
+		    (SELECT MAX(member_segment.id)
+		     FROM source_service_run AS member_run
+		     INNER JOIN session_segment AS member_segment
+		       ON member_segment.id = member_run.session_segment_id
+		      AND member_segment.service_run_id = member_run.service_run_id
+		      AND member_segment.logical_tracking_id = member_run.logical_tracking_id
+		     WHERE member_run.logical_tracking_id = seed.logical_tracking_id
+		       AND member_segment.start_time_ms = (
+		         SELECT MAX(latest_segment.start_time_ms)
+		         FROM source_service_run AS latest_run
+		         INNER JOIN session_segment AS latest_segment
+		           ON latest_segment.id = latest_run.session_segment_id
+		          AND latest_segment.service_run_id = latest_run.service_run_id
+		          AND latest_segment.logical_tracking_id = latest_run.logical_tracking_id
+		         WHERE latest_run.logical_tracking_id = seed.logical_tracking_id
+		       )
+		    ) AS logical_recency_segment_id
+		  FROM logical_seed AS seed
+		)
+		SELECT * FROM ranked_seed AS candidate
+		WHERE EXISTS (
+		  SELECT 1
+		  FROM source_service_run AS range_run
+		  INNER JOIN session_segment AS range_segment
+		    ON range_segment.id = range_run.session_segment_id
+		   AND range_segment.service_run_id = range_run.service_run_id
+		   AND range_segment.logical_tracking_id = range_run.logical_tracking_id
+		  WHERE range_run.logical_tracking_id = candidate.logical_tracking_id
+		    AND range_segment.start_time_ms < :toExclusiveMs
+		    AND range_segment.end_time_ms > :fromInclusiveMs
+		)
+		  AND (
+		    :beforeStartTimeMs IS NULL
+		    OR logical_recency_start_ms < :beforeStartTimeMs
+		    OR (
+		      logical_recency_start_ms = :beforeStartTimeMs
+		      AND logical_recency_segment_id <
+		        COALESCE(:beforeSegmentId, 9223372036854775807)
+		    )
+		  )
+		ORDER BY logical_recency_start_ms DESC, logical_recency_segment_id DESC
+		LIMIT :limit
+		""",
+	)
+	suspend fun logicalHistoryCandidatePageInWallRange(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeSegmentId: Long?,
+	): List<CellLogicalHistoryCandidate>
+
 	/** Cursor carriers are loaded independently of their claimed current revision head. */
 	@Query(
 		"SELECT * FROM cell_captured_fact_cursor WHERE writer_projection_id = :writerProjectionId " +

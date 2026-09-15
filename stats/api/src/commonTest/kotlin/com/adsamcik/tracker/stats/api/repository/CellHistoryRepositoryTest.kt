@@ -108,6 +108,44 @@ class CellHistoryRepositoryTest {
 
 		legacy.imported(selection) shouldBe CellHistoryQuery.NotFound
 		legacy.detail(selection) shouldBe CellHistoryQuery.NotFound
+		legacy.range(
+			CellHistoryRangeRequest(
+				CellHistoryRangeScope.WallTime(EpochMs(1L), EpochMs(2L)),
+				1,
+			),
+		) shouldBe CellHistoryRangePage.Unavailable(
+			CellHistoryRangeUnavailableReason.UNSUPPORTED_BY_IMPLEMENTATION,
+		)
+	}
+
+	@Test
+	fun `range contracts bound wall time structural days page size and membership truth`() {
+		shouldThrow<IllegalArgumentException> {
+			CellHistoryRangeScope.WallTime(EpochMs(2L), EpochMs(2L))
+		}
+		shouldThrow<IllegalArgumentException> {
+			CellHistoryRangeScope.StructuralDays(0L, 370L)
+		}
+		shouldThrow<IllegalArgumentException> {
+			CellHistoryRangeRequest(
+				CellHistoryRangeScope.StructuralDays(0L, 0L),
+				101,
+			)
+		}
+		CellHistoryRangeEntry(
+			entry = CellHistoryEntry(
+				CellHistoryEntryKey("range"),
+				EpochMs(1L),
+				EpochMs(2L),
+				emptySet(),
+				CellHistoryProductState.UNAVAILABLE,
+				CellHistoryCoverage.NONE,
+				emptyList(),
+				setOf(CellHistoryCause.NO_QUALIFIED_FACTS),
+			),
+			structuralDays = emptySet(),
+			structuralDayCompleteness = CellHistoryStructuralDayCompleteness.UNAVAILABLE,
+		).structuralDays shouldBe emptySet()
 	}
 
 	private fun observation() = CellHistoryObservation(

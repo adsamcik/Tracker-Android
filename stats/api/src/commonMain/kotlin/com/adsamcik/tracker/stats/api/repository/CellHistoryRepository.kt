@@ -17,6 +17,10 @@ interface CellHistoryRepository {
 
 	/** Discovers recent logical entries from qualified Cell facts, never presentation counters. */
 	suspend fun recent(limit: Int): CellHistoryPage
+
+	/** Complete bounded source-local range discovery; never implemented by filtering [recent]. */
+	suspend fun range(request: CellHistoryRangeRequest): CellHistoryRangePage =
+		CellHistoryRangePage.Unavailable(CellHistoryRangeUnavailableReason.UNSUPPORTED_BY_IMPLEMENTATION)
 }
 
 sealed interface CellHistoryQuery {
@@ -31,6 +35,105 @@ sealed interface CellHistoryPage {
 			require(cause.isIntegrityFailure)
 		}
 	}
+}
+
+sealed interface CellHistoryRangeScope {
+	data class WallTime(
+		val fromInclusive: EpochMs,
+		val toExclusive: EpochMs,
+	) : CellHistoryRangeScope {
+		init {
+			require(toExclusive > fromInclusive)
+			require(toExclusive.raw - fromInclusive.raw <=
+				MAX_CELL_RANGE_DAY_COUNT * MILLIS_PER_DAY)
+		}
+	}
+
+	data class StructuralDays(
+		val firstEpochDay: Long,
+		val lastEpochDayInclusive: Long,
+	) : CellHistoryRangeScope {
+		init {
+			require(firstEpochDay in MIN_SUPPORTED_CELL_EPOCH_DAY..MAX_SUPPORTED_CELL_EPOCH_DAY)
+			require(lastEpochDayInclusive in firstEpochDay..MAX_SUPPORTED_CELL_EPOCH_DAY)
+			require(lastEpochDayInclusive - firstEpochDay < MAX_CELL_RANGE_DAY_COUNT)
+		}
+	}
+}
+
+/** Opaque immutable snapshot continuation. Only the repository that issued it may interpret it. */
+interface CellHistoryRangeContinuation
+
+data class CellHistoryRangeRequest(
+	val scope: CellHistoryRangeScope,
+	val limit: Int,
+	val continuation: CellHistoryRangeContinuation? = null,
+) {
+	init {
+		require(limit in 1..MAX_CELL_RANGE_PAGE_SIZE)
+	}
+
+	companion object {
+		const val MAX_CELL_RANGE_PAGE_SIZE = 100
+	}
+}
+
+data class CellHistoryStructuralDay(
+	val epochDay: Long,
+	val storedZoneId: String,
+) {
+	init {
+		require(storedZoneId.isNotBlank())
+	}
+}
+
+enum class CellHistoryStructuralDayCompleteness {
+	EXACT,
+	AMBIGUOUS,
+	PARTIAL,
+	UNAVAILABLE,
+}
+
+data class CellHistoryRangeEntry(
+	val entry: CellHistoryEntry,
+	val structuralDays: Set<CellHistoryStructuralDay>,
+	val structuralDayCompleteness: CellHistoryStructuralDayCompleteness,
+) {
+	init {
+		require(structuralDays.none { it.storedZoneId.isBlank() })
+		when (structuralDayCompleteness) {
+			CellHistoryStructuralDayCompleteness.EXACT -> require(structuralDays.isNotEmpty())
+			CellHistoryStructuralDayCompleteness.AMBIGUOUS -> require(structuralDays.size > 1)
+			CellHistoryStructuralDayCompleteness.PARTIAL -> require(structuralDays.isNotEmpty())
+			CellHistoryStructuralDayCompleteness.UNAVAILABLE -> require(structuralDays.isEmpty())
+		}
+	}
+}
+
+sealed interface CellHistoryRangePage {
+	data class Available(
+		val entries: List<CellHistoryRangeEntry>,
+		val continuation: CellHistoryRangeContinuation?,
+	) : CellHistoryRangePage {
+		init {
+			require(entries.size <= CellHistoryRangeRequest.MAX_CELL_RANGE_PAGE_SIZE)
+		}
+	}
+
+	data class Unavailable(
+		val reason: CellHistoryRangeUnavailableReason,
+	) : CellHistoryRangePage
+
+	data class Failed(val cause: CellHistoryCause) : CellHistoryRangePage {
+		init {
+			require(cause.isIntegrityFailure)
+		}
+	}
+}
+
+enum class CellHistoryRangeUnavailableReason {
+	UNSUPPORTED_BY_IMPLEMENTATION,
+	INVALID_CONTINUATION,
 }
 
 /** Opaque logical identity. Physical run, segment, subscription, and tower identities stay private. */
@@ -249,3 +352,8 @@ data class CellHistorySignalQuality(
 }
 
 private val OPAQUE_CELL_IDENTITY = Regex("[0-9a-f]{64}")
+private const val MILLIS_PER_DAY = 86_400_000L
+private const val MAX_CELL_RANGE_DAY_COUNT = 370L
+private const val MIN_SUPPORTED_CELL_EPOCH_DAY = 0L
+private const val MAX_SUPPORTED_CELL_EPOCH_DAY =
+	Long.MAX_VALUE / MILLIS_PER_DAY - 2L

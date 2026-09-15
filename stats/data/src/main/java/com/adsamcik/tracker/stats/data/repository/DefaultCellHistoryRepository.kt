@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.PortableCapturedCellEntryV1
 import com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind
 import com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity
 import com.adsamcik.tracker.shared.base.database.ReadLocalPortableCapturedCellResult
+import com.adsamcik.tracker.shared.base.database.dao.CellLogicalHistoryCandidate
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
@@ -34,10 +35,20 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.CellHistoryPage
 import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeContinuation
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeEntry
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRangePage
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeScope
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.CellHistoryRepository
+import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDay
+import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDayCompleteness
 import com.adsamcik.tracker.stats.api.repository.ImportedCellHistorySelection
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
 import com.adsamcik.tracker.stats.api.value.EpochMs
+import java.time.Instant
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
@@ -173,6 +184,139 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 		}
 	}
 
+	override suspend fun range(request: CellHistoryRangeRequest): CellHistoryRangePage {
+		val continuation = request.continuation
+		if (continuation != null) {
+			if (continuation !is CellHistoryRangeContinuationSnapshot ||
+				continuation.scope != request.scope
+			) {
+				return CellHistoryRangePage.Unavailable(
+					CellHistoryRangeUnavailableReason.INVALID_CONTINUATION,
+				)
+			}
+			return continuation.remaining.toRangePage(request.scope, request.limit)
+		}
+		return withContext(ioDispatcher) {
+			val result = database.withTransaction { composeRange(request.scope) }
+			when (result) {
+				is CellHistoryRangeBuild.Failed -> CellHistoryRangePage.Failed(result.cause)
+				is CellHistoryRangeBuild.Ready ->
+					result.entries.toRangePage(request.scope, request.limit)
+			}
+		}
+	}
+
+	private suspend fun composeRange(scope: CellHistoryRangeScope): CellHistoryRangeBuild {
+		val bounds = try {
+			scope.queryBounds()
+		} catch (_: ArithmeticException) {
+			return CellHistoryRangeBuild.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+		}
+		val live = when (val result = loadLocalRange(bounds)) {
+			is LocalCellRangeBuild.Failed -> return CellHistoryRangeBuild.Failed(result.cause)
+			is LocalCellRangeBuild.Ready -> result.entries
+		}
+		val imported = try {
+			when (scope) {
+				is CellHistoryRangeScope.WallTime ->
+					importedProductReader.selectWallRangeInTransaction(
+						bounds.fromInclusiveMs,
+						bounds.toExclusiveMs,
+						MAX_RANGE_CANDIDATES_PER_ORIGIN,
+					)
+				is CellHistoryRangeScope.StructuralDays ->
+					importedProductReader.selectStructuralRangeInTransaction(
+						bounds.fromInclusiveMs,
+						bounds.toExclusiveMs,
+						MAX_RANGE_CANDIDATES_PER_ORIGIN,
+					)
+			}
+		} catch (cancelled: kotlinx.coroutines.CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			return CellHistoryRangeBuild.Failed(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		}
+		if (imported.any {
+				it is ImportedCellProductEvaluation.Unverifiable &&
+					it.reason == com.adsamcik.tracker.shared.base.database.ImportedCellProductFailure
+						.DEPENDENCY_OVERFLOW
+			}
+		) return CellHistoryRangeBuild.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+
+		val localCollisions = imported.filterIsInstance<ImportedCellProductEvaluation.Readable>()
+			.filter { it.localOriginHandle != null }
+			.associateBy { it.candidate.identity }
+		val localPortableEntries = try {
+			loadLocalPortableCollisions(localCollisions)
+		} catch (cancelled: kotlinx.coroutines.CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			return CellHistoryRangeBuild.Failed(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		}
+		val visibleLocalEntryIdentities = live.mapNotNull { composed ->
+			(composed.entry.selection as? LocalCellHistorySelection)?.identity?.value
+		}.toSet()
+		val composed = try {
+			if (live.isEmpty() && imported.isEmpty()) {
+				emptyList()
+			} else {
+				CellHistoryOriginComposer.compose(
+					live = live.map(ComposedCellEntry::entry),
+					visibleLocalEntryIdentities = visibleLocalEntryIdentities,
+					localCollisionIdentities = localCollisions.keys,
+					imported = imported,
+					localPortableEntriesByIdentity = localPortableEntries,
+					limit = live.size + imported.size,
+				)
+			}
+		} catch (_: ImportedCellHistoryCompositionFailure) {
+			return CellHistoryRangeBuild.Failed(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		}
+		return CellHistoryRangeBuild.Ready(
+			composed.mapNotNull { entry -> entry.toRangeEntry(scope) },
+		)
+	}
+
+	private suspend fun loadLocalRange(bounds: CellRangeQueryBounds): LocalCellRangeBuild {
+		val accepted = linkedMapOf<String, ComposedCellEntry>()
+		var beforeStartTimeMs: Long? = null
+		var beforeSegmentId: Long? = null
+		var candidateCount = 0
+		while (true) {
+			currentCoroutineContext().ensureActive()
+			val remaining = MAX_RANGE_CANDIDATES_PER_ORIGIN - candidateCount
+			val pageLimit = minOf(CANDIDATE_PAGE_SIZE, remaining + 1)
+			val candidates = database.cellCapturedFactDao().logicalHistoryCandidatePageInWallRange(
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				bounds.fromInclusiveMs,
+				bounds.toExclusiveMs,
+				pageLimit,
+				beforeStartTimeMs,
+				beforeSegmentId,
+			)
+			if (candidates.isEmpty()) break
+			if (!candidates.hasValidRangeKeyset(beforeStartTimeMs, beforeSegmentId) ||
+				candidates.size > remaining
+			) return LocalCellRangeBuild.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+			candidateCount += candidates.size
+			val seeds = candidates.map { it.segment }
+			val snapshot = loadSnapshot(expandMembership(seeds))
+			if (snapshot.overflow) {
+				return LocalCellRangeBuild.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+			}
+			val requested = seeds.mapNotNull(SessionSegment::logicalTrackingId).toSet()
+			CellHistoryComposer.composeRecent(snapshot, laneExecutionAuthority)
+				.filter { it.logicalTrackingId in requested }
+				.forEach { accepted.putIfAbsent(it.logicalTrackingId, it) }
+			val last = candidates.last()
+			beforeStartTimeMs = last.logicalRecencyStartMs
+			beforeSegmentId = last.logicalRecencySegmentId
+			if (candidates.size < pageLimit) break
+		}
+		return LocalCellRangeBuild.Ready(accepted.values.toList())
+	}
+
 	private suspend fun composeRecent(limit: Int): CellHistoryPage {
 		val live = loadRecentLive(limit)
 		if (live.page is CellHistoryPage.Failed) return live.page
@@ -219,7 +363,7 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 		evaluationsByEntryIdentity: Map<String, ImportedCellProductEvaluation.Readable>,
 	): Map<String, PortableCapturedCellEntryV1> {
 		if (evaluationsByEntryIdentity.isEmpty()) return emptyMap()
-		require(evaluationsByEntryIdentity.size <= MAX_RESULTS)
+		require(evaluationsByEntryIdentity.size <= MAX_RANGE_CANDIDATES_PER_ORIGIN)
 		val entries = linkedMapOf<String, PortableCapturedCellEntryV1>()
 		for ((entryIdentity, evaluation) in evaluationsByEntryIdentity) {
 			currentCoroutineContext().ensureActive()
@@ -523,6 +667,7 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 
 	private companion object {
 		const val MAX_RESULTS = 100
+		const val MAX_RANGE_CANDIDATES_PER_ORIGIN = 256
 		const val CANDIDATE_PAGE_SIZE = 32
 		const val MAX_CANDIDATE_SCAN = 128
 		const val MEMBER_PAGE_SIZE = 32
@@ -579,6 +724,165 @@ private fun unverifiableLocalSelection(
 	origin = CellHistoryOrigin.Local,
 	selection = selection,
 )
+
+private sealed interface CellHistoryRangeBuild {
+	data class Ready(val entries: List<CellHistoryRangeEntry>) : CellHistoryRangeBuild
+	data class Failed(val cause: CellHistoryCause) : CellHistoryRangeBuild
+}
+
+private sealed interface LocalCellRangeBuild {
+	data class Ready(val entries: List<ComposedCellEntry>) : LocalCellRangeBuild
+	data class Failed(val cause: CellHistoryCause) : LocalCellRangeBuild
+}
+
+private data class CellRangeQueryBounds(
+	val fromInclusiveMs: Long,
+	val toExclusiveMs: Long,
+)
+
+private class CellHistoryRangeContinuationSnapshot(
+	val scope: CellHistoryRangeScope,
+	val remaining: List<CellHistoryRangeEntry>,
+) : CellHistoryRangeContinuation {
+	override fun toString(): String = "CellHistoryRangeContinuation"
+}
+
+private fun List<CellHistoryRangeEntry>.toRangePage(
+	scope: CellHistoryRangeScope,
+	limit: Int,
+): CellHistoryRangePage {
+	val page = take(limit)
+	val remaining = drop(limit)
+	return CellHistoryRangePage.Available(
+		entries = page,
+		continuation = remaining.takeIf(List<CellHistoryRangeEntry>::isNotEmpty)?.let {
+			CellHistoryRangeContinuationSnapshot(scope, it)
+		},
+	)
+}
+
+private fun CellHistoryRangeScope.queryBounds(): CellRangeQueryBounds = when (this) {
+	is CellHistoryRangeScope.WallTime -> CellRangeQueryBounds(
+		fromInclusiveMs = fromInclusive.raw,
+		toExclusiveMs = toExclusive.raw,
+	)
+	is CellHistoryRangeScope.StructuralDays -> {
+		val firstDayStart = Math.multiplyExact(firstEpochDay, MILLIS_PER_DAY)
+		val lastDayEnd = Math.multiplyExact(
+			Math.addExact(lastEpochDayInclusive, 1L),
+			MILLIS_PER_DAY,
+		)
+		CellRangeQueryBounds(
+			fromInclusiveMs = maxOf(0L, firstDayStart - MAX_ZONE_OFFSET_MILLIS),
+			toExclusiveMs = Math.addExact(lastDayEnd, MAX_ZONE_OFFSET_MILLIS),
+		)
+	}
+}
+
+private fun List<CellLogicalHistoryCandidate>.hasValidRangeKeyset(
+	beforeStartTimeMs: Long?,
+	beforeSegmentId: Long?,
+): Boolean {
+	if ((beforeStartTimeMs == null) != (beforeSegmentId == null) ||
+		mapNotNull { it.segment.logicalTrackingId }.distinct().size != size
+	) return false
+	val cursors = buildList {
+		if (beforeStartTimeMs != null && beforeSegmentId != null) {
+			add(beforeStartTimeMs to beforeSegmentId)
+		}
+		addAll(map { it.logicalRecencyStartMs to it.logicalRecencySegmentId })
+	}
+	return cursors.zipWithNext().all { (left, right) ->
+		left.first > right.first || left.first == right.first && left.second > right.second
+	}
+}
+
+private fun CellHistoryEntry.toRangeEntry(
+	scope: CellHistoryRangeScope,
+): CellHistoryRangeEntry? {
+	if (scope is CellHistoryRangeScope.WallTime &&
+		(startTime.raw >= scope.toExclusive.raw || endTime.raw <= scope.fromInclusive.raw)
+	) return null
+	if (observations.isEmpty()) {
+		return if (scope is CellHistoryRangeScope.WallTime ||
+			origin is CellHistoryOrigin.Imported
+		) {
+			CellHistoryRangeEntry(
+				entry = this,
+				structuralDays = emptySet(),
+				structuralDayCompleteness = CellHistoryStructuralDayCompleteness.UNAVAILABLE,
+			)
+		} else {
+			null
+		}
+	}
+	val days = linkedSetOf<CellHistoryStructuralDay>()
+	var ambiguous = false
+	var partial = false
+	for (observation in observations) {
+		try {
+			val earliest = minOf(
+				observation.intervalStartTime.raw,
+				Math.subtractExact(
+					observation.observedTime.raw,
+					observation.wallTimeUncertaintyMs,
+				),
+			)
+			val latest = Math.addExact(
+				observation.observedTime.raw,
+				observation.wallTimeUncertaintyMs,
+			)
+			val zone = ZoneId.of(observation.storedZoneId)
+			val firstObservationDay = Instant.ofEpochMilli(earliest)
+				.atZone(zone).toLocalDate().toEpochDay()
+			val lastObservationDay = Instant.ofEpochMilli(latest)
+				.atZone(zone).toLocalDate().toEpochDay()
+			if (lastObservationDay < firstObservationDay) {
+				partial = true
+				continue
+			}
+			if (lastObservationDay > firstObservationDay) ambiguous = true
+			val firstIncludedDay = when (scope) {
+				is CellHistoryRangeScope.StructuralDays ->
+					maxOf(firstObservationDay, scope.firstEpochDay)
+				is CellHistoryRangeScope.WallTime -> firstObservationDay
+			}
+			val lastIncludedDay = when (scope) {
+				is CellHistoryRangeScope.StructuralDays ->
+					minOf(lastObservationDay, scope.lastEpochDayInclusive)
+				is CellHistoryRangeScope.WallTime -> lastObservationDay
+			}
+			if (lastIncludedDay < firstIncludedDay) continue
+			if (lastIncludedDay - firstIncludedDay >= MAX_STRUCTURAL_DAYS_PER_RANGE_ENTRY) {
+				partial = true
+				continue
+			}
+			var epochDay = firstIncludedDay
+			while (epochDay <= lastIncludedDay) {
+				days += CellHistoryStructuralDay(epochDay, observation.storedZoneId)
+				if (epochDay == Long.MAX_VALUE) break
+				epochDay += 1L
+			}
+		} catch (_: ArithmeticException) {
+			partial = true
+		} catch (_: RuntimeException) {
+			partial = true
+		}
+	}
+	if (scope is CellHistoryRangeScope.StructuralDays && days.isEmpty()) return null
+	val completeness = when {
+		days.isEmpty() -> CellHistoryStructuralDayCompleteness.UNAVAILABLE
+		partial -> CellHistoryStructuralDayCompleteness.PARTIAL
+		ambiguous && days.size > 1 -> CellHistoryStructuralDayCompleteness.AMBIGUOUS
+		ambiguous -> CellHistoryStructuralDayCompleteness.PARTIAL
+		else -> CellHistoryStructuralDayCompleteness.EXACT
+	}
+	return CellHistoryRangeEntry(this, days, completeness)
+}
+
+private const val MILLIS_PER_DAY = 86_400_000L
+private const val MAX_ZONE_OFFSET_MILLIS = 18L * 60L * 60L * 1_000L
+private const val MAX_STRUCTURAL_DAYS_PER_RANGE_ENTRY = 370L
 
 internal fun isCellCaptureMembership(source: SessionManifestSourceEntity): Boolean =
 	source.sourceKind == CELL_SOURCE && source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&

@@ -31,6 +31,11 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.CellHistoryPage
 import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRangePage
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeScope
+import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDay
+import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDayCompleteness
 import com.adsamcik.tracker.stats.api.repository.CellHistoryTechnology
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
@@ -41,6 +46,8 @@ import io.kotest.matchers.shouldBe
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.security.MessageDigest
+import java.time.Instant
+import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -222,18 +229,137 @@ class ImportedCellHistoryMapperTest {
 		}
 	}
 
+	@Test
+	fun `wall range discovers an imported Cell entry older than the requested recent page`() = runTest {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+		val older = cellEntry(
+			logicalLocal = "older",
+			runLocal = "older-run",
+			observation = cellObservation(
+				localId = "older-observation",
+				coverageStartTimeMs = 998L,
+				observedTimeMs = 1_000L,
+				wallTimeUncertaintyMs = 2L,
+			),
+			startTimeMs = 900L,
+			endTimeMs = 1_100L,
+		)
+		val newer = cellEntry(
+			logicalLocal = "newer",
+			runLocal = "newer-run",
+			observation = cellObservation(
+				localId = "newer-observation",
+				coverageStartTimeMs = 1_998L,
+				observedTimeMs = 2_000L,
+				wallTimeUncertaintyMs = 2L,
+			),
+			startTimeMs = 1_900L,
+			endTimeMs = 2_100L,
+		)
+		val importer = RoomImportPortableCapturedCell(database, Dispatchers.Unconfined)
+		importer.importEntry(importRequest(older, "older")) shouldBe
+			ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		importer.importEntry(importRequest(newer, "newer")) shouldBe
+			ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		val repository = repository()
+
+		(repository.recent(1) as CellHistoryPage.Available).entries.single().startTime.raw shouldBe
+			newer.startTimeMs
+		val range = repository.range(
+			CellHistoryRangeRequest(
+				CellHistoryRangeScope.WallTime(EpochMs(800L), EpochMs(1_200L)),
+				limit = 1,
+			),
+		) as CellHistoryRangePage.Available
+		range.entries.single().entry.startTime.raw shouldBe older.startTimeMs
+		range.entries.single().entry.origin shouldBe CellHistoryOrigin.Imported(
+			older.toSelection(),
+		)
+		range.continuation shouldBe null
+	}
+
+	@Test
+	fun `structural range preserves uncertainty crossing and stored DST zone authority`() = runTest {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+		val boundary = 86_400_000L
+		val crossing = cellEntry(
+			logicalLocal = "crossing",
+			runLocal = "crossing-run",
+			observation = cellObservation(
+				localId = "crossing-observation",
+				coverageStartTimeMs = boundary - 2L,
+				observedTimeMs = boundary,
+				wallTimeUncertaintyMs = 2L,
+				storedZoneId = "UTC",
+			),
+			startTimeMs = boundary - 100L,
+			endTimeMs = boundary + 100L,
+		)
+		val dstObserved = Instant.parse("2026-10-25T00:30:00Z").toEpochMilli()
+		val dstZone = "Europe/Prague"
+		val dstDay = Instant.ofEpochMilli(dstObserved).atZone(ZoneId.of(dstZone))
+			.toLocalDate().toEpochDay()
+		val dst = cellEntry(
+			logicalLocal = "dst",
+			runLocal = "dst-run",
+			observation = cellObservation(
+				localId = "dst-observation",
+				coverageStartTimeMs = dstObserved,
+				observedTimeMs = dstObserved,
+				wallTimeUncertaintyMs = 0L,
+				storedZoneId = dstZone,
+			),
+			startTimeMs = dstObserved - 100L,
+			endTimeMs = dstObserved + 100L,
+		)
+		val importer = RoomImportPortableCapturedCell(database, Dispatchers.Unconfined)
+		importer.importEntry(importRequest(crossing, "crossing")) shouldBe
+			ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		importer.importEntry(importRequest(dst, "dst")) shouldBe
+			ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		val repository = repository()
+
+		val crossingRange = repository.range(
+			CellHistoryRangeRequest(
+				CellHistoryRangeScope.StructuralDays(0L, 1L),
+				limit = 10,
+			),
+		) as CellHistoryRangePage.Available
+		crossingRange.entries.single().let { entry ->
+			entry.structuralDays shouldBe setOf(
+				CellHistoryStructuralDay(0L, "UTC"),
+				CellHistoryStructuralDay(1L, "UTC"),
+			)
+			entry.structuralDayCompleteness shouldBe
+				CellHistoryStructuralDayCompleteness.AMBIGUOUS
+		}
+		val dstRange = repository.range(
+			CellHistoryRangeRequest(
+				CellHistoryRangeScope.StructuralDays(dstDay, dstDay),
+				limit = 10,
+			),
+		) as CellHistoryRangePage.Available
+		dstRange.entries.single().let { entry ->
+			entry.structuralDays shouldBe setOf(CellHistoryStructuralDay(dstDay, dstZone))
+			entry.structuralDayCompleteness shouldBe CellHistoryStructuralDayCompleteness.EXACT
+		}
+	}
+
 	private fun repository() = DefaultCellHistoryRepository(
 		database,
 		SourceProductLaneExecutionAuthority { false },
 		Dispatchers.Unconfined,
 	)
 
-	private fun importRequest(entry: PortableCapturedCellEntryV1) =
+	private fun importRequest(
+		entry: PortableCapturedCellEntryV1,
+		suffix: String = "default",
+	) =
 		ImportPortableCapturedCellRequest(
 			entry = entry,
 			receipt = PortableCellImportReceipt(
-				jobId = "job",
-				entryKey = "entry",
+				jobId = "job-$suffix",
+				entryKey = "entry-$suffix",
 				sourceName = "backup.trackercell",
 				receivedAtMs = 500L,
 			),
@@ -260,6 +386,13 @@ private fun candidate(entry: PortableCapturedCellEntryV1) = ImportedCellHistoryC
 	receivedAtMs = 500L,
 )
 
+private fun PortableCapturedCellEntryV1.toSelection() =
+	com.adsamcik.tracker.stats.api.repository.ImportedCellHistorySelection(
+		com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryIdentity(identity.value),
+		1L,
+		com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryDigest(contentChecksum.value),
+	)
+
 private fun readable(
 	entry: PortableCapturedCellEntryV1,
 	candidate: ImportedCellHistoryCandidate,
@@ -281,6 +414,8 @@ private fun cellEntry(
 	runLocal: String = "run",
 	observation: PortableCapturedCellObservationV1 = cellObservation(),
 	acquisition: PortableCellAcquisitionCompleteness = PortableCellAcquisitionCompleteness.COMPLETE,
+	startTimeMs: Long = 10L,
+	endTimeMs: Long = 20L,
 ): PortableCapturedCellEntryV1 {
 	val runIdentity = PortableCellOpaqueIdentity.derive(
 		PortableCellIdentityKind.PHYSICAL_RUN,
@@ -289,8 +424,8 @@ private fun cellEntry(
 	val runChecksum = portableCellDigest("tracker-portable-cell-run-v1") {
 		writeCellString(runIdentity.value)
 		writeCellString(PortableCellDeletionScopeDigest.derive(logicalLocal, runLocal).value)
-		writeLong(10L)
-		writeLong(20L)
+		writeLong(startTimeMs)
+		writeLong(endTimeMs)
 		writeCellString(PortableCellCaptureCoverage.WHOLE_RUN.name)
 		writeCellString(PortableCellRunAvailability.RETAINED.name)
 		writeCellString(acquisition.name)
@@ -304,8 +439,8 @@ private fun cellEntry(
 		identity = runIdentity,
 		deletionScopeDigest = PortableCellDeletionScopeDigest.derive(logicalLocal, runLocal),
 		contentChecksum = PortableCellDigest(runChecksum),
-		startTimeMs = 10L,
-		endTimeMs = 20L,
+		startTimeMs = startTimeMs,
+		endTimeMs = endTimeMs,
 		captureCoverage = PortableCellCaptureCoverage.WHOLE_RUN,
 		availability = PortableCellRunAvailability.RETAINED,
 		acquisitionCompleteness = acquisition,
@@ -322,8 +457,8 @@ private fun cellEntry(
 		writeInt(1)
 		writeCellString(entryIdentity.value)
 		writeCellString(PortableCellSessionMode.MANUAL.name)
-		writeLong(10L)
-		writeLong(20L)
+		writeLong(startTimeMs)
+		writeLong(endTimeMs)
 		writeCellString(PortableCellSubscriptionGrouping.UNKNOWN.name)
 		writeInt(1)
 		writeCellString(run.identity.value)
@@ -333,8 +468,8 @@ private fun cellEntry(
 		identity = entryIdentity,
 		contentChecksum = PortableCellDigest(entryChecksum),
 		sessionMode = PortableCellSessionMode.MANUAL,
-		startTimeMs = 10L,
-		endTimeMs = 20L,
+		startTimeMs = startTimeMs,
+		endTimeMs = endTimeMs,
 		subscriptionGrouping = PortableCellSubscriptionGrouping.UNKNOWN,
 		runs = listOf(run),
 	)
@@ -343,8 +478,13 @@ private fun cellEntry(
 private fun cellObservation(
 	localId: String = "observation",
 	childCompleteness: PortableCellChildCompleteness = PortableCellChildCompleteness.COMPLETE,
+	coverageStartTimeMs: Long = 100L,
+	observedTimeMs: Long = 110L,
+	wallTimeUncertaintyMs: Long = 2L,
+	storedZoneId: String = "UTC",
 ): PortableCapturedCellObservationV1 {
 	val identity = PortableCellOpaqueIdentity.derive(PortableCellIdentityKind.OBSERVATION, localId)
+	val latestPossibleTimeMs = Math.addExact(observedTimeMs, wallTimeUncertaintyMs)
 	val submittedChildCount =
 		if (childCompleteness == PortableCellChildCompleteness.COMPLETE) 2 else 3
 	val staleChildCount = submittedChildCount - 2
@@ -354,11 +494,11 @@ private fun cellObservation(
 		writeNullableLong(null)
 		writeCellString(null)
 		writeNullableLong(null)
-		writeLong(100L)
-		writeLong(110L)
-		writeLong(112L)
-		writeLong(2L)
-		writeCellString("UTC")
+		writeLong(coverageStartTimeMs)
+		writeLong(observedTimeMs)
+		writeLong(latestPossibleTimeMs)
+		writeLong(wallTimeUncertaintyMs)
+		writeCellString(storedZoneId)
 		writeCellString(childCompleteness.name)
 		writeCellString(PortableCellSubscriptionGrouping.UNKNOWN.name)
 		listOf(
@@ -377,11 +517,11 @@ private fun cellObservation(
 		aggregateOwnerIdentity = null,
 		aggregateOwnerSemanticRevision = null,
 		contentChecksum = PortableCellDigest(checksum),
-		coverageStartTimeMs = 100L,
-		observedTimeMs = 110L,
-		latestPossibleTimeMs = 112L,
-		wallTimeUncertaintyMs = 2L,
-		storedZoneId = "UTC",
+		coverageStartTimeMs = coverageStartTimeMs,
+		observedTimeMs = observedTimeMs,
+		latestPossibleTimeMs = latestPossibleTimeMs,
+		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+		storedZoneId = storedZoneId,
 		childCompleteness = childCompleteness,
 		subscriptionGrouping = PortableCellSubscriptionGrouping.UNKNOWN,
 		submittedChildCount = submittedChildCount,

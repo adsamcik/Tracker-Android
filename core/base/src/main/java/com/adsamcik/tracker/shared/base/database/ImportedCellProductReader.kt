@@ -58,6 +58,87 @@ class ImportedCellProductReader(
 		)
 	}
 
+	suspend fun selectWallRangeInTransaction(
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
+		maximumCandidates: Int,
+	): List<ImportedCellProductEvaluation> {
+		require(fromInclusiveMs >= 0L && toExclusiveMs > fromInclusiveMs)
+		return selectRangeInTransaction(maximumCandidates) {
+				limit, beforeStartTimeMs, beforeIdentity ->
+			database.importedCellDao().historyCandidatePageInWallRange(
+				fromInclusiveMs,
+				toExclusiveMs,
+				limit,
+				beforeStartTimeMs,
+				beforeIdentity,
+			)
+		}
+	}
+
+	suspend fun selectStructuralRangeInTransaction(
+		broadFromInclusiveMs: Long,
+		broadToExclusiveMs: Long,
+		maximumCandidates: Int,
+	): List<ImportedCellProductEvaluation> {
+		require(broadFromInclusiveMs >= 0L && broadToExclusiveMs > broadFromInclusiveMs)
+		return selectRangeInTransaction(maximumCandidates) {
+				limit, beforeStartTimeMs, beforeIdentity ->
+			database.importedCellDao().historyCandidatePageForStructuralDays(
+				broadFromInclusiveMs,
+				broadToExclusiveMs,
+				limit,
+				beforeStartTimeMs,
+				beforeIdentity,
+			)
+		}
+	}
+
+	private suspend fun selectRangeInTransaction(
+		maximumCandidates: Int,
+		loadPage: suspend (Int, Long?, String?) -> List<ImportedCellHistoryCandidate>,
+	): List<ImportedCellProductEvaluation> {
+		require(maximumCandidates in 1..MAX_RANGE_CANDIDATES)
+		val candidates = mutableListOf<ImportedCellHistoryCandidate>()
+		var beforeStartTimeMs: Long? = null
+		var beforeIdentity: String? = null
+		while (true) {
+			currentCoroutineContext().ensureActive()
+			val remaining = maximumCandidates - candidates.size
+			val pageLimit = minOf(
+				ImportedCellDao.MAX_HISTORY_ENTRY_CANDIDATES,
+				remaining + 1,
+			)
+			val page = loadPage(pageLimit, beforeStartTimeMs, beforeIdentity)
+			if (page.isEmpty()) break
+			if (!isValidCandidatePage(
+					page,
+					beforeStartTimeMs,
+					beforeIdentity,
+					pageLimit,
+				)
+			) {
+				return page.take(1).unverifiable(
+					ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+			}
+			if (page.size > remaining) {
+				return page.take(1).unverifiable(ImportedCellProductFailure.DEPENDENCY_OVERFLOW)
+			}
+			candidates += page
+			val last = page.last()
+			beforeStartTimeMs = last.startTimeMs
+			beforeIdentity = last.identity
+			if (page.size < pageLimit) break
+		}
+		return evaluateCandidates(
+			candidates,
+			null,
+			null,
+			maximumCandidates,
+		)
+	}
+
 	private suspend fun evaluateCandidates(
 		candidates: List<ImportedCellHistoryCandidate>,
 		beforeStartTimeMs: Long?,
@@ -522,6 +603,10 @@ class ImportedCellProductReader(
 	private fun dependencyOverflow(): Nothing = throw ImportedCellOwnershipFailure(
 		ImportedCellProductFailure.DEPENDENCY_OVERFLOW,
 	)
+
+	private companion object {
+		const val MAX_RANGE_CANDIDATES = 256
+	}
 }
 
 sealed interface ImportedCellProductEvaluation {

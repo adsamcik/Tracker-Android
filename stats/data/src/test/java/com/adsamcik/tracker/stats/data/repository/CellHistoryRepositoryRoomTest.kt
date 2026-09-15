@@ -32,8 +32,14 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
 import com.adsamcik.tracker.stats.api.repository.CellHistoryPage
 import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRangePage
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeScope
+import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDay
+import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDayCompleteness
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
+import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import java.io.ByteArrayOutputStream
@@ -114,6 +120,76 @@ class CellHistoryRepositoryRoomTest {
 		page.entries shouldHaveSize 33
 		page.entries.map { it.startTime.raw } shouldBe groups.asReversed().map { it.runs.single().segment.startTimeMs }
 		everyCheckWasTransactional shouldBe true
+	}
+
+	@Test
+	fun `bounded wall and structural ranges find older local Cell entries before applying page limit`() =
+		runTest {
+			val groups = (1..3).map { index ->
+				buildGroup(index, runCount = 1, factRunIndexes = setOf(0))
+			}
+			persist(groups)
+			val repository = repository { true }
+			val oldest = groups.first().runs.single().segment
+			val newest = groups.last().runs.single().segment
+
+			(repository.recent(1) as CellHistoryPage.Available).entries.single().startTime.raw shouldBe
+				newest.startTimeMs
+			val wallRequest = CellHistoryRangeRequest(
+				scope = CellHistoryRangeScope.WallTime(
+					EpochMs(oldest.startTimeMs),
+					EpochMs(newest.endTimeMs + 1L),
+				),
+				limit = 1,
+			)
+			val firstPage = repository.range(wallRequest) as CellHistoryRangePage.Available
+			firstPage.entries.single().entry.startTime.raw shouldBe newest.startTimeMs
+			firstPage.continuation.toString() shouldBe "CellHistoryRangeContinuation"
+			val secondPage = repository.range(
+				wallRequest.copy(continuation = firstPage.continuation),
+			) as CellHistoryRangePage.Available
+			val thirdPage = repository.range(
+				wallRequest.copy(continuation = secondPage.continuation),
+			) as CellHistoryRangePage.Available
+			listOf(firstPage, secondPage, thirdPage).flatMap { page ->
+				page.entries.map { it.entry.startTime.raw }
+			} shouldBe groups.asReversed().map { it.runs.single().segment.startTimeMs }
+			thirdPage.continuation shouldBe null
+
+			val epochDay = Instant.ofEpochMilli(oldest.startTimeMs)
+				.atZone(ZoneId.of(ZONE_ID)).toLocalDate().toEpochDay()
+			val structural = repository.range(
+				CellHistoryRangeRequest(
+					CellHistoryRangeScope.StructuralDays(epochDay, epochDay),
+					limit = 100,
+				),
+			) as CellHistoryRangePage.Available
+			structural.entries.any { entry -> entry.entry.startTime.raw == oldest.startTimeMs } shouldBe true
+			structural.entries.flatMap { it.structuralDays }.toSet() shouldBe
+				setOf(CellHistoryStructuralDay(epochDay, ZONE_ID))
+			structural.entries.all {
+				it.structuralDayCompleteness == CellHistoryStructuralDayCompleteness.EXACT
+			} shouldBe true
+		}
+
+	@Test
+	fun `range candidate cap plus one is a typed failure rather than an incomplete page`() = runTest {
+		val groups = (1..257).map { index ->
+			buildGroup(index, runCount = 1, factRunIndexes = setOf(0))
+		}
+		persist(groups)
+		val first = groups.first().runs.single().segment
+		val last = groups.last().runs.single().segment
+
+		repository { true }.range(
+			CellHistoryRangeRequest(
+				CellHistoryRangeScope.WallTime(
+					EpochMs(first.startTimeMs),
+					EpochMs(last.endTimeMs + 1L),
+				),
+				limit = 100,
+			),
+		) shouldBe CellHistoryRangePage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
 	}
 
 	@Test
