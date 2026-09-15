@@ -108,6 +108,14 @@ class ShadowValidationTest {
 			ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
 			updatedAtMs = 0L,
 		)
+		coEvery {
+			sourceDestinationOwnerDao.isExactOwner(
+				SourceDestinationOwnerEntity.SOURCE_LOCATION,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+				SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE,
+				SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION,
+			)
+		} returns true
 		durableBuffer = mockk(relaxed = true)
 
 		coEvery { locationDao.insert(any<Collection<LocationSample>>()) } returns emptyList()

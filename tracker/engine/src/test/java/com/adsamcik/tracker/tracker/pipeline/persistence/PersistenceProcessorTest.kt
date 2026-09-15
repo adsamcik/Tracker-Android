@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDecisionDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalClaimDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
@@ -16,6 +17,7 @@ import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
 import com.adsamcik.tracker.shared.base.database.data.LocationObservation
+import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
@@ -36,6 +38,8 @@ import com.adsamcik.tracker.stats.api.signal.ActivitySignal
 import com.adsamcik.tracker.stats.api.signal.CellSignal
 import com.adsamcik.tracker.stats.api.signal.CellTowerReading
 import com.adsamcik.tracker.stats.api.signal.LocationSignal
+import com.adsamcik.tracker.stats.api.signal.LocationDecision
+import com.adsamcik.tracker.stats.api.signal.LocationDecisionSignal
 import com.adsamcik.tracker.stats.api.signal.LocationObservationSignal
 import com.adsamcik.tracker.stats.api.signal.PressureSignal
 import com.adsamcik.tracker.stats.api.signal.StepSignal
@@ -77,6 +81,7 @@ class PersistenceProcessorTest {
 
 	private lateinit var locationDao: LocationSampleDao
 	private lateinit var locationObservationDao: LocationObservationDao
+	private lateinit var locationObservationDecisionDao: LocationObservationDecisionDao
 	private lateinit var cellDao: CellSampleDao
 	private lateinit var wifiDao: WifiObservationDao
 	private lateinit var pressureDao: PressureSampleDao
@@ -107,6 +112,7 @@ class PersistenceProcessorTest {
 		nextCheckpointId = 1L
 		locationDao = mockk(relaxed = true)
 		locationObservationDao = mockk(relaxed = true)
+		locationObservationDecisionDao = mockk(relaxed = true)
 		cellDao = mockk(relaxed = true)
 		wifiDao = mockk(relaxed = true)
 		pressureDao = mockk(relaxed = true)
@@ -121,6 +127,10 @@ class PersistenceProcessorTest {
 		coEvery {
 			locationObservationDao.insert(any<Collection<LocationObservation>>())
 		} returns emptyList()
+		coEvery { locationObservationDao.existsBySourceEventId(any()) } returns true
+		coEvery {
+			locationObservationDecisionDao.insert(any<List<LocationObservationDecision>>())
+		} returns emptyList()
 		coEvery { cellDao.insert(any<Collection<CellSample>>()) } returns emptyList()
 		coEvery { wifiDao.insert(any<Collection<WifiObservation>>()) } returns emptyList()
 		coEvery { pressureDao.insert(any<Collection<PressureSample>>()) } returns emptyList()
@@ -134,6 +144,14 @@ class PersistenceProcessorTest {
 			SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
 			SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
 		)
+		coEvery {
+			sourceDestinationOwnerDao.isExactOwner(
+				SourceDestinationOwnerEntity.SOURCE_LOCATION,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+				SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE,
+				SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION,
+			)
+		} returns true
 		coEvery { activityDao.insert(any<Collection<ActivitySnapshot>>()) } returns emptyList()
 		coEvery { durableBuffer.hasPendingEntries() } returns false
 		coEvery { durableBuffer.claimBatch(any()) } returns null
@@ -159,6 +177,7 @@ class PersistenceProcessorTest {
 		processor = PersistenceProcessor(
 			locationSampleDao = locationDao,
 			locationObservationDao = locationObservationDao,
+			locationObservationDecisionDao = locationObservationDecisionDao,
 			cellSampleDao = cellDao,
 			wifiObservationDao = wifiDao,
 			pressureSampleDao = pressureDao,
@@ -290,6 +309,38 @@ class PersistenceProcessorTest {
 			ingressDisposition = "REJECTED_INVALID_COORDINATE",
 		),
 	)
+
+	private fun ordinaryCanonicalLocationSignal(): TrackingSignal {
+		val eventId = "ordinary-location-event"
+		return signalWithLocation().copy(
+			elapsedRealtimeNanos = 2_000_000_000L,
+			location = requireNotNull(signalWithLocation().location).copy(
+				sourceEventId = eventId,
+			),
+			locationObservation = LocationObservationSignal(
+				rawFixTimeMs = 1_000_000L,
+				coordinate = CoordinateE7(
+					LatE7.fromDegrees(50.0),
+					LonE7.fromDegrees(14.0),
+				),
+				horizontalAccuracyM = 5f,
+				provider = "fused",
+				receivedAtMs = 1_000_100L,
+				receivedElapsedRealtimeNanos = 2_100_000_000L,
+				acquisitionMode = "FUSED",
+				requestPriority = "BALANCED",
+				permissionPrecision = "PRECISE",
+				isMock = false,
+				ingressDisposition = "DELIVERED_VALID",
+				sourceEventId = eventId,
+			),
+			locationDecision = LocationDecisionSignal(
+				sourceEventId = eventId,
+				decision = LocationDecision.ACCEPTED,
+			),
+			persistenceSignalId = "ordinary-location-signal",
+		)
+	}
 
 	private fun signalWithCells(
 		timestampMs: Long = 1_000_000L,
@@ -449,6 +500,36 @@ class PersistenceProcessorTest {
 			row.batchIndex shouldBe 1
 			row.batchSize shouldBe 3
 			row.ingressDisposition shouldBe "REJECTED_INVALID_COORDINATE"
+		}
+
+		@Test
+		fun `ordinary Location mutation retains pending WAL when permanent owner is lost`() = runTest {
+			coEvery {
+				sourceDestinationOwnerDao.isExactOwner(
+					SourceDestinationOwnerEntity.SOURCE_LOCATION,
+					SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+					SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE,
+					SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION,
+				)
+			} returnsMany listOf(false, true)
+			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+			processor.onSignal(ordinaryCanonicalLocationSignal())
+
+			processor.onFlush()
+
+			coVerify(exactly = 0) {
+				locationObservationDao.insert(any<Collection<LocationObservation>>())
+			}
+			coVerify(exactly = 0) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 0) { pendingSignalDao.deleteByIds(any()) }
+
+			processor.onFlush()
+
+			coVerify(exactly = 1) {
+				locationObservationDao.insert(any<Collection<LocationObservation>>())
+			}
+			coVerify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(any()) }
 		}
 
 		@Test

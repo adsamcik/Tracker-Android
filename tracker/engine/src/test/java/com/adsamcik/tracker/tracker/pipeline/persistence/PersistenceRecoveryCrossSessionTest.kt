@@ -257,6 +257,15 @@ class PersistenceRecoveryCrossSessionTest {
 			val pressureDao = mockk<PressureSampleDao>(relaxed = true)
 			val stepDao = mockk<StepIntervalDao>(relaxed = true)
 			val activityDao = mockk<ActivitySnapshotDao>(relaxed = true)
+			val ownerDao = mockk<SourceDestinationOwnerDao>(relaxed = true)
+			coEvery {
+				ownerDao.isExactOwner(
+					SourceDestinationOwnerEntity.SOURCE_LOCATION,
+					SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+					SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE,
+					SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION,
+				)
+			} returns true
 
 			val processor = PersistenceProcessor(
 				locationSampleDao = locationDao,
@@ -270,7 +279,7 @@ class PersistenceRecoveryCrossSessionTest {
 				pendingSignalClaimDao = claimDao,
 				durableBuffer = durableBuffer,
 				transactor = passthroughTransactor,
-				sourceDestinationOwnerDao = mockk<SourceDestinationOwnerDao>(relaxed = true),
+				sourceDestinationOwnerDao = ownerDao,
 			)
 
 			// --- New process: PersistenceProcessor starts under a *different*

@@ -12,9 +12,9 @@ import com.adsamcik.tracker.shared.base.database.data.LocationSample as StoredLo
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionJoinStateEntity
 import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.shared.base.data.LocationFixMetadata
-import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.signal.LocationDecision
 import com.adsamcik.tracker.stats.api.signal.LocationDecisionSignal
@@ -25,6 +25,10 @@ import com.adsamcik.tracker.stats.api.value.LatE7
 import com.adsamcik.tracker.stats.api.value.LonE7
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.DataInputStream
+import java.io.DataOutputStream
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -580,6 +584,22 @@ internal class ProtectedLocationCanonicalHandoff(
 				throughOrdinal,
 			)
 			advanceCursor(initialLane, expectedCursor, throughOrdinal)
+			val receiptKey = protectedLocationReceiptKey(
+				command.mutation.identity.sourceEventId.value,
+			)
+			val receipt = requireNotNull(database.sourceProjectionStateDao().joinState(
+				WRITER_ID,
+				WRITER_VERSION,
+				receiptKey,
+			))
+			database.sourceProjectionStateDao().saveJoinState(
+				receipt.copy(
+					minimumRequiredOrdinal = runCatching {
+						Math.addExact(throughOrdinal, 1L)
+					}.getOrDefault(Long.MAX_VALUE),
+					updatedAtMs = nowMs(),
+				),
+			)
 		}
 	}
 
@@ -756,6 +776,7 @@ internal data class ProtectedLocationCanonicalPendingDecision(
 	val sourceEventId: String,
 	val decision: String,
 	val reason: String?,
+	val decisionVersion: Int,
 	val acceptedSampleSourceSignalId: String?,
 	val sourceSignalId: String,
 	val clockDomainId: String?,
@@ -766,7 +787,12 @@ internal data class ProtectedLocationCanonicalPendingWrite(
 	val sourceEventId: String,
 	val observation: LocationObservation?,
 	val decision: ProtectedLocationCanonicalPendingDecision?,
-	val sample: LocationSample?,
+	val sample: StoredLocationSample?,
+)
+
+internal data class ProtectedLocationVerifiedWrite(
+	val command: LocationCapturedFactCommand,
+	val acquisitionMetadata: LocationWalAcquisitionMetadata,
 )
 
 /**
@@ -789,7 +815,9 @@ internal class ProtectedLocationCanonicalPersistenceGuard private constructor(
 		@Suppress("UNUSED_PARAMETER") testMarker: Unit,
 	) : this(database, qualifier)
 
-	suspend fun verifyInCurrentWriterTransaction(write: ProtectedLocationCanonicalPendingWrite) {
+	suspend fun verifyInCurrentWriterTransaction(
+		write: ProtectedLocationCanonicalPendingWrite,
+	): ProtectedLocationVerifiedWrite {
 		val db = database ?: error("Protected Location persistence guard is not configured")
 		val adapter = qualifier ?: error("Protected Location qualifier is not configured")
 		val qualified = when (val adapted = adapter.qualify(SourceEventId(write.sourceEventId))) {
@@ -827,7 +855,7 @@ internal class ProtectedLocationCanonicalPersistenceGuard private constructor(
 		requireNotNull(observation) {
 			"Protected Location canonical decision has no raw observation"
 		}
-		require(observation.matches(command, acquisitionMetadata)) {
+		require(observation.matchesQualifiedEvidence(command, acquisitionMetadata)) {
 			"Protected Location raw observation does not match authenticated WAL evidence"
 		}
 
@@ -842,6 +870,7 @@ internal class ProtectedLocationCanonicalPersistenceGuard private constructor(
 			}
 		}
 		db.requireProtectedLocationWriterAuthority()
+		return ProtectedLocationVerifiedWrite(command, acquisitionMetadata)
 	}
 
 	companion object {
@@ -869,7 +898,7 @@ internal suspend fun AppDatabase.readProtectedLocationCanonicalReceipt(
 		?: return ProtectedLocationCanonicalReceipt.Incomplete(
 			"LOCATION_CANONICAL_OBSERVATION_PENDING",
 		)
-	if (!observation.matches(command, acquisitionMetadata)) {
+	if (!observation.matchesQualifiedEvidence(command, acquisitionMetadata)) {
 		return ProtectedLocationCanonicalReceipt.Invalid(
 			"LOCATION_CANONICAL_OBSERVATION_MISMATCH",
 		)
@@ -879,49 +908,331 @@ internal suspend fun AppDatabase.readProtectedLocationCanonicalReceipt(
 			"LOCATION_CANONICAL_DECISION_PENDING",
 		)
 	val canonicalSignalId = ProtectedLocationCanonicalSignalIdentity.canonicalProduct(eventId)
-	if (decision.sourceSignalId != canonicalSignalId ||
-		decision.observationSourceEventId != eventId
-	) {
-		return ProtectedLocationCanonicalReceipt.Invalid(
-			"LOCATION_CANONICAL_DECISION_IDENTITY_MISMATCH",
-		)
-	}
-	return when (decision.decision) {
+	val sample = when (decision.decision) {
 		LocationObservationDecision.ACCEPTED -> {
 			if (decision.acceptedSampleSourceSignalId != canonicalSignalId) {
-				ProtectedLocationCanonicalReceipt.Invalid(
+				return ProtectedLocationCanonicalReceipt.Invalid(
 					"LOCATION_CANONICAL_ACCEPTED_SAMPLE_IDENTITY_MISMATCH",
 				)
-			} else {
-				val sample = locationSampleDao().getBySourceSignalId(canonicalSignalId)
-					?: return ProtectedLocationCanonicalReceipt.Incomplete(
-						"LOCATION_CANONICAL_SAMPLE_PENDING",
-					)
-				if (sample.matches(command, acquisitionMetadata)) {
-					ProtectedLocationCanonicalReceipt.Complete(observation, decision, sample)
-				} else {
-					ProtectedLocationCanonicalReceipt.Invalid(
-						"LOCATION_CANONICAL_SAMPLE_MISMATCH",
-					)
-				}
 			}
+			locationSampleDao().getBySourceSignalId(canonicalSignalId)
+				?: return ProtectedLocationCanonicalReceipt.Incomplete(
+					"LOCATION_CANONICAL_SAMPLE_PENDING",
+				)
 		}
 		LocationObservationDecision.REJECTED -> {
 			if (decision.acceptedSampleSourceSignalId != null ||
 				locationSampleDao().getBySourceSignalId(canonicalSignalId) != null
 			) {
-				ProtectedLocationCanonicalReceipt.Invalid(
+				return ProtectedLocationCanonicalReceipt.Invalid(
 					"LOCATION_CANONICAL_REJECTED_SAMPLE_PRESENT",
 				)
-			} else {
-				ProtectedLocationCanonicalReceipt.Complete(observation, decision, null)
 			}
+			null
 		}
-		else -> ProtectedLocationCanonicalReceipt.Invalid(
+		else -> return ProtectedLocationCanonicalReceipt.Invalid(
 			"LOCATION_CANONICAL_DECISION_UNSUPPORTED",
 		)
 	}
+	val stored = sourceProjectionStateDao().joinState(
+		projectionId = ProtectedLocationCanonicalHandoff.WRITER_ID,
+		projectionVersion = ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+		stateKey = protectedLocationReceiptKey(eventId),
+	) ?: return ProtectedLocationCanonicalReceipt.Incomplete(
+		"LOCATION_CANONICAL_CONTENT_RECEIPT_PENDING",
+	)
+	val decoded = runCatching {
+		ProtectedLocationCanonicalReceiptCodec.decode(stored.payload)
+	}.getOrElse {
+		return ProtectedLocationCanonicalReceipt.Invalid(
+			"LOCATION_CANONICAL_CONTENT_RECEIPT_MALFORMED",
+		)
+	}
+	if (stored.payloadVersion != ProtectedLocationCanonicalReceiptCodec.VERSION ||
+		stored.logicalTrackingId != command.authority.logicalTrackingId.value ||
+		stored.minimumRequiredOrdinal !in setOf(
+			command.mutation.identity.sourceAdmissionOrdinal,
+			runCatching {
+				Math.addExact(command.mutation.identity.sourceAdmissionOrdinal, 1L)
+			}.getOrDefault(Long.MAX_VALUE),
+		) ||
+		!decoded.matches(command, acquisitionMetadata) ||
+		!decoded.observation.contentEquals(observation.canonicalReceiptBytes()) ||
+		!decoded.decision.contentEquals(decision.canonicalReceiptBytes()) ||
+		!decoded.sample.contentEqualsNullable(sample?.canonicalReceiptBytes())
+	) {
+		return ProtectedLocationCanonicalReceipt.Invalid(
+			"LOCATION_CANONICAL_CONTENT_RECEIPT_MISMATCH",
+		)
+	}
+	return ProtectedLocationCanonicalReceipt.Complete(observation, decision, sample)
 }
+
+internal suspend fun AppDatabase.recordProtectedLocationCanonicalReceiptInCurrentTransaction(
+	verified: ProtectedLocationVerifiedWrite,
+) {
+	val command = verified.command
+	val eventId = command.mutation.identity.sourceEventId.value
+	val observation = requireNotNull(locationObservationDao().getBySourceEventId(eventId)) {
+		"Protected Location receipt requires the committed raw observation"
+	}
+	val decision = requireNotNull(locationObservationDecisionDao().getBySourceEventId(eventId)) {
+		"Protected Location receipt requires a terminal curation decision"
+	}
+	val canonicalSignalId = ProtectedLocationCanonicalSignalIdentity.canonicalProduct(eventId)
+	val sample = when (decision.decision) {
+		LocationObservationDecision.ACCEPTED ->
+			requireNotNull(locationSampleDao().getBySourceSignalId(canonicalSignalId)) {
+				"Protected Location accepted receipt requires its committed sample"
+			}
+		LocationObservationDecision.REJECTED -> {
+			check(locationSampleDao().getBySourceSignalId(canonicalSignalId) == null) {
+				"Protected Location rejected receipt cannot include a sample"
+			}
+			null
+		}
+		else -> error("Unsupported protected Location terminal decision ${decision.decision}")
+	}
+	check(observation.matchesQualifiedEvidence(command, verified.acquisitionMetadata)) {
+		"Protected Location receipt observation no longer matches qualified evidence"
+	}
+	sourceProjectionStateDao().saveJoinState(
+		SourceProjectionJoinStateEntity(
+			projectionId = ProtectedLocationCanonicalHandoff.WRITER_ID,
+			projectionVersion = ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+			stateKey = protectedLocationReceiptKey(eventId),
+			logicalTrackingId = command.authority.logicalTrackingId.value,
+			minimumRequiredOrdinal = command.mutation.identity.sourceAdmissionOrdinal,
+			payloadVersion = ProtectedLocationCanonicalReceiptCodec.VERSION,
+			payload = ProtectedLocationCanonicalReceiptCodec.encode(
+				command = command,
+				acquisitionMetadata = verified.acquisitionMetadata,
+				observation = observation,
+				decision = decision,
+				sample = sample,
+			),
+			updatedAtMs = System.currentTimeMillis().coerceAtLeast(0L),
+		),
+	)
+}
+
+private data class ProtectedLocationCanonicalReceiptPayload(
+	val sourceEventId: String,
+	val sourceAdmissionOrdinal: Long,
+	val walIntegrityIdentity: String,
+	val acquisitionMode: String,
+	val requestPriority: String,
+	val observation: ByteArray,
+	val decision: ByteArray,
+	val sample: ByteArray?,
+) {
+	fun matches(
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+	): Boolean =
+		sourceEventId == command.mutation.identity.sourceEventId.value &&
+			sourceAdmissionOrdinal == command.mutation.identity.sourceAdmissionOrdinal &&
+			walIntegrityIdentity == command.mutation.identity.walIntegrityIdentity &&
+			acquisitionMode == acquisitionMetadata.acquisitionMode.name &&
+			requestPriority == acquisitionMetadata.requestPriority.name
+}
+
+private object ProtectedLocationCanonicalReceiptCodec {
+	const val VERSION = 1
+	private const val MAGIC = 0x504c4352
+
+	fun encode(
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+		observation: LocationObservation,
+		decision: LocationObservationDecision,
+		sample: StoredLocationSample?,
+	): ByteArray = ByteArrayOutputStream().use { bytes ->
+		DataOutputStream(bytes).use { output ->
+			output.writeInt(MAGIC)
+			output.writeInt(VERSION)
+			output.writeUTF(command.mutation.identity.sourceEventId.value)
+			output.writeLong(command.mutation.identity.sourceAdmissionOrdinal)
+			output.writeUTF(command.mutation.identity.walIntegrityIdentity)
+			output.writeUTF(acquisitionMetadata.acquisitionMode.name)
+			output.writeUTF(acquisitionMetadata.requestPriority.name)
+			output.writeByteArray(observation.canonicalReceiptBytes())
+			output.writeByteArray(decision.canonicalReceiptBytes())
+			output.writeNullableByteArray(sample?.canonicalReceiptBytes())
+		}
+		bytes.toByteArray()
+	}
+
+	fun decode(payload: ByteArray): ProtectedLocationCanonicalReceiptPayload =
+		DataInputStream(ByteArrayInputStream(payload)).use { input ->
+			require(input.readInt() == MAGIC)
+			require(input.readInt() == VERSION)
+			val decoded = ProtectedLocationCanonicalReceiptPayload(
+				sourceEventId = input.readUTF(),
+				sourceAdmissionOrdinal = input.readLong(),
+				walIntegrityIdentity = input.readUTF(),
+				acquisitionMode = input.readUTF(),
+				requestPriority = input.readUTF(),
+				observation = input.readByteArray(),
+				decision = input.readByteArray(),
+				sample = input.readNullableByteArray(),
+			)
+			require(input.available() == 0)
+			decoded
+		}
+
+	private fun DataOutputStream.writeByteArray(value: ByteArray) {
+		writeInt(value.size)
+		write(value)
+	}
+
+	private fun DataOutputStream.writeNullableByteArray(value: ByteArray?) {
+		writeBoolean(value != null)
+		if (value != null) writeByteArray(value)
+	}
+
+	private fun DataInputStream.readByteArray(): ByteArray {
+		val size = readInt()
+		require(size in 0..MAX_RECEIPT_PART_BYTES)
+		return ByteArray(size).also(::readFully)
+	}
+
+	private fun DataInputStream.readNullableByteArray(): ByteArray? =
+		if (readBoolean()) readByteArray() else null
+
+	private const val MAX_RECEIPT_PART_BYTES = 32 * 1024
+}
+
+private fun LocationObservation.canonicalReceiptBytes(): ByteArray =
+	canonicalLocationReceiptBytes {
+		writeLong(id)
+		writeLong(fixTimeMs)
+		writeLong(fixElapsedRealtimeNanos)
+		writeLong(receivedAtMs)
+		writeLong(receivedElapsedRealtimeNanos)
+		writeNullableLong(deliveryAgeMs)
+		writeNullableInt(latE7)
+		writeNullableInt(lonE7)
+		writeNullableFloat(rawAltitudeM)
+		writeNullableFloat(hAccM)
+		writeNullableFloat(vAccM)
+		writeNullableFloat(speedMps)
+		writeNullableFloat(speedAccuracyMps)
+		writeUTF(provider)
+		writeUTF(acquisitionMode)
+		writeUTF(requestPriority)
+		writeUTF(permissionPrecision)
+		writeInt(batchIndex)
+		writeInt(batchSize)
+		writeBoolean(isMock)
+		writeUTF(ingressDisposition)
+		writeInt(estimatorVersion)
+		writeInt(calibrationVersion)
+		writeLong(createdAt)
+		writeNullableString(sourceSignalId)
+		writeNullableString(sourceEventId)
+		writeNullableString(callbackId)
+		writeNullableString(clockDomainId)
+		writeLong(sourceRevision)
+		writeNullableFloat(bearingDeg)
+		writeNullableFloat(bearingAccuracyDeg)
+		writeNullableString(bootClockDomainId)
+	}
+
+private fun LocationObservationDecision.canonicalReceiptBytes(): ByteArray =
+	canonicalLocationReceiptBytes {
+		writeLong(id)
+		writeUTF(observationSourceEventId)
+		writeUTF(decision)
+		writeNullableString(reason)
+		writeInt(decisionVersion)
+		writeNullableString(acceptedSampleSourceSignalId)
+		writeUTF(sourceSignalId)
+		writeNullableString(clockDomainId)
+		writeLong(decidedAtMs)
+		writeLong(sourceRevision)
+	}
+
+private fun StoredLocationSample.canonicalReceiptBytes(): ByteArray =
+	canonicalLocationReceiptBytes {
+		writeLong(id)
+		writeLong(timeMs)
+		writeLong(elapsedRealtimeNanos)
+		writeNullableInt(latE7)
+		writeNullableInt(lonE7)
+		writeNullableFloat(altitudeM)
+		writeNullableFloat(rawGpsAltitudeM)
+		writeNullableFloat(hAccM)
+		writeNullableFloat(vAccM)
+		writeNullableFloat(speedMps)
+		writeNullableFloat(speedAccuracyMps)
+		writeUTF(provider)
+		writeUTF(quality.name)
+		writeNullableString(motionState?.name)
+		writeNullableString(policy)
+		writeNullableLong(bucketId)
+		writeLong(createdAt)
+		writeLong(receivedElapsedRealtimeNanos)
+		writeNullableLong(deliveryAgeMs)
+		writeUTF(acquisitionMode)
+		writeUTF(requestPriority)
+		writeUTF(permissionPrecision)
+		writeInt(batchIndex)
+		writeInt(batchSize)
+		writeBoolean(isMock)
+		writeInt(estimatorVersion)
+		writeInt(calibrationVersion)
+		writeNullableString(sourceSignalId)
+		writeNullableString(sourceEventId)
+		writeNullableString(clockDomainId)
+		writeLong(sourceRevision)
+		writeUTF(altitudeDatum.name)
+		writeUTF(altitudeSource.name)
+		writeUTF(altitudeConversionStatus.name)
+		writeUTF(rawGpsAltitudeDatum.name)
+		writeInt(altitudeModelVersion)
+		writeNullableFloat(rawPlatformSpeedMps)
+		writeNullableFloat(rawPlatformSpeedAccuracyMps)
+		writeNullableFloat(bearingDeg)
+		writeNullableFloat(bearingAccuracyDeg)
+		writeNullableString(bootClockDomainId)
+	}
+
+private inline fun canonicalLocationReceiptBytes(
+	write: DataOutputStream.() -> Unit,
+): ByteArray = ByteArrayOutputStream().use { bytes ->
+	DataOutputStream(bytes).use { output -> output.write() }
+	bytes.toByteArray()
+}
+
+private fun DataOutputStream.writeNullableString(value: String?) {
+	writeBoolean(value != null)
+	if (value != null) writeUTF(value)
+}
+
+private fun DataOutputStream.writeNullableLong(value: Long?) {
+	writeBoolean(value != null)
+	if (value != null) writeLong(value)
+}
+
+private fun DataOutputStream.writeNullableInt(value: Int?) {
+	writeBoolean(value != null)
+	if (value != null) writeInt(value)
+}
+
+private fun DataOutputStream.writeNullableFloat(value: Float?) {
+	writeBoolean(value != null)
+	if (value != null) writeInt(java.lang.Float.floatToRawIntBits(value))
+}
+
+private fun ByteArray?.contentEqualsNullable(other: ByteArray?): Boolean = when {
+	this == null -> other == null
+	other == null -> false
+	else -> contentEquals(other)
+}
+
+private fun protectedLocationReceiptKey(sourceEventId: String): String =
+	"canonical-receipt:$sourceEventId"
 
 internal fun LocationCapturedFactCommand.toProtectedLocationTrackingCycle(
 	acquisitionMetadata: LocationWalAcquisitionMetadata,
@@ -1044,7 +1355,7 @@ private suspend fun AppDatabase.requireProtectedLocationWriterAuthority() {
 	}
 }
 
-private fun LocationObservation.matches(
+private fun LocationObservation.matchesQualifiedEvidence(
 	command: LocationCapturedFactCommand,
 	acquisitionMetadata: LocationWalAcquisitionMetadata,
 ): Boolean {
@@ -1088,57 +1399,29 @@ private fun LocationObservation.matches(
 private fun ProtectedLocationCanonicalPendingDecision.matches(
 	command: LocationCapturedFactCommand,
 	acquisitionMetadata: LocationWalAcquisitionMetadata,
-	sample: LocationSample?,
+	sample: StoredLocationSample?,
 ): Boolean {
 	val eventId = command.mutation.identity.sourceEventId.value
 	val canonicalSignalId = ProtectedLocationCanonicalSignalIdentity.canonicalProduct(eventId)
 	if (sourceEventId != eventId || sourceSignalId != canonicalSignalId ||
 		clockDomainId != command.authority.clockDomainId ||
+		decisionVersion != LocationObservationDecision.CURRENT_DECISION_VERSION ||
 		decidedAtMs != command.productEffect.durableEvidence.clockAuthority.observedWallTimeMs
 	) {
 		return false
 	}
 	return when (decision) {
 		LocationDecision.ACCEPTED.name ->
-			acceptedSampleSourceSignalId == canonicalSignalId &&
-				sample?.matches(command, acquisitionMetadata) == true
+			reason == null &&
+				acceptedSampleSourceSignalId == canonicalSignalId &&
+				sample?.matchesQualifiedEvidence(command, acquisitionMetadata) == true
 		LocationDecision.REJECTED.name ->
-			acceptedSampleSourceSignalId == null && sample == null
+			!reason.isNullOrBlank() && acceptedSampleSourceSignalId == null && sample == null
 		else -> false
 	}
 }
 
-private fun LocationSample.matches(
-	command: LocationCapturedFactCommand,
-	acquisitionMetadata: LocationWalAcquisitionMetadata,
-): Boolean {
-	val evidence = command.productEffect.durableEvidence
-	val payload = evidence.payload
-	val canonicalSignalId = ProtectedLocationCanonicalSignalIdentity.canonicalProduct(
-		evidence.sourceEventId.value,
-	)
-	return sourceSignalId == canonicalSignalId &&
-		sourceEventId == evidence.sourceEventId.value &&
-		timeMs == evidence.clockAuthority.observedWallTimeMs &&
-		elapsedRealtimeNanos == evidence.clockAuthority.observedElapsedRealtimeNanos &&
-		latE7 == LatE7.fromDegrees(payload.latitudeDegrees).raw &&
-		lonE7 == LonE7.fromDegrees(payload.longitudeDegrees).raw &&
-		rawGpsAltitudeM == payload.altitudeMeters?.toFloat() &&
-		hAccM == payload.horizontalAccuracyMeters &&
-		rawPlatformSpeedMps == payload.speedMetersPerSecond &&
-		provider == payload.provider &&
-		receivedElapsedRealtimeNanos == evidence.clockAuthority.receivedElapsedRealtimeNanos &&
-		acquisitionMode == acquisitionMetadata.acquisitionMode.name &&
-		requestPriority == acquisitionMetadata.requestPriority.name &&
-		permissionPrecision == command.authority.permissionPrecision.name &&
-		batchIndex == evidence.deliveryUnitIndex &&
-		batchSize == evidence.deliveryUnitCount &&
-		!isMock &&
-		clockDomainId == evidence.clockAuthority.clockDomainId &&
-		bootClockDomainId == evidence.clockAuthority.clockDomainId
-}
-
-private fun StoredLocationSample.matches(
+private fun StoredLocationSample.matchesQualifiedEvidence(
 	command: LocationCapturedFactCommand,
 	acquisitionMetadata: LocationWalAcquisitionMetadata,
 ): Boolean {

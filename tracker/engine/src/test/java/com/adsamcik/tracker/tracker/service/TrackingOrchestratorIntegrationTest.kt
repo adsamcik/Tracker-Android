@@ -247,6 +247,7 @@ class TrackingOrchestratorIntegrationTest {
 				),
 				transactor = RoomPersistenceTransactor(database),
 				sourceDestinationOwnerDao = database.sourceDestinationOwnerDao(),
+				appDatabaseProvider = Provider { database },
 				protectedLocationCanonicalPersistenceGuardProvider =
 					Provider { persistenceGuard },
 			)

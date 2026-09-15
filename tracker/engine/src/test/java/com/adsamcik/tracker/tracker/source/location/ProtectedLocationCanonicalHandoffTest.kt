@@ -158,6 +158,56 @@ class ProtectedLocationCanonicalHandoffTest {
 	}
 
 	@Test
+	fun `every stored receipt field mutation invalidates product proof`() = runTest {
+		val command = command()
+		insertWal(command)
+		val writer = ReceiptWriter(database, accepted = true)
+		assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			handoff(command, writer).drainThrough(LOGICAL_ID, RUN_ID, ADMISSION_ORDINAL),
+		)
+		val sqlite = database.openHelper.writableDatabase
+		val mutations = listOf(
+			"UPDATE location_observation SET created_at = created_at + 1" to
+				"UPDATE location_observation SET created_at = created_at - 1",
+			"UPDATE location_observation SET estimator_version = estimator_version + 1" to
+				"UPDATE location_observation SET estimator_version = estimator_version - 1",
+			"UPDATE location_observation_decision SET clock_domain_id = 'wrong-clock'" to
+				"UPDATE location_observation_decision SET clock_domain_id = '$CLOCK_ID'",
+			"UPDATE location_observation_decision SET decided_at_ms = decided_at_ms + 1" to
+				"UPDATE location_observation_decision SET decided_at_ms = decided_at_ms - 1",
+			"UPDATE location_observation_decision SET decision_version = decision_version + 1" to
+				"UPDATE location_observation_decision SET decision_version = decision_version - 1",
+			"UPDATE location_observation_decision SET reason = 'corrupt'" to
+				"UPDATE location_observation_decision SET reason = NULL",
+			"UPDATE location_sample SET v_acc_m = v_acc_m + 1" to
+				"UPDATE location_sample SET v_acc_m = v_acc_m - 1",
+			"UPDATE location_sample SET delivery_age_ms = delivery_age_ms + 1" to
+				"UPDATE location_sample SET delivery_age_ms = delivery_age_ms - 1",
+			"UPDATE location_sample SET bearing_deg = 45" to
+				"UPDATE location_sample SET bearing_deg = NULL",
+			"UPDATE location_sample SET policy = 'wrong-policy'" to
+				"UPDATE location_sample SET policy = NULL",
+		)
+
+		mutations.forEach { (corrupt, restore) ->
+			sqlite.execSQL(corrupt)
+			assertIs<ProtectedLocationCanonicalReceipt.Invalid>(
+				database.readProtectedLocationCanonicalReceipt(
+					command,
+					TEST_ACQUISITION_METADATA,
+				),
+			)
+			sqlite.execSQL(restore)
+			assertIs<ProtectedLocationCanonicalReceipt.Complete>(
+				database.readProtectedLocationCanonicalReceipt(
+					command,
+					TEST_ACQUISITION_METADATA,
+				),
+			)
+		}
+	}
+
+	@Test
 	fun `historical run without its canonical session is explicitly deferred`() = runTest {
 		val command = command()
 		insertWal(command)
@@ -540,6 +590,9 @@ private class ReceiptWriter(
 									.observedWallTimeMs,
 						),
 					),
+				)
+				database.recordProtectedLocationCanonicalReceiptInCurrentTransaction(
+					ProtectedLocationVerifiedWrite(command, acquisitionMetadata),
 				)
 			}
 		}
