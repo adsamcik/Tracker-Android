@@ -143,6 +143,29 @@ class RoomImportPortablePressureTest {
 	}
 
 	@Test
+	fun `correction cannot rewrite the stored structural zone of the same window identity`() =
+		runTest {
+			val first = request()
+			val changedWindow = window("window", 26L).withZone("UTC")
+			val changedRun = runWithWindows("run", listOf(changedWindow))
+			val changedEntry = PortablePressureEntryV1.create(
+				first.entry.identity,
+				changedRun.startTimeMs,
+				changedRun.endTimeMs,
+				listOf(changedRun),
+			)
+			val importer = importer(testScheduler)
+			importer.importEntry(first)
+
+			importer.importEntry(
+				request(changedEntry, receipt("zone-rewrite", 40L)),
+			) shouldBe ImportPortablePressureResult.Unverifiable(
+				PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+			database.importedPressureDao().entryRevision(first.entry.identity.value, 2L) shouldBe null
+		}
+
+	@Test
 	fun `opaque run identity cannot be retargeted to another entry`() = runTest {
 		val importer = importer(testScheduler)
 		importer.importEntry(request())
@@ -313,6 +336,25 @@ class RoomImportPortablePressureTest {
 		} finally {
 			missingStateDatabase.close()
 		}
+
+		@Test
+		fun `retention floor uses each window uncertainty and rejects before replay shortcuts`() =
+			runTest {
+				database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 1_000L, 50L) shouldBe 1
+				val crossing = request(entry(wallTimeUncertaintyMs = 1L))
+				val exactBoundary = request(
+					entry(entryLocalId = "boundary", runLocalId = "boundary", windowLocalId = "boundary",
+						wallTimeUncertaintyMs = 0L),
+					receipt("boundary-job", 60L),
+				)
+
+				importer(testScheduler).importEntry(crossing) shouldBe ImportPortablePressureResult.Blocked(
+					PortablePressureImportBlockedReason.RETENTION_TRUNCATED,
+				)
+				importer(testScheduler).importEntry(exactBoundary) shouldBe
+					ImportPortablePressureResult.Applied(1L, 1, 1)
+				database.importedPressureDao().latestEntryRevision(crossing.entry.identity.value) shouldBe null
+			}
 
 		database.sourceEvidenceStateDao().updateLifecycle(EPOCH + 1L, null, 50L) shouldBe 1
 		importer(testScheduler).importEntry(request()) shouldBe ImportPortablePressureResult.Blocked(
@@ -707,6 +749,37 @@ class RoomImportPortablePressureTest {
 	@Suppress("LongMethod")
 	private fun PortablePressureWindowV1.withIdentity(
 		identity: PortablePressureOpaqueIdentity,
+	) = PortablePressureWindowV1.create(
+		identity = identity,
+		intervalStartTimeMs = intervalStartTimeMs,
+		intervalEndTimeMs = intervalEndTimeMs,
+		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+		observedDurationNanos = observedDurationNanos,
+		sampleCount = sampleCount,
+		expectedSampleCount = expectedSampleCount,
+		meanHectopascals = meanHectopascals,
+		sumSquaredDeviations = sumSquaredDeviations,
+		minimumHectopascals = minimumHectopascals,
+		maximumHectopascals = maximumHectopascals,
+		firstHectopascals = firstHectopascals,
+		latestHectopascals = latestHectopascals,
+		slopeHectopascalsPerSecond = slopeHectopascalsPerSecond,
+		rSquared = rSquared,
+		sensorAccuracy = sensorAccuracy,
+		effectiveSamplePeriodMicros = effectiveSamplePeriodMicros,
+		effectiveMaximumReportLatencyMicros = effectiveMaximumReportLatencyMicros,
+		targetWindowDurationNanos = targetWindowDurationNanos,
+		maximumInterSampleGapNanos = maximumInterSampleGapNanos,
+		closure = closure,
+		qualification = qualification,
+		sourceQualityFlags = sourceQualityFlags,
+		sourceQualityConfidence = sourceQualityConfidence,
+		zoneId = zoneId,
+	)
+
+	@Suppress("LongMethod")
+	private fun PortablePressureWindowV1.withZone(
+		zoneId: String,
 	) = PortablePressureWindowV1.create(
 		identity = identity,
 		intervalStartTimeMs = intervalStartTimeMs,

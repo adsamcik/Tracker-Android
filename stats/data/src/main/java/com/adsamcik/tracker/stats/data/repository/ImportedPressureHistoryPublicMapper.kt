@@ -26,6 +26,7 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 internal fun ImportedPressureHistoryEvaluation.toPublicPressureOnlyEntry(): PressureOnlyHistoryEntry =
 	when (this) {
 		is ImportedPressureHistoryEvaluation.Readable -> toPublicReadableEntry()
+		is ImportedPressureHistoryEvaluation.Retained -> toPublicRetainedEntry()
 		is ImportedPressureHistoryEvaluation.Unverifiable -> PressureOnlyHistoryEntry(
 			key = importedHistoryKey(candidate.identity),
 			origin = importedOrigin(candidate.identity),
@@ -42,6 +43,25 @@ internal fun ImportedPressureHistoryEvaluation.toPublicPressureOnlyEntry(): Pres
 		)
 	}
 
+private fun ImportedPressureHistoryEvaluation.Retained.toPublicRetainedEntry() =
+	PressureOnlyHistoryEntry(
+		key = importedHistoryKey(candidate.identity),
+		origin = importedOrigin(candidate.identity),
+		startTime = EpochMs(candidate.startTimeMs),
+		endTime = EpochMs(candidate.endTimeMs),
+		pressure = PressureHistory(
+			availability = HistoryAvailability.AVAILABLE,
+			evidence = HistoryEvidence.NONE,
+			productState = HistoryProductState.PARTIAL,
+			coverage = PressureHistoryCoverage.PARTIAL,
+			windows = emptyList(),
+			causes = setOf(
+				PressureHistoryCause.RETENTION_TRUNCATED,
+				PressureHistoryCause.OUTSIDE_RETAINED_FLOOR,
+			),
+		),
+	)
+
 @Suppress("LongMethod", "CyclomaticComplexMethod")
 private fun ImportedPressureHistoryEvaluation.Readable.toPublicReadableEntry():
 	PressureOnlyHistoryEntry {
@@ -52,19 +72,22 @@ private fun ImportedPressureHistoryEvaluation.Readable.toPublicReadableEntry():
 	}.mapTo(linkedSetOf()) { it.identity.value }
 	val allDeletedRuns = locallyDeletedRuns + sourceDeletedRuns
 	val visibleRuns = entry.runs.filterNot { it.identity.value in allDeletedRuns }
-	val outsideRetainedFloor = retainedFromMs?.let { entry.endTimeMs < it } == true
-	val retentionCrossesEntry = retainedFromMs?.let {
-		entry.startTimeMs < it && entry.endTimeMs >= it
+	val retentionLimited = retainedFromMs?.let { floor ->
+		entry.crossesImportedPressureFloor(floor)
 	} == true
-	val windows = if (outsideRetainedFloor) {
-		emptyList()
-	} else {
-		visibleRuns.flatMap { run ->
-			run.windows.filter { window ->
-				retainedFromMs?.let { window.intervalEndTimeMs >= it } != false
+	val retainedWindows = visibleRuns.flatMap { run -> run.windows }.filter { window ->
+		retainedFromMs?.let { floor ->
+			val earliest = if (window.wallTimeUncertaintyMs > window.intervalStartTimeMs) {
+				0L
+			} else {
+				window.intervalStartTimeMs - window.wallTimeUncertaintyMs
 			}
-		}.map(PortablePressureWindowV1::toPublicWindow)
+			earliest >= floor
+		} != false
 	}
+	val outsideRetainedFloor = retentionLimited && retainedWindows.isEmpty()
+	val retentionCrossesEntry = retentionLimited && retainedWindows.isNotEmpty()
+	val windows = retainedWindows.map(PortablePressureWindowV1::toPublicWindow)
 	val hasDeletion = allDeletedRuns.isNotEmpty()
 	val hasRetentionLoss = visibleRuns.any { it.retentionLoss }
 	val coverage = visibleRuns.toPublicCoverage(
@@ -96,7 +119,7 @@ private fun ImportedPressureHistoryEvaluation.Readable.toPublicReadableEntry():
 		windows.isNotEmpty() && coverage == PressureHistoryCoverage.COMPLETE && causes.isEmpty()
 	) {
 		HistoryProductState.READY
-	} else if (windows.isNotEmpty() || hasRetentionLoss) {
+	} else if (windows.isNotEmpty() || hasRetentionLoss || retentionLimited) {
 		HistoryProductState.PARTIAL
 	} else {
 		HistoryProductState.DEGRADED
@@ -108,7 +131,8 @@ private fun ImportedPressureHistoryEvaluation.Readable.toPublicReadableEntry():
 		endTime = EpochMs(entry.endTimeMs),
 		pressure = PressureHistory(
 			availability = when {
-				windows.isNotEmpty() || hasRetentionLoss -> HistoryAvailability.AVAILABLE
+				windows.isNotEmpty() || hasRetentionLoss || retentionLimited ->
+					HistoryAvailability.AVAILABLE
 				visibleRuns.isNotEmpty() && visibleRuns.all {
 					it.availability == PortablePressureAvailability.DISABLED
 				} -> HistoryAvailability.DISABLED
@@ -131,7 +155,8 @@ private fun List<PortablePressureRunV1>.toPublicCoverage(
 	hasWindows && !hasDeletion && !retentionLimited && isNotEmpty() && all {
 		it.coverage == PortablePressureCoverage.COMPLETE
 	} -> PressureHistoryCoverage.COMPLETE
-	hasWindows || any { it.retentionLoss || it.coverage == PortablePressureCoverage.PARTIAL } ->
+	hasWindows || retentionLimited ||
+		any { it.retentionLoss || it.coverage == PortablePressureCoverage.PARTIAL } ->
 		PressureHistoryCoverage.PARTIAL
 	any { it.coverage == PortablePressureCoverage.UNKNOWN } -> PressureHistoryCoverage.UNKNOWN
 	else -> PressureHistoryCoverage.NONE

@@ -55,6 +55,7 @@ enum class ImportedPressureEntryDeletionUnverifiableReason {
 	STORED_EVIDENCE_UNVERIFIABLE,
 	PARTIAL_DELETION_STATE,
 	DEPENDENCY_OVERFLOW,
+	RETENTION_BOUNDARY,
 }
 
 enum class ImportedPressureEntryDeletionRetryableReason {

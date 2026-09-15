@@ -136,7 +136,8 @@ class ImportedPressureHistoryEvaluatorTest {
 
 		val public = evaluate(database).single().toPublicPressureOnlyEntry()
 		public.state shouldBe PressureHistoryPresentationState.PARTIAL
-		public.pressure.summary?.latestHectopascals shouldBe 1_003f
+		public.pressure.summary shouldBe null
+		public.pressure.windows shouldBe emptyList()
 		exporter(database, testScheduler).export(
 			ExportPortablePressureRequest(0L, 3_000L),
 			PortablePressureEntrySink { error("Retention-limited import must not be re-exported whole") },

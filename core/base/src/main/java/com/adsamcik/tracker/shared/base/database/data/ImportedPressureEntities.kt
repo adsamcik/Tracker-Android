@@ -429,9 +429,449 @@ data class ImportedPressureDeletionGenerationEntity(
 	}
 }
 
+/**
+ * Payload-free proof that one complete imported Pressure correction lineage was compacted by the
+ * already-published retention floor.
+ */
+@Entity(tableName = "imported_pressure_retention_receipt", primaryKeys = ["entry_identity"])
+@Suppress("LongParameterList")
+data class ImportedPressureRetentionReceiptEntity(
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
+	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	@ColumnInfo(name = "source_evidence_revision") val sourceEvidenceRevision: Long,
+	@ColumnInfo(name = "retained_from_ms") val retainedFromMs: Long,
+	@ColumnInfo(name = "retained_at_ms") val retainedAtMs: Long,
+	@ColumnInfo(name = "latest_import_revision") val latestImportRevision: Long,
+	@ColumnInfo(name = "latest_content_checksum") val latestContentChecksum: String,
+	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
+	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
+	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+	@ColumnInfo(name = "revision_count") val revisionCount: Int,
+	@ColumnInfo(name = "import_receipt_count") val importReceiptCount: Int,
+	@ColumnInfo(name = "run_row_count") val runRowCount: Int,
+	@ColumnInfo(name = "window_row_count") val windowRowCount: Int,
+	@ColumnInfo(name = "run_deletion_count") val runDeletionCount: Int,
+	@ColumnInfo(name = "run_deletion_set_checksum") val runDeletionSetChecksum: String,
+	@ColumnInfo(name = "protected_identity_count") val protectedIdentityCount: Int,
+	@ColumnInfo(name = "protected_identity_set_checksum") val protectedIdentitySetChecksum: String,
+	@ColumnInfo(name = "lineage_authority_checksum") val lineageAuthorityChecksum: String,
+	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
+) {
+	init {
+		listOf(
+			entryIdentity,
+			latestContentChecksum,
+			runDeletionSetChecksum,
+			protectedIdentitySetChecksum,
+			lineageAuthorityChecksum,
+			effectChecksum,
+		).forEach { require(ImportedPressureIdentity.isOpaque(it)) }
+		require(collectedDataEpoch >= 0L && sourceEvidenceRevision > 0L)
+		require(retainedFromMs >= 0L && retainedAtMs >= 0L)
+		require(latestImportRevision > 0L && latestImportRevision == revisionCount.toLong())
+		require(startTimeMs >= 0L && endTimeMs >= startTimeMs)
+		require(receivedAtMs in 0L..retainedAtMs)
+		require(revisionCount in 1..ImportedPressureMaintenanceBounds.MAX_REVISIONS)
+		require(importReceiptCount in revisionCount..ImportedPressureMaintenanceBounds.MAX_RECEIPTS)
+		require(runRowCount in revisionCount..ImportedPressureMaintenanceBounds.MAX_RUN_ROWS)
+		require(windowRowCount in 0..ImportedPressureMaintenanceBounds.MAX_WINDOW_ROWS)
+		require(runDeletionCount in 0..ImportedPressureMaintenanceBounds.MAX_DISTINCT_RUNS)
+		require(protectedIdentityCount in 2..ImportedPressureMaintenanceBounds.MAX_PROTECTED_IDENTITIES)
+		require(effectChecksum == checksum(this))
+	}
+
+	fun authenticates(markers: List<ImportedPressureRetainedIdentityEntity>): Boolean =
+		markers.size == protectedIdentityCount &&
+			markers.all { it.entryIdentity == entryIdentity } &&
+			markers.map { it.protectedIdentity }.distinct().size == markers.size &&
+			markers.count { it.identityKind == ImportedPressureRetainedIdentityEntity.ENTRY } == 1 &&
+			markers.any { it.identityKind == ImportedPressureRetainedIdentityEntity.RUN_SCOPE } &&
+			protectedIdentitySetChecksum == checksumProtectedIdentities(markers)
+
+	companion object {
+		@Suppress("LongParameterList")
+		fun create(
+			entryIdentity: String,
+			collectedDataEpoch: Long,
+			sourceEvidenceRevision: Long,
+			retainedFromMs: Long,
+			retainedAtMs: Long,
+			latestImportRevision: Long,
+			latestContentChecksum: String,
+			startTimeMs: Long,
+			endTimeMs: Long,
+			receivedAtMs: Long,
+			revisionCount: Int,
+			importReceiptCount: Int,
+			runRowCount: Int,
+			windowRowCount: Int,
+			runDeletions: List<ImportedPressureDeletionGenerationEntity>,
+			markers: List<ImportedPressureRetainedIdentityEntity>,
+			lineageAuthorityChecksum: String,
+		): ImportedPressureRetentionReceiptEntity {
+			val runDeletionChecksum = checksumRunDeletions(runDeletions)
+			val protectedChecksum = checksumProtectedIdentities(markers)
+			return ImportedPressureRetentionReceiptEntity(
+				entryIdentity = entryIdentity,
+				collectedDataEpoch = collectedDataEpoch,
+				sourceEvidenceRevision = sourceEvidenceRevision,
+				retainedFromMs = retainedFromMs,
+				retainedAtMs = retainedAtMs,
+				latestImportRevision = latestImportRevision,
+				latestContentChecksum = latestContentChecksum,
+				startTimeMs = startTimeMs,
+				endTimeMs = endTimeMs,
+				receivedAtMs = receivedAtMs,
+				revisionCount = revisionCount,
+				importReceiptCount = importReceiptCount,
+				runRowCount = runRowCount,
+				windowRowCount = windowRowCount,
+				runDeletionCount = runDeletions.size,
+				runDeletionSetChecksum = runDeletionChecksum,
+				protectedIdentityCount = markers.size,
+				protectedIdentitySetChecksum = protectedChecksum,
+				lineageAuthorityChecksum = lineageAuthorityChecksum,
+				effectChecksum = checksum(
+					entryIdentity,
+					collectedDataEpoch,
+					sourceEvidenceRevision,
+					retainedFromMs,
+					retainedAtMs,
+					latestImportRevision,
+					latestContentChecksum,
+					startTimeMs,
+					endTimeMs,
+					receivedAtMs,
+					revisionCount,
+					importReceiptCount,
+					runRowCount,
+					windowRowCount,
+					runDeletions.size,
+					runDeletionChecksum,
+					markers.size,
+					protectedChecksum,
+					lineageAuthorityChecksum,
+				),
+			)
+		}
+
+		fun checksumProtectedIdentities(
+			values: List<ImportedPressureRetainedIdentityEntity>,
+		): String {
+			require(values.isNotEmpty())
+			require(values.size <= ImportedPressureMaintenanceBounds.MAX_PROTECTED_IDENTITIES)
+			require(values.map { it.protectedIdentity }.distinct().size == values.size)
+			return ImportedPressureIdentity.digest(
+				"tracker-imported-pressure-retained-identity-set-v1",
+				listOf(values.size.toString()) + values.sortedWith(
+					compareBy(ImportedPressureRetainedIdentityEntity::identityKind)
+						.thenBy(ImportedPressureRetainedIdentityEntity::protectedIdentity),
+				).flatMap { listOf(it.identityKind, it.protectedIdentity) },
+			)
+		}
+
+		fun checksumRunDeletions(
+			values: List<ImportedPressureDeletionGenerationEntity>,
+		): String {
+			require(values.size <= ImportedPressureMaintenanceBounds.MAX_DISTINCT_RUNS)
+			require(values.map { it.runIdentity }.distinct().size == values.size)
+			return ImportedPressureIdentity.digest(
+				"tracker-imported-pressure-retained-run-deletions-v1",
+				listOf(values.size.toString()) + values.sortedBy { it.runIdentity }.flatMap {
+					listOf(
+						it.runIdentity,
+						it.collectedDataEpoch.toString(),
+						it.generation.toString(),
+						it.deletedAtMs.toString(),
+						it.effectChecksum,
+					)
+				},
+			)
+		}
+
+		fun lineageAuthorityChecksum(
+			headers: List<ImportedPressureEntryRevisionEntity>,
+			receipts: List<ImportedPressureReceiptEntity>,
+		): String {
+			require(headers.isNotEmpty() && headers.size <= ImportedPressureMaintenanceBounds.MAX_REVISIONS)
+			require(receipts.size in headers.size..ImportedPressureMaintenanceBounds.MAX_RECEIPTS)
+			return ImportedPressureIdentity.digest(
+				"tracker-imported-pressure-retained-lineage-authority-v1",
+				listOf(headers.size.toString()) + headers.sortedBy { it.importRevision }.flatMap {
+					listOf(
+						it.identity,
+						it.importRevision.toString(),
+						it.supersedesImportRevision?.toString() ?: "NONE",
+						it.contentChecksum,
+						it.sourceFormat,
+						it.sourceSchemaVersion.toString(),
+						it.startTimeMs.toString(),
+						it.endTimeMs.toString(),
+						it.collectedDataEpoch.toString(),
+						it.importJobId,
+						it.importEntryKey,
+						it.importSourceName,
+						it.receivedAtMs.toString(),
+					)
+				} + listOf(receipts.size.toString()) + receipts.sortedWith(
+					compareBy(ImportedPressureReceiptEntity::entryImportRevision)
+						.thenBy(ImportedPressureReceiptEntity::importJobId)
+						.thenBy(ImportedPressureReceiptEntity::importEntryKey),
+				).flatMap {
+					listOf(
+						it.importJobId,
+						it.importEntryKey,
+						it.importSourceName,
+						it.receivedAtMs.toString(),
+						it.entryIdentity,
+						it.entryImportRevision.toString(),
+						it.entryContentChecksum,
+						it.collectedDataEpoch.toString(),
+					)
+				},
+			)
+		}
+
+		private fun checksum(value: ImportedPressureRetentionReceiptEntity): String = checksum(
+			value.entryIdentity,
+			value.collectedDataEpoch,
+			value.sourceEvidenceRevision,
+			value.retainedFromMs,
+			value.retainedAtMs,
+			value.latestImportRevision,
+			value.latestContentChecksum,
+			value.startTimeMs,
+			value.endTimeMs,
+			value.receivedAtMs,
+			value.revisionCount,
+			value.importReceiptCount,
+			value.runRowCount,
+			value.windowRowCount,
+			value.runDeletionCount,
+			value.runDeletionSetChecksum,
+			value.protectedIdentityCount,
+			value.protectedIdentitySetChecksum,
+			value.lineageAuthorityChecksum,
+		)
+
+		@Suppress("LongParameterList")
+		private fun checksum(
+			entryIdentity: String,
+			collectedDataEpoch: Long,
+			sourceEvidenceRevision: Long,
+			retainedFromMs: Long,
+			retainedAtMs: Long,
+			latestImportRevision: Long,
+			latestContentChecksum: String,
+			startTimeMs: Long,
+			endTimeMs: Long,
+			receivedAtMs: Long,
+			revisionCount: Int,
+			importReceiptCount: Int,
+			runRowCount: Int,
+			windowRowCount: Int,
+			runDeletionCount: Int,
+			runDeletionSetChecksum: String,
+			protectedIdentityCount: Int,
+			protectedIdentitySetChecksum: String,
+			lineageAuthorityChecksum: String,
+		): String = ImportedPressureIdentity.digest(
+			"tracker-imported-pressure-retention-receipt-v1",
+			listOf(
+				entryIdentity,
+				collectedDataEpoch.toString(),
+				sourceEvidenceRevision.toString(),
+				retainedFromMs.toString(),
+				retainedAtMs.toString(),
+				latestImportRevision.toString(),
+				latestContentChecksum,
+				startTimeMs.toString(),
+				endTimeMs.toString(),
+				receivedAtMs.toString(),
+				revisionCount.toString(),
+				importReceiptCount.toString(),
+				runRowCount.toString(),
+				windowRowCount.toString(),
+				runDeletionCount.toString(),
+				runDeletionSetChecksum,
+				protectedIdentityCount.toString(),
+				protectedIdentitySetChecksum,
+				lineageAuthorityChecksum,
+			),
+		)
+	}
+}
+
+/** One globally exclusive semantic identity retained after imported Pressure payload removal. */
+@Entity(
+	tableName = "imported_pressure_retained_identity",
+	primaryKeys = ["protected_identity"],
+	foreignKeys = [ForeignKey(
+		entity = ImportedPressureRetentionReceiptEntity::class,
+		parentColumns = ["entry_identity"],
+		childColumns = ["entry_identity"],
+		onDelete = ForeignKey.CASCADE,
+	)],
+	indices = [Index(value = ["entry_identity"], name = "idx_imported_pressure_retained_identity_entry")],
+)
+data class ImportedPressureRetainedIdentityEntity(
+	@ColumnInfo(name = "protected_identity") val protectedIdentity: String,
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
+	@ColumnInfo(name = "identity_kind") val identityKind: String,
+) {
+	init {
+		require(ImportedPressureIdentity.isOpaque(protectedIdentity))
+		require(ImportedPressureIdentity.isOpaque(entryIdentity))
+		require(identityKind in ALL_KINDS)
+		require((identityKind == ENTRY) == (protectedIdentity == entryIdentity))
+	}
+
+	companion object {
+		const val ENTRY = "ENTRY"
+		const val RUN_SCOPE = "RUN_SCOPE"
+		const val WINDOW = "WINDOW"
+		private val ALL_KINDS = setOf(ENTRY, RUN_SCOPE, WINDOW)
+	}
+}
+
+/** Current-epoch source-wide import fence. It grants no provider or local capture authority. */
+@Entity(tableName = "imported_pressure_source_erase", primaryKeys = ["id"])
+@Suppress("LongParameterList")
+data class ImportedPressureSourceEraseEntity(
+	@ColumnInfo(name = "id") val id: Int = SINGLETON_ID,
+	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	@ColumnInfo(name = "source_evidence_revision") val sourceEvidenceRevision: Long,
+	@ColumnInfo(name = "erased_at_ms") val erasedAtMs: Long,
+	@ColumnInfo(name = "local_fact_revision_count") val localFactRevisionCount: Int,
+	@ColumnInfo(name = "local_wal_event_count") val localWalEventCount: Int,
+	@ColumnInfo(name = "imported_entry_count") val importedEntryCount: Int,
+	@ColumnInfo(name = "imported_revision_count") val importedRevisionCount: Int,
+	@ColumnInfo(name = "imported_run_count") val importedRunCount: Int,
+	@ColumnInfo(name = "imported_window_count") val importedWindowCount: Int,
+	@ColumnInfo(name = "fenced_local_run_count") val fencedLocalRunCount: Int,
+	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
+) {
+	init {
+		require(id == SINGLETON_ID)
+		require(collectedDataEpoch >= 0L && sourceEvidenceRevision > 0L && erasedAtMs >= 0L)
+		listOf(
+			localFactRevisionCount,
+			localWalEventCount,
+			importedEntryCount,
+			importedRevisionCount,
+			importedRunCount,
+			importedWindowCount,
+			fencedLocalRunCount,
+		).forEach { require(it >= 0) }
+		require(ImportedPressureIdentity.isOpaque(effectChecksum))
+		require(effectChecksum == checksum(this))
+	}
+
+	companion object {
+		const val SINGLETON_ID = 1
+
+		@Suppress("LongParameterList")
+		fun create(
+			collectedDataEpoch: Long,
+			sourceEvidenceRevision: Long,
+			erasedAtMs: Long,
+			localFactRevisionCount: Int,
+			localWalEventCount: Int,
+			importedEntryCount: Int,
+			importedRevisionCount: Int,
+			importedRunCount: Int,
+			importedWindowCount: Int,
+			fencedLocalRunCount: Int,
+		): ImportedPressureSourceEraseEntity = ImportedPressureSourceEraseEntity(
+			collectedDataEpoch = collectedDataEpoch,
+			sourceEvidenceRevision = sourceEvidenceRevision,
+			erasedAtMs = erasedAtMs,
+			localFactRevisionCount = localFactRevisionCount,
+			localWalEventCount = localWalEventCount,
+			importedEntryCount = importedEntryCount,
+			importedRevisionCount = importedRevisionCount,
+			importedRunCount = importedRunCount,
+			importedWindowCount = importedWindowCount,
+			fencedLocalRunCount = fencedLocalRunCount,
+			effectChecksum = checksum(
+				collectedDataEpoch,
+				sourceEvidenceRevision,
+				erasedAtMs,
+				localFactRevisionCount,
+				localWalEventCount,
+				importedEntryCount,
+				importedRevisionCount,
+				importedRunCount,
+				importedWindowCount,
+				fencedLocalRunCount,
+			),
+		)
+
+		private fun checksum(value: ImportedPressureSourceEraseEntity): String = checksum(
+			value.collectedDataEpoch,
+			value.sourceEvidenceRevision,
+			value.erasedAtMs,
+			value.localFactRevisionCount,
+			value.localWalEventCount,
+			value.importedEntryCount,
+			value.importedRevisionCount,
+			value.importedRunCount,
+			value.importedWindowCount,
+			value.fencedLocalRunCount,
+		)
+
+		@Suppress("LongParameterList")
+		private fun checksum(
+			collectedDataEpoch: Long,
+			sourceEvidenceRevision: Long,
+			erasedAtMs: Long,
+			localFactRevisionCount: Int,
+			localWalEventCount: Int,
+			importedEntryCount: Int,
+			importedRevisionCount: Int,
+			importedRunCount: Int,
+			importedWindowCount: Int,
+			fencedLocalRunCount: Int,
+		): String = ImportedPressureIdentity.digest(
+			"tracker-imported-pressure-source-erase-v1",
+			listOf(
+				collectedDataEpoch,
+				sourceEvidenceRevision,
+				erasedAtMs,
+				localFactRevisionCount,
+				localWalEventCount,
+				importedEntryCount,
+				importedRevisionCount,
+				importedRunCount,
+				importedWindowCount,
+				fencedLocalRunCount,
+			).map { it.toString() },
+		)
+	}
+}
+
+private object ImportedPressureMaintenanceBounds {
+	const val MAX_REVISIONS = 16
+	const val MAX_RECEIPTS = 256
+	const val MAX_RUN_ROWS = MAX_REVISIONS * 64
+	const val MAX_WINDOW_ROWS = MAX_REVISIONS * 16_384
+	const val MAX_DISTINCT_RUNS = MAX_RUN_ROWS
+	const val MAX_PROTECTED_IDENTITIES = 1 + MAX_DISTINCT_RUNS + MAX_WINDOW_ROWS
+}
+
 internal object ImportedPressureIdentity {
 	private val opaque = Regex("sha256:[0-9a-f]{64}")
 	fun isOpaque(value: String?): Boolean = value != null && opaque.matches(value)
+
+	fun digest(namespace: String, values: List<String>): String {
+		require(namespace.isNotBlank())
+		val canonical = (listOf(namespace) + values).joinToString(separator = "") {
+			"${it.length}:$it"
+		}
+		return "sha256:" + MessageDigest.getInstance("SHA-256")
+			.digest(canonical.toByteArray(Charsets.UTF_8))
+			.joinToString(separator = "") { byte -> "%02x".format(byte) }
+	}
 
 	fun requireProvenance(jobId: String, entryKey: String, sourceName: String) {
 		require(jobId.isNotBlank() && jobId.length <= MAX_PROVENANCE_LENGTH)

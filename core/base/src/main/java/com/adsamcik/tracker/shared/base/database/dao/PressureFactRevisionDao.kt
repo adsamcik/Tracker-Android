@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 
 /** Deliberately narrow storage boundary for the dormant Pressure fact writer. */
 @Dao
@@ -508,6 +509,35 @@ interface PressureFactRevisionDao {
 	/** Counts all retained Pressure fact revisions across writer-owned session scopes. */
 	@Query("SELECT COUNT(*) FROM pressure_fact_revision")
 	suspend fun count(): Long
+
+	/** Bounded ordered raw Pressure WAL page for source-wide privacy authentication. */
+	@Query(
+		"SELECT * FROM source_event_wal " +
+			"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
+			"AND admission_ordinal > :afterAdmissionOrdinal " +
+			"AND LENGTH(payload) <= :maximumPayloadBytes " +
+			"ORDER BY admission_ordinal LIMIT :limit",
+	)
+	suspend fun sourceEraseWalPage(
+		afterAdmissionOrdinal: Long,
+		maximumPayloadBytes: Int,
+		limit: Int,
+	): List<SourceEventWalEntity>
+
+	@Query(
+		"SELECT COUNT(*) FROM source_event_wal " +
+			"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE}",
+	)
+	suspend fun sourceEraseWalCount(): Long
+
+	@Query(
+		"DELETE FROM source_event_wal " +
+			"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE}",
+	)
+	suspend fun deleteSourceEraseWal(): Int
+
+	@Query("DELETE FROM pressure_fact_revision")
+	suspend fun deleteFactsForSourceErase(): Int
 
 	/** Full collected-data clear only; no scoped Pressure deletion API is authorized here. */
 	@Query("DELETE FROM pressure_fact_revision")

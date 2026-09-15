@@ -83,6 +83,14 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 		val runs = dao.allRunsForAdmission(identity)
 		val windows = dao.allWindowsForAdmission(identity)
 		val entryMarker = dao.entryDeletion(identity)
+		if (dao.retentionReceipt(identity) != null) {
+			if (headers.isNotEmpty() || receipts.isNotEmpty() || runs.isNotEmpty() ||
+				windows.isNotEmpty() || entryMarker != null
+			) {
+				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.PARTIAL_DELETION_STATE)
+			}
+			unverifiable(ImportedPressureEntryDeletionUnverifiableReason.RETENTION_BOUNDARY)
+		}
 		if (entryMarker != null) {
 			if (headers.isNotEmpty() || receipts.isNotEmpty() || runs.isNotEmpty() || windows.isNotEmpty()) {
 				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.PARTIAL_DELETION_STATE)
@@ -223,10 +231,18 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 			val entries = dao.existingEntryIdentities(identities, queryLimit)
 			val runs = dao.existingRunIdentityOwners(identities, queryLimit)
 			val windows = dao.existingWindowIdentityOwners(identities, queryLimit)
+			val retainedIdentities = dao.retainedIdentityOwners(identities, queryLimit)
 			val entryTombstones = dao.entryDeletions(identities)
 			val runTombstones = dao.deletionGenerations(identities)
-			if (entries.size >= queryLimit || runs.size >= queryLimit || windows.size >= queryLimit) {
+			if (entries.size >= queryLimit || runs.size >= queryLimit ||
+				windows.size >= queryLimit || retainedIdentities.size >= queryLimit
+			) {
 				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW)
+			}
+			if (retainedIdentities.isNotEmpty()) {
+				unverifiable(
+					ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+				)
 			}
 			val incompatibleEntryTombstone = entryTombstones.any { marker ->
 				expected[marker.entryIdentity]?.kind != PortablePressureIdentityKind.LOGICAL_ENTRY

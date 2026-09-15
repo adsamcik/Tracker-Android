@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.applyPressureSourceEraseLocalMutationInTransaction
+import com.adsamcik.tracker.shared.base.database.auditPressureSourceEraseLocalAuthorityInTransaction
 import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
@@ -21,6 +23,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
@@ -92,6 +95,66 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `source erase authenticates and fences local Pressure without deleting session authority`() =
+		runTest {
+			val fixture = insertPressureSession("source-erase", 1L, 1_000L, 2_000L)
+			val revokedPolicy = pressurePolicy().copy(
+				policyRevision = 2L,
+				enabled = false,
+				capturePersistenceEligible = false,
+				captureConsentEpoch = null,
+				effectiveWallTimeMs = 2_500L,
+				effectiveElapsedRealtimeNanos = 2_500L,
+				changeReason = "TEST_REVOKED",
+			)
+			val revokedConsent = pressureConsent().copy(
+				epoch = 2L,
+				eligible = false,
+				persistenceEligible = false,
+				policyRevision = 2L,
+				effectiveWallTimeMs = 2_500L,
+				effectiveElapsedRealtimeNanos = 2_500L,
+				changeReason = "TEST_REVOKED",
+			)
+			database.sourcePolicyDao().insertPolicies(listOf(revokedPolicy))
+			database.sourcePolicyDao().insertConsentEpochs(listOf(revokedConsent))
+			database.sourcePolicyDao().ensureAuthority(
+				SourcePolicyAuthorityEntity(
+					bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+					currentPolicyRevision = 2L,
+					legacySettingsFingerprint = null,
+					updatedAtMs = 2_500L,
+				),
+			)
+
+			database.withTransaction {
+				val audit = database.auditPressureSourceEraseLocalAuthorityInTransaction(
+					expectedCollectedDataEpoch = COLLECTED_DATA_EPOCH,
+					expectedDeletedSourceEventHighWaterOrdinal = 0L,
+					expectedCurrentPolicyRevision = 2L,
+					expectedRevokedConsentEpoch = 2L,
+					erasedAtMs = 3_000L,
+				)
+				audit.factRevisionCount shouldBe 1
+				audit.scopes shouldBe listOf(
+					com.adsamcik.tracker.shared.base.database.PressureSourceEraseLocalScope(
+						fixture.logicalId,
+						fixture.runId,
+					),
+				)
+				database.applyPressureSourceEraseLocalMutationInTransaction(
+					audit,
+					COLLECTED_DATA_EPOCH,
+					3_000L,
+				)
+			}
+
+			database.pressureFactRevisionDao().count() shouldBe 0L
+			database.sourceSessionDao().serviceRun(fixture.runId)?.serviceRunId shouldBe fixture.runId
+			exactFence(fixture)?.fenceGeneration shouldBe 1L
+		}
 
 	@Test
 	@Suppress("LongMethod")

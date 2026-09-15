@@ -57,6 +57,9 @@ internal object ImportedPressureLineageAuthenticator {
 			require(header.sourceFormat == PressurePortableFormatV1.FORMAT)
 			require(header.sourceSchemaVersion == PressurePortableFormatV1.SCHEMA_VERSION)
 		}
+		require(orderedHeaders.zipWithNext().all { (previous, next) ->
+			next.receivedAtMs >= previous.receivedAtMs
+		})
 
 		val headersByRevision = orderedHeaders.associateBy { it.importRevision }
 		require(headersByRevision.size == orderedHeaders.size)
@@ -102,7 +105,45 @@ internal object ImportedPressureLineageAuthenticator {
 					ImportedPressureReceiptEntity::importEntryKey,
 				),
 			),
-		)
+		).also(::authenticateCorrectionHierarchy)
+	}
+
+	/**
+	 * Revisions may correct values or replace physical members, but an opaque identity may never
+	 * change its structural owner, intrinsic interval, acquisition plan, or stored civil zone.
+	 */
+	private fun authenticateCorrectionHierarchy(lineage: AuthenticatedImportedPressureLineage) {
+		val runs = linkedMapOf<String, ImportedPressureRunStructure>()
+		val windows = linkedMapOf<String, ImportedPressureWindowStructure>()
+		lineage.revisions.forEach { revision ->
+			require(revision.header.startTimeMs == revision.entry.startTimeMs)
+			require(revision.header.endTimeMs == revision.entry.endTimeMs)
+			revision.entry.runs.forEach { run ->
+				val structure = ImportedPressureRunStructure(
+					entryIdentity = revision.entry.identity.value,
+					startTimeMs = run.startTimeMs,
+					endTimeMs = run.endTimeMs,
+				)
+				val previousRun = runs.putIfAbsent(run.identity.value, structure)
+				if (previousRun != null) require(previousRun == structure)
+				run.windows.forEach { window ->
+					val windowStructure = ImportedPressureWindowStructure(
+						entryIdentity = revision.entry.identity.value,
+						runIdentity = run.identity.value,
+						intervalStartTimeMs = window.intervalStartTimeMs,
+						intervalEndTimeMs = window.intervalEndTimeMs,
+						observedDurationNanos = window.observedDurationNanos,
+						effectiveSamplePeriodMicros = window.effectiveSamplePeriodMicros,
+						effectiveMaximumReportLatencyMicros =
+							window.effectiveMaximumReportLatencyMicros,
+						targetWindowDurationNanos = window.targetWindowDurationNanos,
+						zoneId = window.zoneId,
+					)
+					val previousWindow = windows.putIfAbsent(window.identity.value, windowStructure)
+					if (previousWindow != null) require(previousWindow == windowStructure)
+				}
+			}
+		}
 	}
 
 	private fun ImportedPressureReceiptEntity.exactlyOwns(
@@ -254,6 +295,24 @@ private data class ImportedPressureIdentityOwner(
 	val kind: PortablePressureIdentityKind,
 	val entryIdentity: String,
 	val runIdentity: String? = null,
+)
+
+private data class ImportedPressureRunStructure(
+	val entryIdentity: String,
+	val startTimeMs: Long,
+	val endTimeMs: Long,
+)
+
+private data class ImportedPressureWindowStructure(
+	val entryIdentity: String,
+	val runIdentity: String,
+	val intervalStartTimeMs: Long,
+	val intervalEndTimeMs: Long,
+	val observedDurationNanos: Long,
+	val effectiveSamplePeriodMicros: Int,
+	val effectiveMaximumReportLatencyMicros: Int,
+	val targetWindowDurationNanos: Long,
+	val zoneId: String,
 )
 
 @Suppress("LongMethod")

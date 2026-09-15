@@ -98,6 +98,8 @@ enum class PortablePressureImportBlockedReason {
 	OPAQUE_IDENTITY_CONFLICT,
 	DELETED_ENTRY,
 	DELETED_RUN,
+	RETENTION_TRUNCATED,
+	SOURCE_ERASED,
 }
 
 enum class PortablePressureImportUnverifiableReason {

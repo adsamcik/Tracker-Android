@@ -7,7 +7,11 @@ import android.hardware.SensorEventListener2
 import android.hardware.SensorManager
 import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierBlockedReason
+import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierResult
+import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierRetryableReason
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.altitude.BarometricAltitudeFormula
 import com.adsamcik.tracker.tracker.source.ingress.PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION
@@ -248,6 +252,45 @@ class PressureSourceRuntime @Inject constructor(
 			} else {
 				runtimeClaim = null
 			}
+		}
+	}
+
+	/** Fully settles the session-only Pressure provider before source-wide local payload erase. */
+	internal suspend fun establishSourceEraseBarrier(
+		expectedCollectedDataEpoch: Long,
+	): PressureSourceEraseBarrierResult {
+		require(expectedCollectedDataEpoch >= 0L)
+		fenceCapacityResume()
+		return lifecycleMutex.withLock {
+			val activeRegistration = registration ?: return@withLock
+				PressureSourceEraseBarrierResult.NoLocalProvider
+			if (activeRegistration.state.collectedDataEpoch != expectedCollectedDataEpoch) {
+				return@withLock PressureSourceEraseBarrierResult.Blocked(
+					PressureSourceEraseBarrierBlockedReason.STALE_LIFECYCLE,
+				)
+			}
+			if (activeRegistration.authorization.authorizedMembers.any { member ->
+				member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+			}) {
+				return@withLock PressureSourceEraseBarrierResult.Blocked(
+					PressureSourceEraseBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
+				)
+			}
+			val acknowledgement = shutdownLocked(null)
+			if (!acknowledgement.appDrainComplete) {
+				return@withLock PressureSourceEraseBarrierResult.Retryable(
+					PressureSourceEraseBarrierRetryableReason.CALLBACK_DRAIN_TIMED_OUT,
+				)
+			}
+			if (acknowledgement.registrationRemovalOutcome != RegistrationRemovalOutcome.REMOVED) {
+				return@withLock PressureSourceEraseBarrierResult.Retryable(
+					PressureSourceEraseBarrierRetryableReason.PROVIDER_REMOVAL_FAILED,
+				)
+			}
+			clearClaimIfReleased(acknowledgement)
+			PressureSourceEraseBarrierResult.Established(
+				activeRegistration.state.registrationGeneration,
+			)
 		}
 	}
 

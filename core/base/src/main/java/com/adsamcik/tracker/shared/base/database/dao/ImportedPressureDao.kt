@@ -9,7 +9,10 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGe
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetainedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetentionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureSourceEraseEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
 
 /**
@@ -45,6 +48,15 @@ abstract class ImportedPressureDao {
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertEntryDeletion(deletion: ImportedPressureEntryDeletionEntity)
 
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertRetentionReceipt(receipt: ImportedPressureRetentionReceiptEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertRetainedIdentities(values: List<ImportedPressureRetainedIdentityEntity>)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertSourceErase(value: ImportedPressureSourceEraseEntity)
+
 	@Query(
 		"SELECT * FROM imported_pressure_entry_revision " +
 			"WHERE identity = :identity AND import_revision = :revision",
@@ -73,7 +85,8 @@ abstract class ImportedPressureDao {
 		       entry.content_checksum,
 		       entry.start_time_ms,
 		       entry.end_time_ms,
-		       entry.received_at_ms
+		       entry.received_at_ms,
+		       'LIVE' AS candidate_state
 		FROM imported_pressure_entry_revision AS entry
 		INNER JOIN latest_revision AS latest
 		  ON latest.identity = entry.identity
@@ -86,7 +99,24 @@ abstract class ImportedPressureDao {
 		    AND entry.identity < COALESCE(:beforeIdentity, '')
 		  )
 		)
-		ORDER BY entry.start_time_ms DESC, entry.identity DESC
+		UNION ALL
+		SELECT retained.entry_identity,
+		       retained.latest_import_revision,
+		       retained.latest_content_checksum,
+		       retained.start_time_ms,
+		       retained.end_time_ms,
+		       retained.received_at_ms,
+		       'RETAINED' AS candidate_state
+		FROM imported_pressure_retention_receipt AS retained
+		WHERE (
+		  :beforeStartTimeMs IS NULL
+		  OR retained.start_time_ms < :beforeStartTimeMs
+		  OR (
+		    retained.start_time_ms = :beforeStartTimeMs
+		    AND retained.entry_identity < COALESCE(:beforeIdentity, '')
+		  )
+		)
+		ORDER BY start_time_ms DESC, identity DESC, candidate_state
 		LIMIT :limit
 		""",
 	)
@@ -109,7 +139,8 @@ abstract class ImportedPressureDao {
 		       entry.content_checksum,
 		       entry.start_time_ms,
 		       entry.end_time_ms,
-		       entry.received_at_ms
+		       entry.received_at_ms,
+		       'LIVE' AS candidate_state
 		FROM imported_pressure_entry_revision AS entry
 		INNER JOIN latest_revision AS latest
 		  ON latest.identity = entry.identity
@@ -124,7 +155,26 @@ abstract class ImportedPressureDao {
 		      AND entry.identity < COALESCE(:beforeIdentity, '')
 		    )
 		  )
-		ORDER BY entry.start_time_ms DESC, entry.identity DESC
+		UNION ALL
+		SELECT retained.entry_identity,
+		       retained.latest_import_revision,
+		       retained.latest_content_checksum,
+		       retained.start_time_ms,
+		       retained.end_time_ms,
+		       retained.received_at_ms,
+		       'RETAINED' AS candidate_state
+		FROM imported_pressure_retention_receipt AS retained
+		WHERE retained.start_time_ms < :toExclusiveMs
+		  AND retained.end_time_ms > :fromInclusiveMs
+		  AND (
+		    :beforeStartTimeMs IS NULL
+		    OR retained.start_time_ms < :beforeStartTimeMs
+		    OR (
+		      retained.start_time_ms = :beforeStartTimeMs
+		      AND retained.entry_identity < COALESCE(:beforeIdentity, '')
+		    )
+		  )
+		ORDER BY start_time_ms DESC, identity DESC, candidate_state
 		LIMIT :limit
 		""",
 	)
@@ -134,6 +184,35 @@ abstract class ImportedPressureDao {
 		limit: Int,
 		beforeStartTimeMs: Long?,
 		beforeIdentity: String?,
+	): List<ImportedPressureHistoryCandidate>
+
+	/** Header-only keyset used before one complete lineage is materialized for retention. */
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_pressure_entry_revision
+		  GROUP BY identity
+		)
+		SELECT entry.identity,
+		       entry.import_revision,
+		       entry.content_checksum,
+		       entry.start_time_ms,
+		       entry.end_time_ms,
+		       entry.received_at_ms,
+		       'LIVE' AS candidate_state
+		FROM imported_pressure_entry_revision AS entry
+		INNER JOIN latest_revision AS latest
+		  ON latest.identity = entry.identity
+		 AND latest.import_revision = entry.import_revision
+		WHERE :afterIdentity IS NULL OR entry.identity > :afterIdentity
+		ORDER BY entry.identity
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun retentionCandidatePage(
+		afterIdentity: String?,
+		limit: Int,
 	): List<ImportedPressureHistoryCandidate>
 
 	/** Complete ordered lineage plus one overflow row; callers must reject any non-contiguous head. */
@@ -368,6 +447,65 @@ abstract class ImportedPressureDao {
 		entryIdentities: List<String>,
 	): List<ImportedPressureEntryDeletionEntity>
 
+	@Query("SELECT * FROM imported_pressure_retention_receipt WHERE entry_identity = :entryIdentity")
+	abstract suspend fun retentionReceipt(
+		entryIdentity: String,
+	): ImportedPressureRetentionReceiptEntity?
+
+	@Query(
+		"SELECT * FROM imported_pressure_retention_receipt " +
+			"WHERE entry_identity IN (:entryIdentities)",
+	)
+	abstract suspend fun retentionReceipts(
+		entryIdentities: List<String>,
+	): List<ImportedPressureRetentionReceiptEntity>
+
+	@Query(
+		"SELECT * FROM imported_pressure_retention_receipt " +
+			"WHERE :afterIdentity IS NULL OR entry_identity > :afterIdentity " +
+			"ORDER BY entry_identity LIMIT :limit",
+	)
+	abstract suspend fun retentionReceiptPage(
+		afterIdentity: String?,
+		limit: Int,
+	): List<ImportedPressureRetentionReceiptEntity>
+
+	@Query(
+		"SELECT * FROM imported_pressure_retained_identity " +
+			"WHERE entry_identity IN (:entryIdentities) " +
+			"ORDER BY entry_identity, identity_kind, protected_identity LIMIT :limit",
+	)
+	abstract suspend fun retainedIdentitiesForEntries(
+		entryIdentities: List<String>,
+		limit: Int,
+	): List<ImportedPressureRetainedIdentityEntity>
+
+	@Query(
+		"SELECT * FROM imported_pressure_retained_identity " +
+			"WHERE protected_identity IN (:identities) ORDER BY protected_identity LIMIT :limit",
+	)
+	abstract suspend fun retainedIdentityOwners(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedPressureRetainedIdentityEntity>
+
+	@Query("SELECT COUNT(*) FROM imported_pressure_retention_receipt")
+	abstract suspend fun retentionReceiptCount(): Long
+
+	@Query("SELECT COUNT(*) FROM imported_pressure_retained_identity")
+	abstract suspend fun retainedIdentityCount(): Long
+
+	@Query(
+		"SELECT COUNT(*) FROM imported_pressure_retained_identity AS marker " +
+			"LEFT JOIN imported_pressure_retention_receipt AS receipt " +
+			"ON receipt.entry_identity = marker.entry_identity " +
+			"WHERE receipt.entry_identity IS NULL",
+	)
+	abstract suspend fun orphanRetainedIdentityCount(): Long
+
+	@Query("SELECT * FROM imported_pressure_source_erase WHERE id = 1")
+	abstract suspend fun sourceErase(): ImportedPressureSourceEraseEntity?
+
 	/** Bounded logical-entry tombstones for one finite imported-history candidate batch. */
 	suspend fun entryDeletionsForHistory(
 		entryIdentities: List<String>,
@@ -427,6 +565,15 @@ abstract class ImportedPressureDao {
 	)
 	abstract suspend fun deleteEntryRevision(identity: String, revision: Long): Int
 
+	@Query("DELETE FROM imported_pressure_entry_revision WHERE identity = :identity")
+	abstract suspend fun deleteEntryRevisionLineage(identity: String): Int
+
+	@Query("DELETE FROM imported_pressure_retained_identity WHERE entry_identity = :identity")
+	abstract suspend fun deleteRetainedIdentities(identity: String): Int
+
+	@Query("DELETE FROM imported_pressure_retention_receipt WHERE entry_identity = :identity")
+	abstract suspend fun deleteRetentionReceipt(identity: String): Int
+
 	/** Full collected-data clear only; retained deletion generations are cleared separately. */
 	@Query("DELETE FROM imported_pressure_entry_revision")
 	abstract fun deleteAllEntries()
@@ -441,6 +588,15 @@ abstract class ImportedPressureDao {
 	/** Full collected-data clear only. Selected entry deletion must retain this authority. */
 	@Query("DELETE FROM imported_pressure_entry_deletion")
 	abstract fun deleteAllEntryDeletions()
+
+	@Query("DELETE FROM imported_pressure_retained_identity")
+	abstract fun deleteAllRetainedIdentities()
+
+	@Query("DELETE FROM imported_pressure_retention_receipt")
+	abstract fun deleteAllRetentionReceipts()
+
+	@Query("DELETE FROM imported_pressure_source_erase")
+	abstract fun deleteSourceErase()
 
 	private fun checkedHistoryIdentities(identities: List<String>): List<String> {
 		require(identities.isNotEmpty())
@@ -473,6 +629,7 @@ data class ImportedPressureHistoryCandidate(
 	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
 	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
 	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+	@ColumnInfo(name = "candidate_state") val candidateState: String,
 )
 
 data class ImportedPressureRunIdentityOwner(

@@ -127,6 +127,7 @@ internal class PortablePressureRoomReader @Inject constructor(
 				} else {
 					null
 				}
+				is ImportedPressureHistoryEvaluation.Retained -> null
 				is ImportedPressureHistoryEvaluation.Unverifiable -> abort(
 					when (evaluation.reason) {
 						ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW ->
