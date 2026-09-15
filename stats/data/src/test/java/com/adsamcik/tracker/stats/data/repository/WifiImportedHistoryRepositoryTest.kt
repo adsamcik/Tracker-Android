@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
@@ -95,6 +96,9 @@ class WifiImportedHistoryRepositoryTest {
 		)
 
 		val recent = (repository.recent(10) as WifiHistoryPage.Available).entries.single()
+		val sourceRecent = database.withTransaction {
+			repository.recentInTransaction(10)
+		} as WifiSourceRecentPage.Available
 		val selected = (
 			repository.imported(evaluation.candidate.selection.key) as WifiHistoryQuery.Found
 			).entry
@@ -105,6 +109,7 @@ class WifiImportedHistoryRepositoryTest {
 
 		recent shouldBe selected
 		lookedUp shouldBe selected
+		sourceRecent.entries.single() shouldBe WifiSourceRecentEntry.Imported(selected)
 		selected.origin shouldBe WifiHistoryOrigin.IMPORTED
 		selected.state shouldBe WifiHistoryProductState.READY
 		selected.importedSelection shouldBe evaluation.candidate.selection

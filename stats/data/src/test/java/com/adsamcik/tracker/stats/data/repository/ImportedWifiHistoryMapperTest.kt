@@ -123,9 +123,12 @@ class ImportedWifiHistoryMapperTest {
 		val localPublic = imported.toPublicWifiEntry().copy(
 			origin = WifiHistoryOrigin.LOCAL,
 			importedSelection = null,
+			localSelection = com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey(
+				portable.identity.value,
+			),
 			capturesOnlyWifi = true,
 		)
-		val local = ComposedWifiEntry("entry", 1_000L, 1L, localPublic)
+		val local = ComposedWifiEntry("entry", 1_000L, 1L, listOf(1L), localPublic)
 
 		WifiHistoryOriginComposer.compose(
 			live = listOf(local),

@@ -35,6 +35,7 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryObservation
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryResultCompleteness
 import com.adsamcik.tracker.stats.api.repository.WifiHistorySignalQuality
@@ -71,10 +72,13 @@ internal object WifiHistoryComposer {
 			val members = members(logicalId, snapshot)
 			val entry = composeGroup(logicalId, snapshot, laneExecutionAuthority) ?: return@mapNotNull null
 			ComposedWifiEntry(
-				logicalId,
-				members.maxOfOrNull(SessionSegment::startTimeMs) ?: 0L,
-				members.maxWithOrNull(compareBy(SessionSegment::startTimeMs, SessionSegment::id))?.id ?: 0L,
-				entry,
+				logicalTrackingId = logicalId,
+				recencyStartTimeMs = members.maxOfOrNull(SessionSegment::startTimeMs) ?: 0L,
+				recencySegmentId = members.maxWithOrNull(
+					compareBy(SessionSegment::startTimeMs, SessionSegment::id),
+				)?.id ?: 0L,
+				physicalSegmentIds = members.map(SessionSegment::id),
+				entry = entry,
 			)
 		}.toList()
 
@@ -1076,7 +1080,56 @@ internal data class ComposedWifiEntry(
 	val logicalTrackingId: String,
 	val recencyStartTimeMs: Long,
 	val recencySegmentId: Long,
+	val physicalSegmentIds: List<Long>,
 	val entry: WifiHistoryEntry,
-)
+) {
+	init {
+		require(logicalTrackingId.isNotBlank())
+		require(recencyStartTimeMs >= 0L && recencySegmentId > 0L)
+		require(physicalSegmentIds.isNotEmpty() && physicalSegmentIds.all { it > 0L })
+		require(physicalSegmentIds.distinct().size == physicalSegmentIds.size)
+		require(recencySegmentId in physicalSegmentIds)
+		require(entry.origin == WifiHistoryOrigin.LOCAL)
+		require(entry.localSelection != null)
+	}
+}
+
+internal sealed interface WifiComposedPage {
+	data class Available(val entries: List<ComposedWifiEntry>) : WifiComposedPage
+	data class Failed(val cause: WifiHistoryCause) : WifiComposedPage {
+		init {
+			require(cause.isIntegrityFailure)
+		}
+	}
+}
+
+internal sealed interface WifiSourceRecentEntry {
+	val entry: WifiHistoryEntry
+
+	data class Local(val composed: ComposedWifiEntry) : WifiSourceRecentEntry {
+		override val entry: WifiHistoryEntry = composed.entry
+	}
+
+	/** Imported rows deliberately expose no local logical or physical member identity. */
+	data class Imported(override val entry: WifiHistoryEntry) : WifiSourceRecentEntry {
+		init {
+			require(entry.origin == WifiHistoryOrigin.IMPORTED)
+			require(entry.localSelection == null)
+		}
+	}
+}
+
+internal sealed interface WifiSourceRecentPage {
+	data class Available(val entries: List<WifiSourceRecentEntry>) : WifiSourceRecentPage
+	data class Failed(val cause: WifiHistoryCause) : WifiSourceRecentPage {
+		init {
+			require(cause.isIntegrityFailure)
+		}
+	}
+}
+
+internal val wifiCompositionOrder =
+	compareByDescending<ComposedWifiEntry> { it.recencyStartTimeMs }
+		.thenByDescending { it.recencySegmentId }
 
 internal const val WIFI_SOURCE = SourceDestinationOwnerEntity.SOURCE_WIFI

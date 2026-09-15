@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
@@ -136,6 +137,54 @@ class WifiHistoryRepositoryRoomTest {
 	}
 
 	@Test
+	fun `source facade returns complete physical groups and intent-first factless Wi-Fi-only rows`() =
+		runTest {
+			val replacement = buildGroup(302, 2, setOf(0))
+			val factlessBase = buildGroup(303, 1, emptySet())
+			val factless = factlessBase.copy(
+				runs = factlessBase.runs.map { it.copy(completeness = null, admissions = emptyList()) },
+			)
+			persist(listOf(replacement, factless))
+			val repository = repository { true }
+
+			database.withTransaction {
+				val selected = repository.selectBySegmentIdsInTransaction(
+					listOf(replacement.runs.last().segment.id),
+				) as WifiComposedPage.Available
+				val group = selected.entries.single()
+				group.logicalTrackingId shouldBe replacement.session.logicalTrackingId
+				group.physicalSegmentIds shouldBe replacement.runs.map { it.segment.id }
+				group.recencyStartTimeMs shouldBe replacement.runs.last().segment.startTimeMs
+				group.recencySegmentId shouldBe replacement.runs.last().segment.id
+				group.entry.capturesOnlyWifi shouldBe true
+				repository.selectBySegmentIdsInTransaction(listOf(Long.MAX_VALUE)) shouldBe
+					WifiComposedPage.Failed(WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+
+				val bySession = repository.sessionInTransaction(
+					replacement.runs.first().segment.id,
+				) as WifiHistoryQuery.Found
+				bySession.entry shouldBe group.entry
+
+				val onlyWifi = repository.recentWifiOnlyInTransaction(10) as
+					WifiComposedPage.Available
+				onlyWifi.entries.map { it.logicalTrackingId }.toSet() shouldBe setOf(
+					replacement.session.logicalTrackingId,
+					factless.session.logicalTrackingId,
+				)
+				onlyWifi.entries.all { it.entry.capturesOnlyWifi } shouldBe true
+				onlyWifi.entries.single {
+					it.logicalTrackingId == factless.session.logicalTrackingId
+				}.entry.observations shouldBe emptyList()
+
+				val mixed = repository.recentInTransaction(10) as WifiSourceRecentPage.Available
+				mixed.entries.all { it is WifiSourceRecentEntry.Local } shouldBe true
+				mixed.entries.filterIsInstance<WifiSourceRecentEntry.Local>().forEach { local ->
+					local.composed.physicalSegmentIds.isEmpty() shouldBe false
+				}
+			}
+		}
+
+	@Test
 	fun `one-hop unchanged coverage reuses only an authenticated current aggregate`() = runTest {
 		val group = buildGroup(7, 1, setOf(0), includeReuse = true)
 		persist(listOf(group))
@@ -236,8 +285,16 @@ class WifiHistoryRepositoryRoomTest {
 
 		database.close()
 		setUp()
-		persist(listOf(buildGroup(200, 129, setOf(0))))
+		val overflow = buildGroup(200, 129, setOf(0))
+		persist(listOf(overflow))
 		repository { true }.recent(1) shouldBe WifiHistoryPage.Failed(WifiHistoryCause.READ_BUDGET_EXCEEDED)
+		database.withTransaction {
+			repository { true }.selectBySegmentIdsInTransaction(
+				listOf(overflow.runs.first().segment.id),
+			) shouldBe WifiComposedPage.Failed(WifiHistoryCause.READ_BUDGET_EXCEEDED)
+			repository { true }.recentWifiOnlyInTransaction(1) shouldBe
+				WifiComposedPage.Failed(WifiHistoryCause.READ_BUDGET_EXCEEDED)
+		}
 		assertFailsWith<CancellationException> {
 			withContext(Job().apply { cancel() }) { repository { true }.recent(1) }
 		}
