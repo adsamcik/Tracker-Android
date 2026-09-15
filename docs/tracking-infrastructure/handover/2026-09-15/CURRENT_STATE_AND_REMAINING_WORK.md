@@ -1,11 +1,33 @@
 # Current state and remaining implementation — 2026-09-15
 
+## Current clean integration snapshot
+
+Local `dev/v10` is clean at `cb8159d68c81af203f8cf122aa71d4db8981f7b6`.
+Purpose is locally merged at `17b089212e` after preserved reviewed input `cef95415e2`, rebase
+`8943f299f8` and exact 28-path parity. Portable input `2697903ae6` is preserved under its reviewed
+ref, rebased as `aa9447e070` with exact 54-path parity and merged at the current head.
+
+The portable merge includes only closed Activity `153cf5fa`, Pressure `8ba72248`/helper
+`76739a35`, Steps and shared ZIP/registry/picker scope. It excludes Ambient/radio formats,
+unreviewed range/bridge work and runtime activation. No deferred gate or push ran.
+
+Activity range/eligible bridge `5dc1d06999` is an actual late-start held artifact under focused
+review. Location `921324f2`, Cell `a2498308`, Wi-Fi `021f8a48` and radio `5589026c` remain
+active/held reviews. Ambient product `0c4728c2`, Pressure `045cd7cf`, shared history `c6aad1d9`
+and consumer `ab6fdd92` are source-locally closed but held on their explicit external dependencies.
+
+The final AEC audit graph repairs are applied: P5 is a direct day/range dependency; Ambient
+execution depends on purpose publication and not radio product semantics; assembly directly
+includes authority, QoS and Steps numeric; and Location includes the approved passive child.
+SourceCaller guard, PersistenceProcessor lifecycle propagation, P5 and schema convergence remain
+planned; providers remain off.
+
 ## Authoritative registry handover
 
 Start execution accounting with [`WORK_ITEMS.json`](../../WORK_ITEMS.json). It is the authoritative
 status/dependency/ownership registry. [`WORK_ITEM_TRACKING.md`](../../WORK_ITEM_TRACKING.md) is the
 overview and update protocol; `IMPLEMENTATION_TODO.md` remains the exhaustive stable requirement
-checklist. The registry has 71 work items and maps all 293 TODO IDs with zero unmapped.
+checklist. The registry has 72 work items and maps all 293 TODO IDs with zero unmapped.
 
 The user independently published `3dd1ff004a34beb339539c4961704919d781371c`. Local
 documentation continued from `6744ced52037d531e56751777b519165167e6b19`; no agent push is

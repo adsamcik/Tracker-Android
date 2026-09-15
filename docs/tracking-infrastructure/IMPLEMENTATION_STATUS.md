@@ -2,12 +2,45 @@
 
 Last updated: 2026-09-15
 
+## Current post-integration snapshot - graph repaired, remaining artifacts held
+
+Local `dev/v10` is clean at `cb8159d68c81af203f8cf122aa71d4db8981f7b6`.
+
+- Purpose reviewed input `cef95415e2f5e77fb9e12ea3e95776ef26e36efe` is preserved at
+  `refs/remotes/handover/reviewed/ti-purpose-settings-20260915`, rebased unchanged across its 28
+  owned paths as `8943f299f812a903f68dbc172412da2c9982a4eb`, and locally merged at
+  `17b089212e0bbbb9cd4438d118d86e624b5c7e6f`.
+- Portable reviewed input `2697903ae6a2b5a61acd2981c990c3f3638d9a37` is preserved at
+  `refs/remotes/handover/reviewed/ti-portable-file-assembly-20260915`, rebased with exact 54-path
+  parity as `aa9447e070e67e9a6802e940b2bae6c1e3da9a81`, and locally merged at the
+  current head. It includes closed Activity `153cf5fa`, Pressure `8ba72248`/helper `76739a35`,
+  Steps and shared ZIP/registry/picker scope only. No Ambient/radio formats, unreviewed range/
+  bridge work or runtime activation entered the merge.
+- Activity range was also already dispatched before the queued freeze. Exact held input
+  `5dc1d0699953867d2f97ccdac83a72a4e34c6234` combines the preserved `57b676e126`,
+  `36082bb8d0` range and `630fad31ad` eligible-bridge work; focused review is active. This late
+  receipt supersedes only the earlier point-in-time absence classification and does not authorize
+  post-freeze expansion.
+- Current parent metadata keeps Location `921324f2`, Cell `a2498308`, Wi-Fi `021f8a48` and radio
+  `5589026c` under focused correction/review. None is complete from owner wording.
+- Ambient product `0c4728c2` and Pressure maintenance/bridge `045cd7cf` are source-locally
+  static-closed but held on P5/runtime/schema/shared integration. Shared history contract/owned
+  input `c6aad1d9` is closed and held while Activity/Wi-Fi/Cell producer reviews and a real nonempty
+  chain remain. Consumer `ab6fdd92` is source-locally closed and held on that shared input.
+
+Final audit follow-up at `aec85eee` is corrected in the 72-item registry: shared day/range directly
+depends on P5; Ambient execution depends on purpose publication rather than radio product
+semantics; assembly directly includes authority, QoS and Steps numeric infrastructure; and the
+Location vertical includes the approved passive ambient child. No graph cycle or primary-mapping
+duplication remains. `WI-SOURCE-CALLER-GUARD-001`, PersistenceProcessor lifecycle propagation,
+P5 and all-source schema convergence remain explicit planned work; providers stay off.
+
 ## Authoritative work-item registry initialized
 
 [`WORK_ITEMS.json`](WORK_ITEMS.json) is now the authoritative execution registry and
 [`WORK_ITEM_TRACKING.md`](WORK_ITEM_TRACKING.md) is its human-readable index/update protocol.
 `IMPLEMENTATION_TODO.md` remains the exhaustive stable requirement checklist. The initial registry
-contains 71 coherent work items and explicitly maps all 293 TODO IDs (71 checked, 222 unchecked,
+contains 72 coherent work items and explicitly maps all 293 TODO IDs (71 checked, 222 unchecked,
 zero unmapped). A broad unchecked requirement may contain accepted sub-slices; current execution,
 review, integration and validation state comes from the JSON registry.
 

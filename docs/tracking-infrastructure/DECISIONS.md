@@ -2,6 +2,28 @@
 
 Last updated: 2026-09-15
 
+## TI-D270 - Record serialized local integrations and final audit graph repairs
+
+- Status: accepted local documentation receipt, 2026-09-15.
+- Purpose `cef95415e2` and portable input `2697903ae6` are cumulatively reviewed and locally
+  integrated through clean `cb8159d68c`. Reviewed refs, rebased inputs and exact path parity are
+  retained. These local merges do not authorize push, activation or validation.
+- Portable scope includes closed Activity `153cf5fa`, Pressure `8ba72248`/helper `76739a35`,
+  Steps and shared ZIP/registry/picker only. Ambient/radio formats, unreviewed range/bridge inputs
+  and runtime activation remain excluded.
+- Concrete late receipt `5dc1d06999` proves Activity range/eligible-bridge work was running before
+  the queued freeze reached its owner. Reclassify it as committed/held under focused review, while
+  preserving the prohibition on further feature expansion.
+- Final audit repairs: add P5 to shared day/range; make Ambient execution depend on purpose
+  publication without semantically depending on passive radio; add authority, QoS and Steps
+  numeric directly to assembly; add approved passive Ambient Location to the Location vertical.
+- SourceCaller guard, PersistenceProcessor lifecycle/producer propagation, P5 and all-source schema
+  convergence remain explicit planned boundaries. No source/provider support is advertised before
+  those dependencies close.
+- Current parent metadata, not owner-wide status prose, governs the snapshot. Location, Cell,
+  Wi-Fi and radio remain active/held reviews. Source-local Ambient product, Pressure maintenance,
+  history contract and consumer closures remain held on their explicit external dependencies.
+
 ## TI-D269 - Correct registry structure without changing stable requirement history
 
 - Status: accepted documentation correction after independent audit `8e`, 2026-09-15.
@@ -47,15 +69,15 @@ Last updated: 2026-09-15
 
 ## TI-D267 - Concrete late owner receipts supersede point-in-time directory absence
 
-- Status: accepted scope-classification correction, 2026-09-15; TI-D268 records the later
-  source-local closure dispositions.
+- Status: accepted scope-classification correction, 2026-09-15; TI-D268 records later
+  source-local closures and TI-D270 records the later Activity range receipt.
 - The early parent filesystem inspection was valid only for that instant. Later owner-authored
   commit receipts prove Ambient Steps file actions and shared history consumers were already
   running before their queued freeze instructions were received.
 - At this receipt Ambient files were `committed_held` and unreviewed, not planned or accepted;
   TI-D268 later records their bounded static closure. Shared history consumers remain an
-  `active_correction`, not planned or accepted. Activity range still has no contrary
-  authored-source receipt and remains planned.
+  `active_correction`, not planned or accepted. Activity range was still classified planned at
+  this receipt; TI-D270 supersedes that point after concrete `5dc1d069` evidence.
 - A late receipt preserves only the exact already-authored artifact and directly necessary review
   corrections. It does not authorize feature expansion, successors, union continuation, registry/
   picker wiring, day/range work or acceptance by branch existence.
@@ -109,7 +131,7 @@ Last updated: 2026-09-15
   `WORK_ITEM_TRACKING.md` is an index/protocol generated from that registry and must not carry an
   independent competing status.
 - Every still-applicable TODO ID must map explicitly to a coherent `WI-*` item. The initial
-  registry maps all 293 IDs to 71 work items with zero unmapped IDs. Broad unchecked requirements
+  registry maps all 293 IDs to 72 work items with zero unmapped IDs. Broad unchecked requirements
   retain accepted sub-slice evidence and are not interpreted as wholly absent.
 - State changes require exact evidence: commit/ref, owner receipt, focused review, authorized local
   integration or executed proof on the exact commit. A branch, dirty worktree, authored test or

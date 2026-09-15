@@ -4,7 +4,7 @@ Last updated: 2026-09-15
 
 ## Registry coverage and process-deviation note
 
-`WORK_ITEMS.json` maps all 293 stable TODO IDs to 71 work items with zero unmapped IDs. JSON
+`WORK_ITEMS.json` maps all 293 stable TODO IDs to 72 work items with zero unmapped IDs. JSON
 parsing, unique-ID, dependency-reference, acyclic-dependency and requirement-coverage checks are
 metadata consistency only; they are not compilation, tests, schema, runtime or device evidence.
 
@@ -19,6 +19,30 @@ One Location reviewer accidentally invoked `git diff --check`. It produced no ou
 no files, and the reviewer was then restricted to source-read tools. This is a process deviation,
 not evidence that the Location artifact or any other source passes a validation gate. No regression,
 compiler, Gradle, lint, schema, device or CI gate has started for the current assembly.
+
+## TI-B339 - Serialized local integration and final graph audit receipt
+
+- Local input is clean `cb8159d68c81af203f8cf122aa71d4db8981f7b6`.
+- Purpose: reviewed ref `refs/remotes/handover/reviewed/ti-purpose-settings-20260915`, source
+  `cef95415e2f5e77fb9e12ea3e95776ef26e36efe`, rebased
+  `8943f299f812a903f68dbc172412da2c9982a4eb`, exact 28-path parity, local merge
+  `17b089212e0bbbb9cd4438d118d86e624b5c7e6f`.
+- Portable: reviewed ref `refs/remotes/handover/reviewed/ti-portable-file-assembly-20260915`,
+  input `2697903ae6a2b5a61acd2981c990c3f3638d9a37`, rebased
+  `aa9447e070e67e9a6802e940b2bae6c1e3da9a81`, exact 54-path parity, local merge
+  `cb8159d68c81af203f8cf122aa71d4db8981f7b6`.
+- Integrated portable scope contains only closed Activity `153cf5fa`, Pressure
+  `8ba72248`/`76739a35`, Steps and shared ZIP/registry/picker paths. No Ambient/radio formats,
+  unreviewed range/bridge inputs, runtime activation, deferred execution or push.
+- Activity range late receipt is `5dc1d0699953867d2f97ccdac83a72a4e34c6234`, combining
+  `57b676e126`, `36082bb8d0` and `630fad31ad`; focused review remains active.
+- Final metadata result: 72 work items, 293 primary mappings, zero unmapped, zero duplicate primary
+  mappings, zero empty child links and zero dependency cycles. The four final audit graph repairs
+  are represented directly in `WORK_ITEMS.json`.
+- SourceCaller guard, PersistenceProcessor lifecycle propagation, P5 and all-source schema
+  convergence are planned and providers remain off.
+- This is static metadata/path-parity/local-integration evidence only. No compilation, tests,
+  Gradle, lint, schema, device, CI, push or activation occurred.
 
 ## TI-B338 - Current Ambient, history bridge and consumer inputs
 
@@ -47,7 +71,7 @@ compiler, Gradle, lint, schema, device or CI gate has started for the current as
 - Audit input: documentation checkpoint `c77b1202321b2a2c8b6cc581dc6da2c9c0c7a237`;
   independent audit receipt `8e`; nine findings.
 - Metadata result: 293 stable TODO IDs, 293 primary mappings, zero unmapped, zero duplicate primary
-  owners, 71 work items and an acyclic dependency graph.
+  owners, 72 work items and an acyclic dependency graph.
 - Concrete runtime, Location, Ambient, Pressure, Wi-Fi, Cell, radio, shared file/history and
   Activity child artifacts now have explicit related requirements; reciprocal
   `requirement_index[].related_work_item_ids` are generated from the same registry.

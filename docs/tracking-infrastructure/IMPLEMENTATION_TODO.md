@@ -17,10 +17,24 @@ remains open: transport assembly is not final convergence/readiness. Original re
 
 Last updated: 2026-09-15
 
+## Current integration and graph receipt
+
+Local `dev/v10` is clean at `cb8159d68c81af203f8cf122aa71d4db8981f7b6`. Purpose is locally
+merged at `17b089212e`; portable files/actions are locally merged at `cb8159d68c` from reviewed
+input `2697903ae6`, with exact reviewed path parity. These merges do not check broad TODOs or lift
+validation/activation gates.
+
+Activity range `5dc1d06999` is an actual late-start held artifact under focused review, not planned
+absence. Shared day/range now depends on P5; Ambient execution depends on purpose publication and
+only coordinates SourceBroker ownership with radio; assembly directly includes authority, QoS and
+Steps numeric infrastructure; Location includes the approved passive baseline child. Wider work
+remains unchecked and handed over. SourceCaller guard, PersistenceProcessor lifecycle propagation,
+P5 and all-source schema convergence remain planned; no provider support is advertised.
+
 ## Authoritative execution mapping
 
 This checklist contains 293 stable requirements. The new
-[`WORK_ITEMS.json`](WORK_ITEMS.json) registry explicitly maps all 293 IDs to 71 coherent work
+[`WORK_ITEMS.json`](WORK_ITEMS.json) registry explicitly maps all 293 IDs to 72 coherent work
 items with zero unmapped IDs. [`WORK_ITEM_TRACKING.md`](WORK_ITEM_TRACKING.md) is the generated
 operating index and update protocol.
 

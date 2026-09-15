@@ -20,9 +20,9 @@ entire-effort statements cannot override parent global state or adversarial bloc
 
 Scope expansion is frozen. Finish only artifacts demonstrably started before the boundary,
 their directly necessary corrections/test source and focused static review. Preserve dirty
-work. Activity range remains confirmed unstarted. Later owner receipts prove Ambient Steps
-files and shared history consumers were already running before their queued freeze arrived;
-those exact artifacts are preserved without allowing further expansion. Assembly is not frozen
+work. Later owner receipts prove Activity range, Ambient Steps files and shared history
+consumers were already running before their queued freeze arrived; those exact artifacts are
+preserved without allowing further expansion. Assembly is not frozen
 and validation remains deferred. No agent push or provider/writer activation is authorized.
 
 The user independently published `3dd1ff004a34beb339539c4961704919d781371c`.
@@ -43,9 +43,13 @@ reported nine structural/actionability findings. This revision:
 8. Keeps approved passive Location independent from optional expanded-ambient decisions.
 9. Makes the assembly gate depend explicitly on every source and shared completion boundary.
 
+Final audit follow-up at `aec85eeeb429b91ce9137030a54c6466c12126d5` adds the P5 day
+dependency, fixes Ambient execution/publication ownership, adds direct assembly prerequisites,
+and reclassifies the late-start Activity range artifact without authorizing new work.
+
 ## Coverage
 
-- Work items: **71**
+- Work items: **72**
 - Stable TODO requirements: **293**
 - Explicitly mapped: **293**
 - Unmapped: **0**
@@ -55,23 +59,23 @@ State counts:
 
 | Implementation state | Items |
 | --- | ---: |
-| `active_correction` | 12 |
+| `active_correction` | 1 |
 | `active_documentation` | 1 |
 | `active_governance` | 1 |
 | `approval_required` | 1 |
-| `committed_held` | 3 |
-| `completed_accepted_slice` | 8 |
+| `committed_held` | 8 |
+| `completed_accepted_slice` | 15 |
 | `completed_foundation` | 1 |
 | `decision_required` | 8 |
 | `gate_deferred` | 4 |
 | `partial_implemented` | 18 |
 | `planned` | 14 |
 
-Review states: `active` 4, `blocked_findings` 11, `closed_except_decision` 1, `closed_static` 10, `continuous` 2, `historical_accepted` 1, `mixed` 13, `not_applicable` 9, `not_started` 20.
+Review states: `active` 7, `blocked_findings` 3, `closed_except_decision` 1, `closed_static` 17, `continuous` 2, `historical_accepted` 1, `mixed` 14, `not_applicable` 9, `not_started` 18.
 
-Integration states: `held_branch` 5, `held_dependency` 1, `local_dev` 7, `local_only` 1, `mixed_source_refs` 13, `not_applicable` 9, `not_started` 18, `source_branch` 17.
+Integration states: `held_branch` 15, `local_dev` 11, `local_only` 1, `mixed_source_refs` 14, `not_applicable` 9, `not_started` 18, `source_branch` 4.
 
-Validation states: `deferred_implementation_only` 62, `not_applicable` 9.
+Validation states: `deferred_implementation_only` 63, `not_applicable` 9.
 
 
 ## Work-item index
@@ -87,6 +91,7 @@ Validation states: `deferred_implementation_only` 62, `not_applicable` 9.
 | `WI-AUTHORITY-PURPOSE-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete source and purpose authority semantics | Do not start a new authority wave; consume only closed current-purpose artifacts when a bounded integration is assigned. |
 | `WI-BROKER-PROVIDER-OWNERSHIP-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete one physical owner per source | Remain planned outside already-started runtime and purpose corrections. |
 | `WI-LIFECYCLE-RUNTIME-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Close lifecycle, action and settlement semantics | Preserve the closed shared runtime contracts and do not begin producer propagation. |
+| `WI-SOURCE-CALLER-GUARD-001` | `planned` | `not_started` | `not_started` | Guard every source runtime caller | Handover backlog. Implement only after broker/publication/producer propagation close; providers remain off. |
 | `WI-LIFECYCLE-PRODUCT-PROOF-001` | `planned` | `not_started` | `not_started` | Prove RECORDING, MATERIALIZED and QUERYABLE transitions | Handover backlog. Implement only after provider/source product dependencies close; do not infer proof from current branches. |
 | `WI-DATA-MAINTENANCE-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete durable admission, projection and maintenance | No new cross-source data-plane wave; finish only the active source and shared artifacts listed in this registry. |
 | `WI-QOS-BATTERY-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete honest acquisition and battery semantics | Preserve existing plan/callback primitives. Hand over remaining implementation hooks; actual measurement stays solely in WI-VALIDATION-MEASUREMENT-001. |
@@ -94,38 +99,38 @@ Validation states: `deferred_implementation_only` 62, `not_applicable` 9.
 | `WI-STEPS-MANUAL-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Preserve completed manual Steps vertical | Preserve until final convergence validation. |
 | `WI-STEPS-NUMERIC-001` | `partial_implemented` | `closed_static` | `local_dev` | Preserve qualified Steps consumer infrastructure | Preserve the accepted numeric infrastructure. Do not duplicate engine numeric implementation; complete only the separate P5 producer receipt when assigned. |
 | `WI-STEPS-AUTOMATIC-001` | `partial_implemented` | `closed_except_decision` | `local_dev` | Complete automatic Steps with bounded control evidence | Keep control behavior contained and inactive; do not invent a duration. |
-| `WI-STEPS-AMBIENT-001` | `partial_implemented` | `blocked_findings` | `source_branch` | Complete the Ambient Steps vertical | During this scope, close only the active f6 base/product correction. Preserve the closed file artifact and hand over execution, P5, settings and shared day/UI work. |
-| `WI-STEPS-AMBIENT-PRODUCT-CORRECTION-001` | `active_correction` | `blocked_findings` | `source_branch` | Close Ambient Steps base and product review findings | Close only the additional bounded f6 base/product findings. Do not implement P5, execution authority, files, settings or shared day/UI in this artifact. |
+| `WI-STEPS-AMBIENT-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete the Ambient Steps vertical | Preserve source-locally closed product 0c and file 220 inputs. Hand over execution authority, P5, settings, schema and shared day/UI work. |
+| `WI-STEPS-AMBIENT-PRODUCT-CORRECTION-001` | `completed_accepted_slice` | `closed_static` | `held_branch` | Close Ambient Steps base and product review findings | Preserve source-locally closed input 0c4728c2 with typed Unproven P5 behavior. Do not implement P5, execution authority, settings or shared day/UI in this artifact. |
 | `WI-STEPS-AMBIENT-FILES-001` | `completed_accepted_slice` | `closed_static` | `held_branch` | Review the committed Ambient Steps file artifact | Preserve source-closed held input 220a2721. Do not add union export, continuation, registry/picker wiring or another feature. |
 | `WI-STEPS-AMBIENT-EXECUTION-001` | `planned` | `not_started` | `not_started` | Implement Ambient Steps execution authority | Handover backlog. Implement under a new bounded assignment; never fake AMBIENT support on the session lane. |
 | `WI-STEPS-AMBIENT-P5-RECEIPT-001` | `planned` | `not_started` | `not_started` | Implement the P5 Ambient/session count-domain receipt | Handover backlog. Implement the receipt only under a new bounded assignment and reuse existing numeric consumers. |
-| `WI-PRESSURE-VERTICAL-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete the Pressure source-to-product vertical | Finish only the active maintenance and imported-history bridge reviews; Pressure files are closed and the full day/range product remains backlog. |
-| `WI-PRESSURE-MAINTENANCE-001` | `active_correction` | `blocked_findings` | `source_branch` | Close Pressure maintenance privacy corrections | The owner corrects only helper declaration scope and complete early per-owner TEXT preflight, then returns 39198f5 to the same reviewer; runtime and shared schema remain dependencies. |
-| `WI-PRESSURE-FILES-001` | `completed_accepted_slice` | `closed_static` | `source_branch` | Close Pressure portable file review | Preserve reviewed source 8ba72248 and exact helper 76739a35. No new Pressure file feature; shared consumers integrate through their held artifacts. |
+| `WI-PRESSURE-VERTICAL-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete the Pressure source-to-product vertical | Preserve source-locally closed maintenance/bridge 045 and files 8ba. Hand over runtime/schema integration and the full day/range product. |
+| `WI-PRESSURE-MAINTENANCE-001` | `completed_accepted_slice` | `closed_static` | `held_branch` | Close Pressure maintenance privacy corrections | Preserve source-locally closed input 045cd7cf. Runtime barrier and all-source schema assembly remain separate dependencies. |
+| `WI-PRESSURE-FILES-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Close Pressure portable file review | Preserve reviewed source 8ba72248 and exact helper 76739a35. No new Pressure file feature; shared consumers integrate through their held artifacts. |
 | `WI-PRESSURE-PRODUCT-001` | `planned` | `not_started` | `not_started` | Build the remaining Pressure day and range product | Handover backlog; do not start. |
 | `WI-LOCATION-VERTICAL-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete protected Location without a second writer | Finish only the active Location handoff correction; hand over product and ambient successors. |
-| `WI-LOCATION-HANDOFF-001` | `active_correction` | `blocked_findings` | `source_branch` | Close protected Location WAL-to-writer handoff | Owner fixes only these blockers and returns the same focused reviewer to the corrected real-chain input. |
+| `WI-LOCATION-HANDOFF-001` | `committed_held` | `active` | `held_branch` | Close protected Location WAL-to-writer handoff | Hold exact input 921324f2 for the final focused review. Do not add new PersistenceProcessor lease, ingress, schema or provider features. |
 | `WI-LOCATION-AMBIENT-PRODUCT-001` | `planned` | `not_started` | `not_started` | Implement approved passive ambient Location baseline | Handover backlog; do not start. |
-| `WI-ACTIVITY-VERTICAL-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete captured Activity and control separation | Finish only the raw-EOF decoder correction and narrow imported-history bridge. Keep the broader Activity range product planned. |
-| `WI-ACTIVITY-ACTIONS-001` | `active_correction` | `blocked_findings` | `held_dependency` | Preserve closed Activity source actions and file semantics | Correct only the raw transport EOFException subtype case and its focused test, preserving permanent parser EOF/lexical failures; then propagate the shared lexer dependency when available. |
-| `WI-ACTIVITY-RANGE-001` | `planned` | `not_started` | `not_started` | Implement Activity structural range product | Backlog only; do not start unless a later bounded assignment includes an owner receipt with actual authored-code evidence. |
+| `WI-ACTIVITY-VERTICAL-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete captured Activity and control separation | Preserve locally integrated Activity actions/EOF source and finish only the held 5dc range/bridge review. Hand over wider UI/runtime work. |
+| `WI-ACTIVITY-ACTIONS-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Preserve closed Activity source actions and file semantics | Preserve locally integrated Activity source actions and raw-EOF correction. Do not widen into the held Activity range/bridge artifact. |
+| `WI-ACTIVITY-RANGE-001` | `committed_held` | `active` | `held_branch` | Implement Activity structural range product | Close only the existing Activity range plus eligible-bridge review at 5dc1d069. Do not start wider UI, file or runtime work. |
 | `WI-WIFI-VERTICAL-001` | `partial_implemented` | `blocked_findings` | `source_branch` | Complete the Wi-Fi source-to-product vertical | Finish only the existing product/range/selected-delete correction; hand over retention/erase/files/UI. |
-| `WI-WIFI-PRODUCT-CORRECTION-001` | `active_correction` | `blocked_findings` | `source_branch` | Close Wi-Fi product, range and selected-delete corrections | Owner closes these findings and the already-present range/selected-delete edits; no retention/source-erase/file successor. |
+| `WI-WIFI-PRODUCT-CORRECTION-001` | `committed_held` | `active` | `held_branch` | Close Wi-Fi product, range and selected-delete corrections | Close only the current focused five-case review and preserve the range/selected-delete scope; no retention/source-erase/file successor. |
 | `WI-WIFI-REMAINING-MAINTENANCE-001` | `planned` | `not_started` | `not_started` | Finish remaining Wi-Fi retention, erase and file actions | Handover backlog; do not start. |
 | `WI-CELL-VERTICAL-001` | `partial_implemented` | `blocked_findings` | `source_branch` | Complete the Cell source-to-product vertical | Finish only the current correction/review; hand over retention, erase and files. |
-| `WI-CELL-PRODUCT-CORRECTION-001` | `active_correction` | `blocked_findings` | `source_branch` | Close Cell product, range and selected-delete corrections | Owner fixes only these findings and returns the frozen artifact to focused review. |
+| `WI-CELL-PRODUCT-CORRECTION-001` | `committed_held` | `active` | `held_branch` | Close Cell product, range and selected-delete corrections | Close only the current focused three-case review. Do not start retention, source erase, files or shared UI. |
 | `WI-CELL-REMAINING-MAINTENANCE-001` | `planned` | `not_started` | `not_started` | Finish remaining Cell deleted ranges, retention, erase and files | Handover backlog; do not start. |
-| `WI-AMBIENT-RADIO-001` | `active_correction` | `blocked_findings` | `source_branch` | Close passive ambient Wi-Fi and Cell artifact | The owner first corrects declarations, then closes only these ten findings plus the real-chain test-source gap with the same reviewer; hand over all schema/runtime/DI/UI integration. |
-| `WI-PURPOSE-SETTINGS-001` | `completed_accepted_slice` | `closed_static` | `source_branch` | Close purpose settings containment retry | Parent inspects the exact closed cef95415 artifact for serialized local integration. Do not begin authority-issuer, Hilt/runtime reporting or feature-collector successors. |
+| `WI-AMBIENT-RADIO-001` | `active_correction` | `blocked_findings` | `source_branch` | Close passive ambient Wi-Fi and Cell artifact | Correct only the three remaining compensation/test findings at 5589026c and return to the same reviewer; hand over all guard/schema/runtime/DI/UI integration. |
+| `WI-PURPOSE-SETTINGS-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Close purpose settings containment retry | Preserve locally integrated Purpose source. Do not begin authority-issuer, Hilt/runtime reporting or feature-collector successors. |
 | `WI-PURPOSE-PUBLICATION-001` | `planned` | `not_started` | `not_started` | Wire actual purpose authority publication | Handover backlog; do not start. |
-| `WI-SHARED-FILE-ASSEMBLY-001` | `committed_held` | `closed_static` | `held_branch` | Close shared portable file assembly review | Preserve closed shared input 5705ce77 and merge only the eventual Activity raw EOF correction. Do not add Ambient registry/picker wiring or another format. |
-| `WI-SHARED-HISTORY-UNION-001` | `committed_held` | `active` | `held_branch` | Close five-source recent, live and selected history union | Finish only the 0d/58c contract sanity review and wire the four narrow producer bridges into a real nonempty chain. Do not start structural day/range or UI work. |
-| `WI-SHARED-HISTORY-BRIDGES-001` | `active_correction` | `active` | `source_branch` | Close the imported-history producer bridge contract | Correct only the 0d contract sanity issues and assemble the four producer adapters into 58c; no structural range or feature consumer work. |
-| `WI-HISTORY-BRIDGE-ACTIVITY-001` | `active_correction` | `not_started` | `source_branch` | Implement the narrow imported Activity history bridge | Finish and review only the current bridge paths; keep WI-ACTIVITY-RANGE-001 planned. |
-| `WI-HISTORY-BRIDGE-PRESSURE-001` | `active_correction` | `active` | `source_branch` | Close the narrow imported Pressure history bridge | Close the existing dbe review and wire only this producer into shared history; do not start WI-PRESSURE-PRODUCT-001. |
+| `WI-SHARED-FILE-ASSEMBLY-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Close shared portable file assembly review | Preserve locally integrated portable input. Do not add Ambient/radio formats, unreviewed range/bridge work or runtime activation. |
+| `WI-SHARED-HISTORY-UNION-001` | `committed_held` | `closed_static` | `held_branch` | Close five-source recent, live and selected history union | Preserve owned-closed input c6aad1d9 and wire only statically closed producer bridges into a real nonempty chain. Do not start structural day/range or UI work. |
+| `WI-SHARED-HISTORY-BRIDGES-001` | `completed_accepted_slice` | `closed_static` | `held_branch` | Close the imported-history producer bridge contract | Preserve static-closed contract c6aad1d9 and assemble only the four producer adapters into shared history; no structural range or feature consumer work. |
+| `WI-HISTORY-BRIDGE-ACTIVITY-001` | `committed_held` | `active` | `held_branch` | Implement the narrow imported Activity history bridge | Close only the current bridge portion in the 5dc review; keep wider UI/file/runtime work out of scope. |
+| `WI-HISTORY-BRIDGE-PRESSURE-001` | `completed_accepted_slice` | `closed_static` | `held_branch` | Close the narrow imported Pressure history bridge | Preserve source-locally closed input 045cd7cf and wire only this producer into shared history; do not start WI-PRESSURE-PRODUCT-001. |
 | `WI-HISTORY-BRIDGE-WIFI-001` | `committed_held` | `active` | `source_branch` | Close the narrow imported Wi-Fi history bridge | Close only the existing Wi-Fi bridge review and supply the adapter to shared history. |
-| `WI-HISTORY-BRIDGE-CELL-001` | `active_correction` | `not_started` | `source_branch` | Implement the narrow imported Cell history bridge | Finish and review only the current Cell bridge paths, then supply them to shared history. |
-| `WI-SHARED-HISTORY-CONSUMERS-001` | `active_correction` | `blocked_findings` | `source_branch` | Correct the started shared history feature consumers | Fix only the surviving-ViewModel Expired transition/teardown case, then return 707a1f52 to bounded review. Do not start Location/day/range or additional UI. |
+| `WI-HISTORY-BRIDGE-CELL-001` | `committed_held` | `active` | `held_branch` | Implement the narrow imported Cell history bridge | Close only the current Cell bridge review, then supply it to shared history. |
+| `WI-SHARED-HISTORY-CONSUMERS-001` | `completed_accepted_slice` | `closed_static` | `held_branch` | Correct the started shared history feature consumers | Preserve source-locally closed consumer input ab6fdd92. Do not start Location/day/range or additional UI. |
 | `WI-SHARED-HISTORY-DAY-RANGE-001` | `planned` | `not_started` | `not_started` | Complete all-six structural day, range and Today history | Handover backlog; do not start. |
 | `WI-UI-SURFACES-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Wire truthful shared product surfaces | Preserve accepted detail/source-only shells and the active 707 consumer correction. Hand over remaining surface conversion. |
 | `WI-SOURCE-ACTIONS-EXPLANATION-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete start, settings, source actions and recording explanation | Preserve existing manual start and source-action primitives. Hand over shared dispatcher, explanation and remaining settings/UI. |
