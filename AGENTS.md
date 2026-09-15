@@ -6,10 +6,17 @@ Until the tracking-infrastructure assembly gate is explicitly declared complete,
 six-source tracking-infrastructure continuation is **implementation only**. This rule is a durable
 resume/compaction invariant and applies to the coordinator and every delegated agent:
 
+This section has precedence over the generic verification, QC, and integration guidance later in
+this file for the duration of this phase. After any context compaction or machine handoff, resume
+with production implementation and test-source authorship only; never infer that validation has
+started merely because tests or validation commands are documented.
+
 - Implement bounded production logic and author the focused unit, contract, Room, and UI test
   source needed for each behavior change.
 - Do not execute or iterate from Gradle, compilation, tests, lint, Detekt, Room schema drift,
   `git diff --check`, emulator/device, UI evaluator, battery, CI, release, or rollout validation.
+- Writing tests is required now, but running them, compiling them, or changing implementation in
+  response to their execution is deferred to the single final convergence batch.
 - Static source inspection and review, exact-path staging, and coherent local commits are allowed.
   Mark those commits `IMPLEMENTED_UNVALIDATED`; a written test is not evidence that it passes.
 - Keep source branches out of `dev/v10` and do not push or activate candidate providers/writers.
