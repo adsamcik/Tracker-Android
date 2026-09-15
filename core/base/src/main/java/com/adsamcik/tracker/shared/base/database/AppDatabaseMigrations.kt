@@ -1445,6 +1445,11 @@ val MIGRATION_27_28: Migration = object : Migration(
 			execSQL(
 				"INSERT OR IGNORE INTO source_destination_owner " +
 					"(source_kind, destination, owner, owner_generation, updated_at_ms) " +
+					"VALUES (1, 'SESSION_LOCATION', 'EXISTING_LOCATION_CANONICAL_PIPELINE', 1, 0)",
+			)
+			execSQL(
+				"INSERT OR IGNORE INTO source_destination_owner " +
+					"(source_kind, destination, owner, owner_generation, updated_at_ms) " +
 					"VALUES (2, 'SESSION_ACTIVITY', 'LEGACY_ACTIVITY_SNAPSHOT', 1, 0)",
 			)
 			execSQL(
@@ -1479,6 +1484,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN delivery_unit_index INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN delivery_unit_count INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN observed_interval_start_nanos INTEGER")
+			execSQL("ALTER TABLE source_event_wal ADD COLUMN received_wall_time_ms INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN capture_consent_epoch INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN activity_automation_epoch INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN session_manifest_revision INTEGER")

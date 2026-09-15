@@ -229,6 +229,10 @@ internal fun createImportedAmbientStepsTables(database: SupportSQLiteDatabase) {
 			collected_data_epoch INTEGER NOT NULL,
 			revoked_consent_epoch INTEGER NOT NULL,
 			deleted_at_ms INTEGER NOT NULL,
+			deletion_completed INTEGER NOT NULL,
+			completed_at_ms INTEGER,
+			reopened_consent_epoch INTEGER,
+			reopened_at_ms INTEGER,
 			effect_checksum TEXT NOT NULL,
 			PRIMARY KEY(id)
 		)

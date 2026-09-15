@@ -162,7 +162,6 @@ import com.adsamcik.tracker.shared.base.database.dao.SourceRegistrationStateDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceSessionDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackingRolloutStateDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackingHistoryReadDao
-import com.adsamcik.tracker.shared.base.database.dao.recordFullDeletion
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.shared.base.database.data.ExplorationCellEntity
 import com.adsamcik.tracker.shared.base.database.data.ExplorationStreakEntity
@@ -695,39 +694,152 @@ abstract class AppDatabase : RoomDatabase() {
 			updatedAtMs: Long,
 		) {
 			database.withTransaction {
-				database.sourceEvidenceStateDao().recordFullDeletion(
-					epoch = collectedDataEpoch,
+				deleteAllCollectedDataInCurrentTransaction(
+					database = database,
+					newCollectedDataEpoch = collectedDataEpoch,
 					retainedFromMs = retainedFromMs,
-					deletedSourceEventHighWaterOrdinal = sourceEventWalHighWater(database),
 					updatedAtMs = updatedAtMs,
 				)
-				deleteCollectedRows(database)
 			}
 		}
 
 		internal fun deleteAllCollectedData(database: AppDatabase) {
 			database.runInTransaction {
-				val sqlite = database.openHelper.writableDatabase
-				val deletedSourceEventHighWaterOrdinal = sourceEventWalHighWater(database)
-				sqlite.execSQL(
-					"INSERT OR IGNORE INTO source_evidence_state " +
-						"(id, revision, collected_data_epoch, retained_from_ms, " +
-						"deleted_source_event_high_water_ordinal, updated_at_ms) " +
-						"VALUES (1, 0, 0, NULL, 0, 0)",
-				)
-				val currentEpoch = sqlite.query(
-					"SELECT collected_data_epoch FROM source_evidence_state WHERE id = 1",
-				).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else 0L }
-				val nextEpoch = currentEpoch + 1L
 				val updatedAtMs = System.currentTimeMillis()
-				sqlite.execSQL(
-					"UPDATE source_evidence_state SET collected_data_epoch = ?, revision = revision + 1, " +
-						"deleted_source_event_high_water_ordinal = " +
-						"MAX(deleted_source_event_high_water_ordinal, ?), " +
-						"updated_at_ms = ? WHERE id = 1",
-					arrayOf(nextEpoch, deletedSourceEventHighWaterOrdinal, updatedAtMs),
+				val oldState = getOrCreateSourceEvidenceState(database)
+				deleteAllCollectedDataInCurrentTransaction(
+					database = database,
+					oldState = oldState,
+					newCollectedDataEpoch = Math.addExact(oldState.collectedDataEpoch, 1L),
+					retainedFromMs = oldState.retainedFromMs,
+					updatedAtMs = updatedAtMs,
 				)
-				deleteCollectedRows(database)
+			}
+		}
+
+		private fun deleteAllCollectedDataInCurrentTransaction(
+			database: AppDatabase,
+			newCollectedDataEpoch: Long,
+			retainedFromMs: Long?,
+			updatedAtMs: Long,
+		) {
+			deleteAllCollectedDataInCurrentTransaction(
+				database = database,
+				oldState = getOrCreateSourceEvidenceState(database),
+				newCollectedDataEpoch = newCollectedDataEpoch,
+				retainedFromMs = retainedFromMs,
+				updatedAtMs = updatedAtMs,
+			)
+		}
+
+		private fun deleteAllCollectedDataInCurrentTransaction(
+			database: AppDatabase,
+			oldState: SourceEvidenceState,
+			newCollectedDataEpoch: Long,
+			retainedFromMs: Long?,
+			updatedAtMs: Long,
+		) {
+			require(newCollectedDataEpoch > oldState.collectedDataEpoch)
+			require(retainedFromMs == null || retainedFromMs >= 0L)
+			require(updatedAtMs >= 0L)
+			val nextRevision = Math.addExact(oldState.revision, 1L)
+			val deletedSourceEventHighWaterOrdinal = maxOf(
+				oldState.deletedSourceEventHighWaterOrdinal,
+				sourceEventWalHighWater(database),
+			)
+			val nextRetainedFromMs = listOfNotNull(
+				oldState.retainedFromMs,
+				retainedFromMs,
+			).maxOrNull()
+			val importedAmbientStepsDao = database.importedAmbientStepsDao()
+
+			importedAmbientStepsDao.prepareFullClearFencesInCurrentTransaction(
+				oldCollectedDataEpoch = oldState.collectedDataEpoch,
+				newCollectedDataEpoch = newCollectedDataEpoch,
+				sourceEvidenceRevision = nextRevision,
+				clearedAtMs = updatedAtMs,
+			)
+			publishFullDeletionState(
+				database = database,
+				oldState = oldState,
+				newCollectedDataEpoch = newCollectedDataEpoch,
+				newRevision = nextRevision,
+				retainedFromMs = nextRetainedFromMs,
+				deletedSourceEventHighWaterOrdinal = deletedSourceEventHighWaterOrdinal,
+				updatedAtMs = updatedAtMs,
+			)
+			importedAmbientStepsDao.deleteFullClearPayloadInCurrentTransaction(
+				newCollectedDataEpoch,
+			)
+			deleteCollectedRows(database)
+		}
+
+		private fun getOrCreateSourceEvidenceState(database: AppDatabase): SourceEvidenceState {
+			val sqlite = database.openHelper.writableDatabase
+			sqlite.execSQL(
+				"INSERT OR IGNORE INTO source_evidence_state " +
+					"(id, revision, collected_data_epoch, retained_from_ms, " +
+					"deleted_source_event_high_water_ordinal, updated_at_ms) " +
+					"VALUES (1, 0, 0, NULL, 0, 0)",
+			)
+			return sqlite.query(
+				"SELECT id, revision, collected_data_epoch, retained_from_ms, " +
+					"deleted_source_event_high_water_ordinal, updated_at_ms " +
+					"FROM source_evidence_state WHERE id = 1",
+			).use { cursor ->
+				check(cursor.moveToFirst()) {
+					"Source-evidence state disappeared inside full-clear transaction"
+				}
+				SourceEvidenceState(
+					id = cursor.getInt(0),
+					revision = cursor.getLong(1),
+					collectedDataEpoch = cursor.getLong(2),
+					retainedFromMs = if (cursor.isNull(3)) null else cursor.getLong(3),
+					deletedSourceEventHighWaterOrdinal = cursor.getLong(4),
+					updatedAtMs = cursor.getLong(5),
+				)
+			}.also { state ->
+				check(
+					state.id == SourceEvidenceState.SINGLETON_ID &&
+						state.revision >= 0L &&
+						state.collectedDataEpoch >= 0L &&
+						(state.retainedFromMs == null || state.retainedFromMs >= 0L) &&
+						state.deletedSourceEventHighWaterOrdinal >= 0L &&
+						state.updatedAtMs >= 0L,
+				) { "Stored source-evidence state is invalid" }
+			}
+		}
+
+		private fun publishFullDeletionState(
+			database: AppDatabase,
+			oldState: SourceEvidenceState,
+			newCollectedDataEpoch: Long,
+			newRevision: Long,
+			retainedFromMs: Long?,
+			deletedSourceEventHighWaterOrdinal: Long,
+			updatedAtMs: Long,
+		) {
+			database.openHelper.writableDatabase.compileStatement(
+				"UPDATE source_evidence_state SET revision = ?, collected_data_epoch = ?, " +
+					"retained_from_ms = ?, deleted_source_event_high_water_ordinal = ?, " +
+					"updated_at_ms = ? WHERE id = ? AND revision = ? " +
+					"AND collected_data_epoch = ?",
+			).use { statement ->
+				statement.bindLong(1, newRevision)
+				statement.bindLong(2, newCollectedDataEpoch)
+				if (retainedFromMs == null) {
+					statement.bindNull(3)
+				} else {
+					statement.bindLong(3, retainedFromMs)
+				}
+				statement.bindLong(4, deletedSourceEventHighWaterOrdinal)
+				statement.bindLong(5, updatedAtMs)
+				statement.bindLong(6, oldState.id.toLong())
+				statement.bindLong(7, oldState.revision)
+				statement.bindLong(8, oldState.collectedDataEpoch)
+				check(statement.executeUpdateDelete() == 1) {
+					"Unable to publish full collected-data deletion"
+				}
 			}
 		}
 
@@ -777,8 +889,9 @@ abstract class AppDatabase : RoomDatabase() {
 			database.locationSampleDao().deleteAll()
 			database.locationObservationDao().deleteAll()
 			database.locationObservationDecisionDao().deleteAll()
-			// Payload-free source fences deliberately survive repeated full clears: portable files
-			// have no previous local epoch and must not resurrect an explicitly deleted run.
+			// Payload-free source fences deliberately survive repeated full clears. Imported
+			// Ambient Steps payload was authenticated and removed before this common cascade; its
+			// day fences, protected identities, and source fence remain as deletion authority.
 			database.stepFactRevisionDao().deleteAll()
 			database.ambientStepsFactRevisionDao().deleteAll()
 			database.ambientStepsImportStateDao().deleteAllAuthorityTransitions()

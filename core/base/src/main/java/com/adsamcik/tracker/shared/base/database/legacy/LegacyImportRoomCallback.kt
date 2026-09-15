@@ -25,6 +25,11 @@ class LegacyImportRoomCallback(
 		db.execSQL(
 			"INSERT OR IGNORE INTO source_destination_owner " +
 				"(source_kind, destination, owner, owner_generation, updated_at_ms) " +
+				"VALUES (1, 'SESSION_LOCATION', 'EXISTING_LOCATION_CANONICAL_PIPELINE', 1, 0)",
+		)
+		db.execSQL(
+			"INSERT OR IGNORE INTO source_destination_owner " +
+				"(source_kind, destination, owner, owner_generation, updated_at_ms) " +
 				"VALUES (2, 'SESSION_ACTIVITY', 'LEGACY_ACTIVITY_SNAPSHOT', 1, 0)",
 		)
 		db.execSQL(
