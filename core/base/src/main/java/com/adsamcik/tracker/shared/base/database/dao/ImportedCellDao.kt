@@ -180,6 +180,98 @@ abstract class ImportedCellDao {
 	): List<ImportedCellHistoryCandidate>
 
 	@Query(
+		"""
+		SELECT
+		  (SELECT COUNT(*) FROM imported_cell_entry_revision
+		   WHERE identity IN (:identities)) AS revision_rows,
+		  (SELECT COUNT(*) FROM imported_cell_receipt
+		   WHERE entry_identity IN (:identities)) AS receipt_rows,
+		  (SELECT COUNT(*) FROM imported_cell_run
+		   WHERE entry_identity IN (:identities)) AS run_rows,
+		  (SELECT COUNT(*) FROM imported_cell_observation
+		   WHERE entry_identity IN (:identities)) AS observation_rows,
+		  (SELECT COUNT(*) FROM imported_cell_entry_deletion
+		   WHERE entry_identity IN (:identities)) AS entry_deletion_rows,
+		  (SELECT COUNT(*) FROM imported_cell_deletion_generation
+		   WHERE entry_identity IN (:identities)) AS run_deletion_rows,
+		  COALESCE((
+		    SELECT SUM(
+		      length(CAST(identity AS BLOB)) +
+		      length(CAST(content_checksum AS BLOB)) +
+		      length(CAST(source_format AS BLOB)) +
+		      length(CAST(session_mode AS BLOB)) +
+		      length(CAST(subscription_grouping AS BLOB)) +
+		      length(CAST(import_job_id AS BLOB)) +
+		      length(CAST(import_entry_key AS BLOB)) +
+		      length(CAST(import_source_name AS BLOB))
+		    )
+		    FROM imported_cell_entry_revision
+		    WHERE identity IN (:identities)
+		  ), 0) +
+		  COALESCE((
+		    SELECT SUM(
+		      length(CAST(import_job_id AS BLOB)) +
+		      length(CAST(import_entry_key AS BLOB)) +
+		      length(CAST(import_source_name AS BLOB)) +
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(entry_content_checksum AS BLOB))
+		    )
+		    FROM imported_cell_receipt
+		    WHERE entry_identity IN (:identities)
+		  ), 0) +
+		  COALESCE((
+		    SELECT SUM(
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(identity AS BLOB)) +
+		      length(CAST(deletion_scope_digest AS BLOB)) +
+		      length(CAST(content_checksum AS BLOB)) +
+		      length(CAST(capture_coverage AS BLOB)) +
+		      length(CAST(availability AS BLOB)) +
+		      length(CAST(acquisition_completeness AS BLOB)) +
+		      length(CAST(subscription_grouping AS BLOB))
+		    )
+		    FROM imported_cell_run
+		    WHERE entry_identity IN (:identities)
+		  ), 0) +
+		  COALESCE((
+		    SELECT SUM(
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(run_identity AS BLOB)) +
+		      length(CAST(identity AS BLOB)) +
+		      length(CAST(COALESCE(aggregate_owner_identity, '') AS BLOB)) +
+		      length(CAST(content_checksum AS BLOB)) +
+		      length(CAST(stored_zone_id AS BLOB)) +
+		      length(CAST(child_completeness AS BLOB)) +
+		      length(CAST(subscription_grouping AS BLOB))
+		    )
+		    FROM imported_cell_observation
+		    WHERE entry_identity IN (:identities)
+		  ), 0) +
+		  COALESCE((
+		    SELECT SUM(
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(effect_checksum AS BLOB))
+		    )
+		    FROM imported_cell_entry_deletion
+		    WHERE entry_identity IN (:identities)
+		  ), 0) +
+		  COALESCE((
+		    SELECT SUM(
+		      length(CAST(run_identity AS BLOB)) +
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(deletion_scope_digest AS BLOB)) +
+		      length(CAST(effect_checksum AS BLOB))
+		    )
+		    FROM imported_cell_deletion_generation
+		    WHERE entry_identity IN (:identities)
+		  ), 0) AS text_bytes
+		""",
+	)
+	abstract suspend fun historyPreflight(
+		identities: List<String>,
+	): ImportedCellHistoryPreflight
+
+	@Query(
 		"SELECT EXISTS(SELECT 1 FROM imported_cell_entry_revision AS entry " +
 			"WHERE entry.import_revision = (" +
 			"SELECT MAX(candidate.import_revision) FROM imported_cell_entry_revision AS candidate " +
@@ -570,6 +662,16 @@ data class ImportedCellHistoryCandidate(
 	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
 	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
 	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+)
+
+data class ImportedCellHistoryPreflight(
+	@ColumnInfo(name = "revision_rows") val revisionRows: Long,
+	@ColumnInfo(name = "receipt_rows") val receiptRows: Long,
+	@ColumnInfo(name = "run_rows") val runRows: Long,
+	@ColumnInfo(name = "observation_rows") val observationRows: Long,
+	@ColumnInfo(name = "entry_deletion_rows") val entryDeletionRows: Long,
+	@ColumnInfo(name = "run_deletion_rows") val runDeletionRows: Long,
+	@ColumnInfo(name = "text_bytes") val textBytes: Long,
 )
 
 data class ImportedCellRunIdentityOwner(

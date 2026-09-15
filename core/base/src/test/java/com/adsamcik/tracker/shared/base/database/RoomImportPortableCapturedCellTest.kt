@@ -1424,13 +1424,14 @@ class RoomImportPortableCapturedCellTest {
 		}
 
 		result.size shouldBe 100
-		statements.size shouldBeLessThanOrEqual 190
+		statements.size shouldBeLessThanOrEqual 220
 		statements.count { it.contains("FROM source_evidence_state", true) } shouldBe 1
 		statements.count { it.contains("FROM logical_tracking_session", true) } shouldBe 1
 		statements.count { it.contains("FROM source_service_run", true) } shouldBe 1
 		statements.count { it.contains("FROM cell_captured_fact_revision", true) } shouldBe 1
 		statements.count { it.contains("FROM source_session_completeness", true) } shouldBe 1
 		statements.count { it.contains("FROM cell_capture_deletion_generation", true) } shouldBe 1
+		statements.count { it.contains("AS revision_rows", true) } shouldBe 25
 		statements.count { it.contains("UNION ALL", true) } shouldBe 25
 	}
 

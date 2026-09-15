@@ -74,6 +74,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Suppress("LargeClass")
 class ImportedCellHistoryMapperTest {
 	private lateinit var database: AppDatabase
 
@@ -645,7 +646,131 @@ class ImportedCellHistoryMapperTest {
 					it.contains("ORDER BY entry.start_time_ms DESC", true)
 			} shouldBe 8
 			statements.count { it.startsWith("SELECT EXISTS", true) } shouldBe 1
+			statements.count { it.contains("AS revision_rows", true) } shouldBe 64
 			statements.count { it.contains("UNION ALL", true) } shouldBe 64
+		}
+
+	@Test
+	fun `aggregate correction and run budgets fail before loading the overflowing batch`() =
+		runTest {
+			database.close()
+			val statements = CopyOnWriteArrayList<String>()
+			database = Room.inMemoryDatabaseBuilder(
+				ApplicationProvider.getApplicationContext<Application>(),
+				AppDatabase::class.java,
+			).allowMainThreadQueries()
+				.setQueryCallback(
+					{ sql, _ ->
+						val normalized = sql.trimStart()
+						if (normalized.startsWith("SELECT", true) ||
+							normalized.startsWith("WITH", true)
+						) statements += normalized
+					},
+					Executor { command -> command.run() },
+				)
+				.build()
+			database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+			val importer = RoomImportPortableCapturedCell(database, Dispatchers.Unconfined)
+			repeat(17) { candidateIndex ->
+				val logicalLocal = "aggregate-budget-$candidateIndex"
+				val firstStart = 10_000L + candidateIndex * 1_000L
+				(1..16).forEach { revision ->
+					val firstObservation = cellObservation(
+						localId = "aggregate-budget-$candidateIndex-first",
+						coverageStartTimeMs = firstStart + 1L,
+						observedTimeMs = firstStart + 2L,
+						wallTimeUncertaintyMs = 1L,
+						semanticRevision = revision.toLong(),
+						qualityFlags = revision.toLong() - 1L,
+					)
+					val secondStart = firstStart + 100L
+					val secondObservation = cellObservation(
+						localId = "aggregate-budget-$candidateIndex-second",
+						coverageStartTimeMs = secondStart + 1L,
+						observedTimeMs = secondStart + 2L,
+						wallTimeUncertaintyMs = 1L,
+						semanticRevision = revision.toLong(),
+						qualityFlags = revision.toLong() - 1L,
+					)
+					val value = cellEntryFromRuns(
+						logicalLocal = logicalLocal,
+						runs = listOf(
+							cellRun(
+								logicalLocal,
+								"aggregate-budget-$candidateIndex-first-run",
+								listOf(firstObservation),
+								startTimeMs = firstStart,
+								endTimeMs = firstStart + 20L,
+							),
+							cellRun(
+								logicalLocal,
+								"aggregate-budget-$candidateIndex-second-run",
+								listOf(secondObservation),
+								startTimeMs = secondStart,
+								endTimeMs = secondStart + 20L,
+							),
+						),
+					)
+					importer.importEntry(
+						importRequest(
+							value,
+							"aggregate-budget-$candidateIndex-$revision",
+						),
+					) shouldBe ImportPortableCapturedCellResult.Applied(
+						importRevision = revision.toLong(),
+						physicalRunCount = 2,
+						observationCount = 2,
+					)
+				}
+			}
+			statements.clear()
+
+			database.withTransaction {
+				repository().recentImportedEligibleForSharedHistoryInTransaction(1)
+			} shouldBe ImportedHistoryEligiblePage.Unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
+			)
+			statements.count { it.contains("AS revision_rows", true) } shouldBe 3
+			statements.count {
+				it.contains("SELECT * FROM imported_cell_entry_revision", true)
+			} shouldBe 2
+			statements.count { it.contains("UNION ALL", true) } shouldBe 2
+		}
+
+	@Test
+	fun `aggregate imported text bytes fail before an incomplete eligible page is returned`() =
+		runTest {
+			database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+			val importer = RoomImportPortableCapturedCell(database, Dispatchers.Unconfined)
+			val maximumSourceName = "s".repeat(4_096)
+			repeat(129) { index ->
+				val startTimeMs = 50_000L + index * 100L
+				val value = cellEntry(
+					logicalLocal = "text-budget-$index",
+					runLocal = "text-budget-run-$index",
+					observation = cellObservation(
+						localId = "text-budget-observation-$index",
+						coverageStartTimeMs = startTimeMs + 1L,
+						observedTimeMs = startTimeMs + 2L,
+						wallTimeUncertaintyMs = 1L,
+					),
+					startTimeMs = startTimeMs,
+					endTimeMs = startTimeMs + 10L,
+				)
+				importer.importEntry(
+					importRequest(
+						value,
+						suffix = "text-budget-$index",
+						sourceName = maximumSourceName,
+					),
+				) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+			}
+
+			database.withTransaction {
+				repository().recentImportedEligibleForSharedHistoryInTransaction(1)
+			} shouldBe ImportedHistoryEligiblePage.Unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
+			)
 		}
 
 	@Test
@@ -702,6 +827,7 @@ class ImportedCellHistoryMapperTest {
 			statements.count {
 				it.contains("FROM cell_capture_deletion_generation", true)
 			} shouldBe 1
+			statements.count { it.contains("AS revision_rows", true) } shouldBe 10
 			statements.count { it.contains("UNION ALL", true) } shouldBe 10
 			statements.count {
 				it.contains("FROM imported_cell_entry_revision AS entry", true) &&
@@ -727,6 +853,7 @@ class ImportedCellHistoryMapperTest {
 				it.contains("FROM imported_cell_entry_revision AS entry", true) &&
 					it.contains("ORDER BY entry.start_time_ms DESC", true)
 			} shouldBe 1
+			statements.count { it.contains("AS revision_rows", true) } shouldBe 8
 			statements.count { it.contains("UNION ALL", true) } shouldBe 8
 		}
 
@@ -739,13 +866,14 @@ class ImportedCellHistoryMapperTest {
 	private fun importRequest(
 		entry: PortableCapturedCellEntryV1,
 		suffix: String = "default",
+		sourceName: String = "backup.trackercell",
 	) =
 		ImportPortableCapturedCellRequest(
 			entry = entry,
 			receipt = PortableCellImportReceipt(
 				jobId = "job-$suffix",
 				entryKey = "entry-$suffix",
-				sourceName = "backup.trackercell",
+				sourceName = sourceName,
 				receivedAtMs = 500L,
 			),
 			expectedCollectedDataEpoch = EPOCH,
@@ -896,10 +1024,39 @@ private fun cellEntry(
 	acquisition: PortableCellAcquisitionCompleteness = PortableCellAcquisitionCompleteness.COMPLETE,
 	startTimeMs: Long = 10L,
 	endTimeMs: Long = 20L,
-): PortableCapturedCellEntryV1 {
+): PortableCapturedCellEntryV1 = cellEntryFromRuns(
+	logicalLocal = logicalLocal,
+	runs = listOf(
+		cellRun(
+			logicalLocal = logicalLocal,
+			runLocal = runLocal,
+			observations = listOf(observation),
+			acquisition = acquisition,
+			startTimeMs = startTimeMs,
+			endTimeMs = endTimeMs,
+		),
+	),
+)
+
+private fun cellRun(
+	logicalLocal: String,
+	runLocal: String,
+	observations: List<PortableCapturedCellObservationV1>,
+	acquisition: PortableCellAcquisitionCompleteness =
+		PortableCellAcquisitionCompleteness.COMPLETE,
+	startTimeMs: Long,
+	endTimeMs: Long,
+): PortableCapturedCellRunV1 {
 	val runIdentity = PortableCellOpaqueIdentity.derive(
 		PortableCellIdentityKind.PHYSICAL_RUN,
 		runLocal,
+	)
+	val orderedObservations = observations.sortedWith(
+		compareBy(
+			PortableCapturedCellObservationV1::coverageStartTimeMs,
+			PortableCapturedCellObservationV1::observedTimeMs,
+			{ it.identity.value },
+		),
 	)
 	val runChecksum = portableCellDigest("tracker-portable-cell-run-v1") {
 		writeCellString(runIdentity.value)
@@ -911,11 +1068,13 @@ private fun cellEntry(
 		writeCellString(acquisition.name)
 		writeBoolean(false)
 		writeCellString(PortableCellSubscriptionGrouping.UNKNOWN.name)
-		writeInt(1)
-		writeCellString(observation.identity.value)
-		writeCellString(observation.contentChecksum.value)
+		writeInt(orderedObservations.size)
+		orderedObservations.forEach { observation ->
+			writeCellString(observation.identity.value)
+			writeCellString(observation.contentChecksum.value)
+		}
 	}
-	val run = PortableCapturedCellRunV1(
+	return PortableCapturedCellRunV1(
 		identity = runIdentity,
 		deletionScopeDigest = PortableCellDeletionScopeDigest.derive(logicalLocal, runLocal),
 		contentChecksum = PortableCellDigest(runChecksum),
@@ -926,12 +1085,26 @@ private fun cellEntry(
 		acquisitionCompleteness = acquisition,
 		retentionLoss = false,
 		subscriptionGrouping = PortableCellSubscriptionGrouping.UNKNOWN,
-		observations = listOf(observation),
+		observations = orderedObservations,
+	)
+}
+
+private fun cellEntryFromRuns(
+	logicalLocal: String,
+	runs: List<PortableCapturedCellRunV1>,
+): PortableCapturedCellEntryV1 {
+	val orderedRuns = runs.sortedWith(
+		compareBy(
+			PortableCapturedCellRunV1::startTimeMs,
+			{ it.identity.value },
+		),
 	)
 	val entryIdentity = PortableCellOpaqueIdentity.derive(
 		PortableCellIdentityKind.LOGICAL_ENTRY,
 		logicalLocal,
 	)
+	val startTimeMs = orderedRuns.minOf(PortableCapturedCellRunV1::startTimeMs)
+	val endTimeMs = orderedRuns.maxOf(PortableCapturedCellRunV1::endTimeMs)
 	val entryChecksum = portableCellDigest("tracker-portable-cell-entry-v1") {
 		writeCellString("tracker-portable-captured-cell")
 		writeInt(1)
@@ -940,9 +1113,11 @@ private fun cellEntry(
 		writeLong(startTimeMs)
 		writeLong(endTimeMs)
 		writeCellString(PortableCellSubscriptionGrouping.UNKNOWN.name)
-		writeInt(1)
-		writeCellString(run.identity.value)
-		writeCellString(run.contentChecksum.value)
+		writeInt(orderedRuns.size)
+		orderedRuns.forEach { run ->
+			writeCellString(run.identity.value)
+			writeCellString(run.contentChecksum.value)
+		}
 	}
 	return PortableCapturedCellEntryV1(
 		identity = entryIdentity,
@@ -951,7 +1126,7 @@ private fun cellEntry(
 		startTimeMs = startTimeMs,
 		endTimeMs = endTimeMs,
 		subscriptionGrouping = PortableCellSubscriptionGrouping.UNKNOWN,
-		runs = listOf(run),
+		runs = orderedRuns,
 	)
 }
 
@@ -962,6 +1137,8 @@ private fun cellObservation(
 	observedTimeMs: Long = 110L,
 	wallTimeUncertaintyMs: Long = 2L,
 	storedZoneId: String = "UTC",
+	semanticRevision: Long = 1L,
+	qualityFlags: Long = 0L,
 ): PortableCapturedCellObservationV1 {
 	val identity = PortableCellOpaqueIdentity.derive(PortableCellIdentityKind.OBSERVATION, localId)
 	val latestPossibleTimeMs = Math.addExact(observedTimeMs, wallTimeUncertaintyMs)
@@ -970,8 +1147,8 @@ private fun cellObservation(
 	val staleChildCount = submittedChildCount - 2
 	val checksum = portableCellDigest("tracker-portable-cell-observation-v1") {
 		writeCellString(identity.value)
-		writeLong(1L)
-		writeNullableLong(null)
+		writeLong(semanticRevision)
+		writeNullableLong(semanticRevision.takeIf { it > 1L }?.minus(1L))
 		writeCellString(null)
 		writeNullableLong(null)
 		writeLong(coverageStartTimeMs)
@@ -987,13 +1164,13 @@ private fun cellObservation(
 			1, 1, 0, 0, 0, 0, 1, 1,
 		).forEach(::writeInt)
 		writeBoolean(true)
-		writeLong(0L)
+		writeLong(qualityFlags)
 		writeNullableDouble(0.5)
 	}
 	return PortableCapturedCellObservationV1(
 		identity = identity,
-		semanticRevision = 1L,
-		supersedesSemanticRevision = null,
+		semanticRevision = semanticRevision,
+		supersedesSemanticRevision = semanticRevision.takeIf { it > 1L }?.minus(1L),
 		aggregateOwnerIdentity = null,
 		aggregateOwnerSemanticRevision = null,
 		contentChecksum = PortableCellDigest(checksum),
@@ -1029,7 +1206,7 @@ private fun cellObservation(
 		weakObservationCount = 1,
 		knownQualityObservationCount = 1,
 		allKnownQualityIsWeak = true,
-		qualityFlags = 0L,
+		qualityFlags = qualityFlags,
 		qualityConfidence = 0.5,
 	)
 }

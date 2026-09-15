@@ -6,6 +6,8 @@ import com.adsamcik.tracker.shared.base.database.DeletedCapturedCellSelectionAut
 import com.adsamcik.tracker.shared.base.database.DeletedImportedCellSelectionAuthentication
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductEvaluation
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductFailure
+import com.adsamcik.tracker.shared.base.database.ImportedCellProductReadBudget
+import com.adsamcik.tracker.shared.base.database.ImportedCellProductReadUsage
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductReader
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductScanContextFailure
 import com.adsamcik.tracker.shared.base.database.PortableCapturedCellEntryV1
@@ -459,6 +461,7 @@ internal class DefaultCellHistoryRepository internal constructor(
 		var localOriginComparisons = 0
 		var beforeStartTimeMs: Long? = null
 		var beforeIdentity: String? = null
+		var remainingReadBudget = ImportedCellProductReadBudget.sharedHistory()
 		val scanContext = try {
 			importedProductReader.openRecentScanContextInTransaction()
 		} catch (cancelled: kotlinx.coroutines.CancellationException) {
@@ -502,9 +505,10 @@ internal class DefaultCellHistoryRepository internal constructor(
 				break
 			}
 			val pageLimit = minOf(SHARED_HISTORY_IMPORTED_PAGE_SIZE, remaining)
-			val evaluations = try {
+			val page = try {
 				importedProductReader.selectRecentPageInTransaction(
 					context = scanContext,
+					budget = remainingReadBudget,
 					limit = pageLimit,
 					beforeStartTimeMs = beforeStartTimeMs,
 					beforeIdentity = beforeIdentity,
@@ -516,7 +520,12 @@ internal class DefaultCellHistoryRepository internal constructor(
 					SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
 				)
 			}
+			val evaluations = page.evaluations
 			if (evaluations.isEmpty()) break
+			remainingReadBudget = remainingReadBudget.consume(page.usage)
+				?: return importedEligibleUnavailable(
+					SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
+				)
 			scanned += evaluations.size
 			for (evaluation in evaluations) {
 				currentCoroutineContext().ensureActive()
@@ -597,6 +606,18 @@ internal class DefaultCellHistoryRepository internal constructor(
 					importRevision = readable.candidate.importRevision,
 					contentChecksum = ImportedCellHistoryDigest(readable.candidate.contentChecksum),
 				)
+				remainingReadBudget = remainingReadBudget.consume(
+					ImportedCellProductReadUsage(
+						revisionRows = 0,
+						receiptRows = 0,
+						runRows = 0,
+						observationRows = 0,
+						publicObservationRows = entry.observations.size,
+						textBytes = 0L,
+					),
+				) ?: return importedEligibleUnavailable(
+					SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
+				)
 				val carrier = try {
 					CellImportedHistoryEligibleEntry(
 						entry = entry,
@@ -616,6 +637,12 @@ internal class DefaultCellHistoryRepository internal constructor(
 				}
 				accepted += carrier
 			}
+			accepted.sortWith { left, right ->
+				importedHistoryRecencyOrder.compare(left.recency, right.recency)
+			}
+			if (accepted.size > limit) {
+				accepted.subList(limit, accepted.size).clear()
+			}
 			val last = evaluations.last().candidate
 			beforeStartTimeMs = last.startTimeMs
 			beforeIdentity = last.identity
@@ -623,9 +650,7 @@ internal class DefaultCellHistoryRepository internal constructor(
 			if (evaluations.size < pageLimit) break
 		}
 		return ImportedHistoryEligiblePage.Available(
-			accepted.sortedWith { left, right ->
-				importedHistoryRecencyOrder.compare(left.recency, right.recency)
-			}.take(limit),
+			accepted.toList(),
 		)
 	}
 

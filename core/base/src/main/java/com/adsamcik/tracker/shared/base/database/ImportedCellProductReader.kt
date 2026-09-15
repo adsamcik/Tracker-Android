@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.base.database
 
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellHistoryCandidate
+import com.adsamcik.tracker.shared.base.database.dao.ImportedCellHistoryPreflight
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellLiveCompletenessOwner
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellLiveFactOwner
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellLiveRunOwner
@@ -93,17 +94,35 @@ class ImportedCellProductReader(
 		limit: Int,
 		beforeStartTimeMs: Long?,
 		beforeIdentity: String?,
-	): List<ImportedCellProductEvaluation> {
+	): List<ImportedCellProductEvaluation> = selectRecentPageInTransaction(
+		context = context,
+		budget = ImportedCellProductReadBudget.unbounded(),
+		limit = limit,
+		beforeStartTimeMs = beforeStartTimeMs,
+		beforeIdentity = beforeIdentity,
+	).evaluations
+
+	suspend fun selectRecentPageInTransaction(
+		context: ImportedCellProductScanContext,
+		budget: ImportedCellProductReadBudget,
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): ImportedCellProductScanPage {
 		val candidates = loadRecentCandidates(limit, beforeStartTimeMs, beforeIdentity)
 		if (context.issuer !== scanContextIssuer) {
-			return candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+			return ImportedCellProductScanPage(
+				candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE),
+				ImportedCellProductReadUsage.ZERO,
+			)
 		}
-		return evaluateCandidates(
+		return evaluateCandidatesWithBudget(
 			candidates = candidates,
 			beforeStartTimeMs = beforeStartTimeMs,
 			beforeIdentity = beforeIdentity,
 			maximumSize = limit,
 			context = context,
+			budget = budget,
 		)
 	}
 
@@ -224,79 +243,186 @@ class ImportedCellProductReader(
 		beforeIdentity: String?,
 		maximumSize: Int,
 		context: ImportedCellProductScanContext? = null,
-	): List<ImportedCellProductEvaluation> {
+	): List<ImportedCellProductEvaluation> = evaluateCandidatesWithBudget(
+		candidates = candidates,
+		beforeStartTimeMs = beforeStartTimeMs,
+		beforeIdentity = beforeIdentity,
+		maximumSize = maximumSize,
+		context = context,
+		budget = ImportedCellProductReadBudget.unbounded(),
+	).evaluations
+
+	private suspend fun evaluateCandidatesWithBudget(
+		candidates: List<ImportedCellHistoryCandidate>,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+		maximumSize: Int,
+		context: ImportedCellProductScanContext? = null,
+		budget: ImportedCellProductReadBudget,
+	): ImportedCellProductScanPage {
 		if (!isValidCandidatePage(candidates, beforeStartTimeMs, beforeIdentity, maximumSize)) {
-			return candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+			return ImportedCellProductScanPage(
+				candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE),
+				ImportedCellProductReadUsage.ZERO,
+			)
 		}
-		if (candidates.isEmpty()) return emptyList()
+		if (candidates.isEmpty()) {
+			return ImportedCellProductScanPage(
+				emptyList(),
+				ImportedCellProductReadUsage.ZERO,
+			)
+		}
 		val sourceContext = try {
 			context ?: loadPageContext()
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (failure: ImportedCellProductScanContextFailure) {
-			return candidates.unverifiable(failure.reason)
+			return ImportedCellProductScanPage(
+				candidates.unverifiable(failure.reason),
+				ImportedCellProductReadUsage.ZERO,
+			)
 		} catch (_: RuntimeException) {
-			return candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE)
+			return ImportedCellProductScanPage(
+				candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE),
+				ImportedCellProductReadUsage.ZERO,
+			)
 		}
 		val evaluated = mutableListOf<ImportedCellProductEvaluation>()
+		var remaining = budget
+		var usage = ImportedCellProductReadUsage.ZERO
 		candidates.chunked(ImportedCellDao.HISTORY_EVALUATION_BATCH_SIZE)
 			.forEachIndexed { index, batch ->
 				batchCheckpoint(index)
-				evaluated += evaluateBatch(batch, sourceContext)
+				val result = evaluateBatch(batch, sourceContext, remaining)
+				if (result.budgetExceeded) {
+					return ImportedCellProductScanPage(
+						candidates.unverifiable(
+							ImportedCellProductFailure.DEPENDENCY_OVERFLOW,
+							sourceContext,
+						),
+						usage,
+					)
+				}
+				remaining = remaining.consume(result.usage) ?: return ImportedCellProductScanPage(
+					candidates.unverifiable(
+						ImportedCellProductFailure.DEPENDENCY_OVERFLOW,
+						sourceContext,
+					),
+					usage,
+				)
+				usage += result.usage
+				evaluated += result.evaluations
 			}
-		return evaluated
+		return ImportedCellProductScanPage(evaluated, usage)
 	}
 
 	@Suppress("LongMethod")
 	private suspend fun evaluateBatch(
 		candidates: List<ImportedCellHistoryCandidate>,
 		context: ImportedCellProductScanContext,
-	): List<ImportedCellProductEvaluation> {
-		if (candidates.isEmpty()) return emptyList()
+		budget: ImportedCellProductReadBudget,
+	): ImportedCellProductBatchEvaluation {
+		if (candidates.isEmpty()) {
+			return ImportedCellProductBatchEvaluation(
+				emptyList(),
+				ImportedCellProductReadUsage.ZERO,
+				false,
+			)
+		}
 		val state = context.state
 		val identities = candidates.map(ImportedCellHistoryCandidate::identity)
+		val preflight = try {
+			database.importedCellDao().historyPreflight(identities)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			return batchFailure(
+				candidates,
+				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+				context,
+			)
+		}
+		val hierarchyUsage = try {
+			preflight.toReadUsage()
+		} catch (_: ArithmeticException) {
+			return batchFailure(
+				candidates,
+				ImportedCellProductFailure.DEPENDENCY_OVERFLOW,
+				context,
+				budgetExceeded = true,
+			)
+		}
+		if (!preflight.hasValidBounds(identities.size) ||
+			!budget.canLoadHierarchy(hierarchyUsage)
+		) {
+			return batchFailure(
+				candidates,
+				ImportedCellProductFailure.DEPENDENCY_OVERFLOW,
+				context,
+				budgetExceeded = true,
+			)
+		}
 		val loaded = try {
 			ImportedCellProductBatch(
 				headers = database.importedCellDao().entryRevisionsForHistory(
 					identities,
-					historyLimit(identities.size, ImportedCellDao.MAX_REVISIONS_PER_ENTRY),
+					exactRowLimit(preflight.revisionRows),
 				),
 				receipts = database.importedCellDao().receiptsForHistory(
 					identities,
-					historyLimit(identities.size, ImportedCellDao.MAX_RECEIPTS_PER_ENTRY),
+					exactRowLimit(preflight.receiptRows),
 				),
 				runs = database.importedCellDao().runsForHistory(
 					identities,
-					historyLimit(identities.size, ImportedCellDao.MAX_RUN_ROWS_PER_LINEAGE),
+					exactRowLimit(preflight.runRows),
 				),
 				observations = database.importedCellDao().observationsForHistory(
 					identities,
-					historyLimit(identities.size, ImportedCellDao.MAX_OBSERVATION_ROWS_PER_LINEAGE),
+					exactRowLimit(preflight.observationRows),
 				),
 				entryDeletions = database.importedCellDao().entryDeletionsForHistory(
 					identities,
-					historyLimit(identities.size, 1),
+					exactRowLimit(preflight.entryDeletionRows),
 				),
 				runDeletions = database.importedCellDao().deletionGenerationsForHistory(
 					identities,
-					historyLimit(identities.size, ImportedCellDao.MAX_RUN_ROWS_PER_LINEAGE),
+					exactRowLimit(preflight.runDeletionRows),
 				),
 			)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: ArithmeticException) {
-			return candidates.unverifiable(ImportedCellProductFailure.DEPENDENCY_OVERFLOW, context)
+			return batchFailure(
+				candidates,
+				ImportedCellProductFailure.DEPENDENCY_OVERFLOW,
+				context,
+				budgetExceeded = true,
+			)
 		} catch (_: RuntimeException) {
-			return candidates.unverifiable(
+			return batchFailure(
+				candidates,
+				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+				context,
+			)
+		}
+		if (!loaded.matches(preflight)) {
+			return batchFailure(
+				candidates,
 				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
 				context,
 			)
 		}
 		if (loaded.exceedsLimits(identities.size)) {
-			return candidates.unverifiable(ImportedCellProductFailure.DEPENDENCY_OVERFLOW, context)
+			return batchFailure(
+				candidates,
+				ImportedCellProductFailure.DEPENDENCY_OVERFLOW,
+				context,
+				budgetExceeded = true,
+			)
 		}
 		if (!loaded.belongsOnlyTo(identities)) {
-			return candidates.unverifiable(
+			return batchFailure(
+				candidates,
 				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
 				context,
 			)
@@ -310,7 +436,8 @@ class ImportedCellProductReader(
 			ImportedCellEntryDeletionEntity::entryIdentity,
 		)
 		if (entryDeletionsByIdentity.size != loaded.entryDeletions.size) {
-			return candidates.unverifiable(
+			return batchFailure(
+				candidates,
 				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
 				context,
 			)
@@ -411,7 +538,7 @@ class ImportedCellProductReader(
 			}
 		}
 
-		return candidates.map { candidate ->
+		val evaluations = candidates.map { candidate ->
 			failures[candidate.identity]?.let { reason ->
 				ImportedCellProductEvaluation.Unverifiable(
 					candidate,
@@ -420,6 +547,7 @@ class ImportedCellProductReader(
 				)
 			} ?: authenticated.getValue(candidate.identity).toEvaluation(requireNotNull(audit), state)
 		}
+		return ImportedCellProductBatchEvaluation(evaluations, hierarchyUsage, false)
 	}
 
 	private suspend fun loadPageContext(): ImportedCellProductScanContext {
@@ -752,8 +880,8 @@ class ImportedCellProductReader(
 		}
 	}
 
-	private fun historyLimit(identityCount: Int, perIdentity: Int): Int =
-		Math.addExact(Math.multiplyExact(identityCount, perIdentity), 1)
+	private fun exactRowLimit(rowCount: Long): Int =
+		Math.toIntExact(Math.addExact(rowCount, 1L))
 
 	private fun storedCorrupt(): Nothing = throw ImportedCellOwnershipFailure(
 		ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
@@ -873,6 +1001,119 @@ class ImportedCellProductScanContextFailure(
 	val reason: ImportedCellProductFailure,
 ) : IllegalArgumentException(reason.name)
 
+data class ImportedCellProductReadBudget(
+	val revisionRows: Int,
+	val receiptRows: Int,
+	val runRows: Int,
+	val observationRows: Int,
+	val publicObservationRows: Int,
+	val textBytes: Long,
+) {
+	init {
+		require(
+			listOf(
+				revisionRows,
+				receiptRows,
+				runRows,
+				observationRows,
+				publicObservationRows,
+			).all { it >= 0 },
+		)
+		require(textBytes >= 0L)
+	}
+
+	fun consume(usage: ImportedCellProductReadUsage): ImportedCellProductReadBudget? =
+		takeIf { canLoad(usage) }?.let {
+			copy(
+				revisionRows = revisionRows - usage.revisionRows,
+				receiptRows = receiptRows - usage.receiptRows,
+				runRows = runRows - usage.runRows,
+				observationRows = observationRows - usage.observationRows,
+				publicObservationRows = publicObservationRows - usage.publicObservationRows,
+				textBytes = textBytes - usage.textBytes,
+			)
+		}
+
+	internal fun canLoadHierarchy(usage: ImportedCellProductReadUsage): Boolean =
+		usage.revisionRows <= revisionRows &&
+			usage.receiptRows <= receiptRows &&
+			usage.runRows <= runRows &&
+			usage.observationRows <= observationRows &&
+			usage.textBytes <= textBytes
+
+	internal fun canLoad(usage: ImportedCellProductReadUsage): Boolean =
+		canLoadHierarchy(usage) && usage.publicObservationRows <= publicObservationRows
+
+	companion object {
+		fun sharedHistory() = ImportedCellProductReadBudget(
+			revisionRows = 256,
+			receiptRows = 512,
+			runRows = 256,
+			observationRows = 4_096,
+			publicObservationRows = 4_096,
+			textBytes = 1L * 1_024L * 1_024L,
+		)
+
+		internal fun unbounded() = ImportedCellProductReadBudget(
+			revisionRows = Int.MAX_VALUE,
+			receiptRows = Int.MAX_VALUE,
+			runRows = Int.MAX_VALUE,
+			observationRows = Int.MAX_VALUE,
+			publicObservationRows = Int.MAX_VALUE,
+			textBytes = Long.MAX_VALUE,
+		)
+	}
+}
+
+data class ImportedCellProductReadUsage(
+	val revisionRows: Int,
+	val receiptRows: Int,
+	val runRows: Int,
+	val observationRows: Int,
+	val publicObservationRows: Int,
+	val textBytes: Long,
+) {
+	init {
+		require(
+			listOf(
+				revisionRows,
+				receiptRows,
+				runRows,
+				observationRows,
+				publicObservationRows,
+			).all { it >= 0 },
+		)
+		require(textBytes >= 0L)
+	}
+
+	operator fun plus(other: ImportedCellProductReadUsage) = ImportedCellProductReadUsage(
+		revisionRows = Math.addExact(revisionRows, other.revisionRows),
+		receiptRows = Math.addExact(receiptRows, other.receiptRows),
+		runRows = Math.addExact(runRows, other.runRows),
+		observationRows = Math.addExact(observationRows, other.observationRows),
+		publicObservationRows = Math.addExact(
+			publicObservationRows,
+			other.publicObservationRows,
+		),
+		textBytes = Math.addExact(textBytes, other.textBytes),
+	)
+
+	companion object {
+		val ZERO = ImportedCellProductReadUsage(0, 0, 0, 0, 0, 0L)
+	}
+}
+
+data class ImportedCellProductScanPage(
+	val evaluations: List<ImportedCellProductEvaluation>,
+	val usage: ImportedCellProductReadUsage,
+)
+
+private data class ImportedCellProductBatchEvaluation(
+	val evaluations: List<ImportedCellProductEvaluation>,
+	val usage: ImportedCellProductReadUsage,
+	val budgetExceeded: Boolean,
+)
+
 private data class ImportedCellProductBatch(
 	val headers: List<ImportedCellEntryRevisionEntity>,
 	val receipts: List<ImportedCellReceiptEntity>,
@@ -889,6 +1130,14 @@ private data class ImportedCellProductBatch(
 			entryDeletions.size > identityCount ||
 			runDeletions.size > identityCount * ImportedCellDao.MAX_RUN_ROWS_PER_LINEAGE
 
+	fun matches(preflight: ImportedCellHistoryPreflight): Boolean =
+		headers.size.toLong() == preflight.revisionRows &&
+			receipts.size.toLong() == preflight.receiptRows &&
+			runs.size.toLong() == preflight.runRows &&
+			observations.size.toLong() == preflight.observationRows &&
+			entryDeletions.size.toLong() == preflight.entryDeletionRows &&
+			runDeletions.size.toLong() == preflight.runDeletionRows
+
 	fun belongsOnlyTo(identities: List<String>): Boolean {
 		val expected = identities.toHashSet()
 		return headers.all { it.identity in expected } &&
@@ -899,6 +1148,47 @@ private data class ImportedCellProductBatch(
 			runDeletions.all { it.entryIdentity in expected }
 	}
 }
+
+private fun ImportedCellHistoryPreflight.hasValidBounds(identityCount: Int): Boolean {
+	if (identityCount <= 0 || listOf(
+			revisionRows,
+			receiptRows,
+			runRows,
+			observationRows,
+			entryDeletionRows,
+			runDeletionRows,
+			textBytes,
+		).any { it < 0L }
+	) return false
+	val identities = identityCount.toLong()
+	return revisionRows <= identities * ImportedCellDao.MAX_REVISIONS_PER_ENTRY &&
+		receiptRows <= identities * ImportedCellDao.MAX_RECEIPTS_PER_ENTRY &&
+		runRows <= identities * ImportedCellDao.MAX_RUN_ROWS_PER_LINEAGE &&
+		observationRows <= identities * ImportedCellDao.MAX_OBSERVATION_ROWS_PER_LINEAGE &&
+		entryDeletionRows <= identities &&
+		runDeletionRows <= identities * ImportedCellDao.MAX_RUN_ROWS_PER_LINEAGE
+}
+
+private fun ImportedCellHistoryPreflight.toReadUsage() = ImportedCellProductReadUsage(
+	revisionRows = Math.toIntExact(Math.addExact(revisionRows, entryDeletionRows)),
+	receiptRows = Math.toIntExact(receiptRows),
+	runRows = Math.toIntExact(Math.addExact(runRows, runDeletionRows)),
+	observationRows = Math.toIntExact(observationRows),
+	publicObservationRows = 0,
+	textBytes = textBytes,
+)
+
+private fun batchFailure(
+	candidates: List<ImportedCellHistoryCandidate>,
+	reason: ImportedCellProductFailure,
+	context: ImportedCellProductScanContext,
+	usage: ImportedCellProductReadUsage = ImportedCellProductReadUsage.ZERO,
+	budgetExceeded: Boolean = false,
+) = ImportedCellProductBatchEvaluation(
+	evaluations = candidates.unverifiable(reason, context),
+	usage = usage,
+	budgetExceeded = budgetExceeded,
+)
 
 private data class ImportedCellProductIdentityGraph(
 	val kinds: Map<String, PortableCellIdentityKind>,
