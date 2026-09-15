@@ -45,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -62,10 +63,15 @@ import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.presenter.TripDetailInsights
 import com.adsamcik.tracker.statistics.presenter.TripDetailPresenterViewModel
+import com.adsamcik.tracker.statistics.presenter.TripDetailSourcePresentation
 import com.adsamcik.tracker.statistics.presenter.TripDetailState
 import com.adsamcik.tracker.statistics.presenter.TripDetailStepsState
 import com.adsamcik.tracker.statistics.presenter.RouteEmptyReason
 import com.adsamcik.tracker.statistics.presenter.resolveRouteEmptyReason
+import com.adsamcik.tracker.statistics.presenter.supportsLocationPresentation
+import com.adsamcik.tracker.stats.api.repository.PressureHistory
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
 import com.adsamcik.tracker.stats.api.repository.TripSummary
 import com.adsamcik.tracker.shared.model.SegmentSource
 import java.time.Instant
@@ -102,7 +108,7 @@ fun TripDetailRoute(
 	val insights by viewModel.insights.collectAsStateWithLifecycle()
 	var showMenu by remember { mutableStateOf(false) }
 	val context = LocalContext.current
-	LaunchedEffect(loadedState?.trip) {
+	LaunchedEffect(loadedState?.trip, loadedState?.sourcePresentation) {
 		if (loadedState != null) {
 			viewModel.loadSupplementalData()
 		}
@@ -121,7 +127,9 @@ fun TripDetailRoute(
 					}
 				},
 				actions = {
-					if (loadedState != null && loadedState.trip.source != SegmentSource.PORTABLE_STEPS_IMPORT) {
+					if (loadedState != null && loadedState.supportsLocationPresentation &&
+						loadedState.trip.source != SegmentSource.PORTABLE_STEPS_IMPORT
+					) {
 						Box {
 							IconButton(onClick = { showMenu = true }) {
 								Icon(
@@ -177,6 +185,7 @@ fun TripDetailRoute(
 						TripOverview(
 							trip = s.trip,
 							steps = s.steps,
+							sourcePresentation = s.sourcePresentation,
 							insights = insights,
 							skiSegments = skiSegments,
 							routePreviewRenderer = routePreviewRenderer,
@@ -286,11 +295,31 @@ internal fun ImportedStepsOverview(
 private fun TripOverview(
 	trip: TripSummary,
 	steps: TripDetailStepsState,
+	sourcePresentation: TripDetailSourcePresentation,
 	insights: TripDetailInsights,
 	skiSegments: List<com.adsamcik.tracker.shared.model.SkiRunSegment> = emptyList(),
 	routePreviewRenderer: RoutePreviewRenderer,
 	onRetrySteps: () -> Unit,
 ) {
+	when (sourcePresentation) {
+		TripDetailSourcePresentation.Resolving -> {
+			TripDetailSourceResolving()
+			return
+		}
+		TripDetailSourcePresentation.Failed -> {
+			TripDetailSourceFailure(onRetry = onRetrySteps)
+			return
+		}
+		is TripDetailSourcePresentation.PressureOnly -> {
+			TripDetailPressureOverview(
+				trip = trip,
+				pressure = sourcePresentation.pressure,
+			)
+			return
+		}
+		TripDetailSourcePresentation.Standard -> Unit
+	}
+
 	val context = LocalContext.current
 	val resources = context.resources
 	val settings = remember { TrackerSettingsQuick.snapshot(context) }
@@ -426,6 +455,174 @@ private fun TripOverview(
 		}
 	}
 }
+
+@Composable
+private fun TripDetailSourceResolving() {
+	Box(
+		modifier = Modifier.fillMaxSize(),
+		contentAlignment = Alignment.Center,
+	) {
+		CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+	}
+}
+
+/** Fail-closed captured-source error surface; retry is the only exposed product action. */
+@Composable
+@Suppress("FunctionNaming") // Internal so Compose tests can guard the failure affordances.
+internal fun TripDetailSourceFailure(onRetry: () -> Unit) {
+	Box(
+		modifier = Modifier
+			.fillMaxSize()
+			.padding(32.dp)
+			.testTag("trip_detail_source_failed"),
+		contentAlignment = Alignment.Center,
+	) {
+		Column(horizontalAlignment = Alignment.CenterHorizontally) {
+			EmptyStateCard(
+				icon = Icons.Filled.ErrorOutline,
+				title = stringResource(R.string.trip_detail_source_failed),
+				subtitle = stringResource(R.string.trip_detail_source_failed_subtitle),
+			)
+			Spacer(Modifier.height(16.dp))
+			androidx.compose.material3.Button(onClick = onRetry) {
+				Text(stringResource(R.string.trip_detail_retry))
+			}
+		}
+	}
+}
+
+/** Contained selected-detail surface for authenticated exact Pressure-only capture history. */
+@Composable
+@Suppress("FunctionNaming") // Internal so Compose tests can guard the source-only surface.
+internal fun TripDetailPressureOverview(
+	trip: TripSummary,
+	pressure: PressureHistory,
+) {
+	val context = LocalContext.current
+	val startText = remember(trip.startTimeMs) {
+		dateTimeFormatter.format(
+			Instant.ofEpochMilli(trip.startTimeMs.raw).atZone(ZoneId.systemDefault()),
+		)
+	}
+	val endText = remember(trip.endTimeMs) {
+		dateTimeFormatter.format(
+			Instant.ofEpochMilli(trip.endTimeMs.raw).atZone(ZoneId.systemDefault()),
+		)
+	}
+	val durationText = remember(trip.duration) {
+		trip.duration.raw.formatAsDuration(context)
+	}
+	val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
+	Column(
+		modifier = Modifier
+			.fillMaxSize()
+			.verticalScroll(rememberScrollState())
+			.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 32.dp + navBottom)
+			.testTag("trip_detail_pressure_only"),
+		verticalArrangement = Arrangement.spacedBy(16.dp),
+	) {
+		GlassCard(modifier = Modifier.fillMaxWidth()) {
+			Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+				Text(
+					text = stringResource(R.string.trip_detail_pressure_session),
+					style = MaterialTheme.typography.titleMedium,
+					fontWeight = FontWeight.SemiBold,
+					color = MaterialTheme.colorScheme.onSurface,
+				)
+				Text(
+					text = "$startText → $endText",
+					style = MaterialTheme.typography.bodyMedium,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+				)
+			}
+		}
+		MetricCard(
+			label = stringResource(R.string.trip_detail_duration),
+			value = durationText,
+			modifier = Modifier.fillMaxWidth(),
+		)
+		TripDetailPressureCard(pressure)
+	}
+}
+
+@Composable
+@Suppress("FunctionNaming") // Internal so Compose tests can verify null and partial truthfulness.
+internal fun TripDetailPressureCard(pressure: PressureHistory) {
+	val summary = pressure.summary
+	GlassCard(
+		modifier = Modifier
+			.fillMaxWidth()
+			.testTag("trip_detail_pressure_card"),
+	) {
+		Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+			Text(
+				text = stringResource(R.string.trip_detail_pressure_title),
+				style = MaterialTheme.typography.titleMedium,
+				fontWeight = FontWeight.SemiBold,
+				color = MaterialTheme.colorScheme.onSurface,
+			)
+			FactRow(
+				label = stringResource(R.string.trip_detail_pressure_state),
+				value = stringResource(pressure.presentationState.labelResource),
+			)
+			if (summary != null) {
+				MetricRow(
+					firstLabel = stringResource(R.string.trip_detail_pressure_latest),
+					firstValue = formatPressure(summary.latestHectopascals),
+					secondLabel = stringResource(R.string.trip_detail_pressure_range),
+					secondValue = formatPressureRange(
+						summary.minimumHectopascals,
+						summary.maximumHectopascals,
+					),
+				)
+				FactRow(
+					label = stringResource(R.string.trip_detail_pressure_change),
+					value = formatPressureChange(
+						summary.latestHectopascals - summary.firstHectopascals,
+					),
+				)
+			}
+			FactRow(
+				label = stringResource(R.string.trip_detail_pressure_coverage),
+				value = stringResource(pressure.coverage.labelResource),
+			)
+			if (summary != null) {
+				FactRow(
+					label = stringResource(R.string.trip_detail_pressure_zones),
+					value = pressure.zoneAuthorities.joinToString(),
+				)
+			}
+		}
+	}
+}
+
+private val PressureHistoryPresentationState.labelResource: Int
+	get() = when (this) {
+		PressureHistoryPresentationState.MATERIALIZING ->
+			R.string.trip_detail_pressure_materializing
+		PressureHistoryPresentationState.PARTIAL -> R.string.trip_detail_pressure_partial
+		PressureHistoryPresentationState.READY -> R.string.trip_detail_pressure_ready
+		PressureHistoryPresentationState.UNAVAILABLE -> R.string.trip_detail_pressure_unavailable
+		PressureHistoryPresentationState.FAILED -> R.string.trip_detail_pressure_failed
+	}
+
+private val PressureHistoryCoverage.labelResource: Int
+	get() = when (this) {
+		PressureHistoryCoverage.NONE -> R.string.trip_detail_pressure_coverage_none
+		PressureHistoryCoverage.COMPLETE -> R.string.trip_detail_pressure_coverage_complete
+		PressureHistoryCoverage.PARTIAL -> R.string.trip_detail_pressure_coverage_partial
+		PressureHistoryCoverage.UNKNOWN -> R.string.trip_detail_pressure_coverage_unknown
+	}
+
+private fun formatPressure(value: Float): String =
+	String.format(Locale.getDefault(), "%.1f hPa", value)
+
+private fun formatPressureRange(minimum: Float, maximum: Float): String =
+	String.format(Locale.getDefault(), "%.1f–%.1f hPa", minimum, maximum)
+
+private fun formatPressureChange(change: Float): String =
+	String.format(Locale.getDefault(), "%+.1f hPa", change)
 
 @Composable
 @Suppress("FunctionNaming") // Internal only so Compose tests can verify failure recovery is reachable.

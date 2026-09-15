@@ -4,6 +4,9 @@ import androidx.compose.runtime.Immutable
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
+import com.adsamcik.tracker.stats.api.repository.PressureHistory
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
 
@@ -43,6 +46,16 @@ sealed interface DashboardLiveSessionPresentation {
 		}
 	}
 
+	/** Exact Pressure-only capture with a truthful source-local product state. */
+	data class PressureOnly(
+		val segmentId: Long,
+		val pressure: DashboardLivePressureValue,
+	) : DashboardLiveSessionPresentation {
+		init {
+			require(segmentId > 0L)
+		}
+	}
+
 	/** The history stream failed or returned a different segment than the requested binding. */
 	data class HistoryUnavailable(
 		val segmentId: Long,
@@ -51,6 +64,36 @@ sealed interface DashboardLiveSessionPresentation {
 			require(segmentId > 0L)
 		}
 	}
+}
+
+/** Direct Pressure values only; this is deliberately not elevation, ascent, or altitude. */
+@Immutable
+data class DashboardLivePressureMetrics(
+	val latestHectopascals: Float,
+	val minimumHectopascals: Float,
+	val maximumHectopascals: Float,
+	val changeHectopascals: Float,
+	val coverage: PressureHistoryCoverage,
+	val zoneAuthorities: List<String>,
+) {
+	init {
+		require(latestHectopascals.isFinite() && latestHectopascals > 0f)
+		require(minimumHectopascals.isFinite() && minimumHectopascals > 0f)
+		require(maximumHectopascals.isFinite() && maximumHectopascals >= minimumHectopascals)
+		require(latestHectopascals in minimumHectopascals..maximumHectopascals)
+		require(changeHectopascals.isFinite())
+		require(zoneAuthorities.isNotEmpty() && zoneAuthorities.all(String::isNotBlank))
+	}
+}
+
+/** Truthful durable Pressure state for an accepted exact-capture Pressure-only session. */
+@Immutable
+sealed interface DashboardLivePressureValue {
+	data class Ready(val metrics: DashboardLivePressureMetrics) : DashboardLivePressureValue
+	data class Partial(val metrics: DashboardLivePressureMetrics?) : DashboardLivePressureValue
+	data class Materializing(val metrics: DashboardLivePressureMetrics?) : DashboardLivePressureValue
+	data object Unavailable : DashboardLivePressureValue
+	data object Failed : DashboardLivePressureValue
 }
 
 /** Truthful durable Steps value for the active exact-capture Steps-only session. */
@@ -120,3 +163,26 @@ private val MISSING_EVIDENCE_CAUSES = setOf(
 	StepsHistoryCause.BASELINE_ONLY,
 	StepsHistoryCause.NO_OBSERVATION,
 )
+
+/** Missing or nonnumeric Pressure history remains nonnumeric all the way into Compose. */
+internal fun PressureHistory.toDashboardLivePressureValue(): DashboardLivePressureValue {
+	val metrics = summary?.let { summary ->
+		DashboardLivePressureMetrics(
+			latestHectopascals = summary.latestHectopascals,
+			minimumHectopascals = summary.minimumHectopascals,
+			maximumHectopascals = summary.maximumHectopascals,
+			changeHectopascals = summary.latestHectopascals - summary.firstHectopascals,
+			coverage = coverage,
+			zoneAuthorities = zoneAuthorities.sorted(),
+		)
+	}
+	return when (presentationState) {
+		PressureHistoryPresentationState.READY ->
+			DashboardLivePressureValue.Ready(requireNotNull(metrics))
+		PressureHistoryPresentationState.PARTIAL -> DashboardLivePressureValue.Partial(metrics)
+		PressureHistoryPresentationState.MATERIALIZING ->
+			DashboardLivePressureValue.Materializing(metrics)
+		PressureHistoryPresentationState.UNAVAILABLE -> DashboardLivePressureValue.Unavailable
+		PressureHistoryPresentationState.FAILED -> DashboardLivePressureValue.Failed
+	}
+}

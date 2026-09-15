@@ -80,8 +80,8 @@ class TripDetailPresenterViewModel @Inject constructor(
 	fun loadSupplementalData() {
 		val loaded = state.value as? TripDetailState.Loaded ?: return
 		supplementalDataJob?.cancel()
-		if (loaded.trip.source == SegmentSource.PORTABLE_STEPS_IMPORT) {
-			// An imported wall envelope cannot own overlapping local Location or Ski samples.
+		if (!loaded.supportsLocationPresentation || loaded.trip.source == SegmentSource.PORTABLE_STEPS_IMPORT) {
+			// Neither contained source-only facts nor an imported wall envelope own Location/Ski samples.
 			_skiSegments.value = emptyList()
 			_insights.value = TripDetailInsights()
 			return
@@ -130,6 +130,7 @@ class TripDetailPresenterViewModel @Inject constructor(
 	fun exportTripGpx(context: Context) {
 		viewModelScope.launch {
 			val loaded = state.value as? TripDetailState.Loaded ?: return@launch
+			if (!loaded.supportsLocationPresentation) return@launch
 			val trip = loaded.trip
 			if (trip.source == SegmentSource.PORTABLE_STEPS_IMPORT) {
 				return@launch

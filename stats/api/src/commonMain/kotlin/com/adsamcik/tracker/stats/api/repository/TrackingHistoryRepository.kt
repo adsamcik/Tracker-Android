@@ -19,6 +19,13 @@ interface TrackingHistoryRepository {
 	fun observeSession(segmentId: Long): Flow<SessionHistoryQuery>
 
 	/**
+	 * Observe the existing session product and source-local Pressure product from one durable
+	 * snapshot. Live presentation must use this seam when exact capture intent changes which
+	 * controls are visible; independently combined observations can mix different database states.
+	 */
+	fun observeLiveSession(segmentId: Long): Flow<LiveSessionHistorySnapshot>
+
+	/**
 	 * Observe recent logical entries whose exact capture set was Steps and no other source.
 	 *
 	 * The list is composed in one bounded read. It exposes neither a numeric cross-run total nor a
@@ -40,6 +47,21 @@ interface TrackingHistoryRepository {
 		limit: Int,
 	): Flow<List<StepsAwareHistoryPageEntry>>
 
+	/**
+	 * Observe one finite recent-history page with exact Steps-only and Pressure-only replacement.
+	 *
+	 * A physical row is suppressed for Pressure only when the complete logical manifest union is
+	 * exactly Pressure. That exact intent remains visible while its source product is materializing or
+	 * unavailable; it does not require a first fact. Legacy, mixed, corrupt, and otherwise unverifiable
+	 * candidates remain physical. Implementations compose the three row kinds in one bounded snapshot;
+	 * an undecidable bounded dependency is typed unavailable and opaque source-only keys do not grant
+	 * physical detail, deletion, map, or export authority.
+	 */
+	fun observeRecentPressureAwarePage(
+		candidateSegmentIds: List<Long>,
+		limit: Int,
+	): Flow<PressureAwareHistoryPageQuery>
+
 	/** Observe source-qualified Pressure history for one exact physical session segment. */
 	fun observePressureSession(segmentId: Long): Flow<PressureSessionHistoryQuery>
 
@@ -51,6 +73,31 @@ interface TrackingHistoryRepository {
 	 * Pressure evidence and an explicit product state; missing evidence never becomes numeric zero.
 	 */
 	fun observeRecentPressureOnlyEntries(limit: Int): Flow<List<PressureOnlyHistoryEntry>>
+}
+
+/** One exact-segment Room snapshot used to choose the live session presentation. */
+data class LiveSessionHistorySnapshot(
+	val segmentId: Long,
+	val session: SessionHistoryQuery,
+	val pressure: PressureSessionHistoryQuery,
+) {
+	init {
+		require(segmentId > 0L) { "Live session snapshot requires a persisted segment identity" }
+		val foundSession = (session as? SessionHistoryQuery.Found)?.history
+		val foundPressure = (pressure as? PressureSessionHistoryQuery.Found)?.history
+		require((foundSession == null) == (foundPressure == null)) {
+			"Live session products must resolve the segment in the same snapshot"
+		}
+		require(foundSession == null || foundSession.segmentId == segmentId) {
+			"Session history does not belong to the live snapshot segment"
+		}
+		require(foundPressure == null || foundPressure.segmentId == segmentId) {
+			"Pressure history does not belong to the live snapshot segment"
+		}
+		require(foundSession == null || foundPressure == null ||
+			foundSession.capture == foundPressure.capture
+		) { "Live session products must share one capture-authority snapshot" }
+	}
 }
 
 /** Result of resolving one local session-segment row identity. */
@@ -234,6 +281,57 @@ data class ImportedStepsHistoryMember(
 		require(segmentId > 0L)
 		require(endTime >= startTime)
 	}
+}
+
+/**
+ * One row in a finite Pressure-aware history page.
+ *
+ * Physical rows only echo caller-supplied ids. Source-only rows expose opaque logical identities;
+ * they intentionally retain no selectable physical run identity.
+ */
+sealed interface PressureAwareHistoryPageEntry {
+	/** A caller-supplied candidate that remains eligible for existing Trip presentation. */
+	data class Physical(
+		val segmentId: Long,
+	) : PressureAwareHistoryPageEntry {
+		init {
+			require(segmentId > 0L) { "Physical history candidate id must be positive" }
+		}
+	}
+
+	/** An opaque, non-selectable exact Steps-only logical row. */
+	data class StepsOnly(
+		val history: StepsOnlyHistoryEntry,
+	) : PressureAwareHistoryPageEntry
+
+	/** Retained imported Steps keep their exact product-origin identity and actions. */
+	data class ImportedSteps(
+		val history: ImportedStepsHistoryEntry,
+	) : PressureAwareHistoryPageEntry
+
+	/** An opaque, non-selectable exact Pressure-only logical row. */
+	data class PressureOnly(
+		val history: PressureOnlyHistoryEntry,
+	) : PressureAwareHistoryPageEntry
+}
+
+/** One bounded Pressure-aware page result; dependency overflow never falls back to raw rows. */
+sealed interface PressureAwareHistoryPageQuery {
+	/** The complete requested page within the declared candidate and membership budgets. */
+	data class Content(
+		val entries: List<PressureAwareHistoryPageEntry>,
+	) : PressureAwareHistoryPageQuery
+
+	/** Exact source-only replacement could not be decided within a bounded read. */
+	data class Unavailable(
+		val reason: PressureAwareHistoryPageUnavailableReason,
+	) : PressureAwareHistoryPageQuery
+}
+
+/** Bounded dependency that prevented a truthful Pressure-aware page decision. */
+enum class PressureAwareHistoryPageUnavailableReason {
+	CANDIDATE_SCAN_LIMIT,
+	LOGICAL_MEMBERSHIP_LIMIT,
 }
 
 /** Policy/capability availability, independent of acquisition and product progress. */

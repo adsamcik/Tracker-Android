@@ -9,6 +9,52 @@ import kotlin.test.assertTrue
 
 class TrackingHistoryRepositoryTest {
 	@Test
+	fun `live snapshot rejects mixed-time capture authority`() {
+		val stepsCapture = HistoryCapture.Exact(
+			listOf(
+				HistoryCaptureRevision(
+					revision = 1L,
+					effectiveAt = EpochMs(100L),
+					capturedSources = setOf(HistorySource.STEPS),
+					controlSources = emptySet(),
+				),
+			),
+		)
+		val pressureCapture = HistoryCapture.Exact(
+			listOf(
+				HistoryCaptureRevision(
+					revision = 2L,
+					effectiveAt = EpochMs(200L),
+					capturedSources = setOf(HistorySource.PRESSURE),
+					controlSources = emptySet(),
+				),
+			),
+		)
+
+		assertFailsWith<IllegalArgumentException> {
+			LiveSessionHistorySnapshot(
+				segmentId = 7L,
+				session = SessionHistoryQuery.Found(
+					SessionHistory(
+						segmentId = 7L,
+						capture = stepsCapture,
+						qualifiedSources = emptySet(),
+						steps = missingSteps(),
+					),
+				),
+				pressure = PressureSessionHistoryQuery.Found(
+					PressureSessionHistory(
+						segmentId = 7L,
+						capture = pressureCapture,
+						qualifiedSources = emptySet(),
+						pressure = unavailablePressureHistory(),
+					),
+				),
+			)
+		}
+	}
+
+	@Test
 	fun `exact Steps-only capture ignores separately named control sources`() {
 		val history = SessionHistory(
 			segmentId = 7L,
@@ -139,6 +185,26 @@ class TrackingHistoryRepositoryTest {
 		assertEquals(history, logicalRow.history)
 		assertFailsWith<IllegalArgumentException> {
 			StepsAwareHistoryPageEntry.Physical(0L)
+		}
+	}
+
+	@Test
+	fun `Pressure-aware page keeps source-only identities opaque and physical echoes explicit`() {
+		val pressure = PressureOnlyHistoryEntry(
+			key = TrackingHistoryEntryKey("pressure:logical:one"),
+			startTime = EpochMs(100L),
+			endTime = EpochMs(200L),
+			pressure = unavailablePressureHistory(),
+		)
+
+		val logicalRow = PressureAwareHistoryPageEntry.PressureOnly(pressure)
+		assertEquals("TrackingHistoryEntryKey", logicalRow.history.key.toString())
+		assertEquals(
+			PressureAwareHistoryPageEntry.Physical(7L),
+			PressureAwareHistoryPageEntry.Physical(7L),
+		)
+		assertFailsWith<IllegalArgumentException> {
+			PressureAwareHistoryPageEntry.Physical(0L)
 		}
 	}
 
@@ -275,5 +341,23 @@ class TrackingHistoryRepositoryTest {
 		evidence = HistoryEvidence.RECORDED,
 		productState = HistoryProductState.READY,
 		coverage = StepsHistoryCoverage.COMPLETE,
+	)
+
+	private fun missingSteps() = StepsHistory(
+		count = null,
+		availability = HistoryAvailability.UNAVAILABLE,
+		evidence = HistoryEvidence.NONE,
+		productState = HistoryProductState.DEGRADED,
+		coverage = StepsHistoryCoverage.UNKNOWN,
+		causes = setOf(StepsHistoryCause.LEGACY_UNVERIFIED),
+	)
+
+	private fun unavailablePressureHistory() = PressureHistory(
+		availability = HistoryAvailability.UNAVAILABLE,
+		evidence = HistoryEvidence.NONE,
+		productState = HistoryProductState.DEGRADED,
+		coverage = PressureHistoryCoverage.UNKNOWN,
+		windows = emptyList(),
+		causes = setOf(PressureHistoryCause.LEGACY_UNATTRIBUTED),
 	)
 }

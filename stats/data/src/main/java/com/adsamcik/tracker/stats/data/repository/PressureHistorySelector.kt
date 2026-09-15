@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecution
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageUnavailableReason
 import java.time.DateTimeException
 import java.time.ZoneId
 import javax.inject.Inject
@@ -49,13 +50,20 @@ internal class PressureHistorySelector @Inject constructor(
 	internal suspend fun selectLogicalBySegmentIds(
 		segmentIds: List<Long>,
 	): List<PressureLogicalHistoryEntry> = database.withTransaction {
+		selectLogicalBySegmentIdsInTransaction(segmentIds)
+	}
+
+	/** Caller must hold the Room transaction defining this logical-membership snapshot. */
+	internal suspend fun selectLogicalBySegmentIdsInTransaction(
+		segmentIds: List<Long>,
+	): List<PressureLogicalHistoryEntry> {
 		val distinctIds = segmentIds.distinct()
-		if (distinctIds.isEmpty()) return@withTransaction emptyList()
+		if (distinctIds.isEmpty()) return emptyList()
 		require(distinctIds.size <= PRESSURE_HISTORY_SEGMENT_BATCH_CAP) {
 			"At most $PRESSURE_HISTORY_SEGMENT_BATCH_CAP Pressure history rows may be selected"
 		}
 		val seeds = database.trackingHistoryReadDao().segments(distinctIds)
-		selectLogicalFromSeedsInTransaction(seeds)
+		return selectLogicalFromSeedsInTransaction(seeds)
 	}
 
 	/**
@@ -94,32 +102,77 @@ internal class PressureHistorySelector @Inject constructor(
 	internal suspend fun discoverRecentPressureOnlyInTransaction(
 		limit: Int,
 	): List<PressureLogicalHistoryEntry> {
+		return when (val result = discoverRecentPressureOnlyInTransaction(
+			limit = limit,
+			mode = PressureOnlyDiscoveryMode.ORDINARY,
+		)) {
+			is PressureOnlyDiscoveryResult.Content -> result.entries
+			is PressureOnlyDiscoveryResult.Unavailable -> throw PressureHistoryPageDependencyOverflow(
+				result.reason,
+			)
+		}
+	}
+
+	/**
+	 * Caller must hold the Room transaction defining discovery and complete membership expansion.
+	 * Exact intent mode retains truthful materializing/unavailable rows before the first fact.
+	 */
+	internal suspend fun discoverRecentPressureOnlyIntentInTransaction(
+		limit: Int,
+		candidateBudget: Int = PRESSURE_DISCOVERY_CANDIDATE_BUDGET,
+		memberBudget: Int = PRESSURE_DISCOVERY_MEMBER_BUDGET,
+	): PressureOnlyDiscoveryResult = discoverRecentPressureOnlyInTransaction(
+		limit = limit,
+		mode = PressureOnlyDiscoveryMode.EXACT_INTENT,
+		candidateBudget = candidateBudget,
+		memberBudget = memberBudget,
+	)
+
+	private suspend fun discoverRecentPressureOnlyInTransaction(
+		limit: Int,
+		mode: PressureOnlyDiscoveryMode,
+		candidateBudget: Int = PRESSURE_DISCOVERY_CANDIDATE_BUDGET,
+		memberBudget: Int = PRESSURE_DISCOVERY_MEMBER_BUDGET,
+	): PressureOnlyDiscoveryResult {
 		require(limit in 1..PRESSURE_HISTORY_SEGMENT_BATCH_CAP)
+		require(candidateBudget > 0 && memberBudget > 0)
 		val accepted = linkedMapOf<PressureHistoryEntryIdentity, PressureLogicalHistoryEntry>()
 		var beforeLogicalRecencyStartMs: Long? = null
 		var beforeLogicalRecencySegmentId: Long? = null
 		var scannedCandidateCount = 0
 
-		while (accepted.size < limit && scannedCandidateCount < PRESSURE_DISCOVERY_CANDIDATE_BUDGET) {
+		while (accepted.size < limit && scannedCandidateCount < candidateBudget) {
 			currentCoroutineContext().ensureActive()
-			val pageLimit = minOf(
+			val remainingCandidateBudget = candidateBudget - scannedCandidateCount
+			val acceptedPageLimit = minOf(
 				PRESSURE_DISCOVERY_CANDIDATE_PAGE_SIZE,
-				PRESSURE_DISCOVERY_CANDIDATE_BUDGET - scannedCandidateCount,
+				remainingCandidateBudget,
 			)
-			val candidates = database.pressureFactRevisionDao().pressureLogicalHistoryCandidatePage(
-				limit = pageLimit,
+			val finalBudgetPage = remainingCandidateBudget <= PRESSURE_DISCOVERY_CANDIDATE_PAGE_SIZE
+			val candidateProbe = database.pressureFactRevisionDao().pressureLogicalHistoryCandidatePage(
+				limit = acceptedPageLimit + if (finalBudgetPage) 1 else 0,
 				beforeLogicalRecencyStartMs = beforeLogicalRecencyStartMs,
 				beforeLogicalRecencySegmentId = beforeLogicalRecencySegmentId,
 			)
+			val candidateBudgetExceeded = finalBudgetPage && candidateProbe.size > acceptedPageLimit
+			val candidates = candidateProbe.take(acceptedPageLimit)
 			if (candidates.isEmpty()) break
 			scannedCandidateCount += candidates.size
 			val seeds = candidates.map { it.segment }
 
+			val resolvedEntries = selectLogicalFromSeedsInTransaction(
+				seeds = seeds,
+				memberBudget = memberBudget,
+			)
+			if (resolvedEntries.any { entry ->
+				entry.physicalMembers.any { member ->
+					PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW in member.reasons
+				}
+			}) return PressureOnlyDiscoveryResult.Unavailable(
+				PressureAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
+			)
 			val entriesByMemberId = buildMap {
-				selectLogicalFromSeedsInTransaction(
-					seeds = seeds,
-					memberBudget = PRESSURE_DISCOVERY_MEMBER_BUDGET,
-				).forEach { entry ->
+				resolvedEntries.forEach { entry ->
 					entry.physicalMembers.forEach { member -> put(member.segment.id, entry) }
 				}
 			}
@@ -127,24 +180,31 @@ internal class PressureHistorySelector @Inject constructor(
 				val entry = entriesByMemberId[seed.id] ?: return@forEach
 				if (
 					entry.identity is PressureHistoryEntryIdentity.Logical &&
-					entry.hasExactPressureOnlyIntent &&
-					entry.isOrdinarilyDiscoverable
+					entry.hasExactPressureOnlyIntent && (
+						mode == PressureOnlyDiscoveryMode.EXACT_INTENT || entry.isOrdinarilyDiscoverable
+					)
 				) {
 					accepted.putIfAbsent(entry.identity, entry)
 				}
 			}
+			if (accepted.size >= limit) break
+			if (candidateBudgetExceeded) return PressureOnlyDiscoveryResult.Unavailable(
+				PressureAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
+			)
 
 			val lastScanned = candidates.last()
 			beforeLogicalRecencyStartMs = lastScanned.logicalRecencyStartMs
 			beforeLogicalRecencySegmentId = lastScanned.logicalRecencySegmentId
-			if (candidates.size < pageLimit) break
+			if (candidates.size < acceptedPageLimit) break
 		}
 
-		accepted.values.sortedWith(compareByDescending<PressureLogicalHistoryEntry> { entry ->
-			entry.physicalMembers.maxOf { it.segment.startTimeMs }
-		}.thenByDescending { entry ->
-			entry.physicalMembers.maxOf { it.segment.id }
-		}).take(limit)
+		return PressureOnlyDiscoveryResult.Content(
+			accepted.values.sortedWith(compareByDescending<PressureLogicalHistoryEntry> { entry ->
+				entry.recencyMember.segment.startTimeMs
+			}.thenByDescending { entry ->
+				entry.recencyMember.segment.id
+			}).take(limit),
+		)
 	}
 
 	private suspend fun selectLogicalFromSeedsInTransaction(
@@ -1080,3 +1140,19 @@ private const val PRESSURE_HISTORY_SEGMENT_BATCH_CAP = 64
 private const val PRESSURE_DISCOVERY_CANDIDATE_PAGE_SIZE = 32
 private const val PRESSURE_DISCOVERY_CANDIDATE_BUDGET = 256
 private const val PRESSURE_DISCOVERY_MEMBER_BUDGET = 256
+
+internal sealed interface PressureOnlyDiscoveryResult {
+	data class Content(
+		val entries: List<PressureLogicalHistoryEntry>,
+	) : PressureOnlyDiscoveryResult
+
+	data class Unavailable(
+		val reason: PressureAwareHistoryPageUnavailableReason,
+	) : PressureOnlyDiscoveryResult
+}
+
+private enum class PressureOnlyDiscoveryMode { ORDINARY, EXACT_INTENT }
+
+internal class PressureHistoryPageDependencyOverflow(
+	val reason: PressureAwareHistoryPageUnavailableReason,
+) : IllegalStateException("Pressure history dependency budget exceeded: $reason")

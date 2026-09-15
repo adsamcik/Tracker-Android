@@ -6,11 +6,20 @@ import arrow.core.right
 import com.adsamcik.tracker.stats.api.error.StatsError
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
+import com.adsamcik.tracker.stats.api.repository.HistoryCaptureRevision
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
+import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.LiveSessionHistorySnapshot
+import com.adsamcik.tracker.stats.api.repository.PressureHistory
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.PressureSessionHistory
+import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistory
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
+import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.TripRepository
@@ -49,7 +58,7 @@ class TripDetailPresenterTest {
 	@Test
 	fun `emits Loading then Loaded on success`() = runTest {
 		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
-		every { trackingHistoryRepository.observeSession(42L) } returns flowOf(foundHistory(42L, 300L))
+		every { trackingHistoryRepository.observeLiveSession(42L) } returns flowOf(foundHistory(42L, 300L))
 		val events = MutableSharedFlow<TripDetailEvent>()
 
 		presenter.present(events).test {
@@ -59,11 +68,57 @@ class TripDetailPresenterTest {
 			awaitItem() shouldBe TripDetailState.Loaded(
 				trip = sampleTrip,
 				steps = TripDetailStepsState.Materializing,
+				sourcePresentation = TripDetailSourcePresentation.Resolving,
 			)
 			val loaded = awaitItem()
 			loaded.shouldBeInstanceOf<TripDetailState.Loaded>()
 			loaded.trip shouldBe sampleTrip
 			loaded.steps shouldBe TripDetailStepsState.Complete(300L)
+			loaded.sourcePresentation shouldBe TripDetailSourcePresentation.Standard
+		}
+	}
+
+	@Test
+	fun `exact Pressure-only capture selects contained Pressure detail before any fact`() = runTest {
+		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
+		val pressure = unavailablePressure()
+		every { trackingHistoryRepository.observeLiveSession(42L) } returns flowOf(
+			foundHistory(
+				segmentId = 42L,
+				count = null,
+				capture = exactCapture(setOf(HistorySource.PRESSURE)),
+				pressure = pressure,
+			),
+		)
+		val events = MutableSharedFlow<TripDetailEvent>()
+
+		presenter.present(events).test {
+			events.emit(TripDetailEvent.LoadTrip(42L))
+			awaitItem() shouldBe TripDetailState.Loading
+			awaitItem() shouldBe resolvingState()
+			val loaded = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
+			loaded.sourcePresentation shouldBe TripDetailSourcePresentation.PressureOnly(pressure)
+		}
+	}
+
+	@Test
+	fun `mixed capture keeps existing Location-capable detail`() = runTest {
+		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
+		every { trackingHistoryRepository.observeLiveSession(42L) } returns flowOf(
+			foundHistory(
+				segmentId = 42L,
+				count = null,
+				capture = exactCapture(setOf(HistorySource.LOCATION, HistorySource.PRESSURE)),
+			),
+		)
+		val events = MutableSharedFlow<TripDetailEvent>()
+
+		presenter.present(events).test {
+			events.emit(TripDetailEvent.LoadTrip(42L))
+			awaitItem() shouldBe TripDetailState.Loading
+			awaitItem() shouldBe resolvingState()
+			val loaded = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
+			loaded.sourcePresentation shouldBe TripDetailSourcePresentation.Standard
 		}
 	}
 
@@ -107,8 +162,8 @@ class TripDetailPresenterTest {
 	fun `new LoadTrip event cancels previous and reloads`() = runTest {
 		coEvery { tripRepository.getTripDetail(1L) } returns sampleTrip.right()
 		coEvery { tripRepository.getTripDetail(2L) } returns sampleTrip.copy(id = 2L).right()
-		every { trackingHistoryRepository.observeSession(1L) } returns flowOf(foundHistory(1L, 10L))
-		every { trackingHistoryRepository.observeSession(2L) } returns flowOf(foundHistory(2L, 20L))
+		every { trackingHistoryRepository.observeLiveSession(1L) } returns flowOf(foundHistory(1L, 10L))
+		every { trackingHistoryRepository.observeLiveSession(2L) } returns flowOf(foundHistory(2L, 20L))
 		val events = MutableSharedFlow<TripDetailEvent>()
 
 		presenter.present(events).test {
@@ -134,22 +189,22 @@ class TripDetailPresenterTest {
 	@Test
 	fun `history not found invalidates an otherwise loaded trip`() = runTest {
 		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
-		every { trackingHistoryRepository.observeSession(42L) } returns flowOf(SessionHistoryQuery.NotFound)
+		every { trackingHistoryRepository.observeLiveSession(42L) } returns flowOf(notFoundHistory(42L))
 		val events = MutableSharedFlow<TripDetailEvent>()
 
 		presenter.present(events).test {
 			events.emit(TripDetailEvent.LoadTrip(42L))
 
 			awaitItem() shouldBe TripDetailState.Loading
-			awaitItem() shouldBe TripDetailState.Loaded(sampleTrip, TripDetailStepsState.Materializing)
+			awaitItem() shouldBe resolvingState()
 			awaitItem() shouldBe TripDetailState.NotFound(42L)
 		}
 	}
 
 	@Test
-	fun `history read failure degrades only Steps and preserves the trip`() = runTest {
+	fun `history read failure preserves the trip and fails source presentation closed`() = runTest {
 		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
-		every { trackingHistoryRepository.observeSession(42L) } returns flow {
+		every { trackingHistoryRepository.observeLiveSession(42L) } returns flow {
 			throw IllegalStateException("history failed")
 		}
 		val events = MutableSharedFlow<TripDetailEvent>()
@@ -158,18 +213,27 @@ class TripDetailPresenterTest {
 			events.emit(TripDetailEvent.LoadTrip(42L))
 
 			awaitItem() shouldBe TripDetailState.Loading
-			awaitItem() shouldBe TripDetailState.Loaded(sampleTrip, TripDetailStepsState.Materializing)
+			awaitItem() shouldBe resolvingState()
 			val loaded = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
 			loaded.trip shouldBe sampleTrip
 			loaded.steps shouldBe TripDetailStepsState.Failed
+			loaded.sourcePresentation shouldBe TripDetailSourcePresentation.Failed
 		}
 	}
 
 	@Test
-	fun `history failure after a value keeps unrelated trip content loaded`() = runTest {
+	fun `history failure replaces stale Pressure presentation and keeps trip loaded`() = runTest {
 		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
-		every { trackingHistoryRepository.observeSession(42L) } returns flow {
-			emit(foundHistory(42L, 300L))
+		val pressure = unavailablePressure()
+		every { trackingHistoryRepository.observeLiveSession(42L) } returns flow {
+			emit(
+				foundHistory(
+					segmentId = 42L,
+					count = 300L,
+					capture = exactCapture(setOf(HistorySource.PRESSURE)),
+					pressure = pressure,
+				),
+			)
 			throw IllegalStateException("later history failure")
 		}
 		val events = MutableSharedFlow<TripDetailEvent>()
@@ -178,26 +242,28 @@ class TripDetailPresenterTest {
 			events.emit(TripDetailEvent.LoadTrip(42L))
 
 			awaitItem() shouldBe TripDetailState.Loading
-			awaitItem() shouldBe TripDetailState.Loaded(sampleTrip, TripDetailStepsState.Materializing)
-			awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>().steps shouldBe
-				TripDetailStepsState.Complete(300L)
+			awaitItem() shouldBe resolvingState()
+			val beforeFailure = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
+			beforeFailure.steps shouldBe TripDetailStepsState.Complete(300L)
+			beforeFailure.sourcePresentation shouldBe TripDetailSourcePresentation.PressureOnly(pressure)
 			val degraded = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
 			degraded.trip shouldBe sampleTrip
 			degraded.steps shouldBe TripDetailStepsState.Failed
+			degraded.sourcePresentation shouldBe TripDetailSourcePresentation.Failed
 		}
 	}
 
 	@Test
 	fun `durable history corrections update the selected trip`() = runTest {
 		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
-		val history = MutableSharedFlow<SessionHistoryQuery>()
-		every { trackingHistoryRepository.observeSession(42L) } returns history
+		val history = MutableSharedFlow<LiveSessionHistorySnapshot>()
+		every { trackingHistoryRepository.observeLiveSession(42L) } returns history
 		val events = MutableSharedFlow<TripDetailEvent>()
 
 		presenter.present(events).test {
 			events.emit(TripDetailEvent.LoadTrip(42L))
 			awaitItem() shouldBe TripDetailState.Loading
-			awaitItem() shouldBe TripDetailState.Loaded(sampleTrip, TripDetailStepsState.Materializing)
+			awaitItem() shouldBe resolvingState()
 
 			history.emit(foundHistory(42L, 300L))
 			awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>().steps shouldBe
@@ -212,7 +278,7 @@ class TripDetailPresenterTest {
 	@Test
 	fun `retry recovers history after a terminal observer failure`() = runTest {
 		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
-		every { trackingHistoryRepository.observeSession(42L) } returnsMany listOf(
+		every { trackingHistoryRepository.observeLiveSession(42L) } returnsMany listOf(
 			flow { throw IllegalStateException("history failed") },
 			flowOf(foundHistory(42L, 280L)),
 		)
@@ -221,12 +287,16 @@ class TripDetailPresenterTest {
 		presenter.present(events).test {
 			events.emit(TripDetailEvent.LoadTrip(42L))
 			awaitItem() shouldBe TripDetailState.Loading
-			awaitItem() shouldBe TripDetailState.Loaded(sampleTrip, TripDetailStepsState.Materializing)
-			awaitItem() shouldBe TripDetailState.Loaded(sampleTrip, TripDetailStepsState.Failed)
+			awaitItem() shouldBe resolvingState()
+			awaitItem() shouldBe TripDetailState.Loaded(
+				trip = sampleTrip,
+				steps = TripDetailStepsState.Failed,
+				sourcePresentation = TripDetailSourcePresentation.Failed,
+			)
 
 			events.emit(TripDetailEvent.LoadTrip(42L))
 			awaitItem() shouldBe TripDetailState.Loading
-			awaitItem() shouldBe TripDetailState.Loaded(sampleTrip, TripDetailStepsState.Materializing)
+			awaitItem() shouldBe resolvingState()
 			awaitItem() shouldBe TripDetailState.Loaded(
 				trip = sampleTrip,
 				steps = TripDetailStepsState.Complete(280L),
@@ -234,22 +304,82 @@ class TripDetailPresenterTest {
 		}
 	}
 
-	private fun foundHistory(segmentId: Long, count: Long): SessionHistoryQuery =
-		SessionHistoryQuery.Found(
+	private fun foundHistory(
+		segmentId: Long,
+		count: Long?,
+		capture: HistoryCapture = HistoryCapture.Unverifiable,
+		pressure: PressureHistory = unavailablePressure(),
+	): LiveSessionHistorySnapshot = LiveSessionHistorySnapshot(
+		segmentId = segmentId,
+		session = SessionHistoryQuery.Found(
 			SessionHistory(
 				segmentId = segmentId,
-				capture = HistoryCapture.Unverifiable,
+				capture = capture,
 				qualifiedSources = emptySet(),
-				steps = StepsHistory(
-					count = count,
-					availability = HistoryAvailability.AVAILABLE,
-					evidence = when (count) {
-						0L -> HistoryEvidence.ACTIVE
-						else -> HistoryEvidence.RECORDED
-					},
-					productState = HistoryProductState.READY,
-					coverage = StepsHistoryCoverage.COMPLETE,
-				),
+				steps = count?.let(::completeSteps) ?: notCapturedSteps(),
 			),
+		),
+		pressure = PressureSessionHistoryQuery.Found(
+			PressureSessionHistory(
+				segmentId = segmentId,
+				capture = capture,
+				qualifiedSources = if (pressure.hasRetainedObservation) {
+					setOf(HistorySource.PRESSURE)
+				} else {
+					emptySet()
+				},
+				pressure = pressure,
+			),
+		),
+	)
+
+	private fun notFoundHistory(segmentId: Long) = LiveSessionHistorySnapshot(
+		segmentId = segmentId,
+		session = SessionHistoryQuery.NotFound,
+		pressure = PressureSessionHistoryQuery.NotFound,
+	)
+
+	private fun resolvingState(steps: TripDetailStepsState = TripDetailStepsState.Materializing) =
+		TripDetailState.Loaded(
+			trip = sampleTrip,
+			steps = steps,
+			sourcePresentation = TripDetailSourcePresentation.Resolving,
 		)
+
+	private fun exactCapture(sources: Set<HistorySource>) = HistoryCapture.Exact(
+		listOf(
+			HistoryCaptureRevision(
+				revision = 1L,
+				effectiveAt = EpochMs(1_000L),
+				capturedSources = sources,
+				controlSources = emptySet(),
+			),
+		),
+	)
+
+	private fun unavailablePressure() = PressureHistory(
+		availability = HistoryAvailability.UNAVAILABLE,
+		evidence = HistoryEvidence.NONE,
+		productState = HistoryProductState.DEGRADED,
+		coverage = PressureHistoryCoverage.UNKNOWN,
+		windows = emptyList(),
+		causes = setOf(PressureHistoryCause.PROVIDER_UNAVAILABLE),
+	)
+
+	private fun completeSteps(count: Long) = StepsHistory(
+		count = count,
+		availability = HistoryAvailability.AVAILABLE,
+		evidence = if (count == 0L) HistoryEvidence.ACTIVE else HistoryEvidence.RECORDED,
+		productState = HistoryProductState.READY,
+		coverage = StepsHistoryCoverage.COMPLETE,
+	)
+
+	private fun notCapturedSteps() = StepsHistory(
+		count = null,
+		availability = HistoryAvailability.UNAVAILABLE,
+		evidence = HistoryEvidence.NONE,
+		productState = HistoryProductState.PARTIAL,
+		coverage = StepsHistoryCoverage.NONE,
+		causes = setOf(StepsHistoryCause.SOURCE_NOT_CAPTURED),
+	)
 }
