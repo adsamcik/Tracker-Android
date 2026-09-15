@@ -243,18 +243,13 @@ internal class ProtectedLocationCanonicalHandoff(
 			verifyGlobalLocationContinuity(
 				afterOrdinal = lane.contiguousAdmissionOrdinal,
 				throughOrdinal = snapshot.targetAdmissionOrdinal,
+				deletedSourceEventHighWaterOrdinal =
+					snapshot.deletedSourceEventHighWaterOrdinal,
+				firstTerminalFailureOrdinal = snapshot.firstTerminalFailureOrdinal,
 			)
 		}
 		continuity.failure?.let { return@withLock it }
-		val provenTarget = maxOf(
-			lane.contiguousAdmissionOrdinal,
-			minOf(
-				snapshot.targetAdmissionOrdinal,
-				snapshot.deletedSourceEventHighWaterOrdinal,
-			),
-			continuity.highestObservedLocationOrdinal ?: lane.contiguousAdmissionOrdinal,
-			snapshot.firstTerminalFailureOrdinal ?: lane.contiguousAdmissionOrdinal,
-		)
+		val provenTarget = continuity.classifiedThroughOrdinal
 		val result = drainLocked(
 			lane,
 			provenTarget,
@@ -279,9 +274,15 @@ internal class ProtectedLocationCanonicalHandoff(
 	private suspend fun verifyGlobalLocationContinuity(
 		afterOrdinal: Long,
 		throughOrdinal: Long,
+		deletedSourceEventHighWaterOrdinal: Long,
+		firstTerminalFailureOrdinal: Long?,
 	): ProtectedLocationGlobalContinuityProof {
 		var pageAfter = afterOrdinal
-		var highestObservedLocationOrdinal: Long? = null
+		var classifiedThroughOrdinal = maxOf(
+			afterOrdinal,
+			minOf(throughOrdinal, deletedSourceEventHighWaterOrdinal),
+		)
+		var unclassifiedGapOrdinal: Long? = null
 		val expectedByRegistration =
 			mutableMapOf<ProtectedLocationRegistrationIdentity, Long>()
 		while (pageAfter < throughOrdinal) {
@@ -292,10 +293,57 @@ internal class ProtectedLocationCanonicalHandoff(
 			)
 			if (page.isEmpty()) break
 			page.forEach { row ->
+				if (row.admissionOrdinal <= classifiedThroughOrdinal) return@forEach
+				val gapOrdinal = unclassifiedGapOrdinal
+				?: runCatching {
+					Math.addExact(classifiedThroughOrdinal, 1L)
+				}.getOrNull()
+				?: return ProtectedLocationGlobalContinuityProof(
+					classifiedThroughOrdinal,
+					ProtectedLocationCanonicalDrainResult.Failed(
+						afterOrdinal,
+						row.admissionOrdinal,
+						"LOCATION_DRAIN_ORDINAL_OVERFLOW",
+						terminal = true,
+					),
+				)
+				if (unclassifiedGapOrdinal != null) {
+					if (row.sourceKind == SOURCE_LOCATION) {
+						return ProtectedLocationGlobalContinuityProof(
+							classifiedThroughOrdinal,
+							ProtectedLocationCanonicalDrainResult.Failed(
+								afterOrdinal,
+								row.admissionOrdinal,
+								"LOCATION_DRAIN_INTERIOR_SEQUENCE_GAP",
+								terminal = true,
+							),
+						)
+					}
+					return@forEach
+				}
+				if (row.admissionOrdinal != gapOrdinal) {
+					if (firstTerminalFailureOrdinal == gapOrdinal) {
+						return ProtectedLocationGlobalContinuityProof(gapOrdinal)
+					}
+					unclassifiedGapOrdinal = gapOrdinal
+					if (row.sourceKind == SOURCE_LOCATION) {
+						return ProtectedLocationGlobalContinuityProof(
+							classifiedThroughOrdinal,
+							ProtectedLocationCanonicalDrainResult.Failed(
+								afterOrdinal,
+								row.admissionOrdinal,
+								"LOCATION_DRAIN_INTERIOR_SEQUENCE_GAP",
+								terminal = true,
+							),
+						)
+					}
+					return@forEach
+				}
+				classifiedThroughOrdinal = row.admissionOrdinal
 				if (row.sourceKind != SOURCE_LOCATION) return@forEach
 				val logicalTrackingId = row.logicalTrackingId
 					?: return ProtectedLocationGlobalContinuityProof(
-						highestObservedLocationOrdinal,
+						classifiedThroughOrdinal,
 						ProtectedLocationCanonicalDrainResult.Failed(
 							afterOrdinal,
 							row.admissionOrdinal,
@@ -305,7 +353,7 @@ internal class ProtectedLocationCanonicalHandoff(
 					)
 				val serviceRunId = row.serviceRunId
 					?: return ProtectedLocationGlobalContinuityProof(
-						highestObservedLocationOrdinal,
+						classifiedThroughOrdinal,
 						ProtectedLocationCanonicalDrainResult.Failed(
 							afterOrdinal,
 							row.admissionOrdinal,
@@ -330,7 +378,7 @@ internal class ProtectedLocationCanonicalHandoff(
 					?: 0L
 				val expected = runCatching { Math.addExact(previous, 1L) }.getOrNull()
 					?: return ProtectedLocationGlobalContinuityProof(
-						highestObservedLocationOrdinal,
+						classifiedThroughOrdinal,
 						ProtectedLocationCanonicalDrainResult.Failed(
 							afterOrdinal,
 							row.admissionOrdinal,
@@ -340,7 +388,7 @@ internal class ProtectedLocationCanonicalHandoff(
 					)
 				if (row.sourceSequence != expected) {
 					return ProtectedLocationGlobalContinuityProof(
-						highestObservedLocationOrdinal,
+						classifiedThroughOrdinal,
 						ProtectedLocationCanonicalDrainResult.Failed(
 							afterOrdinal,
 							row.admissionOrdinal,
@@ -350,11 +398,19 @@ internal class ProtectedLocationCanonicalHandoff(
 					)
 				}
 				expectedByRegistration[registration] = row.sourceSequence
-				highestObservedLocationOrdinal = row.admissionOrdinal
 			}
 			pageAfter = page.last().admissionOrdinal
 		}
-		return ProtectedLocationGlobalContinuityProof(highestObservedLocationOrdinal)
+		val nextOrdinal = runCatching {
+			Math.addExact(classifiedThroughOrdinal, 1L)
+		}.getOrNull()
+		if (unclassifiedGapOrdinal == null &&
+			nextOrdinal != null &&
+			firstTerminalFailureOrdinal == nextOrdinal
+		) {
+			classifiedThroughOrdinal = nextOrdinal
+		}
+		return ProtectedLocationGlobalContinuityProof(classifiedThroughOrdinal)
 	}
 
 	/**
@@ -2741,7 +2797,7 @@ private data class ProtectedLocationGlobalDrainSnapshot(
 )
 
 private data class ProtectedLocationGlobalContinuityProof(
-	val highestObservedLocationOrdinal: Long?,
+	val classifiedThroughOrdinal: Long,
 	val failure: ProtectedLocationCanonicalDrainResult? = null,
 )
 
