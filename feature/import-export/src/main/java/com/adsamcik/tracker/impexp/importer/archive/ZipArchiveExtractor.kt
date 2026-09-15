@@ -29,6 +29,7 @@ internal class ZipArchiveExtractor(
 		File.createTempFile("zip-entry-", ".tmp", importCacheDir)
 	},
 	private val tempInputStreamFactory: (File) -> InputStream = { it.inputStream() },
+	private val zipInputStreamFactory: (InputStream) -> ZipInputStream = ::ZipInputStream,
 ) : ArchiveExtractor {
 	override val supportedExtensions: Collection<String> = listOf("zip")
 
@@ -67,6 +68,8 @@ internal class ZipArchiveExtractor(
 						)
 					}
 
+					var entryReadSuccessfully = false
+					var entryFailure: Throwable? = null
 					try {
 						validateDeclaredEntry(entry)
 						val budgetRemaining = MAX_TOTAL_BYTES - totalBytesRead
@@ -99,6 +102,7 @@ internal class ZipArchiveExtractor(
 							compressedBytesBefore = compressedBytesBefore,
 							compressedBytesRead = { countedSource.bytesRead },
 						)
+						entryReadSuccessfully = true
 						totalBytesRead += read
 						if (
 							output is ByteArrayOutputStream &&
@@ -106,8 +110,11 @@ internal class ZipArchiveExtractor(
 						) {
 							return ZipArchiveClassification.TRACKER_DATABASE_BACKUP
 						}
+					} catch (failure: Throwable) {
+						entryFailure = failure
+						throw failure
 					} finally {
-						closeZipEntry(zipStream)
+						closeCompletedZipEntry(zipStream, entryReadSuccessfully, entryFailure)
 					}
 				}
 			}
@@ -153,6 +160,8 @@ internal class ZipArchiveExtractor(
 						)
 					}
 
+					var entryReadSuccessfully = false
+					var entryFailure: Throwable? = null
 					try {
 						val entryName = entry.name
 						validateDeclaredEntry(entry)
@@ -166,7 +175,7 @@ internal class ZipArchiveExtractor(
 
 						val compressedBytesBefore = countedSource.bytesRead
 						if (entry.isDirectory || !isSafeZipEntryName(entryName)) {
-							totalBytesWritten += readEntryWithLimits(
+							val discarded = readEntryWithLimits(
 								zipStream = zipStream,
 								entry = entry,
 								output = DISCARDING_OUTPUT,
@@ -175,6 +184,8 @@ internal class ZipArchiveExtractor(
 								compressedBytesBefore = compressedBytesBefore,
 								compressedBytesRead = { countedSource.bytesRead },
 							)
+							entryReadSuccessfully = true
+							totalBytesWritten += discarded
 							continue
 						}
 
@@ -183,7 +194,7 @@ internal class ZipArchiveExtractor(
 							fileName = entryName,
 						)
 						if (!shouldExtract(metadata)) {
-							totalBytesWritten += readEntryWithLimits(
+							val discarded = readEntryWithLimits(
 								zipStream = zipStream,
 								entry = entry,
 								output = DISCARDING_OUTPUT,
@@ -192,6 +203,8 @@ internal class ZipArchiveExtractor(
 								compressedBytesBefore = compressedBytesBefore,
 								compressedBytesRead = { countedSource.bytesRead },
 							)
+							entryReadSuccessfully = true
+							totalBytesWritten += discarded
 							continue
 						}
 
@@ -205,10 +218,14 @@ internal class ZipArchiveExtractor(
 							compressedBytesBefore = compressedBytesBefore,
 							compressedBytesRead = { countedSource.bytesRead },
 						)
+						entryReadSuccessfully = true
 						stream.use { consume(it) }
 						totalBytesWritten += written
+					} catch (failure: Throwable) {
+						entryFailure = failure
+						throw failure
 					} finally {
-						closeZipEntry(zipStream)
+						closeCompletedZipEntry(zipStream, entryReadSuccessfully, entryFailure)
 					}
 				}
 			}
@@ -347,6 +364,22 @@ internal class ZipArchiveExtractor(
 		readZip { zipStream.closeEntry() }
 	}
 
+	private fun closeCompletedZipEntry(
+		zipStream: ZipInputStream,
+		entryReadSuccessfully: Boolean,
+		entryFailure: Throwable?,
+	) {
+		if (!entryReadSuccessfully) return
+		try {
+			closeZipEntry(zipStream)
+		} catch (closeFailure: Throwable) {
+			if (entryFailure == null) {
+				throw closeFailure
+			}
+			entryFailure.addSuppressed(closeFailure)
+		}
+	}
+
 	private inline fun <T> readZip(block: () -> T): T = try {
 		block()
 	} catch (failure: ArchiveSourceReadFailure) {
@@ -413,7 +446,7 @@ internal class ZipArchiveExtractor(
 		if (!isSupportedZipSignature(signature)) {
 			throw PermanentImportInputException("Import source is not a ZIP archive.")
 		}
-		return ZipInputStream(source)
+		return zipInputStreamFactory(source)
 	}
 
 	private fun isSupportedZipSignature(signature: ByteArray): Boolean =

@@ -18,7 +18,10 @@ import java.io.File
 import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
+import java.util.concurrent.CancellationException
+import java.util.zip.CRC32
 import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.test.runTest
@@ -55,6 +58,23 @@ class ZipArchiveExtractorTest {
 				zip.write(data)
 				zip.closeEntry()
 			}
+		}
+		return output.toByteArray()
+	}
+
+	private fun buildStoredZipBytes(name: String, data: ByteArray): ByteArray {
+		val crc = CRC32().apply { update(data) }
+		val entry = ZipEntry(name).apply {
+			method = ZipEntry.STORED
+			size = data.size.toLong()
+			compressedSize = data.size.toLong()
+			this.crc = crc.value
+		}
+		val output = ByteArrayOutputStream()
+		ZipOutputStream(output).use { zip ->
+			zip.putNextEntry(entry)
+			zip.write(data)
+			zip.closeEntry()
 		}
 		return output.toByteArray()
 	}
@@ -244,6 +264,38 @@ class ZipArchiveExtractorTest {
 		}
 
 		@Test
+		fun `successful bounded read cleanup never replaces consumer cancellation`() = runTest {
+			lateinit var guardedZip: GuardedZipInputStream
+			val guardedExtractor = ZipArchiveExtractor(
+				zipInputStreamFactory = { source ->
+					GuardedZipInputStream(
+						source = source,
+						entry = ZipEntry("entry.json"),
+						successfulReadsBeforeEof = 1,
+					).also { guardedZip = it }
+				},
+			)
+			val expected = CancellationException("cancel import")
+
+			val failure = assertFailsWith<CancellationException> {
+				guardedExtractor.extract(
+					mockContext,
+					mockFile(byteArrayOf(0x50, 0x4b, 0x03, 0x04)),
+					shouldExtract = { true },
+					consume = { throw expected },
+				)
+			}
+
+			failure shouldBe expected
+			failure.suppressed.single().message shouldBe "ZIP archive structure is invalid."
+			failure.suppressed.single().cause?.message shouldBe
+				"Rejected ZIP entry cleanup attempted to drain after failure"
+			guardedZip.closeEntryCalls shouldBe 1
+			guardedZip.closeCalls shouldBe 1
+			cachedFiles().shouldBeEmpty()
+		}
+
+		@Test
 		fun `temp file is deleted before next entry is materialized`() = runTest {
 			var created = 0
 			val lazyExtractor = ZipArchiveExtractor(
@@ -394,6 +446,70 @@ class ZipArchiveExtractorTest {
 	@DisplayName("Resource limits")
 	inner class ResourceLimits {
 		@Test
+		fun `classification manifest rejection closes the ZIP without draining the entry`() {
+			val archive = buildStoredZipBytes(
+				"manifest.json",
+				ByteArray(1_024 * 1_024) { index -> index.toByte() },
+			)
+			val guardedSource = ReadBudgetInputStream(
+				ByteArrayInputStream(archive),
+				maximumBytes = 128 * 1_024,
+			)
+			val file = mockStreamFile(archive.size.toLong()) { guardedSource }
+
+			val failure = assertFailsWith<PermanentImportInputException> {
+				extractor.classifyForMergeImport(mockContext, file)
+			}
+
+			failure.message.orEmpty().contains("extraction limit") shouldBe true
+			(guardedSource.bytesRead < guardedSource.maximumBytes) shouldBe true
+			(guardedSource.bytesRead < archive.size) shouldBe true
+		}
+
+		@Test
+		fun `rejected unsafe skipped and replayed entries are never drained by closeEntry`() = runTest {
+			data class RejectedEntryCase(
+				val name: String,
+				val shouldExtract: suspend (ArchiveEntryMetadata) -> Boolean,
+			)
+
+			val cases = listOf(
+				RejectedEntryCase("../unsafe.json") {
+					error("Unsafe entry must not reach the extraction callback")
+				},
+				RejectedEntryCase("selected.json") { true },
+				RejectedEntryCase("unsupported.txt") { false },
+				RejectedEntryCase("replayed.json") { false },
+			)
+
+			cases.forEach { case ->
+				lateinit var guardedZip: GuardedZipInputStream
+				val rejectedEntry = ZipEntry(case.name).apply {
+					compressedSize = 1L
+				}
+				val guardedExtractor = ZipArchiveExtractor(
+					zipInputStreamFactory = { source ->
+						GuardedZipInputStream(source, rejectedEntry).also { guardedZip = it }
+					},
+				)
+
+				val failure = assertFailsWith<PermanentImportInputException> {
+					guardedExtractor.extract(
+						mockContext,
+						mockFile(byteArrayOf(0x50, 0x4b, 0x03, 0x04)),
+						shouldExtract = case.shouldExtract,
+						consume = { error("Rejected entry must not reach its consumer") },
+					)
+				}
+
+				failure.message.orEmpty().contains("extraction limit") shouldBe true
+				guardedZip.readCalls shouldBe 1
+				guardedZip.closeEntryCalls shouldBe 0
+				guardedZip.closeCalls shouldBe 1
+			}
+		}
+
+		@Test
 		fun `archive at the exact entry count boundary remains structurally valid`() {
 			val entries = (0 until ZipArchiveExtractor.MAX_ENTRY_COUNT).map { index ->
 				"entry-$index.json" to byteArrayOf()
@@ -477,6 +593,79 @@ class ZipArchiveExtractorTest {
 			bytes.copyInto(buffer, offset, this.offset, this.offset + count)
 			this.offset += count
 			return count
+		}
+	}
+
+	private class ReadBudgetInputStream(
+		delegate: InputStream,
+		val maximumBytes: Int,
+	) : FilterInputStream(delegate) {
+		var bytesRead: Int = 0
+			private set
+
+		override fun read(): Int {
+			val value = super.read()
+			if (value >= 0) record(1)
+			return value
+		}
+
+		override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+			val count = super.read(buffer, offset, length)
+			if (count > 0) record(count)
+			return count
+		}
+
+		private fun record(count: Int) {
+			bytesRead += count
+			if (bytesRead > maximumBytes) {
+				throw IOException("ZIP cleanup exceeded its guarded compressed-read budget")
+			}
+		}
+	}
+
+	private class GuardedZipInputStream(
+		source: InputStream,
+		private val entry: ZipEntry,
+		private val successfulReadsBeforeEof: Int? = null,
+	) : ZipInputStream(source) {
+		private var returnedEntry = false
+		var readCalls = 0
+			private set
+		var closeEntryCalls = 0
+			private set
+		var closeCalls = 0
+			private set
+
+		override fun getNextEntry(): ZipEntry? =
+			if (returnedEntry) {
+				null
+			} else {
+				returnedEntry = true
+				entry
+			}
+
+		override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+			if (successfulReadsBeforeEof != null && readCalls >= successfulReadsBeforeEof) {
+				return -1
+			}
+			readCalls++
+			val count = minOf(length, GUARDED_ENTRY_READ_BYTES)
+			buffer.fill(0, offset, offset + count)
+			return count
+		}
+
+		override fun closeEntry() {
+			closeEntryCalls++
+			throw IOException("Rejected ZIP entry cleanup attempted to drain after failure")
+		}
+
+		override fun close() {
+			closeCalls++
+			super.close()
+		}
+
+		private companion object {
+			const val GUARDED_ENTRY_READ_BYTES = 256
 		}
 	}
 }
