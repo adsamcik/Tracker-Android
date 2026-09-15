@@ -59,7 +59,9 @@ Last updated: 2026-09-15
 - Disposition: **IMPLEMENTED_UNVALIDATED**. Initial adversarial review found no production defect;
   focused review of `fc1e540f5b` closed all three regression-source findings without a remaining
   static integration blocker. Parent source inspection confirms the bounded two-file production
-  delta; local integration remains pending the rest of the wave.
+  delta. Rebased source tip `285deba80c` preserves the three reviewed paths; local merge
+  `8767472d62fe77ee30e2c7d46765ed7f4b8d45dc` contains the slice. The original reviewed tip is
+  retained under `refs/remotes/handover/reviewed/ti-wifi-full-clear-20260915`.
   No compilation, test, Gradle, schema, diff-check, device, CI or other execution gate ran.
 - Deferred only after authorized frozen final convergence:
   `.\gradlew.bat :core:base:testDebugUnitTest --tests "com.adsamcik.tracker.shared.base.database.WifiCapturedFullClearTest"`.

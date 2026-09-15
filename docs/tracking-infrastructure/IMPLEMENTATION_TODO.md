@@ -71,7 +71,8 @@ or check the broader assembly/completion items. Test sources are authored, never
   ordinary RESTRICT ownership. Author full-clear/reopen and transaction-rollback regressions.
   Source `f0eb2d59ec935855ba33072d1392338402a2e772` plus test-only adversarial correction
   `fc1e540f5b135d2485a9267127c4435c5b067356` remain IMPLEMENTED_UNVALIDATED; focused
-  static review is closed without a remaining blocker. Local integration is pending (TI-B320).
+  static review is closed without a remaining blocker. Rebased source `285deba80c` is locally
+  merged in `8767472d62`; exact reviewed input is retained (TI-B320).
 - [ ] TODO-HANDOVER-20260915-008 Wire captured Cell/Wi-Fi retention into the legacy
   DataRetentionWorker before pending-signal deferral and shared WAL pruning. Preserve lifecycle
   generation fences and author ordering, failure/cancellation and constructor-call-site sources.

@@ -8,6 +8,12 @@ local `dev/v10` integration (TI-D257). The committed Location/ledger baseline `1
 been fast-forwarded locally. These local operations do not lift IMPLEMENTATION_ONLY or authorize
 any execution gate, push or activation; all work remains IMPLEMENTED_UNVALIDATED.
 
+Slice 007 is locally merged at `8767472d62` after adversarial fixture corrections and focused
+static closure (reviewed `fc1e540f5b`, rebased `285deba80c`). The original reviewed tip remains
+under `refs/remotes/handover/reviewed/ti-wifi-full-clear-20260915`. Slices 008/009 still require
+correction/review closure: retain physical segment authority until radio retention accepts, and
+use invariant-valid unavailable Steps test provenance. No whole-assembly gate is complete.
+
 Receiving continuation: the local package receipt and clean `dev/v10` match `29323cfab`.
 The original 39 tracking refs have been preserved from the local bundle under
 `refs/remotes/handover/codex/ti-*`. Source follow-up `57073947f8fa77021b75f5c16eff6bb15d78e0e5`

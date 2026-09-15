@@ -13,7 +13,7 @@ All three implementation worktrees started clean from that local baseline:
 
 | Slice | Branch / worktree suffix | Exclusive production ownership | Current disposition |
 | --- | --- | --- | --- |
-| 007 | `codex/ti-wifi-full-clear-20260915` / `.worktrees\ti-wifi-full-clear-20260915` | AppDatabase and WifiCapturedFactDao | `f0eb2d59ec` plus `fc1e540f5b`; static review closed, local merge pending |
+| 007 | `codex/ti-wifi-full-clear-20260915` / `.worktrees\ti-wifi-full-clear-20260915` | AppDatabase and WifiCapturedFactDao | Static review closed; local merge `8767472d62fe77ee30e2c7d46765ed7f4b8d45dc` |
 | 008 | `codex/ti-legacy-radio-retention-20260915` / `.worktrees\ti-legacy-radio-retention-20260915` | Legacy worker, same-cause pipeline ordering and exact app callers/tests | `de2a4ae2f3` blocked by pre-radio segment-authority deletion; correction in progress |
 | 009 | `codex/ti-factless-steps-history-20260915` / `.worktrees\ti-factless-steps-history-20260915` | Source-aware Steps history and its candidate-query seam | `b138a23adb` production review coherent; invalid unavailable fixture under correction |
 
@@ -33,8 +33,11 @@ fixture WAL/fact references and missing immutable-correction coverage. Test-only
 `fc1e540f5b135d2485a9267127c4435c5b067356` requires the injected trigger marker, derives fact
 references from two integrity-qualified WAL rows, and covers A1/A2 plus C1/C2 owner/dependent
 lineages. The same reviewer closed all three findings at `fc1e540f5b` without a remaining static
-integration blocker; TI-B320 records the deferred command. No passing behavior, provider
-authenticity or local merge is claimed yet.
+integration blocker. Rebase preserved the three reviewed source paths exactly at
+`285deba80cd54a5838b26c3cc34ba2d15eaa85c5`; local merge is
+`8767472d62fe77ee30e2c7d46765ed7f4b8d45dc`. The original reviewed tip remains under
+`refs/remotes/handover/reviewed/ti-wifi-full-clear-20260915`. TI-B320 records deferred execution;
+this is **IMPLEMENTED_UNVALIDATED**, not passing behavior or provider authenticity.
 
 Slice 008's committed paths are
 `app\src\main\java\com\adsamcik\tracker\maintenance\DataRetentionWorker.kt`,
