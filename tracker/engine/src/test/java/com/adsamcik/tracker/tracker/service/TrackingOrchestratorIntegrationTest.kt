@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.model.AltitudeContractVersions
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
@@ -59,6 +60,7 @@ import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalRe
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalSignalIdentity
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriteResult
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationWalQualifier
+import com.adsamcik.tracker.tracker.source.location.PROTECTED_LOCATION_CANONICAL_CURATION_VERSION
 import com.adsamcik.tracker.tracker.source.location.readProtectedLocationCanonicalReceipt
 import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
@@ -263,11 +265,11 @@ class TrackingOrchestratorIntegrationTest {
 						stepsEnabled = false,
 						wifiEnabled = false,
 						cellEnabled = false,
+						requiredAccuracyMeters = 1,
 					),
 				),
 				enableNotifications = false,
 			)
-
 			insertPresentationOwner(LOGICAL_ID, RUN_ID)
 			controller.updateServiceRunning(true)
 			val binding = requireNotNull(orchestrator.initialize(
@@ -289,6 +291,7 @@ class TrackingOrchestratorIntegrationTest {
 				elapsedRealtimeNanos = 10_000_000_000L,
 				latitude = 50.087,
 				longitude = 14.421,
+				accuracyMeters = 40f,
 			)
 			val teleport = protectedLocationCommand(
 				eventId = "protected-location-teleport",
@@ -299,8 +302,18 @@ class TrackingOrchestratorIntegrationTest {
 				latitude = -33.8688,
 				longitude = 151.2093,
 			)
+			val corroborating = protectedLocationCommand(
+				eventId = "protected-location-corroborating",
+				admissionOrdinal = 12L,
+				sessionSegmentId = binding.sessionSegmentId,
+				wallTimeMs = 12_000L,
+				elapsedRealtimeNanos = 12_000_000_000L,
+				latitude = -33.8687,
+				longitude = 151.2094,
+			)
 			commands[accepted.mutation.identity.sourceEventId.value] = accepted
 			commands[teleport.mutation.identity.sourceEventId.value] = teleport
+			commands[corroborating.mutation.identity.sourceEventId.value] = corroborating
 
 			orchestrator.write(
 				accepted,
@@ -308,6 +321,10 @@ class TrackingOrchestratorIntegrationTest {
 			) shouldBe ProtectedLocationCanonicalWriteResult.Committed
 			orchestrator.write(
 				teleport,
+				PROTECTED_LOCATION_ACQUISITION,
+			) shouldBe ProtectedLocationCanonicalWriteResult.Committed
+			orchestrator.write(
+				corroborating,
 				PROTECTED_LOCATION_ACQUISITION,
 			) shouldBe ProtectedLocationCanonicalWriteResult.Committed
 
@@ -323,9 +340,22 @@ class TrackingOrchestratorIntegrationTest {
 					PROTECTED_LOCATION_ACQUISITION,
 				),
 			)
+			val corroboratingReceipt = assertIs<ProtectedLocationCanonicalReceipt.Complete>(
+				database.readProtectedLocationCanonicalReceipt(
+					corroborating,
+					PROTECTED_LOCATION_ACQUISITION,
+				),
+			)
 			requireNotNull(acceptedReceipt.acceptedSample)
+			acceptedReceipt.acceptedSample?.policy shouldBe "SOURCE_QOS_RESPONSIVE"
+			requireNotNull(acceptedReceipt.curationState.lastAccepted)
 			rejectedReceipt.acceptedSample shouldBe null
 			rejectedReceipt.decision.decision shouldBe "REJECTED"
+			rejectedReceipt.decision.reason shouldBe "CURATED_LOCATION_TELEPORT_CANDIDATE"
+			requireNotNull(rejectedReceipt.curationState.pendingReacquisition)
+			requireNotNull(corroboratingReceipt.acceptedSample)
+			corroboratingReceipt.curationState.pendingReacquisition shouldBe null
+			database.locationSampleDao().countAll() shouldBe 2L
 			database.locationSampleDao().getBySourceSignalId(
 				ProtectedLocationCanonicalSignalIdentity.canonicalProduct(
 					teleport.mutation.identity.sourceEventId.value,
@@ -466,6 +496,7 @@ class TrackingOrchestratorIntegrationTest {
 		elapsedRealtimeNanos: Long,
 		latitude: Double,
 		longitude: Double,
+		accuracyMeters: Float = 5f,
 	): LocationCapturedFactCommand {
 		val interval = LocationProviderTimeInterval(1L, Long.MAX_VALUE)
 		val temporal = LocationCaptureTemporalAuthority(
@@ -527,7 +558,7 @@ class TrackingOrchestratorIntegrationTest {
 			payload = LocationFixPayload(
 				latitudeDegrees = latitude,
 				longitudeDegrees = longitude,
-				horizontalAccuracyMeters = 5f,
+				horizontalAccuracyMeters = accuracyMeters,
 				altitudeMeters = null,
 				verticalAccuracyMeters = null,
 				speedMetersPerSecond = null,
@@ -730,8 +761,15 @@ class TrackingOrchestratorIntegrationTest {
 		const val LOGICAL_ID = "orchestrator-logical"
 		const val RUN_ID = "orchestrator-run"
 		val PROTECTED_LOCATION_ACQUISITION = LocationWalAcquisitionMetadata(
-			LocationAcquisitionMode.FUSED,
-			LocationRequestPriority.HIGH_ACCURACY,
+			acquisitionMode = LocationAcquisitionMode.FUSED,
+			requestPriority = LocationRequestPriority.HIGH_ACCURACY,
+			requiredAccuracyMeters = 50f,
+			policyTier = PolicyTier.PRECISION,
+			policyName = "SOURCE_QOS_RESPONSIVE",
+			curationVersion = PROTECTED_LOCATION_CANONICAL_CURATION_VERSION,
+			altitudeModelVersion = AltitudeContractVersions.MODEL_VERSION,
+			altitudeEstimatorVersion = AltitudeContractVersions.ESTIMATOR_VERSION,
+			altitudeCalibrationVersion = 0,
 		)
 	}
 

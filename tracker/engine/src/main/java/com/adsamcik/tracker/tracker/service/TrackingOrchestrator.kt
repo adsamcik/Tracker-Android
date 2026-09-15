@@ -26,6 +26,7 @@ import com.adsamcik.tracker.tracker.component.consumer.post.PlaneTrackingCompone
 import com.adsamcik.tracker.tracker.component.consumer.post.SailingTrackingComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiSegmentWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
+import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerComponent
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 
 import com.adsamcik.tracker.tracker.control.NoOpTrackingControlOutputSink
@@ -41,12 +42,12 @@ import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.pipeline.TrackingPipeline
 import com.adsamcik.tracker.tracker.pipeline.toLocationObservationSignal
 import com.adsamcik.tracker.tracker.pipeline.toProtectedLocationObservationSignal
+import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
 import com.adsamcik.tracker.tracker.pipeline.stages.DataCollectionStage
 import com.adsamcik.tracker.tracker.pipeline.stages.PolicyUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.PostProcessingStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SessionUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SignalDispatchStage
-import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import com.adsamcik.tracker.tracker.policy.RoomTrackerStateEvidenceWriter
 import com.adsamcik.tracker.tracker.presentation.SessionPresentationBinding
@@ -59,7 +60,10 @@ import com.adsamcik.tracker.tracker.source.location.LocationWalAcquisitionMetada
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalReceipt
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriteResult
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriter
+import com.adsamcik.tracker.tracker.source.location.prepareProtectedLocationCanonicalCurationState
+import com.adsamcik.tracker.tracker.source.location.loadPreparedProtectedLocationCanonicalCurationState
 import com.adsamcik.tracker.tracker.source.location.readProtectedLocationCanonicalReceipt
+import com.adsamcik.tracker.tracker.source.location.toCanonicalCurationContext
 import com.adsamcik.tracker.tracker.source.location.toProtectedLocationMockRejectionSignal
 import com.adsamcik.tracker.tracker.source.location.toProtectedLocationTrackingCycle
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
@@ -451,13 +455,6 @@ internal class TrackingOrchestrator(
 		}
 	}
 
-	/**
-	 * Serial canonical entrypoint for qualified protected Location WAL.
-	 *
-	 * This method deliberately reuses [componentMutex], so it cannot overlap ordinary cycles,
-	 * tier transitions, or shutdown. PersistenceProcessor remains the only Location destination
-	 * writer and rechecks the source/lane/owner authority in its existing Room transaction.
-	 */
 	override suspend fun write(
 		command: LocationCapturedFactCommand,
 		acquisitionMetadata: LocationWalAcquisitionMetadata,
@@ -479,8 +476,8 @@ internal class TrackingOrchestrator(
 			binding.serviceRunId != command.authority.serviceRunId.value ||
 			binding.sessionSegmentId != command.authority.sessionSegmentId
 		) {
-			return@withLock ProtectedLocationCanonicalWriteResult.AuthorityChanged(
-				"LOCATION_CANONICAL_ACTIVE_SESSION_CHANGED",
+			return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
+				"LOCATION_CANONICAL_ACTIVE_RUN_MISMATCH",
 			)
 		}
 		val pipeline = processorPipeline
@@ -492,8 +489,38 @@ internal class TrackingOrchestrator(
 				"LOCATION_CANONICAL_PERSISTENCE_PROCESSOR_UNAVAILABLE",
 				terminal = false,
 			)
-
-		try {
+		val locationComponent = dataComponentList.filterIsInstance<LocationTrackerComponent>()
+			.singleOrNull()
+			?: return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+				"LOCATION_CANONICAL_CURATION_COMPONENT_UNAVAILABLE",
+				terminal = false,
+			)
+		val curationStateBefore = try {
+			appDatabase.withTransaction {
+				appDatabase.loadPreparedProtectedLocationCanonicalCurationState(command)
+					?.stateBefore
+			} ?: locationComponent.snapshotCanonicalState()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (failure: Exception) {
+			return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+				failure::class.java.simpleName.ifBlank {
+					"LOCATION_CANONICAL_PREPARED_STATE_FAILED"
+				},
+				terminal = false,
+			)
+		}
+		val curationContext = try {
+			acquisitionMetadata.toCanonicalCurationContext(
+				curationStateBefore,
+			)
+		} catch (_: IllegalStateException) {
+			return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+				"LOCATION_CANONICAL_CURATION_CONTRACT_UNSUPPORTED",
+				terminal = true,
+			)
+		}
+		return@withLock try {
 			if (!persistence.flushProtectedLocationCanonicalHandoff()) {
 				return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
 					"LOCATION_CANONICAL_PENDING_COMMIT",
@@ -511,38 +538,71 @@ internal class TrackingOrchestrator(
 					)
 				is ProtectedLocationCanonicalReceipt.Incomplete -> Unit
 			}
-
-			val policyName = trackingPolicyManager?.currentPolicy?.value?.name
-			val rawSignal = command.toProtectedLocationObservationSignal(
-				acquisitionMetadata = acquisitionMetadata,
-				policyTier = currentTier,
-				policyName = policyName,
-			)
-			if (!pipeline.checkpointDurableSignals(listOf(rawSignal))) {
+			if (!pipeline.checkpointDurableSignals(
+				listOf(command.toProtectedLocationObservationSignal(
+					acquisitionMetadata = acquisitionMetadata,
+					policyTier = acquisitionMetadata.policyTier,
+					policyName = acquisitionMetadata.policyName,
+				)),
+			)) {
 				return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
 					"LOCATION_CANONICAL_RAW_ADMISSION_DEFERRED",
 				)
 			}
-
 			if (command.productEffect.isMock) {
-				if (!pipeline.onSignal(
-					command.toProtectedLocationMockRejectionSignal(
-						acquisitionMetadata = acquisitionMetadata,
-						policyTier = currentTier,
-						policyName = policyName,
-					),
-				)) {
+				appDatabase.withTransaction {
+					appDatabase.prepareProtectedLocationCanonicalCurationState(
+						command,
+						curationContext.stateBefore,
+						curationContext.stateBefore,
+					)
+				}
+				if (!pipeline.onSignal(command.toProtectedLocationMockRejectionSignal(
+					acquisitionMetadata = acquisitionMetadata,
+					policyTier = acquisitionMetadata.policyTier,
+					policyName = acquisitionMetadata.policyName,
+				))) {
 					return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
 						"LOCATION_CANONICAL_DECISION_ADMISSION_DEFERRED",
 					)
 				}
 			} else {
-				collectAndProcess(
+				val cycle = command.toProtectedLocationTrackingCycle(
+					acquisitionMetadata,
+					curationContext,
+				)
+				TrackingPipeline(
+					stages = listOf(
+						DataCollectionStage(dataComponentList),
+						SignalDispatchStage(
+							processorPipelineProvider = { pipeline },
+							currentTierProvider = { acquisitionMetadata.policyTier },
+							currentPolicyNameProvider = { acquisitionMetadata.policyName },
+							beforeSignalAdmission = { cycleContext, _ ->
+								check(
+									cycleContext.collectionData.location != null ||
+										curationContext.outcome.decisionReason != null,
+								) {
+									"Protected Location curation produced no terminal outcome"
+								}
+								appDatabase.withTransaction {
+									appDatabase.prepareProtectedLocationCanonicalCurationState(
+										command,
+										curationContext.stateBefore,
+										curationContext.outcome.stateAfter,
+									)
+								}
+							},
+						),
+					),
+				).execute(
 					context,
-					command.toProtectedLocationTrackingCycle(acquisitionMetadata),
+					CycleContext(
+						cycle = cycle,
+						collectionData = MutableCollectionData(cycle.timestampMs),
+					),
 				)
 			}
-
 			if (!persistence.flushProtectedLocationCanonicalHandoff()) {
 				return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
 					"LOCATION_CANONICAL_DESTINATION_COMMIT_DEFERRED",

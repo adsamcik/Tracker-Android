@@ -60,6 +60,18 @@ class SourceEventWalDaoTest {
 	}
 
 	@Test
+	fun `allocator high water survives WAL deletion`() = runTest {
+		val dao = database.sourceEventWalDao()
+		dao.insertIgnoringDuplicate(event("allocated", sourceSequence = 5L)) shouldBe 1L
+		dao.admissionAllocatorHighWater() shouldBe 1L
+
+		dao.deleteAll()
+
+		dao.maximumAdmissionOrdinal() shouldBe null
+		dao.admissionAllocatorHighWater() shouldBe 1L
+	}
+
+	@Test
 	fun `delivery identity projection retains checkpoint authority envelope`() = runTest {
 		val dao = database.sourceEventWalDao()
 		val event = event("delivery", sourceSequence = 5L).copy(

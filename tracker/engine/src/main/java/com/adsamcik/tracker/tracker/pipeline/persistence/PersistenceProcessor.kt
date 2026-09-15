@@ -112,6 +112,8 @@ import javax.inject.Provider
  * - [onFlush] is called from the pipeline's slow-path which is
  *   serialized by `componentMutex` in `TrackingOrchestrator`.
  * - [onStop] is called under the pipeline mutex during shutdown.
+ * - Protected Location recovery creates an isolated pipeline only after [pipelineActive] is false;
+ *   the shared session coordinator must serialize that handoff against a new live pipeline start.
  *
  * If this invariant changes, the buffers **must** be guarded by a lock.
  */
@@ -178,7 +180,19 @@ class PersistenceProcessor @Inject constructor(
 	private var commitStatusUnknown = false
 	private var lastPersistenceFailure: Throwable? = null
 	private val recoveryMutex = Mutex()
+	@Volatile
 	private var pipelineActive = false
+
+	internal fun isPipelineActiveForProtectedLocation(): Boolean = pipelineActive
+
+	internal fun isReadyForProtectedLocationWrite(): Boolean =
+		pipelineActive &&
+			!recoveryIncomplete &&
+			!commitStatusUnknown &&
+			!hasRetainedInMemoryState()
+
+	/** Caller must hold the live orchestrator's component mutex. */
+	internal suspend fun flushProtectedLocationCanonicalHandoff(): Boolean = flushAll()
 
 	/**
 	 * Runs the Steps writer authority change only after the legacy producer has fully stopped.
@@ -294,12 +308,6 @@ class PersistenceProcessor @Inject constructor(
 		verifyCollectedDataAccess()
 		!recoveryIncomplete && !hasPendingEntries
 	}
-
-	/**
-	 * Flush seam for the protected Location handoff. The caller must own the same external
-	 * serialization as ordinary cycle delivery, tier changes, and shutdown.
-	 */
-	internal suspend fun flushProtectedLocationCanonicalHandoff(): Boolean = flushAll()
 
 	override suspend fun checkpointStagedSignals(): Boolean =
 		checkpointStagedSignalsStatus() == DurableAdmissionStatus.ADMITTED

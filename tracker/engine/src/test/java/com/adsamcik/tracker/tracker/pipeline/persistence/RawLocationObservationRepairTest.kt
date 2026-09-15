@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.pipeline.persistence
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.recordFullDeletion
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -11,7 +12,13 @@ import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecisio
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.stats.api.processor.ProcessorContext
+import com.adsamcik.tracker.stats.api.signal.LocationDecision
+import com.adsamcik.tracker.stats.api.signal.LocationDecisionSignal
+import com.adsamcik.tracker.stats.api.signal.TrackingSignal
+import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -78,6 +85,56 @@ class RawLocationObservationRepairTest {
 		database.locationObservationDecisionDao()
 			.getBySourceEventId("location-event")
 			?.reason shouldBe "MIGRATED_MOCK_PROVENANCE_UNKNOWN"
+	}
+
+	@Test
+	fun `startup repair unblocks a durable pending legacy decision`() = runTest {
+		insertWal("legacy-pending", payloadVersion = 1, isMock = null)
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val durableBuffer = DurableSignalBuffer(
+			pendingSignalDao = database.pendingSignalDao(),
+			dispatchers = dispatchers,
+			pendingSignalClaimDao = database.pendingSignalClaimDao(),
+			appDatabase = database,
+		)
+		durableBuffer.setSessionId(1L)
+		durableBuffer.stage(
+			TrackingSignal(
+				timestampMs = EpochMs(10_250L),
+				clockDomainId = "android-boot-count:19",
+				locationDecision = LocationDecisionSignal(
+					sourceEventId = "legacy-pending",
+					decision = LocationDecision.REJECTED,
+					reason = "MIGRATED_MOCK_PROVENANCE_UNKNOWN",
+				),
+				persistenceSignalId = "legacy-pending-decision",
+			),
+		)
+		durableBuffer.checkpoint()
+		val processor = PersistenceProcessor(
+			locationSampleDao = database.locationSampleDao(),
+			locationObservationDao = database.locationObservationDao(),
+			locationObservationDecisionDao = database.locationObservationDecisionDao(),
+			sourceEvidenceStateDao = database.sourceEvidenceStateDao(),
+			cellSampleDao = database.cellSampleDao(),
+			wifiObservationDao = database.wifiObservationDao(),
+			pressureSampleDao = database.pressureSampleDao(),
+			stepIntervalDao = database.stepIntervalDao(),
+			activitySnapshotDao = database.activitySnapshotDao(),
+			pendingSignalDao = database.pendingSignalDao(),
+			pendingSignalClaimDao = database.pendingSignalClaimDao(),
+			durableBuffer = durableBuffer,
+			transactor = RoomPersistenceTransactor(database),
+			sourceDestinationOwnerDao = database.sourceDestinationOwnerDao(),
+			rawLocationObservationRepair = RawLocationObservationRepair(database, codec),
+		)
+
+		processor.onStart(ProcessorContext(EpochMs(0L), sessionId = 2L))
+
+		database.locationObservationDecisionDao()
+			.getBySourceEventId("legacy-pending")
+			?.reason shouldBe "MIGRATED_MOCK_PROVENANCE_UNKNOWN"
+		database.pendingSignalDao().countAll() shouldBe 0
 	}
 
 	@Test

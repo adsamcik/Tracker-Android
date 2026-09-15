@@ -11,12 +11,18 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.ProcessedAltitudeData
 import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
+import com.adsamcik.tracker.shared.model.AltitudeContractVersions
 import com.adsamcik.tracker.shared.model.AltitudeDatum
 import com.adsamcik.tracker.shared.model.AltitudeSource
 import com.adsamcik.tracker.tracker.altitude.AltitudeProcessor
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import com.adsamcik.tracker.tracker.data.collection.LocationCanonicalCurationContext
+import com.adsamcik.tracker.tracker.data.collection.LocationCanonicalCurationState
+import com.adsamcik.tracker.tracker.data.collection.toCanonicalCurationPoint
+import com.adsamcik.tracker.tracker.data.collection.toPlatformLocation
+import com.adsamcik.tracker.tracker.source.location.PROTECTED_LOCATION_CANONICAL_CURATION_VERSION
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -165,23 +171,27 @@ internal class LocationTrackerComponent(
 		return null
 	}
 
-	private fun isLocationUsable(location: Location): Boolean {
+	private fun locationRejection(
+		location: Location,
+		requiredAccuracyMeters: Float,
+	): String? {
 		val isMock = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
 			location.isMock
 		} else {
 			@Suppress("DEPRECATION")
 			location.isFromMockProvider
 		}
-		if (isMock || !location.hasAccuracy()) return false
-		if (location.accuracy > requiredAccuracyMeters) return false
+		if (isMock) return REJECTION_MOCK
+		if (!location.hasAccuracy()) return REJECTION_MISSING_ACCURACY
+		if (location.accuracy > requiredAccuracyMeters) return REJECTION_INSUFFICIENT_ACCURACY
 
-		val previous = lastAcceptedLocation ?: return true
+		val previous = lastAcceptedLocation ?: return null
 		val currentElapsed = location.elapsedRealtimeNanos
 		val previousElapsed = previous.elapsedRealtimeNanos
 		if (currentElapsed > 0L && previousElapsed > 0L) {
-			if (currentElapsed <= previousElapsed) return false
+			if (currentElapsed <= previousElapsed) return REJECTION_NON_MONOTONIC_TIME
 		} else if (location.time <= previous.time) {
-			return false
+			return REJECTION_NON_MONOTONIC_TIME
 		}
 
 		// Providers can repeat their last fix. Persisting it adds I/O and storage without adding
@@ -193,7 +203,7 @@ internal class LocationTrackerComponent(
 			location.bearing != previous.bearing ||
 			location.hasAltitude() != previous.hasAltitude() ||
 			(location.hasAltitude() && location.altitude != previous.altitude)
-		) return true
+		) return null
 
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 			if (location.hasVerticalAccuracy() != previous.hasVerticalAccuracy() ||
@@ -202,22 +212,45 @@ internal class LocationTrackerComponent(
 				location.hasSpeedAccuracy() != previous.hasSpeedAccuracy() ||
 				(location.hasSpeedAccuracy() &&
 					location.speedAccuracyMetersPerSecond != previous.speedAccuracyMetersPerSecond)
-			) return true
+			) return null
 		}
 
-		return false
+		return REJECTION_DUPLICATE
 	}
 
 	override suspend fun onDataUpdated(
 			cycle: TrackingCycle,
 			collectionData: MutableCollectionData
 	) {
+		val canonicalCuration = cycle.locationCanonicalCuration
+		if (canonicalCuration != null) {
+			restoreCanonicalState(canonicalCuration.stateBefore)
+			if (
+				canonicalCuration.curationVersion !=
+				PROTECTED_LOCATION_CANONICAL_CURATION_VERSION ||
+				canonicalCuration.altitudeModelVersion != AltitudeContractVersions.MODEL_VERSION ||
+				canonicalCuration.altitudeEstimatorVersion !=
+				AltitudeContractVersions.ESTIMATOR_VERSION ||
+				canonicalCuration.altitudeCalibrationVersion != 0
+			) {
+				completeCanonicalCuration(
+					canonicalCuration,
+					REJECTION_CURATION_CONTRACT_MISMATCH,
+				)
+				return
+			}
+		}
 		val locationResult = requireNotNull(cycle.location)
 
 		val location = locationResult.lastLocation
 		val acceptedAnchor = lastAcceptedLocation
 		val previousLocation = acceptedAnchor ?: locationResult.previousLocation
-		if (!isLocationUsable(location)) return
+		val requiredAccuracy = canonicalCuration?.requiredAccuracyMeters
+			?: requiredAccuracyMeters.toFloat()
+		locationRejection(location, requiredAccuracy)?.let { reason ->
+			completeCanonicalCuration(canonicalCuration, reason)
+			return
+		}
 
 		if (previousLocation != null && isTeleportJump(previousLocation, location)) {
 			if (acceptedAnchor != null && isConfirmedReacquisition(location)) {
@@ -233,11 +266,13 @@ internal class LocationTrackerComponent(
 					previousLocation = null,
 					clockDomainId = locationResult.lastFixMetadata.clockDomainId,
 				)
+				completeCanonicalCuration(canonicalCuration, null)
 			} else {
 				// Never rebase an accepted anchor from a single rejected sample. Retain this only as
 				// a corroboration candidate for the next fresh fix.
 				pendingReacquisitionCandidate = Location(location)
 				lastRawGpsAltitudeM = null
+				completeCanonicalCuration(canonicalCuration, REJECTION_TELEPORT_CANDIDATE)
 			}
 			return
 		}
@@ -251,6 +286,29 @@ internal class LocationTrackerComponent(
 			previousLocation = previousLocation,
 			clockDomainId = locationResult.lastFixMetadata.clockDomainId,
 		)
+		completeCanonicalCuration(canonicalCuration, null)
+	}
+
+	internal fun restoreCanonicalState(state: LocationCanonicalCurationState) {
+		lastAcceptedLocation = state.lastAccepted?.toPlatformLocation()
+		pendingReacquisitionCandidate = state.pendingReacquisition?.toPlatformLocation()
+		lastSmoothedSpeed = state.lastSmoothedSpeedMps
+	}
+
+	internal fun snapshotCanonicalState(): LocationCanonicalCurationState =
+		LocationCanonicalCurationState(
+			lastAccepted = lastAcceptedLocation?.toCanonicalCurationPoint(),
+			pendingReacquisition = pendingReacquisitionCandidate?.toCanonicalCurationPoint(),
+			lastSmoothedSpeedMps = lastSmoothedSpeed,
+		)
+
+	private fun completeCanonicalCuration(
+		context: LocationCanonicalCurationContext?,
+		rejectionReason: String?,
+	) {
+		if (context == null) return
+		context.outcome.decisionReason = rejectionReason
+		context.outcome.stateAfter = snapshotCanonicalState()
 	}
 
 	private fun acceptLocation(
@@ -324,6 +382,18 @@ internal class LocationTrackerComponent(
 	}
 
 	companion object {
+		internal const val REJECTION_TELEPORT_CANDIDATE =
+			"CURATED_LOCATION_TELEPORT_CANDIDATE"
+		private const val REJECTION_MOCK = "CURATED_LOCATION_MOCK_REJECTED"
+		private const val REJECTION_MISSING_ACCURACY =
+			"CURATED_LOCATION_MISSING_ACCURACY"
+		private const val REJECTION_INSUFFICIENT_ACCURACY =
+			"CURATED_LOCATION_INSUFFICIENT_ACCURACY"
+		private const val REJECTION_NON_MONOTONIC_TIME =
+			"CURATED_LOCATION_NON_MONOTONIC_TIME"
+		private const val REJECTION_DUPLICATE = "CURATED_LOCATION_DUPLICATE"
+		private const val REJECTION_CURATION_CONTRACT_MISMATCH =
+			"CURATED_LOCATION_CONTRACT_MISMATCH"
 		private const val MAX_ALLOWED_DIFFERENCE_TO_COMPUTED = 0.2f
 		private const val SPEED_SMOOTHING_ALPHA = 0.4f
 		// Human-powered movement is typically well below ~45 km/h walking or ~120 km/h cycling,

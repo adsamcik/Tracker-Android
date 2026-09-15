@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.signal.LocationDecision
 import com.adsamcik.tracker.stats.api.signal.LocationDecisionSignal
+import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.TrackingClockDomain
 import com.adsamcik.tracker.tracker.pipeline.CycleContext
@@ -22,6 +23,7 @@ internal class SignalDispatchStage(
 	private val processorPipelineProvider: () -> ProcessorPipeline?,
 	private val currentTierProvider: () -> PolicyTier,
 	private val currentPolicyNameProvider: () -> String? = { null },
+	private val beforeSignalAdmission: suspend (CycleContext, TrackingSignal) -> Unit = { _, _ -> },
 ) : PipelineStage {
 	private var lastEffectiveActivity: ActivityInfo? = null
 
@@ -35,6 +37,7 @@ internal class SignalDispatchStage(
 			val processedAltitude = collectionData.processedAltitude
 			val rawLocation = cycle.location?.lastLocation
 			val locationMetadata = cycle.location?.lastFixMetadata
+			val canonicalCuration = cycle.locationCanonicalCuration
 			val sourceEventId = locationMetadata?.sourceEventId
 			// Keep the decision boundary identical to SignalAdapter's LocationSignal construction.
 			// A partial curated object is not an accepted persisted sample.
@@ -117,7 +120,12 @@ internal class SignalDispatchStage(
 						} else {
 							LocationDecision.REJECTED
 						},
-						reason = if (locationAccepted) null else "CURATED_LOCATION_REJECTED",
+						reason = if (locationAccepted) {
+							null
+						} else {
+							canonicalCuration?.outcome?.decisionReason
+								?: "CURATED_LOCATION_REJECTED"
+						},
 					)
 				},
 				activityTypeCode = effectiveActivity?.activityType,
@@ -167,14 +175,15 @@ internal class SignalDispatchStage(
 					cycle.pressure?.windowEndElapsedRealtimeNanos,
 				pressureSourceFirstSequence = cycle.pressure?.sourceFirstSequence,
 				pressureSourceLastSequence = cycle.pressure?.sourceLastSequence,
-				policyTier = currentTierProvider(),
-				policyName = currentPolicyNameProvider(),
+				policyTier = canonicalCuration?.policyTier ?: currentTierProvider(),
+				policyName = canonicalCuration?.policyName ?: currentPolicyNameProvider(),
 				persistenceSignalId = cycle.persistenceSignalId,
 			)
 			signal
 		}
 
 		cycleContext.signal = signal
+		beforeSignalAdmission(cycleContext, signal)
 		val admitted = pipeline.onSignal(signal) {
 			lastEffectiveActivity = effectiveActivity
 		}

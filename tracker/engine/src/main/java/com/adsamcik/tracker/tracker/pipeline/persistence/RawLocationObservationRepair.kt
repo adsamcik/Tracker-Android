@@ -146,7 +146,7 @@ class RawLocationObservationRepair @Inject constructor(
 				coordinates,
 				elapsedTimeIsValid,
 				mockProvenance,
-			).name,
+			),
 			estimatorVersion = PersistenceProcessor.CURRENT_ESTIMATOR_VERSION,
 			calibrationVersion = PersistenceProcessor.CURRENT_CALIBRATION_VERSION,
 			createdAt = wallTimeMs ?: acquiredAtMs,
@@ -257,12 +257,12 @@ class RawLocationObservationRepair @Inject constructor(
 		coordinates: RawLocationRepairCoordinates?,
 		hasValidElapsedTime: Boolean,
 		mockProvenance: RepairedMockProvenance,
-	): LocationIngressDisposition = when {
-		coordinates == null -> LocationIngressDisposition.REJECTED_INVALID_COORDINATE
-		!hasValidElapsedTime -> LocationIngressDisposition.REJECTED_INVALID_TIMESTAMP
+	): String = when {
+		coordinates == null -> LocationIngressDisposition.REJECTED_INVALID_COORDINATE.name
+		!hasValidElapsedTime -> LocationIngressDisposition.REJECTED_INVALID_TIMESTAMP.name
 		mockProvenance == RepairedMockProvenance.LegacyUnknown ->
-			LocationIngressDisposition.MIGRATED_MOCK_PROVENANCE_UNKNOWN
-		else -> LocationIngressDisposition.DELIVERED_VALID
+			LEGACY_MOCK_PROVENANCE_UNKNOWN
+		else -> LocationIngressDisposition.DELIVERED_VALID.name
 	}
 
 	private fun deliveryAgeMs(fixElapsedNanos: Long, receivedElapsedNanos: Long): Long? {
@@ -275,6 +275,7 @@ class RawLocationObservationRepair @Inject constructor(
 
 	private companion object {
 		const val REPAIR_BATCH_SIZE = 256
+		const val LEGACY_MOCK_PROVENANCE_UNKNOWN = "MIGRATED_MOCK_PROVENANCE_UNKNOWN"
 	}
 }
 

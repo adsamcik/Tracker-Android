@@ -7,12 +7,18 @@ import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
 import com.adsamcik.tracker.shared.model.AltitudeDatum
 import com.adsamcik.tracker.shared.model.AltitudeSource
+import com.adsamcik.tracker.shared.model.AltitudeContractVersions
+import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.altitude.AltitudeProcessor
 import com.adsamcik.tracker.tracker.altitude.GeoidAltitudeConversionOutcome
 import com.adsamcik.tracker.tracker.altitude.GeoidAltitudeConverter
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.PressureReading
+import com.adsamcik.tracker.tracker.data.collection.LocationCanonicalCurationContext
+import com.adsamcik.tracker.tracker.data.collection.LocationCanonicalCurationState
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import com.adsamcik.tracker.tracker.data.collection.toCanonicalCurationPoint
+import com.adsamcik.tracker.tracker.source.location.PROTECTED_LOCATION_CANONICAL_CURATION_VERSION
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -72,6 +78,7 @@ class LocationTrackerComponentTest {
 		location: Location,
 		pressureReading: PressureReading? = null,
 		clockDomainId: String? = "boot-a",
+		curationContext: LocationCanonicalCurationContext? = null,
 	): TrackingCycle {
 		val locationData = LocationData(
 			locations = listOf(location),
@@ -83,10 +90,97 @@ class LocationTrackerComponentTest {
 			timestampMs = location.time,
 			elapsedRealtimeNanos = location.elapsedRealtimeNanos,
 			location = locationData,
+			locationCanonicalCuration = curationContext,
 			pressure = pressureReading,
 			rawGpsAltitude = if (location.hasAltitude()) location.altitude else null,
 		)
 	}
+
+	@Test
+	fun `protected replay uses captured accuracy instead of current component threshold`() = runTest {
+		component.onEnable(RuntimeEnvironment.getApplication())
+		val location = createAndroidLocation().apply { accuracy = 75f }
+		val curation = curationContext(requiredAccuracyMeters = 100f)
+		val collectionData = MutableCollectionData()
+
+		component.onDataUpdated(
+			createCycle(location, curationContext = curation),
+			collectionData,
+		)
+
+		collectionData.location.shouldNotBeNull()
+		curation.outcome.decisionReason.shouldBeNull()
+		curation.outcome.stateAfter.lastAccepted.shouldNotBeNull()
+	}
+
+	@Test
+	fun `protected replay restores pending teleport candidate across process boundary`() = runTest {
+		component.onEnable(RuntimeEnvironment.getApplication())
+		val accepted = createAndroidLocation(
+			latitude = 50.0,
+			longitude = 14.0,
+			time = 1_000L,
+		)
+		val pending = createAndroidLocation(
+			latitude = -33.8688,
+			longitude = 151.2093,
+			time = 2_000L,
+		)
+		val corroborating = createAndroidLocation(
+			latitude = -33.8687,
+			longitude = 151.2094,
+			time = 3_000L,
+		)
+		val curation = curationContext(
+			stateBefore = LocationCanonicalCurationState(
+				lastAccepted = accepted.toCanonicalCurationPoint(),
+				pendingReacquisition = pending.toCanonicalCurationPoint(),
+				lastSmoothedSpeedMps = 0f,
+			),
+		)
+		val collectionData = MutableCollectionData()
+
+		component.onDataUpdated(
+			createCycle(corroborating, curationContext = curation),
+			collectionData,
+		)
+
+		collectionData.location.shouldNotBeNull()
+		collectionData.distanceFromPreviousM shouldBe 0f
+		curation.outcome.stateAfter.pendingReacquisition.shouldBeNull()
+	}
+
+	@Test
+	fun `protected replay rejects an unsupported captured estimator contract`() = runTest {
+		component.onEnable(RuntimeEnvironment.getApplication())
+		val location = createAndroidLocation()
+		val curation = curationContext().copy(
+			altitudeEstimatorVersion = AltitudeContractVersions.ESTIMATOR_VERSION + 1,
+		)
+		val collectionData = MutableCollectionData()
+
+		component.onDataUpdated(
+			createCycle(location, curationContext = curation),
+			collectionData,
+		)
+
+		collectionData.location.shouldBeNull()
+		curation.outcome.decisionReason shouldBe "CURATED_LOCATION_CONTRACT_MISMATCH"
+	}
+
+	private fun curationContext(
+		requiredAccuracyMeters: Float = 50f,
+		stateBefore: LocationCanonicalCurationState = LocationCanonicalCurationState.EMPTY,
+	): LocationCanonicalCurationContext = LocationCanonicalCurationContext(
+		requiredAccuracyMeters = requiredAccuracyMeters,
+		policyTier = PolicyTier.ACTIVE,
+		policyName = "SOURCE_QOS_BALANCED",
+		curationVersion = PROTECTED_LOCATION_CANONICAL_CURATION_VERSION,
+		altitudeModelVersion = AltitudeContractVersions.MODEL_VERSION,
+		altitudeEstimatorVersion = AltitudeContractVersions.ESTIMATOR_VERSION,
+		altitudeCalibrationVersion = 0,
+		stateBefore = stateBefore,
+	)
 
 	/**
 	 * Creates a cycle that mimics what [LocationCollectionTrigger] produces:

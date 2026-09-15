@@ -83,7 +83,7 @@ internal fun LocationCapturedFactCommand.toProtectedLocationObservationSignal(
 	policyTier: PolicyTier,
 	policyName: String?,
 ): TrackingSignal {
-	require(acquisitionMetadata != LocationWalAcquisitionMetadata.UNKNOWN)
+	require(acquisitionMetadata.isQualified)
 	val evidence = productEffect.durableEvidence
 	val clock = evidence.clockAuthority
 	val receivedWallTimeMs = requireNotNull(clock.receivedWallTimeMs) {

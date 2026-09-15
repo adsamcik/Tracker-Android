@@ -44,7 +44,7 @@ interface SourceEventWalDao {
 		"SELECT admission_ordinal, source_kind, captured_collected_data_epoch, " +
 			"acquired_at_ms, wall_time_ms, wall_time_uncertainty_ms, " +
 			"authorization_purpose_eligibility_mask, " +
-			"logical_tracking_id, service_run_id " +
+			"logical_tracking_id, service_run_id, source_instance_id, registration_generation " +
 			"FROM source_event_wal " +
 			"WHERE admission_ordinal = :admissionOrdinal LIMIT 1",
 	)
@@ -283,6 +283,14 @@ interface SourceEventWalDao {
 	@Query("SELECT MAX(admission_ordinal) FROM source_event_wal")
 	suspend fun maximumAdmissionOrdinal(): Long?
 
+	/** Durable allocator high-water, including rows removed by retention or deletion. */
+	@Query(
+		"SELECT MAX(" +
+			"COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'source_event_wal'), 0), " +
+			"COALESCE((SELECT MAX(admission_ordinal) FROM source_event_wal), 0))",
+	)
+	suspend fun admissionAllocatorHighWater(): Long
+
 	@Query("SELECT MIN(admission_ordinal) FROM source_event_wal")
 	suspend fun minimumAdmissionOrdinal(): Long?
 
@@ -370,6 +378,8 @@ data class SourceEventProjectionEligibilityRow(
 	val authorizationPurposeEligibilityMask: Long,
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
 	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
+	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String,
+	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long,
 )
 
 /** Payload-free identity used to prove a decoded source projection page is complete. */
