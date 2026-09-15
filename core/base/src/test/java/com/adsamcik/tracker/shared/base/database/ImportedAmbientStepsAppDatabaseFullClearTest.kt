@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
+import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveDayEntity
@@ -36,21 +37,24 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ImportedAmbientStepsAppDatabaseFullClearTest {
+	private lateinit var context: Application
 	private lateinit var database: AppDatabase
 	private lateinit var dao: ImportedAmbientStepsDao
 
 	@Before
 	fun setUp() {
-		database = AppDatabase.testDatabase(
-			ApplicationProvider.getApplicationContext<Application>(),
-		)
+		context = ApplicationProvider.getApplicationContext()
+		context.deleteDatabase(FILE_DATABASE_NAME)
+		database = AppDatabase.testDatabase(context)
 		dao = database.importedAmbientStepsDao()
 	}
 
 	@After
-	fun tearDown() = database.close()
+	fun tearDown() {
+		if (::database.isInitialized) database.close()
+		if (::context.isInitialized) context.deleteDatabase(FILE_DATABASE_NAME)
+	}
 
-	@Test
 	@Test
 	fun `suspend full clear preserves old authority and admits unrelated new epoch lineage`() = runTest {
 		database.sourceEvidenceStateDao().ensure(
@@ -147,6 +151,72 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 	}
 
 	@Test
+	@Suppress("LongMethod")
+	fun `file backed full clear retains ambient authority across reopen and repeated clear`() = runTest {
+		database.close()
+		database = openFileDatabase()
+		dao = database.importedAmbientStepsDao()
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(revision = 11L, collectedDataEpoch = EPOCH),
+		)
+		val lineage = seedLineage("file-backed", LocalDate.of(2026, 5, 1), EPOCH, 9L)
+		val sourceFence = ImportedAmbientStepsSourceFenceEntity.reopened(
+			ImportedAmbientStepsSourceFenceEntity.completed(
+				ImportedAmbientStepsSourceFenceEntity.create(EPOCH, 4L, 200L),
+				201L,
+			),
+			reopenedConsentEpoch = 5L,
+			reopenedAtMs = 202L,
+		)
+		dao.insertSourceFence(sourceFence)
+
+		AppDatabase.deleteAllCollectedData(
+			database = database,
+			collectedDataEpoch = EPOCH + 1L,
+			retainedFromMs = null,
+			updatedAtMs = lineage.receivedAtMs + 1L,
+		)
+
+		reopenFileDatabase()
+		assertPayloadCleared()
+		dao.authenticateAllAmbientStepsFences(EPOCH + 1L)
+		assertFence(lineage, EPOCH + 1L, 12L)
+		assertProtected(lineage)
+		assertSourceFence(sourceFence, EPOCH + 1L)
+		requireNotNull(database.sourceEvidenceStateDao().get()).also { state ->
+			state.collectedDataEpoch shouldBe EPOCH + 1L
+			state.revision shouldBe 12L
+		}
+		val protectedAfterFirstClear = dao.protectedIdentitiesForDay(
+			lineage.day.identity.value,
+			ImportedAmbientStepsDao.MAX_PROTECTED_IDENTITIES_PER_DAY,
+		)
+
+		AppDatabase.deleteAllCollectedData(
+			database = database,
+			collectedDataEpoch = EPOCH + 2L,
+			retainedFromMs = null,
+			updatedAtMs = lineage.receivedAtMs + 2L,
+		)
+
+		reopenFileDatabase()
+		assertPayloadCleared()
+		dao.authenticateAllAmbientStepsFences(EPOCH + 2L)
+		assertFence(lineage, EPOCH + 2L, 13L)
+		assertProtected(lineage)
+		assertSourceFence(sourceFence, EPOCH + 2L)
+		dao.fenceCount() shouldBe 1L
+		dao.protectedIdentitiesForDay(
+			lineage.day.identity.value,
+			ImportedAmbientStepsDao.MAX_PROTECTED_IDENTITIES_PER_DAY,
+		) shouldBe protectedAfterFirstClear
+		requireNotNull(database.sourceEvidenceStateDao().get()).also { state ->
+			state.collectedDataEpoch shouldBe EPOCH + 2L
+			state.revision shouldBe 13L
+		}
+	}
+
+	@Test
 	fun `ambient payload deletion failure rolls back marker epoch fences and payload`() = runTest {
 		val before = SourceEvidenceState(revision = 9L, collectedDataEpoch = EPOCH)
 		database.sourceEvidenceStateDao().ensure(before)
@@ -218,6 +288,20 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 		}
 		dao.fenceCount() shouldBe 0L
 		dao.archiveCount() shouldBe 1L
+	}
+
+	private fun openFileDatabase(): AppDatabase = Room.databaseBuilder(
+		context,
+		AppDatabase::class.java,
+		FILE_DATABASE_NAME,
+	)
+		.allowMainThreadQueries()
+		.build()
+
+	private fun reopenFileDatabase() {
+		database.close()
+		database = openFileDatabase()
+		dao = database.importedAmbientStepsDao()
 	}
 
 	private suspend fun seedLineage(
@@ -366,6 +450,13 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 		}
 	}
 
+	private suspend fun assertSourceFence(
+		expected: ImportedAmbientStepsSourceFenceEntity,
+		epoch: Long,
+	) {
+		dao.sourceFence() shouldBe ImportedAmbientStepsSourceFenceEntity.reepoch(expected, epoch)
+	}
+
 	private suspend fun assertProtected(lineage: AmbientLineage) {
 		val retained = dao.protectedIdentityOwners(
 			lineage.protectedIdentities,
@@ -398,6 +489,7 @@ class ImportedAmbientStepsAppDatabaseFullClearTest {
 
 	private companion object {
 		const val EPOCH = 7L
+		const val FILE_DATABASE_NAME = "imported-ambient-steps-full-clear"
 		const val ROLLBACK_MARKER = "reject ambient archive deletion"
 	}
 }
