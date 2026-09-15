@@ -22,11 +22,13 @@ import com.adsamcik.tracker.shared.base.database.PortableActivityWindowCoverage
 import com.adsamcik.tracker.shared.base.database.PortableActivityWindowV1
 import com.adsamcik.tracker.shared.base.database.PortableActivityZoneEpochV1
 import com.adsamcik.tracker.shared.base.database.RoomImportPortableCapturedActivity
+import com.adsamcik.tracker.shared.base.database.SelectedImportedActivityDeletionBlockedReason
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.ActivitySelectionDeletionRequest
 import com.adsamcik.tracker.stats.api.repository.ActivitySelectionDeletionResult
+import com.adsamcik.tracker.stats.api.repository.ActivitySelectionDeletionBlockedReason
 import com.adsamcik.tracker.stats.api.repository.ActivitySelectionDeletionUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.ActivitySessionDeletion
 import com.adsamcik.tracker.stats.api.repository.ActivitySessionDeletionResult
@@ -94,6 +96,40 @@ class RoomActivitySelectionDeletionTest {
 			entry.runs.single().identity
 		importedRequest?.selected?.windowIdentities?.single() shouldBe
 			entry.runs.single().windows.single().identity
+	}
+
+	@Test
+	fun `stale imported range selection remains typed and cannot fall through to local`() = runTest {
+		val entry = entry()
+		RoomImportPortableCapturedActivity(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+		).importEntry(importRequest(entry))
+		var localCalls = 0
+		val subject = RoomActivitySelectionDeletion(
+			database,
+			localDeletion {
+				localCalls++
+				ActivitySessionDeletionResult.Deleted
+			},
+			importedDeletion {
+				DeleteSelectedImportedActivityResult.Blocked(
+					SelectedImportedActivityDeletionBlockedReason.STALE_SELECTION,
+				)
+			},
+			UnconfinedTestDispatcher(testScheduler),
+		)
+
+		subject.delete(
+			ActivitySelectionDeletionRequest(
+				ActivityHistoryEntryKey("activity-imported:${entry.identity.value}"),
+				ActivityHistoryOrigin.IMPORTED,
+				100L,
+			),
+		) shouldBe ActivitySelectionDeletionResult.Blocked(
+			ActivitySelectionDeletionBlockedReason.STALE_SELECTION,
+		)
+		localCalls shouldBe 0
 	}
 
 	@Test

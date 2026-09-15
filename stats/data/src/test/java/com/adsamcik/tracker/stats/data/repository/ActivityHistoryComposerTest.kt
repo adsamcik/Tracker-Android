@@ -8,12 +8,19 @@ import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedActivityR
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedActivityRequest
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedActivityResult
 import com.adsamcik.tracker.shared.base.database.PortableActivityEntryV1
+import com.adsamcik.tracker.shared.base.database.PortableActivityDeletionScopeDigest
+import com.adsamcik.tracker.shared.base.database.PortableActivityFragmentV1
 import com.adsamcik.tracker.shared.base.database.PortableActivityIdentityKind
 import com.adsamcik.tracker.shared.base.database.PortableActivityImportReceipt
 import com.adsamcik.tracker.shared.base.database.PortableActivityOpaqueIdentity
+import com.adsamcik.tracker.shared.base.database.PortableActivityRunV1
+import com.adsamcik.tracker.shared.base.database.PortableActivityWindowV1
 import com.adsamcik.tracker.shared.base.database.ReadLocalPortableCapturedActivityResult
 import com.adsamcik.tracker.shared.base.database.RoomImportPortableCapturedActivity
 import com.adsamcik.tracker.shared.base.database.RoomReadLocalPortableCapturedActivity
+import com.adsamcik.tracker.shared.base.database.RoomTruncateImportedActivityRetention
+import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionRequest
+import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionResult
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFactIntegrity
@@ -51,6 +58,10 @@ import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryPage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryRangePage
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryRangeScope
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryRangeUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
@@ -61,9 +72,11 @@ import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.security.MessageDigest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -167,6 +180,327 @@ class ActivityHistoryComposerTest {
 		recentEntry.activeTime?.knownActiveDurationNanos shouldBe 3_300L
 		recentEntry.storedZoneIds shouldBe setOf("UTC", "Europe/Prague")
 		recentEntry shouldBe selectedEntry
+	}
+
+	@Test
+	fun `range exposes exact Activity only intent before its first fact`() = runTest {
+		val snapshot = fixture(listOf(RunSpec(1L, "run-a", "Pacific/Kiritimati"))).copy(
+			revisions = emptyList(),
+			cursors = emptyList(),
+			fragmentsByRevision = emptyMap(),
+			evidenceByRevision = emptyMap(),
+		)
+		persistFixture(snapshot)
+		val repository = activityRepository(testScheduler)
+
+		val page = repository.range(
+			ActivityHistoryRangeRequest(
+				ActivityHistoryRangeScope.StructuralDays(0L, 1L),
+				10,
+			),
+		) as ActivityHistoryRangePage.Available
+
+		page.entries shouldHaveSize 1
+		val ranged = page.entries.single()
+		ranged.entry.capturesOnlyActivity shouldBe true
+		ranged.entry.activeTime shouldBe null
+		ranged.entry.fragments shouldBe emptyList()
+		ranged.structuralDays.single().storedZoneId shouldBe "Pacific/Kiritimati"
+	}
+
+	@Test
+	fun `combined range preserves value free local intent beside imported product`() = runTest {
+		val template = fixture(listOf(RunSpec(1L, "template", "UTC")))
+		persistPortableFixture(template)
+		val imported = reidentifyPortable(readLocalPortableEntry(template), "independent")
+		database.clearAllTables()
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
+		importPortable(imported, testScheduler)
+		val factless = fixture(listOf(RunSpec(1L, "run-a", "UTC"))).copy(
+			revisions = emptyList(),
+			cursors = emptyList(),
+			fragmentsByRevision = emptyMap(),
+			evidenceByRevision = emptyMap(),
+		)
+		persistFixture(factless)
+
+		val page = activityRepository(testScheduler).range(
+			ActivityHistoryRangeRequest(
+				ActivityHistoryRangeScope.WallTime(EpochMs(0L), EpochMs(10_000L)),
+				10,
+			),
+		) as ActivityHistoryRangePage.Available
+
+		page.entries shouldHaveSize 2
+		val local = page.entries.single { it.entry.origin == ActivityHistoryOrigin.LOCAL }
+		local.entry.capturesOnlyActivity shouldBe true
+		local.entry.activeTime shouldBe null
+		local.entry.fragments shouldBe emptyList()
+		(activityRepository(testScheduler).recent(10) as ActivityHistoryPage.Available)
+			.entries shouldHaveSize 2
+	}
+
+	@Test
+	fun `mixed range retains exact local and imported origins in one transaction`() = runTest {
+		val local = fixture(listOf(RunSpec(1L, "run-a", "UTC")))
+		persistPortableFixture(local)
+		val imported = reidentifyPortable(readLocalPortableEntry(local), "foreign")
+		importPortable(imported, testScheduler)
+		val repository = activityRepository(testScheduler)
+
+		val page = repository.range(
+			ActivityHistoryRangeRequest(
+				ActivityHistoryRangeScope.WallTime(EpochMs(0L), EpochMs(10_000L)),
+				10,
+			),
+		) as ActivityHistoryRangePage.Available
+
+		page.entries shouldHaveSize 2
+		page.entries.map { it.entry.origin }.toSet() shouldBe setOf(
+			ActivityHistoryOrigin.LOCAL,
+			ActivityHistoryOrigin.IMPORTED,
+		)
+		database.withTransaction {
+			(repository.sourceSessionInTransaction(local.expansion.segments.single().id) as
+				ActivitySourceQuery.Found).entry.composed.physicalSegmentIds shouldBe
+				local.expansion.segments.map(SessionSegment::id)
+			(repository.selectBySegmentIdsInTransaction(
+				local.expansion.segments.map(SessionSegment::id),
+			) as ActivityComposedPage.Available).entries shouldHaveSize 1
+			(repository.recentActivityOnlyInTransaction(10) as
+				ActivityComposedPage.Available).entries shouldHaveSize 1
+			(repository.recentActivityHistoryInTransaction(10) as
+				ActivitySourceComposedPage.Available).entries shouldHaveSize 2
+		}
+	}
+
+	@Test
+	fun `imported recent and range order by newest replacement member before limit`() = runTest {
+		val newestTemplate = fixture(
+			listOf(
+				RunSpec(1L, "newest-a", "UTC"),
+				RunSpec(2L, "newest-b", "UTC"),
+			),
+		)
+		persistPortableFixture(newestTemplate)
+		val newest = reidentifyPortable(readLocalPortableEntry(newestTemplate), "newest")
+		database.clearAllTables()
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
+		val middleTemplate = fixture(listOf(RunSpec(1L, "middle", "UTC")))
+		persistPortableFixture(middleTemplate)
+		val middle = shiftPortable(
+			readLocalPortableEntry(middleTemplate),
+			deltaMs = 250L,
+			seed = "middle",
+		)
+		database.clearAllTables()
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
+		importPortable(newest, testScheduler)
+		importPortable(middle, testScheduler)
+		val repository = activityRepository(testScheduler)
+
+		val recent = repository.recent(1) as ActivityHistoryPage.Available
+		val range = repository.range(
+			ActivityHistoryRangeRequest(
+				ActivityHistoryRangeScope.WallTime(EpochMs(0L), EpochMs(10_000L)),
+				1,
+			),
+		) as ActivityHistoryRangePage.Available
+
+		recent.entries.single().endTime shouldBe EpochMs(newest.endTimeMs)
+		range.entries.single().entry.endTime shouldBe EpochMs(newest.endTimeMs)
+	}
+
+	@Test
+	fun `range pagination reaches imported entries beyond the recent one hundred cutoff`() = runTest {
+		val templateSnapshot = fixture(listOf(RunSpec(1L, "template", "UTC")))
+		persistPortableFixture(templateSnapshot)
+		val template = readLocalPortableEntry(templateSnapshot)
+		database.clearAllTables()
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
+		repeat(105) { index ->
+			importPortable(
+				reidentifyPortable(template, "range-${index.toString().padStart(3, '0')}"),
+				testScheduler,
+			)
+		}
+		val repository = activityRepository(testScheduler)
+
+		(repository.recent(100) as ActivityHistoryPage.Available).entries shouldHaveSize 100
+		val ranged = mutableListOf<com.adsamcik.tracker.stats.api.repository.ActivityHistoryRangeEntry>()
+		var continuation:
+			com.adsamcik.tracker.stats.api.repository.ActivityHistoryRangeContinuation? = null
+		do {
+			val page = repository.range(
+				ActivityHistoryRangeRequest(
+					ActivityHistoryRangeScope.WallTime(EpochMs(0L), EpochMs(10_000L)),
+					40,
+					continuation,
+				),
+			) as ActivityHistoryRangePage.Available
+			ranged += page.entries
+			continuation = page.continuation
+		} while (continuation != null)
+
+		ranged shouldHaveSize 105
+		ranged.map { it.entry.key }.distinct() shouldHaveSize 105
+	}
+
+	@Test
+	fun `range continuation binds issuer evidence revision epoch and imported mutation`() = runTest {
+		val firstTemplate = fixture(listOf(RunSpec(1L, "first", "UTC")))
+		persistPortableFixture(firstTemplate)
+		val first = reidentifyPortable(readLocalPortableEntry(firstTemplate), "first")
+		database.clearAllTables()
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
+		val secondTemplate = fixture(listOf(RunSpec(2L, "second", "UTC")))
+		persistPortableFixture(secondTemplate)
+		val second = reidentifyPortable(readLocalPortableEntry(secondTemplate), "second")
+		database.clearAllTables()
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
+		importPortable(first, testScheduler)
+		importPortable(second, testScheduler)
+		val repository = activityRepository(testScheduler)
+		val request = ActivityHistoryRangeRequest(
+			ActivityHistoryRangeScope.WallTime(EpochMs(0L), EpochMs(10_000L)),
+			1,
+		)
+		val firstPage = repository.range(request) as ActivityHistoryRangePage.Available
+		val continuation = requireNotNull(firstPage.continuation)
+
+		(repository.range(request.copy(continuation = continuation)) as
+			ActivityHistoryRangePage.Available).entries shouldHaveSize 1
+		activityRepository(testScheduler).range(
+			request.copy(continuation = continuation),
+		) shouldBe ActivityHistoryRangePage.Unavailable(
+			ActivityHistoryRangeUnavailableReason.INVALID_CONTINUATION,
+		)
+		importPortable(reidentifyPortable(first, "third"), testScheduler)
+		repository.range(request.copy(continuation = continuation)) shouldBe
+			ActivityHistoryRangePage.Unavailable(
+				ActivityHistoryRangeUnavailableReason.INVALID_CONTINUATION,
+			)
+		val refreshed = repository.range(request) as ActivityHistoryRangePage.Available
+		val refreshedContinuation = requireNotNull(refreshed.continuation)
+		database.sourceEvidenceStateDao().incrementRevision(30_000L) shouldBe 1
+		repository.range(request.copy(continuation = refreshedContinuation)) shouldBe
+			ActivityHistoryRangePage.Unavailable(
+				ActivityHistoryRangeUnavailableReason.INVALID_CONTINUATION,
+			)
+	}
+
+	@Test
+	fun `relevant imported corruption is typed and cancelled range propagates`() = runTest {
+		val template = fixture(listOf(RunSpec(1L, "corrupt", "UTC")))
+		persistPortableFixture(template)
+		val imported = reidentifyPortable(readLocalPortableEntry(template), "corrupt")
+		database.clearAllTables()
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
+		importPortable(imported, testScheduler)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_activity_run SET content_checksum = ? WHERE entry_identity = ?",
+			arrayOf("f".repeat(64), imported.identity.value),
+		)
+		val repository = activityRepository(testScheduler)
+
+		val corruptPage = repository.range(
+			ActivityHistoryRangeRequest(
+				ActivityHistoryRangeScope.WallTime(EpochMs(0L), EpochMs(10_000L)),
+				10,
+			),
+		) as ActivityHistoryRangePage.Available
+		corruptPage.entries.single().entry.state shouldBe ActivityHistoryProductState.FAILED
+		corruptPage.entries.single().entry.causes shouldBe
+			setOf(ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+		kotlin.test.assertFailsWith<kotlinx.coroutines.CancellationException> {
+			withContext(Job().apply { cancel() }) {
+				repository.range(
+					ActivityHistoryRangeRequest(
+						ActivityHistoryRangeScope.WallTime(EpochMs(0L), EpochMs(10_000L)),
+						10,
+					),
+				)
+			}
+		}
+
+		@Test
+		fun `range fails closed when complete replacement membership exceeds its bound`() = runTest {
+			val snapshot = fixture(
+				(1L..129L).map { revision ->
+					RunSpec(revision, "overflow-$revision", "UTC")
+				},
+			)
+			persistFixture(snapshot)
+
+			activityRepository(testScheduler).range(
+				ActivityHistoryRangeRequest(
+					ActivityHistoryRangeScope.WallTime(EpochMs(0L), EpochMs(100_000L)),
+					10,
+				),
+			) shouldBe ActivityHistoryRangePage.Failed(ActivityHistoryCause.READ_BUDGET_EXCEEDED)
+		}
+
+		@Test
+		fun `orphaned relevant local fact is failed product rather than unknown not found`() = runTest {
+			val snapshot = fixture(listOf(RunSpec(1L, "orphaned", "UTC")))
+			persistFixture(snapshot)
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM source_service_run WHERE service_run_id = ?",
+				arrayOf("orphaned"),
+			)
+
+			val page = activityRepository(testScheduler).range(
+				ActivityHistoryRangeRequest(
+					ActivityHistoryRangeScope.WallTime(EpochMs(0L), EpochMs(10_000L)),
+					10,
+				),
+			) as ActivityHistoryRangePage.Available
+
+			page.entries shouldHaveSize 1
+			page.entries.single().entry.state shouldBe ActivityHistoryProductState.FAILED
+			page.entries.single().entry.causes shouldBe
+				setOf(ActivityHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+		}
+
+		@Test
+		fun `retained imported range keeps structural membership but no Activity values`() = runTest {
+			val template = fixture(listOf(RunSpec(1L, "retained", "Europe/Prague")))
+			persistPortableFixture(template)
+			val imported = reidentifyPortable(readLocalPortableEntry(template), "retained")
+			database.clearAllTables()
+			database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
+			importPortable(imported, testScheduler)
+			database.sourceEvidenceStateDao().updateLifecycle(
+				epoch = 0L,
+				retainedFromMs = imported.startTimeMs + 1L,
+				updatedAtMs = 30_000L,
+			) shouldBe 1
+			RoomTruncateImportedActivityRetention(
+				database,
+				UnconfinedTestDispatcher(testScheduler),
+			).truncate(
+				TruncateImportedActivityRetentionRequest(
+					expectedCollectedDataEpoch = 0L,
+					expectedSourceEvidenceRevision = 1L,
+					retainedFromMs = imported.startTimeMs + 1L,
+					retainedAtMs = 30_001L,
+				),
+			) shouldBe TruncateImportedActivityRetentionResult.Truncated(1, 1, 1, 1, 1)
+
+			val page = activityRepository(testScheduler).range(
+				ActivityHistoryRangeRequest(
+					ActivityHistoryRangeScope.StructuralDays(0L, 1L),
+					10,
+				),
+			) as ActivityHistoryRangePage.Available
+
+			page.entries shouldHaveSize 1
+			page.entries.single().entry.state shouldBe ActivityHistoryProductState.UNAVAILABLE
+			page.entries.single().entry.causes shouldBe setOf(ActivityHistoryCause.RETENTION_LIMIT)
+			page.entries.single().entry.activeTime shouldBe null
+			page.entries.single().entry.fragments shouldBe emptyList()
+			page.entries.single().structuralDays.single().storedZoneId shouldBe "Europe/Prague"
+		}
 	}
 
 	@Test
@@ -1232,7 +1566,173 @@ class ActivityHistoryComposerTest {
 				),
 				expectedCollectedDataEpoch = 0L,
 			),
-		) shouldBe ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		) shouldBe ImportPortableCapturedActivityResult.Applied(
+			importRevision = 1L,
+			physicalRunCount = entry.runs.size,
+			windowCount = entry.runs.sumOf { it.windows.size },
+			fragmentCount = entry.runs.sumOf { run ->
+				run.windows.sumOf { it.fragments.size }
+			},
+		)
+	}
+
+	private fun activityRepository(scheduler: TestCoroutineScheduler) =
+		DefaultActivityHistoryRepository(
+			database,
+			EXECUTION_AUTHORITY,
+			UnconfinedTestDispatcher(scheduler),
+		)
+
+	private fun reidentifyPortable(
+		entry: PortableActivityEntryV1,
+		seed: String,
+	): PortableActivityEntryV1 {
+		val runs = entry.runs.mapIndexed { runIndex, run ->
+			val windows = run.windows.mapIndexed { windowIndex, window ->
+				val identity = PortableActivityOpaqueIdentity.derive(
+					PortableActivityIdentityKind.CAPTURE_WINDOW,
+					"$seed-window-$runIndex-$windowIndex",
+				)
+				PortableActivityWindowV1(
+					identity = identity,
+					contentChecksum = ActivityCapturedPortableIntegrity.windowChecksum(
+						identity = identity,
+						startOffsetNanos = window.startOffsetNanos,
+						endOffsetNanos = window.endOffsetNanos,
+						storedZoneId = window.storedZoneId,
+						coverage = window.coverage,
+						knownActiveDurationNanos = window.knownActiveDurationNanos,
+						knownInactiveDurationNanos = window.knownInactiveDurationNanos,
+						unknownActivityDurationNanos = window.unknownActivityDurationNanos,
+						unobservedDurationNanos = window.unobservedDurationNanos,
+						fragments = window.fragments,
+					),
+					startOffsetNanos = window.startOffsetNanos,
+					endOffsetNanos = window.endOffsetNanos,
+					storedZoneId = window.storedZoneId,
+					coverage = window.coverage,
+					knownActiveDurationNanos = window.knownActiveDurationNanos,
+					knownInactiveDurationNanos = window.knownInactiveDurationNanos,
+					unknownActivityDurationNanos = window.unknownActivityDurationNanos,
+					unobservedDurationNanos = window.unobservedDurationNanos,
+					fragments = window.fragments,
+				)
+			}
+			val identity = PortableActivityOpaqueIdentity.derive(
+				PortableActivityIdentityKind.PHYSICAL_RUN,
+				"$seed-run-$runIndex",
+			)
+			val scope = PortableActivityDeletionScopeDigest.derive(
+				"$seed-logical",
+				"$seed-run-$runIndex",
+			)
+			PortableActivityRunV1(
+				identity = identity,
+				deletionScopeDigest = scope,
+				contentChecksum = ActivityCapturedPortableIntegrity.runChecksum(
+					identity = identity,
+					deletionScopeDigest = scope,
+					startTimeMs = run.startTimeMs,
+					endTimeMs = run.endTimeMs,
+					captureCoverage = run.captureCoverage,
+					zoneEpochs = run.zoneEpochs,
+					windows = windows,
+				),
+				startTimeMs = run.startTimeMs,
+				endTimeMs = run.endTimeMs,
+				captureCoverage = run.captureCoverage,
+				zoneEpochs = run.zoneEpochs,
+				windows = windows,
+			)
+		}
+		val identity = PortableActivityOpaqueIdentity.derive(
+			PortableActivityIdentityKind.LOGICAL_ENTRY,
+			"$seed-logical",
+		)
+		return PortableActivityEntryV1(
+			identity = identity,
+			contentChecksum = ActivityCapturedPortableIntegrity.entryChecksum(
+				identity = identity,
+				sessionMode = entry.sessionMode,
+				startTimeMs = entry.startTimeMs,
+				endTimeMs = entry.endTimeMs,
+				runs = runs,
+			),
+			sessionMode = entry.sessionMode,
+			startTimeMs = entry.startTimeMs,
+			endTimeMs = entry.endTimeMs,
+			runs = runs,
+		)
+	}
+
+	private fun shiftPortable(
+		entry: PortableActivityEntryV1,
+		deltaMs: Long,
+		seed: String,
+	): PortableActivityEntryV1 {
+		val identified = reidentifyPortable(entry, seed)
+		val runs = identified.runs.map { run ->
+			val windows = run.windows.map { window ->
+				val fragments = window.fragments.map { fragment ->
+					when (fragment) {
+						is PortableActivityFragmentV1.Gap -> fragment
+						is PortableActivityFragmentV1.Band -> fragment.copy(
+							startWallTimeMs = Math.addExact(fragment.startWallTimeMs, deltaMs),
+							endWallTimeMs = Math.addExact(fragment.endWallTimeMs, deltaMs),
+						)
+					}
+				}
+				window.copy(
+					contentChecksum = ActivityCapturedPortableIntegrity.windowChecksum(
+						identity = window.identity,
+						startOffsetNanos = window.startOffsetNanos,
+						endOffsetNanos = window.endOffsetNanos,
+						storedZoneId = window.storedZoneId,
+						coverage = window.coverage,
+						knownActiveDurationNanos = window.knownActiveDurationNanos,
+						knownInactiveDurationNanos = window.knownInactiveDurationNanos,
+						unknownActivityDurationNanos = window.unknownActivityDurationNanos,
+						unobservedDurationNanos = window.unobservedDurationNanos,
+						fragments = fragments,
+					),
+					fragments = fragments,
+				)
+			}
+			val start = Math.addExact(run.startTimeMs, deltaMs)
+			val end = Math.addExact(run.endTimeMs, deltaMs)
+			val zones = run.zoneEpochs.map { zone ->
+				zone.copy(effectiveWallTimeMs = Math.addExact(zone.effectiveWallTimeMs, deltaMs))
+			}
+			run.copy(
+				contentChecksum = ActivityCapturedPortableIntegrity.runChecksum(
+					identity = run.identity,
+					deletionScopeDigest = run.deletionScopeDigest,
+					startTimeMs = start,
+					endTimeMs = end,
+					captureCoverage = run.captureCoverage,
+					zoneEpochs = zones,
+					windows = windows,
+				),
+				startTimeMs = start,
+				endTimeMs = end,
+				zoneEpochs = zones,
+				windows = windows,
+			)
+		}
+		val start = Math.addExact(identified.startTimeMs, deltaMs)
+		val end = Math.addExact(identified.endTimeMs, deltaMs)
+		return identified.copy(
+			contentChecksum = ActivityCapturedPortableIntegrity.entryChecksum(
+				identity = identified.identity,
+				sessionMode = identified.sessionMode,
+				startTimeMs = start,
+				endTimeMs = end,
+				runs = runs,
+			),
+			startTimeMs = start,
+			endTimeMs = end,
+			runs = runs,
+		)
 	}
 
 	private fun buildRun(spec: RunSpec): BuiltRun {

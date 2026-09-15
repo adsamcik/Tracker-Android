@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.PortableActivityEntryV1
 import com.adsamcik.tracker.shared.base.database.PortableActivityIdentityKind
 import com.adsamcik.tracker.shared.base.database.PortableActivityOpaqueIdentity
 import com.adsamcik.tracker.shared.base.database.PortableActivityOpaqueOwnershipVerifier
+import com.adsamcik.tracker.shared.base.database.RetainedImportedActivityIdentity
 import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityHistoryCandidate
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
@@ -17,19 +18,46 @@ internal object ActivityHistoryOriginComposer {
 		liveLogicalTrackingIds: Set<String>,
 		imported: List<ImportedActivityProductEvaluation>,
 		localPortableEntriesByIdentity: Map<String, PortableActivityEntryV1>,
+		localProtectedIdentitiesByEntry:
+			Map<PortableActivityOpaqueIdentity, List<RetainedImportedActivityIdentity>> = emptyMap(),
 		limit: Int,
 	): List<ActivityHistoryEntry> {
 		require(limit > 0)
+		val publicImported = composeImported(
+			liveLogicalTrackingIds,
+			imported,
+			localPortableEntriesByIdentity,
+			localProtectedIdentitiesByEntry,
+		).mapNotNull(ComposedImportedActivityEntry::entry)
+		return (live + publicImported).sortedWith(
+			compareByDescending<ActivityHistoryEntry> { it.startTime.raw }
+				.thenByDescending { it.endTime.raw }
+				.thenBy { it.origin != ActivityHistoryOrigin.LOCAL },
+		).take(limit)
+	}
+
+	fun composeImported(
+		liveLogicalTrackingIds: Set<String>,
+		imported: List<ImportedActivityProductEvaluation>,
+		localPortableEntriesByIdentity: Map<String, PortableActivityEntryV1>,
+		localProtectedIdentitiesByEntry:
+			Map<PortableActivityOpaqueIdentity, List<RetainedImportedActivityIdentity>> = emptyMap(),
+	): List<ComposedImportedActivityEntry> {
 		val localIdentities = liveLogicalTrackingIds.mapTo(hashSetOf()) { logicalId ->
 			PortableActivityOpaqueIdentity.derive(
 				PortableActivityIdentityKind.LOGICAL_ENTRY,
 				logicalId,
 			).value
 		}
+		localIdentities += localPortableEntriesByIdentity.keys
+		localIdentities += localProtectedIdentitiesByEntry.keys.map { it.value }
 		val ownership = PortableActivityOpaqueOwnershipVerifier.fromEntries(
 			localPortableEntriesByIdentity.values,
 		) ?: throw ImportedActivityHistoryCompositionFailure()
-		val publicImported = imported.mapNotNull { evaluation ->
+		if (localProtectedIdentitiesByEntry.any { (entry, identities) ->
+			!ownership.tryInclude(entry, identities)
+		}) throw ImportedActivityHistoryCompositionFailure()
+		return imported.map { evaluation ->
 			if (!evaluation.candidate.hasSafePublicShell()) {
 				throw ImportedActivityHistoryCompositionFailure()
 			}
@@ -47,7 +75,7 @@ internal object ActivityHistoryOriginComposer {
 				evaluation is ImportedActivityProductEvaluation.Readable &&
 				evaluation.isReExportable && exactLocal == evaluation.entry
 			) {
-				null
+				ComposedImportedActivityEntry(evaluation, null)
 			} else {
 				val originConflict = ownershipConflict || (
 					collision && when (evaluation) {
@@ -56,7 +84,7 @@ internal object ActivityHistoryOriginComposer {
 						is ImportedActivityProductEvaluation.Unverifiable -> true
 					}
 				)
-				try {
+				val entry = try {
 					evaluation.toPublicActivityEntry(originConflict = originConflict)
 				} catch (_: ArithmeticException) {
 					ImportedActivityProductEvaluation.Unverifiable(
@@ -69,15 +97,16 @@ internal object ActivityHistoryOriginComposer {
 						ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
 					).toPublicActivityEntry()
 				}
+				ComposedImportedActivityEntry(evaluation, entry)
 			}
 		}
-		return (live + publicImported).sortedWith(
-			compareByDescending<ActivityHistoryEntry> { it.startTime.raw }
-				.thenByDescending { it.endTime.raw }
-				.thenBy { it.origin != ActivityHistoryOrigin.LOCAL },
-		).take(limit)
 	}
 }
+
+internal data class ComposedImportedActivityEntry(
+	val evaluation: ImportedActivityProductEvaluation,
+	val entry: ActivityHistoryEntry?,
+)
 
 internal class ImportedActivityHistoryCompositionFailure : RuntimeException(null, null, false, false)
 

@@ -380,6 +380,16 @@ class ImportedActivityHistoryMapperTest {
 		candidate = candidate(entry),
 		retainedFromMs = 1_500L,
 		retainedAtMs = 3_100L,
+		latestMemberStartTimeMs = entry.runs.last().startTimeMs,
+		latestMemberIdentity = entry.runs.last().identity,
+		structuralZoneRanges = entry.runs.map { run ->
+			com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetainedZoneRange(
+				run.startTimeMs,
+				run.endTimeMs,
+				run.zoneEpochs.last().zoneId,
+			)
+		},
+		structuralZoneCoverageComplete = true,
 		protectedIdentities = buildList {
 			add(RetainedImportedActivityIdentity.Entry(entry.identity))
 			entry.runs.forEach { run ->

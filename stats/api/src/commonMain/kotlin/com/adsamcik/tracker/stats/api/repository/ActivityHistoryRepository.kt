@@ -9,6 +9,9 @@ interface ActivityHistoryRepository {
 
 	/** Discovers recent logical entries from captured Activity intent and retained product facts. */
 	suspend fun recent(limit: Int): ActivityHistoryPage
+
+	/** Reads one bounded page from a wall-time or stored-structural-day Activity scope. */
+	suspend fun range(request: ActivityHistoryRangeRequest): ActivityHistoryRangePage
 }
 
 sealed interface ActivityHistoryQuery {
