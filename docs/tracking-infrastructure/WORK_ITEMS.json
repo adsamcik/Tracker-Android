@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-15T19:50:15.732+02:00",
+  "updated_at": "2026-09-15T20:02:55.540+02:00",
   "repository": {
     "branch": "dev/v10",
     "local_head_at_task_start": "6744ced52037d531e56751777b519165167e6b19",
@@ -100,8 +100,8 @@
       "active_governance": 1,
       "allowed_dependency": 1,
       "approval_required": 1,
-      "committed_held": 2,
-      "completed_accepted_slice": 5,
+      "committed_held": 1,
+      "completed_accepted_slice": 6,
       "completed_foundation": 1,
       "decision_required": 8,
       "gate_deferred": 4,
@@ -110,10 +110,10 @@
     }
   },
   "review_state_counts": {
-    "active": 2,
+    "active": 1,
     "blocked_findings": 14,
     "closed_except_decision": 1,
-    "closed_static": 5,
+    "closed_static": 6,
     "continuous": 2,
     "historical_accepted": 1,
     "mixed": 7,
@@ -121,14 +121,14 @@
     "not_started": 21
   },
   "integration_state_counts": {
-    "held_branch": 3,
+    "held_branch": 2,
     "held_dependency": 1,
     "local_dev": 7,
     "local_only": 1,
     "mixed_source_refs": 7,
     "not_applicable": 9,
     "not_started": 21,
-    "source_branch": 13
+    "source_branch": 14
   },
   "validation_state_counts": {
     "deferred_implementation_only": 53,
@@ -2670,9 +2670,9 @@
         "Autonomous key/generation-bound capped backoff is cancellable and retries only the intended cleanup.",
         "The helper remains in the correct scope and a real orchestration test source covers the final path."
       ],
-      "implementation_state": "committed_held",
-      "review_state": "active",
-      "integration_state": "held_branch",
+      "implementation_state": "completed_accepted_slice",
+      "review_state": "closed_static",
+      "integration_state": "source_branch",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": null,
@@ -2694,10 +2694,8 @@
         "AmbientSourceReconciliationCallback"
       ],
       "dependencies": [],
-      "known_blockers": [
-        "The same reviewer is checking only the final unchanged-key cleanup plus enqueue double-failure case at cef95415."
-      ],
-      "next_bounded_action": "Complete the focused review of cef95415 only; no authority-issuer, Hilt/runtime reporting or feature-collector successor.",
+      "known_blockers": [],
+      "next_bounded_action": "Parent inspects the exact closed cef95415 artifact for serialized local integration. Do not begin authority-issuer, Hilt/runtime reporting or feature-collector successors.",
       "evidence": {
         "branch": "codex/ti-purpose-settings-20260915",
         "branch_tip_at_snapshot": "cef95415e2f5e77fb9e12ea3e95776ef26e36efe",

@@ -56,7 +56,9 @@ Latest current-slice review receipts:
   runtime/projector-chain test. The owner is editing declaration scope first. Do not treat its
   earlier `leaf closed` or `RAD001..012 COMMITTED` metadata as acceptance. Parent 18-plus entity/
   DDL, typed footprint/approval, runtime/DI/lease and UI dependencies remain backlog.
-- Purpose is frozen at `cef95415e2` for only the final double-failure review case.
+- Purpose `cef95415e2` is cumulatively static-closed, including the final autonomous containment
+  retry. No successor began. Parent inspection for serialized local integration is active; DI,
+  live lease issuance, publication and collection remain planned future work.
 - Pressure maintenance `39198f5a96` has two source corrections remaining: private helper scope and
   complete early per-owner TEXT preflight. Runtime/schema dependencies remain open.
 - Shared schema `cba0b116d1` is production-coherent and correcting only duplicate-test and real

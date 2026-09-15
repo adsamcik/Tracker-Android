@@ -68,10 +68,12 @@ Current focused-review receipts, with no new feature wave:
 
 Latest closure refinements:
 
-- Purpose is frozen at `cef95415e2f5e77fb9e12ea3e95776ef26e36efe` after `0be815ec47`.
-  Autonomous key/generation-bound cancellable capped backoff and helper scope are authored.
-  The same reviewer is checking only the final unchanged-key cleanup plus scheduler double-failure
-  case; atomic store, defaults, matrix and isolation are closed. No successor started.
+- Purpose `cef95415e2f5e77fb9e12ea3e95776ef26e36efe` after `0be815ec47` is now
+  cumulatively static-closed, including autonomous key/generation-bound cancellable capped-backoff
+  containment retry and helper scope. Atomic store, defaults, matrix, isolation and the final
+  unchanged-key cleanup/scheduler double-failure case are closed. No successor started. Actual
+  DI, live authority lease issuance, publication and collection remain future integration. The
+  parent is inspecting the exact closed artifact for serialized local integration.
 - Pressure maintenance review of `39198f5a966e724fc5f38d350d27786ad4595340` closes original
   findings 1-5 source-locally. Only importer private helpers accidentally nested in `storedValue`
   and late/incomplete per-owner TEXT preflight remain. Runtime barrier and shared schema are still

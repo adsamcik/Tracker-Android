@@ -48,7 +48,9 @@ Current correction-only receipts:
 - Passive ambient radio `306e9070d2` remains blocked by ten production findings plus a missing
   actual runtime/projector-chain test. Correct only that artifact. Parent schema/runtime/DI/UI
   integration remains backlog. Owner-authored `COMMITTED`/`leaf closed` labels are not acceptance.
-- Purpose `cef95415e2` is frozen for a final focused double-failure review; no successor exists.
+- Purpose `cef95415e2` is cumulatively static-closed, including the final autonomous containment
+  double-failure retry. No successor began. Actual DI/live lease issuance, publication and
+  collection remain separate planned integration.
 - Pressure maintenance `39198f5a96` has two remaining source findings: nested private helpers and
   incomplete early per-owner TEXT preflight. Runtime/schema dependencies remain separate.
 - Shared schema `cba0b116d1` has only duplicate-test and real file-backed Ambient full-clear reopen

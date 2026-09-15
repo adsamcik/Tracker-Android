@@ -19,12 +19,27 @@ no files, and the reviewer was then restricted to source-read tools. This is a p
 not evidence that the Location artifact or any other source passes a validation gate. No regression,
 compiler, Gradle, lint, schema, device or CI gate has started for the current assembly.
 
+## TI-B331 - Purpose containment artifact cumulatively static-closed
+
+- Input: `cef95415e2f5e77fb9e12ea3e95776ef26e36efe` after `0be815ec47` on
+  `codex/ti-purpose-settings-20260915`.
+- The same focused reviewer closed the final unchanged-key cleanup plus scheduler double-failure
+  path. The artifact now includes autonomous key/generation-bound cancellable capped-backoff
+  containment retry with correctly scoped helpers.
+- Prior atomic-store, ambient-default, source/purpose matrix, tuple-validation and isolation
+  findings remain closed. No successor implementation began.
+- Outcome: **IMPLEMENTED_UNVALIDATED; CUMULATIVE STATIC REVIEW CLOSED.** Actual DI, live authority
+  lease issuance, availability publication and feature/runtime collection remain separate future
+  integration. The parent is inspecting this exact artifact for serialized local integration.
+  No compilation, tests, Gradle, lint, schema, device, CI, push or activation occurred.
+- Deferred after the final frozen convergence input:
+  `.\gradlew.bat :tracker:engine:testDebugUnitTest :app:testDebugUnitTest --tests "*Purpose*" --tests "*Containment*"`.
+
 ## TI-B330 - Purpose, Pressure, schema and history focused review receipts
 
-- Purpose input `cef95415e2f5e77fb9e12ea3e95776ef26e36efe` after `0be815ec47` is
-  frozen. Autonomous key/generation-bound cancellable capped backoff and helper scope are authored.
-  The same reviewer is checking only the unchanged-key cleanup plus scheduler double-failure case;
-  prior atomic-store/default/matrix/isolation findings are closed.
+- Purpose input `cef95415e2f5e77fb9e12ea3e95776ef26e36efe` was frozen for the final
+  unchanged-key cleanup plus scheduler double-failure review; TI-B331 supersedes this interim
+  Purpose disposition with cumulative static closure.
 - Pressure maintenance input `39198f5a966e724fc5f38d350d27786ad4595340` closes original
   findings 1-5 source-locally. Two source findings remain: importer private helpers are nested in
   `storedValue`, and per-owner TEXT preflight is late/incomplete. Runtime barrier and shared schema
@@ -40,8 +55,9 @@ compiler, Gradle, lint, schema, device or CI gate has started for the current as
 - The history owner may correct owned code and propose only narrow Activity/Pressure transactional
   plus imported-eligibility/newest-member producer APIs needed to close `1c94219`. Location proof,
   structural day/range and feature consumers remain backlog.
-- Outcome: Purpose and schema are frozen/held for focused closure; Pressure and history remain
-  active corrections. All are **IMPLEMENTED_UNVALIDATED**. No execution or new feature wave.
+- Outcome at this interim receipt: Purpose and schema were frozen/held for focused closure;
+  Pressure and history remained active corrections. TI-B331 closes Purpose only. All remain
+  **IMPLEMENTED_UNVALIDATED**. No execution or new feature wave.
 
 ## TI-B329 - Pressure file and passive radio reviews remain blocked
 
