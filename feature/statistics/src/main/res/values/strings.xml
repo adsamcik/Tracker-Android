@@ -109,6 +109,7 @@
     <string name="trip_detail_steps">Steps</string>
     <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Complete coverage</string>
     <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">At least this many · partial coverage</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Partial history · no trustworthy count available</string>
     <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Unverified: %1$s</string>
     <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Legacy value · completeness unverified</string>
     <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">Updating history…</string>
@@ -144,6 +145,81 @@
     <string name="trip_detail_delete_confirm">Delete</string>
     <string name="trip_detail_cancel">Cancel</string>
     <string name="trip_detail_more_options">More options</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">Actions unavailable for this captured source</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">Steps session</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">Retained Steps evidence</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">Coverage</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">No covered interval</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">Complete covered interval</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">Partial covered interval</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">Coverage unavailable</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">Only retained Steps evidence is shown. Location was not captured, so route and Location-derived metrics are unavailable.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">Activity session</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">Activity bands, durations, and confidence are approximate summaries of retained on-device evidence.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">Activity summary</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">Coverage</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">Origin</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">Known active time</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">Known inactive time</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">Unclassified time</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">Known gap time</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">Retained activity bands and gaps</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">Approximate duration</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Confidence</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Activity transition signal</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">About %1$d–%2$d%% from %3$d retained observation</item>
+        <item quantity="other">About %1$d–%2$d%% from %3$d retained observations</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Evidence type</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Refined transition</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">Known gap</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">Reason</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">Approximate duration</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">Preparing Activity history</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">Partial Activity history</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">Activity history available</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">Activity history unavailable</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">Activity history could not be verified</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">Retained Activity history is still being prepared; no duration is inferred yet.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">Only part of the session has retained Activity evidence.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">No retained Activity durations are available.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">No trustworthy retained Activity result is available.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">Retained Activity evidence failed integrity checks.</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">No verified coverage</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">Partial coverage</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">Complete coverage</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">Captured on this device</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">Imported retained evidence</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">Still</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">Walking</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">Running</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">Cycling</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">In vehicle</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">On foot</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">Tilting</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">Unknown activity</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">Transition</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">Sampled refinement</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">Sampled classification</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">No qualifying retained evidence</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">Activity provider interruption</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">Authorization changed</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">Process or device restart</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">Evidence did not qualify</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">Captured session</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">Location was not captured</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">Captured sources</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">Selected detail is not available for this exact source combination yet. Route, GPX, distance, speed, elevation, and other Location-derived actions remain unavailable.</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">Location</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">Cell</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">Activity</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">Steps</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">Pressure</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">Capture sources unverified</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">This older session predates verifiable capture history. Retained trip details are shown and may be incomplete.</string>
     <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">Pressure session</string>
     <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">Air pressure</string>
     <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">Status</string>

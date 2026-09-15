@@ -26,7 +26,7 @@ class TripDetailHistoryPresentationTest {
 		val missing = covered.copy(count = null, evidence = HistoryEvidence.NONE,
 			productState = HistoryProductState.PARTIAL, coverage = StepsHistoryCoverage.NONE,
 			causes = setOf(StepsHistoryCause.FACTS_MISSING))
-		missing.toTripDetailStepsState() shouldBe TripDetailStepsState.Unavailable
+		missing.toTripDetailStepsState() shouldBe TripDetailStepsState.Partial
 		missing.copy(productState = HistoryProductState.MATERIALIZING).toTripDetailStepsState() shouldBe
 			TripDetailStepsState.Materializing
 	}
@@ -44,7 +44,7 @@ class TripDetailHistoryPresentationTest {
 	}
 
 	@Test
-	fun `missing and baseline evidence stay nonnumeric`() {
+	fun `partial missing and baseline evidence stay nonnumeric and nonzero`() {
 		val result = history(
 			count = null,
 			evidence = HistoryEvidence.NONE,
@@ -53,7 +53,7 @@ class TripDetailHistoryPresentationTest {
 			causes = setOf(StepsHistoryCause.BASELINE_ONLY),
 		).toTripDetailStepsState()
 
-		result shouldBe TripDetailStepsState.Unavailable
+		result shouldBe TripDetailStepsState.Partial
 	}
 
 	@Test

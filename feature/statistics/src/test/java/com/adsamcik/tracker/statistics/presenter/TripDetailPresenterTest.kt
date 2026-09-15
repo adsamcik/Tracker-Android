@@ -3,6 +3,13 @@ package com.adsamcik.tracker.statistics.presenter
 import app.cash.turbine.test
 import arrow.core.left
 import arrow.core.right
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
 import com.adsamcik.tracker.stats.api.error.StatsError
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
@@ -58,7 +65,9 @@ class TripDetailPresenterTest {
 	@Test
 	fun `emits Loading then Loaded on success`() = runTest {
 		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
-		every { trackingHistoryRepository.observeLiveSession(42L) } returns flowOf(foundHistory(42L, 300L))
+		every { trackingHistoryRepository.observeLiveSession(42L) } returns flowOf(
+			legacyHistory(42L, 300L),
+		)
 		val events = MutableSharedFlow<TripDetailEvent>()
 
 		presenter.present(events).test {
@@ -73,20 +82,79 @@ class TripDetailPresenterTest {
 			val loaded = awaitItem()
 			loaded.shouldBeInstanceOf<TripDetailState.Loaded>()
 			loaded.trip shouldBe sampleTrip
-			loaded.steps shouldBe TripDetailStepsState.Complete(300L)
-			loaded.sourcePresentation shouldBe TripDetailSourcePresentation.Standard
+			loaded.steps shouldBe TripDetailStepsState.LegacyUnverified(300L)
+			loaded.sourcePresentation shouldBe TripDetailSourcePresentation.LegacyUnverifiable
+		}
+	}
+
+	@Test
+	fun `exact Activity-only capture selects retained Activity detail`() = runTest {
+		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
+		val activity = unavailableActivity(capturesOnlyActivity = true)
+		every { trackingHistoryRepository.observeLiveSession(42L) } returns flowOf(
+			exactHistory(
+				segmentId = 42L,
+				capture = exactCapture(
+					sources = setOf(HistorySource.ACTIVITY),
+					controlSources = setOf(HistorySource.LOCATION),
+				),
+				qualifiedSources = emptySet(),
+				steps = physicalStepsSourceNotCaptured(),
+				activity = activity,
+				pressure = physicalPressureSourceNotCaptured(),
+			),
+		)
+		val events = MutableSharedFlow<TripDetailEvent>()
+
+		presenter.present(events).test {
+			events.emit(TripDetailEvent.LoadTrip(42L))
+			awaitItem() shouldBe TripDetailState.Loading
+			awaitItem() shouldBe resolvingState()
+			awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>().sourcePresentation shouldBe
+				TripDetailSourcePresentation.ActivityOnly(activity)
+		}
+	}
+
+	@Test
+	fun `exact Steps-only capture selects retained Steps detail and covered zero`() = runTest {
+		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
+		val steps = completeSteps(0L)
+		every { trackingHistoryRepository.observeLiveSession(42L) } returns flowOf(
+			exactHistory(
+				segmentId = 42L,
+				capture = exactCapture(
+					sources = setOf(HistorySource.STEPS),
+					controlSources = setOf(HistorySource.ACTIVITY),
+				),
+				qualifiedSources = setOf(HistorySource.STEPS),
+				steps = steps,
+				activity = activitySourceNotCaptured(),
+				pressure = physicalPressureSourceNotCaptured(),
+			),
+		)
+		val events = MutableSharedFlow<TripDetailEvent>()
+
+		presenter.present(events).test {
+			events.emit(TripDetailEvent.LoadTrip(42L))
+			awaitItem() shouldBe TripDetailState.Loading
+			awaitItem() shouldBe resolvingState()
+			val loaded = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
+			loaded.steps shouldBe TripDetailStepsState.Complete(0L)
+			loaded.sourcePresentation shouldBe TripDetailSourcePresentation.StepsOnly(steps)
 		}
 	}
 
 	@Test
 	fun `exact Pressure-only capture selects contained Pressure detail before any fact`() = runTest {
 		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
-		val pressure = unavailablePressure()
+		val pressure = providerUnavailablePressure()
 		every { trackingHistoryRepository.observeLiveSession(42L) } returns flowOf(
-			foundHistory(
+			exactHistory(
 				segmentId = 42L,
-				count = null,
 				capture = exactCapture(setOf(HistorySource.PRESSURE)),
+				qualifiedSources = emptySet(),
+				steps = physicalStepsSourceNotCaptured(),
+				activity = activitySourceNotCaptured(),
 				pressure = pressure,
 			),
 		)
@@ -102,13 +170,42 @@ class TripDetailPresenterTest {
 	}
 
 	@Test
+	fun `exact mixed capture without Location never falls back to Location detail`() = runTest {
+		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
+		every { trackingHistoryRepository.observeLiveSession(42L) } returns flowOf(
+			exactHistory(
+				segmentId = 42L,
+				capture = exactCapture(setOf(HistorySource.ACTIVITY, HistorySource.STEPS)),
+				qualifiedSources = emptySet(),
+				steps = capturedStepsWithoutValue(),
+				activity = unavailableActivity(capturesOnlyActivity = false),
+				pressure = physicalPressureSourceNotCaptured(),
+			),
+		)
+		val events = MutableSharedFlow<TripDetailEvent>()
+
+		presenter.present(events).test {
+			events.emit(TripDetailEvent.LoadTrip(42L))
+			awaitItem() shouldBe TripDetailState.Loading
+			awaitItem() shouldBe resolvingState()
+			awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>().sourcePresentation shouldBe
+				TripDetailSourcePresentation.CapturedWithoutLocation(
+					setOf(HistorySource.ACTIVITY, HistorySource.STEPS),
+				)
+		}
+	}
+
+	@Test
 	fun `mixed capture keeps existing Location-capable detail`() = runTest {
 		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
 		every { trackingHistoryRepository.observeLiveSession(42L) } returns flowOf(
-			foundHistory(
+			exactHistory(
 				segmentId = 42L,
-				count = null,
 				capture = exactCapture(setOf(HistorySource.LOCATION, HistorySource.PRESSURE)),
+				qualifiedSources = emptySet(),
+				steps = physicalStepsSourceNotCaptured(),
+				activity = activitySourceNotCaptured(),
+				pressure = providerUnavailablePressure(),
 			),
 		)
 		val events = MutableSharedFlow<TripDetailEvent>()
@@ -162,8 +259,8 @@ class TripDetailPresenterTest {
 	fun `new LoadTrip event cancels previous and reloads`() = runTest {
 		coEvery { tripRepository.getTripDetail(1L) } returns sampleTrip.right()
 		coEvery { tripRepository.getTripDetail(2L) } returns sampleTrip.copy(id = 2L).right()
-		every { trackingHistoryRepository.observeLiveSession(1L) } returns flowOf(foundHistory(1L, 10L))
-		every { trackingHistoryRepository.observeLiveSession(2L) } returns flowOf(foundHistory(2L, 20L))
+		every { trackingHistoryRepository.observeLiveSession(1L) } returns flowOf(legacyHistory(1L, 10L))
+		every { trackingHistoryRepository.observeLiveSession(2L) } returns flowOf(legacyHistory(2L, 20L))
 		val events = MutableSharedFlow<TripDetailEvent>()
 
 		presenter.present(events).test {
@@ -172,7 +269,7 @@ class TripDetailPresenterTest {
 			awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>().steps shouldBe
 				TripDetailStepsState.Materializing
 			awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>().steps shouldBe
-				TripDetailStepsState.Complete(10L)
+				TripDetailStepsState.LegacyUnverified(10L)
 
 			// New event replaces the old flow
 			events.emit(TripDetailEvent.LoadTrip(2L))
@@ -182,7 +279,7 @@ class TripDetailPresenterTest {
 			val loaded = awaitItem()
 			loaded.shouldBeInstanceOf<TripDetailState.Loaded>()
 			loaded.trip.id shouldBe 2L
-			loaded.steps shouldBe TripDetailStepsState.Complete(20L)
+			loaded.steps shouldBe TripDetailStepsState.LegacyUnverified(20L)
 		}
 	}
 
@@ -224,13 +321,15 @@ class TripDetailPresenterTest {
 	@Test
 	fun `history failure replaces stale Pressure presentation and keeps trip loaded`() = runTest {
 		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
-		val pressure = unavailablePressure()
+		val pressure = providerUnavailablePressure()
 		every { trackingHistoryRepository.observeLiveSession(42L) } returns flow {
 			emit(
-				foundHistory(
+				exactHistory(
 					segmentId = 42L,
-					count = 300L,
 					capture = exactCapture(setOf(HistorySource.PRESSURE)),
+					qualifiedSources = emptySet(),
+					steps = physicalStepsSourceNotCaptured(),
+					activity = activitySourceNotCaptured(),
 					pressure = pressure,
 				),
 			)
@@ -244,7 +343,7 @@ class TripDetailPresenterTest {
 			awaitItem() shouldBe TripDetailState.Loading
 			awaitItem() shouldBe resolvingState()
 			val beforeFailure = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
-			beforeFailure.steps shouldBe TripDetailStepsState.Complete(300L)
+			beforeFailure.steps shouldBe TripDetailStepsState.NotCaptured
 			beforeFailure.sourcePresentation shouldBe TripDetailSourcePresentation.PressureOnly(pressure)
 			val degraded = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
 			degraded.trip shouldBe sampleTrip
@@ -265,13 +364,13 @@ class TripDetailPresenterTest {
 			awaitItem() shouldBe TripDetailState.Loading
 			awaitItem() shouldBe resolvingState()
 
-			history.emit(foundHistory(42L, 300L))
+			history.emit(legacyHistory(42L, 300L))
 			awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>().steps shouldBe
-				TripDetailStepsState.Complete(300L)
+				TripDetailStepsState.LegacyUnverified(300L)
 
-			history.emit(foundHistory(42L, 280L))
+			history.emit(legacyHistory(42L, 280L))
 			awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>().steps shouldBe
-				TripDetailStepsState.Complete(280L)
+				TripDetailStepsState.LegacyUnverified(280L)
 		}
 	}
 
@@ -280,7 +379,7 @@ class TripDetailPresenterTest {
 		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
 		every { trackingHistoryRepository.observeLiveSession(42L) } returnsMany listOf(
 			flow { throw IllegalStateException("history failed") },
-			flowOf(foundHistory(42L, 280L)),
+			flowOf(legacyHistory(42L, 280L)),
 		)
 		val events = MutableSharedFlow<TripDetailEvent>()
 
@@ -299,35 +398,102 @@ class TripDetailPresenterTest {
 			awaitItem() shouldBe resolvingState()
 			awaitItem() shouldBe TripDetailState.Loaded(
 				trip = sampleTrip,
-				steps = TripDetailStepsState.Complete(280L),
+				steps = TripDetailStepsState.LegacyUnverified(280L),
+				sourcePresentation = TripDetailSourcePresentation.LegacyUnverifiable,
 			)
 		}
 	}
 
-	private fun foundHistory(
+	@Test
+	fun `retry restores Location affordances only after a new authenticated snapshot`() = runTest {
+		coEvery { tripRepository.getTripDetail(42L) } returns sampleTrip.right()
+		val refreshedHistory = MutableSharedFlow<LiveSessionHistorySnapshot>()
+		every { trackingHistoryRepository.observeLiveSession(42L) } returnsMany listOf(
+			flow {
+				emit(
+					exactHistory(
+						segmentId = 42L,
+						capture = exactCapture(setOf(HistorySource.LOCATION)),
+						qualifiedSources = emptySet(),
+						steps = physicalStepsSourceNotCaptured(),
+						activity = activitySourceNotCaptured(),
+						pressure = physicalPressureSourceNotCaptured(),
+					),
+				)
+				throw IllegalStateException("history failed")
+			},
+			refreshedHistory,
+		)
+		val events = MutableSharedFlow<TripDetailEvent>()
+
+		presenter.present(events).test {
+			events.emit(TripDetailEvent.LoadTrip(42L))
+			awaitItem() shouldBe TripDetailState.Loading
+			awaitItem() shouldBe resolvingState()
+			val authorized = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
+			authorized.sourcePresentation shouldBe TripDetailSourcePresentation.Standard
+			authorized.supportsLocationPresentation shouldBe true
+			val failed = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
+			failed.sourcePresentation shouldBe TripDetailSourcePresentation.Failed
+			failed.supportsLocationPresentation shouldBe false
+
+			events.emit(TripDetailEvent.LoadTrip(42L))
+			awaitItem() shouldBe TripDetailState.Loading
+			val resolving = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
+			resolving.sourcePresentation shouldBe TripDetailSourcePresentation.Resolving
+			resolving.supportsLocationPresentation shouldBe false
+
+			refreshedHistory.emit(
+				exactHistory(
+					segmentId = 42L,
+					capture = exactCapture(setOf(HistorySource.LOCATION)),
+					qualifiedSources = emptySet(),
+					steps = physicalStepsSourceNotCaptured(),
+					activity = activitySourceNotCaptured(),
+					pressure = physicalPressureSourceNotCaptured(),
+				),
+			)
+			val refreshed = awaitItem().shouldBeInstanceOf<TripDetailState.Loaded>()
+			refreshed.sourcePresentation shouldBe TripDetailSourcePresentation.Standard
+			refreshed.supportsLocationPresentation shouldBe true
+		}
+	}
+
+	private fun legacyHistory(
 		segmentId: Long,
 		count: Long?,
-		capture: HistoryCapture = HistoryCapture.Unverifiable,
-		pressure: PressureHistory = unavailablePressure(),
+	): LiveSessionHistorySnapshot = exactHistory(
+		segmentId = segmentId,
+		capture = HistoryCapture.Unverifiable,
+		qualifiedSources = emptySet(),
+		steps = legacyUnverifiableSteps(count),
+		activity = legacyUnverifiableActivity(),
+		pressure = legacyUnattributedPressure(),
+	)
+
+	private fun exactHistory(
+		segmentId: Long,
+		capture: HistoryCapture,
+		qualifiedSources: Set<HistorySource>,
+		steps: StepsHistory,
+		activity: ActivityHistoryEntry,
+		pressure: PressureHistory,
 	): LiveSessionHistorySnapshot = LiveSessionHistorySnapshot(
 		segmentId = segmentId,
 		session = SessionHistoryQuery.Found(
 			SessionHistory(
 				segmentId = segmentId,
 				capture = capture,
-				qualifiedSources = emptySet(),
-				steps = count?.let(::completeSteps) ?: notCapturedSteps(),
+				qualifiedSources = qualifiedSources,
+				steps = steps,
 			),
 		),
+		activity = ActivityHistoryQuery.Found(activity),
 		pressure = PressureSessionHistoryQuery.Found(
 			PressureSessionHistory(
 				segmentId = segmentId,
 				capture = capture,
-				qualifiedSources = if (pressure.hasRetainedObservation) {
-					setOf(HistorySource.PRESSURE)
-				} else {
-					emptySet()
-				},
+				qualifiedSources = emptySet(),
 				pressure = pressure,
 			),
 		),
@@ -336,6 +502,7 @@ class TripDetailPresenterTest {
 	private fun notFoundHistory(segmentId: Long) = LiveSessionHistorySnapshot(
 		segmentId = segmentId,
 		session = SessionHistoryQuery.NotFound,
+		activity = ActivityHistoryQuery.NotFound,
 		pressure = PressureSessionHistoryQuery.NotFound,
 	)
 
@@ -346,40 +513,118 @@ class TripDetailPresenterTest {
 			sourcePresentation = TripDetailSourcePresentation.Resolving,
 		)
 
-	private fun exactCapture(sources: Set<HistorySource>) = HistoryCapture.Exact(
+	private fun exactCapture(
+		sources: Set<HistorySource>,
+		controlSources: Set<HistorySource> = emptySet(),
+	) = HistoryCapture.Exact(
 		listOf(
 			HistoryCaptureRevision(
 				revision = 1L,
 				effectiveAt = EpochMs(1_000L),
 				capturedSources = sources,
-				controlSources = emptySet(),
+				controlSources = controlSources,
 			),
 		),
 	)
 
-	private fun unavailablePressure() = PressureHistory(
+	private fun unavailableActivity(
+		capturesOnlyActivity: Boolean,
+		cause: ActivityHistoryCause = ActivityHistoryCause.NO_QUALIFIED_FACTS,
+		origin: ActivityHistoryOrigin = ActivityHistoryOrigin.LOCAL,
+		storedZoneIds: Set<String> = setOf("UTC"),
+	) = ActivityHistoryEntry(
+		key = ActivityHistoryEntryKey("activity"),
+		startTime = EpochMs(1_000L),
+		endTime = EpochMs(5_000L),
+		storedZoneIds = storedZoneIds,
+		state = ActivityHistoryProductState.UNAVAILABLE,
+		coverage = ActivityHistoryCoverage.NONE,
+		activeTime = null,
+		fragments = emptyList(),
+		causes = setOf(cause),
+		origin = origin,
+		capturesOnlyActivity = capturesOnlyActivity,
+	)
+
+	private fun activitySourceNotCaptured() = unavailableActivity(
+		capturesOnlyActivity = false,
+		cause = ActivityHistoryCause.SOURCE_NOT_CAPTURED,
+	)
+
+	private fun legacyUnverifiableActivity() = unavailableActivity(
+		capturesOnlyActivity = false,
+		cause = ActivityHistoryCause.LEGACY_UNVERIFIABLE,
+		storedZoneIds = emptySet(),
+	)
+
+	private fun providerUnavailablePressure() = PressureHistory(
 		availability = HistoryAvailability.UNAVAILABLE,
 		evidence = HistoryEvidence.NONE,
 		productState = HistoryProductState.DEGRADED,
-		coverage = PressureHistoryCoverage.UNKNOWN,
+		coverage = PressureHistoryCoverage.NONE,
 		windows = emptyList(),
 		causes = setOf(PressureHistoryCause.PROVIDER_UNAVAILABLE),
 	)
 
-	private fun completeSteps(count: Long) = StepsHistory(
+	private fun physicalPressureSourceNotCaptured() = PressureHistory(
+		availability = HistoryAvailability.UNAVAILABLE,
+		evidence = HistoryEvidence.NONE,
+		productState = HistoryProductState.FAILED,
+		coverage = PressureHistoryCoverage.UNKNOWN,
+		windows = emptyList(),
+		causes = setOf(PressureHistoryCause.SOURCE_NOT_CAPTURED),
+	)
+
+	private fun legacyUnattributedPressure() = PressureHistory(
+		availability = HistoryAvailability.UNAVAILABLE,
+		evidence = HistoryEvidence.NONE,
+		productState = HistoryProductState.FAILED,
+		coverage = PressureHistoryCoverage.UNKNOWN,
+		windows = emptyList(),
+		causes = setOf(PressureHistoryCause.LEGACY_UNATTRIBUTED),
+	)
+
+	private fun completeSteps(
+		count: Long,
+		availability: HistoryAvailability = HistoryAvailability.AVAILABLE,
+	) = StepsHistory(
 		count = count,
-		availability = HistoryAvailability.AVAILABLE,
+		availability = availability,
 		evidence = if (count == 0L) HistoryEvidence.ACTIVE else HistoryEvidence.RECORDED,
 		productState = HistoryProductState.READY,
 		coverage = StepsHistoryCoverage.COMPLETE,
 	)
 
-	private fun notCapturedSteps() = StepsHistory(
+	private fun capturedStepsWithoutValue() = StepsHistory(
 		count = null,
-		availability = HistoryAvailability.UNAVAILABLE,
+		availability = HistoryAvailability.AVAILABLE,
 		evidence = HistoryEvidence.NONE,
 		productState = HistoryProductState.PARTIAL,
 		coverage = StepsHistoryCoverage.NONE,
-		causes = setOf(StepsHistoryCause.SOURCE_NOT_CAPTURED),
+		causes = setOf(StepsHistoryCause.NO_OBSERVATION),
+	)
+
+	private fun legacyUnverifiableSteps(count: Long?) = StepsHistory(
+		count = count,
+		availability = HistoryAvailability.UNAVAILABLE,
+		evidence = if (count == null) HistoryEvidence.NONE else HistoryEvidence.RECORDED,
+		productState = HistoryProductState.DEGRADED,
+		coverage = StepsHistoryCoverage.UNKNOWN,
+		causes = setOf(
+			StepsHistoryCause.LEGACY_UNVERIFIED,
+			StepsHistoryCause.AVAILABILITY_UNAVAILABLE,
+		),
+	)
+
+	private fun physicalStepsSourceNotCaptured() = StepsHistory(
+		count = null,
+		availability = HistoryAvailability.UNAVAILABLE,
+		evidence = HistoryEvidence.NONE,
+		productState = HistoryProductState.FAILED,
+		coverage = StepsHistoryCoverage.UNKNOWN,
+		causes = setOf(
+			StepsHistoryCause.SOURCE_NOT_CAPTURED,
+			StepsHistoryCause.AVAILABILITY_UNAVAILABLE,
+		),
 	)
 }
