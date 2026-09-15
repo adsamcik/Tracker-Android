@@ -6,6 +6,8 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.InputStream
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -41,7 +43,7 @@ class PortableActivityJsonV1CodecTest {
 		)
 
 		invalid.forEach { value ->
-			shouldThrow<PortableActivityJsonException> {
+			shouldThrow<PortableActivityFormatException> {
 				PortableActivityJsonV1Codec().decode(
 					ByteArrayInputStream(value.encodeToByteArray()),
 				)
@@ -57,17 +59,17 @@ class PortableActivityJsonV1CodecTest {
 		)
 		val bytes = encode(twoEntries)
 
-		shouldThrow<PortableActivityJsonException> {
+		shouldThrow<PortableActivityFormatException> {
 			PortableActivityJsonV1Codec(
 				PortableActivityJsonLimits(maxFileBytes = bytes.size.toLong() - 1L),
 			).decode(ByteArrayInputStream(bytes))
 		}
-		shouldThrow<PortableActivityJsonException> {
+		shouldThrow<PortableActivityFormatException> {
 			PortableActivityJsonV1Codec(
 				PortableActivityJsonLimits(maxEntries = 1),
 			).decode(ByteArrayInputStream(bytes))
 		}
-		shouldThrow<PortableActivityJsonException> {
+		shouldThrow<PortableActivityFormatException> {
 			PortableActivityJsonV1Codec(
 				PortableActivityJsonLimits(maxFileBytes = 10L),
 			).encode(ByteArrayOutputStream()) { sink ->
@@ -108,10 +110,24 @@ class PortableActivityJsonV1CodecTest {
 		)
 		val envelope = activityEnvelope(first, correctedSecond)
 
-		shouldThrow<PortableActivityJsonException> {
+		shouldThrow<PortableActivityFormatException> {
 			encode(envelope)
 		}
 	}
+
+	@Test
+	fun `transport IOException remains retryable rather than becoming permanent format failure`() =
+		runTest {
+			val failure = shouldThrow<IOException> {
+				PortableActivityJsonV1Codec().decode(
+					object : InputStream() {
+						override fun read(): Int = throw IOException("transport unavailable")
+					},
+				)
+			}
+
+			failure.message shouldBe "transport unavailable"
+		}
 
 	@Test
 	fun `cancellation propagates and non success writes no bytes`() = runTest {

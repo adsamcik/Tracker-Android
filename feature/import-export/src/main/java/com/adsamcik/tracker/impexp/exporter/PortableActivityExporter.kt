@@ -2,7 +2,7 @@ package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
 import com.adsamcik.tracker.impexp.R
-import com.adsamcik.tracker.impexp.portable.PortableActivityJsonException
+import com.adsamcik.tracker.impexp.portable.PortableActivityFormatException
 import com.adsamcik.tracker.impexp.portable.PortableActivityJsonV1Codec
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedPortableFormatV1
 import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedActivity
@@ -51,7 +51,7 @@ internal class PortableActivityExporter(
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (_: PortableActivityJsonException) {
+		} catch (_: PortableActivityFormatException) {
 			return ExportResult.Error(
 				LocalizedString(R.string.export_error_with_reason, "Portable Activity file write failed"),
 			)

@@ -3,6 +3,7 @@ package com.adsamcik.tracker.impexp.portable
 import android.util.JsonReader
 import android.util.JsonToken
 import android.util.JsonWriter
+import android.util.MalformedJsonException
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedPortableFormatV1
 import com.adsamcik.tracker.shared.base.database.ExportPortableCapturedActivityResult
 import com.adsamcik.tracker.shared.base.database.PortableActivityCaptureCoverage
@@ -21,6 +22,7 @@ import com.adsamcik.tracker.shared.base.database.PortableActivityWindowV1
 import com.adsamcik.tracker.shared.base.database.PortableActivityZoneEpochV1
 import java.io.FilterInputStream
 import java.io.FilterOutputStream
+import java.io.EOFException
 import java.io.IOException
 import java.io.InputStream
 import java.io.InputStreamReader
@@ -87,12 +89,20 @@ internal class PortableActivityJsonV1Codec(
 			envelope
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (format: PortableActivityJsonException) {
+		} catch (format: PortableActivityFormatException) {
 			throw format
+		} catch (failure: MalformedJsonException) {
+			throw PortableActivityFormatException("Malformed portable Activity document", failure)
+		} catch (failure: EOFException) {
+			throw PortableActivityFormatException("Truncated portable Activity document", failure)
 		} catch (failure: IOException) {
-			throw PortableActivityJsonException("Unable to read portable Activity document", failure)
-		} catch (failure: RuntimeException) {
-			throw PortableActivityJsonException("Invalid portable Activity document", failure)
+			throw failure
+		} catch (failure: ArithmeticException) {
+			throw PortableActivityFormatException("Portable Activity count overflow", failure)
+		} catch (failure: IllegalArgumentException) {
+			throw PortableActivityFormatException("Invalid portable Activity document", failure)
+		} catch (failure: IllegalStateException) {
+			throw PortableActivityFormatException("Invalid portable Activity document", failure)
 		}
 	}
 
@@ -118,10 +128,12 @@ internal class PortableActivityJsonV1Codec(
 			writer.flush()
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (format: PortableActivityJsonException) {
+		} catch (format: PortableActivityFormatException) {
 			throw format
 		} catch (failure: IOException) {
-			throw PortableActivityJsonException("Unable to write portable Activity document", failure)
+			throw failure
+		} catch (failure: ArithmeticException) {
+			throw PortableActivityFormatException("Portable Activity output count overflow", failure)
 		}
 	}
 
@@ -622,14 +634,14 @@ internal class PortableActivityJsonV1Codec(
 		return try {
 			literal.toLong()
 		} catch (failure: NumberFormatException) {
-			throw PortableActivityJsonException("$name is not an exact integer", failure)
+			throw PortableActivityFormatException("$name is not an exact integer", failure)
 		}
 	}
 
 	private fun exactInt(reader: JsonReader, name: String): Int = try {
 		Math.toIntExact(long(reader, name))
 	} catch (failure: ArithmeticException) {
-		throw PortableActivityJsonException("$name is outside the integer range", failure)
+		throw PortableActivityFormatException("$name is outside the integer range", failure)
 	}
 
 	private fun nullableInt(reader: JsonReader, name: String): Int? =
@@ -650,7 +662,7 @@ internal class PortableActivityJsonV1Codec(
 		try {
 			enumValueOf<T>(boundedString(reader, name))
 		} catch (failure: IllegalArgumentException) {
-			throw PortableActivityJsonException("Unknown $name value", failure)
+			throw PortableActivityFormatException("Unknown $name value", failure)
 		}
 
 	private fun requireOnlyFields(actual: Set<String>, expected: Set<String>, owner: String) {
@@ -771,14 +783,10 @@ internal data class PortableActivityJsonLimits(
 	}
 }
 
-internal class PortableActivityJsonException(
+internal class PortableActivityFormatException(
 	message: String,
 	cause: Throwable? = null,
-) : IOException(message, cause) {
-	private companion object {
-		const val serialVersionUID: Long = 1L
-	}
-}
+) : IllegalArgumentException(message, cause)
 
 private class BoundedInputStream(
 	input: InputStream,
@@ -826,4 +834,4 @@ private class BoundedOutputStream(
 	}
 }
 
-private fun formatFailure(message: String): Nothing = throw PortableActivityJsonException(message)
+private fun formatFailure(message: String): Nothing = throw PortableActivityFormatException(message)

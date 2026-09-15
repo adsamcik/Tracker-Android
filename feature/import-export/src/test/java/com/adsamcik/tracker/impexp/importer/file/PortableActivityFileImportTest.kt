@@ -1,8 +1,10 @@
 package com.adsamcik.tracker.impexp.importer.file
 
 import android.content.Context
+import android.database.sqlite.SQLiteException
 import com.adsamcik.tracker.impexp.importer.FileImportStream
-import com.adsamcik.tracker.impexp.portable.PortableActivityJsonException
+import com.adsamcik.tracker.impexp.importer.ImportJobRunner
+import com.adsamcik.tracker.impexp.importer.ImportReceiptStore
 import com.adsamcik.tracker.impexp.portable.PortableActivityJsonV1Codec
 import com.adsamcik.tracker.impexp.portable.activityEntry
 import com.adsamcik.tracker.impexp.portable.activityEnvelope
@@ -12,6 +14,8 @@ import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedActivityR
 import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedActivityResult
 import com.adsamcik.tracker.shared.base.database.PortableActivityImportBlockedReason
 import com.adsamcik.tracker.shared.base.database.PortableActivityTransferRetryableReason
+import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportJobReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveSize
@@ -21,6 +25,8 @@ import io.mockk.every
 import io.mockk.mockk
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.InputStream
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -85,13 +91,11 @@ class PortableActivityFileImportTest {
 		)
 		val truncated = encode(activityEnvelope(activityEntry())).dropLast(1).toByteArray()
 
-		shouldThrow<PortableActivityJsonException> {
-			importer.import(
-				mockk(relaxed = true),
-				database(epoch = 3L),
-				stream(truncated, "activity.trackeractivity", "receipt"),
-			)
-		}
+		importer.import(
+			mockk(relaxed = true),
+			database(epoch = 3L),
+			stream(truncated, "activity.trackeractivity", "receipt"),
+		).failedCount shouldBe 1
 		calls shouldBe 0
 	}
 
@@ -200,6 +204,67 @@ class PortableActivityFileImportTest {
 				stream(bytes, "activity.trackeractivity", "retry"),
 			)
 		}
+
+		val unavailableDatabase = mockk<AppDatabase>()
+		val unavailableState =
+			mockk<com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao>()
+		every { unavailableDatabase.sourceEvidenceStateDao() } returns unavailableState
+		coEvery { unavailableState.get() } throws SQLiteException("storage unavailable")
+		shouldThrow<PortableActivityRetryableImportException> {
+			missingEpoch.import(
+				mockk(relaxed = true),
+				unavailableDatabase,
+				stream(bytes, "activity.trackeractivity", "sqlite"),
+			)
+		}
+	}
+
+	@Test
+	fun `actual import runner records permanent format failure but rethrows transport IO`() = runTest {
+		val store = ActivityImportReceiptStore()
+		val runner = ImportJobRunner(store, nowMs = { 100L })
+		val importer = PortableActivityFileImport {
+			fakeImporter { ImportPortableCapturedActivityResult.Duplicate(1L) }
+		}
+		runner.start("format-job", "activity.trackeractivity", 10L)
+
+		val malformed = runner.importSingle(
+			jobId = "format-job",
+			stream = unboundStream(
+				"{not-json".encodeToByteArray(),
+				"activity.trackeractivity",
+				"direct-entry",
+			),
+			transactionMode = ImportTransactionMode.IMPORTER_MANAGED,
+		) { stream ->
+			importer.import(mockk(relaxed = true), database(epoch = 1L), stream)
+		}
+
+		malformed.failedCount shouldBe 1
+		store.entry("format-job", "direct-entry")?.status shouldBe
+			ImportEntryReceiptEntity.STATUS_FAILURE
+
+		runner.start("transport-job", "activity.trackeractivity", 10L)
+		val transport = FileImportStream(
+			fileName = "activity.trackeractivity",
+			receiptKey = "direct-entry",
+			streamProvider = {
+				object : InputStream() {
+					override fun read(): Int = throw IOException("transport unavailable")
+				}
+			},
+		)
+		shouldThrow<IOException> {
+			runner.importSingle(
+				jobId = "transport-job",
+				stream = transport,
+				transactionMode = ImportTransactionMode.IMPORTER_MANAGED,
+			) { stream ->
+				importer.import(mockk(relaxed = true), database(epoch = 1L), stream)
+			}
+		}.message shouldBe "transport unavailable"
+		store.entry("transport-job", "direct-entry")?.status shouldBe
+			ImportEntryReceiptEntity.STATUS_FAILURE
 	}
 
 	private fun database(epoch: Long?): AppDatabase {
@@ -247,5 +312,53 @@ class PortableActivityFileImportTest {
 			)
 		}
 		return output.toByteArray()
+	}
+
+	private class ActivityImportReceiptStore : ImportReceiptStore {
+		private val jobs = linkedMapOf<String, ImportJobReceiptEntity>()
+		private val entries = linkedMapOf<Pair<String, String>, ImportEntryReceiptEntity>()
+
+		override suspend fun <T> transaction(block: suspend () -> T): T = block()
+
+		override suspend fun getJob(jobId: String): ImportJobReceiptEntity? = jobs[jobId]
+
+		override suspend fun insertJob(job: ImportJobReceiptEntity) {
+			jobs.putIfAbsent(job.jobId, job)
+		}
+
+		override suspend fun markJobInProgress(
+			jobId: String,
+			sourceName: String,
+			sourceSizeBytes: Long,
+			updatedAt: Long,
+		) {
+			val previous = requireNotNull(jobs[jobId])
+			jobs[jobId] = previous.copy(
+				sourceName = sourceName,
+				sourceSizeBytes = sourceSizeBytes,
+				status = ImportJobReceiptEntity.STATUS_IN_PROGRESS,
+				updatedAt = updatedAt,
+			)
+		}
+
+		override suspend fun markJobComplete(jobId: String, completedAt: Long) {
+			val previous = requireNotNull(jobs[jobId])
+			jobs[jobId] = previous.copy(
+				status = ImportJobReceiptEntity.STATUS_COMPLETE,
+				updatedAt = completedAt,
+			)
+		}
+
+		override suspend fun getEntry(
+			jobId: String,
+			entryKey: String,
+		): ImportEntryReceiptEntity? = entries[jobId to entryKey]
+
+		override suspend fun putEntry(entry: ImportEntryReceiptEntity) {
+			entries[entry.jobId to entry.entryKey] = entry
+		}
+
+		fun entry(jobId: String, entryKey: String): ImportEntryReceiptEntity? =
+			entries[jobId to entryKey]
 	}
 }

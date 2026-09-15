@@ -4,6 +4,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteException
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
+import com.adsamcik.tracker.impexp.portable.PortableActivityFormatException
 import com.adsamcik.tracker.impexp.portable.PortableActivityJsonV1Codec
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedPortableFormatV1
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -53,7 +54,16 @@ internal class PortableActivityFileImport(
 			failedCount = 1,
 			errors = listOf("Portable Activity import is missing durable file-job provenance."),
 		)
-		val envelope = PortableActivityJsonV1Codec().decode(stream)
+		val envelope = try {
+			PortableActivityJsonV1Codec().decode(stream)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (format: PortableActivityFormatException) {
+			return ImportResult(
+				failedCount = 1,
+				errors = listOf(format.message ?: "Portable Activity file is invalid."),
+			)
+		}
 		val state = try {
 			database.sourceEvidenceStateDao().get()
 		} catch (cancelled: CancellationException) {
