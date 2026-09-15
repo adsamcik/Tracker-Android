@@ -3,6 +3,7 @@ package com.adsamcik.tracker.impexp.portable
 import android.util.JsonReader
 import android.util.JsonToken
 import android.util.JsonWriter
+import android.util.MalformedJsonException
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
 import com.adsamcik.tracker.stats.api.repository.PORTABLE_STEPS_ENTRY_ORDER
 import com.adsamcik.tracker.stats.api.repository.PortableStepsCaptureCoverage
@@ -22,6 +23,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsRunV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsSessionMode
 import com.adsamcik.tracker.stats.api.repository.PortableStepsSource
 import com.adsamcik.tracker.stats.api.repository.StepsPortableFormatV1
+import java.io.EOFException
 import java.io.FilterInputStream
 import java.io.FilterOutputStream
 import java.io.IOException
@@ -29,6 +31,7 @@ import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStream
 import java.io.OutputStreamWriter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
@@ -126,9 +129,41 @@ internal class PortableStepsJsonV1Codec(
 	suspend fun decode(
 		inputStream: InputStream,
 		sink: PortableStepsEntrySink,
+	): Int = try {
+		decodeDocument(inputStream, sink)
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (failure: StepsSinkFailure) {
+		throw failure.original
+	} catch (failure: StepsSourceReadFailure) {
+		throw failure.original
+	} catch (failure: PortableJsonTokenLimitException) {
+		throw PortableStepsJsonException("Portable Steps token exceeds its lexical bound", failure)
+	} catch (failure: PortableStepsJsonException) {
+		throw failure
+	} catch (failure: EOFException) {
+		throw PortableStepsJsonException("Portable Steps document is truncated", failure)
+	} catch (failure: MalformedJsonException) {
+		throw PortableStepsJsonException("Portable Steps document is malformed", failure)
+	} catch (failure: IllegalArgumentException) {
+		throw PortableStepsJsonException("Portable Steps document is invalid", failure)
+	} catch (failure: IllegalStateException) {
+		throw PortableStepsJsonException("Portable Steps document has an invalid JSON shape", failure)
+	}
+
+	@Suppress("CyclomaticComplexMethod", "LongMethod", "NestedBlockDepth")
+	private suspend fun decodeDocument(
+		inputStream: InputStream,
+		sink: PortableStepsEntrySink,
 	): Int {
 		val reader = JsonReader(
-			InputStreamReader(BoundedInputStream(inputStream, limits.maxFileBytes), Charsets.UTF_8),
+			InputStreamReader(
+				PortableJsonTokenLimitInputStream(
+					BoundedInputStream(inputStream, limits.maxFileBytes),
+					STEPS_TOKEN_LIMITS,
+				),
+				Charsets.UTF_8,
+			),
 		).apply {
 			isLenient = false
 		}
@@ -187,7 +222,7 @@ internal class PortableStepsJsonV1Codec(
 							deletionScopes,
 							factIdentities,
 						)
-						sink.emit(entry)
+						emitToSink(sink, entry)
 						previous = entry
 						count++
 					}
@@ -209,6 +244,19 @@ internal class PortableStepsJsonV1Codec(
 		}
 		currentCoroutineContext().ensureActive()
 		return count
+	}
+
+	private suspend fun emitToSink(
+		sink: PortableStepsEntrySink,
+		entry: PortableStepsEntryV1,
+	) {
+		try {
+			sink.emit(entry)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (failure: Exception) {
+			throw StepsSinkFailure(failure)
+		}
 	}
 
 	private fun writeEntry(writer: JsonWriter, entry: PortableStepsEntryV1) {
@@ -678,7 +726,18 @@ internal class PortableStepsJsonV1Codec(
 		const val MAX_ENUM_LENGTH = 64
 		const val SHA_256_LENGTH = 71
 		const val SHA_256_HEX_LENGTH = 64
+		const val MAX_FIELD_NAME_LENGTH = 26
+		const val MAX_LONG_LITERAL_LENGTH = 20
+		const val MAX_JSON_NESTING_DEPTH = 7
+		const val MAX_ESCAPED_BYTES_PER_CHARACTER = 6
 		val JSON_INTEGER = Regex("-?(0|[1-9][0-9]*)")
+		val STEPS_TOKEN_LIMITS = PortableJsonTokenLimits(
+			maxNameBytes = MAX_FIELD_NAME_LENGTH * MAX_ESCAPED_BYTES_PER_CHARACTER,
+			maxStringBytes =
+				StepsPortableFormatV1.MAX_ZONE_ID_LENGTH * MAX_ESCAPED_BYTES_PER_CHARACTER,
+			maxNumberBytes = MAX_LONG_LITERAL_LENGTH,
+			maxNestingDepth = MAX_JSON_NESTING_DEPTH,
+		)
 	}
 }
 
@@ -708,6 +767,14 @@ internal class PortableStepsJsonException(
 	}
 }
 
+private class StepsSinkFailure(
+	val original: Exception,
+) : RuntimeException(null, null, false, false)
+
+private class StepsSourceReadFailure(
+	val original: IOException,
+) : RuntimeException(null, null, false, false)
+
 private fun formatFailure(message: String): Nothing = throw PortableStepsJsonException(message)
 
 private class BoundedInputStream(
@@ -717,7 +784,7 @@ private class BoundedInputStream(
 	private var bytesRead = 0L
 
 	override fun read(): Int {
-		val value = super.read()
+		val value = readSource { super.read() }
 		if (value >= 0) {
 			record(1L)
 		}
@@ -725,11 +792,17 @@ private class BoundedInputStream(
 	}
 
 	override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-		val count = super.read(buffer, offset, length)
+		val count = readSource { super.read(buffer, offset, length) }
 		if (count > 0) {
 			record(count.toLong())
 		}
 		return count
+	}
+
+	private inline fun <T> readSource(block: () -> T): T = try {
+		block()
+	} catch (failure: IOException) {
+		throw StepsSourceReadFailure(failure)
 	}
 
 	private fun record(count: Long) {
