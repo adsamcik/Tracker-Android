@@ -220,26 +220,10 @@ class ProtectedLocationCanonicalHandoffTest {
 		val command = command()
 		insertWal(command)
 		val correctSample = command.toSample(TEST_ACQUISITION_METADATA)
-		database.locationObservationDao().insert(command.toObservation(TEST_ACQUISITION_METADATA))
 		database.locationSampleDao().insert(
 			correctSample.copy(
 				altitudeM = 9_999f,
 				speedMps = 999f,
-			),
-		)
-		database.locationObservationDecisionDao().insert(
-			listOf(
-				LocationObservationDecision(
-					observationSourceEventId = EVENT_ID,
-					decision = LocationObservationDecision.ACCEPTED,
-					reason = null,
-					acceptedSampleSourceSignalId =
-						ProtectedLocationCanonicalSignalIdentity.canonicalProduct(EVENT_ID),
-					sourceSignalId =
-						ProtectedLocationCanonicalSignalIdentity.canonicalProduct(EVENT_ID),
-					clockDomainId = CLOCK_ID,
-					decidedAtMs = WALL_TIME_MS,
-				),
 			),
 		)
 
@@ -248,8 +232,7 @@ class ProtectedLocationCanonicalHandoffTest {
 				.drainThrough(LOGICAL_ID, RUN_ID, ADMISSION_ORDINAL),
 		)
 
-		assertTrue(failed.terminal)
-		assertEquals("LOCATION_CANONICAL_SAMPLE_MISMATCH", failed.failureCode)
+		assertFalse(failed.terminal)
 		assertEquals(ADMISSION_ORDINAL - 1L, failed.lastCommittedOrdinal)
 		assertNull(database.sourceProjectionStateDao().joinState(
 			ProtectedLocationCanonicalHandoff.WRITER_ID,
@@ -263,7 +246,6 @@ class ProtectedLocationCanonicalHandoffTest {
 		val command = command()
 		insertWal(command)
 		val signalId = ProtectedLocationCanonicalSignalIdentity.canonicalProduct(EVENT_ID)
-		database.locationObservationDao().insert(command.toObservation(TEST_ACQUISITION_METADATA))
 		database.locationObservationDecisionDao().insert(
 			listOf(
 				LocationObservationDecision(
@@ -283,14 +265,63 @@ class ProtectedLocationCanonicalHandoffTest {
 				.drainThrough(LOGICAL_ID, RUN_ID, ADMISSION_ORDINAL),
 		)
 
-		assertTrue(failed.terminal)
-		assertEquals("LOCATION_CANONICAL_CONTENT_RECEIPT_PENDING", failed.failureCode)
+		assertFalse(failed.terminal)
 		assertEquals(ADMISSION_ORDINAL - 1L, failed.lastCommittedOrdinal)
 		assertNull(database.sourceProjectionStateDao().joinState(
 			ProtectedLocationCanonicalHandoff.WRITER_ID,
 			ProtectedLocationCanonicalHandoff.WRITER_VERSION,
 			"canonical-receipt:$EVENT_ID",
 		))
+	}
+
+	@Test
+	fun `prepared event output is immutable across changed recomputation`() = runTest {
+		val command = command()
+		val signalId = ProtectedLocationCanonicalSignalIdentity.canonicalProduct(EVENT_ID)
+		val first = ProtectedLocationPreparedCanonicalOutput.fromDestinations(
+			LocationObservationDecision(
+				observationSourceEventId = EVENT_ID,
+				decision = LocationObservationDecision.REJECTED,
+				reason = "FIRST_REASON",
+				acceptedSampleSourceSignalId = null,
+				sourceSignalId = signalId,
+				clockDomainId = CLOCK_ID,
+				decidedAtMs = WALL_TIME_MS,
+			),
+			null,
+		)
+		val changed = ProtectedLocationPreparedCanonicalOutput.fromDestinations(
+			LocationObservationDecision(
+				observationSourceEventId = EVENT_ID,
+				decision = LocationObservationDecision.REJECTED,
+				reason = "CHANGED_REASON",
+				acceptedSampleSourceSignalId = null,
+				sourceSignalId = signalId,
+				clockDomainId = CLOCK_ID,
+				decidedAtMs = WALL_TIME_MS,
+			),
+			null,
+		)
+		database.prepareProtectedLocationCanonicalCurationState(
+			command,
+			LocationCanonicalCurationState.EMPTY,
+			LocationCanonicalCurationState.EMPTY,
+			first,
+		)
+
+		assertTrue(runCatching {
+			database.prepareProtectedLocationCanonicalCurationState(
+				command,
+				LocationCanonicalCurationState.EMPTY,
+				LocationCanonicalCurationState.EMPTY,
+				changed,
+			)
+		}.isFailure)
+		val stored = requireNotNull(
+			database.loadPreparedProtectedLocationCanonicalCurationState(command),
+		)
+		assertTrue(stored.expectedOutput.contentEquals(first))
+		assertFalse(stored.expectedOutput.contentEquals(changed))
 	}
 
 	@Test
@@ -461,6 +492,139 @@ class ProtectedLocationCanonicalHandoffTest {
 		assertEquals(ADMISSION_ORDINAL + 2L, complete.lastCommittedOrdinal)
 		assertEquals(2, complete.acceptedSamplesCommitted)
 		assertEquals(2, writer.writeCount)
+	}
+
+	@Test
+	fun `global drain rejects a missing interior Location sequence`() = runTest {
+		val missing = command()
+		insertWal(missing)
+		insertOtherSourceEvent(ADMISSION_ORDINAL + 1L)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_event_wal WHERE admission_ordinal = ?",
+			arrayOf(ADMISSION_ORDINAL),
+		)
+		val endpoint = command(
+			eventId = "global-location-endpoint",
+			admissionOrdinal = ADMISSION_ORDINAL + 2L,
+			wallTimeMs = WALL_TIME_MS + 2_000L,
+			observedNanos = OBSERVED_NANOS + 2_000_000_000L,
+			receivedNanos = RECEIVED_NANOS + 2_000_000_000L,
+			sourceSequence = 2L,
+		)
+		insertWal(endpoint)
+
+		val failed = assertIs<ProtectedLocationCanonicalDrainResult.Failed>(
+			handoff(endpoint, ReceiptWriter(database, accepted = true)).drainHighWater(),
+		)
+
+		assertEquals("LOCATION_DRAIN_INTERIOR_SEQUENCE_GAP", failed.failureCode)
+		assertEquals(ADMISSION_ORDINAL - 1L, failed.lastCommittedOrdinal)
+	}
+
+	@Test
+	fun `global drain uses durable sequence anchor after prior WAL pruning`() = runTest {
+		val first = command()
+		insertWal(first)
+		val commands = mutableMapOf(EVENT_ID to first)
+		val writer = ReceiptWriter(database, accepted = true)
+		val handoff = ProtectedLocationCanonicalHandoff(
+			database,
+			ProtectedLocationWalQualifier { eventId ->
+				LocationWalAdapterResult.Evaluated(
+					LocationObservationQualification.Qualified(
+						requireNotNull(commands[eventId.value]),
+					),
+					TEST_ACQUISITION_METADATA,
+				)
+			},
+			writer,
+		)
+		assertIs<ProtectedLocationCanonicalDrainResult.Complete>(handoff.drainHighWater())
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_event_wal WHERE admission_ordinal = ?",
+			arrayOf(ADMISSION_ORDINAL),
+		)
+		val next = command(
+			eventId = "location-after-prune",
+			admissionOrdinal = ADMISSION_ORDINAL + 1L,
+			wallTimeMs = WALL_TIME_MS + 1_000L,
+			observedNanos = OBSERVED_NANOS + 1_000_000_000L,
+			receivedNanos = RECEIVED_NANOS + 1_000_000_000L,
+			sourceSequence = 2L,
+		)
+		commands[next.mutation.identity.sourceEventId.value] = next
+		insertWal(next)
+
+		val complete = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			handoff.drainHighWater(),
+		)
+
+		assertEquals(ADMISSION_ORDINAL + 1L, complete.lastCommittedOrdinal)
+	}
+
+	@Test
+	fun `explicit stopped drain defers when observed registration lacks completeness`() = runTest {
+		val first = command()
+		insertWal(first)
+		val secondRegistration = command(
+			eventId = "location-second-registration",
+			admissionOrdinal = ADMISSION_ORDINAL + 1L,
+			wallTimeMs = WALL_TIME_MS + 1_000L,
+			observedNanos = OBSERVED_NANOS + 1_000_000_000L,
+			receivedNanos = RECEIVED_NANOS + 1_000_000_000L,
+			sourceSequence = 1L,
+			sourceInstanceId = "location-runtime-2",
+			registrationGeneration = 4L,
+		)
+		insertWal(secondRegistration)
+		installDrainEndpointAuthority(ADMISSION_ORDINAL + 1L)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_session_completeness WHERE logical_tracking_id = ? " +
+				"AND service_run_id = ? AND source_kind = ?",
+			arrayOf(LOGICAL_ID, RUN_ID, SourceKind.LOCATION.stableCode),
+		)
+		database.sourceSessionDao().saveCompleteness(
+			SourceSessionCompletenessEntity(
+				logicalTrackingId = LOGICAL_ID,
+				serviceRunId = RUN_ID,
+				sourceKind = SourceKind.LOCATION.stableCode,
+				sourceInstanceId = "location-runtime-2",
+				registrationGeneration = 4L,
+				lastAdmissionOrdinal = ADMISSION_ORDINAL + 1L,
+				lastSourceSequence = 1L,
+				appDrainComplete = true,
+				providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
+				stopStatus = "COMPLETE",
+				unresolvedSequenceStart = null,
+				unresolvedSequenceEnd = null,
+				updatedAtMs = 20_002L,
+			),
+		)
+		val commands = mapOf(
+			first.mutation.identity.sourceEventId.value to first,
+			secondRegistration.mutation.identity.sourceEventId.value to secondRegistration,
+		)
+
+		val deferred = assertIs<ProtectedLocationCanonicalDrainResult.Deferred>(
+			ProtectedLocationCanonicalHandoff(
+				database,
+				ProtectedLocationWalQualifier { eventId ->
+					LocationWalAdapterResult.Evaluated(
+						LocationObservationQualification.Qualified(
+							requireNotNull(commands[eventId.value]),
+						),
+						TEST_ACQUISITION_METADATA,
+					)
+				},
+				ReceiptWriter(database, accepted = true),
+			).drainThrough(LOGICAL_ID, RUN_ID, ADMISSION_ORDINAL + 1L),
+		)
+
+		assertEquals(
+			"LOCATION_DRAIN_OBSERVED_REGISTRATION_MISSING_COMPLETENESS",
+			deferred.reason,
+		)
+		assertEquals(ADMISSION_ORDINAL - 1L, deferred.lastCommittedOrdinal)
 	}
 
 	@Test
@@ -665,31 +829,6 @@ class ProtectedLocationCanonicalHandoffTest {
 			)
 		}
 
-		private suspend fun updateDrainCompleteness(
-			lastAdmissionOrdinal: Long,
-			lastSourceSequence: Long?,
-			stopStatus: String = "COMPLETE",
-			unresolvedSequenceStart: Long? = null,
-			unresolvedSequenceEnd: Long? = null,
-		) {
-			database.sourceSessionDao().saveCompleteness(
-				SourceSessionCompletenessEntity(
-					logicalTrackingId = LOGICAL_ID,
-					serviceRunId = RUN_ID,
-					sourceKind = SourceKind.LOCATION.stableCode,
-					sourceInstanceId = "location-runtime",
-					registrationGeneration = 3L,
-					lastAdmissionOrdinal = lastAdmissionOrdinal,
-					lastSourceSequence = lastSourceSequence,
-					appDrainComplete = true,
-					providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
-					stopStatus = stopStatus,
-					unresolvedSequenceStart = unresolvedSequenceStart,
-					unresolvedSequenceEnd = unresolvedSequenceEnd,
-					updatedAtMs = 20_001L,
-				),
-			)
-		}
 		sessionDao.saveCompleteness(
 			SourceSessionCompletenessEntity(
 				logicalTrackingId = LOGICAL_ID,
@@ -705,6 +844,32 @@ class ProtectedLocationCanonicalHandoffTest {
 				unresolvedSequenceStart = null,
 				unresolvedSequenceEnd = null,
 				updatedAtMs = 20_000L,
+			),
+		)
+	}
+
+	private suspend fun updateDrainCompleteness(
+		lastAdmissionOrdinal: Long,
+		lastSourceSequence: Long?,
+		stopStatus: String = "COMPLETE",
+		unresolvedSequenceStart: Long? = null,
+		unresolvedSequenceEnd: Long? = null,
+	) {
+		database.sourceSessionDao().saveCompleteness(
+			SourceSessionCompletenessEntity(
+				logicalTrackingId = LOGICAL_ID,
+				serviceRunId = RUN_ID,
+				sourceKind = SourceKind.LOCATION.stableCode,
+				sourceInstanceId = "location-runtime",
+				registrationGeneration = 3L,
+				lastAdmissionOrdinal = lastAdmissionOrdinal,
+				lastSourceSequence = lastSourceSequence,
+				appDrainComplete = true,
+				providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
+				stopStatus = stopStatus,
+				unresolvedSequenceStart = unresolvedSequenceStart,
+				unresolvedSequenceEnd = unresolvedSequenceEnd,
+				updatedAtMs = 20_001L,
 			),
 		)
 	}
@@ -792,6 +957,8 @@ class ProtectedLocationCanonicalHandoffTest {
 		observedNanos: Long = OBSERVED_NANOS,
 		receivedNanos: Long = RECEIVED_NANOS,
 		sourceSequence: Long = 1L,
+		sourceInstanceId: String = "location-runtime",
+		registrationGeneration: Long = 3L,
 		speedMetersPerSecond: Float? = 1.25f,
 	): LocationCapturedFactCommand {
 		val temporal = LocationCaptureTemporalAuthority(
@@ -808,8 +975,8 @@ class ProtectedLocationCanonicalHandoffTest {
 			sessionSegmentId = 7L,
 			capturedSources = setOf(SourceKind.LOCATION),
 			controlSources = emptySet(),
-			sourceInstanceId = SourceInstanceId("location-runtime"),
-			registrationGeneration = 3L,
+			sourceInstanceId = SourceInstanceId(sourceInstanceId),
+			registrationGeneration = registrationGeneration,
 			configurationRevision = 5L,
 			physicalConfigurationFingerprint = "location-fingerprint",
 			authorizationRevision = 4L,
@@ -941,14 +1108,15 @@ private class ReceiptWriter(
 				decidedAtMs =
 					command.productEffect.durableEvidence.clockAuthority.observedWallTimeMs,
 			)
+			val expectedOutput = ProtectedLocationPreparedCanonicalOutput.fromDestinations(
+				decision,
+				sample,
+			)
 			database.prepareProtectedLocationCanonicalCurationState(
 				command,
 				LocationCanonicalCurationState.EMPTY,
 				LocationCanonicalCurationState.EMPTY,
-				ProtectedLocationPreparedCanonicalOutput.fromDestinations(
-					decision,
-					sample,
-				),
+				expectedOutput,
 			)
 			database.locationObservationDao().insert(
 				command.toObservation(acquisitionMetadata),
@@ -959,7 +1127,11 @@ private class ReceiptWriter(
 					listOf(decision),
 				)
 				database.recordProtectedLocationCanonicalReceiptInCurrentTransaction(
-					ProtectedLocationVerifiedWrite(command, acquisitionMetadata),
+					ProtectedLocationVerifiedWrite(
+						command,
+						acquisitionMetadata,
+						expectedOutput,
+					),
 				)
 			}
 		}
@@ -1043,7 +1215,7 @@ private fun LocationCapturedFactCommand.toSample(
 		batchSize = evidence.deliveryUnitCount,
 		isMock = false,
 		estimatorVersion = acquisitionMetadata.altitudeEstimatorVersion,
-		calibrationVersion = acquisitionMetadata.altitudeCalibrationVersion,
+		calibrationVersion = 0,
 		sourceSignalId =
 			ProtectedLocationCanonicalSignalIdentity.canonicalProduct(evidence.sourceEventId.value),
 		sourceEventId = evidence.sourceEventId.value,
@@ -1074,5 +1246,6 @@ private val TEST_ACQUISITION_METADATA = LocationWalAcquisitionMetadata(
 	altitudeModelVersion = com.adsamcik.tracker.shared.model.AltitudeContractVersions.MODEL_VERSION,
 	altitudeEstimatorVersion =
 		com.adsamcik.tracker.shared.model.AltitudeContractVersions.ESTIMATOR_VERSION,
-	altitudeCalibrationVersion = 0,
+	altitudeCalibrationVersion =
+		com.adsamcik.tracker.shared.model.AltitudeContractVersions.CALIBRATION_VERSION,
 )

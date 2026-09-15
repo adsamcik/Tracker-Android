@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.recordFullDeletion
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -220,12 +221,7 @@ class LocationWalQualificationAdapterTest {
 	fun `real WAL unknown commit reopens from receipt without rewriting product`() = runTest {
 		installValidFixture(
 			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
-			deliveryPayloads = listOf(
-				locationPayload(isMock = false).copy(
-					altitudeMeters = null,
-					verticalAccuracyMeters = null,
-				),
-			),
+			deliveryPayloads = listOf(locationPayload(isMock = false)),
 		)
 		val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
 			.admissionOrdinal
@@ -283,12 +279,7 @@ class LocationWalQualificationAdapterTest {
 	fun `real WAL crash-pending commands recover before replay`() = runTest {
 		installValidFixture(
 			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
-			deliveryPayloads = listOf(
-				locationPayload(isMock = false).copy(
-					altitudeMeters = null,
-					verticalAccuracyMeters = null,
-				),
-			),
+			deliveryPayloads = listOf(locationPayload(isMock = false)),
 		)
 		val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
 			.admissionOrdinal
@@ -416,6 +407,52 @@ class LocationWalQualificationAdapterTest {
 		assertEquals(ordinal, complete.lastCommittedOrdinal)
 		assertEquals(1, complete.lifecycleSettled)
 		assertEquals(0L, database.locationObservationDao().countAll())
+	}
+
+	@Test
+	fun `real WAL chain rejects conflicting preexisting decision before receipt`() = runTest {
+		installValidFixture(
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(isMock = false)),
+		)
+		val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+			.admissionOrdinal
+		installProtectedHandoffAuthority(ordinal)
+		val signalId = ProtectedLocationCanonicalSignalIdentity.canonicalProduct(EVENT_ID.value)
+		database.locationObservationDecisionDao().insert(
+			listOf(
+				LocationObservationDecision(
+					observationSourceEventId = EVENT_ID.value,
+					decision = LocationObservationDecision.REJECTED,
+					reason = "WRONG_NONBLANK_REASON",
+					acceptedSampleSourceSignalId = null,
+					sourceSignalId = signalId,
+					clockDomainId = BOOT_ID,
+					decidedAtMs = OBSERVED_WALL_MS,
+				),
+			),
+		)
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val failed = assertIs<ProtectedLocationCanonicalDrainResult.Failed>(
+			ProtectedLocationCanonicalHandoff(
+				database,
+				subject,
+				ProtectedLocationOfflineCanonicalWriter(
+					context,
+					database,
+					dispatchers,
+					newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)),
+				),
+			).drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+		)
+
+		assertFalse(failed.terminal)
+		assertEquals(ordinal - 1L, failed.lastCommittedOrdinal)
+		assertEquals(null, database.sourceProjectionStateDao().joinState(
+			ProtectedLocationCanonicalHandoff.WRITER_ID,
+			ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+			"canonical-receipt:${EVENT_ID.value}",
+		))
 	}
 
 	@Test

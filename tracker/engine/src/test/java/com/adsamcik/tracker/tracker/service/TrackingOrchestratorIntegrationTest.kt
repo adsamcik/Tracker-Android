@@ -210,7 +210,7 @@ class TrackingOrchestratorIntegrationTest {
 
 	@Test
 	@Suppress("LongMethod")
-	fun `protected location writer preserves canonical route curation and exact receipts`() =
+	fun `protected location writer restores committed route and altitude after live restart`() =
 		runTest(testDispatcher) {
 			val controller = DefaultTrackerServiceController()
 			val commands = mutableMapOf<String, LocationCapturedFactCommand>()
@@ -292,33 +292,52 @@ class TrackingOrchestratorIntegrationTest {
 				latitude = 50.087,
 				longitude = 14.421,
 				accuracyMeters = 40f,
-			)
-			val teleport = protectedLocationCommand(
-				eventId = "protected-location-teleport",
-				admissionOrdinal = 11L,
-				sessionSegmentId = binding.sessionSegmentId,
-				wallTimeMs = 11_000L,
-				elapsedRealtimeNanos = 11_000_000_000L,
-				latitude = -33.8688,
-				longitude = 151.2093,
-			)
-			val corroborating = protectedLocationCommand(
-				eventId = "protected-location-corroborating",
-				admissionOrdinal = 12L,
-				sessionSegmentId = binding.sessionSegmentId,
-				wallTimeMs = 12_000L,
-				elapsedRealtimeNanos = 12_000_000_000L,
-				latitude = -33.8687,
-				longitude = 151.2094,
+				altitudeMeters = 242.5,
+				verticalAccuracyMeters = 3f,
 			)
 			commands[accepted.mutation.identity.sourceEventId.value] = accepted
-			commands[teleport.mutation.identity.sourceEventId.value] = teleport
-			commands[corroborating.mutation.identity.sourceEventId.value] = corroborating
-
 			orchestrator.write(
 				accepted,
 				PROTECTED_LOCATION_ACQUISITION,
 			) shouldBe ProtectedLocationCanonicalWriteResult.Committed
+			orchestrator.shutdown(context)
+			advanceUntilIdle()
+			val restartedBinding = requireNotNull(orchestrator.initialize(
+				context = context,
+				isSessionUserInitiated = true,
+				initialTier = PolicyTier.PRECISION,
+				scope = backgroundScope,
+				logicalTrackingId = LOGICAL_ID,
+				serviceRunId = RUN_ID,
+				resumeSessionSegmentId = binding.sessionSegmentId,
+				rolloutState = allEventCanonical(),
+			))
+			advanceUntilIdle()
+			val teleport = protectedLocationCommand(
+				eventId = "protected-location-teleport",
+				admissionOrdinal = 11L,
+				sessionSegmentId = restartedBinding.sessionSegmentId,
+				wallTimeMs = 11_000L,
+				elapsedRealtimeNanos = 11_000_000_000L,
+				latitude = -33.8688,
+				longitude = 151.2093,
+				altitudeMeters = 246.0,
+				verticalAccuracyMeters = 3f,
+			)
+			val corroborating = protectedLocationCommand(
+				eventId = "protected-location-corroborating",
+				admissionOrdinal = 12L,
+				sessionSegmentId = restartedBinding.sessionSegmentId,
+				wallTimeMs = 12_000L,
+				elapsedRealtimeNanos = 12_000_000_000L,
+				latitude = -33.8687,
+				longitude = 151.2094,
+				altitudeMeters = 247.0,
+				verticalAccuracyMeters = 3f,
+			)
+			commands[teleport.mutation.identity.sourceEventId.value] = teleport
+			commands[corroborating.mutation.identity.sourceEventId.value] = corroborating
+
 			orchestrator.write(
 				teleport,
 				PROTECTED_LOCATION_ACQUISITION,
@@ -497,6 +516,8 @@ class TrackingOrchestratorIntegrationTest {
 		latitude: Double,
 		longitude: Double,
 		accuracyMeters: Float = 5f,
+		altitudeMeters: Double? = null,
+		verticalAccuracyMeters: Float? = null,
 	): LocationCapturedFactCommand {
 		val interval = LocationProviderTimeInterval(1L, Long.MAX_VALUE)
 		val temporal = LocationCaptureTemporalAuthority(
@@ -560,8 +581,8 @@ class TrackingOrchestratorIntegrationTest {
 				latitudeDegrees = latitude,
 				longitudeDegrees = longitude,
 				horizontalAccuracyMeters = accuracyMeters,
-				altitudeMeters = null,
-				verticalAccuracyMeters = null,
+				altitudeMeters = altitudeMeters,
+				verticalAccuracyMeters = verticalAccuracyMeters,
 				speedMetersPerSecond = null,
 				bearingDegrees = null,
 				provider = "gps",
@@ -770,7 +791,7 @@ class TrackingOrchestratorIntegrationTest {
 			curationVersion = PROTECTED_LOCATION_CANONICAL_CURATION_VERSION,
 			altitudeModelVersion = AltitudeContractVersions.MODEL_VERSION,
 			altitudeEstimatorVersion = AltitudeContractVersions.ESTIMATOR_VERSION,
-			altitudeCalibrationVersion = 0,
+			altitudeCalibrationVersion = AltitudeContractVersions.CALIBRATION_VERSION,
 		)
 	}
 
