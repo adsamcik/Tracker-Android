@@ -73,14 +73,14 @@ or check the broader assembly/completion items. Test sources are authored, never
   `fc1e540f5b135d2485a9267127c4435c5b067356` remain IMPLEMENTED_UNVALIDATED; focused
   static review is closed without a remaining blocker. Rebased source `285deba80c` is locally
   merged in `8767472d62`; exact reviewed input is retained (TI-B320).
-- [ ] TODO-HANDOVER-20260915-008 Wire captured Cell/Wi-Fi retention into the legacy
+- [x] TODO-HANDOVER-20260915-008 Wire captured Cell/Wi-Fi retention into the legacy
   DataRetentionWorker before pending-signal deferral and shared WAL pruning. Preserve lifecycle
   generation fences and author ordering, failure/cancellation and constructor-call-site sources.
   Source `de2a4ae2f3102ee28b12d332a6f1054f38d7c068` is IMPLEMENTED_UNVALIDATED; adversarial
   review found pre-radio deletion of required `session_segment` ownership evidence. TI-D258
   correction `afa939b0fd84cc9e6ebda9262bf57bbf16a5eca0` delays pruning until both services
-  accept; the active pipeline was already safe and unchanged. Focused review closure and local
-  integration remain pending (TI-B321).
+  accept; the active pipeline was already safe and unchanged. Focused review closed the blocker;
+  rebased source `0e99c246cc` is locally merged in `5fc5f91e1c` (TI-B321/TI-B323).
 - [x] TODO-HANDOVER-20260915-009 Make source-aware Steps replacement discovery intent-first
   for exact factless groups; retain materializing/unavailable instead of suppressing physical
   rows with no replacement. Keep ordinary evidence-first history semantics and bounded recency.
@@ -89,10 +89,12 @@ or check the broader assembly/completion items. Test sources are authored, never
   the manifest invariant. Test-only correction `771ce960b37e3c7589c077ef848a20759f5cab31`
   closed that finding; rebased source `a390b97645` is locally merged in `3b13656923` (TI-B322).
 
-Receiving next slice: close the three concrete shared Room/worker/history static-review findings,
-then continue the Wi-Fi imported evaluator and bounded product/reexport lane. Keep new source
-work isolated until the requested static reviews and serial local integration, retain the
-39 original source refs under `refs/remotes/handover/codex/ti-*`, and leave all execution deferred.
+The three requested implementation slices are locally integrated through `5fc5f91e1c`, with
+their parallel adversarial findings closed. This does not check 004/005 or broader assembly gates.
+Receiving next slice: continue the Wi-Fi imported evaluator and bounded product/reexport lane.
+Keep future source work isolated under its applicable authority, retain the 39 original source
+refs and three final reviewed tips, and leave all execution deferred. Task-owned merged
+worktrees/branches were removed; unrelated worktrees and quarantined drafts remain untouched.
 
 For this dated transport checkpoint only, TODO-META-003/005 and TODO-GIT-006's no-integration
 constraints are superseded by TI-D255; they resume as conservative future-work guidance unless

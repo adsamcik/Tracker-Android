@@ -2,24 +2,31 @@
 
 Last updated: 2026-09-15
 
-## Current receiving wave - parallel seam slices and local integration authorized
+## Locally integrated receiving seam wave - IMPLEMENTED_UNVALIDATED
 
 The user explicitly requested parallel completion of TODO-HANDOVER-20260915-007/008/009,
 parallel adversarial static reviews, and local `dev/v10` integration. TI-D257 records the bounded
 authority. The already committed Location and continuation baseline is now on local `dev/v10`
 at `13ca528ccb`; earlier source-branch-only statements below are chronological.
+All three requested slices are now locally integrated through
+`5fc5f91e1c1d5caaf93cdc6d5d550f9339978881`. Their independent adversarial findings are closed
+within the reviewed scope. This is completion of these three implementation slices only, not the
+six-source assembly gate, executable readiness, provider activation or release approval.
 
-All three implementation worktrees started clean from that local baseline:
+All three implementation worktrees started clean from that local baseline. The task-owned
+worktrees and merged branches (including the earlier Location worktree) have now been removed;
+the branch/path labels below are historical. Original handover refs and exact reviewed inputs remain.
 
 | Slice | Branch / worktree suffix | Exclusive production ownership | Current disposition |
 | --- | --- | --- | --- |
 | 007 | `codex/ti-wifi-full-clear-20260915` / `.worktrees\ti-wifi-full-clear-20260915` | AppDatabase and WifiCapturedFactDao | Static review closed; local merge `8767472d62fe77ee30e2c7d46765ed7f4b8d45dc` |
-| 008 | `codex/ti-legacy-radio-retention-20260915` / `.worktrees\ti-legacy-radio-retention-20260915` | Legacy worker and exact app callers/tests; active pipeline unchanged | `de2a4ae2f3` plus `afa939b0fd84cc9e6ebda9262bf57bbf16a5eca0`; focused authority-order review pending |
+| 008 | `codex/ti-legacy-radio-retention-20260915` / `.worktrees\ti-legacy-radio-retention-20260915` | Legacy worker and exact app callers/tests; active pipeline unchanged | Static review closed; local merge `5fc5f91e1c1d5caaf93cdc6d5d550f9339978881` |
 | 009 | `codex/ti-factless-steps-history-20260915` / `.worktrees\ti-factless-steps-history-20260915` | Source-aware Steps history and its candidate-query seam | Static review closed; local merge `3b1365692380ff1d98ab47ef6d869e8beea23981` |
 
-Each slice gets a separate adversarial static review of its committed production/test changes.
-The parent serializes any shared interface correction and local merges, then records exact source
-and integration commits. This wave does not authorize execution or complete the larger assembly:
+Each slice received a separate adversarial static review of its committed production/test changes.
+Concrete corrections were made by the original owners and assessed by the same reviewers. The
+parent inspected the source deltas, rebased each slice onto current local `dev/v10`, confirmed
+unchanged reviewed source paths, and merged serially. This wave does not complete the larger assembly:
 **IMPLEMENTATION_ONLY / IMPLEMENTED_UNVALIDATED**, with every frozen-convergence command deferred.
 
 Slice 007's committed paths are
@@ -47,7 +54,7 @@ The worker invokes captured Cell and Wi-Fi retention before shared WAL pruning, 
 pending signals defer legacy cleanup; rejection/failure retries, cancellation propagates, and
 startup-generation changes fence later work. Regression sources cover both raw-result paths,
 ordering, failures/cancellation, generation changes and disabled/zero-retention exits. TI-B321
-records the deferred cohort. Its independent service/transaction review runs alongside slice 007's.
+records the deferred cohort. Its independent service/transaction review ran alongside the other slices.
 The review found a production blocker: the pre-radio raw transaction deletes `session_segment`,
 but both real radio services need that exact ownership evidence. Non-pending failure can therefore
 strand retry permanently despite preserved WAL. TI-D258 requires delayed, generation-fenced
@@ -58,7 +65,10 @@ test source: physical segment deletion is delayed until both radio services acce
 pruned raw branch, in a generation-fenced transaction before WAL cleanup. Non-pending attributed
 segment cases cover acceptance, either rejection, service failure/cancellation and generation
 changes. The active pipeline already deletes segments later in `purgeTripData` and is unchanged.
-The same adversary is assessing focused closure; no execution or worker integration is claimed.
+The same adversary closed the authority-loss blocker at `afa939b0fd`. Rebased source tip
+`0e99c246cc47a2cbf452a1870f2fc84b8f6510b1` preserves all three reviewed paths; local merge is
+`5fc5f91e1c1d5caaf93cdc6d5d550f9339978881`. The original reviewed tip remains under
+`refs/remotes/handover/reviewed/ti-legacy-radio-retention-20260915`. No execution is implied.
 
 Slice 009's committed production paths are
 `core\base\src\main\java\com\adsamcik\tracker\shared\base\database\dao\TrackingHistoryReadDao.kt`,
@@ -79,6 +89,13 @@ Focused review closed the fixture finding at `771ce960b3` without a remaining st
 Rebased source tip `a390b976452b2cb0ae497a4b54c377e14148bc85` preserves all five reviewed paths;
 local merge is `3b1365692380ff1d98ab47ef6d869e8beea23981`. The original reviewed tip remains under
 `refs/remotes/handover/reviewed/ti-factless-steps-history-20260915`. No execution is implied.
+
+TI-B323 records the complete local wave. All 39 original handover source refs remain under
+`refs/remotes/handover/codex/ti-*`, and all three final reviewed tips remain under
+`refs/remotes/handover/reviewed/*`. Unrelated worktrees, protected paths and quarantine were not
+modified. No push or activation occurred. TODO-HANDOVER-20260915-004/005 and the wider source
+verticals remain open; the next bounded lane is the Wi-Fi imported evaluator, bounded product
+composition and authenticated reexport, before the remaining deletion/retention/actions work.
 
 ## September 15 receiving continuation - Location WAL payload preflight
 

@@ -2,7 +2,34 @@
 
 Last updated: 2026-09-15
 
-## TI-B322 - Factless Steps source-aware history sources, adversarial review pending
+## TI-B323 - Three parallel seam slices locally integrated, execution still deferred
+
+- User authority: TI-D257. Source integration checkpoint:
+  `5fc5f91e1c1d5caaf93cdc6d5d550f9339978881` on local `dev/v10`.
+- Wi-Fi: reviewed `fc1e540f5b` atop `f0eb2d59ec`, rebased `285deba80c`,
+  local merge `8767472d62`. The dependent-first full-clear source and corrected regression
+  assertions retain self-FK RESTRICT and the existing deletion transaction.
+- Steps history: reviewed `771ce960b3` atop `b138a23adb`, rebased `a390b97645`,
+  local merge `3b13656923`. Exact-intent source-aware discovery and invariant-valid unavailable
+  fixture retain ordinary evidence-first reads, exact ownership and null rather than false zero.
+- Legacy worker: reviewed `afa939b0fd` atop `de2a4ae2f3`, rebased `0e99c246cc`,
+  local merge `5fc5f91e1c`. Radio retention now precedes destruction of required physical
+  segment ownership; pending/rejected/error/cancelled work retains segment/WAL authority.
+- Parallel adversarial review found a concrete worker authority-ordering blocker plus Wi-Fi
+  rollback/WAL/lineage fixture gaps and a Steps manifest-invariant fixture defect. Original
+  owners authored bounded corrections; focused re-reviews closed every reported finding within
+  these scopes. This is not a guarantee of no other defects or a model-vote proof.
+- Parent static integration evidence: inspected cumulative production deltas and the Steps
+  candidate-call seam, confirmed disjoint write scopes and unchanged reviewed source paths after
+  rebases, then merged serially without hooks. All 39 original handover refs and three final
+  reviewed tips are preserved. Clean task-owned worktrees/branches were removed; unrelated
+  worktrees, protected paths and quarantine were untouched.
+- Outcome: **IMPLEMENTED_UNVALIDATED**. No compilation, tests, Gradle, schema generation/drift,
+  diff-check, lint/Detekt, Hilt/release, CI, device/UI, battery, push or activation.
+  TI-B319 through TI-B322 retain focused deferred cohorts. The full frozen convergence batch,
+  real provider/product evidence and wider six-source implementation remain outstanding.
+
+## TI-B322 - Factless Steps source-aware history and adversarial closure
 
 - Input: `b138a23adb3263708028e24267729192b813018a` on
   `codex/ti-factless-steps-history-20260915`, baseline `13ca528ccb`;
@@ -28,7 +55,7 @@ Last updated: 2026-09-15
 - Deferred only after the authorized frozen convergence:
   `.\gradlew.bat :core:base:testDebugUnitTest :stats:data:testDebugUnitTest --tests "*TrackingHistoryReadDaoTest" --tests "*StepsSegmentHistorySelectorTest.sourceAware*"`.
 
-## TI-B321 - Legacy worker radio retention sources, adversarial review pending
+## TI-B321 - Legacy worker radio retention correction and adversarial closure
 
 - Input: `de2a4ae2f3102ee28b12d332a6f1054f38d7c068` on
   `codex/ti-legacy-radio-retention-20260915`, baseline `13ca528ccb`;
@@ -42,17 +69,19 @@ Last updated: 2026-09-15
   and `app\src\test\java\com\adsamcik\tracker\app\maintenance\ActivityRetentionWorkerRobolectricTest.kt`.
   Ordering, pruned/deferred paths, typed rejection/failure/cancellation, generation changes and
   disabled/zero-retention exits are source assertions only.
-- Disposition: **IMPLEMENTED_UNVALIDATED; STATIC PRODUCTION BLOCKER**. The adversary traced
+- Disposition: **IMPLEMENTED_UNVALIDATED; STATIC REVIEW CLOSED**. The adversary traced
   pre-radio `session_segment` deletion to both real radio services' required exact ownership
   reads. Existing failure mocks use the pending-signal branch and miss committed authority loss.
-  The bounded correction and non-pending regression sources are authored in `afa939b0fd`
-  (TI-D258), with focused adversarial review pending. Active-pipeline segment pruning was traced
-  as already later and was not changed. Do not integrate the initial input without correction.
+  The bounded correction and non-pending regression sources in `afa939b0fd` (TI-D258) closed
+  that blocker under focused review. Active-pipeline segment pruning was already later and was
+  not changed. Rebased tip `0e99c246cc` preserves all three reviewed paths and is locally merged
+  at `5fc5f91e1c1d5caaf93cdc6d5d550f9339978881`. The original reviewed tip remains under
+  `refs/remotes/handover/reviewed/ti-legacy-radio-retention-20260915`.
   No compilation, test, Hilt, Gradle, schema, diff-check, device, CI or execution gate ran.
 - Deferred after the authorized frozen final convergence only:
   `.\gradlew.bat :app:testDebugUnitTest --tests "com.adsamcik.tracker.maintenance.DataRetentionWorkerTest" --tests "com.adsamcik.tracker.app.maintenance.ActivityRetentionWorkerRobolectricTest"`.
 
-## TI-B320 - Wi-Fi full-clear regression sources, adversarial review pending
+## TI-B320 - Wi-Fi full-clear source and adversarial closure
 
 - Input: `f0eb2d59ec935855ba33072d1392338402a2e772` on
   `codex/ti-wifi-full-clear-20260915`, baseline `13ca528ccb`; TODO-HANDOVER-20260915-007.

@@ -14,8 +14,12 @@ under `refs/remotes/handover/reviewed/ti-wifi-full-clear-20260915`. Slice 009 is
 at `3b13656923` after valid unavailable-fixture correction and focused closure (reviewed
 `771ce960b3`, rebased `a390b97645`); its input is retained under the matching
 `refs/remotes/handover/reviewed/ti-factless-steps-history-20260915` ref.
-Slice 008 still requires correction/review closure: retain physical segment authority until
-radio retention accepts. No whole-assembly gate is complete.
+Slice 008 is locally merged at `5fc5f91e1c` after the authority-ordering correction and focused
+closure (reviewed `afa939b0fd`, rebased `0e99c246cc`); its input is retained under
+`refs/remotes/handover/reviewed/ti-legacy-radio-retention-20260915`. All three requested slices
+are implemented, statically reviewed and locally merged, still **IMPLEMENTED_UNVALIDATED**.
+The clean task-owned worktrees/branches were removed; original handover refs, reviewed inputs,
+unrelated worktrees and quarantine are preserved. No whole-assembly gate is complete.
 
 Receiving continuation: the local package receipt and clean `dev/v10` match `29323cfab`.
 The original 39 tracking refs have been preserved from the local bundle under
@@ -75,6 +79,10 @@ before self-FK-restricted aggregate owners; the legacy DataRetentionWorker must 
 Cell/Wi-Fi retention before deferral/WAL pruning; and factless exact Steps-only source-aware
 history needs intent-first replacements instead of disappearing after physical suppression.
 The Location query-callback test builder retains the original in-memory factory setup.
+These three bounded findings are now closed in the local receiving wave (TI-B323). The worker
+review exposed an additional ordering defect, corrected by keeping `session_segment` until both
+radio services accept retention; the active pipeline was already correctly ordered and unchanged.
+Other broad assembly/runtime consumers remain open. Continue with the Wi-Fi imported product lane.
 
 ### 2. Wi-Fi imported product lane
 

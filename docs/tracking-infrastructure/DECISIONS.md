@@ -4,8 +4,9 @@ Last updated: 2026-09-15
 
 ## TI-D258 - Radio retention must precede destruction of its physical ownership evidence
 
-- Status: adversarial production blocker has authored correction
-  `afa939b0fd84cc9e6ebda9262bf57bbf16a5eca0`; focused static review pending, unvalidated.
+- Status: adversarial production blocker closed statically in correction
+  `afa939b0fd84cc9e6ebda9262bf57bbf16a5eca0`, locally merged in `5fc5f91e1c`;
+  **IMPLEMENTED_UNVALIDATED**.
 - Counterexample in worker input `de2a4ae2f3`: legacy raw pruning commits deletion of an expired
   `session_segment`, then Cell/Wi-Fi maintenance requires that exact segment to authenticate its
   captured revisions. No FK retains the segment, so retry cannot restore the missing authority.
@@ -19,14 +20,16 @@ Last updated: 2026-09-15
   permission to redesign retention services or widen core/stats/UI ownership.
 - Author non-pending expired-segment regressions whose service answers inspect actual retained
   authority, including acceptance, either rejection, errors/cancellation and generation changes.
-  No execution, compilation or integration of the blocked input is authorized by this decision.
-- The owner traced the active pipeline to `purgeTripData`, which already deletes segments after
+  No execution, compilation or standalone integration of the uncorrected input is authorized here.
+- The owner and reviewer traced the active pipeline to `purgeTripData`, which already deletes segments after
   radio maintenance/WAL. It is unchanged. The correction changes only the legacy worker and its
   focused test source; it does not widen production service APIs.
 
 ## TI-D257 - Explicit local integration authority for the three receiving seam slices
 
-- Status: authorized implementation-only work, not a completed assembly or execution gate.
+- Status: all three requested implementation slices locally integrated through `5fc5f91e1c`,
+  with parallel adversarial static review and focused correction closure. This is not a completed
+  six-source assembly or execution gate; all work remains **IMPLEMENTED_UNVALIDATED**.
 - User authority, 2026-09-15: complete the three identified slices in parallel worktrees, run
   parallel adversarial reviews of the implemented changes, and merge completed slices back into
   local `dev/v10`. This specifically supersedes the earlier source-branch-only instruction for
