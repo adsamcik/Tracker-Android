@@ -63,6 +63,7 @@ data class SourceHistoryDetailSelection(
 object SourceHistoryDetailHandoff {
 	private const val MAX_RETAINED_SELECTIONS = 32
 	private const val SELECTION_TTL_NANOS = 120_000_000_000L
+	const val DESTINATION_OWNERSHIP_TIMEOUT_MILLIS = 120_000L
 	private val lock = Any()
 	private val selections = LinkedHashMap<String, PendingSelection>()
 

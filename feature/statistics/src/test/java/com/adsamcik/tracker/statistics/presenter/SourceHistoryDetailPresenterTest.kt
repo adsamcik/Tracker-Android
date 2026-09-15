@@ -47,6 +47,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -180,14 +181,14 @@ class SourceHistoryDetailPresenterTest {
 			presenter = presenter,
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
-		advanceUntilIdle()
+		runCurrent()
 		first.state.value.shouldBeInstanceOf<SourceHistoryDetailState.Loaded>()
 
 		val recreated = SourceHistoryDetailViewModel(
 			presenter = presenter,
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
-		advanceUntilIdle()
+		runCurrent()
 
 		recreated.state.value shouldBe SourceHistoryDetailState.Unavailable(
 			reason = SourceHistoryDetailUnavailableReason.SELECTION_EXPIRED,
@@ -200,6 +201,28 @@ class SourceHistoryDetailPresenterTest {
 		)
 		first.close()
 		recreated.close()
+	}
+
+	@Test
+	fun `destination-owned Activity selection expires without a permanent observer`() = runTest {
+		val route = SourceHistoryDetailHandoff.register(
+			importedActivitySelection("activity-owner-expiry"),
+		)
+		val viewModel = SourceHistoryDetailViewModel(
+			presenter = presenter,
+			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
+		)
+		runCurrent()
+		viewModel.state.value.shouldBeInstanceOf<SourceHistoryDetailState.Loaded>()
+
+		advanceTimeBy(SourceHistoryDetailHandoff.DESTINATION_OWNERSHIP_TIMEOUT_MILLIS + 1L)
+		runCurrent()
+
+		viewModel.state.value shouldBe SourceHistoryDetailState.Unavailable(
+			reason = SourceHistoryDetailUnavailableReason.SELECTION_EXPIRED,
+			source = com.adsamcik.tracker.stats.api.repository.HistorySource.ACTIVITY,
+		)
+		viewModel.close()
 	}
 
 	@Test
@@ -231,11 +254,11 @@ class SourceHistoryDetailPresenterTest {
 			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
 		)
 		val collector = backgroundScope.launch { viewModel.state.collect() }
-		advanceUntilIdle()
+		runCurrent()
 		viewModel.state.value.shouldBeInstanceOf<SourceHistoryDetailState.Loaded>()
 
 		viewModel.retry()
-		advanceUntilIdle()
+		runCurrent()
 
 		viewModel.state.value shouldBe SourceHistoryDetailState.Unavailable(
 			reason = SourceHistoryDetailUnavailableReason.SOURCE_INTEGRITY_FAILURE,
@@ -274,7 +297,12 @@ class SourceHistoryDetailPresenterTest {
 		)
 		runCurrent()
 
-		viewModel.close()
+		advanceTimeBy(SourceHistoryDetailHandoff.DESTINATION_OWNERSHIP_TIMEOUT_MILLIS + 1L)
+		runCurrent()
+		viewModel.state.value shouldBe SourceHistoryDetailState.Unavailable(
+			reason = SourceHistoryDetailUnavailableReason.SELECTION_EXPIRED,
+			source = com.adsamcik.tracker.stats.api.repository.HistorySource.WIFI,
+		)
 		viewModel.retry()
 		viewModel.state.value shouldBe SourceHistoryDetailState.Unavailable(
 			reason = SourceHistoryDetailUnavailableReason.SELECTION_EXPIRED,
@@ -287,6 +315,7 @@ class SourceHistoryDetailPresenterTest {
 			reason = SourceHistoryDetailUnavailableReason.SELECTION_EXPIRED,
 			source = null,
 		)
+		viewModel.close()
 	}
 
 	private fun importedActivitySelection(key: String): SourceHistoryDetailSelection {

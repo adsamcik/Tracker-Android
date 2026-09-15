@@ -10,6 +10,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +27,7 @@ class SourceHistoryDetailViewModel @Inject constructor(
 	)
 	val state: StateFlow<SourceHistoryDetailState> = _state.asStateFlow()
 	private var loadJob: Job? = null
+	private var ownershipExpiryJob: Job? = null
 	private var ownedSelection: SourceHistoryDetailSelection? = null
 	private var tokenConsumed = false
 	private var activityPresented = false
@@ -39,12 +41,14 @@ class SourceHistoryDetailViewModel @Inject constructor(
 		val generation = ++loadGeneration
 		loadJob?.cancel()
 		loadJob = null
-		val selection = ownedSelection ?: consumeInitialSelection()
+		val selection = ownedSelection ?: consumeInitialSelection()?.also(::scheduleOwnershipExpiry)
 		if (selection == null) {
 			publishExpired()
 			return
 		}
 		if (activityPresented && selection.entry is SourceAwareHistoryPageEntry.ActivityOnly) {
+			ownershipExpiryJob?.cancel()
+			ownershipExpiryJob = null
 			ownedSelection = null
 			publishExpired(selection.entry.source)
 			return
@@ -73,6 +77,8 @@ class SourceHistoryDetailViewModel @Inject constructor(
 					result is SourceHistoryDetailState.Unavailable &&
 					selection.entry is SourceAwareHistoryPageEntry.ActivityOnly
 				) {
+					ownershipExpiryJob?.cancel()
+					ownershipExpiryJob = null
 					ownedSelection = null
 				}
 			}
@@ -84,6 +90,8 @@ class SourceHistoryDetailViewModel @Inject constructor(
 		++loadGeneration
 		loadJob?.cancel()
 		loadJob = null
+		ownershipExpiryJob?.cancel()
+		ownershipExpiryJob = null
 		ownedSelection = null
 		selectionToken?.let(SourceHistoryDetailHandoff::release)
 	}
@@ -97,6 +105,21 @@ class SourceHistoryDetailViewModel @Inject constructor(
 		if (tokenConsumed) return null
 		tokenConsumed = true
 		return selectionToken?.let(SourceHistoryDetailHandoff::consume)
+	}
+
+	private fun scheduleOwnershipExpiry(selection: SourceHistoryDetailSelection) {
+		ownershipExpiryJob?.cancel()
+		ownershipExpiryJob = viewModelScope.launch {
+			delay(SourceHistoryDetailHandoff.DESTINATION_OWNERSHIP_TIMEOUT_MILLIS)
+			if (ownedSelection == selection) {
+				ownershipExpiryJob = null
+				++loadGeneration
+				loadJob?.cancel()
+				loadJob = null
+				ownedSelection = null
+				publishExpired(selection.entry.source)
+			}
+		}
 	}
 
 	private fun publishExpired(source: com.adsamcik.tracker.stats.api.repository.HistorySource? = null) {
