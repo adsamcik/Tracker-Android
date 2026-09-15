@@ -1203,6 +1203,83 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `two database export import typed read and latest reexport preserve complete Cell v1`() = runTest {
+		val firstIngress = seedCapturedCell(semanticRevisions = 2, withPortableExportState = true)
+		firstIngress.sourceSequence shouldBe 0L
+		var exported: PortableCapturedCellEntryV1? = null
+		portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) { entry ->
+			exported = entry
+		}
+		val original = requireNotNull(exported)
+		val target = AppDatabase.testDatabase(
+			ApplicationProvider.getApplicationContext<Application>(),
+		)
+		try {
+			target.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
+			RoomImportPortableCapturedCell(target, Dispatchers.Unconfined).importEntry(
+				ImportPortableCapturedCellRequest(
+					entry = original,
+					receipt = PortableCellImportReceipt(
+						jobId = "two-db",
+						entryKey = "cell-entry",
+						sourceName = "source.trackercell",
+						receivedAtMs = original.endTimeMs,
+					),
+					expectedCollectedDataEpoch = 0L,
+				),
+			) shouldBe ImportPortableCapturedCellResult.Applied(
+				importRevision = 1L,
+				physicalRunCount = original.runs.size,
+				observationCount = original.runs.sumOf { it.observations.size },
+			)
+			val read = target.withTransaction {
+				ImportedCellProductReader(target).selectRecentInTransaction(1).single()
+			} as ImportedCellProductEvaluation.Readable
+			read.entry shouldBe original
+			read.isReExportable shouldBe true
+			var reexported: PortableCapturedCellEntryV1? = null
+			var sinkWasTransactional: Boolean? = null
+			RoomReexportImportedPortableCapturedCell(
+				target,
+				Dispatchers.Unconfined,
+			).reexport(
+				ReexportImportedPortableCapturedCellRequest(
+					identity = original.identity,
+					expectedImportRevision = 1L,
+					expectedContentChecksum = original.contentChecksum,
+				),
+			) { entry ->
+				sinkWasTransactional = target.inTransaction()
+				reexported = entry
+			} shouldBe ExportPortableCapturedCellResult.Exported(
+				entryIdentity = original.identity,
+				contentChecksum = original.contentChecksum,
+				physicalRunCount = original.runs.size,
+				observationCount = original.runs.sumOf { it.observations.size },
+			)
+			reexported shouldBe original
+			sinkWasTransactional shouldBe false
+			listOf(
+				"source_event_wal",
+				"source_demand",
+				"provider_registration_generation",
+				"source_authorization",
+				"session_manifest_version",
+				"session_manifest_source",
+				"cell_captured_fact_revision",
+				"cell_captured_fact_cursor",
+			).forEach { table ->
+				target.openHelper.readableDatabase.query("SELECT COUNT(*) FROM $table").use { cursor ->
+					check(cursor.moveToFirst())
+					cursor.getLong(0) shouldBe 0L
+				}
+			}
+		} finally {
+			target.close()
+		}
+	}
+
+	@Test
 	fun `portable export preserves one-hop aggregate reuse without exposing owner identity`() = runTest {
 		val owner = seedCapturedCell(withPortableExportState = true)
 		insertCapturedFact(

@@ -36,6 +36,57 @@ class CellHistoryRepositoryTest {
 		}
 	}
 
+	@Test
+	fun `imported origin carries an opaque exact selection without changing native defaults`() {
+		val identity = ImportedCellHistoryIdentity("a".repeat(64))
+		val selection = ImportedCellHistorySelection(
+			identity = identity,
+			importRevision = 2L,
+			contentChecksum = ImportedCellHistoryDigest("b".repeat(64)),
+		)
+		val imported = CellHistoryEntry(
+			CellHistoryEntryKey("opaque"),
+			EpochMs(1L),
+			EpochMs(2L),
+			setOf("UTC"),
+			CellHistoryProductState.PARTIAL,
+			CellHistoryCoverage.PARTIAL,
+			listOf(observation()),
+			setOf(CellHistoryCause.SUBSCRIPTION_GROUPING_UNKNOWN),
+			CellHistoryOrigin.Imported(selection),
+		)
+		val local = imported.copy(origin = CellHistoryOrigin.Local)
+
+		(imported.origin as CellHistoryOrigin.Imported).selection shouldBe selection
+		local.origin shouldBe CellHistoryOrigin.Local
+		identity.toString() shouldBe "ImportedCellHistoryIdentity"
+		selection.contentChecksum.toString() shouldBe "ImportedCellHistoryDigest"
+	}
+
+	@Test
+	fun `deleted and unverifiable states remain value free and explicitly caused`() {
+		CellHistoryEntry(
+			CellHistoryEntryKey("deleted"),
+			EpochMs(1L),
+			EpochMs(2L),
+			emptySet(),
+			CellHistoryProductState.DELETED,
+			CellHistoryCoverage.NONE,
+			emptyList(),
+			setOf(CellHistoryCause.DELETED),
+		).state shouldBe CellHistoryProductState.DELETED
+		CellHistoryEntry(
+			CellHistoryEntryKey("unverifiable"),
+			EpochMs(1L),
+			EpochMs(2L),
+			emptySet(),
+			CellHistoryProductState.UNVERIFIABLE,
+			CellHistoryCoverage.NONE,
+			emptyList(),
+			setOf(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE),
+		).state shouldBe CellHistoryProductState.UNVERIFIABLE
+	}
+
 	private fun observation() = CellHistoryObservation(
 		intervalStartTime = EpochMs(1L),
 		observedTime = EpochMs(2L),

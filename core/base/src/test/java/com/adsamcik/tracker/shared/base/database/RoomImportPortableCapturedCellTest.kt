@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
 import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
@@ -20,7 +21,9 @@ import java.io.DataOutputStream
 import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -595,6 +598,11 @@ class RoomImportPortableCapturedCellTest {
 		insertLocalSession(LOGICAL_LOCAL, "run")
 		val exact = entry()
 		importer().importEntry(request(exact)) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		val readable = database.withTransaction {
+			ImportedCellProductReader(database).selectIdentityInTransaction(exact.identity)
+		} as ImportedCellProductEvaluation.Readable
+		readable.localOriginHandle?.toString() shouldBe "ImportedCellLocalOriginHandle"
+		readable.toString().contains(LOGICAL_LOCAL) shouldBe false
 
 		val foreignEntry = entry(
 			logicalLocal = "foreign",
@@ -608,6 +616,316 @@ class RoomImportPortableCapturedCellTest {
 				PortableCellImportBlockedReason.OPAQUE_IDENTITY_CONFLICT,
 			)
 	}
+
+	@Test
+	fun `typed product authenticates complete replacement membership and latest correction`() = runTest {
+			seedEvidence()
+			val original = entry(
+				runDefinitions = listOf(
+					RunDefinition("captured", 10L, 20L, listOf(observation("one"))),
+					RunDefinition(
+						"gap",
+						20L,
+						30L,
+						emptyList(),
+						availability = PortableCellRunAvailability.NO_RETAINED_OBSERVATION,
+						completeness = PortableCellAcquisitionCompleteness.PARTIAL,
+					),
+					RunDefinition(
+						"not-captured",
+						30L,
+						40L,
+						emptyList(),
+						coverage = PortableCellCaptureCoverage.NOT_CAPTURED,
+						availability = PortableCellRunAvailability.NOT_CAPTURED,
+						completeness = PortableCellAcquisitionCompleteness.UNKNOWN,
+					),
+				),
+			)
+			val correctedObservation = observation("one", semanticRevision = 2L, qualityFlags = 7L)
+			val corrected = entry(
+				runDefinitions = listOf(
+					RunDefinition("captured", 10L, 20L, listOf(correctedObservation)),
+					RunDefinition(
+						"gap",
+						20L,
+						30L,
+						emptyList(),
+						availability = PortableCellRunAvailability.NO_RETAINED_OBSERVATION,
+						completeness = PortableCellAcquisitionCompleteness.PARTIAL,
+					),
+					RunDefinition(
+						"not-captured",
+						30L,
+						40L,
+						emptyList(),
+						coverage = PortableCellCaptureCoverage.NOT_CAPTURED,
+						availability = PortableCellRunAvailability.NOT_CAPTURED,
+						completeness = PortableCellAcquisitionCompleteness.UNKNOWN,
+					),
+				),
+			)
+			importer().importEntry(request(original)) shouldBe
+				ImportPortableCapturedCellResult.Applied(1L, 3, 1)
+			importer().importEntry(request(corrected, "correction", "entry-2")) shouldBe
+				ImportPortableCapturedCellResult.Applied(2L, 3, 1)
+
+			val evaluation = database.withTransaction {
+				ImportedCellProductReader(database).selectRecentInTransaction(1).single()
+			} as ImportedCellProductEvaluation.Readable
+
+			evaluation.candidate.importRevision shouldBe 2L
+			evaluation.entry shouldBe corrected
+			evaluation.entry.runs.map { it.captureCoverage } shouldBe listOf(
+				PortableCellCaptureCoverage.WHOLE_RUN,
+				PortableCellCaptureCoverage.WHOLE_RUN,
+				PortableCellCaptureCoverage.NOT_CAPTURED,
+			)
+			evaluation.deletedRunIdentities shouldBe emptySet()
+			evaluation.retentionLimited shouldBe false
+			evaluation.localOriginHandle shouldBe null
+	}
+
+	@Test
+	fun `typed product retains every immutable revision identity in the collision namespace`() = runTest {
+			seedEvidence()
+			val removed = observation("removed")
+			val survivor = observation("survivor")
+			val original = entry(
+				runDefinitions = listOf(RunDefinition("run", 10L, 20L, listOf(removed, survivor))),
+			)
+			val corrected = entry(
+				runDefinitions = listOf(
+					RunDefinition("run", 10L, 20L, listOf(survivor), retentionLoss = true),
+				),
+			)
+			importer().importEntry(request(original)) shouldBe
+				ImportPortableCapturedCellResult.Applied(1L, 1, 2)
+			importer().importEntry(request(corrected, "correction", "entry-2")) shouldBe
+				ImportPortableCapturedCellResult.Applied(2L, 1, 1)
+			database.importedCellDao().insertEntryRevision(
+				ImportedCellEntryRevisionEntity(
+					identity = removed.identity.value,
+					importRevision = 1L,
+					supersedesImportRevision = null,
+					contentChecksum = "a".repeat(64),
+					sourceFormat = CellCapturedPortableFormatV1.FORMAT,
+					sourceSchemaVersion = 1,
+					sessionMode = "MANUAL",
+					startTimeMs = 50L,
+					endTimeMs = 60L,
+					subscriptionGrouping = "UNKNOWN",
+					collectedDataEpoch = EPOCH,
+					importJobId = "collision",
+					importEntryKey = "entry",
+					importSourceName = "collision.trackercell",
+					receivedAtMs = 70L,
+				),
+			)
+
+			database.withTransaction {
+				ImportedCellProductReader(database).selectIdentityInTransaction(original.identity)
+			} shouldBe ImportedCellProductEvaluation.Unverifiable(
+				database.importedCellDao().latestHistoryCandidate(original.identity.value)!!,
+				ImportedCellProductFailure.ORIGIN_IDENTITY_CONFLICT,
+			)
+	}
+
+	@Test
+	fun `typed product reflects current floor entry and run deletion and wrong epoch`() = runTest {
+			seedEvidence()
+			val value = entry()
+			importer().importEntry(request(value)) shouldBe
+				ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+			val reader = ImportedCellProductReader(database)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_evidence_state SET retained_from_ms = 101 WHERE id = 1",
+			)
+			(database.withTransaction {
+				reader.selectIdentityInTransaction(value.identity)
+			} as ImportedCellProductEvaluation.Readable).retentionLimited shouldBe true
+
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_evidence_state SET retained_from_ms = NULL WHERE id = 1",
+			)
+			val run = value.runs.single()
+			database.sourceDeletionFenceDao().insertIfAbsent(
+				SourceDeletionFenceEntity.createLogicalServiceRun(
+					SourceDestinationOwnerEntity.SOURCE_CELL,
+					SessionManifestPurposeCode.SESSION_CAPTURE,
+					LOGICAL_LOCAL,
+					"run",
+					1L,
+					EPOCH,
+					499L,
+				),
+			)
+			database.cellCapturedFactDao().insertDeletionGeneration(
+				CellCaptureDeletionGenerationEntity(LOGICAL_LOCAL, "run", EPOCH, 1L, 499L),
+			)
+			database.importedCellDao().insertDeletionGeneration(
+				ImportedCellDeletionGenerationEntity.create(
+					run.identity.value,
+					value.identity.value,
+					run.deletionScopeDigest.value,
+					EPOCH,
+					1L,
+					500L,
+				),
+			)
+			(database.withTransaction {
+				reader.selectIdentityInTransaction(value.identity)
+			} as ImportedCellProductEvaluation.Readable).deletedRunIdentities shouldBe
+				setOf(run.identity.value)
+
+			database.importedCellDao().insertEntryDeletion(
+				ImportedCellEntryDeletionEntity.create(value.identity.value, EPOCH, 1L, 501L),
+			)
+			(database.withTransaction {
+				reader.selectIdentityInTransaction(value.identity)
+			} as ImportedCellProductEvaluation.Readable).entryDeleted shouldBe true
+
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_evidence_state SET collected_data_epoch = ? WHERE id = 1",
+				arrayOf(EPOCH + 1L),
+			)
+			(database.withTransaction {
+				reader.selectIdentityInTransaction(value.identity)
+			} as ImportedCellProductEvaluation.Unverifiable).reason shouldBe
+				ImportedCellProductFailure.STALE_COLLECTED_DATA_EPOCH
+	}
+
+	@Test
+	fun `typed product rejects fully rehashed stored aggregate corruption and propagates cancellation`() =
+			runTest {
+				seedEvidence()
+				val value = entry()
+				importer().importEntry(request(value)) shouldBe
+					ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+				val invalid = observationPayload("one").copy(
+					knownQualityObservationCount = 0,
+					weakObservationCount = 1,
+					allKnownQualityIsWeak = true,
+				)
+				rehashStoredObservation(value, invalid)
+
+				(database.withTransaction {
+					ImportedCellProductReader(database).selectIdentityInTransaction(value.identity)
+				} as ImportedCellProductEvaluation.Unverifiable).reason shouldBe
+					ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE
+				shouldThrow<CancellationException> {
+					withContext(Job().apply { cancel() }) {
+						database.withTransaction {
+							ImportedCellProductReader(database).selectRecentInTransaction(1)
+						}
+					}
+				}
+			}
+
+	@Test
+	fun `typed product preflight rejects cap plus one live identity owners`() = runTest {
+			seedEvidence()
+			val value = entry()
+			importer().importEntry(request(value)) shouldBe
+				ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+			repeat(ImportedCellDao.MAX_LIVE_OWNER_ROWS + 1) { index ->
+				database.sourceSessionDao().insertSession(localSession("reader-local-$index"))
+			}
+
+			(database.withTransaction {
+				ImportedCellProductReader(database).selectIdentityInTransaction(value.identity)
+			} as ImportedCellProductEvaluation.Unverifiable).reason shouldBe
+				ImportedCellProductFailure.DEPENDENCY_OVERFLOW
+	}
+
+	@Test
+	fun `latest imported reexport is outside Room and stale deleted cancellation storage are typed`() =
+			runTest {
+				seedEvidence()
+				val first = entry()
+				val corrected = entry(observation = observation("one", 2L, qualityFlags = 7L))
+				importer().importEntry(request(first)) shouldBe
+					ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+				importer().importEntry(request(corrected, "correction", "entry-2")) shouldBe
+					ImportPortableCapturedCellResult.Applied(2L, 1, 1)
+				val exporter = RoomReexportImportedPortableCapturedCell(database, Dispatchers.Unconfined)
+				var emitted: PortableCapturedCellEntryV1? = null
+				var sinkWasTransactional: Boolean? = null
+				exporter.reexport(
+					ReexportImportedPortableCapturedCellRequest(
+						corrected.identity,
+						2L,
+						corrected.contentChecksum,
+					),
+				) { entry ->
+					sinkWasTransactional = database.inTransaction()
+					emitted = entry
+				} shouldBe ExportPortableCapturedCellResult.Exported(
+					corrected.identity,
+					corrected.contentChecksum,
+					1,
+					1,
+				)
+				emitted shouldBe corrected
+				sinkWasTransactional shouldBe false
+
+				var staleSinkReached = false
+				exporter.reexport(
+					ReexportImportedPortableCapturedCellRequest(first.identity, 1L, first.contentChecksum),
+				) { staleSinkReached = true } shouldBe ExportPortableCapturedCellResult.Unverifiable(
+					PortableCellUnverifiableReason.IMPORTED_SELECTION_STALE,
+				)
+				staleSinkReached shouldBe false
+
+				database.importedCellDao().insertEntryDeletion(
+					ImportedCellEntryDeletionEntity.create(corrected.identity.value, EPOCH, 2L, 500L),
+				)
+				exporter.reexport(
+					ReexportImportedPortableCapturedCellRequest(
+						corrected.identity,
+						2L,
+						corrected.contentChecksum,
+					),
+				) { error("Deleted imported Cell must not reach the sink") } shouldBe
+					ExportPortableCapturedCellResult.Deleted
+
+				shouldThrow<CancellationException> {
+					val cleanDatabase = AppDatabase.testDatabase(
+						ApplicationProvider.getApplicationContext<Application>(),
+					)
+					try {
+						cleanDatabase.sourceEvidenceStateDao().ensure(
+							SourceEvidenceState(collectedDataEpoch = EPOCH),
+						)
+						RoomImportPortableCapturedCell(cleanDatabase, Dispatchers.Unconfined)
+							.importEntry(request(first))
+						RoomReexportImportedPortableCapturedCell(
+							cleanDatabase,
+							Dispatchers.Unconfined,
+						).reexport(
+							ReexportImportedPortableCapturedCellRequest(
+								first.identity,
+								1L,
+								first.contentChecksum,
+							),
+						) { throw CancellationException("cancel imported Cell sink") }
+					} finally {
+						cleanDatabase.close()
+					}
+				}
+
+				database.close()
+				exporter.reexport(
+					ReexportImportedPortableCapturedCellRequest(
+						corrected.identity,
+						2L,
+						corrected.contentChecksum,
+					),
+				) { error("Closed storage must not reach the sink") } shouldBe
+					ExportPortableCapturedCellResult.RetryableFailure(
+						PortableCellRetryableReason.STORAGE_UNAVAILABLE,
+					)
+			}
 
 	@Test
 	fun `cancellation between child writes rolls back the whole admission`() = runTest {
