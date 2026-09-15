@@ -12,9 +12,40 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEnti
 import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity
 
 @Dao
 interface SourceSessionDao {
+	@Insert(onConflict = OnConflictStrategy.IGNORE)
+	suspend fun insertRunRetirementIntent(entity: SourceRunRetirementEntity): Long
+
+	@Query(
+		"SELECT * FROM source_run_retirement WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND service_run_id = :serviceRunId AND source_kind = :sourceKind " +
+			"ORDER BY registration_generation DESC",
+	)
+	suspend fun runRetirements(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		sourceKind: Int,
+	): List<SourceRunRetirementEntity>
+
+	@Query(
+		"SELECT * FROM source_run_retirement WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND service_run_id = :serviceRunId AND source_kind = :sourceKind " +
+			"AND source_instance_id = :sourceInstanceId " +
+			"AND registration_generation = :registrationGeneration LIMIT 1",
+	)
+	suspend fun runRetirement(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		sourceKind: Int,
+		sourceInstanceId: String,
+		registrationGeneration: Long,
+	): SourceRunRetirementEntity?
+
+	@Update
+	suspend fun updateRunRetirement(entity: SourceRunRetirementEntity): Int
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertSession(entity: LogicalTrackingSessionEntity)
 

@@ -279,10 +279,11 @@ data class SessionManifestSourceEntity(
 				}
 			}
 			SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS -> {
-				require(writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
 				require(writerProjectionId == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID)
 				require(writerProjectionVersion == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION)
-				require(writerBindingGeneration == SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION)
+				val bindingGeneration = requireNotNull(writerBindingGeneration)
+				require(writerOwnerGeneration ==
+					SourceWriterGenerationContract.canonicalOwnerGeneration(bindingGeneration))
 			}
 			else -> require(false) { "Activity capture must name a permanent destination owner" }
 		}
@@ -293,10 +294,11 @@ data class SessionManifestSourceEntity(
 			"Cell capture must target the permanent session Cell destination"
 		}
 		require(writerOwner == SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS)
-		require(writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
 		require(writerProjectionId == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID)
 		require(writerProjectionVersion == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION)
-		require(writerBindingGeneration == SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION)
+		val bindingGeneration = requireNotNull(writerBindingGeneration)
+		require(writerOwnerGeneration ==
+			SourceWriterGenerationContract.canonicalOwnerGeneration(bindingGeneration))
 	}
 
 	private fun requireStepsWriter() {
@@ -335,18 +337,14 @@ data class SessionManifestSourceEntity(
 				}
 			}
 			SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS -> {
-				require(writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION) {
-					"Candidate Pressure ownership requires its permanent generation"
-				}
 				require(writerProjectionId == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID)
 				require(
 					writerProjectionVersion ==
 						SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
 				)
-				require(
-					writerBindingGeneration ==
-						SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
-				)
+				val bindingGeneration = requireNotNull(writerBindingGeneration)
+				require(writerOwnerGeneration ==
+					SourceWriterGenerationContract.canonicalOwnerGeneration(bindingGeneration))
 			}
 			else -> require(false) { "Pressure capture must name a permanent destination owner" }
 		}
@@ -361,10 +359,11 @@ data class SessionManifestSourceEntity(
 		}
 		require(outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI)
 		require(writerOwner == SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS)
-		require(writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
 		require(writerProjectionId == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID)
 		require(writerProjectionVersion == SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION)
-		require(writerBindingGeneration == SourceDestinationOwnerEntity.WIFI_FACT_BINDING_GENERATION)
+		val bindingGeneration = requireNotNull(writerBindingGeneration)
+		require(writerOwnerGeneration ==
+			SourceWriterGenerationContract.canonicalOwnerGeneration(bindingGeneration))
 	}
 }
 
