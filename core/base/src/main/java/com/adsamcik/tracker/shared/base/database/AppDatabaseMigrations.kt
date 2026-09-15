@@ -1887,6 +1887,156 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS imported_pressure_entry_revision (
+					identity TEXT NOT NULL,
+					import_revision INTEGER NOT NULL,
+					supersedes_import_revision INTEGER,
+					content_checksum TEXT NOT NULL,
+					source_format TEXT NOT NULL,
+					source_schema_version INTEGER NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					import_job_id TEXT NOT NULL,
+					import_entry_key TEXT NOT NULL,
+					import_source_name TEXT NOT NULL,
+					received_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(identity, import_revision)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_pressure_entry_receipt " +
+					"ON imported_pressure_entry_revision(import_job_id, import_entry_key)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_pressure_receipt (
+					import_job_id TEXT NOT NULL,
+					import_entry_key TEXT NOT NULL,
+					import_source_name TEXT NOT NULL,
+					received_at_ms INTEGER NOT NULL,
+					entry_identity TEXT NOT NULL,
+					entry_import_revision INTEGER NOT NULL,
+					entry_content_checksum TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					PRIMARY KEY(import_job_id, import_entry_key),
+					FOREIGN KEY(entry_identity, entry_import_revision)
+						REFERENCES imported_pressure_entry_revision(identity, import_revision)
+						ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_pressure_receipt_entry " +
+					"ON imported_pressure_receipt(entry_identity, entry_import_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_pressure_entry_deletion (
+					entry_identity TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					deleted_import_revision INTEGER NOT NULL,
+					deleted_at_ms INTEGER NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					PRIMARY KEY(entry_identity)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_pressure_run (
+					entry_identity TEXT NOT NULL,
+					entry_import_revision INTEGER NOT NULL,
+					identity TEXT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					captured_for_whole_run INTEGER NOT NULL,
+					availability TEXT NOT NULL,
+					coverage TEXT NOT NULL,
+					retention_loss INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					scope_deletion_generation INTEGER NOT NULL,
+					PRIMARY KEY(entry_identity, entry_import_revision, identity),
+					FOREIGN KEY(entry_identity, entry_import_revision)
+						REFERENCES imported_pressure_entry_revision(identity, import_revision)
+						ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_pressure_run_entry " +
+					"ON imported_pressure_run(entry_identity, entry_import_revision)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_pressure_run_identity " +
+					"ON imported_pressure_run(identity)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_pressure_window (
+					entry_identity TEXT NOT NULL,
+					entry_import_revision INTEGER NOT NULL,
+					run_identity TEXT NOT NULL,
+					identity TEXT NOT NULL,
+					content_checksum TEXT NOT NULL,
+					interval_start_time_ms INTEGER NOT NULL,
+					interval_end_time_ms INTEGER NOT NULL,
+					wall_time_uncertainty_ms INTEGER NOT NULL,
+					observed_duration_nanos INTEGER NOT NULL,
+					sample_count INTEGER NOT NULL,
+					expected_sample_count INTEGER NOT NULL,
+					mean_hectopascals REAL NOT NULL,
+					sum_squared_deviations REAL NOT NULL,
+					minimum_hectopascals REAL NOT NULL,
+					maximum_hectopascals REAL NOT NULL,
+					first_hectopascals REAL NOT NULL,
+					latest_hectopascals REAL NOT NULL,
+					slope_hectopascals_per_second REAL,
+					r_squared REAL,
+					sensor_accuracy TEXT NOT NULL,
+					effective_sample_period_micros INTEGER NOT NULL,
+					effective_maximum_report_latency_micros INTEGER NOT NULL,
+					target_window_duration_nanos INTEGER NOT NULL,
+					maximum_inter_sample_gap_nanos INTEGER NOT NULL,
+					closure_kind TEXT NOT NULL,
+					qualification TEXT NOT NULL,
+					source_quality_flags INTEGER NOT NULL,
+					source_quality_confidence REAL,
+					stored_zone_id TEXT NOT NULL,
+					PRIMARY KEY(entry_identity, entry_import_revision, run_identity, identity),
+					FOREIGN KEY(entry_identity, entry_import_revision, run_identity)
+						REFERENCES imported_pressure_run(entry_identity, entry_import_revision, identity)
+						ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_pressure_window_run " +
+					"ON imported_pressure_window(entry_identity, entry_import_revision, run_identity)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_pressure_window_identity " +
+					"ON imported_pressure_window(identity)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_pressure_window_time " +
+					"ON imported_pressure_window(interval_start_time_ms, identity)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_pressure_deletion_generation (
+					run_identity TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					generation INTEGER NOT NULL,
+					deleted_at_ms INTEGER NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					PRIMARY KEY(run_identity)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS pressure_fact_revision (
 					logical_fact_id TEXT NOT NULL,
 					semantic_revision INTEGER NOT NULL,

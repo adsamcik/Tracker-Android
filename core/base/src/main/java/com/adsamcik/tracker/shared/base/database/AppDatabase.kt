@@ -34,6 +34,7 @@ import com.adsamcik.tracker.shared.base.database.dao.StepFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.StepsGoalEffectDao
 import com.adsamcik.tracker.shared.base.database.dao.StepsGoalRepairDayDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedStepsDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceDeletionFenceDao
@@ -73,6 +74,12 @@ import com.adsamcik.tracker.shared.base.database.data.StepsGoalRepairDayEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsManifestEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -191,6 +198,12 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedStepsEntryEntity::class,
 			ImportedStepsRunEntity::class,
 			ImportedStepsManifestEntity::class,
+			ImportedPressureEntryRevisionEntity::class,
+			ImportedPressureReceiptEntity::class,
+			ImportedPressureRunEntity::class,
+			ImportedPressureWindowEntity::class,
+			ImportedPressureEntryDeletionEntity::class,
+			ImportedPressureDeletionGenerationEntity::class,
 			PressureFactRevisionEntity::class,
 			SourceDeletionFenceEntity::class,
 			SourceDestinationOwnerEntity::class,
@@ -321,6 +334,9 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Dormant imported Steps metadata; this accessor does not grant import admission authority. */
 	abstract fun importedStepsDao(): ImportedStepsDao
+
+	/** Dormant Pressure portable-origin storage; this accessor grants no import authority. */
+	abstract fun importedPressureDao(): ImportedPressureDao
 
 	/** Provides the dormant append-only source-qualified Pressure fact history. */
 	abstract fun pressureFactRevisionDao(): PressureFactRevisionDao
@@ -651,6 +667,10 @@ abstract class AppDatabase : RoomDatabase() {
 			database.stepsGoalEffectDao().deleteAll()
 			database.stepsGoalRepairDayDao().deleteAll()
 			database.importedStepsDao().deleteAll()
+			database.importedPressureDao().deleteAllReceipts()
+			database.importedPressureDao().deleteAllEntries()
+			database.importedPressureDao().deleteAllEntryDeletions()
+			database.importedPressureDao().deleteAllDeletionGenerations()
 			database.pressureFactRevisionDao().deleteAll()
 			database.stepIntervalDao().deleteAll()
 			database.activitySnapshotDao().deleteAll()

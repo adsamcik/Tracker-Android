@@ -644,6 +644,11 @@ class PressureSessionFactProjectionLane private constructor(
 			poison("PRESSURE_WALL_TIME_UNDERFLOW")
 		}
 		val startTimeMs = endTimeMs - durationMs
+		if (evidenceState.retainedFromMs?.let { retainedFrom ->
+			earliestPossiblePressureWallTimeMs(startTimeMs, uncertaintyMs) < retainedFrom
+		} == true) {
+			return null
+		}
 		val logicalFactId = "$WRITER_ID:${eventId.value}"
 		val mutationId = "$logicalFactId:$SEMANTIC_REVISION"
 		val sourceQualityFlags = evidence.quality.toStableFlags()
@@ -705,6 +710,11 @@ class PressureSessionFactProjectionLane private constructor(
 			poison("PRESSURE_FACT_INVARIANT_MISMATCH")
 		}
 	}
+
+	private fun earliestPossiblePressureWallTimeMs(
+		wallTimeMs: Long,
+		uncertaintyMs: Long,
+	): Long = if (uncertaintyMs > wallTimeMs) 0L else wallTimeMs - uncertaintyMs
 
 	private suspend fun resolveManifestBinding(
 		key: PressureManifestKey,

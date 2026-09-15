@@ -212,8 +212,8 @@ class SourceAcquisitionFloorTest {
 
 	@Test
 	fun `projection and aggregation labels do not rotate sensor registrations`() {
-		val pressure = PressurePlan(1L, true, 200_000, 10_000_000, 10_000L, false)
-		val windowOnly = pressure.copy(revision = 2L, aggregationWindowMs = 60_000L, movementGatedBurst = true)
+		val pressure = PressurePlan(1L, true, 200_000, 10_000_000, 10_000L)
+		val windowOnly = pressure.copy(revision = 2L, aggregationWindowMs = 60_000L)
 		val sampleChanged = pressure.copy(revision = 3L, hardwareSamplePeriodMicros = 1_000_000)
 
 		pressure.physicalConfigurationFingerprint() shouldBe windowOnly.physicalConfigurationFingerprint()

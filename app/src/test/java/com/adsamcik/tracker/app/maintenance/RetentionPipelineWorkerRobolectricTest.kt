@@ -18,6 +18,7 @@ import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDecisionDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
+import com.adsamcik.tracker.shared.base.database.dao.PressureFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.QuarantinedSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
@@ -126,6 +127,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		val stepDao: StepIntervalDao = mockk(relaxed = true)
 		val activityDao: ActivitySnapshotDao = mockk(relaxed = true)
 		val runDao: TrackerRunDao = mockk(relaxed = true)
+		val pressureFactRevisionDao: PressureFactRevisionDao = mockk(relaxed = true)
 		val pressureDao: PressureSampleDao = mockk(relaxed = true)
 		val skiRunSegmentDao: SkiRunSegmentDao = mockk(relaxed = true)
 		val cellDao: CellSampleDao = mockk(relaxed = true)
@@ -145,6 +147,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		coEvery { stepsProjectionLane.drainAvailable() } returns StepsSessionFactDrainResult.Inactive
 		coEvery { runDao.minStartTimeMs() } returns null
 		coEvery { locationObservationDao.minFixTimeMs() } returns null
+		coEvery { pressureFactRevisionDao.retentionServiceRunIdPage(null, any()) } returns emptyList()
 
 		every { db.locationSampleDao() } returns locationDao
 		every { db.locationObservationDao() } returns locationObservationDao
@@ -152,6 +155,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		every { db.stepIntervalDao() } returns stepDao
 		every { db.activitySnapshotDao() } returns activityDao
 		every { db.trackerRunDao() } returns runDao
+		every { db.pressureFactRevisionDao() } returns pressureFactRevisionDao
 		every { db.pressureSampleDao() } returns pressureDao
 		every { db.skiRunSegmentDao() } returns skiRunSegmentDao
 		every { db.cellSampleDao() } returns cellDao
@@ -200,6 +204,11 @@ class RetentionPipelineWorkerRobolectricTest {
 		coVerify(exactly = 1) { stepDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { activityDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { runDao.deleteOlderThan(any()) }
+		coVerify(exactly = 1) { pressureFactRevisionDao.retentionServiceRunIdPage(null, any()) }
+		coVerifyOrder {
+			pressureFactRevisionDao.retentionServiceRunIdPage(null, any())
+			pressureDao.deleteOlderThan(any())
+		}
 		coVerify(exactly = 1) { pressureDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { skiRunSegmentDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { cellDao.deleteOlderThan(any()) }
@@ -225,6 +234,41 @@ class RetentionPipelineWorkerRobolectricTest {
 		} finally {
 			db.close()
 		}
+	}
+
+	@Test
+	fun `Pressure retention audit failure retries before physical Pressure deletion`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val pressureFactRevisionDao: PressureFactRevisionDao = mockk(relaxed = true)
+		val pressureSampleDao: PressureSampleDao = mockk(relaxed = true)
+		coEvery {
+			pressureFactRevisionDao.retentionServiceRunIdPage(
+				afterServiceRunId = null,
+				limit = any(),
+			)
+		} throws IllegalStateException("Pressure retention authority is unverifiable")
+		val db = retentionDatabase(
+			pressureFactRevisionDao = pressureFactRevisionDao,
+			pressureSampleDao = pressureSampleDao,
+		)
+
+		val result = worker(
+			context = context,
+			store = retentionStore(autoPurgeConfig(rawDataRetentionDays = 1)),
+			db = db,
+		).doWork()
+
+		assertEquals(ListenableWorker.Result.retry(), result)
+		coVerify(exactly = 1) {
+			pressureFactRevisionDao.retentionServiceRunIdPage(
+				afterServiceRunId = null,
+				limit = any(),
+			)
+		}
+		coVerify(exactly = 0) { pressureSampleDao.deleteOlderThan(any()) }
+		verify(exactly = 0) { db.setTransactionSuccessful() }
+		verify(atLeast = 1) { db.beginTransaction() }
+		verify(atLeast = 1) { db.endTransaction() }
 	}
 
 	@Test
@@ -575,6 +619,8 @@ class RetentionPipelineWorkerRobolectricTest {
 		domainEventDao: DomainEventDao = mockk(relaxed = true),
 		exportLogDao: ExportLogDao = mockk(relaxed = true),
 		pendingSignalDao: PendingSignalDao = mockk(relaxed = true),
+		pressureFactRevisionDao: PressureFactRevisionDao = mockk(relaxed = true),
+		pressureSampleDao: PressureSampleDao = mockk(relaxed = true),
 	): AppDatabase {
 		val db: AppDatabase = mockk(relaxed = true)
 		every { db.transactionExecutor } returns DIRECT_EXECUTOR
@@ -594,7 +640,8 @@ class RetentionPipelineWorkerRobolectricTest {
 		every { db.stepIntervalDao() } returns mockk(relaxed = true)
 		every { db.activitySnapshotDao() } returns mockk(relaxed = true)
 		every { db.trackerRunDao() } returns trackerRunDao
-		every { db.pressureSampleDao() } returns mockk(relaxed = true)
+		every { db.pressureFactRevisionDao() } returns pressureFactRevisionDao
+		every { db.pressureSampleDao() } returns pressureSampleDao
 		every { db.skiRunSegmentDao() } returns mockk(relaxed = true)
 		every { db.domainEventDao() } returns domainEventDao
 		every { db.exportLogDao() } returns exportLogDao

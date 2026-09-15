@@ -49,13 +49,17 @@ data class StepsPlan(
 	override val source: SourceKind = SourceKind.STEPS
 }
 
+/**
+ * One continuous Pressure registration with explicit provider cadence, delivery latency, and
+ * source-local write window. Bounded or movement-triggered collection is intentionally absent
+ * until a real trigger, duration, cooldown, and fallback contract exists.
+ */
 data class PressurePlan(
 	override val revision: Long,
 	override val enabled: Boolean,
 	val hardwareSamplePeriodMicros: Int,
 	val maximumReportLatencyMicros: Int,
 	val aggregationWindowMs: Long,
-	val movementGatedBurst: Boolean,
 ) : SourcePlan {
 	override val source: SourceKind = SourceKind.PRESSURE
 }

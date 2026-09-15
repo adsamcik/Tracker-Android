@@ -157,6 +157,49 @@ class PressureProviderRequestTest {
 	}
 
 	@Test
+	fun `supported Pressure tiers map to their exact SensorManager rate and delivery tuple`() {
+		val requests = listOf(
+			plan(
+				samplePeriodMicros = 1_000_000,
+				reportLatencyMicros = 60_000_000,
+				aggregationWindowMs = 60_000L,
+			),
+			plan(
+				samplePeriodMicros = 200_000,
+				reportLatencyMicros = 10_000_000,
+				aggregationWindowMs = 10_000L,
+			),
+			plan(
+				samplePeriodMicros = 50_000,
+				reportLatencyMicros = 1_000_000,
+				aggregationWindowMs = 2_000L,
+			),
+		).map { plan ->
+			plan.toPressureProviderRequest(
+				sensorMinimumDelayMicros = 10_000,
+				sensorMaximumDelayMicros = 10_000_000,
+				fifoMaxEventCount = 100,
+			)
+		}
+
+		assertEquals(
+			listOf(
+				Triple(1_000_000, 60_000_000, true),
+				Triple(200_000, 10_000_000, true),
+				Triple(50_000, 1_000_000, true),
+			),
+			requests.map { request ->
+				Triple(
+					request.samplePeriodMicros,
+					request.maximumReportLatencyMicros,
+					request.batchingEnabled,
+				)
+			},
+		)
+		assertEquals(3, requests.map(PressureProviderRequest::physicalConfigurationFingerprint).toSet().size)
+	}
+
+	@Test
 	fun `nonpositive and inconsistent delay bounds are handled safely`() {
 		val unknownBounds = plan(
 			samplePeriodMicros = 200_000,
@@ -195,6 +238,5 @@ class PressureProviderRequestTest {
 		hardwareSamplePeriodMicros = samplePeriodMicros,
 		maximumReportLatencyMicros = reportLatencyMicros,
 		aggregationWindowMs = aggregationWindowMs,
-		movementGatedBurst = false,
 	)
 }

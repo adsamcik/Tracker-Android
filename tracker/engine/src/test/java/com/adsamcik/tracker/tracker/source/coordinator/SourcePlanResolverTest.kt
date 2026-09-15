@@ -111,7 +111,6 @@ class SourcePlanResolverTest {
 			pressure.hardwareSamplePeriodMicros shouldBe 1_000_000
 			pressure.maximumReportLatencyMicros shouldBe 60_000_000
 			pressure.aggregationWindowMs shouldBe 60_000L
-			pressure.movementGatedBurst shouldBe true
 		}
 		resolved.degradedReasons.getValue(SourceKind.PRESSURE) shouldBe setOf(SourceDegradedReason.THERMAL)
 		resolved.fullyApplicable shouldBe false
@@ -395,7 +394,7 @@ class SourcePlanResolverTest {
 	}
 
 	@Test
-	fun `stationary policy makes location passive and suppresses active Wi-Fi when activity can wake`() {
+	fun `stationary policy adapts supported sources but leaves direct Pressure continuous`() {
 		val desired = plan().let { base ->
 			val activity = ActivityPlan(
 				revision = base.revision,
@@ -407,7 +406,7 @@ class SourcePlanResolverTest {
 			base.copy(plans = base.plans + mapOf(
 				SourceKind.ACTIVITY to activity,
 				SourceKind.STEPS to StepsPlan(base.revision, true, 5_000, 2_000, true),
-				SourceKind.PRESSURE to PressurePlan(base.revision, true, 50_000, 1_000_000, 2_000, false),
+				SourceKind.PRESSURE to PressurePlan(base.revision, true, 50_000, 1_000_000, 2_000),
 				SourceKind.CELL to CellPlan(
 					base.revision,
 					CellMode.OBSERVE_AND_SPARSE_REFRESH,
@@ -444,12 +443,11 @@ class SourcePlanResolverTest {
 		}
 		(resolved.applicablePlans.getValue(SourceKind.PRESSURE) as PressurePlan).let { pressure ->
 			pressure.enabled shouldBe true
-			pressure.hardwareSamplePeriodMicros shouldBe 1_000_000
-			pressure.maximumReportLatencyMicros shouldBe 60_000_000
-			pressure.aggregationWindowMs shouldBe 60_000L
-			pressure.movementGatedBurst shouldBe true
+			pressure.hardwareSamplePeriodMicros shouldBe 50_000
+			pressure.maximumReportLatencyMicros shouldBe 1_000_000
+			pressure.aggregationWindowMs shouldBe 2_000L
 		}
-		resolved.degradedReasons.getValue(SourceKind.PRESSURE) shouldContain SourceDegradedReason.POWER_SAVER
+		resolved.degradedReasons.getValue(SourceKind.PRESSURE) shouldBe emptySet()
 		(resolved.applicablePlans.getValue(SourceKind.CELL) as CellPlan).mode shouldBe CellMode.OBSERVE_CHANGES
 	}
 
@@ -504,7 +502,7 @@ class SourcePlanResolverTest {
 	}
 
 	private fun planWithPressure(): AcquisitionPlanRevision = plan().let { base ->
-		val pressure = PressurePlan(base.revision, true, 50_000, 1_000_000, 2_000, false)
+		val pressure = PressurePlan(base.revision, true, 50_000, 1_000_000, 2_000)
 		base.copy(plans = base.plans + (SourceKind.PRESSURE to pressure))
 	}
 

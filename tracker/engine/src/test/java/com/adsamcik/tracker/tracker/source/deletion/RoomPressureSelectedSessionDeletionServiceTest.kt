@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
@@ -48,6 +49,7 @@ import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactDrainRe
 import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import io.kotest.assertions.withClue
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -90,6 +92,134 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	@Suppress("LongMethod")
+	fun `Pressure retention marks exact mixed-source run and removes whole uncertainty-crossing lineage`() =
+		runTest {
+			val fixture = insertPressureSession(
+				key = "retention-crossing",
+				admissionOrdinal = 10L,
+				startMs = 2_000L,
+				endMs = 6_000L,
+			)
+			addLocationCapture(fixture)
+			val factDao = database.pressureFactRevisionDao()
+			factDao.deleteExactLineages(
+				logicalTrackingId = fixture.logicalId,
+				serviceRunId = fixture.runId,
+				writerProjectionId = fixture.fact.writerProjectionId,
+				writerProjectionVersion = fixture.fact.writerProjectionVersion,
+				logicalFactIds = listOf(fixture.fact.logicalFactId),
+			) shouldBe 1
+			val uncertainUnsigned = fixture.fact.copy(
+				wallTimeUncertaintyMs = 100L,
+				effectChecksum = "pending-retention-effect",
+			)
+			val uncertain = uncertainUnsigned.copy(
+				effectChecksum = pressureEffectChecksum(uncertainUnsigned, fixture.binding),
+			)
+			val correctedUnsigned = uncertain.copy(
+				semanticRevision = 2L,
+				mutationId = "${uncertain.logicalFactId}:2",
+				sourceAdmissionOrdinal = 11L,
+				intervalStartTimeMs = 4_000L,
+				intervalEndTimeMs = 4_150L,
+				windowStartElapsedRealtimeNanos = 4L * SECOND_NANOS,
+				windowEndElapsedRealtimeNanos = 4L * SECOND_NANOS + PRESSURE_WINDOW_NANOS,
+				appliedAtMs = 4_150L,
+				effectChecksum = "pending-retention-correction",
+			)
+			val corrected = correctedUnsigned.copy(
+				effectChecksum = pressureEffectChecksum(correctedUnsigned, fixture.binding),
+			)
+			val safeBase = pressureFact(fixture, 12L, "pressure-retention-safe")
+			val safeUnsigned = safeBase.copy(
+				intervalStartTimeMs = 5_000L,
+				intervalEndTimeMs = 5_150L,
+				windowStartElapsedRealtimeNanos = 5L * SECOND_NANOS,
+				windowEndElapsedRealtimeNanos = 5L * SECOND_NANOS + PRESSURE_WINDOW_NANOS,
+				appliedAtMs = 5_150L,
+				effectChecksum = "pending-safe-effect",
+			)
+			val safe = safeUnsigned.copy(
+				effectChecksum = pressureEffectChecksum(safeUnsigned, fixture.binding),
+			)
+			factDao.insert(uncertain).shouldBeGreaterThanZero()
+			factDao.insert(corrected).shouldBeGreaterThanZero()
+			factDao.insert(safe).shouldBeGreaterThanZero()
+			database.sourceEvidenceStateDao().updateLifecycle(
+				epoch = COLLECTED_DATA_EPOCH,
+				retainedFromMs = 1_950L,
+				updatedAtMs = DELETED_AT_MS,
+			) shouldBe 1
+
+			database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
+				beforeMs = 1_950L,
+				collectedDataEpoch = COLLECTED_DATA_EPOCH,
+				markedAtMs = DELETED_AT_MS,
+			) shouldBe 2
+
+			factDao.latest(
+				uncertain.writerProjectionId,
+				uncertain.writerProjectionVersion,
+				uncertain.logicalFactId,
+			) shouldBe null
+			factDao.latest(
+				safe.writerProjectionId,
+				safe.writerProjectionVersion,
+				safe.logicalFactId,
+			) shouldBe safe
+			database.sessionSegmentDao().getById(fixture.segmentId).shouldNotBeNull()
+			database.sourceSessionDao().manifestSources(fixture.logicalId, MANIFEST_REVISION)
+				.shouldHaveSize(2)
+			val markerIdentity = PressureFactRevisionIntegrity.retentionTruncationIdentity(
+				fixture.logicalId,
+				fixture.runId,
+			)
+			val marker = database.sourceDeletionFenceDao().get(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				purpose = PressureFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
+				scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+				scopeIdentityDigest = markerIdentity,
+			).shouldNotBeNull()
+			PressureFactRevisionIntegrity.isRetentionTruncationFence(
+				marker,
+				fixture.logicalId,
+				fixture.runId,
+				COLLECTED_DATA_EPOCH,
+			) shouldBe true
+		}
+
+	@Test
+	fun `Pressure retention rolls back marker and deletion when any run revision is unauthenticated`() =
+		runTest {
+			val fixture = insertPressureSession(
+				key = "retention-rollback",
+				admissionOrdinal = 20L,
+				startMs = 1_000L,
+				endMs = 5_000L,
+			)
+			val corrupt = pressureFact(fixture, 21L, "pressure-retention-corrupt")
+				.copy(effectChecksum = "corrupt-retention-effect")
+			database.pressureFactRevisionDao().insert(corrupt).shouldBeGreaterThanZero()
+			database.sourceEvidenceStateDao().updateLifecycle(
+				epoch = COLLECTED_DATA_EPOCH,
+				retainedFromMs = 1_500L,
+				updatedAtMs = DELETED_AT_MS,
+			) shouldBe 1
+
+			shouldThrow<IllegalStateException> {
+				database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
+					beforeMs = 1_500L,
+					collectedDataEpoch = COLLECTED_DATA_EPOCH,
+					markedAtMs = DELETED_AT_MS,
+				)
+			}
+
+			database.pressureFactRevisionDao().count() shouldBe 2L
+			database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		}
 
 	@Test
 	@Suppress("LongMethod")

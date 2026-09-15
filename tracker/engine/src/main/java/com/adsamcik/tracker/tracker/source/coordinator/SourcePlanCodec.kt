@@ -60,7 +60,8 @@ class SourcePlanCodec @Inject constructor() {
 						writeInt(plan.hardwareSamplePeriodMicros)
 						writeInt(plan.maximumReportLatencyMicros)
 						writeLong(plan.aggregationWindowMs)
-						writeBoolean(plan.movementGatedBurst)
+						// Retain the v1 field position while making the unsupported mode unrepresentable.
+						writeBoolean(false)
 					}
 					is WifiPlan -> with(output) {
 						writeUTF(plan.mode.name)
@@ -113,14 +114,22 @@ class SourcePlanCodec @Inject constructor() {
 				input.readLong(),
 				input.readBoolean(),
 			)
-			SourceKind.PRESSURE -> PressurePlan(
-				revision,
-				input.readBoolean(),
-				input.readInt(),
-				input.readInt(),
-				input.readLong(),
-				input.readBoolean(),
-			)
+			SourceKind.PRESSURE -> {
+				val enabled = input.readBoolean()
+				val hardwareSamplePeriodMicros = input.readInt()
+				val maximumReportLatencyMicros = input.readInt()
+				val aggregationWindowMs = input.readLong()
+				if (input.readBoolean()) {
+					throw UnsupportedPressurePlanModeException(PRESSURE_MOVEMENT_GATED_BURST)
+				}
+				PressurePlan(
+					revision,
+					enabled,
+					hardwareSamplePeriodMicros,
+					maximumReportLatencyMicros,
+					aggregationWindowMs,
+				)
+			}
 			SourceKind.WIFI -> WifiPlan(
 				revision,
 				WifiMode.valueOf(input.readUTF()),
@@ -173,5 +182,10 @@ class SourcePlanCodec @Inject constructor() {
 	private companion object {
 		const val FORMAT_VERSION = 1
 		const val MAX_SET_SIZE = 10_000
+		const val PRESSURE_MOVEMENT_GATED_BURST = "MOVEMENT_GATED_BURST"
 	}
 }
+
+class UnsupportedPressurePlanModeException(
+	val mode: String,
+) : IllegalArgumentException("Unsupported Pressure acquisition mode: $mode")

@@ -543,7 +543,6 @@ class TrackerServiceSourceSessionTest {
 			pressure.hardwareSamplePeriodMicros shouldBe 1_000_000
 			pressure.maximumReportLatencyMicros shouldBe 60_000_000
 			pressure.aggregationWindowMs shouldBe 60_000L
-			pressure.movementGatedBurst shouldBe true
 		}
 	}
 

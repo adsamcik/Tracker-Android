@@ -152,6 +152,7 @@ class StepsSegmentHistorySelectorTest {
 			database,
 			selector,
 			logicalHistoryReader,
+			PressureHistorySelector(database, executableLaneAuthority()),
 			Dispatchers.IO,
 		).observeSession(SEGMENT_ID).first() as
 			com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery.Found
@@ -1400,6 +1401,7 @@ class StepsSegmentHistorySelectorTest {
 			database,
 			selector,
 			logicalHistoryReader,
+			PressureHistorySelector(database, executableLaneAuthority()),
 			Dispatchers.IO,
 		)
 
@@ -2451,6 +2453,7 @@ class StepsSegmentHistorySelectorTest {
 			database,
 			selector,
 			logicalHistoryReader,
+			PressureHistorySelector(database, executableLaneAuthority()),
 			Dispatchers.IO,
 		)
 		val initialEmission = CompletableDeferred<Unit>()
@@ -2498,6 +2501,7 @@ class StepsSegmentHistorySelectorTest {
 			database,
 			selector,
 			logicalHistoryReader,
+			PressureHistorySelector(database, executableLaneAuthority()),
 			Dispatchers.IO,
 		)
 		val initialEmission = CompletableDeferred<Unit>()
@@ -2571,6 +2575,7 @@ class StepsSegmentHistorySelectorTest {
 			database,
 			selector,
 			logicalHistoryReader,
+			PressureHistorySelector(database, executableLaneAuthority()),
 			Dispatchers.IO,
 		)
 		val initialEmission = CompletableDeferred<Unit>()
@@ -2614,6 +2619,7 @@ class StepsSegmentHistorySelectorTest {
 			database,
 			selector,
 			logicalHistoryReader,
+			PressureHistorySelector(database, executableLaneAuthority()),
 			Dispatchers.IO,
 		)
 		val initialEmission = CompletableDeferred<Unit>()
@@ -3424,6 +3430,7 @@ class StepsSegmentHistorySelectorTest {
 		database = database,
 		stepsSelector = selector,
 		logicalHistoryReader = logicalHistoryReader,
+		pressureSelector = PressureHistorySelector(database, executableLaneAuthority()),
 		ioDispatcher = Dispatchers.IO,
 	)
 
