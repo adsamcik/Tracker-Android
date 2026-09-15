@@ -784,6 +784,132 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
+	fun `Cell callback barrier publishes only after authorization becomes CONTROL-only`() = runTest {
+		val capture = cellDemand(
+			"cell-capture",
+			"session:cell",
+			SourceBrokerPurpose.SESSION_CAPTURE,
+			"cell",
+			1L,
+			true,
+		)
+		val control = cellDemand(
+			"cell-control",
+			"app:cell-control",
+			SourceBrokerPurpose.CONTROL_AUTOSTART,
+			null,
+			null,
+			false,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(capture, control))
+		val registration = subject.begin(SourceKind.CELL, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(registration, 110L, 110L)
+
+		database.withTransaction {
+			database.fenceSourcePurposesInTransaction(
+				sourceKind = SourceKind.CELL.stableCode,
+				purposes = listOf(SourceBrokerPurpose.SESSION_CAPTURE),
+				bootId = "boot-7",
+				elapsedRealtimeNanos = 200L,
+				wallTimeMs = 200L,
+			)
+		}
+		val refreshed = requireNotNull(subject.refreshActiveAuthorization(
+			SourceKind.CELL,
+			registration,
+			2L,
+			PHYSICAL_CONFIG,
+			210L,
+			210L,
+		))
+
+		subject.publishCellCaptureCallbackBarrier(refreshed, 3L) shouldBe
+			CellCaptureCallbackBarrierPublication.Established(1L)
+		database.sourceBrokerDao().registration(
+			SourceKind.CELL.stableCode,
+			registration.state.registrationGeneration,
+		)?.captureCallbackBarrierAuthorizationRevision shouldBe 1L
+		database.sourceBrokerDao().demandsByIds(listOf(control.demandId)) shouldBe listOf(control)
+	}
+
+	@Test
+	fun `CONTROL-only Cell generation authenticates an exact zero capture barrier`() = runTest {
+		val control = cellDemand(
+			"cell-control",
+			"app:cell-control",
+			SourceBrokerPurpose.CONTROL_AUTOSTART,
+			null,
+			null,
+			false,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(control))
+		val registration = subject.begin(SourceKind.CELL, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(registration, 110L, 110L)
+
+		subject.publishCellCaptureCallbackBarrier(registration, 3L) shouldBe
+			CellCaptureCallbackBarrierPublication.Established(0L)
+		database.sourceBrokerDao().registration(
+			SourceKind.CELL.stableCode,
+			registration.state.registrationGeneration,
+		)?.captureCallbackBarrierAuthorizationRevision shouldBe 0L
+	}
+
+	@Test
+	fun `Cell callback barrier rejects active capture and stale lifecycle`() = runTest {
+		val capture = cellDemand(
+			"cell-capture",
+			"session:cell",
+			SourceBrokerPurpose.SESSION_CAPTURE,
+			"cell",
+			1L,
+			true,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(capture))
+		val registration = subject.begin(SourceKind.CELL, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(registration, 110L, 110L)
+
+		subject.publishCellCaptureCallbackBarrier(registration, 3L) shouldBe
+			CellCaptureCallbackBarrierPublication.Blocked(
+				CellCaptureCallbackBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
+			)
+		subject.publishCellCaptureCallbackBarrier(registration, 4L) shouldBe
+			CellCaptureCallbackBarrierPublication.Blocked(
+				CellCaptureCallbackBarrierBlockedReason.STALE_LIFECYCLE,
+			)
+		database.sourceBrokerDao().registration(
+			SourceKind.CELL.stableCode,
+			registration.state.registrationGeneration,
+		)?.captureCallbackBarrierAuthorizationRevision shouldBe 0L
+	}
+
+	@Test
+	fun `Cell callback barrier rejects a stale in-memory registration identity`() = runTest {
+		val control = cellDemand(
+			"cell-control",
+			"app:cell-control",
+			SourceBrokerPurpose.CONTROL_AUTOSTART,
+			null,
+			null,
+			false,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(control))
+		val registration = subject.begin(SourceKind.CELL, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(registration, 110L, 110L)
+		val stale = registration.copy(
+			state = registration.state.copy(sourceInstanceId = "stale-cell-instance"),
+		)
+
+		subject.publishCellCaptureCallbackBarrier(stale, 3L) shouldBe
+			CellCaptureCallbackBarrierPublication.Blocked(
+				CellCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION,
+			)
+		database.sourceBrokerDao().registration(
+			SourceKind.CELL.stableCode,
+			registration.state.registrationGeneration,
+		)?.captureCallbackBarrierAuthorizationRevision shouldBe 0L
+	}
+
+	@Test
 	fun `canonical Android boot domain fences a live generation at the revocation boundary`() =
 		runTest {
 			val context = ApplicationProvider.getApplicationContext<Application>()
@@ -900,6 +1026,22 @@ class SourceRegistrationRepositoryTest {
 		true,
 		SourceKind.PRESSURE,
 	)
+
+	private fun cellDemand(
+		id: String,
+		consumerId: String,
+		purpose: String,
+		logicalTrackingId: String?,
+		manifestRevision: Long?,
+		persistenceEligible: Boolean,
+	) = demand(
+		id,
+		consumerId,
+		purpose,
+		logicalTrackingId,
+		manifestRevision,
+		persistenceEligible,
+	).copy(sourceKind = SourceKind.CELL.stableCode)
 
 	private companion object {
 		const val PHYSICAL_CONFIG = "physical-config-v1"

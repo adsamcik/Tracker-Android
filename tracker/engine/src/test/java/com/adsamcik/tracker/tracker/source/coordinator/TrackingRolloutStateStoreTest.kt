@@ -51,11 +51,12 @@ class TrackingRolloutStateStoreTest {
 	}
 
 	@Test
-	fun `production catalog retains Steps generations and exact manual Pressure binding`() {
+	fun `production catalog retains exact dormant manual Pressure and Cell bindings`() {
 		val catalog = ExecutableSourceLaneCatalog()
 		val generationOne = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1
 		val generationTwo = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2
 		val pressure = ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS
+		val cell = ExecutableSourceLaneCatalog.CELL_SESSION_FACTS
 
 		catalog.owns(generationOne) shouldBe true
 		catalog.owns(generationTwo) shouldBe true
@@ -72,6 +73,12 @@ class TrackingRolloutStateStoreTest {
 		pressure.projectionId shouldBe SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID
 		pressure.projectionVersion shouldBe SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION
 		pressure.captureModes shouldBe setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)
+		catalog.owns(cell) shouldBe true
+		cell.source shouldBe SourceKind.CELL
+		cell.bindingGeneration shouldBe SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION
+		cell.projectionId shouldBe SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID
+		cell.projectionVersion shouldBe SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION
+		cell.captureModes shouldBe setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)
 	}
 
 	@Test
@@ -307,6 +314,37 @@ class TrackingRolloutStateStoreTest {
 		shouldThrow<IllegalArgumentException> {
 			typoStore.save(canonical, updatedAtMs = 1_000L)
 		}
+	}
+
+	@Test
+	fun `canonical Cell requires its exact dormant lane owner and generation`() = runTest {
+		val productionStore = RoomTrackingRolloutStateStore(database, ExecutableSourceLaneCatalog())
+		val binding = ExecutableSourceLaneCatalog.CELL_SESSION_FACTS
+		database.sourceProjectionStateDao().installProductLane(
+			productLane(binding, rolloutRevision = 3L).copy(
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			),
+		)
+		val canonical = TrackingRolloutState.eventCanonical(
+			sources = setOf(SourceKind.CELL),
+			revision = 3L,
+			captureModes = mapOf(SourceKind.CELL to binding.captureModes),
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			productionStore.save(canonical, updatedAtMs = 1_000L)
+		}
+		installCellDestinationOwner(
+			SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS,
+			SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+		)
+		productionStore.save(canonical, updatedAtMs = 1_001L)
+
+		productionStore.load() shouldBe canonical
+		productionStore.load().isCaptureReachable(
+			SourceKind.CELL,
+			CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+		) shouldBe true
 	}
 
 	@Test
@@ -944,6 +982,18 @@ class TrackingRolloutStateStoreTest {
 			SourceDestinationOwnerEntity(
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+				owner = owner,
+				ownerGeneration = generation,
+				updatedAtMs = 1_000L,
+			),
+		)
+	}
+
+	private suspend fun installCellDestinationOwner(owner: String, generation: Long) {
+		database.sourceDestinationOwnerDao().insertIfAbsent(
+			SourceDestinationOwnerEntity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_CELL,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
 				owner = owner,
 				ownerGeneration = generation,
 				updatedAtMs = 1_000L,

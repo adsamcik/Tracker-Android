@@ -80,6 +80,22 @@ class RetentionPipelineWorkerTest {
 			val cutoff = fixedNow - config.rawDataRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
 			assertEquals(fixedNow - 30L * 86_400_000L, cutoff)
 		}
+
+		@Test
+		fun wifiCellCutoffUsesExactConfiguredDays() {
+			assertEquals(
+				fixedNow - 60L * Time.DAY_IN_MILLISECONDS,
+				RetentionPipelineWorker.computeWifiCellCutoffMillis(60, fixedNow),
+			)
+		}
+
+		@Test
+		fun wifiCellCutoffSaturatesWhenSubtractionWouldOverflow() {
+			assertEquals(
+				0L,
+				RetentionPipelineWorker.computeWifiCellCutoffMillis(1, Long.MIN_VALUE),
+			)
+		}
 	}
 
 	@Nested

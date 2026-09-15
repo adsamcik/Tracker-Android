@@ -52,6 +52,23 @@ internal data class SourceRegistrationRetirementToken(
 	val reason: String?,
 )
 
+internal enum class CellCaptureCallbackBarrierBlockedReason {
+	STALE_LIFECYCLE,
+	STALE_REGISTRATION,
+	CAPTURE_AUTHORIZATION_ACTIVE,
+	AUTHORIZATION_UNVERIFIABLE,
+}
+
+internal sealed interface CellCaptureCallbackBarrierPublication {
+	data class Established(
+		val throughAuthorizationRevision: Long,
+	) : CellCaptureCallbackBarrierPublication
+
+	data class Blocked(
+		val reason: CellCaptureCallbackBarrierBlockedReason,
+	) : CellCaptureCallbackBarrierPublication
+}
+
 /**
  * Allocates durable source identities and monotonically increasing source sequences.
  *
@@ -429,6 +446,139 @@ class SourceRegistrationRepository @Inject constructor(
 		}
 	}
 
+	/**
+	 * Publishes Cell's source-local callback barrier only for the exact current process generation.
+	 * The runtime calls this after closing callback entry and draining every earlier FIFO item.
+	 */
+	internal suspend fun publishCellCaptureCallbackBarrier(
+		expectedRegistration: SourceRegistration,
+		expectedCollectedDataEpoch: Long,
+	): CellCaptureCallbackBarrierPublication {
+		require(expectedRegistration.state.sourceKind == SourceKind.CELL.stableCode)
+		require(expectedCollectedDataEpoch >= 0L)
+		val lifecycle = lifecycleStore.snapshot()
+		if (lifecycle.epoch != expectedCollectedDataEpoch) {
+			return CellCaptureCallbackBarrierPublication.Blocked(
+				CellCaptureCallbackBarrierBlockedReason.STALE_LIFECYCLE,
+			)
+		}
+		val currentProcessId = processIncarnationIdProvider.current()
+		return database.withTransaction {
+			val state = database.sourceRegistrationStateDao().get(
+				SourceKind.CELL.stableCode,
+				expectedRegistration.ownerScope,
+			)
+			val physical = database.sourceBrokerDao().registration(
+				SourceKind.CELL.stableCode,
+				expectedRegistration.state.registrationGeneration,
+			)
+			if (state == null || physical == null ||
+				state.sourceInstanceId != expectedRegistration.state.sourceInstanceId ||
+				state.registrationGeneration != expectedRegistration.state.registrationGeneration ||
+				state.clockDomainId != expectedRegistration.state.clockDomainId ||
+				state.collectedDataEpoch != expectedCollectedDataEpoch ||
+				physical.sourceInstanceId != expectedRegistration.state.sourceInstanceId ||
+				physical.ownerScope != expectedRegistration.ownerScope ||
+				physical.clockDomainId != expectedRegistration.state.clockDomainId ||
+				physical.physicalConfigurationFingerprint !=
+					expectedRegistration.physicalConfigurationFingerprint ||
+				physical.collectedDataEpoch != expectedCollectedDataEpoch ||
+				physical.providerResidency !=
+					ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ||
+				physical.providerProcessIncarnationId != currentProcessId ||
+				physical.status != ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+			) return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
+				CellCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION,
+			)
+
+			val factDao = database.cellCapturedFactDao()
+			val latestRevision = factDao.maximumRegistrationAuthorizationRevision(
+				SourceKind.CELL.stableCode,
+				expectedRegistration.state.registrationGeneration,
+			)
+			val rows = factDao.maintenanceAuthorizationMembers(
+				SourceKind.CELL.stableCode,
+				expectedRegistration.state.registrationGeneration,
+				latestRevision,
+				MAX_CELL_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS + 1,
+			)
+			val currentAuthorization = if (rows.size <= MAX_CELL_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS) {
+				try {
+					rows.toAuthorizationSnapshotOrNull()
+				} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
+					null
+				}
+			} else null
+			if (latestRevision <= 0L || currentAuthorization == null ||
+				!currentAuthorization.sameAuthorizationAs(expectedRegistration.authorization)
+			) return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
+				CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
+			)
+			val activeDemands = factDao.activeCellDemandsForDeletion(
+				SourceKind.CELL.stableCode,
+				MAX_CELL_CALLBACK_BARRIER_DEMANDS + 1,
+			)
+			val expectedRows = try {
+				SourceBrokerAuthorization.rows(
+					sourceKind = SourceKind.CELL.stableCode,
+					registrationGeneration = expectedRegistration.state.registrationGeneration,
+					authorizationRevision = latestRevision,
+					demands = activeDemands,
+					effectiveBootId = currentAuthorization.effectiveBootId,
+					effectiveElapsedRealtimeNanos = currentAuthorization.effectiveElapsedRealtimeNanos,
+					effectiveWallTimeMs = rows.first().effectiveWallTimeMs,
+				)
+			} catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
+				return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
+					CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
+				)
+			}
+			if (activeDemands.size > MAX_CELL_CALLBACK_BARRIER_DEMANDS ||
+				rows.sortedBy { row -> row.memberId } != expectedRows.sortedBy { row -> row.memberId }
+			) return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
+				CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
+			)
+			if (currentAuthorization.authorizedMembers.any { member ->
+					member.persistenceEligible && member.purpose in setOf(
+						SourceBrokerPurpose.SESSION_CAPTURE,
+						SourceBrokerPurpose.AMBIENT_PRODUCT,
+					)
+				}) return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
+				CellCaptureCallbackBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
+			)
+
+			val maximumCaptureRevision = database.sourceBrokerDao()
+				.maximumCaptureAuthorizationRevision(
+					SourceKind.CELL.stableCode,
+					expectedRegistration.state.registrationGeneration,
+				)
+			if (physical.captureCallbackBarrierAuthorizationRevision > maximumCaptureRevision) {
+				return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
+					CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
+				)
+			}
+			if (database.sourceBrokerDao().acknowledgeCaptureCallbackBarrier(
+					sourceKind = SourceKind.CELL.stableCode,
+					registrationGeneration = expectedRegistration.state.registrationGeneration,
+					sourceInstanceId = expectedRegistration.state.sourceInstanceId,
+					throughAuthorizationRevision = maximumCaptureRevision,
+				) != 1
+			) return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
+				CellCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION,
+			)
+			val acknowledged = database.sourceBrokerDao().registration(
+				SourceKind.CELL.stableCode,
+				expectedRegistration.state.registrationGeneration,
+			)
+			if (acknowledged?.captureCallbackBarrierAuthorizationRevision != maximumCaptureRevision) {
+				return@withTransaction CellCaptureCallbackBarrierPublication.Blocked(
+					CellCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION,
+				)
+			}
+			CellCaptureCallbackBarrierPublication.Established(maximumCaptureRevision)
+		}
+	}
+
 	private suspend fun requireSourceAcquisitionReachable(source: SourceKind) {
 		require(isSourceAcquisitionReachable(source)) {
 			"Source ${source.name} is contained by the current rollout state"
@@ -693,3 +843,15 @@ class SourceRegistrationRepository @Inject constructor(
 		}
 	}
 }
+
+private fun SourceAuthorizationSnapshot.sameAuthorizationAs(
+	other: SourceAuthorizationSnapshot,
+): Boolean = authorizationRevision == other.authorizationRevision &&
+	authorizationFingerprint == other.authorizationFingerprint &&
+	purposeEligibilityMask == other.purposeEligibilityMask &&
+	effectiveBootId == other.effectiveBootId &&
+	effectiveElapsedRealtimeNanos == other.effectiveElapsedRealtimeNanos &&
+	members.sortedBy { row -> row.memberId } == other.members.sortedBy { row -> row.memberId }
+
+private const val MAX_CELL_CALLBACK_BARRIER_AUTHORIZATION_MEMBERS = 64
+private const val MAX_CELL_CALLBACK_BARRIER_DEMANDS = 256

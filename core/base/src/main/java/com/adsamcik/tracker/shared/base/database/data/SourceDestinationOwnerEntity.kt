@@ -34,10 +34,12 @@ data class SourceDestinationOwnerEntity(
 		const val SOURCE_ACTIVITY = 2
 		const val SOURCE_STEPS = 3
 		const val SOURCE_PRESSURE = 4
+		const val SOURCE_CELL = 6
 		const val DESTINATION_SESSION_ACTIVITY = "SESSION_ACTIVITY"
 		const val DESTINATION_SESSION_STEPS = "SESSION_STEPS"
 		const val DESTINATION_AMBIENT_STEPS = "AMBIENT_STEPS"
 		const val DESTINATION_SESSION_PRESSURE = "SESSION_PRESSURE"
+		const val DESTINATION_SESSION_CELL = "SESSION_CELL"
 		const val OWNER_LEGACY_ACTIVITY_SNAPSHOT = "LEGACY_ACTIVITY_SNAPSHOT"
 		const val OWNER_ACTIVITY_SESSION_FACTS = "ACTIVITY_SESSION_FACTS"
 		const val OWNER_LEGACY_STEP_INTERVAL = "LEGACY_STEP_INTERVAL"
@@ -45,6 +47,7 @@ data class SourceDestinationOwnerEntity(
 		const val OWNER_AMBIENT_STEPS_FACTS = "AMBIENT_STEPS_FACTS"
 		const val OWNER_LEGACY_PRESSURE_SAMPLE = "LEGACY_PRESSURE_SAMPLE"
 		const val OWNER_PRESSURE_SESSION_FACTS = "PRESSURE_SESSION_FACTS"
+		const val OWNER_CELL_SESSION_FACTS = "CELL_SESSION_FACTS"
 		const val INITIAL_LEGACY_GENERATION = 1L
 		/** First owner fence for a new destination; presence alone grants no provider or rollout. */
 		const val INITIAL_AMBIENT_STEPS_GENERATION = 1L
@@ -61,5 +64,8 @@ data class SourceDestinationOwnerEntity(
 		const val ACTIVITY_FACT_PROJECTION_ID = "activity-session-facts"
 		const val ACTIVITY_FACT_PROJECTION_VERSION = 1
 		const val ACTIVITY_FACT_BINDING_GENERATION = 1L
+		const val CELL_FACT_PROJECTION_ID = "cell-session-facts"
+		const val CELL_FACT_PROJECTION_VERSION = 1
+		const val CELL_FACT_BINDING_GENERATION = 1L
 	}
 }

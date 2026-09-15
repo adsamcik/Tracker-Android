@@ -37,6 +37,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -920,6 +921,301 @@ class CellSourceRuntimeTest {
 	}
 
 	@Test
+	fun `Cell capture deletion barrier drains FIFO and preserves CONTROL-only provider`() = runTest {
+		val plan = cellPlan()
+		val controlRegistration = controlOnlyRegistration(plan, authorizationRevision = 2L)
+		val fixture = runtimeFixture(this, plan, listOf(controlRegistration))
+		val admissionEntered = CompletableDeferred<Unit>()
+		val releaseAdmission = CompletableDeferred<Unit>()
+		var admissions = 0
+		fixture.start(cellCandidateSink {
+			admissions++
+			if (admissions == 1) {
+				admissionEntered.complete(Unit)
+				releaseAdmission.await()
+			}
+			SourceAdmissionHandoff.Durable(admissions.toLong())
+		})
+		coEvery {
+			fixture.registrations.publishCellCaptureCallbackBarrier(controlRegistration, 1L)
+		} returns CellCaptureCallbackBarrierPublication.Established(1L)
+		fixture.emit(freshProviderDelivery())
+		runCurrent()
+		admissionEntered.await()
+
+		val barrier = async { fixture.runtime.establishCaptureDeletionBarrier(1L) }
+		runCurrent()
+		coVerify(exactly = 0) {
+			fixture.registrations.publishCellCaptureCallbackBarrier(any(), any())
+		}
+
+		releaseAdmission.complete(Unit)
+		assertEquals(CellCaptureDeletionBarrierResult.Established(1L), barrier.await())
+		verify(exactly = 0) { fixture.backend.stop() }
+		ShadowSystemClock.advanceBy(Duration.ofMillis(1))
+		fixture.emit(freshProviderDelivery())
+		advanceUntilIdle()
+		assertEquals(2, admissions)
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `Cell capture deletion barrier rejects a still capture-authorized provider`() = runTest {
+		val fixture = runtimeFixture(this)
+		fixture.start(SourceEventSink { SourceAdmissionHandoff.Durable(1L) })
+
+		assertEquals(
+			CellCaptureDeletionBarrierResult.Blocked(
+				CellCaptureDeletionBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
+			),
+			fixture.runtime.establishCaptureDeletionBarrier(1L),
+		)
+
+		coVerify(exactly = 0) {
+			fixture.registrations.publishCellCaptureCallbackBarrier(any(), any())
+		}
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `Cell capture barrier timeout restores CONTROL callbacks and wakeup reconciliation`() = runTest {
+		val plan = cellPlan()
+		val controlRegistration = controlOnlyRegistration(plan, authorizationRevision = 2L)
+		val fixture = runtimeFixture(this, plan, listOf(controlRegistration))
+		val admissionEntered = CompletableDeferred<Unit>()
+		val releaseAdmission = CompletableDeferred<Unit>()
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		fixture.start(cellCandidateSink { candidate ->
+			admitted += candidate
+			if (admitted.size == 1) {
+				admissionEntered.complete(Unit)
+				releaseAdmission.await()
+			}
+			SourceAdmissionHandoff.Durable(admitted.size.toLong())
+		})
+		fixture.emit(freshProviderDelivery())
+		runCurrent()
+		admissionEntered.await()
+		val barrier = async { fixture.runtime.establishCaptureDeletionBarrier(1L) }
+		runCurrent()
+		advanceTimeBy(3_001L)
+		runCurrent()
+
+		assertEquals(
+			CellCaptureDeletionBarrierResult.Retryable(
+				CellCaptureDeletionBarrierRetryableReason.CALLBACK_DRAIN_TIMED_OUT,
+			),
+			barrier.await(),
+		)
+		ShadowSystemClock.advanceBy(Duration.ofMillis(1))
+		fixture.emit(freshProviderDelivery())
+		releaseAdmission.complete(Unit)
+		advanceUntilIdle()
+
+		assertEquals(2, admitted.size)
+		assertTrue(admitted.all { candidate ->
+			candidate.registrationPurposeEligibilityMask == controlRegistration.purposeEligibilityMask
+		})
+		coVerify(exactly = 0) {
+			fixture.registrations.publishCellCaptureCallbackBarrier(any(), any())
+		}
+		verify(atLeast = 3) { fixture.wakeups.cancel("cell-sparse-refresh") }
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `blocked Cell barrier publication restores exact CONTROL lane`() = runTest {
+		val plan = cellPlan()
+		val controlRegistration = controlOnlyRegistration(plan, authorizationRevision = 2L)
+		val fixture = runtimeFixture(this, plan, listOf(controlRegistration))
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		fixture.start(cellCandidateSink { candidate ->
+			admitted += candidate
+			SourceAdmissionHandoff.Durable(admitted.size.toLong())
+		})
+		coEvery {
+			fixture.registrations.publishCellCaptureCallbackBarrier(controlRegistration, 1L)
+		} returns CellCaptureCallbackBarrierPublication.Blocked(
+			CellCaptureCallbackBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
+		)
+
+		val barrier = async { fixture.runtime.establishCaptureDeletionBarrier(1L) }
+		advanceUntilIdle()
+		assertEquals(
+			CellCaptureDeletionBarrierResult.Blocked(
+				CellCaptureDeletionBarrierBlockedReason.AUTHORIZATION_UNVERIFIABLE,
+			),
+			barrier.await(),
+		)
+		fixture.emit(freshProviderDelivery())
+		advanceUntilIdle()
+
+		assertEquals(1, admitted.size)
+		assertEquals(
+			controlRegistration.purposeEligibilityMask,
+			admitted.single().registrationPurposeEligibilityMask,
+		)
+		verify(atLeast = 3) { fixture.wakeups.cancel("cell-sparse-refresh") }
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `stale Cell barrier publication never reopens stale callback registration`() = runTest {
+		val plan = cellPlan()
+		val controlRegistration = controlOnlyRegistration(plan, authorizationRevision = 2L)
+		val fixture = runtimeFixture(this, plan, listOf(controlRegistration))
+		var admissions = 0
+		fixture.start(cellCandidateSink {
+			admissions++
+			SourceAdmissionHandoff.Durable(admissions.toLong())
+		})
+		coEvery {
+			fixture.registrations.publishCellCaptureCallbackBarrier(controlRegistration, 1L)
+		} returns CellCaptureCallbackBarrierPublication.Blocked(
+			CellCaptureCallbackBarrierBlockedReason.STALE_REGISTRATION,
+		)
+
+		val barrier = async { fixture.runtime.establishCaptureDeletionBarrier(1L) }
+		advanceUntilIdle()
+		assertEquals(
+			CellCaptureDeletionBarrierResult.Blocked(
+				CellCaptureDeletionBarrierBlockedReason.STALE_REGISTRATION,
+			),
+			barrier.await(),
+		)
+		fixture.emit(freshProviderDelivery())
+		advanceUntilIdle()
+
+		assertEquals(0, admissions)
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `Cell barrier publication exception is typed and restores exact CONTROL lane`() = runTest {
+		val plan = cellPlan()
+		val controlRegistration = controlOnlyRegistration(plan, authorizationRevision = 2L)
+		val fixture = runtimeFixture(this, plan, listOf(controlRegistration))
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		fixture.start(cellCandidateSink { candidate ->
+			admitted += candidate
+			SourceAdmissionHandoff.Durable(admitted.size.toLong())
+		})
+		coEvery {
+			fixture.registrations.publishCellCaptureCallbackBarrier(controlRegistration, 1L)
+		} throws IllegalStateException("barrier publication failed")
+
+		val barrier = async { fixture.runtime.establishCaptureDeletionBarrier(1L) }
+		advanceUntilIdle()
+		assertEquals(
+			CellCaptureDeletionBarrierResult.Retryable(
+				CellCaptureDeletionBarrierRetryableReason.BARRIER_PUBLICATION_FAILED,
+			),
+			barrier.await(),
+		)
+		fixture.emit(freshProviderDelivery())
+		advanceUntilIdle()
+
+		assertEquals(1, admitted.size)
+		assertEquals(
+			controlRegistration.purposeEligibilityMask,
+			admitted.single().registrationPurposeEligibilityMask,
+		)
+		verify(atLeast = 3) { fixture.wakeups.cancel("cell-sparse-refresh") }
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `cancelling Cell capture barrier propagates after restoring CONTROL lane`() = runTest {
+		val plan = cellPlan()
+		val controlRegistration = controlOnlyRegistration(plan, authorizationRevision = 2L)
+		val fixture = runtimeFixture(this, plan, listOf(controlRegistration))
+		val admissionEntered = CompletableDeferred<Unit>()
+		val releaseAdmission = CompletableDeferred<Unit>()
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		fixture.start(cellCandidateSink { candidate ->
+			admitted += candidate
+			if (admitted.size == 1) {
+				admissionEntered.complete(Unit)
+				releaseAdmission.await()
+			}
+			SourceAdmissionHandoff.Durable(admitted.size.toLong())
+		})
+		fixture.emit(freshProviderDelivery())
+		runCurrent()
+		admissionEntered.await()
+		val barrier = async { fixture.runtime.establishCaptureDeletionBarrier(1L) }
+		runCurrent()
+
+		barrier.cancel()
+		assertFailsWith<CancellationException> { barrier.await() }
+		ShadowSystemClock.advanceBy(Duration.ofMillis(1))
+		fixture.emit(freshProviderDelivery())
+		releaseAdmission.complete(Unit)
+		advanceUntilIdle()
+
+		assertEquals(2, admitted.size)
+		assertTrue(admitted.all { candidate ->
+			candidate.registrationPurposeEligibilityMask == controlRegistration.purposeEligibilityMask
+		})
+		coVerify(exactly = 0) {
+			fixture.registrations.publishCellCaptureCallbackBarrier(any(), any())
+		}
+		verify(atLeast = 3) { fixture.wakeups.cancel("cell-sparse-refresh") }
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `failed Cell barrier lane resumption stays closed and is typed`() = runTest {
+		val plan = cellPlan()
+		val controlRegistration = controlOnlyRegistration(plan, authorizationRevision = 2L)
+		val fixture = runtimeFixture(this, plan, listOf(controlRegistration))
+		val admissionEntered = CompletableDeferred<Unit>()
+		val releaseAdmission = CompletableDeferred<Unit>()
+		var admissions = 0
+		fixture.start(cellCandidateSink {
+			admissions++
+			if (admissions == 1) {
+				admissionEntered.complete(Unit)
+				releaseAdmission.await()
+			}
+			SourceAdmissionHandoff.Durable(admissions.toLong())
+		})
+		val repeated = freshProviderDelivery()
+		fixture.emit(repeated)
+		runCurrent()
+		admissionEntered.await()
+		repeat(CELL_CALLBACK_BUFFER_CAPACITY) { fixture.emit(repeated) }
+		val barrier = async { fixture.runtime.establishCaptureDeletionBarrier(1L) }
+		runCurrent()
+		advanceTimeBy(3_001L)
+		runCurrent()
+
+		assertEquals(
+			CellCaptureDeletionBarrierResult.Retryable(
+				CellCaptureDeletionBarrierRetryableReason.CALLBACK_LANE_UNAVAILABLE,
+			),
+			barrier.await(),
+		)
+		ShadowSystemClock.advanceBy(Duration.ofMillis(1))
+		fixture.emit(freshProviderDelivery())
+		releaseAdmission.complete(Unit)
+		advanceUntilIdle()
+
+		assertEquals(1, admissions)
+		coVerify(exactly = 0) {
+			fixture.registrations.publishCellCaptureCallbackBarrier(any(), any())
+		}
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.runtime.close()
+	}
+
+	@Test
 	fun `claim transfer fences stale shutdown across compatible refresh and replacement`() = runTest {
 		val initialPlan = cellPlan(revision = 1L, maximumAgeMs = 60_000L)
 		val refreshedPlan = cellPlan(revision = 2L, maximumAgeMs = 10_000L)
@@ -1070,6 +1366,7 @@ class CellSourceRuntimeTest {
 		val runtime: CellSourceRuntime,
 		val registrations: SourceRegistrationRepository,
 		val backend: AndroidCellSourceBackend,
+		val wakeups: CoalescingSourceWakeupScheduler,
 		val plan: CellPlan,
 		private val callback: () -> ((CellBackendSnapshot) -> Unit),
 		var state: CellDeviceState,
@@ -1120,7 +1417,15 @@ class CellSourceRuntimeTest {
 		every { backend.stop() } returns true
 		every { backend.hasRetainedRegistrations } returns false
 		val runtime = CellSourceRuntime(scope, registrations, backend, stateProvider, wakeups)
-		return RuntimeFixture(runtime, registrations, backend, runtimePlan, { requireNotNull(callback) }, state)
+		return RuntimeFixture(
+			runtime,
+			registrations,
+			backend,
+			wakeups,
+			runtimePlan,
+			{ requireNotNull(callback) },
+			state,
+		)
 			.also { fixture -> every { stateProvider.cell() } answers { fixture.state } }
 	}
 
@@ -1278,6 +1583,49 @@ class CellSourceRuntimeTest {
 			physicalConfigurationFingerprint = plan.physicalConfigurationFingerprint(),
 			authorization = authorization,
 			requiresProviderAcceptance = false,
+		)
+	}
+
+	private fun controlOnlyRegistration(
+		plan: CellPlan,
+		authorizationRevision: Long,
+		generation: Long = 9L,
+	): SourceRegistration {
+		val control = SourceDemandEntity(
+			demandId = "cell-control-$authorizationRevision",
+			consumerId = "app:cell-control",
+			sourceKind = SourceKind.CELL.stableCode,
+			purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			manifestRevision = null,
+			lifecycleLeaseGeneration = null,
+			sourcePolicyRevision = authorizationRevision,
+			consentEpoch = 1L,
+			persistenceEligible = false,
+			qosCode = 0,
+			maximumAgeMs = 60_000L,
+			desiredLatencyMs = 5_000L,
+			requestedBootId = "boot-1",
+			requestedElapsedRealtimeNanos = authorizationRevision,
+			requestedAtMs = 1L,
+			status = SourceDemandEntity.STATUS_ACTIVE,
+			retireBootId = null,
+			retireElapsedRealtimeNanos = null,
+			retiredAtMs = null,
+		)
+		return registration(plan, authorizationRevision, generation).copy(
+			authorization = requireNotNull(
+				SourceBrokerAuthorization.rows(
+					SourceKind.CELL.stableCode,
+					registrationGeneration = generation,
+					authorizationRevision = authorizationRevision,
+					demands = listOf(control),
+					effectiveBootId = "boot-1",
+					effectiveElapsedRealtimeNanos = authorizationRevision,
+					effectiveWallTimeMs = 1L,
+				).toAuthorizationSnapshotOrNull(),
+			),
 		)
 	}
 

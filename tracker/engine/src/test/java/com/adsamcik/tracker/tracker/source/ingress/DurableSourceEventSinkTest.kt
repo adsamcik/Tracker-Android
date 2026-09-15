@@ -3,6 +3,9 @@ package com.adsamcik.tracker.tracker.source.ingress
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
+import com.adsamcik.tracker.tracker.source.model.CellObservationEvidence
+import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
+import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
 import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
@@ -102,6 +105,27 @@ class DurableSourceEventSinkTest {
 
 		verify(exactly = 2) { recovery.requestPressureSessionFactDrain() }
 		verify(exactly = 0) { recovery.requestActivityCapturedFactDrain() }
+		verify(exactly = 0) { recovery.requestStepsSessionFactDrain() }
+		verify(exactly = 0) { recovery.requestCommittedWorkDrain() }
+	}
+
+	@Test
+	fun `durable and duplicate Cell callbacks independently kick only the Cell lane`() = runTest {
+		val ingress = mockk<DurableSourceIngress>()
+		val recovery = mockk<SourcePipelineRecovery>(relaxed = true)
+		coEvery { ingress.admit(any()) } returnsMany listOf(
+			AdmissionResult.Admitted(SourceEventId("cell-event"), 7L),
+			AdmissionResult.Duplicate(SourceEventId("cell-event"), 7L),
+		)
+		val subject = DurableSourceEventSinkFactory(ingress, recovery)
+
+		subject.unbound.admit(cellCandidate())
+			.shouldBeInstanceOf<SourceAdmissionHandoff.Durable>()
+		subject.unbound.admit(cellCandidate())
+			.shouldBeInstanceOf<SourceAdmissionHandoff.Duplicate>()
+
+		verify(exactly = 2) { recovery.requestCellSessionFactDrain() }
+		verify(exactly = 0) { recovery.requestPressureSessionFactDrain() }
 		verify(exactly = 0) { recovery.requestStepsSessionFactDrain() }
 		verify(exactly = 0) { recovery.requestCommittedWorkDrain() }
 	}
@@ -369,6 +393,18 @@ class DurableSourceEventSinkTest {
 			expectedSampleCount = 4,
 			maximumInterSampleGapNanos = 50_000_000L,
 			closureKind = PressureWindowClosureKind.TARGET_ELAPSED,
+		),
+	)
+
+	private fun cellCandidate() = candidate().copy(
+		source = SourceKind.CELL,
+		sourceInstanceId = SourceInstanceId("cell"),
+		payload = CellSnapshotPayload(
+			subscriptionId = null,
+			observations = listOf(
+				CellObservationEvidence("", "LTE", true, -100, 1L),
+			),
+			refreshOutcome = CellRefreshOutcome.CALLBACK,
 		),
 	)
 

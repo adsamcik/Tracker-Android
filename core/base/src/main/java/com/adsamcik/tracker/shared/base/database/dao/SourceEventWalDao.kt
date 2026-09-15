@@ -18,6 +18,9 @@ interface SourceEventWalDao {
 	@Query("SELECT * FROM source_event_wal WHERE event_id = :eventId LIMIT 1")
 	suspend fun getByEventId(eventId: String): SourceEventWalEntity?
 
+	@Query("SELECT * FROM source_event_wal WHERE admission_ordinal = :admissionOrdinal LIMIT 1")
+	suspend fun getByAdmissionOrdinal(admissionOrdinal: Long): SourceEventWalEntity?
+
 	/** Payload-free size and delivery identity checked before a source adapter may read one BLOB. */
 	@Query(
 		"SELECT event_id, source_kind, captured_collected_data_epoch, clock_domain_id, " +
@@ -48,6 +51,24 @@ interface SourceEventWalDao {
 	suspend fun projectionEligibilityByAdmissionOrdinal(
 		admissionOrdinal: Long,
 	): SourceEventProjectionEligibilityRow?
+
+	/**
+	 * Bounded payload-free source-local projection preflight. The materializer must reload and
+	 * authenticate each exact event before deriving a product fact; this covering read only bounds
+	 * scheduling and prevents a batch payload decode before lane authority is established.
+	 */
+	@Query(
+		"SELECT event_id, admission_ordinal, authorization_purpose_eligibility_mask " +
+			"FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND admission_ordinal > :afterOrdinal AND admission_ordinal <= :throughOrdinal " +
+			"ORDER BY admission_ordinal ASC LIMIT :limit",
+	)
+	suspend fun sourceProjectionCandidatesAfterThrough(
+		sourceKind: Int,
+		afterOrdinal: Long,
+		throughOrdinal: Long,
+		limit: Int,
+	): List<SourceEventProjectionCandidateRow>
 
 	@Query(
 		"SELECT event_id, admission_ordinal, provider_dedup_key, source_instance_id, " +
@@ -131,6 +152,25 @@ interface SourceEventWalDao {
 		deliveryIdentity: String,
 		limit: Int,
 	): List<SourceEventWalDeliveryPayloadPreflightRow>
+
+	/** Bounded exact-delivery probe for source adapters with one physical delivery unit. */
+	@Query(
+		"SELECT event_id, admission_ordinal, delivery_unit_index, delivery_unit_count, " +
+			"source_instance_id, registration_generation, physical_configuration_fingerprint, " +
+			"authorization_revision, observed_elapsed_nanos, observed_interval_start_nanos, " +
+			"payload_version, payload_checksum " +
+			"FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND captured_collected_data_epoch = :collectedDataEpoch " +
+			"AND clock_domain_id = :clockDomainId AND delivery_identity = :deliveryIdentity " +
+			"ORDER BY delivery_unit_index ASC LIMIT :limit",
+	)
+	suspend fun deliveryUnitsBounded(
+		sourceKind: Int,
+		collectedDataEpoch: Long,
+		clockDomainId: String,
+		deliveryIdentity: String,
+		limit: Int,
+	): List<SourceDeliveryUnitIdentityRow>
 
 	/** Full delivery read whose per-row payload bound remains enforced by SQLite. */
 	@Query(
@@ -336,6 +376,14 @@ data class SourceEventProjectionEligibilityRow(
 data class SourceProjectionEventIdentityRow(
 	@ColumnInfo(name = "event_id") val eventId: String,
 	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
+)
+
+/** Payload-free identity for one bounded Cell/Wi-Fi projection scheduling attempt. */
+data class SourceEventProjectionCandidateRow(
+	@ColumnInfo(name = "event_id") val eventId: String,
+	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
+	@ColumnInfo(name = "authorization_purpose_eligibility_mask")
+	val authorizationPurposeEligibilityMask: Long,
 )
 
 /** Payload-free projection used to recognize an exact replay of a process-stable delivery. */

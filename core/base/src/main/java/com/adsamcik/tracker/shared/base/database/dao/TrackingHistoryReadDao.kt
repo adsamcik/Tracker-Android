@@ -4,10 +4,12 @@ import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Embedded
 import androidx.room.Query
+import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
@@ -170,6 +172,22 @@ interface TrackingHistoryReadDao {
 	/** Reads the requested physical presentation rows without changing their order contract. */
 	@Query("SELECT * FROM session_segment WHERE id IN (:segmentIds)")
 	suspend fun segments(segmentIds: List<Long>): List<SessionSegment>
+
+	/**
+	 * Raw reverse-membership read for one portable logical entry.
+	 *
+	 * Unlike [logicalEntrySegmentPage], this deliberately applies no service-run join or reciprocal
+	 * predicate: portable export must observe and reject an orphan or mismatched segment instead of
+	 * allowing that predicate to hide it.
+	 */
+	@Query(
+		"SELECT * FROM session_segment WHERE logical_tracking_id = :logicalTrackingId " +
+			"ORDER BY start_time_ms, id LIMIT :limit",
+	)
+	suspend fun rawLogicalEntrySegments(
+		logicalTrackingId: String,
+		limit: Int,
+	): List<SessionSegment>
 
 	/** Keyset page of exact or explicitly attributed migrated siblings for logical entries. */
 	@Query(
@@ -538,6 +556,27 @@ interface TrackingHistoryReadDao {
 		serviceRunIds: List<String>,
 	): List<SourcePolicyEntity>
 
+	/** Bounded immutable plan headers referenced by a source-specific product read. */
+	@Query(
+		"SELECT * FROM acquisition_plan_revision WHERE revision IN (:revisions) " +
+			"ORDER BY revision LIMIT :limit",
+	)
+	suspend fun acquisitionPlanRevisions(
+		revisions: List<Long>,
+		limit: Int,
+	): List<AcquisitionPlanRevisionEntity>
+
+	/** Bounded source-local desired plans referenced by a source-specific product read. */
+	@Query(
+		"SELECT * FROM source_desired_plan WHERE source_kind = :sourceKind " +
+			"AND revision IN (:revisions) ORDER BY revision LIMIT :limit",
+	)
+	suspend fun desiredPlans(
+		sourceKind: Int,
+		revisions: List<Long>,
+		limit: Int,
+	): List<SourceDesiredPlanEntity>
+
 	/** Reads source-local acquisition settlement for the requested service runs. */
 	@Query(
 		"SELECT * FROM source_session_completeness WHERE service_run_id IN (:serviceRunIds) " +
@@ -548,6 +587,34 @@ interface TrackingHistoryReadDao {
 		serviceRunIds: List<String>,
 		limit: Int = Int.MAX_VALUE,
 	): List<SourceSessionCompletenessEntity>
+
+	/** Bounded settlement closure for one source without charging unrelated sources to its cap. */
+	@Query(
+		"SELECT * FROM source_session_completeness WHERE source_kind = :sourceKind " +
+			"AND service_run_id IN (:serviceRunIds) " +
+			"ORDER BY service_run_id, source_instance_id, registration_generation LIMIT :limit",
+	)
+	suspend fun sourceCompleteness(
+		sourceKind: Int,
+		serviceRunIds: List<String>,
+		limit: Int,
+	): List<SourceSessionCompletenessEntity>
+
+	/**
+	 * Complete bounded authorization-revision identity set for one physical registration.
+	 * Membership fields are deliberately not used for candidate discovery; callers authenticate each
+	 * full revision before deciding whether it carried a requested persistent run demand.
+	 */
+	@Query(
+		"SELECT DISTINCT authorization_revision FROM source_authorization " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +
+			"ORDER BY authorization_revision LIMIT :limit",
+	)
+	suspend fun registrationAuthorizationRevisions(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		limit: Int,
+	): List<Long>
 
 	/**
 	 * Anchors each candidate fact to a requested durable run before returning its retained scope

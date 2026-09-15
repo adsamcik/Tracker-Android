@@ -19,10 +19,12 @@ import com.adsamcik.tracker.shared.base.database.dao.ActivityAutomationEpochDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.AmbientStepsFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.AmbientStepsImportStateDao
+import com.adsamcik.tracker.shared.base.database.dao.CellCapturedFactDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.GeneralDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportReceiptDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
 import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
 import com.adsamcik.tracker.shared.base.database.dao.LegacyV27ProjectionDrainDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
@@ -60,10 +62,19 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEn
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportJobReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellObservationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellRunEntity
 import com.adsamcik.tracker.shared.base.database.data.LiveStatsEntity
 import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEntity
 import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionTargetEntity
@@ -239,6 +250,15 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ActivityCapturedFragmentEntity::class,
 			ActivityCapturedEvidenceEntity::class,
 			ActivityCapturedWindowCursorEntity::class,
+			CellCapturedFactRevisionEntity::class,
+			CellCapturedFactCursorEntity::class,
+			CellCaptureDeletionGenerationEntity::class,
+			ImportedCellEntryRevisionEntity::class,
+			ImportedCellReceiptEntity::class,
+			ImportedCellRunEntity::class,
+			ImportedCellObservationEntity::class,
+			ImportedCellEntryDeletionEntity::class,
+			ImportedCellDeletionGenerationEntity::class,
 			SourceDeletionFenceEntity::class,
 			SourceDestinationOwnerEntity::class,
 			ActivitySnapshot::class,
@@ -380,6 +400,11 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Dormant append-only captured Activity facts; this accessor does not activate acquisition. */
 	abstract fun activityCapturedFactDao(): ActivityCapturedFactDao
+	/** Dormant identity-free Cell captured-fact persistence. */
+	abstract fun cellCapturedFactDao(): CellCapturedFactDao
+
+	/** Cell-specific imported product storage; this accessor grants no live capture authority. */
+	abstract fun importedCellDao(): ImportedCellDao
 
 	/** Provides payload-free source/run deletion authority for source mutation paths. */
 	abstract fun sourceDeletionFenceDao(): SourceDeletionFenceDao
@@ -724,6 +749,13 @@ abstract class AppDatabase : RoomDatabase() {
 			database.activityCapturedFactDao().deleteAllCursors()
 			database.activityCapturedFactDao().deleteAllRevisions()
 			database.activityCapturedFactDao().deleteAllRegistrationPlanBindings()
+			database.cellCapturedFactDao().deleteAllCursors()
+			database.cellCapturedFactDao().deleteAllRevisions()
+			database.cellCapturedFactDao().deleteAllDeletionGenerations()
+			database.importedCellDao().deleteAllReceipts()
+			database.importedCellDao().deleteAllEntries()
+			database.importedCellDao().deleteAllEntryDeletions()
+			database.importedCellDao().deleteAllDeletionGenerations()
 			database.stepIntervalDao().deleteAll()
 			database.activitySnapshotDao().deleteAll()
 			database.cellSampleDao().deleteAll()

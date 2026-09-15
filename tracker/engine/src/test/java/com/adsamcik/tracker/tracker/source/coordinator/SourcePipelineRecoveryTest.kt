@@ -9,6 +9,8 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.tracker.api.ActivityAutomationDeliveryResult
 import com.adsamcik.tracker.tracker.api.ActivityAutomationStartContext
 import com.adsamcik.tracker.tracker.source.activity.ActivityCapturedFactProjectionLane
+
+import com.adsamcik.tracker.tracker.source.cell.CellSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationOutboxDispatcher
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEffectConsumer
@@ -201,6 +203,8 @@ class SourcePipelineRecoveryTest {
 		val stepsLane = mockk<StepsSessionFactProjectionLane>(relaxed = true)
 		val pressureLane = mockk<PressureSessionFactProjectionLane>(relaxed = true)
 		val capturedActivityLane = mockk<ActivityCapturedFactProjectionLane>(relaxed = true)
+
+		val cellLane = mockk<CellSessionFactProjectionLane>(relaxed = true)
 		val scheduled = SourcePipelineRecovery(
 			legacy,
 			coordinator,
@@ -209,6 +213,8 @@ class SourcePipelineRecoveryTest {
 			stepsLane,
 			pressureLane,
 			capturedActivityLane,
+
+			cellLane,
 			backgroundScope,
 		)
 		coEvery { legacy.recover() } returns LegacyV27ProjectionRecoveryResult.NotRequired
@@ -221,8 +227,15 @@ class SourcePipelineRecoveryTest {
 		verify(exactly = 2) { stepsLane.requestDrain() }
 		verify(exactly = 2) { pressureLane.requestDrain() }
 		verify(exactly = 2) { capturedActivityLane.requestDrain() }
+
+		scheduled.requestCellSessionFactDrain()
+
+		verify(exactly = 2) { stepsLane.requestDrain() }
+		verify(exactly = 2) { pressureLane.requestDrain() }
+		verify(exactly = 2) { cellLane.requestDrain() }
 		coVerify(exactly = 0) { stepsLane.drainAvailable() }
 		coVerify(exactly = 0) { pressureLane.drainAvailable() }
+		coVerify(exactly = 0) { cellLane.drainAvailable() }
 		coVerify(exactly = 0) { activityLane.drainAvailable() }
 		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
 	}
