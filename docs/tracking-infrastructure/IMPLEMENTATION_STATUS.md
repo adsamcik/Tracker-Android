@@ -106,9 +106,57 @@ until the underlying Activity/Pressure semantic findings are settled.
 
 The source-purpose contracts are `TrackingPurposeAvailabilityReader`,
 `TrackingPurposeAvailabilityReporter` and `AmbientSourceReconciliationCallback`. Their safe
-default is explicitly unavailable while retention policy is unapproved. Only actual lifecycle
-reconciliation may publish availability; settings/metadata cannot manufacture provider readiness.
+ambient default and freshness contract are under correction: missing reconciliation cannot
+establish a factual retention failure. Only actual lifecycle reconciliation may publish
+version-fenced availability; settings/metadata cannot manufacture provider readiness.
 No schema generation, compilation, test, emulator, CI, push or activation has occurred.
+
+### Adversarial blockers under active correction
+
+No blocked source input below is accepted for local `dev/v10` integration:
+
+- Purpose settings `2dd943bd3e`: ambient defaults falsely reported a retention-policy fact,
+  ordinary cold start could leave old automatic control registered, durable purpose mutation and
+  availability tuples were too permissive, and the report contract lacked freshness identity.
+  The owner is correcting pending status, explicit automatic cleanup, source/purpose constraints,
+  validated mechanism/reason combinations and versioned publication contracts.
+- Pressure files `c57f70f45`: deterministic format errors retried as I/O and lost committed-prefix
+  counts; JSON token limits followed allocation; export totals followed deep copy. The owner is
+  correcting exception classification, pre-materialization lexical bounds and aggregate preflight,
+  with exact-boundary/rehashed/reparenting/real-runner regression sources.
+- Activity actions `bd5ce4eecd`: a production cross-module internal call, missing imported
+  service-run scope fences, malformed-file retries, lost partial-blocked progress and a destructive
+  cap-plus-one operation remain under correction. Source scope fences must survive full clear.
+- Ambient import `876ca17547`: nested helper declarations, structural-day and full-clear
+  resurrection, incomplete consent-reset state, receipt/native/retraction namespace holes,
+  post-insert limits, accumulated lineages, portable-partial promotion and corruption classified
+  as retryable storage all require correction. The owner is working in the dependent
+  `codex/ti-ambient-steps-product-20260915` worktree; the original review input is preserved.
+- Location handoff `e9682e1998b24ffa5b4d31d91ddd3204697e937e`: ordinary writes bypassed the
+  owner fence, raw repair misclassified control/legacy evidence, replay borrowed current
+  curation policy, inactive-run replay could stall, endpoints lacked proof, callback wall time was
+  fabricated and stored receipt matching was incomplete. These are implementation blockers, not
+  deferred runtime evidence. The owner must also author the complete real WAL-to-existing-writer
+  chain rather than two disconnected fake-qualified halves.
+- Cell product `f4d4d1b266014dd4bb5aff2d49899c04f0dadb5a`: local opaque lookup could switch
+  logical scope, impossible no-op revisions authenticated, portable completeness rejected valid
+  sequence zero, corrupt imported candidates lost known origin collisions, and repeated ownership
+  scans created query fan-out. The input is frozen in a separate read-only review worktree while
+  the source owner corrects it alongside bounded range and exact selected-deletion work.
+- Selected detail now has correction `d2aac46d7f6e247c1637f6f5e12a4f6d4f2c3136`, under
+  focused review for the four previously reported truthfulness/fixture/transition issues.
+
+Runtime settlement source `75d07dcd19780f3bb0968355be248424d91453ac`,
+Pressure barrier `fa61913cdecff7bf66e0e11381024bc0ce6ca342`, and Location adapter
+`410d26e28c648b5a35a17c024f2c1f8b63339314` are under independent static review. Proposed
+rearm binding/owner constants must match actual writer, entity and reader support, including
+repeat cycles; adding constants alone cannot make a lane executable.
+
+The dependent Ambient Steps product/numeric work composes native/imported/session/between-session
+facts through a source-specific public read interface and existing numeric consumers. It does not
+supersede the blocked portable prerequisite. The Cell owner similarly continues range/selected
+deletion without treating its blocked initial product input as accepted. All corrective work
+remains **IMPLEMENTATION_ONLY / IMPLEMENTED_UNVALIDATED**.
 
 ## Locally integrated receiving seam wave - IMPLEMENTED_UNVALIDATED
 
