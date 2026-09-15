@@ -211,6 +211,8 @@ class RoomDeleteSelectedImportedCell internal constructor(
 		val deletionReceipt = ImportedCellEntryDeletionReceiptEntity.create(
 			entryDeletion = entryDeletion,
 			deletedContentChecksum = request.expectedContentChecksum.value,
+			sessionMode = latest.header.sessionMode,
+			subscriptionGrouping = latest.header.subscriptionGrouping,
 			startTimeMs = latest.header.startTimeMs,
 			endTimeMs = latest.header.endTimeMs,
 			receivedAtMs = latest.header.receivedAtMs,
@@ -358,28 +360,55 @@ class RoomDeleteSelectedImportedCell internal constructor(
 			entryIdentity,
 			entryIdentity,
 			ImportedCellDeletedIdentityEntity.ENTRY,
+			contentChecksum = lineage.revisions.last().entry.contentChecksum.value,
 		))
+		val latestRevision = lineage.revisions.last()
 		lineage.revisions.forEach { revision ->
 			revision.entry.runs.forEach { run ->
+				val latestRun = latestRevision.entry.runs.singleOrNull {
+					it.identity == run.identity
+				}
 				bind(ImportedCellDeletedIdentityEntity.create(
 					run.identity.value,
 					entryIdentity,
 					ImportedCellDeletedIdentityEntity.RUN,
 					run.identity.value,
+					deletionScopeDigest = run.deletionScopeDigest.value,
+					runStartTimeMs = run.startTimeMs,
+					runEndTimeMs = run.endTimeMs,
+					contentChecksum = latestRun?.contentChecksum?.value ?: run.contentChecksum.value,
+					includedInLatest = latestRun != null,
+					captureCoverage = run.captureCoverage.name,
+					availability = run.availability.name,
+					acquisitionCompleteness = run.acquisitionCompleteness.name,
+					retentionLoss = run.retentionLoss,
+					subscriptionGrouping = run.subscriptionGrouping.name,
 				))
 				bind(ImportedCellDeletedIdentityEntity.create(
 					run.deletionScopeDigest.value,
 					entryIdentity,
 					ImportedCellDeletedIdentityEntity.DELETION_SCOPE,
 					run.identity.value,
+					deletionScopeDigest = run.deletionScopeDigest.value,
+					includedInLatest = latestRun != null,
 				))
 				run.observations.forEach { observation ->
+					val latestObservation = latestRun?.observations?.singleOrNull {
+						it.identity == observation.identity
+					}
+					val latestOrdinal = latestRun?.observations?.indexOfFirst {
+						it.identity == observation.identity
+					}?.takeIf { it >= 0 }
 					bind(ImportedCellDeletedIdentityEntity.create(
 						observation.identity.value,
 						entryIdentity,
 						ImportedCellDeletedIdentityEntity.OBSERVATION,
 						run.identity.value,
 						observation.aggregateOwnerIdentity?.value,
+						contentChecksum =
+						latestObservation?.contentChecksum?.value ?: observation.contentChecksum.value,
+						includedInLatest = latestObservation != null,
+						observationOrdinal = latestOrdinal,
 					))
 				}
 			}
@@ -455,6 +484,9 @@ suspend fun AppDatabase.authenticateDeletedImportedCellSelectionInTransaction(
 ): DeletedImportedCellSelectionAuthentication {
 	val state = sourceEvidenceStateDao().get()
 		?: return DeletedImportedCellSelectionAuthentication.Unverifiable
+	if (!state.hasValidDeletedCellAuthorityShape()) {
+		return DeletedImportedCellSelectionAuthentication.Unverifiable
+	}
 	val dao = importedCellDao()
 	val deletion = dao.entryDeletion(identity.value)
 	val receipt = dao.entryDeletionReceipt(identity.value)
@@ -471,9 +503,8 @@ suspend fun AppDatabase.authenticateDeletedImportedCellSelectionInTransaction(
 		dao.allRunsForAdmission(identity.value).isNotEmpty() ||
 		dao.allObservationsForAdmission(identity.value).isNotEmpty()
 	) return DeletedImportedCellSelectionAuthentication.Unverifiable
-	if (receipt.deletedImportRevision != expectedImportRevision ||
+	val staleSelection = receipt.deletedImportRevision != expectedImportRevision ||
 		receipt.deletedContentChecksum != expectedContentChecksum.value
-	) return DeletedImportedCellSelectionAuthentication.Stale
 	val markers = dao.deletedIdentitiesForEntry(
 		identity.value,
 		receipt.expectedProtectedIdentityCount + 1,
@@ -503,6 +534,9 @@ suspend fun AppDatabase.authenticateDeletedImportedCellSelectionInTransaction(
 				it.collectedDataEpoch != state.collectedDataEpoch || it.generation != 1L
 		}
 	) return DeletedImportedCellSelectionAuthentication.Unverifiable
+	if (!hasValidDeletedCellTopology(deletion, receipt, markers, runMarkers)) {
+		return DeletedImportedCellSelectionAuthentication.Unverifiable
+	}
 	for (identities in markerByIdentity.keys.chunked(ImportedCellDao.MAX_IDENTITY_QUERY_CHUNK)) {
 		val limit = identities.size + 1
 		if (dao.existingEntryIdentities(identities, limit).isNotEmpty() ||
@@ -535,7 +569,14 @@ suspend fun AppDatabase.authenticateDeletedImportedCellSelectionInTransaction(
 		com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity.SOURCE_CELL,
 		liveLimit,
 	)
-	if (listOf(logicalIds.size, liveRuns.size, liveFacts.size, liveCompleteness.size).any {
+	val liveGenerations = dao.liveCellDeletionGenerations(liveLimit)
+	if (listOf(
+			logicalIds.size,
+			liveRuns.size,
+			liveFacts.size,
+			liveCompleteness.size,
+			liveGenerations.size,
+		).any {
 			it > ImportedCellDao.MAX_LIVE_OWNER_ROWS
 		}
 	) return DeletedImportedCellSelectionAuthentication.Unverifiable
@@ -628,5 +669,225 @@ suspend fun AppDatabase.authenticateDeletedImportedCellSelectionInTransaction(
 			)
 		) return DeletedImportedCellSelectionAuthentication.Unverifiable
 	}
-	return DeletedImportedCellSelectionAuthentication.Exact(receipt)
+	val scopeMarkers = markers.filter {
+		it.identityKind == ImportedCellDeletedIdentityEntity.DELETION_SCOPE
+	}.associateBy(ImportedCellDeletedIdentityEntity::protectedIdentity)
+	val relevantLiveGenerations = linkedMapOf<String, Long>()
+	for (generation in liveGenerations) {
+		if (generation.collectedDataEpoch != state.collectedDataEpoch ||
+			generation.logicalTrackingId.isBlank() || generation.serviceRunId.isBlank() ||
+			generation.generation <= 0L
+		) return DeletedImportedCellSelectionAuthentication.Unverifiable
+		val entryIdentity = PortableCellOpaqueIdentity.derive(
+			PortableCellIdentityKind.LOGICAL_ENTRY,
+			generation.logicalTrackingId,
+		).value
+		val runIdentity = PortableCellOpaqueIdentity.derive(
+			PortableCellIdentityKind.PHYSICAL_RUN,
+			generation.serviceRunId,
+		).value
+		val scope = PortableCellDeletionScopeDigest.derive(
+			generation.logicalTrackingId,
+			generation.serviceRunId,
+		).value
+		if (listOf(entryIdentity, runIdentity, scope).none(markerByIdentity::containsKey)) continue
+		val runMarker = markerByIdentity[runIdentity]
+		val scopeMarker = scopeMarkers[scope]
+		if (runMarker == null || scopeMarker == null ||
+			runMarker.identityKind != ImportedCellDeletedIdentityEntity.RUN ||
+			runMarker.entryIdentity != entryIdentity ||
+			runMarker.deletionScopeDigest != scope ||
+			scopeMarker.entryIdentity != entryIdentity ||
+			scopeMarker.runIdentity != runIdentity ||
+			relevantLiveGenerations.put(scope, generation.generation) != null
+		) return DeletedImportedCellSelectionAuthentication.Unverifiable
+	}
+	val selectedScopes = scopeMarkers.keys.toList()
+	val sourceFences = selectedScopes.chunked(ImportedCellDao.MAX_IDENTITY_QUERY_CHUNK)
+		.flatMap { scopes -> dao.sourceFenceOwners(scopes, scopes.size + 1) }
+	if (sourceFences.distinctBy { it.scopeIdentityDigest }.size != sourceFences.size ||
+		sourceFences.any { fence ->
+			fence.scopeIdentityDigest !in scopeMarkers ||
+				fence.sourceKind !=
+				com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity.SOURCE_CELL ||
+				fence.purpose !=
+				com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode.SESSION_CAPTURE ||
+				fence.scopeKind !=
+				com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+					.SCOPE_LOGICAL_SERVICE_RUN ||
+				fence.collectedDataEpoch != state.collectedDataEpoch || fence.fenceGeneration <= 0L
+		}
+	) return DeletedImportedCellSelectionAuthentication.Unverifiable
+	val fenceGenerations = sourceFences.associate {
+		it.scopeIdentityDigest to it.fenceGeneration
+	}
+	if (fenceGenerations != relevantLiveGenerations) {
+		return DeletedImportedCellSelectionAuthentication.Unverifiable
+	}
+	return if (staleSelection) {
+		DeletedImportedCellSelectionAuthentication.Stale
+	} else {
+		DeletedImportedCellSelectionAuthentication.Exact(receipt)
+	}
+}
+
+private fun SourceEvidenceState.hasValidDeletedCellAuthorityShape(): Boolean =
+	id == SourceEvidenceState.SINGLETON_ID && revision >= 0L && collectedDataEpoch >= 0L &&
+		retainedFromMs?.let { it >= 0L } != false && deletedSourceEventHighWaterOrdinal >= 0L &&
+		updatedAtMs >= 0L
+
+private fun hasValidDeletedCellTopology(
+	deletion: ImportedCellEntryDeletionEntity,
+	receipt: ImportedCellEntryDeletionReceiptEntity,
+	markers: List<ImportedCellDeletedIdentityEntity>,
+	runDeletions: List<ImportedCellDeletionGenerationEntity>,
+): Boolean {
+	if (deletion.deletedAtMs != receipt.deletedAtMs) return false
+	val entry = markers.filter {
+		it.identityKind == ImportedCellDeletedIdentityEntity.ENTRY
+	}.singleOrNull() ?: return false
+	if (entry.protectedIdentity != receipt.entryIdentity || entry.entryIdentity != receipt.entryIdentity) {
+		return false
+	}
+	val runs = markers.filter {
+		it.identityKind == ImportedCellDeletedIdentityEntity.RUN
+	}
+	val scopes = markers.filter {
+		it.identityKind == ImportedCellDeletedIdentityEntity.DELETION_SCOPE
+	}
+	val observations = markers.filter {
+		it.identityKind == ImportedCellDeletedIdentityEntity.OBSERVATION
+	}
+	if (runs.size != receipt.expectedRunCount || scopes.size != receipt.expectedRunCount ||
+		observations.isEmpty() || observations.size > receipt.expectedObservationCount ||
+		runs.map { it.protectedIdentity }.distinct().size != runs.size ||
+		scopes.map { it.protectedIdentity }.distinct().size != scopes.size ||
+		markers.singleOrNull {
+			it.identityKind == ImportedCellDeletedIdentityEntity.ENTRY
+		}?.contentChecksum != receipt.deletedContentChecksum
+	) return false
+	val runByIdentity = runs.associateBy(ImportedCellDeletedIdentityEntity::protectedIdentity)
+	val scopeByRun = scopes.groupBy(ImportedCellDeletedIdentityEntity::runIdentity)
+	if (runs.any { run ->
+			run.entryIdentity != receipt.entryIdentity ||
+				run.runIdentity != run.protectedIdentity ||
+				run.deletionScopeDigest == null ||
+				scopeByRun[run.protectedIdentity].orEmpty().singleOrNull()?.let { scope ->
+					scope.entryIdentity == receipt.entryIdentity &&
+						scope.protectedIdentity == run.deletionScopeDigest &&
+						scope.deletionScopeDigest == run.deletionScopeDigest
+				} != true
+		}
+	) return false
+	if (runs.minOf { requireNotNull(it.runStartTimeMs) } != receipt.startTimeMs ||
+		runs.maxOf { requireNotNull(it.runEndTimeMs) } != receipt.endTimeMs
+	) return false
+	if (runs.any { run ->
+			run.contentChecksum == null || !run.includedInLatest
+		} || scopes.any { !it.includedInLatest }
+	) return false
+	if (observations.any { observation ->
+			val parent = observation.runIdentity?.let(runByIdentity::get) ?: return@any true
+			if (parent.entryIdentity != observation.entryIdentity) return@any true
+			if (observation.contentChecksum == null) return@any true
+			val ownerIdentity = observation.aggregateOwnerIdentity ?: return@any false
+			val owner = markers.singleOrNull {
+				it.protectedIdentity == ownerIdentity &&
+					it.identityKind == ImportedCellDeletedIdentityEntity.OBSERVATION
+			} ?: return@any true
+			owner.runIdentity != observation.runIdentity ||
+				owner.entryIdentity != observation.entryIdentity ||
+				owner.aggregateOwnerIdentity != null
+		}
+	) return false
+	val latestRuns = runs.map { run ->
+		val latestObservations = observations.filter {
+			it.runIdentity == run.protectedIdentity && it.includedInLatest
+		}.sortedBy(ImportedCellDeletedIdentityEntity::protectedIdentity)
+		val expectedRunChecksum = deletedCellRunChecksum(run, latestObservations) ?: return false
+		if (expectedRunChecksum != run.contentChecksum) return false
+		run to latestObservations
+	}
+	val expectedEntryChecksum = deletedCellEntryChecksum(receipt, latestRuns) ?: return false
+	if (expectedEntryChecksum != receipt.deletedContentChecksum) return false
+	val deletionByRun = runDeletions.associateBy(ImportedCellDeletionGenerationEntity::runIdentity)
+	if (deletionByRun.size != receipt.expectedRunCount ||
+		deletionByRun.keys != runByIdentity.keys ||
+		runDeletions.any { marker ->
+			val run = runByIdentity[marker.runIdentity] ?: return@any true
+			marker.entryIdentity != receipt.entryIdentity ||
+				marker.deletionScopeDigest != run.deletionScopeDigest ||
+				marker.collectedDataEpoch != receipt.collectedDataEpoch ||
+				marker.generation != 1L || marker.deletedAtMs != receipt.deletedAtMs
+		}
+	) return false
+	return true
+}
+
+private fun deletedCellRunChecksum(
+	run: ImportedCellDeletedIdentityEntity,
+	observations: List<ImportedCellDeletedIdentityEntity>,
+): String? {
+	val identity = run.runIdentity ?: return null
+	val scope = run.deletionScopeDigest ?: return null
+	val start = run.runStartTimeMs ?: return null
+	val end = run.runEndTimeMs ?: return null
+	val ordered = observations.sortedBy { it.observationOrdinal }
+	if (ordered.map { it.observationOrdinal } != ordered.indices.toList()) return null
+	return portableCellChecksum("tracker-portable-cell-run-v1") {
+		writeCellString(identity)
+		writeCellString(scope)
+		writeLong(start)
+		writeLong(end)
+		writeCellString(run.captureCoverage)
+		writeCellString(run.availability)
+		writeCellString(run.acquisitionCompleteness)
+		writeBoolean(requireNotNull(run.retentionLoss))
+		writeCellString(run.subscriptionGrouping)
+		writeInt(ordered.size)
+		ordered.forEach { observation ->
+			writeCellString(observation.protectedIdentity)
+			writeCellString(requireNotNull(observation.contentChecksum))
+		}
+	}
+}
+
+private fun deletedCellEntryChecksum(
+	receipt: ImportedCellEntryDeletionReceiptEntity,
+	runs: List<Pair<ImportedCellDeletedIdentityEntity, List<ImportedCellDeletedIdentityEntity>>>,
+): String? = portableCellChecksum("tracker-portable-cell-entry-v1") {
+	writeCellString(CellCapturedPortableFormatV1.FORMAT)
+	writeInt(CellCapturedPortableFormatV1.SCHEMA_VERSION)
+	writeCellString(receipt.entryIdentity)
+	writeCellString(receipt.sessionMode)
+	writeLong(receipt.startTimeMs)
+	writeLong(receipt.endTimeMs)
+	writeCellString(receipt.subscriptionGrouping)
+	writeInt(runs.size)
+	runs.sortedWith(compareBy({ requireNotNull(it.first.runStartTimeMs) }, {
+		requireNotNull(it.first.runIdentity)
+	})).forEach { (run, _) ->
+		writeCellString(requireNotNull(run.runIdentity))
+		writeCellString(requireNotNull(run.contentChecksum))
+	}
+}
+
+private fun portableCellChecksum(
+	namespace: String,
+	body: java.io.DataOutputStream.() -> Unit,
+): String {
+	val bytes = java.io.ByteArrayOutputStream().use { buffer ->
+		java.io.DataOutputStream(buffer).use { output ->
+			output.writeUTF(namespace)
+			output.body()
+		}
+		buffer.toByteArray()
+	}
+	return java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
+		.joinToString(separator = "") { byte -> "%02x".format(byte) }
+}
+
+private fun java.io.DataOutputStream.writeCellString(value: String?) {
+	writeBoolean(value != null)
+	if (value != null) writeUTF(value)
 }

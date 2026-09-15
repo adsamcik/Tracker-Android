@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.base.database.data
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.ForeignKey
 import androidx.room.Index
 import java.security.MessageDigest
 
@@ -320,6 +321,259 @@ data class CellCaptureDeletionGenerationEntity(
 		require(collectedDataEpoch >= 0L && generation > 0L && updatedAtMs >= 0L)
 	}
 }
+
+/** Value-free local selected-entry deletion receipt retained after presentation removal. */
+@Entity(
+	tableName = "cell_captured_entry_deletion_receipt",
+	primaryKeys = ["logical_tracking_id"],
+	indices = [Index(
+		value = ["entry_identity"],
+		unique = true,
+		name = "idx_cell_captured_entry_deletion_identity",
+	)],
+)
+data class CellCapturedEntryDeletionReceiptEntity(
+	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String,
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String,
+	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	@ColumnInfo(name = "expected_run_count") val expectedRunCount: Int,
+	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
+	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
+	@ColumnInfo(name = "run_footprint_set_checksum") val runFootprintSetChecksum: String,
+	@ColumnInfo(name = "deleted_at_ms") val deletedAtMs: Long,
+	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
+) {
+	init {
+		require(logicalTrackingId.isNotBlank())
+		require(CELL_DELETION_SHA_256.matches(entryIdentity))
+		require(collectedDataEpoch >= 0L && expectedRunCount in 1..MAX_RUNS)
+		require(startTimeMs >= 0L && endTimeMs >= startTimeMs && deletedAtMs >= 0L)
+		require(CELL_DELETION_SHA_256.matches(runFootprintSetChecksum))
+		require(effectChecksum == checksum(
+			logicalTrackingId,
+			entryIdentity,
+			collectedDataEpoch,
+			expectedRunCount,
+			startTimeMs,
+			endTimeMs,
+			runFootprintSetChecksum,
+			deletedAtMs,
+		))
+	}
+
+	companion object {
+		const val MAX_RUNS = 128
+
+		fun create(
+			logicalTrackingId: String,
+			entryIdentity: String,
+			collectedDataEpoch: Long,
+			runFootprints: List<CellCapturedDeletedRunEntity>,
+			deletedAtMs: Long,
+		): CellCapturedEntryDeletionReceiptEntity {
+			require(runFootprints.isNotEmpty() && runFootprints.size <= MAX_RUNS)
+			require(runFootprints.all {
+				it.logicalTrackingId == logicalTrackingId &&
+					it.collectedDataEpoch == collectedDataEpoch && it.deletedAtMs == deletedAtMs
+			})
+			val runChecksum = checksumRunFootprints(runFootprints)
+			val start = runFootprints.minOf(CellCapturedDeletedRunEntity::startTimeMs)
+			val end = runFootprints.maxOf(CellCapturedDeletedRunEntity::endTimeMs)
+			return CellCapturedEntryDeletionReceiptEntity(
+				logicalTrackingId,
+				entryIdentity,
+				collectedDataEpoch,
+				runFootprints.size,
+				start,
+				end,
+				runChecksum,
+				deletedAtMs,
+				checksum(
+					logicalTrackingId,
+					entryIdentity,
+					collectedDataEpoch,
+					runFootprints.size,
+					start,
+					end,
+					runChecksum,
+					deletedAtMs,
+				),
+			)
+		}
+
+		fun checksumRunFootprints(values: List<CellCapturedDeletedRunEntity>): String =
+			cellDeletionDigest(
+				"cell-captured-deleted-run-set-v1",
+				*values.sortedWith(
+					compareBy(CellCapturedDeletedRunEntity::startTimeMs)
+						.thenBy(CellCapturedDeletedRunEntity::sessionSegmentId)
+						.thenBy(CellCapturedDeletedRunEntity::serviceRunId),
+				).flatMap { value ->
+					listOf(
+						value.logicalTrackingId,
+						value.serviceRunId,
+						value.sessionSegmentId,
+						value.scopeIdentityDigest,
+						value.startTimeMs,
+						value.endTimeMs,
+						value.collectedDataEpoch,
+						value.generation,
+						value.deletedAtMs,
+						value.effectChecksum,
+					)
+				}.toTypedArray(),
+			)
+
+		private fun checksum(
+			logicalTrackingId: String,
+			entryIdentity: String,
+			collectedDataEpoch: Long,
+			expectedRunCount: Int,
+			startTimeMs: Long,
+			endTimeMs: Long,
+			runFootprintSetChecksum: String,
+			deletedAtMs: Long,
+		): String = cellDeletionDigest(
+			"cell-captured-entry-deletion-receipt-v1",
+			logicalTrackingId,
+			entryIdentity,
+			collectedDataEpoch,
+			expectedRunCount,
+			startTimeMs,
+			endTimeMs,
+			runFootprintSetChecksum,
+			deletedAtMs,
+		)
+	}
+}
+
+/** Exact local physical owner retained without payload or presentation values. */
+@Entity(
+	tableName = "cell_captured_deleted_run",
+	primaryKeys = ["logical_tracking_id", "service_run_id"],
+	foreignKeys = [ForeignKey(
+		entity = CellCapturedEntryDeletionReceiptEntity::class,
+		parentColumns = ["logical_tracking_id"],
+		childColumns = ["logical_tracking_id"],
+		onDelete = ForeignKey.CASCADE,
+	)],
+	indices = [
+		Index(
+			value = ["session_segment_id"],
+			unique = true,
+			name = "idx_cell_captured_deleted_run_segment",
+		),
+		Index(
+			value = ["scope_identity_digest"],
+			unique = true,
+			name = "idx_cell_captured_deleted_run_scope",
+		),
+	],
+)
+data class CellCapturedDeletedRunEntity(
+	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String,
+	@ColumnInfo(name = "service_run_id") val serviceRunId: String,
+	@ColumnInfo(name = "session_segment_id") val sessionSegmentId: Long,
+	@ColumnInfo(name = "scope_identity_digest") val scopeIdentityDigest: String,
+	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
+	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
+	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	val generation: Long,
+	@ColumnInfo(name = "deleted_at_ms") val deletedAtMs: Long,
+	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
+) {
+	init {
+		require(logicalTrackingId.isNotBlank() && serviceRunId.isNotBlank())
+		require(sessionSegmentId > 0L && CELL_DELETION_SHA_256.matches(scopeIdentityDigest))
+		require(startTimeMs >= 0L && endTimeMs >= startTimeMs)
+		require(collectedDataEpoch >= 0L && generation == 1L && deletedAtMs >= 0L)
+		require(effectChecksum == checksum(
+			logicalTrackingId,
+			serviceRunId,
+			sessionSegmentId,
+			scopeIdentityDigest,
+			startTimeMs,
+			endTimeMs,
+			collectedDataEpoch,
+			generation,
+			deletedAtMs,
+		))
+	}
+
+	companion object {
+		fun create(
+			logicalTrackingId: String,
+			serviceRunId: String,
+			sessionSegmentId: Long,
+			startTimeMs: Long,
+			endTimeMs: Long,
+			collectedDataEpoch: Long,
+			deletedAtMs: Long,
+		): CellCapturedDeletedRunEntity {
+			val scope = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+				SourceDestinationOwnerEntity.SOURCE_CELL,
+				SessionManifestPurposeCode.SESSION_CAPTURE,
+				logicalTrackingId,
+				serviceRunId,
+			)
+			return CellCapturedDeletedRunEntity(
+				logicalTrackingId,
+				serviceRunId,
+				sessionSegmentId,
+				scope,
+				startTimeMs,
+				endTimeMs,
+				collectedDataEpoch,
+				1L,
+				deletedAtMs,
+				checksum(
+					logicalTrackingId,
+					serviceRunId,
+					sessionSegmentId,
+					scope,
+					startTimeMs,
+					endTimeMs,
+					collectedDataEpoch,
+					1L,
+					deletedAtMs,
+				),
+			)
+		}
+
+		private fun checksum(
+			logicalTrackingId: String,
+			serviceRunId: String,
+			sessionSegmentId: Long,
+			scopeIdentityDigest: String,
+			startTimeMs: Long,
+			endTimeMs: Long,
+			collectedDataEpoch: Long,
+			generation: Long,
+			deletedAtMs: Long,
+		): String = cellDeletionDigest(
+			"cell-captured-deleted-run-v1",
+			logicalTrackingId,
+			serviceRunId,
+			sessionSegmentId,
+			scopeIdentityDigest,
+			startTimeMs,
+			endTimeMs,
+			collectedDataEpoch,
+			generation,
+			deletedAtMs,
+		)
+	}
+}
+
+private fun cellDeletionDigest(namespace: String, vararg values: Any?): String {
+	val canonical = (listOf(namespace) + values.map { it?.toString() ?: "<null>" })
+		.joinToString(separator = "") { "${it.length}:$it" }
+	return MessageDigest.getInstance("SHA-256")
+		.digest(canonical.toByteArray(Charsets.UTF_8))
+		.joinToString(separator = "") { byte -> "%02x".format(byte) }
+}
+
+private val CELL_DELETION_SHA_256 = Regex("[0-9a-f]{64}")
 
 /** Complete retained-effect digest and stable identities for Cell fact revisions. */
 object CellCapturedFactRevisionIntegrity {

@@ -2,6 +2,7 @@ package com.adsamcik.tracker.stats.data.repository
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.DeletedCapturedCellSelectionAuthentication
 import com.adsamcik.tracker.shared.base.database.DeletedImportedCellSelectionAuthentication
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductEvaluation
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductReader
@@ -10,9 +11,11 @@ import com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind
 import com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity
 import com.adsamcik.tracker.shared.base.database.ReadLocalPortableCapturedCellResult
 import com.adsamcik.tracker.shared.base.database.authenticateDeletedImportedCellSelectionInTransaction
+import com.adsamcik.tracker.shared.base.database.authenticateDeletedCapturedCellSelectionInTransaction
 import com.adsamcik.tracker.shared.base.database.dao.CellLogicalHistoryCandidate
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -64,6 +67,7 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : CellHistoryRepository {
 	private val importedProductReader = ImportedCellProductReader(database)
+	private val rangeContinuationIssuer = Any()
 
 	override suspend fun detail(selection: CellHistoryEntrySelection): CellHistoryQuery =
 		when (selection) {
@@ -124,12 +128,29 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 						),
 					)
 				val seed = database.trackingHistoryReadDao().segments(listOf(segmentId)).singleOrNull()
-					?: return@withTransaction CellHistoryQuery.Found(
-						unverifiableLocalSelection(
-							selection,
-							CellHistoryCause.PHYSICAL_MEMBERSHIP_INVALID,
-						),
-					)
+					?: return@withTransaction when (
+						val deleted = try {
+							database.authenticateDeletedCapturedCellSelectionInTransaction(
+								logicalId,
+								PortableCellOpaqueIdentity(selection.identity.value),
+							)
+						} catch (_: RuntimeException) {
+							DeletedCapturedCellSelectionAuthentication.Unverifiable
+						}
+					) {
+						DeletedCapturedCellSelectionAuthentication.Absent ->
+							CellHistoryQuery.Found(unverifiableLocalSelection(
+								selection,
+								CellHistoryCause.PHYSICAL_MEMBERSHIP_INVALID,
+							))
+						DeletedCapturedCellSelectionAuthentication.Unverifiable ->
+							CellHistoryQuery.Found(unverifiableLocalSelection(
+								selection,
+								CellHistoryCause.FACT_INTEGRITY_FAILED,
+							))
+						is DeletedCapturedCellSelectionAuthentication.Exact ->
+							CellHistoryQuery.Found(deletedLocalSelection(selection, deleted.receipt))
+					}
 				if (seed.id != segmentId || seed.logicalTrackingId != logicalId ||
 					seed.serviceRunId != selectedRun.serviceRunId
 				) {
@@ -377,20 +398,29 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 		val continuation = request.continuation
 		if (continuation != null) {
 			if (continuation !is CellHistoryRangeContinuationSnapshot ||
-				continuation.scope != request.scope
+				continuation.scope != request.scope ||
+				continuation.issuer !== rangeContinuationIssuer
 			) {
 				return CellHistoryRangePage.Unavailable(
 					CellHistoryRangeUnavailableReason.INVALID_CONTINUATION,
 				)
 			}
-			return continuation.remaining.toRangePage(request.scope, request.limit)
+			return continuation.remaining.toRangePage(
+				request.scope,
+				request.limit,
+				rangeContinuationIssuer,
+			)
 		}
 		return withContext(ioDispatcher) {
 			val result = database.withTransaction { composeRange(request.scope) }
 			when (result) {
 				is CellHistoryRangeBuild.Failed -> CellHistoryRangePage.Failed(result.cause)
 				is CellHistoryRangeBuild.Ready ->
-					result.entries.toRangePage(request.scope, request.limit)
+					result.entries.toRangePage(
+						request.scope,
+						request.limit,
+						rangeContinuationIssuer,
+					)
 			}
 		}
 	}
@@ -431,9 +461,31 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 						.DEPENDENCY_OVERFLOW
 			}
 		) return CellHistoryRangeBuild.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+		val importedStructuralMemberships = if (scope is CellHistoryRangeScope.StructuralDays) {
+			val memberships = linkedMapOf<String, ImportedCellStructuralMembership?>()
+			for (evaluation in imported) {
+				when (evaluation) {
+					is ImportedCellProductEvaluation.Unverifiable ->
+						return CellHistoryRangeBuild.Failed(
+							CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
+						)
+					is ImportedCellProductEvaluation.Readable -> {
+						val membership = try {
+							evaluation.structuralMembership(scope)
+						} catch (_: RuntimeException) {
+							return CellHistoryRangeBuild.Failed(
+								CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
+							)
+						}
+						memberships[evaluation.candidate.identity] = membership
+					}
+				}
+			}
+			memberships
+		} else {
+			emptyMap()
+		}
 
-		val directLocalCollisionIds = imported.filter { it.localOriginHandle != null }
-			.mapTo(linkedSetOf()) { it.candidate.identity }
 		val directLocalCollisionIds = imported.filter { it.localOriginHandle != null }
 			.mapTo(linkedSetOf()) { it.candidate.identity }
 		val localCollisions = imported.filterIsInstance<ImportedCellProductEvaluation.Readable>()
@@ -466,7 +518,9 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 			return CellHistoryRangeBuild.Failed(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
 		}
 		return CellHistoryRangeBuild.Ready(
-			composed.mapNotNull { entry -> entry.toRangeEntry(scope) },
+			composed.mapNotNull { entry ->
+				entry.toRangeEntry(scope, importedStructuralMemberships)
+			},
 		)
 	}
 
@@ -521,6 +575,8 @@ internal class DefaultCellHistoryRepository @Inject constructor(
 		} catch (_: RuntimeException) {
 			return CellHistoryPage.Failed(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
 		}
+		val directLocalCollisionIds = imported.filter { it.localOriginHandle != null }
+			.mapTo(linkedSetOf()) { it.candidate.identity }
 		val localCollisions = imported.filterIsInstance<ImportedCellProductEvaluation.Readable>()
 			.filter { it.localOriginHandle != null }
 			.associateBy { it.candidate.identity }
@@ -936,6 +992,22 @@ private fun unverifiableLocalSelection(
 	selection = selection,
 )
 
+private fun deletedLocalSelection(
+	selection: LocalCellHistorySelection,
+	receipt: CellCapturedEntryDeletionReceiptEntity,
+) = CellHistoryEntry(
+	key = CellHistoryEntryKey("cell-local:${selection.identity.value}"),
+	startTime = EpochMs(receipt.startTimeMs),
+	endTime = EpochMs(receipt.endTimeMs),
+	storedZoneIds = emptySet(),
+	state = CellHistoryProductState.DELETED,
+	coverage = CellHistoryCoverage.NONE,
+	observations = emptyList(),
+	causes = setOf(CellHistoryCause.DELETED),
+	origin = CellHistoryOrigin.Local,
+	selection = selection,
+)
+
 private sealed interface CellHistoryRangeBuild {
 	data class Ready(val entries: List<CellHistoryRangeEntry>) : CellHistoryRangeBuild
 	data class Failed(val cause: CellHistoryCause) : CellHistoryRangeBuild
@@ -951,9 +1023,64 @@ private data class CellRangeQueryBounds(
 	val toExclusiveMs: Long,
 )
 
+private data class ImportedCellStructuralMembership(
+	val days: Set<CellHistoryStructuralDay>,
+	val completeness: CellHistoryStructuralDayCompleteness,
+)
+
+private fun ImportedCellProductEvaluation.Readable.structuralMembership(
+	scope: CellHistoryRangeScope.StructuralDays,
+): ImportedCellStructuralMembership? {
+	if (entryDeleted || retentionLimited) return null
+	val visibleRuns = entry.runs.filterNot { it.identity.value in deletedRunIdentities }
+	val days = linkedSetOf<CellHistoryStructuralDay>()
+	var ambiguous = false
+	val partial = deletedRunIdentities.isNotEmpty() || visibleRuns.any { it.retentionLoss }
+	for (observation in visibleRuns.flatMap { it.observations }) {
+		val earliest = minOf(
+			observation.coverageStartTimeMs,
+			Math.subtractExact(
+				observation.observedTimeMs,
+				observation.wallTimeUncertaintyMs,
+			),
+		)
+		val latest = Math.addExact(
+			observation.observedTimeMs,
+			observation.wallTimeUncertaintyMs,
+		)
+		val zone = ZoneId.of(observation.storedZoneId)
+		val firstObservationDay = Instant.ofEpochMilli(earliest)
+			.atZone(zone).toLocalDate().toEpochDay()
+		val lastObservationDay = Instant.ofEpochMilli(latest)
+			.atZone(zone).toLocalDate().toEpochDay()
+		if (lastObservationDay < firstObservationDay ||
+			lastObservationDay - firstObservationDay >= MAX_STRUCTURAL_DAYS_PER_RANGE_ENTRY
+		) throw ImportedCellHistoryCompositionFailure()
+		if (lastObservationDay > firstObservationDay) ambiguous = true
+		val firstIncluded = maxOf(firstObservationDay, scope.firstEpochDay)
+		val lastIncluded = minOf(lastObservationDay, scope.lastEpochDayInclusive)
+		if (lastIncluded < firstIncluded) continue
+		var epochDay = firstIncluded
+		while (epochDay <= lastIncluded) {
+			days += CellHistoryStructuralDay(epochDay, observation.storedZoneId)
+			if (epochDay == Long.MAX_VALUE) break
+			epochDay += 1L
+		}
+	}
+	if (days.isEmpty()) return null
+	val completeness = when {
+		partial -> CellHistoryStructuralDayCompleteness.PARTIAL
+		ambiguous && days.size > 1 -> CellHistoryStructuralDayCompleteness.AMBIGUOUS
+		ambiguous -> CellHistoryStructuralDayCompleteness.PARTIAL
+		else -> CellHistoryStructuralDayCompleteness.EXACT
+	}
+	return ImportedCellStructuralMembership(days, completeness)
+}
+
 private class CellHistoryRangeContinuationSnapshot(
 	val scope: CellHistoryRangeScope,
 	val remaining: List<CellHistoryRangeEntry>,
+	val issuer: Any,
 ) : CellHistoryRangeContinuation {
 	override fun toString(): String = "CellHistoryRangeContinuation"
 }
@@ -961,13 +1088,14 @@ private class CellHistoryRangeContinuationSnapshot(
 private fun List<CellHistoryRangeEntry>.toRangePage(
 	scope: CellHistoryRangeScope,
 	limit: Int,
+	issuer: Any,
 ): CellHistoryRangePage {
 	val page = take(limit)
 	val remaining = drop(limit)
 	return CellHistoryRangePage.Available(
 		entries = page,
 		continuation = remaining.takeIf(List<CellHistoryRangeEntry>::isNotEmpty)?.let {
-			CellHistoryRangeContinuationSnapshot(scope, it)
+			CellHistoryRangeContinuationSnapshot(scope, it, issuer)
 		},
 	)
 }
@@ -1010,14 +1138,27 @@ private fun List<CellLogicalHistoryCandidate>.hasValidRangeKeyset(
 
 private fun CellHistoryEntry.toRangeEntry(
 	scope: CellHistoryRangeScope,
+	importedStructuralMemberships: Map<String, ImportedCellStructuralMembership?>,
 ): CellHistoryRangeEntry? {
 	if (scope is CellHistoryRangeScope.WallTime &&
 		(startTime.raw >= scope.toExclusive.raw || endTime.raw <= scope.fromInclusive.raw)
 	) return null
+	if (scope is CellHistoryRangeScope.StructuralDays &&
+		origin is CellHistoryOrigin.Imported
+	) {
+		val identity = origin.selection.identity.value
+		if (!importedStructuralMemberships.containsKey(identity)) {
+			throw ImportedCellHistoryCompositionFailure()
+		}
+		val membership = importedStructuralMemberships[identity] ?: return null
+		return CellHistoryRangeEntry(
+			entry = this,
+			structuralDays = membership.days,
+			structuralDayCompleteness = membership.completeness,
+		)
+	}
 	if (observations.isEmpty()) {
-		return if (scope is CellHistoryRangeScope.WallTime ||
-			origin is CellHistoryOrigin.Imported
-		) {
+		return if (scope is CellHistoryRangeScope.WallTime) {
 			CellHistoryRangeEntry(
 				entry = this,
 				structuralDays = emptySet(),

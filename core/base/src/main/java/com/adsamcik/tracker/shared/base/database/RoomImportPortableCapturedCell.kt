@@ -80,9 +80,22 @@ class RoomImportPortableCapturedCell internal constructor(
 		authenticateRetention(entry, state.retainedFromMs)
 
 		val entryDeletion = storedValue { dao.entryDeletion(entry.identity.value) }
-		if (entryDeletion != null) {
-			if (entryDeletion.collectedDataEpoch != request.expectedCollectedDataEpoch) storedCorrupt()
-			blocked(PortableCellImportBlockedReason.DELETED_ENTRY)
+		val deletionReceipt = storedValue { dao.entryDeletionReceipt(entry.identity.value) }
+		if (entryDeletion != null || deletionReceipt != null) {
+			when (storedValue {
+				database.authenticateDeletedImportedCellSelectionInTransaction(
+					entry.identity,
+					1L,
+					entry.contentChecksum,
+				)
+			}) {
+				is DeletedImportedCellSelectionAuthentication.Exact,
+				DeletedImportedCellSelectionAuthentication.Stale,
+				-> blocked(PortableCellImportBlockedReason.DELETED_ENTRY)
+				DeletedImportedCellSelectionAuthentication.Absent,
+				DeletedImportedCellSelectionAuthentication.Unverifiable,
+				-> storedCorrupt()
+			}
 		}
 
 		val candidateIdentity = IncomingCellIdentityGraph(entry)
@@ -606,7 +619,8 @@ private fun ImportedCellDeletedIdentityEntity.matches(
 	ImportedCellDeletedIdentityEntity.RUN ->
 		runIdentity == protectedIdentity &&
 			graph.kinds[protectedIdentity] == PortableCellIdentityKind.PHYSICAL_RUN &&
-			graph.runOwners[protectedIdentity]?.first == entryIdentity
+			graph.runOwners[protectedIdentity] ==
+			(entryIdentity to requireNotNull(deletionScopeDigest))
 	ImportedCellDeletedIdentityEntity.OBSERVATION ->
 		graph.observationOwners[protectedIdentity] == IncomingObservationOwner(
 			entryIdentity,
@@ -614,7 +628,8 @@ private fun ImportedCellDeletedIdentityEntity.matches(
 			aggregateOwnerIdentity,
 		)
 	ImportedCellDeletedIdentityEntity.DELETION_SCOPE ->
-		graph.scopeOwners[protectedIdentity] == (entryIdentity to requireNotNull(runIdentity))
+		deletionScopeDigest == protectedIdentity &&
+			graph.scopeOwners[protectedIdentity] == (entryIdentity to requireNotNull(runIdentity))
 	else -> false
 }
 

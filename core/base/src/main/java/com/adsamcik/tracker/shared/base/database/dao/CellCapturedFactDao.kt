@@ -8,6 +8,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedDeletedRunEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -24,6 +26,29 @@ data class CellWalMaintenanceKey(
 /** Narrow source-local persistence boundary for dormant captured Cell facts. */
 @Dao
 interface CellCapturedFactDao {
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	suspend fun insertEntryDeletionReceipt(receipt: CellCapturedEntryDeletionReceiptEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	suspend fun insertDeletedRuns(runs: List<CellCapturedDeletedRunEntity>)
+
+	@Query(
+		"SELECT * FROM cell_captured_entry_deletion_receipt " +
+			"WHERE logical_tracking_id = :logicalTrackingId LIMIT 1",
+	)
+	suspend fun entryDeletionReceipt(
+		logicalTrackingId: String,
+	): CellCapturedEntryDeletionReceiptEntity?
+
+	@Query(
+		"SELECT * FROM cell_captured_deleted_run WHERE logical_tracking_id = :logicalTrackingId " +
+			"ORDER BY start_time_ms, session_segment_id, service_run_id LIMIT :limit",
+	)
+	suspend fun deletedRuns(
+		logicalTrackingId: String,
+		limit: Int,
+	): List<CellCapturedDeletedRunEntity>
+
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertRevision(entity: CellCapturedFactRevisionEntity): Long
 

@@ -395,6 +395,8 @@ data class ImportedCellEntryDeletionReceiptEntity(
 	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
 	@ColumnInfo(name = "deleted_import_revision") val deletedImportRevision: Long,
 	@ColumnInfo(name = "deleted_content_checksum") val deletedContentChecksum: String,
+	@ColumnInfo(name = "session_mode") val sessionMode: String,
+	@ColumnInfo(name = "subscription_grouping") val subscriptionGrouping: String,
 	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
 	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
 	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
@@ -416,6 +418,8 @@ data class ImportedCellEntryDeletionReceiptEntity(
 			effectChecksum,
 		).forEach { require(ImportedCellIdentity.isDigest(it)) }
 		require(collectedDataEpoch >= 0L && deletedImportRevision > 0L)
+		require(sessionMode == "MANUAL" || sessionMode == "AUTOMATIC")
+		require(subscriptionGrouping == "UNKNOWN")
 		require(startTimeMs >= 0L && endTimeMs >= startTimeMs && receivedAtMs >= 0L)
 		require(retainedFromMs?.let { it >= 0L } != false)
 		require(expectedRevisionCount in 1..MAX_REVISIONS)
@@ -428,6 +432,8 @@ data class ImportedCellEntryDeletionReceiptEntity(
 			collectedDataEpoch,
 			deletedImportRevision,
 			deletedContentChecksum,
+			sessionMode,
+			subscriptionGrouping,
 			startTimeMs,
 			endTimeMs,
 			receivedAtMs,
@@ -452,6 +458,8 @@ data class ImportedCellEntryDeletionReceiptEntity(
 		fun create(
 			entryDeletion: ImportedCellEntryDeletionEntity,
 			deletedContentChecksum: String,
+			sessionMode: String,
+			subscriptionGrouping: String,
 			startTimeMs: Long,
 			endTimeMs: Long,
 			receivedAtMs: Long,
@@ -468,6 +476,8 @@ data class ImportedCellEntryDeletionReceiptEntity(
 				entryDeletion.collectedDataEpoch,
 				entryDeletion.deletedImportRevision,
 				deletedContentChecksum,
+				sessionMode,
+				subscriptionGrouping,
 				startTimeMs,
 				endTimeMs,
 				receivedAtMs,
@@ -485,6 +495,8 @@ data class ImportedCellEntryDeletionReceiptEntity(
 				collectedDataEpoch = entryDeletion.collectedDataEpoch,
 				deletedImportRevision = entryDeletion.deletedImportRevision,
 				deletedContentChecksum = deletedContentChecksum,
+				sessionMode = sessionMode,
+				subscriptionGrouping = subscriptionGrouping,
 				startTimeMs = startTimeMs,
 				endTimeMs = endTimeMs,
 				receivedAtMs = receivedAtMs,
@@ -514,6 +526,17 @@ data class ImportedCellEntryDeletionReceiptEntity(
 					value.identityKind,
 					value.runIdentity,
 					value.aggregateOwnerIdentity,
+					value.deletionScopeDigest,
+					value.runStartTimeMs,
+					value.runEndTimeMs,
+					value.contentChecksum,
+					value.includedInLatest,
+					value.observationOrdinal,
+					value.captureCoverage,
+					value.availability,
+					value.acquisitionCompleteness,
+					value.retentionLoss,
+					value.subscriptionGrouping,
 					value.effectChecksum,
 				)
 			}.toTypedArray(),
@@ -525,6 +548,8 @@ data class ImportedCellEntryDeletionReceiptEntity(
 			collectedDataEpoch: Long,
 			deletedImportRevision: Long,
 			deletedContentChecksum: String,
+			sessionMode: String,
+			subscriptionGrouping: String,
 			startTimeMs: Long,
 			endTimeMs: Long,
 			receivedAtMs: Long,
@@ -542,6 +567,8 @@ data class ImportedCellEntryDeletionReceiptEntity(
 			collectedDataEpoch,
 			deletedImportRevision,
 			deletedContentChecksum,
+			sessionMode,
+			subscriptionGrouping,
 			startTimeMs,
 			endTimeMs,
 			receivedAtMs,
@@ -575,6 +602,17 @@ data class ImportedCellDeletedIdentityEntity(
 	@ColumnInfo(name = "identity_kind") val identityKind: String,
 	@ColumnInfo(name = "run_identity") val runIdentity: String?,
 	@ColumnInfo(name = "aggregate_owner_identity") val aggregateOwnerIdentity: String?,
+	@ColumnInfo(name = "content_checksum") val contentChecksum: String?,
+	@ColumnInfo(name = "included_in_latest") val includedInLatest: Boolean,
+	@ColumnInfo(name = "observation_ordinal") val observationOrdinal: Int?,
+	@ColumnInfo(name = "deletion_scope_digest") val deletionScopeDigest: String?,
+	@ColumnInfo(name = "run_start_time_ms") val runStartTimeMs: Long?,
+	@ColumnInfo(name = "run_end_time_ms") val runEndTimeMs: Long?,
+	@ColumnInfo(name = "capture_coverage") val captureCoverage: String?,
+	@ColumnInfo(name = "availability") val availability: String?,
+	@ColumnInfo(name = "acquisition_completeness") val acquisitionCompleteness: String?,
+	@ColumnInfo(name = "retention_loss") val retentionLoss: Boolean?,
+	@ColumnInfo(name = "subscription_grouping") val subscriptionGrouping: String?,
 	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
 ) {
 	init {
@@ -583,23 +621,47 @@ data class ImportedCellDeletedIdentityEntity(
 		}
 		runIdentity?.let { require(ImportedCellIdentity.isDigest(it)) }
 		aggregateOwnerIdentity?.let { require(ImportedCellIdentity.isDigest(it)) }
+		contentChecksum?.let { require(ImportedCellIdentity.isDigest(it)) }
+		require((observationOrdinal == null) == (
+			identityKind != OBSERVATION || !includedInLatest
+			))
+		require(observationOrdinal?.let { it >= 0 } != false)
+		deletionScopeDigest?.let { require(ImportedCellIdentity.isDigest(it)) }
+		require((runStartTimeMs == null) == (runEndTimeMs == null))
+		require((captureCoverage == null) == (identityKind != RUN))
+		require((availability == null) == (identityKind != RUN))
+		require((acquisitionCompleteness == null) == (identityKind != RUN))
+		require((retentionLoss == null) == (identityKind != RUN))
+		require((subscriptionGrouping == null) == (identityKind != RUN))
+		if (identityKind == RUN) {
+			require(captureCoverage in setOf("WHOLE_RUN", "PARTIAL_RUN", "NOT_CAPTURED"))
+			require(availability in setOf("RETAINED", "NO_RETAINED_OBSERVATION", "NOT_CAPTURED"))
+			require(acquisitionCompleteness in setOf("COMPLETE", "PARTIAL", "UNKNOWN"))
+			require(subscriptionGrouping == "UNKNOWN")
+		}
+		require(runStartTimeMs?.let { start -> start >= 0L && requireNotNull(runEndTimeMs) >= start } !=
+			false)
 		require(identityKind in ALL_KINDS)
 		when (identityKind) {
 			ENTRY -> require(
 				protectedIdentity == entryIdentity && runIdentity == null &&
-					aggregateOwnerIdentity == null,
+					aggregateOwnerIdentity == null && deletionScopeDigest == null &&
+					runStartTimeMs == null && includedInLatest && contentChecksum != null,
 			)
 			RUN -> require(
 				protectedIdentity != entryIdentity && runIdentity == protectedIdentity &&
-					aggregateOwnerIdentity == null,
+					aggregateOwnerIdentity == null && deletionScopeDigest != null &&
+					runStartTimeMs != null && includedInLatest && contentChecksum != null,
 			)
 			OBSERVATION -> require(
 				protectedIdentity != entryIdentity && runIdentity != null &&
-					runIdentity != protectedIdentity,
+					runIdentity != protectedIdentity && deletionScopeDigest == null &&
+					runStartTimeMs == null && contentChecksum != null,
 			)
 			DELETION_SCOPE -> require(
 				protectedIdentity != entryIdentity && runIdentity != null &&
-					aggregateOwnerIdentity == null,
+					aggregateOwnerIdentity == null && deletionScopeDigest == protectedIdentity &&
+					runStartTimeMs == null && includedInLatest && contentChecksum == null,
 			)
 		}
 		require(effectChecksum == checksum(
@@ -608,6 +670,17 @@ data class ImportedCellDeletedIdentityEntity(
 			identityKind,
 			runIdentity,
 			aggregateOwnerIdentity,
+			contentChecksum,
+			includedInLatest,
+			observationOrdinal,
+			deletionScopeDigest,
+			runStartTimeMs,
+			runEndTimeMs,
+			captureCoverage,
+			availability,
+			acquisitionCompleteness,
+			retentionLoss,
+			subscriptionGrouping,
 		))
 	}
 
@@ -624,19 +697,58 @@ data class ImportedCellDeletedIdentityEntity(
 			identityKind: String,
 			runIdentity: String? = null,
 			aggregateOwnerIdentity: String? = null,
+			contentChecksum: String? = null,
+			includedInLatest: Boolean = true,
+			observationOrdinal: Int? = null,
+			deletionScopeDigest: String? = null,
+			runStartTimeMs: Long? = null,
+			runEndTimeMs: Long? = null,
+			captureCoverage: String? = null,
+			availability: String? = null,
+			acquisitionCompleteness: String? = null,
+			retentionLoss: Boolean? = null,
+			subscriptionGrouping: String? = null,
 		): ImportedCellDeletedIdentityEntity {
+			val resolvedCoverage = captureCoverage ?: "WHOLE_RUN".takeIf { identityKind == RUN }
+			val resolvedAvailability = availability ?: "RETAINED".takeIf { identityKind == RUN }
+			val resolvedCompleteness =
+				acquisitionCompleteness ?: "COMPLETE".takeIf { identityKind == RUN }
+			val resolvedRetentionLoss = retentionLoss ?: false.takeIf { identityKind == RUN }
+			val resolvedGrouping = subscriptionGrouping ?: "UNKNOWN".takeIf { identityKind == RUN }
 			return ImportedCellDeletedIdentityEntity(
 				protectedIdentity,
 				entryIdentity,
 				identityKind,
 				runIdentity,
 				aggregateOwnerIdentity,
+				contentChecksum,
+				includedInLatest,
+				observationOrdinal,
+				deletionScopeDigest,
+				runStartTimeMs,
+				runEndTimeMs,
+				resolvedCoverage,
+				resolvedAvailability,
+				resolvedCompleteness,
+				resolvedRetentionLoss,
+				resolvedGrouping,
 				checksum(
 					protectedIdentity,
 					entryIdentity,
 					identityKind,
 					runIdentity,
 					aggregateOwnerIdentity,
+					contentChecksum,
+					includedInLatest,
+					observationOrdinal,
+					deletionScopeDigest,
+					runStartTimeMs,
+					runEndTimeMs,
+					resolvedCoverage,
+					resolvedAvailability,
+					resolvedCompleteness,
+					resolvedRetentionLoss,
+					resolvedGrouping,
 				),
 			)
 		}
@@ -647,6 +759,17 @@ data class ImportedCellDeletedIdentityEntity(
 			identityKind: String,
 			runIdentity: String?,
 			aggregateOwnerIdentity: String?,
+			contentChecksum: String?,
+			includedInLatest: Boolean,
+			observationOrdinal: Int?,
+			deletionScopeDigest: String?,
+			runStartTimeMs: Long?,
+			runEndTimeMs: Long?,
+			captureCoverage: String?,
+			availability: String?,
+			acquisitionCompleteness: String?,
+			retentionLoss: Boolean?,
+			subscriptionGrouping: String?,
 		): String = checksum(
 			"tracker-imported-cell-deleted-identity-v1",
 			protectedIdentity,
@@ -654,6 +777,17 @@ data class ImportedCellDeletedIdentityEntity(
 			identityKind,
 			runIdentity,
 			aggregateOwnerIdentity,
+			contentChecksum,
+			includedInLatest,
+			observationOrdinal,
+			deletionScopeDigest,
+			runStartTimeMs,
+			runEndTimeMs,
+			captureCoverage,
+			availability,
+			acquisitionCompleteness,
+			retentionLoss,
+			subscriptionGrouping,
 		)
 	}
 }

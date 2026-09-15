@@ -5,6 +5,8 @@ import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerat
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedDeletedRunEntity
 import com.adsamcik.tracker.shared.base.database.data.CellProviderDeliveryIdentityFact
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -409,6 +411,175 @@ private fun selectedBlock(reason: CellCapturedSelectedDeletionBlockedReason): No
 private class CellCapturedSelectedDeletionBlockedException(
 	val reason: CellCapturedSelectedDeletionBlockedReason,
 ) : RuntimeException(null, null, false, false)
+
+sealed interface DeletedCapturedCellSelectionAuthentication {
+	data object Absent : DeletedCapturedCellSelectionAuthentication
+	data class Exact(
+		val receipt: CellCapturedEntryDeletionReceiptEntity,
+	) : DeletedCapturedCellSelectionAuthentication
+	data object Unverifiable : DeletedCapturedCellSelectionAuthentication
+}
+
+/** Complete value-free authentication shared by local detail and selected-deletion replay. */
+suspend fun AppDatabase.authenticateDeletedCapturedCellSelectionInTransaction(
+	logicalTrackingId: String,
+	entryIdentity: PortableCellOpaqueIdentity,
+): DeletedCapturedCellSelectionAuthentication {
+	if (logicalTrackingId.isBlank() || entryIdentity != PortableCellOpaqueIdentity.derive(
+			PortableCellIdentityKind.LOGICAL_ENTRY,
+			logicalTrackingId,
+		)
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val state = sourceEvidenceStateDao().get()
+		?: return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	if (state.id != SourceEvidenceState.SINGLETON_ID || state.revision < 0L ||
+		state.collectedDataEpoch < 0L || state.retainedFromMs?.let { it < 0L } == true ||
+		state.deletedSourceEventHighWaterOrdinal < 0L || state.updatedAtMs < 0L
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val receipt = cellCapturedFactDao().entryDeletionReceipt(logicalTrackingId)
+		?: return DeletedCapturedCellSelectionAuthentication.Absent
+	if (receipt.entryIdentity != entryIdentity.value ||
+		receipt.collectedDataEpoch != state.collectedDataEpoch
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val deletedRuns = cellCapturedFactDao().deletedRuns(
+		logicalTrackingId,
+		receipt.expectedRunCount + 1,
+	)
+	if (deletedRuns.size != receipt.expectedRunCount ||
+		CellCapturedEntryDeletionReceiptEntity.checksumRunFootprints(deletedRuns) !=
+		receipt.runFootprintSetChecksum ||
+		deletedRuns.minOf(CellCapturedDeletedRunEntity::startTimeMs) != receipt.startTimeMs ||
+		deletedRuns.maxOf(CellCapturedDeletedRunEntity::endTimeMs) != receipt.endTimeMs
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val runIds = deletedRuns.map(CellCapturedDeletedRunEntity::serviceRunId)
+	val serviceRuns = trackingHistoryReadDao().logicalEntryServiceRunPage(
+		listOf(logicalTrackingId),
+		CellCapturedEntryDeletionReceiptEntity.MAX_RUNS + 1,
+		null,
+		null,
+		null,
+	)
+	if (serviceRuns.size != receipt.expectedRunCount ||
+		serviceRuns.mapTo(linkedSetOf(), SourceServiceRunEntity::serviceRunId) != runIds.toSet() ||
+		serviceRuns.any { run ->
+			run.logicalTrackingId != logicalTrackingId ||
+				deletedRuns.singleOrNull { it.serviceRunId == run.serviceRunId }
+					?.sessionSegmentId != run.sessionSegmentId ||
+				run.state !in setOf("FINALIZED", "FAILED", "CLOSED") || run.completedAtMs == null
+		}
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val session = sourceSessionDao().session(logicalTrackingId)
+	if (session == null || session.state !in setOf("FINALIZED", "FAILED", "CLOSED") ||
+		session.currentServiceRunId != null || session.completedAtMs == null
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	if (trackingHistoryReadDao().segments(
+			deletedRuns.map(CellCapturedDeletedRunEntity::sessionSegmentId),
+		).isNotEmpty()
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val manifests = trackingHistoryReadDao().manifests(
+		runIds,
+		CellCapturedPortableFormatV1.MAX_MANIFESTS + 1,
+	)
+	val sources = trackingHistoryReadDao().manifestSources(
+		runIds,
+		CellCapturedPortableFormatV1.MAX_MANIFEST_SOURCES + 1,
+	)
+	if (manifests.size > CellCapturedPortableFormatV1.MAX_MANIFESTS ||
+		sources.size > CellCapturedPortableFormatV1.MAX_MANIFEST_SOURCES
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val manifestsByRun = manifests.groupBy(SessionManifestVersionEntity::serviceRunId)
+	val sourcesByManifest = sources.groupBy { it.logicalTrackingId to it.manifestRevision }
+	if (!SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
+			runIds.map { runId ->
+				manifestsByRun[runId].orEmpty().map(SessionManifestVersionEntity::manifestRevision)
+			},
+		) || serviceRuns.any { run ->
+			val owned = manifestsByRun[run.serviceRunId].orEmpty()
+			owned.isEmpty() || !SessionManifestIntegrity.hasValidServiceRunTimeline(run, owned) ||
+				owned.any { manifest ->
+					val membership = sourcesByManifest[
+						logicalTrackingId to manifest.manifestRevision
+					].orEmpty()
+					manifest.logicalTrackingId != logicalTrackingId ||
+						!SessionManifestIntegrity.verify(manifest, membership) ||
+						membership.filter {
+							it.purpose == SessionManifestPurposeCode.SESSION_CAPTURE
+						}.singleOrNull()?.let {
+							it.sourceKind == CELL_SOURCE && it.persistenceEligible &&
+								it.outputDestination ==
+								SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL &&
+								it.writerOwner ==
+								SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS &&
+								it.writerOwnerGeneration ==
+								SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION &&
+								it.writerProjectionId ==
+								SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID &&
+								it.writerProjectionVersion ==
+								SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION &&
+								it.writerBindingGeneration ==
+								SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION
+						} != true
+				}
+		}
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val generations = cellCapturedFactDao().portableDeletionGenerationClosure(
+		logicalTrackingId,
+		runIds,
+		receipt.expectedRunCount + 1,
+	)
+	val fences = trackingHistoryReadDao().deletionFences(
+		CELL_SOURCE,
+		CAPTURE_PURPOSE,
+		SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+		deletedRuns.map(CellCapturedDeletedRunEntity::scopeIdentityDigest),
+	)
+	if (generations.size != receipt.expectedRunCount || fences.size != receipt.expectedRunCount) {
+		return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	}
+	val generationByRun = generations.associateBy(CellCaptureDeletionGenerationEntity::serviceRunId)
+	val fenceByScope = fences.associateBy(SourceDeletionFenceEntity::scopeIdentityDigest)
+	if (generationByRun.size != generations.size || fenceByScope.size != fences.size ||
+		deletedRuns.any { run ->
+			val generation = generationByRun[run.serviceRunId]
+			val fence = fenceByScope[run.scopeIdentityDigest]
+			generation == null || fence == null ||
+				generation.logicalTrackingId != logicalTrackingId ||
+				generation.collectedDataEpoch != receipt.collectedDataEpoch ||
+				generation.generation != run.generation ||
+				generation.updatedAtMs != receipt.deletedAtMs ||
+				fence.sourceKind != CELL_SOURCE || fence.purpose != CAPTURE_PURPOSE ||
+				fence.scopeKind != SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN ||
+				fence.collectedDataEpoch != receipt.collectedDataEpoch ||
+				fence.fenceGeneration != run.generation ||
+				fence.deletedAtMs != receipt.deletedAtMs ||
+				run.deletedAtMs != receipt.deletedAtMs
+		}
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	if (cellCapturedFactDao().historyCursorsForScopes(
+			WRITER_ID,
+			WRITER_VERSION,
+			runIds,
+			listOf(logicalTrackingId),
+			1,
+		).isNotEmpty() || cellCapturedFactDao().historyRevisionPage(
+			runIds,
+			listOf(logicalTrackingId),
+			1,
+			null,
+			null,
+			null,
+			null,
+		).isNotEmpty()
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val demands = cellCapturedFactDao().selectedCellCaptureDemandsForDeletion(
+		CELL_SOURCE,
+		logicalTrackingId,
+		runIds,
+		1,
+	)
+	if (demands.isNotEmpty()) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	return DeletedCapturedCellSelectionAuthentication.Exact(receipt)
+}
 
 /**
  * Removes complete authenticated Cell correction/dependency closures affected by the global floor.

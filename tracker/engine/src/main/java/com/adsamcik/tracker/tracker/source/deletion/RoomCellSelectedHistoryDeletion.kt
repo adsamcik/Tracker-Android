@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.CellCapturedSelectedDeletionBlockedReason
 import com.adsamcik.tracker.shared.base.database.CellCapturedSelectedDeletionCheckpoint
 import com.adsamcik.tracker.shared.base.database.CellCapturedSelectedDeletionResult
+import com.adsamcik.tracker.shared.base.database.DeletedCapturedCellSelectionAuthentication
 import com.adsamcik.tracker.shared.base.database.DeleteSelectedImportedCellRequest
 import com.adsamcik.tracker.shared.base.database.DeleteSelectedImportedCellResult
 import com.adsamcik.tracker.shared.base.database.DeleteSelectedImportedCell
@@ -19,18 +20,19 @@ import com.adsamcik.tracker.shared.base.database.PortableCellUnavailableReason
 import com.adsamcik.tracker.shared.base.database.ReadLocalPortableCapturedCellResult
 import com.adsamcik.tracker.shared.base.database.RoomReadLocalPortableCapturedCell
 import com.adsamcik.tracker.shared.base.database.deleteSelectedCapturedCellFactsInTransaction
+import com.adsamcik.tracker.shared.base.database.authenticateDeletedCapturedCellSelectionInTransaction
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryLockedDays
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
-import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedDeletedRunEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
-import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
@@ -306,6 +308,32 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 					)
 			}
 		}
+		val deletedRuns = scope.runs.zip(scope.segments).map { (run, segment) ->
+			CellCapturedDeletedRunEntity.create(
+				logicalTrackingId = scope.logicalTrackingId,
+				serviceRunId = run.serviceRunId,
+				sessionSegmentId = segment.id,
+				startTimeMs = segment.startTimeMs,
+				endTimeMs = segment.endTimeMs,
+				collectedDataEpoch = scope.collectedDataEpoch,
+				deletedAtMs = requestedAtMs,
+			)
+		}
+		val deletionReceipt = CellCapturedEntryDeletionReceiptEntity.create(
+			logicalTrackingId = scope.logicalTrackingId,
+			entryIdentity = PortableCellOpaqueIdentity.derive(
+				PortableCellIdentityKind.LOGICAL_ENTRY,
+				scope.logicalTrackingId,
+			).value,
+			collectedDataEpoch = scope.collectedDataEpoch,
+			runFootprints = deletedRuns,
+			deletedAtMs = requestedAtMs,
+		)
+		if (database.cellCapturedFactDao().entryDeletionReceipt(scope.logicalTrackingId) != null ||
+			database.cellCapturedFactDao().deletedRuns(scope.logicalTrackingId, 1).isNotEmpty()
+		) return blocked(CellHistoryDeletionBlockedReason.PARTIAL_DELETION_STATE)
+		database.cellCapturedFactDao().insertEntryDeletionReceipt(deletionReceipt)
+		database.cellCapturedFactDao().insertDeletedRuns(deletedRuns)
 		scope.segments.forEach { segment ->
 			database.skiRunSegmentDao().deleteBySession(segment.id)
 			if (database.sessionSegmentDao().deleteExact(
@@ -315,6 +343,11 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 				) != 1
 			) concurrentMutation()
 		}
+		if (database.authenticateDeletedCapturedCellSelectionInTransaction(
+				scope.logicalTrackingId,
+				PortableCellOpaqueIdentity(deletionReceipt.entryIdentity),
+			) !is DeletedCapturedCellSelectionAuthentication.Exact
+		) concurrentMutation()
 		repair.forEach { plan ->
 			DailySummaryAggregator(
 				database.dailySummaryDao(),
@@ -368,7 +401,9 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 			null,
 			null,
 		)
-		if (runs.isEmpty()) return outcome(DeleteCellHistoryResult.NotFound)
+		if (runs.isEmpty()) return outcome(unverifiable(
+			CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID,
+		))
 		if (runs.size > MAX_REPLACEMENT_RUNS ||
 			runs.map(SourceServiceRunEntity::serviceRunId).distinct().size != runs.size ||
 			runs.any { it.logicalTrackingId != logicalTrackingId || it.sessionSegmentId == null }
@@ -529,120 +564,26 @@ internal class RoomCellSelectedHistoryDeletion internal constructor(
 		scope: LocalCellDeletionScope,
 		requestedAtMs: Long,
 	): DeleteCellHistoryResult {
-		val runIds = scope.runs.map(SourceServiceRunEntity::serviceRunId)
-		if (scope.session.state !in TERMINAL_SESSION_STATES ||
-			scope.session.currentServiceRunId != null ||
-			scope.runs.any { it.state !in TERMINAL_RUN_STATES || it.completedAtMs == null } ||
-			scope.runs.any {
-				database.sourceSessionDao().hasNonterminalLatestLifecycleAction(
-					scope.logicalTrackingId,
-					it.serviceRunId,
-				)
-			}
-		) return blocked(CellHistoryDeletionBlockedReason.ACTIVE_CAPTURE)
-		val demands = database.cellCapturedFactDao().selectedCellCaptureDemandsForDeletion(
-			CELL_SOURCE,
-			scope.logicalTrackingId,
-			runIds,
-			MAX_SELECTED_DEMANDS + 1,
-		)
-		if (demands.size > MAX_SELECTED_DEMANDS || demands.any {
-			it.logicalTrackingId != scope.logicalTrackingId || it.serviceRunId !in runIds
-		}) return unverifiable(CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID)
-		if (demands.isNotEmpty()) return blocked(CellHistoryDeletionBlockedReason.ACTIVE_CAPTURE)
-		val manifests = database.trackingHistoryReadDao().manifests(runIds, MAX_MANIFESTS + 1)
-		val sources = database.trackingHistoryReadDao().manifestSources(
-			runIds,
-			MAX_MANIFEST_SOURCES + 1,
-		)
-		if (manifests.size > MAX_MANIFESTS || sources.size > MAX_MANIFEST_SOURCES) {
-			return unverifiable(CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID)
-		}
-		val manifestsByRun = manifests.groupBy(SessionManifestVersionEntity::serviceRunId)
-		val sourcesByManifest = sources.groupBy { it.logicalTrackingId to it.manifestRevision }
-		if (!SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
-				runIds.map { runId ->
-					manifestsByRun[runId].orEmpty().map(
-						SessionManifestVersionEntity::manifestRevision,
-					)
-				},
-			) || scope.runs.any { run ->
-				val owned = manifestsByRun[run.serviceRunId].orEmpty()
-				owned.isEmpty() || !SessionManifestIntegrity.hasValidServiceRunTimeline(run, owned) ||
-					owned.any { manifest ->
-						val membership = sourcesByManifest[
-							scope.logicalTrackingId to manifest.manifestRevision
-						].orEmpty()
-						manifest.logicalTrackingId != scope.logicalTrackingId ||
-							!SessionManifestIntegrity.verify(manifest, membership) ||
-							membership.filter {
-								it.purpose == SessionManifestPurposeCode.SESSION_CAPTURE
-							}.singleOrNull()?.let {
-								it.sourceKind == CELL_SOURCE && it.persistenceEligible &&
-									it.isExactCellWriter()
-							} != true
-					}
-			}
-		) return unverifiable(CellHistoryDeletionUnverifiableReason.MANIFEST_INTEGRITY_FAILED)
-		val state = database.sourceEvidenceStateDao().get()
-			?: return unverifiable(
-				CellHistoryDeletionUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING,
-			)
-		val generations = database.cellCapturedFactDao().portableDeletionGenerationClosure(
-			scope.logicalTrackingId,
-			runIds,
-			runIds.size + 1,
-		)
-		val scopeDigests = runIds.associateWith { runId ->
-			SourceDeletionFenceEntity.logicalServiceRunIdentity(
-				CELL_SOURCE,
-				SessionManifestPurposeCode.SESSION_CAPTURE,
+		return when (val authentication =
+			database.authenticateDeletedCapturedCellSelectionInTransaction(
 				scope.logicalTrackingId,
-				runId,
+				PortableCellOpaqueIdentity.derive(
+					PortableCellIdentityKind.LOGICAL_ENTRY,
+					scope.logicalTrackingId,
+				),
 			)
+		) {
+			DeletedCapturedCellSelectionAuthentication.Absent ->
+				unverifiable(CellHistoryDeletionUnverifiableReason.REPLACEMENT_SCOPE_INVALID)
+			DeletedCapturedCellSelectionAuthentication.Unverifiable ->
+				unverifiable(CellHistoryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+			is DeletedCapturedCellSelectionAuthentication.Exact ->
+				if (requestedAtMs < authentication.receipt.deletedAtMs) {
+					blocked(CellHistoryDeletionBlockedReason.STALE_REQUEST)
+				} else {
+					DeleteCellHistoryResult.AlreadyDeleted
+				}
 		}
-		val fences = database.trackingHistoryReadDao().deletionFences(
-			CELL_SOURCE,
-			SessionManifestPurposeCode.SESSION_CAPTURE,
-			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
-			scopeDigests.values.toList(),
-		)
-		if (scope.collectedDataEpoch != state.collectedDataEpoch ||
-			generations.size != runIds.size || fences.size != runIds.size ||
-			generations.any {
-				it.logicalTrackingId != scope.logicalTrackingId ||
-					it.serviceRunId !in runIds || it.collectedDataEpoch != state.collectedDataEpoch ||
-					it.generation != 1L
-			} || fences.any {
-				it.scopeIdentityDigest !in scopeDigests.values ||
-					it.collectedDataEpoch != state.collectedDataEpoch || it.fenceGeneration != 1L
-			}
-		) return unverifiable(CellHistoryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-		val cursors = database.cellCapturedFactDao().historyCursorsForScopes(
-			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
-			SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
-			runIds,
-			listOf(scope.logicalTrackingId),
-			1,
-		)
-		val revisions = database.cellCapturedFactDao().historyRevisionPage(
-			runIds,
-			listOf(scope.logicalTrackingId),
-			1,
-			null,
-			null,
-			null,
-			null,
-		)
-		if (cursors.isNotEmpty() || revisions.isNotEmpty()
-		) return blocked(CellHistoryDeletionBlockedReason.PARTIAL_DELETION_STATE)
-		if (requestedAtMs > 0L && requestedAtMs < maxOf(
-				state.updatedAtMs,
-				generations.maxOfOrNull(CellCaptureDeletionGenerationEntity::updatedAtMs) ?: 0L,
-				fences.maxOfOrNull(SourceDeletionFenceEntity::deletedAtMs) ?: 0L,
-			)
-		) return blocked(CellHistoryDeletionBlockedReason.STALE_REQUEST)
-		return DeleteCellHistoryResult.AlreadyDeleted
 	}
 
 	private fun SessionManifestSourceEntity.isExactCellWriter(): Boolean =
