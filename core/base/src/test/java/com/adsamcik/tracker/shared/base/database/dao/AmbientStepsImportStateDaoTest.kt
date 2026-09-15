@@ -167,25 +167,32 @@ class AmbientStepsImportStateDaoTest {
 		val gap = gap()
 		dao.insertGap(gap) shouldBe 1L
 		dao.effectiveGapIntervals(7L) shouldContainExactly listOf(
-			AmbientStepsEffectiveGapInterval(gap.gapId, 6_000L, 8_000L),
+			gapInterval(gap, 6_000L, 8_000L),
+		)
+		dao.effectiveGapIntervalsOverlapping(5_000L, 9_000L, 10) shouldContainExactly listOf(
+			gapInterval(gap, 6_000L, 8_000L),
 		)
 
 		val partial = ambientFact(7_000L, 8_000L)
 		database.ambientStepsFactRevisionDao().insert(partial) shouldBe 1L
 		dao.effectiveGapIntervals(7L) shouldContainExactly listOf(
-			AmbientStepsEffectiveGapInterval(gap.gapId, 6_000L, 7_000L),
+			gapInterval(gap, 6_000L, 7_000L),
+		)
+		dao.effectiveGapIntervalsOverlapping(5_000L, 9_000L, 10) shouldContainExactly listOf(
+			gapInterval(gap, 6_000L, 7_000L),
 		)
 
 		val full = ambientFact(6_000L, 8_000L)
 		database.ambientStepsFactRevisionDao().insert(full) shouldBe 2L
 		dao.effectiveGapIntervals(7L) shouldContainExactly emptyList()
+		dao.effectiveGapIntervalsOverlapping(5_000L, 9_000L, 10) shouldContainExactly emptyList()
 		database.ambientStepsFactRevisionDao().insert(retract(full)) shouldBe 3L
 		dao.effectiveGapIntervals(7L) shouldContainExactly listOf(
-			AmbientStepsEffectiveGapInterval(gap.gapId, 6_000L, 7_000L),
+			gapInterval(gap, 6_000L, 7_000L),
 		)
 		database.ambientStepsFactRevisionDao().insert(retract(partial)) shouldBe 4L
 		dao.effectiveGapIntervals(7L) shouldContainExactly listOf(
-			AmbientStepsEffectiveGapInterval(gap.gapId, 6_000L, 8_000L),
+			gapInterval(gap, 6_000L, 8_000L),
 		)
 	}
 
@@ -287,6 +294,50 @@ class AmbientStepsImportStateDaoTest {
 		dao.countGaps() shouldBe 0L
 		dao.countAuthorityTransitions() shouldBe 0L
 		dao.countCursors() shouldBe 0L
+	}
+
+	@Test
+	fun `bounded cursor reads preserve exact active and historical registration identity`() = runTest {
+		val active = cursor()
+		val retired = cursor().copy(
+			registrationGeneration = 8L,
+			status = AmbientStepsImportCursorEntity.STATUS_RETIRED,
+		)
+		dao.insertCursor(active) shouldBe 1L
+		dao.insertCursor(retired) shouldBe 2L
+
+		dao.activeCursors(2) shouldContainExactly listOf(active)
+		dao.cursors(listOf(8L, 7L)) shouldContainExactly listOf(active, retired)
+	}
+
+	@Test
+	fun `zero-width structural transition gap has no effective product interval`() = runTest {
+		val start = 6_000L
+		val id = AmbientStepsImportGapIntegrity.gapId(
+			registrationGeneration = 7L,
+			gapSequence = 1L,
+			provider = PROVIDER,
+			sourceInstanceId = "ambient-instance",
+			reason = AmbientStepsImportGapEntity.REASON_ZONE_CHANGED,
+			gapStartTimeMs = start,
+			gapEndTimeMs = start,
+			predecessorRegistrationGeneration = null,
+			predecessorProvider = null,
+			previousClockDomainId = "boot-a",
+			nextClockDomainId = "boot-a",
+			previousZoneId = "UTC",
+			nextZoneId = "Europe/Prague",
+			collectedDataEpoch = 6L,
+		)
+		dao.insertGap(
+			AmbientStepsImportGapEntity(
+				id, 7L, 1L, PROVIDER, "ambient-instance",
+				AmbientStepsImportGapEntity.REASON_ZONE_CHANGED, start, start,
+				null, null, "boot-a", "boot-a", "UTC", "Europe/Prague", 6L, start,
+			),
+		) shouldBe 1L
+
+		dao.effectiveGapIntervalsOverlapping(5_000L, 7_000L, 2) shouldContainExactly emptyList()
 	}
 
 	private fun cursor() = AmbientStepsImportCursorEntity(
@@ -410,6 +461,31 @@ class AmbientStepsImportStateDaoTest {
 
 	private fun signed(fact: AmbientStepsFactRevisionEntity): AmbientStepsFactRevisionEntity =
 		fact.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(fact))
+
+	private fun gapInterval(
+		gap: AmbientStepsImportGapEntity,
+		startTimeMs: Long,
+		endTimeMs: Long,
+	) = AmbientStepsEffectiveGapInterval(
+		gapId = gap.gapId,
+		registrationGeneration = gap.registrationGeneration,
+		gapSequence = gap.gapSequence,
+		provider = gap.provider,
+		sourceInstanceId = gap.sourceInstanceId,
+		reason = gap.reason,
+		declaredGapStartTimeMs = gap.gapStartTimeMs,
+		declaredGapEndTimeMs = gap.gapEndTimeMs,
+		gapStartTimeMs = startTimeMs,
+		gapEndTimeMs = endTimeMs,
+		predecessorRegistrationGeneration = gap.predecessorRegistrationGeneration,
+		predecessorProvider = gap.predecessorProvider,
+		previousClockDomainId = gap.previousClockDomainId,
+		nextClockDomainId = gap.nextClockDomainId,
+		previousZoneId = gap.previousZoneId,
+		nextZoneId = gap.nextZoneId,
+		collectedDataEpoch = gap.collectedDataEpoch,
+		recordedAtMs = gap.recordedAtMs,
+	)
 
 	private fun gap(): AmbientStepsImportGapEntity {
 		val id = AmbientStepsImportGapIntegrity.gapId(

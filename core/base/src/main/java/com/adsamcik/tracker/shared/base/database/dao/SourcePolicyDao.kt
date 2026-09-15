@@ -52,6 +52,16 @@ interface SourcePolicyDao {
 	)
 	suspend fun policyAtRevision(revision: Long, sourceKind: Int): SourcePolicyEntity?
 
+	/** Exact fixed-count historical policy lookup for bounded source-product composition. */
+	@Query(
+		"SELECT * FROM source_policy WHERE source_kind = :sourceKind " +
+			"AND policy_revision IN (:revisions) ORDER BY policy_revision",
+	)
+	suspend fun policiesAtRevisions(
+		sourceKind: Int,
+		revisions: List<Long>,
+	): List<SourcePolicyEntity>
+
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertPolicies(entities: List<SourcePolicyEntity>)
 

@@ -12,8 +12,24 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEn
 
 data class AmbientStepsEffectiveGapInterval(
 	@ColumnInfo(name = "gap_id") val gapId: String,
+	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long,
+	@ColumnInfo(name = "gap_sequence") val gapSequence: Long,
+	@ColumnInfo(name = "provider") val provider: String,
+	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String,
+	@ColumnInfo(name = "reason") val reason: String,
+	@ColumnInfo(name = "declared_gap_start_time_ms") val declaredGapStartTimeMs: Long,
+	@ColumnInfo(name = "declared_gap_end_time_ms") val declaredGapEndTimeMs: Long,
 	@ColumnInfo(name = "gap_start_time_ms") val gapStartTimeMs: Long,
 	@ColumnInfo(name = "gap_end_time_ms") val gapEndTimeMs: Long,
+	@ColumnInfo(name = "predecessor_registration_generation")
+	val predecessorRegistrationGeneration: Long?,
+	@ColumnInfo(name = "predecessor_provider") val predecessorProvider: String?,
+	@ColumnInfo(name = "previous_clock_domain_id") val previousClockDomainId: String,
+	@ColumnInfo(name = "next_clock_domain_id") val nextClockDomainId: String,
+	@ColumnInfo(name = "previous_zone_id") val previousZoneId: String,
+	@ColumnInfo(name = "next_zone_id") val nextZoneId: String,
+	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	@ColumnInfo(name = "recorded_at_ms") val recordedAtMs: Long,
 )
 
 /** Source-local persistence primitives for a future Ambient Steps importer transaction. */
@@ -34,6 +50,43 @@ interface AmbientStepsImportStateDao {
 			"ORDER BY registration_generation DESC LIMIT 1",
 	)
 	suspend fun latestActiveCursor(provider: String): AmbientStepsImportCursorEntity?
+
+	/** Bounded singular-provider proof for current product availability and materialization. */
+	@Query(
+		"SELECT * FROM ambient_steps_import_cursor " +
+			"WHERE status = '${AmbientStepsImportCursorEntity.STATUS_ACTIVE}' " +
+			"ORDER BY registration_generation DESC LIMIT :limit",
+	)
+	suspend fun activeCursors(limit: Int): List<AmbientStepsImportCursorEntity>
+
+	/** Fixed-count historical cursor lookup for one bounded fact page. */
+	@Query(
+		"SELECT * FROM ambient_steps_import_cursor " +
+			"WHERE registration_generation IN (:registrationGenerations) " +
+			"ORDER BY registration_generation",
+	)
+	suspend fun cursors(
+		registrationGenerations: List<Long>,
+	): List<AmbientStepsImportCursorEntity>
+
+	/** Bounded complete maintenance snapshot; callers request one overflow row. */
+	@Query(
+		"SELECT * FROM ambient_steps_import_cursor ORDER BY registration_generation LIMIT :limit",
+	)
+	suspend fun maintenanceCursors(limit: Int): List<AmbientStepsImportCursorEntity>
+
+	/**
+	 * Latest authorization revision of any kind for one Ambient provider registration.
+	 * This deliberately includes deny-all revisions, which have no purpose-bearing member row.
+	 */
+	@Query(
+		"SELECT COALESCE(MAX(authorization_revision), 0) FROM source_authorization " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration",
+	)
+	suspend fun latestAuthorizationRevision(
+		sourceKind: Int,
+		registrationGeneration: Long,
+	): Long
 
 	/**
 	 * Monotonic compare-and-set used inside the eventual provider-read/fact transaction.
@@ -99,6 +152,13 @@ interface AmbientStepsImportStateDao {
 	)
 	suspend fun gaps(registrationGeneration: Long): List<AmbientStepsImportGapEntity>
 
+	/** Bounded complete maintenance snapshot; callers request one overflow row. */
+	@Query(
+		"SELECT * FROM ambient_steps_import_gap " +
+			"ORDER BY registration_generation, gap_sequence LIMIT :limit",
+	)
+	suspend fun maintenanceGaps(limit: Int): List<AmbientStepsImportGapEntity>
+
 	/**
 	 * Subtracts the union of latest-effective Ambient Steps facts from declared gaps. Fact UPSERTs
 	 * can split one gap into two intervals; a later RETRACT removes that fact from the subtraction.
@@ -121,7 +181,12 @@ interface AmbientStepsImportStateDao {
 			"AND fact.window_end_time_ms > gap.gap_start_time_ms " +
 			"AND fact.window_start_time_ms < gap.gap_end_time_ms " +
 			"WHERE gap.registration_generation = :registrationGeneration) " +
-			"SELECT gap.gap_id AS gap_id, boundary.boundary_time_ms AS gap_start_time_ms, " +
+			"SELECT gap.gap_id AS gap_id, gap.registration_generation AS registration_generation, " +
+			"gap.gap_sequence AS gap_sequence, gap.provider AS provider, " +
+			"gap.source_instance_id AS source_instance_id, gap.reason AS reason, " +
+			"gap.gap_start_time_ms AS declared_gap_start_time_ms, " +
+			"gap.gap_end_time_ms AS declared_gap_end_time_ms, " +
+			"boundary.boundary_time_ms AS gap_start_time_ms, " +
 			"MIN(gap.gap_end_time_ms, COALESCE((SELECT MIN(fact.window_start_time_ms) " +
 			"FROM effective_fact AS fact WHERE fact.window_start_time_ms > boundary.boundary_time_ms " +
 			"AND fact.provider = gap.provider AND fact.source_instance_id = gap.source_instance_id " +
@@ -129,7 +194,12 @@ interface AmbientStepsImportStateDao {
 			"AND fact.collected_data_epoch = gap.collected_data_epoch " +
 			"AND fact.window_start_time_ms < gap.gap_end_time_ms " +
 			"AND fact.window_end_time_ms > gap.gap_start_time_ms), gap.gap_end_time_ms)) " +
-			"AS gap_end_time_ms FROM boundary JOIN ambient_steps_import_gap AS gap " +
+			"AS gap_end_time_ms, gap.predecessor_registration_generation AS " +
+			"predecessor_registration_generation, gap.predecessor_provider AS predecessor_provider, " +
+			"gap.previous_clock_domain_id AS previous_clock_domain_id, " +
+			"gap.next_clock_domain_id AS next_clock_domain_id, gap.previous_zone_id AS previous_zone_id, " +
+			"gap.next_zone_id AS next_zone_id, gap.collected_data_epoch AS collected_data_epoch, " +
+			"gap.recorded_at_ms AS recorded_at_ms FROM boundary JOIN ambient_steps_import_gap AS gap " +
 			"ON gap.gap_id = boundary.gap_id WHERE boundary.boundary_time_ms < gap.gap_end_time_ms " +
 			"AND NOT EXISTS (SELECT 1 FROM effective_fact AS fact " +
 			"WHERE fact.window_start_time_ms <= boundary.boundary_time_ms " +
@@ -145,6 +215,64 @@ interface AmbientStepsImportStateDao {
 		registrationGeneration: Long,
 	): List<AmbientStepsEffectiveGapInterval>
 
+	/**
+	 * Bounded page-level equivalent of [effectiveGapIntervals]. It subtracts latest-effective facts
+	 * before returning gaps, avoiding one registration query per discovered structural day.
+	 */
+	@Query(
+		"WITH effective_fact AS (SELECT fact.* FROM ambient_steps_fact_revision AS fact " +
+			"WHERE fact.operation = '${AmbientStepsFactRevisionEntity.OPERATION_UPSERT}' " +
+			"AND fact.semantic_revision = (SELECT MAX(state.semantic_revision) " +
+			"FROM ambient_steps_fact_revision AS state WHERE state.writer_id = fact.writer_id " +
+			"AND state.writer_version = fact.writer_version " +
+			"AND state.logical_fact_id = fact.logical_fact_id)), " +
+			"scoped_gap AS (SELECT * FROM ambient_steps_import_gap " +
+			"WHERE gap_end_time_ms > :fromTimeMs AND gap_start_time_ms < :toTimeMs), " +
+			"boundary AS (SELECT gap.gap_id, gap.gap_start_time_ms AS boundary_time_ms " +
+			"FROM scoped_gap AS gap UNION SELECT gap.gap_id, MIN(fact.window_end_time_ms, gap.gap_end_time_ms) " +
+			"FROM scoped_gap AS gap JOIN effective_fact AS fact ON fact.provider = gap.provider " +
+			"AND fact.source_instance_id = gap.source_instance_id " +
+			"AND fact.registration_generation = gap.registration_generation " +
+			"AND fact.collected_data_epoch = gap.collected_data_epoch " +
+			"AND fact.window_end_time_ms > gap.gap_start_time_ms " +
+			"AND fact.window_start_time_ms < gap.gap_end_time_ms) " +
+			"SELECT gap.gap_id AS gap_id, gap.registration_generation AS registration_generation, " +
+			"gap.gap_sequence AS gap_sequence, gap.provider AS provider, " +
+			"gap.source_instance_id AS source_instance_id, gap.reason AS reason, " +
+			"gap.gap_start_time_ms AS declared_gap_start_time_ms, " +
+			"gap.gap_end_time_ms AS declared_gap_end_time_ms, " +
+			"MAX(boundary.boundary_time_ms, :fromTimeMs) AS gap_start_time_ms, " +
+			"MIN(gap.gap_end_time_ms, :toTimeMs, COALESCE((SELECT MIN(fact.window_start_time_ms) " +
+			"FROM effective_fact AS fact WHERE fact.window_start_time_ms > boundary.boundary_time_ms " +
+			"AND fact.provider = gap.provider AND fact.source_instance_id = gap.source_instance_id " +
+			"AND fact.registration_generation = gap.registration_generation " +
+			"AND fact.collected_data_epoch = gap.collected_data_epoch " +
+			"AND fact.window_start_time_ms < gap.gap_end_time_ms " +
+			"AND fact.window_end_time_ms > gap.gap_start_time_ms), gap.gap_end_time_ms)) AS gap_end_time_ms, " +
+			"gap.predecessor_registration_generation AS predecessor_registration_generation, " +
+			"gap.predecessor_provider AS predecessor_provider, " +
+			"gap.previous_clock_domain_id AS previous_clock_domain_id, " +
+			"gap.next_clock_domain_id AS next_clock_domain_id, gap.previous_zone_id AS previous_zone_id, " +
+			"gap.next_zone_id AS next_zone_id, gap.collected_data_epoch AS collected_data_epoch, " +
+			"gap.recorded_at_ms AS recorded_at_ms " +
+			"FROM boundary JOIN scoped_gap AS gap ON gap.gap_id = boundary.gap_id " +
+			"WHERE MAX(boundary.boundary_time_ms, :fromTimeMs) < MIN(gap.gap_end_time_ms, :toTimeMs) " +
+			"AND NOT EXISTS (SELECT 1 FROM effective_fact AS fact " +
+			"WHERE fact.window_start_time_ms <= boundary.boundary_time_ms " +
+			"AND fact.provider = gap.provider AND fact.source_instance_id = gap.source_instance_id " +
+			"AND fact.registration_generation = gap.registration_generation " +
+			"AND fact.collected_data_epoch = gap.collected_data_epoch " +
+			"AND fact.window_end_time_ms > boundary.boundary_time_ms " +
+			"AND fact.window_end_time_ms > gap.gap_start_time_ms " +
+			"AND fact.window_start_time_ms < gap.gap_end_time_ms) " +
+			"ORDER BY gap_start_time_ms ASC LIMIT :limit",
+	)
+	suspend fun effectiveGapIntervalsOverlapping(
+		fromTimeMs: Long,
+		toTimeMs: Long,
+		limit: Int,
+	): List<AmbientStepsEffectiveGapInterval>
+
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertAuthorityTransition(
 		transition: AmbientStepsImportAuthorityTransitionEntity,
@@ -157,6 +285,26 @@ interface AmbientStepsImportStateDao {
 	)
 	suspend fun authorityTransitions(
 		registrationGeneration: Long,
+	): List<AmbientStepsImportAuthorityTransitionEntity>
+
+	/** Bounded complete maintenance snapshot; callers request one overflow row. */
+	@Query(
+		"SELECT * FROM ambient_steps_import_authority_transition " +
+			"ORDER BY registration_generation, transition_sequence LIMIT :limit",
+	)
+	suspend fun maintenanceAuthorityTransitions(
+		limit: Int,
+	): List<AmbientStepsImportAuthorityTransitionEntity>
+
+	/** One bounded page-level transition snapshot for all referenced registrations. */
+	@Query(
+		"SELECT * FROM ambient_steps_import_authority_transition " +
+			"WHERE registration_generation IN (:registrationGenerations) " +
+			"ORDER BY registration_generation ASC, transition_sequence ASC LIMIT :limit",
+	)
+	suspend fun authorityTransitionsBounded(
+		registrationGenerations: List<Long>,
+		limit: Int,
 	): List<AmbientStepsImportAuthorityTransitionEntity>
 
 	/** Atomically closes one legal authority and opens the next at the same exact boundary. */

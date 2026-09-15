@@ -43,6 +43,16 @@ class AmbientStepsFactRevisionDaoTest {
 			listOf(zero, positive)
 		dao.latestEffectiveOverlapping(WRITER_ID, WRITER_VERSION, 1_500L, 3_500L, 10) shouldContainExactly
 			listOf(zero, positive)
+		dao.discoverStructuralDays(WRITER_ID, WRITER_VERSION, 10) shouldContainExactly listOf(
+			AmbientStepsStructuralDayRow(0L, "UTC", 0L, 86_400_000L, 4_000L),
+		)
+		dao.latestEffectiveForStructuralDayRange(
+			WRITER_ID,
+			WRITER_VERSION,
+			0L,
+			0L,
+			10,
+		) shouldContainExactly listOf(zero, positive)
 
 		val correctedUnsigned = positive.copy(
 			semanticRevision = 2L,
@@ -66,6 +76,9 @@ class AmbientStepsFactRevisionDaoTest {
 		dao.latest(WRITER_ID, WRITER_VERSION, zero.logicalFactId) shouldBe deleted
 		dao.latestEffectiveForDay(WRITER_ID, WRITER_VERSION, 0L, "UTC") shouldContainExactly
 			listOf(corrected)
+		dao.discoverStructuralDays(WRITER_ID, WRITER_VERSION, 10) shouldContainExactly listOf(
+			AmbientStepsStructuralDayRow(0L, "UTC", 0L, 86_400_000L, 4_000L),
+		)
 		dao.insert(deleted) shouldBe -1L
 	}
 
@@ -81,11 +94,88 @@ class AmbientStepsFactRevisionDaoTest {
 		dao.revisions(WRITER_ID, WRITER_VERSION, fact.logicalFactId).shouldBeEmpty()
 	}
 
+	@Test
+	fun `structural day keyset page continues after the last accepted row`() = runTest {
+		val day0 = providerFact(1_000L, 2_000L, 1L)
+		val day1 = providerFact(86_401_000L, 86_402_000L, 2L, epochDay = 1L)
+		val day2 = providerFact(172_801_000L, 172_802_000L, 3L, epochDay = 2L)
+		listOf(day0, day1, day2).forEach { dao.insert(it) }
+
+		val first = dao.discoverStructuralDayPage(
+			WRITER_ID, WRITER_VERSION, null, null, null, limit = 2,
+		)
+		first shouldContainExactly listOf(
+			AmbientStepsStructuralDayRow(2L, "UTC", 172_800_000L, 259_200_000L, 172_802_000L),
+			AmbientStepsStructuralDayRow(1L, "UTC", 86_400_000L, 172_800_000L, 86_402_000L),
+		)
+		val tail = first.last()
+		dao.discoverStructuralDayPage(
+			WRITER_ID,
+			WRITER_VERSION,
+			tail.latestWindowEndTimeMs,
+			tail.structuralEpochDay,
+			tail.storedZoneId,
+			limit = 2,
+		) shouldContainExactly listOf(
+			AmbientStepsStructuralDayRow(0L, "UTC", 0L, 86_400_000L, 2_000L),
+		)
+	}
+
+	@Test
+	fun `maintenance audit pages and exact lineage deletion stay bounded`() = runTest {
+		val first = providerFact(1_000L, 2_000L, 1L)
+		val second = providerFact(3_000L, 4_000L, 2L)
+		val correctedUnsigned = first.copy(
+			semanticRevision = 2L,
+			mutationId = AmbientStepsFactIntegrity.mutationId(
+				first.logicalFactId,
+				2L,
+				AmbientStepsFactRevisionEntity.OPERATION_UPSERT,
+			),
+			stepCount = 3L,
+			observedAtMs = 5_000L,
+			appliedAtMs = 5_000L,
+		)
+		val corrected = signed(correctedUnsigned)
+		listOf(first, corrected, second).forEach { dao.insert(it) }
+		val ordered = listOf(first, corrected, second).sortedWith(
+			compareBy<AmbientStepsFactRevisionEntity>(
+				AmbientStepsFactRevisionEntity::logicalFactId,
+				AmbientStepsFactRevisionEntity::semanticRevision,
+			),
+		)
+
+		val page = dao.maintenanceRevisionPage(WRITER_ID, WRITER_VERSION, null, null, 2)
+		page shouldContainExactly ordered.take(2)
+		dao.maintenanceRevisionPage(
+			WRITER_ID,
+			WRITER_VERSION,
+			page.last().logicalFactId,
+			page.last().semanticRevision,
+			2,
+		) shouldContainExactly ordered.drop(2)
+
+		dao.deleteExactLineages(WRITER_ID, WRITER_VERSION, listOf(first.logicalFactId)) shouldBe 2
+		dao.countUpserts() shouldBe 1L
+		val redaction = retraction(second, semanticRevision = 2L)
+		dao.insert(redaction)
+		dao.deleteUpsertsForLogicalFacts(
+			WRITER_ID,
+			WRITER_VERSION,
+			listOf(second.logicalFactId),
+		) shouldBe 1
+		dao.revisions(WRITER_ID, WRITER_VERSION, second.logicalFactId) shouldContainExactly
+			listOf(redaction)
+	}
+
 	private fun providerFact(
 		startTimeMs: Long,
 		endTimeMs: Long,
 		stepCount: Long,
+		epochDay: Long = 0L,
 	): AmbientStepsFactRevisionEntity {
+		val dayStartTimeMs = epochDay * 86_400_000L
+		val dayEndTimeMs = dayStartTimeMs + 86_400_000L
 		val provider = AmbientStepsFactRevisionEntity.PROVIDER_LOCAL_RECORDING_STEPS
 		val logicalFactId = AmbientStepsFactIntegrity.logicalFactId(
 			provider,
@@ -93,7 +183,7 @@ class AmbientStepsFactRevisionDaoTest {
 			1L,
 			"ambient-instance",
 			startTimeMs,
-			0L,
+			epochDay,
 			"UTC",
 			7L,
 		)
@@ -120,10 +210,10 @@ class AmbientStepsFactRevisionDaoTest {
 				windowStartTimeMs = startTimeMs,
 				windowEndTimeMs = endTimeMs,
 				observedAtMs = endTimeMs,
-				structuralEpochDay = 0L,
+				structuralEpochDay = epochDay,
 				storedZoneId = "UTC",
-				structuralDayStartTimeMs = 0L,
-				structuralDayEndTimeMs = 86_400_000L,
+				structuralDayStartTimeMs = dayStartTimeMs,
+				structuralDayEndTimeMs = dayEndTimeMs,
 				stepCount = stepCount,
 				purpose = AmbientStepsFactRevisionEntity.PURPOSE_AMBIENT_PRODUCT,
 				sourcePolicyRevision = 1L,
