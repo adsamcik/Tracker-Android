@@ -203,11 +203,80 @@ class AmbientStepsDayComposerTest {
 		result.inSession.single().origin shouldBe QualifiedSessionStepsOrigin.PORTABLE_IMPORT
 	}
 
+	@Test
+	fun `exact local and imported portable identity is counted once with both origins explicit`() {
+		val local = fact(0L, DAY_END, 10L, id = "local").copy(portableIdentity = "portable")
+		val imported = importedFact(0L, DAY_END, 10L, "portable")
+
+		val result = composeAmbientStepsDay(day, listOf(local, imported), emptyList(), emptyList())
+
+		result.total shouldBe AmbientStepsNumericValue.Exact(10L)
+		result.origins shouldBe setOf(
+			QualifiedAmbientStepsFactOrigin.LOCAL_PROVIDER,
+			QualifiedAmbientStepsFactOrigin.PORTABLE_IMPORT,
+		)
+	}
+
+	@Test
+	fun `exact imported duplicate cannot hide local provider compatibility`() {
+		val local = fact(0L, DAY_END, 10L, id = "local").copy(portableIdentity = "portable")
+		val imported = importedFact(0L, DAY_END, 10L, "portable")
+
+		val result = composeAmbientStepsDay(
+			day,
+			listOf(imported, local),
+			emptyList(),
+			listOf(session(20L, 40L, 5L)),
+		)
+
+		result.total shouldBe AmbientStepsNumericValue.Exact(10L)
+		result.betweenSession shouldBe AmbientStepsNumericValue.Exact(5L)
+	}
+
+	@Test
+	fun `wall overlap with distinct ownership is unavailable rather than additive`() {
+		val local = fact(0L, DAY_END, 10L, id = "local")
+		val imported = importedFact(0L, DAY_END, 12L, "portable")
+
+		composeAmbientStepsDay(day, listOf(local, imported), emptyList(), emptyList()).total shouldBe
+			AmbientStepsNumericValue.Unavailable(
+				setOf(AmbientStepsDayCause.AMBIENT_FACT_OVERLAP),
+			)
+	}
+
+	@Test
+	fun `conflicting correction content under one portable identity is never summed`() {
+		val old = importedFact(0L, DAY_END, 10L, "portable")
+		val correction = importedFact(0L, DAY_END, 12L, "portable")
+
+		composeAmbientStepsDay(day, listOf(old, correction), emptyList(), emptyList()).total shouldBe
+			AmbientStepsNumericValue.Unavailable(
+				setOf(AmbientStepsDayCause.AMBIENT_ORIGIN_IDENTITY_CONFLICT),
+			)
+	}
+
 	private val day = AmbientStepsDayIdentity(0L, "UTC", 0L, DAY_END)
 	private val provenance = AmbientStepsProviderProvenance("provider", "instance", 1L, 1L)
 
 	private fun fact(start: Long, end: Long, count: Long, id: String = "a") = QualifiedAmbientStepsFact(
 		id, day, start, end, count, provenance,
+	)
+
+	private fun importedFact(
+		start: Long,
+		end: Long,
+		count: Long,
+		identity: String,
+	) = QualifiedAmbientStepsFact(
+		logicalFactId = identity,
+		day = day,
+		startTimeMs = start,
+		endTimeMs = end,
+		stepCount = count,
+		provenance = null,
+		portableIdentity = identity,
+		origin = QualifiedAmbientStepsFactOrigin.PORTABLE_IMPORT,
+		importedProvenance = ImportedAmbientStepsFactProvenance("archive", "day", 1L),
 	)
 
 	private fun session(

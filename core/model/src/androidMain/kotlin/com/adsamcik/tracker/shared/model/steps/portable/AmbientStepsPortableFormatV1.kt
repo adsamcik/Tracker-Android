@@ -19,9 +19,16 @@ object AmbientStepsPortableFormatV1 {
 	const val MAX_GAPS_PER_DAY: Int = 512
 	const val MAX_LOCAL_IDENTITY_LENGTH: Int = 4_096
 	const val MAX_ZONE_ID_LENGTH: Int = 128
+	const val MAX_IMPORT_RECEIPT_FIELD_LENGTH: Int = 1_024
 }
 
-enum class AmbientStepsPortableIdentityKind { DAY, FACT, GAP }
+enum class AmbientStepsPortableIdentityKind {
+	ARCHIVE,
+	DAY,
+	FACT,
+	GAP,
+	DELETION_SCOPE,
+}
 
 /** Kind-namespaced digest which never exposes a provider, registration, or local database key. */
 @JvmInline
@@ -292,6 +299,20 @@ data class PortableAmbientStepsArchiveV1(
 	}
 }
 
+/** Stable portable-owner identity; it is independent of a destination import receipt. */
+val PortableAmbientStepsArchiveV1.identity: AmbientStepsPortableOpaqueIdentity
+	get() = AmbientStepsPortableOpaqueIdentity.derive(
+		AmbientStepsPortableIdentityKind.ARCHIVE,
+		contentChecksum.value,
+	)
+
+/** Source-specific deletion scope for one immutable structural-day lineage. */
+val PortableAmbientStepsDayV1.deletionScopeIdentity: AmbientStepsPortableOpaqueIdentity
+	get() = AmbientStepsPortableOpaqueIdentity.derive(
+		AmbientStepsPortableIdentityKind.DELETION_SCOPE,
+		identity.value,
+	)
+
 val PORTABLE_AMBIENT_STEPS_FACT_ORDER: Comparator<PortableAmbientStepsFactV1> =
 	compareBy<PortableAmbientStepsFactV1>(PortableAmbientStepsFactV1::intervalStartTimeMs)
 		.thenBy { it.identity.value }
@@ -391,6 +412,17 @@ object AmbientStepsPortableIntegrity {
 			AmbientStepsPortableFormatV1.FORMAT,
 			AmbientStepsPortableFormatV1.SCHEMA_VERSION,
 			days.map { listOf(it.identity.value, it.contentChecksum.value) },
+		),
+	)
+
+	fun archiveChecksumForMembers(
+		members: List<Pair<AmbientStepsPortableOpaqueIdentity, AmbientStepsPortableDigest>>,
+	) = digest(
+		"tracker-portable-ambient-steps-archive-v1",
+		listOf(
+			AmbientStepsPortableFormatV1.FORMAT,
+			AmbientStepsPortableFormatV1.SCHEMA_VERSION,
+			members.map { (identity, checksum) -> listOf(identity.value, checksum.value) },
 		),
 	)
 

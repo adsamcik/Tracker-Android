@@ -23,6 +23,8 @@ import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRea
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedRead
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedReader
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage as ApiStepsHistoryCoverage
 import java.time.ZoneId
@@ -1016,6 +1018,10 @@ private fun AmbientStepsFactRevisionEntity.toQualifiedFact(
 		registrationGeneration = requireNotNull(registrationGeneration),
 		continuitySegmentGeneration = requireNotNull(continuitySegmentGeneration),
 	),
+	portableIdentity = AmbientStepsPortableOpaqueIdentity.derive(
+		AmbientStepsPortableIdentityKind.FACT,
+		logicalFactId,
+	).value,
 )
 
 private fun unavailableDay(
