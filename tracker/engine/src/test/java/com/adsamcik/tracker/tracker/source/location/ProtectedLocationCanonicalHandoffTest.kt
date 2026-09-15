@@ -522,6 +522,43 @@ class ProtectedLocationCanonicalHandoffTest {
 	}
 
 	@Test
+	fun `global drain rejects a missing Location from another registration`() = runTest {
+		val missing = command()
+		insertWal(missing)
+		insertOtherSourceEvent(ADMISSION_ORDINAL + 1L)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_event_wal WHERE admission_ordinal = ?",
+			arrayOf(ADMISSION_ORDINAL),
+		)
+		val differentRegistration = command(
+			eventId = "global-location-second-registration",
+			admissionOrdinal = ADMISSION_ORDINAL + 2L,
+			wallTimeMs = WALL_TIME_MS + 2_000L,
+			observedNanos = OBSERVED_NANOS + 2_000_000_000L,
+			receivedNanos = RECEIVED_NANOS + 2_000_000_000L,
+			sourceSequence = 1L,
+			sourceInstanceId = "location-runtime-2",
+			registrationGeneration = 4L,
+		)
+		insertWal(differentRegistration)
+		val writer = ReceiptWriter(database, accepted = true)
+
+		val failed = assertIs<ProtectedLocationCanonicalDrainResult.Failed>(
+			handoff(differentRegistration, writer).drainHighWater(),
+		)
+
+		assertEquals("LOCATION_DRAIN_INTERIOR_SEQUENCE_GAP", failed.failureCode)
+		assertEquals(ADMISSION_ORDINAL - 1L, failed.lastCommittedOrdinal)
+		assertEquals(0, writer.writeCount)
+		assertEquals(
+			ADMISSION_ORDINAL - 1L,
+			database.sourceProjectionStateDao()
+				.activeProductLane(SourceKind.LOCATION.stableCode)
+				?.contiguousAdmissionOrdinal,
+		)
+	}
+
+	@Test
 	fun `global drain does not cross an unproven trailing Location range`() = runTest {
 		val vanished = command()
 		insertWal(vanished)
@@ -549,22 +586,20 @@ class ProtectedLocationCanonicalHandoffTest {
 	}
 
 	@Test
-	fun `global drain materializes a proven Location prefix before trailing defer`() = runTest {
+	fun `global drain crosses an explicitly known non Location ordinal`() = runTest {
 		val command = command()
 		insertWal(command)
 		insertOtherSourceEvent(ADMISSION_ORDINAL + 1L)
 		val writer = ReceiptWriter(database, accepted = true)
 
-		val deferred = assertIs<ProtectedLocationCanonicalDrainResult.Deferred>(
+		val complete = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
 			handoff(command, writer).drainHighWater(),
 		)
 
-		assertEquals("LOCATION_DRAIN_TRAILING_RANGE_UNPROVEN", deferred.reason)
-		assertEquals(ADMISSION_ORDINAL, deferred.lastCommittedOrdinal)
-		assertEquals(ADMISSION_ORDINAL + 1L, deferred.deferredOrdinal)
+		assertEquals(ADMISSION_ORDINAL + 1L, complete.lastCommittedOrdinal)
 		assertEquals(1, writer.writeCount)
 		assertEquals(
-			ADMISSION_ORDINAL,
+			ADMISSION_ORDINAL + 1L,
 			database.sourceProjectionStateDao()
 				.activeProductLane(SourceKind.LOCATION.stableCode)
 				?.contiguousAdmissionOrdinal,

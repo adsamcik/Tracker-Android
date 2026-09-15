@@ -11,9 +11,7 @@ import com.adsamcik.tracker.shared.base.database.dao.recordFullDeletion
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
-import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
@@ -415,7 +413,7 @@ class LocationWalQualificationAdapterTest {
 	fun `real WAL chain rejects conflicting preexisting decision before receipt`() = runTest {
 		installValidFixture(
 			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
-			deliveryPayloads = listOf(locationPayload(isMock = false)),
+			deliveryPayloads = listOf(locationPayload(isMock = true)),
 		)
 		val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
 			.admissionOrdinal
@@ -450,11 +448,18 @@ class LocationWalQualificationAdapterTest {
 
 		assertFalse(failed.terminal)
 		assertEquals(ordinal - 1L, failed.lastCommittedOrdinal)
+		assertEquals(null, database.locationObservationDao().getBySourceEventId(EVENT_ID.value))
 		assertEquals(null, database.sourceProjectionStateDao().joinState(
 			ProtectedLocationCanonicalHandoff.WRITER_ID,
 			ProtectedLocationCanonicalHandoff.WRITER_VERSION,
 			"canonical-receipt:${EVENT_ID.value}",
 		))
+		assertEquals(
+			ordinal - 1L,
+			database.sourceProjectionStateDao()
+				.activeProductLane(SourceKind.LOCATION.stableCode)
+				?.contiguousAdmissionOrdinal,
+		)
 	}
 
 	@Test
@@ -467,30 +472,66 @@ class LocationWalQualificationAdapterTest {
 			.admissionOrdinal
 		installProtectedHandoffAuthority(ordinal)
 		val signalId = ProtectedLocationCanonicalSignalIdentity.canonicalProduct(EVENT_ID.value)
-		database.locationSampleDao().insert(
-			LocationSample(
-				timeMs = OBSERVED_WALL_MS,
-				elapsedRealtimeNanos = OBSERVED_NANOS,
-				latE7 = 500_870_000,
-				lonE7 = 144_210_000,
-				altitudeM = 9_999f,
-				rawGpsAltitudeM = 210f,
-				hAccM = 5f,
-				vAccM = 3f,
-				speedMps = 999f,
-				speedAccuracyMps = null,
-				provider = "gps",
-				quality = SampleQuality.HIGH,
-				motionState = null,
-				policy = "SOURCE_QOS_BALANCED",
-				bucketId = null,
-				createdAt = OBSERVED_WALL_MS,
-				sourceSignalId = signalId,
-				sourceEventId = EVENT_ID.value,
-				clockDomainId = BOOT_ID,
-			),
-		)
 		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			ProtectedLocationCanonicalHandoff(
+				database,
+				subject,
+				ProtectedLocationOfflineCanonicalWriter(
+					context,
+					database,
+					dispatchers,
+					newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)),
+				),
+			).drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+		)
+		val exactProductionSample = requireNotNull(
+			database.locationSampleDao().getBySourceSignalId(signalId),
+		)
+		database.withTransaction {
+			database.openHelper.writableDatabase.apply {
+				execSQL(
+					"DELETE FROM location_observation_decision " +
+						"WHERE observation_source_event_id = ?",
+					arrayOf(EVENT_ID.value),
+				)
+				execSQL(
+					"DELETE FROM location_sample WHERE source_signal_id = ?",
+					arrayOf(signalId),
+				)
+				execSQL(
+					"DELETE FROM location_observation WHERE source_event_id = ?",
+					arrayOf(EVENT_ID.value),
+				)
+				execSQL(
+					"DELETE FROM source_projection_join_state WHERE projection_id = ? " +
+						"AND projection_version = ?",
+					arrayOf(
+						ProtectedLocationCanonicalHandoff.WRITER_ID,
+						ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+					),
+				)
+				execSQL(
+					"UPDATE source_product_projection_lane " +
+						"SET contiguous_admission_ordinal = ? " +
+						"WHERE source_kind = ? AND projection_id = ? " +
+						"AND projection_version = ?",
+					arrayOf(
+						ordinal - 1L,
+						SourceKind.LOCATION.stableCode,
+						ProtectedLocationCanonicalHandoff.WRITER_ID,
+						ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+					),
+				)
+			}
+			database.locationSampleDao().insert(
+				exactProductionSample.copy(
+					altitudeM = (exactProductionSample.altitudeM ?: 0f) + 999f,
+					speedMps = (exactProductionSample.speedMps ?: 0f) + 999f,
+				),
+			)
+		}
+		assertEquals(null, database.locationObservationDao().getBySourceEventId(EVENT_ID.value))
 		val failed = assertIs<ProtectedLocationCanonicalDrainResult.Failed>(
 			ProtectedLocationCanonicalHandoff(
 				database,
@@ -512,6 +553,12 @@ class LocationWalQualificationAdapterTest {
 			ProtectedLocationCanonicalHandoff.WRITER_VERSION,
 			"canonical-receipt:${EVENT_ID.value}",
 		))
+		assertEquals(
+			ordinal - 1L,
+			database.sourceProjectionStateDao()
+				.activeProductLane(SourceKind.LOCATION.stableCode)
+				?.contiguousAdmissionOrdinal,
+		)
 	}
 
 	@Test
