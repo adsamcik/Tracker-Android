@@ -1383,6 +1383,8 @@ val MIGRATION_27_28: Migration = object : Migration(
 	CURRENT_DATABASE_VERSION,
 ) {
 	override fun migrate(db: SupportSQLiteDatabase) {
+		createImportedPressureMaintenanceTables(db)
+		createImportedAmbientStepsTables(db)
 		with(db) {
 			execSQL("ALTER TABLE session_segment ADD COLUMN logical_tracking_id TEXT")
 			execSQL("ALTER TABLE session_segment ADD COLUMN service_run_id TEXT")

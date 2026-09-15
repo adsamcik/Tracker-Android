@@ -39,6 +39,7 @@ import com.adsamcik.tracker.shared.base.database.dao.StepsGoalRepairDayDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedStepsDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
@@ -100,6 +101,18 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevis
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetentionReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetainedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureSourceEraseEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveDayEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsFactEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsGapEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsProtectedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsSourceFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionReceiptEntity
@@ -239,12 +252,24 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedStepsEntryEntity::class,
 			ImportedStepsRunEntity::class,
 			ImportedStepsManifestEntity::class,
+			ImportedAmbientStepsArchiveEntity::class,
+			ImportedAmbientStepsReceiptEntity::class,
+			ImportedAmbientStepsArchiveDayEntity::class,
+			ImportedAmbientStepsDayRevisionEntity::class,
+			ImportedAmbientStepsFactEntity::class,
+			ImportedAmbientStepsGapEntity::class,
+			ImportedAmbientStepsDayFenceEntity::class,
+			ImportedAmbientStepsProtectedIdentityEntity::class,
+			ImportedAmbientStepsSourceFenceEntity::class,
 			ImportedPressureEntryRevisionEntity::class,
 			ImportedPressureReceiptEntity::class,
 			ImportedPressureRunEntity::class,
 			ImportedPressureWindowEntity::class,
 			ImportedPressureEntryDeletionEntity::class,
 			ImportedPressureDeletionGenerationEntity::class,
+			ImportedPressureRetentionReceiptEntity::class,
+			ImportedPressureRetainedIdentityEntity::class,
+			ImportedPressureSourceEraseEntity::class,
 			ImportedActivityEntryRevisionEntity::class,
 			ImportedActivityReceiptEntity::class,
 			ImportedActivityRunEntity::class,
@@ -410,6 +435,9 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Dormant imported Steps metadata; this accessor does not grant import admission authority. */
 	abstract fun importedStepsDao(): ImportedStepsDao
+
+	/** Portable ambient origin only; no provider, capture, or consent authority is created. */
+	abstract fun importedAmbientStepsDao(): ImportedAmbientStepsDao
 
 	/** Dormant Pressure portable-origin storage; this accessor grants no import authority. */
 	abstract fun importedPressureDao(): ImportedPressureDao
