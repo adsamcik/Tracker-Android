@@ -579,6 +579,65 @@ interface PressureFactRevisionDao {
 	): List<SourceDeletionFenceEntity>
 
 	@Query(
+		"SELECT rowid FROM source_deletion_fence " +
+			"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
+			"AND purpose = '${SessionManifestPurposeCode.SESSION_CAPTURE}' " +
+			"AND scope_kind = '${SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN}' " +
+			"AND rowid > :afterOwnerRowId ORDER BY rowid LIMIT :limit",
+	)
+	suspend fun sourceEraseFenceOwnerRowIdPage(
+		afterOwnerRowId: Long,
+		limit: Int,
+	): List<Long>
+
+	@Query(
+		"""
+		SELECT COUNT(*) AS row_count,
+		       COALESCE(SUM(
+		         LENGTH(CAST(purpose AS BLOB)) +
+		         LENGTH(CAST(scope_kind AS BLOB)) +
+		         LENGTH(CAST(scope_identity_digest AS BLOB)) +
+		         LENGTH(CAST(effect_checksum AS BLOB))
+		       ), 0) AS text_bytes
+		FROM source_deletion_fence
+		WHERE rowid = :ownerRowId
+		  AND source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE}
+		  AND purpose = '${SessionManifestPurposeCode.SESSION_CAPTURE}'
+		  AND scope_kind = '${SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN}'
+		""",
+	)
+	suspend fun sourceEraseFenceOwnerFootprint(
+		ownerRowId: Long,
+	): PressureSourceDeletionFenceFootprint
+
+	@Query(
+		"SELECT * FROM source_deletion_fence WHERE rowid = :ownerRowId " +
+			"AND source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
+			"AND purpose = '${SessionManifestPurposeCode.SESSION_CAPTURE}' " +
+			"AND scope_kind = '${SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN}' LIMIT 1",
+	)
+	suspend fun sourceEraseFenceByOwnerRowId(
+		ownerRowId: Long,
+	): SourceDeletionFenceEntity?
+
+	@Query(
+		"""
+		SELECT COUNT(*) AS row_count,
+		       COALESCE(SUM(
+		         LENGTH(CAST(purpose AS BLOB)) +
+		         LENGTH(CAST(scope_kind AS BLOB)) +
+		         LENGTH(CAST(scope_identity_digest AS BLOB)) +
+		         LENGTH(CAST(effect_checksum AS BLOB))
+		       ), 0) AS text_bytes
+		FROM source_deletion_fence
+		WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE}
+		  AND purpose = '${SessionManifestPurposeCode.SESSION_CAPTURE}'
+		  AND scope_kind = '${SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN}'
+		""",
+	)
+	suspend fun sourceEraseFenceGlobalFootprint(): PressureSourceDeletionFenceFootprint
+
+	@Query(
 		"SELECT COUNT(*) FROM source_deletion_fence " +
 			"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
 			"AND purpose = '${SessionManifestPurposeCode.SESSION_CAPTURE}' " +
@@ -600,4 +659,9 @@ data class PressureLogicalHistoryCandidate(
 	val logicalRecencyStartMs: Long,
 	@ColumnInfo(name = "logical_recency_segment_id")
 	val logicalRecencySegmentId: Long,
+)
+
+data class PressureSourceDeletionFenceFootprint(
+	@ColumnInfo(name = "row_count") val rowCount: Long,
+	@ColumnInfo(name = "text_bytes") val textBytes: Long,
 )

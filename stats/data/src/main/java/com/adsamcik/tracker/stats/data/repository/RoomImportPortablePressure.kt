@@ -423,23 +423,23 @@ internal class RoomImportPortablePressure internal constructor(
 			-> unverifiable(PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 			null -> Unit
 		}
+	}
 
-		private suspend fun preflightKnownIdentityAuthority(
-			dao: ImportedPressureDao,
-			identities: List<String>,
-		) {
-			when (val failure = storedValue {
-				dao.identityAuthorityFootprint(identities).validate(identities.size)
-			}) {
-				ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
-					unverifiable(PortablePressureImportUnverifiableReason.DEPENDENCY_OVERFLOW)
-				ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
-					unverifiable(PortablePressureImportUnverifiableReason.VALUE_OVERFLOW)
-				ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
-				ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
-				-> unverifiable(PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-				null -> Unit
-			}
+	private suspend fun preflightKnownIdentityAuthority(
+		dao: ImportedPressureDao,
+		identities: List<String>,
+	) {
+		when (val failure = storedValue {
+			dao.identityAuthorityFootprint(identities).validate(identities.size)
+		}) {
+			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
+				unverifiable(PortablePressureImportUnverifiableReason.DEPENDENCY_OVERFLOW)
+			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
+				unverifiable(PortablePressureImportUnverifiableReason.VALUE_OVERFLOW)
+			ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
+			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			-> unverifiable(PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+			null -> Unit
 		}
 	}
 

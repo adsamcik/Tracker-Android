@@ -247,7 +247,8 @@ internal class RoomErasePressureSource internal constructor(
 			-> unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 			null -> Unit
 		}
-		when (dao.privacyMaintenanceFootprint().validateGlobal(
+		val privacyFootprint = dao.privacyMaintenanceFootprint()
+		when (privacyFootprint.validateGlobal(
 			maximumIdentityFences = limits.maximumIdentityFences.toLong(),
 			maximumEntryDeletions = limits.maximumEntryDeletions.toLong(),
 			maximumRunDeletions = limits.maximumRunDeletions.toLong(),
@@ -262,8 +263,24 @@ internal class RoomErasePressureSource internal constructor(
 			-> unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
 			null -> Unit
 		}
+		val localFenceFootprint = database.pressureFactRevisionDao()
+			.sourceEraseFenceGlobalFootprint()
+		try {
+			if (localFenceFootprint.rowCount !in 0L..limits.maximumLocalFences.toLong() ||
+				localFenceFootprint.textBytes < 0L ||
+				Math.addExact(
+					privacyFootprint.totalTextBytes,
+					localFenceFootprint.textBytes,
+				) > com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+					.MAX_MAINTENANCE_TEXT_BYTES
+			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+		} catch (_: ArithmeticException) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
+		}
 		val previousErase = dao.sourceErase()
 		val previousAuthority = previousErase?.let {
+			collectLocalSourceEraseFences()
+			collectPermanentImportedAuthority()
 			authenticateSourceEraseAuthority(it, state)
 		}
 
@@ -648,69 +665,11 @@ internal class RoomErasePressureSource internal constructor(
 		previousLegacySamples: List<ImportedPressureSourceEraseWitnessEntity>,
 	): PressureSourceEraseAuthoritySnapshot {
 		val dao = database.importedPressureDao()
-		val localFences = mutableListOf<com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity>()
-		var localCursor: String? = null
-		while (true) {
-			val page = database.pressureFactRevisionDao().sourceEraseFencePage(
-				localCursor,
-				AUTHORITY_PAGE_SIZE,
-			)
-			if (page.isEmpty()) break
-			if (localCursor?.let { page.first().scopeIdentityDigest <= it } == true) {
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-			}
-			localFences += page
-			if (localFences.size > limits.maximumLocalFences) {
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
-			}
-			localCursor = page.last().scopeIdentityDigest
-			if (page.size < AUTHORITY_PAGE_SIZE) break
-		}
-		val entryDeletions = mutableListOf<ImportedPressureEntryDeletionEntity>()
-		var entryCursor: String? = null
-		while (true) {
-			val page = dao.entryDeletionPage(entryCursor, AUTHORITY_PAGE_SIZE)
-			if (page.isEmpty()) break
-			if (entryCursor?.let { page.first().entryIdentity <= it } == true) {
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-			}
-			entryDeletions += page
-			if (entryDeletions.size > limits.maximumEntryDeletions) {
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
-			}
-			entryCursor = page.last().entryIdentity
-			if (page.size < AUTHORITY_PAGE_SIZE) break
-		}
-		val runDeletions = mutableListOf<ImportedPressureDeletionGenerationEntity>()
-		var runCursor: String? = null
-		while (true) {
-			val page = dao.deletionGenerationPage(runCursor, AUTHORITY_PAGE_SIZE)
-			if (page.isEmpty()) break
-			if (runCursor?.let { page.first().runIdentity <= it } == true) {
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-			}
-			runDeletions += page
-			if (runDeletions.size > limits.maximumRunDeletions) {
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
-			}
-			runCursor = page.last().runIdentity
-			if (page.size < AUTHORITY_PAGE_SIZE) break
-		}
-		val identityFences = mutableListOf<ImportedPressureIdentityFenceEntity>()
-		var identityCursor: String? = null
-		while (true) {
-			val page = dao.identityFencePage(identityCursor, AUTHORITY_PAGE_SIZE)
-			if (page.isEmpty()) break
-			if (identityCursor?.let { page.first().protectedIdentity <= it } == true) {
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-			}
-			identityFences += page
-			if (identityFences.size > limits.maximumIdentityFences) {
-				unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
-			}
-			identityCursor = page.last().protectedIdentity
-			if (page.size < AUTHORITY_PAGE_SIZE) break
-		}
+		val localFences = collectLocalSourceEraseFences()
+		val permanent = collectPermanentImportedAuthority()
+		val entryDeletions = permanent.entryDeletions
+		val runDeletions = permanent.runDeletions
+		val identityFences = permanent.identityFences
 		if (database.pressureFactRevisionDao().sourceEraseFenceCount() != localFences.size.toLong() ||
 			dao.entryDeletionCount() != entryDeletions.size.toLong() ||
 			dao.deletionGenerationCount() != runDeletions.size.toLong() ||
@@ -743,6 +702,191 @@ internal class RoomErasePressureSource internal constructor(
 			runDeletions,
 			identityFences,
 		)
+	}
+
+	private suspend fun collectLocalSourceEraseFences():
+		List<com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity> {
+		val dao = database.pressureFactRevisionDao()
+		val global = dao.sourceEraseFenceGlobalFootprint()
+		if (global.rowCount !in 0L..limits.maximumLocalFences.toLong()) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+		}
+		val privacyFootprint = database.importedPressureDao().privacyMaintenanceFootprint()
+		when (privacyFootprint.validateGlobal(
+			maximumIdentityFences = limits.maximumIdentityFences.toLong(),
+			maximumEntryDeletions = limits.maximumEntryDeletions.toLong(),
+			maximumRunDeletions = limits.maximumRunDeletions.toLong(),
+			maximumWitnesses = limits.maximumWitnesses.toLong(),
+		)) {
+			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
+				unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
+			ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
+			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			-> unverifiable(
+				ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+			null -> Unit
+		}
+		try {
+			if (global.textBytes < 0L ||
+				Math.addExact(global.textBytes, privacyFootprint.totalTextBytes) >
+				com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+					.MAX_MAINTENANCE_TEXT_BYTES
+			) unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
+		} catch (_: ArithmeticException) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
+		}
+		val fences =
+			mutableListOf<com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity>()
+		var ownerRowId = 0L
+		while (true) {
+			val nextOwnerRowId = dao.sourceEraseFenceOwnerRowIdPage(ownerRowId, 1)
+				.singleOrNull() ?: break
+			if (nextOwnerRowId <= ownerRowId) {
+				unverifiable(
+					ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+			}
+			val footprint = dao.sourceEraseFenceOwnerFootprint(nextOwnerRowId)
+			if (footprint.rowCount != 1L) {
+				unverifiable(
+					ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+			}
+			requireOwnerTextWithinBounds(footprint.textBytes)
+			fences += dao.sourceEraseFenceByOwnerRowId(nextOwnerRowId)
+				?: unverifiable(
+					ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+			ownerRowId = nextOwnerRowId
+		}
+		if (fences.size.toLong() != global.rowCount) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		return fences
+	}
+
+	private suspend fun collectPermanentImportedAuthority():
+		PressurePermanentAuthoritySnapshot {
+		val dao = database.importedPressureDao()
+		val owners = mutableListOf<PressurePermanentAuthorityOwner>()
+		var ownerRowId = 0L
+		while (true) {
+			val nextOwnerRowId = dao.entryDeletionOwnerRowIdPage(ownerRowId, 1)
+				.singleOrNull() ?: break
+			if (nextOwnerRowId <= ownerRowId) {
+				unverifiable(
+					ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+			}
+			val footprint = dao.entryDeletionOwnerFootprint(nextOwnerRowId)
+			requirePermanentOwnerFootprint(footprint, requireEntryDeletion = true)
+			val deletion = dao.entryDeletionByOwnerRowId(nextOwnerRowId)
+				?: unverifiable(
+					ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+			owners += loadPermanentAuthorityOwner(
+				footprint = footprint,
+				entryIdentity = deletion.entryIdentity,
+				expectedEntryDeletion = deletion,
+			)
+			ownerRowId = nextOwnerRowId
+		}
+		ownerRowId = 0L
+		while (true) {
+			val nextOwnerRowId = dao.standalonePermanentOwnerRowIdPage(ownerRowId, 1)
+				.singleOrNull() ?: break
+			if (nextOwnerRowId <= ownerRowId) {
+				unverifiable(
+					ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+			}
+			val footprint = dao.standalonePermanentOwnerFootprint(nextOwnerRowId)
+			requirePermanentOwnerFootprint(footprint, requireEntryDeletion = false)
+			val entryMarker = dao.identityFenceByOwnerRowId(nextOwnerRowId)
+				?: unverifiable(
+					ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+			owners += loadPermanentAuthorityOwner(
+				footprint = footprint,
+				entryIdentity = entryMarker.entryIdentity,
+				expectedEntryDeletion = null,
+			)
+			ownerRowId = nextOwnerRowId
+		}
+		val entryDeletions = owners.mapNotNull(PressurePermanentAuthorityOwner::entryDeletion)
+		val identityFences = owners.flatMap(PressurePermanentAuthorityOwner::identityFences)
+		val runDeletions = owners.flatMap(PressurePermanentAuthorityOwner::runDeletions)
+		if (entryDeletions.map { it.entryIdentity }.distinct().size != entryDeletions.size ||
+			identityFences.map { it.protectedIdentity }.distinct().size != identityFences.size ||
+			runDeletions.map { it.runIdentity }.distinct().size != runDeletions.size
+		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		if (dao.entryDeletionCount() != entryDeletions.size.toLong() ||
+			dao.identityFenceCount() != identityFences.size.toLong() ||
+			dao.deletionGenerationCount() != runDeletions.size.toLong()
+		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		return PressurePermanentAuthoritySnapshot(entryDeletions, runDeletions, identityFences)
+	}
+
+	private suspend fun loadPermanentAuthorityOwner(
+		footprint:
+			com.adsamcik.tracker.shared.base.database.dao.ImportedPressurePermanentOwnerFootprint,
+		entryIdentity: String,
+		expectedEntryDeletion: ImportedPressureEntryDeletionEntity?,
+	): PressurePermanentAuthorityOwner {
+		val dao = database.importedPressureDao()
+		val fenceCount = Math.toIntExact(footprint.identityFenceCount)
+		val identityFences = dao.identityFencesForEntry(entryIdentity, fenceCount + 1)
+		if (identityFences.size != fenceCount ||
+			identityFences.count {
+				it.identityKind == ImportedPressureIdentityFenceEntity.ENTRY &&
+					it.protectedIdentity == entryIdentity &&
+					it.runIdentity == null
+			} != 1 ||
+			identityFences.any { it.entryIdentity != entryIdentity }
+		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		val runIds = identityFences.filter {
+			it.identityKind == ImportedPressureIdentityFenceEntity.RUN
+		}.map { it.protectedIdentity }
+		val runDeletions = runIds.chunked(SQLITE_BIND_BATCH).flatMap {
+			dao.deletionGenerations(it)
+		}
+		if (runDeletions.size.toLong() != footprint.runDeletionCount ||
+			runDeletions.map { it.runIdentity }.distinct().size != runDeletions.size ||
+			runDeletions.any { it.runIdentity !in runIds }
+		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		val entryDeletion = dao.entryDeletion(entryIdentity)
+		if (entryDeletion != expectedEntryDeletion) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		entryDeletion?.let {
+			authenticateEntryDeletionAuthority(it, identityFences, runDeletions)
+		}
+		return PressurePermanentAuthorityOwner(entryDeletion, identityFences, runDeletions)
+	}
+
+	private fun requirePermanentOwnerFootprint(
+		footprint:
+			com.adsamcik.tracker.shared.base.database.dao.ImportedPressurePermanentOwnerFootprint,
+		requireEntryDeletion: Boolean,
+	) {
+		requireOwnerTextWithinBounds(footprint.totalTextBytes)
+		if (footprint.entryDeletionCount != if (requireEntryDeletion) 1L else 0L ||
+			footprint.entryMarkerCount != 1L ||
+			footprint.identityFenceCount !in 1L..limits.maximumIdentityFences.toLong() ||
+			footprint.runDeletionCount !in 0L..limits.maximumRunDeletions.toLong()
+		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+	}
+
+	private fun requireOwnerTextWithinBounds(textBytes: Long) {
+		if (textBytes < 0L) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.VALUE_OVERFLOW)
+		}
+		if (textBytes > com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+				.MAX_LINEAGE_TEXT_BYTES
+		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW)
 	}
 
 	private suspend fun authenticateSourceEraseAuthority(
@@ -928,6 +1072,14 @@ internal class RoomErasePressureSource internal constructor(
 		val runDeletions = runFences.chunked(SQLITE_BIND_BATCH).flatMap {
 			dao.deletionGenerations(it.map { fence -> fence.protectedIdentity })
 		}
+		authenticateEntryDeletionAuthority(deletion, identityFences, runDeletions)
+	}
+
+	private fun authenticateEntryDeletionAuthority(
+		deletion: ImportedPressureEntryDeletionEntity,
+		identityFences: List<ImportedPressureIdentityFenceEntity>,
+		runDeletions: List<ImportedPressureDeletionGenerationEntity>,
+	) {
 		if (identityFences.size != deletion.identityFenceCount ||
 			ImportedPressureIdentityFenceEntity.checksumSet(identityFences) !=
 			deletion.identityFenceSetChecksum ||
@@ -1055,6 +1207,18 @@ private data class PressureSourceEraseAuthoritySnapshot(
 			.thenBy(ImportedPressureSourceEraseWitnessEntity::witnessIdentity),
 	)
 }
+
+private data class PressurePermanentAuthorityOwner(
+	val entryDeletion: ImportedPressureEntryDeletionEntity?,
+	val identityFences: List<ImportedPressureIdentityFenceEntity>,
+	val runDeletions: List<ImportedPressureDeletionGenerationEntity>,
+)
+
+private data class PressurePermanentAuthoritySnapshot(
+	val entryDeletions: List<ImportedPressureEntryDeletionEntity>,
+	val runDeletions: List<ImportedPressureDeletionGenerationEntity>,
+	val identityFences: List<ImportedPressureIdentityFenceEntity>,
+)
 
 private data class AuthenticatedPressureSourceEraseAuthority(
 	val legacySamples: List<ImportedPressureSourceEraseWitnessEntity>,

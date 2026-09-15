@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.preserveImportedPressureFullClearAuthority
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureResult
@@ -185,6 +186,127 @@ class ImportedPressureFullClearAuthorityTest {
 		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe EPOCH
 		database.importedPressureDao().latestEntryRevision(imported.entry.identity.value)
 			?.contentChecksum shouldBe forged
+	}
+
+	@Test
+	fun `standalone permanent fence is byte preflighted before its text is materialized`() = runTest {
+		val identity = PortablePressureOpaqueIdentity.derive(
+			PortablePressureIdentityKind.LOGICAL_ENTRY,
+			"oversized-standalone-fence",
+		).value
+		val oversized = com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+			.MAX_LINEAGE_TEXT_BYTES.toInt() + 1
+		database.openHelper.writableDatabase.execSQL(
+			"""
+			INSERT INTO imported_pressure_identity_fence (
+			  protected_identity, identity_kind, entry_identity, run_identity,
+			  original_collected_data_epoch, fence_generation, fenced_at_ms,
+			  fence_reason, effect_checksum
+			) VALUES (?, 'ENTRY', ?, NULL, ?, 1, ?, 'FULL_CLEAR', CAST(zeroblob(?) AS TEXT))
+			""".trimIndent(),
+			arrayOf(identity, identity, EPOCH, 4_000L, oversized),
+		)
+
+		shouldThrow<RuntimeException> {
+			database.withTransaction {
+				preserveImportedPressureFullClearAuthority(
+					database.openHelper.writableDatabase,
+					EPOCH,
+					4_000L,
+				)
+			}
+		}
+
+		database.importedPressureDao().identityFenceCount() shouldBe 1L
+		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe EPOCH
+	}
+
+	@Test
+	fun `orphan permanent deletion is byte preflighted before its identity is materialized`() =
+		runTest {
+			val oversized = com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+				.MAX_LINEAGE_TEXT_BYTES.toInt() + 1
+			val checksum = PortablePressureOpaqueIdentity.derive(
+				PortablePressureIdentityKind.LOGICAL_ENTRY,
+				"small-deletion-checksum",
+			).value
+			database.openHelper.writableDatabase.execSQL(
+				"""
+				INSERT INTO imported_pressure_entry_deletion (
+				  entry_identity, collected_data_epoch, deleted_import_revision, deleted_at_ms,
+				  run_deletion_count, run_deletion_set_checksum, identity_fence_count,
+				  identity_fence_set_checksum, effect_checksum
+				) VALUES (
+				  CAST(zeroblob(?) AS TEXT), ?, 1, ?, 0, ?, 0, ?, ?
+				)
+				""".trimIndent(),
+				arrayOf(oversized, EPOCH, 4_000L, checksum, checksum, checksum),
+			)
+
+			shouldThrow<RuntimeException> {
+				database.withTransaction {
+					preserveImportedPressureFullClearAuthority(
+						database.openHelper.writableDatabase,
+						EPOCH,
+						4_000L,
+					)
+				}
+			}
+
+			database.openHelper.writableDatabase.query(
+				"SELECT COUNT(*) FROM imported_pressure_entry_deletion",
+			).use { cursor ->
+				cursor.moveToFirst() shouldBe true
+				cursor.getLong(0) shouldBe 1L
+			}
+			database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe EPOCH
+		}
+
+	@Test
+	fun `full clear preflights local Pressure fence before loading oversized digest`() = runTest {
+		val oversized = com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+			.MAX_LINEAGE_TEXT_BYTES.toInt() + 1
+		val checksum = PortablePressureOpaqueIdentity.derive(
+			PortablePressureIdentityKind.LOGICAL_ENTRY,
+			"small-full-clear-local-checksum",
+		).value
+		database.openHelper.writableDatabase.execSQL(
+			"""
+			INSERT INTO source_deletion_fence (
+			  source_kind, purpose, scope_kind, scope_identity_digest, fence_generation,
+			  collected_data_epoch, deleted_at_ms, effect_checksum
+			) VALUES (
+			  ?, 'SESSION_CAPTURE', 'LOGICAL_SERVICE_RUN', CAST(zeroblob(?) AS TEXT),
+			  1, ?, ?, ?
+			)
+			""".trimIndent(),
+			arrayOf(
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				oversized,
+				EPOCH,
+				4_000L,
+				checksum,
+			),
+		)
+
+		shouldThrow<RuntimeException> {
+			database.withTransaction {
+				preserveImportedPressureFullClearAuthority(
+					database.openHelper.writableDatabase,
+					EPOCH,
+					4_000L,
+				)
+			}
+		}
+
+		database.openHelper.writableDatabase.query(
+			"SELECT COUNT(*) FROM source_deletion_fence WHERE source_kind = ?",
+			arrayOf(SourceDestinationOwnerEntity.SOURCE_PRESSURE),
+		).use { cursor ->
+			cursor.moveToFirst() shouldBe true
+			cursor.getLong(0) shouldBe 1L
+		}
+		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe EPOCH
 	}
 
 	@Test

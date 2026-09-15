@@ -51,13 +51,19 @@ fun preserveImportedPressureFullClearAuthority(
 	val globalRetainedFootprint = readGlobalRetainedFootprint(sqlite)
 	globalRetainedFootprint.requireGlobalWithinBounds()
 	val privacyBytes = readGlobalPrivacyAuthorityBytes(sqlite)
+	val localFenceFootprint = readGlobalLocalFenceFootprint(sqlite)
+	check(localFenceFootprint.rowCount in 0L..MAX_LOCAL_FENCES.toLong())
+	check(localFenceFootprint.textBytes >= 0L)
 	check(
 		Math.addExact(
 			Math.addExact(
-				globalLiveFootprint.totalTextBytes,
-				globalRetainedFootprint.totalTextBytes,
+				Math.addExact(
+					globalLiveFootprint.totalTextBytes,
+					globalRetainedFootprint.totalTextBytes,
+				),
+				privacyBytes,
 			),
-			privacyBytes,
+			localFenceFootprint.textBytes,
 		) <= MAX_MAINTENANCE_TEXT_BYTES,
 	)
 
@@ -125,54 +131,278 @@ fun preserveImportedPressureFullClearAuthority(
 		check(retainedCount <= MAX_SOURCE_ENTRIES)
 	}
 
-	var cursorIdentity: String? = null
-	while (true) {
-		val identity = sqlite.query(
-			"SELECT entry_identity FROM imported_pressure_entry_deletion " +
-				"WHERE (? IS NULL OR entry_identity > ?) ORDER BY entry_identity LIMIT 1",
-			arrayOf(cursorIdentity, cursorIdentity),
-		).use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null } ?: break
-		check(cursorIdentity == null || identity > requireNotNull(cursorIdentity))
-		cursorIdentity = identity
-		loadAndAuthenticateEntryDeletion(sqlite, identity)
-		deletedCount = Math.addExact(deletedCount, 1)
-		check(deletedCount <= MAX_DELETION_ENTRIES)
-	}
+	check(
+		Math.addExact(
+			Math.addExact(
+				Math.addExact(
+					globalLiveFootprint.totalTextBytes,
+					globalRetainedFootprint.totalTextBytes,
+				),
+				readGlobalPrivacyAuthorityBytes(sqlite),
+			),
+			localFenceFootprint.textBytes,
+		) <= MAX_MAINTENANCE_TEXT_BYTES,
+	)
+	val permanent = authenticatePermanentOwners(sqlite)
+	deletedCount = Math.toIntExact(permanent.entryDeletionCount)
+	val fenceCount = Math.toIntExact(permanent.identityFenceCount)
+	authenticateLocalFenceOwners(sqlite, localFenceFootprint.rowCount)
 	authenticateSourceEraseReceipt(sqlite, expectedCollectedDataEpoch)
-	var fenceCount = 0
-	cursorIdentity = null
-	while (true) {
-		val identity = sqlite.query(
-			"SELECT protected_identity FROM imported_pressure_identity_fence " +
-				"WHERE (? IS NULL OR protected_identity > ?) " +
-				"ORDER BY protected_identity LIMIT 1",
-			arrayOf(cursorIdentity, cursorIdentity),
-		).use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null } ?: break
-		check(cursorIdentity == null || identity > requireNotNull(cursorIdentity))
-		cursorIdentity = identity
-		loadIdentityFence(sqlite, identity)
-		fenceCount = Math.addExact(fenceCount, 1)
-		check(fenceCount <= MAX_IDENTITY_FENCES)
-	}
-	var runDeletionCount = 0
-	cursorIdentity = null
-	while (true) {
-		val identity = sqlite.query(
-			"SELECT run_identity FROM imported_pressure_deletion_generation " +
-				"WHERE (? IS NULL OR run_identity > ?) ORDER BY run_identity LIMIT 1",
-			arrayOf(cursorIdentity, cursorIdentity),
-		).use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null } ?: break
-		check(cursorIdentity == null || identity > requireNotNull(cursorIdentity))
-		cursorIdentity = identity
-		checkNotNull(loadRunDeletion(sqlite, identity))
-		runDeletionCount = Math.addExact(runDeletionCount, 1)
-		check(runDeletionCount <= MAX_RUN_DELETIONS)
-	}
 	return ImportedPressureFullClearPreservationResult(
 		liveEntryCount = liveCount,
 		retainedEntryCount = retainedCount,
 		deletionEntryCount = deletedCount,
 		identityFenceCount = fenceCount,
+	)
+}
+
+private fun authenticatePermanentOwners(
+	sqlite: SupportSQLiteDatabase,
+): FullClearPermanentCounts {
+	var counts = FullClearPermanentCounts()
+	var ownerRowId = 0L
+	while (true) {
+		val nextOwnerRowId = sqlite.query(
+			"SELECT rowid FROM imported_pressure_entry_deletion WHERE rowid > ? " +
+				"ORDER BY rowid LIMIT 1",
+			arrayOf(ownerRowId),
+		).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else null } ?: break
+		check(nextOwnerRowId > ownerRowId)
+		val footprint = readPermanentOwnerFootprint(
+			sqlite,
+			nextOwnerRowId,
+			entryDeletionOwner = true,
+		)
+		footprint.requireWithinBounds(requireEntryDeletion = true)
+		val identity = sqlite.query(
+			"SELECT entry_identity FROM imported_pressure_entry_deletion WHERE rowid = ?",
+			arrayOf(nextOwnerRowId),
+		).use { cursor -> check(cursor.moveToFirst()); cursor.getString(0) }
+		counts = counts.plus(
+			loadAndAuthenticatePermanentOwner(
+				sqlite,
+				identity,
+				footprint,
+				requireEntryDeletion = true,
+			),
+		)
+		ownerRowId = nextOwnerRowId
+	}
+	ownerRowId = 0L
+	while (true) {
+		val nextOwnerRowId = sqlite.query(
+			"SELECT fence.rowid FROM imported_pressure_identity_fence AS fence " +
+				"WHERE fence.rowid > ? AND fence.identity_kind = 'ENTRY' " +
+				"AND fence.protected_identity = fence.entry_identity " +
+				"AND fence.run_identity IS NULL AND NOT EXISTS (" +
+				"SELECT 1 FROM imported_pressure_entry_deletion AS deletion " +
+				"WHERE deletion.entry_identity = fence.entry_identity) " +
+				"ORDER BY fence.rowid LIMIT 1",
+			arrayOf(ownerRowId),
+		).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else null } ?: break
+		check(nextOwnerRowId > ownerRowId)
+		val footprint = readPermanentOwnerFootprint(
+			sqlite,
+			nextOwnerRowId,
+			entryDeletionOwner = false,
+		)
+		footprint.requireWithinBounds(requireEntryDeletion = false)
+		val entryMarker = loadIdentityFenceByRowId(sqlite, nextOwnerRowId)
+		counts = counts.plus(
+			loadAndAuthenticatePermanentOwner(
+				sqlite,
+				entryMarker.entryIdentity,
+				footprint,
+				requireEntryDeletion = false,
+			),
+		)
+		ownerRowId = nextOwnerRowId
+	}
+	val global = sqlite.query(
+		"SELECT " +
+			"(SELECT COUNT(*) FROM imported_pressure_entry_deletion), " +
+			"(SELECT COUNT(*) FROM imported_pressure_identity_fence), " +
+			"(SELECT COUNT(*) FROM imported_pressure_deletion_generation)",
+	).use { cursor ->
+		check(cursor.moveToFirst())
+		FullClearPermanentCounts(cursor.getLong(0), cursor.getLong(1), cursor.getLong(2))
+	}
+	check(global.entryDeletionCount <= MAX_DELETION_ENTRIES)
+	check(global.identityFenceCount <= MAX_IDENTITY_FENCES)
+	check(global.runDeletionCount <= MAX_RUN_DELETIONS)
+	check(counts == global)
+	return counts
+}
+
+private fun readPermanentOwnerFootprint(
+	sqlite: SupportSQLiteDatabase,
+	ownerRowId: Long,
+	entryDeletionOwner: Boolean,
+): FullClearPermanentOwnerFootprint {
+	val ownerSelect = if (entryDeletionOwner) {
+		"SELECT entry_identity FROM imported_pressure_entry_deletion WHERE rowid = ?"
+	} else {
+		"SELECT entry_identity FROM imported_pressure_identity_fence WHERE rowid = ?"
+	}
+	return sqlite.query(
+		"WITH owner(entry_identity) AS ($ownerSelect) SELECT " +
+			"(SELECT COUNT(*) FROM imported_pressure_entry_deletion " +
+			"WHERE entry_identity = (SELECT entry_identity FROM owner)), " +
+			"(SELECT COALESCE(SUM(LENGTH(CAST(entry_identity AS BLOB)) + " +
+			"LENGTH(CAST(run_deletion_set_checksum AS BLOB)) + " +
+			"LENGTH(CAST(identity_fence_set_checksum AS BLOB)) + " +
+			"LENGTH(CAST(effect_checksum AS BLOB))), 0) " +
+			"FROM imported_pressure_entry_deletion " +
+			"WHERE entry_identity = (SELECT entry_identity FROM owner)), " +
+			"(SELECT COUNT(*) FROM imported_pressure_identity_fence " +
+			"WHERE entry_identity = (SELECT entry_identity FROM owner) " +
+			"AND identity_kind = 'ENTRY' AND protected_identity = entry_identity " +
+			"AND run_identity IS NULL), " +
+			"(SELECT COUNT(*) FROM imported_pressure_identity_fence " +
+			"WHERE entry_identity = (SELECT entry_identity FROM owner)), " +
+			"(SELECT COALESCE(SUM(LENGTH(CAST(protected_identity AS BLOB)) + " +
+			"LENGTH(CAST(identity_kind AS BLOB)) + LENGTH(CAST(entry_identity AS BLOB)) + " +
+			"COALESCE(LENGTH(CAST(run_identity AS BLOB)), 0) + " +
+			"LENGTH(CAST(fence_reason AS BLOB)) + LENGTH(CAST(effect_checksum AS BLOB))), 0) " +
+			"FROM imported_pressure_identity_fence " +
+			"WHERE entry_identity = (SELECT entry_identity FROM owner)), " +
+			"(SELECT COUNT(*) FROM imported_pressure_deletion_generation " +
+			"WHERE run_identity IN (SELECT protected_identity " +
+			"FROM imported_pressure_identity_fence " +
+			"WHERE entry_identity = (SELECT entry_identity FROM owner) " +
+			"AND identity_kind = 'RUN')), " +
+			"(SELECT COALESCE(SUM(LENGTH(CAST(run_identity AS BLOB)) + " +
+			"LENGTH(CAST(effect_checksum AS BLOB))), 0) " +
+			"FROM imported_pressure_deletion_generation " +
+			"WHERE run_identity IN (SELECT protected_identity " +
+			"FROM imported_pressure_identity_fence " +
+			"WHERE entry_identity = (SELECT entry_identity FROM owner) " +
+			"AND identity_kind = 'RUN'))",
+		arrayOf(ownerRowId),
+	).use { cursor ->
+		check(cursor.moveToFirst())
+		FullClearPermanentOwnerFootprint(
+			entryDeletionCount = cursor.getLong(0),
+			entryDeletionTextBytes = cursor.getLong(1),
+			entryMarkerCount = cursor.getLong(2),
+			identityFenceCount = cursor.getLong(3),
+			identityFenceTextBytes = cursor.getLong(4),
+			runDeletionCount = cursor.getLong(5),
+			runDeletionTextBytes = cursor.getLong(6),
+		)
+	}
+}
+
+private fun loadAndAuthenticatePermanentOwner(
+	sqlite: SupportSQLiteDatabase,
+	identity: String,
+	footprint: FullClearPermanentOwnerFootprint,
+	requireEntryDeletion: Boolean,
+): FullClearPermanentCounts {
+	val fenceLimit = Math.toIntExact(footprint.identityFenceCount) + 1
+	val fences = sqlite.query(
+		"SELECT protected_identity, identity_kind, entry_identity, run_identity, " +
+			"original_collected_data_epoch, fence_generation, fenced_at_ms, fence_reason, " +
+			"effect_checksum FROM imported_pressure_identity_fence WHERE entry_identity = ? " +
+			"ORDER BY identity_kind, protected_identity LIMIT ?",
+		arrayOf(identity, fenceLimit),
+	).use { cursor ->
+		buildList {
+			while (cursor.moveToNext()) {
+				add(
+					ImportedPressureIdentityFenceEntity(
+						protectedIdentity = cursor.getString(0),
+						identityKind = cursor.getString(1),
+						entryIdentity = cursor.getString(2),
+						runIdentity = if (cursor.isNull(3)) null else cursor.getString(3),
+						originalCollectedDataEpoch = cursor.getLong(4),
+						fenceGeneration = cursor.getLong(5),
+						fencedAtMs = cursor.getLong(6),
+						fenceReason = cursor.getString(7),
+						effectChecksum = cursor.getString(8),
+					),
+				)
+			}
+		}
+	}
+	check(fences.size.toLong() == footprint.identityFenceCount)
+	check(fences.all { it.entryIdentity == identity })
+	check(fences.count {
+		it.identityKind == ImportedPressureIdentityFenceEntity.ENTRY &&
+			it.protectedIdentity == identity && it.runIdentity == null
+	} == 1)
+	val runDeletions = fences.filter {
+		it.identityKind == ImportedPressureIdentityFenceEntity.RUN
+	}.mapNotNull { loadRunDeletion(sqlite, it.protectedIdentity) }
+	check(runDeletions.size.toLong() == footprint.runDeletionCount)
+	check(runDeletions.map { it.runIdentity }.distinct().size == runDeletions.size)
+	val deletion = loadEntryDeletion(sqlite, identity)
+	check((deletion != null) == requireEntryDeletion)
+	deletion?.let { authenticateEntryDeletion(it, fences, runDeletions) }
+	return FullClearPermanentCounts(
+		entryDeletionCount = if (deletion == null) 0L else 1L,
+		identityFenceCount = fences.size.toLong(),
+		runDeletionCount = runDeletions.size.toLong(),
+	)
+}
+
+private fun authenticateLocalFenceOwners(
+	sqlite: SupportSQLiteDatabase,
+	expectedCount: Long,
+) {
+	var count = 0L
+	var ownerRowId = 0L
+	while (true) {
+		val nextOwnerRowId = sqlite.query(
+			"SELECT rowid FROM source_deletion_fence WHERE source_kind = " +
+				"${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
+				"AND purpose = 'SESSION_CAPTURE' AND scope_kind = 'LOGICAL_SERVICE_RUN' " +
+				"AND rowid > ? ORDER BY rowid LIMIT 1",
+			arrayOf(ownerRowId),
+		).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else null } ?: break
+		check(nextOwnerRowId > ownerRowId)
+		val footprint = sqlite.query(
+			"SELECT COUNT(*), COALESCE(SUM(LENGTH(CAST(purpose AS BLOB)) + " +
+				"LENGTH(CAST(scope_kind AS BLOB)) + " +
+				"LENGTH(CAST(scope_identity_digest AS BLOB)) + " +
+				"LENGTH(CAST(effect_checksum AS BLOB))), 0) " +
+				"FROM source_deletion_fence WHERE rowid = ? AND source_kind = " +
+				"${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
+				"AND purpose = 'SESSION_CAPTURE' AND scope_kind = 'LOGICAL_SERVICE_RUN'",
+			arrayOf(nextOwnerRowId),
+		).use { cursor ->
+			check(cursor.moveToFirst())
+			FullClearLocalFenceFootprint(cursor.getLong(0), cursor.getLong(1))
+		}
+		footprint.requireWithinBounds()
+		loadSourceDeletionFenceByRowId(sqlite, nextOwnerRowId)
+		count = Math.addExact(count, 1L)
+		check(count <= MAX_LOCAL_FENCES)
+		ownerRowId = nextOwnerRowId
+	}
+	check(count == expectedCount)
+}
+
+private fun loadSourceDeletionFenceByRowId(
+	sqlite: SupportSQLiteDatabase,
+	ownerRowId: Long,
+): SourceDeletionFenceEntity = sqlite.query(
+	"SELECT source_kind, purpose, scope_kind, scope_identity_digest, fence_generation, " +
+		"collected_data_epoch, deleted_at_ms, effect_checksum FROM source_deletion_fence " +
+		"WHERE rowid = ? AND source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
+		"AND purpose = 'SESSION_CAPTURE' AND scope_kind = 'LOGICAL_SERVICE_RUN'",
+	arrayOf(ownerRowId),
+).use { cursor ->
+	check(cursor.moveToFirst())
+	SourceDeletionFenceEntity(
+		sourceKind = cursor.getInt(0),
+		purpose = cursor.getString(1),
+		scopeKind = cursor.getString(2),
+		scopeIdentityDigest = cursor.getString(3),
+		fenceGeneration = cursor.getLong(4),
+		collectedDataEpoch = cursor.getLong(5),
+		deletedAtMs = cursor.getLong(6),
+		effectChecksum = cursor.getString(7),
 	)
 }
 
@@ -470,15 +700,34 @@ private fun loadAndAuthenticateEntryDeletion(
 	sqlite: SupportSQLiteDatabase,
 	identity: String,
 ): ImportedPressureEntryDeletionEntity {
-	val deletion = sqlite.query(
+	val deletion = checkNotNull(loadEntryDeletion(sqlite, identity))
+	val fences = sqlite.query(
+		"SELECT protected_identity FROM imported_pressure_identity_fence " +
+			"WHERE entry_identity = ? ORDER BY protected_identity LIMIT ?",
+		arrayOf(identity, deletion.identityFenceCount + 1),
+	).use { cursor ->
+		buildList {
+			while (cursor.moveToNext()) add(loadIdentityFence(sqlite, cursor.getString(0)))
+		}
+	}
+	val runDeletions = fences.filter {
+		it.identityKind == ImportedPressureIdentityFenceEntity.RUN
+	}.mapNotNull { loadRunDeletion(sqlite, it.protectedIdentity) }
+	authenticateEntryDeletion(deletion, fences, runDeletions)
+	return deletion
+}
+
+private fun loadEntryDeletion(
+	sqlite: SupportSQLiteDatabase,
+	identity: String,
+): ImportedPressureEntryDeletionEntity? = sqlite.query(
 		"SELECT entry_identity, collected_data_epoch, deleted_import_revision, deleted_at_ms, " +
 			"run_deletion_count, run_deletion_set_checksum, identity_fence_count, " +
 			"identity_fence_set_checksum, effect_checksum FROM imported_pressure_entry_deletion " +
 			"WHERE entry_identity = ?",
 		arrayOf(identity),
 	).use { cursor ->
-		check(cursor.moveToFirst())
-		ImportedPressureEntryDeletionEntity(
+		if (!cursor.moveToFirst()) null else ImportedPressureEntryDeletionEntity(
 			entryIdentity = cursor.getString(0),
 			collectedDataEpoch = cursor.getLong(1),
 			deletedImportRevision = cursor.getLong(2),
@@ -490,26 +739,19 @@ private fun loadAndAuthenticateEntryDeletion(
 			effectChecksum = cursor.getString(8),
 		)
 	}
-	val fences = sqlite.query(
-		"SELECT protected_identity FROM imported_pressure_identity_fence " +
-			"WHERE entry_identity = ? ORDER BY protected_identity LIMIT ?",
-		arrayOf(identity, deletion.identityFenceCount + 1),
-	).use { cursor ->
-		buildList {
-			while (cursor.moveToNext()) add(loadIdentityFence(sqlite, cursor.getString(0)))
-		}
-	}
+
+private fun authenticateEntryDeletion(
+	deletion: ImportedPressureEntryDeletionEntity,
+	fences: List<ImportedPressureIdentityFenceEntity>,
+	runDeletions: List<ImportedPressureDeletionGenerationEntity>,
+) {
 	check(fences.size == deletion.identityFenceCount)
 	check(ImportedPressureIdentityFenceEntity.checksumSet(fences) == deletion.identityFenceSetChecksum)
-	val runDeletions = fences.filter {
-		it.identityKind == ImportedPressureIdentityFenceEntity.RUN
-	}.mapNotNull { loadRunDeletion(sqlite, it.protectedIdentity) }
 	check(runDeletions.size == deletion.runDeletionCount)
 	check(
 		ImportedPressureRetentionReceiptEntity.checksumRunDeletions(runDeletions) ==
 			deletion.runDeletionSetChecksum,
 	)
-	return deletion
 }
 
 private fun authenticateSourceEraseReceipt(
@@ -721,6 +963,29 @@ private fun loadIdentityFence(
 		"original_collected_data_epoch, fence_generation, fenced_at_ms, fence_reason, effect_checksum " +
 		"FROM imported_pressure_identity_fence WHERE protected_identity = ?",
 	arrayOf(identity),
+).use { cursor ->
+	check(cursor.moveToFirst())
+	ImportedPressureIdentityFenceEntity(
+		protectedIdentity = cursor.getString(0),
+		identityKind = cursor.getString(1),
+		entryIdentity = cursor.getString(2),
+		runIdentity = if (cursor.isNull(3)) null else cursor.getString(3),
+		originalCollectedDataEpoch = cursor.getLong(4),
+		fenceGeneration = cursor.getLong(5),
+		fencedAtMs = cursor.getLong(6),
+		fenceReason = cursor.getString(7),
+		effectChecksum = cursor.getString(8),
+	)
+}
+
+private fun loadIdentityFenceByRowId(
+	sqlite: SupportSQLiteDatabase,
+	ownerRowId: Long,
+): ImportedPressureIdentityFenceEntity = sqlite.query(
+	"SELECT protected_identity, identity_kind, entry_identity, run_identity, " +
+		"original_collected_data_epoch, fence_generation, fenced_at_ms, fence_reason, effect_checksum " +
+		"FROM imported_pressure_identity_fence WHERE rowid = ?",
+	arrayOf(ownerRowId),
 ).use { cursor ->
 	check(cursor.moveToFirst())
 	ImportedPressureIdentityFenceEntity(
@@ -1013,6 +1278,19 @@ private fun readGlobalPrivacyAuthorityBytes(sqlite: SupportSQLiteDatabase): Long
 		)
 	}
 
+private fun readGlobalLocalFenceFootprint(
+	sqlite: SupportSQLiteDatabase,
+): FullClearLocalFenceFootprint = sqlite.query(
+	"SELECT COUNT(*), COALESCE(SUM(LENGTH(CAST(purpose AS BLOB)) + " +
+		"LENGTH(CAST(scope_kind AS BLOB)) + LENGTH(CAST(scope_identity_digest AS BLOB)) + " +
+		"LENGTH(CAST(effect_checksum AS BLOB))), 0) FROM source_deletion_fence " +
+		"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_PRESSURE} " +
+		"AND purpose = 'SESSION_CAPTURE' AND scope_kind = 'LOGICAL_SERVICE_RUN'",
+).use { cursor ->
+	check(cursor.moveToFirst())
+	FullClearLocalFenceFootprint(cursor.getLong(0), cursor.getLong(1))
+}
+
 private fun checkedMaintenanceBytes(current: Long, added: Long): Long {
 	val next = Math.addExact(current, added)
 	check(next <= MAX_MAINTENANCE_TEXT_BYTES)
@@ -1047,6 +1325,57 @@ private data class FullClearIdentityOwner(
 )
 
 private data class FullClearRetainedLineage(val textBytes: Long)
+
+private data class FullClearPermanentCounts(
+	val entryDeletionCount: Long = 0L,
+	val identityFenceCount: Long = 0L,
+	val runDeletionCount: Long = 0L,
+) {
+	fun plus(other: FullClearPermanentCounts) = FullClearPermanentCounts(
+		entryDeletionCount = Math.addExact(entryDeletionCount, other.entryDeletionCount),
+		identityFenceCount = Math.addExact(identityFenceCount, other.identityFenceCount),
+		runDeletionCount = Math.addExact(runDeletionCount, other.runDeletionCount),
+	)
+}
+
+private data class FullClearPermanentOwnerFootprint(
+	val entryDeletionCount: Long,
+	val entryDeletionTextBytes: Long,
+	val entryMarkerCount: Long,
+	val identityFenceCount: Long,
+	val identityFenceTextBytes: Long,
+	val runDeletionCount: Long,
+	val runDeletionTextBytes: Long,
+) {
+	val totalTextBytes: Long
+		get() = Math.addExact(
+			entryDeletionTextBytes,
+			Math.addExact(identityFenceTextBytes, runDeletionTextBytes),
+		)
+
+	fun requireWithinBounds(requireEntryDeletion: Boolean) {
+		check(listOf(
+			entryDeletionTextBytes,
+			identityFenceTextBytes,
+			runDeletionTextBytes,
+		).all { it >= 0L })
+		check(totalTextBytes <= MAX_LINEAGE_TEXT_BYTES)
+		check(entryDeletionCount == if (requireEntryDeletion) 1L else 0L)
+		check(entryMarkerCount == 1L)
+		check(identityFenceCount in 1L..MAX_IDENTITY_FENCES.toLong())
+		check(runDeletionCount in 0L..MAX_RUN_DELETIONS.toLong())
+	}
+}
+
+private data class FullClearLocalFenceFootprint(
+	val rowCount: Long,
+	val textBytes: Long,
+) {
+	fun requireWithinBounds() {
+		check(rowCount == 1L)
+		check(textBytes in 0L..MAX_LINEAGE_TEXT_BYTES)
+	}
+}
 
 private data class FullClearRetainedFootprint(
 	val receiptCount: Long,
@@ -1166,6 +1495,7 @@ private const val MAX_WINDOWS_PER_REVISION = 16_384
 private const val MAX_RUN_ROWS = MAX_REVISIONS * MAX_RUNS_PER_REVISION
 private const val MAX_WINDOW_ROWS = MAX_REVISIONS * MAX_WINDOWS_PER_REVISION
 private const val MAX_SOURCE_ENTRIES = 65_536
+private const val MAX_LOCAL_FENCES = 65_536
 private const val MAX_DELETION_ENTRIES = 65_536
 private const val MAX_IDENTITY_FENCES = 524_288
 private const val MAX_RUN_DELETIONS = 262_144

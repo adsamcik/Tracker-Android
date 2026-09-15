@@ -97,6 +97,106 @@ class RoomErasePressureSourceTest {
 	}
 
 	@Test
+	fun `source erase preflights standalone permanent owner before loading oversized text`() = runTest {
+		val identity = PortablePressureOpaqueIdentity.derive(
+			PortablePressureIdentityKind.LOGICAL_ENTRY,
+			"oversized-source-erase-fence",
+		).value
+		val oversized = com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+			.MAX_LINEAGE_TEXT_BYTES.toInt() + 1
+		database.openHelper.writableDatabase.execSQL(
+			"""
+			INSERT INTO imported_pressure_identity_fence (
+			  protected_identity, identity_kind, entry_identity, run_identity,
+			  original_collected_data_epoch, fence_generation, fenced_at_ms,
+			  fence_reason, effect_checksum
+			) VALUES (?, 'ENTRY', ?, NULL, ?, 1, ?, 'FULL_CLEAR', CAST(zeroblob(?) AS TEXT))
+			""".trimIndent(),
+			arrayOf(identity, identity, EPOCH, ERASED_AT_MS, oversized),
+		)
+
+		subject(testScheduler).erase(request()) shouldBe ErasePressureSourceResult.Unverifiable(
+			com.adsamcik.tracker.stats.api.repository
+				.ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW,
+		)
+		database.importedPressureDao().identityFenceCount() shouldBe 1L
+		database.importedPressureDao().sourceErase() shouldBe null
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+	}
+
+	@Test
+	fun `source erase preflights orphan permanent deletion before loading oversized identity`() =
+		runTest {
+			val oversized = com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+				.MAX_LINEAGE_TEXT_BYTES.toInt() + 1
+			val checksum = PortablePressureOpaqueIdentity.derive(
+				PortablePressureIdentityKind.LOGICAL_ENTRY,
+				"small-source-erase-deletion-checksum",
+			).value
+			database.openHelper.writableDatabase.execSQL(
+				"""
+				INSERT INTO imported_pressure_entry_deletion (
+				  entry_identity, collected_data_epoch, deleted_import_revision, deleted_at_ms,
+				  run_deletion_count, run_deletion_set_checksum, identity_fence_count,
+				  identity_fence_set_checksum, effect_checksum
+				) VALUES (
+				  CAST(zeroblob(?) AS TEXT), ?, 1, ?, 0, ?, 0, ?, ?
+				)
+				""".trimIndent(),
+				arrayOf(oversized, EPOCH, ERASED_AT_MS, checksum, checksum, checksum),
+			)
+
+			subject(testScheduler).erase(request()) shouldBe ErasePressureSourceResult.Unverifiable(
+				com.adsamcik.tracker.stats.api.repository
+					.ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW,
+			)
+			database.openHelper.writableDatabase.query(
+				"SELECT COUNT(*) FROM imported_pressure_entry_deletion",
+			).use { cursor ->
+				cursor.moveToFirst() shouldBe true
+				cursor.getLong(0) shouldBe 1L
+			}
+			database.importedPressureDao().sourceErase() shouldBe null
+			database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+		}
+
+	@Test
+	fun `source erase preflights local deletion fence before loading oversized digest`() = runTest {
+		val oversized = com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+			.MAX_LINEAGE_TEXT_BYTES.toInt() + 1
+		val checksum = PortablePressureOpaqueIdentity.derive(
+			PortablePressureIdentityKind.LOGICAL_ENTRY,
+			"small-local-fence-checksum",
+		).value
+		database.openHelper.writableDatabase.execSQL(
+			"""
+			INSERT INTO source_deletion_fence (
+			  source_kind, purpose, scope_kind, scope_identity_digest, fence_generation,
+			  collected_data_epoch, deleted_at_ms, effect_checksum
+			) VALUES (
+			  ?, 'SESSION_CAPTURE', 'LOGICAL_SERVICE_RUN', CAST(zeroblob(?) AS TEXT),
+			  1, ?, ?, ?
+			)
+			""".trimIndent(),
+			arrayOf(
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				oversized,
+				EPOCH,
+				ERASED_AT_MS,
+				checksum,
+			),
+		)
+
+		subject(testScheduler).erase(request()) shouldBe ErasePressureSourceResult.Unverifiable(
+			com.adsamcik.tracker.stats.api.repository
+				.ImportedPressureMaintenanceUnverifiableReason.DEPENDENCY_OVERFLOW,
+		)
+		database.pressureFactRevisionDao().sourceEraseFenceCount() shouldBe 1L
+		database.importedPressureDao().sourceErase() shouldBe null
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+	}
+
+	@Test
 	fun `import-only erase needs no provider authority and permanently fences replay`() = runTest {
 		val imported = importRequest()
 		val unrelatedWal = unrelatedWal()
