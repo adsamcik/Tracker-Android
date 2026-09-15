@@ -219,16 +219,18 @@ class RoomEraseNextImportedActivity internal constructor(
 					expected.purpose,
 					expected.scopeKind,
 					expected.scopeIdentityDigest,
-				)
-				if (retained != expected) {
-					if (retained != null &&
-						retained.collectedDataEpoch == expectedCollectedDataEpoch &&
-						retained.fenceGeneration == FIRST_DELETION_GENERATION &&
-						retained.deletedAtMs > deletedAtMs
-					) {
-						abortBlocked(SelectedImportedActivityDeletionBlockedReason.STALE_REQUEST)
-					}
+				) ?: abortCorrupt()
+				if (retained.sourceKind != expected.sourceKind ||
+					retained.purpose != expected.purpose ||
+					retained.scopeKind != expected.scopeKind ||
+					retained.scopeIdentityDigest != expected.scopeIdentityDigest ||
+					retained.collectedDataEpoch != expectedCollectedDataEpoch ||
+					retained.fenceGeneration != FIRST_DELETION_GENERATION
+				) {
 					abortCorrupt()
+				}
+				if (retained.deletedAtMs > deletedAtMs) {
+					abortBlocked(SelectedImportedActivityDeletionBlockedReason.STALE_REQUEST)
 				}
 			}
 		}

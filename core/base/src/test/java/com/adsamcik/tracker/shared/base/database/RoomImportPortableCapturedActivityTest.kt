@@ -2321,11 +2321,11 @@ class RoomImportPortableCapturedActivityTest {
 	}
 
 	@Test
-	fun `stale preexisting live scope fence fails closed without cascading payload`() = runTest {
+	fun `older same generation live scope fence is reused and preserved during cascade`() = runTest {
 		val imported = request()
 		importer(testScheduler).importEntry(imported)
 		val scope = imported.entry.runs.single().deletionScopeDigest.value
-		database.sourceDeletionFenceDao().insertIfAbsent(
+		val retainedFence =
 			SourceDeletionFenceEntity.createForOriginalRunDigest(
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
 				purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
@@ -2333,16 +2333,135 @@ class RoomImportPortableCapturedActivityTest {
 				fenceGeneration = 1L,
 				collectedDataEpoch = EPOCH,
 				deletedAtMs = 90L,
-			),
+			)
+		database.sourceDeletionFenceDao().insertIfAbsent(
+			retainedFence,
 		)
 
 		sourceEraser(testScheduler).eraseNext(EPOCH, 100L) shouldBe
-			EraseNextImportedActivityResult.Unverifiable(
-				ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			EraseNextImportedActivityResult.ErasedLive(1, 1)
+		database.sourceDeletionFenceDao().get(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			scope,
+		) shouldBe retainedFence
+		database.importedActivityDao().latestEntryRevision(imported.entry.identity.value) shouldBe null
+		database.importedActivityDao().entryDeletion(imported.entry.identity.value)
+			?.deletedImportRevision shouldBe 1L
+	}
+
+	@Test
+	fun `newer same generation live scope fence blocks stale erase and preserves payload`() = runTest {
+		val imported = request()
+		importer(testScheduler).importEntry(imported)
+		val scope = imported.entry.runs.single().deletionScopeDigest.value
+		val newerFence = SourceDeletionFenceEntity.createForOriginalRunDigest(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+			scopeIdentityDigest = scope,
+			fenceGeneration = 1L,
+			collectedDataEpoch = EPOCH,
+			deletedAtMs = 110L,
+		)
+		database.sourceDeletionFenceDao().insertIfAbsent(newerFence)
+
+		sourceEraser(testScheduler).eraseNext(EPOCH, 100L) shouldBe
+			EraseNextImportedActivityResult.Blocked(
+				SelectedImportedActivityDeletionBlockedReason.STALE_REQUEST,
 			)
+		database.sourceDeletionFenceDao().get(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			scope,
+		) shouldBe newerFence
 		database.importedActivityDao().latestEntryRevision(imported.entry.identity.value) shouldBe
 			database.importedActivityDao().entryRevision(imported.entry.identity.value, 1L)
 		database.importedActivityDao().entryDeletion(imported.entry.identity.value) shouldBe null
+	}
+
+	@Test
+	fun `partial live fence retry preserves older fence and recreates only missing scope`() = runTest {
+		val firstRun = run(
+			identity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "partial-first-run"),
+			deletionScope = PortableActivityDeletionScopeDigest.derive(
+				"partial-logical",
+				"partial-first-run",
+			),
+			windowIdentity = identity(
+				PortableActivityIdentityKind.CAPTURE_WINDOW,
+				"partial-first-window",
+			),
+			startTimeMs = 1_000L,
+		)
+		val secondRun = run(
+			identity = identity(PortableActivityIdentityKind.PHYSICAL_RUN, "partial-second-run"),
+			deletionScope = PortableActivityDeletionScopeDigest.derive(
+				"partial-logical",
+				"partial-second-run",
+			),
+			windowIdentity = identity(
+				PortableActivityIdentityKind.CAPTURE_WINDOW,
+				"partial-second-window",
+			),
+			startTimeMs = 3_000L,
+		)
+		val imported = request(
+			entry(
+				entryLocalId = "partial-logical",
+				runs = listOf(firstRun, secondRun),
+			),
+		)
+		importer(testScheduler).importEntry(imported)
+		val retainedFence = SourceDeletionFenceEntity.createForOriginalRunDigest(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+			scopeIdentityDigest = firstRun.deletionScopeDigest.value,
+			fenceGeneration = 1L,
+			collectedDataEpoch = EPOCH,
+			deletedAtMs = 90L,
+		)
+		database.sourceDeletionFenceDao().insertIfAbsent(retainedFence)
+		val interrupted = sourceEraser(testScheduler) { checkpoint ->
+			if (checkpoint == ImportedActivitySourceEraseCheckpoint.LIVE_SCOPE_FENCES_RECORDED) {
+				throw SQLiteException("retry after fence preparation")
+			}
+		}
+
+		interrupted.eraseNext(EPOCH, 100L) shouldBe
+			EraseNextImportedActivityResult.RetryableFailure(
+				PortableActivityTransferRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		database.sourceDeletionFenceDao().get(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			firstRun.deletionScopeDigest.value,
+		) shouldBe retainedFence
+		database.sourceDeletionFenceDao().contains(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			secondRun.deletionScopeDigest.value,
+		) shouldBe false
+		database.importedActivityDao().latestEntryRevision(imported.entry.identity.value) shouldBe
+			database.importedActivityDao().entryRevision(imported.entry.identity.value, 1L)
+
+		sourceEraser(testScheduler).eraseNext(EPOCH, 100L) shouldBe
+			EraseNextImportedActivityResult.ErasedLive(1, 2)
+		database.sourceDeletionFenceDao().get(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			firstRun.deletionScopeDigest.value,
+		) shouldBe retainedFence
+		database.sourceDeletionFenceDao().get(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			secondRun.deletionScopeDigest.value,
+		)?.deletedAtMs shouldBe 100L
 	}
 
 	@Test
