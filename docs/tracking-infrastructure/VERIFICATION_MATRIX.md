@@ -2,6 +2,41 @@
 
 Last updated: 2026-09-15
 
+## TI-B322 - Factless Steps source-aware history sources, adversarial review pending
+
+- Input: `b138a23adb3263708028e24267729192b813018a` on
+  `codex/ti-factless-steps-history-20260915`, baseline `13ca528ccb`;
+  TODO-HANDOVER-20260915-009.
+- Production: TrackingHistoryReadDao candidate discovery, LogicalTrackingHistoryReader's
+  source-aware mode and DefaultTrackingHistoryRepository composition. Ordinary discovery remains
+  evidence-first; exact factless source-aware groups retain typed Steps-only presentation.
+- Authored sources: TrackingHistoryReadDaoTest in `core\base` and StepsSegmentHistorySelectorTest
+  in `stats\data`. Cases include materializing/unavailable groups, exact sibling suppression,
+  mixed/gapped/unbound/unverifiable exclusion, recency/limits, unchanged ordinary APIs and no zero
+  manufactured from missing facts. Exact paths are in IMPLEMENTATION_STATUS.md.
+- Disposition: **IMPLEMENTED_UNVALIDATED**; independent adversarial ownership/query/union review
+  pending alongside the other two slices. No compilation, test, Gradle, schema, diff-check,
+  device, CI or other execution gate ran.
+- Deferred only after the authorized frozen convergence:
+  `.\gradlew.bat :core:base:testDebugUnitTest :stats:data:testDebugUnitTest --tests "*TrackingHistoryReadDaoTest" --tests "*StepsSegmentHistorySelectorTest.sourceAware*"`.
+
+## TI-B321 - Legacy worker radio retention sources, adversarial review pending
+
+- Input: `de2a4ae2f3102ee28b12d332a6f1054f38d7c068` on
+  `codex/ti-legacy-radio-retention-20260915`, baseline `13ca528ccb`;
+  TODO-HANDOVER-20260915-008.
+- Production: `app\src\main\java\com\adsamcik\tracker\maintenance\DataRetentionWorker.kt`.
+  Reuse captured Cell/Wi-Fi services before shared WAL pruning, also on pending-signal deferral;
+  preserve lifecycle/Activity maintenance, conditional Steps drain and generation fences.
+- Authored sources: `app\src\test\java\com\adsamcik\tracker\maintenance\DataRetentionWorkerTest.kt`
+  and `app\src\test\java\com\adsamcik\tracker\app\maintenance\ActivityRetentionWorkerRobolectricTest.kt`.
+  Ordering, pruned/deferred paths, typed rejection/failure/cancellation, generation changes and
+  disabled/zero-retention exits are source assertions only.
+- Disposition: **IMPLEMENTED_UNVALIDATED**; parallel adversarial service/transaction review pending.
+  No compilation, test, Hilt, Gradle, schema, diff-check, device, CI or execution gate ran.
+- Deferred after the authorized frozen final convergence only:
+  `.\gradlew.bat :app:testDebugUnitTest --tests "com.adsamcik.tracker.maintenance.DataRetentionWorkerTest" --tests "com.adsamcik.tracker.app.maintenance.ActivityRetentionWorkerRobolectricTest"`.
+
 ## TI-B320 - Wi-Fi full-clear regression sources, adversarial review pending
 
 - Input: `f0eb2d59ec935855ba33072d1392338402a2e772` on

@@ -74,9 +74,13 @@ or check the broader assembly/completion items. Test sources are authored, never
 - [ ] TODO-HANDOVER-20260915-008 Wire captured Cell/Wi-Fi retention into the legacy
   DataRetentionWorker before pending-signal deferral and shared WAL pruning. Preserve lifecycle
   generation fences and author ordering, failure/cancellation and constructor-call-site sources.
+  Source `de2a4ae2f3102ee28b12d332a6f1054f38d7c068` is IMPLEMENTED_UNVALIDATED; adversarial
+  static review and local integration remain pending (TI-B321).
 - [ ] TODO-HANDOVER-20260915-009 Make source-aware Steps replacement discovery intent-first
   for exact factless groups; retain materializing/unavailable instead of suppressing physical
   rows with no replacement. Keep ordinary evidence-first history semantics and bounded recency.
+  Source `b138a23adb3263708028e24267729192b813018a` is IMPLEMENTED_UNVALIDATED; adversarial
+  static review and local integration remain pending (TI-B322).
 
 Receiving next slice: close the three concrete shared Room/worker/history static-review findings,
 then continue the Wi-Fi imported evaluator and bounded product/reexport lane. Keep new source
