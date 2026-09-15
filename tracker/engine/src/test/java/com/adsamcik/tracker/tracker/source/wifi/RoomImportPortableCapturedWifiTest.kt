@@ -18,6 +18,7 @@ import com.adsamcik.tracker.stats.api.repository.ImportPortableCapturedWifiReque
 import com.adsamcik.tracker.stats.api.repository.ImportPortableCapturedWifiResult
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductFailure
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangeRequest
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiImportBlockedReason
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiImportReceipt
@@ -692,6 +693,49 @@ class RoomImportPortableCapturedWifiTest {
 			2,
 		)
 		emitted.single() shouldBe corrected
+	}
+
+	@Test
+	fun `imported range is keyset bounded and authenticates latest revisions before filtering`() = runTest {
+		val first = entry()
+		val second = entry(
+			entryIdentity = identity(PortableWifiIdentityKind.LOGICAL_ENTRY, "range-second"),
+			runLocalId = "range-second-run",
+			deletionScope = PortableWifiDeletionScopeDigest("c".repeat(64)),
+			observation = observation("range-second-observation").copyWithTimes(1_900L, 2_000L, 10L),
+		)
+		val importer = importer(testScheduler)
+		importer.importEntry(request(first)) shouldBe ImportPortableCapturedWifiResult.Applied(1L, 1, 1)
+		importer.importEntry(request(second, receipt("range-second-job", 50L))) shouldBe
+			ImportPortableCapturedWifiResult.Applied(1L, 1, 1)
+
+		val firstPage = database.withTransaction {
+			productEvaluator().selectRangeInTransaction(
+				ImportedWifiProductRangeRequest(0L, 3_000L, 1),
+			)
+		}
+		firstPage.hasMore shouldBe true
+		val firstIdentity = firstPage.evaluations.single().candidate.identity
+		(firstIdentity in setOf(first.identity, second.identity)) shouldBe true
+		val secondPage = database.withTransaction {
+			productEvaluator().selectRangeInTransaction(
+				ImportedWifiProductRangeRequest(
+					0L,
+					3_000L,
+					1,
+					firstPage.evaluations.single().candidate.startTimeMs,
+					firstPage.evaluations.single().candidate.identity,
+				),
+			)
+		}
+		secondPage.hasMore shouldBe false
+		setOf(firstIdentity, secondPage.evaluations.single().candidate.identity) shouldBe
+			setOf(first.identity, second.identity)
+		database.withTransaction {
+			productEvaluator().selectRangeInTransaction(
+				ImportedWifiProductRangeRequest(1_300L, 1_800L, 10),
+			)
+		}.evaluations shouldBe emptyList()
 	}
 
 	@Test

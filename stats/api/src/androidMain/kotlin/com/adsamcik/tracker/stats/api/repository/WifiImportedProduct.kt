@@ -84,6 +84,34 @@ interface ImportedWifiProductEvaluator {
 	): ImportedWifiProductEvaluation?
 
 	suspend fun selectRecentInTransaction(limit: Int): List<ImportedWifiProductEvaluation>
+
+	suspend fun selectRangeInTransaction(
+		request: ImportedWifiProductRangeRequest,
+	): ImportedWifiProductRangePage
+}
+
+data class ImportedWifiProductRangeRequest(
+	val fromInclusiveMs: Long,
+	val toExclusiveMs: Long,
+	val limit: Int,
+	val beforeStartTimeMs: Long? = null,
+	val beforeIdentity: PortableWifiOpaqueIdentity? = null,
+) {
+	init {
+		require(fromInclusiveMs >= 0L && toExclusiveMs > fromInclusiveMs)
+		require(limit in 1..100)
+		require((beforeStartTimeMs == null) == (beforeIdentity == null))
+		require(beforeStartTimeMs?.let { it >= 0L } != false)
+	}
+}
+
+data class ImportedWifiProductRangePage(
+	val evaluations: List<ImportedWifiProductEvaluation>,
+	val hasMore: Boolean,
+) {
+	init {
+		require(evaluations.size <= 100)
+	}
 }
 
 data class ReexportImportedCapturedWifiRequest(

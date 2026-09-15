@@ -23,6 +23,8 @@ import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductCandidate
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluator
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductFailure
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangePage
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangeRequest
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiObservationV1
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiRunV1
@@ -76,6 +78,30 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 			throw IllegalArgumentException("Invalid imported Wi-Fi candidate page")
 		}
 		return evaluateSafely(candidates)
+	}
+
+	override suspend fun selectRangeInTransaction(
+		request: ImportedWifiProductRangeRequest,
+	): ImportedWifiProductRangePage {
+		val queryLimit = Math.addExact(request.limit, 1)
+		val candidates = database.importedWifiDao().historyCandidateRangePage(
+			fromInclusiveMs = request.fromInclusiveMs,
+			toExclusiveMs = request.toExclusiveMs,
+			limit = queryLimit,
+			beforeStartTimeMs = request.beforeStartTimeMs,
+			beforeIdentity = request.beforeIdentity?.value,
+		)
+		if (!isValidCandidatePage(
+				candidates,
+				request.beforeStartTimeMs,
+				request.beforeIdentity?.value,
+			)
+		) throw IllegalArgumentException("Invalid imported Wi-Fi range candidate page")
+		val selected = candidates.take(request.limit)
+		return ImportedWifiProductRangePage(
+			evaluations = evaluateSafely(selected),
+			hasMore = candidates.size > request.limit,
+		)
 	}
 
 	private suspend fun evaluateSafely(

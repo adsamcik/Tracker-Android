@@ -178,6 +178,27 @@ abstract class ImportedWifiDao {
 		"SELECT revision.identity, revision.import_revision, revision.content_checksum, " +
 			"revision.start_time_ms, revision.end_time_ms, revision.received_at_ms " +
 			"FROM imported_wifi_entry_revision AS revision " +
+			"WHERE revision.import_revision = (" +
+			"SELECT MAX(latest.import_revision) FROM imported_wifi_entry_revision AS latest " +
+			"WHERE latest.identity = revision.identity) " +
+			"AND revision.end_time_ms > :fromInclusiveMs AND revision.start_time_ms < :toExclusiveMs " +
+			"AND (:beforeStartTimeMs IS NULL OR revision.start_time_ms < :beforeStartTimeMs OR " +
+			"(revision.start_time_ms = :beforeStartTimeMs AND " +
+			"revision.identity < COALESCE(:beforeIdentity, ''))) " +
+			"ORDER BY revision.start_time_ms DESC, revision.identity DESC LIMIT :limit",
+	)
+	abstract suspend fun historyCandidateRangePage(
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): List<ImportedWifiHistoryCandidate>
+
+	@Query(
+		"SELECT revision.identity, revision.import_revision, revision.content_checksum, " +
+			"revision.start_time_ms, revision.end_time_ms, revision.received_at_ms " +
+			"FROM imported_wifi_entry_revision AS revision " +
 			"WHERE revision.identity = :identity AND revision.import_revision = (" +
 			"SELECT MAX(latest.import_revision) FROM imported_wifi_entry_revision AS latest " +
 			"WHERE latest.identity = revision.identity) LIMIT 1",

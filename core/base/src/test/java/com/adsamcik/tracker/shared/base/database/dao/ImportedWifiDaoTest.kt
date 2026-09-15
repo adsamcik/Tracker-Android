@@ -104,6 +104,11 @@ class ImportedWifiDaoTest {
 				page.first().startTimeMs,
 				page.first().identity,
 			).map { it.identity } shouldBe listOf(ENTRY)
+			dao.historyCandidateRangePage(900L, 1_300L, 3, null, null)
+				.map { it.identity to it.importRevision } shouldBe
+				listOf(secondIdentity to 2L, ENTRY to 1L)
+			dao.historyCandidateRangePage(1_300L, 1_400L, 3, null, null)
+				.map { it.identity } shouldBe listOf(secondIdentity)
 			dao.entryRevisionsForHistory(listOf(ENTRY, secondIdentity), 4).size shouldBe 3
 			dao.receiptsForHistory(listOf(ENTRY, secondIdentity), 2) shouldBe listOf(receipt())
 			dao.runsForHistory(listOf(ENTRY, secondIdentity), 2) shouldBe listOf(run())

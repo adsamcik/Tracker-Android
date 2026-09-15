@@ -33,6 +33,8 @@ import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiRequest
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluator
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangePage
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangeRequest
 import com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifi
 import com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifiResult
 import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey
@@ -41,6 +43,10 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryPage
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryRangeContinuation
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryRangePage
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryRangeRequest
+import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import java.io.ByteArrayOutputStream
@@ -301,6 +307,41 @@ class WifiHistoryRepositoryRoomTest {
 	}
 
 	@Test
+	fun `range keyset discovers entries older than recent limit without a global scan`() = runTest {
+		val groups = (1..105).map { buildGroup(400 + it, 1, setOf(0)) }
+		persist(groups)
+		val repository = repository { true }
+		val recent = (repository.recent(100) as WifiHistoryPage.Available).entries
+		val ranged = mutableListOf<com.adsamcik.tracker.stats.api.repository.WifiHistoryEntry>()
+		var continuation: WifiHistoryRangeContinuation? = null
+		do {
+			val page = repository.range(
+				WifiHistoryRangeRequest(EpochMs(0L), EpochMs(Long.MAX_VALUE), 40, continuation),
+			) as WifiHistoryRangePage.Available
+			ranged += page.entries
+			continuation = page.continuation
+		} while (continuation != null)
+
+		ranged shouldHaveSize 105
+		recent shouldHaveSize 100
+		ranged.last().startTime.raw shouldBe groups.first().runs.single().segment.startTimeMs
+		recent.none { it.startTime == ranged.last().startTime } shouldBe true
+
+		val firstPage = repository.range(
+			WifiHistoryRangeRequest(EpochMs(0L), EpochMs(Long.MAX_VALUE), 1),
+		) as WifiHistoryRangePage.Available
+		val token = requireNotNull(firstPage.continuation).value
+		repository.range(
+			WifiHistoryRangeRequest(
+				EpochMs(0L),
+				EpochMs(Long.MAX_VALUE),
+				1,
+				WifiHistoryRangeContinuation(token.dropLast(1) + if (token.last() == '0') "1" else "0"),
+			),
+		) shouldBe WifiHistoryRangePage.Failed(WifiHistoryCause.RANGE_CONTINUATION_INVALID)
+	}
+
+	@Test
 	fun `fact-only history rejects stale and half-open boundary observations`() = runTest {
 		val stale = transformFacts(buildGroup(210, 1, setOf(0))) { fact ->
 			fact.copy(receivedElapsedNanos = Math.addExact(
@@ -456,6 +497,10 @@ class WifiHistoryRepositoryRoomTest {
 			override suspend fun selectRecentInTransaction(
 				limit: Int,
 			): List<ImportedWifiProductEvaluation> = emptyList()
+
+			override suspend fun selectRangeInTransaction(
+				request: ImportedWifiProductRangeRequest,
+			): ImportedWifiProductRangePage = ImportedWifiProductRangePage(emptyList(), false)
 		},
 		object : ReadLocalPortableCapturedWifi {
 			override suspend fun readInTransaction(

@@ -443,6 +443,89 @@ interface WifiCapturedFactDao {
 		beforeSegmentId: Long?,
 	): List<WifiLogicalHistoryCandidate>
 
+	/**
+	 * Intent-first bounded range candidates. The complete manifest union and source authority are
+	 * authenticated by the Wi-Fi product reader; this query establishes neither only-source nor value
+	 * qualification.
+	 */
+	@Query(
+		"""
+		WITH logical_candidate AS (
+		  SELECT DISTINCT run.logical_tracking_id
+		  FROM session_manifest_source AS source
+		  JOIN session_manifest_version AS manifest
+		    ON manifest.logical_tracking_id = source.logical_tracking_id
+		   AND manifest.manifest_revision = source.manifest_revision
+		  JOIN source_service_run AS run
+		    ON run.service_run_id = manifest.service_run_id
+		   AND run.logical_tracking_id = manifest.logical_tracking_id
+		  JOIN session_segment AS segment
+		    ON segment.id = run.session_segment_id
+		   AND segment.service_run_id = run.service_run_id
+		   AND segment.logical_tracking_id = run.logical_tracking_id
+		  WHERE source.source_kind = :sourceKind
+		    AND source.purpose = :capturePurpose
+		    AND source.persistence_eligible = 1
+		    AND run.presentation_acknowledgement != 'LEGACY_UNVERIFIABLE'
+		), logical_member AS (
+		  SELECT segment.*
+		  FROM logical_candidate AS candidate
+		  JOIN source_service_run AS run
+		    ON run.logical_tracking_id = candidate.logical_tracking_id
+		  JOIN session_segment AS segment
+		    ON segment.id = run.session_segment_id
+		   AND segment.service_run_id = run.service_run_id
+		   AND segment.logical_tracking_id = run.logical_tracking_id
+		), logical_bounds AS (
+		  SELECT logical_tracking_id,
+		         MIN(start_time_ms) AS logical_start_time_ms,
+		         MAX(end_time_ms) AS logical_end_time_ms
+		  FROM logical_member
+		  GROUP BY logical_tracking_id
+		), latest_member AS (
+		  SELECT member.*
+		  FROM logical_member AS member
+		  WHERE NOT EXISTS (
+		    SELECT 1
+		    FROM logical_member AS newer
+		    WHERE newer.logical_tracking_id = member.logical_tracking_id
+		      AND (
+		        newer.start_time_ms > member.start_time_ms OR
+		        (newer.start_time_ms = member.start_time_ms AND newer.id > member.id)
+		      )
+		  )
+		)
+		SELECT latest_member.*,
+		       logical_bounds.logical_start_time_ms,
+		       logical_bounds.logical_end_time_ms
+		FROM latest_member
+		JOIN logical_bounds
+		  ON logical_bounds.logical_tracking_id = latest_member.logical_tracking_id
+		WHERE logical_bounds.logical_end_time_ms > :fromInclusiveMs
+		  AND logical_bounds.logical_start_time_ms < :toExclusiveMs
+		  AND (
+		    :beforeStartTimeMs IS NULL OR
+		    logical_bounds.logical_start_time_ms < :beforeStartTimeMs OR
+		    (
+		      logical_bounds.logical_start_time_ms = :beforeStartTimeMs
+		      AND logical_bounds.logical_tracking_id < COALESCE(:beforeLogicalTrackingId, '')
+		    )
+		  )
+		ORDER BY logical_bounds.logical_start_time_ms DESC,
+		         logical_bounds.logical_tracking_id DESC
+		LIMIT :limit
+		""",
+	)
+	suspend fun logicalHistoryRangeCandidatePage(
+		sourceKind: Int,
+		capturePurpose: String,
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeLogicalTrackingId: String?,
+	): List<WifiLogicalRangeCandidate>
+
 	@Query(
 		"SELECT * FROM wifi_captured_fact_cursor WHERE writer_projection_id = :writerProjectionId " +
 			"AND writer_projection_version = :writerProjectionVersion AND " +
@@ -932,4 +1015,10 @@ data class WifiLogicalHistoryCandidate(
 	@Embedded val segment: SessionSegment,
 	@ColumnInfo(name = "logical_recency_start_ms") val logicalRecencyStartMs: Long,
 	@ColumnInfo(name = "logical_recency_segment_id") val logicalRecencySegmentId: Long,
+)
+
+data class WifiLogicalRangeCandidate(
+	@Embedded val segment: SessionSegment,
+	@ColumnInfo(name = "logical_start_time_ms") val logicalStartTimeMs: Long,
+	@ColumnInfo(name = "logical_end_time_ms") val logicalEndTimeMs: Long,
 )

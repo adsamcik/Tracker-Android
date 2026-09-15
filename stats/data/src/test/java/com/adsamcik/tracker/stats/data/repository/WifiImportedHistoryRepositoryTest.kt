@@ -9,6 +9,8 @@ import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiReque
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductCandidate
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
 import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluator
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangePage
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductRangeRequest
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortableWifiAcquisitionCompleteness
 import com.adsamcik.tracker.stats.api.repository.PortableWifiAvailability
@@ -26,9 +28,12 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryPage
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryRangePage
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryRangeRequest
 import com.adsamcik.tracker.stats.api.repository.WifiHistorySelection
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
 import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey
+import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.shouldBe
 import java.security.MessageDigest
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -82,6 +87,16 @@ class WifiImportedHistoryRepositoryTest {
 			override suspend fun selectRecentInTransaction(
 				limit: Int,
 			): List<ImportedWifiProductEvaluation> = listOf(evaluation).take(limit)
+
+			override suspend fun selectRangeInTransaction(
+				request: ImportedWifiProductRangeRequest,
+			): ImportedWifiProductRangePage = ImportedWifiProductRangePage(
+				evaluations = listOf(evaluation).filter {
+					it.candidate.endTimeMs > request.fromInclusiveMs &&
+						it.candidate.startTimeMs < request.toExclusiveMs
+				}.take(request.limit),
+				hasMore = false,
+			)
 		}
 		val repository = DefaultWifiHistoryRepository(
 			database,
@@ -99,6 +114,9 @@ class WifiImportedHistoryRepositoryTest {
 		val sourceRecent = database.withTransaction {
 			repository.recentInTransaction(10)
 		} as WifiSourceRecentPage.Available
+		val ranged = repository.range(
+			WifiHistoryRangeRequest(EpochMs(0L), EpochMs(10_000L), 10),
+		) as WifiHistoryRangePage.Available
 		val selected = (
 			repository.imported(evaluation.candidate.selection.key) as WifiHistoryQuery.Found
 			).entry
@@ -110,6 +128,7 @@ class WifiImportedHistoryRepositoryTest {
 		recent shouldBe selected
 		lookedUp shouldBe selected
 		sourceRecent.entries.single() shouldBe WifiSourceRecentEntry.Imported(selected)
+		ranged.entries.single() shouldBe selected
 		selected.origin shouldBe WifiHistoryOrigin.IMPORTED
 		selected.state shouldBe WifiHistoryProductState.READY
 		selected.importedSelection shouldBe evaluation.candidate.selection

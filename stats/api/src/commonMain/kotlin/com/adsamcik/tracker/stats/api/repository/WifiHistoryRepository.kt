@@ -15,6 +15,12 @@ interface WifiHistoryRepository {
 
 	/** Discovers recent local and imported entries from authenticated source facts. */
 	suspend fun recent(limit: Int): WifiHistoryPage
+
+	/** Bounded keyset range read over complete local and imported logical entries. */
+	suspend fun range(request: WifiHistoryRangeRequest): WifiHistoryRangePage
+
+	/** Structural-day membership derived only from stored zones and authenticated time evidence. */
+	suspend fun structuralDays(request: WifiHistoryRangeRequest): WifiHistoryStructuralDayPage
 }
 
 sealed interface WifiHistoryQuery {
@@ -34,6 +40,76 @@ sealed interface WifiHistoryPage {
 			require(cause.isIntegrityFailure)
 		}
 	}
+}
+
+data class WifiHistoryRangeRequest(
+	val fromInclusive: EpochMs,
+	val toExclusive: EpochMs,
+	val limit: Int,
+	val continuation: WifiHistoryRangeContinuation? = null,
+) {
+	init {
+		require(fromInclusive.raw >= 0L)
+		require(toExclusive > fromInclusive)
+		require(limit in 1..100)
+	}
+}
+
+@JvmInline
+value class WifiHistoryRangeContinuation(val value: String) {
+	init {
+		require(value.isNotBlank() && value.length <= 1_024)
+	}
+
+	override fun toString(): String = "WifiHistoryRangeContinuation"
+}
+
+sealed interface WifiHistoryRangePage {
+	data class Available(
+		val entries: List<WifiHistoryEntry>,
+		val continuation: WifiHistoryRangeContinuation?,
+	) : WifiHistoryRangePage
+
+	data class Failed(val cause: WifiHistoryCause) : WifiHistoryRangePage {
+		init {
+			require(cause.isIntegrityFailure)
+		}
+	}
+}
+
+sealed interface WifiHistoryStructuralDayPage {
+	data class Available(
+		val days: List<WifiHistoryStructuralDay>,
+		val continuation: WifiHistoryRangeContinuation?,
+	) : WifiHistoryStructuralDayPage
+
+	data class Failed(val cause: WifiHistoryCause) : WifiHistoryStructuralDayPage {
+		init {
+			require(cause.isIntegrityFailure)
+		}
+	}
+}
+
+data class WifiHistoryStructuralDay(
+	val epochDay: Long,
+	val storedZoneId: String,
+	val memberships: List<WifiHistoryStructuralDayMembership>,
+) {
+	init {
+		require(storedZoneId.isNotBlank())
+		require(memberships.isNotEmpty())
+	}
+}
+
+data class WifiHistoryStructuralDayMembership(
+	val entry: WifiHistoryEntry,
+	val allocation: WifiHistoryDayAllocation,
+)
+
+enum class WifiHistoryDayAllocation {
+	EXACT,
+	PARTIAL,
+	UNAVAILABLE,
 }
 
 /** Opaque logical identity. Physical runs and radio identifiers stay internal. */
@@ -113,6 +189,7 @@ enum class WifiHistoryCause(val isIntegrityFailure: Boolean = false) {
 	IMPORTED_EVIDENCE_UNVERIFIABLE(isIntegrityFailure = true),
 	ORIGIN_IDENTITY_CONFLICT(isIntegrityFailure = true),
 	STALE_SELECTION(isIntegrityFailure = true),
+	RANGE_CONTINUATION_INVALID(isIntegrityFailure = true),
 	READ_BUDGET_EXCEEDED(isIntegrityFailure = true),
 	PHYSICAL_MEMBERSHIP_INVALID(isIntegrityFailure = true),
 	MANIFEST_INTEGRITY_FAILED(isIntegrityFailure = true),
