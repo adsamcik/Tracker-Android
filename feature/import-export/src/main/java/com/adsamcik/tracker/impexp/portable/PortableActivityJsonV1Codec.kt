@@ -76,8 +76,10 @@ internal class PortableActivityJsonV1Codec(
 	}
 
 	suspend fun decode(inputStream: InputStream): PortableActivityEnvelopeV1 {
+		val boundedInput = BoundedInputStream(inputStream, limits.maxFileBytes)
+		val tokenLimitedInput = PortableJsonTokenLimitInputStream(boundedInput)
 		val reader = JsonReader(
-			InputStreamReader(BoundedInputStream(inputStream, limits.maxFileBytes), Charsets.UTF_8),
+			InputStreamReader(tokenLimitedInput, Charsets.UTF_8),
 		).apply { isLenient = false }
 		return try {
 			val counts = DecodeCounts()
@@ -91,6 +93,11 @@ internal class PortableActivityJsonV1Codec(
 			throw cancelled
 		} catch (format: PortableActivityFormatException) {
 			throw format
+		} catch (failure: PortableJsonTokenLimitException) {
+			throw PortableActivityFormatException(
+				"Portable Activity JSON token exceeds its lexical bound",
+				failure,
+			)
 		} catch (failure: MalformedJsonException) {
 			throw PortableActivityFormatException("Malformed portable Activity document", failure)
 		} catch (failure: EOFException) {

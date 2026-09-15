@@ -130,6 +130,48 @@ class PortableActivityJsonV1CodecTest {
 		}
 
 	@Test
+	fun `lexical guard permanently rejects oversized known string name number and depth`() = runTest {
+		val invalidDocuments = listOf(
+			"{\"format\":\"${"x".repeat(769)}\"}",
+			"{\"${"n".repeat(385)}\":0}",
+			"{\"schemaVersion\":${"1".repeat(65)}}",
+			"[".repeat(33) + "]".repeat(33),
+		)
+
+		invalidDocuments.forEach { document ->
+			shouldThrow<PortableActivityFormatException> {
+				PortableActivityJsonV1Codec().decode(
+					ByteArrayInputStream(document.encodeToByteArray()),
+				)
+			}
+		}
+	}
+
+	@Test
+	fun `oversized token is rejected with bounded prefetch before whole token consumption`() =
+		runTest {
+			val document = "{\"format\":\"${"x".repeat(10_000)}\"}".encodeToByteArray()
+			val source = CountingInputStream(document)
+
+			shouldThrow<PortableActivityFormatException> {
+				PortableActivityJsonV1Codec().decode(source)
+			}
+
+			(source.bytesRead < document.size) shouldBe true
+			(source.bytesRead <= 1_280) shouldBe true
+		}
+
+	@Test
+	fun `shared lexical guard accepts exact escaped and multibyte string boundary`() {
+		val token = "é".repeat(3) + "\\u0041".repeat(127)
+		token.encodeToByteArray().size shouldBe PortableJsonTokenLimits().maxStringBytes
+		val document = "{\"name\":\"$token\"}".encodeToByteArray()
+
+		PortableJsonTokenLimitInputStream(ByteArrayInputStream(document)).readBytes()
+			.contentEquals(document) shouldBe true
+	}
+
+	@Test
 	fun `cancellation propagates and non success writes no bytes`() = runTest {
 		val output = ByteArrayOutputStream()
 		shouldThrow<CancellationException> {
@@ -152,5 +194,27 @@ class PortableActivityJsonV1CodecTest {
 			ExportPortableCapturedActivityResult.Exported(envelope.entries.size)
 		}
 		return output.toByteArray()
+	}
+
+	private class CountingInputStream(
+		private val bytes: ByteArray,
+	) : InputStream() {
+		var bytesRead: Int = 0
+			private set
+
+		override fun read(): Int =
+			if (bytesRead >= bytes.size) {
+				-1
+			} else {
+				bytes[bytesRead++].toInt() and 0xff
+			}
+
+		override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+			if (bytesRead >= bytes.size) return -1
+			val count = minOf(length, bytes.size - bytesRead)
+			bytes.copyInto(buffer, offset, bytesRead, bytesRead + count)
+			bytesRead += count
+			return count
+		}
 	}
 }
