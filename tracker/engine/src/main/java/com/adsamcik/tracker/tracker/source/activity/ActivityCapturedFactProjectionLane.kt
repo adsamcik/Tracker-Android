@@ -339,7 +339,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 			)
 		}
 
-		val groups = linkedMapOf<ActivityProjectionWindowKey, MutableList<ActivityCapturedObservation>>()
+		val groups = linkedMapOf<ActivityProjectionWindowKey, ActivityProjectionWindowAccumulator>()
 		var validated = 0
 		for (event in preflight) {
 			when (val admission = adapter.admit(SourceEventId(event.eventId))) {
@@ -357,7 +357,9 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 						admission.acquisitionAuthority,
 						admission.settledWindow,
 					)
-					groups.getOrPut(key) { mutableListOf() } += admission.observation
+					groups.getOrPut(key) {
+						ActivityProjectionWindowAccumulator(event.admissionOrdinal)
+					}.observations += admission.observation
 					validated++
 				}
 				is ActivityCapturedWalAdmissionResult.Rejected -> when (admission.reason) {
@@ -406,7 +408,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 			}
 		}
 
-		val windows = groups.map { (key, observations) ->
+		val windows = groups.map { (key, group) ->
 			val interval = key.settledWindow.interval
 			val coalesced = ActivityCapturedFactCoalescer.coalesce(
 				ActivityCapturedCoalescingRequest(
@@ -419,7 +421,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 						semanticRevision = 1L,
 						supersedesSemanticRevision = null,
 					),
-					observations = observations,
+					observations = group.observations,
 				),
 			)
 			val window = when (coalesced) {
@@ -427,15 +429,15 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 				is ActivityCoalescingResult.Rejected -> return terminalFailure(
 					lane,
 					originalCursor,
-					seedEvent.admissionOrdinal,
+					group.originAdmissionOrdinal,
 					"ACTIVITY_COALESCING_${coalesced.reason.name}",
 				)
 			}
-			window
+			ActivityProjectedWindow(group.originAdmissionOrdinal, window)
 		}
 		var applied = 0
-		for (window in windows) {
-			when (val written = writer.write(ActivityCapturedWriteCommand.Captured(window))) {
+		for (projected in windows) {
+			when (val written = writer.write(ActivityCapturedWriteCommand.Captured(projected.window))) {
 				is ActivityCapturedWriteResult.Applied -> applied++
 				is ActivityCapturedWriteResult.Unchanged -> Unit
 				is ActivityCapturedWriteResult.Rejected -> when (written.reason) {
@@ -447,7 +449,7 @@ internal class ActivityCapturedFactProjectionLane private constructor(
 						"ACTIVITY_WRITER_${written.reason.name}",
 					)
 					else -> throw ActivityCapturedProjectionPoisonException(
-						seedEvent.admissionOrdinal,
+						projected.originAdmissionOrdinal,
 						"ACTIVITY_WRITER_${written.reason.name}",
 					)
 				}
@@ -720,6 +722,16 @@ private sealed interface ActivityProjectionPass {
 private data class ActivityProjectionWindowKey(
 	val acquisitionAuthority: ActivityCaptureAcquisitionAuthority,
 	val settledWindow: ActivityCapturedSettledWindow,
+)
+
+private data class ActivityProjectionWindowAccumulator(
+	val originAdmissionOrdinal: Long,
+	val observations: MutableList<ActivityCapturedObservation> = mutableListOf(),
+)
+
+private data class ActivityProjectedWindow(
+	val originAdmissionOrdinal: Long,
+	val window: ActivityCapturedWindow,
 )
 
 private class ActivityLaneAuthorityChangedException(val reason: String) :
