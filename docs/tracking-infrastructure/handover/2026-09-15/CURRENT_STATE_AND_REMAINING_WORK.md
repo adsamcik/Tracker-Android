@@ -71,6 +71,19 @@ Never promote an individual source receipt's generic entire-effort table into gl
 owned artifact facts are evidence; parent requirements, dependency accounting and adversarial
 blockers govern cross-source state.
 
+Newest exact review state:
+
+- Purpose `cef95415e2` remains fully scoped static-closed; no successor began.
+- Shared schema is frozen at `fcc2162d5a`, containing only the duplicate-test and actual
+  file-backed Room reopen source correction. Final review is running; producer semantics remain
+  held and Pressure is not merged.
+- Shared portable `e3f2ecd4c7` is correcting three review blockers: permanent direct/archive
+  retry, headerless/no-importable ZIP EMPTY success, and database-registry range/ZIP role mismatch.
+  Steps `6f46f8` is otherwise closed but still depends on the shared lexer correction.
+- Activity `483e8b59` retains its five semantic closures, but a concrete raw
+  `EOFException` subtype reopens only its decoder transport boundary. The source owner is
+  correcting it without changing permanent parser EOF or lexical failures. No successor started.
+
 ## Scope-change handover - finish only what was already started
 
 TI-D262 supersedes the earlier instruction to continue into every next lane. Keep the entire

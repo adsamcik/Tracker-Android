@@ -63,6 +63,18 @@ Treat each source-owner receipt as authoritative only within its named ownership
 generic entire-effort table into cross-source status or use it to erase parent requirements,
 dependencies or review blockers.
 
+Latest exact deltas:
+
+- Shared schema `fcc2162d5a` has the duplicate-test and actual file-backed Room reopen source
+  corrections; final review is running and producer semantics remain held.
+- Shared portable `e3f2ecd4c7` is correcting only three review findings: permanent direct/archive
+  limits must not retry forever, a headerless ZIP with no importable entry must not complete EMPTY,
+  and database registry range/ZIP importer roles must be exact.
+- Steps `6f46f8` remains otherwise closed. Its shared lexer dependency stays open.
+- Activity's original five semantic findings remain closed, but the raw transport
+  `EOFException` subtype case reopens only its decoder boundary. Preserve permanent parser EOF and
+  lexical failures. No Activity successor started.
+
 ## 2026-09-15 scope-expansion freeze
 
 TI-D262 changes execution of this ledger, not its coverage. This file remains the full

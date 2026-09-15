@@ -19,6 +19,28 @@ no files, and the reviewer was then restricted to source-read tools. This is a p
 not evidence that the Location artifact or any other source passes a validation gate. No regression,
 compiler, Gradle, lint, schema, device or CI gate has started for the current assembly.
 
+## TI-B332 - Schema final review and portable/Activity corrections
+
+- Purpose `cef95415e2f5e77fb9e12ea3e95776ef26e36efe` remains fully scoped
+  static-closed under TI-B331. No successor began.
+- Shared schema input is now `fcc2162d5aa70c81c53bcd4f5336f3a20ab0c43f`, containing only
+  the duplicate-`@Test` and actual file-backed Room reopen/full-clear fence source corrections
+  after `cba0b116`. Final focused review is running. Producer semantics remain held, Pressure is
+  not merged, and no Cell/radio schema wave began.
+- Shared portable review of `e3f2ecd4c730435e2652b35b73d7b94af5774213` returned three
+  blockers: permanent direct/archive limits retry indefinitely; a headerless ZIP with no importable
+  entry completes as EMPTY success; and the database registry assigns incorrect range/ZIP importer
+  roles. The shared owner is correcting only those defects.
+- Steps file input `6f46f8aae18806e5efc9250499dc38d034d3ac00` is otherwise closed, but its
+  Pressure-owned shared lexer dependency remains open.
+- A concrete Activity raw-stream `EOFException` subtype case reopens only the decoder transport
+  boundary of `483e8b59b790c5970d11b947d76d82746308bdac`. The original five Activity
+  semantic findings remain closed. The correction must keep raw transport EOF retryable while
+  parser EOF and lexical failures remain permanent.
+- Outcome: schema is **IMPLEMENTED_UNVALIDATED / COMMITTED HELD / FINAL REVIEW ACTIVE**.
+  Shared portable and Activity decoder boundaries are **ACTIVE CORRECTION**. No execution,
+  integration, successor wave, push or activation occurred.
+
 ## TI-B331 - Purpose containment artifact cumulatively static-closed
 
 - Input: `cef95415e2f5e77fb9e12ea3e95776ef26e36efe` after `0be815ec47` on

@@ -40,20 +40,20 @@ State counts:
 
 | Implementation state | Items |
 | --- | ---: |
-| `active_correction` | 11 |
+| `active_correction` | 12 |
 | `active_documentation` | 1 |
 | `active_governance` | 1 |
 | `allowed_dependency` | 1 |
 | `approval_required` | 1 |
 | `committed_held` | 1 |
-| `completed_accepted_slice` | 6 |
+| `completed_accepted_slice` | 5 |
 | `completed_foundation` | 1 |
 | `decision_required` | 8 |
 | `gate_deferred` | 4 |
 | `partial_implemented` | 11 |
 | `planned` | 16 |
 
-Review states: `active` 1, `blocked_findings` 14, `closed_except_decision` 1, `closed_static` 6, `continuous` 2, `historical_accepted` 1, `mixed` 7, `not_applicable` 9, `not_started` 21.
+Review states: `active` 1, `blocked_findings` 15, `closed_except_decision` 1, `closed_static` 5, `continuous` 2, `historical_accepted` 1, `mixed` 7, `not_applicable` 9, `not_started` 21.
 
 Integration states: `held_branch` 2, `held_dependency` 1, `local_dev` 7, `local_only` 1, `mixed_source_refs` 7, `not_applicable` 9, `not_started` 21, `source_branch` 14.
 
@@ -68,7 +68,7 @@ Validation states: `deferred_implementation_only` 53, `not_applicable` 9.
 | `WI-HANDOVER-PRESERVATION-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Preserve accepted transport and receiving seams | Preserve as historical evidence; do not reopen or expand without a bounded request. |
 | `WI-REPOSITORY-SAFETY-001` | `active_governance` | `continuous` | `local_only` | Preserve repository, worktree and publication boundaries | Apply these boundaries to every owner receipt and local integration decision. |
 | `WI-FOUNDATION-BASE-001` | `completed_foundation` | `historical_accepted` | `local_dev` | Preserve the accepted tracking safety foundation | Use as immutable architectural constraints for remaining items. |
-| `WI-SCHEMA-MIGRATION-001` | `active_correction` | `blocked_findings` | `held_branch` | Close the bounded shared v28 schema assembly | Correct only the duplicate test declaration and real file-backed Ambient full-clear reopen gap, then return cba0b116 to the same shared reviewer. |
+| `WI-SCHEMA-MIGRATION-001` | `committed_held` | `active` | `held_branch` | Close the bounded shared v28 schema assembly | Hold exact input fcc2162d for the final shared review. Do not merge Pressure or begin Cell/radio schema work. |
 | `WI-AUTHORITY-PURPOSE-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete source and purpose authority semantics | Do not start a new authority wave; consume only closed current-purpose artifacts when a bounded integration is assigned. |
 | `WI-BROKER-PROVIDER-OWNERSHIP-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete one physical owner per source | Remain planned outside already-started runtime and purpose corrections. |
 | `WI-LIFECYCLE-RUNTIME-001` | `active_correction` | `blocked_findings` | `source_branch` | Close lifecycle, action and settlement semantics | Finish only the already-started runtime correction and test-source closure. |
@@ -89,7 +89,7 @@ Validation states: `deferred_implementation_only` 53, `not_applicable` 9.
 | `WI-LOCATION-HANDOFF-001` | `active_correction` | `blocked_findings` | `source_branch` | Close protected Location WAL-to-writer handoff | Owner fixes only these blockers and returns the same focused reviewer to the corrected real-chain input. |
 | `WI-LOCATION-AMBIENT-PRODUCT-001` | `planned` | `not_started` | `not_started` | Decide and implement passive ambient Location product | Handover backlog; do not start. |
 | `WI-ACTIVITY-VERTICAL-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete captured Activity and control separation | No new Activity lane; integrate only the closed 483 source when shared review permits. |
-| `WI-ACTIVITY-ACTIONS-001` | `completed_accepted_slice` | `closed_static` | `held_dependency` | Preserve closed Activity source actions and file semantics | No source edit. Parent consumes 483 only through the frozen shared-file integration after its review closes. |
+| `WI-ACTIVITY-ACTIONS-001` | `active_correction` | `blocked_findings` | `held_dependency` | Preserve closed Activity source actions and file semantics | Correct only the raw transport EOFException subtype case and its focused test, preserving permanent parser EOF/lexical failures; then propagate the shared lexer dependency when available. |
 | `WI-ACTIVITY-RANGE-001` | `planned` | `not_started` | `not_started` | Implement Activity structural range product | Backlog only; do not start unless a later bounded assignment includes an owner receipt with actual authored-code evidence. |
 | `WI-WIFI-VERTICAL-001` | `partial_implemented` | `blocked_findings` | `source_branch` | Complete the Wi-Fi source-to-product vertical | Finish only the existing product/range/selected-delete correction; hand over retention/erase/files/UI. |
 | `WI-WIFI-PRODUCT-CORRECTION-001` | `active_correction` | `blocked_findings` | `source_branch` | Close Wi-Fi product, range and selected-delete corrections | Owner closes these findings and the already-present range/selected-delete edits; no retention/source-erase/file successor. |
@@ -100,7 +100,7 @@ Validation states: `deferred_implementation_only` 53, `not_applicable` 9.
 | `WI-AMBIENT-RADIO-001` | `active_correction` | `blocked_findings` | `source_branch` | Close passive ambient Wi-Fi and Cell artifact | The owner first corrects declarations, then closes only these ten findings plus the real-chain test-source gap with the same reviewer; hand over all schema/runtime/DI/UI integration. |
 | `WI-PURPOSE-SETTINGS-001` | `completed_accepted_slice` | `closed_static` | `source_branch` | Close purpose settings containment retry | Parent inspects the exact closed cef95415 artifact for serialized local integration. Do not begin authority-issuer, Hilt/runtime reporting or feature-collector successors. |
 | `WI-PURPOSE-PUBLICATION-001` | `planned` | `not_started` | `not_started` | Wire actual purpose authority publication | Handover backlog; do not start. |
-| `WI-SHARED-FILE-ASSEMBLY-001` | `committed_held` | `active` | `held_branch` | Close shared portable file assembly review | After the Pressure owner commits the two helper/codec corrections, update only the existing Activity/Steps/e3f2ecd consumers and resume the frozen shared review. |
+| `WI-SHARED-FILE-ASSEMBLY-001` | `active_correction` | `blocked_findings` | `held_branch` | Close shared portable file assembly review | The shared file owner fixes only the three reported registry/archive retry defects while the Pressure owner supplies the exact lexer/EOF correction for Activity, Steps and e3f2ecd; then return the held branch to focused review. |
 | `WI-SHARED-HISTORY-UNION-001` | `active_correction` | `blocked_findings` | `source_branch` | Close five-source recent, live and selected history union | Correct the six owned union findings and real five-producer Room chain. Propose only the narrow imported-eligible/newest-member and Activity/Pressure transactional producer APIs needed to close 1c; do not start day/UI work. |
 | `WI-SHARED-HISTORY-BRIDGES-001` | `allowed_dependency` | `not_started` | `not_started` | Add narrow producer APIs required by the active history union | Parent assigns only the reviewer-confirmed Activity/Pressure transaction and imported-eligible/newest-member APIs; no day/range/UI expansion. |
 | `WI-SHARED-HISTORY-CONSUMERS-001` | `planned` | `not_started` | `not_started` | Implement shared history feature consumers | Backlog only; do not start unless a later bounded assignment includes an owner receipt with actual authored-code evidence. |

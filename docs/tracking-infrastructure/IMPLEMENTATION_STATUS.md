@@ -20,23 +20,28 @@ recorded process deviation, not validation evidence.
 
 The registry incorporates the newer artifact state:
 
-- Activity `483e8b59b790c5970d11b947d76d82746308bdac` has all five semantic findings and
-  its lexical-helper consumer statically closed (TI-B328). Shared lexer ownership remains with
-  Pressure and the combined file branch remains held.
+- Activity `483e8b59b790c5970d11b947d76d82746308bdac` retains closure of all five
+  original semantic findings, but a new concrete raw-`EOFException` subtype case reopens only its
+  decoder transport boundary. The Activity owner is correcting that case while preserving
+  permanent parser EOF and lexical failures. Shared lexer ownership remains with Pressure.
 - Pressure maintenance is committed clean at production `7dd72ab9f87313247ce1034cf9f5a02b6ee71056`
   plus tests `39198f5a966e724fc5f38d350d27786ad4595340`; its existing reviewer is checking
   the six corrections. Runtime generation/settlement fencing and shared schema fields remain.
-- Shared schema `cba0b116d1a5bb9208fb13192a5e6cf2793d20f0` after `600c0584` and portable
-  assembly `e3f2ecd4c730435e2652b35b73d7b94af5774213` are clean, frozen, held inputs under
-  focused review. Neither is on local `dev/v10`.
+- Shared schema `fcc2162d5aa70c81c53bcd4f5336f3a20ab0c43f` contains only the duplicate-
+  test and actual file-backed Room reopen source correction atop `cba0b116`; final review is
+  running and producer semantics remain held. Shared portable input
+  `e3f2ecd4c730435e2652b35b73d7b94af5774213` completed review with three blockers under
+  correction: endless retry for permanent direct/archive limits, EMPTY success for a headerless
+  ZIP with no importable entry, and incorrect database-registry range/ZIP importer roles. Neither
+  held input is on local `dev/v10`.
 - Shared history `1c94219ac3d67baa5fd870ac2f79d96d081bdcac` is under review. Its only allowed
   new dependency is the narrow Activity/Pressure transactional recent bridges; Location proof,
   structural day/range and feature consumers remain backlog.
 - Location `31c02288a8`, Cell `9d73fe4bb4`, Wi-Fi reviewed input `484c7d293f`, Ambient Steps
-  reviewed input `c8b96e328e`, Purpose review boundary `20f7fc0e72`, Runtime review boundary
-  `410d26e28c` and passive radios `306e9070d2` retain the exact active blockers recorded in
-  `WORK_ITEMS.json`. Newer branch tips or dirty edits are implementation evidence only, not
-  acceptance.
+  reviewed input `c8b96e328e`, Runtime review boundary `410d26e28c` and passive radios
+  `306e9070d2` retain the exact active blockers recorded in `WORK_ITEMS.json`. Purpose
+  `cef95415e2` is separately static-closed. Newer branch tips or dirty edits are implementation
+  evidence only, not acceptance.
 - Parent freeze inspection confirmed that the named Activity range, Ambient Steps file-action and
   shared history consumer successors were unstarted, and their owners were explicitly told not to
   create them. All three are `planned` backlog unless a later owner receipt identifies actual
@@ -78,9 +83,9 @@ Latest closure refinements:
   findings 1-5 source-locally. Only importer private helpers accidentally nested in `storedValue`
   and late/incomplete per-owner TEXT preflight remain. Runtime barrier and shared schema are still
   dependencies.
-- Shared schema `cba0b116d1a5bb9208fb13192a5e6cf2793d20f0` is production-coherent.
-  Only a duplicate `@Test` and missing real file-backed Ambient full-clear fence close/reopen test
-  remain under correction. Pressure `39198f5` is not merged.
+- Shared schema `fcc2162d5aa70c81c53bcd4f5336f3a20ab0c43f` contains the duplicate-`@Test`
+  and real file-backed Ambient full-clear fence close/reopen source corrections atop production-
+  coherent `cba0b116`. Final review is running; Pressure `39198f5` is not merged.
 - Shared history `1c94219ac3d67baa5fd870ac2f79d96d081bdcac` is blocked by six owned
   findings plus a missing real five-producer Room chain: Steps legacy/unknown qualification,
   imported Activity granting native qualification, pre-eligibility mixed limits, imported oldest-
@@ -91,6 +96,11 @@ Latest closure refinements:
 Individual source-owner receipts are authoritative only for their owned artifact. Their generic
 entire-effort tables cannot override parent global state, requirement coverage, shared dependencies
 or adversarial blockers. TI-D265 records this evidence-precedence rule.
+
+TI-B332 records the newest schema/portable/Activity boundary: Purpose remains fully scoped
+static-closed; schema awaits final review at `fcc2162d`; shared portable and the narrow Activity
+decoder boundary are active corrections. Steps `6f46f8` is otherwise closed, but its shared lexer
+dependency remains open. No successor started.
 
 ## Scope expansion frozen - finish started artifacts, hand over the backlog
 
