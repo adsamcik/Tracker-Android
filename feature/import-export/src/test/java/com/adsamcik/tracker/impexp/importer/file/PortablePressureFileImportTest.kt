@@ -415,6 +415,19 @@ class PortablePressureFileImportTest {
 			errors = listOf(PortablePressureFileImport.PERMANENT_FORMAT_ERROR),
 		)
 		sourceCalls shouldBe 1
+
+		val lexicalViolation =
+			"""{"format":"tracker-portable-pressure","schemaVersion":${"x".repeat(10_000)}}"""
+				.encodeToByteArray()
+		importer.import(
+			context,
+			database,
+			stream(lexicalViolation, entryKey = "lexical"),
+		) shouldBe ImportResult(
+			failedCount = 1,
+			errors = listOf(PortablePressureFileImport.PERMANENT_FORMAT_ERROR),
+		)
+		sourceCalls shouldBe 1
 	}
 
 	private fun adapter(

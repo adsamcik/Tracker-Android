@@ -287,11 +287,12 @@ class PortablePressureJsonV1CodecTest {
 		).forEach { literal ->
 			val document = prefix + literal + suffix
 			val input = CountingInputStream(document.encodeToByteArray())
-			shouldThrow<PortablePressureJsonException> {
+			val failure = shouldThrow<PortablePressureJsonException> {
 				PortablePressureJsonV1Codec().decode(input) {
 					error("Oversized literal must not reach the sink")
 				}
 			}
+			(failure.cause is PortableJsonTokenLimitException) shouldBe true
 			(
 				input.bytesRead <=
 					prefix.encodeToByteArray().size +

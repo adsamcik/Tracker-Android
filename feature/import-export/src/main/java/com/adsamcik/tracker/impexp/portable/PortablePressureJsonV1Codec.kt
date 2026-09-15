@@ -981,6 +981,8 @@ private class BoundedPressureInputStream(
 		return count
 	}
 
+	// Only the delegated source read is marked as transport I/O. Byte-limit and outer lexical
+	// failures occur outside this block and retain their permanent format classification.
 	private inline fun <T> transportRead(block: () -> T): T = try {
 		block()
 	} catch (failure: IOException) {
