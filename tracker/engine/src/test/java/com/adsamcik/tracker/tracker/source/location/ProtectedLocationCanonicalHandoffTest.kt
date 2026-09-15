@@ -522,6 +522,56 @@ class ProtectedLocationCanonicalHandoffTest {
 	}
 
 	@Test
+	fun `global drain does not cross an unproven trailing Location range`() = runTest {
+		val vanished = command()
+		insertWal(vanished)
+		insertOtherSourceEvent(ADMISSION_ORDINAL + 1L)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_event_wal WHERE admission_ordinal = ?",
+			arrayOf(ADMISSION_ORDINAL),
+		)
+		val writer = ReceiptWriter(database, accepted = true)
+
+		val deferred = assertIs<ProtectedLocationCanonicalDrainResult.Deferred>(
+			handoff(vanished, writer).drainHighWater(),
+		)
+
+		assertEquals("LOCATION_DRAIN_TRAILING_RANGE_UNPROVEN", deferred.reason)
+		assertEquals(ADMISSION_ORDINAL - 1L, deferred.lastCommittedOrdinal)
+		assertEquals(ADMISSION_ORDINAL, deferred.deferredOrdinal)
+		assertEquals(0, writer.writeCount)
+		assertEquals(
+			ADMISSION_ORDINAL - 1L,
+			database.sourceProjectionStateDao()
+				.activeProductLane(SourceKind.LOCATION.stableCode)
+				?.contiguousAdmissionOrdinal,
+		)
+	}
+
+	@Test
+	fun `global drain materializes a proven Location prefix before trailing defer`() = runTest {
+		val command = command()
+		insertWal(command)
+		insertOtherSourceEvent(ADMISSION_ORDINAL + 1L)
+		val writer = ReceiptWriter(database, accepted = true)
+
+		val deferred = assertIs<ProtectedLocationCanonicalDrainResult.Deferred>(
+			handoff(command, writer).drainHighWater(),
+		)
+
+		assertEquals("LOCATION_DRAIN_TRAILING_RANGE_UNPROVEN", deferred.reason)
+		assertEquals(ADMISSION_ORDINAL, deferred.lastCommittedOrdinal)
+		assertEquals(ADMISSION_ORDINAL + 1L, deferred.deferredOrdinal)
+		assertEquals(1, writer.writeCount)
+		assertEquals(
+			ADMISSION_ORDINAL,
+			database.sourceProjectionStateDao()
+				.activeProductLane(SourceKind.LOCATION.stableCode)
+				?.contiguousAdmissionOrdinal,
+		)
+	}
+
+	@Test
 	fun `global drain uses durable sequence anchor after prior WAL pruning`() = runTest {
 		val first = command()
 		insertWal(first)

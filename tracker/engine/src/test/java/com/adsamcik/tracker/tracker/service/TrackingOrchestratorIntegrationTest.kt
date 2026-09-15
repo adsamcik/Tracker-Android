@@ -39,6 +39,7 @@ import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.pipeline.persistence.DurableSignalBuffer
 import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
 import com.adsamcik.tracker.tracker.pipeline.persistence.RoomPersistenceTransactor
+import com.adsamcik.tracker.tracker.pipeline.persistence.TrackingPersistenceTransactor
 import com.adsamcik.tracker.tracker.presentation.PresentationQuiescenceResult
 import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
 import com.adsamcik.tracker.tracker.source.location.LocationCaptureAuthority
@@ -61,6 +62,7 @@ import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalSi
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriteResult
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationWalQualifier
 import com.adsamcik.tracker.tracker.source.location.PROTECTED_LOCATION_CANONICAL_CURATION_VERSION
+import com.adsamcik.tracker.tracker.source.location.loadPreparedProtectedLocationCanonicalCurationState
 import com.adsamcik.tracker.tracker.source.location.readProtectedLocationCanonicalReceipt
 import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
@@ -77,8 +79,10 @@ import io.kotest.matchers.shouldBe
 import io.mockk.mockk
 import javax.inject.Provider
 import kotlin.test.assertIs
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -210,9 +214,8 @@ class TrackingOrchestratorIntegrationTest {
 
 	@Test
 	@Suppress("LongMethod")
-	fun `protected location writer restores committed route and altitude after live restart`() =
+	fun `startup recovery seeds pending route and altitude before the next location cycle`() =
 		runTest(testDispatcher) {
-			val controller = DefaultTrackerServiceController()
 			val commands = mutableMapOf<String, LocationCapturedFactCommand>()
 			val qualifier = ProtectedLocationWalQualifier { eventId ->
 				LocationWalAdapterResult.Evaluated(
@@ -229,7 +232,9 @@ class TrackingOrchestratorIntegrationTest {
 				qualifier,
 				Unit,
 			)
-			val persistence = PersistenceProcessor(
+			fun newPersistence(
+				transactor: TrackingPersistenceTransactor,
+			) = PersistenceProcessor(
 				locationSampleDao = database.locationSampleDao(),
 				locationObservationDao = database.locationObservationDao(),
 				locationObservationDecisionDao = database.locationObservationDecisionDao(),
@@ -247,15 +252,23 @@ class TrackingOrchestratorIntegrationTest {
 					pendingSignalClaimDao = database.pendingSignalClaimDao(),
 					appDatabase = database,
 				),
-				transactor = RoomPersistenceTransactor(database),
+				transactor = transactor,
 				sourceDestinationOwnerDao = database.sourceDestinationOwnerDao(),
 				appDatabaseProvider = Provider { database },
 				protectedLocationCanonicalPersistenceGuardProvider =
 					Provider { persistenceGuard },
 			)
-			val orchestrator = TrackingOrchestrator(
-				controller = controller,
-				signalProcessors = setOf(persistence),
+			val failedPersistence = newPersistence(
+				object : TrackingPersistenceTransactor {
+					override suspend fun <R> inTransaction(block: suspend () -> R): R {
+						error("simulated destination outage")
+					}
+				},
+			)
+			val failedController = DefaultTrackerServiceController()
+			val failedOrchestrator = TrackingOrchestrator(
+				controller = failedController,
+				signalProcessors = setOf(failedPersistence),
 				domainEventRepository = RecordingDomainEventRepository(),
 				dispatchers = testDispatcherProvider,
 				appDatabase = database,
@@ -271,12 +284,13 @@ class TrackingOrchestratorIntegrationTest {
 				enableNotifications = false,
 			)
 			insertPresentationOwner(LOGICAL_ID, RUN_ID)
-			controller.updateServiceRunning(true)
-			val binding = requireNotNull(orchestrator.initialize(
+			failedController.updateServiceRunning(true)
+			val failedSessionJob = SupervisorJob()
+			val binding = requireNotNull(failedOrchestrator.initialize(
 				context = context,
 				isSessionUserInitiated = true,
 				initialTier = PolicyTier.PRECISION,
-				scope = backgroundScope,
+				scope = CoroutineScope(testDispatcher + failedSessionJob),
 				logicalTrackingId = LOGICAL_ID,
 				serviceRunId = RUN_ID,
 				rolloutState = allEventCanonical(),
@@ -296,13 +310,44 @@ class TrackingOrchestratorIntegrationTest {
 				verticalAccuracyMeters = 3f,
 			)
 			commands[accepted.mutation.identity.sourceEventId.value] = accepted
-			orchestrator.write(
-				accepted,
-				PROTECTED_LOCATION_ACQUISITION,
-			) shouldBe ProtectedLocationCanonicalWriteResult.Committed
-			orchestrator.shutdown(context)
+			assertIs<ProtectedLocationCanonicalWriteResult.Deferred>(
+				failedOrchestrator.write(
+					accepted,
+					PROTECTED_LOCATION_ACQUISITION,
+				),
+			)
+			(database.pendingSignalDao().countAll() > 0) shouldBe true
+			database.locationObservationDao().getBySourceEventId(
+				accepted.mutation.identity.sourceEventId.value,
+			) shouldBe null
+			requireNotNull(
+				database.loadPreparedProtectedLocationCanonicalCurationState(accepted),
+			)
+			failedSessionJob.cancel()
+			failedController.updateServiceRunning(false)
 			advanceUntilIdle()
-			val restartedBinding = requireNotNull(orchestrator.initialize(
+
+			val recoveredPersistence = newPersistence(RoomPersistenceTransactor(database))
+			val recoveredController = DefaultTrackerServiceController()
+			val recoveredOrchestrator = TrackingOrchestrator(
+				controller = recoveredController,
+				signalProcessors = setOf(recoveredPersistence),
+				domainEventRepository = RecordingDomainEventRepository(),
+				dispatchers = testDispatcherProvider,
+				appDatabase = database,
+				trackingParamsRepository = FakeTrackingParamsRepository(
+					TrackingParamsState(
+						activityEnabled = false,
+						stepsEnabled = false,
+						wifiEnabled = false,
+						cellEnabled = false,
+						requiredAccuracyMeters = 1,
+					),
+				),
+				enableNotifications = false,
+			)
+			recoveredController.updateServiceRunning(true)
+			val recoveredBinding = requireNotNull(recoveredOrchestrator.initialize(
 				context = context,
 				isSessionUserInitiated = true,
 				initialTier = PolicyTier.PRECISION,
@@ -313,10 +358,21 @@ class TrackingOrchestratorIntegrationTest {
 				rolloutState = allEventCanonical(),
 			))
 			advanceUntilIdle()
+			database.pendingSignalDao().countAll() shouldBe 0
+			val recoveredReceipt = assertIs<ProtectedLocationCanonicalReceipt.Complete>(
+				database.readProtectedLocationCanonicalReceipt(
+					accepted,
+					PROTECTED_LOCATION_ACQUISITION,
+				),
+			)
+			requireNotNull(recoveredReceipt.acceptedSample)
+			recoveredReceipt.curationState.altitudeProcessorState
+				.fusionState.kalmanState.initialized shouldBe true
+
 			val teleport = protectedLocationCommand(
-				eventId = "protected-location-teleport",
+				eventId = "protected-location-after-recovery",
 				admissionOrdinal = 11L,
-				sessionSegmentId = restartedBinding.sessionSegmentId,
+				sessionSegmentId = recoveredBinding.sessionSegmentId,
 				wallTimeMs = 11_000L,
 				elapsedRealtimeNanos = 11_000_000_000L,
 				latitude = -33.8688,
@@ -324,10 +380,28 @@ class TrackingOrchestratorIntegrationTest {
 				altitudeMeters = 246.0,
 				verticalAccuracyMeters = 3f,
 			)
+			commands[teleport.mutation.identity.sourceEventId.value] = teleport
+			recoveredOrchestrator.write(
+				teleport,
+				PROTECTED_LOCATION_ACQUISITION,
+			) shouldBe ProtectedLocationCanonicalWriteResult.Committed
+			val rejectedReceipt = assertIs<ProtectedLocationCanonicalReceipt.Complete>(
+				database.readProtectedLocationCanonicalReceipt(
+					teleport,
+					PROTECTED_LOCATION_ACQUISITION,
+				),
+			)
+			rejectedReceipt.acceptedSample shouldBe null
+			rejectedReceipt.decision.decision shouldBe "REJECTED"
+			rejectedReceipt.decision.reason shouldBe "CURATED_LOCATION_TELEPORT_CANDIDATE"
+			requireNotNull(rejectedReceipt.curationState.pendingReacquisition)
+			rejectedReceipt.curationState.altitudeProcessorState shouldBe
+				recoveredReceipt.curationState.altitudeProcessorState
+
 			val corroborating = protectedLocationCommand(
 				eventId = "protected-location-corroborating",
 				admissionOrdinal = 12L,
-				sessionSegmentId = restartedBinding.sessionSegmentId,
+				sessionSegmentId = recoveredBinding.sessionSegmentId,
 				wallTimeMs = 12_000L,
 				elapsedRealtimeNanos = 12_000_000_000L,
 				latitude = -33.8687,
@@ -335,51 +409,49 @@ class TrackingOrchestratorIntegrationTest {
 				altitudeMeters = 247.0,
 				verticalAccuracyMeters = 3f,
 			)
-			commands[teleport.mutation.identity.sourceEventId.value] = teleport
 			commands[corroborating.mutation.identity.sourceEventId.value] = corroborating
-
-			orchestrator.write(
-				teleport,
-				PROTECTED_LOCATION_ACQUISITION,
-			) shouldBe ProtectedLocationCanonicalWriteResult.Committed
-			orchestrator.write(
+			recoveredOrchestrator.write(
 				corroborating,
 				PROTECTED_LOCATION_ACQUISITION,
 			) shouldBe ProtectedLocationCanonicalWriteResult.Committed
+			requireNotNull(
+				assertIs<ProtectedLocationCanonicalReceipt.Complete>(
+					database.readProtectedLocationCanonicalReceipt(
+						corroborating,
+						PROTECTED_LOCATION_ACQUISITION,
+					),
+				).acceptedSample,
+			)
 
-			val acceptedReceipt = assertIs<ProtectedLocationCanonicalReceipt.Complete>(
-				database.readProtectedLocationCanonicalReceipt(
-					accepted,
-					PROTECTED_LOCATION_ACQUISITION,
-				),
+			recoveredOrchestrator.write(
+				accepted,
+				PROTECTED_LOCATION_ACQUISITION,
+			) shouldBe ProtectedLocationCanonicalWriteResult.Committed
+			val afterOlderReceipt = protectedLocationCommand(
+				eventId = "protected-location-after-older-receipt",
+				admissionOrdinal = 13L,
+				sessionSegmentId = recoveredBinding.sessionSegmentId,
+				wallTimeMs = 13_000L,
+				elapsedRealtimeNanos = 13_000_000_000L,
+				latitude = -33.8686,
+				longitude = 151.2095,
+				altitudeMeters = 248.0,
+				verticalAccuracyMeters = 3f,
 			)
-			val rejectedReceipt = assertIs<ProtectedLocationCanonicalReceipt.Complete>(
-				database.readProtectedLocationCanonicalReceipt(
-					teleport,
-					PROTECTED_LOCATION_ACQUISITION,
-				),
+			commands[afterOlderReceipt.mutation.identity.sourceEventId.value] = afterOlderReceipt
+			recoveredOrchestrator.write(
+				afterOlderReceipt,
+				PROTECTED_LOCATION_ACQUISITION,
+			) shouldBe ProtectedLocationCanonicalWriteResult.Committed
+			requireNotNull(
+				assertIs<ProtectedLocationCanonicalReceipt.Complete>(
+					database.readProtectedLocationCanonicalReceipt(
+						afterOlderReceipt,
+						PROTECTED_LOCATION_ACQUISITION,
+					),
+				).acceptedSample,
 			)
-			val corroboratingReceipt = assertIs<ProtectedLocationCanonicalReceipt.Complete>(
-				database.readProtectedLocationCanonicalReceipt(
-					corroborating,
-					PROTECTED_LOCATION_ACQUISITION,
-				),
-			)
-			requireNotNull(acceptedReceipt.acceptedSample)
-			acceptedReceipt.acceptedSample?.policy shouldBe "SOURCE_QOS_RESPONSIVE"
-			requireNotNull(acceptedReceipt.curationState.lastAccepted)
-			rejectedReceipt.acceptedSample shouldBe null
-			rejectedReceipt.decision.decision shouldBe "REJECTED"
-			rejectedReceipt.decision.reason shouldBe "CURATED_LOCATION_TELEPORT_CANDIDATE"
-			requireNotNull(rejectedReceipt.curationState.pendingReacquisition)
-			requireNotNull(corroboratingReceipt.acceptedSample)
-			corroboratingReceipt.curationState.pendingReacquisition shouldBe null
-			database.locationSampleDao().countAll() shouldBe 2L
-			database.locationSampleDao().getBySourceSignalId(
-				ProtectedLocationCanonicalSignalIdentity.canonicalProduct(
-					teleport.mutation.identity.sourceEventId.value,
-				),
-			) shouldBe null
+			database.locationSampleDao().countAll() shouldBe 3L
 		}
 
 	@Test
