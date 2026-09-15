@@ -2,6 +2,64 @@
 
 Last updated: 2026-09-15
 
+## Direct-source continuation checkpoint - active, not frozen
+
+Local `dev/v10` is currently `5ed7d1c5dbf1b6437ea8bdec65dd2380e7812c95`. The user's
+full-implementation request is still in progress: there is no assembly freeze, execution
+authority, provider/writer activation or push. All new source remains
+**IMPLEMENTED_UNVALIDATED**. The user has requested minimal parent coding, so designated direct
+source leaves own all current production/test-source implementation and focused static review.
+The parent coordinates exclusive ownership, dependencies and authorized local merges only.
+Blocked source deltas stay out of `dev/v10`.
+
+The selected-detail slice is the only newly accepted local integration in this checkpoint.
+Source `69571dbf6a2263cafc2807020f42622adbcbdbf3`,
+`d2aac46d7f6e247c1637f6f5e12a4f6d4f2c3136` and
+`9c545380d65042ee6f85dc0d300353cc6640d50d` closed all four reported static findings. Rebased
+tip `cda6aff87cb87b9642bde8f352458d31a8cd57fd` preserved the same 13
+`feature\statistics` source paths and was locally merged at
+`5ed7d1c5dbf1b6437ea8bdec65dd2380e7812c95`. The exact reviewed source remains at
+`refs/remotes/handover/reviewed/ti-source-detail-product-20260915`; its worktree is retained for
+follow-up. TI-B327 records authored/static evidence only. This closes the existing Activity,
+Steps, Pressure, imported-Steps and truthful no-Location detail presentation slice, not real
+actions, radio variants or Location-fact proof.
+
+Current source and review inputs are:
+
+| Area | Exact input and current disposition |
+| --- | --- |
+| Cell product/deletion | `9d73fe4bb404e3e2daa1f5dece56686ca7476496` includes the `97a490` range, `6620` selected-delete, `26757` owner fix, `d238` facade, `371fff5` adversarial fixes and `9d73` test source. Frozen review tree `.worktrees\ti-cell-product-review-20260915` is reviewing the five initial fixes plus new range/deletion work. Two deleted-receipt/identity entities and indexes need parent assembly; deletion-range enumeration, retention, source erase and file backends remain. |
+| Wi-Fi product/deletion | `484c7d293f2b2a82bab68f24c167fc179ede8248` is the first product/opaque/shared-facade artifact and is not accepted. Review found seven blockers: missing reverse physical membership, no exact fact-WAL carrier, loss of value-free-only intent, loss of member recency/imported-oldest cutoff, deleted/ready misclassification, semantic reexport retry and query amplification. The owner is continuing range and selected deletion. |
+| Activity actions/files | `483e8b59b790c5970d11b947d76d82746308bdac` follows the `9d32`, `251d`, `981` and `287` lexical-helper corrections. The earlier source findings are closed; a final compatibility-fence correction is in focused review at the frozen `483` tree. Full UI/settings actions remain. |
+| Pressure files | `f8ca404069c28a60c541084a52a987569f317aa8` follows the `512` format-prefix and `30e` lexical/pre-copy corrections and adds focused test source. Review is running. Activity reuses `PortableJsonTokenLimitInputStream` exactly; Pressure owns its semantics. Held shared file assembly `8e1a01dfcd34cf1c83cf51cce6c3ce33cce0b763` has structurally reviewed picker/warning wiring, but corrected source inputs are not integrated there yet. |
+| Purpose settings | Focused review of `3db3d5a955405e34f51ea06bee2108dea4e68c54` closed default/matrix/shape issues but found cleanup and publication blockers: retry-enqueue failure can strand cleanup/kill collection, freshness is not an atomic consume/publication predicate, and a dedicated containment path is required. The owner is correcting these; actual publisher/callback integration remains. |
+| Protected Location | `31c02288a8d8fc18ffab246dbca7121d1f680307` follows `529` owner-receipt and `fe4` wall-time/legacy corrections plus `31c` curation/offline endpoints. Seven fixes and the real-chain source are under focused review. Parent assembly still needs nullable WAL `received_wall_time_ms`, the permanent Location owner row, source catalog/manifest/DI/router/sink/recovery and shared query. Database version remains 28; no schema was generated. |
+| Ambient Steps product | `c8b96e328e749ac157fa299429bc7d975d04b10e` follows `9aee` union/numeric and `4ad0`/`c8` base-fix source. Separate reviews cover base authority/fences/full clear (`217bf6d2`) and product day/numeric (`bac200cd`). Original import `876ca17547d6e3d48940d399057ffe121964780b` remains blocked. `SourceFence` now requires `deletion_completed`, `completed_at_ms`, `reopened_consent_epoch` and `reopened_at_ms`; full clear prepares old-to-new fences, publishes the next revision/epoch, then removes payload while preserving footprints. Parent nine-table DDL must follow the final committed shape. |
+| Runtime settlement | `410d26e28c648b5a35a17c024f2c1f8b63339314` (`75d` + `fa619` + `410d`) remains blocked by six findings plus a P0: Activity null hardware/unobservable late callbacks; lost exact retirement acknowledgement/synthetic completion; rollback-owner-3 manifest rejection; nonfunctional rearm/hard-coded generations; Pressure demand TOCTOU; non-exact `AlreadyApplied`; and pending/unfenced legacy Pressure writes. Constants alone cannot establish generation-2/owner-4 support; actual writers/readers and repeated cycles must be implemented. No runtime input is accepted. |
+| Pressure maintenance | Base `660e8c9ee864bf8dd9b2d3068f06a4c0e6791f67` remains blocked. The earlier acknowledgement-only return left about 24 dirty correction files, which must be preserved. The parent added uncommitted pure-Pressure format relocation to `core:modelAndroid` plus `stats:api` aliases, common lineage authentication in `core:base` plus a `stats:data` facade, full semantic authority for full clear and two tests. All completion ownership has returned to the original Pressure owner; the parent is not continuing this code. The owner must finish, commit and review it. Five new tables, extra entry-deletion columns, and the legacy-writer barrier token/settlement proof still depend on the runtime contract. |
+| Passive ambient radios | `306e9070d296a9b91f96177e9948090754779917` (`fd110` + `ea70` + `306`) is the first 18-table/shared-controller/purpose-aware passive-fact/maintenance/transfer and versioned-report artifact. It is under adversarial review at `174a326e` and is not accepted. Parent assembly still needs all 18 entities/DDL, DI, registry, lane, recovery, query and UI wiring; known payload-coverage limits remain explicit. |
+
+Shared dependency work is now direct-leaf owned as well:
+
+- Held schema input `3baf9e144bc35accac88a7a636e791fa5056b42d` is being replaced in its
+  existing worktree by `1f372e7a`, composing only committed Ambient Steps `c8` and Location `31c`
+  plus correct full-clear/DDL/owner-WAL wiring. It must not copy dirty Pressure state or drop
+  source fences.
+- Held file input `8e1a01dfcd34cf1c83cf51cce6c3ce33cce0b763` is being updated by
+  `3dc4c112` from committed Pressure `f8` and Activity `287`/`483`, with analogous Steps lexical
+  and permanent-format corrections only if confirmed, while preserving the reviewed picker and
+  privacy-warning wiring.
+- New branch `codex/ti-shared-history-union-20260915` at ownership checkpoint `7a88653c`
+  is implementing the five-source recent/live/selected union through Cell, Wi-Fi and Activity
+  producers. Location proof, structural day/range and UI remain follow-up; qualification must not
+  be fabricated.
+
+Wider remaining work includes truthful source day/today/range/facade products, Dashboard,
+Timeline, Calendar, Trips and widgets, exact source actions/source erase settings, remaining
+radio/ambient file paths, correct Ambient Steps execution authority, ambient Location, the legacy
+Pressure writer fence, non-Steps achievement qualification and final stable-ID assembly
+accounting. No broad `CONT` or `ASSEMBLY` item is complete from these leaf reports.
+
 ## Full implementation continuation - active, gate not yet complete
 
 The user requested completion of the entire remaining implementation using the same parallel

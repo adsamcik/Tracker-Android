@@ -2,6 +2,26 @@
 
 Last updated: 2026-09-15
 
+## TI-D261 - Direct source leaves own current coding and review
+
+- Status: active implementation ownership at local `dev/v10`
+  `5ed7d1c5dbf1b6437ea8bdec65dd2380e7812c95`; assembly gate remains open.
+- User authority, 2026-09-15: minimize parent coding. Designated direct source leaves own all
+  current production/test-source implementation, correction and focused static review. This now
+  includes the bounded shared schema, portable-file and shared-history worktrees.
+- The parent coordinates exclusive path ownership, dependency ordering, preservation and
+  authorized local merges. It does not resume source coding, replace an active owner or infer
+  acceptance from a leaf report.
+- The roughly 24 dirty Pressure correction files and the parent's bounded uncommitted pure-Pressure
+  relocations/authentication/full-clear/test additions are preserved in place and returned to the
+  original Pressure owner for completion, commit and review. They must not be discarded, copied
+  wholesale into another assembly or treated as accepted.
+- Blocked source deltas remain out of `dev/v10`. The selected-detail slice is a bounded exception
+  already statically closed and locally merged at `5ed7d1c5db`; TI-B327 records its exact evidence.
+- This ownership decision does not lift **IMPLEMENTATION_ONLY**: no compilation, test/Gradle,
+  lint/Detekt, schema generation/drift, diff-check, device/UI, battery, CI, push, activation,
+  release or rollout work is authorized. No `CONT` or `ASSEMBLY` item closes from ownership alone.
+
 ## TI-D260 - Portable file adapters consume durable job provenance
 
 - Status: **IMPLEMENTED_UNVALIDATED**, locally integrated source `ba73b7a6f3`.

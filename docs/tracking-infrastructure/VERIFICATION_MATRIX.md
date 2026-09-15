@@ -2,6 +2,36 @@
 
 Last updated: 2026-09-15
 
+## TI-B327 - Selected-detail static closure and local integration
+
+- Input: `69571dbf6a2263cafc2807020f42622adbcbdbf3`,
+  `d2aac46d7f6e247c1637f6f5e12a4f6d4f2c3136` and test-only
+  `9c545380d65042ee6f85dc0d300353cc6640d50d` on
+  `codex/ti-source-detail-product-20260915`.
+- The original owner closed all four reported static truthfulness/fixture findings. The bounded
+  presentation now covers existing Activity, Steps, Pressure and imported Steps, preserves
+  truthful partial/plural state, clears stale intrinsic supplemental state, and represents absent
+  Location proof rather than inventing it.
+- Exact 13 unchanged paths under `feature\statistics`:
+  `presenter\TripDetailPresenter.kt`, `presenter\TripDetailPresenterViewModel.kt`,
+  `presenter\TripDetailSourcePresentation.kt`, `presenter\TripDetailStepsState.kt`,
+  `ui\TripDetailRoute.kt`, `ui\TripDetailSourceOverviews.kt`, `main\res\values\strings.xml`,
+  `presenter\TripDetailHistoryPresentationTest.kt`, `presenter\TripDetailPresenterTest.kt`,
+  `presenter\TripDetailPresenterViewModelTest.kt`,
+  `presenter\TripDetailSourcePresentationTest.kt`, `ui\TripDetailRouteComposeTest.kt` and
+  `ui\TripDetailSourceOverviewsComposeTest.kt`, with the first six production Kotlin paths under
+  `src\main\java\com\adsamcik\tracker\statistics`, the resource under `src\main`, and the six
+  test paths under `src\test\java\com\adsamcik\tracker\statistics`.
+- Rebased tip `cda6aff87cb87b9642bde8f352458d31a8cd57fd` preserved those paths exactly;
+  local merge `5ed7d1c5dbf1b6437ea8bdec65dd2380e7812c95` contains the slice. Reviewed input remains at
+  `refs/remotes/handover/reviewed/ti-source-detail-product-20260915`; the worktree is retained for
+  later action/radio/Location-proof work.
+- Outcome: **IMPLEMENTED_UNVALIDATED; STATIC REVIEW CLOSED FOR THIS SLICE ONLY.** No compilation,
+  tests, Gradle, schema, diff-check, lint/Detekt, device/UI, CI, push or activation occurred.
+  Real source actions, radio detail and Location fact proof remain separate implementation work.
+- Deferred only after complete frozen convergence:
+  `.\gradlew.bat :feature:statistics:testDebugUnitTest --tests "*TripDetail*"`.
+
 ## TI-B325 - Imported Pressure/Ambient Steps structural assembly held
 
 - Input: coordinator `3baf9e144bc35accac88a7a636e791fa5056b42d`, composing source

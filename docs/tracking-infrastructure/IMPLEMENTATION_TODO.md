@@ -44,6 +44,20 @@ source-owned parallel worktrees, adversarial static reviews and serialized local
 The active wave/path ownership is in IMPLEMENTATION_STATUS.md. Implementation-only gates remain
 unchanged; none of the broad assembly IDs may be checked from leaf completion alone.
 
+Current checkpoint `5ed7d1c5dbf1b6437ea8bdec65dd2380e7812c95` adds only the statically
+closed selected-detail leaf recorded by TI-B327. Its 13 reviewed `feature\statistics` paths cover
+existing Activity, Steps, Pressure, imported-Steps and truthful no-Location presentation. Real
+actions, radio variants, Location-fact proof and the wider products in TODO-CONT-20260915-015
+remain open. The reviewed ref is retained and the worktree remains available for follow-up.
+
+The user has requested minimal parent coding. Under TI-D261, direct source leaves now own all
+current production/test-source correction and focused review, including the shared schema, file
+and history worktrees. The parent coordinates exclusive ownership, dependencies and authorized
+local merges only. Preserve the blocked Pressure correction tree, including its roughly 24 dirty
+files and bounded uncommitted parent additions; the original Pressure owner must finish, commit
+and review that work. Do not discard it or let the parent continue coding it. All blocked source
+deltas remain out of `dev/v10`.
+
 - [ ] TODO-CONT-20260915-010 Finish Wi-Fi imported evaluator, bounded origin composition and
   authenticated latest reexport/roundtrip, then imported selected deletion/retention/source erase.
 - [ ] TODO-CONT-20260915-011 Finish Cell imported evaluator, bounded origin composition and
@@ -60,6 +74,35 @@ unchanged; none of the broad assembly IDs may be checked from leaf completion al
   runtime/lifecycle/source-local writer/query transitions and source-specific scenario sources.
 - [ ] TODO-CONT-20260915-017 Integrate every producer/consumer/schema/action seam, close concrete
   adversarial findings, account for all original assembly IDs and freeze only the complete input.
+
+Current direct-leaf queue, without changing those broad checkbox states:
+
+- Wi-Fi `484c7d293f` must close seven product/authority/query blockers before acceptance, then
+  finish range/selected deletion, retention, source erase and file backends.
+- Cell `9d73fe4bb4` has the original five fixes plus range/selected deletion in frozen review.
+  Parent schema needs two deletion entities and indexes; range enumeration, retention, erase and
+  files remain.
+- Activity `483e8b59b7` and Pressure files `f8ca404069` are in focused review. Activity still
+  needs full UI/settings actions; the shared file worktree must consume the corrected commits.
+- Purpose `3db3d5a955` still needs failure-safe cleanup containment and atomic freshness
+  publication, then real publisher/callback integration.
+- Location `31c02288a8` still needs focused closure plus nullable WAL wall time, permanent owner,
+  catalog/manifest/DI/router/sink/recovery and shared query assembly. Keep database version 28.
+- Ambient Steps `c8b96e328e` has separate authority/full-clear and product/day/numeric reviews.
+  Parent DDL must implement the final four-column source-fence shape and preserve full-clear
+  footprints; original import `876ca17547` remains blocked.
+- Runtime `410d26e28c` is blocked, including the P0 legacy Pressure writer fence; real writers,
+  readers and repeated generation cycles are required rather than constants.
+- Pressure maintenance `660e8c9ee8` remains blocked and dirty under its original owner. Five new
+  tables, entry-deletion columns and barrier/settlement proof remain dependent work.
+- Passive radios `306e9070d2` are under adversarial review, not accepted; 18-table schema/DDL,
+  DI, registry, lane, recovery, query and UI assembly remain.
+- Shared schema ownership checkpoint `1f372e7a`, shared files `3dc4c112`, and shared history branch
+  `codex/ti-shared-history-union-20260915` / `7a88653c` must finish their bounded integrations
+  without importing dirty Pressure state, dropping fences or fabricating qualification.
+- Source day/today/range/facade products, Dashboard/Timeline/Calendar/Trips/widgets, exact actions
+  and source erase, remaining ambient/radio file paths, Ambient Steps execution authority,
+  ambient Location, non-Steps achievement qualification and final assembly accounting stay open.
 
 ### September 15 closure accounting
 
