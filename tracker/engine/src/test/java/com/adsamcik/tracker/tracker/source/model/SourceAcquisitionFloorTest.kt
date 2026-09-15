@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.source.model
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import kotlin.test.assertFailsWith
 import org.junit.Test
@@ -15,7 +16,8 @@ class SourceAcquisitionFloorTest {
 		)
 		SourceKind.entries.forEach { source ->
 			val sourcePurposes = purposes.filterNot { purpose ->
-				source == SourceKind.STEPS && purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT
+				(source == SourceKind.STEPS && purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT) ||
+					(source == SourceKind.PRESSURE && purpose != DirectSourceDemandPurpose.SESSION_CAPTURE)
 			}
 			(1..3).forEach { qos ->
 				sourcePurposes.forEach { purpose ->
@@ -34,7 +36,8 @@ class SourceAcquisitionFloorTest {
 		SourceKind.entries.forEach { source ->
 			purposes.filterNot { purpose ->
 				purpose == DirectSourceDemandPurpose.SESSION_CAPTURE ||
-					(source == SourceKind.STEPS && purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT)
+					(source == SourceKind.STEPS && purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT) ||
+					source == SourceKind.PRESSURE
 			}.forEach { purpose ->
 				val disabledCapturePolicy = SourceDemandContractFactory.forQos(source, 0, purpose)
 				SourceDemandContract.decode(
@@ -85,6 +88,19 @@ class SourceAcquisitionFloorTest {
 				hardwareBatchingAvailable = false,
 			).satisfies(contract.toDemand()) shouldBe false
 		}
+	}
+
+	@Test
+	fun `Pressure rejects every non-session direct demand before QoS fallback`() {
+		DirectSourceDemandPurpose.entries
+			.filter { it != DirectSourceDemandPurpose.SESSION_CAPTURE }
+			.forEach { purpose ->
+				(0..3).forEach { qos ->
+					shouldThrow<IllegalArgumentException> {
+						SourceDemandContractFactory.forQos(SourceKind.PRESSURE, qos, purpose)
+					}.message shouldBe "Pressure supports direct session capture demand only"
+				}
+			}
 	}
 
 	@Test

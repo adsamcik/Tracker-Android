@@ -30,6 +30,8 @@ import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanis
 import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
 import com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeBlank
 import kotlinx.coroutines.runBlocking
@@ -398,6 +400,67 @@ class SourceBrokerTest {
 		demands.single { it.purpose == SourceBrokerPurpose.CONTROL_CONTINUATION }
 			.persistenceEligible shouldBe false
 		demands.forEach { it.demandId.shouldNotBeBlank() }
+	}
+
+	@Test
+	fun `Pressure manifest creates one exact session capture demand`() = runTest {
+		val demand = subject.buildSessionDemands(
+			logicalTrackingId = "pressure-session",
+			serviceRunId = "pressure-run",
+			manifestRevision = 4L,
+			lifecycleLeaseGeneration = 2L,
+			policyRevision = 9L,
+			bindings = listOf(
+				binding(SourceKind.PRESSURE, SourceBrokerPurpose.SESSION_CAPTURE, 12L, true)
+					.copy(logicalTrackingId = "pressure-session"),
+			),
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 100L,
+			wallTimeMs = 200L,
+		).single()
+
+		database.sourceBrokerDao().insertDemands(listOf(demand))
+		val stored = database.sourceBrokerDao().demandHistory(
+			subject.sessionConsumerId("pressure-session"),
+		).single()
+		stored.sourceKind shouldBe SourceKind.PRESSURE.stableCode
+		stored.purpose shouldBe SourceBrokerPurpose.SESSION_CAPTURE
+		stored.persistenceEligible shouldBe true
+		stored.logicalTrackingId shouldBe "pressure-session"
+		stored.serviceRunId shouldBe "pressure-run"
+		stored.toSourceDemandContract() shouldBe SourceDemandContractFactory.forQos(
+			SourceKind.PRESSURE,
+			stored.qosCode,
+			DirectSourceDemandPurpose.SESSION_CAPTURE,
+		)
+		database.sourceBrokerDao().currentDemands(
+			subject.sessionConsumerId("pressure-session"),
+		).map { it.sourceKind to it.purpose } shouldBe listOf(
+			SourceKind.PRESSURE.stableCode to SourceBrokerPurpose.SESSION_CAPTURE,
+		)
+	}
+
+	@Test
+	fun `Pressure control manifest is rejected before a demand can exist`() = runTest {
+		shouldThrow<IllegalArgumentException> {
+			subject.buildSessionDemands(
+				logicalTrackingId = "pressure-session",
+				serviceRunId = "pressure-run",
+				manifestRevision = 4L,
+				lifecycleLeaseGeneration = 2L,
+				policyRevision = 9L,
+				bindings = listOf(
+					binding(SourceKind.PRESSURE, "CONTROL", 12L, false)
+						.copy(logicalTrackingId = "pressure-session"),
+				),
+				bootId = "boot-1",
+				elapsedRealtimeNanos = 100L,
+				wallTimeMs = 200L,
+			)
+		}.message shouldBe "Pressure supports direct session capture demand only"
+		database.sourceBrokerDao().demandHistory(
+			subject.sessionConsumerId("pressure-session"),
+		).shouldBeEmpty()
 	}
 
 	@Test

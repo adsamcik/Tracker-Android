@@ -26,6 +26,7 @@ import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
 import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
+import com.adsamcik.tracker.tracker.source.model.PressureWindowQualification
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
@@ -119,6 +120,54 @@ class PressureSessionFactProjectionLaneTest {
 		database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
 		activeLane()?.contiguousAdmissionOrdinal shouldBe 2L
 		database.pressureSampleDao().getAllBetween(0L, Long.MAX_VALUE).shouldBeEmpty()
+	}
+
+	@Test
+	fun `durable qualified window precedes canonical materialization`() = runTest {
+		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val payloadCodec = DefaultSourcePayloadCodec()
+		val subject = PressureSessionFactProjectionLane(
+			database,
+			RoomDurableSourceIngress(
+				database,
+				mockk(relaxed = true),
+				payloadCodec,
+				ExecutableSourceLaneCatalog(),
+				mockk(relaxed = true),
+			),
+		)
+
+		subject.drainThrough(0L) shouldBe PressureSessionFactDrainResult.Complete(
+			lastCompletedOrdinal = 0L,
+			factsInserted = 0,
+			eventsValidated = 0,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.pressureFactRevisionDao().count() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+
+		insertWalEvent(pressureEvent(1L), payloadCodec)
+		val durable = requireNotNull(database.sourceEventWalDao().getByEventId("pressure-event-1"))
+		durable.sourceKind shouldBe SourceKind.PRESSURE.stableCode
+		durable.authorizationPurposeEligibilityMask shouldBe SourceBrokerPurpose.MASK_SESSION_CAPTURE
+		durable.integrityIdentity shouldBe durable.calculatedIntegrityIdentity()
+		PressureWindowQualification.classify(
+			payloadCodec.decode(
+				SourceKind.PRESSURE,
+				durable.payloadVersion,
+				durable.payload,
+			) as PressureWindowPayload,
+		) shouldBe PressureWindowQualification.COMPLETE
+		database.pressureFactRevisionDao().count() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+
+		subject.drainThrough(1L) shouldBe PressureSessionFactDrainResult.Complete(
+			lastCompletedOrdinal = 1L,
+			factsInserted = 1,
+			eventsValidated = 1,
+		)
+		requireNotNull(fact(1L)).sourceEventId shouldBe "pressure-event-1"
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
 	}
 
 	@Test
