@@ -40,6 +40,8 @@ internal class PortablePressureExporter(
 	 * environmental/location context and therefore retains the export warning.
 	 */
 	override val containsSensitiveLocationData: Boolean = true
+	override val sensitivityTitleRes: Int = R.string.export_pressure_sensitivity_title
+	override val sensitivityMessageRes: Int = R.string.export_pressure_sensitivity_message
 	override val canSelectDateRange: Boolean = true
 	override val mimeType: String = MIME_TYPE
 	override val extension: String = EXTENSION

@@ -7,12 +7,16 @@ import com.adsamcik.tracker.impexp.exporter.GpxExporter
 import com.adsamcik.tracker.impexp.exporter.JsonExporter
 import com.adsamcik.tracker.impexp.exporter.KmlExporter
 import com.adsamcik.tracker.impexp.exporter.PortableStepsExporter
+import com.adsamcik.tracker.impexp.exporter.PortableActivityExporter
+import com.adsamcik.tracker.impexp.exporter.PortablePressureExporter
 import com.adsamcik.tracker.impexp.importer.file.DatabaseImport
 import com.adsamcik.tracker.impexp.importer.file.FileImport
 import com.adsamcik.tracker.impexp.importer.file.GpxImport
 import com.adsamcik.tracker.impexp.importer.file.JsonImport
 import com.adsamcik.tracker.impexp.importer.file.KmlImport
 import com.adsamcik.tracker.impexp.importer.file.PortableStepsFileImport
+import com.adsamcik.tracker.impexp.importer.file.PortableActivityFileImport
+import com.adsamcik.tracker.impexp.importer.file.PortablePressureFileImport
 
 /**
  * Central registry that maps format identifiers to [Exporter] and [FileImport]
@@ -149,10 +153,40 @@ object FormatRegistry {
 				extensions = setOf(PortableStepsFileImport.EXTENSION),
 				supportsExport = true,
 				supportsImport = true,
-				supportsDateRange = false,
+				supportsDateRange = true,
 			),
 			exporter = PortableStepsExporter(),
 			importer = PortableStepsFileImport(),
+		)
+
+		val activityExporter = PortableActivityExporter()
+		register(
+			descriptor = FormatDescriptor(
+				id = "portable-activity-v1",
+				displayNameRes = R.string.format_portable_activity,
+				mimeType = activityExporter.mimeType,
+				extensions = setOf(PortableActivityFileImport.EXTENSION),
+				supportsExport = true,
+				supportsImport = true,
+				supportsDateRange = activityExporter.canSelectDateRange,
+			),
+			exporter = activityExporter,
+			importer = PortableActivityFileImport(),
+		)
+
+		val pressureExporter = PortablePressureExporter()
+		register(
+			descriptor = FormatDescriptor(
+				id = "portable-pressure-v1",
+				displayNameRes = R.string.format_portable_pressure,
+				mimeType = pressureExporter.mimeType,
+				extensions = setOf(PortablePressureFileImport.EXTENSION),
+				supportsExport = true,
+				supportsImport = true,
+				supportsDateRange = pressureExporter.canSelectDateRange,
+			),
+			exporter = pressureExporter,
+			importer = PortablePressureFileImport(),
 		)
 	}
 }

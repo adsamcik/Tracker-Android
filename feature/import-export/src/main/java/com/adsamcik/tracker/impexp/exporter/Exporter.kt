@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import androidx.annotation.StringRes
+import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.model.LocationSample
 import java.io.OutputStream
@@ -21,6 +23,14 @@ interface Exporter {
 	/** Whether the artifact may contain full-precision Location or raw database content. */
 	val containsSensitiveLocationData: Boolean
 		get() = true
+
+	@get:StringRes
+	val sensitivityTitleRes: Int
+		get() = R.string.export_sensitivity_title
+
+	@get:StringRes
+	val sensitivityMessageRes: Int
+		get() = R.string.export_sensitivity_message
 
 	/**
 	 * True if exporter can export based on date range.
