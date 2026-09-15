@@ -113,6 +113,7 @@ internal data class WifiImportedHistoryEligibleEntry(
 		require(entry.origin == WifiHistoryOrigin.IMPORTED)
 		require(entry.importedSelection == selection)
 		require(recency.source == HistorySource.WIFI)
+		recency.requireWithin(entry.startTime.raw, entry.endTime.raw)
 	}
 }
 
@@ -125,6 +126,7 @@ internal data class CellImportedHistoryEligibleEntry(
 		require(entry.origin == CellHistoryOrigin.Imported(selection))
 		require(entry.selection == selection)
 		require(recency.source == HistorySource.CELL)
+		recency.requireWithin(entry.startTime.raw, entry.endTime.raw)
 	}
 }
 
@@ -142,6 +144,7 @@ internal data class ActivityImportedHistoryEligibleEntry(
 		require(entry.key == selector)
 		require(importRevision > 0L)
 		require(recency.source == HistorySource.ACTIVITY)
+		recency.requireWithin(entry.startTime.raw, entry.endTime.raw)
 	}
 }
 
@@ -156,6 +159,16 @@ internal data class PressureImportedHistoryEligibleEntry(
 		require(entry.origin == PressureHistoryOrigin.Imported(identity))
 		require(importRevision > 0L)
 		require(recency.source == HistorySource.PRESSURE)
+		recency.requireWithin(entry.startTime.raw, entry.endTime.raw)
+	}
+}
+
+private fun ImportedHistoryRecency.requireWithin(
+	entryStartTimeMs: Long,
+	entryEndTimeMs: Long,
+) {
+	require(newestMemberStartTimeMs in entryStartTimeMs..entryEndTimeMs) {
+		"Imported recency must belong to the authenticated entry envelope"
 	}
 }
 
