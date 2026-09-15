@@ -5,7 +5,9 @@ import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
+import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.stats.api.metric.MetricKey
+import com.adsamcik.tracker.stats.data.repository.AchievementMetricQualification
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -31,7 +33,8 @@ data class AchievementProgress(
 	val metric: MetricKey,
 	val lastTierIndex: Int,
 	val lastValue: Double,
-	val updatedAt: Long,
+	/** Null when persistence has no trustworthy evidence that an update was an unlock. */
+	val unlockedAt: Long?,
 )
 
 /**
@@ -75,16 +78,7 @@ internal class RoomExplorationProgressRepository @Inject constructor(
 	override val achievements: Flow<List<AchievementProgress>> =
 		achievementProgressDao.getAllFlow()
 			.map { rows ->
-				rows.mapNotNull { row ->
-					MetricKey.fromStorageKey(row.metricKey)?.let { metric ->
-						AchievementProgress(
-							metric = metric,
-							lastTierIndex = row.lastTierIndex,
-							lastValue = row.lastValue,
-							updatedAt = row.updatedAt,
-						)
-					}
-				}
+				rows.mapNotNull(AchievementProgressEntity::toProductProgress)
 			}
 			.flowOn(dispatchers.io)
 
@@ -93,6 +87,19 @@ internal class RoomExplorationProgressRepository @Inject constructor(
 		const val RECENT_LIMIT = 5
 		const val STREAK_TYPE_DAILY = "DAILY_DISCOVERY"
 	}
+}
+
+internal fun AchievementProgressEntity.toProductProgress(): AchievementProgress? {
+	val metric = MetricKey.fromStorageKey(metricKey) ?: return null
+	if (!AchievementMetricQualification.isTrustedPersistedProgress(metric, this)) return null
+	return AchievementProgress(
+		metric = metric,
+		lastTierIndex = lastTierIndex,
+		lastValue = lastValue,
+		unlockedAt = lastUnlockedAt?.takeIf {
+			AchievementMetricQualification.hasTrustedUnlockTimestamp(metric, this)
+		},
+	)
 }
 
 data class MiniGameScore(

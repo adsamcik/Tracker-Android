@@ -2,6 +2,8 @@ package com.adsamcik.tracker.tracker.source.projection
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.enqueueAllStepsGoalRepairs
+import com.adsamcik.tracker.shared.base.database.enqueueStepsGoalRepairDayRange
 import com.adsamcik.tracker.shared.base.database.markStepsRetentionTruncation
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventProjectionEligibilityRow
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -24,6 +26,8 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
+import java.time.Instant
+import java.time.ZoneOffset
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -205,6 +209,8 @@ class StepsSessionFactProjectionLane private constructor(
 					}
 
 					var inserted = 0
+					var insertedFirstEpochDay: Long? = null
+					var insertedLastEpochDay: Long? = null
 					var validated = 0
 					var previousOrdinal = cursor
 					for (event in events) {
@@ -223,7 +229,18 @@ class StepsSessionFactProjectionLane private constructor(
 								candidate != null
 							) {
 								when (insertOrVerifyExactReplay(candidate)) {
-									FactAdmission.INSERTED -> inserted++
+									FactAdmission.INSERTED -> {
+										inserted++
+										val range = candidate.possibleCalendarDayRange()
+										insertedFirstEpochDay = minOf(
+											insertedFirstEpochDay ?: range.first,
+											range.first,
+										)
+										insertedLastEpochDay = maxOf(
+											insertedLastEpochDay ?: range.last,
+											range.last,
+										)
+									}
 									FactAdmission.EXACT_REPLAY -> Unit
 								}
 							}
@@ -248,7 +265,11 @@ class StepsSessionFactProjectionLane private constructor(
 							)
 						}
 						if (terminalFailure != null) {
-							publishEvidenceRevisionIfNeeded(inserted)
+							publishEvidenceRevisionIfNeeded(
+								inserted,
+								insertedFirstEpochDay,
+								insertedLastEpochDay,
+							)
 							val through = event.admissionOrdinal - 1L
 							advanceCursor(lane, through)
 							return@withTransaction StepsProjectionPass.TerminalBlocked(
@@ -257,7 +278,11 @@ class StepsSessionFactProjectionLane private constructor(
 							)
 						}
 					}
-					publishEvidenceRevisionIfNeeded(inserted)
+					publishEvidenceRevisionIfNeeded(
+						inserted,
+						insertedFirstEpochDay,
+						insertedLastEpochDay,
+					)
 					val through = events.last().admissionOrdinal
 					// Cursor is deliberately the final write in this transaction. A crash before it
 					// rolls back facts/receipts/evidence; a committed cursor therefore proves them.
@@ -415,11 +440,17 @@ class StepsSessionFactProjectionLane private constructor(
 		return failure
 	}
 
-	private suspend fun publishEvidenceRevisionIfNeeded(inserted: Int) {
+	private suspend fun publishEvidenceRevisionIfNeeded(
+		inserted: Int,
+		firstEpochDay: Long?,
+		lastEpochDay: Long?,
+	) {
 		if (inserted == 0) return
+		check(firstEpochDay != null && lastEpochDay != null)
 		check(database.sourceEvidenceStateDao().incrementRevision(nowMs()) == 1) {
 			"Unable to publish the Steps fact evidence revision"
 		}
+		database.enqueueStepsGoalRepairDayRange(firstEpochDay, lastEpochDay)
 	}
 
 	@Suppress("CyclomaticComplexMethod", "ReturnCount")
@@ -776,6 +807,7 @@ class StepsSessionFactProjectionLane private constructor(
 			check(database.sourceEvidenceStateDao().incrementRevision(nowMs()) == 1) {
 				"Unable to publish the Steps retention-truncation marker"
 			}
+			database.enqueueAllStepsGoalRepairs()
 		}
 	}
 
@@ -887,6 +919,14 @@ private data class StepsManifestKey(
 	val serviceRunId: String,
 	val manifestRevision: Long,
 )
+
+private fun StepFactRevisionEntity.possibleCalendarDayRange(): LongRange {
+	val startMs = requireNotNull(intervalStartTimeMs)
+	val endMs = requireNotNull(intervalEndTimeMs)
+	val first = Instant.ofEpochMilli(startMs).atOffset(ZoneOffset.MIN).toLocalDate().toEpochDay()
+	val last = Instant.ofEpochMilli(endMs).atOffset(ZoneOffset.MAX).toLocalDate().toEpochDay()
+	return first..last
+}
 
 private fun SourceProductProjectionLaneEntity.hasSameExecutionBinding(
 	other: SourceProductProjectionLaneEntity,

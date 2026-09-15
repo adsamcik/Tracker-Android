@@ -142,6 +142,40 @@ class PreviousExitSourceSessionFinalizerTest {
 	}
 
 	@Test
+	fun `same boot automatic descriptor cannot revive an interrupted session`() = runTest {
+		seedAutomationEpoch()
+		insertSession(AUTOMATIC_ID, SessionMode.AUTOMATIC, CURRENT_BOOT_ID)
+		insertRun(AUTOMATIC_ID, CURRENT_BOOT_ID)
+		insertPendingAction(AUTOMATIC_ID, CURRENT_BOOT_ID)
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand(AUTOMATIC_ID, "automatic-demand", CURRENT_BOOT_ID)),
+		)
+		val automaticDescriptor = manualDescriptor(CURRENT_BOOT_ID).copy(
+			isUserInitiated = false,
+			logicalTrackingId = AUTOMATIC_ID,
+			serviceRunId = runId(AUTOMATIC_ID),
+		)
+
+		val result = finalizer().finalizeStaleSessions(
+			recoveryDescriptor = automaticDescriptor,
+		)
+
+		result.finalizedLogicalTrackingIds shouldContainExactly setOf(AUTOMATIC_ID)
+		database.sourceSessionDao().session(AUTOMATIC_ID)?.let { session ->
+			session.state shouldBe SessionLifecycleState.FINALIZED.name
+			session.currentServiceRunId shouldBe null
+			session.failureCode shouldBe PreviousExitSourceSessionFinalizer.COMPLETION_REASON
+		}
+		database.sourceSessionDao().serviceRun(runId(AUTOMATIC_ID))?.state shouldBe
+			SessionLifecycleState.FINALIZED.name
+		database.sourceSessionDao().lifecycleAction(actionId(AUTOMATIC_ID))?.status shouldBe
+			LifecycleActionStatus.TERMINAL_FAILURE.name
+		database.sourceBrokerDao().demandHistory(sessionConsumerId(AUTOMATIC_ID)).single().status shouldBe
+			SourceDemandEntity.STATUS_RETIRED
+		database.activityAutomationEpochDao().current()?.epoch shouldBe 18L
+	}
+
+	@Test
 	fun `recoverable current run is preserved while an older incomplete run is terminalized`() =
 		runTest {
 			insertSession(MANUAL_ID, SessionMode.MANUAL, CURRENT_BOOT_ID)

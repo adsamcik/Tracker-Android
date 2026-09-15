@@ -21,8 +21,13 @@ import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessE
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.stats.api.repository.StepsNumericCalendarAuthority
+import com.adsamcik.tracker.stats.api.repository.StepsNumericCalendarDay
+import com.adsamcik.tracker.stats.api.repository.StepsNumericDecisionBatch
+import com.adsamcik.tracker.stats.api.repository.StepsNumericExactDecisionRequest
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryBatch
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import io.kotest.matchers.shouldBe
@@ -134,6 +139,100 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		repository.read(request()) shouldBe StepsNumericSummary.Ready(
 			listOf(StepsNumericDay(epochDay = DAY, steps = 0L)),
 		)
+	}
+
+	@Test
+	fun `bounded batch preserves request order and independent typed outcomes`() = runBlocking<Unit> {
+		insertCoveredCandidate(stepsPerFact = 5L)
+
+		repository.readBatch(
+			listOf(
+				request(),
+				request(lastEpochDay = DAY + 1L),
+			),
+		) shouldBe StepsNumericSummaryBatch(
+			listOf(
+				StepsNumericSummary.Ready(listOf(StepsNumericDay(DAY, 5L))),
+				StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE),
+			),
+		)
+	}
+
+	@Test
+	fun `decision batch binds source revision calendar and stable semantic result`() = runBlocking<Unit> {
+		insertCoveredCandidate(stepsPerFact = 5L)
+		val requests = listOf(request(), request(lastEpochDay = DAY + 1L))
+		val first = repository.readDecisionBatch(requests) as StepsNumericDecisionBatch.Snapshot
+
+		first.sourceEvidenceRevision shouldBe 0L
+		first.windows.map { window -> window.request } shouldBe requests
+		first.windows.first().calendarAuthority shouldBe StepsNumericCalendarAuthority.Exact(
+			listOf(StepsNumericCalendarDay(DAY, ZONE.id)),
+		)
+		first.windows.map { window -> window.summary } shouldBe listOf(
+			StepsNumericSummary.Ready(listOf(StepsNumericDay(DAY, 5L))),
+			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE),
+		)
+		first.windows.all { window ->
+			window.sourceResultDigest.length == 64 &&
+				window.sourceResultDigest == window.sourceResultDigest.lowercase()
+		} shouldBe true
+
+		database.sourceEvidenceStateDao().incrementRevision(DAY_START + 1L) shouldBe 1
+		val second = repository.readDecisionBatch(requests) as StepsNumericDecisionBatch.Snapshot
+		second.sourceEvidenceRevision shouldBe 1L
+		second.windows.map { window -> window.sourceResultDigest } shouldBe
+			first.windows.map { window -> window.sourceResultDigest }
+	}
+
+	@Test
+	fun `exact historical decision keeps persisted effect zone when summary zone is corrupted`() =
+		runBlocking<Unit> {
+			insertCoveredCandidate(stepsPerFact = 5L)
+			database.dailySummaryDao().upsert(
+				dateEpochDay = DAY,
+				totalDistanceM = 0f,
+				totalSteps = 999,
+				totalDurationMs = 0L,
+				tripCount = 0,
+				activeTrackingMs = 0L,
+				lastUpdatedMs = 2L,
+				calendarZoneId = "not-a-zone",
+			)
+			val request = request()
+			val exact = StepsNumericExactDecisionRequest(
+				request,
+				StepsNumericCalendarAuthority.Exact(
+					listOf(StepsNumericCalendarDay(DAY, ZONE.id)),
+				),
+			)
+
+			val snapshot = repository.readExactDecisionBatch(listOf(exact)) as
+				StepsNumericDecisionBatch.Snapshot
+
+			snapshot.windows.single().calendarAuthority shouldBe exact.calendarAuthority
+			snapshot.windows.single().summary shouldBe StepsNumericSummary.Ready(
+				listOf(StepsNumericDay(DAY, 5L)),
+			)
+		}
+
+	@Test
+	fun `missing source evidence state grants no decision authority`() = runBlocking<Unit> {
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_evidence_state")
+
+		repository.readDecisionBatch(listOf(request())) shouldBe
+			StepsNumericDecisionBatch.StorageUnavailable
+		repository.read(request()) shouldBe StepsNumericSummary.Unverifiable(
+			StepsNumericUnverifiableReason.STORAGE_UNAVAILABLE,
+		)
+	}
+
+	@Test
+	fun `batch rejects empty and speculative fan out before opening storage`() = runBlocking<Unit> {
+		assertFailsWith<IllegalArgumentException> { repository.readBatch(emptyList()) }
+		assertFailsWith<IllegalArgumentException> {
+			repository.readBatch(listOf(request(), request(), request()))
+		}
 	}
 
 	@Test

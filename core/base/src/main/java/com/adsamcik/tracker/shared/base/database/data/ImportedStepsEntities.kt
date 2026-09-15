@@ -20,6 +20,8 @@ data class ImportedStepsEntryEntity(
 	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
 	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
 	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	/** Local canonical owner generation that accepted this entry, not foreign capture authority. */
+	@ColumnInfo(name = "writer_owner_generation") val writerOwnerGeneration: Long? = null,
 ) {
 	init {
 		require(ImportedStepsIdentity.isOpaque(identity))
@@ -27,6 +29,7 @@ data class ImportedStepsEntryEntity(
 		require(sessionMode == "MANUAL" || sessionMode == "AUTOMATIC")
 		require(startTimeMs >= 0L && endTimeMs >= startTimeMs)
 		require(collectedDataEpoch >= 0L)
+		require(writerOwnerGeneration == null || writerOwnerGeneration > 0L)
 	}
 }
 
@@ -46,6 +49,7 @@ data class ImportedStepsEntryEntity(
 	indices = [
 		Index(value = ["entry_identity"], name = "idx_imported_steps_run_entry"),
 		Index(value = ["deletion_scope_digest"], unique = true, name = "idx_imported_steps_run_scope"),
+		Index(value = ["session_segment_id"], unique = true, name = "idx_imported_steps_run_segment"),
 	],
 )
 data class ImportedStepsRunEntity(
@@ -60,6 +64,10 @@ data class ImportedStepsRunEntity(
 	@ColumnInfo(name = "app_drain_complete") val appDrainComplete: Boolean,
 	@ColumnInfo(name = "stop_complete") val stopComplete: Boolean,
 	@ColumnInfo(name = "has_unresolved_provider_range") val hasUnresolvedProviderRange: Boolean,
+	/** Exact local presentation row only; null dormant rows cannot qualify for product reads. */
+	@ColumnInfo(name = "session_segment_id") val sessionSegmentId: Long? = null,
+	/** Source-local admission receipt; validates this retained member after sibling removal. */
+	@ColumnInfo(name = "retained_checksum") val retainedChecksum: String? = null,
 ) {
 	init {
 		require(ImportedStepsIdentity.isOpaque(identity))
@@ -70,6 +78,8 @@ data class ImportedStepsRunEntity(
 		ZoneId.of(storedZoneId)
 		require(captureCoverage == "WHOLE_RUN" || captureCoverage == "PARTIAL")
 		require(providerCoverage in setOf("COMPLETE", "PARTIAL", "UNOBSERVABLE"))
+		require(sessionSegmentId == null || sessionSegmentId > 0L)
+		require(retainedChecksum == null || ImportedStepsIdentity.isDeletionScope(retainedChecksum))
 	}
 }
 

@@ -2,7 +2,12 @@ package com.adsamcik.tracker.game.repository
 
 import com.adsamcik.tracker.game.goals.WeeklyProgressCalculator
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicySnapshot
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryBatch
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import java.time.LocalDate
@@ -33,6 +38,7 @@ internal fun sourceQualifiedStepsSummaryFlow(
 	dailyGoal: Flow<Int>,
 	weeklyGoal: Flow<Int>,
 	weeklyDailyLimit: Flow<Float>,
+	stepsProductPolicy: Flow<StepsProductPolicyState>,
 	currentDateTime: () -> ZonedDateTime,
 	currentLocale: () -> Locale,
 ): Flow<StepsSummaryData> {
@@ -46,9 +52,11 @@ internal fun sourceQualifiedStepsSummaryFlow(
 		dailyGoal,
 		weeklyGoal,
 		weeklyDailyLimit,
-	) { values, goalDay, goalWeek, dailyLimit ->
+		stepsProductPolicy,
+	) { values, goalDay, goalWeek, dailyLimit, productPolicy ->
 		StepsSummaryData(
-			stepsToday = values.daily.toQualifiedStepCount(),
+			stepsToday = values.daily.toQualifiedStepCount()
+				.withCurrentProductPolicy(productPolicy),
 			stepsWeek = values.weekly.toQualifiedWeeklyStepCount(
 				today = values.authority.today,
 				weeklyGoal = goalWeek,
@@ -60,25 +68,86 @@ internal fun sourceQualifiedStepsSummaryFlow(
 	}
 }
 
+/**
+ * Current product policy can refine only a day with no retained Steps evidence. Session capture
+ * or ambient-product persistence keeps collection enabled; control-only authority cannot. The
+ * current switch never rewrites historical values, source-local uncertainty, or a weekly period
+ * that may contain earlier captured days.
+ */
+private fun QualifiedStepCount.withCurrentProductPolicy(
+	policy: StepsProductPolicyState,
+): QualifiedStepCount {
+	if (this !is QualifiedStepCount.Unavailable ||
+		reason != QualifiedStepCountUnavailableReason.NOT_CAPTURED
+	) {
+		return this
+	}
+	val qualifiedReason = when (policy) {
+		StepsProductPolicyState.ENABLED -> QualifiedStepCountUnavailableReason.NOT_CAPTURED
+		StepsProductPolicyState.DISABLED -> QualifiedStepCountUnavailableReason.DISABLED
+		StepsProductPolicyState.UNVERIFIABLE ->
+			QualifiedStepCountUnavailableReason.SOURCE_EVIDENCE_UNAVAILABLE
+	}
+	return QualifiedStepCount.Unavailable(qualifiedReason)
+}
+
+internal enum class StepsProductPolicyState {
+	ENABLED,
+	DISABLED,
+	UNVERIFIABLE,
+}
+
+/** Reuses the validated immutable six-source authority rather than interpreting Room rows here. */
+internal fun SourcePolicyAuthorityState.toStepsProductPolicyState(): StepsProductPolicyState =
+	when (this) {
+		is SourcePolicyAuthorityState.Active -> if (snapshot.stepsProductEnabled) {
+			StepsProductPolicyState.ENABLED
+		} else {
+			StepsProductPolicyState.DISABLED
+		}
+		is SourcePolicyAuthorityState.Invalid,
+		SourcePolicyAuthorityState.Uninitialized,
+		-> StepsProductPolicyState.UNVERIFIABLE
+	}
+
+private val SourcePolicySnapshot.stepsProductEnabled: Boolean
+	get() = this[TrackingSourceComponent.STEPS].let { steps ->
+		steps.enabled || steps.ambientPersistenceEligible
+	}
+
 private fun StepsNumericSummaryRepository.observePeriods(
 	authority: StepsCalendarAuthority,
-): Flow<QualifiedStepsPeriods> = combine(
-	observe(
+): Flow<QualifiedStepsPeriods> {
+	val requests = listOf(
 		StepsNumericSummaryRequest(
 			firstEpochDay = authority.today.toEpochDay(),
 			lastEpochDayInclusive = authority.today.toEpochDay(),
 			fallbackCalendarZoneId = authority.zoneId,
 		),
-	).onStart { emit(StepsNumericSummary.Materializing) },
-	observe(
 		StepsNumericSummaryRequest(
 			firstEpochDay = authority.startOfWeek.toEpochDay(),
 			lastEpochDayInclusive = authority.today.toEpochDay(),
 			fallbackCalendarZoneId = authority.zoneId,
 		),
-	).onStart { emit(StepsNumericSummary.Materializing) },
-) { daily, weekly ->
-	QualifiedStepsPeriods(authority, daily, weekly)
+	)
+	return observeBatch(requests)
+		.onStart {
+			emit(
+				StepsNumericSummaryBatch(
+					summaries = List(requests.size) { StepsNumericSummary.Materializing },
+				),
+			)
+		}
+		.map { batch ->
+			check(batch.summaries.size == requests.size) {
+				"Steps period batch did not preserve requested window count"
+			}
+			QualifiedStepsPeriods(
+				authority = authority,
+				daily = batch.summaries[DAILY_SUMMARY_INDEX],
+				weekly = batch.summaries[WEEKLY_SUMMARY_INDEX],
+			)
+		}
 }
 
 private fun StepsNumericSummary.toQualifiedWeeklyStepCount(
@@ -127,3 +196,6 @@ private data class QualifiedStepsPeriods(
 	val daily: StepsNumericSummary,
 	val weekly: StepsNumericSummary,
 )
+
+private const val DAILY_SUMMARY_INDEX = 0
+private const val WEEKLY_SUMMARY_INDEX = 1

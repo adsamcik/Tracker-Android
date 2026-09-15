@@ -56,6 +56,23 @@ internal data class StepsAcquisitionFloor(
 	}
 }
 
+/** System-owned providers that may supply opportunistic, sessionless Step history. */
+internal enum class AmbientStepsAcquisitionMechanism {
+	HEALTH_CONNECT_MOBILE_STEPS,
+	LOCAL_RECORDING_STEPS,
+}
+
+/**
+ * Ambient Steps is imported from one system continuity provider and is never a direct sensor plan.
+ * Provider-native record cursors, rather than Tracker's same-boot callback age, decide whether a
+ * historical record is fresh and new in effect.
+ */
+internal data class AmbientStepsAcquisitionFloor(
+	val mechanism: AmbientStepsAcquisitionMechanism,
+) : SourceAcquisitionFloor {
+	override val source = SourceKind.STEPS
+}
+
 internal data class PressureAcquisitionFloor(
 	val maximumSamplePeriodMicros: Int,
 	val maximumReportLatencyMicros: Int,
@@ -125,6 +142,20 @@ internal data class SourceDemandContract(
  * QoS supplies the target-planning signal; acquisition floors remain separate lower bounds.
  */
 internal object SourceDemandContractFactory {
+	/**
+	 * Declares provider identity without inventing a delivery cadence for system-owned history.
+	 * The eventual adapter must stamp each import attempt with a fresh Tracker monotonic observation
+	 * and enforce provider-native cursor/new-in-effect rules before durable ingress.
+	 */
+	fun forAmbientSteps(mechanism: AmbientStepsAcquisitionMechanism): SourceDemandContract =
+		SourceDemandContract(
+			floor = AmbientStepsAcquisitionFloor(mechanism),
+			maximumProviderItemAgeMs = Long.MAX_VALUE,
+			targetPlanningLatencyMs = Long.MAX_VALUE,
+			requestedDeliveryLatencyMs = null,
+			adaptiveReductionAllowed = false,
+		)
+
 	fun forQos(
 		source: SourceKind,
 		qosCode: Int,
@@ -146,21 +177,26 @@ internal object SourceDemandContractFactory {
 				adaptiveReductionAllowed = true,
 			)
 			SourceKind.ACTIVITY -> activityContract(effectiveQos, purpose)
-			SourceKind.STEPS -> SourceDemandContract(
-				floor = StepsAcquisitionFloor(
-					mechanism = StepsAcquisitionMechanism.DIRECT_COUNTER,
-					maximumReportLatencyMs = 300_000L,
-					continuousCoverageRequired = false,
-				),
-				maximumProviderItemAgeMs = 300_000L,
-				targetPlanningLatencyMs = when (effectiveQos) {
-					1 -> 300_000L
-					2 -> 60_000L
-					else -> 5_000L
-				},
-				requestedDeliveryLatencyMs = 300_000L,
-				adaptiveReductionAllowed = true,
-			)
+			SourceKind.STEPS -> {
+				require(purpose != DirectSourceDemandPurpose.AMBIENT_PRODUCT) {
+					"Ambient Steps requires one explicitly selected system continuity provider"
+				}
+				SourceDemandContract(
+					floor = StepsAcquisitionFloor(
+						mechanism = StepsAcquisitionMechanism.DIRECT_COUNTER,
+						maximumReportLatencyMs = 300_000L,
+						continuousCoverageRequired = false,
+					),
+					maximumProviderItemAgeMs = 300_000L,
+					targetPlanningLatencyMs = when (effectiveQos) {
+						1 -> 300_000L
+						2 -> 60_000L
+						else -> 5_000L
+					},
+					requestedDeliveryLatencyMs = 300_000L,
+					adaptiveReductionAllowed = true,
+				)
+			}
 			SourceKind.PRESSURE -> SourceDemandContract(
 				floor = PressureAcquisitionFloor(
 					maximumSamplePeriodMicros = 1_000_000,
@@ -249,6 +285,11 @@ internal object SourceAcquisitionFloorCodec {
 			"continuity=${if (floor.continuousCoverageRequired) "REQUIRED" else "BEST_EFFORT"}",
 			"max_report_latency_ms=${floor.maximumReportLatencyMs}",
 		).joinToString(";")
+		is AmbientStepsAcquisitionFloor -> listOf(
+			"ambient-steps:v1:mechanism=${floor.mechanism.name}",
+			"coverage=OPPORTUNISTIC",
+			"record_freshness=SOURCE_NATIVE_CURSOR",
+		).joinToString(";")
 		is PressureAcquisitionFloor -> listOf(
 			"pressure:v1:max_sample_period_us=${floor.maximumSamplePeriodMicros}",
 			"max_report_latency_us=${floor.maximumReportLatencyMicros}",
@@ -278,6 +319,14 @@ internal object SourceAcquisitionFloorCodec {
 				},
 				maximumReportLatencyMs = fields(spec).getValue("max_report_latency_ms").toLong(),
 			)
+			spec.startsWith("ambient-steps:v1:") -> {
+				val values = fields(spec)
+				require(values.getValue("coverage") == "OPPORTUNISTIC")
+				require(values.getValue("record_freshness") == "SOURCE_NATIVE_CURSOR")
+				AmbientStepsAcquisitionFloor(
+					mechanism = AmbientStepsAcquisitionMechanism.valueOf(values.getValue("mechanism")),
+				)
+			}
 			spec.startsWith("pressure:v1:") -> PressureAcquisitionFloor(
 				maximumSamplePeriodMicros = fields(spec).getValue("max_sample_period_us").toInt(),
 				maximumReportLatencyMicros = fields(spec).getValue("max_report_latency_us").toInt(),

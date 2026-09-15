@@ -64,7 +64,7 @@ class TodaySummaryWidget : GlanceAppWidget() {
                         summary = null,
                         goalProgress = GoalProgress(
                             stepsToday = QualifiedStepCount.Unavailable(
-                                QualifiedStepCountUnavailableReason.MISSING,
+                                QualifiedStepCountUnavailableReason.STORAGE_UNAVAILABLE,
                             ),
                             goalSteps = 0,
                             gamificationEnabled = false,
@@ -95,7 +95,9 @@ private fun TodaySummaryContent(
     context: Context,
 ) {
     val presentation = todaySummaryWidgetPresentation(summary, goalProgress.stepsToday)
-    val readyGoalSteps = presentation.steps?.let { steps -> QualifiedStepCount.Ready(steps) }
+    val readyGoalSteps = (presentation.steps as? WidgetStepsPresentation.Ready)?.let { steps ->
+        QualifiedStepCount.Ready(steps.count.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+    }
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
@@ -114,7 +116,7 @@ private fun TodaySummaryContent(
             ),
         )
 
-        if (!presentation.hasData) {
+        if (!presentation.hasData && presentation.steps == WidgetStepsPresentation.NotCaptured) {
             Spacer(modifier = GlanceModifier.height(12.dp))
             Text(
                 text = context.getString(R.string.widget_no_data_today),
@@ -150,13 +152,11 @@ private fun TodaySummaryContent(
                 modifier = GlanceModifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.Start,
             ) {
-                if (readyGoalSteps != null) {
-                    StatItem(
-                        label = context.getString(R.string.widget_steps),
-                        value = WidgetFormatters.formatSteps(readyGoalSteps.value),
-                        modifier = GlanceModifier.defaultWeight(),
-                    )
-                }
+                StatItem(
+                    label = context.getString(R.string.widget_steps),
+                    value = presentation.steps.displayValue(context),
+                    modifier = GlanceModifier.defaultWeight(),
+                )
                 presentation.durationMs?.let { durationMs ->
                     StatItem(
                         label = context.getString(R.string.widget_duration),
@@ -184,12 +184,13 @@ private fun TodaySummaryContent(
 
 internal data class TodaySummaryWidgetPresentation(
     val distanceM: Float?,
-    val steps: Int?,
+    val steps: WidgetStepsPresentation,
     val durationMs: Long?,
     val sessionCount: Int?,
 ) {
     val hasData: Boolean
-        get() = distanceM != null || steps != null || durationMs != null || sessionCount != null
+        get() = distanceM != null || steps is WidgetStepsPresentation.Ready ||
+            durationMs != null || sessionCount != null
 }
 
 internal fun todaySummaryWidgetPresentation(
@@ -197,7 +198,7 @@ internal fun todaySummaryWidgetPresentation(
     steps: QualifiedStepCount,
 ) = TodaySummaryWidgetPresentation(
     distanceM = summary?.totalDistanceM?.takeIf { it > 0f },
-    steps = (steps as? QualifiedStepCount.Ready)?.value,
+    steps = steps.toWidgetStepsPresentation(),
     durationMs = summary?.totalDurationMs?.takeIf { it > 0L },
     sessionCount = summary?.sessionCount?.takeIf { it > 0 },
 )

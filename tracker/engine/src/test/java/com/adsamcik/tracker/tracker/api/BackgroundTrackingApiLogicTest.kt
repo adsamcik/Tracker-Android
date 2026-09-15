@@ -55,7 +55,7 @@ class BackgroundTrackingApiLogicTest {
 	}
 
 	@Test
-	fun `retryable reinitialize retains an existing registration but not a failed initial enable`() {
+	fun `retryable cleanup retains a usable registration but not a failed initial enable`() {
 		val refreshPending = automaticControlRecoveryResult(
 			activityRegistrationResult(
 				status = ActivityRegistrationStatus.DEGRADED,
@@ -65,15 +65,15 @@ class BackgroundTrackingApiLogicTest {
 		)
 
 		shouldRetainAutomaticControlAfterReinitializeFailure(
-			hadActiveRegistration = true,
+			hasUsableRegistration = true,
 			recoveryResult = refreshPending,
 		) shouldBe true
 		shouldRetainAutomaticControlAfterReinitializeFailure(
-			hadActiveRegistration = false,
+			hasUsableRegistration = false,
 			recoveryResult = refreshPending,
 		) shouldBe false
 		shouldRetainAutomaticControlAfterReinitializeFailure(
-			hadActiveRegistration = true,
+			hasUsableRegistration = true,
 			recoveryResult = AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED,
 		) shouldBe false
 	}
@@ -314,10 +314,10 @@ class BackgroundTrackingApiLogicTest {
 		}
 
 		@Test
-		fun `step corroboration requires its own control epoch and recognition mode`() {
-			shouldUseStepCorroboration(useTransitionApi = false, stepControlEligible = false) shouldBe false
-			shouldUseStepCorroboration(useTransitionApi = true, stepControlEligible = true) shouldBe false
-			shouldUseStepCorroboration(useTransitionApi = false, stepControlEligible = true) shouldBe true
+		fun `automatic recognition start requires full confidence without a Steps fallback`() {
+			hasRequiredAutomaticStartConfidence(confidence = 75, requiredConfidence = 75) shouldBe true
+			hasRequiredAutomaticStartConfidence(confidence = 74, requiredConfidence = 75) shouldBe false
+			hasRequiredAutomaticStartConfidence(confidence = 50, requiredConfidence = 75) shouldBe false
 		}
 	}
 

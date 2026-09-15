@@ -12,7 +12,9 @@ import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
 import com.adsamcik.tracker.stats.api.metric.MetricKey
+import com.adsamcik.tracker.stats.data.repository.AchievementMetricQualification
 import com.adsamcik.tracker.stats.api.repository.StepsAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.ImportedStepsHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import java.util.Calendar
@@ -39,6 +41,9 @@ sealed interface DashboardRecentHistoryEntry {
 
 	/** Opaque logical Steps-only row with no physical action identity. */
 	data class StepsOnly(val history: StepsOnlyHistoryEntry) : DashboardRecentHistoryEntry
+
+	/** Retained imported Steps, with exact selectable physical members and no inferred route. */
+	data class ImportedSteps(val history: ImportedStepsHistoryEntry) : DashboardRecentHistoryEntry
 }
 
 /** Explicit recent-history state; failures never fall back to raw physical rows. */
@@ -199,17 +204,22 @@ internal class RoomDashboardHistoryRepository @Inject constructor(
 	}
 
 	private suspend fun loadLatestAchievement(): DashboardAchievementHistory? {
-		val row = achievementProgressDao.getAll().firstOrNull { it.lastTierIndex >= 0 }
-			?: return null
-		val metric = MetricKey.fromStorageKey(row.metricKey) ?: return null
-		val definition = AchievementCatalog.byMetric(metric).getOrNull(row.lastTierIndex)
-			?: return null
-		return DashboardAchievementHistory(
-			id = definition.id,
-			nameRes = definition.nameRes,
-			tier = definition.tier,
-			unlockedAt = row.updatedAt,
-		)
+		return achievementProgressDao.getAll().mapNotNull { row ->
+			val metric = MetricKey.fromStorageKey(row.metricKey) ?: return@mapNotNull null
+			if (!AchievementMetricQualification.hasTrustedUnlockTimestamp(metric, row) ||
+				row.lastTierIndex < 0
+			) {
+				return@mapNotNull null
+			}
+			val definition = AchievementCatalog.byMetric(metric).getOrNull(row.lastTierIndex)
+				?: return@mapNotNull null
+			DashboardAchievementHistory(
+				id = definition.id,
+				nameRes = definition.nameRes,
+				tier = definition.tier,
+				unlockedAt = requireNotNull(row.lastUnlockedAt),
+			)
+		}.maxByOrNull(DashboardAchievementHistory::unlockedAt)
 	}
 
 	private fun startOfTodayMs(): Long = Calendar.getInstance().apply {
@@ -249,6 +259,8 @@ private class DashboardPhysicalCandidateGeneration(
 				)
 				is StepsAwareHistoryPageEntry.StepsOnly ->
 					DashboardRecentHistoryEntry.StepsOnly(entry.history)
+				is StepsAwareHistoryPageEntry.ImportedSteps ->
+					DashboardRecentHistoryEntry.ImportedSteps(entry.history)
 			}
 		}
 }

@@ -30,8 +30,7 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 			COALESCE(SUM(sample_count), 0) AS collection_count,
 			COALESCE(SUM(distance_m), 0) AS distance_m,
 			COALESCE(SUM(CASE WHEN primary_activity IN (:onFootActivities) THEN distance_m ELSE 0 END), 0) AS on_foot_distance_m,
-			COALESCE(SUM(CASE WHEN primary_activity IN (:inVehicleActivities) THEN distance_m ELSE 0 END), 0) AS in_vehicle_distance_m,
-			COALESCE(SUM(steps), 0) AS step_count
+			COALESCE(SUM(CASE WHEN primary_activity IN (:inVehicleActivities) THEN distance_m ELSE 0 END), 0) AS in_vehicle_distance_m
 		FROM session_segment
 		WHERE sample_count > 0
 		"""
@@ -48,8 +47,7 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 			COALESCE(SUM(sample_count), 0) AS collection_count,
 			COALESCE(SUM(distance_m), 0) AS distance_m,
 			COALESCE(SUM(CASE WHEN primary_activity IN (:onFootActivities) THEN distance_m ELSE 0 END), 0) AS on_foot_distance_m,
-			COALESCE(SUM(CASE WHEN primary_activity IN (:inVehicleActivities) THEN distance_m ELSE 0 END), 0) AS in_vehicle_distance_m,
-			COALESCE(SUM(steps), 0) AS step_count
+			COALESCE(SUM(CASE WHEN primary_activity IN (:inVehicleActivities) THEN distance_m ELSE 0 END), 0) AS in_vehicle_distance_m
 		FROM session_segment
 		WHERE sample_count > 0
 			AND start_time_ms >= :fromMs
@@ -265,9 +263,11 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	): Int
 
 	/**
-	 * Delete segments older than given timestamp.
+	 * Delete segments older than given timestamp. Imported Steps has an exact source-local
+	 * retention owner that removes its physical binding and metadata together.
+	 * Imported admission remains dormant until those source-local retention hooks are connected.
 	 */
-	@Query("DELETE FROM session_segment WHERE end_time_ms < :beforeMs")
+	@Query("DELETE FROM session_segment WHERE end_time_ms < :beforeMs AND source != 'PORTABLE_STEPS_IMPORT'")
 	suspend fun deleteOlderThan(beforeMs: Long): Int
 
 	/**

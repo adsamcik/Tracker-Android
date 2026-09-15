@@ -19,7 +19,10 @@ class DefaultAchievementRepository @Inject constructor(
 	override fun observeSummary(): Flow<AchievementSummary> = progressDao.getAllFlow().map { rows ->
 		val progressByMetric = rows.byMetric()
 		val visibleDefinitions = AchievementCatalog.definitions.filter {
-			AchievementMetricQualification.isTrustedPersistedProgress(it.metric)
+			AchievementMetricQualification.isTrustedPersistedProgress(
+				it.metric,
+				progressByMetric[it.metric],
+			)
 		}
 		val unlocked = visibleDefinitions.count { definition ->
 			(progressByMetric[definition.metric]?.lastTierIndex ?: -1) >= definition.tierIndex
@@ -32,13 +35,20 @@ class DefaultAchievementRepository @Inject constructor(
 	}
 
 	override fun observeRecentUnlocks(limit: Int): Flow<List<AchievementSnapshot>> = progressDao.getAllFlow().map { rows ->
-		rows.mapNotNull { it.toLatestUnlockSnapshot() }.take(limit.coerceAtLeast(0))
+		rows.mapNotNull { it.toLatestUnlockSnapshot() }
+			.sortedByDescending(AchievementSnapshot::updatedAt)
+			.take(limit.coerceAtLeast(0))
 	}
 
 	override suspend fun getAllSnapshots(): List<AchievementSnapshot> {
 		val progressByMetric = progressDao.getAll().byMetric()
 		return AchievementCatalog.definitions
-			.filter { AchievementMetricQualification.isTrustedPersistedProgress(it.metric) }
+			.filter {
+				AchievementMetricQualification.isTrustedPersistedProgress(
+					it.metric,
+					progressByMetric[it.metric],
+				)
+			}
 			.map { definition ->
 				val row = progressByMetric[definition.metric]
 				AchievementSnapshot(
@@ -51,7 +61,7 @@ class DefaultAchievementRepository @Inject constructor(
 					currentValue = row?.lastValue ?: 0.0,
 					threshold = definition.threshold,
 					isUnlocked = (row?.lastTierIndex ?: -1) >= definition.tierIndex,
-					updatedAt = row?.updatedAt ?: 0L,
+					updatedAt = row?.lastUnlockedAt ?: 0L,
 				)
 			}
 	}
@@ -59,14 +69,16 @@ class DefaultAchievementRepository @Inject constructor(
 	private fun List<AchievementProgressEntity>.byMetric(): Map<MetricKey, AchievementProgressEntity> =
 		mapNotNull { row ->
 			MetricKey.fromStorageKey(row.metricKey)
-				?.takeIf(AchievementMetricQualification::isTrustedPersistedProgress)
+				?.takeIf { metric ->
+					AchievementMetricQualification.isTrustedPersistedProgress(metric, row)
+				}
 				?.let { it to row }
 		}.toMap()
 
 	private fun AchievementProgressEntity.toLatestUnlockSnapshot(): AchievementSnapshot? {
 		val metric = MetricKey.fromStorageKey(metricKey) ?: return null
-		if (!AchievementMetricQualification.isTrustedPersistedProgress(metric) || lastTierIndex < 0) return null
+		if (!AchievementMetricQualification.hasTrustedUnlockTimestamp(metric, this) || lastTierIndex < 0) return null
 		val definition = AchievementCatalog.byMetric(metric).getOrNull(lastTierIndex) ?: return null
-		return AchievementSnapshot(definition.id, definition.nameRes, definition.descriptionRes, definition.category, definition.tier, definition.metric, lastValue, definition.threshold, true, updatedAt)
+		return AchievementSnapshot(definition.id, definition.nameRes, definition.descriptionRes, definition.category, definition.tier, definition.metric, lastValue, definition.threshold, true, requireNotNull(lastUnlockedAt))
 	}
 }

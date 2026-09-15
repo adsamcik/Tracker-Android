@@ -125,6 +125,22 @@ class RoomExportPortableStepsTest {
 		}
 
 	@Test
+	fun `mixed capture and control exports only retained Steps not proof of original Steps-only intent`() = runTest {
+		insertLogicalSession(LOGICAL_ONE, startMs = 1_000L, endMs = 2_000L)
+		insertSettledRun(
+			logicalId = LOGICAL_ONE, runId = RUN_ONE, segmentId = 41L, manifestRevision = 1L,
+			startMs = 1_000L, endMs = 2_000L, facts = listOf(FactSeed("covered", 1L, count = 9L)),
+			includeControlMembership = true, includeLocationCapture = true,
+		)
+		val entries = mutableListOf<com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV1>()
+		exporter.export(request()) { entries += it } shouldBe ExportPortableStepsResult.Exported(1)
+		val exported = entries.single().runs.single()
+		exported.manifests.map { it.source.name } shouldBe listOf("STEPS")
+		exported.manifests.map { it.purpose.name } shouldBe listOf("SESSION_CAPTURE")
+		exported.facts.single().stepCount shouldBe 9L
+	}
+
+	@Test
 	fun `physical run envelope includes manifest before delayed presentation segment`() = runTest {
 		insertLogicalSession(LOGICAL_ONE, startMs = 1_000L, endMs = 2_000L)
 		insertSettledRun(
@@ -1948,6 +1964,7 @@ class RoomExportPortableStepsTest {
 		runCompletedAtMs: Long = endMs,
 		sampleCount: Int = 0,
 		includeControlMembership: Boolean = false,
+		includeLocationCapture: Boolean = false,
 		sessionMode: String = "MANUAL",
 		rolloutRevision: Long = 1L,
 		bindingGeneration: Long = BINDING_GENERATION,
@@ -1963,6 +1980,7 @@ class RoomExportPortableStepsTest {
 			startMs = runStartedAtMs,
 			endMs = runCompletedAtMs,
 			includeControlMembership = includeControlMembership,
+			includeLocationCapture = includeLocationCapture,
 			sessionMode = sessionMode,
 			rolloutRevision = rolloutRevision,
 			bindingGeneration = bindingGeneration,
@@ -2032,6 +2050,7 @@ class RoomExportPortableStepsTest {
 		endMs: Long?,
 		state: String = "FINALIZED",
 		includeControlMembership: Boolean = false,
+		includeLocationCapture: Boolean = false,
 		sessionMode: String = "MANUAL",
 		rolloutRevision: Long = 1L,
 		bindingGeneration: Long = BINDING_GENERATION,
@@ -2090,6 +2109,14 @@ class RoomExportPortableStepsTest {
 		)
 		val sources = buildList {
 			add(steps)
+			if (includeLocationCapture) {
+				add(SessionManifestSourceEntity(
+					logicalTrackingId = logicalId, manifestRevision = manifestRevision,
+					sourceKind = TrackingSourceComponent.LOCATION.stableCode,
+					purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+					consentEpoch = 1L, persistenceEligible = true, qosCode = 1,
+				))
+			}
 			if (includeControlMembership) {
 				add(
 					SessionManifestSourceEntity(

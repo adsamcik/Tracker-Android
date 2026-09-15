@@ -1,19 +1,62 @@
 # Tracking Infrastructure Execution Plan
 
-Last updated: 2026-09-05
+Last updated: 2026-09-12
 
 This is the durable execution ledger for the architecture in
 `docs/TRACKING_INFRASTRUCTURE_FINAL_PLAN_AND_DESIGN.md` and the accepted refinements in
 `ADAPTIVE_COLLECTIONS_GREENFIELD_DESIGN.md`. It records implementation boundaries and proof; it
 does not restate the architecture.
 
-Current execution boundary: the September 5 checkpoint in `CONTINUATION_HANDOVER.md` and TI-B204
-onward in `VERIFICATION_MATRIX.md` supersede older progress snapshots in this ledger. Read
+Current execution boundary: TI-D186 through TI-D195, TI-B248 through TI-B258, and Ambient source
+checkpoint `4461a95b4`. Ambient Steps is an opportunistic,
+default-off product with an independent persisted preference plus Room `AMBIENT_PRODUCT`
+consent/epoch/revocation fence. A side-effect-free Android capability snapshot selects one capable
+system provider without permission-driven fallback; generic ambient Steps planning rejects the
+direct sensor. Direct Step Counter registration and authorization are now purpose-scoped to
+`SESSION_CAPTURE`, and that owner identity propagates through sensor checkpoints and durable
+sequence allocation, structurally preventing future ambient demand from retaining or sharing it.
+`TODO-STEPS-AUTO-005` remains open only at its deliberately unresolved fixed control-only Activity
+retention duration. Automatic Steps has no other implementation item open. AMBIENT-001 is closed.
+Production startup now invokes the owned Ambient lifecycle, and accepted provider registration,
+system rearm, exact reads, cursor/gap storage, authorization rotation, and correction-safe fact
+identity are authored. AMBIENT-002 still needs the end-user permission/revocation surface and
+retention/explanation UI. AMBIENT-003 next needs the exact reader-to-cursor-to-fact transaction,
+provider handoff drain, overlap semantics, and canonical composition. TI-D180 through TI-D185 retain
+the preceding gateway, manifest, exact-demand, immutable-trigger, recovery, and product-path
+evidence. The September
+5 checkpoint in `CONTINUATION_HANDOVER.md` and TI-B204 onward in
+`VERIFICATION_MATRIX.md` supersede older progress snapshots in this ledger. Read
 `VISION_AND_SCOPE.md` as the product north star and `MACHINE_HANDOVER.md` when continuing on another
 machine. Qualified consumer/deletion-safety containment is accepted progress, not completion of
 positive Steps awards, physical only-source proof, portable import, automatic/Ambient, or six-source
 delivery. Preserve the existing Steps-first dependency gates; no further generic framework or
 unrelated reward expansion is the next implementation wave.
+
+[IMPLEMENTATION_TODO.md](IMPLEMENTATION_TODO.md) is the canonical remaining-work checklist. This
+execution plan retains work-item rationale, dependency gates, and historical evidence; progress
+must not be inferred by scanning the historical rows alone.
+
+## September 10 implementation-only phase
+
+The user has explicitly changed the sequencing for the remainder of the program. Until every
+planned source vertical and its required product/action pieces has been implemented, work is
+`IMPLEMENTATION_ONLY`:
+
+- write production logic and its focused unit/contract tests together;
+- perform source review and exact-path commit review, but do not execute Gradle, compilation,
+  tests, lint, Detekt, Room schema drift, emulator/device, UI evaluator, battery, CI, or release gates;
+- record expected commands and known validation debt without investigating failures produced by
+  the stopped validation phase;
+- label every new slice `IMPLEMENTED_UNVALIDATED`, never `DONE`, accepted, or integration-ready;
+- keep source-owned branches and protected drafts separate; do not merge unvalidated source into
+  local `dev/v10`, push it, activate a writer/provider/importer, or alter rollout state; and
+- once all pieces exist, compose a dedicated local convergence branch, freeze inputs, then run the
+  dependency-ordered compile/unit/static/schema/integration/device gates and fix the resulting
+  issues before the normal reviewed merge into clean local `dev/v10`.
+
+Prior green evidence remains valid for the exact earlier commits it covered. It must not be
+projected onto later unvalidated edits. This phase changes validation timing, not the product
+definition, architecture invariants, required final proof, or six-source completion criteria.
 
 ## Program truth
 
@@ -47,10 +90,10 @@ unrelated reward expansion is the next implementation wave.
   immutable Steps session-fact binding for manual plus automatic capture while keeping generation 1
   manual-only and executable for retained history. It changes no rollout state, provider demand,
   destination owner, or ordinary activation; full automatic Steps remains independently gated.
-- Local commits are authorized and are the unit of integration. Each commit must contain one
-  gate-sized, dependency-coherent slice, stage only reviewed paths, record its scoped verification,
-  and leave known blocked assertions explicit. A failing or unverified slice is not committed as a
-  completed checkpoint merely because it compiles.
+- Local commits are authorized and remain the unit of implementation. During the September 10
+  implementation-only phase, each commit contains one dependency-coherent slice, its unit-test
+  specification, exact reviewed paths, and explicit deferred validation debt. It is not a completed
+  checkpoint and does not enter `dev/v10` until the final convergence validation phase succeeds.
 - Wi-Fi durable admission is locally integrated through `8000f4b16`. Fresh nonempty observations
   now use a privacy-minimized, replay-stable delivery identity; Room owns source-sequence allocation;
   delayed callbacks must retain exact historical registration, manifest, policy, purpose, session,
@@ -94,7 +137,7 @@ is unverified.
 | R1F-02 Android/power/privacy adversary | fresh `gpt-5.6-sol` reviewer | committed service/lifecycle/broker/provider/action diff | read-only, complete | `FAIL`: partial source rollout was all-or-nothing; terminal optional control retried forever; Cell replay identity remains source-gated |
 | R1F-03 product/scope adversary | fresh `gpt-5.6-sol` reviewer | committed diff plus Steps-first plan and existing product queries | read-only, complete | `FAIL`: control reachability was coupled to Activity capture rollout; Steps modes were bundled; status evidence and execution artifacts required correction |
 | R1C-01 corrected R1 boundary | Lead orchestrator | source activation/cursor retention, reachable subset, executable admission, callback closure, control-only rollout, source-local recovery, terminal recovery classification, v27 truth | `DONE`; fresh three-perspective pass at `d51723280`, bounded corrections in `bfa0c9da1` and `648f894a4` | no shared blocker/high requires another framework wave; approval is limited to TI-410; Cell identity and each non-Activity pre-WAL handoff remain explicit source gates |
-| ST-02a manual/session Steps | Lead orchestrator with non-overlapping focused owners | Steps runtime, source-local cursor/facts/correction/deletion/export/query, existing product/start adapters | in progress; dormant writer/retention, selected-detail/read/list composition, exact presentation settlement, and typed selected deletion/day repair committed through `b5698e635`; numeric-consumer, portable retention/export/import, and device gates remain | manual only-Steps reaches `RECORDING`, `MATERIALIZED`, and a production query with exact capture/registration set `{Steps}`—no Location, Activity, Pressure, Wi-Fi, Cell, control, or ambient demand—and no generic platform; every existing manual-start surface, completeness-sensitive consumer, and typed portable round trip agrees |
+| ST-02a manual/session Steps | Lead orchestrator with non-overlapping focused owners | Steps runtime, source-local cursor/facts/correction/deletion/export/query, existing product/start adapters | in progress; dormant writer/retention, selected-detail/read/list composition, exact presentation settlement, candidate deletion/day repair, portable retention/export/import, imported complete-entry deletion, and the bidirectional production round trip are authored; numeric/effect consumers, remaining manual wiring, and device gates remain | manual only-Steps reaches `RECORDING`, `MATERIALIZED`, and a production query with exact capture/registration set `{Steps}`—no Location, Activity, Pressure, Wi-Fi, Cell, control, or ambient demand—and no generic platform; every existing manual-start surface, completeness-sensitive consumer, and typed portable round trip agrees |
 | ST-02b automatic Steps | contained Steps binding owner; product continuation unassigned | Steps vertical plus declared Activity control and automation evidence | exact V2 manual+automatic writer attribution and rollback recognition committed at `b7d4900cf`; provider demand, trigger-to-query integration, control retention/export, and activation remain blocked | automatic only-Steps uses explicit control-only Activity, bounded no-export control retention, and a legal fresh trigger; control facts never enter Steps or Activity history |
 | ST-02c default-off ambient Steps | unassigned until ST-02a proof | app-scoped counter continuity, ambient consent/retention/export/delete/day allocation/query | blocked | opted-in ambient Steps is sessionless, minimized, deletion/export complete, day-stable, and product-visible; default remains off |
 | PAR-01 local foundation convergence | Integration owner | clean local `dev/v10` integration worktree and the 33-commit continuation | `DONE` at `4b25d39e2`; no push | `ciUnitTest` and `ciCheck` pass on the exact continuation, the branch is rebased/up-to-date, local `dev/v10` fast-forwards, and the six handover-protected root paths remain hash-identical |
@@ -133,7 +176,7 @@ its file ownership and semantics are independent:
 
 ## Unreleased-v28 table boundary
 
-The current schema contains 51 released-v27 tables and exactly 18 narrowly owned v28 additions. This constrains
+The current authored schema contains 51 released-v27 tables and 28 narrowly owned v28 additions. This constrains
 TI-180 as follows:
 
 | Treatment | Tables / records | Rule |
@@ -144,7 +187,8 @@ TI-180 as follows:
 | Extend additively | `source_event_wal` and released runtime/plan state | Preserve legacy rows as `LEGACY_UNQUALIFIED`; add delivery identity/range, authorization, all applicable epochs, use/retention class, counts, and origin. Runtime baselines rotate only with real physical/data-epoch changes. |
 | Add only when its transaction contract is ready | source cursor/gap, scoped deletion fence, destination owner, fact membership, day/source completeness, Wi-Fi/Cell headers | Keep records narrow and source-driven. Do not create generic contribution/accounting tables. |
 
-The current 69-table `28.json` is therefore not frozen. The bounded v28 additions now include the
+The current 79-entity `28.json` is therefore not frozen and its identity hash has not been
+regenerated for the implementation-only Ambient additions. The bounded v28 additions now include the
 narrow released-v27 recovery obligation/target records, Activity automatic-action/epoch state,
 source-local product-lane activation/cursor/retention state, immutable selected-session history,
 and the dormant source deletion fence required by later reviewed slices. They do not recreate the
@@ -164,7 +208,7 @@ and a production-query assertion exists where the item produces user-visible fac
 | TI-180 | Final plan §4.6; TI-D057/TI-D068; one authority, privacy epochs | A/B/D | `:core:base` v28 entities, DAOs, `AppDatabase.kt`, `AppDatabaseMigrations.kt`, `28.json` | TI-100, v28 audit | Keep all 51 released-v27 tables; reshape only unshipped v28 state; physical configuration generation is independent from immutable authorization intervals; WAL can stamp all applicable epochs, use/retention class, and immutable structural-zone/day-allocation identity for sessionless facts | `:core:base:testDebugUnitTest`; `:core:base:compileDebugAndroidTestKotlin`; schema drift task | No runtime flag; rollback binary remains v28-schema-capable and fail-closed | `IN_PROGRESS` |
 | TI-181 | Final plan §4.3–4.4; TI-D057; immutable intent, purpose separation | A/B | broker entities/DAO, `SourceRegistrationRepository`, supervisor boundary | TI-180 | Unchanged normalized provider configuration survives session/manifest/consent changes without stop/start; authorization revision rotates at the exact boot/elapsed boundary; delayed callbacks resolve authorization by observed time | broker/registration property tests; provider fake crash/retry test | `broker_v2:<source>` required; rollback retires new demand and retains facts | `IN_PROGRESS` |
 | TI-182 | Final plan §8.3; TI-D055/TI-D071; replay safety | D | WAL envelope/DAO/ingress/payload codecs | TI-180, TI-181 | Stable logical delivery identity is independent of local retries; authorization-homogeneous units are stored; exact cache replay is zero-effect across process death; retained-floor metadata cannot wait for pruned ordinals | Atomic delivery admission, sparse authorization filtering, delayed-generation acceptance, exact replay/collision and rollback tests pass; Activity now uses the seam and exact duplicates produce no repeated motion/backend effect; the other five adapters, cursor/gap processing, deletion fences and retained-floor/no-resurrection proof remain | `writer_v2:<source>` off; rollback stops consumption, never deletes WAL/facts | `IN_PROGRESS` |
-| TI-183 | Final plan §8–9; one writer, no resurrection | D | source cursors/gaps, deletion fences, destination owner fence | TI-180 | One cursor/gap lane per source; scoped source/purpose/time deletion fences replay and import; one persisted destination owner generation fences both legacy and target writes | Steps exact owner checks, immutable service-run history selection, atomic activation/rollback, and ABA-safe empty-generation re-arm pass at `9b8ab4b43`. `03bbda2f1` adds the payload-free source/purpose/logical-run fence honored by the dormant candidate Steps lane and selected-session reader. `b5698e635` is its first narrow production producer: exact candidate-owned selected deletion writes the fence/retractions and stored-zone day repair transactionally. Active legacy Steps and import remain outside that contract; portable import no-resurrection and every other source fence remain blocked | Per-source owner flag; rollback changes owner only after contain/drain/catch-up | `IN_PROGRESS` |
+| TI-183 | Final plan §8–9; one writer, no resurrection | D | source cursors/gaps, deletion fences, destination owner fence | TI-180 | One cursor/gap lane per source; scoped source/purpose/time deletion fences replay and import; one persisted destination owner generation fences both legacy and target writes | Steps exact owner checks, immutable service-run history selection, atomic activation/rollback, and ABA-safe empty-generation re-arm pass at `9b8ab4b43`. `03bbda2f1` adds the payload-free source/purpose/logical-run fence honored by the dormant candidate Steps lane and selected-session reader. `b5698e635` produces exact candidate-owned deletion. Unvalidated `89454b8c1` adds complete imported-entry deletion with original and current-local run fences plus re-import refusal. Active legacy Steps and every other source fence remain blocked; full portable round-trip convergence is still required | Per-source owner flag; rollback changes owner only after contain/drain/catch-up | `IN_PROGRESS` |
 | TI-184 | TI-D068/TI-D085/TI-D088/TI-D091; migration safety | A/C/D/G | v27 recovery tables/DAO, frozen decoder/projectors, process startup fence, `AppDatabaseMigration27To28Test`, backup, production query/export/delete/import paths | TI-180–TI-183 | Populated v27 opens, migrates, closes, reopens, queries, exports, deletes, and recovers without fabricated authority or lost facts; a transaction-captured admission high-watermark isolates exact released v1 targets from live v2 projections; pending legacy effects retain their WAL until bridged or terminally suppressed; checksum-valid v27 WAL drains once through only its frozen released contract before any provider/service/policy path opens; interrupted automatic state and old Activity effects cannot restart | Eight populated migration cases pass on `Medium_Phone(AVD) - 16`; host startup-gate, deletion precedence, frozen-drain, writer-consumer, redelivery and finalizer shards pass. Connected migrate→startup ordering, production backup-wrapper proof, cold empty-target restore, partial-database merge containment, portable export and production history queries remain | No rollout flag; startup fails closed. Migration backup remains recoverable; live v2 writers start at cutoff + 1 and Location stays legacy-owned | `IN_PROGRESS` |
 | TI-210 | Final plan §4.4; TI-D057/TI-D059; one physical owner | B | app-scoped `SourceSupervisor`, six adapters, demand reconciler | TI-181 | Exactly one physical owner/source; only direct capture/control/ambient demands affect lifetime; compatible demands merge; removal/reconcile is idempotent; optional context cannot acquire a provider | six manual/automatic registration-set integration tests; process-death reconciliation tests | `supervisor_v2:<source>`; rollback hands ownership back only after callback barrier | `BLOCKED` |
 | TI-211 | Final plan §4.5/§9; no ghosts, Android legality | C | coordinator, service gateway, desired-action outbox/reconciler | TI-180, TI-210 | Durable intent precedes external start; accepted runtime follows; real start origin and exact FGS type union are used; boot/automation epoch fences stale starts; `STOPPING`/`FINALIZED` never restart | host transaction-boundary, redelivery, stop-ordering, previous-exit/force/explicit finalizer and permission-revocation tests pass; reboot/process-kill instrumentation and Android-version/device legality remain | `lifecycle_v2`; rollback finalizes or safely resumes durable intent | `IN_REVIEW` |
@@ -177,8 +221,8 @@ and a production-query assertion exists where the item produces user-visible fac
 | TI-321 | Final plan §8.3; correction safety | D | source-specific logical fact/range IDs and mutation commands delivered with each source vertical | TI-320 and relevant source vertical | Delivery receipt is distinct from stable logical fact identity; `UPSERT`, `DELETE`, and bounded `REPLACE_RANGE` retract obsolete facts/memberships; replay reaches identical state | one→zero→two projector upgrade and correction/retraction tests per implemented source | Same source writer flag; rollback preserves last canonical owner | `BLOCKED` |
 | TI-322 | Final plan §8.5; deletion/export privacy | D/E | deletion, import staging, export, keyed radio identity | Steps-local proof in TI-410 and TI-410C, then each relevant source vertical | Generalize only proven per-source mechanics: delete then replay/backfill/import cannot resurrect; merge import stages provenance-bearing base facts through writer; portable export includes released sources and excludes control/raw radio identity; radio key rotation fences old tokens | delete/import/replay and source-only export tests added with each vertical | Import/export format version; rollback never bypasses fences | `BLOCKED` |
 | TI-323 | One writer; Location protection | D/G | rollout owner state, legacy and target destination gateways | TI-183 and an actual candidate writer for the source | Owner generation is rechecked inside destination transaction; cutover waits for cursor catch-up and legacy drain; rollback keeps all facts queryable; Location legacy owner remains until shadow decision | Steps proves exact owner checks plus contained activation, contain/drain rollback, and deletion generation reconstruction at `9b8ab4b43`; production query/export/deletion continuity, process/crash interleaves, explicit activation, and every non-Steps writer remain gated. Location stays legacy-owned | `destination_owner:<source>`; data-preserving rollback | `IN_REVIEW` |
-| TI-410 | Source contract: Steps manual/session vertical | B/D/E | Steps runtime, typed boundaries/intervals, Steps-local writer/cursor/delete/export/query adapter | corrected R1 activation/recovery boundary, relevant TI-180–TI-183/TI-312 substrate | App-scoped counter; durable baseline; baseline/covered-zero/positive/partial distinctions; positive post-baseline delta is `RECORDING`; session-local correction, no-resurrection, export and one production query work while every unrelated projector is absent | Dormant writer replay/poison/retention, paired session/run identity, zero-covered retention, exact owner fencing, immutable run selection, contained atomic activation/rollback/deletion re-arm, and the production deletion-service/barrier seam pass through `3b2365547`. `c5118e186` adds a read-only observable selected-session facade; `03bbda2f1` adds a dormant exact-run deletion fence that the candidate lane/read path honor; `88309387d` retires the racy periodic zero-row database mutation and filters daily/live/source/all-time activity reads to positive samples; `24b9aeffb` adds the same rule to app-age/hour/night/dawn and ActivityRecognition reads. Every zero-sample row is excluded from those named queries; other DAO reads remain unchanged. Fresh R1 adversaries blocked production wiring because legacy Steps, teardown races, daily summaries, retention/import, and typed UI failure remain outside that fence. `9aeb8853a` gives each physical service run one exact presentation segment and post-writer acknowledgement. The reverse binding, logical-entry composition, contained live/recent history surfaces, and source-aware discovery now precede `b5698e635`, which adds the exact candidate-owned selected deletion fence/retractions plus bounded stored-zone day repair. Remaining gates are the exact `{Steps}` device smoke, portable retention/export/import, numeric consumers, automatic control separation, default-off ambient, and ordinary activation. | `writer_v2:steps`, `history_v2:steps`; no ordinary production activation binding exists, and the deletion-fence producer accepts only the exact selected candidate scope | `IN_PROGRESS` |
-| TI-410B | Source contract: Steps automatic mode | B/C/D/E | TI-410 Steps lane plus declared Activity control, automation lifecycle, bounded control evidence | TI-410; explicit step-corroboration decision; legal fresh Activity trigger; purpose-limited control retention/no-export proof | Only Steps is captured; Activity is `CONTROL` only; fresh control starts the logical session; positive Steps delta records; control-only observations never enter history/export; contained optional control is terminal rather than retry work | `b7d4900cf` proves exact immutable V1 manual-only and V2 manual+automatic writer attribution, deletion recognition, rollback, and re-arm with `188/188` focused host tests. Trigger-to-provider-to-writer-to-query integration, process/reboot/stale-trigger, bounded control retention/no-export, device proof, and activation remain | `automatic_v2:steps`; rollback disables automatic demand without disabling manual Steps | `BLOCKED` |
+| TI-410 | Source contract: Steps manual/session vertical | B/D/E | Steps runtime, typed boundaries/intervals, Steps-local writer/cursor/delete/export/query adapter | corrected R1 activation/recovery boundary, relevant TI-180–TI-183/TI-312 substrate | App-scoped counter; durable baseline; baseline/covered-zero/positive/partial distinctions; positive post-baseline delta is `RECORDING`; session-local correction, no-resurrection, export and one production query work while every unrelated projector is absent | Dormant writer replay/poison/retention, paired session/run identity, zero-covered retention, exact owner fencing, immutable run selection, contained atomic activation/rollback/deletion re-arm, and the production deletion-service/barrier seam pass through `3b2365547`. The reverse binding, logical-entry composition, contained live/recent history, source-aware discovery, candidate deletion/day repair, imported retention/export/import, stored-zone repair, file routing, and unvalidated complete imported-entry deletion now exist through `89454b8c1`/`3ff5c086c`. Remaining gates are the full portable round trip, numeric/effect consumers, remaining manual start/provider-to-query wiring, exact `{Steps}` device smoke, automatic control separation, default-off ambient, and ordinary activation. | `writer_v2:steps`, `history_v2:steps`; no ordinary production activation binding exists; candidate and imported deletion remain distinct source-local authorities | `IN_PROGRESS` |
+| TI-410B | Source contract: Steps automatic mode | B/C/D/E | TI-410 Steps lane plus declared Activity control, automation lifecycle, bounded control evidence | TI-410; TI-D179 no-Step-corroboration contract; legal fresh Activity trigger; purpose-limited control retention/no-export proof | Only Steps is captured; Activity is `CONTROL` only; fresh control starts the logical session; positive Steps delta records; control-only observations never enter history/export; contained optional control is terminal rather than retry work | `b7d4900cf` proves exact immutable V1 manual-only and V2 manual+automatic writer attribution, deletion recognition, rollback, and re-arm with `188/188` focused host tests. Trigger-to-provider-to-writer-to-query integration, process/reboot/stale-trigger, bounded control retention/no-export, device proof, and activation remain | `automatic_v2:steps`; rollback disables automatic demand without disabling manual Steps | `BLOCKED` |
 | TI-410C | Source contract: Steps ambient mode | A/B/D/E | app-scoped shared counter, ambient policy/consent, civil-day identity, retention/export/delete/query | TI-410; immutable ambient day allocation; approved retention controls | Default off; opt-in sessionless continuity; no fabricated zero before coverage; explicit freshness/coverage/completeness; delete/export and consent reset are complete and visible | ambient-only day, session overlap partition, time-zone/DST, process/reboot, consent/delete/export, production query assertions | `ambient_v2:steps`; rollback removes ambient demand and retains already authorized facts per policy | `BLOCKED` |
 | TI-411 | Source contract: Pressure | B/D/E | Pressure FIFO/window runtime, typed segments/trend | shared minimum substrate, Pressure-relevant TI-212/TI-312 | Fresh samples durable; recording differs from stable summary; real FIFO/batching is used when supported; no default ambient; no uncalibrated elevation claim | source tests, FIFO/non-FIFO device matrix, production history assertion | `writer_v2:pressure`; preserve compatibility reads | `BLOCKED` |
 | TI-412 | Source contract: Location | B/D/E | location runtime, existing canonical writer, shadow comparator | shared minimum substrate, Location-relevant TI-211/TI-212/TI-323, explicit owner decision | Passive↔active changes follow direct floors and legality; post-start accuracy/freshness qualifies recording; sole-source works; optional context never blocks primary; no second active canonical writer | source/device/shadow/query tests | Existing writer remains owner until explicit cutover; immediate owner rollback | `BLOCKED` |
@@ -195,9 +239,10 @@ and a production-query assertion exists where the item produces user-visible fac
    `DefaultCollectedDataDeletionService -> AppDatabase -> closed barriers -> re-arm` integration
    test, exact run-to-presentation settlement, reverse binding, bounded logical-entry/list
    composition, contained live/recent UI, and exact selected deletion/day repair now pass. Preserve
-   TI-410's remaining product gates: truthful numeric consumers, portable retention/export/import,
-   one exact `{Steps}` provider-to-query device execution, centralized typed manual start, automatic
-   control separation, and default-off ambient Steps.
+   TI-410's remaining product gates: the full portable round trip, truthful numeric/effect
+   consumers, one exact `{Steps}` provider-to-query device execution, remaining centralized typed
+   manual start wiring, automatic control separation, and default-off ambient Steps. Imported
+   complete-entry deletion is authored but unvalidated at `89454b8c1`/`3ff5c086c`.
    Do not broaden this into another platform or invoke first activation as an implementation shortcut.
 2. Continue TI-180 from its accepted slices: v28 preserves all 51 released-v27 tables, replaces the
    unshipped eligibility table with `source_authorization`, separates physical provider generation
@@ -228,9 +273,10 @@ and a production-query assertion exists where the item produces user-visible fac
 7. Continue manual/session Steps from the existing source-local receipt/fact/coverage/owner records,
    cursor/drain, immutable service-run selection, contained transition, and exact presentation
    settlement. Preserve the implemented reverse binding, logical-entry grouping, source-aware
-   discovery, typed membership, contained production query/UI, and exact selected deletion. Add
-   portable retention/export/import and make every numeric consumer completeness-aware without
-   activating the candidate writer by default. Gate automatic Steps separately on declared
+   discovery, typed membership, contained production query/UI, candidate deletion, portable
+   retention/export/import, and imported complete-entry deletion. Complete the portable round trip
+   and make every numeric consumer completeness-aware without activating the candidate writer by
+   default. Gate automatic Steps separately on declared
    control-only Activity plus bounded no-export control retention and a legal fresh trigger. Gate
    default-off ambient Steps separately on consent, civil-day identity, retention, export/delete,
    and sessionless product proof. Do not restore the removed generic accounting or dirty-day
@@ -245,9 +291,9 @@ and a production-query assertion exists where the item produces user-visible fac
   representative OEM/device evidence remain unverified.
 - Final retention durations and privacy copy remain product/privacy decisions. Implement policy
   fields and deletion mechanics without choosing final values.
-- Whether step corroboration remains automatic control still requires explicit resolution before
-  TI-410/TI-413 automatic gates. It must be removed or exposed as a direct control demand; it may
-  not remain hidden.
+- Step corroboration is removed by TI-D179. Activity alone owns automatic control; final
+  convergence must prove legacy Steps control retirement and no hidden counter registration before
+  TI-410/TI-413 automatic gates can pass.
 - Ambient Location strategy, any measured wake strategy for Wi-Fi/Cell, pressure-derived vertical
   metrics, cross-midnight naming, and each legacy-writer retirement remain explicit decisions at
   their source gate.

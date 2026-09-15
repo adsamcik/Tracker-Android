@@ -16,6 +16,9 @@ import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBack
 import com.adsamcik.tracker.shared.base.database.legacy.LEGACY_DATABASE_NAME
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupFailure
+import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupResult
+import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.Runs
@@ -204,9 +207,14 @@ class CollectedDataDeletionServiceTest {
 	fun `deletion fences writers again after an admitted recovery finishes`() = runTest {
 		val operations = mutableListOf<String>()
 		val arbiter = mockk<ActivityRegistrationArbiter>()
+		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
 		coEvery { arbiter.closeForCollectedDataDeletion() } coAnswers {
 			operations += "activity-close"
 			appliedRegistrationResult()
+		}
+		coEvery { ambientSteps.closeForCollectedDataDeletion() } coAnswers {
+			operations += "ambient-steps-close"
+			completeAmbientStepsCleanup()
 		}
 		coEvery { arbiter.resumeAfterCollectedDataDeletion() } coAnswers {
 			operations += "activity-resume"
@@ -231,11 +239,12 @@ class CollectedDataDeletionServiceTest {
 		operationStarted.await()
 		val service = createService(
 			activityRegistrationArbiterProvider = Provider { arbiter },
+			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
 		) { _, _, _, _ -> operations += "delete" }
 
 		val deletion = async { service.deleteAll() }
 		runCurrent()
-		operations shouldBe listOf("activity-close", "writer-quiesce")
+		operations shouldBe listOf("activity-close", "ambient-steps-close", "writer-quiesce")
 
 		allowOperationToFinish.complete(Unit)
 		admittedRecovery.await()
@@ -243,39 +252,100 @@ class CollectedDataDeletionServiceTest {
 
 		operations shouldBe listOf(
 			"activity-close",
+			"ambient-steps-close",
 			"writer-quiesce",
 			"activity-resume",
 			"writer-resume",
 			"activity-close",
+			"ambient-steps-close",
 			"writer-quiesce",
 			"delete",
 		)
 		coVerify(exactly = 2) { arbiter.closeForCollectedDataDeletion() }
+		coVerify(exactly = 2) { ambientSteps.closeForCollectedDataDeletion() }
 		coVerify(exactly = 2) { writerQuiescer.quiesce() }
 	}
 
 	@Test
-	fun `cold pending deletion removes retired vaults before resolving Room-backed arbiter`() = runTest {
+	fun `durably journalled Ambient Steps removal debt does not block local deletion`() = runTest {
+		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
+		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
+			AmbientStepsProviderCleanupResult(
+				complete = false,
+				failure = AmbientStepsProviderCleanupFailure.PROVIDER_REMOVAL_FAILED,
+				retryable = true,
+			)
+		var appDeletionCount = 0
+		val service = createService(
+			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
+		) { _, _, _, _ -> appDeletionCount += 1 }
+
+		service.deleteAll()
+
+		appDeletionCount shouldBe 1
+		coVerify(exactly = 2) { ambientSteps.closeForCollectedDataDeletion() }
+		coVerify(exactly = 2) { writerQuiescer.quiesce() }
+	}
+
+	@Test
+	fun `invalid Ambient Steps cleanup journal blocks Room deletion`() = runTest {
+		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
+		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
+			AmbientStepsProviderCleanupResult(
+				complete = false,
+				failure = AmbientStepsProviderCleanupFailure.CLEANUP_JOURNAL_INVALID,
+				retryable = false,
+			)
+		var appDeletionCount = 0
+		val service = createService(
+			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
+		) { _, _, _, _ -> appDeletionCount += 1 }
+
+		runCatching { service.deleteAll() }
+			.exceptionOrNull()
+			.shouldBeInstanceOf<DatabaseMigrationBackupException>()
+
+		appDeletionCount shouldBe 0
+		markerFile.exists() shouldBe true
+		startupDeletionBarrier.isClosed shouldBe true
+		coVerify(exactly = 1) { ambientSteps.closeForCollectedDataDeletion() }
+		coVerify(exactly = 0) { writerQuiescer.quiesce() }
+	}
+
+	@Test
+	fun `cold pending deletion removes retired vaults before resolving provider owners`() = runTest {
 		markerFile.writeText("pending")
 		val arbiter = mockk<ActivityRegistrationArbiter>()
+		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
 		val result = appliedRegistrationResult()
 		coEvery { arbiter.closeForCollectedDataDeletion() } returns result
+		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
+			completeAmbientStepsCleanup()
 		var providerResolutions = 0
-		val provider = Provider {
+		val activityProvider = Provider {
 			providerResolutions++
 			RETIRED_DATABASE_NAMES.forEach { databaseName ->
 				context.getDatabasePath(databaseName).exists() shouldBe false
 			}
 			arbiter
 		}
+		val ambientStepsProvider = Provider {
+			providerResolutions++
+			RETIRED_DATABASE_NAMES.forEach { databaseName ->
+				context.getDatabasePath(databaseName).exists() shouldBe false
+			}
+			ambientSteps
+		}
 		val service = createService(
-			activityRegistrationArbiterProvider = provider,
+			activityRegistrationArbiterProvider = activityProvider,
+			ambientStepsProviderLifecycleProvider = ambientStepsProvider,
 		) { _, _, _, _ -> }
 
 		service.reconcilePendingDeletion()
 
-		providerResolutions shouldBe 1
+		providerResolutions shouldBe 2
 		coVerify(exactly = 2) { arbiter.closeForCollectedDataDeletion() }
+		coVerify(exactly = 2) { ambientSteps.closeForCollectedDataDeletion() }
 		coVerify(exactly = 0) { arbiter.resumeAfterCollectedDataDeletion() }
 		markerFile.exists() shouldBe false
 	}
@@ -516,6 +586,7 @@ class CollectedDataDeletionServiceTest {
 		traceboxDataDeletion: suspend () -> Boolean = { true },
 		postDatabaseDeletion: suspend (Long) -> Unit = { },
 		activityRegistrationArbiterProvider: Provider<ActivityRegistrationArbiter>? = null,
+		ambientStepsProviderLifecycleProvider: Provider<AmbientStepsProviderLifecycle>? = null,
 		automaticControlRestorer: PostDeletionAutomaticControlRestorer =
 			this.automaticControlRestorer,
 		directorySync: (File) -> Unit = {},
@@ -528,6 +599,7 @@ class CollectedDataDeletionServiceTest {
 		collectedDataLifecycleStore = collectedDataLifecycleStore,
 		startupDeletionBarrier = startupDeletionBarrier,
 		activityRegistrationArbiterProvider = activityRegistrationArbiterProvider,
+		ambientStepsProviderLifecycleProvider = ambientStepsProviderLifecycleProvider,
 		automaticControlRestorer = automaticControlRestorer,
 		traceboxDataDeletion = traceboxDataDeletion,
 		appDatabaseDeletion = appDatabaseDeletion,
@@ -545,6 +617,10 @@ class CollectedDataDeletionServiceTest {
 			continuousRecognitionIntervalSeconds = null,
 			transitions = emptySet(),
 		),
+	)
+
+	private fun completeAmbientStepsCleanup() = AmbientStepsProviderCleanupResult(
+		complete = true,
 	)
 
 	private companion object {

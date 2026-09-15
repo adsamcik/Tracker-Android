@@ -8,6 +8,13 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapIntegrity
 import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -89,19 +96,36 @@ class AppDatabaseMigration27To28Test {
 					assertFailClosedAuthorityAndNoGhostRuntime(database)
 					assertForeignKeysEnabled(database)
 					seedMigratedStepFactRevision(database)
+					seedMigratedAmbientStepsFactRevision(database)
+					seedMigratedAmbientStepsImportState(database)
 					seedMigratedPressureFactRevision(database)
 					seedMigratedDeletionFence(database)
 					assertEquals(1L, database.stepFactRevisionDao().countAll())
+					assertEquals(1L, database.ambientStepsFactRevisionDao().countAll())
+					assertEquals(1L, database.ambientStepsImportStateDao().countCursors())
+					assertEquals(1L, database.ambientStepsImportStateDao().countGaps())
+					assertEquals(1L, database.ambientStepsImportStateDao().countAuthorityTransitions())
 					assertEquals(1L, database.pressureFactRevisionDao().count())
 					assertEquals(1L, database.sourceDeletionFenceDao().countAll())
+				}
+			} finally {
+				database.close()
+			}
+		}
 
+		// Cursor, gap and authority-split evidence must survive a real close/reopen before clear.
+		openProductionDatabase().let { database ->
+			try {
+				runBlocking {
+					assertEquals(1L, database.ambientStepsImportStateDao().countCursors())
+					assertEquals(1L, database.ambientStepsImportStateDao().countGaps())
+					assertEquals(1L, database.ambientStepsImportStateDao().countAuthorityTransitions())
 					AppDatabase.deleteAllCollectedData(
 						database = database,
 						collectedDataEpoch = 8,
 						retainedFromMs = null,
 						updatedAtMs = PopulatedV27Fixture.END_MS + 1,
 					)
-
 					assertCollectedRowsDeleted(database)
 				}
 			} finally {
@@ -109,8 +133,7 @@ class AppDatabaseMigration27To28Test {
 			}
 		}
 
-		// Closing and reopening the actual Room database proves neither migration nor recovery can
-		// resurrect the terminalized runtime or a cascaded location-projection child.
+		// A second reopen proves deletion cannot resurrect any collected or continuity state.
 		openProductionDatabase().let { database ->
 			try {
 				runBlocking {
@@ -125,6 +148,7 @@ class AppDatabaseMigration27To28Test {
 	}
 
 	@Test
+	@Suppress("LongMethod") // One populated migration and close/reopen verifies the origin storage contract.
 	fun portableOriginStorageSurvivesMigratedReopenWithoutInventingLocalRuntime() {
 		helper.createDatabase(TEST_DATABASE, 27).use { database ->
 			PopulatedV27Fixture.seed(database)
@@ -137,10 +161,13 @@ class AppDatabaseMigration27To28Test {
 		val runIdentity = "sha256:${"2".repeat(64)}"
 		val entry = ImportedStepsEntryEntity(
 			entryIdentity, "sha256:${"3".repeat(64)}", "MANUAL", 10L, 20L, 7L,
+			writerOwnerGeneration = 2L,
 		)
 		val run = ImportedStepsRunEntity(
 			runIdentity, entryIdentity, "4".repeat(64), 10L, 20L, "Europe/Prague", "WHOLE_RUN", "PARTIAL",
 			appDrainComplete = true, stopComplete = true, hasUnresolvedProviderRange = true,
+			// Storage-only fixture, not an admitted hierarchy; the original format checksum is synthetic.
+			retainedChecksum = "9".repeat(64),
 		)
 		val manifest = ImportedStepsManifestEntity(runIdentity, 1L, 9L, 5L, 3L)
 		val facts = listOf(
@@ -673,9 +700,76 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "step_interval", 2)
 		// v27 observations remain byte-for-byte facts; migration must not invent semantics.
 		assertTableCount(database, "step_fact_revision", 0)
+		assertTableCount(database, "ambient_steps_fact_revision", 0)
+		assertIndexColumns(
+			database,
+			"idx_ambient_steps_fact_registration_window",
+			listOf(
+				"provider",
+				"registration_generation",
+				"continuity_segment_generation",
+				"window_start_time_ms",
+			),
+		)
+		assertTableCount(database, "ambient_steps_import_cursor", 0)
+		assertTableCount(database, "ambient_steps_import_gap", 0)
+		assertTableCount(database, "ambient_steps_import_authority_transition", 0)
+		assertIndexColumns(
+			database,
+			"idx_ambient_steps_import_cursor_progress",
+			listOf("provider", "status", "imported_through_time_ms"),
+		)
+		assertIndexColumns(
+			database,
+			"idx_ambient_steps_import_gap_window",
+			listOf("gap_start_time_ms", "gap_end_time_ms"),
+		)
+		assertTableCount(database, "steps_goal_effect", 0)
+		assertTableCount(database, "steps_goal_repair_day", 0)
+		database.query("PRAGMA table_info(steps_goal_effect)").use { cursor ->
+			val columns = buildSet {
+				val nameColumn = cursor.getColumnIndexOrThrow("name")
+				while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			}
+			assertTrue("completion_points_micros" in columns)
+			assertTrue("completion_xp" in columns)
+		}
+		database.query("PRAGMA table_info(achievement_progress)").use { cursor ->
+			val columns = buildSet {
+				val nameColumn = cursor.getColumnIndexOrThrow("name")
+				while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			}
+			assertTrue("authority_kind" in columns)
+			assertTrue("authority_revision" in columns)
+			assertTrue("authority_digest" in columns)
+			assertTrue("authority_state" in columns)
+			assertTrue("last_unlocked_at" in columns)
+			assertTrue("qualified_notification_claimed_tier_index" in columns)
+		}
+		database.query("PRAGMA table_info(xp_ledger)").use { cursor ->
+			val columns = buildSet {
+				val nameColumn = cursor.getColumnIndexOrThrow("name")
+				while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			}
+			assertTrue("source_key" in columns)
+			assertTrue("source_revision" in columns)
+		}
+		assertIndexColumns(
+			database,
+			"index_xp_ledger_source_source_key",
+			listOf("source", "source_key"),
+		)
 		assertTableCount(database, "imported_steps_entry", 0)
 		assertTableCount(database, "imported_steps_run", 0)
 		assertTableCount(database, "imported_steps_manifest", 0)
+		assertIndexColumns(database, "idx_imported_steps_run_segment", listOf("session_segment_id"))
+		database.query("PRAGMA table_info(imported_steps_run)").use { cursor ->
+			val nullable = buildMap {
+				while (cursor.moveToNext()) put(cursor.getString(1), cursor.getInt(3))
+			}
+			assertEquals(0, nullable["session_segment_id"])
+			assertEquals(0, nullable["retained_checksum"])
+		}
 		// Legacy pressure_sample rows lack v4 qualification and must never be backfilled.
 		assertTableCount(database, "pressure_fact_revision", 0)
 		assertIndexColumns(
@@ -691,13 +785,21 @@ class AppDatabaseMigration27To28Test {
 			),
 		)
 		assertTableCount(database, "source_deletion_fence", 0)
-		assertTableCount(database, "source_destination_owner", 2)
+		assertTableCount(database, "source_destination_owner", 3)
 		database.query(
 			"SELECT owner, owner_generation FROM source_destination_owner " +
 				"WHERE source_kind = 3 AND destination = 'SESSION_STEPS'",
 		).use { cursor ->
 			assertTrue(cursor.moveToFirst())
 			assertEquals("LEGACY_STEP_INTERVAL", cursor.getString(0))
+			assertEquals(1L, cursor.getLong(1))
+		}
+		database.query(
+			"SELECT owner, owner_generation FROM source_destination_owner " +
+				"WHERE source_kind = 3 AND destination = 'AMBIENT_STEPS'",
+		).use { cursor ->
+			assertTrue(cursor.moveToFirst())
+			assertEquals("AMBIENT_STEPS_FACTS", cursor.getString(0))
 			assertEquals(1L, cursor.getLong(1))
 		}
 		database.query(
@@ -1100,7 +1202,13 @@ class AppDatabaseMigration27To28Test {
 		assertTrue(database.stepIntervalDao()
 			.getAllBetween(PopulatedV27Fixture.START_MS, PopulatedV27Fixture.END_MS).isEmpty())
 		assertEquals(0L, database.stepFactRevisionDao().countAll())
-		assertEquals(0L, database.sourceDeletionFenceDao().countAll())
+		assertEquals(0L, database.ambientStepsFactRevisionDao().countAll())
+		assertEquals(0L, database.ambientStepsImportStateDao().countCursors())
+		assertEquals(0L, database.ambientStepsImportStateDao().countGaps())
+		assertEquals(0L, database.ambientStepsImportStateDao().countAuthorityTransitions())
+		assertEquals(0L, database.stepsGoalEffectDao().countAll())
+		// Payload-free prior/original portable deletion authority survives full clear and reopen.
+		assertEquals(1L, database.sourceDeletionFenceDao().countAll())
 		assertTrue(database.activitySnapshotDao()
 			.getAllBetween(PopulatedV27Fixture.START_MS, PopulatedV27Fixture.END_MS).isEmpty())
 		assertTrue(database.wifiObservationDao().getChunkBetweenOrdered(
@@ -1148,12 +1256,174 @@ class AppDatabaseMigration27To28Test {
 		val owner = requireNotNull(database.sourceDestinationOwnerDao().get(3, "SESSION_STEPS"))
 		assertEquals("LEGACY_STEP_INTERVAL", owner.owner)
 		assertEquals(1L, owner.ownerGeneration)
+		val ambientOwner = requireNotNull(
+			database.sourceDestinationOwnerDao().get(3, "AMBIENT_STEPS"),
+		)
+		assertEquals("AMBIENT_STEPS_FACTS", ambientOwner.owner)
+		assertEquals(1L, ambientOwner.ownerGeneration)
 		val pressureOwner = requireNotNull(
 			database.sourceDestinationOwnerDao().get(4, "SESSION_PRESSURE"),
 		)
 		assertEquals("LEGACY_PRESSURE_SAMPLE", pressureOwner.owner)
 		assertEquals(1L, pressureOwner.ownerGeneration)
 		assertEquals(0L, database.pressureFactRevisionDao().count())
+	}
+
+	private suspend fun seedMigratedAmbientStepsFactRevision(database: AppDatabase) {
+		val provider = AmbientStepsFactRevisionEntity.PROVIDER_HEALTH_CONNECT_MOBILE_STEPS
+		val logicalFactId = AmbientStepsFactIntegrity.logicalFactId(
+			provider = provider,
+			registrationGeneration = 1L,
+			continuitySegmentGeneration = 1L,
+			sourceInstanceId = "ambient-migration-instance",
+			windowStartTimeMs = 1_000L,
+			structuralEpochDay = 0L,
+			storedZoneId = "UTC",
+			collectedDataEpoch = 7L,
+		)
+		val unsigned = AmbientStepsFactRevisionEntity(
+			logicalFactId = logicalFactId,
+			semanticRevision = 1L,
+			mutationId = AmbientStepsFactIntegrity.mutationId(
+				logicalFactId = logicalFactId,
+				semanticRevision = 1L,
+				operation = AmbientStepsFactRevisionEntity.OPERATION_UPSERT,
+			),
+			writerId = AmbientStepsFactRevisionEntity.WRITER_ID,
+			writerVersion = AmbientStepsFactRevisionEntity.WRITER_VERSION,
+			writerOwnerGeneration = 1L,
+			operation = AmbientStepsFactRevisionEntity.OPERATION_UPSERT,
+			originKind = AmbientStepsFactRevisionEntity.ORIGIN_PROVIDER_AGGREGATE,
+			provider = provider,
+			registrationGeneration = 1L,
+			continuitySegmentGeneration = 1L,
+			sourceInstanceId = "ambient-migration-instance",
+			authorizationRevision = 1L,
+			authorizationFingerprint = "a".repeat(64),
+			windowStartTimeMs = 1_000L,
+			windowEndTimeMs = 2_000L,
+			observedAtMs = 2_000L,
+			structuralEpochDay = 0L,
+			storedZoneId = "UTC",
+			structuralDayStartTimeMs = 0L,
+			structuralDayEndTimeMs = 86_400_000L,
+			stepCount = 0L,
+			purpose = AmbientStepsFactRevisionEntity.PURPOSE_AMBIENT_PRODUCT,
+			sourcePolicyRevision = 1L,
+			ambientConsentEpoch = 1L,
+			collectedDataEpoch = 7L,
+			scopeDeletionGeneration = 0L,
+			effectChecksum = "0".repeat(64),
+			appliedAtMs = 2_000L,
+		)
+		val fact = unsigned.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsigned))
+		assertTrue(database.ambientStepsFactRevisionDao().insert(fact) != -1L)
+	}
+
+	private suspend fun seedMigratedAmbientStepsImportState(database: AppDatabase) {
+		val provider = AmbientStepsImportCursorEntity.PROVIDER_HEALTH_CONNECT_MOBILE_STEPS
+		val cursor = AmbientStepsImportCursorEntity(
+			registrationGeneration = 1L,
+			provider = provider,
+			sourceInstanceId = "ambient-migration-instance",
+			registrationClockDomainId = "boot-v28",
+			registrationAcceptedAtMs = 1_001L,
+			registrationAcceptedElapsedRealtimeNanos = 2_000L,
+			authorizationRevision = 2L,
+			authorizationFingerprint = "b".repeat(64),
+			authorizationEffectiveBootId = "boot-v28",
+			authorizationEffectiveElapsedRealtimeNanos = 6_000_000_000L,
+			authorizationEffectiveWallTimeMs = 5_001L,
+			sourcePolicyRevision = 2L,
+			ambientConsentEpoch = 2L,
+			collectedDataEpoch = 7L,
+			eligibleFromTimeMs = 6_000L,
+			continuitySegmentGeneration = 3L,
+			segmentStartTimeMs = 6_000L,
+			importedThroughTimeMs = 6_000L,
+			lastObservedAtMs = 7_000L,
+			lastObservedBootId = "boot-v28",
+			lastObservedZoneId = "UTC",
+			lastGapSequence = 1L,
+			authorityTransitionSequence = 1L,
+			cursorRevision = 1L,
+			status = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
+			updatedAtMs = 7_000L,
+		)
+		assertTrue(database.ambientStepsImportStateDao().insertCursor(cursor) != -1L)
+
+		val gapId = AmbientStepsImportGapIntegrity.gapId(
+			registrationGeneration = 1L,
+			gapSequence = 1L,
+			provider = provider,
+			sourceInstanceId = "ambient-migration-instance",
+			reason = AmbientStepsImportGapEntity.REASON_PROCESS_ABSENCE,
+			gapStartTimeMs = 4_000L,
+			gapEndTimeMs = 6_000L,
+			predecessorRegistrationGeneration = null,
+			predecessorProvider = null,
+			previousClockDomainId = "boot-v28",
+			nextClockDomainId = "boot-v28",
+			previousZoneId = "UTC",
+			nextZoneId = "UTC",
+			collectedDataEpoch = 7L,
+		)
+		assertTrue(
+			database.ambientStepsImportStateDao().insertGap(
+				AmbientStepsImportGapEntity(
+					gapId = gapId,
+					registrationGeneration = 1L,
+					gapSequence = 1L,
+					provider = provider,
+					sourceInstanceId = "ambient-migration-instance",
+					reason = AmbientStepsImportGapEntity.REASON_PROCESS_ABSENCE,
+					gapStartTimeMs = 4_000L,
+					gapEndTimeMs = 6_000L,
+					predecessorRegistrationGeneration = null,
+					predecessorProvider = null,
+					previousClockDomainId = "boot-v28",
+					nextClockDomainId = "boot-v28",
+					previousZoneId = "UTC",
+					nextZoneId = "UTC",
+					collectedDataEpoch = 7L,
+					recordedAtMs = 7_000L,
+				),
+			) != -1L,
+		)
+
+		val transitionSequence = 1L
+		assertTrue(
+			database.ambientStepsImportStateDao().insertAuthorityTransition(
+				AmbientStepsImportAuthorityTransitionEntity(
+					transitionId = AmbientStepsImportAuthorityTransitionIntegrity.transitionId(
+						1L, transitionSequence, provider, "ambient-migration-instance", 7L, 2L, 3L,
+						1L, "a".repeat(64), 1L, 1L, 2L, "b".repeat(64),
+						"boot-v28", 6_000_000_000L, 5_001L, 2L, 2L, 1_001L, 6_000L,
+					),
+					registrationGeneration = 1L,
+					transitionSequence = transitionSequence,
+					provider = provider,
+					sourceInstanceId = "ambient-migration-instance",
+					collectedDataEpoch = 7L,
+					fromContinuitySegmentGeneration = 2L,
+					toContinuitySegmentGeneration = 3L,
+					fromAuthorizationRevision = 1L,
+					fromAuthorizationFingerprint = "a".repeat(64),
+					fromSourcePolicyRevision = 1L,
+					fromAmbientConsentEpoch = 1L,
+					toAuthorizationRevision = 2L,
+					toAuthorizationFingerprint = "b".repeat(64),
+					toAuthorizationEffectiveBootId = "boot-v28",
+					toAuthorizationEffectiveElapsedRealtimeNanos = 6_000_000_000L,
+					toAuthorizationEffectiveWallTimeMs = 5_001L,
+					toSourcePolicyRevision = 2L,
+					toAmbientConsentEpoch = 2L,
+					registrationAcceptedAtMs = 1_001L,
+					effectiveBoundaryTimeMs = 6_000L,
+					recordedAtMs = 7_000L,
+				),
+			) != -1L,
+		)
 	}
 
 	private suspend fun seedMigratedStepFactRevision(database: AppDatabase) {

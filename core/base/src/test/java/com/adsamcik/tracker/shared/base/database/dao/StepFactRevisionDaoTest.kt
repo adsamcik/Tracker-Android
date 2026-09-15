@@ -394,7 +394,8 @@ class StepFactRevisionDaoTest {
 			retainedFromMs = 1_500L,
 			updatedAtMs = 10_000L,
 		)
-		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		// Full clear removes payload, not durable no-resurrection/retention scope receipts.
+		database.sourceDeletionFenceDao().countAll() shouldBe 1L
 		dao.countAll() shouldBe 0L
 	}
 

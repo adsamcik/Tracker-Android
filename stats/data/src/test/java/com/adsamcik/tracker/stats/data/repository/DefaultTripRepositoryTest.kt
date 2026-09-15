@@ -19,7 +19,7 @@ class DefaultTripRepositoryTest {
 	private val repository = DefaultTripRepository(tripDao)
 
 	@Test
-	fun `observeTrips maps entity values and coerces invalid fields`() = runTest {
+	fun `observeTrips maps non-Steps values and coerces invalid fields`() = runTest {
 		everyRecentTripsFlow(
 			Trip(
 				id = 7L,
@@ -37,7 +37,6 @@ class DefaultTripRepositoryTest {
 
 		val trip = repository.observeTrips().first().single()
 		trip.distance.raw shouldBe 0f
-		trip.steps.raw shouldBe 0
 		trip.duration.raw shouldBe 0L
 		trip.primaryMode shouldBe TransportMode.TRANSIT
 	}
@@ -61,6 +60,21 @@ class DefaultTripRepositoryTest {
 
 	private fun everyRecentTripsFlow(vararg trips: Trip) {
 		io.mockk.every { tripDao.getRecentTripsFlow(100) } returns flowOf(trips.toList())
+	}
+
+	@Test
+	fun `exact imported zero-sample detail carries origin before any supplementary lookup`() = runTest {
+		coEvery { tripDao.getById(10L) } returns Trip(
+			id = 10L, startTimeMs = 1_000L, endTimeMs = 2_000L, distanceM = 0f,
+			steps = null, primaryActivity = null, activityConfidence = null, sampleCount = 0,
+			source = SegmentSource.PORTABLE_STEPS_IMPORT, createdAt = 3_000L,
+		)
+		val detail = repository.getTripDetail(10L).getOrNull()!!
+		detail.source shouldBe SegmentSource.PORTABLE_STEPS_IMPORT
+		detail.primaryMode shouldBe TransportMode.UNKNOWN
+		detail.sampleCount shouldBe 0
+		io.mockk.coVerify(exactly = 1) { tripDao.getById(10L) }
+		io.mockk.confirmVerified(tripDao)
 	}
 
 	private fun <T> resultError(result: arrow.core.Either<StatsError, T>): StatsError {

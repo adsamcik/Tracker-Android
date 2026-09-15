@@ -11,6 +11,27 @@ import org.junit.jupiter.api.Test
 
 class TripDetailHistoryPresentationTest {
 	@Test
+	fun `retained imported origin uses evidence and never fabricates a value`() {
+		val covered = history(
+			count = 0L, availability = HistoryAvailability.RETAINED_IMPORTED,
+			evidence = HistoryEvidence.ACTIVE, productState = HistoryProductState.READY,
+			coverage = StepsHistoryCoverage.COMPLETE,
+		)
+		covered.toTripDetailStepsState() shouldBe TripDetailStepsState.Complete(0L)
+		covered.copy(count = 123L, evidence = HistoryEvidence.RECORDED).toTripDetailStepsState() shouldBe
+			TripDetailStepsState.Complete(123L)
+		covered.copy(productState = HistoryProductState.PARTIAL, coverage = StepsHistoryCoverage.PARTIAL,
+			causes = setOf(StepsHistoryCause.RETENTION_LIMIT)).toTripDetailStepsState() shouldBe
+			TripDetailStepsState.LowerBound(0L)
+		val missing = covered.copy(count = null, evidence = HistoryEvidence.NONE,
+			productState = HistoryProductState.PARTIAL, coverage = StepsHistoryCoverage.NONE,
+			causes = setOf(StepsHistoryCause.FACTS_MISSING))
+		missing.toTripDetailStepsState() shouldBe TripDetailStepsState.Unavailable
+		missing.copy(productState = HistoryProductState.MATERIALIZING).toTripDetailStepsState() shouldBe
+			TripDetailStepsState.Materializing
+	}
+
+	@Test
 	fun `covered zero is the only zero presented as complete`() {
 		val result = history(
 			count = 0L,

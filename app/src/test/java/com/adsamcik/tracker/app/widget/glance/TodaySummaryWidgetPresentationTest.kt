@@ -13,7 +13,7 @@ class TodaySummaryWidgetPresentationTest {
         todaySummaryWidgetPresentation(null, QualifiedStepCount.Ready(4_200)) shouldBe
             TodaySummaryWidgetPresentation(
                 distanceM = null,
-                steps = 4_200,
+                steps = WidgetStepsPresentation.Ready(4_200),
                 durationMs = null,
                 sessionCount = null,
             )
@@ -24,18 +24,17 @@ class TodaySummaryWidgetPresentationTest {
         val presentation = todaySummaryWidgetPresentation(null, QualifiedStepCount.Ready(0))
 
         presentation.hasData shouldBe true
-        presentation.steps shouldBe 0
+        presentation.steps shouldBe WidgetStepsPresentation.Ready(0)
         presentation.distanceM shouldBe null
         presentation.durationMs shouldBe null
         presentation.sessionCount shouldBe null
     }
 
     @Test
-    fun `unavailable Steps cannot make a raw Steps-only summary present`() {
+    fun `unavailable Steps cannot make an empty non-Step summary present`() {
         val presentation = todaySummaryWidgetPresentation(
             summary = DailySummary(
                 totalDistanceM = 0f,
-                totalSteps = 4_200,
                 totalDurationMs = 0L,
                 sessionCount = 0,
             ),
@@ -43,7 +42,7 @@ class TodaySummaryWidgetPresentationTest {
         )
 
         presentation.hasData shouldBe false
-        presentation.steps shouldBe null
+        presentation.steps shouldBe WidgetStepsPresentation.Unavailable
     }
 
     @Test
@@ -51,17 +50,47 @@ class TodaySummaryWidgetPresentationTest {
         todaySummaryWidgetPresentation(
             summary = DailySummary(
                 totalDistanceM = 800f,
-                totalSteps = 4_200,
                 totalDurationMs = 1_200_000L,
                 sessionCount = 1,
             ),
             steps = unavailableSteps(),
         ) shouldBe TodaySummaryWidgetPresentation(
             distanceM = 800f,
-            steps = null,
+            steps = WidgetStepsPresentation.Unavailable,
             durationMs = 1_200_000L,
             sessionCount = 1,
         )
+    }
+
+    @Test
+    fun `every qualified nonnumeric reason keeps a distinct truthful widget state`() {
+        val expected = mapOf(
+            QualifiedStepCountUnavailableReason.MISSING to WidgetStepsPresentation.Unavailable,
+            QualifiedStepCountUnavailableReason.MATERIALIZING to
+                WidgetStepsPresentation.Materializing,
+            QualifiedStepCountUnavailableReason.NOT_CAPTURED to
+                WidgetStepsPresentation.NotCaptured,
+            QualifiedStepCountUnavailableReason.DISABLED to
+                WidgetStepsPresentation.Disabled,
+            QualifiedStepCountUnavailableReason.PARTIAL_CAPTURE to
+                WidgetStepsPresentation.Partial(),
+            QualifiedStepCountUnavailableReason.SOURCE_EVIDENCE_UNAVAILABLE to
+                WidgetStepsPresentation.Unavailable,
+            QualifiedStepCountUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE to
+                WidgetStepsPresentation.Unavailable,
+            QualifiedStepCountUnavailableReason.STORAGE_UNAVAILABLE to
+                WidgetStepsPresentation.StorageUnavailable,
+        )
+
+        expected.forEach { (reason, state) ->
+            val presentation = todaySummaryWidgetPresentation(
+                summary = null,
+                steps = QualifiedStepCount.Unavailable(reason),
+            )
+
+            presentation.steps shouldBe state
+            presentation.hasData shouldBe false
+        }
     }
 
     private fun unavailableSteps() = QualifiedStepCount.Unavailable(

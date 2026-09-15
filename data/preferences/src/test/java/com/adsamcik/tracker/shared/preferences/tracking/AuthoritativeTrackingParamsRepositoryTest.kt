@@ -103,6 +103,32 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	}
 
 	@Test
+	fun `ambient Steps mutation commits independent persistent consent and mirror`() = runTest {
+		repository.data.first { it.sourcePolicyRevision == 1L }
+		val captureEpoch = (policy.currentState() as SourcePolicyAuthorityState.Active)
+			.snapshot[TrackingSourceComponent.STEPS].captureConsentEpoch
+
+		repository.setAmbientStepsEnabled(true)
+
+		val enabled = repository.data.first { it.sourcePolicyRevision == 2L }
+		enabled.ambientStepsEnabled.shouldBeTrue()
+		enabled.stepsEnabled.shouldBeTrue()
+		legacy.current.ambientStepsEnabled.shouldBeTrue()
+		val active = (policy.currentState() as SourcePolicyAuthorityState.Active)
+			.snapshot[TrackingSourceComponent.STEPS]
+		active.captureConsentEpoch shouldBe captureEpoch
+		active.ambientConsentEpoch shouldBe 1L
+		active.ambientPersistenceEligible.shouldBeTrue()
+
+		repository.setAmbientStepsEnabled(false)
+
+		val disabled = repository.data.first { it.sourcePolicyRevision == 3L }
+		disabled.ambientStepsEnabled.shouldBeFalse()
+		disabled.stepsEnabled.shouldBeTrue()
+		legacy.current.ambientStepsEnabled.shouldBeFalse()
+	}
+
+	@Test
 	fun `closed startup gate rejects policy mutation without changing durable authority`() = runTest {
 		repository.data.first { it.sourcePolicyRevision == 1L }
 		val closedGate = object : TrackingStartupGate {

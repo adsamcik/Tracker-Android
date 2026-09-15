@@ -13,6 +13,4 @@ data class SessionSegmentStats(
 	val onFootDistanceM: Float,
 	@ColumnInfo(name = "in_vehicle_distance_m")
 	val inVehicleDistanceM: Float,
-	@ColumnInfo(name = "step_count")
-	val stepCount: Long,
 )

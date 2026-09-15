@@ -1,7 +1,9 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistoryCaptureRevision
@@ -9,6 +11,7 @@ import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.ImportedStepsHistoryMember
 import com.adsamcik.tracker.stats.api.repository.SessionHistory
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
@@ -35,12 +38,17 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 	private val logicalHistoryReader: LogicalTrackingHistoryReader,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : TrackingHistoryRepository {
+	private val importedReader = ImportedStepsProductReader(database)
+
 	@OptIn(ExperimentalCoroutinesApi::class)
 	override fun observeSession(segmentId: Long): Flow<SessionHistoryQuery> =
 		historyInvalidations().mapLatest {
-			stepsSelector.selectEvidenceBySegmentIds(listOf(segmentId))[segmentId]?.let { selected ->
-				SessionHistoryQuery.Found(selected.toPublicSessionHistory())
-			} ?: SessionHistoryQuery.NotFound
+			database.withTransaction {
+				val imported = importedReader.selectSessionsInTransaction(listOf(segmentId))[segmentId]
+				val selected = imported ?: stepsSelector.selectEvidenceBySegmentIds(listOf(segmentId))[segmentId]
+					?.toPublicSessionHistory()
+				selected?.let { SessionHistoryQuery.Found(it) } ?: SessionHistoryQuery.NotFound
+			}
 		}.distinctUntilChanged()
 			.flowOn(ioDispatcher)
 
@@ -65,10 +73,21 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		validateStepsAwarePageRequest(candidateSegmentIds, limit)
 		val stableCandidateSegmentIds = candidateSegmentIds.toList()
 		return historyInvalidations().mapLatest {
-			logicalHistoryReader.selectRecentStepsAwarePage(
-				candidateSegmentIds = stableCandidateSegmentIds,
-				limit = limit,
-			).map(HistoricalStepsAwarePageEntry::toPublicPageEntry)
+			database.withTransaction {
+				val segments = database.trackingHistoryReadDao().segments(stableCandidateSegmentIds).associateBy { it.id }
+				val liveIds = stableCandidateSegmentIds.filter { segments[it]?.source != SegmentSource.PORTABLE_STEPS_IMPORT }
+				val live = logicalHistoryReader.selectRecentStepsAwarePage(liveIds, limit)
+					.map { RecentProductPageRow(it.toPublicPageEntry(), it.recencyStartTimeMs, it.recencySegmentId) }
+				val imported = importedReader.recentInTransaction(limit).map { entry ->
+					val newest = entry.physicalMembers.maxWith(
+						compareBy<ImportedStepsHistoryMember> { it.startTime }.thenBy { it.segmentId },
+					)
+					RecentProductPageRow(StepsAwareHistoryPageEntry.ImportedSteps(entry), newest.startTime.raw, newest.segmentId)
+				}
+				(live + imported).sortedWith(
+					compareByDescending<RecentProductPageRow> { it.startTimeMs }.thenByDescending { it.segmentId },
+				).take(limit).map { it.entry }
+			}
 		}.distinctUntilChanged()
 			.flowOn(ioDispatcher)
 	}
@@ -104,6 +123,9 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		SOURCE_DELETION_FENCE_TABLE,
 		STEP_FACT_TABLE,
 		SESSION_COMPLETENESS_TABLE,
+		"imported_steps_entry",
+		"imported_steps_run",
+		"imported_steps_manifest",
 		emitInitialState = true,
 	)
 
@@ -123,6 +145,12 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		const val SESSION_COMPLETENESS_TABLE = "source_session_completeness"
 	}
 }
+
+private data class RecentProductPageRow(
+	val entry: StepsAwareHistoryPageEntry,
+	val startTimeMs: Long,
+	val segmentId: Long,
+)
 
 private fun HistoricalSegmentEvidence.toPublicSessionHistory() = SessionHistory(
 	segmentId = segment.id,

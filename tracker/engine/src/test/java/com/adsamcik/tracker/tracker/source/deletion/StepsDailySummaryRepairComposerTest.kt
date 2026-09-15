@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.deletion
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.markStepsRetentionTruncation
@@ -23,10 +24,20 @@ import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessE
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsCaptureCoverage
+import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsCompletenessV1
+import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsDeletionScopeDigest
+import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsFactCoverage
+import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsFactV1
+import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsManifestV1
+import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsOpaqueIdentity
+import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsProviderCoverage
+import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsRunV1
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.stats.api.repository.StepsSessionDeletionUnsupportedReason
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.summary.seedImportedNumericTestRun
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import kotlinx.coroutines.test.runTest
@@ -75,6 +86,46 @@ class StepsDailySummaryRepairComposerTest {
 
 	@After
 	fun tearDown() = database.close()
+
+	@Test
+	fun `mixed live and imported day preserves only live duration and validates both origin authorities`() = runTest {
+		installLane(cursor = 100L)
+		insertCandidate(
+			logicalId = "live-logical", runId = "live-run", manifestRevision = 1L,
+			startMs = DAY_START + HOUR_MS, endMs = DAY_START + 2L * HOUR_MS, steps = 5L,
+		)
+		val start = DAY_START + 3L * HOUR_MS
+		val end = start + HOUR_MS
+		val imported = PortableStepsRunV1(
+			identity = PortableStepsOpaqueIdentity("sha256:${"2".repeat(64)}"),
+			deletionScopeDigest = PortableStepsDeletionScopeDigest("2".repeat(64)),
+			startTimeMs = start, endTimeMs = end, storedZoneId = ZONE.id,
+			manifests = listOf(PortableStepsManifestV1(1L, start, 7L, 8L)),
+			completeness = PortableStepsCompletenessV1(
+				PortableStepsCaptureCoverage.WHOLE_RUN, PortableStepsProviderCoverage.COMPLETE, true, true, false,
+			),
+			facts = listOf(PortableStepsFactV1.create(
+				PortableStepsOpaqueIdentity("sha256:${"3".repeat(64)}"), 1L, start, end, 0L,
+				PortableStepsFactCoverage.COVERED, 7L,
+			)),
+		)
+		database.seedImportedNumericTestRun(
+			imported, PortableStepsOpaqueIdentity("sha256:${"1".repeat(64)}"), segmentId = 9_000L, epoch = EPOCH,
+		)
+		val ready = database.withTransaction {
+			composer().composeForNumericRead(mapOf(DAY to ZONE))
+		} as StepsDayRepairPreflight.Ready
+		val plan = ready.plans.single()
+		plan.numericSteps shouldBe StepsDayNumericComposition.Complete(12L)
+		plan.totals?.durationMs shouldBe HOUR_MS
+		plan.totals?.distanceM shouldBe 10f
+		plan.totals?.tripCount shouldBe 2
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_consent_epoch")
+		val invalidLive = database.withTransaction {
+			composer().composeForNumericRead(mapOf(DAY to ZONE))
+		}
+		(invalidLive is StepsDayRepairPreflight.Unsupported) shouldBe true
+	}
 
 	@Test
 	fun `zero-sample v28 survivor uses covered facts instead of presentation metadata`() = runTest {
@@ -501,10 +552,9 @@ class StepsDailySummaryRepairComposerTest {
 				as StepsDayRepairPreflight.Ready
 
 			ready.plans.single().numericSteps shouldBe StepsDayNumericComposition.PartialCapture
-			composer().composeForMaterialization(DAY, ZONE) shouldBe
-				StepsDayRepairPreflight.Unsupported(
-					StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
-				)
+			val materialization = composer().composeForMaterialization(DAY, ZONE) as StepsDayRepairPreflight.Ready
+			materialization.plans.single().numericSteps shouldBe StepsDayNumericComposition.PartialCapture
+			materialization.plans.single().totals?.steps shouldBe before?.totalSteps
 			composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
 				StepsDayRepairPreflight.Unsupported(
 					StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
@@ -548,10 +598,9 @@ class StepsDailySummaryRepairComposerTest {
 				as StepsDayRepairPreflight.Ready
 
 			ready.plans.single().numericSteps shouldBe StepsDayNumericComposition.PartialCapture
-			composer().composeForMaterialization(summaryDay, summaryZone) shouldBe
-				StepsDayRepairPreflight.Unsupported(
-					StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
-				)
+			val materialization = composer().composeForMaterialization(summaryDay, summaryZone) as StepsDayRepairPreflight.Ready
+			materialization.plans.single().numericSteps shouldBe StepsDayNumericComposition.PartialCapture
+			materialization.plans.single().totals?.steps shouldBe before?.totalSteps
 			composer().compose(listOf(summaryDay), excludedSegmentId = Long.MIN_VALUE) shouldBe
 				StepsDayRepairPreflight.Unsupported(
 					StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
@@ -2943,6 +2992,45 @@ class StepsDailySummaryRepairComposerTest {
 		)
 
 		assertDayUnverifiable()
+	}
+
+	@Test
+	fun `imported deletion redacts partial compatibility payload without fabricating numeric truth`() {
+		val plan = StepsDayRepairPlan(
+			epochDay = DAY,
+			zoneId = ZONE,
+			totals = DailySummaryTotals(steps = 47),
+			numericSteps = StepsDayNumericComposition.PartialCapture,
+			hasCompatibilitySteps = false,
+		)
+
+		val redacted = StepsDayRepairPreflight.Ready(listOf(plan))
+			.redactDeletedImportedCompatibilitySteps() as StepsDayRepairPreflight.Ready
+
+		redacted.plans.single() shouldBe plan.copy(totals = plan.totals?.copy(steps = 0))
+		redacted.plans.single().numericSteps shouldBe StepsDayNumericComposition.PartialCapture
+		redacted.plans.single().hasCompatibilitySteps shouldBe false
+	}
+
+	@Test
+	fun `imported deletion preserves complete and absent day payloads`() {
+		val complete = StepsDayRepairPlan(
+			epochDay = DAY,
+			zoneId = ZONE,
+			totals = DailySummaryTotals(steps = 19),
+			numericSteps = StepsDayNumericComposition.Complete(19L),
+		)
+		val absent = StepsDayRepairPlan(
+			epochDay = DAY + 1L,
+			zoneId = ZONE,
+			totals = null,
+			numericSteps = StepsDayNumericComposition.NotCaptured,
+			hasCompatibilitySteps = false,
+		)
+
+		StepsDayRepairPreflight.Ready(listOf(complete, absent))
+			.redactDeletedImportedCompatibilitySteps() shouldBe
+			StepsDayRepairPreflight.Ready(listOf(complete, absent))
 	}
 
 	private suspend fun assertDayUnverifiable() {

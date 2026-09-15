@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.os.SystemClock
+import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
@@ -117,7 +118,7 @@ class SensorAdmissionCheckpoint internal constructor(
 
 	init {
 		require(source == SourceKind.STEPS || source == SourceKind.PRESSURE)
-		require(ownerScope == "source-broker:${source.stableCode}")
+		require(SourceProviderPurposeScope.isCanonicalOwnerScope(source.stableCode, ownerScope))
 		require(sourceInstanceId.isNotBlank())
 		require(clockDomainId.isNotBlank())
 		require(registrationGeneration > 0L)

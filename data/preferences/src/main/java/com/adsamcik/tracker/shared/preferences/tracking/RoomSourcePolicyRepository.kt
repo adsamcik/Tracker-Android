@@ -57,6 +57,7 @@ class RoomSourcePolicyRepository(
 			val revision = 1L
 			val desired = desiredCapturePolicies(settings)
 			val automaticControlEligible = settings.automaticControlEligible()
+			val ambientStepsEligible = settings.ambientStepsEnabled
 			val initialConsentRows = buildList {
 				TrackingSourceComponent.entries.forEach { source ->
 					SourcePurpose.entries.forEach { purpose ->
@@ -101,6 +102,20 @@ class RoomSourcePolicyRepository(
 							),
 						)
 					}
+					if (source == TrackingSourceComponent.STEPS && ambientStepsEligible) {
+						add(
+							consentEntity(
+								source = source,
+								purpose = SourcePurpose.AMBIENT_PRODUCT,
+								epoch = 1L,
+								eligible = true,
+								persistenceEligible = true,
+								policyRevision = revision,
+								effectiveTime = effectiveTime,
+								reason = REASON_AMBIENT_STEPS_IMPORT,
+							),
+						)
+					}
 				}
 			}
 			dao.insertConsentEpochs(initialConsentRows)
@@ -112,10 +127,13 @@ class RoomSourcePolicyRepository(
 					controlConsentEpoch = 1L.takeIf {
 						policy.source == TrackingSourceComponent.ACTIVITY && automaticControlEligible
 					},
-					ambientConsentEpoch = null,
+					ambientConsentEpoch = 1L.takeIf {
+						policy.source == TrackingSourceComponent.STEPS && ambientStepsEligible
+					},
 					capturePersistenceEligible = policy.enabled,
 					controlPersistenceEligible = false,
-					ambientPersistenceEligible = false,
+					ambientPersistenceEligible =
+						policy.source == TrackingSourceComponent.STEPS && ambientStepsEligible,
 					effectiveTime = effectiveTime,
 					reason = REASON_LEGACY_BOOTSTRAP,
 				)
@@ -146,8 +164,12 @@ class RoomSourcePolicyRepository(
 			val authority = requireNotNull(dao.authority())
 			val desired = desiredCapturePolicies(settings)
 			val automaticControlEligible = settings.automaticControlEligible()
+			val ambientStepsEligible = settings.ambientStepsEnabled
 			val previousAutomaticControlEligible =
 				current[TrackingSourceComponent.ACTIVITY].controlConsentEpoch != null
+			val previousAmbientSteps = current[TrackingSourceComponent.STEPS]
+			val previousAmbientStepsEligible = previousAmbientSteps.ambientConsentEpoch != null
+			val previousAmbientStepsPersistent = previousAmbientSteps.ambientPersistenceEligible
 			val captureChanged = TrackingSourceComponent.entries.any { source ->
 				val old = current[source]
 				val next = desired.getValue(source)
@@ -159,10 +181,15 @@ class RoomSourcePolicyRepository(
 			}
 			val automaticControlChanged =
 				previousAutomaticControlEligible != automaticControlEligible
+			val ambientStepsChanged =
+				previousAmbientStepsEligible != ambientStepsEligible ||
+					previousAmbientStepsPersistent != ambientStepsEligible
 			val settingsFingerprint = settingsFingerprint(settings)
-			val automaticControlConfigurationChanged =
+			val settingsFingerprintChanged =
 				authority.legacySettingsFingerprint != settingsFingerprint
-			if (!captureChanged && !automaticControlChanged && !automaticControlConfigurationChanged) {
+			if (!captureChanged && !automaticControlChanged && !ambientStepsChanged &&
+				!settingsFingerprintChanged
+			) {
 				return@withTransaction current
 			}
 			val effectiveTime = effectiveTimeProvider.now()
@@ -184,6 +211,15 @@ class RoomSourcePolicyRepository(
 						SourceBrokerPurpose.CONTROL_AUTOSTART,
 						SourceBrokerPurpose.CONTROL_CONTINUATION,
 					),
+					bootId = effectiveTime.bootId,
+					elapsedRealtimeNanos = effectiveTime.elapsedRealtimeNanos,
+					wallTimeMs = effectiveTime.wallTimeMs,
+				)
+			}
+			if (previousAmbientStepsEligible && !ambientStepsEligible) {
+				database.fenceSourcePurposesInTransaction(
+					sourceKind = TrackingSourceComponent.STEPS.stableCode,
+					purposes = listOf(SourceBrokerPurpose.AMBIENT_PRODUCT),
 					bootId = effectiveTime.bootId,
 					elapsedRealtimeNanos = effectiveTime.elapsedRealtimeNanos,
 					wallTimeMs = effectiveTime.wallTimeMs,
@@ -236,6 +272,26 @@ class RoomSourcePolicyRepository(
 			} else {
 				current[TrackingSourceComponent.ACTIVITY].controlConsentEpoch
 			}
+			val ambientStepsEpoch = if (ambientStepsChanged) {
+				val epoch = nextConsentEpoch(TrackingSourceComponent.STEPS, SourcePurpose.AMBIENT_PRODUCT)
+				dao.insertConsentEpochs(
+					listOf(
+						consentEntity(
+							source = TrackingSourceComponent.STEPS,
+							purpose = SourcePurpose.AMBIENT_PRODUCT,
+							epoch = epoch,
+							eligible = ambientStepsEligible,
+							persistenceEligible = ambientStepsEligible,
+							policyRevision = nextRevision,
+							effectiveTime = effectiveTime,
+							reason = reason,
+						),
+					),
+				)
+				epoch.takeIf { ambientStepsEligible }
+			} else {
+				current[TrackingSourceComponent.STEPS].ambientConsentEpoch
+			}
 			val entities = TrackingSourceComponent.entries.map { source ->
 				val old = current[source]
 				val next = desired.getValue(source)
@@ -248,7 +304,11 @@ class RoomSourcePolicyRepository(
 					} else {
 						old.controlConsentEpoch
 					},
-					ambientConsentEpoch = old.ambientConsentEpoch,
+					ambientConsentEpoch = if (source == TrackingSourceComponent.STEPS) {
+						ambientStepsEpoch
+					} else {
+						old.ambientConsentEpoch
+					},
 					capturePersistenceEligible = next.enabled,
 					controlPersistenceEligible = if (
 						source == TrackingSourceComponent.ACTIVITY && automaticControlChanged
@@ -257,7 +317,11 @@ class RoomSourcePolicyRepository(
 					} else {
 						old.controlPersistenceEligible
 					},
-					ambientPersistenceEligible = old.ambientPersistenceEligible,
+					ambientPersistenceEligible = if (source == TrackingSourceComponent.STEPS) {
+						ambientStepsEligible
+					} else {
+						old.ambientPersistenceEligible
+					},
 					effectiveTime = effectiveTime,
 					reason = reason,
 				)
@@ -593,7 +657,8 @@ class RoomSourcePolicyRepository(
 		val canonical = "$sourceFingerprint|location:${settings.minTimeSeconds}:" +
 			"${settings.minDistanceMeters}:${settings.requiredAccuracyMeters}|" +
 			"automatic-control:${settings.automaticControlEligible()}:" +
-			"mode:${settings.autoTrackingMode}:transitions:${settings.transitionDetectionEnabled}"
+			"mode:${settings.autoTrackingMode}:transitions:${settings.transitionDetectionEnabled}|" +
+			"ambient-steps:${settings.ambientStepsEnabled}"
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))
 			.joinToString("") { byte -> "%02x".format(byte) }
@@ -612,6 +677,7 @@ class RoomSourcePolicyRepository(
 		const val REASON_BOOTSTRAP_DENY = "LEGACY_BOOTSTRAP_DEFAULT_DENY"
 		const val REASON_LEGACY_CAPTURE_IMPORT = "MIGRATED_LEGACY_CAPTURE"
 		const val REASON_LEGACY_AUTOMATIC_CONTROL_IMPORT = "MIGRATED_LEGACY_AUTOMATIC_CONTROL"
+		const val REASON_AMBIENT_STEPS_IMPORT = "MIGRATED_AMBIENT_STEPS_CONSENT"
 		const val REASON_LEGACY_BOOTSTRAP = "LEGACY_SETTINGS_BOOTSTRAP"
 	}
 }

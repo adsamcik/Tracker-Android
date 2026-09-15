@@ -124,6 +124,7 @@ class DataRetentionWorkerTest {
 		coEvery { lane.drainAvailable() } returns StepsSessionFactDrainResult.Inactive
 		try {
 			insertExpiredStepsHistory(database)
+			val (imported, importedSegmentId) = seedExpiredImportedSteps(database, 1L)
 			database.quarantinedSignalDao().insert(
 				QuarantinedSignalEntity(
 					sourcePendingId = 1L,
@@ -161,6 +162,7 @@ class DataRetentionWorkerTest {
 
 			assertEquals(ListenableWorker.Result.success(), worker.doWork())
 			assertEquals(0L, database.stepFactRevisionDao().countAll())
+			assertExpiredImportedStepsRemoved(database, imported, importedSegmentId)
 			val retentionMarker = database.sourceDeletionFenceDao().get(
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 				purpose = StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,

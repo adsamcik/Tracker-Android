@@ -58,32 +58,122 @@ class DefaultAchievementRepositoryQualificationTest {
 	}
 
 	@Test
+	fun `snapshots expose all four ready source-qualified Steps metrics`() = runTest {
+		val rows = QUALIFIED_STEPS_METRICS.mapIndexed { index, metric ->
+			qualifiedProgress(metric, index)
+		}
+		coEvery { progressDao.getAll() } returns rows
+
+		val snapshots = repository.getAllSnapshots()
+
+		QUALIFIED_STEPS_METRICS.forEachIndexed { index, metric ->
+			snapshots.count { it.metric == metric } shouldBe AchievementCatalog.byMetric(metric).size
+			snapshots.first { it.metric == metric }.currentValue shouldBe (index + 1).toDouble()
+		}
+	}
+
+	@Test
+	fun `snapshots hide Steps metrics without exact ready provenance and a claimed tier`() = runTest {
+		QUALIFIED_STEPS_METRICS.forEach { metric ->
+			val unavailableRows = listOf(
+				progress(metric, 0),
+				qualifiedProgress(
+					metric,
+					0,
+					authorityState = AchievementProgressEntity.AUTHORITY_STATE_MATERIALIZING,
+				),
+				qualifiedProgress(
+					metric,
+					0,
+					authorityState = AchievementProgressEntity.AUTHORITY_STATE_UNVERIFIABLE,
+				),
+				qualifiedProgress(metric, 0, claimedTierIndex = null),
+				AchievementProgressEntity(
+					metricKey = metric.storageKey,
+					lastTierIndex = 0,
+					lastValue = 1.0,
+					updatedAt = 2L,
+					authorityKind = "OTHER_AUTHORITY",
+					authorityRevision = 3L,
+					authorityDigest = "a".repeat(64),
+					authorityState = AchievementProgressEntity.AUTHORITY_STATE_READY,
+				),
+			)
+
+			unavailableRows.forEach { row ->
+				coEvery { progressDao.getAll() } returns listOf(row)
+
+				(repository.getAllSnapshots().none { it.metric == metric }) shouldBe true
+			}
+		}
+	}
+
+	@Test
 	fun `recent unlocks skip quarantined rows without consuming the caller limit`() = runTest {
 		every { progressDao.getAllFlow() } returns flowOf(
 			listOf(
+				qualifiedProgress(MetricKey.GOAL_STREAK_DAYS, 0, updatedAt = 40L),
 				progress(MetricKey.STEPS_TOTAL, 0, updatedAt = 30L),
 				progress(MetricKey.PLAYER_LEVEL, 0, updatedAt = 20L),
-				progress(MetricKey.DISTANCE_TOTAL_M, 0, updatedAt = 10L),
-				progress(MetricKey.SESSIONS_TOTAL, 0, updatedAt = 5L),
+				progress(MetricKey.DISTANCE_TOTAL_M, 0, updatedAt = 10L, unlockedAt = 5L),
+				progress(MetricKey.SESSIONS_TOTAL, 0, updatedAt = 5L, unlockedAt = 10L),
 			),
 		)
 
 		val recent = repository.observeRecentUnlocks(limit = 2).first()
 
 		recent.map { it.metric } shouldContainExactly listOf(
-			MetricKey.DISTANCE_TOTAL_M,
 			MetricKey.SESSIONS_TOTAL,
+			MetricKey.DISTANCE_TOTAL_M,
 		)
+		recent.map { it.updatedAt } shouldContainExactly listOf(10L, 5L)
 	}
 
-	private fun progress(metric: MetricKey, lastTierIndex: Int, updatedAt: Long = 1L) =
-		progress(metric.storageKey, lastTierIndex, updatedAt)
+	private fun progress(
+		metric: MetricKey,
+		lastTierIndex: Int,
+		updatedAt: Long = 1L,
+		unlockedAt: Long = updatedAt,
+	) = progress(metric.storageKey, lastTierIndex, updatedAt, unlockedAt)
 
-	private fun progress(metricKey: String, lastTierIndex: Int, updatedAt: Long = 1L) =
+	private fun progress(
+		metricKey: String,
+		lastTierIndex: Int,
+		updatedAt: Long = 1L,
+		unlockedAt: Long = updatedAt,
+	) =
 		AchievementProgressEntity(
 			metricKey = metricKey,
 			lastTierIndex = lastTierIndex,
 			lastValue = 1_000_000.0,
 			updatedAt = updatedAt,
+			lastUnlockedAt = unlockedAt.takeIf { lastTierIndex >= 0 },
 		)
+
+	private fun qualifiedProgress(
+		metric: MetricKey,
+		lastTierIndex: Int,
+		authorityState: String = AchievementProgressEntity.AUTHORITY_STATE_READY,
+		updatedAt: Long = 2L,
+		claimedTierIndex: Int? = lastTierIndex,
+	) = AchievementProgressEntity(
+		metricKey = metric.storageKey,
+		lastTierIndex = lastTierIndex,
+		lastValue = (lastTierIndex + 1).toDouble(),
+		updatedAt = updatedAt,
+		authorityKind = AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1,
+		authorityRevision = 3L,
+		authorityDigest = "a".repeat(64),
+		authorityState = authorityState,
+		qualifiedNotificationClaimedTierIndex = claimedTierIndex,
+	)
+
+	private companion object {
+		val QUALIFIED_STEPS_METRICS = listOf(
+			MetricKey.STEPS_TOTAL,
+			MetricKey.BEST_DAILY_STEPS,
+			MetricKey.GOAL_STREAK_DAYS,
+			MetricKey.PERFECT_WEEKS,
+		)
+	}
 }

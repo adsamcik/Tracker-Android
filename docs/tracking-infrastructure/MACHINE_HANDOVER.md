@@ -1,6 +1,122 @@
 # Tracking infrastructure: cross-machine handover
 
-Last updated: 2026-09-09
+Last updated: 2026-09-12
+
+## Current implementation-only operating mode
+
+Start from [IMPLEMENTATION_TODO.md](IMPLEMENTATION_TODO.md). It is the canonical exhaustive
+checklist for remaining source logic, tests to author, product decisions, assembly, deferred
+validation, and eventual local integration.
+
+Do not run validation on the continuation machine yet. The user explicitly requires all remaining
+production logic and focused unit/contract tests to be authored first. Until the dedicated final
+convergence phase, do not invoke Gradle, compilation, tests, lint, Detekt, schema drift,
+emulator/device, evaluator, battery, CI, or release tasks. New commits are
+`IMPLEMENTED_UNVALIDATED` and stay off local `dev/v10` and all remotes.
+
+The current source/test implementation boundary is `039153f67`, with documentation reconciled
+through the current HEAD on coordinator `codex/ti-steps-import-actions`. Portable import, selected
+deletion, production round trip, manual Steps inventory, qualified day/week reads, numeric effects
+and consumer audit are authored through the preceding checkpoints. TI-D179/TI-B241 resolves
+automatic Step corroboration as absent:
+Activity is the sole automatic control, sampled recognition keeps its full confidence threshold,
+and legacy Steps `CONTROL_AUTOSTART` demand is retired without becoming an Activity dependency.
+TI-D180/TI-B242 additionally reconcile the already-present shared durable Activity gateway as
+AUTO-002: exact fresh Transition permission, durable action state, and Room PREPARE precede the
+Android service call; Sampling and cold replay cannot spend that permission.
+TI-D181/TI-B243 then pin the checksum-valid automatic manifest to exactly Steps capture and
+nonpersistent writerless Activity control, including exact physical run, lifecycle, consent, QoS,
+clock, zone, automation, and Steps writer attribution.
+TI-D182/TI-B244 follow the exact prepared token through foreground acceptance: only Steps capture
+and Activity control demands become active, and only Steps receives a source action/runtime start.
+TI-D183/TI-B245 pin exact immutable trigger-envelope rejection through service validation.
+TI-D184/TI-B246 close the authored stop/recovery/no-revival boundary, including the rule that only
+valid same-boot manual authority can survive process exit. TI-D185/TI-B247 add linked production
+seams from exact automatic trigger through real Steps Room admission and canonical materialization,
+then through production history and portable export with Activity remaining control-only. AUTO-005
+still requires an explicit fixed lifetime for control-only Activity WAL/outbox evidence.
+TI-D186/TI-B248 resolve AMBIENT-001 as opportunistic and begin AMBIENT-002 with a persisted
+default-off preference plus independent persistent Steps `AMBIENT_PRODUCT` consent/epoch and exact
+revocation fencing. This preference creates no demand; capability, permission, retention and
+explanation UI, and the single selected continuity adapter were still unimplemented there.
+TI-D187/TI-B249 add a read-only Android capability resolver and one-provider precedence contract:
+capable Health Connect mobile Steps wins, missing Health Connect permission cannot silently switch
+to Local Recording, probe failure fails closed, and Local Recording is used only when Health
+Connect is genuinely unavailable. Generic ambient Steps planning now rejects the direct sensor.
+TI-D188/TI-B250 make the direct Step Counter exact `SESSION_CAPTURE` ownership and rotate each
+physical registration against only its eligible demands. This is the prerequisite for a distinct
+future `AMBIENT_PRODUCT` provider; it does not create ambient demand, subscribe either system
+provider, import a record, or expose an end-user permission/retention surface. TI-B251 and
+`1023ab6b5` correct checkpoint and ingress propagation so exact physical owner scope—not a
+source-kind reconstruction—owns runtime state and sequence allocation.
+TI-D189/TI-B252/TI-B253 and `7b33b2271`/`c16a65e8d`/`039153f67` add provider-specific
+opportunistic floors and the typed capability-to-demand seam. It creates one sessionless persistent
+ambient demand only after capability, exact consent, and the Steps `AMBIENT` lane agree; an
+unchanged provider is idempotent, a changed provider cannot overlap demand, and permission or
+capability loss retires demand. No production caller or provider side effect exists yet.
+The earlier two stopped-run failures remain validation debt rather than current acceptance evidence.
+Preserve the six root paths, both older frozen drafts, and all source branch ancestry. Once every
+source vertical is built, assemble a dedicated convergence branch and only then run and fix the
+full evidence plan.
+
+## Verified publication versus newer local work
+
+The actual published checkpoint is `0460f12a54a3550244f8e8ea5c9fb1f5e2ef27d2`, verified by
+`git ls-remote --heads origin refs/heads/dev/v10`. A normal clone of `dev/v10` contains reviewed
+portable-origin storage and its handover, not the subsequent work below. No new push is authorized.
+
+The coordinator branch now carries the accepted local dependency cherries and subsequent portable
+import, deletion, numeric-consumer, policy, automatic-corroboration, manifest, and demand-contract
+checkpoints in one ordered history through `039153f67`, plus the current documentation
+reconciliation. Exact authored boundaries are TI-B213 through TI-B253. They remain
+local implementation slices, not a validated convergence, importer activation, `dev/v10`
+integration, or publication. Resolve AUTO-005's fixed retention duration when product direction is
+available; otherwise continue `TODO-STEPS-AMBIENT-002`. Do not repeat the completed
+selected-deletion, round-trip, or numeric-audit waves. See the latest status/TODO/decision/matrix
+sections and verify the branch log before acting on older chronological handover passages.
+
+On another machine, do not assume these local commits or drafts arrived. Restart from the verified
+published boundary unless a separately authorized transfer supplies them; verify its hashes and
+cleanliness before use. Preserve the original source branches until canonical ancestry is restored
+in convergence. The six protected paths and two older frozen importer/awards drafts remain excluded;
+all six protected hashes were rechecked unchanged after the local retention/UI commits.
+
+The remaining source order and product goals below are unchanged. Partial imported materialization
+must neither invent duration from wall bounds nor turn unavailable Steps into zero. Retention fences
+are not complete admission/deletion/no-resurrection proof. Full host integration and representative
+physical Steps-only evidence remain open; do not claim that the six-source effort is finished.
+
+## Current transfer checkpoint: reviewed portable origins
+
+The current publication request includes accepted source `099f9e1b9`, accepted documentation
+`b925e89bc`, and this documentation successor. See [PUBLICATION_HANDOVER.md](PUBLICATION_HANDOVER.md)
+and match the destination HEAD to the publishing task's post-push receipt. The older local-only
+and published-source sections below describe earlier checkpoints, not this publication scope.
+Source verification is unchanged: TI-B211 records full `ciCheck --continue`, 9,407 host tests
+with zero failures/errors and three unchanged skips, plus nine migration tests on one API 36
+emulator. This is dormant origin storage, not a functioning importer or completed six-source product.
+
+Three new uncompiled import worktrees are paused and excluded alongside the six protected paths
+and two old frozen drafts. A GitHub clone contains none of their dirty work. Use the inventory and
+dependency gates at the top of [CONTINUATION_HANDOVER.md](CONTINUATION_HANDOVER.md); do not infer
+completed imported history, deletion, retention or full-clear no-resurrection from this checkpoint.
+
+Current copy-paste restart prompt (supersedes the older prompt below):
+
+> Resume Tracker Android from the latest verified publication on dev/v10. Verify a clean checkout
+> and HEAD against the publication receipt; require 099f9e1b9 and b925e89bc as ancestors. Read
+> AGENTS, VISION_AND_SCOPE, the complete technical/adaptive designs, then continuation, execution,
+> decisions, status, verification and rollout documents in order. The accepted latest source is
+> dormant truthful portable Steps origin storage, not enabled import. Keep the full six-source
+> vision and the physical manual Steps-only gate. Continue bounded imported admission, qualified
+> product composition, exact deletion, retention, repair and no-resurrection together before registry
+> exposure; preserve exact live ownership and original imported identity without inventing local
+> consent or original full capture sets. The three new and two older dirty drafts stayed on the
+> source machine and are unaccepted. Do not assume they arrived or copy them wholesale. Use one
+> file owner and one Gradle lane; rebase and verify before local dev/v10 integration. Preserve all
+> excluded work. No subsequent push, release, activation or destructive migration is authorized.
+> Finish at an evidence-backed checkpoint without claiming host tests prove physical providers,
+> rendered device UI, listener removal, battery, reboot, FGS or OEM behavior.
 
 ## Current transfer checkpoint: reviewed portable origins
 
@@ -247,8 +363,8 @@ another framework or another broad reward audit before advancing the positive St
    Each needs source-appropriate query/UI and correction/retention/export/deletion/device proof.
    Keep radio active attempts bounded/direct-demand-only and cadence claims opportunistic.
 
-Final retention durations, optional Step control corroboration, Ambient Steps continuity/provider
-choice, extra ambient Location product, measured active-radio tiers, calibrated Pressure elevation,
+Final retention durations, Ambient Steps continuity/provider choice, extra ambient Location
+product, measured active-radio tiers, calibrated Pressure elevation,
 and cross-midnight presentation remain product choices. This checkpoint does not choose them.
 
 ## Verification and integration rules

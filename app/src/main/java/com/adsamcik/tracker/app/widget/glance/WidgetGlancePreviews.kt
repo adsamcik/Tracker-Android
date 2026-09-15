@@ -132,7 +132,8 @@ private fun ActiveSessionIdleContentPreview() {
 @Preview(showBackground = true, name = "Active session tracking")
 @Composable
 private fun ActiveSessionTrackingContentPreview() {
-    val summary = DailySummary(totalDistanceM = 5420f, totalSteps = 7810, totalDurationMs = 6_300_000L, sessionCount = 1)
+    val summary = DailySummary(totalDistanceM = 5420f, totalDurationMs = 6_300_000L, sessionCount = 1)
+    val qualifiedPreviewSteps = 7_810L
     AppTheme {
         WidgetPreviewCard {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -147,7 +148,7 @@ private fun ActiveSessionTrackingContentPreview() {
                 WidgetPreviewStatsRow(
                     "Distance" to formatDistancePreview(summary.totalDistanceM),
                     "Duration" to WidgetFormatters.formatDuration(summary.totalDurationMs),
-                    "Steps" to WidgetFormatters.formatSteps(summary.totalSteps),
+                    "Steps" to WidgetFormatters.formatSteps(qualifiedPreviewSteps),
                     "Collections" to "24",
                 )
                 Text("Path preview", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

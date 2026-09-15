@@ -4,13 +4,12 @@ import arrow.core.Either
 import com.adsamcik.tracker.stats.api.error.StatsError
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
-import com.adsamcik.tracker.stats.api.value.StepCount
 import kotlinx.coroutines.flow.Flow
 
+/** Independent day metrics. Steps require [StepsNumericSummaryRepository] source qualification. */
 data class DailySummary(
 	val dayEpoch: Long,
 	val totalDistance: DistanceM,
-	val totalSteps: StepCount,
 	val totalDuration: DurationMs,
 	val tripCount: Int,
 	val activeTrackingDuration: DurationMs,

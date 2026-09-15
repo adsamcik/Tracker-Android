@@ -20,6 +20,10 @@ Neither change activates a source or completes the import/device gates. Older sn
 historical, including their unintegrated
 branch, schema-v3, missing radio identity, and blanket numeric-consumer gap claims.
 
+The newer local implementation-only checkpoint `b779afd1e` resolves Step corroboration as absent:
+Activity is the sole automatic control and legacy Steps control demand is retired. This is authored,
+unvalidated code, not rollout evidence or activation authority.
+
 Current rollout schema v4 defaults all six sources to `CONTAINED`, legacy product stages and zero
 capture masks. Steps V1/V2 and Pressure executable contracts remain dormant; there is no ordinary
 first-activation caller. Existing canonical Location remains protected. No quality/battery or
@@ -125,8 +129,9 @@ Three fresh product, architecture, and delivery adversaries concluded `BLOCK / R
 
 R2 confirmed that v28 never shipped. The migration/schema was regenerated in place with the 12
 unused generic Phase 3 tables and duplicate lifecycle lease removed; later bounded ownership,
-history, recovery, and deletion-authority slices bring the current schema to 69 entities (51
-released-v27 plus 18 narrowly owned v28 additions). The new payload-free
+history, recovery, deletion-authority, and Ambient continuity slices bring the current authored
+schema to 79 entities (51 released-v27 plus 28 narrowly owned v28 additions). The identity hash for
+the latest implementation-only additions remains unregenerated until convergence. The new payload-free
 `source_deletion_fence` is consumed only by the dormant candidate Steps lane and selected-session
 reader; it has no production producer and is not evidence that permanent trip deletion, retention,
 import, or future writers are fenced. No v29 compatibility shell was introduced. Manual/session

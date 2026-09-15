@@ -14,6 +14,7 @@ import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor
+import com.adsamcik.tracker.shared.base.database.pruneImportedStepsSegmentsBefore
 import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
@@ -189,6 +190,7 @@ class DataRetentionWorker @AssistedInject constructor(
 				appDatabase.wifiObservationDao().deleteOlderThan(cutoffMillis)
 				appDatabase.cellSampleDao().deleteOlderThan(cutoffMillis)
 				appDatabase.sessionSegmentDao().deleteOlderThan(cutoffMillis)
+				appDatabase.pruneImportedStepsSegmentsBefore(cutoffMillis, updatedAtMs)
 				appDatabase.quarantinedSignalDao().deleteAcquiredBefore(cutoffMillis)
 				true
 			} finally {

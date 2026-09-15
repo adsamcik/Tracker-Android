@@ -3,10 +3,14 @@ package com.adsamcik.tracker.game.event
 import android.content.Context
 import com.adsamcik.tracker.game.progression.PlayerProgressionRepository
 import com.adsamcik.tracker.game.progression.SessionXpAwardResult
+import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
+import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
 import com.adsamcik.tracker.stats.api.event.DomainEvent
+import com.adsamcik.tracker.stats.api.metric.MetricKey
+import com.adsamcik.tracker.stats.api.repository.AchievementRepository
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.repository.UnconsumedEvent
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
@@ -20,6 +24,7 @@ import io.mockk.coVerify
 import io.mockk.confirmVerified
 import io.mockk.coVerifyOrder
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.DisplayName
@@ -32,13 +37,16 @@ class GameDomainEventConsumerTest {
 	private val achievementEvaluationScheduler: AchievementEvaluationScheduler = mockk(relaxed = true)
 	private val progressionRepository: PlayerProgressionRepository = mockk(relaxed = true)
 	private val trackingStartupGate = TestTrackingStartupGate()
+	private val achievementRepository: AchievementRepository = mockk(relaxed = true)
+	private val achievementProgressDao: AchievementProgressDao = mockk(relaxed = true)
 	private val context: Context = mockk(relaxed = true)
 	private val consumer = GameDomainEventConsumer(
 		domainEventRepository,
 		achievementEvaluationScheduler,
 		progressionRepository,
 		trackingStartupGate,
-		mockk(),
+		achievementRepository,
+		achievementProgressDao,
 		context,
 	)
 
@@ -69,12 +77,24 @@ class GameDomainEventConsumerTest {
 			tripCount = 1,
 		)
 
+	private fun qualifiedAchievementEvent(metric: MetricKey, timestampMs: Long): DomainEvent.AchievementUnlocked {
+		val definition = AchievementCatalog.byMetric(metric).first()
+		return DomainEvent.AchievementUnlocked(
+			timestampMs = EpochMs(timestampMs),
+			processorId = "qualified-steps-test",
+			achievementId = definition.id,
+			tier = definition.tier.name,
+			authorityRevision = 7L,
+			authorityDigest = "a".repeat(64),
+		)
+	}
+
 	@Nested
 	@DisplayName("processUnconsumed")
 	inner class ProcessUnconsumed {
 
 		@Test
-		fun `raw daily summary goal event is acknowledged without entering session XP`() = runTest {
+		fun `compatibility daily summary event is acknowledged without product side effects`() = runTest {
 			val event = UnconsumedEvent(dailySummaryUpdatedEvent(1_000L), 1L)
 			coEvery {
 				domainEventRepository.getUnconsumedBatchWithIds(
@@ -86,6 +106,7 @@ class GameDomainEventConsumerTest {
 			consumer.processUnconsumed()
 
 			coVerify(exactly = 0) { progressionRepository.awardSessionXp(any(), any()) }
+			verify(exactly = 0) { achievementEvaluationScheduler.scheduleEvaluation() }
 			coVerify(exactly = 1) {
 				domainEventRepository.markBatchConsumed(
 					GameDomainEventConsumer.CONSUMER_ID,
@@ -93,6 +114,48 @@ class GameDomainEventConsumerTest {
 					1L,
 				)
 			}
+		}
+
+		@Test
+		fun `consecutive achievement events read one authority snapshot under one gate lease`() = runTest {
+			val first = UnconsumedEvent(qualifiedAchievementEvent(MetricKey.STEPS_TOTAL, 1_000L), 1L)
+			val second = UnconsumedEvent(qualifiedAchievementEvent(MetricKey.BEST_DAILY_STEPS, 2_000L), 2L)
+			coEvery {
+				domainEventRepository.getUnconsumedBatchWithIds(
+					GameDomainEventConsumer.CONSUMER_ID,
+					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+				)
+			} returnsMany listOf(listOf(first, second), emptyList())
+			val authorityReadLeaseTokens = mutableListOf<Long>()
+			coEvery { achievementRepository.getAllSnapshots() } coAnswers {
+				authorityReadLeaseTokens += requireNotNull(trackingStartupGate.activeOperationToken)
+				emptyList()
+			}
+			coEvery { achievementProgressDao.getQualifiedStepsAchievementRows() } coAnswers {
+				authorityReadLeaseTokens += requireNotNull(trackingStartupGate.activeOperationToken)
+				emptyList()
+			}
+
+			consumer.processUnconsumed()
+
+			authorityReadLeaseTokens shouldBe listOf(2L, 2L)
+			coVerify(exactly = 1) { achievementRepository.getAllSnapshots() }
+			coVerify(exactly = 1) { achievementProgressDao.getQualifiedStepsAchievementRows() }
+			coVerify(exactly = 1) {
+				domainEventRepository.markBatchConsumed(
+					GameDomainEventConsumer.CONSUMER_ID,
+					EpochMs(1_000L),
+					1L,
+				)
+			}
+			coVerify(exactly = 1) {
+				domainEventRepository.markBatchConsumed(
+					GameDomainEventConsumer.CONSUMER_ID,
+					EpochMs(2_000L),
+					2L,
+				)
+			}
+			trackingStartupGate.operationGenerations shouldBe List(5) { 1L }
 		}
 
 		@Test
@@ -297,8 +360,11 @@ class GameDomainEventConsumerTest {
 	private class TestTrackingStartupGate : TrackingStartupGate {
 		private var ready = true
 		private var generation = 1L
+		private var operationSequence = 0L
 		var afterNextOperation: (suspend () -> Unit)? = null
 		val operationGenerations = mutableListOf<Long>()
+		var activeOperationToken: Long? = null
+			private set
 
 		override val isReady: Boolean
 			get() = ready
@@ -322,7 +388,13 @@ class GameDomainEventConsumerTest {
 		): T? {
 			operationGenerations += expectedGeneration
 			val result = if (isReadyGeneration(expectedGeneration)) {
-				operation()
+				operationSequence += 1L
+				activeOperationToken = operationSequence
+				try {
+					operation()
+				} finally {
+					activeOperationToken = null
+				}
 			} else {
 				null
 			}

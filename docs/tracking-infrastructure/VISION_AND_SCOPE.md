@@ -13,6 +13,9 @@ status report or a replacement for the detailed architecture.
 - Current progress and reproducible evidence are in [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md),
   [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md), and [`VERIFICATION_MATRIX.md`](VERIFICATION_MATRIX.md).
 
+The canonical remaining-work checklist is
+[IMPLEMENTATION_TODO.md](IMPLEMENTATION_TODO.md).
+
 ## The outcome
 
 Tracker should reliably turn the sources a user chooses into useful, understandable, local history.
@@ -297,7 +300,6 @@ query-to-user-visible result.
 The architecture can continue without guessing these answers, but they must be resolved before the
 affected feature ships:
 
-- whether Step corroboration remains an explicit automation control;
 - how Ambient Steps selects one capable continuity provider and what continuity it promises;
 - final retention duration for each source and purpose;
 - whether ambient Location offers a product beyond passive opportunistic points;

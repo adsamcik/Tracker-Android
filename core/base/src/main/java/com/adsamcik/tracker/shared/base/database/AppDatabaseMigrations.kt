@@ -1386,6 +1386,21 @@ val MIGRATION_27_28: Migration = object : Migration(
 		with(db) {
 			execSQL("ALTER TABLE session_segment ADD COLUMN logical_tracking_id TEXT")
 			execSQL("ALTER TABLE session_segment ADD COLUMN service_run_id TEXT")
+			execSQL("ALTER TABLE xp_ledger ADD COLUMN source_key TEXT")
+			execSQL("ALTER TABLE xp_ledger ADD COLUMN source_revision INTEGER")
+			execSQL("ALTER TABLE achievement_progress ADD COLUMN authority_kind TEXT")
+			execSQL("ALTER TABLE achievement_progress ADD COLUMN authority_revision INTEGER")
+			execSQL("ALTER TABLE achievement_progress ADD COLUMN authority_digest TEXT")
+			execSQL("ALTER TABLE achievement_progress ADD COLUMN authority_state TEXT")
+			execSQL("ALTER TABLE achievement_progress ADD COLUMN last_unlocked_at INTEGER")
+			execSQL(
+				"ALTER TABLE achievement_progress ADD COLUMN " +
+					"qualified_notification_claimed_tier_index INTEGER",
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS index_xp_ledger_source_source_key " +
+					"ON xp_ledger(source, source_key)",
+			)
 			execSQL(
 				"ALTER TABLE quarantined_signal ADD COLUMN " +
 					"acquired_at_ms INTEGER NOT NULL DEFAULT 0",
@@ -1434,6 +1449,11 @@ val MIGRATION_27_28: Migration = object : Migration(
 				"INSERT OR IGNORE INTO source_destination_owner " +
 					"(source_kind, destination, owner, owner_generation, updated_at_ms) " +
 					"VALUES (4, 'SESSION_PRESSURE', 'LEGACY_PRESSURE_SAMPLE', 1, 0)",
+			)
+			execSQL(
+				"INSERT OR IGNORE INTO source_destination_owner " +
+					"(source_kind, destination, owner, owner_generation, updated_at_ms) " +
+					"VALUES (3, 'AMBIENT_STEPS', 'AMBIENT_STEPS_FACTS', 1, 0)",
 			)
 			execSQL(
 				"ALTER TABLE tracker_run ADD COLUMN " +
@@ -1604,13 +1624,222 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS ambient_steps_fact_revision (
+					logical_fact_id TEXT NOT NULL,
+					semantic_revision INTEGER NOT NULL,
+					mutation_id TEXT NOT NULL,
+					writer_id TEXT NOT NULL,
+					writer_version INTEGER NOT NULL,
+					writer_owner_generation INTEGER NOT NULL,
+					operation TEXT NOT NULL,
+					origin_kind TEXT NOT NULL,
+					provider TEXT,
+					registration_generation INTEGER,
+					continuity_segment_generation INTEGER,
+					source_instance_id TEXT,
+					authorization_revision INTEGER,
+					authorization_fingerprint TEXT,
+					window_start_time_ms INTEGER,
+					window_end_time_ms INTEGER,
+					observed_at_ms INTEGER,
+					structural_epoch_day INTEGER,
+					stored_zone_id TEXT,
+					structural_day_start_time_ms INTEGER,
+					structural_day_end_time_ms INTEGER,
+					step_count INTEGER,
+					purpose TEXT NOT NULL,
+					source_policy_revision INTEGER,
+					ambient_consent_epoch INTEGER,
+					collected_data_epoch INTEGER NOT NULL,
+					scope_deletion_generation INTEGER NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					applied_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(writer_id, writer_version, logical_fact_id, semantic_revision)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_ambient_steps_fact_mutation " +
+					"ON ambient_steps_fact_revision(writer_id, writer_version, mutation_id)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_ambient_steps_fact_day_window " +
+					"ON ambient_steps_fact_revision(" +
+					"structural_epoch_day, stored_zone_id, window_start_time_ms)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_ambient_steps_fact_registration_window " +
+					"ON ambient_steps_fact_revision(" +
+					"provider, registration_generation, continuity_segment_generation, " +
+					"window_start_time_ms)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS ambient_steps_import_cursor (
+					registration_generation INTEGER NOT NULL,
+					provider TEXT NOT NULL,
+					source_instance_id TEXT NOT NULL,
+					registration_clock_domain_id TEXT NOT NULL,
+					registration_accepted_at_ms INTEGER NOT NULL,
+					registration_accepted_elapsed_realtime_nanos INTEGER NOT NULL,
+					authorization_revision INTEGER NOT NULL,
+					authorization_fingerprint TEXT NOT NULL,
+					authorization_effective_boot_id TEXT NOT NULL,
+					authorization_effective_elapsed_realtime_nanos INTEGER NOT NULL,
+					authorization_effective_wall_time_ms INTEGER NOT NULL,
+					source_policy_revision INTEGER NOT NULL,
+					ambient_consent_epoch INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					eligible_from_time_ms INTEGER NOT NULL,
+					continuity_segment_generation INTEGER NOT NULL,
+					segment_start_time_ms INTEGER NOT NULL,
+					imported_through_time_ms INTEGER NOT NULL,
+					last_observed_at_ms INTEGER NOT NULL,
+					last_observed_boot_id TEXT NOT NULL,
+					last_observed_zone_id TEXT NOT NULL,
+					last_gap_sequence INTEGER NOT NULL,
+					authority_transition_sequence INTEGER NOT NULL,
+					cursor_revision INTEGER NOT NULL,
+					status TEXT NOT NULL,
+					updated_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(registration_generation)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_ambient_steps_import_cursor_progress " +
+					"ON ambient_steps_import_cursor(provider, status, imported_through_time_ms)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_ambient_steps_import_cursor_epoch " +
+					"ON ambient_steps_import_cursor(collected_data_epoch, status)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS ambient_steps_import_authority_transition (
+					transition_id TEXT NOT NULL,
+					registration_generation INTEGER NOT NULL,
+					transition_sequence INTEGER NOT NULL,
+					provider TEXT NOT NULL,
+					source_instance_id TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					from_continuity_segment_generation INTEGER NOT NULL,
+					to_continuity_segment_generation INTEGER NOT NULL,
+					from_authorization_revision INTEGER NOT NULL,
+					from_authorization_fingerprint TEXT NOT NULL,
+					from_source_policy_revision INTEGER NOT NULL,
+					from_ambient_consent_epoch INTEGER NOT NULL,
+					to_authorization_revision INTEGER NOT NULL,
+					to_authorization_fingerprint TEXT NOT NULL,
+					to_authorization_effective_boot_id TEXT NOT NULL,
+					to_authorization_effective_elapsed_realtime_nanos INTEGER NOT NULL,
+					to_authorization_effective_wall_time_ms INTEGER NOT NULL,
+					to_source_policy_revision INTEGER NOT NULL,
+					to_ambient_consent_epoch INTEGER NOT NULL,
+					registration_accepted_at_ms INTEGER NOT NULL,
+					effective_boundary_time_ms INTEGER NOT NULL,
+					recorded_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(registration_generation, transition_sequence)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_ambient_steps_import_authority_transition_id " +
+					"ON ambient_steps_import_authority_transition(transition_id)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_ambient_steps_import_authority_transition_boundary " +
+					"ON ambient_steps_import_authority_transition(effective_boundary_time_ms)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS ambient_steps_import_gap (
+					gap_id TEXT NOT NULL,
+					registration_generation INTEGER NOT NULL,
+					gap_sequence INTEGER NOT NULL,
+					provider TEXT NOT NULL,
+					source_instance_id TEXT NOT NULL,
+					reason TEXT NOT NULL,
+					gap_start_time_ms INTEGER NOT NULL,
+					gap_end_time_ms INTEGER NOT NULL,
+					predecessor_registration_generation INTEGER,
+					predecessor_provider TEXT,
+					previous_clock_domain_id TEXT NOT NULL,
+					next_clock_domain_id TEXT NOT NULL,
+					previous_zone_id TEXT NOT NULL,
+					next_zone_id TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					recorded_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(registration_generation, gap_sequence)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_ambient_steps_import_gap_id " +
+					"ON ambient_steps_import_gap(gap_id)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_ambient_steps_import_gap_window " +
+					"ON ambient_steps_import_gap(gap_start_time_ms, gap_end_time_ms)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS steps_goal_effect (
+					effect_identity TEXT NOT NULL,
+					period_kind TEXT NOT NULL,
+					period_start_epoch_day INTEGER NOT NULL,
+					period_end_epoch_day INTEGER NOT NULL,
+					qualified_through_epoch_day INTEGER NOT NULL,
+					calendar_authority TEXT NOT NULL,
+					target_steps INTEGER NOT NULL,
+					weekly_daily_limit_bits INTEGER,
+					decision_state TEXT NOT NULL,
+					unavailable_reason TEXT,
+					qualified_steps INTEGER,
+					source_authority_digest TEXT NOT NULL,
+					source_evidence_revision INTEGER NOT NULL,
+					effect_revision INTEGER NOT NULL,
+					completion_points_micros INTEGER NOT NULL,
+					completion_xp INTEGER NOT NULL,
+					desired_points_micros INTEGER NOT NULL,
+					desired_xp INTEGER NOT NULL,
+					first_completed_at_ms INTEGER,
+					points_applied_revision INTEGER NOT NULL,
+					xp_applied_revision INTEGER NOT NULL,
+					notification_claimed_revision INTEGER,
+					notification_claimed_at_ms INTEGER,
+					updated_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(effect_identity)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_steps_goal_effect_points_pending " +
+					"ON steps_goal_effect(points_applied_revision, effect_revision)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_steps_goal_effect_xp_pending " +
+					"ON steps_goal_effect(xp_applied_revision, effect_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS steps_goal_repair_day (
+					epoch_day INTEGER NOT NULL,
+					source_evidence_revision INTEGER NOT NULL,
+					PRIMARY KEY(epoch_day)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS imported_steps_entry (
 					identity TEXT NOT NULL PRIMARY KEY,
 					content_checksum TEXT NOT NULL,
 					session_mode TEXT NOT NULL,
 					start_time_ms INTEGER NOT NULL,
 					end_time_ms INTEGER NOT NULL,
-					collected_data_epoch INTEGER NOT NULL
+					collected_data_epoch INTEGER NOT NULL,
+					writer_owner_generation INTEGER
 				)
 				""".trimIndent(),
 			)
@@ -1628,11 +1857,17 @@ val MIGRATION_27_28: Migration = object : Migration(
 					app_drain_complete INTEGER NOT NULL,
 					stop_complete INTEGER NOT NULL,
 					has_unresolved_provider_range INTEGER NOT NULL,
+					session_segment_id INTEGER,
+					retained_checksum TEXT,
 					FOREIGN KEY(entry_identity) REFERENCES imported_steps_entry(identity) ON DELETE CASCADE
 				)
 				""".trimIndent(),
 			)
 			execSQL("CREATE INDEX IF NOT EXISTS idx_imported_steps_run_entry ON imported_steps_run(entry_identity)")
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_steps_run_segment " +
+					"ON imported_steps_run(session_segment_id)",
+			)
 			execSQL(
 				"CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_steps_run_scope " +
 					"ON imported_steps_run(deletion_scope_digest)",

@@ -11,7 +11,6 @@ import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.stats.api.repository.SessionStatsSnapshot
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
-import com.adsamcik.tracker.stats.api.value.StepCount
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -33,7 +32,6 @@ class SessionStatsUiFormatterTest {
 		totalDistance = DistanceM(1234.5f),
 		onFootDistance = DistanceM(456.7f),
 		inVehicleDistance = DistanceM(890.1f),
-		steps = StepCount(678),
 		tripCount = 9L,
 		locationCount = 77L,
 		wifiCount = 4L,

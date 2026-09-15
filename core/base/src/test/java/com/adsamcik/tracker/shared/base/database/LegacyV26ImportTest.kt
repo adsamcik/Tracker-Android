@@ -67,7 +67,13 @@ class LegacyV26ImportTest {
 		context.getDatabasePath(ACTIVE_DATABASE_NAME).exists() shouldBe true
 		context.getDatabasePath(LEGACY_DATABASE_NAME).exists() shouldBe false
 		LegacyDatabaseRepository(context).currentState().database shouldBe null
-		count(raw, "source_destination_owner") shouldBe 2L
+		count(raw, "source_destination_owner") shouldBe 3L
+		stringValue(
+			raw,
+			"SELECT owner FROM source_destination_owner WHERE source_kind = " +
+				"${SourceDestinationOwnerEntity.SOURCE_STEPS} AND destination = " +
+				"'${SourceDestinationOwnerEntity.DESTINATION_AMBIENT_STEPS}'",
+		) shouldBe SourceDestinationOwnerEntity.OWNER_AMBIENT_STEPS_FACTS
 		stringValue(
 			raw,
 			"SELECT owner FROM source_destination_owner WHERE source_kind = " +
@@ -78,6 +84,10 @@ class LegacyV26ImportTest {
 			"SELECT owner_generation FROM source_destination_owner WHERE source_kind = " +
 				"${SourceDestinationOwnerEntity.SOURCE_PRESSURE}",
 		) shouldBe SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+		count(raw, "ambient_steps_fact_revision") shouldBe 0L
+		count(raw, "ambient_steps_import_cursor") shouldBe 0L
+		count(raw, "ambient_steps_import_gap") shouldBe 0L
+		count(raw, "ambient_steps_import_authority_transition") shouldBe 0L
 		count(raw, "pressure_fact_revision") shouldBe 0L
 	}
 

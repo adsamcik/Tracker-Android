@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.di
 
 import com.adsamcik.tracker.tracker.insights.DefaultSessionInsightsGenerator
 import com.adsamcik.tracker.tracker.insights.SessionInsightsGenerator
+import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
 import com.adsamcik.tracker.tracker.api.DefaultManualTrackingCaptureReachabilityReader
 import com.adsamcik.tracker.tracker.api.DefaultManualTrackingStartReadinessReader
 import com.adsamcik.tracker.tracker.api.ManualTrackingCaptureReachabilityReader
@@ -28,6 +29,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatal
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.tracker.source.runtime.AndroidLocationDeviceStateProvider
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProviderLifecycleOwner
 import com.adsamcik.tracker.tracker.source.runtime.LocationDeviceStateProvider
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import dagger.Binds
@@ -108,6 +110,11 @@ abstract class TrackerEngineBindings {
 	abstract fun bindLocationDeviceStateProvider(
 		impl: AndroidLocationDeviceStateProvider,
 	): LocationDeviceStateProvider
+
+	@Binds
+	abstract fun bindAmbientStepsProviderLifecycle(
+		impl: AmbientStepsProviderLifecycleOwner,
+	): AmbientStepsProviderLifecycle
 
 	@Multibinds
 	abstract fun bindSourceProjections(): Set<Projection>

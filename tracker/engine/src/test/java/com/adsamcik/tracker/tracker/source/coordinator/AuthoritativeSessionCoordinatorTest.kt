@@ -19,7 +19,10 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.time.FixedClock
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
@@ -29,8 +32,10 @@ import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.resilience.PreviousExitSourceSessionFinalizer
 import com.adsamcik.tracker.tracker.source.ingress.AdmissionResult
+import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
+import com.adsamcik.tracker.tracker.source.ingress.RoomDurableSourceIngress
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
@@ -45,9 +50,12 @@ import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
+import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.projection.ProjectionDispatcher
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomaticStartActionRepository
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomaticStartServiceValidation
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainSignal
@@ -2310,8 +2318,9 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `automatic generation 2 Steps registers only Steps capture and Activity control`() = runTest {
+	fun `automatic generation 2 Steps persists exact immutable capture and control attribution`() = runTest {
 		val binding = installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2)
+		val ingress = useDurableStepsIngress()
 		val trigger = automaticTrigger()
 		seedAutomaticStartAction(trigger)
 		val request = startRequest().copy(
@@ -2333,13 +2342,54 @@ class AuthoritativeSessionCoordinatorTest {
 			),
 		).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
 
-		val manifestSources = database.sourceSessionDao()
+		val sessionDao = database.sourceSessionDao()
+		val manifest = requireNotNull(
+			sessionDao.manifest(prepared.logicalTrackingId, prepared.manifestRevision),
+		)
+		val manifestSources = sessionDao
 			.manifestSources(prepared.logicalTrackingId, prepared.manifestRevision)
+		val stepsPolicy = requireNotNull(
+			database.sourcePolicyDao().policyAtRevision(
+				request.plan.sourcePolicyRevision,
+				SourceKind.STEPS.stableCode,
+			),
+		)
+		val activityPolicy = requireNotNull(
+			database.sourcePolicyDao().policyAtRevision(
+				request.plan.sourcePolicyRevision,
+				SourceKind.ACTIVITY.stableCode,
+			),
+		)
+
+		manifest.logicalTrackingId shouldBe prepared.logicalTrackingId
+		manifest.manifestRevision shouldBe prepared.manifestRevision
+		manifest.serviceRunId shouldBe prepared.serviceRunId
+		manifest.sessionMode shouldBe SessionMode.AUTOMATIC.name
+		manifest.sourcePolicyRevision shouldBe request.plan.sourcePolicyRevision
+		manifest.acquisitionPlanRevision shouldBe request.plan.revision
+		manifest.rolloutRevision shouldBe rolloutSnapshot.revision
+		manifest.startOrigin shouldBe SessionStartOrigin.AUTOMATIC_BACKGROUND_START.name
+		manifest.effectiveBootId shouldBe request.clockDomainId
+		manifest.effectiveElapsedRealtimeNanos shouldBe request.elapsedRealtimeNanos
+		manifest.effectiveWallTimeMs shouldBe request.wallTimeMs
+		manifest.zoneId shouldBe request.zoneId
+		manifest.automationEpoch shouldBe trigger.automationEpoch
+		manifest.changeReason shouldBe "SESSION_START"
+		manifestSources.size shouldBe 2
+		SessionManifestIntegrity.verify(manifest, manifestSources) shouldBe true
 		manifestSources.filter { source ->
 			source.purpose == SessionManifestPurpose.SESSION_CAPTURE.name
 		}.let { capture ->
 			capture.map(SessionManifestSourceEntity::sourceKind).toSet() shouldBe
 				setOf(SourceKind.STEPS.stableCode)
+			capture.single().consentEpoch shouldBe stepsPolicy.captureConsentEpoch
+			capture.single().persistenceEligible shouldBe true
+			capture.single().qosCode shouldBe stepsPolicy.qosCode
+			capture.single().outputDestination shouldBe
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS
+			capture.single().writerOwner shouldBe SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
+			capture.single().writerOwnerGeneration shouldBe
+				SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
 			capture.single().writerProjectionId shouldBe binding.projectionId
 			capture.single().writerProjectionVersion shouldBe binding.projectionVersion
 			capture.single().writerBindingGeneration shouldBe binding.bindingGeneration
@@ -2349,8 +2399,15 @@ class AuthoritativeSessionCoordinatorTest {
 		}.let { control ->
 			control.map(SessionManifestSourceEntity::sourceKind).toSet() shouldBe
 				setOf(SourceKind.ACTIVITY.stableCode)
+			control.single().consentEpoch shouldBe activityPolicy.controlConsentEpoch
 			control.single().persistenceEligible shouldBe false
+			control.single().qosCode shouldBe activityPolicy.qosCode
+			control.single().outputDestination shouldBe null
 			control.single().writerOwner shouldBe null
+			control.single().writerOwnerGeneration shouldBe null
+			control.single().writerProjectionId shouldBe null
+			control.single().writerProjectionVersion shouldBe null
+			control.single().writerBindingGeneration shouldBe null
 		}
 
 		val demands = database.sourceBrokerDao().demandHistory("session:${prepared.logicalTrackingId}")
@@ -2369,6 +2426,68 @@ class AuthoritativeSessionCoordinatorTest {
 			SourceKind.WIFI,
 			SourceKind.CELL,
 		).all { source -> demands.none { demand -> demand.sourceKind == source.stableCode } } shouldBe true
+		database.sourceSessionDao().lifecycleActions(prepared.logicalTrackingId)
+			.mapNotNull { action -> action.sourceKind }
+			.toSet() shouldBe setOf(SourceKind.STEPS.stableCode)
+
+		subject.markAndroidStartEnqueued(prepared.token, 1L, 1_050L) shouldBe true
+		val claimed = subject.claimAndroidStart(
+			prepared.token,
+			1L,
+			"boot-1",
+			1_100_000L,
+			1_100L,
+		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>().start
+		claimed.acceptedSources shouldBe setOf(SourceKind.STEPS)
+		claimed.automaticTrigger shouldBe trigger
+		subject.markPreparedForegroundAccepted(
+			prepared.token,
+			1L,
+			"boot-1",
+			1_200_000L,
+			1_200L,
+		) shouldBe true
+
+		val activeDemands = database.sourceBrokerDao()
+			.currentDemands("session:${prepared.logicalTrackingId}")
+		activeDemands.map { demand -> demand.sourceKind to demand.purpose }.toSet() shouldBe setOf(
+			SourceKind.STEPS.stableCode to SourceBrokerPurpose.SESSION_CAPTURE,
+			SourceKind.ACTIVITY.stableCode to SourceBrokerPurpose.CONTROL_CONTINUATION,
+		)
+		activeDemands.all { demand -> demand.status == SourceDemandEntity.STATUS_ACTIVE } shouldBe true
+		activeDemands.single { demand -> demand.sourceKind == SourceKind.ACTIVITY.stableCode }
+			.persistenceEligible shouldBe false
+
+		val started = subject.applyPreparedAndroidStart(
+			prepared.token,
+			1L,
+			"boot-1",
+			1_300_000L,
+			1_300L,
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		started.applied.map(AppliedSourcePlan::source).toSet() shouldBe setOf(SourceKind.STEPS)
+		runtime.startCount shouldBe 1
+		locationRuntime.isActive shouldBe false
+		val sink = requireNotNull(runtime.sinkAtStart)
+		sink.admit(automaticStepsCandidate(sequence = 1L, delta = 0L)) shouldBe
+			SourceAdmissionHandoff.Durable(1L)
+		sink.admit(automaticStepsCandidate(sequence = 2L, delta = 5L)) shouldBe
+			SourceAdmissionHandoff.Durable(2L)
+
+		StepsSessionFactProjectionLane(database, ingress).drainThrough(2L) shouldBe
+			StepsSessionFactDrainResult.Complete(
+				lastCompletedOrdinal = 2L,
+				factsInserted = 2,
+				eventsValidated = 2,
+			)
+		val positive = requireNotNull(database.stepFactRevisionDao().writerAdmission(
+			StepsSessionFactProjectionLane.WRITER_ID,
+			StepsSessionFactProjectionLane.WRITER_VERSION,
+			2L,
+		))
+		positive.logicalTrackingId shouldBe prepared.logicalTrackingId
+		positive.serviceRunId shouldBe prepared.serviceRunId
+		positive.effectiveStepCount shouldBe 5L
 	}
 
 	@Test
@@ -2529,6 +2648,91 @@ class AuthoritativeSessionCoordinatorTest {
 		payloadVersion = 1,
 		payload = StepCounterWindowPayload("boot-1", 100, 101, 1, 1, 2, 1, 1, false),
 	)
+
+	private fun useDurableStepsIngress(): RoomDurableSourceIngress {
+		val lifecycleStore = mockk<CollectedDataLifecycleStore>()
+		coEvery { lifecycleStore.snapshot() } returns
+			CollectedDataLifecycleSnapshot(epoch = 0L, retainedFromMs = null)
+		val ingress = RoomDurableSourceIngress(
+			database = database,
+			lifecycleStore = lifecycleStore,
+			payloadCodec = DefaultSourcePayloadCodec(),
+			executableLaneCatalog = ExecutableSourceLaneCatalog(),
+			trackingStartupGateProvider = Provider<TrackingStartupGate> { ReadyTrackingStartupGate },
+		)
+		subject = AuthoritativeSessionCoordinator(
+			database,
+			RoomSourcePlanStore(database, SourcePlanCodec()),
+			SourceRuntimeRegistry(setOf(runtime, locationRuntime)),
+			DurableSourceEventSinkFactory(ingress),
+			TrackingCoordinator(database, ingress, ProjectionDispatcher(database, emptySet())),
+			ActivityAutomaticStartActionRepository(database, ReadyTrackingStartupGate),
+			activityAutomationDrainSignal,
+			activityAutomationEpochAuthority,
+			BootClockDomainProvider { currentBootId },
+			leaseClock,
+			rolloutStore = fixedEventRolloutStore(),
+		)
+		return ingress
+	}
+
+	private suspend fun automaticStepsCandidate(
+		sequence: Long,
+		delta: Long,
+	): SourceEvidenceCandidate<StepCounterWindowPayload> {
+		require(sequence in 1L..2L)
+		require(delta == 0L || sequence == 2L)
+		val registration = requireNotNull(
+			database.sourceBrokerDao().currentPhysicalRegistration(SourceKind.STEPS.stableCode),
+		)
+		val authorization = database.sourceBrokerDao().latestAuthorization(
+			SourceKind.STEPS.stableCode,
+			registration.registrationGeneration,
+		).single { row -> row.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+		val baselineAt = maxOf(
+			authorization.effectiveElapsedRealtimeNanos,
+			requireNotNull(registration.acceptedElapsedRealtimeNanos),
+		) + 1_000L
+		val observedAt = baselineAt + (sequence - 1L) * 1_000L
+		val firstCount = 100L
+		val lastCount = firstCount + delta
+		val boundary = if (sequence == 1L) StepBoundaryKind.BASELINE else StepBoundaryKind.COVERED
+		return SourceEvidenceCandidate(
+			providerDedupKey = "automatic-steps-$sequence",
+			logicalTrackingId = null,
+			serviceRunId = null,
+			source = SourceKind.STEPS,
+			sourceInstanceId = SourceInstanceId(registration.sourceInstanceId),
+			registrationGeneration = registration.registrationGeneration,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			authorizationRevision = authorization.authorizationRevision,
+			registrationPurposeEligibilityMask = authorization.purposeEligibilityMask,
+			registrationEligibilityFingerprint = authorization.authorizationFingerprint,
+			sourceSequence = sequence,
+			configRevision = 1L,
+			planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
+			clockDomainId = registration.clockDomainId,
+			observedElapsedRealtimeNanos = observedAt,
+			receivedElapsedRealtimeNanos = observedAt + 1L,
+			wallTimeMs = 1_300L + sequence,
+			wallTimeUncertaintyMs = 1L,
+			capturedCollectedDataEpoch = registration.collectedDataEpoch,
+			acquiredAtMs = 1_300L + sequence,
+			quality = SourceQuality(),
+			payloadVersion = 3,
+			payload = StepCounterWindowPayload(
+				bootClockDomainId = registration.clockDomainId,
+				firstCumulativeCount = firstCount,
+				lastCumulativeCount = lastCount,
+				deltaCount = delta,
+				windowStartElapsedRealtimeNanos = baselineAt,
+				windowEndElapsedRealtimeNanos = observedAt,
+				firstProviderSequence = 1L,
+				lastProviderSequence = sequence,
+				boundaryKind = boundary,
+			),
+		)
+	}
 
 	private suspend fun prepareAndroidStart(
 		tokenValue: String,

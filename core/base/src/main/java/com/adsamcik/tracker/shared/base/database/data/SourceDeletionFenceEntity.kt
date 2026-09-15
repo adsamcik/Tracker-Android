@@ -95,6 +95,20 @@ data class SourceDeletionFenceEntity(
 				logicalTrackingId = logicalTrackingId,
 				serviceRunId = serviceRunId,
 			)
+			return createForOriginalRunDigest(
+				sourceKind, purpose, scopeIdentityDigest, fenceGeneration, collectedDataEpoch, deletedAtMs,
+			)
+		}
+
+		/** Retains the original portable scope verbatim; opaque foreign ids cannot rederive it. */
+		fun createForOriginalRunDigest(
+			sourceKind: Int,
+			purpose: String,
+			scopeIdentityDigest: String,
+			fenceGeneration: Long,
+			collectedDataEpoch: Long,
+			deletedAtMs: Long,
+		): SourceDeletionFenceEntity {
 			return SourceDeletionFenceEntity(
 				sourceKind = sourceKind,
 				purpose = purpose,

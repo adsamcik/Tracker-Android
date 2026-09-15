@@ -20,6 +20,13 @@ internal enum class SessionXpAwardResult {
 	RETRY_NEEDED,
 }
 
+internal enum class StepsGoalXpApplyResult {
+	APPLIED,
+	SETTLED_FROM_EXISTING_RECEIPT,
+	ALREADY_SETTLED,
+	SUPERSEDED,
+}
+
 /**
  * Owns the player XP/level economy that gates mini-game unlocks.
  *
@@ -139,6 +146,65 @@ class PlayerProgressionRepository @Inject constructor(
 		}
 		if (inserted) metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
 		return inserted
+	}
+
+	/**
+	 * Projects one exact Steps goal effect while the caller holds an accepted startup generation.
+	 *
+	 * The revisioned XP receipt, cached profile repair, and exact effect acknowledgement share one
+	 * Room transaction. A correction writes a zero-valued receipt instead of deleting identity, so a
+	 * stale projector cannot restore XP. Zero receipts are excluded from reward-history queries.
+	 */
+	internal suspend fun applyStepsGoalXpInsideAcceptedGeneration(
+		effectIdentity: String,
+		effectRevision: Long,
+	): StepsGoalXpApplyResult {
+		require(effectIdentity.isNotBlank())
+		require(effectRevision > 0L)
+		var ledgerChanged = false
+		val result = withContext(dispatchers.io) {
+			database.withTransaction {
+				val effect = database.stepsGoalEffectDao().get(effectIdentity)
+					?: return@withTransaction StepsGoalXpApplyResult.SUPERSEDED
+				if (effect.effectRevision != effectRevision) {
+					return@withTransaction StepsGoalXpApplyResult.SUPERSEDED
+				}
+				if (effect.xpAppliedRevision >= effectRevision) {
+					return@withTransaction StepsGoalXpApplyResult.ALREADY_SETTLED
+				}
+
+				val earnedAt = effect.firstCompletedAtMs ?: effect.updatedAtMs
+				val currentReceipt = database.xpLedgerDao().getRevisionedEffect(
+					source = XpSource.GOAL.name,
+					sourceKey = effectIdentity,
+				)
+				val receiptAlreadyExact = currentReceipt != null &&
+					currentReceipt.sourceRevision == effectRevision &&
+					currentReceipt.amount == effect.desiredXp &&
+					currentReceipt.earnedAt == earnedAt
+				if (!receiptAlreadyExact) {
+					val accepted = database.xpLedgerDao().applyStepsGoalEffect(
+						effectKey = effectIdentity,
+						effectRevision = effectRevision,
+						amount = effect.desiredXp,
+						earnedAt = earnedAt,
+					)
+					if (!accepted) return@withTransaction StepsGoalXpApplyResult.SUPERSEDED
+					recomputePlayerProfile()
+					ledgerChanged = true
+				}
+				check(
+					database.stepsGoalEffectDao().markXpApplied(effectIdentity, effectRevision) == 1,
+				) { "Current Steps goal XP effect could not be acknowledged" }
+				if (receiptAlreadyExact) {
+					StepsGoalXpApplyResult.SETTLED_FROM_EXISTING_RECEIPT
+				} else {
+					StepsGoalXpApplyResult.APPLIED
+				}
+			}
+		}
+		if (ledgerChanged) metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
+		return result
 	}
 
 	/**

@@ -27,6 +27,8 @@ object TrackerTraceboxTemplates {
 		LogTemplate.of("Activity source projection recovery was deferred")
 	val ACTIVITY_SOURCE_RECOVERY_FAILED =
 		LogTemplate.of("Activity source projection recovery failed")
+	val AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED =
+		LogTemplate.of("Ambient Steps provider reconciliation failed")
 	val APPLICATION_INITIALIZATION_FAILED = LogTemplate.of("Application initialization failed")
 	val APPLICATION_PROCESS_STARTED = LogTemplate.of("Application process started")
 	val APPLICATION_STARTUP_MEASUREMENT = LogTemplate.of(
@@ -61,8 +63,8 @@ object TrackerTraceboxTemplates {
 	)
 	val MAPLIBRE_SDK_INITIALIZATION_FAILED = LogTemplate.of("MapLibre SDK initialization failed")
 	val NAVIGATION_DESTINATION_REJECTED = LogTemplate.of("Navigation destination was rejected")
-	val OPTIONAL_STEP_CONTROL_RECONCILIATION_FAILED =
-		LogTemplate.of("Optional Steps automatic-control reconciliation failed")
+	val LEGACY_STEP_CONTROL_RETIREMENT_FAILED =
+		LogTemplate.of("Legacy Steps automatic-control retirement failed")
 	val PERSISTENCE_COMMIT_INCONSISTENT = LogTemplate.of("Persistence commit became inconsistent")
 	val PROCESS_TRACKING_CYCLE = LogTemplate.of("Process tracking cycle")
 	val RAW_LOCATION_REPAIR_COMPLETED =

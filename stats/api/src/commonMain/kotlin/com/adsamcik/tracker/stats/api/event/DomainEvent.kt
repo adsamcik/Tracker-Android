@@ -76,7 +76,16 @@ sealed interface DomainEvent {
 		override val processorId: String,
 		val achievementId: String,
 		val tier: String,
-	) : DomainEvent
+		/** Present only when delivery must match an exact correction-sensitive authority. */
+		val authorityRevision: Long? = null,
+		val authorityDigest: String? = null,
+	) : DomainEvent {
+		init {
+			require((authorityRevision == null) == (authorityDigest == null))
+			authorityRevision?.let { require(it >= 0L) }
+			authorityDigest?.let { require(AUTHORITY_DIGEST.matches(it)) }
+		}
+	}
 
 	data class AchievementProgress(
 		override val timestampMs: EpochMs,
@@ -98,4 +107,8 @@ sealed interface DomainEvent {
 		val totalDuration: DurationMs,
 		val tripCount: Int,
 	) : DomainEvent
+
+	companion object {
+		private val AUTHORITY_DIGEST = Regex("[0-9a-f]{64}")
+	}
 }

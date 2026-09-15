@@ -32,5 +32,10 @@ class LegacyImportRoomCallback(
 				"(source_kind, destination, owner, owner_generation, updated_at_ms) " +
 				"VALUES (4, 'SESSION_PRESSURE', 'LEGACY_PRESSURE_SAMPLE', 1, 0)",
 		)
+		db.execSQL(
+			"INSERT OR IGNORE INTO source_destination_owner " +
+				"(source_kind, destination, owner, owner_generation, updated_at_ms) " +
+				"VALUES (3, 'AMBIENT_STEPS', 'AMBIENT_STEPS_FACTS', 1, 0)",
+		)
 	}
 }

@@ -2,6 +2,7 @@ package com.adsamcik.tracker.impexp.format
 
 import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.impexp.importer.file.FileImport
+import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldHaveAtLeastSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -37,7 +38,8 @@ class FormatRegistryTest {
 
 		@Test
 		fun `import extensions include gpx kml json db`() {
-			FormatRegistry.allImportExtensions() shouldContainAll setOf("gpx", "kml", "json", "db")
+			FormatRegistry.allImportExtensions() shouldContainAll
+				setOf("gpx", "kml", "json", "db", "trackersteps")
 		}
 
 		@Test
@@ -74,6 +76,12 @@ class FormatRegistryTest {
 		}
 
 		@Test
+		fun `portable Steps resolves one exporter and importer`() {
+			FormatRegistry.exporterFor("portable-steps-v1").shouldNotBeNull()
+			FormatRegistry.importerForExtension("trackersteps").shouldNotBeNull()
+		}
+
+		@Test
 		fun `exporterFor unknown returns null`() {
 			FormatRegistry.exporterFor("csv").shouldBeNull()
 		}
@@ -101,6 +109,12 @@ class FormatRegistryTest {
 		@Test
 		fun `importerForExtension db returns non-null`() {
 			FormatRegistry.importerForExtension("db").shouldNotBeNull()
+		}
+
+		@Test
+		fun `portable Steps importer owns its transactions`() {
+			FormatRegistry.importerForExtension("trackersteps")?.transactionMode shouldBe
+				ImportTransactionMode.IMPORTER_MANAGED
 		}
 
 		@Test
@@ -141,6 +155,15 @@ class FormatRegistryTest {
 		fun `gpx descriptor supports date range`() {
 			val gpx = FormatRegistry.allEntries().first { it.descriptor.id == "gpx" }
 			gpx.descriptor.supportsDateRange shouldBe true
+		}
+
+		@Test
+		fun `portable Steps descriptor is bidirectional range-aware and versioned`() {
+			val steps = FormatRegistry.allEntries().first { it.descriptor.id == "portable-steps-v1" }
+			steps.descriptor.supportsImport shouldBe true
+			steps.descriptor.supportsExport shouldBe true
+			steps.descriptor.supportsDateRange shouldBe true
+			steps.descriptor.mimeType shouldBe "application/vnd.adsamcik.tracker.steps+json"
 		}
 	}
 

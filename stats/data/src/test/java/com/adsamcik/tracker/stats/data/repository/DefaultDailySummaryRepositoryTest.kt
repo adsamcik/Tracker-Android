@@ -60,6 +60,24 @@ class DefaultDailySummaryRepositoryTest {
 	}
 
 	@Test
+	fun `legacy Steps changes do not become independently exposed day metrics`() = runTest {
+		val entity = DailySummaryEntity(
+			dateEpochDay = 1L,
+			totalDistanceM = 50f,
+			totalSteps = 0,
+			totalDurationMs = 100L,
+			tripCount = 1,
+			activeTrackingMs = 10L,
+			lastUpdatedMs = 1L,
+			createdAt = 1L,
+		)
+		coEvery { dao.getBetween(1L, 1L) } returns listOf(entity)
+		val withoutRawSteps = resultValue(repository.getBetween(1L, 1L))
+		coEvery { dao.getBetween(1L, 1L) } returns listOf(entity.copy(totalSteps = Int.MAX_VALUE))
+		resultValue(repository.getBetween(1L, 1L)) shouldBe withoutRawSteps
+	}
+
+	@Test
 	fun `getBetween wraps exceptions as database error`() = runTest {
 		val failure = RuntimeException("db read failed")
 		coEvery { dao.getBetween(4L, 9L) } throws failure

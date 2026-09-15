@@ -1,8 +1,677 @@
 # Tracking Infrastructure Verification Matrix
 
-Last updated: 2026-09-05
+Last updated: 2026-09-14
 
 Status meanings: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `IN_REVIEW`, `DONE`. `DONE` requires production repository evidence, not provider registration alone.
+
+## TI-B218 — Deferred-validation implementation phase
+
+Effective 2026-09-10, no new execution-based evidence will be produced until all planned source,
+product, and action logic plus focused unit/contract tests are present on source-owned branches.
+This includes no Gradle invocation, compile/build, test, lint, Detekt, Room schema drift,
+emulator/device, UI evaluator, battery, CI, or release command. Existing evidence below remains
+valid only for its exact historical commit inputs.
+
+This is also the durable rule after any chat compaction or machine handoff. Test source must still
+be authored with each production slice, but it must not be executed or used for result-driven
+iteration yet. `git diff --check` is likewise deferred. Static source review, exact-path staging,
+and coherent local `IMPLEMENTED_UNVALIDATED` commits are the only acceptance tools in this phase.
+Validation starts only after the complete assembly input is frozen, and failures are then repaired
+in one coordinated batch.
+
+The last pre-directive engine attempt from `ti-steps-import-product` ended with two unresolved
+results: `RoomStepsSelectedSessionDeletionServiceTest` failed its wall-uncertain materializer
+assertion, and `ImportedStepsNumericRoomTest` failed test-class initialization. The client then
+disconnected and cancelled the build. No success, test count, or accepted behavior is inferred.
+The eight engine paths remain an `IMPLEMENTED_UNVALIDATED` draft and these failures are intentionally
+deferred until the final convergence-validation phase.
+
+During implementation, this matrix records intended assertions and validation debt rather than
+passes. Final validation will begin only on a frozen dedicated convergence branch and must still
+include focused unit/Room contracts, `ciUnitTest`, Detekt/lint/schema drift, full `ciCheck`, one
+representative device per applicable source gate, and the exact physical Steps-only scenario.
+
+## TI-B219 — Imported Steps numeric and day composition, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at canonical f93b373ef and continuation cherry 293ff43e5.
+Nine tracker-engine paths implement bounded authenticated imported fact consumption, exact
+local/imported ownership partitioning, source-fact discovery outside the presentation envelope,
+stored-zone and completeness-sensitive numeric composition, Long product counts, no imported
+tracked-duration fabrication, dependency observation, and compatibility-safe materialization.
+
+Authored assertions cover positive and covered-zero reads, baseline and gap states, fact-wall
+discovery, cross-midnight and zone uncertainty, mixed local/imported composition, retention,
+deletion fences, manifest-only invalidation, physical binding corruption, batching, compatibility
+preservation, Long overflow, and refusal to fabricate a missing compatibility row.
+
+No command was run. The later focused command must select ImportedStepsNumericRoomTest,
+StepsDailySummaryRepairComposerTest, StepsNumericDayWindowAccumulatorTest,
+RoomStepsNumericSummaryRepositoryRoomTest, and RoomStepsSelectedSessionDeletionServiceTest in the
+tracker-engine unit task, followed by the complete tracker-engine suite, root Detekt,
+tracker-engine lint, and the repository convergence gates. The pre-directive imported test-class
+initialization result remains unresolved until that phase.
+
+## TI-B220 — Atomic portable Steps admission, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `8abd7c6e3`. Five reviewed production/test paths add bounded
+Room batch inserts, one Hilt-bound but product-inactive import command, and its focused Room
+contracts. The command rechecks caller checksum stability, global native/imported identity and
+scope uniqueness, deletion/retention fences, lifecycle state, and destination ownership before
+atomically inserting the imported hierarchy and advancing source evidence. It records a truthful
+zero-sample/null-Steps presentation segment and no local provider, service-run, consent, control,
+elapsed-time, duration, or canonical-live-writer claim.
+
+Authored assertions cover exact attribution, fixed portable fact binding, 257-fact batching,
+side-effect-free replay, changed-content and cross-origin entry/run/fact/scope conflicts, capture
+deletion and retention fences, monotonic floor rejection, cancellation and SQLite rollback,
+caller-graph mutation, unknown owner, source-evidence advancement, post-commit dirty marking, and
+absence of fabricated local session/service-run authority. They have not run.
+
+The later focused command should select `RoomImportPortableStepsTest`, imported retained-reader,
+portable export, numeric/day-composition, selected-deletion, and retention suites, followed by
+tracker-engine/core/stats tests, Detekt, affected lint, Room drift, `ciUnitTest`, and `ciCheck` on
+the frozen convergence branch. Exact day repair/invalidation, file-registry exposure, malformed
+retained-state/reopen/correction tests, end-to-end import/export/no-resurrection, device/UI evidence,
+integration, activation, push, and release remain outside this checkpoint.
+
+## TI-B221 — Atomic imported Steps stored-zone day repair, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `3dfa4eaad`. Three reviewed tracker-engine source/test paths
+extend the inactive importer with lock-before-transaction civil-day repair. Planning includes every
+run envelope and fact wall interval, bounds the day span, locks the all-zone plausible envelope,
+preserves applicable persisted day authority, rejects overlapping or ambiguous physical windows,
+and requires the final resolved windows to cover all imported evidence.
+
+The owning Room transaction now inserts the hierarchy, composes authenticated surviving local plus
+imported facts, repairs every resolved day, rechecks lifecycle state, and only then advances source
+evidence. Partial or Int-unrepresentable composition preserves an existing legacy integer and fails
+closed when none exists. Imported presentation remains zero-sample/null-Steps and contributes no
+invented tracked duration.
+
+Authored, unexecuted assertions cover a complete two-fact import producing 11 Steps, zero imported
+duration and one logical trip in `Europe/Prague`; a 257-fact atomic batch; partial import rollback
+without a compatibility row; partial non-Steps repair with an existing count; conflicting persisted
+zone rollback; cancellation, SQLite failure, and lifecycle drift after payload insertion; exact
+replay and collision/fence behavior. No command was run under TI-D157. Later convergence must run
+the TI-B220 focused set plus complete affected suites, static/schema gates, `ciUnitTest`, and
+`ciCheck`; registry exposure, malformed/reopen/correction coverage, file round trip,
+no-resurrection, device/UI, activation, integration, publication, and release remain open.
+
+## TI-B222 — Portable Steps file routing and transaction ownership, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `c58fcc85f`. Nine reviewed import/export source, resource,
+and test paths register the import-only `.trackersteps` format, resolve the authoritative
+source-local importer, apply the strict bounded v1 codec, and make the import worker honor per-format
+transaction ownership for both direct and archived entries. Existing formats remain worker-managed;
+portable Steps acquires its day locks before its own Room transaction and records a success or
+failure receipt afterward in the existing receipt store.
+
+Authored, unexecuted assertions cover format discovery, import-only metadata, byte-limit routing,
+applied/replay/fence/conflict/unverifiable/retry mappings, valid-prefix continuation after permanent
+entry refusal, malformed input, cancellation, importer-versus-worker transaction boundaries, and
+transactional receipt writes. No command was run under TI-D157. Later convergence must compile and
+run the import/export module and PORT-011 Room contracts before broader source, static/schema,
+`ciUnitTest`, `ciCheck`, round-trip/no-resurrection, device/UI, integration, activation, publication,
+or release claims.
+
+## TI-B223 — Portable Steps retained-state, lineage, and reopen contracts, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `03db9e565`. One tracker-engine Room test path completes the
+remaining PORT-011 contract inventory. Authored assertions require raw malformed imported state to
+return attribution-unverifiable without mutation, require an extra authenticated local-deletion
+revision to prevent exact-replay classification, and require a committed entry to reopen through a
+fresh production Room instance as a side-effect-free duplicate with its summary and source revision
+unchanged.
+
+No command was run under TI-D157. These tests have not compiled or executed. Final convergence must
+run the complete `RoomImportPortableStepsTest` plus the portable codec/file, retained-reader,
+export, day-composition, deletion, retention, migration/reopen, static/schema, `ciUnitTest`, and
+`ciCheck` gates before any round-trip/no-resurrection, integration, activation, publication,
+device/UI, or release claim.
+
+## TI-B224 — Exact imported Steps selected deletion, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `89454b8c1`, with contract completion at `3ff5c086c`.
+Eight production/test paths route imported presentation selection to a source-local command,
+reuse the now-shared bounded portable calendar plan, authenticate the complete original entry,
+install original and current-local per-run fences, retain redacted fact lineage, remove exact
+replacement members, and repair every affected day without waking the live Steps writer.
+
+Authored assertions cover selecting one of two replacement members while deleting both, exact
+portable and local fences, redacted latest-state facts, no live drain, post-commit dirty marking,
+re-import refusal, partial compatibility redaction, malformed hierarchy refusal, correction-lineage
+refusal, retention-loss refusal, cancellation rollback, and backup/fresh-Room reopen with durable
+no-resurrection state. They have not compiled or executed. Source inspection is not test evidence.
+
+At final convergence, run at minimum:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*RoomImportPortableStepsTest' --tests '*RoomStepsSelectedSessionDeletionServiceTest' --tests '*StepsDailySummaryRepairComposerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ImportedSteps*' --tests '*StepFactRevision*' :stats:api:testAndroidHostTest --tests '*StepsPortable*' :stats:data:testDebugUnitTest --tests '*ImportedSteps*' --tests '*RoomExportPortableStepsTest' :tracker:engine:testDebugUnitTest --tests '*RoomImportPortableStepsTest' --tests '*RoomStepsSelectedSessionDeletionServiceTest' --tests '*StepsDailySummaryRepairComposerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :core:base:lintDebug :stats:data:lintDebug :tracker:engine:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat ciUnitTest --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat ciCheck --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+This deferred gate still needs source-review fixes found by compilation/tests, exact portable
+round-trip coverage, and the representative device/UI Steps-only scenario. It proves no provider,
+listener, process-death, reboot, FGS, battery, OEM, activation, integration, publication, or release
+behavior today.
+
+## TI-B225 — Bidirectional portable Steps production round trip, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `19b8789b2`, with the cross-module contract authored at
+`2d7af2b70`. The production format registry now resolves both export and import for `.trackersteps`.
+The export adapter selects a half-open source range, invokes the exact Room-backed portable reader,
+and streams canonical v1 bytes without requiring or iterating Location rows. The export screen does
+not block source-owned or database-owned artifacts on the legacy trip preflight, and only formats
+that may actually contain precise Location or raw database content retain that warning.
+
+The new application host contract owns separate source and destination Room databases. It authors
+an exact local Steps session with sample count zero and separately declared Activity CONTROL,
+exports it with the production Room exporter, imports it with the production source-local command,
+queries the imported physical member through the production history facade, and re-exports the
+canonical portable entry. Assertions require a qualified count without a local service run,
+source-event identity, admission ordinal, or claim about the original full capture set. Existing
+source tests provide the typed zero, partial, replacement, correction/refusal, retention, selected
+and full deletion, reopen/replay/re-import, canonical codec, and privacy-whitelist cases.
+
+No command was run for this boundary. In the final convergence phase run at minimum:
+
+```powershell
+.\gradlew.bat :feature:import-export:testDebugUnitTest --tests '*PortableStepsExporterTest' --tests '*PortableStepsJsonV1CodecTest' --tests '*PortableStepsFileImportTest' --tests '*FormatRegistryTest' --tests '*ImportExportViewModelTest' :app:testDebugUnitTest --tests '*PortableStepsProductionRoundTripTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ImportedSteps*' :stats:data:testDebugUnitTest --tests '*RoomExportPortableStepsTest' --tests '*ImportedStepsProductRoomTest' :tracker:engine:testDebugUnitTest --tests '*RoomImportPortableStepsTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :feature:import-export:lintDebug :app:lintDebug :stats:data:lintDebug :tracker:engine:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat ciUnitTest --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat ciCheck --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+This is authored source and expected-command inventory, not compile, host, file-system, Room,
+device, rendered UI, process, reboot, battery, integration, activation, publication, or release
+evidence.
+
+## TI-B226 — Manual Steps implementation inventory and exact-plan contract, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED**. Source inspection maps the complete manual Steps path to the
+central `requestManualTrackingStart` boundary, current policy/rollout readiness, exact foreground
+source acceptance, immutable manifest/run creation, source-purpose demand and authorization,
+app-scoped `TYPE_STEP_COUNTER` ownership, atomic durable ingress, the candidate Steps fact lane,
+logical history composition, source-only list/Today/Calendar/Detail/live presentation, and exact
+provider retirement. The existing disposable Android gate asserts the production chain from a
+fresh post-baseline delta through `RECORDING`, `MATERIALIZED`, `QUERYABLE`, and terminal broker
+cleanup while requiring exactly one Steps demand/registration and no control or sibling demand.
+
+The focused host contract added to `TrackerServiceSourceSessionTest` requires a manual Steps-only
+request to contain exactly one enabled Steps plan, no automatic trigger, and no control dependency.
+The established runtime tests cover exact listener removal, stale-generation fencing, reset/gap/
+freshness and atomic durability; the established product tests cover materializing, missing,
+partial, covered zero and positive values without `sampleCount` inference. This is an authored
+inventory, not an executed result.
+
+Run only in the final convergence phase:
+
+```powershell
+.\gradlew.bat :tracker:api-module:testDebugUnitTest --tests '*TrackerServiceLaunchArchitectureTest' --tests '*ManualTrackingStartTest' :tracker:engine:testDebugUnitTest --tests '*TrackerServiceSourceSessionTest' --tests '*StepSourceRuntime*Test' --tests '*StepWindowAccumulatorTest' --tests '*StepsRecordingBoundaryIntegrationTest' --tests '*StepsSessionFactProjectionLaneTest' :feature:dashboard:testDebugUnitTest --tests '*DashboardViewModelLiveStepsTest' --tests '*StepsOnlyTrackingContentTest' --tests '*RecentTripsCardTest' :feature:statistics:testDebugUnitTest --tests '*TripDetail*Test' --tests '*Calendar*Test' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :tracker:api-module:lintDebug :tracker:engine:lintDebug :feature:dashboard:lintDebug :feature:statistics:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat :app:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.app.tracking.ManualStepsOnlyDeviceGateTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The Android command still requires the documented identified physical step-counter device and
+before/during/after `dumpsys sensorservice` evidence. Until it runs, there is no provider,
+listener-removal, rendered UI, process/reboot, FGS, battery/OEM, activation, integration,
+publication, or release proof.
+
+## TI-B227 — Coherent daily/week qualified Steps batch, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `7eaa891b3`. The numeric repository now exposes only the
+demonstrated one-or-two-window batch. Room evaluates the ordered requests in one reader transaction;
+single-window APIs delegate to it. Game daily/week-to-date presentation observes one batch rather
+than combining two independently committed flows, while calendar rebinding remains cold and
+subscriber-owned.
+
+Authored assertions cover the public batch bound, ordered independent Ready/partial outcomes, one
+Game subscription, atomic paired generation presentation, calendar replacement cancellation, and
+compatibility fakes for existing single-window statistics consumers. They have not compiled or run.
+
+Run only in the final convergence phase:
+
+```powershell
+.\gradlew.bat :stats:api:jvmTest :tracker:engine:testDebugUnitTest --tests '*RoomStepsNumericSummaryRepository*' :feature:game:testDebugUnitTest --tests '*SourceQualifiedStepsSummaryTest' :feature:statistics:testDebugUnitTest --tests '*StatsPresenterViewModelSessionStatsTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :tracker:engine:lintDebug :feature:game:lintDebug :feature:statistics:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+This checkpoint is not effect revision/CAS, positive award, correction/deletion retraction, streak,
+achievement, device, rendered UI, integration, activation, publication, or release evidence.
+
+## TI-B228 — Exact qualified Steps goal decisions, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `ead24608c`, `759c369b4`, and `343f13577`. Authored
+source and tests cover the v28 effect table/migration shape, one-or-two-window decision snapshots,
+source revision stability, exact stored calendar authority, canonical digests, current day/week
+decision replacement, typed materializing/unverifiable state, replay, stale revision rejection, and
+transaction rollback.
+
+No command ran. Final convergence must run the focused Steps effect DAO/entity/migration, decision
+API, Room summary, and reconciler tests, regenerate and review the v28 identity hash, then run the
+affected suites and repository gates.
+
+## TI-B229 — Reversible qualified goal points and XP, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `8bbe2d0d5`, `26442893a`, and `1f4041d00`. Authored
+source and tests cover independent point and XP source-local fences, exact effect identity and
+revision, create/replace/retract, identical replay, stale revision refusal, partial component retry,
+startup-generation rejection, and unrelated-ledger preservation.
+
+No command ran. Final convergence must include both Room schema/reopen paths, point and XP DAO
+contracts, the qualified reward projector suite, affected module suites, Detekt/lint/schema drift,
+`ciUnitTest`, and `ciCheck --continue`.
+
+## TI-B230 — Claimed notifications and dormant coordinator, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `2745384f8` and `dc23917e5`. Authored source and tests
+cover exact eligible-revision claims, at-most-once platform handoff, disabled-policy suppression,
+ambiguous delivery failure, superseded effects, current-period dispatch policy, repair/action queue
+drain, retry behavior, and absence of any provider-demand operation. Static inspection confirms
+`GameModuleInitializer` does not start `StepsGoalCoordinator`.
+
+No command ran. Runtime activation remains prohibited. Final convergence must run focused
+dispatcher/coordinator tests and verify the complete Hilt graph while preserving dormancy.
+
+## TI-B231 — Historical goal-effect and qualified achievement repair, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `9520af007`. Authored production/test source connects normal
+fact projection, terminal day materialization, portable import, selected deletion, and retention to
+an exact revision-collapsing repair queue. Historical reconciliation uses stored zones and updates
+qualified goal effects, streak/perfect-week achievements, durable notification high-water, and
+exact unlock timestamps. Dashboard and Game product reads exclude non-READY or unqualified rows.
+
+Authored assertions cover bootstrap suppression, genuine later advancement, correction
+down-and-restore no-resurrection, terminal unverifiable settlement, queue rollback, authority-bound
+events, product filtering, and exact unlock recency. No command ran. The v28 schema identity hash
+remains explicit convergence debt.
+
+## TI-B232 — Raw Game goal bridge removal, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `e9f344f46` with review follow-up `90f603c36`. The old
+goal/listener/persistence graph is removed. Game has no tracker module dependency; target values
+come from settings and Steps values only from the qualified numeric repository. A payload-free day
+signal rebinds calendar periods, and `DailySummaryUpdated` is acknowledged without goal, XP, or
+achievement-scheduling effects.
+
+A read-only exact-commit review found no P0/P1 issue. It identified a stale localization usage
+inventory and one missing explicit no-scheduler assertion; both are authored in `90f603c36`.
+No build, compiler, test, lint, Detekt, Room drift, device, UI, battery, or CI command ran.
+
+Run this combined authored boundary only during final convergence:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*StepsGoal*' :domain:points:testDebugUnitTest --tests '*PointsAwarded*' :stats:api:jvmTest :stats:data:testDebugUnitTest --tests '*Achievement*' :tracker:engine:testDebugUnitTest --tests '*RoomStepsNumericSummaryRepository*' --tests '*StepsSessionFactProjectionLaneTest' --tests '*RoomImportPortableStepsTest' --tests '*RoomStepsSelectedSessionDeletionServiceTest' :feature:game:testDebugUnitTest --tests '*StepsGoal*' --tests '*GameDomainEventConsumerTest' --tests '*GameAchievementNotificationTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :core:base:lintDebug :domain:points:lintDebug :stats:data:lintDebug :tracker:engine:lintDebug :feature:game:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat ciUnitTest --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat ciCheck --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+## TI-B233 — Retained Steps metric composition, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `77a48b2b1` and `04aaf16e8`. The public contract and
+production Room repository author typed lifetime-total and best-day decisions from authenticated
+retained local/imported facts. Exact correction lineage, stored-zone authority, source-evidence
+revision/digest, retention loss, orphan-manifest rejection, finite native metadata bounds, and
+pre-retention-floor active work remain fail-closed or explicitly materializing/unverifiable.
+
+Authored assertions cover decision invariants, local/imported composition, corrections, partial and
+retained-away history, conflicting authority, active pre-floor work, malformed attribution,
+transactional snapshots, and Hilt binding. No command ran.
+
+Run only in the final convergence phase:
+
+```powershell
+.\gradlew.bat :stats:api:jvmTest :tracker:engine:testDebugUnitTest --tests '*RoomStepsRetainedMetricsRepositoryTest' --tests '*RoomStepsRetainedMetricsRepositoryRoomTest' --tests '*RetainedStepsDayAuthorityTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :tracker:engine:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+## TI-B234 — Correction-safe retained Steps achievements, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `be1f0cd7b`. Authored production source projects qualified
+retained lifetime-total and best-day metrics under exact source revision/digest authority, preserves
+a durable notification high-water through downward correction, emits every genuinely newly crossed
+tier, and writes achievement replacement plus unlock outbox atomically. Materializing and
+unverifiable decisions preserve existing qualified state without creating a missing zero row.
+
+The notification consumer now authorizes all four qualified Steps metrics with exact revision and
+digest equality under one startup-generation lease through delivery. Generic raw achievement
+collection cannot reclaim retained total/best ownership. Focused DAO/entity, repository,
+reconciler, notification, event-consumer, and presentation tests are authored. Static inspection
+confirms neither Steps reconciler is started by `GameModuleInitializer`. No command ran.
+
+Run only in the final convergence phase:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*AchievementProgressQualifiedDaoTest' --tests '*AchievementProgressEntityTest' :stats:data:testDebugUnitTest --tests '*DefaultAchievementMetricsProviderStepsTest' --tests '*DefaultAchievementRepositoryQualificationTest' :feature:game:testDebugUnitTest --tests '*StepsRetainedAchievementReconcilerTest' --tests '*GameDomainEventConsumerTest' --tests '*GameAchievementNotificationTest' --tests '*AchievementProgressPresentationTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :core:base:lintDebug :stats:data:lintDebug :feature:game:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+## TI-B235 — Widget and legacy notification Steps truth states, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `8e3cb68e5`. Authored source removes raw/nullable widget
+fallback, maps qualified day and exact selected-segment history to explicit numeric or nonnumeric
+states, gives active-session materialization a five-second bound, and keeps cancellation distinct
+from storage failure. The Today widget displays qualified zero and positive values while partial,
+materializing, not-captured, unavailable, and storage-failure states remain nonnumeric.
+
+The goal-notification worker authors retry behavior for transient materializing/storage outcomes,
+terminal no-effect behavior for other nonnumeric outcomes, no claim reads below a threshold, and no
+claim write when Android notification permission prevents delivery. Focused unit/Robolectric tests
+are authored for these branches but have not compiled or run. Daily disabled remains an explicit
+open contract gap; only selected-session history can currently prove it.
+
+Run only in the final convergence phase:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests '*ActiveSessionWidgetPresentationTest' --tests '*TodaySummaryWidgetPresentationTest' --tests '*GoalNotificationWorkerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :app:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+## TI-B236 — Legacy TripSummary and JSON Steps authority removal, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `7a36129db`. The generic `TripSummary` API has no Steps
+field, `DefaultTripRepository` cannot coerce a nullable legacy trip value to zero, and the generic
+JSON exporter cannot emit a session Steps number. Existing exact history and `.trackersteps`
+contracts remain the numeric/display and portable-transfer authorities.
+
+Authored assertions preserve non-Steps trip mapping and prove Room-backed JSON omits `steps` even
+when the underlying physical trip contains a positive legacy value. Static review accounted for
+every in-repository `TripSummary` and JSON `SessionSnapshot` constructor and confirmed the existing
+importer still accepts old schema-3 files with the optional field. No command compiled or ran the
+changes.
+
+Run only in the final convergence phase:
+
+```powershell
+.\gradlew.bat :stats:api:jvmTest :stats:data:testDebugUnitTest --tests '*DefaultTripRepositoryTest' :feature:statistics:testDebugUnitTest --tests '*TripDetail*' :feature:import-export:testDebugUnitTest --tests '*JsonExporter*' --tests '*JsonImportTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :stats:data:lintDebug :feature:statistics:lintDebug :feature:import-export:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+## TI-B237 — Aggregate Steps presentation authority removal, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `294b76c16`. Twenty reviewed production/test paths remove
+Steps from the app-level daily-summary contract, aggregate session-statistics contract, and Room
+session-summary projection. Authored assertions preserve qualified ready-zero presence, reject an
+empty non-Steps shell for unavailable Steps, retain independent non-Steps metrics, and remove stale
+expectations that the generic DAO sums physical segment Steps.
+
+Static call-site searches found no remaining use of the removed public fields after two stale DAO
+assertions were corrected. This is source inspection, not compilation or behavioral evidence. No
+Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. Final convergence must include the affected
+core-common/core-base, stats API/data, Dashboard, Tracker, widget, statistics, Detekt/lint, Room,
+and repository-wide gates.
+
+## TI-B238 — Historical trajectory Steps authority removal, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `967b7ebc9`. Four reviewed source, documentation, and test
+paths remove the raw clock-domain StepInterval query from trajectory composition, keep the legacy
+lineage column null, exclude interval wall/boot bounds, and persist a new location-plus-activity
+composition version. Authored Room assertions compare normalized trajectory states before and
+after a revisioned legacy interval and prove old `default_v1` output does not suppress corrected
+reconstruction.
+
+A fresh static review found no remaining call site of the removed DAO query and no legacy interval
+input in the runner. One reviewer inadvertently ran `git diff --check`; it returned clean. This is
+not compiler, Room, algorithm, worker, or behavioral evidence. No Gradle, test, lint, Detekt,
+schema-drift, emulator/device, battery, CI, integration, activation, publication, or release command
+ran.
+
+Run only in the final convergence phase:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*TrackerStateEventDaoTest' :tracker:engine:testDebugUnitTest --tests '*HistoricalTrajectoryReconstructionRunnerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :core:base:lintDebug :tracker:engine:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+## TI-B239 — Authoritative daily Steps disabled state, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `d95d8bc56` plus correction `987cb550b`. Eight reviewed
+production/test paths add the typed daily `DISABLED` reason, derive it from the existing validated
+`SourcePolicyRepository` authority, render it in the Today widget, and stop the periodic
+notification worker before any threshold-claim access. Authored assertions cover session-capture,
+ambient-product, and control-only policy semantics; uninitialized/invalid authority; live policy
+remapping without restarting durable observation; ready zero; partial/materializing/storage
+preservation; unchanged weekly history; widget mapping; and terminal worker behavior.
+
+Static source and staged-diff inspection only was performed. No Gradle, compiler, test, lint,
+Detekt, Room drift, emulator/device, UI, battery, CI, integration, activation, publication, or
+release command ran. Run only in the final convergence phase:
+
+```powershell
+.\gradlew.bat :core:common:testDebugUnitTest :feature:game:testDebugUnitTest --tests '*SourceQualifiedStepsSummaryTest' --tests '*QualifiedStepsPresentationTest' :app:testDebugUnitTest --tests '*TodaySummaryWidgetPresentationTest' --tests '*GoalNotificationWorkerTest' --tests '*QualifiedGoalProgressAwaitTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :core:common:lintDebug :feature:game:lintDebug :app:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+## TI-B240 — Qualified numeric consumer matrix authored, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED**. Static inspection closes `TODO-STEPS-NUM-008` by mapping every
+production numeric reader, presenter, widget/notification path, and durable effect reconciler to its
+focused authored tests. The owning storage suites cover positive and covered-zero source facts,
+partial state, live correction, exact deletion-fence invalidation, retained-boundary loss, and
+imported-origin composition. Downstream suites cover typed propagation, observation cancellation,
+idempotent replay, correction/deletion replacement or retraction, atomic outbox writes, retained
+achievement high-water, and stale-generation rejection.
+
+No test, compiler, Gradle, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. Run the focused suites named in the TODO consumer
+matrix only during final convergence, followed by the repository-owned aggregate gates.
+
+## TI-B241 — Automatic Steps corroboration removal authored, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `b779afd1e`. Static source inspection established that the
+former Steps path only widened a sampled Activity result after Activity had already delivered a
+callback; it provided no legal cold-start mechanism of its own. Production code now uses the full
+Activity confidence threshold, keeps Activity Transition as the only transition trigger, removes
+the process-local recent-Step evidence cache, and never selects Steps `CONTROL_AUTOSTART` demand.
+
+Focused authored assertions require legacy Steps control retirement to leave no physical Steps
+registration, ignore a stale control row while exact session capture continues, and reject sampled
+confidence below the configured Activity threshold. Retry logic preserves a usable Activity
+registration when legacy Steps cleanup fails and still attempts Activity removal independently on
+disable. No provider, schema, setting, writer, product query, or activation was added.
+
+No test, compiler, Gradle, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. Final convergence must compile and execute the
+focused engine tests, then prove automatic trigger-to-provider-to-query behavior and absence of
+Steps control demand on the representative device before TI-V010 can advance.
+
+## TI-B242 — Durable automatic-start gateway reconciled, current validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** after static reconciliation at `9e59e8601`. The production path
+persists Activity admission and provider authority into the source outbox; grants start context only
+to the exact unexpired Transition callback ordinal; reserves and revalidates one durable action;
+commits `START_REQUESTED`; prepares the immutable manifest/lifecycle intent under current startup,
+policy, consent, automation, provider-registration, deletion-epoch, capture-mask, and FGS-mask
+authority; and reaches `ContextCompat.startForegroundService` only afterward. Sampling and cold
+replay receive `DURABLE_REPLAY` and cannot cold-start.
+
+Existing authored tests cover PREPARE-before-enqueue ordering, stop and startup-generation fences,
+deadline expiry before and during PREPARE, enqueue compensation, exact callback permits, replay
+non-reissue, action collision/consumption, deletion epoch, policy/consent/automation changes,
+provider acceptance/retirement, and manifest tampering. TI-B187 records a historical `108/108`
+focused run plus static gates for the provider-authority commit `0a6a8f545`; that evidence is not
+promoted to validation of later current-branch changes.
+
+No test, compiler, Gradle, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran for this reconciliation. Android background-start
+legality, real PendingIntent/provider acceptance, process death/reboot, FGS type behavior, and the
+complete Automatic Steps provider-to-query product path remain unproven.
+
+## TI-B243 — Exact Automatic Steps manifest contract authored, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `3e1fb6189`. The focused coordinator Room contract now
+requires one checksum-valid immutable manifest bound to the exact logical entry, physical service
+run, automatic mode/origin, policy, plan, rollout, effective boot/elapsed/wall clocks, stored zone,
+automation epoch, and start reason. Its complete membership is exactly Steps `SESSION_CAPTURE` and
+Activity `CONTROL`.
+
+The Steps capture member must carry its authoritative capture consent/QoS and exact candidate
+destination, owner generation, projection identity/version, and automatic-capable binding
+generation. The Activity control member must carry independent control consent/QoS, remain
+nonpersistent, and have no destination or writer provenance. Location, Pressure, Wi-Fi, Cell, and
+captured Activity cannot appear in the scenario. The existing generation-1 rejection preserves the
+manual-only predecessor boundary.
+
+No test, compiler, Gradle, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. This is authored Room-contract evidence only;
+provider demand/registration, trigger-to-query behavior, real Activity/Steps providers, listener
+removal, process/reboot/FGS, battery/OEM, rollout, and release remain unproven.
+
+## TI-B244 — Automatic Steps provider-demand separation authored, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `27ec42e74`. The focused coordinator Room scenario follows
+one exact Automatic Steps PREPARE through enqueue acknowledgement, service claim, foreground
+acceptance, and runtime application. Before foreground acceptance, exactly Steps
+`SESSION_CAPTURE` and Activity `CONTROL_CONTINUATION` exist as blocked demands. After acceptance,
+only that exact run/manifest/lease pair is active.
+
+Activity remains nonpersistent control, while accepted capture sources, lifecycle source actions,
+and applied runtime plans contain Steps alone. The exact trigger survives the claim, Steps starts
+once, Location remains inactive, and Location, Pressure, Wi-Fi, Cell, and captured Activity are not
+introduced. Existing broker contracts independently map manifest control to continuation demand
+and keep Activity acquisition reachable as control without admitting Activity capture.
+
+No test, compiler, Gradle, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. This is authored mock-runtime/Room evidence only;
+physical provider sharing/registration, callbacks, listener removal, process/reboot/FGS,
+trigger-to-query behavior, battery/OEM, rollout, and release remain unproven.
+
+## TI-B245 — Exact automatic trigger-envelope contract authored, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `b37862fde`. Static inspection confirms that the production
+gateway validates observed and received monotonic clocks, absolute callback expiry, boot and
+automation-epoch identity/effective boundary, current policy and control consent, exact provider
+registration/authorization history, collected-data epoch, durable action identity, and one-time
+outbox/action settlement at their owning boundaries.
+
+The added Room contract reserves and requests one valid action, then changes trigger kind, boot,
+observed time, received time, expiry, automation epoch, policy revision, requested capture mask,
+and intended foreground-service mask one at a time. Every changed envelope must be rejected; a
+stale deletion epoch and absent action must remain distinguishable; the untouched trigger must
+remain valid. Existing authored dispatcher tests cover exact callback ordinal, expiry, cold replay,
+terminal settlement, and no second delivery.
+
+No test, compiler, Gradle, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. This does not prove Android PendingIntent timing,
+process/reboot behavior, FGS legality, physical providers, or the production Automatic Steps query.
+
+## TI-B246 — Automatic interruption no-revival contract authored, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `0bb36227b`. Static inspection traces automatic-mode stop
+selection, stop grace and cancellation, bounded provider-removal retry, previous-exit finalization,
+force-stop finalization, manual same-boot restart eligibility, generation-fenced provider rollback,
+and finalized-logical-identity rejection at their existing owners.
+
+The added focused Room case constructs an interrupted automatic session with an exact same-boot
+descriptor and restart token, then requires the session and run to become FINALIZED, the pending
+lifecycle action to become terminal failure, its demand to retire, and the Activity automation
+epoch to rotate. Its adjacent contract continues to require that exact valid same-boot manual
+authority survive. This is source/test authorship only: no Gradle, compiler, test, lint, Detekt,
+Room drift, process-death, reboot, Android service, provider, emulator/device, battery, CI,
+integration, activation, publication, or release command ran.
+
+## TI-B247 — Automatic trigger-to-query and control-nonleakage cohort authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `a097575b3`. The tracker-engine contract follows one exact
+Activity-owned automatic trigger through immutable start preparation, foreground acceptance, and a
+Steps-only runtime start. It then admits baseline and positive-delta observations through real Room
+ingress using the active provider registration/authorization envelope and requires the canonical
+generation-2 writer to publish two exact-run Steps facts, including the positive value.
+
+The app-level contract gives the production history and portable-export facades a finalized
+automatic generation-2 Steps run whose immutable manifest separately declares Activity control.
+History must return Steps as the only captured and qualified source, retain Activity only as
+control metadata, and expose a complete ready value. Export must contain only Steps
+`SESSION_CAPTURE`; the existing fresh-database import/history/re-export assertions remain in the
+same contract and do not fabricate original capture authority.
+
+These are linked production-seam tests, not executed evidence or a claim that one host test drives
+Android's physical Step Counter. No Gradle, compiler, test, lint, Detekt, Room drift,
+emulator/device, listener, FGS, process-death, reboot, UI, battery, CI, integration, activation,
+publication, or release command ran.
+
+## TI-B248 — Default-off Ambient Steps consent authority authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `a8e876909`. Source inspection and focused authored unit
+contracts establish a separate Proto/DataStore `ambientStepsEnabled` intent whose missing/legacy
+value is false. The authoritative projection maps that intent only to persistent Steps
+`AMBIENT_PRODUCT` consent; session capture enablement, frequency, and capture epoch stay independent.
+
+Bootstrap can represent ambient-only Steps without inventing session capture. Later grants and
+revokes append purpose-local consent epochs. Revocation fences only `AMBIENT_PRODUCT`, retires a
+matching live demand, and installs a deny authorization at the same boot/elapsed boundary. Merely
+enabling the preference creates no provider registration or demand.
+
+The product promise is opportunistic: missing intervals remain gaps/partial and no hidden always-on
+service is authorized. Capability, Android permission, provider selection, continuity collection,
+retention/UI explanation, and device behavior remain unimplemented. No Gradle, compiler, test,
+lint, Detekt, Room drift, emulator/device, provider, UI, battery, CI, integration, activation,
+publication, or release command ran.
+
+## TI-B249 — Singular Ambient Steps capability selection authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `75f389f4f` and `754835f7c`. The read-only Android resolver
+classifies Health Connect mobile Steps by API/extension/SDK/feature state, reads exact Steps and
+optional background-read grants, and classifies Local Recording by its published Play services
+minimum plus Activity Recognition permission. The pure selector requires capable Health Connect to
+win, treats its missing permission as user action rather than fallback authority, fails closed on a
+Health Connect probe failure, and selects Local Recording only for genuine Health Connect
+unavailability. The source-demand factory rejects direct-counter ambient plans.
+
+Authored contracts cover precedence, required versus optional grants, foreground-only access,
+platform/extension unavailability, probe failure, Local Recording permission, total unavailability,
+and the ambient direct-counter rejection. Deferred command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*AmbientStepsCapabilitySelectorTest' --tests '*SourceAcquisitionFloorTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+It was not run. No provider, permission UI, demand, subscription, import, device, or product evidence
+exists from this boundary.
+
+## TI-B250 — Purpose-isolated Steps provider authority authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `aa6995b98`. Exact broker owner scopes select only their
+durably encoded purpose masks. Authorization rotation and reservation acceptance use that selection;
+malformed/wrong-source broker scopes fail closed while shared and unrelated legacy owners preserve
+compatibility. `StepSourceRuntime` uses exact `SESSION_CAPTURE` scope, and a Room repository contract
+holds simultaneous capture and ambient pointers, then fences ambient without denying capture.
+
+Authored pure, repository, refresh, and retirement contracts are deferred to:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*SourceProviderPurposeScopeTest' :tracker:engine:testDebugUnitTest --tests '*SourceRegistrationRepositoryTest' --tests '*StepSourceRuntimeRefreshTest' --tests '*StepSourceRuntimeRetirementTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+It was not run. This establishes no ambient provider acceptance, imported record, canonical overlap
+composition, listener/device behavior, integration, rollout, or release evidence.
+
+## TI-B251 — Purpose-scoped checkpoint and ingress ownership authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `1023ab6b5`. Static follow-up found two legacy shared-owner
+assumptions after TI-B250: sensor checkpoints rejected an exact broker owner, while delivery ingress
+allocated sequence state from `source-broker:<kind>` instead of the authenticated physical
+registration. The correction accepts only canonical shared/exact broker encodings, binds checkpoint
+owner to the physical generation, carries the authenticated registration through batch admission,
+and allocates from its exact owner pointer. Non-broker checkpoint owners and noncanonical purpose
+masks fail closed; unrelated legacy registration authorization behavior remains unchanged.
+
+Authored contracts add exact-owner checkpoint state, wrong-source/noncanonical rejection, exact
+Step runtime fixtures, and a purpose-scoped physical delivery whose sequence advances only its exact
+owner pointer. Deferred command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*SourceProviderPurposeScopeTest' :tracker:engine:testDebugUnitTest --tests '*SourceRegistrationRepositoryTest' --tests '*StepSourceRuntimeRefreshTest' --tests '*StepSourceRuntimeRetirementTest' --tests '*SensorRuntimeSupportTest' --tests '*RoomDurableSourceIngressTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+It was not run. This is source/contract authorship, not compiler, provider, device, integration,
+rollout, or release evidence.
 
 ## Static source × mode matrix
 
@@ -17,7 +686,7 @@ Status meanings: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `IN_REVIEW`, `DONE`. `
 | TI-V007 | Activity | Manual | Activity | none | fresh captured classification above threshold | coalesced movement bands | day active time/movement | `BLOCKED` |
 | TI-V008 | Activity | Automatic | Activity | Activity control purpose on shared registration | fresh control starts; capture-consented trigger handoff seeds the first band or the interval stays partial until fresh captured evidence | coalesced movement bands with explicit handoff provenance | one physical registration, purpose-safe history | `BLOCKED` |
 | TI-V009 | Steps | Manual | Steps | none | positive post-baseline delta | canonical day/session step delta | total and session partition | `IN_REVIEW` |
-| TI-V010 | Steps | Automatic | Steps | Activity Transition; optional Step corroboration only if separately enabled | fresh legal control starts; positive post-baseline delta records | canonical day/session step delta | no hidden/captured control facts | `BLOCKED` |
+| TI-V010 | Steps | Automatic | Steps | Activity Transition only; no Steps corroboration demand | fresh legal control starts; positive post-baseline delta records | canonical day/session step delta | no hidden/captured control facts | `BLOCKED` |
 | TI-V011 | Pressure | Manual | Pressure | none | first committed qualified microsegment/window under capture generation | pressure trend/window plus coverage | correct session/day, gap and stability state | `BLOCKED` |
 | TI-V012 | Pressure | Automatic | Pressure | Activity Transition | fresh legal control starts; first qualified pressure window records | pressure trend/window plus coverage | correct day/session; no captured control Activity | `BLOCKED` |
 
@@ -45,7 +714,7 @@ The three-review scope round did not authorize weakening the source contracts ab
 
 | ID | Scope assertion | Status | Evidence / exit condition |
 | --- | --- | --- | --- |
-| TI-VS01 | Every retained v28 table has a next-milestone production owner | `IN_REVIEW` | the 12 ownerless generic tables and duplicate lifecycle lease were removed; v28 now has 69 entities: all 51 released-v27 entities plus 18 narrowly owned additions, including two v27 recovery records, Activity automatic-action/epoch state, source-local product-lane activation/cursor/retention state, immutable selected-session history, and the source deletion fence. Historical 66-entity evidence remains valid only for its earlier checkpoint. `b5698e635` gives that fence its first exact candidate-Steps selected-deletion producer; per-table retention/export/deletion ownership, legacy/import coverage, and every other source producer remain incomplete. |
+| TI-VS01 | Every retained v28 table has a next-milestone production owner | `IN_REVIEW` | the 12 ownerless generic tables and duplicate lifecycle lease were removed; the authored v28 JSON now declares 79 entities: all 51 released-v27 entities plus 28 narrowly owned additions, including recovery, Activity automatic-action/epoch, source-local product-lane/cursor/retention, immutable selected-session history, deletion fences, and source-specific Ambient continuity/fact state. Historical 66/69-entity evidence remains valid only for its earlier checkpoint. The current identity hash is deliberately unregenerated until convergence; per-table retention/export/deletion ownership, legacy/import coverage, and every other source producer remain incomplete. |
 | TI-VS02 | Upgrade preserves or explicitly re-consents automatic tracking | `IN_REVIEW` | focused policy tests prove enabled legacy automatic mode grants Activity `CONTROL` only and mode transitions append grant/revoke epochs without changing capture. The current implementation marks that control nonpersistent; TI-D055 requires durable purpose-limited admission. Connected populated migration passes; automatic trigger and no-control-capture product/device proof remain. |
 | TI-VS03 | Database merge import excludes v28 control-plane rows | `PASS_LOCAL` | production merge uses a 24-table user-fact allowlist; the hostile-backup test proves an Activity fact imports while foreign policy authority and ACTIVE demand rows do not. Device restore coverage and derived recomputation remain separate gates. |
 | TI-VS04 | Exact Android migration boundary is executed, not compile-only | `IN_REVIEW` | seven populated v27→v28 containment cases pass on `Medium_Phone`, including WAL sequence, retained-floor, activation-floor, outbox-only, and pure-outbox high-watermark boundaries. The focused frozen runtime drain and process-wide startup/deletion ordering pass host tests at `f14a4a2b1`. Connected migrate→startup→drain, production backup-wrapper, portable export/import and cold restore remain blocking before schema freeze. |
@@ -134,7 +803,7 @@ The three-review scope round did not authorize weakening the source contracts ab
 | TI-V180 | Platform variants | Android versions, OEMs, multi-SIM | `NOT_STARTED` | device matrix required |
 | TI-V190 | Soak | repeated starts/stops, policy transitions, delayed providers | `NOT_STARTED` | soak harness required |
 | TI-V200 | Policy rollback privacy | revoke source/purpose, disable v2 execution, reboot | `IN_REVIEW` | Room policy/consent epochs survive deletion; broker demand/registration rows are deleted; exact vector/current-policy/boot-effective-time callback fences and Activity purpose projection pass host tests; schema-capable rollback, reboot, demand rebuild, and global reconciliation remain pending |
-| TI-V210 | Android trigger legality | crash after durable intent for every origin; expiry/new legal trigger | `BLOCKED` | trigger envelope schema/validator exists, but production propagation, current-epoch comparison, consumption, and pre-service durable gateway are missing |
+| TI-V210 | Android trigger legality | crash after durable intent for every origin; expiry/new legal trigger | `IN_REVIEW` | TI-D180/TI-B242 trace production propagation, current authority checks, exact action consumption, callback expiry, and Room PREPARE before Android enqueue. Current code is unvalidated; representative provider acceptance, process death, API-level FGS legality, denial behavior, and device execution remain blocking |
 | TI-V220 | Eligibility boundary | add/remove capture while shared control registration is unchanged; reorder callbacks | `IN_REVIEW` | demand add/remove rotates exact immutable generation/vector; generic and Activity delayed/pre-effective callbacks are rejected; replacement failure, process recovery, all-source global reconcile, and device interleave remain pending |
 | TI-V230 | Accumulator boundary | kill/revoke/disable/re-enable Steps and Pressure mid-window | `IN_REVIEW` | Steps baselines and Pressure windows reset at generation/eligibility change and delayed callbacks are rejected; process-kill/device execution and completeness reporting remain pending |
 | TI-V240 | Writer interleave | pause legacy writer, activate typed owner, race both commits | `IN_REVIEW` | At `9b8ab4b43`, the legacy Steps write and exact owner read share one transaction, queued ABA generations are immutable, missing authority cannot consume the command, and old/new service runs retain their immutable writer. Host tests cover closed callbacks/commands, legacy drain, atomic candidate activation, candidate receipt/cursor commit, contain/drain rollback, and deletion re-arm. TI-B160 adds the same-process production deletion-service/barrier/re-arm interleave. Cold process-death/device races, continuous production query/export/delete reads, and an explicit release action remain required. |
@@ -712,3 +1381,1597 @@ Publication requires a normal explicit `git push origin dev/v10:dev/v10`, follow
 The publishing task reports that receipt after success; this document does not anticipate its own
 hash or claim remote CI success. No provider, rendered UI, listener, process/reboot, FGS, battery,
 OEM or enabled importer proof is added, and the six-source program is not complete.
+
+## TI-B213 — Retained imported-member core dependency
+
+Verified local source: `4db55146eccad9e39adc7725076cb2783d92e330`, rebased onto published
+`0460f12a54a3550244f8e8ea5c9fb1f5e2ef27d2`. Exactly 23 source/test/schema paths were reviewed,
+staged explicitly and committed with the configured adsamcik identity; staged/final diff checks
+passed and the source worktree is clean. This is a dependency checkpoint, not integration readiness.
+
+Final source/static gate, session `37505`:
+
+```powershell
+.\gradlew.bat detekt :core:base:testDebugUnitTest --tests '*ImportedSteps*' --tests '*StepFactRevisionIntegrityTest' --tests '*StepFactRevisionDaoTest' --tests '*SessionlessEnumsTest*' --tests '*TripTest*' --tests '*SessionlessTypeConverterTest*' :core:base:lintDebug --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Passed in 3m 7s, 148 tasks (20 executed, 128 up-to-date): 98 core tests, Detekt and core lint.
+No scoped source/test change followed, only commit/rebase. This command did not run stats API tests.
+Earlier session `89366` verified the unchanged portable wire implementation/API facade and API lint:
+
+```powershell
+.\gradlew.bat detekt :core:base:testDebugUnitTest --tests '*ImportedSteps*' --tests '*StepFactRevisionDaoTest' --tests '*SessionlessEnumsTest*' --tests '*TripTest*' --tests '*SessionlessTypeConverterTest*' :stats:api:testAndroidHostTest --tests '*StepsPortable*' :core:base:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.shared.base.database.AppDatabaseMigration27To28Test' :core:base:lintDebug :stats:api:lint --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Passed in 4m 22s, 214 tasks (115 executed, 16 cached, 83 up-to-date), including 10 portable API
+tests and nine device tests. Subsequent binding/owner distinction and peer-isolation corrections
+changed core integrity, admission conversion, retained reader and reader tests, not the wire/API
+facade. Their final static/host evidence is `37505`; final schema/device evidence follows.
+
+Final post-rebase gate in `ti-steps-import-admission`, session `10704`:
+
+```powershell
+$env:ANDROID_SERIAL = 'emulator-5554'
+.\gradlew.bat checkRoomSchemaDrift :core:base:testDebugUnitTest --tests '*ImportedSteps*' --tests '*StepFactRevisionIntegrityTest' --tests '*StepFactRevisionDaoTest' --tests '*SessionlessEnumsTest*' --tests '*TripTest*' --tests '*SessionlessTypeConverterTest*' :stats:api:testAndroidHostTest --tests '*StepsPortable*' :core:base:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.shared.base.database.AppDatabaseMigration27To28Test' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+`BUILD SUCCESSFUL in 59s`, 141 tasks. Room schema drift passed. The 98 focused core and 10
+portable API host tests were up-to-date for unchanged source/test bytes, not newly executed by
+this final command. All nine migration tests reran and passed on the same representative
+Medium_Phone, Android 16/API 36, `sdk_gphone64_x86_64`; zero failures/errors/skips. The device
+claim was released after the gate. No Tracker user data was modified for this library test run.
+
+Assertions include exact reverse binding, original entry versus retained member receipts,
+historical owner generation 7 versus portable binding generation 1, rejection of forged alternate
+bindings, null legacy receipts, raw pre-narrowing integrity checks, malformed-zone peer isolation,
+bounded multi-entry reads, and full-clear original-scope fences through Room reopen. Invalid
+original digest corruption rolls back clear atomically; no alternate identity platform was added.
+
+The later product and actions worktrees are separate test inputs. This evidence does not cover
+their retention worker hooks, Dashboard/Detail UI, importer transaction, day repair or selected
+deletion. Full `ciCheck` must run on the converged cohort before integration readiness. None of
+these host or migration checks proves physical StepCounter behavior, listener removal, rendered
+device UI, process death, reboot, FGS, battery, OEM behavior or source activation.
+
+## TI-B214 — Imported history and original-identity export composition
+
+Source `ecbdf6161c059e5d2ef93726b5700b9441854e8c` contains exactly 13 reviewed source/test
+paths, committed under adsamcik after exact staging and cached diff checks. The clean branch was
+rebased onto canonical core `4db55146e`, dropping the duplicate core cherry-pick; rebase onto
+local `dev/v10` (`0460f12a5`) was then up-to-date. Comparing source/test/build inputs with the
+pre-rebase commit returned no differences; only the seven already-published documents changed.
+Subsequent uncommitted engine work is not covered by this product checkpoint.
+
+Commands ran from `ti-steps-import-product` with the established JDK/cache environment:
+
+```powershell
+.\gradlew.bat :stats:api:jvmTest :stats:api:testAndroidHostTest :stats:data:testDebugUnitTest --tests '*ImportedSteps*' --tests '*DefaultTripRepositoryTest' --tests '*RoomExportPortableStepsTest' --tests '*StepsSegmentHistorySelectorTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :stats:api:jvmTest :stats:api:testAndroidHostTest :stats:data:testDebugUnitTest --tests '*ImportedSteps*' --tests '*DefaultTripRepositoryTest' --tests '*RoomExportPortableStepsTest' --tests '*StepsSegmentHistorySelectorTest' :stats:data:lintDebug :stats:api:lintAnalyzeAndroidHostTest --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Sessions `42612` and `25261` passed in 4m 54s/218 tasks and 4m 27s/393 tasks. API results:
+320 JVM plus 330 Android-host tests; data results initially 187 tests. Earlier static selection
+`6794` failed only 23 scoped Detekt findings; lint passed. Those findings were corrected without
+weakening assertions. The final budget regression expanded data coverage to 188 tests:
+
+```powershell
+.\gradlew.bat detekt :stats:data:testDebugUnitTest --tests '*ImportedSteps*' --tests '*DefaultTripRepositoryTest' --tests '*RoomExportPortableStepsTest' --tests '*StepsSegmentHistorySelectorTest' :stats:data:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :stats:data:testDebugUnitTest --tests '*ImportedSteps*' :stats:data:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Session `32631` passed all 188 tests and lint, failing only one redundant-return Detekt finding
+(3m 47s/384 tasks). An equivalent short-circuit failure merge removed that extra return without
+suppression. Final `16117` passed Detekt, all 17 imported-product tests and lint in 2m 10s/384 tasks.
+Host XML reported zero failures/errors/skips. These totals include valid reused outputs, not a
+claim that every API test executed again in the final command.
+
+Evidence covers exact imported reverse membership, typed foreign capture provenance, covered
+zero/partial/overflow/overlap, sibling survival, two legal 33-run entries, original-identity export,
+and stopping before another entry batch after dependency overflow. Actual Room tests cover ten
+imported scenarios; a focused reader test verifies budget control flow. A read-only product/UI
+review found no blocker in the scoped composition but explicitly retained later UI/device,
+History/Calendar, admission, numeric/day repair and selected-deletion gates. No physical provider,
+rendered device UI, importer activation, local integration or push is claimed.
+
+## TI-B215 — Remove unused unqualified Steps summary escape paths
+
+Source `3f62d5c644b44277088097800a85637a955cfdb0` contains eight reviewed source/test paths,
+committed under adsamcik on clean `codex/ti-steps-summary-authority`, based on local `dev/v10`
+`0460f12a5`. Actions cherry-pick: `d519df577`. No integration, publication or schema change.
+
+Commands ran from `ti-steps-summary-authority` with JDK 21 and the established cache environment:
+
+```powershell
+.\gradlew.bat :stats:api:jvmTest :stats:data:testDebugUnitTest --tests '*DefaultDailySummaryRepositoryTest' --tests '*DefaultWindowedMetricsProviderTest' :feature:statistics:testDebugUnitTest --tests '*HistoryPresenterViewModelTest' --tests '*StatsPresenterViewModelSessionStatsTest' :detekt :stats:data:lintDebug :feature:statistics:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat :stats:data:testDebugUnitTest --tests '*DefaultDailySummaryRepositoryTest' --tests '*DefaultWindowedMetricsProviderTest' :detekt :stats:data:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Session `5330` passed API/statistics tests and both lints, but failed data-test compilation on a
+missing `io.mockk.Called` import and Detekt on missing API method KDoc. Those two scoped fixes
+were followed by green `95713`: 2m 1s, 384 tasks (12 executed, one cached, 371 up-to-date).
+Final XML cohort: 318 API JVM, 18 data and 27 statistics tests, zero failures/errors/skips.
+The second command verified the data/import fix and KDoc via Detekt; unchanged API/statistics
+test bodies were not claimed as newly executed. Earlier `22561`/`71367` failed task selection
+because Detekt is root-owned; no source failure or successful test evidence is inferred from them.
+
+Assertions cover nine Steps metric/window combinations rejected before all five DAOs, unchanged
+non-Steps metrics, and summary mapping independent of raw legacy zero versus `Int.MAX_VALUE`.
+This is host/static evidence only, not accepted engine day repair, deletion, awards, device UI,
+provider behavior or integration readiness. The converged implementation still needs its full gate.
+
+## TI-B216 — Exact imported raw/trip retention and production worker hooks
+
+Nine reviewed source/test paths in `ti-steps-import-actions`: four core/base paths (source-local
+retention adapter, existing retention partition, two Room test classes) and five app paths (two
+worker hooks, their existing tests and one shared authenticated fixture). No schema or activation.
+
+Combined input gate, session `81757`, established JDK 21/SDK environment:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ImportedSteps*' --tests '*StepFactRevisionIntegrityTest' --tests '*StepFactRevisionDaoTest' :feature:dashboard:testDebugUnitTest --tests '*DashboardHistoryRepositoryTest' --tests '*DashboardLiveStepsStateTest' --tests '*RecentImportedStepsRowTest' :feature:statistics:testDebugUnitTest --tests '*TripDetailHistoryPresentationTest' --tests '*TripDetailPresenterViewModelTest' --tests '*ImportedStepsOverviewTest' :app:testDebugUnitTest --tests '*DataRetentionWorkerTest' --tests '*RetentionPipelineWorker*Test' detekt :core:base:lintDebug :feature:dashboard:lintDebug :feature:statistics:lintDebug :app:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Terminal failure in 12m 16s/1,089 tasks (677 executed, 283 cached, 129 up-to-date), solely because
+the new Dashboard strings used an unbound XML `tools` prefix. Core's 68 tests, statistics' 20 tests,
+Detekt, core/statistics lint and Room drift passed; Dashboard/app acceptance was not established
+by that failed command. Core source/test bytes did not change afterward.
+
+After the namespace fix and two additional Dashboard state assertions, session `97335`:
+
+```powershell
+.\gradlew.bat :feature:dashboard:testDebugUnitTest --tests '*DashboardHistoryRepositoryTest' --tests '*DashboardLiveStepsStateTest' --tests '*RecentImportedStepsRowTest' :app:testDebugUnitTest --tests '*DataRetentionWorkerTest' --tests '*RetentionPipelineWorker*Test' detekt :feature:dashboard:lintDebug :app:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Passed in 4m 33s, 1,113 tasks (67 executed, three cached, 1,043 up-to-date): all 26 app retention
+tests and 18 Dashboard tests, Detekt and both lints. All focused XML results have zero failures,
+errors and skips. App lint reports 16 warnings on unchanged code/configuration; no new baseline
+was introduced. Two Dashboard plural-resource warnings are corrected and verified separately in
+the UI slice; they do not modify these retention source/test inputs.
+
+The core cohort includes 11 imported-retention Room cases and one mixed live/imported case:
+exact cutoff and straddling suffix, nullable/covered-zero preservation, last-payload loss, original
+scope and sibling survival, same-wall unrelated ownership, tampered fact/epoch rollback, second
+member deletion rollback, retained-receipt update rollback, two legal 33-run entries, and a 600-fact
+three-page audit proving two complete-entry fact reads (authenticate plus mark), not one per page.
+Both actual worker entry points execute against Room fixtures; the broader worker tests retain
+startup/generation and existing live-retention checks. No physical provider, Android scheduling,
+process-death, reboot, battery, selected deletion, authoritative admission or full no-resurrection
+claim follows from these host tests. `ciUnitTest`/full `ciCheck` remain convergence gates.
+
+## TI-B217 — Truthful imported Dashboard member selection and contained Detail
+
+Fourteen reviewed Dashboard/statistics source/resource/test paths in `ti-steps-import-actions`.
+No schema, provider, writer, manifest permission or importer activation change. The source maps
+TI-D153's authenticated imported product contract onto the existing list and Detail consumers.
+
+TI-B216 gives the exact combined `81757` and follow-up `97335` commands. Their relevant evidence:
+20 statistics tests passed in `81757` (11 history-state, seven presenter, two host Compose), with
+statistics lint; 18 Dashboard tests passed in `97335` (six repository, seven live-state, five host
+Compose), with Detekt/lint. The namespace failure is recorded there, not presented as a green
+combined run. Statistics source/test bytes did not change after their successful gate.
+
+Two new plural-resource warnings found in `97335` were fixed using `plurals` and
+`pluralStringResource`, without a suppression or baseline edit. Final session `74425`:
+
+```powershell
+.\gradlew.bat :feature:dashboard:testDebugUnitTest --tests '*DashboardHistoryRepositoryTest' --tests '*DashboardLiveStepsStateTest' --tests '*RecentImportedStepsRowTest' detekt :feature:dashboard:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Passed in 2m 5s, 596 tasks (35 executed, 561 up-to-date). All 18 Dashboard tests and Detekt passed.
+Dashboard lint has zero errors and two warnings on unchanged DashboardRoute/MilestoneCelebration
+lines; the two new plural warnings are gone. All 38 focused UI/presentation XML tests have zero
+failures/errors/skips. Host Compose uses Robolectric API 34, not a device rendering run.
+
+Assertions prove imported discovery with an empty physical-candidate list, exact selection of two
+replacement-member IDs, no invented aggregate/distance, selectable covered zero, explicit partial
+zero lower bound, materializing without zero/unavailable substitution, imported history not proving
+live provider state, typed Detail states, no route/distance/duration/sample cards, and zero local
+supplement/GPX repository calls. They do not prove broader History/Calendar, imported admission,
+physical source-only registration/listener removal, reboot/FGS/battery or integration readiness.
+
+## TI-B252 — Provider-specific Ambient Steps floor contract authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `7b33b2271`. Authored `SourceAcquisitionFloorTest`
+assertions cover canonical round trips for both supported system continuity mechanisms, no
+requested/provider delivery cadence, no adaptive reduction, and rejection by every direct
+`StepsPlan`. Provider-native cursor freshness is encoded explicitly rather than represented as
+same-boot historical-record age.
+
+## TI-B253 — Capability-to-ambient-demand authority authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `c16a65e8d` and `039153f67`. Authored `SourceBrokerTest` and
+`AmbientStepsDemandReconcilerTest` assertions cover ambient-only policy with session Steps off,
+exact sessionless persistent demand fields, provider-distinct identity, idempotent unchanged
+reconciliation, retire-before-replace behavior, contained rollout, revoked consent, exact missing
+permission, unavailable-provider retirement, and no direct-counter fallback.
+
+Deferred exact command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*SourceAcquisitionFloorTest' --tests '*SourceBrokerTest' --tests '*AmbientStepsDemandReconcilerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. No compiler, test, static, schema, device, provider, UI, battery, CI,
+integration, activation, publication, or release evidence follows. In particular, `DemandReady`
+means durable broker authority only; it does not prove provider acceptance or collected records.
+
+## TI-B254 — Ineligible Ambient Steps preflight contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `187800e03`. Authored
+`AmbientStepsDemandReconcilerTest` cases require an eligible request to probe capability while
+default-off, revoked, inactive-authority, and contained-rollout paths do not. Revocation also
+retires stale app-owned ambient demand. The broker's transactional revalidation remains covered by
+its existing boundary; no provider call or device behavior is claimed.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*AmbientStepsDemandReconcilerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run.
+
+## TI-B255 — Ambient structural-window contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `33874e0fe`. Authored
+`AmbientStepsStructuralWindowPlannerTest` cases cover exact partial/full days, Prague 23-hour and
+25-hour DST days, bounded continuation, second alignment, and invalid bounds. They are host
+contracts for pure planning only; they do not prove the zone across an unobserved process/reboot
+gap or execute a provider read.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*AmbientStepsStructuralWindowPlannerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run.
+
+## TI-B256 — Ambient aggregate-fact storage contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `88c14a52e`. Authored entity/integrity and Room DAO tests
+cover valid positive and covered-zero provider facts, redacted local deletion, revision ordering,
+latest-effective day/range reads, and exact source-owner fencing. The v27-to-v28 migration fixture,
+fresh-install callback, and collected-data full-clear fixture include the new table.
+
+Deferred host/schema command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*AmbientStepsFact*' checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. The checked-in v28 schema JSON has the authored structural table/index
+shape, but its identity hash has not been regenerated or checked. Migration/reopen, Kotlin/Room
+compilation, Android API behavior, provider behavior, device/UI/battery, CI, integration,
+activation, publication, and release therefore remain unproven.
+
+## TI-B257 — Ambient continuity, authority rotation, and effective-gap contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `4461a95b4`. The source-specific cursor/gap entity,
+DAO, v27-to-v28 migration, fresh-install, full-clear, and fact-integrity contracts cover exact
+continuity authority, rounded privacy floors, same-registration authorization rotation, monotonic
+CAS, stable source-instance fact identity, self-verifying logical/mutation/transition identity,
+lowercase broker authorization fingerprints, and close/reopen fixture source.
+
+Three read-only adversarial review passes found and drove corrections for frozen authorization in a
+reused registration, arbitrary signed identities, CAS regression/no-op, permanent false gaps,
+migration privacy-floor mismatch, weak fingerprint shape, incomplete transition identity, and a
+partial-gap segment-CAS mismatch. The final exact-scope review accepted `4461a95b4`: untouched,
+partial-suffix, fully covered, and retraction-restored effective gaps now govern transition CAS.
+
+No Gradle, compiler, test, lint, Detekt, Room processor, schema drift, migration/device, provider,
+UI, battery, CI, integration, activation, publication, or release command ran. The manually edited
+79-entity v28 JSON and its stale identity hash are convergence blockers, not current validation
+evidence. No importer transaction or product composition exists.
+
+## TI-B258 — Captured Activity admission and coalescing contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at isolated head `7228cd6e9`. Five Activity-specific
+production/test files author capture-only admission, historical acquisition/temporal authority,
+stable window corrections, wall-time uncertainty, compatible transition-first refinement, EXIT
+ordering, explicit gaps, and bounded sweep coalescing. No schema, writer, provider, shared runtime,
+history, UI, retention, deletion, export, or activation path changed.
+
+Two read-only adversarial review rounds rejected coarse-transition suppression, unmatched EXIT
+leakage, unstable derived-band identity, missing temporal/wall authority, quadratic scans, cutoff
+escape, equal-time EXIT ordering, and UNKNOWN over-negation. Commits `02a173ffc`, `50d053691`, and
+`d000b569b` corrected the production findings; `7228cd6e9` adds the final complementary UNKNOWN
+EXIT contract. One reviewer accidentally ran `git diff --check 0460f12a5..e1fb12403`; it returned
+no output and changed nothing. It is recorded as a process deviation and is not treated as an
+acceptance gate.
+
+No Gradle, compiler, test, lint, Detekt, Room, device, or other validation command ran. Kotlin/API
+compilation and all downstream writer/product behavior remain unproven.
+
+## TI-B259 — Ambient reader-to-fact importer contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `29801e17f`. Authored importer and Room-contract tests
+cover privacy-floor planning, provider read outside Room, exact post-read authority revalidation,
+atomic fact/revision/cursor CAS, stable progressive identity, zone and retention transitions,
+undrained authorization, completed-day no-evidence progress, null partial-day preservation, exact
+replay, rollback, and no resurrection after retraction. Two read-only reviews rejected the initial
+importer and first correction; the final review accepted this bounded source behavior.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*AmbientStepsFactImporterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Kotlin/Room/API compilation, database execution, provider behavior,
+process/reboot behavior, schema drift, device/UI/battery, integration, activation, and release remain
+unproven.
+
+## TI-B260 — Pressure fact-driven history selection and composition contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `8b076e6f7`. Authored DAO, selector, composer, and Room
+tests cover zero-sample fact discovery, reciprocal run/segment binding, full replacement membership,
+manifest-union integrity, correction attribution and escaped lineage, provider-unavailable conflict,
+bounded paging and overflow, stored-zone composition, and retained quality or coverage evidence.
+Read-only review rejected two earlier shapes and accepted the final correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:data:testDebugUnitTest --tests '*PressureHistory*' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Kotlin/Room compilation, SQL execution, cancellation behavior, shared
+history/UI consumption, device/provider behavior, integration, and release remain unproven.
+
+## TI-B261 — Honest Pressure acquisition-plan contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `3b8abe350`. Authored codec, semantic plan factory, resolver,
+provider-request, and source-runtime tests require the legacy movement-gated byte to remain false,
+reject unsupported legacy true, preserve distinct 1/5/20 Hz provider and aggregation behavior,
+retain explicit thermal fallback, and leave Pressure unchanged by Activity or stationary state. An
+independent source review accepted the exact boundary.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*Pressure*' --tests '*SourcePlanCodecTest' --tests '*SourcePlanResolverTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, provider registration, FIFO/batching behavior, sensor cadence,
+battery impact, device behavior, integration, activation, and release remain unproven.
+
+## TI-B262 — Protected Location qualification contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `762186a24`. Three isolated source-local files author an
+exact Location observation, qualifier, and focused contracts for Location-only capture; immutable
+WAL/delivery/captured authority; separate current deletion and retention fencing; half-open provider
+time, freshness, accuracy, permission, boot, generation, policy, consent, manifest, zone, quality,
+mock, and optional payload validation; typed stale, unavailable, rejected, duplicate, collision, and
+derived-correction outcomes. A read-only review rejected the initial shape and accepted the exact
+correction. The protected canonical writer and runtime remain untouched.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*LocationQualifiedObservationQualifierTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Kotlin/API compilation, WAL adapter verification, provider behavior,
+canonical-writer equivalence, shadow comparison, device/UI behavior, integration, cutover, and
+release remain unproven.
+
+## TI-B263 — Captured Activity persistence contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `a8c1752cb`. Authored schema, DAO, migration, admission,
+writer, and Room-focused tests cover Activity-only ownership, canonical WAL payload decoding,
+transition/sample semantics, immutable historical registration-plan binding, exact manifest,
+policy, consent, registration, authorization, clock, zone, source/deletion epoch, append-only
+revision, cursor CAS, replay, rollback, control rejection, and uncertainty-safe retention across the
+full lineage. Multiple read-only reviews rejected earlier authority and retention shapes and accepted
+the corrected source logic.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest :tracker:engine:testDebugUnitTest --tests '*ActivityCaptured*' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. The generated v28 Room schema JSON does not yet contain the Activity tables
+and is an explicit convergence blocker. Compilation, migration/reopen, database execution, runtime
+wiring, product reads/UI, device behavior, integration, activation, and release remain unproven.
+
+## TI-B264 — Ambient provider-handoff contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `016a434df`. Authored coordinator/importer Room tests
+cover one bounded predecessor drain, historical pre-cutover authority, exact nonoverlapping cutoff
+and rounded successor floor, fact-versus-gap partition, predecessor retirement, successor cursor and
+provider marker, transaction rollback, stale generation/lifecycle/deletion rejection, intact
+no-read replay, and corrupt cursor/marker/sibling replay rejection. A read-only review rejected the
+initial replay authentication and accepted the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*AmbientStepsProviderHandoffCoordinatorTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, SQL and transaction execution, real provider drain, process
+death, reboot, device behavior, integration, activation, and release remain unproven.
+
+## TI-B265 — Pressure source-specific public read contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `97941e8b1`. Authored API, DAO, selector, mapper,
+repository, and Room-focused tests cover fact-driven Pressure-only discovery, one-snapshot batched
+reads, complete logical replacement grouping, page-boundary logical recency, rejected-candidate fill,
+partial versus fully fenced discoverability, invalidation re-emission, typed states and causes, and
+direct retained quality evidence without elevation claims. Read-only review rejected the first list
+query and accepted the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:api:jvmTest --tests '*PressureHistoryTest' :stats:data:testDebugUnitTest --tests '*PressureHistory*' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query generation, UI consumption, device behavior,
+integration, activation, and release remain unproven.
+
+## TI-B266 — Pressure session-only demand and writer-boundary contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `a410dcb86`. Authored factory, real-Room broker,
+registration-reconciliation, and WAL-to-writer tests cover exact session-only Pressure demand,
+restored non-session rejection before reservation/acceptance/authorization refresh, durable qualified
+WAL evidence before projection, and atomic canonical fact/evidence publication before materialized
+cursor progress. A read-only review rejected the construction-only guard and accepted the
+reconciliation correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*SourceDemandContractFactoryTest' --tests '*SourceRegistrationRepositoryTest' --tests '*Pressure*' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, provider registration, sensor/device behavior,
+integration, activation, and release remain unproven.
+
+## TI-B267 — Cell retained-WAL qualification contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `2102d3212`. Authored classifier and real-Room adapter
+tests cover an actual retained one-unit Cell WAL delivery, positive source sequence, canonical
+payload and identity recomputation, sibling overflow, interleaved same-registration authorization
+revisions, immutable plan and manifest authority, reciprocal run/segment binding, retention and
+wall-uncertainty structural-day boundaries, identity-free aggregate semantics, and typed
+unverifiable outcomes. Repeated read-only reviews rejected caller-signed provenance, noncanonical
+payload, and global-adjacent authorization assumptions before accepting the retained-WAL adapter.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*CellCapturedFact*' --tests '*CellWalQualificationAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Kotlin/Room compilation, SQL execution, source-local fact persistence and
+deletion fencing, callback/provider behavior, multi-SIM completeness, product history/UI, device/OEM
+behavior, integration, activation, and release remain unproven.
+
+## TI-B268 — Pressure bounded retention-truncation contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `85ac20157`. Authored source-specific integrity, DAO,
+transaction, and writer-floor tests cover exact retention epoch/floor, reciprocal run/segment and
+complete manifest authority, policy/consent/writer/zone/deletion/correction validation, whole-lineage
+removal, self-verifying payload-free markers, sibling preservation, corruption rollback, exact floor
+boundary, configured total-revision overflow rollback, and cancellation immediately after marker
+insertion. An independent review rejected page-only boundedness and accepted the explicit total and
+per-run traversal budgets plus rollback correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*PressureRetentionTruncationTest' :stats:data:testDebugUnitTest --tests '*PressureHistory*' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Kotlin/Room compilation, SQL execution, retention-worker invocation,
+marker-aware product composition, large-store timing, correction/replay behavior, device storage,
+integration, activation, and release remain unproven.
+
+## TI-B269 — Wi-Fi canonical provider-snapshot qualification contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `96e930d80`. Authored pure classifier tests cover exact
+captured-registration provenance, passive null versus mismatched configuration hints, immutable
+desired-plan and applied-registration authority, pre-decode byte limits, canonical v2 re-encoding
+and EOF, exact unit index/count, sorted identity-free access-point evidence, provider-derived
+platform timestamp, absent result age, recomputed production delivery identity, per-child freshness,
+retention, aggregate count/owner construction, replay, correction, and malformed input. Repeated
+read-only reviews rejected caller-selected bounds, bypassable construction, passive-plan mismatch,
+forged identity, and noncanonical payload shapes before accepting the final pure model.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*WifiCapturedFactClassifierTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. One reviewer inadvertently invoked a branch `git diff --check`; it returned
+no output, changed nothing, and is discarded as evidence under the implementation-only directive.
+Compilation, durable WAL adaptation and persistence, provider callbacks/active attempts, product
+history/UI, device/OEM behavior, integration, activation, and release remain unproven.
+
+## TI-B270 — Protected Location retained-WAL adapter contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `8a90104ce`. Authored real-Room adapter tests cover two
+independent WAL queries with distinct byte-array objects but equal persisted content, exact scalar
+and payload comparison, typed missing v1 mock provenance, positive and allocator-exhaustion source
+sequences, complete and missing delivery batches, canonical versus malformed payload, sparse
+same-registration authorization boundaries, complete manifest checksum/timeline, reciprocal segment
+binding, valid stored zone, and overflow-safe retention uncertainty. Independent reviews rejected
+fabricated mock state, global-adjacent authorization, incomplete batch authority, and array reference
+equality before accepting the corrected dormant adapter.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*LocationWalQualificationAdapterTest' --tests '*LocationQualifiedObservationQualifierTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, SQL execution, a provenance-capable canonical payload,
+canonical-writer shadow comparison, provider/device behavior, history/UI, cutover, integration,
+activation, and release remain unproven.
+
+## TI-B271 — Pressure retention worker and marker-only discovery contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `ed4089323`. Authored worker and source-specific product
+tests cover mark-and-prune ordering before physical Pressure deletion, retry/no-success on audit
+failure, authenticated current-epoch marker reads, fully pruned single and replacement-run groups,
+partial state without windows/summary/value/qualified source, stale or corrupt marker omission,
+surviving replacement siblings, rejected-candidate fill, page-boundary recency, bounded candidate and
+membership traversal, and cancellation checkpoints. Independent review rejected fact-only recent
+discovery and accepted the marker-aware correction while rechecking the prior maintenance authority.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*PressureRetentionTruncationTest' :stats:data:testDebugUnitTest --tests '*PressureHistory*' :app:testDebugUnitTest --tests '*DataRetentionWorker*' --tests '*RetentionPipelineWorker*' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room/worker execution, physical retention timing, repair,
+portable transfer, shared UI, large-store paging behavior, device storage, integration, activation,
+and release remain unproven.
+
+## TI-B272 — Activity source-specific product-read contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `d0bf3bf59`. Authored API, DAO, composer, pager,
+repository, and real-Room tests cover Activity-fact-backed discovery, complete replacement expansion
+across 32-member pages, one-transaction selected/recent loading, immutable plan and registration
+fingerprints, policy/consent ordering, manifest-window gaps, lane execution/terminal settlement,
+cursor/deletion/retention authority, exact active pointer and current manifest/lease/boot, canonical
+live and STOPPING state pairs, completion parity, and a newest manifest awaiting its first fact as
+bounded partial/materialization-behind. Repeated independent reviews rejected incomplete coverage,
+lane authority, unbounded paging, stale active pointers, lifecycle pairing, and invented active-tail
+duration before accepting the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:api:jvmTest --tests '*ActivityHistory*' :stats:data:testDebugUnitTest --tests '*ActivityHistory*' --tests '*ActivityRecentHistoryPagerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. The author inadvertently invoked a no-op
+`git diff --check --no-index NUL NUL`; it inspected no repository content and is discarded as
+evidence. Compilation, Room query execution, generated v28 schema convergence, runtime projection,
+shared UI, device/provider behavior,
+integration, activation, and release remain unproven.
+
+## TI-B273 — Wi-Fi retained-WAL authority contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `d7c5e5d4b`. Authored real-Room adapter tests cover the
+exact positive-sequence one-unit delivery, canonical payload and recomputed delivery identity,
+retained accepted-action plan application, immutable plan bytes/checksum/fingerprint, null runtime
+configuration hints, every bounded authorization member and demand contract, registration/barrier,
+policy/consent, complete manifest/run/segment binding, active and terminal lifecycle pairs, final
+admission cutoff, clock/zone, retention, deletion, and configured authority/read overflow.
+Independent review rejected fabricated applied-plan evidence, incomplete demand-floor proof, and
+unauthenticated terminal settlement before accepting the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*WifiCapturedFactClassifierTest' --tests '*WifiWalQualificationAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query execution, fact schema/writer/cursor, source-local
+deletion/retention, provider callback and active-attempt behavior, product history/UI, device/OEM
+behavior, integration, activation, and release remain unproven.
+
+## TI-B274 — Ambient Steps structural-day product contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `55024d9f6`. Authored composer, DAO, and real-Room
+repository tests cover 31-day paging; bounded fact, gap, cursor, transition, authorization-member,
+session, and imported-entry dependencies; exact structural zone/day identity; stable fact revisions;
+effective-gap subtraction; provider and reboot discontinuity; local and portable session partition;
+overflow; typed availability/materialization; and no fabricated zero. Independent reviews rejected
+day-only caller authority, zero-width session evidence, incomplete retained-history authentication,
+and clamped authorization clock regressions before accepting the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*AmbientStepsFactRevisionDaoTest' --tests '*AmbientStepsImportStateDaoTest' :stats:data:testDebugUnitTest --tests '*AmbientStepsDayComposerTest' --tests '*AmbientStepsDayRepositoryTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query execution, shared Today/Timeline/Calendar/detail and
+numeric consumers, retention, deletion, consent reset, portable transfer, provider/device behavior,
+integration, activation, and release remain unproven.
+
+## TI-B275 — Pressure privacy-safe portable export contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `63b9667b3`. Authored API-format and real-Room selector tests
+cover self-checksumming, opaque kind-scoped identities, complete replacement-run range discovery,
+qualified windows, direct Welford variance state, accuracy/cadence/latency/expected-versus-actual
+coverage, maximum gap, wall uncertainty, stored zone, marker-only and retained-plus-marker partial
+state, materializing no-emission, and absence of Location/control/provider/local identities. An
+independent read-only review accepted the transaction/sink boundary and configured limits. Direct
+tests for the maximum entry, total-run, total-window, and per-entry-run overflow constants remain a
+P3 authored-test follow-up.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:api:testAndroidHostTest --tests '*PressurePortableFormatV1Test' :stats:data:testDebugUnitTest --tests '*PressureHistoryReadModelTest' --tests '*PressureHistorySelectorTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query execution, maximum-boundary test coverage,
+authoritative import, deletion/no-resurrection, repair, shared UI, device/provider behavior,
+integration, activation, and release remain unproven.
+
+## TI-B276 — Cell source-local persistence and aggregate-lineage contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `0dae1d8f5`. Authored model, writer, real-Room, and v27
+to v28 migration tests cover identity-free changed/unchanged/coverage semantics, exact delivery and
+source authority, Cell deletion epoch, correction lineage, cursor CAS, replay, settlement, retention
+floor, cancellation/rollback, bounded 256-revision lineages, malformed/discontinuous overflow, and
+retained-prior fallback. Repeated independent reviews rejected unauthenticated corrections, mutable
+finite bounds, stale aggregate owners, open-owner reuse, and dangling historical owner revisions
+before accepting the bounded lineage correction.
+
+Deferred focused commands:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*CellCapturedFact*' --tests '*CellWalQualificationAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat :core:base:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.shared.base.database.AppDatabaseMigration27To28Test --no-daemon --no-parallel --max-workers=1 --console=plain --no-configuration-cache
+```
+
+Neither command was run. Compilation, generated v28 schema convergence, SQL/migration execution,
+retention-worker preservation or retirement of referenced owner revisions, provider/callback/device
+behavior, product history/UI, transfer, integration, activation, and release remain unproven.
+
+## TI-B277 — Activity retained-WAL admission and settlement contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `689a6e994`. Authored real-Room adapter tests cover
+payload-free SQL size/cardinality preflight, selected and sibling BLOB overflow, canonical payload
+shape and delivery identity, exact capture owner and immutable registration-plan binding,
+authorization/demand/policy/consent, reciprocal manifest/run/segment, deletion/retention, clock/zone,
+destination authority, and CONTROL exclusion. Lifecycle tests cover exact STARTING, ACTIVE,
+RECONFIGURING and STOPPING live pairs, typed unsettled finite windows, terminal null pointer,
+cutoff/final-ordinal coverage, corrupt active/terminal mixtures, and legitimate older replacement
+runs. Repeated reviews rejected unbounded BLOB loading, unauthenticated settlement, and equality-only
+live-pair validation before accepting the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*ActivityCapturedWalAdmissionAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query execution, generated v28 schema convergence,
+production registration-plan insertion and callback attribution, bounded terminal projection,
+writer activation, maintenance/transfer, shared UI, provider/device behavior, integration,
+activation, and release remain unproven.
+
+## TI-B278 — Activity applied-plan registration and delivery contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `4cd3246cf`. Authored arbiter, runtime, ingress, delivery,
+writer, and adapter tests cover canonical defensive-copy Activity plan bytes, checksum, true plan
+revision, physical fingerprint, exact desired-plan matching, atomic registration acceptance and
+binding insertion, replacement history, mismatch rollback plus provider removal, CONTROL and missing
+binding exclusion, divergence between registration generation and plan revision, exact callback
+stamping, and byte-for-byte downstream comparison. Independent read-only review accepted the
+authority and rollback boundaries.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :sensor:activity:testDebugUnitTest --tests '*DefaultActivityRegistrationArbiterTest' :tracker:engine:testDebugUnitTest --tests '*ActivitySourceRuntimeTest' --tests '*RoomActivityRecognitionEventIngressTest' --tests '*ActivitySourceDeliveryFactoryTest' --tests '*ActivityCapturedWalAdmissionAdapterTest' --tests '*ActivityCapturedFactWriterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query execution, generated v28 schema convergence,
+terminal projection triggering, destination/writer activation, provider callbacks, process/reboot,
+maintenance/transfer, shared UI, device behavior, integration, activation, and release remain
+unproven.
+
+## TI-B279 — Pressure-only recent, Dashboard, and live presentation contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `8214b92ab`. Authored API, repository, paging, presenter,
+and Compose tests cover exact Pressure-only intent before first fact, unavailable/materializing
+replacement of physical fallback, complete logical membership, one member-owned recency tuple,
+256-candidate/member overflow, cancellation, 64+1 Dashboard backfill, mixed/legacy preservation, and
+one Room snapshot for live session plus Pressure classification. UI contracts cover direct retained
+hPa latest/range/change and coverage, non-clickable opaque rows, no Location-derived fields, no zero
+fabrication, Recording only with qualified retained metrics, and typed non-recording materializing,
+unavailable, and failed headers. Reviews rejected fact-only replacement, split recency maxima,
+unbounded/underfilled pages, mixed-time live flows, and state-only Recording labels before accepting
+the corrections.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:api:jvmTest --tests '*TrackingHistoryRepositoryTest' :stats:data:testDebugUnitTest --tests '*PressureHistorySelectorTest' :feature:dashboard:testDebugUnitTest --tests '*DashboardHistoryRepositoryTest' --tests '*DashboardViewModelLiveStepsTest' --tests '*RecentTripsCardTest' --tests '*PressureOnlyTrackingContentTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query execution, Calendar/shared selected-detail/full
+Today-Timeline composition, localization/accessibility/device rendering, process/provider behavior,
+automatic control, integration, activation, and release remain unproven.
+
+## TI-B280 — Protected Location mock-provenance and crash-repair contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `6e9d84f38`. Authored codec, runtime-delivery,
+qualification, retained-WAL adapter, and raw-repair tests cover frozen v1 golden compatibility,
+typed v1 mock-provenance unverifiability, canonical v2 true/false provenance, identity divergence,
+missing/null/trailing-byte/corrupt rejection, crash repair and replay idempotence, and absence of a
+second fact write. Independent review accepted the corrected raw-repair propagation after rejecting
+the initial hard-coded non-mock repair.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*SourcePayloadCodecTest' --tests '*LocationSourceDeliveryFactoryTest' --tests '*LocationQualifiedObservationTest' --tests '*LocationWalQualificationAdapterTest' --tests '*RawLocationObservationRepairTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, protected-writer shadow comparison, route or
+distance recomposition, correction, retention, deletion, transfer, product UI, provider/process/
+device behavior, integration, activation, cutover, and release remain unproven.
+
+## TI-B281 — Pressure-only selected-detail and fail-closed error contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `c27cc1c18`. Authored presenter, ViewModel,
+source-presentation, and Compose tests cover exact all-revision `{Pressure}` classification, mixed/
+Location/legacy preservation, one live-history snapshot, retained direct hPa latest/range/change/
+coverage, partial and materializing state, unavailable/failed/null without zero, and absence of map,
+route, navigation, GPX, Location/Ski reads, distance, speed, elevation, and sample-shaped content.
+Independent review rejected the initial observer-exception path because it retained resolving or
+stale source state; the correction proves typed failure, retry, recovery, and programmatic export
+suppression.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :feature:statistics:testDebugUnitTest --tests '*TripDetailPresenterTest' --tests '*TripDetailPresenterViewModelTest' --tests '*TripDetailSourcePresentationTest' --tests '*TripDetailRouteComposeTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, full Today/Timeline/Calendar composition,
+localization/accessibility/device rendering, process/provider behavior, maintenance/import,
+integration, activation, and release remain unproven.
+
+## TI-B282 — Bounded Cell history and fail-closed discovery contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `79056b454`. Authored API, selector, composer,
+repository, and real-Room tests cover exact cursor-carried source-only discovery, reciprocal
+run/segment scope, complete 33-member replacement pagination, replacement siblings without facts,
+33-entry recency paging, correction and direct aggregate-owner lineage, identity-free technology/
+quality/availability/coverage state, v1 grouping `UNKNOWN`, and one-transaction selected/recent
+reads. Missing current revisions, moved facts, and corruption of each cursor-head identity field
+produce typed `FACT_INTEGRITY_FAILED` rather than disappearing. Dependent and owner epoch/deletion/
+high-water/retention failures, limit-plus-one overflow, and cancellation are covered. Reviews
+rejected self-declared discovery, stale owner privacy, missing fixtures, and a current-head inner join
+before accepting this correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:api:testAndroidHostTest --tests '*CellHistoryReadModelTest' :stats:data:testDebugUnitTest --tests '*CellHistoryComposerTest' --tests '*CellHistoryRepositoryRoomTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query execution, generated v28 schema convergence,
+runtime projection, retention/deletion/transfer, shared UI, provider/callback/device behavior,
+automatic/ambient operation, integration, activation, and release remain unproven.
+
+## TI-B283 — Activity retention, capture deletion, and no-resurrection contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `d3b889991`. Authored real-Room and writer tests cover
+bounded complete revision/cursor/fragment/evidence/registration-plan reconciliation, whole-lineage
+uncertainty-safe retention, live current and terminal-old/live-replacement runs, exact terminal
+cutoff and mismatch, revoked capture consent, active demand and shared registration quiescence,
+foreign/malformed/orphan/bare rows, exact run deletion fences, stale replay rejection, WAL/CONTROL
+preservation, limit-plus-one failure, transaction ordering, and cancellation rollback. Independent
+review rejected nullable-cutoff comparison and incomplete child-table accounting before accepting
+the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ActivityCapturedFactMaintenanceTest' :tracker:engine:testDebugUnitTest --tests '*ActivityCapturedFactWriterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query execution, generated v28 schema convergence,
+destination activation, portable transfer, shared UI, provider/process/device behavior,
+automatic capture, integration, activation, and release remain unproven.
+
+## TI-B284 — Activity terminal projection and exact poison-origin contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `f269b562a`. Authored projection-lane tests cover exact
+per-event payload preflight, bounded terminal traversal, 4,096 plus one overflow attribution,
+separate physical replacement-window accumulation, canonical writer/evidence/cursor transaction,
+duplicate/drain handoff, cancellation rollback, and CONTROL/deletion/retention exclusion. Focused
+later-window tests prove both coalescer and writer failure report that group's first WAL admission
+ordinal and leave the earlier valid prefix unpoisoned. Independent review accepted the correction after rejecting
+initial-run ordinal reuse. Production catalog assertions remain inert.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*ActivityCapturedFactProjectionLaneTest' --tests '*ActivityCapturedWalAdmissionAdapterTest' --tests '*ActivityCapturedFactWriterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, generated v28 schema convergence, destination
+activation, provider/process/reboot/device behavior, shared UI, transfer, automatic capture,
+integration, rollout, and release remain unproven.
+
+## TI-B285 — Wi-Fi persistence and replacement-registration authority contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `26347367c`. Authored model, writer, real-Room,
+migration, WAL-adapter, and replacement tests cover identity-free changed/unchanged/coverage facts,
+exact delivery and source authority, Wi-Fi deletion epoch, correction/finite aggregate ownership,
+cursor CAS, replay, cancellation, and bounded lineage traversal. Terminal older-run cases cover
+complete current manifest checksum/source membership, reciprocal segment/run, accepted action,
+canonical plan, boot/lease/source instance, exact current evidence epoch, process-bound registration,
+paired acceptance clocks, reservation/acceptance/action chronology, and distinct ACTIVE/RETIRING
+retirement shapes. Missing/corrupt/stale/overflow and retirement-before-action wall or elapsed cases
+fail closed. Repeated reviews rejected equality-only lifecycle, missing replacement authentication,
+stale epoch/clock shapes, and incomplete retirement ordering before accepting the correction.
+
+Deferred focused commands:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*WifiCapturedFact*' --tests '*WifiWalQualificationAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat :core:base:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.shared.base.database.AppDatabaseMigration27To28Test --no-daemon --no-parallel --max-workers=1 --console=plain --no-configuration-cache
+```
+
+Neither command was run. Compilation, Room query/migration execution, generated v28 schema
+convergence, provider/callback/active-attempt behavior, product history/UI, maintenance/transfer,
+device/process evidence, automatic/ambient operation, integration, activation, and release remain
+unproven.
+
+## TI-B286 — Pressure deletion and repair scope reconciled against current code
+
+Status: **REPOSITORY_AUDIT_ONLY**. Read-only inspection confirmed that `61608800e` and `9592c42d8`
+provide the typed Pressure selected-session API/module/service, exact source/run deletion fence,
+bounded deterministic fact removal, stored-zone day repair, cancellation/rollback, idempotence, and
+delayed-replay no-resurrection tests already recorded by TI-B199/TI-B200. The `ed4089323` ancestry
+contains Pressure retention and retained-loss discovery; `63b9667b3` contains export only. Current
+`AppDatabase` global deletion advances the collected-data epoch/high-water atomically and removes
+Pressure fact revisions with the other tracking state.
+
+No command was executed beyond read-only source/history inspection, and no production or test file
+changed. Portable Pressure import and a separately invocable Pressure-wide erase remain unproven and
+must not be conflated with the accepted selected-session or global all-data paths.
+
+## TI-B287 — Activity-only product and Dashboard contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED_WITH_CONVERGENCE_BLOCKER** through `48d4d3e67`. Authored Room/API,
+repository, ViewModel, and Compose tests cover pre-fact Activity capture intent, exact all-revision
+classification, 33-member replacement paging, one-snapshot live reads, bounded recent discovery and
+64 plus one Dashboard backfill, retained movement bands/active time/coverage/gaps, materializing and
+missing values without zero, and absence of Location metrics, controls, or navigation.
+
+Independent static review accepted the source-local behavior and identified one mandatory assembly
+condition: accepted Pressure UI changes the same public history, Dashboard repository/ViewModel,
+live-state, Compose, resource, and test seams. Final convergence must union both source contracts in
+one transactional live read, one bounded recent merge, and one presentation vocabulary; neither
+isolated branch is integration-complete.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:api:testAndroidHostTest --tests '*TrackingHistoryRepositoryTest' :stats:data:testDebugUnitTest --tests '*ActivityHistoryComposerTest' --tests '*StepsSegmentHistorySelectorTest' :feature:dashboard:testDebugUnitTest --tests '*DashboardHistoryRepositoryTest' --tests '*DashboardViewModelLiveStepsTest' --tests '*RecentTripsCardTest' --tests '*ActivityOnlyTrackingContentTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, Activity-plus-Pressure convergence, full
+Today/Timeline/Calendar/detail, localization/accessibility/device rendering, provider/process/
+reboot/FGS behavior, automatic capture, integration, activation, and release remain unproven.
+
+## TI-B288 — Activity and Pressure shared-UI convergence design audited
+
+Status: **DESIGN_ONLY_UNVALIDATED**. Read-only comparison of accepted Pressure UI `8214b92ab` and
+Activity UI `f364cbc42`/`48d4d3e67` identified every overlapping stats API/data, Dashboard repository/
+ViewModel/live-state, Compose, string, and test seam. The audit specifies one combined transactional
+live snapshot, one bounded source-aware recent-page algorithm, complete replacement-member
+suppression, top-limit discovery from both sources, one final member-owned recency sort, collision/
+overflow/cancellation failure, and the exact four-kind presentation vocabulary.
+
+Required authored convergence tests must preserve both branches' existing contracts and add combined
+snapshot invalidation, mixed/legacy physical behavior, Activity and Pressure rows in one page,
+dual-only contradiction failure, either-source overflow, opaque-key namespacing, cancellation, and
+absence of Location-shaped or fabricated numeric content. No code was changed and no command was
+run; the combined branch and all compilation/Room/UI/device evidence remain outstanding.
+
+## TI-B289 — Bounded Wi-Fi product history contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `adde063f3`. Authored API/composer/real-Room tests cover
+cursor/WAL/completeness-carried discovery, complete replacement groups, fact-only freshness,
+provider/authorization/session half-open windows, later manifest reuse of one accepted registration,
+active/retiring/retired lane chronology and exact cutoff, missing/corrupt heads, identity-free
+metrics, cancellation, and SQL limit enforcement for policy/consent/demand/fence/lane reads.
+
+Independent review rejected the first correction because it required every member in a valid shared
+broker authorization to own the same capture fact. `adde063f3` now requires exactly one matching
+persistent capture owner, authenticates the complete demand set/fingerprint, and verifies every other
+member's compatible Wi-Fi broadcast contract without transferring fact ownership. Authored ready,
+materializing, and incompatible-member fixtures cover both retained-WAL and fact paths; re-review
+accepted the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:api:testAndroidHostTest --tests '*WifiHistoryReadModelTest' :stats:data:testDebugUnitTest --tests '*WifiHistoryComposerTest' --tests '*WifiHistoryRepositoryRoomTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, generated v28 schema convergence, runtime
+projection, provider/callback/active-attempt behavior, maintenance/transfer, shared UI,
+automatic/ambient operation, device/process evidence, integration, activation, and release remain
+unproven.
+
+## TI-B290 — Ambient Steps retention, deletion, and replay contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `d998dbb4c`. Authored real-Room tests cover bounded
+complete fact/cursor/gap/transition/authorization/import audits, active/retiring demand and compatible
+provider quiescence, exact terminal RETRACT-before-UPSERT removal, consent/source deletion, replayed
+older and corrected UPSERT cleanup, retained retraction, idempotent retry, whole-lineage retention,
+malformed/foreign/orphan/overflow failure, SQLite rollback, and cancellation.
+
+Independent reviews rejected the initial exact-mask-only quiescence and unbounded/incomplete audit,
+then rejected a correction where RETRACT plus replayed older UPSERT physically survived. The final
+implementation preserves the terminal source-local retraction, removes all replayed payload/import
+state, and reports `AlreadyDeleted` only after the source contains no resurrectable payload; re-review
+accepted it.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*AmbientStepsMaintenanceTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, generated v28 schema convergence, portable
+export acceptance, shared Today/Timeline/Calendar/UI, provider/process/reboot/device behavior,
+integration, activation, and release remain unproven.
+
+## TI-B291 — Manual Wi-Fi prerequisite and remediation contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `750bd6c42`. Authored capability, foreground-source,
+connectivity-runtime, Wi-Fi-runtime, service-preflight, shared permission-launcher, Dashboard route,
+Tracker route, onboarding, and settings tests cover API 26–27 coarse/fine/change-Wi-Fi without
+Location Services, API 28 coarse/fine plus services, API 29+ fine plus services, no Nearby scan-only
+gate, exact capture-set preservation, Android 12+ paired fine/coarse repair, denial, and readiness
+re-evaluation before start.
+
+Independent review rejected the first correction for over-constraining API 26–28 and leaving the two
+primary manual routes on a fine-only request that Android 12 can ignore. The two follow-up commits
+align every capability/admission/runtime layer and the route launchers with the platform matrix;
+re-review accepted the correction.
+
+Deferred focused commands:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*TrackingPermissionCapabilitiesTest' :core:ui:testDebugUnitTest --tests '*ContextualPermissionRequestTest' :tracker:engine:testDebugUnitTest --tests '*AndroidForegroundSourceCapabilitiesTest' --tests '*ConnectivityRuntimeSupportTest' --tests '*WifiSourceRuntimeTest' :tracker:service:testDebugUnitTest --tests '*TrackingServicePermissionPreflightTest' :app:testDebugUnitTest --tests '*SetupViewModelTest' --tests '*TrackingSettingsViewModelTest' :feature:dashboard:testDebugUnitTest --tests '*DashboardRouteTest' :feature:tracker:testDebugUnitTest --tests '*TrackerRouteTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The commands were not run. Compilation, Android permission-dialog behavior, provider callback/scan,
+throttling, process/reboot/FGS/device behavior, product history/UI convergence, integration,
+activation, and release remain unproven.
+
+## TI-B292 — Ambient Steps portable-export contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `8ff5ec428`. Authored real-Room and format tests cover one
+bounded authenticated snapshot, structural day/stored zone, complete fact revisions, effective gaps,
+authorization transitions, policy/consent/retention/deletion, opaque checksummed output, privacy
+exclusions, terminal retraction plus replay `NoData`, cancellation, and sink invocation only after
+the transaction.
+
+Independent review first rejected a predicate that allowed export when an active cursor backlog had
+not yet reached the selected day start; the correction vetoes every cursor below day end. Re-review
+then found that the maximum purpose-qualified authorization query hid later deny-all revisions;
+`8ff5ec428` compares against the latest revision of any kind before reconstructing the exact allow
+authority. Cross-registration backlog, tamper, and later-deny regressions cover no-export/no-sink;
+final re-review accepted the correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*AmbientStepsPortable*' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The Gradle command was not run. During final read-only review, the reviewer accidentally invoked
+`git diff --check`; it returned no output and changed no file. This was not an authorized start of the
+deferred validation phase. Compilation, Room execution, portable import/round trip, shared UI,
+provider/process/reboot/device behavior, integration, activation, and release remain unproven.
+
+## TI-B293 — Pressure portable-import feasibility boundary audited
+
+Status: **REPOSITORY_BOUNDARY_CONFIRMED** at clean `codex/ti-pressure-import` HEAD `63b9667b3`; no
+source or test file changed. Static inspection confirms that `PressureFactRevisionEntity` rejects a
+missing source event or nonpositive admission ordinal and binds every fact to provider sequence,
+local run/manifest/policy/consent, and the Pressure projection owner. The private
+`PressureSessionFactProjectionLane` constructs those values only from authenticated admitted WAL,
+and `PressureHistorySelector` requires the same live lineage.
+
+Portable Pressure v1 deliberately omits provider and local lifecycle identity. Repository search
+found no Pressure decoder, import authority entity/DAO, or source-owned import command. Therefore a
+direct insert or fabricated live identity is not an acceptable round trip. Required future evidence
+is a bounded Pressure-specific imported-origin store and writer, history/maintenance recognition,
+format decode/checksum/tamper coverage, collision/replay/idempotence, deletion and retention fences,
+and no-resurrection/round-trip contracts.
+
+No validation command was run. This audit proves only the architectural prerequisite and the unsafe
+paths that remain forbidden; portable import, Room execution, migration/reopen, integration, and
+device behavior remain unproven.
+
+## TI-B294 — Activity and Pressure product-convergence contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `100d3e9d2`. Authored API, Room-composition, presenter,
+and Dashboard tests cover one transactional live session/Activity/Pressure snapshot; one bounded
+source-aware recent page; exact `Physical | StepsOnly | ActivityOnly | PressureOnly` vocabulary;
+complete replacement suppression; collision, overflow and dual-only failure; opaque nonnavigable
+source-only content; nullable Activity/Pressure metrics; and no Location-shaped fallback.
+
+The first review required canonical persistence-eligible Activity intent and unknown source/purpose
+failure. The second required member-owned recency and bidirectional common/source live agreement.
+Regressions cover known nonpersistent membership, corrupt membership, regressing physical IDs,
+inverse live mismatch, and Dashboard `HistoryUnavailable`. Final read-only review accepted the full
+chain.
+
+Deferred focused commands:
+
+```powershell
+.\gradlew.bat :stats:api:androidHostTest :stats:data:testDebugUnitTest :feature:dashboard:testDebugUnitTest --tests '*TrackingHistoryRepositoryTest' --tests '*ActivityHistoryComposerTest' --tests '*DashboardViewModelLiveStepsTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, complete Today/Timeline/Calendar/detail,
+localization/accessibility/device rendering, integration, activation, and release remain unproven.
+
+## TI-B295 — Wi-Fi retention and deletion-maintenance contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `cc2e83938`. Authored Room contracts cover bounded full
+fact/revision/cursor/deletion-generation/WAL traversal; exact plan/provider/authorization/session/
+manifest/clock/zone/owner authentication; covered-interval uncertainty and exact-floor equality;
+bidirectional fixed-point aggregate ownership; dependency-first deletion; complete identity-free
+aggregate equality; revoked-consent demand/provider quiescence; run fence plus Wi-Fi generation
+before payload removal; retained WAL/CONTROL; replay/no-resurrection; idempotence; corruption and
+configured overflow; and cancellation rollback.
+
+Independent review first rejected owner-only retention closure and count-only coverage-reference
+authentication. `cc2e83938` adds inverse dependent-floor and equal-count/different-content
+regressions; fresh read-only review accepted both corrections and the complete boundary.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*WifiWalQualificationAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, worker/action invocation, runtime projection,
+provider/process/reboot/device behavior, transfer, shared UI, integration, activation, and release
+remain unproven.
+
+## TI-B296 — Pressure portable-origin storage and monotonic deletion contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `ddb9ed162`. Authored entity, DAO, and migration/reopen
+contracts cover the composite imported entry-revision → run → window hierarchy; every portable-v1
+field; copied receipt and local epoch authority; bounded 64-run/2,048-window reads plus counts;
+receipt rollback cascade; full collected-data clear; no fabricated live session; and a standalone
+self-checksummed run tombstone. The corrected transition requires the same collected-data epoch,
+an overflow-safe expected generation, and exact `+1`; tests reject changed epoch, same/lower
+generation, stale overwrite, and checksum-preserving authority-field substitution while preserving
+the winning row.
+
+Independent review accepted the source chain and explicitly confirmed that no production runtime
+uses the dormant imported DAO. The deferred focused commands are:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ImportedPressure*' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat :core:base:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.shared.base.database.AppDatabaseMigration27To28Test --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The commands were not run. The tracked v28 Room schema JSON still lacks the imported-Pressure
+tables (five after TI-B299) and must be regenerated/reviewed during convergence. Compilation, Room
+execution, production import admission, no-resurrection writer behavior, history/maintenance
+composition, round trip, integration, device behavior, activation, and release remain unproven.
+
+## TI-B297 — Cell canonical-identity retention and deletion contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `f8d7a5f50`. Authored source-local maintenance tests
+cover canonical v1 payload decoding; shared runtime/maintenance provider-delivery identity bytes;
+positive child provider time; complete identity-free aggregate replay; current cursor-head owner
+binding; exact provider/configuration/plan/authorization/policy/manifest/lease/clock/temporal
+authority; covered-interval retention; bounded bidirectional owner/dependent closure; dependency-
+first deletion; exact-zero callback barrier; demand/provider quiescence; run/Cell-generation fences;
+preserved WAL/CONTROL; replay/no-resurrection; idempotence; corruption/overflow; and cancellation
+rollback. Adversarial fixtures independently change radio, registration state, signal quality,
+registration generation, and authorization revision, and fully rehash payload/WAL/fact/cursor while
+retaining the old delivery/logical identity; every mismatch remains blocked.
+
+Independent re-review confirmed the extracted v1 identity helper preserves the former runtime byte
+stream exactly and that prior transaction/privacy fences remain intact. Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*CellCapturedFactMaintenanceTest' :tracker:engine:testDebugUnitTest --tests '*CellWalQualificationAdapterTest' --tests '*CellSourceRuntimeTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, maintenance worker/action invocation,
+runtime projection, provider/process/reboot/device behavior, transfer, shared UI, integration,
+activation, and release remain unproven.
+
+## TI-B298 — Activity production-shape portable-export contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `8f0842354`. Authored bounded Room/export tests cover
+canonical bare lowercase 64-hex delivery identity before source-wide sibling expansion; payload-
+free ordered lookup; sparse original indices; source-sequence zero and increasing gaps; omitted
+rejected or retained-away siblings; per-unit observed-time authorization; overflow-safe per-demand
+freshness; full authorization fingerprint plus recomputed qualified purpose mask; mixed capture and
+CONTROL; captured-target-only run binding; half-open closing; qualified late receipt; exact terminal
+settlement; malformed/hidden sibling, stale capture, mask/fingerprint/shared-delivery corruption;
+overflow; cancellation; and sink I/O only after the transaction. CONTROL never becomes captured
+portable content.
+
+Independent review compared these shapes with production durable ingress and accepted the corrected
+chain. Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ActivityCapturedFactMaintenanceTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, portable import/round trip, selected
+deletion, file/UI action wiring, catalog activation, provider/process/reboot/device behavior,
+integration, activation, and release remain unproven.
+
+## TI-B299 — Pressure receipt, lineage, and import-admission contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `6c77f25ef`. Authored API, Room, DAO, entity, and
+migration/reopen tests cover defensive I/O-dispatched v1 snapshot reauthentication; current local
+epoch; tombstone-before-duplicate no-resurrection; immutable original and alternate receipt claims;
+idempotent replay and conflicting reuse; exact immediate-successor correction; bounded complete
+`1..N` header/receipt/run/window lineage; format/schema/checksum/order/interval integrity; global and
+cross-revision identity-kind/owner stability; run/per-run-window/total-window/revision/receipt
+limits; imported-only atomic writes; injected mid-write/receipt rollback; and cancellation
+propagation. Cross-kind and window-owner mutation fixtures recompute window, entry, and authoritative
+receipt checksums so the lineage ownership audit—not an earlier checksum failure—blocks them.
+
+Independent review accepted the three-commit corrected chain. Deferred focused commands:
+
+```powershell
+.\gradlew.bat :stats:api:androidHostTest :core:base:testDebugUnitTest :stats:data:testDebugUnitTest --tests '*PressurePortableImportContractTest' --tests '*ImportedPressureDaoTest' --tests '*RoomImportPortablePressureTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat :core:base:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.shared.base.database.AppDatabaseMigration27To28Test --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The commands were not run. The v28 Room schema JSON still lacks all five imported-Pressure tables.
+Compilation, Room execution, imported history/maintenance, re-export round trip, file/UI action,
+integration, device behavior, activation, and release remain unproven.
+
+## TI-B300 — Cell retained-WAL projection settlement contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `20da10845`. The dormant projection chain
+`2e114194a`/`20da10845` adds a finite source-local Cell drain, ingress/recovery hints, exact
+qualification, the one existing fact writer, and atomic fact/fact-cursor/evidence/failure/lane-cursor
+settlement. Authored tests cover captured persistence, valid CONTROL and AMBIENT skip, corrupt
+purpose mask, corrupt epoch, forged logical/run/time/retention scope, missing WAL, terminal repeat,
+and independent deleted-source high-water release.
+
+Independent review first rejected unauthenticated payload-free selector and terminal-settlement
+decisions. The correction reloads exact event ID, ordinal, and source; requires full qualified WAL
+integrity before every noncapture or lifecycle/fence decision; keeps invalid or missing evidence
+terminal; and includes the first terminal ordinal in the finite drain target after WAL removal. The
+review also confirmed the captured path still authenticates and decodes the exact delivery and that
+no provider, demand, rollout activation, or second writer is introduced.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*CellCapturedFact*' --tests '*CellWalQualificationAdapterTest' --tests '*SourcePipelineRecoveryTest' --tests '*TrackingRolloutStateStoreTest' --tests '*DurableSourceEventSinkTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, maintenance worker/action invocation,
+transfer, shared UI, automatic/ambient behavior, provider/process/reboot/device behavior,
+integration, activation, and release remain unproven.
+
+## TI-B301 — Captured-Cell retention invocation and WAL-order contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `7823ddc09`. `c34fa21d9` adds a bounded app retention
+service and one worker invocation using the existing `wifiCellRetentionDays` value. Authored unit
+and Robolectric sources cover keep-forever zero, exact nonzero cutoff, source-evidence snapshot,
+pruned/no-change/blocked outcomes, cancellation, no provider/demand activation, and stage ordering.
+
+Independent review rejected the first order because a pending signal skipped captured retention
+while later source-event pruning could delete the WAL required for fact authentication.
+`7823ddc09` removes only that skip. The focused real-database fixture now uses nonzero raw and Cell
+retention with a pending signal, observes the old Cell WAL still present inside the sole service
+call, and observes it pruned afterward while legacy radio rows and the pending signal remain
+deferred. Re-review accepted the corrected order and unchanged typed/cancellation/activation
+boundaries.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests '*CellCapturedRetentionServiceTest' --tests '*RetentionPipelineWorkerTest' --tests '*RetentionPipelineWorkerRobolectricTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, consent-reset/source deletion, transfer,
+shared UI, automatic/ambient behavior, provider/process/reboot/device behavior, integration,
+activation, and release remain unproven.
+
+## TI-B302 — Exact Activity selected-session deletion contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `dd19b4d33`. Authored API, core-maintenance, Room
+service, and day-repair tests cover complete bidirectional logical/run/segment replacement
+membership; exact all-revision `{Activity}` capture intent; reverse bindings; manifests; terminal
+lifecycle; policy/consent/writer/source evidence; bounded capture-demand and provider authorization;
+per-run monotonic fences before payload deletion; exact fact/revision/cursor/fragment/evidence and
+presentation removal; stored-zone repair; cancellation/rollback/idempotence; and preservation of
+WAL, CONTROL, plans, unrelated Activity, and other sources.
+
+Static review first required a converse logical-ID segment query, bounded MAX+1 authorization-member
+load, and two-run payload fixtures. A later review rejected a broad pre-read demand shortcut that
+treated session-scoped CONTROL as capture. `dd19b4d33` removes that shortcut: the bounded
+transactional Activity `SESSION_CAPTURE` query remains authoritative. Authored cases permit scoped
+`CONTROL_CONTINUATION` while rejecting exact ACTIVE, RETIRING, and BLOCKED capture demand before any
+fence, evidence mutation, or drain. Fresh re-review accepted the correction and the complete
+source-local boundary.
+
+Deferred focused commands:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ActivityCapturedFactMaintenanceTest' :tracker:engine:testDebugUnitTest --tests '*RoomActivitySelectedSessionDeletionServiceTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The commands were not run. Compilation, Room execution, portable import/round trip,
+consent-reset/file/UI action wiring, automatic behavior, shared product integration,
+provider/process/reboot/device evidence, activation, and release remain unproven.
+
+## TI-B303 — Imported Pressure history and round-trip contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `b9e31666d`. Authored API and Room tests cover one
+bounded snapshot of current epoch, retained tombstones, receipts, complete revision/run/window
+lineage, checksums, correction order, stable identity owners, retention, structural zone, coverage,
+and configured limits; imported-only discovery; stable opaque origin; nullable hPa; truthful
+partial/deleted/materializing/unverifiable states; bounded live/import pages; exact duplicate
+suppression; distinct origins; authenticated latest-v1 re-export; fresh-database round trip; and
+no-resurrection after tombstone or retention loss.
+
+Independent review rejected divergent local/imported content sharing one opaque identity because
+exporting both would make re-import fabricate a correction winner from output order.
+`b9e31666d` adds typed `CONFLICTING_ORIGIN_IDENTITY` before sink I/O. Exact full-v1 equality emits
+once, distinct identities remain separate, and the correction does not change bounded lineage,
+paging, or no-live-authority behavior. Fresh static re-review accepted the correction.
+
+Deferred focused commands:
+
+```powershell
+.\gradlew.bat :stats:api:androidHostTest :stats:data:testDebugUnitTest --tests '*PressureHistoryTest' --tests '*ImportedPressureHistoryEvaluatorTest' --tests '*PressureHistorySelectorTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The commands were not run. Compilation, Room execution, imported maintenance, file/UI action
+wiring, schema generation/reopen, provider/process/reboot/device behavior, integration, activation,
+and release remain unproven.
+
+## TI-B304 — Wi-Fi retained-WAL projection contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `dfaf6bb8e`. Authored source-local tests cover finite
+64-row drain targeting; captured and compact-coverage projection; canonical versus shadow writer
+ownership; valid CONTROL/AMBIENT skip; corrupt purpose mask, epoch, logical/run/time/retention
+scope; missing WAL; deleted-source high-water; retry, poison, cancellation, stale destination owner;
+atomic fact/cursor/evidence/failure/lane settlement; and ingress/startup hints.
+
+Independent review confirmed every noncapture and terminal decision reloads the exact row and
+requires qualified full integrity, invalid/missing evidence remains terminal except for independent
+deletion high-water, the terminal ordinal stays reachable after WAL removal, retention uses the
+authenticated provider interval, and the existing single writer rechecks destination ownership.
+Caller inspection found hints only and no provider, demand, rollout, or second-writer activation.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*WifiCapturedFact*' --tests '*WifiWalQualificationAdapterTest' --tests '*SourcePipelineRecoveryTest' --tests '*TrackingRolloutStateStoreTest' --tests '*DurableSourceEventSinkTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, maintenance invocation, transfer, shared UI,
+automatic/ambient behavior, provider/process/reboot/device evidence, integration, activation, and
+release remain unproven.
+
+## TI-B305 — Imported Pressure selected-entry deletion and no-resurrection contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `941999060` (`582f51570`, `3a6a118f2`, `11a01b75b`,
+and `941999060`). Authored API, DAO, Room, migration, history, export, and import assertions cover
+exact epoch/revision selection; complete correction lineage; dedicated entry versus run markers;
+global live and marker identity-kind/owner collisions; bounded overflow; fence-before-cascade;
+receipt/hierarchy removal; cancellation/rollback; idempotence; unrelated imported and live-source
+preservation; full clear and migration reopen; and absence of fabricated provider/session/WAL
+authority.
+
+Independent reviews first found that globally keyed run markers could affect an unrelated entry and
+that the live-owner audit omitted both durable marker namespaces. `3a6a118f2` and `11a01b75b` add
+bounded entry/run/window owner plus entry/run-marker checks before the first fence, with all four
+cross-kind marker collisions and legitimate same-owner correction reuse. A fresh full-slice review
+then found that superseded-revision run markers were ignored by latest-only history/export and by
+exact/alternate/correction import paths. `941999060` makes superseded-only deletion typed
+unverifiable and nonexportable and blocks every admission path on any retained-lineage marker;
+latest-reused run identities retain typed deleted behavior. Final independent static review returned
+ACCEPT with no remaining blocking defect.
+
+Deferred focused commands:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ImportedPressureDaoTest' :stats:api:androidHostTest --tests '*PressurePortableImportContractTest' :stats:data:testDebugUnitTest --tests '*RoomDeleteImportedPressureEntryTest' --tests '*ImportedPressureHistoryEvaluatorTest' --tests '*RoomImportPortablePressureTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, generated-schema parity, connected migration,
+file/UI invocation, imported retention/source-wide erase, device/provider/process behavior,
+integration, activation, publication, and release remain unproven.
+
+## TI-B306 — Portable captured Activity storage and admission contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `fde0c9f63` (`5401ef0dc`, `a99987807`, and
+`fde0c9f63`). Authored format, entity, DAO, Room, and migration assertions cover the complete
+eight-table imported hierarchy; capture-format-only admission; `NOT_CAPTURED` physical replacement
+members; exact and alternate receipt replay; contiguous corrections; current epoch and retention;
+bounded entry/run/window identity ownership across live rows and both imported marker namespaces;
+current versus stale Activity source-deletion scopes; unrelated fence source/purpose/digest;
+cancellation, SQLite, and concurrency rollback; full clear; migration reopen; and absence of
+fabricated live authority.
+
+Independent review corrected unsupported automatic database closing in the migration reopen test,
+then found that imported Activity admission did not consult the existing source-local deletion
+fence. `fde0c9f63` adds the exact early bounded fence gate before receipt or hierarchy mutation, so
+same-database export/delete/reimport is typed `DELETED_SCOPE`; stale exact fence evidence is
+unverifiable and unrelated fences do not block. A fresh full-slice static review returned ACCEPT
+with no remaining blocking defect.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ActivityCapturedPortableFormatV1Test' --tests '*ImportedActivity*' --tests '*RoomImportPortableCapturedActivityTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, generated-schema parity, connected migration,
+imported product read/round trip, selected deletion, retention/source-wide erase, file/UI action,
+shared product composition, device/provider/process behavior, integration, activation, publication,
+and release remain unproven.
+
+## TI-B307 — Production Wi-Fi captured-retention invocation contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `16acedc538`. Authored service, worker, and Room-facing tests
+cover zero-days keep-forever; one nonzero invocation; saturating cutoff; startup-generation lease;
+epoch/deleted-source-high-water snapshot and transactional race rejection; execution before WAL
+pruning; invocation despite pending-signal legacy deferral; exact typed no-change/blocked/pruned
+continuation; storage retry; cancellation propagation; WAL preservation at call time; and absence of
+provider, demand, writer, or rollout activation.
+
+Fresh independent static review returned ACCEPT with no remaining blocking defect.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests '*RetentionPipelineWorkerTest' --tests '*RetentionPipelineWorkerRobolectricTest' :tracker:engine:testDebugUnitTest --tests '*WifiCapturedRetentionServiceTest' --tests '*WifiWalQualificationAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, consent-reset/source deletion, transfer,
+shared UI, automatic/ambient behavior, provider/process/reboot/device evidence, integration,
+activation, publication, and release remain unproven.
+
+## TI-B308 — Cell capture-consent revocation deletion contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `27b796bd8` (`0ad2ec4d6`, `71efc0707`, `917fe45df`,
+`128e3622c`, and `27b796bd8`). Authored maintenance, command, runtime, repository, and Room-facing
+tests cover exact revoked capture policy/consent/evidence; current-process callback FIFO close and
+drain; authenticated durable barrier publication; post-barrier policy and source-evidence races;
+direct capture-demand retirement; run/source fence-before-payload order; exact CONTROL resumption on
+success, blocked, timeout, publication exception, storage failure, and cancellation; stale/replaced/
+capture-active nonreopen; CONTROL registration/demand/WAL preservation; and no provider start/stop,
+hidden demand, retry loop, or rollout.
+
+Independent review first required a non-null active policy authority and a real source-evidence race.
+A fresh full review then found that post-barrier CONTROL-only WAL could starve capture deletion and
+that timeout typing was inverted. `128e3622c` confines staleness to fully authenticated current
+capture-bearing WAL and separates timeout from lane failure. `27b796bd8` makes the regression match
+production ingress and proves the newer CONTROL row remains byte-for-byte equivalent after
+normalizing only generated ordinal and array identity. Final static review returned ACCEPT with no
+remaining blocking defect.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*CellCapturedFactMaintenanceTest' :tracker:engine:testDebugUnitTest --tests '*CellCaptureConsentRevocationDeletionCommandTest' --tests '*CellSourceRuntimeTest' --tests '*SourceRegistrationRepositoryTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, command caller/file or UI action, transfer,
+shared UI, automatic/ambient behavior, provider/process/reboot/device evidence, integration,
+activation, publication, and release remain unproven.
+
+## TI-B309 — Imported Activity product composition and round-trip contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `86a1370bc`: local-history prerequisite cherry-picks
+`6e8d15206`, `f20c6bf6`, `759fb46fe`, `ad0fb0872`, `7238fbe6`, and `b8fb77bdb`; imported
+composition/re-export `d1289d5fa`; mixed-origin ownership correction `86a1370bc`. Authored format,
+DAO, Room, mapper, repository, and portable-reader tests cover bounded correction/receipt/run/zone/
+window/fragment lineage; epoch and uncertainty-aware retention; entry/run/source-scope deletion;
+global live/imported identity-kind ownership; stored zones, gaps, partial and `NOT_CAPTURED`
+replacement evidence; nullable values and no fabricated zero; imported-only recent discovery; exact
+full-v1 deduplication versus divergent origin conflict; child run/window collision; active/incomplete
+local ownership failure; re-export-before-sink; second-database round trip; overflow, corruption,
+storage, cancellation; and absence of fabricated live authority.
+
+Independent review found that production initially loaded local portable ownership only for a
+top-level identity collision, so a distinct import could reuse a local run/window identity. The
+correction performs one bounded complete local portable read for every selected local page entry
+whenever readable imports coexist, validates identity-set completeness, and seeds the verifier with
+the entire result. Fresh full-lineage static review returned ACCEPT with no remaining blocking
+defect.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*RoomImportPortableCapturedActivityTest' --tests '*ActivityCapturedFactMaintenanceTest' :stats:api:allTests :stats:data:testDebugUnitTest --tests '*ImportedActivityHistoryMapperTest' --tests '*ActivityHistoryComposerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, generated-schema parity, imported selected
+deletion/retention/source erase, file/UI actions, shared Today/Timeline/Calendar/detail composition,
+automatic/ambient behavior, device/provider/process evidence, integration, activation, publication,
+and release remain unproven.
+
+## TI-B310 — Wi-Fi capture-consent deletion contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `8629d0630` (`f3c3e105a`, `8fc415724`, and
+`8629d0630`). Authored command, runtime, repository, maintenance, qualification, and Room-facing
+tests cover exact revoked capture policy/consent and current source epoch/high-water; callback FIFO
+close/drain; durable barrier publication; transactional authority recheck; exact direct capture-
+demand retirement; run/source fence-before-payload order; capture fact/cursor/generation removal;
+CONTROL and AMBIENT demand, authorization, registration, and WAL preservation; compatible
+noncapture resumption; stale/replaced/capture-active nonreopen; timeout, exceptional lane, storage,
+and cancellation typing; and absence of provider activation or hidden demand.
+
+The first review required production-purpose noncapture authentication and a distinct current
+policy-revision request fence. Re-review found that generic evidence update time could still advance
+for every CONTROL/AMBIENT admission and starve capture deletion. `8629d0630` removes only that
+noncapture clock from command preflight, transactional recheck, and audit while preserving exact
+capture-owned clocks. A production `RoomDurableSourceIngress` regression admits later CONTROL,
+advances generic evidence, and still reaches `AlreadyDeleted` with the exact noncapture WAL/demand/
+authorization preserved and no capture fact, cursor, generation, or fence fabricated. Fresh
+full-lineage static review returned ACCEPT with no remaining blocking defect.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*WifiCaptureConsentRevocationDeletionCommandTest' --tests '*WifiWalQualificationAdapterTest' --tests '*WifiSourceRuntimeTest' --tests '*SourceRegistrationRepositoryTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, file/UI action, transfer, shared product UI,
+automatic/ambient product behavior, provider/process/reboot/device evidence, integration, activation,
+publication, and release remain unproven.
+
+## TI-B311 — Selected imported-Activity deletion and replay contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `68ac8d207` (`936bc6096`, `9256a33fb`, and
+`68ac8d207`). Authored API, entity, v28 migration, DAO, transactional service, importer/product-
+reader integration, Room, entity, DAO, and migration tests cover exact identity/revision/full-v1
+checksum selection; current epoch, retention, entry/run/source-fence and global owner authority;
+latest correction/receipt hierarchy; every physical run/window/fragment; tombstone-and-receipt before
+cascade; exact replay; stale request time; conflicting checksum; missing/extra/corrupt run markers or
+scope digests; epoch/fence/retention changes; cancellation/storage rollback; delete/reimport/export
+no-resurrection; and unrelated local/imported/CONTROL/WAL/live-authority preservation.
+
+The first review rejected `AlreadyDeleted` authenticated only by entry identity/revision after the
+payload cascade. `9256a33fb` adds the self-verifying Activity deletion receipt. Re-review then found
+that absent-header replay checked descendants only under the deleted entry identity, allowing a
+protected run/window identity to hide in another row's owner column. `68ac8d207` builds the complete
+receipt-authenticated entry/run/window/scope identity union and audits it through one capped,
+chunked UNION over all Activity primary and owner columns plus marker/fence owners. Tests cover run-
+as-entry reuse, window-as-run/window-owner reuse, scope-owner collision, overflow, and exact replay.
+Fresh full-lineage static review returned ACCEPT with no remaining blocking defect.
+
+Deferred focused commands:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*RoomImportPortableCapturedActivityTest' --tests '*ImportedActivityDaoTest' --tests '*ImportedActivityEntityTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat checkRoomSchemaDrift --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Neither command was run. The checked-in v28 schema JSON is intentionally stale during the
+implementation-only phase and must be regenerated/reviewed at convergence. Compilation, Room and
+migration execution, imported retention/source erase, file/UI actions, shared product UI, automatic
+behavior, provider/process/reboot/device evidence, integration, activation, publication, and release
+remain unproven.
+
+## TI-B312 — Captured Cell portable-export contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `9203fdd7c` (`ce8f6b3ee`, `6402c0487`, `a06144eea`,
+`04e21f730`, and `9203fdd7c`). Authored portable contract, selected-scope DAO/maintenance/export,
+qualifier/entity corrections, and production-shaped tests cover deterministic identity-free output;
+source sequence zero; separate callback completeness counters; reciprocal logical/run/segment
+membership; complete source-filtered fact/cursor/generation/WAL/completeness and aggregate closure;
+manifest revisions; deletion/retention; missing or settled WAL; terminal failure before lag;
+zero-callback/gap-only and generation-zero settlement; sink failure; cancellation; storage; and
+unrelated-history isolation.
+
+Review rounds rejected source-global audits, hidden reverse segments/deletion generations, terminal
+failure mislabeled `Materializing`, fabricated completeness, impossible failure tests, positive
+sequence assumptions, callback/WAL sequence conflation, unauthenticated zero-observation rows, and
+caps applied before Cell filtering. Later review found double-scope-rehashed WAL/facts and hidden
+authorization revisions could disappear before zero-observation checks, while failed/unaccepted
+registrations could mask accepted predecessor/successor conflicts. `9203fdd7c` adds the independent
+selected-generation/lane admission relation, event/ordinal fact recovery, complete authorization
+revision authentication, and all-accepted-chain conflict queries. Tests cover double-scope WAL/fact
+tamper, hidden/canonical revisions, unrelated Cell caps, and failed-generation predecessor/successor
+sandwiches. Fresh full-lineage static review returned ACCEPT with no remaining blocker.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*CellCapturedFactMaintenanceTest' :tracker:engine:testDebugUnitTest --tests '*CellWalQualificationAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, portable import/round trip, file/UI action,
+shared product UI, automatic/ambient behavior, provider/process/reboot/device evidence, integration,
+activation, publication, and release remain unproven.
+
+## TI-B313 — Captured Wi-Fi portable-export contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `2bde6f967` (`1e8a76ada` plus its authority correction).
+Authored typed v1/API/Hilt exporter, DAO/maintenance/qualifier/entity/history corrections, and
+format/Room/source tests cover deterministic identity-free output; durable sequence zero; reciprocal
+run/segment replacement membership; source-filtered fact/cursor/generation/WAL/completeness and
+aggregate closure; ingress-equivalent per-demand freshness; original full member/fingerprint versus
+qualified mask; CONTROL/AMBIENT exclusion; truthful partial provider coverage; zero-callback/gap;
+deletion/retention; missing/trailing/replayed WAL; terminal failure before lag; sink failure;
+cancellation; storage; unrelated isolation; and bounded query count.
+
+Independent review rejected the initial export for comparing the full authorization mask directly
+to freshness-qualified WAL, falsely mapping unobservable coverage to COMPLETE, bypassing capture
+retirement/closing authority for fact-backed settlement, weak zero/gap plan binding, silently omitted
+trailing WAL, per-row Room fan-out, and a corruption test whose duplicate insert was ignored.
+`2bde6f967` reconstructs all full members from one batched authority snapshot, recomputes qualified
+purpose per ingress semantics, proves exact retirement/closing/noncapture continuation and tail WAL/
+replay for every positive completeness row, binds the exact demand/manifest/plan/registration
+contract, and fixes the distinct corruption fixture. Fresh full-lineage static review returned
+ACCEPT with no remaining blocker.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:api:testAndroidHostTest --tests '*WifiCapturedPortableFormatV1Test' :stats:data:testDebugUnitTest --tests '*WifiHistoryRepositoryRoomTest' :tracker:engine:testDebugUnitTest --tests '*WifiWalQualificationAdapterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, portable import/round trip, file/UI action,
+shared product UI, automatic/ambient behavior, provider/process/reboot/device evidence, integration,
+activation, publication, and release remain unproven.
+
+## TI-B314 — Imported Activity retention contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `4f46e066c` (`0a365d005`, `d27596e83`, and
+`4f46e066c`). Authored entity/checksum, DAO, transaction, product/history/export composition,
+migration/full-clear, and Room/unit test sources cover current epoch and uncertainty-safe floor;
+complete revision/receipt/entry/run/window/fragment authority; entry/run/source fences; local and
+imported owner collisions; combined global/injected receipt and marker caps; checked arithmetic and
+pre-insert rollback; cancellation/storage failure; correction/replay/no-resurrection; payload-free
+typed retained entry/run/window/scope markers; value-free retained product state; and portable
+payload omission.
+
+Initial independent review rejected missing combined stored-plus-incoming caps, whole-candidate
+hierarchy accumulation, and lost retained child/scope ownership. `d27596e83` corrected those paths,
+but fresh review found that its batch-of-four visitor could still materialize roughly 524,000
+fragments in one Room list and that its one-fragment paging test did not prove the production bound.
+`4f46e066c` pages header shells, authenticates and reloads exactly one lineage through cap-plus-one
+batched queries, immediately reduces payload to compact receipt/marker authority, and preserves only
+checked aggregate counts plus cross-lineage protected identities. The dense two-lineage regression
+corrupts the already-compacted first payload before the second authentication and proves no reread.
+Final fresh full-lineage static review returned ACCEPT with no source-level blocker.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat ciUnitTest
+```
+
+The command was not run. Compilation, Room/schema agreement, migration execution, authored test
+outcomes, production retention invocation, source-wide erase, file/UI actions, device evidence,
+integration, activation, publication, and release remain unproven.

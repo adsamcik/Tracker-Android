@@ -10,6 +10,19 @@ import java.io.OutputStream
  */
 interface Exporter {
 	/**
+	 * Whether this format can only produce a useful artifact from persisted Location rows.
+	 *
+	 * Database-owned and source-owned exporters override this so a source-only product is not
+	 * rejected by the legacy Location preflight.
+	 */
+	val requiresLocationData: Boolean
+		get() = true
+
+	/** Whether the artifact may contain full-precision Location or raw database content. */
+	val containsSensitiveLocationData: Boolean
+		get() = true
+
+	/**
 	 * True if exporter can export based on date range.
 	 */
 	val canSelectDateRange: Boolean

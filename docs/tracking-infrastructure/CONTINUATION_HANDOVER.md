@@ -1,6 +1,563 @@
 # Tracking Infrastructure Continuation Handover
 
-Last updated: 2026-09-09
+Last updated: 2026-09-14
+
+## Implementation-only directive
+
+**Compaction and machine-handoff invariant:** the user has stopped all testing and validation until
+the entire planned implementation is built. Every resumed coordinator or subagent must inherit this
+rule even if earlier chat history is missing.
+Use [IMPLEMENTATION_TODO.md](IMPLEMENTATION_TODO.md) as the canonical checkbox ledger for every
+remaining implementation, product-decision, convergence, validation, and local-integration item.
+Do not run Gradle, compile/build tasks, tests, lint, Detekt, Room drift, emulator/device, UI
+evaluation, battery, CI, release validation, or `git diff --check`. Continue writing bounded
+production logic and its focused unit/contract/Room/UI test source, but do not execute those tests
+or iterate from execution results. Static source review, exact-path staging, and coherent local
+commits remain allowed. Mark every new source commit `IMPLEMENTED_UNVALIDATED`; preserve expected
+commands and known failures for the later convergence phase.
+
+No Tracker Gradle 9.6.1 process is active. The former engine session is terminal: it reported one
+wall-uncertain materializer assertion failure and one invalid imported-Room test initialization,
+then was cancelled after client disconnect. Do not restart it or fix from test feedback now.
+Observed Gradle/Kotlin 9.5.1 daemons are unrelated and must not be stopped as Tracker work.
+
+Keep unvalidated branches out of local `dev/v10`. When every planned Steps, Pressure, protected
+Location, Activity, Wi-Fi, and Cell piece plus its applicable product/action tests exists, compose
+one dedicated local convergence branch. Only then begin the complete validation/fix phase; after it
+passes, rebase and merge through the clean integration checkout. No push or activation is authorized.
+
+Do not weaken this boundary to run a convenient focused check. The switch to validation requires a
+frozen complete assembly and an explicit coordinator checkpoint; validation and result-driven fixes
+then happen together as one batch.
+
+## 2026-09-14 active coordinator checkpoint
+
+Pressure portable-origin storage and admission are independently accepted on
+`codex/ti-pressure-import` through `6c77f25ef`. The storage
+(`04ba749d0`/`ddb9ed162`) is deliberately source-specific:
+immutable entry revisions own exact physical runs and windows, every portable-v1 field and copied
+receipt/local privacy authority is retained, reads are bounded with independent counts, and no row
+claims live WAL/provider/run/manifest/projection authority. Exact receipt rollback cascades its
+children while a standalone checksummed run tombstone survives; an existing tombstone can advance
+only in the same collected-data epoch by overflow-safe exact `+1` CAS. A fresh static review
+accepted the source chain after the regression/epoch/checksum correction.
+
+The accepted admission corrections (`2a680f5b9`, `f7e11b4cf`, `6c77f25ef`) add a fifth immutable
+Pressure-local receipt table and one typed transaction. It reauthenticates the entire bounded v1
+snapshot and complete capped revision/receipt/run/window lineage, checks epoch/tombstones before
+duplicates, claims alternate identical receipts without duplicating the hierarchy, and rejects
+receipt reuse, cross-kind/cross-owner identity drift, lineage gaps, corruption, and overflow.
+Cancellation rolls back receipt and hierarchy together. This is **IMPLEMENTED_UNVALIDATED** and
+never fabricates or inserts live Pressure WAL facts. The checked-in v28 Room schema JSON still lacks
+all five `imported_pressure_*` tables and must be regenerated/reviewed during convergence.
+
+Imported Pressure product read and portable round trip are independently accepted through
+`b9e31666d` (`040b38f8c` plus its origin-collision correction). One bounded Room snapshot
+authenticates current epoch, tombstones, receipts, complete revision/run/window lineage, checksums,
+owners, retention, stored zone, and coverage. Imported-only entries are discoverable without
+Location, `sample_count`, or fabricated live authority; retention-only is partial with nullable
+pressure, while deleted/unverifiable remain explicit. Exact local/import duplicates emit once;
+divergent content sharing an opaque identity fails typed before sink output, so re-import cannot
+invent a correction winner. File/UI action wiring and imported maintenance remain open.
+
+Imported Pressure selected-entry deletion is independently reviewed as
+**IMPLEMENTED_UNVALIDATED** through `941999060` (`582f51570`, `3a6a118f2`, `11a01b75b`, and
+`941999060`). One exact current-epoch/current-revision command authenticates the complete bounded
+imported correction lineage and the global live-plus-tombstone entry/run/window identity namespace
+before installing any privacy fence. It writes a dedicated logical-entry marker plus generation-one
+markers for every physical run across every retained revision, then cascades only that imported
+hierarchy in the same transaction. History, export, exact/alternate receipt replay, and later
+corrections now honor markers from superseded revisions, so an older physical run cannot resurrect
+through a newer portable snapshot. Cancellation and storage failure roll back; unrelated imported
+entries, local Pressure, live WAL/manifest/provider authority, and other sources remain untouched.
+The v28 schema JSON is still intentionally deferred to convergence. File/UI invocation, imported
+retention/source-wide erase, execution validation, activation, and rollout remain open.
+
+Cell maintenance is independently accepted through `f8d7a5f50` after closing a canonical-delivery
+identity gap. The source-local transaction recomputes the exact shared v1 runtime identity and full
+identity-free aggregate, requires current-head/full-authority owner reuse, retains complete
+uncertainty-safe owner/dependent closures, and fences revoked-consent deletion behind quiescence and
+the exact-zero callback barrier. A fully self-rehashed payload/WAL/fact/cursor rewrite retaining the
+old identity is rejected.
+
+The dormant Cell captured-WAL projection is now independently accepted through `20da10845`
+(`2e114194a` plus its integrity correction). It binds the existing qualifier to the one existing
+Cell writer and advances fact, fact-cursor, evidence, failure, and lane-cursor state transactionally.
+Every noncapture skip and terminal lifecycle/fence settlement reloads the exact full WAL row and
+requires qualified integrity; a missing or corrupt row remains terminal unless independently
+settled by deleted-source high-water. CONTROL and AMBIENT rows remain outside captured history.
+Ingress and recovery only wake the dormant drain; they do not activate rollout, provider demand, or
+a second writer. Worker/action invocation, transfer, shared UI, and automatic/ambient product paths
+remain open.
+
+Configured captured-Cell retention is independently accepted through `7823ddc09`
+(`c34fa21d9` plus the WAL-order correction). One app service snapshots the current collected-data
+epoch and deleted-source high-water, and the existing transaction rechecks that authority and the
+exact cutoff. `wifiCellRetentionDays == 0` remains keep-forever; nonzero retention invokes exactly
+once before source-event WAL pruning, including while pending signals defer legacy Wi-Fi/Cell row
+cleanup. Cancellation propagates and typed blocked/no-change/pruned results do not start retry loops
+or provider demand. Exact Cell capture-consent deletion is now independently accepted through
+`27b796bd8` (`0ad2ec4d6`, `71efc0707`, `917fe45df`, `128e3622c`, and `27b796bd8`). The typed command
+requires the exact revoked `SESSION_CAPTURE` policy/consent and current source evidence, closes and
+drains the local callback FIFO, publishes a bounded durable barrier, then rechecks authority in the
+source-local fence-before-payload transaction. Only direct capture demand retires; compatible
+CONTROL is resumed on every abort/timeout/exception/cancellation and its registration, demand, and
+WAL remain exact. Pure CONTROL-only WAL is preserved and cannot make capture deletion stale; only
+fully authenticated current capture-bearing WAL participates in the time fence. No provider start/
+stop, hidden demand, retry loop, rollout, or caller action is added. Transfer, UI action wiring,
+shared product composition, automatic/ambient behavior, and validation remain open.
+
+Captured Cell portable export is independently accepted through `9203fdd7c` (`ce8f6b3ee`,
+`6402c0487`, `a06144eea`, `04e21f730`, and `9203fdd7c`). One bounded selected-entry Room snapshot
+authenticates reciprocal replacement ownership, exact Cell capture manifests and source authority,
+the complete fact/cursor/generation/WAL/completeness closure, aggregate dependencies, deletion,
+retention, lane/lifecycle, clocks, and zone before sink I/O. Durable Cell source sequence zero is
+valid; callback-local completeness counters remain a separate domain. Zero-callback and gap-only
+settlement requires canonical broker registration, authorization, persistent capture demand, plan,
+manifest, start/retire chronology, and exact status/drain/gap shapes. An independent generation/lane
+admission relation finds double-scope-corrupt WAL/facts and complete authorization revisions; full
+accepted-chain queries prevent failed reservations from hiding overlap or source-instance conflicts.
+Output is deterministic, identity-free technology/quality/availability/coverage evidence with no raw
+tower, subscription, WAL, provider, local identity, or Location inference. Portable import/round
+trip, file/UI actions, shared UI, automatic/ambient product behavior, and validation remain open.
+
+The dormant Wi-Fi retained-WAL projection is independently accepted at `dfaf6bb8e` on
+`codex/ti-wifi-maintenance`. Its finite 64-row drain binds the existing qualifier to the one existing
+Wi-Fi writer and atomically advances fact, cursor, evidence, failure, and lane state. Every
+noncapture and terminal decision authenticates the exact full WAL row; missing/corrupt evidence
+remains terminal except for independent deleted-source high-water, and retention uses the
+authenticated provider interval. Ingress/recovery only provide conflated hints. No provider,
+demand, rollout state, second writer, transfer, or product UI is activated. The same branch is now
+independently accepted through `16acedc538` for the production retention invocation. Nonzero
+`wifiCellRetentionDays` invokes authenticated captured-Wi-Fi retention exactly once under the
+startup-generation lease, before source-event WAL pruning and even when pending signals defer only
+legacy radio cleanup; zero remains keep-forever. The narrow service snapshots epoch and deleted-WAL
+high-water, while the mutation transaction rechecks both plus the exact saturating cutoff. Typed
+outcomes continue once, storage failure requests WorkManager retry, cancellation propagates, and no
+provider, demand, writer, retry loop, or rollout state is created. The same branch is independently
+accepted through `8629d0630` (`f3c3e105a`, `8fc415724`, and `8629d0630`) for capture-consent
+deletion. It proves current revoked capture policy/consent and exact source epoch/high-water, closes
+and drains the local callback FIFO, publishes the durable barrier, then transactionally installs
+exact run/source fences before removing capture facts, cursors, and generations. CONTROL and AMBIENT
+demand, authorization, registration, and WAL remain intact and can resume compatibly. Generic
+evidence update time cannot starve deletion; only authenticated current-epoch capture WAL above the
+preflight high-water participates in the time fence, while newer such capture evidence still blocks.
+No provider activation or hidden demand is introduced. Transfer, file/UI actions, shared UI,
+automatic/ambient product behavior, and validation remain open.
+
+Captured Wi-Fi portable export is independently accepted through `2bde6f967` (`1e8a76ada` plus its
+authority correction). The deterministic identity-free v1 exporter resolves one selected logical
+entry and authenticates reciprocal replacement membership, exact captured manifest/plan/policy/
+consent/provider/lifecycle/lane/deletion/retention/zone authority, fact/cursor/generation/WAL/
+completeness and aggregate closure in one bounded Room transaction; sink I/O follows settlement.
+Production source sequence zero is valid and distinct from callback completeness. Full authorization
+members and fingerprint are authenticated separately from the per-demand freshness-qualified mask;
+exactly one qualified capture member is emitted while CONTROL/AMBIENT siblings remain nonproduct.
+Every positive completeness row proves capture-demand retirement, closing authorization, compatible
+noncapture continuation, exact plan contract, and its trailing WAL or replay. Unobservable provider
+coverage remains partial. Batched authority snapshots replace per-WAL query fan-out. Output contains
+only identity-free observation count, band/quality/availability/coverage/completeness and typed gaps;
+no SSID/BSSID, raw WAL, provider/local IDs, or Location inference. Portable import/round trip,
+file/UI actions, shared UI, automatic/ambient product behavior, and validation remain open.
+
+Activity portable export is independently accepted through `8f0842354`. Its one-transaction reader
+expands all retained rows behind each canonical 64-hex delivery identity, authenticates the exact
+observed-time authorization revision and production per-demand freshness, recomputes the qualified
+purpose mask while binding the full authorization fingerprint, and exports only exact captured
+members. It truthfully permits sparse indices, sequence zero/gaps, mixed capture/CONTROL and late
+receipt after a qualified pre-close observation; CONTROL never becomes captured output. The next
+nonoverlapping Activity transfer slice is now implemented through `fde0c9f63` (`5401ef0dc`,
+`a99987807`, and `fde0c9f63`). Eight Activity-local imported tables retain immutable entry
+revisions, receipts, physical runs, zone epochs, windows, fragments, and separate entry/run deletion
+markers. Admission is capture-format-only, preserves truthful `NOT_CAPTURED` replacement members,
+authenticates current epoch/retention plus complete bounded correction and identity ownership, and
+consults the exact Activity `source_deletion_fence` scope before any receipt or hierarchy mutation.
+Exact replay, alternate receipt, correction, stale evidence, collision, cancellation, and storage
+failure have typed or atomic outcomes; import creates no live provider, demand, session, manifest,
+policy, consent, WAL, or writer authority. The same branch now reaches `86a1370bc` after the six
+reviewed local Activity history prerequisites, `d1289d5fa`, and its ownership correction. Imported
+facts are ordinarily discoverable in the source-specific recent product read with truthful stored
+zones, gaps, `NOT_CAPTURED` replacement members, partial coverage, nullable values, and typed
+deleted/retained/unverifiable states. Combined local/import composition authenticates one bounded
+complete local ownership snapshot so a distinct import cannot reuse a local run/window identity;
+only exact full-v1 equality suppresses a duplicate. Re-export admits only fully authenticated latest
+nontombstoned imports, checks every origin before sink I/O, and preserves exact second-database round
+trip without creating live authority. The branch then reaches independently accepted `68ac8d207`
+for selected imported deletion (`936bc6096`, `9256a33fb`, and `68ac8d207`). One bounded transaction
+authenticates the exact latest selected entry/checksum/revision, current epoch, retention and entry/
+run/source fences, then writes the Activity-specific replay receipt plus every entry/run tombstone
+before cascading only that imported hierarchy. The receipt self-verifies the canonical run/window/
+scope set and source-fence snapshot. Absent-header replay audits the complete receipt-authenticated
+identity set across every imported Activity primary and owner column in bounded chunks; orphan reuse,
+corrupt/missing markers, stale request time, conflicting checksum, collision, or overflow fails
+closed. Delete/reimport/re-export cannot resurrect the entry, while unrelated imported/local
+Activity, CONTROL, WAL, and live authority remain untouched. Imported retention/source-wide erase,
+file/UI actions, shared UI, schema generation, and validation remain open.
+
+The Activity transfer branch now reaches independently accepted `4f46e066c` for imported retention
+(`0a365d005`, `d27596e83`, and the one-lineage correction). One Room transaction authenticates the
+current epoch and uncertainty-safe floor, complete correction/receipt hierarchy, entry/run/source
+fences, all imported and local owner kinds, and combined existing-plus-new authority caps before its
+first mutation. Candidates are paged as header shells but authenticated exactly one lineage at a
+time; an affected lineage is reloaded alone with cap-plus-one batched queries, reduced immediately
+to a self-verifying receipt plus payload-free typed entry/run/window/scope markers, and discarded
+before the next candidate. Transaction-wide counts use checked arithmetic and preserve the complete
+cross-lineage protected-identity set. The retained product is a typed unavailable shell with no
+numeric value or fragments; it participates in collision/no-resurrection checks but is omitted from
+portable payload export. A fresh reviewer rejected the earlier batch-of-four shape because it could
+materialize roughly 524,000 fragments, then accepted the single-lineage correction and dense-neighbor
+regression. The truncator remains a callable source slice: retention scheduling/source-wide erase,
+file/UI action, schema generation, execution validation, and device evidence remain open.
+
+Exact Activity selected-session deletion is independently accepted on
+`codex/ti-activity-maintenance` through `dd19b4d33` (`09a2f1c96` plus its scoped-control
+correction). One bounded transaction proves bidirectional logical/run/segment replacement
+membership, exact all-revision capture set `{Activity}`, manifests, policy/consent, writer and
+terminal authority; installs a monotonic fence for every physical run; removes exact captured
+payload/presentation state; and repairs affected stored-zone days while preserving WAL, CONTROL,
+plans, authority, unrelated Activity, and other sources. Only Activity `SESSION_CAPTURE` demand
+blocks deletion; scoped `CONTROL_CONTINUATION` remains compatible. Consent-reset, portable import,
+file/UI action wiring, automatic behavior, and complete scenarios remain open.
+
+No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran on September 14.
+
+## 2026-09-13 active coordinator checkpoint
+
+The current Ambient source checkpoint is `016a434df` on `codex/ti-steps-import-actions` in
+`G:\Github\Tracker-Android\.worktrees\ti-steps-import-actions`; the worktree is clean. This
+supersedes the September 12 resume boundary below. On resume, verify status, HEAD, and log without
+resetting or discarding if they differ.
+
+Ambient Steps now has production startup/deletion lifecycle invocation, exact provider ownership,
+system rearm, provider read windows, default-off eligibility preflight, stored-zone window planning,
+sessionless aggregate facts, one cursor per exact continuity authority, same-registration
+authorization transitions, monotonic CAS, stable origin-qualified fact identity, immutable gap
+declarations with latest-fact subtraction, an exact reader-to-fact transaction, and full-clear or
+migration test source. The reviewed **IMPLEMENTED_UNVALIDATED** commits are `e965fb015`, `766d61fdb`,
+`fab70f295`, `5dfbc148b`, `09de7819e`, `1b274bf2c`, `a47807103`, `4461a95b4`, `39cff3c5a`,
+`1ca770a5f`, `29801e17f`, `4624859d1`, and `016a434df`. Adversarial reviews first rejected authority
+rotation,
+identity, CAS, gap correction, migration-fixture, fingerprint, and effective-gap mismatches; the
+listed successors address them. The importer now reads outside Room, revalidates exact authority
+before one atomic fact/cursor transaction, advances completed no-evidence days as explicit gaps, and
+makes exact replay a no-op. It never backfills before the rounded privacy floor or backdates a newly
+observed zone. The v28 schema identity hash remains deliberately stale until the deferred
+convergence generation/check.
+
+Provider replacement drain and overlap partitioning are now authored and independently accepted.
+The separate `codex/ti-ambient-product-read` branch is independently accepted through `55024d9f6`:
+one bounded source-specific Room snapshot authenticates structural days, facts, gaps, cursor and
+authorization phases, policy/consent, local session Steps, and portable import before composing day,
+contained-session, and between-session values exactly once. Direct authorization successors must
+preserve elapsed and wall chronology before privacy clamping; missing evidence remains typed rather
+than zero. `codex/ti-ambient-maintenance` is independently accepted through `d998dbb4c`: bounded
+whole-table authority audits, provider/demand quiescence, terminal payload-free retractions,
+complete UPSERT/import cleanup, retry/idempotence, correction-replay cleanup, whole-lineage
+retention, and cancellation rollback preserve no-resurrection. `codex/ti-ambient-transfer` is
+independently accepted through `8ff5ec428`: its bounded authenticated reader blocks day-end backlog,
+rejects stale cursor authority behind any later allow or deny-all revision, emits opaque checksummed
+structural-day/zone/fact/gap truth without provider/session/control/Location/local IDs, and invokes
+the sink only after the Room transaction. Next Ambient dependencies are portable import/round trip,
+shared product UI/numeric consumers, and settings/remediation. Do not enable
+`ExecutableSourceLaneCatalog.AMBIENT` or a product surface yet. A completed-day no-evidence gap is
+terminal to this monotonic importer; later provider backfill requires a separate bounded repair
+contract rather than silently reopening the cursor.
+
+Independent clean lanes:
+
+- Activity captured-fact model, v28 storage, and dormant writer:
+  `codex/ti-activity-captured-facts` at `a8c1752cb` in
+  `G:\Github\Tracker-Android\.worktrees\ti-activity-captured-facts`; reviewed as
+  **IMPLEMENTED_UNVALIDATED** for source logic. The generated v28 schema JSON is stale and must
+  converge during validation. Source-specific product reads are independently accepted through
+  `d0bf3bf59` on `codex/ti-activity-product-read`: one transactional bounded repository authenticates
+  complete replacement membership, lifecycle/lane/plan/cursor authority, manifest-window gaps, and
+  exact live/STOPPING settlement without fabricating duration. Runtime activation and transfer remain
+  open. Source-local UI is accepted separately below. A separate dormant retained-WAL adapter is independently
+  accepted through `689a6e994` on `codex/ti-activity-projection-adapter`: payload-free SQL preflight
+  bounds BLOB allocation, full historical captured authority is reauthenticated, live lifecycle
+  pairs use the exact durable-ingress vocabulary, and finite output requires terminal session/run,
+  null pointer, cutoff, and final-ordinal settlement. Commit `4cd3246cf` on the same branch is
+  independently accepted for exact runtime plan attribution: accepted ACTIVE_SESSION registration
+  atomically stores canonical bytes/checksum/true revision/fingerprint, mismatch rolls back provider
+  acceptance, CONTROL cannot supply captured authority, and callback delivery no longer substitutes
+  registration generation for plan revision. `codex/ti-activity-maintenance` is independently
+  accepted through `d3b889991`: bounded whole-lineage retention and capture-source deletion
+  authenticate live, replacement, and terminal writer semantics, reconcile every Activity fact/
+  cursor/fragment/evidence/registration-plan row before success, and install exact run fences before
+  clearing capture state. WAL and CONTROL remain untouched; stale replay is rejected. Terminal
+  projection is independently accepted through `f269b562a`: one bounded drain keeps physical
+  replacement windows separate, preflights each exact event before loading its payload, and commits
+  the canonical fact/cursor mutation transactionally. Coalescer or writer failure is attributed to
+  that window's own first WAL ordinal, never an earlier valid prefix. Source-local UI commits
+  `f364cbc42` and `48d4d3e67` add exact pre-fact Activity intent, complete replacement-group
+  classification, one transactional live Activity/session read, bounded recent-page composition,
+  and non-Location Dashboard content without fabricated zero. They are accepted only as an isolated
+  source slice: the same API and Dashboard seams are changed by the accepted Pressure UI branch.
+  Final convergence is now implemented and independently accepted through `100d3e9d2` on
+  `codex/ti-activity-pressure-product-ui`. One generic live transaction returns session plus both
+  source states; one bounded source-aware page exposes only `Physical`, `StepsOnly`, `ActivityOnly`,
+  and `PressureOnly`. Canonical persistence-eligible intent, one-member recency tuples, bidirectional
+  live agreement, complete replacement suppression, and collision/overflow/dual-only failures all
+  fail closed. Only physical entries navigate; source-only UI remains opaque, nullable, and free of
+  Location-shaped metrics. Broader shared Today/Timeline/Calendar/detail and transfer/catalog
+  activation remain absent.
+- Pressure source-specific read model and honest acquisition tiers:
+  `codex/ti-pressure-acquisition` at `3b8abe350` in
+  `G:\Github\Tracker-Android\.worktrees\ti-pressure-acquisition`; clean and independently accepted
+  as **IMPLEMENTED_UNVALIDATED**. Source-specific public reads are accepted through `97941e8b1` on
+  `codex/ti-pressure-product-read`; session-only durable demand/writer boundaries are accepted
+  through `a410dcb86` on `codex/ti-pressure-writer-activation`. Source-specific retention truncation
+  and its source-local convergence are accepted through `ed4089323` on
+  `codex/ti-pressure-maintenance`: bounded full-authority audits atomically record a payload-free
+  marker and remove every affected lineage; both retention workers invoke it before physical
+  Pressure deletion; product reads authenticate marker-only logical entries as partial without a
+  qualified source or value. `codex/ti-pressure-transfer` is independently accepted through
+  `63b9667b3` for a bounded, self-checksummed, privacy-safe export-only format and one-transaction
+  reader. It emits opaque kind-scoped identity and qualified Pressure quality/uncertainty/zone
+  evidence, never Location, control, provider, or local database identity. Exact selected-session
+  deletion and stored-zone repair are already accepted in `61608800e`/`9592c42d8`; the global
+  all-data transaction advances the collected-data epoch before clearing Pressure facts. Portable
+  import and a separately invocable Pressure-wide erase remain absent. A clean feasibility audit at
+  `63b9667b3` proved the live fact table cannot accept portable data truthfully: it requires real WAL,
+  provider-sequence, local run/manifest, and projection authority that the privacy-safe export omits.
+  There is no Pressure decoder, import authority store, or public import command. Build a distinct
+  source-owned portable-origin persistence/writer contract and extend history/maintenance to
+  authenticate it; never invent live authority or insert directly into the live fact table. Shared
+  UI commits `06ec05883` through `8214b92ab` on `codex/ti-pressure-ui` are independently accepted for
+  a bounded Pressure-aware recent page, opaque Dashboard row, and one-transaction live snapshot.
+  Exact Pressure intent replaces the physical fallback before first fact; only retained direct hPa
+  metrics and typed state are exposed; mixed/legacy rows retain physical behavior; no
+  Location-derived field or fabricated zero is shown. The selected-detail follow-on is independently
+  accepted through `c27cc1c18`: exact all-revision `{Pressure}` entries suppress map, route,
+  navigation, GPX, Location/Ski reads, distance, speed, elevation, and sample-shaped affordances
+  while showing only retained hPa trend/range/coverage and typed partial/materializing/unavailable/
+  failed state. Observer failure clears stale classification and exposes retry instead of an
+  endless spinner. Calendar, broader Today/Timeline composition, deletion, repair, and import remain
+  open. A redundant clean
+  `ti-pressure-retention-product`
+  worktree was created during a coordination race at `85ac20157` and
+  intentionally remains untouched; do not reset or delete it while this wave is active.
+- Protected Location qualifier: `codex/ti-location-qualified-observation` at `762186a24` in
+  `G:\Github\Tracker-Android\.worktrees\ti-location-qualified-observation`; clean and independently
+  accepted as **IMPLEMENTED_UNVALIDATED**. It is dormant and does not alter the canonical writer;
+  the retained-WAL adapter is independently accepted through `8a90104ce` on
+  `codex/ti-location-wal-adapter`. It verifies the actual persisted delivery and full historical
+  authority, but returns typed `MOCK_PROVENANCE_UNVERIFIABLE` because v1 WAL did not retain that
+  evidence. `codex/ti-location-wal-provenance` is independently accepted through `6e9d84f38`:
+  future canonical v2 WAL requires the platform mock bit, binds it into normalized delivery
+  identity and qualification, and preserves true/false through raw-observation crash repair;
+  missing or corrupt v2 provenance fails closed. Frozen v1 encode/decode and its established raw
+  repair behavior remain compatible, but v1 still cannot qualify the new path. No second writer,
+  catalog activation, cutover, schema change, or shadow fact write was introduced.
+- Cell retained-WAL qualifier and source-local persistence: `codex/ti-cell-fact-model` at
+  `0dae1d8f5` in
+  `G:\Github\Tracker-Android\.worktrees\ti-cell-fact-model`; clean and independently accepted as
+  **IMPLEMENTED_UNVALIDATED** through the dormant writer boundary. It authenticates one real retained
+  Cell WAL delivery and complete historical capture authority, then persists identity-free fact
+  revisions behind a Cell deletion epoch with bounded correction/aggregate lineages and cursor CAS.
+  Compact coverage reuse requires finite owner authority; historical owner revisions remain valid
+  only inside one bounded complete lineage with an authenticated current tip, preventing correction
+  from dangling dependents. Coverage remains typed `UNKNOWN` because v1 WAL cannot prove
+  subscription grouping. `codex/ti-cell-product-read` is independently accepted through
+  `79056b454`: one bounded transactional repository discovers source-only entries from exact
+  writer/version cursor carriers, expands complete replacement and aggregate-owner lineages, and
+  returns typed failure for missing, moved, or corrupt current heads rather than hiding them. Both
+  dependent and referenced owner must satisfy current deletion/epoch/high-water and uncertainty-safe
+  retention authority before identity-free metrics appear. Runtime projection, retention-worker
+  handling of referenced revisions, transfer, shared UI, and activation remain open.
+- Wi-Fi identity-free fact qualification and retained-WAL adapter: `codex/ti-wifi-fact-model` at
+  `d7c5e5d4b` in
+  `G:\Github\Tracker-Android\.worktrees\ti-wifi-fact-model`; clean and independently accepted as
+  **IMPLEMENTED_UNVALIDATED** for the pure dormant classifier and real retained-WAL read. It
+  authenticates captured passive plan authority, canonical v2 bytes and exact one-unit provider
+  shape, recomputes delivery identity from sorted minimized access-point evidence, and binds the
+  retained delivery to exact historical plan application, every bounded demand floor, complete
+  lifecycle/admission settlement, manifest/run/segment, clocks, zone, retention, and deletion.
+  The persistence follow-on is independently accepted through `26347367c`: a dormant transactional
+  writer appends identity-free fact revisions/corrections and cursor CAS behind the Wi-Fi deletion
+  epoch. Historical terminal runs require a complete bounded current replacement manifest/action/
+  registration bundle with current epoch and exact wall/elapsed reservation, acceptance,
+  acknowledgement, and retirement chronology; ACTIVE and RETIRING shapes fail closed separately.
+  `codex/ti-wifi-product-read` is independently accepted through `adde063f3`: one bounded Room
+  snapshot discovers cursor/WAL/completeness-carried source-only entries, expands complete logical
+  replacement groups, and authenticates fact freshness, provider/authorization/session windows,
+  immutable plans, lane/cursor/lifecycle, deletion, retention, and zone. Shared registration requires
+  exactly one matching persistent capture owner plus compatible physical contracts for every other
+  member; unrelated members never acquire fact ownership. `codex/ti-wifi-manual-action` is
+  independently accepted through `750bd6c42`: the same scan-only API 26–29+ prerequisite matrix now
+  drives capability, admission, service preparation, runtime, and reporting, while Dashboard and
+  Tracker request fine plus coarse together on Android 12+ and preserve exact Wi-Fi-only start
+  intent. Nearby Devices remains a raw unrelated capability, not scan-only authority.
+  `codex/ti-wifi-maintenance` is independently accepted through `cc2e83938`: its bounded source-local
+  transaction authenticates every fact/cursor/generation/WAL and source authority, retains or deletes
+  complete bidirectional aggregate closures in dependency-safe order, requires full aggregate
+  equality for coverage-only references, and fences revoked-consent deletion before payload removal
+  while preserving WAL and CONTROL. Provider activation, transfer, shared UI, automatic/ambient
+  behavior, worker/action invocation, and device evidence remain open.
+
+Read-only Git reconciliation found no accepted committed work lost through compaction. The imported
+Steps source branches are already contained or patch-equivalent in this coordinator; old
+`ti-pressure-session-facts` and `ti-steps-numeric-consumers` are ancestors. Preserve, but never merge
+wholesale, the dirty `ti-steps-portable-import` and `ti-steps-qualified-awards` drafts. The detached
+root checkout still owns exactly the six protected paths and their documented hashes matched on
+September 13. Local `dev/v10` remains `0460f12a5`; none of the current lanes is integrated or
+published.
+
+The user-supplied product vision remains aligned with the repository north star. Two attachment-era
+questions are now resolved by repository decisions: automatic Steps no longer uses corroboration
+(TI-D179), and Ambient Steps is opportunistic with Health Connect precedence and Local Recording
+fallback only on genuine Health Connect unavailability (TI-D186/TI-D187). The immediate unresolved
+product choice is the exact fixed TTL and retained shape for control-only Activity evidence
+(AUTO-005/DEC-003).
+
+## 2026-09-12 paused checkpoint — resume before Ambient Steps cursor/import
+
+Use the existing worktree
+`G:\Github\Tracker-Android\.worktrees\ti-steps-import-actions`, branch
+`codex/ti-steps-import-actions`. Its clean source checkpoint is `88c14a52e`. On resume, first run
+only `git status --short --branch`, `git rev-parse HEAD`, and `git log -10 --oneline --decorate`.
+Do not reset, discard, rebase, merge, or run the deferred verification suite if the state differs.
+
+Ambient Steps now has exact default-off policy/consent and provider selection, purpose-scoped
+demand and registration authority, owned system-rearmable lifecycle, startup rearm, deletion
+fencing, exact provider-window reads, policy/rollout preflight before capability probes, stored-zone
+structural windows, and a distinct sessionless aggregate-fact revision store. The last three source
+commits are `187800e03`, `33874e0fe`, and `88c14a52e`; TI-D190 through TI-D192 and TI-B254 through
+TI-B256 describe their exact boundaries. No production import cursor or fact importer exists yet.
+
+Resume with one bounded storage/lifecycle slice:
+
+1. Add a durable Ambient Steps cursor/gap representation in `:core:base`, keyed to one accepted
+   provider registration generation and its exact provider/source/authorization/policy/consent/
+   collected-data/boot/zone authority.
+2. Keep provider absence, retention loss, reboot, observed zone changes, and process gaps explicit;
+   do not turn an unverifiable interval into covered zero or a positive aggregate.
+3. Before using `AmbientStepsFactIntegrity.logicalFactId` in production, make its logical segment
+   identity stable across an extending read-through boundary. Repeated reads and corrections must
+   revise one segment rather than create overlapping facts that can be summed twice.
+4. Then implement the smallest exact cursor/read/fact transaction in `:tracker:engine`, including
+   no pre-consent backfill and bounded structural-day batches. Provider replacement must eventually
+   drain the old provider to an exact handoff boundary before unsubscribe.
+
+Likely owning paths are the Ambient Steps entity/integrity/DAO and v28 migration under
+`core/base/src/main`, their focused host and migration tests, and
+`tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/` plus its focused
+tests. Do not add a generic cursor or tombstone platform, activate an executable Ambient lane, or
+start product UI/composition before this source-local transaction is coherent.
+
+Validation debt is intentional. The v28 schema JSON was structurally edited for the ambient fact
+table, but its identity hash is still stale pending final Room generation/checking. The Kotlin,
+Room, Health Connect, and Local Recording APIs in the new source have not compiled on this branch.
+No test, Gradle, lint, Detekt, schema, emulator/device, provider, UI, battery, CI, integration,
+activation, publication, or release command ran. The work is not in local `dev/v10` and is not on
+the remote.
+
+Automatic Steps remains authored through TI-D185/TI-B247. AUTO-005 still needs an explicit fixed
+lifetime for control-only Activity WAL/outbox evidence. Positive awards remain disabled.
+
+The preceding history also contains the protected-path-safe `.trackersteps` import/export bridge,
+exact complete-entry selected deletion with dual no-resurrection fences, the two-database
+export/import/history/re-export contract, one transaction-coherent daily/week Steps read, manual
+inventory, and the qualified numeric/effect consumer audit. TI-D159/TI-B220 through TI-D185/TI-B247
+are authoritative for guarantees and validation debt. Positive awards remain disabled.
+
+## Local follow-up after the reviewed publication
+
+Published `dev/v10` is `0460f12a54a3550244f8e8ea5c9fb1f5e2ef27d2`; the clean integration
+checkout remains `G:\Github\Tracker-Android\.worktrees\tracking-infra-integration`.
+The user's confirmed publication scope was consumed by that normal push. No later source work
+below is integrated or published, and none arrives in a clone of that checkpoint.
+This section supersedes the older paused/uncompiled inventory below without accepting drafts.
+
+- `ti-steps-import-admission`, `codex/ti-steps-import-admission`: clean accepted core dependency
+  `4db55146eccad9e39adc7725076cb2783d92e330`, parent `0460f12a5`. TI-D152/TI-B213.
+  Generic imported segment-retention exclusion requires the pending worker hooks before integration.
+- `ti-steps-import-product`, `codex/ti-steps-import-product`: accepted product dependency
+  `ecbdf6161c059e5d2ef93726b5700b9441854e8c`, canonical parent `4db55146e`. TI-D153/TI-B214.
+  Subsequent engine imported-day repair edits are unaccepted; preserve them separately.
+- `ti-steps-summary-authority`, `codex/ti-steps-summary-authority`: clean accepted API cleanup
+  `3f62d5c644b44277088097800a85637a955cfdb0`, parent `0460f12a5`. TI-D154/TI-B215.
+- `ti-steps-import-actions`, `codex/ti-steps-import-actions`: coordinator worktree with accepted
+  dependency cherries and accepted retention `299f9de21` (TI-D155/TI-B216), followed by accepted
+  Dashboard/Detail `0a820f3f6` (TI-D156/TI-B217), unvalidated imported composition `293ff43e5`,
+  portable admission `8abd7c6e3`, atomic day repair `3dfa4eaad`, the `.trackersteps` file bridge
+  `c58fcc85f`, completed importer contracts `03db9e565`, exact imported selected deletion
+  `89454b8c1`, contract completion `3ff5c086c`, portable export `19b8789b2`, and round-trip contract
+  `2d7af2b70`. The source branches above retain canonical
+  ancestry. These source chunks are committed, not integrated or authorized for publication.
+
+Actions gate `81757` ended with only the Dashboard XML namespace failure; its core/static/Detail
+successes and exact boundary are in TI-B216. The namespace fix was verified by green `97335`
+(4m 33s): 26 app retention tests, 18 Dashboard tests, Detekt and lint. Final plural-resource
+refinement passed `74425` (2m 5s), including the same 18 Dashboard tests, Detekt and lint.
+Together with 68 core and 20 statistics tests, this is 132 passing focused host tests, not a full
+converged `ciCheck`. All three actions sessions are terminal; do not poll their old handles.
+
+The former engine run is terminal and no Gradle lane is active. Its imported Steps day-composition
+source was reviewed without restarting validation, completed as canonical commit `f93b373ef` in
+`ti-steps-import-product`, and cherry-picked into this coordinator as `293ff43e5`. Both commits are
+`IMPLEMENTED_UNVALIDATED`; their nine production/test paths are clean. The old wall-uncertain
+assertion and invalid imported-Room test initialization remain deferred evidence in TI-B218/TI-B219,
+not proof that the current source passes or fails. Do not revive historical PID/session `62111`.
+
+The implemented engine slice preserves source-qualified partial/zero semantics and stored zone
+authority, does not invent elapsed duration from imported wall bounds, and reads imported entries
+in bounded batches. Imported deletion now uses a distinct post-delete composer: partial or
+Int-unrepresentable compatibility Steps are redacted to zero while typed product state remains
+nonqualified. The source and tests are unvalidated; do not infer that compilation or behavior passes.
+
+The complete portable round trip is now authored. PORT-010 is implemented at `c58fcc85f` without
+editing a protected legacy DatabaseImport path, PORT-011 is complete at `03db9e565`, DEL-001 through
+DEL-007 are authored at `89454b8c1`/`3ff5c086c`, and ROUND-001 through ROUND-005 are authored at
+`19b8789b2`/`2d7af2b70`; all remain deliberately unexecuted. Manual/session Steps is also fully
+authored through TI-D165/TI-B226, including the exact `{Steps}`/no-control host contract and the
+existing disposable device gate; it remains deliberately unexecuted. Next implementation is the
+qualified numeric/effect consumer audit.
+Next integration requires coordinated retention/repair acceptance, a frozen converged input,
+`ciUnitTest` at the integration gate and full `ciCheck --continue`, then rebase onto latest local
+`dev/v10` and integrate from the clean integration checkout. Preserve canonical source commits
+when removing duplicate cherries. Do not merge a dependency alone while its retention hooks are
+missing. Keep the six protected root paths and both older frozen drafts untouched. No new push,
+importer activation, provider proof, release or completion of the six-source program is claimed.
+
+## Current publication and paused parallel work
+
+The user confirmed publication of **reviewed implementation and handover only**. Accepted source
+remains `099f9e1b9fc33c624cf1152550ec4c98857b938d`, with acceptance documentation at
+`b925e89bc5191a2cfb58d02d9b50265a478528bb`. This successor changes documentation only.
+Use [PUBLICATION_HANDOVER.md](PUBLICATION_HANDOVER.md) and the post-push receipt for remote truth;
+the local-only wording below is historical. The whole six-source effort remains incomplete.
+
+New parallel drafts were paused for this publication, without Gradle verification or commits.
+All are based on `b925e89bc` under `G:\Github\Tracker-Android\.worktrees\`, with matching
+`codex/` branch names. Their indexes are empty; none is part of the reviewed publication:
+
+| Worktree | Owner boundary and draft state | Required next gate |
+| --- | --- | --- |
+| `ti-steps-import-admission` | core/base origin binding, retained reader/integrity, original-digest full-clear fences; core/model portable wire model and stats/api compatibility facade. Nine modified and six untracked files. | Compile, generated schema, focused storage/receipt/clear tests, populated migration/reopen. Atomic engine admission and real day repair are not implemented. |
+| `ti-steps-import-product` | stats/api imported capture/member contract and exact trip origin; stats/data list/detail/export adapters and tests. Six modified and five untracked files. | Integrate reviewed core contracts, compile, Room round-trip and exact membership/partial/collision tests. One corrupt entry must not hide healthy peers. |
+| `ti-steps-import-actions` | Dashboard imported-member selection and contained imported Trip Detail, resources and host UI tests. Eight modified and three untracked files. | Integrate reviewed contracts, compile and run UI tests. Imported selected deletion, retention worker integration and numeric/day repair remain unwritten. |
+
+Do not merge or publish these drafts as completed work. Preserve the separate two older frozen
+drafts and the six protected root paths listed below. No draft files arrive in a GitHub clone;
+resume from accepted code if no separately authorized draft transfer exists.
+
+Concrete pending integration risks: generic physical-segment retention must not orphan imported
+metadata; raw pruning needs authenticated original ownership and truthful truncated coverage;
+full clear currently removes fences while portable files carry no former local epoch. The proposed
+payload-free original-run fence preservation is an untested draft, not an accepted fix. Preserve
+live writer fencing and exact imported bindings; no wall-overlap ownership, fake service runs,
+sample-count source proof, borrowed route data or fabricated zero. Admission must perform actual
+transactional day repair, not a default-success callback. Review these coupled storage/lifecycle
+changes before exposing an importer registry entry.
+The shared reader's `database.inTransaction()` assertion must also be verified against the
+exporter's `useReaderConnection`/`deferredTransaction` path; no transaction compatibility is proven.
+
+Source-only physical Steps and listener/UI-device proof, positive durable awards, explicit-control
+automatic Steps, default-off Ambient Steps and the remaining five source verticals are still open.
+Keep the dependency-ordered plan below; containment alone is not product completion.
 
 ## Current publication and paused parallel work
 

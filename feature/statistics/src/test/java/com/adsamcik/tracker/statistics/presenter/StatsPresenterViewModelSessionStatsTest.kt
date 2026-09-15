@@ -17,6 +17,7 @@ import com.adsamcik.tracker.stats.api.repository.SessionStatsRepository
 import com.adsamcik.tracker.stats.api.repository.SessionStatsSnapshot
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryBatch
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
@@ -26,7 +27,6 @@ import com.adsamcik.tracker.stats.api.repository.WifiObservationStatsSummary
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
-import com.adsamcik.tracker.stats.api.value.StepCount
 import com.adsamcik.tracker.statistics.data.Stat
 import com.adsamcik.tracker.statistics.export.GpxShareHelper
 import com.adsamcik.tracker.statistics.viewmodel.StatsLoadState
@@ -161,7 +161,6 @@ class StatsPresenterViewModelSessionStatsTest {
 			DailySummary(
 				dayEpoch = todayEpochDay,
 				totalDistance = DistanceM(394f),
-				totalSteps = StepCount(812),
 				totalDuration = DurationMs(600_000L),
 				tripCount = 1,
 				activeTrackingDuration = DurationMs(0L),
@@ -256,7 +255,6 @@ class StatsPresenterViewModelSessionStatsTest {
 			DailySummary(
 				dayEpoch = todayEpochDay,
 				totalDistance = DistanceM(304.06f),
-				totalSteps = StepCount(0),
 				totalDuration = DurationMs(57_000L),
 				tripCount = 1,
 				activeTrackingDuration = DurationMs(57_000L),
@@ -365,7 +363,6 @@ class StatsPresenterViewModelSessionStatsTest {
 			totalDistance = DistanceM(1234.5f),
 			onFootDistance = DistanceM(456.7f),
 			inVehicleDistance = DistanceM(890.1f),
-			steps = StepCount(678),
 			tripCount = 9L,
 			locationCount = 77L,
 			wifiCount = 4L,
@@ -416,6 +413,12 @@ class StatsPresenterViewModelSessionStatsTest {
 			return result
 		}
 
+		override suspend fun readBatch(
+			requests: List<StepsNumericSummaryRequest>,
+		): StepsNumericSummaryBatch = StepsNumericSummaryBatch(
+			summaries = requests.map { request -> read(request) },
+		)
+
 		override fun observe(request: StepsNumericSummaryRequest): Flow<StepsNumericSummary> = flow {
 			requests += request
 			try {
@@ -423,6 +426,12 @@ class StatsPresenterViewModelSessionStatsTest {
 			} finally {
 				cancelledRequests += request
 			}
+		}
+
+		override fun observeBatch(
+			requests: List<StepsNumericSummaryRequest>,
+		): Flow<StepsNumericSummaryBatch> = flow {
+			emit(readBatch(requests))
 		}
 	}
 }

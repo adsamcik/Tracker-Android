@@ -25,6 +25,9 @@ import javax.inject.Inject
  * Each record has a `session` summary and the location, Wi-Fi, and cell observations
  * captured during that session. Schema 3 deliberately keeps related raw data together,
  * so a consumer can process one session without retaining the complete export in memory.
+ * Legacy trip Steps are deliberately omitted because this format cannot carry their exact
+ * manifest, run, writer, correction, and completeness authority. Portable Steps export owns that
+ * source-specific product instead.
  */
 class JsonExporter @JvmOverloads @Inject constructor(
 	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
@@ -178,7 +181,6 @@ class JsonExporter @JvmOverloads @Inject constructor(
 				startTimeMs = trip.startTimeMs,
 				endTimeMs = trip.endTimeMs,
 				distanceM = trip.distanceM,
-				steps = trip.steps,
 				primaryActivity = trip.primaryActivity,
 				activityConfidence = trip.activityConfidence,
 				sampleCount = trip.sampleCount,
@@ -515,7 +517,6 @@ class JsonExporter @JvmOverloads @Inject constructor(
 	private fun writeSession(writer: BufferedWriter, session: SessionSnapshot) {
 		writer.write("{\"id\":${session.id},\"startTimeMs\":${session.startTimeMs},\"endTimeMs\":${session.endTimeMs}")
 		writer.write(",\"distanceM\":${session.distanceM},\"sampleCount\":${session.sampleCount}")
-		session.steps?.let { writer.write(",\"steps\":$it") }
 		session.primaryActivity?.let { writer.write(",\"primaryActivity\":$it") }
 		session.activityConfidence?.let { writer.write(",\"activityConfidence\":$it") }
 		writer.write(",\"source\":\"${escapeJson(session.source)}\",\"hasDistanceAnomaly\":${session.hasDistanceAnomaly}}")
@@ -655,7 +656,6 @@ data class SessionSnapshot(
 	val startTimeMs: Long,
 	val endTimeMs: Long,
 	val distanceM: Float,
-	val steps: Int?,
 	val primaryActivity: Int?,
 	val activityConfidence: Int?,
 	val sampleCount: Int,

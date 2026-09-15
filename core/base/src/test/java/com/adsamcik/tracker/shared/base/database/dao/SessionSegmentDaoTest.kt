@@ -55,7 +55,6 @@ class SessionSegmentDaoTest {
 		assertEquals(2_100f, summary.distanceM, 0.001f)
 		assertEquals(300f, summary.onFootDistanceM, 0.001f)
 		assertEquals(300f, summary.inVehicleDistanceM, 0.001f)
-		assertEquals(120L, summary.stepCount)
 	}
 
 	@Test
@@ -78,7 +77,6 @@ class SessionSegmentDaoTest {
 		assertEquals(900f, summary.distanceM, 0.001f)
 		assertEquals(200f, summary.onFootDistanceM, 0.001f)
 		assertEquals(300f, summary.inVehicleDistanceM, 0.001f)
-		assertEquals(60L, summary.stepCount)
 	}
 
 	@Test

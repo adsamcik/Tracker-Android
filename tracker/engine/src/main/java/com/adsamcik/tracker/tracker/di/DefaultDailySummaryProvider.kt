@@ -46,7 +46,6 @@ class DefaultDailySummaryProvider(
 		) {
 			return@withContext DailySummary(
 				totalDistanceM = liveStats.dayTotalDistanceM,
-				totalSteps = liveStats.dayTotalSteps,
 				totalDurationMs = liveStats.dayTotalDurationMs,
 				sessionCount = 1 // At least one active session
 			)
@@ -64,7 +63,6 @@ class DefaultDailySummaryProvider(
 		) {
 			return@withContext DailySummary(
 				totalDistanceM = dailySummary.totalDistanceM,
-				totalSteps = dailySummary.totalSteps,
 				totalDurationMs = dailySummary.totalDurationMs,
 				sessionCount = dailySummary.tripCount
 			)
@@ -78,7 +76,6 @@ class DefaultDailySummaryProvider(
 		} else {
 			DailySummary(
 				totalDistanceM = summary.totalDistanceM,
-				totalSteps = summary.totalSteps,
 				totalDurationMs = summary.totalDurationMs,
 				sessionCount = summary.tripCount
 			)
@@ -99,7 +96,6 @@ class DefaultDailySummaryProvider(
 			) {
 				DailySummary(
 					totalDistanceM = liveStats.dayTotalDistanceM,
-					totalSteps = liveStats.dayTotalSteps,
 					totalDurationMs = liveStats.dayTotalDurationMs,
 					sessionCount = 1
 				)

@@ -135,9 +135,6 @@ object BackgroundTrackingApi {
 	// Future: Make configurable via settings (requires UI + preference storage)
 	private const val REQUIRED_CONFIDENCE = 75
 
-	// Lower confidence threshold accepted for ON_FOOT auto-start when the step counter independently
-	// confirms recent walking. Only widens starts; never blocks one the full threshold would allow.
-	private const val STEP_CORROBORATED_CONFIDENCE = 50
 	private const val DEFAULT_ACTIVITY_FREQ_SECONDS = 10
 	private const val SOURCE_POLICY_RETRY_DELAY_MILLIS = 250L
 	/** Allows a contradictory automatic-activity update to be corrected before a terminal stop. */
@@ -177,8 +174,6 @@ object BackgroundTrackingApi {
 	private var activityControlEligible = false
 	@Volatile
 	private var activityControlConsentEpoch: Long? = null
-	@Volatile
-	private var stepControlEligible = false
 	@Volatile
 	private var activityAutomationAuthority = ActivityAutomationAuthoritySnapshot()
 	private val _activityAutomationAuthorityReady = MutableStateFlow(false)
@@ -245,24 +240,10 @@ object BackgroundTrackingApi {
 			return ActivityAutomationDeliveryResult.ACCEPTED
 		} else {
 			cancelAutomaticStopGrace()
-			// The full-confidence path is deliberately independent of optional Steps. Consult the
-			// shared, durably admitted Steps snapshot only when it can widen a lower-confidence
-			// ON_FOOT decision.
-			val hasRecentSteps = shouldConsultStepCorroboration(
-				activity.type.groupedActivity,
-				activity.confidence,
-				REQUIRED_CONFIDENCE,
-				STEP_CORROBORATED_CONFIDENCE,
-			) &&
-				getEntryPoint(context).sharedStepSourceController().hasRecentControlSteps()
+			// Activity owns automatic-start evidence. Steps capture must never be retained solely to
+			// enrich a lower-confidence Activity classification.
 			if (
-				isOnFootAutoStartCorroborated(
-					groupedActivity = activity.type.groupedActivity,
-					confidence = activity.confidence,
-					requiredConfidence = REQUIRED_CONFIDENCE,
-					corroboratedConfidence = STEP_CORROBORATED_CONFIDENCE,
-					hasRecentSteps = hasRecentSteps,
-				) &&
+				hasRequiredAutomaticStartConfidence(activity.confidence, REQUIRED_CONFIDENCE) &&
 				canBackgroundTrack(context, activity.type.groupedActivity) &&
 				canTrackerServiceBeStarted(context)
 			) {
@@ -498,6 +479,7 @@ object BackgroundTrackingApi {
 		val watcherController = getWatcherController(context)
 		enqueueRequestMutation {
 			var recoveryResult = AutomaticControlRecoveryResult.RETRYABLE
+			var hasUsableActivityRegistration = hadActiveRegistration
 			try {
 				val result = monitor.reconcile(
 					enabled = true,
@@ -509,6 +491,7 @@ object BackgroundTrackingApi {
 				check(recoveryResult == AutomaticControlRecoveryResult.ACCEPTED) {
 					"Unable to arm background activity recognition request: ${result.failureCode}"
 				}
+				hasUsableActivityRegistration = true
 				if (generation != requestMutationGeneration || !isActive) {
 					recoveryResult = if (isActive) {
 						AutomaticControlRecoveryResult.RETRYABLE
@@ -518,12 +501,9 @@ object BackgroundTrackingApi {
 					return@enqueueRequestMutation
 				}
 
-				// Steps is an optional broker consumer. The shared controller joins CONTROL_AUTOSTART
-				// only when its explicit policy epoch is eligible.
-				reconcileStepAutomaticControl(
-					context,
-					shouldUseStepCorroboration(useTransitionApi, stepControlEligible),
-				)
+				// Automatic start is Activity-owned. Retire any durable Steps control left by an older
+				// build before considering the registration reconciled.
+				retireLegacyStepAutomaticControl(context)
 				recognitionUpdatesJob?.cancel()
 				recognitionUpdatesJob = null
 				watcherController.poke()
@@ -536,7 +516,7 @@ object BackgroundTrackingApi {
 				}
 				val retainExistingRegistration =
 					shouldRetainAutomaticControlAfterReinitializeFailure(
-						hadActiveRegistration = hadActiveRegistration,
+						hasUsableRegistration = hasUsableActivityRegistration,
 						recoveryResult = recoveryResult,
 					)
 				if (generation == requestMutationGeneration && isActive && !retainExistingRegistration) {
@@ -544,7 +524,13 @@ object BackgroundTrackingApi {
 					val cleanupGeneration = ++requestMutationGeneration
 					recognitionUpdatesJob?.cancel()
 					recognitionUpdatesJob = null
-					reconcileStepAutomaticControl(context, enabled = false)
+					try {
+						retireLegacyStepAutomaticControl(context)
+					} catch (cleanupFailure: CancellationException) {
+						throw cleanupFailure
+					} catch (cleanupFailure: Exception) {
+						exception.addSuppressed(cleanupFailure)
+					}
 					var cleanupFailureAttached = false
 					val removed = reconcileActivityRequestRemoval(
 						shouldContinue = {
@@ -595,18 +581,17 @@ object BackgroundTrackingApi {
 	private fun getWatcherController(context: Context): ActivityWatcherController =
 		getEntryPoint(context).activityWatcherController()
 
-	private suspend fun reconcileStepAutomaticControl(context: Context, enabled: Boolean) {
+	private suspend fun retireLegacyStepAutomaticControl(context: Context) {
 		try {
-			getEntryPoint(context).sharedStepSourceController().reconcileAutomaticControl(enabled)
+			getEntryPoint(context).sharedStepSourceController().retireLegacyAutomaticControl()
 		} catch (exception: CancellationException) {
 			throw exception
 		} catch (exception: Exception) {
-			// Corroboration only widens lower-confidence ON_FOOT starts. A missing/unavailable Steps
-			// provider must not disable Activity recognition or its high-confidence path.
 			Tracebox.log.error(
 				exception,
-				TrackerTraceboxTemplates.OPTIONAL_STEP_CONTROL_RECONCILIATION_FAILED,
+				TrackerTraceboxTemplates.LEGACY_STEP_CONTROL_RETIREMENT_FAILED,
 			)
+			throw exception
 		}
 	}
 
@@ -642,7 +627,14 @@ object BackgroundTrackingApi {
 				}
 				recognitionUpdatesJob?.cancel()
 				recognitionUpdatesJob = null
-				reconcileStepAutomaticControl(context, enabled = false)
+				var legacyStepRetirementFailure: Exception? = null
+				try {
+					retireLegacyStepAutomaticControl(context)
+				} catch (exception: CancellationException) {
+					throw exception
+				} catch (exception: Exception) {
+					legacyStepRetirementFailure = exception
+				}
 				val removed = reconcileActivityRequestRemoval(
 					shouldContinue = { generation == requestMutationGeneration && !isActive },
 				) {
@@ -657,6 +649,7 @@ object BackgroundTrackingApi {
 						"Unable to clear automatic activity demand: ${result.failureCode}"
 					}
 				}
+				legacyStepRetirementFailure?.let { throw it }
 				recoveryResult = if (removed || generation != requestMutationGeneration || isActive) {
 					AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
 				} else {
@@ -727,9 +720,6 @@ object BackgroundTrackingApi {
 				activityControlConsentEpoch = nextActivityConsentEpoch
 				reconcileControlEligibility(
 					activityEligible = nextActivityConsentEpoch != null,
-					stepEligible = snapshot
-						?.get(TrackingSourceComponent.STEPS)
-						?.controlConsentEpoch != null,
 					activityAuthorityChanged = authorityChanged,
 				)
 				publishActivityAutomationAuthority()
@@ -737,7 +727,7 @@ object BackgroundTrackingApi {
 			.retryWhen { error, _ ->
 				activeSourcePolicyRevision = null
 				activityControlConsentEpoch = null
-				reconcileControlEligibility(activityEligible = false, stepEligible = false)
+				reconcileControlEligibility(activityEligible = false)
 				publishActivityAutomationAuthority()
 				Tracebox.log.error(error, TrackerTraceboxTemplates.SOURCE_POLICY_OBSERVATION_FAILED)
 				delay(SOURCE_POLICY_RETRY_DELAY_MILLIS)
@@ -885,13 +875,10 @@ object BackgroundTrackingApi {
 
 	private fun reconcileControlEligibility(
 		activityEligible: Boolean,
-		stepEligible: Boolean,
 		activityAuthorityChanged: Boolean = false,
 	) {
 		val previousActivityEligibility = activityControlEligible
-		val previousStepEligibility = stepControlEligible
 		activityControlEligible = activityEligible
-		stepControlEligible = stepEligible
 		val context = appContext ?: return
 		when {
 			!activityEligible && isActive ->
@@ -901,9 +888,6 @@ object BackgroundTrackingApi {
 			activityEligible && previousActivityEligibility && activityAuthorityChanged &&
 				paramsInitialized ->
 				handleTrackingActivityPreferenceChange(cachedParamsSnapshot().autoTrackingMode)
-			isActive && previousStepEligibility != stepEligible &&
-				!cachedParamsSnapshot().transitionDetectionEnabled ->
-				reinitializeRequest(context, useTransitionApi = false)
 		}
 	}
 
@@ -995,7 +979,6 @@ object BackgroundTrackingApi {
 		activeSourcePolicyRevision = null
 		activityControlEligible = false
 		activityControlConsentEpoch = null
-		stepControlEligible = false
 		publishActivityAutomationAuthority()
 	}
 
@@ -1325,10 +1308,10 @@ internal fun automaticControlAuthorityChanged(
 	nextConsentEpoch: Long?,
 ): Boolean = previousPolicyRevision != nextPolicyRevision || previousConsentEpoch != nextConsentEpoch
 
-internal fun shouldUseStepCorroboration(
-	useTransitionApi: Boolean,
-	stepControlEligible: Boolean,
-): Boolean = !useTransitionApi && stepControlEligible
+internal fun hasRequiredAutomaticStartConfidence(
+	confidence: Int,
+	requiredConfidence: Int,
+): Boolean = confidence >= requiredConfidence
 
 internal fun automaticControlRecoveryResult(
 	result: ActivityRegistrationResult,
@@ -1343,9 +1326,9 @@ internal fun automaticControlRecoveryResult(
 }
 
 internal fun shouldRetainAutomaticControlAfterReinitializeFailure(
-	hadActiveRegistration: Boolean,
+	hasUsableRegistration: Boolean,
 	recoveryResult: AutomaticControlRecoveryResult,
-): Boolean = hadActiveRegistration && recoveryResult == AutomaticControlRecoveryResult.RETRYABLE
+): Boolean = hasUsableRegistration && recoveryResult == AutomaticControlRecoveryResult.RETRYABLE
 
 internal fun automaticControlDisabledRecoveryResult(
 	result: ActivityRegistrationResult,

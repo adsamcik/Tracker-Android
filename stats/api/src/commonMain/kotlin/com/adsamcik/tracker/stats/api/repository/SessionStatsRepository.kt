@@ -5,15 +5,14 @@ import com.adsamcik.tracker.stats.api.error.StatsError
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
-import com.adsamcik.tracker.stats.api.value.StepCount
 
+/** Non-Steps aggregates; retained Steps require [StepsNumericSummaryRepository]. */
 data class SessionStatsSnapshot(
 	val duration: DurationMs,
 	val collections: Long,
 	val totalDistance: DistanceM,
 	val onFootDistance: DistanceM,
 	val inVehicleDistance: DistanceM,
-	val steps: StepCount,
 	val tripCount: Long,
 	val locationCount: Long,
 	val wifiCount: Long,

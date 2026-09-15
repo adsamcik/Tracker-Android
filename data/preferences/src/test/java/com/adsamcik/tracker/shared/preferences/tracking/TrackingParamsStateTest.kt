@@ -25,6 +25,11 @@ class TrackingParamsStateTest {
 		}
 
 		@Test
+		fun `default state has ambient steps disabled`() {
+			TrackingParamsState().ambientStepsEnabled shouldBe false
+		}
+
+		@Test
 		fun `default state has wifi disabled`() {
 			TrackingParamsState().wifiEnabled shouldBe false
 		}

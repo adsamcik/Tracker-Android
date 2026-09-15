@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsGoalEffectEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
@@ -65,6 +66,7 @@ class StepsSessionFactProjectionLaneTest {
 	@Test
 	fun `canonical lane maps every Steps boundary and mutates evidence once per batch`() = runTest {
 		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		database.stepsGoalEffectDao().recordDecision(goalEffect(epochDay = 0L))
 		val events = listOf(
 			stepEvent(
 				ordinal = 1L,
@@ -121,6 +123,7 @@ class StepsSessionFactProjectionLaneTest {
 			StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(fact) shouldBe true
 		}
 		database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
+		database.stepsGoalRepairDayDao().get(0L)?.sourceEvidenceRevision shouldBe 1L
 		activeLane()?.contiguousAdmissionOrdinal shouldBe 4L
 		database.stepIntervalDao().getAllBetween(0L, Long.MAX_VALUE).shouldBeEmpty()
 	}
@@ -910,6 +913,33 @@ class StepsSessionFactProjectionLaneTest {
 			),
 		)
 	}
+
+	private fun goalEffect(epochDay: Long) = StepsGoalEffectEntity(
+		effectIdentity = StepsGoalEffectEntity.identity(StepsGoalEffectEntity.PERIOD_DAY, epochDay),
+		periodKind = StepsGoalEffectEntity.PERIOD_DAY,
+		periodStartEpochDay = epochDay,
+		periodEndEpochDay = epochDay,
+		qualifiedThroughEpochDay = epochDay,
+		calendarAuthority = "$epochDay=UTC",
+		targetSteps = 10_000L,
+		weeklyDailyLimitBits = null,
+		decisionState = StepsGoalEffectEntity.STATE_READY_INCOMPLETE,
+		unavailableReason = null,
+		qualifiedSteps = 0L,
+		sourceAuthorityDigest = "a".repeat(64),
+		sourceEvidenceRevision = 0L,
+		effectRevision = 1L,
+		completionPointsMicros = 100_000_000L,
+		completionXp = 50,
+		desiredPointsMicros = 0L,
+		desiredXp = 0,
+		firstCompletedAtMs = null,
+		pointsAppliedRevision = 0L,
+		xpAppliedRevision = 0L,
+		notificationClaimedRevision = null,
+		notificationClaimedAtMs = null,
+		updatedAtMs = 0L,
+	)
 
 	private companion object {
 		const val COLLECTED_DATA_EPOCH = 2L

@@ -7,13 +7,23 @@ import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
+import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
+import com.adsamcik.tracker.stats.api.repository.HistoryProductState
+import com.adsamcik.tracker.stats.api.repository.ImportedStepsHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.ImportedStepsHistoryMember
+import com.adsamcik.tracker.stats.api.repository.StepsHistory
+import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.StepsAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
+import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
@@ -45,6 +55,24 @@ class DashboardHistoryRepositoryTest {
 	private val explorationStreakDao = mockk<ExplorationStreakDao>()
 	private val dailySummaryDao = mockk<DailySummaryDao>()
 	private val achievementProgressDao = mockk<AchievementProgressDao>()
+
+	@Test
+	fun `imported Steps is discoverable without a raw physical candidate or fake sample count`() = runTest {
+		val imported = ImportedStepsHistoryEntry(
+			TrackingHistoryEntryKey("imported-steps:entry"), EpochMs(10L), EpochMs(20L),
+			listOf(ImportedStepsHistoryMember(42L, EpochMs(10L), EpochMs(20L), StepsHistory(
+				count = 4L, availability = HistoryAvailability.RETAINED_IMPORTED,
+				evidence = HistoryEvidence.RECORDED, productState = HistoryProductState.READY,
+				coverage = StepsHistoryCoverage.COMPLETE, causes = emptySet(),
+			))),
+		)
+		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_LIMIT) } returns flowOf(emptyList())
+		every {
+			trackingHistoryRepository.observeRecentStepsAwarePage(emptyList(), RECENT_HISTORY_LIMIT)
+		} returns flowOf(listOf(StepsAwareHistoryPageEntry.ImportedSteps(imported)))
+		repository(testScheduler).observeRecentHistory().first() shouldContainExactly
+			listOf(DashboardRecentHistoryEntry.ImportedSteps(imported))
+	}
 
 	@Test
 	fun `recent history coordinates exact candidate generation and preserves Stats ordering`() = runTest {
@@ -165,6 +193,37 @@ class DashboardHistoryRepositoryTest {
 		coVerify(exactly = 1) { achievementProgressDao.getAll() }
 	}
 
+	@Test
+	fun `latest achievement skips unavailable rows and orders by exact unlock time`() = runTest {
+		stubSuccessfulOptionalDefaults()
+		coEvery { achievementProgressDao.getAll() } returns listOf(
+			AchievementProgressEntity(
+				metricKey = MetricKey.GOAL_STREAK_DAYS.storageKey,
+				lastTierIndex = 0,
+				lastValue = 3.0,
+				updatedAt = 300L,
+				lastUnlockedAt = 300L,
+				authorityKind = AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1,
+				authorityRevision = 4L,
+				authorityDigest = "a".repeat(64),
+				authorityState = AchievementProgressEntity.AUTHORITY_STATE_MATERIALIZING,
+				qualifiedNotificationClaimedTierIndex = 0,
+			),
+			achievementProgress(MetricKey.DISTANCE_TOTAL_M, updatedAt = 1_000L, unlockedAt = 10L),
+			achievementProgress(MetricKey.SESSIONS_TOTAL, updatedAt = 500L, unlockedAt = 20L),
+		)
+
+		val latest = (repository(testScheduler).load().latestAchievement as
+			DashboardHistorySection.Loaded).value
+
+		latest shouldBe DashboardAchievementHistory(
+			id = AchievementCatalog.byMetric(MetricKey.SESSIONS_TOTAL).first().id,
+			nameRes = AchievementCatalog.byMetric(MetricKey.SESSIONS_TOTAL).first().nameRes,
+			tier = AchievementCatalog.byMetric(MetricKey.SESSIONS_TOTAL).first().tier,
+			unlockedAt = 20L,
+		)
+	}
+
 	private fun stubSuccessfulOptionalDefaults() {
 		coEvery { explorationCellDao.countAtLevel(EXPLORATION_LEVEL) } returns 0
 		coEvery { explorationStreakDao.getByType(STREAK_TYPE) } returns null
@@ -194,6 +253,18 @@ class DashboardHistoryRepositoryTest {
 		sampleCount = 1,
 		source = SegmentSource.USER_CREATED,
 		createdAt = id * 1_000L,
+	)
+
+	private fun achievementProgress(
+		metric: MetricKey,
+		updatedAt: Long,
+		unlockedAt: Long,
+	) = AchievementProgressEntity(
+		metricKey = metric.storageKey,
+		lastTierIndex = 0,
+		lastValue = AchievementCatalog.byMetric(metric).first().threshold,
+		updatedAt = updatedAt,
+		lastUnlockedAt = unlockedAt,
 	)
 
 	private fun stepsEntry(key: String, startTimeMs: Long) = StepsOnlyHistoryEntry(

@@ -267,6 +267,11 @@ class RoomDurableSourceIngress @Inject constructor(
 				) ?: return@transaction AdmissionResult.PermanentFailure(
 					AdmissionFailureCode.STALE_REGISTRATION_GENERATION,
 				)
+				if (checkpoint != null && checkpoint.ownerScope != registration.ownerScope) {
+					return@transaction AdmissionResult.PermanentFailure(
+						AdmissionFailureCode.STALE_REGISTRATION_GENERATION,
+					)
+				}
 				if (registration.collectedDataEpoch != candidate.capturedCollectedDataEpoch) {
 					return@transaction AdmissionResult.PermanentFailure(
 						AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH,
@@ -785,13 +790,25 @@ class RoomDurableSourceIngress @Inject constructor(
 						unit,
 						authorization,
 						captureAuthorization,
+						registration,
 					)
 				}
 				if (authorized.isEmpty()) {
 					return@transaction DeliveryAdmissionResult.PermanentFailure(emptyDeliveryFailure)
 				}
 				val firstEvidence = authorized.first().encoded.sourceUnit.evidence
-				val ownerScope = "source-broker:${delivery.source.stableCode}"
+				val ownerScopes = authorized.map { it.registration.ownerScope }.distinct()
+				if (ownerScopes.size != 1) {
+					return@transaction DeliveryAdmissionResult.PermanentFailure(
+						AdmissionFailureCode.STALE_REGISTRATION_GENERATION,
+					)
+				}
+				val ownerScope = ownerScopes.single()
+				if (checkpoint != null && checkpoint.ownerScope != ownerScope) {
+					return@transaction DeliveryAdmissionResult.PermanentFailure(
+						AdmissionFailureCode.STALE_REGISTRATION_GENERATION,
+					)
+				}
 				val registrationState = database.sourceRegistrationStateDao().get(
 					delivery.source.stableCode,
 					ownerScope,
@@ -1317,6 +1334,7 @@ private data class AuthorizedDeliveryUnit(
 	val encoded: EncodedDeliveryUnit,
 	val authorization: SourceAuthorizationSnapshot,
 	val captureAuthorization: SourceAuthorizationEntity?,
+	val registration: ProviderRegistrationGenerationEntity,
 )
 
 private data class RetiringCaptureAuthority(

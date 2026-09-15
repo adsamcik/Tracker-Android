@@ -10,6 +10,7 @@ import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
@@ -672,7 +673,7 @@ class StepSourceRuntimeRetirementTest {
 			}
 		}
 		var beginIndex = 0
-		coEvery { repository.begin(any(), any(), any(), any(), any()) } answers {
+		coEvery { repository.beginPurposeScoped(any(), any(), any(), any(), any(), any()) } answers {
 			registrations[beginIndex++.coerceAtMost(registrations.lastIndex)]
 		}
 		coEvery { repository.loadRuntimeState(any()) } returns null
@@ -781,7 +782,10 @@ class StepSourceRuntimeRetirementTest {
 			authorizationRevision,
 			1L,
 		).toAuthorizationSnapshotOrNull())
-		val ownerScope = "source-broker:${SourceKind.STEPS.stableCode}"
+		val ownerScope = SourceProviderPurposeScope.exactOwnerScope(
+			SourceKind.STEPS.stableCode,
+			SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		)
 		return SourceRegistration(
 			ownerScope,
 			SourceRegistrationStateEntity(

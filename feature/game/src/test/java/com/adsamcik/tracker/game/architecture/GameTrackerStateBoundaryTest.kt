@@ -3,17 +3,16 @@ package com.adsamcik.tracker.game.architecture
 import org.junit.jupiter.api.Test
 import java.io.File
 import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 /**
- * Goals observe the immutable tracker API state. They must not regain the old
- * Room-backed session channel or the reflective listener bridge.
+ * Goal presentation is composed only from source-qualified numeric summaries. It must not
+ * regain a live tracker snapshot, Room-backed session channel, or reflective listener bridge.
  */
 class GameTrackerStateBoundaryTest {
 	private val moduleDir = resolveModuleDirectory()
 
 	@Test
-	fun `goals depend on tracker API snapshots`() {
+	fun `goal presentation has no tracker snapshot dependency`() {
 		val goalsDir = File(
 			moduleDir,
 			"src/main/java/com/adsamcik/tracker/game/goals",
@@ -24,18 +23,18 @@ class GameTrackerStateBoundaryTest {
 			.filter { it.isFile && it.extension == "kt" }
 			.joinToString("\n") { it.readText() }
 
-		assertTrue(source.contains("TrackerStateReader"))
-		assertTrue(source.contains("TrackerSessionSnapshot"))
+		assertFalse(source.contains("TrackerStateReader"))
+		assertFalse(source.contains("TrackerSessionSnapshot"))
 		assertFalse(source.contains("TrackerSessionChannel"))
 		assertFalse(source.contains("TrackerUpdateReceiver"))
 		assertFalse(source.contains("com.adsamcik.tracker.shared.base.data.TrackerSession"))
 	}
 
 	@Test
-	fun `game declares tracker API without engine implementation dependency`() {
+	fun `game declares no tracker session dependency`() {
 		val buildText = File(moduleDir, "build.gradle.kts").readText()
 
-		assertTrue(buildText.contains("""project(":tracker:api")"""))
+		assertFalse(buildText.contains("""project(":tracker:api")"""))
 		assertFalse(buildText.contains("""project(":tracker:engine")"""))
 	}
 

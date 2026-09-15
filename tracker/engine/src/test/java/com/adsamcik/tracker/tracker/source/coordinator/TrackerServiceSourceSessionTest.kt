@@ -108,6 +108,34 @@ class TrackerServiceSourceSessionTest {
 	}
 
 	@Test
+	fun `manual Steps only builds one captured source and no control dependency`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 7L)
+		val captured = slot<SessionStartRequest>()
+		coEvery { lifecycle.start(capture(captured)) } returns
+			SessionStartResult.Started("logical", "run", emptyList(), DesiredPlanStatus.EFFECTIVE)
+
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, enabled),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(enabled),
+				ownerToken = "owner",
+			),
+		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+
+		captured.captured.origin shouldBe SessionStartOrigin.MANUAL_FOREGROUND_START
+		captured.captured.automaticTrigger shouldBe null
+		captured.captured.plan.plans.keys shouldBe setOf(SourceKind.STEPS)
+		captured.captured.plan.plans.getValue(SourceKind.STEPS).enabled shouldBe true
+		captured.captured.controlDependencies shouldBe emptySet()
+	}
+
+	@Test
 	fun `automatic start preserves exact trigger evidence through the service session boundary`() = runTest {
 		val rollout = allEventCanonical(revision = 5, automaticCapture = true)
 		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 7)

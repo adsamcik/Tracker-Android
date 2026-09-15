@@ -99,7 +99,7 @@ The tracking system uses one thin, source-owned pipeline:
 The term must be precise across modes:
 
 - **Manual mode:** X is the only captured source. No control dependency is required unless the user explicitly enables one.
-- **Automatic mode:** X is the sole captured source, while declared control dependencies may remain active. Activity recognition is currently fundamental to automatic start/stop; step corroboration must be explicit if retained.
+- **Automatic mode:** X is the sole captured source, while declared control dependencies may remain active. Activity recognition is the automatic start/stop control; Steps corroboration is absent and cannot retain the step counter for enrichment.
 - **Ambient mode:** no logical session is required. The provider may remain registered only for an explicit control or ambient product purpose with its own consent and retention policy.
 
 > **Naming rule:** Never present automatic ‘Location only’ as literally using only location hardware. Present it as ‘Location captured; Activity used for automatic control.’
@@ -185,7 +185,7 @@ Product presentation does not flatten these lifecycle terms into one enum. `Trac
 ## 3.3 Specific defects to resolve early
 
 - Review the STILL + inactive + permission branch in resolveAutoTrackingPreferenceAction; the inspected branch can resolve to ENABLE and invert expected behavior.
-- Remove or declare StepActivityCorroborator as a purpose-aware control demand; it must not remain a hidden step listener when Steps capture is off.
+- Keep the removed StepActivityCorroborator absent and retire any legacy Steps control demand; Steps capture being off must leave no hidden step listener.
 - Stop evaluating automatic location start under a ‘session already foreground’ context when the actual origin is a background automatic start.
 - Treat Wi-Fi permission and system location-service prerequisites as Android-version-specific capability, not a single generic permission flag.
 - Do not introduce a second location terminal writer while the existing canonical projection is active.
@@ -310,7 +310,7 @@ Each source has a capture contract, automatic-control relationship, ambient poli
 | Wi-Fi | Fresh item-level scan result from a successful post-start completion; cache read/attempt alone does not qualify | Activity control in automatic mode | Passive scan-result broadcasts; no ambient active scans by default | Unique/new networks, observations, band mix |
 | Cell | Fresh timestamp-qualified callback item after start; cache read/request alone does not qualify | Activity control in automatic mode | Timestamp-qualified change callbacks; no ambient forced refresh | Technology, quality distribution, weak periods |
 | Activity | Post-start captured transition/classification above product threshold | Same hardware, distinct CONTROL purpose | Control state allowed; durable history only by capture consent | Coalesced movement bands, active time |
-| Steps | Positive delta after a post-start baseline | Optional corroboration only if explicitly declared | One selected system continuity adapter; direct counter for live demand | Day total with coverage; in-session and between-session deltas |
+| Steps | Positive delta after a post-start baseline | Activity control only; no Steps corroboration demand | One selected system continuity adapter; direct counter for live demand | Day total with coverage; in-session and between-session deltas |
 | Pressure | First committed qualified microsegment under capture generation | Activity Transition control in automatic mode | No continuous ambient listening by default | Pressure trend/window with coverage; no default elevation claim |
 
 *Evidence must be durably committed and attributable to the active registration generation and manifest revision.*
@@ -347,7 +347,7 @@ Each source has a capture contract, automatic-control relationship, ambient poli
 - RECORDING requires a positive delta after baseline; registering the sensor or reading an unchanged counter is insufficient.
 - Two qualified unchanged same-generation boundaries prove a covered zero-step interval even though they do not advance lifecycle RECORDING. A lone baseline remains no-observation/partial, and queries never collapse those states to the same zero.
 - The Step canonicalizer gives deterministic precedence to overlapping provider intervals; direct, Health Connect, and Recording data are never added for the same interval. Ambient Steps still needs explicit retention, export, deletion, capability/completeness and UI status.
-- If step corroboration remains part of automatic tracking, expose it as a CONTROL demand and setting; never hide it behind another source.
+- Automatic tracking does not use Step corroboration. Activity owns control, and the direct counter runs only for an explicit Steps capture or future ambient-product demand.
 
 ## 5.6 Pressure
 
@@ -745,7 +745,7 @@ Persist dimensions with each event: source, manual/automatic/ambient mode, write
 | **Decision** | **Position** | **Rationale / next action** |
 | --- | --- | --- |
 | Automatic control dependency | **Adopt** | Activity is explicit CONTROL for automatic mode; captured only when Activity is enabled. |
-| Step corroboration | **Decide before broker rollout** | Either remove it or expose it as a declared CONTROL demand and setting. |
+| Step corroboration | **Remove** | Activity is the sole automatic control; retire legacy Steps control and never retain the counter for enrichment. |
 | Ambient steps | **Recommended, capability-gated** | Select one Health Connect/Recording continuity adapter; canonicalize live/import overlaps and add retention/export/deletion/completeness controls. |
 | Ambient location | **Opt-in only** | Separate consent; passive/opportunistic acquisition; prominent explanation. |
 | Ambient Wi-Fi/cell | **Conditional** | Passive/timestamp-qualified callbacks only by default; cache reads are not acquisition and active scan/refresh budgets require separate device evidence. |
@@ -828,7 +828,7 @@ The plan was grounded in the current repository. Paths below are review anchors;
 | **Area** | **Repository anchors** |
 | --- | --- |
 | Tracking cycle and projection | tracker/engine/src/main/java/com/adsamcik/tracker/tracker/data/collection/TrackingCycle.kt; tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/projection/EventTrackingFrameProjection.kt |
-| Automatic control | tracker/engine/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt; tracker/engine/src/main/java/com/adsamcik/tracker/tracker/api/StepActivityCorroborator.kt |
+| Automatic control | tracker/engine/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt |
 | Source planning/ownership | tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/SemanticAcquisitionPlanFactory.kt; TrackerServiceSourceSession.kt; TrackingSettingsStatusProvider.kt |
 | Source consumers | tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/consumer/data/{Location,Wifi,Cell,Activity}TrackerComponent.kt |
 | History presenter and UI | feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/HistoryPresenterViewModel.kt; ui/HistoryRoute.kt; ui/CalendarContent.kt; viewmodel/HistoryTypes.kt |

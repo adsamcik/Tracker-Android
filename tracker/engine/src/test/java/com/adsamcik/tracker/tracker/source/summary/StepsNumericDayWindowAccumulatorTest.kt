@@ -8,6 +8,44 @@ import org.junit.Test
 
 class StepsNumericDayWindowAccumulatorTest {
 	@Test
+	fun `exact Long count survives integer cache overflow without clamping`() {
+		val zone = ZoneId.of("UTC")
+		val day = LocalDate.of(2026, 4, 2).toEpochDay()
+		val startMs = startOfDayMs(day, zone) + HOUR_MS
+		val endMs = startMs + HOUR_MS
+		val contribution = contribution(zone, startMs, endMs, setOf(1L))
+		val accumulator = requireNotNull(StepsNumericDayWindowAccumulator.create(mapOf(day to zone)))
+		val count = Int.MAX_VALUE.toLong() + 42L
+		accumulator.addLogicalGroup(listOf(contribution)) shouldBe true
+		accumulator.startRun(contribution) shouldBe true
+		accumulator.consumeCoveredFact(fact(1L, startMs, endMs, steps = count)) shouldBe true
+		accumulator.finishRun() shouldBe true
+		val result = requireNotNull(accumulator.results()).single()
+		result.steps shouldBe null
+		result.exactSteps shouldBe count
+		result.hasCompleteStepsCapture shouldBe true
+		result.hasPartialStepsCapture shouldBe false
+	}
+
+	@Test
+	fun `source-local partial flag follows covered facts outside presentation envelope`() {
+		val zone = ZoneId.of("UTC")
+		val day = LocalDate.of(2026, 4, 2).toEpochDay()
+		val startMs = startOfDayMs(day, zone) + HOUR_MS
+		val endMs = startMs + HOUR_MS
+		val contribution = contribution(zone, startMs + 24L * HOUR_MS, endMs + 24L * HOUR_MS, setOf(1L))
+			.copy(hasPartialStepsEvidence = true)
+		val accumulator = requireNotNull(StepsNumericDayWindowAccumulator.create(mapOf(day to zone)))
+		accumulator.addLogicalGroup(listOf(contribution)) shouldBe true
+		accumulator.startRun(contribution) shouldBe true
+		accumulator.consumeCoveredFact(fact(1L, startMs, endMs, steps = 0L)) shouldBe true
+		accumulator.finishRun() shouldBe true
+		val result = requireNotNull(accumulator.results()).single()
+		result.hasPartialStepsCapture shouldBe true
+		result.hasNonStepsCapture shouldBe false
+	}
+
+	@Test
 	fun `empty product request stays invalid while deletion validation can stream without results`() {
 		val zone = ZoneId.of("UTC")
 		val day = LocalDate.of(2026, 4, 2).toEpochDay()
@@ -71,7 +109,7 @@ class StepsNumericDayWindowAccumulatorTest {
 		consumedFacts shouldBe 95_090
 		results.size shouldBe StepsNumericSummaryRequest.MAX_DAY_COUNT
 		results.sumOf(StepsNumericAccumulatedDay::exactSteps) shouldBe consumedFacts.toLong()
-		results.sumOf { day -> day.steps.toLong() } shouldBe consumedFacts.toLong()
+		results.sumOf { day -> requireNotNull(day.steps).toLong() } shouldBe consumedFacts.toLong()
 		results.all { day ->
 			day.hasCompleteStepsCapture && !day.hasPartialStepsCapture &&
 				day.exactSteps == FACTS_PER_DAY.toLong()

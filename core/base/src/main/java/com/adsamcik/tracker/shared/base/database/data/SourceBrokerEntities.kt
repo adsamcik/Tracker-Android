@@ -28,6 +28,63 @@ object SourceBrokerPurpose {
 	}
 }
 
+/**
+ * Stable owner-scope encoding for a provider that can satisfy only part of a source's demand
+ * vector. Unscoped legacy owners remain compatible with every purpose; new incompatible providers
+ * must opt into an exact non-empty purpose mask.
+ */
+object SourceProviderPurposeScope {
+	private const val BROKER_PREFIX = "source-broker:"
+	private const val PURPOSE_MARKER = ":purposes="
+
+	fun sharedOwnerScope(sourceKind: Int): String = "$BROKER_PREFIX$sourceKind"
+
+	fun exactOwnerScope(sourceKind: Int, purposeMask: Long): String {
+		require(
+			purposeMask > 0L &&
+				(purposeMask and SourceBrokerPurpose.ALL_MASK.inv()) == 0L,
+		)
+		return sharedOwnerScope(sourceKind) + PURPOSE_MARKER + purposeMask
+	}
+
+	fun isCanonicalOwnerScope(sourceKind: Int, ownerScope: String): Boolean {
+		val shared = sharedOwnerScope(sourceKind)
+		if (ownerScope == shared) return true
+		return exactPurposeMaskOrNull(sourceKind, ownerScope) != null
+	}
+
+	fun selectDemands(
+		sourceKind: Int,
+		ownerScope: String,
+		demands: Collection<SourceDemandEntity>,
+	): List<SourceDemandEntity> {
+		val shared = sharedOwnerScope(sourceKind)
+		val purposeMask = when {
+			ownerScope == shared -> SourceBrokerPurpose.ALL_MASK
+			ownerScope.startsWith(shared + PURPOSE_MARKER) ->
+				exactPurposeMaskOrNull(sourceKind, ownerScope) ?: return emptyList()
+			ownerScope.startsWith(BROKER_PREFIX) -> return emptyList()
+			else -> SourceBrokerPurpose.ALL_MASK
+		}
+		return demands.filter { demand ->
+			demand.sourceKind == sourceKind &&
+				(SourceBrokerPurpose.mask(demand.purpose) and purposeMask) != 0L
+		}
+	}
+
+	private fun exactPurposeMaskOrNull(sourceKind: Int, ownerScope: String): Long? {
+		val prefix = sharedOwnerScope(sourceKind) + PURPOSE_MARKER
+		if (!ownerScope.startsWith(prefix)) return null
+		val purposeMask = ownerScope.removePrefix(prefix)
+			.toLongOrNull()
+			?.takeIf {
+				it > 0L && (it and SourceBrokerPurpose.ALL_MASK.inv()) == 0L
+			}
+			?: return null
+		return purposeMask.takeIf { ownerScope == prefix + purposeMask }
+	}
+}
+
 object SourceBrokerAuthorization {
 	fun purposeMask(demands: Collection<SourceDemandEntity>): Long =
 		demands.fold(0L) { mask, demand -> mask or SourceBrokerPurpose.mask(demand.purpose) }

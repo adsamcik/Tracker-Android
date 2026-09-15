@@ -166,6 +166,7 @@ class AchievementWorker @AssistedInject constructor(
 					ProgressAccumulator(
 						lastTierIndex = existing?.lastTierIndex ?: -1,
 						lastValue = existing?.lastValue ?: 0.0,
+						lastUnlockedAt = existing?.lastUnlockedAt,
 					)
 				}
 				if (accum.lastValue != currentValue) {
@@ -185,6 +186,7 @@ class AchievementWorker @AssistedInject constructor(
 					is RuleEvaluationResult.TierUnlocked -> {
 						if (definition != null && definition.tierIndex > accum.lastTierIndex) {
 							accum.lastTierIndex = definition.tierIndex
+							accum.tierAdvanced = true
 						}
 						accum.changed = true
 					}
@@ -202,6 +204,7 @@ class AchievementWorker @AssistedInject constructor(
 						lastTierIndex = a.lastTierIndex,
 						lastValue = a.lastValue,
 						updatedAt = now,
+						lastUnlockedAt = if (a.tierAdvanced) now else a.lastUnlockedAt,
 					)
 				}
 				.toList()
@@ -242,7 +245,9 @@ class AchievementWorker @AssistedInject constructor(
 	private class ProgressAccumulator(
 		var lastTierIndex: Int,
 		var lastValue: Double,
+		val lastUnlockedAt: Long?,
 		var changed: Boolean = false,
+		var tierAdvanced: Boolean = false,
 	)
 
 	companion object {

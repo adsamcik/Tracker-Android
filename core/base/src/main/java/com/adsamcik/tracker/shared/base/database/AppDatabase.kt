@@ -6,6 +6,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.steps.imported.preserveStepsFullClearFences
 import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.database.converter.CellTypeConverter
 import com.adsamcik.tracker.shared.base.database.converter.DetectedActivityTypeConverter
@@ -15,6 +16,8 @@ import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivityAutomaticStartActionDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivityAutomationEpochDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
+import com.adsamcik.tracker.shared.base.database.dao.AmbientStepsFactRevisionDao
+import com.adsamcik.tracker.shared.base.database.dao.AmbientStepsImportStateDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.GeneralDao
@@ -28,6 +31,8 @@ import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDecision
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StepFactRevisionDao
+import com.adsamcik.tracker.shared.base.database.dao.StepsGoalEffectDao
+import com.adsamcik.tracker.shared.base.database.dao.StepsGoalRepairDayDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedStepsDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
@@ -43,6 +48,10 @@ import com.adsamcik.tracker.shared.base.database.dao.XpLedgerDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
@@ -59,6 +68,8 @@ import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsGoalEffectEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsGoalRepairDayEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsManifestEntity
@@ -171,6 +182,12 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			LocationObservationDecision::class,
 			StepInterval::class,
 			StepFactRevisionEntity::class,
+			AmbientStepsFactRevisionEntity::class,
+			AmbientStepsImportAuthorityTransitionEntity::class,
+			AmbientStepsImportCursorEntity::class,
+			AmbientStepsImportGapEntity::class,
+			StepsGoalEffectEntity::class,
+			StepsGoalRepairDayEntity::class,
 			ImportedStepsEntryEntity::class,
 			ImportedStepsRunEntity::class,
 			ImportedStepsManifestEntity::class,
@@ -289,6 +306,18 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Provides append-only semantic revisions and contribution receipts for Steps. */
 	abstract fun stepFactRevisionDao(): StepFactRevisionDao
+
+	/** Provides append-only sessionless system-provider Steps aggregates. */
+	abstract fun ambientStepsFactRevisionDao(): AmbientStepsFactRevisionDao
+
+	/** Provides exact source-local Ambient Steps import progress and discontinuities. */
+	abstract fun ambientStepsImportStateDao(): AmbientStepsImportStateDao
+
+	/** Desired, revisioned source-qualified goal effects; no provider or award is started by access. */
+	abstract fun stepsGoalEffectDao(): StepsGoalEffectDao
+
+	/** Source-local dirty-day queue for bounded historical Steps goal correction. */
+	abstract fun stepsGoalRepairDayDao(): StepsGoalRepairDayDao
 
 	/** Dormant imported Steps metadata; this accessor does not grant import admission authority. */
 	abstract fun importedStepsDao(): ImportedStepsDao
@@ -580,6 +609,7 @@ abstract class AppDatabase : RoomDatabase() {
 		}
 
 		private fun deleteCollectedRows(database: AppDatabase) {
+			preserveStepsFullClearFences(database.openHelper.writableDatabase)
 			// Source-event pipeline. Delete dependent state before immutable evidence.
 			database.locationProjectionDao().deleteAllObservations()
 			database.sourceBrokerDao().deleteAllAuthorizations()
@@ -611,8 +641,15 @@ abstract class AppDatabase : RoomDatabase() {
 			database.locationSampleDao().deleteAll()
 			database.locationObservationDao().deleteAll()
 			database.locationObservationDecisionDao().deleteAll()
-			database.sourceDeletionFenceDao().deleteAll()
+			// Payload-free source fences deliberately survive repeated full clears: portable files
+			// have no previous local epoch and must not resurrect an explicitly deleted run.
 			database.stepFactRevisionDao().deleteAll()
+			database.ambientStepsFactRevisionDao().deleteAll()
+			database.ambientStepsImportStateDao().deleteAllAuthorityTransitions()
+			database.ambientStepsImportStateDao().deleteAllGaps()
+			database.ambientStepsImportStateDao().deleteAllCursors()
+			database.stepsGoalEffectDao().deleteAll()
+			database.stepsGoalRepairDayDao().deleteAll()
 			database.importedStepsDao().deleteAll()
 			database.pressureFactRevisionDao().deleteAll()
 			database.stepIntervalDao().deleteAll()

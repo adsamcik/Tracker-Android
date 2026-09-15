@@ -1,5 +1,18 @@
 # Checkpoint publication and restart
 
+## Confirmed remote receipt
+
+The reviewed publication completed at `0460f12a54a3550244f8e8ea5c9fb1f5e2ef27d2` on
+`refs/heads/dev/v10`. A subsequent read-only `git ls-remote --heads origin refs/heads/dev/v10`
+on September 9 returned that same hash. The clean `tracking-infra-integration` checkout matches it.
+This is the actual receipt for the scope below, not a claim about this later local document's own
+publication. No release, activation or remote CI success is implied.
+
+Subsequent source dependencies, retention and Dashboard/Detail commits remain local; see the
+updated machine/continuation handovers. They have not been integrated into `dev/v10` or pushed.
+The six protected root files and old unfinished importer/awards drafts remain untouched/excluded.
+Do not reuse the completed one-time publication authorization for later commits.
+
 ## Current publication: reviewed portable-origin checkpoint
 
 The user's current confirmation is **"Push reviewed implementation and handover only."**

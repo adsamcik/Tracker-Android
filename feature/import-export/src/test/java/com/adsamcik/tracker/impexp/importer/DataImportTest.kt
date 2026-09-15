@@ -50,6 +50,11 @@ class DataImportTest {
             dataImport.supportedImporterExtensions shouldContain "json"
         }
 
+		@Test
+		fun `supported importer extensions include portable Steps`() {
+			dataImport.supportedImporterExtensions shouldContain "trackersteps"
+		}
+
         @Test
         fun `no duplicate extensions in importer list`() {
             val extensions = dataImport.supportedImporterExtensions
@@ -79,7 +84,7 @@ class DataImportTest {
         @Test
         fun `supportedExtensions includes both importer and archive extensions`() {
             val all = dataImport.supportedExtensions
-            all shouldContainAll listOf("gpx", "kml", "db", "json", "zip")
+            all shouldContainAll listOf("gpx", "kml", "db", "json", "trackersteps", "zip")
         }
 
         @Test
@@ -112,6 +117,11 @@ class DataImportTest {
         fun `finds importer for json extension`() {
             findImporter("json").shouldNotBeNull()
         }
+
+		@Test
+		fun `finds importer for portable Steps extension`() {
+			findImporter("trackersteps").shouldNotBeNull()
+		}
 
         @Test
         fun `returns null for unsupported extension`() {

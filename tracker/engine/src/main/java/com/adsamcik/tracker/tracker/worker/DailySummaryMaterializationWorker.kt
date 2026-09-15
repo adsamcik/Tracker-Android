@@ -11,13 +11,13 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.enqueueStepsGoalRepairDay
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.tracker.source.deletion.StepsDailySummaryRepairComposer
-import com.adsamcik.tracker.tracker.source.deletion.StepsDayNumericComposition
 import com.adsamcik.tracker.tracker.source.deletion.StepsDayRepairPreflight
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -114,9 +114,7 @@ internal suspend fun materializeDailySummaryDayInTransaction(
 				) {
 					is StepsDayRepairPreflight.Ready -> {
 						val plan = preflight.plans.singleOrNull()
-						if (plan == null || plan.epochDay != epochDay || plan.zoneId != authorityZone ||
-							plan.numericSteps == StepsDayNumericComposition.PartialCapture
-						) {
+						if (plan == null || plan.epochDay != epochDay || plan.zoneId != authorityZone) {
 							DailySummaryMaterializationOutcome.Unverifiable
 						} else {
 							authorityAggregator.repairDayFromSourceTotalsWhileLocked(
@@ -133,6 +131,9 @@ internal suspend fun materializeDailySummaryDayInTransaction(
 						DailySummaryMaterializationOutcome.Unverifiable
 				}
 			} finally {
+				if (outcome != DailySummaryMaterializationOutcome.Materializing) {
+					database.enqueueStepsGoalRepairDay(epochDay)
+				}
 				afterMaterialize()
 			}
 		}

@@ -17,7 +17,6 @@ import com.adsamcik.tracker.stats.api.repository.SessionStatsSnapshot
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
-import com.adsamcik.tracker.stats.api.value.StepCount
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -84,7 +83,6 @@ class DefaultSessionStatsRepository @Inject constructor(
 			totalDistance = DistanceM.coerced(distanceM),
 			onFootDistance = DistanceM.coerced(onFootDistanceM),
 			inVehicleDistance = DistanceM.coerced(inVehicleDistanceM),
-			steps = StepCount.coerced(stepCount.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()),
 			tripCount = tripCount.coerceAtLeast(0L),
 			locationCount = locationCount.coerceAtLeast(0L),
 			wifiCount = wifiCount.coerceAtLeast(0L),

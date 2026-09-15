@@ -78,7 +78,9 @@ suspend fun AppDatabase.markAuthenticatedStepsRunsAffectedByRetentionFloor(
 			}
 		}
 	}
-	inserted
+	val changed = inserted + markImportedStepsRetentionFloor(beforeMs, markedAtMs)
+	enqueueAllStepsGoalRepairs()
+	changed
 }
 
 /**
@@ -136,7 +138,9 @@ suspend fun AppDatabase.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
 				}
 		}
 	}
-	deleted
+	val changed = deleted + pruneImportedStepsRetentionFloor(beforeMs, markedAtMs)
+	enqueueAllStepsGoalRepairs()
+	changed
 }
 
 private suspend fun AppDatabase.requireCurrentCollectedDataEpoch(expectedEpoch: Long) {
@@ -167,10 +171,16 @@ private suspend fun AppDatabase.visitAuthenticatedRetentionRunBatches(
 		if (candidateRunIds.isEmpty()) {
 			break
 		}
-		val builders = historyDao.serviceRuns(candidateRunIds)
+		val importedRunIds = importedStepsDao().runsForIdentities(candidateRunIds, candidateRunIds.size + 1)
+			.mapTo(hashSetOf()) { it.identity }
+		val liveRunIds = candidateRunIds.filterNot { it in importedRunIds }
+		check(historyDao.serviceRuns(importedRunIds.toList()).isEmpty()) {
+			"Steps retention cannot share imported and local run identity"
+		}
+		val builders = historyDao.serviceRuns(liveRunIds)
 			.associate { run -> run.serviceRunId to AuthenticatedRetentionRunBuilder(run) }
 			.toMutableMap()
-		check(builders.keys == candidateRunIds.toSet()) {
+		check(builders.keys == liveRunIds.toSet()) {
 			"Steps retention candidate is missing its authoritative service run"
 		}
 		historyDao.visitStepsFactCandidateStatesByRun(builders.values.map { it.serviceRun }) {
@@ -209,8 +219,8 @@ private suspend fun AppDatabase.visitAuthenticatedRetentionRunBatches(
 /**
  * Authenticates every revision before SQL may use checksum-covered fields for retention discovery.
  *
- * Portable-import rows have no active production writer yet, so they deliberately stop retention
- * until that vertical supplies its own intrinsic integrity verifier. A standalone, payload-free
+ * Portable-import rows authenticate against complete retained imported membership separately from
+ * local service-run authority. A standalone, payload-free
  * local-delete revision may survive an earlier retention prune; its self-contained deterministic
  * authorship remains verifiable without restoring the deleted UPSERT.
  */
@@ -228,15 +238,21 @@ private suspend fun AppDatabase.authenticateCompleteStepsFactStore(collectedData
 		if (page.isEmpty()) {
 			break
 		}
+		val imported = mutableListOf<StepFactRevisionEntity>()
 		page.forEach { unvalidated ->
 			val fact = unvalidated.validatedOrNull()
 			check(fact != null && fact.collectedDataEpoch == collectedDataEpoch) {
 				"Steps retention encountered malformed or stale fact state"
 			}
-			check(fact.hasAuthenticatedRetentionAuditState()) {
-				"Steps retention encountered unauthenticated fact state"
+			if (fact.originKind == StepFactRevisionEntity.ORIGIN_PORTABLE_IMPORT) {
+				imported += fact
+			} else {
+				check(fact.hasAuthenticatedRetentionAuditState()) {
+					"Steps retention encountered unauthenticated fact state"
+				}
 			}
 		}
+		authenticateImportedStepsRetentionFacts(imported)
 		val last = page.last()
 		val nextCursor = RetentionFactAuditCursor(
 			writerProjectionId = last.writerProjectionId,
@@ -250,6 +266,7 @@ private suspend fun AppDatabase.authenticateCompleteStepsFactStore(collectedData
 			break
 		}
 	}
+	authenticateImportedStepsRetentionEntries()
 }
 
 private fun StepFactRevisionEntity.hasAuthenticatedRetentionAuditState(): Boolean = when {

@@ -11,6 +11,12 @@ import org.junit.Test
 
 class DashboardLiveStepsStateTest {
 	@Test
+	fun `retained imported coverage never becomes current provider evidence`() {
+		completeHistory(count = 42L).copy(availability = HistoryAvailability.RETAINED_IMPORTED)
+			.toDashboardLiveStepsValue() shouldBe DashboardLiveStepsValue.Unavailable
+	}
+
+	@Test
 	fun `complete positive value stays complete`() {
 		completeHistory(count = 42L).toDashboardLiveStepsValue() shouldBe
 			DashboardLiveStepsValue.Complete(42L)

@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.notification
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import androidx.work.ListenableWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
@@ -12,13 +14,16 @@ import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.shared.preferences.Preferences
 import io.kotest.matchers.shouldBe
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
+import org.robolectric.annotation.Config
 
+@Config(sdk = [34])
 class GoalNotificationWorkerTest {
 
 	@Test
@@ -55,27 +60,79 @@ class GoalNotificationWorkerTest {
 	}
 
 	@Test
-	fun `unavailable qualified Steps cannot produce a notification threshold`() {
+	fun `materializing and storage unavailable Steps request a retry`() {
+		listOf(
+			QualifiedStepCountUnavailableReason.MATERIALIZING,
+			QualifiedStepCountUnavailableReason.STORAGE_UNAVAILABLE,
+		).forEach { reason ->
+			val preferences = mockk<Preferences>(relaxed = true)
+			val worker = worker(
+				steps = QualifiedStepCount.Unavailable(reason),
+				preferences = preferences,
+			)
+
+			runBlocking { worker.doWork() } shouldBe ListenableWorker.Result.retry()
+			coVerify(exactly = 0) { preferences.fetchLong(any(), any()) }
+			coVerify(exactly = 0) { preferences.fetchInt(any(), any()) }
+		}
+	}
+
+	@Test
+	fun `terminal nonnumeric Steps states finish without reading notification claims`() {
+		listOf(
+			QualifiedStepCountUnavailableReason.NOT_CAPTURED,
+			QualifiedStepCountUnavailableReason.DISABLED,
+			QualifiedStepCountUnavailableReason.PARTIAL_CAPTURE,
+			QualifiedStepCountUnavailableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+			QualifiedStepCountUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
+		).forEach { reason ->
+			val preferences = mockk<Preferences>(relaxed = true)
+			val worker = worker(
+				steps = QualifiedStepCount.Unavailable(reason),
+				preferences = preferences,
+			)
+
+			runBlocking { worker.doWork() } shouldBe ListenableWorker.Result.success()
+			coVerify(exactly = 0) { preferences.fetchLong(any(), any()) }
+			coVerify(exactly = 0) { preferences.fetchInt(any(), any()) }
+		}
+	}
+
+	@Test
+	fun `ready zero and below-threshold positive Steps finish without a claim`() {
+		listOf(0, 7_499).forEach { count ->
+			val preferences = mockk<Preferences>(relaxed = true)
+			val worker = worker(
+				steps = QualifiedStepCount.Ready(count),
+				preferences = preferences,
+			)
+
+			runBlocking { worker.doWork() } shouldBe ListenableWorker.Result.success()
+			coVerify(exactly = 0) { preferences.fetchLong(any(), any()) }
+			coVerify(exactly = 0) { preferences.fetchInt(any(), any()) }
+		}
+	}
+
+	@Test
+	fun `denied notification permission does not consume the threshold claim`() {
+		val context = mockk<Context>(relaxed = true)
+		every { context.applicationContext } returns context
+		every {
+			context.checkPermission(
+				Manifest.permission.POST_NOTIFICATIONS,
+				any(),
+				any(),
+			)
+		} returns PackageManager.PERMISSION_DENIED
 		val preferences = mockk<Preferences>(relaxed = true)
-		val worker = GoalNotificationWorker(
-			appContext = mockk<Context>(relaxed = true),
-			workerParams = mockk<WorkerParameters>(relaxed = true),
-			goalProgressProvider = FakeGoalProgressProvider(
-				GoalProgress(
-					stepsToday = QualifiedStepCount.Unavailable(
-						QualifiedStepCountUnavailableReason.STORAGE_UNAVAILABLE,
-					),
-					goalSteps = 10_000,
-					gamificationEnabled = true,
-				),
-			),
+		val worker = worker(
+			steps = QualifiedStepCount.Ready(8_000),
 			preferences = preferences,
-			goalsSettingsRepository = FakeWorkerGoalsSettingsRepository(notificationsEnabled = true),
+			context = context,
 		)
 
 		runBlocking { worker.doWork() } shouldBe ListenableWorker.Result.success()
-		coVerify(exactly = 0) { preferences.fetchLong(any(), any()) }
-		coVerify(exactly = 0) { preferences.fetchInt(any(), any()) }
+		coVerify(exactly = 0) { preferences.editSuspend(any()) }
 	}
 
 	@Test
@@ -101,6 +158,24 @@ class GoalNotificationWorkerTest {
 		coVerify(exactly = 0) { preferences.fetchLong(any(), any()) }
 		coVerify(exactly = 0) { preferences.fetchInt(any(), any()) }
 	}
+
+	private fun worker(
+		steps: QualifiedStepCount,
+		preferences: Preferences,
+		context: Context = mockk(relaxed = true),
+	) = GoalNotificationWorker(
+		appContext = context,
+		workerParams = mockk<WorkerParameters>(relaxed = true),
+		goalProgressProvider = FakeGoalProgressProvider(
+			GoalProgress(
+				stepsToday = steps,
+				goalSteps = 10_000,
+				gamificationEnabled = true,
+			),
+		),
+		preferences = preferences,
+		goalsSettingsRepository = FakeWorkerGoalsSettingsRepository(notificationsEnabled = true),
+	)
 }
 
 private class FakeGoalProgressProvider(

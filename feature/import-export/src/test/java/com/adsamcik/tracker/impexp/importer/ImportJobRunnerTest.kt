@@ -3,6 +3,7 @@ package com.adsamcik.tracker.impexp.importer
 import android.content.Context
 import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
+import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportJobReceiptEntity
 import com.adsamcik.tracker.shared.base.extension.openInputStream
@@ -117,6 +118,71 @@ class ImportJobRunnerTest {
 		runner.start(JOB_ID, "backup.zip", 100L) shouldBe true
 	}
 
+	@Test
+	fun `importer managed entry runs before its success receipt transaction`() = runTest {
+		val store = FakeImportReceiptStore()
+		val runner = ImportJobRunner(store) { 321L }
+		runner.start(JOB_ID, "steps.trackersteps", 100L) shouldBe true
+		var importerObservedTransaction = true
+
+		val result = runner.importSingle(
+			jobId = JOB_ID,
+			stream = FileImportStream(ByteArrayInputStream(byteArrayOf()), "steps.trackersteps"),
+			transactionMode = ImportTransactionMode.IMPORTER_MANAGED,
+		) {
+			importerObservedTransaction = store.isInTransaction
+			ImportResult(successCount = 1)
+		}
+
+		result shouldBe ImportResult(successCount = 1)
+		importerObservedTransaction shouldBe false
+		store.lastPutWasTransactional shouldBe true
+		store.entryStatus(JOB_ID, "steps.trackersteps") shouldBe
+			ImportEntryReceiptEntity.STATUS_SUCCESS
+	}
+
+	@Test
+	fun `worker managed entry retains the existing enclosing receipt transaction`() = runTest {
+		val store = FakeImportReceiptStore()
+		val runner = ImportJobRunner(store) { 654L }
+		runner.start(JOB_ID, "track.gpx", 100L) shouldBe true
+		var importerObservedTransaction = false
+
+		runner.importSingle(
+			jobId = JOB_ID,
+			stream = FileImportStream(ByteArrayInputStream(byteArrayOf()), "track.gpx"),
+		) {
+			importerObservedTransaction = store.isInTransaction
+			ImportResult(successCount = 1)
+		}
+
+		importerObservedTransaction shouldBe true
+		store.lastPutWasTransactional shouldBe true
+	}
+
+	@Test
+	fun `importer managed permanent failure records only its failure receipt transactionally`() = runTest {
+		val store = FakeImportReceiptStore()
+		val runner = ImportJobRunner(store) { 987L }
+		runner.start(JOB_ID, "steps.trackersteps", 100L) shouldBe true
+		var importerObservedTransaction = true
+
+		val result = runner.importSingle(
+			jobId = JOB_ID,
+			stream = FileImportStream(ByteArrayInputStream(byteArrayOf()), "steps.trackersteps"),
+			transactionMode = ImportTransactionMode.IMPORTER_MANAGED,
+		) {
+			importerObservedTransaction = store.isInTransaction
+			ImportResult(failedCount = 1, errors = listOf("conflict"))
+		}
+
+		result shouldBe ImportResult(failedCount = 1, errors = listOf("conflict"))
+		importerObservedTransaction shouldBe false
+		store.lastPutWasTransactional shouldBe true
+		store.entryStatus(JOB_ID, "steps.trackersteps") shouldBe
+			ImportEntryReceiptEntity.STATUS_FAILURE
+	}
+
 	private fun mockArchive(bytes: ByteArray): DocumentFile = mockFile("backup.zip", bytes).also {
 		every { it.isDirectory } returns false
 	}
@@ -145,10 +211,15 @@ class ImportJobRunnerTest {
 	private class FakeImportReceiptStore : ImportReceiptStore {
 		private val jobs = mutableMapOf<String, ImportJobReceiptEntity>()
 		private val entries = mutableMapOf<Pair<String, String>, ImportEntryReceiptEntity>()
+		private var transactionDepth = 0
+		val isInTransaction: Boolean get() = transactionDepth > 0
+		var lastPutWasTransactional: Boolean? = null
+			private set
 
 		override suspend fun <T> transaction(block: suspend () -> T): T {
 			val jobsBefore = jobs.toMap()
 			val entriesBefore = entries.toMap()
+			transactionDepth++
 			return try {
 				block()
 			} catch (failure: Throwable) {
@@ -157,6 +228,8 @@ class ImportJobRunnerTest {
 				entries.clear()
 				entries.putAll(entriesBefore)
 				throw failure
+			} finally {
+				transactionDepth--
 			}
 		}
 
@@ -195,10 +268,13 @@ class ImportJobRunnerTest {
 		): ImportEntryReceiptEntity? = entries[jobId to entryKey]
 
 		override suspend fun putEntry(entry: ImportEntryReceiptEntity) {
+			lastPutWasTransactional = isInTransaction
 			entries[entry.jobId to entry.entryKey] = entry
 		}
 
 		fun jobStatus(jobId: String): String? = jobs[jobId]?.status
+
+		fun entryStatus(jobId: String, entryKey: String): String? = entries[jobId to entryKey]?.status
 	}
 
 	private companion object {

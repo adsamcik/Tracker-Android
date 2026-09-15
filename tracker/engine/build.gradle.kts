@@ -73,7 +73,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.common.java8)
     implementation(libs.google.material)
     implementation(libs.google.play.services.base)
+    implementation(libs.google.play.services.fitness)
     implementation(libs.google.play.services.location)
+    implementation(libs.androidx.health.connect.client)
 
     implementation(libs.hilt.work)
     // DataStore (proto for typed settings, preferences for migration compatibility)

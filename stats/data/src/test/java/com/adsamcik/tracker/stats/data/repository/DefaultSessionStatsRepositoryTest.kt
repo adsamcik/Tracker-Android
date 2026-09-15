@@ -44,7 +44,7 @@ class DefaultSessionStatsRepositoryTest {
 	)
 
 	@Test
-	fun `getAllTime maps aggregate counts into snapshot`() = runTest(testDispatcher) {
+	fun `getAllTime maps non-Steps aggregate counts into snapshot`() = runTest(testDispatcher) {
 		coEvery {
 			sessionSegmentDao.getSummary(any<List<Int>>(), any<List<Int>>())
 		} returns SessionSegmentStats(
@@ -53,7 +53,6 @@ class DefaultSessionStatsRepositoryTest {
 			distanceM = 1234.5f,
 			onFootDistanceM = 400f,
 			inVehicleDistanceM = 800f,
-			stepCount = 678L,
 		)
 		every { tripDao.countAllTrips() } returns 9L
 		coEvery { locationSampleDao.countAll() } returns 77L
@@ -70,7 +69,6 @@ class DefaultSessionStatsRepositoryTest {
 		snapshot.totalDistance.raw shouldBe 1234.5f
 		snapshot.onFootDistance.raw shouldBe 400f
 		snapshot.inVehicleDistance.raw shouldBe 800f
-		snapshot.steps.raw shouldBe 678
 		snapshot.tripCount shouldBe 9L
 		snapshot.locationCount shouldBe 77L
 		snapshot.wifiCount shouldBe 4L
@@ -94,7 +92,6 @@ class DefaultSessionStatsRepositoryTest {
 			distanceM = 900f,
 			onFootDistanceM = 250f,
 			inVehicleDistanceM = 500f,
-			stepCount = 100L,
 		)
 		every { tripDao.countTripsBetween(from.raw, to.raw) } returns 2L
 		coEvery { locationSampleDao.countBetween(from.raw, to.raw) } returns 11

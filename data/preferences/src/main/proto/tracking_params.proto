@@ -64,6 +64,10 @@ message TrackingParamsProto {
   bool advanced_source_controls_enabled = 26;
   int32 source_settings_version = 27;
 
+  // Default-off consent intent for opportunistic, sessionless Steps continuity. This is
+  // independent from steps_enabled, which controls live session capture.
+  bool ambient_steps_enabled = 28;
+
   // Internal migration marker so legacy Preferences import runs only once.
   bool legacy_migrated = 1000;
 }

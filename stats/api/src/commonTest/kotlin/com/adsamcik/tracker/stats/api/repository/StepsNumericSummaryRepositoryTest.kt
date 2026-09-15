@@ -46,6 +46,18 @@ class StepsNumericSummaryRepositoryTest {
 	}
 
 	@Test
+	fun `numeric batch is bounded to the demonstrated two-window consumer`() {
+		val ready = StepsNumericSummary.Ready(listOf(StepsNumericDay(1L, 0L)))
+
+		assertEquals(listOf(ready), StepsNumericSummaryBatch(listOf(ready)).summaries)
+		assertEquals(listOf(ready, ready), StepsNumericSummaryBatch(listOf(ready, ready)).summaries)
+		assertFailsWith<IllegalArgumentException> { StepsNumericSummaryBatch(emptyList()) }
+		assertFailsWith<IllegalArgumentException> {
+			StepsNumericSummaryBatch(listOf(ready, ready, ready))
+		}
+	}
+
+	@Test
 	fun `Ready rejects empty unordered negative and overflowing totals`() {
 		assertFailsWith<IllegalArgumentException> {
 			StepsNumericSummary.Ready(emptyList())

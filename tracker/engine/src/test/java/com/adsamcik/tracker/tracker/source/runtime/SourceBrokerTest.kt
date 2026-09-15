@@ -25,6 +25,8 @@ import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
 import com.adsamcik.tracker.tracker.source.model.ActivityAcquisitionCapability
 import com.adsamcik.tracker.tracker.source.model.ActivityAcquisitionFloor
+import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionFloor
+import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanism
 import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
 import com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -247,6 +249,129 @@ class SourceBrokerTest {
 		) shouldBe null
 
 		database.sourceBrokerDao().currentDemands("app:automation:activity") shouldBe emptyList()
+	}
+
+	@Test
+	fun `ambient-only Steps policy creates one sessionless provider-specific demand`() = runTest {
+		resetBroker(setOf(CaptureReachabilityMode.AMBIENT))
+		val policy = RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
+		}
+		val snapshot = policy.bootstrapFromLegacy(
+			TrackingParamsState(
+				stepsEnabled = false,
+				ambientStepsEnabled = true,
+				legacySettingsMigrationCompleted = true,
+			),
+		)
+
+		val result = subject.replaceAmbientStepsDemand(
+			consumerId = "app:ambient:steps",
+			mechanism = AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 100L,
+			wallTimeMs = 100L,
+		)
+
+		val demand = (result as AmbientStepsDemandResult.Active).demand
+		snapshot[TrackingSourceComponent.STEPS].enabled shouldBe false
+		demand.purpose shouldBe SourceBrokerPurpose.AMBIENT_PRODUCT
+		demand.logicalTrackingId shouldBe null
+		demand.serviceRunId shouldBe null
+		demand.manifestRevision shouldBe null
+		demand.lifecycleLeaseGeneration shouldBe null
+		demand.persistenceEligible shouldBe true
+		demand.qosCode shouldBe 0
+		(demand.toSourceDemandContract().floor as AmbientStepsAcquisitionFloor).mechanism shouldBe
+			AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS
+		database.sourceBrokerDao().currentDemands("app:ambient:steps") shouldBe listOf(demand)
+		subject.authorizationDemands(SourceKind.STEPS) shouldBe listOf(demand)
+	}
+
+	@Test
+	fun `ambient provider replacement at one boundary never overlaps or aliases demand identity`() = runTest {
+		resetBroker(setOf(CaptureReachabilityMode.AMBIENT))
+		RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
+		}.bootstrapFromLegacy(
+			TrackingParamsState(
+				ambientStepsEnabled = true,
+				legacySettingsMigrationCompleted = true,
+			),
+		)
+		val healthConnect = (subject.replaceAmbientStepsDemand(
+			"app:ambient:steps",
+			AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+			"boot-1",
+			100L,
+			100L,
+		) as AmbientStepsDemandResult.Active).demand
+		val localRecording = (subject.replaceAmbientStepsDemand(
+			"app:ambient:steps",
+			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			"boot-1",
+			100L,
+			100L,
+		) as AmbientStepsDemandResult.Active).demand
+
+		(healthConnect.demandId == localRecording.demandId) shouldBe false
+		database.sourceBrokerDao().currentDemands("app:ambient:steps") shouldBe listOf(localRecording)
+		val history = database.sourceBrokerDao().demandHistory("app:ambient:steps")
+		history.size shouldBe 2
+		history.single { it.demandId == healthConnect.demandId }.status shouldBe
+			SourceDemandEntity.STATUS_RETIRED
+		history.single { it.demandId == localRecording.demandId }.status shouldBe
+			SourceDemandEntity.STATUS_ACTIVE
+
+		val unchanged = subject.replaceAmbientStepsDemand(
+			"app:ambient:steps",
+			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			"boot-1",
+			150L,
+			150L,
+		) as AmbientStepsDemandResult.Active
+		unchanged.demand shouldBe localRecording
+		database.sourceBrokerDao().demandHistory("app:ambient:steps").size shouldBe 2
+	}
+
+	@Test
+	fun `ambient consent and rollout independently deny demand creation`() = runTest {
+		resetBroker(setOf(CaptureReachabilityMode.AMBIENT))
+		RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
+		}.bootstrapFromLegacy(
+			TrackingParamsState(
+				ambientStepsEnabled = true,
+				legacySettingsMigrationCompleted = true,
+			),
+		)
+		rolloutStore.save(TrackingRolloutState.contained(revision = 9L), updatedAtMs = 150L)
+
+		subject.replaceAmbientStepsDemand(
+			"app:ambient:steps",
+			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			"boot-1",
+			200L,
+			200L,
+		) shouldBe AmbientStepsDemandResult.Inactive(
+			AmbientStepsDemandInactiveReason.ROLLOUT_CONTAINED,
+		)
+		database.sourceBrokerDao().currentDemands("app:ambient:steps") shouldBe emptyList()
+
+		resetBroker(setOf(CaptureReachabilityMode.AMBIENT))
+		RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
+		}.bootstrapFromLegacy(TrackingParamsState(legacySettingsMigrationCompleted = true))
+		subject.replaceAmbientStepsDemand(
+			"app:ambient:steps",
+			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			"boot-1",
+			300L,
+			300L,
+		) shouldBe AmbientStepsDemandResult.Inactive(
+			AmbientStepsDemandInactiveReason.CONSENT_REVOKED,
+		)
+		database.sourceBrokerDao().currentDemands("app:ambient:steps") shouldBe emptyList()
 	}
 
 	@Test

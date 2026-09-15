@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 
 /**
@@ -19,11 +20,16 @@ suspend fun AppDatabase.rotateCurrentSourceAuthorizationInTransaction(
 	require(elapsedRealtimeNanos >= 0L)
 	require(wallTimeMs >= 0L)
 	val dao = sourceBrokerDao()
-	val demands = dao.authorizationDemands(sourceKind)
-	val fingerprint = SourceBrokerAuthorization.fingerprint(demands)
+	val sourceDemands = dao.authorizationDemands(sourceKind)
 	dao.currentPhysicalRegistrations(sourceKind)
 		.filter { registration -> registration.clockDomainId == bootId }
 		.forEach { registration ->
+			val demands = SourceProviderPurposeScope.selectDemands(
+				sourceKind,
+				registration.ownerScope,
+				sourceDemands,
+			)
+			val fingerprint = SourceBrokerAuthorization.fingerprint(demands)
 			val current = dao.latestAuthorization(sourceKind, registration.registrationGeneration)
 				.toAuthorizationSnapshotOrNull()
 			if (current?.authorizationFingerprint == fingerprint) return@forEach

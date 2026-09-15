@@ -1,11 +1,15 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import arrow.core.Either
+import arrow.core.left
+import arrow.core.right
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.stats.api.error.StatsError
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.metric.TimeWindow
 import com.adsamcik.tracker.stats.api.repository.WindowedMetricsProvider
@@ -16,7 +20,7 @@ import javax.inject.Inject
  *
  * Metrics that do not have a meaningful bounded-window interpretation currently return their
  * cumulative value regardless of [window] (streaks, seasonal coverage, transport mode variety,
- * export totals, longest trip, and best daily steps).
+ * export totals and longest trip). Steps require the separate source-qualified numeric repository.
  */
 class DefaultWindowedMetricsProvider @Inject constructor(
 	private val dailySummaryDao: DailySummaryDao,
@@ -26,21 +30,22 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 	private val exportLogDao: ExportLogDao,
 ) : WindowedMetricsProvider {
 
-	override suspend fun collect(metric: String, window: TimeWindow): Long = when (window) {
-		TimeWindow.Cumulative -> collectCumulative(metric)
-		is TimeWindow.Interval -> collectInterval(metric, window.startMs, window.endMs)
-		is TimeWindow.Rolling -> {
-			val nowMs = System.currentTimeMillis()
-			val fromMs = nowMs - window.durationMs.coerceAtLeast(0L)
-			collectInterval(metric, fromMs, nowMs)
+	override suspend fun collect(metric: String, window: TimeWindow): Either<StatsError, Long> {
+		if (metric == MetricKeys.STEPS || metric == MetricKeys.STEPS_TOTAL || metric == MetricKeys.BEST_DAILY_STEPS) {
+			return StatsError.ValidationError("Steps require source-qualified numeric evidence").left()
 		}
+		return when (window) {
+			TimeWindow.Cumulative -> collectCumulative(metric)
+			is TimeWindow.Interval -> collectInterval(metric, window.startMs, window.endMs)
+			is TimeWindow.Rolling -> {
+				val nowMs = System.currentTimeMillis()
+				val fromMs = nowMs - window.durationMs.coerceAtLeast(0L)
+				collectInterval(metric, fromMs, nowMs)
+			}
+		}.right()
 	}
 
 	private suspend fun collectCumulative(metric: String): Long = when (metric) {
-		MetricKeys.STEPS,
-		MetricKeys.STEPS_TOTAL,
-		-> dailySummaryDao.sumTotalSteps()
-
 		MetricKeys.DISTANCE_M -> dailySummaryDao.sumTotalDistance()
 		MetricKeys.DISTANCE_TOTAL_M -> dailySummaryDao.sumTotalDistance()
 		MetricKeys.ACTIVE_MINUTES -> dailySummaryDao.sumActiveMinutes()
@@ -54,7 +59,6 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 			sessionSegmentDao.countByActivity(ACTIVITY_NATIVE_RUNNING)
 		MetricKeys.CYCLING_TRIPS -> sessionSegmentDao.countByActivity(ACTIVITY_ON_BICYCLE) +
 			sessionSegmentDao.countByActivity(ACTIVITY_NATIVE_BICYCLE)
-		MetricKeys.BEST_DAILY_STEPS -> dailySummaryDao.maxDailySteps()
 		MetricKeys.LONGEST_TRIP_KM -> sessionSegmentDao.maxSegmentDistance() / METERS_PER_KM
 		MetricKeys.SESSIONS_TOTAL -> dailySummaryDao.sumTotalTrips()
 		MetricKeys.ACTIVITY_TYPES_USED -> sessionSegmentDao.countDistinctActivities()
@@ -77,10 +81,6 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 		val toDay = com.adsamcik.tracker.shared.base.database.dao.toMsToToDay(toMs)
 
 		return when (metric) {
-			MetricKeys.STEPS,
-			MetricKeys.STEPS_TOTAL,
-			-> dailySummaryDao.sumStepsBetween(fromDay, toDay)
-
 			MetricKeys.DISTANCE_M -> dailySummaryDao.sumTotalDistanceBetween(fromDay, toDay)
 			MetricKeys.DISTANCE_TOTAL_M -> dailySummaryDao.sumTotalDistanceBetween(fromDay, toDay)
 			MetricKeys.ACTIVE_MINUTES -> dailySummaryDao.sumActiveMinutesBetween(fromDay, toDay)
@@ -104,7 +104,6 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 			MetricKeys.SESSIONS_TOTAL -> dailySummaryDao.sumTripsBetween(fromDay, toDay)
 			MetricKeys.ACTIVE_DAYS_TOTAL -> dailySummaryDao.countActiveDaysBetween(fromDay, toDay, MetricKeys.MIN_DAILY_TRIPS)
 
-			MetricKeys.BEST_DAILY_STEPS,
 			MetricKeys.LONGEST_TRIP_KM,
 			MetricKeys.ACTIVITY_TYPES_USED,
 			MetricKeys.SEASONS_EXPLORED,

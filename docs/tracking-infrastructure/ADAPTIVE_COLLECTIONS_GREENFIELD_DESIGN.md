@@ -486,7 +486,7 @@ Capture-source selection and automation-control selection are separate.
 - A source-native automatic trigger may be offered only when X can already run under an explicitly enabled ambient/control policy and the trigger is proven fresh.
 - Automatic Activity-only has an explicit trigger handoff: if Activity capture was independently enabled/consented at the trigger's observed time, the durable trigger may seed the first captured band with `AUTOMATION_TRIGGER_HANDOFF` provenance and a session effective boundary at that event. Otherwise it remains control-only and the initial Activity interval is `PARTIAL` until fresh capture-qualified evidence arrives. No other only-X session may capture that Activity trigger.
 - If the user disables every available control strategy, the UI reports automatic start as unavailable and preserves manual collection. It must not silently register Activity, Steps, Location, or another provider.
-- Step corroboration is not a default hidden dependency. Retaining it requires an explicit control setting and device evidence that the added registration materially improves automation at acceptable cost.
+- Step corroboration is absent. Activity owns automatic control, and Steps cannot be registered or retained solely to enrich an Activity decision.
 
 Cold-start legality is part of the durable action contract, not a check performed after a service already exists. Normally, only a fresh GMS Activity Transition `PendingIntent` is the automatic background-start origin. Persist and CAS its trigger identity, observed/received clocks, expiry, boot/automation/policy/consent epochs, intended manifest, actual origin, and exact foreground-service type mask before calling `startForegroundService()`. A Sampling callback is not a Transition exemption. Background-created Location still requires background-location eligibility because foreground-service start exemption and while-in-use permission access are separate gates.
 
@@ -595,7 +595,6 @@ After every vertical: assert sole-source manual, declared-control automatic, ena
 - source/purpose retention durations and exact control-evidence export behavior;
 - opportunistic versus visible-foreground continuity for Ambient Steps;
 - whether optional active ambient Wi-Fi attempts are exposed as a user mode after device evidence;
-- whether Step corroboration remains an explicit automation-control option;
 - whether ambient Location has a product setting beyond passive piggyback observations;
 - whether any pressure-derived vertical estimate is in product scope.
 

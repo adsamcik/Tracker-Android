@@ -32,15 +32,18 @@ Provider motion and curated motion are separate:
 - the live curated speed estimate is stored separately and never written back into Android's
   `Location` object;
 - activity, step, cell, Wi-Fi, and pressure evidence carry a common optional observation stamp;
-- step and pressure windows retain their first/last monotonic timestamps and sequence bounds;
+- step and pressure windows retain their first/last monotonic timestamps and sequence bounds, but
+  V1 does not consume legacy step intervals as trajectory evidence because they do not prove an
+  exact v28 manifest, service run, writer, and capture purpose;
 - pressure windows retain count, minimum, maximum, and standard deviation rather than only a mean.
 
 Elapsed time is meaningful only inside its recorded clock and boot domains. Wall time remains an
 interchange/indexing value and is not used to silently bridge monotonic timelines across boots.
 Policy changes do not split reconstruction: tracker-run rows are policy segments, while lifecycle
-evidence defines the complete session. Step intervals and activity snapshots are associated by
-bounded monotonic-time proximity in the same clock/boot domain, never by unrelated row timestamps
-or signal IDs.
+evidence defines the complete session. Activity snapshots are associated by bounded monotonic-time
+proximity in the same clock/boot domain, never by unrelated row timestamps or signal IDs. Steps may
+return as optional enrichment only through an exact source-qualified reader; wall/monotonic overlap
+with a legacy interval is not ownership proof.
 
 ## Persistence and publication
 
@@ -51,14 +54,19 @@ Schema 40 is unreleased, so the additions are part of the existing v39→v40 mig
 - pressure aggregate/window columns;
 - `trajectory_reconstruction_run`;
 - filtered and smoothed `trajectory_state` rows;
-- `trajectory_source_link` location, step, and activity source IDs plus weights, health, and reason
-  codes (`state_index = -1` records assessed evidence that produced no derived state);
+- `trajectory_source_link` location and activity source IDs plus weights, health, and reason codes;
+  its nullable legacy step link remains unused by V1 (`state_index = -1` records assessed evidence
+  that produced no derived state);
 - future-facing `route_hypothesis` rows;
 - uncertainty-bearing `visit_interval` rows.
 
 The runner reads a source revision and publishes only if that revision is unchanged. A completed run
 is inserted with all states, links, visits, and supersession metadata in one Room transaction, so
 readers never observe a partially published reconstruction.
+
+The runner's persisted configuration identity includes a source-composition suffix. Removing the
+unqualified legacy Steps input therefore does not reuse the old `default_v1` identity: a completed
+step-influenced run remains eligible for corrected reconstruction on the next scheduled pass.
 
 Raw-evidence retention deletes any reconstruction whose full source range would no longer remain
 auditable. Room cascades that deletion to derived states, visits, hypotheses, and lineage links

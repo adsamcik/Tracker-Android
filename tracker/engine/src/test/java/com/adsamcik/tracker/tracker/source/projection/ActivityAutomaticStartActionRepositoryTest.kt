@@ -155,6 +155,43 @@ class ActivityAutomaticStartActionRepositoryTest {
 	}
 
 	@Test
+	fun `service validation requires the exact immutable automatic trigger envelope`() = runTest {
+		seedAuthority()
+		val request = reservation()
+		(subject.reserve(request) is ActivityAutomaticStartReserveResult.Reserved) shouldBe true
+		(subject.authorizeExternalStart(request.trigger, requestedAtMs = 2_000L) is
+			ActivityAutomaticStartRequestAuthorization.Authorized) shouldBe true
+
+		val trigger = request.trigger
+		listOf(
+			trigger.copy(kind = "ACTIVITY_TRANSITION:RUNNING:ENTER"),
+			trigger.copy(bootId = "other-boot"),
+			trigger.copy(observedElapsedRealtimeNanos = trigger.observedElapsedRealtimeNanos + 1L),
+			trigger.copy(receivedElapsedRealtimeNanos = trigger.receivedElapsedRealtimeNanos + 1L),
+			trigger.copy(expiresElapsedRealtimeNanos = trigger.expiresElapsedRealtimeNanos + 1L),
+			trigger.copy(automationEpoch = trigger.automationEpoch + 1L),
+			trigger.copy(sourcePolicyRevision = trigger.sourcePolicyRevision + 1L),
+			trigger.copy(requestedCaptureSourceMask = trigger.requestedCaptureSourceMask or (1L shl 4)),
+			trigger.copy(
+				intendedForegroundServiceTypeMask = trigger.intendedForegroundServiceTypeMask + 1L,
+			),
+		).forEach { mismatched ->
+			subject.validateForService(mismatched) shouldBe
+				ActivityAutomaticStartServiceValidation.Rejected(
+					"AUTOMATIC_START_ENVELOPE_MISMATCH",
+				)
+		}
+
+		subject.validateForService(
+			trigger.copy(collectedDataEpoch = trigger.collectedDataEpoch + 1L),
+		) shouldBe ActivityAutomaticStartServiceValidation.Rejected("STALE_COLLECTED_DATA_EPOCH")
+		subject.validateForService(
+			trigger.copy(triggerId = "activity-transition:$BOOT_ID:missing"),
+		) shouldBe ActivityAutomaticStartServiceValidation.Rejected("AUTOMATIC_START_ACTION_MISSING")
+		(subject.validateForService(trigger) is ActivityAutomaticStartServiceValidation.Valid) shouldBe true
+	}
+
+	@Test
 	fun `accepted outbox acknowledgement survives later session finalization while redelivery rejects`() = runTest {
 		seedAuthority()
 		val request = reservation()

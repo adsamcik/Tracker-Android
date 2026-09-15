@@ -70,8 +70,6 @@ class SessionStatsUiFormatter @Inject constructor(
 				StatisticDisplayType.INFORMATION,
 				snapshot.collections.formatReadable(),
 			),
-			// SessionStatsSnapshot.steps is a legacy aggregate without retained source proof. Keep
-			// independent metrics visible, but withhold Steps until a qualified aggregate exists.
 		)
 	}
 

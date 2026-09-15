@@ -14,6 +14,7 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor
+import com.adsamcik.tracker.shared.base.database.pruneImportedStepsSegmentsBefore
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
@@ -209,6 +210,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
 			requireReadyGeneration(startupGeneration)
 			try {
 				db.sessionSegmentDao().deleteOlderThan(cutoff)
+				db.pruneImportedStepsSegmentsBefore(cutoff, now)
 			} finally {
 				requireReadyGeneration(startupGeneration)
 			}

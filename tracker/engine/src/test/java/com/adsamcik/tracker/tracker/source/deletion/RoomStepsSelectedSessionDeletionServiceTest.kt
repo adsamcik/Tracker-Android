@@ -27,6 +27,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsGoalEffectEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
@@ -157,6 +158,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 				arrayOf(day),
 			)
 			val subject = subject()
+			database.stepsGoalEffectDao().recordDecision(goalEffect(day, sourceRevision = 0L))
 
 			subject.deleteSelectedSession(selectedId) shouldBe StepsSessionDeletionResult.Deleted
 
@@ -197,6 +199,10 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 				summary.calendarZoneId shouldBe ZONE.id
 			}
 			database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
+			requireNotNull(database.stepsGoalRepairDayDao().next()).let { queued ->
+				queued.epochDay shouldBe day
+				queued.sourceEvidenceRevision shouldBe 1L
+			}
 			verify(exactly = 1) {
 				dirtyTracker.markDirty(
 					setOf(MetricKeys.TABLE_SESSION_SEGMENT, MetricKeys.TABLE_DAILY_SUMMARY),
@@ -350,14 +356,16 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 	}
 
 	@Test
-	fun `production materializer leaves summary unchanged for wall-uncertain Steps`() = runTest {
+	fun `production materializer preserves compatibility Steps while repairing independent totals`() = runTest {
 		val day = LocalDate.of(2026, 4, 2).toEpochDay()
 		val dayStart = LocalDate.ofEpochDay(day).atStartOfDay(ZONE).toInstant().toEpochMilli()
+		val startMs = dayStart + 500L
+		val endMs = dayStart + HOUR_MS
 		insertAttributedCandidateSurvivor(
 			logicalId = "logical-worker-wall-uncertain",
 			runId = "run-worker-wall-uncertain",
-			startMs = dayStart + 500L,
-			endMs = dayStart + HOUR_MS,
+			startMs = startMs,
+			endMs = endMs,
 			stepCount = 6L,
 			factTransform = { fact ->
 				fact.copy(
@@ -377,8 +385,6 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 			lastUpdatedMs = 123L,
 			calendarZoneId = ZONE.id,
 		)
-		val before = database.dailySummaryDao().getByDay(day)
-
 		val outcome = materializeDailySummaryDayInTransaction(
 			database = database,
 			aggregator = DailySummaryAggregator(
@@ -390,8 +396,14 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 			capturedZoneId = ZONE,
 		)
 
-		outcome shouldBe DailySummaryMaterializationOutcome.Unverifiable
-		database.dailySummaryDao().getByDay(day) shouldBe before
+		outcome shouldBe DailySummaryMaterializationOutcome.Ready
+		val repaired = requireNotNull(database.dailySummaryDao().getByDay(day))
+		repaired.totalSteps shouldBe 123
+		repaired.totalDistanceM shouldBe 0f
+		repaired.totalDurationMs shouldBe endMs - startMs
+		repaired.tripCount shouldBe 1
+		repaired.activeTrackingMs shouldBe 123L
+		repaired.calendarZoneId shouldBe ZONE.id
 	}
 
 	@Test
@@ -1979,6 +1991,33 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 			context.deleteDatabase(databaseFile.path)
 		}
 	}
+
+	private fun goalEffect(day: Long, sourceRevision: Long) = StepsGoalEffectEntity(
+		effectIdentity = StepsGoalEffectEntity.identity(StepsGoalEffectEntity.PERIOD_DAY, day),
+		periodKind = StepsGoalEffectEntity.PERIOD_DAY,
+		periodStartEpochDay = day,
+		periodEndEpochDay = day,
+		qualifiedThroughEpochDay = day,
+		calendarAuthority = "$day=${ZONE.id}",
+		targetSteps = 10_000L,
+		weeklyDailyLimitBits = null,
+		decisionState = StepsGoalEffectEntity.STATE_READY_COMPLETE,
+		unavailableReason = null,
+		qualifiedSteps = 12_000L,
+		sourceAuthorityDigest = "a".repeat(64),
+		sourceEvidenceRevision = sourceRevision,
+		effectRevision = 1L,
+		completionPointsMicros = 100_000_000L,
+		completionXp = 50,
+		desiredPointsMicros = 100_000_000L,
+		desiredXp = 50,
+		firstCompletedAtMs = 1L,
+		pointsAppliedRevision = 0L,
+		xpAppliedRevision = 0L,
+		notificationClaimedRevision = null,
+		notificationClaimedAtMs = null,
+		updatedAtMs = 1L,
+	)
 
 	private fun subject(
 		afterDayLocksAcquired: suspend () -> Unit = {},

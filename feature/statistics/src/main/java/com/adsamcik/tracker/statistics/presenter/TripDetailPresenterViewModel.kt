@@ -8,6 +8,7 @@ import com.adsamcik.tracker.feature.map.api.preview.RoutePoint
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.SampleQuality
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.SkiRunSegment
 import com.adsamcik.tracker.shared.model.androidModelMslAltitudeOrNull
 import com.adsamcik.tracker.shared.model.hasIdentifiedAltitude
@@ -79,6 +80,12 @@ class TripDetailPresenterViewModel @Inject constructor(
 	fun loadSupplementalData() {
 		val loaded = state.value as? TripDetailState.Loaded ?: return
 		supplementalDataJob?.cancel()
+		if (loaded.trip.source == SegmentSource.PORTABLE_STEPS_IMPORT) {
+			// An imported wall envelope cannot own overlapping local Location or Ski samples.
+			_skiSegments.value = emptyList()
+			_insights.value = TripDetailInsights()
+			return
+		}
 		supplementalDataJob = viewModelScope.launch {
 			try {
 				loadSupplementalDataForTrip(loaded)
@@ -124,6 +131,9 @@ class TripDetailPresenterViewModel @Inject constructor(
 		viewModelScope.launch {
 			val loaded = state.value as? TripDetailState.Loaded ?: return@launch
 			val trip = loaded.trip
+			if (trip.source == SegmentSource.PORTABLE_STEPS_IMPORT) {
+				return@launch
+			}
 			gpxShareHelper.exportAndShare(
 				context = context,
 				tripId = tripId,
@@ -378,6 +388,7 @@ private fun resolveSourceLabel(
 		com.adsamcik.tracker.shared.model.SegmentSource.INFERRED_MEDIUM_CONFIDENCE -> "Inferred"
 		com.adsamcik.tracker.shared.model.SegmentSource.INFERRED_LOW_CONFIDENCE -> "Inferred"
 		com.adsamcik.tracker.shared.model.SegmentSource.LEGACY_MIGRATION -> "Legacy"
+		com.adsamcik.tracker.shared.model.SegmentSource.PORTABLE_STEPS_IMPORT -> "Imported Steps"
 		null -> "—"
 	}
 }

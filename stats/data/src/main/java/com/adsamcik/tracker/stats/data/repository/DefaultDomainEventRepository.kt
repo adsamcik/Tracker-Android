@@ -103,6 +103,8 @@ class DefaultDomainEventRepository @Inject constructor(
 			is DomainEvent.AchievementUnlocked -> "AchievementUnlocked" to JSONObject().apply {
 				put("achievementId", achievementId)
 				put("tier", tier)
+				authorityRevision?.let { put("authorityRevision", it) }
+				authorityDigest?.let { put("authorityDigest", it) }
 			}
 			is DomainEvent.AchievementProgress -> "AchievementProgress" to JSONObject().apply {
 				put("achievementId", achievementId)
@@ -184,6 +186,10 @@ class DefaultDomainEventRepository @Inject constructor(
 				processorId = pid,
 				achievementId = json.getString("achievementId"),
 				tier = json.getString("tier"),
+				authorityRevision = json.optLong("authorityRevision")
+					.takeIf { json.has("authorityRevision") },
+				authorityDigest = json.optString("authorityDigest")
+					.takeIf { json.has("authorityDigest") },
 			)
 			"AchievementProgress" -> DomainEvent.AchievementProgress(
 				timestampMs = ts,

@@ -30,7 +30,6 @@ import com.adsamcik.tracker.stats.api.repository.TripSummary
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
-import com.adsamcik.tracker.stats.api.value.StepCount
 import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -91,13 +90,35 @@ class TripDetailPresenterViewModelTest {
 	}
 
 	@Test
+	fun `imported Steps never reads overlapping local supplements or exports GPX`() = runTest {
+		val trip = sessionTrip().copy(source = com.adsamcik.tracker.shared.model.SegmentSource.PORTABLE_STEPS_IMPORT)
+		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
+		val viewModel = createViewModel()
+		val collector = backgroundScope.launch { viewModel.state.collect() }
+		advanceUntilIdle()
+
+		viewModel.loadSupplementalData()
+		viewModel.exportTripGpx(mockk())
+		advanceUntilIdle()
+
+		viewModel.insights.value shouldBe TripDetailInsights()
+		viewModel.skiSegments.value shouldBe emptyList()
+		coVerify(exactly = 0) { tripPresentationRepository.getTripProjection(any()) }
+		coVerify(exactly = 0) {
+			locationSampleRepository.getOrderedChunkBetween(any(), any(), any(), any(), any())
+		}
+		coVerify(exactly = 0) { skiRunSegmentRepository.getSegmentsByTimeRange(any(), any()) }
+		coVerify(exactly = 0) { gpxShareHelper.exportAndShare(any(), any(), any(), any()) }
+		collector.cancel()
+	}
+
+	@Test
 	fun `emits persisted route points for loaded trip`() = runTest {
 		val trip = TripSummary(
 			id = TRIP_ID,
 			startTimeMs = EpochMs(TRIP_START_MS),
 			endTimeMs = EpochMs(TRIP_END_MS),
 			distance = DistanceM(5_100f),
-			steps = StepCount(0),
 			duration = DurationMs(TRIP_END_MS - TRIP_START_MS),
 			primaryMode = TransportMode.WALK,
 			sampleCount = 3,
@@ -169,7 +190,6 @@ class TripDetailPresenterViewModelTest {
 			startTimeMs = EpochMs(TRIP_START_MS),
 			endTimeMs = EpochMs(tripEndMs),
 			distance = DistanceM(5_100f),
-			steps = StepCount(0),
 			duration = DurationMs(tripEndMs - TRIP_START_MS),
 			primaryMode = TransportMode.WALK,
 			sampleCount = samples.size,
@@ -331,7 +351,6 @@ class TripDetailPresenterViewModelTest {
 			startTimeMs = EpochMs(TRIP_START_MS),
 			endTimeMs = EpochMs(tripEndMs),
 			distance = DistanceM(1_000f),
-			steps = StepCount(0),
 			duration = DurationMs(tripEndMs - TRIP_START_MS),
 			primaryMode = TransportMode.WALK,
 			sampleCount = samples.size,
@@ -421,7 +440,6 @@ class TripDetailPresenterViewModelTest {
 		startTimeMs = EpochMs(TRIP_START_MS),
 		endTimeMs = EpochMs(TRIP_END_MS),
 		distance = DistanceM(0f),
-		steps = StepCount(0),
 		duration = DurationMs(TRIP_END_MS - TRIP_START_MS),
 		primaryMode = TransportMode.UNKNOWN,
 		sampleCount = 1,

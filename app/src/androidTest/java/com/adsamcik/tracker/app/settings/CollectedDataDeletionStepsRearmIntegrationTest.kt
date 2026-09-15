@@ -32,6 +32,8 @@ import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBack
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupResult
+import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
@@ -180,6 +182,7 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 			collectedDataLifecycleStore = lifecycleStore,
 			startupDeletionBarrier = deletionBarrier,
 			activityRegistrationArbiter = Provider { mocks.activityArbiter },
+			ambientStepsProviderLifecycle = Provider { mocks.ambientStepsProviderLifecycle },
 			automaticControlRestorer = mocks.automaticControlRestorer,
 			stepsWriterTransitionCoordinator = coordinatorProvider,
 			dispatchersProvider = dispatchersProvider,
@@ -201,6 +204,7 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 			exportPlanStore = mockk(),
 			writerQuiescer = mockk(),
 			activityArbiter = mockk(),
+			ambientStepsProviderLifecycle = mockk(),
 			automaticControlRestorer = mockk(),
 			traceboxHandle = mockk(),
 			traceboxHandleProvider = mockk(),
@@ -211,6 +215,8 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		every { mocks.writerQuiescer.resume() } just Runs
 		coEvery { mocks.activityArbiter.closeForCollectedDataDeletion() } returns
 			appliedRegistrationResult()
+		coEvery { mocks.ambientStepsProviderLifecycle.closeForCollectedDataDeletion() } returns
+			AmbientStepsProviderCleanupResult(complete = true)
 		every { mocks.automaticControlRestorer.schedule(any()) } just Runs
 		every { mocks.traceboxHandleProvider.handle } returns mocks.traceboxHandle
 		every { mocks.traceboxHandle.delete(DeleteRequest.ALL_TRACEBOX_DATA) } returnsMany listOf(
@@ -639,6 +645,7 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 		val exportPlanStore: ExportPlanStore,
 		val writerQuiescer: CollectedDataWriterQuiescer,
 		val activityArbiter: ActivityRegistrationArbiter,
+		val ambientStepsProviderLifecycle: AmbientStepsProviderLifecycle,
 		val automaticControlRestorer: PostDeletionAutomaticControlRestorer,
 		val traceboxHandle: TraceboxHandle,
 		val traceboxHandleProvider: TrackerTraceboxHandleProvider,
@@ -665,6 +672,10 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 			"source_event_wal",
 			"step_interval",
 			"step_fact_revision",
+			"ambient_steps_fact_revision",
+			"ambient_steps_import_cursor",
+			"ambient_steps_import_gap",
+			"ambient_steps_import_authority_transition",
 			"pending_signal",
 			"source_product_projection_lane",
 			"source_demand",

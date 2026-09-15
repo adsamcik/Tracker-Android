@@ -15,7 +15,6 @@ import com.adsamcik.tracker.stats.api.repository.TripSummary
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
-import com.adsamcik.tracker.stats.api.value.StepCount
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -70,10 +69,10 @@ class DefaultTripRepository @Inject constructor(
 			startTimeMs = EpochMs(startTimeMs),
 			endTimeMs = EpochMs(endTimeMs),
 			distance = DistanceM.coerced(distanceM),
-			steps = StepCount.coerced(steps ?: 0),
 			duration = DurationMs((endTimeMs - startTimeMs).coerceAtLeast(0L)),
 			primaryMode = resolveTransportMode(),
 			sampleCount = sampleCount,
+			source = source,
 		)
 	}
 

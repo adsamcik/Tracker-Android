@@ -14,6 +14,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -598,6 +599,54 @@ class RoomDurableSourceIngressTest {
 			SOURCE_OWNER_SCOPE,
 		)?.nextSequence shouldBe 2L
 		database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
+	}
+
+	@Test
+	fun `source delivery allocates from its physical purpose-scoped owner`() = runTest {
+		val exactOwner = SourceProviderPurposeScope.exactOwnerScope(
+			SourceKind.ACTIVITY.stableCode,
+			TEST_ELIGIBILITY_MASK,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_registration_state WHERE source_kind = ? AND owner_scope = ?",
+			arrayOf(SourceKind.ACTIVITY.stableCode, SOURCE_OWNER_SCOPE),
+		)
+		database.sourceRegistrationStateDao().insertIfAbsent(
+			SourceRegistrationStateEntity(
+				sourceKind = SourceKind.ACTIVITY.stableCode,
+				ownerScope = exactOwner,
+				sourceInstanceId = "activity-instance",
+				clockDomainId = "boot",
+				registrationGeneration = 1L,
+				nextSequence = 0L,
+				appliedRevision = 1L,
+				collectedDataEpoch = 0L,
+				updatedAtMs = 50L,
+			),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE provider_registration_generation SET owner_scope = ? " +
+				"WHERE source_kind = ? AND registration_generation = ?",
+			arrayOf(exactOwner, SourceKind.ACTIVITY.stableCode, 1L),
+		)
+		val delivery = delivery(
+			candidate(sequence = 700L, activityType = 3),
+			candidate(sequence = 900L, activityType = 7, observedElapsedNanos = 101L),
+		)
+
+		val admitted = subject.admit(delivery).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+
+		admitted.units.map { it.unitIndex } shouldBe listOf(0, 1)
+		database.sourceEventWalDao().eventsAfter(0L, 10)
+			.map { it.sourceSequence } shouldBe listOf(0L, 1L)
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			exactOwner,
+		)?.nextSequence shouldBe 2L
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		) shouldBe null
 	}
 
 	@Test

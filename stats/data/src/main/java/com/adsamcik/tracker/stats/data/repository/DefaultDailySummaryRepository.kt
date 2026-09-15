@@ -9,7 +9,6 @@ import com.adsamcik.tracker.stats.api.repository.DailySummary
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
-import com.adsamcik.tracker.stats.api.value.StepCount
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
@@ -53,7 +52,6 @@ class DefaultDailySummaryRepository @Inject constructor(
 		return DailySummary(
 			dayEpoch = dateEpochDay,
 			totalDistance = DistanceM.coerced(totalDistanceM),
-			totalSteps = StepCount.coerced(totalSteps),
 			totalDuration = DurationMs(totalDurationMs.coerceAtLeast(0L)),
 			tripCount = tripCount,
 			activeTrackingDuration = DurationMs(activeTrackingMs.coerceAtLeast(0L)),

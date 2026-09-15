@@ -7,6 +7,8 @@ import com.adsamcik.tracker.shared.base.database.dao.PriorProcessRegistrationRec
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
@@ -52,11 +54,12 @@ internal data class SourceRegistrationRetirementToken(
 /**
  * Allocates durable source identities and monotonically increasing source sequences.
  *
- * The broker/source pair is the owner scope, so compatible control, capture, and ambient demands
- * share one sequence space. A fresh immutable physical generation is allocated only when the
- * normalized provider configuration, boot domain, or collected-data epoch changes. Authority-only
- * changes append an observed-time authorization revision without restarting compatible provider
- * work.
+ * A shared broker/source owner coalesces compatible demands. A purpose-scoped owner is used only
+ * when a provider physically cannot satisfy another purpose, such as the direct Step Counter versus
+ * Ambient Steps continuity. Each owner retains its own sequence space. A fresh immutable physical
+ * generation is allocated only when provider configuration, boot domain, or collected-data epoch
+ * changes. Authority-only changes append an observed-time authorization revision without restarting
+ * compatible provider work.
  */
 @Singleton
 class SourceRegistrationRepository @Inject constructor(
@@ -84,11 +87,48 @@ class SourceRegistrationRepository @Inject constructor(
 		physicalConfigurationFingerprint: String,
 		updatedAtMs: Long,
 		updatedElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
+	): SourceRegistration = beginInternal(
+		source = source,
+		appliedRevision = appliedRevision,
+		physicalConfigurationFingerprint = physicalConfigurationFingerprint,
+		updatedAtMs = updatedAtMs,
+		updatedElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
+		purposeEligibilityMask = SourceBrokerPurpose.ALL_MASK,
+	)
+
+	/** Reserves a provider that is physically capable of satisfying only the selected purposes. */
+	internal suspend fun beginPurposeScoped(
+		source: SourceKind,
+		appliedRevision: Long,
+		physicalConfigurationFingerprint: String,
+		updatedAtMs: Long,
+		updatedElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
+		purposeEligibilityMask: Long,
+	): SourceRegistration = beginInternal(
+		source = source,
+		appliedRevision = appliedRevision,
+		physicalConfigurationFingerprint = physicalConfigurationFingerprint,
+		updatedAtMs = updatedAtMs,
+		updatedElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
+		purposeEligibilityMask = purposeEligibilityMask,
+	)
+
+	private suspend fun beginInternal(
+		source: SourceKind,
+		appliedRevision: Long,
+		physicalConfigurationFingerprint: String,
+		updatedAtMs: Long,
+		updatedElapsedRealtimeNanos: Long,
+		purposeEligibilityMask: Long,
 	): SourceRegistration {
 		require(source != SourceKind.ACTIVITY) {
 			"Activity registrations are system-rearmable and must use ActivityRegistrationArbiter"
 		}
 		require(physicalConfigurationFingerprint.isNotBlank())
+		require(
+			purposeEligibilityMask > 0L &&
+				(purposeEligibilityMask and SourceBrokerPurpose.ALL_MASK.inv()) == 0L,
+		)
 		val lifecycle = lifecycleStore.snapshot()
 		val clockDomainId = clockDomainProvider.current()
 		val processIncarnationId = processIncarnationIdProvider.current()
@@ -106,13 +146,24 @@ class SourceRegistrationRepository @Inject constructor(
 					currentProcessId = processIncarnationId,
 				),
 			) { "Pending provider removal must complete before a replacement can be reserved" }
-			val demands = brokerDao.authorizationDemands(source.stableCode)
-			require(demands.isNotEmpty()) {
-				"A source registration requires at least one durable active broker demand"
+			val ownerScope = if (purposeEligibilityMask == SourceBrokerPurpose.ALL_MASK) {
+				SourceProviderPurposeScope.sharedOwnerScope(source.stableCode)
+			} else {
+				SourceProviderPurposeScope.exactOwnerScope(source.stableCode, purposeEligibilityMask)
 			}
-			val ownerScope = "source-broker:${source.stableCode}"
-			val purposeEligibilityMask = SourceBrokerAuthorization.purposeMask(demands)
-			require(purposeEligibilityMask > 0L) { "Broker demand has no recognized purpose eligibility" }
+			val demands = SourceProviderPurposeScope.selectDemands(
+				source.stableCode,
+				ownerScope,
+				brokerDao.authorizationDemands(source.stableCode),
+			)
+			require(demands.isNotEmpty()) {
+				"A source registration requires a compatible durable active broker demand"
+			}
+			require(
+				(SourceBrokerAuthorization.purposeMask(demands) and purposeEligibilityMask) != 0L,
+			) {
+				"Broker demand has no recognized purpose eligibility"
+			}
 			val dao = database.sourceRegistrationStateDao()
 			val current = dao.get(source.stableCode, ownerScope)
 			val currentPhysical = current?.let { state ->
@@ -236,22 +287,73 @@ class SourceRegistrationRepository @Inject constructor(
 		physicalConfigurationFingerprint: String,
 		updatedAtMs: Long,
 		updatedElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
+	): SourceRegistration? = refreshActiveAuthorizationInternal(
+		source = source,
+		expectedRegistration = expectedRegistration,
+		appliedRevision = appliedRevision,
+		physicalConfigurationFingerprint = physicalConfigurationFingerprint,
+		updatedAtMs = updatedAtMs,
+		updatedElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
+		purposeEligibilityMask = SourceBrokerPurpose.ALL_MASK,
+	)
+
+	internal suspend fun refreshPurposeScopedAuthorization(
+		source: SourceKind,
+		expectedRegistration: SourceRegistration,
+		appliedRevision: Long,
+		physicalConfigurationFingerprint: String,
+		updatedAtMs: Long,
+		updatedElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
+		purposeEligibilityMask: Long,
+	): SourceRegistration? = refreshActiveAuthorizationInternal(
+		source = source,
+		expectedRegistration = expectedRegistration,
+		appliedRevision = appliedRevision,
+		physicalConfigurationFingerprint = physicalConfigurationFingerprint,
+		updatedAtMs = updatedAtMs,
+		updatedElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
+		purposeEligibilityMask = purposeEligibilityMask,
+	)
+
+	private suspend fun refreshActiveAuthorizationInternal(
+		source: SourceKind,
+		expectedRegistration: SourceRegistration,
+		appliedRevision: Long,
+		physicalConfigurationFingerprint: String,
+		updatedAtMs: Long,
+		updatedElapsedRealtimeNanos: Long,
+		purposeEligibilityMask: Long,
 	): SourceRegistration? {
 		require(source != SourceKind.ACTIVITY) {
 			"Activity registrations are system-rearmable and must use ActivityRegistrationArbiter"
 		}
 		require(physicalConfigurationFingerprint.isNotBlank())
 		require(expectedRegistration.state.sourceKind == source.stableCode)
+		require(
+			purposeEligibilityMask > 0L &&
+				(purposeEligibilityMask and SourceBrokerPurpose.ALL_MASK.inv()) == 0L,
+		)
 		val lifecycle = lifecycleStore.snapshot()
 		val clockDomainId = clockDomainProvider.current()
 		val processIncarnationId = processIncarnationIdProvider.current()
 		return database.withTransaction {
 			if (!isSourceAcquisitionReachable(source)) return@withTransaction null
 			val brokerDao = database.sourceBrokerDao()
-			val demands = brokerDao.authorizationDemands(source.stableCode)
+			val expectedOwnerScope = if (purposeEligibilityMask == SourceBrokerPurpose.ALL_MASK) {
+				SourceProviderPurposeScope.sharedOwnerScope(source.stableCode)
+			} else {
+				SourceProviderPurposeScope.exactOwnerScope(source.stableCode, purposeEligibilityMask)
+			}
+			if (expectedRegistration.ownerScope != expectedOwnerScope) return@withTransaction null
+			val demands = SourceProviderPurposeScope.selectDemands(
+				source.stableCode,
+				expectedOwnerScope,
+				brokerDao.authorizationDemands(source.stableCode),
+			)
 			if (demands.isEmpty()) return@withTransaction null
-			val purposeEligibilityMask = SourceBrokerAuthorization.purposeMask(demands)
-			if (purposeEligibilityMask <= 0L) return@withTransaction null
+			if ((SourceBrokerAuthorization.purposeMask(demands) and purposeEligibilityMask) == 0L) {
+				return@withTransaction null
+			}
 			val ownerScope = expectedRegistration.ownerScope
 			val dao = database.sourceRegistrationStateDao()
 			val current = dao.get(source.stableCode, ownerScope) ?: return@withTransaction null

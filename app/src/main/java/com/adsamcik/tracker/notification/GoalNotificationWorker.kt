@@ -20,6 +20,7 @@ import com.adsamcik.tracker.app.steps.awaitQualifiedGoalProgress
 import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.shared.preferences.Preferences
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -52,23 +53,35 @@ class GoalNotificationWorker @AssistedInject constructor(
         if (!progress.gamificationEnabled || progress.goalSteps <= 0) {
             return Result.success()
         }
-        val stepsToday = (progress.stepsToday as? QualifiedStepCount.Ready)?.value
-            ?: return Result.success()
+        val stepsToday = when (val steps = progress.stepsToday) {
+            is QualifiedStepCount.Ready -> steps.value
+            is QualifiedStepCount.Unavailable -> return when (steps.reason) {
+                QualifiedStepCountUnavailableReason.MATERIALIZING,
+                QualifiedStepCountUnavailableReason.STORAGE_UNAVAILABLE,
+                -> Result.retry()
+                QualifiedStepCountUnavailableReason.MISSING,
+                QualifiedStepCountUnavailableReason.NOT_CAPTURED,
+                QualifiedStepCountUnavailableReason.DISABLED,
+                QualifiedStepCountUnavailableReason.PARTIAL_CAPTURE,
+                QualifiedStepCountUnavailableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+                QualifiedStepCountUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
+                -> Result.success()
+            }
+        }
 
         val ratio = requireNotNull(progress.progress)
         val remaining = (progress.goalSteps - stepsToday).coerceAtLeast(0)
+        val threshold = progressNotificationThreshold(ratio) ?: return Result.success()
         val todayEpochDay = LocalDate.now().toEpochDay()
         val lastNotifiedDay = preferences.fetchLong(KEY_LAST_NOTIFIED_DAY, -1L)
         val lastNotifiedThreshold = preferences.fetchInt(KEY_LAST_NOTIFIED_THRESHOLD, 0)
-
-        val threshold = progressNotificationThreshold(ratio) ?: return Result.success()
 
         // Already notified for this threshold (or higher) today
         if (lastNotifiedDay == todayEpochDay && lastNotifiedThreshold >= threshold) {
             return Result.success()
         }
 
-        sendNotification(threshold, remaining)
+        if (!sendNotification(threshold, remaining)) return Result.success()
 
         preferences.editSuspend {
             setLong(KEY_LAST_NOTIFIED_DAY, todayEpochDay)
@@ -81,13 +94,13 @@ class GoalNotificationWorker @AssistedInject constructor(
     private fun sendNotification(
         threshold: Int,
         remaining: Int,
-    ) {
+    ): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val perm = ContextCompat.checkSelfPermission(
                 appContext,
                 android.Manifest.permission.POST_NOTIFICATIONS,
             )
-            if (perm != PackageManager.PERMISSION_GRANTED) return
+            if (perm != PackageManager.PERMISSION_GRANTED) return false
         }
 
         val channelId = appContext.getString(com.adsamcik.tracker.shared.base.R.string.channel_goals_id)
@@ -132,6 +145,7 @@ class GoalNotificationWorker @AssistedInject constructor(
 
         val manager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, notification)
+        return true
     }
 
     companion object {

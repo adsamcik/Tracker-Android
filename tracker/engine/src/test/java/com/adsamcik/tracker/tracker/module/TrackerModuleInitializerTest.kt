@@ -2,7 +2,13 @@ package com.adsamcik.tracker.tracker.module
 
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.tracker.resilience.TrackingAutoRecoveryAuthorization
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsDemandReconciliation
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProviderRegistrationFailure
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProviderRegistrationResult
+import com.adsamcik.tracker.tracker.source.ambient.steps.HealthConnectAmbientStepsAvailability
+import com.adsamcik.tracker.tracker.source.ambient.steps.LocalRecordingAmbientStepsAvailability
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -17,6 +23,61 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrackerModuleInitializerTest {
+	@Test
+	fun `ambient Steps startup leaves unavailable provider inactive without reporting failure`() = runTest {
+		val unavailable = AmbientStepsDemandReconciliation.Unavailable(
+			healthConnect = HealthConnectAmbientStepsAvailability.SDK_UNAVAILABLE,
+			localRecording = LocalRecordingAmbientStepsAvailability.PLAY_SERVICES_MISSING,
+		)
+		var failures = 0
+
+		val result = runAmbientStepsStartupReconciliation(
+			reconcile = { AmbientStepsProviderRegistrationResult.Inactive(unavailable) },
+			onFailure = { failures += 1 },
+		)
+
+		result shouldBe AmbientStepsProviderRegistrationResult.Inactive(unavailable)
+		failures shouldBe 0
+	}
+
+	@Test
+	fun `ambient Steps startup reports typed degradation without blocking tracker handoff`() = runTest {
+		var reported: Exception? = IllegalStateException("not-called")
+		val degraded = AmbientStepsProviderRegistrationResult.Degraded(
+			selectedProvider = null,
+			activeRegistrationGeneration = null,
+			failure = AmbientStepsProviderRegistrationFailure.PROVIDER_REMOVAL_FAILED,
+			retryable = true,
+		)
+
+		val result = runAmbientStepsStartupReconciliation(
+			reconcile = { degraded },
+			onFailure = { reported = it },
+		)
+
+		result shouldBe degraded
+		reported shouldBe null
+	}
+
+	@Test
+	fun `ambient Steps startup contains ordinary failure but preserves cancellation`() = runTest {
+		val failure = IllegalStateException("provider unavailable")
+		var reported: Exception? = null
+
+		runAmbientStepsStartupReconciliation(
+			reconcile = { throw failure },
+			onFailure = { reported = it },
+		) shouldBe null
+		reported shouldBe failure
+
+		shouldThrow<CancellationException> {
+			runAmbientStepsStartupReconciliation(
+				reconcile = { throw CancellationException("cancel") },
+				onFailure = { error("Cancellation must not be reported as provider failure") },
+			)
+		}
+	}
+
 	@Test
 	fun `background force-stop start cannot initialize control before foreground authorization`() = runTest {
 		val foreground = CompletableDeferred<Unit>()

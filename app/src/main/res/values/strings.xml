@@ -444,6 +444,11 @@
     <string name="widget_today">Today</string>
     <string name="widget_distance">Distance</string>
     <string name="widget_steps">Steps</string>
+    <string name="widget_steps_partial" tools:ignore="MissingTranslation">Partial</string>
+    <string name="widget_steps_not_captured" tools:ignore="MissingTranslation">Not captured</string>
+    <string name="widget_steps_disabled" tools:ignore="MissingTranslation">Off</string>
+    <string name="widget_steps_unavailable" tools:ignore="MissingTranslation">Unavailable</string>
+    <string name="widget_steps_storage_unavailable" tools:ignore="MissingTranslation">Storage unavailable</string>
     <string name="widget_sessions">Sessions</string>
     <string name="widget_duration">Duration</string>
     <string name="widget_no_data_today">No tracking data today</string>

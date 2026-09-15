@@ -228,6 +228,7 @@ private fun TrackingParamsState.matchesSourceProjection(other: TrackingParamsSta
 		wifiEnabled == other.wifiEnabled &&
 		cellEnabled == other.cellEnabled &&
 		barometerEnabled == other.barometerEnabled &&
+		ambientStepsEnabled == other.ambientStepsEnabled &&
 		minTimeSeconds == other.minTimeSeconds &&
 		minDistanceMeters == other.minDistanceMeters &&
 		requiredAccuracyMeters == other.requiredAccuracyMeters &&
@@ -247,6 +248,8 @@ private fun TrackingParamsState.withPolicy(snapshot: SourcePolicySnapshot): Trac
 		barometerEnabled = pressure.enabled,
 		wifiEnabled = wifi.enabled,
 		cellEnabled = cell.enabled,
+		ambientStepsEnabled = steps.ambientConsentEpoch != null &&
+			steps.ambientPersistenceEligible,
 		minTimeSeconds = requireNotNull(location.locationMinTimeSeconds),
 		minDistanceMeters = requireNotNull(location.locationMinDistanceMeters),
 		requiredAccuracyMeters = requireNotNull(location.locationRequiredAccuracyMeters),
@@ -271,6 +274,7 @@ private fun TrackingParamsState.withSourcesFailClosed(): TrackingParamsState = c
 	barometerEnabled = false,
 	wifiEnabled = false,
 	cellEnabled = false,
+	ambientStepsEnabled = false,
 	sourcePolicyRevision = null,
 	sourceCollectionSettings = SourceCollectionSettings(
 		location = SourceCollectionFrequency.OFF,
