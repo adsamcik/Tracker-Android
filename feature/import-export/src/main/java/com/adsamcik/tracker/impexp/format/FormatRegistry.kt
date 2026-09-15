@@ -60,9 +60,13 @@ object FormatRegistry {
 	/** Look up an [Exporter] by format id (e.g. `"gpx"`). */
 	fun exporterFor(formatId: String): Exporter? = entries[formatId]?.exporter
 
-	/** Look up a [FileImport] whose descriptor extensions contain [ext]. */
+	/** Look up a [FileImport] using the extensions its backend actually accepts. */
 	fun importerForExtension(ext: String): FileImport? =
-		entries.values.firstOrNull { ext.lowercase() in it.descriptor.extensions }?.importer
+		entries.values
+			.mapNotNull(FormatEntry::importer)
+			.firstOrNull { importer ->
+				importer.supportedExtensions.any { it.equals(ext, ignoreCase = true) }
+			}
 
 	/** All descriptors that have an exporter registered. */
 	fun allExportFormats(): List<FormatDescriptor> =
@@ -75,8 +79,8 @@ object FormatRegistry {
 	/** Flat set of every extension that has an importer registered. */
 	fun allImportExtensions(): Set<String> =
 		entries.values
-			.filter { it.importer != null }
-			.flatMap { it.descriptor.extensions }
+			.mapNotNull(FormatEntry::importer)
+			.flatMap(FileImport::supportedExtensions)
 			.toSet()
 
 	/** All registered [FileImport] instances, in registration order. */
@@ -131,18 +135,21 @@ object FormatRegistry {
 			importer = JsonImport(),
 		)
 
+		val databaseExporter = DatabaseExporter()
+		val databaseImporter = DatabaseImport()
 		register(
 			descriptor = FormatDescriptor(
 				id = "db",
 				displayNameRes = R.string.format_database,
-				mimeType = "application/zip",
-				extensions = setOf("zip", "db"),
+				mimeType = databaseExporter.mimeType,
+				extensions = setOf(databaseExporter.extension) +
+					databaseImporter.supportedExtensions,
 				supportsExport = true,
 				supportsImport = true,
-				supportsDateRange = true,
+				supportsDateRange = databaseExporter.canSelectDateRange,
 			),
-			exporter = DatabaseExporter(),
-			importer = DatabaseImport(),
+			exporter = databaseExporter,
+			importer = databaseImporter,
 		)
 
 		register(

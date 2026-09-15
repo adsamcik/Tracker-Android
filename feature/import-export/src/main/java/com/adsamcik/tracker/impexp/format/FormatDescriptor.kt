@@ -13,6 +13,7 @@ data class FormatDescriptor(
 	val id: String,
 	@StringRes val displayNameRes: Int,
 	val mimeType: String,
+	/** Combined user-visible import/export suffixes; backend routing uses its own supported list. */
 	val extensions: Set<String>,
 	val supportsExport: Boolean,
 	val supportsImport: Boolean,

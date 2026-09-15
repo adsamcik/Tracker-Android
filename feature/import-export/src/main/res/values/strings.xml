@@ -31,6 +31,7 @@
 
     <string name="import_notification_error_failed_open_database">Failed to open database file %s</string>
     <string name="import_notification_error_file_not_supported">File %s is not supported.</string>
+    <string name="import_notification_error_io">Import could not read the selected source. Try again.</string>
     <string name="import_notification_extracting">Extracting %s …</string>
     <plurals name="import_notification_finished">
         <item quantity="one">Import finished. Successfully imported %d record.</item>

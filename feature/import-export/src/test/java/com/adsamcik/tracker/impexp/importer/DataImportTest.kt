@@ -128,6 +128,14 @@ class DataImportTest {
             findImporter("csv").shouldBeNull()
         }
 
+		@Test
+		fun `zip is handled only by the archive extractor`() {
+			findImporter("zip").shouldBeNull()
+			dataImport.activeArchiveExtractorList
+				.single { "zip" in it.supportedExtensions }
+				.supportedExtensions shouldContain "zip"
+		}
+
         @Test
         fun `returns null for empty extension`() {
             findImporter("").shouldBeNull()

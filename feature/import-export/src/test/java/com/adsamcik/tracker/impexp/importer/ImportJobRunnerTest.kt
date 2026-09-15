@@ -81,6 +81,101 @@ class ImportJobRunnerTest {
 	}
 
 	@Test
+	fun `archives without a safe supported file fail and never complete their job`() = runTest {
+		val archives = listOf(
+			buildZip(),
+			buildZip("directory/" to ""),
+			buildZip("../unsafe.json" to "{}"),
+			buildZip("notes.txt" to "unsupported"),
+		)
+
+		var unsupportedCalls = 0
+		archives.forEachIndexed { index, bytes ->
+			val jobId = "no-importable-$index"
+			val store = FakeImportReceiptStore()
+			val runner = ImportJobRunner(store) { 100L }
+			runner.start(jobId, "archive.zip", bytes.size.toLong()) shouldBe true
+
+			val result = runner.importArchive(
+				jobId = jobId,
+				context = context,
+				file = mockArchive(bytes),
+				extractor = ZipArchiveExtractor(),
+				isImportableEntry = { it.fileName.endsWith(".json") },
+			) { stream ->
+				unsupportedCalls++
+				ImportResult(
+					skippedCount = 1,
+					errors = listOf("Unsupported ${stream.fileName}"),
+				)
+			}
+			runner.completeIfSuccessful(jobId, result)
+
+			result.failedCount shouldBe 1
+			result.errors.last() shouldBe NO_IMPORTABLE_ARCHIVE_ENTRY_ERROR
+			store.jobStatus(jobId) shouldBe ImportJobReceiptEntity.STATUS_IN_PROGRESS
+		}
+		unsupportedCalls shouldBe 0
+	}
+
+	@Test
+	fun `headerless archive is permanent and its job remains incomplete`() = runTest {
+		val bytes = "not a zip".encodeToByteArray()
+		val store = FakeImportReceiptStore()
+		val runner = ImportJobRunner(store) { 200L }
+		runner.start(JOB_ID, "archive.zip", bytes.size.toLong()) shouldBe true
+
+		val failure = assertFailsWith<PermanentImportInputException> {
+			runner.importArchive(
+				jobId = JOB_ID,
+				context = context,
+				file = mockArchive(bytes),
+				extractor = ZipArchiveExtractor(),
+			) {
+				ImportResult(successCount = 1)
+			}
+		}
+
+		failure.committedPrefix shouldBe ImportResult.EMPTY
+		store.jobStatus(JOB_ID) shouldBe ImportJobReceiptEntity.STATUS_IN_PROGRESS
+	}
+
+	@Test
+	fun `permanent archive failure retains the committed supported prefix`() = runTest {
+		val bytes = buildZipPayloads(
+			"first.json" to """{"first":true}""".encodeToByteArray(),
+			"bomb.json" to ByteArray(4 * 1_024 * 1_024) { 'A'.code.toByte() },
+		)
+		val store = FakeImportReceiptStore()
+		val runner = ImportJobRunner(store) { 300L }
+		runner.start(JOB_ID, "archive.zip", bytes.size.toLong()) shouldBe true
+		var calls = 0
+
+		val failure = assertFailsWith<PermanentImportInputException> {
+			runner.importArchive(
+				jobId = JOB_ID,
+				context = context,
+				file = mockArchive(bytes),
+				extractor = ZipArchiveExtractor(),
+				isImportableEntry = { it.fileName.endsWith(".json") },
+			) {
+				calls++
+				ImportResult(successCount = 1)
+			}
+		}
+
+		val result = failure.toImportResult()
+		result.successCount shouldBe 1
+		result.skippedCount shouldBe 0
+		result.failedCount shouldBe 1
+		result.errors shouldBe listOf(requireNotNull(failure.message))
+		calls shouldBe 1
+		store.entryStatus(JOB_ID, failureEntryKey(store, JOB_ID)) shouldBe
+			ImportEntryReceiptEntity.STATUS_SUCCESS
+		store.jobStatus(JOB_ID) shouldBe ImportJobReceiptEntity.STATUS_IN_PROGRESS
+	}
+
+	@Test
 	fun `completed content addressed job is a no-op when selected again`() = runTest {
 		val bytes = """{"locations":[]}""".toByteArray()
 		val firstFile = mockFile("backup.json", bytes)
@@ -329,11 +424,15 @@ class ImportJobRunnerTest {
 	}
 
 	private fun buildZip(vararg entries: Pair<String, String>): ByteArray {
+		return buildZipPayloads(*entries.map { it.first to it.second.toByteArray() }.toTypedArray())
+	}
+
+	private fun buildZipPayloads(vararg entries: Pair<String, ByteArray>): ByteArray {
 		val output = ByteArrayOutputStream()
 		ZipOutputStream(output).use { zip ->
 			entries.forEach { (name, content) ->
 				zip.putNextEntry(ZipEntry(name))
-				zip.write(content.toByteArray())
+				zip.write(content)
 				zip.closeEntry()
 			}
 		}
@@ -407,7 +506,13 @@ class ImportJobRunnerTest {
 		fun jobStatus(jobId: String): String? = jobs[jobId]?.status
 
 		fun entryStatus(jobId: String, entryKey: String): String? = entries[jobId to entryKey]?.status
+
+		fun entryKeys(jobId: String): Set<String> =
+			entries.keys.filter { it.first == jobId }.mapTo(linkedSetOf()) { it.second }
 	}
+
+	private fun failureEntryKey(store: FakeImportReceiptStore, jobId: String): String =
+		store.entryKeys(jobId).single()
 
 	private companion object {
 		const val JOB_ID = "test-job"

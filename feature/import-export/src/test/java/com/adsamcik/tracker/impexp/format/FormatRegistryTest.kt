@@ -51,7 +51,13 @@ class FormatRegistryTest {
 		fun `all import formats have importers`() {
 			FormatRegistry.allImportFormats().shouldNotBeEmpty()
 			FormatRegistry.allImportFormats().forEach { descriptor ->
-				FormatRegistry.importerForExtension(descriptor.extensions.first()).shouldNotBeNull()
+				val importer = FormatRegistry.allEntries()
+					.single { it.descriptor.id == descriptor.id }
+					.importer
+					.shouldNotBeNull()
+				importer.supportedExtensions.forEach { extension ->
+					FormatRegistry.importerForExtension(extension) shouldBe importer
+				}
 			}
 		}
 	}
@@ -158,6 +164,14 @@ class FormatRegistryTest {
 		}
 
 		@Test
+		fun `zip remains an archive route and never resolves to raw database merge`() {
+			FormatRegistry.importerForExtension("zip").shouldBeNull()
+			DataImport().activeArchiveExtractorList
+				.single { "zip" in it.supportedExtensions }
+				.supportedExtensions shouldContainAll setOf("zip")
+		}
+
+		@Test
 		fun `portable Steps importer owns its transactions`() {
 			FormatRegistry.importerForExtension("trackersteps")?.transactionMode shouldBe
 				ImportTransactionMode.IMPORTER_MANAGED
@@ -195,6 +209,9 @@ class FormatRegistryTest {
 			val db = FormatRegistry.allEntries().first { it.descriptor.id == "db" }
 			db.descriptor.mimeType shouldBe "application/zip"
 			db.descriptor.extensions shouldContainAll setOf("zip", "db")
+			db.exporter.shouldNotBeNull().extension shouldBe "zip"
+			db.importer.shouldNotBeNull().supportedExtensions shouldContainAll setOf("db")
+			FormatRegistry.allImportExtensions().contains("zip") shouldBe false
 		}
 
 		@Test

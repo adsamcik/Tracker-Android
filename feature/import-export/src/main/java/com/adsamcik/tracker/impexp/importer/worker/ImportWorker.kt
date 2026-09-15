@@ -10,6 +10,7 @@ import androidx.annotation.WorkerThread
 import androidx.core.app.NotificationCompat
 import androidx.documentfile.provider.DocumentFile
 import androidx.work.CoroutineWorker
+import androidx.work.ListenableWorker
 import androidx.work.WorkerParameters
 import androidx.hilt.work.HiltWorker
 import com.adsamcik.tracker.impexp.R
@@ -17,10 +18,12 @@ import com.adsamcik.tracker.impexp.format.FormatRegistry
 import com.adsamcik.tracker.impexp.importer.DataImport
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportJobRunner
+import com.adsamcik.tracker.impexp.importer.PermanentImportInputException
 import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.impexp.importer.RoomImportReceiptStore
 import com.adsamcik.tracker.impexp.importer.computeImportJobId
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
+import com.adsamcik.tracker.impexp.importer.archive.ArchiveEntryMetadata
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveClassification
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.file.DatabaseImportFailure
@@ -106,36 +109,42 @@ class ImportWorker @AssistedInject constructor(
 			requireReadyGeneration()
             importJobRunner.completeIfSuccessful(jobId, importResult)
 
-            val notificationText = buildNotificationText(importResult)
-            showNotification(notificationText, false)
-
-            if (importResult.failedCount > 0) {
-                showErrorNotification(
-                    importResult.errors.singleOrNull()
-                        ?.takeIf {
-                            it == DatabaseImportFailure.TrackerDatabaseRestoreRequired.message
-                        }
-                        ?: context.getString(
-                            R.string.import_notification_error_records_failed,
-                            importResult.failedCount
-                        )
-                )
-                return Result.failure()
-            }
-
-            Result.success()
+            finishImport(importResult)
         } catch (e: CancellationException) {
             throw e
 		} catch (_: StartupGenerationChangedException) {
 			Result.success()
         } catch (e: IOException) {
-            showErrorNotification(e.message ?: "Import failed due to an I/O error.")
-            Result.retry()
+			when (val decision = classifyImportWorkerIOException(e)) {
+				is ImportWorkerIoDecision.Terminal ->
+					finishImport(decision.result)
+				ImportWorkerIoDecision.Retry -> {
+					showErrorNotification(context.getString(R.string.import_notification_error_io))
+					Result.retry()
+				}
+			}
         } catch (e: Exception) {
             showErrorNotification(e.message ?: "Import failed.")
             Result.failure()
         }
     }
+
+	private fun finishImport(importResult: ImportResult): Result {
+		showNotification(buildNotificationText(importResult), false)
+		if (importResult.failedCount > 0) {
+			showErrorNotification(
+				importResult.errors.singleOrNull()
+					?.takeIf {
+						it == DatabaseImportFailure.TrackerDatabaseRestoreRequired.message
+					}
+					?: context.getString(
+						R.string.import_notification_error_records_failed,
+						importResult.failedCount,
+					),
+			)
+		}
+		return importWorkerResult(importResult)
+	}
 
     private fun buildNotificationText(result: ImportResult): String {
         val successCount = result.successCount
@@ -206,6 +215,7 @@ class ImportWorker @AssistedInject constructor(
             context = context,
             file = file,
             extractor = extractor,
+			isImportableEntry = ::isImportableEntry,
 			transactionModeForEntry = { stream ->
 				importerFor(stream)?.transactionMode ?: ImportTransactionMode.WORKER_MANAGED
 			},
@@ -234,7 +244,15 @@ class ImportWorker @AssistedInject constructor(
     }
 
 	private fun importerFor(stream: FileImportStream): FileImport? =
-		FormatRegistry.importerForExtension(stream.extension.lowercase(Locale.ROOT))
+		importerForFileName(stream.fileName)
+
+	private fun isImportableEntry(entry: ArchiveEntryMetadata): Boolean =
+		importerForFileName(entry.fileName) != null
+
+	private fun importerForFileName(fileName: String): FileImport? =
+		FormatRegistry.importerForExtension(
+			fileName.substringAfterLast('.', "").lowercase(Locale.ROOT),
+		)
 
     @WorkerThread
     private suspend fun import(
@@ -306,6 +324,25 @@ class ImportWorker @AssistedInject constructor(
 	private object StartupGenerationChangedException : RuntimeException()
 
 }
+
+internal sealed interface ImportWorkerIoDecision {
+	data class Terminal(val result: ImportResult) : ImportWorkerIoDecision
+	data object Retry : ImportWorkerIoDecision
+}
+
+internal fun classifyImportWorkerIOException(failure: IOException): ImportWorkerIoDecision =
+	if (failure is PermanentImportInputException) {
+		ImportWorkerIoDecision.Terminal(failure.toImportResult())
+	} else {
+		ImportWorkerIoDecision.Retry
+	}
+
+internal fun importWorkerResult(result: ImportResult): ListenableWorker.Result =
+	if (result.failedCount > 0) {
+		ListenableWorker.Result.failure()
+	} else {
+		ListenableWorker.Result.success()
+	}
 
 internal fun importSourceReadLimit(extension: String?): Long = when {
 	extension.equals("zip", ignoreCase = true) -> ZipArchiveExtractor.MAX_COMPRESSED_INPUT_BYTES
