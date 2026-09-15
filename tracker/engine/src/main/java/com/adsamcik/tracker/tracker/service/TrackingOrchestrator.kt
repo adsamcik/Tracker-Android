@@ -60,6 +60,7 @@ import com.adsamcik.tracker.tracker.source.location.LocationWalAcquisitionMetada
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalReceipt
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriteResult
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriter
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationPreparedCanonicalOutput
 import com.adsamcik.tracker.tracker.source.location.prepareProtectedLocationCanonicalCurationState
 import com.adsamcik.tracker.tracker.source.location.loadPreparedProtectedLocationCanonicalCurationState
 import com.adsamcik.tracker.tracker.source.location.readProtectedLocationCanonicalReceipt
@@ -550,18 +551,23 @@ internal class TrackingOrchestrator(
 				)
 			}
 			if (command.productEffect.isMock) {
+				val decisionSignal = command.toProtectedLocationMockRejectionSignal(
+					acquisitionMetadata = acquisitionMetadata,
+					policyTier = acquisitionMetadata.policyTier,
+					policyName = acquisitionMetadata.policyName,
+				)
 				appDatabase.withTransaction {
 					appDatabase.prepareProtectedLocationCanonicalCurationState(
 						command,
 						curationContext.stateBefore,
 						curationContext.stateBefore,
+						ProtectedLocationPreparedCanonicalOutput.fromSignal(
+							command,
+							decisionSignal,
+						),
 					)
 				}
-				if (!pipeline.onSignal(command.toProtectedLocationMockRejectionSignal(
-					acquisitionMetadata = acquisitionMetadata,
-					policyTier = acquisitionMetadata.policyTier,
-					policyName = acquisitionMetadata.policyName,
-				))) {
+				if (!pipeline.onSignal(decisionSignal)) {
 					return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
 						"LOCATION_CANONICAL_DECISION_ADMISSION_DEFERRED",
 					)
@@ -578,7 +584,7 @@ internal class TrackingOrchestrator(
 							processorPipelineProvider = { pipeline },
 							currentTierProvider = { acquisitionMetadata.policyTier },
 							currentPolicyNameProvider = { acquisitionMetadata.policyName },
-							beforeSignalAdmission = { cycleContext, _ ->
+							beforeSignalAdmission = { cycleContext, signal ->
 								check(
 									cycleContext.collectionData.location != null ||
 										curationContext.outcome.decisionReason != null,
@@ -590,6 +596,10 @@ internal class TrackingOrchestrator(
 										command,
 										curationContext.stateBefore,
 										curationContext.outcome.stateAfter,
+										ProtectedLocationPreparedCanonicalOutput.fromSignal(
+											command,
+											signal,
+										),
 									)
 								}
 							},

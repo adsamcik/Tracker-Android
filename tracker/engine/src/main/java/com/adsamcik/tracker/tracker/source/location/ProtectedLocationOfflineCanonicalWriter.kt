@@ -30,13 +30,48 @@ import kotlinx.coroutines.withContext
  * checks that condition again before creating its isolated pipeline.
  */
 @Singleton
-internal class ProtectedLocationOfflineCanonicalWriter @Inject constructor(
-	@ApplicationContext context: Context,
+internal class ProtectedLocationOfflineCanonicalWriter private constructor(
+	context: Context,
 	private val database: com.adsamcik.tracker.shared.base.database.AppDatabase,
 	private val dispatchers: DispatchersProvider,
 	private val persistenceProcessor: PersistenceProcessor,
+	private val locationComponentFactory: () -> LocationTrackerComponent,
 ) : ProtectedLocationCanonicalWriter {
 	private val applicationContext = context.applicationContext
+
+	@Inject
+	constructor(
+		@ApplicationContext context: Context,
+		database: com.adsamcik.tracker.shared.base.database.AppDatabase,
+		dispatchers: DispatchersProvider,
+		persistenceProcessor: PersistenceProcessor,
+	) : this(
+		context,
+		database,
+		dispatchers,
+		persistenceProcessor,
+		{
+			LocationTrackerComponent(
+				trackingParamsRepository = null,
+				dispatchers = dispatchers,
+			)
+		},
+	)
+
+	internal constructor(
+		context: Context,
+		database: com.adsamcik.tracker.shared.base.database.AppDatabase,
+		dispatchers: DispatchersProvider,
+		persistenceProcessor: PersistenceProcessor,
+		locationComponentFactory: () -> LocationTrackerComponent,
+		@Suppress("UNUSED_PARAMETER") testMarker: Unit,
+	) : this(
+		context,
+		database,
+		dispatchers,
+		persistenceProcessor,
+		locationComponentFactory,
+	)
 
 	override suspend fun write(
 		command: LocationCapturedFactCommand,
@@ -77,10 +112,7 @@ internal class ProtectedLocationOfflineCanonicalWriter @Inject constructor(
 				terminal = true,
 			)
 		}
-		val locationComponent = LocationTrackerComponent(
-			trackingParamsRepository = null,
-			dispatchers = dispatchers,
-		)
+		val locationComponent = locationComponentFactory()
 		val pipeline = ProcessorPipeline(
 			processors = setOf(persistenceProcessor),
 			requireDurableAdmission = true,
@@ -129,20 +161,23 @@ internal class ProtectedLocationOfflineCanonicalWriter @Inject constructor(
 			}
 
 			if (command.productEffect.isMock) {
+				val decisionSignal = command.toProtectedLocationMockRejectionSignal(
+					acquisitionMetadata = acquisitionMetadata,
+					policyTier = acquisitionMetadata.policyTier,
+					policyName = acquisitionMetadata.policyName,
+				)
 				database.withTransaction {
 					database.prepareProtectedLocationCanonicalCurationState(
 						command,
 						stateBefore,
 						stateBefore,
+						ProtectedLocationPreparedCanonicalOutput.fromSignal(
+							command,
+							decisionSignal,
+						),
 					)
 				}
-				if (!pipeline.onSignal(
-					command.toProtectedLocationMockRejectionSignal(
-						acquisitionMetadata = acquisitionMetadata,
-						policyTier = acquisitionMetadata.policyTier,
-						policyName = acquisitionMetadata.policyName,
-					),
-				)) {
+				if (!pipeline.onSignal(decisionSignal)) {
 					return ProtectedLocationCanonicalWriteResult.Deferred(
 						"LOCATION_CANONICAL_DECISION_ADMISSION_DEFERRED",
 					)
@@ -159,7 +194,7 @@ internal class ProtectedLocationOfflineCanonicalWriter @Inject constructor(
 							processorPipelineProvider = { pipeline },
 							currentTierProvider = { acquisitionMetadata.policyTier },
 							currentPolicyNameProvider = { acquisitionMetadata.policyName },
-							beforeSignalAdmission = { cycleContext, _ ->
+							beforeSignalAdmission = { cycleContext, signal ->
 								check(
 									cycleContext.collectionData.location != null ||
 										curationContext.outcome.decisionReason != null,
@@ -171,6 +206,10 @@ internal class ProtectedLocationOfflineCanonicalWriter @Inject constructor(
 										command,
 										curationContext.stateBefore,
 										curationContext.outcome.stateAfter,
+										ProtectedLocationPreparedCanonicalOutput.fromSignal(
+											command,
+											signal,
+										),
 									)
 								}
 							},
@@ -222,17 +261,17 @@ internal class ProtectedLocationOfflineCanonicalWriter @Inject constructor(
 				if (componentEnabled) runCatching {
 					locationComponent.onDisable(applicationContext)
 				}
-
-				private companion object {
-					val OFFLINE_WRITER_RUN_STATES = setOf(
-						SessionLifecycleState.STOPPING.name,
-						SessionLifecycleState.FINALIZED.name,
-						SessionLifecycleState.FAILED.name,
-						"CLOSED",
-					)
-				}
 			}
 		}
+	}
+
+	private companion object {
+		val OFFLINE_WRITER_RUN_STATES = setOf(
+			SessionLifecycleState.STOPPING.name,
+			SessionLifecycleState.FINALIZED.name,
+			SessionLifecycleState.FAILED.name,
+			"CLOSED",
+		)
 	}
 }
 

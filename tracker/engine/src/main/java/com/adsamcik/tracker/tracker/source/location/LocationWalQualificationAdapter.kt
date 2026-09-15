@@ -551,6 +551,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		val evidence = LocationDurableObservationEvidence(
 			sourceEventId = SourceEventId(wal.eventId),
 			sourceAdmissionOrdinal = wal.admissionOrdinal,
+			sourceSequence = wal.sourceSequence,
 			walIntegrityIdentity = wal.integrityIdentity,
 			sourceDeliveryIdentity = deliveryIdentity,
 			deliveryUnitIndex = deliveryUnitIndex,
@@ -816,19 +817,19 @@ private fun LocationPlan.canonicalRequestPriority(): LocationRequestPriority = w
 	} else {
 		LocationRequestPriority.BALANCED
 	}
+}
 
-	private fun Int.toLocationPolicyTier(): PolicyTier = when (this) {
-		1, 2 -> PolicyTier.ACTIVE
-		3 -> PolicyTier.PRECISION
-		else -> error("Unsupported captured Location QoS $this")
-	}
+private fun Int.toLocationPolicyTier(): PolicyTier = when (this) {
+	1, 2 -> PolicyTier.ACTIVE
+	3 -> PolicyTier.PRECISION
+	else -> error("Unsupported captured Location QoS $this")
+}
 
-	private fun Int.toLocationPolicyName(): String = when (this) {
-		1 -> "SOURCE_QOS_BATTERY_SAVER"
-		2 -> "SOURCE_QOS_BALANCED"
-		3 -> "SOURCE_QOS_RESPONSIVE"
-		else -> error("Unsupported captured Location QoS $this")
-	}
+private fun Int.toLocationPolicyName(): String = when (this) {
+	1 -> "SOURCE_QOS_BATTERY_SAVER"
+	2 -> "SOURCE_QOS_BALANCED"
+	3 -> "SOURCE_QOS_RESPONSIVE"
+	else -> error("Unsupported captured Location QoS $this")
 }
 
 private fun rejected(reason: LocationWalAdapterRejection) = LocationWalAdapterResult.Rejected(reason)

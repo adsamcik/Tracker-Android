@@ -26,6 +26,25 @@ internal data class AltitudeProcessingResult(
 	val calibrationVersion: Int = 0,
 )
 
+internal data class AltitudeProcessorState(
+	val version: Int,
+	val verticalAccuracyThresholdM: Float,
+	val modelVersion: Int,
+	val estimatorVersion: Int,
+	val fusionState: AltitudeFusionState,
+) {
+	init {
+		require(version == CURRENT_VERSION)
+		require(verticalAccuracyThresholdM.isFinite() && verticalAccuracyThresholdM >= 0f)
+		require(modelVersion == AltitudeContractVersions.MODEL_VERSION)
+		require(estimatorVersion == AltitudeContractVersions.ESTIMATOR_VERSION)
+	}
+
+	companion object {
+		const val CURRENT_VERSION = 1
+	}
+}
+
 /**
  * Processes raw GPS altitude through a correction and fusion pipeline:
  * 1. Geoid correction (WGS-84 ellipsoid → Mean Sea Level)
@@ -48,6 +67,22 @@ internal class AltitudeProcessor(
 	 */
 	val isFusionCalibrated: Boolean
 		get() = fusionEngine.isCalibrated
+
+	fun snapshotState(): AltitudeProcessorState = AltitudeProcessorState(
+		version = AltitudeProcessorState.CURRENT_VERSION,
+		verticalAccuracyThresholdM = verticalAccuracyThresholdM,
+		modelVersion = AltitudeContractVersions.MODEL_VERSION,
+		estimatorVersion = AltitudeContractVersions.ESTIMATOR_VERSION,
+		fusionState = fusionEngine.snapshotState(),
+	)
+
+	fun restoreState(state: AltitudeProcessorState) {
+		require(state.version == AltitudeProcessorState.CURRENT_VERSION)
+		require(state.verticalAccuracyThresholdM == verticalAccuracyThresholdM)
+		require(state.modelVersion == AltitudeContractVersions.MODEL_VERSION)
+		require(state.estimatorVersion == AltitudeContractVersions.ESTIMATOR_VERSION)
+		fusionEngine.restoreState(state.fusionState)
+	}
 
 	/**
 	 * Processes a location's altitude through the full pipeline (GPS-only path).
@@ -178,5 +213,7 @@ internal class AltitudeProcessor(
 		 * 20m is a reasonable threshold — most outdoor GPS fixes are <15m.
 		 */
 		const val DEFAULT_VERTICAL_ACCURACY_THRESHOLD_M = 20f
+
+		fun initialState(): AltitudeProcessorState = AltitudeProcessor().snapshotState()
 	}
 }

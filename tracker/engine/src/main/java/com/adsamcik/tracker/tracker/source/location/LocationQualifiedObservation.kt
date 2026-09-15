@@ -155,6 +155,7 @@ internal data class LocationDurableClockAuthority(
 internal data class LocationDurableObservationEvidence(
 	val sourceEventId: SourceEventId,
 	val sourceAdmissionOrdinal: Long,
+	val sourceSequence: Long,
 	val walIntegrityIdentity: String,
 	val sourceDeliveryIdentity: SourceDeliveryIdentity?,
 	val deliveryUnitIndex: Int,
@@ -166,7 +167,12 @@ internal data class LocationDurableObservationEvidence(
 	val quality: SourceQuality,
 	/** Redundant typed projection that must exactly match v2 [LocationFixPayload.isMock]. */
 	val isMock: Boolean,
-)
+) {
+	init {
+		require(sourceAdmissionOrdinal > 0L)
+		require(sourceSequence > 0L)
+	}
+}
 
 /** Stable destination identity for one exact admitted provider-delivery unit. */
 internal data class LocationCapturedFactIdentity(

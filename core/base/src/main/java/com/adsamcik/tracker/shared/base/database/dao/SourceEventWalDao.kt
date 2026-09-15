@@ -280,6 +280,36 @@ interface SourceEventWalDao {
 		limit: Int,
 	): List<SourceProjectionEventIdentityRow>
 
+	/** Payload-free global ordering and source sequence evidence for cursor continuity proofs. */
+	@Query(
+		"SELECT event_id, admission_ordinal, source_kind, source_instance_id, " +
+			"registration_generation, source_sequence, logical_tracking_id, service_run_id " +
+			"FROM source_event_wal WHERE admission_ordinal > :afterOrdinal " +
+			"AND admission_ordinal <= :throughOrdinal " +
+			"ORDER BY admission_ordinal ASC LIMIT :limit",
+	)
+	suspend fun continuityEventsAfterThrough(
+		afterOrdinal: Long,
+		throughOrdinal: Long,
+		limit: Int,
+	): List<SourceEventContinuityRow>
+
+	@Query(
+		"SELECT event_id, admission_ordinal, source_kind, source_instance_id, " +
+			"registration_generation, source_sequence, logical_tracking_id, service_run_id " +
+			"FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND source_instance_id = :sourceInstanceId " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND admission_ordinal <= :throughOrdinal " +
+			"ORDER BY admission_ordinal DESC LIMIT 1",
+	)
+	suspend fun latestContinuityEventAtOrBefore(
+		sourceKind: Int,
+		sourceInstanceId: String,
+		registrationGeneration: Long,
+		throughOrdinal: Long,
+	): SourceEventContinuityRow?
+
 	@Query("SELECT MAX(admission_ordinal) FROM source_event_wal")
 	suspend fun maximumAdmissionOrdinal(): Long?
 
@@ -386,6 +416,17 @@ data class SourceEventProjectionEligibilityRow(
 data class SourceProjectionEventIdentityRow(
 	@ColumnInfo(name = "event_id") val eventId: String,
 	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
+)
+
+data class SourceEventContinuityRow(
+	@ColumnInfo(name = "event_id") val eventId: String,
+	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
+	@ColumnInfo(name = "source_kind") val sourceKind: Int,
+	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String,
+	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long,
+	@ColumnInfo(name = "source_sequence") val sourceSequence: Long,
+	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
+	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
 )
 
 /** Payload-free identity for one bounded Cell/Wi-Fi projection scheduling attempt. */

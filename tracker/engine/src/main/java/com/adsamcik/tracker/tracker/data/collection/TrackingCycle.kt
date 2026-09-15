@@ -5,6 +5,8 @@ import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.shared.base.data.LocationProviderObservation
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.altitude.AltitudeProcessor
+import com.adsamcik.tracker.tracker.altitude.AltitudeProcessorState
 import java.util.UUID
 
 internal data class LocationCanonicalCurationPoint(
@@ -44,13 +46,19 @@ internal data class LocationCanonicalCurationState(
 	val lastAccepted: LocationCanonicalCurationPoint?,
 	val pendingReacquisition: LocationCanonicalCurationPoint?,
 	val lastSmoothedSpeedMps: Float,
+	val altitudeProcessorState: AltitudeProcessorState,
 ) {
 	init {
 		require(lastSmoothedSpeedMps.isFinite() && lastSmoothedSpeedMps >= 0f)
 	}
 
 	companion object {
-		val EMPTY = LocationCanonicalCurationState(null, null, 0f)
+		val EMPTY = LocationCanonicalCurationState(
+			lastAccepted = null,
+			pendingReacquisition = null,
+			lastSmoothedSpeedMps = 0f,
+			altitudeProcessorState = AltitudeProcessor.initialState(),
+		)
 	}
 }
 

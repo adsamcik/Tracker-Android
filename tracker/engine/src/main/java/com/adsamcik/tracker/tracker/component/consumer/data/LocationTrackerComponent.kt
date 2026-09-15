@@ -293,6 +293,9 @@ internal class LocationTrackerComponent(
 		lastAcceptedLocation = state.lastAccepted?.toPlatformLocation()
 		pendingReacquisitionCandidate = state.pendingReacquisition?.toPlatformLocation()
 		lastSmoothedSpeed = state.lastSmoothedSpeedMps
+		requireNotNull(altitudeProcessor) {
+			"Location altitude processor must be enabled before curation restore"
+		}.restoreState(state.altitudeProcessorState)
 	}
 
 	internal fun snapshotCanonicalState(): LocationCanonicalCurationState =
@@ -300,6 +303,9 @@ internal class LocationTrackerComponent(
 			lastAccepted = lastAcceptedLocation?.toCanonicalCurationPoint(),
 			pendingReacquisition = pendingReacquisitionCandidate?.toCanonicalCurationPoint(),
 			lastSmoothedSpeedMps = lastSmoothedSpeed,
+			altitudeProcessorState = requireNotNull(altitudeProcessor) {
+				"Location altitude processor must be enabled before curation snapshot"
+			}.snapshotState(),
 		)
 
 	private fun completeCanonicalCuration(

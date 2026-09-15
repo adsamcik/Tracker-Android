@@ -19,6 +19,33 @@ internal data class AltitudeFusionResult(
 	val calibrationVersion: Int = 0,
 )
 
+internal data class AltitudeFusionState(
+	val version: Int,
+	val recalibrationIntervalMs: Long,
+	val defaultGpsMeasurementNoiseM2: Double,
+	val barometerMeasurementNoiseM2: Double,
+	val calibratedSeaLevelPressureHpa: Double?,
+	val lastCalibrationElapsedTimeMs: Long,
+	val previousBarometerAltitudeM: Double?,
+	val lastEstimateDatum: AltitudeDatum,
+	val kalmanState: AltitudeKalmanState,
+) {
+	init {
+		require(version == CURRENT_VERSION)
+		require(recalibrationIntervalMs > 0L)
+		require(defaultGpsMeasurementNoiseM2.isFinite() && defaultGpsMeasurementNoiseM2 >= 0.0)
+		require(barometerMeasurementNoiseM2.isFinite() && barometerMeasurementNoiseM2 >= 0.0)
+		require(calibratedSeaLevelPressureHpa == null ||
+			calibratedSeaLevelPressureHpa.isFinite() && calibratedSeaLevelPressureHpa > 0.0)
+		require(lastCalibrationElapsedTimeMs >= 0L)
+		require(previousBarometerAltitudeM == null || previousBarometerAltitudeM.isFinite())
+	}
+
+	companion object {
+		const val CURRENT_VERSION = 1
+	}
+}
+
 /**
  * Fuses GPS altitude with barometric pressure using a 1D Kalman filter.
  *
@@ -67,6 +94,32 @@ internal class AltitudeFusionEngine(
 	 */
 	val verticalVelocity: Double?
 		get() = if (kalmanFilter.isInitialized) kalmanFilter.verticalVelocity else null
+
+	@Synchronized
+	fun snapshotState(): AltitudeFusionState = AltitudeFusionState(
+		version = AltitudeFusionState.CURRENT_VERSION,
+		recalibrationIntervalMs = recalibrationIntervalMs,
+		defaultGpsMeasurementNoiseM2 = defaultGpsMeasurementNoiseM2,
+		barometerMeasurementNoiseM2 = baroMeasurementNoiseM2,
+		calibratedSeaLevelPressureHpa = calibratedSeaLevelPressureHpa,
+		lastCalibrationElapsedTimeMs = lastCalibrationElapsedTimeMs,
+		previousBarometerAltitudeM = previousBaroAltitudeM,
+		lastEstimateDatum = lastEstimateDatum,
+		kalmanState = kalmanFilter.snapshotState(),
+	)
+
+	@Synchronized
+	fun restoreState(state: AltitudeFusionState) {
+		require(state.version == AltitudeFusionState.CURRENT_VERSION)
+		require(state.recalibrationIntervalMs == recalibrationIntervalMs)
+		require(state.defaultGpsMeasurementNoiseM2 == defaultGpsMeasurementNoiseM2)
+		require(state.barometerMeasurementNoiseM2 == baroMeasurementNoiseM2)
+		calibratedSeaLevelPressureHpa = state.calibratedSeaLevelPressureHpa
+		lastCalibrationElapsedTimeMs = state.lastCalibrationElapsedTimeMs
+		previousBaroAltitudeM = state.previousBarometerAltitudeM
+		lastEstimateDatum = state.lastEstimateDatum
+		kalmanFilter.restoreState(state.kalmanState)
+	}
 
 	/**
 	 * Calibrate the barometer baseline using a known GPS altitude.
