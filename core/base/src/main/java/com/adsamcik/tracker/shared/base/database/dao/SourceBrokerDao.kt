@@ -11,7 +11,6 @@ import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceCaptureAdmissionBarrierEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceMaintenanceAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
@@ -37,68 +36,6 @@ data class SourceRunAdmissionHighWaterRow(
 
 @Dao
 interface SourceBrokerDao {
-	@Query(
-		"SELECT * FROM source_maintenance_authority " +
-			"WHERE source_kind = :sourceKind AND purpose = :purpose LIMIT 1",
-	)
-	suspend fun sourceMaintenanceAuthority(
-		sourceKind: Int,
-		purpose: String,
-	): SourceMaintenanceAuthorityEntity?
-
-	@Query(
-		"SELECT EXISTS(SELECT 1 FROM source_maintenance_authority " +
-			"WHERE source_kind = :sourceKind AND purpose = :purpose AND state = 'ACTIVE' " +
-			"AND boot_id = :bootId AND expires_elapsed_realtime_nanos > :nowElapsedRealtimeNanos)",
-	)
-	suspend fun hasActiveSourceMaintenanceAuthority(
-		sourceKind: Int,
-		purpose: String,
-		bootId: String,
-		nowElapsedRealtimeNanos: Long,
-	): Boolean
-
-	@Insert(onConflict = OnConflictStrategy.IGNORE)
-	suspend fun insertSourceMaintenanceAuthorityIfAbsent(
-		entity: SourceMaintenanceAuthorityEntity,
-	): Long
-
-	@Query(
-		"UPDATE source_maintenance_authority SET owner_token = :ownerToken, " +
-			"generation = generation + 1, collected_data_epoch = :collectedDataEpoch, " +
-			"policy_revision = :policyRevision, consent_epoch = :consentEpoch, " +
-			"boot_id = :bootId, expires_elapsed_realtime_nanos = :expiresElapsedRealtimeNanos, " +
-			"state = 'ACTIVE', updated_at_ms = :updatedAtMs " +
-			"WHERE source_kind = :sourceKind AND purpose = :purpose " +
-			"AND (state = 'RELEASED' OR boot_id != :bootId " +
-			"OR expires_elapsed_realtime_nanos <= :nowElapsedRealtimeNanos)",
-	)
-	suspend fun acquireSourceMaintenanceAuthority(
-		sourceKind: Int,
-		purpose: String,
-		ownerToken: String,
-		collectedDataEpoch: Long,
-		policyRevision: Long,
-		consentEpoch: Long,
-		bootId: String,
-		nowElapsedRealtimeNanos: Long,
-		expiresElapsedRealtimeNanos: Long,
-		updatedAtMs: Long,
-	): Int
-
-	@Query(
-		"UPDATE source_maintenance_authority SET state = 'RELEASED', updated_at_ms = :updatedAtMs " +
-			"WHERE source_kind = :sourceKind AND purpose = :purpose AND owner_token = :ownerToken " +
-			"AND generation = :generation AND boot_id = :bootId AND state = 'ACTIVE'",
-	)
-	suspend fun releaseSourceMaintenanceAuthority(
-		sourceKind: Int,
-		purpose: String,
-		ownerToken: String,
-		generation: Long,
-		bootId: String,
-		updatedAtMs: Long,
-	): Int
 	@Query(
 		"""
 		SELECT

@@ -10,9 +10,6 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
-import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierBlockedReason
-import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierResult
-import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierRetryableReason
 import com.adsamcik.tracker.tracker.source.ingress.PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
@@ -75,7 +72,7 @@ class PressureSourceRuntimeTest {
 		)
 
 		assertEquals(
-			PressureSourceEraseBarrierResult.NoLocalProvider,
+			PressureProviderEraseSettlement.NoLocalProvider,
 			fixture.runtime.establishSourceEraseBarrier(1L),
 		)
 		verify(exactly = 0) {
@@ -98,69 +95,12 @@ class PressureSourceRuntimeTest {
 		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan, RecordingPressureSink()))
 
 		assertEquals(
-			PressureSourceEraseBarrierResult.Blocked(
-				PressureSourceEraseBarrierBlockedReason.STALE_LIFECYCLE,
-			),
+			PressureProviderEraseSettlement.StaleLifecycle,
 			fixture.runtime.establishSourceEraseBarrier(2L),
 		)
 
 		verify(exactly = 0) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
 		fixture.runtime.close()
-	}
-
-	@Test
-	fun `source erase barrier fails closed when durable maintenance exclusion is lost`() = runTest {
-		val activePlan = plan(revision = 1L)
-		val fixture = fixture(
-			scope = this,
-			registrationsToReturn = listOf(
-				registration(
-					activePlan,
-					authorizationRevision = 1L,
-					requiresAcceptance = true,
-					purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
-				),
-			),
-			maintenanceAuthorityActive = false,
-		)
-		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan, RecordingPressureSink()))
-
-		assertEquals(
-			PressureSourceEraseBarrierResult.Blocked(
-				PressureSourceEraseBarrierBlockedReason.STALE_LIFECYCLE,
-			),
-			fixture.runtime.establishSourceEraseBarrier(1L),
-		)
-
-		verify(exactly = 0) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
-		fixture.runtime.close()
-	}
-
-	@Test
-	fun `maintenance fence expiry during retirement withholds erase success`() = runTest {
-		val activePlan = plan(revision = 1L)
-		val fixture = fixture(
-			scope = this,
-			registrationsToReturn = listOf(
-				registration(
-					activePlan,
-					authorizationRevision = 1L,
-					requiresAcceptance = true,
-					purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
-				),
-			),
-			maintenanceAuthorityResults = listOf(true, false),
-		)
-		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan, RecordingPressureSink()))
-
-		assertEquals(
-			PressureSourceEraseBarrierResult.Blocked(
-				PressureSourceEraseBarrierBlockedReason.STALE_LIFECYCLE,
-			),
-			fixture.runtime.establishSourceEraseBarrier(1L),
-		)
-
-		verify(exactly = 1) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
 	}
 
 	@Test
@@ -175,9 +115,7 @@ class PressureSourceRuntimeTest {
 		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan, RecordingPressureSink()))
 
 		assertEquals(
-			PressureSourceEraseBarrierResult.Blocked(
-				PressureSourceEraseBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
-			),
+			PressureProviderEraseSettlement.CaptureAuthorizationActive,
 			fixture.runtime.establishSourceEraseBarrier(1L),
 		)
 
@@ -199,8 +137,12 @@ class PressureSourceRuntimeTest {
 
 		fixture.runtime.close()
 		assertEquals(
-			PressureSourceEraseBarrierResult.Established(9L),
+			PressureProviderEraseSettlement.Settled(9L),
 			fixture.runtime.establishSourceEraseBarrier(1L),
+		)
+		assertEquals(
+			PressureProviderEraseVerification.Verified,
+			fixture.runtime.verifySourceEraseProviderSettled(1L, 9L),
 		)
 
 		verify(exactly = 2) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
@@ -225,14 +167,12 @@ class PressureSourceRuntimeTest {
 		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan, RecordingPressureSink()))
 
 		assertEquals(
-			PressureSourceEraseBarrierResult.Retryable(
-				PressureSourceEraseBarrierRetryableReason.PROVIDER_REMOVAL_FAILED,
-			),
+			PressureProviderEraseSettlement.ProviderRemovalFailed,
 			fixture.runtime.establishSourceEraseBarrier(1L),
 		)
 
 		assertEquals(
-			PressureSourceEraseBarrierResult.Established(9L),
+			PressureProviderEraseSettlement.Settled(9L),
 			fixture.runtime.establishSourceEraseBarrier(1L),
 		)
 	}
@@ -282,15 +222,13 @@ class PressureSourceRuntimeTest {
 		admissionEntered.await()
 
 		assertEquals(
-			PressureSourceEraseBarrierResult.Retryable(
-				PressureSourceEraseBarrierRetryableReason.CALLBACK_DRAIN_TIMED_OUT,
-			),
+			PressureProviderEraseSettlement.CallbackDrainTimedOut,
 			barrier.await(),
 		)
 		releaseAdmission.complete(Unit)
 		testScheduler.runCurrent()
 		assertEquals(
-			PressureSourceEraseBarrierResult.Established(9L),
+			PressureProviderEraseSettlement.Settled(9L),
 			fixture.runtime.establishSourceEraseBarrier(1L),
 		)
 	}
@@ -1611,8 +1549,6 @@ class PressureSourceRuntimeTest {
 		sensorMaximumDelayMicros: Int = 60_000_000,
 		fifoMaxEventCount: Int = 0,
 		flushResult: Boolean = false,
-		maintenanceAuthorityActive: Boolean = true,
-		maintenanceAuthorityResults: List<Boolean> = emptyList(),
 	): Fixture {
 		val context = mockk<Context>()
 		val sensorManager = mockk<SensorManager>()
@@ -1662,13 +1598,9 @@ class PressureSourceRuntimeTest {
 			}
 		}
 		coEvery { registrations.loadRuntimeState(any()) } returns null
-		var maintenanceAuthorityIndex = 0
 		coEvery {
-			registrations.hasActiveSourceEraseAuthority(SourceKind.PRESSURE, any())
-		} answers {
-			maintenanceAuthorityResults.getOrNull(maintenanceAuthorityIndex++)
-				?: maintenanceAuthorityActive
-		}
+			registrations.verifySourceEraseProviderSettled(SourceKind.PRESSURE, any(), any())
+		} returns true
 		coEvery { registrations.beginRetirement(any(), any(), any(), any()) } coAnswers {
 			operationEvents?.add("begin-retirement")
 			beginRetirement(firstArg(), secondArg(), thirdArg(), arg(3))

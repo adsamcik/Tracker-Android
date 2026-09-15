@@ -9,9 +9,6 @@ import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
-import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierBlockedReason
-import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierResult
-import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierRetryableReason
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.altitude.BarometricAltitudeFormula
 import com.adsamcik.tracker.tracker.source.ingress.PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION
@@ -51,6 +48,22 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+
+internal sealed interface PressureProviderEraseSettlement {
+	data object NoLocalProvider : PressureProviderEraseSettlement
+	data class Settled(val registrationGeneration: Long) : PressureProviderEraseSettlement
+	data object CaptureAuthorizationActive : PressureProviderEraseSettlement
+	data object StaleLifecycle : PressureProviderEraseSettlement
+	data object CallbackDrainTimedOut : PressureProviderEraseSettlement
+	data object ProviderRemovalFailed : PressureProviderEraseSettlement
+}
+
+internal sealed interface PressureProviderEraseVerification {
+	data object Verified : PressureProviderEraseVerification
+	data object CaptureAuthorizationActive : PressureProviderEraseVerification
+	data object StaleLifecycle : PressureProviderEraseVerification
+	data object ProviderRemovalFailed : PressureProviderEraseVerification
+}
 
 @Singleton
 class PressureSourceRuntime @Inject constructor(
@@ -264,21 +277,14 @@ class PressureSourceRuntime @Inject constructor(
 	 */
 	internal suspend fun establishSourceEraseBarrier(
 		expectedCollectedDataEpoch: Long,
-	): PressureSourceEraseBarrierResult {
+	): PressureProviderEraseSettlement {
 		require(expectedCollectedDataEpoch >= 0L)
 		fenceCapacityResume()
 		return lifecycleMutex.withLock {
 			val activeRegistration = registration ?: return@withLock
-				PressureSourceEraseBarrierResult.NoLocalProvider
-			if (!registrations.hasActiveSourceEraseAuthority(source, expectedCollectedDataEpoch)) {
-				return@withLock PressureSourceEraseBarrierResult.Blocked(
-					PressureSourceEraseBarrierBlockedReason.STALE_LIFECYCLE,
-				)
-			}
+				PressureProviderEraseSettlement.NoLocalProvider
 			if (activeRegistration.state.collectedDataEpoch != expectedCollectedDataEpoch) {
-				return@withLock PressureSourceEraseBarrierResult.Blocked(
-					PressureSourceEraseBarrierBlockedReason.STALE_LIFECYCLE,
-				)
+				return@withLock PressureProviderEraseSettlement.StaleLifecycle
 			}
 			val exactStoppingRetirement = hasExactObservedStoppingRetirement(activeRegistration)
 			if (!exactStoppingRetirement &&
@@ -286,9 +292,7 @@ class PressureSourceRuntime @Inject constructor(
 					member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
 				}
 			) {
-				return@withLock PressureSourceEraseBarrierResult.Blocked(
-					PressureSourceEraseBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
-				)
+				return@withLock PressureProviderEraseSettlement.CaptureAuthorizationActive
 			}
 
 			val acknowledgement = shutdownLocked(null)
@@ -297,29 +301,48 @@ class PressureSourceRuntime @Inject constructor(
 				acknowledgement.registrationGeneration !=
 				activeRegistration.state.registrationGeneration
 			) {
-				return@withLock PressureSourceEraseBarrierResult.Blocked(
-					PressureSourceEraseBarrierBlockedReason.STALE_LIFECYCLE,
-				)
+				return@withLock PressureProviderEraseSettlement.StaleLifecycle
 			}
 			if (!acknowledgement.appDrainComplete) {
-				return@withLock PressureSourceEraseBarrierResult.Retryable(
-					PressureSourceEraseBarrierRetryableReason.CALLBACK_DRAIN_TIMED_OUT,
-				)
+				return@withLock PressureProviderEraseSettlement.CallbackDrainTimedOut
 			}
 			if (acknowledgement.registrationRemovalOutcome != RegistrationRemovalOutcome.REMOVED) {
-				return@withLock PressureSourceEraseBarrierResult.Retryable(
-					PressureSourceEraseBarrierRetryableReason.PROVIDER_REMOVAL_FAILED,
-				)
-			}
-			if (!registrations.hasActiveSourceEraseAuthority(source, expectedCollectedDataEpoch)) {
-				return@withLock PressureSourceEraseBarrierResult.Blocked(
-					PressureSourceEraseBarrierBlockedReason.STALE_LIFECYCLE,
-				)
+				return@withLock PressureProviderEraseSettlement.ProviderRemovalFailed
 			}
 			clearClaimIfReleased(acknowledgement)
-			PressureSourceEraseBarrierResult.Established(
+			PressureProviderEraseSettlement.Settled(
 				activeRegistration.state.registrationGeneration,
 			)
+		}
+	}
+
+	internal suspend fun verifySourceEraseProviderSettled(
+		expectedCollectedDataEpoch: Long,
+		expectedRegistrationGeneration: Long?,
+	): PressureProviderEraseVerification = lifecycleMutex.withLock {
+		require(expectedCollectedDataEpoch >= 0L)
+		require(expectedRegistrationGeneration == null || expectedRegistrationGeneration > 0L)
+		val active = registration
+		if (expectedRegistrationGeneration != null && active != null &&
+			(active.state.collectedDataEpoch != expectedCollectedDataEpoch ||
+				active.state.registrationGeneration != expectedRegistrationGeneration)
+		) return@withLock PressureProviderEraseVerification.StaleLifecycle
+		if (active?.authorization?.authorizedMembers?.any { member ->
+				member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+			} == true
+		) return@withLock PressureProviderEraseVerification.CaptureAuthorizationActive
+		if (active != null || retirementIntent != null) {
+			return@withLock PressureProviderEraseVerification.ProviderRemovalFailed
+		}
+		if (registrations.verifySourceEraseProviderSettled(
+				source,
+				expectedCollectedDataEpoch,
+				expectedRegistrationGeneration,
+			)
+		) {
+			PressureProviderEraseVerification.Verified
+		} else {
+			PressureProviderEraseVerification.StaleLifecycle
 		}
 	}
 

@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.source.deletion
 import com.adsamcik.tracker.stats.api.repository.PressureSessionDeletion
 import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrier
 import com.adsamcik.tracker.tracker.source.pressure.RuntimePressureSourceEraseBarrier
+import com.adsamcik.tracker.tracker.source.pressure.LegacyPressureWriterLifecycleBarrier
+import com.adsamcik.tracker.tracker.source.pressure.UnavailableLegacyPressureWriterLifecycleBarrier
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -20,4 +22,9 @@ internal interface PressureDeletionModule {
 	fun bindPressureSourceEraseBarrier(
 		implementation: RuntimePressureSourceEraseBarrier,
 	): PressureSourceEraseBarrier
+
+	@Binds
+	fun bindLegacyPressureWriterLifecycleBarrier(
+		implementation: UnavailableLegacyPressureWriterLifecycleBarrier,
+	): LegacyPressureWriterLifecycleBarrier
 }

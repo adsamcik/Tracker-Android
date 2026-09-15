@@ -104,29 +104,27 @@ class SourceRegistrationRepository @Inject constructor(
 	private val processIncarnationIdProvider: ProcessIncarnationIdProvider,
 	private val trackingRolloutStateStore: RoomTrackingRolloutStateStore,
 ) {
-	/**
-	 * Rechecks the durable maintenance exclusion fence immediately before provider retirement.
-	 *
-	 * Demand mutation must independently reject this exact ACTIVE generation; this runtime-side
-	 * check alone is intentionally insufficient to authorize erase.
-	 */
-	internal suspend fun hasActiveSourceEraseAuthority(
+	internal suspend fun verifySourceEraseProviderSettled(
 		source: SourceKind,
 		expectedCollectedDataEpoch: Long,
+		expectedRegistrationGeneration: Long?,
 	): Boolean {
 		require(expectedCollectedDataEpoch >= 0L)
-		val lifecycle = lifecycleStore.snapshot()
-		if (lifecycle.epoch != expectedCollectedDataEpoch) return false
-		val authority = database.sourceBrokerDao().sourceMaintenanceAuthority(
-			source.stableCode,
-			com.adsamcik.tracker.shared.base.database.data.SourceMaintenanceAuthorityEntity
-				.PURPOSE_SOURCE_ERASE,
-		) ?: return false
-		return authority.state ==
-			com.adsamcik.tracker.shared.base.database.data.SourceMaintenanceAuthorityEntity.STATE_ACTIVE &&
-			authority.collectedDataEpoch == expectedCollectedDataEpoch &&
-			authority.bootId == clockDomainProvider.current() &&
-			authority.expiresElapsedRealtimeNanos > SystemClock.elapsedRealtimeNanos()
+		require(expectedRegistrationGeneration == null || expectedRegistrationGeneration > 0L)
+		val dao = database.sourceBrokerDao()
+		if (expectedRegistrationGeneration == null) {
+			return dao.currentPhysicalRegistration(source.stableCode) == null &&
+				dao.pendingProviderRemovals(source.stableCode).isEmpty()
+		}
+		val registration = dao.registration(source.stableCode, expectedRegistrationGeneration)
+			?: return false
+		return registration.collectedDataEpoch == expectedCollectedDataEpoch &&
+			registration.status == ProviderRegistrationGenerationEntity.STATUS_RETIRED &&
+			dao.currentPhysicalRegistration(source.stableCode)?.let { current ->
+				current.registrationGeneration == expectedRegistrationGeneration &&
+					current.sourceInstanceId == registration.sourceInstanceId
+			} != false &&
+			dao.pendingProviderRemovals(source.stableCode).isEmpty()
 	}
 
 	suspend fun reconcilePriorProcessRegistrations(
