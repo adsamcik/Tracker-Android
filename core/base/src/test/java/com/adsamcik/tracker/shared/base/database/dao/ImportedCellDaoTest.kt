@@ -117,6 +117,25 @@ class ImportedCellDaoTest {
 		dao.deletedIdentityOwners(listOf(digest('7')), 5).single().entryIdentity shouldBe ENTRY
 	}
 
+	@Test
+	fun `opaque owner probe returns typed entry run and scope rows in one query`() = runTest {
+		dao.insertEntryRevision(header())
+		dao.insertRun(run())
+
+		val owners = dao.opaqueOwnerProbe(listOf(ENTRY, RUN, SCOPE), 10)
+
+		owners.map { it.ownerKind }.toSet() shouldBe setOf(
+			ImportedCellOpaqueOwnerRow.ENTRY,
+			ImportedCellOpaqueOwnerRow.RUN,
+			ImportedCellOpaqueOwnerRow.SCOPE,
+		)
+		owners.single { it.ownerKind == ImportedCellOpaqueOwnerRow.RUN }.let { owner ->
+			owner.entryIdentity shouldBe ENTRY
+			owner.runIdentity shouldBe RUN
+			owner.deletionScopeDigest shouldBe SCOPE
+		}
+	}
+
 	private fun header() = ImportedCellEntryRevisionEntity(
 		identity = ENTRY,
 		importRevision = 1L,

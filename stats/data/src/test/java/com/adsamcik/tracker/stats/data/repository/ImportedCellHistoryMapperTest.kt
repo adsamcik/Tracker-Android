@@ -26,6 +26,7 @@ import com.adsamcik.tracker.shared.base.database.PortableCellSubscriptionGroupin
 import com.adsamcik.tracker.shared.base.database.RoomImportPortableCapturedCell
 import com.adsamcik.tracker.shared.base.database.RoomDeleteSelectedImportedCell
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellHistoryCandidate
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
@@ -43,6 +44,9 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDayComplet
 import com.adsamcik.tracker.stats.api.repository.CellHistoryTechnology
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
+import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryDigest
+import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryIdentity
+import com.adsamcik.tracker.stats.api.repository.ImportedCellHistorySelection
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.maps.shouldContainExactly
@@ -385,6 +389,54 @@ class ImportedCellHistoryMapperTest {
 		}
 	}
 
+	@Test
+	fun `same-origin rehashed corrupt child is value-free origin conflict in recent and detail`() =
+		runTest {
+			database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+			val logicalId = "same-origin-corrupt"
+			val value = cellEntry(logicalLocal = logicalId, runLocal = "imported-run")
+			RoomImportPortableCapturedCell(database, Dispatchers.Unconfined).importEntry(
+				importRequest(value, "same-origin"),
+			) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+			database.sourceSessionDao().insertSession(
+				LogicalTrackingSessionEntity(
+					logicalTrackingId = logicalId,
+					state = "FINALIZED",
+					lifecycleRevision = 1L,
+					desiredPlanRevision = 1L,
+					rolloutRevision = 1L,
+					startOrigin = "MANUAL",
+					clockDomainId = "boot",
+					startedAtMs = 1L,
+					startedElapsedNanos = 1L,
+					cutoffAtMs = 2L,
+					cutoffElapsedNanos = 2L,
+					completedAtMs = 2L,
+					finalAdmissionOrdinal = 0L,
+					failureCode = null,
+				),
+			)
+			val corruptChecksum = rehashStoredKnownQualityCount(value, 0)
+			val selection = ImportedCellHistorySelection(
+				ImportedCellHistoryIdentity(value.identity.value),
+				1L,
+				ImportedCellHistoryDigest(corruptChecksum),
+			)
+			val repository = repository()
+
+			(repository.recent(1) as CellHistoryPage.Available).entries.single().let { conflict ->
+				conflict.state shouldBe CellHistoryProductState.UNVERIFIABLE
+				conflict.causes shouldBe setOf(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+				conflict.observations shouldBe emptyList()
+				conflict.origin shouldBe CellHistoryOrigin.Imported(selection)
+			}
+			(repository.detail(selection) as CellHistoryQuery.Found).entry.let { conflict ->
+				conflict.state shouldBe CellHistoryProductState.UNVERIFIABLE
+				conflict.causes shouldBe setOf(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+				conflict.observations shouldBe emptyList()
+			}
+		}
+
 	private fun repository() = DefaultCellHistoryRepository(
 		database,
 		SourceProductLaneExecutionAuthority { false },
@@ -411,6 +463,101 @@ class ImportedCellHistoryMapperTest {
 			check(cursor.moveToFirst())
 			cursor.getLong(0)
 		}
+
+	private fun rehashStoredKnownQualityCount(
+		entry: PortableCapturedCellEntryV1,
+		knownQualityObservationCount: Int,
+	): String {
+		val run = entry.runs.single()
+		val observation = run.observations.single()
+		val observationChecksum = portableCellDigest("tracker-portable-cell-observation-v1") {
+			writeCellString(observation.identity.value)
+			writeLong(observation.semanticRevision)
+			writeNullableLong(observation.supersedesSemanticRevision)
+			writeCellString(observation.aggregateOwnerIdentity?.value)
+			writeNullableLong(observation.aggregateOwnerSemanticRevision)
+			writeLong(observation.coverageStartTimeMs)
+			writeLong(observation.observedTimeMs)
+			writeLong(observation.latestPossibleTimeMs)
+			writeLong(observation.wallTimeUncertaintyMs)
+			writeCellString(observation.storedZoneId)
+			writeCellString(observation.childCompleteness.name)
+			writeCellString(observation.subscriptionGrouping.name)
+			listOf(
+				observation.submittedChildCount,
+				observation.acceptedChildCount,
+				observation.staleChildCount,
+				observation.futureTimeChildCount,
+				observation.missingTimeChildCount,
+				observation.clockUnverifiableChildCount,
+				observation.authorityMismatchChildCount,
+				observation.unsupportedTechnologyChildCount,
+				observation.observationCount,
+				observation.registeredObservationCount,
+				observation.gsmCount,
+				observation.cdmaCount,
+				observation.wcdmaCount,
+				observation.tdscdmaCount,
+				observation.lteCount,
+				observation.nrCount,
+				observation.qualityUnknownCount,
+				observation.qualityNoneOrUnknownCount,
+				observation.qualityPoorCount,
+				observation.qualityModerateCount,
+				observation.qualityGoodCount,
+				observation.qualityGreatCount,
+				observation.weakObservationCount,
+				knownQualityObservationCount,
+			).forEach(::writeInt)
+			writeBoolean(observation.allKnownQualityIsWeak)
+			writeLong(observation.qualityFlags)
+			writeNullableDouble(observation.qualityConfidence)
+		}
+		val runChecksum = portableCellDigest("tracker-portable-cell-run-v1") {
+			writeCellString(run.identity.value)
+			writeCellString(run.deletionScopeDigest.value)
+			writeLong(run.startTimeMs)
+			writeLong(run.endTimeMs)
+			writeCellString(run.captureCoverage.name)
+			writeCellString(run.availability.name)
+			writeCellString(run.acquisitionCompleteness.name)
+			writeBoolean(run.retentionLoss)
+			writeCellString(run.subscriptionGrouping.name)
+			writeInt(1)
+			writeCellString(observation.identity.value)
+			writeCellString(observationChecksum)
+		}
+		val entryChecksum = portableCellDigest("tracker-portable-cell-entry-v1") {
+			writeCellString(entry.format)
+			writeInt(entry.schemaVersion)
+			writeCellString(entry.identity.value)
+			writeCellString(entry.sessionMode.name)
+			writeLong(entry.startTimeMs)
+			writeLong(entry.endTimeMs)
+			writeCellString(entry.subscriptionGrouping.name)
+			writeInt(1)
+			writeCellString(run.identity.value)
+			writeCellString(runChecksum)
+		}
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_cell_observation SET known_quality_observation_count = ?, " +
+				"content_checksum = ? WHERE entry_identity = ?",
+			arrayOf(knownQualityObservationCount, observationChecksum, entry.identity.value),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_cell_run SET content_checksum = ? WHERE entry_identity = ?",
+			arrayOf(runChecksum, entry.identity.value),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_cell_entry_revision SET content_checksum = ? WHERE identity = ?",
+			arrayOf(entryChecksum, entry.identity.value),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_cell_receipt SET entry_content_checksum = ? WHERE entry_identity = ?",
+			arrayOf(entryChecksum, entry.identity.value),
+		)
+		return entryChecksum
+	}
 
 	private companion object {
 		const val EPOCH = 4L

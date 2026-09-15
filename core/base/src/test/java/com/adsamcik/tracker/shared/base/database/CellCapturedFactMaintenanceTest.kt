@@ -1204,8 +1204,17 @@ class CellCapturedFactMaintenanceTest {
 
 	@Test
 	fun `two database export import typed read and latest reexport preserve complete Cell v1`() = runTest {
-		val firstIngress = seedCapturedCell(semanticRevisions = 2, withPortableExportState = true)
+		val firstIngress = seedCapturedCell(
+			semanticRevisions = 2,
+			withPortableExportState = true,
+			portableLastSourceSequence = 0L,
+		)
 		firstIngress.sourceSequence shouldBe 0L
+		database.trackingHistoryReadDao().sourceCompleteness(
+			CELL_SOURCE,
+			listOf(SERVICE_RUN_ID),
+			2,
+		).single().lastSourceSequence shouldBe 0L
 		var exported: PortableCapturedCellEntryV1? = null
 		portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) { entry ->
 			exported = entry
@@ -1258,6 +1267,10 @@ class CellCapturedFactMaintenanceTest {
 				observationCount = original.runs.sumOf { it.observations.size },
 			)
 			reexported shouldBe original
+			PortableCellOriginComparison.areExactFullV1Duplicates(
+				original,
+				requireNotNull(reexported),
+			) shouldBe true
 			sinkWasTransactional shouldBe false
 			listOf(
 				"source_event_wal",
@@ -2455,6 +2468,7 @@ class CellCapturedFactMaintenanceTest {
 		directDemandActive: Boolean = false,
 		withPortableExportState: Boolean = false,
 		portableLaneThroughOrdinal: Long? = null,
+		portableLastSourceSequence: Long = 1L,
 		persistCapturedProduct: Boolean = true,
 	): CellCapturedFactRevisionEntity {
 		database.sourceEvidenceStateDao().ensure(
@@ -2499,7 +2513,7 @@ class CellCapturedFactMaintenanceTest {
 		if (withPortableExportState) {
 			installPortableExportState(
 				throughOrdinal = portableLaneThroughOrdinal ?: fact.sourceAdmissionOrdinal,
-				lastSourceSequence = 1L,
+				lastSourceSequence = portableLastSourceSequence,
 			)
 		}
 		return fact

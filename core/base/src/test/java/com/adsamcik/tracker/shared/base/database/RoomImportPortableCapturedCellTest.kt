@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
+import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
@@ -9,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletionGenera
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletedIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -16,10 +18,13 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.security.MessageDigest
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -114,6 +119,21 @@ class RoomImportPortableCapturedCellTest {
 
 		database.importedCellDao().boundedEntryRevisions(first.identity.value)
 			.map { it.importRevision } shouldBe listOf(1L, 2L)
+	}
+
+	@Test
+	fun `semantic revision bump without a material Cell value change is rejected`() = runTest {
+		seedEvidence()
+		val first = entry(observation = observation("one"))
+		val noOp = entry(observation = observation("one", semanticRevision = 2L))
+		importer().importEntry(request(first)) shouldBe
+			ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+
+		importer().importEntry(request(noOp, "no-op", "entry-2")) shouldBe
+			ImportPortableCapturedCellResult.Blocked(
+				PortableCellImportBlockedReason.CORRECTION_CONFLICT,
+			)
+		database.importedCellDao().boundedEntryRevisions(first.identity.value).size shouldBe 1
 	}
 
 	@Test
@@ -564,6 +584,63 @@ class RoomImportPortableCapturedCellTest {
 			database.importedCellDao().receiptsForAdmission(original.identity.value).size shouldBe 1
 		}
 	}
+
+	@Test
+	fun `stored no-op second revision is impossible authority for read replay correction and reexport`() =
+		runTest {
+			seedEvidence()
+			val value = entry()
+			val originalRequest = request(value)
+			importer().importEntry(originalRequest) shouldBe
+				ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+			val dao = database.importedCellDao()
+			val firstHeader = dao.boundedEntryRevisions(value.identity.value).single()
+			val firstRun = dao.allRunsForAdmission(value.identity.value).single()
+			val firstObservation = dao.allObservationsForAdmission(value.identity.value).single()
+			dao.insertEntryRevision(
+				firstHeader.copy(
+					importRevision = 2L,
+					supersedesImportRevision = 1L,
+					importJobId = "forged-no-op",
+					importEntryKey = "entry-2",
+					receivedAtMs = firstHeader.receivedAtMs + 1L,
+				),
+			)
+			dao.insertRun(firstRun.copy(entryImportRevision = 2L))
+			dao.insertObservation(firstObservation.copy(entryImportRevision = 2L))
+			dao.insertReceipt(
+				ImportedCellReceiptEntity(
+					importJobId = "forged-no-op",
+					importEntryKey = "entry-2",
+					importSourceName = firstHeader.importSourceName,
+					receivedAtMs = firstHeader.receivedAtMs + 1L,
+					entryIdentity = firstHeader.identity,
+					entryImportRevision = 2L,
+					entryContentChecksum = firstHeader.contentChecksum,
+					collectedDataEpoch = EPOCH,
+				),
+			)
+
+			(database.withTransaction {
+				ImportedCellProductReader(database).selectIdentityInTransaction(value.identity)
+			} as ImportedCellProductEvaluation.Unverifiable).reason shouldBe
+				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE
+			importer().importEntry(originalRequest) shouldBe ImportPortableCapturedCellResult.Unverifiable(
+				PortableCellImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+			val correction = entry(observation = observation("one", 2L, qualityFlags = 7L))
+			importer().importEntry(request(correction, "correction", "entry-3")) shouldBe
+				ImportPortableCapturedCellResult.Unverifiable(
+					PortableCellImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+			var sinkReached = false
+			RoomReexportImportedPortableCapturedCell(database, Dispatchers.Unconfined).reexport(
+				ReexportImportedPortableCapturedCellRequest(value.identity, 2L, value.contentChecksum),
+			) { sinkReached = true } shouldBe ExportPortableCapturedCellResult.Unverifiable(
+				PortableCellUnverifiableReason.IMPORTED_EVIDENCE_UNVERIFIABLE,
+			)
+			sinkReached shouldBe false
+		}
 
 	@Test
 	fun `mutable decoded collection exceeding the run cap is typed before Room`() = runTest {
@@ -1072,6 +1149,108 @@ class RoomImportPortableCapturedCellTest {
 		) shouldBe ImportPortableCapturedCellResult.Unverifiable(
 			PortableCellImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
 		)
+	}
+
+	@Test
+	fun `recent one hundred reuses page ownership snapshot and one owner union per batch`() = runTest {
+		database.close()
+		val statements = CopyOnWriteArrayList<String>()
+		database = Room.inMemoryDatabaseBuilder(
+			ApplicationProvider.getApplicationContext<Application>(),
+			AppDatabase::class.java,
+		).allowMainThreadQueries()
+			.setQueryCallback(
+				{ sql, _ ->
+					val normalized = sql.trimStart()
+					if (normalized.startsWith("SELECT", true) ||
+						normalized.startsWith("WITH", true)
+					) statements += normalized
+				},
+				Executor { command -> command.run() },
+			)
+			.build()
+		seedEvidence()
+		repeat(100) { index ->
+			val observation = observation("bulk-observation-$index")
+			val value = entry(
+				logicalLocal = "bulk-logical-$index",
+				runDefinitions = listOf(
+					RunDefinition("bulk-run-$index", 10L + index, 20L + index, listOf(observation)),
+				),
+			)
+			importer().importEntry(request(
+				value,
+				jobId = "bulk-job-$index",
+				entryKey = "bulk-entry-$index",
+			)) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		}
+		statements.clear()
+
+		val result = database.withTransaction {
+			ImportedCellProductReader(database).selectRecentInTransaction(100)
+		}
+
+		result.size shouldBe 100
+		statements.size shouldBeLessThanOrEqual 190
+		statements.count { it.contains("FROM source_evidence_state", true) } shouldBe 1
+		statements.count { it.contains("FROM logical_tracking_session", true) } shouldBe 1
+		statements.count { it.contains("FROM source_service_run", true) } shouldBe 1
+		statements.count { it.contains("FROM cell_captured_fact_revision", true) } shouldBe 1
+		statements.count { it.contains("FROM source_session_completeness", true) } shouldBe 1
+		statements.count { it.contains("FROM cell_capture_deletion_generation", true) } shouldBe 1
+		statements.count { it.contains("UNION ALL", true) } shouldBe 25
+	}
+
+	@Test
+	fun `recent cancellation between bounded lineage batches escapes immediately`() = runTest {
+		seedEvidence()
+		repeat(5) { index ->
+			val observation = observation("cancel-observation-$index")
+			val value = entry(
+				logicalLocal = "cancel-logical-$index",
+				runDefinitions = listOf(
+					RunDefinition("cancel-run-$index", 10L + index, 20L + index, listOf(observation)),
+				),
+			)
+			importer().importEntry(request(
+				value,
+				jobId = "cancel-job-$index",
+				entryKey = "cancel-entry-$index",
+			)) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		}
+		val reader = ImportedCellProductReader(database) { completedBatchCount ->
+			if (completedBatchCount == 1) throw CancellationException("cancel between batches")
+		}
+
+		shouldThrow<CancellationException> {
+			database.withTransaction { reader.selectRecentInTransaction(5) }
+		}
+	}
+
+	@Test
+	fun `recent cancellation between opaque owner chunks escapes without further queries`() = runTest {
+		seedEvidence()
+		val observations = (0 until 300).map { index -> observation("owner-chunk-$index") }
+		val value = entry(
+			logicalLocal = "owner-chunk-logical",
+			runDefinitions = listOf(
+				RunDefinition("owner-chunk-run", 10L, 20L, observations),
+			),
+		)
+		importer().importEntry(request(value)) shouldBe
+			ImportPortableCapturedCellResult.Applied(1L, 1, 300)
+		val reader = ImportedCellProductReader(
+			database = database,
+			ownerChunkCheckpoint = { completedChunkCount ->
+				if (completedChunkCount == 1) {
+					throw CancellationException("cancel between opaque owner chunks")
+				}
+			},
+		)
+
+		shouldThrow<CancellationException> {
+			database.withTransaction { reader.selectRecentInTransaction(1) }
+		}
 	}
 
 	@Test

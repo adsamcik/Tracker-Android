@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind
+import com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
@@ -321,6 +323,65 @@ class CellHistoryRepositoryRoomTest {
 	}
 
 	@Test
+	fun `opaque local lookup rejects a run swapped onto another logical segment`() = runTest {
+		val first = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
+		val second = buildGroup(groupIndex = 2, runCount = 1, factRunIndexes = setOf(0))
+		persist(listOf(first, second))
+		val repository = repository { true }
+		val selection = requireNotNull(
+			(repository.session(first.runs.single().segment.id) as CellHistoryQuery.Found)
+				.entry.selection,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_service_run SET session_segment_id = NULL WHERE service_run_id = ?",
+			arrayOf(second.runs.single().run.serviceRunId),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_service_run SET session_segment_id = ? WHERE service_run_id = ?",
+			arrayOf(
+				second.runs.single().segment.id,
+				first.runs.single().run.serviceRunId,
+			),
+		)
+
+		assertInvalidLocalSelection(repository, selection)
+	}
+
+	@Test
+	fun `opaque local lookup reports invalid membership after identity owner loses all runs`() = runTest {
+		val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = emptySet())
+		database.sourceSessionDao().insertSession(group.session)
+		val selection = LocalCellHistorySelection(
+			LocalCellHistoryIdentity(
+				PortableCellOpaqueIdentity.derive(
+					PortableCellIdentityKind.LOGICAL_ENTRY,
+					group.session.logicalTrackingId,
+				).value,
+			),
+		)
+
+		assertInvalidLocalSelection(repository { true }, selection)
+	}
+
+	@Test
+	fun `opaque local lookup reports invalid membership when selected run segment is missing`() =
+		runTest {
+			val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
+			persist(listOf(group))
+			val repository = repository { true }
+			val selection = requireNotNull(
+				(repository.session(group.runs.single().segment.id) as CellHistoryQuery.Found)
+					.entry.selection,
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM session_segment WHERE id = ?",
+				arrayOf(group.runs.single().segment.id),
+			)
+
+			assertInvalidLocalSelection(repository, selection)
+		}
+
+	@Test
 	fun `cursor-carried scope exposes a missing current revision as integrity failure`() = runTest {
 		val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
 		persist(listOf(group))
@@ -406,6 +467,19 @@ class CellHistoryRepositoryRoomTest {
 		SourceProductLaneExecutionAuthority { authority() },
 		UnconfinedTestDispatcher(),
 	)
+
+	private suspend fun assertInvalidLocalSelection(
+		repository: DefaultCellHistoryRepository,
+		selection: com.adsamcik.tracker.stats.api.repository.CellHistoryEntrySelection,
+	) {
+		val entry = (repository.detail(selection) as CellHistoryQuery.Found).entry
+		entry.selection shouldBe selection
+		entry.state shouldBe CellHistoryProductState.FAILED
+		entry.causes shouldBe setOf(CellHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+		entry.startTime.raw shouldBe 0L
+		entry.endTime.raw shouldBe 0L
+		entry.observations shouldBe emptyList()
+	}
 
 	private suspend fun persist(
 		groups: List<Group>,
