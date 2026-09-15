@@ -12,10 +12,16 @@ import androidx.work.WorkerParameters
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ActivityCapturedRetentionResult
+import com.adsamcik.tracker.shared.base.database.RoomTruncateImportedActivityRetention
+import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionRequest
+import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionResult
 import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
+import com.adsamcik.tracker.shared.base.database.pruneCapturedActivityFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
@@ -43,6 +49,7 @@ class DataRetentionWorker @AssistedInject constructor(
 	private val collectedDataLifecycleStore: CollectedDataLifecycleStore,
 	private val trackingStartupGate: TrackingStartupGate,
 	private val stepsSessionFactProjectionLaneProvider: Provider<StepsSessionFactProjectionLane>,
+	private val importedActivityRetentionProvider: Provider<RoomTruncateImportedActivityRetention>,
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -94,6 +101,8 @@ class DataRetentionWorker @AssistedInject constructor(
             throw e
 		} catch (_: StartupGenerationChangedException) {
 			Result.success()
+		} catch (_: ActivityRetentionDeferredException) {
+			Result.retry()
         } catch (error: Exception) {
             Tracebox.log.error(error, TrackerTraceboxTemplates.DATA_RETENTION_FAILED)
             Result.retry()
@@ -165,7 +174,34 @@ class DataRetentionWorker @AssistedInject constructor(
 					collectedDataEpoch = lifecycle.epoch,
 					markedAtMs = updatedAtMs,
 				)
+				val activityState = requireNotNull(sourceEvidenceStateDao.get()) {
+					"Activity retention requires source-evidence authority"
+				}
+				val activityRetainedFromMs = requireNotNull(activityState.retainedFromMs)
+				when (importedActivityRetentionProvider.get().truncate(
+					TruncateImportedActivityRetentionRequest(
+						expectedCollectedDataEpoch = activityState.collectedDataEpoch,
+						expectedSourceEvidenceRevision = activityState.revision,
+						retainedFromMs = activityRetainedFromMs,
+						retainedAtMs = updatedAtMs,
+					),
+				)) {
+					is TruncateImportedActivityRetentionResult.Truncated,
+					TruncateImportedActivityRetentionResult.NoChange -> Unit
+					else -> throw ActivityRetentionDeferredException
+				}
 				if (appDatabase.pendingSignalDao().hasAny()) return@withTransaction false
+				if (hasCapturedActivityRetentionAuthority(appDatabase)) {
+					when (appDatabase.pruneCapturedActivityFactsAffectedByRetentionFloor(
+						beforeMs = activityRetainedFromMs,
+						expectedCollectedDataEpoch = activityState.collectedDataEpoch,
+						markedAtMs = updatedAtMs,
+					)) {
+						is ActivityCapturedRetentionResult.Pruned,
+						ActivityCapturedRetentionResult.NoChange -> Unit
+						is ActivityCapturedRetentionResult.Blocked -> throw ActivityRetentionDeferredException
+					}
+				}
 				appDatabase.trajectoryReconstructionDao().deleteWithSourceBefore(cutoffMillis)
 				val observationDao = appDatabase.locationObservationDao()
 				observationDao.deleteOlderThan(cutoffMillis)
@@ -212,10 +248,26 @@ class DataRetentionWorker @AssistedInject constructor(
 		}
 	}
 
+	/** Empty dormant storage is not permission to activate or require the canonical Activity writer. */
+	private suspend fun hasCapturedActivityRetentionAuthority(db: AppDatabase): Boolean {
+		val owner = db.sourceDestinationOwnerDao().get(
+			SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
+		)
+		val facts = db.activityCapturedFactDao()
+		val counts = listOf(facts.revisionCount(), facts.fragmentCount(), facts.evidenceCount(), facts.cursorCount())
+		if (counts.any { it < 0L }) throw ActivityRetentionDeferredException
+		val canonicalOwner = owner != null &&
+			owner.owner == SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS &&
+			owner.ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+		return counts.any { it != 0L } || canonicalOwner
+	}
+
     private enum class RawRetentionPruneResult {
         PRUNED,
         DEFERRED_FOR_PENDING_SIGNALS,
     }
 
 	private object StartupGenerationChangedException : RuntimeException()
+	private object ActivityRetentionDeferredException : RuntimeException()
 }

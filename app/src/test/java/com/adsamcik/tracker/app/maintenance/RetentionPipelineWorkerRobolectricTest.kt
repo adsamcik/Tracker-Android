@@ -8,6 +8,8 @@ import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.RoomTruncateImportedActivityRetention
+import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionResult
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
@@ -522,6 +524,11 @@ class RetentionPipelineWorkerRobolectricTest {
 		trackingStartupGate: TrackingStartupGate = READY_STARTUP_GATE,
 		stepsProjectionLaneProvider: Provider<StepsSessionFactProjectionLane> =
 			Provider { mockk(relaxed = true) },
+		importedActivityRetentionProvider: Provider<RoomTruncateImportedActivityRetention> = Provider {
+			mockk {
+				coEvery { truncate(any()) } returns TruncateImportedActivityRetentionResult.NoChange
+			}
+		},
 	): RetentionPipelineWorker =
 		TestListenableWorkerBuilder<RetentionPipelineWorker>(context)
 			.setWorkerFactory(object : WorkerFactory() {
@@ -538,6 +545,7 @@ class RetentionPipelineWorkerRobolectricTest {
 					migrationBackupRepository,
 					trackingStartupGate,
 					stepsProjectionLaneProvider,
+					importedActivityRetentionProvider,
 				)
 			})
 			.build() as RetentionPipelineWorker
