@@ -279,6 +279,14 @@ class ActivityRetentionWorkerRobolectricTest {
 				if (path == WorkerPath.LEGACY) DataRetentionWorker(
 					appContext, parameters, store, Provider { db }, mockk<ExportPlanStore>(relaxed = true),
 					mockk(relaxed = true), lifecycle, READY_GATE, Provider { lane }, Provider { imported },
+					mockk<CellCapturedRetentionService> {
+						coEvery { prune(any(), any(), any()) } returns
+							com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult.NoChange
+					},
+					mockk<com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionService> {
+						coEvery { prune(any(), any(), any()) } returns
+							com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionResult.NoChange
+					},
 				) else RetentionPipelineWorker(
 					appContext, parameters, store, lifecycle, Provider { db }, mockk(relaxed = true),
 					READY_GATE, Provider { lane }, Provider { imported },

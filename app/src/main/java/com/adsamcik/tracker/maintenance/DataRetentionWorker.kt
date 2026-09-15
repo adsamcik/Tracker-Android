@@ -9,10 +9,12 @@ import androidx.annotation.VisibleForTesting
 import androidx.room.withTransaction
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.adsamcik.tracker.app.maintenance.CellCapturedRetentionService
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.ActivityCapturedRetentionResult
+import com.adsamcik.tracker.shared.base.database.CellCapturedRetentionResult
 import com.adsamcik.tracker.shared.base.database.RoomTruncateImportedActivityRetention
 import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionRequest
 import com.adsamcik.tracker.shared.base.database.TruncateImportedActivityRetentionResult
@@ -31,6 +33,8 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
+import com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionResult
+import com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionService
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
@@ -52,6 +56,8 @@ class DataRetentionWorker @AssistedInject constructor(
 	private val trackingStartupGate: TrackingStartupGate,
 	private val stepsSessionFactProjectionLaneProvider: Provider<StepsSessionFactProjectionLane>,
 	private val importedActivityRetentionProvider: Provider<RoomTruncateImportedActivityRetention>,
+	private val cellCapturedRetentionService: CellCapturedRetentionService,
+	private val wifiCapturedRetentionService: WifiCapturedRetentionService,
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -82,12 +88,35 @@ class DataRetentionWorker @AssistedInject constructor(
 			val lifecycle = collectedDataLifecycleStore.advanceRetainedFrom(cutoff)
 			requireReadyGeneration(startupGeneration)
 			migrationBackupRepository.deleteAll()
-			when (pruneRawData(appDatabase, cutoff, lifecycle, now, startupGeneration)) {
+			val rawRetentionResult = pruneRawData(appDatabase, cutoff, lifecycle, now, startupGeneration)
+			val retainedFromMs = requireNotNull(lifecycle.retainedFromMs) {
+				"Captured radio retention requires a durable retained-from floor"
+			}
+			if (rawRetentionResult == RawRetentionPruneResult.PRUNED) {
+				requireReadyGeneration(startupGeneration)
+				trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
+					stepsSessionFactProjectionLaneProvider.get().drainAvailable()
+				} ?: throw StartupGenerationChangedException
+			}
+			// Captured radio maintenance authenticates its retained source WAL after lifecycle
+			// settlement and before the shared physical WAL prune, including deferred raw runs.
+			val cellRetentionAccepted = pruneCapturedCellData(
+				appDatabase,
+				retainedFromMs,
+				now,
+				startupGeneration,
+			)
+			val wifiRetentionAccepted = pruneCapturedWifiData(
+				appDatabase,
+				retainedFromMs,
+				now,
+				startupGeneration,
+			)
+			if (!cellRetentionAccepted || !wifiRetentionAccepted) {
+				throw RadioRetentionDeferredException
+			}
+			when (rawRetentionResult) {
 				RawRetentionPruneResult.PRUNED -> {
-					requireReadyGeneration(startupGeneration)
-					trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
-						stepsSessionFactProjectionLaneProvider.get().drainAvailable()
-					} ?: throw StartupGenerationChangedException
 					requireReadyGeneration(startupGeneration)
 					appDatabase.pruneSourceEventStorageBefore(
 						createdBeforeMs = cutoff,
@@ -104,6 +133,8 @@ class DataRetentionWorker @AssistedInject constructor(
 		} catch (_: StartupGenerationChangedException) {
 			Result.success()
 		} catch (_: ActivityRetentionDeferredException) {
+			Result.retry()
+		} catch (_: RadioRetentionDeferredException) {
 			Result.retry()
         } catch (error: Exception) {
             Tracebox.log.error(error, TrackerTraceboxTemplates.DATA_RETENTION_FAILED)
@@ -256,6 +287,50 @@ class DataRetentionWorker @AssistedInject constructor(
 		}
 	}
 
+	private suspend fun pruneCapturedCellData(
+		appDatabase: AppDatabase,
+		retainedFromMs: Long,
+		updatedAtMs: Long,
+		startupGeneration: Long,
+	): Boolean {
+		requireReadyGeneration(startupGeneration)
+		val result = trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
+			cellCapturedRetentionService.prune(
+				database = appDatabase,
+				beforeMs = retainedFromMs,
+				markedAtMs = updatedAtMs,
+			)
+		} ?: throw StartupGenerationChangedException
+		requireReadyGeneration(startupGeneration)
+		return when (result) {
+			is CellCapturedRetentionResult.Pruned,
+			CellCapturedRetentionResult.NoChange -> true
+			is CellCapturedRetentionResult.Blocked -> false
+		}
+	}
+
+	private suspend fun pruneCapturedWifiData(
+		appDatabase: AppDatabase,
+		retainedFromMs: Long,
+		updatedAtMs: Long,
+		startupGeneration: Long,
+	): Boolean {
+		requireReadyGeneration(startupGeneration)
+		val result = trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
+			wifiCapturedRetentionService.prune(
+				database = appDatabase,
+				beforeMs = retainedFromMs,
+				markedAtMs = updatedAtMs,
+			)
+		} ?: throw StartupGenerationChangedException
+		requireReadyGeneration(startupGeneration)
+		return when (result) {
+			is WifiCapturedRetentionResult.Pruned,
+			WifiCapturedRetentionResult.NoChange -> true
+			is WifiCapturedRetentionResult.Blocked -> false
+		}
+	}
+
 	/** Empty dormant storage is not permission to activate or require the canonical Activity writer. */
 	private suspend fun hasCapturedActivityRetentionAuthority(db: AppDatabase): Boolean {
 		val owner = db.sourceDestinationOwnerDao().get(
@@ -278,4 +353,5 @@ class DataRetentionWorker @AssistedInject constructor(
 
 	private object StartupGenerationChangedException : RuntimeException()
 	private object ActivityRetentionDeferredException : RuntimeException()
+	private object RadioRetentionDeferredException : RuntimeException()
 }
