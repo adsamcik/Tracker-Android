@@ -540,6 +540,7 @@ class TrackingOrchestratorIntegrationTest {
 		val evidence = LocationDurableObservationEvidence(
 			sourceEventId = SourceEventId(eventId),
 			sourceAdmissionOrdinal = admissionOrdinal,
+			sourceSequence = admissionOrdinal,
 			walIntegrityIdentity =
 				if (admissionOrdinal % 2L == 0L) "c".repeat(64) else "d".repeat(64),
 			sourceDeliveryIdentity = deliveryIdentity,

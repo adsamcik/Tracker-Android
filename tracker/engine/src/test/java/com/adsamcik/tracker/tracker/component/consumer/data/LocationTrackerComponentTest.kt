@@ -136,6 +136,7 @@ class LocationTrackerComponentTest {
 				lastAccepted = accepted.toCanonicalCurationPoint(),
 				pendingReacquisition = pending.toCanonicalCurationPoint(),
 				lastSmoothedSpeedMps = 0f,
+				altitudeProcessorState = AltitudeProcessor.initialState(),
 			),
 		)
 		val collectionData = MutableCollectionData()
@@ -166,6 +167,83 @@ class LocationTrackerComponentTest {
 
 		collectionData.location.shouldBeNull()
 		curation.outcome.decisionReason shouldBe "CURATED_LOCATION_CONTRACT_MISMATCH"
+	}
+
+	@Test
+	fun `altitude-bearing continuation matches across separate protected processors`() = runTest {
+		val context = RuntimeEnvironment.getApplication()
+		val first = createAndroidLocation(
+			altitude = 500.0,
+			verticalAccuracy = 5f,
+			time = 1_000L,
+		)
+		val second = createAndroidLocation(
+			altitude = 512.0,
+			verticalAccuracy = 4f,
+			time = 2_000L,
+		)
+		val uninterrupted = createComponent()
+		uninterrupted.onEnable(context)
+		val firstData = MutableCollectionData()
+		val firstCuration = curationContext()
+		uninterrupted.onDataUpdated(
+			createCycle(first, curationContext = firstCuration),
+			firstData,
+		)
+		val uninterruptedSecondData = MutableCollectionData()
+		val uninterruptedSecondCuration = curationContext(
+			stateBefore = firstCuration.outcome.stateAfter,
+		)
+		uninterrupted.onDataUpdated(
+			createCycle(second, curationContext = uninterruptedSecondCuration),
+			uninterruptedSecondData,
+		)
+
+		val reopened = createComponent()
+		reopened.onEnable(context)
+		val reopenedSecondData = MutableCollectionData()
+		val reopenedSecondCuration = curationContext(
+			stateBefore = firstCuration.outcome.stateAfter,
+		)
+		reopened.onDataUpdated(
+			createCycle(second, curationContext = reopenedSecondCuration),
+			reopenedSecondData,
+		)
+
+		reopenedSecondData.processedAltitude shouldBe uninterruptedSecondData.processedAltitude
+		reopenedSecondCuration.outcome.stateAfter shouldBe
+			uninterruptedSecondCuration.outcome.stateAfter
+	}
+
+	@Test
+	fun `unknown commit retry recomputes altitude from the same pre-write state`() = runTest {
+		val context = RuntimeEnvironment.getApplication()
+		val location = createAndroidLocation(
+			altitude = 500.0,
+			verticalAccuracy = 5f,
+			time = 1_000L,
+		)
+		val before = LocationCanonicalCurationState.EMPTY
+		val firstProcessor = createComponent()
+		firstProcessor.onEnable(context)
+		val firstData = MutableCollectionData()
+		val firstCuration = curationContext(stateBefore = before)
+		firstProcessor.onDataUpdated(
+			createCycle(location, curationContext = firstCuration),
+			firstData,
+		)
+
+		val retryProcessor = createComponent()
+		retryProcessor.onEnable(context)
+		val retryData = MutableCollectionData()
+		val retryCuration = curationContext(stateBefore = before)
+		retryProcessor.onDataUpdated(
+			createCycle(location, curationContext = retryCuration),
+			retryData,
+		)
+
+		retryData.processedAltitude shouldBe firstData.processedAltitude
+		retryCuration.outcome.stateAfter shouldBe firstCuration.outcome.stateAfter
 	}
 
 	private fun curationContext(

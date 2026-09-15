@@ -130,6 +130,52 @@ class AltitudeProcessorTest {
 	}
 
 	@Test
+	fun `snapshot restore preserves complete stateful altitude continuation`() {
+		val converter = FakeGeoidAltitudeConverter {
+			GeoidAltitudeConversionOutcome.Success(it.altitude - 100.0)
+		}
+		val uninterrupted = AltitudeProcessor(
+			verticalAccuracyThresholdM = 20f,
+			geoidAltitudeConverter = converter,
+		)
+		val first = createLocation(
+			altitude = 500.0,
+			verticalAccuracy = 5f,
+			timeMs = 1_000L,
+			elapsedRealtimeNanos = 1_000_000_000L,
+		)
+		val second = createLocation(
+			altitude = 512.0,
+			verticalAccuracy = 4f,
+			timeMs = 2_000L,
+			elapsedRealtimeNanos = 2_000_000_000L,
+		)
+		uninterrupted.processWithBarometerResult(context, first, 955f)
+		val snapshot = uninterrupted.snapshotState()
+		val uninterruptedSecond = uninterrupted.processWithBarometerResult(
+			context,
+			second,
+			954f,
+		)
+
+		val reopened = AltitudeProcessor(
+			verticalAccuracyThresholdM = 20f,
+			geoidAltitudeConverter = FakeGeoidAltitudeConverter {
+				GeoidAltitudeConversionOutcome.Success(it.altitude - 100.0)
+			},
+		)
+		reopened.restoreState(snapshot)
+		val reopenedSecond = reopened.processWithBarometerResult(
+			context,
+			second,
+			954f,
+		)
+
+		reopenedSecond shouldBe uninterruptedSecond
+		reopened.snapshotState() shouldBe uninterrupted.snapshotState()
+	}
+
+	@Test
 	fun `failed conversion permits calibrated barometric continuation without a GPS update`() {
 		val outcomes = ArrayDeque<GeoidAltitudeConversionOutcome>().apply {
 			add(GeoidAltitudeConversionOutcome.Success(420.0))
