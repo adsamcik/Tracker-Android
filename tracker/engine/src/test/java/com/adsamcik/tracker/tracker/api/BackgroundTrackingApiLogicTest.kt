@@ -52,6 +52,114 @@ class BackgroundTrackingApiLogicTest {
 	}
 
 	@Test
+	fun `coherent unavailable initialization schedules containment regardless process active state`() {
+		val unavailable = AutomaticTrackingOperationalAvailability.Unavailable(
+			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+		)
+
+		automaticControlContainmentKeyOrNull(
+			paramsInitialized = true,
+			activePolicyRevision = 12L,
+			paramsPolicyRevision = 12L,
+			controlConsentEpoch = 5L,
+			configuredMode = GroupedActivity.ON_FOOT.ordinal,
+			availability = unavailable,
+		) shouldBe AutomaticControlContainmentKey(
+			policyRevision = 12L,
+			controlConsentEpoch = 5L,
+			configuredMode = GroupedActivity.ON_FOOT.ordinal,
+			unavailableReason =
+				AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+		)
+	}
+
+	@Test
+	fun `containment waits for coherent authority and resets while operational`() {
+		val unavailable = AutomaticTrackingOperationalAvailability.Unavailable(
+			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+		)
+		automaticControlContainmentKeyOrNull(
+			paramsInitialized = false,
+			activePolicyRevision = 12L,
+			paramsPolicyRevision = 12L,
+			controlConsentEpoch = 5L,
+			configuredMode = 1,
+			availability = unavailable,
+		) shouldBe null
+		automaticControlContainmentKeyOrNull(
+			paramsInitialized = true,
+			activePolicyRevision = 12L,
+			paramsPolicyRevision = 13L,
+			controlConsentEpoch = 5L,
+			configuredMode = 1,
+			availability = unavailable,
+		) shouldBe null
+		automaticControlContainmentKeyOrNull(
+			paramsInitialized = true,
+			activePolicyRevision = 12L,
+			paramsPolicyRevision = 12L,
+			controlConsentEpoch = 5L,
+			configuredMode = 1,
+			availability = AutomaticTrackingOperationalAvailability.Ready,
+		) shouldBe null
+	}
+
+	@Test
+	fun `initial and operational to unavailable boundaries enqueue one retry owned containment`() {
+		val key = AutomaticControlContainmentKey(
+			policyRevision = 12L,
+			controlConsentEpoch = 5L,
+			configuredMode = 1,
+			unavailableReason =
+				AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+		)
+		var enqueued = 0
+		var contained = 0
+
+		val first = applyAutomaticControlContainmentBoundary(
+			previousKey = null,
+			nextKey = key,
+			enqueueRetryOwner = { enqueued++ },
+			containImmediately = { contained++ },
+		)
+		applyAutomaticControlContainmentBoundary(
+			previousKey = first,
+			nextKey = key,
+			enqueueRetryOwner = { enqueued++ },
+			containImmediately = { contained++ },
+		) shouldBe key
+		val operational = applyAutomaticControlContainmentBoundary(
+			previousKey = key,
+			nextKey = null,
+			enqueueRetryOwner = { enqueued++ },
+			containImmediately = { contained++ },
+		)
+		applyAutomaticControlContainmentBoundary(
+			previousKey = operational,
+			nextKey = key,
+			enqueueRetryOwner = { enqueued++ },
+			containImmediately = { contained++ },
+		) shouldBe key
+
+		enqueued shouldBe 2
+		contained shouldBe 2
+	}
+
+	@Test
+	fun `operational automatic control does not execute the unavailable cleanup`() = runTest {
+		var reconciliations = 0
+
+		reconcileUnavailableAutomaticControl(
+			availability = AutomaticTrackingOperationalAvailability.Ready,
+			reconcileDisabled = {
+				reconciliations++
+				activityRegistrationResult(ActivityRegistrationStatus.APPLIED)
+			},
+		) shouldBe null
+		reconciliations shouldBe 0
+	}
+
+	@Test
 	fun `automatic control recovery accepts applied and only terminally degraded registration`() {
 		automaticControlRecoveryResult(
 			activityRegistrationResult(ActivityRegistrationStatus.APPLIED),
