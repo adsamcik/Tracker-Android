@@ -2,6 +2,45 @@
 
 Last updated: 2026-09-15
 
+## Authoritative work-item registry initialized
+
+[`WORK_ITEMS.json`](WORK_ITEMS.json) is now the authoritative execution registry and
+[`WORK_ITEM_TRACKING.md`](WORK_ITEM_TRACKING.md) is its human-readable index/update protocol.
+`IMPLEMENTATION_TODO.md` remains the exhaustive stable requirement checklist. The initial registry
+contains 62 coherent work items and explicitly maps all 293 TODO IDs (71 checked, 222 unchecked,
+zero unmapped). A broad unchecked requirement may contain accepted sub-slices; current execution,
+review, integration and validation state comes from the JSON registry.
+
+The user independently published `3dd1ff004a34beb339539c4961704919d781371c`. Local
+documentation then continued from `6744ced52037d531e56751777b519165167e6b19`; this later work is
+local-only and no agent push is authorized. Candidate providers/writers and release remain off.
+No compile, test, Gradle, lint, schema, device or CI gate has started. One Location reviewer
+accidentally invoked `git diff --check`; it produced no output and changed no files. This is a
+recorded process deviation, not validation evidence.
+
+The registry incorporates the newer artifact state:
+
+- Activity `483e8b59b790c5970d11b947d76d82746308bdac` has all five semantic findings and
+  its lexical-helper consumer statically closed (TI-B328). Shared lexer ownership remains with
+  Pressure and the combined file branch remains held.
+- Pressure maintenance is committed clean at production `7dd72ab9f87313247ce1034cf9f5a02b6ee71056`
+  plus tests `39198f5a966e724fc5f38d350d27786ad4595340`; its existing reviewer is checking
+  the six corrections. Runtime generation/settlement fencing and shared schema fields remain.
+- Shared schema `cba0b116d1a5bb9208fb13192a5e6cf2793d20f0` after `600c0584` and portable
+  assembly `e3f2ecd4c730435e2652b35b73d7b94af5774213` are clean, frozen, held inputs under
+  focused review. Neither is on local `dev/v10`.
+- Shared history `1c94219ac3d67baa5fd870ac2f79d96d081bdcac` is under review. Its only allowed
+  new dependency is the narrow Activity/Pressure transactional recent bridges; Location proof,
+  structural day/range and feature consumers remain backlog.
+- Location `31c02288a8`, Cell `9d73fe4bb4`, Wi-Fi reviewed input `484c7d293f`, Ambient Steps
+  reviewed input `c8b96e328e`, Purpose review boundary `20f7fc0e72`, Runtime review boundary
+  `410d26e28c` and passive radios `306e9070d2` retain the exact active blockers recorded in
+  `WORK_ITEMS.json`. Newer branch tips or dirty edits are implementation evidence only, not
+  acceptance.
+- The Activity range, Ambient Steps file-action and shared history consumer successor worktrees
+  have Git evidence but no reconciled owner receipt. They are `awaiting_owner_receipt`, not
+  accepted or automatically authorized to continue.
+
 ## Scope expansion frozen - finish started artifacts, hand over the backlog
 
 TI-D262 supersedes the earlier requirement to start every successor lane before returning.

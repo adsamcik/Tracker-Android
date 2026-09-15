@@ -17,6 +17,24 @@ remains open: transport assembly is not final convergence/readiness. Original re
 
 Last updated: 2026-09-15
 
+## Authoritative execution mapping
+
+This checklist contains 293 stable requirements. The new
+[`WORK_ITEMS.json`](WORK_ITEMS.json) registry explicitly maps all 293 IDs to 62 coherent work
+items with zero unmapped IDs. [`WORK_ITEM_TRACKING.md`](WORK_ITEM_TRACKING.md) is the generated
+operating index and update protocol.
+
+The checkbox remains the historical broad-requirement marker; it is not the current execution
+state. Consult the JSON registry for implementation, review, integration, validation, ownership,
+dependencies, blockers, evidence and next bounded action. In particular, an unchecked source or
+assembly item may contain accepted implementation slices and must not be treated as absent.
+
+Three successor worktrees currently remain `awaiting_owner_receipt`: Activity range product,
+Ambient Steps file actions and shared history feature consumers. Git/dirty-work evidence is
+preserved, but none is accepted or permitted to expand until the parent reconciles its pre-freeze
+owner receipt. The only narrow unstarted dependency presently allowed is the Activity/Pressure
+transactional recent bridge required to close the already-started shared history union.
+
 ## 2026-09-15 scope-expansion freeze
 
 TI-D262 changes execution of this ledger, not its coverage. This file remains the full

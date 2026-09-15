@@ -2,6 +2,40 @@
 
 Last updated: 2026-09-15
 
+## Registry coverage and process-deviation note
+
+`WORK_ITEMS.json` maps all 293 stable TODO IDs to 62 work items with zero unmapped IDs. JSON
+parsing, unique-ID, dependency-reference, acyclic-dependency and requirement-coverage checks are
+metadata consistency only; they are not compilation, tests, schema, runtime or device evidence.
+
+One Location reviewer accidentally invoked `git diff --check`. It produced no output and changed
+no files, and the reviewer was then restricted to source-read tools. This is a process deviation,
+not evidence that the Location artifact or any other source passes a validation gate. No regression,
+compiler, Gradle, lint, schema, device or CI gate has started for the current assembly.
+
+## TI-B328 - Activity source actions and lexical consumer statically closed
+
+- Input: `483e8b59b790c5970d11b947d76d82746308bdac` on
+  `codex/ti-activity-source-actions-20260915`.
+- All five reported semantic findings and the Activity use of the shared lexical token limiter are
+  statically closed: public identity access, imported service-run scope fencing before cascade,
+  permanent format versus retryable transport classification, blocked partial progress, destructive
+  cap-plus-one handling and the final compatibility fence.
+- Production paths span Activity portable transfer/import/delete/erase authority in `core\base`,
+  Activity selection/source-erase contracts and adapters in `stats:api`/`stats:data`, the
+  Activity deletion runtime binding in `tracker:engine`, and the Activity portable codec/import/
+  export adapters in `feature:import-export`.
+- Authored source includes `RoomImportPortableCapturedActivityTest`,
+  `ActivitySourceActionsContractTest`, `RoomActivitySelectionDeletionTest`,
+  `RoomActivitySourceEraseTest`, `PortableActivityExporterTest`,
+  `PortableActivityFileImportTest` and `PortableActivityJsonV1CodecTest`.
+- Outcome: **IMPLEMENTED_UNVALIDATED; ACTIVITY SOURCE REVIEW CLOSED.** The shared lexer remains
+  Pressure-owned and under its own review. Combined registry/picker/privacy integration
+  `e3f2ecd4c730435e2652b35b73d7b94af5774213` is frozen and held under separate review. No
+  compile, test, Gradle, lint, schema, device, CI, push or activation occurred.
+- Deferred after an explicitly frozen convergence input:
+  `.\gradlew.bat :core:base:testDebugUnitTest :stats:data:testDebugUnitTest :tracker:engine:testDebugUnitTest :feature:import-export:testDebugUnitTest --tests "*Activity*"`.
+
 ## Scope-freeze interpretation
 
 TI-D262 creates no new execution evidence and does not change any result below. A currently
@@ -12,7 +46,7 @@ convergence phase.
 
 Documentation checkpoint `3dd1ff004a34beb339539c4961704919d781371c` was independently pushed by
 the user. That push is not test, build, schema, device, runtime or release evidence and does not
-authorize an agent push. TI-B327 remains the latest accepted source-slice entry. This
+authorize an agent push. TI-B328 is the latest accepted source-slice entry. This
 scope-accounting update adds no TI-B entry because it verifies no production behavior.
 
 ## TI-B327 - Selected-detail static closure and local integration

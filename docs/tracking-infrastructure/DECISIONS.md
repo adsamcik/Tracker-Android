@@ -2,6 +2,27 @@
 
 Last updated: 2026-09-15
 
+## TI-D263 - Separate stable requirements from authoritative execution state
+
+- Status: accepted documentation control at the 2026-09-15 finish-only boundary.
+- `IMPLEMENTATION_TODO.md` remains the exhaustive stable requirement-ID checklist.
+  `WORK_ITEMS.json` is the authoritative registry for current implementation, review,
+  integration, validation, ownership, dependencies, blockers, evidence and next action.
+  `WORK_ITEM_TRACKING.md` is an index/protocol generated from that registry and must not carry an
+  independent competing status.
+- Every still-applicable TODO ID must map explicitly to a coherent `WI-*` item. The initial
+  registry maps all 293 IDs to 62 work items with zero unmapped IDs. Broad unchecked requirements
+  retain accepted sub-slice evidence and are not interpreted as wholly absent.
+- State changes require exact evidence: commit/ref, owner receipt, focused review, authorized local
+  integration or executed proof on the exact commit. A branch, dirty worktree, authored test or
+  reviewer agreement alone cannot make a work item fully complete.
+- Successor work with Git evidence but no owner receipt is `awaiting_owner_receipt`; preserve it
+  without further edits. Unstarted work is `planned`. Validation remains
+  `deferred_implementation_only`; publication/activation remains a separate approval gate.
+- The registry records user publication of `3dd1ff004a34beb339539c4961704919d781371c`
+  separately from later local-only documentation. It also records the Location reviewer's
+  accidental no-output `git diff --check` as a process deviation, not validation evidence.
+
 ## TI-D262 - Freeze expansion and hand over every unstarted successor
 
 - Status: active scope boundary from 2026-09-15; this supersedes TI-D259 only where TI-D259

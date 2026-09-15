@@ -1,5 +1,41 @@
 # Current state and remaining implementation — 2026-09-15
 
+## Authoritative registry handover
+
+Start execution accounting with [`WORK_ITEMS.json`](../../WORK_ITEMS.json). It is the authoritative
+status/dependency/ownership registry. [`WORK_ITEM_TRACKING.md`](../../WORK_ITEM_TRACKING.md) is the
+overview and update protocol; `IMPLEMENTATION_TODO.md` remains the exhaustive stable requirement
+checklist. The initial registry has 62 work items and maps all 293 TODO IDs with zero unmapped.
+
+The user independently published `3dd1ff004a34beb339539c4961704919d781371c`. Local
+documentation continued from `6744ced52037d531e56751777b519165167e6b19`; no agent push is
+authorized. Candidate activation/release remains off. No compile, test, Gradle, lint, schema,
+device or CI gate has started. A Location reviewer accidentally ran a no-output
+`git diff --check`; it changed no files and is recorded only as a process deviation.
+
+Current finish-only artifacts:
+
+- Activity `483e8b59b790c5970d11b947d76d82746308bdac` is statically closed for all five
+  semantic findings and its lexical-helper consumer (TI-B328); shared file integration remains
+  frozen at `e3f2ecd4c730435e2652b35b73d7b94af5774213`.
+- Pressure maintenance is committed clean at `7dd72ab9f87313247ce1034cf9f5a02b6ee71056`
+  plus tests `39198f5a966e724fc5f38d350d27786ad4595340`, with focused review active.
+- Schema `cba0b116d1a5bb9208fb13192a5e6cf2793d20f0`, portable files `e3f2ecd4c730`,
+  shared history `1c94219ac3d67baa5fd870ac2f79d96d081bdcac`, Location `31c02288a8`,
+  Cell `9d73fe4bb4`, Wi-Fi, Ambient Steps, Purpose, Runtime and passive radio artifacts retain
+  their precise registry blockers and may close only their already-started scope.
+- Shared history may add only the two narrow Activity/Pressure transactional recent producer
+  bridges needed to close `1c94219ac3`; Location proof, day/range and UI remain backlog.
+- Activity range, Ambient Steps file actions and shared history consumers have branch/worktree
+  evidence but await owner receipts. Preserve them without claiming acceptance or starting more.
+
+Every remaining item—including Wi-Fi/Cell retention/erase/files, Pressure day/range/full hPa
+product, Ambient Steps execution/settings, passive ambient Location, purpose publication,
+all-six Location proof, structural day/range/Today, shared product surfaces/actions/explanations,
+widgets and non-Steps effects, cross-source recovery/privacy/scenarios, assembly, validation,
+publication and activation—is explicitly represented in the registry as planned, decision-gated,
+deferred or approval-required.
+
 ## Scope-change handover - finish only what was already started
 
 TI-D262 supersedes the earlier instruction to continue into every next lane. Keep the entire
