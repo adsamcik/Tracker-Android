@@ -2,6 +2,30 @@
 
 Last updated: 2026-09-15
 
+## TI-D259 - Complete the remaining implementation through source-owned dependency waves
+
+- Status: active implementation continuation from `28d270cd99`; assembly gate remains open.
+- User authority, 2026-09-15: finish the entire remaining implementation using the preceding
+  parallel worktree/adversarial static-review/local-merge approach before final handoff.
+- Preserve the existing source-local storage/qualification/writer/history architecture. First
+  finish Wi-Fi/Cell imported product authority, Pressure imported maintenance, Activity source
+  actions, Ambient Steps imported origin and existing-source detail/file backends. Then wire
+  their exact interfaces into shared Room, worker, history, settings, action and numeric consumers.
+- Shared files have one coordinator owner. Every leaf has disjoint paths, complete acceptance
+  criteria and the durable no-execution boundary; leaf success is not integration success.
+- New source tables, when genuinely necessary, require additive parent-owned AppDatabase/DDL/
+  full-clear assembly and migration-test source. No generated v28 schema or destructive handling
+  of development databases is permitted during this phase.
+- Automatic unavailable outcomes may contain an unresolved legal/control prerequisite only when
+  truthful and explicit; manual only-X must not inherit it. Optional unapproved identity/elevation/
+  paid-radio products stay absent. Do not choose a control-evidence lifetime or privacy policy
+  by implementation convenience.
+- **IMPLEMENTATION_ONLY** still forbids all compilation/test/Gradle/schema/diff-check/device/UI/
+  battery/CI/rollout execution until every assembly prerequisite exists and exact inputs are frozen.
+  No push, provider/writer activation, telemetry, upload or additional egress is authorized.
+- Final claims must account for every stable assembly ID using concrete integrated production
+  and regression-source evidence, with unresolved decisions contained and deferred proof separate.
+
 ## TI-D258 - Radio retention must precede destruction of its physical ownership evidence
 
 - Status: adversarial production blocker closed statically in correction

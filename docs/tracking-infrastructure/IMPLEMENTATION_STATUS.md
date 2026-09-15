@@ -2,6 +2,44 @@
 
 Last updated: 2026-09-15
 
+## Full implementation continuation - active, gate not yet complete
+
+The user requested completion of the entire remaining implementation using the same parallel
+worktree, adversarial static-review and local-integration approach, without an interim completion
+handoff. The starting clean local `dev/v10` is `28d270cd99e76ea4a4448fd91c4837f68c09ac21`.
+This extends implementation scope, not execution authority: **IMPLEMENTATION_ONLY** remains
+mandatory for every leaf and coordinator. No Gradle, test/compilation, schema generation/drift,
+diff-check, lint/Detekt, emulator/UI, battery, CI or rollout gate may run before the complete
+assembly input exists and is explicitly frozen. Every authored slice remains
+**IMPLEMENTED_UNVALIDATED**.
+
+The first dependency wave owns only demonstrated source-local gaps:
+
+| Artifact | Source branch | Exclusive write boundary | Next dependent integration |
+| --- | --- | --- | --- |
+| Wi-Fi imported evaluator/read/reexport/roundtrip | `codex/ti-wifi-import-product-20260915` | Wi-Fi-specific core/engine/stats files and tests | Imported deletion/retention/erase, source actions, shared products |
+| Cell imported evaluator/read/reexport/roundtrip | `codex/ti-cell-import-product-20260915` | Cell-specific core/stats files and tests | Imported/live deletion, retention/erase, source actions, shared products |
+| Pressure imported retention/source erase | `codex/ti-pressure-import-maintenance-20260915` | Pressure-specific core/stats/engine maintenance and tests | Parent additive Room/worker/settings wiring |
+| Activity source erase/file-action backends | `codex/ti-activity-source-actions-20260915` | Activity-specific source files and new file adapters/tests | Parent registry/resources/UI/settings actions |
+| Ambient Steps portable imported origin | `codex/ti-ambient-steps-import-20260915` | Ambient-specific model/storage/stats files and tests | Parent additive Room, partitioned products, settings and numeric effects |
+| Activity/Steps truthful selected detail | `codex/ti-source-detail-product-20260915` | Existing Trip Detail shell, source composables/resources/tests | Radio detail after its source APIs settle; typed exact actions |
+| Pressure portable file backends | `codex/ti-pressure-file-actions-20260915` | New Pressure-specific codec/import/export adapters/tests | Parent shared format registry, resources and explicit actions |
+
+One read-only runtime mapping thread reconciles broad unchecked authority/broker/lifecycle/QoS/
+Location/automatic/ambient TODOs against actual callers and test sources. It owns no code.
+The coordinator alone owns AppDatabase/accessor/additive migration/full-clear unions, shared
+history APIs/composition, global format registration, maintenance worker invocations and these
+ledgers. Source leaves report exact producer APIs and necessary schema wiring before dependent
+consumers are implemented. No two concurrent writers own the same path; leaves never delegate.
+
+Subsequent waves must close the imported maintenance/actions, six-source runtime and approved
+default-off ambient products, Today/Timeline/Calendar/detail/live/settings consumers, numeric/
+effect audit and source-specific scenario sources. Existing partial primitives are reused, not
+restarted. Unresolved paid radio, calibrated Pressure, expanded ambient Location, control-evidence
+lifetime/privacy copy and cross-midnight choices must be safely contained or explicitly resolved,
+never invented to check a box. Candidate writers stay dormant and canonical Location is protected.
+The assembly gate is still open; per-slice commits and reviews alone cannot close it.
+
 ## Locally integrated receiving seam wave - IMPLEMENTED_UNVALIDATED
 
 The user explicitly requested parallel completion of TODO-HANDOVER-20260915-007/008/009,

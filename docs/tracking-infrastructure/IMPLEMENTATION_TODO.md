@@ -37,6 +37,30 @@ suite as one batch.
 
 ## How to use this ledger
 
+### Full implementation continuation
+
+TI-D259 records the user's request to finish the entire remaining implementation with the same
+source-owned parallel worktrees, adversarial static reviews and serialized local integration.
+The active wave/path ownership is in IMPLEMENTATION_STATUS.md. Implementation-only gates remain
+unchanged; none of the broad assembly IDs may be checked from leaf completion alone.
+
+- [ ] TODO-CONT-20260915-010 Finish Wi-Fi imported evaluator, bounded origin composition and
+  authenticated latest reexport/roundtrip, then imported selected deletion/retention/source erase.
+- [ ] TODO-CONT-20260915-011 Finish Cell imported evaluator, bounded origin composition and
+  authenticated latest reexport/roundtrip, then imported/live selected deletion/retention/erase.
+- [ ] TODO-CONT-20260915-012 Finish Pressure imported retention and explicit local/import source
+  erase, assemble required Room/worker/settings paths, and wire portable file/actions.
+- [ ] TODO-CONT-20260915-013 Finish Activity local/import source erase and portable file/action
+  backends, then wire exact-origin selected actions into existing product surfaces.
+- [ ] TODO-CONT-20260915-014 Finish Ambient Steps imported portable origin/read/reexport/maintenance
+  and roundtrip, then source settings/remediation and partitioned day/numeric/product consumers.
+- [ ] TODO-CONT-20260915-015 Complete source-aware selected detail and source-only Today/Timeline/
+  Calendar/live/list products over actual source authority, preserving null/partial and exact origin.
+- [ ] TODO-CONT-20260915-016 Reconcile and close manual/automatic/default-off approved ambient
+  runtime/lifecycle/source-local writer/query transitions and source-specific scenario sources.
+- [ ] TODO-CONT-20260915-017 Integrate every producer/consumer/schema/action seam, close concrete
+  adversarial findings, account for all original assembly IDs and freeze only the complete input.
+
 ### September 15 closure accounting
 
 Current authority: TI-D257 records the user's explicit request to complete 007/008/009 in
