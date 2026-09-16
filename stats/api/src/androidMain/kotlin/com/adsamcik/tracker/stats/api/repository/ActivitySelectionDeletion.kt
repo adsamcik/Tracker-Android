@@ -3,14 +3,17 @@ package com.adsamcik.tracker.stats.api.repository
 /**
  * Product selection supplied by Activity history.
  *
- * [origin] is mandatory mutation authority: implementations must resolve the opaque [key] only
- * inside that origin and must never infer local versus imported ownership from wall time.
+ * [selection] is mandatory mutation authority. Imported selections carry the exact source-issued
+ * revision, checksum, hierarchy, and read snapshot; implementations must never reconstruct them
+ * from a presentation key.
  */
 data class ActivitySelectionDeletionRequest(
-	val key: ActivityHistoryEntryKey,
-	val origin: ActivityHistoryOrigin,
+	val selection: ActivityHistorySelection,
 	val deletedAtMs: Long,
 ) {
+	val origin: ActivityHistoryOrigin
+		get() = selection.origin
+
 	init {
 		require(deletedAtMs >= 0L)
 	}

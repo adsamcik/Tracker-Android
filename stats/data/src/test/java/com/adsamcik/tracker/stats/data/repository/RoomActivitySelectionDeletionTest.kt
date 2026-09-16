@@ -21,11 +21,19 @@ import com.adsamcik.tracker.shared.base.database.PortableActivitySessionMode
 import com.adsamcik.tracker.shared.base.database.PortableActivityWindowCoverage
 import com.adsamcik.tracker.shared.base.database.PortableActivityWindowV1
 import com.adsamcik.tracker.shared.base.database.PortableActivityZoneEpochV1
+import com.adsamcik.tracker.shared.base.database.RoomDeleteSelectedImportedActivity
 import com.adsamcik.tracker.shared.base.database.RoomImportPortableCapturedActivity
 import com.adsamcik.tracker.shared.base.database.SelectedImportedActivityDeletionBlockedReason
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.ActivityHistorySelection
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistoryDeletionScopeDigest
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistoryDigest
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistoryIdentity
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistoryReadSnapshot
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistoryRunDeletionScope
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistorySelection
 import com.adsamcik.tracker.stats.api.repository.ActivitySelectionDeletionRequest
 import com.adsamcik.tracker.stats.api.repository.ActivitySelectionDeletionResult
 import com.adsamcik.tracker.stats.api.repository.ActivitySelectionDeletionBlockedReason
@@ -59,7 +67,7 @@ class RoomActivitySelectionDeletionTest {
 	fun tearDown() = database.close()
 
 	@Test
-	fun `imported origin resolves exact opaque hierarchy and never invokes local deletion`() = runTest {
+	fun `imported selection forwards exact opaque hierarchy and never invokes local deletion`() = runTest {
 		val entry = entry()
 		RoomImportPortableCapturedActivity(
 			database,
@@ -83,15 +91,17 @@ class RoomActivitySelectionDeletionTest {
 
 		subject.delete(
 			ActivitySelectionDeletionRequest(
-				key = ActivityHistoryEntryKey("activity-imported:${entry.identity.value}"),
-				origin = ActivityHistoryOrigin.IMPORTED,
+				selection = ActivityHistorySelection.Imported(importedSelection(entry)),
 				deletedAtMs = 100L,
 			),
 		) shouldBe ActivitySelectionDeletionResult.Deleted(ActivityHistoryOrigin.IMPORTED)
 
 		localCalls shouldBe 0
 		importedRequest?.expectedCollectedDataEpoch shouldBe EPOCH
+		importedRequest?.expectedSourceEvidenceRevision shouldBe 0L
 		importedRequest?.selected?.entryIdentity shouldBe entry.identity
+		importedRequest?.selected?.importRevision shouldBe 1L
+		importedRequest?.selected?.contentChecksum shouldBe entry.contentChecksum
 		importedRequest?.selected?.runDeletionScopes?.single()?.runIdentity shouldBe
 			entry.runs.single().identity
 		importedRequest?.selected?.windowIdentities?.single() shouldBe
@@ -122,9 +132,8 @@ class RoomActivitySelectionDeletionTest {
 
 		subject.delete(
 			ActivitySelectionDeletionRequest(
-				ActivityHistoryEntryKey("activity-imported:${entry.identity.value}"),
-				ActivityHistoryOrigin.IMPORTED,
-				100L,
+				ActivityHistorySelection.Imported(importedSelection(entry)),
+				deletedAtMs = 100L,
 			),
 		) shouldBe ActivitySelectionDeletionResult.Blocked(
 			ActivitySelectionDeletionBlockedReason.STALE_SELECTION,
@@ -156,9 +165,10 @@ class RoomActivitySelectionDeletionTest {
 
 		subject.delete(
 			ActivitySelectionDeletionRequest(
-				ActivityHistoryEntryKey("activity-imported:${entry.identity.value}"),
-				ActivityHistoryOrigin.LOCAL,
-				entry.endTimeMs,
+				ActivityHistorySelection.Local(
+					ActivityHistoryEntryKey("activity-imported:${entry.identity.value}"),
+				),
+				deletedAtMs = entry.endTimeMs,
 			),
 		) shouldBe ActivitySelectionDeletionResult.NotFound
 		localCalls shouldBe 0
@@ -166,7 +176,7 @@ class RoomActivitySelectionDeletionTest {
 	}
 
 	@Test
-	fun `corrupt imported hierarchy fails before deletion dispatcher`() = runTest {
+	fun `corrupt imported hierarchy fails before mutation`() = runTest {
 		val entry = entry()
 		RoomImportPortableCapturedActivity(
 			database,
@@ -176,27 +186,205 @@ class RoomActivitySelectionDeletionTest {
 			"UPDATE imported_activity_run SET content_checksum = ? WHERE entry_identity = ?",
 			arrayOf("f".repeat(64), entry.identity.value),
 		)
-		var importedCalls = 0
 		val subject = RoomActivitySelectionDeletion(
 			database,
 			localDeletion { ActivitySessionDeletionResult.NotFound },
-			importedDeletion {
-				importedCalls++
-				DeleteSelectedImportedActivityResult.Deleted(1, 1)
+			RoomDeleteSelectedImportedActivity(
+				database,
+				UnconfinedTestDispatcher(testScheduler),
+			),
+			UnconfinedTestDispatcher(testScheduler),
+		)
+
+		subject.delete(
+			ActivitySelectionDeletionRequest(
+				ActivityHistorySelection.Imported(importedSelection(entry)),
+				deletedAtMs = 100L,
+			),
+		) shouldBe ActivitySelectionDeletionResult.Unverifiable(
+			ActivitySelectionDeletionUnverifiableReason.IMPORTED_EVIDENCE_UNVERIFIABLE,
+		)
+		database.importedActivityDao().entryDeletion(entry.identity.value) shouldBe null
+	}
+
+	@Test
+	fun `exact imported selection deletes revision and replays idempotently`() = runTest {
+		val entry = entry()
+		RoomImportPortableCapturedActivity(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+		).importEntry(importRequest(entry)) shouldBe
+			ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		val request = ActivitySelectionDeletionRequest(
+			ActivityHistorySelection.Imported(importedSelection(entry)),
+			deletedAtMs = 100L,
+		)
+		val subject = RoomActivitySelectionDeletion(
+			database,
+			localDeletion { ActivitySessionDeletionResult.NotFound },
+			RoomDeleteSelectedImportedActivity(
+				database,
+				UnconfinedTestDispatcher(testScheduler),
+			),
+			UnconfinedTestDispatcher(testScheduler),
+		)
+
+		subject.delete(request) shouldBe
+			ActivitySelectionDeletionResult.Deleted(ActivityHistoryOrigin.IMPORTED)
+		subject.delete(request.copy(deletedAtMs = 110L)) shouldBe
+			ActivitySelectionDeletionResult.AlreadyDeleted(ActivityHistoryOrigin.IMPORTED)
+
+		val dao = database.importedActivityDao()
+		dao.latestHistoryCandidate(entry.identity.value) shouldBe null
+		dao.entryDeletion(entry.identity.value)?.deletedImportRevision shouldBe 1L
+		dao.entryDeletionReceipt(entry.identity.value)?.deletedContentChecksum shouldBe
+			entry.contentChecksum.value
+	}
+
+	@Test
+	fun `correction after observed revision rejects stale action without mutation`() = runTest {
+		val original = entry()
+		val corrected = entry(gapReason = "PROVIDER_DISCONTINUITY")
+		val importer = RoomImportPortableCapturedActivity(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+		)
+		importer.importEntry(importRequest(original)) shouldBe
+			ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		val stale = importedSelection(original)
+		importer.importEntry(importRequest(corrected, "correction", 40L)) shouldBe
+			ImportPortableCapturedActivityResult.Applied(2L, 1, 1, 1)
+		val subject = RoomActivitySelectionDeletion(
+			database,
+			localDeletion { ActivitySessionDeletionResult.NotFound },
+			RoomDeleteSelectedImportedActivity(
+				database,
+				UnconfinedTestDispatcher(testScheduler),
+			),
+			UnconfinedTestDispatcher(testScheduler),
+		)
+
+		subject.delete(
+			ActivitySelectionDeletionRequest(
+				ActivityHistorySelection.Imported(stale),
+				deletedAtMs = 100L,
+			),
+		) shouldBe ActivitySelectionDeletionResult.Blocked(
+			ActivitySelectionDeletionBlockedReason.STALE_SELECTION,
+		)
+		assertLive(corrected, 2L)
+	}
+
+	@Test
+	fun `revision and checksum forgery reject without marker or payload mutation`() = runTest {
+		val entry = entry()
+		RoomImportPortableCapturedActivity(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+		).importEntry(importRequest(entry))
+		val exact = importedSelection(entry)
+		val subject = RoomActivitySelectionDeletion(
+			database,
+			localDeletion { ActivitySessionDeletionResult.NotFound },
+			RoomDeleteSelectedImportedActivity(
+				database,
+				UnconfinedTestDispatcher(testScheduler),
+			),
+			UnconfinedTestDispatcher(testScheduler),
+		)
+
+		listOf(
+			exact.copy(importRevision = 2L),
+			exact.copy(contentChecksum = ActivityImportedHistoryDigest("f".repeat(64))),
+		).forEach { forged ->
+			subject.delete(
+				ActivitySelectionDeletionRequest(
+					ActivityHistorySelection.Imported(forged),
+					deletedAtMs = 100L,
+				),
+			) shouldBe ActivitySelectionDeletionResult.Blocked(
+				ActivitySelectionDeletionBlockedReason.STALE_SELECTION,
+			)
+			assertLive(entry, 1L)
+		}
+	}
+
+	@Test
+	fun `correction race between dispatch and deletion remains stale and mutation free`() = runTest {
+		val original = entry()
+		val corrected = entry(gapReason = "PROVIDER_DISCONTINUITY")
+		val importer = RoomImportPortableCapturedActivity(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+		)
+		importer.importEntry(importRequest(original))
+		val selected = importedSelection(original)
+		val realDeletion = RoomDeleteSelectedImportedActivity(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+		)
+		val subject = RoomActivitySelectionDeletion(
+			database,
+			localDeletion { ActivitySessionDeletionResult.NotFound },
+			importedDeletion { request ->
+				importer.importEntry(importRequest(corrected, "racing-correction", 40L)) shouldBe
+					ImportPortableCapturedActivityResult.Applied(2L, 1, 1, 1)
+				realDeletion.delete(request)
 			},
 			UnconfinedTestDispatcher(testScheduler),
 		)
 
 		subject.delete(
 			ActivitySelectionDeletionRequest(
-				ActivityHistoryEntryKey("activity-imported:${entry.identity.value}"),
-				ActivityHistoryOrigin.IMPORTED,
-				100L,
+				ActivityHistorySelection.Imported(selected),
+				deletedAtMs = 100L,
 			),
-		) shouldBe ActivitySelectionDeletionResult.Unverifiable(
-			ActivitySelectionDeletionUnverifiableReason.IMPORTED_EVIDENCE_UNVERIFIABLE,
+		) shouldBe ActivitySelectionDeletionResult.Blocked(
+			ActivitySelectionDeletionBlockedReason.STALE_SELECTION,
 		)
-		importedCalls shouldBe 0
+		assertLive(corrected, 2L)
+	}
+
+	@Test
+	fun `read snapshot revision and epoch mismatches reject as stale requests`() = runTest {
+		val entry = entry()
+		RoomImportPortableCapturedActivity(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+		).importEntry(importRequest(entry))
+		val revisionSelection = importedSelection(entry)
+		val subject = RoomActivitySelectionDeletion(
+			database,
+			localDeletion { ActivitySessionDeletionResult.NotFound },
+			RoomDeleteSelectedImportedActivity(
+				database,
+				UnconfinedTestDispatcher(testScheduler),
+			),
+			UnconfinedTestDispatcher(testScheduler),
+		)
+		database.sourceEvidenceStateDao().incrementRevision(50L) shouldBe 1
+
+		subject.delete(
+			ActivitySelectionDeletionRequest(
+				ActivityHistorySelection.Imported(revisionSelection),
+				deletedAtMs = 100L,
+			),
+		) shouldBe ActivitySelectionDeletionResult.Blocked(
+			ActivitySelectionDeletionBlockedReason.STALE_REQUEST,
+		)
+		assertLive(entry, 1L)
+
+		val epochSelection = importedSelection(entry)
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH + 1L, null, 60L) shouldBe 1
+		subject.delete(
+			ActivitySelectionDeletionRequest(
+				ActivityHistorySelection.Imported(epochSelection),
+				deletedAtMs = 100L,
+			),
+		) shouldBe ActivitySelectionDeletionResult.Blocked(
+			ActivitySelectionDeletionBlockedReason.STALE_REQUEST,
+		)
+		assertLive(entry, 1L)
 	}
 
 	private fun localDeletion(
@@ -215,17 +403,72 @@ class RoomActivitySelectionDeletionTest {
 		): DeleteSelectedImportedActivityResult = block(request)
 	}
 
-	private fun importRequest(entry: PortableActivityEntryV1) = ImportPortableCapturedActivityRequest(
+	private fun importRequest(
+		entry: PortableActivityEntryV1,
+		jobId: String = "job",
+		receivedAtMs: Long = 30L,
+	) = ImportPortableCapturedActivityRequest(
 		entry = entry,
-		receipt = PortableActivityImportReceipt("job", "entry", "activity.trackeractivity", 30L),
+		receipt = PortableActivityImportReceipt(
+			jobId,
+			"entry",
+			"activity.trackeractivity",
+			receivedAtMs,
+		),
 		expectedCollectedDataEpoch = EPOCH,
 	)
 
-	private fun entry(): PortableActivityEntryV1 {
+	private suspend fun importedSelection(
+		entry: PortableActivityEntryV1,
+		importRevision: Long = 1L,
+	): ActivityImportedHistorySelection {
+		val state = requireNotNull(database.sourceEvidenceStateDao().get())
+		return ActivityImportedHistorySelection(
+			key = ActivityHistoryEntryKey("activity-imported:${entry.identity.value}"),
+			identity = ActivityImportedHistoryIdentity(entry.identity.value),
+			importRevision = importRevision,
+			contentChecksum = ActivityImportedHistoryDigest(entry.contentChecksum.value),
+			runDeletionScopes = entry.runs.map { run ->
+				ActivityImportedHistoryRunDeletionScope(
+					runIdentity = ActivityImportedHistoryIdentity(run.identity.value),
+					deletionScopeDigest = ActivityImportedHistoryDeletionScopeDigest(
+						run.deletionScopeDigest.value,
+					),
+				)
+			},
+			windowIdentities = entry.runs.flatMap { run ->
+				run.windows.map { window ->
+					ActivityImportedHistoryIdentity(window.identity.value)
+				}
+			},
+			readSnapshot = ActivityImportedHistoryReadSnapshot(
+				collectedDataEpoch = state.collectedDataEpoch,
+				sourceEvidenceRevision = state.revision,
+			),
+		)
+	}
+
+	private suspend fun assertLive(
+		entry: PortableActivityEntryV1,
+		importRevision: Long,
+	) {
+		val dao = database.importedActivityDao()
+		dao.latestEntryRevision(entry.identity.value)?.importRevision shouldBe importRevision
+		dao.latestEntryRevision(entry.identity.value)?.contentChecksum shouldBe
+			entry.contentChecksum.value
+		dao.allRunsForAdmission(entry.identity.value).isNotEmpty() shouldBe true
+		dao.allWindowsForAdmission(entry.identity.value).isNotEmpty() shouldBe true
+		dao.entryDeletion(entry.identity.value) shouldBe null
+		dao.entryDeletionReceipt(entry.identity.value) shouldBe null
+	}
+
+	private fun entry(
+		gapReason: String = "NO_QUALIFIED_EVIDENCE",
+	): PortableActivityEntryV1 {
 		val fragment = PortableActivityFragmentV1.Gap(
 			0L,
 			100L,
-			"NO_QUALIFIED_EVIDENCE",
+			gapReason,
 		)
 		val windowIdentity = PortableActivityOpaqueIdentity.derive(
 			PortableActivityIdentityKind.CAPTURE_WINDOW,
