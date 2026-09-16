@@ -3,11 +3,10 @@ package com.adsamcik.tracker.shared.base.database
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * Dormant additive v28 delta for the final imported-Activity retention receipt.
+ * Additive v28 delta for the final imported-Activity retention receipt.
  *
- * Activate this only with the statically accepted entity/source commit. Defaults deliberately
- * preserve existing retained rows as temporal-authority unavailable without rewriting their
- * legacy effect checksum.
+ * Defaults deliberately preserve existing retained rows as temporal-authority unavailable without
+ * rewriting their legacy effect checksum.
  */
 internal fun addImportedActivityRetentionTemporalAuthorityColumns(
 	database: SupportSQLiteDatabase,

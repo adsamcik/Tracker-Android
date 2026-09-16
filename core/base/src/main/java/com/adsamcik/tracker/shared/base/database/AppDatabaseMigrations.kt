@@ -2256,6 +2256,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 				)
 				""".trimIndent(),
 			)
+			addImportedActivityRetentionTemporalAuthorityColumns(db)
 			execSQL(
 				"""
 				CREATE TABLE IF NOT EXISTS imported_activity_retained_identity (
