@@ -45,6 +45,7 @@ import com.adsamcik.tracker.tracker.pipeline.persistence.RawLocationObservationR
 import com.adsamcik.tracker.tracker.pipeline.persistence.RoomPersistenceTransactor
 import com.adsamcik.tracker.tracker.pipeline.persistence.SignalSerializer
 import com.adsamcik.tracker.tracker.pipeline.persistence.TrackingPersistenceTransactor
+import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerComponent
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
@@ -77,6 +78,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.CancellationException
 import javax.inject.Provider
 import org.junit.After
@@ -421,6 +423,18 @@ class LocationWalQualificationAdapterTest {
 			assertEquals(ordinal, recovered.lastCommittedOrdinal)
 			assertEquals(0, database.pendingSignalDao().countAll())
 			lifecycleLease.acquireLivePipeline().release()
+		}
+
+	@Test
+	fun `fallback receipt cancellation propagates after successful cleanup releases lifecycle`() =
+		runTest {
+			assertFallbackReceiptCancellation(cleanupFails = false)
+		}
+
+	@Test
+	fun `fallback receipt cancellation retains failed cleanup for deterministic next-call retry`() =
+		runTest {
+			assertFallbackReceiptCancellation(cleanupFails = true)
 		}
 
 	@Test
@@ -1383,6 +1397,96 @@ class LocationWalQualificationAdapterTest {
 			appDatabaseProvider = Provider { database },
 			protectedLocationCanonicalPersistenceGuardProvider = Provider { guard },
 		)
+	}
+
+	private suspend fun TestScope.assertFallbackReceiptCancellation(cleanupFails: Boolean) {
+		installValidFixture(
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(isMock = false)),
+		)
+		val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+			.admissionOrdinal
+		installProtectedHandoffAuthority(ordinal)
+		var transactionCalls = 0
+		val transactor = object : TrackingPersistenceTransactor {
+			override suspend fun <R> inTransaction(block: suspend () -> R): R {
+				transactionCalls++
+				if (transactionCalls == 1) {
+					error("original offline write failure")
+				}
+				if (cleanupFails && transactionCalls == 2) {
+					error("offline cleanup retry failure")
+				}
+				return database.withTransaction { block() }
+			}
+		}
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val lifecycleLease = ExclusiveTrackingPersistenceLifecycleLease()
+		val persistence = newLocationPersistence(dispatchers, transactor)
+		val fallbackReceiptEntered = CompletableDeferred<Unit>()
+		var receiptReads = 0
+		val writer = ProtectedLocationOfflineCanonicalWriter(
+			context,
+			database,
+			dispatchers,
+			persistence,
+			locationComponentFactory = {
+				LocationTrackerComponent(
+					trackingParamsRepository = null,
+					dispatchers = dispatchers,
+				)
+			},
+			testMarker = Unit,
+			persistenceLifecycleLease = lifecycleLease,
+			receiptReader = { command, acquisitionMetadata ->
+				receiptReads++
+				if (receiptReads == 2) {
+					database.withTransaction {
+						fallbackReceiptEntered.complete(Unit)
+						awaitCancellation()
+					}
+				}
+				database.withTransaction {
+					database.readProtectedLocationCanonicalReceipt(
+						command,
+						acquisitionMetadata,
+					)
+				}
+			},
+		)
+		val handoff = ProtectedLocationCanonicalHandoff(database, subject, writer)
+		val draining = backgroundScope.async {
+			handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal)
+		}
+		fallbackReceiptEntered.await()
+
+		draining.cancel()
+		draining.join()
+		val cancellation = assertFailsWith<CancellationException> {
+			draining.await()
+		}
+		assertTrue(cancellation.suppressed.isNotEmpty())
+
+		if (cleanupFails) {
+			assertTrue(database.pendingSignalDao().countAll() > 0)
+			assertTrue(cancellation.suppressed.size >= 2)
+			val liveAcquired = CompletableDeferred<Unit>()
+			val liveWaiter = backgroundScope.async {
+				lifecycleLease.acquireLivePipeline().also {
+					liveAcquired.complete(Unit)
+				}
+			}
+			runCurrent()
+			assertFalse(liveAcquired.isCompleted)
+			liveWaiter.cancelAndJoin()
+
+			val recovered = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+				handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+			)
+			assertEquals(ordinal, recovered.lastCommittedOrdinal)
+			assertEquals(0, database.pendingSignalDao().countAll())
+		}
+		lifecycleLease.acquireLivePipeline().release()
 	}
 
 	private suspend fun installSessionAndManifest(segmentId: Long, zoneId: String) {
