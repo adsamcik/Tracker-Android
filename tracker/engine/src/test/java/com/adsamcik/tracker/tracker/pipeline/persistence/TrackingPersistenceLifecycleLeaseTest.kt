@@ -65,6 +65,23 @@ class TrackingPersistenceLifecycleLeaseTest {
 	}
 
 	@Test
+	fun `explicit offline ownership remains exclusive until cleanup releases its permit`() = runTest {
+		val lease = ExclusiveTrackingPersistenceLifecycleLease()
+		val offline = lease.acquireOfflineLocationRecovery()
+		offline.mode shouldBe TrackingPersistenceLifecycleMode.OFFLINE_LOCATION_RECOVERY
+		val liveAcquired = CompletableDeferred<TrackingPersistenceLifecyclePermit>()
+		val live = async {
+			lease.acquireLivePipeline().also(liveAcquired::complete)
+		}
+
+		yield()
+		liveAcquired.isCompleted.shouldBeFalse()
+		offline.release()
+		live.await().release()
+		liveAcquired.isCompleted.shouldBeTrue()
+	}
+
+	@Test
 	fun `cancelled waiter and cancelled owner release lifecycle authority`() = runTest {
 		val lease = ExclusiveTrackingPersistenceLifecycleLease()
 		val live = lease.acquireLivePipeline()

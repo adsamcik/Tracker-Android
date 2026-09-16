@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.dao.recordFullDeletion
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
+import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -32,12 +33,17 @@ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.stats.api.signal.PressureSignal
+import com.adsamcik.tracker.stats.api.signal.TrackingSignal
+import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.tracker.pipeline.persistence.DurableSignalBuffer
+import com.adsamcik.tracker.tracker.pipeline.persistence.ExclusiveTrackingPersistenceLifecycleLease
 import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
 import com.adsamcik.tracker.tracker.pipeline.persistence.RawLocationObservationRepair
 import com.adsamcik.tracker.tracker.pipeline.persistence.RoomPersistenceTransactor
+import com.adsamcik.tracker.tracker.pipeline.persistence.SignalSerializer
 import com.adsamcik.tracker.tracker.pipeline.persistence.TrackingPersistenceTransactor
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
@@ -64,7 +70,12 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNotSame
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.CancellationException
 import javax.inject.Provider
@@ -325,6 +336,92 @@ class LocationWalQualificationAdapterTest {
 		assertEquals(1L, database.locationSampleDao().countAll())
 		assertEquals(0, database.pendingSignalDao().countAll())
 	}
+
+	@Test
+	fun `offline cancellation during suspended recovery stops partial pipeline before lease release`() =
+		runTest {
+			installValidFixture(
+				payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+				deliveryPayloads = listOf(locationPayload(isMock = false)),
+			)
+			val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+				.admissionOrdinal
+			installProtectedHandoffAuthority(ordinal)
+			val signal = TrackingSignal(
+				timestampMs = EpochMs(500L),
+				elapsedRealtimeNanos = 500_000_000L,
+				pressure = PressureSignal(1_013.25f, 120f),
+			)
+			val encoded = SignalSerializer.encode(signal)
+			database.pendingSignalDao().insertAll(
+				listOf(
+					PendingSignalEntity(
+						signalId = "offline-cancelled-recovery",
+						sessionId = 1L,
+						envelopeVersion = encoded.envelopeVersion,
+						payloadChecksum = encoded.payloadChecksum,
+						signalJson = encoded.payloadJson,
+						createdAt = signal.timestampMs.raw,
+						capturedEpoch = 0L,
+						acquiredAtMs = signal.timestampMs.raw,
+					),
+				),
+			)
+			val recoveryEntered = CompletableDeferred<Unit>()
+			var transactionCalls = 0
+			val transactor = object : TrackingPersistenceTransactor {
+				override suspend fun <R> inTransaction(block: suspend () -> R): R {
+					transactionCalls++
+					if (transactionCalls == 2) {
+						recoveryEntered.complete(Unit)
+						awaitCancellation()
+					}
+					if (transactionCalls == 3) {
+						error("simulated offline cleanup failure")
+					}
+					return database.withTransaction { block() }
+				}
+			}
+			val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+			val lifecycleLease = ExclusiveTrackingPersistenceLifecycleLease()
+			val persistence = newLocationPersistence(dispatchers, transactor)
+			val handoff = ProtectedLocationCanonicalHandoff(
+				database,
+				subject,
+				ProtectedLocationOfflineCanonicalWriter(
+					context,
+					database,
+					dispatchers,
+					persistence,
+					lifecycleLease,
+				),
+			)
+			val draining = backgroundScope.async {
+				handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal)
+			}
+
+			recoveryEntered.await()
+			draining.cancelAndJoin()
+
+			assertEquals(1, database.pendingSignalDao().countAll())
+			assertFalse(persistence.isPipelineActiveForPersistenceLifecycle())
+			val liveAcquired = CompletableDeferred<Unit>()
+			val liveWaiter = backgroundScope.async {
+				lifecycleLease.acquireLivePipeline().also {
+					liveAcquired.complete(Unit)
+				}
+			}
+			runCurrent()
+			assertFalse(liveAcquired.isCompleted)
+			liveWaiter.cancelAndJoin()
+
+			val recovered = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+				handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+			)
+			assertEquals(ordinal, recovered.lastCommittedOrdinal)
+			assertEquals(0, database.pendingSignalDao().countAll())
+			lifecycleLease.acquireLivePipeline().release()
+		}
 
 	@Test
 	fun `real WAL owner loss blocks writer before pending acknowledgement`() = runTest {
