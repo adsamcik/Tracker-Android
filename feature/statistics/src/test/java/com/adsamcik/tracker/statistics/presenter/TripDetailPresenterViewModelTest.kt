@@ -623,7 +623,11 @@ class TripDetailPresenterViewModelTest {
 			PressureSessionHistory(
 				segmentId = segmentId,
 				capture = capture,
-				qualifiedSources = emptySet(),
+				qualifiedSources = if (pressure.hasQualifiedRetainedProof) {
+					setOf(HistorySource.PRESSURE)
+				} else {
+					emptySet()
+				},
 				pressure = pressure,
 			),
 		),

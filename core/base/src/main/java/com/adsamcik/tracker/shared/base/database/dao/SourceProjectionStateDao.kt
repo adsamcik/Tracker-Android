@@ -278,6 +278,10 @@ interface SourceProjectionStateDao {
 	@Insert(onConflict = OnConflictStrategy.REPLACE)
 	suspend fun saveJoinState(entity: SourceProjectionJoinStateEntity)
 
+	/** Immutable event preparation seam; ordinary mutable join state continues to use [saveJoinState]. */
+	@Insert(onConflict = OnConflictStrategy.IGNORE)
+	suspend fun insertJoinStateIfAbsent(entity: SourceProjectionJoinStateEntity): Long
+
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertOutbox(entity: SourceProjectionOutboxEntity): Long
 

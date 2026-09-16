@@ -5,6 +5,8 @@ import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerat
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedDeletedRunEntity
 import com.adsamcik.tracker.shared.base.database.data.CellProviderDeliveryIdentityFact
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -129,6 +131,454 @@ sealed interface CellCapturedSourceDeletionResult {
 	data class Blocked(
 		val reason: CellCapturedSourceDeletionBlockedReason,
 	) : CellCapturedSourceDeletionResult
+}
+
+enum class CellCapturedSelectedDeletionBlockedReason {
+	STALE_COLLECTED_DATA_EPOCH,
+	STALE_REQUEST,
+	DELETION_FENCE_CONFLICT,
+	FACT_AUTHORITY_UNVERIFIABLE,
+	MAINTENANCE_BOUND_EXCEEDED,
+}
+
+sealed interface CellCapturedSelectedDeletionResult {
+	data class Deleted(
+		val logicalFactCount: Int,
+		val revisionCount: Int,
+		val fencedServiceRunCount: Int,
+	) : CellCapturedSelectedDeletionResult
+
+	data object AlreadyDeleted : CellCapturedSelectedDeletionResult
+	data class Blocked(val reason: CellCapturedSelectedDeletionBlockedReason) :
+		CellCapturedSelectedDeletionResult
+}
+
+enum class CellCapturedSelectedDeletionCheckpoint {
+	TRANSACTION_STARTED,
+	AUTHORITY_AUTHENTICATED,
+	DELETION_FENCES_INSTALLED,
+	PAYLOAD_REMOVED,
+}
+
+/**
+ * Low-level exact selected Cell fact deletion. The caller authenticates replacement membership,
+ * manifests, terminal lifecycle, active-demand absence and day repair before entering this call.
+ */
+suspend fun AppDatabase.deleteSelectedCapturedCellFactsInTransaction(
+	logicalTrackingId: String,
+	serviceRunIds: List<String>,
+	expectedCollectedDataEpoch: Long,
+	deletedAtMs: Long,
+	checkpoint: suspend (CellCapturedSelectedDeletionCheckpoint) -> Unit = {
+		currentCoroutineContext().ensureActive()
+	},
+): CellCapturedSelectedDeletionResult {
+	require(logicalTrackingId.isNotBlank())
+	require(serviceRunIds.isNotEmpty() && serviceRunIds.distinct().size == serviceRunIds.size)
+	require(expectedCollectedDataEpoch >= 0L && deletedAtMs >= 0L)
+	check(inTransaction()) { "Selected captured Cell deletion requires one caller-owned transaction" }
+	val limits = DEFAULT_CELL_CAPTURED_MAINTENANCE_LIMITS
+	return try {
+		checkpoint(CellCapturedSelectedDeletionCheckpoint.TRANSACTION_STARTED)
+		val state = sourceEvidenceStateDao().get()
+		if (state == null || state.collectedDataEpoch != expectedCollectedDataEpoch) {
+			selectedBlock(CellCapturedSelectedDeletionBlockedReason.STALE_COLLECTED_DATA_EPOCH)
+		}
+		val revisions = mutableListOf<CellCapturedFactRevisionEntity>()
+		var cursor: CellSelectedRevisionCursor? = null
+		while (true) {
+			currentCoroutineContext().ensureActive()
+			val remaining = limits.maximumRevisions - revisions.size
+			val page = cellCapturedFactDao().historyRevisionPage(
+				serviceRunIds,
+				listOf(logicalTrackingId),
+				minOf(limits.revisionPageSize, remaining + 1),
+				cursor?.projectionId,
+				cursor?.projectionVersion,
+				cursor?.logicalFactId,
+				cursor?.semanticRevision,
+			)
+			if (page.size > remaining) throw CellCapturedMaintenanceLimitExceeded()
+			if (page.any {
+				it.logicalTrackingId != logicalTrackingId || it.serviceRunId !in serviceRunIds
+			}) selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			if (page.isEmpty()) break
+			val next = CellSelectedRevisionCursor(page.last())
+			if (cursor != null && next <= cursor) {
+				selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			}
+			revisions += page
+			cursor = next
+			if (page.size < minOf(limits.revisionPageSize, remaining + 1)) break
+		}
+		val lineages = revisions.groupBy(CellCapturedFactRevisionEntity::logicalFactId)
+			.values.map(::authenticateCellCapturedLineage)
+		if (lineages.size > limits.maximumLogicalFacts) throw CellCapturedMaintenanceLimitExceeded()
+		val byId = lineages.associateBy(CellCapturedLineage::logicalFactId)
+		if (byId.size != lineages.size) {
+			selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		}
+		val cursorRows = cellCapturedFactDao().historyCursorsForScopes(
+			WRITER_ID,
+			WRITER_VERSION,
+			serviceRunIds,
+			listOf(logicalTrackingId),
+			limits.maximumCursors + 1,
+		)
+		if (cursorRows.size > limits.maximumCursors) throw CellCapturedMaintenanceLimitExceeded()
+		val cursors = cursorRows.associateBy(CellCapturedFactCursorEntity::logicalFactId)
+		if (cursors.size != cursorRows.size || cursors.keys != byId.keys ||
+			cursorRows.any {
+				it.logicalTrackingId != logicalTrackingId || it.serviceRunId !in serviceRunIds
+			}
+		) selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		val owner = sourceDestinationOwnerDao().get(
+			CELL_SOURCE,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+		)
+		if (lineages.isNotEmpty() && (owner == null ||
+			owner.owner != SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS ||
+			owner.ownerGeneration != SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
+		) selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		val reuseAuthority = mutableMapOf<String, CellAggregateReuseAuthority>()
+		val aggregates = mutableMapOf<String, CellHistoricalIdentityFreeAggregate>()
+		var latestDurableTimeMs = maxOf(state.updatedAtMs, owner?.updatedAtMs ?: 0L)
+		for (lineage in lineages) {
+			currentCoroutineContext().ensureActive()
+			val latest = lineage.revisions.last()
+			if (cursors[lineage.logicalFactId]?.matchesCurrent(latest) != true ||
+				latest.collectedDataEpoch != expectedCollectedDataEpoch ||
+				latest.sourceAdmissionOrdinal <= state.deletedSourceEventHighWaterOrdinal
+			) selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			val authority = authenticateCellCapturedAuthority(latest, limits)
+			reuseAuthority[lineage.logicalFactId] = authority.reuseAuthority
+			aggregates[lineage.logicalFactId] = authority.aggregate
+			latestDurableTimeMs = maxOf(
+				latestDurableTimeMs,
+				authority.walCreatedAtMs,
+				lineage.revisions.maxOf(CellCapturedFactRevisionEntity::appliedAtMs),
+				requireNotNull(cursors[lineage.logicalFactId]).updatedAtMs,
+			)
+		}
+		authenticateAggregateDependencies(lineages, byId, reuseAuthority, aggregates)
+		val generations = cellCapturedFactDao().portableDeletionGenerationClosure(
+			logicalTrackingId,
+			serviceRunIds,
+			limits.maximumDeletionGenerations + 1,
+		)
+		if (generations.size > limits.maximumDeletionGenerations) {
+			throw CellCapturedMaintenanceLimitExceeded()
+		}
+		val generationsByRun = generations.associateBy(CellCaptureDeletionGenerationEntity::serviceRunId)
+		if (generationsByRun.size != generations.size || generations.any {
+			it.logicalTrackingId != logicalTrackingId ||
+				it.serviceRunId !in serviceRunIds ||
+				it.collectedDataEpoch != expectedCollectedDataEpoch ||
+				it.generation != 1L
+		}) selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		val scopeByRun = serviceRunIds.associateWith { runId ->
+			SourceDeletionFenceEntity.logicalServiceRunIdentity(
+				CELL_SOURCE,
+				CAPTURE_PURPOSE,
+				logicalTrackingId,
+				runId,
+			)
+		}
+		val fences = trackingHistoryReadDao().deletionFences(
+			CELL_SOURCE,
+			CAPTURE_PURPOSE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			scopeByRun.values.toList(),
+		)
+		val fenceByScope = fences.associateBy(SourceDeletionFenceEntity::scopeIdentityDigest)
+		if (fenceByScope.size != fences.size || fences.any {
+			it.scopeIdentityDigest !in scopeByRun.values ||
+				it.collectedDataEpoch != expectedCollectedDataEpoch || it.fenceGeneration != 1L
+		}) selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		if (serviceRunIds.any { runId ->
+			(runId in generationsByRun) != (scopeByRun.getValue(runId) in fenceByScope)
+		}) selectedBlock(CellCapturedSelectedDeletionBlockedReason.DELETION_FENCE_CONFLICT)
+		latestDurableTimeMs = maxOf(
+			latestDurableTimeMs,
+			generations.maxOfOrNull(CellCaptureDeletionGenerationEntity::updatedAtMs) ?: 0L,
+			fences.maxOfOrNull(SourceDeletionFenceEntity::deletedAtMs) ?: 0L,
+		)
+		if (deletedAtMs < latestDurableTimeMs) {
+			selectedBlock(CellCapturedSelectedDeletionBlockedReason.STALE_REQUEST)
+		}
+		if (lineages.isEmpty() && serviceRunIds.all(generationsByRun::containsKey)) {
+			return CellCapturedSelectedDeletionResult.AlreadyDeleted
+		}
+		checkpoint(CellCapturedSelectedDeletionCheckpoint.AUTHORITY_AUTHENTICATED)
+		for (runId in serviceRunIds.filterNot(generationsByRun::containsKey)) {
+			val fence = SourceDeletionFenceEntity.createLogicalServiceRun(
+				CELL_SOURCE,
+				CAPTURE_PURPOSE,
+				logicalTrackingId,
+				runId,
+				1L,
+				expectedCollectedDataEpoch,
+				deletedAtMs,
+			)
+			if (sourceDeletionFenceDao().insertIfAbsent(fence) == INSERT_IGNORED &&
+				sourceDeletionFenceDao().get(
+					fence.sourceKind,
+					fence.purpose,
+					fence.scopeKind,
+					fence.scopeIdentityDigest,
+				) != fence
+			) selectedBlock(CellCapturedSelectedDeletionBlockedReason.DELETION_FENCE_CONFLICT)
+			cellCapturedFactDao().insertDeletionGeneration(
+				CellCaptureDeletionGenerationEntity(
+					logicalTrackingId,
+					runId,
+					expectedCollectedDataEpoch,
+					1L,
+					deletedAtMs,
+				),
+			)
+		}
+		checkpoint(CellCapturedSelectedDeletionCheckpoint.DELETION_FENCES_INSTALLED)
+		var deletedRevisionCount = 0
+		lineages.chunked(DELETE_BATCH_SIZE).forEach { batch ->
+			val ids = batch.map(CellCapturedLineage::logicalFactId)
+			if (cellCapturedFactDao().deleteExactCursors(WRITER_ID, WRITER_VERSION, ids) != ids.size) {
+				selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			}
+			val expected = batch.sumOf { it.revisions.size }
+			val deleted = cellCapturedFactDao().deleteExactRevisionLineages(
+				WRITER_ID,
+				WRITER_VERSION,
+				ids,
+			)
+			if (deleted != expected) {
+				selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+			}
+			deletedRevisionCount = Math.addExact(deletedRevisionCount, deleted)
+		}
+		if (sourceEvidenceStateDao().incrementRevision(deletedAtMs) != 1) {
+			selectedBlock(CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE)
+		}
+		checkpoint(CellCapturedSelectedDeletionCheckpoint.PAYLOAD_REMOVED)
+		CellCapturedSelectedDeletionResult.Deleted(
+			lineages.size,
+			deletedRevisionCount,
+			serviceRunIds.count { it !in generationsByRun },
+		)
+	} catch (blocked: CellCapturedSelectedDeletionBlockedException) {
+		CellCapturedSelectedDeletionResult.Blocked(blocked.reason)
+	} catch (_: CellCapturedRetentionBlockedException) {
+		CellCapturedSelectedDeletionResult.Blocked(
+			CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	} catch (_: CellCapturedMaintenanceLimitExceeded) {
+		CellCapturedSelectedDeletionResult.Blocked(
+			CellCapturedSelectedDeletionBlockedReason.MAINTENANCE_BOUND_EXCEEDED,
+		)
+	} catch (_: IllegalArgumentException) {
+		CellCapturedSelectedDeletionResult.Blocked(
+			CellCapturedSelectedDeletionBlockedReason.FACT_AUTHORITY_UNVERIFIABLE,
+		)
+	}
+}
+
+private data class CellSelectedRevisionCursor(
+	val projectionId: String,
+	val projectionVersion: Int,
+	val logicalFactId: String,
+	val semanticRevision: Long,
+) : Comparable<CellSelectedRevisionCursor> {
+	constructor(value: CellCapturedFactRevisionEntity) : this(
+		value.writerProjectionId,
+		value.writerProjectionVersion,
+		value.logicalFactId,
+		value.semanticRevision,
+	)
+
+	override fun compareTo(other: CellSelectedRevisionCursor): Int = compareValuesBy(
+		this,
+		other,
+		CellSelectedRevisionCursor::projectionId,
+		CellSelectedRevisionCursor::projectionVersion,
+		CellSelectedRevisionCursor::logicalFactId,
+		CellSelectedRevisionCursor::semanticRevision,
+	)
+}
+
+private fun selectedBlock(reason: CellCapturedSelectedDeletionBlockedReason): Nothing =
+	throw CellCapturedSelectedDeletionBlockedException(reason)
+
+private class CellCapturedSelectedDeletionBlockedException(
+	val reason: CellCapturedSelectedDeletionBlockedReason,
+) : RuntimeException(null, null, false, false)
+
+sealed interface DeletedCapturedCellSelectionAuthentication {
+	data object Absent : DeletedCapturedCellSelectionAuthentication
+	data class Exact(
+		val receipt: CellCapturedEntryDeletionReceiptEntity,
+	) : DeletedCapturedCellSelectionAuthentication
+	data object Unverifiable : DeletedCapturedCellSelectionAuthentication
+}
+
+/** Complete value-free authentication shared by local detail and selected-deletion replay. */
+suspend fun AppDatabase.authenticateDeletedCapturedCellSelectionInTransaction(
+	logicalTrackingId: String,
+	entryIdentity: PortableCellOpaqueIdentity,
+): DeletedCapturedCellSelectionAuthentication {
+	if (logicalTrackingId.isBlank() || entryIdentity != PortableCellOpaqueIdentity.derive(
+			PortableCellIdentityKind.LOGICAL_ENTRY,
+			logicalTrackingId,
+		)
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val state = sourceEvidenceStateDao().get()
+		?: return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	if (state.id != SourceEvidenceState.SINGLETON_ID || state.revision < 0L ||
+		state.collectedDataEpoch < 0L || state.retainedFromMs?.let { it < 0L } == true ||
+		state.deletedSourceEventHighWaterOrdinal < 0L || state.updatedAtMs < 0L
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val receipt = cellCapturedFactDao().entryDeletionReceipt(logicalTrackingId)
+		?: return DeletedCapturedCellSelectionAuthentication.Absent
+	if (receipt.entryIdentity != entryIdentity.value ||
+		receipt.collectedDataEpoch != state.collectedDataEpoch
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val deletedRuns = cellCapturedFactDao().deletedRuns(
+		logicalTrackingId,
+		receipt.expectedRunCount + 1,
+	)
+	if (deletedRuns.size != receipt.expectedRunCount ||
+		CellCapturedEntryDeletionReceiptEntity.checksumRunFootprints(deletedRuns) !=
+		receipt.runFootprintSetChecksum ||
+		deletedRuns.minOf(CellCapturedDeletedRunEntity::startTimeMs) != receipt.startTimeMs ||
+		deletedRuns.maxOf(CellCapturedDeletedRunEntity::endTimeMs) != receipt.endTimeMs
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val runIds = deletedRuns.map(CellCapturedDeletedRunEntity::serviceRunId)
+	val serviceRuns = trackingHistoryReadDao().logicalEntryServiceRunPage(
+		listOf(logicalTrackingId),
+		CellCapturedEntryDeletionReceiptEntity.MAX_RUNS + 1,
+		null,
+		null,
+		null,
+	)
+	if (serviceRuns.size != receipt.expectedRunCount ||
+		serviceRuns.mapTo(linkedSetOf(), SourceServiceRunEntity::serviceRunId) != runIds.toSet() ||
+		serviceRuns.any { run ->
+			run.logicalTrackingId != logicalTrackingId ||
+				deletedRuns.singleOrNull { it.serviceRunId == run.serviceRunId }
+					?.sessionSegmentId != run.sessionSegmentId ||
+				run.state !in setOf("FINALIZED", "FAILED", "CLOSED") || run.completedAtMs == null
+		}
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val session = sourceSessionDao().session(logicalTrackingId)
+	if (session == null || session.state !in setOf("FINALIZED", "FAILED", "CLOSED") ||
+		session.currentServiceRunId != null || session.completedAtMs == null
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	if (trackingHistoryReadDao().segments(
+			deletedRuns.map(CellCapturedDeletedRunEntity::sessionSegmentId),
+		).isNotEmpty()
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val manifests = trackingHistoryReadDao().manifests(
+		runIds,
+		CellCapturedPortableFormatV1.MAX_MANIFESTS + 1,
+	)
+	val sources = trackingHistoryReadDao().manifestSources(
+		runIds,
+		CellCapturedPortableFormatV1.MAX_MANIFEST_SOURCES + 1,
+	)
+	if (manifests.size > CellCapturedPortableFormatV1.MAX_MANIFESTS ||
+		sources.size > CellCapturedPortableFormatV1.MAX_MANIFEST_SOURCES
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val manifestsByRun = manifests.groupBy(SessionManifestVersionEntity::serviceRunId)
+	val sourcesByManifest = sources.groupBy { it.logicalTrackingId to it.manifestRevision }
+	if (!SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
+			runIds.map { runId ->
+				manifestsByRun[runId].orEmpty().map(SessionManifestVersionEntity::manifestRevision)
+			},
+		) || serviceRuns.any { run ->
+			val owned = manifestsByRun[run.serviceRunId].orEmpty()
+			owned.isEmpty() || !SessionManifestIntegrity.hasValidServiceRunTimeline(run, owned) ||
+				owned.any { manifest ->
+					val membership = sourcesByManifest[
+						logicalTrackingId to manifest.manifestRevision
+					].orEmpty()
+					manifest.logicalTrackingId != logicalTrackingId ||
+						!SessionManifestIntegrity.verify(manifest, membership) ||
+						membership.filter {
+							it.purpose == SessionManifestPurposeCode.SESSION_CAPTURE
+						}.singleOrNull()?.let {
+							it.sourceKind == CELL_SOURCE && it.persistenceEligible &&
+								it.outputDestination ==
+								SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL &&
+								it.writerOwner ==
+								SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS &&
+								it.writerOwnerGeneration ==
+								SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION &&
+								it.writerProjectionId ==
+								SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID &&
+								it.writerProjectionVersion ==
+								SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION &&
+								it.writerBindingGeneration ==
+								SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION
+						} != true
+				}
+		}
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val generations = cellCapturedFactDao().portableDeletionGenerationClosure(
+		logicalTrackingId,
+		runIds,
+		receipt.expectedRunCount + 1,
+	)
+	val fences = trackingHistoryReadDao().deletionFences(
+		CELL_SOURCE,
+		CAPTURE_PURPOSE,
+		SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+		deletedRuns.map(CellCapturedDeletedRunEntity::scopeIdentityDigest),
+	)
+	if (generations.size != receipt.expectedRunCount || fences.size != receipt.expectedRunCount) {
+		return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	}
+	val generationByRun = generations.associateBy(CellCaptureDeletionGenerationEntity::serviceRunId)
+	val fenceByScope = fences.associateBy(SourceDeletionFenceEntity::scopeIdentityDigest)
+	if (generationByRun.size != generations.size || fenceByScope.size != fences.size ||
+		deletedRuns.any { run ->
+			val generation = generationByRun[run.serviceRunId]
+			val fence = fenceByScope[run.scopeIdentityDigest]
+			generation == null || fence == null ||
+				generation.logicalTrackingId != logicalTrackingId ||
+				generation.collectedDataEpoch != receipt.collectedDataEpoch ||
+				generation.generation != run.generation ||
+				generation.updatedAtMs != receipt.deletedAtMs ||
+				fence.sourceKind != CELL_SOURCE || fence.purpose != CAPTURE_PURPOSE ||
+				fence.scopeKind != SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN ||
+				fence.collectedDataEpoch != receipt.collectedDataEpoch ||
+				fence.fenceGeneration != run.generation ||
+				fence.deletedAtMs != receipt.deletedAtMs ||
+				run.deletedAtMs != receipt.deletedAtMs
+		}
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	if (cellCapturedFactDao().historyCursorsForScopes(
+			WRITER_ID,
+			WRITER_VERSION,
+			runIds,
+			listOf(logicalTrackingId),
+			1,
+		).isNotEmpty() || cellCapturedFactDao().historyRevisionPage(
+			runIds,
+			listOf(logicalTrackingId),
+			1,
+			null,
+			null,
+			null,
+			null,
+		).isNotEmpty()
+	) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	val demands = cellCapturedFactDao().selectedCellCaptureDemandsForDeletion(
+		CELL_SOURCE,
+		logicalTrackingId,
+		runIds,
+		1,
+	)
+	if (demands.isNotEmpty()) return DeletedCapturedCellSelectionAuthentication.Unverifiable
+	return DeletedCapturedCellSelectionAuthentication.Exact(receipt)
 }
 
 /**

@@ -18,11 +18,13 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureResult
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureRequest
 import com.adsamcik.tracker.stats.api.repository.ImportPortablePressureResult
 import com.adsamcik.tracker.stats.api.repository.PortablePressureAvailability
@@ -30,9 +32,13 @@ import com.adsamcik.tracker.stats.api.repository.PortablePressureCoverage
 import com.adsamcik.tracker.stats.api.repository.PortablePressureEntrySink
 import com.adsamcik.tracker.stats.api.repository.PortablePressureEntryV1
 import com.adsamcik.tracker.stats.api.repository.PortablePressureExportUnverifiableReason
+import com.adsamcik.tracker.stats.api.repository.PortablePressureIdentityKind
 import com.adsamcik.tracker.stats.api.repository.PortablePressureImportReceipt
+import com.adsamcik.tracker.stats.api.repository.PortablePressureOpaqueIdentity
+import com.adsamcik.tracker.stats.api.repository.PortablePressureRunV1
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
+import com.adsamcik.tracker.stats.api.repository.PressurePortableFormatV1
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
@@ -357,6 +363,149 @@ class PressureHistorySelectorTest {
 		result.windows.single().closureKind shouldBe PressureFactRevisionEntity.CLOSURE_TARGET_ELAPSED
 		result.windows.single().sourceQualityFlags shouldBe 0L
 		result.windows.single().sourceQualityConfidence shouldBe 1f
+	}
+
+	@Test
+	fun terminalProjectionFailureRetainsDiagnosticWindowsWithoutPressureQualification() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		database.sourceProjectionStateDao().saveFailure(
+			SourceProjectionFailureEntity(
+				projectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+				projectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+				admissionOrdinal = 1L,
+				attemptCount = 1,
+				failureCode = "TERMINAL_PRESSURE_TEST",
+				terminal = true,
+				lastAttemptAtMs = RUN_END_MS,
+			),
+		)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		val logical = selector.selectLogicalBySegmentIds(listOf(fixture.segmentId)).single()
+		val recent = pressureAwareRepository()
+			.observeRecentPressureOnlyEntries(limit = 1).first().single()
+		val public = result.toPublicPressureSessionHistory()
+
+		result.windows.size shouldBe 1
+		result.materialization shouldBe PressureHistoryMaterialization.FAILED
+		result.reasons shouldBe setOf(PressureHistoryReason.TERMINAL_PROJECTION_FAILURE)
+		result.qualifiedSources shouldBe emptySet()
+		logical.isOrdinarilyDiscoverable shouldBe true
+		logical.isSharedSourceOnlyEligible shouldBe false
+		public.qualifiedSources shouldBe emptySet()
+		public.pressure.hasQualifiedRetainedProof shouldBe false
+		public.pressure.summary?.latestHectopascals shouldBe 1_003f
+		recent.state shouldBe PressureHistoryPresentationState.FAILED
+		recent.pressure.summary?.windowCount shouldBe 1
+	}
+
+	@Test
+	fun productLaneCutoffRetainsPressureDiagnosticWithoutQualification() = runTest {
+		val fixture = insertFixture(
+			factSemanticRevision = 1L,
+			completenessAdmissionOrdinal = 2L,
+			laneCursor = 1L,
+			laneCutoffOrdinal = 1L,
+		)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		val logical = selector.selectLogicalBySegmentIds(listOf(fixture.segmentId)).single()
+
+		result.windows.size shouldBe 1
+		result.materialization shouldBe PressureHistoryMaterialization.FAILED
+		result.reasons shouldBe setOf(PressureHistoryReason.PRODUCT_LANE_CUTOFF_BEFORE_TARGET)
+		result.qualifiedSources shouldBe emptySet()
+		logical.isOrdinarilyDiscoverable shouldBe true
+		logical.isSharedSourceOnlyEligible shouldBe false
+		result.toPublicPressureSessionHistory().pressure.presentationState shouldBe
+			PressureHistoryPresentationState.FAILED
+	}
+
+	@Test
+	fun retiredProductLaneRetainsPressureDiagnosticWithoutQualification() = runTest {
+		val fixture = insertFixture(
+			factSemanticRevision = 1L,
+			completenessAdmissionOrdinal = 2L,
+			laneCursor = 1L,
+			laneRetentionRequired = false,
+			laneStatus = SourceProductProjectionLaneEntity.STATUS_RETIRED,
+		)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		val logical = selector.selectLogicalBySegmentIds(listOf(fixture.segmentId)).single()
+
+		result.windows.size shouldBe 1
+		result.materialization shouldBe PressureHistoryMaterialization.FAILED
+		result.reasons shouldBe setOf(
+			PressureHistoryReason.PRODUCT_LANE_RETIRED_BEFORE_TARGET,
+		)
+		result.qualifiedSources shouldBe emptySet()
+		logical.isOrdinarilyDiscoverable shouldBe true
+		logical.isSharedSourceOnlyEligible shouldBe false
+		result.toPublicPressureSessionHistory().qualifiedSources shouldBe emptySet()
+	}
+
+	@Test
+	fun targetBeforeActivationRemainsTypedAndVisibleWithoutQualification() = runTest {
+		val fixture = insertFixture(
+			factSemanticRevision = null,
+			completenessAdmissionOrdinal = 1L,
+			laneCursor = 1L,
+			laneActivationOrdinal = 2L,
+		)
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		val intent = database.withTransaction {
+			selector.discoverRecentPressureOnlyIntentInTransaction(limit = 1)
+		} as PressureOnlyDiscoveryResult.Content
+		val logical = intent.entries.single()
+		val public = requireNotNull(logical.toPublicPressureOnlyEntryOrNull())
+
+		result.windows shouldBe emptyList()
+		result.materialization shouldBe PressureHistoryMaterialization.FAILED
+		result.reasons shouldBe setOf(PressureHistoryReason.TARGET_BEFORE_LANE_ACTIVATION)
+		result.qualifiedSources shouldBe emptySet()
+		logical.isSharedSourceOnlyEligible shouldBe false
+		public.state shouldBe PressureHistoryPresentationState.FAILED
+		public.pressure.summary shouldBe null
+	}
+
+	@Test
+	fun currentPressureCapabilityChangeDoesNotErasePartialHistoricalProof() = runTest {
+		val fixture = insertFixture(
+			factSemanticRevision = 1L,
+			factClosureKind = PressureFactRevisionEntity.CLOSURE_SOURCE_BOUNDARY,
+			factQualification = PressureFactRevisionEntity.QUALIFICATION_PARTIAL,
+		)
+		database.sourcePolicyDao().insertPolicies(listOf(
+			pressurePolicy(
+				policyRevision = 2L,
+				captureConsentEpoch = 2L,
+				effectiveElapsedRealtimeNanos = REPLACEMENT_RUN_START_ELAPSED_NANOS,
+				effectiveWallTimeMs = RUN_END_MS + 1L,
+			).copy(
+				enabled = false,
+				capturePersistenceEligible = false,
+				captureConsentEpoch = null,
+				changeReason = "CURRENT_CAPABILITY_DISABLED",
+			),
+		))
+
+		val result = requireNotNull(selector.selectBySegmentId(fixture.segmentId))
+		val public = result.toPublicPressureSessionHistory()
+
+		result.materialization shouldBe PressureHistoryMaterialization.READY
+		result.coverage shouldBe PressureHistoryCoverage.PARTIAL
+		result.reasons shouldBe setOf(PressureHistoryReason.PARTIAL_FACT)
+		result.hasQualifiedRetainedProof shouldBe true
+		result.qualifiedSources shouldBe setOf(
+			com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent.PRESSURE,
+		)
+		public.qualifiedSources shouldBe setOf(HistorySource.PRESSURE)
+		public.pressure.hasQualifiedRetainedProof shouldBe true
+		public.pressure.summary?.latestHectopascals shouldBe 1_003f
+		public.pressure.windows.single().qualification shouldBe
+			com.adsamcik.tracker.stats.api.repository.PressureWindowQualification.PARTIAL
 	}
 
 	@Test
@@ -1094,6 +1243,10 @@ class PressureHistorySelectorTest {
 			UnconfinedTestDispatcher(testScheduler),
 		) {}.importEntry(importRequest(local, "same")) shouldBe
 			ImportPortablePressureResult.Applied(1L, 1, 1)
+		val sourcePage = database.withTransaction {
+			sourcePageReader().recentImportedEligibleForSharedHistoryInTransaction(10)
+		} as ImportedHistoryEligiblePage.Available
+		sourcePage.entries shouldBe emptyList()
 		val emitted = mutableListOf<PortablePressureEntryV1>()
 		val result = RoomExportPortablePressure(
 			PortablePressureRoomReader(database, selector),
@@ -1111,7 +1264,10 @@ class PressureHistorySelectorTest {
 			) {}.importEntry(importRequest(emitted.single(), "round-trip")) shouldBe
 				ImportPortablePressureResult.Applied(1L, 1, 1)
 			val roundTrip = target.withTransaction {
-				ImportedPressureHistoryEvaluator(target).selectRecentInTransaction(1).single()
+				(
+					ImportedPressureHistoryEvaluator(target).selectRecentInTransaction(1) as
+						ImportedPressureHistorySelection.Available
+					).evaluations.single()
 			} as ImportedPressureHistoryEvaluation.Readable
 			roundTrip.latest.entry shouldBe local
 		} finally {
@@ -1142,6 +1298,11 @@ class PressureHistorySelectorTest {
 			UnconfinedTestDispatcher(testScheduler),
 		) {}.importEntry(importRequest(divergent, "divergent")) shouldBe
 			ImportPortablePressureResult.Applied(1L, 1, 1)
+		database.withTransaction {
+			sourcePageReader().recentImportedEligibleForSharedHistoryInTransaction(10)
+		} shouldBe ImportedHistoryEligiblePage.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+		)
 		val emitted = mutableListOf<PortablePressureEntryV1>()
 
 		val result = RoomExportPortablePressure(
@@ -1153,6 +1314,54 @@ class PressureHistorySelectorTest {
 			PortablePressureExportUnverifiableReason.CONFLICTING_ORIGIN_IDENTITY,
 		)
 		emitted shouldBe emptyList()
+	}
+
+	@Test
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun importedEligiblePagingFillsPastOnePageOfExactLocalDuplicates() = runTest {
+		insertFixture(factSemanticRevision = 1L, laneCursor = 100L)
+		repeat(32) { index ->
+			insertIndependentPressureFixture(
+				index = index,
+				startTimeMs = 4_000L + index * 2_000L,
+			)
+		}
+		val local = PortablePressureRoomReader(database, selector).read(
+			ExportPortablePressureRequest(0L, 100_000L),
+		) as PortablePressureSnapshot.Ready
+		val writer = RoomImportPortablePressure(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+		) {}
+		local.entries.forEachIndexed { index, entry ->
+			writer.importEntry(importRequest(entry, "duplicate-$index")) shouldBe
+				ImportPortablePressureResult.Applied(1L, 1, 1)
+		}
+		val oldImported = importedRetentionOnlyEntry(
+			entryLocalId = "old-imported-entry",
+			runLocalId = "old-imported-run",
+			startTimeMs = 100L,
+		)
+		writer.importEntry(importRequest(oldImported, "old-imported")) shouldBe
+			ImportPortablePressureResult.Applied(1L, 1, 0)
+
+		val page = database.withTransaction {
+			sourcePageReader().recentImportedEligibleForSharedHistoryInTransaction(1)
+		} as ImportedHistoryEligiblePage.Available
+
+		page.entries.single().identity.value shouldBe oldImported.identity.value
+		page.entries.single().contentChecksum shouldBe oldImported.contentChecksum
+	}
+
+	@Test
+	fun importedEligibleReaderRejectsLimitAboveSourceBudget() = runTest {
+		database.withTransaction {
+			sourcePageReader().recentImportedEligibleForSharedHistoryInTransaction(
+				PressurePortableFormatV1.MAX_ENTRIES + 1,
+			)
+		} shouldBe ImportedHistoryEligiblePage.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
+		)
 	}
 
 	@Test
@@ -1177,6 +1386,16 @@ class PressureHistorySelectorTest {
 		toExclusiveMs = REPLACEMENT_RUN_END_MS + 1L,
 	)
 
+	private fun sourcePageReader(): PressureHistoryPageReader {
+		val evaluator = ImportedPressureHistoryEvaluator(database)
+		return PressureHistoryPageReader(
+			database,
+			selector,
+			evaluator,
+			PortablePressureRoomReader(database, selector, evaluator),
+		)
+	}
+
 	private fun importRequest(
 		entry: PortablePressureEntryV1,
 		receiptSuffix: String,
@@ -1191,12 +1410,49 @@ class PressureHistorySelectorTest {
 		expectedCollectedDataEpoch = 0L,
 	)
 
-	@Suppress("LongMethod")
+	private fun importedRetentionOnlyEntry(
+		entryLocalId: String,
+		runLocalId: String,
+		startTimeMs: Long,
+	): PortablePressureEntryV1 {
+		val run = PortablePressureRunV1(
+			identity = PortablePressureOpaqueIdentity.derive(
+				PortablePressureIdentityKind.PHYSICAL_RUN,
+				runLocalId,
+			),
+			startTimeMs = startTimeMs,
+			endTimeMs = startTimeMs + 100L,
+			capturedForWholeRun = true,
+			availability = PortablePressureAvailability.NO_RETAINED_OBSERVATION,
+			coverage = PortablePressureCoverage.PARTIAL,
+			retentionLoss = true,
+			windows = emptyList(),
+		)
+		return PortablePressureEntryV1.create(
+			identity = PortablePressureOpaqueIdentity.derive(
+				PortablePressureIdentityKind.LOGICAL_ENTRY,
+				entryLocalId,
+			),
+			startTimeMs = run.startTimeMs,
+			endTimeMs = run.endTimeMs,
+			runs = listOf(run),
+		)
+	}
+
+	@Suppress("LongMethod", "LongParameterList")
 	private suspend fun insertFixture(
 		zoneId: String = "UTC",
 		factSemanticRevision: Long?,
 		factAdmissionOrdinal: Long = 1L,
+		completenessAdmissionOrdinal: Long = factAdmissionOrdinal,
 		laneCursor: Long = factAdmissionOrdinal,
+		laneActivationOrdinal: Long = 1L,
+		laneCutoffOrdinal: Long? = null,
+		laneRetentionRequired: Boolean = true,
+		laneStatus: String = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+		factExpectedSampleCount: Int = 4,
+		factClosureKind: String = PressureFactRevisionEntity.CLOSURE_TARGET_ELAPSED,
+		factQualification: String = PressureFactRevisionEntity.QUALIFICATION_COMPLETE,
 		unavailablePressure: Boolean = false,
 	): PressureFixture {
 		val segment = segment()
@@ -1228,7 +1484,15 @@ class PressureHistorySelectorTest {
 		database.sourceSessionDao().insertManifestSources(listOf(binding))
 		database.sourcePolicyDao().insertPolicies(listOf(pressurePolicy()))
 		database.sourcePolicyDao().insertConsentEpochs(listOf(pressureConsent()))
-		database.sourceProjectionStateDao().installProductLane(lane(laneCursor))
+		database.sourceProjectionStateDao().installProductLane(
+			lane(
+				cursor = laneCursor,
+				activationOrdinal = laneActivationOrdinal,
+				captureAdmissionCutoffOrdinal = laneCutoffOrdinal,
+				retentionRequired = laneRetentionRequired,
+				status = laneStatus,
+			),
+		)
 		database.sourceSessionDao().saveCompleteness(
 			SourceSessionCompletenessEntity(
 				logicalTrackingId = LOGICAL_ID,
@@ -1240,8 +1504,16 @@ class PressureHistorySelectorTest {
 					"pressure-provider-1"
 				},
 				registrationGeneration = if (unavailablePressure) 0L else 1L,
-				lastAdmissionOrdinal = if (unavailablePressure) null else factAdmissionOrdinal,
-				lastSourceSequence = if (unavailablePressure) null else factAdmissionOrdinal,
+				lastAdmissionOrdinal = if (unavailablePressure) {
+					null
+				} else {
+					completenessAdmissionOrdinal
+				},
+				lastSourceSequence = if (unavailablePressure) {
+					null
+				} else {
+					completenessAdmissionOrdinal
+				},
 				appDrainComplete = true,
 				providerCoverage = if (unavailablePressure) {
 					"PROVIDER_COMPLETENESS_UNOBSERVABLE"
@@ -1260,6 +1532,9 @@ class PressureHistorySelectorTest {
 					binding = binding,
 					semanticRevision = revision,
 					admissionOrdinal = factAdmissionOrdinal,
+					expectedSampleCount = factExpectedSampleCount,
+					closureKind = factClosureKind,
+					qualification = factQualification,
 				),
 			)
 		}
@@ -1591,7 +1866,13 @@ class PressureHistorySelectorTest {
 		changeReason = "TEST",
 	)
 
-	private fun lane(cursor: Long) = SourceProductProjectionLaneEntity(
+	private fun lane(
+		cursor: Long,
+		activationOrdinal: Long = 1L,
+		captureAdmissionCutoffOrdinal: Long? = null,
+		retentionRequired: Boolean = true,
+		status: String = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+	) = SourceProductProjectionLaneEntity(
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 		bindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
 		projectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
@@ -1599,10 +1880,11 @@ class PressureHistorySelectorTest {
 		captureModeMask = MANUAL_CAPTURE_MASK,
 		productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
 		activatedRolloutRevision = ROLLOUT_REVISION,
-		activationOrdinal = 1L,
+		activationOrdinal = activationOrdinal,
 		contiguousAdmissionOrdinal = cursor,
-		retentionRequired = true,
-		status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+		captureAdmissionCutoffOrdinal = captureAdmissionCutoffOrdinal,
+		retentionRequired = retentionRequired,
+		status = status,
 		installedAtMs = 1L,
 		updatedAtMs = 1L,
 	)
@@ -1623,6 +1905,9 @@ class PressureHistorySelectorTest {
 		windowStartElapsedRealtimeNanos: Long = PRESSURE_START_ELAPSED_NANOS,
 		windowEndElapsedRealtimeNanos: Long = PRESSURE_END_ELAPSED_NANOS,
 		collectedDataEpoch: Long = 0L,
+		expectedSampleCount: Int = 4,
+		closureKind: String = PressureFactRevisionEntity.CLOSURE_TARGET_ELAPSED,
+		qualification: String = PressureFactRevisionEntity.QUALIFICATION_COMPLETE,
 	): PressureFactRevisionEntity {
 		val logicalFactId =
 			"${SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID}:$sourceEventId"
@@ -1657,10 +1942,10 @@ class PressureHistorySelectorTest {
 			effectiveSamplePeriodMicros = 50_000,
 			effectiveMaximumReportLatencyMicros = 0,
 			targetWindowDurationNanos = 200_000_000L,
-			expectedSampleCount = 4,
+			expectedSampleCount = expectedSampleCount,
 			maximumInterSampleGapNanos = 50_000_000L,
-			closureKind = PressureFactRevisionEntity.CLOSURE_TARGET_ELAPSED,
-			qualification = PressureFactRevisionEntity.QUALIFICATION_COMPLETE,
+			closureKind = closureKind,
+			qualification = qualification,
 			sourceQualityFlags = 0L,
 			sourceQualityConfidence = 1f,
 			logicalTrackingId = logicalTrackingId,

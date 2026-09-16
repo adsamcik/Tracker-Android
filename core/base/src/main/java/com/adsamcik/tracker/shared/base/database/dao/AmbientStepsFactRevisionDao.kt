@@ -151,6 +151,19 @@ interface AmbientStepsFactRevisionDao {
 		limit: Int,
 	): List<AmbientStepsFactRevisionEntity>
 
+	/** Complete correction lineages for one bounded product fact batch. */
+	@Query(
+		"SELECT * FROM ambient_steps_fact_revision WHERE writer_id = :writerId " +
+			"AND writer_version = :writerVersion AND logical_fact_id IN (:logicalFactIds) " +
+			"ORDER BY logical_fact_id, semantic_revision LIMIT :limit",
+	)
+	suspend fun revisionsForLogicalFacts(
+		writerId: String,
+		writerVersion: Int,
+		logicalFactIds: List<String>,
+		limit: Int,
+	): List<AmbientStepsFactRevisionEntity>
+
 	/**
 	 * Discovers sessionless structural days directly from latest-effective Ambient Steps facts.
 	 * Neither a tracking session nor Location/sample-count evidence participates in this page.
@@ -173,6 +186,29 @@ interface AmbientStepsFactRevisionDao {
 	suspend fun discoverStructuralDays(
 		writerId: String,
 		writerVersion: Int,
+		limit: Int,
+	): List<AmbientStepsStructuralDayRow>
+
+	@Query(
+		"WITH effective_fact AS (SELECT fact.* FROM ambient_steps_fact_revision AS fact " +
+			"WHERE fact.writer_id = :writerId AND fact.writer_version = :writerVersion " +
+			"AND fact.operation = '${AmbientStepsFactRevisionEntity.OPERATION_UPSERT}' " +
+			"AND fact.structural_epoch_day BETWEEN :firstEpochDay AND :lastEpochDayInclusive " +
+			"AND fact.semantic_revision = (SELECT MAX(state.semantic_revision) " +
+			"FROM ambient_steps_fact_revision AS state WHERE state.writer_id = fact.writer_id " +
+			"AND state.writer_version = fact.writer_version " +
+			"AND state.logical_fact_id = fact.logical_fact_id)) " +
+			"SELECT structural_epoch_day, stored_zone_id, structural_day_start_time_ms, " +
+			"structural_day_end_time_ms, MAX(window_end_time_ms) AS latest_window_end_time_ms " +
+			"FROM effective_fact GROUP BY structural_epoch_day, stored_zone_id, " +
+			"structural_day_start_time_ms, structural_day_end_time_ms " +
+			"ORDER BY structural_epoch_day, stored_zone_id LIMIT :limit",
+	)
+	suspend fun discoverStructuralDaysForEpochRange(
+		writerId: String,
+		writerVersion: Int,
+		firstEpochDay: Long,
+		lastEpochDayInclusive: Long,
 		limit: Int,
 	): List<AmbientStepsStructuralDayRow>
 

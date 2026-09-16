@@ -583,6 +583,7 @@ class LocationQualifiedObservationQualifierTest {
 	): LocationDurableObservationEvidence = LocationDurableObservationEvidence(
 		sourceEventId = SourceEventId("location-event-1"),
 		sourceAdmissionOrdinal = 7L,
+		sourceSequence = 7L,
 		walIntegrityIdentity = "b".repeat(64),
 		sourceDeliveryIdentity = SourceDeliveryIdentity("a".repeat(64)),
 		deliveryUnitIndex = 0,

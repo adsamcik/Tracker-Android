@@ -68,7 +68,16 @@ class RoomDeleteSelectedImportedActivity internal constructor(
 		val state = storedValue { database.sourceEvidenceStateDao().get() }
 			?: unverifiable(ImportedActivityProductFailure.SOURCE_EVIDENCE_STATE_MISSING)
 		if (state.collectedDataEpoch != request.expectedCollectedDataEpoch) {
-			blocked(SelectedImportedActivityDeletionBlockedReason.COLLECTED_DATA_EPOCH_CHANGED)
+			blocked(
+				if (request.expectedSourceEvidenceRevision == null) {
+					SelectedImportedActivityDeletionBlockedReason.COLLECTED_DATA_EPOCH_CHANGED
+				} else {
+					SelectedImportedActivityDeletionBlockedReason.STALE_REQUEST
+				},
+			)
+		}
+		if (request.expectedSourceEvidenceRevision?.let { it != state.revision } == true) {
+			blocked(SelectedImportedActivityDeletionBlockedReason.STALE_REQUEST)
 		}
 		if (state.revision < 0L || state.deletedSourceEventHighWaterOrdinal < 0L ||
 			state.retainedFromMs?.let { it < 0L } == true || state.updatedAtMs < 0L

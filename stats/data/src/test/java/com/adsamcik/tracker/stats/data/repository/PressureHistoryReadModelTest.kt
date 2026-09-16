@@ -7,6 +7,7 @@ import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationStat
 import com.adsamcik.tracker.stats.api.repository.PressureSensorAccuracy
 import com.adsamcik.tracker.stats.api.repository.PressureWindowQualification
 import io.kotest.matchers.shouldBe
+import kotlin.test.assertFailsWith
 import org.junit.Test
 
 class PressureHistoryReadModelTest {
@@ -80,6 +81,83 @@ class PressureHistoryReadModelTest {
 		publicEntry.state shouldBe PressureHistoryPresentationState.FAILED
 		public.summary shouldBe null
 		public.zoneAuthorities shouldBe emptySet()
+	}
+
+	@Test
+	fun failedRetainedPressureRemainsVisibleButUnqualifiedAndIneligibleForSharedReplacement() {
+		val failed = available(
+			segment = segment(id = 4L, logicalId = "logical", runId = "run-a", startMs = 400L),
+			window = window("fact-a", "run-a", "UTC", 10L, 1001f, 1000f),
+		).copy(
+			materialization = PressureHistoryMaterialization.FAILED,
+			coverage = PressureHistoryCoverage.PARTIAL,
+			reasons = setOf(PressureHistoryReason.TERMINAL_PROJECTION_FAILURE),
+		)
+
+		val logical = PressureLogicalHistoryComposer.compose(listOf(failed)).single()
+		val session = failed.toPublicPressureSessionHistory()
+		val sourceOnly = requireNotNull(logical.toPublicPressureOnlyEntryOrNull())
+
+		failed.hasQualifiedRetainedProof shouldBe false
+		failed.qualifiedSources shouldBe emptySet()
+		logical.isOrdinarilyDiscoverable shouldBe true
+		logical.isSharedSourceOnlyEligible shouldBe false
+		logical.toSharedPressureOnlyEntryOrNull() shouldBe null
+		session.qualifiedSources shouldBe emptySet()
+		session.pressure.presentationState shouldBe PressureHistoryPresentationState.FAILED
+		session.pressure.summary?.windowCount shouldBe 1
+		sourceOnly.state shouldBe PressureHistoryPresentationState.FAILED
+		sourceOnly.pressure.summary?.firstHectopascals shouldBe 1001f
+	}
+
+	@Test
+	fun readyAndPartialAuthenticatedPressureWindowsRemainQualified() {
+		val ready = available(
+			segment = segment(id = 5L, logicalId = "ready", runId = "run-ready", startMs = 500L),
+			window = window("fact-ready", "run-ready", "UTC", 10L, 1001f, 1000f),
+		)
+		val partial = available(
+			segment = segment(id = 6L, logicalId = "partial", runId = "run-partial", startMs = 600L),
+			window = window("fact-partial", "run-partial", "UTC", 20L, 1000f, 999f),
+		).copy(
+			coverage = PressureHistoryCoverage.PARTIAL,
+			reasons = setOf(PressureHistoryReason.PARTIAL_FACT),
+		)
+
+		listOf(ready, partial).forEach { history ->
+			history.hasQualifiedRetainedProof shouldBe true
+			history.qualifiedSources shouldBe setOf(TrackingSourceComponent.PRESSURE)
+			PressureLogicalHistoryComposer.compose(listOf(history))
+				.single().also { logical ->
+					logical.isSharedSourceOnlyEligible shouldBe true
+					requireNotNull(logical.toSharedPressureOnlyEntryOrNull())
+				}
+			history.toPublicPressureSessionHistory().qualifiedSources shouldBe
+				setOf(com.adsamcik.tracker.stats.api.repository.HistorySource.PRESSURE)
+		}
+	}
+
+	@Test
+	fun retainedPressureWindowRequiresItsExactCaptureRevisionProvenance() {
+		val valid = available(
+			segment = segment(id = 7L, logicalId = "logical", runId = "run-a", startMs = 700L),
+			window = window("fact-a", "run-a", "UTC", 10L, 1001f, 1000f),
+		)
+
+		assertFailsWith<IllegalArgumentException> {
+			valid.copy(
+				captureAuthority = HistoricalCaptureAuthority.Exact(
+					listOf(
+						HistoricalCaptureRevision(
+							manifestRevision = 2L,
+							effectiveWallTimeMs = 700L,
+							capturedSources = setOf(TrackingSourceComponent.PRESSURE),
+							controlSources = emptySet(),
+						),
+					),
+				),
+			)
+		}
 	}
 
 	@Test

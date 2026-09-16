@@ -4,8 +4,23 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
+import com.adsamcik.tracker.shared.base.database.PortableActivityEntryV1
 import java.security.MessageDigest
 import java.time.ZoneId
+import java.util.Base64
+
+/** Exact retained wall/zone interval used only for structural-day membership. */
+data class ImportedActivityRetainedZoneRange(
+	val startTimeMs: Long,
+	val endInclusiveMs: Long,
+	val storedZoneId: String,
+) {
+	init {
+		require(startTimeMs >= 0L && endInclusiveMs >= startTimeMs)
+		require(storedZoneId.isNotBlank() && storedZoneId.length <= MAX_TEXT_VALUE_LENGTH)
+		ZoneId.of(storedZoneId)
+	}
+}
 
 /** One immutable destination-local revision of a captured Activity portable entry. */
 @Entity(
@@ -320,6 +335,16 @@ data class ImportedActivityRetentionReceiptEntity(
 	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
 	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
 	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+	@ColumnInfo(name = "temporal_authority_state", defaultValue = "'UNAVAILABLE'")
+	val temporalAuthorityState: String,
+	@ColumnInfo(name = "latest_member_start_time_ms") val latestMemberStartTimeMs: Long?,
+	@ColumnInfo(name = "latest_member_identity") val latestMemberIdentity: String?,
+	@ColumnInfo(name = "structural_zone_range_count", defaultValue = "0")
+	val structuralZoneRangeCount: Int,
+	@ColumnInfo(name = "structural_zone_ranges_payload", defaultValue = "''")
+	val structuralZoneRangesPayload: String,
+	@ColumnInfo(name = "structural_zone_coverage_complete", defaultValue = "0")
+	val structuralZoneCoverageComplete: Boolean,
 	@ColumnInfo(name = "revision_count") val revisionCount: Int,
 	@ColumnInfo(name = "import_receipt_count") val importReceiptCount: Int,
 	@ColumnInfo(name = "run_row_count") val runRowCount: Int,
@@ -350,6 +375,28 @@ data class ImportedActivityRetentionReceiptEntity(
 		require(latestImportRevision > 0L)
 		require(startTimeMs >= 0L && endTimeMs >= startTimeMs)
 		require(receivedAtMs in 0L..retainedAtMs)
+		when (temporalAuthorityState) {
+			TEMPORAL_AUTHORITY_AVAILABLE -> {
+				require(latestMemberStartTimeMs != null &&
+					latestMemberStartTimeMs in startTimeMs..endTimeMs)
+				require(ImportedActivityIdentity.isDigest(latestMemberIdentity))
+				require(structuralZoneRangeCount in 1..MAX_ZONE_ROWS)
+				require(structuralZoneRangesPayload.length <= MAX_TEMPORAL_PAYLOAD_LENGTH)
+				require(structuralZoneRanges().size == structuralZoneRangeCount)
+			}
+			TEMPORAL_AUTHORITY_UNAVAILABLE -> {
+				require(latestMemberStartTimeMs == null && latestMemberIdentity == null)
+				require(structuralZoneRangeCount == 0 && structuralZoneRangesPayload.isEmpty())
+				require(!structuralZoneCoverageComplete)
+			}
+			TEMPORAL_AUTHORITY_REDACTED -> {
+				require(startTimeMs == 0L && endTimeMs == 0L && receivedAtMs == 0L)
+				require(latestMemberStartTimeMs == null && latestMemberIdentity == null)
+				require(structuralZoneRangeCount == 0 && structuralZoneRangesPayload.isEmpty())
+				require(!structuralZoneCoverageComplete)
+			}
+			else -> error("Unknown imported Activity retained temporal authority")
+		}
 		require(revisionCount in 1..MAX_REVISIONS)
 		require(latestImportRevision == revisionCount.toLong())
 		require(importReceiptCount in revisionCount..MAX_RECEIPTS)
@@ -367,7 +414,10 @@ data class ImportedActivityRetentionReceiptEntity(
 		require(sourceFenceCount in 0..stableRunCount)
 		require(protectedIdentityCount == 1 + stableRunCount * 2 + stableWindowCount)
 		require(protectedIdentityCount <= MAX_PROTECTED_IDENTITIES)
-		require(effectChecksum == checksum(this))
+		require(effectChecksum == when (temporalAuthorityState) {
+			TEMPORAL_AUTHORITY_UNAVAILABLE -> legacyChecksum(this)
+			else -> checksum(this)
+		})
 	}
 
 	@Suppress("ComplexCondition")
@@ -388,7 +438,14 @@ data class ImportedActivityRetentionReceiptEntity(
 			protectedIdentitySetChecksum == checksumProtectedIdentities(markers)
 	}
 
+	fun structuralZoneRanges(): List<ImportedActivityRetainedZoneRange> =
+		decodeStructuralZoneRanges(structuralZoneRangesPayload, structuralZoneRangeCount)
+
 	companion object {
+		const val TEMPORAL_AUTHORITY_AVAILABLE = "AVAILABLE"
+		const val TEMPORAL_AUTHORITY_UNAVAILABLE = "UNAVAILABLE"
+		const val TEMPORAL_AUTHORITY_REDACTED = "REDACTED"
+
 		@Suppress("LongParameterList")
 		fun create(
 			entryIdentity: String,
@@ -411,12 +468,20 @@ data class ImportedActivityRetentionReceiptEntity(
 			sourceFences: List<SourceDeletionFenceEntity>,
 			markers: List<ImportedActivityRetainedIdentityEntity>,
 			lineageAuthorityChecksum: String,
+			latestMemberStartTimeMs: Long,
+			latestMemberIdentity: String,
+			structuralZoneRanges: List<ImportedActivityRetainedZoneRange>,
+			structuralZoneCoverageComplete: Boolean,
 		): ImportedActivityRetentionReceiptEntity {
+			require(latestMemberStartTimeMs in startTimeMs..endTimeMs)
+			require(ImportedActivityIdentity.isDigest(latestMemberIdentity))
+			require(structuralZoneRanges.isNotEmpty())
 			val protectedChecksum = checksumProtectedIdentities(markers)
 			val runDeletionChecksum =
 				ImportedActivityEntryDeletionReceiptEntity.checksumRunDeletions(runDeletions)
 			val sourceFenceChecksum =
 				ImportedActivityEntryDeletionReceiptEntity.checksumSourceFences(sourceFences)
+			val structuralPayload = encodeStructuralZoneRanges(structuralZoneRanges)
 			return ImportedActivityRetentionReceiptEntity(
 				entryIdentity = entryIdentity,
 				collectedDataEpoch = collectedDataEpoch,
@@ -428,6 +493,12 @@ data class ImportedActivityRetentionReceiptEntity(
 				startTimeMs = startTimeMs,
 				endTimeMs = endTimeMs,
 				receivedAtMs = receivedAtMs,
+				temporalAuthorityState = TEMPORAL_AUTHORITY_AVAILABLE,
+				latestMemberStartTimeMs = latestMemberStartTimeMs,
+				latestMemberIdentity = latestMemberIdentity,
+				structuralZoneRangeCount = structuralZoneRanges.size,
+				structuralZoneRangesPayload = structuralPayload,
+				structuralZoneCoverageComplete = structuralZoneCoverageComplete,
 				revisionCount = revisionCount,
 				importReceiptCount = importReceiptCount,
 				runRowCount = runRowCount,
@@ -452,6 +523,12 @@ data class ImportedActivityRetentionReceiptEntity(
 					startTimeMs,
 					endTimeMs,
 					receivedAtMs,
+					TEMPORAL_AUTHORITY_AVAILABLE,
+					latestMemberStartTimeMs,
+					latestMemberIdentity,
+					structuralZoneRanges.size,
+					structuralPayload,
+					structuralZoneCoverageComplete,
 					revisionCount,
 					importReceiptCount,
 					runRowCount,
@@ -465,6 +542,126 @@ data class ImportedActivityRetentionReceiptEntity(
 					markers.size,
 					protectedChecksum,
 					lineageAuthorityChecksum,
+				),
+			)
+		}
+
+		/**
+		 * Exact in-memory representation of a retained receipt created before temporal authority
+		 * columns existed. Its original effect checksum remains authoritative.
+		 */
+		fun createTemporalAuthorityUnavailableFromLegacy(
+			original: ImportedActivityRetentionReceiptEntity,
+		): ImportedActivityRetentionReceiptEntity {
+			require(original.temporalAuthorityState == TEMPORAL_AUTHORITY_AVAILABLE)
+			return ImportedActivityRetentionReceiptEntity(
+				entryIdentity = original.entryIdentity,
+				collectedDataEpoch = original.collectedDataEpoch,
+				sourceEvidenceRevision = original.sourceEvidenceRevision,
+				retainedFromMs = original.retainedFromMs,
+				retainedAtMs = original.retainedAtMs,
+				latestImportRevision = original.latestImportRevision,
+				latestContentChecksum = original.latestContentChecksum,
+				startTimeMs = original.startTimeMs,
+				endTimeMs = original.endTimeMs,
+				receivedAtMs = original.receivedAtMs,
+				temporalAuthorityState = TEMPORAL_AUTHORITY_UNAVAILABLE,
+				latestMemberStartTimeMs = null,
+				latestMemberIdentity = null,
+				structuralZoneRangeCount = 0,
+				structuralZoneRangesPayload = "",
+				structuralZoneCoverageComplete = false,
+				revisionCount = original.revisionCount,
+				importReceiptCount = original.importReceiptCount,
+				runRowCount = original.runRowCount,
+				zoneEpochRowCount = original.zoneEpochRowCount,
+				windowRowCount = original.windowRowCount,
+				fragmentRowCount = original.fragmentRowCount,
+				runDeletionCount = original.runDeletionCount,
+				runDeletionSetChecksum = original.runDeletionSetChecksum,
+				sourceFenceCount = original.sourceFenceCount,
+				sourceFenceSetChecksum = original.sourceFenceSetChecksum,
+				protectedIdentityCount = original.protectedIdentityCount,
+				protectedIdentitySetChecksum = original.protectedIdentitySetChecksum,
+				lineageAuthorityChecksum = original.lineageAuthorityChecksum,
+				effectChecksum = legacyChecksum(original),
+			)
+		}
+
+		@Suppress("LongParameterList")
+		fun createRedacted(
+			original: ImportedActivityRetentionReceiptEntity,
+			sourceEvidenceRevision: Long,
+			retainedAtMs: Long,
+			runDeletions: List<ImportedActivityDeletionGenerationEntity>,
+			sourceFences: List<SourceDeletionFenceEntity>,
+			markers: List<ImportedActivityRetainedIdentityEntity>,
+		): ImportedActivityRetentionReceiptEntity {
+			val runDeletionChecksum =
+				ImportedActivityEntryDeletionReceiptEntity.checksumRunDeletions(runDeletions)
+			val sourceFenceChecksum =
+				ImportedActivityEntryDeletionReceiptEntity.checksumSourceFences(sourceFences)
+			val protectedChecksum = checksumProtectedIdentities(markers)
+			return ImportedActivityRetentionReceiptEntity(
+				entryIdentity = original.entryIdentity,
+				collectedDataEpoch = original.collectedDataEpoch,
+				sourceEvidenceRevision = sourceEvidenceRevision,
+				retainedFromMs = original.retainedFromMs,
+				retainedAtMs = retainedAtMs,
+				latestImportRevision = original.latestImportRevision,
+				latestContentChecksum = original.latestContentChecksum,
+				startTimeMs = 0L,
+				endTimeMs = 0L,
+				receivedAtMs = 0L,
+				temporalAuthorityState = TEMPORAL_AUTHORITY_REDACTED,
+				latestMemberStartTimeMs = null,
+				latestMemberIdentity = null,
+				structuralZoneRangeCount = 0,
+				structuralZoneRangesPayload = "",
+				structuralZoneCoverageComplete = false,
+				revisionCount = original.revisionCount,
+				importReceiptCount = original.importReceiptCount,
+				runRowCount = original.runRowCount,
+				zoneEpochRowCount = original.zoneEpochRowCount,
+				windowRowCount = original.windowRowCount,
+				fragmentRowCount = original.fragmentRowCount,
+				runDeletionCount = runDeletions.size,
+				runDeletionSetChecksum = runDeletionChecksum,
+				sourceFenceCount = sourceFences.size,
+				sourceFenceSetChecksum = sourceFenceChecksum,
+				protectedIdentityCount = markers.size,
+				protectedIdentitySetChecksum = protectedChecksum,
+				lineageAuthorityChecksum = original.lineageAuthorityChecksum,
+				effectChecksum = checksum(
+					original.entryIdentity,
+					original.collectedDataEpoch,
+					sourceEvidenceRevision,
+					original.retainedFromMs,
+					retainedAtMs,
+					original.latestImportRevision,
+					original.latestContentChecksum,
+					0L,
+					0L,
+					0L,
+					TEMPORAL_AUTHORITY_REDACTED,
+					null,
+					null,
+					0,
+					"",
+					false,
+					original.revisionCount,
+					original.importReceiptCount,
+					original.runRowCount,
+					original.zoneEpochRowCount,
+					original.windowRowCount,
+					original.fragmentRowCount,
+					runDeletions.size,
+					runDeletionChecksum,
+					sourceFences.size,
+					sourceFenceChecksum,
+					markers.size,
+					protectedChecksum,
+					original.lineageAuthorityChecksum,
 				),
 			)
 		}
@@ -535,6 +732,12 @@ data class ImportedActivityRetentionReceiptEntity(
 			value.startTimeMs,
 			value.endTimeMs,
 			value.receivedAtMs,
+			value.temporalAuthorityState,
+			value.latestMemberStartTimeMs,
+			value.latestMemberIdentity,
+			value.structuralZoneRangeCount,
+			value.structuralZoneRangesPayload,
+			value.structuralZoneCoverageComplete,
 			value.revisionCount,
 			value.importReceiptCount,
 			value.runRowCount,
@@ -550,6 +753,36 @@ data class ImportedActivityRetentionReceiptEntity(
 			value.lineageAuthorityChecksum,
 		)
 
+		private fun legacyChecksum(value: ImportedActivityRetentionReceiptEntity) =
+			ImportedActivityIdentity.digest(
+				"tracker-imported-activity-retention-receipt-v1",
+				listOf(
+					value.entryIdentity,
+					value.collectedDataEpoch.toString(),
+					value.sourceEvidenceRevision.toString(),
+					value.retainedFromMs.toString(),
+					value.retainedAtMs.toString(),
+					value.latestImportRevision.toString(),
+					value.latestContentChecksum,
+					value.startTimeMs.toString(),
+					value.endTimeMs.toString(),
+					value.receivedAtMs.toString(),
+					value.revisionCount.toString(),
+					value.importReceiptCount.toString(),
+					value.runRowCount.toString(),
+					value.zoneEpochRowCount.toString(),
+					value.windowRowCount.toString(),
+					value.fragmentRowCount.toString(),
+					value.runDeletionCount.toString(),
+					value.runDeletionSetChecksum,
+					value.sourceFenceCount.toString(),
+					value.sourceFenceSetChecksum,
+					value.protectedIdentityCount.toString(),
+					value.protectedIdentitySetChecksum,
+					value.lineageAuthorityChecksum,
+				),
+			)
+
 		@Suppress("LongParameterList")
 		private fun checksum(
 			entryIdentity: String,
@@ -562,6 +795,12 @@ data class ImportedActivityRetentionReceiptEntity(
 			startTimeMs: Long,
 			endTimeMs: Long,
 			receivedAtMs: Long,
+			temporalAuthorityState: String,
+			latestMemberStartTimeMs: Long?,
+			latestMemberIdentity: String?,
+			structuralZoneRangeCount: Int,
+			structuralZoneRangesPayload: String,
+			structuralZoneCoverageComplete: Boolean,
 			revisionCount: Int,
 			importReceiptCount: Int,
 			runRowCount: Int,
@@ -588,6 +827,12 @@ data class ImportedActivityRetentionReceiptEntity(
 				startTimeMs.toString(),
 				endTimeMs.toString(),
 				receivedAtMs.toString(),
+				temporalAuthorityState,
+				latestMemberStartTimeMs?.toString() ?: "NONE",
+				latestMemberIdentity ?: "NONE",
+				structuralZoneRangeCount.toString(),
+				structuralZoneRangesPayload,
+				structuralZoneCoverageComplete.toString(),
 				revisionCount.toString(),
 				importReceiptCount.toString(),
 				runRowCount.toString(),
@@ -612,6 +857,7 @@ data class ImportedActivityRetentionReceiptEntity(
 		private const val MAX_WINDOW_ROWS = 65_536
 		private const val MAX_FRAGMENT_ROWS = 524_288
 		private const val MAX_PROTECTED_IDENTITIES = 1 + 64 + 16_384 + 64
+		private const val MAX_TEMPORAL_PAYLOAD_LENGTH = 4 * 1_024 * 1_024
 	}
 }
 
@@ -981,6 +1227,92 @@ internal object ImportedActivityIdentity {
 	}
 
 	private const val MAX_PROVENANCE_LENGTH = 4_096
+}
+
+internal data class ImportedActivityRetainedTemporalAuthority(
+	val latestMemberStartTimeMs: Long,
+	val latestMemberIdentity: String,
+	val ranges: List<ImportedActivityRetainedZoneRange>,
+	val complete: Boolean,
+)
+
+internal fun PortableActivityEntryV1.toImportedActivityRetainedTemporalAuthority():
+	ImportedActivityRetainedTemporalAuthority {
+	var complete = true
+	val ranges = runs.flatMap { run ->
+		require(run.zoneEpochs.map { it.effectiveWallTimeMs }.distinct().size == run.zoneEpochs.size)
+		val runEndInclusive = if (run.endTimeMs > run.startTimeMs) {
+			run.endTimeMs - 1L
+		} else {
+			run.endTimeMs
+		}
+		val effectiveAtStart = run.zoneEpochs.lastOrNull {
+			it.effectiveWallTimeMs <= run.startTimeMs
+		}
+		if (effectiveAtStart == null) complete = false
+		run.zoneEpochs.mapIndexedNotNull { index, epoch ->
+			val start = maxOf(run.startTimeMs, epoch.effectiveWallTimeMs)
+			val nextStart = run.zoneEpochs.getOrNull(index + 1)?.effectiveWallTimeMs
+			val end = minOf(
+				runEndInclusive,
+				nextStart?.let { if (it == 0L) -1L else it - 1L } ?: runEndInclusive,
+			)
+			if (end < start) {
+				null
+			} else {
+				ImportedActivityRetainedZoneRange(start, end, epoch.zoneId)
+			}
+		}
+	}.sortedWith(
+		compareBy(ImportedActivityRetainedZoneRange::startTimeMs)
+			.thenBy(ImportedActivityRetainedZoneRange::endInclusiveMs)
+			.thenBy(ImportedActivityRetainedZoneRange::storedZoneId),
+	)
+	require(ranges.isNotEmpty() && ranges.size <= 16_384)
+	val latestMember = runs.maxWith(
+		compareBy({ it.startTimeMs }, { it.identity.value }),
+	)
+	return ImportedActivityRetainedTemporalAuthority(
+		latestMemberStartTimeMs = latestMember.startTimeMs,
+		latestMemberIdentity = latestMember.identity.value,
+		ranges = ranges,
+		complete = complete,
+	)
+}
+
+private fun encodeStructuralZoneRanges(
+	values: List<ImportedActivityRetainedZoneRange>,
+): String = values.joinToString(separator = ";") { value ->
+	val zone = Base64.getUrlEncoder().withoutPadding()
+		.encodeToString(value.storedZoneId.toByteArray(Charsets.UTF_8))
+	"${value.startTimeMs},${value.endInclusiveMs},$zone"
+}
+
+private fun decodeStructuralZoneRanges(
+	payload: String,
+	expectedCount: Int,
+): List<ImportedActivityRetainedZoneRange> {
+	if (expectedCount == 0) {
+		require(payload.isEmpty())
+		return emptyList()
+	}
+	require(payload.isNotEmpty())
+	val ranges = payload.split(';').map { encoded ->
+		val parts = encoded.split(',', limit = 3)
+		require(parts.size == 3)
+		ImportedActivityRetainedZoneRange(
+			startTimeMs = parts[0].toLong(),
+			endInclusiveMs = parts[1].toLong(),
+			storedZoneId = Base64.getUrlDecoder().decode(parts[2]).toString(Charsets.UTF_8),
+		)
+	}
+	require(ranges.size == expectedCount)
+	require(ranges == ranges.sortedWith(
+		compareBy(ImportedActivityRetainedZoneRange::startTimeMs)
+			.thenBy(ImportedActivityRetainedZoneRange::endInclusiveMs)
+			.thenBy(ImportedActivityRetainedZoneRange::storedZoneId),
+	))
+	return ranges
 }
 
 private fun requireBoundedText(value: String) {

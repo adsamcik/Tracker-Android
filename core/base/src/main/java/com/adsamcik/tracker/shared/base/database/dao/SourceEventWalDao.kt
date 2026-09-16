@@ -5,12 +5,69 @@ import androidx.room.ColumnInfo
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 
 @Dao
 interface SourceEventWalDao {
-	@Insert(onConflict = OnConflictStrategy.IGNORE)
-	suspend fun insertIgnoringDuplicate(entity: SourceEventWalEntity): Long
+	/**
+	 * Preserves the historical `-1` duplicate result without executing an `INSERT OR IGNORE`.
+	 *
+	 * SQLite may advance an AUTOINCREMENT sequence before an ignored unique-index conflict. The
+	 * scalar preflight and ABORT insert therefore share this Room transaction. Existing allocator
+	 * holes from older builds remain unclassified evidence; v28 recovery must prove deletion or
+	 * migration authority rather than rewinding the sequence or fabricating a gap receipt.
+	 */
+	@Transaction
+	suspend fun insertIgnoringDuplicate(entity: SourceEventWalEntity): Long {
+		if (hasAdmissionConflict(
+				admissionOrdinal = entity.admissionOrdinal,
+				eventId = entity.eventId,
+				sourceKind = entity.sourceKind,
+				providerDedupKey = entity.providerDedupKey,
+				sourceInstanceId = entity.sourceInstanceId,
+				sourceSequence = entity.sourceSequence,
+				capturedCollectedDataEpoch = entity.capturedCollectedDataEpoch,
+				clockDomainId = entity.clockDomainId,
+				deliveryIdentity = entity.deliveryIdentity,
+				deliveryUnitIndex = entity.deliveryUnitIndex,
+			)
+		) {
+			return -1L
+		}
+		return insertAbortingOnUnexpectedConflict(entity)
+	}
+
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM source_event_wal WHERE " +
+			"(:admissionOrdinal > 0 AND admission_ordinal = :admissionOrdinal) OR " +
+			"event_id = :eventId OR " +
+			"(:providerDedupKey IS NOT NULL AND source_kind = :sourceKind " +
+			"AND provider_dedup_key = :providerDedupKey) OR " +
+			"(source_kind = :sourceKind AND source_instance_id = :sourceInstanceId " +
+			"AND source_sequence = :sourceSequence) OR " +
+			"(:deliveryIdentity IS NOT NULL AND :deliveryUnitIndex IS NOT NULL " +
+			"AND source_kind = :sourceKind " +
+			"AND captured_collected_data_epoch = :capturedCollectedDataEpoch " +
+			"AND clock_domain_id = :clockDomainId " +
+			"AND delivery_identity = :deliveryIdentity " +
+			"AND delivery_unit_index = :deliveryUnitIndex) LIMIT 1)",
+	)
+	suspend fun hasAdmissionConflict(
+		admissionOrdinal: Long,
+		eventId: String,
+		sourceKind: Int,
+		providerDedupKey: String?,
+		sourceInstanceId: String,
+		sourceSequence: Long,
+		capturedCollectedDataEpoch: Long,
+		clockDomainId: String,
+		deliveryIdentity: String?,
+		deliveryUnitIndex: Int?,
+	): Boolean
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	suspend fun insertAbortingOnUnexpectedConflict(entity: SourceEventWalEntity): Long
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertDeliveryUnits(entities: List<SourceEventWalEntity>): List<Long>
@@ -44,7 +101,7 @@ interface SourceEventWalDao {
 		"SELECT admission_ordinal, source_kind, captured_collected_data_epoch, " +
 			"acquired_at_ms, wall_time_ms, wall_time_uncertainty_ms, " +
 			"authorization_purpose_eligibility_mask, " +
-			"logical_tracking_id, service_run_id " +
+			"logical_tracking_id, service_run_id, source_instance_id, registration_generation " +
 			"FROM source_event_wal " +
 			"WHERE admission_ordinal = :admissionOrdinal LIMIT 1",
 	)
@@ -280,8 +337,46 @@ interface SourceEventWalDao {
 		limit: Int,
 	): List<SourceProjectionEventIdentityRow>
 
+	/** Payload-free global ordering and source sequence evidence for cursor continuity proofs. */
+	@Query(
+		"SELECT event_id, admission_ordinal, source_kind, source_instance_id, " +
+			"registration_generation, source_sequence, logical_tracking_id, service_run_id " +
+			"FROM source_event_wal WHERE admission_ordinal > :afterOrdinal " +
+			"AND admission_ordinal <= :throughOrdinal " +
+			"ORDER BY admission_ordinal ASC LIMIT :limit",
+	)
+	suspend fun continuityEventsAfterThrough(
+		afterOrdinal: Long,
+		throughOrdinal: Long,
+		limit: Int,
+	): List<SourceEventContinuityRow>
+
+	@Query(
+		"SELECT event_id, admission_ordinal, source_kind, source_instance_id, " +
+			"registration_generation, source_sequence, logical_tracking_id, service_run_id " +
+			"FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND source_instance_id = :sourceInstanceId " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND admission_ordinal <= :throughOrdinal " +
+			"ORDER BY admission_ordinal DESC LIMIT 1",
+	)
+	suspend fun latestContinuityEventAtOrBefore(
+		sourceKind: Int,
+		sourceInstanceId: String,
+		registrationGeneration: Long,
+		throughOrdinal: Long,
+	): SourceEventContinuityRow?
+
 	@Query("SELECT MAX(admission_ordinal) FROM source_event_wal")
 	suspend fun maximumAdmissionOrdinal(): Long?
+
+	/** Durable allocator high-water, including rows removed by retention or deletion. */
+	@Query(
+		"SELECT MAX(" +
+			"COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'source_event_wal'), 0), " +
+			"COALESCE((SELECT MAX(admission_ordinal) FROM source_event_wal), 0))",
+	)
+	suspend fun admissionAllocatorHighWater(): Long
 
 	@Query("SELECT MIN(admission_ordinal) FROM source_event_wal")
 	suspend fun minimumAdmissionOrdinal(): Long?
@@ -370,12 +465,25 @@ data class SourceEventProjectionEligibilityRow(
 	val authorizationPurposeEligibilityMask: Long,
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
 	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
+	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String,
+	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long,
 )
 
 /** Payload-free identity used to prove a decoded source projection page is complete. */
 data class SourceProjectionEventIdentityRow(
 	@ColumnInfo(name = "event_id") val eventId: String,
 	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
+)
+
+data class SourceEventContinuityRow(
+	@ColumnInfo(name = "event_id") val eventId: String,
+	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
+	@ColumnInfo(name = "source_kind") val sourceKind: Int,
+	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String,
+	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long,
+	@ColumnInfo(name = "source_sequence") val sourceSequence: Long,
+	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
+	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
 )
 
 /** Payload-free identity for one bounded Cell/Wi-Fi projection scheduling attempt. */

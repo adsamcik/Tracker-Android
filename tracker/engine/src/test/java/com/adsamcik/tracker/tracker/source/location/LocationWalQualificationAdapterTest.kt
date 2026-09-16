@@ -2,10 +2,16 @@ package com.adsamcik.tracker.tracker.source.location
 
 import android.app.Application
 import androidx.room.Room
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.data.LocationAcquisitionMode
+import com.adsamcik.tracker.shared.base.data.LocationRequestPriority
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.recordFullDeletion
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
+import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -18,11 +24,29 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.stats.api.signal.PressureSignal
+import com.adsamcik.tracker.stats.api.signal.TrackingSignal
+import com.adsamcik.tracker.stats.api.value.EpochMs
+import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.tracker.pipeline.persistence.DurableSignalBuffer
+import com.adsamcik.tracker.tracker.pipeline.persistence.ExclusiveTrackingPersistenceLifecycleLease
+import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
+import com.adsamcik.tracker.tracker.pipeline.persistence.RawLocationObservationRepair
+import com.adsamcik.tracker.tracker.pipeline.persistence.RoomPersistenceTransactor
+import com.adsamcik.tracker.tracker.pipeline.persistence.SignalSerializer
+import com.adsamcik.tracker.tracker.pipeline.persistence.TrackingPersistenceTransactor
+import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerComponent
+import com.adsamcik.tracker.tracker.altitude.AltitudeProcessor
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
@@ -32,6 +56,7 @@ import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
@@ -43,10 +68,22 @@ import java.util.concurrent.Executor
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNotSame
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.CancellationException
+import io.mockk.every
+import io.mockk.mockk
+import javax.inject.Provider
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -57,6 +94,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class LocationWalQualificationAdapterTest {
+	private lateinit var context: Application
 	private lateinit var database: AppDatabase
 	private val payloadCodec = DefaultSourcePayloadCodec()
 	private val planCodec = SourcePlanCodec()
@@ -66,7 +104,7 @@ class LocationWalQualificationAdapterTest {
 
 	@Before
 	fun setUp() {
-		val context: Application = ApplicationProvider.getApplicationContext()
+		context = ApplicationProvider.getApplicationContext()
 		database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
 			.allowMainThreadQueries()
 			.setQueryCallback({ sql, _ ->
@@ -89,7 +127,7 @@ class LocationWalQualificationAdapterTest {
 
 	@Test
 	fun `canonical location WAL remains typed unverifiable without durable mock provenance`() = runTest {
-		installValidFixture()
+		installValidFixture(receivedWallTimeMs = null)
 
 		assertEquals(
 			LocationWalAdapterResult.Rejected(LocationWalAdapterRejection.MOCK_PROVENANCE_UNVERIFIABLE),
@@ -113,6 +151,25 @@ class LocationWalQualificationAdapterTest {
 			LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
 			qualified.command.productEffect.durableEvidence.payloadVersion,
 		)
+		assertEquals(
+			LocationAcquisitionMode.PLATFORM_GPS,
+			evaluated.acquisitionMetadata.acquisitionMode,
+		)
+		assertEquals(
+			LocationRequestPriority.HIGH_ACCURACY,
+			evaluated.acquisitionMetadata.requestPriority,
+		)
+		assertEquals(50f, evaluated.acquisitionMetadata.requiredAccuracyMeters)
+		assertEquals(PolicyTier.ACTIVE, evaluated.acquisitionMetadata.policyTier)
+		assertEquals("SOURCE_QOS_BALANCED", evaluated.acquisitionMetadata.policyName)
+		assertEquals(
+			PROTECTED_LOCATION_CANONICAL_CURATION_VERSION,
+			evaluated.acquisitionMetadata.curationVersion,
+		)
+		assertEquals(
+			RECEIVED_WALL_MS,
+			qualified.command.productEffect.durableEvidence.clockAuthority.receivedWallTimeMs,
+		)
 		assertEquals(EVENT_ID, qualified.command.mutation.identity.sourceEventId)
 		assertEquals(1L, database.sourceEventWalDao().countAll())
 	}
@@ -129,6 +186,499 @@ class LocationWalQualificationAdapterTest {
 
 		assertTrue(qualified.command.productEffect.isMock)
 		assertTrue(requireNotNull(qualified.command.productEffect.payload.isMock))
+	}
+
+	@Test
+	fun `real WAL handoff preserves capture policy after current policy changes`() = runTest {
+		val payload = locationPayload(isMock = false).copy(
+			horizontalAccuracyMeters = 40f,
+			altitudeMeters = null,
+			verticalAccuracyMeters = null,
+		)
+		installValidFixture(
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(payload),
+		)
+		val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+			.admissionOrdinal
+		installProtectedHandoffAuthority(ordinal)
+		installLaterStricterLocationPolicy()
+		val demandBefore = database.sourceBrokerDao().demandsByIds(listOf(DEMAND_ID))
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val persistence = newLocationPersistence(
+			dispatchers,
+			RoomPersistenceTransactor(database),
+		)
+		val writer = ProtectedLocationOfflineCanonicalWriter(
+			context,
+			database,
+			dispatchers,
+			persistence,
+		)
+		val handoff = ProtectedLocationCanonicalHandoff(database, subject, writer)
+
+		val complete = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+		)
+
+		assertEquals(ordinal, complete.lastCommittedOrdinal)
+		val sample = requireNotNull(database.locationSampleDao().getBySourceSignalId(
+			ProtectedLocationCanonicalSignalIdentity.canonicalProduct(EVENT_ID.value),
+		))
+		assertEquals(40f, sample.hAccM)
+		assertEquals("SOURCE_QOS_BALANCED", sample.policy)
+		assertEquals(RECEIVED_WALL_MS, requireNotNull(
+			database.locationObservationDao().getBySourceEventId(EVENT_ID.value),
+		).receivedAtMs)
+		assertEquals(demandBefore, database.sourceBrokerDao().demandsByIds(listOf(DEMAND_ID)))
+	}
+
+	@Test
+	fun `real WAL unknown commit reopens from receipt without rewriting product`() = runTest {
+		installValidFixture(
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(isMock = false)),
+		)
+		val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+			.admissionOrdinal
+		installProtectedHandoffAuthority(ordinal)
+		var cancelAfterCommit = true
+		val uncertainTransactor = object : TrackingPersistenceTransactor {
+			override suspend fun <R> inTransaction(block: suspend () -> R): R {
+				val result = database.withTransaction { block() }
+				if (cancelAfterCommit) {
+					cancelAfterCommit = false
+					throw CancellationException("unknown commit")
+				}
+				return result
+			}
+		}
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val firstWriter = ProtectedLocationOfflineCanonicalWriter(
+			context,
+			database,
+			dispatchers,
+			newLocationPersistence(
+				dispatchers,
+				uncertainTransactor,
+			),
+		)
+		val firstHandoff = ProtectedLocationCanonicalHandoff(database, subject, firstWriter)
+
+		assertFailsWith<CancellationException> {
+			firstHandoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal)
+		}
+		assertEquals(
+			ordinal - 1L,
+			database.sourceProjectionStateDao()
+				.activeProductLane(SourceKind.LOCATION.stableCode)
+				?.contiguousAdmissionOrdinal,
+		)
+		assertEquals(1L, database.locationSampleDao().countAll())
+
+		val replay = ProtectedLocationCanonicalHandoff(
+			database,
+			subject,
+			ProtectedLocationCanonicalWriter { _, _ ->
+				error("Existing exact receipt must bypass the writer")
+			},
+		)
+		val complete = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			replay.drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+		)
+
+		assertEquals(ordinal, complete.lastCommittedOrdinal)
+		assertEquals(1L, database.locationSampleDao().countAll())
+	}
+
+	@Test
+	fun `real WAL crash-pending commands recover before replay`() = runTest {
+		installValidFixture(
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(isMock = false)),
+		)
+		val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+			.admissionOrdinal
+		installProtectedHandoffAuthority(ordinal)
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val failingTransactor = object : TrackingPersistenceTransactor {
+			override suspend fun <R> inTransaction(block: suspend () -> R): R {
+				error("simulated destination outage")
+			}
+		}
+		val first = ProtectedLocationCanonicalHandoff(
+			database,
+			subject,
+			ProtectedLocationOfflineCanonicalWriter(
+				context,
+				database,
+				dispatchers,
+				newLocationPersistence(dispatchers, failingTransactor),
+			),
+		)
+
+		val failed = assertIs<ProtectedLocationCanonicalDrainResult.Failed>(
+			first.drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+		)
+		assertFalse(failed.terminal)
+		assertTrue(database.pendingSignalDao().countAll() > 0)
+
+		val replay = ProtectedLocationCanonicalHandoff(
+			database,
+			subject,
+			ProtectedLocationOfflineCanonicalWriter(
+				context,
+				database,
+				dispatchers,
+				newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)),
+			),
+		)
+		val complete = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			replay.drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+		)
+
+		assertEquals(ordinal, complete.lastCommittedOrdinal)
+		assertEquals(1L, database.locationSampleDao().countAll())
+		assertEquals(0, database.pendingSignalDao().countAll())
+	}
+
+	@Test
+	fun `offline cancellation during suspended recovery stops partial pipeline before lease release`() =
+		runTest {
+			installValidFixture(
+				payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+				deliveryPayloads = listOf(locationPayload(isMock = false)),
+			)
+			val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+				.admissionOrdinal
+			installProtectedHandoffAuthority(ordinal)
+			val signal = TrackingSignal(
+				timestampMs = EpochMs(500L),
+				elapsedRealtimeNanos = 500_000_000L,
+				pressure = PressureSignal(1_013.25f, 120f),
+			)
+			val encoded = SignalSerializer.encode(signal)
+			database.pendingSignalDao().insertAll(
+				listOf(
+					PendingSignalEntity(
+						signalId = "offline-cancelled-recovery",
+						sessionId = 1L,
+						envelopeVersion = encoded.envelopeVersion,
+						payloadChecksum = encoded.payloadChecksum,
+						signalJson = encoded.payloadJson,
+						createdAt = signal.timestampMs.raw,
+						capturedEpoch = 0L,
+						acquiredAtMs = signal.timestampMs.raw,
+					),
+				),
+			)
+			val recoveryEntered = CompletableDeferred<Unit>()
+			var transactionCalls = 0
+			val transactor = object : TrackingPersistenceTransactor {
+				override suspend fun <R> inTransaction(block: suspend () -> R): R {
+					transactionCalls++
+					if (transactionCalls == 2) {
+						recoveryEntered.complete(Unit)
+						awaitCancellation()
+					}
+					if (transactionCalls == 3) {
+						error("simulated offline cleanup failure")
+					}
+					return database.withTransaction { block() }
+				}
+			}
+			val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+			val lifecycleLease = ExclusiveTrackingPersistenceLifecycleLease()
+			val persistence = newLocationPersistence(dispatchers, transactor)
+			val handoff = ProtectedLocationCanonicalHandoff(
+				database,
+				subject,
+				ProtectedLocationOfflineCanonicalWriter(
+					context,
+					database,
+					dispatchers,
+					persistence,
+					lifecycleLease,
+				),
+			)
+			val draining = backgroundScope.async {
+				handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal)
+			}
+
+			recoveryEntered.await()
+			draining.cancelAndJoin()
+
+			assertEquals(1, database.pendingSignalDao().countAll())
+			assertFalse(persistence.isPipelineActiveForPersistenceLifecycle())
+			val liveAcquired = CompletableDeferred<Unit>()
+			val liveWaiter = backgroundScope.async {
+				lifecycleLease.acquireLivePipeline().also {
+					liveAcquired.complete(Unit)
+				}
+			}
+			runCurrent()
+			assertFalse(liveAcquired.isCompleted)
+			liveWaiter.cancelAndJoin()
+
+			val recovered = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+				handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+			)
+			assertEquals(ordinal, recovered.lastCommittedOrdinal)
+			assertEquals(0, database.pendingSignalDao().countAll())
+			lifecycleLease.acquireLivePipeline().release()
+		}
+
+	@Test
+	fun `fallback receipt cancellation propagates after successful cleanup releases lifecycle`() =
+		runTest {
+			assertFallbackReceiptCancellation(cleanupFails = false)
+		}
+
+	@Test
+	fun `fallback receipt cancellation retains failed cleanup for deterministic next-call retry`() =
+		runTest {
+			assertFallbackReceiptCancellation(cleanupFails = true)
+		}
+
+	@Test
+	fun `confirmed fallback commit waits for retained cleanup before handoff advancement`() =
+		runTest {
+			assertConfirmedFallbackCommitCleanupRetry()
+		}
+
+	@Test
+	fun `real WAL owner loss blocks writer before pending acknowledgement`() = runTest {
+		installValidFixture(
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(
+				locationPayload(isMock = false).copy(
+					altitudeMeters = null,
+					verticalAccuracyMeters = null,
+				),
+			),
+		)
+		val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+			.admissionOrdinal
+		installProtectedHandoffAuthority(ordinal)
+		check(database.sourceDestinationOwnerDao().compareAndSetOwner(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION,
+			destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+			expectedOwner =
+				SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE,
+			expectedOwnerGeneration =
+				SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION,
+			newOwner = "OTHER_LOCATION_OWNER",
+			newOwnerGeneration = 2L,
+			updatedAtMs = 3_000L,
+		) == 1)
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val handoff = ProtectedLocationCanonicalHandoff(
+			database,
+			subject,
+			ProtectedLocationOfflineCanonicalWriter(
+				context,
+				database,
+				dispatchers,
+				newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)),
+			),
+		)
+
+		val inactive = assertIs<ProtectedLocationCanonicalDrainResult.Inactive>(
+			handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+		)
+
+		assertEquals(
+			ProtectedLocationCanonicalInactiveReason.DESTINATION_NOT_OWNED,
+			inactive.reason,
+		)
+		assertEquals(0L, database.locationObservationDao().countAll())
+		assertEquals(0, database.pendingSignalDao().countAll())
+	}
+
+	@Test
+	fun `real WAL deletion settlement advances without resurrecting product`() = runTest {
+		installValidFixture(
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(isMock = false)),
+		)
+		val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+			.admissionOrdinal
+		installProtectedHandoffAuthority(ordinal)
+		database.sourceEvidenceStateDao().recordFullDeletion(
+			epoch = 1L,
+			retainedFromMs = null,
+			deletedSourceEventHighWaterOrdinal = ordinal,
+			updatedAtMs = 3_000L,
+		)
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val complete = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			ProtectedLocationCanonicalHandoff(
+				database,
+				subject,
+				ProtectedLocationOfflineCanonicalWriter(
+					context,
+					database,
+					dispatchers,
+					newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)),
+				),
+			).drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+		)
+
+		assertEquals(ordinal, complete.lastCommittedOrdinal)
+		assertEquals(1, complete.lifecycleSettled)
+		assertEquals(0L, database.locationObservationDao().countAll())
+	}
+
+	@Test
+	fun `real WAL chain rejects conflicting preexisting decision before receipt`() = runTest {
+		installValidFixture(
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(isMock = true)),
+		)
+		val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+			.admissionOrdinal
+		installProtectedHandoffAuthority(ordinal)
+		val signalId = ProtectedLocationCanonicalSignalIdentity.canonicalProduct(EVENT_ID.value)
+		database.locationObservationDecisionDao().insert(
+			listOf(
+				LocationObservationDecision(
+					observationSourceEventId = EVENT_ID.value,
+					decision = LocationObservationDecision.REJECTED,
+					reason = "WRONG_NONBLANK_REASON",
+					acceptedSampleSourceSignalId = null,
+					sourceSignalId = signalId,
+					clockDomainId = BOOT_ID,
+					decidedAtMs = OBSERVED_WALL_MS,
+				),
+			),
+		)
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val failed = assertIs<ProtectedLocationCanonicalDrainResult.Failed>(
+			ProtectedLocationCanonicalHandoff(
+				database,
+				subject,
+				ProtectedLocationOfflineCanonicalWriter(
+					context,
+					database,
+					dispatchers,
+					newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)),
+				),
+			).drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+		)
+
+		assertFalse(failed.terminal)
+		assertEquals(ordinal - 1L, failed.lastCommittedOrdinal)
+		assertEquals(null, database.locationObservationDao().getBySourceEventId(EVENT_ID.value))
+		assertEquals(null, database.sourceProjectionStateDao().joinState(
+			ProtectedLocationCanonicalHandoff.WRITER_ID,
+			ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+			"canonical-receipt:${EVENT_ID.value}",
+		))
+		assertEquals(
+			ordinal - 1L,
+			database.sourceProjectionStateDao()
+				.activeProductLane(SourceKind.LOCATION.stableCode)
+				?.contiguousAdmissionOrdinal,
+		)
+	}
+
+	@Test
+	fun `real WAL chain rejects conflicting preexisting derived sample before receipt`() = runTest {
+		installValidFixture(
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(isMock = false)),
+		)
+		val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+			.admissionOrdinal
+		installProtectedHandoffAuthority(ordinal)
+		val signalId = ProtectedLocationCanonicalSignalIdentity.canonicalProduct(EVENT_ID.value)
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			ProtectedLocationCanonicalHandoff(
+				database,
+				subject,
+				ProtectedLocationOfflineCanonicalWriter(
+					context,
+					database,
+					dispatchers,
+					newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)),
+				),
+			).drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+		)
+		val exactProductionSample = requireNotNull(
+			database.locationSampleDao().getBySourceSignalId(signalId),
+		)
+		database.withTransaction {
+			database.openHelper.writableDatabase.apply {
+				execSQL(
+					"DELETE FROM location_observation_decision " +
+						"WHERE observation_source_event_id = ?",
+					arrayOf(EVENT_ID.value),
+				)
+				execSQL(
+					"DELETE FROM location_sample WHERE source_signal_id = ?",
+					arrayOf(signalId),
+				)
+				execSQL(
+					"DELETE FROM location_observation WHERE source_event_id = ?",
+					arrayOf(EVENT_ID.value),
+				)
+				execSQL(
+					"DELETE FROM source_projection_join_state WHERE projection_id = ? " +
+						"AND projection_version = ?",
+					arrayOf(
+						ProtectedLocationCanonicalHandoff.WRITER_ID,
+						ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+					),
+				)
+				execSQL(
+					"UPDATE source_product_projection_lane " +
+						"SET contiguous_admission_ordinal = ? " +
+						"WHERE source_kind = ? AND projection_id = ? " +
+						"AND projection_version = ?",
+					arrayOf(
+						ordinal - 1L,
+						SourceKind.LOCATION.stableCode,
+						ProtectedLocationCanonicalHandoff.WRITER_ID,
+						ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+					),
+				)
+			}
+			database.locationSampleDao().insert(
+				exactProductionSample.copy(
+					altitudeM = (exactProductionSample.altitudeM ?: 0f) + 999f,
+					speedMps = (exactProductionSample.speedMps ?: 0f) + 999f,
+				),
+			)
+		}
+		assertEquals(null, database.locationObservationDao().getBySourceEventId(EVENT_ID.value))
+		val failed = assertIs<ProtectedLocationCanonicalDrainResult.Failed>(
+			ProtectedLocationCanonicalHandoff(
+				database,
+				subject,
+				ProtectedLocationOfflineCanonicalWriter(
+					context,
+					database,
+					dispatchers,
+					newLocationPersistence(dispatchers, RoomPersistenceTransactor(database)),
+				),
+			).drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+		)
+
+		assertFalse(failed.terminal)
+		assertEquals(ordinal - 1L, failed.lastCommittedOrdinal)
+		assertEquals(null, database.locationObservationDao().getBySourceEventId(EVENT_ID.value))
+		assertEquals(null, database.sourceProjectionStateDao().joinState(
+			ProtectedLocationCanonicalHandoff.WRITER_ID,
+			ProtectedLocationCanonicalHandoff.WRITER_VERSION,
+			"canonical-receipt:${EVENT_ID.value}",
+		))
+		assertEquals(
+			ordinal - 1L,
+			database.sourceProjectionStateDao()
+				.activeProductLane(SourceKind.LOCATION.stableCode)
+				?.contiguousAdmissionOrdinal,
+		)
 	}
 
 	@Test
@@ -606,6 +1156,7 @@ class LocationWalQualificationAdapterTest {
 		zoneId: String = ZONE_ID,
 		segmentRunId: String = RUN_ID,
 		wallTimeUncertaintyMs: Long = 0L,
+		receivedWallTimeMs: Long? = RECEIVED_WALL_MS,
 	) {
 		require(selectedUnitIndex in deliveryPayloads.indices)
 		database.sourceEvidenceStateDao().ensure(evidenceState)
@@ -654,6 +1205,7 @@ class LocationWalQualificationAdapterTest {
 				observedElapsedNanos = OBSERVED_NANOS,
 				observedIntervalStartNanos = OBSERVED_NANOS,
 				receivedElapsedNanos = RECEIVED_NANOS,
+				receivedWallTimeMs = receivedWallTimeMs,
 				wallTimeMs = OBSERVED_WALL_MS,
 				wallTimeUncertaintyMs = wallTimeUncertaintyMs,
 				capturedCollectedDataEpoch = 0L,
@@ -747,6 +1299,300 @@ class LocationWalQualificationAdapterTest {
 				),
 			),
 		)
+	}
+
+	private suspend fun installLaterStricterLocationPolicy() {
+		val policyDao = database.sourcePolicyDao()
+		val captured = requireNotNull(policyDao.policyAtRevision(POLICY_REVISION, LOCATION_SOURCE))
+		policyDao.insertPolicies(
+			listOf(
+				captured.copy(
+					policyRevision = POLICY_REVISION + 1L,
+					qosCode = 3,
+					locationRequiredAccuracyMeters = 1,
+					effectiveElapsedRealtimeNanos = RECEIVED_NANOS + 1L,
+					effectiveWallTimeMs = RECEIVED_WALL_MS + 1L,
+					changeReason = "LATER_STRICTER_POLICY",
+				),
+			),
+		)
+		check(policyDao.compareAndSetAuthority(
+			expectedBootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			expectedRevision = POLICY_REVISION,
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			newRevision = POLICY_REVISION + 1L,
+			legacySettingsFingerprint = null,
+			updatedAtMs = RECEIVED_WALL_MS + 1L,
+		) == 1)
+	}
+
+	private suspend fun installProtectedHandoffAuthority(admissionOrdinal: Long) {
+		database.sourceDestinationOwnerDao().insertIfAbsent(
+			SourceDestinationOwnerEntity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+				owner = SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE,
+				ownerGeneration =
+					SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION,
+				updatedAtMs = 2_000L,
+			),
+		)
+		database.sourceProjectionStateDao().installProductLane(
+			SourceProductProjectionLaneEntity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION,
+				bindingGeneration =
+					SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_BINDING_GENERATION,
+				projectionId =
+					SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_ID,
+				projectionVersion =
+					SourceDestinationOwnerEntity.LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION,
+				captureModeMask =
+					ProtectedLocationCanonicalHandoff.MANUAL_CAPTURE_MODE_MASK,
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+				activatedRolloutRevision = ROLLOUT_REVISION,
+				activationOrdinal = admissionOrdinal,
+				contiguousAdmissionOrdinal = admissionOrdinal - 1L,
+				retentionRequired = true,
+				status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+				installedAtMs = 2_000L,
+				updatedAtMs = 2_000L,
+			),
+		)
+		database.sourceSessionDao().saveCompleteness(
+			SourceSessionCompletenessEntity(
+				logicalTrackingId = LOGICAL_ID,
+				serviceRunId = RUN_ID,
+				sourceKind = LOCATION_SOURCE,
+				sourceInstanceId = SOURCE_INSTANCE,
+				registrationGeneration = REGISTRATION_GENERATION,
+				lastAdmissionOrdinal = admissionOrdinal,
+				lastSourceSequence = SOURCE_SEQUENCE,
+				appDrainComplete = true,
+				providerCoverage = "COMPLETE",
+				stopStatus = "COMPLETE",
+				unresolvedSequenceStart = null,
+				unresolvedSequenceEnd = null,
+				updatedAtMs = 2_000L,
+			),
+		)
+	}
+
+	private fun newLocationPersistence(
+		dispatchers: DispatchersProvider,
+		transactor: TrackingPersistenceTransactor,
+	): PersistenceProcessor {
+		val guard = ProtectedLocationCanonicalPersistenceGuard(database, subject, Unit)
+		return PersistenceProcessor(
+			locationSampleDao = database.locationSampleDao(),
+			locationObservationDao = database.locationObservationDao(),
+			locationObservationDecisionDao = database.locationObservationDecisionDao(),
+			sourceEvidenceStateDao = database.sourceEvidenceStateDao(),
+			cellSampleDao = database.cellSampleDao(),
+			wifiObservationDao = database.wifiObservationDao(),
+			pressureSampleDao = database.pressureSampleDao(),
+			stepIntervalDao = database.stepIntervalDao(),
+			activitySnapshotDao = database.activitySnapshotDao(),
+			pendingSignalDao = database.pendingSignalDao(),
+			pendingSignalClaimDao = database.pendingSignalClaimDao(),
+			durableBuffer = DurableSignalBuffer(
+				pendingSignalDao = database.pendingSignalDao(),
+				dispatchers = dispatchers,
+				pendingSignalClaimDao = database.pendingSignalClaimDao(),
+				appDatabase = database,
+			),
+			transactor = transactor,
+			sourceDestinationOwnerDao = database.sourceDestinationOwnerDao(),
+			rawLocationObservationRepair = RawLocationObservationRepair(database, payloadCodec),
+			appDatabaseProvider = Provider { database },
+			protectedLocationCanonicalPersistenceGuardProvider = Provider { guard },
+		)
+	}
+
+	private suspend fun TestScope.assertFallbackReceiptCancellation(cleanupFails: Boolean) {
+		installValidFixture(
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(isMock = false)),
+		)
+		val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+			.admissionOrdinal
+		installProtectedHandoffAuthority(ordinal)
+		var transactionCalls = 0
+		val transactor = object : TrackingPersistenceTransactor {
+			override suspend fun <R> inTransaction(block: suspend () -> R): R {
+				transactionCalls++
+				if (transactionCalls == 1) {
+					error("original offline write failure")
+				}
+				if (cleanupFails && transactionCalls == 2) {
+					error("offline cleanup retry failure")
+				}
+				return database.withTransaction { block() }
+			}
+		}
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val lifecycleLease = ExclusiveTrackingPersistenceLifecycleLease()
+		val persistence = newLocationPersistence(dispatchers, transactor)
+		val fallbackReceiptEntered = CompletableDeferred<Unit>()
+		var receiptReads = 0
+		val writer = ProtectedLocationOfflineCanonicalWriter(
+			context,
+			database,
+			dispatchers,
+			persistence,
+			locationComponentFactory = {
+				LocationTrackerComponent(
+					trackingParamsRepository = null,
+					dispatchers = dispatchers,
+				)
+			},
+			testMarker = Unit,
+			persistenceLifecycleLease = lifecycleLease,
+			receiptReader = { command, acquisitionMetadata ->
+				receiptReads++
+				if (receiptReads == 2) {
+					database.withTransaction {
+						fallbackReceiptEntered.complete(Unit)
+						awaitCancellation()
+					}
+				}
+				database.withTransaction {
+					database.readProtectedLocationCanonicalReceipt(
+						command,
+						acquisitionMetadata,
+					)
+				}
+			},
+		)
+		val handoff = ProtectedLocationCanonicalHandoff(database, subject, writer)
+		val draining = backgroundScope.async {
+			handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal)
+		}
+		fallbackReceiptEntered.await()
+
+		draining.cancel()
+		draining.join()
+		val cancellation = assertFailsWith<CancellationException> {
+			draining.await()
+		}
+		assertTrue(cancellation.suppressed.isNotEmpty())
+
+		if (cleanupFails) {
+			assertTrue(database.pendingSignalDao().countAll() > 0)
+			assertTrue(cancellation.suppressed.size >= 2)
+			val liveAcquired = CompletableDeferred<Unit>()
+			val liveWaiter = backgroundScope.async {
+				lifecycleLease.acquireLivePipeline().also {
+					liveAcquired.complete(Unit)
+				}
+			}
+			runCurrent()
+			assertFalse(liveAcquired.isCompleted)
+			liveWaiter.cancelAndJoin()
+
+			val recovered = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+				handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+			)
+			assertEquals(ordinal, recovered.lastCommittedOrdinal)
+			assertEquals(0, database.pendingSignalDao().countAll())
+		}
+		lifecycleLease.acquireLivePipeline().release()
+	}
+
+	private suspend fun TestScope.assertConfirmedFallbackCommitCleanupRetry() {
+		installValidFixture(
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(isMock = false)),
+		)
+		val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+			.admissionOrdinal
+		installProtectedHandoffAuthority(ordinal)
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val lifecycleLease = ExclusiveTrackingPersistenceLifecycleLease()
+		val persistence = newLocationPersistence(
+			dispatchers,
+			RoomPersistenceTransactor(database),
+		)
+		val altitudeProcessor = mockk<AltitudeProcessor>()
+		var resetCalls = 0
+		every { altitudeProcessor.reset() } answers {
+			resetCalls++
+			if (resetCalls == 1) error("simulated committed cleanup failure")
+		}
+		var receiptReads = 0
+		val writer = ProtectedLocationOfflineCanonicalWriter(
+			context,
+			database,
+			dispatchers,
+			persistence,
+			locationComponentFactory = {
+				LocationTrackerComponent(
+					trackingParamsRepository = null,
+					dispatchers = dispatchers,
+					altitudeProcessorFactory = { altitudeProcessor },
+				)
+			},
+			testMarker = Unit,
+			persistenceLifecycleLease = lifecycleLease,
+			receiptReader = { command, acquisitionMetadata ->
+				receiptReads++
+				if (receiptReads == 2) {
+					error("post-commit receipt read failure")
+				}
+				database.withTransaction {
+					database.readProtectedLocationCanonicalReceipt(
+						command,
+						acquisitionMetadata,
+					)
+				}
+			},
+		)
+		val handoff = ProtectedLocationCanonicalHandoff(database, subject, writer)
+
+		val first = assertIs<ProtectedLocationCanonicalDrainResult.Failed>(
+			handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+		)
+		assertEquals(ordinal - 1L, first.lastCommittedOrdinal)
+		assertEquals("LOCATION_CANONICAL_OFFLINE_CLEANUP_PENDING", first.failureCode)
+		assertFalse(first.terminal)
+		assertEquals(1L, database.locationSampleDao().countAll())
+		val evaluated = assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		val qualified = assertIs<LocationObservationQualification.Qualified>(
+			evaluated.qualification,
+		)
+		assertIs<ProtectedLocationCanonicalReceipt.Complete>(
+			database.readProtectedLocationCanonicalReceipt(
+				qualified.command,
+				PROTECTED_LOCATION_ACQUISITION,
+			),
+		)
+		assertEquals(
+			ordinal - 1L,
+			database.sourceProjectionStateDao()
+				.activeProductLane(SourceKind.LOCATION.stableCode)
+				?.contiguousAdmissionOrdinal,
+		)
+		val liveAcquired = CompletableDeferred<Unit>()
+		val liveWaiter = backgroundScope.async {
+			lifecycleLease.acquireLivePipeline().also {
+				liveAcquired.complete(Unit)
+			}
+		}
+		runCurrent()
+		assertFalse(liveAcquired.isCompleted)
+		liveWaiter.cancelAndJoin()
+
+		val recovered = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+		)
+		assertEquals(ordinal, recovered.lastCommittedOrdinal)
+		assertEquals(1L, database.locationSampleDao().countAll())
+		assertEquals(
+			ordinal,
+			database.sourceProjectionStateDao()
+				.activeProductLane(SourceKind.LOCATION.stableCode)
+				?.contiguousAdmissionOrdinal,
+		)
+		lifecycleLease.acquireLivePipeline().release()
 	}
 
 	private suspend fun installSessionAndManifest(segmentId: Long, zoneId: String) {
@@ -995,5 +1841,6 @@ class LocationWalQualificationAdapterTest {
 		const val SESSION_END_NANOS = 900L
 		const val RUN_START_WALL_MS = 1_000L
 		const val OBSERVED_WALL_MS = 1_500L
+		const val RECEIVED_WALL_MS = 6_500L
 	}
 }

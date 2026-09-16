@@ -51,10 +51,11 @@ class TrackingRolloutStateStoreTest {
 	}
 
 	@Test
-	fun `production catalog retains exact source-local Steps Pressure Cell and Wi-Fi bindings`() {
+	fun `production catalog retains exact source-local Steps Activity Pressure Cell and Wi-Fi bindings`() {
 		val catalog = ExecutableSourceLaneCatalog()
 		val generationOne = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1
 		val generationTwo = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2
+		val activity = ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS
 		val pressure = ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS
 		val cell = ExecutableSourceLaneCatalog.CELL_SESSION_FACTS
 		val wifi = ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS
@@ -68,6 +69,12 @@ class TrackingRolloutStateStoreTest {
 		)
 		generationOne.bindingGeneration shouldBe 1L
 		generationTwo.bindingGeneration shouldBe 2L
+		catalog.owns(activity) shouldBe true
+		activity.source shouldBe SourceKind.ACTIVITY
+		activity.bindingGeneration shouldBe SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION
+		activity.projectionId shouldBe SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID
+		activity.projectionVersion shouldBe SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION
+		activity.captureModes shouldBe setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)
 		catalog.owns(pressure) shouldBe true
 		pressure.source shouldBe SourceKind.PRESSURE
 		pressure.bindingGeneration shouldBe SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION

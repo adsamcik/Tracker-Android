@@ -23,6 +23,7 @@ import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.base.database.data.QuarantinedSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationObservation
 import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
+import com.adsamcik.tracker.shared.base.database.data.LocationSample as StoredLocationSample
 import com.adsamcik.tracker.shared.base.database.data.ObservationStampColumns
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -54,6 +55,12 @@ import com.adsamcik.tracker.stats.api.signal.WifiSignal
 import com.adsamcik.tracker.tracker.data.withDatabaseRetry
 import com.adsamcik.tracker.tracker.pipeline.DurableAdmissionStatus
 import com.adsamcik.tracker.tracker.pipeline.DurableSignalProcessor
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalPendingDecision
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalPendingWrite
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalPersistenceGuard
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalSignalIdentity
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationVerifiedWrite
+import com.adsamcik.tracker.tracker.source.location.recordProtectedLocationCanonicalReceiptInCurrentTransaction
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.MotionState
 import com.adsamcik.tracker.shared.model.SampleQuality
@@ -66,6 +73,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
+import javax.inject.Provider
 
 /**
  * Unified persistence processor that writes all tracking data to Room, backed
@@ -104,6 +112,8 @@ import javax.inject.Inject
  * - [onFlush] is called from the pipeline's slow-path which is
  *   serialized by `componentMutex` in `TrackingOrchestrator`.
  * - [onStop] is called under the pipeline mutex during shutdown.
+ * - Protected Location recovery creates an isolated pipeline only after [pipelineActive] is false;
+ *   the shared session coordinator must serialize that handoff against a new live pipeline start.
  *
  * If this invariant changes, the buffers **must** be guarded by a lock.
  */
@@ -125,6 +135,11 @@ class PersistenceProcessor @Inject constructor(
 	private val transactor: TrackingPersistenceTransactor,
 	private val sourceDestinationOwnerDao: SourceDestinationOwnerDao,
 	private val rawLocationObservationRepair: RawLocationObservationRepair? = null,
+	private val appDatabaseProvider: Provider<AppDatabase> =
+		Provider { error("AppDatabase is required for protected Location receipts") },
+	private val protectedLocationCanonicalPersistenceGuardProvider:
+		Provider<ProtectedLocationCanonicalPersistenceGuard> =
+		Provider { ProtectedLocationCanonicalPersistenceGuard.unavailable() },
 ) : DurableSignalProcessor {
 
 	override val descriptor = ProcessorDescriptor(
@@ -165,7 +180,33 @@ class PersistenceProcessor @Inject constructor(
 	private var commitStatusUnknown = false
 	private var lastPersistenceFailure: Throwable? = null
 	private val recoveryMutex = Mutex()
+	@Volatile
 	private var pipelineActive = false
+
+	internal fun isPipelineActiveForPersistenceLifecycle(): Boolean = pipelineActive
+
+	internal fun isPipelineActiveForProtectedLocation(): Boolean =
+		isPipelineActiveForPersistenceLifecycle()
+
+	/** State an orphan retry must never clear or reinterpret as durable backlog. */
+	internal fun hasUnrecoverablePersistenceStateForLifecycleFence(): Boolean =
+		pipelineActive ||
+			commitStatusUnknown ||
+			hasRetainedInMemoryState()
+
+	/** Includes retryable durable backlog that [drainOrphanedSignals] may settle under the lease. */
+	internal fun hasUnsettledPersistenceStateForPressureFence(): Boolean =
+		hasUnrecoverablePersistenceStateForLifecycleFence() ||
+			recoveryIncomplete
+
+	internal fun isReadyForProtectedLocationWrite(): Boolean =
+		pipelineActive &&
+			!recoveryIncomplete &&
+			!commitStatusUnknown &&
+			!hasRetainedInMemoryState()
+
+	/** Caller must hold the live orchestrator's component mutex. */
+	internal suspend fun flushProtectedLocationCanonicalHandoff(): Boolean = flushAll()
 
 	/**
 	 * Runs the Steps writer authority change only after the legacy producer has fully stopped.
@@ -203,7 +244,28 @@ class PersistenceProcessor @Inject constructor(
 		val acquiredAtMs: Long,
 		val stepsWriterOwner: String?,
 		val stepsWriterOwnerGeneration: Long?,
-	)
+		val pressureWriterOwner: String?,
+		val pressureWriterOwnerGeneration: Long?,
+	) {
+		fun hasExplicitIneligiblePressureWriter(): Boolean =
+			pressureWriterOwner != null &&
+				(pressureWriterOwner !=
+					SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE ||
+					pressureWriterOwnerGeneration !=
+					SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION)
+	}
+
+	private fun PendingAdmission?.acceptsLegacyPressureWriter(
+		currentOwner: SourceDestinationOwnerEntity?,
+	): Boolean {
+		val currentIsLegacy = currentOwner?.owner ==
+			SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE &&
+			currentOwner?.ownerGeneration == SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+		if (this == null || pressureWriterOwner == null) return currentIsLegacy
+		return pressureWriterOwner == currentOwner?.owner &&
+			pressureWriterOwnerGeneration == currentOwner?.ownerGeneration &&
+			currentIsLegacy
+	}
 
 	private enum class CommitResolution {
 		COMMITTED,
@@ -267,9 +329,9 @@ class PersistenceProcessor @Inject constructor(
 		verifyCollectedDataAccess: () -> Unit = {},
 	): Boolean = recoveryMutex.withLock {
 		verifyCollectedDataAccess()
-		if (pipelineActive) {
+		if (hasUnrecoverablePersistenceStateForLifecycleFence()) {
 			verifyCollectedDataAccess()
-			return@withLock true
+			return@withLock false
 		}
 		clearBuffers()
 		pendingIds.clear()
@@ -279,7 +341,7 @@ class PersistenceProcessor @Inject constructor(
 		verifyCollectedDataAccess()
 		val hasPendingEntries = durableBuffer.hasPendingEntries()
 		verifyCollectedDataAccess()
-		!recoveryIncomplete && !hasPendingEntries
+		!hasUnsettledPersistenceStateForPressureFence() && !hasPendingEntries
 	}
 
 	override suspend fun checkpointStagedSignals(): Boolean =
@@ -299,15 +361,23 @@ class PersistenceProcessor @Inject constructor(
 			val admission = withDatabaseRetry {
 				durableBuffer.checkpointWithAdmission { committed ->
 					committed.forEach { checkpointed ->
-						bufferSignal(checkpointed.signal, checkpointed.signalId)
-						pendingIds.add(checkpointed.id)
-						pendingAdmissions[checkpointed.id] = PendingAdmission(
+						val pendingAdmission = PendingAdmission(
 							sourceSignalId = checkpointed.signalId,
 							capturedEpoch = checkpointed.capturedEpoch,
 							acquiredAtMs = checkpointed.acquiredAtMs,
 							stepsWriterOwner = checkpointed.stepsWriterOwner,
 							stepsWriterOwnerGeneration = checkpointed.stepsWriterOwnerGeneration,
+							pressureWriterOwner = checkpointed.pressureWriterOwner,
+							pressureWriterOwnerGeneration =
+								checkpointed.pressureWriterOwnerGeneration,
 						)
+						pendingAdmissions[checkpointed.id] = pendingAdmission
+						bufferSignal(
+							checkpointed.signal,
+							checkpointed.signalId,
+							pendingAdmission,
+						)
+						pendingIds.add(checkpointed.id)
 					}
 				}
 			}
@@ -321,7 +391,11 @@ class PersistenceProcessor @Inject constructor(
 	}
 
 	/** Parse [signal] into the typed destination buffers (no staging, no I/O). */
-	private fun bufferSignal(signal: TrackingSignal, sourceSignalId: String) {
+	private fun bufferSignal(
+		signal: TrackingSignal,
+		sourceSignalId: String,
+		admission: PendingAdmission,
+	) {
 		val location = signal.location
 		val policyName = signal.policy?.policyName
 
@@ -330,7 +404,7 @@ class PersistenceProcessor @Inject constructor(
 		bufferLocationDecision(signal, sourceSignalId)
 		bufferCells(signal, location, sourceSignalId)
 		bufferWifi(signal, location, sourceSignalId)
-		bufferPressure(signal, sourceSignalId)
+		bufferPressure(signal, sourceSignalId, admission)
 		bufferSteps(signal, sourceSignalId)
 		bufferActivity(signal, sourceSignalId)
 	}
@@ -559,8 +633,13 @@ class PersistenceProcessor @Inject constructor(
 		}
 	}
 
-	private fun bufferPressure(signal: TrackingSignal, sourceSignalId: String) {
+	private fun bufferPressure(
+		signal: TrackingSignal,
+		sourceSignalId: String,
+		admission: PendingAdmission,
+	) {
 		val pressure = signal.pressure ?: return
+		if (admission.hasExplicitIneligiblePressureWriter()) return
 		pressureBuffer.add(
 			PressureSample(
 				timeMs = signal.timestampMs.raw,
@@ -904,29 +983,66 @@ class PersistenceProcessor @Inject constructor(
 		}
 		val cells = cellBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
 		val wifi = wifiBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
-		val pressure = pressureBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
 		val steps = stepBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
 		val activities = activityBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
+		val admissionsBySignal = pendingAdmissions.values.associateBy(PendingAdmission::sourceSignalId)
+		val pressureCandidates = pressureBuffer.filterNot {
+			it.hasStaleSourceSignal(staleSourceSignalIds)
+		}
+		val currentPressureOwner = if (pressureCandidates.isEmpty()) {
+			null
+		} else {
+			sourceDestinationOwnerDao.get(
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			)
+		}
+		val pressure = pressureCandidates.filter { sample ->
+			sample.sourceSignalId?.let(admissionsBySignal::get)
+				.acceptsLegacyPressureWriter(currentPressureOwner)
+		}
 
+		requireExistingLocationDestinationOwner(
+			hasLocationMutation = observations.isNotEmpty() ||
+				locations.isNotEmpty() ||
+				decisions.isNotEmpty(),
+		)
 		val sourceRevision = nextSourceRevisionOrNull(
 			hasSourceMutation = observations.isNotEmpty() ||
 				locations.isNotEmpty() ||
 				decisions.isNotEmpty(),
 		)
+		val revisedObservations = observations.map { observation ->
+			if (sourceRevision == null) observation else observation.copy(sourceRevision = sourceRevision)
+		}
+		val revisedLocations = locations.map { sample ->
+			val revised = if (sourceRevision == null) sample else sample.copy(sourceRevision = sourceRevision)
+			revised.toEntity()
+		}
+		val revisedDecisions = buildLocationDecisions(decisions, sourceRevision)
+		val protectedWrites = verifyProtectedLocationCanonicalWrites(
+			revisedObservations,
+			revisedLocations,
+			revisedDecisions,
+		)
 		// Raw evidence must exist before an accepted sample or decision is committed. This makes a
 		// missing raw source a retryable transaction failure instead of silently weakening replay.
-		observations.chunked(LOCATION_OBSERVATION_BATCH_SIZE).forEach { chunk ->
-			locationObservationDao.insert(chunk.map { observation ->
-				if (sourceRevision == null) observation else observation.copy(sourceRevision = sourceRevision)
-			})
+		revisedObservations.chunked(LOCATION_OBSERVATION_BATCH_SIZE).forEach { chunk ->
+			locationObservationDao.insert(chunk)
 		}
-		locations.chunked(LOCATION_BATCH_SIZE).forEach { chunk ->
-			locationSampleDao.insert(chunk.map { sample ->
-				val revised = if (sourceRevision == null) sample else sample.copy(sourceRevision = sourceRevision)
-				revised.toEntity()
-			})
+		revisedLocations.chunked(LOCATION_BATCH_SIZE).forEach { chunk ->
+			locationSampleDao.insert(chunk)
 		}
-		insertLocationDecisions(decisions, sourceRevision)
+		insertLocationDecisions(revisedDecisions)
+		val terminalProtectedEventIds = revisedDecisions.mapTo(mutableSetOf()) {
+			it.observationSourceEventId
+		}
+		protectedWrites.filter { verified ->
+			verified.command.mutation.identity.sourceEventId.value in terminalProtectedEventIds
+		}.forEach { verified ->
+			appDatabaseProvider.get()
+				.recordProtectedLocationCanonicalReceiptInCurrentTransaction(verified)
+		}
 		cells.chunked(CELL_BATCH_SIZE).forEach { chunk ->
 			cellSampleDao.insert(chunk)
 		}
@@ -936,7 +1052,6 @@ class PersistenceProcessor @Inject constructor(
 		pressure.chunked(PRESSURE_BATCH_SIZE).forEach { chunk ->
 			pressureSampleDao.insert(chunk)
 		}
-		val admissionsBySignal = pendingAdmissions.values.associateBy(PendingAdmission::sourceSignalId)
 		val hasLegacyStepsAdmission = steps.any { interval ->
 			admissionsBySignal[interval.sourceSignalId]?.stepsWriterOwner ==
 				SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL
@@ -964,6 +1079,103 @@ class PersistenceProcessor @Inject constructor(
 		}
 		activities.chunked(ACTIVITY_BATCH_SIZE).forEach { chunk ->
 			activitySnapshotDao.insert(chunk)
+		}
+	}
+
+	private suspend fun requireExistingLocationDestinationOwner(hasLocationMutation: Boolean) {
+		if (!hasLocationMutation) return
+		check(sourceDestinationOwnerDao.isExactOwner(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION,
+			destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+			owner = SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE,
+			ownerGeneration = SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION,
+		)) {
+			"Existing canonical Location writer does not own the permanent destination"
+		}
+	}
+
+	private suspend fun verifyProtectedLocationCanonicalWrites(
+		observations: List<LocationObservation>,
+		locations: List<StoredLocationSample>,
+		decisions: List<LocationObservationDecision>,
+	): List<ProtectedLocationVerifiedWrite> {
+		observations.forEach { observation ->
+			ProtectedLocationCanonicalSignalIdentity.rawEventId(observation.sourceSignalId)
+				?.let { eventId ->
+					require(observation.sourceEventId == eventId) {
+						"Protected Location raw signal identity does not match its source event"
+					}
+				}
+		}
+		locations.forEach { sample ->
+			ProtectedLocationCanonicalSignalIdentity.canonicalEventId(sample.sourceSignalId)
+				?.let { eventId ->
+					require(sample.sourceEventId == eventId) {
+						"Protected Location sample identity does not match its source event"
+					}
+				}
+		}
+		decisions.forEach { decision ->
+			ProtectedLocationCanonicalSignalIdentity.canonicalEventId(decision.sourceSignalId)
+				?.let { eventId ->
+					require(decision.observationSourceEventId == eventId) {
+						"Protected Location decision identity does not match its source event"
+					}
+				}
+		}
+
+		val eventIds = buildSet {
+			observations.mapNotNullTo(this) { observation ->
+				ProtectedLocationCanonicalSignalIdentity.rawEventId(observation.sourceSignalId)
+			}
+			locations.mapNotNullTo(this) { sample ->
+				ProtectedLocationCanonicalSignalIdentity.canonicalEventId(sample.sourceSignalId)
+			}
+			decisions.mapNotNullTo(this) { decision ->
+				ProtectedLocationCanonicalSignalIdentity.canonicalEventId(decision.sourceSignalId)
+			}
+		}
+		if (eventIds.isEmpty()) return emptyList()
+
+		val guard = protectedLocationCanonicalPersistenceGuardProvider.get()
+		return eventIds.sorted().map { eventId ->
+			val observation = observations.singleOrNull { candidate ->
+				candidate.sourceEventId == eventId &&
+					ProtectedLocationCanonicalSignalIdentity.rawEventId(
+						candidate.sourceSignalId,
+					) == eventId
+			}
+			val sample = locations.singleOrNull { candidate ->
+				candidate.sourceEventId == eventId &&
+					ProtectedLocationCanonicalSignalIdentity.canonicalEventId(
+						candidate.sourceSignalId,
+					) == eventId
+			}
+			val decision = decisions.singleOrNull { candidate ->
+				candidate.observationSourceEventId == eventId &&
+					ProtectedLocationCanonicalSignalIdentity.canonicalEventId(
+						candidate.sourceSignalId,
+					) == eventId
+			}
+			guard.verifyInCurrentWriterTransaction(
+				ProtectedLocationCanonicalPendingWrite(
+					sourceEventId = eventId,
+					observation = observation,
+					decision = decision?.let { stored ->
+						ProtectedLocationCanonicalPendingDecision(
+							sourceEventId = stored.observationSourceEventId,
+							decision = stored.decision,
+							reason = stored.reason,
+							decisionVersion = stored.decisionVersion,
+							acceptedSampleSourceSignalId = stored.acceptedSampleSourceSignalId,
+							sourceSignalId = stored.sourceSignalId,
+							clockDomainId = stored.clockDomainId,
+							decidedAtMs = stored.decidedAtMs,
+						)
+					},
+					sample = sample,
+				),
+			)
 		}
 	}
 
@@ -1063,29 +1275,34 @@ class PersistenceProcessor @Inject constructor(
 		return requireNotNull(stateDao.get()) { "Source-evidence state disappeared inside transaction" }.revision
 	}
 
-	private suspend fun insertLocationDecisions(
+	private suspend fun buildLocationDecisions(
 		bufferedDecisions: List<BufferedLocationDecision>,
 		sourceRevision: Long?,
+	): List<LocationObservationDecision> = bufferedDecisions.map { buffered ->
+		LocationObservationDecision(
+			observationSourceEventId = buffered.signal.sourceEventId,
+			decision = buffered.signal.decision.name,
+			reason = buffered.signal.reason,
+			acceptedSampleSourceSignalId = buffered.acceptedSampleSourceSignalId,
+			sourceSignalId = buffered.sourceSignalId,
+			clockDomainId = buffered.clockDomainId,
+			decidedAtMs = buffered.decidedAtMs,
+			sourceRevision = sourceRevision ?: 0L,
+		)
+	}
+
+	private suspend fun insertLocationDecisions(
+		decisions: List<LocationObservationDecision>,
 	) {
-		if (bufferedDecisions.isEmpty()) return
+		if (decisions.isEmpty()) return
 		val decisionDao = requireNotNull(locationObservationDecisionDao) {
 			"Location decisions require LocationObservationDecisionDao"
 		}
-		val decisions = bufferedDecisions.map { buffered ->
-			require(locationObservationDao.existsBySourceEventId(buffered.signal.sourceEventId)) {
-				"Cannot persist ${buffered.signal.decision} decision without raw observation " +
-					"${buffered.signal.sourceEventId}"
+		decisions.forEach { decision ->
+			require(locationObservationDao.existsBySourceEventId(decision.observationSourceEventId)) {
+				"Cannot persist ${decision.decision} decision without raw observation " +
+					decision.observationSourceEventId
 			}
-			LocationObservationDecision(
-				observationSourceEventId = buffered.signal.sourceEventId,
-				decision = buffered.signal.decision.name,
-				reason = buffered.signal.reason,
-				acceptedSampleSourceSignalId = buffered.acceptedSampleSourceSignalId,
-				sourceSignalId = buffered.sourceSignalId,
-				clockDomainId = buffered.clockDomainId,
-				decidedAtMs = buffered.decidedAtMs,
-				sourceRevision = sourceRevision ?: 0L,
-			)
 		}
 		decisionDao.insert(decisions)
 	}
@@ -1202,15 +1419,18 @@ class PersistenceProcessor @Inject constructor(
 		pendingClaimToken = claimToken
 		entries.forEach { entry ->
 			val signal = (entry.payload as PendingSignalDecodeResult.Valid).signal
-			bufferSignal(signal, entry.signalId)
-			pendingIds.add(entry.id)
-			pendingAdmissions[entry.id] = PendingAdmission(
+			val pendingAdmission = PendingAdmission(
 				sourceSignalId = entry.signalId,
 				capturedEpoch = entry.capturedEpoch,
 				acquiredAtMs = entry.acquiredAtMs,
 				stepsWriterOwner = entry.stepsWriterOwner,
 				stepsWriterOwnerGeneration = entry.stepsWriterOwnerGeneration,
+				pressureWriterOwner = entry.pressureWriterOwner,
+				pressureWriterOwnerGeneration = entry.pressureWriterOwnerGeneration,
 			)
+			pendingAdmissions[entry.id] = pendingAdmission
+			bufferSignal(signal, entry.signalId, pendingAdmission)
+			pendingIds.add(entry.id)
 		}
 
 		if (persistBufferedAndAcknowledge(verifyCollectedDataAccess)) return true

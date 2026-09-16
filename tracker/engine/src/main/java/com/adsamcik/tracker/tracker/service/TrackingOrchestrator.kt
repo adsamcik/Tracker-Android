@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.service
 
+import androidx.room.withTransaction
 import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
 import android.content.Context
@@ -25,6 +26,7 @@ import com.adsamcik.tracker.tracker.component.consumer.post.PlaneTrackingCompone
 import com.adsamcik.tracker.tracker.component.consumer.post.SailingTrackingComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiSegmentWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
+import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerComponent
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 
 import com.adsamcik.tracker.tracker.control.NoOpTrackingControlOutputSink
@@ -39,6 +41,11 @@ import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.pipeline.TrackingPipeline
 import com.adsamcik.tracker.tracker.pipeline.toLocationObservationSignal
+import com.adsamcik.tracker.tracker.pipeline.toProtectedLocationObservationSignal
+import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
+import com.adsamcik.tracker.tracker.pipeline.persistence.ExclusiveTrackingPersistenceLifecycleLease
+import com.adsamcik.tracker.tracker.pipeline.persistence.TrackingPersistenceLifecycleLease
+import com.adsamcik.tracker.tracker.pipeline.persistence.TrackingPersistenceLifecyclePermit
 import com.adsamcik.tracker.tracker.pipeline.stages.DataCollectionStage
 import com.adsamcik.tracker.tracker.pipeline.stages.PolicyUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.PostProcessingStage
@@ -51,6 +58,19 @@ import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateS
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingSessionOwnership
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.SourceDemand
+import com.adsamcik.tracker.tracker.source.location.LocationCapturedFactCommand
+import com.adsamcik.tracker.tracker.source.location.LocationWalAcquisitionMetadata
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalReceipt
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriteResult
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriter
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationPreparedCanonicalOutput
+import com.adsamcik.tracker.tracker.source.location.prepareProtectedLocationCanonicalCurationState
+import com.adsamcik.tracker.tracker.source.location.loadPreparedProtectedLocationCanonicalCurationState
+import com.adsamcik.tracker.tracker.source.location.loadProtectedLocationCommittedCurationState
+import com.adsamcik.tracker.tracker.source.location.readProtectedLocationCanonicalReceipt
+import com.adsamcik.tracker.tracker.source.location.toCanonicalCurationContext
+import com.adsamcik.tracker.tracker.source.location.toProtectedLocationMockRejectionSignal
+import com.adsamcik.tracker.tracker.source.location.toProtectedLocationTrackingCycle
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationOutcome
@@ -58,6 +78,7 @@ import com.adsamcik.tracker.tracker.worker.materializeDailySummaryDayInTransacti
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
@@ -109,7 +130,9 @@ internal class TrackingOrchestrator(
 	private val trackingControlOutputSink: TrackingControlOutputSink = NoOpTrackingControlOutputSink,
 	/** Delivers semantic settings plus policy evidence requirements to the event coordinator. */
 	private val onSourcePlanInputsChanged: suspend (TrackingParamsState, List<SourceDemand>) -> Unit = { _, _ -> },
-) {
+	private val persistenceLifecycleLease: TrackingPersistenceLifecycleLease =
+		ExclusiveTrackingPersistenceLifecycleLease(),
+) : ProtectedLocationCanonicalWriter {
 	private val componentMutex = Mutex()
 
 	private var trackingPolicyManager: TrackingPolicyManager? = null
@@ -119,6 +142,9 @@ internal class TrackingOrchestrator(
 	private var sessionJob: Job? = null
 	private var pendingPresentationBinding: SessionPresentationBinding? = null
 	private var completedShutdownResult: ShutdownResult? = null
+	private var protectedLocationApplicationContext: Context? = null
+	private var protectedLocationCurationSeededThroughOrdinal: Long? = null
+	private var livePersistencePermit: TrackingPersistenceLifecyclePermit? = null
 
 	@Volatile
 	private var controlLocationEnabled: Boolean = true
@@ -195,6 +221,8 @@ internal class TrackingOrchestrator(
 		}
 		pendingPresentationBinding = null
 		completedShutdownResult = null
+		protectedLocationApplicationContext = null
+		protectedLocationCurationSeededThroughOrdinal = null
 
 		val newSessionJob = SupervisorJob(scope.coroutineContext[Job])
 		val sessionScope = CoroutineScope(scope.coroutineContext + newSessionJob)
@@ -385,37 +413,57 @@ internal class TrackingOrchestrator(
 				appDatabase.liveStatsRecoverySeed(session, isResuming)
 			}
 		}
-		pipeline.start(
-			tier = initialTier,
-			startTimestamp = EpochMs(session.start),
-			isResuming = isResuming,
-			sessionId = session.id,
-		)
-		if (aggregatorProcessor != null && liveStatsSeed != null) {
-			aggregatorProcessor.seedDayTotals(
-				distanceM = liveStatsSeed.priorDayDistanceM,
-				steps = liveStatsSeed.priorDaySteps,
-				durationMs = liveStatsSeed.priorDayDurationMs,
-				trips = liveStatsSeed.priorDayTrips,
+		val persistencePermit = persistenceLifecycleLease.acquireLivePipeline()
+		livePersistencePermit = persistencePermit
+		try {
+			pipeline.start(
+				tier = initialTier,
+				startTimestamp = EpochMs(session.start),
+				isResuming = isResuming,
+				sessionId = session.id,
 			)
-			if (isResuming) {
-				aggregatorProcessor.restoreSessionTotals(
-					distanceM = session.distanceInM,
-					steps = session.steps,
-					durationMs = (session.end - session.start).coerceAtLeast(0L),
-					sampleCount = session.collections,
-					lastUpdateMs = session.end,
-					dayDistanceM = liveStatsSeed.restoredDayDistanceM,
-					daySteps = liveStatsSeed.restoredDaySteps,
-					dayDurationMs = liveStatsSeed.restoredDayDurationMs,
+			if (aggregatorProcessor != null && liveStatsSeed != null) {
+				aggregatorProcessor.seedDayTotals(
+					distanceM = liveStatsSeed.priorDayDistanceM,
+					steps = liveStatsSeed.priorDaySteps,
+					durationMs = liveStatsSeed.priorDayDurationMs,
+					trips = liveStatsSeed.priorDayTrips,
 				)
+				if (isResuming) {
+					aggregatorProcessor.restoreSessionTotals(
+						distanceM = session.distanceInM,
+						steps = session.steps,
+						durationMs = (session.end - session.start).coerceAtLeast(0L),
+						sampleCount = session.collections,
+						lastUpdateMs = session.end,
+						dayDistanceM = liveStatsSeed.restoredDayDistanceM,
+						daySteps = liveStatsSeed.restoredDaySteps,
+						dayDurationMs = liveStatsSeed.restoredDayDurationMs,
+					)
+				}
 			}
-		}
-		trackingPipeline = createTrackingPipeline(sessionScope)
+			trackingPipeline = createTrackingPipeline(sessionScope)
+			protectedLocationApplicationContext = context.applicationContext
 
-		// Wire mutable references into tier escalation handler
-		tierEscalationHandler.processorPipeline = processorPipeline
-		pendingPresentationBinding
+			// Wire mutable references into tier escalation handler
+			tierEscalationHandler.processorPipeline = processorPipeline
+			pendingPresentationBinding
+		} catch (failure: Throwable) {
+			withContext(NonCancellable) {
+				val cleanupFailure = runCatching { pipeline.stop() }.exceptionOrNull()
+				if (cleanupFailure == null) {
+					processorPipeline = null
+					trackingPipeline = null
+					if (livePersistencePermit === persistencePermit) {
+						livePersistencePermit = null
+						persistencePermit.release()
+					}
+				} else {
+					failure.addSuppressed(cleanupFailure)
+				}
+			}
+			throw failure
+		}
 	}
 
 	/**
@@ -432,9 +480,256 @@ internal class TrackingOrchestrator(
 	) {
 		componentMutex.withLock {
 			if (!controller.isServiceRunning) return
+			if (cycle.location != null) {
+				val persistence = signalProcessors.filterIsInstance<PersistenceProcessor>()
+					.singleOrNull()
+				if (persistence != null &&
+					!persistence.flushProtectedLocationCanonicalHandoff()
+				) {
+					Tracebox.log.error(
+						TrackerTraceboxTemplates.TRACKING_SIGNAL_CHECKPOINT_FAILED,
+					)
+					return@withLock
+				}
+				seedCommittedProtectedLocationCurationIfNeeded()
+			}
 
 			collectAndProcess(context, cycle)
 		}
+	}
+
+	override suspend fun write(
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+	): ProtectedLocationCanonicalWriteResult = componentMutex.withLock {
+		val context = protectedLocationApplicationContext
+			?: return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
+				"LOCATION_CANONICAL_PIPELINE_INACTIVE",
+			)
+		if (!controller.isServiceRunning) {
+			return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
+				"LOCATION_CANONICAL_SERVICE_INACTIVE",
+			)
+		}
+		val binding = pendingPresentationBinding
+			?: return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
+				"LOCATION_CANONICAL_SESSION_UNBOUND",
+			)
+		if (binding.logicalTrackingId != command.authority.logicalTrackingId.value ||
+			binding.serviceRunId != command.authority.serviceRunId.value ||
+			binding.sessionSegmentId != command.authority.sessionSegmentId
+		) {
+			return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
+				"LOCATION_CANONICAL_ACTIVE_RUN_MISMATCH",
+			)
+		}
+		val pipeline = processorPipeline
+			?: return@withLock ProtectedLocationCanonicalWriteResult.Inactive(
+				"LOCATION_CANONICAL_PROCESSOR_PIPELINE_INACTIVE",
+			)
+		val persistence = signalProcessors.filterIsInstance<PersistenceProcessor>().singleOrNull()
+			?: return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+				"LOCATION_CANONICAL_PERSISTENCE_PROCESSOR_UNAVAILABLE",
+				terminal = false,
+			)
+		val locationComponent = dataComponentList.filterIsInstance<LocationTrackerComponent>()
+			.singleOrNull()
+			?: return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+				"LOCATION_CANONICAL_CURATION_COMPONENT_UNAVAILABLE",
+				terminal = false,
+			)
+		if (!persistence.flushProtectedLocationCanonicalHandoff()) {
+			return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
+				"LOCATION_CANONICAL_PENDING_COMMIT",
+			)
+		}
+		when (val receipt = appDatabase.withTransaction {
+			appDatabase.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
+		}) {
+			is ProtectedLocationCanonicalReceipt.Complete -> {
+				applyCommittedProtectedLocationCuration(
+					locationComponent,
+					command.mutation.identity.sourceAdmissionOrdinal,
+					receipt.curationState,
+				)
+				return@withLock ProtectedLocationCanonicalWriteResult.Committed
+			}
+			is ProtectedLocationCanonicalReceipt.Invalid ->
+				return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+					receipt.reason,
+					terminal = true,
+				)
+			is ProtectedLocationCanonicalReceipt.Incomplete -> Unit
+		}
+		seedCommittedProtectedLocationCurationIfNeeded()
+		val curationStateBefore = try {
+			appDatabase.withTransaction {
+				appDatabase.loadPreparedProtectedLocationCanonicalCurationState(command)
+					?.stateBefore
+			} ?: locationComponent.snapshotCanonicalState()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (failure: Exception) {
+			return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+				failure::class.java.simpleName.ifBlank {
+					"LOCATION_CANONICAL_PREPARED_STATE_FAILED"
+				},
+				terminal = false,
+			)
+		}
+		val curationContext = try {
+			acquisitionMetadata.toCanonicalCurationContext(
+				curationStateBefore,
+			)
+		} catch (_: IllegalStateException) {
+			return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+				"LOCATION_CANONICAL_CURATION_CONTRACT_UNSUPPORTED",
+				terminal = true,
+			)
+		}
+		return@withLock try {
+			if (!pipeline.checkpointDurableSignals(
+				listOf(command.toProtectedLocationObservationSignal(
+					acquisitionMetadata = acquisitionMetadata,
+					policyTier = acquisitionMetadata.policyTier,
+					policyName = acquisitionMetadata.policyName,
+				)),
+			)) {
+				return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
+					"LOCATION_CANONICAL_RAW_ADMISSION_DEFERRED",
+				)
+			}
+			if (command.productEffect.isMock) {
+				val decisionSignal = command.toProtectedLocationMockRejectionSignal(
+					acquisitionMetadata = acquisitionMetadata,
+					policyTier = acquisitionMetadata.policyTier,
+					policyName = acquisitionMetadata.policyName,
+				)
+				appDatabase.withTransaction {
+					appDatabase.prepareProtectedLocationCanonicalCurationState(
+						command,
+						curationContext.stateBefore,
+						curationContext.stateBefore,
+						ProtectedLocationPreparedCanonicalOutput.fromSignal(
+							command,
+							decisionSignal,
+						),
+					)
+				}
+				if (!pipeline.onSignal(decisionSignal)) {
+					return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
+						"LOCATION_CANONICAL_DECISION_ADMISSION_DEFERRED",
+					)
+				}
+			} else {
+				val cycle = command.toProtectedLocationTrackingCycle(
+					acquisitionMetadata,
+					curationContext,
+				)
+				TrackingPipeline(
+					stages = listOf(
+						DataCollectionStage(dataComponentList),
+						SignalDispatchStage(
+							processorPipelineProvider = { pipeline },
+							currentTierProvider = { acquisitionMetadata.policyTier },
+							currentPolicyNameProvider = { acquisitionMetadata.policyName },
+							beforeSignalAdmission = { cycleContext, signal ->
+								check(
+									cycleContext.collectionData.location != null ||
+										curationContext.outcome.decisionReason != null,
+								) {
+									"Protected Location curation produced no terminal outcome"
+								}
+								appDatabase.withTransaction {
+									appDatabase.prepareProtectedLocationCanonicalCurationState(
+										command,
+										curationContext.stateBefore,
+										curationContext.outcome.stateAfter,
+										ProtectedLocationPreparedCanonicalOutput.fromSignal(
+											command,
+											signal,
+										),
+									)
+								}
+							},
+						),
+					),
+				).execute(
+					context,
+					CycleContext(
+						cycle = cycle,
+						collectionData = MutableCollectionData(cycle.timestampMs),
+					),
+				)
+			}
+			if (!persistence.flushProtectedLocationCanonicalHandoff()) {
+				return@withLock ProtectedLocationCanonicalWriteResult.Deferred(
+					"LOCATION_CANONICAL_DESTINATION_COMMIT_DEFERRED",
+				)
+			}
+			when (val receipt = appDatabase.withTransaction {
+				appDatabase.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
+			}) {
+				is ProtectedLocationCanonicalReceipt.Complete -> {
+					applyCommittedProtectedLocationCuration(
+						locationComponent,
+						command.mutation.identity.sourceAdmissionOrdinal,
+						receipt.curationState,
+					)
+					ProtectedLocationCanonicalWriteResult.Committed
+				}
+				is ProtectedLocationCanonicalReceipt.Incomplete ->
+					ProtectedLocationCanonicalWriteResult.Deferred(receipt.reason)
+				is ProtectedLocationCanonicalReceipt.Invalid ->
+					ProtectedLocationCanonicalWriteResult.Failed(
+						receipt.reason,
+						terminal = true,
+					)
+			}
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (failure: Exception) {
+			ProtectedLocationCanonicalWriteResult.Failed(
+				failure::class.java.simpleName.ifBlank {
+					"LOCATION_CANONICAL_WRITE_FAILED"
+				},
+				terminal = false,
+			)
+		}
+	}
+
+	private suspend fun seedCommittedProtectedLocationCurationIfNeeded() {
+		val binding = pendingPresentationBinding ?: return
+		val component = dataComponentList.filterIsInstance<LocationTrackerComponent>()
+			.singleOrNull() ?: return
+		val checkpoint = appDatabase.withTransaction {
+			appDatabase.loadProtectedLocationCommittedCurationState(
+				binding.logicalTrackingId,
+				binding.serviceRunId,
+			)
+		} ?: return
+		val seededThrough = protectedLocationCurationSeededThroughOrdinal
+		if (seededThrough != null && seededThrough >= checkpoint.committedThroughOrdinal) return
+		applyCommittedProtectedLocationCuration(
+			component,
+			checkpoint.committedThroughOrdinal,
+			checkpoint.state,
+		)
+	}
+
+	private fun applyCommittedProtectedLocationCuration(
+		component: LocationTrackerComponent,
+		committedThroughOrdinal: Long,
+		state: com.adsamcik.tracker.tracker.data.collection.LocationCanonicalCurationState,
+	) {
+		val current = component.snapshotCanonicalState()
+		if (!current.isAheadOf(state)) {
+			component.restoreCanonicalState(state)
+		}
+		protectedLocationCurationSeededThroughOrdinal = maxOf(
+			protectedLocationCurationSeededThroughOrdinal ?: 0L,
+			committedThroughOrdinal,
+		)
 	}
 
 	/**
@@ -462,6 +757,8 @@ internal class TrackingOrchestrator(
 		} finally {
 			sessionJob?.cancelAndJoin()
 			sessionJob = null
+			protectedLocationApplicationContext = null
+			protectedLocationCurationSeededThroughOrdinal = null
 		}
 	}
 
@@ -495,6 +792,8 @@ internal class TrackingOrchestrator(
 		controller.updatePlaneState(null)
 		pendingPresentationBinding = null
 		completedShutdownResult = null
+		protectedLocationApplicationContext = null
+		protectedLocationCurationSeededThroughOrdinal = null
 	}
 
 	fun markServiceStopped() {
@@ -633,6 +932,10 @@ internal class TrackingOrchestrator(
 				processorPipeline?.stop()
 				processorPipeline = null
 				trackingPipeline = null
+				withContext(NonCancellable) {
+					livePersistencePermit?.release()
+					livePersistencePermit = null
+				}
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {

@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiAuthorityOwner
 import com.adsamcik.tracker.shared.base.database.dao.WifiLocalObservationOwner
 import com.adsamcik.tracker.shared.base.database.dao.WifiLocalRunOwner
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiEntryRevisionEntity
@@ -31,6 +32,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableWifiIdentityKind
 import com.adsamcik.tracker.stats.api.repository.PortableWifiOpaqueIdentity
 import com.adsamcik.tracker.stats.api.repository.PortableWifiRetryableReason
 import com.adsamcik.tracker.stats.api.repository.WifiCapturedPortableFormatV1
+import com.adsamcik.tracker.stats.api.repository.isReciprocalCorrectionOf
 import java.time.DateTimeException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -240,51 +242,18 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 		entry: PortableCapturedWifiEntryV1,
 		state: SourceEvidenceState,
 	) {
-		val ownership = WifiIncomingOwnership(entry)
-		ownership.identities.keys.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { values ->
-			val limit = Math.addExact(values.size, 1)
-			val entries = storedValue { dao.existingEntryIdentities(values, limit) }
-			val runs = storedValue { dao.existingRunIdentityOwners(values, limit) }
-			val observations = storedValue { dao.existingObservationIdentityOwners(values, limit) }
-			val scopes = storedValue { dao.existingRunScopeOwners(values, limit) }
-			val tombstones = storedValue { dao.entryDeletions(values) }
-			val generations = storedValue {
-				dao.deletionGenerationsByRun(values) + dao.deletionGenerationsByScope(values) +
-					dao.deletionGenerationsByEntry(values, 1)
-			}
-			if (entries.size >= limit || runs.size >= limit || observations.size >= limit || scopes.size >= limit) {
-				dependencyOverflow()
-			}
-			if (tombstones.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				generations.any { it.collectedDataEpoch != state.collectedDataEpoch }
+		val ownership = WifiPortableOpaqueOwnership(entry)
+		ownership.allValues.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { values ->
+			val limit = Math.addExact(Math.multiplyExact(values.size, 16), 1)
+			val owners = storedValue { dao.authorityOwners(values, limit) }
+			if (owners.size >= limit) dependencyOverflow()
+			if (owners.any { owner ->
+					owner.collectedDataEpoch != state.collectedDataEpoch
+				}
 			) storedCorrupt()
-			if (scopes.isNotEmpty() || tombstones.isNotEmpty() || generations.isNotEmpty() ||
-				entries.any { ownership.identities[it] != PortableWifiIdentityKind.LOGICAL_ENTRY } ||
-				runs.any { row -> ownership.runOwners[row.identity] !=
-					(row.entryIdentity to row.deletionScopeDigest) } ||
-				observations.any { row -> ownership.observationOwners[row.identity] !=
-					(row.entryIdentity to row.runIdentity) }
-			) blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
-		}
-		ownership.scopeOwners.keys.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { values ->
-			val limit = Math.addExact(values.size, 1)
-			val entries = storedValue { dao.existingEntryIdentities(values, 1) }
-			val runs = storedValue { dao.existingRunIdentityOwners(values, 1) }
-			val observations = storedValue { dao.existingObservationIdentityOwners(values, 1) }
-			val scopes = storedValue { dao.existingRunScopeOwners(values, limit) }
-			val tombstones = storedValue { dao.entryDeletions(values) }
-			val generations = storedValue {
-				dao.deletionGenerationsByRun(values) + dao.deletionGenerationsByScope(values) +
-					dao.deletionGenerationsByEntry(values, 1)
+			if (owners.any { owner -> !owner.isCompatibleExistingOwner(ownership) }) {
+				blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
 			}
-			if (tombstones.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				generations.any { it.collectedDataEpoch != state.collectedDataEpoch }
-			) storedCorrupt()
-			if (entries.isNotEmpty() || runs.isNotEmpty() || observations.isNotEmpty() ||
-				tombstones.isNotEmpty() || generations.isNotEmpty() || scopes.size >= limit ||
-				scopes.any { row -> ownership.scopeOwners[row.deletionScopeDigest] !=
-					(row.entryIdentity to row.runIdentity) }
-			) blocked(PortableCapturedWifiImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
 		}
 	}
 
@@ -293,7 +262,7 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 		entry: PortableCapturedWifiEntryV1,
 		state: SourceEvidenceState,
 	) {
-		val incoming = WifiIncomingOwnership(entry).allValues
+		val incoming = WifiPortableOpaqueOwnership(entry).allValues
 		incoming.chunked(IDENTITY_QUERY_CHUNK_SIZE).forEach { values ->
 			val limit = Math.toIntExact(limits.maximumGlobalAuthorityRows + 1L)
 			val fences = storedValue {
@@ -447,6 +416,8 @@ internal class RoomImportPortableCapturedWifi internal constructor(
 			storedValue { dao.observationCount() } to added.observations,
 			storedValue { dao.entryDeletionCount() } to 0L,
 			storedValue { dao.deletionGenerationCount() } to 0L,
+			storedValue { dao.selectedDeletionReceiptCount() } to 0L,
+			storedValue { dao.selectedDeletionProtectedIdentityCount() } to 0L,
 		).fold(0L) { total, (existing, increment) ->
 			checkedAuthorityCount(total, checkedAuthorityCount(existing, increment))
 		}
@@ -610,26 +581,6 @@ private data class NewWifiRows(
 	val observations: Long = 0L,
 )
 
-private class WifiIncomingOwnership(entry: PortableCapturedWifiEntryV1) {
-	val identities: Map<String, PortableWifiIdentityKind> = buildMap {
-		put(entry.identity.value, PortableWifiIdentityKind.LOGICAL_ENTRY)
-		entry.runs.forEach { run ->
-			put(run.identity.value, PortableWifiIdentityKind.PHYSICAL_RUN)
-			run.observations.forEach { put(it.identity.value, PortableWifiIdentityKind.OBSERVATION) }
-		}
-	}
-	val runOwners: Map<String, Pair<String, String>> = entry.runs.associate {
-		it.identity.value to (entry.identity.value to it.deletionScopeDigest.value)
-	}
-	val observationOwners: Map<String, Pair<String, String>> = entry.runs.flatMap { run ->
-		run.observations.map { it.identity.value to (entry.identity.value to run.identity.value) }
-	}.toMap()
-	val scopeOwners: Map<String, Pair<String, String>> = entry.runs.associate {
-		it.deletionScopeDigest.value to (entry.identity.value to it.identity.value)
-	}
-	val allValues: Set<String> = identities.keys + scopeOwners.keys
-}
-
 private fun SourceEvidenceState.hasValidWifiImportShape(): Boolean =
 	id == SourceEvidenceState.SINGLETON_ID && revision >= 0L && collectedDataEpoch >= 0L &&
 		retainedFromMs?.let { it >= 0L } != false && deletedSourceEventHighWaterOrdinal >= 0L &&
@@ -751,4 +702,29 @@ private fun ImportedWifiLineageAuthenticator.Reason.toImportReason() = when (thi
 		PortableCapturedWifiImportUnverifiableReason.OBSERVATION_OVERFLOW
 	ImportedWifiLineageAuthenticator.Reason.REVISION_OVERFLOW ->
 		PortableCapturedWifiImportUnverifiableReason.REVISION_OVERFLOW
+}
+
+private fun ImportedWifiAuthorityOwner.isCompatibleExistingOwner(
+	ownership: WifiPortableOpaqueOwnership,
+): Boolean = when (ownerKind) {
+	ImportedWifiAuthorityOwner.ENTRY -> ownership.identityOwners[protectedIdentity]?.let { owner ->
+		owner.kind == PortableWifiIdentityKind.LOGICAL_ENTRY &&
+			owner.entryIdentity == entryIdentity
+	} == true
+	ImportedWifiAuthorityOwner.RUN -> ownership.identityOwners[protectedIdentity]?.let { owner ->
+		owner.kind == PortableWifiIdentityKind.PHYSICAL_RUN &&
+			owner.entryIdentity == entryIdentity && owner.runIdentity == runIdentity &&
+			owner.deletionScopeDigest == deletionScopeDigest
+	} == true
+	ImportedWifiAuthorityOwner.OBSERVATION ->
+		ownership.identityOwners[protectedIdentity]?.let { owner ->
+			owner.kind == PortableWifiIdentityKind.OBSERVATION &&
+				owner.entryIdentity == entryIdentity && owner.runIdentity == runIdentity
+		} == true
+	ImportedWifiAuthorityOwner.DELETION_SCOPE ->
+		ownership.scopeOwners[protectedIdentity]?.let { owner ->
+			owner.entryIdentity == entryIdentity && owner.runIdentity == runIdentity &&
+				owner.deletionScopeDigest == deletionScopeDigest
+		} == true
+	else -> false
 }

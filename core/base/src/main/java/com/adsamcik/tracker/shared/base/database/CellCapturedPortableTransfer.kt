@@ -23,11 +23,14 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.security.MessageDigest
 import java.time.DateTimeException
 import java.time.ZoneId
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
@@ -265,6 +268,101 @@ data class PortableCapturedCellEntryV1(
 	}
 }
 
+/**
+ * Structural verifier for already-authenticated Cell-v1 hierarchies. It grants no live, writer,
+ * deletion, or provider authority.
+ */
+class PortableCellOpaqueOwnershipVerifier private constructor(
+	private val identityOwners: MutableMap<String, PortableCellOpaqueOwner>,
+	private val deletionScopeOwners: MutableMap<String, PortableCellOpaqueOwner>,
+) {
+	/** Atomically includes one compatible hierarchy; false leaves the verifier unchanged. */
+	fun tryInclude(entry: PortableCapturedCellEntryV1): Boolean {
+		val candidate = ownershipOf(entry) ?: return false
+		if (candidate.identityOwners.keys.any { it in deletionScopeOwners } ||
+			candidate.deletionScopeOwners.keys.any { it in identityOwners } ||
+			candidate.identityOwners.any { (identity, owner) ->
+				identityOwners[identity]?.let { it != owner } == true
+			} || candidate.deletionScopeOwners.any { (scope, owner) ->
+				deletionScopeOwners[scope]?.let { it != owner } == true
+			}
+		) return false
+		identityOwners.putAll(candidate.identityOwners)
+		deletionScopeOwners.putAll(candidate.deletionScopeOwners)
+		return true
+	}
+
+	companion object {
+		fun fromEntries(entries: Collection<PortableCapturedCellEntryV1>):
+			PortableCellOpaqueOwnershipVerifier? {
+			val verifier = PortableCellOpaqueOwnershipVerifier(linkedMapOf(), linkedMapOf())
+			return verifier.takeIf { entries.all(verifier::tryInclude) }
+		}
+
+		private fun ownershipOf(entry: PortableCapturedCellEntryV1):
+			PortableCellOpaqueOwnershipVerifier? {
+			val verifier = PortableCellOpaqueOwnershipVerifier(linkedMapOf(), linkedMapOf())
+			val entryIdentity = entry.identity.value
+			if (!verifier.bindIdentity(
+				entryIdentity,
+				PortableCellOpaqueOwner(PortableCellIdentityKind.LOGICAL_ENTRY, entryIdentity),
+			)) return null
+			entry.runs.forEach { run ->
+				val runIdentity = run.identity.value
+				val runOwner = PortableCellOpaqueOwner(
+					PortableCellIdentityKind.PHYSICAL_RUN,
+					entryIdentity,
+					runIdentity,
+				)
+				if (!verifier.bindIdentity(runIdentity, runOwner) ||
+					!verifier.bindScope(run.deletionScopeDigest.value, runOwner)
+				) return null
+				run.observations.forEach { observation ->
+					if (!verifier.bindIdentity(
+						observation.identity.value,
+						PortableCellOpaqueOwner(
+							kind = PortableCellIdentityKind.OBSERVATION,
+							entryIdentity = entryIdentity,
+							runIdentity = runIdentity,
+							aggregateOwnerIdentity = observation.aggregateOwnerIdentity?.value,
+						),
+					)) return null
+				}
+			}
+			if (verifier.identityOwners.keys.any { it in verifier.deletionScopeOwners }) return null
+			return verifier
+		}
+	}
+
+	private fun bindIdentity(identity: String, owner: PortableCellOpaqueOwner): Boolean {
+		val previous = identityOwners[identity]
+		if (previous == null) identityOwners[identity] = owner
+		return previous == null || previous == owner
+	}
+
+	private fun bindScope(scope: String, owner: PortableCellOpaqueOwner): Boolean {
+		val previous = deletionScopeOwners[scope]
+		if (previous == null) deletionScopeOwners[scope] = owner
+		return previous == null || previous == owner
+	}
+}
+
+/** Exact source-specific duplicate rule shared by local/imported Cell composition tests. */
+object PortableCellOriginComparison {
+	fun areExactFullV1Duplicates(
+		local: PortableCapturedCellEntryV1,
+		imported: PortableCapturedCellEntryV1,
+	): Boolean = local == imported &&
+		PortableCellOpaqueOwnershipVerifier.fromEntries(listOf(local, imported)) != null
+}
+
+private data class PortableCellOpaqueOwner(
+	val kind: PortableCellIdentityKind,
+	val entryIdentity: String,
+	val runIdentity: String? = null,
+	val aggregateOwnerIdentity: String? = null,
+)
+
 data class ExportPortableCapturedCellRequest(val logicalTrackingId: String) {
 	init {
 		require(logicalTrackingId.isNotBlank() && logicalTrackingId.length <= 4_096)
@@ -279,6 +377,24 @@ fun interface PortableCapturedCellSink {
 interface ExportPortableCapturedCell {
 	suspend fun export(
 		request: ExportPortableCapturedCellRequest,
+		sink: PortableCapturedCellSink,
+	): ExportPortableCapturedCellResult
+}
+
+/** Exact imported Cell lineage selected for authenticated latest-v1 re-export. */
+data class ReexportImportedPortableCapturedCellRequest(
+	val identity: PortableCellOpaqueIdentity,
+	val expectedImportRevision: Long,
+	val expectedContentChecksum: PortableCellDigest,
+) {
+	init {
+		require(expectedImportRevision > 0L)
+	}
+}
+
+interface ReexportImportedPortableCapturedCell {
+	suspend fun reexport(
+		request: ReexportImportedPortableCapturedCellRequest,
 		sink: PortableCapturedCellSink,
 	): ExportPortableCapturedCellResult
 }
@@ -403,6 +519,9 @@ enum class PortableCellUnverifiableReason {
 	PHYSICAL_MEMBERSHIP_UNVERIFIABLE,
 	WRITER_AUTHORITY_UNVERIFIABLE,
 	FACT_AUTHORITY_UNVERIFIABLE,
+	IMPORTED_EVIDENCE_UNVERIFIABLE,
+	IMPORTED_SELECTION_STALE,
+	ORIGIN_IDENTITY_CONFLICT,
 	DEPENDENCY_OVERFLOW,
 }
 
@@ -450,31 +569,167 @@ class RoomExportPortableCapturedCell(
 			)
 		}
 		when (snapshot) {
-			is CellPortableReadResult.Entry -> {
+			is ReadLocalPortableCapturedCellResult.Ready -> {
 				currentCoroutineContext().ensureActive()
-				sink.emit(snapshot.value)
+				sink.emit(snapshot.entry)
 				ExportPortableCapturedCellResult.Exported(
-					snapshot.value.identity,
-					snapshot.value.contentChecksum,
-					snapshot.value.runs.size,
-					snapshot.value.runs.sumOf { it.observations.size },
+					snapshot.entry.identity,
+					snapshot.entry.contentChecksum,
+					snapshot.entry.runs.size,
+					snapshot.entry.runs.sumOf { it.observations.size },
 				)
 			}
-			is CellPortableReadResult.Result -> snapshot.value
+			is ReadLocalPortableCapturedCellResult.Outcome -> snapshot.result
 		}
 	}
 }
 
-private sealed interface CellPortableReadResult {
-	data class Entry(val value: PortableCapturedCellEntryV1) : CellPortableReadResult
-	data class Result(val value: ExportPortableCapturedCellResult) : CellPortableReadResult
+/** Re-exports only the authenticated latest undeleted imported Cell-v1 revision. */
+@Singleton
+class RoomReexportImportedPortableCapturedCell @Inject constructor(
+	private val database: AppDatabase,
+	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+) : ReexportImportedPortableCapturedCell {
+	override suspend fun reexport(
+		request: ReexportImportedPortableCapturedCellRequest,
+		sink: PortableCapturedCellSink,
+	): ExportPortableCapturedCellResult = withContext(ioDispatcher) {
+		val snapshot = try {
+			database.withTransaction {
+				val selected = ImportedCellProductReader(database)
+					.selectIdentityInTransaction(request.identity)
+				if (selected != null) {
+					ImportedCellReexportSnapshot.Readable(selected)
+				} else {
+					when (database.authenticateDeletedImportedCellSelectionInTransaction(
+						request.identity,
+						request.expectedImportRevision,
+						request.expectedContentChecksum,
+					)) {
+						DeletedImportedCellSelectionAuthentication.Absent ->
+							ImportedCellReexportSnapshot.Missing
+						is DeletedImportedCellSelectionAuthentication.Exact ->
+							ImportedCellReexportSnapshot.Deleted
+						DeletedImportedCellSelectionAuthentication.Stale ->
+							ImportedCellReexportSnapshot.Stale
+						DeletedImportedCellSelectionAuthentication.Unverifiable ->
+							ImportedCellReexportSnapshot.Unverifiable
+					}
+				}
+			}
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (@Suppress("TooGenericExceptionCaught", "SwallowedException") _: Exception) {
+			return@withContext ExportPortableCapturedCellResult.RetryableFailure(
+				PortableCellRetryableReason.STORAGE_UNAVAILABLE,
+			)
+		}
+		if (snapshot == ImportedCellReexportSnapshot.Missing) {
+			return@withContext ExportPortableCapturedCellResult.Unavailable(
+				PortableCellUnavailableReason.ENTRY_NOT_FOUND,
+			)
+		}
+		if (snapshot == ImportedCellReexportSnapshot.Deleted) {
+			return@withContext ExportPortableCapturedCellResult.Deleted
+		}
+		if (snapshot == ImportedCellReexportSnapshot.Stale) {
+			return@withContext ExportPortableCapturedCellResult.Unverifiable(
+				PortableCellUnverifiableReason.IMPORTED_SELECTION_STALE,
+			)
+		}
+		if (snapshot == ImportedCellReexportSnapshot.Unverifiable) {
+			return@withContext ExportPortableCapturedCellResult.Unverifiable(
+				PortableCellUnverifiableReason.IMPORTED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		val selected = (snapshot as ImportedCellReexportSnapshot.Readable).evaluation
+		val candidate = selected.candidate
+		if (candidate.importRevision != request.expectedImportRevision ||
+			candidate.contentChecksum != request.expectedContentChecksum.value
+		) {
+			return@withContext ExportPortableCapturedCellResult.Unverifiable(
+				PortableCellUnverifiableReason.IMPORTED_SELECTION_STALE,
+			)
+		}
+		when (selected) {
+			is ImportedCellProductEvaluation.Unverifiable ->
+				return@withContext ExportPortableCapturedCellResult.Unverifiable(
+					selected.reason.toPortableCellUnverifiableReason(),
+				)
+			is ImportedCellProductEvaluation.Readable -> {
+				if (selected.entryDeleted || selected.deletedRunIdentities.isNotEmpty()) {
+					return@withContext ExportPortableCapturedCellResult.Deleted
+				}
+				if (selected.retentionLimited) {
+					return@withContext ExportPortableCapturedCellResult.Unavailable(
+						PortableCellUnavailableReason.RETENTION_LIMIT,
+					)
+				}
+				if (!selected.isReExportable) {
+					return@withContext ExportPortableCapturedCellResult.Unverifiable(
+						PortableCellUnverifiableReason.IMPORTED_EVIDENCE_UNVERIFIABLE,
+					)
+				}
+				currentCoroutineContext().ensureActive()
+				sink.emit(selected.entry)
+				ExportPortableCapturedCellResult.Exported(
+					entryIdentity = selected.entry.identity,
+					contentChecksum = selected.entry.contentChecksum,
+					physicalRunCount = selected.entry.runs.size,
+					observationCount = selected.entry.runs.sumOf { it.observations.size },
+				)
+			}
+		}
+	}
+}
+
+private sealed interface ImportedCellReexportSnapshot {
+	data class Readable(
+		val evaluation: ImportedCellProductEvaluation,
+	) : ImportedCellReexportSnapshot
+	data object Missing : ImportedCellReexportSnapshot
+	data object Deleted : ImportedCellReexportSnapshot
+	data object Stale : ImportedCellReexportSnapshot
+	data object Unverifiable : ImportedCellReexportSnapshot
+}
+
+sealed interface ReadLocalPortableCapturedCellResult {
+	data class Ready(val entry: PortableCapturedCellEntryV1) : ReadLocalPortableCapturedCellResult
+	data class Outcome(val result: ExportPortableCapturedCellResult) : ReadLocalPortableCapturedCellResult
+}
+
+private fun ImportedCellProductFailure.toPortableCellUnverifiableReason():
+	PortableCellUnverifiableReason = when (this) {
+	ImportedCellProductFailure.SOURCE_EVIDENCE_STATE_MISSING ->
+		PortableCellUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING
+	ImportedCellProductFailure.ORIGIN_IDENTITY_CONFLICT ->
+		PortableCellUnverifiableReason.ORIGIN_IDENTITY_CONFLICT
+	ImportedCellProductFailure.DEPENDENCY_OVERFLOW ->
+		PortableCellUnverifiableReason.DEPENDENCY_OVERFLOW
+	ImportedCellProductFailure.STALE_COLLECTED_DATA_EPOCH,
+	ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+	ImportedCellProductFailure.VALUE_OVERFLOW,
+	-> PortableCellUnverifiableReason.IMPORTED_EVIDENCE_UNVERIFIABLE
+}
+
+/** Local Cell-v1 reader used only inside a caller-owned Room snapshot. */
+class RoomReadLocalPortableCapturedCell(
+	private val database: AppDatabase,
+	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
+) {
+	suspend fun readInTransaction(
+		logicalTrackingId: String,
+	): ReadLocalPortableCapturedCellResult = database.readPortableCapturedCellEntry(
+		ExportPortableCapturedCellRequest(logicalTrackingId),
+		laneExecutionAuthority,
+	)
 }
 
 @Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 private suspend fun AppDatabase.readPortableCapturedCellEntry(
 	request: ExportPortableCapturedCellRequest,
 	laneExecutionAuthority: SourceProductLaneExecutionAuthority,
-): CellPortableReadResult {
+): ReadLocalPortableCapturedCellResult {
 	currentCoroutineContext().ensureActive()
 	val evidence = sourceEvidenceStateDao().get() ?: return result(
 		ExportPortableCapturedCellResult.Unverifiable(
@@ -919,7 +1174,7 @@ private suspend fun AppDatabase.readPortableCapturedCellEntry(
 		subscriptionGrouping = PortableCellSubscriptionGrouping.UNKNOWN,
 		runs = runsOut,
 	)
-	return CellPortableReadResult.Entry(
+	return ReadLocalPortableCapturedCellResult.Ready(
 		entryPayload.toValue(CellCapturedPortableIntegrity.entryChecksum(entryPayload)),
 	)
 }
@@ -1306,7 +1561,7 @@ private fun List<SourceSessionCompletenessEntity>.hasValidPortableCellShape(
 				row.registrationGeneration >= 0L && row.hasValidPortableCellStopShape() &&
 				(row.lastAdmissionOrdinal == null) == (row.lastSourceSequence == null) &&
 				row.lastAdmissionOrdinal?.let { it > 0L } != false &&
-				row.lastSourceSequence?.let { it > 0L } != false &&
+				row.lastSourceSequence?.let { it >= 0L } != false &&
 				(row.unresolvedSequenceStart == null) == (row.unresolvedSequenceEnd == null) &&
 				row.unresolvedSequenceStart?.let { start ->
 					start > 0L && requireNotNull(row.unresolvedSequenceEnd) >= start
@@ -1554,7 +1809,8 @@ private fun SourceEvidenceState.hasValidPortableCellShape(): Boolean =
 		deletedSourceEventHighWaterOrdinal >= 0L &&
 		retainedFromMs?.let { it >= 0L } != false && updatedAtMs >= 0L
 
-private fun result(value: ExportPortableCapturedCellResult) = CellPortableReadResult.Result(value)
+private fun result(value: ExportPortableCapturedCellResult) =
+	ReadLocalPortableCapturedCellResult.Outcome(value)
 private fun unverifiableFact() = ExportPortableCapturedCellResult.Unverifiable(
 	PortableCellUnverifiableReason.FACT_AUTHORITY_UNVERIFIABLE,
 )

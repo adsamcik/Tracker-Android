@@ -91,4 +91,5 @@ dependencies {
     testImplementation(libs.androidx.work.testing)
     testImplementation(project(":core:testing"))
     testImplementation(libs.turbine)
+    testRuntimeOnly(project(":stats:data"))
 }

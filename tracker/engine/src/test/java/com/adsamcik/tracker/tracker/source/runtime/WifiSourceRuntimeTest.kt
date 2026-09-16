@@ -1612,6 +1612,38 @@ class WifiSourceRuntimeTest {
 		}
 
 	@Test
+	fun `shared session cutoff retains exact Wi-Fi receiver for ambient authorization`() = runTest {
+		val initialPlan = plan(1L).copy(mode = WifiMode.BROADCAST_DRIVEN)
+		val ambientPlan = initialPlan.copy(revision = 2L)
+		val initial = registration(initialPlan, authorizationRevision = 1L)
+		val ambient = registration(
+			ambientPlan,
+			authorizationRevision = 2L,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial))
+		coEvery {
+			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} returns ambient
+		val sink = wifiCandidateSink { SourceAdmissionHandoff.Durable(1L) }
+		fixture.start(sink)
+
+		assertTrue(fixture.runtime.refreshShared(ambientPlan, sink, claim = null) is
+			SourceApplyResult.Applied)
+		val cutoff = wifiCutoff()
+		val stopping = async { fixture.runtime.sharedSessionCutoff(cutoff) }
+		runCurrent()
+		val acknowledgement = stopping.await()
+
+		assertEquals(RegistrationRemovalOutcome.NOT_REGISTERED,
+			acknowledgement.registrationRemovalOutcome)
+		assertTrue(acknowledgement.appDrainComplete)
+		verify(exactly = 1) { fixture.backend.start(any()) }
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.runtime.close()
+	}
+
+	@Test
 	fun `capture deletion barrier refuses active session capture without touching provider`() = runTest {
 		val capture = registration(plan(1L), authorizationRevision = 1L)
 		val fixture = runtimeFixture(this, registrationsToReturn = listOf(capture))

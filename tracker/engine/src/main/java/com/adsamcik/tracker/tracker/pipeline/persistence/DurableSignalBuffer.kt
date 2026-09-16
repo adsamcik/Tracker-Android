@@ -180,6 +180,8 @@ class DurableSignalBuffer @Inject constructor(
 						acquiredAtMs = row.acquiredAtMs,
 						stepsWriterOwner = row.stepsWriterOwner,
 						stepsWriterOwnerGeneration = row.stepsWriterOwnerGeneration,
+						pressureWriterOwner = row.pressureWriterOwner,
+						pressureWriterOwnerGeneration = row.pressureWriterOwnerGeneration,
 					)
 				},
 			)
@@ -255,21 +257,74 @@ class DurableSignalBuffer @Inject constructor(
 				.chunked(PENDING_IDENTITY_LOOKUP_CHUNK)
 				.flatMap { ids -> pendingSignalDao.getBySignalIds(ids) }
 				.associateBy(PendingSignalEntity::signalId)
-			val entities = admitted.map { candidate ->
-				existing[candidate.stagedSignal.signalId]?.let { durable ->
+			val currentPressureOwner = if (admitted.any { it.stagedSignal.signal.pressure != null }) {
+				database.sourceDestinationOwnerDao().get(
+					SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+					SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+				)
+			} else {
+				null
+			}
+			val resolved = admitted.map { candidate ->
+				val entity = existing[candidate.stagedSignal.signalId]?.let { durable ->
 					candidate.entity.copy(
 						stepsWriterOwner = durable.stepsWriterOwner,
 						stepsWriterOwnerGeneration = durable.stepsWriterOwnerGeneration,
+						pressureWriterOwner = durable.pressureWriterOwner,
+						pressureWriterOwnerGeneration = durable.pressureWriterOwnerGeneration,
 					)
-				} ?: candidate.entity.withResolvedStepsWriter(candidate.stagedSignal)
+				} ?: candidate.entity
+					.withResolvedStepsWriter(candidate.stagedSignal)
+					.withResolvedPressureWriter(candidate.stagedSignal, currentPressureOwner)
+				entity to candidate
+			}.filter { (entity, candidate) ->
+				entity.acceptsPressureAdmission(candidate.stagedSignal.signal, currentPressureOwner)
 			}
 			AdmittedCandidates(
-				rows = if (entities.isEmpty()) emptyList() else
-					pendingSignalDao.insertOrResolveEntities(entities),
-				candidates = admitted,
+				rows = if (resolved.isEmpty()) emptyList() else
+					pendingSignalDao.insertOrResolveEntities(resolved.map { it.first }),
+				candidates = resolved.map { it.second },
 			)
 		}
 	}
+
+	private fun PendingSignalEntity.withResolvedPressureWriter(
+		staged: StagedSignal,
+		currentOwner: SourceDestinationOwnerEntity?,
+	): PendingSignalEntity =
+		if (staged.signal.pressure == null) {
+			copy(pressureWriterOwner = null, pressureWriterOwnerGeneration = null)
+		} else {
+			copy(
+				pressureWriterOwner = currentOwner?.owner,
+				pressureWriterOwnerGeneration = currentOwner?.ownerGeneration,
+			)
+		}
+
+	private fun PendingSignalEntity.acceptsPressureAdmission(
+		signal: TrackingSignal,
+		currentOwner: SourceDestinationOwnerEntity?,
+	): Boolean {
+		if (signal.pressure == null) return true
+		val exactLegacyOwner =
+			pressureWriterOwner == SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE &&
+				pressureWriterOwnerGeneration ==
+				SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+		val compatibleLegacyRow = pressureWriterOwner == null &&
+			pressureWriterOwnerGeneration == null &&
+			currentOwner?.owner == SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE &&
+			currentOwner?.ownerGeneration == SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+		return exactLegacyOwner || compatibleLegacyRow || signal.hasNonPressurePersistence()
+	}
+
+	private fun TrackingSignal.hasNonPressurePersistence(): Boolean =
+		locationObservation != null ||
+			location != null ||
+			locationDecision != null ||
+			(activityFresh && activity != null) ||
+			steps != null ||
+			cells != null ||
+			wifi != null
 
 	private suspend fun PendingSignalEntity.withResolvedStepsWriter(
 		staged: StagedSignal,
@@ -449,6 +504,8 @@ class DurableSignalBuffer @Inject constructor(
 		val acquiredAtMs: Long = 0L,
 		val stepsWriterOwner: String? = null,
 		val stepsWriterOwnerGeneration: Long? = null,
+		val pressureWriterOwner: String? = null,
+		val pressureWriterOwnerGeneration: Long? = null,
 	)
 
 	/** Result of one staging admission attempt. */
@@ -509,6 +566,8 @@ class DurableSignalBuffer @Inject constructor(
 		val deliveryAttemptCount: Int,
 		val stepsWriterOwner: String?,
 		val stepsWriterOwnerGeneration: Long?,
+		val pressureWriterOwner: String?,
+		val pressureWriterOwnerGeneration: Long?,
 		val payload: PendingSignalDecodeResult,
 	) {
 		/** Compatibility view for callers that only need a successfully decoded signal. */
@@ -540,6 +599,8 @@ class DurableSignalBuffer @Inject constructor(
 			deliveryAttemptCount = 0,
 			stepsWriterOwner = null,
 			stepsWriterOwnerGeneration = null,
+			pressureWriterOwner = null,
+			pressureWriterOwnerGeneration = null,
 			payload = signal?.let(PendingSignalDecodeResult::Valid)
 				?: PendingSignalDecodeResult.Malformed(
 					PendingSignalDecodeFailure.MALFORMED_PAYLOAD,
@@ -570,6 +631,8 @@ class DurableSignalBuffer @Inject constructor(
 			deliveryAttemptCount = deliveryAttemptCount,
 			stepsWriterOwner = stepsWriterOwner,
 			stepsWriterOwnerGeneration = stepsWriterOwnerGeneration,
+			pressureWriterOwner = pressureWriterOwner,
+			pressureWriterOwnerGeneration = pressureWriterOwnerGeneration,
 			payload = decodedPayload,
 		)
 	}

@@ -6,11 +6,12 @@ import kotlinx.coroutines.flow.Flow
  * Read-only, source-qualified Steps totals for decision-making product consumers.
  *
  * Implementations must compose the requested days from durable source facts and exact historical
- * authority. A complete day requires explicit covered facts to tile every exact Steps-authorized
- * segment/manifest slice intersecting that day; neither a baseline nor a terminal drain fills a
- * temporal gap. Reading this facade must never start a provider, repair a projection, or write a
- * derived summary. Only [StepsNumericSummary.Ready] is safe for goals, awards, streaks,
- * achievements, widgets, or notifications.
+ * authority. A complete day is supplied either by one authoritative Ambient Steps day total or by
+ * explicit covered facts for every exact session Steps slice intersecting that day. Session values
+ * are never added to an Ambient total. Neither a baseline nor a terminal drain fills a temporal
+ * gap. Reading this facade must never start a provider, repair a projection, or write a derived
+ * summary. Only [StepsNumericSummary.Ready] is safe for goals, awards, streaks, achievements,
+ * widgets, or notifications.
  */
 interface StepsNumericSummaryRepository {
 	/** Reads one coherent durable snapshot for [request]. */
@@ -128,7 +129,7 @@ data class StepsNumericDay(
 
 /** Stable reasons a decision-making consumer must withhold a complete number. */
 enum class StepsNumericUnverifiableReason {
-	/** No overlapping session captured Steps with exact durable authority. */
+	/** Neither Ambient nor overlapping session history has exact durable Steps authority. */
 	NOT_CAPTURED,
 	/** Some, but not every, overlapping captured session qualified Steps. */
 	PARTIAL_CAPTURE,

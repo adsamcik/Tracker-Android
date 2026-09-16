@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDecisionDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalClaimDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
@@ -16,6 +17,7 @@ import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
 import com.adsamcik.tracker.shared.base.database.data.LocationObservation
+import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
@@ -36,6 +38,8 @@ import com.adsamcik.tracker.stats.api.signal.ActivitySignal
 import com.adsamcik.tracker.stats.api.signal.CellSignal
 import com.adsamcik.tracker.stats.api.signal.CellTowerReading
 import com.adsamcik.tracker.stats.api.signal.LocationSignal
+import com.adsamcik.tracker.stats.api.signal.LocationDecision
+import com.adsamcik.tracker.stats.api.signal.LocationDecisionSignal
 import com.adsamcik.tracker.stats.api.signal.LocationObservationSignal
 import com.adsamcik.tracker.stats.api.signal.PressureSignal
 import com.adsamcik.tracker.stats.api.signal.StepSignal
@@ -77,6 +81,7 @@ class PersistenceProcessorTest {
 
 	private lateinit var locationDao: LocationSampleDao
 	private lateinit var locationObservationDao: LocationObservationDao
+	private lateinit var locationObservationDecisionDao: LocationObservationDecisionDao
 	private lateinit var cellDao: CellSampleDao
 	private lateinit var wifiDao: WifiObservationDao
 	private lateinit var pressureDao: PressureSampleDao
@@ -107,6 +112,7 @@ class PersistenceProcessorTest {
 		nextCheckpointId = 1L
 		locationDao = mockk(relaxed = true)
 		locationObservationDao = mockk(relaxed = true)
+		locationObservationDecisionDao = mockk(relaxed = true)
 		cellDao = mockk(relaxed = true)
 		wifiDao = mockk(relaxed = true)
 		pressureDao = mockk(relaxed = true)
@@ -121,6 +127,10 @@ class PersistenceProcessorTest {
 		coEvery {
 			locationObservationDao.insert(any<Collection<LocationObservation>>())
 		} returns emptyList()
+		coEvery { locationObservationDao.existsBySourceEventId(any()) } returns true
+		coEvery {
+			locationObservationDecisionDao.insert(any<List<LocationObservationDecision>>())
+		} returns emptyList()
 		coEvery { cellDao.insert(any<Collection<CellSample>>()) } returns emptyList()
 		coEvery { wifiDao.insert(any<Collection<WifiObservation>>()) } returns emptyList()
 		coEvery { pressureDao.insert(any<Collection<PressureSample>>()) } returns emptyList()
@@ -134,6 +144,23 @@ class PersistenceProcessorTest {
 			SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
 			SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
 		)
+		coEvery {
+			sourceDestinationOwnerDao.get(
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			)
+		} returns pressureOwner(
+			SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+			SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+		)
+		coEvery {
+			sourceDestinationOwnerDao.isExactOwner(
+				SourceDestinationOwnerEntity.SOURCE_LOCATION,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+				SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE,
+				SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION,
+			)
+		} returns true
 		coEvery { activityDao.insert(any<Collection<ActivitySnapshot>>()) } returns emptyList()
 		coEvery { durableBuffer.hasPendingEntries() } returns false
 		coEvery { durableBuffer.claimBatch(any()) } returns null
@@ -159,6 +186,7 @@ class PersistenceProcessorTest {
 		processor = PersistenceProcessor(
 			locationSampleDao = locationDao,
 			locationObservationDao = locationObservationDao,
+			locationObservationDecisionDao = locationObservationDecisionDao,
 			cellSampleDao = cellDao,
 			wifiObservationDao = wifiDao,
 			pressureSampleDao = pressureDao,
@@ -177,6 +205,7 @@ class PersistenceProcessorTest {
 		callback: (List<DurableSignalBuffer.CheckpointedSignal>) -> Unit,
 		signals: List<TrackingSignal> = stagedSignals.toList(),
 		stepsWriter: Pair<String, Long>? = null,
+		pressureWriter: Pair<String, Long>? = null,
 	): DurableSignalBuffer.CheckpointAdmission {
 		callback(
 			ids.mapIndexed { index, id ->
@@ -188,6 +217,8 @@ class PersistenceProcessorTest {
 					acquiredAtMs = signals.getOrElse(index) { emptySignal }.timestampMs.raw,
 					stepsWriterOwner = stepsWriter?.first,
 					stepsWriterOwnerGeneration = stepsWriter?.second,
+					pressureWriterOwner = pressureWriter?.first,
+					pressureWriterOwnerGeneration = pressureWriter?.second,
 				)
 			},
 		)
@@ -291,6 +322,38 @@ class PersistenceProcessorTest {
 		),
 	)
 
+	private fun ordinaryCanonicalLocationSignal(): TrackingSignal {
+		val eventId = "ordinary-location-event"
+		return signalWithLocation().copy(
+			elapsedRealtimeNanos = 2_000_000_000L,
+			location = requireNotNull(signalWithLocation().location).copy(
+				sourceEventId = eventId,
+			),
+			locationObservation = LocationObservationSignal(
+				rawFixTimeMs = 1_000_000L,
+				coordinate = CoordinateE7(
+					LatE7.fromDegrees(50.0),
+					LonE7.fromDegrees(14.0),
+				),
+				horizontalAccuracyM = 5f,
+				provider = "fused",
+				receivedAtMs = 1_000_100L,
+				receivedElapsedRealtimeNanos = 2_100_000_000L,
+				acquisitionMode = "FUSED",
+				requestPriority = "BALANCED",
+				permissionPrecision = "PRECISE",
+				isMock = false,
+				ingressDisposition = "DELIVERED_VALID",
+				sourceEventId = eventId,
+			),
+			locationDecision = LocationDecisionSignal(
+				sourceEventId = eventId,
+				decision = LocationDecision.ACCEPTED,
+			),
+			persistenceSignalId = "ordinary-location-signal",
+		)
+	}
+
 	private fun signalWithCells(
 		timestampMs: Long = 1_000_000L,
 		location: LocationSignal? = null,
@@ -355,6 +418,14 @@ class PersistenceProcessorTest {
 		updatedAtMs = 1_000L,
 	)
 
+	private fun pressureOwner(owner: String, generation: Long) = SourceDestinationOwnerEntity(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+		destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+		owner = owner,
+		ownerGeneration = generation,
+		updatedAtMs = 1_000L,
+	)
+
 	private fun pendingRow(
 		id: Long,
 		signalId: String,
@@ -381,6 +452,14 @@ class PersistenceProcessorTest {
 	@Nested
 	@DisplayName("durable staging")
 	inner class DurableStaging {
+		@Test
+		fun `staged Pressure work remains visible to lifecycle fences before recovery`() {
+			processor.onSignal(signalWithPressure())
+
+			processor.hasUnsettledPersistenceStateForPressureFence() shouldBe true
+			stagedSignals shouldHaveSize 1
+		}
+
 		@Test
 		fun `legacy Steps authority remains blocked until producer stop flushes staged work`() = runTest {
 			coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
@@ -431,6 +510,81 @@ class PersistenceProcessorTest {
 		}
 
 		@Test
+		fun `fenced Pressure component is acknowledged while mixed Location persists`() = runTest {
+			coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
+				val ids = stagedSignals.map { nextCheckpointId++ }
+				completeCheckpoint(
+					ids = ids,
+					callback = firstArg(),
+					pressureWriter =
+						SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE to
+							SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+				)
+			}
+			coEvery {
+				sourceDestinationOwnerDao.get(
+					SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+					SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+				)
+			} returns pressureOwner(
+				SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+				SourceDestinationOwnerEntity.FIRST_LEGACY_PRESSURE_FENCE_GENERATION,
+			)
+			val mixed = signalWithLocation().copy(
+				pressure = PressureSignal(pressureHpa = 1_013.25f, altitudeM = 120f),
+			)
+			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+			processor.onSignal(mixed)
+
+			processor.onFlush()
+
+			coVerify(exactly = 0) { pressureDao.insert(any<Collection<PressureSample>>()) }
+			coVerify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(listOf(1L)) }
+			coVerify(exactly = 0) {
+				sourceDestinationOwnerDao.compareAndSetOwner(
+					any(),
+					any(),
+					any(),
+					any(),
+					any(),
+					any(),
+					any(),
+				)
+			}
+		}
+
+		@Test
+		fun `pre-fence Pressure buffer cannot publish after owner generation advances`() = runTest {
+			coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
+				val ids = stagedSignals.map { nextCheckpointId++ }
+				completeCheckpoint(
+					ids = ids,
+					callback = firstArg(),
+					pressureWriter =
+						SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE to
+							SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+				)
+			}
+			coEvery {
+				sourceDestinationOwnerDao.get(
+					SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+					SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+				)
+			} returns pressureOwner(
+				SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+				SourceDestinationOwnerEntity.FIRST_LEGACY_PRESSURE_FENCE_GENERATION,
+			)
+			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+			processor.onSignal(signalWithPressure())
+
+			processor.onFlush()
+
+			coVerify(exactly = 0) { pressureDao.insert(any<Collection<PressureSample>>()) }
+			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(listOf(1L)) }
+		}
+
+		@Test
 		fun `rejected raw provider evidence persists without invented coordinates`() = runTest {
 			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
 			processor.onSignal(rejectedRawObservation())
@@ -449,6 +603,36 @@ class PersistenceProcessorTest {
 			row.batchIndex shouldBe 1
 			row.batchSize shouldBe 3
 			row.ingressDisposition shouldBe "REJECTED_INVALID_COORDINATE"
+		}
+
+		@Test
+		fun `ordinary Location mutation retains pending WAL when permanent owner is lost`() = runTest {
+			coEvery {
+				sourceDestinationOwnerDao.isExactOwner(
+					SourceDestinationOwnerEntity.SOURCE_LOCATION,
+					SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+					SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE,
+					SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION,
+				)
+			} returnsMany listOf(false, true)
+			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+			processor.onSignal(ordinaryCanonicalLocationSignal())
+
+			processor.onFlush()
+
+			coVerify(exactly = 0) {
+				locationObservationDao.insert(any<Collection<LocationObservation>>())
+			}
+			coVerify(exactly = 0) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 0) { pendingSignalDao.deleteByIds(any()) }
+
+			processor.onFlush()
+
+			coVerify(exactly = 1) {
+				locationObservationDao.insert(any<Collection<LocationObservation>>())
+			}
+			coVerify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(any()) }
 		}
 
 		@Test
@@ -1095,6 +1279,71 @@ class PersistenceProcessorTest {
 			}
 			coVerify(exactly = 2) { durableBuffer.claimBatch(any()) }
 		}
+
+		@Test
+		fun `fenced Pressure crash replay quarantines corruption and acknowledges pure and mixed rows exactly`() =
+			runTest {
+				coEvery {
+					sourceDestinationOwnerDao.get(
+						SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+						SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+					)
+				} returns pressureOwner(
+					SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+					SourceDestinationOwnerEntity.FIRST_LEGACY_PRESSURE_FENCE_GENERATION,
+				)
+				val purePressure = DurableSignalBuffer.PeekedSignal(
+					1L,
+					signalWithPressure(timestampMs = 1_000_000L),
+				).copy(
+					pressureWriterOwner =
+						SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+					pressureWriterOwnerGeneration =
+						SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+				)
+				val mixed = DurableSignalBuffer.PeekedSignal(
+					2L,
+					signalWithLocation(timestampMs = 1_000_500L).copy(
+						pressure = PressureSignal(1_013.25f, 120f),
+					),
+				).copy(
+					pressureWriterOwner =
+						SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+					pressureWriterOwnerGeneration =
+						SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+				)
+				coEvery { durableBuffer.claimBatch(any()) } returnsMany listOf(
+					claimedBatch(
+						listOf(
+							purePressure,
+							mixed,
+							DurableSignalBuffer.PeekedSignal(3L, null),
+						),
+					),
+					null,
+				)
+
+				processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+
+				coVerify(exactly = 0) {
+					pressureDao.insert(any<Collection<PressureSample>>())
+				}
+				coVerify(exactly = 1) {
+					locationDao.insert(any<Collection<LocationSample>>())
+				}
+				coVerify(exactly = 1) {
+					pendingSignalClaimDao.quarantineClaimed(
+						match { it.sourcePendingId == 3L },
+						"test-claim",
+					)
+				}
+				coVerify(exactly = 1) {
+					pendingSignalClaimDao.deleteClaimedByIds(
+						listOf(1L, 2L),
+						"test-claim",
+					)
+				}
+			}
 
 		@Test
 		fun `recovery persist failure leaves WAL rows and retries on next flush`() = runTest {

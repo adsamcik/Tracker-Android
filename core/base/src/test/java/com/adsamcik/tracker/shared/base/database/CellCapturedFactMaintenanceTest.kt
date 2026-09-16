@@ -1203,6 +1203,175 @@ class CellCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `two database export import typed read and latest reexport preserve complete Cell v1`() = runTest {
+		val firstIngress = seedCapturedCell(
+			semanticRevisions = 2,
+			withPortableExportState = true,
+			portableLastSourceSequence = 0L,
+		)
+		firstIngress.sourceSequence shouldBe 0L
+		database.trackingHistoryReadDao().sourceCompleteness(
+			CELL_SOURCE,
+			listOf(SERVICE_RUN_ID),
+			2,
+		).single().lastSourceSequence shouldBe 0L
+		var exported: PortableCapturedCellEntryV1? = null
+		portableExporter().export(ExportPortableCapturedCellRequest(LOGICAL_TRACKING_ID)) { entry ->
+			exported = entry
+		}
+		val original = requireNotNull(exported)
+		RoomImportPortableCapturedCell(database, Dispatchers.Unconfined).importEntry(
+			ImportPortableCapturedCellRequest(
+				entry = original,
+				receipt = PortableCellImportReceipt(
+					jobId = "same-db-sequence-zero",
+					entryKey = "cell-entry",
+					sourceName = "source.trackercell",
+					receivedAtMs = original.endTimeMs,
+				),
+				expectedCollectedDataEpoch = 0L,
+			),
+		) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		val sameOrigin = database.withTransaction {
+			ImportedCellProductReader(database).selectIdentityInTransaction(original.identity)
+		} as ImportedCellProductEvaluation.Readable
+		val local = database.withTransaction {
+			ImportedCellProductReader(database).readLocalOriginInTransaction(
+				sameOrigin,
+				SourceProductLaneExecutionAuthority { true },
+			)
+		} as ReadLocalPortableCapturedCellResult.Ready
+		PortableCellOriginComparison.areExactFullV1Duplicates(
+			local.entry,
+			sameOrigin.entry,
+		) shouldBe true
+		val target = AppDatabase.testDatabase(
+			ApplicationProvider.getApplicationContext<Application>(),
+		)
+		try {
+			target.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
+			RoomImportPortableCapturedCell(target, Dispatchers.Unconfined).importEntry(
+				ImportPortableCapturedCellRequest(
+					entry = original,
+					receipt = PortableCellImportReceipt(
+						jobId = "two-db",
+						entryKey = "cell-entry",
+						sourceName = "source.trackercell",
+						receivedAtMs = original.endTimeMs,
+					),
+					expectedCollectedDataEpoch = 0L,
+				),
+			) shouldBe ImportPortableCapturedCellResult.Applied(
+				importRevision = 1L,
+				physicalRunCount = original.runs.size,
+				observationCount = original.runs.sumOf { it.observations.size },
+			)
+			val read = target.withTransaction {
+				ImportedCellProductReader(target).selectRecentInTransaction(1).single()
+			} as ImportedCellProductEvaluation.Readable
+			read.entry shouldBe original
+			read.isReExportable shouldBe true
+			var reexported: PortableCapturedCellEntryV1? = null
+			var sinkWasTransactional: Boolean? = null
+			RoomReexportImportedPortableCapturedCell(
+				target,
+				Dispatchers.Unconfined,
+			).reexport(
+				ReexportImportedPortableCapturedCellRequest(
+					identity = original.identity,
+					expectedImportRevision = 1L,
+					expectedContentChecksum = original.contentChecksum,
+				),
+			) { entry ->
+				sinkWasTransactional = target.inTransaction()
+				reexported = entry
+			} shouldBe ExportPortableCapturedCellResult.Exported(
+				entryIdentity = original.identity,
+				contentChecksum = original.contentChecksum,
+				physicalRunCount = original.runs.size,
+				observationCount = original.runs.sumOf { it.observations.size },
+			)
+			reexported shouldBe original
+			PortableCellOriginComparison.areExactFullV1Duplicates(
+				original,
+				requireNotNull(reexported),
+			) shouldBe true
+			sinkWasTransactional shouldBe false
+			listOf(
+				"source_event_wal",
+				"source_demand",
+				"provider_registration_generation",
+				"source_authorization",
+				"session_manifest_version",
+				"session_manifest_source",
+				"cell_captured_fact_revision",
+				"cell_captured_fact_cursor",
+			).forEach { table ->
+				target.openHelper.readableDatabase.query("SELECT COUNT(*) FROM $table").use { cursor ->
+					check(cursor.moveToFirst())
+					cursor.getLong(0) shouldBe 0L
+				}
+			}
+		} finally {
+			target.close()
+		}
+	}
+
+	@Test
+	fun `selected Cell fact deletion fences exact run preserves WAL and replays without resurrection`() =
+		runTest {
+			seedCapturedCell(semanticRevisions = 2, withPortableExportState = true)
+
+			database.withTransaction {
+				database.deleteSelectedCapturedCellFactsInTransaction(
+					LOGICAL_TRACKING_ID,
+					listOf(SERVICE_RUN_ID),
+					0L,
+					DELETION_TIME_MS,
+				)
+			} shouldBe CellCapturedSelectedDeletionResult.Deleted(1, 2, 1)
+
+			database.cellCapturedFactDao().revisionCount() shouldBe 0L
+			database.cellCapturedFactDao().cursorCount() shouldBe 0L
+			database.cellCapturedFactDao().maintenanceWalCount(CELL_SOURCE) shouldBe 1L
+			database.sessionSegmentDao().getById(SEGMENT_ID) shouldBe segment()
+			database.withTransaction {
+				database.deleteSelectedCapturedCellFactsInTransaction(
+					LOGICAL_TRACKING_ID,
+					listOf(SERVICE_RUN_ID),
+					0L,
+					DELETION_TIME_MS,
+				)
+			} shouldBe CellCapturedSelectedDeletionResult.AlreadyDeleted
+		}
+
+	@Test
+	fun `selected Cell fact deletion cancellation after fences rolls back markers and payload`() =
+		runTest {
+			seedCapturedCell(withPortableExportState = true)
+
+			shouldThrow<CancellationException> {
+				database.withTransaction {
+					database.deleteSelectedCapturedCellFactsInTransaction(
+						LOGICAL_TRACKING_ID,
+						listOf(SERVICE_RUN_ID),
+						0L,
+						DELETION_TIME_MS,
+					) { checkpoint ->
+						if (checkpoint ==
+							CellCapturedSelectedDeletionCheckpoint.DELETION_FENCES_INSTALLED
+						) throw CancellationException("cancel selected Cell deletion")
+					}
+				}
+			}
+
+			database.cellCapturedFactDao().revisionCount() shouldBe 1L
+			database.cellCapturedFactDao().cursorCount() shouldBe 1L
+			database.cellCapturedFactDao().deletionGenerationCount() shouldBe 0L
+			database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		}
+
+	@Test
 	fun `portable export preserves one-hop aggregate reuse without exposing owner identity`() = runTest {
 		val owner = seedCapturedCell(withPortableExportState = true)
 		insertCapturedFact(
@@ -2324,6 +2493,7 @@ class CellCapturedFactMaintenanceTest {
 		directDemandActive: Boolean = false,
 		withPortableExportState: Boolean = false,
 		portableLaneThroughOrdinal: Long? = null,
+		portableLastSourceSequence: Long = 1L,
 		persistCapturedProduct: Boolean = true,
 	): CellCapturedFactRevisionEntity {
 		database.sourceEvidenceStateDao().ensure(
@@ -2368,7 +2538,7 @@ class CellCapturedFactMaintenanceTest {
 		if (withPortableExportState) {
 			installPortableExportState(
 				throughOrdinal = portableLaneThroughOrdinal ?: fact.sourceAdmissionOrdinal,
-				lastSourceSequence = 1L,
+				lastSourceSequence = portableLastSourceSequence,
 			)
 		}
 		return fact

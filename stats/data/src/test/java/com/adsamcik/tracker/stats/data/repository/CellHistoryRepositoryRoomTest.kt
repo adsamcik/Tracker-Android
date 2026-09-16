@@ -1,12 +1,24 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedCellRequest
+import com.adsamcik.tracker.shared.base.database.ImportPortableCapturedCellResult
+import com.adsamcik.tracker.shared.base.database.PortableCapturedCellRunV1
+import com.adsamcik.tracker.shared.base.database.PortableCellImportReceipt
+import com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind
+import com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity
+import com.adsamcik.tracker.shared.base.database.ReadLocalPortableCapturedCellResult
+import com.adsamcik.tracker.shared.base.database.RoomImportPortableCapturedCell
+import com.adsamcik.tracker.shared.base.database.RoomReadLocalPortableCapturedCell
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedDeletedRunEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -29,9 +41,20 @@ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
+import com.adsamcik.tracker.stats.api.repository.CellHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.CellHistoryPage
 import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRangePage
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeScope
+import com.adsamcik.tracker.stats.api.repository.CellHistoryRangeUnavailableReason
+import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDay
+import com.adsamcik.tracker.stats.api.repository.CellHistoryStructuralDayCompleteness
+import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.LocalCellHistoryIdentity
+import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
+import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import java.io.ByteArrayOutputStream
@@ -82,14 +105,282 @@ class CellHistoryRepositoryRoomTest {
 
 		val selectedEntry = (selected as CellHistoryQuery.Found).entry
 		val recentEntry = (recent as CellHistoryPage.Available).entries.single()
+		repository.detail(requireNotNull(selectedEntry.selection)) shouldBe selected
+		selectedEntry.selection.toString() shouldBe
+			"LocalCellHistorySelection(identity=LocalCellHistoryIdentity)"
+		repository.detail(
+			LocalCellHistorySelection(LocalCellHistoryIdentity("f".repeat(64))),
+		) shouldBe CellHistoryQuery.NotFound
 		selectedEntry shouldBe recentEntry
 		selectedEntry.startTime.raw shouldBe group.runs.first().segment.startTimeMs
 		selectedEntry.endTime.raw shouldBe group.runs.last().segment.endTimeMs
 		selectedEntry.observations shouldHaveSize 2
 		selectedEntry.state shouldBe CellHistoryProductState.PARTIAL
 		selectedEntry.causes shouldBe setOf(CellHistoryCause.SUBSCRIPTION_GROUPING_UNKNOWN)
-		authorityChecks shouldBe 2
+		val grouped = database.withTransaction {
+			repository.selectBySegmentIdsInTransaction(
+				listOf(group.runs.first().segment.id, group.runs.last().segment.id),
+			)
+		} as CellComposedPage.Available
+		grouped.entries.single().let { composed ->
+			composed.logicalTrackingId shouldBe group.session.logicalTrackingId
+			composed.physicalSegmentIds shouldBe group.runs.map { it.segment.id }
+			composed.recencyStartTimeMs shouldBe group.runs.last().segment.startTimeMs
+			composed.recencySegmentId shouldBe group.runs.last().segment.id
+			composed.recencyTieIdentity shouldBe PortableCellOpaqueIdentity.derive(
+				PortableCellIdentityKind.PHYSICAL_RUN,
+				group.runs.last().run.serviceRunId,
+			)
+			composed.capturesOnlyCell shouldBe true
+			composed.entry shouldBe selectedEntry
+		}
+		val sourcePage = database.withTransaction {
+			repository.recentCellHistoryInTransaction(1)
+		} as CellSourceComposedPage.Available
+		(sourcePage.entries.single() as CellSourceComposedEntry.Local).let { source ->
+			source.group shouldBe grouped.entries.single()
+			source.recency.memberStartTimeMs shouldBe source.group.recencyStartTimeMs
+			source.recency.memberStartTimeMs shouldBe group.runs.last().segment.startTimeMs
+			source.entry.startTime.raw shouldBe group.runs.first().segment.startTimeMs
+			source.recency.tieIdentity shouldBe source.group.recencyTieIdentity
+		}
+		authorityChecks shouldBe 5
 	}
+
+	@Test
+	fun `public and transactional recent suppress an exact authenticated same-origin duplicate`() =
+		runTest {
+			val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
+			persist(listOf(group))
+			val authority = SourceProductLaneExecutionAuthority { database.inTransaction() }
+			val portable = database.withTransaction {
+				RoomReadLocalPortableCapturedCell(database, authority)
+					.readInTransaction(group.session.logicalTrackingId)
+			} as ReadLocalPortableCapturedCellResult.Ready
+			RoomImportPortableCapturedCell(
+				database,
+				UnconfinedTestDispatcher(testScheduler),
+			).importEntry(
+				ImportPortableCapturedCellRequest(
+					entry = portable.entry,
+					receipt = PortableCellImportReceipt(
+						jobId = "same-origin-exact",
+						entryKey = "same-origin-exact",
+						sourceName = "same-origin.trackercell",
+						receivedAtMs = portable.entry.endTimeMs,
+					),
+					expectedCollectedDataEpoch = 0L,
+				),
+			) shouldBe ImportPortableCapturedCellResult.Applied(
+				importRevision = 1L,
+				physicalRunCount = portable.entry.runs.size,
+				observationCount = portable.entry.runs.sumOf { it.observations.size },
+			)
+			val repository = repository { database.inTransaction() }
+
+			(repository.recent(10) as CellHistoryPage.Available).entries.single().let { entry ->
+				entry.origin shouldBe CellHistoryOrigin.Local
+				entry.selection shouldBe LocalCellHistorySelection(
+					LocalCellHistoryIdentity(portable.entry.identity.value),
+				)
+			}
+			val sourcePage = database.withTransaction {
+				repository.recentCellHistoryInTransaction(10)
+			} as CellSourceComposedPage.Available
+			val source = sourcePage.entries.single() as CellSourceComposedEntry.Local
+			source.group.logicalTrackingId shouldBe group.session.logicalTrackingId
+			source.group.physicalSegmentIds shouldBe listOf(group.runs.single().segment.id)
+			source.entry.origin shouldBe CellHistoryOrigin.Local
+			source.recency.memberStartTimeMs shouldBe group.runs.single().segment.startTimeMs
+			source.recency.tieIdentity shouldBe portable.entry.runs.single().identity
+			database.withTransaction {
+				repository.recentImportedEligibleForSharedHistoryInTransaction(10)
+			} shouldBe ImportedHistoryEligiblePage.Available(
+				emptyList<CellImportedHistoryEligibleEntry>(),
+			)
+		}
+
+	@Test
+	fun `shared eligible page fails closed for readable unequal local origin collision`() = runTest {
+		val source = AppDatabase.testDatabase(
+			ApplicationProvider.getApplicationContext<Application>(),
+		)
+		try {
+			val localGroup = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
+			val importedGroup = buildGroup(groupIndex = 1, runCount = 2, factRunIndexes = setOf(0, 1))
+			persist(listOf(localGroup))
+			persist(listOf(importedGroup), target = source)
+			val portable = source.withTransaction {
+				RoomReadLocalPortableCapturedCell(
+					source,
+					SourceProductLaneExecutionAuthority { source.inTransaction() },
+				).readInTransaction(importedGroup.session.logicalTrackingId)
+			} as ReadLocalPortableCapturedCellResult.Ready
+			RoomImportPortableCapturedCell(
+				database,
+				UnconfinedTestDispatcher(testScheduler),
+			).importEntry(
+				ImportPortableCapturedCellRequest(
+					entry = portable.entry,
+					receipt = PortableCellImportReceipt(
+						jobId = "same-origin-unequal",
+						entryKey = "same-origin-unequal",
+						sourceName = "same-origin-unequal.trackercell",
+						receivedAtMs = portable.entry.endTimeMs,
+					),
+					expectedCollectedDataEpoch = 0L,
+				),
+			) shouldBe ImportPortableCapturedCellResult.Applied(
+				importRevision = 1L,
+				physicalRunCount = portable.entry.runs.size,
+				observationCount = portable.entry.runs.sumOf { it.observations.size },
+			)
+
+			database.withTransaction {
+				repository { database.inTransaction() }
+					.recentImportedEligibleForSharedHistoryInTransaction(10)
+			} shouldBe ImportedHistoryEligiblePage.Unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+			)
+		} finally {
+			source.close()
+		}
+	}
+
+	@Test
+	fun `later page collision discards earlier eligible Cell entries and selectors`() = runTest {
+		val source = AppDatabase.testDatabase(
+			ApplicationProvider.getApplicationContext<Application>(),
+		)
+		try {
+			val localGroup = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
+			val importedGroups = listOf(
+				buildGroup(groupIndex = 1, runCount = 2, factRunIndexes = setOf(0, 1)),
+			) + (2..33).map { index ->
+				buildGroup(groupIndex = index, runCount = 1, factRunIndexes = setOf(0))
+			}
+			persist(listOf(localGroup))
+			persist(importedGroups, target = source)
+			val importer = RoomImportPortableCapturedCell(
+				database,
+				UnconfinedTestDispatcher(testScheduler),
+			)
+			for (group in importedGroups) {
+				val portable = source.withTransaction {
+					RoomReadLocalPortableCapturedCell(
+						source,
+						SourceProductLaneExecutionAuthority { source.inTransaction() },
+					).readInTransaction(group.session.logicalTrackingId)
+				} as ReadLocalPortableCapturedCellResult.Ready
+				importer.importEntry(
+					ImportPortableCapturedCellRequest(
+						entry = portable.entry,
+						receipt = PortableCellImportReceipt(
+							jobId = "late-collision-${group.session.logicalTrackingId}",
+							entryKey = "late-collision-${group.session.logicalTrackingId}",
+							sourceName = "late-collision.trackercell",
+							receivedAtMs = portable.entry.endTimeMs,
+						),
+						expectedCollectedDataEpoch = 0L,
+					),
+				) shouldBe ImportPortableCapturedCellResult.Applied(
+					importRevision = 1L,
+					physicalRunCount = portable.entry.runs.size,
+					observationCount = portable.entry.runs.sumOf { it.observations.size },
+				)
+			}
+			val checkpoints = mutableListOf<Int>()
+			val repository = DefaultCellHistoryRepository(
+				database,
+				SourceProductLaneExecutionAuthority { database.inTransaction() },
+				UnconfinedTestDispatcher(testScheduler),
+			) { completedPageCount ->
+				checkpoints += completedPageCount
+			}
+
+			database.withTransaction {
+				repository.recentImportedEligibleForSharedHistoryInTransaction(32)
+			} shouldBe ImportedHistoryEligiblePage.Unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+			)
+			checkpoints shouldBe listOf(0, 1)
+		} finally {
+			source.close()
+		}
+	}
+
+	@Test
+	fun `eligible imported page is not starved by newer local candidates and uses newest run recency`() =
+		runTest {
+			val source = AppDatabase.testDatabase(
+				ApplicationProvider.getApplicationContext<Application>(),
+			)
+			try {
+				val importedGroup = buildGroup(
+					groupIndex = 1,
+					runCount = 3,
+					factRunIndexes = setOf(0, 1, 2),
+				)
+				persist(listOf(importedGroup), target = source)
+				val portable = source.withTransaction {
+					RoomReadLocalPortableCapturedCell(
+						source,
+						SourceProductLaneExecutionAuthority { source.inTransaction() },
+					).readInTransaction(importedGroup.session.logicalTrackingId)
+				} as ReadLocalPortableCapturedCellResult.Ready
+				persist(
+					(2..6).map { index ->
+						buildGroup(index, runCount = 1, factRunIndexes = setOf(0))
+					},
+				)
+				RoomImportPortableCapturedCell(
+					database,
+					UnconfinedTestDispatcher(testScheduler),
+				).importEntry(
+					ImportPortableCapturedCellRequest(
+						entry = portable.entry,
+						receipt = PortableCellImportReceipt(
+							jobId = "shared-history-older-import",
+							entryKey = "shared-history-older-import",
+							sourceName = "shared-history.trackercell",
+							receivedAtMs = portable.entry.endTimeMs,
+						),
+						expectedCollectedDataEpoch = 0L,
+					),
+				) shouldBe ImportPortableCapturedCellResult.Applied(
+					importRevision = 1L,
+					physicalRunCount = portable.entry.runs.size,
+					observationCount = portable.entry.runs.sumOf { it.observations.size },
+				)
+				val repository = repository { database.inTransaction() }
+
+				(repository.recent(1) as CellHistoryPage.Available).entries.single().origin shouldBe
+					CellHistoryOrigin.Local
+				val page = database.withTransaction {
+					repository.recentImportedEligibleForSharedHistoryInTransaction(1)
+				} as ImportedHistoryEligiblePage.Available<*>
+				val eligible = page.entries.single() as CellImportedHistoryEligibleEntry
+				val newest = portable.entry.runs.maxWithOrNull(
+					compareBy<PortableCapturedCellRunV1>(
+						PortableCapturedCellRunV1::startTimeMs,
+						{ it.identity.value },
+					),
+				)
+				requireNotNull(newest)
+				eligible.selection shouldBe
+					(eligible.entry.origin as CellHistoryOrigin.Imported).selection
+				eligible.recency.source shouldBe HistorySource.CELL
+				eligible.recency.newestMemberStartTimeMs shouldBe newest.startTimeMs
+				eligible.recency.newestMemberTieIdentity shouldBe
+					ImportedHistoryRecencyTieIdentity(newest.identity.value)
+				eligible.recency.newestMemberStartTimeMs shouldBe
+					importedGroup.runs.last().segment.startTimeMs
+				eligible.recency.newestMemberStartTimeMs shouldBe
+					(portable.entry.startTimeMs + 2_000L)
+			} finally {
+				source.close()
+			}
+		}
 
 	@Test
 	fun `recent pages thirty three logical candidates by exact logical recency`() = runTest {
@@ -109,6 +400,171 @@ class CellHistoryRepositoryRoomTest {
 	}
 
 	@Test
+	fun `bounded wall and structural ranges find older local Cell entries before applying page limit`() =
+		runTest {
+			val groups = (1..3).map { index ->
+				buildGroup(index, runCount = 1, factRunIndexes = setOf(0))
+			}
+			persist(groups)
+			val repository = repository { true }
+			val oldest = groups.first().runs.single().segment
+			val newest = groups.last().runs.single().segment
+
+			(repository.recent(1) as CellHistoryPage.Available).entries.single().startTime.raw shouldBe
+				newest.startTimeMs
+			val wallRequest = CellHistoryRangeRequest(
+				scope = CellHistoryRangeScope.WallTime(
+					EpochMs(oldest.startTimeMs),
+					EpochMs(newest.endTimeMs + 1L),
+				),
+				limit = 1,
+			)
+			val firstPage = repository.range(wallRequest) as CellHistoryRangePage.Available
+			firstPage.entries.single().entry.startTime.raw shouldBe newest.startTimeMs
+			firstPage.continuation.toString() shouldBe "CellHistoryRangeContinuation"
+			val secondPage = repository.range(
+				wallRequest.copy(continuation = firstPage.continuation),
+			) as CellHistoryRangePage.Available
+			repository.range(
+				CellHistoryRangeRequest(
+					CellHistoryRangeScope.WallTime(
+						EpochMs(oldest.startTimeMs + 1L),
+						EpochMs(newest.endTimeMs + 1L),
+					),
+					1,
+					firstPage.continuation,
+				),
+			) shouldBe CellHistoryRangePage.Unavailable(
+				CellHistoryRangeUnavailableReason.INVALID_CONTINUATION,
+			)
+			repository { true }.range(
+				wallRequest.copy(continuation = firstPage.continuation),
+			) shouldBe CellHistoryRangePage.Unavailable(
+				CellHistoryRangeUnavailableReason.INVALID_CONTINUATION,
+			)
+			val thirdPage = repository.range(
+				wallRequest.copy(continuation = secondPage.continuation),
+			) as CellHistoryRangePage.Available
+			listOf(firstPage, secondPage, thirdPage).flatMap { page ->
+				page.entries.map { it.entry.startTime.raw }
+			} shouldBe groups.asReversed().map { it.runs.single().segment.startTimeMs }
+			thirdPage.continuation shouldBe null
+
+			val epochDay = Instant.ofEpochMilli(oldest.startTimeMs)
+				.atZone(ZoneId.of(ZONE_ID)).toLocalDate().toEpochDay()
+			val structural = repository.range(
+				CellHistoryRangeRequest(
+					CellHistoryRangeScope.StructuralDays(epochDay, epochDay),
+					limit = 100,
+				),
+			) as CellHistoryRangePage.Available
+			structural.entries.any { entry -> entry.entry.startTime.raw == oldest.startTimeMs } shouldBe true
+			structural.entries.flatMap { it.structuralDays }.toSet() shouldBe
+				setOf(CellHistoryStructuralDay(epochDay, ZONE_ID))
+			structural.entries.all {
+				it.structuralDayCompleteness == CellHistoryStructuralDayCompleteness.EXACT
+			} shouldBe true
+		}
+
+	@Test
+	fun `range candidate cap plus one is a typed failure rather than an incomplete page`() = runTest {
+		val groups = (1..257).map { index ->
+			buildGroup(index, runCount = 1, factRunIndexes = setOf(0))
+		}
+		persist(groups)
+		val first = groups.first().runs.single().segment
+		val last = groups.last().runs.single().segment
+
+		repository { true }.range(
+			CellHistoryRangeRequest(
+				CellHistoryRangeScope.WallTime(
+					EpochMs(first.startTimeMs),
+					EpochMs(last.endTimeMs + 1L),
+				),
+				limit = 100,
+			),
+		) shouldBe CellHistoryRangePage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+	}
+
+	@Test
+	fun `range discovers exact Cell intent before the first fact without fabricating observations`() =
+		runTest {
+			val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = emptySet())
+			persist(listOf(group))
+			val segment = group.runs.single().segment
+
+			val range = repository { true }.range(
+				CellHistoryRangeRequest(
+					CellHistoryRangeScope.WallTime(
+						EpochMs(segment.startTimeMs),
+						EpochMs(segment.endTimeMs + 1L),
+					),
+					limit = 10,
+				),
+			) as CellHistoryRangePage.Available
+
+			range.entries.single().entry.state shouldBe CellHistoryProductState.UNAVAILABLE
+			range.entries.single().entry.causes shouldBe setOf(CellHistoryCause.PROVIDER_UNAVAILABLE)
+			range.entries.single().entry.observations shouldBe emptyList()
+			range.entries.single().structuralDayCompleteness shouldBe
+				CellHistoryStructuralDayCompleteness.UNAVAILABLE
+			val sourcePage = database.withTransaction {
+				repository { true }.recentCellOnlyInTransaction(1)
+			} as CellComposedPage.Available
+			sourcePage.entries.single().let { composed ->
+				composed.capturesOnlyCell shouldBe true
+				composed.physicalSegmentIds shouldBe listOf(segment.id)
+				composed.entry.state shouldBe CellHistoryProductState.UNAVAILABLE
+				composed.entry.observations shouldBe emptyList()
+			}
+		}
+
+	@Test
+	fun `bounded source batch reports membership overflow instead of returning partial physical owners`() =
+		runTest {
+			val group = buildGroup(groupIndex = 1, runCount = 129, factRunIndexes = setOf(0))
+			persist(listOf(group))
+
+			database.withTransaction {
+				repository { true }.selectBySegmentIdsInTransaction(
+					listOf(group.runs.first().segment.id),
+				)
+			} shouldBe CellComposedPage.Failed(CellHistoryCause.READ_BUDGET_EXCEEDED)
+		}
+
+	@Test
+	fun `Cell fact presence cannot fabricate exact only Cell capture intent`() = runTest {
+		val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
+		persist(listOf(group))
+		val run = group.runs.single()
+		val pressure = run.source.copy(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			consentEpoch = run.source.consentEpoch + 10L,
+			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			writerOwner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+			writerProjectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+			writerProjectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+			writerBindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+		)
+		database.sourceSessionDao().insertManifestSources(listOf(pressure))
+		val checksum = SessionManifestIntegrity.compute(run.manifest, listOf(run.source, pressure))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_version SET manifest_checksum = ? " +
+				"WHERE logical_tracking_id = ? AND manifest_revision = ?",
+			arrayOf(checksum, group.session.logicalTrackingId, run.manifest.manifestRevision),
+		)
+		val repository = repository { true }
+
+		val grouped = database.withTransaction {
+			repository.selectBySegmentIdsInTransaction(listOf(run.segment.id))
+		} as CellComposedPage.Available
+		grouped.entries.single().capturesOnlyCell shouldBe false
+		(database.withTransaction {
+			repository.recentCellOnlyInTransaction(1)
+		} as CellComposedPage.Available).entries shouldBe emptyList()
+	}
+
+	@Test
 	fun `cursor-carried scope exposes a moved current lineage as integrity failure`() = runTest {
 		val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
 		persist(listOf(group))
@@ -125,6 +581,158 @@ class CellHistoryRepositoryRoomTest {
 		page.entries.single().causes shouldBe setOf(CellHistoryCause.FACT_INTEGRITY_FAILED)
 		page.entries.single().observations shouldBe emptyList()
 	}
+
+	@Test
+	fun `opaque local lookup rejects a run swapped onto another logical segment`() = runTest {
+		val first = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
+		val second = buildGroup(groupIndex = 2, runCount = 1, factRunIndexes = setOf(0))
+		persist(listOf(first, second))
+		val repository = repository { true }
+		val selection = requireNotNull(
+			(repository.session(first.runs.single().segment.id) as CellHistoryQuery.Found)
+				.entry.selection,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_service_run SET session_segment_id = NULL WHERE service_run_id = ?",
+			arrayOf(second.runs.single().run.serviceRunId),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_service_run SET session_segment_id = ? WHERE service_run_id = ?",
+			arrayOf(
+				second.runs.single().segment.id,
+				first.runs.single().run.serviceRunId,
+			),
+		)
+
+		assertInvalidLocalSelection(repository, selection)
+	}
+
+	@Test
+	fun `opaque local lookup reports invalid membership after identity owner loses all runs`() = runTest {
+		val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = emptySet())
+		database.sourceSessionDao().insertSession(group.session)
+		val selection = LocalCellHistorySelection(
+			LocalCellHistoryIdentity(
+				PortableCellOpaqueIdentity.derive(
+					PortableCellIdentityKind.LOGICAL_ENTRY,
+					group.session.logicalTrackingId,
+				).value,
+			),
+		)
+
+		assertInvalidLocalSelection(repository { true }, selection)
+	}
+
+	@Test
+	fun `opaque local lookup reports invalid membership when selected run segment is missing`() =
+		runTest {
+			val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
+			persist(listOf(group))
+			val repository = repository { true }
+			val selection = requireNotNull(
+				(repository.session(group.runs.single().segment.id) as CellHistoryQuery.Found)
+					.entry.selection,
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM session_segment WHERE id = ?",
+				arrayOf(group.runs.single().segment.id),
+			)
+
+			assertInvalidLocalSelection(repository, selection)
+		}
+
+	@Test
+	fun `authenticated local deletion receipt returns deleted until one fence pair is corrupt`() =
+		runTest {
+			val group = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
+			persist(listOf(group))
+			val built = group.runs.single()
+			val repository = repository { true }
+			val selection = requireNotNull(
+				(repository.session(built.segment.id) as CellHistoryQuery.Found).entry.selection,
+			) as LocalCellHistorySelection
+			val deletedRun = CellCapturedDeletedRunEntity.create(
+				logicalTrackingId = group.session.logicalTrackingId,
+				serviceRunId = built.run.serviceRunId,
+				sessionSegmentId = built.segment.id,
+				startTimeMs = built.segment.startTimeMs,
+				endTimeMs = built.segment.endTimeMs,
+				collectedDataEpoch = 0L,
+				deletedAtMs = 900L,
+			)
+			database.withTransaction {
+				val dao = database.cellCapturedFactDao()
+				dao.insertEntryDeletionReceipt(
+					CellCapturedEntryDeletionReceiptEntity.create(
+						logicalTrackingId = group.session.logicalTrackingId,
+						entryIdentity = selection.identity.value,
+						collectedDataEpoch = 0L,
+						runFootprints = listOf(deletedRun),
+						deletedAtMs = 900L,
+					),
+				)
+				dao.insertDeletedRuns(listOf(deletedRun))
+				database.sourceDeletionFenceDao().insertIfAbsent(
+					SourceDeletionFenceEntity.createLogicalServiceRun(
+						SourceDestinationOwnerEntity.SOURCE_CELL,
+						SessionManifestPurposeCode.SESSION_CAPTURE,
+						group.session.logicalTrackingId,
+						built.run.serviceRunId,
+						1L,
+						0L,
+						900L,
+					),
+				)
+				dao.insertDeletionGeneration(
+					com.adsamcik.tracker.shared.base.database.data
+						.CellCaptureDeletionGenerationEntity(
+							group.session.logicalTrackingId,
+							built.run.serviceRunId,
+							0L,
+							1L,
+							900L,
+						),
+				)
+				val ids = built.cursors.map { it.logicalFactId }
+				dao.deleteExactCursors(
+					SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+					SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+					ids,
+				)
+				dao.deleteExactRevisionLineages(
+					SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+					SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+					ids,
+				)
+				database.sessionSegmentDao().deleteExact(
+					built.segment.id,
+					group.session.logicalTrackingId,
+					built.run.serviceRunId,
+				)
+				database.sourceEvidenceStateDao().incrementRevision(900L)
+			}
+
+			repeat(2) {
+				(repository.detail(selection) as CellHistoryQuery.Found).entry.let { deleted ->
+					deleted.selection shouldBe selection
+					deleted.state shouldBe CellHistoryProductState.DELETED
+					deleted.causes shouldBe setOf(CellHistoryCause.DELETED)
+					deleted.startTime.raw shouldBe built.segment.startTimeMs
+					deleted.endTime.raw shouldBe built.segment.endTimeMs
+					deleted.observations shouldBe emptyList()
+				}
+			}
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE cell_capture_deletion_generation SET generation = 2 " +
+					"WHERE logical_tracking_id = ? AND service_run_id = ?",
+				arrayOf(group.session.logicalTrackingId, built.run.serviceRunId),
+			)
+			(repository.detail(selection) as CellHistoryQuery.Found).entry.let { corrupt ->
+				corrupt.state shouldBe CellHistoryProductState.FAILED
+				corrupt.causes shouldBe setOf(CellHistoryCause.FACT_INTEGRITY_FAILED)
+				corrupt.observations shouldBe emptyList()
+			}
+		}
 
 	@Test
 	fun `cursor-carried scope exposes a missing current revision as integrity failure`() = runTest {
@@ -213,19 +821,33 @@ class CellHistoryRepositoryRoomTest {
 		UnconfinedTestDispatcher(),
 	)
 
+	private suspend fun assertInvalidLocalSelection(
+		repository: DefaultCellHistoryRepository,
+		selection: com.adsamcik.tracker.stats.api.repository.CellHistoryEntrySelection,
+	) {
+		val entry = (repository.detail(selection) as CellHistoryQuery.Found).entry
+		entry.selection shouldBe selection
+		entry.state shouldBe CellHistoryProductState.FAILED
+		entry.causes shouldBe setOf(CellHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+		entry.startTime.raw shouldBe 0L
+		entry.endTime.raw shouldBe 0L
+		entry.observations shouldBe emptyList()
+	}
+
 	private suspend fun persist(
 		groups: List<Group>,
 		evidenceState: SourceEvidenceState = SourceEvidenceState(collectedDataEpoch = 0L),
+		target: AppDatabase = database,
 	) {
 		val runs = groups.flatMap(Group::runs)
-		val sessionDao = database.sourceSessionDao()
-		val policyDao = database.sourcePolicyDao()
-		val planDao = database.sourcePlanStateDao()
-		val brokerDao = database.sourceBrokerDao()
-		val factDao = database.cellCapturedFactDao()
-		database.sourceEvidenceStateDao().ensure(evidenceState)
+		val sessionDao = target.sourceSessionDao()
+		val policyDao = target.sourcePolicyDao()
+		val planDao = target.sourcePlanStateDao()
+		val brokerDao = target.sourceBrokerDao()
+		val factDao = target.cellCapturedFactDao()
+		target.sourceEvidenceStateDao().ensure(evidenceState)
 		groups.map(Group::session).forEach { sessionDao.insertSession(it) }
-		database.sessionSegmentDao().insert(runs.map(BuiltRun::segment))
+		target.sessionSegmentDao().insert(runs.map(BuiltRun::segment))
 		runs.sortedBy { it.run.startedAtMs }.forEach { sessionDao.insertServiceRun(it.run) }
 		runs.sortedBy { it.manifest.manifestRevision }.forEach { sessionDao.insertManifest(it.manifest) }
 		sessionDao.insertManifestSources(runs.map(BuiltRun::source))
@@ -238,7 +860,7 @@ class CellHistoryRepositoryRoomTest {
 		runs.mapNotNull(BuiltRun::provider).sortedBy(ProviderRegistrationGenerationEntity::registrationGeneration)
 			.forEach { brokerDao.insertRegistration(it) }
 		brokerDao.insertAuthorizations(runs.flatMap(BuiltRun::authorizations))
-		database.sourceProjectionStateDao().installProductLane(lane(runs.flatMap(BuiltRun::facts)
+		target.sourceProjectionStateDao().installProductLane(lane(runs.flatMap(BuiltRun::facts)
 			.maxOfOrNull(CellCapturedFactRevisionEntity::sourceAdmissionOrdinal) ?: 1L))
 		runs.forEach { sessionDao.saveCompleteness(it.completeness) }
 		runs.flatMap(BuiltRun::facts).sortedWith(compareBy(

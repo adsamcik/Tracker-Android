@@ -35,9 +35,14 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryObservation
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryResultCompleteness
 import com.adsamcik.tracker.stats.api.repository.WifiHistorySignalQuality
+import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelection
+import com.adsamcik.tracker.stats.api.repository.PortableWifiIdentityKind
+import com.adsamcik.tracker.stats.api.repository.PortableWifiOpaqueIdentity
+import com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import java.io.ByteArrayInputStream
 import java.io.DataInputStream
@@ -66,12 +71,22 @@ internal object WifiHistoryComposer {
 		.mapNotNull(SessionSegment::logicalTrackingId).filter(String::isNotBlank).distinct()
 		.mapNotNull { logicalId ->
 			val members = members(logicalId, snapshot)
-			val entry = composeGroup(logicalId, snapshot, laneExecutionAuthority) ?: return@mapNotNull null
-			ComposedWifiEntry(
+			val structuralRuns = mutableListOf<WifiHistoryStructuralRunProjection>()
+			val entry = composeGroup(
 				logicalId,
-				members.maxOfOrNull(SessionSegment::startTimeMs) ?: 0L,
-				members.maxWithOrNull(compareBy(SessionSegment::startTimeMs, SessionSegment::id))?.id ?: 0L,
-				entry,
+				snapshot,
+				laneExecutionAuthority,
+				structuralRuns,
+			) ?: return@mapNotNull null
+			ComposedWifiEntry(
+				logicalTrackingId = logicalId,
+				recencyStartTimeMs = members.maxOfOrNull(SessionSegment::startTimeMs) ?: 0L,
+				recencySegmentId = members.maxWithOrNull(
+					compareBy(SessionSegment::startTimeMs, SessionSegment::id),
+				)?.id ?: 0L,
+				physicalSegmentIds = members.map(SessionSegment::id),
+				entry = entry,
+				structuralRuns = structuralRuns,
 			)
 		}.toList()
 
@@ -80,6 +95,7 @@ internal object WifiHistoryComposer {
 		logicalId: String,
 		snapshot: WifiHistorySnapshot,
 		laneExecutionAuthority: SourceProductLaneExecutionAuthority,
+		structuralOutput: MutableList<WifiHistoryStructuralRunProjection>? = null,
 	): WifiHistoryEntry? {
 		val segments = members(logicalId, snapshot)
 		if (segments.isEmpty()) return null
@@ -105,9 +121,33 @@ internal object WifiHistoryComposer {
 			return failed(logicalId, segments, WifiHistoryCause.MANIFEST_INTEGRITY_FAILED)
 		}
 		val manifests = manifestsByRun.values.flatten()
+		val capturesOnlyWifi = manifests.all { manifest ->
+			snapshot.manifestAuthorityShape(logicalId, manifest.manifestRevision)?.first ==
+				setOf(WIFI_SOURCE)
+		}
 		val zones = manifests.mapTo(linkedSetOf(), SessionManifestVersionEntity::zoneId)
 		if (zones.any { runCatching { ZoneId.of(it) }.isFailure }) {
 			return failed(logicalId, segments, WifiHistoryCause.STORED_ZONE_INVALID)
+		}
+		val structuralRunShells = runCatching {
+			runs.map { run ->
+				val segment = segments.single { it.id == run.sessionSegmentId }
+				WifiHistoryStructuralRunProjection(
+					startTimeMs = segment.startTimeMs,
+					endTimeMs = segment.endTimeMs,
+					storedZoneIds = manifestsByRun.getValue(run.serviceRunId)
+						.mapTo(linkedSetOf(), SessionManifestVersionEntity::zoneId),
+					observations = emptyList(),
+				)
+			}
+		}.getOrElse {
+			return failed(logicalId, segments, WifiHistoryCause.PHYSICAL_MEMBERSHIP_INVALID)
+		}
+		fun publishStructuralRuns(values: List<WifiHistoryStructuralRunProjection>) {
+			structuralOutput?.apply {
+				clear()
+				addAll(values)
+			}
 		}
 		val bindings = linkedMapOf<Long, SessionManifestSourceEntity>()
 		for (manifest in manifests) {
@@ -128,9 +168,16 @@ internal object WifiHistoryComposer {
 			related.any { it.logicalTrackingId != logicalId || it.serviceRunId !in runIds }
 		) return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED)
 		if (bindings.isEmpty()) {
-			return if (related.isEmpty()) unavailable(logicalId, segments, zones,
-				WifiHistoryCause.SOURCE_NOT_CAPTURED) else failed(logicalId, segments,
-				WifiHistoryCause.FACT_INTEGRITY_FAILED)
+			if (related.isNotEmpty()) {
+				return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED)
+			}
+			publishStructuralRuns(structuralRunShells)
+			return unavailable(
+				logicalId,
+				segments,
+				zones,
+				WifiHistoryCause.SOURCE_NOT_CAPTURED,
+			)
 		}
 		if (!hasValidCaptureAuthority(manifests, bindings, snapshot)) {
 			return failed(logicalId, segments, WifiHistoryCause.PLAN_INTEGRITY_FAILED)
@@ -163,6 +210,13 @@ internal object WifiHistoryComposer {
 		if (admissions.any { !it.isValidHistoryCarrier(logicalId, snapshot, manifestsByRun, evidence) }) {
 			return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
 		}
+		val admissionsByEventId = admissions.associateBy(SourceEventWalEntity::eventId)
+		val admissionsByOrdinal = admissions.associateBy(SourceEventWalEntity::admissionOrdinal)
+		val admissionsByDelivery = admissions.associateBy(SourceEventWalEntity::deliveryIdentity)
+		if (admissionsByEventId.size != admissions.size ||
+			admissionsByOrdinal.size != admissions.size ||
+			admissionsByDelivery.size != admissions.size
+		) return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
 		val targetOrdinal = listOfNotNull(
 			related.maxOfOrNull(WifiCapturedFactRevisionEntity::sourceAdmissionOrdinal),
 			completeness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal).maxOrNull(),
@@ -175,16 +229,34 @@ internal object WifiHistoryComposer {
 		) return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
 
 		val current = mutableListOf<Pair<WifiCapturedFactRevisionEntity, WifiCapturedFactRevisionEntity>>()
+		val factOwnerByEvent = linkedMapOf<String, String>()
 		for ((_, lineage) in related.groupBy(WifiCapturedFactRevisionEntity::logicalFactId)) {
 			val latest = validateLineage(lineage.sortedBy(WifiCapturedFactRevisionEntity::semanticRevision), snapshot)
 				?: return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED)
 			val aggregate = resolveAggregate(latest, snapshot)
 				?: return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED)
+			val wal = admissionsByEventId[latest.sourceEventId]
+				?: return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
+			if (admissionsByOrdinal[latest.sourceAdmissionOrdinal] != wal ||
+				admissionsByDelivery[latest.sourceDeliveryIdentity] != wal ||
+				!latest.matchesExactWalCarrier(wal)
+			) return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
+			val priorFact = factOwnerByEvent.putIfAbsent(latest.sourceEventId, latest.logicalFactId)
+			if (priorFact != null && priorFact != latest.logicalFactId) {
+				return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
+			}
 			if (!factHasExactAuthority(latest, aggregate, snapshot, manifestsByRun, bindings, evidence)) {
 				return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
 			}
 			if (latest.logicalFactId in carriedFactIds) current += latest to aggregate
 		}
+		if (!hasExactCompletenessTails(
+				completeness,
+				admissions,
+				related.groupBy(WifiCapturedFactRevisionEntity::logicalFactId)
+					.values.map { it.maxBy(WifiCapturedFactRevisionEntity::semanticRevision) },
+			)
+		) return failed(logicalId, segments, WifiHistoryCause.WRITER_PROVENANCE_INVALID)
 
 		if (runIds.any { runId ->
 			val row = snapshot.deletionGenerations[logicalId to runId]
@@ -201,17 +273,27 @@ internal object WifiHistoryComposer {
 			} != false }
 		}.getOrElse { return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED) }
 		val retentionLoss = retained.size != currentEpoch.size
-		if (retained.isEmpty()) return when {
+		if (retained.isEmpty()) {
+			val emptyEntry = when {
 			current.isNotEmpty() && epochLoss -> unavailable(logicalId, segments, zones,
-				WifiHistoryCause.PRIVACY_EPOCH_MISMATCH)
+				WifiHistoryCause.PRIVACY_EPOCH_MISMATCH, capturesOnlyWifi)
 			currentEpoch.isNotEmpty() && retentionLoss -> unavailable(logicalId, segments, zones,
-				WifiHistoryCause.RETENTION_LIMIT)
+				WifiHistoryCause.RETENTION_LIMIT, capturesOnlyWifi)
 			targetOrdinal != null && lane.contiguousAdmissionOrdinal < targetOrdinal ->
-				materializing(logicalId, segments, zones)
-			isActive(session, runs) -> materializing(logicalId, segments, zones)
+				materializing(logicalId, segments, zones, capturesOnlyWifi)
+			isActive(session, runs) -> materializing(logicalId, segments, zones, capturesOnlyWifi)
 			completeness.any { it.stopStatus in PROVIDER_UNAVAILABLE_STATUSES } ->
-				unavailable(logicalId, segments, zones, WifiHistoryCause.PROVIDER_UNAVAILABLE)
-			else -> missing(logicalId, segments, zones)
+				unavailable(
+					logicalId,
+					segments,
+					zones,
+					WifiHistoryCause.PROVIDER_UNAVAILABLE,
+					capturesOnlyWifi,
+				)
+			else -> missing(logicalId, segments, zones, capturesOnlyWifi)
+			}
+			publishStructuralRuns(structuralRunShells)
+			return emptyEntry
 		}
 
 		val observations = runCatching { retained.sortedWith(compareBy(
@@ -232,10 +314,31 @@ internal object WifiHistoryComposer {
 		if (retained.any { it.first.coverageCompleteness == WifiCapturedFactRevisionEntity.COVERAGE_PARTIAL }) {
 			causes += WifiHistoryCause.RESULT_SET_PARTIAL
 		}
+		val structuralObservations = runCatching {
+			retained.groupBy { it.first.serviceRunId }.mapValues { (_, facts) ->
+				facts.map { (fact, _) ->
+					WifiHistoryStructuralObservationProjection(
+						earliestPossibleTimeMs = earliestPossibleWallTimeMs(fact),
+						latestPossibleTimeMs = Math.addExact(
+							fact.observedWallTimeMs,
+							fact.wallTimeUncertaintyMs,
+						),
+						storedZoneId = fact.storedZoneId,
+					)
+				}
+			}
+		}.getOrElse {
+			return failed(logicalId, segments, WifiHistoryCause.FACT_INTEGRITY_FAILED)
+		}
+		publishStructuralRuns(
+			runs.zip(structuralRunShells).map { (run, shell) ->
+				shell.copy(observations = structuralObservations[run.serviceRunId].orEmpty())
+			},
+		)
 		return if (causes.isEmpty()) entry(logicalId, segments, zones, WifiHistoryProductState.READY,
-			WifiHistoryCoverage.COMPLETE, observations, emptySet()) else
+			WifiHistoryCoverage.COMPLETE, observations, emptySet(), capturesOnlyWifi) else
 			entry(logicalId, segments, zones, WifiHistoryProductState.PARTIAL,
-				WifiHistoryCoverage.PARTIAL, observations, causes)
+				WifiHistoryCoverage.PARTIAL, observations, causes, capturesOnlyWifi)
 	}
 
 	private fun hasValidManifestHistory(
@@ -775,6 +878,78 @@ internal object WifiHistoryComposer {
 			row.updatedAtMs >= 0L }
 	}
 
+	private fun hasExactCompletenessTails(
+		rows: List<SourceSessionCompletenessEntity>,
+		admissions: List<SourceEventWalEntity>,
+		currentFacts: List<WifiCapturedFactRevisionEntity>,
+	): Boolean {
+		val rowsByOwner = rows.associateBy {
+			Triple(it.serviceRunId, it.sourceInstanceId, it.registrationGeneration)
+		}
+		if (rowsByOwner.size != rows.size) return false
+		if (currentFacts.any { fact ->
+				rowsByOwner[Triple(
+					fact.serviceRunId,
+					fact.sourceInstanceId,
+					fact.registrationGeneration,
+				)] == null
+			}
+		) return false
+		return rows.all { row ->
+			val ownedAdmissions = admissions.filter {
+				it.serviceRunId == row.serviceRunId &&
+					it.sourceInstanceId == row.sourceInstanceId &&
+					it.registrationGeneration == row.registrationGeneration
+			}
+			if (ownedAdmissions.isEmpty()) {
+				row.lastAdmissionOrdinal == null && row.lastSourceSequence == null
+			} else {
+				val tail = ownedAdmissions.maxBy(SourceEventWalEntity::admissionOrdinal)
+				row.lastAdmissionOrdinal == tail.admissionOrdinal &&
+					row.lastSourceSequence == tail.sourceSequence
+			}
+		}
+	}
+
+	private fun WifiCapturedFactRevisionEntity.matchesExactWalCarrier(
+		wal: SourceEventWalEntity,
+	): Boolean = wal.sourceKind == WIFI_SOURCE &&
+		wal.payloadVersion == WIFI_PROVIDER_PAYLOAD_VERSION &&
+		wal.payloadChecksum == wal.calculatedPayloadChecksum() &&
+		wal.integrityIdentity == wal.calculatedIntegrityIdentity() &&
+		sourceEventId == wal.eventId &&
+		sourceAdmissionOrdinal == wal.admissionOrdinal &&
+		walIntegrityIdentity == wal.integrityIdentity &&
+		payloadChecksum == wal.payloadChecksum &&
+		sourceDeliveryIdentity == wal.deliveryIdentity &&
+		deliveryUnitIndex == wal.deliveryUnitIndex &&
+		deliveryUnitCount == wal.deliveryUnitCount &&
+		sourceSequence == wal.sourceSequence &&
+		logicalTrackingId == wal.logicalTrackingId &&
+		serviceRunId == wal.serviceRunId &&
+		sourceInstanceId == wal.sourceInstanceId &&
+		registrationGeneration == wal.registrationGeneration &&
+		configurationRevision == wal.configRevision &&
+		physicalConfigurationFingerprint == wal.physicalConfigurationFingerprint &&
+		authorizationRevision == wal.authorizationRevision &&
+		authorizationFingerprint == wal.authorizationFingerprint &&
+		purposeEligibilityMask == wal.authorizationPurposeEligibilityMask &&
+		sourcePolicyRevision == wal.sourcePolicyRevision &&
+		captureConsentEpoch == wal.captureConsentEpoch &&
+		manifestRevision == wal.sessionManifestRevision &&
+		lifecycleLeaseGeneration == wal.lifecycleLeaseGeneration &&
+		collectedDataEpoch == wal.capturedCollectedDataEpoch &&
+		clockDomainId == wal.clockDomainId &&
+		observedIntervalStartNanos == wal.observedIntervalStartNanos &&
+		observedElapsedNanos == wal.observedElapsedNanos &&
+		receivedElapsedNanos == wal.receivedElapsedNanos &&
+		observedWallTimeMs == wal.wallTimeMs &&
+		wallTimeUncertaintyMs == wal.wallTimeUncertaintyMs &&
+		acquiredAtMs == wal.acquiredAtMs &&
+		qualityFlags == wal.qualityFlags &&
+		qualityConfidence == wal.qualityConfidence &&
+		wal.planAttribution == CAPTURED_PLAN_ORDINAL
+
 	private fun hasValidSessionSettlement(
 		session: LogicalTrackingSessionEntity,
 		runs: List<SourceServiceRunEntity>,
@@ -883,11 +1058,21 @@ internal object WifiHistoryComposer {
 		coverage: WifiHistoryCoverage,
 		observations: List<WifiHistoryObservation>,
 		causes: Set<WifiHistoryCause>,
+		capturesOnlyWifi: Boolean = false,
 	): WifiHistoryEntry {
 		val start = segments.minOf(SessionSegment::startTimeMs).coerceAtLeast(0L)
 		val end = segments.maxOf(SessionSegment::endTimeMs).coerceAtLeast(start)
+		val selection = runCatching {
+			WifiLocalHistorySelectionKey(
+				PortableWifiOpaqueIdentity.derive(
+					PortableWifiIdentityKind.LOGICAL_ENTRY,
+					logicalId,
+				).value,
+			)
+		}.getOrNull().takeUnless { state == WifiHistoryProductState.FAILED }
 		return WifiHistoryEntry(WifiHistoryEntryKey("wifi-logical:$logicalId"), EpochMs(start), EpochMs(end),
-			zones, state, coverage, observations, causes)
+			zones, state, coverage, observations, causes, localSelection = selection,
+			capturesOnlyWifi = capturesOnlyWifi)
 	}
 
 	private fun failed(logicalId: String, segments: List<SessionSegment>, cause: WifiHistoryCause) =
@@ -895,17 +1080,31 @@ internal object WifiHistoryComposer {
 			emptyList(), setOf(cause))
 
 	private fun unavailable(
-		logicalId: String, segments: List<SessionSegment>, zones: Set<String>, cause: WifiHistoryCause,
+		logicalId: String,
+		segments: List<SessionSegment>,
+		zones: Set<String>,
+		cause: WifiHistoryCause,
+		capturesOnlyWifi: Boolean = false,
 	) = entry(logicalId, segments, zones, WifiHistoryProductState.UNAVAILABLE, WifiHistoryCoverage.NONE,
-		emptyList(), setOf(cause))
+		emptyList(), setOf(cause), capturesOnlyWifi)
 
-	private fun materializing(logicalId: String, segments: List<SessionSegment>, zones: Set<String>) =
+	private fun materializing(
+		logicalId: String,
+		segments: List<SessionSegment>,
+		zones: Set<String>,
+		capturesOnlyWifi: Boolean = false,
+	) =
 		entry(logicalId, segments, zones, WifiHistoryProductState.MATERIALIZING, WifiHistoryCoverage.NONE,
-			emptyList(), setOf(WifiHistoryCause.MATERIALIZATION_BEHIND))
+			emptyList(), setOf(WifiHistoryCause.MATERIALIZATION_BEHIND), capturesOnlyWifi)
 
-	private fun missing(logicalId: String, segments: List<SessionSegment>, zones: Set<String>) =
+	private fun missing(
+		logicalId: String,
+		segments: List<SessionSegment>,
+		zones: Set<String>,
+		capturesOnlyWifi: Boolean = false,
+	) =
 		entry(logicalId, segments, zones, WifiHistoryProductState.MISSING, WifiHistoryCoverage.NONE,
-			emptyList(), setOf(WifiHistoryCause.NO_QUALIFIED_FACTS))
+			emptyList(), setOf(WifiHistoryCause.NO_QUALIFIED_FACTS), capturesOnlyWifi)
 
 	private fun legacy(segment: SessionSegment) = WifiHistoryEntry(
 		WifiHistoryEntryKey("wifi-legacy:${segment.id}"), EpochMs(segment.startTimeMs.coerceAtLeast(0L)),
@@ -1060,7 +1259,66 @@ internal data class ComposedWifiEntry(
 	val logicalTrackingId: String,
 	val recencyStartTimeMs: Long,
 	val recencySegmentId: Long,
+	val physicalSegmentIds: List<Long>,
 	val entry: WifiHistoryEntry,
-)
+	val structuralRuns: List<WifiHistoryStructuralRunProjection> = emptyList(),
+) {
+	init {
+		require(logicalTrackingId.isNotBlank())
+		require(recencyStartTimeMs >= 0L && recencySegmentId > 0L)
+		require(physicalSegmentIds.isNotEmpty() && physicalSegmentIds.all { it > 0L })
+		require(physicalSegmentIds.distinct().size == physicalSegmentIds.size)
+		require(recencySegmentId in physicalSegmentIds)
+		require(entry.origin == WifiHistoryOrigin.LOCAL)
+		require(structuralRuns.all {
+			it.startTimeMs >= entry.startTime.raw && it.endTimeMs <= entry.endTime.raw
+		})
+	}
+}
+
+internal sealed interface WifiComposedPage {
+	data class Available(val entries: List<ComposedWifiEntry>) : WifiComposedPage
+	data class Failed(val cause: WifiHistoryCause) : WifiComposedPage {
+		init {
+			require(cause.isIntegrityFailure)
+		}
+	}
+}
+
+internal sealed interface WifiSourceRecentEntry {
+	val entry: WifiHistoryEntry
+
+	data class Local(val composed: ComposedWifiEntry) : WifiSourceRecentEntry {
+		override val entry: WifiHistoryEntry = composed.entry
+	}
+
+	/** Imported rows deliberately expose no local logical or physical member identity. */
+	data class Imported(
+		override val entry: WifiHistoryEntry,
+		val recencyStartTimeMs: Long,
+		val recencyIdentity: String,
+		val selection: WifiImportedHistorySelection = requireNotNull(entry.importedSelection),
+	) : WifiSourceRecentEntry {
+		init {
+			require(entry.origin == WifiHistoryOrigin.IMPORTED)
+			require(entry.localSelection == null)
+			require(entry.importedSelection == selection)
+			require(recencyStartTimeMs >= 0L && recencyIdentity.isNotBlank())
+		}
+	}
+}
+
+internal sealed interface WifiSourceRecentPage {
+	data class Available(val entries: List<WifiSourceRecentEntry>) : WifiSourceRecentPage
+	data class Failed(val cause: WifiHistoryCause) : WifiSourceRecentPage {
+		init {
+			require(cause.isIntegrityFailure)
+		}
+	}
+}
+
+internal val wifiCompositionOrder =
+	compareByDescending<ComposedWifiEntry> { it.recencyStartTimeMs }
+		.thenByDescending { it.recencySegmentId }
 
 internal const val WIFI_SOURCE = SourceDestinationOwnerEntity.SOURCE_WIFI

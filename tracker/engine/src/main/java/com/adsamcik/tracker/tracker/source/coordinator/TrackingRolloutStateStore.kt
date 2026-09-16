@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.base.database.liveSourceProjectionActivationOrdinal
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import javax.inject.Inject
@@ -29,20 +30,26 @@ data class ExecutableSourceLaneBinding(
 	val captureModeMask: Long = captureModes.fold(0L) { mask, mode -> mask or mode.mask }
 }
 
+/**
+ * Source-owner declaration that its writer, readers, maintenance, import/export, and validators
+ * all implement [SourceWriterGenerationContract] for every future binding generation.
+ */
+data class MonotonicRearmSourceWriterSupport(val source: SourceKind)
+
 /** App-owned immutable list of source lanes that this binary can actually execute. */
 @Singleton
 class ExecutableSourceLaneCatalog internal constructor(
 	bindings: Set<ExecutableSourceLaneBinding>,
+	private val monotonicRearmSources: Set<SourceKind> = emptySet(),
 ) : SourceProductLaneExecutionAuthority {
-	@Inject constructor() : this(
-		setOf(
-			STEPS_SESSION_FACTS_V1,
-			STEPS_SESSION_FACTS_V2,
-			PRESSURE_SESSION_FACTS,
-			CELL_SESSION_FACTS,
-			WIFI_SESSION_FACTS,
-		),
+	@Inject constructor(
+		monotonicRearmSupport: Set<@JvmSuppressWildcards MonotonicRearmSourceWriterSupport>,
+	) : this(
+		defaultBindings(),
+		monotonicRearmSupport.mapTo(mutableSetOf(), MonotonicRearmSourceWriterSupport::source),
 	)
+
+	internal constructor() : this(defaultBindings(), emptySet())
 
 	private val bindingsByGeneration = bindings.associateBy { binding ->
 		binding.source to binding.bindingGeneration
@@ -58,15 +65,19 @@ class ExecutableSourceLaneCatalog internal constructor(
 	}
 
 	fun owns(binding: ExecutableSourceLaneBinding): Boolean =
-		bindingsByGeneration[binding.source to binding.bindingGeneration] == binding
+		bindingsByGeneration[binding.source to binding.bindingGeneration] == binding ||
+			binding.isSupportedMonotonicRearm()
 
 	fun bindingFor(
 		source: SourceKind,
 		bindingGeneration: Long,
 		projectionId: String?,
 		projectionVersion: Int?,
-	): ExecutableSourceLaneBinding? = bindingsByGeneration[source to bindingGeneration]
-		?.takeIf { binding ->
+	): ExecutableSourceLaneBinding? = (
+		bindingsByGeneration[source to bindingGeneration] ?:
+			baseBinding(source)?.copy(bindingGeneration = bindingGeneration)
+				?.takeIf { it.isSupportedMonotonicRearm() }
+		)?.takeIf { binding ->
 			binding.projectionId == projectionId && binding.projectionVersion == projectionVersion
 		}
 
@@ -80,11 +91,38 @@ class ExecutableSourceLaneCatalog internal constructor(
 
 	fun bindingFor(lane: SourceProductProjectionLaneEntity): ExecutableSourceLaneBinding? {
 		val source = SourceKind.entries.singleOrNull { it.stableCode == lane.sourceKind } ?: return null
-		return bindingsByGeneration[source to lane.bindingGeneration]?.takeIf { binding ->
+		return bindingFor(
+			source,
+			lane.bindingGeneration,
+			lane.projectionId,
+			lane.projectionVersion,
+		)?.takeIf { binding ->
 			binding.projectionId == lane.projectionId &&
 				binding.projectionVersion == lane.projectionVersion &&
 				binding.captureModeMask == lane.captureModeMask
 		}
+	}
+
+	fun nextRearmBinding(current: ExecutableSourceLaneBinding): ExecutableSourceLaneBinding? {
+		if (!owns(current) || current.source !in monotonicRearmSources) return null
+		return current.copy(
+			bindingGeneration = SourceWriterGenerationContract.nextBindingGeneration(
+				current.bindingGeneration,
+			),
+		)
+	}
+
+	private fun baseBinding(source: SourceKind): ExecutableSourceLaneBinding? =
+		bindingsByGeneration.values
+			.filter { it.source == source }
+			.minByOrNull(ExecutableSourceLaneBinding::bindingGeneration)
+
+	private fun ExecutableSourceLaneBinding.isSupportedMonotonicRearm(): Boolean {
+		if (source !in monotonicRearmSources || bindingGeneration <= 0L) return false
+		val base = baseBinding(source) ?: return false
+		return projectionId == base.projectionId &&
+			projectionVersion == base.projectionVersion &&
+			captureModes == base.captureModes
 	}
 
 	override fun owns(lane: SourceProductProjectionLaneEntity): Boolean = bindingFor(lane) != null
@@ -120,6 +158,15 @@ class ExecutableSourceLaneCatalog internal constructor(
 		/** Prospective binding used only when no durable Steps lane supplies an exact generation. */
 		val PREFERRED_STEPS_SESSION_FACTS = STEPS_SESSION_FACTS_V2
 
+		/** Dormant source-local captured Activity writer; CONTROL remains a separate non-product lane. */
+		val ACTIVITY_SESSION_FACTS = ExecutableSourceLaneBinding(
+			source = SourceKind.ACTIVITY,
+			bindingGeneration = SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION,
+			projectionId = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
+			projectionVersion = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION,
+			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
+		)
+
 		/** Dormant source-local Pressure writer contract; executable does not imply activation. */
 		val PRESSURE_SESSION_FACTS = ExecutableSourceLaneBinding(
 			source = SourceKind.PRESSURE,
@@ -149,6 +196,21 @@ class ExecutableSourceLaneCatalog internal constructor(
 
 		fun explicit(vararg bindings: ExecutableSourceLaneBinding) =
 			ExecutableSourceLaneCatalog(bindings.toSet())
+
+		fun explicitRearmable(vararg bindings: ExecutableSourceLaneBinding) =
+			ExecutableSourceLaneCatalog(
+				bindings = bindings.toSet(),
+				monotonicRearmSources = bindings.mapTo(mutableSetOf(), ExecutableSourceLaneBinding::source),
+			)
+
+		private fun defaultBindings() = setOf(
+			STEPS_SESSION_FACTS_V1,
+			STEPS_SESSION_FACTS_V2,
+			ACTIVITY_SESSION_FACTS,
+			PRESSURE_SESSION_FACTS,
+			CELL_SESSION_FACTS,
+			WIFI_SESSION_FACTS,
+		)
 	}
 }
 
@@ -672,35 +734,69 @@ private suspend fun AppDatabase.hasExactCanonicalDestinationOwner(
 				owner.ownerGeneration >= SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
 		}
 		SourceKind.PRESSURE -> {
-			if (binding != ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS) return false
+			if (!binding.hasSameWriterSemanticsAs(
+					ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS,
+				)
+			) return false
 			val owner = sourceDestinationOwnerDao().get(
 				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
 			) ?: return false
 			owner.owner == SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS &&
-				owner.ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+				owner.ownerGeneration ==
+				com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
+					.canonicalOwnerGeneration(binding.bindingGeneration)
+		}
+		SourceKind.ACTIVITY -> {
+			if (!binding.hasSameWriterSemanticsAs(
+					ExecutableSourceLaneCatalog.ACTIVITY_SESSION_FACTS,
+				)
+			) return false
+			val owner = sourceDestinationOwnerDao().get(
+				SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
+			) ?: return false
+			owner.owner == SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS &&
+				owner.ownerGeneration ==
+				com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
+					.canonicalOwnerGeneration(binding.bindingGeneration)
 		}
 		SourceKind.CELL -> {
-			if (binding != ExecutableSourceLaneCatalog.CELL_SESSION_FACTS) return false
+			if (!binding.hasSameWriterSemanticsAs(ExecutableSourceLaneCatalog.CELL_SESSION_FACTS)) {
+				return false
+			}
 			val owner = sourceDestinationOwnerDao().get(
 				SourceDestinationOwnerEntity.SOURCE_CELL,
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
 			) ?: return false
 			owner.owner == SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS &&
-				owner.ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+				owner.ownerGeneration ==
+				com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
+					.canonicalOwnerGeneration(binding.bindingGeneration)
 		}
 		SourceKind.WIFI -> {
-			if (binding != ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS) return false
+			if (!binding.hasSameWriterSemanticsAs(ExecutableSourceLaneCatalog.WIFI_SESSION_FACTS)) {
+				return false
+			}
 			val owner = sourceDestinationOwnerDao().get(
 				SourceDestinationOwnerEntity.SOURCE_WIFI,
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI,
 			) ?: return false
 			owner.owner == SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS &&
-				owner.ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+				owner.ownerGeneration ==
+				com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
+					.canonicalOwnerGeneration(binding.bindingGeneration)
 		}
 		else -> true
 	}
 }
+
+private fun ExecutableSourceLaneBinding.hasSameWriterSemanticsAs(
+	base: ExecutableSourceLaneBinding,
+): Boolean = source == base.source &&
+	projectionId == base.projectionId &&
+	projectionVersion == base.projectionVersion &&
+	captureModes == base.captureModes
 
 /**
  * Transaction-local defense for durable capture admission. An executable lane alone is not

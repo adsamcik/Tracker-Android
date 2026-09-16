@@ -1,7 +1,10 @@
 package com.adsamcik.tracker.tracker.source.location
 
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.data.LocationAcquisitionMode
 import com.adsamcik.tracker.shared.base.data.LocationPermissionPrecision
+import com.adsamcik.tracker.shared.base.data.LocationRequestPriority
+import com.adsamcik.tracker.shared.model.AltitudeContractVersions
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -15,7 +18,9 @@ import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrN
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
+import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -28,6 +33,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.model.sourceQualityFromStableFlags
+import com.adsamcik.tracker.stats.api.PolicyTier
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.time.ZoneId
@@ -69,9 +75,56 @@ internal enum class LocationWalAdapterRejection {
 internal sealed interface LocationWalAdapterResult {
 	data class Evaluated(
 		val qualification: LocationObservationQualification,
+		val acquisitionMetadata: LocationWalAcquisitionMetadata =
+			LocationWalAcquisitionMetadata.UNKNOWN,
 	) : LocationWalAdapterResult
 
 	data class Rejected(val reason: LocationWalAdapterRejection) : LocationWalAdapterResult
+}
+
+internal data class LocationWalAcquisitionMetadata(
+	val acquisitionMode: LocationAcquisitionMode,
+	val requestPriority: LocationRequestPriority,
+	val requiredAccuracyMeters: Float,
+	val policyTier: PolicyTier,
+	val policyName: String,
+	val curationVersion: Int,
+	val altitudeModelVersion: Int,
+	val altitudeEstimatorVersion: Int,
+	val altitudeCalibrationVersion: Int,
+) {
+	val isQualified: Boolean
+		get() = acquisitionMode != LocationAcquisitionMode.UNKNOWN &&
+			requestPriority != LocationRequestPriority.UNKNOWN &&
+			requiredAccuracyMeters.isFinite() &&
+			requiredAccuracyMeters >= 0f &&
+			policyTier != PolicyTier.OFF &&
+			policyName.isNotBlank() &&
+			policyName != "UNKNOWN" &&
+			curationVersion > 0 &&
+			altitudeModelVersion >= 0 &&
+			altitudeEstimatorVersion >= 0 &&
+			altitudeCalibrationVersion >= 0
+
+	companion object {
+		val UNKNOWN = LocationWalAcquisitionMetadata(
+			LocationAcquisitionMode.UNKNOWN,
+			LocationRequestPriority.UNKNOWN,
+			Float.NaN,
+			PolicyTier.OFF,
+			"UNKNOWN",
+			0,
+			0,
+			0,
+			0,
+		)
+	}
+}
+
+internal const val PROTECTED_LOCATION_CANONICAL_CURATION_VERSION = 1
+
+internal fun interface ProtectedLocationWalQualifier {
+	suspend fun qualify(eventId: SourceEventId): LocationWalAdapterResult
 }
 
 /**
@@ -87,9 +140,10 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 	private val database: AppDatabase,
 	private val payloadCodec: SourcePayloadCodec,
 	private val planCodec: SourcePlanCodec,
-) {
+) : ProtectedLocationWalQualifier {
 	@Suppress("LongMethod", "CyclomaticComplexMethod", "ReturnCount")
-	suspend fun qualify(eventId: SourceEventId): LocationWalAdapterResult = database.withTransaction {
+	override suspend fun qualify(eventId: SourceEventId): LocationWalAdapterResult =
+		database.withTransaction {
 		val walDao = database.sourceEventWalDao()
 		val selectedPreflight = walDao.payloadPreflightByEventId(eventId.value)
 			?: return@withTransaction rejected(LocationWalAdapterRejection.MISSING_EVENT)
@@ -313,7 +367,8 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		if (policyAuthority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE ||
 			policyAuthority.currentPolicyRevision < policyRevision || !policy.enabled ||
 			!policy.capturePersistenceEligible || policy.captureConsentEpoch != consentEpoch ||
-			maximumAccuracy == null || maximumAccuracy <= 0 || policy.effectiveBootId != wal.clockDomainId ||
+			maximumAccuracy == null || maximumAccuracy <= 0 || policy.qosCode !in 1..3 ||
+			policy.effectiveBootId != wal.clockDomainId ||
 			policy.effectiveElapsedRealtimeNanos > wal.observedElapsedNanos
 		) {
 			return@withTransaction rejected(LocationWalAdapterRejection.POLICY_MISMATCH)
@@ -467,9 +522,13 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 			)
 		}.getOrNull() ?: return@withTransaction rejected(LocationWalAdapterRejection.MANIFEST_MISMATCH)
 		val wallTime = wal.wallTimeMs
+		val receivedWallTime = wal.receivedWallTimeMs
 		val wallUncertainty = wal.wallTimeUncertaintyMs
 		val knownQualityMask = SourceQualityFlag.entries.fold(0L) { mask, flag -> mask or flag.bit }
-		if (wallTime == null || wallUncertainty == null || wallUncertainty < 0L ||
+		if (wallTime == null ||
+			(wal.payloadVersion >= LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION &&
+				(receivedWallTime == null || receivedWallTime < 0L)) ||
+			wallUncertainty == null || wallUncertainty < 0L ||
 			wal.qualityFlags and knownQualityMask != wal.qualityFlags ||
 			wal.qualityConfidence?.let { confidence -> !confidence.isFinite() || confidence !in 0f..1f } == true
 		) {
@@ -492,6 +551,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 		val evidence = LocationDurableObservationEvidence(
 			sourceEventId = SourceEventId(wal.eventId),
 			sourceAdmissionOrdinal = wal.admissionOrdinal,
+			sourceSequence = wal.sourceSequence,
 			walIntegrityIdentity = wal.integrityIdentity,
 			sourceDeliveryIdentity = deliveryIdentity,
 			deliveryUnitIndex = deliveryUnitIndex,
@@ -502,6 +562,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 				observedElapsedRealtimeNanos = wal.observedElapsedNanos,
 				receivedElapsedRealtimeNanos = wal.receivedElapsedNanos,
 				observedWallTimeMs = wallTime,
+				receivedWallTimeMs = receivedWallTime,
 				wallTimeUncertaintyMs = wallUncertainty,
 			),
 			payloadVersion = wal.payloadVersion,
@@ -510,7 +571,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 			isMock = requireNotNull(selectedPayload.isMock),
 		)
 		return@withTransaction LocationWalAdapterResult.Evaluated(
-			LocationQualifiedObservationQualifier.qualify(
+			qualification = LocationQualifiedObservationQualifier.qualify(
 				input = LocationObservationInput(
 					origin = LocationObservationOrigin.PROVIDER_CALLBACK,
 					outcome = LocationProviderOutcome.FIX,
@@ -522,6 +583,17 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 					currentCollectedDataEpoch = evidenceState.collectedDataEpoch,
 					retainedFromWallTimeMs = evidenceState.retainedFromMs,
 				),
+			),
+			acquisitionMetadata = LocationWalAcquisitionMetadata(
+				acquisitionMode = plan.canonicalAcquisitionMode(),
+				requestPriority = plan.canonicalRequestPriority(),
+				requiredAccuracyMeters = maximumAccuracy.toFloat(),
+				policyTier = policy.qosCode.toLocationPolicyTier(),
+				policyName = policy.qosCode.toLocationPolicyName(),
+				curationVersion = PROTECTED_LOCATION_CANONICAL_CURATION_VERSION,
+				altitudeModelVersion = AltitudeContractVersions.MODEL_VERSION,
+				altitudeEstimatorVersion = AltitudeContractVersions.ESTIMATOR_VERSION,
+				altitudeCalibrationVersion = AltitudeContractVersions.CALIBRATION_VERSION,
 			),
 		)
 	}
@@ -563,6 +635,9 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 				row.clockDomainId != target.clockDomainId || row.activityAutomationEpoch != null ||
 				row.observedIntervalStartNanos != row.observedElapsedNanos ||
 				row.receivedElapsedNanos < row.observedElapsedNanos ||
+				(row.payloadVersion >= LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION &&
+					row.receivedWallTimeMs == null) ||
+				row.receivedWallTimeMs != target.receivedWallTimeMs ||
 				row.wallTimeMs == null || row.wallTimeUncertaintyMs == null ||
 				row.wallTimeUncertaintyMs !in 0L..1L ||
 				row.sourceSequence != runCatching { Math.addExact(firstSequence, index.toLong()) }.getOrNull()
@@ -603,6 +678,7 @@ internal class LocationWalQualificationAdapter @Inject constructor(
 			observedElapsedNanos == other.observedElapsedNanos &&
 			observedIntervalStartNanos == other.observedIntervalStartNanos &&
 			receivedElapsedNanos == other.receivedElapsedNanos &&
+			receivedWallTimeMs == other.receivedWallTimeMs &&
 			wallTimeMs == other.wallTimeMs &&
 			wallTimeUncertaintyMs == other.wallTimeUncertaintyMs &&
 			capturedCollectedDataEpoch == other.capturedCollectedDataEpoch &&
@@ -719,5 +795,41 @@ private fun LocationPlan.hasSupportedHistoricalShape(): Boolean =
 		minimumUpdateIntervalMs <= requestedIntervalMs &&
 		minimumDisplacementMeters.isFinite() && minimumDisplacementMeters >= 0f &&
 		maximumBatchDelayMs >= 0L && (probeDurationMs == null || probeDurationMs > 0L)
+
+private fun LocationPlan.canonicalAcquisitionMode(): LocationAcquisitionMode = when (backend) {
+	LocationBackend.FUSED -> LocationAcquisitionMode.FUSED
+	LocationBackend.FRAMEWORK -> if (mode == LocationMode.PASSIVE) {
+		LocationAcquisitionMode.PLATFORM_PASSIVE
+	} else {
+		LocationAcquisitionMode.PLATFORM_GPS
+	}
+}
+
+private fun LocationPlan.canonicalRequestPriority(): LocationRequestPriority = when (mode) {
+	LocationMode.DISABLED -> LocationRequestPriority.UNKNOWN
+	LocationMode.PASSIVE -> LocationRequestPriority.PASSIVE
+	LocationMode.LOW_POWER -> LocationRequestPriority.LOW_POWER
+	LocationMode.BALANCED -> LocationRequestPriority.BALANCED
+	LocationMode.HIGH_ACCURACY,
+	LocationMode.PROBE,
+	-> if (preciseLocationAvailable) {
+		LocationRequestPriority.HIGH_ACCURACY
+	} else {
+		LocationRequestPriority.BALANCED
+	}
+}
+
+private fun Int.toLocationPolicyTier(): PolicyTier = when (this) {
+	1, 2 -> PolicyTier.ACTIVE
+	3 -> PolicyTier.PRECISION
+	else -> error("Unsupported captured Location QoS $this")
+}
+
+private fun Int.toLocationPolicyName(): String = when (this) {
+	1 -> "SOURCE_QOS_BATTERY_SAVER"
+	2 -> "SOURCE_QOS_BALANCED"
+	3 -> "SOURCE_QOS_RESPONSIVE"
+	else -> error("Unsupported captured Location QoS $this")
+}
 
 private fun rejected(reason: LocationWalAdapterRejection) = LocationWalAdapterResult.Rejected(reason)

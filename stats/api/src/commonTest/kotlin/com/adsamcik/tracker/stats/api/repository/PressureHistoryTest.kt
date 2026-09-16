@@ -3,8 +3,10 @@ package com.adsamcik.tracker.stats.api.repository
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class PressureHistoryTest {
 	@Test
@@ -144,7 +146,100 @@ class PressureHistoryTest {
 				pressure = pressure,
 			)
 		}
+		assertFailsWith<IllegalArgumentException> {
+			PressureSessionHistory(
+				segmentId = 7L,
+				capture = HistoryCapture.Exact(
+					listOf(
+						HistoryCaptureRevision(
+							revision = 1L,
+							effectiveAt = EpochMs(100L),
+							capturedSources = setOf(HistorySource.STEPS),
+							controlSources = emptySet(),
+						),
+					),
+				),
+				qualifiedSources = emptySet(),
+				pressure = pressure,
+			)
+		}
 	}
+
+	@Test
+	fun `failed retained Pressure stays diagnostic but cannot qualify`() {
+		val failed = PressureHistory(
+			availability = HistoryAvailability.AVAILABLE,
+			evidence = HistoryEvidence.RECORDED,
+			productState = HistoryProductState.FAILED,
+			coverage = PressureHistoryCoverage.PARTIAL,
+			windows = listOf(pressureWindow()),
+			causes = setOf(PressureHistoryCause.TERMINAL_PROJECTION_FAILURE),
+		)
+
+		val history = PressureSessionHistory(
+			segmentId = 7L,
+			capture = exactPressureCapture(),
+			qualifiedSources = emptySet(),
+			pressure = failed,
+		)
+
+		assertTrue(failed.hasRetainedObservation)
+		assertFalse(failed.hasQualifiedRetainedProof)
+		assertEquals(PressureHistoryPresentationState.FAILED, history.pressure.presentationState)
+		assertEquals(1, history.pressure.summary?.windowCount)
+		assertFailsWith<IllegalArgumentException> {
+			history.copy(qualifiedSources = setOf(HistorySource.PRESSURE))
+		}
+	}
+
+	@Test
+	fun `ready and partial authenticated Pressure windows qualify`() {
+		val ready = PressureHistory(
+			availability = HistoryAvailability.AVAILABLE,
+			evidence = HistoryEvidence.RECORDED,
+			productState = HistoryProductState.READY,
+			coverage = PressureHistoryCoverage.COMPLETE,
+			windows = listOf(pressureWindow()),
+		)
+		val partial = ready.copy(
+			productState = HistoryProductState.PARTIAL,
+			coverage = PressureHistoryCoverage.PARTIAL,
+			windows = listOf(pressureWindow().copy(
+				sampleCount = 3,
+				qualification = PressureWindowQualification.PARTIAL,
+			)),
+			causes = setOf(PressureHistoryCause.PARTIAL_FACT),
+		)
+
+		listOf(ready, partial).forEach { pressure ->
+			assertTrue(pressure.hasQualifiedRetainedProof)
+			PressureSessionHistory(
+				segmentId = 7L,
+				capture = exactPressureCapture(),
+				qualifiedSources = setOf(HistorySource.PRESSURE),
+				pressure = pressure,
+			)
+			assertFailsWith<IllegalArgumentException> {
+				PressureSessionHistory(
+					segmentId = 7L,
+					capture = exactPressureCapture(),
+					qualifiedSources = emptySet(),
+					pressure = pressure,
+				)
+			}
+		}
+	}
+
+	private fun exactPressureCapture() = HistoryCapture.Exact(
+		listOf(
+			HistoryCaptureRevision(
+				revision = 1L,
+				effectiveAt = EpochMs(100L),
+				capturedSources = setOf(HistorySource.PRESSURE),
+				controlSources = emptySet(),
+			),
+		),
+	)
 
 	@Suppress("LongMethod")
 	private fun pressureWindow() = PressureHistoryWindow(

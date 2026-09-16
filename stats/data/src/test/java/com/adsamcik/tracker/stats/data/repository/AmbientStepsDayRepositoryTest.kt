@@ -11,13 +11,21 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEn
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRead
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRead
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRecentRequest
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryRangeRequest
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryValue
+import com.adsamcik.tracker.stats.api.repository.AmbientStepsStructuralDay
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
@@ -116,13 +124,80 @@ class AmbientStepsDayRepositoryTest {
 	}
 
 	@Test
+	fun `public native history remains exact after current ambient collection is disabled`() = runTest {
+		val fingerprint = seedPublicAuthority()
+		database.ambientStepsFactRevisionDao().insert(
+			fact(10L, authorizationFingerprint = fingerprint),
+		)
+		val disabled = policy(revision = 2L).copy(
+			enabled = false,
+			ambientPersistenceEligible = false,
+			ambientConsentEpoch = null,
+		)
+		database.sourcePolicyDao().insertPolicies(listOf(disabled))
+		database.sourcePolicyDao().compareAndSetAuthority(
+			expectedBootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			expectedRevision = 1L,
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			newRevision = 2L,
+			legacySettingsFingerprint = null,
+			updatedAtMs = 2L,
+		) shouldBe 1
+
+		val read = historyRepository().readRange(
+			AmbientStepsHistoryRangeRequest(listOf(AmbientStepsStructuralDay(0L, "UTC"))),
+		) as AmbientStepsHistoryRead.Snapshot
+
+		read.days.single().total shouldBe AmbientStepsHistoryValue.Exact(10L)
+		read.days.single().factOrigins.single().correctionRevision shouldBe 1L
+	}
+
+	@Test
+	fun `public recent history uses stable structural keyset with opaque day identity`() = runTest {
+		val fingerprint = seedPublicAuthority(
+			cursor().copy(
+				importedThroughTimeMs = 2L * DAY_END,
+				lastObservedAtMs = 2L * DAY_END,
+				updatedAtMs = 2L * DAY_END,
+			),
+		)
+		database.ambientStepsFactRevisionDao().insert(
+			fact(10L, authorizationFingerprint = fingerprint),
+		)
+		database.ambientStepsFactRevisionDao().insert(
+			fact(
+				20L,
+				DAY_END,
+				2L * DAY_END,
+				epochDay = 1L,
+				authorizationFingerprint = fingerprint,
+			),
+		)
+		val first = historyRepository().readRecent(AmbientStepsHistoryRecentRequest(1)) as
+			AmbientStepsHistoryRecentRead.Page
+		first.days.single().day.epochDay shouldBe 1L
+		requireNotNull(first.next).publicDayIdentity.startsWith("sha256:") shouldBe true
+
+		val second = historyRepository().readRecent(
+			AmbientStepsHistoryRecentRequest(1, requireNotNull(first.next)),
+		) as AmbientStepsHistoryRecentRead.Page
+		second.days.single().day.epochDay shouldBe 0L
+	}
+
+	@Test
 	fun `enabled cursor without a structural fact is materializing not covered zero`() = runTest {
-		seedAuthority()
+		seedPublicAuthority()
 
 		val page = readSnapshot().page
 		page.days shouldBe emptyList()
 		page.availability shouldBe AmbientStepsProductAvailability.AVAILABLE
 		page.materialization shouldBe AmbientStepsProductMaterialization.MATERIALIZING
+		val public = historyRepository().readRange(
+			AmbientStepsHistoryRangeRequest(listOf(AmbientStepsStructuralDay(0L, "UTC"))),
+		) as AmbientStepsHistoryRead.Snapshot
+		public.days.single().total shouldBe AmbientStepsHistoryValue.Unavailable(
+			setOf(com.adsamcik.tracker.stats.api.repository.AmbientStepsHistoryCause.MATERIALIZING),
+		)
 	}
 
 	@Test
@@ -414,6 +489,7 @@ class AmbientStepsDayRepositoryTest {
 		initialAuthorizationBootId: String = "boot-a",
 		initialAuthorizationEffectiveElapsedRealtimeNanos: Long =
 			initialAuthorizationEffectiveTimeMs * 1_000_000L,
+		initialAuthorizationFingerprint: String = "a".repeat(64),
 	) {
 		database.sourceEvidenceStateDao().ensure(evidenceState)
 		database.sourceDestinationOwnerDao().insertIfAbsent(
@@ -440,7 +516,7 @@ class AmbientStepsDayRepositoryTest {
 				add(
 					authorization(
 						1L,
-						"a".repeat(64),
+						initialAuthorizationFingerprint,
 						initialAuthorizationEffectiveTimeMs,
 						initialAuthorizationBootId,
 						initialAuthorizationEffectiveElapsedRealtimeNanos,
@@ -460,11 +536,55 @@ class AmbientStepsDayRepositoryTest {
 		database.ambientStepsImportStateDao().insertCursor(stateCursor)
 	}
 
+	private suspend fun seedPublicAuthority(
+		stateCursor: AmbientStepsImportCursorEntity = cursor(),
+	): String {
+		val demand = SourceDemandEntity(
+			demandId = "ambient-1",
+			consumerId = "ambient-importer",
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			manifestRevision = null,
+			lifecycleLeaseGeneration = null,
+			sourcePolicyRevision = 1L,
+			consentEpoch = 1L,
+			persistenceEligible = true,
+			qosCode = 1,
+			minimumAcquisitionSpec = "ambient-steps:v1:mechanism=$PROVIDER;" +
+				"coverage=OPPORTUNISTIC;record_freshness=SOURCE_NATIVE_CURSOR",
+			maximumAgeMs = 0L,
+			desiredLatencyMs = 0L,
+			requestedBootId = "boot-a",
+			requestedElapsedRealtimeNanos = 0L,
+			requestedAtMs = 0L,
+			status = SourceDemandEntity.STATUS_ACTIVE,
+			retireBootId = null,
+			retireElapsedRealtimeNanos = null,
+			retiredAtMs = null,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(demand))
+		val fingerprint = SourceBrokerAuthorization.fingerprint(listOf(demand))
+		seedAuthority(
+			stateCursor = stateCursor.copy(authorizationFingerprint = fingerprint),
+			initialAuthorizationFingerprint = fingerprint,
+		)
+		return fingerprint
+	}
+
 	private suspend fun readSnapshot(): AmbientStepsDayPageResult.Snapshot = requireSnapshot(
 		repository.readPage(
 			AmbientStepsDayPageRequest(1),
 			AmbientStepsRuntimeAvailability.AVAILABLE,
 		),
+	)
+
+	private fun historyRepository() = DefaultAmbientStepsHistoryRepository(
+		database,
+		database.importedAmbientStepsDao(),
+		StepsSegmentHistorySelector(database, SourceProductLaneExecutionAuthority { true }),
+		Dispatchers.Unconfined,
 	)
 
 	private fun requireSnapshot(result: AmbientStepsDayPageResult): AmbientStepsDayPageResult.Snapshot {

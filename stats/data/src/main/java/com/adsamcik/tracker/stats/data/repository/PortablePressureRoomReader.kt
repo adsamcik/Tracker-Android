@@ -57,6 +57,35 @@ internal class PortablePressureRoomReader @Inject constructor(
 	private suspend fun readInTransaction(
 		request: ExportPortablePressureRequest,
 	): PortablePressureSnapshot {
+		val imported = when (
+			val selection = importedEvaluator.selectForExportInTransaction(request)
+		) {
+			is ImportedPressureHistorySelection.Available -> selection.evaluations
+			is ImportedPressureHistorySelection.Unverifiable -> abort(
+				when (selection.reason) {
+					ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW ->
+						PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW
+					else -> PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE
+				},
+			)
+		}
+		val importedEntries = imported.mapNotNull { evaluation ->
+			when (evaluation) {
+				is ImportedPressureHistoryEvaluation.Readable -> if (evaluation.isReExportable) {
+					evaluation.latest.entry
+				} else {
+					null
+				}
+				is ImportedPressureHistoryEvaluation.Retained -> null
+				is ImportedPressureHistoryEvaluation.Unverifiable -> abort(
+					when (evaluation.reason) {
+						ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW ->
+							PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW
+						else -> PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE
+					},
+				)
+			}
+		}
 		val entries = mutableListOf<PortablePressureEntryV1>()
 		val exportedLogicalIds = hashSetOf<String>()
 		var beforeRecencyStartMs: Long? = null
@@ -119,23 +148,6 @@ internal class PortablePressureRoomReader @Inject constructor(
 			if (page.size < pageLimit) break
 		}
 
-		val imported = importedEvaluator.selectForExportInTransaction(request)
-		val importedEntries = imported.mapNotNull { evaluation ->
-			when (evaluation) {
-				is ImportedPressureHistoryEvaluation.Readable -> if (evaluation.isReExportable) {
-					evaluation.latest.entry
-				} else {
-					null
-				}
-				is ImportedPressureHistoryEvaluation.Unverifiable -> abort(
-					when (evaluation.reason) {
-						ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW ->
-							PortablePressureExportUnverifiableReason.DEPENDENCY_OVERFLOW
-						else -> PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE
-					},
-				)
-			}
-		}
 		val localByIdentity = entries.associateBy { it.identity }
 		importedEntries.forEach { importedEntry ->
 			val local = localByIdentity[importedEntry.identity]

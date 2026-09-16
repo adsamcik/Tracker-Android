@@ -6,6 +6,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener2
 import android.hardware.SensorManager
 import android.os.SystemClock
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
@@ -47,6 +48,22 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+
+internal sealed interface PressureProviderEraseSettlement {
+	data object NoLocalProvider : PressureProviderEraseSettlement
+	data class Settled(val registrationGeneration: Long) : PressureProviderEraseSettlement
+	data object CaptureAuthorizationActive : PressureProviderEraseSettlement
+	data object StaleLifecycle : PressureProviderEraseSettlement
+	data object CallbackDrainTimedOut : PressureProviderEraseSettlement
+	data object ProviderRemovalFailed : PressureProviderEraseSettlement
+}
+
+internal sealed interface PressureProviderEraseVerification {
+	data object Verified : PressureProviderEraseVerification
+	data object CaptureAuthorizationActive : PressureProviderEraseVerification
+	data object StaleLifecycle : PressureProviderEraseVerification
+	data object ProviderRemovalFailed : PressureProviderEraseVerification
+}
 
 @Singleton
 class PressureSourceRuntime @Inject constructor(
@@ -249,6 +266,101 @@ class PressureSourceRuntime @Inject constructor(
 				runtimeClaim = null
 			}
 		}
+	}
+
+	/**
+	 * Settles only an already-authorized local Pressure provider before source-wide payload erase.
+	 *
+	 * Revoking consent does not itself retire callbacks. A still-active capture authorization blocks
+	 * this method unless an earlier stop already closed callback entry at an observed cutoff and left
+	 * the exact provider retirement pending. No provider is started or replaced here.
+	 */
+	internal suspend fun establishSourceEraseBarrier(
+		expectedCollectedDataEpoch: Long,
+	): PressureProviderEraseSettlement {
+		require(expectedCollectedDataEpoch >= 0L)
+		fenceCapacityResume()
+		return lifecycleMutex.withLock {
+			val activeRegistration = registration ?: return@withLock
+				PressureProviderEraseSettlement.NoLocalProvider
+			if (activeRegistration.state.collectedDataEpoch != expectedCollectedDataEpoch) {
+				return@withLock PressureProviderEraseSettlement.StaleLifecycle
+			}
+			val exactStoppingRetirement = hasExactObservedStoppingRetirement(activeRegistration)
+			if (!exactStoppingRetirement &&
+				activeRegistration.authorization.authorizedMembers.any { member ->
+					member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+				}
+			) {
+				return@withLock PressureProviderEraseSettlement.CaptureAuthorizationActive
+			}
+
+			val acknowledgement = shutdownLocked(null)
+			if (acknowledgement.source != SourceKind.PRESSURE ||
+				acknowledgement.sourceInstanceId.value != activeRegistration.state.sourceInstanceId ||
+				acknowledgement.registrationGeneration !=
+				activeRegistration.state.registrationGeneration
+			) {
+				return@withLock PressureProviderEraseSettlement.StaleLifecycle
+			}
+			if (!acknowledgement.appDrainComplete) {
+				return@withLock PressureProviderEraseSettlement.CallbackDrainTimedOut
+			}
+			if (acknowledgement.registrationRemovalOutcome != RegistrationRemovalOutcome.REMOVED) {
+				return@withLock PressureProviderEraseSettlement.ProviderRemovalFailed
+			}
+			clearClaimIfReleased(acknowledgement)
+			PressureProviderEraseSettlement.Settled(
+				activeRegistration.state.registrationGeneration,
+			)
+		}
+	}
+
+	internal suspend fun verifySourceEraseProviderSettled(
+		expectedCollectedDataEpoch: Long,
+		expectedRegistrationGeneration: Long?,
+	): PressureProviderEraseVerification = lifecycleMutex.withLock {
+		require(expectedCollectedDataEpoch >= 0L)
+		require(expectedRegistrationGeneration == null || expectedRegistrationGeneration > 0L)
+		val active = registration
+		if (expectedRegistrationGeneration != null && active != null &&
+			(active.state.collectedDataEpoch != expectedCollectedDataEpoch ||
+				active.state.registrationGeneration != expectedRegistrationGeneration)
+		) return@withLock PressureProviderEraseVerification.StaleLifecycle
+		if (active?.authorization?.authorizedMembers?.any { member ->
+				member.persistenceEligible && member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+			} == true
+		) return@withLock PressureProviderEraseVerification.CaptureAuthorizationActive
+		if (active != null || retirementIntent != null) {
+			return@withLock PressureProviderEraseVerification.ProviderRemovalFailed
+		}
+		if (registrations.verifySourceEraseProviderSettled(
+				source,
+				expectedCollectedDataEpoch,
+				expectedRegistrationGeneration,
+			)
+		) {
+			PressureProviderEraseVerification.Verified
+		} else {
+			PressureProviderEraseVerification.StaleLifecycle
+		}
+	}
+
+	private fun hasExactObservedStoppingRetirement(
+		activeRegistration: SourceRegistration,
+	): Boolean = synchronized(callbackLock) {
+		val intent = retirementIntent ?: return@synchronized false
+		val authorizationEffectiveAt =
+			activeRegistration.authorization.effectiveElapsedRealtimeNanos
+		val requestedCutoff = cutoffElapsedNanos
+		terminalSettlementInProgress &&
+			!acceptingCallbacks &&
+			intent.registration.samePressureRegistrationAs(activeRegistration) &&
+			intent.listener === listener &&
+			intent.callbackToken === callbackToken &&
+			!callbackGate.accepts(intent.callbackToken) &&
+			intent.retiredElapsedRealtimeNanos >= authorizationEffectiveAt &&
+			(requestedCutoff == null || intent.retiredElapsedRealtimeNanos >= requestedCutoff)
 	}
 
 	private fun clearClaimIfReleased(acknowledgement: SourceStopAck) {

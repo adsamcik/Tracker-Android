@@ -122,7 +122,7 @@ data class PressureFactRevisionEntity(
 		require(sourceAdmissionOrdinal > 0L)
 		require(writerProjectionId == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID)
 		require(writerProjectionVersion == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION)
-		require(writerBindingGeneration == SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION)
+		require(writerBindingGeneration > 0L)
 		require(payloadVersion == QUALIFIED_PRESSURE_PAYLOAD_VERSION)
 		require(clockDomainId.isNotBlank())
 		require(wallTimeUncertaintyMs >= 0L)

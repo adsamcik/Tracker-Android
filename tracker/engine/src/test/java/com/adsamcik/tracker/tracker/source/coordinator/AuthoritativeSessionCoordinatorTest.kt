@@ -37,12 +37,17 @@ import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import com.adsamcik.tracker.tracker.source.ingress.RoomDurableSourceIngress
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
+import com.adsamcik.tracker.tracker.source.model.ActivityMode
+import com.adsamcik.tracker.tracker.source.model.ActivityPlan
 import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
+import com.adsamcik.tracker.tracker.source.model.CellMode
+import com.adsamcik.tracker.tracker.source.model.CellPlan
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
+import com.adsamcik.tracker.tracker.source.model.RetryBackoff
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
@@ -53,6 +58,8 @@ import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import com.adsamcik.tracker.tracker.source.model.StepsPlan
+import com.adsamcik.tracker.tracker.source.model.WifiMode
+import com.adsamcik.tracker.tracker.source.model.WifiPlan
 import com.adsamcik.tracker.tracker.source.projection.ProjectionDispatcher
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
@@ -90,6 +97,7 @@ import io.mockk.every
 import io.mockk.mockk
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.CompletableDeferred
@@ -114,6 +122,7 @@ class AuthoritativeSessionCoordinatorTest {
 	private lateinit var policy: RoomSourcePolicyRepository
 	private lateinit var activityAutomationDrainSignal: RecordingActivityAutomationDrainSignal
 	private lateinit var activityAutomationEpochAuthority: ActivityAutomationEpochAuthority
+	private lateinit var sourceProductDrainRouter: RecordingSourceProductDrainRouter
 	private lateinit var leaseClock: FixedClock
 	private lateinit var rolloutSnapshot: TrackingRolloutState
 	private var currentBootId = "boot-1"
@@ -171,6 +180,7 @@ class AuthoritativeSessionCoordinatorTest {
 			leaseClock,
 			BootClockDomainProvider { currentBootId },
 		)
+		sourceProductDrainRouter = RecordingSourceProductDrainRouter()
 		subject = AuthoritativeSessionCoordinator(
 			database,
 			RoomSourcePlanStore(database, SourcePlanCodec()),
@@ -183,6 +193,7 @@ class AuthoritativeSessionCoordinatorTest {
 			BootClockDomainProvider { currentBootId },
 			leaseClock,
 			rolloutStore = fixedEventRolloutStore(),
+			sourceProductDrainRouter = sourceProductDrainRouter,
 		)
 	}
 
@@ -227,10 +238,364 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceSessionDao().completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
 			.single { completeness -> completeness.sourceKind == SourceKind.STEPS.stableCode }
 			.appDrainComplete shouldBe true
+		database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single().let { receipt ->
+			receipt.sourceInstanceId shouldBe "steps-instance"
+			receipt.registrationGeneration shouldBe 1L
+			receipt.state shouldBe
+				com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity.STATE_ACKNOWLEDGED
+			receipt.stopStatus shouldBe SourceStopStatus.COMPLETE.name
+		}
 		database.sourceBrokerDao().currentDemands("session:${started.logicalTrackingId}") shouldBe emptyList()
 		database.sourceBrokerDao().demandHistory("session:${started.logicalTrackingId}")
 			.single().status shouldBe SourceDemandEntity.STATUS_RETIRED
 		runtime.closed shouldBe true
+		sourceProductDrainRouter.requests shouldBe emptyList()
+	}
+
+	@Test
+	fun `candidate source settlement observes frozen STOPPING state before finalization`() = runTest {
+		val binding = installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		val drainOrder = mutableListOf<String>()
+		val controlCoordinator = mockk<TrackingCoordinator>()
+		coEvery { controlCoordinator.drainAvailable(any(), any()) } coAnswers {
+			drainOrder += "control"
+			CoordinatorDrainResult.Complete(0L, 0)
+		}
+		replaceEventCoordinator(controlCoordinator)
+		sourceProductDrainRouter.onDrain = { request ->
+			drainOrder += "source:${request.source.name}"
+			database.sourceSessionDao().session(request.logicalTrackingId)?.let { session ->
+				session.state shouldBe SessionLifecycleState.STOPPING.name
+				session.currentServiceRunId shouldBe request.serviceRunId
+				session.cutoffElapsedNanos shouldBe request.cutoffElapsedRealtimeNanos
+				session.finalAdmissionOrdinal shouldBe request.settlementHighWaterAdmissionOrdinal
+			}
+			SourceProductDrainResult.Complete(
+				request,
+				request.sourceHighWaterAdmissionOrdinal,
+				factsInserted = 0,
+				eventsValidated = 0,
+			)
+		}
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "source-drain-order",
+				serviceRunId = "source-drain-order-run",
+				rolloutRevision = rolloutSnapshot.revision,
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+
+		subject.stop(
+			SessionStopRequest(
+				"source-drain-order-owner",
+				"USER_STOP",
+				2_000L,
+				2_000_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+		sourceProductDrainRouter.requests.single().let { request ->
+			request.source shouldBe SourceKind.STEPS
+			request.logicalTrackingId shouldBe started.logicalTrackingId
+			request.serviceRunId shouldBe started.serviceRunId
+			(request.target as SourceProductDrainTarget.SourceLocalWriter).let { target ->
+				target.projectionId shouldBe binding.projectionId
+				target.projectionVersion shouldBe binding.projectionVersion
+				target.bindingGeneration shouldBe binding.bindingGeneration
+			}
+		}
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.FINALIZED.name
+		drainOrder shouldBe listOf("control", "source:STEPS")
+	}
+
+	@Test
+	fun `recorded source poison defers finalization without suppressing settlement evidence`() = runTest {
+		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		sourceProductDrainRouter.onDrain = { request ->
+			SourceProductDrainResult.Failed(
+				request,
+				lastMaterializedAdmissionOrdinal = 0L,
+				failedAdmissionOrdinal = request.sourceHighWaterAdmissionOrdinal.takeIf { it > 0L },
+				failureCode = "TEST_TERMINAL_SOURCE_POISON",
+				terminalFailureRecorded = true,
+			)
+		}
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "source-poison",
+				serviceRunId = "source-poison-run",
+				rolloutRevision = rolloutSnapshot.revision,
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+
+		val pending = subject.stop(
+			SessionStopRequest("source-poison-owner", "USER_STOP", 2_000L, 2_000_000L, "boot-1"),
+		).shouldBeInstanceOf<SessionStopResult.DrainPending>()
+
+		pending.source shouldBe SourceKind.STEPS
+		pending.reason shouldBe "TEST_TERMINAL_SOURCE_POISON"
+		pending.sourceResults.single().shouldBeInstanceOf<SourceProductDrainResult.Failed>()
+			.terminalFailureRecorded shouldBe true
+		database.sourceSessionDao().session(started.logicalTrackingId)?.let { session ->
+			session.state shouldBe SessionLifecycleState.STOPPING.name
+			session.finalAdmissionOrdinal shouldBe pending.requiredOrdinal
+		}
+	}
+
+	@Test
+	fun `one poisoned source does not suppress an independent captured source drain`() = runTest {
+		val stepsBinding = installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		rolloutSnapshot = TrackingRolloutState.eventCanonical(
+			sources = setOf(SourceKind.STEPS, SourceKind.LOCATION),
+			revision = 2L,
+			captureModes = mapOf(
+				SourceKind.STEPS to stepsBinding.captureModes,
+				SourceKind.LOCATION to setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
+			),
+		)
+		database.trackingRolloutStateDao().save(rolloutSnapshot.toEntity(updatedAtMs = 2L))
+		sourceProductDrainRouter.onDrain = { request ->
+			if (request.source == SourceKind.STEPS) {
+				SourceProductDrainResult.Failed(
+					request,
+					lastMaterializedAdmissionOrdinal = 0L,
+					failedAdmissionOrdinal = null,
+					failureCode = "TEST_STEPS_POISON",
+					terminalFailureRecorded = true,
+				)
+			} else {
+				SourceProductDrainResult.Complete(
+					request,
+					request.sourceHighWaterAdmissionOrdinal,
+					factsInserted = 0,
+					eventsValidated = 0,
+				)
+			}
+		}
+		val request = startRequest().copy(
+			logicalTrackingId = "partial-source-poison",
+			serviceRunId = "partial-source-poison-run",
+			rolloutRevision = rolloutSnapshot.revision,
+			plan = AcquisitionPlanRevision(
+				revision = 1L,
+				planId = "steps-and-location",
+				createdAtMs = 1_000L,
+				plans = mapOf(
+					SourceKind.STEPS to StepsPlan(1L, true, 60_000L, 15_000L, false),
+					SourceKind.LOCATION to LocationPlan(
+						revision = 1L,
+						backend = LocationBackend.FUSED,
+						mode = LocationMode.BALANCED,
+						requestedIntervalMs = 2_000L,
+						minimumUpdateIntervalMs = 2_000L,
+						minimumDisplacementMeters = 10f,
+						maximumBatchDelayMs = 10_000L,
+						preciseLocationAvailable = true,
+					),
+				),
+				sourcePolicyRevision = 1L,
+			),
+		)
+		subject.start(request).shouldBeInstanceOf<SessionStartResult.Started>()
+
+		subject.stop(
+			SessionStopRequest("partial-source-owner", "USER_STOP", 2_000L, 2_000_000L, "boot-1"),
+		).shouldBeInstanceOf<SessionStopResult.DrainPending>()
+
+		sourceProductDrainRouter.requests.map(SourceProductDrainRequest::source) shouldBe
+			listOf(SourceKind.LOCATION, SourceKind.STEPS)
+	}
+
+	@Test
+	fun `source drain cancellation preserves the frozen run for retry`() = runTest {
+		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		sourceProductDrainRouter.onDrain = { throw CancellationException("test cancellation") }
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "source-drain-cancel",
+				serviceRunId = "source-drain-cancel-run",
+				rolloutRevision = rolloutSnapshot.revision,
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+
+		runCatching {
+			subject.stop(
+				SessionStopRequest("source-drain-cancel-owner", "USER_STOP", 2_000L, 2_000_000L, "boot-1"),
+			)
+		}.exceptionOrNull().shouldBeInstanceOf<CancellationException>()
+
+		database.sourceSessionDao().session(started.logicalTrackingId)?.let { session ->
+			session.state shouldBe SessionLifecycleState.STOPPING.name
+			session.currentServiceRunId shouldBe started.serviceRunId
+			session.finalAdmissionOrdinal shouldBe 0L
+		}
+	}
+
+	@Test
+	fun `process death after physical retirement replays an exact partial receipt without revival`() = runTest {
+		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "retirement-crash-gap",
+				serviceRunId = "retirement-crash-run",
+				rolloutRevision = rolloutSnapshot.revision,
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.cancelAfterPhysicalShutdown = true
+
+		assertFailsWith<CancellationException> {
+			subject.stop(
+				SessionStopRequest(
+					"retirement-crash-owner",
+					"USER_STOP",
+					2_000L,
+					2_000_000L,
+					"boot-1",
+				),
+			)
+		}
+
+		database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single().state shouldBe
+			com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity.STATE_REQUESTED
+		database.sourceBrokerDao().insertRegistration(
+			ProviderRegistrationGenerationEntity(
+				sourceKind = SourceKind.STEPS.stableCode,
+				registrationGeneration = 1L,
+				sourceInstanceId = "steps-instance",
+				ownerScope = "source-broker:${SourceKind.STEPS.stableCode}",
+				clockDomainId = "boot-1",
+				physicalConfigurationFingerprint = "retired-steps",
+				collectedDataEpoch = 0L,
+				providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+				providerProcessIncarnationId = "prior-process",
+				status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+				reservedAtMs = 1_000L,
+				reservedElapsedRealtimeNanos = 1_000_000L,
+				acceptedAtMs = 1_000L,
+				acceptedElapsedRealtimeNanos = 1_000_000L,
+				retiredAtMs = 2_000L,
+				retiredElapsedRealtimeNanos = 2_000_000L,
+				failureCode = "PRIOR_PROCESS_ENDED",
+			),
+		)
+		replaceRuntime(FakeStepsRuntime(database))
+
+		val pending = subject.stop(
+			SessionStopRequest(
+				"retirement-crash-retry",
+				"USER_STOP",
+				2_100L,
+				2_100_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.DrainPending>()
+
+		pending.source shouldBe SourceKind.STEPS
+		pending.reason shouldBe "SOURCE_DRAIN_SETTLEMENT_INCOMPLETE"
+		pending.sourceResults shouldBe emptyList()
+		pending.sourceMemberships.single().let { membership ->
+			membership.sourceInstanceId shouldBe "steps-instance"
+			membership.registrationGeneration shouldBe 1L
+			membership.stopStatus shouldBe SourceStopStatus.PROCESS_RESTARTED.name
+			membership.appDrainComplete shouldBe false
+		}
+		database.sourceSessionDao().session(started.logicalTrackingId)?.let { session ->
+			session.state shouldBe SessionLifecycleState.STOPPING.name
+		}
+		database.sourceSessionDao().runRetirements(
+			started.logicalTrackingId,
+			started.serviceRunId,
+			SourceKind.STEPS.stableCode,
+		).single().state shouldBe
+			com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity.STATE_INTERRUPTED
+	}
+
+	@Test
+	fun `candidate plan reports an exact incomplete membership instead of Ready empty`() = runTest {
+		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "incomplete-candidate-plan",
+				serviceRunId = "incomplete-candidate-run",
+				rolloutRevision = rolloutSnapshot.revision,
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.stopStatus = SourceStopStatus.TIMED_OUT
+
+		subject.stop(
+			SessionStopRequest(
+				"incomplete-candidate-owner",
+				"USER_STOP",
+				2_000L,
+				2_000_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+		val session = requireNotNull(database.sourceSessionDao().session(started.logicalTrackingId))
+		val plan = buildSourceProductDrainPlan(
+			database = database,
+			logicalTrackingId = started.logicalTrackingId,
+			serviceRunId = started.serviceRunId,
+			cutoffElapsedRealtimeNanos = requireNotNull(session.cutoffElapsedNanos),
+			cutoffWallTimeMs = requireNotNull(session.cutoffAtMs),
+			settlementHighWaterAdmissionOrdinal = requireNotNull(session.finalAdmissionOrdinal),
+		).shouldBeInstanceOf<SourceProductDrainPlan.Failed>()
+
+		plan.source shouldBe SourceKind.STEPS
+		plan.reason shouldBe "SOURCE_DRAIN_SETTLEMENT_INCOMPLETE"
+		plan.memberships.single().let { membership ->
+			membership.sourceInstanceId shouldBe "steps-instance"
+			membership.registrationGeneration shouldBe 1L
+			membership.stopStatus shouldBe SourceStopStatus.TIMED_OUT.name
+		}
+	}
+
+	@Test
+	fun `suspend settles source products then clears the temporary run cutoff for replacement`() = runTest {
+		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "source-suspend",
+				serviceRunId = "source-suspend-run",
+				rolloutRevision = rolloutSnapshot.revision,
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+
+		subject.suspendForRestart(
+			SessionSuspendRequest(
+				"source-suspend-owner",
+				"ANDROID_RESTART",
+				2_000L,
+				2_000_000L,
+				"boot-1",
+			),
+		).shouldBeInstanceOf<SessionSuspendResult.Suspended>()
+
+		sourceProductDrainRouter.requests.single().let { request ->
+			request.logicalTrackingId shouldBe started.logicalTrackingId
+			request.serviceRunId shouldBe started.serviceRunId
+			request.cutoffElapsedRealtimeNanos shouldBe 2_000_000L
+			request.settlementHighWaterAdmissionOrdinal shouldBe 0L
+		}
+		database.sourceSessionDao().session(started.logicalTrackingId)?.let { session ->
+			session.state shouldBe SessionLifecycleState.ACTIVE.name
+			session.currentServiceRunId shouldBe null
+			session.cutoffAtMs shouldBe null
+			session.cutoffElapsedNanos shouldBe null
+			session.finalAdmissionOrdinal shouldBe null
+		}
+		database.sourceSessionDao().serviceRun(started.serviceRunId)?.state shouldBe
+			SessionLifecycleState.FINALIZED.name
 	}
 
 	@Test
@@ -285,6 +650,71 @@ class AuthoritativeSessionCoordinatorTest {
 		binding.writerProjectionId shouldBe expected.projectionId
 		binding.writerProjectionVersion shouldBe expected.projectionVersion
 		binding.writerBindingGeneration shouldBe expected.bindingGeneration
+	}
+
+	@Test
+	fun `manual Activity candidate manifest records exact writer provenance`() = runTest {
+		val expected = installExactCandidateRollout(SourceWriterTransitionSpec.ACTIVITY)
+		val prepared = subject.prepareAndroidStart(
+			manualSourceStartRequest(
+				source = SourceKind.ACTIVITY,
+				logicalTrackingId = "candidate-activity-logical",
+				serviceRunId = "candidate-activity-run",
+				sourcePolicyRevision = 1L,
+			),
+			AndroidStartDeliveryMetadata(
+				PreparedTrackingStartToken("candidate-activity-token"),
+				commandGeneration = 1L,
+				isUserInitiated = true,
+				isAmbient = false,
+			),
+		).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+
+		assertExactCandidateManifestSource(prepared, SourceWriterTransitionSpec.ACTIVITY, expected)
+	}
+
+	@Test
+	fun `manual Wi-Fi candidate manifest records exact writer provenance`() = runTest {
+		val policyRevision = enableRadioPolicy(wifi = true, cell = false)
+		val expected = installExactCandidateRollout(SourceWriterTransitionSpec.WIFI)
+		val prepared = subject.prepareAndroidStart(
+			manualSourceStartRequest(
+				source = SourceKind.WIFI,
+				logicalTrackingId = "candidate-wifi-logical",
+				serviceRunId = "candidate-wifi-run",
+				sourcePolicyRevision = policyRevision,
+			),
+			AndroidStartDeliveryMetadata(
+				PreparedTrackingStartToken("candidate-wifi-token"),
+				commandGeneration = 1L,
+				isUserInitiated = true,
+				isAmbient = false,
+			),
+		).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+
+		assertExactCandidateManifestSource(prepared, SourceWriterTransitionSpec.WIFI, expected)
+	}
+
+	@Test
+	fun `manual Cell candidate manifest records exact writer provenance`() = runTest {
+		val policyRevision = enableRadioPolicy(wifi = false, cell = true)
+		val expected = installExactCandidateRollout(SourceWriterTransitionSpec.CELL)
+		val prepared = subject.prepareAndroidStart(
+			manualSourceStartRequest(
+				source = SourceKind.CELL,
+				logicalTrackingId = "candidate-cell-logical",
+				serviceRunId = "candidate-cell-run",
+				sourcePolicyRevision = policyRevision,
+			),
+			AndroidStartDeliveryMetadata(
+				PreparedTrackingStartToken("candidate-cell-token"),
+				commandGeneration = 1L,
+				isUserInitiated = true,
+				isAmbient = false,
+			),
+		).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+
+		assertExactCandidateManifestSource(prepared, SourceWriterTransitionSpec.CELL, expected)
 	}
 
 	@Test
@@ -670,6 +1100,7 @@ class AuthoritativeSessionCoordinatorTest {
 			BootClockDomainProvider { currentBootId },
 			leaseClock,
 			rolloutStore = fixedEventRolloutStore(),
+			sourceProductDrainRouter = sourceProductDrainRouter,
 		)
 		val started = subject.start(
 			startRequest().copy(logicalTrackingId = "retry-stop-logical", serviceRunId = "retry-stop-run"),
@@ -2097,7 +2528,7 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceSessionDao().session("logical-1")?.state shouldBe SessionLifecycleState.ACTIVE.name
 		database.sourceSessionDao().session("logical-1")?.currentServiceRunId shouldBe null
 		database.sourceSessionDao().session("logical-1")?.lifecycleRevision shouldBe
-			lifecycleRevisionBeforeSuspend + 1L
+			lifecycleRevisionBeforeSuspend + 2L
 		database.sourceSessionDao().serviceRun("run-1")?.state shouldBe SessionLifecycleState.FINALIZED.name
 
 		val restored = subject.start(
@@ -2672,6 +3103,7 @@ class AuthoritativeSessionCoordinatorTest {
 			BootClockDomainProvider { currentBootId },
 			leaseClock,
 			rolloutStore = fixedEventRolloutStore(),
+			sourceProductDrainRouter = sourceProductDrainRouter,
 		)
 		return ingress
 	}
@@ -2996,6 +3428,72 @@ class AuthoritativeSessionCoordinatorTest {
 		serviceRunId = serviceRunId,
 	)
 
+	private fun manualSourceStartRequest(
+		source: SourceKind,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		sourcePolicyRevision: Long,
+	): SessionStartRequest {
+		val sourcePlan: SourcePlan = when (source) {
+			SourceKind.ACTIVITY -> ActivityPlan(
+				revision = 1L,
+				mode = ActivityMode.TRANSITIONS_ONLY,
+				desiredDetectionLatencyMs = 30_000L,
+				confidenceThresholdPercent = 65,
+				transitionTypes = setOf(
+					ActivityTransitionType.ENTER.value,
+					ActivityTransitionType.EXIT.value,
+				),
+			)
+			SourceKind.WIFI -> WifiPlan(
+				revision = 1L,
+				mode = WifiMode.BROADCAST_DRIVEN,
+				minimumAttemptIntervalMs = 5 * 60_000L,
+				maximumAcceptableResultAgeMs = 5 * 60_000L,
+				unchangedResultDedupeWindowMs = 10 * 60_000L,
+				backoff = RetryBackoff(30_000L, 30 * 60_000L),
+			)
+			SourceKind.CELL -> CellPlan(
+				revision = 1L,
+				mode = CellMode.OBSERVE_CHANGES,
+				minimumRefreshAttemptIntervalMs = 5 * 60_000L,
+				maximumAcceptableCachedAgeMs = 5 * 60_000L,
+				subscriptionIds = emptySet(),
+				backoff = RetryBackoff(30_000L, 30 * 60_000L),
+			)
+			else -> error("Unsupported manifest provenance source $source")
+		}
+		return startRequest().copy(
+			plan = AcquisitionPlanRevision(
+				revision = 1L,
+				planId = "${source.name.lowercase()}-candidate-only",
+				createdAtMs = 1_000L,
+				plans = mapOf(source to sourcePlan),
+				sourcePolicyRevision = sourcePolicyRevision,
+			),
+			rolloutRevision = rolloutSnapshot.revision,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+		)
+	}
+
+	private suspend fun enableRadioPolicy(wifi: Boolean, cell: Boolean): Long {
+		val settings = TrackingParamsState(legacySettingsMigrationCompleted = true)
+		val updated = policy.replaceCaptureSettings(
+			expectedPolicyRevision = 1L,
+			settings = settings.copy(
+				wifiEnabled = wifi,
+				cellEnabled = cell,
+				sourceCollectionSettings = settings.sourceCollectionSettings.copy(
+					wifi = if (wifi) SourceCollectionFrequency.BALANCED else SourceCollectionFrequency.OFF,
+					cell = if (cell) SourceCollectionFrequency.BALANCED else SourceCollectionFrequency.OFF,
+				),
+			),
+			reason = "TEST_RADIO_MANIFEST_PROVENANCE",
+		)
+		return updated.revision
+	}
+
 	private fun locationOnlyPlan(policyRevision: Long) = AcquisitionPlanRevision(
 		revision = 2L,
 		planId = "location-only-after-wifi-policy-change",
@@ -3289,6 +3787,124 @@ class AuthoritativeSessionCoordinatorTest {
 		return binding
 	}
 
+	private suspend fun installExactCandidateRollout(
+		spec: SourceWriterTransitionSpec,
+	): ExecutableSourceLaneBinding {
+		if (spec.initialOwner == null) {
+			database.sourceDestinationOwnerDao().insertIfAbsent(
+				SourceDestinationOwnerEntity(
+					sourceKind = spec.source.stableCode,
+					destination = spec.destination,
+					owner = spec.candidateOwner,
+					ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+					updatedAtMs = 1L,
+				),
+			)
+		} else {
+			val initialOwner = requireNotNull(spec.initialOwner)
+			database.sourceDestinationOwnerDao().insertIfAbsent(
+				SourceDestinationOwnerEntity(
+					sourceKind = spec.source.stableCode,
+					destination = spec.destination,
+					owner = initialOwner,
+					ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+					updatedAtMs = 0L,
+				),
+			)
+			val owner = requireNotNull(
+				database.sourceDestinationOwnerDao().get(spec.source.stableCode, spec.destination),
+			)
+			check(database.sourceDestinationOwnerDao().compareAndSetOwner(
+				sourceKind = spec.source.stableCode,
+				destination = spec.destination,
+				expectedOwner = initialOwner,
+				expectedOwnerGeneration = owner.ownerGeneration,
+				newOwner = spec.candidateOwner,
+				newOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+				updatedAtMs = 1L,
+			) == 1)
+		}
+		rolloutSnapshot = TrackingRolloutState.eventCanonical(
+			sources = setOf(spec.source),
+			revision = 2L,
+			captureModes = mapOf(spec.source to spec.binding.captureModes),
+		)
+		database.sourceProjectionStateDao().installProductLane(
+			SourceProductProjectionLaneEntity(
+				sourceKind = spec.source.stableCode,
+				bindingGeneration = spec.binding.bindingGeneration,
+				projectionId = spec.binding.projectionId,
+				projectionVersion = spec.binding.projectionVersion,
+				captureModeMask = spec.binding.captureModeMask,
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+				activatedRolloutRevision = rolloutSnapshot.revision,
+				activationOrdinal = 1L,
+				contiguousAdmissionOrdinal = 0L,
+				retentionRequired = true,
+				status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+				installedAtMs = 1L,
+				updatedAtMs = 1L,
+			),
+		)
+		database.trackingRolloutStateDao().save(rolloutSnapshot.toEntity(updatedAtMs = 1L))
+		return spec.binding
+	}
+
+	private suspend fun assertExactCandidateManifestSource(
+		prepared: PreparedSessionStart,
+		spec: SourceWriterTransitionSpec,
+		binding: ExecutableSourceLaneBinding,
+	) {
+		val source = database.sourceSessionDao()
+			.manifestSources(prepared.logicalTrackingId, prepared.manifestRevision)
+			.single()
+		source.sourceKind shouldBe spec.source.stableCode
+		source.purpose shouldBe SessionManifestPurpose.SESSION_CAPTURE.name
+		source.outputDestination shouldBe spec.destination
+		source.writerOwner shouldBe spec.candidateOwner
+		source.writerOwnerGeneration shouldBe SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+		source.writerProjectionId shouldBe binding.projectionId
+		source.writerProjectionVersion shouldBe binding.projectionVersion
+		source.writerBindingGeneration shouldBe binding.bindingGeneration
+	}
+
+	private fun replaceEventCoordinator(eventCoordinator: TrackingCoordinator) {
+		val ingress = mockk<DurableSourceIngress>(relaxed = true)
+		subject = AuthoritativeSessionCoordinator(
+			database,
+			RoomSourcePlanStore(database, SourcePlanCodec()),
+			SourceRuntimeRegistry(setOf(runtime, locationRuntime)),
+			DurableSourceEventSinkFactory(ingress),
+			eventCoordinator,
+			ActivityAutomaticStartActionRepository(database, ReadyTrackingStartupGate),
+			activityAutomationDrainSignal,
+			activityAutomationEpochAuthority,
+			BootClockDomainProvider { currentBootId },
+			leaseClock,
+			rolloutStore = fixedEventRolloutStore(),
+			sourceProductDrainRouter = sourceProductDrainRouter,
+		)
+	}
+
+	private fun replaceRuntime(replacement: FakeStepsRuntime) {
+		val ingress = mockk<DurableSourceIngress>(relaxed = true)
+		runtime = replacement
+		subject = AuthoritativeSessionCoordinator(
+			database,
+			RoomSourcePlanStore(database, SourcePlanCodec()),
+			SourceRuntimeRegistry(setOf(runtime, locationRuntime)),
+			DurableSourceEventSinkFactory(ingress),
+			TrackingCoordinator(database, ingress, ProjectionDispatcher(database, emptySet())),
+			ActivityAutomaticStartActionRepository(database, ReadyTrackingStartupGate),
+			activityAutomationDrainSignal,
+			activityAutomationEpochAuthority,
+			BootClockDomainProvider { currentBootId },
+			leaseClock,
+			rolloutStore = fixedEventRolloutStore(),
+			sourceProductDrainRouter = sourceProductDrainRouter,
+		)
+	}
+
 	private fun fixedEventRolloutStore() = object : TrackingRolloutStateStore {
 		override suspend fun load() = rolloutSnapshot
 
@@ -3324,6 +3940,23 @@ private data class UnchangedConsentEpochs(
 	val activityControlEpoch: Long,
 )
 
+private class RecordingSourceProductDrainRouter : SourceProductDrainRouter {
+	val requests = mutableListOf<SourceProductDrainRequest>()
+	var onDrain: suspend (SourceProductDrainRequest) -> SourceProductDrainResult = { request ->
+		SourceProductDrainResult.Complete(
+			request,
+			request.sourceHighWaterAdmissionOrdinal,
+			factsInserted = 0,
+			eventsValidated = 0,
+		)
+	}
+
+	override suspend fun drainThrough(request: SourceProductDrainRequest): SourceProductDrainResult {
+		requests += request
+		return onDrain(request)
+	}
+}
+
 private class RecordingActivityAutomationDrainSignal : ActivityAutomationDrainSignal {
 	var requestCount: Int = 0
 		private set
@@ -3353,6 +3986,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 	var registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED
 	var stopProviderFlushOutcome = ProviderFlushOutcome.COMPLETE
 	var retainProviderOnIncompleteShutdown = false
+	var cancelAfterPhysicalShutdown = false
 	var closeFailure: Throwable? = null
 	var acknowledgementLogicalTrackingId: String? = null
 	var acknowledgementServiceRunId: String? = null
@@ -3440,6 +4074,9 @@ private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourc
 			active = false
 			closed = true
 			ownedClaim = null
+			if (cancelAfterPhysicalShutdown) {
+				throw CancellationException("simulated process death after provider retirement")
+			}
 			OwnedSourceShutdown.Released(
 				provider = null,
 				stopAck = acknowledgement,

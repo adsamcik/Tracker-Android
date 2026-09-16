@@ -104,6 +104,29 @@ class SourceRegistrationRepository @Inject constructor(
 	private val processIncarnationIdProvider: ProcessIncarnationIdProvider,
 	private val trackingRolloutStateStore: RoomTrackingRolloutStateStore,
 ) {
+	internal suspend fun verifySourceEraseProviderSettled(
+		source: SourceKind,
+		expectedCollectedDataEpoch: Long,
+		expectedRegistrationGeneration: Long?,
+	): Boolean {
+		require(expectedCollectedDataEpoch >= 0L)
+		require(expectedRegistrationGeneration == null || expectedRegistrationGeneration > 0L)
+		val dao = database.sourceBrokerDao()
+		if (expectedRegistrationGeneration == null) {
+			return dao.currentPhysicalRegistration(source.stableCode) == null &&
+				dao.pendingProviderRemovals(source.stableCode).isEmpty()
+		}
+		val registration = dao.registration(source.stableCode, expectedRegistrationGeneration)
+			?: return false
+		return registration.collectedDataEpoch == expectedCollectedDataEpoch &&
+			registration.status == ProviderRegistrationGenerationEntity.STATUS_RETIRED &&
+			dao.currentPhysicalRegistration(source.stableCode)?.let { current ->
+				current.registrationGeneration == expectedRegistrationGeneration &&
+					current.sourceInstanceId == registration.sourceInstanceId
+			} != false &&
+			dao.pendingProviderRemovals(source.stableCode).isEmpty()
+	}
+
 	suspend fun reconcilePriorProcessRegistrations(
 		reconciledAtMs: Long = System.currentTimeMillis(),
 		reconciledElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),

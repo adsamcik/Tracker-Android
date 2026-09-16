@@ -2,6 +2,7 @@ package com.adsamcik.tracker.stats.api.repository
 
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class WifiHistoryRepositoryTest {
@@ -30,6 +31,73 @@ class WifiHistoryRepositoryTest {
 			observation().copy(signalQuality = observation().signalQuality.copy(sampleCount = 1))
 		}
 	}
+
+	@Test
+	fun `imported origin requires an opaque imported selection and cannot claim native membership`() {
+		val selection = WifiImportedHistorySelection(
+			WifiImportedHistorySelectionKey("a".repeat(64)),
+			1L,
+			"b".repeat(64),
+		)
+		val imported = readyEntry().copy(
+			origin = WifiHistoryOrigin.IMPORTED,
+			importedSelection = selection,
+		)
+		assertEquals(selection, imported.importedSelection)
+		assertEquals(WifiHistorySelection.Imported(selection), imported.selection)
+		assertFailsWith<IllegalArgumentException> {
+			imported.copy(capturesOnlyWifi = true)
+		}
+		assertFailsWith<IllegalArgumentException> {
+			imported.copy(
+				localSelection = WifiLocalHistorySelectionKey("c".repeat(64)),
+			)
+		}
+	}
+
+	@Test
+	fun `local source-issued selection is opaque and origin bound`() {
+		val key = WifiLocalHistorySelectionKey("d".repeat(64))
+		val local = readyEntry().copy(localSelection = key)
+		assertEquals(WifiHistorySelection.Local(key), local.selection)
+		assertFailsWith<IllegalArgumentException> {
+			local.copy(origin = WifiHistoryOrigin.IMPORTED)
+		}
+	}
+
+	@Test
+	fun `deleted state is explicit and value free`() {
+		val deleted = WifiHistoryEntry(
+			key = WifiHistoryEntryKey("deleted"),
+			startTime = EpochMs(1L),
+			endTime = EpochMs(2L),
+			storedZoneIds = emptySet(),
+			state = WifiHistoryProductState.DELETED,
+			coverage = WifiHistoryCoverage.NONE,
+			observations = emptyList(),
+			causes = setOf(WifiHistoryCause.DELETED),
+			origin = WifiHistoryOrigin.IMPORTED,
+			importedSelection = WifiImportedHistorySelection(
+				WifiImportedHistorySelectionKey("b".repeat(64)),
+				1L,
+				"c".repeat(64),
+			),
+		)
+		assertEquals(WifiHistoryProductState.DELETED, deleted.state)
+		assertFailsWith<IllegalArgumentException> {
+			deleted.copy(causes = setOf(WifiHistoryCause.RETENTION_LIMIT))
+		}
+	}
+
+	private fun readyEntry() = WifiHistoryEntry(
+		key = WifiHistoryEntryKey("ready"),
+		startTime = EpochMs(1L),
+		endTime = EpochMs(2L),
+		storedZoneIds = setOf("UTC"),
+		state = WifiHistoryProductState.READY,
+		coverage = WifiHistoryCoverage.COMPLETE,
+		observations = listOf(observation()),
+	)
 
 	private fun observation() = WifiHistoryObservation(
 		intervalStartTime = EpochMs(1L),

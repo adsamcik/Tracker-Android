@@ -2,12 +2,23 @@ package com.adsamcik.tracker.tracker.pipeline.persistence
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.recordFullDeletion
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.stats.api.processor.ProcessorContext
+import com.adsamcik.tracker.stats.api.signal.LocationDecision
+import com.adsamcik.tracker.stats.api.signal.LocationDecisionSignal
+import com.adsamcik.tracker.stats.api.signal.TrackingSignal
+import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -26,47 +37,210 @@ class RawLocationObservationRepairTest {
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
+		runTest {
+			database.sourceDestinationOwnerDao().insertIfAbsent(
+				SourceDestinationOwnerEntity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION,
+					destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+					owner =
+						SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE,
+					ownerGeneration =
+						SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION,
+					updatedAtMs = 1L,
+				),
+			)
+		}
 	}
 
 	@After
 	fun tearDown() = database.close()
 
 	@Test
-	fun `repair reconstructs missing canonical observation from authoritative location WAL`() = runTest {
+	fun `repair preserves released v1 WAL with explicit unknown mock provenance`() = runTest {
 		insertWal("location-event", payloadVersion = 1, isMock = null)
 		val repair = RawLocationObservationRepair(database, codec)
 
 		repair.repairMissingCanonicalObservations() shouldBe 1
 		repair.repairMissingCanonicalObservations() shouldBe 0
 
-		val observation = database.locationObservationDao()
-			.getBetween(0L, Long.MAX_VALUE)
-			.single()
-		observation.sourceEventId shouldBe "location-event"
-		observation.sourceSignalId shouldBe "location-observation:location-event"
-		observation.fixTimeMs shouldBe 10_000L
-		observation.receivedAtMs shouldBe 10_250L
-		observation.deliveryAgeMs shouldBe 250L
-		observation.latE7 shouldBe 500_870_000
-		observation.lonE7 shouldBe 144_210_000
-		observation.callbackId shouldBe "callback-1:0"
+		val observation = requireNotNull(
+			database.locationObservationDao().getBySourceEventId("location-event"),
+		)
 		observation.isMock shouldBe false
+		observation.ingressDisposition shouldBe "MIGRATED_MOCK_PROVENANCE_UNKNOWN"
 		observation.sourceRevision shouldBe 1L
-		database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
+		database.locationObservationDecisionDao().insert(
+			listOf(
+				LocationObservationDecision(
+					observationSourceEventId = "location-event",
+					decision = LocationObservationDecision.REJECTED,
+					reason = "MIGRATED_MOCK_PROVENANCE_UNKNOWN",
+					acceptedSampleSourceSignalId = null,
+					sourceSignalId = "pending-legacy-decision",
+					clockDomainId = observation.clockDomainId,
+					decidedAtMs = observation.receivedAtMs,
+				),
+			),
+		)
+		database.locationObservationDecisionDao()
+			.getBySourceEventId("location-event")
+			?.reason shouldBe "MIGRATED_MOCK_PROVENANCE_UNKNOWN"
 	}
 
 	@Test
-	fun `repair preserves both values of durable v2 mock provenance`() = runTest {
-		insertWal("location-v2-real", payloadVersion = 2, isMock = false, unitIndex = 0)
-		insertWal("location-v2-mock", payloadVersion = 2, isMock = true, unitIndex = 1)
+	fun `startup repair unblocks a durable pending legacy decision`() = runTest {
+		insertWal("legacy-pending", payloadVersion = 1, isMock = null)
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val durableBuffer = DurableSignalBuffer(
+			pendingSignalDao = database.pendingSignalDao(),
+			dispatchers = dispatchers,
+			pendingSignalClaimDao = database.pendingSignalClaimDao(),
+			appDatabase = database,
+		)
+		durableBuffer.setSessionId(1L)
+		durableBuffer.stage(
+			TrackingSignal(
+				timestampMs = EpochMs(10_250L),
+				clockDomainId = "android-boot-count:19",
+				locationDecision = LocationDecisionSignal(
+					sourceEventId = "legacy-pending",
+					decision = LocationDecision.REJECTED,
+					reason = "MIGRATED_MOCK_PROVENANCE_UNKNOWN",
+				),
+				persistenceSignalId = "legacy-pending-decision",
+			),
+		)
+		durableBuffer.checkpoint()
+		val processor = PersistenceProcessor(
+			locationSampleDao = database.locationSampleDao(),
+			locationObservationDao = database.locationObservationDao(),
+			locationObservationDecisionDao = database.locationObservationDecisionDao(),
+			sourceEvidenceStateDao = database.sourceEvidenceStateDao(),
+			cellSampleDao = database.cellSampleDao(),
+			wifiObservationDao = database.wifiObservationDao(),
+			pressureSampleDao = database.pressureSampleDao(),
+			stepIntervalDao = database.stepIntervalDao(),
+			activitySnapshotDao = database.activitySnapshotDao(),
+			pendingSignalDao = database.pendingSignalDao(),
+			pendingSignalClaimDao = database.pendingSignalClaimDao(),
+			durableBuffer = durableBuffer,
+			transactor = RoomPersistenceTransactor(database),
+			sourceDestinationOwnerDao = database.sourceDestinationOwnerDao(),
+			rawLocationObservationRepair = RawLocationObservationRepair(database, codec),
+		)
+
+		processor.onStart(ProcessorContext(EpochMs(0L), sessionId = 2L))
+
+		database.locationObservationDecisionDao()
+			.getBySourceEventId("legacy-pending")
+			?.reason shouldBe "MIGRATED_MOCK_PROVENANCE_UNKNOWN"
+		database.pendingSignalDao().countAll() shouldBe 0
+	}
+
+	@Test
+	fun `repair rejects v2 control and receive-time rows from canonical raw history`() = runTest {
+		insertWal(
+			"location-v2-control",
+			payloadVersion = 2,
+			isMock = false,
+			purposeMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+		)
+		insertWal(
+			"location-v2-receive",
+			payloadVersion = 2,
+			isMock = false,
+			planAttribution = 2,
+		)
 		val repair = RawLocationObservationRepair(database, codec)
 
-		repair.repairMissingCanonicalObservations() shouldBe 2
+		repair.repairMissingCanonicalObservations() shouldBe 0
+		database.locationObservationDao().countAll() shouldBe 0L
+	}
 
-		val observations = database.locationObservationDao().getBetween(0L, Long.MAX_VALUE)
-			.associateBy { it.sourceEventId }
-		observations.getValue("location-v2-real").isMock shouldBe false
-		observations.getValue("location-v2-mock").isMock shouldBe true
+	@Test
+	fun `repair does not claim a fully bound protected location product`() = runTest {
+		insertWal(
+			eventId = "protected-location",
+			payloadVersion = 2,
+			isMock = false,
+			protectedBinding = true,
+		)
+		val repair = RawLocationObservationRepair(database, codec)
+
+		repair.repairMissingCanonicalObservations() shouldBe 0
+		database.locationObservationDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `repair retains legacy WAL when permanent Location owner is lost`() = runTest {
+		insertWal("legacy-owner-loss", payloadVersion = 1, isMock = null)
+		check(database.sourceDestinationOwnerDao().compareAndSetOwner(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION,
+			destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+			expectedOwner =
+				SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE,
+			expectedOwnerGeneration =
+				SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION,
+			newOwner = "OTHER_LOCATION_OWNER",
+			newOwnerGeneration = 2L,
+			updatedAtMs = 2L,
+		) == 1)
+
+		runCatching {
+			RawLocationObservationRepair(database, codec)
+				.repairMissingCanonicalObservations()
+		}.isFailure shouldBe true
+
+		database.locationObservationDao().countAll() shouldBe 0L
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `repair settles deleted high water without resurrecting legacy observation`() = runTest {
+		insertWal("legacy-deleted", payloadVersion = 1, isMock = null)
+		val ordinal = requireNotNull(
+			database.sourceEventWalDao().getByEventId("legacy-deleted"),
+		).admissionOrdinal
+		database.sourceEvidenceStateDao().recordFullDeletion(
+			epoch = 1L,
+			retainedFromMs = null,
+			deletedSourceEventHighWaterOrdinal = ordinal,
+			updatedAtMs = 2L,
+		)
+
+		RawLocationObservationRepair(database, codec)
+			.repairMissingCanonicalObservations() shouldBe 0
+
+		database.locationObservationDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `repair rejects wrong epoch and pre-retention legacy rows`() = runTest {
+		database.sourceEvidenceStateDao().ensure()
+		check(database.sourceEvidenceStateDao().updateLifecycle(
+			epoch = 1L,
+			retainedFromMs = 20_000L,
+			updatedAtMs = 2L,
+		) == 1)
+		insertWal(
+			eventId = "legacy-wrong-epoch",
+			payloadVersion = 1,
+			isMock = null,
+			capturedEpoch = 0L,
+		)
+		insertWal(
+			eventId = "legacy-before-retention",
+			payloadVersion = 1,
+			isMock = null,
+			unitIndex = 1,
+			capturedEpoch = 1L,
+			acquiredAtMs = 10_000L,
+		)
+
+		RawLocationObservationRepair(database, codec)
+			.repairMissingCanonicalObservations() shouldBe 0
+
+		database.locationObservationDao().countAll() shouldBe 0L
 	}
 
 	private suspend fun insertWal(
@@ -74,6 +248,11 @@ class RawLocationObservationRepairTest {
 		payloadVersion: Int,
 		isMock: Boolean?,
 		unitIndex: Int = 0,
+		protectedBinding: Boolean = false,
+		purposeMask: Long = 0L,
+		planAttribution: Int = 1,
+		capturedEpoch: Long = 0L,
+		acquiredAtMs: Long = 10_250L + unitIndex,
 	) {
 		val payload = LocationFixPayload(
 			latitudeDegrees = 50.087,
@@ -90,28 +269,41 @@ class RawLocationObservationRepairTest {
 		database.sourceEventWalDao().insertIgnoringDuplicate(
 			SourceEventWalEntity(
 				eventId = eventId,
-				providerDedupKey = "callback-1:$unitIndex",
+				providerDedupKey = if (protectedBinding) null else "callback-1:$unitIndex",
+				deliveryIdentity = "delivery-1".takeIf { protectedBinding },
+				deliveryUnitIndex = unitIndex.takeIf { protectedBinding },
+				deliveryUnitCount = 1.takeIf { protectedBinding },
 				logicalTrackingId = "tracking",
 				serviceRunId = "run",
 				sourceKind = SourceKind.LOCATION.stableCode,
 				sourceInstanceId = "location-runtime",
 				registrationGeneration = 1,
+				physicalConfigurationFingerprint = "location-fingerprint"
+					.takeIf { protectedBinding },
+				authorizationRevision = 1L.takeIf { protectedBinding },
+				authorizationPurposeEligibilityMask = purposeMask,
+				authorizationFingerprint = "authorization-fingerprint"
+					.takeIf { protectedBinding },
 				sourceSequence = 7L + unitIndex,
 				configRevision = 1,
-				planAttribution = 1,
+				planAttribution = planAttribution,
 				clockDomainId = "android-boot-count:19",
 				observedElapsedNanos = 1_000_000_000L + unitIndex,
 				receivedElapsedNanos = 1_250_000_000L + unitIndex,
 				wallTimeMs = 10_000L + unitIndex,
 				wallTimeUncertaintyMs = 0,
-				capturedCollectedDataEpoch = 0,
-				acquiredAtMs = 10_250L + unitIndex,
+				capturedCollectedDataEpoch = capturedEpoch,
+				sourcePolicyRevision = 1L.takeIf { protectedBinding },
+				captureConsentEpoch = 1L.takeIf { protectedBinding },
+				sessionManifestRevision = 1L.takeIf { protectedBinding },
+				lifecycleLeaseGeneration = 1L.takeIf { protectedBinding },
+				acquiredAtMs = acquiredAtMs,
 				qualityFlags = 0,
 				qualityConfidence = null,
 				payloadVersion = payloadVersion,
 				payload = encoded.bytes,
 				payloadChecksum = encoded.checksum,
-				createdAtMs = 10_250L + unitIndex,
+				createdAtMs = acquiredAtMs,
 			),
 		)
 	}

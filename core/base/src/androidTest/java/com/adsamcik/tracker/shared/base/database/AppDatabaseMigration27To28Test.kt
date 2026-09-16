@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.content.Context
+import android.database.sqlite.SQLiteConstraintException
 import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -28,6 +29,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedStepsManifestEntit
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
@@ -249,13 +251,41 @@ class AppDatabaseMigration27To28Test {
 			1_000f, 1_000f, 1_000f, 1_000f, null, null, "HIGH",
 			1_000, 0, 1_000_000L, 0L, "TARGET_ELAPSED", "COMPLETE", 0L, 1f, "UTC",
 		)
-		val generation = ImportedPressureDeletionGenerationEntity.create(runIdentity, 7L, 1L, 40L)
 		val deletedEntryIdentity = "sha256:${"b".repeat(64)}"
+		val deletedRunIdentity = "sha256:${"c".repeat(64)}"
+		val generation = ImportedPressureDeletionGenerationEntity.create(
+			deletedRunIdentity,
+			7L,
+			1L,
+			40L,
+		)
+		val identityFences = listOf(
+			ImportedPressureIdentityFenceEntity.create(
+				deletedEntryIdentity,
+				ImportedPressureIdentityFenceEntity.ENTRY,
+				deletedEntryIdentity,
+				null,
+				7L,
+				45L,
+				ImportedPressureIdentityFenceEntity.REASON_SELECTED_DELETE,
+			),
+			ImportedPressureIdentityFenceEntity.create(
+				deletedRunIdentity,
+				ImportedPressureIdentityFenceEntity.RUN,
+				deletedEntryIdentity,
+				deletedRunIdentity,
+				7L,
+				45L,
+				ImportedPressureIdentityFenceEntity.REASON_SELECTED_DELETE,
+			),
+		)
 		val entryDeletion = ImportedPressureEntryDeletionEntity.create(
 			deletedEntryIdentity,
 			7L,
 			2L,
 			45L,
+			listOf(generation),
+			identityFences,
 		)
 		val receipt = ImportedPressureReceiptEntity(
 			"job-pressure", "entry-pressure", "pressure.trackerpressure", 30L,
@@ -269,6 +299,7 @@ class AppDatabaseMigration27To28Test {
 				database.importedPressureDao().insertWindow(window)
 				database.importedPressureDao().insertReceipt(receipt)
 				database.importedPressureDao().insertReceipt(alternateReceipt)
+				database.importedPressureDao().insertIdentityFences(identityFences)
 				database.importedPressureDao().insertDeletionGeneration(generation)
 				database.importedPressureDao().insertEntryDeletion(entryDeletion)
 			}
@@ -281,7 +312,10 @@ class AppDatabaseMigration27To28Test {
 					listOf(window),
 					database.importedPressureDao().windows(entryIdentity, 1L, runIdentity),
 				)
-				assertEquals(generation, database.importedPressureDao().deletionGeneration(runIdentity))
+				assertEquals(
+					generation,
+					database.importedPressureDao().deletionGeneration(deletedRunIdentity),
+				)
 				assertEquals(
 					entryDeletion,
 					database.importedPressureDao().entryDeletion(deletedEntryIdentity),
@@ -304,8 +338,20 @@ class AppDatabaseMigration27To28Test {
 				assertNull(database.importedPressureDao().latestEntryRevision(entryIdentity))
 				assertNull(database.importedPressureDao().receipt("job-pressure", "entry-pressure"))
 				assertNull(database.importedPressureDao().receipt("job-pressure-copy", "entry-pressure"))
-				assertNull(database.importedPressureDao().deletionGeneration(runIdentity))
-				assertNull(database.importedPressureDao().entryDeletion(deletedEntryIdentity))
+				assertEquals(
+					generation,
+					database.importedPressureDao().deletionGeneration(deletedRunIdentity),
+				)
+				assertEquals(
+					entryDeletion,
+					database.importedPressureDao().entryDeletion(deletedEntryIdentity),
+				)
+				assertEquals(
+					identityFences.toSet(),
+					database.importedPressureDao()
+						.identityFencesForEntry(deletedEntryIdentity, 3)
+						.toSet(),
+				)
 				assertCollectedRowsDeleted(database)
 			}
 		}
@@ -908,7 +954,15 @@ class AppDatabaseMigration27To28Test {
 			),
 		)
 		assertTableCount(database, "source_deletion_fence", 0)
-		assertTableCount(database, "source_destination_owner", 4)
+		assertTableCount(database, "source_destination_owner", 5)
+		database.query(
+			"SELECT owner, owner_generation FROM source_destination_owner " +
+				"WHERE source_kind = 1 AND destination = 'SESSION_LOCATION'",
+		).use { cursor ->
+			assertTrue(cursor.moveToFirst())
+			assertEquals("EXISTING_LOCATION_CANONICAL_PIPELINE", cursor.getString(0))
+			assertEquals(1L, cursor.getLong(1))
+		}
 		database.query(
 			"SELECT owner, owner_generation FROM source_destination_owner " +
 				"WHERE source_kind = 2 AND destination = 'SESSION_ACTIVITY'",
@@ -990,6 +1044,17 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "source_registration_state", 1)
 		assertTableCount(database, "source_runtime_state", 1)
 		assertTableCount(database, "source_event_wal", 1)
+		database.query("PRAGMA table_info(source_event_wal)").use { cursor ->
+			var receivedWallTimeColumn: Pair<Int, String?>? = null
+			while (cursor.moveToNext()) {
+				if (cursor.getString(cursor.getColumnIndexOrThrow("name")) == "received_wall_time_ms") {
+					receivedWallTimeColumn =
+						cursor.getInt(cursor.getColumnIndexOrThrow("notnull")) to
+							cursor.getString(cursor.getColumnIndexOrThrow("dflt_value"))
+				}
+			}
+			assertEquals(0 to null, receivedWallTimeColumn)
+		}
 		database.query("PRAGMA index_list(source_event_wal)").use { cursor ->
 			var sourceRetentionUnique: Int? = null
 			while (cursor.moveToNext()) {
@@ -1060,14 +1125,79 @@ class AppDatabaseMigration27To28Test {
 		}
 		assertTableCount(database, "pending_signal", 1)
 		database.query(
-			"SELECT steps_writer_owner, steps_writer_owner_generation FROM pending_signal " +
+			"SELECT steps_writer_owner, steps_writer_owner_generation, " +
+				"pressure_writer_owner, pressure_writer_owner_generation FROM pending_signal " +
 				"WHERE signal_id = 'v27-pending-signal'",
 		).use { cursor ->
 			assertTrue(cursor.moveToFirst())
 			assertEquals(SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL, cursor.getString(0))
 			assertEquals(SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION, cursor.getLong(1))
+			assertTrue(cursor.isNull(2))
+			assertTrue(cursor.isNull(3))
 			assertFalse(cursor.moveToNext())
 		}
+		database.query("PRAGMA table_info(pending_signal)").use { cursor ->
+			val columns = buildMap {
+				while (cursor.moveToNext()) {
+					put(
+						cursor.getString(cursor.getColumnIndexOrThrow("name")),
+						cursor.getInt(cursor.getColumnIndexOrThrow("notnull")) to
+							cursor.getString(cursor.getColumnIndexOrThrow("dflt_value")),
+					)
+				}
+			}
+			assertEquals(0 to null, columns["steps_writer_owner"])
+			assertEquals(0 to null, columns["steps_writer_owner_generation"])
+			assertEquals(0 to null, columns["pressure_writer_owner"])
+			assertEquals(0 to null, columns["pressure_writer_owner_generation"])
+		}
+		fun assertWriterOwnerRejected(update: String) {
+			val failure = runCatching { database.execSQL(update) }.exceptionOrNull()
+			assertTrue(
+				generateSequence(failure) { it.cause }
+					.any { it is SQLiteConstraintException },
+			)
+		}
+		assertWriterOwnerRejected(
+			"UPDATE pending_signal SET steps_writer_owner = 'UNKNOWN_STEPS_OWNER', " +
+				"steps_writer_owner_generation = 1 WHERE signal_id = 'v27-pending-signal'",
+		)
+		assertWriterOwnerRejected(
+			"UPDATE pending_signal SET steps_writer_owner = NULL " +
+				"WHERE signal_id = 'v27-pending-signal'",
+		)
+		assertWriterOwnerRejected(
+			"UPDATE pending_signal SET steps_writer_owner_generation = 0 " +
+				"WHERE signal_id = 'v27-pending-signal'",
+		)
+		database.execSQL(
+			"UPDATE pending_signal SET steps_writer_owner = 'STEPS_SESSION_FACTS', " +
+				"steps_writer_owner_generation = 2 WHERE signal_id = 'v27-pending-signal'",
+		)
+		database.execSQL(
+			"UPDATE pending_signal SET steps_writer_owner = 'LEGACY_STEP_INTERVAL', " +
+				"steps_writer_owner_generation = 1 WHERE signal_id = 'v27-pending-signal'",
+		)
+		assertWriterOwnerRejected(
+			"UPDATE pending_signal SET pressure_writer_owner = 'UNKNOWN_PRESSURE_OWNER', " +
+				"pressure_writer_owner_generation = 2 WHERE signal_id = 'v27-pending-signal'",
+		)
+		assertWriterOwnerRejected(
+			"UPDATE pending_signal SET pressure_writer_owner = NULL, " +
+				"pressure_writer_owner_generation = 2 WHERE signal_id = 'v27-pending-signal'",
+		)
+		assertWriterOwnerRejected(
+			"UPDATE pending_signal SET pressure_writer_owner = 'LEGACY_PRESSURE_SAMPLE', " +
+				"pressure_writer_owner_generation = 0 WHERE signal_id = 'v27-pending-signal'",
+		)
+		database.execSQL(
+			"UPDATE pending_signal SET pressure_writer_owner = 'PRESSURE_SESSION_FACTS', " +
+				"pressure_writer_owner_generation = 3 WHERE signal_id = 'v27-pending-signal'",
+		)
+		database.execSQL(
+			"UPDATE pending_signal SET pressure_writer_owner = NULL, " +
+				"pressure_writer_owner_generation = NULL WHERE signal_id = 'v27-pending-signal'",
+		)
 		assertTableCount(database, "quarantined_signal", 1)
 		database.query(
 			"SELECT created_at, acquired_at_ms FROM quarantined_signal " +
@@ -1095,6 +1225,8 @@ class AppDatabaseMigration27To28Test {
 			SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
 			pending.stepsWriterOwnerGeneration,
 		)
+		assertNull(pending.pressureWriterOwner)
+		assertNull(pending.pressureWriterOwnerGeneration)
 		val location = database.locationSampleDao().getChunkBetweenOrdered(
 			fromMs = PopulatedV27Fixture.START_MS,
 			toMs = PopulatedV27Fixture.END_MS,
@@ -1205,6 +1337,20 @@ class AppDatabaseMigration27To28Test {
 		assertEquals(125.5f, segment.distanceM, 0f)
 		assertEquals(23, segment.steps)
 
+		assertEquals(
+			SourceDestinationOwnerEntity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_LOCATION,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+				owner = SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE,
+				ownerGeneration =
+					SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION,
+				updatedAtMs = 0L,
+			),
+			database.sourceDestinationOwnerDao().get(
+				SourceDestinationOwnerEntity.SOURCE_LOCATION,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
+			),
+		)
 		val wal = requireNotNull(database.sourceEventWalDao().getByEventId(PopulatedV27Fixture.WAL_EVENT_ID))
 		assertArrayEquals(PopulatedV27Fixture.expectedWalPayload(), wal.payload)
 		assertEquals(SourceEventWalEntity.LEGACY_PENDING_CHECKSUM, wal.integrityIdentity)
@@ -1219,6 +1365,7 @@ class AppDatabaseMigration27To28Test {
 		assertNull(wal.deliveryUnitIndex)
 		assertNull(wal.deliveryUnitCount)
 		assertNull(wal.observedIntervalStartNanos)
+		assertNull(wal.receivedWallTimeMs)
 
 		assertEquals(1, database.pendingSignalDao().countAll())
 		assertNotNull(database.importReceiptDao().getJob(PopulatedV27Fixture.IMPORT_JOB_ID))

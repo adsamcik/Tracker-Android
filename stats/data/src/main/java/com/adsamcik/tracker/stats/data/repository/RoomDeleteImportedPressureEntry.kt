@@ -7,6 +7,8 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetentionReceiptEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedPressureEntry
 import com.adsamcik.tracker.stats.api.repository.DeleteImportedPressureEntryRequest
@@ -58,6 +60,10 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 			unverifiableResult(
 				ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
 			)
+		} catch (_: ArithmeticException) {
+			unverifiableResult(
+				ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW,
+			)
 		} catch (_: Exception) {
 			DeleteImportedPressureEntryResult.RetryableFailure(
 				ImportedPressureEntryDeletionRetryableReason.STORAGE_UNAVAILABLE,
@@ -78,20 +84,67 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 		}
 
 		val identity = request.identity.value
+		when (dao.identityAuthorityFootprint(listOf(identity)).validate(1)) {
+			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW,
+			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW,
+			-> unverifiable(ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW)
+			ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
+			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			-> unverifiable(
+				ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+			null -> Unit
+		}
+		when (val footprintFailure = dao.lineageFootprint(identity).validate()) {
+			ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW ->
+				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW)
+			ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW ->
+				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW)
+			ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
+			ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			-> unverifiable(
+				ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+			null -> Unit
+		}
 		val headers = dao.entryRevisionsForAdmission(identity)
 		val receipts = dao.receiptsForAdmission(identity)
 		val runs = dao.allRunsForAdmission(identity)
 		val windows = dao.allWindowsForAdmission(identity)
 		val entryMarker = dao.entryDeletion(identity)
+		val retainedFootprint = dao.retainedFootprint(identity)
+		if (retainedFootprint.receiptCount !in 0L..1L ||
+			retainedFootprint.receiptTextBytes < 0L || retainedFootprint.markerTextBytes < 0L ||
+			retainedFootprint.totalTextBytes > ImportedPressureDao.MAX_LINEAGE_TEXT_BYTES
+		) unverifiable(ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW)
+		if (retainedFootprint.receiptCount == 0L && retainedFootprint.markerCount != 0L) {
+			unverifiable(ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
+		if (dao.retentionReceipt(identity) != null) {
+			if (headers.isNotEmpty() || receipts.isNotEmpty() || runs.isNotEmpty() ||
+				windows.isNotEmpty() || entryMarker != null
+			) {
+				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.PARTIAL_DELETION_STATE)
+			}
+			when (database.authenticateImportedPressureRetainedOwner(state, identity)) {
+				ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW,
+				ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW,
+				-> unverifiable(ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW)
+				ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
+				ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
+				-> unverifiable(
+					ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+				null -> unverifiable(
+					ImportedPressureEntryDeletionUnverifiableReason.RETENTION_BOUNDARY,
+				)
+			}
+		}
 		if (entryMarker != null) {
 			if (headers.isNotEmpty() || receipts.isNotEmpty() || runs.isNotEmpty() || windows.isNotEmpty()) {
 				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.PARTIAL_DELETION_STATE)
 			}
-			if (entryMarker.collectedDataEpoch != request.expectedCollectedDataEpoch) {
-				unverifiable(
-					ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
-				)
-			}
+			authenticateDeletedEntryAuthority(dao, entryMarker)
 			if (entryMarker.deletedImportRevision != request.expectedImportRevision) {
 				stale(ImportedPressureEntryDeletionStaleReason.IMPORT_REVISION_CHANGED)
 			}
@@ -133,15 +186,22 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 		}
 
 		val deletedAtMs = wallTimeMsProvider().coerceAtLeast(0L)
+		val identityFences = lineage.identityFences(
+			collectedDataEpoch = request.expectedCollectedDataEpoch,
+			fencedAtMs = deletedAtMs,
+			reason = ImportedPressureIdentityFenceEntity.REASON_SELECTED_DELETE,
+		)
+		dao.insertOrAuthenticateIdentityFences(identityFences)
+		val insertedRunDeletions = mutableListOf<ImportedPressureDeletionGenerationEntity>()
 		for (runIdentity in runIdentities) {
-			dao.insertDeletionGeneration(
-				ImportedPressureDeletionGenerationEntity.create(
-					runIdentity = runIdentity,
-					collectedDataEpoch = request.expectedCollectedDataEpoch,
-					generation = 1L,
-					deletedAtMs = deletedAtMs,
-				),
+			val deletion = ImportedPressureDeletionGenerationEntity.create(
+				runIdentity = runIdentity,
+				collectedDataEpoch = request.expectedCollectedDataEpoch,
+				generation = 1L,
+				deletedAtMs = deletedAtMs,
 			)
+			dao.insertDeletionGeneration(deletion)
+			insertedRunDeletions += deletion
 			writeCheckpoint(ImportedPressureDeletionWriteCheckpoint.RUN_TOMBSTONE_INSERTED)
 		}
 		dao.insertEntryDeletion(
@@ -150,6 +210,8 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 				collectedDataEpoch = request.expectedCollectedDataEpoch,
 				deletedImportRevision = request.expectedImportRevision,
 				deletedAtMs = deletedAtMs,
+				runDeletions = insertedRunDeletions,
+				identityFences = identityFences,
 			),
 		)
 		writeCheckpoint(ImportedPressureDeletionWriteCheckpoint.ENTRY_TOMBSTONE_INSERTED)
@@ -223,14 +285,46 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 			val entries = dao.existingEntryIdentities(identities, queryLimit)
 			val runs = dao.existingRunIdentityOwners(identities, queryLimit)
 			val windows = dao.existingWindowIdentityOwners(identities, queryLimit)
+			val retainedIdentities = dao.retainedIdentityOwners(identities, queryLimit)
+			val permanentFences = dao.identityFences(identities, queryLimit)
 			val entryTombstones = dao.entryDeletions(identities)
 			val runTombstones = dao.deletionGenerations(identities)
-			if (entries.size >= queryLimit || runs.size >= queryLimit || windows.size >= queryLimit) {
+			if (entries.size >= queryLimit || runs.size >= queryLimit ||
+				windows.size >= queryLimit || retainedIdentities.size >= queryLimit ||
+				permanentFences.size >= queryLimit
+			) {
 				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW)
+			}
+			retainedIdentities.map { it.entryIdentity }.distinct().forEach { retainedEntry ->
+				when (database.authenticateImportedPressureRetainedOwner(
+					requireNotNull(database.sourceEvidenceStateDao().get()),
+					retainedEntry,
+				)) {
+					ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW,
+					ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW,
+					-> unverifiable(
+						ImportedPressureEntryDeletionUnverifiableReason.DEPENDENCY_OVERFLOW,
+					)
+					ImportedPressureRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT,
+					ImportedPressureRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE,
+					-> unverifiable(
+						ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+					)
+					null -> Unit
+				}
+			}
+			if (retainedIdentities.isNotEmpty()) {
+				unverifiable(ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+			}
+			if (permanentFences.isNotEmpty()) {
+				unverifiable(
+					ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+				)
 			}
 			val incompatibleEntryTombstone = entryTombstones.any { marker ->
 				expected[marker.entryIdentity]?.kind != PortablePressureIdentityKind.LOGICAL_ENTRY
 			}
+
 			val incompatibleRunTombstone = runTombstones.any { marker ->
 				expected[marker.runIdentity]?.kind != PortablePressureIdentityKind.PHYSICAL_RUN
 			}
@@ -285,6 +379,32 @@ internal class RoomDeleteImportedPressureEntry internal constructor(
 					ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
 				)
 			}
+		}
+	}
+
+	private suspend fun authenticateDeletedEntryAuthority(
+		dao: ImportedPressureDao,
+		entryMarker: ImportedPressureEntryDeletionEntity,
+	) {
+		val identityFences = dao.identityFencesForEntry(
+			entryMarker.entryIdentity,
+			entryMarker.identityFenceCount + 1,
+		)
+		val runFences = identityFences.filter {
+			it.identityKind == ImportedPressureIdentityFenceEntity.RUN
+		}
+		val runDeletions = runFences.map { it.protectedIdentity }.chunked(IDENTITY_QUERY_CHUNK_SIZE)
+			.flatMap { dao.deletionGenerations(it) }
+		if (identityFences.size != entryMarker.identityFenceCount ||
+			ImportedPressureIdentityFenceEntity.checksumSet(identityFences) !=
+			entryMarker.identityFenceSetChecksum ||
+			runDeletions.size != entryMarker.runDeletionCount ||
+			ImportedPressureRetentionReceiptEntity.checksumRunDeletions(runDeletions) !=
+			entryMarker.runDeletionSetChecksum
+		) {
+			unverifiable(
+				ImportedPressureEntryDeletionUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
 		}
 	}
 

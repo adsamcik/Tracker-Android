@@ -11,13 +11,30 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
  * forbids restoration; it does not qualify any captured metric or grant local provider authority.
  */
 @Suppress("MagicNumber") // Positional SQL bindings follow the explicit INSERT column order below.
-internal fun preserveStepsFullClearFences(sqlite: SupportSQLiteDatabase) {
-	val (epoch, deletedAtMs) = sqlite.query(
-		"SELECT collected_data_epoch, updated_at_ms FROM source_evidence_state WHERE id = 1",
+internal fun preserveStepsFullClearFences(
+	sqlite: SupportSQLiteDatabase,
+	oldCollectedDataEpoch: Long,
+	newCollectedDataEpoch: Long,
+	deletedAtMs: Long,
+) {
+	require(oldCollectedDataEpoch >= 0L)
+	require(newCollectedDataEpoch > oldCollectedDataEpoch)
+	require(deletedAtMs >= 0L)
+	val storedEpoch = sqlite.query(
+		"SELECT collected_data_epoch FROM source_evidence_state WHERE id = 1",
 	).use { cursor ->
 		check(cursor.moveToFirst()) { "Full clear requires durable epoch authority" }
-		cursor.getLong(0) to cursor.getLong(1)
+		cursor.getLong(0)
 	}
+	check(storedEpoch == oldCollectedDataEpoch) {
+		"Steps full clear must authenticate the stored old epoch"
+	}
+	val winners = authenticateAndReepochRetainedStepsFences(
+		sqlite,
+		oldCollectedDataEpoch,
+		newCollectedDataEpoch,
+		deletedAtMs,
+	)
 	val insert = sqlite.compileStatement(
 		"INSERT OR IGNORE INTO source_deletion_fence " +
 			"(source_kind, purpose, scope_kind, scope_identity_digest, fence_generation, " +
@@ -25,9 +42,13 @@ internal fun preserveStepsFullClearFences(sqlite: SupportSQLiteDatabase) {
 	)
 	insert.use { statement ->
 		fun install(digest: String) {
-			val fence = SourceDeletionFenceEntity.createForOriginalRunDigest(
-				SourceDestinationOwnerEntity.SOURCE_STEPS, StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
-				digest, 1L, epoch, deletedAtMs,
+			val fence = winners[digest] ?: SourceDeletionFenceEntity.createForOriginalRunDigest(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				digest,
+				1L,
+				newCollectedDataEpoch,
+				deletedAtMs,
 			)
 			statement.bindLong(1, fence.sourceKind.toLong())
 			statement.bindString(2, fence.purpose)
@@ -38,8 +59,19 @@ internal fun preserveStepsFullClearFences(sqlite: SupportSQLiteDatabase) {
 			statement.bindLong(7, fence.deletedAtMs)
 			statement.bindString(8, fence.effectChecksum)
 			statement.executeInsert()
+			val winner = readStepsFence(sqlite, digest)
+			check(winner == fence) { "Steps full-clear fence winner is incompatible" }
+			winners[digest] = winner
+			check(winners.size <= MAX_STEPS_FULL_CLEAR_FENCES)
 		}
 		// Retain original foreign digests verbatim, not re-hashed portable identities.
+		val importedRunCount = sqlite.query(
+			"SELECT COUNT(*) FROM imported_steps_run",
+		).use { cursor ->
+			check(cursor.moveToFirst())
+			cursor.getLong(0)
+		}
+		check(importedRunCount in 0L..MAX_STEPS_FULL_CLEAR_FENCES.toLong())
 		sqlite.query("SELECT deletion_scope_digest FROM imported_steps_run").use { cursor ->
 			while (cursor.moveToNext()) install(cursor.getString(0))
 		}
@@ -68,3 +100,108 @@ internal fun preserveStepsFullClearFences(sqlite: SupportSQLiteDatabase) {
 		}
 	}
 }
+
+private fun authenticateAndReepochRetainedStepsFences(
+	sqlite: SupportSQLiteDatabase,
+	oldCollectedDataEpoch: Long,
+	newCollectedDataEpoch: Long,
+	clearedAtMs: Long,
+): MutableMap<String, SourceDeletionFenceEntity> {
+	val storedCount = sqlite.query(
+		"SELECT COUNT(*) FROM source_deletion_fence WHERE source_kind = ? AND purpose = ?",
+		arrayOf(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+		),
+	).use { cursor ->
+		check(cursor.moveToFirst())
+		cursor.getLong(0)
+	}
+	check(storedCount in 0L..MAX_STEPS_FULL_CLEAR_FENCES.toLong())
+	val winners = linkedMapOf<String, SourceDeletionFenceEntity>()
+	sqlite.query(
+		"SELECT source_kind, purpose, scope_kind, scope_identity_digest, fence_generation, " +
+			"collected_data_epoch, deleted_at_ms, effect_checksum FROM source_deletion_fence " +
+			"WHERE source_kind = ? AND purpose = ? ORDER BY scope_identity_digest",
+		arrayOf(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+		),
+	).use { cursor ->
+		while (cursor.moveToNext()) {
+			val current = SourceDeletionFenceEntity(
+				sourceKind = cursor.getInt(0),
+				purpose = cursor.getString(1),
+				scopeKind = cursor.getString(2),
+				scopeIdentityDigest = cursor.getString(3),
+				fenceGeneration = cursor.getLong(4),
+				collectedDataEpoch = cursor.getLong(5),
+				deletedAtMs = cursor.getLong(6),
+				effectChecksum = cursor.getString(7),
+			)
+			check(current.collectedDataEpoch <= oldCollectedDataEpoch)
+			check(current.deletedAtMs <= clearedAtMs)
+			val replacement = SourceDeletionFenceEntity.createForOriginalRunDigest(
+				sourceKind = current.sourceKind,
+				purpose = current.purpose,
+				scopeIdentityDigest = current.scopeIdentityDigest,
+				fenceGeneration = current.fenceGeneration,
+				collectedDataEpoch = newCollectedDataEpoch,
+				deletedAtMs = current.deletedAtMs,
+			)
+			sqlite.compileStatement(
+				"UPDATE source_deletion_fence SET collected_data_epoch = ?, effect_checksum = ? " +
+					"WHERE source_kind = ? AND purpose = ? AND scope_kind = ? " +
+					"AND scope_identity_digest = ? AND collected_data_epoch = ? " +
+					"AND fence_generation = ? AND deleted_at_ms = ? AND effect_checksum = ?",
+			).use { statement ->
+				statement.bindLong(1, replacement.collectedDataEpoch)
+				statement.bindString(2, replacement.effectChecksum)
+				statement.bindLong(3, current.sourceKind.toLong())
+				statement.bindString(4, current.purpose)
+				statement.bindString(5, current.scopeKind)
+				statement.bindString(6, current.scopeIdentityDigest)
+				statement.bindLong(7, current.collectedDataEpoch)
+				statement.bindLong(8, current.fenceGeneration)
+				statement.bindLong(9, current.deletedAtMs)
+				statement.bindString(10, current.effectChecksum)
+				check(statement.executeUpdateDelete() == 1) {
+					"Steps full-clear fence epoch transition lost its exact winner"
+				}
+			}
+			check(winners.put(current.scopeIdentityDigest, replacement) == null)
+		}
+	}
+	check(winners.size.toLong() == storedCount)
+	return winners
+}
+
+private fun readStepsFence(
+	sqlite: SupportSQLiteDatabase,
+	scopeIdentityDigest: String,
+): SourceDeletionFenceEntity = sqlite.query(
+	"SELECT source_kind, purpose, scope_kind, scope_identity_digest, fence_generation, " +
+		"collected_data_epoch, deleted_at_ms, effect_checksum FROM source_deletion_fence " +
+		"WHERE source_kind = ? AND purpose = ? AND scope_kind = ? " +
+		"AND scope_identity_digest = ? LIMIT 1",
+	arrayOf(
+		SourceDestinationOwnerEntity.SOURCE_STEPS,
+		StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+		SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+		scopeIdentityDigest,
+	),
+).use { cursor ->
+	check(cursor.moveToFirst()) { "Steps full-clear fence winner disappeared" }
+	SourceDeletionFenceEntity(
+		sourceKind = cursor.getInt(0),
+		purpose = cursor.getString(1),
+		scopeKind = cursor.getString(2),
+		scopeIdentityDigest = cursor.getString(3),
+		fenceGeneration = cursor.getLong(4),
+		collectedDataEpoch = cursor.getLong(5),
+		deletedAtMs = cursor.getLong(6),
+		effectChecksum = cursor.getString(7),
+	)
+}
+
+private const val MAX_STEPS_FULL_CLEAR_FENCES = 65_536

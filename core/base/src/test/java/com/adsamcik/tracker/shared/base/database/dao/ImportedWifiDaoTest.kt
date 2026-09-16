@@ -13,6 +13,9 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedWifiRunZoneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionProtectedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionRunMarker
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
@@ -49,6 +52,68 @@ class ImportedWifiDaoTest {
 		dao.insertDeletionGeneration(ImportedWifiDeletionGenerationEntity.create(
 			"9".repeat(64), "8".repeat(64), "a".repeat(64), EPOCH, 1L, 1_400L,
 		))
+		val deletionProtected = listOf(
+			WifiSelectedDeletionProtectedIdentityEntity.create(
+				"8".repeat(64),
+				WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+				WifiSelectedDeletionProtectedIdentityEntity.KIND_ENTRY,
+				"8".repeat(64),
+				"8".repeat(64),
+				null,
+				null,
+				null,
+				null,
+				1,
+				"b".repeat(64),
+				EPOCH,
+			),
+			WifiSelectedDeletionProtectedIdentityEntity.create(
+				"8".repeat(64),
+				WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+				WifiSelectedDeletionProtectedIdentityEntity.KIND_RUN,
+				"9".repeat(64),
+				"8".repeat(64),
+				"9".repeat(64),
+				"a".repeat(64),
+				null,
+				null,
+				1,
+				"c".repeat(64),
+				EPOCH,
+			),
+			WifiSelectedDeletionProtectedIdentityEntity.create(
+				"8".repeat(64),
+				WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+				WifiSelectedDeletionProtectedIdentityEntity.KIND_DELETION_SCOPE,
+				"a".repeat(64),
+				"8".repeat(64),
+				"9".repeat(64),
+				"a".repeat(64),
+				null,
+				null,
+				1,
+				"c".repeat(64),
+				EPOCH,
+			),
+		)
+		val deletionReceipt = WifiSelectedDeletionReceiptEntity.create(
+			"8".repeat(64),
+			WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+			EPOCH,
+			1L,
+			"d".repeat(64),
+			800L,
+			1_200L,
+			deletionProtected,
+			listOf(WifiSelectedDeletionRunMarker(
+				"9".repeat(64), "8".repeat(64), "a".repeat(64), EPOCH, 1L, 1_400L,
+			)),
+			emptyList(),
+			null,
+			1_400L,
+		)
+		dao.insertSelectedDeletionReceipt(deletionReceipt)
+		dao.insertSelectedDeletionProtectedIdentities(deletionProtected)
 
 		dao.entryRevisionsForAdmission(ENTRY) shouldBe listOf(entry())
 		dao.receiptsForAdmission(ENTRY) shouldBe listOf(receipt())
@@ -61,13 +126,95 @@ class ImportedWifiDaoTest {
 			.single().identity shouldBe OBSERVATION
 		dao.existingRunScopeOwners(listOf(SCOPE), 2).single().runIdentity shouldBe RUN
 		dao.deletionGenerationsByEntry(listOf("8".repeat(64)), 1).single().runIdentity shouldBe "9".repeat(64)
+		dao.selectedDeletionReceipt(
+			"8".repeat(64),
+			WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+		) shouldBe deletionReceipt
+		dao.selectedDeletionProtectedIdentities(
+			"8".repeat(64),
+			WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+			4,
+		).toSet() shouldBe
+			deletionProtected.toSet()
+		dao.selectedDeletionProtectedIdentityOwners(listOf("9".repeat(64)), 4).size shouldBe 1
+		dao.authorityOwners(
+			listOf(ENTRY, RUN, OBSERVATION, SCOPE, "8".repeat(64), "9".repeat(64), "a".repeat(64)),
+			32,
+		).map { it.ownerKind }.toSet() shouldBe setOf(
+			ImportedWifiAuthorityOwner.ENTRY,
+			ImportedWifiAuthorityOwner.RUN,
+			ImportedWifiAuthorityOwner.OBSERVATION,
+			ImportedWifiAuthorityOwner.DELETION_SCOPE,
+			ImportedWifiAuthorityOwner.ENTRY_DELETION,
+			ImportedWifiAuthorityOwner.RUN_DELETION,
+			ImportedWifiAuthorityOwner.SELECTED_PROTECTED,
+		)
 		database.sourceSessionDao().session(ENTRY) shouldBe null
 		database.sourceSessionDao().serviceRun(RUN) shouldBe null
 		database.wifiCapturedFactDao().revisionCount() shouldBe 0L
 	}
 
 	@Test
-	fun `foreign hierarchy is atomic and full collected clear removes every imported row`() = runTest {
+	fun `history candidates select only latest revisions and batch dependencies without row fanout`() =
+		runTest {
+			dao.insertEntryRevision(entry())
+			dao.insertRun(run())
+			dao.insertRunZone(zone())
+			dao.insertObservation(observation())
+			dao.insertReceipt(receipt())
+			dao.insertRun(run().copy(
+				identity = "e".repeat(64),
+				deletionScopeDigest = "f".repeat(64),
+				contentChecksum = "a".repeat(64),
+				startTimeMs = 1_100L,
+				captureCoverage = "NOT_CAPTURED",
+				availability = "NOT_CAPTURED",
+				acquisitionCompleteness = "UNKNOWN",
+			))
+			val secondIdentity = "b".repeat(64)
+			val second = entry().copy(
+				identity = secondIdentity,
+				contentChecksum = "c".repeat(64),
+				startTimeMs = 1_000L,
+				endTimeMs = 1_500L,
+				importJobId = "job-2",
+				importEntryKey = "entry-2",
+				receivedAtMs = 1_600L,
+			)
+			dao.insertEntryRevision(second)
+			val correction = second.copy(
+				importRevision = 2L,
+				supersedesImportRevision = 1L,
+				contentChecksum = "d".repeat(64),
+				importJobId = "job-3",
+				importEntryKey = "entry-3",
+				receivedAtMs = 1_700L,
+			)
+			dao.insertEntryRevision(correction)
+
+			val page = dao.recentHistoryCandidatePage(2, null, null)
+			page.map { it.identity to it.importRevision } shouldBe
+				listOf(ENTRY to 1L, secondIdentity to 2L)
+			dao.latestHistoryCandidate(secondIdentity)?.importRevision shouldBe 2L
+			dao.recentHistoryCandidatePage(
+				2,
+				page.first().newestMemberStartTimeMs,
+				page.first().newestMemberIdentity,
+			).map { it.identity } shouldBe listOf(secondIdentity)
+			dao.historyCandidateRangePage(900L, 1_300L, 3, null, null)
+				.map { it.identity to it.importRevision } shouldBe
+				listOf(ENTRY to 1L, secondIdentity to 2L)
+			dao.historyCandidateRangePage(1_300L, 1_400L, 3, null, null)
+				.map { it.identity } shouldBe listOf(secondIdentity)
+			dao.entryRevisionsForHistory(listOf(ENTRY, secondIdentity), 4).size shouldBe 3
+			dao.receiptsForHistory(listOf(ENTRY, secondIdentity), 2) shouldBe listOf(receipt())
+			dao.runsForHistory(listOf(ENTRY, secondIdentity), 3).size shouldBe 2
+			dao.runZonesForHistory(listOf(ENTRY, secondIdentity), 2) shouldBe listOf(zone())
+			dao.observationsForHistory(listOf(ENTRY, secondIdentity), 2) shouldBe listOf(observation())
+		}
+
+	@Test
+	fun `foreign hierarchy clear removes payload and reepochs imported privacy authority`() = runTest {
 		shouldThrow<android.database.sqlite.SQLiteConstraintException> { dao.insertRun(run()) }
 		dao.insertEntryRevision(entry())
 		dao.insertRun(run())
@@ -87,8 +234,14 @@ class ImportedWifiDaoTest {
 		dao.runCount() shouldBe 0L
 		dao.runZoneCount() shouldBe 0L
 		dao.observationCount() shouldBe 0L
-		dao.entryDeletionCount() shouldBe 0L
-		dao.deletionGenerationCount() shouldBe 0L
+		dao.entryDeletionCount() shouldBe 2L
+		dao.deletionGenerationCount() shouldBe 2L
+		dao.entryDeletionsForHistory(listOf(ENTRY, "8".repeat(64)), 3).all {
+			it.collectedDataEpoch == EPOCH + 1L
+		} shouldBe true
+		dao.deletionGenerationsByEntry(listOf(ENTRY, "8".repeat(64)), 3).all {
+			it.collectedDataEpoch == EPOCH + 1L
+		} shouldBe true
 	}
 
 	@Test

@@ -26,6 +26,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind
+import com.adsamcik.tracker.shared.base.database.PortableCellOpaqueIdentity
 import com.adsamcik.tracker.stats.api.repository.CellHistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
 import com.adsamcik.tracker.stats.api.repository.CellHistoryChildCompleteness
@@ -37,6 +39,8 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistorySignalQuality
 import com.adsamcik.tracker.stats.api.repository.CellHistorySubscriptionGrouping
 import com.adsamcik.tracker.stats.api.repository.CellHistoryTechnology
+import com.adsamcik.tracker.stats.api.repository.LocalCellHistoryIdentity
+import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import java.io.ByteArrayInputStream
 import java.io.DataInputStream
@@ -70,13 +74,51 @@ internal object CellHistoryComposer {
 		.mapNotNull { logicalId ->
 			val members = members(logicalId, snapshot)
 			val entry = composeGroup(logicalId, snapshot, laneExecutionAuthority) ?: return@mapNotNull null
+			val recency = members.maxWithOrNull(
+				compareBy(SessionSegment::startTimeMs, SessionSegment::id),
+			) ?: return@mapNotNull null
 			ComposedCellEntry(
 				logicalTrackingId = logicalId,
-				recencyStartTimeMs = members.maxOfOrNull(SessionSegment::startTimeMs) ?: 0L,
-				recencySegmentId = members.maxOfOrNull(SessionSegment::id) ?: 0L,
+				recencyStartTimeMs = recency.startTimeMs,
+				recencySegmentId = recency.id,
+				recencyTieIdentity = PortableCellOpaqueIdentity.derive(
+					PortableCellIdentityKind.PHYSICAL_RUN,
+					recency.serviceRunId?.takeIf(String::isNotBlank)
+						?: "cell-source-segment:${recency.id}",
+				),
+				physicalSegmentIds = members.map(SessionSegment::id),
+				capturesOnlyCell = hasExactCellOnlyCaptureIntent(logicalId, snapshot),
 				entry = entry,
 			)
 		}.toList()
+
+	internal fun hasExactCellOnlyCaptureIntent(
+		logicalId: String,
+		snapshot: CellHistorySnapshot,
+	): Boolean {
+		val segments = members(logicalId, snapshot)
+		val runIds = segments.mapNotNull(SessionSegment::serviceRunId)
+		if (segments.isEmpty() || runIds.size != segments.size || runIds.distinct().size != runIds.size) {
+			return false
+		}
+		val runs = runIds.mapNotNull(snapshot.runs::get)
+		if (runs.size != runIds.size) return false
+		val manifestsByRun = runs.associate { run ->
+			run.serviceRunId to snapshot.manifestsByRun[run.serviceRunId].orEmpty()
+				.sortedBy(SessionManifestVersionEntity::manifestRevision)
+		}
+		if (!hasValidManifestHistory(logicalId, runs, manifestsByRun, snapshot)) return false
+		return manifestsByRun.values.flatten().all { manifest ->
+			val membership = snapshot.sourcesByManifest[
+				CellManifestKey(logicalId, manifest.manifestRevision)
+			].orEmpty()
+			val captured = membership.filter {
+				it.purpose == SessionManifestPurposeCode.SESSION_CAPTURE
+			}
+			captured.size == 1 && captured.single().sourceKind == CELL_SOURCE &&
+				captured.single().persistenceEligible
+		}
+	}
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private fun composeGroup(
@@ -733,7 +775,8 @@ internal object CellHistoryComposer {
 		val start = segments.minOf(SessionSegment::startTimeMs).coerceAtLeast(0L)
 		val end = segments.maxOf(SessionSegment::endTimeMs).coerceAtLeast(start)
 		return CellHistoryEntry(CellHistoryEntryKey("cell-logical:$logicalId"), EpochMs(start), EpochMs(end),
-			zones, state, coverage, observations, causes)
+			zones, state, coverage, observations, causes,
+			selection = localSelection(logicalId))
 	}
 
 	private fun failed(logicalId: String, segments: List<SessionSegment>, cause: CellHistoryCause) =
@@ -758,6 +801,16 @@ internal object CellHistoryComposer {
 		EpochMs(segment.endTimeMs.coerceAtLeast(segment.startTimeMs.coerceAtLeast(0L))), emptySet(),
 		CellHistoryProductState.UNAVAILABLE, CellHistoryCoverage.NONE, emptyList(),
 		setOf(CellHistoryCause.SOURCE_NOT_CAPTURED),
+		selection = segment.logicalTrackingId?.takeIf(String::isNotBlank)?.let(::localSelection),
+	)
+
+	private fun localSelection(logicalId: String) = LocalCellHistorySelection(
+		LocalCellHistoryIdentity(
+			PortableCellOpaqueIdentity.derive(
+				PortableCellIdentityKind.LOGICAL_ENTRY,
+				logicalId,
+			).value,
+		),
 	)
 
 	private fun maxOfOrNull(left: Long?, right: Long?): Long? = when {
@@ -888,7 +941,18 @@ internal data class ComposedCellEntry(
 	val logicalTrackingId: String,
 	val recencyStartTimeMs: Long,
 	val recencySegmentId: Long,
+	val recencyTieIdentity: PortableCellOpaqueIdentity,
+	val physicalSegmentIds: List<Long>,
+	val capturesOnlyCell: Boolean,
 	val entry: CellHistoryEntry,
-)
+) {
+	init {
+		require(logicalTrackingId.isNotBlank())
+		require(recencyStartTimeMs >= 0L && recencySegmentId > 0L)
+		require(physicalSegmentIds.isNotEmpty() && physicalSegmentIds.distinct().size ==
+			physicalSegmentIds.size)
+		require(recencySegmentId in physicalSegmentIds)
+	}
+}
 
 internal const val CELL_SOURCE = SourceDestinationOwnerEntity.SOURCE_CELL

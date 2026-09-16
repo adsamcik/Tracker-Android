@@ -1,5 +1,35 @@
 package com.adsamcik.tracker.tracker.altitude
 
+internal data class AltitudeKalmanState(
+	val version: Int,
+	val processNoiseAltitude: Double,
+	val processNoiseVelocity: Double,
+	val altitudeM: Double,
+	val verticalVelocityMps: Double,
+	val covariance00: Double,
+	val covariance01: Double,
+	val covariance10: Double,
+	val covariance11: Double,
+	val lastElapsedTimeMs: Long,
+	val initialized: Boolean,
+) {
+	init {
+		require(version == CURRENT_VERSION)
+		require(processNoiseAltitude.isFinite() && processNoiseAltitude >= 0.0)
+		require(processNoiseVelocity.isFinite() && processNoiseVelocity >= 0.0)
+		require(altitudeM.isFinite() && verticalVelocityMps.isFinite())
+		require(covariance00.isFinite() && covariance00 >= 0.0)
+		require(covariance01.isFinite() && covariance10.isFinite())
+		require(covariance11.isFinite() && covariance11 >= 0.0)
+		require(lastElapsedTimeMs >= 0L)
+		require(initialized || lastElapsedTimeMs == 0L)
+	}
+
+	companion object {
+		const val CURRENT_VERSION = 1
+	}
+}
+
 /**
  * 1D Kalman filter for altitude estimation.
  *
@@ -48,6 +78,36 @@ internal class AltitudeKalmanFilter(
 	 * Current altitude uncertainty (1-sigma) in meters.
 	 */
 	val altitudeUncertainty: Double get() = kotlin.math.sqrt(p00)
+
+	@Synchronized
+	fun snapshotState(): AltitudeKalmanState = AltitudeKalmanState(
+		version = AltitudeKalmanState.CURRENT_VERSION,
+		processNoiseAltitude = processNoiseAltitude,
+		processNoiseVelocity = processNoiseVelocity,
+		altitudeM = x0,
+		verticalVelocityMps = x1,
+		covariance00 = p00,
+		covariance01 = p01,
+		covariance10 = p10,
+		covariance11 = p11,
+		lastElapsedTimeMs = lastElapsedTimeMs,
+		initialized = initialized,
+	)
+
+	@Synchronized
+	fun restoreState(state: AltitudeKalmanState) {
+		require(state.version == AltitudeKalmanState.CURRENT_VERSION)
+		require(state.processNoiseAltitude == processNoiseAltitude)
+		require(state.processNoiseVelocity == processNoiseVelocity)
+		x0 = state.altitudeM
+		x1 = state.verticalVelocityMps
+		p00 = state.covariance00
+		p01 = state.covariance01
+		p10 = state.covariance10
+		p11 = state.covariance11
+		lastElapsedTimeMs = state.lastElapsedTimeMs
+		initialized = state.initialized
+	}
 
 	/**
 	 * Prediction step: advance the state by dt seconds using constant-velocity model.
@@ -145,6 +205,7 @@ internal class AltitudeKalmanFilter(
 	 */
 	@Synchronized
 	fun reset() {
+		x0 = 0.0
 		x1 = 0.0
 		p00 = INITIAL_VARIANCE
 		p01 = 0.0

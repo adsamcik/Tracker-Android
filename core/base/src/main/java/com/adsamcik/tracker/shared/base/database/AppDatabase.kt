@@ -19,6 +19,8 @@ import com.adsamcik.tracker.shared.base.database.dao.ActivityAutomationEpochDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.AmbientStepsFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.AmbientStepsImportStateDao
+import com.adsamcik.tracker.shared.base.database.dao.AmbientCellFactDao
+import com.adsamcik.tracker.shared.base.database.dao.AmbientWifiFactDao
 import com.adsamcik.tracker.shared.base.database.dao.CellCapturedFactDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
@@ -39,6 +41,7 @@ import com.adsamcik.tracker.shared.base.database.dao.StepsGoalRepairDayDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedStepsDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedActivityDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
@@ -60,11 +63,27 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCurs
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellDeletionMarkerEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellReplayFootprintEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiDeletionMarkerEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiReplayFootprintEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedDeletedRunEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellSample
@@ -72,7 +91,9 @@ import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportJobReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletedIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellObservationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellReceiptEntity
@@ -100,6 +121,28 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevis
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetentionReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetainedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureSourceEraseEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureSourceEraseWitnessEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellFactEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellGapEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientCellTombstoneEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiFactEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiGapEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientWifiTombstoneEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveDayEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsFactEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsGapEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsProtectedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsSourceFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedActivityEntryDeletionReceiptEntity
@@ -122,6 +165,8 @@ import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceCaptureAdmissionBarrierEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRunRetirementEntity
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
 import com.adsamcik.tracker.shared.base.database.data.TrackerStateEvent
 import com.adsamcik.tracker.shared.base.database.data.TrajectoryReconstructionRunEntity
@@ -132,6 +177,8 @@ import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.database.data.WifiCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionProtectedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.WifiSelectedDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
@@ -149,7 +196,6 @@ import com.adsamcik.tracker.shared.base.database.dao.SourceRegistrationStateDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceSessionDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackingRolloutStateDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackingHistoryReadDao
-import com.adsamcik.tracker.shared.base.database.dao.recordFullDeletion
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.shared.base.database.data.ExplorationCellEntity
 import com.adsamcik.tracker.shared.base.database.data.ExplorationStreakEntity
@@ -239,12 +285,26 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedStepsEntryEntity::class,
 			ImportedStepsRunEntity::class,
 			ImportedStepsManifestEntity::class,
+			ImportedAmbientStepsArchiveEntity::class,
+			ImportedAmbientStepsReceiptEntity::class,
+			ImportedAmbientStepsArchiveDayEntity::class,
+			ImportedAmbientStepsDayRevisionEntity::class,
+			ImportedAmbientStepsFactEntity::class,
+			ImportedAmbientStepsGapEntity::class,
+			ImportedAmbientStepsDayFenceEntity::class,
+			ImportedAmbientStepsProtectedIdentityEntity::class,
+			ImportedAmbientStepsSourceFenceEntity::class,
 			ImportedPressureEntryRevisionEntity::class,
 			ImportedPressureReceiptEntity::class,
 			ImportedPressureRunEntity::class,
 			ImportedPressureWindowEntity::class,
 			ImportedPressureEntryDeletionEntity::class,
 			ImportedPressureDeletionGenerationEntity::class,
+			ImportedPressureRetentionReceiptEntity::class,
+			ImportedPressureRetainedIdentityEntity::class,
+			ImportedPressureIdentityFenceEntity::class,
+			ImportedPressureSourceEraseEntity::class,
+			ImportedPressureSourceEraseWitnessEntity::class,
 			ImportedActivityEntryRevisionEntity::class,
 			ImportedActivityReceiptEntity::class,
 			ImportedActivityRunEntity::class,
@@ -265,12 +325,16 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			CellCapturedFactRevisionEntity::class,
 			CellCapturedFactCursorEntity::class,
 			CellCaptureDeletionGenerationEntity::class,
+			CellCapturedEntryDeletionReceiptEntity::class,
+			CellCapturedDeletedRunEntity::class,
 			ImportedCellEntryRevisionEntity::class,
 			ImportedCellReceiptEntity::class,
 			ImportedCellRunEntity::class,
 			ImportedCellObservationEntity::class,
 			ImportedCellEntryDeletionEntity::class,
 			ImportedCellDeletionGenerationEntity::class,
+			ImportedCellEntryDeletionReceiptEntity::class,
+			ImportedCellDeletedIdentityEntity::class,
 			WifiCapturedFactRevisionEntity::class,
 			WifiCapturedFactCursorEntity::class,
 			WifiCaptureDeletionGenerationEntity::class,
@@ -281,6 +345,30 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedWifiObservationEntity::class,
 			ImportedWifiEntryDeletionEntity::class,
 			ImportedWifiDeletionGenerationEntity::class,
+			WifiSelectedDeletionReceiptEntity::class,
+			WifiSelectedDeletionProtectedIdentityEntity::class,
+			AmbientWifiAuthorityEntity::class,
+			AmbientWifiRetentionAuthorityEntity::class,
+			AmbientWifiFactRevisionEntity::class,
+			AmbientWifiFactCursorEntity::class,
+			AmbientWifiGapEntity::class,
+			AmbientWifiDeletionMarkerEntity::class,
+			ImportedAmbientWifiFactEntity::class,
+			ImportedAmbientWifiGapEntity::class,
+			ImportedAmbientWifiReceiptEntity::class,
+			ImportedAmbientWifiTombstoneEntity::class,
+			AmbientWifiReplayFootprintEntity::class,
+			AmbientCellAuthorityEntity::class,
+			AmbientCellRetentionAuthorityEntity::class,
+			AmbientCellFactRevisionEntity::class,
+			AmbientCellFactCursorEntity::class,
+			AmbientCellGapEntity::class,
+			AmbientCellDeletionMarkerEntity::class,
+			ImportedAmbientCellFactEntity::class,
+			ImportedAmbientCellGapEntity::class,
+			ImportedAmbientCellReceiptEntity::class,
+			ImportedAmbientCellTombstoneEntity::class,
+			AmbientCellReplayFootprintEntity::class,
 			SourceDeletionFenceEntity::class,
 			SourceDestinationOwnerEntity::class,
 			ActivitySnapshot::class,
@@ -290,6 +378,8 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			TrackerStateEvent::class,
 			SourceEvidenceState::class,
 			SourceEventWalEntity::class,
+			SourceCaptureAdmissionBarrierEntity::class,
+			SourceRunRetirementEntity::class,
 			SourceProductProjectionLaneEntity::class,
 			SourceProjectionRegistrationEntity::class,
 			SourceProjectionCheckpointEntity::class,
@@ -402,6 +492,12 @@ abstract class AppDatabase : RoomDatabase() {
 	/** Provides exact source-local Ambient Steps import progress and discontinuities. */
 	abstract fun ambientStepsImportStateDao(): AmbientStepsImportStateDao
 
+	/** Default-off sessionless Wi-Fi evidence; access alone creates no demand. */
+	abstract fun ambientWifiFactDao(): AmbientWifiFactDao
+
+	/** Default-off sessionless Cell evidence; access alone creates no demand. */
+	abstract fun ambientCellFactDao(): AmbientCellFactDao
+
 	/** Desired, revisioned source-qualified goal effects; no provider or award is started by access. */
 	abstract fun stepsGoalEffectDao(): StepsGoalEffectDao
 
@@ -410,6 +506,9 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Dormant imported Steps metadata; this accessor does not grant import admission authority. */
 	abstract fun importedStepsDao(): ImportedStepsDao
+
+	/** Portable ambient origin only; no provider, capture, or consent authority is created. */
+	abstract fun importedAmbientStepsDao(): ImportedAmbientStepsDao
 
 	/** Dormant Pressure portable-origin storage; this accessor grants no import authority. */
 	abstract fun importedPressureDao(): ImportedPressureDao
@@ -622,6 +721,7 @@ abstract class AppDatabase : RoomDatabase() {
 
 		override fun setupDatabase(database: Builder<AppDatabase>) {
 			database.addMigrations(*activeMigrations)
+			database.addCallback(TrackingOwnerValidationRoomCallback)
 		}
 
 		override fun setupDatabase(context: Context, database: Builder<AppDatabase>) {
@@ -667,39 +767,191 @@ abstract class AppDatabase : RoomDatabase() {
 			updatedAtMs: Long,
 		) {
 			database.withTransaction {
-				database.sourceEvidenceStateDao().recordFullDeletion(
-					epoch = collectedDataEpoch,
+				deleteAllCollectedDataInCurrentTransaction(
+					database = database,
+					newCollectedDataEpoch = collectedDataEpoch,
 					retainedFromMs = retainedFromMs,
-					deletedSourceEventHighWaterOrdinal = sourceEventWalHighWater(database),
 					updatedAtMs = updatedAtMs,
 				)
-				deleteCollectedRows(database)
 			}
 		}
 
 		internal fun deleteAllCollectedData(database: AppDatabase) {
 			database.runInTransaction {
-				val sqlite = database.openHelper.writableDatabase
-				val deletedSourceEventHighWaterOrdinal = sourceEventWalHighWater(database)
-				sqlite.execSQL(
-					"INSERT OR IGNORE INTO source_evidence_state " +
-						"(id, revision, collected_data_epoch, retained_from_ms, " +
-						"deleted_source_event_high_water_ordinal, updated_at_ms) " +
-						"VALUES (1, 0, 0, NULL, 0, 0)",
-				)
-				val currentEpoch = sqlite.query(
-					"SELECT collected_data_epoch FROM source_evidence_state WHERE id = 1",
-				).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else 0L }
-				val nextEpoch = currentEpoch + 1L
 				val updatedAtMs = System.currentTimeMillis()
-				sqlite.execSQL(
-					"UPDATE source_evidence_state SET collected_data_epoch = ?, revision = revision + 1, " +
-						"deleted_source_event_high_water_ordinal = " +
-						"MAX(deleted_source_event_high_water_ordinal, ?), " +
-						"updated_at_ms = ? WHERE id = 1",
-					arrayOf(nextEpoch, deletedSourceEventHighWaterOrdinal, updatedAtMs),
+				val oldState = getOrCreateSourceEvidenceState(database)
+				deleteAllCollectedDataInCurrentTransaction(
+					database = database,
+					oldState = oldState,
+					newCollectedDataEpoch = Math.addExact(oldState.collectedDataEpoch, 1L),
+					retainedFromMs = oldState.retainedFromMs,
+					updatedAtMs = updatedAtMs,
 				)
-				deleteCollectedRows(database)
+			}
+		}
+
+		private fun deleteAllCollectedDataInCurrentTransaction(
+			database: AppDatabase,
+			newCollectedDataEpoch: Long,
+			retainedFromMs: Long?,
+			updatedAtMs: Long,
+		) {
+			deleteAllCollectedDataInCurrentTransaction(
+				database = database,
+				oldState = getOrCreateSourceEvidenceState(database),
+				newCollectedDataEpoch = newCollectedDataEpoch,
+				retainedFromMs = retainedFromMs,
+				updatedAtMs = updatedAtMs,
+			)
+		}
+
+		private fun deleteAllCollectedDataInCurrentTransaction(
+			database: AppDatabase,
+			oldState: SourceEvidenceState,
+			newCollectedDataEpoch: Long,
+			retainedFromMs: Long?,
+			updatedAtMs: Long,
+		) {
+			require(newCollectedDataEpoch > oldState.collectedDataEpoch)
+			require(retainedFromMs == null || retainedFromMs >= 0L)
+			require(updatedAtMs >= 0L)
+			val nextRevision = Math.addExact(oldState.revision, 1L)
+			val deletedSourceEventHighWaterOrdinal = maxOf(
+				oldState.deletedSourceEventHighWaterOrdinal,
+				sourceEventWalHighWater(database),
+			)
+			val nextRetainedFromMs = listOfNotNull(
+				oldState.retainedFromMs,
+				retainedFromMs,
+			).maxOrNull()
+			val sqlite = database.openHelper.writableDatabase
+			val importedAmbientStepsDao = database.importedAmbientStepsDao()
+
+			preserveImportedPressureFullClearAuthority(
+				sqlite = sqlite,
+				expectedCollectedDataEpoch = oldState.collectedDataEpoch,
+				fencedAtMs = updatedAtMs,
+			)
+			preserveStepsFullClearFences(
+				sqlite = sqlite,
+				oldCollectedDataEpoch = oldState.collectedDataEpoch,
+				newCollectedDataEpoch = newCollectedDataEpoch,
+				deletedAtMs = updatedAtMs,
+			)
+			preserveWifiFullClearAuthority(
+				sqlite = sqlite,
+				oldCollectedDataEpoch = oldState.collectedDataEpoch,
+				newCollectedDataEpoch = newCollectedDataEpoch,
+				newRetainedFromMs = nextRetainedFromMs,
+				clearedAtMs = updatedAtMs,
+			)
+			preserveCellFullClearAuthority(
+				database = database,
+				sqlite = sqlite,
+				oldCollectedDataEpoch = oldState.collectedDataEpoch,
+				newCollectedDataEpoch = newCollectedDataEpoch,
+				newRetainedFromMs = nextRetainedFromMs,
+				clearedAtMs = updatedAtMs,
+			)
+			check(
+				database.clearAmbientWifiProductInCurrentFullClearTransaction(
+					oldState.collectedDataEpoch,
+					updatedAtMs,
+				) is AmbientWifiDeletionResult.Deleted,
+			) { "Ambient Wi-Fi full clear could not preserve replay authority" }
+			check(
+				database.clearAmbientCellProductInCurrentFullClearTransaction(
+					oldState.collectedDataEpoch,
+					updatedAtMs,
+				) is AmbientCellDeletionResult.Deleted,
+			) { "Ambient Cell full clear could not preserve replay authority" }
+			importedAmbientStepsDao.prepareFullClearFencesInCurrentTransaction(
+				oldCollectedDataEpoch = oldState.collectedDataEpoch,
+				newCollectedDataEpoch = newCollectedDataEpoch,
+				sourceEvidenceRevision = nextRevision,
+				clearedAtMs = updatedAtMs,
+			)
+			publishFullDeletionState(
+				database = database,
+				oldState = oldState,
+				newCollectedDataEpoch = newCollectedDataEpoch,
+				newRevision = nextRevision,
+				retainedFromMs = nextRetainedFromMs,
+				deletedSourceEventHighWaterOrdinal = deletedSourceEventHighWaterOrdinal,
+				updatedAtMs = updatedAtMs,
+			)
+			importedAmbientStepsDao.deleteFullClearPayloadInCurrentTransaction(
+				newCollectedDataEpoch,
+			)
+			deleteCollectedRows(database)
+		}
+
+		private fun getOrCreateSourceEvidenceState(database: AppDatabase): SourceEvidenceState {
+			val sqlite = database.openHelper.writableDatabase
+			sqlite.execSQL(
+				"INSERT OR IGNORE INTO source_evidence_state " +
+					"(id, revision, collected_data_epoch, retained_from_ms, " +
+					"deleted_source_event_high_water_ordinal, updated_at_ms) " +
+					"VALUES (1, 0, 0, NULL, 0, 0)",
+			)
+			return sqlite.query(
+				"SELECT id, revision, collected_data_epoch, retained_from_ms, " +
+					"deleted_source_event_high_water_ordinal, updated_at_ms " +
+					"FROM source_evidence_state WHERE id = 1",
+			).use { cursor ->
+				check(cursor.moveToFirst()) {
+					"Source-evidence state disappeared inside full-clear transaction"
+				}
+				SourceEvidenceState(
+					id = cursor.getInt(0),
+					revision = cursor.getLong(1),
+					collectedDataEpoch = cursor.getLong(2),
+					retainedFromMs = if (cursor.isNull(3)) null else cursor.getLong(3),
+					deletedSourceEventHighWaterOrdinal = cursor.getLong(4),
+					updatedAtMs = cursor.getLong(5),
+				)
+			}.also { state ->
+				check(
+					state.id == SourceEvidenceState.SINGLETON_ID &&
+						state.revision >= 0L &&
+						state.collectedDataEpoch >= 0L &&
+						(state.retainedFromMs == null || state.retainedFromMs >= 0L) &&
+						state.deletedSourceEventHighWaterOrdinal >= 0L &&
+						state.updatedAtMs >= 0L,
+				) { "Stored source-evidence state is invalid" }
+			}
+		}
+
+		private fun publishFullDeletionState(
+			database: AppDatabase,
+			oldState: SourceEvidenceState,
+			newCollectedDataEpoch: Long,
+			newRevision: Long,
+			retainedFromMs: Long?,
+			deletedSourceEventHighWaterOrdinal: Long,
+			updatedAtMs: Long,
+		) {
+			database.openHelper.writableDatabase.compileStatement(
+				"UPDATE source_evidence_state SET revision = ?, collected_data_epoch = ?, " +
+					"retained_from_ms = ?, deleted_source_event_high_water_ordinal = ?, " +
+					"updated_at_ms = ? WHERE id = ? AND revision = ? " +
+					"AND collected_data_epoch = ?",
+			).use { statement ->
+				statement.bindLong(1, newRevision)
+				statement.bindLong(2, newCollectedDataEpoch)
+				if (retainedFromMs == null) {
+					statement.bindNull(3)
+				} else {
+					statement.bindLong(3, retainedFromMs)
+				}
+				statement.bindLong(4, deletedSourceEventHighWaterOrdinal)
+				statement.bindLong(5, updatedAtMs)
+				statement.bindLong(6, oldState.id.toLong())
+				statement.bindLong(7, oldState.revision)
+				statement.bindLong(8, oldState.collectedDataEpoch)
+				check(statement.executeUpdateDelete() == 1) {
+					"Unable to publish full collected-data deletion"
+				}
 			}
 		}
 
@@ -717,9 +969,10 @@ abstract class AppDatabase : RoomDatabase() {
 		}
 
 		private fun deleteCollectedRows(database: AppDatabase) {
-			preserveStepsFullClearFences(database.openHelper.writableDatabase)
 			// Source-event pipeline. Delete dependent state before immutable evidence.
 			database.locationProjectionDao().deleteAllObservations()
+			database.openHelper.writableDatabase.execSQL("DELETE FROM source_capture_admission_barrier")
+			database.openHelper.writableDatabase.execSQL("DELETE FROM source_run_retirement")
 			database.sourceBrokerDao().deleteAllAuthorizations()
 			database.sourceBrokerDao().deleteAllRegistrations()
 			database.sourceBrokerDao().deleteAllDemands()
@@ -749,8 +1002,9 @@ abstract class AppDatabase : RoomDatabase() {
 			database.locationSampleDao().deleteAll()
 			database.locationObservationDao().deleteAll()
 			database.locationObservationDecisionDao().deleteAll()
-			// Payload-free source fences deliberately survive repeated full clears: portable files
-			// have no previous local epoch and must not resurrect an explicitly deleted run.
+			// Payload-free source fences deliberately survive repeated full clears. Imported
+			// Ambient Steps payload was authenticated and removed before this common cascade; its
+			// day fences, protected identities, and source fence remain as deletion authority.
 			database.stepFactRevisionDao().deleteAll()
 			database.ambientStepsFactRevisionDao().deleteAll()
 			database.ambientStepsImportStateDao().deleteAllAuthorityTransitions()
@@ -761,8 +1015,8 @@ abstract class AppDatabase : RoomDatabase() {
 			database.importedStepsDao().deleteAll()
 			database.importedPressureDao().deleteAllReceipts()
 			database.importedPressureDao().deleteAllEntries()
-			database.importedPressureDao().deleteAllEntryDeletions()
-			database.importedPressureDao().deleteAllDeletionGenerations()
+			database.importedPressureDao().deleteAllRetainedIdentities()
+			database.importedPressureDao().deleteAllRetentionReceipts()
 			database.importedActivityDao().deleteAllReceipts()
 			database.importedActivityDao().deleteAllEntries()
 			database.importedActivityDao().deleteAllRetainedIdentities()
@@ -778,20 +1032,14 @@ abstract class AppDatabase : RoomDatabase() {
 			database.activityCapturedFactDao().deleteAllRegistrationPlanBindings()
 			database.cellCapturedFactDao().deleteAllCursors()
 			database.cellCapturedFactDao().deleteAllRevisions()
-			database.cellCapturedFactDao().deleteAllDeletionGenerations()
 			database.importedCellDao().deleteAllReceipts()
 			database.importedCellDao().deleteAllEntries()
-			database.importedCellDao().deleteAllEntryDeletions()
-			database.importedCellDao().deleteAllDeletionGenerations()
 			database.wifiCapturedFactDao().deleteAllCursors()
 			// Wi-Fi coverage revisions reference aggregate owners through an immediate RESTRICT FK.
 			database.wifiCapturedFactDao().deleteAllDependentRevisions()
 			database.wifiCapturedFactDao().deleteAllRevisions()
-			database.wifiCapturedFactDao().deleteAllDeletionGenerations()
 			database.importedWifiDao().deleteAllReceipts()
 			database.importedWifiDao().deleteAllEntryRevisions()
-			database.importedWifiDao().deleteAllEntryDeletions()
-			database.importedWifiDao().deleteAllDeletionGenerations()
 			database.stepIntervalDao().deleteAll()
 			database.activitySnapshotDao().deleteAll()
 			database.cellSampleDao().deleteAll()
@@ -820,6 +1068,8 @@ abstract class AppDatabase : RoomDatabase() {
 
 			// Ski detection tables
 			database.pressureSampleDao().deleteAll()
+			database.importedPressureDao().deleteSourceEraseWitnesses()
+			database.importedPressureDao().deleteSourceErase()
 			database.skiRunSegmentDao().deleteAll()
 
 			// Pending signal WAL

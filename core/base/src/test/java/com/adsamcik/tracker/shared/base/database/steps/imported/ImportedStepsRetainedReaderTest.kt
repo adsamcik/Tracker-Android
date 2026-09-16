@@ -141,7 +141,7 @@ class ImportedStepsRetainedReaderTest {
 			val fence = database.sourceDeletionFenceDao().get(SourceDestinationOwnerEntity.SOURCE_STEPS,
 				StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE, SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
 				run.deletionScopeDigest.value).shouldNotBeNull()
-			fence.collectedDataEpoch shouldBe 2L
+			fence.collectedDataEpoch shouldBe 3L
 			fence.deletedAtMs shouldBe 500L
 		}
 		database.importedStepsDao().entry(portable.identity.value) shouldBe null
@@ -230,6 +230,59 @@ class ImportedStepsRetainedReaderTest {
 	}
 
 	@Test
+	fun `corrupt retained Steps fence aborts full clear without publishing or deleting payload`() = runTest {
+		val portable = seed()
+		val fences = portable.runs.map { run ->
+			SourceDeletionFenceEntity.createForOriginalRunDigest(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				run.deletionScopeDigest.value,
+				1L,
+				1L,
+				100L,
+			)
+		}.sortedBy(SourceDeletionFenceEntity::scopeIdentityDigest)
+		fences.forEach { database.sourceDeletionFenceDao().insertIfAbsent(it) }
+		val corruptScope = fences.last().scopeIdentityDigest
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_deletion_fence SET effect_checksum = 'corrupt' " +
+				"WHERE source_kind = ? AND purpose = ? AND scope_identity_digest = ?",
+			arrayOf(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				corruptScope,
+			),
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			AppDatabase.deleteAllCollectedData(database, 2L, null, 500L)
+		}
+
+		database.sourceEvidenceStateDao().get().shouldNotBeNull().collectedDataEpoch shouldBe 1L
+		database.importedStepsDao().entry(portable.identity.value).shouldNotBeNull()
+		database.stepFactRevisionDao().countAll() shouldBe 4L
+		database.sourceDeletionFenceDao().get(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			fences.first().scopeIdentityDigest,
+		) shouldBe fences.first()
+		database.openHelper.writableDatabase.query(
+			"SELECT collected_data_epoch, effect_checksum FROM source_deletion_fence " +
+				"WHERE source_kind = ? AND purpose = ? AND scope_identity_digest = ?",
+			arrayOf(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				corruptScope,
+			),
+		).use { cursor ->
+			cursor.moveToFirst() shouldBe true
+			cursor.getLong(0) shouldBe 1L
+			cursor.getString(1) shouldBe "corrupt"
+		}
+	}
+
+	@Test
 	fun `authenticated retention marker permits straddles but never expired facts or whole export`() = runTest {
 		seed()
 		val retained = ready()
@@ -260,6 +313,38 @@ class ImportedStepsRetainedReaderTest {
 		}
 		database.sourceDeletionFenceDao().countAll() shouldBe 1L
 		database.sourceSessionDao().serviceRun("run-capture") shouldBe null
+	}
+
+	@Test
+	fun `retained exact Steps fence wins a matching live-capture candidate`() = runTest {
+		seedLiveMembership("winner", "SESSION_CAPTURE", true)
+		val scope = PortableStepsDeletionScopeDigest.derive("entry-winner", "run-winner")
+		val retained = SourceDeletionFenceEntity.createForOriginalRunDigest(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			scope.value,
+			4L,
+			1L,
+			50L,
+		)
+		database.sourceDeletionFenceDao().insertIfAbsent(retained)
+
+		AppDatabase.deleteAllCollectedData(database, 2L, null, 500L)
+
+		database.sourceDeletionFenceDao().get(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			scope.value,
+		) shouldBe SourceDeletionFenceEntity.createForOriginalRunDigest(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			scope.value,
+			4L,
+			2L,
+			50L,
+		)
+		database.sourceDeletionFenceDao().countAll() shouldBe 1L
 	}
 
 	private suspend fun seedLiveMembership(name: String, purpose: String, persistenceEligible: Boolean) {

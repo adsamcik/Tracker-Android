@@ -36,13 +36,29 @@ import com.adsamcik.tracker.shared.base.database.data.WifiCapturedFactRevisionIn
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableCapturedWifiResult
+import com.adsamcik.tracker.stats.api.repository.DeleteSelectedWifiHistoryRequest
+import com.adsamcik.tracker.stats.api.repository.DeleteSelectedWifiHistoryResult
+import com.adsamcik.tracker.stats.api.repository.ImportPortableCapturedWifiRequest
+import com.adsamcik.tracker.stats.api.repository.ImportPortableCapturedWifiResult
+import com.adsamcik.tracker.stats.api.repository.ImportedWifiProductEvaluation
 import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiEntryV1
+import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiImportReceipt
 import com.adsamcik.tracker.stats.api.repository.PortableWifiAcquisitionCompleteness
 import com.adsamcik.tracker.stats.api.repository.PortableWifiCaptureCoverage
+import com.adsamcik.tracker.stats.api.repository.PortableWifiIdentityKind
+import com.adsamcik.tracker.stats.api.repository.PortableWifiIntegrity
+import com.adsamcik.tracker.stats.api.repository.PortableWifiOpaqueIdentity
 import com.adsamcik.tracker.stats.api.repository.PortableWifiRunAvailability
 import com.adsamcik.tracker.stats.api.repository.PortableWifiUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.PortableWifiUnverifiableReason
+import com.adsamcik.tracker.stats.api.repository.ReexportImportedCapturedWifiRequest
+import com.adsamcik.tracker.stats.api.repository.ReexportImportedCapturedWifiResult
 import com.adsamcik.tracker.stats.api.repository.WifiCapturedPortableFormatV1
+import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelection
+import com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey
+import com.adsamcik.tracker.stats.api.repository.WifiHistorySelection
+import com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey
+import com.adsamcik.tracker.stats.api.repository.WifiDeletedHistoryResult
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
@@ -1783,6 +1799,399 @@ class WifiWalQualificationAdapterTest {
 		assertTrue(SOURCE_INSTANCE !in entry.toString())
 		assertTrue(BOOT_ID !in entry.toString())
 	}
+
+	@Test
+	fun `two database production export import read and latest reexport roundtrip is exact`() = runTest {
+		installPortableExportFixture()
+		assertTrue(database.sourceEventWalDao().countAll() > 0L)
+		assertTrue(database.wifiCapturedFactDao().revisionCount() > 0L)
+		val sourceRevisions = database.wifiCapturedFactDao().portableRevisionClosure(
+			LOGICAL_ID,
+			listOf(RUN_ID),
+			8,
+		)
+		for (revision in sourceRevisions) {
+			val wal = requireNotNull(database.sourceEventWalDao().get(revision.sourceEventId))
+			assertEquals(wal.admissionOrdinal, revision.sourceAdmissionOrdinal)
+			assertEquals(wal.integrityIdentity, revision.walIntegrityIdentity)
+			assertEquals(wal.payloadChecksum, revision.payloadChecksum)
+		}
+		val exported = mutableListOf<PortableCapturedWifiEntryV1>()
+		assertIs<ExportPortableCapturedWifiResult.Exported>(
+			portableExporter().export(ExportPortableCapturedWifiRequest(LOGICAL_ID)) {
+				exported += it
+			},
+		)
+		val sourceEntry = exported.single()
+		val target = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext<Application>())
+		try {
+			target.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
+			val importer = RoomImportPortableCapturedWifi(target, Dispatchers.IO)
+			assertEquals(
+				ImportPortableCapturedWifiResult.Applied(
+					importRevision = 1L,
+					physicalRunCount = sourceEntry.runs.size,
+					observationCount = sourceEntry.runs.sumOf { it.observations.size },
+				),
+				importer.importEntry(
+					ImportPortableCapturedWifiRequest(
+						sourceEntry,
+						PortableCapturedWifiImportReceipt(
+							"roundtrip-job",
+							"roundtrip-entry",
+							"native.trackerwifi",
+							10_000L,
+						),
+						0L,
+					),
+				),
+			)
+			val evaluator = RoomImportedWifiProductEvaluator(target)
+			val selected = target.withTransaction {
+				evaluator.selectIdentityInTransaction(
+					WifiImportedHistorySelectionKey(sourceEntry.identity.value),
+				)
+			}
+			val importedEntry = assertIs<ImportedWifiProductEvaluation.Readable>(selected).entry
+			assertEquals(sourceEntry, importedEntry)
+			assertEquals(
+				sourceEntry.runs.single().observations.single().coverageStartTimeMs,
+				importedEntry.runs.single().observations.single().coverageStartTimeMs,
+			)
+			assertEquals(
+				sourceEntry.runs.single().observations.single().latestPossibleTimeMs,
+				importedEntry.runs.single().observations.single().latestPossibleTimeMs,
+			)
+
+			val reexported = mutableListOf<PortableCapturedWifiEntryV1>()
+			var sinkInTransaction = true
+			val result = RoomReexportImportedCapturedWifi(
+				target,
+				evaluator,
+				Dispatchers.IO,
+			).reexport(
+				ReexportImportedCapturedWifiRequest(
+					WifiImportedHistorySelection(
+						WifiImportedHistorySelectionKey(sourceEntry.identity.value),
+						1L,
+						sourceEntry.contentChecksum.value,
+					),
+					0L,
+				),
+			) {
+				sinkInTransaction = target.openHelper.writableDatabase.inTransaction()
+				reexported += it
+			}
+			assertIs<ReexportImportedCapturedWifiResult.Exported>(result)
+			assertTrue(!sinkInTransaction)
+			assertEquals(sourceEntry, reexported.single())
+			assertEquals(0L, target.wifiCapturedFactDao().revisionCount())
+			assertEquals(0L, target.sourceEventWalDao().countAll())
+			assertEquals(null, target.sourceSessionDao().session(LOGICAL_ID))
+		} finally {
+			target.close()
+		}
+	}
+
+	@Test
+	fun `selected native Wi-Fi deletion preserves control and WAL while removing exact product scope`() =
+		runTest {
+			installMixedPortableExportFixture(activeContinuation = true)
+			val emitted = mutableListOf<PortableCapturedWifiEntryV1>()
+			assertIs<ExportPortableCapturedWifiResult.Exported>(
+				portableExporter().export(ExportPortableCapturedWifiRequest(LOGICAL_ID)) {
+					emitted += it
+				},
+			)
+			val entry = emitted.single()
+			val selection = WifiHistorySelection.Local(
+				WifiLocalHistorySelectionKey(entry.identity.value),
+			)
+			val walCount = database.sourceEventWalDao().countAll()
+			val demands = database.sourceBrokerDao().authorizationDemands(WIFI_SOURCE)
+			val exporter = portableExporter()
+			val deletion = RoomDeleteSelectedWifiHistory(
+				database = database,
+				importedEvaluator = RoomImportedWifiProductEvaluator(database),
+				localPortableReader = exporter,
+				maintenance = maintenance,
+				ioDispatcher = Dispatchers.IO,
+				limits = WifiSelectedDeletionLimits(),
+				checkpoint = {},
+			)
+
+			assertEquals(
+				DeleteSelectedWifiHistoryResult.Deleted(
+					com.adsamcik.tracker.stats.api.repository.WifiHistoryOrigin.LOCAL,
+					1,
+					1,
+				),
+				deletion.delete(
+					DeleteSelectedWifiHistoryRequest(selection, 0L, DELETE_AT_MS + 2_000L),
+				),
+			)
+			assertEquals(0L, database.wifiCapturedFactDao().revisionCount())
+			assertEquals(0L, database.wifiCapturedFactDao().cursorCount())
+			assertEquals(null, database.sessionSegmentDao().getById(SEGMENT_ID))
+			assertEquals(walCount, database.sourceEventWalDao().countAll())
+			assertEquals(demands, database.sourceBrokerDao().authorizationDemands(WIFI_SOURCE))
+			assertTrue(database.importedWifiDao().selectedDeletionReceipt(
+				entry.identity.value,
+				com.adsamcik.tracker.shared.base.database.data
+					.WifiSelectedDeletionReceiptEntity.ORIGIN_LOCAL,
+			) != null)
+			val deleted = assertIs<WifiDeletedHistoryResult.Deleted>(
+				database.withTransaction { deletion.readDeletedInTransaction(selection) },
+			)
+			assertEquals(
+				com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState.DELETED,
+				deleted.entry.state,
+			)
+			assertEquals(selection, deleted.entry.selection)
+			assertEquals(
+				DeleteSelectedWifiHistoryResult.AlreadyDeleted(
+					com.adsamcik.tracker.stats.api.repository.WifiHistoryOrigin.LOCAL,
+				),
+				deletion.delete(
+					DeleteSelectedWifiHistoryRequest(selection, 0L, DELETE_AT_MS + 2_000L),
+				),
+			)
+		}
+
+	@Test
+	fun `selected native deletion accepts production source sequence zero`() = runTest {
+		installValidFixture(candidateWriter = true, sourceSequence = 0L)
+		installPortableClosingAuthorization()
+		assertIs<WifiSessionFactDrainResult.Complete>(
+			WifiSessionFactProjectionLane(database, subject, writer).drainAvailable(),
+		)
+		database.sourceSessionDao().saveCompleteness(
+			wifiCompleteness(lastAdmissionOrdinal = 1L, lastSourceSequence = 0L),
+		)
+		val emitted = mutableListOf<PortableCapturedWifiEntryV1>()
+		assertIs<ExportPortableCapturedWifiResult.Exported>(
+			portableExporter().export(ExportPortableCapturedWifiRequest(LOGICAL_ID)) {
+				emitted += it
+			},
+		)
+		val exporter = portableExporter()
+		val deletion = RoomDeleteSelectedWifiHistory(
+			database,
+			RoomImportedWifiProductEvaluator(database),
+			exporter,
+			maintenance,
+			Dispatchers.IO,
+			WifiSelectedDeletionLimits(),
+			{},
+		)
+
+		assertIs<DeleteSelectedWifiHistoryResult.Deleted>(
+			deletion.delete(
+				DeleteSelectedWifiHistoryRequest(
+					WifiHistorySelection.Local(
+						WifiLocalHistorySelectionKey(emitted.single().identity.value),
+					),
+					0L,
+					DELETE_AT_MS + 2_000L,
+				),
+			),
+		)
+	}
+
+	@Test
+	fun `selected native deletion blocks a physical row carrying non-Wi-Fi product data`() = runTest {
+		installPortableExportFixture()
+		val emitted = mutableListOf<PortableCapturedWifiEntryV1>()
+		portableExporter().export(ExportPortableCapturedWifiRequest(LOGICAL_ID)) { emitted += it }
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_segment SET distance_m = 10 WHERE id = ?",
+			arrayOf(SEGMENT_ID),
+		)
+		val exporter = portableExporter()
+		val deletion = RoomDeleteSelectedWifiHistory(
+			database,
+			RoomImportedWifiProductEvaluator(database),
+			exporter,
+			maintenance,
+			Dispatchers.IO,
+			WifiSelectedDeletionLimits(),
+			{},
+		)
+
+		assertEquals(
+			DeleteSelectedWifiHistoryResult.Blocked(
+				com.adsamcik.tracker.stats.api.repository.WifiHistoryDeletionBlockedReason
+					.MIXED_CAPTURE_SCOPE,
+			),
+			deletion.delete(
+				DeleteSelectedWifiHistoryRequest(
+					WifiHistorySelection.Local(
+						WifiLocalHistorySelectionKey(emitted.single().identity.value),
+					),
+					0L,
+					DELETE_AT_MS + 2_000L,
+				),
+			),
+		)
+		assertTrue(database.wifiCapturedFactDao().revisionCount() > 0L)
+	}
+
+	@Test
+	fun `selected native deletion preserves retained activity presentation without mutation`() = runTest {
+		installPortableExportFixture()
+		val emitted = mutableListOf<PortableCapturedWifiEntryV1>()
+		portableExporter().export(ExportPortableCapturedWifiRequest(LOGICAL_ID)) { emitted += it }
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_segment SET primary_activity = ?, activity_confidence = ?, " +
+				"inference_version = ? WHERE id = ?",
+			arrayOf(7, 91, "activity-v1", SEGMENT_ID),
+		)
+		val facts = database.wifiCapturedFactDao().revisionCount()
+		val cursors = database.wifiCapturedFactDao().cursorCount()
+		val wal = database.sourceEventWalDao().countAll()
+		val exporter = portableExporter()
+		val deletion = RoomDeleteSelectedWifiHistory(
+			database,
+			RoomImportedWifiProductEvaluator(database),
+			exporter,
+			maintenance,
+			Dispatchers.IO,
+			WifiSelectedDeletionLimits(),
+			{},
+		)
+
+		assertEquals(
+			DeleteSelectedWifiHistoryResult.Blocked(
+				com.adsamcik.tracker.stats.api.repository.WifiHistoryDeletionBlockedReason
+					.MIXED_CAPTURE_SCOPE,
+			),
+			deletion.delete(
+				DeleteSelectedWifiHistoryRequest(
+					WifiHistorySelection.Local(
+						WifiLocalHistorySelectionKey(emitted.single().identity.value),
+					),
+					0L,
+					DELETE_AT_MS + 2_000L,
+				),
+			),
+		)
+
+		val retained = requireNotNull(database.sessionSegmentDao().getById(SEGMENT_ID))
+		assertEquals(7, retained.primaryActivity)
+		assertEquals(91, retained.activityConfidence)
+		assertEquals("activity-v1", retained.inferenceVersion)
+		assertEquals(facts, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(cursors, database.wifiCapturedFactDao().cursorCount())
+		assertEquals(0L, database.wifiCapturedFactDao().deletionGenerationCount())
+		assertEquals(wal, database.sourceEventWalDao().countAll())
+		assertEquals(0L, database.importedWifiDao().selectedDeletionReceiptCount())
+		assertEquals(0L, database.importedWifiDao().selectedDeletionProtectedIdentityCount())
+	}
+
+	@Test
+	fun `selected native deletion blocks explicit source retention loss without mutation`() = runTest {
+		installPortableExportFixture()
+		val emitted = mutableListOf<PortableCapturedWifiEntryV1>()
+		portableExporter().export(ExportPortableCapturedWifiRequest(LOGICAL_ID)) { emitted += it }
+		val complete = emitted.single()
+		val lossyRuns = complete.runs.map { run ->
+			PortableWifiIntegrity.createRun(
+				identity = run.identity,
+				deletionScopeDigest = run.deletionScopeDigest,
+				startTimeMs = run.startTimeMs,
+				endTimeMs = run.endTimeMs,
+				storedZoneIds = run.storedZoneIds,
+				captureCoverage = run.captureCoverage,
+				availability = run.availability,
+				acquisitionCompleteness = run.acquisitionCompleteness,
+				hasUnresolvedProviderRange = run.hasUnresolvedProviderRange,
+				retentionLoss = true,
+				observations = run.observations,
+			)
+		}
+		val lossy = PortableWifiIntegrity.createEntry(
+			identity = complete.identity,
+			sessionMode = complete.sessionMode,
+			startTimeMs = complete.startTimeMs,
+			endTimeMs = complete.endTimeMs,
+			runs = lossyRuns,
+		)
+		val facts = database.wifiCapturedFactDao().revisionCount()
+		val cursors = database.wifiCapturedFactDao().cursorCount()
+		val wal = database.sourceEventWalDao().countAll()
+		val deletion = RoomDeleteSelectedWifiHistory(
+			database,
+			RoomImportedWifiProductEvaluator(database),
+			object : com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifi {
+				override suspend fun readInTransaction(
+					request: ExportPortableCapturedWifiRequest,
+				) = com.adsamcik.tracker.stats.api.repository.ReadLocalPortableCapturedWifiResult
+					.Ready(lossy)
+			},
+			maintenance,
+			Dispatchers.IO,
+			WifiSelectedDeletionLimits(),
+			{},
+		)
+
+		assertEquals(
+			DeleteSelectedWifiHistoryResult.Blocked(
+				com.adsamcik.tracker.stats.api.repository.WifiHistoryDeletionBlockedReason
+					.RETENTION_BOUNDARY,
+			),
+			deletion.delete(
+				DeleteSelectedWifiHistoryRequest(
+					WifiHistorySelection.Local(
+						WifiLocalHistorySelectionKey(complete.identity.value),
+					),
+					0L,
+					DELETE_AT_MS + 2_000L,
+				),
+			),
+		)
+		assertTrue(database.sessionSegmentDao().getById(SEGMENT_ID) != null)
+		assertEquals(facts, database.wifiCapturedFactDao().revisionCount())
+		assertEquals(cursors, database.wifiCapturedFactDao().cursorCount())
+		assertEquals(0L, database.wifiCapturedFactDao().deletionGenerationCount())
+		assertEquals(wal, database.sourceEventWalDao().countAll())
+		assertEquals(0L, database.importedWifiDao().selectedDeletionReceiptCount())
+	}
+
+	@Test
+	fun `selected native deletion blocks active capture without treating quiescence as ownership`() =
+		runTest {
+			installValidFixture(candidateWriter = true)
+			val exporter = portableExporter()
+			val deletion = RoomDeleteSelectedWifiHistory(
+				database,
+				RoomImportedWifiProductEvaluator(database),
+				exporter,
+				maintenance,
+				Dispatchers.IO,
+				WifiSelectedDeletionLimits(),
+				{},
+			)
+
+			assertEquals(
+				DeleteSelectedWifiHistoryResult.Blocked(
+					com.adsamcik.tracker.stats.api.repository.WifiHistoryDeletionBlockedReason.ACTIVE_CAPTURE,
+				),
+				deletion.delete(
+					DeleteSelectedWifiHistoryRequest(
+						WifiHistorySelection.Local(
+							WifiLocalHistorySelectionKey(
+								PortableWifiOpaqueIdentity.derive(
+									PortableWifiIdentityKind.LOGICAL_ENTRY,
+									LOGICAL_ID,
+								).value,
+							),
+						),
+						0L,
+						DELETE_AT_MS + 2_000L,
+					),
+				),
+			)
+		}
 
 	@Test
 	fun `portable export uses per-demand freshness while preserving the full authorization fingerprint`() = runTest {

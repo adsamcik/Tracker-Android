@@ -117,14 +117,22 @@ internal data class PressurePhysicalHistory(
 			PressureHistoryEvidence.RECORDED -> require(windows.isNotEmpty())
 		}
 		if (availability != PressureHistoryAvailability.AVAILABLE) require(windows.isEmpty())
+		if (windows.isNotEmpty()) require(captureAuthority.hasExactPressureProvenance(windows))
 	}
 
-	/** Pressure is qualified only by retained Pressure facts, never a generic segment count. */
-	val qualifiedSources: Set<TrackingSourceComponent>
-		get() = if (
+	/**
+	 * Exact retained Pressure proof is independent of current capability, but not of failed product
+	 * materialization. Generic segment counts never qualify Pressure.
+	 */
+	val hasQualifiedRetainedProof: Boolean
+		get() = windows.isNotEmpty() &&
+			captureAuthority.hasExactPressureProvenance(windows) &&
 			availability == PressureHistoryAvailability.AVAILABLE &&
-			evidence == PressureHistoryEvidence.RECORDED
-		) {
+			evidence == PressureHistoryEvidence.RECORDED &&
+			materialization != PressureHistoryMaterialization.FAILED
+
+	val qualifiedSources: Set<TrackingSourceComponent>
+		get() = if (hasQualifiedRetainedProof) {
 			setOf(TrackingSourceComponent.PRESSURE)
 		} else {
 			emptySet()
@@ -269,7 +277,13 @@ internal data class PressureLogicalHistoryEntry(
 		}
 
 	val isOrdinarilyDiscoverable: Boolean
-		get() = TrackingSourceComponent.PRESSURE in qualifiedSources || hasAuthenticatedRetentionLoss
+		get() = windows.isNotEmpty() || hasAuthenticatedRetentionLoss
+
+	/** Failed exact-intent products remain diagnostic rows, never shared replacement carriers. */
+	val isSharedSourceOnlyEligible: Boolean
+		get() = hasExactPressureOnlyIntent && physicalMembers.none { member ->
+			member.materialization == PressureHistoryMaterialization.FAILED
+		}
 
 	/** One physical member owns both recency fields; independently maximizing them is not a tuple. */
 	val recencyMember: PressurePhysicalHistory
@@ -291,6 +305,18 @@ internal data class PressureLogicalHistoryEntry(
 				revision.capturedSources == setOf(TrackingSourceComponent.PRESSURE)
 			} }
 		}
+}
+
+private fun HistoricalCaptureAuthority.hasExactPressureProvenance(
+	windows: List<PressureHistoryWindow>,
+): Boolean {
+	val exact = this as? HistoricalCaptureAuthority.Exact ?: return false
+	val capturedRevisions = exact.revisions.mapNotNullTo(hashSetOf()) { revision ->
+		revision.manifestRevision.takeIf {
+			TrackingSourceComponent.PRESSURE in revision.capturedSources
+		}
+	}
+	return windows.all { window -> window.manifestRevision in capturedRevisions }
 }
 
 /** Explicit logical identity only; wall-time proximity never groups replacement runs. */

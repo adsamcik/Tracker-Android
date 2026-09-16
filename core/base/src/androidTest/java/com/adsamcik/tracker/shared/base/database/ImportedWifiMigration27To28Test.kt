@@ -54,6 +54,21 @@ class ImportedWifiMigration27To28Test {
 				"idx_imported_wifi_deletion_scope",
 				listOf("deletion_scope_digest"),
 			)
+			assertIndex(
+				database,
+				"idx_wifi_selected_deletion_protected_receipt",
+				listOf("selection_identity", "receipt_origin"),
+			)
+			assertIndex(
+				database,
+				"idx_wifi_selected_deletion_protected_identity",
+				listOf("protected_identity"),
+			)
+			assertIndex(
+				database,
+				"idx_wifi_selected_deletion_aggregate_owner",
+				listOf("aggregate_owner_identity"),
+			)
 		}
 	}
 
@@ -81,6 +96,8 @@ class ImportedWifiMigration27To28Test {
 			"imported_wifi_observation",
 			"imported_wifi_entry_deletion",
 			"imported_wifi_deletion_generation",
+			"wifi_selected_deletion_receipt",
+			"wifi_selected_deletion_protected_identity",
 		)
 	}
 }

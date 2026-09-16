@@ -260,6 +260,7 @@ private fun ImportedActivityProductFailure.toPublicReason() = when (this) {
 	ImportedActivityProductFailure.SOURCE_EVIDENCE_STATE_MISSING,
 	ImportedActivityProductFailure.STALE_COLLECTED_DATA_EPOCH,
 	ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+	ImportedActivityProductFailure.TEMPORAL_AUTHORITY_UNAVAILABLE,
 	-> ActivitySourceEraseUnverifiableReason.IMPORTED_EVIDENCE_UNVERIFIABLE
 	ImportedActivityProductFailure.ORIGIN_IDENTITY_CONFLICT ->
 		ActivitySourceEraseUnverifiableReason.IMPORTED_ORIGIN_IDENTITY_CONFLICT

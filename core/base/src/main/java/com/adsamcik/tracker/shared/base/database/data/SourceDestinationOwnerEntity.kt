@@ -31,17 +31,21 @@ data class SourceDestinationOwnerEntity(
 	}
 
 	companion object {
+		const val SOURCE_LOCATION = 1
 		const val SOURCE_ACTIVITY = 2
 		const val SOURCE_STEPS = 3
 		const val SOURCE_PRESSURE = 4
 		const val SOURCE_WIFI = 5
 		const val SOURCE_CELL = 6
+		const val DESTINATION_SESSION_LOCATION = "SESSION_LOCATION"
 		const val DESTINATION_SESSION_ACTIVITY = "SESSION_ACTIVITY"
 		const val DESTINATION_SESSION_STEPS = "SESSION_STEPS"
 		const val DESTINATION_AMBIENT_STEPS = "AMBIENT_STEPS"
 		const val DESTINATION_SESSION_PRESSURE = "SESSION_PRESSURE"
 		const val DESTINATION_SESSION_WIFI = "SESSION_WIFI"
 		const val DESTINATION_SESSION_CELL = "SESSION_CELL"
+		const val OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE =
+			"EXISTING_LOCATION_CANONICAL_PIPELINE"
 		const val OWNER_LEGACY_ACTIVITY_SNAPSHOT = "LEGACY_ACTIVITY_SNAPSHOT"
 		const val OWNER_ACTIVITY_SESSION_FACTS = "ACTIVITY_SESSION_FACTS"
 		const val OWNER_LEGACY_STEP_INTERVAL = "LEGACY_STEP_INTERVAL"
@@ -49,12 +53,21 @@ data class SourceDestinationOwnerEntity(
 		const val OWNER_AMBIENT_STEPS_FACTS = "AMBIENT_STEPS_FACTS"
 		const val OWNER_LEGACY_PRESSURE_SAMPLE = "LEGACY_PRESSURE_SAMPLE"
 		const val OWNER_PRESSURE_SESSION_FACTS = "PRESSURE_SESSION_FACTS"
+		const val OWNER_CONTAINED_PRESSURE_SESSION_FACTS =
+			"CONTAINED_PRESSURE_SESSION_FACTS"
 		const val OWNER_CELL_SESSION_FACTS = "CELL_SESSION_FACTS"
 		const val OWNER_WIFI_SESSION_FACTS = "WIFI_SESSION_FACTS"
+		const val INITIAL_EXISTING_LOCATION_GENERATION = 1L
 		const val INITIAL_LEGACY_GENERATION = 1L
+		/** First durable generation that permanently fences the legacy Pressure sample writer. */
+		const val FIRST_LEGACY_PRESSURE_FENCE_GENERATION = 2L
 		/** First owner fence for a new destination; presence alone grants no provider or rollout. */
 		const val INITIAL_AMBIENT_STEPS_GENERATION = 1L
 		const val FIRST_CANDIDATE_GENERATION = 2L
+		const val LOCATION_CANONICAL_HANDOFF_PROJECTION_ID =
+			"protected-location-canonical-handoff"
+		const val LOCATION_CANONICAL_HANDOFF_PROJECTION_VERSION = 1
+		const val LOCATION_CANONICAL_HANDOFF_BINDING_GENERATION = 1L
 		const val STEPS_FACT_PROJECTION_ID = "steps-session-facts"
 		const val STEPS_FACT_PROJECTION_VERSION = 1
 		/** Immutable manual-session binding retained for already attributed v28 facts. */

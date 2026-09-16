@@ -1373,6 +1373,7 @@ internal fun locationDeliveryCandidate(
 					clockDomainId = attribution.clockDomainId,
 					observedElapsedRealtimeNanos = observedNanos,
 					receivedElapsedRealtimeNanos = receivedElapsedNanos,
+					receivedWallTimeMs = receivedWallTimeMs,
 					wallTimeMs = acquiredAtMs,
 					wallTimeUncertaintyMs = if (location.time > 0L) 0L else 1L,
 					capturedCollectedDataEpoch = attribution.collectedDataEpoch,

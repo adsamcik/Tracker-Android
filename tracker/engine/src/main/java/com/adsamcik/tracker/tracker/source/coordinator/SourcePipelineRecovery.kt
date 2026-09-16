@@ -38,6 +38,7 @@ class SourcePipelineRecovery private constructor(
 	private val capturedActivityProjectionLane: ActivityCapturedFactProjectionLane?,
 	private val cellProjectionLane: CellSessionFactProjectionLane?,
 	private val wifiProjectionLane: WifiSessionFactProjectionLane?,
+	private val protectedLocationDrain: ProtectedLocationSourceDrain?,
 	applicationScope: CoroutineScope?,
 	private val startupGateProvider: Provider<TrackingStartupGate>?,
 	@Suppress("UNUSED_PARAMETER") constructionMarker: Unit,
@@ -58,6 +59,7 @@ class SourcePipelineRecovery private constructor(
 		capturedActivityProjectionLane: ActivityCapturedFactProjectionLane,
 		cellProjectionLane: CellSessionFactProjectionLane,
 		wifiProjectionLane: WifiSessionFactProjectionLane,
+		protectedLocationDrain: ProtectedLocationSourceDrain,
 		@ApplicationScope applicationScope: CoroutineScope,
 		startupGateProvider: Provider<TrackingStartupGate>,
 	) : this(
@@ -70,6 +72,7 @@ class SourcePipelineRecovery private constructor(
 		capturedActivityProjectionLane,
 		cellProjectionLane,
 		wifiProjectionLane,
+		protectedLocationDrain,
 		applicationScope,
 		startupGateProvider,
 		Unit,
@@ -91,6 +94,7 @@ class SourcePipelineRecovery private constructor(
 		null,
 		null,
 		null,
+		null,
 		applicationScope,
 		null,
 		Unit,
@@ -113,6 +117,7 @@ class SourcePipelineRecovery private constructor(
 		null,
 		null,
 		null,
+		null,
 		Unit,
 	)
 
@@ -128,6 +133,7 @@ class SourcePipelineRecovery private constructor(
 		coordinator,
 		activityProjectionLane,
 		activityEffects,
+		null,
 		null,
 		null,
 		null,
@@ -151,6 +157,7 @@ class SourcePipelineRecovery private constructor(
 		activityProjectionLane,
 		activityEffects,
 		stepsProjectionLane,
+		null,
 		null,
 		null,
 		null,
@@ -175,6 +182,7 @@ class SourcePipelineRecovery private constructor(
 		activityEffects,
 		stepsProjectionLane,
 		pressureProjectionLane,
+		null,
 		null,
 		null,
 		null,
@@ -194,6 +202,7 @@ class SourcePipelineRecovery private constructor(
 		cellProjectionLane: CellSessionFactProjectionLane,
 		wifiProjectionLane: WifiSessionFactProjectionLane,
 		applicationScope: CoroutineScope,
+		protectedLocationDrain: ProtectedLocationSourceDrain? = null,
 	) : this(
 		legacyRecovery,
 		coordinator,
@@ -204,6 +213,7 @@ class SourcePipelineRecovery private constructor(
 		capturedActivityProjectionLane,
 		cellProjectionLane,
 		wifiProjectionLane,
+		protectedLocationDrain,
 		applicationScope,
 		null,
 		Unit,
@@ -261,6 +271,11 @@ class SourcePipelineRecovery private constructor(
 		wifiProjectionLane?.requestDrain()
 	}
 
+	/** Protected Location hint; the handoff never owns or activates the existing canonical writer. */
+	fun requestProtectedLocationCanonicalDrain() {
+		protectedLocationDrain?.requestDrain()
+	}
+
 	/** Recovers durable projections only; it deliberately cannot invoke application consumers. */
 	suspend fun recoverDurableState(): SourceRecoveryResult {
 		val legacyResult = recoverStartupAuthority()
@@ -293,6 +308,9 @@ class SourcePipelineRecovery private constructor(
 		capturedActivityProjectionLane?.requestDrain()
 		cellProjectionLane?.requestDrain()
 		wifiProjectionLane?.requestDrain()
+		// The bound implementation remains inactive until the reviewed writer chain is assembled.
+		// Once present, its offline branch can settle crashed/quiesced runs without provider revival.
+		protectedLocationDrain?.requestDrain()
 		return legacyResult
 	}
 

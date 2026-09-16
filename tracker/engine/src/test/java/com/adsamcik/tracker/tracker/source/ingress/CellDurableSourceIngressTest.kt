@@ -3,12 +3,21 @@ package com.adsamcik.tracker.tracker.source.ingress
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.AmbientRadioRetentionDecision
+import com.adsamcik.tracker.shared.base.database.applyAmbientCellRetentionDecision
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellFactIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientCellReplayFootprintEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
@@ -20,9 +29,15 @@ import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatal
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.CellObservationEvidence
+import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
+import com.adsamcik.tracker.tracker.source.model.CellMode
+import com.adsamcik.tracker.tracker.source.model.CellPlan
 import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
+import com.adsamcik.tracker.tracker.source.model.RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
+import com.adsamcik.tracker.tracker.source.model.RetryBackoff
+import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryUnit
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
@@ -30,13 +45,27 @@ import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.runtime.SourceDeliveryAdmissionHandoff
+import com.adsamcik.tracker.tracker.source.runtime.AmbientCellRuntimeJoinResult
+import com.adsamcik.tracker.tracker.source.runtime.CellSourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.SharedCellSourceController
+import com.adsamcik.tracker.tracker.source.runtime.SourceApplyResult
+import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import com.adsamcik.tracker.tracker.source.runtime.SourceCapabilities
+import com.adsamcik.tracker.tracker.source.runtime.SourceEventSink
 import com.adsamcik.tracker.tracker.source.runtime.WITHHELD_RADIO_IDENTIFIER_TOKEN
 import com.adsamcik.tracker.tracker.source.runtime.cellProviderDeliveryIdentity
+import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellFactProjector
+import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellProjectionResult
+import com.adsamcik.tracker.tracker.source.ambient.cell.AmbientCellProjectionUnverifiableReason
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import javax.inject.Provider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -132,11 +161,281 @@ class CellDurableSourceIngressTest {
 			?.providerProcessIncarnationId shouldBe "cell-process-after"
 	}
 
+	@Test
+	fun `shared Cell controller drives real WAL projector and Room reader`() = runTest {
+		database.sourcePolicyDao().ensureAuthority(
+			SourcePolicyAuthorityEntity(
+				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+				currentPolicyRevision = 1L,
+				legacySettingsFingerprint = null,
+				updatedAtMs = 1L,
+			),
+		)
+		database.sourcePolicyDao().insertPolicies(
+			listOf(
+				SourcePolicyEntity(
+					1L,
+					SourceKind.CELL.stableCode,
+					enabled = true,
+					qosCode = 2,
+					locationMinTimeSeconds = null,
+					locationMinDistanceMeters = null,
+					locationRequiredAccuracyMeters = null,
+					capturePersistenceEligible = false,
+					controlPersistenceEligible = false,
+					ambientPersistenceEligible = true,
+					captureConsentEpoch = null,
+					controlConsentEpoch = null,
+					ambientConsentEpoch = 1L,
+					effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
+					effectiveElapsedRealtimeNanos = 50L,
+					effectiveWallTimeMs = 50L,
+					changeReason = "TEST_AMBIENT_CHAIN",
+				),
+			),
+		)
+		database.sourcePolicyDao().insertConsentEpochs(
+			listOf(
+				SourceConsentEpochEntity(
+					SourceKind.CELL.stableCode,
+					SourceBrokerPurpose.AMBIENT_PRODUCT,
+					1L,
+					eligible = true,
+					persistenceEligible = true,
+					policyRevision = 1L,
+					effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
+					effectiveElapsedRealtimeNanos = 50L,
+					effectiveWallTimeMs = 50L,
+					changeReason = "TEST_AMBIENT_CHAIN",
+				),
+			),
+		)
+		database.applyAmbientCellRetentionDecision(
+			AmbientRadioRetentionDecision.GrantLiveAmbient(
+				"privacy:cell:ambient:v1",
+				0L,
+				1L,
+				1L,
+				BOOT_CLOCK_DOMAIN_ID,
+				50L,
+				50L,
+			),
+		)
+		database.ambientCellFactDao().insertAuthority(
+			AmbientCellAuthorityIntegrity.create(
+				1L,
+				AmbientCellAuthorityEntity.STATE_ACTIVE,
+				1L,
+				1L,
+				"privacy:cell:ambient:v1",
+				1L,
+				0L,
+				0L,
+				BOOT_CLOCK_DOMAIN_ID,
+				50L,
+				50L,
+				1L,
+				"ambient-cell-owner",
+				1L,
+				CELL_DEMAND_ID,
+			),
+		)
+		val physical = mockk<CellSourceRuntime>()
+		every { physical.capabilities } returns MutableStateFlow(
+			SourceCapabilities(true, false, false, null, null),
+		)
+		val sinkFactory = DurableSourceEventSinkFactory(ingress)
+		var admissionOrdinal: Long? = null
+		coEvery { physical.refreshShared(any(), any(), null) } returns null
+		coEvery { physical.reconfigure(any<CellPlan>(), any<SourceEventSink>()) } coAnswers {
+			val handoff = secondArg<SourceEventSink>().admit(
+				cellDeliveryCandidate(
+					1L,
+					1L,
+					FIRST_PHYSICAL_CONFIGURATION,
+					110L,
+					RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+					"Europe/Prague",
+				),
+			).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+			admissionOrdinal = handoff.admissionOrdinals.single()
+			SourceApplyResult.Applied(
+				AppliedSourcePlan(
+					1L,
+					1L,
+					SourceKind.CELL,
+					SourceInstanceId(CELL_SOURCE_INSTANCE_ID),
+					1L,
+					110L,
+					SourceApplyStatus.APPLIED,
+				),
+			)
+		}
+		val controller = SharedCellSourceController(
+			physical,
+			SourceBroker(
+				database,
+				RoomTrackingRolloutStateStore(database, CELL_EXECUTABLE_LANE_CATALOG),
+			),
+			sinkFactory,
+		)
+
+		controller.reconcileAmbientJoin().shouldBeInstanceOf<AmbientCellRuntimeJoinResult.Active>()
+		val originalOrdinal = requireNotNull(admissionOrdinal)
+		val zoneOnlyReplay = sinkFactory.unbound.admit(
+			cellDeliveryCandidate(
+				1L,
+				1L,
+				FIRST_PHYSICAL_CONFIGURATION,
+				111L,
+				RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+				"UTC",
+			),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Duplicate>()
+		zoneOnlyReplay.existingAdmissionOrdinals shouldBe listOf(originalOrdinal)
+		val versionFourReplay = sinkFactory.unbound.admit(
+			cellDeliveryCandidate(
+				1L,
+				1L,
+				FIRST_PHYSICAL_CONFIGURATION,
+				112L,
+				4,
+			),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Duplicate>()
+		versionFourReplay.existingAdmissionOrdinals shouldBe listOf(originalOrdinal)
+		database.sourceEventWalDao().countAll() shouldBe 1L
+		val originalPolicy = requireNotNull(
+			database.sourcePolicyDao().policyAtRevision(1L, SourceKind.CELL.stableCode),
+		)
+		database.sourcePolicyDao().insertPolicies(
+			listOf(
+				originalPolicy.copy(
+					policyRevision = 2L,
+					effectiveElapsedRealtimeNanos = 120L,
+					changeReason = "UNRELATED_SOURCE_CHANGE",
+				),
+			),
+		)
+		database.sourcePolicyDao().compareAndSetAuthority(
+			expectedBootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			expectedRevision = 1L,
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			newRevision = 2L,
+			legacySettingsFingerprint = null,
+			updatedAtMs = 120L,
+		) shouldBe 1
+		AmbientCellFactProjector(
+			database,
+			DefaultSourcePayloadCodec(),
+			Dispatchers.Unconfined,
+		).project(originalOrdinal)
+			.shouldBeInstanceOf<AmbientCellProjectionResult.FactWritten>()
+		val row = database.ambientCellFactDao().effectiveLocalOverWindow(0L, 1_000L, 10).single()
+
+		row.fact.storedZoneId shouldBe "Europe/Prague"
+		row.fact.sourceAdmissionOrdinal shouldBe admissionOrdinal
+		val freshUnchanged = sinkFactory.unbound.admit(
+			cellDeliveryCandidate(
+				1L,
+				1L,
+				FIRST_PHYSICAL_CONFIGURATION,
+				111L,
+				RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+				"Europe/Prague",
+				101L,
+			),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		AmbientCellFactProjector(
+			database,
+			DefaultSourcePayloadCodec(),
+			Dispatchers.Unconfined,
+		).project(freshUnchanged.admissionOrdinals.single())
+			.shouldBeInstanceOf<AmbientCellProjectionResult.CoverageCompacted>()
+		val gapDelivery = sinkFactory.unbound.admit(
+			cellDeliveryCandidate(
+				1L,
+				1L,
+				FIRST_PHYSICAL_CONFIGURATION,
+				113L,
+				RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+				"Europe/Prague",
+				102L,
+				subscriptionId = 1,
+			),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		val gapOrdinal = gapDelivery.admissionOrdinals.single()
+		val gapWal = requireNotNull(database.sourceEventWalDao().getByAdmissionOrdinal(gapOrdinal))
+		val gapId = AmbientCellAuthorityIntegrity.digest(
+			"ambient-cell-gap-v1",
+			gapWal.eventId,
+			1L,
+			0L,
+		)
+		val footprint = AmbientCellFactIntegrity.createReplayFootprint(
+			AmbientCellReplayFootprintEntity.KIND_LOCAL_GAP,
+			gapId,
+			0L,
+			0L,
+			1L,
+			200L,
+		)
+		database.ambientCellFactDao().insertReplayFootprints(listOf(footprint))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE ambient_cell_replay_footprint SET effect_checksum = ? " +
+				"WHERE footprint_kind = ? AND identity_digest = ? AND semantic_revision = 0",
+			arrayOf(
+				"0".repeat(64),
+				AmbientCellReplayFootprintEntity.KIND_LOCAL_GAP,
+				gapId,
+			),
+		)
+
+		AmbientCellFactProjector(
+			database,
+			DefaultSourcePayloadCodec(),
+			Dispatchers.Unconfined,
+		).project(gapOrdinal) shouldBe AmbientCellProjectionResult.Unverifiable(
+			AmbientCellProjectionUnverifiableReason.REPLAY_FOOTPRINT_CORRUPT,
+		)
+		val pendingDeletion = sinkFactory.unbound.admit(
+			cellDeliveryCandidate(
+				1L,
+				1L,
+				FIRST_PHYSICAL_CONFIGURATION,
+				114L,
+				RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+				"Europe/Prague",
+				103L,
+			),
+		).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		database.ambientCellFactDao().insertDeletionMarker(
+			AmbientCellFactIntegrity.createDeletionMarker(
+				0L,
+				1L,
+				1L,
+				"TEST_CELL_DELETION",
+				200L,
+			),
+		)
+		AmbientCellFactProjector(
+			database,
+			DefaultSourcePayloadCodec(),
+			Dispatchers.Unconfined,
+		).project(pendingDeletion.admissionOrdinals.single()) shouldBe
+			AmbientCellProjectionResult.Unverifiable(
+				AmbientCellProjectionUnverifiableReason.DELETED_SCOPE,
+			)
+	}
+
 	private fun cellDeliveryCandidate(
 		registrationGeneration: Long,
 		authorizationRevision: Long,
 		physicalConfigurationFingerprint: String,
 		receivedElapsedRealtimeNanos: Long,
+		payloadVersion: Int = 1,
+		observationZoneId: String? = null,
+		providerTimestampNanos: Long = PROVIDER_TIMESTAMP_NANOS,
+		subscriptionId: Int? = null,
 	): SourceDeliveryCandidate {
 		val observations = listOf(
 			CellObservationEvidence(
@@ -144,7 +443,7 @@ class CellDurableSourceIngressTest {
 				radioType = "LTE",
 				registered = true,
 				signalLevelDbm = -91,
-				providerTimestampNanos = PROVIDER_TIMESTAMP_NANOS,
+				providerTimestampNanos = providerTimestampNanos,
 			),
 		)
 		val evidence = SourceEvidenceCandidate(
@@ -163,18 +462,19 @@ class CellDurableSourceIngressTest {
 			configRevision = authorizationRevision,
 			planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
 			clockDomainId = BOOT_CLOCK_DOMAIN_ID,
-			observedElapsedRealtimeNanos = PROVIDER_TIMESTAMP_NANOS,
+			observedElapsedRealtimeNanos = providerTimestampNanos,
 			receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
 			wallTimeMs = 100L,
 			wallTimeUncertaintyMs = 1L,
 			capturedCollectedDataEpoch = 0L,
 			acquiredAtMs = 100L,
 			quality = SourceQuality(),
-			payloadVersion = 1,
+			payloadVersion = payloadVersion,
 			payload = CellSnapshotPayload(
-				subscriptionId = null,
+				subscriptionId = subscriptionId,
 				observations = observations,
 				refreshOutcome = CellRefreshOutcome.CALLBACK,
+				observationZoneId = observationZoneId,
 			),
 		)
 		return SourceDeliveryCandidate(
@@ -183,7 +483,7 @@ class CellDurableSourceIngressTest {
 				SourceDeliveryUnit(
 					unitIndex = 0,
 					evidence = evidence,
-					observedIntervalStartElapsedRealtimeNanos = PROVIDER_TIMESTAMP_NANOS,
+					observedIntervalStartElapsedRealtimeNanos = providerTimestampNanos,
 				),
 			),
 		)

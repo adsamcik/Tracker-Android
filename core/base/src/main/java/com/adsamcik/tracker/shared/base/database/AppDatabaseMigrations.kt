@@ -1383,6 +1383,9 @@ val MIGRATION_27_28: Migration = object : Migration(
 	CURRENT_DATABASE_VERSION,
 ) {
 	override fun migrate(db: SupportSQLiteDatabase) {
+		createImportedPressureMaintenanceTables(db)
+		createImportedAmbientStepsTables(db)
+		createAdditionalTrackingTables(db)
 		with(db) {
 			execSQL("ALTER TABLE session_segment ADD COLUMN logical_tracking_id TEXT")
 			execSQL("ALTER TABLE session_segment ADD COLUMN service_run_id TEXT")
@@ -1411,8 +1414,30 @@ val MIGRATION_27_28: Migration = object : Migration(
 				"CREATE INDEX IF NOT EXISTS idx_quarantined_signal_acquired_time " +
 					"ON quarantined_signal(acquired_at_ms, id)",
 			)
-			execSQL("ALTER TABLE pending_signal ADD COLUMN steps_writer_owner TEXT")
-			execSQL("ALTER TABLE pending_signal ADD COLUMN steps_writer_owner_generation INTEGER")
+			execSQL(
+				"ALTER TABLE pending_signal ADD COLUMN steps_writer_owner TEXT " +
+					"CHECK (steps_writer_owner IS NULL OR steps_writer_owner IN " +
+					"('LEGACY_STEP_INTERVAL', 'STEPS_SESSION_FACTS'))",
+			)
+			execSQL(
+				"ALTER TABLE pending_signal ADD COLUMN steps_writer_owner_generation INTEGER " +
+					"CHECK ((steps_writer_owner IS NULL AND " +
+					"steps_writer_owner_generation IS NULL) OR " +
+					"(steps_writer_owner IS NOT NULL AND " +
+					"steps_writer_owner_generation > 0))",
+			)
+			execSQL(
+				"ALTER TABLE pending_signal ADD COLUMN pressure_writer_owner TEXT " +
+					"CHECK (pressure_writer_owner IS NULL OR pressure_writer_owner IN " +
+					"('LEGACY_PRESSURE_SAMPLE', 'PRESSURE_SESSION_FACTS'))",
+			)
+			execSQL(
+				"ALTER TABLE pending_signal ADD COLUMN pressure_writer_owner_generation INTEGER " +
+					"CHECK ((pressure_writer_owner IS NULL AND " +
+					"pressure_writer_owner_generation IS NULL) OR " +
+					"(pressure_writer_owner IS NOT NULL AND " +
+					"pressure_writer_owner_generation > 0))",
+			)
 			// Every released-v27 pending command predates source-local writer cutover and therefore
 			// belongs to the released legacy Steps destination if its payload happens to carry Steps.
 			// Stamping all rows avoids parsing serialized payloads in SQL; non-Steps rows ignore it.
@@ -1439,6 +1464,11 @@ val MIGRATION_27_28: Migration = object : Migration(
 					PRIMARY KEY(source_kind, destination)
 				)
 				""".trimIndent(),
+			)
+			execSQL(
+				"INSERT OR IGNORE INTO source_destination_owner " +
+					"(source_kind, destination, owner, owner_generation, updated_at_ms) " +
+					"VALUES (1, 'SESSION_LOCATION', 'EXISTING_LOCATION_CANONICAL_PIPELINE', 1, 0)",
 			)
 			execSQL(
 				"INSERT OR IGNORE INTO source_destination_owner " +
@@ -1477,6 +1507,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN delivery_unit_index INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN delivery_unit_count INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN observed_interval_start_nanos INTEGER")
+			execSQL("ALTER TABLE source_event_wal ADD COLUMN received_wall_time_ms INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN capture_consent_epoch INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN activity_automation_epoch INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN session_manifest_revision INTEGER")
@@ -1943,6 +1974,10 @@ val MIGRATION_27_28: Migration = object : Migration(
 					collected_data_epoch INTEGER NOT NULL,
 					deleted_import_revision INTEGER NOT NULL,
 					deleted_at_ms INTEGER NOT NULL,
+					run_deletion_count INTEGER NOT NULL,
+					run_deletion_set_checksum TEXT NOT NULL,
+					identity_fence_count INTEGER NOT NULL,
+					identity_fence_set_checksum TEXT NOT NULL,
 					effect_checksum TEXT NOT NULL,
 					PRIMARY KEY(entry_identity)
 				)
@@ -2241,6 +2276,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 				)
 				""".trimIndent(),
 			)
+			addImportedActivityRetentionTemporalAuthorityColumns(db)
 			execSQL(
 				"""
 				CREATE TABLE IF NOT EXISTS imported_activity_retained_identity (
@@ -2700,6 +2736,10 @@ val MIGRATION_27_28: Migration = object : Migration(
 					"ON imported_cell_entry_revision(import_job_id, import_entry_key)",
 			)
 			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_cell_entry_time_range " +
+					"ON imported_cell_entry_revision(start_time_ms, end_time_ms, identity)",
+			)
+			execSQL(
 				"""
 				CREATE TABLE IF NOT EXISTS imported_cell_receipt (
 					import_job_id TEXT NOT NULL,
@@ -2825,6 +2865,11 @@ val MIGRATION_27_28: Migration = object : Migration(
 			execSQL(
 				"CREATE INDEX IF NOT EXISTS idx_imported_cell_observation_owner " +
 					"ON imported_cell_observation(aggregate_owner_identity)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_cell_observation_time_range " +
+					"ON imported_cell_observation(" +
+					"latest_possible_time_ms, coverage_start_time_ms, entry_identity)",
 			)
 			execSQL(
 				"CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_cell_observation_revision_identity " +
@@ -3984,5 +4029,6 @@ val MIGRATION_27_28: Migration = object : Migration(
 					"ON imported_wifi_deletion_generation(deletion_scope_digest)",
 			)
 		}
+		createTrackingOwnerValidationTriggers(db)
 	}
 }

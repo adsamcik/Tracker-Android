@@ -44,6 +44,7 @@ import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.policy.BatteryAwarePolicy
+import com.adsamcik.tracker.tracker.pipeline.persistence.ExclusiveTrackingPersistenceLifecycleLease
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationChannels
@@ -191,6 +192,9 @@ internal class TrackerService : CoreService() {
 	@Inject
 	lateinit var runtimePermissionReconciler: RuntimePermissionReconciler
 
+	@Inject
+	lateinit var persistenceLifecycleLease: ExclusiveTrackingPersistenceLifecycleLease
+
 	private lateinit var orchestrator: TrackingOrchestrator
 	private lateinit var sessionPresentationLifecycle: SessionPresentationLifecycle
 
@@ -263,6 +267,7 @@ internal class TrackerService : CoreService() {
 			appDatabase = appDatabase,
 			trackingParamsRepository = trackingParamsRepository,
 			trackingRolloutStateStore = trackingRolloutStateStore,
+			persistenceLifecycleLease = persistenceLifecycleLease,
 			runtimeTierAdjuster = { requestedTier ->
 				val preserveRequestedFidelity = sessionInfo?.isInitiatedByUser == true ||
 					com.adsamcik.tracker.tracker.api.BackgroundTrackingApi.cachedParams.preset ==

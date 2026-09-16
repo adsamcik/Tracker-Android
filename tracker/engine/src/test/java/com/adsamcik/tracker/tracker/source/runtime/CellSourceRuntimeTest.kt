@@ -1333,6 +1333,48 @@ class CellSourceRuntimeTest {
 		fixture.runtime.close()
 	}
 
+	@Test
+	fun `ambient callback-only authority never requests a Cell refresh`() = runTest {
+		val plan = cellPlan(mode = CellMode.OBSERVE_AND_SPARSE_REFRESH)
+		val ambient = ambientOnlyRegistration(plan, authorizationRevision = 2L)
+		val fixture = runtimeFixture(this, plan, listOf(ambient))
+
+		fixture.start(SourceEventSink { SourceAdmissionHandoff.Durable(1L) })
+		advanceUntilIdle()
+
+		verify(exactly = 0) { fixture.backend.requestRefresh(any()) }
+		coVerify(exactly = 0) { fixture.wakeups.schedule(any(), any()) }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `shared session cutoff retains exact Cell callbacks for ambient authorization`() = runTest {
+		val initialPlan = cellPlan(revision = 1L)
+		val ambientPlan = initialPlan.copy(revision = 2L)
+		val initial = registration(initialPlan, authorizationRevision = 1L)
+		val ambient = ambientOnlyRegistration(ambientPlan, authorizationRevision = 2L)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial))
+		coEvery {
+			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} returns ambient
+		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
+		fixture.start(sink)
+
+		assertTrue(fixture.runtime.refreshShared(ambientPlan, sink, claim = null) is
+			SourceApplyResult.Applied)
+		val cutoff = cellCutoff()
+		val stopping = async { fixture.runtime.sharedSessionCutoff(cutoff) }
+		runCurrent()
+		val acknowledgement = stopping.await()
+
+		assertEquals(RegistrationRemovalOutcome.NOT_REGISTERED,
+			acknowledgement.registrationRemovalOutcome)
+		assertTrue(acknowledgement.appDrainComplete)
+		verify(exactly = 1) { fixture.backend.start(any(), any()) }
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.runtime.close()
+	}
+
 	private suspend fun RuntimeFixture.start(sink: SourceEventSink) {
 		assertTrue(runtime.start(plan, sink) is SourceStartResult.Started)
 	}
@@ -1626,6 +1668,64 @@ class CellSourceRuntimeTest {
 					effectiveWallTimeMs = 1L,
 				).toAuthorizationSnapshotOrNull(),
 			),
+		)
+	}
+
+	private fun ambientOnlyRegistration(
+		plan: CellPlan,
+		authorizationRevision: Long,
+		generation: Long = 9L,
+	): SourceRegistration {
+		val ambient = SourceDemandEntity(
+			demandId = "cell-ambient-$authorizationRevision",
+			consumerId = "app:ambient:cell",
+			sourceKind = SourceKind.CELL.stableCode,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			manifestRevision = null,
+			lifecycleLeaseGeneration = null,
+			sourcePolicyRevision = authorizationRevision,
+			consentEpoch = 1L,
+			persistenceEligible = true,
+			qosCode = 0,
+			maximumAgeMs = 600_000L,
+			desiredLatencyMs = Long.MAX_VALUE,
+			requestedBootId = "boot-1",
+			requestedElapsedRealtimeNanos = authorizationRevision,
+			requestedAtMs = 1L,
+			status = SourceDemandEntity.STATUS_ACTIVE,
+			retireBootId = null,
+			retireElapsedRealtimeNanos = null,
+			retiredAtMs = null,
+		)
+		val authorization = requireNotNull(
+			SourceBrokerAuthorization.rows(
+				SourceKind.CELL.stableCode,
+				registrationGeneration = generation,
+				authorizationRevision = authorizationRevision,
+				demands = listOf(ambient),
+				effectiveBootId = "boot-1",
+				effectiveElapsedRealtimeNanos = authorizationRevision,
+				effectiveWallTimeMs = 1L,
+			).toAuthorizationSnapshotOrNull(),
+		)
+		return SourceRegistration(
+			ownerScope = "source-broker:${SourceKind.CELL.stableCode}",
+			state = SourceRegistrationStateEntity(
+				sourceKind = SourceKind.CELL.stableCode,
+				ownerScope = "source-broker:${SourceKind.CELL.stableCode}",
+				sourceInstanceId = "cell-1",
+				clockDomainId = "boot-1",
+				registrationGeneration = generation,
+				nextSequence = 0L,
+				appliedRevision = plan.revision,
+				collectedDataEpoch = 1L,
+				updatedAtMs = 1L,
+			),
+			physicalConfigurationFingerprint = plan.physicalConfigurationFingerprint(),
+			authorization = authorization,
+			requiresProviderAcceptance = false,
 		)
 	}
 

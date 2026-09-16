@@ -89,6 +89,30 @@ class DurableSourceEventSinkTest {
 	}
 
 	@Test
+	fun `durable protected Location admission requests only its canonical handoff hint`() = runTest {
+		val ingress = mockk<DurableSourceIngress>()
+		val recovery = mockk<SourcePipelineRecovery>(relaxed = true)
+		coEvery { ingress.admit(any()) } returns
+			AdmissionResult.Admitted(SourceEventId("location-event"), 7L)
+		val subject = DurableSourceEventSinkFactory(ingress, recovery)
+
+		subject.unbound.admit(
+			candidate().copy(
+				source = SourceKind.LOCATION,
+				sourceInstanceId = SourceInstanceId("location"),
+			),
+		).shouldBeInstanceOf<SourceAdmissionHandoff.Durable>()
+
+		verify(exactly = 1) { recovery.requestProtectedLocationCanonicalDrain() }
+		verify(exactly = 0) { recovery.requestCommittedWorkDrain() }
+		verify(exactly = 0) { recovery.requestActivityCapturedFactDrain() }
+		verify(exactly = 0) { recovery.requestStepsSessionFactDrain() }
+		verify(exactly = 0) { recovery.requestPressureSessionFactDrain() }
+		verify(exactly = 0) { recovery.requestWifiSessionFactDrain() }
+		verify(exactly = 0) { recovery.requestCellSessionFactDrain() }
+	}
+
+	@Test
 	fun `durable and duplicate Pressure admissions independently kick the Pressure lane`() = runTest {
 		val ingress = mockk<DurableSourceIngress>()
 		val recovery = mockk<SourcePipelineRecovery>(relaxed = true)

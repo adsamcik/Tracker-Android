@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureLineageFootprint
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -143,6 +144,29 @@ class RoomImportPortablePressureTest {
 	}
 
 	@Test
+	fun `correction cannot rewrite the stored structural zone of the same window identity`() =
+		runTest {
+			val first = request()
+			val changedWindow = window("window", 26L).withZone("UTC")
+			val changedRun = runWithWindows("run", listOf(changedWindow))
+			val changedEntry = PortablePressureEntryV1.create(
+				first.entry.identity,
+				changedRun.startTimeMs,
+				changedRun.endTimeMs,
+				listOf(changedRun),
+			)
+			val importer = importer(testScheduler)
+			importer.importEntry(first)
+
+			importer.importEntry(
+				request(changedEntry, receipt("zone-rewrite", 40L)),
+			) shouldBe ImportPortablePressureResult.Unverifiable(
+				PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+			database.importedPressureDao().entryRevision(first.entry.identity.value, 2L) shouldBe null
+		}
+
+	@Test
 	fun `opaque run identity cannot be retargeted to another entry`() = runTest {
 		val importer = importer(testScheduler)
 		importer.importEntry(request())
@@ -194,21 +218,12 @@ class RoomImportPortablePressureTest {
 			portableEntry = entry("entry-2", "run-2", "window-2"),
 			receiptMetadata = receipt(jobId = "job-2", receivedAtMs = 40L),
 		)
-		database.importedPressureDao().insertEntryDeletion(
-			ImportedPressureEntryDeletionEntity.create(
-				entryIdentity = entryTombstoneCollision.entry.runs.single().windows.single().identity.value,
-				collectedDataEpoch = EPOCH,
-				deletedImportRevision = 1L,
-				deletedAtMs = 50L,
-			),
+		insertEntryDeletionAuthority(
+			entryTombstoneCollision.entry.runs.single().windows.single().identity.value,
 		)
-		database.importedPressureDao().insertDeletionGeneration(
-			ImportedPressureDeletionGenerationEntity.create(
-				runIdentity = runTombstoneCollision.entry.identity.value,
-				collectedDataEpoch = EPOCH,
-				generation = 1L,
-				deletedAtMs = 50L,
-			),
+		insertRunDeletionAuthority(
+			runTombstoneCollision.entry.identity.value,
+			entryTombstoneCollision.entry.identity.value,
 		)
 
 		listOf(entryTombstoneCollision, runTombstoneCollision).forEach { colliding ->
@@ -322,6 +337,74 @@ class RoomImportPortablePressureTest {
 	}
 
 	@Test
+	fun `retention floor uses each window uncertainty and rejects before replay shortcuts`() =
+		runTest {
+			database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 1_000L, 50L) shouldBe 1
+			val crossing = request(entry(wallTimeUncertaintyMs = 1L))
+			val exactBoundary = request(
+				entry(
+					entryLocalId = "boundary",
+					runLocalId = "boundary",
+					windowLocalId = "boundary",
+					wallTimeUncertaintyMs = 0L,
+				),
+				receipt("boundary-job", 60L),
+			)
+
+			importer(testScheduler).importEntry(crossing) shouldBe ImportPortablePressureResult.Blocked(
+				PortablePressureImportBlockedReason.RETENTION_TRUNCATED,
+			)
+			importer(testScheduler).importEntry(exactBoundary) shouldBe
+				ImportPortablePressureResult.Applied(1L, 1, 1)
+			database.importedPressureDao().latestEntryRevision(crossing.entry.identity.value) shouldBe null
+		}
+
+	@Test
+	fun `stored crossing lineage blocks exact replay alternate receipt and above-floor correction`() =
+		runTest {
+			val importer = importer(testScheduler)
+			val original = request(entry(wallTimeUncertaintyMs = 1L))
+			importer.importEntry(original) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
+			database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 1_000L, 50L) shouldBe 1
+			val alternate = original.copy(
+				receipt = receipt(jobId = "alternate-after-floor", receivedAtMs = 60L),
+			)
+			val correction = request(
+				entry(
+					entryLocalId = "entry",
+					runLocalId = "above-floor-run",
+					windowLocalId = "above-floor-window",
+					wallTimeUncertaintyMs = 0L,
+					intervalStartTimeMs = 2_000L,
+				),
+				receipt("correction-after-floor", 70L),
+			)
+			val before = database.importedPressureDao().let { dao ->
+				listOf(
+					dao.entryRevisionsForAdmission(original.entry.identity.value).size,
+					dao.receiptsForAdmission(original.entry.identity.value).size,
+					dao.allRunsForAdmission(original.entry.identity.value).size,
+					dao.allWindowsForAdmission(original.entry.identity.value).size,
+				)
+			}
+
+			listOf(original, alternate, correction).forEach { blocked ->
+				importer.importEntry(blocked) shouldBe ImportPortablePressureResult.Blocked(
+					PortablePressureImportBlockedReason.RETENTION_TRUNCATED,
+				)
+			}
+
+			database.importedPressureDao().let { dao ->
+				listOf(
+					dao.entryRevisionsForAdmission(original.entry.identity.value).size,
+					dao.receiptsForAdmission(original.entry.identity.value).size,
+					dao.allRunsForAdmission(original.entry.identity.value).size,
+					dao.allWindowsForAdmission(original.entry.identity.value).size,
+				) shouldBe before
+			}
+		}
+
+	@Test
 	fun `revision gap and mixed stored epoch are unverifiable`() = runTest {
 		val importer = importer(testScheduler)
 		val first = request()
@@ -392,6 +475,107 @@ class RoomImportPortablePressureTest {
 			)
 		database.importedPressureDao().latestEntryRevision(entry.identity.value) shouldBe null
 	}
+
+	@Test
+	fun `oversized stored text is unverifiable and preserves the complete multitable snapshot`() =
+		runTest {
+			val imported = request()
+			val importer = importer(testScheduler)
+			importer.importEntry(imported)
+			val dao = database.importedPressureDao()
+			val before = listOf(
+				dao.entryRevisionsForAdmission(imported.entry.identity.value).size,
+				dao.receiptsForAdmission(imported.entry.identity.value).size,
+				dao.allRunsForAdmission(imported.entry.identity.value).size,
+				dao.allWindowsForAdmission(imported.entry.identity.value).size,
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE imported_pressure_entry_revision SET import_source_name = ? " +
+					"WHERE identity = ?",
+				arrayOf("x".repeat(4_097), imported.entry.identity.value),
+			)
+
+			importer.importEntry(imported) shouldBe ImportPortablePressureResult.Unverifiable(
+				PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+
+			listOf(
+				rowCount("imported_pressure_entry_revision"),
+				rowCount("imported_pressure_receipt"),
+				rowCount("imported_pressure_run"),
+				rowCount("imported_pressure_window"),
+			) shouldBe before
+		}
+
+	@Test
+	fun `lineage byte preflight rejects raw text before row materialization`() {
+		ImportedPressureLineageFootprint(
+			headerCount = 1L,
+			headerTextBytes = ImportedPressureDao.MAX_LINEAGE_TEXT_BYTES + 1L,
+			receiptCount = 1L,
+			receiptTextBytes = 0L,
+			runCount = 1L,
+			runTextBytes = 0L,
+			windowCount = 1L,
+			windowTextBytes = 0L,
+		).validate() shouldBe ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW
+	}
+
+	@Test
+	fun `global byte preflight rejects oversized metadata before candidate paging`() {
+		ImportedPressureLineageFootprint(
+			headerCount = 1L,
+			headerTextBytes = ImportedPressureDao.MAX_MAINTENANCE_TEXT_BYTES + 1L,
+			receiptCount = 1L,
+			receiptTextBytes = 0L,
+			runCount = 1L,
+			runTextBytes = 0L,
+			windowCount = 1L,
+			windowTextBytes = 0L,
+		).validateGlobal(
+			maximumRevisions = 1L,
+			maximumReceipts = 1L,
+			maximumRuns = 1L,
+			maximumWindows = 1L,
+		) shouldBe ImportedPressureRetentionAuthorityFailure.DEPENDENCY_OVERFLOW
+	}
+
+	@Test
+	fun `metadata byte arithmetic overflow is typed as value overflow`() {
+		ImportedPressureLineageFootprint(
+			headerCount = 1L,
+			headerTextBytes = Long.MAX_VALUE,
+			receiptCount = 1L,
+			receiptTextBytes = 1L,
+			runCount = 1L,
+			runTextBytes = 0L,
+			windowCount = 1L,
+			windowTextBytes = 0L,
+		).validate() shouldBe ImportedPressureRetentionAuthorityFailure.VALUE_OVERFLOW
+	}
+
+	@Test
+	fun `invalid retained deletion checksum is unverifiable without touching imported hierarchy`() =
+		runTest {
+			val imported = request()
+			val importer = importer(testScheduler)
+			importer.importEntry(imported)
+			val runIdentity = imported.entry.runs.single().identity.value
+			database.openHelper.writableDatabase.execSQL(
+				"INSERT INTO imported_pressure_deletion_generation " +
+					"(run_identity, collected_data_epoch, generation, deleted_at_ms, effect_checksum) " +
+					"VALUES (?, ?, 1, 50, ?)",
+				arrayOf(runIdentity, EPOCH, "sha256:${"0".repeat(64)}"),
+			)
+
+			importer.importEntry(imported) shouldBe ImportPortablePressureResult.Unverifiable(
+				PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+			rowCount("imported_pressure_entry_revision") shouldBe 1
+			rowCount("imported_pressure_receipt") shouldBe 1
+			rowCount("imported_pressure_run") shouldBe 1
+			rowCount("imported_pressure_window") shouldBe 1
+		}
 
 	@Test
 	fun `mutated window checksum order and run interval are rejected`() = runTest {
@@ -628,8 +812,14 @@ class RoomImportPortablePressureTest {
 		runLocalId: String = "run",
 		windowLocalId: String = "window",
 		wallTimeUncertaintyMs: Long = 25L,
+		intervalStartTimeMs: Long = 1_000L,
 	): PortablePressureEntryV1 {
-		val run = run(runLocalId, windowLocalId, wallTimeUncertaintyMs)
+		val run = run(
+			runLocalId,
+			windowLocalId,
+			wallTimeUncertaintyMs,
+			intervalStartTimeMs,
+		)
 		return PortablePressureEntryV1.create(
 			identity = identity(PortablePressureIdentityKind.LOGICAL_ENTRY, entryLocalId),
 			startTimeMs = run.startTimeMs,
@@ -642,18 +832,23 @@ class RoomImportPortablePressureTest {
 		runLocalId: String = "run",
 		windowLocalId: String = "window",
 		wallTimeUncertaintyMs: Long = 25L,
+		intervalStartTimeMs: Long = 1_000L,
 	) = runWithWindows(
 		runLocalId,
-		listOf(window(windowLocalId, wallTimeUncertaintyMs)),
+		listOf(window(windowLocalId, wallTimeUncertaintyMs, intervalStartTimeMs)),
+		startTimeMs = intervalStartTimeMs,
+		endTimeMs = intervalStartTimeMs + 1_000L,
 	)
 
 	private fun runWithWindows(
 		runLocalId: String,
 		windows: List<PortablePressureWindowV1>,
+		startTimeMs: Long = 1_000L,
+		endTimeMs: Long = 2_000L,
 	) = PortablePressureRunV1(
 		identity = identity(PortablePressureIdentityKind.PHYSICAL_RUN, runLocalId),
-		startTimeMs = 1_000L,
-		endTimeMs = 2_000L,
+		startTimeMs = startTimeMs,
+		endTimeMs = endTimeMs,
 		capturedForWholeRun = true,
 		availability = PortablePressureAvailability.RETAINED,
 		coverage = PortablePressureCoverage.COMPLETE,
@@ -704,6 +899,89 @@ class RoomImportPortablePressureTest {
 	private fun identity(kind: PortablePressureIdentityKind, local: String) =
 		PortablePressureOpaqueIdentity.derive(kind, local)
 
+	private suspend fun insertEntryDeletionAuthority(entryIdentity: String) {
+		val runIdentity = identity(
+			PortablePressureIdentityKind.PHYSICAL_RUN,
+			"deleted-run-$entryIdentity",
+		).value
+		val windowIdentity = identity(
+			PortablePressureIdentityKind.WINDOW,
+			"deleted-window-$entryIdentity",
+		).value
+		val fences = listOf(
+			com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity.create(
+				entryIdentity,
+				com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity.ENTRY,
+				entryIdentity,
+				null,
+				EPOCH,
+				50L,
+				com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
+					.REASON_SELECTED_DELETE,
+			),
+			com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity.create(
+				runIdentity,
+				com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity.RUN,
+				entryIdentity,
+				runIdentity,
+				EPOCH,
+				50L,
+				com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
+					.REASON_SELECTED_DELETE,
+			),
+			com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity.create(
+				windowIdentity,
+				com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity.WINDOW,
+				entryIdentity,
+				runIdentity,
+				EPOCH,
+				50L,
+				com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
+					.REASON_SELECTED_DELETE,
+			),
+		)
+		val deletion = ImportedPressureDeletionGenerationEntity.create(
+			runIdentity,
+			EPOCH,
+			1L,
+			50L,
+		)
+		val dao = database.importedPressureDao()
+		dao.insertIdentityFences(fences)
+		dao.insertDeletionGeneration(deletion)
+		dao.insertEntryDeletion(
+			ImportedPressureEntryDeletionEntity.create(
+				entryIdentity,
+				EPOCH,
+				1L,
+				50L,
+				listOf(deletion),
+				fences,
+			),
+		)
+	}
+
+	private suspend fun insertRunDeletionAuthority(
+		runIdentity: String,
+		entryIdentity: String,
+	) {
+		val fence =
+			com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity.create(
+				runIdentity,
+				com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity.RUN,
+				entryIdentity,
+				runIdentity,
+				EPOCH,
+				50L,
+				com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
+					.REASON_SELECTED_DELETE,
+			)
+		database.importedPressureDao().insertIdentityFences(listOf(fence))
+		database.importedPressureDao().insertDeletionGeneration(
+			ImportedPressureDeletionGenerationEntity.create(runIdentity, EPOCH, 1L, 50L),
+		)
+	}
+
 	@Suppress("LongMethod")
 	private fun PortablePressureWindowV1.withIdentity(
 		identity: PortablePressureOpaqueIdentity,
@@ -735,9 +1013,47 @@ class RoomImportPortablePressureTest {
 		zoneId = zoneId,
 	)
 
+	@Suppress("LongMethod")
+	private fun PortablePressureWindowV1.withZone(
+		zoneId: String,
+	) = PortablePressureWindowV1.create(
+		identity = identity,
+		intervalStartTimeMs = intervalStartTimeMs,
+		intervalEndTimeMs = intervalEndTimeMs,
+		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+		observedDurationNanos = observedDurationNanos,
+		sampleCount = sampleCount,
+		expectedSampleCount = expectedSampleCount,
+		meanHectopascals = meanHectopascals,
+		sumSquaredDeviations = sumSquaredDeviations,
+		minimumHectopascals = minimumHectopascals,
+		maximumHectopascals = maximumHectopascals,
+		firstHectopascals = firstHectopascals,
+		latestHectopascals = latestHectopascals,
+		slopeHectopascalsPerSecond = slopeHectopascalsPerSecond,
+		rSquared = rSquared,
+		sensorAccuracy = sensorAccuracy,
+		effectiveSamplePeriodMicros = effectiveSamplePeriodMicros,
+		effectiveMaximumReportLatencyMicros = effectiveMaximumReportLatencyMicros,
+		targetWindowDurationNanos = targetWindowDurationNanos,
+		maximumInterSampleGapNanos = maximumInterSampleGapNanos,
+		closure = closure,
+		qualification = qualification,
+		sourceQualityFlags = sourceQualityFlags,
+		sourceQualityConfidence = sourceQualityConfidence,
+		zoneId = zoneId,
+	)
+
 	private fun newDatabase(): AppDatabase = AppDatabase.testDatabase(
 		ApplicationProvider.getApplicationContext<Application>(),
 	)
+
+	private fun rowCount(table: String): Int = database.openHelper.writableDatabase.query(
+		"SELECT COUNT(*) FROM $table",
+	).use { cursor ->
+		require(cursor.moveToFirst())
+		cursor.getInt(0)
+	}
 
 	private companion object {
 		const val EPOCH = 7L

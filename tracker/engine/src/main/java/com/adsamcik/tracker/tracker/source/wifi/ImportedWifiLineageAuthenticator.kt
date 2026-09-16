@@ -20,6 +20,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableWifiOpaqueIdentity
 import com.adsamcik.tracker.stats.api.repository.PortableWifiResultCompleteness
 import com.adsamcik.tracker.stats.api.repository.PortableWifiRunAvailability
 import com.adsamcik.tracker.stats.api.repository.PortableWifiSessionMode
+import com.adsamcik.tracker.stats.api.repository.isReciprocalCorrectionOf
 
 /** Re-authenticates complete stored Wi-Fi import authority before replay or correction. */
 internal object ImportedWifiLineageAuthenticator {
@@ -246,59 +247,3 @@ private fun PortableCapturedWifiObservationV1.hasSameAggregateAs(
 	sixGhzCount == other.sixGhzCount && otherBandCount == other.otherBandCount &&
 	strongestSignalDbm == other.strongestSignalDbm && weakestSignalDbm == other.weakestSignalDbm &&
 	meanSignalDbm.toBits() == other.meanSignalDbm.toBits()
-
-/** Fixed foreign ownership plus exact successor semantics; no missing correction can be invented. */
-internal fun PortableCapturedWifiEntryV1.isReciprocalCorrectionOf(
-	previous: PortableCapturedWifiEntryV1,
-): Boolean {
-	if (!hasSameImportedWifiStructureAs(previous) || contentChecksum == previous.contentChecksum) return false
-	var changed = false
-	runs.zip(previous.runs).forEach { (currentRun, previousRun) ->
-		currentRun.observations.zip(previousRun.observations).forEach { (current, prior) ->
-			when {
-				current.semanticRevision == prior.semanticRevision -> if (current != prior) return false
-				prior.semanticRevision < Long.MAX_VALUE &&
-					current.semanticRevision == prior.semanticRevision + 1L &&
-					current.supersedesSemanticRevision == prior.semanticRevision &&
-					current.contentChecksum != prior.contentChecksum &&
-					current.hasSameImportedWifiPayloadAs(prior) -> changed = true
-				else -> return false
-			}
-		}
-	}
-	return changed
-}
-
-/** Source-native Wi-Fi corrections settle authority; they never rewrite represented provider payload. */
-private fun PortableCapturedWifiObservationV1.hasSameImportedWifiPayloadAs(
-	previous: PortableCapturedWifiObservationV1,
-): Boolean = try {
-	copy(
-		semanticRevision = previous.semanticRevision,
-		supersedesSemanticRevision = previous.supersedesSemanticRevision,
-		contentChecksum = previous.contentChecksum,
-	) == previous
-} catch (_: IllegalArgumentException) {
-	false
-} catch (_: ArithmeticException) {
-	false
-}
-
-internal fun PortableCapturedWifiEntryV1.hasSameImportedWifiStructureAs(
-	other: PortableCapturedWifiEntryV1,
-): Boolean = identity == other.identity && sessionMode == other.sessionMode &&
-	startTimeMs == other.startTimeMs && endTimeMs == other.endTimeMs &&
-	runs.size == other.runs.size && runs.zip(other.runs).all { (left, right) ->
-		left.identity == right.identity && left.deletionScopeDigest == right.deletionScopeDigest &&
-			left.startTimeMs == right.startTimeMs && left.endTimeMs == right.endTimeMs &&
-			left.storedZoneIds == right.storedZoneIds && left.captureCoverage == right.captureCoverage &&
-			left.availability == right.availability &&
-			left.acquisitionCompleteness == right.acquisitionCompleteness &&
-			left.hasUnresolvedProviderRange == right.hasUnresolvedProviderRange &&
-			left.retentionLoss == right.retentionLoss &&
-			left.observations.size == right.observations.size &&
-			left.observations.zip(right.observations).all { (leftObservation, rightObservation) ->
-				leftObservation.identity == rightObservation.identity &&
-					leftObservation.aggregateOwnerIdentity == rightObservation.aggregateOwnerIdentity
-			}
-	}

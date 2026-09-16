@@ -8,6 +8,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedCellLiveFactOwner
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletedIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellObservationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellRunEntity
@@ -79,9 +80,22 @@ class RoomImportPortableCapturedCell internal constructor(
 		authenticateRetention(entry, state.retainedFromMs)
 
 		val entryDeletion = storedValue { dao.entryDeletion(entry.identity.value) }
-		if (entryDeletion != null) {
-			if (entryDeletion.collectedDataEpoch != request.expectedCollectedDataEpoch) storedCorrupt()
-			blocked(PortableCellImportBlockedReason.DELETED_ENTRY)
+		val deletionReceipt = storedValue { dao.entryDeletionReceipt(entry.identity.value) }
+		if (entryDeletion != null || deletionReceipt != null) {
+			when (storedValue {
+				database.authenticateDeletedImportedCellSelectionInTransaction(
+					entry.identity,
+					1L,
+					entry.contentChecksum,
+				)
+			}) {
+				is DeletedImportedCellSelectionAuthentication.Exact,
+				DeletedImportedCellSelectionAuthentication.Stale,
+				-> blocked(PortableCellImportBlockedReason.DELETED_ENTRY)
+				DeletedImportedCellSelectionAuthentication.Absent,
+				DeletedImportedCellSelectionAuthentication.Unverifiable,
+				-> storedCorrupt()
+			}
 		}
 
 		val candidateIdentity = IncomingCellIdentityGraph(entry)
@@ -263,11 +277,17 @@ class RoomImportPortableCapturedCell internal constructor(
 			val observations = storedValue { dao.existingObservationIdentityOwners(values, limit) }
 			val entryDeletions = storedValue { dao.entryDeletionOwners(values, limit) }
 			val runDeletions = storedValue { dao.deletionGenerationOwners(values, limit) }
+			val deletionReceipts = storedValue { dao.entryDeletionReceiptOwners(values, limit) }
+			val deletedIdentities = storedValue {
+				dao.deletedIdentityOwners(values, graph.allProtectedValues.size + 1)
+			}
 			if (listOf(entries.size, runs.size, scopes.size, observations.size,
-					entryDeletions.size, runDeletions.size).any { it >= limit }
+					entryDeletions.size, runDeletions.size, deletionReceipts.size).any { it >= limit } ||
+				deletedIdentities.size > graph.allProtectedValues.size
 			) dependencyOverflow()
 			if (entryDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
-				runDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch }
+				runDeletions.any { it.collectedDataEpoch != state.collectedDataEpoch } ||
+				deletionReceipts.any { it.collectedDataEpoch != state.collectedDataEpoch }
 			) storedCorrupt()
 			if (entries.any { graph.kinds[it] != PortableCellIdentityKind.LOGICAL_ENTRY } ||
 				runs.any { owner ->
@@ -302,10 +322,18 @@ class RoomImportPortableCapturedCell internal constructor(
 				} || runDeletions.any { marker ->
 					graph.runOwners[marker.runIdentity] !=
 						(marker.entryIdentity to marker.deletionScopeDigest)
+				} || deletionReceipts.any {
+					graph.kinds[it.entryIdentity] != PortableCellIdentityKind.LOGICAL_ENTRY
+				} || deletedIdentities.any { marker ->
+					!marker.matches(graph)
 				}
 			) blocked(PortableCellImportBlockedReason.OPAQUE_IDENTITY_CONFLICT)
-			if (entryDeletions.isNotEmpty()) blocked(PortableCellImportBlockedReason.DELETED_ENTRY)
-			if (runDeletions.isNotEmpty()) blocked(PortableCellImportBlockedReason.DELETED_RUN)
+			if (entryDeletions.isNotEmpty() || deletionReceipts.isNotEmpty()) {
+				blocked(PortableCellImportBlockedReason.DELETED_ENTRY)
+			}
+			if (runDeletions.isNotEmpty() || deletedIdentities.isNotEmpty()) {
+				blocked(PortableCellImportBlockedReason.DELETED_RUN)
+			}
 		}
 	}
 
@@ -580,6 +608,29 @@ private class IncomingCellIdentityGraph(entry: PortableCapturedCellEntryV1) {
 		}
 	}.toMap()
 	val allProtectedValues = (kinds.keys + scopeOwners.keys).distinct().sorted()
+}
+
+private fun ImportedCellDeletedIdentityEntity.matches(
+	graph: IncomingCellIdentityGraph,
+): Boolean = when (identityKind) {
+	ImportedCellDeletedIdentityEntity.ENTRY ->
+		graph.kinds[protectedIdentity] == PortableCellIdentityKind.LOGICAL_ENTRY &&
+			protectedIdentity == entryIdentity
+	ImportedCellDeletedIdentityEntity.RUN ->
+		runIdentity == protectedIdentity &&
+			graph.kinds[protectedIdentity] == PortableCellIdentityKind.PHYSICAL_RUN &&
+			graph.runOwners[protectedIdentity] ==
+			(entryIdentity to requireNotNull(deletionScopeDigest))
+	ImportedCellDeletedIdentityEntity.OBSERVATION ->
+		graph.observationOwners[protectedIdentity] == IncomingObservationOwner(
+			entryIdentity,
+			requireNotNull(runIdentity),
+			aggregateOwnerIdentity,
+		)
+	ImportedCellDeletedIdentityEntity.DELETION_SCOPE ->
+		deletionScopeDigest == protectedIdentity &&
+			graph.scopeOwners[protectedIdentity] == (entryIdentity to requireNotNull(runIdentity))
+	else -> false
 }
 
 private fun PortableCapturedCellEntryV1.toEntity(

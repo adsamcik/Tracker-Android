@@ -84,12 +84,12 @@ class RoomDeleteImportedPressureEntryTest {
 		dao.allRunsForAdmission(correction.entry.identity.value) shouldBe emptyList()
 		dao.allWindowsForAdmission(correction.entry.identity.value) shouldBe emptyList()
 		val deletion = requireNotNull(dao.entryDeletion(correction.entry.identity.value))
-		deletion shouldBe ImportedPressureEntryDeletionEntity.create(
-			entryIdentity = correction.entry.identity.value,
-			collectedDataEpoch = EPOCH,
-			deletedImportRevision = 2L,
-			deletedAtMs = DELETED_AT_MS,
-		)
+		deletion.entryIdentity shouldBe correction.entry.identity.value
+		deletion.collectedDataEpoch shouldBe EPOCH
+		deletion.deletedImportRevision shouldBe 2L
+		deletion.deletedAtMs shouldBe DELETED_AT_MS
+		deletion.runDeletionCount shouldBe 2
+		deletion.identityFenceCount shouldBe 5
 		(first.entry.runs + correction.entry.runs).map { run ->
 			requireNotNull(dao.deletionGeneration(run.identity.value)).generation
 		} shouldContainExactly listOf(1L, 1L)
@@ -113,7 +113,10 @@ class RoomDeleteImportedPressureEntryTest {
 			)
 
 		val history = database.withTransaction {
-			ImportedPressureHistoryEvaluator(database).selectRecentInTransaction(10)
+			(
+				ImportedPressureHistoryEvaluator(database).selectRecentInTransaction(10) as
+					ImportedPressureHistorySelection.Available
+				).evaluations
 		}
 		history.map { it.candidate.identity } shouldContainExactly
 			listOf(unrelated.entry.identity.value)
@@ -142,25 +145,43 @@ class RoomDeleteImportedPressureEntryTest {
 	}
 
 	@Test
+	fun `deleted entry replay is unverifiable when one typed window fence is missing`() = runTest {
+		val imported = request()
+		val importer = importer(testScheduler)
+		importer.importEntry(imported)
+		deleter(testScheduler).delete(deleteRequest(imported.entry, 1L)) shouldBe
+			DeleteImportedPressureEntryResult.Deleted
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM imported_pressure_identity_fence WHERE protected_identity = ?",
+			arrayOf(imported.entry.runs.single().windows.single().identity.value),
+		)
+
+		importer.importEntry(
+			imported.copy(
+				receipt = receipt("replay-after-corrupt-delete", "entry-replay", 70L),
+			),
+		) shouldBe ImportPortablePressureResult.Unverifiable(
+			com.adsamcik.tracker.stats.api.repository
+				.PortablePressureImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+	}
+
+	@Test
 	fun `entry tombstone beside retained hierarchy fails deletion and product read closed`() = runTest {
 		val imported = request()
 		importer(testScheduler).importEntry(imported)
-		database.importedPressureDao().insertEntryDeletion(
-			ImportedPressureEntryDeletionEntity.create(
-				imported.entry.identity.value,
-				EPOCH,
-				1L,
-				DELETED_AT_MS,
-			),
-		)
+		insertEntryDeletionAuthority(imported.entry.identity.value)
 
 		deleter(testScheduler).delete(deleteRequest(imported.entry, revision = 1L)) shouldBe
 			DeleteImportedPressureEntryResult.Unverifiable(
 				ImportedPressureEntryDeletionUnverifiableReason.PARTIAL_DELETION_STATE,
 			)
 		val history = database.withTransaction {
-			ImportedPressureHistoryEvaluator(database).selectRecentInTransaction(1).single()
-		}
+				(
+					ImportedPressureHistoryEvaluator(database).selectRecentInTransaction(1) as
+						ImportedPressureHistorySelection.Available
+					).evaluations.single()
+			}
 		history shouldBe ImportedPressureHistoryEvaluation.Unverifiable(
 			history.candidate,
 			ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
@@ -399,14 +420,11 @@ class RoomDeleteImportedPressureEntryTest {
 		val importer = importer(scheduler)
 		importer.importEntry(selected) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
 		importer.importEntry(unrelated) shouldBe ImportPortablePressureResult.Applied(1L, 1, 1)
-		val marker = ImportedPressureEntryDeletionEntity.create(
-			entryIdentity = collisionIdentity(selected.entry),
-			collectedDataEpoch = EPOCH,
-			deletedImportRevision = 1L,
-			deletedAtMs = DELETED_AT_MS - 1L,
-		)
 		val dao = database.importedPressureDao()
-		dao.insertEntryDeletion(marker)
+		val marker = insertEntryDeletionAuthority(
+			collisionIdentity(selected.entry),
+			DELETED_AT_MS - 1L,
+		)
 
 		deleter(scheduler).delete(deleteRequest(selected.entry, revision = 1L)) shouldBe
 			DeleteImportedPressureEntryResult.Unverifiable(
@@ -417,6 +435,69 @@ class RoomDeleteImportedPressureEntryTest {
 		dao.entryDeletion(selected.entry.identity.value) shouldBe null
 		dao.deletionGeneration(selected.entry.runs.single().identity.value) shouldBe null
 		dao.entryDeletion(marker.entryIdentity) shouldBe marker
+	}
+
+	private suspend fun insertEntryDeletionAuthority(
+		entryIdentity: String,
+		deletedAtMs: Long = DELETED_AT_MS,
+	): ImportedPressureEntryDeletionEntity {
+		val runIdentity = identity(
+			PortablePressureIdentityKind.PHYSICAL_RUN,
+			"marker-run-$entryIdentity",
+		).value
+		val windowIdentity = identity(
+			PortablePressureIdentityKind.WINDOW,
+			"marker-window-$entryIdentity",
+		).value
+		val fences = listOf(
+			com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity.create(
+				entryIdentity,
+				com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity.ENTRY,
+				entryIdentity,
+				null,
+				EPOCH,
+				deletedAtMs,
+				com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
+					.REASON_SELECTED_DELETE,
+			),
+			com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity.create(
+				runIdentity,
+				com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity.RUN,
+				entryIdentity,
+				runIdentity,
+				EPOCH,
+				deletedAtMs,
+				com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
+					.REASON_SELECTED_DELETE,
+			),
+			com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity.create(
+				windowIdentity,
+				com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity.WINDOW,
+				entryIdentity,
+				runIdentity,
+				EPOCH,
+				deletedAtMs,
+				com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
+					.REASON_SELECTED_DELETE,
+			),
+		)
+		val runDeletion = ImportedPressureDeletionGenerationEntity.create(
+			runIdentity,
+			EPOCH,
+			1L,
+			deletedAtMs,
+		)
+		val dao = database.importedPressureDao()
+		dao.insertIdentityFences(fences)
+		dao.insertDeletionGeneration(runDeletion)
+		return ImportedPressureEntryDeletionEntity.create(
+			entryIdentity,
+			EPOCH,
+			1L,
+			deletedAtMs,
+			listOf(runDeletion),
+			fences,
+		).also { dao.insertEntryDeletion(it) }
 	}
 
 	private suspend fun assertRunTombstoneCollisionBlocked(

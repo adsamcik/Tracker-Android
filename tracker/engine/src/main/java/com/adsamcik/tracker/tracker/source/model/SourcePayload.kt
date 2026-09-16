@@ -214,8 +214,13 @@ data class WifiResultSnapshotPayload(
 	val accessPoints: List<WifiAccessPointEvidence>,
 	val platformTimestampMs: Long?,
 	val resultAgeMs: Long?,
+	val observationZoneId: String? = null,
 ) : SourcePayload {
 	override val source: SourceKind = SourceKind.WIFI
+
+	init {
+		observationZoneId?.let { java.time.ZoneId.of(it) }
+	}
 }
 
 data class WifiAccessPointEvidence(
@@ -230,9 +235,17 @@ data class CellSnapshotPayload(
 	val subscriptionId: Int?,
 	val observations: List<CellObservationEvidence>,
 	val refreshOutcome: CellRefreshOutcome,
+	val observationZoneId: String? = null,
 ) : SourcePayload {
 	override val source: SourceKind = SourceKind.CELL
+
+	init {
+		observationZoneId?.let { java.time.ZoneId.of(it) }
+	}
 }
+
+/** First payload revision that freezes the observation-time structural zone for radio products. */
+internal const val RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION = 5
 
 data class CellObservationEvidence(
 	val identifierToken: String,

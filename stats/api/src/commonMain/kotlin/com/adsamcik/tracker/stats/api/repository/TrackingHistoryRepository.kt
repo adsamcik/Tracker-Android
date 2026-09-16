@@ -306,6 +306,27 @@ data class ImportedStepsHistoryMember(
  * and never imply Location, distance, route, elevation, or a fabricated numeric zero.
  */
 sealed interface SourceAwareHistoryPageEntry {
+	val actionTarget: TrackingHistoryActionTarget
+		get() = when (this) {
+			is Physical -> TrackingHistoryActionTarget.PhysicalSegment(segmentId)
+			is StepsOnly -> TrackingHistoryActionTarget.NonActionable(
+				source = HistorySource.STEPS,
+				reason = TrackingHistoryNonActionableReason.LOCAL_STEPS_SELECTOR_UNAVAILABLE,
+			)
+			is ActivityOnly -> history.selection?.let(TrackingHistoryActionTarget::Activity)
+				?: TrackingHistoryActionTarget.NonActionable(
+					source = HistorySource.ACTIVITY,
+					reason = TrackingHistoryNonActionableReason.ACTIVITY_SELECTOR_UNAVAILABLE,
+				)
+			is ImportedSteps -> TrackingHistoryActionTarget.ImportedStepsMembers(
+				history.physicalMembers,
+			)
+			is PressureOnly -> TrackingHistoryActionTarget.NonActionable(
+				source = HistorySource.PRESSURE,
+				reason = TrackingHistoryNonActionableReason.PRESSURE_SELECTOR_UNAVAILABLE,
+			)
+		}
+
 	/** A caller-supplied candidate that remains eligible for existing Trip presentation. */
 	data class Physical(
 		val segmentId: Long,
@@ -325,8 +346,12 @@ sealed interface SourceAwareHistoryPageEntry {
 		val history: ActivityHistoryEntry,
 	) : SourceAwareHistoryPageEntry {
 		init {
-			require(history.capturesOnlyActivity) {
-				"Activity-only page rows require exact all-revision Activity-only intent"
+			require(
+				(history.origin == ActivityHistoryOrigin.LOCAL && history.capturesOnlyActivity) ||
+					(history.origin == ActivityHistoryOrigin.IMPORTED &&
+						!history.capturesOnlyActivity),
+			) {
+				"Activity rows require exact native-only intent or explicit portable membership"
 			}
 		}
 	}
@@ -340,6 +365,38 @@ sealed interface SourceAwareHistoryPageEntry {
 	data class PressureOnly(
 		val history: PressureOnlyHistoryEntry,
 	) : SourceAwareHistoryPageEntry
+}
+
+/** Producer-issued action authority; opaque selections are retained without decoding. */
+sealed interface TrackingHistoryActionTarget {
+	data class PhysicalSegment(val segmentId: Long) : TrackingHistoryActionTarget {
+		init {
+			require(segmentId > 0L)
+		}
+	}
+
+	data class ImportedStepsMembers(
+		val members: List<ImportedStepsHistoryMember>,
+	) : TrackingHistoryActionTarget {
+		init {
+			require(members.isNotEmpty())
+		}
+	}
+
+	data class Activity(
+		val selection: ActivityHistorySelection,
+	) : TrackingHistoryActionTarget
+
+	data class NonActionable(
+		val source: HistorySource,
+		val reason: TrackingHistoryNonActionableReason,
+	) : TrackingHistoryActionTarget
+}
+
+enum class TrackingHistoryNonActionableReason {
+	LOCAL_STEPS_SELECTOR_UNAVAILABLE,
+	ACTIVITY_SELECTOR_UNAVAILABLE,
+	PRESSURE_SELECTOR_UNAVAILABLE,
 }
 
 /** One bounded source-aware result; dependency failure never falls back to raw rows. */

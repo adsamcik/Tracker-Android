@@ -152,6 +152,13 @@ interface PendingSignalDao {
 	)
 	suspend fun hasStepsWriterCommand(): Boolean
 
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM pending_signal " +
+			"WHERE pressure_writer_owner IS NOT NULL " +
+			"OR pressure_writer_owner_generation IS NOT NULL LIMIT 1)",
+	)
+	suspend fun hasPressureWriterCommand(): Boolean
+
 	@Query("DELETE FROM pending_signal")
 	fun deleteAll()
 

@@ -7,7 +7,9 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellDeletedIdentityEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellObservationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedCellReceiptEntity
@@ -44,6 +46,16 @@ abstract class ImportedCellDao {
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertEntryDeletion(deletion: ImportedCellEntryDeletionEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertEntryDeletionReceipt(
+		receipt: ImportedCellEntryDeletionReceiptEntity,
+	)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertDeletedIdentities(
+		identities: List<ImportedCellDeletedIdentityEntity>,
+	)
 
 	@Query(
 		"SELECT * FROM imported_cell_receipt WHERE import_job_id = :jobId " +
@@ -102,6 +114,315 @@ abstract class ImportedCellDao {
 
 	@Query("SELECT * FROM imported_cell_entry_deletion WHERE entry_identity = :identity LIMIT 1")
 	abstract suspend fun entryDeletion(identity: String): ImportedCellEntryDeletionEntity?
+
+	@Query(
+		"SELECT * FROM imported_cell_entry_deletion_receipt WHERE entry_identity = :identity LIMIT 1",
+	)
+	abstract suspend fun entryDeletionReceipt(
+		identity: String,
+	): ImportedCellEntryDeletionReceiptEntity?
+
+	@Query(
+		"SELECT * FROM imported_cell_deleted_identity WHERE entry_identity = :identity " +
+			"ORDER BY protected_identity LIMIT :limit",
+	)
+	abstract suspend fun deletedIdentitiesForEntry(
+		identity: String,
+		limit: Int,
+	): List<ImportedCellDeletedIdentityEntity>
+
+	@Query(
+		"SELECT * FROM imported_cell_entry_deletion_receipt WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity LIMIT :limit",
+	)
+	abstract suspend fun entryDeletionReceiptOwners(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellEntryDeletionReceiptEntity>
+
+	@Query(
+		"SELECT * FROM imported_cell_deleted_identity WHERE protected_identity IN (:identities) " +
+			"OR entry_identity IN (:identities) OR run_identity IN (:identities) " +
+			"OR aggregate_owner_identity IN (:identities) " +
+			"ORDER BY protected_identity LIMIT :limit",
+	)
+	abstract suspend fun deletedIdentityOwners(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellDeletedIdentityEntity>
+
+	@Query(
+		"SELECT entry.identity, entry.import_revision, entry.content_checksum, " +
+			"entry.start_time_ms, entry.end_time_ms, entry.received_at_ms " +
+			"FROM imported_cell_entry_revision AS entry " +
+			"WHERE entry.identity = :identity AND entry.import_revision = (" +
+			"SELECT MAX(candidate.import_revision) FROM imported_cell_entry_revision AS candidate " +
+			"WHERE candidate.identity = entry.identity) LIMIT 1",
+	)
+	abstract suspend fun latestHistoryCandidate(identity: String): ImportedCellHistoryCandidate?
+
+	@Query(
+		"SELECT entry.identity, entry.import_revision, entry.content_checksum, " +
+			"entry.start_time_ms, entry.end_time_ms, entry.received_at_ms " +
+			"FROM imported_cell_entry_revision AS entry " +
+			"WHERE entry.import_revision = (" +
+			"SELECT MAX(candidate.import_revision) FROM imported_cell_entry_revision AS candidate " +
+			"WHERE candidate.identity = entry.identity) " +
+			"AND (:beforeStartTimeMs IS NULL OR entry.start_time_ms < :beforeStartTimeMs OR " +
+			"(entry.start_time_ms = :beforeStartTimeMs AND " +
+			"entry.identity < COALESCE(:beforeIdentity, ''))) " +
+			"ORDER BY entry.start_time_ms DESC, entry.identity DESC LIMIT :limit",
+	)
+	abstract suspend fun recentHistoryCandidatePage(
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): List<ImportedCellHistoryCandidate>
+
+	@Query(
+		"""
+		SELECT
+		  (SELECT COUNT(*) FROM imported_cell_entry_revision
+		   WHERE identity IN (:identities)) AS revision_rows,
+		  (SELECT COUNT(*) FROM imported_cell_receipt
+		   WHERE entry_identity IN (:identities)) AS receipt_rows,
+		  (SELECT COUNT(*) FROM imported_cell_run
+		   WHERE entry_identity IN (:identities)) AS run_rows,
+		  (SELECT COUNT(*) FROM imported_cell_observation
+		   WHERE entry_identity IN (:identities)) AS observation_rows,
+		  (SELECT COUNT(*) FROM imported_cell_entry_deletion
+		   WHERE entry_identity IN (:identities)) AS entry_deletion_rows,
+		  (SELECT COUNT(*) FROM imported_cell_deletion_generation
+		   WHERE entry_identity IN (:identities)) AS run_deletion_rows,
+		  COALESCE((
+		    SELECT SUM(
+		      length(CAST(identity AS BLOB)) +
+		      length(CAST(content_checksum AS BLOB)) +
+		      length(CAST(source_format AS BLOB)) +
+		      length(CAST(session_mode AS BLOB)) +
+		      length(CAST(subscription_grouping AS BLOB)) +
+		      length(CAST(import_job_id AS BLOB)) +
+		      length(CAST(import_entry_key AS BLOB)) +
+		      length(CAST(import_source_name AS BLOB))
+		    )
+		    FROM imported_cell_entry_revision
+		    WHERE identity IN (:identities)
+		  ), 0) +
+		  COALESCE((
+		    SELECT SUM(
+		      length(CAST(import_job_id AS BLOB)) +
+		      length(CAST(import_entry_key AS BLOB)) +
+		      length(CAST(import_source_name AS BLOB)) +
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(entry_content_checksum AS BLOB))
+		    )
+		    FROM imported_cell_receipt
+		    WHERE entry_identity IN (:identities)
+		  ), 0) +
+		  COALESCE((
+		    SELECT SUM(
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(identity AS BLOB)) +
+		      length(CAST(deletion_scope_digest AS BLOB)) +
+		      length(CAST(content_checksum AS BLOB)) +
+		      length(CAST(capture_coverage AS BLOB)) +
+		      length(CAST(availability AS BLOB)) +
+		      length(CAST(acquisition_completeness AS BLOB)) +
+		      length(CAST(subscription_grouping AS BLOB))
+		    )
+		    FROM imported_cell_run
+		    WHERE entry_identity IN (:identities)
+		  ), 0) +
+		  COALESCE((
+		    SELECT SUM(
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(run_identity AS BLOB)) +
+		      length(CAST(identity AS BLOB)) +
+		      length(CAST(COALESCE(aggregate_owner_identity, '') AS BLOB)) +
+		      length(CAST(content_checksum AS BLOB)) +
+		      length(CAST(stored_zone_id AS BLOB)) +
+		      length(CAST(child_completeness AS BLOB)) +
+		      length(CAST(subscription_grouping AS BLOB))
+		    )
+		    FROM imported_cell_observation
+		    WHERE entry_identity IN (:identities)
+		  ), 0) +
+		  COALESCE((
+		    SELECT SUM(
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(effect_checksum AS BLOB))
+		    )
+		    FROM imported_cell_entry_deletion
+		    WHERE entry_identity IN (:identities)
+		  ), 0) +
+		  COALESCE((
+		    SELECT SUM(
+		      length(CAST(run_identity AS BLOB)) +
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(deletion_scope_digest AS BLOB)) +
+		      length(CAST(effect_checksum AS BLOB))
+		    )
+		    FROM imported_cell_deletion_generation
+		    WHERE entry_identity IN (:identities)
+		  ), 0) AS text_bytes
+		""",
+	)
+	abstract suspend fun historyPreflight(
+		identities: List<String>,
+	): ImportedCellHistoryPreflight
+
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM imported_cell_entry_revision AS entry " +
+			"WHERE entry.import_revision = (" +
+			"SELECT MAX(candidate.import_revision) FROM imported_cell_entry_revision AS candidate " +
+			"WHERE candidate.identity = entry.identity) " +
+			"AND (:beforeStartTimeMs IS NULL OR entry.start_time_ms < :beforeStartTimeMs OR " +
+			"(entry.start_time_ms = :beforeStartTimeMs AND " +
+			"entry.identity < COALESCE(:beforeIdentity, ''))) LIMIT 1)",
+	)
+	abstract suspend fun hasRecentHistoryCandidate(
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): Boolean
+
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_cell_entry_revision
+		  GROUP BY identity
+		)
+		SELECT entry.identity,
+		       entry.import_revision,
+		       entry.content_checksum,
+		       entry.start_time_ms,
+		       entry.end_time_ms,
+		       entry.received_at_ms
+		FROM imported_cell_entry_revision AS entry
+		INNER JOIN latest_revision AS latest
+		  ON latest.identity = entry.identity
+		 AND latest.import_revision = entry.import_revision
+		WHERE entry.start_time_ms < :toExclusiveMs
+		  AND entry.end_time_ms > :fromInclusiveMs
+		  AND (
+		    :beforeStartTimeMs IS NULL
+		    OR entry.start_time_ms < :beforeStartTimeMs
+		    OR (
+		      entry.start_time_ms = :beforeStartTimeMs
+		      AND entry.identity < COALESCE(:beforeIdentity, '')
+		    )
+		  )
+		ORDER BY entry.start_time_ms DESC, entry.identity DESC
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun historyCandidatePageInWallRange(
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): List<ImportedCellHistoryCandidate>
+
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_cell_entry_revision
+		  GROUP BY identity
+		)
+		SELECT entry.identity,
+		       entry.import_revision,
+		       entry.content_checksum,
+		       entry.start_time_ms,
+		       entry.end_time_ms,
+		       entry.received_at_ms
+		FROM imported_cell_entry_revision AS entry
+		INNER JOIN latest_revision AS latest
+		  ON latest.identity = entry.identity
+		 AND latest.import_revision = entry.import_revision
+		WHERE EXISTS (
+		  SELECT 1
+		  FROM imported_cell_observation AS observation
+		  WHERE observation.entry_identity = entry.identity
+		    AND observation.entry_import_revision = entry.import_revision
+		    AND observation.latest_possible_time_ms >= :broadFromInclusiveMs
+		    AND observation.coverage_start_time_ms < :broadToExclusiveMs
+		)
+		  AND (
+		    :beforeStartTimeMs IS NULL
+		    OR entry.start_time_ms < :beforeStartTimeMs
+		    OR (
+		      entry.start_time_ms = :beforeStartTimeMs
+		      AND entry.identity < COALESCE(:beforeIdentity, '')
+		    )
+		  )
+		ORDER BY entry.start_time_ms DESC, entry.identity DESC
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun historyCandidatePageForStructuralDays(
+		broadFromInclusiveMs: Long,
+		broadToExclusiveMs: Long,
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): List<ImportedCellHistoryCandidate>
+
+	@Query(
+		"SELECT * FROM imported_cell_entry_revision WHERE identity IN (:identities) " +
+			"ORDER BY identity, import_revision LIMIT :limit",
+	)
+	abstract suspend fun entryRevisionsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellEntryRevisionEntity>
+
+	@Query(
+		"SELECT * FROM imported_cell_receipt WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, import_job_id, import_entry_key LIMIT :limit",
+	)
+	abstract suspend fun receiptsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellReceiptEntity>
+
+	@Query(
+		"SELECT * FROM imported_cell_run WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, start_time_ms, end_time_ms, identity LIMIT :limit",
+	)
+	abstract suspend fun runsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellRunEntity>
+
+	@Query(
+		"SELECT * FROM imported_cell_observation WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, entry_import_revision, run_identity, coverage_start_time_ms, " +
+			"observed_time_ms, identity LIMIT :limit",
+	)
+	abstract suspend fun observationsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellObservationEntity>
+
+	@Query(
+		"SELECT * FROM imported_cell_entry_deletion WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity LIMIT :limit",
+	)
+	abstract suspend fun entryDeletionsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellEntryDeletionEntity>
+
+	@Query(
+		"SELECT * FROM imported_cell_deletion_generation WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity, run_identity LIMIT :limit",
+	)
+	abstract suspend fun deletionGenerationsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellDeletionGenerationEntity>
 
 	@Query(
 		"SELECT * FROM imported_cell_deletion_generation WHERE run_identity IN (:identities) " +
@@ -215,6 +536,98 @@ abstract class ImportedCellDao {
 		limit: Int,
 	): List<SourceDeletionFenceEntity>
 
+	/**
+	 * One typed collision probe across every imported/source owner namespace. Payload hierarchy
+	 * rows are already loaded separately; this UNION detects incompatible cross-kind ownership.
+	 */
+	@Query(
+		"""
+		SELECT 'ENTRY' AS owner_kind, identity AS protected_identity,
+		       identity AS entry_identity, NULL AS run_identity,
+		       NULL AS deletion_scope_digest, NULL AS aggregate_owner_identity,
+		       collected_data_epoch, NULL AS source_kind, NULL AS purpose,
+		       NULL AS scope_kind, NULL AS generation
+		FROM imported_cell_entry_revision
+		WHERE identity IN (:identities)
+		UNION ALL
+		SELECT 'RUN' AS owner_kind, identity AS protected_identity,
+		       entry_identity, identity AS run_identity,
+		       deletion_scope_digest, NULL AS aggregate_owner_identity,
+		       collected_data_epoch, NULL AS source_kind, NULL AS purpose,
+		       NULL AS scope_kind, scope_deletion_generation AS generation
+		FROM imported_cell_run
+		WHERE identity IN (:identities)
+		UNION ALL
+		SELECT 'SCOPE' AS owner_kind, deletion_scope_digest AS protected_identity,
+		       entry_identity, identity AS run_identity,
+		       deletion_scope_digest, NULL AS aggregate_owner_identity,
+		       collected_data_epoch, NULL AS source_kind, NULL AS purpose,
+		       NULL AS scope_kind, scope_deletion_generation AS generation
+		FROM imported_cell_run
+		WHERE deletion_scope_digest IN (:identities)
+		UNION ALL
+		SELECT 'OBSERVATION' AS owner_kind, identity AS protected_identity,
+		       entry_identity, run_identity, NULL AS deletion_scope_digest,
+		       aggregate_owner_identity, NULL AS collected_data_epoch,
+		       NULL AS source_kind, NULL AS purpose, NULL AS scope_kind,
+		       NULL AS generation
+		FROM imported_cell_observation
+		WHERE identity IN (:identities) OR aggregate_owner_identity IN (:identities)
+		UNION ALL
+		SELECT 'ENTRY_DELETION' AS owner_kind, entry_identity AS protected_identity,
+		       entry_identity, NULL AS run_identity, NULL AS deletion_scope_digest,
+		       NULL AS aggregate_owner_identity, collected_data_epoch,
+		       NULL AS source_kind, NULL AS purpose, NULL AS scope_kind,
+		       NULL AS generation
+		FROM imported_cell_entry_deletion
+		WHERE entry_identity IN (:identities)
+		UNION ALL
+		SELECT 'RUN_DELETION' AS owner_kind, run_identity AS protected_identity,
+		       entry_identity, run_identity, deletion_scope_digest,
+		       NULL AS aggregate_owner_identity, collected_data_epoch,
+		       NULL AS source_kind, NULL AS purpose, NULL AS scope_kind,
+		       generation
+		FROM imported_cell_deletion_generation
+		WHERE run_identity IN (:identities) OR entry_identity IN (:identities)
+		   OR deletion_scope_digest IN (:identities)
+		UNION ALL
+		SELECT 'SOURCE_FENCE' AS owner_kind, scope_identity_digest AS protected_identity,
+		       NULL AS entry_identity, NULL AS run_identity,
+		       scope_identity_digest AS deletion_scope_digest,
+		       NULL AS aggregate_owner_identity, collected_data_epoch,
+		       source_kind, purpose, scope_kind, fence_generation AS generation
+		FROM source_deletion_fence
+		WHERE scope_identity_digest IN (:identities)
+		UNION ALL
+		SELECT 'DELETION_RECEIPT' AS owner_kind, entry_identity AS protected_identity,
+		       entry_identity, NULL AS run_identity, NULL AS deletion_scope_digest,
+		       NULL AS aggregate_owner_identity, collected_data_epoch,
+		       NULL AS source_kind, NULL AS purpose, NULL AS scope_kind,
+		       NULL AS generation
+		FROM imported_cell_entry_deletion_receipt
+		WHERE entry_identity IN (:identities)
+		UNION ALL
+		SELECT 'DELETED_IDENTITY' AS owner_kind, protected_identity,
+		       entry_identity, run_identity,
+		       CASE WHEN identity_kind = 'DELETION_SCOPE' THEN protected_identity ELSE NULL END,
+		       aggregate_owner_identity, NULL AS collected_data_epoch,
+		       NULL AS source_kind, NULL AS purpose, NULL AS scope_kind,
+		       NULL AS generation
+		FROM imported_cell_deleted_identity
+		WHERE protected_identity IN (:identities) OR entry_identity IN (:identities)
+		   OR run_identity IN (:identities) OR aggregate_owner_identity IN (:identities)
+		ORDER BY owner_kind, protected_identity, entry_identity, run_identity
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun opaqueOwnerProbe(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedCellOpaqueOwnerRow>
+
+	@Query("DELETE FROM imported_cell_entry_revision WHERE identity = :identity")
+	abstract suspend fun deleteEntryRevisions(identity: String): Int
+
 	@Query("DELETE FROM imported_cell_receipt")
 	abstract fun deleteAllReceipts()
 
@@ -227,6 +640,53 @@ abstract class ImportedCellDao {
 	@Query("DELETE FROM imported_cell_deletion_generation")
 	abstract fun deleteAllDeletionGenerations()
 
+	@Query(
+		"SELECT * FROM imported_cell_entry_revision WHERE identity = :identity " +
+			"ORDER BY import_revision LIMIT :limit",
+	)
+	abstract fun entryRevisionsForFullClear(
+		identity: String,
+		limit: Int,
+	): List<ImportedCellEntryRevisionEntity>
+
+	@Query(
+		"SELECT * FROM imported_cell_receipt WHERE entry_identity = :identity " +
+			"ORDER BY entry_import_revision, import_job_id, import_entry_key LIMIT :limit",
+	)
+	abstract fun receiptsForFullClear(
+		identity: String,
+		limit: Int,
+	): List<ImportedCellReceiptEntity>
+
+	@Query(
+		"SELECT * FROM imported_cell_run WHERE entry_identity = :identity " +
+			"ORDER BY entry_import_revision, start_time_ms, end_time_ms, identity LIMIT :limit",
+	)
+	abstract fun runsForFullClear(
+		identity: String,
+		limit: Int,
+	): List<ImportedCellRunEntity>
+
+	@Query(
+		"SELECT * FROM imported_cell_observation WHERE entry_identity = :identity " +
+			"ORDER BY entry_import_revision, run_identity, coverage_start_time_ms, observed_time_ms, " +
+			"identity LIMIT :limit",
+	)
+	abstract fun observationsForFullClear(
+		identity: String,
+		limit: Int,
+	): List<ImportedCellObservationEntity>
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract fun insertEntryDeletionReceiptForFullClear(
+		receipt: ImportedCellEntryDeletionReceiptEntity,
+	)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract fun insertDeletedIdentitiesForFullClear(
+		identities: List<ImportedCellDeletedIdentityEntity>,
+	)
+
 	companion object {
 		const val MAX_REVISIONS_PER_ENTRY = 16
 		const val MAX_RECEIPTS_PER_ENTRY = 256
@@ -237,8 +697,29 @@ abstract class ImportedCellDao {
 			MAX_REVISIONS_PER_ENTRY * MAX_OBSERVATIONS_PER_REVISION
 		const val MAX_LIVE_OWNER_ROWS = 4_096
 		const val MAX_IDENTITY_QUERY_CHUNK = 256
+		const val MAX_HISTORY_ENTRY_CANDIDATES = 100
+		const val HISTORY_EVALUATION_BATCH_SIZE = 4
 	}
 }
+
+data class ImportedCellHistoryCandidate(
+	val identity: String,
+	@ColumnInfo(name = "import_revision") val importRevision: Long,
+	@ColumnInfo(name = "content_checksum") val contentChecksum: String,
+	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
+	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
+	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+)
+
+data class ImportedCellHistoryPreflight(
+	@ColumnInfo(name = "revision_rows") val revisionRows: Long,
+	@ColumnInfo(name = "receipt_rows") val receiptRows: Long,
+	@ColumnInfo(name = "run_rows") val runRows: Long,
+	@ColumnInfo(name = "observation_rows") val observationRows: Long,
+	@ColumnInfo(name = "entry_deletion_rows") val entryDeletionRows: Long,
+	@ColumnInfo(name = "run_deletion_rows") val runDeletionRows: Long,
+	@ColumnInfo(name = "text_bytes") val textBytes: Long,
+)
 
 data class ImportedCellRunIdentityOwner(
 	val identity: String,
@@ -276,3 +757,29 @@ data class ImportedCellLiveCompletenessOwner(
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String,
 	@ColumnInfo(name = "service_run_id") val serviceRunId: String,
 )
+
+data class ImportedCellOpaqueOwnerRow(
+	@ColumnInfo(name = "owner_kind") val ownerKind: String,
+	@ColumnInfo(name = "protected_identity") val protectedIdentity: String,
+	@ColumnInfo(name = "entry_identity") val entryIdentity: String?,
+	@ColumnInfo(name = "run_identity") val runIdentity: String?,
+	@ColumnInfo(name = "deletion_scope_digest") val deletionScopeDigest: String?,
+	@ColumnInfo(name = "aggregate_owner_identity") val aggregateOwnerIdentity: String?,
+	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long?,
+	@ColumnInfo(name = "source_kind") val sourceKind: Int?,
+	val purpose: String?,
+	@ColumnInfo(name = "scope_kind") val scopeKind: String?,
+	val generation: Long?,
+) {
+	companion object {
+		const val ENTRY = "ENTRY"
+		const val RUN = "RUN"
+		const val SCOPE = "SCOPE"
+		const val OBSERVATION = "OBSERVATION"
+		const val ENTRY_DELETION = "ENTRY_DELETION"
+		const val RUN_DELETION = "RUN_DELETION"
+		const val SOURCE_FENCE = "SOURCE_FENCE"
+		const val DELETION_RECEIPT = "DELETION_RECEIPT"
+		const val DELETED_IDENTITY = "DELETED_IDENTITY"
+	}
+}

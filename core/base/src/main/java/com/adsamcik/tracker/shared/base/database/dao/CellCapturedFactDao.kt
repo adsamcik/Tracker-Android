@@ -8,6 +8,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedDeletedRunEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedEntryDeletionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -24,6 +26,29 @@ data class CellWalMaintenanceKey(
 /** Narrow source-local persistence boundary for dormant captured Cell facts. */
 @Dao
 interface CellCapturedFactDao {
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	suspend fun insertEntryDeletionReceipt(receipt: CellCapturedEntryDeletionReceiptEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	suspend fun insertDeletedRuns(runs: List<CellCapturedDeletedRunEntity>)
+
+	@Query(
+		"SELECT * FROM cell_captured_entry_deletion_receipt " +
+			"WHERE logical_tracking_id = :logicalTrackingId LIMIT 1",
+	)
+	suspend fun entryDeletionReceipt(
+		logicalTrackingId: String,
+	): CellCapturedEntryDeletionReceiptEntity?
+
+	@Query(
+		"SELECT * FROM cell_captured_deleted_run WHERE logical_tracking_id = :logicalTrackingId " +
+			"ORDER BY start_time_ms, session_segment_id, service_run_id LIMIT :limit",
+	)
+	suspend fun deletedRuns(
+		logicalTrackingId: String,
+		limit: Int,
+	): List<CellCapturedDeletedRunEntity>
+
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertRevision(entity: CellCapturedFactRevisionEntity): Long
 
@@ -281,6 +306,19 @@ interface CellCapturedFactDao {
 	)
 	suspend fun directCellCaptureDemandsForDeletion(
 		sourceKind: Int,
+		limit: Int,
+	): List<SourceDemandEntity>
+
+	@Query(
+		"SELECT * FROM source_demand WHERE source_kind = :sourceKind " +
+			"AND purpose = 'SESSION_CAPTURE' " +
+			"AND (logical_tracking_id = :logicalTrackingId OR service_run_id IN (:serviceRunIds)) " +
+			"AND status IN ('ACTIVE', 'RETIRING', 'BLOCKED') ORDER BY demand_id LIMIT :limit",
+	)
+	suspend fun selectedCellCaptureDemandsForDeletion(
+		sourceKind: Int,
+		logicalTrackingId: String,
+		serviceRunIds: List<String>,
 		limit: Int,
 	): List<SourceDemandEntity>
 
@@ -619,11 +657,31 @@ interface CellCapturedFactDao {
 		   AND segment.logical_tracking_id = fact_cursor.logical_tracking_id
 		  WHERE fact_cursor.writer_projection_id = :writerProjectionId
 		    AND fact_cursor.writer_projection_version = :writerProjectionVersion
+		), intent_member AS (
+		  SELECT DISTINCT segment.*
+		  FROM source_service_run AS run
+		  INNER JOIN session_segment AS segment
+		    ON segment.id = run.session_segment_id
+		   AND segment.service_run_id = run.service_run_id
+		   AND segment.logical_tracking_id = run.logical_tracking_id
+		  INNER JOIN session_manifest_version AS manifest
+		    ON manifest.service_run_id = run.service_run_id
+		   AND manifest.logical_tracking_id = run.logical_tracking_id
+		  INNER JOIN session_manifest_source AS source
+		    ON source.logical_tracking_id = manifest.logical_tracking_id
+		   AND source.manifest_revision = manifest.manifest_revision
+		  WHERE source.source_kind = :cellSourceKind
+		    AND source.purpose = 'SESSION_CAPTURE'
+		    AND source.persistence_eligible = 1
+		), candidate_member AS (
+		  SELECT * FROM cursor_member
+		  UNION
+		  SELECT * FROM intent_member
 		), logical_seed AS (
 		  SELECT member.*
-		  FROM cursor_member AS member
+		  FROM candidate_member AS member
 		  WHERE NOT EXISTS (
-		    SELECT 1 FROM cursor_member AS newer
+		    SELECT 1 FROM candidate_member AS newer
 		    WHERE newer.logical_tracking_id = member.logical_tracking_id
 		      AND (newer.start_time_ms > member.start_time_ms OR
 		        (newer.start_time_ms = member.start_time_ms AND newer.id > member.id))
@@ -669,6 +727,99 @@ interface CellCapturedFactDao {
 	suspend fun logicalHistoryCandidatePage(
 		writerProjectionId: String,
 		writerProjectionVersion: Int,
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeSegmentId: Long?,
+	): List<CellLogicalHistoryCandidate>
+
+	/**
+	 * Complete keyset candidate relation for logical Cell entries with any exact member segment
+	 * overlapping one half-open wall-time range. Product authentication still happens afterwards.
+	 */
+	@Query(
+		"""
+		WITH cursor_member AS (
+		  SELECT DISTINCT segment.*
+		  FROM cell_captured_fact_cursor AS fact_cursor
+		  INNER JOIN source_service_run AS run
+		    ON run.service_run_id = fact_cursor.service_run_id
+		   AND run.logical_tracking_id = fact_cursor.logical_tracking_id
+		   AND run.session_segment_id = fact_cursor.session_segment_id
+		  INNER JOIN session_segment AS segment
+		    ON segment.id = fact_cursor.session_segment_id
+		   AND segment.service_run_id = fact_cursor.service_run_id
+		   AND segment.logical_tracking_id = fact_cursor.logical_tracking_id
+		  WHERE fact_cursor.writer_projection_id = :writerProjectionId
+		    AND fact_cursor.writer_projection_version = :writerProjectionVersion
+		), logical_seed AS (
+		  SELECT member.*
+		  FROM cursor_member AS member
+		  WHERE NOT EXISTS (
+		    SELECT 1 FROM cursor_member AS newer
+		    WHERE newer.logical_tracking_id = member.logical_tracking_id
+		      AND (newer.start_time_ms > member.start_time_ms OR
+		        (newer.start_time_ms = member.start_time_ms AND newer.id > member.id))
+		  )
+		), ranked_seed AS (
+		  SELECT seed.*,
+		    (SELECT MAX(member_segment.start_time_ms)
+		     FROM source_service_run AS member_run
+		     INNER JOIN session_segment AS member_segment
+		       ON member_segment.id = member_run.session_segment_id
+		      AND member_segment.service_run_id = member_run.service_run_id
+		      AND member_segment.logical_tracking_id = member_run.logical_tracking_id
+		     WHERE member_run.logical_tracking_id = seed.logical_tracking_id
+		    ) AS logical_recency_start_ms,
+		    (SELECT MAX(member_segment.id)
+		     FROM source_service_run AS member_run
+		     INNER JOIN session_segment AS member_segment
+		       ON member_segment.id = member_run.session_segment_id
+		      AND member_segment.service_run_id = member_run.service_run_id
+		      AND member_segment.logical_tracking_id = member_run.logical_tracking_id
+		     WHERE member_run.logical_tracking_id = seed.logical_tracking_id
+		       AND member_segment.start_time_ms = (
+		         SELECT MAX(latest_segment.start_time_ms)
+		         FROM source_service_run AS latest_run
+		         INNER JOIN session_segment AS latest_segment
+		           ON latest_segment.id = latest_run.session_segment_id
+		          AND latest_segment.service_run_id = latest_run.service_run_id
+		          AND latest_segment.logical_tracking_id = latest_run.logical_tracking_id
+		         WHERE latest_run.logical_tracking_id = seed.logical_tracking_id
+		       )
+		    ) AS logical_recency_segment_id
+		  FROM logical_seed AS seed
+		)
+		SELECT * FROM ranked_seed AS candidate
+		WHERE EXISTS (
+		  SELECT 1
+		  FROM source_service_run AS range_run
+		  INNER JOIN session_segment AS range_segment
+		    ON range_segment.id = range_run.session_segment_id
+		   AND range_segment.service_run_id = range_run.service_run_id
+		   AND range_segment.logical_tracking_id = range_run.logical_tracking_id
+		  WHERE range_run.logical_tracking_id = candidate.logical_tracking_id
+		    AND range_segment.start_time_ms < :toExclusiveMs
+		    AND range_segment.end_time_ms > :fromInclusiveMs
+		)
+		  AND (
+		    :beforeStartTimeMs IS NULL
+		    OR logical_recency_start_ms < :beforeStartTimeMs
+		    OR (
+		      logical_recency_start_ms = :beforeStartTimeMs
+		      AND logical_recency_segment_id <
+		        COALESCE(:beforeSegmentId, 9223372036854775807)
+		    )
+		  )
+		ORDER BY logical_recency_start_ms DESC, logical_recency_segment_id DESC
+		LIMIT :limit
+		""",
+	)
+	suspend fun logicalHistoryCandidatePageInWallRange(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		cellSourceKind: Int,
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
 		limit: Int,
 		beforeStartTimeMs: Long?,
 		beforeSegmentId: Long?,

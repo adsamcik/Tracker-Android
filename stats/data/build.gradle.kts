@@ -47,6 +47,8 @@ dependencies {
 
     testImplementation(libs.androidx.work.testing)
     testImplementation(project(":core:testing"))
+    // Test-only production-chain proof: stats-data Ambient reader -> tracker numeric repository.
+    testImplementation(project(":tracker:engine"))
     // Contract tests assert AchievementWorker (this module) and AchievementProcessor
     // (in :stats-engine) produce identical unlock decisions for the same input: the
     // R1 round-6 regression seam. Test-only edge; no production coupling.

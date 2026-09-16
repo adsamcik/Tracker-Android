@@ -67,7 +67,19 @@ class LegacyV26ImportTest {
 		context.getDatabasePath(ACTIVE_DATABASE_NAME).exists() shouldBe true
 		context.getDatabasePath(LEGACY_DATABASE_NAME).exists() shouldBe false
 		LegacyDatabaseRepository(context).currentState().database shouldBe null
-		count(raw, "source_destination_owner") shouldBe 4L
+		count(raw, "source_destination_owner") shouldBe 5L
+		stringValue(
+			raw,
+			"SELECT owner FROM source_destination_owner WHERE source_kind = " +
+				"${SourceDestinationOwnerEntity.SOURCE_LOCATION} AND destination = " +
+				"'${SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION}'",
+		) shouldBe SourceDestinationOwnerEntity.OWNER_EXISTING_LOCATION_CANONICAL_PIPELINE
+		longValue(
+			raw,
+			"SELECT owner_generation FROM source_destination_owner WHERE source_kind = " +
+				"${SourceDestinationOwnerEntity.SOURCE_LOCATION} AND destination = " +
+				"'${SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION}'",
+		) shouldBe SourceDestinationOwnerEntity.INITIAL_EXISTING_LOCATION_GENERATION
 		stringValue(
 			raw,
 			"SELECT owner FROM source_destination_owner WHERE source_kind = " +
@@ -98,6 +110,25 @@ class LegacyV26ImportTest {
 		count(raw, "ambient_steps_import_cursor") shouldBe 0L
 		count(raw, "ambient_steps_import_gap") shouldBe 0L
 		count(raw, "ambient_steps_import_authority_transition") shouldBe 0L
+		count(raw, "ambient_wifi_authority") shouldBe 0L
+		count(raw, "ambient_cell_authority") shouldBe 0L
+		count(raw, "wifi_selected_deletion_receipt") shouldBe 0L
+		count(raw, "imported_cell_entry_deletion_receipt") shouldBe 0L
+		count(raw, "source_capture_admission_barrier") shouldBe 0L
+		count(raw, "source_run_retirement") shouldBe 0L
+		count(raw, "pending_signal") shouldBe 0L
+		assertPendingPressureColumns(raw)
+		listOf(
+			"validate_pending_signal_writer_owners_insert",
+			"validate_pending_signal_writer_owners_update",
+			"validate_imported_pressure_source_erase_owner_insert",
+			"validate_imported_pressure_source_erase_owner_update",
+		).forEach { trigger ->
+			longValue(
+				raw,
+				"SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name = '$trigger'",
+			) shouldBe 1L
+		}
 		count(raw, "pressure_fact_revision") shouldBe 0L
 		count(raw, "activity_captured_registration_plan") shouldBe 0L
 		count(raw, "activity_captured_window_revision") shouldBe 0L
@@ -116,6 +147,8 @@ class LegacyV26ImportTest {
 		count(raw, "daily_summary") shouldBe 1L
 		count(raw, "achievement_progress") shouldBe 0L
 		count(raw, "pressure_fact_revision") shouldBe 0L
+		count(raw, "pending_signal") shouldBe 0L
+		assertPendingPressureColumns(raw)
 		longValue(raw, "SELECT primary_activity FROM session_segment WHERE id = 9007") shouldBe 7L
 
 		raw.query(
@@ -747,6 +780,22 @@ class LegacyV26ImportTest {
 		context.deleteDatabase(LEGACY_DATABASE_NAME)
 		context.deleteDatabase(ACTIVE_DATABASE_NAME)
 		context.deleteDatabase(STAGING_DATABASE_NAME)
+	}
+
+	private fun assertPendingPressureColumns(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+		database.query("PRAGMA table_info(pending_signal)").use { cursor ->
+			val columns = buildMap {
+				while (cursor.moveToNext()) {
+					put(
+						cursor.getString(cursor.getColumnIndexOrThrow("name")),
+						cursor.getInt(cursor.getColumnIndexOrThrow("notnull")) to
+							cursor.getString(cursor.getColumnIndexOrThrow("dflt_value")),
+					)
+				}
+			}
+			columns["pressure_writer_owner"] shouldBe (0 to null)
+			columns["pressure_writer_owner_generation"] shouldBe (0 to null)
+		}
 	}
 
 	private data class ReleasedV26Table(

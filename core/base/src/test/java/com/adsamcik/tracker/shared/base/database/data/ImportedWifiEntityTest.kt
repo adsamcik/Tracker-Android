@@ -43,6 +43,85 @@ class ImportedWifiEntityTest {
 		}
 	}
 
+	@Test
+	fun `selected deletion receipt binds typed child owners before payload removal`() {
+		val entryMarker = protected(
+			WifiSelectedDeletionProtectedIdentityEntity.KIND_ENTRY,
+			ENTRY,
+			null,
+			null,
+		)
+		val runMarker = protected(
+			WifiSelectedDeletionProtectedIdentityEntity.KIND_RUN,
+			RUN,
+			RUN,
+			SCOPE,
+		)
+		val scopeMarker = protected(
+			WifiSelectedDeletionProtectedIdentityEntity.KIND_DELETION_SCOPE,
+			SCOPE,
+			RUN,
+			SCOPE,
+		)
+		val observationMarker = protected(
+			WifiSelectedDeletionProtectedIdentityEntity.KIND_OBSERVATION,
+			OBSERVATION,
+			RUN,
+			null,
+		)
+		val runDeletion = WifiSelectedDeletionRunMarker(RUN, ENTRY, SCOPE, 7L, 1L, 1_400L)
+		val fence = SourceDeletionFenceEntity.createForOriginalRunDigest(
+			SourceDestinationOwnerEntity.SOURCE_WIFI,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SCOPE,
+			1L,
+			7L,
+			1_400L,
+		)
+		val receipt = WifiSelectedDeletionReceiptEntity.create(
+			selectionIdentity = ENTRY,
+			origin = WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+			collectedDataEpoch = 7L,
+			selectedImportRevision = 2L,
+			selectedContentChecksum = CHECKSUM,
+			startTimeMs = 800L,
+			endTimeMs = 1_200L,
+			protectedIdentities = listOf(entryMarker, runMarker, observationMarker, scopeMarker),
+			runDeletionRows = listOf(runDeletion),
+			sourceFences = listOf(fence),
+			retainedFromMs = null,
+			deletedAtMs = 1_400L,
+		)
+
+		receipt.expectedObservationCount shouldBe 1
+		shouldThrow<IllegalArgumentException> {
+			receipt.copy(expectedObservationCount = 2)
+		}
+		shouldThrow<IllegalArgumentException> {
+			observationMarker.copy(ownerRunIdentity = "8".repeat(64))
+		}
+	}
+
+	private fun protected(
+		kind: String,
+		identity: String,
+		runIdentity: String?,
+		scope: String?,
+	) = WifiSelectedDeletionProtectedIdentityEntity.create(
+		selectionIdentity = ENTRY,
+		receiptOrigin = WifiSelectedDeletionReceiptEntity.ORIGIN_IMPORTED,
+		identityKind = kind,
+		protectedIdentity = identity,
+		ownerEntryIdentity = ENTRY,
+		ownerRunIdentity = runIdentity,
+		deletionScopeDigest = scope,
+		aggregateOwnerIdentity = null,
+		aggregateOwnerSemanticRevision = null,
+		revisionCount = 1,
+		revisionSetChecksum = CHECKSUM,
+		collectedDataEpoch = 7L,
+	)
+
 	private fun entry() = ImportedWifiEntryRevisionEntity(
 		identity = ENTRY,
 		importRevision = 1L,

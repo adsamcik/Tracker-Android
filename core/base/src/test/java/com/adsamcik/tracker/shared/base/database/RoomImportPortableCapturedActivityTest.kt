@@ -1564,6 +1564,18 @@ class RoomImportPortableCapturedActivityTest {
 			receipt.latestContentChecksum shouldBe sourceScopedEntry.contentChecksum.value
 			receipt.runDeletionCount shouldBe 1
 			receipt.sourceFenceCount shouldBe 1
+			receipt.temporalAuthorityState shouldBe
+				ImportedActivityRetentionReceiptEntity.TEMPORAL_AUTHORITY_AVAILABLE
+			receipt.latestMemberStartTimeMs shouldBe sourceScopedEntry.runs.single().startTimeMs
+			receipt.latestMemberIdentity shouldBe sourceScopedEntry.runs.single().identity.value
+			receipt.structuralZoneCoverageComplete shouldBe true
+			receipt.structuralZoneRanges() shouldBe listOf(
+				com.adsamcik.tracker.shared.base.database.data.ImportedActivityRetainedZoneRange(
+					sourceScopedEntry.runs.single().startTimeMs,
+					sourceScopedEntry.runs.single().endTimeMs - 1L,
+					sourceScopedEntry.runs.single().zoneEpochs.single().zoneId,
+				),
+			)
 			dao.retainedIdentitiesForEntries(listOf(sourceScopedEntry.identity.value), 5).size shouldBe 4
 			dao.deletionGenerations(listOf(runDeletion.runIdentity)).single() shouldBe runDeletion
 			database.sourceDeletionFenceDao().get(
@@ -1579,6 +1591,9 @@ class RoomImportPortableCapturedActivityTest {
 			val retainedProduct = retained as ImportedActivityProductEvaluation.Retained
 			retainedProduct.retainedFromMs shouldBe RETENTION_FLOOR
 			retainedProduct.retainedAtMs shouldBe RETENTION_MARKED_AT
+			retainedProduct.hasTemporalAuthority shouldBe true
+			retainedProduct.latestMemberIdentity shouldBe sourceScopedEntry.runs.single().identity
+			retainedProduct.structuralZoneCoverageComplete shouldBe true
 			retainedProduct.protectedIdentities.toSet() shouldBe setOf(
 				RetainedImportedActivityIdentity.Entry(sourceScopedEntry.identity),
 				RetainedImportedActivityIdentity.Run(sourceScopedEntry.runs.single().identity),
@@ -2206,6 +2221,54 @@ class RoomImportPortableCapturedActivityTest {
 	}
 
 	@Test
+	fun `migrated retained receipt authenticates without invented temporal authority`() = runTest {
+		val imported = request()
+		importer(testScheduler).importEntry(imported) shouldBe
+			ImportPortableCapturedActivityResult.Applied(1L, 1, 1, 1)
+		establishRetentionFloor()
+		truncator(testScheduler).truncate(retentionRequest()) shouldBe
+			TruncateImportedActivityRetentionResult.Truncated(1, 1, 1, 1, 1)
+		val dao = database.importedActivityDao()
+		val available = requireNotNull(dao.retentionReceipt(imported.entry.identity.value))
+		val migrated =
+			ImportedActivityRetentionReceiptEntity.createTemporalAuthorityUnavailableFromLegacy(
+				available,
+			)
+		dao.updateRetentionReceipt(migrated) shouldBe 1
+
+		val retained = database.withTransaction {
+			ImportedActivityProductReader(database).selectIdentityInTransaction(
+				imported.entry.identity,
+			)
+		} as ImportedActivityProductEvaluation.Retained
+		retained.hasTemporalAuthority shouldBe false
+		retained.latestMemberStartTimeMs shouldBe null
+		retained.latestMemberIdentity shouldBe null
+		retained.structuralZoneRanges shouldBe emptyList()
+		retained.structuralZoneCoverageComplete shouldBe false
+		retained.candidate.startTimeMs shouldBe imported.entry.startTimeMs
+		retained.candidate.endTimeMs shouldBe imported.entry.endTimeMs
+
+		importer(testScheduler).importEntry(
+			imported.copy(receipt = receipt("migrated-retained-replay", 101L)),
+		) shouldBe ImportPortableCapturedActivityResult.Blocked(
+			PortableActivityImportBlockedReason.RETENTION_BOUNDARY,
+		)
+		deleter(testScheduler).delete(
+			deleteRequest(imported.entry, deletedAtMs = 150L),
+		) shouldBe DeleteSelectedImportedActivityResult.Blocked(
+			SelectedImportedActivityDeletionBlockedReason.RETENTION_BOUNDARY,
+		)
+		sourceEraser(testScheduler).eraseNext(EPOCH, 200L) shouldBe
+			EraseNextImportedActivityResult.ErasedRetained(1, 1)
+		val redacted = requireNotNull(dao.retentionReceipt(imported.entry.identity.value))
+		redacted.temporalAuthorityState shouldBe
+			ImportedActivityRetentionReceiptEntity.TEMPORAL_AUTHORITY_REDACTED
+		redacted.latestMemberStartTimeMs shouldBe null
+		redacted.structuralZoneRanges() shouldBe emptyList()
+	}
+
+	@Test
 	fun `source erase redacts retained shell while preserving typed child and scope authority`() = runTest {
 		val imported = request()
 		importer(testScheduler).importEntry(imported)
@@ -2222,6 +2285,11 @@ class RoomImportPortableCapturedActivityTest {
 		redacted.startTimeMs shouldBe 0L
 		redacted.endTimeMs shouldBe 0L
 		redacted.receivedAtMs shouldBe 0L
+		redacted.temporalAuthorityState shouldBe
+			ImportedActivityRetentionReceiptEntity.TEMPORAL_AUTHORITY_REDACTED
+		redacted.latestMemberStartTimeMs shouldBe null
+		redacted.latestMemberIdentity shouldBe null
+		redacted.structuralZoneRanges() shouldBe emptyList()
 		dao.retainedHistoryCandidate(imported.entry.identity.value) shouldBe null
 		dao.entryDeletion(imported.entry.identity.value)?.deletedImportRevision shouldBe 1L
 		dao.retainedIdentitiesForEntries(

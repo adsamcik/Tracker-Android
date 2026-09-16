@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.model.steps.portable
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
 
 class AmbientStepsPortableFormatV1Test {
@@ -71,6 +72,27 @@ class AmbientStepsPortableFormatV1Test {
 				causes = listOf(PortableAmbientStepsPartialCause.OUTSIDE_AUTHORITY),
 			)
 		}
+	}
+
+	@Test
+	fun `archive and deletion scope identities use distinct portable namespaces`() {
+		val day = day(
+			facts = listOf(fact("local-fact", 0L, DAY_END, 7L)),
+			coverage = PortableAmbientStepsCoverage.COMPLETE,
+			causes = emptyList(),
+		)
+		val archive = PortableAmbientStepsArchiveV1.create(listOf(day))
+
+		archive.identity shouldBe AmbientStepsPortableOpaqueIdentity.derive(
+			AmbientStepsPortableIdentityKind.ARCHIVE,
+			archive.contentChecksum.value,
+		)
+		day.deletionScopeIdentity shouldBe AmbientStepsPortableOpaqueIdentity.derive(
+			AmbientStepsPortableIdentityKind.DELETION_SCOPE,
+			day.identity.value,
+		)
+		archive.identity shouldNotBe day.identity
+		day.deletionScopeIdentity shouldNotBe day.identity
 	}
 
 	private fun fact(

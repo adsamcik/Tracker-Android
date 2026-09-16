@@ -1,12 +1,14 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
 import androidx.room.Dao
+import androidx.room.ColumnInfo
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceCaptureAdmissionBarrierEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
@@ -22,8 +24,105 @@ data class PriorProcessRegistrationReconciliationResult(
 		get() = failedReservations + retiredActiveRegistrations + completedRetirements
 }
 
+data class SourceRunAdmissionHighWaterRow(
+	@ColumnInfo(name = "last_admission_ordinal") val lastAdmissionOrdinal: Long,
+	@ColumnInfo(name = "last_source_sequence") val lastSourceSequence: Long,
+) {
+	init {
+		require(lastAdmissionOrdinal >= 0L)
+		require(lastSourceSequence >= 0L)
+	}
+}
+
 @Dao
 interface SourceBrokerDao {
+	@Query(
+		"""
+		SELECT
+			COALESCE(MAX(admission_ordinal), 0) AS last_admission_ordinal,
+			COALESCE(MAX(source_sequence), 0) AS last_source_sequence
+		FROM source_event_wal
+		WHERE source_kind = :sourceKind
+			AND source_instance_id = :sourceInstanceId
+			AND registration_generation = :registrationGeneration
+			AND logical_tracking_id = :logicalTrackingId
+			AND service_run_id = :serviceRunId
+			AND (authorization_purpose_eligibility_mask & :capturePurposeMask) != 0
+		""",
+	)
+	suspend fun runCaptureAdmissionHighWater(
+		sourceKind: Int,
+		sourceInstanceId: String,
+		registrationGeneration: Long,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		capturePurposeMask: Long,
+	): SourceRunAdmissionHighWaterRow
+	@Query(
+		"SELECT * FROM source_capture_admission_barrier " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration",
+	)
+	suspend fun captureAdmissionBarrier(
+		sourceKind: Int,
+		registrationGeneration: Long,
+	): SourceCaptureAdmissionBarrierEntity?
+
+	@Query(
+		"""
+		INSERT INTO source_capture_admission_barrier (
+			source_kind,
+			registration_generation,
+			source_instance_id,
+			through_authorization_revision,
+			last_admission_ordinal,
+			last_source_sequence,
+			sealed_elapsed_realtime_nanos,
+			sealed_at_ms
+		)
+		SELECT
+			:sourceKind,
+			:registrationGeneration,
+			:sourceInstanceId,
+			:throughAuthorizationRevision,
+			COALESCE(MAX(wal.admission_ordinal), 0),
+			COALESCE(MAX(wal.source_sequence), 0),
+			:sealedElapsedRealtimeNanos,
+			:sealedAtMs
+		FROM provider_registration_generation AS registration
+		LEFT JOIN source_event_wal AS wal
+			ON wal.source_kind = registration.source_kind
+			AND wal.registration_generation = registration.registration_generation
+			AND wal.source_instance_id = registration.source_instance_id
+			AND wal.authorization_revision <= :throughAuthorizationRevision
+			AND (wal.authorization_purpose_eligibility_mask & :capturePurposeMask) != 0
+		WHERE registration.source_kind = :sourceKind
+			AND registration.registration_generation = :registrationGeneration
+			AND registration.source_instance_id = :sourceInstanceId
+			AND registration.capture_callback_barrier_authorization_revision >=
+				:throughAuthorizationRevision
+		HAVING COUNT(DISTINCT registration.registration_generation) = 1
+		ON CONFLICT(source_kind, registration_generation) DO UPDATE SET
+			source_instance_id = excluded.source_instance_id,
+			through_authorization_revision = excluded.through_authorization_revision,
+			last_admission_ordinal = excluded.last_admission_ordinal,
+			last_source_sequence = excluded.last_source_sequence,
+			sealed_elapsed_realtime_nanos = excluded.sealed_elapsed_realtime_nanos,
+			sealed_at_ms = excluded.sealed_at_ms
+		WHERE excluded.source_instance_id =
+				source_capture_admission_barrier.source_instance_id
+			AND excluded.through_authorization_revision >
+				source_capture_admission_barrier.through_authorization_revision
+		""",
+	)
+	suspend fun sealCaptureAdmissionBarrier(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		sourceInstanceId: String,
+		throughAuthorizationRevision: Long,
+		capturePurposeMask: Long,
+		sealedElapsedRealtimeNanos: Long,
+		sealedAtMs: Long,
+	): Int
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertDemands(entities: List<SourceDemandEntity>): List<Long>
 
@@ -272,18 +371,6 @@ interface SourceBrokerDao {
 		sourceKind: Int,
 		registrationGeneration: Long,
 		authorizationRevision: Long,
-	): List<SourceAuthorizationEntity>
-
-	@Query(
-		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
-			"AND registration_generation = :registrationGeneration " +
-			"AND authorization_revision = :authorizationRevision ORDER BY member_id LIMIT :limit",
-	)
-	suspend fun authorizationRevisionBounded(
-		sourceKind: Int,
-		registrationGeneration: Long,
-		authorizationRevision: Long,
-		limit: Int,
 	): List<SourceAuthorizationEntity>
 
 	/**

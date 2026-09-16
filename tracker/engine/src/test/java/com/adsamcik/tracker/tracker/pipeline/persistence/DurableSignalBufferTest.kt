@@ -167,6 +167,9 @@ class DurableSignalBufferTest {
 		override suspend fun hasStepsWriterCommand(): Boolean =
 			store.any { it.stepsWriterOwner != null }
 
+		override suspend fun hasPressureWriterCommand(): Boolean =
+			store.any { it.pressureWriterOwner != null }
+
 		override fun deleteAll() {
 			store.clear()
 		}
@@ -319,6 +322,20 @@ class DurableSignalBufferTest {
 			sensorValueEnd = 105,
 		),
 		persistenceSignalId = "source-event:$eventId",
+	)
+
+	private fun createPressureSignal(
+		signalId: String,
+		withLocation: Boolean = false,
+	): TrackingSignal = TrackingSignal(
+		timestampMs = EpochMs(1_700_000_000_000L),
+		elapsedRealtimeNanos = 2_000_000_000L,
+		location = createSignal().location.takeIf { withLocation },
+		pressure = com.adsamcik.tracker.stats.api.signal.PressureSignal(
+			pressureHpa = 1_013.25f,
+			altitudeM = 120f,
+		),
+		persistenceSignalId = signalId,
 	)
 
 	private data class InstalledStepsWriterFixture(
@@ -623,6 +640,150 @@ class DurableSignalBufferTest {
 			val claimed = databaseBuffer.claimBatch().shouldNotBeNull().signals.single()
 			claimed.stepsWriterOwner shouldBe durable.stepsWriterOwner
 			claimed.stepsWriterOwnerGeneration shouldBe durable.stepsWriterOwnerGeneration
+		} finally {
+			database.close()
+		}
+	}
+
+	@Test
+	fun `checkpoint stamps exact Pressure owner and recovery views`() = runTest {
+		val context: Application = ApplicationProvider.getApplicationContext()
+		val database = AppDatabase.testDatabase(context)
+		try {
+			database.sourceEvidenceStateDao().ensure()
+			database.sourceDestinationOwnerDao().insertIfAbsent(
+				SourceDestinationOwnerEntity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+					destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+					owner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+					ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+					updatedAtMs = 1L,
+				),
+			)
+			val databaseBuffer = DurableSignalBuffer(
+				pendingSignalDao = database.pendingSignalDao(),
+				dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+				pendingSignalClaimDao = database.pendingSignalClaimDao(),
+				appDatabase = database,
+			).also { it.setSessionId(sessionId) }
+			var committed = emptyList<DurableSignalBuffer.CheckpointedSignal>()
+
+			databaseBuffer.stage(createPressureSignal("pressure-current"))
+			databaseBuffer.checkpoint { committed = it }
+
+			val durable = database.pendingSignalDao()
+				.getBySignalIds(listOf("pressure-current"))
+				.single()
+			durable.pressureWriterOwner shouldBe
+				SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE
+			durable.pressureWriterOwnerGeneration shouldBe
+				SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+			committed.single().pressureWriterOwner shouldBe durable.pressureWriterOwner
+			committed.single().pressureWriterOwnerGeneration shouldBe
+				durable.pressureWriterOwnerGeneration
+			databaseBuffer.peekBatch().single().pressureWriterOwnerGeneration shouldBe
+				SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+		} finally {
+			database.close()
+		}
+	}
+
+	@Test
+	fun `Pressure-only admission is rejected after fence while mixed Location remains durable`() =
+		runTest {
+			val context: Application = ApplicationProvider.getApplicationContext()
+			val database = AppDatabase.testDatabase(context)
+			try {
+				database.sourceEvidenceStateDao().ensure()
+				database.sourceDestinationOwnerDao().insertIfAbsent(
+					SourceDestinationOwnerEntity(
+						sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+						destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+						owner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+						ownerGeneration =
+							SourceDestinationOwnerEntity.FIRST_LEGACY_PRESSURE_FENCE_GENERATION,
+						updatedAtMs = 2L,
+					),
+				)
+				val databaseBuffer = DurableSignalBuffer(
+					pendingSignalDao = database.pendingSignalDao(),
+					dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+					pendingSignalClaimDao = database.pendingSignalClaimDao(),
+					appDatabase = database,
+				).also { it.setSessionId(sessionId) }
+
+				val pressureOnly = createPressureSignal("pressure-fenced")
+				databaseBuffer.stage(pressureOnly)
+				val rejected = databaseBuffer.checkpointWithAdmission()
+				rejected.statusFor("pressure-fenced") shouldBe
+					com.adsamcik.tracker.tracker.pipeline.DurableAdmissionStatus.LIFECYCLE_REJECTED
+				database.pendingSignalDao().countAll() shouldBe 0
+
+				databaseBuffer.stage(
+					createPressureSignal("pressure-fenced-mixed", withLocation = true),
+				)
+				val mixed = databaseBuffer.checkpointWithAdmission()
+				mixed.statusFor("pressure-fenced-mixed") shouldBe
+					com.adsamcik.tracker.tracker.pipeline.DurableAdmissionStatus.ADMITTED
+				database.pendingSignalDao().getBySignalIds(
+					listOf("pressure-fenced-mixed"),
+				).single().also { row ->
+					row.pressureWriterOwner shouldBe
+						SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE
+					row.pressureWriterOwnerGeneration shouldBe
+						SourceDestinationOwnerEntity.FIRST_LEGACY_PRESSURE_FENCE_GENERATION
+				}
+			} finally {
+				database.close()
+			}
+		}
+
+	@Test
+	fun `ambiguous Pressure retry preserves the original durable fence generation`() = runTest {
+		val context: Application = ApplicationProvider.getApplicationContext()
+		val database = AppDatabase.testDatabase(context)
+		try {
+			database.sourceEvidenceStateDao().ensure()
+			database.sourceDestinationOwnerDao().insertIfAbsent(
+				SourceDestinationOwnerEntity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+					destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+					owner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+					ownerGeneration =
+						SourceDestinationOwnerEntity.FIRST_LEGACY_PRESSURE_FENCE_GENERATION,
+					updatedAtMs = 2L,
+				),
+			)
+			val signal = createPressureSignal("pressure-ambiguous", withLocation = true)
+			database.pendingSignalDao().insertAll(
+				listOf(
+					currentPendingEntity(
+						signal = signal,
+						createdAt = signal.timestampMs.raw,
+						signalId = "pressure-ambiguous",
+					).copy(
+						pressureWriterOwner =
+							SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+						pressureWriterOwnerGeneration =
+							SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+					),
+				),
+			)
+			val databaseBuffer = DurableSignalBuffer(
+				pendingSignalDao = database.pendingSignalDao(),
+				dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+				pendingSignalClaimDao = database.pendingSignalClaimDao(),
+				appDatabase = database,
+			).also { it.setSessionId(sessionId) }
+
+			databaseBuffer.stage(signal)
+			databaseBuffer.checkpoint()
+
+			database.pendingSignalDao().countAll() shouldBe 1
+			database.pendingSignalDao().getBySignalIds(
+				listOf("pressure-ambiguous"),
+			).single().pressureWriterOwnerGeneration shouldBe
+				SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
 		} finally {
 			database.close()
 		}

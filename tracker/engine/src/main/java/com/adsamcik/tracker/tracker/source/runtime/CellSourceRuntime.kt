@@ -13,6 +13,7 @@ import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprin
 import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
+import com.adsamcik.tracker.tracker.source.model.RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
@@ -39,6 +40,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -196,6 +198,120 @@ class CellSourceRuntime @Inject internal constructor(
 		return lifecycleMutex.withLock {
 			if (ownerClaim != claim) return@withLock OwnedSourceShutdown.NotOwned
 			(automaticFailureAck ?: shutdownLocked(cutoff)).toOwnedShutdown()
+		}
+	}
+
+	/**
+	 * Shared-controller authorization refresh. Removing the direct refresh budget keeps the exact
+	 * Telephony callback registrations and cancels all refresh/timeout work.
+	 */
+	internal suspend fun refreshShared(
+		plan: CellPlan,
+		sink: SourceEventSink,
+		claim: SourceRuntimeClaim? = null,
+	): SourceApplyResult? = lifecycleMutex.withLock {
+		refreshCompatibleLocked(claim, plan, sink, allowPassiveDowngrade = true)
+	}
+
+	/** Drains the retired session prefix without unregistering an ambient Cell callback join. */
+	internal suspend fun sharedSessionCutoff(cutoff: SessionCutoff): SourceStopAck =
+		lifecycleMutex.withLock {
+			val activeRegistration = registration ?: return@withLock unavailableAck(cutoff)
+			val activeToken = callbackToken
+			val activeQueue = queue
+			val activeActor = actor
+			if (activeToken == null || activeQueue == null || activeActor == null ||
+				!activeActor.isActive
+			) {
+				return@withLock sharedCutoffUnavailable(activeRegistration)
+			}
+			val completion = CompletableDeferred<RuntimeAdmissionSnapshot>()
+			val barrier = synchronized(callbackLock) {
+				if (!accepting || registration !== activeRegistration ||
+					callbackToken !== activeToken || queue !== activeQueue
+				) {
+					return@synchronized null
+				}
+				accepting = false
+				callbackSequence
+			} ?: return@withLock sharedCutoffUnavailable(activeRegistration)
+			try {
+				activeQueue.submit(CellRuntimeInput.SharedCutoff(completion))
+			} finally {
+				synchronized(callbackLock) {
+					if (registration === activeRegistration && callbackToken === activeToken &&
+						queue === activeQueue && activeActor.isActive &&
+						cutoffElapsedNanos == null && retirementIntent == null
+					) {
+						accepting = true
+					}
+				}
+			}
+			val remainingMs =
+				((cutoff.deadlineElapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos()) /
+					NANOS_PER_MILLISECOND).coerceAtLeast(1L)
+			val admission = withTimeoutOrNull(remainingMs) { completion.await() }
+			if (admission == null) {
+				val firstUnresolved = processedCallbackSequence.value + 1L
+				if (firstUnresolved <= barrier) {
+					metrics.recordFailure(
+						firstUnresolved,
+						barrier,
+						RuntimeGapClassification.DRAIN_TIMED_OUT,
+					)
+				}
+			}
+			val settled = admission ?: metrics.snapshot()
+			SourceStopAck(
+				source = source,
+				sourceInstanceId = SourceInstanceId(activeRegistration.state.sourceInstanceId),
+				registrationGeneration = activeRegistration.state.registrationGeneration,
+				appliedRevision = currentPlan?.revision,
+				callbackEntryBarrierSequence = barrier,
+				lastDurablyAdmittedSequence = settled.lastDurablyAdmittedSequence
+					?.takeIf { it <= barrier },
+				lastAdmissionOrdinal = settled.lastAdmissionOrdinal
+					.takeIf { settled.lastDurablyAdmittedSequence?.let { it <= barrier } == true },
+				failedAdmissionCount = settled.failedAdmissionCount,
+				unresolvedSequenceStart = settled.unresolvedSequenceStart,
+				unresolvedSequenceEndInclusive = settled.unresolvedSequenceEndInclusive,
+				registrationRemovalOutcome = RegistrationRemovalOutcome.NOT_REGISTERED,
+				providerFlushOutcome = ProviderFlushOutcome.NOT_SUPPORTED,
+				providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+				appDrainComplete = admission != null,
+				status = if (admission != null) SourceStopStatus.COMPLETE else SourceStopStatus.TIMED_OUT,
+			)
+		}
+
+	private fun sharedCutoffUnavailable(activeRegistration: SourceRegistration) = SourceStopAck(
+		source = source,
+		sourceInstanceId = SourceInstanceId(activeRegistration.state.sourceInstanceId),
+		registrationGeneration = activeRegistration.state.registrationGeneration,
+		appliedRevision = currentPlan?.revision,
+		callbackEntryBarrierSequence = callbackSequence,
+		lastDurablyAdmittedSequence = null,
+		lastAdmissionOrdinal = null,
+		failedAdmissionCount = 0L,
+		unresolvedSequenceStart = null,
+		unresolvedSequenceEndInclusive = null,
+		registrationRemovalOutcome = RegistrationRemovalOutcome.NOT_REGISTERED,
+		providerFlushOutcome = ProviderFlushOutcome.NOT_REQUESTED,
+		providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+		appDrainComplete = false,
+		status = SourceStopStatus.TIMED_OUT,
+	)
+
+	/** Retires the whole shared Cell provider and returns the truthful physical acknowledgement. */
+	internal suspend fun closeShared(): SourceStopAck = lifecycleMutex.withLock {
+		when {
+			automaticFailureAck != null -> requireNotNull(automaticFailureAck)
+			currentPlan != null -> shutdownLocked(null)
+			reconcilePendingProviderRetirements() -> unavailableAck(null)
+			else -> unavailableAck(null).copy(
+				registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED,
+				appDrainComplete = false,
+				status = SourceStopStatus.PROVIDER_FAILED,
+			)
 		}
 	}
 
@@ -387,11 +503,26 @@ class CellSourceRuntime @Inject internal constructor(
 		claim: SourceRuntimeClaim?,
 		plan: CellPlan,
 		sink: SourceEventSink,
+		allowPassiveDowngrade: Boolean = false,
 	): SourceApplyResult? {
 		val activePlan = currentPlan ?: return null
 		val activeRegistration = registration ?: return null
 		val activeCallbackToken = callbackToken ?: return null
-		if (!cellPlansSharePhysicalRegistration(activePlan, plan)) return null
+		val requestedFingerprint = plan.physicalConfigurationFingerprint()
+		val retainedPhysicalFingerprint = when {
+			allowPassiveDowngrade &&
+				activeRegistration.physicalConfigurationFingerprint == requestedFingerprint ->
+				requestedFingerprint
+			cellPlansSharePhysicalRegistration(activePlan, plan) ->
+				if (allowPassiveDowngrade) {
+					activeRegistration.physicalConfigurationFingerprint
+				} else {
+					requestedFingerprint
+				}
+			allowPassiveDowngrade && activePlan.canRetainCellProviderFor(plan) ->
+				activeRegistration.physicalConfigurationFingerprint
+			else -> return null
+		}
 		val application = CellPrerequisiteEvaluator.evaluate(plan, deviceStateProvider.cell())
 		_capabilities.value = capabilitiesNow()
 		if (application.status == SourceApplyStatus.BLOCKED) return null
@@ -409,7 +540,7 @@ class CellSourceRuntime @Inject internal constructor(
 				source,
 				activeRegistration,
 				plan.revision,
-				plan.physicalConfigurationFingerprint(),
+				retainedPhysicalFingerprint,
 				System.currentTimeMillis(),
 				refreshBoundary,
 			)
@@ -977,6 +1108,7 @@ class CellSourceRuntime @Inject internal constructor(
 					scheduleRefresh()
 				}
 				is CellRuntimeInput.CaptureBarrier -> input.completion.complete(Unit)
+				is CellRuntimeInput.SharedCutoff -> input.completion.complete(metrics.snapshot())
 			}
 		}
 	}
@@ -1022,8 +1154,14 @@ class CellSourceRuntime @Inject internal constructor(
 			receivedElapsedRealtimeNanos = receivedNanos.coerceAtLeast(0L),
 			wallTimeMs = wallTime, wallTimeUncertaintyMs = 1L,
 			capturedCollectedDataEpoch = registration.state.collectedDataEpoch,
-			acquiredAtMs = wallTime, quality = SourceQuality(), payloadVersion = 1,
-			payload = minimizedCellSnapshotPayload(observations, CellRefreshOutcome.CALLBACK),
+			acquiredAtMs = wallTime,
+			quality = SourceQuality(),
+			payloadVersion = RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION,
+			payload = minimizedCellSnapshotPayload(
+				observations,
+				CellRefreshOutcome.CALLBACK,
+				ZoneId.systemDefault().id,
+			),
 		)
 		val intervalStart = observations.mapNotNull(CellObservationEvidence::providerTimestampNanos)
 			.minOrNull() ?: observed.coerceAtLeast(0L)
@@ -1123,6 +1261,9 @@ class CellSourceRuntime @Inject internal constructor(
 		data class CaptureBarrier(
 			val completion: CompletableDeferred<Unit>,
 		) : CellRuntimeInput
+		data class SharedCutoff(
+			val completion: CompletableDeferred<RuntimeAdmissionSnapshot>,
+		) : CellRuntimeInput
 		data class Snapshot(
 			val snapshot: CellBackendSnapshot,
 			val outcome: CellRefreshOutcome,
@@ -1159,6 +1300,12 @@ private fun SourceRegistration.samePhysicalRegistrationAs(other: SourceRegistrat
 	state.sourceKind == other.state.sourceKind &&
 		state.sourceInstanceId == other.state.sourceInstanceId &&
 		state.registrationGeneration == other.state.registrationGeneration
+
+private fun CellPlan.canRetainCellProviderFor(successor: CellPlan): Boolean =
+	enabled && successor.enabled &&
+		mode == CellMode.OBSERVE_AND_SPARSE_REFRESH &&
+		successor.mode == CellMode.OBSERVE_CHANGES &&
+		subscriptionIds == successor.subscriptionIds
 
 private fun SourceRegistrationRetirementToken.sameRetirementAs(
 	other: SourceRegistrationRetirementToken,
@@ -1384,10 +1531,12 @@ internal fun cellProviderDeliveryIdentity(
 internal fun minimizedCellSnapshotPayload(
 	observations: List<CellObservationEvidence>,
 	outcome: CellRefreshOutcome,
+	observationZoneId: String,
 ) = CellSnapshotPayload(
 	subscriptionId = null,
 	observations = observations,
 	refreshOutcome = outcome,
+	observationZoneId = observationZoneId,
 )
 
 private val CELL_OBSERVATION_ORDER = compareBy<CellObservationEvidence>(

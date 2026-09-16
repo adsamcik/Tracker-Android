@@ -8,8 +8,13 @@ import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetainedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetentionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureSourceEraseEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureSourceEraseWitnessEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
 
 /**
@@ -45,6 +50,25 @@ abstract class ImportedPressureDao {
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	abstract suspend fun insertEntryDeletion(deletion: ImportedPressureEntryDeletionEntity)
 
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertRetentionReceipt(receipt: ImportedPressureRetentionReceiptEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertRetainedIdentities(values: List<ImportedPressureRetainedIdentityEntity>)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertSourceErase(value: ImportedPressureSourceEraseEntity)
+
+	@Insert(onConflict = OnConflictStrategy.IGNORE)
+	abstract suspend fun insertIdentityFences(
+		values: List<ImportedPressureIdentityFenceEntity>,
+	): List<Long>
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract suspend fun insertSourceEraseWitnesses(
+		values: List<ImportedPressureSourceEraseWitnessEntity>,
+	)
+
 	@Query(
 		"SELECT * FROM imported_pressure_entry_revision " +
 			"WHERE identity = :identity AND import_revision = :revision",
@@ -60,6 +84,93 @@ abstract class ImportedPressureDao {
 	)
 	abstract suspend fun latestEntryRevision(identity: String): ImportedPressureEntryRevisionEntity?
 
+	/**
+	 * Numeric authority preflight over the exact live-plus-retained recent candidate relation.
+	 *
+	 * The two bounded scalar flags leave all candidate identity text inside SQLite. Callers run
+	 * this before the first candidate page so an ambiguous two-field cursor cannot hide a row.
+	 */
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_pressure_entry_revision
+		  GROUP BY identity
+		), latest_member AS (
+		  SELECT run.entry_identity,
+		         run.entry_import_revision,
+		         run.start_time_ms AS recency_start_time_ms,
+		         run.identity AS recency_tie_identity
+		  FROM imported_pressure_run AS run
+		  WHERE NOT EXISTS (
+		    SELECT 1
+		    FROM imported_pressure_run AS newer
+		    WHERE newer.entry_identity = run.entry_identity
+		      AND newer.entry_import_revision = run.entry_import_revision
+		      AND (
+		        newer.start_time_ms > run.start_time_ms
+		        OR (
+		          newer.start_time_ms = run.start_time_ms
+		          AND newer.identity > run.identity
+		        )
+		      )
+		  )
+		), recent_candidate_authority AS (
+		  SELECT entry.start_time_ms,
+		         entry.end_time_ms,
+		         member.recency_start_time_ms,
+		         member.recency_tie_identity,
+		         1 AS is_live
+		  FROM imported_pressure_entry_revision AS entry
+		  INNER JOIN latest_revision AS latest
+		    ON latest.identity = entry.identity
+		   AND latest.import_revision = entry.import_revision
+		  LEFT JOIN latest_member AS member
+		    ON member.entry_identity = entry.identity
+		   AND member.entry_import_revision = entry.import_revision
+		  UNION ALL
+		  SELECT retained.start_time_ms,
+		         retained.end_time_ms,
+		         retained.recency_start_time_ms,
+		         retained.recency_tie_identity,
+		         0 AS is_live
+		  FROM imported_pressure_retention_receipt AS retained
+		), invalid_live_recency_authority AS (
+		  SELECT 1
+		  FROM recent_candidate_authority
+		  WHERE is_live = 1
+		    AND (
+		      recency_start_time_ms IS NULL
+		      OR recency_tie_identity IS NULL
+		      OR start_time_ms IS NULL
+		      OR end_time_ms IS NULL
+		      OR start_time_ms < 0
+		      OR end_time_ms < start_time_ms
+		      OR recency_start_time_ms < 0
+		      OR recency_start_time_ms < start_time_ms
+		      OR recency_start_time_ms > end_time_ms
+		      OR LENGTH(CAST(recency_tie_identity AS BLOB)) != 71
+		      OR SUBSTR(recency_tie_identity, 1, 7) != 'sha256:'
+		      OR SUBSTR(recency_tie_identity, 8) GLOB '*[^0-9a-f]*'
+		    )
+		  LIMIT 1
+		), duplicate_recency_authority AS (
+		  SELECT 1
+		  FROM recent_candidate_authority
+		  GROUP BY recency_start_time_ms, recency_tie_identity
+		  HAVING COUNT(*) > 1
+		  LIMIT 1
+		)
+		SELECT
+		  (SELECT COUNT(*) FROM invalid_live_recency_authority)
+		    AS invalid_live_recency_count,
+		  (SELECT COUNT(*) FROM duplicate_recency_authority)
+		    AS duplicate_recency_tuple_count
+		""",
+	)
+	abstract suspend fun recentHistoryRecencyAuthorityPreflight():
+		ImportedPressureHistoryRecencyAuthorityPreflight
+
 	/** One latest-revision seed per imported logical entry, ordered for a source-local product page. */
 	@Query(
 		"""
@@ -67,34 +178,166 @@ abstract class ImportedPressureDao {
 		  SELECT identity, MAX(import_revision) AS import_revision
 		  FROM imported_pressure_entry_revision
 		  GROUP BY identity
+		), latest_member AS (
+		  SELECT run.entry_identity,
+		         run.entry_import_revision,
+		         run.start_time_ms AS recency_start_time_ms,
+		         run.identity AS recency_tie_identity
+		  FROM imported_pressure_run AS run
+		  WHERE NOT EXISTS (
+		    SELECT 1
+		    FROM imported_pressure_run AS newer
+		    WHERE newer.entry_identity = run.entry_identity
+		      AND newer.entry_import_revision = run.entry_import_revision
+		      AND (
+		        newer.start_time_ms > run.start_time_ms
+		        OR (
+		          newer.start_time_ms = run.start_time_ms
+		          AND newer.identity > run.identity
+		        )
+		      )
+		  )
 		)
 		SELECT entry.identity,
 		       entry.import_revision,
 		       entry.content_checksum,
 		       entry.start_time_ms,
 		       entry.end_time_ms,
-		       entry.received_at_ms
+		       entry.received_at_ms,
+		       member.recency_start_time_ms,
+		       member.recency_tie_identity,
+		       'LIVE' AS candidate_state
 		FROM imported_pressure_entry_revision AS entry
 		INNER JOIN latest_revision AS latest
 		  ON latest.identity = entry.identity
 		 AND latest.import_revision = entry.import_revision
+		LEFT JOIN latest_member AS member
+		  ON member.entry_identity = entry.identity
+		 AND member.entry_import_revision = entry.import_revision
 		WHERE (
-		  :beforeStartTimeMs IS NULL
-		  OR entry.start_time_ms < :beforeStartTimeMs
+		  :beforeRecencyStartTimeMs IS NULL
+		  OR member.recency_start_time_ms < :beforeRecencyStartTimeMs
 		  OR (
-		    entry.start_time_ms = :beforeStartTimeMs
-		    AND entry.identity < COALESCE(:beforeIdentity, '')
+		    member.recency_start_time_ms = :beforeRecencyStartTimeMs
+		    AND member.recency_tie_identity < COALESCE(:beforeRecencyTieIdentity, '')
 		  )
 		)
-		ORDER BY entry.start_time_ms DESC, entry.identity DESC
+		UNION ALL
+		SELECT retained.entry_identity,
+		       retained.latest_import_revision,
+		       retained.latest_content_checksum,
+		       retained.start_time_ms,
+		       retained.end_time_ms,
+		       retained.received_at_ms,
+		       retained.recency_start_time_ms,
+		       retained.recency_tie_identity,
+		       'RETAINED' AS candidate_state
+		FROM imported_pressure_retention_receipt AS retained
+		WHERE (
+		  :beforeRecencyStartTimeMs IS NULL
+		  OR retained.recency_start_time_ms < :beforeRecencyStartTimeMs
+		  OR (
+		    retained.recency_start_time_ms = :beforeRecencyStartTimeMs
+		    AND retained.recency_tie_identity < COALESCE(:beforeRecencyTieIdentity, '')
+		  )
+		)
+		ORDER BY recency_start_time_ms DESC, recency_tie_identity DESC
 		LIMIT :limit
 		""",
 	)
 	abstract suspend fun recentHistoryCandidatePage(
 		limit: Int,
-		beforeStartTimeMs: Long?,
-		beforeIdentity: String?,
+		beforeRecencyStartTimeMs: Long?,
+		beforeRecencyTieIdentity: String?,
 	): List<ImportedPressureHistoryCandidate>
+
+	/** Range-equivalent numeric authority preflight used before portable export paging. */
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_pressure_entry_revision
+		  GROUP BY identity
+		), latest_member AS (
+		  SELECT run.entry_identity,
+		         run.entry_import_revision,
+		         run.start_time_ms AS recency_start_time_ms,
+		         run.identity AS recency_tie_identity
+		  FROM imported_pressure_run AS run
+		  WHERE NOT EXISTS (
+		    SELECT 1
+		    FROM imported_pressure_run AS newer
+		    WHERE newer.entry_identity = run.entry_identity
+		      AND newer.entry_import_revision = run.entry_import_revision
+		      AND (
+		        newer.start_time_ms > run.start_time_ms
+		        OR (
+		          newer.start_time_ms = run.start_time_ms
+		          AND newer.identity > run.identity
+		        )
+		      )
+		  )
+		), recent_candidate_authority AS (
+		  SELECT entry.start_time_ms,
+		         entry.end_time_ms,
+		         member.recency_start_time_ms,
+		         member.recency_tie_identity,
+		         1 AS is_live
+		  FROM imported_pressure_entry_revision AS entry
+		  INNER JOIN latest_revision AS latest
+		    ON latest.identity = entry.identity
+		   AND latest.import_revision = entry.import_revision
+		  LEFT JOIN latest_member AS member
+		    ON member.entry_identity = entry.identity
+		   AND member.entry_import_revision = entry.import_revision
+		  WHERE entry.start_time_ms < :toExclusiveMs
+		    AND entry.end_time_ms > :fromInclusiveMs
+		  UNION ALL
+		  SELECT retained.start_time_ms,
+		         retained.end_time_ms,
+		         retained.recency_start_time_ms,
+		         retained.recency_tie_identity,
+		         0 AS is_live
+		  FROM imported_pressure_retention_receipt AS retained
+		  WHERE retained.start_time_ms < :toExclusiveMs
+		    AND retained.end_time_ms > :fromInclusiveMs
+		), invalid_live_recency_authority AS (
+		  SELECT 1
+		  FROM recent_candidate_authority
+		  WHERE is_live = 1
+		    AND (
+		      recency_start_time_ms IS NULL
+		      OR recency_tie_identity IS NULL
+		      OR start_time_ms IS NULL
+		      OR end_time_ms IS NULL
+		      OR start_time_ms < 0
+		      OR end_time_ms < start_time_ms
+		      OR recency_start_time_ms < 0
+		      OR recency_start_time_ms < start_time_ms
+		      OR recency_start_time_ms > end_time_ms
+		      OR LENGTH(CAST(recency_tie_identity AS BLOB)) != 71
+		      OR SUBSTR(recency_tie_identity, 1, 7) != 'sha256:'
+		      OR SUBSTR(recency_tie_identity, 8) GLOB '*[^0-9a-f]*'
+		    )
+		  LIMIT 1
+		), duplicate_recency_authority AS (
+		  SELECT 1
+		  FROM recent_candidate_authority
+		  GROUP BY recency_start_time_ms, recency_tie_identity
+		  HAVING COUNT(*) > 1
+		  LIMIT 1
+		)
+		SELECT
+		  (SELECT COUNT(*) FROM invalid_live_recency_authority)
+		    AS invalid_live_recency_count,
+		  (SELECT COUNT(*) FROM duplicate_recency_authority)
+		    AS duplicate_recency_tuple_count
+		""",
+	)
+	abstract suspend fun historyRecencyAuthorityPreflightInRange(
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
+	): ImportedPressureHistoryRecencyAuthorityPreflight
 
 	/** Latest imported entries whose complete logical time range overlaps the requested range. */
 	@Query(
@@ -103,28 +346,74 @@ abstract class ImportedPressureDao {
 		  SELECT identity, MAX(import_revision) AS import_revision
 		  FROM imported_pressure_entry_revision
 		  GROUP BY identity
+		), latest_member AS (
+		  SELECT run.entry_identity,
+		         run.entry_import_revision,
+		         run.start_time_ms AS recency_start_time_ms,
+		         run.identity AS recency_tie_identity
+		  FROM imported_pressure_run AS run
+		  WHERE NOT EXISTS (
+		    SELECT 1
+		    FROM imported_pressure_run AS newer
+		    WHERE newer.entry_identity = run.entry_identity
+		      AND newer.entry_import_revision = run.entry_import_revision
+		      AND (
+		        newer.start_time_ms > run.start_time_ms
+		        OR (
+		          newer.start_time_ms = run.start_time_ms
+		          AND newer.identity > run.identity
+		        )
+		      )
+		  )
 		)
 		SELECT entry.identity,
 		       entry.import_revision,
 		       entry.content_checksum,
 		       entry.start_time_ms,
 		       entry.end_time_ms,
-		       entry.received_at_ms
+		       entry.received_at_ms,
+		       member.recency_start_time_ms,
+		       member.recency_tie_identity,
+		       'LIVE' AS candidate_state
 		FROM imported_pressure_entry_revision AS entry
 		INNER JOIN latest_revision AS latest
 		  ON latest.identity = entry.identity
 		 AND latest.import_revision = entry.import_revision
+		LEFT JOIN latest_member AS member
+		  ON member.entry_identity = entry.identity
+		 AND member.entry_import_revision = entry.import_revision
 		WHERE entry.start_time_ms < :toExclusiveMs
 		  AND entry.end_time_ms > :fromInclusiveMs
 		  AND (
-		    :beforeStartTimeMs IS NULL
-		    OR entry.start_time_ms < :beforeStartTimeMs
+		    :beforeRecencyStartTimeMs IS NULL
+		    OR member.recency_start_time_ms < :beforeRecencyStartTimeMs
 		    OR (
-		      entry.start_time_ms = :beforeStartTimeMs
-		      AND entry.identity < COALESCE(:beforeIdentity, '')
+		      member.recency_start_time_ms = :beforeRecencyStartTimeMs
+		      AND member.recency_tie_identity < COALESCE(:beforeRecencyTieIdentity, '')
 		    )
 		  )
-		ORDER BY entry.start_time_ms DESC, entry.identity DESC
+		UNION ALL
+		SELECT retained.entry_identity,
+		       retained.latest_import_revision,
+		       retained.latest_content_checksum,
+		       retained.start_time_ms,
+		       retained.end_time_ms,
+		       retained.received_at_ms,
+		       retained.recency_start_time_ms,
+		       retained.recency_tie_identity,
+		       'RETAINED' AS candidate_state
+		FROM imported_pressure_retention_receipt AS retained
+		WHERE retained.start_time_ms < :toExclusiveMs
+		  AND retained.end_time_ms > :fromInclusiveMs
+		  AND (
+		    :beforeRecencyStartTimeMs IS NULL
+		    OR retained.recency_start_time_ms < :beforeRecencyStartTimeMs
+		    OR (
+		      retained.recency_start_time_ms = :beforeRecencyStartTimeMs
+		      AND retained.recency_tie_identity < COALESCE(:beforeRecencyTieIdentity, '')
+		    )
+		  )
+		ORDER BY recency_start_time_ms DESC, recency_tie_identity DESC
 		LIMIT :limit
 		""",
 	)
@@ -132,9 +421,337 @@ abstract class ImportedPressureDao {
 		fromInclusiveMs: Long,
 		toExclusiveMs: Long,
 		limit: Int,
-		beforeStartTimeMs: Long?,
-		beforeIdentity: String?,
+		beforeRecencyStartTimeMs: Long?,
+		beforeRecencyTieIdentity: String?,
 	): List<ImportedPressureHistoryCandidate>
+
+	/** Header-only keyset used before one complete lineage is materialized for retention. */
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_pressure_entry_revision
+		  GROUP BY identity
+		), latest_member AS (
+		  SELECT run.entry_identity,
+		         run.entry_import_revision,
+		         run.start_time_ms AS recency_start_time_ms,
+		         run.identity AS recency_tie_identity
+		  FROM imported_pressure_run AS run
+		  WHERE NOT EXISTS (
+		    SELECT 1
+		    FROM imported_pressure_run AS newer
+		    WHERE newer.entry_identity = run.entry_identity
+		      AND newer.entry_import_revision = run.entry_import_revision
+		      AND (
+		        newer.start_time_ms > run.start_time_ms
+		        OR (
+		          newer.start_time_ms = run.start_time_ms
+		          AND newer.identity > run.identity
+		        )
+		      )
+		  )
+		)
+		SELECT entry.identity,
+		       entry.import_revision,
+		       entry.content_checksum,
+		       entry.start_time_ms,
+		       entry.end_time_ms,
+		       entry.received_at_ms,
+		       member.recency_start_time_ms,
+		       member.recency_tie_identity,
+		       'LIVE' AS candidate_state
+		FROM imported_pressure_entry_revision AS entry
+		INNER JOIN latest_revision AS latest
+		  ON latest.identity = entry.identity
+		 AND latest.import_revision = entry.import_revision
+		LEFT JOIN latest_member AS member
+		  ON member.entry_identity = entry.identity
+		 AND member.entry_import_revision = entry.import_revision
+		WHERE :afterIdentity IS NULL OR entry.identity > :afterIdentity
+		ORDER BY entry.identity
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun retentionCandidatePage(
+		afterIdentity: String?,
+		limit: Int,
+	): List<ImportedPressureHistoryCandidate>
+
+	/** Numeric owner cursor; no attacker-controlled identity text leaves SQLite before preflight. */
+	@Query(
+		"SELECT MIN(rowid) FROM imported_pressure_entry_revision GROUP BY identity " +
+			"HAVING MIN(rowid) > :afterOwnerRowId ORDER BY MIN(rowid) LIMIT :limit",
+	)
+	abstract suspend fun liveOwnerRowIdPage(
+		afterOwnerRowId: Long,
+		limit: Int,
+	): List<Long>
+
+	@Query(
+		"""
+		WITH owner(identity) AS (
+		  SELECT identity FROM imported_pressure_entry_revision WHERE rowid = :ownerRowId
+		)
+		SELECT
+		  (SELECT COUNT(*) FROM imported_pressure_entry_revision
+		    WHERE identity = (SELECT identity FROM owner)) AS header_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(identity AS BLOB)) + LENGTH(CAST(content_checksum AS BLOB)) +
+		    LENGTH(CAST(source_format AS BLOB)) + LENGTH(CAST(import_job_id AS BLOB)) +
+		    LENGTH(CAST(import_entry_key AS BLOB)) + LENGTH(CAST(import_source_name AS BLOB))
+		  ), 0) FROM imported_pressure_entry_revision
+		    WHERE identity = (SELECT identity FROM owner)) AS header_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_receipt
+		    WHERE entry_identity = (SELECT identity FROM owner)) AS receipt_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(import_job_id AS BLOB)) + LENGTH(CAST(import_entry_key AS BLOB)) +
+		    LENGTH(CAST(import_source_name AS BLOB)) + LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(entry_content_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_receipt
+		    WHERE entry_identity = (SELECT identity FROM owner)) AS receipt_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_run
+		    WHERE entry_identity = (SELECT identity FROM owner)) AS run_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(entry_identity AS BLOB)) + LENGTH(CAST(identity AS BLOB)) +
+		    LENGTH(CAST(availability AS BLOB)) + LENGTH(CAST(coverage AS BLOB))
+		  ), 0) FROM imported_pressure_run
+		    WHERE entry_identity = (SELECT identity FROM owner)) AS run_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_window
+		    WHERE entry_identity = (SELECT identity FROM owner)) AS window_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(entry_identity AS BLOB)) + LENGTH(CAST(run_identity AS BLOB)) +
+		    LENGTH(CAST(identity AS BLOB)) + LENGTH(CAST(content_checksum AS BLOB)) +
+		    LENGTH(CAST(sensor_accuracy AS BLOB)) + LENGTH(CAST(closure_kind AS BLOB)) +
+		    LENGTH(CAST(qualification AS BLOB)) + LENGTH(CAST(stored_zone_id AS BLOB))
+		  ), 0) FROM imported_pressure_window
+		    WHERE entry_identity = (SELECT identity FROM owner)) AS window_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_identity_fence
+		    WHERE entry_identity = (SELECT identity FROM owner)) AS identity_fence_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(protected_identity AS BLOB)) + LENGTH(CAST(identity_kind AS BLOB)) +
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    COALESCE(LENGTH(CAST(run_identity AS BLOB)), 0) +
+		    LENGTH(CAST(fence_reason AS BLOB)) + LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_identity_fence
+		    WHERE entry_identity = (SELECT identity FROM owner)) AS identity_fence_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_entry_deletion
+		    WHERE entry_identity = (SELECT identity FROM owner)) AS entry_deletion_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(run_deletion_set_checksum AS BLOB)) +
+		    LENGTH(CAST(identity_fence_set_checksum AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_entry_deletion
+		    WHERE entry_identity = (SELECT identity FROM owner)) AS entry_deletion_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_deletion_generation
+		    WHERE run_identity IN (
+		      SELECT identity FROM imported_pressure_run
+		      WHERE entry_identity = (SELECT identity FROM owner)
+		    )) AS run_deletion_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(run_identity AS BLOB)) + LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_deletion_generation
+		    WHERE run_identity IN (
+		      SELECT identity FROM imported_pressure_run
+		      WHERE entry_identity = (SELECT identity FROM owner)
+		    )) AS run_deletion_text_bytes
+		""",
+	)
+	abstract suspend fun liveOwnerFootprint(
+		ownerRowId: Long,
+	): ImportedPressureLineageFootprint
+
+	@Query(
+		"""
+		WITH owner(identity) AS (
+		  SELECT identity FROM imported_pressure_entry_revision WHERE rowid = :ownerRowId
+		), latest_revision AS (
+		  SELECT MAX(import_revision) AS import_revision
+		  FROM imported_pressure_entry_revision
+		  WHERE identity = (SELECT identity FROM owner)
+		), latest_member AS (
+		  SELECT run.start_time_ms AS recency_start_time_ms,
+		         run.identity AS recency_tie_identity
+		  FROM imported_pressure_run AS run
+		  WHERE run.entry_identity = (SELECT identity FROM owner)
+		    AND run.entry_import_revision = (SELECT import_revision FROM latest_revision)
+		  ORDER BY run.start_time_ms DESC, run.identity DESC
+		  LIMIT 1
+		)
+		SELECT entry.identity, entry.import_revision, entry.content_checksum,
+		       entry.start_time_ms, entry.end_time_ms, entry.received_at_ms,
+		       (SELECT recency_start_time_ms FROM latest_member) AS recency_start_time_ms,
+		       (SELECT recency_tie_identity FROM latest_member) AS recency_tie_identity,
+		       'LIVE' AS candidate_state
+		FROM imported_pressure_entry_revision AS entry
+		WHERE entry.identity = (SELECT identity FROM owner)
+		  AND entry.import_revision = (SELECT import_revision FROM latest_revision)
+		LIMIT 1
+		""",
+	)
+	abstract suspend fun liveCandidateByOwnerRowId(
+		ownerRowId: Long,
+	): ImportedPressureHistoryCandidate?
+
+	@Query(
+		"""
+		WITH owner(identity) AS (
+		  SELECT identity FROM imported_pressure_entry_revision WHERE rowid = :ownerRowId
+		)
+		SELECT COUNT(*) FROM imported_pressure_entry_revision
+		WHERE identity = (SELECT identity FROM owner)
+		""",
+	)
+	abstract suspend fun liveOwnerHeaderCount(ownerRowId: Long): Long
+
+	@Query(
+		"""
+		WITH owner(identity) AS (
+		  SELECT identity FROM imported_pressure_entry_revision WHERE rowid = :ownerRowId
+		)
+		DELETE FROM imported_pressure_entry_revision
+		WHERE identity = (SELECT identity FROM owner)
+		""",
+	)
+	abstract suspend fun deleteLiveOwnerByRowId(ownerRowId: Long): Int
+
+	/**
+	 * Counts rows and raw UTF-8 metadata bytes before any live imported hierarchy is materialized.
+	 *
+	 * Numeric payload columns are fixed-width SQLite values; every attacker-controlled TEXT column
+	 * participates in the byte total.
+	 */
+	@Query(
+		"""
+		SELECT
+		  (SELECT COUNT(*) FROM imported_pressure_entry_revision WHERE identity = :identity)
+		    AS header_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(identity AS BLOB)) +
+		    LENGTH(CAST(content_checksum AS BLOB)) +
+		    LENGTH(CAST(source_format AS BLOB)) +
+		    LENGTH(CAST(import_job_id AS BLOB)) +
+		    LENGTH(CAST(import_entry_key AS BLOB)) +
+		    LENGTH(CAST(import_source_name AS BLOB))
+		  ), 0) FROM imported_pressure_entry_revision WHERE identity = :identity)
+		    AS header_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_receipt WHERE entry_identity = :identity)
+		    AS receipt_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(import_job_id AS BLOB)) +
+		    LENGTH(CAST(import_entry_key AS BLOB)) +
+		    LENGTH(CAST(import_source_name AS BLOB)) +
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(entry_content_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_receipt WHERE entry_identity = :identity)
+		    AS receipt_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_run WHERE entry_identity = :identity)
+		    AS run_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(identity AS BLOB)) +
+		    LENGTH(CAST(availability AS BLOB)) +
+		    LENGTH(CAST(coverage AS BLOB))
+		  ), 0) FROM imported_pressure_run WHERE entry_identity = :identity)
+		    AS run_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_window WHERE entry_identity = :identity)
+		    AS window_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(run_identity AS BLOB)) +
+		    LENGTH(CAST(identity AS BLOB)) +
+		    LENGTH(CAST(content_checksum AS BLOB)) +
+		    LENGTH(CAST(sensor_accuracy AS BLOB)) +
+		    LENGTH(CAST(closure_kind AS BLOB)) +
+		    LENGTH(CAST(qualification AS BLOB)) +
+		    LENGTH(CAST(stored_zone_id AS BLOB))
+		  ), 0) FROM imported_pressure_window WHERE entry_identity = :identity)
+		    AS window_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_identity_fence WHERE entry_identity = :identity)
+		    AS identity_fence_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(protected_identity AS BLOB)) +
+		    LENGTH(CAST(identity_kind AS BLOB)) +
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    COALESCE(LENGTH(CAST(run_identity AS BLOB)), 0) +
+		    LENGTH(CAST(fence_reason AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_identity_fence WHERE entry_identity = :identity)
+		    AS identity_fence_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_entry_deletion WHERE entry_identity = :identity)
+		    AS entry_deletion_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(run_deletion_set_checksum AS BLOB)) +
+		    LENGTH(CAST(identity_fence_set_checksum AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_entry_deletion WHERE entry_identity = :identity)
+		    AS entry_deletion_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_deletion_generation
+		    WHERE run_identity IN (
+		      SELECT protected_identity FROM imported_pressure_identity_fence
+		      WHERE entry_identity = :identity AND identity_kind = 'RUN'
+		    )) AS run_deletion_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(run_identity AS BLOB)) + LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_deletion_generation
+		    WHERE run_identity IN (
+		      SELECT protected_identity FROM imported_pressure_identity_fence
+		      WHERE entry_identity = :identity AND identity_kind = 'RUN'
+		    )) AS run_deletion_text_bytes
+		""",
+	)
+	abstract suspend fun lineageFootprint(identity: String): ImportedPressureLineageFootprint
+
+	/** Global byte/count preflight before keyset paging allocates any imported identity text. */
+	@Query(
+		"""
+		SELECT
+		  (SELECT COUNT(*) FROM imported_pressure_entry_revision) AS header_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(identity AS BLOB)) +
+		    LENGTH(CAST(content_checksum AS BLOB)) +
+		    LENGTH(CAST(source_format AS BLOB)) +
+		    LENGTH(CAST(import_job_id AS BLOB)) +
+		    LENGTH(CAST(import_entry_key AS BLOB)) +
+		    LENGTH(CAST(import_source_name AS BLOB))
+		  ), 0) FROM imported_pressure_entry_revision) AS header_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_receipt) AS receipt_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(import_job_id AS BLOB)) +
+		    LENGTH(CAST(import_entry_key AS BLOB)) +
+		    LENGTH(CAST(import_source_name AS BLOB)) +
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(entry_content_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_receipt) AS receipt_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_run) AS run_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(identity AS BLOB)) +
+		    LENGTH(CAST(availability AS BLOB)) +
+		    LENGTH(CAST(coverage AS BLOB))
+		  ), 0) FROM imported_pressure_run) AS run_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_window) AS window_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(run_identity AS BLOB)) +
+		    LENGTH(CAST(identity AS BLOB)) +
+		    LENGTH(CAST(content_checksum AS BLOB)) +
+		    LENGTH(CAST(sensor_accuracy AS BLOB)) +
+		    LENGTH(CAST(closure_kind AS BLOB)) +
+		    LENGTH(CAST(qualification AS BLOB)) +
+		    LENGTH(CAST(stored_zone_id AS BLOB))
+		  ), 0) FROM imported_pressure_window) AS window_text_bytes,
+		  0 AS identity_fence_count,
+		  0 AS identity_fence_text_bytes,
+		  0 AS entry_deletion_count,
+		  0 AS entry_deletion_text_bytes,
+		  0 AS run_deletion_count,
+		  0 AS run_deletion_text_bytes
+		""",
+	)
+	abstract suspend fun liveMaintenanceFootprint(): ImportedPressureLineageFootprint
 
 	/** Complete ordered lineage plus one overflow row; callers must reject any non-contiguous head. */
 	suspend fun entryRevisionsForAdmission(
@@ -368,6 +985,644 @@ abstract class ImportedPressureDao {
 		entryIdentities: List<String>,
 	): List<ImportedPressureEntryDeletionEntity>
 
+	@Query("SELECT * FROM imported_pressure_retention_receipt WHERE entry_identity = :entryIdentity")
+	abstract suspend fun retentionReceipt(
+		entryIdentity: String,
+	): ImportedPressureRetentionReceiptEntity?
+
+	@Query(
+		"SELECT * FROM imported_pressure_retention_receipt " +
+			"WHERE entry_identity IN (:entryIdentities)",
+	)
+	abstract suspend fun retentionReceipts(
+		entryIdentities: List<String>,
+	): List<ImportedPressureRetentionReceiptEntity>
+
+	@Query(
+		"SELECT * FROM imported_pressure_retention_receipt " +
+			"WHERE :afterIdentity IS NULL OR entry_identity > :afterIdentity " +
+			"ORDER BY entry_identity LIMIT :limit",
+	)
+	abstract suspend fun retentionReceiptPage(
+		afterIdentity: String?,
+		limit: Int,
+	): List<ImportedPressureRetentionReceiptEntity>
+
+	/** Numeric retained owner cursor; receipt text is loaded only after its complete preflight. */
+	@Query(
+		"SELECT rowid FROM imported_pressure_retention_receipt WHERE rowid > :afterOwnerRowId " +
+			"ORDER BY rowid LIMIT :limit",
+	)
+	abstract suspend fun retainedOwnerRowIdPage(
+		afterOwnerRowId: Long,
+		limit: Int,
+	): List<Long>
+
+	@Query(
+		"""
+		WITH owner(entry_identity) AS (
+		  SELECT entry_identity FROM imported_pressure_retention_receipt WHERE rowid = :ownerRowId
+		)
+		SELECT
+		  (SELECT COUNT(*) FROM imported_pressure_retention_receipt
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)) AS receipt_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(latest_content_checksum AS BLOB)) +
+		    LENGTH(CAST(recency_tie_identity AS BLOB)) +
+		    LENGTH(CAST(run_deletion_set_checksum AS BLOB)) +
+		    LENGTH(CAST(protected_identity_set_checksum AS BLOB)) +
+		    LENGTH(CAST(identity_fence_set_checksum AS BLOB)) +
+		    LENGTH(CAST(lineage_authority_checksum AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_retention_receipt
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)) AS receipt_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_retained_identity
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)) AS marker_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(protected_identity AS BLOB)) +
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(identity_kind AS BLOB))
+		  ), 0) FROM imported_pressure_retained_identity
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)) AS marker_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_identity_fence
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)) AS identity_fence_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(protected_identity AS BLOB)) + LENGTH(CAST(identity_kind AS BLOB)) +
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    COALESCE(LENGTH(CAST(run_identity AS BLOB)), 0) +
+		    LENGTH(CAST(fence_reason AS BLOB)) + LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_identity_fence
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)) AS identity_fence_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_entry_deletion
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)) AS entry_deletion_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(run_deletion_set_checksum AS BLOB)) +
+		    LENGTH(CAST(identity_fence_set_checksum AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_entry_deletion
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)) AS entry_deletion_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_deletion_generation
+		    WHERE run_identity IN (
+		      SELECT protected_identity FROM imported_pressure_identity_fence
+		      WHERE entry_identity = (SELECT entry_identity FROM owner) AND identity_kind = 'RUN'
+		    )) AS run_deletion_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(run_identity AS BLOB)) + LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_deletion_generation
+		    WHERE run_identity IN (
+		      SELECT protected_identity FROM imported_pressure_identity_fence
+		      WHERE entry_identity = (SELECT entry_identity FROM owner) AND identity_kind = 'RUN'
+		    )) AS run_deletion_text_bytes
+		""",
+	)
+	abstract suspend fun retainedOwnerFootprint(
+		ownerRowId: Long,
+	): ImportedPressureRetainedFootprint
+
+	@Query("SELECT * FROM imported_pressure_retention_receipt WHERE rowid = :ownerRowId LIMIT 1")
+	abstract suspend fun retentionReceiptByOwnerRowId(
+		ownerRowId: Long,
+	): ImportedPressureRetentionReceiptEntity?
+
+	@Query(
+		"""
+		WITH owner(entry_identity) AS (
+		  SELECT entry_identity FROM imported_pressure_retention_receipt WHERE rowid = :ownerRowId
+		)
+		DELETE FROM imported_pressure_retained_identity
+		WHERE entry_identity = (SELECT entry_identity FROM owner)
+		""",
+	)
+	abstract suspend fun deleteRetainedOwnerMarkersByRowId(ownerRowId: Long): Int
+
+	@Query("DELETE FROM imported_pressure_retention_receipt WHERE rowid = :ownerRowId")
+	abstract suspend fun deleteRetentionReceiptByOwnerRowId(ownerRowId: Long): Int
+
+	@Query(
+		"SELECT * FROM imported_pressure_retained_identity " +
+			"WHERE entry_identity IN (:entryIdentities) " +
+			"ORDER BY entry_identity, identity_kind, protected_identity LIMIT :limit",
+	)
+	abstract suspend fun retainedIdentitiesForEntries(
+		entryIdentities: List<String>,
+		limit: Int,
+	): List<ImportedPressureRetainedIdentityEntity>
+
+	@Query(
+		"SELECT * FROM imported_pressure_retained_identity " +
+			"WHERE protected_identity IN (:identities) ORDER BY protected_identity LIMIT :limit",
+	)
+	abstract suspend fun retainedIdentityOwners(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedPressureRetainedIdentityEntity>
+
+	@Query(
+		"SELECT * FROM imported_pressure_identity_fence " +
+			"WHERE protected_identity IN (:identities) ORDER BY protected_identity LIMIT :limit",
+	)
+	abstract suspend fun identityFences(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedPressureIdentityFenceEntity>
+
+	@Query(
+		"SELECT * FROM imported_pressure_identity_fence WHERE entry_identity = :entryIdentity " +
+			"ORDER BY identity_kind, protected_identity LIMIT :limit",
+	)
+	abstract suspend fun identityFencesForEntry(
+		entryIdentity: String,
+		limit: Int,
+	): List<ImportedPressureIdentityFenceEntity>
+
+	/** Numeric entry-deletion owner cursor used before any permanent owner text is materialized. */
+	@Query(
+		"SELECT rowid FROM imported_pressure_entry_deletion WHERE rowid > :afterOwnerRowId " +
+			"ORDER BY rowid LIMIT :limit",
+	)
+	abstract suspend fun entryDeletionOwnerRowIdPage(
+		afterOwnerRowId: Long,
+		limit: Int,
+	): List<Long>
+
+	/** Canonical entry-fence owners that have no entry-deletion marker. */
+	@Query(
+		"""
+		SELECT fence.rowid
+		FROM imported_pressure_identity_fence AS fence
+		WHERE fence.rowid > :afterOwnerRowId
+		  AND fence.identity_kind = 'ENTRY'
+		  AND fence.protected_identity = fence.entry_identity
+		  AND fence.run_identity IS NULL
+		  AND NOT EXISTS (
+		    SELECT 1 FROM imported_pressure_entry_deletion AS deletion
+		    WHERE deletion.entry_identity = fence.entry_identity
+		  )
+		ORDER BY fence.rowid
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun standalonePermanentOwnerRowIdPage(
+		afterOwnerRowId: Long,
+		limit: Int,
+	): List<Long>
+
+	@Query(
+		"""
+		WITH owner(entry_identity) AS (
+		  SELECT entry_identity FROM imported_pressure_entry_deletion WHERE rowid = :ownerRowId
+		)
+		SELECT
+		  (SELECT COUNT(*) FROM imported_pressure_entry_deletion
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)) AS entry_deletion_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(run_deletion_set_checksum AS BLOB)) +
+		    LENGTH(CAST(identity_fence_set_checksum AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_entry_deletion
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)) AS entry_deletion_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_identity_fence
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)
+		      AND identity_kind = 'ENTRY'
+		      AND protected_identity = entry_identity
+		      AND run_identity IS NULL) AS entry_marker_count,
+		  (SELECT COUNT(*) FROM imported_pressure_identity_fence
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)) AS identity_fence_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(protected_identity AS BLOB)) +
+		    LENGTH(CAST(identity_kind AS BLOB)) +
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    COALESCE(LENGTH(CAST(run_identity AS BLOB)), 0) +
+		    LENGTH(CAST(fence_reason AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_identity_fence
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)) AS identity_fence_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_deletion_generation
+		    WHERE run_identity IN (
+		      SELECT protected_identity FROM imported_pressure_identity_fence
+		      WHERE entry_identity = (SELECT entry_identity FROM owner)
+		        AND identity_kind = 'RUN'
+		    )) AS run_deletion_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(run_identity AS BLOB)) + LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_deletion_generation
+		    WHERE run_identity IN (
+		      SELECT protected_identity FROM imported_pressure_identity_fence
+		      WHERE entry_identity = (SELECT entry_identity FROM owner)
+		        AND identity_kind = 'RUN'
+		    )) AS run_deletion_text_bytes
+		""",
+	)
+	abstract suspend fun entryDeletionOwnerFootprint(
+		ownerRowId: Long,
+	): ImportedPressurePermanentOwnerFootprint
+
+	@Query("SELECT * FROM imported_pressure_entry_deletion WHERE rowid = :ownerRowId LIMIT 1")
+	abstract suspend fun entryDeletionByOwnerRowId(
+		ownerRowId: Long,
+	): ImportedPressureEntryDeletionEntity?
+
+	@Query(
+		"""
+		WITH owner(entry_identity) AS (
+		  SELECT entry_identity FROM imported_pressure_identity_fence WHERE rowid = :ownerRowId
+		)
+		SELECT
+		  (SELECT COUNT(*) FROM imported_pressure_entry_deletion
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)) AS entry_deletion_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(run_deletion_set_checksum AS BLOB)) +
+		    LENGTH(CAST(identity_fence_set_checksum AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_entry_deletion
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)) AS entry_deletion_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_identity_fence
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)
+		      AND identity_kind = 'ENTRY'
+		      AND protected_identity = entry_identity
+		      AND run_identity IS NULL) AS entry_marker_count,
+		  (SELECT COUNT(*) FROM imported_pressure_identity_fence
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)) AS identity_fence_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(protected_identity AS BLOB)) +
+		    LENGTH(CAST(identity_kind AS BLOB)) +
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    COALESCE(LENGTH(CAST(run_identity AS BLOB)), 0) +
+		    LENGTH(CAST(fence_reason AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_identity_fence
+		    WHERE entry_identity = (SELECT entry_identity FROM owner)) AS identity_fence_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_deletion_generation
+		    WHERE run_identity IN (
+		      SELECT protected_identity FROM imported_pressure_identity_fence
+		      WHERE entry_identity = (SELECT entry_identity FROM owner)
+		        AND identity_kind = 'RUN'
+		    )) AS run_deletion_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(run_identity AS BLOB)) + LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_deletion_generation
+		    WHERE run_identity IN (
+		      SELECT protected_identity FROM imported_pressure_identity_fence
+		      WHERE entry_identity = (SELECT entry_identity FROM owner)
+		        AND identity_kind = 'RUN'
+		    )) AS run_deletion_text_bytes
+		""",
+	)
+	abstract suspend fun standalonePermanentOwnerFootprint(
+		ownerRowId: Long,
+	): ImportedPressurePermanentOwnerFootprint
+
+	@Query("SELECT * FROM imported_pressure_identity_fence WHERE rowid = :ownerRowId LIMIT 1")
+	abstract suspend fun identityFenceByOwnerRowId(
+		ownerRowId: Long,
+	): ImportedPressureIdentityFenceEntity?
+
+	@Query(
+		"SELECT * FROM imported_pressure_identity_fence " +
+			"WHERE :afterIdentity IS NULL OR protected_identity > :afterIdentity " +
+			"ORDER BY protected_identity LIMIT :limit",
+	)
+	abstract suspend fun identityFencePage(
+		afterIdentity: String?,
+		limit: Int,
+	): List<ImportedPressureIdentityFenceEntity>
+
+	@Query("SELECT COUNT(*) FROM imported_pressure_identity_fence")
+	abstract suspend fun identityFenceCount(): Long
+
+	@Query(
+		"""
+		SELECT
+		  (SELECT COUNT(*) FROM imported_pressure_retention_receipt
+		    WHERE entry_identity = :entryIdentity) AS receipt_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(latest_content_checksum AS BLOB)) +
+		    LENGTH(CAST(recency_tie_identity AS BLOB)) +
+		    LENGTH(CAST(run_deletion_set_checksum AS BLOB)) +
+		    LENGTH(CAST(protected_identity_set_checksum AS BLOB)) +
+		    LENGTH(CAST(identity_fence_set_checksum AS BLOB)) +
+		    LENGTH(CAST(lineage_authority_checksum AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_retention_receipt
+		    WHERE entry_identity = :entryIdentity) AS receipt_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_retained_identity
+		    WHERE entry_identity = :entryIdentity) AS marker_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(protected_identity AS BLOB)) +
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(identity_kind AS BLOB))
+		  ), 0) FROM imported_pressure_retained_identity
+		    WHERE entry_identity = :entryIdentity) AS marker_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_identity_fence
+		    WHERE entry_identity = :entryIdentity) AS identity_fence_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(protected_identity AS BLOB)) +
+		    LENGTH(CAST(identity_kind AS BLOB)) +
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    COALESCE(LENGTH(CAST(run_identity AS BLOB)), 0) +
+		    LENGTH(CAST(fence_reason AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_identity_fence
+		    WHERE entry_identity = :entryIdentity) AS identity_fence_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_entry_deletion
+		    WHERE entry_identity = :entryIdentity) AS entry_deletion_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(run_deletion_set_checksum AS BLOB)) +
+		    LENGTH(CAST(identity_fence_set_checksum AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_entry_deletion
+		    WHERE entry_identity = :entryIdentity) AS entry_deletion_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_deletion_generation
+		    WHERE run_identity IN (
+		      SELECT protected_identity FROM imported_pressure_identity_fence
+		      WHERE entry_identity = :entryIdentity AND identity_kind = 'RUN'
+		    )) AS run_deletion_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(run_identity AS BLOB)) + LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_deletion_generation
+		    WHERE run_identity IN (
+		      SELECT protected_identity FROM imported_pressure_identity_fence
+		      WHERE entry_identity = :entryIdentity AND identity_kind = 'RUN'
+		    )) AS run_deletion_text_bytes
+		""",
+	)
+	abstract suspend fun retainedFootprint(
+		entryIdentity: String,
+	): ImportedPressureRetainedFootprint
+
+	@Query(
+		"""
+		SELECT
+		  (SELECT COUNT(*) FROM imported_pressure_retention_receipt) AS receipt_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(latest_content_checksum AS BLOB)) +
+		    LENGTH(CAST(recency_tie_identity AS BLOB)) +
+		    LENGTH(CAST(run_deletion_set_checksum AS BLOB)) +
+		    LENGTH(CAST(protected_identity_set_checksum AS BLOB)) +
+		    LENGTH(CAST(identity_fence_set_checksum AS BLOB)) +
+		    LENGTH(CAST(lineage_authority_checksum AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_retention_receipt) AS receipt_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_retained_identity) AS marker_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(protected_identity AS BLOB)) +
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(identity_kind AS BLOB))
+		  ), 0) FROM imported_pressure_retained_identity) AS marker_text_bytes,
+		  0 AS identity_fence_count,
+		  0 AS identity_fence_text_bytes,
+		  0 AS entry_deletion_count,
+		  0 AS entry_deletion_text_bytes,
+		  0 AS run_deletion_count,
+		  0 AS run_deletion_text_bytes
+		""",
+	)
+	abstract suspend fun retainedMaintenanceFootprint(): ImportedPressureRetainedFootprint
+
+	@Query(
+		"""
+		SELECT
+		  (SELECT COUNT(*) FROM imported_pressure_identity_fence) AS identity_fence_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(protected_identity AS BLOB)) +
+		    LENGTH(CAST(identity_kind AS BLOB)) +
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    COALESCE(LENGTH(CAST(run_identity AS BLOB)), 0) +
+		    LENGTH(CAST(fence_reason AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_identity_fence) AS identity_fence_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_entry_deletion) AS entry_deletion_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(run_deletion_set_checksum AS BLOB)) +
+		    LENGTH(CAST(identity_fence_set_checksum AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_entry_deletion) AS entry_deletion_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_deletion_generation) AS run_deletion_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(run_identity AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_deletion_generation) AS run_deletion_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_source_erase_witness) AS witness_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(witness_kind AS BLOB)) +
+		    LENGTH(CAST(witness_identity AS BLOB)) +
+		    LENGTH(CAST(authority_checksum AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_source_erase_witness) AS witness_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_source_erase) AS source_erase_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(COALESCE(legacy_write_fence_owner, '') AS BLOB)) +
+		    LENGTH(CAST(legacy_sample_set_checksum AS BLOB)) +
+		    LENGTH(CAST(local_scope_set_checksum AS BLOB)) +
+		    LENGTH(CAST(entry_deletion_set_checksum AS BLOB)) +
+		    LENGTH(CAST(run_deletion_set_checksum AS BLOB)) +
+		    LENGTH(CAST(identity_fence_set_checksum AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_source_erase) AS source_erase_text_bytes
+		""",
+	)
+	abstract suspend fun privacyMaintenanceFootprint(): ImportedPressurePrivacyFootprint
+
+	/** Complete authority bytes for caller-known opaque identities before authority rows are loaded. */
+	@Query(
+		"""
+		SELECT
+		  (SELECT COUNT(*) FROM imported_pressure_retained_identity
+		    WHERE protected_identity IN (:identities)) AS retained_marker_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(protected_identity AS BLOB)) +
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(identity_kind AS BLOB))
+		  ), 0) FROM imported_pressure_retained_identity
+		    WHERE protected_identity IN (:identities)) AS retained_marker_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_identity_fence
+		    WHERE protected_identity IN (:identities)) AS identity_fence_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(protected_identity AS BLOB)) +
+		    LENGTH(CAST(identity_kind AS BLOB)) +
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    COALESCE(LENGTH(CAST(run_identity AS BLOB)), 0) +
+		    LENGTH(CAST(fence_reason AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_identity_fence
+		    WHERE protected_identity IN (:identities)) AS identity_fence_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_entry_deletion
+		    WHERE entry_identity IN (:identities)) AS entry_deletion_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(entry_identity AS BLOB)) +
+		    LENGTH(CAST(run_deletion_set_checksum AS BLOB)) +
+		    LENGTH(CAST(identity_fence_set_checksum AS BLOB)) +
+		    LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_entry_deletion
+		    WHERE entry_identity IN (:identities)) AS entry_deletion_text_bytes,
+		  (SELECT COUNT(*) FROM imported_pressure_deletion_generation
+		    WHERE run_identity IN (:identities)) AS run_deletion_count,
+		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(run_identity AS BLOB)) + LENGTH(CAST(effect_checksum AS BLOB))
+		  ), 0) FROM imported_pressure_deletion_generation
+		    WHERE run_identity IN (:identities)) AS run_deletion_text_bytes
+		""",
+	)
+	abstract suspend fun identityAuthorityFootprint(
+		identities: List<String>,
+	): ImportedPressureIdentityAuthorityFootprint
+
+	@Query("SELECT COUNT(*) FROM imported_pressure_retention_receipt")
+	abstract suspend fun retentionReceiptCount(): Long
+
+	@Query("SELECT COUNT(*) FROM imported_pressure_retained_identity")
+	abstract suspend fun retainedIdentityCount(): Long
+
+	@Query(
+		"SELECT COUNT(*) FROM imported_pressure_retained_identity AS marker " +
+			"LEFT JOIN imported_pressure_retention_receipt AS receipt " +
+			"ON receipt.entry_identity = marker.entry_identity " +
+			"WHERE receipt.entry_identity IS NULL",
+	)
+	abstract suspend fun orphanRetainedIdentityCount(): Long
+
+	@Query("SELECT * FROM imported_pressure_source_erase WHERE id = 1")
+	abstract suspend fun sourceErase(): ImportedPressureSourceEraseEntity?
+
+	@Query(
+		"SELECT * FROM imported_pressure_source_erase_witness " +
+			"WHERE :afterKind IS NULL OR witness_kind > :afterKind OR " +
+			"(witness_kind = :afterKind AND witness_identity > COALESCE(:afterIdentity, '')) " +
+			"ORDER BY witness_kind, witness_identity LIMIT :limit",
+	)
+	abstract suspend fun sourceEraseWitnessPage(
+		afterKind: String?,
+		afterIdentity: String?,
+		limit: Int,
+	): List<ImportedPressureSourceEraseWitnessEntity>
+
+	@Query("SELECT COUNT(*) FROM imported_pressure_source_erase_witness")
+	abstract suspend fun sourceEraseWitnessCount(): Long
+
+	@Query("DELETE FROM imported_pressure_source_erase_witness")
+	abstract fun deleteSourceEraseWitnesses(): Int
+
+	@Query(
+		"UPDATE imported_pressure_source_erase SET " +
+			"collected_data_epoch = :replacementCollectedDataEpoch, " +
+			"source_evidence_revision = :replacementSourceEvidenceRevision, " +
+			"erased_at_ms = :replacementErasedAtMs, " +
+			"provider_registration_generation = :providerRegistrationGeneration, " +
+			"legacy_write_fence_owner = :legacyWriteFenceOwner, " +
+			"legacy_write_fence_generation = :legacyWriteFenceGeneration, " +
+			"local_fact_revision_count = :localFactRevisionCount, " +
+			"local_wal_event_count = :localWalEventCount, " +
+			"legacy_sample_count = :legacySampleCount, " +
+			"legacy_sample_set_checksum = :legacySampleSetChecksum, " +
+			"imported_entry_count = :importedEntryCount, " +
+			"imported_revision_count = :importedRevisionCount, " +
+			"imported_run_count = :importedRunCount, " +
+			"imported_window_count = :importedWindowCount, " +
+			"fenced_local_run_count = :fencedLocalRunCount, " +
+			"local_scope_set_checksum = :localScopeSetChecksum, " +
+			"entry_deletion_count = :entryDeletionCount, " +
+			"entry_deletion_set_checksum = :entryDeletionSetChecksum, " +
+			"run_deletion_count = :runDeletionCount, " +
+			"run_deletion_set_checksum = :runDeletionSetChecksum, " +
+			"identity_fence_count = :identityFenceCount, " +
+			"identity_fence_set_checksum = :identityFenceSetChecksum, " +
+			"effect_checksum = :effectChecksum " +
+			"WHERE id = 1 AND source_evidence_revision = :expectedSourceEvidenceRevision " +
+			"AND collected_data_epoch = :expectedCollectedDataEpoch",
+	)
+	protected abstract suspend fun updateSourceErase(
+		expectedSourceEvidenceRevision: Long,
+		expectedCollectedDataEpoch: Long,
+		replacementCollectedDataEpoch: Long,
+		replacementSourceEvidenceRevision: Long,
+		replacementErasedAtMs: Long,
+		providerRegistrationGeneration: Long?,
+		legacyWriteFenceOwner: String?,
+		legacyWriteFenceGeneration: Long,
+		localFactRevisionCount: Int,
+		localWalEventCount: Int,
+		legacySampleCount: Int,
+		legacySampleSetChecksum: String,
+		importedEntryCount: Int,
+		importedRevisionCount: Int,
+		importedRunCount: Int,
+		importedWindowCount: Int,
+		fencedLocalRunCount: Int,
+		localScopeSetChecksum: String,
+		entryDeletionCount: Int,
+		entryDeletionSetChecksum: String,
+		runDeletionCount: Int,
+		runDeletionSetChecksum: String,
+		identityFenceCount: Int,
+		identityFenceSetChecksum: String,
+		effectChecksum: String,
+	): Int
+
+	suspend fun replaceSourceErase(
+		expected: ImportedPressureSourceEraseEntity,
+		replacement: ImportedPressureSourceEraseEntity,
+	): Int = updateSourceErase(
+		expectedSourceEvidenceRevision = expected.sourceEvidenceRevision,
+		expectedCollectedDataEpoch = expected.collectedDataEpoch,
+		replacementCollectedDataEpoch = replacement.collectedDataEpoch,
+		replacementSourceEvidenceRevision = replacement.sourceEvidenceRevision,
+		replacementErasedAtMs = replacement.erasedAtMs,
+		providerRegistrationGeneration = replacement.providerRegistrationGeneration,
+		legacyWriteFenceOwner = replacement.legacyWriteFenceOwner,
+		legacyWriteFenceGeneration = replacement.legacyWriteFenceGeneration,
+		localFactRevisionCount = replacement.localFactRevisionCount,
+		localWalEventCount = replacement.localWalEventCount,
+		legacySampleCount = replacement.legacySampleCount,
+		legacySampleSetChecksum = replacement.legacySampleSetChecksum,
+		importedEntryCount = replacement.importedEntryCount,
+		importedRevisionCount = replacement.importedRevisionCount,
+		importedRunCount = replacement.importedRunCount,
+		importedWindowCount = replacement.importedWindowCount,
+		fencedLocalRunCount = replacement.fencedLocalRunCount,
+		localScopeSetChecksum = replacement.localScopeSetChecksum,
+		entryDeletionCount = replacement.entryDeletionCount,
+		entryDeletionSetChecksum = replacement.entryDeletionSetChecksum,
+		runDeletionCount = replacement.runDeletionCount,
+		runDeletionSetChecksum = replacement.runDeletionSetChecksum,
+		identityFenceCount = replacement.identityFenceCount,
+		identityFenceSetChecksum = replacement.identityFenceSetChecksum,
+		effectChecksum = replacement.effectChecksum,
+	)
+
+	@Query(
+		"SELECT * FROM imported_pressure_entry_deletion " +
+			"WHERE :afterIdentity IS NULL OR entry_identity > :afterIdentity " +
+			"ORDER BY entry_identity LIMIT :limit",
+	)
+	abstract suspend fun entryDeletionPage(
+		afterIdentity: String?,
+		limit: Int,
+	): List<ImportedPressureEntryDeletionEntity>
+
+	@Query(
+		"SELECT * FROM imported_pressure_deletion_generation " +
+			"WHERE :afterIdentity IS NULL OR run_identity > :afterIdentity " +
+			"ORDER BY run_identity LIMIT :limit",
+	)
+	abstract suspend fun deletionGenerationPage(
+		afterIdentity: String?,
+		limit: Int,
+	): List<ImportedPressureDeletionGenerationEntity>
+
+	@Query("SELECT COUNT(*) FROM imported_pressure_entry_deletion")
+	abstract suspend fun entryDeletionCount(): Long
+
+	@Query("SELECT COUNT(*) FROM imported_pressure_deletion_generation")
+	abstract suspend fun deletionGenerationCount(): Long
+
 	/** Bounded logical-entry tombstones for one finite imported-history candidate batch. */
 	suspend fun entryDeletionsForHistory(
 		entryIdentities: List<String>,
@@ -427,20 +1682,39 @@ abstract class ImportedPressureDao {
 	)
 	abstract suspend fun deleteEntryRevision(identity: String, revision: Long): Int
 
-	/** Full collected-data clear only; retained deletion generations are cleared separately. */
+	@Query("DELETE FROM imported_pressure_entry_revision WHERE identity = :identity")
+	abstract suspend fun deleteEntryRevisionLineage(identity: String): Int
+
+	@Query("DELETE FROM imported_pressure_retained_identity WHERE entry_identity = :identity")
+	abstract suspend fun deleteRetainedIdentities(identity: String): Int
+
+	@Query("DELETE FROM imported_pressure_retention_receipt WHERE entry_identity = :identity")
+	abstract suspend fun deleteRetentionReceipt(identity: String): Int
+
+	/** Payload/provenance removal after full-clear identity preservation. */
 	@Query("DELETE FROM imported_pressure_entry_revision")
 	abstract fun deleteAllEntries()
 
 	@Query("DELETE FROM imported_pressure_receipt")
 	abstract fun deleteAllReceipts()
 
-	/** Full collected-data clear only. Selected deletion must retain and advance these rows. */
+	/** Database teardown only. Full collected-data clear must preserve permanent run authority. */
 	@Query("DELETE FROM imported_pressure_deletion_generation")
 	abstract fun deleteAllDeletionGenerations()
 
-	/** Full collected-data clear only. Selected entry deletion must retain this authority. */
+	/** Database teardown only. Full collected-data clear must preserve permanent entry authority. */
 	@Query("DELETE FROM imported_pressure_entry_deletion")
 	abstract fun deleteAllEntryDeletions()
+
+	@Query("DELETE FROM imported_pressure_retained_identity")
+	abstract fun deleteAllRetainedIdentities()
+
+	@Query("DELETE FROM imported_pressure_retention_receipt")
+	abstract fun deleteAllRetentionReceipts()
+
+	/** Full clear removes this receipt last, after its witnesses and typed fences are authenticated. */
+	@Query("DELETE FROM imported_pressure_source_erase")
+	abstract fun deleteSourceErase()
 
 	private fun checkedHistoryIdentities(identities: List<String>): List<String> {
 		require(identities.isNotEmpty())
@@ -462,8 +1736,116 @@ abstract class ImportedPressureDao {
 		const val MAX_TOTAL_WINDOWS_PER_ENTRY_LINEAGE =
 			MAX_REVISIONS_PER_ENTRY * MAX_TOTAL_WINDOWS_PER_ENTRY
 		const val MAX_HISTORY_ENTRY_CANDIDATES = 64
+		const val MAX_LINEAGE_TEXT_BYTES = 128L * 1_024L * 1_024L
+		const val MAX_MAINTENANCE_TEXT_BYTES = 256L * 1_024L * 1_024L
 		private const val HISTORY_ID_QUERY_CHUNK_SIZE = 400
 	}
+}
+
+data class ImportedPressureLineageFootprint(
+	@ColumnInfo(name = "header_count") val headerCount: Long,
+	@ColumnInfo(name = "header_text_bytes") val headerTextBytes: Long,
+	@ColumnInfo(name = "receipt_count") val receiptCount: Long,
+	@ColumnInfo(name = "receipt_text_bytes") val receiptTextBytes: Long,
+	@ColumnInfo(name = "run_count") val runCount: Long,
+	@ColumnInfo(name = "run_text_bytes") val runTextBytes: Long,
+	@ColumnInfo(name = "window_count") val windowCount: Long,
+	@ColumnInfo(name = "window_text_bytes") val windowTextBytes: Long,
+	@ColumnInfo(name = "identity_fence_count") val identityFenceCount: Long = 0L,
+	@ColumnInfo(name = "identity_fence_text_bytes") val identityFenceTextBytes: Long = 0L,
+	@ColumnInfo(name = "entry_deletion_count") val entryDeletionCount: Long = 0L,
+	@ColumnInfo(name = "entry_deletion_text_bytes") val entryDeletionTextBytes: Long = 0L,
+	@ColumnInfo(name = "run_deletion_count") val runDeletionCount: Long = 0L,
+	@ColumnInfo(name = "run_deletion_text_bytes") val runDeletionTextBytes: Long = 0L,
+) {
+	val totalTextBytes: Long
+		get() = Math.addExact(
+			Math.addExact(
+				Math.addExact(headerTextBytes, receiptTextBytes),
+				Math.addExact(runTextBytes, windowTextBytes),
+			),
+			Math.addExact(
+				Math.addExact(identityFenceTextBytes, entryDeletionTextBytes),
+				runDeletionTextBytes,
+			),
+		)
+}
+
+data class ImportedPressureRetainedFootprint(
+	@ColumnInfo(name = "receipt_count") val receiptCount: Long,
+	@ColumnInfo(name = "receipt_text_bytes") val receiptTextBytes: Long,
+	@ColumnInfo(name = "marker_count") val markerCount: Long,
+	@ColumnInfo(name = "marker_text_bytes") val markerTextBytes: Long,
+	@ColumnInfo(name = "identity_fence_count") val identityFenceCount: Long = 0L,
+	@ColumnInfo(name = "identity_fence_text_bytes") val identityFenceTextBytes: Long = 0L,
+	@ColumnInfo(name = "entry_deletion_count") val entryDeletionCount: Long = 0L,
+	@ColumnInfo(name = "entry_deletion_text_bytes") val entryDeletionTextBytes: Long = 0L,
+	@ColumnInfo(name = "run_deletion_count") val runDeletionCount: Long = 0L,
+	@ColumnInfo(name = "run_deletion_text_bytes") val runDeletionTextBytes: Long = 0L,
+) {
+	val totalTextBytes: Long
+		get() = Math.addExact(
+			Math.addExact(receiptTextBytes, markerTextBytes),
+			Math.addExact(
+				Math.addExact(identityFenceTextBytes, entryDeletionTextBytes),
+				runDeletionTextBytes,
+			),
+		)
+}
+
+data class ImportedPressurePrivacyFootprint(
+	@ColumnInfo(name = "identity_fence_count") val identityFenceCount: Long,
+	@ColumnInfo(name = "identity_fence_text_bytes") val identityFenceTextBytes: Long,
+	@ColumnInfo(name = "entry_deletion_count") val entryDeletionCount: Long,
+	@ColumnInfo(name = "entry_deletion_text_bytes") val entryDeletionTextBytes: Long,
+	@ColumnInfo(name = "run_deletion_count") val runDeletionCount: Long,
+	@ColumnInfo(name = "run_deletion_text_bytes") val runDeletionTextBytes: Long,
+	@ColumnInfo(name = "witness_count") val witnessCount: Long,
+	@ColumnInfo(name = "witness_text_bytes") val witnessTextBytes: Long,
+	@ColumnInfo(name = "source_erase_count") val sourceEraseCount: Long,
+	@ColumnInfo(name = "source_erase_text_bytes") val sourceEraseTextBytes: Long,
+) {
+	val totalTextBytes: Long
+		get() = Math.addExact(
+			Math.addExact(
+				Math.addExact(identityFenceTextBytes, entryDeletionTextBytes),
+				Math.addExact(runDeletionTextBytes, witnessTextBytes),
+			),
+			sourceEraseTextBytes,
+		)
+}
+
+data class ImportedPressureIdentityAuthorityFootprint(
+	@ColumnInfo(name = "retained_marker_count") val retainedMarkerCount: Long,
+	@ColumnInfo(name = "retained_marker_text_bytes") val retainedMarkerTextBytes: Long,
+	@ColumnInfo(name = "identity_fence_count") val identityFenceCount: Long,
+	@ColumnInfo(name = "identity_fence_text_bytes") val identityFenceTextBytes: Long,
+	@ColumnInfo(name = "entry_deletion_count") val entryDeletionCount: Long,
+	@ColumnInfo(name = "entry_deletion_text_bytes") val entryDeletionTextBytes: Long,
+	@ColumnInfo(name = "run_deletion_count") val runDeletionCount: Long,
+	@ColumnInfo(name = "run_deletion_text_bytes") val runDeletionTextBytes: Long,
+) {
+	val totalTextBytes: Long
+		get() = Math.addExact(
+			Math.addExact(retainedMarkerTextBytes, identityFenceTextBytes),
+			Math.addExact(entryDeletionTextBytes, runDeletionTextBytes),
+		)
+}
+
+data class ImportedPressurePermanentOwnerFootprint(
+	@ColumnInfo(name = "entry_deletion_count") val entryDeletionCount: Long,
+	@ColumnInfo(name = "entry_deletion_text_bytes") val entryDeletionTextBytes: Long,
+	@ColumnInfo(name = "entry_marker_count") val entryMarkerCount: Long,
+	@ColumnInfo(name = "identity_fence_count") val identityFenceCount: Long,
+	@ColumnInfo(name = "identity_fence_text_bytes") val identityFenceTextBytes: Long,
+	@ColumnInfo(name = "run_deletion_count") val runDeletionCount: Long,
+	@ColumnInfo(name = "run_deletion_text_bytes") val runDeletionTextBytes: Long,
+) {
+	val totalTextBytes: Long
+		get() = Math.addExact(
+			entryDeletionTextBytes,
+			Math.addExact(identityFenceTextBytes, runDeletionTextBytes),
+		)
 }
 
 data class ImportedPressureHistoryCandidate(
@@ -473,6 +1855,14 @@ data class ImportedPressureHistoryCandidate(
 	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
 	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
 	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+	@ColumnInfo(name = "recency_start_time_ms") val recencyStartTimeMs: Long?,
+	@ColumnInfo(name = "recency_tie_identity") val recencyTieIdentity: String?,
+	@ColumnInfo(name = "candidate_state") val candidateState: String,
+)
+
+data class ImportedPressureHistoryRecencyAuthorityPreflight(
+	@ColumnInfo(name = "invalid_live_recency_count") val invalidLiveRecencyCount: Long,
+	@ColumnInfo(name = "duplicate_recency_tuple_count") val duplicateRecencyTupleCount: Long,
 )
 
 data class ImportedPressureRunIdentityOwner(

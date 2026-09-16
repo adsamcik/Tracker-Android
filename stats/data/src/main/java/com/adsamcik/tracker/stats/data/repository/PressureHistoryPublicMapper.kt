@@ -38,6 +38,11 @@ internal fun PressureLogicalHistoryEntry.toPublicPressureOnlyEntryOrNull(): Pres
 	)
 }
 
+internal fun PressureLogicalHistoryEntry.toSharedPressureOnlyEntryOrNull(): PressureOnlyHistoryEntry? =
+	takeIf {
+		isSharedSourceOnlyEligible
+	}?.toPublicPressureOnlyEntryOrNull()
+
 internal fun PressurePhysicalHistory.toPublicPressureHistory() = PressureHistory(
 	availability = availability.toPublicAvailability(),
 	evidence = evidence.toPublicEvidence(reasons),

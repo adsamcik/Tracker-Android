@@ -618,15 +618,22 @@ data class SelectedImportedActivityIdentity(
 	}
 }
 
-/** One selected imported-origin deletion attempt; it grants no live source authority. */
+/**
+ * One selected imported-origin deletion attempt; it grants no live source authority.
+ *
+ * [expectedSourceEvidenceRevision] is supplied by page-bound selections. Source-wide maintenance
+ * may omit it while retaining the existing collected-data epoch guard.
+ */
 data class DeleteSelectedImportedActivityRequest(
 	val selected: SelectedImportedActivityIdentity,
 	val expectedCollectedDataEpoch: Long,
 	val deletedAtMs: Long,
+	val expectedSourceEvidenceRevision: Long? = null,
 ) {
 	init {
 		require(expectedCollectedDataEpoch >= 0L)
 		require(deletedAtMs >= 0L)
+		require(expectedSourceEvidenceRevision == null || expectedSourceEvidenceRevision >= 0L)
 	}
 }
 

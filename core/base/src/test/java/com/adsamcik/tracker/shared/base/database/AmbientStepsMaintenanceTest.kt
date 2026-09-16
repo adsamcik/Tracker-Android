@@ -125,6 +125,18 @@ class AmbientStepsMaintenanceTest {
 		).single()
 		retraction.semanticRevision shouldBe 3L
 		retraction.operation shouldBe AmbientStepsFactRevisionEntity.OPERATION_RETRACT
+		val portableFactIdentity = com.adsamcik.tracker.shared.model.steps.portable
+			.AmbientStepsPortableOpaqueIdentity.derive(
+				com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind.FACT,
+				first.logicalFactId,
+			).value
+		AmbientStepsPortableLocalOriginReader(database).readInTransaction(
+			setOf(portableFactIdentity),
+		).single().let { owner ->
+			owner.identity shouldBe portableFactIdentity
+			owner.state shouldBe AmbientStepsPortableLocalOwnerState.DELETED
+			owner.contentChecksum shouldBe null
+		}
 
 		// Delayed exact rows may physically return, but the terminal higher revision remains the
 		// effective state and supplies cleanup authority after source-deletion removed the cursor.

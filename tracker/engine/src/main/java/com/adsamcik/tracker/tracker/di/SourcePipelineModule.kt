@@ -6,19 +6,31 @@ import com.adsamcik.tracker.tracker.source.projection.Projection
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
 import com.adsamcik.tracker.tracker.source.runtime.AndroidBootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.ActivitySourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioMutationLeaseGuard
 import com.adsamcik.tracker.tracker.source.runtime.ClaimedSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.PressureSourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.RejectingAmbientRadioMutationLeaseGuard
 import com.adsamcik.tracker.tracker.source.runtime.LocationSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.CellSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.SharedStepSourceController
 import com.adsamcik.tracker.tracker.source.runtime.WifiSourceRuntime
+import com.adsamcik.tracker.tracker.source.coordinator.ProtectedLocationSourceDrain
+import com.adsamcik.tracker.tracker.source.coordinator.RequiredProtectedLocationSourceDrain
+import com.adsamcik.tracker.tracker.source.coordinator.RoomSourceProductDrainRouter
+import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainRouter
+import com.adsamcik.tracker.tracker.source.coordinator.LegacySourceWriterTransitionBoundary
+import com.adsamcik.tracker.tracker.source.coordinator.PersistenceLegacySourceWriterTransitionBoundary
+import com.adsamcik.tracker.tracker.source.coordinator.SourceWriterRearmAuthority
+import com.adsamcik.tracker.tracker.source.coordinator.UnavailableSourceWriterRearmAuthority
+import com.adsamcik.tracker.tracker.source.coordinator.MonotonicRearmSourceWriterSupport
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
+import dagger.multibindings.Multibinds
 import javax.inject.Singleton
 
 @Module
@@ -29,6 +41,11 @@ object SourcePipelineModule {
 	fun provideBootClockDomainProvider(
 		@ApplicationContext context: Context,
 	): BootClockDomainProvider = AndroidBootClockDomainProvider(context)
+
+	@Provides
+	@Singleton
+	fun provideAmbientRadioMutationLeaseGuard(): AmbientRadioMutationLeaseGuard =
+		RejectingAmbientRadioMutationLeaseGuard
 
 	@Provides
 	@IntoSet
@@ -57,4 +74,35 @@ object SourcePipelineModule {
 	@Provides
 	@IntoSet
 	fun provideCellSourceRuntime(runtime: CellSourceRuntime): ClaimedSourceRuntime<out SourcePlan> = runtime
+
+	@Provides
+	@Singleton
+	fun provideProtectedLocationSourceDrain(
+		required: RequiredProtectedLocationSourceDrain,
+	): ProtectedLocationSourceDrain = required
+
+	@Provides
+	@Singleton
+	fun provideSourceProductDrainRouter(
+		router: RoomSourceProductDrainRouter,
+	): SourceProductDrainRouter = router
+
+	@Provides
+	@Singleton
+	internal fun provideLegacySourceWriterTransitionBoundary(
+		boundary: PersistenceLegacySourceWriterTransitionBoundary,
+	): LegacySourceWriterTransitionBoundary = boundary
+
+	@Provides
+	@Singleton
+	fun provideSourceWriterRearmAuthority(
+		unavailable: UnavailableSourceWriterRearmAuthority,
+	): SourceWriterRearmAuthority = unavailable
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+internal interface SourceWriterCapabilityModule {
+	@Multibinds
+	fun monotonicRearmSourceWriterSupport(): Set<MonotonicRearmSourceWriterSupport>
 }

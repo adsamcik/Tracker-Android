@@ -42,13 +42,31 @@ class ActivitySourceActionsContractTest {
 	}
 
 	@Test
-	fun `selected deletion requires explicit origin rather than time inference`() {
+	fun `selected deletion requires source-issued selection rather than time inference`() {
 		val key = ActivityHistoryEntryKey("opaque")
-		val local = ActivitySelectionDeletionRequest(key, ActivityHistoryOrigin.LOCAL, 10L)
-		val imported = ActivitySelectionDeletionRequest(key, ActivityHistoryOrigin.IMPORTED, 10L)
+		val localSelection = ActivityHistorySelection.Local(key)
+		val importedSelection = ActivityHistorySelection.Imported(
+			ActivityImportedHistorySelection(
+				key = key,
+				identity = ActivityImportedHistoryIdentity("a".repeat(64)),
+				importRevision = 2L,
+				contentChecksum = ActivityImportedHistoryDigest("b".repeat(64)),
+				runDeletionScopes = listOf(
+					ActivityImportedHistoryRunDeletionScope(
+						ActivityImportedHistoryIdentity("c".repeat(64)),
+						ActivityImportedHistoryDeletionScopeDigest("d".repeat(64)),
+					),
+				),
+				windowIdentities = listOf(ActivityImportedHistoryIdentity("e".repeat(64))),
+				readSnapshot = ActivityImportedHistoryReadSnapshot(7L, 9L),
+			),
+		)
+		val local = ActivitySelectionDeletionRequest(localSelection, 10L)
+		val imported = ActivitySelectionDeletionRequest(importedSelection, 10L)
 
 		local.origin shouldBe ActivityHistoryOrigin.LOCAL
 		imported.origin shouldBe ActivityHistoryOrigin.IMPORTED
+		imported.selection shouldBe importedSelection
 		local.deletedAtMs shouldBe imported.deletedAtMs
 		shouldThrow<IllegalArgumentException> { local.copy(deletedAtMs = -1L) }
 	}

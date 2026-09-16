@@ -26,6 +26,15 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	@Query("SELECT COUNT(*) FROM location_sample")
 	suspend fun countAll(): Long
 
+	@Query(
+		"""
+		SELECT * FROM location_sample
+		WHERE source_signal_id = :sourceSignalId
+		LIMIT 1
+		""",
+	)
+	suspend fun getBySourceSignalId(sourceSignalId: String): LocationSample?
+
 	/**
 	 * Ordered identified-altitude evidence for gain/loss aggregation. Callers must reset the baseline
 	 * at datum or clock-domain boundaries rather than treating this as an untyped MSL list.

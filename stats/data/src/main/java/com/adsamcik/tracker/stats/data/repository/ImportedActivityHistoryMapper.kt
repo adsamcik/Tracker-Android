@@ -33,7 +33,7 @@ internal fun ImportedActivityProductEvaluation.toPublicActivityEntry(
 		cause = if (originConflict) {
 			ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT
 		} else {
-			reason.toPublicCause()
+			reason.toHistoryCause()
 		},
 	)
 	is ImportedActivityProductEvaluation.Readable -> if (originConflict) {
@@ -184,7 +184,7 @@ private fun ImportedActivityProductEvaluation.publicShell(
 	origin = ActivityHistoryOrigin.IMPORTED,
 )
 
-private fun ImportedActivityProductFailure.toPublicCause(): ActivityHistoryCause = when (this) {
+internal fun ImportedActivityProductFailure.toHistoryCause(): ActivityHistoryCause = when (this) {
 	ImportedActivityProductFailure.SOURCE_EVIDENCE_STATE_MISSING,
 	ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
 	-> ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE
@@ -194,6 +194,8 @@ private fun ImportedActivityProductFailure.toPublicCause(): ActivityHistoryCause
 		ActivityHistoryCause.ORIGIN_IDENTITY_CONFLICT
 	ImportedActivityProductFailure.DEPENDENCY_OVERFLOW ->
 		ActivityHistoryCause.READ_BUDGET_EXCEEDED
+	ImportedActivityProductFailure.TEMPORAL_AUTHORITY_UNAVAILABLE ->
+		ActivityHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE
 	ImportedActivityProductFailure.VALUE_OVERFLOW -> ActivityHistoryCause.VALUE_OVERFLOW
 }
 

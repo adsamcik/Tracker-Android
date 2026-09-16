@@ -46,8 +46,11 @@ import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
+import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
+import com.adsamcik.tracker.tracker.source.model.RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
+import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.sourceQualityFromStableFlags
 import com.adsamcik.tracker.tracker.source.model.toStableFlags
 import com.adsamcik.tracker.tracker.source.runtime.SensorAdmissionCheckpoint
@@ -286,6 +289,22 @@ class RoomDurableSourceIngress @Inject constructor(
 				if (observedTimeAuthorization == null || observedTimeAuthorization.isDenied) {
 					return@transaction AdmissionResult.PermanentFailure(
 						AdmissionFailureCode.STALE_SOURCE_POLICY,
+					)
+				}
+				if (candidate.source == SourceKind.ACTIVITY &&
+					brokerDao.captureAdmissionBarrier(
+						candidate.source.stableCode,
+						candidate.registrationGeneration,
+					)?.let { barrier ->
+						barrier.sourceInstanceId == candidate.sourceInstanceId.value &&
+							barrier.throughAuthorizationRevision >=
+								observedTimeAuthorization.authorizationRevision &&
+							candidate.authorizationPurposeEligibilityMask and
+								SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
+					} == true
+				) {
+					return@transaction AdmissionResult.PermanentFailure(
+						AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED,
 					)
 				}
 				val intervalStart = candidate.observedIntervalStartElapsedRealtimeNanos()
@@ -558,6 +577,7 @@ class RoomDurableSourceIngress @Inject constructor(
 					)
 				}
 				val brokerDao = database.sourceBrokerDao()
+				var radioZoneReplay: List<SourceDeliveryUnitIdentityRow>? = null
 				if (checkpoint != null) {
 					val checkpointEvidence = delivery.units.single().evidence
 					if (delivery.source != SourceKind.STEPS &&
@@ -595,22 +615,28 @@ class RoomDurableSourceIngress @Inject constructor(
 				)
 				if (existing.isNotEmpty()) {
 					val replay = resolveDeliveryReplay(delivery, encodedUnits, existing)
-					if (replay is DeliveryAdmissionResult.Duplicate && checkpoint != null) {
-						delivery.checkpointReplayFailure(
-							checkpoint = checkpoint,
-							stored = existing.single(),
-							brokerDao = brokerDao,
-						)?.let { failure ->
-							return@transaction DeliveryAdmissionResult.PermanentFailure(failure)
+					if (replay is DeliveryAdmissionResult.Duplicate) {
+						if (checkpoint != null) {
+							delivery.checkpointReplayFailure(
+								checkpoint = checkpoint,
+								stored = existing.single(),
+								brokerDao = brokerDao,
+							)?.let { failure ->
+								return@transaction DeliveryAdmissionResult.PermanentFailure(failure)
+							}
+							persistAtomicCheckpoint(
+								checkpoint = checkpoint,
+								admissionOrdinal = replay.units.single().admissionOrdinal,
+								causalOrderElapsedRealtimeNanos =
+									delivery.units.single().evidence.receivedElapsedRealtimeNanos,
+							)
 						}
-						persistAtomicCheckpoint(
-							checkpoint = checkpoint,
-							admissionOrdinal = replay.units.single().admissionOrdinal,
-							causalOrderElapsedRealtimeNanos =
-								delivery.units.single().evidence.receivedElapsedRealtimeNanos,
-						)
+						return@transaction replay
 					}
-					return@transaction replay
+					if (!isPotentialRadioZoneReplay(delivery, encodedUnits, existing)) {
+						return@transaction replay
+					}
+					radioZoneReplay = existing
 				}
 
 				val authorized = mutableListOf<AuthorizedDeliveryUnit>()
@@ -727,6 +753,22 @@ class RoomDurableSourceIngress @Inject constructor(
 						emptyDeliveryFailure = AdmissionFailureCode.STALE_SOURCE_POLICY
 						continue
 					}
+					if (evidence.source == SourceKind.ACTIVITY &&
+						brokerDao.captureAdmissionBarrier(
+							evidence.source.stableCode,
+							evidence.registrationGeneration,
+						)?.let { barrier ->
+							barrier.sourceInstanceId == evidence.sourceInstanceId.value &&
+								barrier.throughAuthorizationRevision >=
+									qualifiedTimeAuthorization.authorizationRevision &&
+								evidence.authorizationPurposeEligibilityMask and
+									SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
+						} == true
+					) {
+						return@transaction DeliveryAdmissionResult.PermanentFailure(
+							AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED,
+						)
+					}
 					val authorization = qualifiedTimeAuthorization.qualifiedForFreshness(
 						brokerDao = brokerDao,
 						observedElapsedRealtimeNanos = evidence.observedElapsedRealtimeNanos,
@@ -822,6 +864,47 @@ class RoomDurableSourceIngress @Inject constructor(
 					return@transaction DeliveryAdmissionResult.PermanentFailure(
 						AdmissionFailureCode.STALE_REGISTRATION_GENERATION,
 					)
+				}
+				val pendingRadioReplay = radioZoneReplay
+				if (pendingRadioReplay != null) {
+					val maximumIncomingPayloadBytes =
+						encodedUnits.maxOf { it.payload.bytes.size }
+					val maximumStoredPayloadBytes = maximumIncomingPayloadBytes
+						.saturatedAdd(MAX_RADIO_ZONE_WRAPPER_BYTES)
+					val storedEvents = walDao.deliveryEventsWithBoundedPayload(
+						delivery.source.stableCode,
+						delivery.capturedCollectedDataEpoch,
+						delivery.clockDomainId,
+						delivery.identity.value,
+						maximumStoredPayloadBytes,
+						delivery.units.size + 1,
+					)
+					val replay = resolveRadioZoneReplay(
+						delivery,
+						encodedUnits,
+						pendingRadioReplay,
+						storedEvents,
+						payloadCodec,
+					)
+					if (replay !is DeliveryAdmissionResult.Duplicate) {
+						return@transaction replay
+					}
+					if (checkpoint != null) {
+						delivery.checkpointReplayFailure(
+							checkpoint = checkpoint,
+							stored = pendingRadioReplay.single(),
+							brokerDao = brokerDao,
+						)?.let { failure ->
+							return@transaction DeliveryAdmissionResult.PermanentFailure(failure)
+						}
+						persistAtomicCheckpoint(
+							checkpoint = checkpoint,
+							admissionOrdinal = replay.units.single().admissionOrdinal,
+							causalOrderElapsedRealtimeNanos =
+								delivery.units.single().evidence.receivedElapsedRealtimeNanos,
+						)
+					}
+					return@transaction replay
 				}
 				val now = System.currentTimeMillis()
 				val sequences = database.sourceRegistrationStateDao().allocateSequenceRange(
@@ -1306,6 +1389,7 @@ private fun SourceEvidenceCandidate<*>.toEntity(
 		observedElapsedNanos = observedElapsedRealtimeNanos,
 		observedIntervalStartNanos = observedIntervalStartNanos,
 		receivedElapsedNanos = receivedElapsedRealtimeNanos,
+		receivedWallTimeMs = receivedWallTimeMs,
 		wallTimeMs = wallTimeMs,
 		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
 		capturedCollectedDataEpoch = capturedCollectedDataEpoch,
@@ -1530,6 +1614,89 @@ private fun resolveDeliveryReplay(
 		DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.IDENTITY_COLLISION)
 	}
 }
+
+private fun isPotentialRadioZoneReplay(
+	delivery: SourceDeliveryCandidate,
+	encoded: List<EncodedDeliveryUnit>,
+	existing: List<SourceDeliveryUnitIdentityRow>,
+): Boolean {
+	if (delivery.source != SourceKind.WIFI && delivery.source != SourceKind.CELL) return false
+	val existingIndexes = existing.mapNotNull(SourceDeliveryUnitIdentityRow::deliveryUnitIndex)
+	if (existingIndexes.size != existing.size ||
+		existingIndexes.distinct().size != existing.size ||
+		existing.size != encoded.size ||
+		existing.any { row ->
+			row.deliveryUnitCount != delivery.units.size ||
+				requireNotNull(row.deliveryUnitIndex) !in encoded.indices
+		}
+	) return false
+	return existing.all { stored ->
+		val candidate = encoded[requireNotNull(stored.deliveryUnitIndex)]
+		val evidence = candidate.sourceUnit.evidence
+		stored.deliveryUnitIndex == candidate.sourceUnit.unitIndex &&
+			stored.observedElapsedNanos == evidence.observedElapsedRealtimeNanos &&
+			stored.observedIntervalStartNanos ==
+				candidate.sourceUnit.observedIntervalStartElapsedRealtimeNanos &&
+			stored.payloadVersion in RADIO_ZONE_COMPATIBLE_PAYLOAD_VERSIONS &&
+			evidence.payloadVersion in RADIO_ZONE_COMPATIBLE_PAYLOAD_VERSIONS &&
+			evidence.payload.isRadioSnapshot()
+	}
+}
+
+private fun resolveRadioZoneReplay(
+	delivery: SourceDeliveryCandidate,
+	encoded: List<EncodedDeliveryUnit>,
+	existingIdentities: List<SourceDeliveryUnitIdentityRow>,
+	storedEvents: List<SourceEventWalEntity>,
+	payloadCodec: SourcePayloadCodec,
+): DeliveryAdmissionResult {
+	if (storedEvents.size != existingIdentities.size ||
+		storedEvents.size != delivery.units.size ||
+		storedEvents.any { !it.hasQualifiedIntegrity() }
+	) return DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.IDENTITY_COLLISION)
+	val storedByUnit = storedEvents.associateBy(SourceEventWalEntity::deliveryUnitIndex)
+	if (storedByUnit.size != storedEvents.size) {
+		return DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.IDENTITY_COLLISION)
+	}
+	val equivalent = existingIdentities.all { identity ->
+		val unitIndex = requireNotNull(identity.deliveryUnitIndex)
+		val stored = storedByUnit[unitIndex] ?: return@all false
+		val incoming = encoded[unitIndex].sourceUnit.evidence
+		if (stored.payloadVersion !in RADIO_ZONE_COMPATIBLE_PAYLOAD_VERSIONS ||
+			incoming.payloadVersion !in RADIO_ZONE_COMPATIBLE_PAYLOAD_VERSIONS
+		) return@all false
+		val storedPayload = runCatchingNonCancellation {
+			payloadCodec.decode(delivery.source, stored.payloadVersion, stored.payload)
+		}.getOrNull() ?: return@all false
+		storedPayload.sameRadioProviderContent(incoming.payload)
+	}
+	if (!equivalent) {
+		return DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.IDENTITY_COLLISION)
+	}
+	return DeliveryAdmissionResult.Duplicate(
+		existingIdentities.map { stored ->
+			DeliveryAdmissionResult.AdmittedUnit(
+				unitIndex = requireNotNull(stored.deliveryUnitIndex),
+				eventId = SourceEventId(stored.eventId),
+				admissionOrdinal = stored.admissionOrdinal,
+			)
+		},
+	)
+}
+
+private fun SourcePayload.isRadioSnapshot(): Boolean =
+	this is WifiResultSnapshotPayload || this is CellSnapshotPayload
+
+private fun SourcePayload.sameRadioProviderContent(other: SourcePayload): Boolean = when {
+	this is WifiResultSnapshotPayload && other is WifiResultSnapshotPayload ->
+		copy(observationZoneId = null) == other.copy(observationZoneId = null)
+	this is CellSnapshotPayload && other is CellSnapshotPayload ->
+		copy(observationZoneId = null) == other.copy(observationZoneId = null)
+	else -> false
+}
+
+private fun Int.saturatedAdd(increment: Int): Int =
+	if (this > Int.MAX_VALUE - increment) Int.MAX_VALUE else this + increment
 
 private fun SourceEventIdentityRow.resolveDuplicate(
 	candidate: SourceEvidenceCandidate<*>,
@@ -1793,6 +1960,9 @@ private val RETIRING_CUTOFF_PHYSICAL_STATES = setOf(
 private const val RAW_PAYLOAD_INTEGRITY_FAILURE = "RAW_PAYLOAD_INTEGRITY"
 private const val RAW_PAYLOAD_DECODE_FAILURE = "RAW_PAYLOAD_DECODE"
 private const val NANOS_PER_MILLISECOND = 1_000_000L
+private const val MAX_RADIO_ZONE_WRAPPER_BYTES = 65_537
+private val RADIO_ZONE_COMPATIBLE_PAYLOAD_VERSIONS =
+	4..RADIO_OBSERVATION_ZONE_PAYLOAD_VERSION
 
 class CorruptSourceEventException(
 	val admissionOrdinal: Long,

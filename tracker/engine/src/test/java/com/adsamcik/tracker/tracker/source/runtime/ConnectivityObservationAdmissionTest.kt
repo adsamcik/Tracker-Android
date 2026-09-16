@@ -73,7 +73,11 @@ class ConnectivityObservationAdmissionTest {
 		val rawCellIdentity = "310:260:123:456"
 		val cell = CellBackendObservation(rawCellIdentity, "LTE", true, -90, 10_000L)
 			.toMinimizedEvidence()
-		val cellPayload = minimizedCellSnapshotPayload(listOf(cell), CellRefreshOutcome.CALLBACK)
+		val cellPayload = minimizedCellSnapshotPayload(
+			listOf(cell),
+			CellRefreshOutcome.CALLBACK,
+			"UTC",
+		)
 
 		assertEquals(WITHHELD_RADIO_IDENTIFIER_TOKEN, wifi.identifierToken)
 		assertEquals(WITHHELD_RADIO_IDENTIFIER_TOKEN, cell.identifierToken)

@@ -235,6 +235,36 @@ class TrackingHistoryRepositoryTest {
 	}
 
 	@Test
+	fun `Activity action target retains exact selection and fails closed when absent`() {
+		val local = unavailableActivityHistory().copy(capturesOnlyActivity = true)
+		val importedSelection = importedActivitySelection(local.key)
+		val imported = local.copy(
+			origin = ActivityHistoryOrigin.IMPORTED,
+			capturesOnlyActivity = false,
+			importedSelection = importedSelection,
+		)
+		val unavailableImported = imported.copy(importedSelection = null)
+
+		assertEquals(
+			TrackingHistoryActionTarget.Activity(ActivityHistorySelection.Local(local.key)),
+			SourceAwareHistoryPageEntry.ActivityOnly(local).actionTarget,
+		)
+		assertEquals(
+			TrackingHistoryActionTarget.Activity(
+				ActivityHistorySelection.Imported(importedSelection),
+			),
+			SourceAwareHistoryPageEntry.ActivityOnly(imported).actionTarget,
+		)
+		assertEquals(
+			TrackingHistoryActionTarget.NonActionable(
+				HistorySource.ACTIVITY,
+				TrackingHistoryNonActionableReason.ACTIVITY_SELECTOR_UNAVAILABLE,
+			),
+			SourceAwareHistoryPageEntry.ActivityOnly(unavailableImported).actionTarget,
+		)
+	}
+
+	@Test
 	fun `combined live snapshot rejects mixed found and missing source reads`() {
 		val session = SessionHistoryQuery.Found(
 			SessionHistory(
@@ -496,6 +526,23 @@ class TrackingHistoryRepositoryTest {
 		activeTime = null,
 		fragments = emptyList(),
 		causes = setOf(ActivityHistoryCause.NO_QUALIFIED_FACTS),
+	)
+
+	private fun importedActivitySelection(
+		key: ActivityHistoryEntryKey,
+	) = ActivityImportedHistorySelection(
+		key = key,
+		identity = ActivityImportedHistoryIdentity("a".repeat(64)),
+		importRevision = 2L,
+		contentChecksum = ActivityImportedHistoryDigest("b".repeat(64)),
+		runDeletionScopes = listOf(
+			ActivityImportedHistoryRunDeletionScope(
+				ActivityImportedHistoryIdentity("c".repeat(64)),
+				ActivityImportedHistoryDeletionScopeDigest("d".repeat(64)),
+			),
+		),
+		windowIdentities = listOf(ActivityImportedHistoryIdentity("e".repeat(64))),
+		readSnapshot = ActivityImportedHistoryReadSnapshot(7L, 9L),
 	)
 
 	private fun unavailablePressureHistory() = PressureHistory(

@@ -22,6 +22,15 @@ interface LocationObservationDao : BaseDao<LocationObservation> {
 	@Query(
 		"""
 		SELECT * FROM location_observation
+		WHERE source_event_id = :sourceEventId
+		LIMIT 1
+		""",
+	)
+	suspend fun getBySourceEventId(sourceEventId: String): LocationObservation?
+
+	@Query(
+		"""
+		SELECT * FROM location_observation
 		WHERE fix_time_ms >= :fromMs AND fix_time_ms < :toMs
 		ORDER BY fix_time_ms ASC, id ASC
 		""",

@@ -146,6 +146,129 @@ class WifiCapturedPortableFormatV1Test {
 		}
 	}
 
+	@Test
+	fun `portable ownership accepts exact replay and rejects child kind or owner reuse`() {
+		val first = PortableWifiIntegrity.createEntry(
+			identity = identity(PortableWifiIdentityKind.LOGICAL_ENTRY, "owner-entry-a"),
+			sessionMode = PortableWifiSessionMode.MANUAL,
+			startTimeMs = 1_000L,
+			endTimeMs = 2_000L,
+			runs = listOf(retainedRun(observation("owner-observation-a"))),
+		)
+		val verifier = requireNotNull(PortableWifiOpaqueOwnershipVerifier.fromEntries(listOf(first)))
+		assertTrue(verifier.tryInclude(first))
+
+		val reusedRun = PortableWifiIntegrity.createRun(
+			identity = first.runs.single().identity,
+			deletionScopeDigest = deletionDigest("owner-entry-b-run"),
+			startTimeMs = 1_000L,
+			endTimeMs = 2_000L,
+			storedZoneIds = listOf("Europe/Prague"),
+			captureCoverage = PortableWifiCaptureCoverage.WHOLE_RUN,
+			availability = PortableWifiRunAvailability.RETAINED,
+			acquisitionCompleteness = PortableWifiAcquisitionCompleteness.COMPLETE,
+			hasUnresolvedProviderRange = false,
+			retentionLoss = false,
+			observations = listOf(observation("owner-observation-b")),
+		)
+		val conflictingOwner = PortableWifiIntegrity.createEntry(
+			identity = identity(PortableWifiIdentityKind.LOGICAL_ENTRY, "owner-entry-b"),
+			sessionMode = PortableWifiSessionMode.MANUAL,
+			startTimeMs = 1_000L,
+			endTimeMs = 2_000L,
+			runs = listOf(reusedRun),
+		)
+		assertTrue(!verifier.tryInclude(conflictingOwner))
+
+		val scopeAsObservation = PortableWifiIntegrity.createObservation(
+			identity = PortableWifiOpaqueIdentity(first.runs.single().deletionScopeDigest.value),
+			semanticRevision = 1L,
+			supersedesSemanticRevision = null,
+			aggregateOwnerIdentity = null,
+			aggregateOwnerSemanticRevision = null,
+			coverageStartTimeMs = 1_100L,
+			observedTimeMs = 1_200L,
+			latestPossibleTimeMs = 1_201L,
+			wallTimeUncertaintyMs = 1L,
+			storedZoneId = "Europe/Prague",
+			availability = PortableWifiAvailability.AVAILABLE,
+			resultCompleteness = PortableWifiResultCompleteness.COMPLETE,
+			submittedResultCount = 1,
+			acceptedResultCount = 1,
+			staleResultCount = 0,
+			clockUnverifiableResultCount = 0,
+			malformedResultCount = 0,
+			observationCount = 1,
+			twoPointFourGhzCount = 1,
+			fiveGhzCount = 0,
+			sixGhzCount = 0,
+			otherBandCount = 0,
+			strongestSignalDbm = -60,
+			weakestSignalDbm = -60,
+			meanSignalDbm = -60.0,
+			sourceQualityFlags = 0L,
+			sourceQualityConfidence = null,
+		)
+		val conflictingKind = PortableWifiIntegrity.createEntry(
+			identity = identity(PortableWifiIdentityKind.LOGICAL_ENTRY, "owner-entry-c"),
+			sessionMode = PortableWifiSessionMode.MANUAL,
+			startTimeMs = 1_000L,
+			endTimeMs = 2_000L,
+			runs = listOf(
+				PortableWifiIntegrity.createRun(
+					identity = identity(PortableWifiIdentityKind.PHYSICAL_RUN, "owner-entry-c-run"),
+					deletionScopeDigest = deletionDigest("owner-entry-c-run"),
+					startTimeMs = 1_000L,
+					endTimeMs = 2_000L,
+					storedZoneIds = listOf("Europe/Prague"),
+					captureCoverage = PortableWifiCaptureCoverage.WHOLE_RUN,
+					availability = PortableWifiRunAvailability.RETAINED,
+					acquisitionCompleteness = PortableWifiAcquisitionCompleteness.COMPLETE,
+					hasUnresolvedProviderRange = false,
+					retentionLoss = false,
+					observations = listOf(scopeAsObservation),
+				),
+			),
+		)
+		assertTrue(!verifier.tryInclude(conflictingKind))
+	}
+
+	@Test
+	fun `portable correction authority requires an exact predecessor shape and unchanged payload`() {
+		val previous = PortableWifiIntegrity.createEntry(
+			identity = identity(PortableWifiIdentityKind.LOGICAL_ENTRY, "correction-entry"),
+			sessionMode = PortableWifiSessionMode.MANUAL,
+			startTimeMs = 1_000L,
+			endTimeMs = 2_000L,
+			runs = listOf(retainedRun(observation("correction-observation"))),
+		)
+		val corrected = PortableWifiIntegrity.createEntry(
+			identity = previous.identity,
+			sessionMode = previous.sessionMode,
+			startTimeMs = previous.startTimeMs,
+			endTimeMs = previous.endTimeMs,
+			runs = listOf(retainedRun(observation("correction-observation", semanticRevision = 2L))),
+		)
+		val rewritten = PortableWifiIntegrity.createEntry(
+			identity = previous.identity,
+			sessionMode = previous.sessionMode,
+			startTimeMs = previous.startTimeMs,
+			endTimeMs = previous.endTimeMs,
+			runs = listOf(
+				retainedRun(
+					observation(
+						"correction-observation",
+						semanticRevision = 2L,
+						strongestSignalDbm = -54,
+					),
+				),
+			),
+		)
+
+		assertTrue(corrected.isReciprocalCorrectionOf(previous))
+		assertTrue(!rewritten.isReciprocalCorrectionOf(previous))
+	}
+
 	private fun retainedRun(observation: PortableCapturedWifiObservationV1) =
 		PortableWifiIntegrity.createRun(
 			identity = identity(PortableWifiIdentityKind.PHYSICAL_RUN, "run-a"),
@@ -161,10 +284,14 @@ class WifiCapturedPortableFormatV1Test {
 			observations = listOf(observation),
 		)
 
-	private fun observation(seed: String) = PortableWifiIntegrity.createObservation(
+	private fun observation(
+		seed: String,
+		semanticRevision: Long = 1L,
+		strongestSignalDbm: Int = -55,
+	) = PortableWifiIntegrity.createObservation(
 		identity = identity(PortableWifiIdentityKind.OBSERVATION, seed),
-		semanticRevision = 1L,
-		supersedesSemanticRevision = null,
+		semanticRevision = semanticRevision,
+		supersedesSemanticRevision = semanticRevision.takeIf { it > 1L }?.minus(1L),
 		aggregateOwnerIdentity = null,
 		aggregateOwnerSemanticRevision = null,
 		coverageStartTimeMs = 1_100L,
@@ -184,7 +311,7 @@ class WifiCapturedPortableFormatV1Test {
 		fiveGhzCount = 1,
 		sixGhzCount = 0,
 		otherBandCount = 0,
-		strongestSignalDbm = -55,
+		strongestSignalDbm = strongestSignalDbm,
 		weakestSignalDbm = -75,
 		meanSignalDbm = -65.0,
 		sourceQualityFlags = 0L,
