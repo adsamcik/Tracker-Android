@@ -10,6 +10,7 @@ internal enum class TrackingPersistenceLifecycleMode {
 	LIVE_PIPELINE,
 	OFFLINE_LOCATION_RECOVERY,
 	PRESSURE_WRITER_TRANSITION,
+	LEGACY_SOURCE_WRITER_TRANSITION,
 }
 
 internal interface TrackingPersistenceLifecyclePermit {
@@ -20,9 +21,14 @@ internal interface TrackingPersistenceLifecyclePermit {
 internal interface TrackingPersistenceLifecycleLease {
 	suspend fun acquireLivePipeline(): TrackingPersistenceLifecyclePermit
 
+	/** Explicit ownership for callers that may need to retain the permit across cleanup retries. */
+	suspend fun acquireOfflineLocationRecovery(): TrackingPersistenceLifecyclePermit
+
 	suspend fun <T> withOfflineLocationRecovery(block: suspend () -> T): T
 
 	suspend fun <T> withPressureWriterTransition(block: suspend () -> T): T
+
+	suspend fun <T> withLegacySourceWriterTransition(block: suspend () -> T): T
 }
 
 @Singleton
@@ -33,11 +39,17 @@ internal class ExclusiveTrackingPersistenceLifecycleLease @Inject constructor() 
 	override suspend fun acquireLivePipeline(): TrackingPersistenceLifecyclePermit =
 		acquire(TrackingPersistenceLifecycleMode.LIVE_PIPELINE)
 
+	override suspend fun acquireOfflineLocationRecovery(): TrackingPersistenceLifecyclePermit =
+		acquire(TrackingPersistenceLifecycleMode.OFFLINE_LOCATION_RECOVERY)
+
 	override suspend fun <T> withOfflineLocationRecovery(block: suspend () -> T): T =
 		withPermit(TrackingPersistenceLifecycleMode.OFFLINE_LOCATION_RECOVERY, block)
 
 	override suspend fun <T> withPressureWriterTransition(block: suspend () -> T): T =
 		withPermit(TrackingPersistenceLifecycleMode.PRESSURE_WRITER_TRANSITION, block)
+
+	override suspend fun <T> withLegacySourceWriterTransition(block: suspend () -> T): T =
+		withPermit(TrackingPersistenceLifecycleMode.LEGACY_SOURCE_WRITER_TRANSITION, block)
 
 	private suspend fun acquire(
 		mode: TrackingPersistenceLifecycleMode,

@@ -209,12 +209,34 @@ sealed interface PressureSourceEraseBarrierResult {
 data class PressureSourceEraseBarrierToken(
 	val collectedDataEpoch: Long,
 	val providerRegistrationGeneration: Long?,
+	/** Exact durable destination owner paired with [legacyWriteFenceGeneration]. */
+	val legacyWriteFenceOwner: PressureSourceEraseFenceOwner,
 	val legacyWriteFenceGeneration: Long,
 ) {
 	init {
 		require(collectedDataEpoch >= 0L)
 		require(providerRegistrationGeneration == null || providerRegistrationGeneration > 0L)
 		require(legacyWriteFenceGeneration > 0L)
+		when (legacyWriteFenceOwner) {
+			PressureSourceEraseFenceOwner.LEGACY_PRESSURE_SAMPLE ->
+				require(legacyWriteFenceGeneration >= 2L)
+			PressureSourceEraseFenceOwner.CONTAINED_PRESSURE_SESSION_FACTS ->
+				require(
+					legacyWriteFenceGeneration >= 3L &&
+						legacyWriteFenceGeneration % 2L == 1L,
+				)
+		}
+	}
+}
+
+enum class PressureSourceEraseFenceOwner(val storageValue: String) {
+	LEGACY_PRESSURE_SAMPLE("LEGACY_PRESSURE_SAMPLE"),
+	CONTAINED_PRESSURE_SESSION_FACTS("CONTAINED_PRESSURE_SESSION_FACTS"),
+	;
+
+	companion object {
+		fun fromStorageValue(value: String): PressureSourceEraseFenceOwner? =
+			entries.singleOrNull { it.storageValue == value }
 	}
 }
 

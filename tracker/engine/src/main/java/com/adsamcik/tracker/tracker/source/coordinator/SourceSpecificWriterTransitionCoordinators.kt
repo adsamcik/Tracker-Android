@@ -362,11 +362,11 @@ internal class SourceWriterTransitionEngine(
 	): SourceWriterTransitionResult {
 		require(expectedRolloutRevision >= 0L)
 		require(updatedAtMs >= 0L)
-		return boundary.run(
-			spec.source,
-			SourceWriterTransitionPhase.ACTIVATE_CANDIDATE,
-		) { lease ->
-			val operation: suspend () -> SourceWriterTransitionResult = {
+		val activation: suspend () -> SourceWriterTransitionResult = {
+			boundary.run(
+				spec.source,
+				SourceWriterTransitionPhase.ACTIVATE_CANDIDATE,
+			) { lease ->
 				database.withTransaction {
 					boundary.requireLease(lease)
 					val rollout = currentRollout()
@@ -425,16 +425,16 @@ internal class SourceWriterTransitionEngine(
 					)
 				}
 			}
-			if (spec.requiresLegacyWriterQuiescence) {
-				legacyWriterQuiescence.runIfQuiescent(spec.source, operation)
-					?: SourceWriterTransitionResult.Blocked(
-						spec.source,
-						SourceWriterTransitionPhase.ACTIVATE_CANDIDATE,
-						SourceWriterTransitionBlocker.LEGACY_WRITER_NOT_QUIESCENT,
-					)
-			} else {
-				operation()
-			}
+		}
+		return if (spec.requiresLegacyWriterQuiescence) {
+			legacyWriterQuiescence.runIfQuiescent(spec.source, activation)
+				?: SourceWriterTransitionResult.Blocked(
+					spec.source,
+					SourceWriterTransitionPhase.ACTIVATE_CANDIDATE,
+					SourceWriterTransitionBlocker.LEGACY_WRITER_NOT_QUIESCENT,
+				)
+		} else {
+			activation()
 		}
 	}
 
@@ -1128,6 +1128,7 @@ private fun block(blocker: SourceWriterTransitionBlocker): Nothing =
 
 /** Parent-owned core constants are required before a later re-arm generation can be executable. */
 internal const val CONTAINED_ACTIVITY_SESSION_OWNER = "CONTAINED_ACTIVITY_SESSION_FACTS"
-internal const val CONTAINED_PRESSURE_SESSION_OWNER = "CONTAINED_PRESSURE_SESSION_FACTS"
+internal const val CONTAINED_PRESSURE_SESSION_OWNER =
+	SourceDestinationOwnerEntity.OWNER_CONTAINED_PRESSURE_SESSION_FACTS
 internal const val CONTAINED_WIFI_SESSION_OWNER = "CONTAINED_WIFI_SESSION_FACTS"
 internal const val CONTAINED_CELL_SESSION_OWNER = "CONTAINED_CELL_SESSION_FACTS"

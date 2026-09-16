@@ -1419,6 +1419,7 @@ abstract class ImportedPressureDao {
 		  ), 0) FROM imported_pressure_source_erase_witness) AS witness_text_bytes,
 		  (SELECT COUNT(*) FROM imported_pressure_source_erase) AS source_erase_count,
 		  (SELECT COALESCE(SUM(
+		    LENGTH(CAST(COALESCE(legacy_write_fence_owner, '') AS BLOB)) +
 		    LENGTH(CAST(legacy_sample_set_checksum AS BLOB)) +
 		    LENGTH(CAST(local_scope_set_checksum AS BLOB)) +
 		    LENGTH(CAST(entry_deletion_set_checksum AS BLOB)) +
@@ -1515,6 +1516,7 @@ abstract class ImportedPressureDao {
 			"source_evidence_revision = :replacementSourceEvidenceRevision, " +
 			"erased_at_ms = :replacementErasedAtMs, " +
 			"provider_registration_generation = :providerRegistrationGeneration, " +
+			"legacy_write_fence_owner = :legacyWriteFenceOwner, " +
 			"legacy_write_fence_generation = :legacyWriteFenceGeneration, " +
 			"local_fact_revision_count = :localFactRevisionCount, " +
 			"local_wal_event_count = :localWalEventCount, " +
@@ -1543,6 +1545,7 @@ abstract class ImportedPressureDao {
 		replacementSourceEvidenceRevision: Long,
 		replacementErasedAtMs: Long,
 		providerRegistrationGeneration: Long?,
+		legacyWriteFenceOwner: String?,
 		legacyWriteFenceGeneration: Long,
 		localFactRevisionCount: Int,
 		localWalEventCount: Int,
@@ -1573,6 +1576,7 @@ abstract class ImportedPressureDao {
 		replacementSourceEvidenceRevision = replacement.sourceEvidenceRevision,
 		replacementErasedAtMs = replacement.erasedAtMs,
 		providerRegistrationGeneration = replacement.providerRegistrationGeneration,
+		legacyWriteFenceOwner = replacement.legacyWriteFenceOwner,
 		legacyWriteFenceGeneration = replacement.legacyWriteFenceGeneration,
 		localFactRevisionCount = replacement.localFactRevisionCount,
 		localWalEventCount = replacement.localWalEventCount,

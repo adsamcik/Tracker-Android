@@ -6,6 +6,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.PressureSourceEraseLocalFailure
 import com.adsamcik.tracker.shared.base.database.PressureSourceEraseLocalFailureReason
+import com.adsamcik.tracker.shared.base.database.PressureSourceEraseWriterFence
 import com.adsamcik.tracker.shared.base.database.auditPressureSourceEraseLocalAuthorityInTransaction
 import com.adsamcik.tracker.shared.base.database.deletePressureSourceEraseLocalPayloadInTransaction
 import com.adsamcik.tracker.shared.base.database.installPressureSourceEraseLocalFencesInTransaction
@@ -33,6 +34,7 @@ import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierResul
 import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierRetryableReason
 import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierToken
 import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierVerification
+import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseFenceOwner
 import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBlockedReason
 import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseRetryableReason
 import javax.inject.Inject
@@ -63,7 +65,7 @@ internal class RoomErasePressureSource internal constructor(
 		request: ErasePressureSourceRequest,
 	): ErasePressureSourceResult = withContext(ioDispatcher) {
 		try {
-			val requiresHardwareAuthority = database.withTransaction {
+			val preflight = database.withTransaction {
 				val state = database.sourceEvidenceStateDao().get()
 					?: unverifiable(
 						ImportedPressureMaintenanceUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING,
@@ -73,13 +75,33 @@ internal class RoomErasePressureSource internal constructor(
 					state.deletedSourceEventHighWaterOrdinal !=
 					request.expectedDeletedSourceEventHighWaterOrdinal
 				) blocked(PressureSourceEraseBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
-				database.pressureSourceEraseRequiresHardwareAuthority().also { required ->
+				val previousErase = database.importedPressureDao().sourceErase()
+				val existingBarrierToken = previousErase?.toBarrierToken()
+				val requiresHardwareAuthority =
+					database.pressureSourceEraseRequiresHardwareAuthority(
+						existingBarrierToken?.toWriterFence(),
+					).also { required ->
 					if (required) preflightLocalPolicy(request)
 				}
+				PressureErasePreflight(
+					isFirstErase = previousErase == null,
+					existingBarrierToken = existingBarrierToken,
+					requiresRevokedAuthority = requiresHardwareAuthority,
+				)
 			}
 
-			val barrierToken = if (requiresHardwareAuthority) establishBarrier(request) else null
-			database.withTransaction { eraseInTransaction(request, barrierToken) }
+			val barrierToken = if (preflight.isFirstErase) {
+				establishBarrier(request)
+			} else {
+				preflight.existingBarrierToken
+			}
+			database.withTransaction {
+				eraseInTransaction(
+					request,
+					barrierToken,
+					preflight.requiresRevokedAuthority,
+				)
+			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (abort: PressureSourceEraseAbort) {
@@ -206,9 +228,13 @@ internal class RoomErasePressureSource internal constructor(
 	private suspend fun eraseInTransaction(
 		request: ErasePressureSourceRequest,
 		barrierToken: PressureSourceEraseBarrierToken?,
+		requireRevokedAuthority: Boolean,
 	): ErasePressureSourceResult {
 		checkpoint(PressureSourceEraseCheckpoint.TRANSACTION_STARTED)
-		barrierToken?.let { verifyBarrier(it) }
+		val verifiedBarrierToken = barrierToken ?: unverifiable(
+			ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		verifyBarrier(verifiedBarrierToken)
 		val state = database.sourceEvidenceStateDao().get()
 			?: unverifiable(ImportedPressureMaintenanceUnverifiableReason.SOURCE_EVIDENCE_STATE_MISSING)
 		if (state.collectedDataEpoch != request.expectedCollectedDataEpoch ||
@@ -216,6 +242,14 @@ internal class RoomErasePressureSource internal constructor(
 			state.deletedSourceEventHighWaterOrdinal !=
 			request.expectedDeletedSourceEventHighWaterOrdinal
 		) blocked(PressureSourceEraseBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED)
+		val writerFence = verifiedBarrierToken.toWriterFence()
+		val requiresRevokedAuthorityNow =
+			database.pressureSourceEraseRequiresHardwareAuthority(writerFence)
+		if (requiresRevokedAuthorityNow && !requireRevokedAuthority) {
+			preflightLocalPolicy(request)
+		}
+		val effectiveRequireRevokedAuthority =
+			requireRevokedAuthority || requiresRevokedAuthorityNow
 		val dao = database.importedPressureDao()
 		when (dao.liveMaintenanceFootprint().validateGlobal(
 			maximumRevisions = limits.maximumImportedRevisions.toLong(),
@@ -283,6 +317,9 @@ internal class RoomErasePressureSource internal constructor(
 			collectPermanentImportedAuthority()
 			authenticateSourceEraseAuthority(it, state)
 		}
+		if (previousErase != null && previousErase.toBarrierToken() != verifiedBarrierToken) {
+			unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
+		}
 
 		val local = database.auditPressureSourceEraseLocalAuthorityInTransaction(
 			expectedCollectedDataEpoch = request.expectedCollectedDataEpoch,
@@ -291,11 +328,9 @@ internal class RoomErasePressureSource internal constructor(
 			expectedCurrentPolicyRevision = request.expectedCurrentPolicyRevision,
 			expectedRevokedConsentEpoch = request.expectedRevokedConsentEpoch,
 			erasedAtMs = request.erasedAtMs,
-			requireRevokedAuthority = barrierToken != null,
+			verifiedWriterFence = writerFence,
+			requireRevokedAuthority = effectiveRequireRevokedAuthority,
 		)
-		if (local.requiresHardwareAuthority && barrierToken == null) {
-			retryable(PressureSourceEraseRetryableReason.CALLBACK_DRAIN_UNAVAILABLE)
-		}
 		val byteBudget = ImportedPressureMaintenanceByteBudget()
 		val live = prepareLiveImportedAuthority(state, request.erasedAtMs, byteBudget)
 		val retained = prepareRetainedImportedAuthority(state, request.erasedAtMs, byteBudget)
@@ -332,23 +367,14 @@ internal class RoomErasePressureSource internal constructor(
 			local,
 			previousAuthority?.legacySamples.orEmpty(),
 		)
-		val durableBarrierToken = barrierToken ?: previousErase?.takeIf {
-			it.legacyWriteFenceGeneration > 0L
-		}?.let {
-			PressureSourceEraseBarrierToken(
-				collectedDataEpoch = it.collectedDataEpoch,
-				providerRegistrationGeneration = it.providerRegistrationGeneration,
-				legacyWriteFenceGeneration = it.legacyWriteFenceGeneration,
-			)
-		}
 		val sourceErase = ImportedPressureSourceEraseEntity.create(
 			collectedDataEpoch = state.collectedDataEpoch,
 			sourceEvidenceRevision = nextRevision,
 			erasedAtMs = request.erasedAtMs,
 			providerRegistrationGeneration =
-				durableBarrierToken?.providerRegistrationGeneration,
-			legacyWriteFenceGeneration =
-				durableBarrierToken?.legacyWriteFenceGeneration ?: 0L,
+				verifiedBarrierToken.providerRegistrationGeneration,
+			legacyWriteFenceOwner = verifiedBarrierToken.legacyWriteFenceOwner.storageValue,
+			legacyWriteFenceGeneration = verifiedBarrierToken.legacyWriteFenceGeneration,
 			localFactRevisionCount = local.factRevisionCount,
 			localWalEventCount = local.walEventCount,
 			legacySampleCount = authority.legacySamples.size,
@@ -900,15 +926,11 @@ internal class RoomErasePressureSource internal constructor(
 			marker.sourceEvidenceRevision > state.revision ||
 			marker.erasedAtMs > state.updatedAtMs
 		) unverifiable(ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE)
-		if (marker.legacyWriteFenceGeneration > 0L) {
-			verifyBarrier(
-				PressureSourceEraseBarrierToken(
-					collectedDataEpoch = marker.collectedDataEpoch,
-					providerRegistrationGeneration = marker.providerRegistrationGeneration,
-					legacyWriteFenceGeneration = marker.legacyWriteFenceGeneration,
-				),
-			)
-		}
+		verifyBarrier(
+			marker.toBarrierToken() ?: unverifiable(
+				ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			),
+		)
 		val expectedWitnessCount = try {
 			Math.addExact(
 				Math.addExact(marker.fencedLocalRunCount, marker.entryDeletionCount),
@@ -1125,6 +1147,33 @@ internal class RoomErasePressureSource internal constructor(
 
 	private fun retryable(reason: PressureSourceEraseRetryableReason): Nothing =
 		throw PressureSourceEraseAbort(ErasePressureSourceResult.RetryableFailure(reason))
+
+	private fun ImportedPressureSourceEraseEntity.toBarrierToken():
+		PressureSourceEraseBarrierToken? {
+		if (legacyWriteFenceGeneration <= 0L) return null
+		val owner = legacyWriteFenceOwner
+			?.let { PressureSourceEraseFenceOwner.fromStorageValue(it) }
+			?: return null
+		return PressureSourceEraseBarrierToken(
+			collectedDataEpoch = collectedDataEpoch,
+			providerRegistrationGeneration = providerRegistrationGeneration,
+			legacyWriteFenceOwner = owner,
+			legacyWriteFenceGeneration = legacyWriteFenceGeneration,
+		)
+	}
+
+	private fun PressureSourceEraseBarrierToken.toWriterFence() =
+		PressureSourceEraseWriterFence(
+			collectedDataEpoch = collectedDataEpoch,
+			owner = legacyWriteFenceOwner.storageValue,
+			ownerGeneration = legacyWriteFenceGeneration,
+		)
+
+	private data class PressureErasePreflight(
+		val isFirstErase: Boolean,
+		val existingBarrierToken: PressureSourceEraseBarrierToken?,
+		val requiresRevokedAuthority: Boolean,
+	)
 
 	private class PressureSourceEraseAbort(
 		val result: ErasePressureSourceResult,

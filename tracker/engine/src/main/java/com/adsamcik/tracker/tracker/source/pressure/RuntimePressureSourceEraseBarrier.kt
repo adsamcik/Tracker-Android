@@ -4,6 +4,7 @@ import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrier
 import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierBlockedReason
 import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierResult
 import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierRetryableReason
+import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseFenceOwner
 import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierToken
 import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierVerification
 import com.adsamcik.tracker.tracker.source.runtime.PressureProviderEraseSettlement
@@ -81,12 +82,14 @@ internal class UnavailableLegacyPressureWriterLifecycleBarrier @Inject construct
 
 internal fun PressureProviderEraseSettlement.toBarrierResult(
 	collectedDataEpoch: Long,
+	legacyWriteFenceOwner: PressureSourceEraseFenceOwner,
 	legacyWriteFenceGeneration: Long,
 ): PressureSourceEraseBarrierResult = when (this) {
 	PressureProviderEraseSettlement.NoLocalProvider -> PressureSourceEraseBarrierResult.NoLocalProvider(
 		PressureSourceEraseBarrierToken(
 			collectedDataEpoch = collectedDataEpoch,
 			providerRegistrationGeneration = null,
+			legacyWriteFenceOwner = legacyWriteFenceOwner,
 			legacyWriteFenceGeneration = legacyWriteFenceGeneration,
 		),
 	)
@@ -94,6 +97,7 @@ internal fun PressureProviderEraseSettlement.toBarrierResult(
 		PressureSourceEraseBarrierToken(
 			collectedDataEpoch = collectedDataEpoch,
 			providerRegistrationGeneration = registrationGeneration,
+			legacyWriteFenceOwner = legacyWriteFenceOwner,
 			legacyWriteFenceGeneration = legacyWriteFenceGeneration,
 		),
 	)

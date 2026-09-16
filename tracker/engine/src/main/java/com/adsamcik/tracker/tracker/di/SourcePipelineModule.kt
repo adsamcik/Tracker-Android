@@ -20,7 +20,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.RequiredProtectedLocation
 import com.adsamcik.tracker.tracker.source.coordinator.RoomSourceProductDrainRouter
 import com.adsamcik.tracker.tracker.source.coordinator.SourceProductDrainRouter
 import com.adsamcik.tracker.tracker.source.coordinator.LegacySourceWriterTransitionBoundary
-import com.adsamcik.tracker.tracker.source.coordinator.UnavailableLegacySourceWriterTransitionBoundary
+import com.adsamcik.tracker.tracker.source.coordinator.PersistenceLegacySourceWriterTransitionBoundary
 import com.adsamcik.tracker.tracker.source.coordinator.SourceWriterRearmAuthority
 import com.adsamcik.tracker.tracker.source.coordinator.UnavailableSourceWriterRearmAuthority
 import com.adsamcik.tracker.tracker.source.coordinator.MonotonicRearmSourceWriterSupport
@@ -89,9 +89,9 @@ object SourcePipelineModule {
 
 	@Provides
 	@Singleton
-	fun provideLegacySourceWriterTransitionBoundary(
-		unavailable: UnavailableLegacySourceWriterTransitionBoundary,
-	): LegacySourceWriterTransitionBoundary = unavailable
+	internal fun provideLegacySourceWriterTransitionBoundary(
+		boundary: PersistenceLegacySourceWriterTransitionBoundary,
+	): LegacySourceWriterTransitionBoundary = boundary
 
 	@Provides
 	@Singleton
