@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiAuthorityOwner
 import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiHistoryCandidate
+import com.adsamcik.tracker.shared.base.database.dao.ImportedWifiHistoryStorageMeasure
 import com.adsamcik.tracker.shared.base.database.dao.WifiLocalObservationOwner
 import com.adsamcik.tracker.shared.base.database.dao.WifiLocalRunOwner
 import com.adsamcik.tracker.shared.base.database.data.ImportedWifiDeletionGenerationEntity
@@ -340,28 +341,50 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 		budget: ImportedWifiProductReadBudget,
 	): ImportedWifiProductBatch {
 		val dao = database.importedWifiDao()
-		var remaining = minOf(limits.maximumAuthorityRows, budget.remainingRows())
-		budget.recordQuery()
-		val headers = dao.entryRevisionsForHistory(identities, checkedLimit(remaining))
-		budget.recordRows(headers)
-		remaining = consumeRows(remaining, headers.size)
-		budget.recordQuery()
-		val receipts = dao.receiptsForHistory(identities, checkedLimit(remaining))
-		budget.recordRows(receipts)
-		remaining = consumeRows(remaining, receipts.size)
-		budget.recordQuery()
-		val runs = dao.runsForHistory(identities, checkedLimit(remaining))
-		budget.recordRows(runs)
-		remaining = consumeRows(remaining, runs.size)
-		budget.recordQuery()
-		val zones = dao.runZonesForHistory(identities, checkedLimit(remaining))
-		budget.recordRows(zones)
-		remaining = consumeRows(remaining, zones.size)
-		budget.recordQuery()
-		val observations = dao.observationsForHistory(identities, checkedLimit(remaining))
-		budget.recordRows(observations)
-		consumeRows(remaining, observations.size)
+		val headers = loadMeasuredRows(
+			budget,
+			{ dao.entryRevisionsForHistoryMeasure(identities) },
+			{ limit -> dao.entryRevisionsForHistory(identities, limit) },
+		)
+		val receipts = loadMeasuredRows(
+			budget,
+			{ dao.receiptsForHistoryMeasure(identities) },
+			{ limit -> dao.receiptsForHistory(identities, limit) },
+		)
+		val runs = loadMeasuredRows(
+			budget,
+			{ dao.runsForHistoryMeasure(identities) },
+			{ limit -> dao.runsForHistory(identities, limit) },
+		)
+		val zones = loadMeasuredRows(
+			budget,
+			{ dao.runZonesForHistoryMeasure(identities) },
+			{ limit -> dao.runZonesForHistory(identities, limit) },
+		)
+		val observations = loadMeasuredRows(
+			budget,
+			{ dao.observationsForHistoryMeasure(identities) },
+			{ limit -> dao.observationsForHistory(identities, limit) },
+		)
 		return ImportedWifiProductBatch(headers, receipts, runs, zones, observations)
+	}
+
+	private suspend fun <T> loadMeasuredRows(
+		budget: ImportedWifiProductReadBudget,
+		measure: suspend () -> ImportedWifiHistoryStorageMeasure,
+		load: suspend (Int) -> List<T>,
+	): List<T> {
+		currentCoroutineContext().ensureActive()
+		budget.recordQuery()
+		val expected = measure()
+		budget.recordScalar(expected)
+		budget.reserve(expected.rowCount, expected.estimatedBytes)
+		val queryLimit = checkedLimit(expected.rowCount.toInt())
+		currentCoroutineContext().ensureActive()
+		budget.recordQuery()
+		val rows = load(queryLimit)
+		if (rows.size.toLong() != expected.rowCount) storedCorrupt()
+		return rows
 	}
 
 	private suspend fun authenticateImportedOwnership(
@@ -674,11 +697,6 @@ internal class RoomImportedWifiProductEvaluator internal constructor(
 		counts.fold(0L) { total, count -> addRowCount(total, count.toLong()) }
 	}
 
-	private fun consumeRows(remaining: Int, loaded: Int): Int {
-		if (loaded > remaining) dependencyOverflow()
-		return remaining - loaded
-	}
-
 	private fun addRowCount(current: Long, added: Long): Long = try {
 		if (current < 0L || added < 0L) dependencyOverflow()
 		Math.addExact(current, added).also {
@@ -792,11 +810,23 @@ private class ImportedWifiProductReadBudget(
 	fun recordScalar(value: Any?) = recordRows(listOf(value))
 
 	fun recordRows(values: Collection<*>) {
-		try {
-			rows = Math.addExact(rows, values.size.toLong())
-			bytes = values.fold(bytes) { total, value ->
+		val estimatedBytes = try {
+			values.fold(0L) { total, value ->
 				Math.addExact(total, value.estimatedReadBytes())
 			}
+		} catch (_: ArithmeticException) {
+			throw ImportedWifiProductReadLimitExceeded()
+		}
+		reserve(values.size.toLong(), estimatedBytes)
+	}
+
+	fun reserve(rowCount: Long, estimatedBytes: Long) {
+		if (rowCount < 0L || estimatedBytes < 0L) {
+			throw ImportedWifiProductReadLimitExceeded()
+		}
+		try {
+			rows = Math.addExact(rows, rowCount)
+			bytes = Math.addExact(bytes, estimatedBytes)
 		} catch (_: ArithmeticException) {
 			throw ImportedWifiProductReadLimitExceeded()
 		}

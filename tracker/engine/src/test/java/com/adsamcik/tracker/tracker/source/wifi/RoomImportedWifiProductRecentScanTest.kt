@@ -23,6 +23,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableCapturedWifiRunV1
 import com.adsamcik.tracker.stats.api.repository.PortableWifiAcquisitionCompleteness
 import com.adsamcik.tracker.stats.api.repository.PortableWifiAvailability
 import com.adsamcik.tracker.stats.api.repository.PortableWifiCaptureCoverage
+import com.adsamcik.tracker.stats.api.repository.WifiCapturedPortableFormatV1
 import com.adsamcik.tracker.stats.api.repository.PortableWifiDeletionScopeDigest
 import com.adsamcik.tracker.stats.api.repository.PortableWifiIdentityKind
 import com.adsamcik.tracker.stats.api.repository.PortableWifiIntegrity
@@ -51,6 +52,7 @@ import org.robolectric.annotation.Config
 class RoomImportedWifiProductRecentScanTest {
 	private lateinit var database: AppDatabase
 	private val ownerQueries = CopyOnWriteArrayList<String>()
+	private val executedQueries = CopyOnWriteArrayList<String>()
 
 	@Before
 	fun setUp() = runTest {
@@ -58,6 +60,7 @@ class RoomImportedWifiProductRecentScanTest {
 			ApplicationProvider.getApplicationContext<Application>(),
 			AppDatabase::class.java,
 		).allowMainThreadQueries().setQueryCallback({ sql, _ ->
+			executedQueries += sql
 			if ("FROM logical_tracking_session" in sql) ownerQueries += sql
 		}, Executor(Runnable::run)).build()
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
@@ -138,7 +141,7 @@ class RoomImportedWifiProductRecentScanTest {
 		val bounded = RoomImportedWifiProductEvaluator(
 			database,
 			{},
-			ImportedWifiProductLimits(maximumAuthorityRows = 20),
+			ImportedWifiProductLimits(maximumAuthorityRows = 30),
 		)
 		val pages = database.withTransaction {
 			val scan = bounded.openRecentScanInTransaction()
@@ -172,6 +175,47 @@ class RoomImportedWifiProductRecentScanTest {
 					ImportedWifiProductRecentRequest(1),
 				)
 			}
+		}
+
+		@Test
+		fun `receipt bytes are rejected by numeric preflight before receipt rows materialize`() = runTest {
+			val imported = entry("maximum-provenance", 100L)
+			val maximum = WifiCapturedPortableFormatV1.MAX_IMPORT_RECEIPT_FIELD_LENGTH
+			val request = ImportPortableCapturedWifiRequest(
+				imported,
+				PortableCapturedWifiImportReceipt(
+					"j".repeat(maximum),
+					"k".repeat(maximum),
+					"s".repeat(maximum),
+					200L,
+				),
+				EPOCH,
+			)
+			importer().importEntry(request) shouldBe ImportPortableCapturedWifiResult.Applied(1L, 1, 1)
+			executedQueries.clear()
+			val evaluator = RoomImportedWifiProductEvaluator(
+				database,
+				{},
+				ImportedWifiProductLimits(maximumAuthorityBytes = 24L * 1024L),
+			)
+
+			val failure = database.withTransaction {
+				evaluator.selectIdentityInTransaction(
+					com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey(
+						imported.identity.value,
+					),
+				)
+			} as ImportedWifiProductEvaluation.Unverifiable
+
+			failure.reason shouldBe ImportedWifiProductFailure.DEPENDENCY_OVERFLOW
+			failure.authenticatedSelection shouldBe null
+			executedQueries.any {
+				"COUNT(*) AS row_count" in it && "FROM imported_wifi_receipt" in it
+			} shouldBe true
+			executedQueries.none {
+				"SELECT * FROM imported_wifi_receipt" in it &&
+					"entry_identity IN" in it
+			} shouldBe true
 		}
 	}
 

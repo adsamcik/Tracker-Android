@@ -205,6 +205,27 @@ abstract class ImportedWifiDao {
 	): List<ImportedWifiEntryRevisionEntity>
 
 	@Query(
+		"""
+		SELECT COUNT(*) AS row_count,
+		       COALESCE(SUM(
+		         512 +
+		         length(CAST(identity AS BLOB)) +
+		         length(CAST(content_checksum AS BLOB)) +
+		         length(CAST(source_format AS BLOB)) +
+		         length(CAST(session_mode AS BLOB)) +
+		         length(CAST(import_job_id AS BLOB)) +
+		         length(CAST(import_entry_key AS BLOB)) +
+		         length(CAST(import_source_name AS BLOB))
+		       ), 0) AS estimated_bytes
+		FROM imported_wifi_entry_revision
+		WHERE identity IN (:identities)
+		""",
+	)
+	abstract suspend fun entryRevisionsForHistoryMeasure(
+		identities: List<String>,
+	): ImportedWifiHistoryStorageMeasure
+
+	@Query(
 		"SELECT * FROM imported_wifi_receipt WHERE entry_identity = :identity " +
 			"ORDER BY entry_import_revision, import_job_id, import_entry_key LIMIT :limit",
 	)
@@ -224,6 +245,25 @@ abstract class ImportedWifiDao {
 		identities: List<String>,
 		limit: Int,
 	): List<ImportedWifiReceiptEntity>
+
+	@Query(
+		"""
+		SELECT COUNT(*) AS row_count,
+		       COALESCE(SUM(
+		         512 +
+		         length(CAST(import_job_id AS BLOB)) +
+		         length(CAST(import_entry_key AS BLOB)) +
+		         length(CAST(import_source_name AS BLOB)) +
+		         length(CAST(entry_identity AS BLOB)) +
+		         length(CAST(entry_content_checksum AS BLOB))
+		       ), 0) AS estimated_bytes
+		FROM imported_wifi_receipt
+		WHERE entry_identity IN (:identities)
+		""",
+	)
+	abstract suspend fun receiptsForHistoryMeasure(
+		identities: List<String>,
+	): ImportedWifiHistoryStorageMeasure
 
 	@Query(
 		"SELECT * FROM imported_wifi_receipt " +
@@ -253,6 +293,27 @@ abstract class ImportedWifiDao {
 	): List<ImportedWifiRunEntity>
 
 	@Query(
+		"""
+		SELECT COUNT(*) AS row_count,
+		       COALESCE(SUM(
+		         512 +
+		         length(CAST(entry_identity AS BLOB)) +
+		         length(CAST(identity AS BLOB)) +
+		         length(CAST(deletion_scope_digest AS BLOB)) +
+		         length(CAST(content_checksum AS BLOB)) +
+		         length(CAST(capture_coverage AS BLOB)) +
+		         length(CAST(availability AS BLOB)) +
+		         length(CAST(acquisition_completeness AS BLOB))
+		       ), 0) AS estimated_bytes
+		FROM imported_wifi_run
+		WHERE entry_identity IN (:identities)
+		""",
+	)
+	abstract suspend fun runsForHistoryMeasure(
+		identities: List<String>,
+	): ImportedWifiHistoryStorageMeasure
+
+	@Query(
 		"SELECT * FROM imported_wifi_run_zone WHERE entry_identity = :identity " +
 			"ORDER BY entry_import_revision, run_identity, ordinal LIMIT :limit",
 	)
@@ -272,6 +333,23 @@ abstract class ImportedWifiDao {
 		identities: List<String>,
 		limit: Int,
 	): List<ImportedWifiRunZoneEntity>
+
+	@Query(
+		"""
+		SELECT COUNT(*) AS row_count,
+		       COALESCE(SUM(
+		         512 +
+		         length(CAST(entry_identity AS BLOB)) +
+		         length(CAST(run_identity AS BLOB)) +
+		         length(CAST(zone_id AS BLOB))
+		       ), 0) AS estimated_bytes
+		FROM imported_wifi_run_zone
+		WHERE entry_identity IN (:identities)
+		""",
+	)
+	abstract suspend fun runZonesForHistoryMeasure(
+		identities: List<String>,
+	): ImportedWifiHistoryStorageMeasure
 
 	@Query(
 		"SELECT * FROM imported_wifi_observation WHERE entry_identity = :identity " +
@@ -295,6 +373,28 @@ abstract class ImportedWifiDao {
 		identities: List<String>,
 		limit: Int,
 	): List<ImportedWifiObservationEntity>
+
+	@Query(
+		"""
+		SELECT COUNT(*) AS row_count,
+		       COALESCE(SUM(
+		         512 +
+		         length(CAST(entry_identity AS BLOB)) +
+		         length(CAST(run_identity AS BLOB)) +
+		         length(CAST(identity AS BLOB)) +
+		         COALESCE(length(CAST(aggregate_owner_identity AS BLOB)), 0) +
+		         length(CAST(content_checksum AS BLOB)) +
+		         length(CAST(stored_zone_id AS BLOB)) +
+		         length(CAST(availability AS BLOB)) +
+		         length(CAST(result_completeness AS BLOB))
+		       ), 0) AS estimated_bytes
+		FROM imported_wifi_observation
+		WHERE entry_identity IN (:identities)
+		""",
+	)
+	abstract suspend fun observationsForHistoryMeasure(
+		identities: List<String>,
+	): ImportedWifiHistoryStorageMeasure
 
 	@Query(
 		"""
@@ -690,6 +790,15 @@ data class ImportedWifiHistoryCandidate(
 	@ColumnInfo(name = "newest_member_start_time_ms") val newestMemberStartTimeMs: Long,
 	@ColumnInfo(name = "newest_member_identity") val newestMemberIdentity: String,
 )
+
+data class ImportedWifiHistoryStorageMeasure(
+	@ColumnInfo(name = "row_count") val rowCount: Long,
+	@ColumnInfo(name = "estimated_bytes") val estimatedBytes: Long,
+) {
+	init {
+		require(rowCount >= 0L && estimatedBytes >= 0L)
+	}
+}
 
 data class ImportedWifiRunIdentityOwner(
 	val identity: String,
