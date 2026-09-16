@@ -883,7 +883,8 @@ class ImportedPressureHistoryEvaluatorTest {
 	}
 
 	@Test
-	fun `stored checksum corruption is a typed unverifiable history row`() = runTest {
+	fun `stored checksum corruption stays typed in source list but has no shared eligible carrier`() =
+		runTest {
 		val request = request()
 		importer(database, testScheduler).importEntry(request)
 		val corrupt = identity(PortablePressureIdentityKind.WINDOW, "corrupt-checksum").value
@@ -897,8 +898,14 @@ class ImportedPressureHistoryEvaluatorTest {
 			selected.candidate,
 			ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
 		)
-		selected.toPublicPressureOnlyEntry().state shouldBe
-			PressureHistoryPresentationState.UNVERIFIABLE
+		val public = pageReader(database).selectRecent(1).single()
+		public.origin shouldBe PressureHistoryOrigin.Imported(
+			ImportedPressureHistoryIdentity(request.entry.identity.value),
+		)
+		public.state shouldBe PressureHistoryPresentationState.UNVERIFIABLE
+		public.pressure.hasQualifiedRetainedProof shouldBe false
+		public.pressure.summary shouldBe null
+		public.pressure.windows shouldBe emptyList()
 		database.withTransaction {
 			pageReader(database).recentImportedEligibleForSharedHistoryInTransaction(1)
 		} shouldBe ImportedHistoryEligiblePage.Unavailable(

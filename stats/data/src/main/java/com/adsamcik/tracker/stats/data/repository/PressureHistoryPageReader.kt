@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureHistoryCandidate
+import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.ImportedPressureHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.PortablePressureDigest
@@ -300,7 +301,11 @@ internal class PressureHistoryPageReader @Inject constructor(
 		expectedContentChecksum: PortablePressureDigest?,
 	): PressureImportedEligibilityDecision = try {
 		val digest = PortablePressureDigest(contentChecksum)
-		if (expectedContentChecksum != null && digest != expectedContentChecksum) {
+		if (entry.pressure.productState == HistoryProductState.FAILED) {
+			PressureImportedEligibilityDecision.Unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+			)
+		} else if (expectedContentChecksum != null && digest != expectedContentChecksum) {
 			PressureImportedEligibilityDecision.Unavailable(
 				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
 			)

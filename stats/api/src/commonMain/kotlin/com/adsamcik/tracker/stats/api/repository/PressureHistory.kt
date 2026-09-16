@@ -26,8 +26,13 @@ data class PressureSessionHistory(
 		require(qualifiedSources.all(capturedSources::contains)) {
 			"Qualified Pressure history requires exact historical capture authority"
 		}
-		require((HistorySource.PRESSURE in qualifiedSources) == pressure.hasRetainedObservation) {
-			"Pressure qualification must match retained qualified Pressure observations"
+		require(!pressure.hasRetainedObservation || HistorySource.PRESSURE in capturedSources) {
+			"Retained Pressure history requires exact historical Pressure capture authority"
+		}
+		require(
+			(HistorySource.PRESSURE in qualifiedSources) == pressure.hasQualifiedRetainedProof,
+		) {
+			"Pressure qualification must match exact retained non-failed Pressure proof"
 		}
 	}
 }
@@ -148,7 +153,7 @@ enum class PressureWindowClosure { TARGET_ELAPSED, SOURCE_BOUNDARY }
 enum class PressureWindowQualification { COMPLETE, PARTIAL }
 
 /**
- * One retained source-qualified Pressure window.
+ * One retained authenticated Pressure window.
  *
  * These are direct Pressure statistics. They are not elevation, ascent, or a calibrated vertical
  * estimate. Stored zone and sampling/gap fields remain attached to the window that owns them.
@@ -230,7 +235,7 @@ data class PressureHistorySummary(
 	}
 }
 
-/** Qualified Pressure facts plus the independent state needed to interpret them truthfully. */
+/** Retained Pressure facts plus the independent state needed to qualify them truthfully. */
 data class PressureHistory(
 	val availability: HistoryAvailability,
 	val evidence: HistoryEvidence,
@@ -268,6 +273,13 @@ data class PressureHistory(
 
 	val hasRetainedObservation: Boolean
 		get() = windows.isNotEmpty()
+
+	/** Retained direct Pressure proof is qualified only while its product remains non-failed. */
+	val hasQualifiedRetainedProof: Boolean
+		get() = availability == HistoryAvailability.AVAILABLE &&
+			evidence == HistoryEvidence.RECORDED &&
+			windows.isNotEmpty() &&
+			productState != HistoryProductState.FAILED
 
 	val zoneAuthorities: Set<String>
 		get() = windows.mapTo(linkedSetOf(), PressureHistoryWindow::zoneId)
