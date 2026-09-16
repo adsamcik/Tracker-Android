@@ -453,6 +453,14 @@ class PersistenceProcessorTest {
 	@DisplayName("durable staging")
 	inner class DurableStaging {
 		@Test
+		fun `staged Pressure work remains visible to lifecycle fences before recovery`() {
+			processor.onSignal(signalWithPressure())
+
+			processor.hasUnsettledPersistenceStateForPressureFence() shouldBe true
+			stagedSignals shouldHaveSize 1
+		}
+
+		@Test
 		fun `legacy Steps authority remains blocked until producer stop flushes staged work`() = runTest {
 			coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
 				val ids = stagedSignals.map { nextCheckpointId++ }
@@ -1271,6 +1279,71 @@ class PersistenceProcessorTest {
 			}
 			coVerify(exactly = 2) { durableBuffer.claimBatch(any()) }
 		}
+
+		@Test
+		fun `fenced Pressure crash replay quarantines corruption and acknowledges pure and mixed rows exactly`() =
+			runTest {
+				coEvery {
+					sourceDestinationOwnerDao.get(
+						SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+						SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+					)
+				} returns pressureOwner(
+					SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+					SourceDestinationOwnerEntity.FIRST_LEGACY_PRESSURE_FENCE_GENERATION,
+				)
+				val purePressure = DurableSignalBuffer.PeekedSignal(
+					1L,
+					signalWithPressure(timestampMs = 1_000_000L),
+				).copy(
+					pressureWriterOwner =
+						SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+					pressureWriterOwnerGeneration =
+						SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+				)
+				val mixed = DurableSignalBuffer.PeekedSignal(
+					2L,
+					signalWithLocation(timestampMs = 1_000_500L).copy(
+						pressure = PressureSignal(1_013.25f, 120f),
+					),
+				).copy(
+					pressureWriterOwner =
+						SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+					pressureWriterOwnerGeneration =
+						SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+				)
+				coEvery { durableBuffer.claimBatch(any()) } returnsMany listOf(
+					claimedBatch(
+						listOf(
+							purePressure,
+							mixed,
+							DurableSignalBuffer.PeekedSignal(3L, null),
+						),
+					),
+					null,
+				)
+
+				processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+
+				coVerify(exactly = 0) {
+					pressureDao.insert(any<Collection<PressureSample>>())
+				}
+				coVerify(exactly = 1) {
+					locationDao.insert(any<Collection<LocationSample>>())
+				}
+				coVerify(exactly = 1) {
+					pendingSignalClaimDao.quarantineClaimed(
+						match { it.sourcePendingId == 3L },
+						"test-claim",
+					)
+				}
+				coVerify(exactly = 1) {
+					pendingSignalClaimDao.deleteClaimedByIds(
+						listOf(1L, 2L),
+						"test-claim",
+					)
+				}
+			}
 
 		@Test
 		fun `recovery persist failure leaves WAL rows and retries on next flush`() = runTest {

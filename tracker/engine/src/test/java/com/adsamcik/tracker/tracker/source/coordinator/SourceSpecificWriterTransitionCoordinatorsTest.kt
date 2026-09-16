@@ -107,6 +107,8 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 			val persistenceLease = ExclusiveTrackingPersistenceLifecycleLease()
 			val persistence = mockk<PersistenceProcessor>()
 			every { persistence.isPipelineActiveForPersistenceLifecycle() } returns false
+			every { persistence.hasUnrecoverablePersistenceStateForLifecycleFence() } returns false
+			every { persistence.hasUnsettledPersistenceStateForPressureFence() } returns false
 			coEvery { persistence.drainOrphanedSignals() } returns true
 			val coordinator = PressureSessionFactWriterTransitionCoordinator(
 				database,
@@ -160,6 +162,8 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 		val persistenceLease = ExclusiveTrackingPersistenceLifecycleLease()
 		val persistence = mockk<PersistenceProcessor>()
 		every { persistence.isPipelineActiveForPersistenceLifecycle() } returns false
+		every { persistence.hasUnrecoverablePersistenceStateForLifecycleFence() } returns false
+		every { persistence.hasUnsettledPersistenceStateForPressureFence() } returns false
 		coEvery { persistence.drainOrphanedSignals() } returns true
 		val coordinator = ActivityCapturedFactWriterTransitionCoordinator(
 			database,
@@ -201,6 +205,8 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 		val persistenceLease = ExclusiveTrackingPersistenceLifecycleLease()
 		val persistence = mockk<PersistenceProcessor>()
 		every { persistence.isPipelineActiveForPersistenceLifecycle() } returns false
+		every { persistence.hasUnrecoverablePersistenceStateForLifecycleFence() } returns false
+		every { persistence.hasUnsettledPersistenceStateForPressureFence() } returns false
 		coEvery { persistence.drainOrphanedSignals() } returns true
 		val coordinator = PressureSessionFactWriterTransitionCoordinator(
 			database,
