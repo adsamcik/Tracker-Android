@@ -196,15 +196,6 @@ internal interface PressureImportedHistoryEligibleReader {
 	): ImportedHistoryEligiblePage<PressureImportedHistoryEligibleEntry>
 }
 
-internal object PendingWifiImportedHistoryEligibleReader : WifiImportedHistoryEligibleReader {
-	override suspend fun recentImportedEligibleForSharedHistoryInTransaction(
-		limit: Int,
-	): ImportedHistoryEligiblePage<WifiImportedHistoryEligibleEntry> {
-		require(limit > 0)
-		return pendingImportedHistoryBridge()
-	}
-}
-
 internal object PendingActivityImportedHistoryEligibleReader :
 	ActivityImportedHistoryEligibleReader {
 	override suspend fun recentImportedEligibleForSharedHistoryInTransaction(

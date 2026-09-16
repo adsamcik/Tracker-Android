@@ -48,11 +48,9 @@ import com.adsamcik.tracker.stats.data.repository.DefaultWifiHistoryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWifiObservationRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWindowedMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.PendingActivityImportedHistoryEligibleReader
-import com.adsamcik.tracker.stats.data.repository.PendingWifiImportedHistoryEligibleReader
 import com.adsamcik.tracker.stats.data.repository.PressureHistoryPageReader
 import com.adsamcik.tracker.stats.data.repository.PressureImportedHistoryEligibleReader
 import com.adsamcik.tracker.stats.data.repository.TrackingHistorySourceUnionReader
-import com.adsamcik.tracker.stats.data.repository.WifiImportedHistoryEligibleReader
 import com.adsamcik.tracker.stats.data.scheduler.WorkManagerAchievementEvaluationScheduler
 import com.adsamcik.tracker.stats.data.worker.AchievementEvaluationTransactionRunner
 import com.adsamcik.tracker.stats.data.worker.RoomAchievementEvaluationTransactionRunner
@@ -208,11 +206,6 @@ internal abstract class TrackingHistoryDataModule {
 @Module
 @InstallIn(SingletonComponent::class)
 internal object PendingImportedHistoryEligibleDataModule {
-	@Provides
-	@Singleton
-	fun provideWifiImportedHistoryEligibleReader(): WifiImportedHistoryEligibleReader =
-		PendingWifiImportedHistoryEligibleReader
-
 	@Provides
 	@Singleton
 	fun provideActivityImportedHistoryEligibleReader(): ActivityImportedHistoryEligibleReader =

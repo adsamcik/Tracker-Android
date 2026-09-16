@@ -83,8 +83,6 @@ class ImportedHistoryUnionContractTest {
 			SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
 		)
 
-		PendingWifiImportedHistoryEligibleReader
-			.recentImportedEligibleForSharedHistoryInTransaction(1) shouldBe unavailable
 		PendingActivityImportedHistoryEligibleReader
 			.recentImportedEligibleForSharedHistoryInTransaction(1) shouldBe unavailable
 	}
