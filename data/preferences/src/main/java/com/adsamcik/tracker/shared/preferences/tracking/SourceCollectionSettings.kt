@@ -22,15 +22,5 @@ data class SourceCollectionSettings(
 	val cell: SourceCollectionFrequency = SourceCollectionFrequency.OFF,
 )
 
-enum class TrackingSourceComponent(val stableCode: Int) {
-	LOCATION(1),
-	ACTIVITY(2),
-	STEPS(3),
-	PRESSURE(4),
-	WIFI(5),
-	CELL(6);
-
-	companion object {
-		fun fromStableCode(value: Int): TrackingSourceComponent = entries.single { it.stableCode == value }
-	}
-}
+typealias TrackingSourceComponent =
+	com.adsamcik.tracker.shared.model.tracking.TrackingSource

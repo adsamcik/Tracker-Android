@@ -102,6 +102,7 @@ class TrackingPurposeContractTest {
 			.map(TrackingDecisionContainmentReason::stableCode) shouldContainExactly listOf(
 				"AUTO_005_CONTROL_EVIDENCE_UNRESOLVED",
 				"RETENTION_AUTHORITY_UNAVAILABLE",
+				"DEVELOPMENT_V28_HANDLING_UNAVAILABLE",
 				"CROSS_MIDNIGHT_POLICY_UNAVAILABLE",
 				"EXPANDED_AMBIENT_LOCATION_UNAVAILABLE",
 				"RADIO_IDENTITY_UNAVAILABLE",
@@ -120,6 +121,13 @@ class TrackingPurposeContractTest {
 			TrackingDecisionContainmentReason.RETENTION_AUTHORITY_UNAVAILABLE
 		AmbientSourceUnavailableReason.RETENTION_POLICY_UNAVAILABLE.containmentReason shouldBe
 			TrackingDecisionContainmentReason.RETENTION_AUTHORITY_UNAVAILABLE
+		TrackingDecisionContainmentReason.DEVELOPMENT_V28_HANDLING_UNAVAILABLE
+			.isOptionalProductDecision shouldBe false
+		TrackingDecisionContainmentReason.DEVELOPMENT_V28_HANDLING_UNAVAILABLE
+			.grantsAuthority shouldBe false
+		TrackingDecisionContainmentReason.entries.forEach { reason ->
+			reason.grantsAuthority shouldBe false
+		}
 	}
 
 	private fun leaseIdentity(

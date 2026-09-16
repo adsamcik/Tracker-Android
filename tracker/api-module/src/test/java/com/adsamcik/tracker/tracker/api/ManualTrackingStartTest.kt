@@ -32,19 +32,17 @@ class ManualTrackingStartTest {
 	}
 
 	@Test
-	fun `optional decision containment does not change manual source readiness`() {
-		TrackingDecisionContainmentReason.entries
-			.filter(TrackingDecisionContainmentReason::isOptionalProductDecision)
-			.forEach { reason ->
-				TrackingCaptureSource.entries.forEach { source ->
-					withClue("${reason.stableCode}:$source") {
-						resolve(
-							source = source,
-							availableSources = setOf(source),
-						) shouldBe ManualTrackingStartReadiness.Ready(2L)
-					}
+	fun `decision containment does not change manual source readiness`() {
+		TrackingDecisionContainmentReason.entries.forEach { reason ->
+			TrackingCaptureSource.entries.forEach { source ->
+				withClue("${reason.stableCode}:$source") {
+					resolve(
+						source = source,
+						availableSources = setOf(source),
+					) shouldBe ManualTrackingStartReadiness.Ready(2L)
 				}
 			}
+		}
 	}
 
 	@ParameterizedTest(name = "{0}-only requests {1}")
