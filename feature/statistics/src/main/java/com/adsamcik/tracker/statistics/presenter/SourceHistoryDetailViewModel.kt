@@ -38,6 +38,10 @@ class SourceHistoryDetailViewModel @Inject constructor(
 	}
 
 	fun retry() {
+		val current = _state.value
+		if (current is SourceHistoryDetailState.Unavailable && !current.canRetry) {
+			return
+		}
 		val generation = ++loadGeneration
 		loadJob?.cancel()
 		loadJob = null
@@ -64,22 +68,25 @@ class SourceHistoryDetailViewModel @Inject constructor(
 				SourceHistoryDetailState.Unavailable(
 					reason = SourceHistoryDetailUnavailableReason.RETRYABLE_FAILURE,
 					source = selection.entry.source,
+					canRetry = true,
 				)
 			}
 			if (generation == loadGeneration && ownedSelection == selection) {
-				_state.value = result
-				if (
-					result is SourceHistoryDetailState.Loaded &&
-					result.selection.entry is SourceAwareHistoryPageEntry.ActivityOnly
-				) {
-					activityPresented = true
-				} else if (
-					result is SourceHistoryDetailState.Unavailable &&
-					selection.entry is SourceAwareHistoryPageEntry.ActivityOnly
-				) {
-					ownershipExpiryJob?.cancel()
-					ownershipExpiryJob = null
-					ownedSelection = null
+				_state.value = when (result) {
+					is SourceHistoryDetailState.Loaded -> {
+						if (result.selection.entry is SourceAwareHistoryPageEntry.ActivityOnly) {
+							activityPresented = true
+						}
+						result
+					}
+					is SourceHistoryDetailState.Unavailable -> {
+						val canRetry = result.canRetry && ownedSelection == selection
+						if (!canRetry) {
+							relinquishOwnership(selection)
+						}
+						result.copy(canRetry = canRetry)
+					}
+					SourceHistoryDetailState.Loading -> result
 				}
 			}
 		}
@@ -126,6 +133,13 @@ class SourceHistoryDetailViewModel @Inject constructor(
 				publishExpired(selection.entry.source)
 			}
 		}
+	}
+
+	private fun relinquishOwnership(selection: SourceHistoryDetailSelection) {
+		if (ownedSelection != selection) return
+		ownershipExpiryJob?.cancel()
+		ownershipExpiryJob = null
+		ownedSelection = null
 	}
 
 	private fun publishExpired(source: com.adsamcik.tracker.stats.api.repository.HistorySource? = null) {

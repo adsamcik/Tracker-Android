@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.statistics.presenter
 
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState

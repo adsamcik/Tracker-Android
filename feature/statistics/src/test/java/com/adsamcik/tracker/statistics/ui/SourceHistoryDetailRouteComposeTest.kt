@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailHandoff
 import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailSelection
 import com.adsamcik.tracker.statistics.R
@@ -26,7 +27,10 @@ import com.adsamcik.tracker.stats.api.repository.WifiHistoryRepository
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import androidx.lifecycle.SavedStateHandle
 import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.spyk
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,10 +49,7 @@ class SourceHistoryDetailRouteComposeTest {
 		val selection = activitySelection()
 		val route = SourceHistoryDetailHandoff.register(selection)
 		val viewModel = SourceHistoryDetailViewModel(
-			presenter = SourceHistoryDetailPresenter(
-				wifiHistoryRepository = mockk<WifiHistoryRepository>(),
-				cellHistoryRepository = mockk<CellHistoryRepository>(),
-			),
+			presenter = presenter(),
 			savedStateHandle = SavedStateHandle(
 				mapOf("selectionToken" to route.selectionToken),
 			),
@@ -82,7 +83,109 @@ class SourceHistoryDetailRouteComposeTest {
 			.assertDoesNotExist()
 	}
 
-	private fun activitySelection(): SourceHistoryDetailSelection {
+	@Test
+	fun `snapshot unavailable hides Retry because destination ownership is relinquished`() {
+		val selection = activitySelection(readSnapshot = null)
+		val route = SourceHistoryDetailHandoff.register(selection)
+		val viewModel = SourceHistoryDetailViewModel(
+			presenter = presenter(),
+			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
+		)
+		setRoute(viewModel)
+
+		composeRule.onNodeWithText(
+			text(R.string.source_history_detail_snapshot_unavailable),
+			substring = true,
+		).assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_retry)).assertDoesNotExist()
+		composeRule.runOnIdle {
+			viewModel.retry()
+			viewModel.state.value shouldBe SourceHistoryDetailState.Unavailable(
+				reason = SourceHistoryDetailUnavailableReason.SNAPSHOT_UNAVAILABLE,
+				source = HistorySource.ACTIVITY,
+			)
+		}
+		viewModel.close()
+	}
+
+	@Test
+	fun `selection changed hides Retry and does not requery stale Activity authority`() {
+		val selection = activitySelection()
+		val stalePresenter = spyk(presenter())
+		coEvery { stalePresenter.load(selection) } returns SourceHistoryDetailState.Unavailable(
+			reason = SourceHistoryDetailUnavailableReason.SELECTION_CHANGED,
+			source = HistorySource.ACTIVITY,
+		)
+		val route = SourceHistoryDetailHandoff.register(selection)
+		val viewModel = SourceHistoryDetailViewModel(
+			presenter = stalePresenter,
+			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
+		)
+		setRoute(viewModel)
+
+		composeRule.onNodeWithText(
+			text(R.string.source_history_detail_changed),
+			substring = true,
+		).assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_retry)).assertDoesNotExist()
+		composeRule.runOnIdle { viewModel.retry() }
+		coVerify(exactly = 1) { stalePresenter.load(selection) }
+		viewModel.close()
+	}
+
+	@Test
+	fun `retryable presenter failure shows Retry and reuses the owned Activity selection once`() {
+		val selection = activitySelection()
+		val retryingPresenter = spyk(presenter())
+		var attempts = 0
+		coEvery { retryingPresenter.load(selection) } coAnswers {
+			attempts += 1
+			if (attempts == 1) {
+				throw IllegalStateException("transient presenter failure")
+			}
+			SourceHistoryDetailState.Loaded(selection)
+		}
+		val route = SourceHistoryDetailHandoff.register(selection)
+		val viewModel = SourceHistoryDetailViewModel(
+			presenter = retryingPresenter,
+			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
+		)
+		setRoute(viewModel)
+
+		composeRule.onNodeWithText(
+			text(R.string.source_history_detail_retryable),
+			substring = true,
+		).assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_retry))
+			.assertIsDisplayed()
+			.performClick()
+
+		composeRule.onNodeWithText(text(R.string.trip_detail_activity_session))
+			.assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_retry)).assertDoesNotExist()
+		coVerify(exactly = 2) { retryingPresenter.load(selection) }
+		viewModel.close()
+	}
+
+	private fun setRoute(viewModel: SourceHistoryDetailViewModel) {
+		composeRule.setContent {
+			MaterialTheme {
+				SourceHistoryDetailRoute(
+					onBack = {},
+					viewModel = viewModel,
+				)
+			}
+		}
+	}
+
+	private fun presenter() = SourceHistoryDetailPresenter(
+		wifiHistoryRepository = mockk<WifiHistoryRepository>(),
+		cellHistoryRepository = mockk<CellHistoryRepository>(),
+	)
+
+	private fun activitySelection(
+		readSnapshot: TrackingHistoryReadSnapshot? = TrackingHistoryReadSnapshot(7L, 11L),
+	): SourceHistoryDetailSelection {
 		val activity = ActivityHistoryEntry(
 			key = ActivityHistoryEntryKey("activity-route"),
 			startTime = EpochMs(1_000L),
@@ -97,7 +200,7 @@ class SourceHistoryDetailRouteComposeTest {
 		)
 		return SourceHistoryDetailSelection(
 			entry = SourceAwareHistoryPageEntry.ActivityOnly(activity),
-			readSnapshot = TrackingHistoryReadSnapshot(7L, 11L),
+			readSnapshot = readSnapshot,
 		)
 	}
 

@@ -127,12 +127,14 @@ fun SourceHistoryDetailRoute(
 					is SourceAwareHistoryPageEntry.PressureOnly -> SourceHistoryUnavailable(
 						reason = SourceHistoryDetailUnavailableReason.SELECTION_CHANGED,
 						source = entry.source,
+						canRetry = false,
 						onRetry = viewModel::retry,
 					)
 				}
 				is SourceHistoryDetailState.Unavailable -> SourceHistoryUnavailable(
 					reason = current.reason,
 					source = current.source,
+					canRetry = current.canRetry,
 					onRetry = viewModel::retry,
 				)
 			}
@@ -144,6 +146,7 @@ fun SourceHistoryDetailRoute(
 private fun SourceHistoryUnavailable(
 	reason: SourceHistoryDetailUnavailableReason,
 	source: HistorySource?,
+	canRetry: Boolean,
 	onRetry: () -> Unit,
 ) {
 	Box(
@@ -158,7 +161,7 @@ private fun SourceHistoryUnavailable(
 				title = stringResource(R.string.source_history_detail_unavailable),
 				subtitle = sourceHistoryUnavailableMessage(reason, source),
 			)
-			if (reason != SourceHistoryDetailUnavailableReason.SELECTION_EXPIRED) {
+			if (canRetry) {
 				Spacer(Modifier.height(16.dp))
 				Button(onClick = onRetry) {
 					Text(stringResource(R.string.trip_detail_retry))

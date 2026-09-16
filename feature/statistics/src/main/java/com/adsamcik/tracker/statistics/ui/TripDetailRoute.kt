@@ -73,6 +73,7 @@ import com.adsamcik.tracker.statistics.presenter.supportsLocationPresentation
 import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.SourceOnlyHistoryIntent
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.TripSummary
@@ -566,7 +567,7 @@ internal fun TripDetailSourceFailure(onRetry: () -> Unit) {
 private fun TripDetailSourceFailure(
 	onRetry: () -> Unit,
 	reason: TrackingHistoryUnavailableReason?,
-	source: com.adsamcik.tracker.stats.api.repository.HistorySource?,
+	source: HistorySource?,
 ) {
 	Box(
 		modifier = Modifier
@@ -594,36 +595,30 @@ private fun TripDetailSourceFailure(
 				Text(stringResource(R.string.trip_detail_retry))
 			}
 		}
-
-		private val TrackingHistoryUnavailableReason.detailMessageResource: Int
-			get() = when (this) {
-				TrackingHistoryUnavailableReason.SOURCE_EVIDENCE_STATE_UNAVAILABLE ->
-					R.string.trip_detail_source_failure_evidence
-				TrackingHistoryUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED ->
-					R.string.trip_detail_source_failure_budget
-				TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE ->
-					R.string.trip_detail_source_failure_integrity
-				TrackingHistoryUnavailableReason.PHYSICAL_MEMBERSHIP_INVALID ->
-					R.string.trip_detail_source_failure_membership
-			}
-
-		private val com.adsamcik.tracker.stats.api.repository.HistorySource.detailLabelResource: Int
-			get() = when (this) {
-				com.adsamcik.tracker.stats.api.repository.HistorySource.LOCATION ->
-					R.string.trip_detail_source_location
-				com.adsamcik.tracker.stats.api.repository.HistorySource.WIFI ->
-					R.string.trip_detail_source_wifi
-				com.adsamcik.tracker.stats.api.repository.HistorySource.CELL ->
-					R.string.trip_detail_source_cell
-				com.adsamcik.tracker.stats.api.repository.HistorySource.ACTIVITY ->
-					R.string.trip_detail_source_activity
-				com.adsamcik.tracker.stats.api.repository.HistorySource.STEPS ->
-					R.string.trip_detail_source_steps
-				com.adsamcik.tracker.stats.api.repository.HistorySource.PRESSURE ->
-					R.string.trip_detail_source_pressure
-			}
 	}
 }
+
+private val TrackingHistoryUnavailableReason.detailMessageResource: Int
+	get() = when (this) {
+		TrackingHistoryUnavailableReason.SOURCE_EVIDENCE_STATE_UNAVAILABLE ->
+			R.string.trip_detail_source_failure_evidence
+		TrackingHistoryUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED ->
+			R.string.trip_detail_source_failure_budget
+		TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE ->
+			R.string.trip_detail_source_failure_integrity
+		TrackingHistoryUnavailableReason.PHYSICAL_MEMBERSHIP_INVALID ->
+			R.string.trip_detail_source_failure_membership
+	}
+
+private val HistorySource.detailLabelResource: Int
+	get() = when (this) {
+		HistorySource.LOCATION -> R.string.trip_detail_source_location
+		HistorySource.WIFI -> R.string.trip_detail_source_wifi
+		HistorySource.CELL -> R.string.trip_detail_source_cell
+		HistorySource.ACTIVITY -> R.string.trip_detail_source_activity
+		HistorySource.STEPS -> R.string.trip_detail_source_steps
+		HistorySource.PRESSURE -> R.string.trip_detail_source_pressure
+	}
 
 /** Contained selected-detail surface for authenticated exact Pressure-only capture history. */
 @Composable

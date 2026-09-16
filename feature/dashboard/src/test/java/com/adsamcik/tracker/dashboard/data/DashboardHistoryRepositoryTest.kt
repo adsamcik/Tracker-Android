@@ -103,7 +103,7 @@ class DashboardHistoryRepositoryTest {
 				coverage = StepsHistoryCoverage.COMPLETE, causes = emptySet(),
 			))),
 		)
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_LIMIT) } returns flowOf(emptyList())
+		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(emptyList())
 		every {
 			trackingHistoryRepository.observeRecentSourceAwarePage(emptyList(), RECENT_HISTORY_LIMIT)
 		} returns flowOf(SourceAwareHistoryPageQuery.Content(

@@ -23,6 +23,7 @@ sealed interface SourceHistoryDetailState {
 	data class Unavailable(
 		val reason: SourceHistoryDetailUnavailableReason,
 		val source: HistorySource?,
+		val canRetry: Boolean = false,
 	) : SourceHistoryDetailState
 }
 
@@ -102,6 +103,7 @@ class SourceHistoryDetailPresenter @Inject constructor(
 			is WifiHistoryQuery.Failed -> SourceHistoryDetailState.Unavailable(
 				reason = query.cause.toDetailUnavailableReason(),
 				source = HistorySource.WIFI,
+				canRetry = true,
 			)
 			WifiHistoryQuery.NotFound -> SourceHistoryDetailState.Unavailable(
 				reason = SourceHistoryDetailUnavailableReason.NOT_FOUND,
@@ -124,7 +126,7 @@ class SourceHistoryDetailPresenter @Inject constructor(
 						query.entry.state == CellHistoryProductState.FAILED ||
 						query.entry.causes.any(CellHistoryCause::isIntegrityFailure) ->
 						SourceHistoryDetailState.Unavailable(
-								reason = query.entry.causes.toCellDetailUnavailableReason(),
+							reason = query.entry.causes.toCellDetailUnavailableReason(),
 							source = HistorySource.CELL,
 						)
 					else -> SourceHistoryDetailState.Loaded(

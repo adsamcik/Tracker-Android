@@ -48,6 +48,7 @@ import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.spyk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -258,6 +259,99 @@ class SourceHistoryDetailPresenterTest {
 	}
 
 	@Test
+	fun `Activity snapshot unavailable relinquishes ownership and retry is a no-op`() = runTest {
+		val selection = importedActivitySelection("activity-snapshot-vm").copy(
+			readSnapshot = null,
+		)
+		val route = SourceHistoryDetailHandoff.register(selection)
+		val viewModel = SourceHistoryDetailViewModel(
+			presenter = presenter,
+			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
+		)
+		runCurrent()
+		val unavailable = SourceHistoryDetailState.Unavailable(
+			reason = SourceHistoryDetailUnavailableReason.SNAPSHOT_UNAVAILABLE,
+			source = com.adsamcik.tracker.stats.api.repository.HistorySource.ACTIVITY,
+		)
+		viewModel.state.value shouldBe unavailable
+
+		viewModel.retry()
+		runCurrent()
+
+		viewModel.state.value shouldBe unavailable
+		SourceHistoryDetailHandoff.consume(route.selectionToken) shouldBe null
+		viewModel.close()
+	}
+
+	@Test
+	fun `Activity selection changed relinquishes stale authority and cannot retry`() = runTest {
+		val selection = importedActivitySelection("activity-selection-changed")
+		val stalePresenter = spyk(presenter)
+		coEvery { stalePresenter.load(selection) } returns SourceHistoryDetailState.Unavailable(
+			reason = SourceHistoryDetailUnavailableReason.SELECTION_CHANGED,
+			source = com.adsamcik.tracker.stats.api.repository.HistorySource.ACTIVITY,
+		)
+		val route = SourceHistoryDetailHandoff.register(selection)
+		val viewModel = SourceHistoryDetailViewModel(
+			presenter = stalePresenter,
+			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
+		)
+		runCurrent()
+		val unavailable = SourceHistoryDetailState.Unavailable(
+			reason = SourceHistoryDetailUnavailableReason.SELECTION_CHANGED,
+			source = com.adsamcik.tracker.stats.api.repository.HistorySource.ACTIVITY,
+		)
+		viewModel.state.value shouldBe unavailable
+
+		viewModel.retry()
+		runCurrent()
+
+		viewModel.state.value shouldBe unavailable
+		coVerify(exactly = 1) { stalePresenter.load(selection) }
+		viewModel.close()
+	}
+
+	@Test
+	fun `Activity retryable presenter failure retains one owner for a second attempt`() = runTest {
+		val selection = importedActivitySelection("activity-retryable")
+		val retryingPresenter = spyk(presenter)
+		var attempts = 0
+		coEvery { retryingPresenter.load(selection) } coAnswers {
+			attempts += 1
+			if (attempts == 1) {
+				throw IllegalStateException("transient presenter failure")
+			}
+			SourceHistoryDetailState.Loaded(selection)
+		}
+		val route = SourceHistoryDetailHandoff.register(selection)
+		val viewModel = SourceHistoryDetailViewModel(
+			presenter = retryingPresenter,
+			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
+		)
+		runCurrent()
+		viewModel.state.value shouldBe SourceHistoryDetailState.Unavailable(
+			reason = SourceHistoryDetailUnavailableReason.RETRYABLE_FAILURE,
+			source = com.adsamcik.tracker.stats.api.repository.HistorySource.ACTIVITY,
+			canRetry = true,
+		)
+
+		viewModel.retry()
+		runCurrent()
+
+		viewModel.state.value shouldBe SourceHistoryDetailState.Loaded(selection)
+		coVerify(exactly = 2) { retryingPresenter.load(selection) }
+		SourceHistoryDetailHandoff.consume(route.selectionToken) shouldBe null
+
+		advanceTimeBy(SourceHistoryDetailHandoff.DESTINATION_OWNERSHIP_TIMEOUT_MILLIS + 1L)
+		runCurrent()
+		viewModel.state.value shouldBe SourceHistoryDetailState.Unavailable(
+			reason = SourceHistoryDetailUnavailableReason.SELECTION_EXPIRED,
+			source = com.adsamcik.tracker.stats.api.repository.HistorySource.ACTIVITY,
+		)
+		viewModel.close()
+	}
+
+	@Test
 	fun `retry clears previously loaded Wi-Fi when exact query fails`() = runTest {
 		val entry = localWifiEntry()
 		val selection = SourceHistoryDetailSelection(
@@ -283,6 +377,7 @@ class SourceHistoryDetailPresenterTest {
 		viewModel.state.value shouldBe SourceHistoryDetailState.Unavailable(
 			reason = SourceHistoryDetailUnavailableReason.SOURCE_INTEGRITY_FAILURE,
 			source = com.adsamcik.tracker.stats.api.repository.HistorySource.WIFI,
+			canRetry = true,
 		)
 		collector.cancel()
 		viewModel.close()
@@ -339,6 +434,7 @@ class SourceHistoryDetailPresenterTest {
 		presenter.load(selection) shouldBe SourceHistoryDetailState.Unavailable(
 			reason = SourceHistoryDetailUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
 			source = com.adsamcik.tracker.stats.api.repository.HistorySource.WIFI,
+			canRetry = true,
 		)
 	}
 
@@ -380,14 +476,14 @@ class SourceHistoryDetailPresenterTest {
 		viewModel.retry()
 		viewModel.state.value shouldBe SourceHistoryDetailState.Unavailable(
 			reason = SourceHistoryDetailUnavailableReason.SELECTION_EXPIRED,
-			source = null,
+			source = com.adsamcik.tracker.stats.api.repository.HistorySource.WIFI,
 		)
 		gate.complete(Unit)
 		advanceUntilIdle()
 
 		viewModel.state.value shouldBe SourceHistoryDetailState.Unavailable(
 			reason = SourceHistoryDetailUnavailableReason.SELECTION_EXPIRED,
-			source = null,
+			source = com.adsamcik.tracker.stats.api.repository.HistorySource.WIFI,
 		)
 		viewModel.close()
 	}
