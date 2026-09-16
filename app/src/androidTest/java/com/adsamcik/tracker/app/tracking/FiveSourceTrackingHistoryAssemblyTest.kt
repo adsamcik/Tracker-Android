@@ -20,9 +20,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
-import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
 import com.adsamcik.tracker.stats.api.repository.CellHistoryOrigin
-import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.ImportPortableCapturedWifiRequest
@@ -321,7 +319,7 @@ class FiveSourceTrackingHistoryAssemblyTest {
 	}
 
 	@Test
-	fun readableCellOriginConflictRemainsNonqualifyingFailedCarrier() = runTest {
+	fun readableCellOriginConflictFailsClosedWithoutPageOrSelector() = runTest {
 		val logicalId = "five-source-cell-readable-conflict"
 		val cell = cellAssemblyEntry(
 			logicalId,
@@ -336,14 +334,13 @@ class FiveSourceTrackingHistoryAssemblyTest {
 			candidateSegmentIds = emptyList(),
 			limit = 6,
 		).first()
-		val content = query as SourceAwareHistoryPageQuery.Content
-		val failed = content.entries.filterIsInstance<SourceAwareHistoryPageEntry.CellOnly>()
-			.single().history
-		assertEquals(CellHistoryProductState.UNVERIFIABLE, failed.state)
-		assertEquals(setOf(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT), failed.causes)
-		assertTrue(failed.observations.isEmpty())
-		val importedOrigin = failed.origin as CellHistoryOrigin.Imported
-		assertEquals(cell.identity.value, importedOrigin.selection.identity.value)
+		assertEquals(
+			SourceAwareHistoryPageQuery.Unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+				HistorySource.CELL,
+			),
+			query,
+		)
 	}
 
 	@Test
