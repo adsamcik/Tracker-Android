@@ -971,6 +971,7 @@ abstract class AppDatabase : RoomDatabase() {
 			// Source-event pipeline. Delete dependent state before immutable evidence.
 			database.locationProjectionDao().deleteAllObservations()
 			database.openHelper.writableDatabase.execSQL("DELETE FROM source_capture_admission_barrier")
+			database.openHelper.writableDatabase.execSQL("DELETE FROM source_run_retirement")
 			database.sourceBrokerDao().deleteAllAuthorizations()
 			database.sourceBrokerDao().deleteAllRegistrations()
 			database.sourceBrokerDao().deleteAllDemands()
@@ -992,7 +993,6 @@ abstract class AppDatabase : RoomDatabase() {
 			database.sourceSessionDao().deleteAllLifecycleIntents()
 			database.sourceSessionDao().deleteAllManifestSources()
 			database.sourceSessionDao().deleteAllManifests()
-			database.openHelper.writableDatabase.execSQL("DELETE FROM source_run_retirement")
 			database.sourceSessionDao().deleteAllServiceRuns()
 			database.sourceSessionDao().deleteAllSessions()
 			database.sourceEventWalDao().deleteAll()
