@@ -64,6 +64,7 @@ class TrackingSourceFullClearAssemblyTest {
 			val importedCell = seedImportedCellDeletionAuthority()
 			val capturedCell = seedCapturedCellDeletionAuthority()
 			val ambientArchive = seedAmbientWifiPayload()
+			val stepsScope = seedStepsFence()
 			seedRuntimeSettlementRows()
 
 			AppDatabase.deleteAllCollectedData(
@@ -78,6 +79,7 @@ class TrackingSourceFullClearAssemblyTest {
 			assertWifiAuthority(wifi, EPOCH + 1L)
 			assertImportedCellAuthority(importedCell, EPOCH + 1L)
 			assertCapturedCellAuthority(capturedCell, EPOCH + 1L)
+			assertStepsFence(stepsScope, EPOCH + 1L)
 			database.ambientWifiFactDao().importedFactCount() shouldBe 0L
 			database.ambientWifiFactDao().importTombstone(ambientArchive) shouldNotBe null
 			database.ambientWifiFactDao().replayFootprint(
@@ -100,6 +102,7 @@ class TrackingSourceFullClearAssemblyTest {
 			assertWifiAuthority(wifi, EPOCH + 2L)
 			assertImportedCellAuthority(importedCell, EPOCH + 2L)
 			assertCapturedCellAuthority(capturedCell, EPOCH + 2L)
+			assertStepsFence(stepsScope, EPOCH + 2L)
 			database.ambientWifiFactDao().importedFactCount() shouldBe 0L
 			database.ambientWifiFactDao().importTombstone(ambientArchive) shouldNotBe null
 			database.ambientWifiFactDao().replayFootprint(
@@ -381,6 +384,17 @@ class TrackingSourceFullClearAssemblyTest {
 
 	private fun seedRuntimeSettlementRows() {
 		database.openHelper.writableDatabase.execSQL(
+			"INSERT INTO provider_registration_generation(" +
+				"source_kind, registration_generation, source_instance_id, owner_scope, " +
+				"clock_domain_id, physical_configuration_fingerprint, collected_data_epoch, " +
+				"provider_residency, provider_process_incarnation_id, status, reserved_at_ms, " +
+				"reserved_elapsed_realtime_nanos, accepted_at_ms, accepted_elapsed_realtime_nanos, " +
+				"retired_at_ms, retired_elapsed_realtime_nanos, failure_code, " +
+				"capture_callback_barrier_authorization_revision) VALUES (" +
+				"5, 1, 'wifi', 'source-broker:5', 'boot', 'fingerprint', $EPOCH, " +
+				"'SYSTEM_REARMABLE', NULL, 'RETIRED', 1, 1, NULL, NULL, 1, 1, NULL, 1)",
+		)
+		database.openHelper.writableDatabase.execSQL(
 			"INSERT INTO source_capture_admission_barrier(" +
 				"source_kind, registration_generation, source_instance_id, " +
 				"through_authorization_revision, last_admission_ordinal, last_source_sequence, " +
@@ -393,6 +407,46 @@ class TrackingSourceFullClearAssemblyTest {
 				"cutoff_elapsed_realtime_nanos, cutoff_wall_time_ms, state, updated_at_ms) " +
 				"VALUES ('entry', 'run', 5, 'wifi', 1, 'action', 1, 1, 1, 1, 'REQUESTED', 1)",
 		)
+		database.openHelper.writableDatabase.execSQL(
+			"CREATE TRIGGER require_runtime_dependents_deleted_before_registration " +
+				"BEFORE DELETE ON provider_registration_generation " +
+				"WHEN EXISTS(SELECT 1 FROM source_capture_admission_barrier " +
+				"WHERE source_kind = OLD.source_kind " +
+				"AND registration_generation = OLD.registration_generation) " +
+				"OR EXISTS(SELECT 1 FROM source_run_retirement " +
+				"WHERE source_kind = OLD.source_kind " +
+				"AND source_instance_id = OLD.source_instance_id " +
+				"AND registration_generation = OLD.registration_generation) " +
+				"BEGIN SELECT RAISE(ABORT, 'runtime dependents survived registration delete'); END",
+		)
+	}
+
+	private suspend fun seedStepsFence(): String {
+		val scope = digest('d')
+		database.sourceDeletionFenceDao().insertIfAbsent(
+			SourceDeletionFenceEntity.createForOriginalRunDigest(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				SessionManifestPurposeCode.SESSION_CAPTURE,
+				scope,
+				2L,
+				EPOCH,
+				50L,
+			),
+		) shouldNotBe -1L
+		return scope
+	}
+
+	private suspend fun assertStepsFence(scope: String, epoch: Long) {
+		requireNotNull(database.sourceDeletionFenceDao().get(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			SessionManifestPurposeCode.SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			scope,
+		)).also { fence ->
+			fence.collectedDataEpoch shouldBe epoch
+			fence.fenceGeneration shouldBe 2L
+			fence.deletedAtMs shouldBe 50L
+		}
 	}
 
 	private suspend fun assertWifiAuthority(

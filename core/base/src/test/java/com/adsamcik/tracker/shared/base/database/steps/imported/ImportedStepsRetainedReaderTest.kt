@@ -141,7 +141,7 @@ class ImportedStepsRetainedReaderTest {
 			val fence = database.sourceDeletionFenceDao().get(SourceDestinationOwnerEntity.SOURCE_STEPS,
 				StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE, SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
 				run.deletionScopeDigest.value).shouldNotBeNull()
-			fence.collectedDataEpoch shouldBe 2L
+			fence.collectedDataEpoch shouldBe 3L
 			fence.deletedAtMs shouldBe 500L
 		}
 		database.importedStepsDao().entry(portable.identity.value) shouldBe null
@@ -227,6 +227,59 @@ class ImportedStepsRetainedReaderTest {
 		database.importedStepsDao().entry(portable.identity.value).shouldNotBeNull()
 		database.stepFactRevisionDao().countAll() shouldBe 4L
 		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `corrupt retained Steps fence aborts full clear without publishing or deleting payload`() = runTest {
+		val portable = seed()
+		val fences = portable.runs.map { run ->
+			SourceDeletionFenceEntity.createForOriginalRunDigest(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				run.deletionScopeDigest.value,
+				1L,
+				1L,
+				100L,
+			)
+		}.sortedBy(SourceDeletionFenceEntity::scopeIdentityDigest)
+		fences.forEach { database.sourceDeletionFenceDao().insertIfAbsent(it) }
+		val corruptScope = fences.last().scopeIdentityDigest
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_deletion_fence SET effect_checksum = 'corrupt' " +
+				"WHERE source_kind = ? AND purpose = ? AND scope_identity_digest = ?",
+			arrayOf(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				corruptScope,
+			),
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			AppDatabase.deleteAllCollectedData(database, 2L, null, 500L)
+		}
+
+		database.sourceEvidenceStateDao().get().shouldNotBeNull().collectedDataEpoch shouldBe 1L
+		database.importedStepsDao().entry(portable.identity.value).shouldNotBeNull()
+		database.stepFactRevisionDao().countAll() shouldBe 4L
+		database.sourceDeletionFenceDao().get(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			fences.first().scopeIdentityDigest,
+		) shouldBe fences.first()
+		database.openHelper.writableDatabase.query(
+			"SELECT collected_data_epoch, effect_checksum FROM source_deletion_fence " +
+				"WHERE source_kind = ? AND purpose = ? AND scope_identity_digest = ?",
+			arrayOf(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				corruptScope,
+			),
+		).use { cursor ->
+			cursor.moveToFirst() shouldBe true
+			cursor.getLong(0) shouldBe 1L
+			cursor.getString(1) shouldBe "corrupt"
+		}
 	}
 
 	@Test
