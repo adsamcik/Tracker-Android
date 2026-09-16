@@ -315,6 +315,38 @@ class ImportedStepsRetainedReaderTest {
 		database.sourceSessionDao().serviceRun("run-capture") shouldBe null
 	}
 
+	@Test
+	fun `retained exact Steps fence wins a matching live-capture candidate`() = runTest {
+		seedLiveMembership("winner", "SESSION_CAPTURE", true)
+		val scope = PortableStepsDeletionScopeDigest.derive("entry-winner", "run-winner")
+		val retained = SourceDeletionFenceEntity.createForOriginalRunDigest(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			scope.value,
+			4L,
+			1L,
+			50L,
+		)
+		database.sourceDeletionFenceDao().insertIfAbsent(retained)
+
+		AppDatabase.deleteAllCollectedData(database, 2L, null, 500L)
+
+		database.sourceDeletionFenceDao().get(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			scope.value,
+		) shouldBe SourceDeletionFenceEntity.createForOriginalRunDigest(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			scope.value,
+			4L,
+			2L,
+			50L,
+		)
+		database.sourceDeletionFenceDao().countAll() shouldBe 1L
+	}
+
 	private suspend fun seedLiveMembership(name: String, purpose: String, persistenceEligible: Boolean) {
 		val logical = "entry-$name"
 		val run = "run-$name"

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.content.Context
+import android.database.sqlite.SQLiteConstraintException
 import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -1148,6 +1149,33 @@ class AppDatabaseMigration27To28Test {
 			assertEquals(0 to null, columns["pressure_writer_owner"])
 			assertEquals(0 to null, columns["pressure_writer_owner_generation"])
 		}
+		fun assertPressureOwnerRejected(update: String) {
+			val failure = runCatching { database.execSQL(update) }.exceptionOrNull()
+			assertTrue(
+				generateSequence(failure) { it.cause }
+					.any { it is SQLiteConstraintException },
+			)
+		}
+		assertPressureOwnerRejected(
+			"UPDATE pending_signal SET pressure_writer_owner = 'UNKNOWN_PRESSURE_OWNER', " +
+				"pressure_writer_owner_generation = 2 WHERE signal_id = 'v27-pending-signal'",
+		)
+		assertPressureOwnerRejected(
+			"UPDATE pending_signal SET pressure_writer_owner = NULL, " +
+				"pressure_writer_owner_generation = 2 WHERE signal_id = 'v27-pending-signal'",
+		)
+		assertPressureOwnerRejected(
+			"UPDATE pending_signal SET pressure_writer_owner = 'LEGACY_PRESSURE_SAMPLE', " +
+				"pressure_writer_owner_generation = 0 WHERE signal_id = 'v27-pending-signal'",
+		)
+		database.execSQL(
+			"UPDATE pending_signal SET pressure_writer_owner = 'PRESSURE_SESSION_FACTS', " +
+				"pressure_writer_owner_generation = 3 WHERE signal_id = 'v27-pending-signal'",
+		)
+		database.execSQL(
+			"UPDATE pending_signal SET pressure_writer_owner = NULL, " +
+				"pressure_writer_owner_generation = NULL WHERE signal_id = 'v27-pending-signal'",
+		)
 		assertTableCount(database, "quarantined_signal", 1)
 		database.query(
 			"SELECT created_at, acquired_at_ms FROM quarantined_signal " +

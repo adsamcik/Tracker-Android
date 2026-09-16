@@ -89,6 +89,7 @@ class TrackingSourceFullClearAssemblyTest {
 			) shouldNotBe null
 			rowCount("source_capture_admission_barrier") shouldBe 0L
 			rowCount("source_run_retirement") shouldBe 0L
+			rowCount("source_authorization") shouldBe 0L
 
 			AppDatabase.deleteAllCollectedData(
 				database = database,
@@ -406,6 +407,25 @@ class TrackingSourceFullClearAssemblyTest {
 				"registration_generation, action_id, attempt_count, lease_generation, " +
 				"cutoff_elapsed_realtime_nanos, cutoff_wall_time_ms, state, updated_at_ms) " +
 				"VALUES ('entry', 'run', 5, 'wifi', 1, 'action', 1, 1, 1, 1, 'REQUESTED', 1)",
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"INSERT INTO source_authorization(" +
+				"source_kind, registration_generation, authorization_revision, member_id, " +
+				"authorization_fingerprint, purpose_eligibility_mask, demand_id, consumer_id, " +
+				"purpose, source_policy_revision, consent_epoch, persistence_eligible, " +
+				"effective_boot_id, effective_elapsed_realtime_nanos, effective_wall_time_ms, " +
+				"logical_tracking_id, service_run_id, manifest_revision, " +
+				"lifecycle_lease_generation) VALUES (" +
+				"5, 1, 1, '__DENY_ALL__', 'deny', 0, NULL, NULL, NULL, NULL, NULL, 0, " +
+				"'boot', 1, 1, NULL, NULL, NULL, NULL)",
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"CREATE TRIGGER require_runtime_dependents_deleted_before_authorization " +
+				"BEFORE DELETE ON source_authorization " +
+				"WHEN EXISTS(SELECT 1 FROM source_capture_admission_barrier) " +
+				"OR EXISTS(SELECT 1 FROM source_run_retirement) " +
+				"BEGIN SELECT RAISE(ABORT, " +
+				"'runtime dependents survived authorization delete'); END",
 		)
 		database.openHelper.writableDatabase.execSQL(
 			"CREATE TRIGGER require_runtime_dependents_deleted_before_registration " +

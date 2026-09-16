@@ -99,6 +99,63 @@ class ImportedActivityRetentionTemporalSchemaTest {
 		columns["structural_zone_coverage_complete"] shouldBe ColumnShape(1, "0")
 	}
 
+	@Test
+	fun `post migration available and redacted temporal authority persists exactly`() {
+		val database = helper.writableDatabase
+		addImportedActivityRetentionTemporalAuthorityColumns(database)
+
+		insertTemporalReceipt(
+			database = database,
+			entryIdentity = "available",
+			startTimeMs = 10L,
+			endTimeMs = 20L,
+			receivedAtMs = 20L,
+			state = "AVAILABLE",
+			latestMemberStartTimeMs = 15L,
+			latestMemberIdentity = "sha256:${"a".repeat(64)}",
+			rangeCount = 1,
+			rangePayload = "UTC:10:20",
+			coverageComplete = 1,
+			effectChecksum = "available-effect",
+		)
+		insertTemporalReceipt(
+			database = database,
+			entryIdentity = "redacted",
+			startTimeMs = 0L,
+			endTimeMs = 0L,
+			receivedAtMs = 0L,
+			state = "REDACTED",
+			latestMemberStartTimeMs = null,
+			latestMemberIdentity = null,
+			rangeCount = 0,
+			rangePayload = "",
+			coverageComplete = 0,
+			effectChecksum = "redacted-effect",
+		)
+
+		assertTemporalReceipt(
+			database,
+			"available",
+			TemporalShape(
+				"AVAILABLE",
+				10L,
+				20L,
+				20L,
+				15L,
+				"sha256:${"a".repeat(64)}",
+				1,
+				"UTC:10:20",
+				1,
+				"available-effect",
+			),
+		)
+		assertTemporalReceipt(
+			database,
+			"redacted",
+			TemporalShape("REDACTED", 0L, 0L, 0L, null, null, 0, "", 0, "redacted-effect"),
+		)
+	}
+
 	private fun createLegacyReceiptTable(database: SupportSQLiteDatabase) {
 		database.execSQL(
 			"""
@@ -155,8 +212,99 @@ class ImportedActivityRetentionTemporalSchemaTest {
 		)
 	}
 
+	private fun insertTemporalReceipt(
+		database: SupportSQLiteDatabase,
+		entryIdentity: String,
+		startTimeMs: Long,
+		endTimeMs: Long,
+		receivedAtMs: Long,
+		state: String,
+		latestMemberStartTimeMs: Long?,
+		latestMemberIdentity: String?,
+		rangeCount: Int,
+		rangePayload: String,
+		coverageComplete: Int,
+		effectChecksum: String,
+	) {
+		database.execSQL(
+			"""
+			INSERT INTO imported_activity_retention_receipt (
+				entry_identity, collected_data_epoch, source_evidence_revision,
+				retained_from_ms, retained_at_ms, latest_import_revision,
+				latest_content_checksum, start_time_ms, end_time_ms, received_at_ms,
+				temporal_authority_state, latest_member_start_time_ms, latest_member_identity,
+				structural_zone_range_count, structural_zone_ranges_payload,
+				structural_zone_coverage_complete, revision_count, import_receipt_count,
+				run_row_count, zone_epoch_row_count, window_row_count, fragment_row_count,
+				run_deletion_count, run_deletion_set_checksum, source_fence_count,
+				source_fence_set_checksum, protected_identity_count,
+				protected_identity_set_checksum, lineage_authority_checksum, effect_checksum
+			) VALUES (?, 7, 3, 100, 200, 1, 'content', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, 1,
+				1, 1, 1, 1, 'run-set', 1, 'fence-set', 4, 'identity-set', 'lineage', ?)
+			""".trimIndent(),
+			arrayOf(
+				entryIdentity,
+				startTimeMs,
+				endTimeMs,
+				receivedAtMs,
+				state,
+				latestMemberStartTimeMs,
+				latestMemberIdentity,
+				rangeCount,
+				rangePayload,
+				coverageComplete,
+				effectChecksum,
+			),
+		)
+	}
+
+	private fun assertTemporalReceipt(
+		database: SupportSQLiteDatabase,
+		entryIdentity: String,
+		expected: TemporalShape,
+	) {
+		database.query(
+			"SELECT temporal_authority_state, start_time_ms, end_time_ms, received_at_ms, " +
+				"latest_member_start_time_ms, latest_member_identity, " +
+				"structural_zone_range_count, structural_zone_ranges_payload, " +
+				"structural_zone_coverage_complete, effect_checksum " +
+				"FROM imported_activity_retention_receipt " +
+				"WHERE entry_identity = ?",
+			arrayOf(entryIdentity),
+		).use { cursor ->
+			cursor.moveToFirst() shouldBe true
+			TemporalShape(
+				state = cursor.getString(0),
+				startTimeMs = cursor.getLong(1),
+				endTimeMs = cursor.getLong(2),
+				receivedAtMs = cursor.getLong(3),
+				latestMemberStartTimeMs =
+					if (cursor.isNull(4)) null else cursor.getLong(4),
+				latestMemberIdentity = if (cursor.isNull(5)) null else cursor.getString(5),
+				rangeCount = cursor.getInt(6),
+				rangePayload = cursor.getString(7),
+				coverageComplete = cursor.getInt(8),
+				effectChecksum = cursor.getString(9),
+			) shouldBe expected
+			cursor.moveToNext() shouldBe false
+		}
+	}
+
 	private data class ColumnShape(
 		val notNull: Int,
 		val defaultValue: String?,
+	)
+
+	private data class TemporalShape(
+		val state: String,
+		val startTimeMs: Long,
+		val endTimeMs: Long,
+		val receivedAtMs: Long,
+		val latestMemberStartTimeMs: Long?,
+		val latestMemberIdentity: String?,
+		val rangeCount: Int,
+		val rangePayload: String,
+		val coverageComplete: Int,
+		val effectChecksum: String,
 	)
 }

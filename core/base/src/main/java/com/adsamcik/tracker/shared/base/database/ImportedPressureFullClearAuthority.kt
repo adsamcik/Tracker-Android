@@ -771,7 +771,8 @@ private fun authenticateSourceEraseReceipt(
 	}
 	val marker = sqlite.query(
 		"SELECT id, collected_data_epoch, source_evidence_revision, erased_at_ms, " +
-			"provider_registration_generation, legacy_write_fence_generation, " +
+			"provider_registration_generation, legacy_write_fence_owner, " +
+			"legacy_write_fence_generation, " +
 			"local_fact_revision_count, local_wal_event_count, legacy_sample_count, " +
 			"legacy_sample_set_checksum, imported_entry_count, " +
 			"imported_revision_count, imported_run_count, imported_window_count, " +
@@ -788,24 +789,25 @@ private fun authenticateSourceEraseReceipt(
 			erasedAtMs = cursor.getLong(3),
 			providerRegistrationGeneration =
 				if (cursor.isNull(4)) null else cursor.getLong(4),
-			legacyWriteFenceGeneration = cursor.getLong(5),
-			localFactRevisionCount = cursor.getInt(6),
-			localWalEventCount = cursor.getInt(7),
-			legacySampleCount = cursor.getInt(8),
-			legacySampleSetChecksum = cursor.getString(9),
-			importedEntryCount = cursor.getInt(10),
-			importedRevisionCount = cursor.getInt(11),
-			importedRunCount = cursor.getInt(12),
-			importedWindowCount = cursor.getInt(13),
-			fencedLocalRunCount = cursor.getInt(14),
-			localScopeSetChecksum = cursor.getString(15),
-			entryDeletionCount = cursor.getInt(16),
-			entryDeletionSetChecksum = cursor.getString(17),
-			runDeletionCount = cursor.getInt(18),
-			runDeletionSetChecksum = cursor.getString(19),
-			identityFenceCount = cursor.getInt(20),
-			identityFenceSetChecksum = cursor.getString(21),
-			effectChecksum = cursor.getString(22),
+			legacyWriteFenceOwner = if (cursor.isNull(5)) null else cursor.getString(5),
+			legacyWriteFenceGeneration = cursor.getLong(6),
+			localFactRevisionCount = cursor.getInt(7),
+			localWalEventCount = cursor.getInt(8),
+			legacySampleCount = cursor.getInt(9),
+			legacySampleSetChecksum = cursor.getString(10),
+			importedEntryCount = cursor.getInt(11),
+			importedRevisionCount = cursor.getInt(12),
+			importedRunCount = cursor.getInt(13),
+			importedWindowCount = cursor.getInt(14),
+			fencedLocalRunCount = cursor.getInt(15),
+			localScopeSetChecksum = cursor.getString(16),
+			entryDeletionCount = cursor.getInt(17),
+			entryDeletionSetChecksum = cursor.getString(18),
+			runDeletionCount = cursor.getInt(19),
+			runDeletionSetChecksum = cursor.getString(20),
+			identityFenceCount = cursor.getInt(21),
+			identityFenceSetChecksum = cursor.getString(22),
+			effectChecksum = cursor.getString(23),
 		)
 	}
 	check(marker.collectedDataEpoch == expectedEpoch)
@@ -1249,6 +1251,7 @@ private fun readGlobalPrivacyAuthorityBytes(sqlite: SupportSQLiteDatabase): Long
 			"LENGTH(CAST(effect_checksum AS BLOB))), 0) " +
 			"FROM imported_pressure_deletion_generation), " +
 			"(SELECT COALESCE(SUM(LENGTH(CAST(legacy_sample_set_checksum AS BLOB)) + " +
+			"LENGTH(CAST(COALESCE(legacy_write_fence_owner, '') AS BLOB)) + " +
 			"LENGTH(CAST(local_scope_set_checksum AS BLOB)) + " +
 			"LENGTH(CAST(entry_deletion_set_checksum AS BLOB)) + " +
 			"LENGTH(CAST(run_deletion_set_checksum AS BLOB)) + " +

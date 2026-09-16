@@ -88,6 +88,13 @@ fun createImportedPressureMaintenanceTables(database: SupportSQLiteDatabase) {
 		    `source_evidence_revision` INTEGER NOT NULL,
 		    `erased_at_ms` INTEGER NOT NULL,
 		    `provider_registration_generation` INTEGER,
+		    `legacy_write_fence_owner` TEXT CHECK (
+		        `legacy_write_fence_owner` IS NULL OR
+		        `legacy_write_fence_owner` IN (
+		            'LEGACY_PRESSURE_SAMPLE',
+		            'CONTAINED_PRESSURE_SESSION_FACTS'
+		        )
+		    ),
 		    `legacy_write_fence_generation` INTEGER NOT NULL,
 		    `local_fact_revision_count` INTEGER NOT NULL,
 		    `local_wal_event_count` INTEGER NOT NULL,
@@ -110,6 +117,13 @@ fun createImportedPressureMaintenanceTables(database: SupportSQLiteDatabase) {
 		)
 		""".trimIndent(),
 	)
+	if (!database.hasColumn("imported_pressure_source_erase", "legacy_write_fence_owner")) {
+		database.execSQL(
+			"ALTER TABLE imported_pressure_source_erase ADD COLUMN legacy_write_fence_owner TEXT " +
+				"CHECK (legacy_write_fence_owner IS NULL OR legacy_write_fence_owner IN " +
+				"('LEGACY_PRESSURE_SAMPLE', 'CONTAINED_PRESSURE_SESSION_FACTS'))",
+		)
+	}
 	database.execSQL(
 		"""
 		CREATE TABLE IF NOT EXISTS `imported_pressure_source_erase_witness` (
@@ -130,3 +144,12 @@ fun createImportedPressureMaintenanceTables(database: SupportSQLiteDatabase) {
 			"ON `imported_pressure_source_erase_witness` (`source_erase_id`)",
 	)
 }
+
+private fun SupportSQLiteDatabase.hasColumn(table: String, column: String): Boolean =
+	query("PRAGMA table_info(`$table`)").use { cursor ->
+		val name = cursor.getColumnIndexOrThrow("name")
+		while (cursor.moveToNext()) {
+			if (cursor.getString(name) == column) return@use true
+		}
+		false
+	}

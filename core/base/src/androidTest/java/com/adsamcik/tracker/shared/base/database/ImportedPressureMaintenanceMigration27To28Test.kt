@@ -84,11 +84,21 @@ class ImportedPressureMaintenanceMigration27To28Test {
 				"imported_pressure_source_erase",
 				listOf(
 					"provider_registration_generation",
+					"legacy_write_fence_owner",
 					"legacy_write_fence_generation",
 					"legacy_sample_set_checksum",
 					"identity_fence_set_checksum",
 				),
 			)
+			database.query(
+				"SELECT sql FROM sqlite_master WHERE type = 'table' " +
+					"AND name = 'imported_pressure_source_erase'",
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				val createSql = cursor.getString(0)
+				assertTrue(createSql.contains("LEGACY_PRESSURE_SAMPLE"))
+				assertTrue(createSql.contains("CONTAINED_PRESSURE_SESSION_FACTS"))
+			}
 		}
 	}
 

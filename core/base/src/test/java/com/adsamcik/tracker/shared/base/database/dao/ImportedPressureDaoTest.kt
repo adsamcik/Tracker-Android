@@ -8,9 +8,14 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGe
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureSourceEraseEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetentionReceiptEntity
+import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -129,6 +134,59 @@ class ImportedPressureDaoTest {
 	}
 
 	@Test
+	fun `full clear authenticates Pressure lifecycle owner before publishing or deleting payload`() =
+		runTest {
+			val before = SourceEvidenceState(revision = 5L, collectedDataEpoch = 7L)
+			database.sourceEvidenceStateDao().ensure(before)
+			dao.insertSourceErase(
+				emptySourceErase(
+					SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+					2L,
+				),
+			)
+			database.pendingSignalDao().insertAll(
+				listOf(
+					PendingSignalEntity(
+						signalId = "pressure-full-clear-payload",
+						sessionId = 1L,
+						signalJson = "{}",
+						createdAt = 1L,
+					),
+				),
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE imported_pressure_source_erase " +
+					"SET legacy_write_fence_owner = 'UNKNOWN_PRESSURE_OWNER' WHERE id = 1",
+			)
+
+			shouldThrow<IllegalArgumentException> {
+				AppDatabase.deleteAllCollectedData(database, 8L, null, 4_000L)
+			}
+
+			database.sourceEvidenceStateDao().get() shouldBe before
+			database.pendingSignalDao().countAll() shouldBe 1
+			database.openHelper.writableDatabase.query(
+				"SELECT legacy_write_fence_owner FROM imported_pressure_source_erase WHERE id = 1",
+			).use { cursor ->
+				cursor.moveToFirst() shouldBe true
+				cursor.getString(0) shouldBe "UNKNOWN_PRESSURE_OWNER"
+			}
+		}
+
+	@Test
+	fun `full clear accepts ownerless v1 Pressure receipt without backfill`() = runTest {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(revision = 5L, collectedDataEpoch = 7L),
+		)
+		dao.insertSourceErase(legacyOwnerlessSourceErase(generation = 2L))
+
+		AppDatabase.deleteAllCollectedData(database, 8L, null, 4_000L)
+
+		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe 8L
+		dao.sourceErase() shouldBe null
+	}
+
+	@Test
 	fun `alternate receipt binds exact revision and cannot be reused`() = runTest {
 		dao.insertEntryRevision(entry())
 		val original = receipt()
@@ -206,6 +264,88 @@ class ImportedPressureDaoTest {
 		1_000.0, 0.0, 1_000f, 1_000f, 1_000f, 1_000f, null, null, "HIGH",
 		1_000, 0, 1_000_000L, 0L, "TARGET_ELAPSED", "COMPLETE", 0L, 1f, "UTC",
 	)
+
+	private fun emptySourceErase(
+		owner: String?,
+		generation: Long,
+	) = ImportedPressureSourceEraseEntity.create(
+		collectedDataEpoch = 7L,
+		sourceEvidenceRevision = 5L,
+		erasedAtMs = 3_000L,
+		providerRegistrationGeneration = null,
+		legacyWriteFenceOwner = owner,
+		legacyWriteFenceGeneration = generation,
+		localFactRevisionCount = 0,
+		localWalEventCount = 0,
+		legacySampleCount = 0,
+		legacySampleWitnesses = emptyList(),
+		importedEntryCount = 0,
+		importedRevisionCount = 0,
+		importedRunCount = 0,
+		importedWindowCount = 0,
+		localFences = emptyList(),
+		entryDeletions = emptyList(),
+		runDeletions = emptyList(),
+		identityFences = emptyList(),
+	)
+
+	private fun legacyOwnerlessSourceErase(generation: Long): ImportedPressureSourceEraseEntity {
+		val legacySamples = ImportedPressureSourceEraseEntity.checksumLegacySamples(emptyList())
+		val localFences = ImportedPressureSourceEraseEntity.checksumLocalFences(emptyList())
+		val entryDeletions = ImportedPressureSourceEraseEntity.checksumEntryDeletions(emptyList())
+		val runDeletions = ImportedPressureRetentionReceiptEntity.checksumRunDeletions(emptyList())
+		val identityFences = ImportedPressureIdentityFenceEntity.checksumSet(emptyList())
+		return ImportedPressureSourceEraseEntity(
+			collectedDataEpoch = 7L,
+			sourceEvidenceRevision = 5L,
+			erasedAtMs = 3_000L,
+			providerRegistrationGeneration = null,
+			legacyWriteFenceOwner = null,
+			legacyWriteFenceGeneration = generation,
+			localFactRevisionCount = 0,
+			localWalEventCount = 0,
+			legacySampleCount = 0,
+			legacySampleSetChecksum = legacySamples,
+			importedEntryCount = 0,
+			importedRevisionCount = 0,
+			importedRunCount = 0,
+			importedWindowCount = 0,
+			fencedLocalRunCount = 0,
+			localScopeSetChecksum = localFences,
+			entryDeletionCount = 0,
+			entryDeletionSetChecksum = entryDeletions,
+			runDeletionCount = 0,
+			runDeletionSetChecksum = runDeletions,
+			identityFenceCount = 0,
+			identityFenceSetChecksum = identityFences,
+			effectChecksum = ImportedPressureIdentity.digest(
+				"tracker-imported-pressure-source-erase-v1",
+				listOf(
+					7L,
+					5L,
+					3_000L,
+					"NONE",
+					generation,
+					0,
+					0,
+					0,
+					legacySamples,
+					0,
+					0,
+					0,
+					0,
+					0,
+					localFences,
+					0,
+					entryDeletions,
+					0,
+					runDeletions,
+					0,
+					identityFences,
+				).map { it.toString() },
+			),
+		)
+	}
 
 	private companion object {
 		val ENTRY = opaque('1')

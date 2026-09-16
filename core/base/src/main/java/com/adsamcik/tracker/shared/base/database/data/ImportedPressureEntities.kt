@@ -974,6 +974,7 @@ data class ImportedPressureSourceEraseEntity(
 	@ColumnInfo(name = "source_evidence_revision") val sourceEvidenceRevision: Long,
 	@ColumnInfo(name = "erased_at_ms") val erasedAtMs: Long,
 	@ColumnInfo(name = "provider_registration_generation") val providerRegistrationGeneration: Long?,
+	@ColumnInfo(name = "legacy_write_fence_owner") val legacyWriteFenceOwner: String? = null,
 	@ColumnInfo(name = "legacy_write_fence_generation") val legacyWriteFenceGeneration: Long,
 	@ColumnInfo(name = "local_fact_revision_count") val localFactRevisionCount: Int,
 	@ColumnInfo(name = "local_wal_event_count") val localWalEventCount: Int,
@@ -998,6 +999,20 @@ data class ImportedPressureSourceEraseEntity(
 		require(collectedDataEpoch >= 0L && sourceEvidenceRevision > 0L && erasedAtMs >= 0L)
 		require(providerRegistrationGeneration == null || providerRegistrationGeneration > 0L)
 		require(legacyWriteFenceGeneration >= 0L)
+		require(
+			legacyWriteFenceOwner == null ||
+				legacyWriteFenceOwner ==
+				SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE ||
+				legacyWriteFenceOwner ==
+				SourceDestinationOwnerEntity.OWNER_CONTAINED_PRESSURE_SESSION_FACTS,
+		)
+		when (legacyWriteFenceOwner) {
+			SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE ->
+				require(legacyWriteFenceGeneration >= 2L)
+			SourceDestinationOwnerEntity.OWNER_CONTAINED_PRESSURE_SESSION_FACTS ->
+				require(legacyWriteFenceGeneration >= 3L && legacyWriteFenceGeneration % 2L == 1L)
+			null -> Unit
+		}
 		listOf(
 			localFactRevisionCount,
 			localWalEventCount,
@@ -1034,6 +1049,7 @@ data class ImportedPressureSourceEraseEntity(
 			sourceEvidenceRevision: Long,
 			erasedAtMs: Long,
 			providerRegistrationGeneration: Long?,
+			legacyWriteFenceOwner: String? = null,
 			legacyWriteFenceGeneration: Long,
 			localFactRevisionCount: Int,
 			localWalEventCount: Int,
@@ -1049,11 +1065,13 @@ data class ImportedPressureSourceEraseEntity(
 			identityFences: List<ImportedPressureIdentityFenceEntity>,
 		): ImportedPressureSourceEraseEntity {
 			require(legacySampleWitnesses.size == legacySampleCount)
+			require((legacyWriteFenceGeneration == 0L) == (legacyWriteFenceOwner == null))
 			return ImportedPressureSourceEraseEntity(
 			collectedDataEpoch = collectedDataEpoch,
 			sourceEvidenceRevision = sourceEvidenceRevision,
 			erasedAtMs = erasedAtMs,
 			providerRegistrationGeneration = providerRegistrationGeneration,
+			legacyWriteFenceOwner = legacyWriteFenceOwner,
 			legacyWriteFenceGeneration = legacyWriteFenceGeneration,
 			localFactRevisionCount = localFactRevisionCount,
 			localWalEventCount = localWalEventCount,
@@ -1078,6 +1096,7 @@ data class ImportedPressureSourceEraseEntity(
 				sourceEvidenceRevision,
 				erasedAtMs,
 				providerRegistrationGeneration,
+				legacyWriteFenceOwner,
 				legacyWriteFenceGeneration,
 				localFactRevisionCount,
 				localWalEventCount,
@@ -1163,6 +1182,7 @@ data class ImportedPressureSourceEraseEntity(
 			value.sourceEvidenceRevision,
 			value.erasedAtMs,
 			value.providerRegistrationGeneration,
+			value.legacyWriteFenceOwner,
 			value.legacyWriteFenceGeneration,
 			value.localFactRevisionCount,
 			value.localWalEventCount,
@@ -1188,6 +1208,7 @@ data class ImportedPressureSourceEraseEntity(
 			sourceEvidenceRevision: Long,
 			erasedAtMs: Long,
 			providerRegistrationGeneration: Long?,
+			legacyWriteFenceOwner: String?,
 			legacyWriteFenceGeneration: Long,
 			localFactRevisionCount: Int,
 			localWalEventCount: Int,
@@ -1205,32 +1226,41 @@ data class ImportedPressureSourceEraseEntity(
 			runDeletionSetChecksum: String,
 			identityFenceCount: Int,
 			identityFenceSetChecksum: String,
-		): String = ImportedPressureIdentity.digest(
-			"tracker-imported-pressure-source-erase-v1",
-			listOf(
-				collectedDataEpoch,
-				sourceEvidenceRevision,
-				erasedAtMs,
-				providerRegistrationGeneration ?: "NONE",
-				legacyWriteFenceGeneration,
-				localFactRevisionCount,
-				localWalEventCount,
-				legacySampleCount,
-				legacySampleSetChecksum,
-				importedEntryCount,
-				importedRevisionCount,
-				importedRunCount,
-				importedWindowCount,
-				fencedLocalRunCount,
-				localScopeSetChecksum,
-				entryDeletionCount,
-				entryDeletionSetChecksum,
-				runDeletionCount,
-				runDeletionSetChecksum,
-				identityFenceCount,
-				identityFenceSetChecksum,
-			).map { it.toString() },
-		)
+		): String {
+			val authority = buildList<Any> {
+				add(collectedDataEpoch)
+				add(sourceEvidenceRevision)
+				add(erasedAtMs)
+				add(providerRegistrationGeneration ?: "NONE")
+				if (legacyWriteFenceOwner != null) add(legacyWriteFenceOwner)
+				add(legacyWriteFenceGeneration)
+			}
+			return ImportedPressureIdentity.digest(
+				if (legacyWriteFenceOwner == null) {
+					"tracker-imported-pressure-source-erase-v1"
+				} else {
+					"tracker-imported-pressure-source-erase-v2"
+				},
+				(authority + listOf(
+					localFactRevisionCount,
+					localWalEventCount,
+					legacySampleCount,
+					legacySampleSetChecksum,
+					importedEntryCount,
+					importedRevisionCount,
+					importedRunCount,
+					importedWindowCount,
+					fencedLocalRunCount,
+					localScopeSetChecksum,
+					entryDeletionCount,
+					entryDeletionSetChecksum,
+					runDeletionCount,
+					runDeletionSetChecksum,
+					identityFenceCount,
+					identityFenceSetChecksum,
+				)).map { it.toString() },
+			)
+		}
 	}
 }
 

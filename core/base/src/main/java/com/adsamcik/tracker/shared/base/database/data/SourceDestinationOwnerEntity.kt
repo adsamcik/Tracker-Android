@@ -53,10 +53,14 @@ data class SourceDestinationOwnerEntity(
 		const val OWNER_AMBIENT_STEPS_FACTS = "AMBIENT_STEPS_FACTS"
 		const val OWNER_LEGACY_PRESSURE_SAMPLE = "LEGACY_PRESSURE_SAMPLE"
 		const val OWNER_PRESSURE_SESSION_FACTS = "PRESSURE_SESSION_FACTS"
+		const val OWNER_CONTAINED_PRESSURE_SESSION_FACTS =
+			"CONTAINED_PRESSURE_SESSION_FACTS"
 		const val OWNER_CELL_SESSION_FACTS = "CELL_SESSION_FACTS"
 		const val OWNER_WIFI_SESSION_FACTS = "WIFI_SESSION_FACTS"
 		const val INITIAL_EXISTING_LOCATION_GENERATION = 1L
 		const val INITIAL_LEGACY_GENERATION = 1L
+		/** First durable generation that permanently fences the legacy Pressure sample writer. */
+		const val FIRST_LEGACY_PRESSURE_FENCE_GENERATION = 2L
 		/** First owner fence for a new destination; presence alone grants no provider or rollout. */
 		const val INITIAL_AMBIENT_STEPS_GENERATION = 1L
 		const val FIRST_CANDIDATE_GENERATION = 2L

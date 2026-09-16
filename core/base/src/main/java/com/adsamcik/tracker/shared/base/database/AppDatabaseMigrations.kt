@@ -1416,8 +1416,18 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL("ALTER TABLE pending_signal ADD COLUMN steps_writer_owner TEXT")
 			execSQL("ALTER TABLE pending_signal ADD COLUMN steps_writer_owner_generation INTEGER")
-			execSQL("ALTER TABLE pending_signal ADD COLUMN pressure_writer_owner TEXT")
-			execSQL("ALTER TABLE pending_signal ADD COLUMN pressure_writer_owner_generation INTEGER")
+			execSQL(
+				"ALTER TABLE pending_signal ADD COLUMN pressure_writer_owner TEXT " +
+					"CHECK (pressure_writer_owner IS NULL OR pressure_writer_owner IN " +
+					"('LEGACY_PRESSURE_SAMPLE', 'PRESSURE_SESSION_FACTS'))",
+			)
+			execSQL(
+				"ALTER TABLE pending_signal ADD COLUMN pressure_writer_owner_generation INTEGER " +
+					"CHECK ((pressure_writer_owner IS NULL AND " +
+					"pressure_writer_owner_generation IS NULL) OR " +
+					"(pressure_writer_owner IS NOT NULL AND " +
+					"pressure_writer_owner_generation > 0))",
+			)
 			// Every released-v27 pending command predates source-local writer cutover and therefore
 			// belongs to the released legacy Steps destination if its payload happens to carry Steps.
 			// Stamping all rows avoids parsing serialized payloads in SQL; non-Steps rows ignore it.
