@@ -113,7 +113,10 @@ class RoomDeleteImportedPressureEntryTest {
 			)
 
 		val history = database.withTransaction {
-			ImportedPressureHistoryEvaluator(database).selectRecentInTransaction(10)
+			(
+				ImportedPressureHistoryEvaluator(database).selectRecentInTransaction(10) as
+					ImportedPressureHistorySelection.Available
+				).evaluations
 		}
 		history.map { it.candidate.identity } shouldContainExactly
 			listOf(unrelated.entry.identity.value)
@@ -174,8 +177,11 @@ class RoomDeleteImportedPressureEntryTest {
 				ImportedPressureEntryDeletionUnverifiableReason.PARTIAL_DELETION_STATE,
 			)
 		val history = database.withTransaction {
-			ImportedPressureHistoryEvaluator(database).selectRecentInTransaction(1).single()
-		}
+				(
+					ImportedPressureHistoryEvaluator(database).selectRecentInTransaction(1) as
+						ImportedPressureHistorySelection.Available
+					).evaluations.single()
+			}
 		history shouldBe ImportedPressureHistoryEvaluation.Unverifiable(
 			history.candidate,
 			ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,

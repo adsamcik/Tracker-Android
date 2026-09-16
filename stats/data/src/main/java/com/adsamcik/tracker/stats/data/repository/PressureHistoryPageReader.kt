@@ -30,8 +30,16 @@ internal class PressureHistoryPageReader @Inject constructor(
 	internal suspend fun selectRecent(limit: Int): List<PressureOnlyHistoryEntry> =
 		database.withTransaction {
 			require(limit in 1..ImportedPressureDao.MAX_HISTORY_ENTRY_CANDIDATES)
+			val imported = when (
+				val selection = importedEvaluator.selectRecentInTransaction(limit)
+			) {
+				is ImportedPressureHistorySelection.Available -> selection.evaluations
+				is ImportedPressureHistorySelection.Unverifiable ->
+					throw PressureHistoryPageDependencyOverflow(
+						selection.reason.toPageUnavailableReason(),
+					)
+			}
 			val live = liveSelector.discoverRecentPressureOnlyInTransaction(limit)
-			val imported = importedEvaluator.selectRecentInTransaction(limit)
 			PressureHistoryPageComposer.compose(
 				live = live.mapNotNull { entry ->
 					entry.toPublicPressureOnlyEntryOrNull()?.let { public ->
@@ -54,6 +62,18 @@ internal class PressureHistoryPageReader @Inject constructor(
 			return unavailable(
 				SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
 			)
+		}
+		val recencyAuthorityFailure = try {
+			importedEvaluator.recentRecencyAuthorityFailureInTransaction()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			return unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+			)
+		}
+		recencyAuthorityFailure?.let { failure ->
+			return unavailable(failure.toPageUnavailableReason())
 		}
 		val accepted = mutableListOf<PressureImportedHistoryEligibleEntry>()
 		var localAuthorities: Map<
@@ -192,14 +212,7 @@ internal class PressureHistoryPageReader @Inject constructor(
 	): PressureImportedEligibilityDecision = when (this) {
 		is ImportedPressureHistoryEvaluation.Unverifiable ->
 			PressureImportedEligibilityDecision.Unavailable(
-				when (reason) {
-					ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW ->
-						SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
-					ImportedPressureHistoryFailure.SOURCE_EVIDENCE_STATE_MISSING ->
-						SourceAwareHistoryPageUnavailableReason
-							.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE
-					else -> SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE
-				},
+				reason.toPageUnavailableReason(),
 			)
 		is ImportedPressureHistoryEvaluation.Readable ->
 			readableEligibility(localAuthorities)
@@ -317,6 +330,15 @@ internal class PressureHistoryPageReader @Inject constructor(
 	private fun unavailable(
 		reason: SourceAwareHistoryPageUnavailableReason,
 	): ImportedHistoryEligiblePage.Unavailable = ImportedHistoryEligiblePage.Unavailable(reason)
+}
+
+private fun ImportedPressureHistoryFailure.toPageUnavailableReason():
+	SourceAwareHistoryPageUnavailableReason = when (this) {
+	ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW ->
+		SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
+	ImportedPressureHistoryFailure.SOURCE_EVIDENCE_STATE_MISSING ->
+		SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE
+	else -> SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE
 }
 
 private fun ImportedPressureHistoryCandidate.authenticatedRecencyOrNull():

@@ -3,6 +3,7 @@ package com.adsamcik.tracker.stats.data.repository
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureHistoryCandidate
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureHistoryRecencyAuthorityPreflight
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
@@ -28,14 +29,17 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 ) {
 	internal suspend fun selectRecentInTransaction(
 		limit: Int,
-	): List<ImportedPressureHistoryEvaluation> {
+	): ImportedPressureHistorySelection {
 		require(limit in 1..ImportedPressureDao.MAX_HISTORY_ENTRY_CANDIDATES)
+		recentRecencyAuthorityFailureInTransaction()?.let {
+			return ImportedPressureHistorySelection.Unverifiable(it)
+		}
 		val candidates = database.importedPressureDao().recentHistoryCandidatePage(
 			limit = limit,
 			beforeRecencyStartTimeMs = null,
 			beforeRecencyTieIdentity = null,
 		)
-		return evaluateCandidates(candidates)
+		return ImportedPressureHistorySelection.Available(evaluateCandidates(candidates))
 	}
 
 	internal suspend fun evaluateCandidateInTransaction(
@@ -44,7 +48,10 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 
 	internal suspend fun selectForExportInTransaction(
 		request: ExportPortablePressureRequest,
-	): List<ImportedPressureHistoryEvaluation> {
+	): ImportedPressureHistorySelection {
+		rangeRecencyAuthorityFailureInTransaction(request)?.let {
+			return ImportedPressureHistorySelection.Unverifiable(it)
+		}
 		val selected = mutableListOf<ImportedPressureHistoryEvaluation>()
 		var beforeRecencyStartTimeMs: Long? = null
 		var beforeRecencyTieIdentity: String? = null
@@ -66,17 +73,21 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 					beforeRecencyTieIdentity,
 				)
 			) {
-				return selected + page.take(1).unverifiable(
-					ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
+				return ImportedPressureHistorySelection.Available(
+					selected + page.take(1).unverifiable(
+						ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
+					),
 				)
 			}
 			if (page.size > remaining) {
-				return selected + page.take(1).map {
-					ImportedPressureHistoryEvaluation.Unverifiable(
-						it,
-						ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW,
-					)
-				}
+				return ImportedPressureHistorySelection.Available(
+					selected + page.take(1).map {
+						ImportedPressureHistoryEvaluation.Unverifiable(
+							it,
+							ImportedPressureHistoryFailure.DEPENDENCY_OVERFLOW,
+						)
+					},
+				)
 			}
 			selected += evaluateCandidates(page)
 			val last = page.last()
@@ -84,7 +95,34 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 			beforeRecencyTieIdentity = last.recencyTieIdentity
 			if (page.size < pageLimit) break
 		}
-		return selected
+		return ImportedPressureHistorySelection.Available(selected)
+	}
+
+	internal suspend fun recentRecencyAuthorityFailureInTransaction():
+		ImportedPressureHistoryFailure? = recencyAuthorityFailure {
+		database.importedPressureDao().recentHistoryRecencyAuthorityPreflight()
+	}
+
+	private suspend fun rangeRecencyAuthorityFailureInTransaction(
+		request: ExportPortablePressureRequest,
+	): ImportedPressureHistoryFailure? = recencyAuthorityFailure {
+		database.importedPressureDao().historyRecencyAuthorityPreflightInRange(
+			fromInclusiveMs = request.fromInclusiveMs,
+			toExclusiveMs = request.toExclusiveMs,
+		)
+	}
+
+	private suspend fun recencyAuthorityFailure(
+		read: suspend () -> ImportedPressureHistoryRecencyAuthorityPreflight,
+	): ImportedPressureHistoryFailure? {
+		val preflight = read()
+		return if (preflight.invalidLiveRecencyCount != 0L ||
+			preflight.duplicateRecencyTupleCount != 0L
+		) {
+			ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE
+		} else {
+			null
+		}
 	}
 
 	private suspend fun evaluateCandidates(
@@ -392,6 +430,16 @@ internal enum class ImportedPressureHistoryFailure {
 	STALE_COLLECTED_DATA_EPOCH,
 	STORED_EVIDENCE_UNVERIFIABLE,
 	DEPENDENCY_OVERFLOW,
+}
+
+internal sealed interface ImportedPressureHistorySelection {
+	data class Available(
+		val evaluations: List<ImportedPressureHistoryEvaluation>,
+	) : ImportedPressureHistorySelection
+
+	data class Unverifiable(
+		val reason: ImportedPressureHistoryFailure,
+	) : ImportedPressureHistorySelection
 }
 
 private data class ImportedPressureHistoryBatch(

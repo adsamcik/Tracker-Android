@@ -6,6 +6,8 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetainedIdentityEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRetentionReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.stats.api.repository.ExportPortablePressureRequest
@@ -38,7 +40,10 @@ import com.adsamcik.tracker.stats.api.repository.PressurePortableFormatV1
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.TruncateImportedPressureRetentionRequest
+import com.adsamcik.tracker.stats.api.repository.TruncateImportedPressureRetentionResult
 import io.kotest.matchers.shouldBe
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -198,6 +203,256 @@ class ImportedPressureHistoryEvaluatorTest {
 		}
 		page.entries.map { it.recency.newestMemberStartTimeMs } shouldBe listOf(2_000L, 2_000L)
 	}
+
+	@Test
+	fun `numeric recency authority preflight precedes candidate and detail reads`() = runTest {
+		val queries = replaceWithObservedDatabase()
+		importer(database, testScheduler).importEntry(request())
+		queries.clear()
+
+		val selection = database.withTransaction {
+			ImportedPressureHistoryEvaluator(database).selectRecentInTransaction(1)
+		}
+		selection::class shouldBe ImportedPressureHistorySelection.Available::class
+
+		val preflightIndex = queries.indexOfFirst { it.isPressureRecencyPreflight() }
+		val candidateIndex = queries.indexOfFirst { it.isPressureCandidatePage() }
+		val detailIndex = queries.indexOfFirst { it.isPressureDetailRead() }
+		(preflightIndex >= 0) shouldBe true
+		(candidateIndex > preflightIndex) shouldBe true
+		(detailIndex > candidateIndex) shouldBe true
+	}
+
+	@Test
+	fun `coherently rehashed retained collision straddling limit one rejects evaluator and public`() =
+		runTest {
+			val queries = replaceWithObservedDatabase()
+			val first = retentionOnlyEntry(
+				entryLocalId = "collision-entry-a",
+				olderRunLocalId = "collision-old-a",
+				newestRunLocalId = "collision-new-a",
+				envelopeStartTimeMs = 100L,
+				newestStartTimeMs = 2_000L,
+			)
+			val second = retentionOnlyEntry(
+				entryLocalId = "collision-entry-b",
+				olderRunLocalId = "collision-old-b",
+				newestRunLocalId = "collision-new-b",
+				envelopeStartTimeMs = 200L,
+				newestStartTimeMs = 2_000L,
+			)
+			val writer = importer(database, testScheduler)
+			writer.importEntry(request(
+				first,
+				receipt("collision-job-a", "collision-entry-a"),
+			)) shouldBe ImportPortablePressureResult.Applied(1L, 2, 0)
+			writer.importEntry(request(
+				second,
+				receipt("collision-job-b", "collision-entry-b"),
+			)) shouldBe ImportPortablePressureResult.Applied(1L, 2, 0)
+			retainImportedEntries()
+			val collidingRun = first.runs.maxWith(pressureSourceRecencyRunOrder)
+			rehashRetainedRecency(second.identity.value, collidingRun)
+
+			val firstCandidate = database.importedPressureDao().recentHistoryCandidatePage(
+				limit = 1,
+				beforeRecencyStartTimeMs = null,
+				beforeRecencyTieIdentity = null,
+			).single()
+			database.importedPressureDao().recentHistoryCandidatePage(
+				limit = 1,
+				beforeRecencyStartTimeMs = firstCandidate.recencyStartTimeMs,
+				beforeRecencyTieIdentity = firstCandidate.recencyTieIdentity,
+			) shouldBe emptyList()
+
+			queries.clear()
+			database.withTransaction {
+				ImportedPressureHistoryEvaluator(database).selectRecentInTransaction(1)
+			} shouldBe ImportedPressureHistorySelection.Unverifiable(
+				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+			queries.assertPressurePreflightRejectedBeforeMaterialization()
+
+			queries.clear()
+			val publicFailure = try {
+				pageReader(database).selectRecent(1)
+				null
+			} catch (failure: PressureHistoryPageDependencyOverflow) {
+				failure
+			}
+			publicFailure?.reason shouldBe
+				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE
+			queries.assertPressurePreflightRejectedBeforeMaterialization()
+			queries.none { it.isLocalPressureSelectorRead() } shouldBe true
+		}
+
+	@Test
+	fun `live and retained recency collision rejects shared eligible paging before detail`() = runTest {
+		val queries = replaceWithObservedDatabase()
+		val retained = retentionOnlyEntry(
+			entryLocalId = "mixed-retained-entry",
+			olderRunLocalId = "mixed-retained-old",
+			newestRunLocalId = "mixed-retained-new",
+			envelopeStartTimeMs = 100L,
+			newestStartTimeMs = 2_000L,
+		)
+		val live = retentionOnlyEntry(
+			entryLocalId = "mixed-live-entry",
+			olderRunLocalId = "mixed-live-old",
+			newestRunLocalId = "mixed-live-new",
+			envelopeStartTimeMs = 1_500L,
+			newestStartTimeMs = 2_000L,
+		)
+		val writer = importer(database, testScheduler)
+		writer.importEntry(request(
+			retained,
+			receipt("mixed-retained-job", "mixed-retained-entry"),
+		)) shouldBe ImportPortablePressureResult.Applied(1L, 2, 0)
+		writer.importEntry(request(
+			live,
+			receipt("mixed-live-job", "mixed-live-entry"),
+		)) shouldBe ImportPortablePressureResult.Applied(1L, 2, 0)
+		retainImportedEntries()
+		database.importedPressureDao().retentionReceipt(retained.identity.value)?.entryIdentity shouldBe
+			retained.identity.value
+		database.importedPressureDao().latestEntryRevision(live.identity.value)?.identity shouldBe
+			live.identity.value
+		rehashLiveRecencyIdentity(
+			live,
+			retained.runs.maxWith(pressureSourceRecencyRunOrder),
+		)
+
+		queries.clear()
+		database.withTransaction {
+			pageReader(database).recentImportedEligibleForSharedHistoryInTransaction(1)
+		} shouldBe ImportedHistoryEligiblePage.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+		)
+		queries.assertPressurePreflightRejectedBeforeMaterialization()
+		queries.none { it.isLocalPressureSelectorRead() } shouldBe true
+	}
+
+	@Test
+	fun `retained collision across export continuation rejects before local or imported detail`() =
+		runTest {
+			val queries = replaceWithObservedDatabase()
+			val collisionFirst = retentionOnlyEntry(
+				entryLocalId = "export-collision-entry-a",
+				olderRunLocalId = "export-collision-old-a",
+				newestRunLocalId = "export-collision-new-a",
+				envelopeStartTimeMs = 500L,
+				newestStartTimeMs = 2_000L,
+			)
+			val collisionSecond = retentionOnlyEntry(
+				entryLocalId = "export-collision-entry-b",
+				olderRunLocalId = "export-collision-old-b",
+				newestRunLocalId = "export-collision-new-b",
+				envelopeStartTimeMs = 600L,
+				newestStartTimeMs = 2_000L,
+			)
+			val higher = (0 until 63).map { index ->
+				retentionOnlyEntry(
+					entryLocalId = "export-higher-entry-$index",
+					olderRunLocalId = "export-higher-old-$index",
+					newestRunLocalId = "export-higher-new-$index",
+					envelopeStartTimeMs = 100L + index,
+					newestStartTimeMs = 3_000L + index,
+				)
+			}
+			val writer = importer(database, testScheduler)
+			(higher + collisionFirst + collisionSecond).forEachIndexed { index, entry ->
+				writer.importEntry(request(
+					entry,
+					receipt("export-collision-job-$index", "export-collision-entry-$index"),
+				)) shouldBe ImportPortablePressureResult.Applied(1L, 2, 0)
+			}
+			retainImportedEntries()
+			rehashRetainedRecency(
+				collisionSecond.identity.value,
+				collisionFirst.runs.maxWith(pressureSourceRecencyRunOrder),
+			)
+
+			val firstPage = database.importedPressureDao().historyCandidatePageInRange(
+				fromInclusiveMs = 0L,
+				toExclusiveMs = 20_000L,
+				limit = 64,
+				beforeRecencyStartTimeMs = null,
+				beforeRecencyTieIdentity = null,
+			)
+			firstPage.size shouldBe 64
+			database.importedPressureDao().historyCandidatePageInRange(
+				fromInclusiveMs = 0L,
+				toExclusiveMs = 20_000L,
+				limit = 64,
+				beforeRecencyStartTimeMs = firstPage.last().recencyStartTimeMs,
+				beforeRecencyTieIdentity = firstPage.last().recencyTieIdentity,
+			) shouldBe emptyList()
+
+			queries.clear()
+			var emitted = false
+			exporter(database, testScheduler).export(
+				ExportPortablePressureRequest(0L, 20_000L),
+				PortablePressureEntrySink { emitted = true },
+			) shouldBe ExportPortablePressureResult.Unverifiable(
+				PortablePressureExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+			)
+			emitted shouldBe false
+			queries.assertPressurePreflightRejectedBeforeMaterialization()
+			queries.none { it.isLocalPressureSelectorRead() } shouldBe true
+		}
+
+	@Test
+	fun `missing live member is rejected by numeric preflight before candidate paging`() = runTest {
+		val queries = replaceWithObservedDatabase()
+		val entry = retentionOnlyEntry(
+			entryLocalId = "missing-member-entry",
+			olderRunLocalId = "missing-member-old",
+			newestRunLocalId = "missing-member-new",
+			envelopeStartTimeMs = 1_000L,
+			newestStartTimeMs = 2_000L,
+		)
+		importer(database, testScheduler).importEntry(request(entry))
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM imported_pressure_run WHERE entry_identity = ?",
+			arrayOf(entry.identity.value),
+		)
+
+		queries.clear()
+		database.withTransaction {
+			ImportedPressureHistoryEvaluator(database).selectRecentInTransaction(1)
+		} shouldBe ImportedPressureHistorySelection.Unverifiable(
+			ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
+		)
+		queries.assertPressurePreflightRejectedBeforeMaterialization()
+	}
+
+	@Test
+	fun `structurally invalid live tie is rejected by numeric preflight before candidate paging`() =
+		runTest {
+			val queries = replaceWithObservedDatabase()
+			val entry = retentionOnlyEntry(
+				entryLocalId = "invalid-tie-entry",
+				olderRunLocalId = "invalid-tie-old",
+				newestRunLocalId = "invalid-tie-new",
+				envelopeStartTimeMs = 1_000L,
+				newestStartTimeMs = 2_000L,
+			)
+			importer(database, testScheduler).importEntry(request(entry))
+			val newest = entry.runs.maxWith(pressureSourceRecencyRunOrder)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE imported_pressure_run SET identity = 'not-opaque' " +
+					"WHERE entry_identity = ? AND identity = ?",
+				arrayOf(entry.identity.value, newest.identity.value),
+			)
+
+			queries.clear()
+			database.withTransaction {
+				ImportedPressureHistoryEvaluator(database).selectRecentInTransaction(1)
+			} shouldBe ImportedPressureHistorySelection.Unverifiable(
+				ImportedPressureHistoryFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+			queries.assertPressurePreflightRejectedBeforeMaterialization()
+		}
 
 	@Test
 	fun `shared bridge scans past a filled envelope page before applying recency cutoff`() = runTest {
@@ -754,7 +1009,10 @@ class ImportedPressureHistoryEvaluatorTest {
 	private suspend fun evaluate(
 		database: AppDatabase,
 	): List<ImportedPressureHistoryEvaluation> = database.withTransaction {
-		ImportedPressureHistoryEvaluator(database).selectRecentInTransaction(10)
+		(
+			ImportedPressureHistoryEvaluator(database).selectRecentInTransaction(10) as
+				ImportedPressureHistorySelection.Available
+			).evaluations
 	}
 
 	private fun importer(
@@ -790,6 +1048,148 @@ class ImportedPressureHistoryEvaluatorTest {
 			portableReader = PortablePressureRoomReader(database, selector, evaluator),
 		)
 	}
+
+	private suspend fun replaceWithObservedDatabase(): CopyOnWriteArrayList<String> {
+		database.close()
+		val queries = CopyOnWriteArrayList<String>()
+		database = Room.inMemoryDatabaseBuilder(
+			ApplicationProvider.getApplicationContext<Application>(),
+			AppDatabase::class.java,
+		).allowMainThreadQueries().setQueryCallback(
+			{ sql, _ -> queries.add(sql) },
+			Executor { command -> command.run() },
+		).build()
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+		return queries
+	}
+
+	private suspend fun retainImportedEntries() {
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 1_100L, 50L) shouldBe 1
+		val result = RoomTruncateImportedPressureRetention(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+			{},
+		).truncate(
+			TruncateImportedPressureRetentionRequest(EPOCH, 1L, 1_100L, 50L),
+		)
+		result::class shouldBe TruncateImportedPressureRetentionResult.Truncated::class
+	}
+
+	private suspend fun rehashRetainedRecency(
+		entryIdentity: String,
+		recency: PortablePressureRunV1,
+	) {
+		val dao = database.importedPressureDao()
+		val original = requireNotNull(dao.retentionReceipt(entryIdentity))
+		val markers = dao.retainedIdentitiesForEntries(
+			listOf(entryIdentity),
+			original.protectedIdentityCount + 1,
+		)
+		val fences = dao.identityFencesForEntry(entryIdentity, markers.size + 1)
+		val runDeletions = dao.deletionGenerations(
+			markers.filter {
+				it.identityKind == ImportedPressureRetainedIdentityEntity.RUN_SCOPE
+			}.map { it.protectedIdentity },
+		)
+		val forged = ImportedPressureRetentionReceiptEntity.create(
+			entryIdentity = original.entryIdentity,
+			collectedDataEpoch = original.collectedDataEpoch,
+			sourceEvidenceRevision = original.sourceEvidenceRevision,
+			retainedFromMs = original.retainedFromMs,
+			retainedAtMs = original.retainedAtMs,
+			latestImportRevision = original.latestImportRevision,
+			latestContentChecksum = original.latestContentChecksum,
+			startTimeMs = original.startTimeMs,
+			endTimeMs = original.endTimeMs,
+			receivedAtMs = original.receivedAtMs,
+			recencyStartTimeMs = recency.startTimeMs,
+			recencyEndTimeMs = recency.endTimeMs,
+			recencyTieIdentity = recency.identity.value,
+			revisionCount = original.revisionCount,
+			importReceiptCount = original.importReceiptCount,
+			runRowCount = original.runRowCount,
+			windowRowCount = original.windowRowCount,
+			runDeletions = runDeletions,
+			markers = markers,
+			identityFences = fences,
+			lineageAuthorityChecksum = original.lineageAuthorityChecksum,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_pressure_retention_receipt SET recency_start_time_ms = ?, " +
+				"recency_end_time_ms = ?, recency_tie_identity = ?, effect_checksum = ? " +
+				"WHERE entry_identity = ?",
+			arrayOf(
+				forged.recencyStartTimeMs,
+				forged.recencyEndTimeMs,
+				forged.recencyTieIdentity,
+				forged.effectChecksum,
+				forged.entryIdentity,
+			),
+		)
+	}
+
+	private fun rehashLiveRecencyIdentity(
+		entry: PortablePressureEntryV1,
+		recency: PortablePressureRunV1,
+	) {
+		val originalNewest = entry.runs.maxWith(pressureSourceRecencyRunOrder)
+		val corrected = PortablePressureEntryV1.create(
+			identity = entry.identity,
+			startTimeMs = entry.startTimeMs,
+			endTimeMs = entry.endTimeMs,
+			runs = entry.runs.map { run ->
+				if (run.identity == originalNewest.identity) {
+					run.copy(identity = recency.identity)
+				} else {
+					run
+				}
+			},
+		)
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL(
+			"UPDATE imported_pressure_run SET identity = ? " +
+				"WHERE entry_identity = ? AND identity = ?",
+			arrayOf(recency.identity.value, entry.identity.value, originalNewest.identity.value),
+		)
+		sqlite.execSQL(
+			"UPDATE imported_pressure_entry_revision SET content_checksum = ? WHERE identity = ?",
+			arrayOf(corrected.contentChecksum.value, entry.identity.value),
+		)
+		sqlite.execSQL(
+			"UPDATE imported_pressure_receipt SET entry_content_checksum = ? " +
+				"WHERE entry_identity = ?",
+			arrayOf(corrected.contentChecksum.value, entry.identity.value),
+		)
+	}
+
+	private fun List<String>.assertPressurePreflightRejectedBeforeMaterialization() {
+		indexOfFirst { it.isPressureRecencyPreflight() }.let { (it >= 0) shouldBe true }
+		none { it.isPressureCandidatePage() } shouldBe true
+		none { it.isPressureDetailRead() } shouldBe true
+	}
+
+	private fun String.isPressureRecencyPreflight(): Boolean =
+		"recent_candidate_authority as" in normalizedSql()
+
+	private fun String.isPressureCandidatePage(): Boolean {
+		val normalized = normalizedSql()
+		return "order by recency_start_time_ms desc, recency_tie_identity desc" in normalized &&
+			!isPressureRecencyPreflight()
+	}
+
+	private fun String.isPressureDetailRead(): Boolean {
+		val normalized = normalizedSql()
+		return "select * from imported_pressure_entry_revision where identity in" in normalized ||
+			"select * from imported_pressure_receipt where entry_identity in" in normalized ||
+			"select * from imported_pressure_run where entry_identity in" in normalized ||
+			"select * from imported_pressure_window where entry_identity in" in normalized
+	}
+
+	private fun String.isLocalPressureSelectorRead(): Boolean =
+		"pressure_fact_revision" in normalizedSql()
+
+	private fun String.normalizedSql(): String =
+		trim().lowercase().replace(Regex("\\s+"), " ")
 
 	private fun request(
 		portableEntry: PortablePressureEntryV1 = entry(),

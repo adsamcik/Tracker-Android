@@ -84,6 +84,93 @@ abstract class ImportedPressureDao {
 	)
 	abstract suspend fun latestEntryRevision(identity: String): ImportedPressureEntryRevisionEntity?
 
+	/**
+	 * Numeric authority preflight over the exact live-plus-retained recent candidate relation.
+	 *
+	 * The two bounded scalar flags leave all candidate identity text inside SQLite. Callers run
+	 * this before the first candidate page so an ambiguous two-field cursor cannot hide a row.
+	 */
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_pressure_entry_revision
+		  GROUP BY identity
+		), latest_member AS (
+		  SELECT run.entry_identity,
+		         run.entry_import_revision,
+		         run.start_time_ms AS recency_start_time_ms,
+		         run.identity AS recency_tie_identity
+		  FROM imported_pressure_run AS run
+		  WHERE NOT EXISTS (
+		    SELECT 1
+		    FROM imported_pressure_run AS newer
+		    WHERE newer.entry_identity = run.entry_identity
+		      AND newer.entry_import_revision = run.entry_import_revision
+		      AND (
+		        newer.start_time_ms > run.start_time_ms
+		        OR (
+		          newer.start_time_ms = run.start_time_ms
+		          AND newer.identity > run.identity
+		        )
+		      )
+		  )
+		), recent_candidate_authority AS (
+		  SELECT entry.start_time_ms,
+		         entry.end_time_ms,
+		         member.recency_start_time_ms,
+		         member.recency_tie_identity,
+		         1 AS is_live
+		  FROM imported_pressure_entry_revision AS entry
+		  INNER JOIN latest_revision AS latest
+		    ON latest.identity = entry.identity
+		   AND latest.import_revision = entry.import_revision
+		  LEFT JOIN latest_member AS member
+		    ON member.entry_identity = entry.identity
+		   AND member.entry_import_revision = entry.import_revision
+		  UNION ALL
+		  SELECT retained.start_time_ms,
+		         retained.end_time_ms,
+		         retained.recency_start_time_ms,
+		         retained.recency_tie_identity,
+		         0 AS is_live
+		  FROM imported_pressure_retention_receipt AS retained
+		), invalid_live_recency_authority AS (
+		  SELECT 1
+		  FROM recent_candidate_authority
+		  WHERE is_live = 1
+		    AND (
+		      recency_start_time_ms IS NULL
+		      OR recency_tie_identity IS NULL
+		      OR start_time_ms IS NULL
+		      OR end_time_ms IS NULL
+		      OR start_time_ms < 0
+		      OR end_time_ms < start_time_ms
+		      OR recency_start_time_ms < 0
+		      OR recency_start_time_ms < start_time_ms
+		      OR recency_start_time_ms > end_time_ms
+		      OR LENGTH(CAST(recency_tie_identity AS BLOB)) != 71
+		      OR SUBSTR(recency_tie_identity, 1, 7) != 'sha256:'
+		      OR SUBSTR(recency_tie_identity, 8) GLOB '*[^0-9a-f]*'
+		    )
+		  LIMIT 1
+		), duplicate_recency_authority AS (
+		  SELECT 1
+		  FROM recent_candidate_authority
+		  GROUP BY recency_start_time_ms, recency_tie_identity
+		  HAVING COUNT(*) > 1
+		  LIMIT 1
+		)
+		SELECT
+		  (SELECT COUNT(*) FROM invalid_live_recency_authority)
+		    AS invalid_live_recency_count,
+		  (SELECT COUNT(*) FROM duplicate_recency_authority)
+		    AS duplicate_recency_tuple_count
+		""",
+	)
+	abstract suspend fun recentHistoryRecencyAuthorityPreflight():
+		ImportedPressureHistoryRecencyAuthorityPreflight
+
 	/** One latest-revision seed per imported logical entry, ordered for a source-local product page. */
 	@Query(
 		"""
@@ -163,6 +250,94 @@ abstract class ImportedPressureDao {
 		beforeRecencyStartTimeMs: Long?,
 		beforeRecencyTieIdentity: String?,
 	): List<ImportedPressureHistoryCandidate>
+
+	/** Range-equivalent numeric authority preflight used before portable export paging. */
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_pressure_entry_revision
+		  GROUP BY identity
+		), latest_member AS (
+		  SELECT run.entry_identity,
+		         run.entry_import_revision,
+		         run.start_time_ms AS recency_start_time_ms,
+		         run.identity AS recency_tie_identity
+		  FROM imported_pressure_run AS run
+		  WHERE NOT EXISTS (
+		    SELECT 1
+		    FROM imported_pressure_run AS newer
+		    WHERE newer.entry_identity = run.entry_identity
+		      AND newer.entry_import_revision = run.entry_import_revision
+		      AND (
+		        newer.start_time_ms > run.start_time_ms
+		        OR (
+		          newer.start_time_ms = run.start_time_ms
+		          AND newer.identity > run.identity
+		        )
+		      )
+		  )
+		), recent_candidate_authority AS (
+		  SELECT entry.start_time_ms,
+		         entry.end_time_ms,
+		         member.recency_start_time_ms,
+		         member.recency_tie_identity,
+		         1 AS is_live
+		  FROM imported_pressure_entry_revision AS entry
+		  INNER JOIN latest_revision AS latest
+		    ON latest.identity = entry.identity
+		   AND latest.import_revision = entry.import_revision
+		  LEFT JOIN latest_member AS member
+		    ON member.entry_identity = entry.identity
+		   AND member.entry_import_revision = entry.import_revision
+		  WHERE entry.start_time_ms < :toExclusiveMs
+		    AND entry.end_time_ms > :fromInclusiveMs
+		  UNION ALL
+		  SELECT retained.start_time_ms,
+		         retained.end_time_ms,
+		         retained.recency_start_time_ms,
+		         retained.recency_tie_identity,
+		         0 AS is_live
+		  FROM imported_pressure_retention_receipt AS retained
+		  WHERE retained.start_time_ms < :toExclusiveMs
+		    AND retained.end_time_ms > :fromInclusiveMs
+		), invalid_live_recency_authority AS (
+		  SELECT 1
+		  FROM recent_candidate_authority
+		  WHERE is_live = 1
+		    AND (
+		      recency_start_time_ms IS NULL
+		      OR recency_tie_identity IS NULL
+		      OR start_time_ms IS NULL
+		      OR end_time_ms IS NULL
+		      OR start_time_ms < 0
+		      OR end_time_ms < start_time_ms
+		      OR recency_start_time_ms < 0
+		      OR recency_start_time_ms < start_time_ms
+		      OR recency_start_time_ms > end_time_ms
+		      OR LENGTH(CAST(recency_tie_identity AS BLOB)) != 71
+		      OR SUBSTR(recency_tie_identity, 1, 7) != 'sha256:'
+		      OR SUBSTR(recency_tie_identity, 8) GLOB '*[^0-9a-f]*'
+		    )
+		  LIMIT 1
+		), duplicate_recency_authority AS (
+		  SELECT 1
+		  FROM recent_candidate_authority
+		  GROUP BY recency_start_time_ms, recency_tie_identity
+		  HAVING COUNT(*) > 1
+		  LIMIT 1
+		)
+		SELECT
+		  (SELECT COUNT(*) FROM invalid_live_recency_authority)
+		    AS invalid_live_recency_count,
+		  (SELECT COUNT(*) FROM duplicate_recency_authority)
+		    AS duplicate_recency_tuple_count
+		""",
+	)
+	abstract suspend fun historyRecencyAuthorityPreflightInRange(
+		fromInclusiveMs: Long,
+		toExclusiveMs: Long,
+	): ImportedPressureHistoryRecencyAuthorityPreflight
 
 	/** Latest imported entries whose complete logical time range overlaps the requested range. */
 	@Query(
@@ -1679,6 +1854,11 @@ data class ImportedPressureHistoryCandidate(
 	@ColumnInfo(name = "recency_start_time_ms") val recencyStartTimeMs: Long?,
 	@ColumnInfo(name = "recency_tie_identity") val recencyTieIdentity: String?,
 	@ColumnInfo(name = "candidate_state") val candidateState: String,
+)
+
+data class ImportedPressureHistoryRecencyAuthorityPreflight(
+	@ColumnInfo(name = "invalid_live_recency_count") val invalidLiveRecencyCount: Long,
+	@ColumnInfo(name = "duplicate_recency_tuple_count") val duplicateRecencyTupleCount: Long,
 )
 
 data class ImportedPressureRunIdentityOwner(

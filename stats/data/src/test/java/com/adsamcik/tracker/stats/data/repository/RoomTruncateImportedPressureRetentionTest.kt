@@ -98,7 +98,10 @@ class RoomTruncateImportedPressureRetentionTest {
 			dao.retainedIdentitiesForEntries(listOf(first.entry.identity.value), 6).size shouldBe 5
 			dao.latestEntryRevision(exactBoundary.entry.identity.value)?.importRevision shouldBe 1L
 			val evaluation = database.withTransaction {
-				ImportedPressureHistoryEvaluator(database).selectRecentInTransaction(10)
+				(
+					ImportedPressureHistoryEvaluator(database).selectRecentInTransaction(10) as
+						ImportedPressureHistorySelection.Available
+					).evaluations
 			}.first { it.candidate.identity == first.entry.identity.value }
 			evaluation::class shouldBe ImportedPressureHistoryEvaluation.Retained::class
 			evaluation.toPublicPressureOnlyEntry().pressure.let {

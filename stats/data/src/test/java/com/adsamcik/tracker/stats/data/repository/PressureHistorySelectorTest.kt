@@ -1119,7 +1119,10 @@ class PressureHistorySelectorTest {
 			) {}.importEntry(importRequest(emitted.single(), "round-trip")) shouldBe
 				ImportPortablePressureResult.Applied(1L, 1, 1)
 			val roundTrip = target.withTransaction {
-				ImportedPressureHistoryEvaluator(target).selectRecentInTransaction(1).single()
+				(
+					ImportedPressureHistoryEvaluator(target).selectRecentInTransaction(1) as
+						ImportedPressureHistorySelection.Available
+					).evaluations.single()
 			} as ImportedPressureHistoryEvaluation.Readable
 			roundTrip.latest.entry shouldBe local
 		} finally {
