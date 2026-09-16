@@ -83,12 +83,14 @@ internal data class WifiAssemblyEntry(
 	val newestRunIdentity: PortableWifiOpaqueIdentity,
 )
 
-internal suspend fun seedExactNativeStepsMembership(database: AppDatabase) =
+internal suspend fun seedExactNativeStepsMembership(
+	database: AppDatabase,
+	startMs: Long,
+) =
 	database.withTransaction {
 		val logicalId = "five-source-native-steps"
 		val runId = "five-source-native-steps-run"
-		val startMs = 1_000L
-		val endMs = 1_100L
+		val endMs = Math.addExact(startMs, 100L)
 		val source = SessionManifestSourceEntity(
 			logicalTrackingId = logicalId,
 			manifestRevision = 1L,
@@ -701,7 +703,7 @@ private fun pressureWindow(
 	sensorAccuracy = PortablePressureSensorAccuracy.HIGH,
 	effectiveSamplePeriodMicros = 50_000,
 	effectiveMaximumReportLatencyMicros = 0,
-	targetWindowDurationNanos = 50_000_000L,
+	targetWindowDurationNanos = 100_000_000L,
 	maximumInterSampleGapNanos = 50_000_000L,
 	closure = PortablePressureWindowClosure.TARGET_ELAPSED,
 	qualification = PortablePressureWindowQualification.COMPLETE,
@@ -710,14 +712,15 @@ private fun pressureWindow(
 	zoneId = "UTC",
 )
 
-internal fun importedStepsAssemblyEntry(): PortableStepsEntryV1 {
+internal fun importedStepsAssemblyEntry(startMs: Long): PortableStepsEntryV1 {
+	val endMs = Math.addExact(startMs, 100L)
 	val run = PortableStepsRunV1(
 		identity = stepsIdentity('2'),
 		deletionScopeDigest = PortableStepsDeletionScopeDigest("3".repeat(64)),
-		startTimeMs = 3_000L,
-		endTimeMs = 3_100L,
+		startTimeMs = startMs,
+		endTimeMs = endMs,
 		storedZoneId = "UTC",
-		manifests = listOf(PortableStepsManifestV1(1L, 3_000L, 7L, 8L)),
+		manifests = listOf(PortableStepsManifestV1(1L, startMs, 7L, 8L)),
 		completeness = PortableStepsCompletenessV1(
 			PortableStepsCaptureCoverage.WHOLE_RUN,
 			PortableStepsProviderCoverage.COMPLETE,
@@ -729,8 +732,8 @@ internal fun importedStepsAssemblyEntry(): PortableStepsEntryV1 {
 			PortableStepsFactV1.create(
 				identity = stepsIdentity('4'),
 				semanticRevision = 1L,
-				intervalStartTimeMs = 3_000L,
-				intervalEndTimeMs = 3_100L,
+				intervalStartTimeMs = startMs,
+				intervalEndTimeMs = endMs,
 				wallTimeUncertaintyMs = 0L,
 				coverage = PortableStepsFactCoverage.COVERED,
 				effectiveStepCount = 5L,
@@ -750,8 +753,13 @@ internal suspend fun seedImportedSteps(
 	database: AppDatabase,
 	entry: PortableStepsEntryV1,
 	segmentId: Long,
+	collectedDataEpoch: Long,
 ) = database.withTransaction {
-	val storedEntry = ImportedStepsAdmissionRows.entry(entry, epoch = 0L, ownerGeneration = 1L)
+	val storedEntry = ImportedStepsAdmissionRows.entry(
+		entry,
+		epoch = collectedDataEpoch,
+		ownerGeneration = 1L,
+	)
 	importedStepsDao().insertEntry(storedEntry)
 	entry.runs.forEachIndexed { index, run ->
 		val physicalId = segmentId + index
@@ -789,7 +797,9 @@ internal suspend fun seedImportedSteps(
 internal suspend fun seedCellOriginClaim(
 	database: AppDatabase,
 	logicalId: String,
+	startMs: Long,
 ) {
+	val endMs = Math.addExact(startMs, 1L)
 	database.sourceSessionDao().insertSession(
 		LogicalTrackingSessionEntity(
 			logicalTrackingId = logicalId,
@@ -799,11 +809,11 @@ internal suspend fun seedCellOriginClaim(
 			rolloutRevision = 1L,
 			startOrigin = "MANUAL",
 			clockDomainId = "five-source-cell-conflict-boot",
-			startedAtMs = 1L,
+			startedAtMs = startMs,
 			startedElapsedNanos = 1L,
-			cutoffAtMs = 2L,
+			cutoffAtMs = endMs,
 			cutoffElapsedNanos = 2L,
-			completedAtMs = 2L,
+			completedAtMs = endMs,
 			finalAdmissionOrdinal = 0L,
 			failureCode = null,
 		),
