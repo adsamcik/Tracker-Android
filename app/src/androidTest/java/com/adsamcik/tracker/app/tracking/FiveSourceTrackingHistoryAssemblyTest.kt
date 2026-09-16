@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.tracking
 
+import androidx.room.InvalidationTracker
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -324,6 +325,42 @@ class FiveSourceTrackingHistoryAssemblyTest {
 	}
 
 	@Test
+	fun duplicatePressureRecencyAuthorityFailsBeforePressureSelectorOrDetailReads() = runTest {
+		val first = pressureRecencyCollisionEntry(
+			logicalId = "five-source-pressure-collision-a",
+			olderStartMs = 100L,
+			newestStartMs = 2_000L,
+		)
+		val second = pressureRecencyCollisionEntry(
+			logicalId = "five-source-pressure-collision-b",
+			olderStartMs = 200L,
+			newestStartMs = 2_000L,
+		)
+		assertTrue(importPressure(first, "collision-a") is ImportPortablePressureResult.Applied)
+		assertTrue(importPressure(second, "collision-b") is ImportPortablePressureResult.Applied)
+		rewritePressureNewestRunIdentityForCollision(
+			database = database,
+			entry = second,
+			collidingRun = first.runs.maxWith(
+				compareBy({ it.startTimeMs }, { it.identity.value }),
+			),
+		)
+
+		withPressureMaterializationTablesUnavailable {
+			assertEquals(
+				SourceAwareHistoryPageQuery.Unavailable(
+					SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+					HistorySource.PRESSURE,
+				),
+				entryPoint.history().observeRecentSourceAwarePage(
+					candidateSegmentIds = emptyList(),
+					limit = 1,
+				).first(),
+			)
+		}
+	}
+
+	@Test
 	fun corruptImportedStepsMakesTheRealSharedPageUnavailableWithoutPhysicalFallback() = runTest {
 		val imported = importedStepsAssemblyEntry()
 		val segmentId = 920_001L
@@ -406,6 +443,65 @@ class FiveSourceTrackingHistoryAssemblyTest {
 			expectedCollectedDataEpoch = 0L,
 		),
 	)
+
+	private suspend fun importPressure(
+		entry: com.adsamcik.tracker.stats.api.repository.PortablePressureEntryV1,
+		suffix: String,
+	): ImportPortablePressureResult = entryPoint.importPressure().importEntry(
+		ImportPortablePressureRequest(
+			entry = entry,
+			receipt = PortablePressureImportReceipt(
+				jobId = "five-source-$suffix-job",
+				entryKey = "five-source-$suffix-entry",
+				sourceName = "five-source.trackerpressure",
+				receivedAtMs = 2_500L,
+			),
+			expectedCollectedDataEpoch = 0L,
+		),
+	)
+
+	private suspend fun <T> withPressureMaterializationTablesUnavailable(
+		block: suspend () -> T,
+	): T {
+		// Register first so the production flow reuses Room's triggers while the tables are guards.
+		val observer = object : InvalidationTracker.Observer(
+			"pressure_fact_revision",
+			"imported_pressure_receipt",
+		) {
+			override fun onInvalidated(tables: Set<String>) = Unit
+		}
+		database.invalidationTracker.addObserver(observer)
+		val sqlite = database.openHelper.writableDatabase
+		var pressureFactsRenamed = false
+		var pressureReceiptsRenamed = false
+		try {
+			sqlite.execSQL(
+				"ALTER TABLE pressure_fact_revision " +
+					"RENAME TO pressure_fact_revision_preflight_guard",
+			)
+			pressureFactsRenamed = true
+			sqlite.execSQL(
+				"ALTER TABLE imported_pressure_receipt " +
+					"RENAME TO imported_pressure_receipt_preflight_guard",
+			)
+			pressureReceiptsRenamed = true
+			return block()
+		} finally {
+			if (pressureReceiptsRenamed) {
+				sqlite.execSQL(
+					"ALTER TABLE imported_pressure_receipt_preflight_guard " +
+						"RENAME TO imported_pressure_receipt",
+				)
+			}
+			if (pressureFactsRenamed) {
+				sqlite.execSQL(
+					"ALTER TABLE pressure_fact_revision_preflight_guard " +
+						"RENAME TO pressure_fact_revision",
+				)
+			}
+			database.invalidationTracker.removeObserver(observer)
+		}
+	}
 
 	private fun resetDatabase() = runBlocking {
 		withContext(Dispatchers.IO) {

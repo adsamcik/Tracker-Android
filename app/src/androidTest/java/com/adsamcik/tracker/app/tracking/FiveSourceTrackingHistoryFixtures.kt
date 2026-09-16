@@ -603,6 +603,79 @@ internal fun pressureAssemblyEntry(
 	)
 }
 
+internal fun pressureRecencyCollisionEntry(
+	logicalId: String,
+	olderStartMs: Long,
+	newestStartMs: Long,
+): PortablePressureEntryV1 {
+	val runs = listOf(olderStartMs, newestStartMs).mapIndexed { index, startMs ->
+		PortablePressureRunV1(
+			identity = PortablePressureOpaqueIdentity.derive(
+				PortablePressureIdentityKind.PHYSICAL_RUN,
+				"$logicalId-run-$index",
+			),
+			startTimeMs = startMs,
+			endTimeMs = startMs + 100L,
+			capturedForWholeRun = true,
+			availability = PortablePressureAvailability.NO_RETAINED_OBSERVATION,
+			coverage = PortablePressureCoverage.PARTIAL,
+			retentionLoss = true,
+			windows = emptyList(),
+		)
+	}
+	return PortablePressureEntryV1.create(
+		identity = PortablePressureOpaqueIdentity.derive(
+			PortablePressureIdentityKind.LOGICAL_ENTRY,
+			logicalId,
+		),
+		startTimeMs = runs.minOf { it.startTimeMs },
+		endTimeMs = runs.maxOf { it.endTimeMs },
+		runs = runs,
+	)
+}
+
+internal fun rewritePressureNewestRunIdentityForCollision(
+	database: AppDatabase,
+	entry: PortablePressureEntryV1,
+	collidingRun: PortablePressureRunV1,
+) {
+	val originalNewest = entry.runs.maxWith(
+		compareBy({ it.startTimeMs }, { it.identity.value }),
+	)
+	require(originalNewest.windows.isEmpty() && collidingRun.windows.isEmpty())
+	val corrected = PortablePressureEntryV1.create(
+		identity = entry.identity,
+		startTimeMs = entry.startTimeMs,
+		endTimeMs = entry.endTimeMs,
+		runs = entry.runs.map { run ->
+			if (run.identity == originalNewest.identity) {
+				run.copy(identity = collidingRun.identity)
+			} else {
+				run
+			}
+		},
+	)
+	val sqlite = database.openHelper.writableDatabase
+	sqlite.execSQL(
+		"UPDATE imported_pressure_run SET identity = ? " +
+			"WHERE entry_identity = ? AND identity = ?",
+		arrayOf(
+			collidingRun.identity.value,
+			entry.identity.value,
+			originalNewest.identity.value,
+		),
+	)
+	sqlite.execSQL(
+		"UPDATE imported_pressure_entry_revision SET content_checksum = ? WHERE identity = ?",
+		arrayOf(corrected.contentChecksum.value, entry.identity.value),
+	)
+	sqlite.execSQL(
+		"UPDATE imported_pressure_receipt SET entry_content_checksum = ? " +
+			"WHERE entry_identity = ?",
+		arrayOf(corrected.contentChecksum.value, entry.identity.value),
+	)
+}
+
 private fun pressureWindow(
 	localId: String,
 	startMs: Long,
