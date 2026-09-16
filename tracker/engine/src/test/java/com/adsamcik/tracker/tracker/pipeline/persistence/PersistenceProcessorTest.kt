@@ -145,6 +145,15 @@ class PersistenceProcessorTest {
 			SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
 		)
 		coEvery {
+			sourceDestinationOwnerDao.get(
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			)
+		} returns pressureOwner(
+			SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+			SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+		)
+		coEvery {
 			sourceDestinationOwnerDao.isExactOwner(
 				SourceDestinationOwnerEntity.SOURCE_LOCATION,
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
@@ -196,6 +205,7 @@ class PersistenceProcessorTest {
 		callback: (List<DurableSignalBuffer.CheckpointedSignal>) -> Unit,
 		signals: List<TrackingSignal> = stagedSignals.toList(),
 		stepsWriter: Pair<String, Long>? = null,
+		pressureWriter: Pair<String, Long>? = null,
 	): DurableSignalBuffer.CheckpointAdmission {
 		callback(
 			ids.mapIndexed { index, id ->
@@ -207,6 +217,8 @@ class PersistenceProcessorTest {
 					acquiredAtMs = signals.getOrElse(index) { emptySignal }.timestampMs.raw,
 					stepsWriterOwner = stepsWriter?.first,
 					stepsWriterOwnerGeneration = stepsWriter?.second,
+					pressureWriterOwner = pressureWriter?.first,
+					pressureWriterOwnerGeneration = pressureWriter?.second,
 				)
 			},
 		)
@@ -406,6 +418,14 @@ class PersistenceProcessorTest {
 		updatedAtMs = 1_000L,
 	)
 
+	private fun pressureOwner(owner: String, generation: Long) = SourceDestinationOwnerEntity(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+		destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+		owner = owner,
+		ownerGeneration = generation,
+		updatedAtMs = 1_000L,
+	)
+
 	private fun pendingRow(
 		id: Long,
 		signalId: String,
@@ -479,6 +499,81 @@ class PersistenceProcessorTest {
 
 			release.complete(Unit)
 			holder.await() shouldBe "holder"
+		}
+
+		@Test
+		fun `fenced Pressure component is acknowledged while mixed Location persists`() = runTest {
+			coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
+				val ids = stagedSignals.map { nextCheckpointId++ }
+				completeCheckpoint(
+					ids = ids,
+					callback = firstArg(),
+					pressureWriter =
+						SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE to
+							SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+				)
+			}
+			coEvery {
+				sourceDestinationOwnerDao.get(
+					SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+					SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+				)
+			} returns pressureOwner(
+				SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+				SourceDestinationOwnerEntity.FIRST_LEGACY_PRESSURE_FENCE_GENERATION,
+			)
+			val mixed = signalWithLocation().copy(
+				pressure = PressureSignal(pressureHpa = 1_013.25f, altitudeM = 120f),
+			)
+			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+			processor.onSignal(mixed)
+
+			processor.onFlush()
+
+			coVerify(exactly = 0) { pressureDao.insert(any<Collection<PressureSample>>()) }
+			coVerify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(listOf(1L)) }
+			coVerify(exactly = 0) {
+				sourceDestinationOwnerDao.compareAndSetOwner(
+					any(),
+					any(),
+					any(),
+					any(),
+					any(),
+					any(),
+					any(),
+				)
+			}
+		}
+
+		@Test
+		fun `pre-fence Pressure buffer cannot publish after owner generation advances`() = runTest {
+			coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
+				val ids = stagedSignals.map { nextCheckpointId++ }
+				completeCheckpoint(
+					ids = ids,
+					callback = firstArg(),
+					pressureWriter =
+						SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE to
+							SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+				)
+			}
+			coEvery {
+				sourceDestinationOwnerDao.get(
+					SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+					SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+				)
+			} returns pressureOwner(
+				SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+				SourceDestinationOwnerEntity.FIRST_LEGACY_PRESSURE_FENCE_GENERATION,
+			)
+			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+			processor.onSignal(signalWithPressure())
+
+			processor.onFlush()
+
+			coVerify(exactly = 0) { pressureDao.insert(any<Collection<PressureSample>>()) }
+			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(listOf(1L)) }
 		}
 
 		@Test

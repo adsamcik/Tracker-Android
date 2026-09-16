@@ -40,6 +40,7 @@ import com.adsamcik.tracker.tracker.pipeline.persistence.DurableSignalBuffer
 import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
 import com.adsamcik.tracker.tracker.pipeline.persistence.RoomPersistenceTransactor
 import com.adsamcik.tracker.tracker.pipeline.persistence.TrackingPersistenceTransactor
+import com.adsamcik.tracker.tracker.pipeline.persistence.ExclusiveTrackingPersistenceLifecycleLease
 import com.adsamcik.tracker.tracker.presentation.PresentationQuiescenceResult
 import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
 import com.adsamcik.tracker.tracker.source.location.LocationCaptureAuthority
@@ -80,9 +81,11 @@ import io.mockk.mockk
 import javax.inject.Provider
 import kotlin.test.assertIs
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -92,6 +95,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -505,6 +509,44 @@ class TrackingOrchestratorIntegrationTest {
 
 		activeChildJobs() shouldBe 0
 	}
+
+	@Test
+	fun `live orchestrator holds persistence lifecycle through complete stop`() =
+		runTest(testDispatcher) {
+			val lease = ExclusiveTrackingPersistenceLifecycleLease()
+			val controller = DefaultTrackerServiceController()
+			val orchestrator = TrackingOrchestrator(
+				controller = controller,
+				signalProcessors = emptySet(),
+				domainEventRepository = RecordingDomainEventRepository(),
+				dispatchers = testDispatcherProvider,
+				appDatabase = database,
+				trackingParamsRepository = FakeTrackingParamsRepository(TrackingParamsState()),
+				dailySummaryFallbackEnqueuer = {},
+				enableNotifications = false,
+				persistenceLifecycleLease = lease,
+			)
+			controller.updateServiceRunning(true)
+			orchestrator.initialize(
+				context = context,
+				isSessionUserInitiated = false,
+				initialTier = PolicyTier.AMBIENT,
+				scope = backgroundScope,
+				rolloutState = allEventCanonical(),
+			)
+			val offlineEntered = CompletableDeferred<Unit>()
+			val offline = backgroundScope.async {
+				lease.withOfflineLocationRecovery {
+					offlineEntered.complete(Unit)
+				}
+			}
+
+			runCurrent()
+			offlineEntered.isCompleted shouldBe false
+			orchestrator.shutdown(context)
+			offline.await()
+			offlineEntered.isCompleted shouldBe true
+		}
 
 	private fun allEventCanonical() = TrackingRolloutState.eventCanonical(SourceKind.entries.toSet())
 

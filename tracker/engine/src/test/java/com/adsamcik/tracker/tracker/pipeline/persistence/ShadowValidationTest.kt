@@ -109,6 +109,18 @@ class ShadowValidationTest {
 			updatedAtMs = 0L,
 		)
 		coEvery {
+			sourceDestinationOwnerDao.get(
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			)
+		} returns SourceDestinationOwnerEntity(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			owner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+			ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+			updatedAtMs = 0L,
+		)
+		coEvery {
 			sourceDestinationOwnerDao.isExactOwner(
 				SourceDestinationOwnerEntity.SOURCE_LOCATION,
 				SourceDestinationOwnerEntity.DESTINATION_SESSION_LOCATION,
