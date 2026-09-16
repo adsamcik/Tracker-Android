@@ -10,10 +10,18 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.time.FixedClock
+import com.adsamcik.tracker.tracker.pipeline.persistence.ExclusiveTrackingPersistenceLifecycleLease
+import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -85,6 +93,138 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 		blocked.blocker shouldBe SourceWriterTransitionBlocker.LEGACY_WRITER_NOT_QUIESCENT
 		requestedSources shouldBe listOf(SourceKind.PRESSURE)
 		rollout().isAcquisitionReachable(SourceKind.PRESSURE) shouldBe false
+		database.sourceDestinationOwnerDao().get(
+			SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+		)?.owner shouldBe SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE
+	}
+
+	@Test
+	fun `Pressure activation waits outside coordinator lease until live teardown releases persistence`() =
+		runTest {
+			seedContainedRollout()
+			seedInitialOwner(SourceWriterTransitionSpec.PRESSURE)
+			val persistenceLease = ExclusiveTrackingPersistenceLifecycleLease()
+			val persistence = mockk<PersistenceProcessor>()
+			every { persistence.isPipelineActiveForPersistenceLifecycle() } returns false
+			coEvery { persistence.drainOrphanedSignals() } returns true
+			val coordinator = PressureSessionFactWriterTransitionCoordinator(
+				database,
+				catalog,
+				dependencies(
+					legacyWriterQuiescence =
+						PersistenceLegacySourceWriterTransitionBoundary(
+							persistence,
+							persistenceLease,
+						),
+				),
+			)
+			coordinator.installInertCandidate(1L, 10L)
+				.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+			val live = persistenceLease.acquireLivePipeline()
+			val activation = async {
+				coordinator.activateCandidate(2L, 11L)
+			}
+
+			yield()
+			val leaseDao = database.sourceProjectionStateDao()
+			leaseDao.acquireOrRenewLease(
+				leaseName = SESSION_COORDINATOR_LEASE,
+				ownerToken = "teardown",
+				bootId = BOOT_ID,
+				nowMs = 1_000L,
+				expiresAtMs = 2_000L,
+				nowElapsedNanos = 1_000L,
+				expiresElapsedNanos = 2_000L,
+			) shouldBe 1
+			val teardownLease = requireNotNull(leaseDao.lease(SESSION_COORDINATOR_LEASE))
+			teardownLease.ownerToken shouldBe "teardown"
+			leaseDao.releaseLease(
+				SESSION_COORDINATOR_LEASE,
+				"teardown",
+				BOOT_ID,
+				teardownLease.generation,
+				1_000L,
+				1_000L,
+			) shouldBe 1
+			live.release()
+
+			activation.await().shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+			assertCanonical(SourceWriterTransitionSpec.PRESSURE, expectedRevision = 3L)
+		}
+
+	@Test
+	fun `Activity activation cancellation while waiting never acquires coordinator lease`() = runTest {
+		seedContainedRollout()
+		seedInitialOwner(SourceWriterTransitionSpec.ACTIVITY)
+		val persistenceLease = ExclusiveTrackingPersistenceLifecycleLease()
+		val persistence = mockk<PersistenceProcessor>()
+		every { persistence.isPipelineActiveForPersistenceLifecycle() } returns false
+		coEvery { persistence.drainOrphanedSignals() } returns true
+		val coordinator = ActivityCapturedFactWriterTransitionCoordinator(
+			database,
+			catalog,
+			dependencies(
+				legacyWriterQuiescence =
+					PersistenceLegacySourceWriterTransitionBoundary(
+						persistence,
+						persistenceLease,
+					),
+			),
+		)
+		coordinator.installInertCandidate(1L, 10L)
+		val live = persistenceLease.acquireLivePipeline()
+		val activation = async {
+			coordinator.activateCandidate(2L, 11L)
+		}
+
+		yield()
+		activation.cancelAndJoin()
+		database.sourceProjectionStateDao().acquireOrRenewLease(
+			leaseName = SESSION_COORDINATOR_LEASE,
+			ownerToken = "activity-teardown",
+			bootId = BOOT_ID,
+			nowMs = 1_000L,
+			expiresAtMs = 2_000L,
+			nowElapsedNanos = 1_000L,
+			expiresElapsedNanos = 2_000L,
+		) shouldBe 1
+		live.release()
+		rollout().isAcquisitionReachable(SourceKind.ACTIVITY) shouldBe false
+		io.mockk.coVerify(exactly = 0) { persistence.drainOrphanedSignals() }
+	}
+
+	@Test
+	fun `Pressure activation rechecks rollout revision after persistence wait`() = runTest {
+		seedContainedRollout()
+		seedInitialOwner(SourceWriterTransitionSpec.PRESSURE)
+		val persistenceLease = ExclusiveTrackingPersistenceLifecycleLease()
+		val persistence = mockk<PersistenceProcessor>()
+		every { persistence.isPipelineActiveForPersistenceLifecycle() } returns false
+		coEvery { persistence.drainOrphanedSignals() } returns true
+		val coordinator = PressureSessionFactWriterTransitionCoordinator(
+			database,
+			catalog,
+			dependencies(
+				legacyWriterQuiescence =
+					PersistenceLegacySourceWriterTransitionBoundary(
+						persistence,
+						persistenceLease,
+					),
+			),
+		)
+		coordinator.installInertCandidate(1L, 10L)
+		val live = persistenceLease.acquireLivePipeline()
+		val activation = async {
+			coordinator.activateCandidate(2L, 11L)
+		}
+		yield()
+		val changed = rollout().copy(revision = 3L)
+		database.trackingRolloutStateDao().save(changed.toEntity(10L))
+		live.release()
+
+		activation.await().shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+			.blocker shouldBe SourceWriterTransitionBlocker.ROLLOUT_REVISION_CHANGED
 		database.sourceDestinationOwnerDao().get(
 			SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 			SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
@@ -327,5 +467,6 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 
 	private companion object {
 		const val BOOT_ID = "test-boot"
+		const val SESSION_COORDINATOR_LEASE = "tracking-session-coordinator"
 	}
 }
