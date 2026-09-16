@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
+import com.adsamcik.tracker.shared.base.database.createTrackingOwnerValidationTriggers
 import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 
 /** Runs the one-shot legacy copy inside Room's atomic fresh-database creation transaction. */
@@ -47,5 +48,6 @@ class LegacyImportRoomCallback(
 				"(source_kind, destination, owner, owner_generation, updated_at_ms) " +
 				"VALUES (3, 'AMBIENT_STEPS', 'AMBIENT_STEPS_FACTS', 1, 0)",
 		)
+		createTrackingOwnerValidationTriggers(db)
 	}
 }

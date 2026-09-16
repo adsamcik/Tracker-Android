@@ -721,6 +721,7 @@ abstract class AppDatabase : RoomDatabase() {
 
 		override fun setupDatabase(database: Builder<AppDatabase>) {
 			database.addMigrations(*activeMigrations)
+			database.addCallback(TrackingOwnerValidationRoomCallback)
 		}
 
 		override fun setupDatabase(context: Context, database: Builder<AppDatabase>) {

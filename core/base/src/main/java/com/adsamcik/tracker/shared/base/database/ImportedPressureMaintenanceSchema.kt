@@ -143,6 +143,7 @@ fun createImportedPressureMaintenanceTables(database: SupportSQLiteDatabase) {
 		"CREATE INDEX IF NOT EXISTS `idx_imported_pressure_source_erase_witness_receipt` " +
 			"ON `imported_pressure_source_erase_witness` (`source_erase_id`)",
 	)
+	createTrackingOwnerValidationTriggers(database)
 }
 
 private fun SupportSQLiteDatabase.hasColumn(table: String, column: String): Boolean =

@@ -100,7 +100,7 @@ interface SourceBrokerDao {
 			AND registration.source_instance_id = :sourceInstanceId
 			AND registration.capture_callback_barrier_authorization_revision >=
 				:throughAuthorizationRevision
-		HAVING COUNT(registration.registration_generation) = 1
+		HAVING COUNT(DISTINCT registration.registration_generation) = 1
 		ON CONFLICT(source_kind, registration_generation) DO UPDATE SET
 			source_instance_id = excluded.source_instance_id,
 			through_authorization_revision = excluded.through_authorization_revision,
@@ -371,18 +371,6 @@ interface SourceBrokerDao {
 		sourceKind: Int,
 		registrationGeneration: Long,
 		authorizationRevision: Long,
-	): List<SourceAuthorizationEntity>
-
-	@Query(
-		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
-			"AND registration_generation = :registrationGeneration " +
-			"AND authorization_revision = :authorizationRevision ORDER BY member_id LIMIT :limit",
-	)
-	suspend fun authorizationRevisionBounded(
-		sourceKind: Int,
-		registrationGeneration: Long,
-		authorizationRevision: Long,
-		limit: Int,
 	): List<SourceAuthorizationEntity>
 
 	/**

@@ -4029,5 +4029,6 @@ val MIGRATION_27_28: Migration = object : Migration(
 					"ON imported_wifi_deletion_generation(deletion_scope_digest)",
 			)
 		}
+		createTrackingOwnerValidationTriggers(db)
 	}
 }
