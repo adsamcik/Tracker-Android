@@ -90,6 +90,14 @@ data class PendingSignalEntity(
 	/** Monotonic ABA fence paired with [stepsWriterOwner]. */
 	@ColumnInfo(name = "steps_writer_owner_generation")
 	val stepsWriterOwnerGeneration: Long? = null,
+
+	/** Immutable Pressure destination owner captured when this command became durable. */
+	@ColumnInfo(name = "pressure_writer_owner")
+	val pressureWriterOwner: String? = null,
+
+	/** Monotonic ABA fence paired with [pressureWriterOwner]. */
+	@ColumnInfo(name = "pressure_writer_owner_generation")
+	val pressureWriterOwnerGeneration: Long? = null,
 ) {
 	init {
 		require((stepsWriterOwner == null) == (stepsWriterOwnerGeneration == null)) {
@@ -101,5 +109,14 @@ data class PendingSignalEntity(
 				stepsWriterOwner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL ||
 				stepsWriterOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
 		) { "Unknown pending Steps writer owner $stepsWriterOwner" }
+		require((pressureWriterOwner == null) == (pressureWriterOwnerGeneration == null)) {
+			"Pending Pressure writer owner and generation must be supplied together"
+		}
+		require(pressureWriterOwnerGeneration == null || pressureWriterOwnerGeneration > 0L)
+		require(
+			pressureWriterOwner == null ||
+				pressureWriterOwner == SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE ||
+				pressureWriterOwner == SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+		) { "Unknown pending Pressure writer owner $pressureWriterOwner" }
 	}
 }
