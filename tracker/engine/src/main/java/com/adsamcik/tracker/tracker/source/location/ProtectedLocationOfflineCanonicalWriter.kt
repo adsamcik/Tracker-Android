@@ -42,10 +42,23 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 	private val persistenceProcessor: PersistenceProcessor,
 	private val locationComponentFactory: () -> LocationTrackerComponent,
 	private val persistenceLifecycleLease: TrackingPersistenceLifecycleLease,
+	receiptReader: (suspend (
+		LocationCapturedFactCommand,
+		LocationWalAcquisitionMetadata,
+	) -> ProtectedLocationCanonicalReceipt)?,
 ) : ProtectedLocationCanonicalWriter {
 	private val applicationContext = context.applicationContext
 	private val operationMutex = Mutex()
 	private var retainedCleanup: RetainedOfflineCleanup? = null
+	private val readReceipt: suspend (
+		LocationCapturedFactCommand,
+		LocationWalAcquisitionMetadata,
+	) -> ProtectedLocationCanonicalReceipt =
+		receiptReader ?: { command, acquisitionMetadata ->
+			database.withTransaction {
+				database.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
+			}
+		}
 
 	@Inject
 	constructor(
@@ -67,6 +80,7 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 			)
 		},
 		persistenceLifecycleLease,
+		null,
 	)
 
 	internal constructor(
@@ -78,6 +92,10 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 		@Suppress("UNUSED_PARAMETER") testMarker: Unit,
 		persistenceLifecycleLease: TrackingPersistenceLifecycleLease =
 			ExclusiveTrackingPersistenceLifecycleLease(),
+		receiptReader: (suspend (
+			LocationCapturedFactCommand,
+			LocationWalAcquisitionMetadata,
+		) -> ProtectedLocationCanonicalReceipt)? = null,
 	) : this(
 		context,
 		database,
@@ -85,6 +103,7 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 		persistenceProcessor,
 		locationComponentFactory,
 		persistenceLifecycleLease,
+		receiptReader,
 	)
 
 	override suspend fun write(
@@ -176,9 +195,7 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 					"LOCATION_CANONICAL_PENDING_RECOVERY_INCOMPLETE",
 				)
 			}
-			when (val recoveredReceipt = database.withTransaction {
-				database.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
-			}) {
+			when (val recoveredReceipt = readReceipt(command, acquisitionMetadata)) {
 				is ProtectedLocationCanonicalReceipt.Complete ->
 					return ProtectedLocationCanonicalWriteResult.Committed
 				is ProtectedLocationCanonicalReceipt.Invalid ->
@@ -266,9 +283,7 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 
 			pipeline.stop()
 			pipelineStopRequired = false
-			when (val receipt = database.withTransaction {
-				database.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
-			}) {
+			when (val receipt = readReceipt(command, acquisitionMetadata)) {
 				is ProtectedLocationCanonicalReceipt.Complete ->
 					ProtectedLocationCanonicalWriteResult.Committed
 				is ProtectedLocationCanonicalReceipt.Incomplete ->
@@ -284,11 +299,16 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 			throw cancelled
 		} catch (failure: Exception) {
 			terminalFailure = failure
-			val receipt = runCatching {
-				database.withTransaction {
-					database.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
-				}
-			}.getOrNull()
+			val receipt = try {
+				readReceipt(command, acquisitionMetadata)
+			} catch (cancelled: CancellationException) {
+				if (cancelled !== failure) cancelled.addSuppressed(failure)
+				terminalFailure = cancelled
+				throw cancelled
+			} catch (receiptFailure: Exception) {
+				if (receiptFailure !== failure) failure.addSuppressed(receiptFailure)
+				null
+			}
 			if (receipt is ProtectedLocationCanonicalReceipt.Complete) {
 				ProtectedLocationCanonicalWriteResult.Committed
 			} else {
