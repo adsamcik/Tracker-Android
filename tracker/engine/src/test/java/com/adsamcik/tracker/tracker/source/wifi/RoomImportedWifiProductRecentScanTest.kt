@@ -176,47 +176,47 @@ class RoomImportedWifiProductRecentScanTest {
 				)
 			}
 		}
+	}
 
-		@Test
-		fun `receipt bytes are rejected by numeric preflight before receipt rows materialize`() = runTest {
-			val imported = entry("maximum-provenance", 100L)
-			val maximum = WifiCapturedPortableFormatV1.MAX_IMPORT_RECEIPT_FIELD_LENGTH
-			val request = ImportPortableCapturedWifiRequest(
-				imported,
-				PortableCapturedWifiImportReceipt(
-					"j".repeat(maximum),
-					"k".repeat(maximum),
-					"s".repeat(maximum),
-					200L,
+	@Test
+	fun `receipt bytes are rejected by numeric preflight before receipt rows materialize`() = runTest {
+		val imported = entry("maximum-provenance", 100L)
+		val maximum = WifiCapturedPortableFormatV1.MAX_IMPORT_RECEIPT_FIELD_LENGTH
+		val request = ImportPortableCapturedWifiRequest(
+			imported,
+			PortableCapturedWifiImportReceipt(
+				"j".repeat(maximum),
+				"k".repeat(maximum),
+				"s".repeat(maximum),
+				200L,
+			),
+			EPOCH,
+		)
+		importer().importEntry(request) shouldBe ImportPortableCapturedWifiResult.Applied(1L, 1, 1)
+		executedQueries.clear()
+		val evaluator = RoomImportedWifiProductEvaluator(
+			database,
+			{},
+			ImportedWifiProductLimits(maximumAuthorityBytes = 24L * 1024L),
+		)
+
+		val failure = database.withTransaction {
+			evaluator.selectIdentityInTransaction(
+				com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey(
+					imported.identity.value,
 				),
-				EPOCH,
 			)
-			importer().importEntry(request) shouldBe ImportPortableCapturedWifiResult.Applied(1L, 1, 1)
-			executedQueries.clear()
-			val evaluator = RoomImportedWifiProductEvaluator(
-				database,
-				{},
-				ImportedWifiProductLimits(maximumAuthorityBytes = 24L * 1024L),
-			)
+		} as ImportedWifiProductEvaluation.Unverifiable
 
-			val failure = database.withTransaction {
-				evaluator.selectIdentityInTransaction(
-					com.adsamcik.tracker.stats.api.repository.WifiImportedHistorySelectionKey(
-						imported.identity.value,
-					),
-				)
-			} as ImportedWifiProductEvaluation.Unverifiable
-
-			failure.reason shouldBe ImportedWifiProductFailure.DEPENDENCY_OVERFLOW
-			failure.authenticatedSelection shouldBe null
-			executedQueries.any {
-				"COUNT(*) AS row_count" in it && "FROM imported_wifi_receipt" in it
-			} shouldBe true
-			executedQueries.none {
-				"SELECT * FROM imported_wifi_receipt" in it &&
-					"entry_identity IN" in it
-			} shouldBe true
-		}
+		failure.reason shouldBe ImportedWifiProductFailure.DEPENDENCY_OVERFLOW
+		failure.authenticatedSelection shouldBe null
+		executedQueries.any {
+			"COUNT(*) AS row_count" in it && "FROM imported_wifi_receipt" in it
+		} shouldBe true
+		executedQueries.none {
+			"SELECT * FROM imported_wifi_receipt" in it &&
+				"entry_identity IN" in it
+		} shouldBe true
 	}
 
 	private fun importer() = RoomImportPortableCapturedWifi(
