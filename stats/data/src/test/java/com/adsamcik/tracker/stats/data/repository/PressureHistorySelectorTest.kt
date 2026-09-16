@@ -156,6 +156,58 @@ class PressureHistorySelectorTest {
 		pressureOnly.history.endTime.raw shouldBe REPLACEMENT_RUN_END_MS
 		pressureOnly.history.pressure.windows.size shouldBe 2
 		pressureOnly.history.state shouldBe PressureHistoryPresentationState.READY
+		pressureOnly.history.pressure.hasQualifiedRetainedProof shouldBe true
+	}
+
+	@Test
+	fun sourceAwarePageKeepsPhysicalCandidateWhenExactPressureProjectionFailed() = runTest {
+		val fixture = insertFixture(factSemanticRevision = 1L)
+		database.sourceProjectionStateDao().saveFailure(
+			SourceProjectionFailureEntity(
+				projectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+				projectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+				admissionOrdinal = 1L,
+				attemptCount = 1,
+				failureCode = "TERMINAL_PRESSURE_SOURCE_AWARE_TEST",
+				terminal = true,
+				lastAttemptAtMs = RUN_END_MS,
+			),
+		)
+		val repository = pressureAwareRepository()
+
+		val query = repository.observeRecentSourceAwarePage(
+			candidateSegmentIds = listOf(fixture.segmentId),
+			limit = 10,
+		).first()
+		val page = (query as SourceAwareHistoryPageQuery.Content).entries
+		val selected = repository.observeSession(fixture.segmentId).first() as
+			SessionHistoryQuery.Found
+
+		page shouldBe listOf(SourceAwareHistoryPageEntry.Physical(fixture.segmentId))
+		(HistorySource.PRESSURE in selected.history.qualifiedSources) shouldBe false
+		repository.observeRecentPressureOnlyEntries(limit = 1).first().single().state shouldBe
+			PressureHistoryPresentationState.FAILED
+	}
+
+	@Test
+	fun sourceAwarePageReplacesQualifiedPartialPressureWithoutPhysicalFallback() = runTest {
+		val fixture = insertFixture(
+			factSemanticRevision = 1L,
+			factClosureKind = PressureFactRevisionEntity.CLOSURE_SOURCE_BOUNDARY,
+			factQualification = PressureFactRevisionEntity.QUALIFICATION_PARTIAL,
+		)
+
+		val query = pressureAwareRepository().observeRecentSourceAwarePage(
+			candidateSegmentIds = listOf(fixture.segmentId),
+			limit = 10,
+		).first()
+		val page = (query as SourceAwareHistoryPageQuery.Content).entries
+		val pressureOnly = page.single() as SourceAwareHistoryPageEntry.PressureOnly
+
+		pressureOnly.history.state shouldBe PressureHistoryPresentationState.PARTIAL
+		pressureOnly.history.pressure.hasQualifiedRetainedProof shouldBe true
+		pressureOnly.history.pressure.windows.single().qualification shouldBe
+			com.adsamcik.tracker.stats.api.repository.PressureWindowQualification.PARTIAL
 	}
 
 	@Test
