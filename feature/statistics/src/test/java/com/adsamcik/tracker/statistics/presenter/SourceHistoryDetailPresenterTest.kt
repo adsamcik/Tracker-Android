@@ -102,6 +102,55 @@ class SourceHistoryDetailPresenterTest {
 	}
 
 	@Test
+	fun `Wi-Fi stale selection maps to immutable selection changed`() = runTest {
+		val entry = localWifiEntry()
+		val selection = SourceHistoryDetailSelection(
+			entry = SourceAwareHistoryPageEntry.WifiOnly(entry),
+			readSnapshot = TrackingHistoryReadSnapshot(7L, 11L),
+		)
+		coEvery {
+			wifiRepository.lookup(requireNotNull(entry.selection))
+		} returns WifiHistoryQuery.Failed(WifiHistoryCause.STALE_SELECTION)
+
+		presenter.load(selection) shouldBe SourceHistoryDetailState.Unavailable(
+			reason = SourceHistoryDetailUnavailableReason.SELECTION_CHANGED,
+			source = com.adsamcik.tracker.stats.api.repository.HistorySource.WIFI,
+		)
+		coVerify(exactly = 1) { wifiRepository.lookup(requireNotNull(entry.selection)) }
+	}
+
+	@Test
+	fun `Wi-Fi stale selection relinquishes ownership and retry cannot lookup again`() = runTest {
+		val entry = localWifiEntry()
+		val selection = SourceHistoryDetailSelection(
+			entry = SourceAwareHistoryPageEntry.WifiOnly(entry),
+			readSnapshot = TrackingHistoryReadSnapshot(8L, 12L),
+		)
+		coEvery {
+			wifiRepository.lookup(requireNotNull(entry.selection))
+		} returns WifiHistoryQuery.Failed(WifiHistoryCause.STALE_SELECTION)
+		val route = SourceHistoryDetailHandoff.register(selection)
+		val viewModel = SourceHistoryDetailViewModel(
+			presenter = presenter,
+			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
+		)
+		runCurrent()
+		val unavailable = SourceHistoryDetailState.Unavailable(
+			reason = SourceHistoryDetailUnavailableReason.SELECTION_CHANGED,
+			source = com.adsamcik.tracker.stats.api.repository.HistorySource.WIFI,
+		)
+		viewModel.state.value shouldBe unavailable
+
+		viewModel.retry()
+		runCurrent()
+
+		viewModel.state.value shouldBe unavailable
+		coVerify(exactly = 1) { wifiRepository.lookup(requireNotNull(entry.selection)) }
+		SourceHistoryDetailHandoff.consume(route.selectionToken) shouldBe null
+		viewModel.close()
+	}
+
+	@Test
 	fun `imported Cell selection round trips without physical ownership inference`() = runTest {
 		val entry = importedCellEntry()
 		val selection = SourceHistoryDetailSelection(

@@ -100,11 +100,15 @@ class SourceHistoryDetailPresenter @Inject constructor(
 					)
 				}
 			}
-			is WifiHistoryQuery.Failed -> SourceHistoryDetailState.Unavailable(
-				reason = query.cause.toDetailUnavailableReason(),
-				source = HistorySource.WIFI,
-				canRetry = true,
-			)
+			is WifiHistoryQuery.Failed -> if (query.cause == WifiHistoryCause.STALE_SELECTION) {
+				selectionChanged(HistorySource.WIFI)
+			} else {
+				SourceHistoryDetailState.Unavailable(
+					reason = query.cause.toDetailUnavailableReason(),
+					source = HistorySource.WIFI,
+					canRetry = true,
+				)
+			}
 			WifiHistoryQuery.NotFound -> SourceHistoryDetailState.Unavailable(
 				reason = SourceHistoryDetailUnavailableReason.NOT_FOUND,
 				source = HistorySource.WIFI,

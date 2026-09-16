@@ -23,7 +23,14 @@ import com.adsamcik.tracker.stats.api.repository.CellHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryRepository
+import com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import androidx.lifecycle.SavedStateHandle
 import io.kotest.matchers.shouldBe
@@ -109,6 +116,36 @@ class SourceHistoryDetailRouteComposeTest {
 	}
 
 	@Test
+	fun `Wi-Fi stale selection hides Retry and cannot issue a second lookup`() {
+		val entry = wifiEntry()
+		val selection = SourceHistoryDetailSelection(
+			entry = SourceAwareHistoryPageEntry.WifiOnly(entry),
+			readSnapshot = TrackingHistoryReadSnapshot(8L, 12L),
+		)
+		val wifiRepository = mockk<WifiHistoryRepository>()
+		coEvery {
+			wifiRepository.lookup(requireNotNull(entry.selection))
+		} returns WifiHistoryQuery.Failed(WifiHistoryCause.STALE_SELECTION)
+		val route = SourceHistoryDetailHandoff.register(selection)
+		val viewModel = SourceHistoryDetailViewModel(
+			presenter = presenter(wifiRepository),
+			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
+		)
+		setRoute(viewModel)
+
+		composeRule.onNodeWithText(
+			text(R.string.source_history_detail_changed),
+			substring = true,
+		).assertIsDisplayed()
+		composeRule.onNodeWithText(text(R.string.trip_detail_retry)).assertDoesNotExist()
+		composeRule.runOnIdle { viewModel.retry() }
+		coVerify(exactly = 1) {
+			wifiRepository.lookup(requireNotNull(entry.selection))
+		}
+		viewModel.close()
+	}
+
+	@Test
 	fun `selection changed hides Retry and does not requery stale Activity authority`() {
 		val selection = activitySelection()
 		val stalePresenter = spyk(presenter())
@@ -178,9 +215,24 @@ class SourceHistoryDetailRouteComposeTest {
 		}
 	}
 
-	private fun presenter() = SourceHistoryDetailPresenter(
-		wifiHistoryRepository = mockk<WifiHistoryRepository>(),
+	private fun presenter(
+		wifiHistoryRepository: WifiHistoryRepository = mockk(),
+	) = SourceHistoryDetailPresenter(
+		wifiHistoryRepository = wifiHistoryRepository,
 		cellHistoryRepository = mockk<CellHistoryRepository>(),
+	)
+
+	private fun wifiEntry() = WifiHistoryEntry(
+		key = WifiHistoryEntryKey("wifi-route"),
+		startTime = EpochMs(1_000L),
+		endTime = EpochMs(2_000L),
+		storedZoneIds = setOf("UTC"),
+		state = WifiHistoryProductState.MATERIALIZING,
+		coverage = WifiHistoryCoverage.NONE,
+		observations = emptyList(),
+		causes = setOf(WifiHistoryCause.MATERIALIZATION_BEHIND),
+		localSelection = WifiLocalHistorySelectionKey("a".repeat(64)),
+		capturesOnlyWifi = true,
 	)
 
 	private fun activitySelection(
