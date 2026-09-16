@@ -6,8 +6,9 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
-import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterRearmSupportDeclaration
+import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
 import com.adsamcik.tracker.shared.base.database.liveSourceProjectionActivationOrdinal
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import javax.inject.Inject
@@ -31,10 +32,19 @@ data class ExecutableSourceLaneBinding(
 }
 
 /**
- * Source-owner declaration that its writer, readers, maintenance, import/export, and validators
- * all implement [SourceWriterGenerationContract] for every future binding generation.
+ * Source-owner declaration that its writer, fact schema, readers, maintenance, transfer, deletion,
+ * and full-deletion authority all implement [SourceWriterGenerationContract] for future bindings.
  */
-data class MonotonicRearmSourceWriterSupport(val source: SourceKind)
+data class MonotonicRearmSourceWriterSupport(
+	val source: SourceKind,
+	val declaration: SourceWriterRearmSupportDeclaration,
+) {
+	init {
+		require(source.stableCode == declaration.capability.sourceKind) {
+			"Rearm support declaration belongs to another source"
+		}
+	}
+}
 
 /** App-owned immutable list of source lanes that this binary can actually execute. */
 @Singleton

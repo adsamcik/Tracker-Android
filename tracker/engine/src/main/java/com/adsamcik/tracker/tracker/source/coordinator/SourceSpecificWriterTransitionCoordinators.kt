@@ -1127,8 +1127,11 @@ private fun block(blocker: SourceWriterTransitionBlocker): Nothing =
 	throw SourceWriterTransitionBlockedException(blocker)
 
 /** Parent-owned core constants are required before a later re-arm generation can be executable. */
-internal const val CONTAINED_ACTIVITY_SESSION_OWNER = "CONTAINED_ACTIVITY_SESSION_FACTS"
+internal const val CONTAINED_ACTIVITY_SESSION_OWNER =
+	SourceDestinationOwnerEntity.OWNER_CONTAINED_ACTIVITY_SESSION_FACTS
 internal const val CONTAINED_PRESSURE_SESSION_OWNER =
 	SourceDestinationOwnerEntity.OWNER_CONTAINED_PRESSURE_SESSION_FACTS
-internal const val CONTAINED_WIFI_SESSION_OWNER = "CONTAINED_WIFI_SESSION_FACTS"
-internal const val CONTAINED_CELL_SESSION_OWNER = "CONTAINED_CELL_SESSION_FACTS"
+internal const val CONTAINED_WIFI_SESSION_OWNER =
+	SourceDestinationOwnerEntity.OWNER_CONTAINED_WIFI_SESSION_FACTS
+internal const val CONTAINED_CELL_SESSION_OWNER =
+	SourceDestinationOwnerEntity.OWNER_CONTAINED_CELL_SESSION_FACTS
