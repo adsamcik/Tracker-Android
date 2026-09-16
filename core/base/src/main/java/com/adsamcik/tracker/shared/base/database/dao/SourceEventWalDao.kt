@@ -5,12 +5,69 @@ import androidx.room.ColumnInfo
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 
 @Dao
 interface SourceEventWalDao {
-	@Insert(onConflict = OnConflictStrategy.IGNORE)
-	suspend fun insertIgnoringDuplicate(entity: SourceEventWalEntity): Long
+	/**
+	 * Preserves the historical `-1` duplicate result without executing an `INSERT OR IGNORE`.
+	 *
+	 * SQLite may advance an AUTOINCREMENT sequence before an ignored unique-index conflict. The
+	 * scalar preflight and ABORT insert therefore share this Room transaction. Existing allocator
+	 * holes from older builds remain unclassified evidence; v28 recovery must prove deletion or
+	 * migration authority rather than rewinding the sequence or fabricating a gap receipt.
+	 */
+	@Transaction
+	suspend fun insertIgnoringDuplicate(entity: SourceEventWalEntity): Long {
+		if (hasAdmissionConflict(
+				admissionOrdinal = entity.admissionOrdinal,
+				eventId = entity.eventId,
+				sourceKind = entity.sourceKind,
+				providerDedupKey = entity.providerDedupKey,
+				sourceInstanceId = entity.sourceInstanceId,
+				sourceSequence = entity.sourceSequence,
+				capturedCollectedDataEpoch = entity.capturedCollectedDataEpoch,
+				clockDomainId = entity.clockDomainId,
+				deliveryIdentity = entity.deliveryIdentity,
+				deliveryUnitIndex = entity.deliveryUnitIndex,
+			)
+		) {
+			return -1L
+		}
+		return insertAbortingOnUnexpectedConflict(entity)
+	}
+
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM source_event_wal WHERE " +
+			"(:admissionOrdinal > 0 AND admission_ordinal = :admissionOrdinal) OR " +
+			"event_id = :eventId OR " +
+			"(:providerDedupKey IS NOT NULL AND source_kind = :sourceKind " +
+			"AND provider_dedup_key = :providerDedupKey) OR " +
+			"(source_kind = :sourceKind AND source_instance_id = :sourceInstanceId " +
+			"AND source_sequence = :sourceSequence) OR " +
+			"(:deliveryIdentity IS NOT NULL AND :deliveryUnitIndex IS NOT NULL " +
+			"AND source_kind = :sourceKind " +
+			"AND captured_collected_data_epoch = :capturedCollectedDataEpoch " +
+			"AND clock_domain_id = :clockDomainId " +
+			"AND delivery_identity = :deliveryIdentity " +
+			"AND delivery_unit_index = :deliveryUnitIndex) LIMIT 1)",
+	)
+	suspend fun hasAdmissionConflict(
+		admissionOrdinal: Long,
+		eventId: String,
+		sourceKind: Int,
+		providerDedupKey: String?,
+		sourceInstanceId: String,
+		sourceSequence: Long,
+		capturedCollectedDataEpoch: Long,
+		clockDomainId: String,
+		deliveryIdentity: String?,
+		deliveryUnitIndex: Int?,
+	): Boolean
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	suspend fun insertAbortingOnUnexpectedConflict(entity: SourceEventWalEntity): Long
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertDeliveryUnits(entities: List<SourceEventWalEntity>): List<Long>
