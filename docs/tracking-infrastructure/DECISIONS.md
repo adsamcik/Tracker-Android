@@ -7,19 +7,21 @@ Last updated: 2026-09-16
 - Status: accepted local documentation receipt, 2026-09-16.
 - All artifacts demonstrably started before TI-D262's freeze are now statically closed and locally
   integrated as **IMPLEMENTED_UNVALIDATED**. The exact source integration head before this
-  documentation commit is `7e7f50bdaae025efde7df3d69f85dc2365170699`.
+  documentation commit is `2956f962e41ba3c85bd9eb1e2c9afeb83bb3e74a`.
 - Preserve exact reviewed chains: Purpose `cef95415e2` -> `8943f299f8` -> `17b089212e`;
   Portable `2697903ae6` -> `aa9447e070` -> `cb8159d68c`; final source/schema
   `7142543ba9` -> `a4ae2dd57b` -> `527c022e97`; five-source history `1031df9f35` ->
   `98f2f567ce` -> `14d31f9aa5`; Ambient files `d5a565b418` -> `bf260d7b1f` ->
-  `f67ca6b16e`; consumers `10ed3b99da` -> `5788cf846a` -> `7e7f50bdaa`.
+  `f67ca6b16e`; consumers `10ed3b99da` -> `5788cf846a` -> `7e7f50bdaa`; review-43a
+  recreation correction `b3f490c76d` -> `335df7ea57` -> `2956f962e4`.
 - Preserve their exact reviewed refs:
   `refs/remotes/handover/reviewed/ti-purpose-settings-20260915`,
   `refs/remotes/handover/reviewed/ti-portable-file-assembly-20260915`,
   `refs/remotes/handover/reviewed/ti-final-source-schema-20260916`,
   `refs/remotes/handover/reviewed/ti-five-source-history-20260916`,
   `refs/remotes/handover/reviewed/ti-ambient-file-integration-20260916`, and
-  `refs/remotes/handover/reviewed/ti-source-history-consumers-20260916`.
+  `refs/remotes/handover/reviewed/ti-source-history-consumers-20260916`, plus
+  `refs/remotes/handover/reviewed/ti-consumer-recreation-fix-20260916`.
 - Final source/schema successors are Activity `6dfa4841` / `b6a0b093`, Cell `1ff5ebf7`,
   Pressure `7ce26646` / `57d23d30`, Wi-Fi `99c56006`, Ambient `0c4728c2` /
   `220a2721`, radio `1b2467e3`, Location `ea04901e`, runtime `e71c739e` and lifecycle final
@@ -30,7 +32,10 @@ Last updated: 2026-09-16
   validation triggers. Generated schema JSON and existing development-v28 repair remain deferred.
 - Five-source history production `f597877bd3` plus chain `1031df9f35` closes Steps, Activity,
   Pressure, Wi-Fi and Cell only. Location remains the sixth-source future. Ambient source/registry
-  review and consumer final review are closed.
+  review is closed. Final review `43a` found the consumer configuration-recreation defect; targeted
+  rereview closes same-nav-scoped-ViewModel/selection retention within fixed TTL and explicit
+  back/up, `onCleared`, TTL and stale-authority release. The final integrated started-work static
+  review has no remaining source defects. No tests executed.
 - Keep 72 work items and 293/293 primary mappings; do not add IDs merely to record integration.
   There are zero unmapped requirements, duplicate primaries or cycles.
 - Closing the finish-started session is not assembly completion, validation readiness, activation

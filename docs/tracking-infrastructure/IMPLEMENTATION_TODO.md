@@ -4,7 +4,7 @@
 
 This section supersedes the current-head/review/integration classifications below. The exact local
 source integration head before this documentation commit is
-`7e7f50bdaae025efde7df3d69f85dc2365170699`. Every artifact that was already started at the
+`2956f962e41ba3c85bd9eb1e2c9afeb83bb3e74a`. Every artifact that was already started at the
 scope-freeze boundary is now statically reviewed and locally integrated as
 **IMPLEMENTED_UNVALIDATED**:
 
@@ -23,6 +23,12 @@ scope-freeze boundary is now statically reviewed and locally integrated as
   reviews are closed.
 - Consumers `10ed3b99da` -> `5788cf846a` -> `7e7f50bdaa`, reviewed ref
   `refs/remotes/handover/reviewed/ti-source-history-consumers-20260916`; final review is closed.
+- Final review `43a` found the configuration-recreation defect. Reviewed correction
+  `b3f490c76d` -> rebased `335df7ea57` -> local `2956f962e4`, retained at
+  `refs/remotes/handover/reviewed/ti-consumer-recreation-fix-20260916`. Targeted rereview closed:
+  configuration disposal preserves the same navigation-scoped ViewModel and selection within the
+  fixed TTL, while explicit back/up, `onCleared`, TTL expiry and stale authority release remain
+  exact. No tests executed.
 
 The final source/schema integration contains reviewed Activity `6dfa4841` / `b6a0b093`, Cell
 `1ff5ebf7`, Pressure `7ce26646` / `57d23d30`, Wi-Fi `99c56006`, Ambient product `0c4728c2`,
@@ -36,7 +42,8 @@ Registry coverage remains 72 work items and 293/293 primary requirement mappings
 unmapped IDs, duplicate primaries or dependency cycles. Checkbox history remains 71 checked and
 222 unchecked; no broad TODO was checked merely because a started slice was integrated.
 
-The finish-started session scope is closed, but the full six-source assembly gate remains open.
+The final integrated started-work static review is closed with no remaining source defects. The
+finish-started session scope is closed, but the full six-source assembly gate remains open.
 Continue only under a new bounded assignment, in this dependency order:
 
 1. Location production catalog/manifest/query and active/passive product.

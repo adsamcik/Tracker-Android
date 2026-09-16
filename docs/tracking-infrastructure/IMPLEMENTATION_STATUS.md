@@ -5,7 +5,7 @@ Last updated: 2026-09-16
 ## Final finish-started local integration snapshot
 
 This section supersedes every older current-state classification below. Local `dev/v10` began this
-documentation leaf clean at `7e7f50bdaae025efde7df3d69f85dc2365170699`. The finish-started
+documentation refresh clean at `2956f962e41ba3c85bd9eb1e2c9afeb83bb3e74a`. The finish-started
 session scope is closed: all artifacts proven to have started before the freeze are statically
 reviewed and locally integrated, still **IMPLEMENTED_UNVALIDATED**.
 
@@ -17,6 +17,7 @@ reviewed and locally integrated, still **IMPLEMENTED_UNVALIDATED**.
 | Five-source history | `1031df9f35` | `98f2f567ce` | `14d31f9aa5` | `refs/remotes/handover/reviewed/ti-five-source-history-20260916` |
 | Ambient files | `d5a565b418` | `bf260d7b1f` | `f67ca6b16e` | `refs/remotes/handover/reviewed/ti-ambient-file-integration-20260916` |
 | Consumers | `10ed3b99da` | `5788cf846a` | `7e7f50bdaa` | `refs/remotes/handover/reviewed/ti-source-history-consumers-20260916` |
+| Consumer recreation fix | `b3f490c76d` | `335df7ea57` | `2956f962e4` | `refs/remotes/handover/reviewed/ti-consumer-recreation-fix-20260916` |
 
 Final source successors are Activity `6dfa4841` plus `b6a0b093` range/action, Cell `1ff5ebf7`,
 Pressure `7ce26646` / `57d23d30`, Wi-Fi `99c56006`, Ambient `0c4728c2` / files `220a2721`,
@@ -31,7 +32,11 @@ schema/migration execution claim is made.
 
 Five-source history production `f597877bd3` plus final chain `1031df9f35` covers Steps, Activity,
 Pressure, Wi-Fi and Cell. Location remains the sixth-source future. Ambient file source and
-registry reviews and the consumer final review are closed.
+registry reviews are closed. Final review `43a` found the configuration-recreation defect; its
+targeted rereview is closed at `2956f962e4`. Configuration disposal preserves the same
+navigation-scoped ViewModel and selection inside the fixed TTL, while explicit back/up,
+`onCleared`, TTL expiry and stale-authority release remain exact. No tests executed. The final
+integrated started-work static review has no remaining source defects.
 
 Registry state is 72 work items and 293/293 primary mappings: 26 completed accepted slices,
 18 partial, 13 planned, 8 decision-required, 4 deferred gates, and one each foundation,

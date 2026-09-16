@@ -3,9 +3,9 @@
   "updated_at": "2026-09-16T18:02:20.428+02:00",
   "repository": {
     "branch": "dev/v10",
-    "local_head_at_task_start": "7e7f50bdaae025efde7df3d69f85dc2365170699",
-    "current_local_head_at_refresh": "7e7f50bdaae025efde7df3d69f85dc2365170699",
-    "source_integration_head_before_documentation_commit": "7e7f50bdaae025efde7df3d69f85dc2365170699",
+    "local_head_at_task_start": "2956f962e41ba3c85bd9eb1e2c9afeb83bb3e74a",
+    "current_local_head_at_refresh": "2956f962e41ba3c85bd9eb1e2c9afeb83bb3e74a",
+    "source_integration_head_before_documentation_commit": "2956f962e41ba3c85bd9eb1e2c9afeb83bb3e74a",
     "user_published_checkpoint": "3dd1ff004a34beb339539c4961704919d781371c",
     "publication_actor": "user",
     "final_main_publication": "local_only_unless_user_later_publishes",
@@ -106,6 +106,18 @@
       "rebased_commit": "5788cf846aff808be2cf540c9ef3f49a37fd3708",
       "local_integration_commit": "7e7f50bdaae025efde7df3d69f85dc2365170699",
       "review_state": "closed_static",
+      "validation_state": "deferred_implementation_only"
+    },
+    {
+      "area": "consumer configuration recreation correction",
+      "review_id": "43a",
+      "reviewed_ref": "refs/remotes/handover/reviewed/ti-consumer-recreation-fix-20260916",
+      "original_commit": "b3f490c76d6dbbe2eebbf6720a0f51f9212c2aa0",
+      "rebased_commit": "335df7ea571e2afe6f6d386a102c299ec78ac45c",
+      "local_integration_commit": "2956f962e41ba3c85bd9eb1e2c9afeb83bb3e74a",
+      "review_state": "closed_static",
+      "review_outcome": "Configuration disposal preserves the same navigation-scoped ViewModel and selection within the fixed TTL; explicit back/up, onCleared, TTL expiry and stale-authority release remain exact.",
+      "remaining_started_scope_source_defects": 0,
       "validation_state": "deferred_implementation_only"
     }
   ],
@@ -208,7 +220,7 @@
     },
     {
       "id": "CONTRADICTION-LOCAL-PUBLISHED-HEAD",
-      "description": "The only user-published boundary is 3dd1ff004a while the reviewed source integration advanced local dev/v10 through 7e7f50bdaa.",
+      "description": "The only user-published boundary is 3dd1ff004a while the reviewed source integration advanced local dev/v10 through 2956f962e4.",
       "resolution": "Keep final main local unless the user later publishes it; no agent push is authorized."
     }
   ],
@@ -293,7 +305,9 @@
           "3dd1ff004a34beb339539c4961704919d781371c",
           "6744ced52037d531e56751777b519165167e6b19",
           "d10ac8aad09c99cb394a89a32b04239ee9d7fc29",
-          "7e7f50bdaae025efde7df3d69f85dc2365170699"
+          "7e7f50bdaae025efde7df3d69f85dc2365170699",
+          "2281374b2d50e24c2bf4a429fb13ee1b4845ac6f",
+          "2956f962e41ba3c85bd9eb1e2c9afeb83bb3e74a"
         ],
         "documents": [
           "IMPLEMENTATION_TODO.md",
@@ -4930,7 +4944,7 @@
       "known_blockers": [
         "Structural day/Today/Timeline/Calendar, source explanations, widgets and remaining effects remain separate backlog."
       ],
-      "next_bounded_action": "Preserve final reviewed consumer input 10ed3b99, rebased 5788cf846a and local integration 7e7f50bdaa. Do not infer Location/day/range or full UI completion.",
+      "next_bounded_action": "Preserve consumer base 10ed3b99/5788cf846a/7e7f50bdaa plus review-43a recreation fix b3f490c7/335df7ea/2956f962. The started-work static review is closed with no remaining source defects.",
       "evidence": {
         "branch": "codex/ti-source-history-consumers-20260915",
         "branch_tip_at_snapshot": "ab6fdd9296c8df508265c84df37161850f7f5962",
@@ -5261,12 +5275,12 @@
       "known_blockers": [
         "Selected detail and source-only shells exist, but Dashboard/Timeline/Calendar/Trips/maps and final truthful variants are incomplete."
       ],
-      "next_bounded_action": "Preserve the locally integrated source-history consumers at 7e7f50bdaa. Hand over structural day/Today/Timeline/Calendar/Trips/maps and remaining truthful variants.",
+      "next_bounded_action": "Preserve the final source-history consumer and recreation correction at 2956f962. Hand over structural day/Today/Timeline/Calendar/Trips/maps and remaining truthful variants.",
       "evidence": {
         "existing_primitives": [
           "selected-detail closure 9c545380/cda6aff",
           "Activity/Pressure source-only recent/live/detail shells",
-          "late-receipt shared consumer artifact closed and locally integrated through 7e7f50bdaa",
+          "late-receipt shared consumer artifact and review-43a recreation correction closed and locally integrated through 2956f962",
           "existing Dashboard, Timeline, Calendar, Trips and map shells"
         ]
       },

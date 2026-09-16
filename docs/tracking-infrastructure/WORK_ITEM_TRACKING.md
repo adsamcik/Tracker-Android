@@ -7,7 +7,7 @@ Last updated: 2026-09-16
 The finish-started session scope is closed. All artifacts that were demonstrably running at the
 freeze boundary and later accepted by focused static review are now locally integrated as
 **IMPLEMENTED_UNVALIDATED**. The final source integration head before this documentation commit is
-`7e7f50bdaae025efde7df3d69f85dc2365170699`.
+`2956f962e41ba3c85bd9eb1e2c9afeb83bb3e74a`.
 
 Exact reviewed integration chain:
 
@@ -23,6 +23,11 @@ Exact reviewed integration chain:
   `refs/remotes/handover/reviewed/ti-ambient-file-integration-20260916`.
 - Consumers: `10ed3b99da` -> `5788cf846a` -> local `7e7f50bdaa`, reviewed ref
   `refs/remotes/handover/reviewed/ti-source-history-consumers-20260916`.
+- Review `43a` recreation correction: `b3f490c76d` -> `335df7ea57` -> local `2956f962e4`,
+  reviewed ref `refs/remotes/handover/reviewed/ti-consumer-recreation-fix-20260916`.
+  Targeted rereview closed configuration disposal, same navigation-scoped ViewModel/selection
+  retention within the fixed TTL, and explicit back/up, `onCleared`, TTL and stale-authority
+  release. The final started-work static review has no remaining source defects.
 
 This closes the bounded session scope, not the six-source assembly gate. Location product,
 purpose publication/atomic radio guard, remaining maintenance/files/day/UI/effects/rearm work,
@@ -155,9 +160,9 @@ Validation states: `deferred_implementation_only` 63, `not_applicable` 9.
 | `WI-HISTORY-BRIDGE-PRESSURE-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Close the narrow imported Pressure history bridge | Preserve the closed Pressure bridge in local five-source history integration 14d31f9aa5; do not infer Pressure day/range completion. |
 | `WI-HISTORY-BRIDGE-WIFI-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Close the narrow imported Wi-Fi history bridge | Preserve the closed Wi-Fi bridge in local five-source history integration 14d31f9aa5; keep retention/files/UI separate. |
 | `WI-HISTORY-BRIDGE-CELL-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Implement the narrow imported Cell history bridge | Preserve the closed Cell bridge in local five-source history integration 14d31f9aa5; keep retention/files/UI separate. |
-| `WI-SHARED-HISTORY-CONSUMERS-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Correct the started shared history feature consumers | Preserve final reviewed consumer input 10ed3b99, rebased 5788cf846a and local integration 7e7f50bdaa. Do not infer Location/day/range or full UI completion. |
+| `WI-SHARED-HISTORY-CONSUMERS-001` | `completed_accepted_slice` | `closed_static` | `local_dev` | Correct the started shared history feature consumers | Preserve consumer base 10ed3b99/5788cf846a/7e7f50bdaa plus review-43a recreation fix b3f490c7/335df7ea/2956f962. The started-work static review is closed with no remaining source defects. |
 | `WI-SHARED-HISTORY-DAY-RANGE-001` | `planned` | `not_started` | `not_started` | Complete all-six structural day, range and Today history | Handover backlog; do not start. |
-| `WI-UI-SURFACES-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Wire truthful shared product surfaces | Preserve the locally integrated source-history consumers at 7e7f50bdaa. Hand over structural day/Today/Timeline/Calendar/Trips/maps and remaining truthful variants. |
+| `WI-UI-SURFACES-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Wire truthful shared product surfaces | Preserve the final source-history consumer and recreation correction at 2956f962. Hand over structural day/Today/Timeline/Calendar/Trips/maps and remaining truthful variants. |
 | `WI-SOURCE-ACTIONS-EXPLANATION-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete start, settings, source actions and recording explanation | Preserve existing manual start and source-action primitives. Hand over shared dispatcher, explanation and remaining settings/UI. |
 | `WI-CROSS-SOURCE-PRIVACY-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Complete cross-source retention, transfer, deletion and no-resurrection | Preserve closed started artifacts and hand over remaining source retention, transfer, erase and no-resurrection work in dependency order. |
 | `WI-NONSTEPS-EFFECTS-001` | `partial_implemented` | `mixed` | `mixed_source_refs` | Qualify non-Steps widgets, achievements and effects | Preserve current effect collectors and Steps identity/retraction patterns. Hand over remaining non-Steps qualification conversions. |
@@ -186,7 +191,8 @@ All three concrete late-start receipts are closed and locally integrated:
 
 - `WI-ACTIVITY-RANGE-001` through local source/schema integration `527c022e97`.
 - `WI-STEPS-AMBIENT-FILES-001` through local Ambient file integration `f67ca6b16e`.
-- `WI-SHARED-HISTORY-CONSUMERS-001` through final local consumer integration `7e7f50bdaa`.
+- `WI-SHARED-HISTORY-CONSUMERS-001` through final review-43a recreation integration
+  `2956f962e4`.
 
 Their late-start classification remains historical scope evidence; it does not authorize successors.
 

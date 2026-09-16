@@ -5,7 +5,7 @@ Last updated: 2026-09-16
 ## TI-B340 - Finish-started integration receipt, no execution evidence
 
 - Exact local source integration head before this documentation commit:
-  `7e7f50bdaae025efde7df3d69f85dc2365170699`.
+  `2956f962e41ba3c85bd9eb1e2c9afeb83bb3e74a`.
 - Purpose: reviewed `cef95415e2`, rebased `8943f299f8`, local `17b089212e`, reviewed ref
   `refs/remotes/handover/reviewed/ti-purpose-settings-20260915`.
 - Portable: reviewed `2697903ae6`, rebased `aa9447e070`, local `cb8159d68c`, reviewed ref
@@ -22,6 +22,11 @@ Last updated: 2026-09-16
 - Consumers: reviewed `10ed3b99da`, rebased `5788cf846a`, local `7e7f50bdaa`, reviewed ref
   `refs/remotes/handover/reviewed/ti-source-history-consumers-20260916`. Final static review is
   closed.
+- Final review `43a` recreation correction: reviewed `b3f490c76d`, rebased `335df7ea57`, local
+  `2956f962e4`, reviewed ref
+  `refs/remotes/handover/reviewed/ti-consumer-recreation-fix-20260916`. Targeted rereview closed
+  configuration disposal preserving the same navigation-scoped ViewModel/selection within fixed
+  TTL, with explicit back/up, `onCleared`, TTL expiry and stale-authority release.
 - Final source successors: Activity `6dfa4841` / `b6a0b093`, Cell `1ff5ebf7`, Pressure
   `7ce26646` / `57d23d30`, Wi-Fi `99c56006`, Ambient `0c4728c2` / `220a2721`, radio
   `1b2467e3`, Location `ea04901e`, runtime `e71c739e`, lifecycle final `ffdef045`.
@@ -37,6 +42,8 @@ Last updated: 2026-09-16
 - Outcome: **IMPLEMENTED_UNVALIDATED / STATIC REVIEW CLOSED / LOCALLY INTEGRATED** for the named
   started artifacts only. This is not a passed compile, migration, test, schema, device, battery,
   CI, rollout, activation or full assembly gate.
+- Final integrated started-work static review has no remaining source defects. No tests were
+  executed for review `43a` or its correction.
 - Remaining ordered evidence debt: Location product; purpose publication/atomic radio guard/
   trusted retention; Ambient execution/P5/settings/export union; Wi-Fi/Cell retention/erase/files/
   deleted range; Pressure day/range; structural day/shared surfaces/actions/Why-recorded/widgets/

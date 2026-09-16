@@ -4,7 +4,7 @@
 
 This section supersedes every older `current`, `active`, `held` and `finish-only` statement below.
 Local `dev/v10` began the documentation closure clean at
-`7e7f50bdaae025efde7df3d69f85dc2365170699`. All work that was demonstrably started before the
+`2956f962e41ba3c85bd9eb1e2c9afeb83bb3e74a`. All work that was demonstrably started before the
 scope freeze has completed focused static review and is locally integrated as
 **IMPLEMENTED_UNVALIDATED**:
 
@@ -16,6 +16,7 @@ scope freeze has completed focused static review and is locally integrated as
 | Five-source history | `1031df9f35` | `98f2f567ce` | `14d31f9aa5` | `refs/remotes/handover/reviewed/ti-five-source-history-20260916` |
 | Ambient files | `d5a565b418` | `bf260d7b1f` | `f67ca6b16e` | `refs/remotes/handover/reviewed/ti-ambient-file-integration-20260916` |
 | Consumers | `10ed3b99da` | `5788cf846a` | `7e7f50bdaa` | `refs/remotes/handover/reviewed/ti-source-history-consumers-20260916` |
+| Consumer recreation fix | `b3f490c76d` | `335df7ea57` | `2956f962e4` | `refs/remotes/handover/reviewed/ti-consumer-recreation-fix-20260916` |
 
 Final source/schema successors are Activity `6dfa4841` plus `b6a0b093` range/action, Cell
 `1ff5ebf7`, Pressure `7ce26646` / `57d23d30`, Wi-Fi `99c56006`, Ambient product
@@ -29,8 +30,11 @@ validation triggers. Generated schema JSON and safe development-v28 repair remai
 
 Five-source history production `f597877bd3` and chain `1031df9f35` close Steps, Activity,
 Pressure, Wi-Fi and Cell. Location is the sixth-source future. Ambient file source/registry reviews
-and the final consumer review are closed. All late-start receipts—Activity range, Ambient files
-and shared consumers—are therefore closed/local, not active or held.
+are closed. Final review `43a` found the consumer configuration-recreation bug; targeted rereview
+closed same-navigation-scoped ViewModel/selection retention within fixed TTL and explicit back/up,
+`onCleared`, TTL expiry and stale-authority release. No tests executed. The final integrated
+started-work static review has no remaining source defects. All late-start receipts—Activity
+range, Ambient files and shared consumers—are closed/local, not active or held.
 
 Registry accounting remains 72 work items, 293/293 primary mappings, zero unmapped requirements,
 duplicate primaries or cycles. The finish-started session scope is closed, but the complete
