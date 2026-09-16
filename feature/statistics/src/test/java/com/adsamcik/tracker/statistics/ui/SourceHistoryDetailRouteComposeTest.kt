@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailHandoff
@@ -52,7 +53,7 @@ class SourceHistoryDetailRouteComposeTest {
 	val composeRule = createComposeRule()
 
 	@Test
-	fun `route teardown expires loaded Activity before same ViewModel is reused`() {
+	fun `configuration style route disposal preserves loaded Activity in the surviving ViewModel`() {
 		val selection = activitySelection()
 		val route = SourceHistoryDetailHandoff.register(selection)
 		val viewModel = SourceHistoryDetailViewModel(
@@ -77,17 +78,54 @@ class SourceHistoryDetailRouteComposeTest {
 			.assertIsDisplayed()
 		composeRule.runOnIdle { showRoute.value = false }
 		composeRule.runOnIdle {
+			viewModel.state.value shouldBe SourceHistoryDetailState.Loaded(selection)
+			showRoute.value = true
+		}
+
+		composeRule.onNodeWithText(text(R.string.trip_detail_activity_session))
+			.assertIsDisplayed()
+		composeRule.runOnIdle {
+			viewModel.state.value shouldBe SourceHistoryDetailState.Loaded(selection)
+		}
+		viewModel.close()
+	}
+
+	@Test
+	fun `explicit up closes ownership before the destination is removed`() {
+		val selection = activitySelection()
+		val route = SourceHistoryDetailHandoff.register(selection)
+		val viewModel = SourceHistoryDetailViewModel(
+			presenter = presenter(),
+			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
+		)
+		val showRoute = mutableStateOf(true)
+		var backCount = 0
+		composeRule.setContent {
+			MaterialTheme {
+				if (showRoute.value) {
+					SourceHistoryDetailRoute(
+						onBack = {
+							backCount += 1
+							showRoute.value = false
+						},
+						viewModel = viewModel,
+					)
+				}
+			}
+		}
+		composeRule.onNodeWithText(text(R.string.trip_detail_activity_session))
+			.assertIsDisplayed()
+
+		composeRule.onNodeWithContentDescription(text(R.string.action_navigate_back))
+			.performClick()
+
+		composeRule.runOnIdle {
+			backCount shouldBe 1
 			viewModel.state.value shouldBe SourceHistoryDetailState.Unavailable(
 				reason = SourceHistoryDetailUnavailableReason.SELECTION_EXPIRED,
 				source = HistorySource.ACTIVITY,
 			)
-			showRoute.value = true
 		}
-
-		composeRule.onNodeWithText(text(R.string.source_history_detail_unavailable))
-			.assertIsDisplayed()
-		composeRule.onNodeWithText(text(R.string.trip_detail_activity_session))
-			.assertDoesNotExist()
 	}
 
 	@Test
