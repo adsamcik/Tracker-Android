@@ -45,10 +45,10 @@ assembly item may contain accepted implementation slices and must not be treated
 
 Parent freeze inspection initially found no Activity range, Ambient Steps file-action or shared
 history consumer worktree. Concrete late owner receipts supersede that point-in-time absence for
-Ambient files and shared consumers only. Activity range remains planned. Ambient files are
-committed/unreviewed/held; shared consumers are an active correction. The only narrow unstarted
-dependency presently allowed is the Activity/Pressure transactional recent bridge required to
-close the already-started shared history union.
+all three. Activity range/eligible bridge `5dc1d06999` is held with focused review active. Ambient
+files `220a272182` and shared consumers `ab6fdd9296` are source-locally static-closed and held.
+The four imported-history bridge artifacts are already implemented or under focused review; they
+are not unstarted dependencies. The early absence remains historical evidence only.
 
 The full tracking documentation request remains active. Continue registry and ledger maintenance
 as evidence arrives; the production finish-only scope does not freeze documentation work.

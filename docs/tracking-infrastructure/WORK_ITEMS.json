@@ -2701,7 +2701,29 @@
           ":feature:statistics"
         ],
         "path_scopes": [
-          "future Activity structural range paths"
+          "core\\base\\src\\androidTest\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\ImportedActivityMigration27To28Test.kt",
+          "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\ImportedActivityProductReader.kt",
+          "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\ImportedActivityRetentionAuthority.kt",
+          "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\RoomEraseNextImportedActivity.kt",
+          "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\RoomTruncateImportedActivityRetention.kt",
+          "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ActivityCapturedFactDao.kt",
+          "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ImportedActivityDao.kt",
+          "core\\base\\src\\main\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\data\\ImportedActivityEntities.kt",
+          "core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\RoomImportPortableCapturedActivityTest.kt",
+          "core\\base\\src\\test\\java\\com\\adsamcik\\tracker\\shared\\base\\database\\dao\\ImportedActivityDaoTest.kt",
+          "stats\\api\\src\\commonMain\\kotlin\\com\\adsamcik\\tracker\\stats\\api\\repository\\ActivityHistoryRange.kt",
+          "stats\\api\\src\\commonMain\\kotlin\\com\\adsamcik\\tracker\\stats\\api\\repository\\ActivityHistoryRepository.kt",
+          "stats\\api\\src\\commonTest\\kotlin\\com\\adsamcik\\tracker\\stats\\api\\repository\\ActivityHistoryRangeTest.kt",
+          "stats\\api\\src\\commonTest\\kotlin\\com\\adsamcik\\tracker\\stats\\api\\repository\\ActivityHistoryRepositoryTest.kt",
+          "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\di\\StatsDataModule.kt",
+          "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\ActivityHistoryOriginComposer.kt",
+          "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\ActivityHistoryRangeSupport.kt",
+          "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\DefaultActivityHistoryRepository.kt",
+          "stats\\data\\src\\main\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\ImportedActivityHistoryMapper.kt",
+          "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\ActivityHistoryComposerTest.kt",
+          "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\ActivityHistoryRangeSupportTest.kt",
+          "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\ImportedActivityHistoryMapperTest.kt",
+          "stats\\data\\src\\test\\java\\com\\adsamcik\\tracker\\stats\\data\\repository\\RoomActivitySelectionDeletionTest.kt"
         ]
       },
       "public_interfaces": [],
