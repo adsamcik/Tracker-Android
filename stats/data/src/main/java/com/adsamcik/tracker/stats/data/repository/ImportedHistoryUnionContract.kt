@@ -195,17 +195,3 @@ internal interface PressureImportedHistoryEligibleReader {
 		limit: Int,
 	): ImportedHistoryEligiblePage<PressureImportedHistoryEligibleEntry>
 }
-
-internal object PendingActivityImportedHistoryEligibleReader :
-	ActivityImportedHistoryEligibleReader {
-	override suspend fun recentImportedEligibleForSharedHistoryInTransaction(
-		limit: Int,
-	): ImportedHistoryEligiblePage<ActivityImportedHistoryEligibleEntry> {
-		require(limit > 0)
-		return pendingImportedHistoryBridge()
-	}
-}
-
-private fun pendingImportedHistoryBridge() = ImportedHistoryEligiblePage.Unavailable(
-	SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
-)

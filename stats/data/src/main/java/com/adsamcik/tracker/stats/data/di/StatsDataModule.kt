@@ -31,7 +31,6 @@ import com.adsamcik.tracker.stats.data.repository.ActivityImportedHistoryEligibl
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultActivityHistoryRepository
-import com.adsamcik.tracker.stats.data.repository.ActivityImportedHistoryEligibleReader
 import com.adsamcik.tracker.stats.data.repository.DefaultCellHistoryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultCellSignalRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultDailySummaryRepository
@@ -47,7 +46,6 @@ import com.adsamcik.tracker.stats.data.repository.DefaultTrackingHistorySourceUn
 import com.adsamcik.tracker.stats.data.repository.DefaultWifiHistoryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWifiObservationRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWindowedMetricsProvider
-import com.adsamcik.tracker.stats.data.repository.PendingActivityImportedHistoryEligibleReader
 import com.adsamcik.tracker.stats.data.repository.PressureHistoryPageReader
 import com.adsamcik.tracker.stats.data.repository.PressureImportedHistoryEligibleReader
 import com.adsamcik.tracker.stats.data.repository.TrackingHistorySourceUnionReader
@@ -200,16 +198,6 @@ internal abstract class TrackingHistoryDataModule {
 	abstract fun bindPressureImportedHistoryEligibleReader(
 		impl: PressureHistoryPageReader,
 	): PressureImportedHistoryEligibleReader
-}
-
-/** Pending bindings are replaced by source-owned implementations after their closed commits merge. */
-@Module
-@InstallIn(SingletonComponent::class)
-internal object PendingImportedHistoryEligibleDataModule {
-	@Provides
-	@Singleton
-	fun provideActivityImportedHistoryEligibleReader(): ActivityImportedHistoryEligibleReader =
-		PendingActivityImportedHistoryEligibleReader
 }
 
 /** Keeps the source-specific Activity fact reader independent of the shared history facade. */
