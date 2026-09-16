@@ -12,10 +12,13 @@ class TrackingPurposeAvailabilityTest {
 		val snapshot = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT
 
 		snapshot.automaticControl shouldBe AutomaticTrackingOperationalAvailability.Unavailable(
-			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+			AutomaticTrackingUnavailableReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
 		)
-		AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE.stableCode shouldBe
-			"CONTROL_RETENTION_POLICY_UNAVAILABLE"
+		AutomaticTrackingUnavailableReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED.stableCode shouldBe
+			"AUTO_005_CONTROL_EVIDENCE_UNRESOLVED"
+		AutomaticTrackingUnavailableReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED
+			.containmentReason shouldBe
+			TrackingDecisionContainmentReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED
 		snapshot.ambientSources.keys shouldBe setOf(
 			AmbientTrackingSource.STEPS,
 			AmbientTrackingSource.LOCATION,
@@ -188,10 +191,15 @@ class TrackingPurposeAvailabilityTest {
 		) shouldBe AmbientLeaseStartResult.Rejected(
 			AmbientPublicationRejection.TOKEN_CONSUMED,
 		)
+		store.cancelAmbientLease(old) shouldBe AmbientPublicationAcceptance.Rejected(
+			AmbientPublicationRejection.TOKEN_CONSUMED,
+		)
+		store.availability.value.ambientSources.getValue(AmbientTrackingSource.STEPS) shouldBe
+			report.availability
 	}
 
 	@Test
-	fun `cancel atomically clears a published ready state and invalidates its completion`() {
+	fun `cancel atomically clears an active lease and is terminal`() {
 		val store = AtomicTrackingPurposeAvailabilityStore()
 		val current = identity(policy = 10L, consent = 3L, rollout = 4L, token = "lease-current")
 		val report = AmbientSourceReconciliationReport(
@@ -203,13 +211,18 @@ class TrackingPurposeAvailabilityTest {
 		)
 		store.beginOrReplaceAmbientLease(current)
 			.shouldBeInstanceOf<AmbientLeaseStartResult.Started>()
-		store.tryAccept(report).shouldBeInstanceOf<AmbientPublicationAcceptance.Accepted>()
 
 		store.cancelAmbientLease(current).shouldBeInstanceOf<AmbientPublicationAcceptance.Accepted>()
 
 		store.availability.value.ambientSources.getValue(AmbientTrackingSource.STEPS) shouldBe
 			AmbientSourceOperationalAvailability.reconciliationPending(AmbientTrackingSource.STEPS)
 		store.tryAccept(report) shouldBe AmbientPublicationAcceptance.Rejected(
+			AmbientPublicationRejection.CANCELLED,
+		)
+		store.cancelAmbientLease(current) shouldBe AmbientPublicationAcceptance.Rejected(
+			AmbientPublicationRejection.CANCELLED,
+		)
+		store.beginOrReplaceAmbientLease(current) shouldBe AmbientLeaseStartResult.Rejected(
 			AmbientPublicationRejection.CANCELLED,
 		)
 	}
@@ -234,6 +247,7 @@ class TrackingPurposeAvailabilityTest {
 				ownerCasToken = "lease-regrant",
 			),
 			old.copy(rolloutRevision = 5L, ownerCasToken = "lease-rollout"),
+			old.copy(executionRevision = 6L, ownerCasToken = "lease-execution"),
 			old.copy(collectedDataEpoch = 3L, ownerCasToken = "lease-data"),
 			old.copy(ownerCasToken = "lease-new"),
 		).forEach { replacement ->
@@ -253,10 +267,43 @@ class TrackingPurposeAvailabilityTest {
 			.shouldBeInstanceOf<AmbientLeaseStartResult.Started>()
 
 		store.beginOrReplaceAmbientLease(
-			current.copy(policyRevision = 11L, consentEpoch = 4L),
+			current.copy(policyRevision = 11L, consentEpoch = 4L, executionRevision = 6L),
 		) shouldBe AmbientLeaseStartResult.Rejected(
 			AmbientPublicationRejection.TOKEN_REUSED,
 		)
+	}
+
+	@Test
+	fun `source mismatch cannot be shaped into a terminal report`() {
+		val identity = identity(policy = 10L, consent = 3L, rollout = 4L, token = "lease-source")
+
+		shouldThrow<IllegalArgumentException> {
+			AmbientSourceReconciliationReport(
+				identity = identity,
+				availability = ready(
+					AmbientTrackingSource.WIFI,
+					AmbientAcquisitionMechanism.WIFI_SCAN_RESULTS,
+				),
+			)
+		}
+	}
+
+	@Test
+	fun `operational status without an issued lease grants no publication authority`() {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		val identity = identity(policy = 10L, consent = 3L, rollout = 4L, token = "lease-unissued")
+		val ready = ready(
+			AmbientTrackingSource.STEPS,
+			AmbientAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
+		)
+
+		store.tryAccept(
+			AmbientSourceReconciliationReport(identity, ready),
+		) shouldBe AmbientPublicationAcceptance.Rejected(
+			AmbientPublicationRejection.STALE_IDENTITY,
+		)
+		store.availability.value.ambientSources.getValue(AmbientTrackingSource.STEPS) shouldBe
+			AmbientSourceOperationalAvailability.reconciliationPending(AmbientTrackingSource.STEPS)
 	}
 
 	@Test
