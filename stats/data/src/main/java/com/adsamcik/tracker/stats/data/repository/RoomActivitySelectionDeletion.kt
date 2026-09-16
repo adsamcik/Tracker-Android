@@ -7,9 +7,9 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.DeleteSelectedImportedActivity
 import com.adsamcik.tracker.shared.base.database.DeleteSelectedImportedActivityRequest
 import com.adsamcik.tracker.shared.base.database.DeleteSelectedImportedActivityResult
-import com.adsamcik.tracker.shared.base.database.ImportedActivityProductEvaluation
 import com.adsamcik.tracker.shared.base.database.ImportedActivityProductFailure
-import com.adsamcik.tracker.shared.base.database.ImportedActivityProductReader
+import com.adsamcik.tracker.shared.base.database.PortableActivityDeletionScopeDigest
+import com.adsamcik.tracker.shared.base.database.PortableActivityDigest
 import com.adsamcik.tracker.shared.base.database.PortableActivityOpaqueIdentity
 import com.adsamcik.tracker.shared.base.database.PortableActivityTransferRetryableReason
 import com.adsamcik.tracker.shared.base.database.SelectedImportedActivityDeletionBlockedReason
@@ -19,6 +19,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.ActivityHistorySelection
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistorySelection
 import com.adsamcik.tracker.stats.api.repository.ActivitySelectionDeletion
 import com.adsamcik.tracker.stats.api.repository.ActivitySelectionDeletionBlockedReason
 import com.adsamcik.tracker.stats.api.repository.ActivitySelectionDeletionRequest
@@ -45,43 +47,35 @@ internal class RoomActivitySelectionDeletion @Inject constructor(
 	override suspend fun delete(
 		request: ActivitySelectionDeletionRequest,
 	): ActivitySelectionDeletionResult = withContext(ioDispatcher) {
-		val selection = try {
-			database.withTransaction {
-				when (request.origin) {
-					ActivityHistoryOrigin.LOCAL -> resolveLocal(request.key)
-					ActivityHistoryOrigin.IMPORTED -> resolveImported(request.key)
+		try {
+			when (val selection = request.selection) {
+				is ActivityHistorySelection.Local -> {
+					when (val resolved = database.withTransaction { resolveLocal(selection.key) }) {
+						ResolvedActivitySelection.NotFound -> ActivitySelectionDeletionResult.NotFound
+						is ResolvedActivitySelection.Unverifiable ->
+							ActivitySelectionDeletionResult.Unverifiable(resolved.reason)
+						is ResolvedActivitySelection.Local ->
+							localDeletion.deleteSelectedSession(resolved.segmentId).toActionResult()
+					}
 				}
+				is ActivityHistorySelection.Imported -> importedDeletion.delete(
+					selection.selected.toDeletionRequest(request.deletedAtMs),
+				).toActionResult()
 			}
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: SQLiteException) {
-			return@withContext ActivitySelectionDeletionResult.RetryableFailure(
+			ActivitySelectionDeletionResult.RetryableFailure(
 				ActivitySelectionDeletionRetryableReason.STORAGE_UNAVAILABLE,
 			)
 		} catch (_: ArithmeticException) {
-			return@withContext ActivitySelectionDeletionResult.Unverifiable(
+			ActivitySelectionDeletionResult.Unverifiable(
 				ActivitySelectionDeletionUnverifiableReason.DEPENDENCY_OVERFLOW,
 			)
 		} catch (_: IllegalArgumentException) {
-			return@withContext ActivitySelectionDeletionResult.Unverifiable(
+			ActivitySelectionDeletionResult.Unverifiable(
 				ActivitySelectionDeletionUnverifiableReason.IMPORTED_EVIDENCE_UNVERIFIABLE,
 			)
-		}
-		when (selection) {
-			ResolvedActivitySelection.NotFound -> ActivitySelectionDeletionResult.NotFound
-			is ResolvedActivitySelection.Blocked ->
-				ActivitySelectionDeletionResult.Blocked(selection.reason)
-			is ResolvedActivitySelection.Unverifiable ->
-				ActivitySelectionDeletionResult.Unverifiable(selection.reason)
-			is ResolvedActivitySelection.Local ->
-				localDeletion.deleteSelectedSession(selection.segmentId).toActionResult()
-			is ResolvedActivitySelection.Imported -> importedDeletion.delete(
-				DeleteSelectedImportedActivityRequest(
-					selected = selection.selected,
-					expectedCollectedDataEpoch = selection.collectedDataEpoch,
-					deletedAtMs = request.deletedAtMs,
-				),
-			).toActionResult()
 		}
 	}
 
@@ -118,82 +112,6 @@ internal class RoomActivitySelectionDeletion @Inject constructor(
 		}
 	}
 
-	private suspend fun resolveImported(key: ActivityHistoryEntryKey): ResolvedActivitySelection {
-		var beforeStartTimeMs: Long? = null
-		var beforeIdentity: String? = null
-		var visited = 0
-		val dao = database.importedActivityDao()
-		while (true) {
-			val remaining = ActivityCapturedPortableFormatV1.MAX_ENTRIES - visited
-			if (remaining <= 0) {
-				return ResolvedActivitySelection.Unverifiable(
-					ActivitySelectionDeletionUnverifiableReason.DEPENDENCY_OVERFLOW,
-				)
-			}
-			val limit = minOf(SELECTION_PAGE_SIZE, remaining)
-			val page = dao.recentHistoryCandidatePage(
-				limit = limit,
-				beforeStartTimeMs = beforeStartTimeMs,
-				beforeIdentity = beforeIdentity,
-			)
-			if (page.isEmpty()) return ResolvedActivitySelection.NotFound
-			val match = page.firstOrNull { candidate ->
-				ActivityHistoryEntryKey("activity-imported:${candidate.identity}") == key
-			}
-			if (match != null) {
-				val evaluation = ImportedActivityProductReader(database).selectIdentityInTransaction(
-					PortableActivityOpaqueIdentity(match.identity),
-				) ?: return ResolvedActivitySelection.NotFound
-				return evaluation.toResolvedImported()
-			}
-			visited = Math.addExact(visited, page.size)
-			val last = page.last()
-			beforeStartTimeMs = last.startTimeMs
-			beforeIdentity = last.identity
-			if (page.size < limit) return ResolvedActivitySelection.NotFound
-		}
-	}
-
-	private suspend fun ImportedActivityProductEvaluation.toResolvedImported():
-		ResolvedActivitySelection = when (this) {
-		is ImportedActivityProductEvaluation.Retained -> ResolvedActivitySelection.Blocked(
-			ActivitySelectionDeletionBlockedReason.RETENTION_BOUNDARY,
-		)
-		is ImportedActivityProductEvaluation.Unverifiable -> ResolvedActivitySelection.Unverifiable(
-			reason.toSelectionReason(),
-		)
-		is ImportedActivityProductEvaluation.Readable -> {
-			if (entryDeleted || retentionLimited) {
-				ResolvedActivitySelection.Blocked(
-					if (retentionLimited) ActivitySelectionDeletionBlockedReason.RETENTION_BOUNDARY
-					else ActivitySelectionDeletionBlockedReason.STALE_SELECTION,
-				)
-			} else {
-				val state = database.sourceEvidenceStateDao().get()
-					?: return ResolvedActivitySelection.Unverifiable(
-						ActivitySelectionDeletionUnverifiableReason.IMPORTED_EVIDENCE_UNVERIFIABLE,
-					)
-				ResolvedActivitySelection.Imported(
-					selected = SelectedImportedActivityIdentity(
-						entryIdentity = entry.identity,
-						importRevision = candidate.importRevision,
-						contentChecksum = entry.contentChecksum,
-						runDeletionScopes = entry.runs.map { run ->
-							SelectedImportedActivityRunDeletionScope(
-								runIdentity = run.identity,
-								deletionScopeDigest = run.deletionScopeDigest,
-							)
-						},
-						windowIdentities = entry.runs.flatMap { run ->
-							run.windows.map { window -> window.identity }
-						},
-					),
-					collectedDataEpoch = state.collectedDataEpoch,
-				)
-			}
-		}
-	}
-
 	private companion object {
 		const val SELECTION_PAGE_SIZE = 100
 	}
@@ -204,19 +122,34 @@ private sealed interface ResolvedActivitySelection {
 
 	data class Local(val segmentId: Long) : ResolvedActivitySelection
 
-	data class Imported(
-		val selected: SelectedImportedActivityIdentity,
-		val collectedDataEpoch: Long,
-	) : ResolvedActivitySelection
-
-	data class Blocked(
-		val reason: ActivitySelectionDeletionBlockedReason,
-	) : ResolvedActivitySelection
-
 	data class Unverifiable(
 		val reason: ActivitySelectionDeletionUnverifiableReason,
 	) : ResolvedActivitySelection
 }
+
+private fun ActivityImportedHistorySelection.toDeletionRequest(
+	deletedAtMs: Long,
+) = DeleteSelectedImportedActivityRequest(
+	selected = SelectedImportedActivityIdentity(
+		entryIdentity = PortableActivityOpaqueIdentity(identity.value),
+		importRevision = importRevision,
+		contentChecksum = PortableActivityDigest(contentChecksum.value),
+		runDeletionScopes = runDeletionScopes.map { run ->
+			SelectedImportedActivityRunDeletionScope(
+				runIdentity = PortableActivityOpaqueIdentity(run.runIdentity.value),
+				deletionScopeDigest = PortableActivityDeletionScopeDigest(
+					run.deletionScopeDigest.value,
+				),
+			)
+		},
+		windowIdentities = windowIdentities.map { window ->
+			PortableActivityOpaqueIdentity(window.value)
+		},
+	),
+	expectedCollectedDataEpoch = readSnapshot.collectedDataEpoch,
+	deletedAtMs = deletedAtMs,
+	expectedSourceEvidenceRevision = readSnapshot.sourceEvidenceRevision,
+)
 
 private fun ActivitySessionDeletionResult.toActionResult(): ActivitySelectionDeletionResult =
 	when (this) {
@@ -273,6 +206,7 @@ private fun ImportedActivityProductFailure.toSelectionReason() = when (this) {
 	ImportedActivityProductFailure.SOURCE_EVIDENCE_STATE_MISSING,
 	ImportedActivityProductFailure.STALE_COLLECTED_DATA_EPOCH,
 	ImportedActivityProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+	ImportedActivityProductFailure.TEMPORAL_AUTHORITY_UNAVAILABLE,
 	-> ActivitySelectionDeletionUnverifiableReason.IMPORTED_EVIDENCE_UNVERIFIABLE
 }
 

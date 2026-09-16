@@ -39,6 +39,12 @@ class ActivityHistoryRangeTest {
 				ActivityHistoryStructuralDayCompleteness.UNAVAILABLE,
 			)
 		}
+		assertEquals(
+			ActivityHistoryRangeUnavailableReason.TEMPORAL_AUTHORITY_UNAVAILABLE,
+			(ActivityHistoryRangePage.Unavailable(
+				ActivityHistoryRangeUnavailableReason.TEMPORAL_AUTHORITY_UNAVAILABLE,
+			)).reason,
+		)
 	}
 
 	private fun unavailableEntry() = ActivityHistoryEntry(

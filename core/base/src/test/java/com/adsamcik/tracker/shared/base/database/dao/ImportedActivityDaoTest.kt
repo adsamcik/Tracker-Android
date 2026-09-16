@@ -112,7 +112,7 @@ class ImportedActivityDaoTest {
 				digest('e'), retainedEntry, ImportedActivityRetainedIdentityEntity.DELETION_SCOPE,
 			),
 		)
-		dao.insertRetentionReceipts(listOf(
+		val availableRetentionReceipt =
 			ImportedActivityRetentionReceiptEntity.create(
 				retainedEntry, 7L, 1L, 10L, 40L, 1L, digest('b'), 1L, 9L, 30L,
 				1, 1, 1, 1, 1, 1, emptyList(), emptyList(), retainedMarkers,
@@ -127,9 +127,14 @@ class ImportedActivityDaoTest {
 						.ImportedActivityRetainedZoneRange(1L, 8L, "UTC"),
 				),
 				structuralZoneCoverageComplete = true,
-			),
+			)
+		dao.insertRetentionReceipts(listOf(
+			ImportedActivityRetentionReceiptEntity
+				.createTemporalAuthorityUnavailableFromLegacy(availableRetentionReceipt),
 		))
 		dao.insertRetainedIdentities(retainedMarkers)
+		dao.retentionReceipt(retainedEntry)?.temporalAuthorityState shouldBe
+			ImportedActivityRetentionReceiptEntity.TEMPORAL_AUTHORITY_UNAVAILABLE
 
 		AppDatabase.deleteAllCollectedData(database, 8L, null, 50L)
 

@@ -100,6 +100,7 @@ sealed interface ActivityHistoryRangePage {
 
 enum class ActivityHistoryRangeUnavailableReason {
 	INVALID_CONTINUATION,
+	TEMPORAL_AUTHORITY_UNAVAILABLE,
 }
 
 private const val MILLIS_PER_DAY = 86_400_000L

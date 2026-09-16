@@ -23,6 +23,7 @@ internal enum class ImportedActivityRetentionAuthorityFailure {
 internal suspend fun AppDatabase.authenticateImportedActivityRetentionBatch(
 	state: SourceEvidenceState,
 	receipts: List<ImportedActivityRetentionReceiptEntity>,
+	scanBudget: ImportedActivityProductScanBudget? = null,
 ): ImportedActivityRetentionAuthorityFailure? {
 	if (receipts.isEmpty()) return null
 	if (state.revision < 0L || state.collectedDataEpoch < 0L || state.updatedAtMs < 0L) {
@@ -52,6 +53,7 @@ internal suspend fun AppDatabase.authenticateImportedActivityRetentionBatch(
 		return ImportedActivityRetentionAuthorityFailure.DEPENDENCY_OVERFLOW
 	}
 	val dao = importedActivityDao()
+	scanBudget?.consumeQuery()
 	val markers = dao.retainedIdentitiesForEntries(
 		receipts.map { it.entryIdentity },
 		expectedMarkerCount + 1,
@@ -66,7 +68,15 @@ internal suspend fun AppDatabase.authenticateImportedActivityRetentionBatch(
 	if (receipts.any { receipt ->
 		!receipt.authenticates(markersByEntry[receipt.entryIdentity].orEmpty())
 	}) return ImportedActivityRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
-	val sourceEraseMarkers = dao.entryDeletions(receipts.map { it.entryIdentity })
+	scanBudget?.consumeQuery()
+	val sourceEraseMarkers = if (scanBudget == null) {
+		dao.entryDeletions(receipts.map { it.entryIdentity })
+	} else {
+		dao.entryDeletionsForBoundedHistory(
+			receipts.map { it.entryIdentity },
+			receipts.size,
+		)
+	}
 	if (sourceEraseMarkers.distinctBy(ImportedActivityEntryDeletionEntity::entryIdentity).size !=
 		sourceEraseMarkers.size
 	) return ImportedActivityRetentionAuthorityFailure.STORED_EVIDENCE_UNVERIFIABLE
@@ -74,8 +84,10 @@ internal suspend fun AppDatabase.authenticateImportedActivityRetentionBatch(
 	if (receipts.any { receipt ->
 		val deletion = sourceEraseByEntry[receipt.entryIdentity]
 		if (deletion == null) {
-			receipt.temporalAuthorityState !=
-				ImportedActivityRetentionReceiptEntity.TEMPORAL_AUTHORITY_AVAILABLE
+			receipt.temporalAuthorityState !in setOf(
+				ImportedActivityRetentionReceiptEntity.TEMPORAL_AUTHORITY_AVAILABLE,
+				ImportedActivityRetentionReceiptEntity.TEMPORAL_AUTHORITY_UNAVAILABLE,
+			)
 		} else {
 			deletion.collectedDataEpoch != receipt.collectedDataEpoch ||
 				deletion.deletedImportRevision != receipt.latestImportRevision ||
@@ -90,15 +102,31 @@ internal suspend fun AppDatabase.authenticateImportedActivityRetentionBatch(
 		it.identityKind == ImportedActivityRetainedIdentityEntity.DELETION_SCOPE
 	}
 	val runDeletions = runMarkers.map { it.protectedIdentity }.chunked(SQLITE_BIND_BATCH).flatMap {
-		dao.deletionGenerations(it)
+		scanBudget?.consumeQuery()
+		if (scanBudget == null) {
+			dao.deletionGenerations(it)
+		} else {
+			dao.boundedDeletionGenerations(it, it.size + 1)
+		}
 	}
 	val sourceFences = scopeMarkers.map { it.protectedIdentity }.chunked(SQLITE_BIND_BATCH).flatMap { scopes ->
-		trackingHistoryReadDao().deletionFences(
-			sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
-			purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
-			scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
-			scopeIdentityDigests = scopes,
-		)
+		scanBudget?.consumeQuery()
+		if (scanBudget == null) {
+			trackingHistoryReadDao().deletionFences(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+				purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+				scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+				scopeIdentityDigests = scopes,
+			)
+		} else {
+			dao.boundedActivitySourceFences(
+				scopeDigests = scopes,
+				activitySourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
+				sessionCapturePurpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+				logicalRunScopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+				limit = scopes.size + 1,
+			)
+		}
 	}
 	if (runDeletions.distinctBy { it.runIdentity }.size != runDeletions.size ||
 		sourceFences.distinctBy { it.scopeIdentityDigest }.size != sourceFences.size ||
@@ -155,8 +183,26 @@ internal suspend fun AppDatabase.authenticateImportedActivityRetentionBatch(
 	}
 	for (identityBatch in markers.map { it.protectedIdentity }.chunked(SQLITE_BIND_BATCH)) {
 		val expected = expectedOwners.filterKeys { it.protectedIdentity in identityBatch }
-		val actualRows = dao.protectedIdentityOwnerCounts(identityBatch, expected.size + 1)
-		if (actualRows.size != expected.size) {
+		val resultCount = if (scanBudget == null) {
+			expected.size
+		} else {
+			scanBudget.consumeQuery()
+			val ownerPreflight = dao.protectedIdentityOwnerCountPreflight(identityBatch)
+			scanBudget.reserveOwnerAudit(
+				ownerPreflight.resultCount,
+				ownerPreflight.resultTextBytes,
+			)
+			if (ownerPreflight.resultCount != expected.size.toLong() ||
+				ownerPreflight.resultCount > Int.MAX_VALUE
+			) return ImportedActivityRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT
+			ownerPreflight.resultCount.toInt()
+		}
+		scanBudget?.consumeQuery()
+		val actualRows = dao.protectedIdentityOwnerCounts(
+			identityBatch,
+			Math.addExact(resultCount, 1),
+		)
+		if (actualRows.size != resultCount) {
 			return ImportedActivityRetentionAuthorityFailure.ORIGIN_IDENTITY_CONFLICT
 		}
 		val actual = actualRows.associate { row ->

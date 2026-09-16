@@ -112,11 +112,15 @@ internal fun importedActivityTemporalAuthority(
 	evaluation: ImportedActivityProductEvaluation,
 ): ActivityTemporalAuthority? = when (evaluation) {
 	is ImportedActivityProductEvaluation.Readable -> evaluation.entry.toTemporalAuthority()
-	is ImportedActivityProductEvaluation.Retained -> ActivityTemporalAuthority(
-		ranges = evaluation.structuralZoneRanges.map { it.toTemporalRange() }
-			.sortedWith(ACTIVITY_TEMPORAL_RANGE_ORDER),
-		complete = evaluation.structuralZoneCoverageComplete,
-	)
+	is ImportedActivityProductEvaluation.Retained -> if (evaluation.hasTemporalAuthority) {
+		ActivityTemporalAuthority(
+			ranges = evaluation.structuralZoneRanges.map { it.toTemporalRange() }
+				.sortedWith(ACTIVITY_TEMPORAL_RANGE_ORDER),
+			complete = evaluation.structuralZoneCoverageComplete,
+		)
+	} else {
+		null
+	}
 	is ImportedActivityProductEvaluation.Unverifiable -> null
 }
 

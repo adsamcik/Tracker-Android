@@ -390,6 +390,7 @@ class ImportedActivityHistoryMapperTest {
 			)
 		},
 		structuralZoneCoverageComplete = true,
+		hasTemporalAuthority = true,
 		protectedIdentities = buildList {
 			add(RetainedImportedActivityIdentity.Entry(entry.identity))
 			entry.runs.forEach { run ->

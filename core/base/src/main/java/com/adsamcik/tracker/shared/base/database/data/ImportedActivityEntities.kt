@@ -335,12 +335,16 @@ data class ImportedActivityRetentionReceiptEntity(
 	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
 	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
 	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
-	@ColumnInfo(name = "temporal_authority_state") val temporalAuthorityState: String,
+	@ColumnInfo(name = "temporal_authority_state", defaultValue = "'UNAVAILABLE'")
+	val temporalAuthorityState: String,
 	@ColumnInfo(name = "latest_member_start_time_ms") val latestMemberStartTimeMs: Long?,
 	@ColumnInfo(name = "latest_member_identity") val latestMemberIdentity: String?,
-	@ColumnInfo(name = "structural_zone_range_count") val structuralZoneRangeCount: Int,
-	@ColumnInfo(name = "structural_zone_ranges_payload") val structuralZoneRangesPayload: String,
-	@ColumnInfo(name = "structural_zone_coverage_complete") val structuralZoneCoverageComplete: Boolean,
+	@ColumnInfo(name = "structural_zone_range_count", defaultValue = "0")
+	val structuralZoneRangeCount: Int,
+	@ColumnInfo(name = "structural_zone_ranges_payload", defaultValue = "''")
+	val structuralZoneRangesPayload: String,
+	@ColumnInfo(name = "structural_zone_coverage_complete", defaultValue = "0")
+	val structuralZoneCoverageComplete: Boolean,
 	@ColumnInfo(name = "revision_count") val revisionCount: Int,
 	@ColumnInfo(name = "import_receipt_count") val importReceiptCount: Int,
 	@ColumnInfo(name = "run_row_count") val runRowCount: Int,
@@ -380,6 +384,11 @@ data class ImportedActivityRetentionReceiptEntity(
 				require(structuralZoneRangesPayload.length <= MAX_TEMPORAL_PAYLOAD_LENGTH)
 				require(structuralZoneRanges().size == structuralZoneRangeCount)
 			}
+			TEMPORAL_AUTHORITY_UNAVAILABLE -> {
+				require(latestMemberStartTimeMs == null && latestMemberIdentity == null)
+				require(structuralZoneRangeCount == 0 && structuralZoneRangesPayload.isEmpty())
+				require(!structuralZoneCoverageComplete)
+			}
 			TEMPORAL_AUTHORITY_REDACTED -> {
 				require(startTimeMs == 0L && endTimeMs == 0L && receivedAtMs == 0L)
 				require(latestMemberStartTimeMs == null && latestMemberIdentity == null)
@@ -405,7 +414,10 @@ data class ImportedActivityRetentionReceiptEntity(
 		require(sourceFenceCount in 0..stableRunCount)
 		require(protectedIdentityCount == 1 + stableRunCount * 2 + stableWindowCount)
 		require(protectedIdentityCount <= MAX_PROTECTED_IDENTITIES)
-		require(effectChecksum == checksum(this))
+		require(effectChecksum == when (temporalAuthorityState) {
+			TEMPORAL_AUTHORITY_UNAVAILABLE -> legacyChecksum(this)
+			else -> checksum(this)
+		})
 	}
 
 	@Suppress("ComplexCondition")
@@ -431,6 +443,7 @@ data class ImportedActivityRetentionReceiptEntity(
 
 	companion object {
 		const val TEMPORAL_AUTHORITY_AVAILABLE = "AVAILABLE"
+		const val TEMPORAL_AUTHORITY_UNAVAILABLE = "UNAVAILABLE"
 		const val TEMPORAL_AUTHORITY_REDACTED = "REDACTED"
 
 		@Suppress("LongParameterList")
@@ -530,6 +543,48 @@ data class ImportedActivityRetentionReceiptEntity(
 					protectedChecksum,
 					lineageAuthorityChecksum,
 				),
+			)
+		}
+
+		/**
+		 * Exact in-memory representation of a retained receipt created before temporal authority
+		 * columns existed. Its original effect checksum remains authoritative.
+		 */
+		fun createTemporalAuthorityUnavailableFromLegacy(
+			original: ImportedActivityRetentionReceiptEntity,
+		): ImportedActivityRetentionReceiptEntity {
+			require(original.temporalAuthorityState == TEMPORAL_AUTHORITY_AVAILABLE)
+			return ImportedActivityRetentionReceiptEntity(
+				entryIdentity = original.entryIdentity,
+				collectedDataEpoch = original.collectedDataEpoch,
+				sourceEvidenceRevision = original.sourceEvidenceRevision,
+				retainedFromMs = original.retainedFromMs,
+				retainedAtMs = original.retainedAtMs,
+				latestImportRevision = original.latestImportRevision,
+				latestContentChecksum = original.latestContentChecksum,
+				startTimeMs = original.startTimeMs,
+				endTimeMs = original.endTimeMs,
+				receivedAtMs = original.receivedAtMs,
+				temporalAuthorityState = TEMPORAL_AUTHORITY_UNAVAILABLE,
+				latestMemberStartTimeMs = null,
+				latestMemberIdentity = null,
+				structuralZoneRangeCount = 0,
+				structuralZoneRangesPayload = "",
+				structuralZoneCoverageComplete = false,
+				revisionCount = original.revisionCount,
+				importReceiptCount = original.importReceiptCount,
+				runRowCount = original.runRowCount,
+				zoneEpochRowCount = original.zoneEpochRowCount,
+				windowRowCount = original.windowRowCount,
+				fragmentRowCount = original.fragmentRowCount,
+				runDeletionCount = original.runDeletionCount,
+				runDeletionSetChecksum = original.runDeletionSetChecksum,
+				sourceFenceCount = original.sourceFenceCount,
+				sourceFenceSetChecksum = original.sourceFenceSetChecksum,
+				protectedIdentityCount = original.protectedIdentityCount,
+				protectedIdentitySetChecksum = original.protectedIdentitySetChecksum,
+				lineageAuthorityChecksum = original.lineageAuthorityChecksum,
+				effectChecksum = legacyChecksum(original),
 			)
 		}
 
@@ -697,6 +752,36 @@ data class ImportedActivityRetentionReceiptEntity(
 			value.protectedIdentitySetChecksum,
 			value.lineageAuthorityChecksum,
 		)
+
+		private fun legacyChecksum(value: ImportedActivityRetentionReceiptEntity) =
+			ImportedActivityIdentity.digest(
+				"tracker-imported-activity-retention-receipt-v1",
+				listOf(
+					value.entryIdentity,
+					value.collectedDataEpoch.toString(),
+					value.sourceEvidenceRevision.toString(),
+					value.retainedFromMs.toString(),
+					value.retainedAtMs.toString(),
+					value.latestImportRevision.toString(),
+					value.latestContentChecksum,
+					value.startTimeMs.toString(),
+					value.endTimeMs.toString(),
+					value.receivedAtMs.toString(),
+					value.revisionCount.toString(),
+					value.importReceiptCount.toString(),
+					value.runRowCount.toString(),
+					value.zoneEpochRowCount.toString(),
+					value.windowRowCount.toString(),
+					value.fragmentRowCount.toString(),
+					value.runDeletionCount.toString(),
+					value.runDeletionSetChecksum,
+					value.sourceFenceCount.toString(),
+					value.sourceFenceSetChecksum,
+					value.protectedIdentityCount.toString(),
+					value.protectedIdentitySetChecksum,
+					value.lineageAuthorityChecksum,
+				),
+			)
 
 		@Suppress("LongParameterList")
 		private fun checksum(

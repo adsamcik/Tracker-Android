@@ -159,6 +159,63 @@ abstract class ImportedActivityDao {
 		beforeIdentity: String?,
 	): List<ImportedActivityHistoryCandidate>
 
+	/** Complete imported candidate source with a cursor that cannot skip live/retained conflicts. */
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_activity_entry_revision
+		  GROUP BY identity
+		), candidate AS (
+		  SELECT entry.identity,
+		         entry.import_revision,
+		         entry.content_checksum,
+		         entry.start_time_ms,
+		         entry.end_time_ms,
+		         entry.received_at_ms,
+		         'LIVE' AS candidate_state
+		  FROM imported_activity_entry_revision AS entry
+		  INNER JOIN latest_revision AS latest
+		    ON latest.identity = entry.identity
+		   AND latest.import_revision = entry.import_revision
+		  UNION ALL
+		  SELECT retained.entry_identity,
+		         retained.latest_import_revision,
+		         retained.latest_content_checksum,
+		         retained.start_time_ms,
+		         retained.end_time_ms,
+		         retained.received_at_ms,
+		         'RETAINED' AS candidate_state
+		  FROM imported_activity_retention_receipt AS retained
+		  WHERE NOT EXISTS (
+		    SELECT 1 FROM imported_activity_entry_deletion AS deletion
+		    WHERE deletion.entry_identity = retained.entry_identity
+		  )
+		)
+		SELECT * FROM candidate
+		WHERE :beforeStartTimeMs IS NULL
+		   OR start_time_ms < :beforeStartTimeMs
+		   OR (
+		     start_time_ms = :beforeStartTimeMs
+		     AND (
+		       identity < COALESCE(:beforeIdentity, '')
+		       OR (
+		         identity = COALESCE(:beforeIdentity, '')
+		         AND candidate_state > COALESCE(:beforeCandidateState, '')
+		       )
+		     )
+		   )
+		ORDER BY start_time_ms DESC, identity DESC, candidate_state
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun allHistoryCandidatePage(
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+		beforeCandidateState: String?,
+	): List<ImportedActivityHistoryCandidate>
+
 	/** Latest imported entries whose complete logical range overlaps an export request. */
 	@Query(
 		"""
@@ -255,7 +312,8 @@ abstract class ImportedActivityDao {
 		         entry.received_at_ms,
 		         'LIVE' AS candidate_state,
 		         COALESCE(newest.start_time_ms, entry.start_time_ms) AS recency_start_time_ms,
-		         COALESCE(newest.identity, entry.identity) AS recency_member_identity
+		         COALESCE(newest.identity, entry.identity) AS recency_member_identity,
+		         NULL AS temporal_authority_state
 		  FROM imported_activity_entry_revision AS entry
 		  INNER JOIN latest_revision AS latest
 		    ON latest.identity = entry.identity
@@ -272,7 +330,8 @@ abstract class ImportedActivityDao {
 		         retained.received_at_ms,
 		         'RETAINED' AS candidate_state,
 		         COALESCE(retained.latest_member_start_time_ms, retained.start_time_ms),
-		         COALESCE(retained.latest_member_identity, retained.entry_identity)
+		         COALESCE(retained.latest_member_identity, retained.entry_identity),
+		         retained.temporal_authority_state
 		  FROM imported_activity_retention_receipt AS retained
 		  WHERE NOT EXISTS (
 		      SELECT 1 FROM imported_activity_entry_deletion AS deletion
@@ -328,7 +387,8 @@ abstract class ImportedActivityDao {
 		         entry.received_at_ms,
 		         'LIVE' AS candidate_state,
 		         COALESCE(newest.start_time_ms, entry.start_time_ms) AS recency_start_time_ms,
-		         COALESCE(newest.identity, entry.identity) AS recency_member_identity
+		         COALESCE(newest.identity, entry.identity) AS recency_member_identity,
+		         NULL AS temporal_authority_state
 		  FROM imported_activity_entry_revision AS entry
 		  INNER JOIN latest_revision AS latest
 		    ON latest.identity = entry.identity
@@ -347,7 +407,8 @@ abstract class ImportedActivityDao {
 		         retained.received_at_ms,
 		         'RETAINED' AS candidate_state,
 		         COALESCE(retained.latest_member_start_time_ms, retained.start_time_ms),
-		         COALESCE(retained.latest_member_identity, retained.entry_identity)
+		         COALESCE(retained.latest_member_identity, retained.entry_identity),
+		         retained.temporal_authority_state
 		  FROM imported_activity_retention_receipt AS retained
 		  WHERE retained.start_time_ms < :toExclusiveMs
 		    AND retained.end_time_ms > :fromInclusiveMs
@@ -428,6 +489,211 @@ abstract class ImportedActivityDao {
 		limit: Int,
 	): List<ImportedActivityEntryRevisionEntity>
 
+	/**
+	 * Scalar-only preflight for one selected Activity product batch.
+	 *
+	 * Text totals use SQLite BLOB length so they are exact UTF-8 byte counts. Detail rows are not
+	 * materialized by this query.
+	 */
+	@Query(
+		"""
+		WITH latest_revision AS (
+		  SELECT identity, MAX(import_revision) AS import_revision
+		  FROM imported_activity_entry_revision
+		  WHERE identity IN (:identities)
+		  GROUP BY identity
+		)
+		SELECT
+		  (SELECT COUNT(*) FROM imported_activity_entry_revision
+		   WHERE identity IN (:identities)) AS entry_revision_count,
+		  (SELECT COUNT(*) FROM imported_activity_receipt
+		   WHERE entry_identity IN (:identities)) AS import_receipt_count,
+		  (SELECT COUNT(*) FROM imported_activity_run
+		   WHERE entry_identity IN (:identities)) AS run_count,
+		  (SELECT COUNT(*) FROM imported_activity_zone_epoch
+		   WHERE entry_identity IN (:identities)) AS zone_epoch_count,
+		  (SELECT COUNT(*) FROM imported_activity_window
+		   WHERE entry_identity IN (:identities)) AS window_count,
+		  (SELECT COUNT(*) FROM imported_activity_fragment
+		   WHERE entry_identity IN (:identities)) AS fragment_count,
+		  (SELECT COUNT(*) FROM imported_activity_retention_receipt
+		   WHERE entry_identity IN (:identities)) AS retention_receipt_count,
+		  (SELECT COUNT(*) FROM imported_activity_retained_identity
+		   WHERE entry_identity IN (:identities)) AS retained_identity_count,
+		  (SELECT COALESCE(SUM(structural_zone_range_count), 0)
+		   FROM imported_activity_retention_receipt
+		   WHERE entry_identity IN (:identities)) AS retained_structural_range_count,
+		  (SELECT COUNT(*) FROM imported_activity_entry_deletion
+		   WHERE entry_identity IN (:identities)) AS entry_deletion_count,
+		  (SELECT COUNT(*) FROM imported_activity_entry_deletion_receipt
+		   WHERE entry_identity IN (:identities)) AS entry_deletion_receipt_count,
+		  (SELECT COUNT(*) FROM imported_activity_deletion_generation
+		   WHERE run_identity IN (
+		     SELECT identity FROM imported_activity_run WHERE entry_identity IN (:identities)
+		     UNION
+		     SELECT protected_identity FROM imported_activity_retained_identity
+		     WHERE entry_identity IN (:identities) AND identity_kind = 'RUN'
+		   )) AS run_deletion_count,
+		  (SELECT COUNT(*) FROM source_deletion_fence
+		   WHERE source_kind = :activitySourceKind
+		     AND purpose = :sessionCapturePurpose
+		     AND scope_kind = :logicalRunScopeKind
+		     AND scope_identity_digest IN (
+		       SELECT deletion_scope_digest FROM imported_activity_run
+		       WHERE entry_identity IN (:identities)
+		       UNION
+		       SELECT protected_identity FROM imported_activity_retained_identity
+		       WHERE entry_identity IN (:identities) AND identity_kind = 'DELETION_SCOPE'
+		     )) AS source_fence_count,
+		  (SELECT COUNT(*) FROM latest_revision) AS latest_entry_count,
+		  (SELECT COUNT(*) FROM imported_activity_run AS run
+		   INNER JOIN latest_revision AS latest
+		     ON latest.identity = run.entry_identity
+		    AND latest.import_revision = run.entry_import_revision) AS latest_run_count,
+		  (SELECT COUNT(*) FROM imported_activity_zone_epoch AS zone
+		   INNER JOIN latest_revision AS latest
+		     ON latest.identity = zone.entry_identity
+		    AND latest.import_revision = zone.entry_import_revision) AS latest_zone_epoch_count,
+		  (SELECT COUNT(*) FROM imported_activity_window AS window_row
+		   INNER JOIN latest_revision AS latest
+		     ON latest.identity = window_row.entry_identity
+		    AND latest.import_revision = window_row.entry_import_revision) AS latest_window_count,
+		  (SELECT COUNT(*) FROM imported_activity_fragment AS fragment
+		   INNER JOIN latest_revision AS latest
+		     ON latest.identity = fragment.entry_identity
+		    AND latest.import_revision = fragment.entry_import_revision) AS latest_fragment_count,
+		  (
+		    SELECT COALESCE(SUM(
+		      length(CAST(identity AS BLOB)) +
+		      length(CAST(content_checksum AS BLOB)) +
+		      length(CAST(source_format AS BLOB)) +
+		      length(CAST(session_mode AS BLOB)) +
+		      length(CAST(import_job_id AS BLOB)) +
+		      length(CAST(import_entry_key AS BLOB)) +
+		      length(CAST(import_source_name AS BLOB))
+		    ), 0) FROM imported_activity_entry_revision WHERE identity IN (:identities)
+		  ) + (
+		    SELECT COALESCE(SUM(
+		      length(CAST(import_job_id AS BLOB)) +
+		      length(CAST(import_entry_key AS BLOB)) +
+		      length(CAST(import_source_name AS BLOB)) +
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(entry_content_checksum AS BLOB))
+		    ), 0) FROM imported_activity_receipt WHERE entry_identity IN (:identities)
+		  ) + (
+		    SELECT COALESCE(SUM(
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(identity AS BLOB)) +
+		      length(CAST(deletion_scope_digest AS BLOB)) +
+		      length(CAST(content_checksum AS BLOB)) +
+		      length(CAST(capture_coverage AS BLOB))
+		    ), 0) FROM imported_activity_run WHERE entry_identity IN (:identities)
+		  ) + (
+		    SELECT COALESCE(SUM(
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(run_identity AS BLOB)) +
+		      length(CAST(zone_id AS BLOB))
+		    ), 0) FROM imported_activity_zone_epoch WHERE entry_identity IN (:identities)
+		  ) + (
+		    SELECT COALESCE(SUM(
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(run_identity AS BLOB)) +
+		      length(CAST(identity AS BLOB)) +
+		      length(CAST(content_checksum AS BLOB)) +
+		      length(CAST(stored_zone_id AS BLOB)) +
+		      length(CAST(coverage AS BLOB))
+		    ), 0) FROM imported_activity_window WHERE entry_identity IN (:identities)
+		  ) + (
+		    SELECT COALESCE(SUM(
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(run_identity AS BLOB)) +
+		      length(CAST(window_identity AS BLOB)) +
+		      length(CAST(fragment_kind AS BLOB)) +
+		      length(CAST(COALESCE(gap_reason, '') AS BLOB)) +
+		      length(CAST(COALESCE(activity, '') AS BLOB)) +
+		      length(CAST(COALESCE(mechanism, '') AS BLOB)) +
+		      length(CAST(COALESCE(refined_transition_activity, '') AS BLOB)) +
+		      length(CAST(COALESCE(confidence_kind, '') AS BLOB)) +
+		      length(CAST(COALESCE(start_boundary_kind, '') AS BLOB)) +
+		      length(CAST(COALESCE(end_boundary_kind, '') AS BLOB)) +
+		      length(CAST(COALESCE(wall_time_continuity, '') AS BLOB))
+		    ), 0) FROM imported_activity_fragment WHERE entry_identity IN (:identities)
+		  ) + (
+		    SELECT COALESCE(SUM(
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(latest_content_checksum AS BLOB)) +
+		      length(CAST(temporal_authority_state AS BLOB)) +
+		      length(CAST(COALESCE(latest_member_identity, '') AS BLOB)) +
+		      length(CAST(structural_zone_ranges_payload AS BLOB)) +
+		      length(CAST(run_deletion_set_checksum AS BLOB)) +
+		      length(CAST(source_fence_set_checksum AS BLOB)) +
+		      length(CAST(protected_identity_set_checksum AS BLOB)) +
+		      length(CAST(lineage_authority_checksum AS BLOB)) +
+		      length(CAST(effect_checksum AS BLOB))
+		    ), 0) FROM imported_activity_retention_receipt
+		    WHERE entry_identity IN (:identities)
+		  ) + (
+		    SELECT COALESCE(SUM(
+		      length(CAST(protected_identity AS BLOB)) +
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(identity_kind AS BLOB))
+		    ), 0) FROM imported_activity_retained_identity
+		    WHERE entry_identity IN (:identities)
+		  ) + (
+		    SELECT COALESCE(SUM(
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(effect_checksum AS BLOB))
+		    ), 0) FROM imported_activity_entry_deletion
+		    WHERE entry_identity IN (:identities)
+		  ) + (
+		    SELECT COALESCE(SUM(
+		      length(CAST(entry_identity AS BLOB)) +
+		      length(CAST(deleted_content_checksum AS BLOB)) +
+		      length(CAST(run_scope_set_checksum AS BLOB)) +
+		      length(CAST(window_identity_set_checksum AS BLOB)) +
+		      length(CAST(run_deletion_set_checksum AS BLOB)) +
+		      length(CAST(source_fence_set_checksum AS BLOB)) +
+		      length(CAST(effect_checksum AS BLOB))
+		    ), 0) FROM imported_activity_entry_deletion_receipt
+		    WHERE entry_identity IN (:identities)
+		  ) + (
+		    SELECT COALESCE(SUM(
+		      length(CAST(run_identity AS BLOB)) +
+		      length(CAST(effect_checksum AS BLOB))
+		    ), 0) FROM imported_activity_deletion_generation
+		    WHERE run_identity IN (
+		      SELECT identity FROM imported_activity_run WHERE entry_identity IN (:identities)
+		      UNION
+		      SELECT protected_identity FROM imported_activity_retained_identity
+		      WHERE entry_identity IN (:identities) AND identity_kind = 'RUN'
+		    )
+		  ) + (
+		    SELECT COALESCE(SUM(
+		      length(CAST(purpose AS BLOB)) +
+		      length(CAST(scope_kind AS BLOB)) +
+		      length(CAST(scope_identity_digest AS BLOB)) +
+		      length(CAST(effect_checksum AS BLOB))
+		    ), 0) FROM source_deletion_fence
+		    WHERE source_kind = :activitySourceKind
+		      AND purpose = :sessionCapturePurpose
+		      AND scope_kind = :logicalRunScopeKind
+		      AND scope_identity_digest IN (
+		        SELECT deletion_scope_digest FROM imported_activity_run
+		        WHERE entry_identity IN (:identities)
+		        UNION
+		        SELECT protected_identity FROM imported_activity_retained_identity
+		        WHERE entry_identity IN (:identities) AND identity_kind = 'DELETION_SCOPE'
+		      )
+		  ) AS source_text_bytes
+		""",
+	)
+	abstract suspend fun productBatchPreflight(
+		identities: List<String>,
+		activitySourceKind: Int,
+		sessionCapturePurpose: String,
+		logicalRunScopeKind: String,
+	): ImportedActivityProductBatchPreflight
+
 	suspend fun entryRevisionsForHistory(
 		identities: List<String>,
 	): List<ImportedActivityEntryRevisionEntity> = loadHistoryEntryRevisions(
@@ -475,6 +741,14 @@ abstract class ImportedActivityDao {
 			checkedHistoryIdentities(identities),
 			historyLimit(identities.size, MAX_RECEIPTS_PER_ENTRY),
 		)
+
+	suspend fun receiptsForBoundedHistory(
+		identities: List<String>,
+		maximumRows: Int,
+	): List<ImportedActivityReceiptEntity> = loadHistoryReceipts(
+		checkedHistoryIdentities(identities),
+		boundedHistoryLimit(identities.size, MAX_RECEIPTS_PER_ENTRY, maximumRows),
+	)
 
 	@Query(
 		"SELECT * FROM imported_activity_receipt WHERE entry_identity IN (:identities) " +
@@ -749,6 +1023,71 @@ abstract class ImportedActivityDao {
 		return loadProtectedIdentityOwners(identities, limit)
 	}
 
+	@Query(
+		"""
+		SELECT COUNT(*) AS result_count,
+		       COALESCE(SUM(
+		         length(CAST(owner_kind AS BLOB)) +
+		         length(CAST(protected_identity AS BLOB)) +
+		         length(CAST(COALESCE(purpose, '') AS BLOB)) +
+		         length(CAST(COALESCE(scope_kind, '') AS BLOB))
+		       ), 0) AS result_text_bytes
+		FROM (
+		  SELECT owner_kind, protected_identity, source_kind, purpose, scope_kind, COUNT(*) AS owner_count
+		  FROM (
+		    SELECT 'ENTRY_IDENTITY' AS owner_kind, identity AS protected_identity,
+		           CAST(NULL AS INTEGER) AS source_kind, CAST(NULL AS TEXT) AS purpose,
+		           CAST(NULL AS TEXT) AS scope_kind
+		    FROM imported_activity_entry_revision
+		    UNION ALL SELECT 'RECEIPT_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+		    FROM imported_activity_receipt
+		    UNION ALL SELECT 'RUN_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+		    FROM imported_activity_run
+		    UNION ALL SELECT 'RUN_IDENTITY', identity, NULL, NULL, NULL
+		    FROM imported_activity_run
+		    UNION ALL SELECT 'RUN_SCOPE_OWNER', deletion_scope_digest, NULL, NULL, NULL
+		    FROM imported_activity_run
+		    UNION ALL SELECT 'ZONE_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+		    FROM imported_activity_zone_epoch
+		    UNION ALL SELECT 'ZONE_RUN_OWNER', run_identity, NULL, NULL, NULL
+		    FROM imported_activity_zone_epoch
+		    UNION ALL SELECT 'WINDOW_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+		    FROM imported_activity_window
+		    UNION ALL SELECT 'WINDOW_RUN_OWNER', run_identity, NULL, NULL, NULL
+		    FROM imported_activity_window
+		    UNION ALL SELECT 'WINDOW_IDENTITY', identity, NULL, NULL, NULL
+		    FROM imported_activity_window
+		    UNION ALL SELECT 'FRAGMENT_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+		    FROM imported_activity_fragment
+		    UNION ALL SELECT 'FRAGMENT_RUN_OWNER', run_identity, NULL, NULL, NULL
+		    FROM imported_activity_fragment
+		    UNION ALL SELECT 'FRAGMENT_WINDOW_OWNER', window_identity, NULL, NULL, NULL
+		    FROM imported_activity_fragment
+		    UNION ALL SELECT 'ENTRY_DELETION', entry_identity, NULL, NULL, NULL
+		    FROM imported_activity_entry_deletion
+		    UNION ALL SELECT 'ENTRY_DELETION_RECEIPT', entry_identity, NULL, NULL, NULL
+		    FROM imported_activity_entry_deletion_receipt
+		    UNION ALL SELECT 'RUN_DELETION', run_identity, NULL, NULL, NULL
+		    FROM imported_activity_deletion_generation
+		    UNION ALL SELECT 'SOURCE_DELETION_SCOPE', scope_identity_digest,
+		      source_kind, purpose, scope_kind
+		    FROM source_deletion_fence
+		    UNION ALL SELECT 'RETENTION_RECEIPT_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+		    FROM imported_activity_retention_receipt
+		    UNION ALL SELECT 'RETAINED_IDENTITY', protected_identity, NULL, NULL, NULL
+		    FROM imported_activity_retained_identity
+		    UNION ALL SELECT 'RETAINED_IDENTITY_ENTRY_OWNER', entry_identity, NULL, NULL, NULL
+		    FROM imported_activity_retained_identity
+		  ) AS owner_facts
+		  WHERE protected_identity IN (:identities)
+		  GROUP BY owner_kind, protected_identity, source_kind, purpose, scope_kind
+		) AS grouped_owner_facts
+		""",
+	)
+	abstract suspend fun protectedIdentityOwnerCountPreflight(
+		identities: List<String>,
+	): ImportedActivityOwnerAuditPreflight
+
 	@Query("SELECT * FROM imported_activity_retention_receipt WHERE entry_identity = :identity")
 	abstract suspend fun retentionReceipt(identity: String): ImportedActivityRetentionReceiptEntity?
 
@@ -756,6 +1095,23 @@ abstract class ImportedActivityDao {
 	abstract suspend fun retentionReceipts(
 		identities: List<String>,
 	): List<ImportedActivityRetentionReceiptEntity>
+
+	@Query(
+		"SELECT * FROM imported_activity_retention_receipt WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity LIMIT :limit",
+	)
+	protected abstract suspend fun loadRetentionReceiptsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedActivityRetentionReceiptEntity>
+
+	suspend fun retentionReceiptsForHistory(
+		identities: List<String>,
+		maximumRows: Int,
+	): List<ImportedActivityRetentionReceiptEntity> = loadRetentionReceiptsForHistory(
+		checkedHistoryIdentities(identities),
+		boundedHistoryLimit(identities.size, 1, maximumRows),
+	)
 
 	@Query(
 		"SELECT * FROM imported_activity_retention_receipt " +
@@ -877,10 +1233,44 @@ abstract class ImportedActivityDao {
 		identities: List<String>,
 	): List<ImportedActivityEntryDeletionEntity>
 
+	@Query(
+		"SELECT * FROM imported_activity_entry_deletion WHERE entry_identity IN (:identities) " +
+			"ORDER BY entry_identity LIMIT :limit",
+	)
+	protected abstract suspend fun loadEntryDeletionsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedActivityEntryDeletionEntity>
+
+	suspend fun entryDeletionsForBoundedHistory(
+		identities: List<String>,
+		maximumRows: Int,
+	): List<ImportedActivityEntryDeletionEntity> = loadEntryDeletionsForHistory(
+		checkedHistoryIdentities(identities),
+		boundedHistoryLimit(identities.size, 1, maximumRows),
+	)
+
 	@Query("SELECT * FROM imported_activity_entry_deletion_receipt WHERE entry_identity IN (:identities)")
 	abstract suspend fun entryDeletionReceipts(
 		identities: List<String>,
 	): List<ImportedActivityEntryDeletionReceiptEntity>
+
+	@Query(
+		"SELECT * FROM imported_activity_entry_deletion_receipt " +
+			"WHERE entry_identity IN (:identities) ORDER BY entry_identity LIMIT :limit",
+	)
+	protected abstract suspend fun loadEntryDeletionReceiptsForHistory(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedActivityEntryDeletionReceiptEntity>
+
+	suspend fun entryDeletionReceiptsForBoundedHistory(
+		identities: List<String>,
+		maximumRows: Int,
+	): List<ImportedActivityEntryDeletionReceiptEntity> = loadEntryDeletionReceiptsForHistory(
+		checkedHistoryIdentities(identities),
+		boundedHistoryLimit(identities.size, 1, maximumRows),
+	)
 
 	suspend fun entryDeletionsForHistory(
 		identities: List<String>,
@@ -892,6 +1282,34 @@ abstract class ImportedActivityDao {
 	abstract suspend fun deletionGenerations(
 		identities: List<String>,
 	): List<ImportedActivityDeletionGenerationEntity>
+
+	@Query(
+		"SELECT * FROM imported_activity_deletion_generation WHERE run_identity IN (:identities) " +
+			"ORDER BY run_identity LIMIT :limit",
+	)
+	abstract suspend fun boundedDeletionGenerations(
+		identities: List<String>,
+		limit: Int,
+	): List<ImportedActivityDeletionGenerationEntity>
+
+	@Query(
+		"""
+		SELECT * FROM source_deletion_fence
+		WHERE source_kind = :activitySourceKind
+		  AND purpose = :sessionCapturePurpose
+		  AND scope_kind = :logicalRunScopeKind
+		  AND scope_identity_digest IN (:scopeDigests)
+		ORDER BY scope_identity_digest
+		LIMIT :limit
+		""",
+	)
+	abstract suspend fun boundedActivitySourceFences(
+		scopeDigests: List<String>,
+		activitySourceKind: Int,
+		sessionCapturePurpose: String,
+		logicalRunScopeKind: String,
+		limit: Int,
+	): List<SourceDeletionFenceEntity>
 
 	suspend fun deletionGenerationsForHistory(
 		runIdentities: List<String>,
@@ -983,7 +1401,7 @@ abstract class ImportedActivityDao {
 		maximumPerIdentity: Int,
 		maximumRows: Int,
 	): Int {
-		require(maximumRows > 0)
+		require(maximumRows >= 0)
 		val overflowSentinel = if (maximumRows == Int.MAX_VALUE) Int.MAX_VALUE else maximumRows + 1
 		return minOf(historyLimit(identityCount, maximumPerIdentity), overflowSentinel)
 	}
@@ -1025,6 +1443,7 @@ data class ImportedActivityOrderedHistoryCandidate(
 	@ColumnInfo(name = "candidate_state") val candidateState: String,
 	@ColumnInfo(name = "recency_start_time_ms") val recencyStartTimeMs: Long?,
 	@ColumnInfo(name = "recency_member_identity") val recencyMemberIdentity: String?,
+	@ColumnInfo(name = "temporal_authority_state") val temporalAuthorityState: String?,
 ) {
 	fun toHistoryCandidate() = ImportedActivityHistoryCandidate(
 		identity = identity,
@@ -1035,6 +1454,54 @@ data class ImportedActivityOrderedHistoryCandidate(
 		receivedAtMs = receivedAtMs,
 		candidateState = candidateState,
 	)
+}
+
+data class ImportedActivityProductBatchPreflight(
+	@ColumnInfo(name = "entry_revision_count") val entryRevisionCount: Long,
+	@ColumnInfo(name = "import_receipt_count") val importReceiptCount: Long,
+	@ColumnInfo(name = "run_count") val runCount: Long,
+	@ColumnInfo(name = "zone_epoch_count") val zoneEpochCount: Long,
+	@ColumnInfo(name = "window_count") val windowCount: Long,
+	@ColumnInfo(name = "fragment_count") val fragmentCount: Long,
+	@ColumnInfo(name = "retention_receipt_count") val retentionReceiptCount: Long,
+	@ColumnInfo(name = "retained_identity_count") val retainedIdentityCount: Long,
+	@ColumnInfo(name = "retained_structural_range_count") val retainedStructuralRangeCount: Long,
+	@ColumnInfo(name = "entry_deletion_count") val entryDeletionCount: Long,
+	@ColumnInfo(name = "entry_deletion_receipt_count") val entryDeletionReceiptCount: Long,
+	@ColumnInfo(name = "run_deletion_count") val runDeletionCount: Long,
+	@ColumnInfo(name = "source_fence_count") val sourceFenceCount: Long,
+	@ColumnInfo(name = "latest_entry_count") val latestEntryCount: Long,
+	@ColumnInfo(name = "latest_run_count") val latestRunCount: Long,
+	@ColumnInfo(name = "latest_zone_epoch_count") val latestZoneEpochCount: Long,
+	@ColumnInfo(name = "latest_window_count") val latestWindowCount: Long,
+	@ColumnInfo(name = "latest_fragment_count") val latestFragmentCount: Long,
+	@ColumnInfo(name = "source_text_bytes") val sourceTextBytes: Long,
+) {
+	init {
+		require(
+			listOf(
+				entryRevisionCount,
+				importReceiptCount,
+				runCount,
+				zoneEpochCount,
+				windowCount,
+				fragmentCount,
+				retentionReceiptCount,
+				retainedIdentityCount,
+				retainedStructuralRangeCount,
+				entryDeletionCount,
+				entryDeletionReceiptCount,
+				runDeletionCount,
+				sourceFenceCount,
+				latestEntryCount,
+				latestRunCount,
+				latestZoneEpochCount,
+				latestWindowCount,
+				latestFragmentCount,
+				sourceTextBytes,
+			).all { it >= 0L },
+		)
+	}
 }
 
 data class ImportedActivityProductRevisionSnapshot(
@@ -1113,3 +1580,12 @@ data class ImportedActivityProtectedIdentityOwnerCount(
 	@ColumnInfo(name = "scope_kind") val scopeKind: String?,
 	@ColumnInfo(name = "owner_count") val ownerCount: Long,
 )
+
+data class ImportedActivityOwnerAuditPreflight(
+	@ColumnInfo(name = "result_count") val resultCount: Long,
+	@ColumnInfo(name = "result_text_bytes") val resultTextBytes: Long,
+) {
+	init {
+		require(resultCount >= 0L && resultTextBytes >= 0L)
+	}
+}
