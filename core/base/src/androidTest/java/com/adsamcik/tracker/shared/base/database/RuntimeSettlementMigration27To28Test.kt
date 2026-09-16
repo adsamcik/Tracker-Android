@@ -7,14 +7,14 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class ImportedPressureMaintenanceMigration27To28Test {
+class RuntimeSettlementMigration27To28Test {
 	@get:Rule
 	val helper = MigrationTestHelper(
 		InstrumentationRegistry.getInstrumentation(),
@@ -26,26 +26,19 @@ class ImportedPressureMaintenanceMigration27To28Test {
 	private val context: Context
 		get() = InstrumentationRegistry.getInstrumentation().targetContext
 
-	@Before
-	fun before() {
-		context.deleteDatabase(DATABASE)
-	}
-
 	@After
-	fun after() {
+	fun cleanup() {
 		context.deleteDatabase(DATABASE)
 	}
 
 	@Test
-	fun importedPressureMaintenanceAuthorityIsAdditive() {
+	fun migrationCreatesOnlyFinalRuntimeSettlementTables() {
 		helper.createDatabase(DATABASE, 27).close()
+
 		helper.runMigrationsAndValidate(DATABASE, 28, true, MIGRATION_27_28).use { database ->
 			listOf(
-				"imported_pressure_retention_receipt",
-				"imported_pressure_retained_identity",
-				"imported_pressure_identity_fence",
-				"imported_pressure_source_erase",
-				"imported_pressure_source_erase_witness",
+				"source_capture_admission_barrier",
+				"source_run_retirement",
 			).forEach { table ->
 				database.query("SELECT COUNT(*) FROM $table").use { cursor ->
 					assertTrue(cursor.moveToFirst())
@@ -53,40 +46,26 @@ class ImportedPressureMaintenanceMigration27To28Test {
 				}
 			}
 			database.query(
-				"PRAGMA foreign_key_list(`imported_pressure_retained_identity`)",
-			).use { cursor ->
-				assertTrue(cursor.moveToFirst())
-				assertEquals("imported_pressure_retention_receipt", cursor.getString(2))
-				assertEquals("CASCADE", cursor.getString(6))
-			}
+				"SELECT 1 FROM sqlite_master WHERE type = 'table' " +
+					"AND name = 'source_maintenance_authority'",
+			).use { cursor -> assertFalse(cursor.moveToFirst()) }
 			assertColumns(
 				database,
-				"imported_pressure_entry_deletion",
+				"source_capture_admission_barrier",
 				listOf(
-					"run_deletion_count",
-					"run_deletion_set_checksum",
-					"identity_fence_count",
-					"identity_fence_set_checksum",
+					"through_authorization_revision",
+					"last_admission_ordinal",
+					"last_source_sequence",
 				),
 			)
 			assertColumns(
 				database,
-				"imported_pressure_retention_receipt",
+				"source_run_retirement",
 				listOf(
-					"recency_start_time_ms",
-					"recency_end_time_ms",
-					"recency_tie_identity",
-					"identity_fence_set_checksum",
-				),
-			)
-			assertColumns(
-				database,
-				"imported_pressure_source_erase",
-				listOf(
-					"provider_registration_generation",
-					"legacy_write_fence_generation",
-					"legacy_sample_set_checksum",
-					"identity_fence_set_checksum",
+					"callback_entry_barrier_sequence",
+					"failed_admission_count",
+					"provider_flush_outcome",
+					"app_drain_complete",
 				),
 			)
 		}
@@ -98,7 +77,7 @@ class ImportedPressureMaintenanceMigration27To28Test {
 		expected: List<String>,
 	) {
 		val actual = buildSet {
-			database.query("PRAGMA table_info(`$table`)").use { cursor ->
+			database.query("PRAGMA table_info('$table')").use { cursor ->
 				val column = cursor.getColumnIndexOrThrow("name")
 				while (cursor.moveToNext()) add(cursor.getString(column))
 			}
@@ -107,6 +86,6 @@ class ImportedPressureMaintenanceMigration27To28Test {
 	}
 
 	private companion object {
-		const val DATABASE = "migration-imported-pressure-maintenance-27-28"
+		const val DATABASE = "migration-27-28-runtime-settlement"
 	}
 }

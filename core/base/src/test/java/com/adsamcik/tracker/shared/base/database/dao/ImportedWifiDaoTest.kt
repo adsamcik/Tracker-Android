@@ -214,7 +214,7 @@ class ImportedWifiDaoTest {
 		}
 
 	@Test
-	fun `foreign hierarchy is atomic and full collected clear removes every imported row`() = runTest {
+	fun `foreign hierarchy clear removes payload and reepochs imported privacy authority`() = runTest {
 		shouldThrow<android.database.sqlite.SQLiteConstraintException> { dao.insertRun(run()) }
 		dao.insertEntryRevision(entry())
 		dao.insertRun(run())
@@ -234,8 +234,14 @@ class ImportedWifiDaoTest {
 		dao.runCount() shouldBe 0L
 		dao.runZoneCount() shouldBe 0L
 		dao.observationCount() shouldBe 0L
-		dao.entryDeletionCount() shouldBe 0L
-		dao.deletionGenerationCount() shouldBe 0L
+		dao.entryDeletionCount() shouldBe 2L
+		dao.deletionGenerationCount() shouldBe 2L
+		dao.entryDeletionsForHistory(listOf(ENTRY, "8".repeat(64)), 3).all {
+			it.collectedDataEpoch == EPOCH + 1L
+		} shouldBe true
+		dao.deletionGenerationsByEntry(listOf(ENTRY, "8".repeat(64)), 3).all {
+			it.collectedDataEpoch == EPOCH + 1L
+		} shouldBe true
 	}
 
 	@Test

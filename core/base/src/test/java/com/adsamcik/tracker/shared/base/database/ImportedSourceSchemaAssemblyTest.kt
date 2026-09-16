@@ -33,6 +33,7 @@ class ImportedSourceSchemaAssemblyTest {
 						db.execSQL("INSERT INTO retained_fixture VALUES (1, 'retained')")
 						createImportedPressureMaintenanceTables(db)
 						createImportedAmbientStepsTables(db)
+						createAdditionalTrackingTables(db)
 					}
 
 					override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -50,7 +51,7 @@ class ImportedSourceSchemaAssemblyTest {
 	}
 
 	@Test
-	fun `additive imported DDL matches Room columns foreign keys and named indexes`() {
+	fun `additive tracking DDL matches Room columns foreign keys and named indexes`() {
 		val migrated = migrationSchema.writableDatabase
 		val fresh = room.openHelper.writableDatabase
 
@@ -64,6 +65,7 @@ class ImportedSourceSchemaAssemblyTest {
 		val migrated = migrationSchema.writableDatabase
 		createImportedPressureMaintenanceTables(migrated)
 		createImportedAmbientStepsTables(migrated)
+		createAdditionalTrackingTables(migrated)
 
 		migrated.query("SELECT value FROM retained_fixture WHERE id = 1").use { cursor ->
 			cursor.moveToFirst() shouldBe true
@@ -76,7 +78,9 @@ class ImportedSourceSchemaAssemblyTest {
 		val TABLES = listOf(
 			"imported_pressure_retention_receipt",
 			"imported_pressure_retained_identity",
+			"imported_pressure_identity_fence",
 			"imported_pressure_source_erase",
+			"imported_pressure_source_erase_witness",
 			"imported_ambient_steps_archive",
 			"imported_ambient_steps_receipt",
 			"imported_ambient_steps_archive_day",
@@ -86,6 +90,36 @@ class ImportedSourceSchemaAssemblyTest {
 			"imported_ambient_steps_day_fence",
 			"imported_ambient_steps_protected_identity",
 			"imported_ambient_steps_source_fence",
+			"wifi_selected_deletion_receipt",
+			"wifi_selected_deletion_protected_identity",
+			"imported_cell_entry_deletion_receipt",
+			"imported_cell_deleted_identity",
+			"cell_captured_entry_deletion_receipt",
+			"cell_captured_deleted_run",
+			"ambient_wifi_authority",
+			"ambient_wifi_retention_authority",
+			"ambient_wifi_fact_revision",
+			"ambient_wifi_fact_cursor",
+			"ambient_wifi_gap",
+			"ambient_wifi_deletion_marker",
+			"imported_ambient_wifi_fact",
+			"imported_ambient_wifi_gap",
+			"imported_ambient_wifi_receipt",
+			"imported_ambient_wifi_tombstone",
+			"ambient_wifi_replay_footprint",
+			"ambient_cell_authority",
+			"ambient_cell_retention_authority",
+			"ambient_cell_fact_revision",
+			"ambient_cell_fact_cursor",
+			"ambient_cell_gap",
+			"ambient_cell_deletion_marker",
+			"imported_ambient_cell_fact",
+			"imported_ambient_cell_gap",
+			"imported_ambient_cell_receipt",
+			"imported_ambient_cell_tombstone",
+			"ambient_cell_replay_footprint",
+			"source_capture_admission_barrier",
+			"source_run_retirement",
 		)
 	}
 }

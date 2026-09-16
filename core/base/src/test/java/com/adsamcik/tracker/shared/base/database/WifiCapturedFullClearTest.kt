@@ -62,11 +62,11 @@ class WifiCapturedFullClearTest {
 			updatedAtMs = 2_000L,
 		)
 
-		assertCleared(graph)
+		assertCleared(graph, EPOCH + 1L)
 		assertEvidenceState(EPOCH + 1L, revision = 1L, deletedHighWater = 2L)
 		reopen()
 		foreignKeysEnabled() shouldBe true
-		assertCleared(graph)
+		assertCleared(graph, EPOCH + 1L)
 		assertEvidenceState(EPOCH + 1L, revision = 1L, deletedHighWater = 2L)
 
 		AppDatabase.deleteAllCollectedData(
@@ -77,7 +77,7 @@ class WifiCapturedFullClearTest {
 		)
 
 		reopen()
-		assertCleared(graph)
+		assertCleared(graph, EPOCH + 2L)
 		assertEvidenceState(
 			EPOCH + 2L,
 			revision = 2L,
@@ -93,7 +93,7 @@ class WifiCapturedFullClearTest {
 			)) shouldBe 3L
 		database.sourceEventWalDao().getByEventId(AGGREGATE_EVENT_ID) shouldBe null
 		database.sourceEventWalDao().getByEventId(COVERAGE_EVENT_ID) shouldBe null
-		assertCleared(graph)
+		assertCleared(graph, EPOCH + 2L)
 	}
 
 	@Test
@@ -103,11 +103,11 @@ class WifiCapturedFullClearTest {
 
 		AppDatabase.deleteAllCollectedData(database)
 
-		assertCleared(graph)
+		assertCleared(graph, EPOCH + 1L)
 		assertEvidenceState(EPOCH + 1L, revision = 1L, deletedHighWater = 2L)
 		reopen()
 		foreignKeysEnabled() shouldBe true
-		assertCleared(graph)
+		assertCleared(graph, EPOCH + 1L)
 		assertEvidenceState(EPOCH + 1L, revision = 1L, deletedHighWater = 2L)
 	}
 
@@ -235,11 +235,14 @@ class WifiCapturedFullClearTest {
 		dao.deletionGenerationCount() shouldBe 1L
 	}
 
-	private suspend fun assertCleared(graph: WifiGraph) {
+	private suspend fun assertCleared(graph: WifiGraph, expectedEpoch: Long) {
 		val dao = database.wifiCapturedFactDao()
 		dao.revisionCount() shouldBe 0L
 		dao.cursorCount() shouldBe 0L
-		dao.deletionGenerationCount() shouldBe 0L
+		dao.deletionGenerationCount() shouldBe 1L
+		requireNotNull(
+			dao.deletionGeneration(LOGICAL_TRACKING_ID, SERVICE_RUN_ID),
+		).collectedDataEpoch shouldBe expectedEpoch
 		graph.revisions.forEach { revision ->
 			dao.revision(
 				revision.writerProjectionId,

@@ -1379,8 +1379,8 @@ class RoomImportPortableCapturedCellTest {
 		rowCount("imported_cell_deleted_identity") shouldBe 4L
 		importer().importEntry(
 			request(value, "after-clear", "entry-2", expectedEpoch = EPOCH + 1L),
-		) shouldBe ImportPortableCapturedCellResult.Unverifiable(
-			PortableCellImportUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+		) shouldBe ImportPortableCapturedCellResult.Blocked(
+			PortableCellImportBlockedReason.DELETED_ENTRY,
 		)
 	}
 
@@ -1608,7 +1608,7 @@ class RoomImportPortableCapturedCellTest {
 	}
 
 	@Test
-	fun `full collected-data clear removes imported payload and imported privacy markers`() = runTest {
+	fun `full collected-data clear removes payload and reepochs imported privacy authority`() = runTest {
 		seedEvidence()
 		val entry = entry()
 		importer().importEntry(request(entry)) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
@@ -1639,9 +1639,31 @@ class RoomImportPortableCapturedCellTest {
 
 		listOf(
 			"imported_cell_entry_revision", "imported_cell_receipt", "imported_cell_run",
-			"imported_cell_observation", "imported_cell_entry_deletion",
-			"imported_cell_deletion_generation",
+			"imported_cell_observation",
 		).forEach { rowCount(it) shouldBe 0L }
+		rowCount("imported_cell_entry_deletion") shouldBe 2L
+		rowCount("imported_cell_deletion_generation") shouldBe 2L
+		rowCount("imported_cell_entry_deletion_receipt") shouldBe 1L
+		rowCount("imported_cell_deleted_identity") shouldBe 4L
+		database.openHelper.writableDatabase.query(
+			"SELECT COUNT(*) FROM imported_cell_entry_deletion WHERE collected_data_epoch = ?",
+			arrayOf(EPOCH + 1L),
+		).use { cursor ->
+			cursor.moveToFirst() shouldBe true
+			cursor.getLong(0) shouldBe 2L
+		}
+		database.openHelper.writableDatabase.query(
+			"SELECT COUNT(*) FROM imported_cell_deletion_generation WHERE collected_data_epoch = ?",
+			arrayOf(EPOCH + 1L),
+		).use { cursor ->
+			cursor.moveToFirst() shouldBe true
+			cursor.getLong(0) shouldBe 2L
+		}
+		importer().importEntry(
+			request(entry, "after-full-clear", "entry-after-full-clear", EPOCH + 1L),
+		) shouldBe ImportPortableCapturedCellResult.Blocked(
+			PortableCellImportBlockedReason.DELETED_ENTRY,
+		)
 	}
 
 	private suspend fun seedEvidence() {

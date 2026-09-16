@@ -28,6 +28,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedStepsManifestEntit
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryDeletionEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureEntryRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
@@ -249,13 +250,41 @@ class AppDatabaseMigration27To28Test {
 			1_000f, 1_000f, 1_000f, 1_000f, null, null, "HIGH",
 			1_000, 0, 1_000_000L, 0L, "TARGET_ELAPSED", "COMPLETE", 0L, 1f, "UTC",
 		)
-		val generation = ImportedPressureDeletionGenerationEntity.create(runIdentity, 7L, 1L, 40L)
 		val deletedEntryIdentity = "sha256:${"b".repeat(64)}"
+		val deletedRunIdentity = "sha256:${"c".repeat(64)}"
+		val generation = ImportedPressureDeletionGenerationEntity.create(
+			deletedRunIdentity,
+			7L,
+			1L,
+			40L,
+		)
+		val identityFences = listOf(
+			ImportedPressureIdentityFenceEntity.create(
+				deletedEntryIdentity,
+				ImportedPressureIdentityFenceEntity.ENTRY,
+				deletedEntryIdentity,
+				null,
+				7L,
+				45L,
+				ImportedPressureIdentityFenceEntity.REASON_SELECTED_DELETE,
+			),
+			ImportedPressureIdentityFenceEntity.create(
+				deletedRunIdentity,
+				ImportedPressureIdentityFenceEntity.RUN,
+				deletedEntryIdentity,
+				deletedRunIdentity,
+				7L,
+				45L,
+				ImportedPressureIdentityFenceEntity.REASON_SELECTED_DELETE,
+			),
+		)
 		val entryDeletion = ImportedPressureEntryDeletionEntity.create(
 			deletedEntryIdentity,
 			7L,
 			2L,
 			45L,
+			listOf(generation),
+			identityFences,
 		)
 		val receipt = ImportedPressureReceiptEntity(
 			"job-pressure", "entry-pressure", "pressure.trackerpressure", 30L,
@@ -269,6 +298,7 @@ class AppDatabaseMigration27To28Test {
 				database.importedPressureDao().insertWindow(window)
 				database.importedPressureDao().insertReceipt(receipt)
 				database.importedPressureDao().insertReceipt(alternateReceipt)
+				database.importedPressureDao().insertIdentityFences(identityFences)
 				database.importedPressureDao().insertDeletionGeneration(generation)
 				database.importedPressureDao().insertEntryDeletion(entryDeletion)
 			}
@@ -281,7 +311,10 @@ class AppDatabaseMigration27To28Test {
 					listOf(window),
 					database.importedPressureDao().windows(entryIdentity, 1L, runIdentity),
 				)
-				assertEquals(generation, database.importedPressureDao().deletionGeneration(runIdentity))
+				assertEquals(
+					generation,
+					database.importedPressureDao().deletionGeneration(deletedRunIdentity),
+				)
 				assertEquals(
 					entryDeletion,
 					database.importedPressureDao().entryDeletion(deletedEntryIdentity),
@@ -304,8 +337,20 @@ class AppDatabaseMigration27To28Test {
 				assertNull(database.importedPressureDao().latestEntryRevision(entryIdentity))
 				assertNull(database.importedPressureDao().receipt("job-pressure", "entry-pressure"))
 				assertNull(database.importedPressureDao().receipt("job-pressure-copy", "entry-pressure"))
-				assertNull(database.importedPressureDao().deletionGeneration(runIdentity))
-				assertNull(database.importedPressureDao().entryDeletion(deletedEntryIdentity))
+				assertEquals(
+					generation,
+					database.importedPressureDao().deletionGeneration(deletedRunIdentity),
+				)
+				assertEquals(
+					entryDeletion,
+					database.importedPressureDao().entryDeletion(deletedEntryIdentity),
+				)
+				assertEquals(
+					identityFences.toSet(),
+					database.importedPressureDao()
+						.identityFencesForEntry(deletedEntryIdentity, 3)
+						.toSet(),
+				)
 				assertCollectedRowsDeleted(database)
 			}
 		}

@@ -110,6 +110,12 @@ class LegacyV26ImportTest {
 		count(raw, "ambient_steps_import_cursor") shouldBe 0L
 		count(raw, "ambient_steps_import_gap") shouldBe 0L
 		count(raw, "ambient_steps_import_authority_transition") shouldBe 0L
+		count(raw, "ambient_wifi_authority") shouldBe 0L
+		count(raw, "ambient_cell_authority") shouldBe 0L
+		count(raw, "wifi_selected_deletion_receipt") shouldBe 0L
+		count(raw, "imported_cell_entry_deletion_receipt") shouldBe 0L
+		count(raw, "source_capture_admission_barrier") shouldBe 0L
+		count(raw, "source_run_retirement") shouldBe 0L
 		count(raw, "pressure_fact_revision") shouldBe 0L
 		count(raw, "activity_captured_registration_plan") shouldBe 0L
 		count(raw, "activity_captured_window_revision") shouldBe 0L

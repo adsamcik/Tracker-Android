@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.ImportedPressureIdentityFe
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedPressureWindowEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
@@ -73,6 +74,7 @@ class ImportedPressureDaoTest {
 
 	@Test
 	fun `rollback cascades one receipt while deletion authority survives full clear`() = runTest {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 7L))
 		dao.insertEntryRevision(entry())
 		dao.insertRun(run())
 		dao.insertWindow(window())
