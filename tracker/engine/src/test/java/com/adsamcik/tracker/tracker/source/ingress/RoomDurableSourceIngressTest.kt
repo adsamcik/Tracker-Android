@@ -9,6 +9,7 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdenti
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
@@ -865,6 +866,92 @@ class RoomDurableSourceIngressTest {
 			"boot",
 			delayed.identity.value,
 		) shouldBe emptyList()
+	}
+
+	@Test
+	fun `capture admission seal retains exact matching WAL high water`() = runTest {
+		listOf(
+			"capture-seal-first" to candidate(sequence = 0L),
+			"capture-seal-second" to candidate(sequence = 1L, observedElapsedNanos = 101L),
+		).forEach { (identity, evidence) ->
+			subject.admit(
+				delivery(evidence).copy(
+					identity = sourceDeliveryIdentity(identity.encodeToByteArray()),
+				),
+			).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		}
+		val walDao = database.sourceEventWalDao()
+		val matching = walDao.eventsAfter(0L, 10).filter {
+			it.sourceKind == SourceKind.ACTIVITY.stableCode &&
+				it.registrationGeneration == 1L &&
+				it.sourceInstanceId == "activity-instance"
+		}
+		matching.size shouldBe 2
+		val expectedOrdinal = matching.maxOf(SourceEventWalEntity::admissionOrdinal)
+		val expectedSequence = matching.maxOf(SourceEventWalEntity::sourceSequence)
+
+		suspend fun insertUnrelated(
+			eventId: String,
+			deliveryIdentity: String,
+			sourceKind: Int,
+			registrationGeneration: Long,
+			sourceSequence: Long,
+		) {
+			val unsigned = matching.first().copy(
+				admissionOrdinal = 0L,
+				eventId = eventId,
+				deliveryIdentity = deliveryIdentity,
+				sourceKind = sourceKind,
+				registrationGeneration = registrationGeneration,
+				sourceSequence = sourceSequence,
+				integrityIdentity = "",
+			)
+			walDao.insertAbortingOnUnexpectedConflict(
+				unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity()),
+			)
+		}
+		insertUnrelated(
+			eventId = "capture-seal-other-source",
+			deliveryIdentity = "capture-seal-other-source-delivery",
+			sourceKind = SourceKind.STEPS.stableCode,
+			registrationGeneration = 1L,
+			sourceSequence = 100L,
+		)
+		insertUnrelated(
+			eventId = "capture-seal-other-registration",
+			deliveryIdentity = "capture-seal-other-registration-delivery",
+			sourceKind = SourceKind.ACTIVITY.stableCode,
+			registrationGeneration = 2L,
+			sourceSequence = 200L,
+		)
+
+		val brokerDao = database.sourceBrokerDao()
+		val throughAuthorizationRevision = brokerDao.maximumCaptureAuthorizationRevision(
+			SourceKind.ACTIVITY.stableCode,
+			1L,
+		)
+		brokerDao.acknowledgeCaptureCallbackBarrier(
+			SourceKind.ACTIVITY.stableCode,
+			1L,
+			"activity-instance",
+			throughAuthorizationRevision,
+		) shouldBe 1
+		brokerDao.sealCaptureAdmissionBarrier(
+			sourceKind = SourceKind.ACTIVITY.stableCode,
+			registrationGeneration = 1L,
+			sourceInstanceId = "activity-instance",
+			throughAuthorizationRevision = throughAuthorizationRevision,
+			capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			sealedElapsedRealtimeNanos = 102L,
+			sealedAtMs = 1_002L,
+		) shouldBe 1
+
+		requireNotNull(
+			brokerDao.captureAdmissionBarrier(SourceKind.ACTIVITY.stableCode, 1L),
+		).also { barrier ->
+			barrier.lastAdmissionOrdinal shouldBe expectedOrdinal
+			barrier.lastSourceSequence shouldBe expectedSequence
+		}
 	}
 
 	@Test

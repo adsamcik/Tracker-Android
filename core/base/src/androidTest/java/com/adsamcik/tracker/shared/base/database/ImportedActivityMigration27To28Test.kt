@@ -76,56 +76,6 @@ class ImportedActivityMigration27To28Test {
 			}
 		}
 
-		@Test
-		fun preColumnRetentionReceiptMigratesAsUnavailableAndReopensWithLegacyChecksum() {
-			val expected = legacyUnavailableReceipt()
-			helper.createDatabase(LEGACY_TEMPORAL_DATABASE, 27).use { database ->
-				createLegacyRetentionReceiptTable(database)
-				insertLegacyRetentionReceipt(database, expected)
-			}
-
-			helper.runMigrationsAndValidate(
-				LEGACY_TEMPORAL_DATABASE,
-				28,
-				true,
-				MIGRATION_27_28,
-			).use { database ->
-				database.query(
-					"SELECT temporal_authority_state, latest_member_start_time_ms, " +
-						"latest_member_identity, structural_zone_range_count, " +
-						"structural_zone_ranges_payload, structural_zone_coverage_complete, " +
-						"effect_checksum FROM imported_activity_retention_receipt " +
-						"WHERE entry_identity = ?",
-					arrayOf(RETAINED_ENTRY),
-				).use { cursor ->
-					assertTrue(cursor.moveToFirst())
-					assertEquals(
-						ImportedActivityRetentionReceiptEntity.TEMPORAL_AUTHORITY_UNAVAILABLE,
-						cursor.getString(0),
-					)
-					assertTrue(cursor.isNull(1))
-					assertTrue(cursor.isNull(2))
-					assertEquals(0, cursor.getInt(3))
-					assertEquals("", cursor.getString(4))
-					assertEquals(0, cursor.getInt(5))
-					assertEquals(expected.effectChecksum, cursor.getString(6))
-				}
-			}
-
-			openDatabase(LEGACY_TEMPORAL_DATABASE).let { database ->
-				try {
-					runBlocking {
-						assertEquals(
-							expected,
-							database.importedActivityDao().retentionReceipt(RETAINED_ENTRY),
-						)
-					}
-				} finally {
-					database.close()
-				}
-			}
-		}
-
 		openDatabase().let { database ->
 			try {
 				runBlocking { insertHierarchy(database) }

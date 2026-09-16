@@ -72,6 +72,15 @@ class ImportedPressureLifecycleSchemaTest {
 		}
 		createSql shouldContain "LEGACY_PRESSURE_SAMPLE"
 		createSql shouldContain "CONTAINED_PRESSURE_SESSION_FACTS"
+		listOf(
+			"validate_imported_pressure_source_erase_owner_insert",
+			"validate_imported_pressure_source_erase_owner_update",
+		).forEach { trigger ->
+			database.query(
+				"SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?",
+				arrayOf(trigger),
+			).use { cursor -> cursor.moveToFirst() shouldBe true }
+		}
 
 		shouldThrow<SQLiteConstraintException> {
 			database.execSQL(

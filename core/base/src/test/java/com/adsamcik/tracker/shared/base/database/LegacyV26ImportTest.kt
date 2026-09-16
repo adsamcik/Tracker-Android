@@ -118,6 +118,17 @@ class LegacyV26ImportTest {
 		count(raw, "source_run_retirement") shouldBe 0L
 		count(raw, "pending_signal") shouldBe 0L
 		assertPendingPressureColumns(raw)
+		listOf(
+			"validate_pending_signal_writer_owners_insert",
+			"validate_pending_signal_writer_owners_update",
+			"validate_imported_pressure_source_erase_owner_insert",
+			"validate_imported_pressure_source_erase_owner_update",
+		).forEach { trigger ->
+			longValue(
+				raw,
+				"SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name = '$trigger'",
+			) shouldBe 1L
+		}
 		count(raw, "pressure_fact_revision") shouldBe 0L
 		count(raw, "activity_captured_registration_plan") shouldBe 0L
 		count(raw, "activity_captured_window_revision") shouldBe 0L
