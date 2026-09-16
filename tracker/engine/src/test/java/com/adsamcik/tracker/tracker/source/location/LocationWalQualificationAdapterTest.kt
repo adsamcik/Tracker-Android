@@ -46,6 +46,7 @@ import com.adsamcik.tracker.tracker.pipeline.persistence.RoomPersistenceTransact
 import com.adsamcik.tracker.tracker.pipeline.persistence.SignalSerializer
 import com.adsamcik.tracker.tracker.pipeline.persistence.TrackingPersistenceTransactor
 import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerComponent
+import com.adsamcik.tracker.tracker.altitude.AltitudeProcessor
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
@@ -80,6 +81,8 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.CancellationException
+import io.mockk.every
+import io.mockk.mockk
 import javax.inject.Provider
 import org.junit.After
 import org.junit.Before
@@ -435,6 +438,12 @@ class LocationWalQualificationAdapterTest {
 	fun `fallback receipt cancellation retains failed cleanup for deterministic next-call retry`() =
 		runTest {
 			assertFallbackReceiptCancellation(cleanupFails = true)
+		}
+
+	@Test
+	fun `confirmed fallback commit waits for retained cleanup before handoff advancement`() =
+		runTest {
+			assertConfirmedFallbackCommitCleanupRetry()
 		}
 
 	@Test
@@ -1486,6 +1495,103 @@ class LocationWalQualificationAdapterTest {
 			assertEquals(ordinal, recovered.lastCommittedOrdinal)
 			assertEquals(0, database.pendingSignalDao().countAll())
 		}
+		lifecycleLease.acquireLivePipeline().release()
+	}
+
+	private suspend fun TestScope.assertConfirmedFallbackCommitCleanupRetry() {
+		installValidFixture(
+			payloadVersion = LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION,
+			deliveryPayloads = listOf(locationPayload(isMock = false)),
+		)
+		val ordinal = requireNotNull(database.sourceEventWalDao().getByEventId(EVENT_ID.value))
+			.admissionOrdinal
+		installProtectedHandoffAuthority(ordinal)
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val lifecycleLease = ExclusiveTrackingPersistenceLifecycleLease()
+		val persistence = newLocationPersistence(
+			dispatchers,
+			RoomPersistenceTransactor(database),
+		)
+		val altitudeProcessor = mockk<AltitudeProcessor>()
+		var resetCalls = 0
+		every { altitudeProcessor.reset() } answers {
+			resetCalls++
+			if (resetCalls == 1) error("simulated committed cleanup failure")
+		}
+		var receiptReads = 0
+		val writer = ProtectedLocationOfflineCanonicalWriter(
+			context,
+			database,
+			dispatchers,
+			persistence,
+			locationComponentFactory = {
+				LocationTrackerComponent(
+					trackingParamsRepository = null,
+					dispatchers = dispatchers,
+					altitudeProcessorFactory = { altitudeProcessor },
+				)
+			},
+			testMarker = Unit,
+			persistenceLifecycleLease = lifecycleLease,
+			receiptReader = { command, acquisitionMetadata ->
+				receiptReads++
+				if (receiptReads == 2) {
+					error("post-commit receipt read failure")
+				}
+				database.withTransaction {
+					database.readProtectedLocationCanonicalReceipt(
+						command,
+						acquisitionMetadata,
+					)
+				}
+			},
+		)
+		val handoff = ProtectedLocationCanonicalHandoff(database, subject, writer)
+
+		val first = assertIs<ProtectedLocationCanonicalDrainResult.Failed>(
+			handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+		)
+		assertEquals(ordinal - 1L, first.lastCommittedOrdinal)
+		assertEquals("LOCATION_CANONICAL_OFFLINE_CLEANUP_PENDING", first.failureCode)
+		assertFalse(first.terminal)
+		assertEquals(1L, database.locationSampleDao().countAll())
+		val evaluated = assertIs<LocationWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+		val qualified = assertIs<LocationObservationQualification.Qualified>(
+			evaluated.qualification,
+		)
+		assertIs<ProtectedLocationCanonicalReceipt.Complete>(
+			database.readProtectedLocationCanonicalReceipt(
+				qualified.command,
+				PROTECTED_LOCATION_ACQUISITION,
+			),
+		)
+		assertEquals(
+			ordinal - 1L,
+			database.sourceProjectionStateDao()
+				.activeProductLane(SourceKind.LOCATION.stableCode)
+				?.contiguousAdmissionOrdinal,
+		)
+		val liveAcquired = CompletableDeferred<Unit>()
+		val liveWaiter = backgroundScope.async {
+			lifecycleLease.acquireLivePipeline().also {
+				liveAcquired.complete(Unit)
+			}
+		}
+		runCurrent()
+		assertFalse(liveAcquired.isCompleted)
+		liveWaiter.cancelAndJoin()
+
+		val recovered = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			handoff.drainThrough(LOGICAL_ID, RUN_ID, ordinal),
+		)
+		assertEquals(ordinal, recovered.lastCommittedOrdinal)
+		assertEquals(1L, database.locationSampleDao().countAll())
+		assertEquals(
+			ordinal,
+			database.sourceProjectionStateDao()
+				.activeProductLane(SourceKind.LOCATION.stableCode)
+				?.contiguousAdmissionOrdinal,
+		)
 		lifecycleLease.acquireLivePipeline().release()
 	}
 
