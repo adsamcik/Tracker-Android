@@ -3,11 +3,14 @@ package com.adsamcik.tracker.tracker.source.deletion
 import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.applyPressureSourceEraseLocalMutationInTransaction
 import com.adsamcik.tracker.shared.base.database.auditPressureSourceEraseLocalAuthorityInTransaction
 import com.adsamcik.tracker.shared.base.database.PressureSourceEraseLocalFailure
 import com.adsamcik.tracker.shared.base.database.PressureSourceEraseLocalFailureReason
+import com.adsamcik.tracker.shared.base.database.PressureSourceEraseWriterFence
+import com.adsamcik.tracker.shared.base.database.pressureSourceEraseRequiresHardwareAuthority
 import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedPressureFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
@@ -24,6 +27,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
@@ -35,7 +39,17 @@ import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.repository.PressureSessionDeletionResult
 import com.adsamcik.tracker.stats.api.repository.PressureSessionDeletionRetryableReason
 import com.adsamcik.tracker.stats.api.repository.PressureSessionDeletionUnsupportedReason
+import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierResult
+import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierVerification
+import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseFenceOwner
+import com.adsamcik.tracker.tracker.pipeline.persistence.DurableSignalBuffer
+import com.adsamcik.tracker.tracker.pipeline.persistence.ExclusiveTrackingPersistenceLifecycleLease
+import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
+import com.adsamcik.tracker.tracker.pipeline.persistence.RoomPersistenceTransactor
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
+import com.adsamcik.tracker.tracker.source.coordinator.toEntity
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
+import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.ingress.PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
@@ -53,6 +67,9 @@ import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactDrainResult
 import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
+import com.adsamcik.tracker.tracker.source.pressure.PersistenceLegacyPressureWriterLifecycleBarrier
+import com.adsamcik.tracker.tracker.source.runtime.PressureProviderEraseSettlement
+import com.adsamcik.tracker.tracker.source.runtime.PressureProviderEraseVerification
 import io.kotest.assertions.withClue
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveSize
@@ -62,6 +79,8 @@ import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -72,6 +91,7 @@ import org.robolectric.annotation.Config
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.TimeZone
+import javax.inject.Provider
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -102,6 +122,37 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 	fun `source erase authenticates and fences local Pressure without deleting session authority`() =
 		runTest {
 			val fixture = insertPressureSession("source-erase", 1L, 1_000L, 2_000L)
+			database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(
+				pressureSourceEraseWal(fixture, admissionOrdinal = 2L, capture = true),
+			).shouldBeGreaterThanZero()
+			val controlWal = pressureSourceEraseWal(
+				fixture,
+				admissionOrdinal = 3L,
+				capture = false,
+			)
+			database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(controlWal)
+				.shouldBeGreaterThanZero()
+			installContainedPressureEraseAuthority(cutoffOrdinal = 2L)
+			val persistence = realPersistenceProcessor(testScheduler)
+			val lifecycleBarrier = PersistenceLegacyPressureWriterLifecycleBarrier(
+				database,
+				persistence,
+				ExclusiveTrackingPersistenceLifecycleLease(),
+			)
+			val barrierToken = when (val established = lifecycleBarrier.establish(
+				COLLECTED_DATA_EPOCH,
+			) {
+				PressureProviderEraseSettlement.NoLocalProvider
+			}) {
+				is PressureSourceEraseBarrierResult.NoLocalProvider -> established.token
+				else -> error("Expected exact contained Pressure erase barrier")
+			}
+			barrierToken.legacyWriteFenceOwner shouldBe
+				PressureSourceEraseFenceOwner.CONTAINED_PRESSURE_SESSION_FACTS
+			barrierToken.legacyWriteFenceGeneration shouldBe 3L
+			database.pressureSourceEraseRequiresHardwareAuthority(
+				barrierToken.toLocalWriterFence(),
+			) shouldBe true
 			val revokedPolicy = pressurePolicy().copy(
 				policyRevision = 2L,
 				enabled = false,
@@ -130,16 +181,48 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 					updatedAtMs = 2_500L,
 				),
 			)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE pressure_fact_revision SET writer_binding_generation = 2 " +
+					"WHERE source_event_id = ?",
+				arrayOf(fixture.fact.sourceEventId),
+			)
+			val wrongFactWriter = shouldThrow<PressureSourceEraseLocalFailure> {
+				database.withTransaction {
+					database.auditPressureSourceEraseLocalAuthorityInTransaction(
+						expectedCollectedDataEpoch = COLLECTED_DATA_EPOCH,
+						expectedDeletedSourceEventHighWaterOrdinal = 0L,
+						expectedCurrentPolicyRevision = 2L,
+						expectedRevokedConsentEpoch = 2L,
+						erasedAtMs = 3_000L,
+						verifiedWriterFence = barrierToken.toLocalWriterFence(),
+					)
+				}
+			}
+			wrongFactWriter.reason shouldBe
+				PressureSourceEraseLocalFailureReason.FACT_AUTHORITY_UNVERIFIABLE
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE pressure_fact_revision SET writer_binding_generation = ? " +
+					"WHERE source_event_id = ?",
+				arrayOf(
+					SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+					fixture.fact.sourceEventId,
+				),
+			)
 
 			database.withTransaction {
+				lifecycleBarrier.verifySettled(barrierToken) {
+					PressureProviderEraseVerification.Verified
+				} shouldBe PressureSourceEraseBarrierVerification.Verified
 				val audit = database.auditPressureSourceEraseLocalAuthorityInTransaction(
 					expectedCollectedDataEpoch = COLLECTED_DATA_EPOCH,
 					expectedDeletedSourceEventHighWaterOrdinal = 0L,
 					expectedCurrentPolicyRevision = 2L,
 					expectedRevokedConsentEpoch = 2L,
 					erasedAtMs = 3_000L,
+					verifiedWriterFence = barrierToken.toLocalWriterFence(),
 				)
 				audit.factRevisionCount shouldBe 1
+				audit.walEventCount shouldBe 1
 				audit.scopes shouldBe listOf(
 					com.adsamcik.tracker.shared.base.database.PressureSourceEraseLocalScope(
 						fixture.logicalId,
@@ -154,6 +237,12 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			}
 
 			database.pressureFactRevisionDao().count() shouldBe 0L
+			database.pressureFactRevisionDao().sourceEraseWalCount() shouldBe 0L
+			requireNotNull(database.sourceEventWalDao().getByEventId(controlWal.eventId)).also {
+				it.authorizationPurposeEligibilityMask shouldBe
+					SourceBrokerPurpose.MASK_CONTROL_AUTOSTART
+				it.sourceKind shouldBe SourceDestinationOwnerEntity.SOURCE_PRESSURE
+			}
 			database.sourceSessionDao().serviceRun(fixture.runId)?.serviceRunId shouldBe fixture.runId
 			exactFence(fixture)?.fenceGeneration shouldBe 1L
 		}
@@ -161,6 +250,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 	@Test
 	fun `source erase blocks exact direct Pressure demand before local mutation`() = runTest {
 		val fixture = insertPressureSession("source-erase-demand", 1L, 1_000L, 2_000L)
+		installContainedPressureEraseAuthority(cutoffOrdinal = 1L)
 		database.sourceBrokerDao().insertDemands(listOf(activeDemand(fixture)))
 
 		val failure = shouldThrow<PressureSourceEraseLocalFailure> {
@@ -171,6 +261,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 					expectedCurrentPolicyRevision = POLICY_REVISION,
 					expectedRevokedConsentEpoch = CONSENT_EPOCH,
 					erasedAtMs = 3_000L,
+					verifiedWriterFence = containedPressureWriterFence(),
 				)
 			}
 		}
@@ -1680,6 +1771,137 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
 		updatedAtMs = 1_000L,
 	)
+
+	private suspend fun installContainedPressureEraseAuthority(cutoffOrdinal: Long) {
+		installCanonicalPressureLane()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_product_projection_lane SET " +
+				"contiguous_admission_ordinal = ?, capture_admission_cutoff_ordinal = ?, " +
+				"retention_required = 0, status = ?, terminal_disposition = ?, " +
+				"terminal_at_ms = ?, updated_at_ms = ? WHERE source_kind = ?",
+			arrayOf<Any>(
+				cutoffOrdinal,
+				cutoffOrdinal,
+				SourceProductProjectionLaneEntity.STATUS_RETIRED,
+				SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN,
+				2_500L,
+				2_500L,
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			),
+		)
+		database.trackingRolloutStateDao().save(
+			TrackingRolloutState.contained(revision = 3L).toEntity(2_500L),
+		)
+		val owner = candidatePressureOwner()
+		check(database.sourceDestinationOwnerDao().compareAndSetOwner(
+			sourceKind = owner.sourceKind,
+			destination = owner.destination,
+			expectedOwner = owner.owner,
+			expectedOwnerGeneration = owner.ownerGeneration,
+			newOwner = SourceDestinationOwnerEntity.OWNER_CONTAINED_PRESSURE_SESSION_FACTS,
+			newOwnerGeneration = 3L,
+			updatedAtMs = 2_500L,
+		) == 1)
+	}
+
+	private fun containedPressureWriterFence() = PressureSourceEraseWriterFence(
+		collectedDataEpoch = COLLECTED_DATA_EPOCH,
+		owner = SourceDestinationOwnerEntity.OWNER_CONTAINED_PRESSURE_SESSION_FACTS,
+		ownerGeneration = 3L,
+	)
+
+	private fun com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierToken
+		.toLocalWriterFence() = PressureSourceEraseWriterFence(
+		collectedDataEpoch = collectedDataEpoch,
+		owner = legacyWriteFenceOwner.storageValue,
+		ownerGeneration = legacyWriteFenceGeneration,
+	)
+
+	private fun realPersistenceProcessor(
+		scheduler: TestCoroutineScheduler,
+	) = PersistenceProcessor(
+		locationSampleDao = database.locationSampleDao(),
+		locationObservationDao = database.locationObservationDao(),
+		locationObservationDecisionDao = database.locationObservationDecisionDao(),
+		sourceEvidenceStateDao = database.sourceEvidenceStateDao(),
+		cellSampleDao = database.cellSampleDao(),
+		wifiObservationDao = database.wifiObservationDao(),
+		pressureSampleDao = database.pressureSampleDao(),
+		stepIntervalDao = database.stepIntervalDao(),
+		activitySnapshotDao = database.activitySnapshotDao(),
+		pendingSignalDao = database.pendingSignalDao(),
+		pendingSignalClaimDao = database.pendingSignalClaimDao(),
+		durableBuffer = DurableSignalBuffer(
+			pendingSignalDao = database.pendingSignalDao(),
+			dispatchers = TestDispatchersProvider(StandardTestDispatcher(scheduler)),
+			pendingSignalClaimDao = database.pendingSignalClaimDao(),
+			appDatabase = database,
+		),
+		transactor = RoomPersistenceTransactor(database),
+		sourceDestinationOwnerDao = database.sourceDestinationOwnerDao(),
+		appDatabaseProvider = Provider { database },
+	)
+
+	private fun pressureSourceEraseWal(
+		fixture: PressureFixture,
+		admissionOrdinal: Long,
+		capture: Boolean,
+	): SourceEventWalEntity {
+		val event = latePressureEvent(fixture, admissionOrdinal)
+		val evidence = event.evidence
+		val encoded = DefaultSourcePayloadCodec().encode(
+			evidence.payload,
+			evidence.payloadVersion,
+		)
+		val unsigned = SourceEventWalEntity(
+			admissionOrdinal = admissionOrdinal,
+			eventId = if (capture) event.eventId.value else "pressure-control-$admissionOrdinal",
+			providerDedupKey = evidence.providerDedupKey,
+			logicalTrackingId = evidence.logicalTrackingId?.value.takeIf { capture },
+			serviceRunId = evidence.serviceRunId?.value.takeIf { capture },
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			sourceInstanceId = evidence.sourceInstanceId.value,
+			registrationGeneration = evidence.registrationGeneration,
+			physicalConfigurationFingerprint = evidence.physicalConfigurationFingerprint,
+			authorizationRevision = evidence.authorizationRevision,
+			authorizationPurposeEligibilityMask = if (capture) {
+				SourceBrokerPurpose.MASK_SESSION_CAPTURE
+			} else {
+				SourceBrokerPurpose.MASK_CONTROL_AUTOSTART
+			},
+			authorizationFingerprint = if (capture) {
+				evidence.registrationEligibilityFingerprint
+			} else {
+				"pressure-control"
+			},
+			sourceSequence = evidence.sourceSequence,
+			configRevision = evidence.configRevision,
+			planAttribution = evidence.planAttribution.ordinal,
+			clockDomainId = evidence.clockDomainId,
+			observedElapsedNanos = evidence.observedElapsedRealtimeNanos,
+			observedIntervalStartNanos =
+				evidence.payload.windowStartElapsedRealtimeNanos,
+			receivedElapsedNanos = evidence.receivedElapsedRealtimeNanos,
+			receivedWallTimeMs = evidence.receivedWallTimeMs,
+			wallTimeMs = evidence.wallTimeMs,
+			wallTimeUncertaintyMs = evidence.wallTimeUncertaintyMs,
+			capturedCollectedDataEpoch = evidence.capturedCollectedDataEpoch,
+			sourcePolicyRevision = evidence.sourcePolicyRevision.takeIf { capture },
+			captureConsentEpoch = evidence.captureConsentEpoch.takeIf { capture },
+			sessionManifestRevision = evidence.sessionManifestRevision.takeIf { capture },
+			lifecycleLeaseGeneration = evidence.lifecycleLeaseGeneration.takeIf { capture },
+			acquiredAtMs = evidence.acquiredAtMs,
+			qualityFlags = evidence.quality.flags.fold(0L) { flags, value ->
+				flags or value.bit
+			},
+			qualityConfidence = evidence.quality.confidence,
+			payloadVersion = evidence.payloadVersion,
+			payload = encoded.bytes,
+			payloadChecksum = encoded.checksum,
+			createdAtMs = evidence.acquiredAtMs,
+		)
+		return unsigned.copy(integrityIdentity = unsigned.calculatedIntegrityIdentity())
+	}
 
 	private suspend fun exactFence(fixture: PressureFixture) = database.sourceDeletionFenceDao().get(
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
