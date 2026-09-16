@@ -179,6 +179,8 @@ private fun sourceHistoryUnavailableMessage(
 				R.string.source_history_detail_expired
 			SourceHistoryDetailUnavailableReason.NOT_FOUND ->
 				R.string.source_history_detail_not_found
+			SourceHistoryDetailUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED ->
+				R.string.source_history_detail_budget
 			SourceHistoryDetailUnavailableReason.SOURCE_INTEGRITY_FAILURE ->
 				R.string.source_history_detail_integrity
 			SourceHistoryDetailUnavailableReason.SNAPSHOT_UNAVAILABLE ->

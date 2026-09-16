@@ -538,6 +538,76 @@ class DashboardViewModelLiveStepsTest {
 		}
 	}
 
+	@Test
+	fun `Cell conflict becomes whole-source unavailable instead of a radio card`() = runTest {
+		val mainDispatcher = StandardTestDispatcher(testScheduler)
+		Dispatchers.setMain(mainDispatcher)
+		try {
+			val running = MutableStateFlow(true)
+			val session = MutableStateFlow<TrackerSessionSnapshot?>(
+				TrackerSessionSnapshot(id = FIRST_SEGMENT_ID, start = 1L),
+			)
+			val repository = RecordingTrackingHistoryRepository()
+			repository.update(
+				FIRST_SEGMENT_ID,
+				SessionHistoryQuery.Found(cellConflictSessionHistory(FIRST_SEGMENT_ID)),
+			)
+			val viewModel = createViewModel(running, session, repository)
+			val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				viewModel.liveSessionPresentation.collect { }
+			}
+
+			advanceUntilIdle()
+
+			viewModel.liveSessionPresentation.value shouldBe
+				DashboardLiveSessionPresentation.HistoryUnavailable(
+					segmentId = FIRST_SEGMENT_ID,
+					reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+					source = HistorySource.CELL,
+				)
+			collection.cancel()
+		} finally {
+			Dispatchers.resetMain()
+		}
+	}
+
+	@Test
+	fun `failed Pressure becomes unavailable instead of a Pressure card`() = runTest {
+		val mainDispatcher = StandardTestDispatcher(testScheduler)
+		Dispatchers.setMain(mainDispatcher)
+		try {
+			val running = MutableStateFlow(true)
+			val session = MutableStateFlow<TrackerSessionSnapshot?>(
+				TrackerSessionSnapshot(id = FIRST_SEGMENT_ID, start = 1L),
+			)
+			val repository = RecordingTrackingHistoryRepository()
+			repository.update(
+				FIRST_SEGMENT_ID,
+				SessionHistoryQuery.Found(pressureIntentFallbackHistory(FIRST_SEGMENT_ID)),
+			)
+			repository.updatePressure(
+				FIRST_SEGMENT_ID,
+				PressureSessionHistoryQuery.Found(failedPressureHistory(FIRST_SEGMENT_ID)),
+			)
+			val viewModel = createViewModel(running, session, repository)
+			val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				viewModel.liveSessionPresentation.collect { }
+			}
+
+			advanceUntilIdle()
+
+			viewModel.liveSessionPresentation.value shouldBe
+				DashboardLiveSessionPresentation.HistoryUnavailable(
+					segmentId = FIRST_SEGMENT_ID,
+					reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+					source = HistorySource.PRESSURE,
+				)
+			collection.cancel()
+		} finally {
+			Dispatchers.resetMain()
+		}
+	}
+
 	private fun createViewModel(
 		running: MutableStateFlow<Boolean>,
 		session: MutableStateFlow<TrackerSessionSnapshot?>,
@@ -633,6 +703,27 @@ class DashboardViewModelLiveStepsTest {
 			qualifiedSources = emptySet(),
 			steps = missingStepsHistory(),
 			sourceProducts = products,
+		)
+	}
+
+	private fun cellConflictSessionHistory(segmentId: Long): SessionHistory {
+		val capture = exactCapture(HistorySource.CELL)
+		val conflict = materializingCellEntry().copy(
+			state = CellHistoryProductState.UNVERIFIABLE,
+			coverage = CellHistoryCoverage.NONE,
+			observations = emptyList(),
+			causes = setOf(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT),
+		)
+		return SessionHistory(
+			segmentId = segmentId,
+			capture = capture,
+			qualifiedSources = emptySet(),
+			steps = missingStepsHistory(),
+			sourceProducts = sourceProducts(
+				segmentId = segmentId,
+				capture = capture,
+				cell = CellHistoryQuery.Found(conflict),
+			),
 		)
 	}
 
@@ -853,6 +944,20 @@ class DashboardViewModelLiveStepsTest {
 			),
 		)
 	}
+
+	private fun failedPressureHistory(segmentId: Long) = PressureSessionHistory(
+		segmentId = segmentId,
+		capture = capture(setOf(HistorySource.PRESSURE)),
+		qualifiedSources = emptySet(),
+		pressure = PressureHistory(
+			availability = HistoryAvailability.UNAVAILABLE,
+			evidence = HistoryEvidence.NONE,
+			productState = HistoryProductState.FAILED,
+			coverage = PressureHistoryCoverage.UNKNOWN,
+			windows = emptyList(),
+			causes = setOf(PressureHistoryCause.PRESSURE_FACT_INTEGRITY_FAILED),
+		),
+	)
 
 	private fun capture(sources: Set<HistorySource>) = HistoryCapture.Exact(
 		listOf(

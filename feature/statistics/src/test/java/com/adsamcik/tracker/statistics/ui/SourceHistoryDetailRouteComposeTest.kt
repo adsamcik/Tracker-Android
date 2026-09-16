@@ -17,7 +17,6 @@ import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
-import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.HistorySource
@@ -94,8 +93,7 @@ class SourceHistoryDetailRouteComposeTest {
 			activeTime = null,
 			fragments = emptyList(),
 			causes = setOf(ActivityHistoryCause.SOURCE_NOT_CAPTURED),
-			origin = ActivityHistoryOrigin.IMPORTED,
-			capturesOnlyActivity = false,
+			capturesOnlyActivity = true,
 		)
 		return SourceHistoryDetailSelection(
 			entry = SourceAwareHistoryPageEntry.ActivityOnly(activity),

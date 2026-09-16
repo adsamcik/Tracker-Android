@@ -79,6 +79,25 @@ class TripDetailRadioSourcePresentationTest {
 		)
 	}
 
+	@Test
+	fun `Cell origin conflict stays whole-source unavailable instead of a detail card`() {
+		val conflict = cell().copy(
+			state = CellHistoryProductState.UNVERIFIABLE,
+			coverage = CellHistoryCoverage.NONE,
+			observations = emptyList(),
+			causes = setOf(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT),
+		)
+		val presentation = snapshot(
+			HistorySource.CELL,
+			cell = CellHistoryQuery.Found(conflict),
+		).toTripDetailSourcePresentation()
+
+		presentation shouldBe TripDetailSourcePresentation.Unavailable(
+			reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+			source = HistorySource.CELL,
+		)
+	}
+
 	private fun snapshot(
 		source: HistorySource,
 		wifi: WifiHistoryQuery = WifiHistoryQuery.Found(wifiSourceNotCaptured()),

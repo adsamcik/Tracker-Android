@@ -3,10 +3,17 @@ package com.adsamcik.tracker.statistics.presenter
 import androidx.lifecycle.SavedStateHandle
 import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailHandoff
 import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailSelection
+import com.adsamcik.tracker.stats.api.repository.ActivityHistorySelection
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistoryDeletionScopeDigest
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistoryDigest
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistoryIdentity
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistoryReadSnapshot
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistoryRunDeletionScope
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistorySelection
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
@@ -21,6 +28,7 @@ import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryDigest
 import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.ImportedCellHistorySelection
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryActionTarget
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryCoverage
@@ -36,6 +44,7 @@ import com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -111,7 +120,12 @@ class SourceHistoryDetailPresenterTest {
 	@Test
 	fun `imported Activity handoff preserves exact origin and action target`() {
 		val selection = importedActivitySelection("activity-imported")
-		val entry = (selection.entry as SourceAwareHistoryPageEntry.ActivityOnly).history
+		val activityTarget = selection.actionTarget
+			.shouldBeInstanceOf<TrackingHistoryActionTarget.Activity>()
+		val exactSelection = activityTarget.selection
+			.shouldBeInstanceOf<ActivityHistorySelection.Imported>()
+			.selected
+		val activityEntry = (selection.entry as SourceAwareHistoryPageEntry.ActivityOnly).history
 		val route = SourceHistoryDetailHandoff.register(selection, nowElapsedRealtimeNanos = 10L)
 
 		SourceHistoryDetailHandoff.consume(
@@ -122,11 +136,17 @@ class SourceHistoryDetailPresenterTest {
 			route.selectionToken,
 			nowElapsedRealtimeNanos = 12L,
 		) shouldBe null
-		selection.actionTarget shouldBe
-			com.adsamcik.tracker.stats.api.repository.TrackingHistoryActionTarget.Activity(
-				entry.key,
-				ActivityHistoryOrigin.IMPORTED,
-			)
+		exactSelection shouldBeSameInstanceAs requireNotNull(activityEntry.importedSelection)
+		exactSelection.runDeletionScopes shouldBe listOf(
+			ActivityImportedHistoryRunDeletionScope(
+				runIdentity = ActivityImportedHistoryIdentity("b".repeat(64)),
+				deletionScopeDigest =
+					ActivityImportedHistoryDeletionScopeDigest("c".repeat(64)),
+			),
+		)
+		exactSelection.windowIdentities shouldBe
+			listOf(ActivityImportedHistoryIdentity("d".repeat(64)))
+		exactSelection.readSnapshot shouldBe ActivityImportedHistoryReadSnapshot(9L, 14L)
 	}
 
 	@Test
@@ -269,6 +289,60 @@ class SourceHistoryDetailPresenterTest {
 	}
 
 	@Test
+	fun `retry clears loaded Cell instead of rendering an origin conflict card`() = runTest {
+		val entry = importedCellEntry()
+		val conflict = entry.copy(
+			state = CellHistoryProductState.UNVERIFIABLE,
+			coverage = CellHistoryCoverage.NONE,
+			observations = emptyList(),
+			causes = setOf(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT),
+		)
+		val selection = SourceHistoryDetailSelection(
+			entry = SourceAwareHistoryPageEntry.CellOnly(entry),
+			readSnapshot = TrackingHistoryReadSnapshot(10L, 14L),
+		)
+		val route = SourceHistoryDetailHandoff.register(selection)
+		coEvery { cellRepository.detail(requireNotNull(entry.selection)) } returnsMany listOf(
+			CellHistoryQuery.Found(entry),
+			CellHistoryQuery.Found(conflict),
+		)
+		val viewModel = SourceHistoryDetailViewModel(
+			presenter = presenter,
+			savedStateHandle = SavedStateHandle(mapOf("selectionToken" to route.selectionToken)),
+		)
+		val collector = backgroundScope.launch { viewModel.state.collect() }
+		runCurrent()
+		viewModel.state.value.shouldBeInstanceOf<SourceHistoryDetailState.Loaded>()
+
+		viewModel.retry()
+		runCurrent()
+
+		viewModel.state.value shouldBe SourceHistoryDetailState.Unavailable(
+			reason = SourceHistoryDetailUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+			source = com.adsamcik.tracker.stats.api.repository.HistorySource.CELL,
+		)
+		collector.cancel()
+		viewModel.close()
+	}
+
+	@Test
+	fun `Wi-Fi read budget failure stays typed and clears the selected detail`() = runTest {
+		val entry = localWifiEntry()
+		val selection = SourceHistoryDetailSelection(
+			entry = SourceAwareHistoryPageEntry.WifiOnly(entry),
+			readSnapshot = TrackingHistoryReadSnapshot(10L, 15L),
+		)
+		coEvery {
+			wifiRepository.lookup(requireNotNull(entry.selection))
+		} returns WifiHistoryQuery.Failed(WifiHistoryCause.READ_BUDGET_EXCEEDED)
+
+		presenter.load(selection) shouldBe SourceHistoryDetailState.Unavailable(
+			reason = SourceHistoryDetailUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
+			source = com.adsamcik.tracker.stats.api.repository.HistorySource.WIFI,
+		)
+	}
+
+	@Test
 	fun `late uncancellable lookup cannot overwrite expired retry state`() = runTest {
 		val entry = localWifiEntry()
 		val gate = CompletableDeferred<Unit>()
@@ -319,8 +393,24 @@ class SourceHistoryDetailPresenterTest {
 	}
 
 	private fun importedActivitySelection(key: String): SourceHistoryDetailSelection {
+		val entryKey = ActivityHistoryEntryKey(key)
+		val exactSelection = ActivityImportedHistorySelection(
+			key = entryKey,
+			identity = ActivityImportedHistoryIdentity("a".repeat(64)),
+			importRevision = 3L,
+			contentChecksum = ActivityImportedHistoryDigest("e".repeat(64)),
+			runDeletionScopes = listOf(
+				ActivityImportedHistoryRunDeletionScope(
+					runIdentity = ActivityImportedHistoryIdentity("b".repeat(64)),
+					deletionScopeDigest =
+						ActivityImportedHistoryDeletionScopeDigest("c".repeat(64)),
+				),
+			),
+			windowIdentities = listOf(ActivityImportedHistoryIdentity("d".repeat(64))),
+			readSnapshot = ActivityImportedHistoryReadSnapshot(9L, 14L),
+		)
 		val entry = ActivityHistoryEntry(
-			key = ActivityHistoryEntryKey(key),
+			key = entryKey,
 			startTime = EpochMs(1_000L),
 			endTime = EpochMs(2_000L),
 			storedZoneIds = emptySet(),
@@ -331,6 +421,7 @@ class SourceHistoryDetailPresenterTest {
 			causes = setOf(ActivityHistoryCause.SOURCE_NOT_CAPTURED),
 			origin = ActivityHistoryOrigin.IMPORTED,
 			capturesOnlyActivity = false,
+			importedSelection = exactSelection,
 		)
 		return SourceHistoryDetailSelection(
 			entry = SourceAwareHistoryPageEntry.ActivityOnly(entry),

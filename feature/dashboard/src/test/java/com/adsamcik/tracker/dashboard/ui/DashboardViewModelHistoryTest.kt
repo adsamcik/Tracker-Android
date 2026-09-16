@@ -14,20 +14,32 @@ import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryEntry
 import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryState
 import com.adsamcik.tracker.dashboard.data.DashboardStreakHistory
 import com.adsamcik.tracker.dashboard.data.DashboardWeeklyTrend
+import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailSelection
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.AchievementTier
+import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
+import com.adsamcik.tracker.stats.api.repository.CellHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.CellHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.CellHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.LocalCellHistoryIdentity
+import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import java.util.ArrayDeque
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -183,6 +195,55 @@ class DashboardViewModelHistoryTest {
 	}
 
 	@Test
+	fun `Cell page unavailability clears the previously rendered actionable card`() = runTest {
+		val mainDispatcher = StandardTestDispatcher(testScheduler)
+		Dispatchers.setMain(mainDispatcher)
+		try {
+			val cell = cellHistoryEntry()
+			val sourceEntry = SourceAwareHistoryPageEntry.CellOnly(cell)
+			val staleCard = DashboardRecentHistoryEntry.CellOnly(
+				history = cell,
+				detailSelection = requireNotNull(
+					SourceHistoryDetailSelection.fromSourceEntry(
+						sourceEntry,
+						TrackingHistoryReadSnapshot(7L, 11L),
+					),
+				),
+			)
+			val failPage = CompletableDeferred<Unit>()
+			val repository = QueuedDashboardHistoryRepository(
+				successfulHistory(),
+				recentFlow = flow {
+					emit(listOf(staleCard))
+					failPage.await()
+					throw DashboardHistoryPageUnavailable(
+						reason = SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+						source = HistorySource.CELL,
+					)
+				},
+			)
+			val viewModel = createViewModel(repository)
+			val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				viewModel.recentHistory.collect()
+			}
+			advanceUntilIdle()
+			viewModel.recentHistory.value shouldBe
+				DashboardRecentHistoryState.Content(listOf(staleCard))
+
+			failPage.complete(Unit)
+			advanceUntilIdle()
+
+			viewModel.recentHistory.value shouldBe DashboardRecentHistoryState.Unavailable(
+				reason = SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+				source = HistorySource.CELL,
+			)
+			collection.cancel()
+		} finally {
+			Dispatchers.resetMain()
+		}
+	}
+
+	@Test
 	fun `recent history replay expires after lifecycle stop before resubscription`() = runTest {
 		val mainDispatcher = StandardTestDispatcher(testScheduler)
 		Dispatchers.setMain(mainDispatcher)
@@ -267,6 +328,18 @@ class DashboardViewModelHistoryTest {
 		sampleCount = 10,
 		source = SegmentSource.USER_CREATED,
 		createdAt = 1_000L,
+	)
+
+	private fun cellHistoryEntry() = CellHistoryEntry(
+		key = CellHistoryEntryKey("cell"),
+		startTime = EpochMs(1_000L),
+		endTime = EpochMs(2_000L),
+		storedZoneIds = setOf("UTC"),
+		state = CellHistoryProductState.MATERIALIZING,
+		coverage = CellHistoryCoverage.NONE,
+		observations = emptyList(),
+		causes = setOf(CellHistoryCause.MATERIALIZATION_BEHIND),
+		selection = LocalCellHistorySelection(LocalCellHistoryIdentity("a".repeat(64))),
 	)
 
 	private fun createViewModel(

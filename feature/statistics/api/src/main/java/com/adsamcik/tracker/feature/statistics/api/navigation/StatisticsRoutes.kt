@@ -37,9 +37,8 @@ data class SourceHistoryDetail(val selectionToken: String) {
 data class SourceHistoryDetailSelection(
 	val entry: SourceAwareHistoryPageEntry,
 	val readSnapshot: TrackingHistoryReadSnapshot?,
+	val actionTarget: TrackingHistoryActionTarget = entry.actionTarget,
 ) {
-	val actionTarget: TrackingHistoryActionTarget = entry.actionTarget
-
 	init {
 		require(
 			entry is SourceAwareHistoryPageEntry.ActivityOnly ||
@@ -51,6 +50,32 @@ data class SourceHistoryDetailSelection(
 				actionTarget is TrackingHistoryActionTarget.Wifi ||
 				actionTarget is TrackingHistoryActionTarget.Cell,
 		) { "Source detail navigation requires an authenticated action target" }
+		require(actionTarget == entry.actionTarget) {
+			"Source detail navigation must retain the exact source-issued action target"
+		}
+	}
+
+	companion object {
+		fun fromSourceEntry(
+			entry: SourceAwareHistoryPageEntry,
+			readSnapshot: TrackingHistoryReadSnapshot?,
+		): SourceHistoryDetailSelection? {
+			val actionTarget = entry.actionTarget
+			return when (actionTarget) {
+				is TrackingHistoryActionTarget.Activity,
+				is TrackingHistoryActionTarget.Wifi,
+				is TrackingHistoryActionTarget.Cell,
+				-> SourceHistoryDetailSelection(
+					entry = entry,
+					readSnapshot = readSnapshot,
+					actionTarget = actionTarget,
+				)
+				is TrackingHistoryActionTarget.PhysicalSegment,
+				is TrackingHistoryActionTarget.ImportedStepsMembers,
+				is TrackingHistoryActionTarget.NonActionable,
+				-> null
+			}
+		}
 	}
 }
 

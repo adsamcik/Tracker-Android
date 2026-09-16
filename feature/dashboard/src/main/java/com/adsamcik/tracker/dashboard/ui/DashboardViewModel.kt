@@ -31,15 +31,27 @@ import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
+import com.adsamcik.tracker.stats.api.repository.CellHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
+import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.LiveSessionHistorySnapshot
+import com.adsamcik.tracker.stats.api.repository.PressureHistory
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryQuery
 import com.adsamcik.tracker.tracker.insights.SessionInsight
 import com.adsamcik.tracker.tracker.insights.SessionInsightsGenerator
@@ -408,13 +420,19 @@ private fun com.adsamcik.tracker.stats.api.repository.SessionHistory.toLivePrese
 		exactCapture.capturesOnly(HistorySource.WIFI) -> when (
 			val query = sourceProducts?.wifi ?: snapshot.wifi
 		) {
-			is WifiHistoryQuery.Found -> DashboardLiveSessionPresentation.WifiOnly(
-				segmentId = requestedSegmentId,
-				history = query.entry.toDashboardRadioHistoryValue(),
-			)
+			is WifiHistoryQuery.Found -> query.entry.historyUnavailableReasonOrNull()?.let {
+				reason -> DashboardLiveSessionPresentation.HistoryUnavailable(
+					segmentId = requestedSegmentId,
+					reason = reason,
+					source = HistorySource.WIFI,
+				)
+			} ?: DashboardLiveSessionPresentation.WifiOnly(
+					segmentId = requestedSegmentId,
+					history = query.entry.toDashboardRadioHistoryValue(),
+				)
 			is WifiHistoryQuery.Failed -> DashboardLiveSessionPresentation.HistoryUnavailable(
 				segmentId = requestedSegmentId,
-				reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+				reason = query.cause.toHistoryUnavailableReason(),
 				source = HistorySource.WIFI,
 			)
 			null,
@@ -426,10 +444,16 @@ private fun com.adsamcik.tracker.stats.api.repository.SessionHistory.toLivePrese
 		exactCapture.capturesOnly(HistorySource.CELL) -> when (
 			val query = sourceProducts?.cell ?: snapshot.cell
 		) {
-			is CellHistoryQuery.Found -> DashboardLiveSessionPresentation.CellOnly(
-				segmentId = requestedSegmentId,
-				history = query.entry.toDashboardRadioHistoryValue(),
-			)
+			is CellHistoryQuery.Found -> query.entry.historyUnavailableReasonOrNull()?.let {
+				reason -> DashboardLiveSessionPresentation.HistoryUnavailable(
+					segmentId = requestedSegmentId,
+					reason = reason,
+					source = HistorySource.CELL,
+				)
+			} ?: DashboardLiveSessionPresentation.CellOnly(
+					segmentId = requestedSegmentId,
+					history = query.entry.toDashboardRadioHistoryValue(),
+				)
 			null,
 			CellHistoryQuery.NotFound -> DashboardLiveSessionPresentation.HistoryUnavailable(
 				segmentId = requestedSegmentId,
@@ -439,10 +463,16 @@ private fun com.adsamcik.tracker.stats.api.repository.SessionHistory.toLivePrese
 		exactCapture.capturesOnly(HistorySource.ACTIVITY) -> when (
 			val query = sourceProducts?.activity ?: snapshot.activity
 		) {
-			is ActivityHistoryQuery.Found -> DashboardLiveSessionPresentation.ActivityOnly(
-				segmentId = requestedSegmentId,
-				activity = query.entry.toDashboardLiveActivityValue(),
-			)
+			is ActivityHistoryQuery.Found -> query.entry.historyUnavailableReasonOrNull()?.let {
+				reason -> DashboardLiveSessionPresentation.HistoryUnavailable(
+					segmentId = requestedSegmentId,
+					reason = reason,
+					source = HistorySource.ACTIVITY,
+				)
+			} ?: DashboardLiveSessionPresentation.ActivityOnly(
+					segmentId = requestedSegmentId,
+					activity = query.entry.toDashboardLiveActivityValue(),
+				)
 			null,
 			ActivityHistoryQuery.NotFound -> DashboardLiveSessionPresentation.HistoryUnavailable(
 				segmentId = requestedSegmentId,
@@ -452,10 +482,17 @@ private fun com.adsamcik.tracker.stats.api.repository.SessionHistory.toLivePrese
 		exactCapture.capturesOnly(HistorySource.PRESSURE) -> when (
 			val query = sourceProducts?.pressure ?: snapshot.pressure
 		) {
-			is PressureSessionHistoryQuery.Found -> DashboardLiveSessionPresentation.PressureOnly(
-				segmentId = requestedSegmentId,
-				pressure = query.history.pressure.toDashboardLivePressureValue(),
-			)
+			is PressureSessionHistoryQuery.Found ->
+				query.history.pressure.historyUnavailableReasonOrNull()?.let {
+					reason -> DashboardLiveSessionPresentation.HistoryUnavailable(
+						segmentId = requestedSegmentId,
+						reason = reason,
+						source = HistorySource.PRESSURE,
+					)
+				} ?: DashboardLiveSessionPresentation.PressureOnly(
+					segmentId = requestedSegmentId,
+					pressure = query.history.pressure.toDashboardLivePressureValue(),
+				)
 			null,
 			PressureSessionHistoryQuery.NotFound ->
 				DashboardLiveSessionPresentation.HistoryUnavailable(
@@ -478,3 +515,61 @@ private fun com.adsamcik.tracker.stats.api.repository.SessionHistory.toLivePrese
 
 private fun HistoryCapture.Exact?.capturesOnly(source: HistorySource): Boolean =
 	this?.revisions?.all { revision -> revision.capturedSources == setOf(source) } == true
+
+private fun WifiHistoryEntry.historyUnavailableReasonOrNull(): TrackingHistoryUnavailableReason? =
+	if (state == WifiHistoryProductState.FAILED ||
+		causes.any(WifiHistoryCause::isIntegrityFailure)
+	) {
+		causes.firstOrNull(WifiHistoryCause::isIntegrityFailure)?.toHistoryUnavailableReason()
+			?: TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE
+	} else {
+		null
+	}
+
+private fun WifiHistoryCause.toHistoryUnavailableReason(): TrackingHistoryUnavailableReason =
+	if (this == WifiHistoryCause.READ_BUDGET_EXCEEDED) {
+		TrackingHistoryUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
+	} else {
+		TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE
+	}
+
+private fun CellHistoryEntry.historyUnavailableReasonOrNull(): TrackingHistoryUnavailableReason? =
+	if (state == CellHistoryProductState.UNVERIFIABLE ||
+		state == CellHistoryProductState.FAILED ||
+		causes.any(CellHistoryCause::isIntegrityFailure)
+	) {
+		if (CellHistoryCause.READ_BUDGET_EXCEEDED in causes) {
+			TrackingHistoryUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
+		} else {
+			TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE
+		}
+	} else {
+		null
+	}
+
+private fun ActivityHistoryEntry.historyUnavailableReasonOrNull():
+	TrackingHistoryUnavailableReason? =
+	if (state == ActivityHistoryProductState.FAILED ||
+		causes.any(ActivityHistoryCause::isIntegrityFailure)
+	) {
+		if (ActivityHistoryCause.READ_BUDGET_EXCEEDED in causes) {
+			TrackingHistoryUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
+		} else {
+			TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE
+		}
+	} else {
+		null
+	}
+
+private fun PressureHistory.historyUnavailableReasonOrNull(): TrackingHistoryUnavailableReason? =
+	if (productState == HistoryProductState.FAILED) {
+		if (PressureHistoryCause.BATCH_DEPENDENCY_OVERFLOW in causes ||
+			PressureHistoryCause.IMPORTED_DEPENDENCY_OVERFLOW in causes
+		) {
+			TrackingHistoryUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
+		} else {
+			TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE
+		}
+	} else {
+		null
+	}

@@ -103,6 +103,7 @@
     <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">Source history unavailable</string>
     <string name="source_history_detail_expired" tools:ignore="MissingTranslation">This private selection was not retained after the app process was recreated. Return to recent history and select it again.</string>
     <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">The selected retained source entry is no longer available.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">The bounded source history read could not finish safely.</string>
     <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">The selected retained source entry failed integrity checks.</string>
     <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">The source-evidence snapshot needed to present this selection is unavailable.</string>
     <string name="source_history_detail_changed" tools:ignore="MissingTranslation">The source-issued selection no longer identifies the current retained entry.</string>

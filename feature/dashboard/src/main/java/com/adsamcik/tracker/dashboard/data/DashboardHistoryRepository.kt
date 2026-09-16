@@ -56,15 +56,16 @@ sealed interface DashboardRecentHistoryEntry {
 	/** Opaque logical Pressure-only row with direct Pressure facts and no physical action identity. */
 	data class PressureOnly(val history: PressureOnlyHistoryEntry) : DashboardRecentHistoryEntry
 
-	/** Source-issued Activity detail selection with no physical Trip identity. */
+	/** Activity row with an exact source-issued detail selection when one remains actionable. */
 	data class ActivityOnly(
 		val history: ActivityHistoryEntry,
-		val detailSelection: SourceHistoryDetailSelection,
+		val detailSelection: SourceHistoryDetailSelection?,
 	) : DashboardRecentHistoryEntry {
 		init {
 			require(
-				(detailSelection.entry as? SourceAwareHistoryPageEntry.ActivityOnly)?.history ==
-					history,
+				detailSelection == null ||
+					(detailSelection.entry as? SourceAwareHistoryPageEntry.ActivityOnly)?.history ==
+						history,
 			)
 		}
 	}
@@ -327,15 +328,28 @@ private class DashboardPhysicalCandidateGeneration(
 					DashboardRecentHistoryEntry.PressureOnly(entry.history)
 				is SourceAwareHistoryPageEntry.ActivityOnly -> DashboardRecentHistoryEntry.ActivityOnly(
 					history = entry.history,
-					detailSelection = SourceHistoryDetailSelection(entry, content.readSnapshot),
+					detailSelection = SourceHistoryDetailSelection.fromSourceEntry(
+						entry,
+						content.readSnapshot,
+					),
 				)
 				is SourceAwareHistoryPageEntry.WifiOnly -> DashboardRecentHistoryEntry.WifiOnly(
 					history = entry.history,
-					detailSelection = SourceHistoryDetailSelection(entry, content.readSnapshot),
+					detailSelection = requireNotNull(
+						SourceHistoryDetailSelection.fromSourceEntry(
+							entry,
+							content.readSnapshot,
+						),
+					),
 				)
 				is SourceAwareHistoryPageEntry.CellOnly -> DashboardRecentHistoryEntry.CellOnly(
 					history = entry.history,
-					detailSelection = SourceHistoryDetailSelection(entry, content.readSnapshot),
+					detailSelection = requireNotNull(
+						SourceHistoryDetailSelection.fromSourceEntry(
+							entry,
+							content.readSnapshot,
+						),
+					),
 				)
 			}
 		}

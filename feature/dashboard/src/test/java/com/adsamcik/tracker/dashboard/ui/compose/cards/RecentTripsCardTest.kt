@@ -118,7 +118,26 @@ class RecentTripsCardTest {
 			),
 		)
 
-		composeRule.onNodeWithText("Wi‑Fi history is unavailable").assertIsDisplayed()
+		composeRule.onNodeWithText(
+			"Wi‑Fi: Retained source history failed integrity checks",
+		).assertIsDisplayed()
+	}
+
+	@Test
+	fun PressureRecencyUnavailableShowsNoStalePressureOrZero() {
+		setContent(
+			DashboardRecentHistoryState.Unavailable(
+				reason =
+					SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
+				source = HistorySource.PRESSURE,
+			),
+		)
+
+		composeRule.onNodeWithText(
+			"Pressure: Source recency authority is unavailable",
+		).assertIsDisplayed()
+		composeRule.onAllNodesWithText("hPa", substring = true).assertCountEquals(0)
+		composeRule.onNodeWithText("0").assertDoesNotExist()
 	}
 
 	@Test
@@ -193,6 +212,27 @@ class RecentTripsCardTest {
 		composeRule.onNodeWithText("Partial coverage").assertIsDisplayed()
 		composeRule.onAllNodesWithText("km", substring = true).assertCountEquals(0)
 		composeRule.onAllNodesWithText("Distance", substring = true).assertCountEquals(0)
+	}
+
+	@Test
+	fun ActivityWithoutExactSelectionRemainsVisibleButCannotNavigate() {
+		val activity = activityEntry().copy(
+			origin = com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin.IMPORTED,
+			capturesOnlyActivity = false,
+		)
+		setContent(
+			DashboardRecentHistoryState.Content(
+				listOf(DashboardRecentHistoryEntry.ActivityOnly(activity, null)),
+			),
+			onSourceHistoryClick = {
+				error("Activity without an exact source selection must not navigate")
+			},
+		)
+
+		composeRule.onNodeWithTag("dashboard_recent_activity_row")
+			.assertIsDisplayed()
+			.assertHasNoClickAction()
+		composeRule.onAllNodesWithContentDescription("View details").assertCountEquals(0)
 	}
 
 	@Test

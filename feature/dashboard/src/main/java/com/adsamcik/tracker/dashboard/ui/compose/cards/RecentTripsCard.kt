@@ -146,8 +146,10 @@ private fun RecentHistoryRows(
 					is DashboardRecentHistoryEntry.ActivityOnly -> key("activity-only", entry.history.key) {
 						RecentActivityOnlyRow(
 							history = entry.history,
-							onClick = onSourceHistoryClick?.let { click ->
-								{ click(entry.detailSelection) }
+							onClick = entry.detailSelection?.let { selection ->
+								onSourceHistoryClick?.let { click ->
+									{ click(selection) }
+								}
 							},
 						)
 					}
@@ -373,10 +375,34 @@ private fun DashboardRecentHistoryState.Unavailable.unavailableMessage(): String
 			},
 		)
 	}
-	return if (sourceLabel == null) {
-		stringResource(R.string.dashboard_recent_history_unavailable)
-	} else {
-		stringResource(R.string.dashboard_recent_history_source_unavailable, sourceLabel)
+	val reasonLabel = reason?.let { reason ->
+		stringResource(
+			when (reason) {
+				SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
+				SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
+				-> R.string.dashboard_live_history_budget_unavailable
+				SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT ->
+					R.string.dashboard_live_history_membership_unavailable
+				SourceAwareHistoryPageUnavailableReason.SOURCE_IDENTITY_COLLISION,
+				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+				-> R.string.dashboard_live_history_integrity_unavailable
+				SourceAwareHistoryPageUnavailableReason.SOURCE_EVIDENCE_STATE_UNAVAILABLE ->
+					R.string.dashboard_live_history_evidence_unavailable
+				SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE ->
+					R.string.dashboard_recent_history_recency_unavailable
+			},
+		)
+	}
+	return when {
+		sourceLabel != null && reasonLabel != null -> stringResource(
+			R.string.dashboard_live_history_source_reason,
+			sourceLabel,
+			reasonLabel,
+		)
+		reasonLabel != null -> reasonLabel
+		sourceLabel != null ->
+			stringResource(R.string.dashboard_recent_history_source_unavailable, sourceLabel)
+		else -> stringResource(R.string.dashboard_recent_history_unavailable)
 	}
 }
 

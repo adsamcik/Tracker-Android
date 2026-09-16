@@ -1,11 +1,16 @@
 package com.adsamcik.tracker.statistics.presenter
 
 import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailSelection
+import com.adsamcik.tracker.stats.api.repository.ActivityHistorySelection
+import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
+import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.CellHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryActionTarget
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryRepository
 import javax.inject.Inject
@@ -24,27 +29,21 @@ sealed interface SourceHistoryDetailState {
 enum class SourceHistoryDetailUnavailableReason {
 	SELECTION_EXPIRED,
 	NOT_FOUND,
+	SOURCE_READ_BUDGET_EXCEEDED,
 	SOURCE_INTEGRITY_FAILURE,
 	SNAPSHOT_UNAVAILABLE,
 	SELECTION_CHANGED,
 	RETRYABLE_FAILURE,
 }
 
-/** Resolves only producer-issued Wi-Fi/Cell selectors; Activity retains its exact handed entry. */
+/** Resolves radio selectors while Activity retains its exact handed selection hierarchy. */
 class SourceHistoryDetailPresenter @Inject constructor(
 	private val wifiHistoryRepository: WifiHistoryRepository,
 	private val cellHistoryRepository: CellHistoryRepository,
 ) {
 	suspend fun load(selection: SourceHistoryDetailSelection): SourceHistoryDetailState =
 		when (val entry = selection.entry) {
-			is SourceAwareHistoryPageEntry.ActivityOnly -> if (selection.readSnapshot == null) {
-				SourceHistoryDetailState.Unavailable(
-					reason = SourceHistoryDetailUnavailableReason.SNAPSHOT_UNAVAILABLE,
-					source = HistorySource.ACTIVITY,
-				)
-			} else {
-				SourceHistoryDetailState.Loaded(selection)
-			}
+			is SourceAwareHistoryPageEntry.ActivityOnly -> loadActivity(selection)
 			is SourceAwareHistoryPageEntry.WifiOnly -> loadWifi(selection)
 			is SourceAwareHistoryPageEntry.CellOnly -> loadCell(selection)
 			is SourceAwareHistoryPageEntry.Physical,
@@ -57,6 +56,26 @@ class SourceHistoryDetailPresenter @Inject constructor(
 				)
 		}
 
+	private fun loadActivity(
+		selection: SourceHistoryDetailSelection,
+	): SourceHistoryDetailState {
+		val entry = selection.entry as? SourceAwareHistoryPageEntry.ActivityOnly
+			?: return selectionChanged(HistorySource.ACTIVITY)
+		val target = selection.actionTarget as? TrackingHistoryActionTarget.Activity
+			?: return selectionChanged(HistorySource.ACTIVITY)
+		val exactSelection: ActivityHistorySelection = entry.history.selection
+			?: return selectionChanged(HistorySource.ACTIVITY)
+		return when {
+			target.selection != exactSelection -> selectionChanged(HistorySource.ACTIVITY)
+			selection.readSnapshot == null ->
+				SourceHistoryDetailState.Unavailable(
+					reason = SourceHistoryDetailUnavailableReason.SNAPSHOT_UNAVAILABLE,
+					source = HistorySource.ACTIVITY,
+				)
+			else -> SourceHistoryDetailState.Loaded(selection)
+		}
+	}
+
 	private suspend fun loadWifi(
 		selection: SourceHistoryDetailSelection,
 	): SourceHistoryDetailState {
@@ -64,10 +83,16 @@ class SourceHistoryDetailPresenter @Inject constructor(
 			?: return selectionChanged(HistorySource.WIFI)
 		return when (val query = wifiHistoryRepository.lookup(target.selection)) {
 			is WifiHistoryQuery.Found -> {
-				if (query.entry.selection != target.selection) {
-					selectionChanged(HistorySource.WIFI)
-				} else {
-					SourceHistoryDetailState.Loaded(
+				when {
+					query.entry.selection != target.selection ->
+						selectionChanged(HistorySource.WIFI)
+					query.entry.state == WifiHistoryProductState.FAILED ||
+						query.entry.causes.any(WifiHistoryCause::isIntegrityFailure) ->
+						SourceHistoryDetailState.Unavailable(
+							reason = query.entry.causes.toWifiDetailUnavailableReason(),
+							source = HistorySource.WIFI,
+						)
+					else -> SourceHistoryDetailState.Loaded(
 						selection.copy(
 							entry = SourceAwareHistoryPageEntry.WifiOnly(query.entry),
 						),
@@ -75,7 +100,7 @@ class SourceHistoryDetailPresenter @Inject constructor(
 				}
 			}
 			is WifiHistoryQuery.Failed -> SourceHistoryDetailState.Unavailable(
-				reason = SourceHistoryDetailUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+				reason = query.cause.toDetailUnavailableReason(),
 				source = HistorySource.WIFI,
 			)
 			WifiHistoryQuery.NotFound -> SourceHistoryDetailState.Unavailable(
@@ -92,10 +117,17 @@ class SourceHistoryDetailPresenter @Inject constructor(
 			?: return selectionChanged(HistorySource.CELL)
 		return when (val query = cellHistoryRepository.detail(target.selection)) {
 			is CellHistoryQuery.Found -> {
-				if (query.entry.selection != target.selection) {
-					selectionChanged(HistorySource.CELL)
-				} else {
-					SourceHistoryDetailState.Loaded(
+				when {
+					query.entry.selection != target.selection ->
+						selectionChanged(HistorySource.CELL)
+					query.entry.state == CellHistoryProductState.UNVERIFIABLE ||
+						query.entry.state == CellHistoryProductState.FAILED ||
+						query.entry.causes.any(CellHistoryCause::isIntegrityFailure) ->
+						SourceHistoryDetailState.Unavailable(
+								reason = query.entry.causes.toCellDetailUnavailableReason(),
+							source = HistorySource.CELL,
+						)
+					else -> SourceHistoryDetailState.Loaded(
 						selection.copy(
 							entry = SourceAwareHistoryPageEntry.CellOnly(query.entry),
 						),
@@ -114,3 +146,21 @@ class SourceHistoryDetailPresenter @Inject constructor(
 		source = source,
 	)
 }
+
+private fun WifiHistoryCause.toDetailUnavailableReason() =
+	if (this == WifiHistoryCause.READ_BUDGET_EXCEEDED) {
+		SourceHistoryDetailUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
+	} else {
+		SourceHistoryDetailUnavailableReason.SOURCE_INTEGRITY_FAILURE
+	}
+
+private fun Set<WifiHistoryCause>.toWifiDetailUnavailableReason() =
+	firstOrNull(WifiHistoryCause::isIntegrityFailure)?.toDetailUnavailableReason()
+		?: SourceHistoryDetailUnavailableReason.SOURCE_INTEGRITY_FAILURE
+
+private fun Set<CellHistoryCause>.toCellDetailUnavailableReason() =
+	if (CellHistoryCause.READ_BUDGET_EXCEEDED in this) {
+		SourceHistoryDetailUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
+	} else {
+		SourceHistoryDetailUnavailableReason.SOURCE_INTEGRITY_FAILURE
+	}
