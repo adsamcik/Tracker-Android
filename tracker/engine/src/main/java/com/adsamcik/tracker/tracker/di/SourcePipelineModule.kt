@@ -6,9 +6,11 @@ import com.adsamcik.tracker.tracker.source.projection.Projection
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
 import com.adsamcik.tracker.tracker.source.runtime.AndroidBootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.ActivitySourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.AmbientRadioMutationLeaseGuard
 import com.adsamcik.tracker.tracker.source.runtime.ClaimedSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.PressureSourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.RejectingAmbientRadioMutationLeaseGuard
 import com.adsamcik.tracker.tracker.source.runtime.LocationSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.CellSourceRuntime
 import com.adsamcik.tracker.tracker.source.runtime.SharedStepSourceController
@@ -39,6 +41,11 @@ object SourcePipelineModule {
 	fun provideBootClockDomainProvider(
 		@ApplicationContext context: Context,
 	): BootClockDomainProvider = AndroidBootClockDomainProvider(context)
+
+	@Provides
+	@Singleton
+	fun provideAmbientRadioMutationLeaseGuard(): AmbientRadioMutationLeaseGuard =
+		RejectingAmbientRadioMutationLeaseGuard
 
 	@Provides
 	@IntoSet
