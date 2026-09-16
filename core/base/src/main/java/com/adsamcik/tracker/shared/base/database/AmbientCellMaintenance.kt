@@ -433,6 +433,79 @@ suspend fun AppDatabase.clearAmbientCellProductPreservingReplayFootprints(
 	)
 }
 
+internal fun AppDatabase.clearAmbientCellProductInCurrentFullClearTransaction(
+	expectedCollectedDataEpoch: Long,
+	clearedAtMs: Long,
+): AmbientCellDeletionResult {
+	require(expectedCollectedDataEpoch >= 0L && clearedAtMs >= 0L)
+	val storedEpoch = openHelper.writableDatabase.query(
+		"SELECT collected_data_epoch FROM source_evidence_state WHERE id = 1",
+	).use { cursor ->
+		check(cursor.moveToFirst()) { "Ambient Cell full clear requires evidence authority" }
+		cursor.getLong(0)
+	}
+	if (storedEpoch != expectedCollectedDataEpoch) {
+		return cellDeletionUnavailable(
+			AmbientCellMaintenanceUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED,
+		)
+	}
+	val dao = ambientCellFactDao()
+	val scope = dao.loadWholeCellScopeForFullClear()
+		?: return cellDeletionUnavailable(
+			AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
+		)
+	if (!scope.isAuthentic) return cellDeletionUnavailable(
+		AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+	)
+	val previous = dao.latestDeletionMarkerForFullClear(expectedCollectedDataEpoch)
+	if (previous != null && !AmbientCellFactIntegrity.isAuthentic(previous)) {
+		return cellDeletionUnavailable(
+			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+		)
+	}
+	val authority = dao.latestAuthorityForFullClear()
+	if (authority != null && !AmbientCellAuthorityIntegrity.isAuthentic(authority)) {
+		return cellDeletionUnavailable(
+			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+		)
+	}
+	val generation = previous.nextCellDeletionGeneration()
+		?: return cellDeletionUnavailable(
+			AmbientCellMaintenanceUnavailableReason.DELETION_GENERATION_EXHAUSTED,
+		)
+	val footprints = scope.footprints(expectedCollectedDataEpoch, generation, clearedAtMs)
+	if (footprints.size > LIMIT) return cellDeletionUnavailable(
+		AmbientCellMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
+	)
+	if (!dao.installVerifiedCellFootprintsForFullClear(footprints)) {
+		return cellDeletionUnavailable(
+			AmbientCellMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+		)
+	}
+	dao.insertDeletionMarkerForFullClear(AmbientCellFactIntegrity.createDeletionMarker(
+		expectedCollectedDataEpoch,
+		generation,
+		authority?.ambientConsentEpoch ?: 0L,
+		"AMBIENT_CELL_FULL_CLEAR",
+		clearedAtMs,
+	))
+	dao.installCellArchiveTombstonesForFullClear(
+		scope.archiveIds,
+		expectedCollectedDataEpoch,
+		generation,
+		clearedAtMs,
+	)
+	dao.deleteWholeCellPayloadForFullClear(scope.archiveIds)
+	dao.deleteAllAuthoritiesForFullClear()
+	dao.deleteAllRetentionAuthoritiesForFullClear()
+	return AmbientCellDeletionResult.Deleted(
+		scope.localFacts.size.toLong(),
+		scope.importedFacts.size.toLong(),
+		scope.importedGaps.size.toLong(),
+		generation,
+	)
+}
+
 private data class CellStoredScope(
 	val localCursorCount: Long,
 	val localFacts: List<AmbientCellFactRevisionEntity>,
@@ -472,6 +545,34 @@ private suspend fun AmbientCellFactDao.loadWholeCellScope(): CellStoredScope? {
 	val importedGaps = allImportedGaps(LIMIT + 1)
 	val archiveIds = (
 		allImportedArchiveIds(LIMIT + 1) + allImportReceiptArchiveIds(LIMIT + 1)
+	).distinct()
+	if (localCursorCount > LIMIT || listOf(
+			localFacts,
+			localGaps,
+			importedFacts,
+			importedGaps,
+			archiveIds,
+		).any { it.size > LIMIT }
+	) return null
+	return CellStoredScope(
+		localCursorCount,
+		localFacts,
+		localGaps,
+		importedFacts,
+		importedGaps,
+		archiveIds,
+	)
+}
+
+private fun AmbientCellFactDao.loadWholeCellScopeForFullClear(): CellStoredScope? {
+	val localCursorCount = localCursorCountForFullClear()
+	val localFacts = allLocalFactRevisionsForFullClear(LIMIT + 1)
+	val localGaps = allLocalGapsForFullClear(LIMIT + 1)
+	val importedFacts = allImportedFactsForFullClear(LIMIT + 1)
+	val importedGaps = allImportedGapsForFullClear(LIMIT + 1)
+	val archiveIds = (
+		allImportedArchiveIdsForFullClear(LIMIT + 1) +
+			allImportReceiptArchiveIdsForFullClear(LIMIT + 1)
 	).distinct()
 	if (localCursorCount > LIMIT || listOf(
 			localFacts,
@@ -586,6 +687,24 @@ private suspend fun AmbientCellFactDao.installCellArchiveTombstones(
 	}
 }
 
+private fun AmbientCellFactDao.installCellArchiveTombstonesForFullClear(
+	archiveIds: List<String>,
+	epoch: Long,
+	generation: Long,
+	deletedAtMs: Long,
+) {
+	archiveIds.chunked(SQLITE_ID_CHUNK_SIZE).forEach { ids ->
+		insertImportTombstonesForFullClear(ids.map { archiveId ->
+			AmbientCellFactIntegrity.createImportTombstone(
+				archiveId,
+				epoch,
+				generation,
+				deletedAtMs,
+			)
+		})
+	}
+}
+
 private suspend fun AmbientCellFactDao.deleteWholeCellPayload(archiveIds: List<String>) {
 	deleteAllLocalCursors()
 	deleteAllLocalFacts()
@@ -594,6 +713,17 @@ private suspend fun AmbientCellFactDao.deleteWholeCellPayload(archiveIds: List<S
 		deleteImportReceipts(ids)
 		deleteImportedGaps(ids)
 		deleteImportedFacts(ids)
+	}
+}
+
+private fun AmbientCellFactDao.deleteWholeCellPayloadForFullClear(archiveIds: List<String>) {
+	deleteAllLocalCursorsForFullClear()
+	deleteAllLocalFactsForFullClear()
+	deleteAllGapsForFullClear()
+	archiveIds.chunked(SQLITE_ID_CHUNK_SIZE).forEach { ids ->
+		deleteImportReceiptsForFullClear(ids)
+		deleteImportedGapsForFullClear(ids)
+		deleteImportedFactsForFullClear(ids)
 	}
 }
 
@@ -632,6 +762,41 @@ private suspend fun AmbientCellFactDao.installVerifiedCellFootprints(
 	return expectedByKey.all { (key, expected) ->
 		stored[key] == expected
 	}
+}
+
+private fun AmbientCellFactDao.installVerifiedCellFootprintsForFullClear(
+	values: List<AmbientCellReplayFootprintEntity>,
+): Boolean {
+	if (values.isEmpty()) return true
+	val identities = values.map(AmbientCellReplayFootprintEntity::identityDigest).distinct()
+	val existing = buildList {
+		identities.chunked(SQLITE_ID_CHUNK_SIZE).forEach { chunk ->
+			addAll(replayFootprintsByIdentityDigestsForFullClear(chunk, LIMIT + 1 - size))
+			if (size > LIMIT) return@buildList
+		}
+	}
+	if (existing.size > LIMIT || existing.any { !AmbientCellFactIntegrity.isAuthentic(it) }) {
+		return false
+	}
+	val expectedByKey = values.associateBy(AmbientCellReplayFootprintEntity::storageKey)
+	val existingByKey = existing.associateBy(AmbientCellReplayFootprintEntity::storageKey)
+	if (expectedByKey.any { (key, expected) ->
+			existingByKey[key]?.let { it != expected } == true
+		}
+	) return false
+	val missing = expectedByKey.filterKeys { it !in existingByKey }.values.toList()
+	if (missing.isNotEmpty()) insertReplayFootprintsForFullClear(missing)
+	val storedRows = buildList {
+		identities.chunked(SQLITE_ID_CHUNK_SIZE).forEach { chunk ->
+			addAll(replayFootprintsByIdentityDigestsForFullClear(chunk, LIMIT + 1 - size))
+			if (size > LIMIT) return@buildList
+		}
+	}
+	if (storedRows.size > LIMIT ||
+		storedRows.any { !AmbientCellFactIntegrity.isAuthentic(it) }
+	) return false
+	val stored = storedRows.associateBy(AmbientCellReplayFootprintEntity::storageKey)
+	return expectedByKey.all { (key, expected) -> stored[key] == expected }
 }
 
 private fun AmbientCellReplayFootprintEntity.storageKey(): Triple<String, String, Long> =

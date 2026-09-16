@@ -11,12 +11,23 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
  * forbids restoration; it does not qualify any captured metric or grant local provider authority.
  */
 @Suppress("MagicNumber") // Positional SQL bindings follow the explicit INSERT column order below.
-internal fun preserveStepsFullClearFences(sqlite: SupportSQLiteDatabase) {
-	val (epoch, deletedAtMs) = sqlite.query(
-		"SELECT collected_data_epoch, updated_at_ms FROM source_evidence_state WHERE id = 1",
+internal fun preserveStepsFullClearFences(
+	sqlite: SupportSQLiteDatabase,
+	oldCollectedDataEpoch: Long,
+	newCollectedDataEpoch: Long,
+	deletedAtMs: Long,
+) {
+	require(oldCollectedDataEpoch >= 0L)
+	require(newCollectedDataEpoch > oldCollectedDataEpoch)
+	require(deletedAtMs >= 0L)
+	val storedEpoch = sqlite.query(
+		"SELECT collected_data_epoch FROM source_evidence_state WHERE id = 1",
 	).use { cursor ->
 		check(cursor.moveToFirst()) { "Full clear requires durable epoch authority" }
-		cursor.getLong(0) to cursor.getLong(1)
+		cursor.getLong(0)
+	}
+	check(storedEpoch == oldCollectedDataEpoch) {
+		"Steps full clear must authenticate the stored old epoch"
 	}
 	val insert = sqlite.compileStatement(
 		"INSERT OR IGNORE INTO source_deletion_fence " +
@@ -27,7 +38,7 @@ internal fun preserveStepsFullClearFences(sqlite: SupportSQLiteDatabase) {
 		fun install(digest: String) {
 			val fence = SourceDeletionFenceEntity.createForOriginalRunDigest(
 				SourceDestinationOwnerEntity.SOURCE_STEPS, StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
-				digest, 1L, epoch, deletedAtMs,
+				digest, 1L, newCollectedDataEpoch, deletedAtMs,
 			)
 			statement.bindLong(1, fence.sourceKind.toLong())
 			statement.bindString(2, fence.purpose)

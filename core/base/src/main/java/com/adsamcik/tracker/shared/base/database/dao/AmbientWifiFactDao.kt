@@ -584,4 +584,91 @@ interface AmbientWifiFactDao {
 
 	@Query("DELETE FROM ambient_wifi_retention_authority")
 	suspend fun deleteAllRetentionAuthorities(): Int
+
+	@Query("SELECT * FROM ambient_wifi_authority ORDER BY authority_revision DESC LIMIT 1")
+	fun latestAuthorityForFullClear(): AmbientWifiAuthorityEntity?
+
+	@Query(
+		"SELECT * FROM ambient_wifi_deletion_marker WHERE collected_data_epoch = :collectedDataEpoch " +
+			"ORDER BY deletion_generation DESC LIMIT 1",
+	)
+	fun latestDeletionMarkerForFullClear(
+		collectedDataEpoch: Long,
+	): AmbientWifiDeletionMarkerEntity?
+
+	@Query("SELECT COUNT(*) FROM ambient_wifi_fact_cursor")
+	fun localCursorCountForFullClear(): Long
+
+	@Query(
+		"SELECT * FROM ambient_wifi_fact_revision ORDER BY logical_fact_id, semantic_revision LIMIT :limit",
+	)
+	fun allLocalFactRevisionsForFullClear(limit: Int): List<AmbientWifiFactRevisionEntity>
+
+	@Query("SELECT * FROM ambient_wifi_gap ORDER BY gap_id LIMIT :limit")
+	fun allLocalGapsForFullClear(limit: Int): List<AmbientWifiGapEntity>
+
+	@Query(
+		"SELECT * FROM imported_ambient_wifi_fact ORDER BY archive_id, fact_id, semantic_revision " +
+			"LIMIT :limit",
+	)
+	fun allImportedFactsForFullClear(limit: Int): List<ImportedAmbientWifiFactEntity>
+
+	@Query(
+		"SELECT * FROM imported_ambient_wifi_gap ORDER BY archive_id, gap_id LIMIT :limit",
+	)
+	fun allImportedGapsForFullClear(limit: Int): List<ImportedAmbientWifiGapEntity>
+
+	@Query(
+		"SELECT archive_id FROM (SELECT archive_id FROM imported_ambient_wifi_fact UNION " +
+			"SELECT archive_id FROM imported_ambient_wifi_gap) ORDER BY archive_id LIMIT :limit",
+	)
+	fun allImportedArchiveIdsForFullClear(limit: Int): List<String>
+
+	@Query("SELECT DISTINCT archive_id FROM imported_ambient_wifi_receipt ORDER BY archive_id LIMIT :limit")
+	fun allImportReceiptArchiveIdsForFullClear(limit: Int): List<String>
+
+	@Query(
+		"SELECT * FROM ambient_wifi_replay_footprint " +
+			"WHERE identity_digest IN (:identityDigests) " +
+			"ORDER BY footprint_kind, identity_digest, semantic_revision LIMIT :limit",
+	)
+	fun replayFootprintsByIdentityDigestsForFullClear(
+		identityDigests: List<String>,
+		limit: Int,
+	): List<AmbientWifiReplayFootprintEntity>
+
+	@Insert(onConflict = OnConflictStrategy.IGNORE)
+	fun insertReplayFootprintsForFullClear(
+		values: List<AmbientWifiReplayFootprintEntity>,
+	): List<Long>
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	fun insertDeletionMarkerForFullClear(value: AmbientWifiDeletionMarkerEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	fun insertImportTombstonesForFullClear(values: List<ImportedAmbientWifiTombstoneEntity>)
+
+	@Query("DELETE FROM ambient_wifi_fact_cursor")
+	fun deleteAllLocalCursorsForFullClear(): Int
+
+	@Query("DELETE FROM ambient_wifi_fact_revision")
+	fun deleteAllLocalFactsForFullClear(): Int
+
+	@Query("DELETE FROM ambient_wifi_gap")
+	fun deleteAllGapsForFullClear(): Int
+
+	@Query("DELETE FROM imported_ambient_wifi_receipt WHERE archive_id IN (:archiveIds)")
+	fun deleteImportReceiptsForFullClear(archiveIds: List<String>): Int
+
+	@Query("DELETE FROM imported_ambient_wifi_gap WHERE archive_id IN (:archiveIds)")
+	fun deleteImportedGapsForFullClear(archiveIds: List<String>): Int
+
+	@Query("DELETE FROM imported_ambient_wifi_fact WHERE archive_id IN (:archiveIds)")
+	fun deleteImportedFactsForFullClear(archiveIds: List<String>): Int
+
+	@Query("DELETE FROM ambient_wifi_authority")
+	fun deleteAllAuthoritiesForFullClear(): Int
+
+	@Query("DELETE FROM ambient_wifi_retention_authority")
+	fun deleteAllRetentionAuthoritiesForFullClear(): Int
 }

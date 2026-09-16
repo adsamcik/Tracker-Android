@@ -640,6 +640,53 @@ abstract class ImportedCellDao {
 	@Query("DELETE FROM imported_cell_deletion_generation")
 	abstract fun deleteAllDeletionGenerations()
 
+	@Query(
+		"SELECT * FROM imported_cell_entry_revision WHERE identity = :identity " +
+			"ORDER BY import_revision LIMIT :limit",
+	)
+	abstract fun entryRevisionsForFullClear(
+		identity: String,
+		limit: Int,
+	): List<ImportedCellEntryRevisionEntity>
+
+	@Query(
+		"SELECT * FROM imported_cell_receipt WHERE entry_identity = :identity " +
+			"ORDER BY entry_import_revision, import_job_id, import_entry_key LIMIT :limit",
+	)
+	abstract fun receiptsForFullClear(
+		identity: String,
+		limit: Int,
+	): List<ImportedCellReceiptEntity>
+
+	@Query(
+		"SELECT * FROM imported_cell_run WHERE entry_identity = :identity " +
+			"ORDER BY entry_import_revision, start_time_ms, end_time_ms, identity LIMIT :limit",
+	)
+	abstract fun runsForFullClear(
+		identity: String,
+		limit: Int,
+	): List<ImportedCellRunEntity>
+
+	@Query(
+		"SELECT * FROM imported_cell_observation WHERE entry_identity = :identity " +
+			"ORDER BY entry_import_revision, run_identity, coverage_start_time_ms, observed_time_ms, " +
+			"identity LIMIT :limit",
+	)
+	abstract fun observationsForFullClear(
+		identity: String,
+		limit: Int,
+	): List<ImportedCellObservationEntity>
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract fun insertEntryDeletionReceiptForFullClear(
+		receipt: ImportedCellEntryDeletionReceiptEntity,
+	)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	abstract fun insertDeletedIdentitiesForFullClear(
+		identities: List<ImportedCellDeletedIdentityEntity>,
+	)
+
 	companion object {
 		const val MAX_REVISIONS_PER_ENTRY = 16
 		const val MAX_RECEIPTS_PER_ENTRY = 256

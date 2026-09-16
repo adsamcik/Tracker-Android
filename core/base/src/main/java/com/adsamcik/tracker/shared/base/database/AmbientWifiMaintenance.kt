@@ -433,6 +433,79 @@ suspend fun AppDatabase.clearAmbientWifiProductPreservingReplayFootprints(
 	)
 }
 
+internal fun AppDatabase.clearAmbientWifiProductInCurrentFullClearTransaction(
+	expectedCollectedDataEpoch: Long,
+	clearedAtMs: Long,
+): AmbientWifiDeletionResult {
+	require(expectedCollectedDataEpoch >= 0L && clearedAtMs >= 0L)
+	val storedEpoch = openHelper.writableDatabase.query(
+		"SELECT collected_data_epoch FROM source_evidence_state WHERE id = 1",
+	).use { cursor ->
+		check(cursor.moveToFirst()) { "Ambient Wi-Fi full clear requires evidence authority" }
+		cursor.getLong(0)
+	}
+	if (storedEpoch != expectedCollectedDataEpoch) {
+		return wifiDeletionUnavailable(
+			AmbientWifiMaintenanceUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED,
+		)
+	}
+	val dao = ambientWifiFactDao()
+	val scope = dao.loadWholeWifiScopeForFullClear()
+		?: return wifiDeletionUnavailable(
+			AmbientWifiMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
+		)
+	if (!scope.isAuthentic) return wifiDeletionUnavailable(
+		AmbientWifiMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+	)
+	val previous = dao.latestDeletionMarkerForFullClear(expectedCollectedDataEpoch)
+	if (previous != null && !AmbientWifiFactIntegrity.isAuthentic(previous)) {
+		return wifiDeletionUnavailable(
+			AmbientWifiMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+		)
+	}
+	val authority = dao.latestAuthorityForFullClear()
+	if (authority != null && !AmbientWifiAuthorityIntegrity.isAuthentic(authority)) {
+		return wifiDeletionUnavailable(
+			AmbientWifiMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+		)
+	}
+	val generation = previous.nextDeletionGeneration()
+		?: return wifiDeletionUnavailable(
+			AmbientWifiMaintenanceUnavailableReason.DELETION_GENERATION_EXHAUSTED,
+		)
+	val footprints = scope.footprints(expectedCollectedDataEpoch, generation, clearedAtMs)
+	if (footprints.size > LIMIT) return wifiDeletionUnavailable(
+		AmbientWifiMaintenanceUnavailableReason.DEPENDENCY_OVERFLOW,
+	)
+	if (!dao.installVerifiedWifiFootprintsForFullClear(footprints)) {
+		return wifiDeletionUnavailable(
+			AmbientWifiMaintenanceUnavailableReason.SOURCE_AUTHORITY_UNAVAILABLE,
+		)
+	}
+	dao.insertDeletionMarkerForFullClear(AmbientWifiFactIntegrity.createDeletionMarker(
+		expectedCollectedDataEpoch,
+		generation,
+		authority?.ambientConsentEpoch ?: 0L,
+		"AMBIENT_WIFI_FULL_CLEAR",
+		clearedAtMs,
+	))
+	dao.installWifiArchiveTombstonesForFullClear(
+		scope.archiveIds,
+		expectedCollectedDataEpoch,
+		generation,
+		clearedAtMs,
+	)
+	dao.deleteWholeWifiPayloadForFullClear(scope.archiveIds)
+	dao.deleteAllAuthoritiesForFullClear()
+	dao.deleteAllRetentionAuthoritiesForFullClear()
+	return AmbientWifiDeletionResult.Deleted(
+		scope.localFacts.size.toLong(),
+		scope.importedFacts.size.toLong(),
+		scope.importedGaps.size.toLong(),
+		generation,
+	)
+}
+
 private data class WifiStoredScope(
 	val localCursorCount: Long,
 	val localFacts: List<AmbientWifiFactRevisionEntity>,
@@ -472,6 +545,34 @@ private suspend fun AmbientWifiFactDao.loadWholeWifiScope(): WifiStoredScope? {
 	val importedGaps = allImportedGaps(LIMIT + 1)
 	val archiveIds = (
 		allImportedArchiveIds(LIMIT + 1) + allImportReceiptArchiveIds(LIMIT + 1)
+	).distinct()
+	if (localCursorCount > LIMIT || listOf(
+			localFacts,
+			localGaps,
+			importedFacts,
+			importedGaps,
+			archiveIds,
+		).any { it.size > LIMIT }
+	) return null
+	return WifiStoredScope(
+		localCursorCount,
+		localFacts,
+		localGaps,
+		importedFacts,
+		importedGaps,
+		archiveIds,
+	)
+}
+
+private fun AmbientWifiFactDao.loadWholeWifiScopeForFullClear(): WifiStoredScope? {
+	val localCursorCount = localCursorCountForFullClear()
+	val localFacts = allLocalFactRevisionsForFullClear(LIMIT + 1)
+	val localGaps = allLocalGapsForFullClear(LIMIT + 1)
+	val importedFacts = allImportedFactsForFullClear(LIMIT + 1)
+	val importedGaps = allImportedGapsForFullClear(LIMIT + 1)
+	val archiveIds = (
+		allImportedArchiveIdsForFullClear(LIMIT + 1) +
+			allImportReceiptArchiveIdsForFullClear(LIMIT + 1)
 	).distinct()
 	if (localCursorCount > LIMIT || listOf(
 			localFacts,
@@ -586,6 +687,24 @@ private suspend fun AmbientWifiFactDao.installWifiArchiveTombstones(
 	}
 }
 
+private fun AmbientWifiFactDao.installWifiArchiveTombstonesForFullClear(
+	archiveIds: List<String>,
+	epoch: Long,
+	generation: Long,
+	deletedAtMs: Long,
+) {
+	archiveIds.chunked(SQLITE_ID_CHUNK_SIZE).forEach { ids ->
+		insertImportTombstonesForFullClear(ids.map { archiveId ->
+			AmbientWifiFactIntegrity.createImportTombstone(
+				archiveId,
+				epoch,
+				generation,
+				deletedAtMs,
+			)
+		})
+	}
+}
+
 private suspend fun AmbientWifiFactDao.deleteWholeWifiPayload(archiveIds: List<String>) {
 	deleteAllLocalCursors()
 	deleteAllLocalFacts()
@@ -594,6 +713,17 @@ private suspend fun AmbientWifiFactDao.deleteWholeWifiPayload(archiveIds: List<S
 		deleteImportReceipts(ids)
 		deleteImportedGaps(ids)
 		deleteImportedFacts(ids)
+	}
+}
+
+private fun AmbientWifiFactDao.deleteWholeWifiPayloadForFullClear(archiveIds: List<String>) {
+	deleteAllLocalCursorsForFullClear()
+	deleteAllLocalFactsForFullClear()
+	deleteAllGapsForFullClear()
+	archiveIds.chunked(SQLITE_ID_CHUNK_SIZE).forEach { ids ->
+		deleteImportReceiptsForFullClear(ids)
+		deleteImportedGapsForFullClear(ids)
+		deleteImportedFactsForFullClear(ids)
 	}
 }
 
@@ -632,6 +762,41 @@ private suspend fun AmbientWifiFactDao.installVerifiedWifiFootprints(
 	return expectedByKey.all { (key, expected) ->
 		stored[key] == expected
 	}
+}
+
+private fun AmbientWifiFactDao.installVerifiedWifiFootprintsForFullClear(
+	values: List<AmbientWifiReplayFootprintEntity>,
+): Boolean {
+	if (values.isEmpty()) return true
+	val identities = values.map(AmbientWifiReplayFootprintEntity::identityDigest).distinct()
+	val existing = buildList {
+		identities.chunked(SQLITE_ID_CHUNK_SIZE).forEach { chunk ->
+			addAll(replayFootprintsByIdentityDigestsForFullClear(chunk, LIMIT + 1 - size))
+			if (size > LIMIT) return@buildList
+		}
+	}
+	if (existing.size > LIMIT || existing.any { !AmbientWifiFactIntegrity.isAuthentic(it) }) {
+		return false
+	}
+	val expectedByKey = values.associateBy(AmbientWifiReplayFootprintEntity::storageKey)
+	val existingByKey = existing.associateBy(AmbientWifiReplayFootprintEntity::storageKey)
+	if (expectedByKey.any { (key, expected) ->
+			existingByKey[key]?.let { it != expected } == true
+		}
+	) return false
+	val missing = expectedByKey.filterKeys { it !in existingByKey }.values.toList()
+	if (missing.isNotEmpty()) insertReplayFootprintsForFullClear(missing)
+	val storedRows = buildList {
+		identities.chunked(SQLITE_ID_CHUNK_SIZE).forEach { chunk ->
+			addAll(replayFootprintsByIdentityDigestsForFullClear(chunk, LIMIT + 1 - size))
+			if (size > LIMIT) return@buildList
+		}
+	}
+	if (storedRows.size > LIMIT ||
+		storedRows.any { !AmbientWifiFactIntegrity.isAuthentic(it) }
+	) return false
+	val stored = storedRows.associateBy(AmbientWifiReplayFootprintEntity::storageKey)
+	return expectedByKey.all { (key, expected) -> stored[key] == expected }
 }
 
 private fun AmbientWifiReplayFootprintEntity.storageKey(): Triple<String, String, Long> =

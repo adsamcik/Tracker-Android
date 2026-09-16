@@ -1385,6 +1385,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 	override fun migrate(db: SupportSQLiteDatabase) {
 		createImportedPressureMaintenanceTables(db)
 		createImportedAmbientStepsTables(db)
+		createAdditionalTrackingTables(db)
 		with(db) {
 			execSQL("ALTER TABLE session_segment ADD COLUMN logical_tracking_id TEXT")
 			execSQL("ALTER TABLE session_segment ADD COLUMN service_run_id TEXT")
@@ -1951,6 +1952,10 @@ val MIGRATION_27_28: Migration = object : Migration(
 					collected_data_epoch INTEGER NOT NULL,
 					deleted_import_revision INTEGER NOT NULL,
 					deleted_at_ms INTEGER NOT NULL,
+					run_deletion_count INTEGER NOT NULL,
+					run_deletion_set_checksum TEXT NOT NULL,
+					identity_fence_count INTEGER NOT NULL,
+					identity_fence_set_checksum TEXT NOT NULL,
 					effect_checksum TEXT NOT NULL,
 					PRIMARY KEY(entry_identity)
 				)
@@ -2708,6 +2713,10 @@ val MIGRATION_27_28: Migration = object : Migration(
 					"ON imported_cell_entry_revision(import_job_id, import_entry_key)",
 			)
 			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_cell_entry_time_range " +
+					"ON imported_cell_entry_revision(start_time_ms, end_time_ms, identity)",
+			)
+			execSQL(
 				"""
 				CREATE TABLE IF NOT EXISTS imported_cell_receipt (
 					import_job_id TEXT NOT NULL,
@@ -2833,6 +2842,11 @@ val MIGRATION_27_28: Migration = object : Migration(
 			execSQL(
 				"CREATE INDEX IF NOT EXISTS idx_imported_cell_observation_owner " +
 					"ON imported_cell_observation(aggregate_owner_identity)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_imported_cell_observation_time_range " +
+					"ON imported_cell_observation(" +
+					"latest_possible_time_ms, coverage_start_time_ms, entry_identity)",
 			)
 			execSQL(
 				"CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_cell_observation_revision_identity " +
