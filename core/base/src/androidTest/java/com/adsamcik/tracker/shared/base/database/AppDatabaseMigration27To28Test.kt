@@ -1146,25 +1146,47 @@ class AppDatabaseMigration27To28Test {
 					)
 				}
 			}
+			assertEquals(0 to null, columns["steps_writer_owner"])
+			assertEquals(0 to null, columns["steps_writer_owner_generation"])
 			assertEquals(0 to null, columns["pressure_writer_owner"])
 			assertEquals(0 to null, columns["pressure_writer_owner_generation"])
 		}
-		fun assertPressureOwnerRejected(update: String) {
+		fun assertWriterOwnerRejected(update: String) {
 			val failure = runCatching { database.execSQL(update) }.exceptionOrNull()
 			assertTrue(
 				generateSequence(failure) { it.cause }
 					.any { it is SQLiteConstraintException },
 			)
 		}
-		assertPressureOwnerRejected(
+		assertWriterOwnerRejected(
+			"UPDATE pending_signal SET steps_writer_owner = 'UNKNOWN_STEPS_OWNER', " +
+				"steps_writer_owner_generation = 1 WHERE signal_id = 'v27-pending-signal'",
+		)
+		assertWriterOwnerRejected(
+			"UPDATE pending_signal SET steps_writer_owner = NULL " +
+				"WHERE signal_id = 'v27-pending-signal'",
+		)
+		assertWriterOwnerRejected(
+			"UPDATE pending_signal SET steps_writer_owner_generation = 0 " +
+				"WHERE signal_id = 'v27-pending-signal'",
+		)
+		database.execSQL(
+			"UPDATE pending_signal SET steps_writer_owner = 'STEPS_SESSION_FACTS', " +
+				"steps_writer_owner_generation = 2 WHERE signal_id = 'v27-pending-signal'",
+		)
+		database.execSQL(
+			"UPDATE pending_signal SET steps_writer_owner = 'LEGACY_STEP_INTERVAL', " +
+				"steps_writer_owner_generation = 1 WHERE signal_id = 'v27-pending-signal'",
+		)
+		assertWriterOwnerRejected(
 			"UPDATE pending_signal SET pressure_writer_owner = 'UNKNOWN_PRESSURE_OWNER', " +
 				"pressure_writer_owner_generation = 2 WHERE signal_id = 'v27-pending-signal'",
 		)
-		assertPressureOwnerRejected(
+		assertWriterOwnerRejected(
 			"UPDATE pending_signal SET pressure_writer_owner = NULL, " +
 				"pressure_writer_owner_generation = 2 WHERE signal_id = 'v27-pending-signal'",
 		)
-		assertPressureOwnerRejected(
+		assertWriterOwnerRejected(
 			"UPDATE pending_signal SET pressure_writer_owner = 'LEGACY_PRESSURE_SAMPLE', " +
 				"pressure_writer_owner_generation = 0 WHERE signal_id = 'v27-pending-signal'",
 		)

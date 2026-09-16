@@ -90,6 +90,17 @@ class ImportedPressureMaintenanceMigration27To28Test {
 					"identity_fence_set_checksum",
 				),
 			)
+			database.query("PRAGMA table_info(`imported_pressure_source_erase`)").use { cursor ->
+				val name = cursor.getColumnIndexOrThrow("name")
+				val notNull = cursor.getColumnIndexOrThrow("notnull")
+				var ownerNullable = false
+				while (cursor.moveToNext()) {
+					if (cursor.getString(name) == "legacy_write_fence_owner") {
+						ownerNullable = cursor.getInt(notNull) == 0
+					}
+				}
+				assertTrue("legacy_write_fence_owner must remain nullable", ownerNullable)
+			}
 			database.query(
 				"SELECT sql FROM sqlite_master WHERE type = 'table' " +
 					"AND name = 'imported_pressure_source_erase'",

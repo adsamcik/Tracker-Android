@@ -1414,8 +1414,18 @@ val MIGRATION_27_28: Migration = object : Migration(
 				"CREATE INDEX IF NOT EXISTS idx_quarantined_signal_acquired_time " +
 					"ON quarantined_signal(acquired_at_ms, id)",
 			)
-			execSQL("ALTER TABLE pending_signal ADD COLUMN steps_writer_owner TEXT")
-			execSQL("ALTER TABLE pending_signal ADD COLUMN steps_writer_owner_generation INTEGER")
+			execSQL(
+				"ALTER TABLE pending_signal ADD COLUMN steps_writer_owner TEXT " +
+					"CHECK (steps_writer_owner IS NULL OR steps_writer_owner IN " +
+					"('LEGACY_STEP_INTERVAL', 'STEPS_SESSION_FACTS'))",
+			)
+			execSQL(
+				"ALTER TABLE pending_signal ADD COLUMN steps_writer_owner_generation INTEGER " +
+					"CHECK ((steps_writer_owner IS NULL AND " +
+					"steps_writer_owner_generation IS NULL) OR " +
+					"(steps_writer_owner IS NOT NULL AND " +
+					"steps_writer_owner_generation > 0))",
+			)
 			execSQL(
 				"ALTER TABLE pending_signal ADD COLUMN pressure_writer_owner TEXT " +
 					"CHECK (pressure_writer_owner IS NULL OR pressure_writer_owner IN " +
