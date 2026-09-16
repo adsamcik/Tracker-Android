@@ -205,15 +205,6 @@ internal object PendingWifiImportedHistoryEligibleReader : WifiImportedHistoryEl
 	}
 }
 
-internal object PendingCellImportedHistoryEligibleReader : CellImportedHistoryEligibleReader {
-	override suspend fun recentImportedEligibleForSharedHistoryInTransaction(
-		limit: Int,
-	): ImportedHistoryEligiblePage<CellImportedHistoryEligibleEntry> {
-		require(limit > 0)
-		return pendingImportedHistoryBridge()
-	}
-}
-
 internal object PendingActivityImportedHistoryEligibleReader :
 	ActivityImportedHistoryEligibleReader {
 	override suspend fun recentImportedEligibleForSharedHistoryInTransaction(

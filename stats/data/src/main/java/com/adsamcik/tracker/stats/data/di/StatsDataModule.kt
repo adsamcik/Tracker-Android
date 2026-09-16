@@ -28,7 +28,6 @@ import com.adsamcik.tracker.stats.data.metric.DefaultMetricDirtyTracker
 import com.adsamcik.tracker.stats.data.metric.DefaultPersistentDirtyState
 import com.adsamcik.tracker.stats.data.metric.DurableMetricDirtyTracker
 import com.adsamcik.tracker.stats.data.repository.ActivityImportedHistoryEligibleReader
-import com.adsamcik.tracker.stats.data.repository.CellImportedHistoryEligibleReader
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultActivityHistoryRepository
@@ -49,7 +48,6 @@ import com.adsamcik.tracker.stats.data.repository.DefaultWifiHistoryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWifiObservationRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWindowedMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.PendingActivityImportedHistoryEligibleReader
-import com.adsamcik.tracker.stats.data.repository.PendingCellImportedHistoryEligibleReader
 import com.adsamcik.tracker.stats.data.repository.PendingWifiImportedHistoryEligibleReader
 import com.adsamcik.tracker.stats.data.repository.PressureHistoryPageReader
 import com.adsamcik.tracker.stats.data.repository.PressureImportedHistoryEligibleReader
@@ -214,11 +212,6 @@ internal object PendingImportedHistoryEligibleDataModule {
 	@Singleton
 	fun provideWifiImportedHistoryEligibleReader(): WifiImportedHistoryEligibleReader =
 		PendingWifiImportedHistoryEligibleReader
-
-	@Provides
-	@Singleton
-	fun provideCellImportedHistoryEligibleReader(): CellImportedHistoryEligibleReader =
-		PendingCellImportedHistoryEligibleReader
 
 	@Provides
 	@Singleton

@@ -85,8 +85,6 @@ class ImportedHistoryUnionContractTest {
 
 		PendingWifiImportedHistoryEligibleReader
 			.recentImportedEligibleForSharedHistoryInTransaction(1) shouldBe unavailable
-		PendingCellImportedHistoryEligibleReader
-			.recentImportedEligibleForSharedHistoryInTransaction(1) shouldBe unavailable
 		PendingActivityImportedHistoryEligibleReader
 			.recentImportedEligibleForSharedHistoryInTransaction(1) shouldBe unavailable
 	}
