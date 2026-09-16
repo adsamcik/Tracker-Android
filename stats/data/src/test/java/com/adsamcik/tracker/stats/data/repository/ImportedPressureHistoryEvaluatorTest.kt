@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import android.app.Application
+import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -172,13 +173,25 @@ class ImportedPressureHistoryEvaluatorTest {
 		val writer = importer(database, testScheduler)
 		writer.importEntry(request(first, receipt("tie-job-a", "tie-entry-a")))
 		writer.importEntry(request(second, receipt("tie-job-b", "tie-entry-b")))
+		val expected = listOf(first, second).sortedByDescending {
+			it.runs.maxWith(pressureSourceRecencyRunOrder).identity.value
+		}
+		val firstCandidate = database.importedPressureDao().recentHistoryCandidatePage(
+			limit = 1,
+			beforeRecencyStartTimeMs = null,
+			beforeRecencyTieIdentity = null,
+		).single()
+		firstCandidate.identity shouldBe expected.first().identity.value
+		val secondCandidate = database.importedPressureDao().recentHistoryCandidatePage(
+			limit = 1,
+			beforeRecencyStartTimeMs = firstCandidate.recencyStartTimeMs,
+			beforeRecencyTieIdentity = firstCandidate.recencyTieIdentity,
+		).single()
+		secondCandidate.identity shouldBe expected.last().identity.value
 
 		val page = database.withTransaction {
 			pageReader(database).recentImportedEligibleForSharedHistoryInTransaction(2)
 		} as ImportedHistoryEligiblePage.Available
-		val expected = listOf(first, second).sortedByDescending {
-			it.runs.maxWith(pressureSourceRecencyRunOrder).identity.value
-		}
 
 		page.entries.map { it.identity } shouldBe expected.map {
 			ImportedPressureHistoryIdentity(it.identity.value)
@@ -219,6 +232,134 @@ class ImportedPressureHistoryEvaluatorTest {
 		page.entries.single().identity shouldBe
 			ImportedPressureHistoryIdentity(olderEnvelopeNewerMember.identity.value)
 		page.entries.single().recency.newestMemberStartTimeMs shouldBe 3_000L
+	}
+
+	@Test
+	fun `retained recency keyset survives reopen and limit one continuation`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Application>()
+		context.deleteDatabase(REOPEN_DATABASE)
+		var openedDatabase: AppDatabase? = null
+		try {
+			val initialDatabase = Room.databaseBuilder(
+				context,
+				AppDatabase::class.java,
+				REOPEN_DATABASE,
+			).allowMainThreadQueries().build()
+			openedDatabase = initialDatabase
+			initialDatabase.sourceEvidenceStateDao().ensure(
+				SourceEvidenceState(collectedDataEpoch = EPOCH),
+			)
+			val newerEnvelope = retentionOnlyEntry(
+				entryLocalId = "reopen-newer-envelope",
+				olderRunLocalId = "reopen-newer-envelope-old",
+				newestRunLocalId = "reopen-newer-envelope-new",
+				envelopeStartTimeMs = 1_000L,
+				newestStartTimeMs = 2_000L,
+			)
+			val olderEnvelopeNewerMember = retentionOnlyEntry(
+				entryLocalId = "reopen-older-envelope",
+				olderRunLocalId = "reopen-older-envelope-old",
+				newestRunLocalId = "reopen-older-envelope-new",
+				envelopeStartTimeMs = 100L,
+				newestStartTimeMs = 3_000L,
+			)
+			val writer = importer(initialDatabase, testScheduler)
+			writer.importEntry(request(
+				newerEnvelope,
+				receipt("reopen-newer-job", "reopen-newer-entry"),
+			)) shouldBe ImportPortablePressureResult.Applied(1L, 2, 0)
+			writer.importEntry(request(
+				olderEnvelopeNewerMember,
+				receipt("reopen-older-job", "reopen-older-entry"),
+			)) shouldBe ImportPortablePressureResult.Applied(1L, 2, 0)
+			val liveFirst = initialDatabase.importedPressureDao().recentHistoryCandidatePage(
+				limit = 1,
+				beforeRecencyStartTimeMs = null,
+				beforeRecencyTieIdentity = null,
+			).single()
+			liveFirst.identity shouldBe olderEnvelopeNewerMember.identity.value
+			liveFirst.candidateState shouldBe "LIVE"
+			liveFirst.recencyStartTimeMs shouldBe 3_000L
+			initialDatabase.sourceEvidenceStateDao().updateLifecycle(EPOCH, 1_100L, 50L) shouldBe 1
+			RoomTruncateImportedPressureRetention(
+				initialDatabase,
+				UnconfinedTestDispatcher(testScheduler),
+				{},
+			).truncate(
+				TruncateImportedPressureRetentionRequest(EPOCH, 1L, 1_100L, 50L),
+			)
+			initialDatabase.close()
+			openedDatabase = null
+
+			val reopenedDatabase = Room.databaseBuilder(
+				context,
+				AppDatabase::class.java,
+				REOPEN_DATABASE,
+			).allowMainThreadQueries().build()
+			openedDatabase = reopenedDatabase
+			val first = reopenedDatabase.importedPressureDao().recentHistoryCandidatePage(
+				limit = 1,
+				beforeRecencyStartTimeMs = null,
+				beforeRecencyTieIdentity = null,
+			).single()
+			first.identity shouldBe olderEnvelopeNewerMember.identity.value
+			first.candidateState shouldBe "RETAINED"
+			first.startTimeMs shouldBe 100L
+			first.recencyStartTimeMs shouldBe 3_000L
+			val second = reopenedDatabase.importedPressureDao().recentHistoryCandidatePage(
+				limit = 1,
+				beforeRecencyStartTimeMs = first.recencyStartTimeMs,
+				beforeRecencyTieIdentity = first.recencyTieIdentity,
+			).single()
+			second.identity shouldBe newerEnvelope.identity.value
+			second.candidateState shouldBe "RETAINED"
+			second.recencyStartTimeMs shouldBe 2_000L
+
+			val page = reopenedDatabase.withTransaction {
+				pageReader(reopenedDatabase).recentImportedEligibleForSharedHistoryInTransaction(1)
+			} as ImportedHistoryEligiblePage.Available
+			page.entries.single().identity shouldBe
+				ImportedPressureHistoryIdentity(olderEnvelopeNewerMember.identity.value)
+		} finally {
+			openedDatabase?.close()
+			context.deleteDatabase(REOPEN_DATABASE)
+		}
+	}
+
+	@Test
+	fun `corrupt retained recency authority is a typed shared history failure`() = runTest {
+		val entry = retentionOnlyEntry(
+			entryLocalId = "corrupt-retained-recency-entry",
+			olderRunLocalId = "corrupt-retained-recency-old",
+			newestRunLocalId = "corrupt-retained-recency-new",
+			envelopeStartTimeMs = 100L,
+			newestStartTimeMs = 3_000L,
+		)
+		importer(database, testScheduler).importEntry(request(entry)) shouldBe
+			ImportPortablePressureResult.Applied(1L, 2, 0)
+		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, 1_100L, 50L) shouldBe 1
+		RoomTruncateImportedPressureRetention(
+			database,
+			UnconfinedTestDispatcher(testScheduler),
+			{},
+		).truncate(
+			TruncateImportedPressureRetentionRequest(EPOCH, 1L, 1_100L, 50L),
+		)
+		val forgedTie = identity(
+			PortablePressureIdentityKind.PHYSICAL_RUN,
+			"forged-retained-recency",
+		).value
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_pressure_retention_receipt SET recency_tie_identity = ? " +
+				"WHERE entry_identity = ?",
+			arrayOf(forgedTie, entry.identity.value),
+		)
+
+		database.withTransaction {
+			pageReader(database).recentImportedEligibleForSharedHistoryInTransaction(1)
+		} shouldBe ImportedHistoryEligiblePage.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+		)
 	}
 
 	@Test
@@ -811,5 +952,6 @@ class ImportedPressureHistoryEvaluatorTest {
 
 	private companion object {
 		const val EPOCH = 7L
+		const val REOPEN_DATABASE = "pressure-imported-history-recency-reopen"
 	}
 }

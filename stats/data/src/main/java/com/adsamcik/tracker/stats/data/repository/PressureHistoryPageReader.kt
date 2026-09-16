@@ -3,6 +3,7 @@ package com.adsamcik.tracker.stats.data.repository
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportedPressureHistoryCandidate
 import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.ImportedPressureHistoryIdentity
 import com.adsamcik.tracker.stats.api.repository.PortablePressureDigest
@@ -59,8 +60,8 @@ internal class PressureHistoryPageReader @Inject constructor(
 			PortablePressureOpaqueIdentity,
 			PressureLocalDuplicateAuthority,
 		>? = null
-		var beforeStartTimeMs: Long? = null
-		var beforeIdentity: String? = null
+		var beforeRecencyStartTimeMs: Long? = null
+		var beforeRecencyTieIdentity: String? = null
 		var scannedCandidates = 0
 		while (scannedCandidates < PRESSURE_IMPORTED_ELIGIBLE_SCAN_BUDGET) {
 			currentCoroutineContext().ensureActive()
@@ -71,8 +72,8 @@ internal class PressureHistoryPageReader @Inject constructor(
 			val candidateProbe = try {
 				database.importedPressureDao().recentHistoryCandidatePage(
 					limit = probeLimit,
-					beforeStartTimeMs = beforeStartTimeMs,
-					beforeIdentity = beforeIdentity,
+					beforeRecencyStartTimeMs = beforeRecencyStartTimeMs,
+					beforeRecencyTieIdentity = beforeRecencyTieIdentity,
 				)
 			} catch (cancelled: CancellationException) {
 				throw cancelled
@@ -84,8 +85,8 @@ internal class PressureHistoryPageReader @Inject constructor(
 			if (candidateProbe.isEmpty()) break
 			if (!isValidImportedPressureHistoryCandidatePage(
 					candidateProbe,
-					beforeStartTimeMs,
-					beforeIdentity,
+					beforeRecencyStartTimeMs,
+					beforeRecencyTieIdentity,
 				)
 			) {
 				return unavailable(
@@ -153,8 +154,8 @@ internal class PressureHistoryPageReader @Inject constructor(
 			}
 			if (candidateProbe.size < probeLimit) break
 			val last = candidates.last()
-			beforeStartTimeMs = last.startTimeMs
-			beforeIdentity = last.identity
+			beforeRecencyStartTimeMs = last.recencyStartTimeMs
+			beforeRecencyTieIdentity = last.recencyTieIdentity
 		}
 		return ImportedHistoryEligiblePage.Available(
 			accepted.sortedWith(pressureImportedHistoryEligibleOrder).take(limit),
@@ -219,7 +220,7 @@ internal class PressureHistoryPageReader @Inject constructor(
 				)
 			}
 		}
-		val newest = imported.runs.maxWithOrNull(pressureSourceRecencyRunOrder)
+		val newest = candidate.authenticatedRecencyOrNull()
 			?: return PressureImportedEligibilityDecision.Unavailable(
 				SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
 			)
@@ -228,8 +229,8 @@ internal class PressureHistoryPageReader @Inject constructor(
 			identity = imported.identity,
 			importRevision = latest.header.importRevision,
 			contentChecksum = latest.header.contentChecksum,
-			newestMemberStartTimeMs = newest.startTimeMs,
-			newestMemberIdentity = newest.identity,
+			newestMemberStartTimeMs = newest.first,
+			newestMemberIdentity = newest.second,
 			expectedContentChecksum = imported.contentChecksum,
 		)
 	}
@@ -256,13 +257,22 @@ internal class PressureHistoryPageReader @Inject constructor(
 				SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
 			)
 		}
+		val newest = candidate.authenticatedRecencyOrNull()
+			?: return PressureImportedEligibilityDecision.Unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
+			)
+		if (newest.first != recencyStartTimeMs || newest.second != recencyTieIdentity) {
+			return PressureImportedEligibilityDecision.Unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+			)
+		}
 		return authenticatedEligibleEntry(
 			entry = toPublicPressureOnlyEntry(),
 			identity = identity,
 			importRevision = candidate.importRevision,
 			contentChecksum = candidate.contentChecksum,
-			newestMemberStartTimeMs = recencyStartTimeMs,
-			newestMemberIdentity = recencyTieIdentity,
+			newestMemberStartTimeMs = newest.first,
+			newestMemberIdentity = newest.second,
 			expectedContentChecksum = null,
 		)
 	}
@@ -307,6 +317,13 @@ internal class PressureHistoryPageReader @Inject constructor(
 	private fun unavailable(
 		reason: SourceAwareHistoryPageUnavailableReason,
 	): ImportedHistoryEligiblePage.Unavailable = ImportedHistoryEligiblePage.Unavailable(reason)
+}
+
+private fun ImportedPressureHistoryCandidate.authenticatedRecencyOrNull():
+	Pair<Long, PortablePressureOpaqueIdentity>? {
+	val startTimeMs = recencyStartTimeMs ?: return null
+	val tieIdentity = recencyTieIdentity ?: return null
+	return portableValueOrNull { startTimeMs to PortablePressureOpaqueIdentity(tieIdentity) }
 }
 
 internal val pressureSourceRecencyRunOrder =

@@ -91,6 +91,25 @@ abstract class ImportedPressureDao {
 		  SELECT identity, MAX(import_revision) AS import_revision
 		  FROM imported_pressure_entry_revision
 		  GROUP BY identity
+		), latest_member AS (
+		  SELECT run.entry_identity,
+		         run.entry_import_revision,
+		         run.start_time_ms AS recency_start_time_ms,
+		         run.identity AS recency_tie_identity
+		  FROM imported_pressure_run AS run
+		  WHERE NOT EXISTS (
+		    SELECT 1
+		    FROM imported_pressure_run AS newer
+		    WHERE newer.entry_identity = run.entry_identity
+		      AND newer.entry_import_revision = run.entry_import_revision
+		      AND (
+		        newer.start_time_ms > run.start_time_ms
+		        OR (
+		          newer.start_time_ms = run.start_time_ms
+		          AND newer.identity > run.identity
+		        )
+		      )
+		  )
 		)
 		SELECT entry.identity,
 		       entry.import_revision,
@@ -98,17 +117,22 @@ abstract class ImportedPressureDao {
 		       entry.start_time_ms,
 		       entry.end_time_ms,
 		       entry.received_at_ms,
+		       member.recency_start_time_ms,
+		       member.recency_tie_identity,
 		       'LIVE' AS candidate_state
 		FROM imported_pressure_entry_revision AS entry
 		INNER JOIN latest_revision AS latest
 		  ON latest.identity = entry.identity
 		 AND latest.import_revision = entry.import_revision
+		LEFT JOIN latest_member AS member
+		  ON member.entry_identity = entry.identity
+		 AND member.entry_import_revision = entry.import_revision
 		WHERE (
-		  :beforeStartTimeMs IS NULL
-		  OR entry.start_time_ms < :beforeStartTimeMs
+		  :beforeRecencyStartTimeMs IS NULL
+		  OR member.recency_start_time_ms < :beforeRecencyStartTimeMs
 		  OR (
-		    entry.start_time_ms = :beforeStartTimeMs
-		    AND entry.identity < COALESCE(:beforeIdentity, '')
+		    member.recency_start_time_ms = :beforeRecencyStartTimeMs
+		    AND member.recency_tie_identity < COALESCE(:beforeRecencyTieIdentity, '')
 		  )
 		)
 		UNION ALL
@@ -118,24 +142,26 @@ abstract class ImportedPressureDao {
 		       retained.start_time_ms,
 		       retained.end_time_ms,
 		       retained.received_at_ms,
+		       retained.recency_start_time_ms,
+		       retained.recency_tie_identity,
 		       'RETAINED' AS candidate_state
 		FROM imported_pressure_retention_receipt AS retained
 		WHERE (
-		  :beforeStartTimeMs IS NULL
-		  OR retained.start_time_ms < :beforeStartTimeMs
+		  :beforeRecencyStartTimeMs IS NULL
+		  OR retained.recency_start_time_ms < :beforeRecencyStartTimeMs
 		  OR (
-		    retained.start_time_ms = :beforeStartTimeMs
-		    AND retained.entry_identity < COALESCE(:beforeIdentity, '')
+		    retained.recency_start_time_ms = :beforeRecencyStartTimeMs
+		    AND retained.recency_tie_identity < COALESCE(:beforeRecencyTieIdentity, '')
 		  )
 		)
-		ORDER BY start_time_ms DESC, identity DESC, candidate_state
+		ORDER BY recency_start_time_ms DESC, recency_tie_identity DESC
 		LIMIT :limit
 		""",
 	)
 	abstract suspend fun recentHistoryCandidatePage(
 		limit: Int,
-		beforeStartTimeMs: Long?,
-		beforeIdentity: String?,
+		beforeRecencyStartTimeMs: Long?,
+		beforeRecencyTieIdentity: String?,
 	): List<ImportedPressureHistoryCandidate>
 
 	/** Latest imported entries whose complete logical time range overlaps the requested range. */
@@ -145,6 +171,25 @@ abstract class ImportedPressureDao {
 		  SELECT identity, MAX(import_revision) AS import_revision
 		  FROM imported_pressure_entry_revision
 		  GROUP BY identity
+		), latest_member AS (
+		  SELECT run.entry_identity,
+		         run.entry_import_revision,
+		         run.start_time_ms AS recency_start_time_ms,
+		         run.identity AS recency_tie_identity
+		  FROM imported_pressure_run AS run
+		  WHERE NOT EXISTS (
+		    SELECT 1
+		    FROM imported_pressure_run AS newer
+		    WHERE newer.entry_identity = run.entry_identity
+		      AND newer.entry_import_revision = run.entry_import_revision
+		      AND (
+		        newer.start_time_ms > run.start_time_ms
+		        OR (
+		          newer.start_time_ms = run.start_time_ms
+		          AND newer.identity > run.identity
+		        )
+		      )
+		  )
 		)
 		SELECT entry.identity,
 		       entry.import_revision,
@@ -152,19 +197,24 @@ abstract class ImportedPressureDao {
 		       entry.start_time_ms,
 		       entry.end_time_ms,
 		       entry.received_at_ms,
+		       member.recency_start_time_ms,
+		       member.recency_tie_identity,
 		       'LIVE' AS candidate_state
 		FROM imported_pressure_entry_revision AS entry
 		INNER JOIN latest_revision AS latest
 		  ON latest.identity = entry.identity
 		 AND latest.import_revision = entry.import_revision
+		LEFT JOIN latest_member AS member
+		  ON member.entry_identity = entry.identity
+		 AND member.entry_import_revision = entry.import_revision
 		WHERE entry.start_time_ms < :toExclusiveMs
 		  AND entry.end_time_ms > :fromInclusiveMs
 		  AND (
-		    :beforeStartTimeMs IS NULL
-		    OR entry.start_time_ms < :beforeStartTimeMs
+		    :beforeRecencyStartTimeMs IS NULL
+		    OR member.recency_start_time_ms < :beforeRecencyStartTimeMs
 		    OR (
-		      entry.start_time_ms = :beforeStartTimeMs
-		      AND entry.identity < COALESCE(:beforeIdentity, '')
+		      member.recency_start_time_ms = :beforeRecencyStartTimeMs
+		      AND member.recency_tie_identity < COALESCE(:beforeRecencyTieIdentity, '')
 		    )
 		  )
 		UNION ALL
@@ -174,19 +224,21 @@ abstract class ImportedPressureDao {
 		       retained.start_time_ms,
 		       retained.end_time_ms,
 		       retained.received_at_ms,
+		       retained.recency_start_time_ms,
+		       retained.recency_tie_identity,
 		       'RETAINED' AS candidate_state
 		FROM imported_pressure_retention_receipt AS retained
 		WHERE retained.start_time_ms < :toExclusiveMs
 		  AND retained.end_time_ms > :fromInclusiveMs
 		  AND (
-		    :beforeStartTimeMs IS NULL
-		    OR retained.start_time_ms < :beforeStartTimeMs
+		    :beforeRecencyStartTimeMs IS NULL
+		    OR retained.recency_start_time_ms < :beforeRecencyStartTimeMs
 		    OR (
-		      retained.start_time_ms = :beforeStartTimeMs
-		      AND retained.entry_identity < COALESCE(:beforeIdentity, '')
+		      retained.recency_start_time_ms = :beforeRecencyStartTimeMs
+		      AND retained.recency_tie_identity < COALESCE(:beforeRecencyTieIdentity, '')
 		    )
 		  )
-		ORDER BY start_time_ms DESC, identity DESC, candidate_state
+		ORDER BY recency_start_time_ms DESC, recency_tie_identity DESC
 		LIMIT :limit
 		""",
 	)
@@ -194,8 +246,8 @@ abstract class ImportedPressureDao {
 		fromInclusiveMs: Long,
 		toExclusiveMs: Long,
 		limit: Int,
-		beforeStartTimeMs: Long?,
-		beforeIdentity: String?,
+		beforeRecencyStartTimeMs: Long?,
+		beforeRecencyTieIdentity: String?,
 	): List<ImportedPressureHistoryCandidate>
 
 	/** Header-only keyset used before one complete lineage is materialized for retention. */
@@ -205,6 +257,25 @@ abstract class ImportedPressureDao {
 		  SELECT identity, MAX(import_revision) AS import_revision
 		  FROM imported_pressure_entry_revision
 		  GROUP BY identity
+		), latest_member AS (
+		  SELECT run.entry_identity,
+		         run.entry_import_revision,
+		         run.start_time_ms AS recency_start_time_ms,
+		         run.identity AS recency_tie_identity
+		  FROM imported_pressure_run AS run
+		  WHERE NOT EXISTS (
+		    SELECT 1
+		    FROM imported_pressure_run AS newer
+		    WHERE newer.entry_identity = run.entry_identity
+		      AND newer.entry_import_revision = run.entry_import_revision
+		      AND (
+		        newer.start_time_ms > run.start_time_ms
+		        OR (
+		          newer.start_time_ms = run.start_time_ms
+		          AND newer.identity > run.identity
+		        )
+		      )
+		  )
 		)
 		SELECT entry.identity,
 		       entry.import_revision,
@@ -212,11 +283,16 @@ abstract class ImportedPressureDao {
 		       entry.start_time_ms,
 		       entry.end_time_ms,
 		       entry.received_at_ms,
+		       member.recency_start_time_ms,
+		       member.recency_tie_identity,
 		       'LIVE' AS candidate_state
 		FROM imported_pressure_entry_revision AS entry
 		INNER JOIN latest_revision AS latest
 		  ON latest.identity = entry.identity
 		 AND latest.import_revision = entry.import_revision
+		LEFT JOIN latest_member AS member
+		  ON member.entry_identity = entry.identity
+		 AND member.entry_import_revision = entry.import_revision
 		WHERE :afterIdentity IS NULL OR entry.identity > :afterIdentity
 		ORDER BY entry.identity
 		LIMIT :limit
@@ -319,9 +395,19 @@ abstract class ImportedPressureDao {
 		  SELECT MAX(import_revision) AS import_revision
 		  FROM imported_pressure_entry_revision
 		  WHERE identity = (SELECT identity FROM owner)
+		), latest_member AS (
+		  SELECT run.start_time_ms AS recency_start_time_ms,
+		         run.identity AS recency_tie_identity
+		  FROM imported_pressure_run AS run
+		  WHERE run.entry_identity = (SELECT identity FROM owner)
+		    AND run.entry_import_revision = (SELECT import_revision FROM latest_revision)
+		  ORDER BY run.start_time_ms DESC, run.identity DESC
+		  LIMIT 1
 		)
 		SELECT entry.identity, entry.import_revision, entry.content_checksum,
 		       entry.start_time_ms, entry.end_time_ms, entry.received_at_ms,
+		       (SELECT recency_start_time_ms FROM latest_member) AS recency_start_time_ms,
+		       (SELECT recency_tie_identity FROM latest_member) AS recency_tie_identity,
 		       'LIVE' AS candidate_state
 		FROM imported_pressure_entry_revision AS entry
 		WHERE entry.identity = (SELECT identity FROM owner)
@@ -1590,6 +1676,8 @@ data class ImportedPressureHistoryCandidate(
 	@ColumnInfo(name = "start_time_ms") val startTimeMs: Long,
 	@ColumnInfo(name = "end_time_ms") val endTimeMs: Long,
 	@ColumnInfo(name = "received_at_ms") val receivedAtMs: Long,
+	@ColumnInfo(name = "recency_start_time_ms") val recencyStartTimeMs: Long?,
+	@ColumnInfo(name = "recency_tie_identity") val recencyTieIdentity: String?,
 	@ColumnInfo(name = "candidate_state") val candidateState: String,
 )
 

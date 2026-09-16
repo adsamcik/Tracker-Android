@@ -32,8 +32,8 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 		require(limit in 1..ImportedPressureDao.MAX_HISTORY_ENTRY_CANDIDATES)
 		val candidates = database.importedPressureDao().recentHistoryCandidatePage(
 			limit = limit,
-			beforeStartTimeMs = null,
-			beforeIdentity = null,
+			beforeRecencyStartTimeMs = null,
+			beforeRecencyTieIdentity = null,
 		)
 		return evaluateCandidates(candidates)
 	}
@@ -46,8 +46,8 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 		request: ExportPortablePressureRequest,
 	): List<ImportedPressureHistoryEvaluation> {
 		val selected = mutableListOf<ImportedPressureHistoryEvaluation>()
-		var beforeStartTimeMs: Long? = null
-		var beforeIdentity: String? = null
+		var beforeRecencyStartTimeMs: Long? = null
+		var beforeRecencyTieIdentity: String? = null
 		while (true) {
 			currentCoroutineContext().ensureActive()
 			val remaining = PressurePortableFormatV1.MAX_ENTRIES - selected.size
@@ -56,14 +56,14 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 				fromInclusiveMs = request.fromInclusiveMs,
 				toExclusiveMs = request.toExclusiveMs,
 				limit = pageLimit,
-				beforeStartTimeMs = beforeStartTimeMs,
-				beforeIdentity = beforeIdentity,
+				beforeRecencyStartTimeMs = beforeRecencyStartTimeMs,
+				beforeRecencyTieIdentity = beforeRecencyTieIdentity,
 			)
 			if (page.isEmpty()) break
 			if (!isValidImportedPressureHistoryCandidatePage(
 					page,
-					beforeStartTimeMs,
-					beforeIdentity,
+					beforeRecencyStartTimeMs,
+					beforeRecencyTieIdentity,
 				)
 			) {
 				return selected + page.take(1).unverifiable(
@@ -80,8 +80,8 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 			}
 			selected += evaluateCandidates(page)
 			val last = page.last()
-			beforeStartTimeMs = last.startTimeMs
-			beforeIdentity = last.identity
+			beforeRecencyStartTimeMs = last.recencyStartTimeMs
+			beforeRecencyTieIdentity = last.recencyTieIdentity
 			if (page.size < pageLimit) break
 		}
 		return selected
@@ -298,28 +298,45 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 
 internal fun isValidImportedPressureHistoryCandidatePage(
 	candidates: List<ImportedPressureHistoryCandidate>,
-	beforeStartTimeMs: Long?,
-	beforeIdentity: String?,
+	beforeRecencyStartTimeMs: Long?,
+	beforeRecencyTieIdentity: String?,
 ): Boolean {
+	if ((beforeRecencyStartTimeMs == null) != (beforeRecencyTieIdentity == null)) return false
 	if (candidates.size > ImportedPressureDao.MAX_HISTORY_ENTRY_CANDIDATES) return false
 	if (candidates.map { it.identity }.distinct().size != candidates.size) return false
 	if (candidates.any {
+		val recencyStartTimeMs = it.recencyStartTimeMs ?: return@any true
+		val recencyTieIdentity = it.recencyTieIdentity ?: return@any true
 		it.identity.isBlank() || it.importRevision <= 0L || it.startTimeMs < 0L ||
 			it.endTimeMs < it.startTimeMs || it.receivedAtMs < 0L ||
+			recencyStartTimeMs !in it.startTimeMs..it.endTimeMs ||
+			!isOpaquePressureIdentity(recencyTieIdentity) ||
 			it.candidateState !in setOf(
 				IMPORTED_PRESSURE_CANDIDATE_LIVE,
 				IMPORTED_PRESSURE_CANDIDATE_RETAINED,
 			)
 	}) return false
+	if (candidates.map { it.recencyStartTimeMs to it.recencyTieIdentity }.distinct().size !=
+		candidates.size
+	) return false
 	val cursors = buildList {
-		if (beforeStartTimeMs != null && beforeIdentity != null) {
-			add(beforeStartTimeMs to beforeIdentity)
+		if (beforeRecencyStartTimeMs != null && beforeRecencyTieIdentity != null) {
+			add(beforeRecencyStartTimeMs to beforeRecencyTieIdentity)
 		}
-		addAll(candidates.map { it.startTimeMs to it.identity })
+		addAll(candidates.map {
+			requireNotNull(it.recencyStartTimeMs) to requireNotNull(it.recencyTieIdentity)
+		})
 	}
 	return cursors.zipWithNext().all { (left, right) ->
 		left.first > right.first || left.first == right.first && left.second > right.second
 	}
+}
+
+private fun isOpaquePressureIdentity(value: String): Boolean = try {
+	PortablePressureOpaqueIdentity(value)
+	true
+} catch (_: IllegalArgumentException) {
+	false
 }
 
 internal sealed interface ImportedPressureHistoryEvaluation {
@@ -403,12 +420,17 @@ private data class ImportedPressureHistoryBatch(
 
 private fun ImportedPressureHistoryCandidate.exactlyMatches(
 	latest: AuthenticatedImportedPressureRevision,
-): Boolean = identity == latest.header.identity &&
-	importRevision == latest.header.importRevision &&
-	contentChecksum == latest.header.contentChecksum &&
-	startTimeMs == latest.header.startTimeMs &&
-	endTimeMs == latest.header.endTimeMs &&
-	receivedAtMs == latest.header.receivedAtMs
+): Boolean {
+	val newest = latest.entry.runs.maxWithOrNull(pressureSourceRecencyRunOrder) ?: return false
+	return identity == latest.header.identity &&
+		importRevision == latest.header.importRevision &&
+		contentChecksum == latest.header.contentChecksum &&
+		startTimeMs == latest.header.startTimeMs &&
+		endTimeMs == latest.header.endTimeMs &&
+		receivedAtMs == latest.header.receivedAtMs &&
+		recencyStartTimeMs == newest.startTimeMs &&
+		recencyTieIdentity == newest.identity.value
+}
 
 private fun ImportedPressureHistoryCandidate.exactlyMatches(
 	retained: ImportedPressureRetentionReceiptEntity,
@@ -418,6 +440,8 @@ private fun ImportedPressureHistoryCandidate.exactlyMatches(
 	startTimeMs == retained.startTimeMs &&
 	endTimeMs == retained.endTimeMs &&
 	receivedAtMs == retained.receivedAtMs &&
+	recencyStartTimeMs == retained.recencyStartTimeMs &&
+	recencyTieIdentity == retained.recencyTieIdentity &&
 	candidateState == IMPORTED_PRESSURE_CANDIDATE_RETAINED
 
 private fun List<ImportedPressureHistoryCandidate>.unverifiable(
