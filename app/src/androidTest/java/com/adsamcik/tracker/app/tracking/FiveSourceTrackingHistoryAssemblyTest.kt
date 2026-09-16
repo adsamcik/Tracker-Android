@@ -286,6 +286,18 @@ class FiveSourceTrackingHistoryAssemblyTest {
 		assertEquals(1L, activitySelection.importRevision)
 		assertEquals(activity.contentChecksum.value, activitySelection.contentChecksum.value)
 		assertEquals(
+			activity.runs.map { run ->
+				run.identity.value to run.deletionScopeDigest.value
+			},
+			activitySelection.runDeletionScopes.map { scope ->
+				scope.runIdentity.value to scope.deletionScopeDigest.value
+			},
+		)
+		assertEquals(
+			activity.runs.flatMap { run -> run.windows.map { window -> window.identity.value } },
+			activitySelection.windowIdentities.map { identity -> identity.value },
+		)
+		assertEquals(
 			evidenceBeforeRead.collectedDataEpoch,
 			activitySelection.readSnapshot.collectedDataEpoch,
 		)
