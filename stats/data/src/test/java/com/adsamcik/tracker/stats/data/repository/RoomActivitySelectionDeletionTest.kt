@@ -24,6 +24,7 @@ import com.adsamcik.tracker.shared.base.database.PortableActivityZoneEpochV1
 import com.adsamcik.tracker.shared.base.database.RoomDeleteSelectedImportedActivity
 import com.adsamcik.tracker.shared.base.database.RoomImportPortableCapturedActivity
 import com.adsamcik.tracker.shared.base.database.SelectedImportedActivityDeletionBlockedReason
+import com.adsamcik.tracker.shared.base.database.SelectedImportedActivityRunDeletionScope
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
@@ -102,10 +103,15 @@ class RoomActivitySelectionDeletionTest {
 		importedRequest?.selected?.entryIdentity shouldBe entry.identity
 		importedRequest?.selected?.importRevision shouldBe 1L
 		importedRequest?.selected?.contentChecksum shouldBe entry.contentChecksum
-		importedRequest?.selected?.runDeletionScopes?.single()?.runIdentity shouldBe
-			entry.runs.single().identity
-		importedRequest?.selected?.windowIdentities?.single() shouldBe
-			entry.runs.single().windows.single().identity
+		importedRequest?.selected?.runDeletionScopes shouldBe entry.runs.map { run ->
+			SelectedImportedActivityRunDeletionScope(
+				runIdentity = run.identity,
+				deletionScopeDigest = run.deletionScopeDigest,
+			)
+		}
+		importedRequest?.selected?.windowIdentities shouldBe entry.runs.flatMap { run ->
+			run.windows.map(PortableActivityWindowV1::identity)
+		}
 	}
 
 	@Test

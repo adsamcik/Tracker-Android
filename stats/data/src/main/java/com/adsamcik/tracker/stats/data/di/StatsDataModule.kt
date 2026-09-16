@@ -27,10 +27,10 @@ import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
 import com.adsamcik.tracker.stats.data.metric.DefaultMetricDirtyTracker
 import com.adsamcik.tracker.stats.data.metric.DefaultPersistentDirtyState
 import com.adsamcik.tracker.stats.data.metric.DurableMetricDirtyTracker
+import com.adsamcik.tracker.stats.data.repository.ActivityImportedHistoryEligibleReader
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultActivityHistoryRepository
-import com.adsamcik.tracker.stats.data.repository.ActivityImportedHistoryEligibleReader
 import com.adsamcik.tracker.stats.data.repository.DefaultCellHistoryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultCellSignalRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultDailySummaryRepository
@@ -42,9 +42,13 @@ import com.adsamcik.tracker.stats.data.repository.DefaultSessionStatsRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultSkiRunSegmentRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultTripRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultTrackingHistoryRepository
+import com.adsamcik.tracker.stats.data.repository.DefaultTrackingHistorySourceUnionReader
 import com.adsamcik.tracker.stats.data.repository.DefaultWifiHistoryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWifiObservationRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWindowedMetricsProvider
+import com.adsamcik.tracker.stats.data.repository.PressureHistoryPageReader
+import com.adsamcik.tracker.stats.data.repository.PressureImportedHistoryEligibleReader
+import com.adsamcik.tracker.stats.data.repository.TrackingHistorySourceUnionReader
 import com.adsamcik.tracker.stats.data.scheduler.WorkManagerAchievementEvaluationScheduler
 import com.adsamcik.tracker.stats.data.worker.AchievementEvaluationTransactionRunner
 import com.adsamcik.tracker.stats.data.worker.RoomAchievementEvaluationTransactionRunner
@@ -182,6 +186,18 @@ internal abstract class TrackingHistoryDataModule {
 	abstract fun bindTrackingHistoryRepository(
 		impl: DefaultTrackingHistoryRepository,
 	): TrackingHistoryRepository
+
+	@Binds
+	@Singleton
+	abstract fun bindTrackingHistorySourceUnionReader(
+		impl: DefaultTrackingHistorySourceUnionReader,
+	): TrackingHistorySourceUnionReader
+
+	@Binds
+	@Singleton
+	abstract fun bindPressureImportedHistoryEligibleReader(
+		impl: PressureHistoryPageReader,
+	): PressureImportedHistoryEligibleReader
 }
 
 /** Keeps the source-specific Activity fact reader independent of the shared history facade. */

@@ -2,9 +2,17 @@ package com.adsamcik.tracker.stats.data.repository
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsReadFailure
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistoryCaptureRevision
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
@@ -15,8 +23,12 @@ import com.adsamcik.tracker.stats.api.repository.ImportedStepsHistoryMember
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.LiveSessionHistorySnapshot
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.PressureHistory
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SessionHistory
+import com.adsamcik.tracker.stats.api.repository.SessionHistoryProducts
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
@@ -27,8 +39,10 @@ import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage as ApiStepsHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryUnavailableReason
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -39,16 +53,40 @@ import kotlinx.coroutines.flow.mapLatest
 import javax.inject.Inject
 
 /** Room-backed, read-only history facade. */
-internal class DefaultTrackingHistoryRepository @Inject constructor(
+internal class DefaultTrackingHistoryRepository private constructor(
 	private val database: AppDatabase,
 	private val stepsSelector: StepsSegmentHistorySelector,
 	private val logicalHistoryReader: LogicalTrackingHistoryReader,
 	private val pressureSelector: PressureHistorySelector,
 	private val pressurePageReader: PressureHistoryPageReader,
-	private val activityHistoryRepository: DefaultActivityHistoryRepository,
+	private val sourceUnionReader: TrackingHistorySourceUnionReader,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+	private val integrationObserver: TrackingHistoryIntegrationObserver =
+		TrackingHistoryIntegrationObserver(),
 ) : TrackingHistoryRepository {
 	private val importedReader = ImportedStepsProductReader(database)
+
+	@Inject
+	internal constructor(
+		database: AppDatabase,
+		stepsSelector: StepsSegmentHistorySelector,
+		logicalHistoryReader: LogicalTrackingHistoryReader,
+		pressureSelector: PressureHistorySelector,
+		pressurePageReader: PressureHistoryPageReader,
+		sourceUnionReader: TrackingHistorySourceUnionReader,
+		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+		integrationObserver: TrackingHistoryIntegrationObserver =
+			TrackingHistoryIntegrationObserver(),
+	) : this(
+		database = database,
+		stepsSelector = stepsSelector,
+		logicalHistoryReader = logicalHistoryReader,
+		pressureSelector = pressureSelector,
+		pressurePageReader = pressurePageReader,
+		sourceUnionReader = sourceUnionReader,
+		ioDispatcher = ioDispatcher,
+		integrationObserver = integrationObserver,
+	)
 
 	/** Steps-only host fixtures install no active Pressure lane. Production uses Hilt. */
 	internal constructor(
@@ -95,105 +133,215 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		stepsSelector = stepsSelector,
 		logicalHistoryReader = logicalHistoryReader,
 		pressureSelector = pressureSelector,
-		activityHistoryRepository = activityHistoryRepository,
 		pressurePageReader = PressureHistoryPageReader(
 			database = database,
 			liveSelector = pressureSelector,
 			importedEvaluator = ImportedPressureHistoryEvaluator(database),
 			portableReader = PortablePressureRoomReader(database, pressureSelector),
 		),
+		sourceUnionReader = LegacyTrackingHistorySourceUnionReader(
+			activityHistoryRepository,
+			pressureSelector,
+			activityHistoryRepository,
+			PressureHistoryPageReader(
+				database = database,
+				liveSelector = pressureSelector,
+				importedEvaluator = ImportedPressureHistoryEvaluator(database),
+				portableReader = PortablePressureRoomReader(database, pressureSelector),
+			),
+		),
+		ioDispatcher = ioDispatcher,
+	)
+
+	internal constructor(
+		database: AppDatabase,
+		stepsSelector: StepsSegmentHistorySelector,
+		logicalHistoryReader: LogicalTrackingHistoryReader,
+		pressureSelector: PressureHistorySelector,
+		sourceUnionReader: TrackingHistorySourceUnionReader,
+		ioDispatcher: CoroutineDispatcher,
+	) : this(
+		database = database,
+		stepsSelector = stepsSelector,
+		logicalHistoryReader = logicalHistoryReader,
+		pressureSelector = pressureSelector,
+		pressurePageReader = PressureHistoryPageReader(
+			database = database,
+			liveSelector = pressureSelector,
+			importedEvaluator = ImportedPressureHistoryEvaluator(database),
+			portableReader = PortablePressureRoomReader(database, pressureSelector),
+		),
+		sourceUnionReader = sourceUnionReader,
 		ioDispatcher = ioDispatcher,
 	)
 
 	@OptIn(ExperimentalCoroutinesApi::class)
-	override fun observeSession(segmentId: Long): Flow<SessionHistoryQuery> =
-		historyInvalidations().mapLatest {
+	override fun observeSession(segmentId: Long): Flow<SessionHistoryQuery> {
+		require(segmentId > 0L) { "Session history segment id must be positive" }
+		return historyInvalidations().mapLatest {
 			database.withTransaction {
-				val imported = importedReader.selectSessionsInTransaction(listOf(segmentId))[segmentId]
-				val selected = imported ?: stepsSelector.selectEvidenceBySegmentIds(listOf(segmentId))[segmentId]
-					?.toPublicSessionHistory()
-				selected?.let { SessionHistoryQuery.Found(it) } ?: SessionHistoryQuery.NotFound
+				selectLiveSessionInTransaction(segmentId).session
 			}
 		}.distinctUntilChanged()
 			.flowOn(ioDispatcher)
+	}
 
 	@OptIn(ExperimentalCoroutinesApi::class)
 	override fun observeLiveSession(segmentId: Long): Flow<LiveSessionHistorySnapshot> {
 		require(segmentId > 0L) { "Live session segment id must be positive" }
 		return historyInvalidations().mapLatest {
 			database.withTransaction {
-				val segment = database.trackingHistoryReadDao()
-					.segments(listOf(segmentId))
-					.singleOrNull()
-				if (segment == null) {
-					return@withTransaction LiveSessionHistorySnapshot(
-						segmentId = segmentId,
-						session = SessionHistoryQuery.NotFound,
-						activity = ActivityHistoryQuery.NotFound,
-						pressure = PressureSessionHistoryQuery.NotFound,
-					)
-				}
-				if (segment.source == SegmentSource.PORTABLE_STEPS_IMPORT) {
-					val imported = requireNotNull(
-						importedReader.selectSessionsInTransaction(listOf(segmentId))[segmentId],
-					) { "Imported Steps presentation must resolve a typed retained result" }
-					val verified = imported.capture is HistoryCapture.ImportedSteps
-					return@withTransaction LiveSessionHistorySnapshot(
-						segmentId = segmentId,
-						session = SessionHistoryQuery.Found(imported),
-						activity = ActivityHistoryQuery.Found(
-							com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry(
-								key = com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey("imported-steps:$segmentId"),
-								startTime = EpochMs(segment.startTimeMs),
-								endTime = EpochMs(segment.endTimeMs),
-								storedZoneIds = emptySet(),
-								state = com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState.UNAVAILABLE,
-								coverage = com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage.NONE,
-								activeTime = null,
-								fragments = emptyList(),
-								causes = setOf(if (verified)
-									com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause.SOURCE_NOT_CAPTURED
-									else com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause.LEGACY_UNVERIFIABLE),
-								origin = com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin.IMPORTED,
-							),
-						),
-						pressure = PressureSessionHistoryQuery.Found(
-							com.adsamcik.tracker.stats.api.repository.PressureSessionHistory(
-								segmentId, imported.capture, emptySet(),
-								com.adsamcik.tracker.stats.api.repository.PressureHistory(
-									availability = if (verified) HistoryAvailability.DISABLED else HistoryAvailability.UNAVAILABLE,
-									evidence = HistoryEvidence.NONE,
-									productState = HistoryProductState.DEGRADED,
-									coverage = com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage.NONE,
-									windows = emptyList(),
-									causes = setOf(
-										if (verified) com.adsamcik.tracker.stats.api.repository.PressureHistoryCause.SOURCE_NOT_CAPTURED
-										else com.adsamcik.tracker.stats.api.repository.PressureHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
-									),
-								),
-							),
-						),
-					)
-				}
-				val session = stepsSelector.selectManyInTransaction(listOf(segment))
-					.singleOrNull()
-					?.let { selected -> SessionHistoryQuery.Found(selected.toPublicSessionHistory()) }
-					?: SessionHistoryQuery.NotFound
-				val pressure = pressureSelector.selectManyInTransaction(listOf(segment))
-					.singleOrNull { selected -> selected.segment.id == segmentId }
-					?.let { selected ->
-						PressureSessionHistoryQuery.Found(selected.toPublicPressureSessionHistory())
-					} ?: PressureSessionHistoryQuery.NotFound
-				LiveSessionHistorySnapshot(
-					segmentId = segmentId,
-					session = session,
-					activity = activityHistoryRepository.sessionInTransaction(segmentId),
-					pressure = pressure,
-				)
+				selectLiveSessionInTransaction(segmentId)
 			}
 		}.distinctUntilChanged()
 			.flowOn(ioDispatcher)
 	}
+
+	private suspend fun selectLiveSessionInTransaction(
+		segmentId: Long,
+	): LiveSessionHistorySnapshot {
+		val readSnapshot = database.sourceEvidenceStateDao().get()
+			?.takeIf { it.hasValidHistorySnapshotShape() }
+			?.toHistoryReadSnapshot()
+			?: return LiveSessionHistorySnapshot(
+				segmentId = segmentId,
+				session = SessionHistoryQuery.Unavailable(
+					TrackingHistoryUnavailableReason.SOURCE_EVIDENCE_STATE_UNAVAILABLE,
+				),
+				activity = ActivityHistoryQuery.NotFound,
+				pressure = PressureSessionHistoryQuery.NotFound,
+			)
+		val segment = database.trackingHistoryReadDao()
+			.segments(listOf(segmentId))
+			.singleOrNull()
+			?: return LiveSessionHistorySnapshot(
+				segmentId = segmentId,
+				session = SessionHistoryQuery.NotFound,
+				activity = ActivityHistoryQuery.NotFound,
+				pressure = PressureSessionHistoryQuery.NotFound,
+				readSnapshot = readSnapshot,
+			)
+		if (segment.source == SegmentSource.PORTABLE_STEPS_IMPORT) {
+			val imported = requireNotNull(
+				importedReader.selectSessionsInTransaction(listOf(segmentId))[segmentId],
+			) { "Imported Steps presentation must resolve a typed retained result" }
+			val verified = imported.capture is HistoryCapture.ImportedSteps
+			val activity = ActivityHistoryQuery.Found(
+				ActivityHistoryEntry(
+					key = ActivityHistoryEntryKey("imported-steps:$segmentId"),
+					startTime = EpochMs(segment.startTimeMs),
+					endTime = EpochMs(segment.endTimeMs),
+					storedZoneIds = emptySet(),
+					state = ActivityHistoryProductState.UNAVAILABLE,
+					coverage = ActivityHistoryCoverage.NONE,
+					activeTime = null,
+					fragments = emptyList(),
+					causes = setOf(
+						if (verified) {
+							ActivityHistoryCause.SOURCE_NOT_CAPTURED
+						} else {
+							ActivityHistoryCause.LEGACY_UNVERIFIABLE
+						},
+					),
+					origin = ActivityHistoryOrigin.IMPORTED,
+				),
+			)
+			val pressure = PressureSessionHistoryQuery.Found(
+				com.adsamcik.tracker.stats.api.repository.PressureSessionHistory(
+					segmentId = segmentId,
+					capture = imported.capture,
+					qualifiedSources = emptySet(),
+					pressure = PressureHistory(
+						availability = if (verified) {
+							HistoryAvailability.DISABLED
+						} else {
+							HistoryAvailability.UNAVAILABLE
+						},
+						evidence = HistoryEvidence.NONE,
+						productState = HistoryProductState.DEGRADED,
+						coverage = PressureHistoryCoverage.NONE,
+						windows = emptyList(),
+						causes = setOf(
+							if (verified) {
+								PressureHistoryCause.SOURCE_NOT_CAPTURED
+							} else {
+								PressureHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE
+							},
+						),
+					),
+				),
+			)
+			val products = SessionHistoryProducts(
+				segmentId = segmentId,
+				wifi = com.adsamcik.tracker.stats.api.repository.WifiHistoryQuery.NotFound,
+				cell = com.adsamcik.tracker.stats.api.repository.CellHistoryQuery.NotFound,
+				activity = activity,
+				pressure = pressure,
+			)
+			val selected = imported.copy(
+				qualifiedSources = SessionHistory.deriveQualifiedSources(
+					imported.capture,
+					imported.steps,
+					products,
+				),
+				sourceProducts = products,
+				readSnapshot = readSnapshot,
+			)
+			return LiveSessionHistorySnapshot(
+				segmentId = segmentId,
+				session = SessionHistoryQuery.Found(selected),
+				activity = activity,
+				pressure = pressure,
+				wifi = products.wifi,
+				cell = products.cell,
+				readSnapshot = readSnapshot,
+			)
+		}
+		val selected = stepsSelector.selectManyInTransaction(listOf(segment))
+			.singleOrNull { it.segment.id == segmentId }
+			?: return unavailableLiveSession(
+				segmentId,
+				TrackingHistoryUnavailableReason.PHYSICAL_MEMBERSHIP_INVALID,
+				HistorySource.STEPS,
+				readSnapshot,
+			)
+		return when (val sourceRead = sourceUnionReader.sessionInTransaction(segment)) {
+			is HistoricalSessionSourceRead.Unavailable -> unavailableLiveSession(
+				segmentId,
+				sourceRead.reason,
+				sourceRead.source,
+				readSnapshot,
+			)
+			is HistoricalSessionSourceRead.Available -> {
+				val history = selected.toPublicSessionHistory(
+					products = sourceRead.publicProducts,
+					readSnapshot = readSnapshot,
+				)
+				LiveSessionHistorySnapshot(
+					segmentId = segmentId,
+					session = SessionHistoryQuery.Found(history),
+					activity = sourceRead.activity,
+					pressure = sourceRead.pressure,
+					wifi = sourceRead.wifi,
+					cell = sourceRead.cell,
+					readSnapshot = readSnapshot,
+				)
+			}
+		}
+	}
+
+	private fun unavailableLiveSession(
+		segmentId: Long,
+		reason: TrackingHistoryUnavailableReason,
+		source: HistorySource,
+		readSnapshot: TrackingHistoryReadSnapshot,
+	) = LiveSessionHistorySnapshot(
+		segmentId = segmentId,
+		session = SessionHistoryQuery.Unavailable(reason, source, readSnapshot),
+		activity = ActivityHistoryQuery.NotFound,
+		pressure = PressureSessionHistoryQuery.NotFound,
+		readSnapshot = readSnapshot,
+	)
 
 	@OptIn(ExperimentalCoroutinesApi::class)
 	override fun observeRecentStepsOnlyEntries(
@@ -242,79 +390,63 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 	): Flow<SourceAwareHistoryPageQuery> {
 		validateSourceAwarePageRequest(candidateSegmentIds, limit)
 		val stableCandidateSegmentIds = candidateSegmentIds.toList()
-		return historyInvalidations().mapLatest {
-			try {
+		return historyInvalidations().mapLatest { invalidatedTables ->
+			if (LIFECYCLE_DESIRED_ACTION_TABLE in invalidatedTables) {
+				integrationObserver.record(
+					TrackingHistoryIntegrationCheckpoint
+						.SOURCE_AWARE_LIFECYCLE_INVALIDATION_READ,
+				)
+			}
+			integrationObserver.record(
+				TrackingHistoryIntegrationCheckpoint.SOURCE_AWARE_READ_STARTED,
+			)
+			val result = try {
 				database.withTransaction {
+					val readSnapshot = database.sourceEvidenceStateDao().get()
+						?.takeIf { it.hasValidHistorySnapshotShape() }
+						?.toHistoryReadSnapshot()
+						?: return@withTransaction SourceAwareHistoryPageQuery.Unavailable(
+							SourceAwareHistoryPageUnavailableReason
+								.SOURCE_EVIDENCE_STATE_UNAVAILABLE,
+						)
 					val candidateSegments = database.trackingHistoryReadDao()
 						.segments(stableCandidateSegmentIds).associateBy { it.id }
 					val liveCandidateIds = stableCandidateSegmentIds.filter {
-						candidateSegments[it]?.source != SegmentSource.PORTABLE_STEPS_IMPORT
+						candidateSegments[it]?.source?.let { source ->
+							source != SegmentSource.PORTABLE_STEPS_IMPORT
+						} == true
 					}
 					val existingRows =
 						logicalHistoryReader.selectRecentSourceAwareStepsCandidatesInTransaction(
 							candidateSegmentIds = liveCandidateIds,
 							sourceOnlyLimit = limit,
 						)
-					val candidateActivity = activityHistoryRepository
-						.selectBySegmentIdsInTransaction(liveCandidateIds)
-					val candidateActivityGroups = when (candidateActivity) {
-						is ActivityComposedPage.Available -> candidateActivity.entries
-						is ActivityComposedPage.Failed -> return@withTransaction
-							SourceAwareHistoryPageQuery.Unavailable(
-								SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
-							)
-					}
-					val candidatePressureGroups = pressureSelector
-						.selectLogicalBySegmentIdsInTransaction(liveCandidateIds)
-					if (candidatePressureGroups.hasDependencyOverflow) {
-						return@withTransaction SourceAwareHistoryPageQuery.Unavailable(
-							SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
-						)
-					}
-					val exactCandidateActivityGroups = candidateActivityGroups.filter { composed ->
-						composed.entry.capturesOnlyActivity
-					}
-					val exactCandidatePressureGroups = candidatePressureGroups.filter(
-						PressureLogicalHistoryEntry::hasExactPressureOnlyIntent,
-					)
-					if (hasDualOnlyContradiction(
-							exactCandidateActivityGroups,
-							exactCandidatePressureGroups,
-						)
-					) return@withTransaction SourceAwareHistoryPageQuery.Unavailable(
-						SourceAwareHistoryPageUnavailableReason.SOURCE_IDENTITY_COLLISION,
-					)
-					val suppressedPhysicalIds = exactCandidateActivityGroups.flatMapTo(hashSetOf()) {
-						entry -> entry.physicalSegmentIds
-					}
-					exactCandidatePressureGroups.flatMapTo(suppressedPhysicalIds) {
-						entry -> entry.physicalMembers.map { member -> member.segment.id }
-					}
-					val activityDiscovery = when (
-						val result = activityHistoryRepository.recentActivityOnlyInTransaction(limit)
+					val candidateSourceMemberships = when (
+						val sourceRead = sourceUnionReader
+							.candidateNativeOnlyInTransaction(liveCandidateIds)
 					) {
-						is ActivityComposedPage.Available -> result.entries
-						is ActivityComposedPage.Failed -> return@withTransaction
-							SourceAwareHistoryPageQuery.Unavailable(
-								SourceAwareHistoryPageUnavailableReason.CANDIDATE_SCAN_LIMIT,
+						is HistoricalSourceUnionRead.Available -> sourceRead.value
+						is HistoricalSourceUnionRead.Unavailable ->
+							return@withTransaction SourceAwareHistoryPageQuery.Unavailable(
+								sourceRead.reason,
+								sourceRead.source,
 							)
 					}
-					val pressureDiscovery = pressureSelector
-						.discoverRecentPressureOnlyIntentInTransaction(limit)
-					if (pressureDiscovery is PressureOnlyDiscoveryResult.Unavailable) {
+					val candidateNativeOnlyMemberships = buildList {
+						existingRows.mapNotNullTo(this) { entry ->
+							(entry as? HistoricalStepsAwarePageEntry.StepsOnly)
+								?.history?.toNativeMembership()
+						}
+						addAll(candidateSourceMemberships)
+					}
+					if (candidateNativeOnlyMemberships.hasNativeMembershipCollision) {
 						return@withTransaction SourceAwareHistoryPageQuery.Unavailable(
-							pressureDiscovery.reason,
+							SourceAwareHistoryPageUnavailableReason.SOURCE_IDENTITY_COLLISION,
 						)
 					}
-					val activityOnlyRows = activityDiscovery.map(
-						HistoricalSourceAwarePageEntry::ActivityOnly,
-					)
-					val pressureOnlyRows = (pressureDiscovery as PressureOnlyDiscoveryResult.Content)
-						.entries.mapNotNull { entry ->
-							entry.toPublicPressureOnlyEntryOrNull()?.let { public ->
-								HistoricalSourceAwarePageEntry.PressureOnly(entry, public)
-							}
-						}
+					val suppressedPhysicalIds = candidateSourceMemberships.flatMapTo(hashSetOf()) {
+						membership -> membership.physicalSegmentIds
+					}
 					val retainedExistingRows = existingRows.mapNotNull { entry ->
 						when (entry) {
 							is HistoricalStepsAwarePageEntry.Physical -> entry.takeUnless {
@@ -324,10 +456,30 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 								HistoricalSourceAwarePageEntry.Existing(entry)
 						}
 					}
-					val importedRows = importedReader.recentInTransaction(limit).map {
-						HistoricalSourceAwarePageEntry.ImportedSteps(it)
+					val sourceRows = when (val sourceRead =
+						sourceUnionReader.recentInTransaction(limit)
+					) {
+						is HistoricalSourceUnionRead.Available ->
+							sourceRead.value.map(HistoricalSourceAwarePageEntry::SourceOnly)
+						is HistoricalSourceUnionRead.Unavailable ->
+							return@withTransaction SourceAwareHistoryPageQuery.Unavailable(
+								sourceRead.reason,
+								sourceRead.source,
+							)
 					}
-					val combined = retainedExistingRows + activityOnlyRows + pressureOnlyRows + importedRows
+					val importedRows = when (
+						val imported = importedReader.recentSourceAwareInTransaction(limit)
+					) {
+						is ImportedStepsRecentRead.Ready -> imported.entries.map(
+							HistoricalSourceAwarePageEntry::ImportedSteps,
+						)
+						is ImportedStepsRecentRead.Unavailable ->
+							return@withTransaction SourceAwareHistoryPageQuery.Unavailable(
+								reason = imported.reason.toSourceAwareUnavailableReason(),
+								source = HistorySource.STEPS,
+							)
+					}
+					val combined = retainedExistingRows + sourceRows + importedRows
 					if (combined.hasSourceIdentityCollision) {
 						return@withTransaction SourceAwareHistoryPageQuery.Unavailable(
 							SourceAwareHistoryPageUnavailableReason.SOURCE_IDENTITY_COLLISION,
@@ -338,6 +490,7 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 							.sortedWith(sourceAwarePageOrder)
 							.take(limit)
 							.map(HistoricalSourceAwarePageEntry::toPublicPageEntry),
+						readSnapshot = readSnapshot,
 					)
 				}
 			} catch (overflow: LogicalHistoryPageDependencyOverflow) {
@@ -349,9 +502,11 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 							SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT
 					},
 				)
-			} catch (overflow: PressureHistoryPageDependencyOverflow) {
-				SourceAwareHistoryPageQuery.Unavailable(overflow.reason)
 			}
+			integrationObserver.record(
+				TrackingHistoryIntegrationCheckpoint.SOURCE_AWARE_READ_FINISHED,
+			)
+			result
 		}.distinctUntilChanged()
 			.flowOn(ioDispatcher)
 	}
@@ -380,6 +535,7 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		}.distinctUntilChanged()
 			.flowOn(ioDispatcher)
 	}
+
 	private fun validateStepsAwarePageRequest(
 		candidateSegmentIds: List<Long>,
 		limit: Int,
@@ -424,12 +580,23 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		MANIFEST_SOURCE_TABLE,
 		SOURCE_POLICY_TABLE,
 		SOURCE_CONSENT_EPOCH_TABLE,
+		SOURCE_DESTINATION_OWNER_TABLE,
+		SOURCE_EVENT_WAL_TABLE,
+		SOURCE_PROJECTION_REGISTRATION_TABLE,
+		SOURCE_PROJECTION_CHECKPOINT_TABLE,
 		PRODUCT_LANE_TABLE,
 		PROJECTION_FAILURE_TABLE,
 		SOURCE_EVIDENCE_TABLE,
 		SOURCE_DELETION_FENCE_TABLE,
+		SOURCE_DEMAND_TABLE,
 		STEP_FACT_TABLE,
 		PRESSURE_FACT_TABLE,
+		WIFI_FACT_TABLE,
+		WIFI_CURSOR_TABLE,
+		WIFI_DELETION_TABLE,
+		CELL_FACT_TABLE,
+		CELL_CURSOR_TABLE,
+		CELL_DELETION_TABLE,
 		ACTIVITY_FACT_TABLE,
 		ACTIVITY_FRAGMENT_TABLE,
 		ACTIVITY_EVIDENCE_TABLE,
@@ -440,10 +607,37 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		PROVIDER_REGISTRATION_TABLE,
 		SOURCE_AUTHORIZATION_TABLE,
 		SOURCE_SESSION_TABLE,
+		LIFECYCLE_DESIRED_ACTION_TABLE,
 		SESSION_COMPLETENESS_TABLE,
 		"imported_steps_entry",
 		"imported_steps_run",
 		"imported_steps_manifest",
+		IMPORTED_WIFI_ENTRY_TABLE,
+		IMPORTED_WIFI_RECEIPT_TABLE,
+		IMPORTED_WIFI_RUN_TABLE,
+		IMPORTED_WIFI_ZONE_TABLE,
+		IMPORTED_WIFI_OBSERVATION_TABLE,
+		IMPORTED_WIFI_ENTRY_DELETION_TABLE,
+		IMPORTED_WIFI_DELETION_TABLE,
+		IMPORTED_CELL_ENTRY_TABLE,
+		IMPORTED_CELL_RECEIPT_TABLE,
+		IMPORTED_CELL_RUN_TABLE,
+		IMPORTED_CELL_OBSERVATION_TABLE,
+		IMPORTED_CELL_ENTRY_DELETION_TABLE,
+		IMPORTED_CELL_DELETION_TABLE,
+		IMPORTED_CELL_DELETION_RECEIPT_TABLE,
+		IMPORTED_CELL_DELETED_IDENTITY_TABLE,
+		IMPORTED_ACTIVITY_ENTRY_TABLE,
+		IMPORTED_ACTIVITY_RECEIPT_TABLE,
+		IMPORTED_ACTIVITY_RUN_TABLE,
+		IMPORTED_ACTIVITY_ZONE_TABLE,
+		IMPORTED_ACTIVITY_WINDOW_TABLE,
+		IMPORTED_ACTIVITY_FRAGMENT_TABLE,
+		IMPORTED_ACTIVITY_RETENTION_TABLE,
+		IMPORTED_ACTIVITY_RETAINED_IDENTITY_TABLE,
+		IMPORTED_ACTIVITY_ENTRY_DELETION_TABLE,
+		IMPORTED_ACTIVITY_DELETION_RECEIPT_TABLE,
+		IMPORTED_ACTIVITY_DELETION_TABLE,
 		IMPORTED_PRESSURE_ENTRY_TABLE,
 		IMPORTED_PRESSURE_RECEIPT_TABLE,
 		IMPORTED_PRESSURE_RUN_TABLE,
@@ -462,12 +656,23 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		const val MANIFEST_SOURCE_TABLE = "session_manifest_source"
 		const val SOURCE_POLICY_TABLE = "source_policy"
 		const val SOURCE_CONSENT_EPOCH_TABLE = "source_consent_epoch"
+		const val SOURCE_DESTINATION_OWNER_TABLE = "source_destination_owner"
+		const val SOURCE_EVENT_WAL_TABLE = "source_event_wal"
+		const val SOURCE_PROJECTION_REGISTRATION_TABLE = "source_projection_registration"
+		const val SOURCE_PROJECTION_CHECKPOINT_TABLE = "source_projection_checkpoint"
 		const val PRODUCT_LANE_TABLE = "source_product_projection_lane"
 		const val PROJECTION_FAILURE_TABLE = "source_projection_failure"
 		const val SOURCE_EVIDENCE_TABLE = "source_evidence_state"
 		const val SOURCE_DELETION_FENCE_TABLE = "source_deletion_fence"
+		const val SOURCE_DEMAND_TABLE = "source_demand"
 		const val STEP_FACT_TABLE = "step_fact_revision"
 		const val PRESSURE_FACT_TABLE = "pressure_fact_revision"
+		const val WIFI_FACT_TABLE = "wifi_captured_fact_revision"
+		const val WIFI_CURSOR_TABLE = "wifi_captured_fact_cursor"
+		const val WIFI_DELETION_TABLE = "wifi_capture_deletion_generation"
+		const val CELL_FACT_TABLE = "cell_captured_fact_revision"
+		const val CELL_CURSOR_TABLE = "cell_captured_fact_cursor"
+		const val CELL_DELETION_TABLE = "cell_capture_deletion_generation"
 		const val ACTIVITY_FACT_TABLE = "activity_captured_window_revision"
 		const val ACTIVITY_FRAGMENT_TABLE = "activity_captured_fragment"
 		const val ACTIVITY_EVIDENCE_TABLE = "activity_captured_evidence"
@@ -478,7 +683,38 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		const val PROVIDER_REGISTRATION_TABLE = "provider_registration_generation"
 		const val SOURCE_AUTHORIZATION_TABLE = "source_authorization"
 		const val SOURCE_SESSION_TABLE = "logical_tracking_session"
+		const val LIFECYCLE_DESIRED_ACTION_TABLE = "lifecycle_desired_action"
 		const val SESSION_COMPLETENESS_TABLE = "source_session_completeness"
+		const val IMPORTED_WIFI_ENTRY_TABLE = "imported_wifi_entry_revision"
+		const val IMPORTED_WIFI_RECEIPT_TABLE = "imported_wifi_receipt"
+		const val IMPORTED_WIFI_RUN_TABLE = "imported_wifi_run"
+		const val IMPORTED_WIFI_ZONE_TABLE = "imported_wifi_run_zone"
+		const val IMPORTED_WIFI_OBSERVATION_TABLE = "imported_wifi_observation"
+		const val IMPORTED_WIFI_ENTRY_DELETION_TABLE = "imported_wifi_entry_deletion"
+		const val IMPORTED_WIFI_DELETION_TABLE = "imported_wifi_deletion_generation"
+		const val IMPORTED_CELL_ENTRY_TABLE = "imported_cell_entry_revision"
+		const val IMPORTED_CELL_RECEIPT_TABLE = "imported_cell_receipt"
+		const val IMPORTED_CELL_RUN_TABLE = "imported_cell_run"
+		const val IMPORTED_CELL_OBSERVATION_TABLE = "imported_cell_observation"
+		const val IMPORTED_CELL_ENTRY_DELETION_TABLE = "imported_cell_entry_deletion"
+		const val IMPORTED_CELL_DELETION_TABLE = "imported_cell_deletion_generation"
+		const val IMPORTED_CELL_DELETION_RECEIPT_TABLE =
+			"imported_cell_entry_deletion_receipt"
+		const val IMPORTED_CELL_DELETED_IDENTITY_TABLE = "imported_cell_deleted_identity"
+		const val IMPORTED_ACTIVITY_ENTRY_TABLE = "imported_activity_entry_revision"
+		const val IMPORTED_ACTIVITY_RECEIPT_TABLE = "imported_activity_receipt"
+		const val IMPORTED_ACTIVITY_RUN_TABLE = "imported_activity_run"
+		const val IMPORTED_ACTIVITY_ZONE_TABLE = "imported_activity_zone_epoch"
+		const val IMPORTED_ACTIVITY_WINDOW_TABLE = "imported_activity_window"
+		const val IMPORTED_ACTIVITY_FRAGMENT_TABLE = "imported_activity_fragment"
+		const val IMPORTED_ACTIVITY_RETENTION_TABLE = "imported_activity_retention_receipt"
+		const val IMPORTED_ACTIVITY_RETAINED_IDENTITY_TABLE =
+			"imported_activity_retained_identity"
+		const val IMPORTED_ACTIVITY_ENTRY_DELETION_TABLE =
+			"imported_activity_entry_deletion"
+		const val IMPORTED_ACTIVITY_DELETION_RECEIPT_TABLE =
+			"imported_activity_entry_deletion_receipt"
+		const val IMPORTED_ACTIVITY_DELETION_TABLE = "imported_activity_deletion_generation"
 		const val IMPORTED_PRESSURE_ENTRY_TABLE = "imported_pressure_entry_revision"
 		const val IMPORTED_PRESSURE_RECEIPT_TABLE = "imported_pressure_receipt"
 		const val IMPORTED_PRESSURE_RUN_TABLE = "imported_pressure_run"
@@ -488,6 +724,31 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 	}
 }
 
+private fun SourceEvidenceState.hasValidHistorySnapshotShape(): Boolean =
+	id == SourceEvidenceState.SINGLETON_ID &&
+		revision >= 0L &&
+		collectedDataEpoch >= 0L &&
+		retainedFromMs?.let { it >= 0L } != false &&
+		deletedSourceEventHighWaterOrdinal >= 0L &&
+		updatedAtMs >= 0L
+
+private fun SourceEvidenceState.toHistoryReadSnapshot() = TrackingHistoryReadSnapshot(
+	collectedDataEpoch = collectedDataEpoch,
+	sourceEvidenceRevision = revision,
+)
+
+private fun ImportedStepsReadFailure.toSourceAwareUnavailableReason():
+	SourceAwareHistoryPageUnavailableReason =
+	when (this) {
+		ImportedStepsReadFailure.DEPENDENCY_OVERFLOW ->
+			SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
+		ImportedStepsReadFailure.RETENTION,
+		ImportedStepsReadFailure.DELETION,
+		ImportedStepsReadFailure.INTEGRITY,
+		ImportedStepsReadFailure.MISSING,
+		-> SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE
+	}
+
 private data class RecentProductPageRow(
 	val entry: StepsAwareHistoryPageEntry,
 	val startTimeMs: Long,
@@ -495,29 +756,29 @@ private data class RecentProductPageRow(
 )
 
 private sealed interface HistoricalSourceAwarePageEntry {
-	val recencyStartTimeMs: Long
-	val recencySegmentId: Long
+	val recency: HistoricalSourceUnionRecency
 	val logicalTrackingId: String?
+	val nativePhysicalSegmentIds: List<Long>
 
 	data class Existing(
 		val entry: HistoricalStepsAwarePageEntry,
 	) : HistoricalSourceAwarePageEntry {
-		override val recencyStartTimeMs: Long get() = entry.recencyStartTimeMs
-		override val recencySegmentId: Long get() = entry.recencySegmentId
+		override val recency = HistoricalSourceUnionRecency.Native(
+			entry.recencyStartTimeMs,
+			entry.recencySegmentId,
+		)
 		override val logicalTrackingId: String?
 			get() = when (entry) {
 				is HistoricalStepsAwarePageEntry.Physical -> entry.segment.logicalTrackingId
 				is HistoricalStepsAwarePageEntry.StepsOnly ->
 					(entry.history.identity as? HistoricalEntryIdentity.Logical)?.logicalTrackingId
 			}
-	}
-
-	data class ActivityOnly(
-		val entry: ComposedActivityEntry,
-	) : HistoricalSourceAwarePageEntry {
-		override val recencyStartTimeMs: Long get() = entry.recencyStartTimeMs
-		override val recencySegmentId: Long get() = entry.recencySegmentId
-		override val logicalTrackingId: String get() = entry.logicalTrackingId
+		override val nativePhysicalSegmentIds: List<Long>
+			get() = when (entry) {
+				is HistoricalStepsAwarePageEntry.Physical -> emptyList()
+				is HistoricalStepsAwarePageEntry.StepsOnly ->
+					entry.history.physicalMembers.map { it.segment.id }
+			}
 	}
 
 	data class ImportedSteps(
@@ -529,47 +790,31 @@ private sealed interface HistoricalSourceAwarePageEntry {
 		private val newest = history.physicalMembers.maxWith(
 			compareBy<ImportedStepsHistoryMember> { it.startTime }.thenBy { it.segmentId },
 		)
-		override val recencyStartTimeMs: Long get() = newest.startTime.raw
-		override val recencySegmentId: Long get() = newest.segmentId
+		override val recency = HistoricalSourceUnionRecency.Native(
+			newest.startTime.raw,
+			newest.segmentId,
+		)
+		override val nativePhysicalSegmentIds: List<Long> get() = emptyList()
 	}
 
-	data class PressureOnly(
-		val entry: PressureLogicalHistoryEntry,
-		val public: PressureOnlyHistoryEntry,
+	data class SourceOnly(
+		val history: HistoricalSourceUnionEntry,
 	) : HistoricalSourceAwarePageEntry {
-		override val recencyStartTimeMs: Long
-			get() = entry.recencyMember.segment.startTimeMs
-		override val recencySegmentId: Long
-			get() = entry.recencyMember.segment.id
+		override val recency: HistoricalSourceUnionRecency get() = history.recency
 		override val logicalTrackingId: String?
-			get() = (entry.identity as? PressureHistoryEntryIdentity.Logical)?.logicalTrackingId
+			get() = history.nativeMembership?.logicalTrackingId
+		override val nativePhysicalSegmentIds: List<Long>
+			get() = history.nativeMembership?.physicalSegmentIds.orEmpty()
 	}
 }
 
-private val List<PressureLogicalHistoryEntry>.hasDependencyOverflow: Boolean
-	get() = any { entry ->
-		entry.physicalMembers.any { member ->
-			PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW in member.reasons
-		}
+private val List<HistoricalSourceOnlyMembership>.hasNativeMembershipCollision: Boolean
+	get() {
+		val logicalIds = map(HistoricalSourceOnlyMembership::logicalTrackingId)
+		if (logicalIds.size != logicalIds.distinct().size) return true
+		val physicalIds = flatMap(HistoricalSourceOnlyMembership::physicalSegmentIds)
+		return physicalIds.size != physicalIds.distinct().size
 	}
-
-private fun hasDualOnlyContradiction(
-	activity: List<ComposedActivityEntry>,
-	pressure: List<PressureLogicalHistoryEntry>,
-): Boolean {
-	val activityLogicalIds = activity.map(ComposedActivityEntry::logicalTrackingId)
-	val pressureLogicalIds = pressure.mapNotNull { entry ->
-		(entry.identity as? PressureHistoryEntryIdentity.Logical)?.logicalTrackingId
-	}
-	val activityPhysicalIds = activity.flatMap(ComposedActivityEntry::physicalSegmentIds)
-	val pressurePhysicalIds = pressure.flatMap { entry ->
-		entry.physicalMembers.map { member -> member.segment.id }
-	}
-	return activityLogicalIds.size != activityLogicalIds.distinct().size ||
-		pressureLogicalIds.size != pressureLogicalIds.distinct().size ||
-		activityLogicalIds.any(pressureLogicalIds.toHashSet()::contains) ||
-		activityPhysicalIds.any(pressurePhysicalIds.toHashSet()::contains)
-}
 
 private val List<HistoricalSourceAwarePageEntry>.hasSourceIdentityCollision: Boolean
 	get() {
@@ -580,15 +825,40 @@ private val List<HistoricalSourceAwarePageEntry>.hasSourceIdentityCollision: Boo
 			}
 		}
 		if (sourceOnlyIds.size != sourceOnlyIds.distinct().size) return true
-		return filterIsInstance<HistoricalSourceAwarePageEntry.Existing>()
+		val nativePhysicalIds = flatMap(HistoricalSourceAwarePageEntry::nativePhysicalSegmentIds)
+		if (nativePhysicalIds.size != nativePhysicalIds.distinct().size) return true
+		val physicalRows = filterIsInstance<HistoricalSourceAwarePageEntry.Existing>()
 			.filter { it.entry is HistoricalStepsAwarePageEntry.Physical }
-			.mapNotNull(HistoricalSourceAwarePageEntry::logicalTrackingId)
-			.any(sourceOnlyIds.toHashSet()::contains)
-}
+		return physicalRows.mapNotNull(HistoricalSourceAwarePageEntry::logicalTrackingId)
+			.any(sourceOnlyIds.toHashSet()::contains) ||
+			physicalRows.map { (it.entry as HistoricalStepsAwarePageEntry.Physical).segment.id }
+				.any(nativePhysicalIds.toHashSet()::contains)
+	}
 
-private val sourceAwarePageOrder =
-	compareByDescending<HistoricalSourceAwarePageEntry> { it.recencyStartTimeMs }
-		.thenByDescending { it.recencySegmentId }
+private val sourceAwarePageOrder = Comparator<HistoricalSourceAwarePageEntry> { left, right ->
+	val leftRecency = left.recency
+	val rightRecency = right.recency
+	val startOrder = compareValues(rightRecency.startTimeMs, leftRecency.startTimeMs)
+	if (startOrder != 0) {
+		startOrder
+	} else {
+		when (leftRecency) {
+			is HistoricalSourceUnionRecency.Native -> when (rightRecency) {
+				is HistoricalSourceUnionRecency.Native ->
+					compareValues(rightRecency.segmentId, leftRecency.segmentId)
+				is HistoricalSourceUnionRecency.Imported -> -1
+			}
+			is HistoricalSourceUnionRecency.Imported -> when (rightRecency) {
+				is HistoricalSourceUnionRecency.Native -> 1
+				is HistoricalSourceUnionRecency.Imported ->
+					importedHistoryRecencyOrder.compare(
+						leftRecency.value,
+						rightRecency.value,
+					)
+			}
+		}
+	}
+}
 
 private fun HistoricalSourceAwarePageEntry.toPublicPageEntry(): SourceAwareHistoryPageEntry =
 	when (this) {
@@ -600,18 +870,39 @@ private fun HistoricalSourceAwarePageEntry.toPublicPageEntry(): SourceAwareHisto
 		}
 		is HistoricalSourceAwarePageEntry.ImportedSteps ->
 			SourceAwareHistoryPageEntry.ImportedSteps(history)
-		is HistoricalSourceAwarePageEntry.ActivityOnly ->
-			SourceAwareHistoryPageEntry.ActivityOnly(entry.entry)
-		is HistoricalSourceAwarePageEntry.PressureOnly ->
-			SourceAwareHistoryPageEntry.PressureOnly(public)
+		is HistoricalSourceAwarePageEntry.SourceOnly -> history.entry
 	}
 
-private fun HistoricalSegmentEvidence.toPublicSessionHistory() = SessionHistory(
-	segmentId = segment.id,
-	capture = captureAuthority.toPublicCapture(),
-	qualifiedSources = qualifiedSources.mapTo(linkedSetOf(), TrackingSourceComponent::toPublicSource),
-	steps = steps.toPublicHistory(),
-)
+private fun HistoricalSegmentEvidence.toPublicSessionHistory(
+	products: SessionHistoryProducts?,
+	readSnapshot: TrackingHistoryReadSnapshot,
+): SessionHistory {
+	val publicCapture = captureAuthority.toPublicCapture()
+	val publicSteps = steps.toPublicHistory()
+	val publicQualifiedSources = products?.let {
+		SessionHistory.deriveQualifiedSources(publicCapture, publicSteps, it)
+	} ?: qualifiedSources.mapTo(linkedSetOf(), TrackingSourceComponent::toPublicSource)
+	return SessionHistory(
+		segmentId = segment.id,
+		capture = publicCapture,
+		qualifiedSources = publicQualifiedSources,
+		steps = publicSteps,
+		sourceProducts = products,
+		readSnapshot = readSnapshot,
+	)
+}
+
+private fun HistoricalTrackingEntryEvidence.toNativeMembership():
+	HistoricalSourceOnlyMembership {
+	check(hasExactStepsOnlyIntent)
+	val logicalIdentity = identity as? HistoricalEntryIdentity.Logical
+		?: error("Exact Steps-only entry requires logical identity")
+	return HistoricalSourceOnlyMembership(
+		source = HistorySource.STEPS,
+		logicalTrackingId = logicalIdentity.logicalTrackingId,
+		physicalSegmentIds = physicalMembers.map { it.segment.id },
+	)
+}
 
 internal fun HistoricalCaptureAuthority.toPublicCapture(): HistoryCapture = when (this) {
 	is HistoricalCaptureAuthority.Exact -> HistoryCapture.Exact(

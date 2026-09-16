@@ -27,6 +27,8 @@ internal class PressureHistoryPageReader @Inject constructor(
 	private val liveSelector: PressureHistorySelector,
 	private val importedEvaluator: ImportedPressureHistoryEvaluator,
 	private val portableReader: PortablePressureRoomReader,
+	private val integrationObserver: TrackingHistoryIntegrationObserver =
+		TrackingHistoryIntegrationObserver(),
 ) : PressureImportedHistoryEligibleReader {
 	internal suspend fun selectRecent(limit: Int): List<PressureOnlyHistoryEntry> =
 		database.withTransaction {
@@ -40,6 +42,9 @@ internal class PressureHistoryPageReader @Inject constructor(
 						selection.reason.toPageUnavailableReason(),
 					)
 			}
+			integrationObserver.record(
+				TrackingHistoryIntegrationCheckpoint.PRESSURE_LIVE_SELECTOR,
+			)
 			val live = liveSelector.discoverRecentPressureOnlyInTransaction(limit)
 			PressureHistoryPageComposer.compose(
 				live = live.mapNotNull { entry ->
@@ -91,6 +96,9 @@ internal class PressureHistoryPageReader @Inject constructor(
 			val finalBudgetPage = remainingBudget <= PRESSURE_IMPORTED_ELIGIBLE_PAGE_SIZE
 			val probeLimit = pageLimit + if (finalBudgetPage) 1 else 0
 			val candidateProbe = try {
+				integrationObserver.record(
+					TrackingHistoryIntegrationCheckpoint.PRESSURE_IMPORTED_CANDIDATE_PAGE,
+				)
 				database.importedPressureDao().recentHistoryCandidatePage(
 					limit = probeLimit,
 					beforeRecencyStartTimeMs = beforeRecencyStartTimeMs,
@@ -123,7 +131,13 @@ internal class PressureHistoryPageReader @Inject constructor(
 			val localDiscovery = try {
 				localAuthorities?.let { PressureLocalDuplicateAuthorityRead.Ready(it) }
 					?: when (
-						val local = liveSelector.discoverPressureOnlyDuplicateAuthorityInTransaction()
+						val local = run {
+							integrationObserver.record(
+								TrackingHistoryIntegrationCheckpoint
+									.PRESSURE_LOCAL_DUPLICATE_SELECTOR,
+							)
+							liveSelector.discoverPressureOnlyDuplicateAuthorityInTransaction()
+						}
 					) {
 						is PressureOnlyDiscoveryResult.Unavailable ->
 							PressureLocalDuplicateAuthorityRead.Unavailable(local.reason)

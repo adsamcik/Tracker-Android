@@ -26,6 +26,8 @@ import kotlinx.coroutines.ensureActive
 @Singleton
 internal class ImportedPressureHistoryEvaluator @Inject constructor(
 	private val database: AppDatabase,
+	private val integrationObserver: TrackingHistoryIntegrationObserver =
+		TrackingHistoryIntegrationObserver(),
 ) {
 	internal suspend fun selectRecentInTransaction(
 		limit: Int,
@@ -34,6 +36,9 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 		recentRecencyAuthorityFailureInTransaction()?.let {
 			return ImportedPressureHistorySelection.Unverifiable(it)
 		}
+		integrationObserver.record(
+			TrackingHistoryIntegrationCheckpoint.PRESSURE_IMPORTED_CANDIDATE_PAGE,
+		)
 		val candidates = database.importedPressureDao().recentHistoryCandidatePage(
 			limit = limit,
 			beforeRecencyStartTimeMs = null,
@@ -59,6 +64,9 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 			currentCoroutineContext().ensureActive()
 			val remaining = PressurePortableFormatV1.MAX_ENTRIES - selected.size
 			val pageLimit = minOf(ImportedPressureDao.MAX_HISTORY_ENTRY_CANDIDATES, remaining + 1)
+			integrationObserver.record(
+				TrackingHistoryIntegrationCheckpoint.PRESSURE_IMPORTED_CANDIDATE_PAGE,
+			)
 			val page = database.importedPressureDao().historyCandidatePageInRange(
 				fromInclusiveMs = request.fromInclusiveMs,
 				toExclusiveMs = request.toExclusiveMs,
@@ -99,13 +107,21 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 	}
 
 	internal suspend fun recentRecencyAuthorityFailureInTransaction():
-		ImportedPressureHistoryFailure? = recencyAuthorityFailure {
-		database.importedPressureDao().recentHistoryRecencyAuthorityPreflight()
+		ImportedPressureHistoryFailure? {
+		integrationObserver.record(
+			TrackingHistoryIntegrationCheckpoint.PRESSURE_RECENCY_PREFLIGHT,
+		)
+		return recencyAuthorityFailure {
+			database.importedPressureDao().recentHistoryRecencyAuthorityPreflight()
+		}
 	}
 
 	private suspend fun rangeRecencyAuthorityFailureInTransaction(
 		request: ExportPortablePressureRequest,
 	): ImportedPressureHistoryFailure? = recencyAuthorityFailure {
+		integrationObserver.record(
+			TrackingHistoryIntegrationCheckpoint.PRESSURE_RECENCY_PREFLIGHT,
+		)
 		database.importedPressureDao().historyRecencyAuthorityPreflightInRange(
 			fromInclusiveMs = request.fromInclusiveMs,
 			toExclusiveMs = request.toExclusiveMs,
@@ -218,6 +234,9 @@ internal class ImportedPressureHistoryEvaluator @Inject constructor(
 			null -> Unit
 		}
 		val identities = candidates.map(ImportedPressureHistoryCandidate::identity)
+		integrationObserver.record(
+			TrackingHistoryIntegrationCheckpoint.PRESSURE_IMPORTED_DETAIL,
+		)
 		val loaded = try {
 			ImportedPressureHistoryBatch(
 				headers = database.importedPressureDao().entryRevisionsForHistory(identities),

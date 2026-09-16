@@ -31,6 +31,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsRunV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsSessionMode
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.StepsAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
@@ -209,6 +210,22 @@ class ImportedStepsProductRoomTest {
 		val page = history.observeRecentStepsAwarePage(listOf(41L, 51L), 10).first()
 		(page.single() as StepsAwareHistoryPageEntry.ImportedSteps).history.physicalMembers.single().segmentId shouldBe 51L
 		exporter.export(request()) { error("A partial export cannot silently omit a failed selected entry") } shouldBe unavailable()
+	}
+
+	@Test
+	fun `corrupt newest imported entry makes coordinated recent page unavailable`() = runTest {
+		seed(entry(listOf(run('2', 10L, 20L, 9L))))
+		seed(entry(listOf(run('4', 30L, 40L, 2L)), '3'), 51L)
+		mutate(
+			"UPDATE imported_steps_run SET retained_checksum = '${"0".repeat(64)}' " +
+				"WHERE session_segment_id = 51",
+		)
+
+		history.observeRecentSourceAwarePage(listOf(41L, 51L), 10).first() shouldBe
+			SourceAwareHistoryPageQuery.Unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+				HistorySource.STEPS,
+			)
 	}
 
 	@Test
