@@ -1,6 +1,51 @@
 # Tracking Infrastructure Verification Matrix
 
-Last updated: 2026-09-15
+Last updated: 2026-09-16
+
+## TI-B340 - Finish-started integration receipt, no execution evidence
+
+- Exact local source integration head before this documentation commit:
+  `7e7f50bdaae025efde7df3d69f85dc2365170699`.
+- Purpose: reviewed `cef95415e2`, rebased `8943f299f8`, local `17b089212e`, reviewed ref
+  `refs/remotes/handover/reviewed/ti-purpose-settings-20260915`.
+- Portable: reviewed `2697903ae6`, rebased `aa9447e070`, local `cb8159d68c`, reviewed ref
+  `refs/remotes/handover/reviewed/ti-portable-file-assembly-20260915`.
+- Final source/schema: reviewed `7142543ba9`, rebased `a4ae2dd57b`, local `527c022e97`,
+  reviewed ref `refs/remotes/handover/reviewed/ti-final-source-schema-20260916`.
+- Five-source history: reviewed `1031df9f35`, rebased `98f2f567ce`, local `14d31f9aa5`,
+  production `f597877bd3`, reviewed ref
+  `refs/remotes/handover/reviewed/ti-five-source-history-20260916`. Closed sources are Steps,
+  Activity, Pressure, Wi-Fi and Cell; Location remains future.
+- Ambient files: reviewed `d5a565b418`, rebased `bf260d7b1f`, local `f67ca6b16e`,
+  reviewed ref `refs/remotes/handover/reviewed/ti-ambient-file-integration-20260916`.
+  Source and registry static reviews are closed.
+- Consumers: reviewed `10ed3b99da`, rebased `5788cf846a`, local `7e7f50bdaa`, reviewed ref
+  `refs/remotes/handover/reviewed/ti-source-history-consumers-20260916`. Final static review is
+  closed.
+- Final source successors: Activity `6dfa4841` / `b6a0b093`, Cell `1ff5ebf7`, Pressure
+  `7ce26646` / `57d23d30`, Wi-Fi `99c56006`, Ambient `0c4728c2` / `220a2721`, radio
+  `1b2467e3`, Location `ea04901e`, runtime `e71c739e`, lifecycle final `ffdef045`.
+  Definitive runtime, Pressure and Location reviews are closed and exact pending/owner DDL is
+  integrated.
+- Static schema inventory: version 28, 32 entity registrations, 35 source tables, 77 indexes,
+  Activity temporal columns, pending owner pairs, Pressure fence owner and owner validation
+  triggers. Generated schema JSON and safe development-v28 handling are explicitly deferred.
+- Registry metadata: 72 items, 293/293 mappings, zero unmapped IDs, duplicate primaries or cycles.
+  Current states are 26 completed accepted slices, 18 partial, 13 planned, 8 decision-required,
+  4 deferred gates and one each foundation/governance/approval-required; 29 items are on local
+  `dev/v10`. All 63 applicable validation states remain `deferred_implementation_only`.
+- Outcome: **IMPLEMENTED_UNVALIDATED / STATIC REVIEW CLOSED / LOCALLY INTEGRATED** for the named
+  started artifacts only. This is not a passed compile, migration, test, schema, device, battery,
+  CI, rollout, activation or full assembly gate.
+- Remaining ordered evidence debt: Location product; purpose publication/atomic radio guard/
+  trusted retention; Ambient execution/P5/settings/export union; Wi-Fi/Cell retention/erase/files/
+  deleted range; Pressure day/range; structural day/shared surfaces/actions/Why-recorded/widgets/
+  effects; executable rearm/propagation; schema JSON/development-v28 strategy; product decisions;
+  missing full scenarios; then the frozen final host/device/battery/rollout batch.
+- The one historical accidental Location `git diff --check` produced no evidence. No command in
+  the deferred final batch was run for this receipt.
+- The user published only `3dd1ff004a`; no agent push or activation is authorized. Final main
+  remains local unless the user later publishes it.
 
 ## Registry coverage and process-deviation note
 
@@ -8,12 +53,11 @@ Last updated: 2026-09-15
 parsing, unique-ID, dependency-reference, acyclic-dependency and requirement-coverage checks are
 metadata consistency only; they are not compilation, tests, schema, runtime or device evidence.
 
-Parent freeze inspection initially found three successor paths absent. TI-D267/TI-B335 record
-concrete late owner receipts proving Ambient Steps file actions and shared history consumers were
-already running before their queued freeze arrived. Activity range remains planned. This is
-scope/accounting evidence, not execution validation. TI-B338 records the four narrow source
-producer bridges now in the already-started shared history closure; they are not the future
-structural range wave.
+Parent freeze inspection initially found three successor paths absent. Later concrete receipts
+proved Activity range, Ambient Steps file actions and shared history consumers were already
+running before their queued freeze arrived; TI-B340 records their final closed/local disposition.
+This is scope/accounting evidence, not execution validation. The four narrow source producer
+bridges are part of the closed five-source history chain, not the future structural range wave.
 
 One Location reviewer accidentally invoked `git diff --check`. It produced no output and changed
 no files, and the reviewer was then restricted to source-read tools. This is a process deviation,
@@ -35,7 +79,8 @@ compiler, Gradle, lint, schema, device or CI gate has started for the current as
   `8ba72248`/`76739a35`, Steps and shared ZIP/registry/picker paths. No Ambient/radio formats,
   unreviewed range/bridge inputs, runtime activation, deferred execution or push.
 - Activity range late receipt is `5dc1d0699953867d2f97ccdac83a72a4e34c6234`, combining
-  `57b676e126`, `36082bb8d0` and `630fad31ad`; focused review remains active.
+  `57b676e126`, `36082bb8d0` and `630fad31ad`. At TI-B339 its review remained active;
+  TI-B340 supersedes it with closed/local successors `6dfa4841` and `b6a0b093`.
 - Final metadata result: 72 work items, 293 primary mappings, zero unmapped, zero duplicate primary
   mappings, zero empty child links and zero dependency cycles. The four final audit graph repairs
   are represented directly in `WORK_ITEMS.json`.

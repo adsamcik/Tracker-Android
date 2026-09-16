@@ -1,6 +1,55 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-09-15
+Last updated: 2026-09-16
+
+## Final finish-started local integration snapshot
+
+This section supersedes every older current-state classification below. Local `dev/v10` began this
+documentation leaf clean at `7e7f50bdaae025efde7df3d69f85dc2365170699`. The finish-started
+session scope is closed: all artifacts proven to have started before the freeze are statically
+reviewed and locally integrated, still **IMPLEMENTED_UNVALIDATED**.
+
+| Area | Reviewed original | Rebased | Local integration | Reviewed ref |
+| --- | --- | --- | --- | --- |
+| Purpose | `cef95415e2` | `8943f299f8` | `17b089212e` | `refs/remotes/handover/reviewed/ti-purpose-settings-20260915` |
+| Portable | `2697903ae6` | `aa9447e070` | `cb8159d68c` | `refs/remotes/handover/reviewed/ti-portable-file-assembly-20260915` |
+| Final source/schema | `7142543ba9` | `a4ae2dd57b` | `527c022e97` | `refs/remotes/handover/reviewed/ti-final-source-schema-20260916` |
+| Five-source history | `1031df9f35` | `98f2f567ce` | `14d31f9aa5` | `refs/remotes/handover/reviewed/ti-five-source-history-20260916` |
+| Ambient files | `d5a565b418` | `bf260d7b1f` | `f67ca6b16e` | `refs/remotes/handover/reviewed/ti-ambient-file-integration-20260916` |
+| Consumers | `10ed3b99da` | `5788cf846a` | `7e7f50bdaa` | `refs/remotes/handover/reviewed/ti-source-history-consumers-20260916` |
+
+Final source successors are Activity `6dfa4841` plus `b6a0b093` range/action, Cell `1ff5ebf7`,
+Pressure `7ce26646` / `57d23d30`, Wi-Fi `99c56006`, Ambient `0c4728c2` / files `220a2721`,
+passive radio `1b2467e3`, Location `ea04901e`, runtime `e71c739e` and lifecycle final
+`ffdef045`. Definitive runtime, Pressure and Location reviews are closed. Exact pending/owner DDL
+is integrated.
+
+The version-28 source/schema shape has 32 entity registrations, 35 source tables and 77 indexes,
+plus Activity temporal columns, pending owner pairs, the Pressure fence owner and owner-validation
+triggers. Generated schema JSON and safe existing development-v28 repair remain deferred; no
+schema/migration execution claim is made.
+
+Five-source history production `f597877bd3` plus final chain `1031df9f35` covers Steps, Activity,
+Pressure, Wi-Fi and Cell. Location remains the sixth-source future. Ambient file source and
+registry reviews and the consumer final review are closed.
+
+Registry state is 72 work items and 293/293 primary mappings: 26 completed accepted slices,
+18 partial, 13 planned, 8 decision-required, 4 deferred gates, and one each foundation,
+governance and approval-required. Review state has 27 `closed_static`; integration has 29
+`local_dev`. Validation remains 63 `deferred_implementation_only` and 9 `not_applicable`.
+There are zero unmapped requirements, duplicate primaries or dependency cycles.
+
+The full six-source assembly gate is not closed. Remaining dependency order is Location product;
+purpose publication/atomic radio guard/trusted retention; Ambient Steps execution/P5/settings/
+export union; Wi-Fi/Cell retention/erase/files/deleted range; Pressure day/range; structural day/
+Today/Timeline/Calendar/actions/Why-recorded/widgets/effects; executable multi-generation rearm/
+propagation; schema JSON/development-v28 strategy; AUTO-005/retention/cross-midnight decisions;
+missing full scenarios; then one frozen compile/migration/`ciUnitTest`/`ciCheck`/device/battery/
+rollout batch.
+
+No validation gate, push, activation or publication was authorized. The user personally pushed
+only `3dd1ff004a34beb339539c4961704919d781371c`; final main is local unless the user later
+publishes it. The one historical accidental Location `git diff --check` remains non-evidence.
 
 ## Current post-integration snapshot - graph repaired, remaining artifacts held
 
@@ -16,11 +65,11 @@ Local `dev/v10` is clean at `cb8159d68c81af203f8cf122aa71d4db8981f7b6`.
   current head. It includes closed Activity `153cf5fa`, Pressure `8ba72248`/helper `76739a35`,
   Steps and shared ZIP/registry/picker scope only. No Ambient/radio formats, unreviewed range/
   bridge work or runtime activation entered the merge.
-- Activity range was also already dispatched before the queued freeze. Exact held input
+- Activity range was also already dispatched before the queued freeze. Historical held input
   `5dc1d0699953867d2f97ccdac83a72a4e34c6234` combines the preserved `57b676e126`,
-  `36082bb8d0` range and `630fad31ad` eligible-bridge work; focused review is active. This late
-  receipt supersedes only the earlier point-in-time absence classification and does not authorize
-  post-freeze expansion.
+  `36082bb8d0` range and `630fad31ad` eligible-bridge work. This was active at the older snapshot;
+  the final section above supersedes it with closed/local successors `6dfa4841` and `b6a0b093`.
+  The late receipt never authorized post-freeze expansion.
 - Current parent metadata keeps Location `921324f2`, Cell `a2498308`, Wi-Fi `021f8a48` and radio
   `5589026c` under focused correction/review. None is complete from owner wording.
 - Ambient product `0c4728c2` and Pressure maintenance/bridge `045cd7cf` are source-locally

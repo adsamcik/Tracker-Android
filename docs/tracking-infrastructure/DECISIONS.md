@@ -1,6 +1,49 @@
 # Tracking Infrastructure Decisions
 
-Last updated: 2026-09-15
+Last updated: 2026-09-16
+
+## TI-D271 - Close the finish-started scope without closing six-source assembly
+
+- Status: accepted local documentation receipt, 2026-09-16.
+- All artifacts demonstrably started before TI-D262's freeze are now statically closed and locally
+  integrated as **IMPLEMENTED_UNVALIDATED**. The exact source integration head before this
+  documentation commit is `7e7f50bdaae025efde7df3d69f85dc2365170699`.
+- Preserve exact reviewed chains: Purpose `cef95415e2` -> `8943f299f8` -> `17b089212e`;
+  Portable `2697903ae6` -> `aa9447e070` -> `cb8159d68c`; final source/schema
+  `7142543ba9` -> `a4ae2dd57b` -> `527c022e97`; five-source history `1031df9f35` ->
+  `98f2f567ce` -> `14d31f9aa5`; Ambient files `d5a565b418` -> `bf260d7b1f` ->
+  `f67ca6b16e`; consumers `10ed3b99da` -> `5788cf846a` -> `7e7f50bdaa`.
+- Preserve their exact reviewed refs:
+  `refs/remotes/handover/reviewed/ti-purpose-settings-20260915`,
+  `refs/remotes/handover/reviewed/ti-portable-file-assembly-20260915`,
+  `refs/remotes/handover/reviewed/ti-final-source-schema-20260916`,
+  `refs/remotes/handover/reviewed/ti-five-source-history-20260916`,
+  `refs/remotes/handover/reviewed/ti-ambient-file-integration-20260916`, and
+  `refs/remotes/handover/reviewed/ti-source-history-consumers-20260916`.
+- Final source/schema successors are Activity `6dfa4841` / `b6a0b093`, Cell `1ff5ebf7`,
+  Pressure `7ce26646` / `57d23d30`, Wi-Fi `99c56006`, Ambient `0c4728c2` /
+  `220a2721`, radio `1b2467e3`, Location `ea04901e`, runtime `e71c739e` and lifecycle final
+  `ffdef045`. Definitive runtime, Pressure and Location reviews are closed; exact pending/owner
+  DDL is integrated.
+- The version-28 implementation records 32 entity registrations, 35 source tables and 77 indexes,
+  including Activity temporal columns, pending owner pairs, the Pressure fence owner and owner
+  validation triggers. Generated schema JSON and existing development-v28 repair remain deferred.
+- Five-source history production `f597877bd3` plus chain `1031df9f35` closes Steps, Activity,
+  Pressure, Wi-Fi and Cell only. Location remains the sixth-source future. Ambient source/registry
+  review and consumer final review are closed.
+- Keep 72 work items and 293/293 primary mappings; do not add IDs merely to record integration.
+  There are zero unmapped requirements, duplicate primaries or cycles.
+- Closing the finish-started session is not assembly completion, validation readiness, activation
+  or publication approval. Keep the ordered backlog: Location product; purpose publication/atomic
+  radio guard/trusted retention; Ambient execution/P5/settings/export union; radio retention/
+  erase/files/deleted range; Pressure day/range; structural day/shared surfaces/actions/
+  Why-recorded/widgets/effects; executable rearm/source propagation; schema JSON/development-v28
+  strategy; AUTO-005/retention/cross-midnight choices; missing scenarios; final frozen gates.
+- The user personally published only `3dd1ff004a34beb339539c4961704919d781371c`.
+  Final main remains local unless the user later publishes it. No agent push, provider/writer
+  activation, release or rollout is authorized.
+- The one historical accidental Location `git diff --check` remains a process deviation and
+  non-evidence.
 
 ## TI-D270 - Record serialized local integrations and final audit graph repairs
 
@@ -117,7 +160,8 @@ Last updated: 2026-09-15
   Activity/Pressure transactional recent producer bridges required by shared history
   `1c94219ac3d67baa5fd870ac2f79d96d081bdcac`.
 - TI-D267 supersedes the Ambient-file and shared-consumer classifications after concrete late
-  owner receipts. Activity range remains planned.
+  owner receipts. TI-D270 later records the Activity range receipt, and TI-D271 supersedes all
+  three with their final closed/local disposition.
 - The user's full documentation/work-item request remains active. TI-D262 freezes production scope
   expansion, not documentation tracking. The documentation owner continues local registry/ledger
   updates and never starts production code or pushes.

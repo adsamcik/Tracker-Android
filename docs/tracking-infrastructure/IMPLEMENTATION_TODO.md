@@ -1,5 +1,61 @@
 # Tracking Infrastructure Completion TODO
 
+## 2026-09-16 finish-started closure
+
+This section supersedes the current-head/review/integration classifications below. The exact local
+source integration head before this documentation commit is
+`7e7f50bdaae025efde7df3d69f85dc2365170699`. Every artifact that was already started at the
+scope-freeze boundary is now statically reviewed and locally integrated as
+**IMPLEMENTED_UNVALIDATED**:
+
+- Purpose `cef95415e2` -> `8943f299f8` -> `17b089212e`, reviewed ref
+  `refs/remotes/handover/reviewed/ti-purpose-settings-20260915`.
+- Portable `2697903ae6` -> `aa9447e070` -> `cb8159d68c`, reviewed ref
+  `refs/remotes/handover/reviewed/ti-portable-file-assembly-20260915`.
+- Final source/schema `7142543ba9` -> `a4ae2dd57b` -> `527c022e97`, reviewed ref
+  `refs/remotes/handover/reviewed/ti-final-source-schema-20260916`.
+- Five-source history `1031df9f35` -> `98f2f567ce` -> `14d31f9aa5`, reviewed ref
+  `refs/remotes/handover/reviewed/ti-five-source-history-20260916`; production `f597877bd3`
+  and its complete chain cover Steps, Activity, Pressure, Wi-Fi and Cell. Location is sixth-source
+  future work.
+- Ambient files `d5a565b418` -> `bf260d7b1f` -> `f67ca6b16e`, reviewed ref
+  `refs/remotes/handover/reviewed/ti-ambient-file-integration-20260916`; source and registry
+  reviews are closed.
+- Consumers `10ed3b99da` -> `5788cf846a` -> `7e7f50bdaa`, reviewed ref
+  `refs/remotes/handover/reviewed/ti-source-history-consumers-20260916`; final review is closed.
+
+The final source/schema integration contains reviewed Activity `6dfa4841` / `b6a0b093`, Cell
+`1ff5ebf7`, Pressure `7ce26646` / `57d23d30`, Wi-Fi `99c56006`, Ambient product `0c4728c2`,
+Ambient files `220a2721`, passive radio `1b2467e3`, Location `ea04901e`, runtime `e71c739e` and
+lifecycle final `ffdef045`. Runtime, Pressure and Location definitive reviews are closed. The
+version-28 implementation shape records 32 entity registrations, 35 source tables and 77 indexes,
+including Activity temporal columns, pending owner pairs, the Pressure fence owner and owner
+validation triggers. Generated schema JSON and safe development-v28 repair remain deferred.
+
+Registry coverage remains 72 work items and 293/293 primary requirement mappings, with zero
+unmapped IDs, duplicate primaries or dependency cycles. Checkbox history remains 71 checked and
+222 unchecked; no broad TODO was checked merely because a started slice was integrated.
+
+The finish-started session scope is closed, but the full six-source assembly gate remains open.
+Continue only under a new bounded assignment, in this dependency order:
+
+1. Location production catalog/manifest/query and active/passive product.
+2. Real purpose publication, atomic radio guard and trusted retention producer.
+3. Ambient Steps execution lane, P5 count-domain receipt, settings and export union.
+4. Wi-Fi/Cell retention, source erase, files and deleted range.
+5. Pressure day/range.
+6. Shared structural day/Today/Timeline/Calendar, actions, Why-recorded, widgets and effects.
+7. Executable multi-generation rearm and source propagation.
+8. Final schema JSON and safe development-v28 strategy.
+9. AUTO-005, retention/privacy and cross-midnight decisions.
+10. Full scenario sources where current source-local coverage is incomplete.
+11. Freeze one final input, then run compile/migration, `ciUnitTest`, `ciCheck`, emulator/device,
+    battery and rollout gates only after the implementation-only stop is explicitly lifted.
+
+No activation, push or publication approval exists. The user personally published only
+`3dd1ff004a34beb339539c4961704919d781371c`; final main remains local unless the user later
+publishes it. The one historical accidental Location `git diff --check` remains non-evidence.
+
 ## 2026-09-15 superseding local handover notice
 
 Start with [the zero-context handover](handover/2026-09-15/README_START_HERE.md) and its
@@ -15,7 +71,7 @@ Preserve six protected root paths and two frozen unaccepted importer/awards draf
 quarantines their exact patches/files rather than merging them. The canonical stable-ID TODO
 remains open: transport assembly is not final convergence/readiness. Original refs are retained.
 
-Last updated: 2026-09-15
+Last updated: 2026-09-16
 
 ## Current integration and graph receipt
 

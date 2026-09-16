@@ -1,16 +1,114 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-15T22:43:25.483+02:00",
+  "updated_at": "2026-09-16T18:02:20.428+02:00",
   "repository": {
     "branch": "dev/v10",
-    "local_head_at_task_start": "6744ced52037d531e56751777b519165167e6b19",
-    "current_local_head_at_refresh": "cb8159d68c81af203f8cf122aa71d4db8981f7b6",
+    "local_head_at_task_start": "7e7f50bdaae025efde7df3d69f85dc2365170699",
+    "current_local_head_at_refresh": "7e7f50bdaae025efde7df3d69f85dc2365170699",
+    "source_integration_head_before_documentation_commit": "7e7f50bdaae025efde7df3d69f85dc2365170699",
     "user_published_checkpoint": "3dd1ff004a34beb339539c4961704919d781371c",
     "publication_actor": "user",
+    "final_main_publication": "local_only_unless_user_later_publishes",
     "agent_push_authorized": false,
     "candidate_activation": "off",
     "release_authorized": false
   },
+  "final_integration_receipts": [
+    {
+      "area": "purpose settings",
+      "reviewed_ref": "refs/remotes/handover/reviewed/ti-purpose-settings-20260915",
+      "original_commit": "cef95415e2f5e77fb9e12ea3e95776ef26e36efe",
+      "rebased_commit": "8943f299f812a903f68dbc172412da2c9982a4eb",
+      "local_integration_commit": "17b089212e0bbbb9cd4438d118d86e624b5c7e6f",
+      "review_state": "closed_static",
+      "validation_state": "deferred_implementation_only"
+    },
+    {
+      "area": "portable file assembly",
+      "reviewed_ref": "refs/remotes/handover/reviewed/ti-portable-file-assembly-20260915",
+      "original_commit": "2697903ae6a2b5a61acd2981c990c3f3638d9a37",
+      "rebased_commit": "aa9447e070e67e9a6802e940b2bae6c1e3da9a81",
+      "local_integration_commit": "cb8159d68c81af203f8cf122aa71d4db8981f7b6",
+      "review_state": "closed_static",
+      "validation_state": "deferred_implementation_only"
+    },
+    {
+      "area": "final source and schema assembly",
+      "reviewed_ref": "refs/remotes/handover/reviewed/ti-final-source-schema-20260916",
+      "original_commit": "7142543ba9556d9fa9cf484bd6b642c8e9c3e755",
+      "rebased_commit": "a4ae2dd57b87c5f16bb172dc4266a3021adff5c9",
+      "local_integration_commit": "527c022e9778eea43d71b47723b918601fb464da",
+      "review_state": "closed_static",
+      "validation_state": "deferred_implementation_only",
+      "source_successors": {
+        "activity_range": "6dfa484128b43c6c47ca9a66571a607561227fe7",
+        "activity_actions": "b6a0b0933ff4a65d5c536ff0cda98d21fb983f41",
+        "cell": "1ff5ebf7d18ddf6fed4741d256a2f4532040700c",
+        "pressure_qualification": "7ce26646d3c68f42da8da4aed75634f17a55762d",
+        "pressure_recency": "57d23d3050bf56b64bb00c15fa66dca245b5c71e",
+        "wifi": "99c560062df223ba719a485532f044ac9d62a247",
+        "ambient_product": "0c4728c2b50efd5f68a6013d89f8b4408837d18b",
+        "ambient_files": "220a2721825272bdf84f5f8ece80c52f8dc37c50",
+        "passive_radio": "1b2467e38edade32ef70a9262dad8f221c410733",
+        "location": "ea04901eec35ecd56af208f60c1164206d24b98f",
+        "runtime": "e71c739ea3899538e409bb8e807189ce331678e6",
+        "lifecycle_final": "ffdef045b91dc5a2c467616db94d09ff1e05ddb8"
+      },
+      "schema_inventory": {
+        "entity_registrations": 32,
+        "source_tables": 35,
+        "indexes": 77,
+        "database_version": 28,
+        "included": [
+          "Activity temporal columns",
+          "pending owner pairs",
+          "Pressure fence owner",
+          "owner validation triggers"
+        ],
+        "deferred": [
+          "generated schema JSON",
+          "safe existing development-v28 repair strategy"
+        ]
+      }
+    },
+    {
+      "area": "five-source history",
+      "reviewed_ref": "refs/remotes/handover/reviewed/ti-five-source-history-20260916",
+      "original_commit": "1031df9f35e040900e0919fb06705064b07c0286",
+      "rebased_commit": "98f2f567cecdd4ad6b55a252b313125df6a34564",
+      "local_integration_commit": "14d31f9aa536d7f829656e8abcaede4ddab68304",
+      "production_commit": "f597877bd3abac26cae9777a71bcac88f1e81c99",
+      "sources": [
+        "Steps",
+        "Activity",
+        "Pressure",
+        "Wi-Fi",
+        "Cell"
+      ],
+      "location_disposition": "sixth-source future backlog",
+      "review_state": "closed_static",
+      "validation_state": "deferred_implementation_only"
+    },
+    {
+      "area": "Ambient Steps portable file integration",
+      "reviewed_ref": "refs/remotes/handover/reviewed/ti-ambient-file-integration-20260916",
+      "original_commit": "d5a565b4185fb9bc25856134d7547c8f33dc3532",
+      "rebased_commit": "bf260d7b1fc5d837bfe0c96fbfecfc0e48723cdd",
+      "local_integration_commit": "f67ca6b16eb451ce240028b6e3720fbdb11cbd4a",
+      "source_review_state": "closed_static",
+      "registry_review_state": "closed_static",
+      "validation_state": "deferred_implementation_only"
+    },
+    {
+      "area": "source history consumers",
+      "reviewed_ref": "refs/remotes/handover/reviewed/ti-source-history-consumers-20260916",
+      "original_commit": "10ed3b99dad7a2862747b83190ba06fe1323c31f",
+      "rebased_commit": "5788cf846aff808be2cf540c9ef3f49a37fd3708",
+      "local_integration_commit": "7e7f50bdaae025efde7df3d69f85dc2365170699",
+      "review_state": "closed_static",
+      "validation_state": "deferred_implementation_only"
+    }
+  ],
   "authority": {
     "requirements_checklist": "IMPLEMENTATION_TODO.md",
     "execution_registry": "WORK_ITEMS.json",
@@ -36,16 +134,15 @@
     }
   },
   "session_scope": {
-    "name": "finish_already_started_only",
+    "name": "finish_already_started_closed",
     "scope_expansion_frozen": true,
     "assembly_input_frozen": false,
+    "finish_started_scope_closed": true,
     "allowed": [
-      "Finish an artifact demonstrably started before the scope boundary.",
-      "Apply directly necessary corrections and author matching test source.",
-      "Perform focused static review and exact local commits.",
-      "Add the two narrow producer bridges required to close the already-started shared history union if confirmed.",
-      "Preserve and bounded-review a late-receipt artifact when the owner proves it was already running before the queued freeze was received.",
-      "Continue the user-requested documentation and work-item tracking without starting production code."
+      "Preserve the reviewed refs and local IMPLEMENTED_UNVALIDATED integrations.",
+      "Keep the complete dependency-ordered backlog and deferred gates explicit.",
+      "Resume work only through a new explicit bounded assignment.",
+      "Close this user-requested documentation and work-item tracking receipt without starting production code."
     ],
     "prohibited": [
       "Start an unstarted successor lane or future feature wave.",
@@ -53,7 +150,7 @@
       "Push, activate providers/writers, release or roll out.",
       "Treat a branch, authored test or review agreement as complete validation."
     ],
-    "after_current_artifact": "Owner becomes idle until a specific bounded closure request."
+    "after_current_artifact": "The finish-started session scope is closed. Resume only through a new explicit bounded assignment; the full six-source assembly gate remains open."
   },
   "state_definitions": {
     "completed_foundation": "Accepted base architecture that remains a dependency, not whole-program proof.",
@@ -96,13 +193,13 @@
   "known_dependency_contradictions": [
     {
       "id": "CONTRADICTION-HISTORY-BRIDGES",
-      "description": "The held 58c shared history union requires the 0d contract, four source-owned imported-history producer bridges and a real nonempty chain.",
-      "resolution": "Track WI-SHARED-HISTORY-BRIDGES-001 plus its Activity, Pressure, Wi-Fi and Cell children; do not conflate them with structural range/UI work."
+      "description": "The historical 58c shared history union required the 0d contract, four source-owned imported-history producer bridges and a real nonempty chain.",
+      "resolution": "Resolved and locally integrated in the reviewed five-source history receipt at 14d31f9aa5. Location remains a sixth-source future and structural range/UI remain separate backlog."
     },
     {
       "id": "CONTRADICTION-RUNTIME-OWNER-GENERATIONS",
-      "description": "The committed runtime contracts do not yet have generation-aware writer/reader/maintenance propagation for four sources or the required SourceDestination validation and Location binding.",
-      "resolution": "Keep 43db9556 held and require real repeated owner/rearm cycles plus only source_capture_admission_barrier and source_run_retirement DDL in WI-RUNTIME-PRODUCER-PROPAGATION-001; do not restore source_maintenance_authority."
+      "description": "The reviewed runtime contracts and exact pending/owner DDL are locally integrated, but executable generation-aware writer/reader/maintenance propagation remains absent.",
+      "resolution": "Require real repeated owner/rearm cycles and source propagation in WI-RUNTIME-PRODUCER-PROPAGATION-001. Preserve the integrated owner/pending schema and do not restore source_maintenance_authority."
     },
     {
       "id": "CONTRADICTION-AMBIENT-STEPS-LANE",
@@ -111,8 +208,8 @@
     },
     {
       "id": "CONTRADICTION-LOCAL-PUBLISHED-HEAD",
-      "description": "The user-published boundary is 3dd1ff004a while local documentation continued at 6744ced520.",
-      "resolution": "Track publication and local head separately; no agent push is authorized."
+      "description": "The only user-published boundary is 3dd1ff004a while the reviewed source integration advanced local dev/v10 through 7e7f50bdaa.",
+      "resolution": "Keep final main local unless the user later publishes it; no agent push is authorized."
     }
   ],
   "coverage": {
@@ -124,38 +221,31 @@
     "duplicate_primary_mappings": [],
     "work_item_count": 72,
     "implementation_state_counts": {
-      "active_correction": 1,
-      "active_documentation": 1,
       "active_governance": 1,
       "approval_required": 1,
-      "committed_held": 8,
-      "completed_accepted_slice": 15,
+      "completed_accepted_slice": 26,
       "completed_foundation": 1,
       "decision_required": 8,
       "gate_deferred": 4,
       "partial_implemented": 18,
-      "planned": 14
+      "planned": 13
     }
   },
   "review_state_counts": {
-    "active": 7,
-    "blocked_findings": 3,
     "closed_except_decision": 1,
-    "closed_static": 17,
-    "continuous": 2,
+    "closed_static": 27,
+    "continuous": 1,
     "historical_accepted": 1,
-    "mixed": 14,
+    "mixed": 16,
     "not_applicable": 9,
-    "not_started": 18
+    "not_started": 17
   },
   "integration_state_counts": {
-    "held_branch": 15,
-    "local_dev": 11,
+    "local_dev": 29,
     "local_only": 1,
-    "mixed_source_refs": 14,
+    "mixed_source_refs": 16,
     "not_applicable": 9,
-    "not_started": 18,
-    "source_branch": 4
+    "not_started": 17
   },
   "validation_state_counts": {
     "deferred_implementation_only": 63,
@@ -172,8 +262,8 @@
         "Unchecked broad requirements retain implemented sub-slice evidence and are not interpreted as absent.",
         "Scope freeze, publication boundary and process deviations remain explicit."
       ],
-      "implementation_state": "active_documentation",
-      "review_state": "continuous",
+      "implementation_state": "completed_accepted_slice",
+      "review_state": "closed_static",
       "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
@@ -197,12 +287,13 @@
       ],
       "dependencies": [],
       "known_blockers": [],
-      "next_bounded_action": "Continue authorized tracking-only updates as owner receipts, correction closures and integration dispositions arrive; do not start production work.",
+      "next_bounded_action": "Finish-started documentation scope is closed at the final local integration receipt. Remain idle until a new explicit bounded assignment.",
       "evidence": {
         "commits": [
           "3dd1ff004a34beb339539c4961704919d781371c",
           "6744ced52037d531e56751777b519165167e6b19",
-          "d10ac8aad09c99cb394a89a32b04239ee9d7fc29"
+          "d10ac8aad09c99cb394a89a32b04239ee9d7fc29",
+          "7e7f50bdaae025efde7df3d69f85dc2365170699"
         ],
         "documents": [
           "IMPLEMENTATION_TODO.md",
@@ -390,7 +481,7 @@
       ],
       "implementation_state": "completed_accepted_slice",
       "review_state": "closed_static",
-      "integration_state": "held_branch",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": null,
@@ -418,11 +509,9 @@
         "WI-LOCATION-HANDOFF-001"
       ],
       "known_blockers": [
-        "The original bundled Ambient Steps and protected Location producer prerequisites remain blocked.",
-        "Pressure 39198f5 is not merged.",
-        "Two Cell deletion entities and the passive-radio 18-table schema are unstarted backlog and outside this frozen branch."
+        "Generated schema JSON and safe handling of pre-existing development-v28 databases remain deferred to the final convergence decision and validation batch."
       ],
-      "next_bounded_action": "Keep exact input fcc2162d held. Integrate only after its bundled source prerequisites close; do not start Pressure, Cell or radio schema assembly.",
+      "next_bounded_action": "Preserve this bounded schema slice inside the locally integrated final source/schema assembly at 527c022e97; do not claim migration or generated-schema proof.",
       "evidence": {
         "branch": "codex/ti-imported-schema-assembly-20260915",
         "branch_tip_at_snapshot": "fcc2162d5aa70c81c53bcd4f5336f3a20ab0c43f",
@@ -623,17 +712,17 @@
     {
       "id": "WI-SCHEMA-CONVERGENCE-001",
       "title": "Complete all-source v28 schema convergence",
-      "outcome": "Assemble the remaining six-source tables, fields, full-clear footprints, indexes and migration handling without treating the closed Ambient/Location slice as the whole database.",
+      "outcome": "Assemble the reviewed six-source tables, fields, full-clear footprints, owner validation and bounded indexes while deferring generated schema and existing development-v28 handling.",
       "acceptance_criteria": [
         "Final entities, columns, foreign keys and bounded indexes cover every accepted source producer and maintenance path.",
         "Both full-clear entry points preserve every required deletion, retention, receipt and lifecycle footprint.",
-        "Released v27 data has authored populated migration/reopen coverage and old development-v28 databases have an explicit safe handling plan.",
+        "Production DDL remains at version 28; generated schema JSON and safe old development-v28 handling remain explicit final-batch work.",
         "Pressure, Cell, radio and runtime tables are added only from reviewed source contracts; the obsolete source_maintenance_authority table remains absent.",
-        "The final exact shape is frozen before schema generation or execution."
+        "The implementation-only shape records 32 entity registrations, 35 source tables and 77 indexes before schema generation or execution."
       ],
-      "implementation_state": "planned",
-      "review_state": "not_started",
-      "integration_state": "not_started",
+      "implementation_state": "completed_accepted_slice",
+      "review_state": "closed_static",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": null,
@@ -655,17 +744,22 @@
         "WI-PRESSURE-MAINTENANCE-001",
         "WI-CELL-PRODUCT-CORRECTION-001",
         "WI-AMBIENT-RADIO-001",
-        "WI-RUNTIME-PRODUCER-PROPAGATION-001",
+        "WI-RUNTIME-SETTLEMENT-001",
         "WI-STEPS-AMBIENT-PRODUCT-CORRECTION-001",
         "WI-LOCATION-HANDOFF-001"
       ],
       "known_blockers": [
-        "Pressure, Cell, passive-radio and runtime producer contracts are not all accepted.",
-        "The complete all-source input is not frozen.",
-        "Safe old development-v28 handling still requires an explicit decision."
+        "Generated schema JSON remains deferred.",
+        "Safe old development-v28 handling still requires the explicit v28 premise/repair decision and final migration execution."
       ],
-      "next_bounded_action": "Handover backlog. Assemble only after every contributing source contract is reviewed and the parent assigns the bounded final schema convergence.",
-      "evidence": {},
+      "next_bounded_action": "Preserve reviewed original 7142543ba9, rebased a4ae2dd57b and local integration 527c022e97. Defer generated schema and development-v28 repair strategy to the frozen final batch.",
+      "evidence": {
+        "receipt": "final_integration_receipts.final source and schema assembly",
+        "entity_registrations": 32,
+        "source_tables": 35,
+        "indexes": 77,
+        "database_version": 28
+      },
       "related_requirement_ids": [],
       "requirement_ids": [
         "TODO-CORE-001",
@@ -825,7 +919,7 @@
         "Shared runtime contracts are source-locally closed, but they are not executable across all producers.",
         "Real producer/writer/reader/maintenance propagation remains unstarted backlog."
       ],
-      "next_bounded_action": "Preserve the closed shared runtime contracts and do not begin producer propagation.",
+      "next_bounded_action": "Preserve locally integrated runtime/lifecycle settlement and exact owner/pending DDL. Executable multi-generation rearm and source propagation remain ordered backlog.",
       "evidence": {},
       "related_requirement_ids": [],
       "requirement_ids": [
@@ -996,9 +1090,9 @@
         "WI-CROSS-SOURCE-PRIVACY-001"
       ],
       "known_blockers": [
-        "Several source-specific active correction items remain blocked or held."
+        "Location product wiring, source-specific retention/erase/files, executable producer propagation and final cross-source recovery remain backlog."
       ],
-      "next_bounded_action": "No new cross-source data-plane wave; finish only the active source and shared artifacts listed in this registry.",
+      "next_bounded_action": "Preserve the locally integrated started artifacts. Resume remaining data-plane work only through the dependency-ordered backlog.",
       "evidence": {},
       "related_requirement_ids": [],
       "requirement_ids": [
@@ -1351,7 +1445,7 @@
         "Current runtime authority incorrectly consults a session AMBIENT lane.",
         "Execution authority, full settings/permissions and the P5 session-domain receipt are not closed."
       ],
-      "next_bounded_action": "Preserve source-locally closed product 0c and file 220 inputs. Hand over execution authority, P5, settings, schema and shared day/UI work.",
+      "next_bounded_action": "Preserve locally integrated product 0c and file 220 inputs. Hand over execution authority, P5 count-domain receipt, settings, export union and shared day/UI work.",
       "evidence": {},
       "related_requirement_ids": [],
       "requirement_ids": [
@@ -1383,7 +1477,7 @@
       ],
       "implementation_state": "completed_accepted_slice",
       "review_state": "closed_static",
-      "integration_state": "held_branch",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": "WI-STEPS-AMBIENT-001",
@@ -1407,7 +1501,7 @@
       "known_blockers": [
         "Exact P5 session count-domain receipt remains a separate unstarted producer dependency."
       ],
-      "next_bounded_action": "Preserve source-locally closed input 0c4728c2 with typed Unproven P5 behavior. Do not implement P5, execution authority, settings or shared day/UI in this artifact.",
+      "next_bounded_action": "Preserve locally integrated input 0c4728c2 with typed Unproven P5 behavior. P5, execution authority, settings and shared day/UI remain separate backlog.",
       "evidence": {
         "branch": "codex/ti-ambient-steps-product-20260915",
         "branch_tip_at_snapshot": "0c4728c2b50efd5f68a6013d89f8b4408837d18b",
@@ -1513,13 +1607,13 @@
       "outcome": "Preserve and bounded-review the 12-file Ambient Steps portable import/export/reexport artifact that was already running before the freeze was received.",
       "acceptance_criteria": [
         "The exact production d6cc1a0b and test-source 6a264416 plus 798613dd artifact remains clean and bounded to its 12 owned files.",
-        "Current held input 220a2721 incorporates only reviewed file/helper/Ambient core prerequisites without feature expansion.",
+        "Reviewed input 220a2721 is locally integrated through the dedicated Ambient file receipt without feature expansion.",
         "Native and imported origins remain separate; no union export or continuation is invented.",
         "Registry/picker wiring remains a separate shared integration dependency."
       ],
       "implementation_state": "completed_accepted_slice",
       "review_state": "closed_static",
-      "integration_state": "held_branch",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "late_start_confirmed",
       "parent_id": "WI-STEPS-AMBIENT-001",
@@ -1541,10 +1635,9 @@
         "WI-SHARED-FILE-ASSEMBLY-001"
       ],
       "known_blockers": [
-        "Ambient product f6 remains blocked and shared portable 5705 remains held.",
-        "Activity and registry/picker integration remain held or unstarted."
+        "Ambient Steps execution authority, P5 receipt, settings and export-union composition remain separate backlog."
       ],
-      "next_bounded_action": "Preserve source-closed held input 220a2721. Do not add union export, continuation, registry/picker wiring or another feature.",
+      "next_bounded_action": "Preserve reviewed 220a2721 through Ambient file integration f67ca6b16e. Do not infer export-union or execution-lane completion.",
       "evidence": {
         "branch": "codex/ti-ambient-steps-file-actions-20260915",
         "branch_tip_at_snapshot": "220a2721825272bdf84f5f8ece80c52f8dc37c50",
@@ -1916,9 +2009,9 @@
         "WI-SCHEMA-CONVERGENCE-001"
       ],
       "known_blockers": [
-        "Pressure maintenance and full day/range product remain incomplete; executable runtime producer propagation is backlog."
+        "Pressure day/range product and executable runtime producer propagation remain incomplete."
       ],
-      "next_bounded_action": "Preserve source-locally closed maintenance/bridge 045 and files 8ba. Hand over runtime/schema integration and the full day/range product.",
+      "next_bounded_action": "Preserve locally integrated Pressure maintenance, recency/qualification bridges and file scope. Hand over day/range product and executable rearm propagation.",
       "evidence": {},
       "related_requirement_ids": [],
       "requirement_ids": [
@@ -1954,7 +2047,7 @@
       ],
       "implementation_state": "completed_accepted_slice",
       "review_state": "closed_static",
-      "integration_state": "held_branch",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": "WI-PRESSURE-VERTICAL-001",
@@ -1986,10 +2079,9 @@
         "WI-RUNTIME-SETTLEMENT-001"
       ],
       "known_blockers": [
-        "Runtime still needs a positive legacy-write generation token, verifySettled, in-memory/durable pending fence and demand CAS.",
-        "Shared wiring still needs two additional entities, the five-table helper, four entry-deletion columns, retention checksum and source-erase witness fields."
+        "Pressure day/range presentation and executable multi-generation producer propagation remain separate backlog."
       ],
-      "next_bounded_action": "Preserve source-locally closed input 045cd7cf. Runtime barrier and all-source schema assembly remain separate dependencies.",
+      "next_bounded_action": "Preserve the definitive Pressure review and locally integrated 7ce26646/57d23d30 successors inside 527c022e97. Do not claim execution proof.",
       "evidence": {
         "branch": "codex/ti-pressure-import-maintenance-20260915",
         "branch_tip_at_snapshot": "045cd7cfbd640b898e4edf9ded485025b436f8b8",
@@ -2119,7 +2211,7 @@
         "WI-PRESSURE-MAINTENANCE-001"
       ],
       "known_blockers": [],
-      "next_bounded_action": "Preserve reviewed source 8ba72248 and exact helper 76739a35. No new Pressure file feature; shared consumers integrate through their held artifacts.",
+      "next_bounded_action": "Preserve reviewed source 8ba72248 and exact helper 76739a35. No new Pressure file feature; final consumers are locally integrated separately.",
       "evidence": {
         "branch": "codex/ti-pressure-file-actions-20260915",
         "branch_tip_at_snapshot": "8ba72248ba2b9ade2908947d1858ec6420e74c3d",
@@ -2275,9 +2367,9 @@
         "WI-PURPOSE-PUBLICATION-001"
       ],
       "known_blockers": [
-        "Current handoff remains blocked and genuine session/batch/recent proof is absent."
+        "Location production catalog, manifest, query, active/passive product and representative provider/device proof remain backlog."
       ],
-      "next_bounded_action": "Finish only the active Location handoff correction; hand over product and ambient successors.",
+      "next_bounded_action": "Preserve the definitive protected Location handoff review inside 527c022e97; implement the Location product/catalog/query chain only under a future bounded assignment.",
       "evidence": {},
       "related_requirement_ids": [],
       "requirement_ids": [
@@ -2309,9 +2401,9 @@
         "Pre-existing IGNORE destination/reason is authenticated exactly before receipt.",
         "Live/offline PersistenceProcessor lifecycle lease prevents stale commits."
       ],
-      "implementation_state": "committed_held",
-      "review_state": "active",
-      "integration_state": "held_branch",
+      "implementation_state": "completed_accepted_slice",
+      "review_state": "closed_static",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": "WI-LOCATION-VERTICAL-001",
@@ -2334,10 +2426,10 @@
         "WI-RUNTIME-SETTLEMENT-001"
       ],
       "known_blockers": [
-        "Final focused review of the global complete-prefix proof and two exact real-derived-only/reason fixtures is running.",
-        "Shared live/offline PersistenceProcessor lifecycle lease and parent runtime/catalog/schema bindings remain backlog."
+        "Location catalog/manifest/query and active/passive product wiring remain separate backlog.",
+        "Compilation, migration and representative device proof remain deferred."
       ],
-      "next_bounded_action": "Hold exact input 921324f2 for the final focused review. Do not add new PersistenceProcessor lease, ingress, schema or provider features.",
+      "next_bounded_action": "Preserve definitive lifecycle successor ffdef045b9 and Location successor ea04901eec in local integration 527c022e97. Do not activate or infer provider proof.",
       "evidence": {
         "branch": "codex/ti-protected-location-handoff-20260915",
         "branch_tip_at_snapshot": "921324f2a436276edfba3f864963b7cb56edef03",
@@ -2532,10 +2624,9 @@
         "WI-SCHEMA-CONVERGENCE-001"
       ],
       "known_blockers": [
-        "The Activity decoder raw-EOFException subtype boundary is under correction.",
-        "Range/product successor is confirmed unstarted backlog; full UI/settings actions remain backlog."
+        "Shared structural day/Today/Timeline/Calendar and remaining cross-source explanation/effect surfaces remain backlog."
       ],
-      "next_bounded_action": "Preserve locally integrated Activity actions/EOF source and finish only the held 5dc range/bridge review. Hand over wider UI/runtime work.",
+      "next_bounded_action": "Preserve locally integrated Activity actions plus 6dfa4841/b6a0b093 range/action successors. Hand over wider shared UI/runtime work.",
       "evidence": {},
       "related_requirement_ids": [],
       "requirement_ids": [
@@ -2596,7 +2687,7 @@
       ],
       "dependencies": [],
       "known_blockers": [],
-      "next_bounded_action": "Preserve locally integrated Activity source actions and raw-EOF correction. Do not widen into the held Activity range/bridge artifact.",
+      "next_bounded_action": "Preserve locally integrated Activity source actions, raw-EOF correction and separately closed range/action successors. Do not infer wider shared UI completion.",
       "evidence": {
         "branch": "codex/ti-activity-source-actions-20260915",
         "branch_tip_at_snapshot": "153cf5fa5618fccf2f02470c9c964105e4b89eff",
@@ -2687,9 +2778,9 @@
         "Stored-zone range selection preserves exact origin, replacement, retention and deletion authority.",
         "No feature consumer or further Activity product is added implicitly."
       ],
-      "implementation_state": "committed_held",
-      "review_state": "active",
-      "integration_state": "held_branch",
+      "implementation_state": "completed_accepted_slice",
+      "review_state": "closed_static",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "late_start_confirmed",
       "parent_id": "WI-ACTIVITY-VERTICAL-001",
@@ -2732,10 +2823,9 @@
         "WI-SHARED-HISTORY-UNION-001"
       ],
       "known_blockers": [
-        "Focused review of combined range/eligible-bridge input 5dc1d069 is running.",
-        "Parent schema and shared history wiring remain held."
+        "All-six structural day/Today/Timeline/Calendar composition remains separate backlog."
       ],
-      "next_bounded_action": "Close only the existing Activity range plus eligible-bridge review at 5dc1d069. Do not start wider UI, file or runtime work.",
+      "next_bounded_action": "Preserve the closed late-start range/action artifact through successors 6dfa4841 and b6a0b093 in local 527c022e97. Do not infer wider UI completion.",
       "evidence": {
         "branch": "codex/ti-activity-range-product-20260915",
         "branch_tip_at_snapshot": "5dc1d0699953867d2f97ccdac83a72a4e34c6234",
@@ -2852,8 +2942,8 @@
         "If CONTROL retention policy is unresolved, automatic Wi-Fi reports CONTROL_RETENTION_POLICY_UNAVAILABLE while manual Wi-Fi remains independent."
       ],
       "implementation_state": "partial_implemented",
-      "review_state": "blocked_findings",
-      "integration_state": "source_branch",
+      "review_state": "mixed",
+      "integration_state": "mixed_source_refs",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": null,
@@ -2880,9 +2970,9 @@
         "WI-SCHEMA-CONVERGENCE-001"
       ],
       "known_blockers": [
-        "The current product/reexport/range/delete lane remains blocked."
+        "Retention, source erase, files/deleted range, purpose publication, runtime and full product surfaces remain incomplete."
       ],
-      "next_bounded_action": "Finish only the existing product/range/selected-delete correction; hand over retention/erase/files/UI.",
+      "next_bounded_action": "Preserve locally integrated Wi-Fi product correction 99c56006. Hand over retention, source erase, files/deleted range and shared product surfaces.",
       "evidence": {},
       "related_requirement_ids": [],
       "requirement_ids": [
@@ -2916,9 +3006,9 @@
         "Empty retained runs classify deleted/ready correctly.",
         "Semantic reexport failure is permanent, query amplification is removed and selector authority is exact."
       ],
-      "implementation_state": "committed_held",
-      "review_state": "active",
-      "integration_state": "held_branch",
+      "implementation_state": "completed_accepted_slice",
+      "review_state": "closed_static",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": "WI-WIFI-VERTICAL-001",
@@ -2941,10 +3031,9 @@
       ],
       "dependencies": [],
       "known_blockers": [
-        "Focused five-case review of 021f8a48 is active.",
-        "Cross-module adapter/engine-app chain and parent table/DDL integration remain held."
+        "Wi-Fi retention, source erase, files/deleted range and full shared product surfaces remain separate backlog."
       ],
-      "next_bounded_action": "Close only the current focused five-case review and preserve the range/selected-delete scope; no retention/source-erase/file successor.",
+      "next_bounded_action": "Preserve the closed Wi-Fi successor 99c56006 in local 527c022e97. Do not infer retention, erase, files or UI completion.",
       "evidence": {
         "branch": "codex/ti-wifi-import-product-20260915",
         "branch_tip_at_snapshot": "021f8a482b9162a03dc0bf4a72904a65e3769a5c",
@@ -3114,8 +3203,8 @@
         "If CONTROL retention policy is unresolved, automatic Cell reports CONTROL_RETENTION_POLICY_UNAVAILABLE while manual Cell remains independent."
       ],
       "implementation_state": "partial_implemented",
-      "review_state": "blocked_findings",
-      "integration_state": "source_branch",
+      "review_state": "mixed",
+      "integration_state": "mixed_source_refs",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": null,
@@ -3142,9 +3231,9 @@
         "WI-SCHEMA-CONVERGENCE-001"
       ],
       "known_blockers": [
-        "Current product/range/delete artifact has unresolved correctness defects."
+        "Retention, source erase, files/deleted range, purpose publication, runtime and full product surfaces remain incomplete."
       ],
-      "next_bounded_action": "Finish only the current correction/review; hand over retention, erase and files.",
+      "next_bounded_action": "Preserve locally integrated Cell product correction 1ff5ebf7. Hand over retention, source erase, files/deleted range and shared product surfaces.",
       "evidence": {},
       "related_requirement_ids": [],
       "requirement_ids": [
@@ -3178,9 +3267,9 @@
         "Deleted-footprint rehash topology, zero-time replay and known-runless NotFound are exact.",
         "Deleted-local detail is not misclassified as corruption and facade duplicate suppression is exact."
       ],
-      "implementation_state": "committed_held",
-      "review_state": "active",
-      "integration_state": "held_branch",
+      "implementation_state": "completed_accepted_slice",
+      "review_state": "closed_static",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": "WI-CELL-VERTICAL-001",
@@ -3202,10 +3291,9 @@
       ],
       "dependencies": [],
       "known_blockers": [
-        "Focused three-case review of a2498308 is active.",
-        "Four entity/DDL, full-clear and deleted-range parent assembly remains held."
+        "Cell retention, source erase, files/deleted range and full shared product surfaces remain separate backlog."
       ],
-      "next_bounded_action": "Close only the current focused three-case review. Do not start retention, source erase, files or shared UI.",
+      "next_bounded_action": "Preserve the closed Cell successor 1ff5ebf7 in local 527c022e97. Do not infer retention, erase, files or UI completion.",
       "evidence": {
         "branch": "codex/ti-cell-import-product-20260915",
         "branch_tip_at_snapshot": "a2498308900e26b7034e34c54400e542304107a4",
@@ -3354,9 +3442,9 @@
         "Structural day uses stored source time-zone authority; gap-only reads and exports remain visible.",
         "Controller release removes stale session claims, and a real runtime-to-projector chain is covered without blind clearAllTables fence loss."
       ],
-      "implementation_state": "active_correction",
-      "review_state": "blocked_findings",
-      "integration_state": "source_branch",
+      "implementation_state": "completed_accepted_slice",
+      "review_state": "closed_static",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": null,
@@ -3380,13 +3468,11 @@
       ],
       "dependencies": [],
       "known_blockers": [
-        "A private compensation helper remains nested.",
-        "Both cleanup paths can replace the primary failure or cancellation.",
-        "A test uses portableEffect before declaration.",
-        "Parent guard, 22-table DDL and producer/runtime/DI/UI bindings remain held.",
+        "Real purpose publication, atomic radio guard and trusted retention producer remain separate backlog.",
+        "Runtime/DI/query/UI product bindings remain incomplete.",
         "Native Wi-Fi coverage remains UNVERIFIABLE and Cell subscription coverage remains UNKNOWN by design."
       ],
-      "next_bounded_action": "Correct only the three remaining compensation/test findings at 5589026c and return to the same reviewer; hand over all guard/schema/runtime/DI/UI integration.",
+      "next_bounded_action": "Preserve closed passive-radio successor 1b2467e3 and its locally integrated registry/schema scope at 527c022e97. Do not advertise or activate radio support.",
       "evidence": {
         "branch": "codex/ti-passive-ambient-radio-20260915",
         "branch_tip_at_snapshot": "5589026c21f05a0cc30ce2268bad9a1fb1a229ac",
@@ -3726,7 +3812,7 @@
         "WI-PRESSURE-FILES-001"
       ],
       "known_blockers": [],
-      "next_bounded_action": "Preserve locally integrated portable input. Do not add Ambient/radio formats, unreviewed range/bridge work or runtime activation.",
+      "next_bounded_action": "Preserve locally integrated portable input. Ambient Steps files are integrated by their separate reviewed receipt; radio formats and runtime activation remain backlog.",
       "evidence": {
         "branch": "codex/ti-portable-file-assembly-20260915",
         "branch_tip_at_snapshot": "2697903ae6a2b5a61acd2981c990c3f3638d9a37",
@@ -3876,9 +3962,9 @@
         "Physical suppression, duplicate/collision handling and lifecycle_desired_action invalidation are exact.",
         "Exact selected action targets are exposed only where a real dispatcher exists."
       ],
-      "implementation_state": "committed_held",
+      "implementation_state": "completed_accepted_slice",
       "review_state": "closed_static",
-      "integration_state": "held_branch",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": null,
@@ -3901,12 +3987,11 @@
         "WI-SHARED-HISTORY-BRIDGES-001"
       ],
       "known_blockers": [
-        "The four source-owned imported-history producer bridges are not all statically closed.",
-        "A real nonempty five-producer Room chain is not yet wired.",
-        "Protected Location proof, structural day/range and feature consumers remain separate backlog.",
+        "Location remains a sixth-source future.",
+        "Structural day/range and the remaining all-source product surfaces remain separate backlog.",
         "Pressure/local Steps action targets intentionally remain absent pending a dispatcher."
       ],
-      "next_bounded_action": "Preserve owned-closed input c6aad1d9 and wire only statically closed producer bridges into a real nonempty chain. Do not start structural day/range or UI work.",
+      "next_bounded_action": "Preserve reviewed 1031df9f/production f597877b through local five-source history integration 14d31f9aa5. Do not infer Location or structural day/range completion.",
       "evidence": {
         "branch": "codex/ti-shared-history-union-20260915",
         "branch_tip_at_snapshot": "c6aad1d90f81d807fb0151efa5951fcbe62f3e96",
@@ -4104,7 +4189,7 @@
       ],
       "implementation_state": "completed_accepted_slice",
       "review_state": "closed_static",
-      "integration_state": "held_branch",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": null,
@@ -4126,10 +4211,8 @@
         "WI-HISTORY-BRIDGE-WIFI-001",
         "WI-HISTORY-BRIDGE-CELL-001"
       ],
-      "known_blockers": [
-        "The four producer bridge closures and real nonempty chain are not all complete."
-      ],
-      "next_bounded_action": "Preserve static-closed contract c6aad1d9 and assemble only the four producer adapters into shared history; no structural range or feature consumer work.",
+      "known_blockers": [],
+      "next_bounded_action": "Preserve the closed four-producer contract and real nonempty chain in local five-source history integration 14d31f9aa5; no structural range or extra UI work is implied.",
       "evidence": {
         "branch": "codex/ti-shared-history-union-20260915",
         "branch_tip_at_snapshot": "c6aad1d90f81d807fb0151efa5951fcbe62f3e96",
@@ -4325,9 +4408,9 @@
         "The adapter remains transaction-local and preserves source-specific authority.",
         "Commit 630fad31 is classified only as the current bridge closure, not the planned Activity range wave."
       ],
-      "implementation_state": "committed_held",
-      "review_state": "active",
-      "integration_state": "held_branch",
+      "implementation_state": "completed_accepted_slice",
+      "review_state": "closed_static",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": null,
@@ -4346,10 +4429,8 @@
       "dependencies": [
         "WI-ACTIVITY-ACTIONS-001"
       ],
-      "known_blockers": [
-        "Focused review of combined range/bridge input 5dc1d069 is active."
-      ],
-      "next_bounded_action": "Close only the current bridge portion in the 5dc review; keep wider UI/file/runtime work out of scope.",
+      "known_blockers": [],
+      "next_bounded_action": "Preserve the closed Activity bridge in local five-source history integration 14d31f9aa5; keep wider Activity UI/runtime work separate.",
       "evidence": {
         "branch": "codex/ti-activity-range-product-20260915",
         "branch_tip_at_snapshot": "5dc1d0699953867d2f97ccdac83a72a4e34c6234",
@@ -4467,7 +4548,7 @@
       ],
       "implementation_state": "completed_accepted_slice",
       "review_state": "closed_static",
-      "integration_state": "held_branch",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": null,
@@ -4484,10 +4565,8 @@
       "dependencies": [
         "WI-PRESSURE-MAINTENANCE-001"
       ],
-      "known_blockers": [
-        "Parent shared-history wiring and all-source schema integration remain held."
-      ],
-      "next_bounded_action": "Preserve source-locally closed input 045cd7cf and wire only this producer into shared history; do not start WI-PRESSURE-PRODUCT-001.",
+      "known_blockers": [],
+      "next_bounded_action": "Preserve the closed Pressure bridge in local five-source history integration 14d31f9aa5; do not infer Pressure day/range completion.",
       "evidence": {
         "branch": "codex/ti-pressure-import-maintenance-20260915",
         "branch_tip_at_snapshot": "045cd7cfbd640b898e4edf9ded485025b436f8b8",
@@ -4589,9 +4668,9 @@
         "SQL ordering, stop/limit behavior and caps preserve newest-member recency.",
         "The adapter does not start retention, file, UI or provider work."
       ],
-      "implementation_state": "committed_held",
-      "review_state": "active",
-      "integration_state": "source_branch",
+      "implementation_state": "completed_accepted_slice",
+      "review_state": "closed_static",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": null,
@@ -4608,10 +4687,8 @@
       "dependencies": [
         "WI-WIFI-PRODUCT-CORRECTION-001"
       ],
-      "known_blockers": [
-        "Focused review of 81fe0653 SQL ordering, stop/limit and caps is active."
-      ],
-      "next_bounded_action": "Close only the existing Wi-Fi bridge review and supply the adapter to shared history.",
+      "known_blockers": [],
+      "next_bounded_action": "Preserve the closed Wi-Fi bridge in local five-source history integration 14d31f9aa5; keep retention/files/UI separate.",
       "evidence": {
         "branch": "codex/ti-wifi-import-product-20260915",
         "branch_tip_at_snapshot": "021f8a482b9162a03dc0bf4a72904a65e3769a5c",
@@ -4720,9 +4797,9 @@
         "Source recency metadata is exact and bounded before the shared limit.",
         "The adapter remains separate from retention, files, UI and broader Cell range work."
       ],
-      "implementation_state": "committed_held",
-      "review_state": "active",
-      "integration_state": "held_branch",
+      "implementation_state": "completed_accepted_slice",
+      "review_state": "closed_static",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": null,
@@ -4739,10 +4816,8 @@
       "dependencies": [
         "WI-CELL-PRODUCT-CORRECTION-001"
       ],
-      "known_blockers": [
-        "Focused three-case review of a2498308 is active."
-      ],
-      "next_bounded_action": "Close only the current Cell bridge review, then supply it to shared history.",
+      "known_blockers": [],
+      "next_bounded_action": "Preserve the closed Cell bridge in local five-source history integration 14d31f9aa5; keep retention/files/UI separate.",
       "evidence": {
         "branch": "codex/ti-cell-import-product-20260915",
         "branch_tip_at_snapshot": "a2498308900e26b7034e34c54400e542304107a4",
@@ -4832,7 +4907,7 @@
       ],
       "implementation_state": "completed_accepted_slice",
       "review_state": "closed_static",
-      "integration_state": "held_branch",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "late_start_confirmed",
       "parent_id": null,
@@ -4853,10 +4928,9 @@
         "WI-SHARED-HISTORY-UNION-001"
       ],
       "known_blockers": [
-        "The consumed shared history contract and producer update remain held.",
-        "Activity snapshot expiry remains a future selector API."
+        "Structural day/Today/Timeline/Calendar, source explanations, widgets and remaining effects remain separate backlog."
       ],
-      "next_bounded_action": "Preserve source-locally closed consumer input ab6fdd92. Do not start Location/day/range or additional UI.",
+      "next_bounded_action": "Preserve final reviewed consumer input 10ed3b99, rebased 5788cf846a and local integration 7e7f50bdaa. Do not infer Location/day/range or full UI completion.",
       "evidence": {
         "branch": "codex/ti-source-history-consumers-20260915",
         "branch_tip_at_snapshot": "ab6fdd9296c8df508265c84df37161850f7f5962",
@@ -5187,12 +5261,12 @@
       "known_blockers": [
         "Selected detail and source-only shells exist, but Dashboard/Timeline/Calendar/Trips/maps and final truthful variants are incomplete."
       ],
-      "next_bounded_action": "Preserve accepted detail/source-only shells and the active 707 consumer correction. Hand over remaining surface conversion.",
+      "next_bounded_action": "Preserve the locally integrated source-history consumers at 7e7f50bdaa. Hand over structural day/Today/Timeline/Calendar/Trips/maps and remaining truthful variants.",
       "evidence": {
         "existing_primitives": [
           "selected-detail closure 9c545380/cda6aff",
           "Activity/Pressure source-only recent/live/detail shells",
-          "late-receipt shared consumer artifact 707a1f52 under correction",
+          "late-receipt shared consumer artifact closed and locally integrated through 7e7f50bdaa",
           "existing Dashboard, Timeline, Calendar, Trips and map shells"
         ]
       },
@@ -5308,7 +5382,7 @@
       "known_blockers": [
         "Wi-Fi/Cell remaining maintenance, Ambient Steps files, Pressure maintenance and Location product are incomplete."
       ],
-      "next_bounded_action": "No new cross-source wave; finish current source artifacts and hand over the rest.",
+      "next_bounded_action": "Preserve closed started artifacts and hand over remaining source retention, transfer, erase and no-resurrection work in dependency order.",
       "evidence": {},
       "related_requirement_ids": [],
       "requirement_ids": [
@@ -5403,7 +5477,7 @@
       ],
       "implementation_state": "completed_accepted_slice",
       "review_state": "closed_static",
-      "integration_state": "held_branch",
+      "integration_state": "local_dev",
       "validation_state": "deferred_implementation_only",
       "owner_receipt": "not_applicable",
       "parent_id": null,
@@ -5427,11 +5501,10 @@
       ],
       "dependencies": [],
       "known_blockers": [
-        "Real LegacyPressureWriterLifecycleBarrier and PersistenceProcessor lifecycle lease are absent.",
-        "Generation-aware writer/reader/maintenance support for four sources is unstarted and remains default-unavailable.",
-        "SourceDestination contained constants/validation, Location binding and DDL for source_capture_admission_barrier plus source_run_retirement are absent."
+        "Executable multi-generation rearm and source writer/reader/maintenance propagation remain unimplemented.",
+        "Real purpose publication and atomic source/radio caller guards remain separate backlog."
       ],
-      "next_bounded_action": "Preserve source-locally closed input e71c739e as held. Do not begin producer propagation, schema wiring or source activation.",
+      "next_bounded_action": "Preserve definitive runtime review e71c739e, lifecycle final ffdef045 and exact pending/owner DDL in local 527c022e97. Do not advertise executable source support.",
       "evidence": {
         "branch": "codex/ti-runtime-settlement-20260915",
         "branch_tip_at_snapshot": "e71c739ea3899538e409bb8e807189ce331678e6",
@@ -5609,7 +5682,7 @@
         "Scope freeze: producer propagation is explicitly future backlog.",
         "Pressure and Location producer prerequisites remain blocked."
       ],
-      "next_bounded_action": "Handover backlog. Do not start until Pressure/Location prerequisites close and a new bounded producer-propagation assignment is issued.",
+      "next_bounded_action": "Handover backlog. Implement executable multi-generation rearm and source propagation only under a new bounded assignment; providers remain off.",
       "evidence": {},
       "related_requirement_ids": [
         "TODO-ACT-007",
@@ -6321,7 +6394,7 @@
       "known_blockers": [
         "Implementation backlog and all validation gates remain open."
       ],
-      "next_bounded_action": "Handover backlog; no final integration during implementation-only.",
+      "next_bounded_action": "Final validated convergence remains deferred; current local assembly is IMPLEMENTED_UNVALIDATED and does not satisfy this gate.",
       "evidence": {},
       "related_requirement_ids": [],
       "requirement_ids": [
