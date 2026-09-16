@@ -33,12 +33,18 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntit
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.repository.PressureSessionDeletionResult
 import com.adsamcik.tracker.stats.api.repository.PressureSessionDeletionRetryableReason
 import com.adsamcik.tracker.stats.api.repository.PressureSessionDeletionUnsupportedReason
+import com.adsamcik.tracker.stats.api.repository.ErasePressureSource
+import com.adsamcik.tracker.stats.api.repository.ErasePressureSourceRequest
+import com.adsamcik.tracker.stats.api.repository.ErasePressureSourceResult
+import com.adsamcik.tracker.stats.api.repository.ImportedPressureMaintenanceUnverifiableReason
+import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrier
 import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierResult
 import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierVerification
 import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseFenceOwner
@@ -68,8 +74,10 @@ import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactDrainRe
 import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.pressure.PersistenceLegacyPressureWriterLifecycleBarrier
+import com.adsamcik.tracker.tracker.source.pressure.RuntimePressureSourceEraseBarrier
 import com.adsamcik.tracker.tracker.source.runtime.PressureProviderEraseSettlement
 import com.adsamcik.tracker.tracker.source.runtime.PressureProviderEraseVerification
+import com.adsamcik.tracker.tracker.source.runtime.PressureSourceRuntime
 import io.kotest.assertions.withClue
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveSize
@@ -81,6 +89,7 @@ import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -270,6 +279,122 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		database.pressureFactRevisionDao().count() shouldBe 1L
 		exactFence(fixture) shouldBe null
 	}
+
+	@Test
+	fun `Room source erase composes the exact contained generation three lifecycle fence`() =
+		runTest {
+			assertComposedRoomSourceErase(
+				scheduler = testScheduler,
+				bindingGeneration =
+					SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+			)
+		}
+
+	@Test
+	fun `Room source erase composes a later contained generation and original generation four facts`() =
+		runTest {
+			assertComposedRoomSourceErase(
+				scheduler = testScheduler,
+				bindingGeneration = 2L,
+			)
+		}
+
+	@Test
+	fun `Room source erase rejects mismatched fact projection and wrong contained lane without deletion`() =
+		runTest {
+			val fixture = insertPressureSession("room-source-erase-invalid-fact", 1L, 1_000L, 2_000L)
+			val captureWal = pressureSourceEraseWal(fixture, admissionOrdinal = 2L, capture = true)
+			database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(captureWal)
+				.shouldBeGreaterThanZero()
+			installContainedPressureEraseAuthority(cutoffOrdinal = 2L)
+			installRevokedPressurePolicy()
+			val erase = roomErasePressureSource(
+				realRuntimePressureBarrier(testScheduler),
+				testScheduler,
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE pressure_fact_revision SET writer_projection_id = ? " +
+					"WHERE source_event_id = ?",
+				arrayOf("wrong-pressure-projection", fixture.fact.sourceEventId),
+			)
+
+			erase.erase(sourceEraseRequest()) shouldBe ErasePressureSourceResult.Unverifiable(
+				ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+			database.pressureFactRevisionDao().count() shouldBe 1L
+			database.pressureFactRevisionDao().sourceEraseWalCount() shouldBe 1L
+			database.importedPressureDao().sourceErase() shouldBe null
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE pressure_fact_revision SET writer_projection_id = ? " +
+					"WHERE source_event_id = ?",
+				arrayOf(
+					SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+					fixture.fact.sourceEventId,
+				),
+			)
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_product_projection_lane SET product_stage = ? " +
+					"WHERE source_kind = ?",
+				arrayOf(
+					SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+					SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				),
+			)
+
+			val wrongLane = erase.erase(sourceEraseRequest())
+			(wrongLane is ErasePressureSourceResult.AlreadyErased) shouldBe false
+			database.pressureFactRevisionDao().count() shouldBe 1L
+			database.pressureFactRevisionDao().sourceEraseWalCount() shouldBe 1L
+			database.importedPressureDao().sourceErase() shouldBe null
+		}
+
+	@Test
+	fun `Room source erase rejects WAL attributed to a different original candidate generation`() =
+		runTest {
+			val factFixture = insertPressureSession(
+				"room-source-erase-valid-fact",
+				1L,
+				1_000L,
+				2_000L,
+			)
+			val walFixture = insertPressureSession(
+				key = "room-source-erase-wrong-wal-generation",
+				admissionOrdinal = 2L,
+				startMs = 3_000L,
+				endMs = 4_000L,
+				writerBindingGeneration = 2L,
+			)
+			database.pressureFactRevisionDao().deleteExactServiceRunPageThrough(
+				logicalTrackingId = walFixture.logicalId,
+				serviceRunId = walFixture.runId,
+				writerProjectionId = walFixture.fact.writerProjectionId,
+				writerProjectionVersion = walFixture.fact.writerProjectionVersion,
+				throughLogicalFactId = walFixture.fact.logicalFactId,
+				throughSemanticRevision = walFixture.fact.semanticRevision,
+			) shouldBe 1
+			val captureWal = pressureSourceEraseWal(
+				walFixture,
+				admissionOrdinal = 3L,
+				capture = true,
+			)
+			database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(captureWal)
+				.shouldBeGreaterThanZero()
+			installContainedPressureEraseAuthority(cutoffOrdinal = 3L)
+			installRevokedPressurePolicy(erasedAtMs = 5_000L)
+			val erase = roomErasePressureSource(
+				realRuntimePressureBarrier(testScheduler),
+				testScheduler,
+			)
+
+			erase.erase(sourceEraseRequest(erasedAtMs = 5_000L)) shouldBe
+				ErasePressureSourceResult.Unverifiable(
+					ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+				)
+			database.pressureFactRevisionDao().count() shouldBe 1L
+			factsFor(factFixture, 2) shouldBe listOf(factFixture.fact)
+			database.pressureFactRevisionDao().sourceEraseWalCount() shouldBe 1L
+			database.importedPressureDao().sourceErase() shouldBe null
+		}
 
 	@Test
 	@Suppress("LongMethod")
@@ -1300,6 +1425,8 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		runState: String = "FINALIZED",
 		presentationAcknowledgement: String = SourceServiceRunEntity.PRESENTATION_QUIESCED,
 		insertCompleteness: Boolean = false,
+		writerBindingGeneration: Long =
+			SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
 	): PressureFixture {
 		val logicalId = "logical-pressure-$key"
 		val runId = "run-pressure-$key"
@@ -1330,7 +1457,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 				presentationAcknowledgement = presentationAcknowledgement,
 			),
 		)
-		val binding = pressureManifestSource(logicalId)
+		val binding = pressureManifestSource(logicalId, writerBindingGeneration)
 		val manifest = insertManifest(
 			logicalId = logicalId,
 			runId = runId,
@@ -1343,7 +1470,13 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			runId = runId,
 			manifest = manifest,
 			binding = binding,
-			fact = placeholderFact(logicalId, runId, admissionOrdinal, startMs),
+			fact = placeholderFact(
+				logicalId,
+				runId,
+				admissionOrdinal,
+				startMs,
+				writerBindingGeneration,
+			),
 		)
 		val fact = pressureFact(incomplete, admissionOrdinal, "pressure-$key")
 		database.pressureFactRevisionDao().insert(fact).shouldBeGreaterThanZero()
@@ -1378,6 +1511,8 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		runId: String,
 		admissionOrdinal: Long,
 		startMs: Long,
+		writerBindingGeneration: Long =
+			SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
 	) = PressureFactRevisionEntity(
 		logicalFactId = "${SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID}:placeholder",
 		semanticRevision = 1L,
@@ -1386,7 +1521,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		sourceAdmissionOrdinal = admissionOrdinal,
 		writerProjectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
 		writerProjectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
-		writerBindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+		writerBindingGeneration = writerBindingGeneration,
 		payloadVersion = PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION,
 		intervalStartTimeMs = startMs,
 		intervalEndTimeMs = startMs + PRESSURE_WINDOW_MS,
@@ -1438,7 +1573,13 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		binding: SessionManifestSourceEntity = fixture.binding,
 	): PressureFactRevisionEntity {
 		val logicalFactId = "${SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID}:$eventId"
-		val candidate = placeholderFact(logicalId, runId, admissionOrdinal, manifest.effectiveWallTimeMs)
+		val candidate = placeholderFact(
+			logicalId,
+			runId,
+			admissionOrdinal,
+			manifest.effectiveWallTimeMs,
+			binding.writerBindingGeneration,
+		)
 			.copy(
 				logicalFactId = logicalFactId,
 				semanticRevision = semanticRevision,
@@ -1661,7 +1802,11 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		manifestChecksum = "",
 	)
 
-	private fun pressureManifestSource(logicalId: String) = SessionManifestSourceEntity(
+	private fun pressureManifestSource(
+		logicalId: String,
+		writerBindingGeneration: Long =
+			SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+	) = SessionManifestSourceEntity(
 		logicalTrackingId = logicalId,
 		manifestRevision = MANIFEST_REVISION,
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
@@ -1671,10 +1816,11 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		qosCode = PRESSURE_CAPTURE_QOS_CODE,
 		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
 		writerOwner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
-		writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+		writerOwnerGeneration =
+			SourceWriterGenerationContract.canonicalOwnerGeneration(writerBindingGeneration),
 		writerProjectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
 		writerProjectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
-		writerBindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+		writerBindingGeneration = writerBindingGeneration,
 	)
 
 	private fun stepsManifestSource(logicalId: String) = SessionManifestSourceEntity(
@@ -1772,8 +1918,16 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		updatedAtMs = 1_000L,
 	)
 
-	private suspend fun installContainedPressureEraseAuthority(cutoffOrdinal: Long) {
-		installCanonicalPressureLane()
+	private suspend fun installContainedPressureEraseAuthority(
+		cutoffOrdinal: Long,
+		bindingGeneration: Long =
+			SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+	) {
+		val canonicalOwnerGeneration =
+			SourceWriterGenerationContract.canonicalOwnerGeneration(bindingGeneration)
+		val containedOwnerGeneration =
+			SourceWriterGenerationContract.containedOwnerGeneration(bindingGeneration)
+		installCanonicalPressureLane(bindingGeneration)
 		database.openHelper.writableDatabase.execSQL(
 			"UPDATE source_product_projection_lane SET " +
 				"contiguous_admission_ordinal = ?, capture_admission_cutoff_ordinal = ?, " +
@@ -1790,24 +1944,44 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 			),
 		)
 		database.trackingRolloutStateDao().save(
-			TrackingRolloutState.contained(revision = 3L).toEntity(2_500L),
+			TrackingRolloutState.contained(
+				revision = containedOwnerGeneration,
+			).toEntity(2_500L),
 		)
-		val owner = candidatePressureOwner()
+		val initialOwner = requireNotNull(database.sourceDestinationOwnerDao().get(
+			SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+		))
+		if (initialOwner.ownerGeneration != canonicalOwnerGeneration) {
+			check(database.sourceDestinationOwnerDao().compareAndSetOwner(
+				sourceKind = initialOwner.sourceKind,
+				destination = initialOwner.destination,
+				expectedOwner = initialOwner.owner,
+				expectedOwnerGeneration = initialOwner.ownerGeneration,
+				newOwner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+				newOwnerGeneration = canonicalOwnerGeneration,
+				updatedAtMs = 2_400L,
+			) == 1)
+		}
 		check(database.sourceDestinationOwnerDao().compareAndSetOwner(
-			sourceKind = owner.sourceKind,
-			destination = owner.destination,
-			expectedOwner = owner.owner,
-			expectedOwnerGeneration = owner.ownerGeneration,
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			expectedOwner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+			expectedOwnerGeneration = canonicalOwnerGeneration,
 			newOwner = SourceDestinationOwnerEntity.OWNER_CONTAINED_PRESSURE_SESSION_FACTS,
-			newOwnerGeneration = 3L,
+			newOwnerGeneration = containedOwnerGeneration,
 			updatedAtMs = 2_500L,
 		) == 1)
 	}
 
-	private fun containedPressureWriterFence() = PressureSourceEraseWriterFence(
+	private fun containedPressureWriterFence(
+		bindingGeneration: Long =
+			SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+	) = PressureSourceEraseWriterFence(
 		collectedDataEpoch = COLLECTED_DATA_EPOCH,
 		owner = SourceDestinationOwnerEntity.OWNER_CONTAINED_PRESSURE_SESSION_FACTS,
-		ownerGeneration = 3L,
+		ownerGeneration =
+			SourceWriterGenerationContract.containedOwnerGeneration(bindingGeneration),
 	)
 
 	private fun com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierToken
@@ -1840,6 +2014,158 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		transactor = RoomPersistenceTransactor(database),
 		sourceDestinationOwnerDao = database.sourceDestinationOwnerDao(),
 		appDatabaseProvider = Provider { database },
+	)
+
+	private suspend fun assertComposedRoomSourceErase(
+		scheduler: TestCoroutineScheduler,
+		bindingGeneration: Long,
+	) {
+		val containedGeneration =
+			SourceWriterGenerationContract.containedOwnerGeneration(bindingGeneration)
+		val fixture = insertPressureSession(
+			key = "room-source-erase-generation-$containedGeneration",
+			admissionOrdinal = 1L,
+			startMs = 1_000L,
+			endMs = 2_000L,
+			writerBindingGeneration = bindingGeneration,
+		)
+		val captureWal = pressureSourceEraseWal(fixture, admissionOrdinal = 2L, capture = true)
+		val controlWal = pressureSourceEraseWal(fixture, admissionOrdinal = 3L, capture = false)
+		val unrelatedUnsigned = controlWal.copy(
+			admissionOrdinal = 4L,
+			eventId = "unrelated-cell-$containedGeneration",
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_CELL,
+			sourceInstanceId = "cell-provider",
+			integrityIdentity = "",
+		)
+		val unrelatedWal = unrelatedUnsigned.copy(
+			integrityIdentity = unrelatedUnsigned.calculatedIntegrityIdentity(),
+		)
+		database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(captureWal)
+			.shouldBeGreaterThanZero()
+		database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(controlWal)
+			.shouldBeGreaterThanZero()
+		database.sourceEventWalDao().insertAbortingOnUnexpectedConflict(unrelatedWal)
+			.shouldBeGreaterThanZero()
+		installContainedPressureEraseAuthority(
+			cutoffOrdinal = 2L,
+			bindingGeneration = bindingGeneration,
+		)
+		installRevokedPressurePolicy()
+		val erase = roomErasePressureSource(
+			realRuntimePressureBarrier(scheduler),
+			scheduler,
+		)
+
+		erase.erase(sourceEraseRequest()) shouldBe ErasePressureSourceResult.Erased(
+			localFactRevisionCount = 1,
+			localWalEventCount = 1,
+			legacySampleCount = 0,
+			importedEntryCount = 0,
+			importedRevisionCount = 0,
+			importedRunCount = 0,
+			importedWindowCount = 0,
+			fencedLocalRunCount = 1,
+		)
+		database.pressureFactRevisionDao().count() shouldBe 0L
+		database.sourceEventWalDao().getByEventId(captureWal.eventId) shouldBe null
+		requireNotNull(database.sourceEventWalDao().getByEventId(controlWal.eventId))
+		requireNotNull(database.sourceEventWalDao().getByEventId(unrelatedWal.eventId))
+		requireNotNull(database.importedPressureDao().sourceErase()).also { receipt ->
+			receipt.legacyWriteFenceOwner shouldBe
+				SourceDestinationOwnerEntity.OWNER_CONTAINED_PRESSURE_SESSION_FACTS
+			receipt.legacyWriteFenceGeneration shouldBe containedGeneration
+			receipt.localFactRevisionCount shouldBe 1
+			receipt.localWalEventCount shouldBe 1
+		}
+		exactFence(fixture)?.fenceGeneration shouldBe 1L
+
+		erase.erase(sourceEraseRequest(expectedRevision = 1L)) shouldBe
+			ErasePressureSourceResult.AlreadyErased
+	}
+
+	private fun realRuntimePressureBarrier(
+		scheduler: TestCoroutineScheduler,
+	): PressureSourceEraseBarrier {
+		val runtime = mockk<PressureSourceRuntime>()
+		coEvery { runtime.establishSourceEraseBarrier(COLLECTED_DATA_EPOCH) } returns
+			PressureProviderEraseSettlement.NoLocalProvider
+		coEvery {
+			runtime.verifySourceEraseProviderSettled(COLLECTED_DATA_EPOCH, null)
+		} returns PressureProviderEraseVerification.Verified
+		return RuntimePressureSourceEraseBarrier(
+			runtime,
+			PersistenceLegacyPressureWriterLifecycleBarrier(
+				database,
+				realPersistenceProcessor(scheduler),
+				ExclusiveTrackingPersistenceLifecycleLease(),
+			),
+		)
+	}
+
+	private fun roomErasePressureSource(
+		barrier: PressureSourceEraseBarrier,
+		scheduler: TestCoroutineScheduler,
+	): ErasePressureSource {
+		val type = Class.forName(
+			"com.adsamcik.tracker.stats.data.repository.RoomErasePressureSource",
+		)
+		val constructor = type.declaredConstructors.single { it.parameterCount == 3 }
+		constructor.isAccessible = true
+		return constructor.newInstance(
+			database,
+			barrier,
+			UnconfinedTestDispatcher(scheduler),
+		) as ErasePressureSource
+	}
+
+	private suspend fun installRevokedPressurePolicy(erasedAtMs: Long = 3_000L) {
+		database.sourcePolicyDao().insertPolicies(
+			listOf(
+				pressurePolicy().copy(
+					policyRevision = 2L,
+					enabled = false,
+					capturePersistenceEligible = false,
+					captureConsentEpoch = null,
+					effectiveWallTimeMs = erasedAtMs - 500L,
+					effectiveElapsedRealtimeNanos = erasedAtMs - 500L,
+					changeReason = "TEST_REVOKED",
+				),
+			),
+		)
+		database.sourcePolicyDao().insertConsentEpochs(
+			listOf(
+				pressureConsent().copy(
+					epoch = 2L,
+					eligible = false,
+					persistenceEligible = false,
+					policyRevision = 2L,
+					effectiveWallTimeMs = erasedAtMs - 500L,
+					effectiveElapsedRealtimeNanos = erasedAtMs - 500L,
+					changeReason = "TEST_REVOKED",
+				),
+			),
+		)
+		database.sourcePolicyDao().ensureAuthority(
+			SourcePolicyAuthorityEntity(
+				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+				currentPolicyRevision = 2L,
+				legacySettingsFingerprint = null,
+				updatedAtMs = erasedAtMs - 500L,
+			),
+		)
+	}
+
+	private fun sourceEraseRequest(
+		expectedRevision: Long = 0L,
+		erasedAtMs: Long = 3_000L,
+	) = ErasePressureSourceRequest(
+		expectedCollectedDataEpoch = COLLECTED_DATA_EPOCH,
+		expectedSourceEvidenceRevision = expectedRevision,
+		expectedDeletedSourceEventHighWaterOrdinal = 0L,
+		expectedCurrentPolicyRevision = 2L,
+		expectedRevokedConsentEpoch = 2L,
+		erasedAtMs = erasedAtMs,
 	)
 
 	private fun pressureSourceEraseWal(
@@ -2326,16 +2652,20 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		updatedAtMs = 1_000L,
 	)
 
-	private suspend fun installCanonicalPressureLane() {
+	private suspend fun installCanonicalPressureLane(
+		bindingGeneration: Long =
+			SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+	) {
 		database.sourceProjectionStateDao().installProductLane(
 			SourceProductProjectionLaneEntity(
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
-				bindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+				bindingGeneration = bindingGeneration,
 				projectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
 				projectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
 				captureModeMask = PressureSessionFactProjectionLane.MANUAL_CAPTURE_MODE_MASK,
 				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
-				activatedRolloutRevision = 2L,
+				activatedRolloutRevision =
+					SourceWriterGenerationContract.canonicalOwnerGeneration(bindingGeneration),
 				activationOrdinal = 1L,
 				contiguousAdmissionOrdinal = 0L,
 				captureAdmissionCutoffOrdinal = null,

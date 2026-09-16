@@ -291,9 +291,10 @@ class PressureFactRevisionDaoTest {
 
 	@Test
 	fun entityRejectsLegacyOrInternallyContradictoryPressureFacts() {
+		revision().copy(writerBindingGeneration = 2L).writerBindingGeneration shouldBe 2L
 		shouldThrow<IllegalArgumentException> { revision().copy(payloadVersion = 3) }
 		shouldThrow<IllegalArgumentException> {
-			revision().copy(writerBindingGeneration = 2L)
+			revision().copy(writerBindingGeneration = 0L)
 		}
 		shouldThrow<IllegalArgumentException> {
 			revision().copy(lastProviderSequence = 5L)
