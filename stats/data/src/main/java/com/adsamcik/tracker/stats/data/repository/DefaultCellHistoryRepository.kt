@@ -564,7 +564,6 @@ internal class DefaultCellHistoryRepository internal constructor(
 						SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
 					)
 				}
-				var originConflict = false
 				if (readable.localOriginHandle != null) {
 					localOriginComparisons += 1
 					if (localOriginComparisons > MAX_SHARED_HISTORY_LOCAL_ORIGIN_COMPARISONS) {
@@ -591,20 +590,33 @@ internal class DefaultCellHistoryRepository internal constructor(
 								readable.entry,
 							)
 							if (exact && readable.isReExportable) continue
-							originConflict = !exact
+							if (!exact) {
+								return importedEligibleUnavailable(
+									SourceAwareHistoryPageUnavailableReason
+										.SOURCE_INTEGRITY_FAILURE,
+								)
+							}
 						}
-						is ReadLocalPortableCapturedCellResult.Outcome -> originConflict = true
+						is ReadLocalPortableCapturedCellResult.Outcome ->
+							return importedEligibleUnavailable(
+								SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+							)
 						null -> return importedEligibleUnavailable(
 							SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
 						)
 					}
 				}
 				val entry = try {
-					readable.toPublicCellEntry(
-						overrideFailure = CellHistoryCause.ORIGIN_IDENTITY_CONFLICT
-							.takeIf { originConflict },
-					)
+					readable.toPublicCellEntry()
 				} catch (_: RuntimeException) {
+					return importedEligibleUnavailable(
+						SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+					)
+				}
+				if (entry.state == CellHistoryProductState.UNVERIFIABLE ||
+					entry.state == CellHistoryProductState.FAILED ||
+					entry.causes.any { it.isIntegrityFailure }
+				) {
 					return importedEligibleUnavailable(
 						SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
 					)

@@ -515,85 +515,97 @@ class ImportedCellHistoryMapperTest {
 	}
 
 	@Test
-	fun `same-origin conflict carries source recency while rehashed corrupt source page fails`() =
-		runTest {
-			database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
-			val logicalId = "same-origin-corrupt"
-			val value = cellEntry(logicalLocal = logicalId, runLocal = "imported-run")
-			RoomImportPortableCapturedCell(database, Dispatchers.Unconfined).importEntry(
-				importRequest(value, "same-origin"),
-			) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
-			database.sourceSessionDao().insertSession(
-				LogicalTrackingSessionEntity(
-					logicalTrackingId = logicalId,
-					state = "FINALIZED",
-					lifecycleRevision = 1L,
-					desiredPlanRevision = 1L,
-					rolloutRevision = 1L,
-					startOrigin = "MANUAL",
-					clockDomainId = "boot",
-					startedAtMs = 1L,
-					startedElapsedNanos = 1L,
-					cutoffAtMs = 2L,
-					cutoffElapsedNanos = 2L,
-					completedAtMs = 2L,
-					finalAdmissionOrdinal = 0L,
-					failureCode = null,
-				),
-			)
-			val repository = repository()
+	fun `shared eligible page fails closed when local origin proof is unavailable`() = runTest {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+		val logicalId = "same-origin-unavailable"
+		val value = cellEntry(logicalLocal = logicalId, runLocal = "imported-run")
+		RoomImportPortableCapturedCell(database, Dispatchers.Unconfined).importEntry(
+			importRequest(value, "same-origin"),
+		) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		database.sourceSessionDao().insertSession(
+			LogicalTrackingSessionEntity(
+				logicalTrackingId = logicalId,
+				state = "FINALIZED",
+				lifecycleRevision = 1L,
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				startOrigin = "MANUAL",
+				clockDomainId = "boot",
+				startedAtMs = 1L,
+				startedElapsedNanos = 1L,
+				cutoffAtMs = 2L,
+				cutoffElapsedNanos = 2L,
+				completedAtMs = 2L,
+				finalAdmissionOrdinal = 0L,
+				failureCode = null,
+			),
+		)
+		val repository = repository()
 
-			val readableConflict =
-				(repository.recent(1) as CellHistoryPage.Available).entries.single()
-			readableConflict.causes shouldBe setOf(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT)
-			val readableSourcePage = database.withTransaction {
-				repository.recentCellHistoryInTransaction(10)
-			} as CellSourceComposedPage.Available
-			(readableSourcePage.entries.single() as CellSourceComposedEntry.Imported).let { source ->
-				source.entry shouldBe readableConflict
-				source.selection shouldBe value.toSelection()
-				source.recency.memberStartTimeMs shouldBe value.runs.single().startTimeMs
-				source.recency.tieIdentity shouldBe value.runs.single().identity
-			}
-			val readableEligible = database.withTransaction {
-				repository.recentImportedEligibleForSharedHistoryInTransaction(10)
-			} as ImportedHistoryEligiblePage.Available<*>
-			(readableEligible.entries.single() as CellImportedHistoryEligibleEntry).let { eligible ->
-				eligible.entry shouldBe readableConflict
-				eligible.selection shouldBe value.toSelection()
-				eligible.recency.newestMemberStartTimeMs shouldBe value.runs.single().startTimeMs
-				eligible.recency.newestMemberTieIdentity shouldBe
-					ImportedHistoryRecencyTieIdentity(value.runs.single().identity.value)
-			}
-
-			val corruptChecksum = rehashStoredKnownQualityCount(value, 0)
-			val selection = ImportedCellHistorySelection(
-				ImportedCellHistoryIdentity(value.identity.value),
-				1L,
-				ImportedCellHistoryDigest(corruptChecksum),
-			)
-			val publicConflict =
-				(repository.recent(1) as CellHistoryPage.Available).entries.single()
-			publicConflict.let { conflict ->
-				conflict.state shouldBe CellHistoryProductState.UNVERIFIABLE
-				conflict.causes shouldBe setOf(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT)
-				conflict.observations shouldBe emptyList()
-				conflict.origin shouldBe CellHistoryOrigin.Imported(selection)
-			}
-			database.withTransaction {
-				repository.recentCellHistoryInTransaction(10)
-			} shouldBe CellSourceComposedPage.Failed(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT)
-			database.withTransaction {
-				repository.recentImportedEligibleForSharedHistoryInTransaction(10)
-			} shouldBe ImportedHistoryEligiblePage.Unavailable(
-				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
-			)
-			(repository.detail(selection) as CellHistoryQuery.Found).entry.let { conflict ->
-				conflict.state shouldBe CellHistoryProductState.UNVERIFIABLE
-				conflict.causes shouldBe setOf(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT)
-				conflict.observations shouldBe emptyList()
-			}
+		val publicConflict =
+			(repository.recent(1) as CellHistoryPage.Available).entries.single()
+		publicConflict.state shouldBe CellHistoryProductState.UNVERIFIABLE
+		publicConflict.causes shouldBe setOf(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+		publicConflict.observations shouldBe emptyList()
+		val sourcePage = database.withTransaction {
+			repository.recentCellHistoryInTransaction(10)
+		} as CellSourceComposedPage.Available
+		(sourcePage.entries.single() as CellSourceComposedEntry.Imported).let { source ->
+			source.entry shouldBe publicConflict
+			source.selection shouldBe value.toSelection()
+			source.recency.memberStartTimeMs shouldBe value.runs.single().startTimeMs
+			source.recency.tieIdentity shouldBe value.runs.single().identity
 		}
+		database.withTransaction {
+			repository.recentImportedEligibleForSharedHistoryInTransaction(10)
+		} shouldBe ImportedHistoryEligiblePage.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+		)
+		(repository.detail(value.toSelection()) as CellHistoryQuery.Found).entry.let { conflict ->
+			conflict.state shouldBe CellHistoryProductState.UNVERIFIABLE
+			conflict.causes shouldBe setOf(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT)
+			conflict.observations shouldBe emptyList()
+		}
+	}
+
+	@Test
+	fun `shared eligible page fails closed for rehashed imported corruption`() = runTest {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+		val value = cellEntry(logicalLocal = "rehashed-corruption", runLocal = "imported-run")
+		RoomImportPortableCapturedCell(database, Dispatchers.Unconfined).importEntry(
+			importRequest(value, "rehashed-corruption"),
+		) shouldBe ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		val corruptChecksum = rehashStoredKnownQualityCount(value, 0)
+		val selection = ImportedCellHistorySelection(
+			ImportedCellHistoryIdentity(value.identity.value),
+			1L,
+			ImportedCellHistoryDigest(corruptChecksum),
+		)
+		val repository = repository()
+		val publicFailure =
+			(repository.recent(1) as CellHistoryPage.Available).entries.single()
+		publicFailure.let { failure ->
+			failure.state shouldBe CellHistoryProductState.UNVERIFIABLE
+			failure.causes shouldBe setOf(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+			failure.observations shouldBe emptyList()
+			failure.origin shouldBe CellHistoryOrigin.Imported(selection)
+		}
+		database.withTransaction {
+			repository.recentCellHistoryInTransaction(10)
+		} shouldBe CellSourceComposedPage.Failed(
+			CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE,
+		)
+		database.withTransaction {
+			repository.recentImportedEligibleForSharedHistoryInTransaction(10)
+		} shouldBe ImportedHistoryEligiblePage.Unavailable(
+			SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+		)
+		(repository.detail(selection) as CellHistoryQuery.Found).entry.let { failure ->
+			failure.state shouldBe CellHistoryProductState.UNVERIFIABLE
+			failure.causes shouldBe setOf(CellHistoryCause.IMPORTED_EVIDENCE_UNVERIFIABLE)
+			failure.observations shouldBe emptyList()
+		}
+	}
 
 	@Test
 	fun `eligible imported page reports source budget instead of returning an incomplete limit`() =

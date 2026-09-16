@@ -201,6 +201,115 @@ class CellHistoryRepositoryRoomTest {
 		}
 
 	@Test
+	fun `shared eligible page fails closed for readable unequal local origin collision`() = runTest {
+		val source = AppDatabase.testDatabase(
+			ApplicationProvider.getApplicationContext<Application>(),
+		)
+		try {
+			val localGroup = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
+			val importedGroup = buildGroup(groupIndex = 1, runCount = 2, factRunIndexes = setOf(0, 1))
+			persist(listOf(localGroup))
+			persist(listOf(importedGroup), target = source)
+			val portable = source.withTransaction {
+				RoomReadLocalPortableCapturedCell(
+					source,
+					SourceProductLaneExecutionAuthority { source.inTransaction() },
+				).readInTransaction(importedGroup.session.logicalTrackingId)
+			} as ReadLocalPortableCapturedCellResult.Ready
+			RoomImportPortableCapturedCell(
+				database,
+				UnconfinedTestDispatcher(testScheduler),
+			).importEntry(
+				ImportPortableCapturedCellRequest(
+					entry = portable.entry,
+					receipt = PortableCellImportReceipt(
+						jobId = "same-origin-unequal",
+						entryKey = "same-origin-unequal",
+						sourceName = "same-origin-unequal.trackercell",
+						receivedAtMs = portable.entry.endTimeMs,
+					),
+					expectedCollectedDataEpoch = 0L,
+				),
+			) shouldBe ImportPortableCapturedCellResult.Applied(
+				importRevision = 1L,
+				physicalRunCount = portable.entry.runs.size,
+				observationCount = portable.entry.runs.sumOf { it.observations.size },
+			)
+
+			database.withTransaction {
+				repository { database.inTransaction() }
+					.recentImportedEligibleForSharedHistoryInTransaction(10)
+			} shouldBe ImportedHistoryEligiblePage.Unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+			)
+		} finally {
+			source.close()
+		}
+	}
+
+	@Test
+	fun `later page collision discards earlier eligible Cell entries and selectors`() = runTest {
+		val source = AppDatabase.testDatabase(
+			ApplicationProvider.getApplicationContext<Application>(),
+		)
+		try {
+			val localGroup = buildGroup(groupIndex = 1, runCount = 1, factRunIndexes = setOf(0))
+			val importedGroups = listOf(
+				buildGroup(groupIndex = 1, runCount = 2, factRunIndexes = setOf(0, 1)),
+			) + (2..33).map { index ->
+				buildGroup(groupIndex = index, runCount = 1, factRunIndexes = setOf(0))
+			}
+			persist(listOf(localGroup))
+			persist(importedGroups, target = source)
+			val importer = RoomImportPortableCapturedCell(
+				database,
+				UnconfinedTestDispatcher(testScheduler),
+			)
+			for (group in importedGroups) {
+				val portable = source.withTransaction {
+					RoomReadLocalPortableCapturedCell(
+						source,
+						SourceProductLaneExecutionAuthority { source.inTransaction() },
+					).readInTransaction(group.session.logicalTrackingId)
+				} as ReadLocalPortableCapturedCellResult.Ready
+				importer.importEntry(
+					ImportPortableCapturedCellRequest(
+						entry = portable.entry,
+						receipt = PortableCellImportReceipt(
+							jobId = "late-collision-${group.session.logicalTrackingId}",
+							entryKey = "late-collision-${group.session.logicalTrackingId}",
+							sourceName = "late-collision.trackercell",
+							receivedAtMs = portable.entry.endTimeMs,
+						),
+						expectedCollectedDataEpoch = 0L,
+					),
+				) shouldBe ImportPortableCapturedCellResult.Applied(
+					importRevision = 1L,
+					physicalRunCount = portable.entry.runs.size,
+					observationCount = portable.entry.runs.sumOf { it.observations.size },
+				)
+			}
+			val checkpoints = mutableListOf<Int>()
+			val repository = DefaultCellHistoryRepository(
+				database,
+				SourceProductLaneExecutionAuthority { database.inTransaction() },
+				UnconfinedTestDispatcher(testScheduler),
+			) { completedPageCount ->
+				checkpoints += completedPageCount
+			}
+
+			database.withTransaction {
+				repository.recentImportedEligibleForSharedHistoryInTransaction(32)
+			} shouldBe ImportedHistoryEligiblePage.Unavailable(
+				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+			)
+			checkpoints shouldBe listOf(0, 1)
+		} finally {
+			source.close()
+		}
+	}
+
+	@Test
 	fun `eligible imported page is not starved by newer local candidates and uses newest run recency`() =
 		runTest {
 			val source = AppDatabase.testDatabase(
