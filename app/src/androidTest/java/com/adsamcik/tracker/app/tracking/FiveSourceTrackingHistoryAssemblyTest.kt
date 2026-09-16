@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.ActivityHistorySelection
 import com.adsamcik.tracker.stats.api.repository.CellHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistorySource
@@ -35,6 +36,7 @@ import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryActionTarget
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
 import com.adsamcik.tracker.stats.api.repository.WifiHistoryOrigin
 import com.adsamcik.tracker.stats.data.repository.TrackingHistoryIntegrationCheckpoint
@@ -273,10 +275,23 @@ class FiveSourceTrackingHistoryAssemblyTest {
 			content.entries.filterIsInstance<SourceAwareHistoryPageEntry.CellOnly>()
 				.single().history.origin is CellHistoryOrigin.Imported,
 		)
+		val selectedActivity =
+			content.entries.filterIsInstance<SourceAwareHistoryPageEntry.ActivityOnly>().single()
+		assertEquals(ActivityHistoryOrigin.IMPORTED, selectedActivity.history.origin)
+		val activityAction = selectedActivity.actionTarget as TrackingHistoryActionTarget.Activity
+		val activitySelection =
+			(activityAction.selection as ActivityHistorySelection.Imported).selected
+		assertEquals(selectedActivity.history.key, activitySelection.key)
+		assertEquals(activity.identity.value, activitySelection.identity.value)
+		assertEquals(1L, activitySelection.importRevision)
+		assertEquals(activity.contentChecksum.value, activitySelection.contentChecksum.value)
 		assertEquals(
-			ActivityHistoryOrigin.IMPORTED,
-			content.entries.filterIsInstance<SourceAwareHistoryPageEntry.ActivityOnly>()
-				.single().history.origin,
+			evidenceBeforeRead.collectedDataEpoch,
+			activitySelection.readSnapshot.collectedDataEpoch,
+		)
+		assertEquals(
+			evidenceBeforeRead.revision,
+			activitySelection.readSnapshot.sourceEvidenceRevision,
 		)
 		assertTrue(
 			content.entries.filterIsInstance<SourceAwareHistoryPageEntry.PressureOnly>()
