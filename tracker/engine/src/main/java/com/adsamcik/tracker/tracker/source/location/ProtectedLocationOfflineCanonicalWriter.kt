@@ -12,6 +12,7 @@ import com.adsamcik.tracker.tracker.pipeline.TrackingPipeline
 import com.adsamcik.tracker.tracker.pipeline.toProtectedLocationObservationSignal
 import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
 import com.adsamcik.tracker.tracker.pipeline.persistence.ExclusiveTrackingPersistenceLifecycleLease
+import com.adsamcik.tracker.tracker.pipeline.persistence.TrackingPersistenceLifecyclePermit
 import com.adsamcik.tracker.tracker.pipeline.persistence.TrackingPersistenceLifecycleLease
 import com.adsamcik.tracker.tracker.pipeline.stages.DataCollectionStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SignalDispatchStage
@@ -21,6 +22,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
@@ -41,6 +44,8 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 	private val persistenceLifecycleLease: TrackingPersistenceLifecycleLease,
 ) : ProtectedLocationCanonicalWriter {
 	private val applicationContext = context.applicationContext
+	private val operationMutex = Mutex()
+	private var retainedCleanup: RetainedOfflineCleanup? = null
 
 	@Inject
 	constructor(
@@ -85,14 +90,31 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 	override suspend fun write(
 		command: LocationCapturedFactCommand,
 		acquisitionMetadata: LocationWalAcquisitionMetadata,
-	): ProtectedLocationCanonicalWriteResult =
-		persistenceLifecycleLease.withOfflineLocationRecovery {
-			writeWithLifecycleLease(command, acquisitionMetadata)
+	): ProtectedLocationCanonicalWriteResult = operationMutex.withLock {
+		retainedCleanup?.let { cleanup ->
+			val failure = cleanup.attempt(applicationContext)
+			if (failure != null) {
+				return@withLock ProtectedLocationCanonicalWriteResult.Failed(
+					failure.safeProtectedLocationCode(),
+					terminal = false,
+				)
+			}
+			retainedCleanup = null
 		}
+		val permit = persistenceLifecycleLease.acquireOfflineLocationRecovery()
+		try {
+			writeWithLifecycleLease(command, acquisitionMetadata, permit)
+		} finally {
+			if (retainedCleanup?.owns(permit) != true) {
+				permit.release()
+			}
+		}
+	}
 
 	private suspend fun writeWithLifecycleLease(
 		command: LocationCapturedFactCommand,
 		acquisitionMetadata: LocationWalAcquisitionMetadata,
+		permit: TrackingPersistenceLifecyclePermit,
 	): ProtectedLocationCanonicalWriteResult {
 		if (persistenceProcessor.isPipelineActiveForProtectedLocation()) {
 			return ProtectedLocationCanonicalWriteResult.Inactive(
@@ -135,10 +157,12 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 			requireDurableAdmission = true,
 		)
 		var componentEnabled = false
-		var pipelineStarted = false
+		var pipelineStopRequired = false
+		var terminalFailure: Throwable? = null
 		return try {
 			locationComponent.onEnable(applicationContext)
 			componentEnabled = true
+			pipelineStopRequired = true
 			pipeline.start(
 				tier = acquisitionMetadata.policyTier,
 				startTimestamp = EpochMs(
@@ -147,7 +171,6 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 				isResuming = true,
 				sessionId = command.authority.sessionSegmentId,
 			)
-			pipelineStarted = true
 			if (!persistenceProcessor.isReadyForProtectedLocationWrite()) {
 				return ProtectedLocationCanonicalWriteResult.Deferred(
 					"LOCATION_CANONICAL_PENDING_RECOVERY_INCOMPLETE",
@@ -242,7 +265,7 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 			}
 
 			pipeline.stop()
-			pipelineStarted = false
+			pipelineStopRequired = false
 			when (val receipt = database.withTransaction {
 				database.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
 			}) {
@@ -257,8 +280,10 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 					)
 			}
 		} catch (cancelled: CancellationException) {
+			terminalFailure = cancelled
 			throw cancelled
 		} catch (failure: Exception) {
+			terminalFailure = failure
 			val receipt = runCatching {
 				database.withTransaction {
 					database.readProtectedLocationCanonicalReceipt(command, acquisitionMetadata)
@@ -273,26 +298,58 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 				)
 			}
 		} finally {
-			withContext(NonCancellable) {
-				var cleanupFailure: Exception? = null
-				if (pipelineStarted) {
-					try {
-						pipeline.stop()
-					} catch (failure: Exception) {
+			val cleanup = RetainedOfflineCleanup(
+				pipeline = pipeline,
+				locationComponent = locationComponent,
+				permit = permit,
+				pipelineStopRequired = pipelineStopRequired,
+				componentDisableRequired = componentEnabled,
+			)
+			retainedCleanup = cleanup
+			val cleanupFailure = cleanup.attempt(applicationContext)
+			if (cleanupFailure == null) {
+				retainedCleanup = null
+			} else if (terminalFailure != null) {
+				requireNotNull(terminalFailure).addSuppressed(cleanupFailure)
+			} else {
+				throw cleanupFailure
+			}
+		}
+	}
+
+	private class RetainedOfflineCleanup(
+		private val pipeline: ProcessorPipeline,
+		private val locationComponent: LocationTrackerComponent,
+		private val permit: TrackingPersistenceLifecyclePermit,
+		private var pipelineStopRequired: Boolean,
+		private var componentDisableRequired: Boolean,
+	) {
+		fun owns(candidate: TrackingPersistenceLifecyclePermit): Boolean = permit === candidate
+
+		suspend fun attempt(context: Context): Exception? = withContext(NonCancellable) {
+			var cleanupFailure: Exception? = null
+			if (pipelineStopRequired) {
+				try {
+					pipeline.stop()
+					pipelineStopRequired = false
+				} catch (failure: Exception) {
+					cleanupFailure = failure
+				}
+			}
+			if (componentDisableRequired) {
+				try {
+					locationComponent.onDisable(context)
+					componentDisableRequired = false
+				} catch (failure: Exception) {
+					cleanupFailure?.addSuppressed(failure) ?: run {
 						cleanupFailure = failure
 					}
 				}
-				if (componentEnabled) {
-					try {
-						locationComponent.onDisable(applicationContext)
-					} catch (failure: Exception) {
-						cleanupFailure?.addSuppressed(failure) ?: run {
-							cleanupFailure = failure
-						}
-					}
-				}
-				cleanupFailure?.let { throw it }
 			}
+			if (!pipelineStopRequired && !componentDisableRequired) {
+				permit.release()
+			}
+			cleanupFailure
 		}
 	}
 
