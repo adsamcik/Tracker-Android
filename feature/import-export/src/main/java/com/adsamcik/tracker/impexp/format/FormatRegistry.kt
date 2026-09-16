@@ -6,6 +6,7 @@ import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.impexp.exporter.GpxExporter
 import com.adsamcik.tracker.impexp.exporter.JsonExporter
 import com.adsamcik.tracker.impexp.exporter.KmlExporter
+import com.adsamcik.tracker.impexp.exporter.PortableAmbientStepsExporter
 import com.adsamcik.tracker.impexp.exporter.PortableStepsExporter
 import com.adsamcik.tracker.impexp.exporter.PortableActivityExporter
 import com.adsamcik.tracker.impexp.exporter.PortablePressureExporter
@@ -14,6 +15,7 @@ import com.adsamcik.tracker.impexp.importer.file.FileImport
 import com.adsamcik.tracker.impexp.importer.file.GpxImport
 import com.adsamcik.tracker.impexp.importer.file.JsonImport
 import com.adsamcik.tracker.impexp.importer.file.KmlImport
+import com.adsamcik.tracker.impexp.importer.file.PortableAmbientStepsFileImport
 import com.adsamcik.tracker.impexp.importer.file.PortableStepsFileImport
 import com.adsamcik.tracker.impexp.importer.file.PortableActivityFileImport
 import com.adsamcik.tracker.impexp.importer.file.PortablePressureFileImport
@@ -164,6 +166,21 @@ object FormatRegistry {
 			),
 			exporter = PortableStepsExporter(),
 			importer = PortableStepsFileImport(),
+		)
+
+		val ambientStepsExporter = PortableAmbientStepsExporter()
+		register(
+			descriptor = FormatDescriptor(
+				id = PortableAmbientStepsExporter.FORMAT_ID,
+				displayNameRes = R.string.format_portable_ambient_steps,
+				mimeType = ambientStepsExporter.mimeType,
+				extensions = setOf(PortableAmbientStepsFileImport.EXTENSION),
+				supportsExport = true,
+				supportsImport = true,
+				supportsDateRange = ambientStepsExporter.canSelectDateRange,
+			),
+			exporter = ambientStepsExporter,
+			importer = PortableAmbientStepsFileImport(),
 		)
 
 		val activityExporter = PortableActivityExporter()

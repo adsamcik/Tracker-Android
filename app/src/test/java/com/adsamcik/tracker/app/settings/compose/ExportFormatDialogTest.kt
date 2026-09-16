@@ -168,6 +168,18 @@ class ExportFormatDialogTest {
     }
 
     @Test
+    fun portableAmbientStepsUsesNativePickerRouteWithFactualPrivacyCopy() {
+        selectPortableFormat(
+            ExportFormat.PORTABLE_AMBIENT_STEPS,
+            "Portable Ambient Steps",
+            "Ambient step counts",
+            "activity time windows",
+            "dates",
+            "stored time-zone context",
+        )
+    }
+
+    @Test
     fun portableActivityCanBeSelectedWithoutClaimingRouteCoordinates() {
         selectPortableFormat(ExportFormat.PORTABLE_ACTIVITY, "Portable Activity", "captured movement bands")
     }
@@ -177,7 +189,11 @@ class ExportFormatDialogTest {
         selectPortableFormat(ExportFormat.PORTABLE_PRESSURE, "Portable Pressure", "pressure measurements")
     }
 
-    private fun selectPortableFormat(format: ExportFormat, label: String, content: String) {
+    private fun selectPortableFormat(
+        format: ExportFormat,
+        label: String,
+        vararg content: String,
+    ) {
         var selectedFormat: ExportFormat? = null
         composeTestRule.setContent {
             AppTheme(useDynamicColor = false) {
@@ -187,7 +203,9 @@ class ExportFormatDialogTest {
 
         composeTestRule.onNodeWithText(label).performScrollTo().performClick()
         composeTestRule.onNodeWithText("Export tracked history?").assertIsDisplayed()
-        composeTestRule.onNodeWithText(content, substring = true).assertIsDisplayed()
+        content.forEach { expected ->
+            composeTestRule.onNodeWithText(expected, substring = true).assertIsDisplayed()
+        }
         composeTestRule.onNodeWithText("does not contain route coordinates", substring = true).assertIsDisplayed()
         assertEquals(null, selectedFormat)
         composeTestRule.onNodeWithText("Continue export").performClick()

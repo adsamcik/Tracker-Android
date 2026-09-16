@@ -2,8 +2,10 @@ package com.adsamcik.tracker.impexp.importer
 
 import android.content.Context
 import androidx.documentfile.provider.DocumentFile
+import com.adsamcik.tracker.impexp.format.FormatRegistry
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
+import com.adsamcik.tracker.impexp.importer.file.PortableAmbientStepsFileImport
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportJobReceiptEntity
 import com.adsamcik.tracker.shared.base.extension.openInputStream
@@ -338,6 +340,74 @@ class ImportJobRunnerTest {
 		receipts.map { it.receivedAtMs }.toSet() shouldBe setOf(300L)
 		receipts.map { it.entryKey }.distinct().size shouldBe 2
 	}
+
+	@Test
+	@Suppress("LongMethod")
+	fun `registered Ambient direct and ZIP routes retain original durable file receipt context`() =
+		runTest {
+			val store = FakeImportReceiptStore()
+			val runner = ImportJobRunner(store, nowMs = { 900L })
+			val importer = FormatRegistry.importerForExtension("trackerambientsteps")
+			(importer is PortableAmbientStepsFileImport) shouldBe true
+			importer?.transactionMode shouldBe ImportTransactionMode.IMPORTER_MANAGED
+			val directReceipts = mutableListOf<FileImportReceiptContext>()
+			runner.start("ambient-direct", "ambient.trackerambientsteps", 7L)
+
+			runner.importSingle(
+				jobId = "ambient-direct",
+				stream = FileImportStream(
+					fileName = "ambient.trackerambientsteps",
+					receiptKey = "direct-entry",
+					streamProvider = { ByteArrayInputStream("ambient".encodeToByteArray()) },
+				),
+				transactionMode = requireNotNull(importer).transactionMode,
+			) { stream ->
+				directReceipts += requireNotNull(stream.importReceipt)
+				ImportResult(successCount = 1)
+			} shouldBe ImportResult(successCount = 1)
+
+			directReceipts shouldBe listOf(
+				FileImportReceiptContext(
+					jobId = "ambient-direct",
+					entryKey = "direct-entry",
+					sourceName = "ambient.trackerambientsteps",
+					receivedAtMs = 900L,
+				),
+			)
+
+			val zipBytes = buildZip("nested/ambient.trackerambientsteps" to "ambient")
+			runner.start("ambient-zip", "backup.zip", zipBytes.size.toLong())
+			var zipEntryKey: String? = null
+			val zipReceipts = mutableListOf<FileImportReceiptContext>()
+			runner.importArchive(
+				jobId = "ambient-zip",
+				context = context,
+				file = mockArchive(zipBytes),
+				extractor = ZipArchiveExtractor(),
+				isImportableEntry = { metadata ->
+					FormatRegistry.importerForExtension(
+						metadata.fileName.substringAfterLast('.', ""),
+					) is PortableAmbientStepsFileImport
+				},
+				transactionModeForEntry = { stream ->
+					requireNotNull(FormatRegistry.importerForExtension(stream.extension))
+						.transactionMode
+				},
+			) { stream ->
+				zipEntryKey = stream.receiptKey
+				zipReceipts += requireNotNull(stream.importReceipt)
+				ImportResult(successCount = 1)
+			} shouldBe ImportResult(successCount = 1)
+
+			zipReceipts shouldBe listOf(
+				FileImportReceiptContext(
+					jobId = "ambient-zip",
+					entryKey = requireNotNull(zipEntryKey),
+					sourceName = "nested/ambient.trackerambientsteps",
+					receivedAtMs = 900L,
+				),
+			)
+		}
 
 	@Test
 	fun `source importer is not called without durable job provenance`() = runTest {

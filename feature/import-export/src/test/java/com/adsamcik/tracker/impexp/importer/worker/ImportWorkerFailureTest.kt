@@ -7,6 +7,7 @@ import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.impexp.importer.PermanentImportInputException
 import com.adsamcik.tracker.impexp.importer.computeImportJobId
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
+import com.adsamcik.tracker.impexp.importer.file.PortableAmbientStepsFileImport
 import com.adsamcik.tracker.shared.base.extension.openInputStream
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -36,6 +37,13 @@ class ImportWorkerFailureTest {
 	@AfterEach
 	fun tearDown() {
 		unmockkStatic("com.adsamcik.tracker.shared.base.extension.FileExtensionsKt")
+	}
+
+	@Test
+	fun `Ambient Steps direct hashing uses the format owned 32 MiB cap`() {
+		importSourceReadLimit("TRACKERAMBIENTSTEPS") shouldBe
+			PortableAmbientStepsFileImport.MAX_FILE_BYTES
+		PortableAmbientStepsFileImport.MAX_FILE_BYTES shouldBe 32L * 1_024L * 1_024L
 	}
 
 	@Test

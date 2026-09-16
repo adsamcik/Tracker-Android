@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="export_format_portable_steps_desc">Verified Steps history, coverage and gaps without route coordinates</string>
+    <string name="export_format_portable_ambient_steps_desc">Ambient step counts, activity time, dates, coverage gaps and stored time-zone context without route coordinates</string>
     <string name="export_format_portable_activity_desc">Captured movement bands, confidence and coverage without route coordinates</string>
     <string name="export_format_portable_pressure_desc">Direct pressure measurements in hPa, coverage and gaps without route coordinates</string>
     <string name="export_sensitivity_portable_title">Export tracked history?</string>
     <string name="export_sensitivity_portable_steps_message">This file contains Steps counts, time windows and coverage information. It does not contain route coordinates. Only continue if you trust the destination.</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">This file contains Ambient step counts, activity time windows, dates, coverage gaps, and stored time-zone context. It does not contain route coordinates. Only continue if you trust the destination.</string>
     <string name="export_sensitivity_portable_activity_message">This file contains captured movement bands, time windows and coverage information. It does not contain route coordinates. Only continue if you trust the destination.</string>
     <string name="export_sensitivity_portable_pressure_message">This file contains pressure measurements and time windows that may reveal environmental context. It does not contain route coordinates or calibrated elevation. Only continue if you trust the destination.</string>
 </resources>
