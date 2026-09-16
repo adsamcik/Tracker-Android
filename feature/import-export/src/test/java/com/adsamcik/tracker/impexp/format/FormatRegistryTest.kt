@@ -5,8 +5,11 @@ import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.importer.file.FileImport
 import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
 import com.adsamcik.tracker.impexp.importer.DataImport
+import com.adsamcik.tracker.impexp.exporter.PortableAmbientStepsExporter
 import com.adsamcik.tracker.impexp.importer.file.PortableActivityFileImport
+import com.adsamcik.tracker.impexp.importer.file.PortableAmbientStepsFileImport
 import com.adsamcik.tracker.impexp.importer.file.PortablePressureFileImport
+import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.impexp.importer.worker.importSourceReadLimit
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldHaveAtLeastSize
@@ -44,7 +47,7 @@ class FormatRegistryTest {
 		@Test
 		fun `import extensions include gpx kml json db`() {
 			FormatRegistry.allImportExtensions() shouldContainAll
-				setOf("gpx", "kml", "json", "db", "trackersteps")
+				setOf("gpx", "kml", "json", "db", "trackersteps", "trackerambientsteps")
 		}
 
 		@Test
@@ -93,6 +96,32 @@ class FormatRegistryTest {
 		}
 
 		@Test
+		fun `portable Ambient Steps registers the native range exporter and importer managed route`() {
+			val entry = FormatRegistry.allEntries().single {
+				it.descriptor.id == PortableAmbientStepsExporter.FORMAT_ID
+			}
+			val exporter = entry.exporter.shouldNotBeNull()
+			val importer = entry.importer.shouldNotBeNull()
+
+			(exporter is PortableAmbientStepsExporter) shouldBe true
+			(importer is PortableAmbientStepsFileImport) shouldBe true
+			FormatRegistry.exporterFor(PortableAmbientStepsExporter.FORMAT_ID) shouldBe exporter
+			FormatRegistry.importerForExtension("TRACKERAMBIENTSTEPS") shouldBe importer
+			(importer in DataImport().activeImporterList) shouldBe true
+			importer.transactionMode shouldBe ImportTransactionMode.IMPORTER_MANAGED
+			entry.descriptor.extensions shouldContainAll setOf("trackerambientsteps")
+			entry.descriptor.mimeType shouldBe AmbientStepsPortableFormatV1.MIME_TYPE
+			entry.descriptor.supportsImport shouldBe true
+			entry.descriptor.supportsExport shouldBe true
+			entry.descriptor.supportsDateRange shouldBe true
+			exporter.canSelectDateRange shouldBe true
+			exporter.requiresLocationData shouldBe false
+			exporter.containsSensitiveLocationData shouldBe true
+			exporter.sensitivityTitleRes shouldBe R.string.export_ambient_steps_sensitivity_title
+			exporter.sensitivityMessageRes shouldBe R.string.export_ambient_steps_sensitivity_message
+		}
+
+		@Test
 		fun `portable Activity and Pressure are available to both real file routes without Location`() {
 			val importerList = DataImport().activeImporterList
 			listOf(
@@ -118,6 +147,8 @@ class FormatRegistryTest {
 
 		@Test
 		fun `new portable source limits apply before the worker hashes direct input`() {
+			importSourceReadLimit("TRACKERAMBIENTSTEPS") shouldBe
+				PortableAmbientStepsFileImport.MAX_FILE_BYTES
 			importSourceReadLimit("TRACKERACTIVITY") shouldBe PortableActivityFileImport.MAX_FILE_BYTES
 			importSourceReadLimit("trackerpressure") shouldBe PortablePressureFileImport.MAX_FILE_BYTES
 		}

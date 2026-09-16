@@ -29,6 +29,7 @@ import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.file.DatabaseImportFailure
 import com.adsamcik.tracker.impexp.importer.file.FileImport
 import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
+import com.adsamcik.tracker.impexp.importer.file.PortableAmbientStepsFileImport
 import com.adsamcik.tracker.impexp.importer.file.PortableStepsFileImport
 import com.adsamcik.tracker.impexp.importer.file.PortableActivityFileImport
 import com.adsamcik.tracker.impexp.importer.file.PortablePressureFileImport
@@ -348,6 +349,8 @@ internal fun importSourceReadLimit(extension: String?): Long = when {
 	extension.equals("zip", ignoreCase = true) -> ZipArchiveExtractor.MAX_COMPRESSED_INPUT_BYTES
 	extension.equals(PortableStepsFileImport.EXTENSION, ignoreCase = true) ->
 		PortableStepsFileImport.MAX_FILE_BYTES
+	extension.equals(PortableAmbientStepsFileImport.EXTENSION, ignoreCase = true) ->
+		PortableAmbientStepsFileImport.MAX_FILE_BYTES
 	extension.equals(PortableActivityFileImport.EXTENSION, ignoreCase = true) ->
 		PortableActivityFileImport.MAX_FILE_BYTES
 	extension.equals(PortablePressureFileImport.EXTENSION, ignoreCase = true) ->

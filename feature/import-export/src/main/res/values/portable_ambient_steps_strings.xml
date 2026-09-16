@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="format_portable_ambient_steps">Portable Ambient Steps</string>
+    <string name="export_error_no_portable_ambient_steps">No verified Ambient Steps history is available to export.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Ambient Steps history is incomplete or cannot be verified for export.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Ambient Steps export is temporarily unavailable. Try again.</string>
+    <string name="export_error_portable_ambient_steps_scope">This Ambient Steps selection cannot be represented by the portable file format.</string>
+    <string name="export_error_portable_ambient_steps_write">The Portable Ambient Steps file could not be created.</string>
+    <string name="export_ambient_steps_sensitivity_title">Export Ambient Steps history?</string>
+    <string name="export_ambient_steps_sensitivity_message">This file contains step counts, activity time windows, dates, coverage gaps, and stored time-zone context that may reveal daily activity patterns. It does not contain route coordinates. Only continue if you trust the destination.</string>
+</resources>

@@ -196,6 +196,13 @@ enum class ExportFormat(
         sensitivityMessageRes = R.string.export_sensitivity_portable_steps_message,
         sensitivityTitleRes = R.string.export_sensitivity_portable_title,
     ),
+    PORTABLE_AMBIENT_STEPS(
+        formatId = "portable-ambient-steps-v1",
+        displayNameRes = com.adsamcik.tracker.impexp.R.string.format_portable_ambient_steps,
+        descriptionRes = R.string.export_format_portable_ambient_steps_desc,
+        sensitivityMessageRes = R.string.export_sensitivity_portable_ambient_steps_message,
+        sensitivityTitleRes = R.string.export_sensitivity_portable_title,
+    ),
     PORTABLE_ACTIVITY(
         formatId = "portable-activity-v1",
         displayNameRes = com.adsamcik.tracker.impexp.R.string.format_portable_activity,
@@ -227,6 +234,7 @@ private val ExportFormat.icon: ImageVector
         ExportFormat.JSON -> Icons.Default.Storage
         ExportFormat.DATABASE -> Icons.Default.Storage
         ExportFormat.PORTABLE_STEPS,
+        ExportFormat.PORTABLE_AMBIENT_STEPS,
         ExportFormat.PORTABLE_ACTIVITY,
         ExportFormat.PORTABLE_PRESSURE -> Icons.Default.Storage
     }
