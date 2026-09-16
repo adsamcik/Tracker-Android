@@ -114,7 +114,7 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 			val failure = cleanup.attempt(applicationContext)
 			if (failure != null) {
 				return@withLock ProtectedLocationCanonicalWriteResult.Failed(
-					failure.safeProtectedLocationCode(),
+					OFFLINE_CLEANUP_PENDING,
 					terminal = false,
 				)
 			}
@@ -122,7 +122,16 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 		}
 		val permit = persistenceLifecycleLease.acquireOfflineLocationRecovery()
 		try {
-			writeWithLifecycleLease(command, acquisitionMetadata, permit)
+			try {
+				writeWithLifecycleLease(command, acquisitionMetadata, permit)
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: OfflineCleanupPendingException) {
+				ProtectedLocationCanonicalWriteResult.Failed(
+					OFFLINE_CLEANUP_PENDING,
+					terminal = false,
+				)
+			}
 		} finally {
 			if (retainedCleanup?.owns(permit) != true) {
 				permit.release()
@@ -329,10 +338,24 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 			val cleanupFailure = cleanup.attempt(applicationContext)
 			if (cleanupFailure == null) {
 				retainedCleanup = null
-			} else if (terminalFailure != null) {
+			} else if (terminalFailure is CancellationException) {
 				requireNotNull(terminalFailure).addSuppressed(cleanupFailure)
 			} else {
-				throw cleanupFailure
+				throw OfflineCleanupPendingException(
+					cleanupFailure = cleanupFailure,
+					originalFailure = terminalFailure,
+				)
+			}
+		}
+	}
+
+	private class OfflineCleanupPendingException(
+		cleanupFailure: Exception,
+		originalFailure: Throwable?,
+	) : IllegalStateException(OFFLINE_CLEANUP_PENDING, cleanupFailure) {
+		init {
+			if (originalFailure != null && originalFailure !== cleanupFailure) {
+				addSuppressed(originalFailure)
 			}
 		}
 	}
@@ -374,6 +397,7 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 	}
 
 	private companion object {
+		const val OFFLINE_CLEANUP_PENDING = "LOCATION_CANONICAL_OFFLINE_CLEANUP_PENDING"
 		val OFFLINE_WRITER_RUN_STATES = setOf(
 			SessionLifecycleState.STOPPING.name,
 			SessionLifecycleState.FINALIZED.name,
