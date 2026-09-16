@@ -43,6 +43,9 @@ import com.adsamcik.tracker.tracker.pipeline.TrackingPipeline
 import com.adsamcik.tracker.tracker.pipeline.toLocationObservationSignal
 import com.adsamcik.tracker.tracker.pipeline.toProtectedLocationObservationSignal
 import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
+import com.adsamcik.tracker.tracker.pipeline.persistence.ExclusiveTrackingPersistenceLifecycleLease
+import com.adsamcik.tracker.tracker.pipeline.persistence.TrackingPersistenceLifecycleLease
+import com.adsamcik.tracker.tracker.pipeline.persistence.TrackingPersistenceLifecyclePermit
 import com.adsamcik.tracker.tracker.pipeline.stages.DataCollectionStage
 import com.adsamcik.tracker.tracker.pipeline.stages.PolicyUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.PostProcessingStage
@@ -75,6 +78,7 @@ import com.adsamcik.tracker.tracker.worker.materializeDailySummaryDayInTransacti
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
@@ -126,6 +130,8 @@ internal class TrackingOrchestrator(
 	private val trackingControlOutputSink: TrackingControlOutputSink = NoOpTrackingControlOutputSink,
 	/** Delivers semantic settings plus policy evidence requirements to the event coordinator. */
 	private val onSourcePlanInputsChanged: suspend (TrackingParamsState, List<SourceDemand>) -> Unit = { _, _ -> },
+	private val persistenceLifecycleLease: TrackingPersistenceLifecycleLease =
+		ExclusiveTrackingPersistenceLifecycleLease(),
 ) : ProtectedLocationCanonicalWriter {
 	private val componentMutex = Mutex()
 
@@ -138,6 +144,7 @@ internal class TrackingOrchestrator(
 	private var completedShutdownResult: ShutdownResult? = null
 	private var protectedLocationApplicationContext: Context? = null
 	private var protectedLocationCurationSeededThroughOrdinal: Long? = null
+	private var livePersistencePermit: TrackingPersistenceLifecyclePermit? = null
 
 	@Volatile
 	private var controlLocationEnabled: Boolean = true
@@ -406,38 +413,57 @@ internal class TrackingOrchestrator(
 				appDatabase.liveStatsRecoverySeed(session, isResuming)
 			}
 		}
-		pipeline.start(
-			tier = initialTier,
-			startTimestamp = EpochMs(session.start),
-			isResuming = isResuming,
-			sessionId = session.id,
-		)
-		if (aggregatorProcessor != null && liveStatsSeed != null) {
-			aggregatorProcessor.seedDayTotals(
-				distanceM = liveStatsSeed.priorDayDistanceM,
-				steps = liveStatsSeed.priorDaySteps,
-				durationMs = liveStatsSeed.priorDayDurationMs,
-				trips = liveStatsSeed.priorDayTrips,
+		val persistencePermit = persistenceLifecycleLease.acquireLivePipeline()
+		livePersistencePermit = persistencePermit
+		try {
+			pipeline.start(
+				tier = initialTier,
+				startTimestamp = EpochMs(session.start),
+				isResuming = isResuming,
+				sessionId = session.id,
 			)
-			if (isResuming) {
-				aggregatorProcessor.restoreSessionTotals(
-					distanceM = session.distanceInM,
-					steps = session.steps,
-					durationMs = (session.end - session.start).coerceAtLeast(0L),
-					sampleCount = session.collections,
-					lastUpdateMs = session.end,
-					dayDistanceM = liveStatsSeed.restoredDayDistanceM,
-					daySteps = liveStatsSeed.restoredDaySteps,
-					dayDurationMs = liveStatsSeed.restoredDayDurationMs,
+			if (aggregatorProcessor != null && liveStatsSeed != null) {
+				aggregatorProcessor.seedDayTotals(
+					distanceM = liveStatsSeed.priorDayDistanceM,
+					steps = liveStatsSeed.priorDaySteps,
+					durationMs = liveStatsSeed.priorDayDurationMs,
+					trips = liveStatsSeed.priorDayTrips,
 				)
+				if (isResuming) {
+					aggregatorProcessor.restoreSessionTotals(
+						distanceM = session.distanceInM,
+						steps = session.steps,
+						durationMs = (session.end - session.start).coerceAtLeast(0L),
+						sampleCount = session.collections,
+						lastUpdateMs = session.end,
+						dayDistanceM = liveStatsSeed.restoredDayDistanceM,
+						daySteps = liveStatsSeed.restoredDaySteps,
+						dayDurationMs = liveStatsSeed.restoredDayDurationMs,
+					)
+				}
 			}
-		}
-		trackingPipeline = createTrackingPipeline(sessionScope)
-		protectedLocationApplicationContext = context.applicationContext
+			trackingPipeline = createTrackingPipeline(sessionScope)
+			protectedLocationApplicationContext = context.applicationContext
 
-		// Wire mutable references into tier escalation handler
-		tierEscalationHandler.processorPipeline = processorPipeline
-		pendingPresentationBinding
+			// Wire mutable references into tier escalation handler
+			tierEscalationHandler.processorPipeline = processorPipeline
+			pendingPresentationBinding
+		} catch (failure: Throwable) {
+			withContext(NonCancellable) {
+				val cleanupFailure = runCatching { pipeline.stop() }.exceptionOrNull()
+				if (cleanupFailure == null) {
+					processorPipeline = null
+					trackingPipeline = null
+					if (livePersistencePermit === persistencePermit) {
+						livePersistencePermit = null
+						persistencePermit.release()
+					}
+				} else {
+					failure.addSuppressed(cleanupFailure)
+				}
+			}
+			throw failure
+		}
 	}
 
 	/**
@@ -906,6 +932,10 @@ internal class TrackingOrchestrator(
 				processorPipeline?.stop()
 				processorPipeline = null
 				trackingPipeline = null
+				withContext(NonCancellable) {
+					livePersistencePermit?.release()
+					livePersistencePermit = null
+				}
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {

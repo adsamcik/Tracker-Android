@@ -60,6 +60,10 @@ internal interface DurableSignalProcessor : SignalProcessor {
  *
  * Lifecycle: [start] → [onSignal]* → [stop]. Calling [start] twice
  * without [stop] throws [IllegalStateException].
+ *
+ * Production owners must hold the shared persistence lifecycle permit from before [start] until
+ * [stop] completes. This class keeps its internal serializers local; it is not a substitute for
+ * exclusion against the separate offline Location pipeline or Pressure writer transition.
  */
 class ProcessorPipeline(
 	private val processors: Set<SignalProcessor>,

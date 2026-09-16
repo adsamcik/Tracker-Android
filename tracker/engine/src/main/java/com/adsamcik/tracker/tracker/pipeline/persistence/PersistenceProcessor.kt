@@ -183,7 +183,10 @@ class PersistenceProcessor @Inject constructor(
 	@Volatile
 	private var pipelineActive = false
 
-	internal fun isPipelineActiveForProtectedLocation(): Boolean = pipelineActive
+	internal fun isPipelineActiveForPersistenceLifecycle(): Boolean = pipelineActive
+
+	internal fun isPipelineActiveForProtectedLocation(): Boolean =
+		isPipelineActiveForPersistenceLifecycle()
 
 	internal fun isReadyForProtectedLocationWrite(): Boolean =
 		pipelineActive &&
@@ -230,7 +233,28 @@ class PersistenceProcessor @Inject constructor(
 		val acquiredAtMs: Long,
 		val stepsWriterOwner: String?,
 		val stepsWriterOwnerGeneration: Long?,
-	)
+		val pressureWriterOwner: String?,
+		val pressureWriterOwnerGeneration: Long?,
+	) {
+		fun hasExplicitIneligiblePressureWriter(): Boolean =
+			pressureWriterOwner != null &&
+				(pressureWriterOwner !=
+					SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE ||
+					pressureWriterOwnerGeneration !=
+					SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION)
+	}
+
+	private fun PendingAdmission?.acceptsLegacyPressureWriter(
+		currentOwner: SourceDestinationOwnerEntity?,
+	): Boolean {
+		val currentIsLegacy = currentOwner?.owner ==
+			SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE &&
+			currentOwner?.ownerGeneration == SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+		if (this == null || pressureWriterOwner == null) return currentIsLegacy
+		return pressureWriterOwner == currentOwner?.owner &&
+			pressureWriterOwnerGeneration == currentOwner?.ownerGeneration &&
+			currentIsLegacy
+	}
 
 	private enum class CommitResolution {
 		COMMITTED,
@@ -326,15 +350,23 @@ class PersistenceProcessor @Inject constructor(
 			val admission = withDatabaseRetry {
 				durableBuffer.checkpointWithAdmission { committed ->
 					committed.forEach { checkpointed ->
-						bufferSignal(checkpointed.signal, checkpointed.signalId)
-						pendingIds.add(checkpointed.id)
-						pendingAdmissions[checkpointed.id] = PendingAdmission(
+						val pendingAdmission = PendingAdmission(
 							sourceSignalId = checkpointed.signalId,
 							capturedEpoch = checkpointed.capturedEpoch,
 							acquiredAtMs = checkpointed.acquiredAtMs,
 							stepsWriterOwner = checkpointed.stepsWriterOwner,
 							stepsWriterOwnerGeneration = checkpointed.stepsWriterOwnerGeneration,
+							pressureWriterOwner = checkpointed.pressureWriterOwner,
+							pressureWriterOwnerGeneration =
+								checkpointed.pressureWriterOwnerGeneration,
 						)
+						pendingAdmissions[checkpointed.id] = pendingAdmission
+						bufferSignal(
+							checkpointed.signal,
+							checkpointed.signalId,
+							pendingAdmission,
+						)
+						pendingIds.add(checkpointed.id)
 					}
 				}
 			}
@@ -348,7 +380,11 @@ class PersistenceProcessor @Inject constructor(
 	}
 
 	/** Parse [signal] into the typed destination buffers (no staging, no I/O). */
-	private fun bufferSignal(signal: TrackingSignal, sourceSignalId: String) {
+	private fun bufferSignal(
+		signal: TrackingSignal,
+		sourceSignalId: String,
+		admission: PendingAdmission,
+	) {
 		val location = signal.location
 		val policyName = signal.policy?.policyName
 
@@ -357,7 +393,7 @@ class PersistenceProcessor @Inject constructor(
 		bufferLocationDecision(signal, sourceSignalId)
 		bufferCells(signal, location, sourceSignalId)
 		bufferWifi(signal, location, sourceSignalId)
-		bufferPressure(signal, sourceSignalId)
+		bufferPressure(signal, sourceSignalId, admission)
 		bufferSteps(signal, sourceSignalId)
 		bufferActivity(signal, sourceSignalId)
 	}
@@ -586,8 +622,13 @@ class PersistenceProcessor @Inject constructor(
 		}
 	}
 
-	private fun bufferPressure(signal: TrackingSignal, sourceSignalId: String) {
+	private fun bufferPressure(
+		signal: TrackingSignal,
+		sourceSignalId: String,
+		admission: PendingAdmission,
+	) {
 		val pressure = signal.pressure ?: return
+		if (admission.hasExplicitIneligiblePressureWriter()) return
 		pressureBuffer.add(
 			PressureSample(
 				timeMs = signal.timestampMs.raw,
@@ -931,9 +972,24 @@ class PersistenceProcessor @Inject constructor(
 		}
 		val cells = cellBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
 		val wifi = wifiBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
-		val pressure = pressureBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
 		val steps = stepBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
 		val activities = activityBuffer.filterNot { it.hasStaleSourceSignal(staleSourceSignalIds) }
+		val admissionsBySignal = pendingAdmissions.values.associateBy(PendingAdmission::sourceSignalId)
+		val pressureCandidates = pressureBuffer.filterNot {
+			it.hasStaleSourceSignal(staleSourceSignalIds)
+		}
+		val currentPressureOwner = if (pressureCandidates.isEmpty()) {
+			null
+		} else {
+			sourceDestinationOwnerDao.get(
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			)
+		}
+		val pressure = pressureCandidates.filter { sample ->
+			sample.sourceSignalId?.let(admissionsBySignal::get)
+				.acceptsLegacyPressureWriter(currentPressureOwner)
+		}
 
 		requireExistingLocationDestinationOwner(
 			hasLocationMutation = observations.isNotEmpty() ||
@@ -985,7 +1041,6 @@ class PersistenceProcessor @Inject constructor(
 		pressure.chunked(PRESSURE_BATCH_SIZE).forEach { chunk ->
 			pressureSampleDao.insert(chunk)
 		}
-		val admissionsBySignal = pendingAdmissions.values.associateBy(PendingAdmission::sourceSignalId)
 		val hasLegacyStepsAdmission = steps.any { interval ->
 			admissionsBySignal[interval.sourceSignalId]?.stepsWriterOwner ==
 				SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL
@@ -1353,15 +1408,18 @@ class PersistenceProcessor @Inject constructor(
 		pendingClaimToken = claimToken
 		entries.forEach { entry ->
 			val signal = (entry.payload as PendingSignalDecodeResult.Valid).signal
-			bufferSignal(signal, entry.signalId)
-			pendingIds.add(entry.id)
-			pendingAdmissions[entry.id] = PendingAdmission(
+			val pendingAdmission = PendingAdmission(
 				sourceSignalId = entry.signalId,
 				capturedEpoch = entry.capturedEpoch,
 				acquiredAtMs = entry.acquiredAtMs,
 				stepsWriterOwner = entry.stepsWriterOwner,
 				stepsWriterOwnerGeneration = entry.stepsWriterOwnerGeneration,
+				pressureWriterOwner = entry.pressureWriterOwner,
+				pressureWriterOwnerGeneration = entry.pressureWriterOwnerGeneration,
 			)
+			pendingAdmissions[entry.id] = pendingAdmission
+			bufferSignal(signal, entry.signalId, pendingAdmission)
+			pendingIds.add(entry.id)
 		}
 
 		if (persistBufferedAndAcknowledge(verifyCollectedDataAccess)) return true

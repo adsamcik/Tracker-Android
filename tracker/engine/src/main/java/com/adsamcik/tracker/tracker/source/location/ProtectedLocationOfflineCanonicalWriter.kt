@@ -11,6 +11,8 @@ import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.pipeline.TrackingPipeline
 import com.adsamcik.tracker.tracker.pipeline.toProtectedLocationObservationSignal
 import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
+import com.adsamcik.tracker.tracker.pipeline.persistence.ExclusiveTrackingPersistenceLifecycleLease
+import com.adsamcik.tracker.tracker.pipeline.persistence.TrackingPersistenceLifecycleLease
 import com.adsamcik.tracker.tracker.pipeline.stages.DataCollectionStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SignalDispatchStage
 import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
@@ -36,6 +38,7 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 	private val dispatchers: DispatchersProvider,
 	private val persistenceProcessor: PersistenceProcessor,
 	private val locationComponentFactory: () -> LocationTrackerComponent,
+	private val persistenceLifecycleLease: TrackingPersistenceLifecycleLease,
 ) : ProtectedLocationCanonicalWriter {
 	private val applicationContext = context.applicationContext
 
@@ -45,6 +48,8 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 		database: com.adsamcik.tracker.shared.base.database.AppDatabase,
 		dispatchers: DispatchersProvider,
 		persistenceProcessor: PersistenceProcessor,
+		persistenceLifecycleLease: ExclusiveTrackingPersistenceLifecycleLease =
+			ExclusiveTrackingPersistenceLifecycleLease(),
 	) : this(
 		context,
 		database,
@@ -56,6 +61,7 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 				dispatchers = dispatchers,
 			)
 		},
+		persistenceLifecycleLease,
 	)
 
 	internal constructor(
@@ -65,15 +71,26 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 		persistenceProcessor: PersistenceProcessor,
 		locationComponentFactory: () -> LocationTrackerComponent,
 		@Suppress("UNUSED_PARAMETER") testMarker: Unit,
+		persistenceLifecycleLease: TrackingPersistenceLifecycleLease =
+			ExclusiveTrackingPersistenceLifecycleLease(),
 	) : this(
 		context,
 		database,
 		dispatchers,
 		persistenceProcessor,
 		locationComponentFactory,
+		persistenceLifecycleLease,
 	)
 
 	override suspend fun write(
+		command: LocationCapturedFactCommand,
+		acquisitionMetadata: LocationWalAcquisitionMetadata,
+	): ProtectedLocationCanonicalWriteResult =
+		persistenceLifecycleLease.withOfflineLocationRecovery {
+			writeWithLifecycleLease(command, acquisitionMetadata)
+		}
+
+	private suspend fun writeWithLifecycleLease(
 		command: LocationCapturedFactCommand,
 		acquisitionMetadata: LocationWalAcquisitionMetadata,
 	): ProtectedLocationCanonicalWriteResult {
@@ -257,10 +274,24 @@ internal class ProtectedLocationOfflineCanonicalWriter private constructor(
 			}
 		} finally {
 			withContext(NonCancellable) {
-				if (pipelineStarted) runCatching { pipeline.stop() }
-				if (componentEnabled) runCatching {
-					locationComponent.onDisable(applicationContext)
+				var cleanupFailure: Exception? = null
+				if (pipelineStarted) {
+					try {
+						pipeline.stop()
+					} catch (failure: Exception) {
+						cleanupFailure = failure
+					}
 				}
+				if (componentEnabled) {
+					try {
+						locationComponent.onDisable(applicationContext)
+					} catch (failure: Exception) {
+						cleanupFailure?.addSuppressed(failure) ?: run {
+							cleanupFailure = failure
+						}
+					}
+				}
+				cleanupFailure?.let { throw it }
 			}
 		}
 	}

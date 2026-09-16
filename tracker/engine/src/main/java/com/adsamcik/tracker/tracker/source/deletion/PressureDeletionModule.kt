@@ -4,7 +4,7 @@ import com.adsamcik.tracker.stats.api.repository.PressureSessionDeletion
 import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrier
 import com.adsamcik.tracker.tracker.source.pressure.RuntimePressureSourceEraseBarrier
 import com.adsamcik.tracker.tracker.source.pressure.LegacyPressureWriterLifecycleBarrier
-import com.adsamcik.tracker.tracker.source.pressure.UnavailableLegacyPressureWriterLifecycleBarrier
+import com.adsamcik.tracker.tracker.source.pressure.PersistenceLegacyPressureWriterLifecycleBarrier
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -25,6 +25,6 @@ internal interface PressureDeletionModule {
 
 	@Binds
 	fun bindLegacyPressureWriterLifecycleBarrier(
-		implementation: UnavailableLegacyPressureWriterLifecycleBarrier,
+		implementation: PersistenceLegacyPressureWriterLifecycleBarrier,
 	): LegacyPressureWriterLifecycleBarrier
 }
