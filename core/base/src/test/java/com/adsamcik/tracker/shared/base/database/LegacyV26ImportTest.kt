@@ -116,6 +116,8 @@ class LegacyV26ImportTest {
 		count(raw, "imported_cell_entry_deletion_receipt") shouldBe 0L
 		count(raw, "source_capture_admission_barrier") shouldBe 0L
 		count(raw, "source_run_retirement") shouldBe 0L
+		count(raw, "pending_signal") shouldBe 0L
+		assertPendingPressureColumns(raw)
 		count(raw, "pressure_fact_revision") shouldBe 0L
 		count(raw, "activity_captured_registration_plan") shouldBe 0L
 		count(raw, "activity_captured_window_revision") shouldBe 0L
@@ -134,6 +136,8 @@ class LegacyV26ImportTest {
 		count(raw, "daily_summary") shouldBe 1L
 		count(raw, "achievement_progress") shouldBe 0L
 		count(raw, "pressure_fact_revision") shouldBe 0L
+		count(raw, "pending_signal") shouldBe 0L
+		assertPendingPressureColumns(raw)
 		longValue(raw, "SELECT primary_activity FROM session_segment WHERE id = 9007") shouldBe 7L
 
 		raw.query(
@@ -765,6 +769,22 @@ class LegacyV26ImportTest {
 		context.deleteDatabase(LEGACY_DATABASE_NAME)
 		context.deleteDatabase(ACTIVE_DATABASE_NAME)
 		context.deleteDatabase(STAGING_DATABASE_NAME)
+	}
+
+	private fun assertPendingPressureColumns(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+		database.query("PRAGMA table_info(pending_signal)").use { cursor ->
+			val columns = buildMap {
+				while (cursor.moveToNext()) {
+					put(
+						cursor.getString(cursor.getColumnIndexOrThrow("name")),
+						cursor.getInt(cursor.getColumnIndexOrThrow("notnull")) to
+							cursor.getString(cursor.getColumnIndexOrThrow("dflt_value")),
+					)
+				}
+			}
+			columns["pressure_writer_owner"] shouldBe (0 to null)
+			columns["pressure_writer_owner_generation"] shouldBe (0 to null)
+		}
 	}
 
 	private data class ReleasedV26Table(

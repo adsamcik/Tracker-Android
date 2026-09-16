@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.QuarantinedSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.first
@@ -113,6 +114,37 @@ class PendingSignalClaimDaoTest {
 				"WHERE signal_id = 'owner-only'",
 		)
 		pendingDao.hasStepsWriterCommand() shouldBe true
+	}
+
+	@Test
+	fun `pressure writer provenance is nullable as one pair and rejects invalid ownership`() {
+		pending("valid-pressure", 1_000L).copy(
+			pressureWriterOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+			pressureWriterOwnerGeneration = 1L,
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			pending("owner-only-pressure", 1_000L).copy(
+				pressureWriterOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			pending("generation-only-pressure", 1_000L).copy(
+				pressureWriterOwnerGeneration = 1L,
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			pending("zero-pressure-generation", 1_000L).copy(
+				pressureWriterOwner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+				pressureWriterOwnerGeneration = 0L,
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			pending("unknown-pressure-owner", 1_000L).copy(
+				pressureWriterOwner = "UNKNOWN_PRESSURE_WRITER",
+				pressureWriterOwnerGeneration = 1L,
+			)
+		}
 	}
 
 	@Test

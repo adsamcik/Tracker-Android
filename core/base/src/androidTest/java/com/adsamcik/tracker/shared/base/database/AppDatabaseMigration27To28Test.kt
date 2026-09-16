@@ -1124,13 +1124,29 @@ class AppDatabaseMigration27To28Test {
 		}
 		assertTableCount(database, "pending_signal", 1)
 		database.query(
-			"SELECT steps_writer_owner, steps_writer_owner_generation FROM pending_signal " +
+			"SELECT steps_writer_owner, steps_writer_owner_generation, " +
+				"pressure_writer_owner, pressure_writer_owner_generation FROM pending_signal " +
 				"WHERE signal_id = 'v27-pending-signal'",
 		).use { cursor ->
 			assertTrue(cursor.moveToFirst())
 			assertEquals(SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL, cursor.getString(0))
 			assertEquals(SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION, cursor.getLong(1))
+			assertTrue(cursor.isNull(2))
+			assertTrue(cursor.isNull(3))
 			assertFalse(cursor.moveToNext())
+		}
+		database.query("PRAGMA table_info(pending_signal)").use { cursor ->
+			val columns = buildMap {
+				while (cursor.moveToNext()) {
+					put(
+						cursor.getString(cursor.getColumnIndexOrThrow("name")),
+						cursor.getInt(cursor.getColumnIndexOrThrow("notnull")) to
+							cursor.getString(cursor.getColumnIndexOrThrow("dflt_value")),
+					)
+				}
+			}
+			assertEquals(0 to null, columns["pressure_writer_owner"])
+			assertEquals(0 to null, columns["pressure_writer_owner_generation"])
 		}
 		assertTableCount(database, "quarantined_signal", 1)
 		database.query(
@@ -1159,6 +1175,8 @@ class AppDatabaseMigration27To28Test {
 			SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
 			pending.stepsWriterOwnerGeneration,
 		)
+		assertNull(pending.pressureWriterOwner)
+		assertNull(pending.pressureWriterOwnerGeneration)
 		val location = database.locationSampleDao().getChunkBetweenOrdered(
 			fromMs = PopulatedV27Fixture.START_MS,
 			toMs = PopulatedV27Fixture.END_MS,
