@@ -29,6 +29,7 @@ internal fun createTrackingOwnerValidationTriggers(database: SupportSQLiteDataba
 					NEW.steps_writer_owner IS NULL AND
 					NEW.steps_writer_owner_generation IS NULL
 				) OR (
+					NEW.steps_writer_owner IS NOT NULL AND
 					NEW.steps_writer_owner IN ('LEGACY_STEP_INTERVAL', 'STEPS_SESSION_FACTS') AND
 					NEW.steps_writer_owner_generation IS NOT NULL AND
 					NEW.steps_writer_owner_generation > 0
@@ -38,6 +39,7 @@ internal fun createTrackingOwnerValidationTriggers(database: SupportSQLiteDataba
 					NEW.pressure_writer_owner IS NULL AND
 					NEW.pressure_writer_owner_generation IS NULL
 				) OR (
+					NEW.pressure_writer_owner IS NOT NULL AND
 					NEW.pressure_writer_owner IN (
 						'LEGACY_PRESSURE_SAMPLE',
 						'PRESSURE_SESSION_FACTS'
@@ -65,6 +67,7 @@ internal fun createTrackingOwnerValidationTriggers(database: SupportSQLiteDataba
 					NEW.steps_writer_owner IS NULL AND
 					NEW.steps_writer_owner_generation IS NULL
 				) OR (
+					NEW.steps_writer_owner IS NOT NULL AND
 					NEW.steps_writer_owner IN ('LEGACY_STEP_INTERVAL', 'STEPS_SESSION_FACTS') AND
 					NEW.steps_writer_owner_generation IS NOT NULL AND
 					NEW.steps_writer_owner_generation > 0
@@ -74,6 +77,7 @@ internal fun createTrackingOwnerValidationTriggers(database: SupportSQLiteDataba
 					NEW.pressure_writer_owner IS NULL AND
 					NEW.pressure_writer_owner_generation IS NULL
 				) OR (
+					NEW.pressure_writer_owner IS NOT NULL AND
 					NEW.pressure_writer_owner IN (
 						'LEGACY_PRESSURE_SAMPLE',
 						'PRESSURE_SESSION_FACTS'
@@ -103,9 +107,11 @@ internal fun createTrackingOwnerValidationTriggers(database: SupportSQLiteDataba
 					NEW.legacy_write_fence_owner IS NULL AND
 					NEW.legacy_write_fence_generation >= 0
 				) OR (
+					NEW.legacy_write_fence_owner IS NOT NULL AND
 					NEW.legacy_write_fence_owner = 'LEGACY_PRESSURE_SAMPLE' AND
 					NEW.legacy_write_fence_generation >= 2
 				) OR (
+					NEW.legacy_write_fence_owner IS NOT NULL AND
 					NEW.legacy_write_fence_owner = 'CONTAINED_PRESSURE_SESSION_FACTS' AND
 					NEW.legacy_write_fence_generation >= 3 AND
 					NEW.legacy_write_fence_generation % 2 = 1
@@ -126,9 +132,11 @@ internal fun createTrackingOwnerValidationTriggers(database: SupportSQLiteDataba
 					NEW.legacy_write_fence_owner IS NULL AND
 					NEW.legacy_write_fence_generation >= 0
 				) OR (
+					NEW.legacy_write_fence_owner IS NOT NULL AND
 					NEW.legacy_write_fence_owner = 'LEGACY_PRESSURE_SAMPLE' AND
 					NEW.legacy_write_fence_generation >= 2
 				) OR (
+					NEW.legacy_write_fence_owner IS NOT NULL AND
 					NEW.legacy_write_fence_owner = 'CONTAINED_PRESSURE_SESSION_FACTS' AND
 					NEW.legacy_write_fence_generation >= 3 AND
 					NEW.legacy_write_fence_generation % 2 = 1
