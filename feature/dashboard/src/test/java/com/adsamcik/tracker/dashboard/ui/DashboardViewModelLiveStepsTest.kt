@@ -8,6 +8,10 @@ import com.adsamcik.tracker.dashboard.data.DashboardLayoutStore
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveSessionPresentation
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLivePressureMetrics
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLivePressureValue
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardRadioCoverage
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardRadioHistoryValue
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardRadioOrigin
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardRadioProductState
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveStepsValue
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -29,6 +33,14 @@ import com.adsamcik.tracker.stats.api.repository.HistoryCaptureRevision
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
+import com.adsamcik.tracker.stats.api.repository.CellHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.CellHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.CellHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.CellHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.LocalCellHistoryIdentity
+import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
 import com.adsamcik.tracker.stats.api.repository.LiveSessionHistorySnapshot
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.PressureHistory
@@ -41,6 +53,7 @@ import com.adsamcik.tracker.stats.api.repository.PressureSessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.PressureWindowClosure
 import com.adsamcik.tracker.stats.api.repository.PressureWindowQualification
 import com.adsamcik.tracker.stats.api.repository.SessionHistory
+import com.adsamcik.tracker.stats.api.repository.SessionHistoryProducts
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
@@ -49,6 +62,19 @@ import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.StepsAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryUnavailableReason
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryAvailability
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryBand
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryObservation
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryResultCompleteness
+import com.adsamcik.tracker.stats.api.repository.WifiHistorySignalQuality
+import com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
@@ -389,6 +415,199 @@ class DashboardViewModelLiveStepsTest {
 		}
 	}
 
+	@Test
+	fun `typed unavailable replaces previously loaded standard presentation`() = runTest {
+		val mainDispatcher = StandardTestDispatcher(testScheduler)
+		Dispatchers.setMain(mainDispatcher)
+		try {
+			val running = MutableStateFlow(true)
+			val session = MutableStateFlow<TrackerSessionSnapshot?>(
+				TrackerSessionSnapshot(id = FIRST_SEGMENT_ID, start = 1L),
+			)
+			val repository = RecordingTrackingHistoryRepository()
+			val viewModel = createViewModel(running, session, repository)
+			val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				viewModel.liveSessionPresentation.collect { }
+			}
+			repository.update(
+				FIRST_SEGMENT_ID,
+				SessionHistoryQuery.Found(mixedHistory(FIRST_SEGMENT_ID)),
+			)
+			advanceUntilIdle()
+			viewModel.liveSessionPresentation.value shouldBe
+				DashboardLiveSessionPresentation.Standard(FIRST_SEGMENT_ID)
+
+			repository.update(
+				FIRST_SEGMENT_ID,
+				SessionHistoryQuery.Unavailable(
+					reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+					source = HistorySource.WIFI,
+				),
+			)
+			advanceUntilIdle()
+
+			viewModel.liveSessionPresentation.value shouldBe
+				DashboardLiveSessionPresentation.HistoryUnavailable(
+					segmentId = FIRST_SEGMENT_ID,
+					reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+					source = HistorySource.WIFI,
+				)
+			collection.cancel()
+		} finally {
+			Dispatchers.resetMain()
+		}
+	}
+
+	@Test
+	fun `exact Wi-Fi-only live snapshot exposes partial identity-free radio values`() = runTest {
+		val mainDispatcher = StandardTestDispatcher(testScheduler)
+		Dispatchers.setMain(mainDispatcher)
+		try {
+			val running = MutableStateFlow(true)
+			val session = MutableStateFlow<TrackerSessionSnapshot?>(
+				TrackerSessionSnapshot(id = FIRST_SEGMENT_ID, start = 1L),
+			)
+			val repository = RecordingTrackingHistoryRepository()
+			repository.update(
+				FIRST_SEGMENT_ID,
+				SessionHistoryQuery.Found(wifiOnlySessionHistory(FIRST_SEGMENT_ID)),
+			)
+			val viewModel = createViewModel(running, session, repository)
+			val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				viewModel.liveSessionPresentation.collect { }
+			}
+
+			advanceUntilIdle()
+
+			viewModel.liveSessionPresentation.value shouldBe
+				DashboardLiveSessionPresentation.WifiOnly(
+					segmentId = FIRST_SEGMENT_ID,
+					history = DashboardRadioHistoryValue(
+						source = HistorySource.WIFI,
+						origin = DashboardRadioOrigin.LOCAL,
+						state = DashboardRadioProductState.PARTIAL,
+						coverage = DashboardRadioCoverage.PARTIAL,
+						deliveryCount = 1,
+						retainedRecordCount = 1,
+						partialDeliveryCount = 1,
+					),
+				)
+			collection.cancel()
+		} finally {
+			Dispatchers.resetMain()
+		}
+	}
+
+	@Test
+	fun `exact Cell-only factless snapshot stays materializing and nonnumeric`() = runTest {
+		val mainDispatcher = StandardTestDispatcher(testScheduler)
+		Dispatchers.setMain(mainDispatcher)
+		try {
+			val running = MutableStateFlow(true)
+			val session = MutableStateFlow<TrackerSessionSnapshot?>(
+				TrackerSessionSnapshot(id = FIRST_SEGMENT_ID, start = 1L),
+			)
+			val repository = RecordingTrackingHistoryRepository()
+			repository.update(
+				FIRST_SEGMENT_ID,
+				SessionHistoryQuery.Found(cellOnlySessionHistory(FIRST_SEGMENT_ID)),
+			)
+			val viewModel = createViewModel(running, session, repository)
+			val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				viewModel.liveSessionPresentation.collect { }
+			}
+
+			advanceUntilIdle()
+
+			viewModel.liveSessionPresentation.value shouldBe
+				DashboardLiveSessionPresentation.CellOnly(
+					segmentId = FIRST_SEGMENT_ID,
+					history = DashboardRadioHistoryValue(
+						source = HistorySource.CELL,
+						origin = DashboardRadioOrigin.LOCAL,
+						state = DashboardRadioProductState.MATERIALIZING,
+						coverage = DashboardRadioCoverage.NONE,
+						deliveryCount = 0,
+						retainedRecordCount = 0,
+						partialDeliveryCount = 0,
+					),
+				)
+			collection.cancel()
+		} finally {
+			Dispatchers.resetMain()
+		}
+	}
+
+	@Test
+	fun `Cell conflict becomes whole-source unavailable instead of a radio card`() = runTest {
+		val mainDispatcher = StandardTestDispatcher(testScheduler)
+		Dispatchers.setMain(mainDispatcher)
+		try {
+			val running = MutableStateFlow(true)
+			val session = MutableStateFlow<TrackerSessionSnapshot?>(
+				TrackerSessionSnapshot(id = FIRST_SEGMENT_ID, start = 1L),
+			)
+			val repository = RecordingTrackingHistoryRepository()
+			repository.update(
+				FIRST_SEGMENT_ID,
+				SessionHistoryQuery.Found(cellConflictSessionHistory(FIRST_SEGMENT_ID)),
+			)
+			val viewModel = createViewModel(running, session, repository)
+			val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				viewModel.liveSessionPresentation.collect { }
+			}
+
+			advanceUntilIdle()
+
+			viewModel.liveSessionPresentation.value shouldBe
+				DashboardLiveSessionPresentation.HistoryUnavailable(
+					segmentId = FIRST_SEGMENT_ID,
+					reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+					source = HistorySource.CELL,
+				)
+			collection.cancel()
+		} finally {
+			Dispatchers.resetMain()
+		}
+	}
+
+	@Test
+	fun `failed Pressure becomes unavailable instead of a Pressure card`() = runTest {
+		val mainDispatcher = StandardTestDispatcher(testScheduler)
+		Dispatchers.setMain(mainDispatcher)
+		try {
+			val running = MutableStateFlow(true)
+			val session = MutableStateFlow<TrackerSessionSnapshot?>(
+				TrackerSessionSnapshot(id = FIRST_SEGMENT_ID, start = 1L),
+			)
+			val repository = RecordingTrackingHistoryRepository()
+			repository.update(
+				FIRST_SEGMENT_ID,
+				SessionHistoryQuery.Found(pressureIntentFallbackHistory(FIRST_SEGMENT_ID)),
+			)
+			repository.updatePressure(
+				FIRST_SEGMENT_ID,
+				PressureSessionHistoryQuery.Found(failedPressureHistory(FIRST_SEGMENT_ID)),
+			)
+			val viewModel = createViewModel(running, session, repository)
+			val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				viewModel.liveSessionPresentation.collect { }
+			}
+
+			advanceUntilIdle()
+
+			viewModel.liveSessionPresentation.value shouldBe
+				DashboardLiveSessionPresentation.HistoryUnavailable(
+					segmentId = FIRST_SEGMENT_ID,
+					reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+					source = HistorySource.PRESSURE,
+				)
+			collection.cancel()
+		} finally {
+			Dispatchers.resetMain()
+		}
+	}
+
 	private fun createViewModel(
 		running: MutableStateFlow<Boolean>,
 		session: MutableStateFlow<TrackerSessionSnapshot?>,
@@ -451,6 +670,156 @@ class DashboardViewModelLiveStepsTest {
 		),
 		qualifiedSources = emptySet(),
 		steps = materializingSteps(),
+	)
+
+	private fun wifiOnlySessionHistory(segmentId: Long): SessionHistory {
+		val capture = exactCapture(HistorySource.WIFI)
+		val wifi = partialWifiEntry()
+		val products = sourceProducts(
+			segmentId = segmentId,
+			capture = capture,
+			wifi = WifiHistoryQuery.Found(wifi),
+		)
+		return SessionHistory(
+			segmentId = segmentId,
+			capture = capture,
+			qualifiedSources = setOf(HistorySource.WIFI),
+			steps = missingStepsHistory(),
+			sourceProducts = products,
+		)
+	}
+
+	private fun cellOnlySessionHistory(segmentId: Long): SessionHistory {
+		val capture = exactCapture(HistorySource.CELL)
+		val cell = materializingCellEntry()
+		val products = sourceProducts(
+			segmentId = segmentId,
+			capture = capture,
+			cell = CellHistoryQuery.Found(cell),
+		)
+		return SessionHistory(
+			segmentId = segmentId,
+			capture = capture,
+			qualifiedSources = emptySet(),
+			steps = missingStepsHistory(),
+			sourceProducts = products,
+		)
+	}
+
+	private fun cellConflictSessionHistory(segmentId: Long): SessionHistory {
+		val capture = exactCapture(HistorySource.CELL)
+		val conflict = materializingCellEntry().copy(
+			state = CellHistoryProductState.UNVERIFIABLE,
+			coverage = CellHistoryCoverage.NONE,
+			observations = emptyList(),
+			causes = setOf(CellHistoryCause.ORIGIN_IDENTITY_CONFLICT),
+		)
+		return SessionHistory(
+			segmentId = segmentId,
+			capture = capture,
+			qualifiedSources = emptySet(),
+			steps = missingStepsHistory(),
+			sourceProducts = sourceProducts(
+				segmentId = segmentId,
+				capture = capture,
+				cell = CellHistoryQuery.Found(conflict),
+			),
+		)
+	}
+
+	private fun exactCapture(source: HistorySource) = HistoryCapture.Exact(
+		listOf(
+			HistoryCaptureRevision(
+				revision = 1L,
+				effectiveAt = EpochMs(1L),
+				capturedSources = setOf(source),
+				controlSources = emptySet(),
+			),
+		),
+	)
+
+	private fun sourceProducts(
+		segmentId: Long,
+		capture: HistoryCapture,
+		wifi: WifiHistoryQuery = WifiHistoryQuery.Found(wifiSourceNotCaptured()),
+		cell: CellHistoryQuery = CellHistoryQuery.Found(cellSourceNotCaptured()),
+	) = SessionHistoryProducts(
+		segmentId = segmentId,
+		wifi = wifi,
+		cell = cell,
+		activity = defaultActivityQuery(segmentId),
+		pressure = PressureSessionHistoryQuery.Found(
+			PressureSessionHistory(
+				segmentId = segmentId,
+				capture = capture,
+				qualifiedSources = emptySet(),
+				pressure = physicalPressureSourceNotCaptured(),
+			),
+		),
+	)
+
+	private fun partialWifiEntry() = WifiHistoryEntry(
+		key = WifiHistoryEntryKey("wifi"),
+		startTime = EpochMs(1L),
+		endTime = EpochMs(2L),
+		storedZoneIds = setOf("UTC"),
+		state = WifiHistoryProductState.PARTIAL,
+		coverage = WifiHistoryCoverage.PARTIAL,
+		observations = listOf(
+			WifiHistoryObservation(
+				intervalStartTime = EpochMs(1L),
+				observedTime = EpochMs(2L),
+				wallTimeUncertaintyMs = 0L,
+				availability = WifiHistoryAvailability.AVAILABLE,
+				resultCompleteness = WifiHistoryResultCompleteness.PARTIAL,
+				submittedResultCount = 2,
+				acceptedResultCount = 1,
+				rejectedResultCount = 1,
+				observationCount = 1,
+				bandMix = mapOf(WifiHistoryBand.FIVE_GHZ to 1),
+				signalQuality = WifiHistorySignalQuality(-45, -45, -45.0, 1),
+				sourceQualityFlags = 0L,
+				sourceQualityConfidence = 1f,
+				storedZoneId = "UTC",
+			),
+		),
+		causes = setOf(WifiHistoryCause.RESULT_SET_PARTIAL),
+		localSelection = WifiLocalHistorySelectionKey("a".repeat(64)),
+		capturesOnlyWifi = true,
+	)
+
+	private fun wifiSourceNotCaptured() = WifiHistoryEntry(
+		key = WifiHistoryEntryKey("wifi-missing"),
+		startTime = EpochMs(1L),
+		endTime = EpochMs(2L),
+		storedZoneIds = setOf("UTC"),
+		state = WifiHistoryProductState.UNAVAILABLE,
+		coverage = WifiHistoryCoverage.NONE,
+		observations = emptyList(),
+		causes = setOf(WifiHistoryCause.SOURCE_NOT_CAPTURED),
+	)
+
+	private fun materializingCellEntry() = CellHistoryEntry(
+		key = CellHistoryEntryKey("cell"),
+		startTime = EpochMs(1L),
+		endTime = EpochMs(2L),
+		storedZoneIds = setOf("UTC"),
+		state = CellHistoryProductState.MATERIALIZING,
+		coverage = CellHistoryCoverage.NONE,
+		observations = emptyList(),
+		causes = setOf(CellHistoryCause.MATERIALIZATION_BEHIND),
+		selection = LocalCellHistorySelection(LocalCellHistoryIdentity("b".repeat(64))),
+	)
+
+	private fun cellSourceNotCaptured() = CellHistoryEntry(
+		key = CellHistoryEntryKey("cell-missing"),
+		startTime = EpochMs(1L),
+		endTime = EpochMs(2L),
+		storedZoneIds = setOf("UTC"),
+		state = CellHistoryProductState.UNAVAILABLE,
+		coverage = CellHistoryCoverage.NONE,
+		observations = emptyList(),
+		causes = setOf(CellHistoryCause.SOURCE_NOT_CAPTURED),
 	)
 
 	private fun capturedActivityEntry() = ActivityHistoryEntry(
@@ -576,6 +945,20 @@ class DashboardViewModelLiveStepsTest {
 		)
 	}
 
+	private fun failedPressureHistory(segmentId: Long) = PressureSessionHistory(
+		segmentId = segmentId,
+		capture = capture(setOf(HistorySource.PRESSURE)),
+		qualifiedSources = emptySet(),
+		pressure = PressureHistory(
+			availability = HistoryAvailability.UNAVAILABLE,
+			evidence = HistoryEvidence.NONE,
+			productState = HistoryProductState.FAILED,
+			coverage = PressureHistoryCoverage.UNKNOWN,
+			windows = emptyList(),
+			causes = setOf(PressureHistoryCause.PRESSURE_FACT_INTEGRITY_FAILED),
+		),
+	)
+
 	private fun capture(sources: Set<HistorySource>) = HistoryCapture.Exact(
 		listOf(
 			HistoryCaptureRevision(
@@ -664,6 +1047,13 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 	fun update(segmentId: Long, query: SessionHistoryQuery) {
 		snapshotState(segmentId).value = when (query) {
 			SessionHistoryQuery.NotFound -> missingSnapshot(segmentId)
+			is SessionHistoryQuery.Unavailable -> LiveSessionHistorySnapshot(
+				segmentId = segmentId,
+				session = query,
+				activity = ActivityHistoryQuery.NotFound,
+				pressure = PressureSessionHistoryQuery.NotFound,
+				readSnapshot = query.readSnapshot,
+			)
 			is SessionHistoryQuery.Found -> foundSnapshot(query)
 		}
 	}
@@ -719,14 +1109,17 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 	private fun foundSnapshot(query: SessionHistoryQuery.Found) = LiveSessionHistorySnapshot(
 		segmentId = query.history.segmentId,
 		session = query,
-		activity = defaultActivityQuery(
+		activity = query.history.sourceProducts?.activity ?: defaultActivityQuery(
 			segmentId = query.history.segmentId,
 			capturesOnlyActivity = (query.history.capture as? HistoryCapture.Exact)
 				?.revisions?.all { revision ->
 					revision.capturedSources == setOf(HistorySource.ACTIVITY)
 				} == true,
 		),
-		pressure = defaultPressureQuery(query.history),
+		pressure = query.history.sourceProducts?.pressure ?: defaultPressureQuery(query.history),
+		wifi = query.history.sourceProducts?.wifi,
+		cell = query.history.sourceProducts?.cell,
+		readSnapshot = query.history.readSnapshot,
 	)
 
 	private fun snapshotState(segmentId: Long): MutableStateFlow<LiveSessionHistorySnapshot> =
@@ -782,5 +1175,14 @@ private class RecordingTrackingHistoryRepository : TrackingHistoryRepository {
 		coverage = PressureHistoryCoverage.UNKNOWN,
 		windows = emptyList(),
 		causes = setOf(PressureHistoryCause.LEGACY_UNATTRIBUTED),
+	)
+
+	private fun physicalPressureSourceNotCaptured() = PressureHistory(
+		availability = HistoryAvailability.UNAVAILABLE,
+		evidence = HistoryEvidence.NONE,
+		productState = HistoryProductState.FAILED,
+		coverage = PressureHistoryCoverage.UNKNOWN,
+		windows = emptyList(),
+		causes = setOf(PressureHistoryCause.SOURCE_NOT_CAPTURED),
 	)
 }

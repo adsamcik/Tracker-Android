@@ -39,6 +39,7 @@ import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryType
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.SourceOnlyHistoryIntent
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.TripSummary
@@ -56,6 +57,7 @@ private val sourceDetailDateTimeFormatter: DateTimeFormatter by lazy {
 @Composable
 internal fun TripDetailActivityOverview(
 	activity: ActivityHistoryEntry,
+	intent: SourceOnlyHistoryIntent? = null,
 ) {
 	SourceDetailColumn(tag = "trip_detail_activity_only") {
 		SourceDetailHeader(
@@ -68,6 +70,13 @@ internal fun TripDetailActivityOverview(
 			style = MaterialTheme.typography.bodySmall,
 			color = MaterialTheme.colorScheme.onSurfaceVariant,
 		)
+		if (intent != null) {
+			SourceHistoryAuthorityCard(
+				source = HistorySource.ACTIVITY,
+				originLabel = stringResource(activity.origin.labelResource),
+				intent = intent,
+			)
+		}
 		GlassCard(modifier = Modifier.fillMaxWidth()) {
 			Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
 				SourceDetailHeading(stringResource(R.string.trip_detail_activity_summary))
@@ -109,6 +118,7 @@ internal fun TripDetailActivityOverview(
 					)
 				}
 			}
+
 		}
 		if (activity.fragments.isNotEmpty()) {
 			SourceDetailHeading(stringResource(R.string.trip_detail_activity_timeline))
@@ -262,7 +272,7 @@ private fun TripDetailActivityFragmentCard(
 }
 
 @Composable
-private fun SourceDetailHeader(
+internal fun SourceDetailHeader(
 	title: String,
 	startTime: EpochMs,
 	endTime: EpochMs,
@@ -296,7 +306,7 @@ private fun SourceDetailHeader(
 }
 
 @Composable
-private fun SourceDetailColumn(
+internal fun SourceDetailColumn(
 	tag: String,
 	content: @Composable () -> Unit,
 ) {
@@ -314,7 +324,7 @@ private fun SourceDetailColumn(
 }
 
 @Composable
-private fun SourceDetailHeading(text: String) {
+internal fun SourceDetailHeading(text: String) {
 	Text(
 		text = text,
 		modifier = Modifier.semantics { heading() },
@@ -417,7 +427,7 @@ private val StepsHistoryCoverage.labelResource: Int
 		StepsHistoryCoverage.UNKNOWN -> R.string.trip_detail_steps_coverage_unknown
 	}
 
-private val HistorySource.labelResource: Int
+internal val HistorySource.labelResource: Int
 	get() = when (this) {
 		HistorySource.LOCATION -> R.string.trip_detail_source_location
 		HistorySource.WIFI -> R.string.trip_detail_source_wifi

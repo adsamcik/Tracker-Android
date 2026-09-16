@@ -5,6 +5,8 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.DownhillSkiing
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertDoesNotExist
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -16,17 +18,30 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryEntry
 import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryState
+import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailSelection
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
+import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailableReason
+import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
+import com.adsamcik.tracker.stats.api.repository.CellHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.CellHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.CellHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.CellHistoryOrigin
+import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryDigest
+import com.adsamcik.tracker.stats.api.repository.ImportedCellHistoryIdentity
+import com.adsamcik.tracker.stats.api.repository.ImportedCellHistorySelection
 import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryWindow
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.PressureSensorAccuracy
 import com.adsamcik.tracker.stats.api.repository.PressureWindowClosure
 import com.adsamcik.tracker.stats.api.repository.PressureWindowQualification
@@ -43,7 +58,20 @@ import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryType
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryWallTimeContinuity
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
+import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryAvailability
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryBand
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryObservation
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryResultCompleteness
+import com.adsamcik.tracker.stats.api.repository.WifiHistorySignalQuality
+import com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import io.kotest.matchers.shouldBe
 import org.junit.Rule
@@ -77,8 +105,39 @@ class RecentTripsCardTest {
 
 	@Test
 	fun unavailableIsRenderedDistinctly() {
-		setContent(DashboardRecentHistoryState.Unavailable)
+		setContent(DashboardRecentHistoryState.Unavailable())
 		composeRule.onNodeWithText("Recent tracking is unavailable").assertIsDisplayed()
+	}
+
+	@Test
+	fun sourceUnavailableKeepsAffectedRadioSourceVisible() {
+		setContent(
+			DashboardRecentHistoryState.Unavailable(
+				reason = SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+				source = HistorySource.WIFI,
+			),
+		)
+
+		composeRule.onNodeWithText(
+			"Wi‑Fi: Retained source history failed integrity checks",
+		).assertIsDisplayed()
+	}
+
+	@Test
+	fun PressureRecencyUnavailableShowsNoStalePressureOrZero() {
+		setContent(
+			DashboardRecentHistoryState.Unavailable(
+				reason =
+					SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
+				source = HistorySource.PRESSURE,
+			),
+		)
+
+		composeRule.onNodeWithText(
+			"Pressure: Source recency authority is unavailable",
+		).assertIsDisplayed()
+		composeRule.onAllNodesWithText("hPa", substring = true).assertCountEquals(0)
+		composeRule.onNodeWithText("0").assertDoesNotExist()
 	}
 
 	@Test
@@ -130,23 +189,106 @@ class RecentTripsCardTest {
 	}
 
 	@Test
-	fun ActivityOnlyRowShowsCapturedEvidenceWithoutLocationMetricsOrAction() {
+	fun ActivityOnlyRowUsesExactSourceSelectionWithoutLocationMetrics() {
+		val activity = activityEntry()
+		val selection = sourceSelection(SourceAwareHistoryPageEntry.ActivityOnly(activity))
+		var clicked: SourceHistoryDetailSelection? = null
 		setContent(
 			DashboardRecentHistoryState.Content(
-				listOf(DashboardRecentHistoryEntry.ActivityOnly(activityEntry())),
+				listOf(DashboardRecentHistoryEntry.ActivityOnly(activity, selection)),
 			),
 			onTripClick = { error("Activity-only rows must not expose a physical click identity") },
+			onSourceHistoryClick = { clicked = it },
+		)
+
+		composeRule.onNodeWithTag("dashboard_recent_activity_row")
+			.assertIsDisplayed()
+			.assertHasClickAction()
+			.performClick()
+		clicked shouldBe selection
+		composeRule.onNodeWithText("Activity session").assertIsDisplayed()
+		composeRule.onNodeWithText("Walking · active 1 m").assertIsDisplayed()
+		composeRule.onNodeWithText("Captured on this device").assertIsDisplayed()
+		composeRule.onNodeWithText("Partial coverage").assertIsDisplayed()
+		composeRule.onAllNodesWithText("km", substring = true).assertCountEquals(0)
+		composeRule.onAllNodesWithText("Distance", substring = true).assertCountEquals(0)
+	}
+
+	@Test
+	fun ActivityWithoutExactSelectionRemainsVisibleButCannotNavigate() {
+		val activity = activityEntry().copy(
+			origin = com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin.IMPORTED,
+			capturesOnlyActivity = false,
+		)
+		setContent(
+			DashboardRecentHistoryState.Content(
+				listOf(DashboardRecentHistoryEntry.ActivityOnly(activity, null)),
+			),
+			onSourceHistoryClick = {
+				error("Activity without an exact source selection must not navigate")
+			},
 		)
 
 		composeRule.onNodeWithTag("dashboard_recent_activity_row")
 			.assertIsDisplayed()
 			.assertHasNoClickAction()
-		composeRule.onNodeWithText("Activity session").assertIsDisplayed()
-		composeRule.onNodeWithText("Walking · active 1 m").assertIsDisplayed()
-		composeRule.onNodeWithText("Partial coverage").assertIsDisplayed()
-		composeRule.onAllNodesWithText("km", substring = true).assertCountEquals(0)
-		composeRule.onAllNodesWithText("Distance", substring = true).assertCountEquals(0)
 		composeRule.onAllNodesWithContentDescription("View details").assertCountEquals(0)
+	}
+
+	@Test
+	fun partialWifiRowShowsRetainedResultsAndNavigatesWithExactSelection() {
+		val wifi = partialWifiEntry()
+		val selection = sourceSelection(SourceAwareHistoryPageEntry.WifiOnly(wifi))
+		var clicked: SourceHistoryDetailSelection? = null
+		setContent(
+			DashboardRecentHistoryState.Content(
+				listOf(DashboardRecentHistoryEntry.WifiOnly(wifi, selection)),
+			),
+			onSourceHistoryClick = { clicked = it },
+		)
+
+		composeRule.onNodeWithTag("dashboard_recent_wifi_row")
+			.assertIsDisplayed()
+			.assertHasClickAction()
+			.performClick()
+		clicked shouldBe selection
+		composeRule.onNodeWithText("Partial retained radio history").assertIsDisplayed()
+		composeRule.onNodeWithText("Partial verified coverage").assertIsDisplayed()
+		composeRule.onNodeWithText("1 retained scan result").assertIsDisplayed()
+		composeRule.onAllNodesWithText("unique", substring = true, ignoreCase = true)
+			.assertCountEquals(0)
+		composeRule.onAllNodesWithText("SSID", substring = true).assertCountEquals(0)
+	}
+
+	@Test
+	fun factlessWifiIntentShowsWaitingWithoutNumericZero() {
+		val wifi = materializingWifiEntry()
+		val selection = sourceSelection(SourceAwareHistoryPageEntry.WifiOnly(wifi))
+		setContent(
+			DashboardRecentHistoryState.Content(
+				listOf(DashboardRecentHistoryEntry.WifiOnly(wifi, selection)),
+			),
+		)
+
+		composeRule.onNodeWithText("Waiting for retained radio observations").assertIsDisplayed()
+		composeRule.onNodeWithText("0").assertDoesNotExist()
+	}
+
+	@Test
+	fun deletedImportedCellRowKeepsOriginAndNoTowerClaims() {
+		val cell = deletedImportedCellEntry()
+		val selection = sourceSelection(SourceAwareHistoryPageEntry.CellOnly(cell))
+		setContent(
+			DashboardRecentHistoryState.Content(
+				listOf(DashboardRecentHistoryEntry.CellOnly(cell, selection)),
+			),
+		)
+
+		composeRule.onNodeWithText("Imported retained evidence").assertIsDisplayed()
+		composeRule.onNodeWithText("Retained radio history deleted").assertIsDisplayed()
+		composeRule.onAllNodesWithText("tower", substring = true, ignoreCase = true)
+			.assertCountEquals(0)
+		composeRule.onNodeWithText("0").assertDoesNotExist()
 	}
 
 	@Test
@@ -232,12 +374,14 @@ class RecentTripsCardTest {
 	private fun setContent(
 		recentHistory: DashboardRecentHistoryState,
 		onTripClick: ((Long) -> Unit)? = null,
+		onSourceHistoryClick: ((SourceHistoryDetailSelection) -> Unit)? = null,
 	) {
 		composeRule.setContent {
 			AppTheme(useDynamicColor = false) {
 				RecentTripsCard(
 					recentHistory = recentHistory,
 					onTripClick = onTripClick,
+					onSourceHistoryClick = onSourceHistoryClick,
 				)
 			}
 		}
@@ -278,6 +422,7 @@ class RecentTripsCardTest {
 		val windows = if (withWindow) listOf(pressureWindow(now)) else emptyList()
 		return PressureOnlyHistoryEntry(
 			key = TrackingHistoryEntryKey(key),
+			origin = PressureHistoryOrigin.Local,
 			startTime = EpochMs(now - 1_800_000L),
 			endTime = EpochMs(now),
 			pressure = PressureHistory(
@@ -298,6 +443,83 @@ class RecentTripsCardTest {
 			),
 		)
 	}
+
+	private fun partialWifiEntry(): WifiHistoryEntry {
+		val now = System.currentTimeMillis()
+		return WifiHistoryEntry(
+			key = WifiHistoryEntryKey("wifi-partial"),
+			startTime = EpochMs(now - 60_000L),
+			endTime = EpochMs(now),
+			storedZoneIds = setOf("UTC"),
+			state = WifiHistoryProductState.PARTIAL,
+			coverage = WifiHistoryCoverage.PARTIAL,
+			observations = listOf(
+				WifiHistoryObservation(
+					intervalStartTime = EpochMs(now - 30_000L),
+					observedTime = EpochMs(now - 20_000L),
+					wallTimeUncertaintyMs = 100L,
+					availability = WifiHistoryAvailability.AVAILABLE,
+					resultCompleteness = WifiHistoryResultCompleteness.PARTIAL,
+					submittedResultCount = 2,
+					acceptedResultCount = 1,
+					rejectedResultCount = 1,
+					observationCount = 1,
+					bandMix = mapOf(WifiHistoryBand.FIVE_GHZ to 1),
+					signalQuality = WifiHistorySignalQuality(-45, -45, -45.0, 1),
+					sourceQualityFlags = 0L,
+					sourceQualityConfidence = 1f,
+					storedZoneId = "UTC",
+				),
+			),
+			causes = setOf(WifiHistoryCause.RESULT_SET_PARTIAL),
+			localSelection = WifiLocalHistorySelectionKey("a".repeat(64)),
+			capturesOnlyWifi = true,
+		)
+	}
+
+	private fun materializingWifiEntry(): WifiHistoryEntry {
+		val now = System.currentTimeMillis()
+		return WifiHistoryEntry(
+			key = WifiHistoryEntryKey("wifi-waiting"),
+			startTime = EpochMs(now - 60_000L),
+			endTime = EpochMs(now),
+			storedZoneIds = setOf("UTC"),
+			state = WifiHistoryProductState.MATERIALIZING,
+			coverage = WifiHistoryCoverage.NONE,
+			observations = emptyList(),
+			causes = setOf(WifiHistoryCause.MATERIALIZATION_BEHIND),
+			localSelection = WifiLocalHistorySelectionKey("b".repeat(64)),
+			capturesOnlyWifi = true,
+		)
+	}
+
+	private fun deletedImportedCellEntry(): CellHistoryEntry {
+		val now = System.currentTimeMillis()
+		val imported = ImportedCellHistorySelection(
+			ImportedCellHistoryIdentity("c".repeat(64)),
+			2L,
+			ImportedCellHistoryDigest("d".repeat(64)),
+		)
+		return CellHistoryEntry(
+			key = CellHistoryEntryKey("cell-deleted"),
+			startTime = EpochMs(now - 60_000L),
+			endTime = EpochMs(now),
+			storedZoneIds = setOf("UTC"),
+			state = CellHistoryProductState.DELETED,
+			coverage = CellHistoryCoverage.NONE,
+			observations = emptyList(),
+			causes = setOf(CellHistoryCause.DELETED),
+			origin = CellHistoryOrigin.Imported(imported),
+			selection = imported,
+		)
+	}
+
+	private fun sourceSelection(
+		entry: SourceAwareHistoryPageEntry,
+	) = SourceHistoryDetailSelection(
+		entry = entry,
+		readSnapshot = TrackingHistoryReadSnapshot(7L, 11L),
+	)
 
 	private fun pressureWindow(now: Long) = PressureHistoryWindow(
 		intervalStartTime = EpochMs(now - 1_000L),

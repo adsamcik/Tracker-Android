@@ -26,6 +26,7 @@ import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.TripSummary
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
@@ -158,6 +159,23 @@ class TripDetailSourcePresentationTest {
 		val presentation = snapshot.toTripDetailSourcePresentation()
 		presentation shouldBe TripDetailSourcePresentation.PressureOnly(pressure)
 		loaded(presentation).supportsLocationPresentation shouldBe false
+	}
+
+	@Test
+	fun `failed Pressure stays a physical detail failure instead of a Pressure replacement`() {
+		val snapshot = snapshot(
+			capture = exactCapture(setOf(HistorySource.PRESSURE)),
+			qualifiedSources = emptySet(),
+			steps = physicalStepsSourceNotCaptured(),
+			activity = activitySourceNotCaptured(),
+			pressure = failedPressureIntegrity(),
+		)
+
+		snapshot.toTripDetailSourcePresentation() shouldBe
+			TripDetailSourcePresentation.Unavailable(
+				reason = TrackingHistoryUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+				source = HistorySource.PRESSURE,
+			)
 	}
 
 	@Test
@@ -391,6 +409,15 @@ class TripDetailSourcePresentationTest {
 		coverage = PressureHistoryCoverage.NONE,
 		windows = emptyList(),
 		causes = setOf(PressureHistoryCause.PROVIDER_UNAVAILABLE),
+	)
+
+	private fun failedPressureIntegrity() = PressureHistory(
+		availability = HistoryAvailability.UNAVAILABLE,
+		evidence = HistoryEvidence.NONE,
+		productState = HistoryProductState.FAILED,
+		coverage = PressureHistoryCoverage.UNKNOWN,
+		windows = emptyList(),
+		causes = setOf(PressureHistoryCause.PRESSURE_FACT_INTEGRITY_FAILED),
 	)
 
 	private fun physicalPressureSourceNotCaptured() = PressureHistory(

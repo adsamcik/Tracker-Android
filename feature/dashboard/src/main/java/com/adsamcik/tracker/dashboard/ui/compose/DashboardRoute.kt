@@ -34,6 +34,7 @@ import com.adsamcik.tracker.dashboard.ui.DashboardViewModel
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
+import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailSelection
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.di.GoalProgress
@@ -75,6 +76,7 @@ fun DashboardRoute(
 	onOpenMap: () -> Unit = {},
 	onOpenGame: (() -> Unit)? = null,
 	onSessionDetailClick: ((Long) -> Unit)? = null,
+	onSourceHistoryDetailClick: ((SourceHistoryDetailSelection) -> Unit)? = null,
 	contentPadding: PaddingValues = PaddingValues(),
 ) {
 	val context = LocalContext.current
@@ -437,6 +439,7 @@ fun DashboardRoute(
 		onRequestPermission = { requestManualStart() },
 		onGameClick = onOpenGame,
 		onSessionDetailClick = onSessionDetailClick,
+		onSourceHistoryDetailClick = onSourceHistoryDetailClick,
 		onCustomizeClick = { showCustomizeSheet = true },
 		onReorderWidgets = { viewModel.reorderWidgets(it) },
 		onToggleWidgetVisibility = { viewModel.toggleWidgetVisibility(it) },

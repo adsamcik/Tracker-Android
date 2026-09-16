@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -26,6 +27,10 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardRadioCoverage
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardRadioHistoryValue
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardRadioOrigin
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardRadioProductState
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveSessionPresentation
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveStepsValue
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
@@ -33,6 +38,7 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.allowsRuntimeMilestones
 import com.adsamcik.tracker.dashboard.ui.compose.state.qualifiedMilestoneSteps
 import com.adsamcik.tracker.shared.utils.style.compose.AppDimensions
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import io.kotest.matchers.shouldBe
 import org.junit.Rule
@@ -114,6 +120,7 @@ class DashboardScreenTest {
 					snackbarHostState = remember { SnackbarHostState() },
 				)
 			}
+
 		}
 
 		composeRule.onNodeWithTag("dashboard_steps_only_tracking_card").assertIsDisplayed()
@@ -122,6 +129,88 @@ class DashboardScreenTest {
 		composeRule.onAllNodesWithText("Enable location", substring = true)
 			.assertCountEquals(0)
 		composeRule.onNodeWithText("Stop").assertIsDisplayed()
+	}
+
+	@Test
+	fun exactWifiOnlyTracking_showsIdentityFreePartialRadioSurface() {
+		val segmentId = 42L
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				DashboardScreen(
+					state = DashboardUiState(
+						dashboardMode = DashboardMode.TRACKING,
+						isTracking = true,
+						sessionData = TrackerSessionSnapshot(id = segmentId, start = 1L),
+						liveSessionPresentation = DashboardLiveSessionPresentation.WifiOnly(
+							segmentId = segmentId,
+							history = DashboardRadioHistoryValue(
+								source = HistorySource.WIFI,
+								origin = DashboardRadioOrigin.LOCAL,
+								state = DashboardRadioProductState.PARTIAL,
+								coverage = DashboardRadioCoverage.PARTIAL,
+								deliveryCount = 1,
+								retainedRecordCount = 2,
+								partialDeliveryCount = 1,
+							),
+						),
+					),
+					onSettingsClick = {},
+					onMapClick = {},
+					onToggleTracking = {},
+					onRequestPermission = {},
+					onGameClick = null,
+					onSessionDetailClick = null,
+					snackbarHostState = remember { SnackbarHostState() },
+				)
+			}
+		}
+
+		composeRule.onNodeWithTag("dashboard_wifi_only_tracking").assertIsDisplayed()
+		composeRule.onNodeWithText("Partial retained radio history").assertIsDisplayed()
+		composeRule.onNodeWithText("2 retained scan results").assertIsDisplayed()
+		composeRule.onAllNodesWithText("GPS", substring = true).assertCountEquals(0)
+		composeRule.onAllNodesWithText("Distance", substring = true).assertCountEquals(0)
+	}
+
+	@Test
+	fun exactCellOnlyTracking_factlessIntentNeverRendersZeroOrTowerIdentity() {
+		val segmentId = 42L
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				DashboardScreen(
+					state = DashboardUiState(
+						dashboardMode = DashboardMode.TRACKING,
+						isTracking = true,
+						sessionData = TrackerSessionSnapshot(id = segmentId, start = 1L),
+						liveSessionPresentation = DashboardLiveSessionPresentation.CellOnly(
+							segmentId = segmentId,
+							history = DashboardRadioHistoryValue(
+								source = HistorySource.CELL,
+								origin = DashboardRadioOrigin.LOCAL,
+								state = DashboardRadioProductState.MATERIALIZING,
+								coverage = DashboardRadioCoverage.NONE,
+								deliveryCount = 0,
+								retainedRecordCount = 0,
+								partialDeliveryCount = 0,
+							),
+						),
+					),
+					onSettingsClick = {},
+					onMapClick = {},
+					onToggleTracking = {},
+					onRequestPermission = {},
+					onGameClick = null,
+					onSessionDetailClick = null,
+					snackbarHostState = remember { SnackbarHostState() },
+				)
+			}
+		}
+
+		composeRule.onNodeWithTag("dashboard_cell_only_tracking").assertIsDisplayed()
+		composeRule.onNodeWithText("Waiting for retained radio observations").assertIsDisplayed()
+		composeRule.onNodeWithText("0").assertDoesNotExist()
+		composeRule.onAllNodesWithText("tower", substring = true, ignoreCase = true)
+			.assertCountEquals(0)
 	}
 
 	@Test

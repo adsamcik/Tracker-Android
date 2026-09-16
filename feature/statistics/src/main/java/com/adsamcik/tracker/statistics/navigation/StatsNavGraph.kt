@@ -13,6 +13,7 @@ import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
 import com.adsamcik.tracker.feature.statistics.api.navigation.StatsSummary
 import com.adsamcik.tracker.feature.statistics.api.navigation.StatsSignalReport
 import com.adsamcik.tracker.feature.statistics.api.navigation.StatsWifi
+import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetail
 import com.adsamcik.tracker.feature.statistics.api.navigation.TripDetail
 
 /**
@@ -125,8 +126,21 @@ fun NavGraphBuilder.statsGraph(
             },
         )
     }
-}
 
+    composable<SourceHistoryDetail> {
+        com.adsamcik.tracker.statistics.ui.SourceHistoryDetailRoute(
+            onBack = {
+                if (!navController.popBackStack()) {
+                    navController.navigate(getTripDetailFallbackRoute()) {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            },
+        )
+    }
+}
 
 
 

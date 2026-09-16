@@ -14,10 +14,27 @@ import com.adsamcik.tracker.stats.api.repository.ActivityActiveTime
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.ActivityHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.ActivityHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.ActivityHistorySelection
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistoryDeletionScopeDigest
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistoryDigest
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistoryIdentity
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistoryReadSnapshot
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistoryRunDeletionScope
+import com.adsamcik.tracker.stats.api.repository.ActivityImportedHistorySelection
+import com.adsamcik.tracker.feature.statistics.api.navigation.SourceHistoryDetailSelection
+import com.adsamcik.tracker.stats.api.repository.CellHistoryCause
+import com.adsamcik.tracker.stats.api.repository.CellHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.CellHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.CellHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.CellHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.LocalCellHistoryIdentity
+import com.adsamcik.tracker.stats.api.repository.LocalCellHistorySelection
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.ImportedStepsHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.ImportedStepsHistoryMember
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
@@ -25,6 +42,7 @@ import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryOrigin
 import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageQuery
@@ -32,7 +50,15 @@ import com.adsamcik.tracker.stats.api.repository.SourceAwareHistoryPageUnavailab
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryActionTarget
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryReadSnapshot
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryCause
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryEntryKey
+import com.adsamcik.tracker.stats.api.repository.WifiHistoryProductState
+import com.adsamcik.tracker.stats.api.repository.WifiLocalHistorySelectionKey
 import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
 import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.stats.api.value.EpochMs
@@ -77,7 +103,7 @@ class DashboardHistoryRepositoryTest {
 				coverage = StepsHistoryCoverage.COMPLETE, causes = emptySet(),
 			))),
 		)
-		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_LIMIT) } returns flowOf(emptyList())
+		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(emptyList())
 		every {
 			trackingHistoryRepository.observeRecentSourceAwarePage(emptyList(), RECENT_HISTORY_LIMIT)
 		} returns flowOf(SourceAwareHistoryPageQuery.Content(
@@ -184,41 +210,114 @@ class DashboardHistoryRepositoryTest {
 	}
 
 	@Test
-	fun `Activity-only entry is opaque and never requires a physical Trip row`() = runTest {
-		val activity = activityEntry("activity-only", 40_000L)
+	fun `Activity action handoff retains the exact imported hierarchy without a Trip row`() = runTest {
+		val activity = importedActivityEntry("activity-only", 40_000L)
+		val sourceEntry = SourceAwareHistoryPageEntry.ActivityOnly(activity)
+		val readSnapshot = TrackingHistoryReadSnapshot(7L, 11L)
 		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(emptyList())
 		every {
 			trackingHistoryRepository.observeRecentSourceAwarePage(emptyList(), RECENT_HISTORY_LIMIT)
 		} returns flowOf(
 			SourceAwareHistoryPageQuery.Content(
-				listOf(SourceAwareHistoryPageEntry.ActivityOnly(activity)),
+				entries = listOf(sourceEntry),
+				readSnapshot = readSnapshot,
 			),
 		)
 
 		val page = repository(testScheduler).observeRecentHistory().first()
+		val mapped = page.single() as DashboardRecentHistoryEntry.ActivityOnly
+		val detailSelection = requireNotNull(mapped.detailSelection)
+		val actionTarget = detailSelection.actionTarget as TrackingHistoryActionTarget.Activity
 
-		page shouldContainExactly listOf(DashboardRecentHistoryEntry.ActivityOnly(activity))
+		mapped.history shouldBe activity
+		detailSelection.entry shouldBe sourceEntry
+		detailSelection.readSnapshot shouldBe readSnapshot
+		actionTarget.selection shouldBe ActivityHistorySelection.Imported(
+			requireNotNull(activity.importedSelection),
+		)
+		(actionTarget.selection as ActivityHistorySelection.Imported)
+			.selected.runDeletionScopes shouldBe
+			requireNotNull(activity.importedSelection).runDeletionScopes
+		(actionTarget.selection as ActivityHistorySelection.Imported)
+			.selected.windowIdentities shouldBe
+			requireNotNull(activity.importedSelection).windowIdentities
+	}
+
+	@Test
+	fun `Activity without an exact selector remains visible and nonactionable`() = runTest {
+		val activity = importedActivityEntry("activity-retained", 40_000L).copy(
+			importedSelection = null,
+		)
+		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(emptyList())
+		every {
+			trackingHistoryRepository.observeRecentSourceAwarePage(emptyList(), RECENT_HISTORY_LIMIT)
+		} returns flowOf(
+			SourceAwareHistoryPageQuery.Content(
+				entries = listOf(SourceAwareHistoryPageEntry.ActivityOnly(activity)),
+				readSnapshot = TrackingHistoryReadSnapshot(7L, 11L),
+			),
+		)
+
+		repository(testScheduler).observeRecentHistory().first() shouldContainExactly listOf(
+			DashboardRecentHistoryEntry.ActivityOnly(
+				history = activity,
+				detailSelection = null,
+			),
+		)
 	}
 
 	@Test
 	fun `combined source page preserves one Activity and Pressure ordering`() = runTest {
 		val activity = activityEntry("activity-only", 40_000L)
 		val pressure = pressureEntry("pressure-only", 30_000L)
+		val activitySourceEntry = SourceAwareHistoryPageEntry.ActivityOnly(activity)
 		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(emptyList())
 		every {
 			trackingHistoryRepository.observeRecentSourceAwarePage(emptyList(), RECENT_HISTORY_LIMIT)
 		} returns flowOf(
 			SourceAwareHistoryPageQuery.Content(
 				listOf(
-					SourceAwareHistoryPageEntry.ActivityOnly(activity),
+					activitySourceEntry,
 					SourceAwareHistoryPageEntry.PressureOnly(pressure),
 				),
 			),
 		)
 
 		repository(testScheduler).observeRecentHistory().first() shouldContainExactly listOf(
-			DashboardRecentHistoryEntry.ActivityOnly(activity),
+			DashboardRecentHistoryEntry.ActivityOnly(
+				history = activity,
+				detailSelection = SourceHistoryDetailSelection(activitySourceEntry, null),
+			),
 			DashboardRecentHistoryEntry.PressureOnly(pressure),
+		)
+	}
+
+	@Test
+	fun `radio rows retain producer selections and common read snapshot`() = runTest {
+		val wifi = wifiEntry()
+		val cell = cellEntry()
+		val wifiSource = SourceAwareHistoryPageEntry.WifiOnly(wifi)
+		val cellSource = SourceAwareHistoryPageEntry.CellOnly(cell)
+		val readSnapshot = TrackingHistoryReadSnapshot(9L, 12L)
+		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(emptyList())
+		every {
+			trackingHistoryRepository.observeRecentSourceAwarePage(emptyList(), RECENT_HISTORY_LIMIT)
+		} returns flowOf(
+			SourceAwareHistoryPageQuery.Content(
+				entries = listOf(wifiSource, cellSource),
+				readSnapshot = readSnapshot,
+			),
+		)
+
+		repository(testScheduler).observeRecentHistory().first() shouldContainExactly listOf(
+			DashboardRecentHistoryEntry.WifiOnly(
+				history = wifi,
+				detailSelection = SourceHistoryDetailSelection(wifiSource, readSnapshot),
+			),
+			DashboardRecentHistoryEntry.CellOnly(
+				history = cell,
+				detailSelection = SourceHistoryDetailSelection(cellSource, readSnapshot),
+			),
 		)
 	}
 
@@ -279,6 +378,59 @@ class DashboardHistoryRepositoryTest {
 	}
 
 	@Test
+	fun `failed Pressure replacement decision keeps the returned physical row`() = runTest {
+		val physical = trip(1L)
+		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns
+			flowOf(listOf(physical))
+		every {
+			trackingHistoryRepository.observeRecentSourceAwarePage(
+				listOf(physical.id),
+				RECENT_HISTORY_LIMIT,
+			)
+		} returns flowOf(
+			SourceAwareHistoryPageQuery.Content(
+				listOf(SourceAwareHistoryPageEntry.Physical(physical.id)),
+			),
+		)
+
+		val page = repository(testScheduler).observeRecentHistory().first()
+
+		page shouldContainExactly listOf(
+			DashboardRecentHistoryEntry.Physical(physical.toModel()),
+		)
+		page.none { it is DashboardRecentHistoryEntry.PressureOnly } shouldBe true
+	}
+
+	@Test
+	fun `Pressure recency budget and integrity failures remain typed unavailable`() = runTest {
+		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(emptyList())
+		listOf(
+			SourceAwareHistoryPageUnavailableReason.SOURCE_RECENCY_AUTHORITY_UNAVAILABLE,
+			SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED,
+			SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+		).forEach { reason ->
+			every {
+				trackingHistoryRepository.observeRecentSourceAwarePage(
+					emptyList(),
+					RECENT_HISTORY_LIMIT,
+				)
+			} returns flowOf(
+				SourceAwareHistoryPageQuery.Unavailable(
+					reason = reason,
+					source = HistorySource.PRESSURE,
+				),
+			)
+
+			val unavailable = shouldThrow<DashboardHistoryPageUnavailable> {
+				repository(testScheduler).observeRecentHistory().first()
+			}
+
+			unavailable.reason shouldBe reason
+			unavailable.source shouldBe HistorySource.PRESSURE
+		}
+	}
+
+	@Test
 	fun `Stats page failure is propagated without raw fallback`() = runTest {
 		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_PROBE) } returns flowOf(listOf(trip(1L)))
 		every {
@@ -297,13 +449,16 @@ class DashboardHistoryRepositoryTest {
 			trackingHistoryRepository.observeRecentSourceAwarePage(listOf(1L), RECENT_HISTORY_LIMIT)
 		} returns flowOf(
 			SourceAwareHistoryPageQuery.Unavailable(
-				SourceAwareHistoryPageUnavailableReason.LOGICAL_MEMBERSHIP_LIMIT,
+				reason = SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
+				source = HistorySource.WIFI,
 			),
 		)
 
-		shouldThrow<IllegalStateException> {
+		val unavailable = shouldThrow<DashboardHistoryPageUnavailable> {
 			repository(testScheduler).observeRecentHistory().first()
 		}
+		unavailable.reason shouldBe SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE
+		unavailable.source shouldBe HistorySource.WIFI
 	}
 
 	@Test
@@ -448,6 +603,7 @@ class DashboardHistoryRepositoryTest {
 
 	private fun pressureEntry(key: String, startTimeMs: Long) = PressureOnlyHistoryEntry(
 		key = TrackingHistoryEntryKey(key),
+		origin = PressureHistoryOrigin.Local,
 		startTime = EpochMs(startTimeMs),
 		endTime = EpochMs(startTimeMs + 500L),
 		pressure = PressureHistory(
@@ -471,6 +627,58 @@ class DashboardHistoryRepositoryTest {
 		fragments = emptyList(),
 		causes = setOf(com.adsamcik.tracker.stats.api.repository.ActivityHistoryCause.PROVIDER_GAP),
 		capturesOnlyActivity = true,
+	)
+
+	private fun importedActivityEntry(
+		key: String,
+		startTimeMs: Long,
+	): ActivityHistoryEntry {
+		val entryKey = ActivityHistoryEntryKey(key)
+		val selection = ActivityImportedHistorySelection(
+			key = entryKey,
+			identity = ActivityImportedHistoryIdentity("a".repeat(64)),
+			importRevision = 3L,
+			contentChecksum = ActivityImportedHistoryDigest("e".repeat(64)),
+			runDeletionScopes = listOf(
+				ActivityImportedHistoryRunDeletionScope(
+					runIdentity = ActivityImportedHistoryIdentity("b".repeat(64)),
+					deletionScopeDigest =
+						ActivityImportedHistoryDeletionScopeDigest("c".repeat(64)),
+				),
+			),
+			windowIdentities = listOf(ActivityImportedHistoryIdentity("d".repeat(64))),
+			readSnapshot = ActivityImportedHistoryReadSnapshot(7L, 11L),
+		)
+		return activityEntry(key, startTimeMs).copy(
+			origin = ActivityHistoryOrigin.IMPORTED,
+			capturesOnlyActivity = false,
+			importedSelection = selection,
+		)
+	}
+
+	private fun wifiEntry() = WifiHistoryEntry(
+		key = WifiHistoryEntryKey("wifi"),
+		startTime = EpochMs(50_000L),
+		endTime = EpochMs(51_000L),
+		storedZoneIds = setOf("UTC"),
+		state = WifiHistoryProductState.MATERIALIZING,
+		coverage = WifiHistoryCoverage.NONE,
+		observations = emptyList(),
+		causes = setOf(WifiHistoryCause.MATERIALIZATION_BEHIND),
+		localSelection = WifiLocalHistorySelectionKey("a".repeat(64)),
+		capturesOnlyWifi = true,
+	)
+
+	private fun cellEntry() = CellHistoryEntry(
+		key = CellHistoryEntryKey("cell"),
+		startTime = EpochMs(49_000L),
+		endTime = EpochMs(50_000L),
+		storedZoneIds = setOf("UTC"),
+		state = CellHistoryProductState.MATERIALIZING,
+		coverage = CellHistoryCoverage.NONE,
+		observations = emptyList(),
+		causes = setOf(CellHistoryCause.MATERIALIZATION_BEHIND),
+		selection = LocalCellHistorySelection(LocalCellHistoryIdentity("b".repeat(64))),
 	)
 
 	private companion object {

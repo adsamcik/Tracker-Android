@@ -99,6 +99,16 @@
 
     <!-- Trip detail screen -->
     <string name="trip_detail_title">Trip Details</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">Source history</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">Source history unavailable</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">This private selection was not retained after the app process was recreated. Return to recent history and select it again.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">The selected retained source entry is no longer available.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">The bounded source history read could not finish safely.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">The selected retained source entry failed integrity checks.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">The source-evidence snapshot needed to present this selection is unavailable.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">The source-issued selection no longer identifies the current retained entry.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">The source history read failed. Retry to refresh it.</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">Trip not found</string>
     <string name="trip_detail_not_found_subtitle">This trip may have been deleted</string>
     <string name="trip_detail_error_title">Failed to load trip</string>
@@ -146,6 +156,58 @@
     <string name="trip_detail_cancel">Cancel</string>
     <string name="trip_detail_more_options">More options</string>
     <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">Actions unavailable for this captured source</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">Source authority</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">Origin</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">Retained purpose</string>
+    <string name="trip_detail_source_origin_local" tools:ignore="MissingTranslation">Captured on this device</string>
+    <string name="trip_detail_source_origin_imported" tools:ignore="MissingTranslation">Imported retained evidence</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">Exact source-only session capture</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">Portable source membership</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">Authenticated immutable capture history names this as the only captured source.</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">The imported format proves retained source membership, not that this device recorded the evidence.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">Wi‑Fi session</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">Cell session</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">Retained radio summary</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">Coverage</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">Preparing retained radio history</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">Partial retained radio history</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">Retained radio history available</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">Radio history unavailable</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">No qualifying retained radio evidence</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">Retained radio history deleted</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">Radio history could not be verified</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">Radio history integrity check failed</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">No verified coverage</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">Partial verified coverage</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">Complete verified coverage</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">Coverage unavailable</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">Waiting for retained radio observations.</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">No retained radio observations are available.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">The retained source evidence was deleted.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Retained evidence cannot be presented safely.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">Retained deliveries</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">Deliveries with partial results</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">Retained Wi‑Fi evidence</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">Retained scan results</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">Frequency-band result mix</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">Retained signal range</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">%1$d to %2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2.4 GHz</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">Other band</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">Retained Cell evidence</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">Retained radio records</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">Registered-status records</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">Radio-technology record mix</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">CDMA</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">WCDMA</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">TD-SCDMA</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">No network, tower, subscriber, route, distance, speed, altitude, or Location identity is exposed by this detail.</string>
     <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">Steps session</string>
     <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">Retained Steps evidence</string>
     <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">Coverage</string>
@@ -231,10 +293,17 @@
     <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">Updating retained pressure…</string>
     <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">Partial retained pressure</string>
     <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Retained pressure available</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">Retained pressure deleted</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">Retained pressure could not be verified</string>
     <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">Pressure unavailable</string>
     <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">Pressure history failed</string>
     <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">History unavailable</string>
     <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">Retry to refresh captured-source history for this trip.</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">The retained source-evidence snapshot is unavailable. Retry to refresh it.</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">The bounded source history read could not finish safely. Retry to refresh it.</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">Retained source history failed integrity checks. Retry after the source is available.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">The physical history membership could not be verified safely.</string>
     <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">No retained coverage</string>
     <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">Complete retained coverage</string>
     <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">Partial retained coverage</string>

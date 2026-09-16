@@ -9,11 +9,13 @@ import com.adsamcik.tracker.stats.api.repository.ActivityHistoryType
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.PressureHistory
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryUnavailableReason
 
 /** Evidence-backed presentation selection for the currently active physical session segment. */
 @Immutable
@@ -71,9 +73,31 @@ sealed interface DashboardLiveSessionPresentation {
 		}
 	}
 
+	/** Exact Wi-Fi-only intent with retained identity-free radio evidence. */
+	data class WifiOnly(
+		val segmentId: Long,
+		val history: DashboardRadioHistoryValue,
+	) : DashboardLiveSessionPresentation {
+		init {
+			require(segmentId > 0L)
+		}
+	}
+
+	/** Exact Cell-only intent with retained identity-free radio evidence. */
+	data class CellOnly(
+		val segmentId: Long,
+		val history: DashboardRadioHistoryValue,
+	) : DashboardLiveSessionPresentation {
+		init {
+			require(segmentId > 0L)
+		}
+	}
+
 	/** The history stream failed or returned a different segment than the requested binding. */
 	data class HistoryUnavailable(
 		val segmentId: Long,
+		val reason: TrackingHistoryUnavailableReason? = null,
+		val source: HistorySource? = null,
 	) : DashboardLiveSessionPresentation {
 		init {
 			require(segmentId > 0L)
@@ -107,6 +131,8 @@ sealed interface DashboardLivePressureValue {
 	data class Ready(val metrics: DashboardLivePressureMetrics) : DashboardLivePressureValue
 	data class Partial(val metrics: DashboardLivePressureMetrics?) : DashboardLivePressureValue
 	data class Materializing(val metrics: DashboardLivePressureMetrics?) : DashboardLivePressureValue
+	data object Deleted : DashboardLivePressureValue
+	data object Unverifiable : DashboardLivePressureValue
 	data object Unavailable : DashboardLivePressureValue
 	data object Failed : DashboardLivePressureValue
 }
@@ -234,6 +260,8 @@ internal fun PressureHistory.toDashboardLivePressureValue(): DashboardLivePressu
 		PressureHistoryPresentationState.PARTIAL -> DashboardLivePressureValue.Partial(metrics)
 		PressureHistoryPresentationState.MATERIALIZING ->
 			DashboardLivePressureValue.Materializing(metrics)
+		PressureHistoryPresentationState.DELETED -> DashboardLivePressureValue.Deleted
+		PressureHistoryPresentationState.UNVERIFIABLE -> DashboardLivePressureValue.Unverifiable
 		PressureHistoryPresentationState.UNAVAILABLE -> DashboardLivePressureValue.Unavailable
 		PressureHistoryPresentationState.FAILED -> DashboardLivePressureValue.Failed
 	}

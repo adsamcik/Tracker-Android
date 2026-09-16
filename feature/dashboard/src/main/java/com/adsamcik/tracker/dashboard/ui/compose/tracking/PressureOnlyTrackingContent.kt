@@ -166,6 +166,8 @@ private val DashboardLivePressureValue.metricsOrNull: DashboardLivePressureMetri
 		is DashboardLivePressureValue.Ready -> metrics
 		is DashboardLivePressureValue.Partial -> metrics
 		is DashboardLivePressureValue.Materializing -> metrics
+		DashboardLivePressureValue.Deleted,
+		DashboardLivePressureValue.Unverifiable,
 		DashboardLivePressureValue.Unavailable,
 		DashboardLivePressureValue.Failed -> null
 	}
@@ -175,6 +177,8 @@ private val DashboardLivePressureValue.statusResource: Int
 		is DashboardLivePressureValue.Ready -> R.string.dashboard_recent_pressure_available
 		is DashboardLivePressureValue.Partial -> R.string.dashboard_recent_pressure_partial
 		is DashboardLivePressureValue.Materializing -> R.string.dashboard_recent_pressure_materializing
+		DashboardLivePressureValue.Deleted -> R.string.dashboard_recent_pressure_deleted
+		DashboardLivePressureValue.Unverifiable -> R.string.dashboard_recent_pressure_unverifiable
 		DashboardLivePressureValue.Unavailable -> R.string.dashboard_recent_pressure_unavailable
 		DashboardLivePressureValue.Failed -> R.string.dashboard_recent_pressure_failed
 	}
@@ -184,6 +188,8 @@ private val DashboardLivePressureValue.hasDurableRecordingHeader: Boolean
 		is DashboardLivePressureValue.Ready -> true
 		is DashboardLivePressureValue.Partial -> metrics != null
 		is DashboardLivePressureValue.Materializing -> metrics != null
+		DashboardLivePressureValue.Deleted,
+		DashboardLivePressureValue.Unverifiable,
 		DashboardLivePressureValue.Unavailable,
 		DashboardLivePressureValue.Failed -> false
 	}

@@ -66,6 +66,14 @@ class TripDetailPresenter @Inject constructor(
 								trackingHistoryRepository.observeLiveSession(event.tripId).collect { snapshot ->
 									latestState = when (val session = snapshot.session) {
 										SessionHistoryQuery.NotFound -> TripDetailState.NotFound(event.tripId)
+										is SessionHistoryQuery.Unavailable -> TripDetailState.Loaded(
+											trip = trip,
+											steps = TripDetailStepsState.Failed,
+											sourcePresentation = TripDetailSourcePresentation.Unavailable(
+												reason = session.reason,
+												source = session.source,
+											),
+										)
 										is SessionHistoryQuery.Found -> {
 											TripDetailState.Loaded(
 												trip = trip,
