@@ -115,6 +115,9 @@ class PersistenceRecoveryCrossSessionTest {
 		override suspend fun hasStepsWriterCommand(): Boolean =
 			store.any { it.stepsWriterOwner != null }
 
+		override suspend fun hasPressureWriterCommand(): Boolean =
+			store.any { it.pressureWriterOwner != null }
+
 		override fun deleteAll() {
 			store.clear()
 		}
@@ -371,6 +374,63 @@ class PersistenceRecoveryCrossSessionTest {
 		processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L), sessionId = 101L))
 
 		coVerify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
+		coVerify(exactly = 0) { pressureDao.insert(any<Collection<PressureSample>>()) }
+		fakeDao.store.shouldBeEmpty()
+	}
+
+	@Test
+	fun `pure pre-fence Pressure crash replay is acknowledged without resurrecting hPa`() = runTest {
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val fakeDao = FakePendingSignalDao()
+		val claimDao = FakePendingSignalClaimDao(fakeDao)
+		val durableBuffer = DurableSignalBuffer(fakeDao, dispatchers, claimDao)
+		val pressure = pressureSignal(2_100_000L)
+		val encoded = SignalSerializer.encode(pressure)
+		fakeDao.store += PendingSignalEntity(
+			id = 2L,
+			signalId = "pre-fence-pressure-only",
+			sessionId = 100L,
+			envelopeVersion = encoded.envelopeVersion,
+			payloadChecksum = encoded.payloadChecksum,
+			signalJson = encoded.payloadJson,
+			createdAt = pressure.timestampMs.raw,
+			acquiredAtMs = pressure.timestampMs.raw,
+			pressureWriterOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+			pressureWriterOwnerGeneration =
+				SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+		)
+		val pressureDao = mockk<PressureSampleDao>(relaxed = true)
+		val ownerDao = mockk<SourceDestinationOwnerDao>(relaxed = true)
+		coEvery {
+			ownerDao.get(
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			)
+		} returns SourceDestinationOwnerEntity(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			owner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+			ownerGeneration =
+				SourceDestinationOwnerEntity.FIRST_LEGACY_PRESSURE_FENCE_GENERATION,
+			updatedAtMs = 2L,
+		)
+		val processor = PersistenceProcessor(
+			locationSampleDao = mockk(relaxed = true),
+			locationObservationDao = mockk(relaxed = true),
+			cellSampleDao = mockk(relaxed = true),
+			wifiObservationDao = mockk(relaxed = true),
+			pressureSampleDao = pressureDao,
+			stepIntervalDao = mockk(relaxed = true),
+			activitySnapshotDao = mockk(relaxed = true),
+			pendingSignalDao = fakeDao,
+			pendingSignalClaimDao = claimDao,
+			durableBuffer = durableBuffer,
+			transactor = passthroughTransactor,
+			sourceDestinationOwnerDao = ownerDao,
+		)
+
+		processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L), sessionId = 101L))
+
 		coVerify(exactly = 0) { pressureDao.insert(any<Collection<PressureSample>>()) }
 		fakeDao.store.shouldBeEmpty()
 	}

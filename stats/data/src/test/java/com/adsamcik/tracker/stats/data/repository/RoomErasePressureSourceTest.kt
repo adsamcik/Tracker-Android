@@ -48,11 +48,13 @@ import com.adsamcik.tracker.stats.api.repository.TruncateImportedPressureRetenti
 import com.adsamcik.tracker.stats.api.repository.TruncateImportedPressureRetentionResult
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import java.security.MessageDigest
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -93,7 +95,71 @@ class RoomErasePressureSourceTest {
 		)
 		subject(testScheduler).erase(request(expectedRevision = 1L)) shouldBe
 			ErasePressureSourceResult.AlreadyErased
-		barrier.calls shouldBe 0
+		barrier.calls shouldBe 1
+		barrier.verifications shouldBe 4
+	}
+
+	@Test
+	fun `existing erase refuses AlreadyErased while persistence fence is unsettled`() = runTest {
+		subject(testScheduler).erase(request())
+			.shouldBeInstanceOf<ErasePressureSourceResult.Erased>()
+		barrier.verificationResult = PressureSourceEraseBarrierVerification.Retryable(
+			PressureSourceEraseBarrierRetryableReason.PROVIDER_REMOVAL_FAILED,
+		)
+
+		subject(testScheduler).erase(request(expectedRevision = 1L)) shouldBe
+			ErasePressureSourceResult.RetryableFailure(
+				PressureSourceEraseRetryableReason.STORAGE_UNAVAILABLE,
+			)
+
+		barrier.calls shouldBe 1
+	}
+
+	@Test
+	fun `existing erase refuses AlreadyErased after stale lifecycle or provider reappears`() = runTest {
+		subject(testScheduler).erase(request())
+			.shouldBeInstanceOf<ErasePressureSourceResult.Erased>()
+		val failures = listOf(
+			PressureSourceEraseBarrierVerification.Blocked(
+				com.adsamcik.tracker.stats.api.repository
+					.PressureSourceEraseBarrierBlockedReason.STALE_LIFECYCLE,
+			) to ErasePressureSourceResult.Blocked(
+				PressureSourceEraseBlockedReason.SOURCE_EVIDENCE_AUTHORITY_CHANGED,
+			),
+			PressureSourceEraseBarrierVerification.Blocked(
+				com.adsamcik.tracker.stats.api.repository
+					.PressureSourceEraseBarrierBlockedReason.CAPTURE_AUTHORIZATION_ACTIVE,
+			) to ErasePressureSourceResult.Blocked(
+				PressureSourceEraseBlockedReason.CAPTURE_PROVIDER_NOT_QUIESCED,
+			),
+		)
+
+		failures.forEach { (verification, expected) ->
+			barrier.verificationResult = verification
+			subject(testScheduler).erase(request(expectedRevision = 1L)) shouldBe expected
+		}
+
+		barrier.calls shouldBe 1
+	}
+
+	@Test
+	fun `ownerless v1 erase receipt remains readable but cannot recreate lifecycle token`() = runTest {
+		subject(testScheduler).erase(request())
+			.shouldBeInstanceOf<ErasePressureSourceResult.Erased>()
+		val current = requireNotNull(database.importedPressureDao().sourceErase())
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_pressure_source_erase SET legacy_write_fence_owner = NULL, " +
+				"effect_checksum = ? WHERE id = ?",
+			arrayOf(ownerlessV1Checksum(current), ImportedPressureSourceEraseEntity.SINGLETON_ID),
+		)
+
+		requireNotNull(database.importedPressureDao().sourceErase()).legacyWriteFenceOwner shouldBe null
+		subject(testScheduler).erase(request(expectedRevision = 1L)) shouldBe
+			ErasePressureSourceResult.Unverifiable(
+				com.adsamcik.tracker.stats.api.repository
+					.ImportedPressureMaintenanceUnverifiableReason.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		barrier.calls shouldBe 1
 	}
 
 	@Test
@@ -217,7 +283,7 @@ class RoomErasePressureSourceTest {
 			fencedLocalRunCount = 0,
 		)
 
-		barrier.calls shouldBe 0
+		barrier.calls shouldBe 1
 		database.importedPressureDao().latestEntryRevision(imported.entry.identity.value) shouldBe null
 		database.sourceEventWalDao().getByEventId(unrelatedWal.eventId)?.sourceKind shouldBe
 			SourceDestinationOwnerEntity.SOURCE_CELL
@@ -508,6 +574,16 @@ class RoomErasePressureSourceTest {
 	@Test
 	fun `missing local scope fence makes api idempotence unverifiable`() = runTest {
 		database.sourceEvidenceStateDao().updateLifecycle(EPOCH, null, ERASED_AT_MS) shouldBe 1
+		database.sourceDestinationOwnerDao().insertIfAbsent(
+			SourceDestinationOwnerEntity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+				owner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+				ownerGeneration =
+					SourceDestinationOwnerEntity.FIRST_LEGACY_PRESSURE_FENCE_GENERATION,
+				updatedAtMs = ERASED_AT_MS,
+			),
+		)
 		val missingFence = SourceDeletionFenceEntity.createLogicalServiceRun(
 			SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 			"SESSION_CAPTURE",
@@ -522,7 +598,10 @@ class RoomErasePressureSourceTest {
 			sourceEvidenceRevision = 1L,
 			erasedAtMs = ERASED_AT_MS,
 			providerRegistrationGeneration = 1L,
-			legacyWriteFenceGeneration = 1L,
+			legacyWriteFenceOwner =
+				SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+			legacyWriteFenceGeneration =
+				SourceDestinationOwnerEntity.FIRST_LEGACY_PRESSURE_FENCE_GENERATION,
 			localFactRevisionCount = 1,
 			localWalEventCount = 0,
 			legacySampleCount = 0,
@@ -566,7 +645,7 @@ class RoomErasePressureSourceTest {
 			) {}.importEntry(importRequest())
 			RoomErasePressureSource(
 				fileDatabase,
-				RecordingBarrier(),
+				RecordingBarrier(fileDatabase),
 				UnconfinedTestDispatcher(testScheduler),
 				{},
 			).erase(request()) shouldBe ErasePressureSourceResult.Erased(
@@ -587,7 +666,11 @@ class RoomErasePressureSourceTest {
 				REOPEN_DATABASE,
 			).allowMainThreadQueries().build()
 			reopened = fileDatabase
-			fileDatabase.importedPressureDao().sourceErase()?.collectedDataEpoch shouldBe EPOCH
+			requireNotNull(fileDatabase.importedPressureDao().sourceErase()).also { marker ->
+				marker.collectedDataEpoch shouldBe EPOCH
+				marker.legacyWriteFenceOwner shouldBe
+					SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE
+			}
 			fileDatabase.sourceEvidenceStateDao().get()?.revision shouldBe 1L
 		} finally {
 			reopened?.close()
@@ -811,7 +894,41 @@ class RoomErasePressureSourceTest {
 		return checksummed.copy(integrityIdentity = checksummed.calculatedIntegrityIdentity())
 	}
 
-	private class RecordingBarrier : PressureSourceEraseBarrier {
+	private fun ownerlessV1Checksum(value: ImportedPressureSourceEraseEntity): String {
+		val values = listOf(
+			value.collectedDataEpoch,
+			value.sourceEvidenceRevision,
+			value.erasedAtMs,
+			value.providerRegistrationGeneration ?: "NONE",
+			value.legacyWriteFenceGeneration,
+			value.localFactRevisionCount,
+			value.localWalEventCount,
+			value.legacySampleCount,
+			value.legacySampleSetChecksum,
+			value.importedEntryCount,
+			value.importedRevisionCount,
+			value.importedRunCount,
+			value.importedWindowCount,
+			value.fencedLocalRunCount,
+			value.localScopeSetChecksum,
+			value.entryDeletionCount,
+			value.entryDeletionSetChecksum,
+			value.runDeletionCount,
+			value.runDeletionSetChecksum,
+			value.identityFenceCount,
+			value.identityFenceSetChecksum,
+		).map { it.toString() }
+		val canonical = (
+			listOf("tracker-imported-pressure-source-erase-v1") + values
+		).joinToString(separator = "") { "${it.length}:$it" }
+		return "sha256:" + MessageDigest.getInstance("SHA-256")
+			.digest(canonical.toByteArray(Charsets.UTF_8))
+			.joinToString(separator = "") { byte -> "%02x".format(byte) }
+	}
+
+	private inner class RecordingBarrier(
+		private val targetDatabase: AppDatabase = database,
+	) : PressureSourceEraseBarrier {
 		var calls = 0
 		var verifications = 0
 		var verificationResult: PressureSourceEraseBarrierVerification =
@@ -820,11 +937,41 @@ class RoomErasePressureSourceTest {
 			expectedCollectedDataEpoch: Long,
 		): PressureSourceEraseBarrierResult {
 			calls++
+			val generation =
+				SourceDestinationOwnerEntity.FIRST_LEGACY_PRESSURE_FENCE_GENERATION + calls - 1L
+			val ownerDao = targetDatabase.sourceDestinationOwnerDao()
+			val current = ownerDao.get(
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			)
+			if (current == null) {
+				ownerDao.insertIfAbsent(
+					SourceDestinationOwnerEntity(
+						sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+						destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+						owner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+						ownerGeneration = generation,
+						updatedAtMs = ERASED_AT_MS,
+					),
+				)
+			} else if (current.ownerGeneration != generation) {
+				check(ownerDao.compareAndSetOwner(
+					sourceKind = current.sourceKind,
+					destination = current.destination,
+					expectedOwner = current.owner,
+					expectedOwnerGeneration = current.ownerGeneration,
+					newOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+					newOwnerGeneration = generation,
+					updatedAtMs = ERASED_AT_MS,
+				) == 1)
+			}
 			return PressureSourceEraseBarrierResult.NoLocalProvider(
 				PressureSourceEraseBarrierToken(
 					expectedCollectedDataEpoch,
 					null,
-					calls.toLong(),
+					com.adsamcik.tracker.stats.api.repository
+						.PressureSourceEraseFenceOwner.LEGACY_PRESSURE_SAMPLE,
+					generation,
 				),
 			)
 		}

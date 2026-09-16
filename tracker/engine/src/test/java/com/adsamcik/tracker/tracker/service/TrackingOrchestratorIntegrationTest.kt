@@ -15,6 +15,10 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.model.AltitudeContractVersions
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -41,6 +45,8 @@ import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
 import com.adsamcik.tracker.tracker.pipeline.persistence.RoomPersistenceTransactor
 import com.adsamcik.tracker.tracker.pipeline.persistence.TrackingPersistenceTransactor
 import com.adsamcik.tracker.tracker.pipeline.persistence.ExclusiveTrackingPersistenceLifecycleLease
+import com.adsamcik.tracker.tracker.pipeline.DurableAdmissionStatus
+import com.adsamcik.tracker.tracker.pipeline.DurableSignalProcessor
 import com.adsamcik.tracker.tracker.presentation.PresentationQuiescenceResult
 import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
 import com.adsamcik.tracker.tracker.source.location.LocationCaptureAuthority
@@ -61,12 +67,24 @@ import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalPe
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalReceipt
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalSignalIdentity
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationCanonicalWriteResult
+import com.adsamcik.tracker.tracker.source.location.ProtectedLocationOfflineCanonicalWriter
 import com.adsamcik.tracker.tracker.source.location.ProtectedLocationWalQualifier
 import com.adsamcik.tracker.tracker.source.location.PROTECTED_LOCATION_CANONICAL_CURATION_VERSION
 import com.adsamcik.tracker.tracker.source.location.loadPreparedProtectedLocationCanonicalCurationState
 import com.adsamcik.tracker.tracker.source.location.readProtectedLocationCanonicalReceipt
 import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
+import com.adsamcik.tracker.tracker.source.coordinator.PersistenceLegacySourceWriterTransitionBoundary
+import com.adsamcik.tracker.tracker.source.coordinator.PressureSessionFactWriterTransitionCoordinator
+import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
+import com.adsamcik.tracker.tracker.source.coordinator.SourceWriterTransitionResult
+import com.adsamcik.tracker.tracker.source.coordinator.SourceWriterTransitionTestDependencies
+import com.adsamcik.tracker.tracker.source.pressure.PersistenceLegacyPressureWriterLifecycleBarrier
+import com.adsamcik.tracker.tracker.source.pressure.RuntimePressureSourceEraseBarrier
+import com.adsamcik.tracker.tracker.source.runtime.PressureProviderEraseSettlement
+import com.adsamcik.tracker.tracker.source.runtime.PressureSourceRuntime
+import com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierResult
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
@@ -77,6 +95,10 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import javax.inject.Provider
 import kotlin.test.assertIs
@@ -86,6 +108,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -236,6 +259,7 @@ class TrackingOrchestratorIntegrationTest {
 				qualifier,
 				Unit,
 			)
+			val failedLifecycleLease = ExclusiveTrackingPersistenceLifecycleLease()
 			fun newPersistence(
 				transactor: TrackingPersistenceTransactor,
 			) = PersistenceProcessor(
@@ -286,6 +310,7 @@ class TrackingOrchestratorIntegrationTest {
 					),
 				),
 				enableNotifications = false,
+				persistenceLifecycleLease = failedLifecycleLease,
 			)
 			insertPresentationOwner(LOGICAL_ID, RUN_ID)
 			failedController.updateServiceRunning(true)
@@ -331,6 +356,7 @@ class TrackingOrchestratorIntegrationTest {
 			failedController.updateServiceRunning(false)
 			advanceUntilIdle()
 
+			val lifecycleLease = ExclusiveTrackingPersistenceLifecycleLease()
 			val recoveredPersistence = newPersistence(RoomPersistenceTransactor(database))
 			val recoveredController = DefaultTrackerServiceController()
 			val recoveredOrchestrator = TrackingOrchestrator(
@@ -349,6 +375,7 @@ class TrackingOrchestratorIntegrationTest {
 					),
 				),
 				enableNotifications = false,
+				persistenceLifecycleLease = lifecycleLease,
 			)
 			recoveredController.updateServiceRunning(true)
 			val recoveredBinding = requireNotNull(recoveredOrchestrator.initialize(
@@ -456,6 +483,49 @@ class TrackingOrchestratorIntegrationTest {
 				).acceptedSample,
 			)
 			database.locationSampleDao().countAll() shouldBe 3L
+			database.sourceDestinationOwnerDao().insertIfAbsent(
+				SourceDestinationOwnerEntity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+					destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+					owner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+					ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+					updatedAtMs = 20_000L,
+				),
+			)
+			val offlineWriter = ProtectedLocationOfflineCanonicalWriter(
+				context,
+				database,
+				testDispatcherProvider,
+				recoveredPersistence,
+				lifecycleLease,
+			)
+			val pressureRuntime = mockk<PressureSourceRuntime>()
+			coEvery { pressureRuntime.establishSourceEraseBarrier(0L) } returns
+				PressureProviderEraseSettlement.NoLocalProvider
+			val pressureBarrier = RuntimePressureSourceEraseBarrier(
+				pressureRuntime,
+				PersistenceLegacyPressureWriterLifecycleBarrier(
+					database,
+					recoveredPersistence,
+					lifecycleLease,
+				),
+			)
+			val offlineAttempt = backgroundScope.async {
+				offlineWriter.write(accepted, PROTECTED_LOCATION_ACQUISITION)
+			}
+			val pressureAttempt = backgroundScope.async {
+				pressureBarrier.establish(0L)
+			}
+			runCurrent()
+			offlineAttempt.isCompleted shouldBe false
+			pressureAttempt.isCompleted shouldBe false
+			coVerify(exactly = 0) { pressureRuntime.establishSourceEraseBarrier(0L) }
+
+			recoveredOrchestrator.shutdown(context)
+
+			offlineAttempt.await()
+			assertIs<PressureSourceEraseBarrierResult.NoLocalProvider>(pressureAttempt.await())
+			coVerify(exactly = 1) { pressureRuntime.establishSourceEraseBarrier(0L) }
 		}
 
 	@Test
@@ -548,7 +618,246 @@ class TrackingOrchestratorIntegrationTest {
 			offlineEntered.isCompleted shouldBe true
 		}
 
+	@Test
+	@Suppress("LongMethod")
+	fun `Pressure activation waits outside coordinator lease for the real live persistence owner`() =
+		runTest(testDispatcher) {
+			database.sourceEvidenceStateDao().ensure()
+			val catalog = ExecutableSourceLaneCatalog()
+			RoomTrackingRolloutStateStore(database, catalog).load() shouldBe
+				TrackingRolloutState.contained(revision = 1L)
+			installProtectedLocationWriterAuthority()
+			database.sourceDestinationOwnerDao().insertIfAbsent(
+				SourceDestinationOwnerEntity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+					destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+					owner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+					ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+					updatedAtMs = 1L,
+				),
+			)
+			val lifecycleLease = ExclusiveTrackingPersistenceLifecycleLease()
+			val persistence = realPersistenceProcessor()
+			val transitionBoundary = PersistenceLegacySourceWriterTransitionBoundary(
+				persistence,
+				lifecycleLease,
+			)
+			val coordinator = PressureSessionFactWriterTransitionCoordinator(
+				database,
+				catalog,
+				SourceWriterTransitionTestDependencies(
+					startupGate = ReadyTransitionStartupGate,
+					bootClockDomainProvider =
+						BootClockDomainProvider { TRANSITION_BOOT_ID },
+					clock = FixedClock(1_000L, 1_000L),
+					legacyWriterQuiescence = transitionBoundary,
+				),
+			)
+			coordinator.installInertCandidate(1L, 10L)
+				.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+			val pressureRuntime = mockk<PressureSourceRuntime>()
+			coEvery { pressureRuntime.establishSourceEraseBarrier(0L) } returns
+				PressureProviderEraseSettlement.NoLocalProvider
+			val runtimePressureBarrier = RuntimePressureSourceEraseBarrier(
+				pressureRuntime,
+				PersistenceLegacyPressureWriterLifecycleBarrier(
+					database,
+					persistence,
+					lifecycleLease,
+				),
+			)
+			val offlineWriter = ProtectedLocationOfflineCanonicalWriter(
+				context,
+				database,
+				testDispatcherProvider,
+				persistence,
+				lifecycleLease,
+			)
+			val controller = DefaultTrackerServiceController().apply {
+				updateServiceRunning(true)
+			}
+			val orchestrator = TrackingOrchestrator(
+				controller = controller,
+				signalProcessors = setOf(persistence),
+				domainEventRepository = RecordingDomainEventRepository(),
+				dispatchers = testDispatcherProvider,
+				appDatabase = database,
+				trackingParamsRepository =
+					FakeTrackingParamsRepository(TrackingParamsState()),
+				dailySummaryFallbackEnqueuer = {},
+				enableNotifications = false,
+				persistenceLifecycleLease = lifecycleLease,
+			)
+			orchestrator.initialize(
+				context = context,
+				isSessionUserInitiated = false,
+				initialTier = PolicyTier.AMBIENT,
+				scope = backgroundScope,
+				rolloutState = allEventCanonical(),
+			)
+			val command = protectedLocationCommand(
+				eventId = "cancelled-offline-location",
+				admissionOrdinal = 1L,
+				sessionSegmentId = 1L,
+				wallTimeMs = 1_000L,
+				elapsedRealtimeNanos = 1_000_000_000L,
+				latitude = 50.0,
+				longitude = 14.0,
+			)
+			val offlineAttempt = backgroundScope.async {
+				offlineWriter.write(command, PROTECTED_LOCATION_ACQUISITION)
+			}
+			val pressureAttempt = backgroundScope.async {
+				runtimePressureBarrier.establish(0L)
+			}
+
+			runCurrent()
+			offlineAttempt.isCompleted shouldBe false
+			pressureAttempt.isCompleted shouldBe false
+			coVerify(exactly = 0) { pressureRuntime.establishSourceEraseBarrier(0L) }
+			offlineAttempt.cancelAndJoin()
+			pressureAttempt.cancelAndJoin()
+
+			val activation = backgroundScope.async {
+				coordinator.activateCandidate(2L, 11L)
+			}
+			runCurrent()
+			activation.isCompleted shouldBe false
+			val leaseDao = database.sourceProjectionStateDao()
+			leaseDao.acquireOrRenewLease(
+				leaseName = SESSION_COORDINATOR_LEASE,
+				ownerToken = "live-pressure-teardown",
+				bootId = TRANSITION_BOOT_ID,
+				nowMs = 1_000L,
+				expiresAtMs = 2_000L,
+				nowElapsedNanos = 1_000L,
+				expiresElapsedNanos = 2_000L,
+			) shouldBe 1
+			val teardownLease = requireNotNull(leaseDao.lease(SESSION_COORDINATOR_LEASE))
+			leaseDao.releaseLease(
+				SESSION_COORDINATOR_LEASE,
+				"live-pressure-teardown",
+				TRANSITION_BOOT_ID,
+				teardownLease.generation,
+				1_000L,
+				1_000L,
+			) shouldBe 1
+
+			orchestrator.shutdown(context)
+
+			activation.await().shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+		}
+
+	@Test
+	fun `pipeline start failure releases only after durability cleanup`() = runTest(testDispatcher) {
+		val lease = ExclusiveTrackingPersistenceLifecycleLease()
+		val processor = LifecycleFailureDurabilityProcessor(failStart = true)
+		val orchestrator = TrackingOrchestrator(
+			controller = DefaultTrackerServiceController().apply {
+				updateServiceRunning(true)
+			},
+			signalProcessors = setOf(processor),
+			domainEventRepository = RecordingDomainEventRepository(),
+			dispatchers = testDispatcherProvider,
+			appDatabase = database,
+			trackingParamsRepository = FakeTrackingParamsRepository(TrackingParamsState()),
+			dailySummaryFallbackEnqueuer = {},
+			enableNotifications = false,
+			persistenceLifecycleLease = lease,
+		)
+
+		shouldThrow<IllegalStateException> {
+			orchestrator.initialize(
+				context = context,
+				isSessionUserInitiated = false,
+				initialTier = PolicyTier.AMBIENT,
+				scope = backgroundScope,
+				rolloutState = allEventCanonical(),
+			)
+		}
+
+		processor.failStart = false
+		orchestrator.initialize(
+			context = context,
+			isSessionUserInitiated = false,
+			initialTier = PolicyTier.AMBIENT,
+			scope = backgroundScope,
+			rolloutState = allEventCanonical(),
+		)
+		orchestrator.shutdown(context)
+		lease.withOfflineLocationRecovery { "released" } shouldBe "released"
+		processor.stopCalls shouldBe 2
+	}
+
+	@Test
+	fun `failed final stop retains permit until retry completes`() = runTest(testDispatcher) {
+		val lease = ExclusiveTrackingPersistenceLifecycleLease()
+		val processor = LifecycleFailureDurabilityProcessor(stopFailures = 1)
+		val controller = DefaultTrackerServiceController().apply {
+			updateServiceRunning(true)
+		}
+		val orchestrator = TrackingOrchestrator(
+			controller = controller,
+			signalProcessors = setOf(processor),
+			domainEventRepository = RecordingDomainEventRepository(),
+			dispatchers = testDispatcherProvider,
+			appDatabase = database,
+			trackingParamsRepository = FakeTrackingParamsRepository(TrackingParamsState()),
+			dailySummaryFallbackEnqueuer = {},
+			enableNotifications = false,
+			persistenceLifecycleLease = lease,
+		)
+		orchestrator.initialize(
+			context = context,
+			isSessionUserInitiated = false,
+			initialTier = PolicyTier.AMBIENT,
+			scope = backgroundScope,
+			rolloutState = allEventCanonical(),
+		)
+		val offlineEntered = CompletableDeferred<Unit>()
+		val offline = backgroundScope.async {
+			lease.withOfflineLocationRecovery {
+				offlineEntered.complete(Unit)
+			}
+		}
+
+		shouldThrow<IllegalStateException> {
+			orchestrator.shutdown(context)
+		}
+		runCurrent()
+		offlineEntered.isCompleted shouldBe false
+		orchestrator.shutdown(context)
+		offline.await()
+		offlineEntered.isCompleted shouldBe true
+		processor.stopCalls shouldBe 2
+	}
+
 	private fun allEventCanonical() = TrackingRolloutState.eventCanonical(SourceKind.entries.toSet())
+
+	private fun realPersistenceProcessor(
+		transactor: TrackingPersistenceTransactor = RoomPersistenceTransactor(database),
+	) = PersistenceProcessor(
+		locationSampleDao = database.locationSampleDao(),
+		locationObservationDao = database.locationObservationDao(),
+		locationObservationDecisionDao = database.locationObservationDecisionDao(),
+		sourceEvidenceStateDao = database.sourceEvidenceStateDao(),
+		cellSampleDao = database.cellSampleDao(),
+		wifiObservationDao = database.wifiObservationDao(),
+		pressureSampleDao = database.pressureSampleDao(),
+		stepIntervalDao = database.stepIntervalDao(),
+		activitySnapshotDao = database.activitySnapshotDao(),
+		pendingSignalDao = database.pendingSignalDao(),
+		pendingSignalClaimDao = database.pendingSignalClaimDao(),
+		durableBuffer = DurableSignalBuffer(
+			pendingSignalDao = database.pendingSignalDao(),
+			dispatchers = testDispatcherProvider,
+			pendingSignalClaimDao = database.pendingSignalClaimDao(),
+			appDatabase = database,
+		),
+		transactor = transactor,
+		sourceDestinationOwnerDao = database.sourceDestinationOwnerDao(),
+		appDatabaseProvider = Provider { database },
+	)
 
 	private suspend fun insertPresentationOwner(logicalTrackingId: String, serviceRunId: String) {
 		val dao = database.sourceSessionDao()
@@ -847,6 +1156,39 @@ class TrackingOrchestratorIntegrationTest {
 		) = Unit
 	}
 
+	private class LifecycleFailureDurabilityProcessor(
+		var failStart: Boolean = false,
+		private var stopFailures: Int = 0,
+	) : DurableSignalProcessor {
+		override val descriptor = ProcessorDescriptor(
+			id = "lifecycle-failure-durability",
+			requiredTier = PolicyTier.AMBIENT,
+			flushIntervalMs = Long.MAX_VALUE,
+			priority = Int.MIN_VALUE,
+		)
+		var stopCalls = 0
+			private set
+
+		override suspend fun onStart(context: ProcessorContext) {
+			if (failStart) error("simulated persistence start failure")
+		}
+
+		override fun onSignal(signal: TrackingSignal) = Unit
+		override suspend fun onFlush(): List<DomainEvent> = emptyList()
+		override suspend fun checkpointStagedSignals(): Boolean = true
+		override suspend fun checkpointStagedSignalsStatus(): DurableAdmissionStatus =
+			DurableAdmissionStatus.ADMITTED
+
+		override suspend fun onStop(): List<DomainEvent> {
+			stopCalls++
+			if (stopFailures > 0) {
+				stopFailures--
+				error("simulated persistence stop failure")
+			}
+			return emptyList()
+		}
+	}
+
 	private class FakeTrackingParamsRepository(
 		initialState: TrackingParamsState,
 	) : TrackingParamsRepository {
@@ -893,9 +1235,19 @@ class TrackingOrchestratorIntegrationTest {
 		}
 	}
 
+	private object ReadyTransitionStartupGate : TrackingStartupGate {
+		override val isReady: Boolean = true
+		override val currentGeneration: Long = 1L
+
+		override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+			TrackingStartupResult.Ready(false, 0L)
+	}
+
 	private companion object {
 		const val LOGICAL_ID = "orchestrator-logical"
 		const val RUN_ID = "orchestrator-run"
+		const val SESSION_COORDINATOR_LEASE = "tracking-session-coordinator"
+		const val TRANSITION_BOOT_ID = "pressure-transition-boot"
 		val PROTECTED_LOCATION_ACQUISITION = LocationWalAcquisitionMetadata(
 			acquisitionMode = LocationAcquisitionMode.FUSED,
 			requestPriority = LocationRequestPriority.HIGH_ACCURACY,

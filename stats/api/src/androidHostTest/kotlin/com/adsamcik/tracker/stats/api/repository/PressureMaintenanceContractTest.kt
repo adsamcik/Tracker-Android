@@ -49,7 +49,12 @@ class PressureMaintenanceContractTest {
 			override suspend fun establish(
 				expectedCollectedDataEpoch: Long,
 			): PressureSourceEraseBarrierResult = PressureSourceEraseBarrierResult.NoLocalProvider(
-				PressureSourceEraseBarrierToken(expectedCollectedDataEpoch, null, 1L),
+				PressureSourceEraseBarrierToken(
+					expectedCollectedDataEpoch,
+					null,
+					PressureSourceEraseFenceOwner.LEGACY_PRESSURE_SAMPLE,
+					2L,
+				),
 			)
 
 			override suspend fun verifySettled(
@@ -59,7 +64,32 @@ class PressureMaintenanceContractTest {
 		}
 
 		importOnly.establish(7L) shouldBe PressureSourceEraseBarrierResult.NoLocalProvider(
-			PressureSourceEraseBarrierToken(7L, null, 1L),
+			PressureSourceEraseBarrierToken(
+				7L,
+				null,
+				PressureSourceEraseFenceOwner.LEGACY_PRESSURE_SAMPLE,
+				2L,
+			),
 		)
+	}
+
+	@Test
+	fun `fence token rejects lower or candidate-shaped owner generations`() {
+		shouldThrow<IllegalArgumentException> {
+			PressureSourceEraseBarrierToken(
+				7L,
+				null,
+				PressureSourceEraseFenceOwner.LEGACY_PRESSURE_SAMPLE,
+				1L,
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			PressureSourceEraseBarrierToken(
+				7L,
+				null,
+				PressureSourceEraseFenceOwner.CONTAINED_PRESSURE_SESSION_FACTS,
+				2L,
+			)
+		}
 	}
 }

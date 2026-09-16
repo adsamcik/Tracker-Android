@@ -404,7 +404,9 @@ class RoomTruncateImportedPressureRetentionTest {
 						com.adsamcik.tracker.stats.api.repository.PressureSourceEraseBarrierToken(
 							expectedCollectedDataEpoch,
 							null,
-							1L,
+							com.adsamcik.tracker.stats.api.repository
+								.PressureSourceEraseFenceOwner.LEGACY_PRESSURE_SAMPLE,
+							2L,
 						),
 					)
 
