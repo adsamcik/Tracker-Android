@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.ImportedCellProductReadBudget
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductReadUsage
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductReader
 import com.adsamcik.tracker.shared.base.database.ImportedCellProductScanContextFailure
+import com.adsamcik.tracker.shared.base.database.ImportedCellProductScanScope
 import com.adsamcik.tracker.shared.base.database.PortableCapturedCellEntryV1
 import com.adsamcik.tracker.shared.base.database.PortableCapturedCellRunV1
 import com.adsamcik.tracker.shared.base.database.PortableCellIdentityKind
@@ -456,18 +457,14 @@ internal class DefaultCellHistoryRepository internal constructor(
 		limit: Int,
 	): ImportedHistoryEligiblePage<CellImportedHistoryEligibleEntry> {
 		require(limit in 1..MAX_RESULTS)
-		val accepted = mutableListOf<CellImportedHistoryEligibleEntry>()
-		var scanned = 0
-		var localOriginComparisons = 0
-		var beforeStartTimeMs: Long? = null
-		var beforeIdentity: String? = null
-		var remainingReadBudget = ImportedCellProductReadBudget.sharedHistory()
-		val scanContext = try {
-			importedProductReader.openRecentScanContextInTransaction()
+		return try {
+			importedProductReader.withRecentScanInTransaction { scope ->
+				recentImportedEligibleInScope(scope, limit)
+			}
 		} catch (cancelled: kotlinx.coroutines.CancellationException) {
 			throw cancelled
 		} catch (failure: ImportedCellProductScanContextFailure) {
-			return importedEligibleUnavailable(
+			importedEligibleUnavailable(
 				if (failure.reason == ImportedCellProductFailure.DEPENDENCY_OVERFLOW) {
 					SourceAwareHistoryPageUnavailableReason.SOURCE_READ_BUDGET_EXCEEDED
 				} else {
@@ -475,10 +472,22 @@ internal class DefaultCellHistoryRepository internal constructor(
 				},
 			)
 		} catch (_: RuntimeException) {
-			return importedEligibleUnavailable(
+			importedEligibleUnavailable(
 				SourceAwareHistoryPageUnavailableReason.SOURCE_INTEGRITY_FAILURE,
 			)
 		}
+	}
+
+	private suspend fun recentImportedEligibleInScope(
+		scanScope: ImportedCellProductScanScope,
+		limit: Int,
+	): ImportedHistoryEligiblePage<CellImportedHistoryEligibleEntry> {
+		val accepted = mutableListOf<CellImportedHistoryEligibleEntry>()
+		var scanned = 0
+		var localOriginComparisons = 0
+		var beforeStartTimeMs: Long? = null
+		var beforeIdentity: String? = null
+		var remainingReadBudget = ImportedCellProductReadBudget.sharedHistory()
 		var completedPageCount = 0
 		while (true) {
 			currentCoroutineContext().ensureActive()
@@ -486,7 +495,7 @@ internal class DefaultCellHistoryRepository internal constructor(
 			val remaining = MAX_SHARED_HISTORY_IMPORTED_CANDIDATES - scanned
 			if (remaining == 0) {
 				val hasMore = try {
-					importedProductReader.hasRecentCandidateInTransaction(
+					scanScope.hasRecentCandidateInTransaction(
 						beforeStartTimeMs,
 						beforeIdentity,
 					)
@@ -506,8 +515,7 @@ internal class DefaultCellHistoryRepository internal constructor(
 			}
 			val pageLimit = minOf(SHARED_HISTORY_IMPORTED_PAGE_SIZE, remaining)
 			val page = try {
-				importedProductReader.selectRecentPageInTransaction(
-					context = scanContext,
+				scanScope.selectRecentPageInTransaction(
 					budget = remainingReadBudget,
 					limit = pageLimit,
 					beforeStartTimeMs = beforeStartTimeMs,

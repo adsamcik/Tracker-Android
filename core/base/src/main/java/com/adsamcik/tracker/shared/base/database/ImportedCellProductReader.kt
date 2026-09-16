@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -65,57 +66,61 @@ class ImportedCellProductReader(
 		)
 	}
 
-	suspend fun selectRecentPageInTransaction(
+	private suspend fun selectRecentPageInTransaction(
 		limit: Int,
 		beforeStartTimeMs: Long?,
 		beforeIdentity: String?,
 	): List<ImportedCellProductEvaluation> {
+		val candidates = loadRecentCandidates(limit, beforeStartTimeMs, beforeIdentity)
 		val context = try {
-			openRecentScanContextInTransaction()
+			loadScanSnapshot()
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (failure: ImportedCellProductScanContextFailure) {
-			val candidates = loadRecentCandidates(limit, beforeStartTimeMs, beforeIdentity)
 			return candidates.unverifiable(failure.reason)
 		}
-		return selectRecentPageInTransaction(
-			context,
-			limit,
-			beforeStartTimeMs,
-			beforeIdentity,
-		)
+		return evaluateCandidatesWithBudget(
+			candidates = candidates,
+			beforeStartTimeMs = beforeStartTimeMs,
+			beforeIdentity = beforeIdentity,
+			maximumSize = limit,
+			context = context,
+			budget = ImportedCellProductReadBudget.unbounded(),
+		).evaluations
 	}
 
-	suspend fun openRecentScanContextInTransaction(): ImportedCellProductScanContext =
-		loadPageContext()
+	suspend fun <T> withRecentScanInTransaction(
+		block: suspend (ImportedCellProductScanScope) -> T,
+	): T {
+		if (!database.inTransaction()) {
+			throw ImportedCellProductScanContextFailure(
+				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		val scope = ImportedCellProductScanScope(
+			reader = this,
+			issuer = scanContextIssuer,
+			snapshot = loadScanSnapshot(),
+		)
+		return try {
+			block(scope)
+		} finally {
+			scope.invalidate()
+		}
+	}
 
-	suspend fun selectRecentPageInTransaction(
-		context: ImportedCellProductScanContext,
-		limit: Int,
-		beforeStartTimeMs: Long?,
-		beforeIdentity: String?,
-	): List<ImportedCellProductEvaluation> = selectRecentPageInTransaction(
-		context = context,
-		budget = ImportedCellProductReadBudget.unbounded(),
-		limit = limit,
-		beforeStartTimeMs = beforeStartTimeMs,
-		beforeIdentity = beforeIdentity,
-	).evaluations
-
-	suspend fun selectRecentPageInTransaction(
-		context: ImportedCellProductScanContext,
+	internal suspend fun selectRecentPageInScope(
+		scope: ImportedCellProductScanScope,
 		budget: ImportedCellProductReadBudget,
 		limit: Int,
 		beforeStartTimeMs: Long?,
 		beforeIdentity: String?,
 	): ImportedCellProductScanPage {
+		val context = scope.requireActive(
+			expectedIssuer = scanContextIssuer,
+			inTransaction = database.inTransaction(),
+		)
 		val candidates = loadRecentCandidates(limit, beforeStartTimeMs, beforeIdentity)
-		if (context.issuer !== scanContextIssuer) {
-			return ImportedCellProductScanPage(
-				candidates.unverifiable(ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE),
-				ImportedCellProductReadUsage.ZERO,
-			)
-		}
 		return evaluateCandidatesWithBudget(
 			candidates = candidates,
 			beforeStartTimeMs = beforeStartTimeMs,
@@ -126,10 +131,15 @@ class ImportedCellProductReader(
 		)
 	}
 
-	suspend fun hasRecentCandidateInTransaction(
+	internal suspend fun hasRecentCandidateInScope(
+		scope: ImportedCellProductScanScope,
 		beforeStartTimeMs: Long?,
 		beforeIdentity: String?,
 	): Boolean {
+		scope.requireActive(
+			expectedIssuer = scanContextIssuer,
+			inTransaction = database.inTransaction(),
+		)
 		require((beforeStartTimeMs == null) == (beforeIdentity == null))
 		require(beforeStartTimeMs?.let { it >= 0L } != false)
 		require(beforeIdentity?.let { ImportedCellIdentity.isDigest(it) } != false)
@@ -242,7 +252,7 @@ class ImportedCellProductReader(
 		beforeStartTimeMs: Long?,
 		beforeIdentity: String?,
 		maximumSize: Int,
-		context: ImportedCellProductScanContext? = null,
+		context: ImportedCellProductScanSnapshot? = null,
 	): List<ImportedCellProductEvaluation> = evaluateCandidatesWithBudget(
 		candidates = candidates,
 		beforeStartTimeMs = beforeStartTimeMs,
@@ -257,7 +267,7 @@ class ImportedCellProductReader(
 		beforeStartTimeMs: Long?,
 		beforeIdentity: String?,
 		maximumSize: Int,
-		context: ImportedCellProductScanContext? = null,
+		context: ImportedCellProductScanSnapshot? = null,
 		budget: ImportedCellProductReadBudget,
 	): ImportedCellProductScanPage {
 		if (!isValidCandidatePage(candidates, beforeStartTimeMs, beforeIdentity, maximumSize)) {
@@ -273,7 +283,7 @@ class ImportedCellProductReader(
 			)
 		}
 		val sourceContext = try {
-			context ?: loadPageContext()
+			context ?: loadScanSnapshot()
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (failure: ImportedCellProductScanContextFailure) {
@@ -319,7 +329,7 @@ class ImportedCellProductReader(
 	@Suppress("LongMethod")
 	private suspend fun evaluateBatch(
 		candidates: List<ImportedCellHistoryCandidate>,
-		context: ImportedCellProductScanContext,
+		context: ImportedCellProductScanSnapshot,
 		budget: ImportedCellProductReadBudget,
 	): ImportedCellProductBatchEvaluation {
 		if (candidates.isEmpty()) {
@@ -550,7 +560,7 @@ class ImportedCellProductReader(
 		return ImportedCellProductBatchEvaluation(evaluations, hierarchyUsage, false)
 	}
 
-	private suspend fun loadPageContext(): ImportedCellProductScanContext {
+	private suspend fun loadScanSnapshot(): ImportedCellProductScanSnapshot {
 		val state = database.sourceEvidenceStateDao().get()
 			?: throw ImportedCellProductScanContextFailure(
 				ImportedCellProductFailure.SOURCE_EVIDENCE_STATE_MISSING,
@@ -607,8 +617,7 @@ class ImportedCellProductReader(
 				ImportedCellProductFailure.ORIGIN_IDENTITY_CONFLICT,
 			)
 		}
-		return ImportedCellProductScanContext(
-			issuer = scanContextIssuer,
+		return ImportedCellProductScanSnapshot(
 			state = state,
 			logicalIds = logicalIds,
 			runs = runs,
@@ -623,7 +632,7 @@ class ImportedCellProductReader(
 	private suspend fun authenticateOwnership(
 		dao: ImportedCellDao,
 		graph: ImportedCellProductIdentityGraph,
-		context: ImportedCellProductScanContext,
+		context: ImportedCellProductScanSnapshot,
 	): ImportedCellOwnershipAudit {
 		val state = context.state
 		val sourceFences = linkedMapOf<String, Long>()
@@ -983,8 +992,7 @@ private data class ImportedCellOwnershipAudit(
 	val sourceDeletedScopeDigests: Set<String>,
 )
 
-class ImportedCellProductScanContext internal constructor(
-	internal val issuer: Any,
+internal data class ImportedCellProductScanSnapshot(
 	internal val state: SourceEvidenceState,
 	internal val logicalIds: List<String>,
 	internal val runs: List<ImportedCellLiveRunOwner>,
@@ -995,6 +1003,54 @@ class ImportedCellProductScanContext internal constructor(
 ) {
 	fun localOriginHandle(identity: String): ImportedCellLocalOriginHandle? =
 		directLocalLogicalByEntryIdentity[identity]?.let(::ImportedCellLocalOriginHandle)
+}
+
+class ImportedCellProductScanScope internal constructor(
+	private val reader: ImportedCellProductReader,
+	private val issuer: Any,
+	private val snapshot: ImportedCellProductScanSnapshot,
+) {
+	private val active = AtomicBoolean(true)
+
+	suspend fun selectRecentPageInTransaction(
+		budget: ImportedCellProductReadBudget,
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): ImportedCellProductScanPage = reader.selectRecentPageInScope(
+		this,
+		budget,
+		limit,
+		beforeStartTimeMs,
+		beforeIdentity,
+	)
+
+	suspend fun hasRecentCandidateInTransaction(
+		beforeStartTimeMs: Long?,
+		beforeIdentity: String?,
+	): Boolean = reader.hasRecentCandidateInScope(
+		this,
+		beforeStartTimeMs,
+		beforeIdentity,
+	)
+
+	internal fun requireActive(
+		expectedIssuer: Any,
+		inTransaction: Boolean,
+	): ImportedCellProductScanSnapshot {
+		if (!active.get() || issuer !== expectedIssuer || !inTransaction) {
+			throw ImportedCellProductScanContextFailure(
+				ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE,
+			)
+		}
+		return snapshot
+	}
+
+	internal fun invalidate() {
+		active.set(false)
+	}
+
+	override fun toString(): String = "ImportedCellProductScanScope"
 }
 
 class ImportedCellProductScanContextFailure(
@@ -1181,7 +1237,7 @@ private fun ImportedCellHistoryPreflight.toReadUsage() = ImportedCellProductRead
 private fun batchFailure(
 	candidates: List<ImportedCellHistoryCandidate>,
 	reason: ImportedCellProductFailure,
-	context: ImportedCellProductScanContext,
+	context: ImportedCellProductScanSnapshot,
 	usage: ImportedCellProductReadUsage = ImportedCellProductReadUsage.ZERO,
 	budgetExceeded: Boolean = false,
 ) = ImportedCellProductBatchEvaluation(
@@ -1321,7 +1377,7 @@ private fun List<ImportedCellHistoryCandidate>.unverifiable(
 
 private fun List<ImportedCellHistoryCandidate>.unverifiable(
 	reason: ImportedCellProductFailure,
-	context: ImportedCellProductScanContext,
+	context: ImportedCellProductScanSnapshot,
 ) = map { candidate ->
 	ImportedCellProductEvaluation.Unverifiable(
 		candidate,

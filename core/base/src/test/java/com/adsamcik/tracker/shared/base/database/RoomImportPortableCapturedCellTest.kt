@@ -1436,6 +1436,98 @@ class RoomImportPortableCapturedCellTest {
 	}
 
 	@Test
+	fun `scoped recent scan rejects entry outside Room and escaped use after authority changes`() =
+		runTest {
+			seedEvidence()
+			val value = entry()
+			importer().importEntry(request(value)) shouldBe
+				ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+			var evaluatedBatchCount = 0
+			val reader = ImportedCellProductReader(
+				database,
+				batchCheckpoint = { evaluatedBatchCount += 1 },
+			)
+			shouldThrow<ImportedCellProductScanContextFailure> {
+				reader.withRecentScanInTransaction { }
+			}.reason shouldBe ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE
+			var escaped: ImportedCellProductScanScope? = null
+			database.withTransaction {
+				reader.withRecentScanInTransaction { scope ->
+					escaped = scope
+					scope.selectRecentPageInTransaction(
+						budget = ImportedCellProductReadBudget.sharedHistory(),
+						limit = 1,
+						beforeStartTimeMs = null,
+						beforeIdentity = null,
+					).evaluations.size shouldBe 1
+				}
+			}
+			evaluatedBatchCount = 0
+			shouldThrow<ImportedCellProductScanContextFailure> {
+				requireNotNull(escaped).selectRecentPageInTransaction(
+					budget = ImportedCellProductReadBudget.sharedHistory(),
+					limit = 1,
+					beforeStartTimeMs = null,
+					beforeIdentity = null,
+				)
+			}.reason shouldBe ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE
+			evaluatedBatchCount shouldBe 0
+			database.sourceSessionDao().insertSession(localSession("late-scan-owner"))
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE source_evidence_state SET revision = revision + 1, " +
+					"updated_at_ms = updated_at_ms + 1 WHERE id = 1",
+			)
+			evaluatedBatchCount = 0
+
+			database.withTransaction {
+				shouldThrow<ImportedCellProductScanContextFailure> {
+					requireNotNull(escaped).selectRecentPageInTransaction(
+						budget = ImportedCellProductReadBudget.sharedHistory(),
+						limit = 1,
+						beforeStartTimeMs = null,
+						beforeIdentity = null,
+					)
+				}.reason shouldBe ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE
+			}
+			evaluatedBatchCount shouldBe 0
+		}
+
+	@Test
+	fun `cancellation invalidates escaped recent scan before any later evaluation`() = runTest {
+		seedEvidence()
+		val value = entry()
+		importer().importEntry(request(value)) shouldBe
+			ImportPortableCapturedCellResult.Applied(1L, 1, 1)
+		var evaluatedBatchCount = 0
+		val reader = ImportedCellProductReader(
+			database,
+			batchCheckpoint = { evaluatedBatchCount += 1 },
+		)
+		var escaped: ImportedCellProductScanScope? = null
+
+		shouldThrow<CancellationException> {
+			database.withTransaction {
+				reader.withRecentScanInTransaction { scope ->
+					escaped = scope
+					throw CancellationException("cancel scoped imported Cell scan")
+				}
+			}
+		}
+		evaluatedBatchCount = 0
+		database.withTransaction {
+			shouldThrow<ImportedCellProductScanContextFailure> {
+				requireNotNull(escaped).selectRecentPageInTransaction(
+					budget = ImportedCellProductReadBudget.sharedHistory(),
+					limit = 1,
+					beforeStartTimeMs = null,
+					beforeIdentity = null,
+				)
+			}.reason shouldBe ImportedCellProductFailure.STORED_EVIDENCE_UNVERIFIABLE
+		}
+		evaluatedBatchCount shouldBe 0
+	}
+
+	@Test
 	fun `recent cancellation between bounded lineage batches escapes immediately`() = runTest {
 		seedEvidence()
 		repeat(5) { index ->
