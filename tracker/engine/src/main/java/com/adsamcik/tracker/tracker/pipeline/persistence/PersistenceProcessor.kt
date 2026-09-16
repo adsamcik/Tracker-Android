@@ -188,6 +188,17 @@ class PersistenceProcessor @Inject constructor(
 	internal fun isPipelineActiveForProtectedLocation(): Boolean =
 		isPipelineActiveForPersistenceLifecycle()
 
+	/** State an orphan retry must never clear or reinterpret as durable backlog. */
+	internal fun hasUnrecoverablePersistenceStateForLifecycleFence(): Boolean =
+		pipelineActive ||
+			commitStatusUnknown ||
+			hasRetainedInMemoryState()
+
+	/** Includes retryable durable backlog that [drainOrphanedSignals] may settle under the lease. */
+	internal fun hasUnsettledPersistenceStateForPressureFence(): Boolean =
+		hasUnrecoverablePersistenceStateForLifecycleFence() ||
+			recoveryIncomplete
+
 	internal fun isReadyForProtectedLocationWrite(): Boolean =
 		pipelineActive &&
 			!recoveryIncomplete &&
@@ -318,9 +329,9 @@ class PersistenceProcessor @Inject constructor(
 		verifyCollectedDataAccess: () -> Unit = {},
 	): Boolean = recoveryMutex.withLock {
 		verifyCollectedDataAccess()
-		if (pipelineActive) {
+		if (hasUnrecoverablePersistenceStateForLifecycleFence()) {
 			verifyCollectedDataAccess()
-			return@withLock true
+			return@withLock false
 		}
 		clearBuffers()
 		pendingIds.clear()
@@ -330,7 +341,7 @@ class PersistenceProcessor @Inject constructor(
 		verifyCollectedDataAccess()
 		val hasPendingEntries = durableBuffer.hasPendingEntries()
 		verifyCollectedDataAccess()
-		!recoveryIncomplete && !hasPendingEntries
+		!hasUnsettledPersistenceStateForPressureFence() && !hasPendingEntries
 	}
 
 	override suspend fun checkpointStagedSignals(): Boolean =
