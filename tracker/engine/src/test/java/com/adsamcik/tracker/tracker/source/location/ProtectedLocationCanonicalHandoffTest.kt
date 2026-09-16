@@ -607,6 +607,88 @@ class ProtectedLocationCanonicalHandoffTest {
 	}
 
 	@Test
+	fun `ignored WAL replay leaves global Location ordinals classifiable`() = runTest {
+		val first = command()
+		insertWal(first)
+		val dao = database.sourceEventWalDao()
+		val storedFirst = requireNotNull(dao.getByEventId(EVENT_ID))
+		val duplicateUnsigned = storedFirst.copy(
+			admissionOrdinal = 0L,
+			eventId = "duplicate-location-replay",
+			deliveryIdentity = "duplicate-location-delivery",
+		)
+		val duplicate = duplicateUnsigned.copy(
+			integrityIdentity = duplicateUnsigned.calculatedIntegrityIdentity(),
+		)
+
+		assertEquals(-1L, dao.insertIgnoringDuplicate(duplicate))
+		assertEquals(ADMISSION_ORDINAL, dao.admissionAllocatorHighWater())
+
+		val otherUnsigned = storedFirst.copy(
+			admissionOrdinal = 0L,
+			eventId = "known-other-source",
+			sourceKind = SourceKind.ACTIVITY.stableCode,
+			sourceInstanceId = "activity-runtime",
+			sourceSequence = 1L,
+			deliveryIdentity = null,
+			deliveryUnitIndex = null,
+			deliveryUnitCount = null,
+		)
+		val other = otherUnsigned.copy(
+			integrityIdentity = otherUnsigned.calculatedIntegrityIdentity(),
+		)
+		assertEquals(ADMISSION_ORDINAL + 1L, dao.insertIgnoringDuplicate(other))
+
+		val second = command(
+			eventId = "location-after-ignored-replay",
+			admissionOrdinal = ADMISSION_ORDINAL + 2L,
+			wallTimeMs = WALL_TIME_MS + 2_000L,
+			observedNanos = OBSERVED_NANOS + 2_000_000_000L,
+			receivedNanos = RECEIVED_NANOS + 2_000_000_000L,
+			sourceSequence = 2L,
+		)
+		val secondUnsigned = storedFirst.copy(
+			admissionOrdinal = 0L,
+			eventId = second.mutation.identity.sourceEventId.value,
+			sourceSequence = second.productEffect.durableEvidence.sourceSequence,
+			deliveryIdentity = second.mutation.identity.sourceDeliveryIdentity.value,
+		)
+		val secondWal = secondUnsigned.copy(
+			integrityIdentity = secondUnsigned.calculatedIntegrityIdentity(),
+		)
+		assertEquals(ADMISSION_ORDINAL + 2L, dao.insertIgnoringDuplicate(secondWal))
+		val commands = mapOf(
+			first.mutation.identity.sourceEventId.value to first,
+			second.mutation.identity.sourceEventId.value to second,
+		)
+
+		val complete = assertIs<ProtectedLocationCanonicalDrainResult.Complete>(
+			ProtectedLocationCanonicalHandoff(
+				database,
+				ProtectedLocationWalQualifier { eventId ->
+					LocationWalAdapterResult.Evaluated(
+						LocationObservationQualification.Qualified(
+							requireNotNull(commands[eventId.value]),
+						),
+						TEST_ACQUISITION_METADATA,
+					)
+				},
+				ReceiptWriter(database, accepted = true),
+			).drainHighWater(),
+		)
+
+		assertEquals(ADMISSION_ORDINAL + 2L, complete.lastCommittedOrdinal)
+		assertEquals(
+			listOf(ADMISSION_ORDINAL, ADMISSION_ORDINAL + 1L, ADMISSION_ORDINAL + 2L),
+			dao.continuityEventsAfterThrough(
+				afterOrdinal = ADMISSION_ORDINAL - 1L,
+				throughOrdinal = ADMISSION_ORDINAL + 2L,
+				limit = 3,
+			).map { it.admissionOrdinal },
+		)
+	}
+
+	@Test
 	fun `global drain uses durable sequence anchor after prior WAL pruning`() = runTest {
 		val first = command()
 		insertWal(first)

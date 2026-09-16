@@ -25,6 +25,10 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.string.shouldContain
 import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -57,6 +61,167 @@ class SourceEventWalDaoTest {
 		duplicate shouldBe -1L
 		dao.countAll() shouldBe 1L
 		dao.getBySourceSequence(1, "instance", 5L)?.eventId shouldBe "event-a"
+	}
+
+	@Test
+	fun `every scalar WAL uniqueness conflict preserves the allocator and existing row`() = runTest {
+		val dao = database.sourceEventWalDao()
+		val fixtures = listOf(
+			AdmissionCollisionFixture(
+				existing = event("primary-existing", 10L),
+				duplicate = { stored ->
+					stored.copy(
+						eventId = "primary-duplicate",
+						sourceKind = 2,
+						sourceInstanceId = "primary-other-instance",
+						sourceSequence = 20L,
+						providerDedupKey = null,
+						deliveryIdentity = null,
+						deliveryUnitIndex = null,
+						deliveryUnitCount = null,
+					)
+				},
+			),
+			AdmissionCollisionFixture(
+				existing = event("event-id-existing", 30L),
+				duplicate = { stored ->
+					stored.copy(
+						admissionOrdinal = 0L,
+						sourceKind = 2,
+						sourceInstanceId = "event-id-other-instance",
+						sourceSequence = 40L,
+					)
+				},
+			),
+			AdmissionCollisionFixture(
+				existing = event("provider-existing", 50L).copy(
+					providerDedupKey = "provider-key",
+					sourceInstanceId = "provider-existing-instance",
+				),
+				duplicate = { stored ->
+					stored.copy(
+						admissionOrdinal = 0L,
+						eventId = "provider-duplicate",
+						sourceInstanceId = "provider-other-instance",
+						sourceSequence = 60L,
+					)
+				},
+			),
+			AdmissionCollisionFixture(
+				existing = event("source-sequence-existing", 70L).copy(
+					sourceInstanceId = "source-sequence-instance",
+				),
+				duplicate = { stored ->
+					stored.copy(
+						admissionOrdinal = 0L,
+						eventId = "source-sequence-duplicate",
+					)
+				},
+			),
+			AdmissionCollisionFixture(
+				existing = event("delivery-existing", 80L).copy(
+					deliveryIdentity = "delivery-identity",
+					deliveryUnitIndex = 0,
+					deliveryUnitCount = 1,
+					sourceInstanceId = "delivery-existing-instance",
+				),
+				duplicate = { stored ->
+					stored.copy(
+						admissionOrdinal = 0L,
+						eventId = "delivery-duplicate",
+						sourceInstanceId = "delivery-other-instance",
+						sourceSequence = 90L,
+					)
+				},
+			),
+		)
+
+		fixtures.forEachIndexed { index, fixture ->
+			val existingOrdinal = dao.insertIgnoringDuplicate(fixture.existing)
+			val storedBefore = requireNotNull(dao.getByAdmissionOrdinal(existingOrdinal))
+			val allocatorBefore = dao.admissionAllocatorHighWater()
+
+			dao.insertIgnoringDuplicate(fixture.duplicate(storedBefore)) shouldBe -1L
+
+			dao.admissionAllocatorHighWater() shouldBe allocatorBefore
+			assertWalUnchanged(
+				storedBefore,
+				requireNotNull(dao.getByAdmissionOrdinal(existingOrdinal)),
+			)
+			val otherOrdinal = dao.insertIgnoringDuplicate(
+				event("other-after-conflict-$index", 1_000L + index).copy(
+					sourceKind = 100 + index * 2,
+					sourceInstanceId = "other-after-conflict-$index",
+				),
+			)
+			val locationOrdinal = dao.insertIgnoringDuplicate(
+				event("location-after-conflict-$index", 2_000L + index).copy(
+					sourceKind = 101 + index * 2,
+					sourceInstanceId = "location-after-conflict-$index",
+				),
+			)
+			otherOrdinal shouldBe allocatorBefore + 1L
+			locationOrdinal shouldBe allocatorBefore + 2L
+			dao.continuityEventsAfterThrough(
+				afterOrdinal = allocatorBefore,
+				throughOrdinal = locationOrdinal,
+				limit = 3,
+			).map { it.admissionOrdinal } shouldBe listOf(otherOrdinal, locationOrdinal)
+		}
+	}
+
+	@Test
+	fun `nullable unique components retain SQLite null distinct semantics`() = runTest {
+		val dao = database.sourceEventWalDao()
+		val nullableDeliveryIndex = event("null-index-a", 1L).copy(
+			deliveryIdentity = "shared-delivery",
+			deliveryUnitIndex = null,
+			deliveryUnitCount = 1,
+		)
+		val nullableDeliveryIdentity = event("null-identity-a", 3L).copy(
+			deliveryIdentity = null,
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 1,
+		)
+
+		dao.insertIgnoringDuplicate(nullableDeliveryIndex) shouldBe 1L
+		dao.insertIgnoringDuplicate(
+			nullableDeliveryIndex.copy(
+				eventId = "null-index-b",
+				sourceInstanceId = "null-index-b",
+				sourceSequence = 2L,
+			),
+		) shouldBe 2L
+		dao.insertIgnoringDuplicate(nullableDeliveryIdentity) shouldBe 3L
+		dao.insertIgnoringDuplicate(
+			nullableDeliveryIdentity.copy(
+				eventId = "null-identity-b",
+				sourceInstanceId = "null-identity-b",
+				sourceSequence = 4L,
+			),
+		) shouldBe 4L
+		dao.admissionAllocatorHighWater() shouldBe 4L
+	}
+
+	@Test
+	fun `concurrent scalar duplicates allocate one WAL ordinal`() = runTest {
+		val dao = database.sourceEventWalDao()
+		val candidate = event("concurrent-duplicate", 5L)
+
+		val results = coroutineScope {
+			List(2) {
+				async(Dispatchers.IO) {
+					dao.insertIgnoringDuplicate(candidate)
+				}
+			}.awaitAll()
+		}
+
+		results.sorted() shouldBe listOf(-1L, 1L)
+		dao.countAll() shouldBe 1L
+		dao.admissionAllocatorHighWater() shouldBe 1L
+		dao.insertIgnoringDuplicate(
+			event("after-concurrent-duplicate", 6L),
+		) shouldBe 2L
 	}
 
 	@Test
@@ -881,6 +1046,13 @@ class SourceEventWalDaoTest {
 
 		stateDao.get(1, "source-broker:1")?.nextSequence shouldBe 11L
 		walDao.countAll() shouldBe 1L
+		walDao.admissionAllocatorHighWater() shouldBe 1L
+		walDao.insertIgnoringDuplicate(
+			event("after-aborted-delivery", 100L).copy(
+				sourceKind = 2,
+				sourceInstanceId = "after-aborted-delivery",
+			),
+		) shouldBe 2L
 	}
 
 	@Test
@@ -1043,6 +1215,19 @@ class SourceEventWalDaoTest {
 	private fun walSequenceHighWater(): Long? = database.openHelper.writableDatabase.query(
 		"SELECT seq FROM sqlite_sequence WHERE name = 'source_event_wal'",
 	).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else null }
+
+	private fun assertWalUnchanged(
+		expected: SourceEventWalEntity,
+		actual: SourceEventWalEntity,
+	) {
+		expected.copy(payload = actual.payload) shouldBe actual
+		expected.payload.contentEquals(actual.payload) shouldBe true
+	}
+
+	private data class AdmissionCollisionFixture(
+		val existing: SourceEventWalEntity,
+		val duplicate: (SourceEventWalEntity) -> SourceEventWalEntity,
+	)
 
 	private fun productLane(
 		bindingGeneration: Long,
