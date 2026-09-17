@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.api
 
+import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import java.util.stream.Stream
 import kotlinx.coroutines.test.runTest
@@ -22,12 +23,26 @@ class ManualTrackingStartTest {
 		val automatic = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.automaticControl
 
 		automatic shouldBe AutomaticTrackingOperationalAvailability.Unavailable(
-			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+			AutomaticTrackingUnavailableReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
 		)
 		resolve(
 			source = TrackingCaptureSource.STEPS,
 			availableSources = setOf(TrackingCaptureSource.STEPS),
 		) shouldBe ManualTrackingStartReadiness.Ready(2L)
+	}
+
+	@Test
+	fun `decision containment does not change manual source readiness`() {
+		TrackingDecisionContainmentReason.entries.forEach { reason ->
+			TrackingCaptureSource.entries.forEach { source ->
+				withClue("${reason.stableCode}:$source") {
+					resolve(
+						source = source,
+						availableSources = setOf(source),
+					) shouldBe ManualTrackingStartReadiness.Ready(2L)
+				}
+			}
+		}
 	}
 
 	@ParameterizedTest(name = "{0}-only requests {1}")

@@ -4,8 +4,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-enum class AutomaticTrackingUnavailableReason(val stableCode: String) {
-	CONTROL_RETENTION_POLICY_UNAVAILABLE("CONTROL_RETENTION_POLICY_UNAVAILABLE"),
+enum class AutomaticTrackingUnavailableReason(
+	val stableCode: String,
+	val containmentReason: TrackingDecisionContainmentReason,
+) {
+	AUTO_005_CONTROL_EVIDENCE_UNRESOLVED(
+		"AUTO_005_CONTROL_EVIDENCE_UNRESOLVED",
+		TrackingDecisionContainmentReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
+	),
+	CONTROL_RETENTION_POLICY_UNAVAILABLE(
+		"CONTROL_RETENTION_POLICY_UNAVAILABLE",
+		TrackingDecisionContainmentReason.RETENTION_AUTHORITY_UNAVAILABLE,
+	),
 }
 
 sealed interface AutomaticTrackingOperationalAvailability {
@@ -42,8 +52,14 @@ enum class AmbientAcquisitionMechanism {
 	CELL_CHANGE_CALLBACKS,
 }
 
-enum class AmbientSourceUnavailableReason(val stableCode: String) {
-	RETENTION_POLICY_UNAVAILABLE("AMBIENT_RETENTION_POLICY_UNAVAILABLE"),
+enum class AmbientSourceUnavailableReason(
+	val stableCode: String,
+	val containmentReason: TrackingDecisionContainmentReason? = null,
+) {
+	RETENTION_POLICY_UNAVAILABLE(
+		"AMBIENT_RETENTION_POLICY_UNAVAILABLE",
+		TrackingDecisionContainmentReason.RETENTION_AUTHORITY_UNAVAILABLE,
+	),
 	RECONCILIATION_PENDING("AMBIENT_RECONCILIATION_PENDING"),
 	ROLLOUT_CONTAINED("AMBIENT_ROLLOUT_CONTAINED"),
 	HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED("HEALTH_CONNECT_STEPS_PERMISSION_REQUIRED"),
@@ -122,7 +138,7 @@ data class AmbientSourceOperationalAvailability(
 data class TrackingPurposeAvailabilitySnapshot(
 	val automaticControl: AutomaticTrackingOperationalAvailability =
 		AutomaticTrackingOperationalAvailability.Unavailable(
-			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+			AutomaticTrackingUnavailableReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
 		),
 	val ambientSources: Map<AmbientTrackingSource, AmbientSourceOperationalAvailability> =
 		AmbientTrackingSource.entries.associateWith { source ->
@@ -169,19 +185,72 @@ data class AmbientReconciliationIdentity(
 	val collectedDataEpoch: Long,
 	val rolloutRevision: Long,
 	val ownerCasToken: String,
+	val executionRevision: Long,
 ) {
+	constructor(
+		source: AmbientTrackingSource,
+		policyRevision: Long,
+		consentEpoch: Long,
+		collectedDataEpoch: Long,
+		rolloutRevision: Long,
+		ownerCasToken: String,
+	) : this(
+		source = source,
+		policyRevision = policyRevision,
+		consentEpoch = consentEpoch,
+		collectedDataEpoch = collectedDataEpoch,
+		rolloutRevision = rolloutRevision,
+		ownerCasToken = ownerCasToken,
+		executionRevision = 0L,
+	)
+
 	init {
 		require(policyRevision > 0L)
 		require(consentEpoch > 0L)
 		require(collectedDataEpoch >= 0L)
 		require(rolloutRevision >= 0L)
 		require(ownerCasToken.isNotBlank())
+		require(executionRevision >= 0L)
+	}
+
+	val sourcePurpose: TrackingSourcePurposeIdentity
+		get() = source.toTrackingSource().forPurpose(TrackingPurpose.AMBIENT_PRODUCT)
+
+	val purposeLeaseIdentity: TrackingPurposeLeaseIdentity
+		get() = TrackingPurposeLeaseIdentity(
+			sourcePurpose = sourcePurpose,
+			policyRevision = policyRevision,
+			consentEpoch = consentEpoch,
+			collectedDataEpoch = collectedDataEpoch,
+			rolloutRevision = rolloutRevision,
+			executionRevision = executionRevision,
+			ownerCasToken = ownerCasToken,
+		)
+
+	companion object {
+		fun from(identity: TrackingPurposeLeaseIdentity): AmbientReconciliationIdentity {
+			require(identity.purpose == TrackingPurpose.AMBIENT_PRODUCT) {
+				"Ambient reconciliation requires AMBIENT_PRODUCT purpose"
+			}
+			return AmbientReconciliationIdentity(
+				source = identity.source.toAmbientTrackingSource(),
+				policyRevision = identity.policyRevision,
+				consentEpoch = identity.consentEpoch,
+				collectedDataEpoch = identity.collectedDataEpoch,
+				rolloutRevision = identity.rolloutRevision,
+				ownerCasToken = identity.ownerCasToken,
+				executionRevision = identity.executionRevision,
+			)
+		}
 	}
 }
 
 data class AmbientReconciliationLease(
 	val identity: AmbientReconciliationIdentity,
-)
+) {
+	val purposeLeaseIdentity: TrackingPurposeLeaseIdentity
+		get() = identity.purposeLeaseIdentity
+}
 
 data class AmbientSourceReconciliationReport(
 	val identity: AmbientReconciliationIdentity,
@@ -323,6 +392,17 @@ class AtomicTrackingPurposeAvailabilityStore :
 				AmbientPublicationRejection.STALE_IDENTITY,
 			)
 		}
+		when (slot.state) {
+			AmbientPublicationSlotState.CONSUMED ->
+				return@synchronized AmbientPublicationAcceptance.Rejected(
+					AmbientPublicationRejection.TOKEN_CONSUMED,
+				)
+			AmbientPublicationSlotState.CANCELLED ->
+				return@synchronized AmbientPublicationAcceptance.Rejected(
+					AmbientPublicationRejection.CANCELLED,
+				)
+			AmbientPublicationSlotState.ACTIVE -> Unit
+		}
 		ambientSlots[expectedIdentity.source] = slot.copy(
 			state = AmbientPublicationSlotState.CANCELLED,
 		)
@@ -381,6 +461,23 @@ private data class AmbientLeaseToken(
 
 private fun AmbientReconciliationIdentity.leaseToken(): AmbientLeaseToken =
 	AmbientLeaseToken(source, ownerCasToken)
+
+fun AmbientTrackingSource.toTrackingSource(): TrackingSource = when (this) {
+	AmbientTrackingSource.STEPS -> TrackingSource.STEPS
+	AmbientTrackingSource.LOCATION -> TrackingSource.LOCATION
+	AmbientTrackingSource.WIFI -> TrackingSource.WIFI
+	AmbientTrackingSource.CELL -> TrackingSource.CELL
+}
+
+private fun TrackingSource.toAmbientTrackingSource(): AmbientTrackingSource = when (this) {
+	TrackingSource.STEPS -> AmbientTrackingSource.STEPS
+	TrackingSource.LOCATION -> AmbientTrackingSource.LOCATION
+	TrackingSource.WIFI -> AmbientTrackingSource.WIFI
+	TrackingSource.CELL -> AmbientTrackingSource.CELL
+	TrackingSource.ACTIVITY,
+	TrackingSource.PRESSURE,
+	-> throw IllegalArgumentException("$this is not an approved ambient source")
+}
 
 private enum class AmbientPublicationSlotState {
 	ACTIVE,

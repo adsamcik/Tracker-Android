@@ -1,5 +1,9 @@
 package com.adsamcik.tracker.tracker.api
 
+import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose as CanonicalTrackingPurpose
+import com.adsamcik.tracker.shared.model.tracking.TrackingSource as CanonicalTrackingSource
+import com.adsamcik.tracker.shared.model.tracking.TrackingSourcePurposeIdentity as CanonicalSourcePurpose
+
 enum class SourceCallerStartKind {
 	MANUAL,
 	AUTOMATIC,
@@ -26,7 +30,7 @@ data class SourceCallerManifestIdentity(
  * configuration; runtime and broker callers may only map an accepted identity to those effects.
  */
 data class SourceCallerDemandIdentity(
-	val sourcePurpose: TrackingSourcePurposeIdentity,
+	val sourcePurpose: CanonicalSourcePurpose,
 	val manifestIdentity: SourceCallerManifestIdentity?,
 	val sourcePolicyRevision: Long,
 	val consentEpoch: Long,
@@ -61,17 +65,17 @@ class SourceCallerAuthoritySnapshot(
 }
 
 sealed interface SourceCallerRequest {
-	val purpose: TrackingPurpose
+	val purpose: CanonicalTrackingPurpose
 	val requestedDemandIdentities: Set<SourceCallerDemandIdentity>
 
 	data class SessionStart(
 		val startKind: SourceCallerStartKind,
-		val requestedCapturedSources: Set<TrackingCaptureSource>,
-		val declaredControlDependencies: Set<TrackingCaptureSource> = emptySet(),
+		val requestedCapturedSources: Set<CanonicalTrackingSource>,
+		val declaredControlDependencies: Set<CanonicalTrackingSource> = emptySet(),
 		val manifestIdentity: SourceCallerManifestIdentity,
 		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
 	) : SourceCallerRequest {
-		override val purpose = TrackingPurpose.SESSION_CAPTURE
+		override val purpose = CanonicalTrackingPurpose.SESSION_CAPTURE
 	}
 
 	data class Ambient(
@@ -79,12 +83,12 @@ sealed interface SourceCallerRequest {
 		val enabled: Boolean = false,
 		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
 	) : SourceCallerRequest {
-		override val purpose = TrackingPurpose.AMBIENT_PRODUCT
+		override val purpose = CanonicalTrackingPurpose.AMBIENT_PRODUCT
 	}
 
 	data class Replay(
 		val replayKind: SourceCallerReplayKind,
-		override val purpose: TrackingPurpose,
+		override val purpose: CanonicalTrackingPurpose,
 		override val requestedDemandIdentities: Set<SourceCallerDemandIdentity>,
 	) : SourceCallerRequest
 }
@@ -97,7 +101,7 @@ enum class AcceptedSourceCallerOrigin {
 
 class AcceptedSourceCallerAuthority(
 	val origin: AcceptedSourceCallerOrigin,
-	val purpose: TrackingPurpose,
+	val purpose: CanonicalTrackingPurpose,
 	permittedDemandIdentities: Set<SourceCallerDemandIdentity>,
 ) {
 	val permittedDemandIdentities = permittedDemandIdentities.toSet()
@@ -114,41 +118,42 @@ class AcceptedSourceCallerAuthority(
 		}
 		when (origin) {
 			AcceptedSourceCallerOrigin.MANUAL -> {
-				require(purpose == TrackingPurpose.SESSION_CAPTURE)
+				require(purpose == CanonicalTrackingPurpose.SESSION_CAPTURE)
 				require(this.permittedDemandIdentities.all { identity ->
-					identity.sourcePurpose.purpose == TrackingPurpose.SESSION_CAPTURE &&
+					identity.sourcePurpose.purpose == CanonicalTrackingPurpose.SESSION_CAPTURE &&
 						identity.manifestIdentity != null
 				})
 				require(this.permittedDemandIdentities.map { identity -> identity.manifestIdentity }
 					.distinct().size == 1)
 			}
 			AcceptedSourceCallerOrigin.AUTOMATIC -> {
-				require(purpose == TrackingPurpose.SESSION_CAPTURE)
+				require(purpose == CanonicalTrackingPurpose.SESSION_CAPTURE)
 				require(this.permittedDemandIdentities.any { identity ->
-					identity.sourcePurpose.purpose == TrackingPurpose.SESSION_CAPTURE &&
+					identity.sourcePurpose.purpose == CanonicalTrackingPurpose.SESSION_CAPTURE &&
 						identity.manifestIdentity != null
 				})
 				require(this.permittedDemandIdentities.all { identity ->
 					when (identity.sourcePurpose.purpose) {
-						TrackingPurpose.SESSION_CAPTURE ->
+						CanonicalTrackingPurpose.SESSION_CAPTURE ->
 							identity.manifestIdentity != null
-						TrackingPurpose.CONTROL ->
-							identity.sourcePurpose.source == TrackingCaptureSource.ACTIVITY &&
+						CanonicalTrackingPurpose.CONTROL ->
+							identity.sourcePurpose.source == CanonicalTrackingSource.ACTIVITY &&
 								identity.manifestIdentity == null
-						TrackingPurpose.AMBIENT_PRODUCT -> false
+						CanonicalTrackingPurpose.AMBIENT_PRODUCT -> false
 					}
 				})
 				require(this.permittedDemandIdentities
 					.filter { identity ->
-						identity.sourcePurpose.purpose == TrackingPurpose.SESSION_CAPTURE
+						identity.sourcePurpose.purpose ==
+							CanonicalTrackingPurpose.SESSION_CAPTURE
 					}
 					.map { identity -> identity.manifestIdentity }
 					.distinct().size == 1)
 			}
 			AcceptedSourceCallerOrigin.AMBIENT -> {
-				require(purpose == TrackingPurpose.AMBIENT_PRODUCT)
+				require(purpose == CanonicalTrackingPurpose.AMBIENT_PRODUCT)
 				require(this.permittedDemandIdentities.single().let { identity ->
-					identity.sourcePurpose.purpose == TrackingPurpose.AMBIENT_PRODUCT &&
+					identity.sourcePurpose.purpose == CanonicalTrackingPurpose.AMBIENT_PRODUCT &&
 						identity.manifestIdentity == null &&
 						identity.sourcePurpose.source.toAmbientTrackingSourceOrNull() != null
 				})
@@ -213,8 +218,8 @@ enum class SourceCallerRejectionReason {
 
 data class SourceCallerGuardRejection(
 	val reason: SourceCallerRejectionReason,
-	val source: TrackingCaptureSource? = null,
-	val purpose: TrackingPurpose? = null,
+	val source: CanonicalTrackingSource? = null,
+	val purpose: CanonicalTrackingPurpose? = null,
 	val automaticUnavailableReason: AutomaticTrackingUnavailableReason? = null,
 	val ambientAvailability: AmbientSourceOperationalAvailability? = null,
 )
@@ -273,13 +278,13 @@ private fun evaluateSessionStart(
 		}
 		SourceCallerStartKind.AUTOMATIC -> {
 			val unsupportedControl = request.declaredControlDependencies
-				.filterNot { source -> source == TrackingCaptureSource.ACTIVITY }
-				.minByOrNull(TrackingCaptureSource::ordinal)
+				.filterNot { source -> source == CanonicalTrackingSource.ACTIVITY }
+				.minByOrNull(CanonicalTrackingSource::ordinal)
 			if (unsupportedControl != null) {
 				return rejected(
 					SourceCallerRejectionReason.CONTROL_SOURCE_NOT_ALLOWED,
 					source = unsupportedControl,
-					purpose = TrackingPurpose.CONTROL,
+					purpose = CanonicalTrackingPurpose.CONTROL,
 				)
 			}
 		}
@@ -287,29 +292,29 @@ private fun evaluateSessionStart(
 
 	val expectedKeys = buildSet {
 		request.requestedCapturedSources.forEach { source ->
-			add(source.forPurpose(TrackingPurpose.SESSION_CAPTURE))
+			add(source.forPurpose(CanonicalTrackingPurpose.SESSION_CAPTURE))
 		}
 		request.declaredControlDependencies.forEach { source ->
-			add(source.forPurpose(TrackingPurpose.CONTROL))
+			add(source.forPurpose(CanonicalTrackingPurpose.CONTROL))
 		}
 	}
 	validateDeclaredDemandSet(expectedKeys, request.requestedDemandIdentities)?.let { return it }
 	request.requestedDemandIdentities.sortedByDemandKey().forEach { identity ->
 		when (identity.sourcePurpose.purpose) {
-			TrackingPurpose.SESSION_CAPTURE ->
+			CanonicalTrackingPurpose.SESSION_CAPTURE ->
 				if (identity.manifestIdentity != request.manifestIdentity) {
 					return rejected(
 						SourceCallerRejectionReason.SESSION_MANIFEST_MISMATCH,
 						identity.sourcePurpose,
 					)
 				}
-			TrackingPurpose.CONTROL -> if (identity.manifestIdentity != null) {
+			CanonicalTrackingPurpose.CONTROL -> if (identity.manifestIdentity != null) {
 				return rejected(
 					SourceCallerRejectionReason.CONTROL_SESSION_CONFUSION,
 					identity.sourcePurpose,
 				)
 			}
-			TrackingPurpose.AMBIENT_PRODUCT -> return rejected(
+			CanonicalTrackingPurpose.AMBIENT_PRODUCT -> return rejected(
 				SourceCallerRejectionReason.UNDECLARED_DEMAND,
 				identity.sourcePurpose,
 			)
@@ -317,7 +322,7 @@ private fun evaluateSessionStart(
 	}
 	if (
 		request.startKind == SourceCallerStartKind.AUTOMATIC &&
-		TrackingCaptureSource.ACTIVITY in request.declaredControlDependencies
+		CanonicalTrackingSource.ACTIVITY in request.declaredControlDependencies
 	) {
 		validateAutomaticControlAvailability(currentAuthority.purposeAvailability)?.let { return it }
 	}
@@ -349,8 +354,9 @@ private fun evaluateAmbient(
 	if (!request.enabled) {
 		return rejected(SourceCallerRejectionReason.AMBIENT_DISABLED)
 	}
-	val expectedKey = request.source.toTrackingCaptureSource()
-		.forPurpose(TrackingPurpose.AMBIENT_PRODUCT)
+	val expectedKey = request.source.toTrackingSource()
+		.toCanonicalTrackingSource()
+		.forPurpose(CanonicalTrackingPurpose.AMBIENT_PRODUCT)
 	validateDeclaredDemandSet(setOf(expectedKey), request.requestedDemandIdentities)?.let {
 		return it
 	}
@@ -403,7 +409,7 @@ private fun evaluateReplay(
 		AcceptedSourceCallerOrigin.AUTOMATIC -> if (
 			accepted.permittedDemandIdentities.any { identity ->
 				identity.sourcePurpose ==
-					TrackingCaptureSource.ACTIVITY.forPurpose(TrackingPurpose.CONTROL)
+					CanonicalTrackingSource.ACTIVITY.forPurpose(CanonicalTrackingPurpose.CONTROL)
 			}
 		) {
 			validateAutomaticControlAvailability(currentAuthority.purposeAvailability)?.let {
@@ -440,7 +446,7 @@ private fun evaluateReplay(
 }
 
 private fun validateDeclaredDemandSet(
-	expectedKeys: Set<TrackingSourcePurposeIdentity>,
+	expectedKeys: Set<CanonicalSourcePurpose>,
 	requestedIdentities: Set<SourceCallerDemandIdentity>,
 ): SourceCallerGuardResult.Rejected? {
 	val duplicate = requestedIdentities.groupBy(SourceCallerDemandIdentity::sourcePurpose)
@@ -471,8 +477,8 @@ private fun validateAutomaticControlAvailability(
 	return SourceCallerGuardResult.Rejected(
 		SourceCallerGuardRejection(
 			reason = SourceCallerRejectionReason.AUTOMATIC_CONTROL_UNAVAILABLE,
-			source = TrackingCaptureSource.ACTIVITY,
-			purpose = TrackingPurpose.CONTROL,
+			source = CanonicalTrackingSource.ACTIVITY,
+			purpose = CanonicalTrackingPurpose.CONTROL,
 			automaticUnavailableReason =
 				(automatic as? AutomaticTrackingOperationalAvailability.Unavailable)?.reason,
 		),
@@ -561,9 +567,9 @@ private fun SourceCallerManifestIdentity?.isManifestUpgradeFrom(
 
 private fun rejected(
 	reason: SourceCallerRejectionReason,
-	demand: TrackingSourcePurposeIdentity? = null,
-	source: TrackingCaptureSource? = demand?.source,
-	purpose: TrackingPurpose? = demand?.purpose,
+	demand: CanonicalSourcePurpose? = null,
+	source: CanonicalTrackingSource? = demand?.source,
+	purpose: CanonicalTrackingPurpose? = demand?.purpose,
 ): SourceCallerGuardResult.Rejected = SourceCallerGuardResult.Rejected(
 	SourceCallerGuardRejection(
 		reason = reason,
@@ -573,28 +579,15 @@ private fun rejected(
 )
 
 private val demandKeyComparator =
-	compareBy<TrackingSourcePurposeIdentity>(TrackingSourcePurposeIdentity::source)
-		.thenBy(TrackingSourcePurposeIdentity::purpose)
+	compareBy<CanonicalSourcePurpose>(CanonicalSourcePurpose::source)
+		.thenBy(CanonicalSourcePurpose::purpose)
 
 private fun Set<SourceCallerDemandIdentity>.sortedByDemandKey(): List<SourceCallerDemandIdentity> =
 	sortedWith { left, right ->
 		demandKeyComparator.compare(left.sourcePurpose, right.sourcePurpose)
 	}
 
-private fun AmbientTrackingSource.toTrackingCaptureSource(): TrackingCaptureSource = when (this) {
-	AmbientTrackingSource.STEPS -> TrackingCaptureSource.STEPS
-	AmbientTrackingSource.LOCATION -> TrackingCaptureSource.LOCATION
-	AmbientTrackingSource.WIFI -> TrackingCaptureSource.WIFI
-	AmbientTrackingSource.CELL -> TrackingCaptureSource.CELL
-}
-
-private fun TrackingCaptureSource.toAmbientTrackingSourceOrNull(): AmbientTrackingSource? =
-	when (this) {
-		TrackingCaptureSource.STEPS -> AmbientTrackingSource.STEPS
-		TrackingCaptureSource.LOCATION -> AmbientTrackingSource.LOCATION
-		TrackingCaptureSource.WIFI -> AmbientTrackingSource.WIFI
-		TrackingCaptureSource.CELL -> AmbientTrackingSource.CELL
-		TrackingCaptureSource.ACTIVITY,
-		TrackingCaptureSource.PRESSURE,
-		-> null
+private fun CanonicalTrackingSource.toAmbientTrackingSourceOrNull(): AmbientTrackingSource? =
+	AmbientTrackingSource.entries.singleOrNull { ambientSource ->
+		ambientSource.toTrackingSource().toCanonicalTrackingSource() == this
 	}

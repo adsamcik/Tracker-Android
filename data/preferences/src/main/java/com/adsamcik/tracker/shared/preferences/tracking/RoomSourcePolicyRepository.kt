@@ -88,7 +88,7 @@ class RoomSourcePolicyRepository(
 							),
 						)
 					}
-					if (source == TrackingSourceComponent.ACTIVITY && automaticControlEligible) {
+					if (source.supportsPurpose(SourcePurpose.CONTROL) && automaticControlEligible) {
 						add(
 							consentEntity(
 								source = source,
@@ -125,7 +125,8 @@ class RoomSourcePolicyRepository(
 					desired = policy,
 					captureConsentEpoch = if (policy.enabled) 1L else null,
 					controlConsentEpoch = 1L.takeIf {
-						policy.source == TrackingSourceComponent.ACTIVITY && automaticControlEligible
+						policy.source.supportsPurpose(SourcePurpose.CONTROL) &&
+							automaticControlEligible
 					},
 					ambientConsentEpoch = 1L.takeIf {
 						policy.source in ambientEligibleSources
@@ -164,7 +165,7 @@ class RoomSourcePolicyRepository(
 			val desired = desiredCapturePolicies(settings)
 			val automaticControlEligible = settings.automaticControlEligible()
 			val previousAutomaticControlEligible =
-				current[TrackingSourceComponent.ACTIVITY].controlConsentEpoch != null
+				current[CONTROL_SOURCE].controlConsentEpoch != null
 			val requestedAmbientEligibility = TrackingSourceComponent.entries.associateWith { source ->
 				settings.ambientEnabled(source)
 			}
@@ -207,7 +208,7 @@ class RoomSourcePolicyRepository(
 				}
 			if (previousAutomaticControlEligible && !automaticControlEligible) {
 				database.fenceSourcePurposesInTransaction(
-					sourceKind = TrackingSourceComponent.ACTIVITY.stableCode,
+					sourceKind = CONTROL_SOURCE.stableCode,
 					purposes = listOf(
 						SourceBrokerPurpose.CONTROL_AUTOSTART,
 						SourceBrokerPurpose.CONTROL_CONTINUATION,
@@ -259,11 +260,11 @@ class RoomSourcePolicyRepository(
 				}
 			}
 			val automaticControlEpoch = if (automaticControlChanged) {
-				val epoch = nextConsentEpoch(TrackingSourceComponent.ACTIVITY, SourcePurpose.CONTROL)
+				val epoch = nextConsentEpoch(CONTROL_SOURCE, SourcePurpose.CONTROL)
 				dao.insertConsentEpochs(
 					listOf(
 						consentEntity(
-							source = TrackingSourceComponent.ACTIVITY,
+							source = CONTROL_SOURCE,
 							purpose = SourcePurpose.CONTROL,
 							epoch = epoch,
 							eligible = automaticControlEligible,
@@ -276,7 +277,7 @@ class RoomSourcePolicyRepository(
 				)
 				epoch.takeIf { automaticControlEligible }
 			} else {
-				current[TrackingSourceComponent.ACTIVITY].controlConsentEpoch
+				current[CONTROL_SOURCE].controlConsentEpoch
 			}
 			val ambientConsentChanges = mutableMapOf<TrackingSourceComponent, Long?>()
 			TrackingSourceComponent.entries.forEach { source ->
@@ -312,7 +313,7 @@ class RoomSourcePolicyRepository(
 					revision = nextRevision,
 					desired = next,
 					captureConsentEpoch = consentChanges.getValue(source),
-					controlConsentEpoch = if (source == TrackingSourceComponent.ACTIVITY) {
+					controlConsentEpoch = if (source.supportsPurpose(SourcePurpose.CONTROL)) {
 						automaticControlEpoch
 					} else {
 						old.controlConsentEpoch
@@ -320,7 +321,8 @@ class RoomSourcePolicyRepository(
 					ambientConsentEpoch = ambientConsentChanges.getValue(source),
 					capturePersistenceEligible = next.enabled,
 					controlPersistenceEligible = if (
-						source == TrackingSourceComponent.ACTIVITY && automaticControlChanged
+						source.supportsPurpose(SourcePurpose.CONTROL) &&
+							automaticControlChanged
 					) {
 						false
 					} else {
@@ -563,7 +565,7 @@ class RoomSourcePolicyRepository(
 
 	private fun validatePurposeMatrix(policy: SourcePolicy) {
 		check(
-			policy.source == TrackingSourceComponent.ACTIVITY ||
+			policy.source.supportsPurpose(SourcePurpose.CONTROL) ||
 				(policy.controlConsentEpoch == null && !policy.controlPersistenceEligible),
 		) {
 			"CONTROL is supported only for Activity"
@@ -572,7 +574,7 @@ class RoomSourcePolicyRepository(
 			"Persistent CONTROL evidence is unavailable until its retention policy is approved"
 		}
 		check(
-			policy.source in AMBIENT_PRODUCT_SOURCES ||
+			policy.source.supportsPurpose(SourcePurpose.AMBIENT_PRODUCT) ||
 				(policy.ambientConsentEpoch == null && !policy.ambientPersistenceEligible),
 		) {
 			"AMBIENT_PRODUCT is not supported for ${policy.source}"
@@ -744,14 +746,21 @@ private fun TrackingParamsState.automaticControlEligible(): Boolean = autoTracki
 private fun TrackingParamsState.ambientEnabledSources(): Set<TrackingSourceComponent> =
 	TrackingSourceComponent.entries.filterTo(mutableSetOf()) { source -> ambientEnabled(source) }
 
-private fun TrackingParamsState.ambientEnabled(source: TrackingSourceComponent): Boolean = when (source) {
-	TrackingSourceComponent.LOCATION -> ambientLocationEnabled
-	TrackingSourceComponent.STEPS -> ambientStepsEnabled
-	TrackingSourceComponent.WIFI -> ambientWifiEnabled
-	TrackingSourceComponent.CELL -> ambientCellEnabled
-	TrackingSourceComponent.ACTIVITY,
-	TrackingSourceComponent.PRESSURE,
-	-> false
+private fun TrackingParamsState.ambientEnabled(source: TrackingSourceComponent): Boolean {
+	if (!source.supportsPurpose(SourcePurpose.AMBIENT_PRODUCT)) return false
+	return when (source) {
+		TrackingSourceComponent.LOCATION -> ambientLocationEnabled
+		TrackingSourceComponent.STEPS -> ambientStepsEnabled
+		TrackingSourceComponent.WIFI -> ambientWifiEnabled
+		TrackingSourceComponent.CELL -> ambientCellEnabled
+		TrackingSourceComponent.ACTIVITY,
+		TrackingSourceComponent.PRESSURE,
+		-> error("Canonical purpose matrix admitted unsupported ambient source $source")
+	}
+}
+
+private val CONTROL_SOURCE = TrackingSourceComponent.entries.single { source ->
+	source.supportsPurpose(SourcePurpose.CONTROL)
 }
 
 private fun SourceCollectionFrequency.toQos(): SourceQos = SourceQos.fromStableCode(stableCode)
