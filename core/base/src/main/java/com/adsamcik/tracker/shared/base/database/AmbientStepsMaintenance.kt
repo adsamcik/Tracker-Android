@@ -18,6 +18,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
+import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
+import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
@@ -232,7 +234,7 @@ internal suspend fun AppDatabase.deleteAmbientStepsAfterConsentReset(
 		)
 	}
 	if (policy.ambientPersistenceEligible || policy.ambientConsentEpoch != null ||
-		consent.eligible || consent.persistenceEligible || consent.policyRevision != policy.policyRevision
+		consent.eligible || consent.persistenceEligible
 	) {
 		return@withTransaction blocked(
 			AmbientStepsSourceDeletionBlockedReason.AMBIENT_CONSENT_STILL_ELIGIBLE,
@@ -298,11 +300,20 @@ internal suspend fun AppDatabase.deleteAmbientStepsAfterConsentReset(
 			AmbientStepsSourceDeletionBlockedReason.UNRECOGNIZED_PAYLOAD_PRESENT,
 		)
 	}
-	val audit = try {
-		loadAuthenticatedAmbientStepsState(
+	val (audit, nativeReplayOwners) = try {
+		val authenticated = loadAuthenticatedAmbientStepsState(
 			limits,
 			checkpoint,
 			authenticateRetractedPayloadAuthority = false,
+		)
+		val protectedIdentities = authenticatedNativeReplayFootprints(
+			expectedCollectedDataEpoch,
+		).mapTo(mutableSetOf()) {
+			it.protectedIdentity
+		}
+		authenticated to authenticated.toPortableLocalOwners(
+			incomingIdentities = null,
+			protectedIdentities = protectedIdentities,
 		)
 	} catch (@Suppress("SwallowedException") _: AmbientStepsMaintenanceLimitExceeded) {
 		return@withTransaction blocked(
@@ -312,6 +323,19 @@ internal suspend fun AppDatabase.deleteAmbientStepsAfterConsentReset(
 	checkpoint(AmbientStepsMaintenanceCheckpoint.AUTHORITY_AUTHENTICATED)
 	check(deletedAtMs >= audit.latestDurableTimeMs) {
 		"Ambient Steps deletion time precedes retained source authority"
+	}
+	if (nativeReplayOwners.isNotEmpty()) {
+		try {
+			installAmbientStepsNativeReplayFootprintsInCurrentTransaction(
+				owners = nativeReplayOwners,
+				expectedCollectedDataEpoch = expectedCollectedDataEpoch,
+				protectedAtMs = deletedAtMs,
+			)
+		} catch (@Suppress("SwallowedException") _: AmbientStepsMaintenanceLimitExceeded) {
+			return@withTransaction blocked(
+				AmbientStepsSourceDeletionBlockedReason.MAINTENANCE_BOUND_EXCEEDED,
+			)
+		}
 	}
 	val latestUpserts = audit.lineages.filter { lineage ->
 		lineage.latest.operation == AmbientStepsFactRevisionEntity.OPERATION_UPSERT
@@ -689,6 +713,23 @@ private suspend fun AppDatabase.authenticateAmbientFactAuthority(
 		retention.effectiveElapsedRealtimeNanos > first.effectiveElapsedRealtimeNanos ||
 		retention.effectiveWallTimeMs > first.effectiveWallTimeMs
 	) return false
+	if (demands.any { demand ->
+		!policy.isEffectiveAtOrBefore(
+			demand.requestedBootId,
+			demand.requestedElapsedRealtimeNanos,
+			demand.requestedAtMs,
+		) ||
+			!consent.isEffectiveAtOrBefore(
+				demand.requestedBootId,
+				demand.requestedElapsedRealtimeNanos,
+				demand.requestedAtMs,
+			) ||
+			!retention.isEffectiveAtOrBefore(
+				demand.requestedBootId,
+				demand.requestedElapsedRealtimeNanos,
+				demand.requestedAtMs,
+			)
+	}) return false
 	return policy.hasAmbientAuthority(
 		consent,
 		requireNotNull(fact.windowStartTimeMs),
@@ -772,16 +813,19 @@ private fun SourcePolicyEntity.hasAmbientAuthority(
 	windowStartTimeMs: Long,
 	authorization: SourceAuthorizationEntity,
 ): Boolean = sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
-	ambientPersistenceEligible && ambientConsentEpoch == consent.epoch &&
-	policyRevision == consent.policyRevision && effectiveBootId == authorization.effectiveBootId &&
-	effectiveElapsedRealtimeNanos <= authorization.effectiveElapsedRealtimeNanos &&
-	effectiveWallTimeMs <= authorization.effectiveWallTimeMs &&
+	hasExactEligibleAmbientConsentReference(consent) &&
+	isEffectiveAtOrBefore(
+		authorization.effectiveBootId,
+		authorization.effectiveElapsedRealtimeNanos,
+		authorization.effectiveWallTimeMs,
+	) &&
+	consent.isEffectiveAtOrBefore(
+		authorization.effectiveBootId,
+		authorization.effectiveElapsedRealtimeNanos,
+		authorization.effectiveWallTimeMs,
+	) &&
 	authorization.effectiveWallTimeMs <= windowStartTimeMs &&
-	consent.sourceKind == sourceKind && consent.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
-	consent.eligible && consent.persistenceEligible &&
-	consent.effectiveBootId == authorization.effectiveBootId &&
-	consent.effectiveElapsedRealtimeNanos <= authorization.effectiveElapsedRealtimeNanos &&
-	consent.effectiveWallTimeMs <= authorization.effectiveWallTimeMs
+	consent.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT
 
 private fun ProviderRegistrationGenerationEntity.matches(
 	cursor: AmbientStepsImportCursorEntity,

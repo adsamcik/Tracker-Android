@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
@@ -28,6 +29,7 @@ import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,10 +49,16 @@ class AmbientStepsFactImporterTest {
 	private lateinit var lifecycleStore: MutableAmbientLifecycleStore
 	private lateinit var clock: FixedClock
 	private lateinit var registration: AmbientStepsProviderRegistration
+	private lateinit var policyRepository: RoomSourcePolicyRepository
+	private var policyBootId = BOOT_ID
 	private var policyElapsedRealtimeNanos = 1L
+	private var policyWallTimeMs = 1L
 
 	@Before
 	fun setUp() = runTest {
+		policyBootId = BOOT_ID
+		policyElapsedRealtimeNanos = 1L
+		policyWallTimeMs = 1L
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		database.sourceDestinationOwnerDao().insertIfAbsent(
@@ -76,13 +84,14 @@ class AmbientStepsFactImporterTest {
 			rolloutRevision = 1L,
 		)
 		broker = SourceBroker(database, rollout)
-		val snapshot = RoomSourcePolicyRepository(database) {
+		policyRepository = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime(
-				bootId = BOOT_ID,
+				bootId = policyBootId,
 				elapsedRealtimeNanos = policyElapsedRealtimeNanos++,
-				wallTimeMs = policyElapsedRealtimeNanos,
+				wallTimeMs = policyWallTimeMs++,
 			)
-		}.bootstrapFromLegacy(
+		}
+		val snapshot = policyRepository.bootstrapFromLegacy(
 			TrackingParamsState(
 				stepsEnabled = false,
 				ambientStepsEnabled = true,
@@ -339,6 +348,84 @@ class AmbientStepsFactImporterTest {
 			)
 		reads shouldBe 0
 		database.ambientStepsFactRevisionDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `unrelated policy revision and reboot retain exact older consent authority`() = runTest {
+		policyBootId = "boot-2"
+		policyElapsedRealtimeNanos = 1L
+		policyWallTimeMs = 1_000L
+		val current = policyRepository.currentState() as SourcePolicyAuthorityState.Active
+		val consentEpoch = requireNotNull(
+			current.snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch,
+		)
+		val revised = policyRepository.replaceCaptureSettings(
+			current.snapshot.revision,
+			TrackingParamsState(
+				stepsEnabled = false,
+				ambientStepsEnabled = true,
+				minTimeSeconds = TrackingParamsState.DEFAULT_MIN_TIME + 1,
+				legacySettingsMigrationCompleted = true,
+			),
+			reason = "TEST_UNRELATED_POLICY_CHANGE",
+		)
+		val priorRetention = requireNotNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			),
+		)
+		database.applyAmbientStepsRetentionDecision(
+			AmbientStepsRetentionDecision.GrantLiveAmbient(
+				opaquePolicyId = "test-retention",
+				expectedCollectedDataEpoch = COLLECTED_DATA_EPOCH,
+				expectedSourcePolicyRevision = revised.revision,
+				expectedAmbientConsentEpoch = consentEpoch,
+				effectiveBootId = "boot-2",
+				effectiveElapsedRealtimeNanos = 200L,
+				effectiveWallTimeMs = 1_100L,
+				expectedPreviousApprovalRevision = priorRetention.approvalRevision,
+			),
+		)
+		val demand = activateDemand(
+			elapsed = 300L,
+			wall = 1_200L,
+			bootId = "boot-2",
+		)
+		val repository = AmbientStepsProviderRegistrationRepository(
+			database = database,
+			lifecycleStore = lifecycleStore,
+			bootClockDomainProvider = BootClockDomainProvider { "boot-2" },
+		)
+		registration = repository.reserve(
+			provider = PROVIDER,
+			expectedDemandId = demand.demand.demandId,
+			boundary = demandBoundary(400L, 1_300L, "boot-2"),
+		)
+		repository.accept(registration)
+		val reader = RecordingAmbientReader { window, observedAtMs ->
+			AmbientStepsProviderAggregate(PROVIDER, window, 7L, observedAtMs)
+		}
+		val importer = subject(reader)
+		importer.importNext(
+			importBoundary(
+				through = 2_000L,
+				observedAt = 2_000L,
+				observedElapsed = 1_000L,
+				bootId = "boot-2",
+			),
+		) shouldBe AmbientStepsImportResult.NoEvidence(
+			AmbientStepsImportNoEvidenceReason.NO_WINDOW_AVAILABLE,
+		)
+		clock.setTime(8_000L)
+
+		importer.importNext(
+			importBoundary(
+				through = 5_000L,
+				observedAt = 8_000L,
+				observedElapsed = 8_000L,
+				bootId = "boot-2",
+			),
+		).shouldBeInstanceOf<AmbientStepsImportResult.Applied>()
 	}
 
 	@Test
@@ -761,10 +848,11 @@ class AmbientStepsFactImporterTest {
 	private suspend fun activateDemand(
 		elapsed: Long,
 		wall: Long,
+		bootId: String = BOOT_ID,
 	): AmbientStepsDemandResult.Active = broker.replaceAmbientStepsDemand(
 		consumerId = AmbientStepsDemandReconciler.CONSUMER_ID,
 		mechanism = AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
-		bootId = BOOT_ID,
+		bootId = bootId,
 		elapsedRealtimeNanos = elapsed,
 		wallTimeMs = wall,
 	) as AmbientStepsDemandResult.Active
@@ -774,16 +862,21 @@ class AmbientStepsFactImporterTest {
 		observedAt: Long = OBSERVED_AT_MS,
 		observedElapsed: Long = observedAt,
 		zoneId: ZoneId = ZoneId.of("UTC"),
+		bootId: String = BOOT_ID,
 	) = AmbientStepsImportBoundary(
-		observedBootId = BOOT_ID,
+		observedBootId = bootId,
 		observedElapsedRealtimeNanos = observedElapsed,
 		observedAtMs = observedAt,
 		throughTimeMs = through,
 		zoneId = zoneId,
 	)
 
-	private fun demandBoundary(elapsed: Long, wall: Long) = AmbientStepsDemandBoundary(
-		bootId = BOOT_ID,
+	private fun demandBoundary(
+		elapsed: Long,
+		wall: Long,
+		bootId: String = BOOT_ID,
+	) = AmbientStepsDemandBoundary(
+		bootId = bootId,
 		elapsedRealtimeNanos = elapsed,
 		wallTimeMs = wall,
 	)

@@ -8,6 +8,8 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientWifiRetentionAuthor
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
+import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
 
 sealed interface AmbientRadioRetentionDecision {
 	val expectedCollectedDataEpoch: Long
@@ -178,28 +180,13 @@ private suspend fun AppDatabase.retentionBinding(
 		}?.let {
 			sourcePolicyDao().policyAtRevision(decision.expectedSourcePolicyRevision, sourceKind)
 		}
-		val consent = sourcePolicyDao().consentEpoch(
+		val consent = sourcePolicyDao().latestConsentEpoch(
 			sourceKind,
 			SourceBrokerPurpose.AMBIENT_PRODUCT,
-			decision.expectedAmbientConsentEpoch,
 		)
 		if (policy == null ||
 			policy.ambientConsentEpoch != decision.expectedAmbientConsentEpoch ||
-			!policy.ambientPersistenceEligible ||
-			consent == null ||
-			!consent.eligible ||
-			!consent.persistenceEligible ||
-			consent.policyRevision != decision.expectedSourcePolicyRevision ||
-			policy.effectiveBootId != consent.effectiveBootId ||
-			decision.effectiveWallTimeMs < maxOf(
-				policy.effectiveWallTimeMs,
-				consent.effectiveWallTimeMs,
-			) ||
-			(decision.effectiveBootId == policy.effectiveBootId &&
-				decision.effectiveElapsedRealtimeNanos < maxOf(
-					policy.effectiveElapsedRealtimeNanos,
-					consent.effectiveElapsedRealtimeNanos,
-				))
+			!policy.hasExactEligibleAmbientConsentReference(consent)
 		) null else decision.expectedSourcePolicyRevision to decision.expectedAmbientConsentEpoch
 	}
 	is AmbientRadioRetentionDecision.Revoke -> when (decision.scope) {
@@ -227,21 +214,20 @@ private suspend fun AppDatabase.hasValidReferencedPolicyTime(
 		decision.expectedSourcePolicyRevision,
 		sourceKind,
 	) ?: return true
-	val consent = sourcePolicyDao().consentEpoch(
+	val consent = sourcePolicyDao().latestConsentEpoch(
 		sourceKind,
 		SourceBrokerPurpose.AMBIENT_PRODUCT,
-		decision.expectedAmbientConsentEpoch,
 	) ?: return true
-	return policy.effectiveBootId == consent.effectiveBootId &&
-		decision.effectiveWallTimeMs >= maxOf(
-			policy.effectiveWallTimeMs,
-			consent.effectiveWallTimeMs,
-		) &&
-		(decision.effectiveBootId != policy.effectiveBootId ||
-			decision.effectiveElapsedRealtimeNanos >= maxOf(
-				policy.effectiveElapsedRealtimeNanos,
-				consent.effectiveElapsedRealtimeNanos,
-			))
+	if (!policy.hasExactEligibleAmbientConsentReference(consent)) return true
+	return policy.isEffectiveAtOrBefore(
+		decision.effectiveBootId,
+		decision.effectiveElapsedRealtimeNanos,
+		decision.effectiveWallTimeMs,
+	) && consent.isEffectiveAtOrBefore(
+		decision.effectiveBootId,
+		decision.effectiveElapsedRealtimeNanos,
+		decision.effectiveWallTimeMs,
+	)
 }
 
 private fun AmbientRadioRetentionDecision.wifiScope(): String = when (this) {

@@ -304,6 +304,86 @@ class AmbientRadioAuthorityRoomTest {
 	}
 
 	@Test
+	fun `radio grants preserve unchanged consent across policy revision and reboot`() = runTest {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(collectedDataEpoch = 4L, updatedAtMs = 1L),
+		)
+		var bootId = "boot-1"
+		var elapsed = 10L
+		var wall = 10L
+		val policies = RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime(bootId, elapsed++, wall++)
+		}
+		val settings = TrackingParamsState(
+			ambientWifiEnabled = true,
+			ambientCellEnabled = true,
+			legacySettingsMigrationCompleted = true,
+		)
+		val original = policies.bootstrapFromLegacy(settings)
+		val wifiConsent = requireNotNull(
+			original[TrackingSourceComponent.WIFI].ambientConsentEpoch,
+		)
+		val cellConsent = requireNotNull(
+			original[TrackingSourceComponent.CELL].ambientConsentEpoch,
+		)
+		val wifiConsentRow = requireNotNull(
+			database.sourcePolicyDao().consentEpoch(
+				com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity.SOURCE_WIFI,
+				com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose.AMBIENT_PRODUCT,
+				wifiConsent,
+			),
+		)
+		val cellConsentRow = requireNotNull(
+			database.sourcePolicyDao().consentEpoch(
+				com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity.SOURCE_CELL,
+				com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose.AMBIENT_PRODUCT,
+				cellConsent,
+			),
+		)
+		bootId = "boot-2"
+		elapsed = 1L
+		wall = 100L
+		val revised = policies.replaceCaptureSettings(
+			original.revision,
+			settings.copy(minTimeSeconds = settings.minTimeSeconds + 1),
+			reason = "TEST_UNRELATED_POLICY_CHANGE",
+		)
+
+		assertEquals(wifiConsent, revised[TrackingSourceComponent.WIFI].ambientConsentEpoch)
+		assertEquals(cellConsent, revised[TrackingSourceComponent.CELL].ambientConsentEpoch)
+		assertEquals(original.revision, wifiConsentRow.policyRevision)
+		assertEquals(original.revision, cellConsentRow.policyRevision)
+		assertEquals("boot-1", wifiConsentRow.effectiveBootId)
+		assertEquals("boot-1", cellConsentRow.effectiveBootId)
+		assertIs<AmbientRadioRetentionAuthorityResult.Applied>(
+			database.applyAmbientWifiRetentionDecision(
+				AmbientRadioRetentionDecision.GrantLiveAmbient(
+					"wifi-policy",
+					4L,
+					revised.revision,
+					wifiConsent,
+					"boot-2",
+					2L,
+					110L,
+				),
+			),
+		)
+		assertIs<AmbientRadioRetentionAuthorityResult.Applied>(
+			database.applyAmbientCellRetentionDecision(
+				AmbientRadioRetentionDecision.GrantLiveAmbient(
+					"cell-policy",
+					4L,
+					revised.revision,
+					cellConsent,
+					"boot-2",
+					3L,
+					111L,
+				),
+			),
+		)
+	}
+
+	@Test
 	fun `corrupt imported portable value leaves retention transaction unchanged`() = runTest {
 		installWifiImportRetention()
 		val fact = importedWifiFact()

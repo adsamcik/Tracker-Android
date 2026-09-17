@@ -486,6 +486,7 @@ class AmbientStepsMaintenanceTest {
 			fact.logicalFactId,
 		) shouldContainExactly listOf(fact)
 		database.ambientStepsImportStateDao().cursor(REGISTRATION) shouldBe fixture.cursor
+		database.ambientStepsFactRevisionDao().nativeReplayFootprintCount() shouldBe 0L
 	}
 
 	private suspend fun seed(

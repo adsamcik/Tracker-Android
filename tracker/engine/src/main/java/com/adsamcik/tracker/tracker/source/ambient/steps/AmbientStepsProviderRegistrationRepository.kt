@@ -12,6 +12,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
+import com.adsamcik.tracker.shared.base.database.data.hasExactEligibleAmbientConsentReference
+import com.adsamcik.tracker.shared.base.database.data.isEffectiveAtOrBefore
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
@@ -381,7 +383,24 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 		val consentEpoch = requireNotNull(policy.ambientConsentEpoch) {
 			"Ambient Steps consent is revoked"
 		}
-		check(policy.ambientPersistenceEligible) { "Ambient Steps persistence is ineligible" }
+		val consent = policyDao.latestConsentEpoch(
+			SOURCE_KIND,
+			SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)
+		check(policy.hasExactEligibleAmbientConsentReference(consent)) {
+			"Ambient Steps consent reference is unavailable"
+		}
+		check(
+			policy.isEffectiveAtOrBefore(
+				boundary.bootId,
+				boundary.elapsedRealtimeNanos,
+				boundary.wallTimeMs,
+			) && requireNotNull(consent).isEffectiveAtOrBefore(
+				boundary.bootId,
+				boundary.elapsedRealtimeNanos,
+				boundary.wallTimeMs,
+			),
+		) { "Ambient Steps policy or consent is not yet effective" }
 		val evidence = requireNotNull(database.sourceEvidenceStateDao().get()) {
 			"Ambient Steps evidence authority is unavailable"
 		}

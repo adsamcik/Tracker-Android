@@ -178,6 +178,59 @@ class AmbientStepsRetentionAuthorityRoomTest {
 	}
 
 	@Test
+	fun `unrelated policy revision and reboot preserve referenced consent`() = runTest {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(collectedDataEpoch = 4L, updatedAtMs = 1L),
+		)
+		var bootId = "boot-1"
+		var elapsed = 10L
+		var wall = 10L
+		val policies = RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime(bootId, elapsed++, wall++)
+		}
+		val settings = TrackingParamsState(
+			ambientStepsEnabled = true,
+			legacySettingsMigrationCompleted = true,
+		)
+		val original = policies.bootstrapFromLegacy(settings)
+		val consentEpoch = requireNotNull(
+			original[TrackingSourceComponent.STEPS].ambientConsentEpoch,
+		)
+		val consent = requireNotNull(
+			database.sourcePolicyDao().consentEpoch(
+				com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity.SOURCE_STEPS,
+				com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose.AMBIENT_PRODUCT,
+				consentEpoch,
+			),
+		)
+		bootId = "boot-2"
+		elapsed = 1L
+		wall = 100L
+		val revised = policies.replaceCaptureSettings(
+			original.revision,
+			settings.copy(minTimeSeconds = settings.minTimeSeconds + 1),
+			reason = "TEST_UNRELATED_POLICY_CHANGE",
+		)
+
+		assertEquals(consentEpoch, revised[TrackingSourceComponent.STEPS].ambientConsentEpoch)
+		assertEquals(original.revision, consent.policyRevision)
+		assertEquals("boot-1", consent.effectiveBootId)
+		assertIs<AmbientStepsRetentionAuthorityResult.Applied>(
+			database.applyAmbientStepsRetentionDecision(
+				AmbientStepsRetentionDecision.GrantLiveAmbient(
+					opaquePolicyId = "policy-2",
+					expectedCollectedDataEpoch = 4L,
+					expectedSourcePolicyRevision = revised.revision,
+					expectedAmbientConsentEpoch = consentEpoch,
+					effectiveBootId = "boot-2",
+					effectiveElapsedRealtimeNanos = 2L,
+					effectiveWallTimeMs = 110L,
+				),
+			),
+		)
+	}
+
+	@Test
 	fun `same boot retention revisions require strictly increasing elapsed time`() = runTest {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(collectedDataEpoch = 4L, updatedAtMs = 1L),
