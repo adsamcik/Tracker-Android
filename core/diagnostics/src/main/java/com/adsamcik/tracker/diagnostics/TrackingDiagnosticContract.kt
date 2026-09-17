@@ -10,11 +10,7 @@ enum class TrackingDiagnosticSource {
 	PRESSURE,
 }
 
-/**
- * The authoritative purpose that caused source work.
- *
- * These values mirror the source-broker purposes without depending on the persistence module.
- */
+/** The authoritative purpose that caused source work. */
 enum class TrackingDiagnosticPurpose {
 	SESSION_CAPTURE,
 	CONTROL_AUTOSTART,
@@ -124,122 +120,330 @@ enum class TrackingDiagnosticCancellationReason : TrackingDiagnosticReason {
 	REQUEST_SUPERSEDED,
 }
 
-/**
- * Operation-scoped correlation by reference identity.
- *
- * The token has no value constructor, parser, serializer, or public payload. Callers must create a
- * fresh token for a short-lived operation and must never persist it or derive it from product IDs.
- */
-class TrackingDiagnosticCorrelationToken private constructor() {
-	override fun toString(): String = "TrackingDiagnosticCorrelationToken(opaque)"
+enum class TrackingDiagnosticEventLifecycle {
+	PROGRESS,
+	TERMINAL,
+}
 
-	companion object {
-		@JvmStatic
-		fun create(): TrackingDiagnosticCorrelationToken = TrackingDiagnosticCorrelationToken()
+/** Metrics whose meaning is fixed by an operation-specific event factory. */
+enum class TrackingDiagnosticMetric {
+	ENCODED_ENVELOPE_SIZE,
+	QUEUE_BACKLOG,
+	DRAINED_ENVELOPE_COUNT,
+	REMAINING_ENVELOPE_BACKLOG,
+	PERSISTED_ENVELOPE_COUNT,
+}
+
+object TrackingDiagnosticMetricPolicy {
+	private val approvedSources = TrackingDiagnosticSource.entries.toSet()
+
+	fun allowedMetrics(
+		source: TrackingDiagnosticSource,
+		pipelineStage: TrackingDiagnosticPipelineStage,
+		operation: TrackingDiagnosticOperation,
+	): Set<TrackingDiagnosticMetric> {
+		if (source !in approvedSources) return emptySet()
+		return when (pipelineStage to operation) {
+			TrackingDiagnosticPipelineStage.DURABLE_INGRESS to
+				TrackingDiagnosticOperation.ENQUEUE -> setOf(
+				TrackingDiagnosticMetric.ENCODED_ENVELOPE_SIZE,
+				TrackingDiagnosticMetric.QUEUE_BACKLOG,
+			)
+			TrackingDiagnosticPipelineStage.DURABLE_INGRESS to
+				TrackingDiagnosticOperation.DRAIN -> setOf(
+				TrackingDiagnosticMetric.DRAINED_ENVELOPE_COUNT,
+				TrackingDiagnosticMetric.REMAINING_ENVELOPE_BACKLOG,
+			)
+			TrackingDiagnosticPipelineStage.PERSISTENCE to TrackingDiagnosticOperation.WRITE ->
+				setOf(TrackingDiagnosticMetric.PERSISTED_ENVELOPE_COUNT)
+			else -> emptySet()
+		}
 	}
 }
 
 /**
- * Fixed payload-free event schema.
+ * Closed request consumed by [TrackingDiagnosticRecorder].
  *
- * There are deliberately no timestamps, coordinates, sensor values, identifiers, filenames,
- * checksums, provider payloads, attribute maps, or free-form strings. Debug and release builds use
- * this same schema; debug code has no wider payload surface.
+ * Implementations are private to [TrackingDiagnosticEvents]. Callers cannot provide generic metric
+ * maps, bucket slots, correlation values, strings, identifiers, or provider payloads.
  */
-sealed interface TrackingDiagnosticEvent {
+sealed interface TrackingDiagnosticEventRequest {
 	val source: TrackingDiagnosticSource
 	val purpose: TrackingDiagnosticPurpose
 	val pipelineStage: TrackingDiagnosticPipelineStage
 	val operation: TrackingDiagnosticOperation
 	val result: TrackingDiagnosticResult
 	val reason: TrackingDiagnosticReason
-	val correlationToken: TrackingDiagnosticCorrelationToken?
-	val countBucket: TrackingDiagnosticCountBucket
-	val durationBucket: TrackingDiagnosticDurationBucket
-	val backlogBucket: TrackingDiagnosticBacklogBucket
-	val sizeBucket: TrackingDiagnosticSizeBucket
+	val lifecycle: TrackingDiagnosticEventLifecycle
+}
 
-	companion object {
-		@Suppress("LongParameterList")
-		fun create(
-			source: TrackingDiagnosticSource,
-			purpose: TrackingDiagnosticPurpose,
-			pipelineStage: TrackingDiagnosticPipelineStage,
-			operation: TrackingDiagnosticOperation,
-			result: TrackingDiagnosticResult,
-			reason: TrackingDiagnosticReason,
-			correlationToken: TrackingDiagnosticCorrelationToken? = null,
-			countBucket: TrackingDiagnosticCountBucket = TrackingDiagnosticCountBucket.NOT_REPORTED,
-			durationBucket: TrackingDiagnosticDurationBucket =
-				TrackingDiagnosticDurationBucket.NOT_REPORTED,
-			backlogBucket: TrackingDiagnosticBacklogBucket =
-				TrackingDiagnosticBacklogBucket.NOT_REPORTED,
-			sizeBucket: TrackingDiagnosticSizeBucket = TrackingDiagnosticSizeBucket.NOT_REPORTED,
-		): TrackingDiagnosticEvent {
-			require(reason.isCompatibleWith(result)) {
-				"$reason is not valid for tracking diagnostic result $result"
-			}
-			return PayloadFreeTrackingDiagnosticEvent(
+object TrackingDiagnosticEvents {
+	@Suppress("LongParameterList")
+	fun unmetered(
+		source: TrackingDiagnosticSource,
+		purpose: TrackingDiagnosticPurpose,
+		pipelineStage: TrackingDiagnosticPipelineStage,
+		operation: TrackingDiagnosticOperation,
+		result: TrackingDiagnosticResult,
+		reason: TrackingDiagnosticReason,
+		lifecycle: TrackingDiagnosticEventLifecycle,
+	): TrackingDiagnosticEventRequest = UnmeteredTrackingDiagnosticRequest(
+		context = context(source, purpose, pipelineStage, operation, result, reason, lifecycle),
+	)
+
+	@Suppress("LongParameterList")
+	fun enqueue(
+		source: TrackingDiagnosticSource,
+		purpose: TrackingDiagnosticPurpose,
+		pipelineStage: TrackingDiagnosticPipelineStage,
+		result: TrackingDiagnosticResult,
+		reason: TrackingDiagnosticReason,
+		lifecycle: TrackingDiagnosticEventLifecycle,
+		encodedEnvelopeBytes: Long,
+		queuedEnvelopeBacklog: Long,
+	): TrackingDiagnosticEventRequest {
+		requireApprovedMetrics(
+			source = source,
+			pipelineStage = pipelineStage,
+			operation = TrackingDiagnosticOperation.ENQUEUE,
+			expectedMetrics = setOf(
+				TrackingDiagnosticMetric.ENCODED_ENVELOPE_SIZE,
+				TrackingDiagnosticMetric.QUEUE_BACKLOG,
+			),
+		)
+		return EnqueueTrackingDiagnosticRequest(
+			context = context(
 				source = source,
 				purpose = purpose,
 				pipelineStage = pipelineStage,
-				operation = operation,
+				operation = TrackingDiagnosticOperation.ENQUEUE,
 				result = result,
 				reason = reason,
-				correlationToken = correlationToken,
-				countBucket = countBucket,
-				durationBucket = durationBucket,
-				backlogBucket = backlogBucket,
-				sizeBucket = sizeBucket,
-			)
+				lifecycle = lifecycle,
+			),
+			encodedEnvelopeSizeBucket = TrackingDiagnosticSizeBucket.fromBytes(encodedEnvelopeBytes),
+			queueBacklogBucket = TrackingDiagnosticBacklogBucket.fromItemCount(queuedEnvelopeBacklog),
+		)
+	}
+
+	@Suppress("LongParameterList")
+	fun drain(
+		source: TrackingDiagnosticSource,
+		purpose: TrackingDiagnosticPurpose,
+		pipelineStage: TrackingDiagnosticPipelineStage,
+		result: TrackingDiagnosticResult,
+		reason: TrackingDiagnosticReason,
+		lifecycle: TrackingDiagnosticEventLifecycle,
+		drainedEnvelopeCount: Long,
+		remainingEnvelopeBacklog: Long,
+	): TrackingDiagnosticEventRequest {
+		requireApprovedMetrics(
+			source = source,
+			pipelineStage = pipelineStage,
+			operation = TrackingDiagnosticOperation.DRAIN,
+			expectedMetrics = setOf(
+				TrackingDiagnosticMetric.DRAINED_ENVELOPE_COUNT,
+				TrackingDiagnosticMetric.REMAINING_ENVELOPE_BACKLOG,
+			),
+		)
+		return DrainTrackingDiagnosticRequest(
+			context = context(
+				source = source,
+				purpose = purpose,
+				pipelineStage = pipelineStage,
+				operation = TrackingDiagnosticOperation.DRAIN,
+				result = result,
+				reason = reason,
+				lifecycle = lifecycle,
+			),
+			drainedEnvelopeCountBucket =
+				TrackingDiagnosticCountBucket.fromCount(drainedEnvelopeCount),
+			remainingEnvelopeBacklogBucket =
+				TrackingDiagnosticBacklogBucket.fromItemCount(remainingEnvelopeBacklog),
+		)
+	}
+
+	@Suppress("LongParameterList")
+	fun writeBatch(
+		source: TrackingDiagnosticSource,
+		purpose: TrackingDiagnosticPurpose,
+		pipelineStage: TrackingDiagnosticPipelineStage,
+		result: TrackingDiagnosticResult,
+		reason: TrackingDiagnosticReason,
+		lifecycle: TrackingDiagnosticEventLifecycle,
+		persistedEnvelopeCount: Long,
+	): TrackingDiagnosticEventRequest {
+		requireApprovedMetrics(
+			source = source,
+			pipelineStage = pipelineStage,
+			operation = TrackingDiagnosticOperation.WRITE,
+			expectedMetrics = setOf(TrackingDiagnosticMetric.PERSISTED_ENVELOPE_COUNT),
+		)
+		return WriteTrackingDiagnosticRequest(
+			context = context(
+				source = source,
+				purpose = purpose,
+				pipelineStage = pipelineStage,
+				operation = TrackingDiagnosticOperation.WRITE,
+				result = result,
+				reason = reason,
+				lifecycle = lifecycle,
+			),
+			persistedEnvelopeCountBucket =
+				TrackingDiagnosticCountBucket.fromCount(persistedEnvelopeCount),
+		)
+	}
+
+	private fun requireApprovedMetrics(
+		source: TrackingDiagnosticSource,
+		pipelineStage: TrackingDiagnosticPipelineStage,
+		operation: TrackingDiagnosticOperation,
+		expectedMetrics: Set<TrackingDiagnosticMetric>,
+	) {
+		require(
+			TrackingDiagnosticMetricPolicy.allowedMetrics(source, pipelineStage, operation) ==
+				expectedMetrics,
+		) {
+			"$operation metrics are not approved for $source at $pipelineStage"
 		}
+	}
+
+	@Suppress("LongParameterList")
+	private fun context(
+		source: TrackingDiagnosticSource,
+		purpose: TrackingDiagnosticPurpose,
+		pipelineStage: TrackingDiagnosticPipelineStage,
+		operation: TrackingDiagnosticOperation,
+		result: TrackingDiagnosticResult,
+		reason: TrackingDiagnosticReason,
+		lifecycle: TrackingDiagnosticEventLifecycle,
+	): TrackingDiagnosticEventContext {
+		require(reason.isCompatibleWith(result)) {
+			"$reason is not valid for tracking diagnostic result $result"
+		}
+		return TrackingDiagnosticEventContext(
+			source = source,
+			purpose = purpose,
+			pipelineStage = pipelineStage,
+			operation = operation,
+			result = result,
+			reason = reason,
+			lifecycle = lifecycle,
+		)
 	}
 }
 
-private data class PayloadFreeTrackingDiagnosticEvent(
+private data class TrackingDiagnosticEventContext(
 	override val source: TrackingDiagnosticSource,
 	override val purpose: TrackingDiagnosticPurpose,
 	override val pipelineStage: TrackingDiagnosticPipelineStage,
 	override val operation: TrackingDiagnosticOperation,
 	override val result: TrackingDiagnosticResult,
 	override val reason: TrackingDiagnosticReason,
-	override val correlationToken: TrackingDiagnosticCorrelationToken?,
-	override val countBucket: TrackingDiagnosticCountBucket,
-	override val durationBucket: TrackingDiagnosticDurationBucket,
-	override val backlogBucket: TrackingDiagnosticBacklogBucket,
-	override val sizeBucket: TrackingDiagnosticSizeBucket,
-) : TrackingDiagnosticEvent
+	override val lifecycle: TrackingDiagnosticEventLifecycle,
+) : TrackingDiagnosticEventRequest
 
-/**
- * Single local-only recording port.
- *
- * Implementations are owned by this module so a Tracebox adapter cannot be replaced with a feature,
- * network, upload, analytics, or observer-fanout implementation. [record] validates the event and
- * contains all recorder failures so diagnostics never change tracking behavior.
- */
-abstract class TrackingDiagnosticRecorder internal constructor() {
-	@Suppress("SwallowedException", "TooGenericExceptionCaught")
-	fun record(event: TrackingDiagnosticEvent) {
-		if (TrackingDiagnosticPrivacyValidator.validate(event) !is
-			TrackingDiagnosticPrivacyValidation.Allowed
-		) {
-			return
-		}
-		try {
-			recordLocally(event)
-		} catch (_: Throwable) {
-			Unit
-		}
-	}
+private data class UnmeteredTrackingDiagnosticRequest(
+	private val context: TrackingDiagnosticEventContext,
+) : TrackingDiagnosticEventRequest by context
 
-	protected abstract fun recordLocally(event: TrackingDiagnosticEvent)
+private data class EnqueueTrackingDiagnosticRequest(
+	private val context: TrackingDiagnosticEventContext,
+	val encodedEnvelopeSizeBucket: TrackingDiagnosticSizeBucket,
+	val queueBacklogBucket: TrackingDiagnosticBacklogBucket,
+) : TrackingDiagnosticEventRequest by context
 
-	companion object {
-		@JvmField
-		val NO_OP: TrackingDiagnosticRecorder = object : TrackingDiagnosticRecorder() {
-			override fun recordLocally(event: TrackingDiagnosticEvent) = Unit
-		}
-	}
+private data class DrainTrackingDiagnosticRequest(
+	private val context: TrackingDiagnosticEventContext,
+	val drainedEnvelopeCountBucket: TrackingDiagnosticCountBucket,
+	val remainingEnvelopeBacklogBucket: TrackingDiagnosticBacklogBucket,
+) : TrackingDiagnosticEventRequest by context
+
+private data class WriteTrackingDiagnosticRequest(
+	private val context: TrackingDiagnosticEventContext,
+	val persistedEnvelopeCountBucket: TrackingDiagnosticCountBucket,
+) : TrackingDiagnosticEventRequest by context
+
+internal fun TrackingDiagnosticEventRequest.toRecordedEvent(
+	scopeEventCountBucket: TrackingDiagnosticCountBucket,
+	scopeDurationBucket: TrackingDiagnosticDurationBucket,
+): RecordedTrackingDiagnosticEvent = when (this) {
+	is UnmeteredTrackingDiagnosticRequest -> UnmeteredRecordedTrackingDiagnosticEvent(
+		request = this,
+		scopeEventCountBucket = scopeEventCountBucket,
+		scopeDurationBucket = scopeDurationBucket,
+	)
+	is EnqueueTrackingDiagnosticRequest -> EnqueueRecordedTrackingDiagnosticEvent(
+		request = this,
+		scopeEventCountBucket = scopeEventCountBucket,
+		scopeDurationBucket = scopeDurationBucket,
+		encodedEnvelopeSizeBucket = encodedEnvelopeSizeBucket,
+		queueBacklogBucket = queueBacklogBucket,
+	)
+	is DrainTrackingDiagnosticRequest -> DrainRecordedTrackingDiagnosticEvent(
+		request = this,
+		scopeEventCountBucket = scopeEventCountBucket,
+		scopeDurationBucket = scopeDurationBucket,
+		drainedEnvelopeCountBucket = drainedEnvelopeCountBucket,
+		remainingEnvelopeBacklogBucket = remainingEnvelopeBacklogBucket,
+	)
+	is WriteTrackingDiagnosticRequest -> WriteRecordedTrackingDiagnosticEvent(
+		request = this,
+		scopeEventCountBucket = scopeEventCountBucket,
+		scopeDurationBucket = scopeDurationBucket,
+		persistedEnvelopeCountBucket = persistedEnvelopeCountBucket,
+	)
+	is TrackingDiagnosticEventContext -> error("Event context cannot be recorded directly")
+}
+
+internal sealed interface RecordedTrackingDiagnosticEvent : TrackingDiagnosticEventRequest {
+	val scopeEventCountBucket: TrackingDiagnosticCountBucket
+	val scopeDurationBucket: TrackingDiagnosticDurationBucket
+	val metrics: Set<TrackingDiagnosticMetric>
+}
+
+internal data class UnmeteredRecordedTrackingDiagnosticEvent(
+	private val request: TrackingDiagnosticEventRequest,
+	override val scopeEventCountBucket: TrackingDiagnosticCountBucket,
+	override val scopeDurationBucket: TrackingDiagnosticDurationBucket,
+) : RecordedTrackingDiagnosticEvent, TrackingDiagnosticEventRequest by request {
+	override val metrics: Set<TrackingDiagnosticMetric> = emptySet()
+}
+
+internal data class EnqueueRecordedTrackingDiagnosticEvent(
+	private val request: TrackingDiagnosticEventRequest,
+	override val scopeEventCountBucket: TrackingDiagnosticCountBucket,
+	override val scopeDurationBucket: TrackingDiagnosticDurationBucket,
+	internal val encodedEnvelopeSizeBucket: TrackingDiagnosticSizeBucket,
+	internal val queueBacklogBucket: TrackingDiagnosticBacklogBucket,
+) : RecordedTrackingDiagnosticEvent, TrackingDiagnosticEventRequest by request {
+	override val metrics: Set<TrackingDiagnosticMetric> = setOf(
+		TrackingDiagnosticMetric.ENCODED_ENVELOPE_SIZE,
+		TrackingDiagnosticMetric.QUEUE_BACKLOG,
+	)
+}
+
+internal data class DrainRecordedTrackingDiagnosticEvent(
+	private val request: TrackingDiagnosticEventRequest,
+	override val scopeEventCountBucket: TrackingDiagnosticCountBucket,
+	override val scopeDurationBucket: TrackingDiagnosticDurationBucket,
+	internal val drainedEnvelopeCountBucket: TrackingDiagnosticCountBucket,
+	internal val remainingEnvelopeBacklogBucket: TrackingDiagnosticBacklogBucket,
+) : RecordedTrackingDiagnosticEvent, TrackingDiagnosticEventRequest by request {
+	override val metrics: Set<TrackingDiagnosticMetric> = setOf(
+		TrackingDiagnosticMetric.DRAINED_ENVELOPE_COUNT,
+		TrackingDiagnosticMetric.REMAINING_ENVELOPE_BACKLOG,
+	)
+}
+
+internal data class WriteRecordedTrackingDiagnosticEvent(
+	private val request: TrackingDiagnosticEventRequest,
+	override val scopeEventCountBucket: TrackingDiagnosticCountBucket,
+	override val scopeDurationBucket: TrackingDiagnosticDurationBucket,
+	internal val persistedEnvelopeCountBucket: TrackingDiagnosticCountBucket,
+) : RecordedTrackingDiagnosticEvent, TrackingDiagnosticEventRequest by request {
+	override val metrics: Set<TrackingDiagnosticMetric> =
+		setOf(TrackingDiagnosticMetric.PERSISTED_ENVELOPE_COUNT)
 }
 
 internal fun TrackingDiagnosticReason.isCompatibleWith(result: TrackingDiagnosticResult): Boolean =
@@ -253,3 +457,6 @@ internal fun TrackingDiagnosticReason.isCompatibleWith(result: TrackingDiagnosti
 			result == TrackingDiagnosticResult.PERMANENT_FAILURE
 		is TrackingDiagnosticCancellationReason -> result == TrackingDiagnosticResult.CANCELLED
 	}
+
+internal val TrackingDiagnosticReason.stableName: String
+	get() = (this as Enum<*>).name

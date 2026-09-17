@@ -19,7 +19,7 @@ object TrackerTraceboxTemplates {
 	val ACTIVITY_CALLBACK_RETRY_SCHEDULING_FAILED =
 		LogTemplate.of("Activity callback retry scheduling failed")
 	val ACTIVITY_CALLBACK_TERMINAL_GAP =
-		LogTemplate.of("Activity callback terminal gap recorded: code {}")
+		LogTemplate.of("Activity callback terminal gap recorded")
 	val ACTIVITY_RECOGNITION_UNAVAILABLE =
 		LogTemplate.of("Activity recognition is unavailable")
 	val ACTIVITY_RECOGNITION_FAILED = LogTemplate.of("Activity recognition failed")
@@ -68,7 +68,7 @@ object TrackerTraceboxTemplates {
 	val PERSISTENCE_COMMIT_INCONSISTENT = LogTemplate.of("Persistence commit became inconsistent")
 	val PROCESS_TRACKING_CYCLE = LogTemplate.of("Process tracking cycle")
 	val RAW_LOCATION_REPAIR_COMPLETED =
-		LogTemplate.of("Canonical raw location observations repaired: count {}")
+		LogTemplate.of("Canonical raw location observations repaired: count bucket {}")
 	val RAW_LOCATION_REPAIR_DECODE_FAILED =
 		LogTemplate.of("Unable to decode a location source event during raw repair")
 	val SOURCE_OUTBOX_DRAIN_BOUNDED = LogTemplate.of("Source outbox drain reached its safety bound")
@@ -78,22 +78,25 @@ object TrackerTraceboxTemplates {
 	val STEP_COUNTER_REGRESSED = LogTemplate.of("Step counter regressed")
 	val TRACKER_MODULE_INITIALIZATION_FAILED = LogTemplate.of("Tracker module initialization failed")
 	val TRACKING_COORDINATOR_SESSION_COUNTS = LogTemplate.of(
-		"Tracking coordinator session counts: projection drains {}, projected events {}, plan revisions {}, frames {}, source timer wakeups {}, source requests served {}, motion policy changes {}, stationary optimizations {}, fidelity restores {}",
+		"Tracking coordinator session count buckets: projection drains {}, projected events {}, plan revisions {}, frames {}, source timer wakeups {}, source requests served {}, motion policy changes {}, stationary optimizations {}, fidelity restores {}",
 	)
 	val TRACKING_COORDINATOR_SESSION_TIMINGS = LogTemplate.of(
-		"Tracking coordinator session timings: projection duration ns {}, wake lock ns {}",
+		"Tracking coordinator session duration buckets: projection {}, wake lock {}",
+	)
+	val TRACKING_OPERATION_EVENT = LogTemplate.of(
+		"Tracking operation event: source {}, purpose {}, stage {}, operation {}, result {}, reason {}, lifecycle {}, scope event count {}, scope duration {}, metric one {}, metric one bucket {}, metric two {}, metric two bucket {}",
 	)
 	val TRACKING_CYCLE_FAILED = LogTemplate.of("Tracking cycle failed")
 	val TRACKING_PERSISTENCE_WRITE_FAILED = LogTemplate.of("Tracking persistence write failed")
 	val TRACKING_PIPELINE_STAGE_FAILED = LogTemplate.of("Tracking pipeline stage failed")
 	val TRACKING_PREPARED_SHELL_STOPPED =
-		LogTemplate.of("Prepared tracking shell stopped: failure code {}")
+		LogTemplate.of("Prepared tracking shell stopped")
 	val TRACKING_PREPARED_START_FOREGROUND_FAILED =
 		LogTemplate.of("Prepared tracking start could not enter the foreground")
 	val TRACKING_PROCESSOR_DISABLED =
 		LogTemplate.of("Tracking processor was disabled after repeated failures")
 	val TRACKING_PROVIDER_TEARDOWN_FAILED =
-		LogTemplate.of("Tracking provider teardown failed: attempt {}")
+		LogTemplate.of("Tracking provider teardown failed: attempt bucket {}")
 	val TRACKING_REBASE_ENQUEUE_ACK_MISSING =
 		LogTemplate.of("Tracking rebase enqueue acknowledgement was missing")
 	val TRACKING_REBASE_ENQUEUE_FAILED =
@@ -114,5 +117,5 @@ object TrackerTraceboxTemplates {
 	val TRACKING_START_FAILED = LogTemplate.of("Tracking start failed")
 	val TRACKING_START_STORAGE_UNAVAILABLE =
 		LogTemplate.of("Tracking start failed: storage unavailable")
-	val TRACKING_STOP_REQUESTED = LogTemplate.of("Tracking stop requested: reason {}")
+	val TRACKING_STOP_REQUESTED = LogTemplate.of("Tracking stop requested")
 }

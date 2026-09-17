@@ -1,11 +1,11 @@
 package com.adsamcik.tracker.activity.api.backend
 
-import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
-import dev.tracebox.Tracebox
 import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.receiver.ActivityReceiver
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationCleanupKey
@@ -105,7 +105,9 @@ class GmsActivityRecognitionBackend @Inject constructor(
 	): Boolean =
 		subscriptionMutex.withLock {
 			if (!isAvailable) {
-				Tracebox.log.warn(TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_UNAVAILABLE)
+				TrackerDiagnosticLog.warn(
+					TrackerDiagnosticCode.ACTIVITY_RECOGNITION_UNAVAILABLE,
+				)
 				return@withLock false
 			}
 
@@ -135,7 +137,10 @@ class GmsActivityRecognitionBackend @Inject constructor(
 				}
 				throw e
 			} catch (e: Exception) {
-				Tracebox.log.error(e, TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED)
+				TrackerDiagnosticLog.error(
+					e,
+					TrackerDiagnosticCode.ACTIVITY_RECOGNITION_FAILED,
+				)
 				withContext(NonCancellable) {
 					rollbackSubscriptions(client, intent, e)
 				}
@@ -158,9 +163,9 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		} catch (error: CancellationException) {
 			throw error
 		} catch (error: Exception) {
-			Tracebox.log.error(
+			TrackerDiagnosticLog.error(
 				error,
-				TrackerTraceboxTemplates.ACTIVITY_CALLBACK_METADATA_UPDATE_FAILED,
+				TrackerDiagnosticCode.ACTIVITY_CALLBACK_METADATA_UPDATE_FAILED,
 			)
 			false
 		}
@@ -193,7 +198,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
-			Tracebox.log.error(e, TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED)
+			TrackerDiagnosticLog.error(e, TrackerDiagnosticCode.ACTIVITY_RECOGNITION_FAILED)
 			throw e
 		}
 	}

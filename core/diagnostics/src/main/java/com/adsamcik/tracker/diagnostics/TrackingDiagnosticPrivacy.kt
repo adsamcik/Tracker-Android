@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.diagnostics
 
-/** The complete set of fields a local Tracebox adapter may encode. */
+/** The complete set of fields the module-owned local adapter may encode. */
 enum class TrackingDiagnosticField(val wireName: String) {
 	SOURCE("source"),
 	PURPOSE("purpose"),
@@ -8,15 +8,19 @@ enum class TrackingDiagnosticField(val wireName: String) {
 	OPERATION("operation"),
 	RESULT("result"),
 	REASON("reason"),
-	CORRELATION_TOKEN("correlation_token"),
-	COUNT_BUCKET("count_bucket"),
-	DURATION_BUCKET("duration_bucket"),
-	BACKLOG_BUCKET("backlog_bucket"),
-	SIZE_BUCKET("size_bucket"),
+	LIFECYCLE("lifecycle"),
+	SCOPE_EVENT_COUNT_BUCKET("scope_event_count_bucket"),
+	SCOPE_DURATION_BUCKET("scope_duration_bucket"),
+	ENCODED_ENVELOPE_SIZE_BUCKET("encoded_envelope_size_bucket"),
+	QUEUE_BACKLOG_BUCKET("queue_backlog_bucket"),
+	DRAINED_ENVELOPE_COUNT_BUCKET("drained_envelope_count_bucket"),
+	REMAINING_ENVELOPE_BACKLOG_BUCKET("remaining_envelope_backlog_bucket"),
+	PERSISTED_ENVELOPE_COUNT_BUCKET("persisted_envelope_count_bucket"),
 }
 
 enum class TrackingDiagnosticPrivacyRejectionReason {
 	INVALID_EVENT,
+	METRIC_OPERATION_MISMATCH,
 	UNKNOWN_FIELD,
 	COORDINATES,
 	SENSOR_VALUES,
@@ -36,13 +40,6 @@ sealed interface TrackingDiagnosticPrivacyValidation {
 	) : TrackingDiagnosticPrivacyValidation
 }
 
-/**
- * Privacy gate for the fixed event and any future local Tracebox adapter schema.
- *
- * Adapter schemas are allowlist-only. Forbidden aliases are classified explicitly so a review
- * cannot mistake an unknown coordinate, sensor, radio, selection, file, checksum, identity, or
- * provider-payload field for a harmless extension.
- */
 object TrackingDiagnosticPrivacyValidator {
 	val allowedFields: Set<TrackingDiagnosticField> = TrackingDiagnosticField.entries.toSet()
 
@@ -141,14 +138,24 @@ object TrackingDiagnosticPrivacyValidator {
 			),
 		)
 
-	fun validate(event: TrackingDiagnosticEvent): TrackingDiagnosticPrivacyValidation =
-		if (event.reason.isCompatibleWith(event.result)) {
-			TrackingDiagnosticPrivacyValidation.Allowed
-		} else {
+	internal fun validate(
+		event: RecordedTrackingDiagnosticEvent,
+	): TrackingDiagnosticPrivacyValidation = when {
+		!event.reason.isCompatibleWith(event.result) ->
 			TrackingDiagnosticPrivacyValidation.Rejected(
 				TrackingDiagnosticPrivacyRejectionReason.INVALID_EVENT,
 			)
-		}
+		event.metrics != TrackingDiagnosticMetricPolicy.allowedMetrics(
+			event.source,
+			event.pipelineStage,
+			event.operation,
+		) &&
+			event.metrics.isNotEmpty() ->
+			TrackingDiagnosticPrivacyValidation.Rejected(
+				TrackingDiagnosticPrivacyRejectionReason.METRIC_OPERATION_MISMATCH,
+			)
+		else -> TrackingDiagnosticPrivacyValidation.Allowed
+	}
 
 	/**
 	 * Validates developer-authored schema keys only. Runtime values and arbitrary attribute maps are

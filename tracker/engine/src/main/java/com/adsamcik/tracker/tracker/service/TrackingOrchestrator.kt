@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.tracker.service
 
 import androidx.room.withTransaction
-import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
-import dev.tracebox.Tracebox
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
 import android.content.Context
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
@@ -486,8 +486,8 @@ internal class TrackingOrchestrator(
 				if (persistence != null &&
 					!persistence.flushProtectedLocationCanonicalHandoff()
 				) {
-					Tracebox.log.error(
-						TrackerTraceboxTemplates.TRACKING_SIGNAL_CHECKPOINT_FAILED,
+					TrackerDiagnosticLog.error(
+						TrackerDiagnosticCode.TRACKING_SIGNAL_CHECKPOINT_FAILED,
 					)
 					return@withLock
 				}
@@ -835,7 +835,9 @@ internal class TrackingOrchestrator(
 			// Rejected-only callbacks never enter ProcessorPipeline, so they would otherwise remain
 			// only in volatile staging. Checkpoint every provider delivery before any rejection path.
 			if (processorPipeline?.checkpointDurableSignals(observationSignals) != true) {
-				Tracebox.log.error(TrackerTraceboxTemplates.TRACKING_SIGNAL_CHECKPOINT_FAILED)
+				TrackerDiagnosticLog.error(
+					TrackerDiagnosticCode.TRACKING_SIGNAL_CHECKPOINT_FAILED,
+				)
 				// Do not admit an accepted location when its reconstructable raw source has not reached
 				// the WAL. The durability processor retains staged evidence for a later checkpoint; this
 				// curated cycle intentionally remains unresolved rather than becoming source-less.

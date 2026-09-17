@@ -44,6 +44,9 @@ dependencies {
     implementation(project(":domain:geocoder"))
     implementation(project(":core:network"))
     implementation(project(":core:diagnostics"))
+    // Existing non-tracking MapLibre initialization diagnostics use Tracebox directly. The
+    // payload-free tracking contract no longer re-exports the backend.
+    implementation(libs.tracebox)
 
     // Core
     implementation(libs.kotlinx.coroutines.android)

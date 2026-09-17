@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.tracker.module
 
 import android.content.Context
-import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
-import dev.tracebox.Tracebox
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
 import com.adsamcik.tracker.shared.base.Process
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.startup.ModuleInitializer
@@ -77,14 +77,14 @@ class TrackerModuleInitializer @Inject constructor(
 						reconcile = ambientStepsProviderLifecycleOwner::reconcile,
 						onFailure = { failure ->
 							if (failure == null) {
-								Tracebox.log.warn(
-									TrackerTraceboxTemplates
+								TrackerDiagnosticLog.warn(
+									TrackerDiagnosticCode
 										.AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED,
 								)
 							} else {
-								Tracebox.log.error(
+								TrackerDiagnosticLog.error(
 									failure,
-									TrackerTraceboxTemplates
+									TrackerDiagnosticCode
 										.AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED,
 								)
 							}
@@ -228,9 +228,9 @@ internal suspend fun driveActivityAutomationEffectDrain(
 				} catch (cancellation: CancellationException) {
 					throw cancellation
 				} catch (failure: Exception) {
-					Tracebox.log.error(
+					TrackerDiagnosticLog.error(
 						failure,
-						TrackerTraceboxTemplates.ACTIVITY_SOURCE_RECOVERY_FAILED,
+						TrackerDiagnosticCode.ACTIVITY_SOURCE_RECOVERY_FAILED,
 					)
 					null
 				}

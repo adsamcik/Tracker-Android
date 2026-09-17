@@ -3,7 +3,8 @@ package com.adsamcik.tracker.activity
 import android.content.Context
 import com.adsamcik.tracker.activity.event.ActivityDomainEventConsumer
 import com.adsamcik.tracker.activity.receiver.ActivityCallbackRetryOwner
-import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
@@ -12,7 +13,6 @@ import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.shared.base.startup.ModuleInitializer
-import dev.tracebox.Tracebox
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -49,9 +49,9 @@ class ActivityModuleInitializer @Inject constructor(
 		appScope.launch(dispatchers.io) {
 			runCatching { callbackRetryOwner.ensurePendingWorkScheduled() }
 				.onFailure { error ->
-					Tracebox.log.error(
+					TrackerDiagnosticLog.error(
 						error,
-						TrackerTraceboxTemplates.ACTIVITY_CALLBACK_RETRY_SCHEDULING_FAILED,
+						TrackerDiagnosticCode.ACTIVITY_CALLBACK_RETRY_SCHEDULING_FAILED,
 					)
 				}
 		}

@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.tracker.pipeline
 
-import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
-import dev.tracebox.Tracebox
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.processor.ProcessorContext
@@ -135,7 +135,7 @@ class ProcessorPipeline(
 		if (count >= MAX_CONSECUTIVE_FAILURES && processorId !in _disabledProcessors) {
 			_disabledProcessors.add(processorId)
 			cachedActiveProcessors = cachedActiveProcessors.filter { it.descriptor.id != processorId }
-			Tracebox.log.warn(TrackerTraceboxTemplates.TRACKING_PROCESSOR_DISABLED)
+			TrackerDiagnosticLog.warn(TrackerDiagnosticCode.TRACKING_PROCESSOR_DISABLED)
 		}
 	}
 
@@ -568,7 +568,10 @@ class ProcessorPipeline(
 					onDomainEvents(events)
 				}
 			} catch (e: TimeoutCancellationException) {
-				Tracebox.log.error(e, TrackerTraceboxTemplates.DOMAIN_EVENT_PERSISTENCE_FAILED)
+				TrackerDiagnosticLog.error(
+					e,
+					TrackerDiagnosticCode.DOMAIN_EVENT_PERSISTENCE_FAILED,
+				)
 				throw IllegalStateException(
 					"$phase domain event dispatch timed out after ${DOMAIN_EVENT_PERSIST_TIMEOUT_MILLIS}ms",
 					e,
@@ -576,7 +579,10 @@ class ProcessorPipeline(
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
-				Tracebox.log.error(e, TrackerTraceboxTemplates.DOMAIN_EVENT_PERSISTENCE_FAILED)
+				TrackerDiagnosticLog.error(
+					e,
+					TrackerDiagnosticCode.DOMAIN_EVENT_PERSISTENCE_FAILED,
+				)
 				throw IllegalStateException("$phase domain event dispatch failed", e)
 			}
 			mutex.withLock {

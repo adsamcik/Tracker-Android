@@ -1,7 +1,8 @@
 package com.adsamcik.tracker.tracker.pipeline.persistence
 
 import androidx.room.withTransaction
-import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.constant.CoordinateConstants
 import com.adsamcik.tracker.shared.base.data.LocationAcquisitionMode
@@ -20,8 +21,6 @@ import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.LOCATION_MOCK_PROVENANCE_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.SourceKind
-import dev.tracebox.Tracebox
-import dev.tracebox.api.public
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -105,10 +104,7 @@ class RawLocationObservationRepair @Inject constructor(
 
 	private fun logRepairResult(repaired: Int) {
 		if (repaired > 0) {
-			Tracebox.log.info(
-				TrackerTraceboxTemplates.RAW_LOCATION_REPAIR_COMPLETED,
-				public(repaired),
-			)
+			TrackerDiagnosticLog.rawLocationRepairCompleted(repaired.toLong())
 		}
 	}
 
@@ -225,7 +221,10 @@ class RawLocationObservationRepair @Inject constructor(
 	private fun SourceEventWalEntity.decodeLocationPayloadOrNull(): LocationFixPayload? = try {
 		payloadCodec.decode(SourceKind.LOCATION, payloadVersion, payload) as LocationFixPayload
 	} catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
-		Tracebox.log.error(error, TrackerTraceboxTemplates.RAW_LOCATION_REPAIR_DECODE_FAILED)
+		TrackerDiagnosticLog.error(
+			error,
+			TrackerDiagnosticCode.RAW_LOCATION_REPAIR_DECODE_FAILED,
+		)
 		null
 	}
 

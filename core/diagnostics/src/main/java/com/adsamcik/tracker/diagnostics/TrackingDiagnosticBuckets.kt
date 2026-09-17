@@ -11,7 +11,7 @@ enum class TrackingDiagnosticCountBucket {
 	;
 
 	companion object {
-		fun fromCount(count: Long): TrackingDiagnosticCountBucket {
+		internal fun fromCount(count: Long): TrackingDiagnosticCountBucket {
 			require(count >= 0L) { "Count must be non-negative" }
 			return when (count) {
 				0L -> ZERO
@@ -36,7 +36,7 @@ enum class TrackingDiagnosticDurationBucket {
 	;
 
 	companion object {
-		fun fromMilliseconds(durationMilliseconds: Long): TrackingDiagnosticDurationBucket {
+		internal fun fromMilliseconds(durationMilliseconds: Long): TrackingDiagnosticDurationBucket {
 			require(durationMilliseconds >= 0L) { "Duration must be non-negative" }
 			return when (durationMilliseconds) {
 				in 0L..9L -> UNDER_TEN_MILLISECONDS
@@ -46,6 +46,11 @@ enum class TrackingDiagnosticDurationBucket {
 				in 5_000L..29_999L -> FIVE_TO_TWENTY_NINE_SECONDS
 				else -> THIRTY_SECONDS_OR_MORE
 			}
+		}
+
+		internal fun fromNanoseconds(durationNanoseconds: Long): TrackingDiagnosticDurationBucket {
+			require(durationNanoseconds >= 0L) { "Duration must be non-negative" }
+			return fromMilliseconds(durationNanoseconds / 1_000_000L)
 		}
 	}
 }
@@ -61,7 +66,7 @@ enum class TrackingDiagnosticBacklogBucket {
 	;
 
 	companion object {
-		fun fromItemCount(itemCount: Long): TrackingDiagnosticBacklogBucket {
+		internal fun fromItemCount(itemCount: Long): TrackingDiagnosticBacklogBucket {
 			require(itemCount >= 0L) { "Backlog count must be non-negative" }
 			return when (itemCount) {
 				0L -> EMPTY
@@ -86,7 +91,7 @@ enum class TrackingDiagnosticSizeBucket {
 	;
 
 	companion object {
-		fun fromBytes(byteCount: Long): TrackingDiagnosticSizeBucket {
+		internal fun fromBytes(byteCount: Long): TrackingDiagnosticSizeBucket {
 			require(byteCount >= 0L) { "Size must be non-negative" }
 			return when (byteCount) {
 				0L -> EMPTY

@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.tracker.api
 
-import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
-import dev.tracebox.Tracebox
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -598,9 +598,9 @@ object BackgroundTrackingApi {
 		} catch (exception: CancellationException) {
 			throw exception
 		} catch (exception: Exception) {
-			Tracebox.log.error(
+			TrackerDiagnosticLog.error(
 				exception,
-				TrackerTraceboxTemplates.LEGACY_STEP_CONTROL_RETIREMENT_FAILED,
+				TrackerDiagnosticCode.LEGACY_STEP_CONTROL_RETIREMENT_FAILED,
 			)
 			throw exception
 		}
@@ -705,7 +705,10 @@ object BackgroundTrackingApi {
 			} catch (e: CancellationException) {
 				throw e
 			} catch (error: Exception) {
-				Tracebox.log.error(error, TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED)
+				TrackerDiagnosticLog.error(
+					error,
+					TrackerDiagnosticCode.ACTIVITY_RECOGNITION_FAILED,
+				)
 			}
 		}
 	}
@@ -756,7 +759,10 @@ object BackgroundTrackingApi {
 				activityControlConsentEpoch = null
 				reconcileControlEligibility(activityEligible = false)
 				publishActivityAutomationAuthority()
-				Tracebox.log.error(error, TrackerTraceboxTemplates.SOURCE_POLICY_OBSERVATION_FAILED)
+				TrackerDiagnosticLog.error(
+					error,
+					TrackerDiagnosticCode.SOURCE_POLICY_OBSERVATION_FAILED,
+				)
 				delay(SOURCE_POLICY_RETRY_DELAY_MILLIS)
 				true
 			}
@@ -781,7 +787,10 @@ object BackgroundTrackingApi {
 			.catch { error ->
 				paramsInitialized = false
 				publishActivityAutomationAuthority()
-				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
+				TrackerDiagnosticLog.error(
+					error,
+					TrackerDiagnosticCode.APPLICATION_INITIALIZATION_FAILED,
+				)
 			}
 			.launchIn(scope)
 
@@ -791,7 +800,10 @@ object BackgroundTrackingApi {
 			R.string.settings_disabled_recharge_default
 		).onEach { disabledUntilRecharge = it }
 			.catch { error ->
-				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
+				TrackerDiagnosticLog.error(
+					error,
+					TrackerDiagnosticCode.APPLICATION_INITIALIZATION_FAILED,
+				)
 			}
 			.launchIn(scope)
 
@@ -809,7 +821,10 @@ object BackgroundTrackingApi {
 			}
 		}
 			.catch { error ->
-				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
+				TrackerDiagnosticLog.error(
+					error,
+					TrackerDiagnosticCode.APPLICATION_INITIALIZATION_FAILED,
+				)
 			}
 			.launchIn(scope)
 
@@ -819,7 +834,10 @@ object BackgroundTrackingApi {
 			com.adsamcik.tracker.activity.R.string.settings_activity_watcher_default
 		).onEach { activityWatcherEnabled = it }
 			.catch { error ->
-				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
+				TrackerDiagnosticLog.error(
+					error,
+					TrackerDiagnosticCode.APPLICATION_INITIALIZATION_FAILED,
+				)
 			}
 			.launchIn(scope)
 	}
@@ -1119,15 +1137,15 @@ object BackgroundTrackingApi {
 				waitBeforeRetry = { delayMillis -> delay(delayMillis) },
 				onAttemptCompleted = { attempt ->
 					attempt.cleanupFailure?.let { error ->
-						Tracebox.log.error(
+						TrackerDiagnosticLog.error(
 							error,
-							TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED,
+							TrackerDiagnosticCode.ACTIVITY_RECOGNITION_FAILED,
 						)
 					}
 					attempt.retryOwnershipFailure?.let { error ->
-						Tracebox.log.error(
+						TrackerDiagnosticLog.error(
 							error,
-							TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED,
+							TrackerDiagnosticCode.ACTIVITY_RECOGNITION_FAILED,
 						)
 					}
 				},
