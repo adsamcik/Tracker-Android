@@ -382,11 +382,12 @@ class RoomDurableSourceIngressTest {
 	}
 
 	@Test
-	fun `Steps admission persists the provider counter epoch instead of registration configuration`() =
+	fun `Steps admission retains evidence but publishes no authority before canonical projection`() =
 		runTest {
-			StepsCountDomainSchema.createStatements.forEach {
-				database.openHelper.writableDatabase.execSQL(it)
-			}
+			check(
+				StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) ==
+					com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState.ValidV2,
+			)
 			installStepRegistrationGeneration()
 			val token = StepsCounterDomainToken.opaque("sha256:${"a".repeat(64)}")
 			val evidence = stepCandidate(
@@ -414,7 +415,8 @@ class RoomDurableSourceIngressTest {
 				),
 			) as StepsCountDomainOwnerRead.Ready
 
-			read.owners.values.single().receipt?.domainIdentity shouldBe token.encoded
+			read.owners shouldBe emptyMap()
+			read.latestRevisions shouldBe emptyMap()
 		}
 
 	@Test

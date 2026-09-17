@@ -16,7 +16,6 @@ import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletene
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
-import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainSchemaMarkerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsSessionCompletenessIntegrity
 import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import kotlinx.coroutines.CancellationException
@@ -27,6 +26,7 @@ enum class StepsCountDomainWriteResult {
 	INSERTED,
 	EXACT_REPLAY,
 	SCHEMA_UNAVAILABLE,
+	STORED_EVIDENCE_UNVERIFIABLE,
 	NOT_APPLICABLE,
 	UNPROVEN,
 	IDENTITY_CONFLICT,
@@ -80,6 +80,7 @@ sealed interface StepsCountDomainOwnerRead {
 
 sealed interface StepsCountDomainMaintenanceResult {
 	data object SchemaUnavailable : StepsCountDomainMaintenanceResult
+	data object StoredEvidenceUnverifiable : StepsCountDomainMaintenanceResult
 	data object Overflow : StepsCountDomainMaintenanceResult
 	data class Applied(
 		val removedOwners: Long,
@@ -95,14 +96,17 @@ enum class StepsCountDomainFullClearMode {
 /**
  * Source-owned bridge used until the serialized AppDatabase owner registers the additive entities.
  *
- * Calls must occur inside the producer's existing Room transaction. Missing tables preserve the
- * pre-P5 behavior by returning SCHEMA_UNAVAILABLE; they never downgrade a present corrupt table.
+ * Calls must occur inside the producer's existing Room transaction. A completely absent namespace
+ * preserves pre-P5 behavior with SCHEMA_UNAVAILABLE. Any partial, markerless, legacy, or corrupt
+ * namespace is STORED_EVIDENCE_UNVERIFIABLE and never activates.
  */
 @Suppress("TooManyFunctions")
 class StepsCountDomainStore(
 	private val database: AppDatabase,
 ) {
-	fun isInstalled(): Boolean = hasSchema()
+	fun isInstalled(): Boolean =
+		StepsCountDomainSchema.inspect(database.openHelper.writableDatabase) ==
+			StepsCountDomainSchemaState.ValidV2
 
 	suspend fun recordSessionWal(
 		row: SourceEventWalEntity,
@@ -114,7 +118,7 @@ class StepsCountDomainStore(
 		) {
 			return StepsCountDomainWriteResult.NOT_APPLICABLE
 		}
-		if (!hasSchema()) return StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE
+		writeSchemaFailure()?.let { return it }
 		val logicalTrackingId = row.logicalTrackingId
 			?: return StepsCountDomainWriteResult.UNPROVEN
 		val serviceRunId = row.serviceRunId
@@ -124,8 +128,10 @@ class StepsCountDomainStore(
 		val authorityFingerprint = row.authorizationFingerprint
 			?: return StepsCountDomainWriteResult.UNPROVEN
 		if (!row.hasQualifiedIntegrity()) return StepsCountDomainWriteResult.IDENTITY_CONFLICT
-		if ((counterDomainToken != null) !=
-			(row.payloadVersion >= StepsCounterDomainToken.MINIMUM_DURABLE_PAYLOAD_VERSION)
+		if ((counterDomainToken != null &&
+				row.payloadVersion < StepsCounterDomainToken.MINIMUM_DURABLE_PAYLOAD_VERSION) ||
+			(counterDomainToken == null &&
+				row.payloadVersion == StepsCounterDomainToken.MINIMUM_DURABLE_PAYLOAD_VERSION)
 		) {
 			return StepsCountDomainWriteResult.IDENTITY_CONFLICT
 		}
@@ -185,7 +191,7 @@ class StepsCountDomainStore(
 		) {
 			return StepsCountDomainWriteResult.NOT_APPLICABLE
 		}
-		if (!hasSchema()) return StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE
+		writeSchemaFailure()?.let { return it }
 		if (!StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(fact)) {
 			return StepsCountDomainWriteResult.IDENTITY_CONFLICT
 		}
@@ -269,7 +275,7 @@ class StepsCountDomainStore(
 		if (row.sourceKind != SourceDestinationOwnerEntity.SOURCE_STEPS) {
 			return StepsCountDomainWriteResult.NOT_APPLICABLE
 		}
-		if (!hasSchema()) return StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE
+		writeSchemaFailure()?.let { return it }
 		val scopeIdentity = StepsCountDomainReceiptIntegrity.sessionRunScopeIdentity(
 			row.logicalTrackingId,
 			row.serviceRunId,
@@ -415,7 +421,7 @@ class StepsCountDomainStore(
 		) {
 			return StepsCountDomainWriteResult.NOT_APPLICABLE
 		}
-		if (!hasSchema()) return StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE
+		writeSchemaFailure()?.let { return it }
 		if (!AmbientStepsFactIntegrity.hasValidEffectChecksum(fact)) {
 			return StepsCountDomainWriteResult.IDENTITY_CONFLICT
 		}
@@ -430,10 +436,15 @@ class StepsCountDomainStore(
 			StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
 			ownerIdentity,
 		)
-		if (latestOwner?.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN &&
-			(latestOwner.ownerRevision != fact.semanticRevision || counterDomainToken != null)
-		) {
-			return StepsCountDomainWriteResult.UNPROVEN
+		if (latestOwner?.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN) {
+			return appendTerminalUnproven(
+				ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
+				scopeIdentity = scopeIdentity,
+				ownerIdentity = ownerIdentity,
+				ownerRevision = fact.semanticRevision,
+				ownerEffectChecksum = fact.effectChecksum,
+				linkedAtMs = fact.appliedAtMs,
+			)
 		}
 		if (counterDomainToken == null) {
 			return appendTerminalUnproven(
@@ -491,7 +502,7 @@ class StepsCountDomainStore(
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,
 		)
-		if (!hasSchema()) return StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE
+		writeSchemaFailure()?.let { return it }
 		if (retraction.operation != StepFactRevisionEntity.OPERATION_RETRACT ||
 			!StepFactRevisionIntegrity.hasValidLocalDeleteEffectChecksum(
 				retraction,
@@ -525,7 +536,7 @@ class StepsCountDomainStore(
 	suspend fun recordAmbientFactRetraction(
 		retraction: AmbientStepsFactRevisionEntity,
 	): StepsCountDomainWriteResult {
-		if (!hasSchema()) return StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE
+		writeSchemaFailure()?.let { return it }
 		if (retraction.operation != AmbientStepsFactRevisionEntity.OPERATION_RETRACT ||
 			!AmbientStepsFactIntegrity.hasValidEffectChecksum(retraction)
 		) {
@@ -562,8 +573,12 @@ class StepsCountDomainStore(
 			return StepsCountDomainOwnerRead.Overflow
 		}
 		val sqlite = database.openHelper.readableDatabase
-		if (!sqlite.hasStepsCountDomainSchema()) {
-			return StepsCountDomainOwnerRead.SchemaUnavailable
+		when (StepsCountDomainSchema.inspect(sqlite)) {
+			StepsCountDomainSchemaState.Absent ->
+				return StepsCountDomainOwnerRead.SchemaUnavailable
+			StepsCountDomainSchemaState.Incompatible ->
+				return StepsCountDomainOwnerRead.Unverifiable
+			StepsCountDomainSchemaState.ValidV2 -> Unit
 		}
 		return try {
 			val owners = mutableListOf<StepsCountDomainOwnerRevisionEntity>()
@@ -655,8 +670,12 @@ class StepsCountDomainStore(
 			return StepsCountDomainMaintenanceResult.Overflow
 		}
 		val sqlite = database.openHelper.writableDatabase
-		if (!sqlite.hasStepsCountDomainSchema()) {
-			return StepsCountDomainMaintenanceResult.SchemaUnavailable
+		when (StepsCountDomainSchema.inspect(sqlite)) {
+			StepsCountDomainSchemaState.Absent ->
+				return StepsCountDomainMaintenanceResult.SchemaUnavailable
+			StepsCountDomainSchemaState.Incompatible ->
+				return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+			StepsCountDomainSchemaState.ValidV2 -> Unit
 		}
 		if (distinct.isEmpty()) return StepsCountDomainMaintenanceResult.Applied(0L, 0L)
 		val owners = distinct.chunked(OWNER_QUERY_CHUNK).flatMap(sqlite::queryOwnerChunk)
@@ -677,8 +696,12 @@ class StepsCountDomainStore(
 		mode: StepsCountDomainFullClearMode,
 	): StepsCountDomainMaintenanceResult {
 		val sqlite = database.openHelper.writableDatabase
-		if (!sqlite.hasStepsCountDomainSchema()) {
-			return StepsCountDomainMaintenanceResult.SchemaUnavailable
+		when (StepsCountDomainSchema.inspect(sqlite)) {
+			StepsCountDomainSchemaState.Absent ->
+				return StepsCountDomainMaintenanceResult.SchemaUnavailable
+			StepsCountDomainSchemaState.Incompatible ->
+				return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+			StepsCountDomainSchemaState.ValidV2 -> Unit
 		}
 		val ownerCount = sqlite.longForQuery(
 			if (mode == StepsCountDomainFullClearMode.REMOVE_ALL) {
@@ -710,8 +733,12 @@ class StepsCountDomainStore(
 		require(maximumRetainedTerminalOwners >= 0)
 		require(batchSize in 1..MAX_MAINTENANCE_OWNER_BATCH)
 		val sqlite = database.openHelper.writableDatabase
-		if (!sqlite.hasStepsCountDomainSchema()) {
-			return StepsCountDomainMaintenanceResult.SchemaUnavailable
+		when (StepsCountDomainSchema.inspect(sqlite)) {
+			StepsCountDomainSchemaState.Absent ->
+				return StepsCountDomainMaintenanceResult.SchemaUnavailable
+			StepsCountDomainSchemaState.Incompatible ->
+				return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+			StepsCountDomainSchemaState.ValidV2 -> Unit
 		}
 		val candidates = sqlite.queryTerminalCompactionCandidates(
 			maximumRetainedTerminalOwners,
@@ -731,8 +758,12 @@ class StepsCountDomainStore(
 			return StepsCountDomainMaintenanceResult.Overflow
 		}
 		val sqlite = database.openHelper.writableDatabase
-		if (!sqlite.hasStepsCountDomainSchema()) {
-			return StepsCountDomainMaintenanceResult.SchemaUnavailable
+		when (StepsCountDomainSchema.inspect(sqlite)) {
+			StepsCountDomainSchemaState.Absent ->
+				return StepsCountDomainMaintenanceResult.SchemaUnavailable
+			StepsCountDomainSchemaState.Incompatible ->
+				return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
+			StepsCountDomainSchemaState.ValidV2 -> Unit
 		}
 		val keys = sqlite.querySessionWalPruneOwners(
 			safeOrdinal,
@@ -749,6 +780,8 @@ class StepsCountDomainStore(
 				}
 				StepsCountDomainMaintenanceResult.SchemaUnavailable ->
 					return StepsCountDomainMaintenanceResult.SchemaUnavailable
+				StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable ->
+					return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
 				StepsCountDomainMaintenanceResult.Overflow ->
 					return StepsCountDomainMaintenanceResult.Overflow
 			}
@@ -812,9 +845,7 @@ class StepsCountDomainStore(
 		completenessMarker: StepsCountDomainCompletenessMarkerEntity? = null,
 	): StepsCountDomainWriteResult {
 		val sqlite = database.openHelper.writableDatabase
-		if (!sqlite.hasStepsCountDomainSchema()) {
-			return StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE
-		}
+		writeSchemaFailure()?.let { return it }
 		val latest = sqlite.queryLatestOwner(owner.ownerKind, owner.ownerIdentity)
 		if (receipt != null && receipt.effectChecksum != owner.ownerEffectChecksum) {
 			return StepsCountDomainWriteResult.IDENTITY_CONFLICT
@@ -845,7 +876,11 @@ class StepsCountDomainStore(
 		}
 		if (latest?.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN &&
 			exact != latest &&
-			owner.operation != StepsCountDomainOwnerRevisionEntity.OPERATION_RETRACT
+			owner.operation != StepsCountDomainOwnerRevisionEntity.OPERATION_RETRACT &&
+			!(
+				owner.ownerKind == StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT &&
+					owner.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN
+				)
 		) {
 			return StepsCountDomainWriteResult.TERMINAL_OWNER
 		}
@@ -925,7 +960,9 @@ class StepsCountDomainStore(
 		key: StepsCountDomainOwnerLookupKey,
 	): StepsCountDomainStoredOwner? {
 		val sqlite = database.openHelper.writableDatabase
-		if (!sqlite.hasStepsCountDomainSchema()) return null
+		if (StepsCountDomainSchema.inspect(sqlite) != StepsCountDomainSchemaState.ValidV2) {
+			return null
+		}
 		val owner = sqlite.queryOwner(
 			key.ownerKind,
 			key.ownerIdentity,
@@ -944,8 +981,13 @@ class StepsCountDomainStore(
 		)
 	}
 
-	private fun hasSchema(): Boolean =
-		database.openHelper.writableDatabase.hasStepsCountDomainSchema()
+	private fun writeSchemaFailure(): StepsCountDomainWriteResult? =
+		when (StepsCountDomainSchema.inspect(database.openHelper.writableDatabase)) {
+			StepsCountDomainSchemaState.Absent -> StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE
+			StepsCountDomainSchemaState.ValidV2 -> null
+			StepsCountDomainSchemaState.Incompatible ->
+				StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE
+		}
 
 	@Suppress("LongParameterList")
 	private fun nativeReceipt(
@@ -1144,13 +1186,24 @@ class StepsCountDomainStore(
 }
 
 /**
- * Serialized AppDatabase hook: call inside the existing collected-data clear transaction after
- * source payload fences are installed and before the database transaction commits.
+ * Transaction-owned serialized AppDatabase hook. The caller must already be inside the existing
+ * collected-data clear transaction, after source payload fences are installed and before commit.
  */
+fun clearStepsCountDomainEvidenceInCurrentTransaction(
+	database: AppDatabase,
+	mode: StepsCountDomainFullClearMode,
+): StepsCountDomainMaintenanceResult {
+	check(database.inTransaction()) {
+		"Steps count-domain clear requires the caller's existing AppDatabase transaction"
+	}
+	return StepsCountDomainStore(database).clear(mode)
+}
+
+/** Standalone wrapper for callers that do not already own a Room transaction. */
 suspend fun AppDatabase.clearStepsCountDomainEvidenceInTransaction(
 	mode: StepsCountDomainFullClearMode,
 ): StepsCountDomainMaintenanceResult = withTransaction {
-	StepsCountDomainStore(this).clear(mode)
+	clearStepsCountDomainEvidenceInCurrentTransaction(this, mode)
 }
 
 fun SourceSessionCompletenessEntity.withMonotonicStepsCountDomainRevision(
@@ -1267,39 +1320,6 @@ private fun StepsCountDomainReceiptEntity.hasSameImmutableDomain(
 ): Boolean = domainIdentity == other.domainIdentity &&
 	collectedDataEpoch == other.collectedDataEpoch &&
 	countDomainVersion == other.countDomainVersion
-
-private fun SupportSQLiteDatabase.hasStepsCountDomainSchema(): Boolean {
-	val tableCount = query(
-		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?, ?)",
-		arrayOf(
-			StepsCountDomainSchema.RECEIPT_TABLE,
-			StepsCountDomainSchema.OWNER_TABLE,
-			StepsCountDomainSchema.COMPLETENESS_MARKER_TABLE,
-			StepsCountDomainSchema.SCHEMA_MARKER_TABLE,
-		),
-	).use { cursor -> cursor.moveToFirst() && cursor.getInt(0) == 4 }
-	if (!tableCount) return false
-	val triggerCount = query(
-		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name IN (?, ?, ?)",
-		arrayOf(
-			StepsCountDomainSchema.AMBIENT_NO_RESURRECTION_TRIGGER,
-			StepsCountDomainSchema.AMBIENT_RETRACTION_TRIGGER,
-			StepsCountDomainSchema.TERMINAL_OWNER_TRIGGER,
-		),
-	).use { cursor -> cursor.moveToFirst() && cursor.getInt(0) == 3 }
-	if (!triggerCount) return false
-	return query(
-		"SELECT contract_version, token_semantics, terminal_unproven " +
-			"FROM steps_count_domain_schema_marker WHERE id = 1 LIMIT 1",
-	).use { cursor ->
-		cursor.moveToFirst() &&
-			cursor.getInt(0) ==
-			StepsCountDomainSchemaMarkerEntity.REQUIRED_CONTRACT_VERSION &&
-			cursor.getString(1) ==
-			StepsCountDomainSchemaMarkerEntity.REQUIRED_TOKEN_SEMANTICS &&
-			cursor.getInt(2) == 1
-	}
-}
 
 private fun SupportSQLiteDatabase.queryOwner(
 	ownerKind: String,

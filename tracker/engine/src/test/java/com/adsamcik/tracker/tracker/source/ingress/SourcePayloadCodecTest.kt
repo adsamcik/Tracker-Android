@@ -257,6 +257,52 @@ class SourcePayloadCodecTest {
 	}
 
 	@Test
+	fun `version seven persists checked generation and allows only tokenless reset boundaries`() {
+		val token = StepsCounterDomainToken.opaque("sha256:${"b".repeat(64)}")
+		val covered = StepCounterWindowPayload(
+			bootClockDomainId = "boot-v7",
+			firstCumulativeCount = 3L,
+			lastCumulativeCount = 8L,
+			deltaCount = 5L,
+			windowStartElapsedRealtimeNanos = 20L,
+			windowEndElapsedRealtimeNanos = 30L,
+			firstProviderSequence = 2L,
+			lastProviderSequence = 3L,
+			boundaryKind = StepBoundaryKind.COVERED,
+			counterDomainToken = token,
+			counterEpochGeneration = 2L,
+		)
+		val reset = covered.copy(
+			firstCumulativeCount = 8L,
+			lastCumulativeCount = 1L,
+			deltaCount = 0L,
+			boundaryKind = StepBoundaryKind.COUNTER_RESET,
+			counterDomainToken = null,
+			counterEpochGeneration = 3L,
+		)
+
+		codec.decode(
+			covered.source,
+			STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION,
+			codec.encode(covered, STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION).bytes,
+		) shouldBe covered
+		codec.decode(
+			reset.source,
+			STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION,
+			codec.encode(reset, STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION).bytes,
+		) shouldBe reset
+		shouldThrow<IllegalArgumentException> {
+			codec.encode(
+				covered.copy(counterEpochGeneration = null),
+				STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION,
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			reset.copy(counterDomainToken = token)
+		}
+	}
+
+	@Test
 	fun `version four qualified Pressure bytes are frozen and decode independently`() {
 		val payload = qualifiedPressure()
 

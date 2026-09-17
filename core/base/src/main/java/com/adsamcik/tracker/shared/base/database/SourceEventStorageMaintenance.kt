@@ -104,8 +104,11 @@ suspend fun AppDatabase.pruneSourceEventStorageBefore(
 									safeOrdinal = sourceSafeOrdinal,
 									createdBeforeMs = createdBeforeMs,
 									limit = remainingWalLimit,
-								) !is StepsCountDomainMaintenanceResult.Overflow,
-							) { "Steps WAL count-domain prune batch exceeded its bound" }
+								).let { result ->
+									result is StepsCountDomainMaintenanceResult.Applied ||
+										result == StepsCountDomainMaintenanceResult.SchemaUnavailable
+								},
+							) { "Steps WAL count-domain evidence could not be pruned" }
 						}
 						val sourceWal = walDao.deleteProjectedSourceBatch(
 							sourceKind = sourceKind,

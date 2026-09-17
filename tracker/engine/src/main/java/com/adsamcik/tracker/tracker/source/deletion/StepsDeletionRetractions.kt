@@ -55,6 +55,7 @@ internal suspend fun AppDatabase.insertStepsDeletionRetractionOrVerify(
 		StepsCountDomainWriteResult.EXACT_REPLAY,
 		-> Unit
 		StepsCountDomainWriteResult.NOT_APPLICABLE,
+		StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE,
 		StepsCountDomainWriteResult.IDENTITY_CONFLICT,
 		StepsCountDomainWriteResult.REVISION_GAP,
 		StepsCountDomainWriteResult.TERMINAL_OWNER,
@@ -72,27 +73,29 @@ internal suspend fun AppDatabase.insertStepsDeletionRetractionOrVerify(
 		StepsCountDomainWriteResult.NOT_APPLICABLE,
 		-> {
 			if (retractionResult != StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE) {
-				check(
-					store.removeOwners(
-						listOf(
-							StepsCountDomainOwnerLookupKey(
-									ownerKind =
-										StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
-									ownerIdentity =
-										StepsCountDomainReceiptIntegrity.sessionFactOwnerIdentity(
-											fact.writerProjectionId,
-											fact.writerProjectionVersion,
-											fact.logicalFactId,
-										),
-									ownerRevision = fact.semanticRevision,
+				val removal = store.removeOwners(
+					listOf(
+						StepsCountDomainOwnerLookupKey(
+							ownerKind =
+								StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_FACT,
+							ownerIdentity =
+								StepsCountDomainReceiptIntegrity.sessionFactOwnerIdentity(
+									fact.writerProjectionId,
+									fact.writerProjectionVersion,
+									fact.logicalFactId,
 								),
+							ownerRevision = fact.semanticRevision,
 						),
-					) !is StepsCountDomainMaintenanceResult.Overflow,
-				) { "Steps deletion count-domain owner batch exceeded its bound" }
+					),
+				)
+				check(
+					removal is StepsCountDomainMaintenanceResult.Applied,
+				) { "Steps deletion count-domain evidence could not be removed" }
 			}
 			true
 		}
 		StepsCountDomainWriteResult.UNPROVEN,
+		StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE,
 		StepsCountDomainWriteResult.IDENTITY_CONFLICT,
 		StepsCountDomainWriteResult.REVISION_GAP,
 		StepsCountDomainWriteResult.TERMINAL_OWNER,

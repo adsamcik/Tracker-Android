@@ -134,9 +134,10 @@ class AmbientStepsFactImporterTest {
 
 	@Test
 	fun `applies one bounded structural window from rounded privacy floor atomically`() = runTest {
-		StepsCountDomainSchema.createStatements.forEach {
-			database.openHelper.writableDatabase.execSQL(it)
-		}
+		check(
+			StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) ==
+				com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState.ValidV2,
+		)
 		val counterDomainToken =
 			StepsCounterDomainToken.opaque("sha256:${"a".repeat(64)}")
 		val reader = RecordingAmbientReader { window, observedAtMs ->
@@ -200,11 +201,12 @@ class AmbientStepsFactImporterTest {
 	}
 
 	@Test
-	fun `provider aggregate without authenticated counter epoch remains terminal unproven`() =
+	fun `provider aggregate without authenticated counter epoch remains unproven`() =
 		runTest {
-			StepsCountDomainSchema.createStatements.forEach {
-				database.openHelper.writableDatabase.execSQL(it)
-			}
+			check(
+				StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) ==
+					com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState.ValidV2,
+			)
 			val reader = RecordingAmbientReader { window, observedAtMs ->
 				AmbientStepsProviderAggregate(PROVIDER, window, 42L, observedAtMs)
 			}
@@ -460,7 +462,11 @@ class AmbientStepsFactImporterTest {
 	}
 
 	@Test
-	fun `progressive read revises one stable structural fact instead of fragmenting windows`() = runTest {
+	fun `tokenless progressive corrections append effect-authenticated unproven owners`() = runTest {
+		check(
+			StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) ==
+				com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState.ValidV2,
+		)
 		val reader = RecordingAmbientReader { window, observedAtMs ->
 			val count = if (window.endTimeMs == 5_000L) 10L else 15L
 			AmbientStepsProviderAggregate(PROVIDER, window, count, observedAtMs)
@@ -480,14 +486,37 @@ class AmbientStepsFactImporterTest {
 		)
 		second.logicalFactId shouldBe first.logicalFactId
 		second.semanticRevision shouldBe 2L
-		database.ambientStepsFactRevisionDao().revisions(
+		val revisions = database.ambientStepsFactRevisionDao().revisions(
 			AmbientStepsFactRevisionEntity.WRITER_ID,
 			AmbientStepsFactRevisionEntity.WRITER_VERSION,
 			first.logicalFactId,
-		).map { it.windowEndTimeMs to it.stepCount } shouldBe listOf(
+		)
+		revisions.map { it.windowEndTimeMs to it.stepCount } shouldBe listOf(
 			5_000L to 10L,
 			7_000L to 15L,
 		)
+		val ownerIdentity = StepsCountDomainReceiptIntegrity.ambientFactOwnerIdentity(
+			AmbientStepsFactRevisionEntity.WRITER_ID,
+			AmbientStepsFactRevisionEntity.WRITER_VERSION,
+			first.logicalFactId,
+		)
+		val read = StepsCountDomainStore(database).readOwners(
+			revisions.map { fact ->
+				StepsCountDomainOwnerLookupKey(
+					StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
+					ownerIdentity,
+					fact.semanticRevision,
+				)
+			},
+		) as StepsCountDomainOwnerRead.Ready
+
+		read.owners.values.map { it.owner.operation } shouldBe listOf(
+			StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN,
+			StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN,
+		)
+		read.owners.values.map { it.owner.ownerEffectChecksum } shouldBe
+			revisions.map { it.effectChecksum }
+		read.latestRevisions.values.single() shouldBe 2L
 	}
 
 	@Test

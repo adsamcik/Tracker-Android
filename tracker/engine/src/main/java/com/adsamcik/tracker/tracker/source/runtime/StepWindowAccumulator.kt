@@ -15,7 +15,12 @@ internal data class StepBaseline(
 	val boundary: StepBaselineBoundary? = null,
 	val authorizationBoundary: StepAuthorizationBoundary? = null,
 	val counterDomainToken: StepsCounterDomainToken? = null,
-)
+	val counterEpochGeneration: Long = INITIAL_COUNTER_EPOCH_GENERATION,
+) {
+	init {
+		require(counterEpochGeneration > 0L)
+	}
+}
 
 internal data class StepBaselineBoundary(
 	val registrationGeneration: Long,
@@ -45,11 +50,22 @@ internal data class StepWindowPreview(
 	internal val nextBaseline: StepBaseline,
 )
 
+internal class StepCounterEpochGenerationOverflowException :
+	IllegalStateException("Steps counter epoch generation exhausted")
+
 internal class StepWindowAccumulator(
 	initialBaseline: StepBaseline?,
 	private val boundary: StepBaselineBoundary? = initialBaseline?.boundary,
+	initialCounterEpochGeneration: Long =
+		initialBaseline?.counterEpochGeneration ?: INITIAL_COUNTER_EPOCH_GENERATION,
 ) {
 	private var baseline = initialBaseline?.takeIf { it.boundary == boundary }
+	private var counterEpochGeneration =
+		baseline?.counterEpochGeneration ?: initialCounterEpochGeneration
+
+	init {
+		require(initialCounterEpochGeneration > 0L)
+	}
 
 	/** Builds a candidate window without advancing the continuing or checkpointed baseline. */
 	fun preview(
@@ -60,6 +76,7 @@ internal class StepWindowAccumulator(
 		receivedElapsedRealtimeNanos: Long = Long.MAX_VALUE,
 		authorizationBoundary: StepAuthorizationBoundary? = null,
 		counterDomainToken: StepsCounterDomainToken? = null,
+		successorCounterDomainToken: () -> StepsCounterDomainToken? = { counterDomainToken },
 	): StepWindowPreview? {
 		require(cumulativeCount >= 0L)
 		val previous = baseline
@@ -73,7 +90,8 @@ internal class StepWindowAccumulator(
 		) || previous?.providerSequence?.let { providerSequence <= it } == true) return null
 		val authorizedPrevious = previous?.takeIf {
 			it.authorizationBoundary == authorizationBoundary &&
-				it.counterDomainToken == counterDomainToken
+				it.counterDomainToken == counterDomainToken &&
+				it.counterEpochGeneration == counterEpochGeneration
 		}
 		val boundaryKind = when {
 			authorizedPrevious == null -> StepBoundaryKind.BASELINE
@@ -87,6 +105,21 @@ internal class StepWindowAccumulator(
 			// interval between cumulative domains, so the new absolute value is also not steps
 			// observed by this app (for example 10_000 -> 3 must not become +3).
 			0L
+		}
+		val nextCounterEpochGeneration = if (boundaryKind == StepBoundaryKind.COUNTER_RESET) {
+			if (counterEpochGeneration == Long.MAX_VALUE) {
+				throw StepCounterEpochGenerationOverflowException()
+			}
+			counterEpochGeneration + 1L
+		} else {
+			counterEpochGeneration
+		}
+		val payloadCounterDomainToken =
+			counterDomainToken.takeUnless { boundaryKind == StepBoundaryKind.COUNTER_RESET }
+		val nextCounterDomainToken = if (boundaryKind == StepBoundaryKind.COUNTER_RESET) {
+			successorCounterDomainToken()
+		} else {
+			counterDomainToken
 		}
 		// A reset contributes no steps, but its canonical gap still spans the last value from the
 		// discarded counter domain through the first value in the new domain. Keeping that boundary
@@ -103,7 +136,8 @@ internal class StepWindowAccumulator(
 			firstProviderSequence = payloadBaseline?.providerSequence ?: providerSequence,
 			lastProviderSequence = providerSequence,
 			boundaryKind = boundaryKind,
-			counterDomainToken = counterDomainToken,
+			counterDomainToken = payloadCounterDomainToken,
+			counterEpochGeneration = nextCounterEpochGeneration,
 		)
 		return StepWindowPreview(
 			payload = payload,
@@ -114,7 +148,8 @@ internal class StepWindowAccumulator(
 				providerSequence,
 				boundary,
 				authorizationBoundary,
-				counterDomainToken,
+				nextCounterDomainToken,
+				nextCounterEpochGeneration,
 			),
 		)
 	}
@@ -123,6 +158,7 @@ internal class StepWindowAccumulator(
 	fun commit(preview: StepWindowPreview): Boolean {
 		if (baseline != preview.expectedBaseline) return false
 		baseline = preview.nextBaseline
+		counterEpochGeneration = preview.nextBaseline.counterEpochGeneration
 		return true
 	}
 
@@ -135,6 +171,7 @@ internal class StepWindowAccumulator(
 		receivedElapsedRealtimeNanos: Long = Long.MAX_VALUE,
 		authorizationBoundary: StepAuthorizationBoundary? = null,
 		counterDomainToken: StepsCounterDomainToken? = null,
+		successorCounterDomainToken: () -> StepsCounterDomainToken? = { counterDomainToken },
 	): StepCounterWindowPayload? {
 		val preview = preview(
 			bootClockDomainId,
@@ -144,12 +181,15 @@ internal class StepWindowAccumulator(
 			receivedElapsedRealtimeNanos,
 			authorizationBoundary,
 			counterDomainToken,
+			successorCounterDomainToken,
 		) ?: return null
 		check(commit(preview))
 		return preview.payload
 	}
 
 	fun snapshot(): StepBaseline? = baseline
+
+	fun counterEpochGeneration(): Long = counterEpochGeneration
 }
 
 internal fun isFreshStepSampleTimestamp(
@@ -170,6 +210,7 @@ internal fun StepBaseline.encode(): ByteArray = ByteArrayOutputStream().use { by
 			output.writeLong(authorization.purposeEligibilityMask)
 			output.writeLong(authorization.effectiveElapsedRealtimeNanos)
 		}
+		output.writeLong(counterEpochGeneration)
 		output.writeBoolean(counterDomainToken != null)
 		counterDomainToken?.let { output.writeUTF(it.encoded) }
 		output.writeLong(cumulativeCount)
@@ -205,8 +246,13 @@ internal fun decodeStepBaseline(
 		} else {
 			null
 		}
+		val counterEpochGeneration = if (version >= STEP_BASELINE_VERSION) {
+			input.readLong().also { require(it > 0L) }
+		} else {
+			INITIAL_COUNTER_EPOCH_GENERATION
+		}
 		val counterDomainToken = if (
-			version >= STEP_BASELINE_VERSION && input.readBoolean()
+			version >= STEP_COUNTER_DOMAIN_BASELINE_VERSION && input.readBoolean()
 		) {
 			StepsCounterDomainToken.opaque(input.readUTF())
 		} else {
@@ -219,10 +265,13 @@ internal fun decodeStepBaseline(
 			boundary,
 			authorizationBoundary,
 			counterDomainToken,
+			counterEpochGeneration,
 		).also { require(input.available() == 0) }
 	}
 }.getOrNull()
 
-internal const val STEP_BASELINE_VERSION = 6
+internal const val STEP_BASELINE_VERSION = 7
+private const val STEP_COUNTER_DOMAIN_BASELINE_VERSION = 6
 private const val LEGACY_STEP_BASELINE_VERSION = 5
 private const val NO_REGISTRATION_GENERATION = 0L
+internal const val INITIAL_COUNTER_EPOCH_GENERATION = 1L

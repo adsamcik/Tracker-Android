@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -27,7 +28,6 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
-		installSchema()
 	}
 
 	@After
@@ -35,6 +35,11 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 
 	@Test
 	fun `DDL is idempotent and installs exact sentinel indexes foreign keys and triggers`() {
+		StepsCountDomainSchema.inspect(database.openHelper.writableDatabase) shouldBe
+			StepsCountDomainSchemaState.Absent
+		installSchema()
+		StepsCountDomainSchema.inspect(database.openHelper.writableDatabase) shouldBe
+			StepsCountDomainSchemaState.ValidV2
 		installSchema()
 		val sqlite = database.openHelper.writableDatabase
 
@@ -85,6 +90,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 
 	@Test
 	fun `full clear deletes owners before receipts or preserves only terminal evidence`() = runTest {
+		installSchema()
 		val store = StepsCountDomainStore(database)
 		val bound = insertWal("bound", 1L, payloadVersion = 6)
 		store.recordSessionWal(bound, token('a')) shouldBe StepsCountDomainWriteResult.INSERTED
@@ -95,24 +101,37 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		shouldThrow<Exception> {
 			sqlite.execSQL("DELETE FROM steps_count_domain_receipt")
 		}
-		database.clearStepsCountDomainEvidenceInTransaction(
-			StepsCountDomainFullClearMode.PRESERVE_TERMINAL,
-		) shouldBe StepsCountDomainMaintenanceResult.Applied(1, 1)
+		shouldThrow<IllegalStateException> {
+			clearStepsCountDomainEvidenceInCurrentTransaction(
+				database,
+				StepsCountDomainFullClearMode.PRESERVE_TERMINAL,
+			)
+		}
+		database.withTransaction {
+			clearStepsCountDomainEvidenceInCurrentTransaction(
+				database,
+				StepsCountDomainFullClearMode.PRESERVE_TERMINAL,
+			)
+		} shouldBe StepsCountDomainMaintenanceResult.Applied(1, 1)
 		sqlite.count("SELECT COUNT(*) FROM steps_count_domain_receipt") shouldBe 0L
 		sqlite.count(
 			"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
 				"WHERE operation = 'UNPROVEN'",
 		) shouldBe 1L
 
-		database.clearStepsCountDomainEvidenceInTransaction(
-			StepsCountDomainFullClearMode.REMOVE_ALL,
-		) shouldBe StepsCountDomainMaintenanceResult.Applied(1, 0)
+		database.withTransaction {
+			clearStepsCountDomainEvidenceInCurrentTransaction(
+				database,
+				StepsCountDomainFullClearMode.REMOVE_ALL,
+			)
+		} shouldBe StepsCountDomainMaintenanceResult.Applied(1, 0)
 		sqlite.count("SELECT COUNT(*) FROM steps_count_domain_owner_revision") shouldBe 0L
 		sqlite.count("SELECT COUNT(*) FROM steps_count_domain_schema_marker") shouldBe 1L
 	}
 
 	@Test
 	fun `terminal compaction is bounded and removes oldest opaque owners`() = runTest {
+		installSchema()
 		val store = StepsCountDomainStore(database)
 		repeat(3) { index ->
 			store.recordSessionWal(insertWal("terminal-$index", index.toLong() + 1L), null) shouldBe
@@ -133,6 +152,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	@Test
 	fun `bounded WAL retention removes exact owners and orphan receipts before payload rows`() =
 		runTest {
+			installSchema()
 			val store = StepsCountDomainStore(database)
 			val first = insertWal("wal-retention-bound", 1L, payloadVersion = 6)
 			val second = insertWal("wal-retention-unproven", 2L)
@@ -155,21 +175,50 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		}
 
 	@Test
-	fun `corrupt schema sentinel cannot be repaired by idempotent DDL or activate writers`() =
+	fun `corrupt schema sentinel is incompatible and cannot be repaired or activate writers`() =
 		runTest {
+			installSchema()
 			database.openHelper.writableDatabase.execSQL(
 				"UPDATE steps_count_domain_schema_marker SET contract_version = 1 WHERE id = 1",
 			)
-			installSchema()
+			StepsCountDomainSchema.inspect(database.openHelper.writableDatabase) shouldBe
+				StepsCountDomainSchemaState.Incompatible
+			StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
+				StepsCountDomainSchemaState.Incompatible
+			database.openHelper.writableDatabase.count(
+				"SELECT COUNT(*) FROM steps_count_domain_schema_marker " +
+					"WHERE id = 1 AND contract_version = 1",
+			) shouldBe 1L
 
 			StepsCountDomainStore(database).recordSessionWal(
 				insertWal("sentinel-corrupt", 1L, payloadVersion = 6),
 				token('a'),
-			) shouldBe StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE
+			) shouldBe StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE
 		}
 
 	@Test
+	fun `v2 marker cannot activate a stale or incomplete development schema`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL(
+			"DROP TRIGGER ${StepsCountDomainSchema.TERMINAL_OWNER_TRIGGER}",
+		)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+		StepsCountDomainSchema.installIfAbsent(sqlite) shouldBe
+			StepsCountDomainSchemaState.Incompatible
+		sqlite.count(
+			"SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name = ?",
+			arrayOf(StepsCountDomainSchema.TERMINAL_OWNER_TRIGGER),
+		) shouldBe 0L
+		sqlite.count(
+			"SELECT COUNT(*) FROM steps_count_domain_schema_marker WHERE id = 1",
+		) shouldBe 1L
+	}
+
+	@Test
 	fun `terminal owner trigger rejects direct bind after unproven evidence`() = runTest {
+		installSchema()
 		val wal = insertWal("terminal-trigger", 1L)
 		StepsCountDomainStore(database).recordSessionWal(wal, null) shouldBe
 			StepsCountDomainWriteResult.INSERTED
@@ -192,10 +241,179 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		}
 	}
 
-	private fun installSchema() {
-		StepsCountDomainSchema.createStatements.forEach {
-			database.openHelper.writableDatabase.execSQL(it)
+	@Test
+	fun `terminal trigger permits contiguous Ambient unproven corrections but no upgrade`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		val identity = "sha256:${"7".repeat(64)}"
+		val scope = "sha256:${"8".repeat(64)}"
+		sqlite.execSQL(
+			"INSERT INTO steps_count_domain_owner_revision VALUES " +
+				"('AMBIENT_FACT', ?, ?, 1, 'UNPROVEN', NULL, ?, 1)",
+			arrayOf(scope, identity, "a".repeat(64)),
+		)
+		sqlite.execSQL(
+			"INSERT INTO steps_count_domain_owner_revision VALUES " +
+				"('AMBIENT_FACT', ?, ?, 2, 'UNPROVEN', NULL, ?, 2)",
+			arrayOf(scope, identity, "b".repeat(64)),
+		)
+		sqlite.execSQL(
+			"INSERT OR IGNORE INTO steps_count_domain_owner_revision VALUES " +
+				"('AMBIENT_FACT', ?, ?, 2, 'UNPROVEN', NULL, ?, 2)",
+			arrayOf(scope, identity, "b".repeat(64)),
+		)
+
+		shouldThrow<Exception> {
+			sqlite.execSQL(
+				"INSERT INTO steps_count_domain_owner_revision VALUES " +
+					"('AMBIENT_FACT', ?, ?, 3, 'BIND', NULL, ?, 3)",
+				arrayOf(scope, identity, "c".repeat(64)),
+			)
 		}
+		shouldThrow<Exception> {
+			sqlite.execSQL(
+				"INSERT INTO steps_count_domain_owner_revision VALUES " +
+					"('AMBIENT_FACT', ?, ?, 4, 'UNPROVEN', NULL, ?, 4)",
+				arrayOf(scope, identity, "d".repeat(64)),
+			)
+		}
+		sqlite.count(
+			"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
+				"WHERE owner_kind = 'AMBIENT_FACT' AND operation = 'UNPROVEN'",
+		) shouldBe 2L
+	}
+
+	@Test
+	fun `markerless e500 schema is incompatible and never receives v2 DDL or marker`() = runTest {
+		installE500SchemaFixture()
+		val sqlite = database.openHelper.writableDatabase
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+		StepsCountDomainSchema.installIfAbsent(sqlite) shouldBe
+			StepsCountDomainSchemaState.Incompatible
+		sqlite.count(
+			"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' " +
+				"AND name = 'steps_count_domain_completeness_marker'",
+		) shouldBe 0L
+		sqlite.count(
+			"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' " +
+				"AND name = 'steps_count_domain_schema_marker'",
+		) shouldBe 0L
+		StepsCountDomainStore(database).recordSessionWal(
+			insertWal("legacy-e500", 1L, payloadVersion = 6),
+			token('a'),
+		) shouldBe StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE
+	}
+
+	private fun installSchema() {
+		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
+			StepsCountDomainSchemaState.ValidV2
+	}
+
+	private fun installE500SchemaFixture() {
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL(
+			"""
+			CREATE TABLE steps_count_domain_receipt (
+				receipt_identity TEXT NOT NULL PRIMARY KEY,
+				domain_identity TEXT NOT NULL,
+				provider_domain_identity TEXT NOT NULL,
+				source_instance_identity TEXT NOT NULL,
+				owner_kind TEXT NOT NULL,
+				scope_identity TEXT NOT NULL,
+				owner_identity TEXT NOT NULL,
+				owner_revision INTEGER NOT NULL,
+				registration_generation INTEGER NOT NULL,
+				collected_data_epoch INTEGER NOT NULL,
+				authority_revision INTEGER NOT NULL,
+				authority_fingerprint TEXT NOT NULL,
+				coverage_kind TEXT NOT NULL,
+				coverage_version INTEGER NOT NULL,
+				count_domain_version INTEGER NOT NULL,
+				effect_checksum TEXT NOT NULL
+			)
+			""".trimIndent(),
+		)
+		sqlite.execSQL(
+			"CREATE UNIQUE INDEX idx_steps_count_domain_receipt_owner " +
+				"ON steps_count_domain_receipt(owner_kind, owner_identity, owner_revision)",
+		)
+		sqlite.execSQL(
+			"CREATE INDEX idx_steps_count_domain_receipt_compatibility " +
+				"ON steps_count_domain_receipt(" +
+				"domain_identity, collected_data_epoch, count_domain_version)",
+		)
+		sqlite.execSQL(
+			"""
+			CREATE TABLE steps_count_domain_owner_revision (
+				owner_kind TEXT NOT NULL,
+				scope_identity TEXT NOT NULL,
+				owner_identity TEXT NOT NULL,
+				owner_revision INTEGER NOT NULL,
+				operation TEXT NOT NULL,
+				receipt_identity TEXT,
+				owner_effect_checksum TEXT NOT NULL,
+				linked_at_ms INTEGER NOT NULL,
+				PRIMARY KEY(owner_kind, owner_identity, owner_revision),
+				FOREIGN KEY(receipt_identity)
+					REFERENCES steps_count_domain_receipt(receipt_identity)
+					ON UPDATE NO ACTION ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
+			)
+			""".trimIndent(),
+		)
+		sqlite.execSQL(
+			"CREATE INDEX idx_steps_count_domain_owner_scope " +
+				"ON steps_count_domain_owner_revision(" +
+				"owner_kind, scope_identity, owner_identity, owner_revision)",
+		)
+		sqlite.execSQL(
+			"CREATE INDEX idx_steps_count_domain_owner_receipt " +
+				"ON steps_count_domain_owner_revision(receipt_identity)",
+		)
+		sqlite.execSQL(
+			"""
+			CREATE TRIGGER trg_steps_count_domain_ambient_no_resurrection
+			BEFORE INSERT ON ambient_steps_fact_revision
+			WHEN NEW.operation = 'UPSERT' AND EXISTS (
+				SELECT 1
+				FROM steps_count_domain_owner_revision AS owner
+				WHERE owner.owner_kind = 'AMBIENT_FACT'
+				  AND owner.owner_identity = NEW.logical_fact_id
+				  AND owner.operation = 'RETRACT'
+			)
+			BEGIN
+				SELECT RAISE(ABORT, 'Ambient Steps count-domain owner is terminally retracted');
+			END
+			""".trimIndent(),
+		)
+		sqlite.execSQL(
+			"""
+			CREATE TRIGGER trg_steps_count_domain_ambient_retraction
+			AFTER INSERT ON ambient_steps_fact_revision
+			WHEN NEW.operation = 'RETRACT'
+			BEGIN
+				INSERT OR ABORT INTO steps_count_domain_owner_revision (
+					owner_kind,
+					scope_identity,
+					owner_identity,
+					owner_revision,
+					operation,
+					receipt_identity,
+					owner_effect_checksum,
+					linked_at_ms
+				) VALUES (
+					'AMBIENT_FACT',
+					NEW.logical_fact_id,
+					NEW.logical_fact_id,
+					NEW.semantic_revision,
+					'RETRACT',
+					NULL,
+					NEW.effect_checksum,
+					NEW.applied_at_ms
+				);
+			END
+			""".trimIndent(),
+		)
 	}
 
 	private suspend fun insertWal(

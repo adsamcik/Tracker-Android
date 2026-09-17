@@ -134,7 +134,11 @@ interface StepsCountDomainReceiptDao {
 		}
 		if (latest?.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN &&
 			exact != latest &&
-			owner.operation != StepsCountDomainOwnerRevisionEntity.OPERATION_RETRACT
+			owner.operation != StepsCountDomainOwnerRevisionEntity.OPERATION_RETRACT &&
+			!(
+				owner.ownerKind == StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT &&
+					owner.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN
+				)
 		) {
 			return StepsCountDomainAppendResult.TERMINAL_OWNER
 		}

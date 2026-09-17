@@ -130,6 +130,49 @@ class StepsCountDomainReceiptDaoTest {
 		dao.receipt(receipt.receiptIdentity) shouldBe null
 	}
 
+	@Test
+	fun `Ambient unproven advances contiguously but never upgrades and retraction is terminal`() =
+		runTest {
+			val identity = opaque('7')
+			fun unproven(revision: Long, effect: Char) =
+				StepsCountDomainOwnerRevisionEntity(
+					ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
+					scopeIdentity = opaque('8'),
+					ownerIdentity = identity,
+					ownerRevision = revision,
+					operation = StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN,
+					receiptIdentity = null,
+					ownerEffectChecksum = effect.toString().repeat(64),
+					linkedAtMs = revision,
+				)
+			val first = unproven(1L, 'a')
+			val second = unproven(2L, 'b')
+			dao.append(null, first) shouldBe StepsCountDomainAppendResult.INSERTED
+			dao.append(null, second) shouldBe StepsCountDomainAppendResult.INSERTED
+			dao.append(null, second.copy(ownerEffectChecksum = "c".repeat(64))) shouldBe
+				StepsCountDomainAppendResult.IDENTITY_CONFLICT
+
+			val attemptedBinding = receipt(
+				3L,
+				'd',
+				identity,
+				StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
+				opaque('8'),
+			)
+			dao.append(
+				attemptedBinding,
+				owner(attemptedBinding),
+			) shouldBe StepsCountDomainAppendResult.TERMINAL_OWNER
+
+			val retraction = unproven(3L, 'e').copy(
+				operation = StepsCountDomainOwnerRevisionEntity.OPERATION_RETRACT,
+			)
+			dao.append(null, retraction) shouldBe StepsCountDomainAppendResult.INSERTED
+			dao.append(null, retraction) shouldBe StepsCountDomainAppendResult.EXACT_REPLAY
+			dao.append(null, unproven(4L, 'f')) shouldBe
+				StepsCountDomainAppendResult.TERMINAL_OWNER
+		}
+
 	private fun openDatabase(): CountDomainTestDatabase =
 		Room.databaseBuilder(context, CountDomainTestDatabase::class.java, DATABASE_NAME)
 			.allowMainThreadQueries()
@@ -139,15 +182,22 @@ class StepsCountDomainReceiptDaoTest {
 		revision: Long,
 		tokenDigit: Char,
 		ownerIdentity: String = OWNER_IDENTITY,
+		ownerKind: String = OWNER_KIND,
+		scopeIdentity: String = opaque('9'),
 	): StepsCountDomainReceiptEntity {
 		val domainIdentity = StepsCountDomainReceiptIntegrity.counterDomainIdentity(
 			StepsCounterDomainToken.opaque(opaque(tokenDigit)),
 		)
 		val effect = revision.toString().repeat(64).take(64)
-		val scopeIdentity = opaque('9')
+		val coverageKind =
+			if (ownerKind == StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT) {
+				StepsCountDomainReceiptEntity.COVERAGE_AMBIENT_AGGREGATE
+			} else {
+				StepsCountDomainReceiptEntity.COVERAGE_COVERED
+			}
 		val identity = StepsCountDomainReceiptIntegrity.receiptIdentity(
 			domainIdentity,
-			OWNER_KIND,
+			ownerKind,
 			scopeIdentity,
 			ownerIdentity,
 			revision,
@@ -155,7 +205,7 @@ class StepsCountDomainReceiptDaoTest {
 			7L,
 			revision,
 			"a".repeat(64),
-			StepsCountDomainReceiptEntity.COVERAGE_COVERED,
+			coverageKind,
 			1,
 			StepsCountDomainReceiptEntity.CURRENT_COUNT_DOMAIN_VERSION,
 			effect,
@@ -164,7 +214,7 @@ class StepsCountDomainReceiptDaoTest {
 		return StepsCountDomainReceiptEntity(
 			identity,
 			domainIdentity,
-			OWNER_KIND,
+			ownerKind,
 			scopeIdentity,
 			ownerIdentity,
 			revision,
@@ -172,7 +222,7 @@ class StepsCountDomainReceiptDaoTest {
 			7L,
 			revision,
 			"a".repeat(64),
-			StepsCountDomainReceiptEntity.COVERAGE_COVERED,
+			coverageKind,
 			1,
 			StepsCountDomainReceiptEntity.CURRENT_COUNT_DOMAIN_VERSION,
 			effect,
@@ -185,8 +235,8 @@ class StepsCountDomainReceiptDaoTest {
 		revision: Long = requireNotNull(receipt).ownerRevision,
 		operation: String = StepsCountDomainOwnerRevisionEntity.OPERATION_BIND,
 	) = StepsCountDomainOwnerRevisionEntity(
-		ownerKind = OWNER_KIND,
-		scopeIdentity = opaque('9'),
+		ownerKind = receipt?.ownerKind ?: OWNER_KIND,
+		scopeIdentity = receipt?.scopeIdentity ?: opaque('9'),
 		ownerIdentity = receipt?.ownerIdentity ?: OWNER_IDENTITY,
 		ownerRevision = revision,
 		operation = operation,

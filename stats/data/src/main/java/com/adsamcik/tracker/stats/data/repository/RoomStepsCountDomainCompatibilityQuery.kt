@@ -31,7 +31,8 @@ import kotlinx.coroutines.ensureActive
  * Bounded native receipt lookup.
  *
  * This reader never accepts time, count, zone, or source display names. The AppDatabase schema
- * owner may install the additive tables and sentinel later; until then every lookup is Unproven.
+ * owner may install the additive tables and sentinel later; a completely absent schema is
+ * Unproven, while partial, markerless, legacy, or corrupt storage is Unverifiable.
  */
 @Singleton
 internal class RoomStepsCountDomainCompatibilityQuery @Inject constructor(
@@ -84,6 +85,26 @@ internal class RoomStepsCountDomainCompatibilityQuery @Inject constructor(
 	}
 }
 
+internal suspend fun StepsCountDomainCompatibilityQuery.compareInProductionChunks(
+	requests: List<StepsCountDomainCompatibilityRequest>,
+): List<StepsCountDomainCompatibilityResult> {
+	if (requests.isEmpty()) return emptyList()
+	val results = ArrayList<StepsCountDomainCompatibilityResult>(requests.size)
+	var startIndex = 0
+	while (startIndex < requests.size) {
+		currentCoroutineContext().ensureActive()
+		val endIndex = minOf(startIndex + MAX_STEPS_COUNT_DOMAIN_REQUESTS, requests.size)
+		val chunk = requests.subList(startIndex, endIndex)
+		val chunkResults = compare(chunk)
+		check(chunkResults.size == chunk.size) {
+			"Steps count-domain query returned a result count that does not match its request count"
+		}
+		results.addAll(chunkResults)
+		startIndex = endIndex
+	}
+	return results
+}
+
 private data class IndexedRequest(
 	val index: Int,
 	val request: StepsCountDomainCompatibilityRequest,
@@ -128,6 +149,8 @@ internal fun resolveStepsCountDomainCompatibility(
 		return StepsCountDomainCompatibilityResult.Unproven
 	}
 	val references = request.sessionOwners + request.ambientOwners
+	// The current Ambient UNPROVEN revision is a valid unknown result; only superseded references
+	// are stale and therefore unverifiable.
 	if (references.any { reference -> read.isStale(reference) }) {
 		return StepsCountDomainCompatibilityResult.Unverifiable
 	}

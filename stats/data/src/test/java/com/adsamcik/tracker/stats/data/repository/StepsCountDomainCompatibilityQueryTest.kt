@@ -9,6 +9,8 @@ import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletene
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
 import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
+import com.adsamcik.tracker.stats.api.repository.MAX_STEPS_COUNT_DOMAIN_REQUESTS
+import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityQuery
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityRequest
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainCompatibilityResult
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerEffect
@@ -16,6 +18,11 @@ import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerIdentity
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerKind
 import com.adsamcik.tracker.stats.api.repository.StepsCountDomainOwnerReference
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.junit.jupiter.api.Test
 
 class StepsCountDomainCompatibilityQueryTest {
@@ -167,6 +174,85 @@ class StepsCountDomainCompatibilityQueryTest {
 		}
 		resolveStepsCountDomainCompatibility(baseRequest, staleRead) shouldBe
 			StepsCountDomainCompatibilityResult.Unverifiable
+	}
+
+	@Test
+	fun `production comparison chunks preserve request order and the query cap`() = runTest {
+		val batchSizes = mutableListOf<Int>()
+		val query = object : StepsCountDomainCompatibilityQuery {
+			override suspend fun compare(
+				requests: List<StepsCountDomainCompatibilityRequest>,
+			): List<StepsCountDomainCompatibilityResult> {
+				batchSizes += requests.size
+				return requests.map { request ->
+					if (request.sessionOwners.single().revision % 2L == 0L) {
+						StepsCountDomainCompatibilityResult.Conflict
+					} else {
+						StepsCountDomainCompatibilityResult.Unproven
+					}
+				}
+			}
+		}
+		val requests = List(MAX_STEPS_COUNT_DOMAIN_REQUESTS * 2 + 1) { index ->
+			StepsCountDomainCompatibilityRequest(
+				sessionOwners = listOf(
+					StepsCountDomainOwnerReference(
+						StepsCountDomainOwnerKind.SESSION_FACT,
+						StepsCountDomainOwnerIdentity.opaque(
+							"sha256:${index.toString(16).padStart(64, '0')}",
+						),
+						index.toLong() + 1L,
+						StepsCountDomainOwnerEffect.opaque(
+							index.toString(16).padStart(64, '0'),
+						),
+					),
+				),
+				ambientOwners = emptyList(),
+			)
+		}
+
+		val results = query.compareInProductionChunks(requests)
+
+		batchSizes shouldBe listOf(
+			MAX_STEPS_COUNT_DOMAIN_REQUESTS,
+			MAX_STEPS_COUNT_DOMAIN_REQUESTS,
+			1,
+		)
+		results shouldBe requests.map { request ->
+			if (request.sessionOwners.single().revision % 2L == 0L) {
+				StepsCountDomainCompatibilityResult.Conflict
+			} else {
+				StepsCountDomainCompatibilityResult.Unproven
+			}
+		}
+	}
+
+	@Test
+	fun `production comparison observes cancellation before the next chunk`() = runTest {
+		var calls = 0
+		val query = object : StepsCountDomainCompatibilityQuery {
+			override suspend fun compare(
+				requests: List<StepsCountDomainCompatibilityRequest>,
+			): List<StepsCountDomainCompatibilityResult> {
+				calls++
+				currentCoroutineContext()[Job]?.cancel()
+				return List(requests.size) { StepsCountDomainCompatibilityResult.Unproven }
+			}
+		}
+		val requests = List(MAX_STEPS_COUNT_DOMAIN_REQUESTS + 1) {
+			StepsCountDomainCompatibilityRequest(emptyList(), emptyList())
+		}
+		val cancelled = try {
+			withContext(Job()) {
+				query.compareInProductionChunks(requests)
+			}
+			false
+		} catch (_: CancellationException) {
+			true
+		}
+
+		cancelled shouldBe true
+		calls shouldBe 1
 	}
 
 	private fun request(

@@ -288,7 +288,7 @@ internal class DefaultAmbientStepsHistoryRepository @Inject constructor(
 			}
 		}
 		val compatibilityByOwner = requestOwners.zip(
-			countDomainQuery.compare(compatibilityRequests),
+			countDomainQuery.compareInProductionChunks(compatibilityRequests),
 		).toMap()
 		val products = days.mapIndexed { dayIndex, day ->
 			val compatibleSessions = sessionsByDay[dayIndex].mapIndexed { sessionIndex, session ->

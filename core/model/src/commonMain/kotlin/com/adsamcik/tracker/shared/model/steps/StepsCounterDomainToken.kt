@@ -3,9 +3,10 @@ package com.adsamcik.tracker.shared.model.steps
 /**
  * Provider-issued opaque identity for one physical cumulative counter epoch.
  *
- * A token is intentionally non-stable across counter resets or provider epochs. It contains no
- * provider account, raw sensor identity, user id, device id, registration id, QoS plan, or report
- * latency. Parsing a token grants no provider, import, session, writer, or deletion authority.
+ * A token is intentionally non-stable across checked counter-epoch generations, counter resets, or
+ * provider epochs. It contains no provider account, raw sensor identity, user id, device id,
+ * registration id, QoS plan, or report latency. Parsing a token grants no provider, import,
+ * session, writer, or deletion authority.
  */
 class StepsCounterDomainToken private constructor(
 	val encoded: String,
@@ -18,6 +19,7 @@ class StepsCounterDomainToken private constructor(
 
 	companion object {
 		const val MINIMUM_DURABLE_PAYLOAD_VERSION = 6
+		const val COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION = 7
 
 		fun opaque(encoded: String): StepsCounterDomainToken {
 			require(OPAQUE_TOKEN.matches(encoded))

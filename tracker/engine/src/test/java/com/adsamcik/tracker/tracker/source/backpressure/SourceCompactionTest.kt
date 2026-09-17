@@ -28,6 +28,12 @@ class SourceCompactionTest {
 				step(3, 4, 105, 112, token('b')),
 			)
 		}
+		shouldThrow<IllegalArgumentException> {
+			SourceCompaction.mergeSteps(
+				step(1, 2, 100, 105, token('a'), 1L),
+				step(3, 4, 105, 112, token('a'), 2L),
+			)
+		}
 	}
 
 	@Test
@@ -72,6 +78,7 @@ class SourceCompactionTest {
 		firstCount: Long,
 		lastCount: Long,
 		counterDomainToken: StepsCounterDomainToken? = null,
+		counterEpochGeneration: Long? = null,
 	) =
 		StepCounterWindowPayload(
 			bootClockDomainId = "boot",
@@ -84,6 +91,7 @@ class SourceCompactionTest {
 			lastProviderSequence = lastSequence,
 			baselineReset = false,
 			counterDomainToken = counterDomainToken,
+			counterEpochGeneration = counterEpochGeneration,
 		)
 
 	private fun token(digit: Char) =

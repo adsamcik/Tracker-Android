@@ -159,9 +159,11 @@ suspend fun AppDatabase.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
 						}
 						countDomainOwners.chunked(COUNT_DOMAIN_OWNER_BATCH_SIZE).forEach {
 							check(
-								StepsCountDomainStore(this).removeOwners(it) !is
-									StepsCountDomainMaintenanceResult.Overflow,
-							) { "Steps count-domain retention owner batch exceeded its bound" }
+								StepsCountDomainStore(this).removeOwners(it).let { result ->
+									result is StepsCountDomainMaintenanceResult.Applied ||
+										result == StepsCountDomainMaintenanceResult.SchemaUnavailable
+								},
+							) { "Steps count-domain retention evidence could not be removed" }
 						}
 						val deletedBatch = factDao.deleteAuthenticatedUpsertRevisions(
 							writerProjectionId = writer.first,

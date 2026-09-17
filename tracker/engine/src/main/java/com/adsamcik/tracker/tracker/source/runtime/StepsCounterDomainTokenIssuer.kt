@@ -14,8 +14,10 @@ internal object StepsCounterDomainTokenIssuer {
 	fun directSensor(
 		sensor: Sensor,
 		bootClockDomainId: String,
+		counterEpochGeneration: Long,
 	): StepsCounterDomainToken? = directSensor(
 		bootClockDomainId = bootClockDomainId,
+		counterEpochGeneration = counterEpochGeneration,
 		sensorType = sensor.type,
 		sensorStringType = sensor.stringType,
 		sensorVendor = sensor.vendor,
@@ -26,6 +28,7 @@ internal object StepsCounterDomainTokenIssuer {
 
 	internal fun directSensor(
 		bootClockDomainId: String,
+		counterEpochGeneration: Long,
 		sensorType: Int,
 		sensorStringType: String,
 		sensorVendor: String,
@@ -33,6 +36,7 @@ internal object StepsCounterDomainTokenIssuer {
 		sensorVersion: Int,
 		sensorId: Int,
 	): StepsCounterDomainToken? {
+		require(counterEpochGeneration > 0L)
 		if (bootClockDomainId.isBlank() ||
 			sensorType != Sensor.TYPE_STEP_COUNTER ||
 			sensorStringType.isBlank() ||
@@ -43,6 +47,7 @@ internal object StepsCounterDomainTokenIssuer {
 			opaqueDigest(
 				"android-step-counter-epoch-v1",
 				bootClockDomainId,
+				counterEpochGeneration,
 				sensorType,
 				sensorStringType,
 				sensorVendor,

@@ -18,6 +18,7 @@ class StepsCounterDomainTokenIssuerTest {
 	@Test
 	fun `boot counter epoch and physical provider changes rotate the token`() {
 		token(boot = "boot-b") shouldNotBe token()
+		token(counterEpochGeneration = 2L) shouldNotBe token()
 		token(vendor = "other-vendor") shouldNotBe token()
 		token(name = "other-counter") shouldNotBe token()
 	}
@@ -26,6 +27,7 @@ class StepsCounterDomainTokenIssuerTest {
 	fun `provider that cannot prove a physical epoch returns no token`() {
 		StepsCounterDomainTokenIssuer.directSensor(
 			bootClockDomainId = "boot-a",
+			counterEpochGeneration = 1L,
 			sensorType = Sensor.TYPE_STEP_COUNTER,
 			sensorStringType = "",
 			sensorVendor = "vendor",
@@ -37,10 +39,12 @@ class StepsCounterDomainTokenIssuerTest {
 
 	private fun token(
 		boot: String = "boot-a",
+		counterEpochGeneration: Long = 1L,
 		vendor: String = "vendor",
 		name: String = "counter",
 	) = requireNotNull(StepsCounterDomainTokenIssuer.directSensor(
 		bootClockDomainId = boot,
+		counterEpochGeneration = counterEpochGeneration,
 		sensorType = Sensor.TYPE_STEP_COUNTER,
 		sensorStringType = "android.sensor.step_counter",
 		sensorVendor = vendor,

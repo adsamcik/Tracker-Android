@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.runtime
 
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
+import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
@@ -574,7 +575,13 @@ class StepSourceRuntimeDurabilityTest {
 			lifecycle = RuntimeCheckpointLifecycle.ACTIVE,
 			metrics = RuntimeAdmissionSnapshot(7L, 42L, 0L, null, null, emptySet()),
 			componentStateVersion = STEP_BASELINE_VERSION,
-			componentPayload = StepBaseline(100L, 1_000L, 7L, boundary).encode(),
+			componentPayload = StepBaseline(
+				100L,
+				1_000L,
+				7L,
+				boundary,
+				counterEpochGeneration = 3L,
+			).encode(),
 		)
 		val recovery = recoverStepRuntimeState(
 			saved = runtimeState(7L, 7L, checkpoint),
@@ -583,6 +590,7 @@ class StepSourceRuntimeDurabilityTest {
 		)
 
 		assertNull(recovery.baseline)
+		assertEquals(3L, recovery.counterEpochGeneration)
 		assertEquals(8L, recovery.callbackEntrySequence)
 		assertEquals(1L, recovery.metrics?.failedAdmissionCount)
 		assertEquals(8L, recovery.metrics?.unresolvedSequenceStart)
@@ -591,12 +599,26 @@ class StepSourceRuntimeDurabilityTest {
 			setOf(RuntimeGapClassification.PROCESS_RESTARTED),
 			recovery.metrics?.gapClassifications,
 		)
+		val recoveredToken = StepsCounterDomainToken.opaque("sha256:${"c".repeat(64)}")
 		val firstAfterRestart = requireNotNull(
-			StepWindowAccumulator(recovery.baseline, boundary)
-				.accept("boot-1", 108L, 2_000L, 9L, 2_000L),
+			StepWindowAccumulator(
+				recovery.baseline,
+				boundary,
+				recovery.counterEpochGeneration,
+			)
+				.accept(
+					"boot-1",
+					108L,
+					2_000L,
+					9L,
+					2_000L,
+					counterDomainToken = recoveredToken,
+				),
 		)
 		assertEquals(0L, firstAfterRestart.deltaCount)
 		assertTrue(firstAfterRestart.baselineReset)
+		assertEquals(3L, firstAfterRestart.counterEpochGeneration)
+		assertEquals(recoveredToken, firstAfterRestart.counterDomainToken)
 	}
 
 	@Test

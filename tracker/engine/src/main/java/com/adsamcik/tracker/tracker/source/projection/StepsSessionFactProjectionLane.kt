@@ -2,6 +2,8 @@ package com.adsamcik.tracker.tracker.source.projection
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchema
+import com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
 import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
 import com.adsamcik.tracker.shared.base.database.enqueueAllStepsGoalRepairs
@@ -24,6 +26,8 @@ import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
+import com.adsamcik.tracker.tracker.source.ingress.STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION
+import com.adsamcik.tracker.tracker.source.ingress.STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
@@ -231,6 +235,11 @@ class StepsSessionFactProjectionLane private constructor(
 							if (lane.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL &&
 								candidate != null
 							) {
+								recordWalCountDomainOrThrow(
+									event.admissionOrdinal,
+									(event.evidence.payload as StepCounterWindowPayload)
+										.counterDomainToken,
+								)
 								when (insertOrVerifyExactReplay(candidate)) {
 									FactAdmission.INSERTED -> {
 										inserted++
@@ -624,6 +633,7 @@ class StepsSessionFactProjectionLane private constructor(
 		val admissionOrdinal = requireNotNull(candidate.sourceAdmissionOrdinal)
 		val store = StepsCountDomainStore(database)
 		when (store.recordSessionFact(candidate)) {
+			StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
 			StepsCountDomainWriteResult.INSERTED,
 			StepsCountDomainWriteResult.EXACT_REPLAY,
 			-> Unit
@@ -638,6 +648,15 @@ class StepsSessionFactProjectionLane private constructor(
 		admissionOrdinal: Long,
 		counterDomainToken: StepsCounterDomainToken?,
 	) {
+		when (StepsCountDomainSchema.inspect(database.openHelper.writableDatabase)) {
+			StepsCountDomainSchemaState.Absent -> return
+			StepsCountDomainSchemaState.Incompatible ->
+				throw StepsSessionFactIdentityCollisionException(
+					admissionOrdinal,
+					"STEPS_COUNT_DOMAIN_STORED_EVIDENCE_UNVERIFIABLE",
+				)
+			StepsCountDomainSchemaState.ValidV2 -> Unit
+		}
 		val wal = database.sourceEventWalDao().getByAdmissionOrdinal(admissionOrdinal)
 			?: throw StepsSessionFactIdentityCollisionException(
 				admissionOrdinal,
@@ -708,6 +727,15 @@ class StepsSessionFactProjectionLane private constructor(
 			payload.deltaCount < 0L || payload.firstProviderSequence < 0L ||
 			payload.lastProviderSequence < payload.firstProviderSequence
 		) poison("STEPS_COUNTER_INVALID")
+		if ((evidence.payloadVersion >= STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION &&
+				payload.counterEpochGeneration == null) ||
+			(evidence.payloadVersion < STEP_COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION &&
+				payload.counterEpochGeneration != null) ||
+			(evidence.payloadVersion == STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION &&
+				payload.counterDomainToken == null) ||
+			(evidence.payloadVersion < STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION &&
+				payload.counterDomainToken != null)
+		) poison("STEPS_COUNT_DOMAIN_PAYLOAD_INVALID")
 
 		val coverage = when (payload.boundaryKind) {
 			StepBoundaryKind.BASELINE -> {
@@ -778,7 +806,6 @@ class StepsSessionFactProjectionLane private constructor(
 		val durationMs = (payload.windowEndElapsedRealtimeNanos -
 			payload.windowStartElapsedRealtimeNanos) / NANOS_PER_MILLISECOND
 		val startTimeMs = if (durationMs > endTimeMs) 0L else endTimeMs - durationMs
-		recordWalCountDomainOrThrow(admissionOrdinal, payload.counterDomainToken)
 		val logicalFactId = "$WRITER_ID:${eventId.value}"
 		val mutationId = "$logicalFactId:$SEMANTIC_REVISION:${StepFactRevisionEntity.OPERATION_UPSERT}"
 		val unsignedFact = StepFactRevisionEntity(

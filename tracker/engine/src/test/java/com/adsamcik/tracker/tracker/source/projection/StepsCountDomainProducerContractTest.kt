@@ -44,9 +44,10 @@ class StepsCountDomainProducerContractTest {
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
-		StepsCountDomainSchema.createStatements.forEach { statement ->
-			database.openHelper.writableDatabase.execSQL(statement)
-		}
+		check(
+			StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) ==
+				com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState.ValidV2,
+		)
 	}
 
 	@After

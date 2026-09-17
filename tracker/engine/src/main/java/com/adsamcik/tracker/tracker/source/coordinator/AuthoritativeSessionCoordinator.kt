@@ -4748,6 +4748,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				-> Unit
 				StepsCountDomainWriteResult.UNPROVEN ->
 					error("Terminal Steps completeness lacks count-domain admission evidence")
+				StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE ->
+					error("Terminal Steps count-domain stored evidence is unverifiable")
 				StepsCountDomainWriteResult.IDENTITY_CONFLICT ->
 					error("Terminal Steps completeness conflicts with count-domain evidence")
 				StepsCountDomainWriteResult.REVISION_GAP ->

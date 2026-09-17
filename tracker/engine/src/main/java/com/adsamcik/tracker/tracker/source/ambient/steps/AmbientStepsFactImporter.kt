@@ -1681,6 +1681,7 @@ internal class AmbientStepsFactImporter internal constructor(
 			StepsCountDomainWriteResult.UNPROVEN,
 			-> Unit
 			StepsCountDomainWriteResult.NOT_APPLICABLE,
+			StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE,
 			StepsCountDomainWriteResult.IDENTITY_CONFLICT,
 			StepsCountDomainWriteResult.REVISION_GAP,
 			StepsCountDomainWriteResult.TERMINAL_OWNER,

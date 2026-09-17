@@ -36,9 +36,10 @@ class RoomStepsCountDomainCompatibilityQueryRoomTest {
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
-		StepsCountDomainSchema.createStatements.forEach {
-			database.openHelper.writableDatabase.execSQL(it)
-		}
+		check(
+			StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) ==
+				com.adsamcik.tracker.shared.base.database.StepsCountDomainSchemaState.ValidV2,
+		)
 		query = RoomStepsCountDomainCompatibilityQuery(database)
 	}
 
@@ -105,6 +106,76 @@ class RoomStepsCountDomainCompatibilityQueryRoomTest {
 			),
 		) shouldContainExactly listOf(StepsCountDomainCompatibilityResult.Unverifiable)
 	}
+
+	@Test
+	fun `incompatible schema is unverifiable rather than absent`() = runTest {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE steps_count_domain_schema_marker SET contract_version = 1 WHERE id = 1",
+		)
+
+		query.compare(
+			listOf(StepsCountDomainCompatibilityRequest(emptyList(), emptyList())),
+		) shouldContainExactly listOf(StepsCountDomainCompatibilityResult.Unverifiable)
+	}
+
+	@Test
+	fun `current tokenless Ambient correction resolves unproven and authenticates its effect`() =
+		runTest {
+			val sessionFact = insertEvidence(StepsCountDomainOwnerKind.SESSION_FACT, '4', 'a')
+			val completeness =
+				insertEvidence(StepsCountDomainOwnerKind.SESSION_COMPLETENESS, '5', 'a')
+			val ownerIdentity = opaque('7')
+			val scopeIdentity = opaque('8')
+			val sqlite = database.openHelper.writableDatabase
+			sqlite.execSQL(
+				"INSERT INTO steps_count_domain_owner_revision VALUES (?, ?, ?, 1, " +
+					"'UNPROVEN', NULL, ?, 1)",
+				arrayOf(
+					StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
+					scopeIdentity,
+					ownerIdentity,
+					"a".repeat(64),
+				),
+			)
+			sqlite.execSQL(
+				"INSERT INTO steps_count_domain_owner_revision VALUES (?, ?, ?, 2, " +
+					"'UNPROVEN', NULL, ?, 2)",
+				arrayOf(
+					StepsCountDomainOwnerRevisionEntity.OWNER_AMBIENT_FACT,
+					scopeIdentity,
+					ownerIdentity,
+					"b".repeat(64),
+				),
+			)
+			val current = StepsCountDomainOwnerReference(
+				StepsCountDomainOwnerKind.AMBIENT_FACT,
+				StepsCountDomainOwnerIdentity.opaque(ownerIdentity),
+				2L,
+				StepsCountDomainOwnerEffect.opaque("b".repeat(64)),
+			)
+			val request = StepsCountDomainCompatibilityRequest(
+				listOf(sessionFact, completeness),
+				listOf(current),
+			)
+
+			query.compare(listOf(request)) shouldContainExactly
+				listOf(StepsCountDomainCompatibilityResult.Unproven)
+			query.compare(
+				listOf(
+					StepsCountDomainCompatibilityRequest(
+						request.sessionOwners,
+						listOf(
+							StepsCountDomainOwnerReference(
+								current.kind,
+								current.identity,
+								current.revision,
+								StepsCountDomainOwnerEffect.opaque("c".repeat(64)),
+							),
+						),
+					),
+				),
+			) shouldContainExactly listOf(StepsCountDomainCompatibilityResult.Unverifiable)
+		}
 
 	@Test
 	fun `aggregate owner chunks preserve every request result and reject request-count overflow`() =

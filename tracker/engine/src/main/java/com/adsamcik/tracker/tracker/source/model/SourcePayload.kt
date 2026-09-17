@@ -64,8 +64,22 @@ data class StepCounterWindowPayload(
 	val boundaryKind: StepBoundaryKind,
 	/** Opaque physical counter epoch, present from durable payload version 6 onward. */
 	val counterDomainToken: StepsCounterDomainToken? = null,
+	/**
+	 * Checked physical counter-epoch generation, present from durable payload version 7 onward.
+	 * COUNTER_RESET carries the incremented generation without a token; successors carry its token.
+	 */
+	val counterEpochGeneration: Long? = null,
 ) : SourcePayload {
 	override val source: SourceKind = SourceKind.STEPS
+
+	init {
+		require(counterEpochGeneration == null || counterEpochGeneration > 0L)
+		require(
+			counterEpochGeneration == null ||
+				boundaryKind != StepBoundaryKind.COUNTER_RESET ||
+				counterDomainToken == null,
+		)
+	}
 
 	/** Compatibility constructor for version 1/2 call sites and the frozen v27 decoder. */
 	constructor(
@@ -79,6 +93,7 @@ data class StepCounterWindowPayload(
 		lastProviderSequence: Long,
 		baselineReset: Boolean,
 		counterDomainToken: StepsCounterDomainToken? = null,
+		counterEpochGeneration: Long? = null,
 	) : this(
 		bootClockDomainId = bootClockDomainId,
 		firstCumulativeCount = firstCumulativeCount,
@@ -90,6 +105,7 @@ data class StepCounterWindowPayload(
 		lastProviderSequence = lastProviderSequence,
 		boundaryKind = StepBoundaryKind.fromLegacyResetFlag(baselineReset),
 		counterDomainToken = counterDomainToken,
+		counterEpochGeneration = counterEpochGeneration,
 	)
 
 	/** Legacy projection compatibility. [boundaryKind] is the only stored source of truth. */

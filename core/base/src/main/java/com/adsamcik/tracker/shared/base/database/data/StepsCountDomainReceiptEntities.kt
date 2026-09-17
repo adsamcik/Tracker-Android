@@ -115,8 +115,10 @@ data class StepsCountDomainReceiptEntity(
  * Append-only exact owner membership.
  *
  * A correction appends the next owner revision. A RETRACT is terminal and deliberately has no
- * receipt. UNPROVEN permits only byte-exact replay or a later source deletion RETRACT; it never
- * upgrades into compatibility authority.
+ * receipt. Session UNPROVEN permits only byte-exact replay or a later source deletion RETRACT.
+ * Ambient UNPROVEN may advance contiguously to another effect-authenticated UNPROVEN revision so
+ * the current semantic revision remains queryable, but it never upgrades into compatibility
+ * authority.
  */
 @Entity(
 	tableName = "steps_count_domain_owner_revision",

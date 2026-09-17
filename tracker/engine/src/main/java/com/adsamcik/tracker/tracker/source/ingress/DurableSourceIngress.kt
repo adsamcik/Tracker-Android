@@ -4,8 +4,6 @@ package com.adsamcik.tracker.tracker.source.ingress
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.StepsCountDomainStore
-import com.adsamcik.tracker.shared.base.database.StepsCountDomainWriteResult
 import com.adsamcik.tracker.shared.base.database.markStepsRetentionTruncation
 import com.adsamcik.tracker.shared.base.database.dao.SourceBrokerDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
@@ -28,7 +26,6 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
-import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
@@ -375,18 +372,6 @@ class RoomDurableSourceIngress @Inject constructor(
 						authorization,
 						captureAuthorization,
 					)
-					if (duplicate is AdmissionResult.Duplicate &&
-						candidate.source == SourceKind.STEPS
-					) {
-						walDao.getByAdmissionOrdinal(duplicate.existingAdmissionOrdinal)
-							?.let {
-								database.recordStepsCountDomainWalOrThrow(
-									it,
-									(candidate.payload as? StepCounterWindowPayload)
-										?.counterDomainToken,
-								)
-							}
-					}
 					if (duplicate is AdmissionResult.Duplicate && checkpoint != null) {
 						persistAtomicCheckpoint(
 							checkpoint,
@@ -436,18 +421,6 @@ class RoomDurableSourceIngress @Inject constructor(
 						authorization,
 						captureAuthorization,
 					)
-					if (duplicate is AdmissionResult.Duplicate &&
-						candidate.source == SourceKind.STEPS
-					) {
-						walDao.getByAdmissionOrdinal(duplicate.existingAdmissionOrdinal)
-							?.let {
-								database.recordStepsCountDomainWalOrThrow(
-									it,
-									(candidate.payload as? StepCounterWindowPayload)
-										?.counterDomainToken,
-								)
-							}
-					}
 					if (duplicate is AdmissionResult.Duplicate && checkpoint != null) {
 						persistAtomicCheckpoint(
 							checkpoint,
@@ -456,12 +429,6 @@ class RoomDurableSourceIngress @Inject constructor(
 						)
 					}
 					return@transaction duplicate
-				}
-				if (candidate.source == SourceKind.STEPS) {
-					database.recordStepsCountDomainWalOrThrow(
-						entity.copy(admissionOrdinal = rowId),
-						(candidate.payload as? StepCounterWindowPayload)?.counterDomainToken,
-					)
 				}
 				checkpoint?.let {
 					persistAtomicCheckpoint(it, rowId, candidate.receivedElapsedRealtimeNanos)
@@ -680,19 +647,6 @@ class RoomDurableSourceIngress @Inject constructor(
 								causalOrderElapsedRealtimeNanos =
 									delivery.units.single().evidence.receivedElapsedRealtimeNanos,
 							)
-						}
-						if (delivery.source == SourceKind.STEPS) {
-							replay.units.forEach { admitted ->
-								walDao.getByAdmissionOrdinal(admitted.admissionOrdinal)
-									?.let { row ->
-										val token = delivery.units
-											.single { it.unitIndex == admitted.unitIndex }
-											.evidence.payload
-											.let { it as? StepCounterWindowPayload }
-											?.counterDomainToken
-										database.recordStepsCountDomainWalOrThrow(row, token)
-									}
-							}
 						}
 						return@transaction replay
 					}
@@ -996,15 +950,6 @@ class RoomDurableSourceIngress @Inject constructor(
 				val rowIds = walDao.insertDeliveryUnits(entities)
 				check(rowIds.size == entities.size && rowIds.all { it > 0L }) {
 					"Unable to append every source delivery unit"
-				}
-				if (delivery.source == SourceKind.STEPS) {
-					entities.forEachIndexed { index, entity ->
-						database.recordStepsCountDomainWalOrThrow(
-							entity.copy(admissionOrdinal = rowIds[index]),
-							(authorized[index].encoded.sourceUnit.evidence.payload as?
-								StepCounterWindowPayload)?.counterDomainToken,
-						)
-					}
 				}
 				checkpoint?.let {
 					persistAtomicCheckpoint(
@@ -1515,26 +1460,6 @@ private sealed interface CaptureSessionAuthority {
 	data object Active : CaptureSessionAuthority
 	data class Stopping(val cutoffElapsedNanos: Long) : CaptureSessionAuthority
 	data object Invalid : CaptureSessionAuthority
-}
-
-private suspend fun AppDatabase.recordStepsCountDomainWalOrThrow(
-	row: SourceEventWalEntity,
-	counterDomainToken: StepsCounterDomainToken?,
-) {
-	when (StepsCountDomainStore(this).recordSessionWal(row, counterDomainToken)) {
-		StepsCountDomainWriteResult.INSERTED,
-		StepsCountDomainWriteResult.EXACT_REPLAY,
-		StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
-		StepsCountDomainWriteResult.NOT_APPLICABLE,
-		StepsCountDomainWriteResult.UNPROVEN,
-		-> Unit
-		StepsCountDomainWriteResult.IDENTITY_CONFLICT ->
-			error("Steps WAL count-domain identity conflicts with retained evidence")
-		StepsCountDomainWriteResult.REVISION_GAP ->
-			error("Steps WAL count-domain owner revision is not contiguous")
-		StepsCountDomainWriteResult.TERMINAL_OWNER ->
-			error("Steps WAL count-domain owner is terminal")
-	}
 }
 
 // Each nullable term is part of the immutable session authority; partial keys must fail closed.

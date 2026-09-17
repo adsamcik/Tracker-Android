@@ -176,9 +176,11 @@ internal suspend fun AppDatabase.pruneAuthenticatedAmbientStepsFactsAffectedByRe
 		}
 		countDomainKeys.chunked(COUNT_DOMAIN_OWNER_BATCH_SIZE).forEach { ownerBatch ->
 			check(
-				StepsCountDomainStore(this).removeOwners(ownerBatch) !is
-					StepsCountDomainMaintenanceResult.Overflow,
-			) { "Ambient Steps count-domain retention owner batch exceeded its bound" }
+				StepsCountDomainStore(this).removeOwners(ownerBatch).let { result ->
+					result is StepsCountDomainMaintenanceResult.Applied ||
+						result == StepsCountDomainMaintenanceResult.SchemaUnavailable
+				},
+			) { "Ambient Steps count-domain retention evidence could not be removed" }
 		}
 		val actual = ambientStepsFactRevisionDao().deleteExactLineages(
 			AmbientStepsFactRevisionEntity.WRITER_ID,
@@ -406,9 +408,11 @@ internal suspend fun AppDatabase.deleteAmbientStepsAfterConsentReset(
 		}
 		countDomainKeys.chunked(COUNT_DOMAIN_OWNER_BATCH_SIZE).forEach { ownerBatch ->
 			check(
-				StepsCountDomainStore(this).removeOwners(ownerBatch) !is
-					StepsCountDomainMaintenanceResult.Overflow,
-			) { "Ambient Steps deletion count-domain owner batch exceeded its bound" }
+				StepsCountDomainStore(this).removeOwners(ownerBatch).let { result ->
+					result is StepsCountDomainMaintenanceResult.Applied ||
+						result == StepsCountDomainMaintenanceResult.SchemaUnavailable
+				},
+			) { "Ambient Steps deletion count-domain evidence could not be removed" }
 		}
 		val actual = factDao.deleteUpsertsForLogicalFacts(
 			AmbientStepsFactRevisionEntity.WRITER_ID,

@@ -518,7 +518,8 @@ internal class AmbientStepsDayRepository @Inject constructor(
 				}
 			}
 		}
-		val compatibilityResults = countDomainQuery.compare(compatibilityRequests)
+		val compatibilityResults =
+			countDomainQuery.compareInProductionChunks(compatibilityRequests)
 		val resultsByOwner = requestOwners.zip(compatibilityResults).toMap()
 		val productDays = preparedDays.mapIndexed { dayIndex, prepared ->
 			prepared.unavailableCause?.let { cause ->
