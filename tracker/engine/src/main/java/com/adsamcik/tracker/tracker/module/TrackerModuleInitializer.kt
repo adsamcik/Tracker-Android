@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.startup.ModuleInitializer
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryScheduler
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -46,6 +47,7 @@ class TrackerModuleInitializer @Inject constructor(
 	private val activityAutomationEpochAuthority: ActivityAutomationEpochAuthority,
 	private val automaticControlRecoveryScheduler: AutomaticControlRecoveryScheduler,
 	private val ambientStepsProviderLifecycleOwner: AmbientStepsProviderLifecycleOwner,
+	private val retentionAuthorityProducer: RetentionAuthorityProducer,
 ) : ModuleInitializer {
 	override val priority: Int = 20
 	private val initializationGate = TrackerModuleInitializationGate()
@@ -71,6 +73,7 @@ class TrackerModuleInitializer @Inject constructor(
 				handoff = { handoffAuthorization ->
 					lockManager.initializeFromPersistence(context)
 					activityAutomationEpochAuthority.startRuntimeBoundaryMonitoring(applicationScope)
+					retentionAuthorityProducer.reconcileCurrentSettings()
 					initializeTrackerAutomaticControlAfterAuthorization(
 						authorization = handoffAuthorization,
 						initialize = { BackgroundTrackingApi.initialize(context) },

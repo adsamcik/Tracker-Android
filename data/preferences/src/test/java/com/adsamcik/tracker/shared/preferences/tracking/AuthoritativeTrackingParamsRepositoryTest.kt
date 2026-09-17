@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProdu
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityState
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigurationApprovalResult
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
@@ -152,15 +153,16 @@ class AuthoritativeTrackingParamsRepositoryTest {
 			revoked.ambientPersistenceEligible.shouldBeFalse()
 		}
 
-		@Test
-		fun `explicit ambient mutation invokes only its retention producer`() = runTest {
-			repository.data.first { it.sourcePolicyRevision == 1L }
+	}
 
-			repository.setAmbientWifiEnabled(true)
+	@Test
+	fun `explicit ambient mutation invokes only its retention producer`() = runTest {
+		repository.data.first { it.sourcePolicyRevision == 1L }
 
-			retention.liveSources shouldBe listOf(TrackingSourceComponent.WIFI)
-			retention.fullReconciliations shouldBe 0
-		}
+		repository.setAmbientWifiEnabled(true)
+
+		retention.liveSources shouldBe listOf(TrackingSourceComponent.WIFI)
+		retention.fullReconciliations shouldBe 0
 	}
 
 	@Test
@@ -177,7 +179,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		val isolated = AuthoritativeTrackingParamsRepository(
 			legacy,
 			policy,
-			backgroundScope,
+			applicationScope,
 			closedGate,
 		)
 		val before = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
@@ -235,7 +237,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 			val failClosedRepository = AuthoritativeTrackingParamsRepository(
 				FakeTrackingParamsRepository(TrackingParamsState(legacySettingsMigrationCompleted = true)),
 				flakyPolicy,
-				backgroundScope,
+				applicationScope,
 				startupGate,
 			)
 
@@ -259,7 +261,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		val isolated = AuthoritativeTrackingParamsRepository(
 			blockingLegacy,
 			policy,
-			backgroundScope,
+			applicationScope,
 			startupGate,
 		)
 		isolated.data.first { it.sourcePolicyRevision == 1L }
@@ -289,7 +291,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		val isolated = AuthoritativeTrackingParamsRepository(
 			failingLegacy,
 			policy,
-			backgroundScope,
+			applicationScope,
 			startupGate,
 		)
 		isolated.data.first { it.sourcePolicyRevision == 1L }.locationEnabled.shouldBeTrue()
@@ -410,6 +412,22 @@ private class RecordingRetentionAuthorityProducer : RetentionAuthorityProducer {
 		return emptyList()
 	}
 
+	override suspend fun preparePendingConfiguration(
+		expectedConfigurationGeneration: Long,
+	): RetentionConfigurationApprovalResult =
+		RetentionConfigurationApprovalResult.Unavailable(
+			com.adsamcik.tracker.shared.preferences.retention
+				.RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+		)
+
+	override suspend fun reconcilePendingConfiguration(
+		expectedConfigurationGeneration: Long?,
+	): RetentionConfigurationApprovalResult =
+		RetentionConfigurationApprovalResult.Unavailable(
+			com.adsamcik.tracker.shared.preferences.retention
+				.RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+		)
+
 	override suspend fun reconcileLiveAmbient(
 		source: TrackingSourceComponent,
 	): RetentionAuthorityResult {
@@ -438,7 +456,13 @@ private class RecordingRetentionAuthorityProducer : RetentionAuthorityProducer {
 		expectedSourcePolicyRevision: Long,
 		expectedAmbientConsentEpoch: Long,
 		expectedCollectedDataEpoch: Long,
-	): CurrentRetentionAuthority = CurrentRetentionAuthority.Approved("test-policy", 1L)
+	): CurrentRetentionAuthority = CurrentRetentionAuthority.Approved(
+		"test-policy",
+		1L,
+		"test-boot",
+		0L,
+		0L,
+	)
 
 	private fun active(
 		source: TrackingSourceComponent,

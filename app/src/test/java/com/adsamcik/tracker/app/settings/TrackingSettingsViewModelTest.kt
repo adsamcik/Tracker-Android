@@ -35,8 +35,13 @@ import com.adsamcik.tracker.tracker.api.TrackingPurposeAuthorityVector
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
 import com.adsamcik.tracker.tracker.api.TrackingSource
+import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
+import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationFailure
+import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -78,6 +83,8 @@ class TrackingSettingsViewModelTest {
 			exactPurposeAuthorityCurrent && availability.value.isCurrent(identity)
 	}
 	private val trackingParamsRepository: TrackingParamsRepository = mockk()
+	private val ambientStepsProviderLifecycle: AmbientStepsProviderLifecycle = mockk()
+	private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler = mockk()
 	private val activityWatcherController: ActivityWatcherController = mockk(relaxed = true)
     private val trackingStatusProvider = DefaultTrackingSettingsStatusProvider(
         SemanticAcquisitionPlanFactory(),
@@ -168,6 +175,9 @@ class TrackingSettingsViewModelTest {
         coEvery { trackingParamsRepository.setPreset(any()) } answers {
             paramsFlow.value = paramsFlow.value.copy(presetName = firstArg<TrackingPreset>().name)
         }
+		coEvery { purposeSettingsReconciler.reconcileCurrentSettings() } returns Unit
+		coEvery { ambientStepsProviderLifecycle.reconcileAfterSettingsChange() } returns
+			AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
     }
 
     @AfterEach
@@ -191,6 +201,8 @@ class TrackingSettingsViewModelTest {
             trackingStatusProvider,
             activityWatcherController,
             purposeAvailabilityReader,
+			ambientStepsProviderLifecycle,
+			purposeSettingsReconciler,
         )
     }
 
@@ -335,6 +347,35 @@ class TrackingSettingsViewModelTest {
 					availability.reason shouldBe
 						AmbientSourceUnavailableReason.RECONCILIATION_PENDING
 				}
+				coVerify(exactly = 1) {
+					purposeSettingsReconciler.reconcileCurrentSettings()
+				}
+				coVerify(exactly = 1) {
+					ambientStepsProviderLifecycle.reconcileAfterSettingsChange()
+				}
+			}
+
+		@Test
+		fun `Ambient Steps lifecycle failure is typed and never reported operational`() =
+			runTest(testDispatcher) {
+				coEvery {
+					ambientStepsProviderLifecycle.reconcileAfterSettingsChange()
+				} returns AmbientStepsSettingsReconciliationResult(
+					complete = false,
+					operational = false,
+					failure =
+						AmbientStepsSettingsReconciliationFailure.PROVIDER_ACTIVATION_FAILED,
+					retryable = true,
+				)
+				val vm = createViewModel()
+
+				vm.setAmbientStepsEnabled(true)
+				advanceUntilIdle()
+
+				vm.uiState.value.ambientStepsSettingsFailure shouldBe
+					AmbientStepsSettingsReconciliationFailure.PROVIDER_ACTIVATION_FAILED
+				vm.uiState.value.ambientSourceAvailability
+					.getValue(AmbientTrackingSource.STEPS).isOperational shouldBe false
 			}
 
 		@Test

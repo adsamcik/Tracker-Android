@@ -221,6 +221,89 @@ class AmbientRadioAuthorityRoomTest {
 	}
 
 	@Test
+	fun `same boot retention revisions require strictly increasing elapsed time`() = runTest {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(collectedDataEpoch = 4L, updatedAtMs = 1L),
+		)
+		database.applyAmbientWifiRetentionDecision(
+			AmbientRadioRetentionDecision.GrantPortableImport(
+				"policy-1",
+				4L,
+				"boot-1",
+				10L,
+				10L,
+			),
+		)
+
+		assertEquals(
+			AmbientRadioRetentionAuthorityUnavailableReason.EFFECTIVE_TIME_INVALID,
+			assertIs<AmbientRadioRetentionAuthorityResult.Unavailable>(
+				database.applyAmbientWifiRetentionDecision(
+					AmbientRadioRetentionDecision.GrantPortableImport(
+						"policy-2",
+						4L,
+						"boot-1",
+						10L,
+						11L,
+						expectedPreviousApprovalRevision = 1L,
+					),
+				),
+			).reason,
+		)
+		assertEquals(
+			AmbientRadioRetentionAuthorityUnavailableReason.EFFECTIVE_TIME_INVALID,
+			assertIs<AmbientRadioRetentionAuthorityResult.Unavailable>(
+				database.applyAmbientWifiRetentionDecision(
+					AmbientRadioRetentionDecision.GrantPortableImport(
+						"policy-2",
+						4L,
+						"boot-1",
+						11L,
+						9L,
+						expectedPreviousApprovalRevision = 1L,
+					),
+				),
+			).reason,
+		)
+	}
+
+	@Test
+	fun `live radio grant cannot predate referenced policy and consent`() = runTest {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(collectedDataEpoch = 4L, updatedAtMs = 1L),
+		)
+		var elapsed = 10L
+		val policies = RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
+		}
+		val snapshot = policies.bootstrapFromLegacy(
+			TrackingParamsState(
+				ambientWifiEnabled = true,
+				legacySettingsMigrationCompleted = true,
+			),
+		)
+
+		assertEquals(
+			AmbientRadioRetentionAuthorityUnavailableReason.EFFECTIVE_TIME_INVALID,
+			assertIs<AmbientRadioRetentionAuthorityResult.Unavailable>(
+				database.applyAmbientWifiRetentionDecision(
+					AmbientRadioRetentionDecision.GrantLiveAmbient(
+						opaquePolicyId = "policy-1",
+						expectedCollectedDataEpoch = 4L,
+						expectedSourcePolicyRevision = snapshot.revision,
+						expectedAmbientConsentEpoch = requireNotNull(
+							snapshot[TrackingSourceComponent.WIFI].ambientConsentEpoch,
+						),
+						effectiveBootId = "boot-1",
+						effectiveElapsedRealtimeNanos = 0L,
+						effectiveWallTimeMs = 0L,
+					),
+				),
+			).reason,
+		)
+	}
+
+	@Test
 	fun `corrupt imported portable value leaves retention transaction unchanged`() = runTest {
 		installWifiImportRetention()
 		val fact = importedWifiFact()

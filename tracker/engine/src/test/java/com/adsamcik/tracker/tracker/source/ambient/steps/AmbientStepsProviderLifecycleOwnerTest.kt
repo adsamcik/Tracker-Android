@@ -94,6 +94,32 @@ class AmbientStepsProviderLifecycleOwnerTest {
 		result.retryable shouldBe true
 	}
 
+	@Test
+	fun `settings reconciliation exposes typed provider failure`() = runTest {
+		val failure = AmbientStepsProviderRegistrationFailure.DURABLE_AUTHORITY_REJECTED
+		val subject = AmbientStepsProviderLifecycleOwner(
+			currentBoundary = { boundary(10L) },
+			reconcileDemand = { unavailable() },
+			reconcileRegistration = { _, _ ->
+				AmbientStepsProviderRegistrationResult.Failed(
+					selectedProvider = null,
+					failure = failure,
+					retryable = true,
+				)
+			},
+			closeRegistration = { completeCleanup() },
+		)
+
+		subject.reconcileAfterSettingsChange() shouldBe
+			com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult(
+				complete = false,
+				operational = false,
+				failure = com.adsamcik.tracker.tracker.api
+					.AmbientStepsSettingsReconciliationFailure.DURABLE_AUTHORITY_REJECTED,
+				retryable = true,
+			)
+	}
+
 	private fun boundary(at: Long) = AmbientStepsDemandBoundary(
 		bootId = "ambient-steps-lifecycle-test",
 		elapsedRealtimeNanos = at,

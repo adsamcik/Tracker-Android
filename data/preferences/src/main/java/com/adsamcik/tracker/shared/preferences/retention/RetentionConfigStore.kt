@@ -11,7 +11,9 @@ import com.adsamcik.tracker.shared.preferences.store.LegacyPreferenceStore
 import com.google.protobuf.InvalidProtocolBufferException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
@@ -50,24 +52,90 @@ class RetentionConfigStore(
     private val updateMutex = Mutex()
 
     val config: Flow<RetentionConfigState> = flow {
-        val migrated = runCatching {
-            ensureDataSettingsMigrated()
-        }.getOrNull()
-        if (migrated != null) emit(migrated.toDomain())
+        val migrated = ensureDataSettingsMigrated()
+        emit(migrated.toDomain())
         emitAll(dataStore.data.map { it.toDomain() })
     }
 
-    suspend fun update(block: RetentionConfigState.() -> RetentionConfigState) {
-        updateMutex.withLock {
-            withContext(ioDispatcher) {
-                ensureDataSettingsMigrated()
-                val updated = dataStore.updateData { current ->
-                    val currentState = current.toDomain()
-                    val newState = currentState.block()
-                    newState.toProto()
+    val approvalStatus: Flow<RetentionPolicyApprovalStatus> = combine(
+        config,
+        policyApprovalStore.records,
+    ) { configuration, record ->
+        when (record) {
+            StoredRetentionPolicyApproval.Missing ->
+                RetentionPolicyApprovalStatus.UNAPPROVED
+            StoredRetentionPolicyApproval.Invalid ->
+                RetentionPolicyApprovalStatus.INVALID
+            is StoredRetentionPolicyApproval.Present ->
+                record.record.statusFor(configuration)
+        }
+    }
+
+    internal suspend fun update(
+        block: RetentionConfigState.() -> RetentionConfigState,
+    ): RetentionPolicyStage = updateMutex.withLock {
+        withContext(ioDispatcher) {
+            val current = ensureDataSettingsMigrated().toDomain()
+            val proposed = current.block()
+            val stage = policyApprovalStore.stage(proposed)
+            dataStore.updateData { stored ->
+                if (stored.toDomain() != current) {
+                    throw ConcurrentRetentionConfigurationMutationException()
                 }
-                policyApprovalStore.approve(updated.toDomain())
+                proposed.toProto()
             }
+            stage
+        }
+    }
+
+    suspend fun updateWithApproval(
+        block: RetentionConfigState.() -> RetentionConfigState,
+        prepare: suspend (RetentionPolicyStage) -> RetentionConfigurationApprovalResult,
+        approve: suspend (RetentionPolicyStage) -> RetentionConfigurationApprovalResult,
+    ): RetentionConfigApplyResult = updateMutex.withLock {
+        withContext(ioDispatcher) {
+            val current = ensureDataSettingsMigrated().toDomain()
+            val proposed = current.block()
+            val stage = policyApprovalStore.stage(proposed)
+            if (!stage.approvalRequired) {
+                return@withContext RetentionConfigApplyResult(
+                    stage,
+                    published = false,
+                    RetentionConfigurationApprovalResult.AlreadyApproved(stage.policy),
+                )
+            }
+            val prepared = prepare(stage)
+            if (prepared !is RetentionConfigurationApprovalResult.Prepared ||
+                prepared.policy != stage.policy
+            ) {
+                val failure = prepared as? RetentionConfigurationApprovalResult.Unavailable
+                    ?: RetentionConfigurationApprovalResult.Unavailable(
+                        RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION,
+                    )
+                return@withContext RetentionConfigApplyResult(
+                    stage,
+                    published = false,
+                    failure,
+                )
+            }
+            dataStore.updateData { stored ->
+                if (stored.toDomain() != current) {
+                    throw ConcurrentRetentionConfigurationMutationException()
+                }
+                proposed.toProto()
+            }
+            val approved = approve(stage)
+            val exactApproval = when (approved) {
+                is RetentionConfigurationApprovalResult.Approved ->
+                    approved.takeIf { it.policy.sameIdentity(stage.policy) }
+                is RetentionConfigurationApprovalResult.AlreadyApproved ->
+                    approved.takeIf { it.policy.sameIdentity(stage.policy) }
+                is RetentionConfigurationApprovalResult.Prepared -> null
+                is RetentionConfigurationApprovalResult.Unavailable -> approved
+            } ?: RetentionConfigurationApprovalResult.Unavailable(
+                RetentionAuthorityUnavailableReason.STALE_CONFIGURATION_GENERATION,
+            )
+            RetentionConfigApplyResult(stage, published = true, exactApproval)
         }
     }
 
@@ -76,6 +144,18 @@ class RetentionConfigStore(
             val current = ensureDataSettingsMigrated().toDomain()
             policyApprovalStore.current(current)
         }
+
+    suspend fun currentPolicyCandidate(): RetentionPolicyCandidateRead =
+        withContext(ioDispatcher) {
+            val current = ensureDataSettingsMigrated().toDomain()
+            policyApprovalStore.candidate(current)
+        }
+
+    suspend fun pendingPolicyCandidate(): RetentionPolicyCandidateRead =
+        policyApprovalStore.pending()
+
+    suspend fun markPolicyApproved(expected: ApprovedRetentionPolicy): ApprovedRetentionPolicy? =
+        policyApprovalStore.markApproved(expected)
 
     /**
      * One-time migration of auto_cleanup_enabled and data_retention_years
@@ -92,6 +172,7 @@ class RetentionConfigStore(
             } else {
                 false
             }
+
             val retentionYears = if (hasRetentionYears) {
                 legacyPrefs.intOrString(
                     "dataRetentionYears",
@@ -129,7 +210,7 @@ class RetentionConfigStore(
                 builder.build()
             }
             if (clearLegacyKeys) {
-                policyApprovalStore.approve(migrated.toDomain())
+                policyApprovalStore.stage(migrated.toDomain())
                 runCatching {
                     Preferences(context).editSuspend {
                         remove("autoCleanupOldData")
@@ -140,6 +221,22 @@ class RetentionConfigStore(
             migrated
         }
 }
+
+class ConcurrentRetentionConfigurationMutationException : IllegalStateException(
+    "Retention configuration changed while its pending approval was staged",
+)
+
+data class RetentionConfigApplyResult(
+    val stage: RetentionPolicyStage,
+    val published: Boolean,
+    val approval: RetentionConfigurationApprovalResult,
+)
+
+private fun ApprovedRetentionPolicy.sameIdentity(other: ApprovedRetentionPolicy): Boolean =
+    configurationGeneration == other.configurationGeneration &&
+        revision == other.revision &&
+        opaquePolicyId == other.opaquePolicyId &&
+        configurationChecksum == other.configurationChecksum
 
 suspend fun resetRetentionConfigForTests(context: Context) {
     context.retentionConfigDataStore.updateData {

@@ -13,6 +13,7 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationFailur
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupFailure
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.impexp.importer.DataImporter
@@ -24,6 +25,8 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.legacy.LEGACY_DATABASE_NAME
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.UnavailableRetentionAuthorityProducer
 import com.adsamcik.tracker.stats.data.worker.AchievementWorker
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
@@ -194,6 +197,10 @@ class DefaultCollectedDataDeletionService(
 	private val activityRegistrationArbiterProvider: Provider<ActivityRegistrationArbiter>? = null,
 	private val ambientStepsProviderLifecycleProvider: Provider<AmbientStepsProviderLifecycle>? = null,
 	private val automaticControlRestorer: PostDeletionAutomaticControlRestorer,
+	private val retentionAuthorityProducer: RetentionAuthorityProducer =
+		UnavailableRetentionAuthorityProducer,
+	private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler =
+		TrackingPurposeSettingsReconciler { },
 	private val traceboxDataDeletion: suspend () -> Boolean,
 	private val trackingDiagnosticDataDeletion: suspend () -> Boolean = { true },
 	private val appDatabaseDeletion: suspend (Context, Long, Long?, Long) -> Unit =
@@ -268,17 +275,27 @@ class DefaultCollectedDataDeletionService(
 				updatedAtMs = lifecycleUpdatedAtMs,
 				removeRetiredDatabases = writeMarker,
 			)
+			retentionAuthorityProducer.reconcileCurrentSettings()
 			exportPlanStore.resetAllWatermarks()
 			deleteDiagnostics()
 			// Enqueue the durable recovery owner while the deletion marker and process barrier still
 			// fence Room/providers. It will make one attempt only after this generation is Ready.
 			automaticControlRestorer.schedule(lifecycle.epoch)
-			clearDeletionMarker()
 			deletionCompleted = true
 		} finally {
 			if (deletionCompleted) {
 				startupDeletionBarrier.reopen()
 			}
+		}
+		if (deletionCompleted) {
+			purposeSettingsReconciler.reconcileCurrentSettings()
+			val ambientResult = ambientStepsProviderLifecycle?.reconcileAfterSettingsChange()
+			if (ambientResult != null && !ambientResult.complete && !ambientResult.retryable) {
+				throw DatabaseMigrationBackupException(
+					"Ambient Steps post-deletion reconciliation failed: ${ambientResult.failure}",
+				)
+			}
+			clearDeletionMarker()
 		}
 	}
 

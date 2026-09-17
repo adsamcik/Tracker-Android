@@ -16,6 +16,7 @@ import com.adsamcik.tracker.app.receiver.BootTrackingRecoveryScheduler
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.points.database.PointsDatabase
@@ -26,6 +27,7 @@ import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBack
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupStore
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
@@ -90,7 +92,7 @@ import com.adsamcik.tracker.shared.base.assist.Assist
 /**
  * Hilt module providing core infrastructure dependencies.
  * These are application-scoped singletons used across the entire app.
- * 
+ *
  * Per copilot-instructions Section 16A:
  * - Stable abstractions for time, dispatchers, coroutine scopes
  * - Single source of truth for database instance
@@ -212,6 +214,8 @@ object InfrastructureModule {
 		activityRegistrationArbiter: Provider<ActivityRegistrationArbiter>,
 		ambientStepsProviderLifecycle: Provider<AmbientStepsProviderLifecycle>,
 		automaticControlRestorer: PostDeletionAutomaticControlRestorer,
+		retentionAuthorityProducer: RetentionAuthorityProducer,
+		purposeSettingsReconciler: TrackingPurposeSettingsReconciler,
 		stepsWriterTransitionCoordinator: Provider<StepsSessionFactWriterTransitionCoordinator>,
         dispatchersProvider: DispatchersProvider,
         traceboxHandleProvider: TrackerTraceboxHandleProvider,
@@ -226,6 +230,8 @@ object InfrastructureModule {
 		activityRegistrationArbiterProvider = activityRegistrationArbiter,
 		ambientStepsProviderLifecycleProvider = ambientStepsProviderLifecycle,
 		automaticControlRestorer = automaticControlRestorer,
+		retentionAuthorityProducer = retentionAuthorityProducer,
+		purposeSettingsReconciler = purposeSettingsReconciler,
 		postDatabaseDeletion = { updatedAtMs ->
 			stepsWriterTransitionCoordinator.get().rearmAfterFullDeletion(updatedAtMs)
 		},

@@ -41,7 +41,7 @@ class AmbientStepsDemandReconciler internal constructor(
 	private val bootClockDomainProvider: BootClockDomainProvider,
 	private val sourcePolicyRepository: SourcePolicyRepository,
 	private val trackingRolloutStateStore: TrackingRolloutStateStore,
-	private val hasCurrentRetentionAuthority: suspend (Long, Long) -> Boolean = { _, _ -> true },
+	private val currentRetentionAuthority: suspend (Long, Long) -> CurrentRetentionAuthority,
 ) {
 	@Inject
 	constructor(
@@ -64,7 +64,7 @@ class AmbientStepsDemandReconciler internal constructor(
 				expectedSourcePolicyRevision = policyRevision,
 				expectedAmbientConsentEpoch = consentEpoch,
 				expectedCollectedDataEpoch = collectedDataLifecycleStore.snapshot().epoch,
-			) is CurrentRetentionAuthority.Approved
+			)
 		},
 	)
 
@@ -79,11 +79,12 @@ class AmbientStepsDemandReconciler internal constructor(
 	internal suspend fun reconcileAt(
 		boundary: AmbientStepsDemandBoundary,
 	): AmbientStepsDemandReconciliation {
-		ambientPolicyBlockReason()?.let { reason ->
+		val policyAuthority = ambientPolicyAuthority(boundary)
+		if (policyAuthority is AmbientStepsPolicyAuthority.Blocked) {
 			retireDemand(boundary)
 			return AmbientStepsDemandReconciliation.PolicyBlocked(
 				provider = null,
-				reason = reason,
+				reason = policyAuthority.reason,
 			)
 		}
 		return when (val capability = resolveCapability()) {
@@ -126,27 +127,54 @@ class AmbientStepsDemandReconciler internal constructor(
 	}
 
 	/** Avoids platform permission/provider probes while Ambient Steps is not product-eligible. */
-	private suspend fun ambientPolicyBlockReason(): AmbientStepsDemandBlockReason? =
+	private suspend fun ambientPolicyAuthority(
+		boundary: AmbientStepsDemandBoundary,
+	): AmbientStepsPolicyAuthority =
 		when (val authority = sourcePolicyRepository.currentState()) {
 			SourcePolicyAuthorityState.Uninitialized,
-			is SourcePolicyAuthorityState.Invalid -> AmbientStepsDemandBlockReason.AUTHORITY_INACTIVE
+			is SourcePolicyAuthorityState.Invalid -> AmbientStepsPolicyAuthority.Blocked(
+				AmbientStepsDemandBlockReason.AUTHORITY_INACTIVE,
+			)
 
 			is SourcePolicyAuthorityState.Active -> {
 				val policy = authority.snapshot[TrackingSourceComponent.STEPS]
 				when {
 					policy.ambientConsentEpoch == null ->
-						AmbientStepsDemandBlockReason.REQUEST_DISABLED
+						AmbientStepsPolicyAuthority.Blocked(
+							AmbientStepsDemandBlockReason.REQUEST_DISABLED,
+						)
 					!policy.ambientPersistenceEligible ->
-						AmbientStepsDemandBlockReason.PERSISTENCE_INELIGIBLE
-					!hasCurrentRetentionAuthority(
-						authority.snapshot.revision,
-						requireNotNull(policy.ambientConsentEpoch),
-					) -> AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE
+						AmbientStepsPolicyAuthority.Blocked(
+							AmbientStepsDemandBlockReason.PERSISTENCE_INELIGIBLE,
+						)
 					!trackingRolloutStateStore.load().isCaptureReachable(
 						SourceKind.STEPS,
 						CaptureReachabilityMode.AMBIENT,
-					) -> AmbientStepsDemandBlockReason.ROLLOUT_CONTAINED
-					else -> null
+					) -> AmbientStepsPolicyAuthority.Blocked(
+						AmbientStepsDemandBlockReason.ROLLOUT_CONTAINED,
+					)
+					else -> when (val retention = currentRetentionAuthority(
+						authority.snapshot.revision,
+						requireNotNull(policy.ambientConsentEpoch),
+					)) {
+						is CurrentRetentionAuthority.Approved ->
+							if (
+								retention.effectiveBootId == boundary.bootId &&
+								retention.effectiveElapsedRealtimeNanos <=
+									boundary.elapsedRealtimeNanos &&
+								retention.effectiveWallTimeMs <= boundary.wallTimeMs
+							) {
+								AmbientStepsPolicyAuthority.Ready
+							} else {
+								AmbientStepsPolicyAuthority.Blocked(
+									AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE,
+								)
+							}
+						is CurrentRetentionAuthority.Unavailable ->
+							AmbientStepsPolicyAuthority.Blocked(
+								AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE,
+							)
+					}
 				}
 			}
 		}
@@ -202,6 +230,13 @@ enum class AmbientStepsDemandBlockReason {
 	ROLLOUT_CONTAINED,
 }
 
+private sealed interface AmbientStepsPolicyAuthority {
+	data object Ready : AmbientStepsPolicyAuthority
+
+	data class Blocked(val reason: AmbientStepsDemandBlockReason) :
+		AmbientStepsPolicyAuthority
+}
+
 private fun AmbientStepsDemandInactiveReason.toPublicReason(): AmbientStepsDemandBlockReason = when (this) {
 	AmbientStepsDemandInactiveReason.REQUEST_DISABLED -> AmbientStepsDemandBlockReason.REQUEST_DISABLED
 	AmbientStepsDemandInactiveReason.AUTHORITY_INACTIVE -> AmbientStepsDemandBlockReason.AUTHORITY_INACTIVE
@@ -209,6 +244,9 @@ private fun AmbientStepsDemandInactiveReason.toPublicReason(): AmbientStepsDeman
 	AmbientStepsDemandInactiveReason.CONSENT_REVOKED -> AmbientStepsDemandBlockReason.CONSENT_REVOKED
 	AmbientStepsDemandInactiveReason.PERSISTENCE_INELIGIBLE ->
 		AmbientStepsDemandBlockReason.PERSISTENCE_INELIGIBLE
+	AmbientStepsDemandInactiveReason.RETENTION_APPROVAL_MISSING,
+	AmbientStepsDemandInactiveReason.RETENTION_APPROVAL_MISMATCH,
+	-> AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE
 	AmbientStepsDemandInactiveReason.ROLLOUT_CONTAINED -> AmbientStepsDemandBlockReason.ROLLOUT_CONTAINED
 }
 

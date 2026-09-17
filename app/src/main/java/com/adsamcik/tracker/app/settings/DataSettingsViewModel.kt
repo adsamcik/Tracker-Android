@@ -17,7 +17,14 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigurationApprovalResult
+import com.adsamcik.tracker.shared.preferences.retention.RetentionPolicyApprovalStatus
 import com.adsamcik.tracker.shared.preferences.retention.UnavailableRetentionAuthorityProducer
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
+import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
+import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationFailure
+import com.adsamcik.tracker.tracker.api.NoOpAmbientStepsProviderLifecycle
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -30,6 +37,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import java.io.IOException
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
@@ -78,6 +87,10 @@ data class DataSettingsUiState(
     val dataRetentionYears: Int = RetentionConfigState.DEFAULT_RETENTION_YEARS,
     val incrementalBackupsEnabled: Boolean = true,
     val smartGoalNotificationsEnabled: Boolean = true,
+    val retentionPolicyApprovalStatus: RetentionPolicyApprovalStatus =
+        RetentionPolicyApprovalStatus.UNAPPROVED,
+    val retentionPolicyFailure: RetentionAuthorityUnavailableReason? = null,
+    val ambientStepsLifecycleFailure: AmbientStepsSettingsReconciliationFailure? = null,
     val migrationBackup: MigrationBackupUiInfo? = null,
     val legacyDatabase: LegacyDatabaseUiInfo? = null,
 )
@@ -94,15 +107,39 @@ class DataSettingsViewModel @Inject constructor(
     private val deletionService: CollectedDataDeletionService,
     private val retentionAuthorityProducer: RetentionAuthorityProducer =
         UnavailableRetentionAuthorityProducer,
+    private val purposeSettingsReconciler: TrackingPurposeSettingsReconciler =
+        TrackingPurposeSettingsReconciler { },
+    private val ambientStepsProviderLifecycle: AmbientStepsProviderLifecycle =
+        NoOpAmbientStepsProviderLifecycle,
 ) : ViewModel() {
     private val smartGoalNotificationsKey: String
         get() = appContext.getString(R.string.settings_smart_goal_notifications_key)
 
-    val uiState: StateFlow<DataSettingsUiState> = combine(
+    private val retentionFailure =
+        MutableStateFlow<RetentionAuthorityUnavailableReason?>(null)
+    private val ambientStepsLifecycleFailure =
+        MutableStateFlow<AmbientStepsSettingsReconciliationFailure?>(null)
+
+    private val retentionState = combine(
         retentionConfigStore.config
             .catch {
+                currentCoroutineContext().ensureActive()
+                retentionFailure.value =
+                    RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE
                 emit(RetentionConfigState())
             },
+        retentionConfigStore.approvalStatus
+            .catch {
+                currentCoroutineContext().ensureActive()
+                retentionFailure.value =
+                    RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE
+                emit(RetentionPolicyApprovalStatus.INVALID)
+            },
+        ::Pair,
+    )
+
+    val uiState: StateFlow<DataSettingsUiState> = combine(
+        retentionState,
         exportPlanStore.plans
             .catch {
                 emit(emptyList())
@@ -139,12 +176,14 @@ class DataSettingsViewModel @Inject constructor(
                     ),
                 )
             },
-    ) { config, plans, smartGoalNotificationsEnabled, backup, legacy ->
+    ) { retention, plans, smartGoalNotificationsEnabled, backup, legacy ->
+        val (config, approvalStatus) = retention
         DataSettingsUiState(
             autoCleanupEnabled = config.autoCleanupEnabled,
             dataRetentionYears = config.dataRetentionYears,
             incrementalBackupsEnabled = plans.all { it.incrementalEnabled },
             smartGoalNotificationsEnabled = smartGoalNotificationsEnabled,
+            retentionPolicyApprovalStatus = approvalStatus,
             migrationBackup = backup,
             legacyDatabase = legacy.database?.let { database ->
                 LegacyDatabaseUiInfo(
@@ -158,36 +197,82 @@ class DataSettingsViewModel @Inject constructor(
                 )
             },
         )
+    }.combine(retentionFailure) { state, failure ->
+        state.copy(retentionPolicyFailure = failure)
+    }.combine(ambientStepsLifecycleFailure) { state, failure ->
+        state.copy(ambientStepsLifecycleFailure = failure)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DataSettingsUiState())
 
     fun setAutoCleanupEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            runCatchingCancellable {
-                retentionConfigStore.update {
-                    copy(autoCleanupEnabled = enabled, autoPurgeEnabled = enabled)
-                }
-                retentionAuthorityProducer.reconcileCurrentSettings()
-            }.getOrNull()
+            updateRetentionConfiguration {
+                copy(autoCleanupEnabled = enabled, autoPurgeEnabled = enabled)
+            }
         }
     }
 
     fun setDataRetentionYears(years: Int) {
         if (years < 0) return
         viewModelScope.launch {
-            runCatchingCancellable {
-                val retentionDays = if (years == 0) 0 else years * DAYS_PER_YEAR
-                retentionConfigStore.update {
-                    copy(
-                        dataRetentionYears = years,
-                        rawDataRetentionDays = retentionDays,
-                        wifiCellRetentionDays = retentionDays,
-                        tripRetentionDays = retentionDays,
-                        dailySummaryRetentionDays = retentionDays,
-                        explorationRetentionDays = retentionDays,
+            val retentionDays = if (years == 0) 0 else years * DAYS_PER_YEAR
+            updateRetentionConfiguration {
+                copy(
+                    dataRetentionYears = years,
+                    rawDataRetentionDays = retentionDays,
+                    wifiCellRetentionDays = retentionDays,
+                    tripRetentionDays = retentionDays,
+                    dailySummaryRetentionDays = retentionDays,
+                    explorationRetentionDays = retentionDays,
+                )
+            }
+        }
+    }
+
+    private suspend fun updateRetentionConfiguration(
+        block: RetentionConfigState.() -> RetentionConfigState,
+    ) {
+        retentionFailure.value = null
+        ambientStepsLifecycleFailure.value = null
+        try {
+            val result = retentionConfigStore.updateWithApproval(
+                block = block,
+                prepare = { staged ->
+                    retentionAuthorityProducer.preparePendingConfiguration(
+                        staged.policy.configurationGeneration,
                     )
-                }
-                retentionAuthorityProducer.reconcileCurrentSettings()
-            }.getOrNull()
+                },
+                approve = { staged ->
+                    retentionAuthorityProducer.reconcilePendingConfiguration(
+                        staged.policy.configurationGeneration,
+                    )
+                },
+            )
+            purposeSettingsReconciler.reconcileCurrentSettings()
+            ambientStepsLifecycleFailure.value =
+                ambientStepsProviderLifecycle.reconcileAfterSettingsChange().failure
+            retentionFailure.value =
+                (result.approval as? RetentionConfigurationApprovalResult.Unavailable)?.reason
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            currentCoroutineContext().ensureActive()
+            retentionFailure.value = RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE
+            try {
+                purposeSettingsReconciler.reconcileCurrentSettings()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                retentionFailure.value = RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE
+            }
+            try {
+                ambientStepsLifecycleFailure.value =
+                    ambientStepsProviderLifecycle.reconcileAfterSettingsChange().failure
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                ambientStepsLifecycleFailure.value =
+                    AmbientStepsSettingsReconciliationFailure.DURABLE_AUTHORITY_REJECTED
+            }
         }
     }
 

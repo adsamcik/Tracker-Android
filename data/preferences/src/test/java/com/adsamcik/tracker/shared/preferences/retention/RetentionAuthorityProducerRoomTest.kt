@@ -36,6 +36,7 @@ class RetentionAuthorityProducerRoomTest {
 			ApprovedRetentionPolicyUnavailableReason.NOT_APPROVED,
 		)
 	private var effectiveTime = 0L
+	private var currentBoot = "boot-1"
 
 	@BeforeTest
 	fun setUp() = runTest {
@@ -90,6 +91,27 @@ class RetentionAuthorityProducerRoomTest {
 		database.ambientWifiFactDao().latestRetentionAuthority(
 			AmbientWifiRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
 		) shouldBe null
+	}
+
+	@Test
+	fun `cold reconciliation preserves a current approved portable grant`() = runTest {
+		bootstrap()
+		approvedPolicy = approved("policy-1", revision = 1L)
+		val producer = producer()
+		assertIs<RetentionAuthorityResult.Applied>(
+			producer.approvePortableImport(TrackingSourceComponent.STEPS),
+		)
+		val before = requireNotNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
+			),
+		)
+
+		producer.reconcileCurrentSettings()
+
+		database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+			AmbientStepsRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT,
+		) shouldBe before
 	}
 
 	@Test
@@ -236,6 +258,68 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
+	fun `pending configuration stays fail closed until exact Room grants are approved`() = runTest {
+		bootstrap(ambientWifi = true)
+		val pendingPolicy = approvedPolicy("pending-policy", revision = 1L)
+		var markedApproved = false
+		val producer = producer(
+			readPolicyCandidate = {
+				RetentionPolicyCandidateRead.Available(
+					pendingPolicy,
+					RetentionPolicyApprovalStatus.PENDING,
+				)
+			},
+			markPolicyApproved = {
+				markedApproved = it == pendingPolicy
+				it
+			},
+		)
+
+		producer.currentLiveAmbient(
+			TrackingSourceComponent.WIFI,
+			expectedSourcePolicyRevision =
+				(policies.currentState() as SourcePolicyAuthorityState.Active).snapshot.revision,
+			expectedAmbientConsentEpoch = 1L,
+			expectedCollectedDataEpoch = lifecycle.epoch,
+		) shouldBe CurrentRetentionAuthority.Unavailable(
+			RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+		)
+		producer.preparePendingConfiguration(1L) shouldBe
+			RetentionConfigurationApprovalResult.Prepared(pendingPolicy)
+		producer.reconcilePendingConfiguration(1L) shouldBe
+			RetentionConfigurationApprovalResult.Approved(pendingPolicy)
+		markedApproved shouldBe true
+		database.ambientWifiFactDao().latestRetentionAuthority(
+			AmbientWifiRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+		)?.opaquePolicyId shouldBe "pending-policy"
+	}
+
+	@Test
+	fun `pending configuration revokes prior live grant before publication`() = runTest {
+		bootstrap(ambientWifi = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+		producer().reconcileLiveAmbient(TrackingSourceComponent.WIFI)
+		val pendingPolicy = approvedPolicy("policy-2", revision = 2L)
+		approvedPolicy = ApprovedRetentionPolicyRead.Unavailable(
+			ApprovedRetentionPolicyUnavailableReason.PENDING_APPROVAL,
+		)
+		val pendingProducer = producer(
+			readPolicyCandidate = {
+				RetentionPolicyCandidateRead.Available(
+					pendingPolicy,
+					RetentionPolicyApprovalStatus.PENDING,
+				)
+			},
+		)
+
+		pendingProducer.preparePendingConfiguration(2L) shouldBe
+			RetentionConfigurationApprovalResult.Prepared(pendingPolicy)
+		database.ambientWifiFactDao().latestRetentionAuthority(
+			AmbientWifiRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+		)?.state shouldBe AmbientWifiRetentionAuthorityEntity.STATE_REVOKED
+	}
+
+	@Test
 	fun `location seam remains unavailable and writes no other source`() = runTest {
 		bootstrap(ambientLocation = true)
 		approvedPolicy = approved("policy-1", revision = 1L)
@@ -253,6 +337,76 @@ class RetentionAuthorityProducerRoomTest {
 		database.ambientCellFactDao().latestRetentionAuthority(
 			AmbientCellRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
 		) shouldBe null
+	}
+
+	@Test
+	fun `prior boot grant is rejected and reconciled onto current clock domain`() = runTest {
+		bootstrap(ambientWifi = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+		val producer = producer()
+		val snapshot = (policies.currentState() as SourcePolicyAuthorityState.Active).snapshot
+		val consentEpoch = requireNotNull(
+			snapshot[TrackingSourceComponent.WIFI].ambientConsentEpoch,
+		)
+		producer.reconcileLiveAmbient(TrackingSourceComponent.WIFI)
+		currentBoot = "boot-2"
+
+		producer.currentLiveAmbient(
+			TrackingSourceComponent.WIFI,
+			snapshot.revision,
+			consentEpoch,
+			lifecycle.epoch,
+		) shouldBe CurrentRetentionAuthority.Unavailable(
+			RetentionAuthorityUnavailableReason.EFFECTIVE_TIME_INVALID,
+		)
+		assertIs<RetentionAuthorityResult.Applied>(
+			producer.reconcileLiveAmbient(TrackingSourceComponent.WIFI),
+		)
+		database.ambientWifiFactDao().latestRetentionAuthority(
+			AmbientWifiRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+		)?.effectiveBootId shouldBe "boot-2"
+	}
+
+	@Test
+	fun `reader predicate binds current boot and exact retention identity`() = runTest {
+		bootstrap(ambientSteps = true)
+		approvedPolicy = approved("policy-1", revision = 1L)
+		val producer = producer()
+		val snapshot = (policies.currentState() as SourcePolicyAuthorityState.Active).snapshot
+		val consentEpoch = requireNotNull(
+			snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch,
+		)
+		assertIs<RetentionAuthorityResult.Applied>(
+			producer.reconcileLiveAmbient(TrackingSourceComponent.STEPS),
+		)
+		val stored = requireNotNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			),
+		)
+
+		producer.isCurrentLiveAmbientAt(
+			source = TrackingSourceComponent.STEPS,
+			expectedSourcePolicyRevision = snapshot.revision,
+			expectedAmbientConsentEpoch = consentEpoch,
+			expectedCollectedDataEpoch = lifecycle.epoch,
+			expectedOpaquePolicyId = stored.opaquePolicyId,
+			expectedApprovalRevision = stored.approvalRevision,
+			currentBootId = currentBoot,
+			currentElapsedRealtimeNanos = effectiveTime + 10L,
+			currentWallTimeMs = effectiveTime + 10L,
+		) shouldBe true
+		producer.isCurrentLiveAmbientAt(
+			source = TrackingSourceComponent.STEPS,
+			expectedSourcePolicyRevision = snapshot.revision,
+			expectedAmbientConsentEpoch = consentEpoch,
+			expectedCollectedDataEpoch = lifecycle.epoch,
+			expectedOpaquePolicyId = stored.opaquePolicyId,
+			expectedApprovalRevision = stored.approvalRevision + 1L,
+			currentBootId = currentBoot,
+			currentElapsedRealtimeNanos = effectiveTime + 10L,
+			currentWallTimeMs = effectiveTime + 10L,
+		) shouldBe false
 	}
 
 	private suspend fun bootstrap(
@@ -277,6 +431,18 @@ class RetentionAuthorityProducerRoomTest {
 			TrackingSourceComponent,
 			RetentionAuthorityScope,
 		) -> Unit = { _, _ -> },
+		readPolicyCandidate: suspend () -> RetentionPolicyCandidateRead = {
+			when (val current = approvedPolicy) {
+				is ApprovedRetentionPolicyRead.Available ->
+					RetentionPolicyCandidateRead.Available(
+						current.policy,
+						RetentionPolicyApprovalStatus.APPROVED,
+					)
+				is ApprovedRetentionPolicyRead.Unavailable ->
+					RetentionPolicyCandidateRead.Unavailable(current.reason)
+			}
+		},
+		markPolicyApproved: suspend (ApprovedRetentionPolicy) -> ApprovedRetentionPolicy? = { it },
 	) = DefaultRetentionAuthorityProducer(
 		database = database,
 		sourcePolicyRepository = policies,
@@ -284,12 +450,14 @@ class RetentionAuthorityProducerRoomTest {
 		readLifecycle = { lifecycle },
 		effectiveTimeProvider = { nextTime() },
 		beforeDecisionApply = beforeDecisionApply,
+		readPolicyCandidate = readPolicyCandidate,
+		markPolicyApproved = markPolicyApproved,
 	)
 
 	private fun nextTime(): SourcePolicyEffectiveTime {
 		effectiveTime += 1L
 		return SourcePolicyEffectiveTime(
-			bootId = "boot-1",
+			bootId = currentBoot,
 			elapsedRealtimeNanos = effectiveTime,
 			wallTimeMs = effectiveTime,
 		)
@@ -298,20 +466,27 @@ class RetentionAuthorityProducerRoomTest {
 	private fun approved(
 		opaquePolicyId: String,
 		revision: Long,
-	): ApprovedRetentionPolicyRead {
+	): ApprovedRetentionPolicyRead =
+		ApprovedRetentionPolicyRead.Available(approvedPolicy(opaquePolicyId, revision))
+
+	private fun approvedPolicy(
+		opaquePolicyId: String,
+		revision: Long,
+	): ApprovedRetentionPolicy {
 		val configurationChecksum =
 			RetentionPolicyApprovalIntegrity.configurationChecksum(RetentionConfigState())
-		return ApprovedRetentionPolicyRead.Available(
-			ApprovedRetentionPolicy(
+		return ApprovedRetentionPolicy(
+				configurationGeneration = revision,
 				revision = revision,
 				opaquePolicyId = opaquePolicyId,
 				configurationChecksum = configurationChecksum,
 				integrityChecksum = RetentionPolicyApprovalIntegrity.checksum(
+					RetentionPolicyApprovalStatus.APPROVED,
+					revision,
 					revision,
 					opaquePolicyId,
 					configurationChecksum,
 				),
-			),
 		)
 	}
 }

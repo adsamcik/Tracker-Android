@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.store.LegacyPreferenceStore
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -82,23 +83,99 @@ class RetentionConfigStoreTest {
 	}
 
 	@Test
-	fun `explicit saved configuration creates and rotates opaque approval`() = runTest {
-		store.update { copy(dataRetentionYears = 2, rawDataRetentionDays = 730) }
+	fun `explicit saved configuration remains pending until exact approval CAS`() = runTest {
+		val staged = store.update { copy(dataRetentionYears = 2, rawDataRetentionDays = 730) }
+		staged.approvalRequired shouldBe true
+		assertIs<ApprovedRetentionPolicyRead.Unavailable>(
+			store.currentApprovedPolicy(),
+		).reason shouldBe ApprovedRetentionPolicyUnavailableReason.PENDING_APPROVAL
+		store.markPolicyApproved(staged.policy) shouldNotBe null
 		val first = assertIs<ApprovedRetentionPolicyRead.Available>(
 			store.currentApprovedPolicy(),
 		).policy
 
-		store.update { this }
+		val unchanged = store.update { this }
+		unchanged.approvalRequired shouldBe false
 		assertIs<ApprovedRetentionPolicyRead.Available>(
 			store.currentApprovedPolicy(),
 		).policy shouldBe first
 
-		store.update { copy(dataRetentionYears = 3, rawDataRetentionDays = 1_095) }
+		val rotated = store.update { copy(dataRetentionYears = 3, rawDataRetentionDays = 1_095) }
+		assertIs<ApprovedRetentionPolicyRead.Unavailable>(
+			store.currentApprovedPolicy(),
+		).reason shouldBe ApprovedRetentionPolicyUnavailableReason.PENDING_APPROVAL
+		store.markPolicyApproved(rotated.policy) shouldNotBe null
 		val second = assertIs<ApprovedRetentionPolicyRead.Available>(
 			store.currentApprovedPolicy(),
 		).policy
 		second.revision shouldBe first.revision + 1L
 		(second.opaquePolicyId == first.opaquePolicyId) shouldBe false
+	}
+
+	@Test
+	fun `failed preparation keeps old config and durable pending generation for retry`() = runTest {
+		val failed = store.updateWithApproval(
+			block = { copy(dataRetentionYears = 4, rawDataRetentionDays = 1_460) },
+			prepare = {
+				RetentionConfigurationApprovalResult.Unavailable(
+					RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE,
+				)
+			},
+			approve = { error("Approval must not run after failed preparation") },
+		)
+
+		failed.published shouldBe false
+		store.config.first().dataRetentionYears shouldBe
+			RetentionConfigState.DEFAULT_RETENTION_YEARS
+		store.approvalStatus.first() shouldBe RetentionPolicyApprovalStatus.PENDING
+		assertIs<ApprovedRetentionPolicyRead.Unavailable>(
+			store.currentApprovedPolicy(),
+		).reason shouldBe ApprovedRetentionPolicyUnavailableReason.CONFIGURATION_CHANGED
+
+		val retried = store.updateWithApproval(
+			block = { copy(dataRetentionYears = 4, rawDataRetentionDays = 1_460) },
+			prepare = { RetentionConfigurationApprovalResult.Prepared(it.policy) },
+			approve = {
+				val approved = requireNotNull(store.markPolicyApproved(it.policy))
+				RetentionConfigurationApprovalResult.Approved(approved)
+			},
+		)
+
+		retried.published shouldBe true
+		store.config.first().dataRetentionYears shouldBe 4
+		store.approvalStatus.first() shouldBe RetentionPolicyApprovalStatus.APPROVED
+	}
+
+	@Test
+	fun `failed Room approval leaves published config pending and retryable`() = runTest {
+		val failed = store.updateWithApproval(
+			block = { copy(dataRetentionYears = 5, rawDataRetentionDays = 1_825) },
+			prepare = { RetentionConfigurationApprovalResult.Prepared(it.policy) },
+			approve = {
+				RetentionConfigurationApprovalResult.Unavailable(
+					RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE,
+				)
+			},
+		)
+
+		failed.published shouldBe true
+		store.config.first().dataRetentionYears shouldBe 5
+		store.approvalStatus.first() shouldBe RetentionPolicyApprovalStatus.PENDING
+		assertIs<ApprovedRetentionPolicyRead.Unavailable>(
+			store.currentApprovedPolicy(),
+		).reason shouldBe ApprovedRetentionPolicyUnavailableReason.PENDING_APPROVAL
+
+		val retried = store.updateWithApproval(
+			block = { this },
+			prepare = { RetentionConfigurationApprovalResult.Prepared(it.policy) },
+			approve = {
+				val approved = requireNotNull(store.markPolicyApproved(it.policy))
+				RetentionConfigurationApprovalResult.Approved(approved)
+			},
+		)
+
+		retried.published shouldBe true
+		store.approvalStatus.first() shouldBe RetentionPolicyApprovalStatus.APPROVED
 	}
 
 	@Test

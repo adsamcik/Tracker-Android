@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProdu
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityScope
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigurationApprovalResult
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicy
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
@@ -701,6 +702,20 @@ private class MutableRolloutStateStore(
 private object AlwaysApprovedRetentionAuthorityProducer : RetentionAuthorityProducer {
 	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> = emptyList()
 
+	override suspend fun preparePendingConfiguration(
+		expectedConfigurationGeneration: Long,
+	): RetentionConfigurationApprovalResult =
+		RetentionConfigurationApprovalResult.Unavailable(
+			RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+		)
+
+	override suspend fun reconcilePendingConfiguration(
+		expectedConfigurationGeneration: Long?,
+	): RetentionConfigurationApprovalResult =
+		RetentionConfigurationApprovalResult.Unavailable(
+			RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+		)
+
 	override suspend fun reconcileLiveAmbient(source: TrackingSource): RetentionAuthorityResult =
 		activeResult(source, RetentionAuthorityScope.LIVE_AMBIENT)
 
@@ -718,11 +733,31 @@ private object AlwaysApprovedRetentionAuthorityProducer : RetentionAuthorityProd
 		expectedSourcePolicyRevision: Long,
 		expectedAmbientConsentEpoch: Long,
 		expectedCollectedDataEpoch: Long,
-	): CurrentRetentionAuthority = CurrentRetentionAuthority.Approved("test-policy", 1L)
+	): CurrentRetentionAuthority = CurrentRetentionAuthority.Approved(
+		"test-policy",
+		1L,
+		"test-boot",
+		0L,
+		0L,
+	)
 }
 
 private object UnavailableRetentionAuthorityProducerForTest : RetentionAuthorityProducer {
 	override suspend fun reconcileCurrentSettings(): List<RetentionAuthorityResult> = emptyList()
+
+	override suspend fun preparePendingConfiguration(
+		expectedConfigurationGeneration: Long,
+	): RetentionConfigurationApprovalResult =
+		RetentionConfigurationApprovalResult.Unavailable(
+			RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+		)
+
+	override suspend fun reconcilePendingConfiguration(
+		expectedConfigurationGeneration: Long?,
+	): RetentionConfigurationApprovalResult =
+		RetentionConfigurationApprovalResult.Unavailable(
+			RetentionAuthorityUnavailableReason.RETENTION_POLICY_UNAVAILABLE,
+		)
 
 	override suspend fun reconcileLiveAmbient(source: TrackingSource): RetentionAuthorityResult =
 		unavailableResult(source)

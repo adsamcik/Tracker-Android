@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.source.ambient.steps
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupFailure
 import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
+import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationFailure
+import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -54,6 +56,9 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 		reconcileRegistration(demand, boundary)
 	}
 
+	override suspend fun reconcileAfterSettingsChange(): AmbientStepsSettingsReconciliationResult =
+		reconcile().toPublicSettingsResult()
+
 	override suspend fun closeForCollectedDataDeletion():
 		com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupResult = mutex.withLock {
 		closeRegistration().toPublicResult()
@@ -67,6 +72,46 @@ private fun AmbientStepsProviderCleanupResult.toPublicResult():
 		failure = failure?.toPublicFailure(),
 		retryable = retryable,
 	)
+
+private fun AmbientStepsProviderRegistrationResult.toPublicSettingsResult():
+	AmbientStepsSettingsReconciliationResult = when (this) {
+	is AmbientStepsProviderRegistrationResult.Active ->
+		AmbientStepsSettingsReconciliationResult(complete = true, operational = true)
+	is AmbientStepsProviderRegistrationResult.Inactive ->
+		AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
+	is AmbientStepsProviderRegistrationResult.Degraded ->
+		AmbientStepsSettingsReconciliationResult(
+			complete = false,
+			operational = false,
+			failure = failure.toPublicSettingsFailure(),
+			retryable = retryable,
+		)
+	is AmbientStepsProviderRegistrationResult.Failed ->
+		AmbientStepsSettingsReconciliationResult(
+			complete = false,
+			operational = false,
+			failure = failure.toPublicSettingsFailure(),
+			retryable = retryable,
+		)
+}
+
+private fun AmbientStepsProviderRegistrationFailure.toPublicSettingsFailure():
+	AmbientStepsSettingsReconciliationFailure = when (this) {
+	AmbientStepsProviderRegistrationFailure.DURABLE_AUTHORITY_REJECTED ->
+		AmbientStepsSettingsReconciliationFailure.DURABLE_AUTHORITY_REJECTED
+	AmbientStepsProviderRegistrationFailure.PROVIDER_ACTIVATION_FAILED ->
+		AmbientStepsSettingsReconciliationFailure.PROVIDER_ACTIVATION_FAILED
+	AmbientStepsProviderRegistrationFailure.PROVIDER_REMOVAL_FAILED ->
+		AmbientStepsSettingsReconciliationFailure.PROVIDER_REMOVAL_FAILED
+	AmbientStepsProviderRegistrationFailure.PROVIDER_IDENTITY_INVALID ->
+		AmbientStepsSettingsReconciliationFailure.PROVIDER_IDENTITY_INVALID
+	AmbientStepsProviderRegistrationFailure.AUTHORITY_CHANGED_DURING_ACTIVATION ->
+		AmbientStepsSettingsReconciliationFailure.AUTHORITY_CHANGED_DURING_ACTIVATION
+	AmbientStepsProviderRegistrationFailure.CLEANUP_JOURNAL_UNAVAILABLE ->
+		AmbientStepsSettingsReconciliationFailure.CLEANUP_JOURNAL_UNAVAILABLE
+	AmbientStepsProviderRegistrationFailure.PROVIDER_CLEANUP_STATE_INVALID ->
+		AmbientStepsSettingsReconciliationFailure.PROVIDER_STATE_INVALID
+}
 
 private fun AmbientStepsProviderRegistrationFailure.toPublicFailure():
 	AmbientStepsProviderCleanupFailure = when (this) {

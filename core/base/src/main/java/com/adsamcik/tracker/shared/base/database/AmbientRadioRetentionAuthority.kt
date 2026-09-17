@@ -60,6 +60,7 @@ enum class AmbientRadioRetentionAuthorityUnavailableReason {
 	STALE_APPROVAL_REVISION,
 	APPROVAL_REVISION_EXHAUSTED,
 	INTEGRITY_MISMATCH,
+	EFFECTIVE_TIME_INVALID,
 }
 
 suspend fun AppDatabase.applyAmbientWifiRetentionDecision(
@@ -80,6 +81,12 @@ suspend fun AppDatabase.applyAmbientWifiRetentionDecision(
 	}
 	if (current?.approvalRevision != decision.expectedPreviousApprovalRevision()) {
 		return@withTransaction unavailableStaleRevision()
+	}
+	if (!decision.hasValidEffectiveTime(current)) {
+		return@withTransaction unavailableEffectiveTime()
+	}
+	if (!hasValidReferencedPolicyTime(decision, SourceDestinationOwnerEntity.SOURCE_WIFI)) {
+		return@withTransaction unavailableEffectiveTime()
 	}
 	val binding = retentionBinding(decision, SourceDestinationOwnerEntity.SOURCE_WIFI)
 		?: return@withTransaction unavailableLivePolicy()
@@ -125,6 +132,12 @@ suspend fun AppDatabase.applyAmbientCellRetentionDecision(
 	}
 	if (current?.approvalRevision != decision.expectedPreviousApprovalRevision()) {
 		return@withTransaction unavailableStaleRevision()
+	}
+	if (!decision.hasValidEffectiveTime(current)) {
+		return@withTransaction unavailableEffectiveTime()
+	}
+	if (!hasValidReferencedPolicyTime(decision, SourceDestinationOwnerEntity.SOURCE_CELL)) {
+		return@withTransaction unavailableEffectiveTime()
 	}
 	val binding = retentionBinding(decision, SourceDestinationOwnerEntity.SOURCE_CELL)
 		?: return@withTransaction unavailableLivePolicy()
@@ -176,7 +189,17 @@ private suspend fun AppDatabase.retentionBinding(
 			consent == null ||
 			!consent.eligible ||
 			!consent.persistenceEligible ||
-			consent.policyRevision != decision.expectedSourcePolicyRevision
+			consent.policyRevision != decision.expectedSourcePolicyRevision ||
+			policy.effectiveBootId != consent.effectiveBootId ||
+			decision.effectiveWallTimeMs < maxOf(
+				policy.effectiveWallTimeMs,
+				consent.effectiveWallTimeMs,
+			) ||
+			(decision.effectiveBootId == policy.effectiveBootId &&
+				decision.effectiveElapsedRealtimeNanos < maxOf(
+					policy.effectiveElapsedRealtimeNanos,
+					consent.effectiveElapsedRealtimeNanos,
+				))
 		) null else decision.expectedSourcePolicyRevision to decision.expectedAmbientConsentEpoch
 	}
 	is AmbientRadioRetentionDecision.Revoke -> when (decision.scope) {
@@ -193,6 +216,32 @@ private suspend fun AppDatabase.retentionBinding(
 		AmbientWifiRetentionAuthorityEntity.SCOPE_PORTABLE_IMPORT -> null to null
 		else -> null
 	}
+}
+
+private suspend fun AppDatabase.hasValidReferencedPolicyTime(
+	decision: AmbientRadioRetentionDecision,
+	sourceKind: Int,
+): Boolean {
+	if (decision !is AmbientRadioRetentionDecision.GrantLiveAmbient) return true
+	val policy = sourcePolicyDao().policyAtRevision(
+		decision.expectedSourcePolicyRevision,
+		sourceKind,
+	) ?: return true
+	val consent = sourcePolicyDao().consentEpoch(
+		sourceKind,
+		SourceBrokerPurpose.AMBIENT_PRODUCT,
+		decision.expectedAmbientConsentEpoch,
+	) ?: return true
+	return policy.effectiveBootId == consent.effectiveBootId &&
+		decision.effectiveWallTimeMs >= maxOf(
+			policy.effectiveWallTimeMs,
+			consent.effectiveWallTimeMs,
+		) &&
+		(decision.effectiveBootId != policy.effectiveBootId ||
+			decision.effectiveElapsedRealtimeNanos >= maxOf(
+				policy.effectiveElapsedRealtimeNanos,
+				consent.effectiveElapsedRealtimeNanos,
+			))
 }
 
 private fun AmbientRadioRetentionDecision.wifiScope(): String = when (this) {
@@ -260,6 +309,31 @@ private fun AmbientRadioRetentionDecision.expectedPreviousApprovalRevision(): Lo
 	is AmbientRadioRetentionDecision.Revoke -> expectedPreviousApprovalRevision
 }
 
+private fun AmbientRadioRetentionDecision.hasValidEffectiveTime(
+	current: AmbientWifiRetentionAuthorityEntity?,
+): Boolean = current == null || effectiveTimeFollows(
+	current.effectiveBootId,
+	current.effectiveElapsedRealtimeNanos,
+	current.effectiveWallTimeMs,
+)
+
+private fun AmbientRadioRetentionDecision.hasValidEffectiveTime(
+	current: AmbientCellRetentionAuthorityEntity?,
+): Boolean = current == null || effectiveTimeFollows(
+	current.effectiveBootId,
+	current.effectiveElapsedRealtimeNanos,
+	current.effectiveWallTimeMs,
+)
+
+private fun AmbientRadioRetentionDecision.effectiveTimeFollows(
+	previousBootId: String,
+	previousElapsedRealtimeNanos: Long,
+	previousWallTimeMs: Long,
+): Boolean =
+	effectiveWallTimeMs >= previousWallTimeMs &&
+		(effectiveBootId != previousBootId ||
+			effectiveElapsedRealtimeNanos > previousElapsedRealtimeNanos)
+
 private fun unavailableEpoch() = AmbientRadioRetentionAuthorityResult.Unavailable(
 	AmbientRadioRetentionAuthorityUnavailableReason.COLLECTED_DATA_EPOCH_CHANGED,
 )
@@ -282,4 +356,8 @@ private fun unavailableRevision() = AmbientRadioRetentionAuthorityResult.Unavail
 
 private fun unavailableIntegrity() = AmbientRadioRetentionAuthorityResult.Unavailable(
 	AmbientRadioRetentionAuthorityUnavailableReason.INTEGRITY_MISMATCH,
+)
+
+private fun unavailableEffectiveTime() = AmbientRadioRetentionAuthorityResult.Unavailable(
+	AmbientRadioRetentionAuthorityUnavailableReason.EFFECTIVE_TIME_INVALID,
 )
