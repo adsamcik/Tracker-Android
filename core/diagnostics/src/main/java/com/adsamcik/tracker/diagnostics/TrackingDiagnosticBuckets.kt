@@ -11,6 +11,7 @@ enum class TrackingDiagnosticCountBucket {
 	;
 
 	companion object {
+		@JvmSynthetic
 		internal fun fromCount(count: Long): TrackingDiagnosticCountBucket {
 			require(count >= 0L) { "Count must be non-negative" }
 			return when (count) {
@@ -36,6 +37,7 @@ enum class TrackingDiagnosticDurationBucket {
 	;
 
 	companion object {
+		@JvmSynthetic
 		internal fun fromMilliseconds(durationMilliseconds: Long): TrackingDiagnosticDurationBucket {
 			require(durationMilliseconds >= 0L) { "Duration must be non-negative" }
 			return when (durationMilliseconds) {
@@ -48,6 +50,7 @@ enum class TrackingDiagnosticDurationBucket {
 			}
 		}
 
+		@JvmSynthetic
 		internal fun fromNanoseconds(durationNanoseconds: Long): TrackingDiagnosticDurationBucket {
 			require(durationNanoseconds >= 0L) { "Duration must be non-negative" }
 			return fromMilliseconds(durationNanoseconds / 1_000_000L)
@@ -66,6 +69,7 @@ enum class TrackingDiagnosticBacklogBucket {
 	;
 
 	companion object {
+		@JvmSynthetic
 		internal fun fromItemCount(itemCount: Long): TrackingDiagnosticBacklogBucket {
 			require(itemCount >= 0L) { "Backlog count must be non-negative" }
 			return when (itemCount) {
@@ -91,6 +95,7 @@ enum class TrackingDiagnosticSizeBucket {
 	;
 
 	companion object {
+		@JvmSynthetic
 		internal fun fromBytes(byteCount: Long): TrackingDiagnosticSizeBucket {
 			require(byteCount >= 0L) { "Size must be non-negative" }
 			return when (byteCount) {
