@@ -6,6 +6,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.room.withTransaction
+import androidx.sqlite.db.SupportSQLiteOpenHelper
 import com.adsamcik.tracker.shared.base.database.steps.imported.preserveStepsFullClearFences
 import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.database.converter.CellTypeConverter
@@ -245,7 +246,7 @@ import com.adsamcik.tracker.shared.base.database.migration.MigrationBackupOpenHe
 import com.adsamcik.tracker.shared.base.database.legacy.ACTIVE_DATABASE_NAME
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportRoomCallback
 import com.adsamcik.tracker.shared.base.database.legacy.LEGACY_IMPORT_JOB_ID
-import androidx.sqlite.db.SupportSQLiteOpenHelper
+import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 
 /** Last schema shipped on the stable active database file. Its contract is immutable. */
 internal const val LAST_RELEASED_ACTIVE_DATABASE_VERSION = 27
@@ -719,9 +720,15 @@ abstract class AppDatabase : RoomDatabase() {
 		/** Normal in-place migrations for the stable v27+ active database filename. */
 		internal val activeMigrations: Array<Migration> = arrayOf(MIGRATION_27_28)
 
+		override fun delegateOpenHelperFactory(): SupportSQLiteOpenHelper.Factory =
+			SQLiteXSupportSQLiteOpenHelperFactory(
+				preserveDatabaseFilesOnCorruption = true,
+			)
+
 		override fun setupDatabase(database: Builder<AppDatabase>) {
 			database.addMigrations(*activeMigrations)
 			database.addCallback(TrackingOwnerValidationRoomCallback)
+			database.addCallback(FinalV28SchemaAssemblyRoomCallback)
 		}
 
 		override fun setupDatabase(context: Context, database: Builder<AppDatabase>) {
@@ -734,11 +741,15 @@ abstract class AppDatabase : RoomDatabase() {
 		override fun openHelperFactory(
 			context: Context,
 			delegate: SupportSQLiteOpenHelper.Factory,
-		): SupportSQLiteOpenHelper.Factory = MigrationBackupOpenHelperFactory(
-			delegate = delegate,
-			backupStore = DatabaseMigrationBackupStore(context),
+		): SupportSQLiteOpenHelper.Factory = DevelopmentV28ContainmentOpenHelperFactory(
+			context = context,
 			databaseName = databaseName,
-			targetVersion = CURRENT_DATABASE_VERSION,
+			delegate = MigrationBackupOpenHelperFactory(
+				delegate = delegate,
+				backupStore = DatabaseMigrationBackupStore(context),
+				databaseName = databaseName,
+				targetVersion = CURRENT_DATABASE_VERSION,
+			),
 		)
 
 		/**

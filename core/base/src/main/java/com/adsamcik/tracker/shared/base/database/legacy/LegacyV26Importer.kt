@@ -5,8 +5,9 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import androidx.sqlite.db.SupportSQLiteStatement
 import androidx.sqlite.db.SupportSQLiteOpenHelper
+import androidx.sqlite.db.SupportSQLiteStatement
+import com.adsamcik.tracker.shared.base.database.openDatabasePreservingFiles
 import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 
 internal const val LEGACY_IMPORT_JOB_ID = "legacy-database-v26"
@@ -48,9 +49,8 @@ class LegacyV26Importer(
 				if (repository.inspect() != null) {
 					normalizer.prepare().use { prepared ->
 						repository.markRunning(prepared.originalVersion)
-						SQLiteDatabase.openDatabase(
-							prepared.file.path,
-							null,
+						openDatabasePreservingFiles(
+							prepared.file,
 							SQLiteDatabase.OPEN_READONLY,
 						).use { source ->
 							validateReleasedSchema(source)

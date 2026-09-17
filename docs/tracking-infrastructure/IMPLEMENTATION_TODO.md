@@ -1,5 +1,26 @@
 # Tracking Infrastructure Completion TODO
 
+## 2026-09-17 development-v28 containment leaf
+
+- [x] `impl-dev-v28-containment` — **IMPLEMENTED_UNVALIDATED**: add the read-only active-database
+  preflight, final Room-master assembly marker, bounded table/column/index sentinels, guarded
+  production open, typed startup containment, payload-free reason logging, preservation-only UI
+  guidance, and focused source tests. Version 28 remains unshipped; this is not a release migration,
+  version bump, repair, wipe, fallback, or validation result.
+- Remaining under the broader schema item: generated v28 JSON convergence and execution of the
+  authored fresh/reopen/v27 migration/containment tests in the frozen final validation batch.
+- Remaining remediation dependency: an explicit user-initiated active-database export/rename
+  surface. Do not reuse the legacy-v26 delete flow or add an automatic destructive path.
+- [x] Review8a correction — **IMPLEMENTED_UNVALIDATED**: replace every framework SQLite inspection
+  open with an explicit no-op corruption handler; preserve corrupt main/WAL/SHM/journal files; map
+  lock/busy and temporary operational failures to typed retryable startup state; keep consumers
+  closed until retry succeeds; reserve permanent guidance for confirmed containment only.
+- [x] Definitive review00a correction — **IMPLEMENTED_UNVALIDATED**: opt only active AppDatabase's
+  SQLiteX delegate into non-destructive corruption handling; bypass Room's deleting corruption
+  callback and data-loss recovery; propagate admitted corruption to typed containment; replace
+  one-shot UI completion with generation/revision startup StateFlow and automatic Retryable ->
+  Ready/Main transition.
+
 ## 2026-09-16 finish-started closure
 
 This section supersedes the current-head/review/integration classifications below. The exact local
@@ -53,7 +74,7 @@ Continue only under a new bounded assignment, in this dependency order:
 5. Pressure day/range.
 6. Shared structural day/Today/Timeline/Calendar, actions, Why-recorded, widgets and effects.
 7. Executable multi-generation rearm and source propagation.
-8. Final schema JSON and safe development-v28 strategy.
+8. Final schema JSON and convergence validation of the implemented development-v28 containment.
 9. AUTO-005, retention/privacy and cross-midnight decisions.
 10. Full scenario sources where current source-local coverage is incomplete.
 11. Freeze one final input, then run compile/migration, `ciUnitTest`, `ciCheck`, emulator/device,

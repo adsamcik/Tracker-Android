@@ -11,7 +11,13 @@ import com.adsamcik.tracker.app.mostRecentMainProcessExit
 import com.adsamcik.tracker.app.recentMainProcessExitCount
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
 import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
+import com.adsamcik.tracker.shared.base.database.ActiveDatabaseBlockReason
+import com.adsamcik.tracker.shared.base.database.ActiveDatabaseRetryableReason
+import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseRetryable
+import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseRetryableReason
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseContainment
+import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseContainmentReason
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.tracker.resilience.InactiveTrackingSessionStopHandler
@@ -450,6 +456,22 @@ class DefaultTrackingStartupGate @Inject constructor(
 					}
 					storageReadyGeneration = deletionBarrier.currentGeneration
 				}
+				is LegacyDatabaseStartupResult.ActiveDatabaseBlocked ->
+					return TrackingStartupResult.Blocked(
+						stage = TrackingStartupStage.STORAGE,
+						failureCode = storage.reason.failureCode,
+						databaseContainment = TrackingDatabaseContainment(
+							reason = storage.reason.toTrackingContainmentReason(),
+						),
+					)
+				is LegacyDatabaseStartupResult.ActiveDatabaseRetryable ->
+					return TrackingStartupResult.RetryableFailure(
+						stage = TrackingStartupStage.STORAGE,
+						failureCode = storage.reason.failureCode,
+						databaseRetryable = TrackingDatabaseRetryable(
+							reason = storage.reason.toTrackingRetryableReason(),
+						),
+					)
 				is LegacyDatabaseStartupResult.Failed -> {
 					val failureCode = storage.message.ifBlank { STORAGE_NOT_READY }
 					return if (storage.requiresExplicitRetry) {
@@ -618,6 +640,34 @@ class DefaultTrackingStartupGate @Inject constructor(
 	}
 
 	private fun Exception.failureCode(): String = javaClass.simpleName.ifBlank { UNKNOWN_FAILURE }
+
+	private fun ActiveDatabaseBlockReason.toTrackingContainmentReason():
+		TrackingDatabaseContainmentReason = when (this) {
+		ActiveDatabaseBlockReason.STALE_DEVELOPMENT_V28 ->
+			TrackingDatabaseContainmentReason.STALE_DEVELOPMENT_V28
+		ActiveDatabaseBlockReason.UNSUPPORTED_DATABASE_VERSION ->
+			TrackingDatabaseContainmentReason.UNSUPPORTED_DATABASE_VERSION
+		ActiveDatabaseBlockReason.UNRECOGNIZED_DATABASE_SCHEMA ->
+			TrackingDatabaseContainmentReason.UNRECOGNIZED_DATABASE_SCHEMA
+		ActiveDatabaseBlockReason.INVALID_FINAL_V28_MARKER ->
+			TrackingDatabaseContainmentReason.INVALID_FINAL_V28_MARKER
+		ActiveDatabaseBlockReason.INCOMPLETE_FINAL_V28_SCHEMA ->
+			TrackingDatabaseContainmentReason.INCOMPLETE_FINAL_V28_SCHEMA
+		ActiveDatabaseBlockReason.UNREADABLE_DATABASE ->
+			TrackingDatabaseContainmentReason.UNREADABLE_DATABASE
+		ActiveDatabaseBlockReason.RELEASED_V27_MIGRATION_VALIDATION_FAILED ->
+			TrackingDatabaseContainmentReason.RELEASED_V27_MIGRATION_VALIDATION_FAILED
+		ActiveDatabaseBlockReason.FINAL_V28_OPEN_VALIDATION_FAILED ->
+			TrackingDatabaseContainmentReason.FINAL_V28_OPEN_VALIDATION_FAILED
+	}
+
+	private fun ActiveDatabaseRetryableReason.toTrackingRetryableReason():
+		TrackingDatabaseRetryableReason = when (this) {
+		ActiveDatabaseRetryableReason.CONTENDED ->
+			TrackingDatabaseRetryableReason.CONTENDED
+		ActiveDatabaseRetryableReason.OPERATIONALLY_UNAVAILABLE ->
+			TrackingDatabaseRetryableReason.OPERATIONALLY_UNAVAILABLE
+	}
 
 	private companion object {
 		const val STORAGE_NOT_READY = "STORAGE_NOT_READY"

@@ -4030,5 +4030,6 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 		}
 		createTrackingOwnerValidationTriggers(db)
+		createFinalV28SchemaAssemblyMarker(db)
 	}
 }

@@ -13,6 +13,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
 import com.adsamcik.tracker.app.event.PrecisionUpgradeDomainEventConsumer
 import com.adsamcik.tracker.app.startup.ModuleInitializerCoordinator
+import com.adsamcik.tracker.app.startup.ApplicationStartupStateStore
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.app.settings.PostDeletionAutomaticControlRestorer
 import com.adsamcik.tracker.app.tracebox.AndroidTrackerRuntimeMeasurementSource
@@ -53,7 +54,6 @@ import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import dagger.hilt.android.HiltAndroidApp
 import dev.tracebox.Tracebox
 import dev.tracebox.api.public
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
@@ -140,7 +140,8 @@ class Application : AndroidApplication(), Configuration.Provider {
 	@Volatile
 	var isStartupReady: Boolean = false
 	private set
-	private val startupReconciliationCompletion = CompletableDeferred<TrackingStartupResult>()
+	private val startupState = ApplicationStartupStateStore()
+	internal val startupResolutions = startupState.snapshots
 
 	private val deferredStartupStarted = AtomicBoolean(false)
 	private val maintenanceStartupStarted = AtomicBoolean(false)
@@ -263,12 +264,16 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	private fun startBackgroundStartup() {
 		appScope.launch(dispatchers.io) {
-			trackingStartupDeletionBarrier.openGenerations.collect {
+			trackingStartupDeletionBarrier.openGenerations.collect { startupGeneration ->
+				startupState.beginGeneration(startupGeneration)
+				isStartupReady = false
 				var terminalResult: TrackingStartupResult? = null
 				try {
 					terminalResult = driveTrackingStartup(
 						reconcile = { reconcileTrackingStartup() },
-						onRetryableVisible = ::publishStartupResolution,
+						onRetryableVisible = { result ->
+							publishStartupResolution(startupGeneration, result)
+						},
 					)
 					when (val startup = terminalResult) {
 						is TrackingStartupResult.Ready -> Unit
@@ -295,15 +300,21 @@ class Application : AndroidApplication(), Configuration.Provider {
 						"APPLICATION_STARTUP_FAILED:${error.javaClass.simpleName}",
 					)
 				} finally {
-					terminalResult?.let(::publishStartupResolution)
+					terminalResult?.let { result ->
+						publishStartupResolution(startupGeneration, result)
+					}
 				}
 			}
 		}
 	}
 
-	private fun publishStartupResolution(result: TrackingStartupResult) {
-		isStartupReady = true
-		startupReconciliationCompletion.complete(result)
+	private fun publishStartupResolution(
+		generation: Long,
+		result: TrackingStartupResult,
+	) {
+		if (startupState.publish(generation, result)) {
+			isStartupReady = result is TrackingStartupResult.Ready
+		}
 	}
 
 	private fun isRobolectricUnitTest(): Boolean = Build.FINGERPRINT == "robolectric"
@@ -319,6 +330,13 @@ class Application : AndroidApplication(), Configuration.Provider {
 				trackingStartupGate.currentGeneration,
 			)
 			if (!isRobolectricUnitTest()) initializeModules()
+		}
+	}
+
+	internal suspend fun retryTrackingStartup(): TrackingStartupResult {
+		val generation = trackingStartupGate.currentGeneration
+		return reconcileTrackingStartup(retryFailedStorage = true).also { result ->
+			publishStartupResolution(generation, result)
 		}
 	}
 
@@ -361,7 +379,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 	}
 
 	internal suspend fun awaitStartupReconciliation(): TrackingStartupResult =
-		startupReconciliationCompletion.await()
+		startupState.awaitTerminal()
 
 	@WorkerThread
 	private suspend fun initializeFeatures() {

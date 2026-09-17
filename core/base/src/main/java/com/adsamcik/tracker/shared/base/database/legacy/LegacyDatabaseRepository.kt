@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.database.legacy
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.core.content.edit
+import com.adsamcik.tracker.shared.base.database.openDatabasePreservingFiles
 import java.io.File
 import java.io.IOException
 import java.io.OutputStream
@@ -124,7 +125,7 @@ class LegacyDatabaseRepository(
 		val file = databaseFile
 		if (!file.isFile) throw LegacyDatabaseException("No legacy database exists")
 		try {
-			SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READWRITE).use { database ->
+			openDatabasePreservingFiles(file, SQLiteDatabase.OPEN_READWRITE).use { database ->
 				val version = database.version
 				if (version <= 0) throw LegacyDatabaseException("The legacy database has no schema version")
 				database.rawQuery("PRAGMA wal_checkpoint(TRUNCATE)", null).use { cursor ->
@@ -259,11 +260,9 @@ class LegacyDatabaseRepository(
 		}
 	}
 
-	private fun readVersion(file: File): Int = SQLiteDatabase.openDatabase(
-		file.path,
-		null,
-		SQLiteDatabase.OPEN_READONLY,
-	).use(SQLiteDatabase::getVersion)
+	private fun readVersion(file: File): Int =
+		openDatabasePreservingFiles(file, SQLiteDatabase.OPEN_READONLY)
+			.use(SQLiteDatabase::getVersion)
 
 	private fun checkIntegrity(database: SQLiteDatabase) {
 		database.rawQuery("PRAGMA integrity_check", null).use { cursor ->

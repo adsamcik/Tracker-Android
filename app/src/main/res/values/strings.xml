@@ -68,6 +68,12 @@
     <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">Tracking recovery needs attention</string>
     <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">Collection remains off while Tracker safely reconciles its tracking data. Retry without deleting history.</string>
     <string name="tracking_startup_retry" tools:ignore="MissingTranslation">Retry tracking recovery</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">Development database needs a manual backup</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker found an unshipped version 28 development database that does not match this build. Tracking and database features remain off, and the database file has been left unchanged. Back up the app data or database before replacing or repairing this development install.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">Database needs attention</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker could not safely identify or validate this database. Tracking and database features remain off, and the database file has been left unchanged. Back up the app data or database before attempting manual recovery.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">Database is temporarily unavailable</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">Tracking and database features remain off while Tracker retries safely. No data was deleted. Retry now to check whether the temporary lock or storage problem has cleared.</string>
     <string name="settings_delete_data_success">All collected data was deleted</string>
     <string name="settings_delete_data_failure">Could not delete all collected data</string>
     <string name="settings_game_goals_title">Goals</string>

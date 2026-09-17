@@ -543,8 +543,10 @@ shadow/rollback safety before any writer/provider activation.
 - Ambient Location beyond passive points; user-selectable paid radio modes; keyed identity lifecycle
   if unique/new products are ever approved; calibrated Pressure vertical estimates. Contain these
   rather than making them mandatory dependencies.
-- Has v28 actually shipped? Design says no. Existing development v28 databases predate added tables;
-  require explicit safe post-freeze handling, not a silently destructive migration or developer wipe.
+- Version 28 remains unshipped. The 2026-09-17 containment slice now marks final fresh/migrated v28
+  schemas and blocks stale development-v28 or unknown files before Room opens them, preserving the
+  file with manual-backup guidance. This remains **IMPLEMENTED_UNVALIDATED**; do not reinterpret it
+  as a release migration, version bump, silent repair, developer wipe, or completed validation.
 - Dirty/divergent checkout, missing bundle commits, unresolved live owner authority, or overlapping
   concurrent files: inspect and report; never reset/overwrite or activate to make fixtures pass.
 

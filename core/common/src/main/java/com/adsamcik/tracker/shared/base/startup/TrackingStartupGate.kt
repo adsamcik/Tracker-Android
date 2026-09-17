@@ -58,10 +58,12 @@ interface TrackingStartupGate {
 		is TrackingStartupResult.RetryableFailure -> TrackingAdmissionStartupResult.RetryableFailure(
 			result.stage,
 			result.failureCode,
+			result.databaseRetryable,
 		)
 		is TrackingStartupResult.Blocked -> TrackingAdmissionStartupResult.Blocked(
 			result.stage,
 			result.failureCode,
+			result.databaseContainment,
 		)
 	}
 
@@ -98,11 +100,13 @@ sealed interface TrackingAdmissionStartupResult {
 	data class RetryableFailure(
 		val stage: TrackingStartupStage,
 		val failureCode: String,
+		val databaseRetryable: TrackingDatabaseRetryable? = null,
 	) : TrackingAdmissionStartupResult
 
 	data class Blocked(
 		val stage: TrackingStartupStage,
 		val failureCode: String,
+		val databaseContainment: TrackingDatabaseContainment? = null,
 	) : TrackingAdmissionStartupResult
 }
 
@@ -115,12 +119,44 @@ sealed interface TrackingStartupResult {
 	data class RetryableFailure(
 		val stage: TrackingStartupStage,
 		val failureCode: String,
+		val databaseRetryable: TrackingDatabaseRetryable? = null,
 	) : TrackingStartupResult
 
 	data class Blocked(
 		val stage: TrackingStartupStage,
 		val failureCode: String,
+		val databaseContainment: TrackingDatabaseContainment? = null,
 	) : TrackingStartupResult
+}
+
+data class TrackingDatabaseContainment(
+	val reason: TrackingDatabaseContainmentReason,
+	val remediation: TrackingDatabaseRemediation =
+		TrackingDatabaseRemediation.PRESERVE_AND_BACK_UP_MANUALLY,
+)
+
+enum class TrackingDatabaseContainmentReason {
+	STALE_DEVELOPMENT_V28,
+	UNSUPPORTED_DATABASE_VERSION,
+	UNRECOGNIZED_DATABASE_SCHEMA,
+	INVALID_FINAL_V28_MARKER,
+	INCOMPLETE_FINAL_V28_SCHEMA,
+	UNREADABLE_DATABASE,
+	RELEASED_V27_MIGRATION_VALIDATION_FAILED,
+	FINAL_V28_OPEN_VALIDATION_FAILED,
+}
+
+enum class TrackingDatabaseRemediation {
+	PRESERVE_AND_BACK_UP_MANUALLY,
+}
+
+data class TrackingDatabaseRetryable(
+	val reason: TrackingDatabaseRetryableReason,
+)
+
+enum class TrackingDatabaseRetryableReason {
+	CONTENDED,
+	OPERATIONALLY_UNAVAILABLE,
 }
 
 enum class TrackingStartupStage {

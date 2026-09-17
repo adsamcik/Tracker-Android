@@ -28,8 +28,11 @@ abstract class ObjectBaseDatabase<T : RoomDatabase>(private val type: Class<T>) 
 		delegate: SupportSQLiteOpenHelper.Factory,
 	): SupportSQLiteOpenHelper.Factory = delegate
 
+	protected open fun delegateOpenHelperFactory(): SupportSQLiteOpenHelper.Factory =
+		SQLiteXSupportSQLiteOpenHelperFactory()
+
 	private fun createInstance(context: Context): T {
-		val delegateFactory = SQLiteXSupportSQLiteOpenHelperFactory()
+		val delegateFactory = delegateOpenHelperFactory()
 		val instance = Room.databaseBuilder(
 				context.applicationContext,
 				type,

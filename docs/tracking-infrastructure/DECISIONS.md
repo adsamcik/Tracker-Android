@@ -1,6 +1,60 @@
 # Tracking Infrastructure Decisions
 
-Last updated: 2026-09-16
+Last updated: 2026-09-17
+
+## TI-D274 - Preserve active SQLiteX corruption and publish evolving startup state
+
+- Status: **IMPLEMENTED_UNVALIDATED**, definitive review00a correction, 2026-09-17.
+- SQLiteX now has an explicit opt-in `preserveDatabaseFilesOnCorruption` configuration. Only the
+  Tracker active `AppDatabase` delegate enables it. Its vendor corruption handler does not invoke
+  AndroidX/Room's deleting `onCorruption`, and recovery cannot delete even if
+  `allowDataLossOnRecovery` is separately enabled. Other databases keep their prior defaults.
+- Active preflight still owns classification. A TOCTOU or during-open SQLiteX corruption propagates
+  to the containment guard as typed `UNREADABLE_DATABASE`; main/WAL/SHM/journal files remain
+  unchanged.
+- Application startup publication is a generation- and revision-aware StateFlow. Visible retryable
+  state may evolve automatically to Ready, while terminal awaiters ignore retryable values and
+  remain closed until Ready or Blocked. Stale generations cannot overwrite the current state, and
+  manual Retry republishes even an equal result.
+
+## TI-D273 - Preserve corrupt file families and keep operational failures retryable
+
+- Status: **IMPLEMENTED_UNVALIDATED**, Review8a correction, 2026-09-17.
+- Every framework `SQLiteDatabase.openDatabase` used by active preflight, migration-backup
+  inspection, and legacy inspection now supplies Tracker's explicit no-op `DatabaseErrorHandler`.
+  Android's default corruption handler therefore cannot delete the main database or its WAL, SHM,
+  or journal sidecars before Tracker classifies the failure.
+- Confirmed corruption, failed read-only `quick_check(1)`, or schema mismatch remains permanently
+  contained and payload-free. Lock/busy failures and temporary open/path/disk/permission failures are typed retryable states. The
+  existing startup retry/backoff remains their owner; no lifecycle/source consumer is admitted
+  during the retry.
+- Retryable database states use temporary recovery copy and never the preservation/manual-backup
+  screen reserved for permanent containment. No wipe, rename, same-version repair, or v28 version
+  change is introduced.
+
+## TI-D272 - Contain stale unshipped v28 databases before Room validation
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-17.
+- Premise: version 28 has not shipped. This is development-build containment, not a release
+  migration and not authority to bump the database version.
+- Decision: fresh databases and successful released-v27 `MIGRATION_27_28` receive the explicit
+  Room-master marker row `-280917 / tracker-v28-final-20260917`. Before the authoritative Room
+  helper opens the stable active file, a read-only preflight distinguishes absent/empty fresh,
+  released v27, final v28, stale development v28, and unknown/corrupt shapes. Final v28 also
+  requires one late assembly table, one pending-writer column, and one named index; this is a
+  bounded sentinel set, not a second full Room schema hash or an extra Room-managed entity/table.
+- Stale or unknown databases are blocked before migration backup, Room validation, legacy import
+  callback, lifecycle reconciliation, provider recovery, or consumer startup. The active database
+  file is preserved. There is no destructive fallback, wipe, same-version repair, silent table
+  creation on ordinary open, or success-shaped empty database.
+- The application publishes a typed `TrackingDatabaseContainment` state and shows preservation/
+  manual-backup guidance. Tracebox receives only the fixed local reason code. No upload or tracked
+  payload is introduced.
+- The existing legacy-v26 vault export/delete flow remains separate and cannot be selected for an
+  active stale-v28 block. A user-initiated active-database export/rename workflow is still a
+  follow-up UI dependency; this slice deliberately does not add a wipe.
+- Focused JVM, startup, UI-routing, and v27 migration test sources are authored but not executed.
+  Generated version-28 schema JSON remains untouched until the frozen convergence batch.
 
 ## TI-D271 - Close the finish-started scope without closing six-source assembly
 

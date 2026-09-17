@@ -1,6 +1,49 @@
 # Tracking Infrastructure Verification Matrix
 
-Last updated: 2026-09-16
+Last updated: 2026-09-17
+
+## TI-B343 - Definitive review00a correction sources, execution deferred
+
+- Active AppDatabase configures SQLiteX preservation explicitly; default SQLiteX factory behavior
+  for unrelated databases is unchanged.
+- Authored admitted-delegate corruption coverage forces preflight acceptance, opens a corrupt file
+  family through SQLiteX, asserts Room's corruption callback was not invoked, expects typed
+  `UNREADABLE_DATABASE`, and verifies main/WAL/SHM/journal hashes remain unchanged.
+- Authored application/UI state coverage observes DatabaseRetryable followed by automatic Ready/
+  Main in one generation, rejects stale-generation publication, and proves terminal consumers do
+  not resume on visible retryable state.
+- Status: **IMPLEMENTED_UNVALIDATED**. No compile, test, Gradle, schema, lint, device, CI, or
+  diff-check command was run.
+
+## TI-B342 - Review8a preservation and retryability sources, execution deferred
+
+- Static source now routes active preflight, migration-backup, and legacy framework SQLite
+  inspection through `openDatabasePreservingFiles`, whose explicit `DatabaseErrorHandler`
+  performs no deletion, rename, recovery, or sidecar cleanup.
+- Authored corrupt-family coverage snapshots SHA-256 for the main file and `-wal`, `-shm`, and
+  `-journal`, then asserts all remain present and byte-identical after direct preflight and guarded
+  open.
+- Authored contention coverage holds an exclusive SQLite lock, expects typed retryable preflight,
+  releases it, and expects normal v27 routing. Delegate-side lock exceptions, coordinator mapping,
+  startup retry state, closed consumers, and temporary UI routing also have focused source tests.
+- Status: **IMPLEMENTED_UNVALIDATED**. No command from the deferred validation batch was run.
+
+## TI-B341 - Development-v28 containment sources, execution deferred
+
+- Production source adds a read-only active-file classifier and open-helper guard before Room,
+  migration backup, legacy import callback, and downstream startup recovery.
+- Authored core tests cover absent fresh, released v27 routing, exact final-v28 reopen, missing
+  final marker/table/column, unrecognized v28, unreadable bytes, and byte-for-byte preservation
+  with no delegate open.
+- The populated v27 migration source now asserts the final assembly marker. App tests cover typed
+  containment mapping, no legacy-state mutation, no previous-exit/source recovery invocation, and
+  preservation-only UI routing.
+- Expected deferred convergence commands include the focused `:core:base` JVM test, the populated
+  v27-to-v28 Android migration test, and the focused `:app` startup/UI unit tests before aggregate
+  `ciUnitTest`/`ciCheck`.
+- Status: **IMPLEMENTED_UNVALIDATED**. No Gradle, compile, test, lint, schema generation/drift,
+  diff-check, emulator/device, CI, release, or rollout command was executed. Generated v28 JSON
+  remains unchanged.
 
 ## TI-B340 - Finish-started integration receipt, no execution evidence
 

@@ -1,6 +1,37 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-09-16
+Last updated: 2026-09-17
+
+## Development-v28 containment checkpoint
+
+The unshipped-v28 handling slice is **IMPLEMENTED_UNVALIDATED**. The active database helper now
+runs a read-only schema preflight before Room or migration-backup opening. Fresh/empty targets,
+released v27, and exact final v28 proceed; stale development v28 and unknown/corrupt databases
+return typed storage containment and keep all tracking/database consumers behind the closed startup
+gate. Fresh creation and `MIGRATION_27_28` stamp the reserved final-assembly row in Room's
+existing master table only after their schema work succeeds; it is not a new entity or table.
+No version bump, destructive fallback, wipe, same-version repair, provider/writer
+activation, or diagnostic upload was added.
+
+The startup UI gives preservation and manual-backup guidance without exposing the legacy-vault
+delete path. An explicit active-database export/rename action remains a user-remediation UI
+dependency. Focused source tests cover v27 routing, final fresh/reopen, missing marker/table/column,
+unknown/unreadable files, no delegate open/file mutation, typed startup propagation, and no
+lifecycle/source consumer recovery after containment. No tests, compilation, schema generation,
+lint, device, CI, or diff-check command was run; generated v28 JSON remains untouched.
+
+Review8a corrections are also **IMPLEMENTED_UNVALIDATED**. Active preflight, migration-backup,
+and legacy framework SQLite inspection opens now use an explicit non-destructive corruption
+handler. Corrupt main/WAL/SHM/journal families stay present and byte-identical in the authored regression source. Lock/busy and temporary
+open/path/disk/permission failures propagate as typed retryable storage states through the existing
+bounded-backoff startup owner; they do not become permanent containment or show manual-backup copy.
+
+Definitive review00a corrections are **IMPLEMENTED_UNVALIDATED**. The active AppDatabase alone
+opts its SQLiteX delegate into non-destructive corruption handling, preventing Room's default
+deleting callback and any allow-data-loss recovery from running after admitted preflight. Startup
+UI now observes generation/revision StateFlow updates, so visible DatabaseRetryable automatically
+advances to Ready/Main while terminal consumers continue waiting and remain unopened. Authored
+sources cover admitted-delegate corruption preservation and retryable-to-Ready UI transition.
 
 ## Final finish-started local integration snapshot
 

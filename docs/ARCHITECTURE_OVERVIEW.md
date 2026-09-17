@@ -1,6 +1,6 @@
 # Tracker Android architecture overview
 
-> **Last verified:** 2026-08-11
+> **Last verified:** 2026-09-17
 
 Tracker is a local-first Android application. Location, activity, Wi-Fi, cell, and
 step data are collected and persisted on-device. The application has no backend,
@@ -149,14 +149,26 @@ implementation depends on another feature implementation.
 
 The main Room database is `AppDatabase` in
 `core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt`.
-Its current schema version is **27** and its long-lived active filename is
-`main_database_v27`. A released pre-v27 `main_database` is treated as a preserved
+Its current development schema version is **28** and its long-lived active filename is
+`main_database_v27`. Version 28 remains unshipped. A released pre-v27 `main_database` is treated as a preserved
 legacy vault: a frozen raw-SQL importer reads relevant v26 data while Room creates
 the fresh v27 database, and older public versions are normalized only on a
-disposable copy through public migrations ending at v26. Normal active migrations
-are currently empty. Other local databases include the preferences and points
-databases; their versions are independent. Future v27+ schema changes require a
-Room migration and migration test.
+disposable copy through public migrations ending at v26. Released v27 uses the
+additive `MIGRATION_27_28`. Fresh and migrated v28 databases receive an explicit
+final-assembly marker row in Room's existing master table; an already-version-28 development
+database without that marker is contained before Room opens it, preserved unchanged, and
+surfaced as a typed startup block instead of being wiped or silently repaired. Other local databases include the
+preferences and points databases; their versions are independent. Future released
+schema changes require a new Room version, migration, and migration test.
+
+Framework SQLite inspection uses an explicit non-destructive corruption handler so corrupt active
+or migration-source files and their sidecars are not removed before application classification.
+Confirmed corruption/schema mismatch is blocked; lock, busy, and temporary open/I/O conditions
+remain retryable through the existing startup backoff and do not show permanent backup guidance.
+The active AppDatabase additionally opts SQLiteX into a non-destructive vendor corruption handler;
+unrelated SQLiteX databases retain their existing configuration. Startup presentation consumes a
+generation/revision StateFlow, allowing visible retryable state to advance automatically to Ready
+without admitting database consumers before the terminal gate.
 
 ## Dependency direction
 
