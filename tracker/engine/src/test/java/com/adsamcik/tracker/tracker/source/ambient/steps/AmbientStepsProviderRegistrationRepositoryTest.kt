@@ -3,6 +3,9 @@ package com.adsamcik.tracker.tracker.source.ambient.steps
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.AmbientStepsRetentionDecision
+import com.adsamcik.tracker.shared.base.database.applyAmbientStepsRetentionDecision
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
@@ -11,6 +14,7 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
@@ -58,13 +62,28 @@ class AmbientStepsProviderRegistrationRepositoryTest {
 			rolloutRevision = 1L,
 		)
 		broker = SourceBroker(database, rollout)
-		RoomSourcePolicyRepository(database) {
+		val snapshot = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime(BOOT_ID, policyElapsed++, policyElapsed)
 		}.bootstrapFromLegacy(
 			TrackingParamsState(
 				stepsEnabled = false,
 				ambientStepsEnabled = true,
 				legacySettingsMigrationCompleted = true,
+			),
+		)
+		database.sourceEvidenceStateDao().ensure()
+		database.sourceEvidenceStateDao().updateLifecycle(3L, null, 3L)
+		database.applyAmbientStepsRetentionDecision(
+			AmbientStepsRetentionDecision.GrantLiveAmbient(
+				opaquePolicyId = "test-retention",
+				expectedCollectedDataEpoch = 3L,
+				expectedSourcePolicyRevision = snapshot.revision,
+				expectedAmbientConsentEpoch = requireNotNull(
+					snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch,
+				),
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = 50L,
+				effectiveWallTimeMs = 50L,
 			),
 		)
 		lifecycleStore = MutableCollectedDataLifecycleStore(
@@ -219,6 +238,54 @@ class AmbientStepsProviderRegistrationRepositoryTest {
 		failed?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_FAILED
 		failed?.failureCode shouldBe "AUTHORITY_CHANGED_DURING_ACTIVATION"
 		subject.currentActive() shouldBe null
+	}
+
+	@Test
+	fun `retention revoke during provider work prevents acceptance`() = runTest {
+		val demand = select(AmbientStepsProvider.LOCAL_RECORDING_STEPS, boundary(100L))
+		val reservation = subject.reserve(
+			AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+			demand.demandId,
+			boundary(110L),
+		)
+		val current = requireNotNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			),
+		)
+		database.applyAmbientStepsRetentionDecision(
+			AmbientStepsRetentionDecision.Revoke(
+				scope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				expectedCollectedDataEpoch = 3L,
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = 120L,
+				effectiveWallTimeMs = 120L,
+				expectedPreviousApprovalRevision = current.approvalRevision,
+			),
+		)
+
+		shouldThrow<IllegalStateException> { subject.accept(reservation) }
+	}
+
+	@Test
+	fun `prior boot retention cannot reserve a provider`() = runTest {
+		val demand = select(AmbientStepsProvider.LOCAL_RECORDING_STEPS, boundary(100L))
+		val restarted = AmbientStepsProviderRegistrationRepository(
+			database = database,
+			lifecycleStore = lifecycleStore,
+			bootClockDomainProvider = BootClockDomainProvider { "boot-2" },
+		)
+
+		shouldThrow<IllegalStateException> {
+			restarted.reserve(
+				AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+				demand.demandId,
+				AmbientStepsDemandBoundary("boot-2", 110L, 110L),
+			)
+		}
+		database.sourceBrokerDao().maximumRegistrationGeneration(
+			SourceKind.STEPS.stableCode,
+		) shouldBe 0L
 	}
 
 	@Test

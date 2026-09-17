@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.ImportedAmbientStepsLineageFail
 import com.adsamcik.tracker.shared.base.database.dao.ImportedAmbientStepsDao
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityIntegrity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsNativeReplayFootprintIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveDayEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsArchiveEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedAmbientStepsDayFenceEntity
@@ -75,6 +76,22 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 	private val ensurePortableRetention: suspend () -> Boolean = { true },
 	private val requirePortableRetentionAuthority: Boolean = false,
 ) : ImportPortableAmbientSteps {
+	internal constructor(
+		database: AppDatabase,
+		dao: ImportedAmbientStepsDao,
+		@IoDispatcher ioDispatcher: CoroutineDispatcher,
+	) : this(
+		database,
+		dao,
+		ioDispatcher,
+		{ currentCoroutineContext().ensureActive() },
+		{
+			AmbientStepsPortableLocalOriginReader(database).readInTransaction(it)
+		},
+		{ true },
+		false,
+	)
+
 	@Inject
 	constructor(
 		database: AppDatabase,
@@ -165,6 +182,23 @@ internal class RoomImportPortableAmbientSteps internal constructor(
 				request.receipt.archiveKey,
 			),
 		)
+		val nativeFootprints = incomingOwnership.allIdentities
+			.chunked(IDENTITY_QUERY_CHUNK_SIZE)
+			.flatMap { identities ->
+				storedValue {
+					database.ambientStepsFactRevisionDao().nativeReplayFootprints(
+						identities,
+						identities.size + 1,
+					)
+				}
+			}
+		if (nativeFootprints.any {
+				!AmbientStepsNativeReplayFootprintIntegrity.isAuthentic(it) ||
+					it.collectedDataEpoch != state.collectedDataEpoch
+			}) storedCorrupt()
+		if (nativeFootprints.isNotEmpty()) {
+			blocked(PortableAmbientStepsImportBlockedReason.LOCAL_ORIGIN_OVERLAP)
+		}
 		authenticateStructuralDayOwnership(archive)
 		val fences = storedValue { dao.fences(dayIdentities) }
 		if (fences.any { it.collectedDataEpoch != state.collectedDataEpoch }) storedCorrupt()

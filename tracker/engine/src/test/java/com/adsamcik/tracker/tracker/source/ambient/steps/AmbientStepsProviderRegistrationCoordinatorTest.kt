@@ -4,12 +4,15 @@ import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.AmbientStepsRetentionDecision
+import com.adsamcik.tracker.shared.base.database.applyAmbientStepsRetentionDecision
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
@@ -65,13 +68,28 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 			rolloutRevision = 1L,
 		)
 		broker = SourceBroker(database, rollout)
-		RoomSourcePolicyRepository(database) {
+		val snapshot = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime(BOOT_ID, policyElapsed++, policyElapsed)
 		}.bootstrapFromLegacy(
 			TrackingParamsState(
 				stepsEnabled = false,
 				ambientStepsEnabled = true,
 				legacySettingsMigrationCompleted = true,
+			),
+		)
+		database.sourceEvidenceStateDao().ensure()
+		database.sourceEvidenceStateDao().updateLifecycle(3L, null, 3L)
+		database.applyAmbientStepsRetentionDecision(
+			AmbientStepsRetentionDecision.GrantLiveAmbient(
+				opaquePolicyId = "test-retention",
+				expectedCollectedDataEpoch = 3L,
+				expectedSourcePolicyRevision = snapshot.revision,
+				expectedAmbientConsentEpoch = requireNotNull(
+					snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch,
+				),
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = 50L,
+				effectiveWallTimeMs = 50L,
 			),
 		)
 		lifecycleStore = CoordinatorLifecycleStore(

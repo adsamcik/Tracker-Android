@@ -8,6 +8,8 @@ import com.adsamcik.tracker.shared.base.database.deleteAmbientStepsAfterConsentR
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -295,6 +297,20 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 				updatedAtMs = if (revoked) 2_000L else 0L,
 			),
 		)
+		database.ambientStepsFactRevisionDao().insertRetentionAuthority(
+			AmbientStepsRetentionAuthorityIntegrity.create(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				1L,
+				AmbientStepsRetentionAuthorityEntity.STATE_ACTIVE,
+				RETENTION_POLICY_ID,
+				HISTORICAL_POLICY,
+				ACTIVE_CONSENT,
+				EPOCH,
+				BOOT_ID,
+				0L,
+				0L,
+			),
+		)
 		val demand = SourceDemandEntity(
 			demandId = "native-authority-demand",
 			consumerId = "native-authority-consumer",
@@ -385,6 +401,9 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 				cursorRevision = 2L,
 				status = AmbientStepsImportCursorEntity.STATUS_RETIRED,
 				updatedAtMs = DAY_END,
+				retentionScope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				retentionPolicyId = RETENTION_POLICY_ID,
+				retentionApprovalRevision = 1L,
 			),
 		)
 		val logicalFactId = AmbientStepsFactIntegrity.logicalFactId(
@@ -431,6 +450,9 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 			scopeDeletionGeneration = 0L,
 			effectChecksum = EMPTY_CHECKSUM,
 			appliedAtMs = DAY_END,
+			retentionScope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			retentionPolicyId = RETENTION_POLICY_ID,
+			retentionApprovalRevision = 1L,
 		)
 		val fact = unsigned.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsigned))
 		val portableFact = PortableAmbientStepsFactV1.create(
@@ -581,6 +603,7 @@ class RoomImportPortableAmbientStepsNativeAuthorityTest {
 		const val REVOKED_CONSENT = 2L
 		const val SOURCE_INSTANCE = "native-authority-source"
 		const val BOOT_ID = "native-authority-boot"
+		const val RETENTION_POLICY_ID = "test-retention"
 		const val PROVIDER = AmbientStepsFactRevisionEntity.PROVIDER_LOCAL_RECORDING_STEPS
 		const val DAY_END = 86_400_000L
 		const val DELETE_TIME = 90_000_000L

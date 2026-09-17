@@ -107,6 +107,9 @@ class AmbientStepsFactRevisionEntityTest {
 				ambientConsentEpoch = null,
 				scopeDeletionGeneration = 1L,
 				appliedAtMs = 3_000L,
+				retentionScope = null,
+				retentionPolicyId = null,
+				retentionApprovalRevision = null,
 			),
 		)
 
@@ -163,6 +166,9 @@ class AmbientStepsFactRevisionEntityTest {
 				scopeDeletionGeneration = 0L,
 				effectChecksum = "0".repeat(64),
 				appliedAtMs = 2_000L,
+				retentionScope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				retentionPolicyId = "test-retention",
+				retentionApprovalRevision = 1L,
 			),
 		)
 	}

@@ -3,6 +3,9 @@ package com.adsamcik.tracker.tracker.source.ambient.steps
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.AmbientStepsRetentionDecision
+import com.adsamcik.tracker.shared.base.database.applyAmbientStepsRetentionDecision
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
@@ -14,6 +17,7 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
@@ -72,7 +76,7 @@ class AmbientStepsFactImporterTest {
 			rolloutRevision = 1L,
 		)
 		broker = SourceBroker(database, rollout)
-		RoomSourcePolicyRepository(database) {
+		val snapshot = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime(
 				bootId = BOOT_ID,
 				elapsedRealtimeNanos = policyElapsedRealtimeNanos++,
@@ -83,6 +87,21 @@ class AmbientStepsFactImporterTest {
 				stepsEnabled = false,
 				ambientStepsEnabled = true,
 				legacySettingsMigrationCompleted = true,
+			),
+		)
+		database.sourceEvidenceStateDao().ensure()
+		database.sourceEvidenceStateDao().updateLifecycle(COLLECTED_DATA_EPOCH, null, 3L)
+		database.applyAmbientStepsRetentionDecision(
+			AmbientStepsRetentionDecision.GrantLiveAmbient(
+				opaquePolicyId = "test-retention",
+				expectedCollectedDataEpoch = COLLECTED_DATA_EPOCH,
+				expectedSourcePolicyRevision = snapshot.revision,
+				expectedAmbientConsentEpoch = requireNotNull(
+					snapshot[TrackingSourceComponent.STEPS].ambientConsentEpoch,
+				),
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = 500L,
+				effectiveWallTimeMs = 500L,
 			),
 		)
 		lifecycleStore = MutableAmbientLifecycleStore(
@@ -287,6 +306,39 @@ class AmbientStepsFactImporterTest {
 
 		database.ambientStepsFactRevisionDao().countAll() shouldBe 0L
 		database.ambientStepsImportStateDao().countCursors() shouldBe 1L
+	}
+
+	@Test
+	fun `retention revocation rejects the next fact before provider read`() = runTest {
+		val current = requireNotNull(
+			database.ambientStepsFactRevisionDao().latestRetentionAuthority(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			),
+		)
+		database.applyAmbientStepsRetentionDecision(
+			AmbientStepsRetentionDecision.Revoke(
+				scope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				expectedCollectedDataEpoch = COLLECTED_DATA_EPOCH,
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = 2_000L,
+				effectiveWallTimeMs = 2_000L,
+				expectedPreviousApprovalRevision = current.approvalRevision,
+			),
+		)
+		var reads = 0
+		val importer = subject(
+			RecordingAmbientReader { window, observedAtMs ->
+				reads++
+				AmbientStepsProviderAggregate(PROVIDER, window, 1L, observedAtMs)
+			},
+		)
+
+		importer.importNext(importBoundary()) shouldBe
+			AmbientStepsImportResult.Ineligible(
+				AmbientStepsImportIneligibleReason.RETENTION_AUTHORITY_UNAVAILABLE,
+			)
+		reads shouldBe 0
+		database.ambientStepsFactRevisionDao().countAll() shouldBe 0L
 	}
 
 	@Test

@@ -222,6 +222,9 @@ class AmbientStepsFactRevisionDaoTest {
 				scopeDeletionGeneration = 0L,
 				effectChecksum = "0".repeat(64),
 				appliedAtMs = endTimeMs,
+				retentionScope = "LIVE_AMBIENT",
+				retentionPolicyId = "test-retention",
+				retentionApprovalRevision = 1L,
 			),
 		)
 	}
@@ -257,6 +260,9 @@ class AmbientStepsFactRevisionDaoTest {
 			ambientConsentEpoch = null,
 			scopeDeletionGeneration = 1L,
 			appliedAtMs = 5_000L,
+			retentionScope = null,
+			retentionPolicyId = null,
+			retentionApprovalRevision = null,
 		),
 	)
 

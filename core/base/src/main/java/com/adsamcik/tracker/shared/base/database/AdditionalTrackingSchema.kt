@@ -8,8 +8,29 @@ internal fun createAdditionalTrackingTables(database: SupportSQLiteDatabase) {
 	createWifiSelectedDeletionTables(database)
 	createCellSelectedDeletionTables(database)
 	createAmbientStepsRetentionTable(database)
+	createAmbientStepsNativeReplayFootprintTable(database)
 	createAmbientRadioTables(database)
 	createRuntimeSettlementTables(database)
+}
+
+private fun createAmbientStepsNativeReplayFootprintTable(database: SupportSQLiteDatabase) {
+	database.execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS ambient_steps_native_replay_footprint (
+			protected_identity TEXT NOT NULL,
+			identity_kind TEXT NOT NULL,
+			owner_day_identity TEXT NOT NULL,
+			collected_data_epoch INTEGER NOT NULL,
+			protected_at_ms INTEGER NOT NULL,
+			effect_checksum TEXT NOT NULL,
+			PRIMARY KEY(protected_identity)
+		)
+		""".trimIndent(),
+	)
+	database.execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_ambient_steps_native_footprint_owner " +
+			"ON ambient_steps_native_replay_footprint(owner_day_identity)",
+	)
 }
 
 private fun createAmbientStepsRetentionTable(database: SupportSQLiteDatabase) {
@@ -35,6 +56,10 @@ private fun createAmbientStepsRetentionTable(database: SupportSQLiteDatabase) {
 		"CREATE INDEX IF NOT EXISTS idx_ambient_steps_retention_effective " +
 			"ON ambient_steps_retention_authority(" +
 			"scope, effective_boot_id, effective_elapsed_realtime_nanos, approval_revision)",
+	)
+	database.execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_ambient_steps_retention_scope " +
+			"ON ambient_steps_retention_authority(scope)",
 	)
 }
 

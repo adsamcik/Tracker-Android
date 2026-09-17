@@ -7,6 +7,8 @@ import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableReadRequest
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableRoomReader
 import com.adsamcik.tracker.shared.base.database.AmbientStepsPortableSnapshot
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.AmbientStepsRetentionDecision
+import com.adsamcik.tracker.shared.base.database.applyAmbientStepsRetentionDecision
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
@@ -167,6 +169,17 @@ class PortableAmbientStepsFileProductionRoundTripTest {
 				updatedAtMs = 0L,
 			),
 		)
+		source.applyAmbientStepsRetentionDecision(
+			AmbientStepsRetentionDecision.GrantLiveAmbient(
+				opaquePolicyId = RETENTION_POLICY_ID,
+				expectedCollectedDataEpoch = EPOCH,
+				expectedSourcePolicyRevision = POLICY_REVISION,
+				expectedAmbientConsentEpoch = CONSENT_EPOCH,
+				effectiveBootId = BOOT_ID,
+				effectiveElapsedRealtimeNanos = 0L,
+				effectiveWallTimeMs = 0L,
+			),
+		)
 		val demand = SourceDemandEntity(
 			demandId = "ambient-demand",
 			consumerId = "ambient-consumer",
@@ -258,6 +271,9 @@ class PortableAmbientStepsFileProductionRoundTripTest {
 				cursorRevision = 2L,
 				status = AmbientStepsImportCursorEntity.STATUS_RETIRED,
 				updatedAtMs = DAY_END,
+				retentionScope = LIVE_SCOPE,
+				retentionPolicyId = RETENTION_POLICY_ID,
+				retentionApprovalRevision = 1L,
 			),
 		)
 	}
@@ -319,6 +335,9 @@ class PortableAmbientStepsFileProductionRoundTripTest {
 			scopeDeletionGeneration = 0L,
 			effectChecksum = "0".repeat(64),
 			appliedAtMs = endTimeMs,
+			retentionScope = LIVE_SCOPE,
+			retentionPolicyId = RETENTION_POLICY_ID,
+			retentionApprovalRevision = 1L,
 		)
 		return unsigned.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsigned))
 	}
@@ -398,6 +417,8 @@ class PortableAmbientStepsFileProductionRoundTripTest {
 		const val CONSENT_EPOCH = 4L
 		const val SOURCE_INSTANCE = "ambient-source"
 		const val BOOT_ID = "boot-a"
+		const val RETENTION_POLICY_ID = "test-retention"
+		const val LIVE_SCOPE = "LIVE_AMBIENT"
 		const val PROVIDER = AmbientStepsFactRevisionEntity.PROVIDER_LOCAL_RECORDING_STEPS
 		const val DAY_END = 86_400_000L
 		const val ACQUISITION_SPEC =

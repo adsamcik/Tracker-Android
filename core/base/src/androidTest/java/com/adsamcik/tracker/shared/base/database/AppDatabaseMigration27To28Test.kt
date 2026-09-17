@@ -858,6 +858,22 @@ class AppDatabaseMigration27To28Test {
 		// v27 observations remain byte-for-byte facts; migration must not invent semantics.
 		assertTableCount(database, "step_fact_revision", 0)
 		assertTableCount(database, "ambient_steps_fact_revision", 0)
+		assertTableCount(database, "ambient_steps_retention_authority", 0)
+		assertTableCount(database, "ambient_steps_native_replay_footprint", 0)
+		listOf(
+			"ambient_steps_fact_revision",
+			"ambient_steps_import_cursor",
+		).forEach { table ->
+			database.query("PRAGMA table_info($table)").use { cursor ->
+				val nameColumn = cursor.getColumnIndexOrThrow("name")
+				val columns = buildSet {
+					while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+				}
+				assertTrue("retention_scope" in columns)
+				assertTrue("retention_policy_id" in columns)
+				assertTrue("retention_approval_revision" in columns)
+			}
+		}
 		assertIndexColumns(
 			database,
 			"idx_ambient_steps_fact_registration_window",
@@ -867,6 +883,16 @@ class AppDatabaseMigration27To28Test {
 				"continuity_segment_generation",
 				"window_start_time_ms",
 			),
+		)
+		assertIndexColumns(
+			database,
+			"idx_ambient_steps_retention_scope",
+			listOf("scope"),
+		)
+		assertIndexColumns(
+			database,
+			"idx_ambient_steps_native_footprint_owner",
+			listOf("owner_day_identity"),
 		)
 		assertTableCount(database, "ambient_steps_import_cursor", 0)
 		assertTableCount(database, "ambient_steps_import_gap", 0)
@@ -1623,6 +1649,9 @@ class AppDatabaseMigration27To28Test {
 			scopeDeletionGeneration = 0L,
 			effectChecksum = "0".repeat(64),
 			appliedAtMs = 2_000L,
+			retentionScope = "LIVE_AMBIENT",
+			retentionPolicyId = "test-retention",
+			retentionApprovalRevision = 1L,
 		)
 		val fact = unsigned.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsigned))
 		assertTrue(database.ambientStepsFactRevisionDao().insert(fact) != -1L)
@@ -1657,6 +1686,9 @@ class AppDatabaseMigration27To28Test {
 			cursorRevision = 1L,
 			status = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
 			updatedAtMs = 7_000L,
+			retentionScope = "LIVE_AMBIENT",
+			retentionPolicyId = "test-retention",
+			retentionApprovalRevision = 1L,
 		)
 		assertTrue(database.ambientStepsImportStateDao().insertCursor(cursor) != -1L)
 

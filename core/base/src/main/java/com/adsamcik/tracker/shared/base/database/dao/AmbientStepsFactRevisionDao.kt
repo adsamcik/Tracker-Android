@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsNativeReplayFootprintEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
 
 data class AmbientStepsStructuralDayRow(
@@ -19,6 +20,29 @@ data class AmbientStepsStructuralDayRow(
 /** Narrow append-only storage boundary for system-provider Ambient Steps aggregates. */
 @Dao
 interface AmbientStepsFactRevisionDao {
+	@Insert(onConflict = OnConflictStrategy.REPLACE)
+	suspend fun replaceNativeReplayFootprints(
+		values: List<AmbientStepsNativeReplayFootprintEntity>,
+	)
+
+	@Query(
+		"SELECT * FROM ambient_steps_native_replay_footprint " +
+			"WHERE protected_identity IN (:identities) ORDER BY protected_identity LIMIT :limit",
+	)
+	suspend fun nativeReplayFootprints(
+		identities: List<String>,
+		limit: Int,
+	): List<AmbientStepsNativeReplayFootprintEntity>
+
+	@Query(
+		"SELECT * FROM ambient_steps_native_replay_footprint " +
+			"ORDER BY protected_identity LIMIT :limit",
+	)
+	suspend fun nativeReplayFootprintPage(limit: Int): List<AmbientStepsNativeReplayFootprintEntity>
+
+	@Query("SELECT COUNT(*) FROM ambient_steps_native_replay_footprint")
+	suspend fun nativeReplayFootprintCount(): Long
+
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertRetentionAuthority(entity: AmbientStepsRetentionAuthorityEntity)
 

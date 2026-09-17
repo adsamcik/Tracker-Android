@@ -1031,6 +1031,9 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 			scopeDeletionGeneration = 0L,
 			effectChecksum = "0".repeat(64),
 			appliedAtMs = DAY_START + 24L * HOUR_MS,
+			retentionScope = "LIVE_AMBIENT",
+			retentionPolicyId = "test-retention",
+			retentionApprovalRevision = 1L,
 		)
 		return unsigned.copy(
 			effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsigned),

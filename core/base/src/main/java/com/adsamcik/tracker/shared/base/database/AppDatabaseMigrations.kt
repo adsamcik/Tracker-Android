@@ -1690,6 +1690,9 @@ val MIGRATION_27_28: Migration = object : Migration(
 					scope_deletion_generation INTEGER NOT NULL,
 					effect_checksum TEXT NOT NULL,
 					applied_at_ms INTEGER NOT NULL,
+					retention_scope TEXT,
+					retention_policy_id TEXT,
+					retention_approval_revision INTEGER,
 					PRIMARY KEY(writer_id, writer_version, logical_fact_id, semantic_revision)
 				)
 				""".trimIndent(),
@@ -1738,6 +1741,9 @@ val MIGRATION_27_28: Migration = object : Migration(
 					cursor_revision INTEGER NOT NULL,
 					status TEXT NOT NULL,
 					updated_at_ms INTEGER NOT NULL,
+					retention_scope TEXT NOT NULL,
+					retention_policy_id TEXT NOT NULL,
+					retention_approval_revision INTEGER NOT NULL,
 					PRIMARY KEY(registration_generation)
 				)
 				""".trimIndent(),

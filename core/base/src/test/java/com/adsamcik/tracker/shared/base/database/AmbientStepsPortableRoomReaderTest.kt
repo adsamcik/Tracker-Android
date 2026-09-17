@@ -6,6 +6,8 @@ import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -319,6 +321,20 @@ class AmbientStepsPortableRoomReaderTest {
 				updatedAtMs = if (revoked) 2_000L else 0L,
 			),
 		)
+		database.ambientStepsFactRevisionDao().insertRetentionAuthority(
+			AmbientStepsRetentionAuthorityIntegrity.create(
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				1L,
+				AmbientStepsRetentionAuthorityEntity.STATE_ACTIVE,
+				RETENTION_POLICY_ID,
+				HISTORICAL_POLICY,
+				ACTIVE_CONSENT,
+				EPOCH,
+				BOOT_ID,
+				0L,
+				0L,
+			),
+		)
 		val demand = SourceDemandEntity(
 			demandId = "ambient-demand",
 			consumerId = "ambient-consumer",
@@ -431,6 +447,9 @@ class AmbientStepsPortableRoomReaderTest {
 			cursorRevision = 2L,
 			status = cursorStatus,
 			updatedAtMs = importedThroughMs,
+			retentionScope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+			retentionPolicyId = RETENTION_POLICY_ID,
+			retentionApprovalRevision = 1L,
 		)
 		database.ambientStepsImportStateDao().insertCursor(cursor)
 		return Fixture(fingerprint)
@@ -535,6 +554,9 @@ class AmbientStepsPortableRoomReaderTest {
 				cursorRevision = 1L,
 				status = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
 				updatedAtMs = importedThroughTimeMs,
+				retentionScope = AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				retentionPolicyId = RETENTION_POLICY_ID,
+				retentionApprovalRevision = 1L,
 			),
 		)
 	}
@@ -646,6 +668,9 @@ class AmbientStepsPortableRoomReaderTest {
 				0L,
 				"0".repeat(64),
 				endTimeMs,
+				AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT,
+				RETENTION_POLICY_ID,
+				1L,
 			)
 			return unsigned.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsigned))
 		}
@@ -701,6 +726,7 @@ class AmbientStepsPortableRoomReaderTest {
 		const val SOURCE_INSTANCE = "ambient-source"
 		const val SUCCESSOR_SOURCE_INSTANCE = "ambient-source-successor"
 		const val BOOT_ID = "boot-a"
+		const val RETENTION_POLICY_ID = "test-retention"
 		const val PROVIDER =
 			AmbientStepsFactRevisionEntity.PROVIDER_LOCAL_RECORDING_STEPS
 		const val DAY_END = 86_400_000L

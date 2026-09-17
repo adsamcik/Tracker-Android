@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEn
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportAuthorityTransitionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsRetentionAuthorityIntegrity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
@@ -669,6 +670,25 @@ private suspend fun AppDatabase.authenticateAmbientFactAuthority(
 		SourceBrokerPurpose.AMBIENT_PRODUCT,
 		consentEpoch,
 	) ?: return false
+	val retentionScope = fact.retentionScope ?: return false
+	val retentionPolicyId = fact.retentionPolicyId ?: return false
+	val retentionApprovalRevision = fact.retentionApprovalRevision ?: return false
+	val retention = ambientStepsFactRevisionDao().retentionAuthorityAt(
+		retentionScope,
+		first.effectiveBootId,
+		first.effectiveElapsedRealtimeNanos,
+	) ?: return false
+	if (!AmbientStepsRetentionAuthorityIntegrity.isAuthentic(retention) ||
+		!retention.isActive ||
+		retention.opaquePolicyId != retentionPolicyId ||
+		retention.approvalRevision != retentionApprovalRevision ||
+		retention.sourcePolicyRevision != policyRevision ||
+		retention.ambientConsentEpoch != consentEpoch ||
+		retention.collectedDataEpoch != fact.collectedDataEpoch ||
+		retention.effectiveBootId != first.effectiveBootId ||
+		retention.effectiveElapsedRealtimeNanos > first.effectiveElapsedRealtimeNanos ||
+		retention.effectiveWallTimeMs > first.effectiveWallTimeMs
+	) return false
 	return policy.hasAmbientAuthority(
 		consent,
 		requireNotNull(fact.windowStartTimeMs),
@@ -687,7 +707,11 @@ private fun AmbientStepsFactRevisionEntity.hasHistoricalAuthority(
 		return authorizationRevision == cursor.authorizationRevision &&
 			authorizationFingerprint == cursor.authorizationFingerprint &&
 			sourcePolicyRevision == cursor.sourcePolicyRevision &&
-			ambientConsentEpoch == cursor.ambientConsentEpoch && start >= cursor.eligibleFromTimeMs &&
+			ambientConsentEpoch == cursor.ambientConsentEpoch &&
+			retentionScope == cursor.retentionScope &&
+			retentionPolicyId == cursor.retentionPolicyId &&
+			retentionApprovalRevision == cursor.retentionApprovalRevision &&
+			start >= cursor.eligibleFromTimeMs &&
 			end <= cursor.importedThroughTimeMs
 	}
 	var phaseStart = cursor.registrationAcceptedAtMs
@@ -710,7 +734,10 @@ private fun AmbientStepsFactRevisionEntity.hasHistoricalAuthority(
 		end <= cursor.importedThroughTimeMs && authorizationRevision == cursor.authorizationRevision &&
 		authorizationFingerprint == cursor.authorizationFingerprint &&
 		sourcePolicyRevision == cursor.sourcePolicyRevision &&
-		ambientConsentEpoch == cursor.ambientConsentEpoch
+		ambientConsentEpoch == cursor.ambientConsentEpoch &&
+		retentionScope == cursor.retentionScope &&
+		retentionPolicyId == cursor.retentionPolicyId &&
+		retentionApprovalRevision == cursor.retentionApprovalRevision
 }
 
 private fun List<AmbientStepsImportAuthorityTransitionEntity>.hasExactAuthorityChain(
@@ -811,6 +838,9 @@ private fun AmbientStepsFactRevisionEntity.toAmbientStepsRetraction(
 		scopeDeletionGeneration = deletionGeneration,
 		effectChecksum = EMPTY_EFFECT_CHECKSUM,
 		appliedAtMs = deletedAtMs,
+		retentionScope = null,
+		retentionPolicyId = null,
+		retentionApprovalRevision = null,
 	)
 	return unsigned.copy(effectChecksum = AmbientStepsFactIntegrity.effectChecksum(unsigned))
 }
@@ -844,6 +874,9 @@ private data class AmbientStepsFactAuthorityKey(
 	val authorizationFingerprint: String,
 	val sourcePolicyRevision: Long,
 	val ambientConsentEpoch: Long,
+	val retentionScope: String,
+	val retentionPolicyId: String,
+	val retentionApprovalRevision: Long,
 )
 
 private fun AmbientStepsFactRevisionEntity.authorityKey() = AmbientStepsFactAuthorityKey(
@@ -852,6 +885,9 @@ private fun AmbientStepsFactRevisionEntity.authorityKey() = AmbientStepsFactAuth
 	requireNotNull(authorizationFingerprint),
 	requireNotNull(sourcePolicyRevision),
 	requireNotNull(ambientConsentEpoch),
+	requireNotNull(retentionScope),
+	requireNotNull(retentionPolicyId),
+	requireNotNull(retentionApprovalRevision),
 )
 
 private fun blocked(reason: AmbientStepsSourceDeletionBlockedReason) =

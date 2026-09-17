@@ -19,6 +19,7 @@ import java.security.MessageDigest
 			],
 			name = "idx_ambient_steps_retention_effective",
 		),
+		Index(value = ["scope"], name = "idx_ambient_steps_retention_scope"),
 	],
 )
 data class AmbientStepsRetentionAuthorityEntity(

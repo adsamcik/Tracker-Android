@@ -59,6 +59,9 @@ data class AmbientStepsImportCursorEntity(
 	@ColumnInfo(name = "cursor_revision") val cursorRevision: Long,
 	@ColumnInfo(name = "status") val status: String,
 	@ColumnInfo(name = "updated_at_ms") val updatedAtMs: Long,
+	@ColumnInfo(name = "retention_scope") val retentionScope: String,
+	@ColumnInfo(name = "retention_policy_id") val retentionPolicyId: String,
+	@ColumnInfo(name = "retention_approval_revision") val retentionApprovalRevision: Long,
 ) {
 	init {
 		require(registrationGeneration > 0L)
@@ -109,6 +112,9 @@ data class AmbientStepsImportCursorEntity(
 		require(cursorRevision > 0L)
 		require(status in STATUSES)
 		require(updatedAtMs >= lastObservedAtMs)
+		require(retentionScope == AmbientStepsRetentionAuthorityEntity.SCOPE_LIVE_AMBIENT)
+		require(retentionPolicyId.isNotBlank() && retentionPolicyId.length <= 256)
+		require(retentionApprovalRevision > 0L)
 	}
 
 	companion object {

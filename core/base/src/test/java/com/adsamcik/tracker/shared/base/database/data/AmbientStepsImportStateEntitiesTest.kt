@@ -153,6 +153,9 @@ class AmbientStepsImportStateEntitiesTest {
 		cursorRevision = 1L,
 		status = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
 		updatedAtMs = 5_000L,
+		retentionScope = "LIVE_AMBIENT",
+		retentionPolicyId = "test-retention",
+		retentionApprovalRevision = 1L,
 	)
 
 	private fun processGap(): AmbientStepsImportGapEntity = AmbientStepsImportGapEntity(

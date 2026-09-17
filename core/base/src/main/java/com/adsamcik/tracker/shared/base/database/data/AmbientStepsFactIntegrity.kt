@@ -41,7 +41,7 @@ object AmbientStepsFactIntegrity {
 	}
 
 	fun effectChecksum(fact: AmbientStepsFactRevisionEntity): String = digest(
-		"ambient-steps-effect-v2",
+		"ambient-steps-effect-v3",
 		fact.logicalFactId,
 		fact.semanticRevision,
 		fact.mutationId,
@@ -69,6 +69,9 @@ object AmbientStepsFactIntegrity {
 		fact.ambientConsentEpoch,
 		fact.collectedDataEpoch,
 		fact.scopeDeletionGeneration,
+		fact.retentionScope,
+		fact.retentionPolicyId,
+		fact.retentionApprovalRevision,
 	)
 
 	fun hasValidEffectChecksum(fact: AmbientStepsFactRevisionEntity): Boolean =

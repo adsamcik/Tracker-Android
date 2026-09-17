@@ -2,6 +2,8 @@ package com.adsamcik.tracker.shared.base.database
 
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsNativeReplayFootprintEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsNativeReplayFootprintIntegrity
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsFactV1
@@ -20,6 +22,7 @@ data class AmbientStepsPortableLocalOwner(
 	val kind: AmbientStepsPortableLocalOwnerKind,
 	val state: AmbientStepsPortableLocalOwnerState,
 	val contentChecksum: String?,
+	val ownerDayIdentity: String? = null,
 )
 
 enum class AmbientStepsPortableLocalOriginFailureReason {
@@ -58,15 +61,44 @@ class AmbientStepsPortableLocalOriginReader(
 		storedEvidenceUnverifiable()
 	}
 
+	internal suspend fun readAllForFullClearInTransaction():
+		List<AmbientStepsPortableLocalOwner> = readAuthenticatedInTransaction(null)
+
 	private suspend fun readAuthenticatedInTransaction(
-		incomingIdentities: Set<String>,
+		incomingIdentities: Set<String>?,
 	): List<AmbientStepsPortableLocalOwner> {
-		require(incomingIdentities.isNotEmpty())
+		require(incomingIdentities == null || incomingIdentities.isNotEmpty())
 		val factDao = database.ambientStepsFactRevisionDao()
 		val stateDao = database.ambientStepsImportStateDao()
+		val evidenceEpoch = database.sourceEvidenceStateDao().get()?.collectedDataEpoch
+		val preserved = if (incomingIdentities == null) {
+			emptyList()
+		} else {
+			val rows = incomingIdentities.chunked(IDENTITY_QUERY_CHUNK_SIZE).flatMap { identities ->
+				factDao.nativeReplayFootprints(identities, identities.size + 1)
+			}
+			if (rows.size > incomingIdentities.size ||
+				rows.any {
+					!AmbientStepsNativeReplayFootprintIntegrity.isAuthentic(it) ||
+						evidenceEpoch == null ||
+						it.collectedDataEpoch != evidenceEpoch
+				}
+			) {
+				storedEvidenceUnverifiable()
+			}
+			rows.map { row ->
+				AmbientStepsPortableLocalOwner(
+					identity = row.protectedIdentity,
+					kind = row.identityKind.toLocalOwnerKind(),
+					state = AmbientStepsPortableLocalOwnerState.DELETED,
+					contentChecksum = null,
+					ownerDayIdentity = row.ownerDayIdentity,
+				)
+			}
+		}
 		if (factDao.countAll() == 0L && stateDao.countCursors() == 0L &&
 			stateDao.countGaps() == 0L && stateDao.countAuthorityTransitions() == 0L
-		) return emptyList()
+		) return preserved
 		val effectiveFacts = mutableListOf<AmbientStepsFactRevisionEntity>()
 		val owners = mutableListOf<AmbientStepsPortableLocalOwner>()
 		val authority = database.visitAuthenticatedAmbientStepsState(
@@ -78,13 +110,30 @@ class AmbientStepsPortableLocalOriginReader(
 				AmbientStepsPortableIdentityKind.FACT,
 				lineage.logicalFactId,
 			).value
+			val structuralFact = lineage.upserts.lastOrNull() ?: storedEvidenceUnverifiable()
+			val dayIdentity = AmbientStepsPortableOpaqueIdentity.derive(
+				AmbientStepsPortableIdentityKind.DAY,
+				"${structuralFact.structuralEpochDay}|${structuralFact.storedZoneId}|" +
+					"${structuralFact.structuralDayStartTimeMs}|" +
+					"${structuralFact.structuralDayEndTimeMs}",
+			).value
 			if (lineage.latest.operation == AmbientStepsFactRevisionEntity.OPERATION_RETRACT) {
-				if (factIdentity in incomingIdentities) {
+				if (incomingIdentities == null || factIdentity in incomingIdentities) {
 					owners += AmbientStepsPortableLocalOwner(
 						factIdentity,
 						AmbientStepsPortableLocalOwnerKind.FACT,
 						AmbientStepsPortableLocalOwnerState.DELETED,
 						null,
+						dayIdentity,
+					)
+				}
+				if (incomingIdentities == null || dayIdentity in incomingIdentities) {
+					owners += AmbientStepsPortableLocalOwner(
+						dayIdentity,
+						AmbientStepsPortableLocalOwnerKind.DAY,
+						AmbientStepsPortableLocalOwnerState.DELETED,
+						null,
+						dayIdentity,
 					)
 				}
 			} else {
@@ -99,31 +148,33 @@ class AmbientStepsPortableLocalOriginReader(
 					requireNotNull(fact.windowEndTimeMs),
 					requireNotNull(fact.stepCount),
 				)
-				if (portable.identity.value in incomingIdentities) {
+				if (incomingIdentities == null || portable.identity.value in incomingIdentities) {
 					owners += AmbientStepsPortableLocalOwner(
 						portable.identity.value,
 						AmbientStepsPortableLocalOwnerKind.FACT,
 						AmbientStepsPortableLocalOwnerState.ACTIVE,
 						portable.contentChecksum.value,
+						dayIdentity,
 					)
 				}
-				val dayIdentity = AmbientStepsPortableOpaqueIdentity.derive(
-					AmbientStepsPortableIdentityKind.DAY,
-					"${fact.structuralEpochDay}|${fact.storedZoneId}|" +
-						"${fact.structuralDayStartTimeMs}|${fact.structuralDayEndTimeMs}",
-				).value
-				if (dayIdentity in incomingIdentities) {
+				if (incomingIdentities == null || dayIdentity in incomingIdentities) {
 					owners += AmbientStepsPortableLocalOwner(
 						dayIdentity,
 						AmbientStepsPortableLocalOwnerKind.DAY,
 						AmbientStepsPortableLocalOwnerState.ACTIVE,
 						null,
+						dayIdentity,
 					)
 				}
 			}
 		}
 		val days = effectiveFacts.mapTo(linkedSetOf()) { fact ->
 			PortableLocalDay(
+				AmbientStepsPortableOpaqueIdentity.derive(
+					AmbientStepsPortableIdentityKind.DAY,
+					"${fact.structuralEpochDay}|${fact.storedZoneId}|" +
+						"${fact.structuralDayStartTimeMs}|${fact.structuralDayEndTimeMs}",
+				).value,
 				requireNotNull(fact.structuralDayStartTimeMs),
 				requireNotNull(fact.structuralDayEndTimeMs),
 			)
@@ -135,20 +186,29 @@ class AmbientStepsPortableLocalOriginReader(
 						part.startTimeMs < day.endTimeMs
 					) {
 						part.clip(day, authority.evidence.retainedFromMs)?.takeIf { portable ->
-							portable.identity.value in incomingIdentities
+							incomingIdentities == null ||
+								portable.identity.value in incomingIdentities
 						}?.let { portable ->
 							owners += AmbientStepsPortableLocalOwner(
 								portable.identity.value,
 								AmbientStepsPortableLocalOwnerKind.GAP,
 								AmbientStepsPortableLocalOwnerState.ACTIVE,
 								portable.contentChecksum.value,
+								day.identity,
 							)
 						}
 					}
 				}
 			}
 		}
-		return owners.distinct()
+		return (preserved + owners).distinct()
+	}
+
+	private fun String.toLocalOwnerKind(): AmbientStepsPortableLocalOwnerKind = when (this) {
+		AmbientStepsNativeReplayFootprintEntity.KIND_DAY -> AmbientStepsPortableLocalOwnerKind.DAY
+		AmbientStepsNativeReplayFootprintEntity.KIND_FACT -> AmbientStepsPortableLocalOwnerKind.FACT
+		AmbientStepsNativeReplayFootprintEntity.KIND_GAP -> AmbientStepsPortableLocalOwnerKind.GAP
+		else -> error("Unknown Ambient Steps native replay footprint kind $this")
 	}
 
 	private fun storedEvidenceUnverifiable(): Nothing =
@@ -157,7 +217,11 @@ class AmbientStepsPortableLocalOriginReader(
 		)
 }
 
-private data class PortableLocalDay(val startTimeMs: Long, val endTimeMs: Long)
+private data class PortableLocalDay(
+	val identity: String,
+	val startTimeMs: Long,
+	val endTimeMs: Long,
+)
 
 private data class PortableLocalGap(
 	val localGapId: String,
@@ -237,3 +301,5 @@ private fun String.toPortableReason(): PortableAmbientStepsGapReason = when (thi
 		PortableAmbientStepsGapReason.INITIAL_ZONE_AUTHORITY_UNOBSERVED
 	else -> error("Unknown Ambient Steps gap reason")
 }
+
+private const val IDENTITY_QUERY_CHUNK_SIZE = 500

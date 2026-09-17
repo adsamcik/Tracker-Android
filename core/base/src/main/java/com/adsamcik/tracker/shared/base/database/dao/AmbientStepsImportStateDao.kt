@@ -318,6 +318,9 @@ interface AmbientStepsImportStateDao {
 			"authorization_effective_wall_time_ms = :newAuthorizationEffectiveWallTimeMs, " +
 			"source_policy_revision = :newSourcePolicyRevision, " +
 			"ambient_consent_epoch = :newAmbientConsentEpoch, " +
+			"retention_scope = :newRetentionScope, " +
+			"retention_policy_id = :newRetentionPolicyId, " +
+			"retention_approval_revision = :newRetentionApprovalRevision, " +
 			"eligible_from_time_ms = :effectiveBoundaryTimeMs, " +
 			"continuity_segment_generation = :newContinuitySegmentGeneration, " +
 			"segment_start_time_ms = :effectiveBoundaryTimeMs, " +
@@ -395,6 +398,9 @@ interface AmbientStepsImportStateDao {
 		newAuthorizationEffectiveWallTimeMs: Long,
 		newSourcePolicyRevision: Long,
 		newAmbientConsentEpoch: Long,
+		newRetentionScope: String,
+		newRetentionPolicyId: String,
+		newRetentionApprovalRevision: Long,
 		effectiveBoundaryTimeMs: Long,
 		newObservedAtMs: Long,
 		newCursorRevision: Long,
