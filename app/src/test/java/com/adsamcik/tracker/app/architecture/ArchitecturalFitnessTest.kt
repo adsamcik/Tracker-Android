@@ -422,6 +422,7 @@ class ArchitecturalFitnessTest {
 						STANDARD_EXCLUDES + listOf("src/test", "src/androidTest", "src/testFixtures"),
 					)
 				}
+				.filterNot { file -> file.name == "TrackerDiagnosticLog.kt" }
 				.flatMap { file ->
 					extractTraceboxCalls(file.readText()).flatMap { call ->
 						traceboxCallViolations(call).map { reason ->
@@ -664,16 +665,91 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
-		fun `diagnostics boundary reexports Tracebox without a Tracker facade`() {
+		fun `tracking diagnostics contract keeps Tracebox implementation private`() {
 			val buildText = projectRoot.resolve("core/diagnostics/build.gradle.kts").readText()
-			if ("api(libs.tracebox)" !in buildText) {
-				error(":core:diagnostics must expose Tracebox directly")
-			}
+			buildList {
+				if ("implementation(libs.tracebox)" !in buildText) {
+					add(":core:diagnostics must own the local Tracebox implementation")
+				}
+				if ("api(libs.tracebox)" in buildText) {
+					add(":core:diagnostics must not expose Tracebox on its public API")
+				}
+			}.shouldBeEmpty()
+
+			val contractDirectory = projectRoot.resolve(
+				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics",
+			)
+			val contractFiles = listOf(
+				"TrackingDiagnosticBuckets.kt",
+				"TrackingDiagnosticContract.kt",
+				"TrackingDiagnosticPrivacy.kt",
+				"TrackingDiagnosticRecorder.kt",
+			)
+			contractFiles.flatMap { fileName ->
+				val file = contractDirectory.resolve(fileName)
+				check(file.isFile) { "Missing tracking diagnostics contract file $fileName" }
+				file.readLines().mapIndexedNotNull { index, line ->
+					if (
+						Regex("""dev\.tracebox|LogTemplate|TraceboxLogger|TraceboxConfiguration""")
+							.containsMatchIn(line)
+					) {
+						"$fileName:${index + 1}: $line"
+					} else {
+						null
+					}
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `tracking source modules cannot reference Tracebox directly`() {
+			val sourceDirectories = listOf(
+				projectRoot.resolve("tracker/engine/src/main"),
+				projectRoot.resolve("sensor/activity/src/main"),
+			)
+
+			sourceDirectories.flatMap { sourceDirectory ->
+				findPatternMatching(
+					sourceDir = sourceDirectory,
+					pattern = Regex("""\bdev\.tracebox\b|\bTracebox(?:\.|Logger\b|Configuration\b)"""),
+					excludeDirs = STANDARD_EXCLUDES,
+					skipComments = true,
+				).map { violation ->
+					"${sourceDirectory.relativeTo(projectRoot)}: $violation"
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `tracking diagnostics public declarations contain no Tracebox types`() {
+			val contractDirectory = projectRoot.resolve(
+				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics",
+			)
+			val declarationPattern = Regex(
+				"""^\s*(?:public\s+)?(?:class|enum\s+class|sealed\s+interface|""" +
+					"""object|fun|val|var).*(?:Tracebox|LogTemplate|TraceboxLogger)""",
+			)
+
+			findPatternMatching(
+				sourceDir = contractDirectory,
+				pattern = declarationPattern,
+				excludeDirs = STANDARD_EXCLUDES,
+				excludeFiles = listOf(
+					"TraceboxTrackingDiagnosticAdapter.kt",
+					"TrackerDiagnosticLog.kt",
+					"TrackerTraceboxTemplates.kt",
+				),
+				skipComments = true,
+			).shouldBeEmpty()
+		}
+
+		@Test
+		fun `tracking diagnostics compatibility facade remains separate from contract types`() {
 			val diagnosticsDir = projectRoot.resolve("core/diagnostics/src/main")
 			if (diagnosticsDir.exists()) {
 				findPatternMatching(
 					sourceDir = diagnosticsDir,
-					pattern = Regex("TrackerDiagnostics|TrackerDiagnosticCode|TrackerLog"),
+					pattern = Regex("TrackerDiagnostics|TrackerLog"),
 					excludeDirs = STANDARD_EXCLUDES,
 				).shouldBeEmpty()
 			}
