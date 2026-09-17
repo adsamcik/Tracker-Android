@@ -707,8 +707,12 @@ class ArchitecturalFitnessTest {
 				projectRoot.resolve("tracker/engine/src/main"),
 				projectRoot.resolve("sensor/activity/src/main"),
 			)
+			val buildFiles = listOf(
+				projectRoot.resolve("tracker/engine/build.gradle.kts"),
+				projectRoot.resolve("sensor/activity/build.gradle.kts"),
+			)
 
-			sourceDirectories.flatMap { sourceDirectory ->
+			val sourceViolations = sourceDirectories.flatMap { sourceDirectory ->
 				findPatternMatching(
 					sourceDir = sourceDirectory,
 					pattern = Regex("""\bdev\.tracebox\b|\bTracebox(?:\.|Logger\b|Configuration\b)"""),
@@ -717,7 +721,14 @@ class ArchitecturalFitnessTest {
 				).map { violation ->
 					"${sourceDirectory.relativeTo(projectRoot)}: $violation"
 				}
-			}.shouldBeEmpty()
+			}
+			val dependencyViolations = buildFiles.filter { buildFile ->
+				"libs.tracebox" in buildFile.readText()
+			}.map { buildFile ->
+				"${buildFile.relativeTo(projectRoot)} exposes a direct Tracebox dependency"
+			}
+
+			(sourceViolations + dependencyViolations).shouldBeEmpty()
 		}
 
 		@Test

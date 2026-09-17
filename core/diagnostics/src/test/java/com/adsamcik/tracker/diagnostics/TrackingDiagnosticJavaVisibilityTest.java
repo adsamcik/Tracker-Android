@@ -39,7 +39,9 @@ final class TrackingDiagnosticJavaVisibilityTest {
 			TrackingDiagnosticEventRequest.class,
 			TrackingDiagnosticEvents.class,
 			TrackingDiagnosticMetricPolicy.class,
-			TrackingDiagnosticPrivacyValidator.class
+			TrackingDiagnosticPrivacyValidator.class,
+			TrackerDiagnosticLog.class,
+			TrackerDiagnosticCode.class
 		);
 
 		contractTypes.forEach(type -> {
@@ -47,6 +49,26 @@ final class TrackingDiagnosticJavaVisibilityTest {
 				.filter(method -> !method.isSynthetic())
 				.forEach(this::assertPayloadFreeSignature);
 			Arrays.stream(type.getFields()).forEach(this::assertPayloadFreeField);
+		});
+	}
+
+	@Test
+	void rawBucketConvertersAreHiddenFromJavaCallers() {
+		List<Class<?>> bucketTypes = List.of(
+			TrackingDiagnosticCountBucket.class,
+			TrackingDiagnosticDurationBucket.class,
+			TrackingDiagnosticBacklogBucket.class,
+			TrackingDiagnosticSizeBucket.class
+		);
+
+		bucketTypes.forEach(bucketType -> {
+			Class<?> companion = Arrays.stream(bucketType.getDeclaredClasses())
+				.filter(type -> type.getSimpleName().equals("Companion"))
+				.findFirst()
+				.orElseThrow();
+			Arrays.stream(companion.getDeclaredMethods())
+				.filter(method -> method.getName().startsWith("from"))
+				.forEach(method -> assertTrue(method.isSynthetic()));
 		});
 	}
 
