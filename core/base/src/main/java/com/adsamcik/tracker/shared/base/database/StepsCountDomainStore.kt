@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
@@ -28,6 +29,7 @@ enum class StepsCountDomainWriteResult {
 	SCHEMA_UNAVAILABLE,
 	STORED_EVIDENCE_UNVERIFIABLE,
 	NOT_APPLICABLE,
+	AUTHORITY_PENDING,
 	UNPROVEN,
 	IDENTITY_CONFLICT,
 	REVISION_GAP,
@@ -97,7 +99,8 @@ enum class StepsCountDomainFullClearMode {
  * Source-owned bridge used until the serialized AppDatabase owner registers the additive entities.
  *
  * Calls must occur inside the producer's existing Room transaction. A completely absent namespace
- * preserves pre-P5 behavior with SCHEMA_UNAVAILABLE. Any partial, markerless, legacy, or corrupt
+ * or exact empty Room scaffold preserves pre-P5 behavior with SCHEMA_UNAVAILABLE until the schema
+ * callback installs its triggers and sentinel. Any other partial, markerless, legacy, or corrupt
  * namespace is STORED_EVIDENCE_UNVERIFIABLE and never activates.
  */
 @Suppress("TooManyFunctions")
@@ -148,12 +151,18 @@ class StepsCountDomainStore(
 			StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
 			ownerIdentity,
 		)
+		val hasGenerationSafeToken =
+			row.payloadVersion >= StepsCounterDomainToken.COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION &&
+				counterDomainToken != null
 		if (latestOwner?.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN &&
-			counterDomainToken != null
+			hasGenerationSafeToken
 		) {
 			return StepsCountDomainWriteResult.UNPROVEN
 		}
-		if (counterDomainToken == null) {
+		// Payload v6 carried one token through COUNTER_RESET and therefore cannot prove that any
+		// retained window stayed within one physical counter epoch. Generation-safe authority starts
+		// at v7; all older WAL remains decodable for fact recovery but is permanently UNPROVEN here.
+		if (!hasGenerationSafeToken) {
 			return appendTerminalUnproven(
 				ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_WAL,
 				scopeIdentity = scopeIdentity,
@@ -368,15 +377,19 @@ class StepsCountDomainStore(
 				),
 				1L,
 			),
-		) ?: return appendTerminalUnproven(
-			ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS,
-			scopeIdentity = scopeIdentity,
-			ownerIdentity = ownerIdentity,
-			ownerRevision = ownerRevision,
-			ownerEffectChecksum = ownerEffectChecksum,
-			linkedAtMs = row.updatedAtMs,
-			completenessMarker = marker.asUnproven(),
-		)
+		) ?: return if (canonicalProjectionCommittedThrough(admissionOrdinal)) {
+			appendTerminalUnproven(
+				ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS,
+				scopeIdentity = scopeIdentity,
+				ownerIdentity = ownerIdentity,
+				ownerRevision = ownerRevision,
+				ownerEffectChecksum = ownerEffectChecksum,
+				linkedAtMs = row.updatedAtMs,
+				completenessMarker = marker.asUnproven(),
+			)
+		} else {
+			StepsCountDomainWriteResult.AUTHORITY_PENDING
+		}
 		if (walOwner.owner.operation == StepsCountDomainOwnerRevisionEntity.OPERATION_UNPROVEN) {
 			return appendTerminalUnproven(
 				ownerKind = StepsCountDomainOwnerRevisionEntity.OWNER_SESSION_COMPLETENESS,
@@ -574,7 +587,9 @@ class StepsCountDomainStore(
 		}
 		val sqlite = database.openHelper.readableDatabase
 		when (StepsCountDomainSchema.inspect(sqlite)) {
-			StepsCountDomainSchemaState.Absent ->
+			StepsCountDomainSchemaState.Absent,
+			StepsCountDomainSchemaState.FreshRoomScaffold,
+			->
 				return StepsCountDomainOwnerRead.SchemaUnavailable
 			StepsCountDomainSchemaState.Incompatible ->
 				return StepsCountDomainOwnerRead.Unverifiable
@@ -671,7 +686,9 @@ class StepsCountDomainStore(
 		}
 		val sqlite = database.openHelper.writableDatabase
 		when (StepsCountDomainSchema.inspect(sqlite)) {
-			StepsCountDomainSchemaState.Absent ->
+			StepsCountDomainSchemaState.Absent,
+			StepsCountDomainSchemaState.FreshRoomScaffold,
+			->
 				return StepsCountDomainMaintenanceResult.SchemaUnavailable
 			StepsCountDomainSchemaState.Incompatible ->
 				return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
@@ -697,7 +714,9 @@ class StepsCountDomainStore(
 	): StepsCountDomainMaintenanceResult {
 		val sqlite = database.openHelper.writableDatabase
 		when (StepsCountDomainSchema.inspect(sqlite)) {
-			StepsCountDomainSchemaState.Absent ->
+			StepsCountDomainSchemaState.Absent,
+			StepsCountDomainSchemaState.FreshRoomScaffold,
+			->
 				return StepsCountDomainMaintenanceResult.SchemaUnavailable
 			StepsCountDomainSchemaState.Incompatible ->
 				return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
@@ -734,7 +753,9 @@ class StepsCountDomainStore(
 		require(batchSize in 1..MAX_MAINTENANCE_OWNER_BATCH)
 		val sqlite = database.openHelper.writableDatabase
 		when (StepsCountDomainSchema.inspect(sqlite)) {
-			StepsCountDomainSchemaState.Absent ->
+			StepsCountDomainSchemaState.Absent,
+			StepsCountDomainSchemaState.FreshRoomScaffold,
+			->
 				return StepsCountDomainMaintenanceResult.SchemaUnavailable
 			StepsCountDomainSchemaState.Incompatible ->
 				return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
@@ -759,7 +780,9 @@ class StepsCountDomainStore(
 		}
 		val sqlite = database.openHelper.writableDatabase
 		when (StepsCountDomainSchema.inspect(sqlite)) {
-			StepsCountDomainSchemaState.Absent ->
+			StepsCountDomainSchemaState.Absent,
+			StepsCountDomainSchemaState.FreshRoomScaffold,
+			->
 				return StepsCountDomainMaintenanceResult.SchemaUnavailable
 			StepsCountDomainSchemaState.Incompatible ->
 				return StepsCountDomainMaintenanceResult.StoredEvidenceUnverifiable
@@ -983,10 +1006,23 @@ class StepsCountDomainStore(
 
 	private fun writeSchemaFailure(): StepsCountDomainWriteResult? =
 		when (StepsCountDomainSchema.inspect(database.openHelper.writableDatabase)) {
-			StepsCountDomainSchemaState.Absent -> StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE
+			StepsCountDomainSchemaState.Absent,
+			StepsCountDomainSchemaState.FreshRoomScaffold,
+			-> StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE
 			StepsCountDomainSchemaState.ValidV2 -> null
 			StepsCountDomainSchemaState.Incompatible ->
 				StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE
+		}
+
+	private suspend fun canonicalProjectionCommittedThrough(admissionOrdinal: Long): Boolean =
+		database.sourceProjectionStateDao().productLanesByProjection(
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+		).any { lane ->
+			lane.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL &&
+				lane.activationOrdinal <= admissionOrdinal &&
+				lane.contiguousAdmissionOrdinal >= admissionOrdinal &&
+				lane.captureAdmissionCutoffOrdinal?.let { it >= admissionOrdinal } != false
 		}
 
 	@Suppress("LongParameterList")

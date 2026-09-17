@@ -17,6 +17,8 @@ import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -654,6 +656,11 @@ class StepSourceRuntimeRetirementTest {
 		every { packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER) } returns true
 		every { sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) } returns sensor
 		every { sensor.type } returns Sensor.TYPE_STEP_COUNTER
+		every { sensor.stringType } returns "android.sensor.step_counter"
+		every { sensor.vendor } returns "vendor"
+		every { sensor.name } returns "counter"
+		every { sensor.version } returns 1
+		every { sensor.id } returns 7
 		every { sensor.fifoMaxEventCount } returns 0
 		every { sensor.minDelay } returns 0
 		var registrationIndex = 0
@@ -711,8 +718,17 @@ class StepSourceRuntimeRetirementTest {
 				else -> true
 			}
 		}
+		val projectionLane = mockk<StepsSessionFactProjectionLane>()
+		coEvery { projectionLane.drainCanonicalThrough(any()) } answers {
+			StepsSessionFactDrainResult.Complete(firstArg(), 0, 0)
+		}
 		return Fixture(
-			runtime = StepSourceRuntime(context, scope, repository),
+			runtime = StepSourceRuntime(
+				context,
+				scope,
+				repository,
+				projectionLane,
+			),
 			repository = repository,
 			sensorManager = sensorManager,
 			sensor = sensor,

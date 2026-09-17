@@ -62,7 +62,10 @@ data class StepCounterWindowPayload(
 	val firstProviderSequence: Long,
 	val lastProviderSequence: Long,
 	val boundaryKind: StepBoundaryKind,
-	/** Opaque physical counter epoch, present from durable payload version 6 onward. */
+	/**
+	 * Opaque physical counter epoch, present from durable payload version 6 onward.
+	 * Retained v6 tokens remain decodeable but are not authority because v6 reused them across reset.
+	 */
 	val counterDomainToken: StepsCounterDomainToken? = null,
 	/**
 	 * Checked physical counter-epoch generation, present from durable payload version 7 onward.

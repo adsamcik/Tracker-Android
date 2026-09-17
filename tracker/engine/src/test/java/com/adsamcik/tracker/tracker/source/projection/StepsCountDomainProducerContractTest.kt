@@ -22,7 +22,6 @@ import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevis
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
 import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
-import com.adsamcik.tracker.tracker.source.ingress.STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import io.kotest.matchers.shouldBe
@@ -54,7 +53,7 @@ class StepsCountDomainProducerContractTest {
 	fun tearDown() = database.close()
 
 	@Test
-	fun `same provider token survives independent registrations source instances and QoS fingerprints`() =
+	fun `same provider token survives independent registrations and QoS fingerprints`() =
 		runTest {
 			val store = StepsCountDomainStore(database)
 			val token = token('a')
@@ -68,7 +67,7 @@ class StepsCountDomainProducerContractTest {
 			val reconfiguredWal = insertWal(
 				token = token,
 				eventId = "event-reconfigured",
-				sourceInstance = "session-owner-instance-2",
+				sourceInstance = "session-owner-instance",
 				registrationGeneration = 2L,
 				physicalConfigurationFingerprint = "qos-batched-high-latency",
 			)
@@ -85,7 +84,7 @@ class StepsCountDomainProducerContractTest {
 			) shouldBe
 				StepsCountDomainWriteResult.INSERTED
 			val ambient = ambientFact(
-				sourceInstance = "ambient-owner-instance",
+				sourceInstance = "session-owner-instance",
 				registrationGeneration = 9L,
 			)
 			database.ambientStepsFactRevisionDao().insert(ambient) shouldNotBe -1L
@@ -298,28 +297,73 @@ class StepsCountDomainProducerContractTest {
 		) shouldBe StepsCountDomainWriteResult.TERMINAL_OWNER
 	}
 
+	@Test
+	fun `complete retirement remains retryable until canonical WAL authority exists`() = runTest {
+		val store = StepsCountDomainStore(database)
+		val token = token('a')
+		val wal = insertWal(token)
+		val completeness = completeness(wal)
+		database.sourceSessionDao().saveCompleteness(completeness)
+
+		store.recordSessionCompleteness(
+			completeness,
+			completeRetirementEvidence(),
+		) shouldBe StepsCountDomainWriteResult.AUTHORITY_PENDING
+		database.openHelper.writableDatabase.query(
+			"SELECT COUNT(*) FROM steps_count_domain_owner_revision " +
+				"WHERE owner_kind = 'SESSION_COMPLETENESS'",
+		).use { cursor ->
+			cursor.moveToFirst()
+			cursor.getLong(0) shouldBe 0L
+		}
+
+		store.recordSessionWal(wal, token) shouldBe StepsCountDomainWriteResult.INSERTED
+		store.recordSessionCompleteness(
+			completeness,
+			completeRetirementEvidence(),
+		) shouldBe StepsCountDomainWriteResult.INSERTED
+	}
+
 	private suspend fun insertWal(
 		token: StepsCounterDomainToken,
 		eventId: String = EVENT_ID,
 		sourceInstance: String = SOURCE_INSTANCE,
 		registrationGeneration: Long = 1L,
 		physicalConfigurationFingerprint: String = "configuration-not-domain",
+		payloadVersion: Int = StepsCounterDomainToken.COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION,
+		sourceSequence: Long = 1L,
+		boundaryKind: StepBoundaryKind = StepBoundaryKind.COVERED,
+		firstCumulativeCount: Long = 10L,
+		lastCumulativeCount: Long = 15L,
 	): SourceEventWalEntity {
+		val deltaCount = if (boundaryKind == StepBoundaryKind.COVERED) {
+			lastCumulativeCount - firstCumulativeCount
+		} else {
+			0L
+		}
 		val payload = StepCounterWindowPayload(
 			bootClockDomainId = "boot",
-			firstCumulativeCount = 10L,
-			lastCumulativeCount = 15L,
-			deltaCount = 5L,
+			firstCumulativeCount = firstCumulativeCount,
+			lastCumulativeCount = lastCumulativeCount,
+			deltaCount = deltaCount,
 			windowStartElapsedRealtimeNanos = 1_000_000_000L,
 			windowEndElapsedRealtimeNanos = 2_000_000_000L,
-			firstProviderSequence = 1L,
-			lastProviderSequence = 1L,
-			boundaryKind = StepBoundaryKind.COVERED,
+			firstProviderSequence = sourceSequence,
+			lastProviderSequence = sourceSequence,
+			boundaryKind = boundaryKind,
 			counterDomainToken = token,
+			counterEpochGeneration =
+				if (payloadVersion >=
+					StepsCounterDomainToken.COUNTER_EPOCH_GENERATION_PAYLOAD_VERSION
+				) {
+					1L
+				} else {
+					null
+				},
 		)
 		val encoded = DefaultSourcePayloadCodec().encode(
 			payload,
-			STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION,
+			payloadVersion,
 		)
 		val unsigned = SourceEventWalEntity(
 			eventId = eventId,
@@ -333,7 +377,7 @@ class StepsCountDomainProducerContractTest {
 			authorizationRevision = 1L,
 			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 			authorizationFingerprint = "a".repeat(64),
-			sourceSequence = 1L,
+			sourceSequence = sourceSequence,
 			configRevision = 1L,
 			planAttribution = 0,
 			clockDomainId = "boot",
@@ -349,7 +393,7 @@ class StepsCountDomainProducerContractTest {
 			acquiredAtMs = 2_000L,
 			qualityFlags = 0L,
 			qualityConfidence = null,
-			payloadVersion = STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION,
+			payloadVersion = payloadVersion,
 			payload = encoded.bytes,
 			payloadChecksum = encoded.checksum,
 			createdAtMs = 2_000L,
@@ -411,7 +455,7 @@ class StepsCountDomainProducerContractTest {
 		sourceInstanceId = wal.sourceInstanceId,
 		registrationGeneration = wal.registrationGeneration,
 		lastAdmissionOrdinal = wal.admissionOrdinal,
-		lastSourceSequence = 1L,
+		lastSourceSequence = wal.sourceSequence,
 		appDrainComplete = true,
 		providerCoverage = "CALLBACKS_ENTERED_BEFORE_BARRIER",
 		stopStatus = "COMPLETE",

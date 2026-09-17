@@ -153,6 +153,39 @@ class StepsSessionFactProjectionLane private constructor(
 		drainThroughLocked(initialLane, target)
 	}
 
+	/**
+	 * Commits the canonical Steps lane through an exact terminal admission before completeness can
+	 * be published. Shadow validation and a capture cutoff below the requested ordinal are not
+	 * completion authority.
+	 */
+	internal suspend fun drainCanonicalThrough(
+		throughAdmissionOrdinal: Long,
+	): StepsSessionFactDrainResult = mutex.withLock {
+		require(throughAdmissionOrdinal > 0L)
+		val initialLane = database.withTransaction { executableLaneOrNull() }
+			?: return@withLock StepsSessionFactDrainResult.Inactive
+		if (initialLane.productStage != SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL) {
+			return@withLock StepsSessionFactDrainResult.AuthorityChanged(
+				"STEPS_CANONICAL_LANE_NOT_ACTIVE",
+			)
+		}
+		if (initialLane.captureAdmissionCutoffOrdinal?.let {
+				it < throughAdmissionOrdinal
+			} == true) {
+			return@withLock StepsSessionFactDrainResult.AuthorityChanged(
+				"STEPS_CANONICAL_CUTOFF_BEFORE_COMPLETENESS",
+			)
+		}
+		if (throughAdmissionOrdinal <= initialLane.contiguousAdmissionOrdinal) {
+			return@withLock StepsSessionFactDrainResult.Complete(
+				lastCompletedOrdinal = initialLane.contiguousAdmissionOrdinal,
+				factsInserted = 0,
+				eventsValidated = 0,
+			)
+		}
+		drainThroughLocked(initialLane, throughAdmissionOrdinal)
+	}
+
 	private suspend fun drainThroughLocked(
 		initialLane: SourceProductProjectionLaneEntity,
 		targetAdmissionOrdinal: Long,
@@ -649,7 +682,9 @@ class StepsSessionFactProjectionLane private constructor(
 		counterDomainToken: StepsCounterDomainToken?,
 	) {
 		when (StepsCountDomainSchema.inspect(database.openHelper.writableDatabase)) {
-			StepsCountDomainSchemaState.Absent -> return
+			StepsCountDomainSchemaState.Absent,
+			StepsCountDomainSchemaState.FreshRoomScaffold,
+			-> return
 			StepsCountDomainSchemaState.Incompatible ->
 				throw StepsSessionFactIdentityCollisionException(
 					admissionOrdinal,

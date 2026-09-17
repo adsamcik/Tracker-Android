@@ -55,6 +55,7 @@ internal suspend fun AppDatabase.insertStepsDeletionRetractionOrVerify(
 		StepsCountDomainWriteResult.EXACT_REPLAY,
 		-> Unit
 		StepsCountDomainWriteResult.NOT_APPLICABLE,
+		StepsCountDomainWriteResult.AUTHORITY_PENDING,
 		StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE,
 		StepsCountDomainWriteResult.IDENTITY_CONFLICT,
 		StepsCountDomainWriteResult.REVISION_GAP,
@@ -95,6 +96,7 @@ internal suspend fun AppDatabase.insertStepsDeletionRetractionOrVerify(
 			true
 		}
 		StepsCountDomainWriteResult.UNPROVEN,
+		StepsCountDomainWriteResult.AUTHORITY_PENDING,
 		StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE,
 		StepsCountDomainWriteResult.IDENTITY_CONFLICT,
 		StepsCountDomainWriteResult.REVISION_GAP,

@@ -225,7 +225,7 @@ class SourcePayloadCodecTest {
 	}
 
 	@Test
-	fun `version six binds the opaque provider counter epoch without changing legacy bytes`() {
+	fun `version six remains decodeable including its unsafe reused reset token`() {
 		val token = StepsCounterDomainToken.opaque("sha256:${"a".repeat(64)}")
 		val payload = StepCounterWindowPayload(
 			bootClockDomainId = "boot-v6",
@@ -239,12 +239,23 @@ class SourcePayloadCodecTest {
 			boundaryKind = StepBoundaryKind.COVERED,
 			counterDomainToken = token,
 		)
+		val reset = payload.copy(
+			firstCumulativeCount = 120L,
+			lastCumulativeCount = 2L,
+			deltaCount = 0L,
+			boundaryKind = StepBoundaryKind.COUNTER_RESET,
+		)
 
 		codec.decode(
 			payload.source,
 			STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION,
 			codec.encode(payload, STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION).bytes,
 		) shouldBe payload
+		codec.decode(
+			reset.source,
+			STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION,
+			codec.encode(reset, STEP_COUNTER_DOMAIN_TOKEN_PAYLOAD_VERSION).bytes,
+		) shouldBe reset
 		shouldThrow<IllegalArgumentException> {
 			codec.encode(
 				payload.copy(counterDomainToken = null),

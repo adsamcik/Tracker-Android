@@ -4746,6 +4746,8 @@ class AuthoritativeSessionCoordinator @Inject internal constructor(
 				StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
 				StepsCountDomainWriteResult.NOT_APPLICABLE,
 				-> Unit
+				StepsCountDomainWriteResult.AUTHORITY_PENDING ->
+					error("Terminal Steps completeness is waiting for canonical WAL authority")
 				StepsCountDomainWriteResult.UNPROVEN ->
 					error("Terminal Steps completeness lacks count-domain admission evidence")
 				StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE ->

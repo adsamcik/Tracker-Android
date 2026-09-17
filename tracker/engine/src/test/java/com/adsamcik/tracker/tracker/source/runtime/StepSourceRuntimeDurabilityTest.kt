@@ -6,9 +6,11 @@ import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
 import io.mockk.every
 import io.mockk.mockk
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
@@ -571,6 +573,7 @@ class StepSourceRuntimeDurabilityTest {
 	@Test
 	fun `process restart records a gap and never restores the cumulative baseline`() {
 		val boundary = StepBaselineBoundary(7L)
+		val retainedToken = StepsCounterDomainToken.opaque("sha256:${"c".repeat(64)}")
 		val checkpoint = SensorRuntimeCheckpoint(
 			lifecycle = RuntimeCheckpointLifecycle.ACTIVE,
 			metrics = RuntimeAdmissionSnapshot(7L, 42L, 0L, null, null, emptySet()),
@@ -580,6 +583,7 @@ class StepSourceRuntimeDurabilityTest {
 				1_000L,
 				7L,
 				boundary,
+				counterDomainToken = retainedToken,
 				counterEpochGeneration = 3L,
 			).encode(),
 		)
@@ -587,10 +591,14 @@ class StepSourceRuntimeDurabilityTest {
 			saved = runtimeState(7L, 7L, checkpoint),
 			currentRegistrationGeneration = 7L,
 			reusedPhysicalRegistration = true,
+			freshCounterIdentity = false,
+			counterDomainTokenForGeneration = { retainedToken },
 		)
 
 		assertNull(recovery.baseline)
 		assertEquals(3L, recovery.counterEpochGeneration)
+		assertEquals(retainedToken, recovery.counterDomainToken)
+		assertTrue(recovery.counterEpochAuthorityProven)
 		assertEquals(8L, recovery.callbackEntrySequence)
 		assertEquals(1L, recovery.metrics?.failedAdmissionCount)
 		assertEquals(8L, recovery.metrics?.unresolvedSequenceStart)
@@ -599,7 +607,6 @@ class StepSourceRuntimeDurabilityTest {
 			setOf(RuntimeGapClassification.PROCESS_RESTARTED),
 			recovery.metrics?.gapClassifications,
 		)
-		val recoveredToken = StepsCounterDomainToken.opaque("sha256:${"c".repeat(64)}")
 		val firstAfterRestart = requireNotNull(
 			StepWindowAccumulator(
 				recovery.baseline,
@@ -612,13 +619,13 @@ class StepSourceRuntimeDurabilityTest {
 					2_000L,
 					9L,
 					2_000L,
-					counterDomainToken = recoveredToken,
+					counterDomainToken = recovery.counterDomainToken,
 				),
 		)
 		assertEquals(0L, firstAfterRestart.deltaCount)
 		assertTrue(firstAfterRestart.baselineReset)
 		assertEquals(3L, firstAfterRestart.counterEpochGeneration)
-		assertEquals(recoveredToken, firstAfterRestart.counterDomainToken)
+		assertEquals(retainedToken, firstAfterRestart.counterDomainToken)
 	}
 
 	@Test
@@ -642,6 +649,8 @@ class StepSourceRuntimeDurabilityTest {
 			saved = runtimeState(7L, 3L, checkpoint),
 			currentRegistrationGeneration = 7L,
 			reusedPhysicalRegistration = true,
+			freshCounterIdentity = false,
+			counterDomainTokenForGeneration = { null },
 		)
 
 		assertNull(recovery.baseline)
@@ -678,6 +687,8 @@ class StepSourceRuntimeDurabilityTest {
 			saved = runtimeState(7L, 12L, checkpoint),
 			currentRegistrationGeneration = 7L,
 			reusedPhysicalRegistration = true,
+			freshCounterIdentity = false,
+			counterDomainTokenForGeneration = { null },
 		)
 
 		assertEquals(13L, recovery.callbackEntrySequence)
@@ -705,6 +716,8 @@ class StepSourceRuntimeDurabilityTest {
 			saved = runtimeState(7L, 4L, checkpoint),
 			currentRegistrationGeneration = 7L,
 			reusedPhysicalRegistration = true,
+			freshCounterIdentity = false,
+			counterDomainTokenForGeneration = { null },
 		)
 
 		assertEquals(13L, recovery.callbackEntrySequence)
@@ -770,29 +783,213 @@ class StepSourceRuntimeDurabilityTest {
 	}
 
 	@Test
-	fun `fresh physical generation has an explicit reset without inheriting prior metrics`() {
+	fun `new registration preserves authenticated epoch generation without inheriting prior metrics`() {
 		val priorBoundary = StepBaselineBoundary(7L)
+		val retainedToken = StepsCounterDomainToken.opaque("sha256:${"d".repeat(64)}")
 		val checkpoint = SensorRuntimeCheckpoint(
 			lifecycle = RuntimeCheckpointLifecycle.ACTIVE,
 			metrics = RuntimeAdmissionSnapshot(3L, 9L, 0L, null, null, emptySet()),
 			componentStateVersion = STEP_BASELINE_VERSION,
-			componentPayload = StepBaseline(50L, 500L, 3L, priorBoundary).encode(),
+			componentPayload = StepBaseline(
+				50L,
+				500L,
+				3L,
+				priorBoundary,
+				counterDomainToken = retainedToken,
+				counterEpochGeneration = 4L,
+			).encode(),
 		)
 		val recovery = recoverStepRuntimeState(
 			saved = runtimeState(7L, 3L, checkpoint),
 			currentRegistrationGeneration = 8L,
 			reusedPhysicalRegistration = false,
+			freshCounterIdentity = false,
+			counterDomainTokenForGeneration = { retainedToken },
 		)
 
 		assertNull(recovery.metrics)
 		assertEquals(0L, recovery.callbackEntrySequence)
+		assertEquals(4L, recovery.counterEpochGeneration)
+		assertEquals(retainedToken, recovery.counterDomainToken)
+		assertTrue(recovery.counterEpochAuthorityProven)
 		val first = requireNotNull(
-			StepWindowAccumulator(recovery.baseline, StepBaselineBoundary(8L))
-				.accept("boot-1", 55L, 600L, 1L, 600L),
+			StepWindowAccumulator(
+				recovery.baseline,
+				StepBaselineBoundary(8L),
+				recovery.counterEpochGeneration,
+			).accept(
+				"boot-1",
+				55L,
+				600L,
+				1L,
+				600L,
+				counterDomainToken = recovery.counterDomainToken,
+			),
 		)
 		assertEquals(0L, first.deltaCount)
 		assertTrue(first.baselineReset)
 		assertEquals(first.firstCumulativeCount, first.lastCumulativeCount)
+		assertEquals(4L, first.counterEpochGeneration)
+		assertEquals(retainedToken, first.counterDomainToken)
+	}
+
+	@Test
+	fun `reset generation survives re-registration in the same counter identity`() {
+		val priorBoundary = StepBaselineBoundary(7L)
+		val tokenOne = StepsCounterDomainToken.opaque("sha256:${"1".repeat(64)}")
+		val tokenTwo = StepsCounterDomainToken.opaque("sha256:${"2".repeat(64)}")
+		val accumulator = StepWindowAccumulator(null, priorBoundary)
+		requireNotNull(accumulator.accept(
+			"boot-1",
+			100L,
+			1_000L,
+			1L,
+			counterDomainToken = tokenOne,
+		))
+		requireNotNull(accumulator.accept(
+			"boot-1",
+			2L,
+			2_000L,
+			2L,
+			counterDomainToken = tokenOne,
+			successorCounterDomainToken = { tokenTwo },
+		))
+		val checkpoint = SensorRuntimeCheckpoint(
+			lifecycle = RuntimeCheckpointLifecycle.QUIESCED,
+			metrics = RuntimeAdmissionSnapshot(2L, 10L, 0L, null, null, emptySet()),
+			componentStateVersion = STEP_BASELINE_VERSION,
+			componentPayload = requireNotNull(accumulator.snapshot()).encode(),
+		)
+
+		val recovery = recoverStepRuntimeState(
+			saved = runtimeState(7L, 2L, checkpoint),
+			currentRegistrationGeneration = 8L,
+			reusedPhysicalRegistration = false,
+			freshCounterIdentity = false,
+			counterDomainTokenForGeneration = { generation ->
+				if (generation == 2L) tokenTwo else tokenOne
+			},
+		)
+
+		assertEquals(2L, recovery.counterEpochGeneration)
+		assertEquals(tokenTwo, recovery.counterDomainToken)
+		assertTrue(recovery.counterEpochAuthorityProven)
+		assertNull(recovery.metrics)
+	}
+
+	@Test
+	fun `startup checkpoint retains epoch before the first callback after another restart`() {
+		val boundary = StepBaselineBoundary(8L)
+		val token = StepsCounterDomainToken.opaque("sha256:${"e".repeat(64)}")
+		val startupBaseline = stepCounterEpochCheckpointBaseline(
+			boundary = boundary,
+			counterEpochGeneration = 5L,
+			counterDomainToken = token,
+		)
+		val checkpoint = SensorRuntimeCheckpoint(
+			lifecycle = RuntimeCheckpointLifecycle.ACTIVE,
+			metrics = RuntimeAdmissionSnapshot(null, null, 0L, null, null, emptySet()),
+			componentStateVersion = STEP_BASELINE_VERSION,
+			componentPayload = startupBaseline.encode(),
+		)
+
+		val recovery = recoverStepRuntimeState(
+			saved = runtimeState(8L, 0L, checkpoint),
+			currentRegistrationGeneration = 9L,
+			reusedPhysicalRegistration = false,
+			freshCounterIdentity = false,
+			counterDomainTokenForGeneration = { token },
+		)
+
+		assertEquals(5L, recovery.counterEpochGeneration)
+		assertEquals(token, recovery.counterDomainToken)
+		assertTrue(recovery.counterEpochAuthorityProven)
+		assertNull(recovery.metrics)
+	}
+
+	@Test
+	fun `unmatched retained counter identity remains tokenless and unproven`() {
+		val retainedToken = StepsCounterDomainToken.opaque("sha256:${"f".repeat(64)}")
+		val currentToken = StepsCounterDomainToken.opaque("sha256:${"0".repeat(64)}")
+		val checkpoint = SensorRuntimeCheckpoint(
+			lifecycle = RuntimeCheckpointLifecycle.ACTIVE,
+			metrics = RuntimeAdmissionSnapshot(null, null, 0L, null, null, emptySet()),
+			componentStateVersion = STEP_BASELINE_VERSION,
+			componentPayload = stepCounterEpochCheckpointBaseline(
+				boundary = StepBaselineBoundary(7L),
+				counterEpochGeneration = 3L,
+				counterDomainToken = retainedToken,
+			).encode(),
+		)
+
+		val recovery = recoverStepRuntimeState(
+			saved = runtimeState(7L, 0L, checkpoint),
+			currentRegistrationGeneration = 8L,
+			reusedPhysicalRegistration = false,
+			freshCounterIdentity = false,
+			counterDomainTokenForGeneration = { currentToken },
+		)
+
+		assertEquals(3L, recovery.counterEpochGeneration)
+		assertNull(recovery.counterDomainToken)
+		assertFalse(recovery.counterEpochAuthorityProven)
+	}
+
+	@Test
+	fun `terminal completeness waits for canonical projection through the final admission`() = runTest {
+		val ack = exactTerminalAck()
+		val calls = mutableListOf<String>()
+
+		assertFailsWith<StepsCanonicalCompletionPendingException> {
+			settleStepsTerminalProjection(
+				ack = ack,
+				drainCanonicalThrough = { ordinal ->
+					calls += "drain:$ordinal"
+					StepsSessionFactDrainResult.Failed(
+						lastCompletedOrdinal = ordinal - 1L,
+						failedOrdinal = ordinal,
+						failureCode = "TRANSIENT",
+						terminal = false,
+					)
+				},
+				publishTerminalCheckpoint = { calls += "publish" },
+			)
+		}
+		assertEquals(listOf("drain:9"), calls)
+
+		settleStepsTerminalProjection(
+			ack = ack,
+			drainCanonicalThrough = { ordinal ->
+				calls += "drain:$ordinal"
+				StepsSessionFactDrainResult.Complete(ordinal, 1, 1)
+			},
+			publishTerminalCheckpoint = { calls += "publish" },
+		)
+		assertEquals(listOf("drain:9", "drain:9", "publish"), calls)
+	}
+
+	@Test
+	fun `genuinely incomplete retirement publishes terminal unproven without canonical bind`() = runTest {
+		val ack = exactTerminalAck().copy(
+			appDrainComplete = false,
+			status = SourceStopStatus.TIMED_OUT,
+			unresolvedSequenceStart = 8L,
+			unresolvedSequenceEndInclusive = 9L,
+		)
+		var drainCalled = false
+		var published = false
+
+		settleStepsTerminalProjection(
+			ack = ack,
+			drainCanonicalThrough = {
+				drainCalled = true
+				StepsSessionFactDrainResult.Complete(it, 0, 0)
+			},
+			publishTerminalCheckpoint = { published = true },
+		)
+
+		assertFalse(drainCalled)
+		assertTrue(published)
 	}
 
 	private fun atomicSink(
@@ -855,5 +1052,25 @@ class StepSourceRuntimeDurabilityTest {
 		stateVersion = SENSOR_RUNTIME_CHECKPOINT_VERSION,
 		payload = encodeSensorRuntimeCheckpoint(checkpoint),
 		updatedAtMs = 10L,
+	)
+
+	private fun exactTerminalAck() = SourceStopAck(
+		source = SourceKind.STEPS,
+		sourceInstanceId = com.adsamcik.tracker.tracker.source.model.SourceInstanceId("steps-1"),
+		registrationGeneration = 7L,
+		appliedRevision = 3L,
+		callbackEntryBarrierSequence = 12L,
+		lastDurablyAdmittedSequence = 12L,
+		lastAdmissionOrdinal = 9L,
+		failedAdmissionCount = 0L,
+		unresolvedSequenceStart = null,
+		unresolvedSequenceEndInclusive = null,
+		registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED,
+		providerFlushOutcome = ProviderFlushOutcome.COMPLETE,
+		providerCoverage = ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER,
+		appDrainComplete = true,
+		status = SourceStopStatus.COMPLETE,
+		logicalTrackingId = "tracking",
+		serviceRunId = "run",
 	)
 }

@@ -1144,7 +1144,9 @@ class SourceRegistrationRepository @Inject constructor(
 							StepsCountDomainWriteResult.EXACT_REPLAY,
 							StepsCountDomainWriteResult.SCHEMA_UNAVAILABLE,
 						),
-					) { "Unable to persist terminal-unproven Steps count-domain completeness" }
+					) {
+						"Unable to publish Steps completeness before exact count-domain authority"
+					}
 					if (countDomainResult == StepsCountDomainWriteResult.INSERTED) {
 						check(
 							database.sourceEvidenceStateDao().incrementRevision(updatedAtMs) == 1,

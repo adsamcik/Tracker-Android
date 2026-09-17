@@ -25,6 +25,8 @@ import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -53,6 +55,7 @@ class StepSourceRuntime @Inject constructor(
 	@ApplicationContext private val context: Context,
 	@ApplicationScope private val applicationScope: CoroutineScope,
 	private val registrations: SourceRegistrationRepository,
+	private val stepsProjectionLane: StepsSessionFactProjectionLane,
 ) : ClaimedSourceRuntime<StepsPlan> {
 	override val source: SourceKind = SourceKind.STEPS
 	private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -89,8 +92,10 @@ class StepSourceRuntime @Inject constructor(
 	private var metrics = RuntimeAdmissionMetrics()
 	private val processedCallbackSequence = MutableStateFlow(0L)
 	private var cachedCounterDomainTokenBootId: String? = null
+	private var cachedCounterDomainTokenSourceInstanceId: String? = null
 	private var cachedCounterDomainTokenGeneration: Long? = null
 	private var cachedCounterDomainToken: StepsCounterDomainToken? = null
+	private var counterEpochAuthorityProven = false
 
 	override suspend fun start(plan: StepsPlan, sink: SourceEventSink): SourceStartResult = lifecycleMutex.withLock {
 		startForClaimLocked(claim = null, plan, sink)
@@ -392,7 +397,20 @@ class StepSourceRuntime @Inject constructor(
 			currentRegistrationGeneration = nextRegistration.state.registrationGeneration,
 			reusedPhysicalRegistration = nextRegistration.predecessorState
 				?.registrationGeneration == nextRegistration.state.registrationGeneration,
+			freshCounterIdentity = nextRegistration.predecessorState?.let { predecessor ->
+				predecessor.sourceInstanceId != nextRegistration.state.sourceInstanceId ||
+					predecessor.clockDomainId != nextRegistration.state.clockDomainId
+			} ?: true,
+			counterDomainTokenForGeneration = { generation ->
+				StepsCounterDomainTokenIssuer.directSensor(
+					sensor = stepSensor,
+					bootClockDomainId = nextRegistration.state.clockDomainId,
+					sourceInstanceId = nextRegistration.state.sourceInstanceId,
+					counterEpochGeneration = generation,
+				)
+			},
 		)
+		counterEpochAuthorityProven = recovery.counterEpochAuthorityProven
 		// A process boundary can miss cumulative callbacks even when Android retained the same
 		// physical generation. Never stitch the persisted count across that unverifiable interval.
 		val accumulator = StepWindowAccumulator(
@@ -517,7 +535,11 @@ class StepSourceRuntime @Inject constructor(
 					lifecycle = RuntimeCheckpointLifecycle.ACTIVE,
 					metrics = metrics.snapshot(),
 					componentStateVersion = STEP_BASELINE_VERSION,
-					componentPayload = ByteArray(0),
+					componentPayload = stepCounterEpochCheckpointBaseline(
+						boundary = baselineBoundary,
+						counterEpochGeneration = recovery.counterEpochGeneration,
+						counterDomainToken = recovery.counterDomainToken,
+					).encode(),
 					causalOrderElapsedRealtimeNanos = startupCheckpointCausalOrderElapsedNanos,
 				),
 				updatedAtMs = stepCheckpointOrderMillis(startupCheckpointCausalOrderElapsedNanos),
@@ -1076,6 +1098,11 @@ class StepSourceRuntime @Inject constructor(
 										elapsedRealtimeNanos = 0L,
 										providerSequence = 0L,
 										boundary = boundary,
+										counterDomainToken = resolveCounterDomainToken(
+											registration.state.clockDomainId,
+											registration.state.sourceInstanceId,
+											counterEpochGeneration,
+										),
 										counterEpochGeneration = counterEpochGeneration,
 									).encode(),
 									causalOrderElapsedRealtimeNanos =
@@ -1267,6 +1294,7 @@ class StepSourceRuntime @Inject constructor(
 		val counterEpochGeneration = accumulator.counterEpochGeneration()
 		val counterDomainToken = resolveCounterDomainToken(
 			activeRegistration.state.clockDomainId,
+			activeRegistration.state.sourceInstanceId,
 			counterEpochGeneration,
 		)
 		val preview = accumulator.preview(
@@ -1280,6 +1308,7 @@ class StepSourceRuntime @Inject constructor(
 			successorCounterDomainToken = {
 				resolveCounterDomainToken(
 					activeRegistration.state.clockDomainId,
+					activeRegistration.state.sourceInstanceId,
 					counterEpochGeneration + 1L,
 				)
 			},
@@ -1385,10 +1414,13 @@ class StepSourceRuntime @Inject constructor(
 
 	private fun resolveCounterDomainToken(
 		bootClockDomainId: String,
+		sourceInstanceId: String,
 		counterEpochGeneration: Long,
 	): StepsCounterDomainToken? {
 		require(counterEpochGeneration > 0L)
+		if (!counterEpochAuthorityProven) return null
 		if (cachedCounterDomainTokenBootId == bootClockDomainId &&
+			cachedCounterDomainTokenSourceInstanceId == sourceInstanceId &&
 			cachedCounterDomainTokenGeneration == counterEpochGeneration
 		) {
 			return cachedCounterDomainToken
@@ -1397,10 +1429,12 @@ class StepSourceRuntime @Inject constructor(
 			StepsCounterDomainTokenIssuer.directSensor(
 				activeSensor,
 				bootClockDomainId,
+				sourceInstanceId,
 				counterEpochGeneration,
 			)
 		}
 		cachedCounterDomainTokenBootId = bootClockDomainId
+		cachedCounterDomainTokenSourceInstanceId = sourceInstanceId
 		cachedCounterDomainTokenGeneration = counterEpochGeneration
 		cachedCounterDomainToken = resolved
 		return resolved
@@ -1551,14 +1585,19 @@ class StepSourceRuntime @Inject constructor(
 
 	private suspend fun settleTerminalCheckpoint(intent: StepTerminalSettlementIntent) {
 		if (intent.checkpointConfirmed) return
-		persistTerminalCheckpoint(
-			activeRegistration = intent.registration,
-			lastProviderSequence = intent.barrier,
-			lifecycle = intent.lifecycle,
-			causalOrderElapsedRealtimeNanos = intent.causalOrderElapsedRealtimeNanos,
-			admission = intent.admission,
+		settleStepsTerminalProjection(
 			ack = intent.ack,
-		)
+			drainCanonicalThrough = stepsProjectionLane::drainCanonicalThrough,
+		) {
+			persistTerminalCheckpoint(
+				activeRegistration = intent.registration,
+				lastProviderSequence = intent.barrier,
+				lifecycle = intent.lifecycle,
+				causalOrderElapsedRealtimeNanos = intent.causalOrderElapsedRealtimeNanos,
+				admission = intent.admission,
+				ack = intent.ack,
+			)
+		}
 		intent.checkpointConfirmed = true
 	}
 
@@ -1602,6 +1641,11 @@ class StepSourceRuntime @Inject constructor(
 		cutoffElapsedNanos = null
 		admissionDeadlineElapsedNanos = null
 		currentPlan = null
+		counterEpochAuthorityProven = false
+		cachedCounterDomainTokenBootId = null
+		cachedCounterDomainTokenSourceInstanceId = null
+		cachedCounterDomainTokenGeneration = null
+		cachedCounterDomainToken = null
 	}
 
 	private inner class StepRegistrationListener(
@@ -1931,38 +1975,58 @@ internal data class StepRuntimeRecovery(
 	val callbackEntrySequence: Long,
 	val baseline: StepBaseline?,
 	val counterEpochGeneration: Long,
+	val counterDomainToken: StepsCounterDomainToken?,
+	val counterEpochAuthorityProven: Boolean,
 )
 
 /**
  * A process boundary invalidates the cumulative value and reserves one explicit gap, while
- * preserving the checked counter-epoch generation so a prior reset can never regain its old token.
+ * preserving a checked counter-epoch generation independently of registration-scoped metrics.
+ * Continuity is accepted only when the retained token is reproduced by the current boot, sensor,
+ * and source-instance identity; otherwise the new registration remains tokenless and UNPROVEN.
  */
 internal fun recoverStepRuntimeState(
 	saved: SourceRuntimeStateEntity?,
 	currentRegistrationGeneration: Long,
 	reusedPhysicalRegistration: Boolean,
+	freshCounterIdentity: Boolean,
+	counterDomainTokenForGeneration: (Long) -> StepsCounterDomainToken?,
 ): StepRuntimeRecovery {
 	require(currentRegistrationGeneration > 0L)
-	if (!reusedPhysicalRegistration) {
+	val sameGeneration = saved?.registrationGeneration == currentRegistrationGeneration
+	val checkpoint = saved
+		?.let { decodeSensorRuntimeCheckpoint(it, STEP_BASELINE_VERSION) }
+	val retainedBaseline = checkpoint
+		?.componentPayload
+		?.takeIf { it.isNotEmpty() }
+		?.let { decodeStepBaseline(it, checkpoint.componentStateVersion) }
+	val retainedGeneration = if (freshCounterIdentity) {
+		INITIAL_COUNTER_EPOCH_GENERATION
+	} else {
+		retainedBaseline?.counterEpochGeneration ?: INITIAL_COUNTER_EPOCH_GENERATION
+	}
+	val currentToken = counterDomainTokenForGeneration(retainedGeneration)
+	val continuityAuthenticated = !freshCounterIdentity &&
+		checkpoint?.componentStateVersion == STEP_BASELINE_VERSION &&
+		retainedBaseline?.counterDomainToken != null &&
+		retainedBaseline.counterDomainToken == currentToken
+	val counterEpochAuthorityProven = when {
+		freshCounterIdentity -> currentToken != null
+		else -> continuityAuthenticated
+	}
+	val recoveredCounterDomainToken = currentToken.takeIf { counterEpochAuthorityProven }
+	if (!sameGeneration || !reusedPhysicalRegistration) {
 		return StepRuntimeRecovery(
 			metrics = null,
 			callbackEntrySequence = 0L,
 			baseline = null,
-			counterEpochGeneration = INITIAL_COUNTER_EPOCH_GENERATION,
+			counterEpochGeneration = retainedGeneration,
+			counterDomainToken = recoveredCounterDomainToken,
+			counterEpochAuthorityProven = counterEpochAuthorityProven,
 		)
 	}
 
-	val sameGeneration = saved?.registrationGeneration == currentRegistrationGeneration
-	val lastProviderSequence = if (sameGeneration) requireNotNull(saved).lastProviderSequence else 0L
-	val checkpoint = saved
-		?.takeIf { sameGeneration }
-		?.let { decodeSensorRuntimeCheckpoint(it, STEP_BASELINE_VERSION) }
-	val restoredCounterEpochGeneration = checkpoint
-		?.componentPayload
-		?.takeIf { it.isNotEmpty() }
-		?.let { decodeStepBaseline(it, checkpoint.componentStateVersion) }
-		?.counterEpochGeneration
-		?: INITIAL_COUNTER_EPOCH_GENERATION
+	val lastProviderSequence = requireNotNull(saved).lastProviderSequence
 	val prior = checkpoint?.metrics
 	val priorHighWater = maxOf(lastProviderSequence, prior?.unresolvedSequenceEndInclusive ?: 0L)
 	require(priorHighWater < Long.MAX_VALUE) { "Steps callback sequence exhausted" }
@@ -1981,9 +2045,24 @@ internal fun recoverStepRuntimeState(
 		metrics = recoveredMetrics.snapshot(),
 		callbackEntrySequence = gapSequence,
 		baseline = null,
-		counterEpochGeneration = restoredCounterEpochGeneration,
+		counterEpochGeneration = retainedGeneration,
+		counterDomainToken = recoveredCounterDomainToken,
+		counterEpochAuthorityProven = counterEpochAuthorityProven,
 	)
 }
+
+internal fun stepCounterEpochCheckpointBaseline(
+	boundary: StepBaselineBoundary,
+	counterEpochGeneration: Long,
+	counterDomainToken: StepsCounterDomainToken?,
+): StepBaseline = StepBaseline(
+	cumulativeCount = 0L,
+	elapsedRealtimeNanos = 0L,
+	providerSequence = 0L,
+	boundary = boundary,
+	counterDomainToken = counterDomainToken,
+	counterEpochGeneration = counterEpochGeneration,
+)
 
 private fun SourceRegistration.stepAuthorizationBoundary() = StepAuthorizationBoundary(
 	authorizationRevision = authorization.authorizationRevision,
@@ -2166,6 +2245,50 @@ private fun SourceStopAck.toTerminalCompleteness(updatedAtMs: Long): SourceSessi
 		updatedAtMs = updatedAtMs,
 	)
 }
+
+private fun SourceStopAck.canonicalCompletionOrdinalOrNull(): Long? {
+	if (logicalTrackingId == null || serviceRunId == null ||
+		registrationGeneration <= 0L ||
+		!appDrainComplete ||
+		providerCoverage != ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER ||
+		status != SourceStopStatus.COMPLETE ||
+		unresolvedSequenceStart != null ||
+		unresolvedSequenceEndInclusive != null ||
+		lastAdmissionOrdinal == null ||
+		lastDurablyAdmittedSequence == null ||
+		providerFlushOutcome !in setOf(
+			ProviderFlushOutcome.COMPLETE,
+			ProviderFlushOutcome.NOT_SUPPORTED,
+			ProviderFlushOutcome.NOT_REQUESTED,
+		) ||
+		registrationRemovalOutcome !in setOf(
+			RegistrationRemovalOutcome.REMOVED,
+			RegistrationRemovalOutcome.NOT_REGISTERED,
+		)
+	) {
+		return null
+	}
+	return lastAdmissionOrdinal
+}
+
+internal suspend fun settleStepsTerminalProjection(
+	ack: SourceStopAck,
+	drainCanonicalThrough: suspend (Long) -> StepsSessionFactDrainResult,
+	publishTerminalCheckpoint: suspend () -> Unit,
+) {
+	ack.canonicalCompletionOrdinalOrNull()?.let { terminalOrdinal ->
+		val completion = drainCanonicalThrough(terminalOrdinal)
+		if (completion !is StepsSessionFactDrainResult.Complete ||
+			completion.lastCompletedOrdinal < terminalOrdinal
+		) {
+			throw StepsCanonicalCompletionPendingException()
+		}
+	}
+	publishTerminalCheckpoint()
+}
+
+internal class StepsCanonicalCompletionPendingException :
+	IllegalStateException("Canonical Steps projection has not reached terminal admission")
 
 private fun SourceApplyResult.withStopAckIfAbsent(replay: SourceStopAck?): SourceApplyResult = when (this) {
 	is SourceApplyResult.Applied -> copy(stopAck = stopAck ?: replay)

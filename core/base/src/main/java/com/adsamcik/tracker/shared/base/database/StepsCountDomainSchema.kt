@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainSchemaMark
 
 sealed interface StepsCountDomainSchemaState {
 	data object Absent : StepsCountDomainSchemaState
+	data object FreshRoomScaffold : StepsCountDomainSchemaState
 	data object ValidV2 : StepsCountDomainSchemaState
 	data object Incompatible : StepsCountDomainSchemaState
 }
@@ -18,9 +19,10 @@ sealed interface StepsCountDomainSchemaState {
  * owner must register all four entities and the DAO, call [installIfAbsent] after
  * ambient_steps_fact_revision exists for both fresh and migrated v28 databases, and call
  * clearStepsCountDomainEvidenceInCurrentTransaction from the existing collected-data clear
- * transaction. Partial or markerless e500-era objects are incompatible and are never repaired or
- * activated in place. Counter-epoch generation is persisted in Steps source payload/checkpoint
- * version 7 and does not add another Room column here.
+ * transaction. Only the exact empty Room-created scaffold is accepted without a marker; partial or
+ * markerless e500-era objects are incompatible and are never repaired or activated in place.
+ * Counter-epoch generation is persisted in Steps source payload/checkpoint version 7 and does not
+ * add another Room column here.
  */
 @Suppress("LargeClass", "TooManyFunctions")
 object StepsCountDomainSchema {
@@ -220,6 +222,15 @@ object StepsCountDomainSchema {
 		END
 		""".trimIndent(),
 	)
+	private val tableStatements =
+		creationStatements.filter { it.trimStart().startsWith("CREATE TABLE") }
+	private val indexStatements =
+		creationStatements.filter { statement ->
+			statement.trimStart().startsWith("CREATE INDEX") ||
+				statement.trimStart().startsWith("CREATE UNIQUE INDEX")
+		}
+	private val triggerStatements =
+		creationStatements.filter { it.trimStart().startsWith("CREATE TRIGGER") }
 
 	private const val INSERT_MARKER_STATEMENT =
 		"INSERT INTO `$SCHEMA_MARKER_TABLE` " +
@@ -227,29 +238,20 @@ object StepsCountDomainSchema {
 			"VALUES (1, 2, 'PROVIDER_COUNTER_EPOCH_V1', 1)"
 
 	/**
-	 * Installs v2 only into a completely absent namespace.
+	 * Installs v2 only into a completely absent namespace or the exact empty Room scaffold.
 	 *
-	 * The marker is written last, after the tables, keys, indexes, and triggers have been inspected.
-	 * Any partial, markerless, legacy, or otherwise inexact namespace remains
+	 * Room creates registered entities and indexes before its callback runs, so that exact scaffold
+	 * receives only the custom triggers and sentinel. The marker is written last, after the tables,
+	 * keys, indexes, and triggers have been inspected. Any partial, non-empty, markerless, legacy,
+	 * or otherwise inexact namespace remains
 	 * [StepsCountDomainSchemaState.Incompatible].
 	 */
 	fun installIfAbsent(database: SupportSQLiteDatabase): StepsCountDomainSchemaState =
 		when (inspect(database)) {
-			StepsCountDomainSchemaState.Absent -> try {
-				creationStatements.forEach { database.execSQL(it) }
-				if (!database.hasExactV2Structure(requireMarker = false)) {
-					StepsCountDomainSchemaState.Incompatible
-				} else {
-					database.execSQL(INSERT_MARKER_STATEMENT)
-					inspect(database)
-				}
-			} catch (_: SQLiteException) {
-				StepsCountDomainSchemaState.Incompatible
-			} catch (_: IllegalArgumentException) {
-				StepsCountDomainSchemaState.Incompatible
-			} catch (_: IllegalStateException) {
-				StepsCountDomainSchemaState.Incompatible
-			}
+			StepsCountDomainSchemaState.Absent ->
+				database.installAtomically(creationStatements)
+			StepsCountDomainSchemaState.FreshRoomScaffold ->
+				database.installAtomically(triggerStatements)
 			StepsCountDomainSchemaState.ValidV2 -> StepsCountDomainSchemaState.ValidV2
 			StepsCountDomainSchemaState.Incompatible -> StepsCountDomainSchemaState.Incompatible
 		}
@@ -259,9 +261,11 @@ object StepsCountDomainSchema {
 	 */
 	fun inspect(database: SupportSQLiteDatabase): StepsCountDomainSchemaState = try {
 		when {
-			database.namedObjectCount() == 0 -> StepsCountDomainSchemaState.Absent
+			database.authorityNamespaceObjects().isEmpty() -> StepsCountDomainSchemaState.Absent
 			database.hasExactV2Structure(requireMarker = true) ->
 				StepsCountDomainSchemaState.ValidV2
+			database.hasExactFreshRoomScaffold() ->
+				StepsCountDomainSchemaState.FreshRoomScaffold
 			else -> StepsCountDomainSchemaState.Incompatible
 		}
 	} catch (_: SQLiteException) {
@@ -272,33 +276,71 @@ object StepsCountDomainSchema {
 		StepsCountDomainSchemaState.Incompatible
 	}
 
-	private fun SupportSQLiteDatabase.namedObjectCount(): Int {
-		return query(
-			"SELECT COUNT(*) FROM sqlite_master " +
-				"WHERE lower(name) LIKE 'steps_count_domain_%' " +
-				"OR lower(name) LIKE 'idx_steps_count_domain_%' " +
-				"OR lower(name) LIKE 'trg_steps_count_domain_%'",
-		).use { cursor ->
-			check(cursor.moveToFirst())
-			cursor.getInt(0)
+	private fun SupportSQLiteDatabase.installAtomically(
+		statements: List<String>,
+	): StepsCountDomainSchemaState {
+		return try {
+			execSQL("SAVEPOINT steps_count_domain_v2_install")
+			statements.forEach { statement -> execSQL(statement) }
+			check(hasExactV2Structure(requireMarker = false))
+			execSQL(INSERT_MARKER_STATEMENT)
+			check(inspect(this) == StepsCountDomainSchemaState.ValidV2)
+			execSQL("RELEASE SAVEPOINT steps_count_domain_v2_install")
+			StepsCountDomainSchemaState.ValidV2
+		} catch (_: SQLiteException) {
+			rollbackInstallation()
+		} catch (_: IllegalArgumentException) {
+			rollbackInstallation()
+		} catch (_: IllegalStateException) {
+			rollbackInstallation()
 		}
 	}
 
+	private fun SupportSQLiteDatabase.rollbackInstallation(): StepsCountDomainSchemaState {
+		runCatching { execSQL("ROLLBACK TO SAVEPOINT steps_count_domain_v2_install") }
+		runCatching { execSQL("RELEASE SAVEPOINT steps_count_domain_v2_install") }
+		return StepsCountDomainSchemaState.Incompatible
+	}
+
+	private fun SupportSQLiteDatabase.hasExactFreshRoomScaffold(): Boolean =
+		hasExactV2Structure(requireMarker = false, requireTriggers = false) &&
+			EXPECTED_TABLES.keys.all { table -> rowCount(table) == 0L }
+
+	private fun SupportSQLiteDatabase.rowCount(table: String): Long =
+		query("SELECT COUNT(*) FROM `$table`").use { cursor ->
+			check(cursor.moveToFirst())
+			cursor.getLong(0)
+		}
+
 	private fun SupportSQLiteDatabase.hasExactV2Structure(requireMarker: Boolean): Boolean {
-		if (namedObjectCount() != EXPECTED_NAMED_OBJECT_COUNT) return false
+		return hasExactV2Structure(requireMarker, requireTriggers = true)
+	}
+
+	private fun SupportSQLiteDatabase.hasExactV2Structure(
+		requireMarker: Boolean,
+		requireTriggers: Boolean,
+	): Boolean {
+		val expectedObjects = if (requireTriggers) {
+			EXPECTED_VALID_NAMED_OBJECTS
+		} else {
+			EXPECTED_SCAFFOLD_NAMED_OBJECTS
+		}
+		if (authorityNamespaceObjects() != expectedObjects) return false
+		if (EXPECTED_TABLE_SQL.any { (table, expected) ->
+				tableSql(table).normalizedSql() != expected
+			}
+		) return false
 		if (EXPECTED_TABLES.any { (table, expected) -> tableColumns(table) != expected }) return false
 		if (foreignKeys(OWNER_TABLE) != EXPECTED_OWNER_FOREIGN_KEYS) return false
 		if (foreignKeys(COMPLETENESS_MARKER_TABLE) != EXPECTED_COMPLETENESS_FOREIGN_KEYS) return false
 		if (!tableSql(OWNER_TABLE).hasDeferredForeignKey()) return false
 		if (!tableSql(COMPLETENESS_MARKER_TABLE).hasDeferredForeignKey()) return false
 
-		val indexes = expectedIndexNames()
-		if (indexes != EXPECTED_INDEXES.keys) return false
-		if (EXPECTED_INDEXES.any { (name, expected) -> index(name) != expected }) return false
-		if (EXPECTED_TRIGGERS.any { (name, expectedSql) ->
-				triggerSql(name)?.normalizedSql() != expectedSql.normalizedSql()
-			}
-		) return false
+		if (attachedIndexes() != EXPECTED_ALL_INDEXES) return false
+		val triggers = authorityTriggers()
+		if (requireTriggers) {
+			if (triggers != EXPECTED_TRIGGERS) return false
+		} else if (triggers.isNotEmpty()) return false
 
 		val markerRows = query(
 			"SELECT id, contract_version, token_semantics, terminal_unproven " +
@@ -323,6 +365,33 @@ object StepsCountDomainSchema {
 			markerRows.isEmpty()
 		}
 	}
+
+	private fun SupportSQLiteDatabase.authorityNamespaceObjects(): Set<SchemaNamedObject> =
+		query(
+			"SELECT type, name, tbl_name FROM sqlite_master " +
+				"WHERE lower(name) LIKE 'steps_count_domain_%' " +
+				"OR lower(name) LIKE 'idx_steps_count_domain_%' " +
+				"OR lower(name) LIKE 'trg_steps_count_domain_%' " +
+				"OR tbl_name IN (?, ?, ?, ?)",
+			arrayOf(
+				RECEIPT_TABLE,
+				OWNER_TABLE,
+				COMPLETENESS_MARKER_TABLE,
+				SCHEMA_MARKER_TABLE,
+			),
+		).use { cursor ->
+			buildSet {
+				while (cursor.moveToNext()) {
+					add(
+						SchemaNamedObject(
+							type = cursor.getString(0).lowercase(),
+							name = cursor.getString(1),
+							table = cursor.getString(2),
+						),
+					)
+				}
+			}
+		}
 
 	private fun SupportSQLiteDatabase.tableColumns(table: String): List<SchemaColumn> =
 		query("PRAGMA table_info(`$table`)").use { cursor ->
@@ -383,41 +452,33 @@ object StepsCountDomainSchema {
 			)
 		}
 
-	private fun SupportSQLiteDatabase.expectedIndexNames(): Set<String> = buildSet {
+	private fun SupportSQLiteDatabase.attachedIndexes(): Map<String, SchemaIndex> = buildMap {
 		EXPECTED_TABLES.keys.forEach { table ->
 			query("PRAGMA index_list(`$table`)").use { cursor ->
 				val nameIndex = cursor.getColumnIndexOrThrow("name")
+				val uniqueIndex = cursor.getColumnIndexOrThrow("unique")
+				val originIndex = cursor.getColumnIndexOrThrow("origin")
+				val partialIndex = cursor.getColumnIndexOrThrow("partial")
 				while (cursor.moveToNext()) {
-					cursor.getString(nameIndex)
-						.takeIf { it.startsWith("idx_steps_count_domain_") }
-						?.let(::add)
+					val name = cursor.getString(nameIndex)
+					put(
+						name,
+						SchemaIndex(
+							table = table,
+							unique = cursor.getInt(uniqueIndex) == 1,
+							origin = cursor.getString(originIndex).lowercase(),
+							partial = cursor.getInt(partialIndex) == 1,
+							columns = indexColumns(name),
+							sql = indexSql(name)?.normalizedSql(),
+						),
+					)
 				}
 			}
 		}
 	}
 
-	private fun SupportSQLiteDatabase.index(name: String): SchemaIndex? {
-		val metadata = query(
-			"SELECT tbl_name, sql FROM sqlite_master WHERE type = 'index' AND name = ? LIMIT 1",
-			arrayOf(name),
-		).use { cursor ->
-			if (!cursor.moveToFirst()) return null
-			cursor.getString(0) to cursor.getString(1)
-		}
-		val unique = metadata.second.normalizedSql().startsWith("CREATE UNIQUE INDEX ")
-		val partial = query("PRAGMA index_list(`${metadata.first}`)").use { cursor ->
-			val nameIndex = cursor.getColumnIndexOrThrow("name")
-			val partialIndex = cursor.getColumnIndexOrThrow("partial")
-			var result: Boolean? = null
-			while (cursor.moveToNext()) {
-				if (cursor.getString(nameIndex) == name) {
-					result = cursor.getInt(partialIndex) == 1
-					break
-				}
-			}
-			result ?: return null
-		}
-		val columns = query("PRAGMA index_info(`$name`)").use { cursor ->
+	private fun SupportSQLiteDatabase.indexColumns(name: String): List<String?> =
+		query("PRAGMA index_info(`$name`)").use { cursor ->
 			val sequenceIndex = cursor.getColumnIndexOrThrow("seqno")
 			val nameIndex = cursor.getColumnIndexOrThrow("name")
 			buildList {
@@ -426,8 +487,38 @@ object StepsCountDomainSchema {
 				}
 			}.sortedBy { it.first }.map { it.second }
 		}
-		return SchemaIndex(metadata.first, unique, partial, columns)
-	}
+
+	private fun SupportSQLiteDatabase.indexSql(name: String): String? =
+		query(
+			"SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ? LIMIT 1",
+			arrayOf(name),
+		).use { cursor ->
+			if (!cursor.moveToFirst() || cursor.isNull(0)) null else cursor.getString(0)
+		}
+
+	private fun SupportSQLiteDatabase.authorityTriggers(): Map<String, SchemaTrigger> =
+		query(
+			"SELECT name, tbl_name, sql FROM sqlite_master WHERE type = 'trigger' AND (" +
+				"tbl_name IN (?, ?, ?, ?) OR lower(name) LIKE 'trg_steps_count_domain_%')",
+			arrayOf(
+				RECEIPT_TABLE,
+				OWNER_TABLE,
+				COMPLETENESS_MARKER_TABLE,
+				SCHEMA_MARKER_TABLE,
+			),
+		).use { cursor ->
+			buildMap {
+				while (cursor.moveToNext()) {
+					put(
+						cursor.getString(0),
+						SchemaTrigger(
+							table = cursor.getString(1),
+							sql = cursor.getString(2).normalizedSql(),
+						),
+					)
+				}
+			}
+		}
 
 	private fun SupportSQLiteDatabase.tableSql(name: String): String =
 		query(
@@ -435,14 +526,6 @@ object StepsCountDomainSchema {
 			arrayOf(name),
 		).use { cursor ->
 			if (cursor.moveToFirst()) cursor.getString(0) else ""
-		}
-
-	private fun SupportSQLiteDatabase.triggerSql(name: String): String? =
-		query(
-			"SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = ? LIMIT 1",
-			arrayOf(name),
-		).use { cursor ->
-			if (cursor.moveToFirst()) cursor.getString(0) else null
 		}
 
 	private fun String.hasDeferredForeignKey(): Boolean =
@@ -454,6 +537,9 @@ object StepsCountDomainSchema {
 		.trim()
 		.uppercase()
 		.replace(" IF NOT EXISTS ", " ")
+		.replace(Regex("\\s*\\(\\s*"), "(")
+		.replace(Regex("\\s*\\)\\s*"), ")")
+		.replace(Regex("\\s*,\\s*"), ",")
 
 	private data class SchemaColumn(
 		val name: String,
@@ -477,8 +563,21 @@ object StepsCountDomainSchema {
 	private data class SchemaIndex(
 		val table: String,
 		val unique: Boolean,
+		val origin: String,
 		val partial: Boolean,
-		val columns: List<String>,
+		val columns: List<String?>,
+		val sql: String?,
+	)
+
+	private data class SchemaTrigger(
+		val table: String,
+		val sql: String,
+	)
+
+	private data class SchemaNamedObject(
+		val type: String,
+		val name: String,
+		val table: String,
 	)
 
 	private data class SchemaMarker(
@@ -540,38 +639,50 @@ object StepsCountDomainSchema {
 		"idx_steps_count_domain_receipt_owner" to SchemaIndex(
 			RECEIPT_TABLE,
 			true,
+			"c",
 			false,
 			listOf("owner_kind", "owner_identity", "owner_revision"),
+			null,
 		),
 		"idx_steps_count_domain_receipt_compatibility" to SchemaIndex(
 			RECEIPT_TABLE,
 			false,
+			"c",
 			false,
 			listOf("domain_identity", "collected_data_epoch", "count_domain_version"),
+			null,
 		),
 		"idx_steps_count_domain_owner_scope" to SchemaIndex(
 			OWNER_TABLE,
 			false,
+			"c",
 			false,
 			listOf("owner_kind", "scope_identity", "owner_identity", "owner_revision"),
+			null,
 		),
 		"idx_steps_count_domain_owner_receipt" to SchemaIndex(
 			OWNER_TABLE,
 			false,
+			"c",
 			false,
 			listOf("receipt_identity"),
+			null,
 		),
 		"idx_steps_count_domain_owner_terminal_age" to SchemaIndex(
 			OWNER_TABLE,
 			false,
+			"c",
 			false,
 			listOf("operation", "linked_at_ms", "owner_kind", "owner_identity"),
+			null,
 		),
 		"idx_steps_count_domain_completeness_owner" to SchemaIndex(
 			COMPLETENESS_MARKER_TABLE,
 			true,
+			"c",
 			false,
 			listOf("owner_kind", "owner_identity", "owner_revision"),
+			null,
 		),
 	)
 
@@ -621,15 +732,61 @@ object StepsCountDomainSchema {
 		),
 	)
 
-	private val EXPECTED_TRIGGERS: Map<String, String> = creationStatements
-		.filter { statement -> statement.trimStart().startsWith("CREATE TRIGGER") }
-		.associateBy { statement ->
-			when {
+	private val EXPECTED_TABLE_SQL = EXPECTED_TABLES.keys.associateWith { table ->
+		requireNotNull(tableStatements.singleOrNull { statement ->
+			statement.trimStart().startsWith("CREATE TABLE IF NOT EXISTS `$table`")
+		}).normalizedSql()
+	}
+
+	private val EXPECTED_INDEX_SQL = EXPECTED_INDEXES.keys.associateWith { name ->
+		requireNotNull(indexStatements.singleOrNull { statement ->
+			statement.contains("`$name`")
+		}).normalizedSql()
+	}
+
+	private val EXPECTED_ALL_INDEXES: Map<String, SchemaIndex> =
+		EXPECTED_INDEXES.mapValues { (name, index) ->
+			index.copy(sql = requireNotNull(EXPECTED_INDEX_SQL[name]))
+		} + mapOf(
+			"sqlite_autoindex_${RECEIPT_TABLE}_1" to SchemaIndex(
+				RECEIPT_TABLE,
+				true,
+				"pk",
+				false,
+				listOf("receipt_identity"),
+				null,
+			),
+			"sqlite_autoindex_${OWNER_TABLE}_1" to SchemaIndex(
+				OWNER_TABLE,
+				true,
+				"pk",
+				false,
+				listOf("owner_kind", "owner_identity", "owner_revision"),
+				null,
+			),
+			"sqlite_autoindex_${COMPLETENESS_MARKER_TABLE}_1" to SchemaIndex(
+				COMPLETENESS_MARKER_TABLE,
+				true,
+				"pk",
+				false,
+				listOf("owner_identity", "owner_revision"),
+				null,
+			),
+		)
+
+	private val EXPECTED_TRIGGERS: Map<String, SchemaTrigger> = triggerStatements
+		.associate { statement ->
+			val name = when {
 				statement.contains(TERMINAL_OWNER_TRIGGER) -> TERMINAL_OWNER_TRIGGER
 				statement.contains(AMBIENT_NO_RESURRECTION_TRIGGER) ->
 					AMBIENT_NO_RESURRECTION_TRIGGER
 				else -> AMBIENT_RETRACTION_TRIGGER
 			}
+			val table = when (name) {
+				TERMINAL_OWNER_TRIGGER -> OWNER_TABLE
+				else -> "ambient_steps_fact_revision"
+			}
+			name to SchemaTrigger(table, statement.normalizedSql())
 		}
 
 	private val EXPECTED_MARKER = SchemaMarker(
@@ -639,6 +796,15 @@ object StepsCountDomainSchema {
 		terminalUnproven = 1,
 	)
 
-	private val EXPECTED_NAMED_OBJECT_COUNT =
-		EXPECTED_TABLES.size + EXPECTED_INDEXES.size + EXPECTED_TRIGGERS.size
+	private val EXPECTED_SCAFFOLD_NAMED_OBJECTS =
+		EXPECTED_TABLES.keys.mapTo(mutableSetOf()) { table ->
+			SchemaNamedObject("table", table, table)
+		} + EXPECTED_ALL_INDEXES.map { (name, index) ->
+			SchemaNamedObject("index", name, index.table)
+		}
+
+	private val EXPECTED_VALID_NAMED_OBJECTS =
+		EXPECTED_SCAFFOLD_NAMED_OBJECTS + EXPECTED_TRIGGERS.map { (name, trigger) ->
+			SchemaNamedObject("trigger", name, trigger.table)
+		}
 }

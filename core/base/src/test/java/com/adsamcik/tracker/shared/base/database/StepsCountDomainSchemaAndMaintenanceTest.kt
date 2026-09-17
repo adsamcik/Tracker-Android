@@ -1,13 +1,21 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.app.Application
+import androidx.room.Database
+import androidx.room.Room
+import androidx.room.RoomDatabase
 import androidx.room.withTransaction
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainCompletenessMarkerEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainOwnerRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainReceiptIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsCountDomainSchemaMarkerEntity
 import com.adsamcik.tracker.shared.model.steps.StepsCounterDomainToken
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -21,6 +29,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Suppress("LargeClass", "TooManyFunctions")
 class StepsCountDomainSchemaAndMaintenanceTest {
 	private lateinit var database: AppDatabase
 
@@ -89,10 +98,108 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	}
 
 	@Test
+	fun `Room entity scaffold is recognized and completed atomically from its creation callback`() {
+		val context: Application = ApplicationProvider.getApplicationContext()
+		var observedState: StepsCountDomainSchemaState? = null
+		var installedState: StepsCountDomainSchemaState? = null
+		val scaffold = Room.inMemoryDatabaseBuilder(
+			context,
+			StepsCountDomainScaffoldTestDatabase::class.java,
+		).allowMainThreadQueries()
+			.addCallback(object : RoomDatabase.Callback() {
+				override fun onCreate(db: SupportSQLiteDatabase) {
+					observedState = StepsCountDomainSchema.inspect(db)
+					installedState = StepsCountDomainSchema.installIfAbsent(db)
+				}
+			})
+			.build()
+		try {
+			scaffold.openHelper.writableDatabase
+			observedState shouldBe StepsCountDomainSchemaState.FreshRoomScaffold
+			installedState shouldBe StepsCountDomainSchemaState.ValidV2
+			StepsCountDomainSchema.inspect(scaffold.openHelper.writableDatabase) shouldBe
+				StepsCountDomainSchemaState.ValidV2
+		} finally {
+			scaffold.close()
+		}
+	}
+
+	@Test
+	fun `unexpected trigger attached to an authority table is incompatible regardless of name`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL(
+			"CREATE TRIGGER unexpected_receipt_trigger AFTER INSERT ON " +
+				"steps_count_domain_receipt BEGIN SELECT 1; END",
+		)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `unexpected ordinary index attached to an authority table is incompatible`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL(
+			"CREATE INDEX unrelated_receipt_index ON " +
+				"steps_count_domain_receipt(authority_revision)",
+		)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `extra UNIQUE table constraint and its autoindex are incompatible`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL("DROP TABLE steps_count_domain_schema_marker")
+		sqlite.execSQL(
+			"""
+			CREATE TABLE steps_count_domain_schema_marker (
+				id INTEGER NOT NULL,
+				contract_version INTEGER NOT NULL,
+				token_semantics TEXT NOT NULL,
+				terminal_unproven INTEGER NOT NULL,
+				PRIMARY KEY(id),
+				UNIQUE(token_semantics)
+			)
+			""".trimIndent(),
+		)
+		insertSchemaMarker(sqlite)
+
+		sqlite.count(
+			"SELECT COUNT(*) FROM pragma_index_list('steps_count_domain_schema_marker') " +
+				"WHERE name LIKE 'sqlite_autoindex_%'",
+		) shouldBe 1L
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
+	fun `extra CHECK table constraint is incompatible`() {
+		installSchema()
+		val sqlite = database.openHelper.writableDatabase
+		sqlite.execSQL("DROP TABLE steps_count_domain_schema_marker")
+		sqlite.execSQL(
+			"""
+			CREATE TABLE steps_count_domain_schema_marker (
+				id INTEGER NOT NULL,
+				contract_version INTEGER NOT NULL,
+				token_semantics TEXT NOT NULL,
+				terminal_unproven INTEGER NOT NULL CHECK(terminal_unproven IN (0, 1)),
+				PRIMARY KEY(id)
+			)
+			""".trimIndent(),
+		)
+		insertSchemaMarker(sqlite)
+
+		StepsCountDomainSchema.inspect(sqlite) shouldBe StepsCountDomainSchemaState.Incompatible
+	}
+
+	@Test
 	fun `full clear deletes owners before receipts or preserves only terminal evidence`() = runTest {
 		installSchema()
 		val store = StepsCountDomainStore(database)
-		val bound = insertWal("bound", 1L, payloadVersion = 6)
+		val bound = insertWal("bound", 1L, payloadVersion = 7)
 		store.recordSessionWal(bound, token('a')) shouldBe StepsCountDomainWriteResult.INSERTED
 		val unproven = insertWal("unproven", 2L)
 		store.recordSessionWal(unproven, null) shouldBe StepsCountDomainWriteResult.INSERTED
@@ -154,7 +261,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 		runTest {
 			installSchema()
 			val store = StepsCountDomainStore(database)
-			val first = insertWal("wal-retention-bound", 1L, payloadVersion = 6)
+			val first = insertWal("wal-retention-bound", 1L, payloadVersion = 7)
 			val second = insertWal("wal-retention-unproven", 2L)
 			store.recordSessionWal(first, token('a')) shouldBe
 				StepsCountDomainWriteResult.INSERTED
@@ -191,7 +298,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 			) shouldBe 1L
 
 			StepsCountDomainStore(database).recordSessionWal(
-				insertWal("sentinel-corrupt", 1L, payloadVersion = 6),
+				insertWal("sentinel-corrupt", 1L, payloadVersion = 7),
 				token('a'),
 			) shouldBe StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE
 		}
@@ -300,7 +407,7 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 				"AND name = 'steps_count_domain_schema_marker'",
 		) shouldBe 0L
 		StepsCountDomainStore(database).recordSessionWal(
-			insertWal("legacy-e500", 1L, payloadVersion = 6),
+			insertWal("legacy-e500", 1L, payloadVersion = 7),
 			token('a'),
 		) shouldBe StepsCountDomainWriteResult.STORED_EVIDENCE_UNVERIFIABLE
 	}
@@ -308,6 +415,14 @@ class StepsCountDomainSchemaAndMaintenanceTest {
 	private fun installSchema() {
 		StepsCountDomainSchema.installIfAbsent(database.openHelper.writableDatabase) shouldBe
 			StepsCountDomainSchemaState.ValidV2
+	}
+
+	private fun insertSchemaMarker(sqlite: SupportSQLiteDatabase) {
+		sqlite.execSQL(
+			"INSERT INTO steps_count_domain_schema_marker " +
+				"(id, contract_version, token_semantics, terminal_unproven) " +
+				"VALUES (1, 2, 'PROVIDER_COUNTER_EPOCH_V1', 1)",
+		)
 	}
 
 	private fun installE500SchemaFixture() {
@@ -473,3 +588,16 @@ private fun SupportSQLiteDatabase.count(
 	check(cursor.moveToFirst())
 	cursor.getLong(0)
 }
+
+@Database(
+	entities = [
+		AmbientStepsFactRevisionEntity::class,
+		StepsCountDomainReceiptEntity::class,
+		StepsCountDomainOwnerRevisionEntity::class,
+		StepsCountDomainCompletenessMarkerEntity::class,
+		StepsCountDomainSchemaMarkerEntity::class,
+	],
+	version = 1,
+	exportSchema = false,
+)
+internal abstract class StepsCountDomainScaffoldTestDatabase : RoomDatabase()

@@ -7,16 +7,19 @@ import java.security.MessageDigest
 /**
  * Issues a non-stable token only from physical provider counter-epoch evidence.
  *
- * Registration generation, source instance, QoS, batching, report latency, and configuration
- * fingerprint are deliberately absent, so reconfiguration cannot split one physical counter.
+ * Registration generation, QoS, batching, report latency, and configuration fingerprint are
+ * deliberately absent, so reconfiguration cannot split one physical counter. Source instance is
+ * included because it is the durable boundary for a new boot/deletion-scoped provider identity.
  */
 internal object StepsCounterDomainTokenIssuer {
 	fun directSensor(
 		sensor: Sensor,
 		bootClockDomainId: String,
+		sourceInstanceId: String,
 		counterEpochGeneration: Long,
 	): StepsCounterDomainToken? = directSensor(
 		bootClockDomainId = bootClockDomainId,
+		sourceInstanceId = sourceInstanceId,
 		counterEpochGeneration = counterEpochGeneration,
 		sensorType = sensor.type,
 		sensorStringType = sensor.stringType,
@@ -28,6 +31,7 @@ internal object StepsCounterDomainTokenIssuer {
 
 	internal fun directSensor(
 		bootClockDomainId: String,
+		sourceInstanceId: String,
 		counterEpochGeneration: Long,
 		sensorType: Int,
 		sensorStringType: String,
@@ -38,6 +42,7 @@ internal object StepsCounterDomainTokenIssuer {
 	): StepsCounterDomainToken? {
 		require(counterEpochGeneration > 0L)
 		if (bootClockDomainId.isBlank() ||
+			sourceInstanceId.isBlank() ||
 			sensorType != Sensor.TYPE_STEP_COUNTER ||
 			sensorStringType.isBlank() ||
 			sensorVendor.isBlank() ||
@@ -47,6 +52,7 @@ internal object StepsCounterDomainTokenIssuer {
 			opaqueDigest(
 				"android-step-counter-epoch-v1",
 				bootClockDomainId,
+				sourceInstanceId,
 				counterEpochGeneration,
 				sensorType,
 				sensorStringType,
