@@ -3,8 +3,9 @@ package com.adsamcik.tracker.activity
 import android.content.Context
 import com.adsamcik.tracker.activity.event.ActivityDomainEventConsumer
 import com.adsamcik.tracker.activity.receiver.ActivityCallbackRetryOwner
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticFailureCode
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
+import com.adsamcik.tracker.diagnostics.TrackingDiagnosticFailureReason
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
@@ -48,10 +49,10 @@ class ActivityModuleInitializer @Inject constructor(
 		appScope.launch(dispatchers.io) { initializeDatabase() }
 		appScope.launch(dispatchers.io) {
 			runCatching { callbackRetryOwner.ensurePendingWorkScheduled() }
-				.onFailure { error ->
-					TrackerDiagnosticLog.error(
-						error,
-						TrackerDiagnosticCode.ACTIVITY_CALLBACK_RETRY_SCHEDULING_FAILED,
+				.onFailure {
+					TrackerDiagnosticLog.failure(
+						TrackerDiagnosticFailureCode.ACTIVITY_CALLBACK_RETRY_SCHEDULING_FAILED,
+						TrackingDiagnosticFailureReason.SCHEDULING_FAILURE,
 					)
 				}
 		}

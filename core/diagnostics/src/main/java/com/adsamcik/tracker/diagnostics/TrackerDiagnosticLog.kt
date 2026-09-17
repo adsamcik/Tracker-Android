@@ -1,34 +1,63 @@
 package com.adsamcik.tracker.diagnostics
 
 import dev.tracebox.Tracebox
-import dev.tracebox.api.LogTemplate
 import dev.tracebox.api.public
 
 /**
  * Tracebox-free compatibility facade for existing tracking source diagnostics.
  *
- * It accepts fixed codes and code-specific bounded operational values only. Tracking source modules
- * must not import Tracebox or its privacy/value types.
+ * It accepts fixed codes, typed reasons, and code-specific bounded operational values only.
+ * Throwable objects and arbitrary text never cross this boundary.
  */
 object TrackerDiagnosticLog {
-	fun debug(code: TrackerDiagnosticCode) {
-		Tracebox.log.debug(code.template())
+	fun info(code: TrackerDiagnosticInfoCode) {
+		when (code) {
+			TrackerDiagnosticInfoCode.TRACKING_SESSION_START_REQUESTED ->
+				Tracebox.log.info(TrackerTraceboxTemplates.TRACKING_SESSION_START_REQUESTED)
+			TrackerDiagnosticInfoCode.TRACKING_SESSION_STARTED ->
+				Tracebox.log.info(TrackerTraceboxTemplates.TRACKING_SESSION_STARTED)
+		}
 	}
 
-	fun info(code: TrackerDiagnosticCode) {
-		Tracebox.log.info(code.template())
+	fun warn(code: TrackerDiagnosticWarningCode) {
+		when (code) {
+			TrackerDiagnosticWarningCode.ACTIVITY_RECOGNITION_UNAVAILABLE ->
+				Tracebox.log.warn(TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_UNAVAILABLE)
+			TrackerDiagnosticWarningCode.AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED ->
+				Tracebox.log.warn(
+					TrackerTraceboxTemplates.AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED,
+				)
+			TrackerDiagnosticWarningCode.STEP_COUNTER_REGRESSED ->
+				Tracebox.log.warn(TrackerTraceboxTemplates.STEP_COUNTER_REGRESSED)
+			TrackerDiagnosticWarningCode.TRACKING_PROCESSOR_DISABLED ->
+				Tracebox.log.warn(TrackerTraceboxTemplates.TRACKING_PROCESSOR_DISABLED)
+			TrackerDiagnosticWarningCode.TRACKING_REBASE_ENQUEUE_ACK_MISSING ->
+				Tracebox.log.warn(TrackerTraceboxTemplates.TRACKING_REBASE_ENQUEUE_ACK_MISSING)
+			TrackerDiagnosticWarningCode.TRACKING_SHUTDOWN_DEGRADED ->
+				Tracebox.log.warn(TrackerTraceboxTemplates.TRACKING_SHUTDOWN_DEGRADED)
+		}
 	}
 
-	fun warn(code: TrackerDiagnosticCode) {
-		Tracebox.log.warn(code.template())
+	fun failure(
+		code: TrackerDiagnosticFailureCode,
+		reason: TrackingDiagnosticFailureReason,
+	) {
+		Tracebox.log.error(
+			TrackerTraceboxTemplates.TRACKING_TYPED_FAILURE,
+			public(code.name),
+			public(reason.name),
+		)
 	}
 
-	fun error(code: TrackerDiagnosticCode) {
-		Tracebox.log.error(code.template())
-	}
-
-	fun error(error: Throwable, code: TrackerDiagnosticCode) {
-		Tracebox.log.error(error, code.template())
+	fun rejected(
+		code: TrackerDiagnosticRejectionCode,
+		reason: TrackingDiagnosticRejectedReason,
+	) {
+		Tracebox.log.warn(
+			TrackerTraceboxTemplates.TRACKING_TYPED_REJECTION,
+			public(code.name),
+			public(reason.name),
+		)
 	}
 
 	fun activityCallbackTerminalGap() {
@@ -50,10 +79,13 @@ object TrackerDiagnosticLog {
 		Tracebox.log.debug(TrackerTraceboxTemplates.TRACKING_STOP_REQUESTED)
 	}
 
-	fun trackingProviderTeardownFailed(error: Throwable, attempt: Long) {
+	fun trackingProviderTeardownFailed(
+		reason: TrackingDiagnosticFailureReason,
+		attempt: Long,
+	) {
 		Tracebox.log.error(
-			error,
 			TrackerTraceboxTemplates.TRACKING_PROVIDER_TEARDOWN_FAILED,
+			public(reason.name),
 			public(TrackingDiagnosticCountBucket.fromCount(attempt).name),
 		)
 	}
@@ -99,11 +131,24 @@ object TrackerDiagnosticLog {
 		Tracebox.log.performanceSuspend(TrackerTraceboxTemplates.PROCESS_TRACKING_CYCLE) { block() }
 }
 
-enum class TrackerDiagnosticCode {
+enum class TrackerDiagnosticInfoCode {
+	TRACKING_SESSION_START_REQUESTED,
+	TRACKING_SESSION_STARTED,
+}
+
+enum class TrackerDiagnosticWarningCode {
+	ACTIVITY_RECOGNITION_UNAVAILABLE,
+	AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED,
+	STEP_COUNTER_REGRESSED,
+	TRACKING_PROCESSOR_DISABLED,
+	TRACKING_REBASE_ENQUEUE_ACK_MISSING,
+	TRACKING_SHUTDOWN_DEGRADED,
+}
+
+enum class TrackerDiagnosticFailureCode {
 	ACTIVITY_CALLBACK_METADATA_UPDATE_FAILED,
 	ACTIVITY_CALLBACK_RETRY_SCHEDULING_FAILED,
 	ACTIVITY_RECOGNITION_FAILED,
-	ACTIVITY_RECOGNITION_UNAVAILABLE,
 	ACTIVITY_SOURCE_RECOVERY_FAILED,
 	AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED,
 	APPLICATION_INITIALIZATION_FAILED,
@@ -112,82 +157,18 @@ enum class TrackerDiagnosticCode {
 	PERSISTENCE_COMMIT_INCONSISTENT,
 	RAW_LOCATION_REPAIR_DECODE_FAILED,
 	SOURCE_POLICY_OBSERVATION_FAILED,
-	STEP_COUNTER_REGRESSED,
 	TRACKING_CYCLE_FAILED,
 	TRACKING_PERSISTENCE_WRITE_FAILED,
 	TRACKING_PIPELINE_STAGE_FAILED,
 	TRACKING_PREPARED_START_FOREGROUND_FAILED,
-	TRACKING_PROCESSOR_DISABLED,
-	TRACKING_REBASE_ENQUEUE_ACK_MISSING,
 	TRACKING_REBASE_ENQUEUE_FAILED,
 	TRACKING_REDELIVERY_RESOLUTION_FAILED,
 	TRACKING_RUNTIME_PERMISSION_RECONCILIATION_FAILED,
-	TRACKING_SESSION_START_REQUESTED,
-	TRACKING_SESSION_STARTED,
 	TRACKING_SESSION_STORE_FAILED,
-	TRACKING_SHUTDOWN_DEGRADED,
 	TRACKING_SIGNAL_CHECKPOINT_FAILED,
-	TRACKING_SOURCE_SESSION_START_REJECTED,
 	TRACKING_START_FAILED,
 }
 
-private fun TrackerDiagnosticCode.template(): LogTemplate = when (this) {
-	TrackerDiagnosticCode.ACTIVITY_CALLBACK_METADATA_UPDATE_FAILED ->
-		TrackerTraceboxTemplates.ACTIVITY_CALLBACK_METADATA_UPDATE_FAILED
-	TrackerDiagnosticCode.ACTIVITY_CALLBACK_RETRY_SCHEDULING_FAILED ->
-		TrackerTraceboxTemplates.ACTIVITY_CALLBACK_RETRY_SCHEDULING_FAILED
-	TrackerDiagnosticCode.ACTIVITY_RECOGNITION_FAILED ->
-		TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED
-	TrackerDiagnosticCode.ACTIVITY_RECOGNITION_UNAVAILABLE ->
-		TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_UNAVAILABLE
-	TrackerDiagnosticCode.ACTIVITY_SOURCE_RECOVERY_FAILED ->
-		TrackerTraceboxTemplates.ACTIVITY_SOURCE_RECOVERY_FAILED
-	TrackerDiagnosticCode.AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED ->
-		TrackerTraceboxTemplates.AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED
-	TrackerDiagnosticCode.APPLICATION_INITIALIZATION_FAILED ->
-		TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED
-	TrackerDiagnosticCode.DOMAIN_EVENT_PERSISTENCE_FAILED ->
-		TrackerTraceboxTemplates.DOMAIN_EVENT_PERSISTENCE_FAILED
-	TrackerDiagnosticCode.LEGACY_STEP_CONTROL_RETIREMENT_FAILED ->
-		TrackerTraceboxTemplates.LEGACY_STEP_CONTROL_RETIREMENT_FAILED
-	TrackerDiagnosticCode.PERSISTENCE_COMMIT_INCONSISTENT ->
-		TrackerTraceboxTemplates.PERSISTENCE_COMMIT_INCONSISTENT
-	TrackerDiagnosticCode.RAW_LOCATION_REPAIR_DECODE_FAILED ->
-		TrackerTraceboxTemplates.RAW_LOCATION_REPAIR_DECODE_FAILED
-	TrackerDiagnosticCode.SOURCE_POLICY_OBSERVATION_FAILED ->
-		TrackerTraceboxTemplates.SOURCE_POLICY_OBSERVATION_FAILED
-	TrackerDiagnosticCode.STEP_COUNTER_REGRESSED ->
-		TrackerTraceboxTemplates.STEP_COUNTER_REGRESSED
-	TrackerDiagnosticCode.TRACKING_CYCLE_FAILED ->
-		TrackerTraceboxTemplates.TRACKING_CYCLE_FAILED
-	TrackerDiagnosticCode.TRACKING_PERSISTENCE_WRITE_FAILED ->
-		TrackerTraceboxTemplates.TRACKING_PERSISTENCE_WRITE_FAILED
-	TrackerDiagnosticCode.TRACKING_PIPELINE_STAGE_FAILED ->
-		TrackerTraceboxTemplates.TRACKING_PIPELINE_STAGE_FAILED
-	TrackerDiagnosticCode.TRACKING_PREPARED_START_FOREGROUND_FAILED ->
-		TrackerTraceboxTemplates.TRACKING_PREPARED_START_FOREGROUND_FAILED
-	TrackerDiagnosticCode.TRACKING_PROCESSOR_DISABLED ->
-		TrackerTraceboxTemplates.TRACKING_PROCESSOR_DISABLED
-	TrackerDiagnosticCode.TRACKING_REBASE_ENQUEUE_ACK_MISSING ->
-		TrackerTraceboxTemplates.TRACKING_REBASE_ENQUEUE_ACK_MISSING
-	TrackerDiagnosticCode.TRACKING_REBASE_ENQUEUE_FAILED ->
-		TrackerTraceboxTemplates.TRACKING_REBASE_ENQUEUE_FAILED
-	TrackerDiagnosticCode.TRACKING_REDELIVERY_RESOLUTION_FAILED ->
-		TrackerTraceboxTemplates.TRACKING_REDELIVERY_RESOLUTION_FAILED
-	TrackerDiagnosticCode.TRACKING_RUNTIME_PERMISSION_RECONCILIATION_FAILED ->
-		TrackerTraceboxTemplates.TRACKING_RUNTIME_PERMISSION_RECONCILIATION_FAILED
-	TrackerDiagnosticCode.TRACKING_SESSION_START_REQUESTED ->
-		TrackerTraceboxTemplates.TRACKING_SESSION_START_REQUESTED
-	TrackerDiagnosticCode.TRACKING_SESSION_STARTED ->
-		TrackerTraceboxTemplates.TRACKING_SESSION_STARTED
-	TrackerDiagnosticCode.TRACKING_SESSION_STORE_FAILED ->
-		TrackerTraceboxTemplates.TRACKING_SESSION_STORE_FAILED
-	TrackerDiagnosticCode.TRACKING_SHUTDOWN_DEGRADED ->
-		TrackerTraceboxTemplates.TRACKING_SHUTDOWN_DEGRADED
-	TrackerDiagnosticCode.TRACKING_SIGNAL_CHECKPOINT_FAILED ->
-		TrackerTraceboxTemplates.TRACKING_SIGNAL_CHECKPOINT_FAILED
-	TrackerDiagnosticCode.TRACKING_SOURCE_SESSION_START_REJECTED ->
-		TrackerTraceboxTemplates.TRACKING_SOURCE_SESSION_START_REJECTED
-	TrackerDiagnosticCode.TRACKING_START_FAILED ->
-		TrackerTraceboxTemplates.TRACKING_START_FAILED
+enum class TrackerDiagnosticRejectionCode {
+	TRACKING_SOURCE_SESSION_START_REJECTED,
 }

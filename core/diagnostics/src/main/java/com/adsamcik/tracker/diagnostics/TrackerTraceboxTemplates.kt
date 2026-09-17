@@ -86,6 +86,8 @@ object TrackerTraceboxTemplates {
 	val TRACKING_OPERATION_EVENT = LogTemplate.of(
 		"Tracking operation event: source {}, purpose {}, stage {}, operation {}, result {}, reason {}, lifecycle {}, scope event count {}, scope duration {}, metric one {}, metric one bucket {}, metric two {}, metric two bucket {}",
 	)
+	val TRACKING_TYPED_FAILURE = LogTemplate.of("Tracking failure: code {}, reason {}")
+	val TRACKING_TYPED_REJECTION = LogTemplate.of("Tracking rejection: code {}, reason {}")
 	val TRACKING_CYCLE_FAILED = LogTemplate.of("Tracking cycle failed")
 	val TRACKING_PERSISTENCE_WRITE_FAILED = LogTemplate.of("Tracking persistence write failed")
 	val TRACKING_PIPELINE_STAGE_FAILED = LogTemplate.of("Tracking pipeline stage failed")
@@ -96,7 +98,7 @@ object TrackerTraceboxTemplates {
 	val TRACKING_PROCESSOR_DISABLED =
 		LogTemplate.of("Tracking processor was disabled after repeated failures")
 	val TRACKING_PROVIDER_TEARDOWN_FAILED =
-		LogTemplate.of("Tracking provider teardown failed: attempt bucket {}")
+		LogTemplate.of("Tracking provider teardown failed: reason {}, attempt bucket {}")
 	val TRACKING_REBASE_ENQUEUE_ACK_MISSING =
 		LogTemplate.of("Tracking rebase enqueue acknowledgement was missing")
 	val TRACKING_REBASE_ENQUEUE_FAILED =

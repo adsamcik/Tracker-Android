@@ -1,8 +1,9 @@
 package com.adsamcik.tracker.tracker.pipeline.persistence
 
 import androidx.room.withTransaction
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticFailureCode
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
+import com.adsamcik.tracker.diagnostics.TrackingDiagnosticFailureReason
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.constant.CoordinateConstants
 import com.adsamcik.tracker.shared.base.data.LocationAcquisitionMode
@@ -221,9 +222,9 @@ class RawLocationObservationRepair @Inject constructor(
 	private fun SourceEventWalEntity.decodeLocationPayloadOrNull(): LocationFixPayload? = try {
 		payloadCodec.decode(SourceKind.LOCATION, payloadVersion, payload) as LocationFixPayload
 	} catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
-		TrackerDiagnosticLog.error(
-			error,
-			TrackerDiagnosticCode.RAW_LOCATION_REPAIR_DECODE_FAILED,
+		TrackerDiagnosticLog.failure(
+			TrackerDiagnosticFailureCode.RAW_LOCATION_REPAIR_DECODE_FAILED,
+			TrackingDiagnosticFailureReason.DECODING_FAILURE,
 		)
 		null
 	}

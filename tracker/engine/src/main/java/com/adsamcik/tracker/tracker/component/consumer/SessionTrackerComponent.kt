@@ -2,8 +2,8 @@ package com.adsamcik.tracker.tracker.component.consumer
 
 import android.content.Context
 import androidx.annotation.WorkerThread
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticWarningCode
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
@@ -126,7 +126,9 @@ internal class SessionTrackerComponent(
 
 				cycle.stepDelta?.let { newSteps ->
 					if (newSteps < 0) {
-						TrackerDiagnosticLog.warn(TrackerDiagnosticCode.STEP_COUNTER_REGRESSED)
+						TrackerDiagnosticLog.warn(
+							TrackerDiagnosticWarningCode.STEP_COUNTER_REGRESSED,
+						)
 					}
 					steps += newSteps
 				}

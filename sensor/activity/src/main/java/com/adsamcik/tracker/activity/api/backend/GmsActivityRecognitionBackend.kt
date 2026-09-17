@@ -4,8 +4,10 @@ import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticFailureCode
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticWarningCode
+import com.adsamcik.tracker.diagnostics.TrackingDiagnosticFailureReason
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.receiver.ActivityReceiver
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationCleanupKey
@@ -106,7 +108,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		subscriptionMutex.withLock {
 			if (!isAvailable) {
 				TrackerDiagnosticLog.warn(
-					TrackerDiagnosticCode.ACTIVITY_RECOGNITION_UNAVAILABLE,
+					TrackerDiagnosticWarningCode.ACTIVITY_RECOGNITION_UNAVAILABLE,
 				)
 				return@withLock false
 			}
@@ -137,9 +139,9 @@ class GmsActivityRecognitionBackend @Inject constructor(
 				}
 				throw e
 			} catch (e: Exception) {
-				TrackerDiagnosticLog.error(
-					e,
-					TrackerDiagnosticCode.ACTIVITY_RECOGNITION_FAILED,
+				TrackerDiagnosticLog.failure(
+					TrackerDiagnosticFailureCode.ACTIVITY_RECOGNITION_FAILED,
+					TrackingDiagnosticFailureReason.PROVIDER_FAILURE,
 				)
 				withContext(NonCancellable) {
 					rollbackSubscriptions(client, intent, e)
@@ -162,10 +164,10 @@ class GmsActivityRecognitionBackend @Inject constructor(
 			true
 		} catch (error: CancellationException) {
 			throw error
-		} catch (error: Exception) {
-			TrackerDiagnosticLog.error(
-				error,
-				TrackerDiagnosticCode.ACTIVITY_CALLBACK_METADATA_UPDATE_FAILED,
+		} catch (_: Exception) {
+			TrackerDiagnosticLog.failure(
+				TrackerDiagnosticFailureCode.ACTIVITY_CALLBACK_METADATA_UPDATE_FAILED,
+				TrackingDiagnosticFailureReason.PROVIDER_FAILURE,
 			)
 			false
 		}
@@ -198,7 +200,10 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
-			TrackerDiagnosticLog.error(e, TrackerDiagnosticCode.ACTIVITY_RECOGNITION_FAILED)
+			TrackerDiagnosticLog.failure(
+				TrackerDiagnosticFailureCode.ACTIVITY_RECOGNITION_FAILED,
+				TrackingDiagnosticFailureReason.PROVIDER_FAILURE,
+			)
 			throw e
 		}
 	}

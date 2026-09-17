@@ -1,8 +1,9 @@
 package com.adsamcik.tracker.tracker.pipeline
 
 import android.content.Context
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticFailureCode
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
+import com.adsamcik.tracker.diagnostics.TrackingDiagnosticFailureReason
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -18,9 +19,9 @@ internal class TrackingPipeline(
 			} catch (error: CancellationException) {
 				throw error
 			} catch (error: Exception) {
-				TrackerDiagnosticLog.error(
-					error,
-					TrackerDiagnosticCode.TRACKING_PIPELINE_STAGE_FAILED,
+				TrackerDiagnosticLog.failure(
+					TrackerDiagnosticFailureCode.TRACKING_PIPELINE_STAGE_FAILED,
+					TrackingDiagnosticFailureReason.PROCESSING_FAILURE,
 				)
 				StageResult.Continue
 			}

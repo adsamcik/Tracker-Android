@@ -11,8 +11,13 @@ import android.os.Build
 import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticFailureCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticInfoCode
 import com.adsamcik.tracker.diagnostics.TrackerDiagnosticLog
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticRejectionCode
+import com.adsamcik.tracker.diagnostics.TrackerDiagnosticWarningCode
+import com.adsamcik.tracker.diagnostics.TrackingDiagnosticFailureReason
+import com.adsamcik.tracker.diagnostics.TrackingDiagnosticRejectedReason
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
@@ -453,9 +458,9 @@ internal class TrackerService : CoreService() {
 				} catch (cancelled: CancellationException) {
 					throw cancelled
 				} catch (failure: Exception) {
-					TrackerDiagnosticLog.error(
-						failure,
-						TrackerDiagnosticCode.TRACKING_REDELIVERY_RESOLUTION_FAILED,
+					TrackerDiagnosticLog.failure(
+						TrackerDiagnosticFailureCode.TRACKING_REDELIVERY_RESOLUTION_FAILED,
+						TrackingDiagnosticFailureReason.RECOVERY_FAILURE,
 					)
 					AndroidRedeliveryStartResolution.Rejected("TRACKING_PRE_FOREGROUND_FAILED")
 				}
@@ -506,9 +511,9 @@ internal class TrackerService : CoreService() {
 											effectiveCommand,
 										)
 									} catch (failure: RuntimeException) {
-										TrackerDiagnosticLog.error(
-											failure,
-											TrackerDiagnosticCode.TRACKING_REBASE_ENQUEUE_FAILED,
+										TrackerDiagnosticLog.failure(
+											TrackerDiagnosticFailureCode.TRACKING_REBASE_ENQUEUE_FAILED,
+											TrackingDiagnosticFailureReason.RECOVERY_FAILURE,
 										)
 										false
 									}
@@ -542,7 +547,7 @@ internal class TrackerService : CoreService() {
 							is AndroidRedeliveryRebaseResult.Rebased -> {
 								if (!rebase.enqueueAcknowledged) {
 									TrackerDiagnosticLog.warn(
-										TrackerDiagnosticCode.TRACKING_REBASE_ENQUEUE_ACK_MISSING,
+										TrackerDiagnosticWarningCode.TRACKING_REBASE_ENQUEUE_ACK_MISSING,
 									)
 								}
 								return@launch
@@ -674,9 +679,9 @@ internal class TrackerService : CoreService() {
 					}
 				}
 			} catch (failure: Exception) {
-				TrackerDiagnosticLog.error(
-					failure,
-					TrackerDiagnosticCode.TRACKING_PREPARED_START_FOREGROUND_FAILED,
+				TrackerDiagnosticLog.failure(
+					TrackerDiagnosticFailureCode.TRACKING_PREPARED_START_FOREGROUND_FAILED,
+					TrackingDiagnosticFailureReason.INITIALIZATION_FAILURE,
 				)
 				TrackingServicePreparedStartClaim.Rejected("TRACKING_PRE_FOREGROUND_FAILED")
 			}
@@ -824,7 +829,9 @@ internal class TrackerService : CoreService() {
 		preparedTrackingStart: TrackingServicePreparedStartClaim.Claimed,
 		startCommandGeneration: Long,
 	) {
-		TrackerDiagnosticLog.info(TrackerDiagnosticCode.TRACKING_SESSION_START_REQUESTED)
+		TrackerDiagnosticLog.info(
+			TrackerDiagnosticInfoCode.TRACKING_SESSION_START_REQUESTED,
+		)
 		gracefulStopRequested = false
 		stopReason = TrackingStopCandidateReason.UNKNOWN
 		coordinatorMetricBaseline = coordinatorTelemetry.snapshot()
@@ -956,8 +963,10 @@ internal class TrackerService : CoreService() {
 							activeTrackingSessionStore.clearExact(descriptor)
 							activeSessionDescriptor = null
 							startSingleFlight.set(false)
-							TrackerDiagnosticLog.error(
-								TrackerDiagnosticCode.TRACKING_SOURCE_SESSION_START_REJECTED,
+							TrackerDiagnosticLog.rejected(
+								TrackerDiagnosticRejectionCode
+									.TRACKING_SOURCE_SESSION_START_REJECTED,
+								TrackingDiagnosticRejectedReason.START_NOT_AUTHORIZED,
 							)
 							requestGracefulStop(
 								startId,
@@ -1030,7 +1039,7 @@ internal class TrackerService : CoreService() {
 							}
 						}
 					}
-					TrackerDiagnosticLog.info(TrackerDiagnosticCode.TRACKING_SESSION_STARTED)
+					TrackerDiagnosticLog.info(TrackerDiagnosticInfoCode.TRACKING_SESSION_STARTED)
 
 				}
 			} catch (e: TimeoutCancellationException) {
@@ -1038,7 +1047,10 @@ internal class TrackerService : CoreService() {
 					compensatePreparedStart("PREPARED_START_INITIALIZATION_TIMEOUT")
 				}
 				startSingleFlight.set(false)
-				TrackerDiagnosticLog.error(e, TrackerDiagnosticCode.TRACKING_START_FAILED)
+				TrackerDiagnosticLog.failure(
+					TrackerDiagnosticFailureCode.TRACKING_START_FAILED,
+					TrackingDiagnosticFailureReason.TIMEOUT,
+				)
 				requestGracefulStop(reason = TrackingStopCandidateReason.INITIALIZATION_FAILURE)
 			} catch (e: CancellationException) {
 				withContext(NonCancellable) {
@@ -1048,7 +1060,10 @@ internal class TrackerService : CoreService() {
 			} catch (e: Exception) {
 				compensatePreparedStart("PREPARED_START_INITIALIZATION_FAILED")
 				startSingleFlight.set(false)
-				TrackerDiagnosticLog.error(e, TrackerDiagnosticCode.TRACKING_START_FAILED)
+				TrackerDiagnosticLog.failure(
+					TrackerDiagnosticFailureCode.TRACKING_START_FAILED,
+					TrackingDiagnosticFailureReason.INITIALIZATION_FAILURE,
+				)
 				requestGracefulStop(reason = TrackingStopCandidateReason.INITIALIZATION_FAILURE)
 			}
 		}
@@ -1072,9 +1087,9 @@ internal class TrackerService : CoreService() {
 					val updated = expected.copy(policyTier = tier)
 					if (updated == expected) return@collect
 					when (val result = activeTrackingSessionStore.replaceExact(expected, updated)) {
-						is ActiveTrackingSessionStoreResult.Failure -> TrackerDiagnosticLog.error(
-							result.cause,
-							TrackerDiagnosticCode.TRACKING_SESSION_STORE_FAILED,
+						is ActiveTrackingSessionStoreResult.Failure -> TrackerDiagnosticLog.failure(
+							TrackerDiagnosticFailureCode.TRACKING_SESSION_STORE_FAILED,
+							TrackingDiagnosticFailureReason.STORAGE_UNAVAILABLE,
 						)
 						is ActiveTrackingSessionStoreResult.Success -> {
 							if (result.descriptor == updated && activeSessionDescriptor == expected) {
@@ -1107,9 +1122,9 @@ internal class TrackerService : CoreService() {
 			is ActiveTrackingSessionStoreResult.Failure -> {
 				// Room already owns the exact tuple. A failed DataStore mirror reduces recovery
 				// convenience but must not discard an otherwise accepted source session.
-				TrackerDiagnosticLog.error(
-					result.cause,
-					TrackerDiagnosticCode.TRACKING_SESSION_STORE_FAILED,
+				TrackerDiagnosticLog.failure(
+					TrackerDiagnosticFailureCode.TRACKING_SESSION_STORE_FAILED,
+					TrackingDiagnosticFailureReason.STORAGE_UNAVAILABLE,
 				)
 				descriptor
 			}
@@ -1158,9 +1173,10 @@ internal class TrackerService : CoreService() {
 				} catch (cancelled: CancellationException) {
 					throw cancelled
 				} catch (failure: Exception) {
-					TrackerDiagnosticLog.error(
-						failure,
-						TrackerDiagnosticCode.TRACKING_RUNTIME_PERMISSION_RECONCILIATION_FAILED,
+					TrackerDiagnosticLog.failure(
+						TrackerDiagnosticFailureCode
+							.TRACKING_RUNTIME_PERMISSION_RECONCILIATION_FAILED,
+						TrackingDiagnosticFailureReason.PERMISSION_RECONCILIATION_FAILURE,
 					)
 				}
 				collectionMotionController.tick(SystemClock.elapsedRealtimeNanos())
@@ -1188,9 +1204,9 @@ internal class TrackerService : CoreService() {
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (failure: Exception) {
-			TrackerDiagnosticLog.error(
-				failure,
-				TrackerDiagnosticCode.TRACKING_RUNTIME_PERMISSION_RECONCILIATION_FAILED,
+			TrackerDiagnosticLog.failure(
+				TrackerDiagnosticFailureCode.TRACKING_RUNTIME_PERMISSION_RECONCILIATION_FAILED,
+				TrackingDiagnosticFailureReason.PERMISSION_RECONCILIATION_FAILURE,
 			)
 			null
 		}
@@ -1352,7 +1368,10 @@ internal class TrackerService : CoreService() {
 
 	private fun onForegroundStartFailed(stopService: Boolean) {
 		if (stopService) {
-			TrackerDiagnosticLog.error(TrackerDiagnosticCode.TRACKING_START_FAILED)
+			TrackerDiagnosticLog.failure(
+				TrackerDiagnosticFailureCode.TRACKING_START_FAILED,
+				TrackingDiagnosticFailureReason.INITIALIZATION_FAILURE,
+			)
 			TrackerNotificationManager.postStartFailedNotification(this)
 			requestGracefulStop(reason = TrackingStopCandidateReason.PERMISSION_UNAVAILABLE)
 		}
@@ -1418,7 +1437,9 @@ internal class TrackerService : CoreService() {
 		cycleDispatcherScope?.cancel()
 		cycleDispatcherScope = null
 		if (!drained || !cancelled) {
-			TrackerDiagnosticLog.warn(TrackerDiagnosticCode.TRACKING_SHUTDOWN_DEGRADED)
+			TrackerDiagnosticLog.warn(
+				TrackerDiagnosticWarningCode.TRACKING_SHUTDOWN_DEGRADED,
+			)
 		}
 		return cancelled
 	}
@@ -1575,9 +1596,9 @@ internal class TrackerService : CoreService() {
 			}
 		val result = activeTrackingSessionStore.clearIfCurrent(stopCandidate)
 		if (result is ActiveTrackingSessionStoreResult.Failure) {
-			TrackerDiagnosticLog.error(
-				result.cause,
-				TrackerDiagnosticCode.TRACKING_SESSION_STORE_FAILED,
+			TrackerDiagnosticLog.failure(
+				TrackerDiagnosticFailureCode.TRACKING_SESSION_STORE_FAILED,
+				TrackingDiagnosticFailureReason.STORAGE_UNAVAILABLE,
 			)
 			return
 		}
@@ -1599,9 +1620,9 @@ internal class TrackerService : CoreService() {
 	private suspend fun saveActiveSession(descriptor: ActiveTrackingSessionDescriptor) {
 		val result = activeTrackingSessionStore.save(descriptor)
 		if (result is ActiveTrackingSessionStoreResult.Failure) {
-			TrackerDiagnosticLog.error(
-				result.cause,
-				TrackerDiagnosticCode.TRACKING_SESSION_STORE_FAILED,
+			TrackerDiagnosticLog.failure(
+				TrackerDiagnosticFailureCode.TRACKING_SESSION_STORE_FAILED,
+				TrackingDiagnosticFailureReason.STORAGE_UNAVAILABLE,
 			)
 		}
 	}
@@ -1713,7 +1734,10 @@ internal class TrackerService : CoreService() {
 			maxRetryDelayMillis = PERSISTENT_TEARDOWN_MAX_RETRY_DELAY_MILLIS,
 			onFailure = { attempt, failure ->
 				if (attempt == 1L || attempt % PERSISTENT_TEARDOWN_LOG_EVERY_ATTEMPTS == 0L) {
-					TrackerDiagnosticLog.trackingProviderTeardownFailed(failure, attempt)
+					TrackerDiagnosticLog.trackingProviderTeardownFailed(
+						TrackingDiagnosticFailureReason.PROVIDER_FAILURE,
+						attempt,
+					)
 				}
 			},
 		) {
@@ -1817,7 +1841,9 @@ internal class TrackerService : CoreService() {
 			finalCycleCancellationFailure != null ||
 			shutdownSequence.shutdownResult == null
 		) {
-			TrackerDiagnosticLog.warn(TrackerDiagnosticCode.TRACKING_SHUTDOWN_DEGRADED)
+			TrackerDiagnosticLog.warn(
+				TrackerDiagnosticWarningCode.TRACKING_SHUTDOWN_DEGRADED,
+			)
 			orchestrator.enqueueDailySummaryFallback(context)
 			finalShutdownResult = retryTrackingShutdown(
 				maxAttempts = FINAL_TEARDOWN_MAX_ATTEMPTS,
@@ -1859,9 +1885,9 @@ internal class TrackerService : CoreService() {
 			-> throw TrackingShutdownRetryException("PRESENTATION_QUIESCENCE_NOT_ACCEPTED")
 			PresentationQuiescenceResult.MISSING,
 			PresentationQuiescenceResult.OWNERSHIP_MISMATCH,
-			-> TrackerDiagnosticLog.error(
-				IllegalStateException("Presentation quiescence ownership could not be proven"),
-				TrackerDiagnosticCode.TRACKING_PERSISTENCE_WRITE_FAILED,
+			-> TrackerDiagnosticLog.failure(
+				TrackerDiagnosticFailureCode.TRACKING_PERSISTENCE_WRITE_FAILED,
+				TrackingDiagnosticFailureReason.INTERNAL_INVARIANT,
 			)
 		}
 	}
