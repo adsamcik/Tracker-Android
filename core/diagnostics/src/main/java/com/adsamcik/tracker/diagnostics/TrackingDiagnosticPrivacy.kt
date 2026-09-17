@@ -29,6 +29,7 @@ enum class TrackingDiagnosticPrivacyRejectionReason {
 	FILE_REFERENCES,
 	CHECKSUMS,
 	STABLE_IDENTIFIERS,
+	EXCEPTION_DETAILS,
 	PROVIDER_PAYLOADS,
 }
 
@@ -125,6 +126,14 @@ object TrackingDiagnosticPrivacyValidator {
 				"serialnumber",
 				"imei",
 				"imsi",
+			),
+			TrackingDiagnosticPrivacyRejectionReason.EXCEPTION_DETAILS to setOf(
+				"exceptionmessage",
+				"errormessage",
+				"localizedmessage",
+				"cause",
+				"stacktrace",
+				"throwable",
 			),
 			TrackingDiagnosticPrivacyRejectionReason.PROVIDER_PAYLOADS to setOf(
 				"providerpayload",
