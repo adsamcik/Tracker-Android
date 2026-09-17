@@ -20,10 +20,14 @@ import com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorTeleme
 import com.adsamcik.tracker.tracker.source.coordinator.EffectiveSourceState
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
+import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalState
 import com.adsamcik.tracker.tracker.api.AmbientSourceUnavailableReason
+import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReader
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
@@ -55,6 +59,11 @@ class TrackingSettingsViewModelTest {
 
     // Backing state for the fake repository
 	private val paramsFlow = MutableStateFlow(TrackingParamsState(sourcePolicyRevision = 1L))
+	private val purposeAvailabilityFlow =
+		MutableStateFlow(TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT)
+	private val purposeAvailabilityReader = object : TrackingPurposeAvailabilityReader {
+		override val availability = purposeAvailabilityFlow
+	}
 	private val trackingParamsRepository: TrackingParamsRepository = mockk()
 	private val activityWatcherController: ActivityWatcherController = mockk(relaxed = true)
     private val trackingStatusProvider = DefaultTrackingSettingsStatusProvider(
@@ -159,6 +168,7 @@ class TrackingSettingsViewModelTest {
         nearbyWifiGranted: Boolean = true,
     ): TrackingSettingsViewModel {
         paramsFlow.value = TrackingParamsState()
+		purposeAvailabilityFlow.value = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT
         permissionsGranted = true
         this.nearbyWifiGranted = nearbyWifiGranted
         return TrackingSettingsViewModel(
@@ -166,6 +176,7 @@ class TrackingSettingsViewModelTest {
             trackingParamsRepository,
             trackingStatusProvider,
             activityWatcherController,
+            purposeAvailabilityReader,
         )
     }
 
@@ -310,6 +321,30 @@ class TrackingSettingsViewModelTest {
 					availability.reason shouldBe
 						AmbientSourceUnavailableReason.RECONCILIATION_PENDING
 				}
+			}
+
+		@Test
+		fun `published source status replaces safe default without changing preference intent`() =
+			runTest(testDispatcher) {
+				val vm = createViewModel()
+				purposeAvailabilityFlow.value = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.copy(
+					ambientSources =
+						TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.ambientSources +
+							(
+								AmbientTrackingSource.WIFI to
+									AmbientSourceOperationalAvailability.unavailable(
+											AmbientTrackingSource.WIFI,
+											AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE,
+										)
+							),
+				)
+
+				advanceUntilIdle()
+
+				vm.uiState.value.ambientWifiEnabled shouldBe false
+				vm.uiState.value.ambientSourceAvailability
+					.getValue(AmbientTrackingSource.WIFI)
+					.reason shouldBe AmbientSourceUnavailableReason.PROVIDER_UNAVAILABLE
 			}
 
         @Test
@@ -642,6 +677,7 @@ class TrackingSettingsViewModelTest {
                     trackingParamsRepository,
                     trackingStatusProvider,
                     activityWatcherController,
+					purposeAvailabilityReader,
                 )
                 advanceUntilIdle()
 
@@ -678,6 +714,7 @@ class TrackingSettingsViewModelTest {
                     trackingParamsRepository,
                     trackingStatusProvider,
                     activityWatcherController,
+					purposeAvailabilityReader,
                 )
                 advanceUntilIdle()
                 vm.uiState.value.wifiEnabled shouldBe true

@@ -23,7 +23,7 @@ class ManualTrackingStartTest {
 		val automatic = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.automaticControl
 
 		automatic shouldBe AutomaticTrackingOperationalAvailability.Unavailable(
-			AutomaticTrackingUnavailableReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
+			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
 		)
 		resolve(
 			source = TrackingCaptureSource.STEPS,

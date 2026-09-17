@@ -66,7 +66,7 @@ sealed interface AutomaticTrackingOperationalAvailability {
 		/** Legacy callers receive fail-closed status; identityless Ready authority no longer exists. */
 		@JvmStatic
 		fun legacyUnavailable(): Unavailable = Unavailable(
-			AutomaticTrackingUnavailableReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
+			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
 		)
 	}
 }
@@ -243,7 +243,7 @@ data class AmbientSourceOperationalAvailability(
 data class TrackingPurposeAvailabilitySnapshot(
 	val automaticControl: AutomaticTrackingOperationalAvailability =
 		AutomaticTrackingOperationalAvailability.Unavailable(
-			AutomaticTrackingUnavailableReason.AUTO_005_CONTROL_EVIDENCE_UNRESOLVED,
+			AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
 		),
 	val ambientSources: Map<AmbientTrackingSource, AmbientSourceOperationalAvailability> =
 		AmbientTrackingSource.entries.associateWith { source ->
@@ -270,17 +270,79 @@ interface TrackingPurposeAvailabilityReader {
 }
 
 interface TrackingPurposeAvailabilityReporter {
-	/** Publishes only after the owning runtime has reconciled policy, permission, rollout, and provider. */
-	fun reportAutomaticControl(availability: AutomaticTrackingOperationalAvailability)
+	fun beginOrReplaceAutomaticControlLease(
+		identity: TrackingPurposeLeaseIdentity,
+	): AutomaticControlLeaseStartResult
+	fun cancelAutomaticControlLease(
+		expectedIdentity: TrackingPurposeLeaseIdentity,
+	): AutomaticControlPublicationAcceptance
+	/** Trusted authority loss reset. It can only remove readiness, never grant it. */
+	fun invalidateAutomaticControl()
+	fun tryAccept(
+		report: AutomaticControlReconciliationReport,
+	): AutomaticControlPublicationAcceptance
 	fun beginOrReplaceAmbientLease(
 		identity: AmbientReconciliationIdentity,
 	): AmbientLeaseStartResult
 	fun cancelAmbientLease(
 		expectedIdentity: AmbientReconciliationIdentity,
 	): AmbientPublicationAcceptance
+	/** Trusted authority loss reset. It can only return one source to pending. */
+	fun invalidateAmbient(source: AmbientTrackingSource)
 	fun tryAccept(
 		report: AmbientSourceReconciliationReport,
 	): AmbientPublicationAcceptance
+}
+
+data class AutomaticControlReconciliationLease(
+	val identity: TrackingPurposeLeaseIdentity,
+) {
+	init {
+		identity.requireAutomaticControlIdentity()
+	}
+}
+
+data class AutomaticControlReconciliationReport(
+	val identity: TrackingPurposeLeaseIdentity,
+	val availability: AutomaticTrackingOperationalAvailability,
+) {
+	init {
+		identity.requireAutomaticControlIdentity()
+		when (availability) {
+			is AutomaticTrackingOperationalAvailability.Ready ->
+				require(availability.identity == identity) {
+					"Operational automatic CONTROL publication must carry the exact lease identity"
+				}
+			is AutomaticTrackingOperationalAvailability.Unavailable ->
+				require(
+					availability.lastIdentity == null ||
+						availability.lastIdentity == identity,
+				) {
+					"Non-operational automatic CONTROL publication may retain only its exact lease identity"
+				}
+		}
+	}
+}
+
+sealed interface AutomaticControlPublicationAcceptance {
+	data class Accepted(
+		val snapshot: TrackingPurposeAvailabilitySnapshot,
+	) : AutomaticControlPublicationAcceptance
+
+	data class Rejected(
+		val reason: TrackingPurposePublicationRejection,
+	) : AutomaticControlPublicationAcceptance
+}
+
+sealed interface AutomaticControlLeaseStartResult {
+	data class Started(
+		val lease: AutomaticControlReconciliationLease,
+		val snapshot: TrackingPurposeAvailabilitySnapshot,
+	) : AutomaticControlLeaseStartResult
+
+	data class Rejected(
+		val reason: TrackingPurposePublicationRejection,
+	) : AutomaticControlLeaseStartResult
 }
 
 data class AmbientReconciliationIdentity(
@@ -412,6 +474,13 @@ enum class AmbientPublicationRejection {
 	TOKEN_REUSED,
 }
 
+enum class TrackingPurposePublicationRejection {
+	CANCELLED,
+	STALE_IDENTITY,
+	TOKEN_CONSUMED,
+	TOKEN_REUSED,
+}
+
 sealed interface AmbientSourceReconciliationResult {
 	data class Reconciled(
 		val report: AmbientSourceReconciliationReport,
@@ -431,8 +500,54 @@ sealed interface AmbientSourceReconciliationResult {
 }
 
 fun interface AmbientSourceReconciliationCallback {
-	/** Parent-owned lifecycle entry point. Settings UI never invokes this merely from preference state. */
-	suspend fun reconcile(lease: AmbientReconciliationLease): AmbientSourceReconciliationResult
+	/**
+	 * Returns status for one exact parent-issued lease. Implementations must not treat invocation as
+	 * demand, provider, consent, retention, or writer authority.
+	 */
+	suspend fun reconcile(lease: AmbientReconciliationLease): AmbientSourceOperationalAvailability
+}
+
+fun interface AutomaticControlReconciliationCallback {
+	/**
+	 * Returns status for one exact Activity CONTROL lease. Until AUTO-005 is resolved, production
+	 * reconciliation remains [AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE].
+	 */
+	suspend fun reconcile(
+		lease: AutomaticControlReconciliationLease,
+	): AutomaticTrackingOperationalAvailability
+}
+
+data class TrackingPurposeSourceOwnerRegistration(
+	val sourcePurpose: CanonicalSourcePurpose,
+	val registrationId: String,
+) {
+	init {
+		require(registrationId.isNotBlank())
+	}
+}
+
+/**
+ * Process-local callback registration only. Registration and callback invocation grant no source
+ * demand, provider, consent, retention, broker, or writer authority.
+ */
+interface TrackingPurposeSourceOwnerRegistrar {
+	suspend fun registerAutomaticControlOwner(
+		executionRevision: Long,
+		callback: AutomaticControlReconciliationCallback,
+	): TrackingPurposeSourceOwnerRegistration
+
+	suspend fun registerAmbientSourceOwner(
+		source: AmbientTrackingSource,
+		executionRevision: Long,
+		callback: AmbientSourceReconciliationCallback,
+	): TrackingPurposeSourceOwnerRegistration
+
+	suspend fun unregister(registration: TrackingPurposeSourceOwnerRegistration)
+}
+
+/** Existing settings/policy collectors use this bounded signal; it owns no permanent observer. */
+fun interface TrackingPurposeSettingsReconciler {
+	suspend fun reconcileCurrentSettings()
 }
 
 /**
@@ -445,30 +560,138 @@ class AtomicTrackingPurposeAvailabilityStore :
 	TrackingPurposeAvailabilityReporter {
 	private val lock = Any()
 	private val mutableAvailability = MutableStateFlow(TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT)
+	private var automaticControlSlot: AutomaticControlPublicationSlot? = null
 	private val ambientSlots = mutableMapOf<AmbientTrackingSource, AmbientPublicationSlot>()
 	private val terminalTokens =
-		mutableMapOf<AmbientLeaseToken, AmbientPublicationRejection>()
+		mutableMapOf<TrackingPurposeLeaseToken, TrackingPurposePublicationRejection>()
 
 	override val availability: StateFlow<TrackingPurposeAvailabilitySnapshot> =
 		mutableAvailability.asStateFlow()
 
-	override fun reportAutomaticControl(
-		availability: AutomaticTrackingOperationalAvailability,
-	) {
+	override fun beginOrReplaceAutomaticControlLease(
+		identity: TrackingPurposeLeaseIdentity,
+	): AutomaticControlLeaseStartResult = synchronized(lock) {
+		identity.requireAutomaticControlIdentity()
+		terminalTokens[identity.leaseToken()]?.let { rejection ->
+			return@synchronized AutomaticControlLeaseStartResult.Rejected(rejection)
+		}
+		val previous = automaticControlSlot
+		if (previous?.identity == identity && previous.state == PublicationSlotState.ACTIVE) {
+			return@synchronized AutomaticControlLeaseStartResult.Started(
+				lease = AutomaticControlReconciliationLease(identity),
+				snapshot = mutableAvailability.value,
+			)
+		}
+		if (previous?.identity?.ownerCasToken == identity.ownerCasToken) {
+			return@synchronized AutomaticControlLeaseStartResult.Rejected(
+				TrackingPurposePublicationRejection.TOKEN_REUSED,
+			)
+		}
+		previous?.let { slot ->
+			terminalTokens.putIfAbsent(
+				slot.identity.leaseToken(),
+				if (slot.state == PublicationSlotState.CONSUMED) {
+					TrackingPurposePublicationRejection.TOKEN_CONSUMED
+				} else {
+					TrackingPurposePublicationRejection.CANCELLED
+				},
+			)
+		}
+		val prior = mutableAvailability.value.automaticControl
+		automaticControlSlot = AutomaticControlPublicationSlot(
+			identity = identity,
+			state = PublicationSlotState.ACTIVE,
+		)
+		publishAutomaticControlPending(prior.authorityIdentityOrNull ?: prior.lastIdentityOrNull)
+		AutomaticControlLeaseStartResult.Started(
+			lease = AutomaticControlReconciliationLease(identity),
+			snapshot = mutableAvailability.value,
+		)
+	}
+
+	override fun cancelAutomaticControlLease(
+		expectedIdentity: TrackingPurposeLeaseIdentity,
+	): AutomaticControlPublicationAcceptance = synchronized(lock) {
+		expectedIdentity.requireAutomaticControlIdentity()
+		val slot = automaticControlSlot
+			?: return@synchronized AutomaticControlPublicationAcceptance.Rejected(
+				TrackingPurposePublicationRejection.STALE_IDENTITY,
+			)
+		if (slot.identity != expectedIdentity) {
+			return@synchronized AutomaticControlPublicationAcceptance.Rejected(
+				TrackingPurposePublicationRejection.STALE_IDENTITY,
+			)
+		}
+		when (slot.state) {
+			PublicationSlotState.CONSUMED ->
+				return@synchronized AutomaticControlPublicationAcceptance.Rejected(
+					TrackingPurposePublicationRejection.TOKEN_CONSUMED,
+				)
+			PublicationSlotState.CANCELLED ->
+				return@synchronized AutomaticControlPublicationAcceptance.Rejected(
+					TrackingPurposePublicationRejection.CANCELLED,
+				)
+			PublicationSlotState.ACTIVE -> Unit
+		}
+		automaticControlSlot = slot.copy(state = PublicationSlotState.CANCELLED)
+		terminalTokens[expectedIdentity.leaseToken()] =
+			TrackingPurposePublicationRejection.CANCELLED
+		val prior = mutableAvailability.value.automaticControl
+		publishAutomaticControlPending(prior.authorityIdentityOrNull ?: prior.lastIdentityOrNull)
+		AutomaticControlPublicationAcceptance.Accepted(mutableAvailability.value)
+	}
+
+	override fun invalidateAutomaticControl() {
 		synchronized(lock) {
-			mutableAvailability.value =
-				mutableAvailability.value.copy(automaticControl = availability)
+			val prior = mutableAvailability.value.automaticControl
+			automaticControlSlot = automaticControlSlot?.let { slot ->
+				terminalTokens[slot.identity.leaseToken()] =
+					TrackingPurposePublicationRejection.CANCELLED
+				slot.copy(state = PublicationSlotState.CANCELLED)
+			}
+			publishAutomaticControlPending(prior.authorityIdentityOrNull ?: prior.lastIdentityOrNull)
+		}
+	}
+
+	override fun tryAccept(
+		report: AutomaticControlReconciliationReport,
+	): AutomaticControlPublicationAcceptance = synchronized(lock) {
+		val slot = automaticControlSlot
+			?: return@synchronized AutomaticControlPublicationAcceptance.Rejected(
+				TrackingPurposePublicationRejection.STALE_IDENTITY,
+			)
+		when {
+			slot.identity != report.identity -> AutomaticControlPublicationAcceptance.Rejected(
+				TrackingPurposePublicationRejection.STALE_IDENTITY,
+			)
+			slot.state == PublicationSlotState.CANCELLED ->
+				AutomaticControlPublicationAcceptance.Rejected(
+					TrackingPurposePublicationRejection.CANCELLED,
+				)
+			slot.state == PublicationSlotState.CONSUMED ->
+				AutomaticControlPublicationAcceptance.Rejected(
+					TrackingPurposePublicationRejection.TOKEN_CONSUMED,
+				)
+			else -> {
+				automaticControlSlot = slot.copy(state = PublicationSlotState.CONSUMED)
+				terminalTokens[report.identity.leaseToken()] =
+					TrackingPurposePublicationRejection.TOKEN_CONSUMED
+				mutableAvailability.value = mutableAvailability.value.copy(
+					automaticControl = report.availability,
+				)
+				AutomaticControlPublicationAcceptance.Accepted(mutableAvailability.value)
+			}
 		}
 	}
 
 	override fun beginOrReplaceAmbientLease(
 		identity: AmbientReconciliationIdentity,
 	): AmbientLeaseStartResult = synchronized(lock) {
-		terminalTokens[identity.leaseToken()]?.let { rejection ->
-			return@synchronized AmbientLeaseStartResult.Rejected(rejection)
+		terminalTokens[identity.purposeLeaseIdentity.leaseToken()]?.let { rejection ->
+			return@synchronized AmbientLeaseStartResult.Rejected(rejection.toAmbientRejection())
 		}
 		val previous = ambientSlots[identity.source]
-		if (previous?.identity == identity && previous.state == AmbientPublicationSlotState.ACTIVE) {
+		if (previous?.identity == identity && previous.state == PublicationSlotState.ACTIVE) {
 			return@synchronized AmbientLeaseStartResult.Started(
 				lease = AmbientReconciliationLease(identity),
 				snapshot = mutableAvailability.value,
@@ -481,18 +704,18 @@ class AtomicTrackingPurposeAvailabilityStore :
 		}
 		previous?.let { slot ->
 			terminalTokens.putIfAbsent(
-				slot.identity.leaseToken(),
-				if (slot.state == AmbientPublicationSlotState.CONSUMED) {
-					AmbientPublicationRejection.TOKEN_CONSUMED
+				slot.identity.purposeLeaseIdentity.leaseToken(),
+				if (slot.state == PublicationSlotState.CONSUMED) {
+					TrackingPurposePublicationRejection.TOKEN_CONSUMED
 				} else {
-					AmbientPublicationRejection.CANCELLED
+					TrackingPurposePublicationRejection.CANCELLED
 				},
 			)
 		}
 		val priorAvailability = mutableAvailability.value.ambientSources.getValue(identity.source)
 		ambientSlots[identity.source] = AmbientPublicationSlot(
 			identity = identity,
-			state = AmbientPublicationSlotState.ACTIVE,
+			state = PublicationSlotState.ACTIVE,
 		)
 		publishPending(
 			identity.source,
@@ -517,20 +740,21 @@ class AtomicTrackingPurposeAvailabilityStore :
 			)
 		}
 		when (slot.state) {
-			AmbientPublicationSlotState.CONSUMED ->
+			PublicationSlotState.CONSUMED ->
 				return@synchronized AmbientPublicationAcceptance.Rejected(
 					AmbientPublicationRejection.TOKEN_CONSUMED,
 				)
-			AmbientPublicationSlotState.CANCELLED ->
+			PublicationSlotState.CANCELLED ->
 				return@synchronized AmbientPublicationAcceptance.Rejected(
 					AmbientPublicationRejection.CANCELLED,
 				)
-			AmbientPublicationSlotState.ACTIVE -> Unit
+			PublicationSlotState.ACTIVE -> Unit
 		}
 		ambientSlots[expectedIdentity.source] = slot.copy(
-			state = AmbientPublicationSlotState.CANCELLED,
+			state = PublicationSlotState.CANCELLED,
 		)
-		terminalTokens[expectedIdentity.leaseToken()] = AmbientPublicationRejection.CANCELLED
+		terminalTokens[expectedIdentity.purposeLeaseIdentity.leaseToken()] =
+			TrackingPurposePublicationRejection.CANCELLED
 		val priorAvailability =
 			mutableAvailability.value.ambientSources.getValue(expectedIdentity.source)
 		publishPending(
@@ -538,6 +762,21 @@ class AtomicTrackingPurposeAvailabilityStore :
 			priorAvailability.operationalIdentity ?: priorAvailability.lastIdentity,
 		)
 		AmbientPublicationAcceptance.Accepted(mutableAvailability.value)
+	}
+
+	override fun invalidateAmbient(source: AmbientTrackingSource) {
+		synchronized(lock) {
+			val priorAvailability = mutableAvailability.value.ambientSources.getValue(source)
+			ambientSlots[source] = ambientSlots[source]?.let { slot ->
+				terminalTokens[slot.identity.purposeLeaseIdentity.leaseToken()] =
+					TrackingPurposePublicationRejection.CANCELLED
+				slot.copy(state = PublicationSlotState.CANCELLED)
+			} ?: return@synchronized
+			publishPending(
+				source,
+				priorAvailability.operationalIdentity ?: priorAvailability.lastIdentity,
+			)
+		}
 	}
 
 	override fun tryAccept(
@@ -551,16 +790,16 @@ class AtomicTrackingPurposeAvailabilityStore :
 			slot.identity != report.identity -> AmbientPublicationAcceptance.Rejected(
 				AmbientPublicationRejection.STALE_IDENTITY,
 			)
-			slot.state == AmbientPublicationSlotState.CANCELLED ->
+			slot.state == PublicationSlotState.CANCELLED ->
 				AmbientPublicationAcceptance.Rejected(AmbientPublicationRejection.CANCELLED)
-			slot.state == AmbientPublicationSlotState.CONSUMED ->
+			slot.state == PublicationSlotState.CONSUMED ->
 				AmbientPublicationAcceptance.Rejected(AmbientPublicationRejection.TOKEN_CONSUMED)
 			else -> {
 				ambientSlots[report.identity.source] = slot.copy(
-					state = AmbientPublicationSlotState.CONSUMED,
+					state = PublicationSlotState.CONSUMED,
 				)
-				terminalTokens[report.identity.leaseToken()] =
-					AmbientPublicationRejection.TOKEN_CONSUMED
+				terminalTokens[report.identity.purposeLeaseIdentity.leaseToken()] =
+					TrackingPurposePublicationRejection.TOKEN_CONSUMED
 				mutableAvailability.value = mutableAvailability.value.copy(
 					ambientSources = mutableAvailability.value.ambientSources +
 						(report.identity.source to report.availability),
@@ -568,6 +807,17 @@ class AtomicTrackingPurposeAvailabilityStore :
 				AmbientPublicationAcceptance.Accepted(mutableAvailability.value)
 			}
 		}
+	}
+
+	private fun publishAutomaticControlPending(
+		lastIdentity: TrackingPurposeLeaseIdentity?,
+	) {
+		mutableAvailability.value = mutableAvailability.value.copy(
+			automaticControl = AutomaticTrackingOperationalAvailability.Unavailable(
+				reason = AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+				lastIdentity = lastIdentity,
+			),
+		)
 	}
 
 	private fun publishPending(
@@ -588,16 +838,30 @@ class AtomicTrackingPurposeAvailabilityStore :
 
 private data class AmbientPublicationSlot(
 	val identity: AmbientReconciliationIdentity,
-	val state: AmbientPublicationSlotState,
+	val state: PublicationSlotState,
 )
 
-private data class AmbientLeaseToken(
-	val source: AmbientTrackingSource,
+private data class AutomaticControlPublicationSlot(
+	val identity: TrackingPurposeLeaseIdentity,
+	val state: PublicationSlotState,
+)
+
+private data class TrackingPurposeLeaseToken(
+	val sourcePurpose: CanonicalSourcePurpose,
 	val ownerCasToken: String,
 )
 
-private fun AmbientReconciliationIdentity.leaseToken(): AmbientLeaseToken =
-	AmbientLeaseToken(source, ownerCasToken)
+private fun TrackingPurposeLeaseIdentity.leaseToken(): TrackingPurposeLeaseToken =
+	TrackingPurposeLeaseToken(sourcePurpose, ownerCasToken)
+
+private val AutomaticTrackingOperationalAvailability.lastIdentityOrNull:
+	TrackingPurposeLeaseIdentity?
+	get() = (this as? AutomaticTrackingOperationalAvailability.Unavailable)?.lastIdentity
+
+private fun TrackingPurposeLeaseIdentity.requireAutomaticControlIdentity() {
+	require(source == CanonicalTrackingSource.ACTIVITY)
+	require(purpose == TrackingPurpose.CONTROL)
+}
 
 private fun TrackingPurposeLeaseIdentity.requireAmbientIdentity(source: AmbientTrackingSource) {
 	require(this.source == source.canonicalSource)
@@ -607,10 +871,21 @@ private fun TrackingPurposeLeaseIdentity.requireAmbientIdentity(source: AmbientT
 internal fun AmbientTrackingSource.toTrackingSource(): TrackingSource =
 	canonicalSource.toApiTrackingSource()
 
-private enum class AmbientPublicationSlotState {
+private enum class PublicationSlotState {
 	ACTIVE,
 	CONSUMED,
 	CANCELLED,
+}
+
+private fun TrackingPurposePublicationRejection.toAmbientRejection():
+	AmbientPublicationRejection = when (this) {
+	TrackingPurposePublicationRejection.CANCELLED -> AmbientPublicationRejection.CANCELLED
+	TrackingPurposePublicationRejection.STALE_IDENTITY ->
+		AmbientPublicationRejection.STALE_IDENTITY
+	TrackingPurposePublicationRejection.TOKEN_CONSUMED ->
+		AmbientPublicationRejection.TOKEN_CONSUMED
+	TrackingPurposePublicationRejection.TOKEN_REUSED ->
+		AmbientPublicationRejection.TOKEN_REUSED
 }
 
 private fun AmbientTrackingSource.allowedMechanisms(): Set<AmbientAcquisitionMechanism> = when (this) {

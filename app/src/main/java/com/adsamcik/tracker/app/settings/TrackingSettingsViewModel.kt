@@ -38,6 +38,7 @@ import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -106,11 +107,13 @@ class TrackingSettingsViewModel @Inject constructor(
     private val trackingParamsRepository: TrackingParamsRepository,
     private val trackingStatusProvider: TrackingSettingsStatusProvider,
     private val activityWatcherController: ActivityWatcherController,
+	private val purposeAvailabilityReader: TrackingPurposeAvailabilityReader,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TrackingSettingsUiState())
     val uiState: StateFlow<TrackingSettingsUiState> = _uiState.asStateFlow()
     private var latestParams: TrackingParamsState? = null
+	private var latestPurposeAvailability = purposeAvailabilityReader.availability.value
     private var permissionHistory = PermissionGrantHistory()
 
     init {
@@ -118,10 +121,19 @@ class TrackingSettingsViewModel @Inject constructor(
             combine(
                 trackingParamsRepository.data,
                 trackingStatusProvider.runtimeStatus,
-			) { params, runtimeStatus -> params to runtimeStatus }
-                .collect { (params, runtimeStatus) ->
+				purposeAvailabilityReader.availability,
+			) { params, runtimeStatus, purposeAvailability ->
+				Triple(params, runtimeStatus, purposeAvailability)
+			}
+                .collect { (params, runtimeStatus, purposeAvailability) ->
                 latestParams = params
-                updateUiState(params, runtimeStatus, trackingStatusProvider.telemetry.value)
+				latestPurposeAvailability = purposeAvailability
+                updateUiState(
+					params,
+					runtimeStatus,
+					trackingStatusProvider.telemetry.value,
+					purposeAvailability,
+				)
             }
         }
         viewModelScope.launch {
@@ -138,6 +150,7 @@ class TrackingSettingsViewModel @Inject constructor(
                 params,
                 trackingStatusProvider.runtimeStatus.value,
                 trackingStatusProvider.telemetry.value,
+				latestPurposeAvailability,
             )
         }
     }
@@ -272,7 +285,7 @@ class TrackingSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             trackingParamsRepository.update { copy(autoTrackingMode = mode) }
 			val effectiveMode = mode.takeIf {
-            	TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.automaticControl.isOperational &&
+            	purposeAvailabilityReader.availability.value.automaticControl.isOperational &&
             		context.hasActivityPermission
             } ?: AUTO_TRACKING_MODE_DISABLED
             activityWatcherController.applyAutoTrackingMode(effectiveMode)
@@ -362,8 +375,8 @@ class TrackingSettingsViewModel @Inject constructor(
         params: TrackingParamsState,
         runtimeStatus: TrackingRuntimeStatus,
         telemetry: TrackingCoordinatorMetrics,
+		purposeAvailability: TrackingPurposeAvailabilitySnapshot,
     ) {
-		val purposeAvailability = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT
         val capabilities = context.trackingPermissionCapabilities(permissionHistory)
         permissionHistory = capabilities.recordGrants(permissionHistory)
         val wifiPermissionGranted = capabilities.hasWifiScanPermissions

@@ -1,0 +1,58 @@
+package com.adsamcik.tracker.tracker.di
+
+import com.adsamcik.tracker.tracker.api.AtomicTrackingPurposeAvailabilityStore
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReader
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReporter
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
+import com.adsamcik.tracker.tracker.api.TrackingPurposeSourceOwnerRegistrar
+import com.adsamcik.tracker.tracker.source.runtime.CurrentTrackingPurposeAuthorityReader
+import com.adsamcik.tracker.tracker.source.runtime.DefaultTrackingPurposePublicationRuntime
+import com.adsamcik.tracker.tracker.source.runtime.TrackingPurposeAuthorityReader
+import com.adsamcik.tracker.tracker.source.runtime.TrackingPurposeOwnerCasTokenFactory
+import dagger.Binds
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import java.util.UUID
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+internal abstract class TrackingPurposePublicationModule {
+	@Binds
+	internal abstract fun bindAuthorityReader(
+		impl: CurrentTrackingPurposeAuthorityReader,
+	): TrackingPurposeAuthorityReader
+
+	@Binds
+	internal abstract fun bindSettingsReconciler(
+		impl: DefaultTrackingPurposePublicationRuntime,
+	): TrackingPurposeSettingsReconciler
+
+	@Binds
+	internal abstract fun bindSourceOwnerRegistrar(
+		impl: DefaultTrackingPurposePublicationRuntime,
+	): TrackingPurposeSourceOwnerRegistrar
+
+	companion object {
+		@Provides
+		@Singleton
+		fun provideAvailabilityStore(): AtomicTrackingPurposeAvailabilityStore =
+			AtomicTrackingPurposeAvailabilityStore()
+
+		@Provides
+		fun provideAvailabilityReader(
+			store: AtomicTrackingPurposeAvailabilityStore,
+		): TrackingPurposeAvailabilityReader = store
+
+		@Provides
+		fun provideAvailabilityReporter(
+			store: AtomicTrackingPurposeAvailabilityStore,
+		): TrackingPurposeAvailabilityReporter = store
+
+		@Provides
+		internal fun provideOwnerCasTokenFactory(): TrackingPurposeOwnerCasTokenFactory =
+			TrackingPurposeOwnerCasTokenFactory { UUID.randomUUID().toString() }
+	}
+}

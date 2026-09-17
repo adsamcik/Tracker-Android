@@ -67,10 +67,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.onEach
@@ -96,6 +99,8 @@ interface BackgroundTrackingApiEntryPoint {
 	fun automaticControlRecoveryScheduler(): AutomaticControlRecoveryScheduler
 	fun trackingStartupGate(): TrackingStartupGate
 	fun trackingRolloutStateStore(): RoomTrackingRolloutStateStore
+	fun trackingPurposeAvailabilityReader(): TrackingPurposeAvailabilityReader
+	fun trackingPurposeSettingsReconciler(): TrackingPurposeSettingsReconciler
 }
 
 /** WorkManager disposition for restoring the optional automatic Activity control registration. */
@@ -124,6 +129,7 @@ object BackgroundTrackingApi {
 	private var preferenceScope: CoroutineScope? = null
 	private var trackingParamsJob: Job? = null
 	private var sourcePolicyJob: Job? = null
+	private var purposeAvailabilityJob: Job? = null
 	private var disabledRechargeJob: Job? = null
 	private var activityFreqJob: Job? = null
 	private var activityWatcherJob: Job? = null
@@ -731,6 +737,12 @@ object BackgroundTrackingApi {
 		val scope = CoroutineScope(SupervisorJob() + mainImmediate)
 		preferenceScope = scope
 
+		purposeAvailabilityJob = entryPoint.trackingPurposeAvailabilityReader().availability
+			.onEach { snapshot ->
+				applyAutomaticControlAvailability(snapshot.automaticControl)
+			}
+			.launchIn(scope)
+
 		sourcePolicyJob = entryPoint.sourcePolicyRepository().states
 			.onEach { authority ->
 				val snapshot = (authority as? SourcePolicyAuthorityState.Active)?.snapshot
@@ -784,15 +796,19 @@ object BackgroundTrackingApi {
 				}
 				paramsInitialized = params.sourcePolicyRevision != null
 				publishActivityAutomationAuthority()
+				entryPoint.trackingPurposeSettingsReconciler().reconcileCurrentSettings()
 			}
-			.catch { error ->
-				paramsInitialized = false
-				publishActivityAutomationAuthority()
-				TrackerDiagnosticLog.failure(
-					TrackerDiagnosticFailureCode.APPLICATION_INITIALIZATION_FAILED,
-					TrackingDiagnosticFailureReason.INITIALIZATION_FAILURE,
-				)
-			}
+			.retryingTrackingSettingsObservation(
+				onFailure = {
+					paramsInitialized = false
+					publishActivityAutomationAuthority()
+					TrackerDiagnosticLog.failure(
+						TrackerDiagnosticFailureCode.APPLICATION_INITIALIZATION_FAILED,
+						TrackingDiagnosticFailureReason.INITIALIZATION_FAILURE,
+					)
+				},
+				waitBeforeRetry = { delay(SOURCE_POLICY_RETRY_DELAY_MILLIS) },
+			)
 			.launchIn(scope)
 
 		disabledRechargeJob = PreferenceFlows.boolean(
@@ -937,20 +953,9 @@ object BackgroundTrackingApi {
 		}
 	}
 
-	/**
-	 * Parent-owned policy publication hook. Operational availability is not authority; the monitor
-	 * repeats current SourcePolicy, rollout, demand, and provider checks before any registration.
-	 */
-	@MainThread
-	fun onAutomaticControlAvailabilityChanged(
-		context: Context,
+	private fun applyAutomaticControlAvailability(
 		availability: AutomaticTrackingOperationalAvailability,
 	) {
-		if (appContext == null) {
-			automaticControlAvailability = availability
-			initialize(context)
-			return
-		}
 		val changed = automaticControlAvailability != availability
 		automaticControlAvailability = availability
 		reconcileControlEligibility(
@@ -1019,6 +1024,8 @@ object BackgroundTrackingApi {
 		trackingParamsJob = null
 		sourcePolicyJob?.cancel()
 		sourcePolicyJob = null
+		purposeAvailabilityJob?.cancel()
+		purposeAvailabilityJob = null
 		disabledRechargeJob?.cancel()
 		disabledRechargeJob = null
 		activityFreqJob?.cancel()
@@ -1168,6 +1175,16 @@ object BackgroundTrackingApi {
 			}
 		}
 	}
+}
+
+internal fun <T> Flow<T>.retryingTrackingSettingsObservation(
+	onFailure: suspend (Throwable) -> Unit,
+	waitBeforeRetry: suspend () -> Unit,
+): Flow<T> = retryWhen { error, _ ->
+	currentCoroutineContext().ensureActive()
+	onFailure(error)
+	waitBeforeRetry()
+	true
 }
 
 internal data class AutomaticControlContainmentKey(

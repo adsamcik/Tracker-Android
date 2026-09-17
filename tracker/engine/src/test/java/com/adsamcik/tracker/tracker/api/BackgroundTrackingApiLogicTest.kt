@@ -16,6 +16,9 @@ import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -23,6 +26,23 @@ import org.junit.jupiter.api.Test
 
 @DisplayName("BackgroundTrackingApi Logic")
 class BackgroundTrackingApiLogicTest {
+	@Test
+	fun `settings observation retries after failure instead of ending the collector`() = runTest {
+		var subscriptions = 0
+		val failures = mutableListOf<String>()
+		val values = flow {
+			val subscription = ++subscriptions
+			emit(subscription)
+			if (subscription == 1) error("transient settings read")
+		}.retryingTrackingSettingsObservation(
+			onFailure = { failures += requireNotNull(it.message) },
+			waitBeforeRetry = {},
+		).take(2).toList()
+
+		values shouldBe listOf(1, 2)
+		failures shouldBe listOf("transient settings read")
+	}
+
 	@Test
 	fun `live control authority refreshes on policy revision or consent epoch rotation`() {
 		automaticControlAuthorityChanged(5L, 8L, 6L, 8L) shouldBe true
