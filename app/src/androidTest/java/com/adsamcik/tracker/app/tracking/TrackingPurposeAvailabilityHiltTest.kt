@@ -3,6 +3,7 @@ package com.adsamcik.tracker.app.tracking
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReporter
 import dagger.hilt.EntryPoint
@@ -30,6 +31,7 @@ class TrackingPurposeAvailabilityHiltTest {
 		assertSame(first.reader(), first.reporter())
 		assertSame(first.reader(), second.reader())
 		assertSame(first.reporter(), second.reporter())
+		assertSame(first.currentReader(), second.currentReader())
 	}
 }
 
@@ -38,4 +40,5 @@ class TrackingPurposeAvailabilityHiltTest {
 internal interface TrackingPurposeAvailabilityIdentityEntryPoint {
 	fun reader(): TrackingPurposeAvailabilityReader
 	fun reporter(): TrackingPurposeAvailabilityReporter
+	fun currentReader(): CurrentTrackingPurposeAvailabilityReader
 }

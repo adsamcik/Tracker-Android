@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.runtime
 
 import com.adsamcik.tracker.shared.model.tracking.TrackingPurpose
 import com.adsamcik.tracker.shared.model.tracking.TrackingSource
+import com.adsamcik.tracker.shared.model.tracking.TrackingSourcePurposeIdentity
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicy
@@ -20,6 +21,7 @@ import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.AtomicTrackingPurposeAvailabilityStore
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAuthorityRevision
 import com.adsamcik.tracker.tracker.api.TrackingPurposeLeaseIdentity
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
@@ -29,10 +31,111 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
+@Suppress("LargeClass", "LongMethod")
 class TrackingPurposePublicationRuntimeTest {
+	@Test
+	fun `current projection invalidates ready on lifecycle or rollout change without params emission`() =
+		runTest {
+			val store = AtomicTrackingPurposeAvailabilityStore()
+			val identity = TrackingPurposeLeaseIdentity(
+				source = TrackingSource.ACTIVITY,
+				purpose = TrackingPurpose.CONTROL,
+				policyRevision = 12L,
+				consentEpoch = 5L,
+				collectedDataEpoch = 3L,
+				rolloutRevision = 9L,
+				executionRevision = 1L,
+				ownerCasToken = "ready-d3-r9",
+			)
+			store.beginOrReplaceAutomaticControlLease(identity)
+			store.tryAccept(
+				com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationReport(
+					identity,
+					AutomaticTrackingOperationalAvailability.Ready(identity),
+				),
+			)
+			val policy = MutableSourcePolicyRepository(
+				policySnapshot(revision = 12L, controlPersistenceEligible = true),
+			)
+			val lifecycle = MutableLifecycleStore(CollectedDataLifecycleSnapshot(3L, null))
+			val rollout = MutableRolloutStateStore(controlRollout(revision = 9L))
+			val executions = TrackingPurposeExecutionRevisionRegistry().also { registry ->
+				registry.update(identity.sourcePurpose, identity.executionRevision)
+			}
+			val exactAuthorityReader = CurrentTrackingPurposeAuthorityReader(
+				policy,
+				lifecycle,
+				rollout,
+			)
+			val projection = CurrentTrackingPurposeAvailabilityProjection(
+				publishedReader = store,
+				sourcePolicyRepository = policy,
+				collectedDataLifecycleStore = lifecycle,
+				rolloutStateStore = rollout,
+				executionRevisionRegistry = executions,
+				exactAuthorityReader = exactAuthorityReader,
+				applicationScope = backgroundScope,
+			)
+			runCurrent()
+			projection.availability.value.automaticControl shouldBe
+				AutomaticTrackingOperationalAvailability.Ready(identity)
+			projection.isCurrent(identity) shouldBe true
+
+			lifecycle.update(CollectedDataLifecycleSnapshot(4L, null))
+			runCurrent()
+
+			projection.authorityRevision.value shouldBe TrackingPurposeAuthorityRevision(
+				policyRevision = 12L,
+				collectedDataEpoch = 4L,
+				rolloutRevision = 9L,
+			)
+			projection.availability.value.automaticControl shouldBe
+				AutomaticTrackingOperationalAvailability.Unavailable(
+					AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+					identity,
+				)
+			projection.isCurrent(identity) shouldBe false
+
+			lifecycle.update(CollectedDataLifecycleSnapshot(3L, null))
+			rollout.update(controlRollout(revision = 10L))
+			runCurrent()
+
+			projection.authorityRevision.value shouldBe TrackingPurposeAuthorityRevision(
+				policyRevision = 12L,
+				collectedDataEpoch = 3L,
+				rolloutRevision = 10L,
+			)
+			projection.availability.value.automaticControl shouldBe
+				AutomaticTrackingOperationalAvailability.Unavailable(
+					AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+					identity,
+				)
+
+			policy.update(
+				policySnapshot(
+					revision = 13L,
+					controlPersistenceEligible = true,
+					controlConsentEpoch = 6L,
+				),
+			)
+			runCurrent()
+
+			projection.authorityRevision.value shouldBe TrackingPurposeAuthorityRevision(
+				policyRevision = 13L,
+				collectedDataEpoch = 3L,
+				rolloutRevision = 10L,
+			)
+			projection.availability.value.automaticControl shouldBe
+				AutomaticTrackingOperationalAvailability.Unavailable(
+					AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+					identity,
+				)
+		}
+
 	@Test
 	fun `authority reader publishes exact stable revisions and masks unapproved control execution`() =
 		runTest {
@@ -103,6 +206,78 @@ class TrackingPurposePublicationRuntimeTest {
 		identity.rolloutRevision shouldBe 9L
 		identity.executionRevision shouldBe 0L
 		identity.ownerCasToken shouldBe "owner-1"
+	}
+
+	@Test
+	fun `lifecycle rotation replaces lease before stale callback and reissues ready`() = runTest {
+		val store = AtomicTrackingPurposeAvailabilityStore()
+		var authority = authority(
+			source = TrackingSource.ACTIVITY,
+			purpose = TrackingPurpose.CONTROL,
+			executionRevision = 1L,
+		)
+		val issuer = SerializedTrackingPurposeLeaseIssuer(
+			authorityReader = TrackingPurposeAuthorityReader { _, registeredExecution ->
+				authority.copy(executionRevision = registeredExecution)
+			},
+			reporter = store,
+			tokenFactory = object : TrackingPurposeOwnerCasTokenFactory {
+				private var token = 0
+				override fun next(
+					_sourcePurpose: TrackingSourcePurposeIdentity,
+				): String = "rotation-${++token}"
+			},
+		)
+		val runtime = DefaultTrackingPurposePublicationRuntime(
+			issuer,
+			store,
+			TrackingPurposeExecutionRevisionRegistry(),
+		)
+		val secondLease = CompletableDeferred<TrackingPurposeLeaseIdentity>()
+		val releaseSecond = CompletableDeferred<Unit>()
+		var oldIdentity: TrackingPurposeLeaseIdentity? = null
+		runtime.registerAutomaticControlOwner(executionRevision = 1L) { lease ->
+			if (lease.identity.collectedDataEpoch == 3L) {
+				oldIdentity = lease.identity
+			} else {
+				secondLease.complete(lease.identity)
+				releaseSecond.await()
+			}
+			AutomaticTrackingOperationalAvailability.Ready(lease.identity)
+		}
+		val publishedIdentity = requireNotNull(oldIdentity)
+		store.availability.value.automaticControl shouldBe
+			AutomaticTrackingOperationalAvailability.Ready(publishedIdentity)
+
+		authority = authority.copy(
+			collectedDataEpoch = 4L,
+			rolloutRevision = 10L,
+		)
+		val rotation = async { runtime.reconcileCurrentSettings() }
+		val reissuedIdentity = secondLease.await()
+
+		store.availability.value.automaticControl shouldBe
+			AutomaticTrackingOperationalAvailability.Unavailable(
+				AutomaticTrackingUnavailableReason.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+				publishedIdentity,
+			)
+		store.tryAccept(
+			com.adsamcik.tracker.tracker.api.AutomaticControlReconciliationReport(
+				publishedIdentity,
+				AutomaticTrackingOperationalAvailability.Ready(publishedIdentity),
+			),
+		) shouldBe
+			com.adsamcik.tracker.tracker.api.AutomaticControlPublicationAcceptance.Rejected(
+				com.adsamcik.tracker.tracker.api.TrackingPurposePublicationRejection
+					.STALE_IDENTITY,
+			)
+
+		releaseSecond.complete(Unit)
+		rotation.await()
+		store.availability.value.automaticControl shouldBe
+			AutomaticTrackingOperationalAvailability.Ready(reissuedIdentity)
+		reissuedIdentity.collectedDataEpoch shouldBe 4L
+		reissuedIdentity.rolloutRevision shouldBe 10L
 	}
 
 	@Test
@@ -289,9 +464,10 @@ class TrackingPurposePublicationRuntimeTest {
 				"owner-${++token}"
 			},
 		)
+		val executions = TrackingPurposeExecutionRevisionRegistry()
 		return Fixture(
 			store = store,
-			runtime = DefaultTrackingPurposePublicationRuntime(issuer, store),
+			runtime = DefaultTrackingPurposePublicationRuntime(issuer, store, executions),
 		)
 	}
 
@@ -308,7 +484,11 @@ class TrackingPurposePublicationRuntimeTest {
 		executionRevision = executionRevision,
 	)
 
-	private fun policySnapshot(revision: Long): SourcePolicySnapshot {
+	private fun policySnapshot(
+		revision: Long,
+		controlPersistenceEligible: Boolean = false,
+		controlConsentEpoch: Long = 5L,
+	): SourcePolicySnapshot {
 		val effectiveTime = SourcePolicyEffectiveTime("boot", 1L, 1L)
 		return SourcePolicySnapshot(
 			revision = revision,
@@ -323,10 +503,12 @@ class TrackingPurposePublicationRuntimeTest {
 						source == TrackingSource.LOCATION
 					},
 					captureConsentEpoch = null,
-					controlConsentEpoch = 5L.takeIf { source == TrackingSource.ACTIVITY },
+					controlConsentEpoch =
+						controlConsentEpoch.takeIf { source == TrackingSource.ACTIVITY },
 					ambientConsentEpoch = 5L.takeIf { source == TrackingSource.STEPS },
 					capturePersistenceEligible = false,
-					controlPersistenceEligible = false,
+					controlPersistenceEligible =
+						source == TrackingSource.ACTIVITY && controlPersistenceEligible,
 					ambientPersistenceEligible = source == TrackingSource.STEPS,
 					effectiveTime = effectiveTime,
 					policyRevision = revision,
@@ -334,6 +516,16 @@ class TrackingPurposePublicationRuntimeTest {
 			},
 		)
 	}
+
+	private fun controlRollout(revision: Long) = TrackingRolloutState.eventCanonical(
+		sources = setOf(com.adsamcik.tracker.tracker.source.model.SourceKind.STEPS),
+		controlSources = setOf(com.adsamcik.tracker.tracker.source.model.SourceKind.ACTIVITY),
+		captureModes = mapOf(
+			com.adsamcik.tracker.tracker.source.model.SourceKind.STEPS to
+				setOf(CaptureReachabilityMode.AMBIENT),
+		),
+		revision = revision,
+	)
 }
 
 private data class Fixture(
@@ -368,6 +560,39 @@ private class FixedSourcePolicyRepository(
 	): SourcePolicySnapshot = error("Not used")
 }
 
+private class MutableSourcePolicyRepository(
+	initial: SourcePolicySnapshot,
+) : SourcePolicyRepository {
+	private val state = MutableStateFlow<SourcePolicyAuthorityState>(
+		SourcePolicyAuthorityState.Active(initial),
+	)
+	override val states: Flow<SourcePolicyAuthorityState> = state
+
+	override suspend fun currentState(): SourcePolicyAuthorityState = state.value
+
+	override suspend fun bootstrapFromLegacy(settings: TrackingParamsState): SourcePolicySnapshot =
+		error("Not used")
+
+	override suspend fun replaceCaptureSettings(
+		expectedPolicyRevision: Long,
+		settings: TrackingParamsState,
+		reason: String,
+	): SourcePolicySnapshot = error("Not used")
+
+	override suspend fun setNonCaptureConsent(
+		expectedPolicyRevision: Long,
+		source: TrackingSource,
+		purpose: SourcePurpose,
+		eligible: Boolean,
+		persistenceEligible: Boolean,
+		reason: String,
+	): SourcePolicySnapshot = error("Not used")
+
+	fun update(snapshot: SourcePolicySnapshot) {
+		state.value = SourcePolicyAuthorityState.Active(snapshot)
+	}
+}
+
 private class MutableLifecycleStore(
 	initial: CollectedDataLifecycleSnapshot,
 ) : CollectedDataLifecycleStore {
@@ -382,6 +607,10 @@ private class MutableLifecycleStore(
 	override suspend fun advanceRetainedFrom(
 		retainedFromMs: Long,
 	): CollectedDataLifecycleSnapshot = error("Not used")
+
+	fun update(snapshot: CollectedDataLifecycleSnapshot) {
+		state.value = snapshot
+	}
 }
 
 private class FixedRolloutStateStore(
@@ -393,4 +622,21 @@ private class FixedRolloutStateStore(
 		state: TrackingRolloutState,
 		updatedAtMs: Long,
 	): Unit = error("Not used")
+}
+
+private class MutableRolloutStateStore(
+	initial: TrackingRolloutState,
+) : TrackingRolloutStateStore {
+	private val state = MutableStateFlow(initial)
+	override val states: Flow<TrackingRolloutState> = state
+
+	override suspend fun load(): TrackingRolloutState = state.value
+
+	override suspend fun save(state: TrackingRolloutState, updatedAtMs: Long) {
+		this.state.value = state
+	}
+
+	fun update(state: TrackingRolloutState) {
+		this.state.value = state
+	}
 }

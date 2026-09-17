@@ -30,6 +30,9 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
@@ -60,6 +63,23 @@ internal fun interface TrackingPurposeAuthorityReader {
 
 internal fun interface TrackingPurposeOwnerCasTokenFactory {
 	fun next(sourcePurpose: TrackingSourcePurposeIdentity): String
+}
+
+@Singleton
+internal class TrackingPurposeExecutionRevisionRegistry @Inject constructor() {
+	private val mutableRevisions =
+		MutableStateFlow<Map<TrackingSourcePurposeIdentity, Long>>(emptyMap())
+	val revisions: StateFlow<Map<TrackingSourcePurposeIdentity, Long>> =
+		mutableRevisions.asStateFlow()
+
+	fun update(sourcePurpose: TrackingSourcePurposeIdentity, executionRevision: Long) {
+		require(executionRevision >= 0L)
+		mutableRevisions.value = mutableRevisions.value + (sourcePurpose to executionRevision)
+	}
+
+	fun remove(sourcePurpose: TrackingSourcePurposeIdentity) {
+		mutableRevisions.value = mutableRevisions.value - sourcePurpose
+	}
 }
 
 @Singleton
@@ -131,7 +151,9 @@ internal class SerializedTrackingPurposeLeaseIssuer @Inject constructor(
 			automaticIdentity = null
 			return@withLock null
 		}
-		val identity = authority.toLeaseIdentity(tokenFactory.next(sourcePurpose))
+		val identity = automaticIdentity
+			?.takeIf { it.matches(authority) }
+			?: authority.toLeaseIdentity(tokenFactory.next(sourcePurpose))
 		when (val started = reporter.beginOrReplaceAutomaticControlLease(identity)) {
 			is AutomaticControlLeaseStartResult.Started -> {
 				automaticIdentity = identity
@@ -152,9 +174,11 @@ internal class SerializedTrackingPurposeLeaseIssuer @Inject constructor(
 			ambientIdentities.remove(source)
 			return@withLock null
 		}
-		val identity = AmbientReconciliationIdentity.from(
-			authority.toLeaseIdentity(tokenFactory.next(sourcePurpose)),
-		)
+		val identity = ambientIdentities[source]
+			?.takeIf { it.purposeLeaseIdentity.matches(authority) }
+			?: AmbientReconciliationIdentity.from(
+				authority.toLeaseIdentity(tokenFactory.next(sourcePurpose)),
+			)
 		when (val started = reporter.beginOrReplaceAmbientLease(identity)) {
 			is AmbientLeaseStartResult.Started -> {
 				ambientIdentities[source] = identity
@@ -202,6 +226,7 @@ internal class SerializedTrackingPurposeLeaseIssuer @Inject constructor(
 internal class DefaultTrackingPurposePublicationRuntime @Inject constructor(
 	private val leaseIssuer: SerializedTrackingPurposeLeaseIssuer,
 	private val reporter: TrackingPurposeAvailabilityReporter,
+	private val executionRevisionRegistry: TrackingPurposeExecutionRevisionRegistry,
 ) : TrackingPurposeSettingsReconciler, TrackingPurposeSourceOwnerRegistrar {
 	private val ownerMutex = Mutex()
 	private var automaticOwner: AutomaticControlOwnerRegistration? = null
@@ -223,12 +248,14 @@ internal class DefaultTrackingPurposePublicationRuntime @Inject constructor(
 			sourcePurpose = ACTIVITY_CONTROL,
 			registrationId = UUID.randomUUID().toString(),
 		)
+		leaseIssuer.clearAutomaticControl()
 		ownerMutex.withLock {
 			automaticOwner = AutomaticControlOwnerRegistration(
 				registration,
 				executionRevision,
 				callback,
 			)
+			executionRevisionRegistry.update(ACTIVITY_CONTROL, executionRevision)
 		}
 		reconcileAutomaticControl()
 		return registration
@@ -244,11 +271,16 @@ internal class DefaultTrackingPurposePublicationRuntime @Inject constructor(
 			sourcePurpose = source.canonicalSource.forPurpose(TrackingPurpose.AMBIENT_PRODUCT),
 			registrationId = UUID.randomUUID().toString(),
 		)
+		leaseIssuer.clearAmbient(source)
 		ownerMutex.withLock {
 			ambientOwners[source] = AmbientOwnerRegistration(
 				registration,
 				executionRevision,
 				callback,
+			)
+			executionRevisionRegistry.update(
+				source.canonicalSource.forPurpose(TrackingPurpose.AMBIENT_PRODUCT),
+				executionRevision,
 			)
 		}
 		reconcileAmbient(source)
@@ -260,7 +292,10 @@ internal class DefaultTrackingPurposePublicationRuntime @Inject constructor(
 			val removed = ownerMutex.withLock {
 				automaticOwner
 					?.takeIf { it.registration == registration }
-					?.also { automaticOwner = null }
+					?.also {
+						automaticOwner = null
+						executionRevisionRegistry.remove(ACTIVITY_CONTROL)
+					}
 			}
 			if (removed != null) leaseIssuer.clearAutomaticControl()
 			return
@@ -272,7 +307,10 @@ internal class DefaultTrackingPurposePublicationRuntime @Inject constructor(
 		val removed = ownerMutex.withLock {
 			ambientOwners[source]
 				?.takeIf { it.registration == registration }
-				?.also { ambientOwners.remove(source) }
+				?.also {
+					ambientOwners.remove(source)
+					executionRevisionRegistry.remove(registration.sourcePurpose)
+				}
 		}
 		if (removed != null) leaseIssuer.clearAmbient(source)
 	}
@@ -386,7 +424,16 @@ private fun TrackingPurposeAuthoritySnapshot.toLeaseIdentity(
 	ownerCasToken = ownerCasToken,
 )
 
-private fun TrackingRolloutState.supportsExecution(
+private fun TrackingPurposeLeaseIdentity.matches(
+	authority: TrackingPurposeAuthoritySnapshot,
+): Boolean = sourcePurpose == authority.sourcePurpose &&
+	policyRevision == authority.policyRevision &&
+	consentEpoch == authority.consentEpoch &&
+	collectedDataEpoch == authority.collectedDataEpoch &&
+	rolloutRevision == authority.rolloutRevision &&
+	executionRevision == authority.executionRevision
+
+internal fun TrackingRolloutState.supportsExecution(
 	sourcePurpose: TrackingSourcePurposeIdentity,
 ): Boolean {
 	val sourceKind = sourcePurpose.source.toSourceKind()
@@ -400,7 +447,7 @@ private fun TrackingRolloutState.supportsExecution(
 	}
 }
 
-private fun TrackingSource.toSourceKind(): SourceKind = when (this) {
+internal fun TrackingSource.toSourceKind(): SourceKind = when (this) {
 	TrackingSource.LOCATION -> SourceKind.LOCATION
 	TrackingSource.ACTIVITY -> SourceKind.ACTIVITY
 	TrackingSource.STEPS -> SourceKind.STEPS

@@ -99,7 +99,7 @@ interface BackgroundTrackingApiEntryPoint {
 	fun automaticControlRecoveryScheduler(): AutomaticControlRecoveryScheduler
 	fun trackingStartupGate(): TrackingStartupGate
 	fun trackingRolloutStateStore(): RoomTrackingRolloutStateStore
-	fun trackingPurposeAvailabilityReader(): TrackingPurposeAvailabilityReader
+	fun currentTrackingPurposeAvailabilityReader(): CurrentTrackingPurposeAvailabilityReader
 	fun trackingPurposeSettingsReconciler(): TrackingPurposeSettingsReconciler
 }
 
@@ -130,6 +130,7 @@ object BackgroundTrackingApi {
 	private var trackingParamsJob: Job? = null
 	private var sourcePolicyJob: Job? = null
 	private var purposeAvailabilityJob: Job? = null
+	private var purposeAuthorityJob: Job? = null
 	private var disabledRechargeJob: Job? = null
 	private var activityFreqJob: Job? = null
 	private var activityWatcherJob: Job? = null
@@ -147,8 +148,10 @@ object BackgroundTrackingApi {
 	private const val SOURCE_POLICY_RETRY_DELAY_MILLIS = 250L
 	private const val AUTOMATIC_CONTAINMENT_MAX_RETRY_DELAY_MILLIS = 30_000L
 	@Volatile
+	private var currentPurposeAvailability = CurrentTrackingPurposeAvailability.SAFE_DEFAULT
+	@Volatile
 	private var automaticControlAvailability =
-		TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.automaticControl
+		currentPurposeAvailability.automaticControl
 	private var handledAutomaticContainmentKey: AutomaticControlContainmentKey? = null
 	private var pendingAutomaticContainmentKey: AutomaticControlContainmentKey? = null
 	private var automaticContainmentJob: Job? = null
@@ -323,6 +326,18 @@ object BackgroundTrackingApi {
 		requestAutomaticStart: suspend (AutomaticTrackingStartTrigger) -> ActivityAutomationDeliveryResult,
 	): ActivityAutomationDeliveryResult {
 		val authority = activityAutomationAuthority
+		val publishedControl = automaticControlAvailability as?
+			AutomaticTrackingOperationalAvailability.Ready
+			?: return ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
+		val controlCurrent = try {
+			getEntryPoint(context).currentTrackingPurposeAvailabilityReader()
+				.isCurrent(publishedControl.identity)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			false
+		}
+		if (!controlCurrent) return ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
 		durableActivityAuthorityDisposition(
 			paramsInitialized = authority.paramsInitialized,
 			activePolicyRevision = authority.activePolicyRevision,
@@ -737,10 +752,25 @@ object BackgroundTrackingApi {
 		val scope = CoroutineScope(SupervisorJob() + mainImmediate)
 		preferenceScope = scope
 
-		purposeAvailabilityJob = entryPoint.trackingPurposeAvailabilityReader().availability
-			.onEach { snapshot ->
-				applyAutomaticControlAvailability(snapshot.automaticControl)
+		val currentPurposeReader = entryPoint.currentTrackingPurposeAvailabilityReader()
+		purposeAvailabilityJob = currentPurposeReader.availability
+			.onEach { availability ->
+				applyAutomaticControlAvailability(availability)
 			}
+			.launchIn(scope)
+		purposeAuthorityJob = currentPurposeReader.authorityRevision
+			.onEach {
+				entryPoint.trackingPurposeSettingsReconciler().reconcileCurrentSettings()
+			}
+			.retryingTrackingSettingsObservation(
+				onFailure = {
+					TrackerDiagnosticLog.failure(
+						TrackerDiagnosticFailureCode.SOURCE_POLICY_OBSERVATION_FAILED,
+						TrackingDiagnosticFailureReason.POLICY_READ_FAILURE,
+					)
+				},
+				waitBeforeRetry = { delay(SOURCE_POLICY_RETRY_DELAY_MILLIS) },
+			)
 			.launchIn(scope)
 
 		sourcePolicyJob = entryPoint.sourcePolicyRepository().states
@@ -761,7 +791,9 @@ object BackgroundTrackingApi {
 				reconcileControlEligibility(
 					activityEligible = effectiveAutomaticControlEligibility(
 						controlConsentEligible = nextActivityConsentEpoch != null,
-						availability = automaticControlAvailability,
+						availability = currentPurposeAvailability,
+						currentPolicyRevision = nextPolicyRevision,
+						currentConsentEpoch = nextActivityConsentEpoch,
 					),
 					activityAuthorityChanged = authorityChanged,
 				)
@@ -954,14 +986,17 @@ object BackgroundTrackingApi {
 	}
 
 	private fun applyAutomaticControlAvailability(
-		availability: AutomaticTrackingOperationalAvailability,
+		availability: CurrentTrackingPurposeAvailability,
 	) {
-		val changed = automaticControlAvailability != availability
-		automaticControlAvailability = availability
+		val changed = automaticControlAvailability != availability.automaticControl
+		currentPurposeAvailability = availability
+		automaticControlAvailability = availability.automaticControl
 		reconcileControlEligibility(
 			activityEligible = effectiveAutomaticControlEligibility(
 				controlConsentEligible = activityControlConsentEpoch != null,
 				availability = availability,
+				currentPolicyRevision = activeSourcePolicyRevision,
+				currentConsentEpoch = activityControlConsentEpoch,
 			),
 			activityAuthorityChanged = changed,
 		)
@@ -1026,6 +1061,8 @@ object BackgroundTrackingApi {
 		sourcePolicyJob = null
 		purposeAvailabilityJob?.cancel()
 		purposeAvailabilityJob = null
+		purposeAuthorityJob?.cancel()
+		purposeAuthorityJob = null
 		disabledRechargeJob?.cancel()
 		disabledRechargeJob = null
 		activityFreqJob?.cancel()
@@ -1060,8 +1097,8 @@ object BackgroundTrackingApi {
 		activeSourcePolicyRevision = null
 		activityControlEligible = false
 		activityControlConsentEpoch = null
-		automaticControlAvailability =
-			TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT.automaticControl
+		currentPurposeAvailability = CurrentTrackingPurposeAvailability.SAFE_DEFAULT
+		automaticControlAvailability = currentPurposeAvailability.automaticControl
 		handledAutomaticContainmentKey = null
 		pendingAutomaticContainmentKey = null
 		automaticContainmentGeneration = 0L
@@ -1635,8 +1672,18 @@ internal fun effectiveAutomaticControlMode(configuredMode: Int, controlEligible:
 
 internal fun effectiveAutomaticControlEligibility(
 	controlConsentEligible: Boolean,
-	availability: AutomaticTrackingOperationalAvailability,
-): Boolean = controlConsentEligible && availability.isOperational
+	availability: CurrentTrackingPurposeAvailability,
+	currentPolicyRevision: Long?,
+	currentConsentEpoch: Long?,
+): Boolean {
+	val ready = availability.automaticControl as?
+		AutomaticTrackingOperationalAvailability.Ready ?: return false
+	return controlConsentEligible &&
+		currentPolicyRevision != null &&
+		currentConsentEpoch != null &&
+		ready.identity.policyRevision == currentPolicyRevision &&
+		ready.identity.consentEpoch == currentConsentEpoch
+}
 
 internal fun automaticControlAuthorityChanged(
 	previousPolicyRevision: Long?,

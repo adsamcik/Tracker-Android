@@ -39,6 +39,9 @@ import com.adsamcik.tracker.tracker.api.AutomaticControlContainmentAttemptResult
 import com.adsamcik.tracker.tracker.api.AutomaticControlContainmentLoopResult
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingUnavailableReason
+import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailability
+import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
+import com.adsamcik.tracker.tracker.api.TrackingPurposeAuthorityRevision
 import com.adsamcik.tracker.tracker.api.reconcileUnavailableAutomaticControl
 import com.adsamcik.tracker.tracker.api.runAutomaticControlContainmentRetryLoop
 import com.adsamcik.tracker.tracker.source.model.ActivityAcquisitionCapability
@@ -55,6 +58,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeBlank
 import io.mockk.mockk
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -213,6 +217,8 @@ class SourceBrokerTest {
 				sourceBroker = subject,
 				clockDomainProvider = BootClockDomainProvider { "boot-1" },
 				activityProjectionLane = mockk<ActivityAutomationProjectionLane>(relaxed = true),
+				currentPurposeAvailabilityReader =
+					fixedCurrentPurposeAvailabilityReader(),
 			)
 
 			var schedulerCalls = 0
@@ -1102,6 +1108,14 @@ private val PRESSURE_TEST_WRITER = ExecutableSourceLaneCatalog.PRESSURE_SESSION_
 		bindingGeneration = binding.bindingGeneration,
 	)
 }
+
+private fun fixedCurrentPurposeAvailabilityReader() =
+	object : CurrentTrackingPurposeAvailabilityReader {
+		override val availability =
+			MutableStateFlow(CurrentTrackingPurposeAvailability.SAFE_DEFAULT)
+		override val authorityRevision =
+			MutableStateFlow(TrackingPurposeAuthorityRevision.UNAVAILABLE)
+	}
 
 private suspend fun activateAllBrokerTestProductLanes(
 	database: AppDatabase,

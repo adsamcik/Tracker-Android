@@ -38,10 +38,12 @@ import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
 import com.adsamcik.tracker.tracker.api.AmbientTrackingSource
 import com.adsamcik.tracker.tracker.api.AutomaticTrackingOperationalAvailability
-import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReader
+import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailability
+import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilitySnapshot
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -107,7 +109,7 @@ class TrackingSettingsViewModel @Inject constructor(
     private val trackingParamsRepository: TrackingParamsRepository,
     private val trackingStatusProvider: TrackingSettingsStatusProvider,
     private val activityWatcherController: ActivityWatcherController,
-	private val purposeAvailabilityReader: TrackingPurposeAvailabilityReader,
+	private val purposeAvailabilityReader: CurrentTrackingPurposeAvailabilityReader,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TrackingSettingsUiState())
@@ -284,10 +286,19 @@ class TrackingSettingsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             trackingParamsRepository.update { copy(autoTrackingMode = mode) }
-			val effectiveMode = mode.takeIf {
-            	purposeAvailabilityReader.availability.value.automaticControl.isOperational &&
-            		context.hasActivityPermission
-            } ?: AUTO_TRACKING_MODE_DISABLED
+			val published =
+				purposeAvailabilityReader.availability.value.automaticControl as?
+					AutomaticTrackingOperationalAvailability.Ready
+			val current = published != null &&
+				try {
+					purposeAvailabilityReader.isCurrent(published.identity)
+				} catch (cancelled: CancellationException) {
+					throw cancelled
+				} catch (_: Exception) {
+					false
+				}
+			val effectiveMode = mode.takeIf { current && context.hasActivityPermission }
+				?: AUTO_TRACKING_MODE_DISABLED
             activityWatcherController.applyAutoTrackingMode(effectiveMode)
         }
     }
@@ -375,7 +386,7 @@ class TrackingSettingsViewModel @Inject constructor(
         params: TrackingParamsState,
         runtimeStatus: TrackingRuntimeStatus,
         telemetry: TrackingCoordinatorMetrics,
-		purposeAvailability: TrackingPurposeAvailabilitySnapshot,
+        purposeAvailability: CurrentTrackingPurposeAvailability,
     ) {
         val capabilities = context.trackingPermissionCapabilities(permissionHistory)
         permissionHistory = capabilities.recordGrants(permissionHistory)

@@ -264,9 +264,125 @@ data class TrackingPurposeAvailabilitySnapshot(
 	}
 }
 
+data class TrackingPurposeAuthorityVector(
+	val sourcePurpose: CanonicalSourcePurpose,
+	val policyRevision: Long,
+	val consentEpoch: Long,
+	val collectedDataEpoch: Long,
+	val rolloutRevision: Long,
+	val executionRevision: Long,
+) {
+	init {
+		require(policyRevision > 0L)
+		require(consentEpoch > 0L)
+		require(collectedDataEpoch >= 0L)
+		require(rolloutRevision >= 0L)
+		require(executionRevision >= 0L)
+	}
+}
+
+data class TrackingPurposeAuthorityRevision(
+	val policyRevision: Long?,
+	val collectedDataEpoch: Long?,
+	val rolloutRevision: Long?,
+) {
+	val isAvailable: Boolean
+		get() = policyRevision != null &&
+			collectedDataEpoch != null &&
+			rolloutRevision != null
+
+	init {
+		require(policyRevision == null || policyRevision > 0L)
+		require(collectedDataEpoch == null || collectedDataEpoch >= 0L)
+		require(rolloutRevision == null || rolloutRevision >= 0L)
+		require(
+			listOf(policyRevision, collectedDataEpoch, rolloutRevision)
+				.all { it == null } ||
+				listOf(policyRevision, collectedDataEpoch, rolloutRevision).all { it != null },
+		) {
+			"Current purpose authority revision must be wholly available or wholly unavailable"
+		}
+	}
+
+	companion object {
+		val UNAVAILABLE = TrackingPurposeAuthorityRevision(null, null, null)
+	}
+}
+
+/**
+ * Consumer-facing projection that accepts operational publication only while its complete
+ * authority vector still matches current policy, consent, deletion, rollout, and execution state.
+ */
+data class CurrentTrackingPurposeAvailability(
+	val published: TrackingPurposeAvailabilitySnapshot,
+	val currentAuthorities: Map<CanonicalSourcePurpose, TrackingPurposeAuthorityVector>,
+) {
+	init {
+		require(currentAuthorities.all { (sourcePurpose, authority) ->
+			sourcePurpose == authority.sourcePurpose
+		}) {
+			"Current purpose authority keys must match their vectors"
+		}
+	}
+
+	val automaticControl: AutomaticTrackingOperationalAvailability =
+		when (val availability = published.automaticControl) {
+			is AutomaticTrackingOperationalAvailability.Ready ->
+				if (isCurrent(availability.identity)) {
+					availability
+				} else {
+					AutomaticTrackingOperationalAvailability.Unavailable(
+						AutomaticTrackingUnavailableReason
+							.CONTROL_RETENTION_POLICY_UNAVAILABLE,
+						availability.identity,
+					)
+				}
+			is AutomaticTrackingOperationalAvailability.Unavailable -> availability
+		}
+
+	val ambientSources: Map<AmbientTrackingSource, AmbientSourceOperationalAvailability> =
+		published.ambientSources.mapValues { (source, availability) ->
+			if (availability.isOperational &&
+				availability.operationalIdentity?.let(::isCurrent) != true
+			) {
+				AmbientSourceOperationalAvailability.reconciliationPending(
+					source,
+					availability.operationalIdentity,
+				)
+			} else {
+				availability
+			}
+		}
+
+	fun isCurrent(identity: TrackingPurposeLeaseIdentity): Boolean =
+		currentAuthorities[identity.sourcePurpose]?.let(identity::matchesAuthority) == true
+
+	companion object {
+		val SAFE_DEFAULT = CurrentTrackingPurposeAvailability(
+			published = TrackingPurposeAvailabilitySnapshot.SAFE_DEFAULT,
+			currentAuthorities = emptyMap(),
+		)
+	}
+}
+
 interface TrackingPurposeAvailabilityReader {
-	/** Parent-owned runtime catalog; reading it must not itself probe or register a provider. */
+	/**
+	 * Raw parent-owned publication catalog. Runtime and product consumers must use
+	 * [CurrentTrackingPurposeAvailabilityReader] so a stale Ready value cannot grant work.
+	 */
 	val availability: StateFlow<TrackingPurposeAvailabilitySnapshot>
+}
+
+interface CurrentTrackingPurposeAvailabilityReader {
+	/**
+	 * Authority-checked consumer projection. Runtime monitors, settings, future caller guards, and
+	 * broker adapters consume this boundary; reading it never probes or registers a provider.
+	 */
+	val availability: StateFlow<CurrentTrackingPurposeAvailability>
+	val authorityRevision: StateFlow<TrackingPurposeAuthorityRevision>
+
+	suspend fun isCurrent(identity: TrackingPurposeLeaseIdentity): Boolean =
+		availability.value.isCurrent(identity)
 }
 
 interface TrackingPurposeAvailabilityReporter {
@@ -545,7 +661,7 @@ interface TrackingPurposeSourceOwnerRegistrar {
 	suspend fun unregister(registration: TrackingPurposeSourceOwnerRegistration)
 }
 
-/** Existing settings/policy collectors use this bounded signal; it owns no permanent observer. */
+/** Existing settings and direct authority collectors use this bounded reconciliation signal. */
 fun interface TrackingPurposeSettingsReconciler {
 	suspend fun reconcileCurrentSettings()
 }
@@ -633,9 +749,13 @@ class AtomicTrackingPurposeAvailabilityStore :
 				)
 			PublicationSlotState.ACTIVE -> Unit
 		}
+		terminalTokens.putIfAbsent(
+			expectedIdentity.leaseToken(),
+			TrackingPurposePublicationRejection.CANCELLED,
+		)?.let { terminal ->
+			return@synchronized AutomaticControlPublicationAcceptance.Rejected(terminal)
+		}
 		automaticControlSlot = slot.copy(state = PublicationSlotState.CANCELLED)
-		terminalTokens[expectedIdentity.leaseToken()] =
-			TrackingPurposePublicationRejection.CANCELLED
 		val prior = mutableAvailability.value.automaticControl
 		publishAutomaticControlPending(prior.authorityIdentityOrNull ?: prior.lastIdentityOrNull)
 		AutomaticControlPublicationAcceptance.Accepted(mutableAvailability.value)
@@ -645,9 +765,10 @@ class AtomicTrackingPurposeAvailabilityStore :
 		synchronized(lock) {
 			val prior = mutableAvailability.value.automaticControl
 			automaticControlSlot = automaticControlSlot?.let { slot ->
-				terminalTokens[slot.identity.leaseToken()] =
-					TrackingPurposePublicationRejection.CANCELLED
-				slot.copy(state = PublicationSlotState.CANCELLED)
+				val terminal = terminalTokens.getOrPut(slot.identity.leaseToken()) {
+					slot.state.terminalRejection()
+				}
+				slot.copy(state = terminal.toSlotState())
 			}
 			publishAutomaticControlPending(prior.authorityIdentityOrNull ?: prior.lastIdentityOrNull)
 		}
@@ -673,9 +794,14 @@ class AtomicTrackingPurposeAvailabilityStore :
 					TrackingPurposePublicationRejection.TOKEN_CONSUMED,
 				)
 			else -> {
+				val terminal = terminalTokens.putIfAbsent(
+					report.identity.leaseToken(),
+					TrackingPurposePublicationRejection.TOKEN_CONSUMED,
+				)
+				if (terminal != null) {
+					return@synchronized AutomaticControlPublicationAcceptance.Rejected(terminal)
+				}
 				automaticControlSlot = slot.copy(state = PublicationSlotState.CONSUMED)
-				terminalTokens[report.identity.leaseToken()] =
-					TrackingPurposePublicationRejection.TOKEN_CONSUMED
 				mutableAvailability.value = mutableAvailability.value.copy(
 					automaticControl = report.availability,
 				)
@@ -750,11 +876,17 @@ class AtomicTrackingPurposeAvailabilityStore :
 				)
 			PublicationSlotState.ACTIVE -> Unit
 		}
+		terminalTokens.putIfAbsent(
+			expectedIdentity.purposeLeaseIdentity.leaseToken(),
+			TrackingPurposePublicationRejection.CANCELLED,
+		)?.let { terminal ->
+			return@synchronized AmbientPublicationAcceptance.Rejected(
+				terminal.toAmbientRejection(),
+			)
+		}
 		ambientSlots[expectedIdentity.source] = slot.copy(
 			state = PublicationSlotState.CANCELLED,
 		)
-		terminalTokens[expectedIdentity.purposeLeaseIdentity.leaseToken()] =
-			TrackingPurposePublicationRejection.CANCELLED
 		val priorAvailability =
 			mutableAvailability.value.ambientSources.getValue(expectedIdentity.source)
 		publishPending(
@@ -768,9 +900,12 @@ class AtomicTrackingPurposeAvailabilityStore :
 		synchronized(lock) {
 			val priorAvailability = mutableAvailability.value.ambientSources.getValue(source)
 			ambientSlots[source] = ambientSlots[source]?.let { slot ->
-				terminalTokens[slot.identity.purposeLeaseIdentity.leaseToken()] =
-					TrackingPurposePublicationRejection.CANCELLED
-				slot.copy(state = PublicationSlotState.CANCELLED)
+				val terminal = terminalTokens.getOrPut(
+					slot.identity.purposeLeaseIdentity.leaseToken(),
+				) {
+					slot.state.terminalRejection()
+				}
+				slot.copy(state = terminal.toSlotState())
 			} ?: return@synchronized
 			publishPending(
 				source,
@@ -795,11 +930,18 @@ class AtomicTrackingPurposeAvailabilityStore :
 			slot.state == PublicationSlotState.CONSUMED ->
 				AmbientPublicationAcceptance.Rejected(AmbientPublicationRejection.TOKEN_CONSUMED)
 			else -> {
+				val terminal = terminalTokens.putIfAbsent(
+					report.identity.purposeLeaseIdentity.leaseToken(),
+					TrackingPurposePublicationRejection.TOKEN_CONSUMED,
+				)
+				if (terminal != null) {
+					return@synchronized AmbientPublicationAcceptance.Rejected(
+						terminal.toAmbientRejection(),
+					)
+				}
 				ambientSlots[report.identity.source] = slot.copy(
 					state = PublicationSlotState.CONSUMED,
 				)
-				terminalTokens[report.identity.purposeLeaseIdentity.leaseToken()] =
-					TrackingPurposePublicationRejection.TOKEN_CONSUMED
 				mutableAvailability.value = mutableAvailability.value.copy(
 					ambientSources = mutableAvailability.value.ambientSources +
 						(report.identity.source to report.availability),
@@ -854,6 +996,15 @@ private data class TrackingPurposeLeaseToken(
 private fun TrackingPurposeLeaseIdentity.leaseToken(): TrackingPurposeLeaseToken =
 	TrackingPurposeLeaseToken(sourcePurpose, ownerCasToken)
 
+fun TrackingPurposeLeaseIdentity.matchesAuthority(
+	authority: TrackingPurposeAuthorityVector,
+): Boolean = sourcePurpose == authority.sourcePurpose &&
+	policyRevision == authority.policyRevision &&
+	consentEpoch == authority.consentEpoch &&
+	collectedDataEpoch == authority.collectedDataEpoch &&
+	rolloutRevision == authority.rolloutRevision &&
+	executionRevision == authority.executionRevision
+
 private val AutomaticTrackingOperationalAvailability.lastIdentityOrNull:
 	TrackingPurposeLeaseIdentity?
 	get() = (this as? AutomaticTrackingOperationalAvailability.Unavailable)?.lastIdentity
@@ -875,6 +1026,22 @@ private enum class PublicationSlotState {
 	ACTIVE,
 	CONSUMED,
 	CANCELLED,
+}
+
+private fun PublicationSlotState.terminalRejection(): TrackingPurposePublicationRejection =
+	when (this) {
+		PublicationSlotState.CONSUMED -> TrackingPurposePublicationRejection.TOKEN_CONSUMED
+		PublicationSlotState.ACTIVE,
+		PublicationSlotState.CANCELLED,
+		-> TrackingPurposePublicationRejection.CANCELLED
+	}
+
+private fun TrackingPurposePublicationRejection.toSlotState(): PublicationSlotState = when (this) {
+	TrackingPurposePublicationRejection.TOKEN_CONSUMED -> PublicationSlotState.CONSUMED
+	TrackingPurposePublicationRejection.CANCELLED -> PublicationSlotState.CANCELLED
+	TrackingPurposePublicationRejection.STALE_IDENTITY,
+	TrackingPurposePublicationRejection.TOKEN_REUSED,
+	-> error("Non-terminal publication rejection cannot own a slot")
 }
 
 private fun TrackingPurposePublicationRejection.toAmbientRejection():

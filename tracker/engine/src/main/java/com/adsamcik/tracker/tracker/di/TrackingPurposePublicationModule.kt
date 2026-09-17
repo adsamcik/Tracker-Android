@@ -1,11 +1,13 @@
 package com.adsamcik.tracker.tracker.di
 
 import com.adsamcik.tracker.tracker.api.AtomicTrackingPurposeAvailabilityStore
+import com.adsamcik.tracker.tracker.api.CurrentTrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReader
 import com.adsamcik.tracker.tracker.api.TrackingPurposeAvailabilityReporter
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSourceOwnerRegistrar
 import com.adsamcik.tracker.tracker.source.runtime.CurrentTrackingPurposeAuthorityReader
+import com.adsamcik.tracker.tracker.source.runtime.CurrentTrackingPurposeAvailabilityProjection
 import com.adsamcik.tracker.tracker.source.runtime.DefaultTrackingPurposePublicationRuntime
 import com.adsamcik.tracker.tracker.source.runtime.TrackingPurposeAuthorityReader
 import com.adsamcik.tracker.tracker.source.runtime.TrackingPurposeOwnerCasTokenFactory
@@ -34,6 +36,11 @@ internal abstract class TrackingPurposePublicationModule {
 	internal abstract fun bindSourceOwnerRegistrar(
 		impl: DefaultTrackingPurposePublicationRuntime,
 	): TrackingPurposeSourceOwnerRegistrar
+
+	@Binds
+	internal abstract fun bindCurrentAvailabilityReader(
+		impl: CurrentTrackingPurposeAvailabilityProjection,
+	): CurrentTrackingPurposeAvailabilityReader
 
 	companion object {
 		@Provides
