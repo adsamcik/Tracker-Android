@@ -1269,6 +1269,58 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
+		fun `LIVE AMBIENT broker authority consumes the retention reader seam`() {
+			val broker = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"SourceBroker.kt",
+			).readText()
+			val entities = projectRoot.resolve(
+				"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/" +
+					"SourceBrokerEntities.kt",
+			).readText()
+			val registrations = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/runtime/" +
+					"SourceRegistrationRepository.kt",
+			).readText()
+			val stepsRegistrations = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/" +
+					"AmbientStepsProviderRegistrationRepository.kt",
+			).readText()
+			val authorizationTransactions = projectRoot.resolve(
+				"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/" +
+					"SourceBrokerAuthorizationTransactions.kt",
+			).readText()
+			val publicationModule = projectRoot.resolve(
+				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/di/" +
+					"TrackingPurposePublicationModule.kt",
+			).readText()
+
+			buildList {
+				if ("retentionAuthorityReader.isCurrentLiveAmbientAt(" !in broker) {
+					add("SourceBroker must invoke the exact LIVE_AMBIENT retention predicate")
+				}
+				if ("latestRetentionAuthority(" in broker ||
+					"AmbientWifiRetentionAuthorityEntity" in broker ||
+					"AmbientCellRetentionAuthorityEntity" in broker
+				) add("SourceBroker must not read retention producer tables directly")
+				listOf(
+					"liveAmbientRetentionPolicyId",
+					"liveAmbientRetentionApprovalRevision",
+				).filterNot(entities::contains)
+					.mapTo(this) { field -> "broker authority is missing $field" }
+				if ("areLiveAmbientDemandsCurrentInTransaction(" !in registrations ||
+					"areLiveAmbientDemandsCurrentInTransaction(" !in stepsRegistrations
+				) add("provider activation must revalidate LIVE_AMBIENT retention authority")
+				if ("current.effectiveBootId == bootId" !in authorizationTransactions) {
+					add("broker authorization must rotate across boot identity")
+				}
+				if ("provideRetentionAuthorityReader(" !in publicationModule) {
+					add("retention producer must be exposed through its reader-only downstream port")
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
 		fun `reconfiguration rotates the durable caller reference into active session state`() {
 			val coordinator = projectRoot.resolve(
 				"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/coordinator/" +

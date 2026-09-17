@@ -124,6 +124,8 @@ object SourceBrokerAuthorization {
 				demand.requestedDeliveryLatencyMs,
 				demand.requestedBootId,
 				demand.requestedElapsedRealtimeNanos,
+				demand.liveAmbientRetentionPolicyId.orEmpty(),
+				demand.liveAmbientRetentionApprovalRevision ?: 0L,
 				demand.sourceCallerAuthorityReference.orEmpty(),
 			).joinToString("\u001e")
 		}
@@ -168,6 +170,8 @@ object SourceBrokerAuthorization {
 					serviceRunId = null,
 					manifestRevision = null,
 					lifecycleLeaseGeneration = null,
+					liveAmbientRetentionPolicyId = null,
+					liveAmbientRetentionApprovalRevision = null,
 				),
 			)
 		}
@@ -196,6 +200,9 @@ object SourceBrokerAuthorization {
 				serviceRunId = demand.serviceRunId,
 				manifestRevision = demand.manifestRevision,
 				lifecycleLeaseGeneration = demand.lifecycleLeaseGeneration,
+				liveAmbientRetentionPolicyId = demand.liveAmbientRetentionPolicyId,
+				liveAmbientRetentionApprovalRevision =
+					demand.liveAmbientRetentionApprovalRevision,
 			)
 		}
 	}
@@ -266,6 +273,10 @@ data class SourceDemandEntity(
 	@ColumnInfo(name = "retired_at_ms") val retiredAtMs: Long?,
 	@ColumnInfo(name = "source_caller_authority_reference")
 	val sourceCallerAuthorityReference: String? = null,
+	@ColumnInfo(name = "live_ambient_retention_policy_id")
+	val liveAmbientRetentionPolicyId: String? = null,
+	@ColumnInfo(name = "live_ambient_retention_approval_revision")
+	val liveAmbientRetentionApprovalRevision: Long? = null,
 ) {
 	init {
 		require(demandId.isNotBlank())
@@ -300,6 +311,15 @@ data class SourceDemandEntity(
 		require(lifecycleLeaseGeneration == null || lifecycleLeaseGeneration > 0L)
 		require((retireBootId == null) == (retireElapsedRealtimeNanos == null))
 		require(sourceCallerAuthorityReference == null || sourceCallerAuthorityReference.isNotBlank())
+		require(
+			(liveAmbientRetentionPolicyId == null) ==
+				(liveAmbientRetentionApprovalRevision == null),
+		)
+		require(liveAmbientRetentionPolicyId == null || liveAmbientRetentionPolicyId.isNotBlank())
+		require(
+			liveAmbientRetentionApprovalRevision == null ||
+				liveAmbientRetentionApprovalRevision > 0L,
+		)
 	}
 
 	companion object {
@@ -425,6 +445,10 @@ data class SourceAuthorizationEntity(
 	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
 	@ColumnInfo(name = "manifest_revision") val manifestRevision: Long?,
 	@ColumnInfo(name = "lifecycle_lease_generation") val lifecycleLeaseGeneration: Long?,
+	@ColumnInfo(name = "live_ambient_retention_policy_id")
+	val liveAmbientRetentionPolicyId: String? = null,
+	@ColumnInfo(name = "live_ambient_retention_approval_revision")
+	val liveAmbientRetentionApprovalRevision: Long? = null,
 ) {
 	val isDenyAll: Boolean get() = memberId == SourceBrokerAuthorization.DENY_ALL_MEMBER_ID
 
@@ -452,6 +476,8 @@ data class SourceAuthorizationEntity(
 					serviceRunId,
 					manifestRevision,
 					lifecycleLeaseGeneration,
+					liveAmbientRetentionPolicyId,
+					liveAmbientRetentionApprovalRevision,
 				).all { it == null },
 			)
 			require(!persistenceEligible)
@@ -474,6 +500,15 @@ data class SourceAuthorizationEntity(
 			)
 			require(manifestRevision == null || manifestRevision > 0L)
 			require(lifecycleLeaseGeneration == null || lifecycleLeaseGeneration > 0L)
+			require(
+				(liveAmbientRetentionPolicyId == null) ==
+					(liveAmbientRetentionApprovalRevision == null),
+			)
+			require(liveAmbientRetentionPolicyId == null || liveAmbientRetentionPolicyId.isNotBlank())
+			require(
+				liveAmbientRetentionApprovalRevision == null ||
+					liveAmbientRetentionApprovalRevision > 0L,
+			)
 		}
 	}
 }

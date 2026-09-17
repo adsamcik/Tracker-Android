@@ -27,6 +27,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.AmbientStepsDemandResult
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import com.adsamcik.tracker.tracker.source.runtime.TestLiveAmbientRetentionAuthorityReader
 import io.kotest.matchers.shouldBe
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
@@ -53,6 +54,12 @@ class AmbientStepsProviderHandoffCoordinatorTest {
 	fun setUp() = runTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
+		database.sourceEvidenceStateDao().ensure(
+			com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState(
+				collectedDataEpoch = COLLECTED_DATA_EPOCH,
+				updatedAtMs = 1L,
+			),
+		)
 		database.sourceDestinationOwnerDao().insertIfAbsent(
 			SourceDestinationOwnerEntity(
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -111,6 +118,7 @@ class AmbientStepsProviderHandoffCoordinatorTest {
 			database = database,
 			lifecycleStore = lifecycleStore,
 			bootClockDomainProvider = BootClockDomainProvider { BOOT_ID },
+			sourceBroker = broker,
 		)
 		val demand = replaceDemand(
 			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,

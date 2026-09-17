@@ -819,6 +819,17 @@ class AppDatabaseMigration27To28Test {
 			assertEquals(1, columns["adaptive_reduction_allowed"])
 			assertEquals(0, columns["requested_delivery_latency_ms"])
 			assertEquals(0, columns["source_caller_authority_reference"])
+			assertEquals(0, columns["live_ambient_retention_policy_id"])
+			assertEquals(0, columns["live_ambient_retention_approval_revision"])
+		}
+		database.query("PRAGMA table_info(source_authorization)").use { cursor ->
+			val nameColumn = cursor.getColumnIndexOrThrow("name")
+			val notNullColumn = cursor.getColumnIndexOrThrow("notnull")
+			val columns = buildMap {
+				while (cursor.moveToNext()) put(cursor.getString(nameColumn), cursor.getInt(notNullColumn))
+			}
+			assertEquals(0, columns["live_ambient_retention_policy_id"])
+			assertEquals(0, columns["live_ambient_retention_approval_revision"])
 		}
 		database.query("PRAGMA table_info(provider_registration_generation)").use { cursor ->
 			val nameColumn = cursor.getColumnIndexOrThrow("name")

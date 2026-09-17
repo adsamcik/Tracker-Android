@@ -25,6 +25,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.AmbientStepsDemandResult
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import com.adsamcik.tracker.tracker.source.runtime.TestLiveAmbientRetentionAuthorityReader
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.Flow
@@ -44,12 +45,19 @@ class AmbientStepsProviderRegistrationRepositoryTest {
 	private lateinit var broker: SourceBroker
 	private lateinit var lifecycleStore: MutableCollectedDataLifecycleStore
 	private lateinit var subject: AmbientStepsProviderRegistrationRepository
+	private lateinit var retentionReader: TestLiveAmbientRetentionAuthorityReader
 	private var policyElapsed = 1L
 
 	@Before
 	fun setUp() = runTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
+		database.sourceEvidenceStateDao().ensure(
+			com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState(
+				collectedDataEpoch = 3L,
+				updatedAtMs = 1L,
+			),
+		)
 		val rollout = installCanonicalProductLanesForTest(
 			database = database,
 			bindings = listOf(
@@ -95,6 +103,7 @@ class AmbientStepsProviderRegistrationRepositoryTest {
 			database = database,
 			lifecycleStore = lifecycleStore,
 			bootClockDomainProvider = BootClockDomainProvider { BOOT_ID },
+			sourceBroker = broker,
 		)
 	}
 
@@ -192,6 +201,25 @@ class AmbientStepsProviderRegistrationRepositoryTest {
 			SourceKind.STEPS.stableCode,
 			physical.ownerScope,
 		)?.registrationGeneration shouldBe reservation.state.registrationGeneration
+	}
+
+	@Test
+	fun `provider acceptance fails when LIVE_AMBIENT identity is no longer current`() = runTest {
+		val demand = select(AmbientStepsProvider.LOCAL_RECORDING_STEPS, boundary(100L))
+		val reservation = subject.reserve(
+			AmbientStepsProvider.LOCAL_RECORDING_STEPS,
+			demand.demandId,
+			boundary(110L),
+		)
+		retentionReader.current = false
+
+		shouldThrow<IllegalStateException> {
+			subject.accept(reservation)
+		}
+		database.sourceBrokerDao().registration(
+			SourceKind.STEPS.stableCode,
+			reservation.state.registrationGeneration,
+		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RESERVED
 	}
 
 	@Test

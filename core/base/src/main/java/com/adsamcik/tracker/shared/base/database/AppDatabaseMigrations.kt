@@ -3521,6 +3521,8 @@ val MIGRATION_27_28: Migration = object : Migration(
 					retire_elapsed_realtime_nanos INTEGER,
 					retired_at_ms INTEGER,
 					source_caller_authority_reference TEXT,
+					live_ambient_retention_policy_id TEXT,
+					live_ambient_retention_approval_revision INTEGER,
 					PRIMARY KEY(demand_id)
 				)
 				""".trimIndent(),
@@ -3630,6 +3632,8 @@ val MIGRATION_27_28: Migration = object : Migration(
 					service_run_id TEXT,
 					manifest_revision INTEGER,
 					lifecycle_lease_generation INTEGER,
+					live_ambient_retention_policy_id TEXT,
+					live_ambient_retention_approval_revision INTEGER,
 					PRIMARY KEY(source_kind, registration_generation, authorization_revision, member_id)
 				)
 				""".trimIndent(),

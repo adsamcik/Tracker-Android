@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.AmbientStepsRetentionDecision
 import com.adsamcik.tracker.shared.base.database.applyAmbientStepsRetentionDecision
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.preferences.retention.CurrentRetentionAuthority
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityUnavailableReason
@@ -27,6 +28,7 @@ import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanis
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import com.adsamcik.tracker.tracker.source.runtime.TestLiveAmbientRetentionAuthorityReader
 import com.adsamcik.tracker.tracker.source.runtime.TestPurposeSourceCallerDemandDispatcher
 import com.adsamcik.tracker.tracker.source.runtime.toSourceDemandContract
 import com.adsamcik.tracker.tracker.api.AmbientSourceOperationalAvailability
@@ -62,6 +64,9 @@ class AmbientStepsDemandReconcilerTest {
 	fun setUp() = runTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(collectedDataEpoch = 3L, updatedAtMs = 1L),
+		)
 		val binding = ExecutableSourceLaneBinding(
 			source = SourceKind.STEPS,
 			bindingGeneration = 1L,
@@ -74,7 +79,11 @@ class AmbientStepsDemandReconcilerTest {
 			bindings = listOf(binding),
 			rolloutRevision = 1L,
 		)
-		broker = SourceBroker(database, rolloutStore)
+		broker = SourceBroker(
+			database,
+			rolloutStore,
+			TestLiveAmbientRetentionAuthorityReader(),
+		)
 		policyRepository = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
 		}

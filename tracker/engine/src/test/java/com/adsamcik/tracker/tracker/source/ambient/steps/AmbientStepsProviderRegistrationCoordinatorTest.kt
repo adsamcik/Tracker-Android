@@ -24,6 +24,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.AmbientStepsDemandResult
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import com.adsamcik.tracker.tracker.source.runtime.TestLiveAmbientRetentionAuthorityReader
 import io.kotest.matchers.shouldBe
 import java.io.File
 import kotlinx.coroutines.flow.Flow
@@ -54,6 +55,12 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 	fun setUp() = runTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
+		database.sourceEvidenceStateDao().ensure(
+			com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState(
+				collectedDataEpoch = 3L,
+				updatedAtMs = 1L,
+			),
+		)
 		cleanupFile = File(context.cacheDir, "ambient-steps-provider-coordinator-cleanup")
 		deleteCleanupFiles()
 		cleanupStore = AmbientStepsProviderCleanupStore(cleanupFile)
@@ -102,6 +109,7 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 			database = database,
 			lifecycleStore = lifecycleStore,
 			bootClockDomainProvider = BootClockDomainProvider { BOOT_ID },
+			sourceBroker = broker,
 		)
 		local = FakeAmbientStepsProviderBackend(AmbientStepsProvider.LOCAL_RECORDING_STEPS)
 		health = FakeAmbientStepsProviderBackend(AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS)

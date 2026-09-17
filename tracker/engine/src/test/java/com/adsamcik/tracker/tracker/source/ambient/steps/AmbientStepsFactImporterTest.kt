@@ -29,6 +29,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.AmbientStepsDemandResult
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
+import com.adsamcik.tracker.tracker.source.runtime.TestLiveAmbientRetentionAuthorityReader
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -63,6 +64,12 @@ class AmbientStepsFactImporterTest {
 		policyWallTimeMs = 1L
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
+		database.sourceEvidenceStateDao().ensure(
+			com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState(
+				collectedDataEpoch = COLLECTED_DATA_EPOCH,
+				updatedAtMs = 1L,
+			),
+		)
 		database.sourceDestinationOwnerDao().insertIfAbsent(
 			SourceDestinationOwnerEntity(
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -124,6 +131,7 @@ class AmbientStepsFactImporterTest {
 			database = database,
 			lifecycleStore = lifecycleStore,
 			bootClockDomainProvider = BootClockDomainProvider { BOOT_ID },
+			sourceBroker = broker,
 		)
 		registration = repository.reserve(
 			provider = PROVIDER,

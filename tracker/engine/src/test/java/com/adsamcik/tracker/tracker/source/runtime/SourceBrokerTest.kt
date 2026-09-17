@@ -22,6 +22,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
@@ -79,6 +80,7 @@ class SourceBrokerTest {
 	private lateinit var database: AppDatabase
 	private lateinit var subject: SourceBroker
 	private lateinit var rolloutStore: RoomTrackingRolloutStateStore
+	private lateinit var retentionReader: TestLiveAmbientRetentionAuthorityReader
 	private var elapsed = 10L
 
 	@Before
@@ -568,6 +570,8 @@ class SourceBrokerTest {
 		demand.lifecycleLeaseGeneration shouldBe null
 		demand.persistenceEligible shouldBe true
 		demand.qosCode shouldBe 0
+		demand.liveAmbientRetentionPolicyId shouldBe "privacy:steps:ambient:v1"
+		demand.liveAmbientRetentionApprovalRevision shouldBe 1L
 		(demand.toSourceDemandContract().floor as AmbientStepsAcquisitionFloor).mechanism shouldBe
 			AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS
 		database.sourceBrokerDao().currentDemands("app:ambient:steps") shouldBe listOf(demand)
@@ -623,6 +627,20 @@ class SourceBrokerTest {
 		) as AmbientStepsDemandResult.Active
 		unchanged.demand shouldBe localRecording
 		database.sourceBrokerDao().demandHistory("app:ambient:steps").size shouldBe 2
+
+		retentionReader.approvalRevision = 2L
+		val rotated = subject.replaceAmbientStepsDemand(
+			"app:ambient:steps",
+			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
+			"boot-1",
+			200L,
+			200L,
+		) as AmbientStepsDemandResult.Active
+		rotated.demand.liveAmbientRetentionApprovalRevision shouldBe 2L
+		(rotated.demand.demandId == localRecording.demandId) shouldBe false
+		(SourceBrokerAuthorization.fingerprint(listOf(rotated.demand)) ==
+			SourceBrokerAuthorization.fingerprint(listOf(localRecording))) shouldBe false
+		database.sourceBrokerDao().demandHistory("app:ambient:steps").size shouldBe 3
 	}
 
 	@Test
@@ -1216,9 +1234,17 @@ class SourceBrokerTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		rolloutStore = runBlocking {
+			database.sourceEvidenceStateDao().ensure(
+				SourceEvidenceState(collectedDataEpoch = 3L, updatedAtMs = 1L),
+			)
 			activateAllBrokerTestProductLanes(database, captureModes)
 		}
-		subject = SourceBroker(database, rolloutStore)
+		retentionReader = TestLiveAmbientRetentionAuthorityReader()
+		subject = SourceBroker(
+			database,
+			rolloutStore,
+			retentionReader,
+		)
 	}
 
 	private suspend fun ambientStepsLease(

@@ -393,6 +393,7 @@ enum class AmbientStepsDemandBlockReason {
 	RETENTION_POLICY_UNAVAILABLE,
 	ROLLOUT_CONTAINED,
 	CALLER_AUTHORITY_UNAVAILABLE,
+	RETENTION_AUTHORITY_UNAVAILABLE,
 }
 
 private sealed interface AmbientStepsPolicyAuthority {
@@ -415,6 +416,8 @@ private fun AmbientStepsDemandInactiveReason.toPublicReason(): AmbientStepsDeman
 	AmbientStepsDemandInactiveReason.RETENTION_APPROVAL_MISMATCH,
 	-> AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE
 	AmbientStepsDemandInactiveReason.ROLLOUT_CONTAINED -> AmbientStepsDemandBlockReason.ROLLOUT_CONTAINED
+	AmbientStepsDemandInactiveReason.RETENTION_AUTHORITY_UNAVAILABLE ->
+		AmbientStepsDemandBlockReason.RETENTION_AUTHORITY_UNAVAILABLE
 }
 
 private fun AmbientStepsProvider.toAcquisitionMechanism(): AmbientStepsAcquisitionMechanism = when (this) {

@@ -11,6 +11,8 @@ import com.adsamcik.tracker.tracker.api.TrackingPurposeSettingsReconciler
 import com.adsamcik.tracker.tracker.api.TrackingPurposeSourceOwnerRegistrar
 import com.adsamcik.tracker.tracker.api.TrackingRetentionFloorReconciler
 import com.adsamcik.tracker.tracker.source.runtime.AmbientStepsPurposeOwner
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityReader
 import com.adsamcik.tracker.tracker.source.runtime.CurrentTrackingPurposeAuthorityReader
 import com.adsamcik.tracker.tracker.source.runtime.CurrentTrackingPurposeAvailabilityProjection
 import com.adsamcik.tracker.tracker.source.runtime.CurrentSourceCallerAuthorityReader
@@ -121,5 +123,11 @@ internal abstract class TrackingPurposePublicationModule {
 		@Provides
 		internal fun provideOwnerCasTokenFactory(): TrackingPurposeOwnerCasTokenFactory =
 			TrackingPurposeOwnerCasTokenFactory { UUID.randomUUID().toString() }
+
+		@Provides
+		@Singleton
+		internal fun provideRetentionAuthorityReader(
+			producer: RetentionAuthorityProducer,
+		): RetentionAuthorityReader = producer
 	}
 }

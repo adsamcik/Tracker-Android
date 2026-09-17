@@ -40,6 +40,7 @@ class AmbientRadioSourceBrokerTest {
 	private lateinit var policyRepository: RoomSourcePolicyRepository
 	private lateinit var broker: SourceBroker
 	private lateinit var rolloutStore: RoomTrackingRolloutStateStore
+	private lateinit var retentionReader: TestLiveAmbientRetentionAuthorityReader
 	private var elapsed = 10L
 
 	@BeforeTest
@@ -75,7 +76,13 @@ class AmbientRadioSourceBrokerTest {
 		policyRepository.bootstrapFromLegacy(
 			TrackingParamsState(legacySettingsMigrationCompleted = true),
 		)
-		broker = SourceBroker(database, rolloutStore, PermissiveLeaseGuard)
+		retentionReader = TestLiveAmbientRetentionAuthorityReader()
+		broker = SourceBroker(
+			database,
+			rolloutStore,
+			PermissiveLeaseGuard,
+			retentionReader,
+		)
 	}
 
 	@AfterTest
@@ -114,6 +121,8 @@ class AmbientRadioSourceBrokerTest {
 		val demand = database.sourceBrokerDao().currentDemands("app:ambient:wifi").single()
 		assertEquals(SourceBrokerPurpose.AMBIENT_PRODUCT, demand.purpose)
 		assertEquals(result.demand, demand)
+		assertEquals("privacy:wifi:ambient:v1", demand.liveAmbientRetentionPolicyId)
+		assertEquals(1L, demand.liveAmbientRetentionApprovalRevision)
 		assertEquals(policy.revision, result.reconciliationAuthority.policyRevision)
 		assertEquals(
 			policy[TrackingSourceComponent.WIFI].ambientConsentEpoch,
@@ -179,6 +188,7 @@ class AmbientRadioSourceBrokerTest {
 	fun `missing retention approval creates no ambient demand`() = runTest {
 		val policy = grant(TrackingSourceComponent.WIFI)
 		val consentEpoch = policy[TrackingSourceComponent.WIFI].ambientConsentEpoch!!
+		retentionReader.current = false
 
 		val result = assertIs<AmbientRadioDemandResult.Inactive>(
 			broker.replaceAmbientWifiDemand(
@@ -346,6 +356,7 @@ class AmbientRadioSourceBrokerTest {
 			database,
 			rolloutStore,
 			SingleTokenLeaseGuard("owner-new"),
+			TestLiveAmbientRetentionAuthorityReader(),
 		)
 
 		val stale = assertIs<AmbientRadioDemandResult.Inactive>(

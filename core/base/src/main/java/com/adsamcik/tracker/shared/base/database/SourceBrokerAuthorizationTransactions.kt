@@ -32,7 +32,10 @@ suspend fun AppDatabase.rotateCurrentSourceAuthorizationInTransaction(
 			val fingerprint = SourceBrokerAuthorization.fingerprint(demands)
 			val current = dao.latestAuthorization(sourceKind, registration.registrationGeneration)
 				.toAuthorizationSnapshotOrNull()
-			if (current?.authorizationFingerprint == fingerprint) return@forEach
+			if (current != null &&
+				current.authorizationFingerprint == fingerprint &&
+				current.effectiveBootId == bootId
+			) return@forEach
 			val revision = dao.maximumAuthorizationRevision(sourceKind) + 1L
 			check(revision > 0L) { "Source authorization revision exhausted for $sourceKind" }
 			dao.insertAuthorizations(

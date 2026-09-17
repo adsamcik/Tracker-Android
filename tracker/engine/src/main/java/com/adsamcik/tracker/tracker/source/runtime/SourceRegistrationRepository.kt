@@ -103,6 +103,7 @@ class SourceRegistrationRepository @Inject constructor(
 	private val clockDomainProvider: BootClockDomainProvider,
 	private val processIncarnationIdProvider: ProcessIncarnationIdProvider,
 	private val trackingRolloutStateStore: RoomTrackingRolloutStateStore,
+	private val sourceBroker: SourceBroker = SourceBroker(database),
 ) {
 	internal suspend fun verifySourceEraseProviderSettled(
 		source: SourceKind,
@@ -224,6 +225,15 @@ class SourceRegistrationRepository @Inject constructor(
 			}
 			require(supportsExactDemandPurposes(source, demands)) {
 				"Pressure provider registration requires exact SESSION_CAPTURE demand only"
+			}
+			check(sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
+				demands = demands,
+				expectedCollectedDataEpoch = lifecycle.epoch,
+				currentBootId = clockDomainId,
+				currentElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
+				currentWallTimeMs = updatedAtMs,
+			)) {
+				"LIVE_AMBIENT retention authority changed before provider reservation"
 			}
 			val dao = database.sourceRegistrationStateDao()
 			val current = dao.get(source.stableCode, ownerScope)
@@ -416,6 +426,14 @@ class SourceRegistrationRepository @Inject constructor(
 				return@withTransaction null
 			}
 			if (!supportsExactDemandPurposes(source, demands)) return@withTransaction null
+			if (!sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
+					demands = demands,
+					expectedCollectedDataEpoch = lifecycle.epoch,
+					currentBootId = clockDomainId,
+					currentElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
+					currentWallTimeMs = updatedAtMs,
+				)
+			) return@withTransaction null
 			val ownerScope = expectedRegistration.ownerScope
 			val dao = database.sourceRegistrationStateDao()
 			val current = dao.get(source.stableCode, ownerScope) ?: return@withTransaction null
@@ -471,9 +489,22 @@ class SourceRegistrationRepository @Inject constructor(
 		val source = SourceKind.entries.single { it.stableCode == registration.state.sourceKind }
 		return database.withTransaction {
 			requireSourceAcquisitionReachable(source)
-			val demands = database.sourceBrokerDao().authorizationDemands(source.stableCode)
+			val demands = SourceProviderPurposeScope.selectDemands(
+				source.stableCode,
+				registration.ownerScope,
+				database.sourceBrokerDao().authorizationDemands(source.stableCode),
+			)
 			check(supportsExactDemandPurposes(source, demands)) {
 				"Pressure provider acceptance requires exact SESSION_CAPTURE demand only"
+			}
+			check(sourceBroker.areLiveAmbientDemandsCurrentInTransaction(
+				demands = demands,
+				expectedCollectedDataEpoch = lifecycle.epoch,
+				currentBootId = registration.state.clockDomainId,
+				currentElapsedRealtimeNanos = acceptedElapsedRealtimeNanos,
+				currentWallTimeMs = acceptedAtMs,
+			)) {
+				"LIVE_AMBIENT retention authority changed before provider acceptance"
 			}
 			database.sourceBrokerDao().acceptReservedReplacement(
 				reservedState = registration.state,
@@ -915,7 +946,10 @@ class SourceRegistrationRepository @Inject constructor(
 		val fingerprint = SourceBrokerAuthorization.fingerprint(demands)
 		val latest = dao.latestAuthorization(source.stableCode, registrationGeneration)
 			.toAuthorizationSnapshotOrNull()
-		if (latest?.authorizationFingerprint == fingerprint) return latest
+		if (latest != null &&
+			latest.authorizationFingerprint == fingerprint &&
+			latest.effectiveBootId == bootId
+		) return latest
 		val revision = dao.maximumAuthorizationRevision(source.stableCode) + 1L
 		val rows = SourceBrokerAuthorization.rows(
 			source.stableCode,
