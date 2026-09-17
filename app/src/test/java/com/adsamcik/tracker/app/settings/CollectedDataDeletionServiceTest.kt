@@ -426,7 +426,7 @@ class CollectedDataDeletionServiceTest {
 	}
 
 	@Test
-	fun `complete deletion orders Tracker data before Tracebox diagnostics`() = runTest {
+	fun `complete deletion orders Tracker data before local and Tracebox diagnostics`() = runTest {
 		val operations = mutableListOf<String>()
 		coEvery { exportPlanStore.resetAllWatermarks() } coAnswers {
 			operations += "watermarks"
@@ -438,13 +438,60 @@ class CollectedDataDeletionServiceTest {
 				operations += "tracebox"
 				true
 			},
+			trackingDiagnosticDataDeletion = {
+				operations += "tracking-diagnostics"
+				true
+			},
 		) { _, _, _, _ ->
 			operations += "tracker"
 		}
 
 		service.deleteAll()
 
-		operations shouldBe listOf("tracker", "writer-rearm", "watermarks", "tracebox")
+		operations shouldBe listOf(
+			"tracker",
+			"writer-rearm",
+			"watermarks",
+			"tracking-diagnostics",
+			"tracebox",
+		)
+		markerFile.exists() shouldBe false
+	}
+
+	@Test
+	fun `pending local diagnostic deletion retains marker and retries full deletion`() = runTest {
+		val operations = mutableListOf<String>()
+		var localComplete = false
+		val service = createService(
+			trackingDiagnosticDataDeletion = {
+				operations += "tracking-diagnostics"
+				localComplete
+			},
+			traceboxDataDeletion = {
+				operations += "tracebox"
+				true
+			},
+		) { _, _, _, _ ->
+			operations += "tracker"
+		}
+
+		runCatching { service.deleteAll() }
+			.exceptionOrNull()
+			.shouldBeInstanceOf<DatabaseMigrationBackupException>()
+		operations shouldBe listOf("tracker", "tracking-diagnostics", "tracebox")
+		markerFile.exists() shouldBe true
+
+		localComplete = true
+		service.reconcilePendingDeletion()
+
+		operations shouldBe listOf(
+			"tracker",
+			"tracking-diagnostics",
+			"tracebox",
+			"tracker",
+			"tracking-diagnostics",
+			"tracebox",
+		)
 		markerFile.exists() shouldBe false
 	}
 
@@ -584,6 +631,7 @@ class CollectedDataDeletionServiceTest {
 
 	private fun createService(
 		traceboxDataDeletion: suspend () -> Boolean = { true },
+		trackingDiagnosticDataDeletion: suspend () -> Boolean = { true },
 		postDatabaseDeletion: suspend (Long) -> Unit = { },
 		activityRegistrationArbiterProvider: Provider<ActivityRegistrationArbiter>? = null,
 		ambientStepsProviderLifecycleProvider: Provider<AmbientStepsProviderLifecycle>? = null,
@@ -602,6 +650,7 @@ class CollectedDataDeletionServiceTest {
 		ambientStepsProviderLifecycleProvider = ambientStepsProviderLifecycleProvider,
 		automaticControlRestorer = automaticControlRestorer,
 		traceboxDataDeletion = traceboxDataDeletion,
+		trackingDiagnosticDataDeletion = trackingDiagnosticDataDeletion,
 		appDatabaseDeletion = appDatabaseDeletion,
 		postDatabaseDeletion = postDatabaseDeletion,
 		markerFile = markerFile,

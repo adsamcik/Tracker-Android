@@ -1,11 +1,12 @@
 package com.adsamcik.tracker.diagnostics
 
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class TraceboxTrackingDiagnosticAdapterTest {
 	@Test
-	fun `adapter serializes exact allowlisted keys and bucket values`() {
+	fun `adapter serializes exact allowlisted keys and bucket values`() = runTest {
 		val writes = mutableListOf<EncodedTrackingDiagnosticEvent>()
 		val adapter = TraceboxTrackingDiagnosticAdapter(
 			writer = { event -> writes += event },
@@ -13,7 +14,7 @@ class TraceboxTrackingDiagnosticAdapterTest {
 		)
 
 		adapter.append(recordedEnqueue()) shouldBe
-			TrackingDiagnosticStoreResult.RECORDED_LOCALLY
+			TrackingDiagnosticStorageResult.STORED
 
 		val encoded = writes.single()
 		encoded.schema shouldBe TrackingDiagnosticSerializedSchema.ENQUEUE
@@ -72,19 +73,20 @@ class TraceboxTrackingDiagnosticAdapterTest {
 	}
 
 	@Test
-	fun `adapter failure is reported once and never becomes success`() {
+	fun `adapter failure is reported once and never becomes success`() = runTest {
 		var failureReports = 0
 		val adapter = TraceboxTrackingDiagnosticAdapter(
 			writer = { error("Tracebox unavailable") },
 			failureReporter = { failureReports += 1 },
 		)
 
-		adapter.append(recordedUnmetered()) shouldBe TrackingDiagnosticStoreResult.FAILED
+		adapter.append(recordedUnmetered()) shouldBe
+			TrackingDiagnosticStorageResult.STORAGE_RETRYABLE
 		failureReports shouldBe 1
 	}
 
 	@Test
-	fun `failure reporter failure does not escape or recurse`() {
+	fun `failure reporter failure does not escape or recurse`() = runTest {
 		var failureReports = 0
 		val adapter = TraceboxTrackingDiagnosticAdapter(
 			writer = { error("Tracebox unavailable") },
@@ -94,12 +96,13 @@ class TraceboxTrackingDiagnosticAdapterTest {
 			},
 		)
 
-		adapter.append(recordedUnmetered()) shouldBe TrackingDiagnosticStoreResult.FAILED
+		adapter.append(recordedUnmetered()) shouldBe
+			TrackingDiagnosticStorageResult.STORAGE_RETRYABLE
 		failureReports shouldBe 1
 	}
 
 	@Test
-	fun `failure reporting cannot recursively report another adapter failure`() {
+	fun `failure reporting cannot recursively report another adapter failure`() = runTest {
 		var failureReports = 0
 		lateinit var adapter: TraceboxTrackingDiagnosticAdapter
 		adapter = TraceboxTrackingDiagnosticAdapter(
@@ -110,7 +113,8 @@ class TraceboxTrackingDiagnosticAdapterTest {
 			},
 		)
 
-		adapter.append(recordedUnmetered()) shouldBe TrackingDiagnosticStoreResult.FAILED
+		adapter.append(recordedUnmetered()) shouldBe
+			TrackingDiagnosticStorageResult.STORAGE_RETRYABLE
 		failureReports shouldBe 1
 	}
 

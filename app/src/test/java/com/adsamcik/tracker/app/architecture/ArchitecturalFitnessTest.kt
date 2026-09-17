@@ -683,6 +683,7 @@ class ArchitecturalFitnessTest {
 				"TrackingDiagnosticContract.kt",
 				"TrackingDiagnosticPrivacy.kt",
 				"TrackingDiagnosticRecorder.kt",
+				"TrackingDiagnosticStorage.kt",
 				"TrackingDiagnosticWire.kt",
 			)
 			contractFiles.flatMap { fileName ->
@@ -752,13 +753,23 @@ class ArchitecturalFitnessTest {
 				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics/" +
 					"TraceboxTrackingDiagnosticAdapter.kt",
 			).readText()
+			val roomStoreSource = projectRoot.resolve(
+				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics/" +
+					"RoomTrackingDiagnosticStore.kt",
+			).readText()
 
 			buildList {
 				if ("id(\"tracker.android.hilt\")" !in diagnosticsBuild) {
 					add(":core:diagnostics must own its Hilt binding")
 				}
-				if ("TrackingDiagnosticRecorder.local()" !in moduleSource) {
-					add("production Hilt binding must select the local recorder")
+				if ("id(\"tracker.android.room\")" !in diagnosticsBuild) {
+					add(":core:diagnostics must own its bounded local Room store")
+				}
+				if ("TrackingDiagnosticRecorder.local(store)" !in moduleSource) {
+					add("production Hilt binding must select the module-owned local store")
+				}
+				if ("TraceboxTrackingDiagnosticAdapter.PRODUCTION" in moduleSource) {
+					add("Tracebox cannot replace the bounded queryable tracking event store")
 				}
 				if ("internal fun interface TrackingDiagnosticEventStore" !in recorderSource) {
 					add("storage boundary must remain internal to :core:diagnostics")
@@ -775,6 +786,15 @@ class ArchitecturalFitnessTest {
 						.containsMatchIn(adapterSource)
 				) {
 					add("Tracebox tracking adapter must not be extensible")
+				}
+				if ("internal class RoomTrackingDiagnosticStore" !in roomStoreSource) {
+					add("bounded tracking diagnostics storage must remain module owned")
+				}
+				if (Regex("""\b(?:public\s+)?(?:fun\s+interface|interface)\s+""" +
+						"""TrackingDiagnosticEventStore""")
+						.containsMatchIn(roomStoreSource)
+				) {
+					add("Room tracking storage must not publish an append extension point")
 				}
 			}.shouldBeEmpty()
 		}

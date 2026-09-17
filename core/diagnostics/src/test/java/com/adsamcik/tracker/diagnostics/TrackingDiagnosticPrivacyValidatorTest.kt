@@ -118,7 +118,7 @@ class TrackingDiagnosticPrivacyValidatorTest {
 		val fields = encoded.serializedFields.toMap()
 
 		fields[TrackingDiagnosticField.OPERATION_SCOPE]
-			?.matches(Regex("""scope_[0-9a-f]{24}""")) shouldBe true
+			?.matches(Regex("""epoch_[0-9a-f]{16}_scope_[0-9a-f]{8}""")) shouldBe true
 		fields[TrackingDiagnosticField.SCOPE_SEQUENCE] shouldBe "EVENT_04"
 		fields[TrackingDiagnosticField.COARSE_LOCAL_TIMESTAMP] shouldBe
 			"2026-09-17T09:30+02:00"

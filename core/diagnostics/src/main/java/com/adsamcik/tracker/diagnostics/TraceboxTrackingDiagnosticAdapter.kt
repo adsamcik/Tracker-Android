@@ -13,31 +13,31 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 internal class TraceboxTrackingDiagnosticAdapter internal constructor(
 	private val writer: (EncodedTrackingDiagnosticEvent) -> Unit,
-	private val failureReporter: () -> Unit,
+	private val failureReporter: suspend () -> Unit,
 ) : TrackingDiagnosticEventStore {
 	private val reportingFailure = AtomicBoolean(false)
 
-	override fun append(
+	override suspend fun append(
 		event: RecordedTrackingDiagnosticEvent,
-	): TrackingDiagnosticStoreResult {
+	): TrackingDiagnosticStorageResult {
 		val encoded = EncodedTrackingDiagnosticEvent.from(event)
 		if (TrackingDiagnosticPrivacyValidator.validateAdapterSchema(
 				encoded.serializedFields.map { (field, _) -> field.wireName },
 			) !is TrackingDiagnosticPrivacyValidation.Allowed
 		) {
-			return TrackingDiagnosticStoreResult.FAILED
+			return TrackingDiagnosticStorageResult.PERMANENT_REJECTED
 		}
 		val writeSucceeded = runCatching { writer(encoded) }.isSuccess
-		if (writeSucceeded) return TrackingDiagnosticStoreResult.RECORDED_LOCALLY
+		if (writeSucceeded) return TrackingDiagnosticStorageResult.STORED
 
 		reportFailureSafely()
-		return TrackingDiagnosticStoreResult.FAILED
+		return TrackingDiagnosticStorageResult.STORAGE_RETRYABLE
 	}
 
-	private fun reportFailureSafely() {
+	private suspend fun reportFailureSafely() {
 		if (!reportingFailure.compareAndSet(false, true)) return
 		try {
-			runCatching(failureReporter)
+			runCatching { failureReporter() }
 		} finally {
 			reportingFailure.set(false)
 		}

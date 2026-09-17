@@ -2,6 +2,7 @@ package com.adsamcik.tracker.diagnostics
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
@@ -120,8 +121,8 @@ class TrackingDiagnosticContractTest {
 	}
 
 	@Test
-	fun `fixed no-op factory is explicit and terminal events invalidate their scope`() {
-		val recorder = TrackingDiagnosticRecorder.noOpForTest()
+	fun `fixed dropping factory is explicit and terminal events invalidate their scope`() = runTest {
+		val recorder = TrackingDiagnosticRecorder.droppingForTest()
 		val scope = recorder.beginOperation(
 			TrackingDiagnosticSource.LOCATION,
 			TrackingDiagnosticPurpose.SESSION_CAPTURE,
@@ -130,7 +131,9 @@ class TrackingDiagnosticContractTest {
 		val terminal = unmetered(lifecycle = TrackingDiagnosticEventLifecycle.TERMINAL)
 
 		recorder.record(scope, terminal) shouldBe
-			TrackingDiagnosticRecordResult.IgnoredByNoOpRecorder
+			TrackingDiagnosticRecordResult.Storage(
+				TrackingDiagnosticStorageResult.DROPPED_RATE_LIMIT,
+			)
 		recorder.record(scope, terminal) shouldBe
 			TrackingDiagnosticRecordResult.Rejected(
 				TrackingDiagnosticScopeRejectionReason.ALREADY_TERMINATED,
@@ -139,9 +142,9 @@ class TrackingDiagnosticContractTest {
 	}
 
 	@Test
-	fun `scope rejects recorder source purpose and operation reuse`() {
-		val recorder = TrackingDiagnosticRecorder.noOpForTest()
-		val otherRecorder = TrackingDiagnosticRecorder.noOpForTest()
+	fun `scope rejects recorder source purpose and operation reuse`() = runTest {
+		val recorder = TrackingDiagnosticRecorder.droppingForTest()
+		val otherRecorder = TrackingDiagnosticRecorder.droppingForTest()
 		val scope = recorder.beginOperation(
 			TrackingDiagnosticSource.LOCATION,
 			TrackingDiagnosticPurpose.SESSION_CAPTURE,
@@ -173,7 +176,7 @@ class TrackingDiagnosticContractTest {
 	}
 
 	@Test
-	fun `recorder owns opaque scope sequence and coarse timestamp`() {
+	fun `recorder owns opaque scope sequence and coarse timestamp`() = runTest {
 		val recordedEvents = mutableListOf<RecordedTrackingDiagnosticEvent>()
 		var elapsedNanos = 0L
 		val recorder = TrackingDiagnosticRecorder.recordingForTest(
@@ -188,9 +191,13 @@ class TrackingDiagnosticContractTest {
 			TrackingDiagnosticOperation.START,
 		)
 
-		recorder.record(scope, unmetered()) shouldBe TrackingDiagnosticRecordResult.RecordedLocally
+		recorder.record(scope, unmetered()) shouldBe TrackingDiagnosticRecordResult.Storage(
+			TrackingDiagnosticStorageResult.STORED,
+		)
 		elapsedNanos = TimeUnit.MILLISECONDS.toNanos(12L)
-		recorder.record(scope, unmetered()) shouldBe TrackingDiagnosticRecordResult.RecordedLocally
+		recorder.record(scope, unmetered()) shouldBe TrackingDiagnosticRecordResult.Storage(
+			TrackingDiagnosticStorageResult.STORED,
+		)
 
 		recordedEvents.map { it.scopeSequence } shouldBe listOf(
 			TrackingDiagnosticScopeSequence.EVENT_01,
@@ -198,7 +205,7 @@ class TrackingDiagnosticContractTest {
 		)
 		recordedEvents.map { it.operationScope.wireValue }.distinct().size shouldBe 1
 		recordedEvents.first().operationScope.wireValue.matches(
-			Regex("""scope_[0-9a-f]{24}"""),
+			Regex("""epoch_[0-9a-f]{16}_scope_[0-9a-f]{8}"""),
 		) shouldBe true
 		recordedEvents.map { it.coarseLocalTimestamp.wireValue }.distinct() shouldBe
 			listOf("2026-09-17T09:30+02:00")
@@ -207,7 +214,7 @@ class TrackingDiagnosticContractTest {
 	}
 
 	@Test
-	fun `separate scopes receive distinct process-local opaque values`() {
+	fun `separate scopes receive distinct process-local opaque values`() = runTest {
 		val recordedEvents = mutableListOf<RecordedTrackingDiagnosticEvent>()
 		val recorder = TrackingDiagnosticRecorder.recordingForTest(recordedEvents)
 
@@ -229,15 +236,17 @@ class TrackingDiagnosticContractTest {
 					source = TrackingDiagnosticSource.STEPS,
 					operation = TrackingDiagnosticOperation.READ,
 				),
-			) shouldBe TrackingDiagnosticRecordResult.RecordedLocally
+			) shouldBe TrackingDiagnosticRecordResult.Storage(
+				TrackingDiagnosticStorageResult.STORED,
+			)
 		}
 
 		recordedEvents.map { it.operationScope.wireValue }.distinct().size shouldBe 2
 	}
 
 	@Test
-	fun `scope has a bounded event count`() {
-		val recorder = TrackingDiagnosticRecorder.noOpForTest()
+	fun `scope has a bounded event count`() = runTest {
+		val recorder = TrackingDiagnosticRecorder.droppingForTest()
 		val scope = recorder.beginOperation(
 			TrackingDiagnosticSource.LOCATION,
 			TrackingDiagnosticPurpose.SESSION_CAPTURE,
@@ -245,7 +254,9 @@ class TrackingDiagnosticContractTest {
 		)
 		repeat(16) {
 			recorder.record(scope, unmetered()) shouldBe
-				TrackingDiagnosticRecordResult.IgnoredByNoOpRecorder
+				TrackingDiagnosticRecordResult.Storage(
+					TrackingDiagnosticStorageResult.DROPPED_RATE_LIMIT,
+				)
 		}
 
 		recorder.record(scope, unmetered()) shouldBe
@@ -255,9 +266,9 @@ class TrackingDiagnosticContractTest {
 	}
 
 	@Test
-	fun `scope lifetime and store failures close without throwing into tracking`() {
+	fun `scope lifetime and store failures close without throwing into tracking`() = runTest {
 		var nowNanos = 0L
-		val expiringRecorder = TrackingDiagnosticRecorder.noOpForTest(
+		val expiringRecorder = TrackingDiagnosticRecorder.droppingForTest(
 			nanoTime = { nowNanos },
 		)
 		val expiredScope = expiringRecorder.beginOperation(
@@ -287,11 +298,73 @@ class TrackingDiagnosticContractTest {
 		)
 
 		failingRecorder.record(failingScope, unmetered()) shouldBe
-			TrackingDiagnosticRecordResult.RecorderFailed
+			TrackingDiagnosticRecordResult.Storage(
+				TrackingDiagnosticStorageResult.STORAGE_RETRYABLE,
+			)
 		failingRecorder.record(failingScope, unmetered()) shouldBe
 			TrackingDiagnosticRecordResult.Rejected(
 				TrackingDiagnosticScopeRejectionReason.ALREADY_TERMINATED,
 			)
+
+		val throwingRecorder = TrackingDiagnosticRecorder.recordingForTest(
+			recordedEvents = mutableListOf(),
+			throwWrites = true,
+		)
+		val throwingScope = throwingRecorder.beginOperation(
+			TrackingDiagnosticSource.LOCATION,
+			TrackingDiagnosticPurpose.SESSION_CAPTURE,
+			TrackingDiagnosticOperation.START,
+		)
+		throwingRecorder.record(throwingScope, unmetered()) shouldBe
+			TrackingDiagnosticRecordResult.Storage(
+				TrackingDiagnosticStorageResult.STORAGE_RETRYABLE,
+			)
+
+		val clockFailingRecorder = TrackingDiagnosticRecorder.recordingForTest(
+			recordedEvents = mutableListOf(),
+			epochMilliseconds = { error("Clock unavailable") },
+		)
+		val clockFailingScope = clockFailingRecorder.beginOperation(
+			TrackingDiagnosticSource.LOCATION,
+			TrackingDiagnosticPurpose.SESSION_CAPTURE,
+			TrackingDiagnosticOperation.START,
+		)
+		clockFailingRecorder.record(clockFailingScope, unmetered()) shouldBe
+			TrackingDiagnosticRecordResult.Storage(
+				TrackingDiagnosticStorageResult.STORAGE_RETRYABLE,
+			)
+	}
+
+	@Test
+	fun `process restart rotates persisted operation scope epoch`() = runTest {
+		val firstProcessEvents = mutableListOf<RecordedTrackingDiagnosticEvent>()
+		val secondProcessEvents = mutableListOf<RecordedTrackingDiagnosticEvent>()
+		val firstRecorder = TrackingDiagnosticRecorder.recordingForTest(
+			recordedEvents = firstProcessEvents,
+			processEpochSeed = 11L,
+		)
+		val secondRecorder = TrackingDiagnosticRecorder.recordingForTest(
+			recordedEvents = secondProcessEvents,
+			processEpochSeed = 12L,
+		)
+
+		listOf(firstRecorder to firstProcessEvents, secondRecorder to secondProcessEvents)
+			.forEach { (recorder, _) ->
+				val scope = recorder.beginOperation(
+					TrackingDiagnosticSource.LOCATION,
+					TrackingDiagnosticPurpose.SESSION_CAPTURE,
+					TrackingDiagnosticOperation.START,
+				)
+				recorder.record(scope, unmetered()) shouldBe
+					TrackingDiagnosticRecordResult.Storage(
+						TrackingDiagnosticStorageResult.STORED,
+					)
+			}
+
+		val first = firstProcessEvents.single().operationScope.wireValue
+		val second = secondProcessEvents.single().operationScope.wireValue
+		first.substringBefore("_scope_") == second.substringBefore("_scope_") shouldBe false
+		first.substringAfter("_scope_") shouldBe second.substringAfter("_scope_")
 	}
 
 	private fun unmetered(

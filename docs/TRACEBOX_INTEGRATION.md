@@ -9,8 +9,23 @@ product copy, runtime defaults, and the decision to expose only save/share actio
 
 - Tracker installs Tracebox during `Application.attachBaseContext()`, before content providers and
   Hilt startup. The private `:tracebox_handler` process skips Tracker graph initialization.
-- Tracebox is the only crash and diagnostics backend in every Tracker variant. There is no legacy
-  logger, alternate crash handler, diagnostic database, migration flavor, or fallback writer.
+- Tracebox is the only crash, ANR, and general structural-diagnostics backend in every Tracker
+  variant. There is no legacy logger, alternate crash handler, migration flavor, or fallback
+  writer.
+- The closed tracking-operational event contract has a separate `:core:diagnostics` Room database
+  because Tracebox does not expose the source/purpose keyset reads or transactional row/byte
+  limits needed by the planned local health UI. This database accepts only the module-owned
+  serialized enum/bucket fields plus a recorder-owned process-epoch/scope token. It has no network,
+  export, attachment, arbitrary-text, Throwable, path, URI, checksum, sensor-value, or radio-ID
+  surface.
+- Tracking-operational storage is fixed at 512 rows globally, 128 rows per source, 512 KiB globally,
+  128 KiB per source, and 1 KiB per encoded event, with seven-day retention. Repeated identical
+  operational events aggregate within one minute, and persisted one-minute admission budgets are
+  240 events globally and 60 per source. Append and pruning are one Room transaction.
+- The pull-only health read API requires a source, optionally narrows to purpose, returns at most
+  100 rows per keyset page, and exposes no observer. Its read model omits the persisted process
+  token so it cannot become product authority. A maintenance helper exists, but no new background
+  work is scheduled in this implementation-only phase.
 - Tracker log templates are static. Arguments are limited to public structural counts, durations,
   booleans, and enums. Precise coordinates, tracked identifiers, exception messages, and arbitrary
   domain objects do not enter diagnostic calls.
@@ -52,10 +67,12 @@ There are two deletion entry points:
 
 1. The diagnostics screen deletes every Tracebox-owned record and staged package.
 2. Tracker's app-wide collected-data deletion invokes the same complete Tracebox deletion after
-   Tracker data and export watermarks. If handler-owned data is temporarily unavailable, Tracker
-   retains a durable deletion marker and retries the full transaction on startup.
+   Tracker data and export watermarks, and also clears the tracking-operational database. If either
+   local store is temporarily unavailable, Tracker retains a durable deletion marker and retries
+   the full transaction on startup.
 
-Both deletion paths perform blocking storage work away from the main thread.
+The tracking-operational store also exposes a local clear-all operation for the later health UI;
+that UI is not activated in this slice. Blocking storage work remains off the main thread.
 
 Android cloud backup and device-to-device transfer are disabled for the application and exclude
 every credential- and device-protected root, file, database, shared-preference, and external

@@ -195,6 +195,7 @@ class DefaultCollectedDataDeletionService(
 	private val ambientStepsProviderLifecycleProvider: Provider<AmbientStepsProviderLifecycle>? = null,
 	private val automaticControlRestorer: PostDeletionAutomaticControlRestorer,
 	private val traceboxDataDeletion: suspend () -> Boolean,
+	private val trackingDiagnosticDataDeletion: suspend () -> Boolean = { true },
 	private val appDatabaseDeletion: suspend (Context, Long, Long?, Long) -> Unit =
 		{ context, epoch, retainedFromMs, updatedAtMs ->
 			AppDatabase.deleteAllCollectedData(
@@ -309,16 +310,19 @@ class DefaultCollectedDataDeletionService(
 		writerQuiescer.quiesce()
 	}
 
-	/** Completes Tracebox deletion inside the same durable, retryable deletion transaction. */
+	/** Completes both local diagnostic stores inside the durable, retryable deletion operation. */
 	private suspend fun deleteDiagnostics() {
-		val traceboxComplete = try {
-			traceboxDataDeletion()
-		} catch (error: CancellationException) {
-			throw error
-		} catch (error: Exception) {
+		val trackingDiagnosticsComplete = deleteDiagnosticStore(
+			name = "Tracking diagnostic",
+			delete = trackingDiagnosticDataDeletion,
+		)
+		val traceboxComplete = deleteDiagnosticStore(
+			name = "Tracebox diagnostic",
+			delete = traceboxDataDeletion,
+		)
+		if (!trackingDiagnosticsComplete) {
 			throw DatabaseMigrationBackupException(
-				"Tracebox diagnostic data deletion remains pending",
-				error,
+				"Tracking diagnostic data deletion remains pending",
 			)
 		}
 		if (!traceboxComplete) {
@@ -326,6 +330,20 @@ class DefaultCollectedDataDeletionService(
 				"Tracebox diagnostic data deletion remains pending",
 			)
 		}
+	}
+
+	private suspend fun deleteDiagnosticStore(
+		name: String,
+		delete: suspend () -> Boolean,
+	): Boolean = try {
+		delete()
+	} catch (error: CancellationException) {
+		throw error
+	} catch (error: Exception) {
+		throw DatabaseMigrationBackupException(
+			"$name data deletion remains pending",
+			error,
+		)
 	}
 
 	private suspend fun performDeletion(

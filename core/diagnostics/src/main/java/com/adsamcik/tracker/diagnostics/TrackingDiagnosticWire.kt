@@ -6,43 +6,85 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** Random diagnostic correlation scoped to one process operation, never a product identity. */
+/** Random process epoch that rotates whenever a recorder is constructed. */
+internal class TrackingDiagnosticProcessEpoch private constructor(
+	internal val wireValue: String,
+) {
+	override fun toString(): String = "TrackingDiagnosticProcessEpoch(opaque)"
+
+	companion object {
+		private const val RANDOM_BYTE_COUNT = 8
+
+		fun random(random: SecureRandom): TrackingDiagnosticProcessEpoch =
+			fromBytes(ByteArray(RANDOM_BYTE_COUNT).also { bytes -> random.nextBytes(bytes) })
+
+		fun fixedForTest(seed: Long): TrackingDiagnosticProcessEpoch =
+			fromBytes(deterministicBytes(seed, RANDOM_BYTE_COUNT))
+
+		private fun fromBytes(bytes: ByteArray): TrackingDiagnosticProcessEpoch =
+			TrackingDiagnosticProcessEpoch(encodeHex(bytes))
+	}
+}
+
+/**
+ * Random diagnostic correlation scoped to one process operation, never a product identity.
+ *
+ * The persisted representation combines a random process epoch with a short random scope. A new
+ * recorder rotates the epoch, so the short scope cannot become a stable cross-process identity.
+ */
 internal class TrackingDiagnosticScopeOpaque private constructor(
 	internal val wireValue: String,
 ) {
 	override fun toString(): String = "TrackingDiagnosticScopeOpaque(opaque)"
 
 	companion object {
-		private const val RANDOM_BYTE_COUNT = 12
-		private const val BYTES_PER_LONG = 8
-		private const val BITS_PER_BYTE = 8
-		private const val BYTE_MASK = 0xff
-		private val HEX = "0123456789abcdef".toCharArray()
+		private const val RANDOM_SCOPE_BYTE_COUNT = 4
 
-		fun random(random: SecureRandom): TrackingDiagnosticScopeOpaque {
-			val bytes = ByteArray(RANDOM_BYTE_COUNT)
-			random.nextBytes(bytes)
-			return fromBytes(bytes)
-		}
+		fun random(
+			processEpoch: TrackingDiagnosticProcessEpoch,
+			random: SecureRandom,
+		): TrackingDiagnosticScopeOpaque = fromParts(
+			processEpoch = processEpoch,
+			scopeBytes =
+				ByteArray(RANDOM_SCOPE_BYTE_COUNT).also { bytes -> random.nextBytes(bytes) },
+		)
 
-		fun fixedForTest(seed: Long): TrackingDiagnosticScopeOpaque {
-			val bytes = ByteArray(RANDOM_BYTE_COUNT) { index ->
-				val shift = (index % BYTES_PER_LONG) * BITS_PER_BYTE
-				((seed ushr shift) xor index.toLong()).toByte()
-			}
-			return fromBytes(bytes)
-		}
+		fun fixedForTest(
+			scopeSeed: Long,
+			processSeed: Long = 0L,
+		): TrackingDiagnosticScopeOpaque = fromParts(
+			processEpoch = TrackingDiagnosticProcessEpoch.fixedForTest(processSeed),
+			scopeBytes = deterministicBytes(scopeSeed, RANDOM_SCOPE_BYTE_COUNT),
+		)
 
-		private fun fromBytes(bytes: ByteArray): TrackingDiagnosticScopeOpaque {
-			val encoded = CharArray(bytes.size * 2)
-			bytes.forEachIndexed { index, byte ->
-				val value = byte.toInt() and BYTE_MASK
-				encoded[index * 2] = HEX[value ushr 4]
-				encoded[index * 2 + 1] = HEX[value and 0x0f]
-			}
-			return TrackingDiagnosticScopeOpaque("scope_${String(encoded)}")
-		}
+		private fun fromParts(
+			processEpoch: TrackingDiagnosticProcessEpoch,
+			scopeBytes: ByteArray,
+		): TrackingDiagnosticScopeOpaque = TrackingDiagnosticScopeOpaque(
+			"epoch_${processEpoch.wireValue}_scope_${encodeHex(scopeBytes)}",
+		)
 	}
+}
+
+private const val BYTES_PER_LONG = 8
+private const val BITS_PER_BYTE = 8
+private const val BYTE_MASK = 0xff
+private val HEX = "0123456789abcdef".toCharArray()
+
+private fun deterministicBytes(seed: Long, count: Int): ByteArray =
+	ByteArray(count) { index ->
+		val shift = (index % BYTES_PER_LONG) * BITS_PER_BYTE
+		((seed ushr shift) xor index.toLong()).toByte()
+	}
+
+private fun encodeHex(bytes: ByteArray): String {
+	val encoded = CharArray(bytes.size * 2)
+	bytes.forEachIndexed { index, byte ->
+		val value = byte.toInt() and BYTE_MASK
+		encoded[index * 2] = HEX[value ushr 4]
+		encoded[index * 2 + 1] = HEX[value and 0x0f]
+	}
+	return String(encoded)
 }
 
 internal enum class TrackingDiagnosticScopeSequence {
