@@ -61,6 +61,7 @@ import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
@@ -134,7 +135,7 @@ class MainActivityCompose : ComponentActivity() {
 
         val mainImmediate = (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
 
-        resolveStartup(mainImmediate)
+        observeStartup(mainImmediate)
     }
 
     override fun onStart() {
@@ -159,25 +160,36 @@ class MainActivityCompose : ComponentActivity() {
         intent.removeExtra(LEGACY_EXTRA_OPEN_GAME)
     }
 
-    private fun resolveStartup(mainDispatcher: kotlin.coroutines.CoroutineContext, retry: Boolean = false) {
+    private fun observeStartup(mainDispatcher: kotlin.coroutines.CoroutineContext) {
         lifecycleScope.launch(dispatchers.io) {
             val trackerApplication = application as Application
-            val startup = if (retry) {
-                trackerApplication.reconcileTrackingStartup(retryFailedStorage = true)
-            } else {
-                trackerApplication.awaitStartupReconciliation()
-            }
-            val destination = when (startup) {
-                is TrackingStartupResult.Ready -> {
-                    trackerApplication.startDeferredStartupIfNeeded()
-                    trackerApplication.startMaintenanceStartupIfNeeded()
-                    resolveStartupDestination(onboardingRepository)
+            trackerApplication.startupResolutions
+                .collectLatest { snapshot ->
+                    val startup = snapshot.result
+                    if (startup == null) {
+                        withContext(mainDispatcher) {
+                            viewModel.setStartupDestination(StartupDestination.Pending)
+                        }
+                        return@collectLatest
+                    }
+                    if (startup is TrackingStartupResult.Ready) {
+                        trackerApplication.startDeferredStartupIfNeeded()
+                        trackerApplication.startMaintenanceStartupIfNeeded()
+                    }
+                    val destination = startupDestinationForResult(
+                        startup = startup,
+                        onboardingRepository = onboardingRepository,
+                    )
+                    withContext(mainDispatcher) {
+                        viewModel.setStartupDestination(destination)
+                    }
                 }
-                is TrackingStartupResult.Blocked,
-                is TrackingStartupResult.RetryableFailure,
-                -> startupFailureDestination(startup)
-            }
-            withContext(mainDispatcher) { viewModel.setStartupDestination(destination) }
+        }
+    }
+
+    private fun retryStartup() {
+        lifecycleScope.launch(dispatchers.io) {
+            (application as Application).retryTrackingStartup()
         }
     }
 
@@ -223,9 +235,7 @@ class MainActivityCompose : ComponentActivity() {
                         canDelete = legacyState.canDelete,
                         onRetry = {
                             viewModel.setStartupDestination(StartupDestination.Pending)
-                            val mainImmediate = (dispatchers.main as? MainCoroutineDispatcher)?.immediate
-                                ?: dispatchers.main
-                            resolveStartup(mainImmediate, retry = true)
+							retryStartup()
                         },
                         onExport = {
                             legacyExportLauncher.launch("tracker-legacy-v${legacyState.database?.sourceVersion ?: 26}.db")
@@ -236,7 +246,7 @@ class MainActivityCompose : ComponentActivity() {
                                 withContext(dispatchers.main) {
                                     if (deleted) {
                                         viewModel.setStartupDestination(StartupDestination.Pending)
-                                        resolveStartup(dispatchers.main, retry = true)
+										retryStartup()
                                     } else {
                                         Toast.makeText(
                                             this@MainActivityCompose,
@@ -257,10 +267,7 @@ class MainActivityCompose : ComponentActivity() {
 					StartupRecoveryScreen(
 						onRetry = {
 							viewModel.setStartupDestination(StartupDestination.Pending)
-							val mainImmediate =
-								(dispatchers.main as? MainCoroutineDispatcher)?.immediate
-									?: dispatchers.main
-							resolveStartup(mainImmediate, retry = true)
+							retryStartup()
 						},
 					)
 				}
@@ -274,10 +281,7 @@ class MainActivityCompose : ComponentActivity() {
 						messageRes = R.string.development_database_containment_message,
 						onRetry = {
 							viewModel.setStartupDestination(StartupDestination.Pending)
-							val mainImmediate =
-								(dispatchers.main as? MainCoroutineDispatcher)?.immediate
-									?: dispatchers.main
-							resolveStartup(mainImmediate, retry = true)
+							retryStartup()
 						},
 					)
 				}
@@ -291,10 +295,7 @@ class MainActivityCompose : ComponentActivity() {
 						messageRes = R.string.database_containment_message,
 						onRetry = {
 							viewModel.setStartupDestination(StartupDestination.Pending)
-							val mainImmediate =
-								(dispatchers.main as? MainCoroutineDispatcher)?.immediate
-									?: dispatchers.main
-							resolveStartup(mainImmediate, retry = true)
+							retryStartup()
 						},
 					)
 				}
@@ -308,10 +309,7 @@ class MainActivityCompose : ComponentActivity() {
 						messageRes = R.string.database_retryable_message,
 						onRetry = {
 							viewModel.setStartupDestination(StartupDestination.Pending)
-							val mainImmediate =
-								(dispatchers.main as? MainCoroutineDispatcher)?.immediate
-									?: dispatchers.main
-							resolveStartup(mainImmediate, retry = true)
+							retryStartup()
 						},
 					)
 				}
@@ -425,6 +423,16 @@ internal fun startupFailureDestination(result: TrackingStartupResult): StartupDe
 				StartupDestination.Recovery
 			}
 	}
+
+internal suspend fun startupDestinationForResult(
+	startup: TrackingStartupResult,
+	onboardingRepository: OnboardingRepository,
+): StartupDestination = when (startup) {
+	is TrackingStartupResult.Ready -> resolveStartupDestination(onboardingRepository)
+	is TrackingStartupResult.Blocked,
+	is TrackingStartupResult.RetryableFailure,
+	-> startupFailureDestination(startup)
+}
 
 @Composable
 private fun StartupRecoveryScreen(

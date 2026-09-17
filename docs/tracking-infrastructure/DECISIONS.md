@@ -2,6 +2,21 @@
 
 Last updated: 2026-09-17
 
+## TI-D274 - Preserve active SQLiteX corruption and publish evolving startup state
+
+- Status: **IMPLEMENTED_UNVALIDATED**, definitive review00a correction, 2026-09-17.
+- SQLiteX now has an explicit opt-in `preserveDatabaseFilesOnCorruption` configuration. Only the
+  Tracker active `AppDatabase` delegate enables it. Its vendor corruption handler does not invoke
+  AndroidX/Room's deleting `onCorruption`, and recovery cannot delete even if
+  `allowDataLossOnRecovery` is separately enabled. Other databases keep their prior defaults.
+- Active preflight still owns classification. A TOCTOU or during-open SQLiteX corruption propagates
+  to the containment guard as typed `UNREADABLE_DATABASE`; main/WAL/SHM/journal files remain
+  unchanged.
+- Application startup publication is a generation- and revision-aware StateFlow. Visible retryable
+  state may evolve automatically to Ready, while terminal awaiters ignore retryable values and
+  remain closed until Ready or Blocked. Stale generations cannot overwrite the current state, and
+  manual Retry republishes even an equal result.
+
 ## TI-D273 - Preserve corrupt file families and keep operational failures retryable
 
 - Status: **IMPLEMENTED_UNVALIDATED**, Review8a correction, 2026-09-17.

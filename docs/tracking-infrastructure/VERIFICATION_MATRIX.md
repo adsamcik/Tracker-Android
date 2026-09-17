@@ -2,6 +2,19 @@
 
 Last updated: 2026-09-17
 
+## TI-B343 - Definitive review00a correction sources, execution deferred
+
+- Active AppDatabase configures SQLiteX preservation explicitly; default SQLiteX factory behavior
+  for unrelated databases is unchanged.
+- Authored admitted-delegate corruption coverage forces preflight acceptance, opens a corrupt file
+  family through SQLiteX, asserts Room's corruption callback was not invoked, expects typed
+  `UNREADABLE_DATABASE`, and verifies main/WAL/SHM/journal hashes remain unchanged.
+- Authored application/UI state coverage observes DatabaseRetryable followed by automatic Ready/
+  Main in one generation, rejects stale-generation publication, and proves terminal consumers do
+  not resume on visible retryable state.
+- Status: **IMPLEMENTED_UNVALIDATED**. No compile, test, Gradle, schema, lint, device, CI, or
+  diff-check command was run.
+
 ## TI-B342 - Review8a preservation and retryability sources, execution deferred
 
 - Static source now routes active preflight, migration-backup, and legacy framework SQLite

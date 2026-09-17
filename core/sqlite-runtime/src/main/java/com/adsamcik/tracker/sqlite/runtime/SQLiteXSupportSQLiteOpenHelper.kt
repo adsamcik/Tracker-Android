@@ -24,6 +24,7 @@ constructor(
 	private val callback: SupportSQLiteOpenHelper.Callback,
 	private val useNoBackupDirectory: Boolean = false,
 	private val allowDataLossOnRecovery: Boolean = false,
+	private val preserveDatabaseFilesOnCorruption: Boolean = false,
 ) : SupportSQLiteOpenHelper {
 
 	private val lazyDelegate = lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
@@ -34,6 +35,7 @@ constructor(
 			dbRef = DatabaseReference(),
 			callback = callback,
 			allowDataLossOnRecovery = allowDataLossOnRecovery,
+			preserveDatabaseFilesOnCorruption = preserveDatabaseFilesOnCorruption,
 		).also { helper ->
 			helper.setRequestedWriteAheadLoggingEnabled(writeAheadLoggingEnabled)
 		}
@@ -84,15 +86,17 @@ constructor(
 		private val dbRef: DatabaseReference,
 		private val callback: SupportSQLiteOpenHelper.Callback,
 		private val allowDataLossOnRecovery: Boolean,
+		private val preserveDatabaseFilesOnCorruption: Boolean,
 	) : VendorSQLiteOpenHelper(
 		context,
 		name,
 		null,
 		callback.version,
-		DatabaseErrorHandler { database ->
-			SQLiteXRuntime.ensureLoaded()
-			callback.onCorruption(getWrappedDatabase(dbRef, database))
-		},
+		createDatabaseErrorHandler(
+			databaseReference = dbRef,
+			callback = callback,
+			preserveDatabaseFilesOnCorruption = preserveDatabaseFilesOnCorruption,
+		),
 	) {
 		private var migrated = false
 		private var requestedWriteAheadLoggingEnabled = false
@@ -151,6 +155,7 @@ constructor(
 				throw originalFailure
 			}
 			if (
+				preserveDatabaseFilesOnCorruption ||
 				originalFailure !is VendorSQLiteException ||
 				name == null ||
 				!allowDataLossOnRecovery
@@ -284,6 +289,19 @@ constructor(
 	)
 
 	private companion object {
+		fun createDatabaseErrorHandler(
+			databaseReference: DatabaseReference,
+			callback: SupportSQLiteOpenHelper.Callback,
+			preserveDatabaseFilesOnCorruption: Boolean,
+		): DatabaseErrorHandler = if (preserveDatabaseFilesOnCorruption) {
+				DatabaseErrorHandler { _ -> Unit }
+		} else {
+			DatabaseErrorHandler { database ->
+				SQLiteXRuntime.ensureLoaded()
+				callback.onCorruption(getWrappedDatabase(databaseReference, database))
+			}
+		}
+
 		fun getWrappedDatabase(
 			databaseReference: DatabaseReference,
 			database: VendorSQLiteDatabase,

@@ -165,6 +165,10 @@ Framework SQLite inspection uses an explicit non-destructive corruption handler 
 or migration-source files and their sidecars are not removed before application classification.
 Confirmed corruption/schema mismatch is blocked; lock, busy, and temporary open/I/O conditions
 remain retryable through the existing startup backoff and do not show permanent backup guidance.
+The active AppDatabase additionally opts SQLiteX into a non-destructive vendor corruption handler;
+unrelated SQLiteX databases retain their existing configuration. Startup presentation consumes a
+generation/revision StateFlow, allowing visible retryable state to advance automatically to Ready
+without admitting database consumers before the terminal gate.
 
 ## Dependency direction
 

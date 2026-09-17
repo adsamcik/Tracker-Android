@@ -26,6 +26,13 @@ handler. Corrupt main/WAL/SHM/journal families stay present and byte-identical i
 open/path/disk/permission failures propagate as typed retryable storage states through the existing
 bounded-backoff startup owner; they do not become permanent containment or show manual-backup copy.
 
+Definitive review00a corrections are **IMPLEMENTED_UNVALIDATED**. The active AppDatabase alone
+opts its SQLiteX delegate into non-destructive corruption handling, preventing Room's default
+deleting callback and any allow-data-loss recovery from running after admitted preflight. Startup
+UI now observes generation/revision StateFlow updates, so visible DatabaseRetryable automatically
+advances to Ready/Main while terminal consumers continue waiting and remain unopened. Authored
+sources cover admitted-delegate corruption preservation and retryable-to-Ready UI transition.
+
 ## Final finish-started local integration snapshot
 
 This section supersedes every older current-state classification below. Local `dev/v10` began this

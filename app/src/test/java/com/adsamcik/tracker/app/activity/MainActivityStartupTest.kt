@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.app.activity
 
+import com.adsamcik.tracker.app.startup.ApplicationStartupStateStore
+import com.adsamcik.tracker.app.driveTrackingStartup
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseContainment
@@ -9,13 +11,24 @@ import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseRetryableReason
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingCompletionState
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import java.io.IOException
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class MainActivityStartupTest {
 
     @Test
@@ -107,6 +120,66 @@ class MainActivityStartupTest {
 				),
 			),
 		) shouldBe StartupDestination.DatabaseRetryable
+	}
+
+	@Test
+	fun `visible retryable automatically advances to main when startup becomes ready`() = runTest {
+		val state = ApplicationStartupStateStore()
+		val destinations = async(start = CoroutineStart.UNDISPATCHED) {
+			state.snapshots
+				.mapNotNull { snapshot -> snapshot.result }
+				.map { startup ->
+					startupDestinationForResult(
+						startup = startup,
+						onboardingRepository = FakeOnboardingRepository(completed = true),
+					)
+				}
+				.take(2)
+				.toList()
+		}
+		state.beginGeneration(7L)
+		state.publish(
+			generation = 6L,
+			result = TrackingStartupResult.Blocked(
+				TrackingStartupStage.STORAGE,
+				"STALE_GENERATION",
+			),
+		) shouldBe false
+		var attempts = 0
+		val ready = TrackingStartupResult.Ready(
+			legacyRecoveryPartial = false,
+			liveCompletedThroughOrdinal = 0L,
+		)
+		launch {
+			val terminal = driveTrackingStartup(
+				reconcile = {
+					attempts += 1
+					if (attempts <= 4) {
+						TrackingStartupResult.RetryableFailure(
+							stage = TrackingStartupStage.STORAGE,
+							failureCode = "ACTIVE_DATABASE_CONTENDED",
+							databaseRetryable = TrackingDatabaseRetryable(
+								TrackingDatabaseRetryableReason.CONTENDED,
+							),
+						)
+					} else {
+						ready
+					}
+				},
+				waitBeforeRetry = { yield() },
+				onRetryableVisible = { result ->
+					state.publish(7L, result)
+				},
+			)
+			state.publish(7L, terminal)
+		}
+		advanceUntilIdle()
+
+		destinations.await() shouldBe listOf(
+			StartupDestination.DatabaseRetryable,
+			StartupDestination.Main,
+		)
+		attempts shouldBe 5
 	}
 
     private class FakeOnboardingRepository(

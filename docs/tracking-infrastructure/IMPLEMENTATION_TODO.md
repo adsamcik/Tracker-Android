@@ -15,6 +15,11 @@
   open with an explicit no-op corruption handler; preserve corrupt main/WAL/SHM/journal files; map
   lock/busy and temporary operational failures to typed retryable startup state; keep consumers
   closed until retry succeeds; reserve permanent guidance for confirmed containment only.
+- [x] Definitive review00a correction — **IMPLEMENTED_UNVALIDATED**: opt only active AppDatabase's
+  SQLiteX delegate into non-destructive corruption handling; bypass Room's deleting corruption
+  callback and data-loss recovery; propagate admitted corruption to typed containment; replace
+  one-shot UI completion with generation/revision startup StateFlow and automatic Retryable ->
+  Ready/Main transition.
 
 ## 2026-09-16 finish-started closure
 

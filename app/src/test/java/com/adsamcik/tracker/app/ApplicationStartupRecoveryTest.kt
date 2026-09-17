@@ -1,13 +1,19 @@
 package com.adsamcik.tracker.app
 
+import com.adsamcik.tracker.app.startup.ApplicationStartupStateStore
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseRetryable
 import com.adsamcik.tracker.shared.base.startup.TrackingDatabaseRetryableReason
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ApplicationStartupRecoveryTest {
 	@Test
 	fun `main process exit is selected even when a newer handler exit is first`() {
@@ -152,6 +158,47 @@ class ApplicationStartupRecoveryTest {
 
 		attempts shouldBe 2
 		delays shouldBe listOf(500L)
+	}
+
+	@Test
+	fun `terminal startup awaiters ignore visible retryable until ready`() = runTest {
+		val state = ApplicationStartupStateStore()
+		state.beginGeneration(3L)
+		val terminal = async(start = CoroutineStart.UNDISPATCHED) {
+			state.awaitTerminal()
+		}
+
+		state.publish(
+			generation = 3L,
+			result = TrackingStartupResult.RetryableFailure(
+				stage = TrackingStartupStage.STORAGE,
+				failureCode = "ACTIVE_DATABASE_CONTENDED",
+				databaseRetryable = TrackingDatabaseRetryable(
+					TrackingDatabaseRetryableReason.CONTENDED,
+				),
+			),
+		)
+		runCurrent()
+		terminal.isCompleted shouldBe false
+
+		val ready = TrackingStartupResult.Ready(false, 0L)
+		state.publish(3L, ready)
+		runCurrent()
+		terminal.await() shouldBe ready
+	}
+
+	@Test
+	fun `terminal startup awaiters still receive blocked state`() = runTest {
+		val state = ApplicationStartupStateStore()
+		state.beginGeneration(4L)
+		val blocked = TrackingStartupResult.Blocked(
+			TrackingStartupStage.STORAGE,
+			"UNREADABLE_DATABASE",
+		)
+
+		state.publish(4L, blocked)
+
+		state.awaitTerminal() shouldBe blocked
 	}
 
 	private companion object {

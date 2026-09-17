@@ -414,6 +414,7 @@ private val CORRUPTION_EXCEPTION_CLASS_NAMES = setOf(
 private val CORRUPTION_MESSAGE_MARKERS = listOf(
 	"database disk image is malformed",
 	"file is not a database",
+	"not a database",
 	"malformed database schema",
 	"database corrupt",
 	"database corruption",
