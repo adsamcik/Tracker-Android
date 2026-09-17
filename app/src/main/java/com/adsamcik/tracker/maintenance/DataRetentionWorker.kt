@@ -32,13 +32,14 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigRead
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionResult
 import com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionService
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.first
 import javax.inject.Provider
 
 /**
@@ -60,8 +61,17 @@ class DataRetentionWorker @AssistedInject constructor(
 	private val wifiCapturedRetentionService: WifiCapturedRetentionService,
 ) : CoroutineWorker(context, workerParams) {
 
-    override suspend fun doWork(): Result {
-        val config = retentionConfigStore.config.first()
+    override suspend fun doWork(): Result =
+        when (val authority = retentionConfigStore.currentExactApprovedConfig()) {
+            is ExactApprovedRetentionConfigRead.Approved ->
+                doApprovedWork(authority.configuration)
+            is ExactApprovedRetentionConfigRead.Pending,
+            is ExactApprovedRetentionConfigRead.Invalid,
+            is ExactApprovedRetentionConfigRead.Unavailable,
+            -> Result.retry()
+        }
+
+    private suspend fun doApprovedWork(config: RetentionConfigState): Result {
         if (!config.autoCleanupEnabled) {
             return Result.success()
         }

@@ -428,6 +428,47 @@ class RetentionAuthorityProducerRoomTest {
 	}
 
 	@Test
+	fun `unrelated policy revision rejects stale Ambient Steps authority until reissued`() = runTest {
+		val settings = TrackingParamsState(
+			ambientStepsEnabled = true,
+			legacySettingsMigrationCompleted = true,
+		)
+		val original = policies.bootstrapFromLegacy(settings)
+		approvedPolicy = approved("policy-1", revision = 1L)
+		val producer = producer()
+		producer.reconcileLiveAmbient(TrackingSourceComponent.STEPS)
+		val consentEpoch = requireNotNull(
+			original[TrackingSourceComponent.STEPS].ambientConsentEpoch,
+		)
+		val revised = policies.replaceCaptureSettings(
+			original.revision,
+			settings.copy(minTimeSeconds = settings.minTimeSeconds + 1),
+			reason = "TEST_UNRELATED_POLICY_CHANGE",
+		)
+
+		producer.currentLiveAmbient(
+			TrackingSourceComponent.STEPS,
+			revised.revision,
+			consentEpoch,
+			lifecycle.epoch,
+		) shouldBe CurrentRetentionAuthority.Unavailable(
+			RetentionAuthorityUnavailableReason.RETENTION_AUTHORITY_UNAVAILABLE,
+		)
+
+		assertIs<RetentionAuthorityResult.Applied>(
+			producer.reconcileLiveAmbient(TrackingSourceComponent.STEPS),
+		)
+		assertIs<CurrentRetentionAuthority.Approved>(
+			producer.currentLiveAmbient(
+				TrackingSourceComponent.STEPS,
+				revised.revision,
+				consentEpoch,
+				lifecycle.epoch,
+			),
+		)
+	}
+
+	@Test
 	fun `reader predicate binds current boot and exact retention identity`() = runTest {
 		bootstrap(ambientSteps = true)
 		approvedPolicy = approved("policy-1", revision = 1L)

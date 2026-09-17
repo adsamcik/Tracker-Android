@@ -72,6 +72,7 @@ import org.robolectric.annotation.Config
 class CollectedDataDeletionServiceTest {
 	private lateinit var context: Application
 	private lateinit var markerFile: File
+	private lateinit var clearingMarkerFile: File
 	private val pointsAwardedDao: PointsAwardedDao = mockk()
 	private val exportPlanStore: ExportPlanStore = mockk()
 	private val writerQuiescer: CollectedDataWriterQuiescer = mockk()
@@ -83,8 +84,10 @@ class CollectedDataDeletionServiceTest {
 	fun setUp() {
 		context = ApplicationProvider.getApplicationContext()
 		markerFile = File(context.cacheDir, "collected-data-deletion-test.pending")
+		clearingMarkerFile = File(markerFile.parentFile, "${markerFile.name}.clearing")
 		startupDeletionBarrier = TrackingStartupDeletionBarrier()
 		markerFile.delete()
+		clearingMarkerFile.delete()
 		RETIRED_DATABASE_NAMES.forEach {
 			context.deleteDatabase(it)
 			context.openOrCreateDatabase(it, Application.MODE_PRIVATE, null).close()
@@ -102,6 +105,7 @@ class CollectedDataDeletionServiceTest {
 	@After
 	fun tearDown() {
 		markerFile.delete()
+		clearingMarkerFile.delete()
 		RETIRED_DATABASE_NAMES.forEach(context::deleteDatabase)
 	}
 
@@ -692,6 +696,77 @@ class CollectedDataDeletionServiceTest {
 	}
 
 	@Test
+	fun `marker removal failure returns retryable debt with barrier and provider closed`() = runTest {
+		var appDeletionCount = 0
+		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
+		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
+			AmbientStepsProviderCleanupResult(complete = true)
+		coEvery { ambientSteps.reconcileAfterSettingsChange() } returns
+			AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
+		val first = createService(
+			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
+			markerDelete = { false },
+		) { _, _, _, _ -> appDeletionCount += 1 }
+
+		first.deleteAll() shouldBe CollectedDataDeletionCompletion.Retryable(
+			CollectedDataDeletionReconciliationFailure.DeletionMarkerRemoval,
+		)
+
+		markerFile.exists() shouldBe false
+		clearingMarkerFile.exists() shouldBe true
+		startupDeletionBarrier.isClosed shouldBe true
+		appDeletionCount shouldBe 1
+		coVerify(exactly = 3) { ambientSteps.closeForCollectedDataDeletion() }
+
+		val resumed = createService(
+			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
+			markerDelete = { it.delete() },
+		) { _, _, _, _ -> appDeletionCount += 1 }
+
+		resumed.reconcilePendingDeletion() shouldBe CollectedDataDeletionCompletion.Complete
+
+		appDeletionCount shouldBe 1
+		clearingMarkerFile.exists() shouldBe false
+		startupDeletionBarrier.isClosed shouldBe false
+		coVerify(exactly = 2) { ambientSteps.reconcileAfterSettingsChange() }
+	}
+
+	@Test
+	fun `final directory fsync failure is unverifiable until repeated recovery succeeds`() = runTest {
+		var syncCount = 0
+		var appDeletionCount = 0
+		val ambientSteps = mockk<AmbientStepsProviderLifecycle>()
+		coEvery { ambientSteps.closeForCollectedDataDeletion() } returns
+			AmbientStepsProviderCleanupResult(complete = true)
+		coEvery { ambientSteps.reconcileAfterSettingsChange() } returns
+			AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
+		val service = createService(
+			ambientStepsProviderLifecycleProvider = Provider { ambientSteps },
+			directorySync = {
+				syncCount += 1
+				if (syncCount == 3) error("final directory fsync failed")
+			},
+		) { _, _, _, _ -> appDeletionCount += 1 }
+
+		service.deleteAll() shouldBe CollectedDataDeletionCompletion.Unverifiable(
+			CollectedDataDeletionReconciliationFailure.DeletionMarkerDurability,
+		)
+
+		markerFile.exists() shouldBe false
+		clearingMarkerFile.exists() shouldBe false
+		startupDeletionBarrier.isClosed shouldBe true
+		appDeletionCount shouldBe 1
+		coVerify(exactly = 3) { ambientSteps.closeForCollectedDataDeletion() }
+
+		service.reconcilePendingDeletion() shouldBe CollectedDataDeletionCompletion.Complete
+
+		appDeletionCount shouldBe 1
+		startupDeletionBarrier.isClosed shouldBe false
+		syncCount shouldBe 4
+		coVerify(exactly = 2) { ambientSteps.reconcileAfterSettingsChange() }
+	}
+
+	@Test
 	fun `new deletion attempt preserves an existing durable marker`() = runTest {
 		val originalMarker = "already-pending"
 		markerFile.writeText(originalMarker)
@@ -927,6 +1002,7 @@ class CollectedDataDeletionServiceTest {
 		purposeSettingsReconciler: TrackingPurposeSettingsReconciler =
 			TrackingPurposeSettingsReconciler { },
 		directorySync: (File) -> Unit = {},
+		markerDelete: (File) -> Boolean = File::delete,
 		appDatabaseDeletion: suspend (android.content.Context, Long, Long?, Long) -> Unit,
 	) = DefaultCollectedDataDeletionService(
 		context = context,
@@ -946,6 +1022,7 @@ class CollectedDataDeletionServiceTest {
 		postDatabaseDeletion = postDatabaseDeletion,
 		markerFile = markerFile,
 		directorySync = directorySync,
+		markerDelete = markerDelete,
 	)
 
 	private suspend fun roomRetentionProducer(

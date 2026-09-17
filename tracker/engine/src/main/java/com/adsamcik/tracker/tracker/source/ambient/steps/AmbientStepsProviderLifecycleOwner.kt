@@ -24,6 +24,9 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 	private val reconcileDemand: suspend (
 		AmbientStepsDemandBoundary,
 	) -> AmbientStepsDemandReconciliation,
+	private val retireDemandAfterAuthorityFailure: suspend (
+		AmbientStepsDemandBoundary,
+	) -> AmbientStepsDemandReconciliation = reconcileDemand,
 	private val reconcileRegistration: suspend (
 		AmbientStepsDemandReconciliation,
 		AmbientStepsDemandBoundary,
@@ -44,6 +47,8 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 			)
 		},
 		reconcileDemand = demandReconciler::reconcileAt,
+		retireDemandAfterAuthorityFailure =
+			demandReconciler::retireAfterRetentionAuthorityFailureAt,
 		reconcileRegistration = registrationCoordinator::reconcile,
 		closeRegistration = registrationCoordinator::closeForCollectedDataDeletion,
 	)
@@ -58,6 +63,13 @@ class AmbientStepsProviderLifecycleOwner internal constructor(
 
 	override suspend fun reconcileAfterSettingsChange(): AmbientStepsSettingsReconciliationResult =
 		reconcile().toPublicSettingsResult()
+
+	override suspend fun retireAfterRetentionAuthorityFailure():
+		AmbientStepsSettingsReconciliationResult = mutex.withLock {
+		val boundary = currentBoundary()
+		val retired = retireDemandAfterAuthorityFailure(boundary)
+		reconcileRegistration(retired, boundary).toPublicSettingsResult()
+	}
 
 	override suspend fun closeForCollectedDataDeletion():
 		com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupResult = mutex.withLock {

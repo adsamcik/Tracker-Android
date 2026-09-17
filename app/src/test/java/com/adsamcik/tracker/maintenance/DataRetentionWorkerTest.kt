@@ -32,6 +32,10 @@ import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.shared.preferences.retention.ApprovedRetentionPolicy
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigInvalidReason
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigRead
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigUnavailableReason
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
@@ -47,7 +51,6 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -74,9 +77,8 @@ class DataRetentionWorkerTest {
     }
 
     private lateinit var context: Context
-    private val retentionStore: RetentionConfigStore = mockk {
-        every { config } returns flowOf(RetentionConfigState(autoCleanupEnabled = false))
-    }
+    private val retentionStore: RetentionConfigStore =
+		approvedRetentionStore(RetentionConfigState(autoCleanupEnabled = false))
     private val testDispatcher = StandardTestDispatcher()
     private val mockDatabase: AppDatabase = mockk(relaxed = true)
     private val exportPlanStore: ExportPlanStore = mockk(relaxed = true)
@@ -147,11 +149,9 @@ class DataRetentionWorkerTest {
 		val walCountsAtRadioRetention = mutableListOf<Long>()
 		val attributedSegment = expiredAttributedSegment()
 		var attributedSegmentId = 0L
-		val enabledStore: RetentionConfigStore = mockk {
-			every { config } returns flowOf(
-				RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 1),
-			)
-		}
+		val enabledStore = approvedRetentionStore(
+			RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 1),
+		)
 		val lifecycleStore: CollectedDataLifecycleStore = mockk()
 		coEvery { lifecycleStore.advanceRetainedFrom(any()) } returns
 			CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 3L)
@@ -575,11 +575,9 @@ class DataRetentionWorkerTest {
 	fun `zero year retention creates no captured radio work`() = runTest {
 		val cellRetention = cellRetentionService()
 		val wifiRetention = wifiRetentionService()
-		val store: RetentionConfigStore = mockk {
-			every { config } returns flowOf(
-				RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 0),
-			)
-		}
+		val store = approvedRetentionStore(
+			RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 0),
+		)
 
 		assertEquals(
 			ListenableWorker.Result.success(),
@@ -593,6 +591,34 @@ class DataRetentionWorkerTest {
 
 		coVerify(exactly = 0) { cellRetention.prune(any(), any(), any()) }
 		coVerify(exactly = 0) { wifiRetention.prune(any(), any(), any()) }
+	}
+
+	@Test
+	fun `stale scheduled work retries every inexact retention authority without deletion`() = runTest {
+		val enabled = RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 1)
+		val inexact = listOf<ExactApprovedRetentionConfigRead>(
+			ExactApprovedRetentionConfigRead.Pending(enabled, testApprovedPolicy()),
+			ExactApprovedRetentionConfigRead.Invalid(
+				ExactApprovedRetentionConfigInvalidReason.CONFIGURATION_MISMATCH,
+			),
+			ExactApprovedRetentionConfigRead.Unavailable(
+				ExactApprovedRetentionConfigUnavailableReason.STORAGE_UNAVAILABLE,
+			),
+		)
+
+		inexact.forEach { authority ->
+			val store: RetentionConfigStore = mockk {
+				coEvery { currentExactApprovedConfig() } returns authority
+			}
+
+			assertEquals(
+				ListenableWorker.Result.retry(),
+				worker(store, mockDatabase).doWork(),
+			)
+		}
+
+		coVerify(exactly = 0) { collectedDataLifecycleStore.advanceRetainedFrom(any()) }
+		verify(exactly = 0) { migrationBackupRepository.deleteAll() }
 	}
 
     @Test
@@ -645,7 +671,7 @@ class DataRetentionWorkerTest {
 			.build() as DataRetentionWorker
 
 	private fun enabledRetentionStore(): RetentionConfigStore = mockk {
-		every { config } returns flowOf(
+		coEvery { currentExactApprovedConfig() } returns exactApprovedRetentionConfig(
 			RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 1),
 		)
 	}
@@ -654,6 +680,23 @@ class DataRetentionWorkerTest {
 		coEvery { advanceRetainedFrom(any()) } returns
 			CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 3L)
 	}
+
+	private fun approvedRetentionStore(state: RetentionConfigState): RetentionConfigStore = mockk {
+		coEvery { currentExactApprovedConfig() } returns exactApprovedRetentionConfig(state)
+	}
+
+	private fun exactApprovedRetentionConfig(
+		state: RetentionConfigState,
+	): ExactApprovedRetentionConfigRead.Approved =
+		ExactApprovedRetentionConfigRead.Approved(state, testApprovedPolicy())
+
+	private fun testApprovedPolicy(): ApprovedRetentionPolicy = ApprovedRetentionPolicy(
+		configurationGeneration = 1L,
+		revision = 1L,
+		opaquePolicyId = "retention-worker-test",
+		configurationChecksum = "a".repeat(64),
+		integrityChecksum = "b".repeat(64),
+	)
 
 	private fun inactiveLane(): StepsSessionFactProjectionLane = mockk {
 		coEvery { drainAvailable() } returns StepsSessionFactDrainResult.Inactive

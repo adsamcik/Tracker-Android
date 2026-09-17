@@ -11,7 +11,9 @@ import com.adsamcik.tracker.shared.base.startup.ModuleInitializer
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityProducer
+import com.adsamcik.tracker.shared.preferences.retention.RetentionAuthorityResult
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
+import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryScheduler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.tracker.controller.LockManager
@@ -73,7 +75,12 @@ class TrackerModuleInitializer @Inject constructor(
 				handoff = { handoffAuthorization ->
 					lockManager.initializeFromPersistence(context)
 					activityAutomationEpochAuthority.startRuntimeBoundaryMonitoring(applicationScope)
-					retentionAuthorityProducer.reconcileCurrentSettings()
+					reconcileRetentionAuthorityAtStartup(
+						reconcileRetention =
+							retentionAuthorityProducer::reconcileCurrentSettings,
+						retireAmbientSteps =
+							ambientStepsProviderLifecycleOwner::retireAfterRetentionAuthorityFailure,
+					)
 					initializeTrackerAutomaticControlAfterAuthorization(
 						authorization = handoffAuthorization,
 						initialize = { BackgroundTrackingApi.initialize(context) },
@@ -108,6 +115,24 @@ class TrackerModuleInitializer @Inject constructor(
 			)
 		}
 	}
+}
+
+internal suspend fun reconcileRetentionAuthorityAtStartup(
+	reconcileRetention: suspend () -> List<RetentionAuthorityResult>,
+	retireAmbientSteps: suspend () -> AmbientStepsSettingsReconciliationResult,
+): List<RetentionAuthorityResult> = try {
+	reconcileRetention()
+} catch (cancellation: CancellationException) {
+	throw cancellation
+} catch (failure: Exception) {
+	try {
+		retireAmbientSteps()
+	} catch (cancellation: CancellationException) {
+		throw cancellation
+	} catch (_: Exception) {
+		Unit
+	}
+	throw failure
 }
 
 /** One opportunistic process-start reconciliation; provider failures do not block core tracking. */

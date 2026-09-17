@@ -126,6 +126,16 @@ class AmbientStepsDemandReconciler internal constructor(
 		}
 	}
 
+	internal suspend fun retireAfterRetentionAuthorityFailureAt(
+		boundary: AmbientStepsDemandBoundary,
+	): AmbientStepsDemandReconciliation.PolicyBlocked {
+		retireDemand(boundary)
+		return AmbientStepsDemandReconciliation.PolicyBlocked(
+			provider = null,
+			reason = AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE,
+		)
+	}
+
 	/** Avoids platform permission/provider probes while Ambient Steps is not product-eligible. */
 	private suspend fun ambientPolicyAuthority(
 		boundary: AmbientStepsDemandBoundary,

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.module
 
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult
 import com.adsamcik.tracker.tracker.resilience.TrackingAutoRecoveryAuthorization
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsDemandReconciliation
 import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProviderRegistrationFailure
@@ -23,6 +24,31 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrackerModuleInitializerTest {
+	@Test
+	fun `startup retention failure retires Ambient Steps before propagating for retry`() = runTest {
+		val events = mutableListOf<String>()
+		val failure = IllegalStateException("retention unavailable")
+
+		val thrown = shouldThrow<IllegalStateException> {
+			reconcileRetentionAuthorityAtStartup(
+				reconcileRetention = {
+					events += "retention"
+					throw failure
+				},
+				retireAmbientSteps = {
+					events += "retire-ambient-steps"
+					AmbientStepsSettingsReconciliationResult(
+						complete = true,
+						operational = false,
+					)
+				},
+			)
+		}
+
+		thrown shouldBe failure
+		events shouldBe listOf("retention", "retire-ambient-steps")
+	}
+
 	@Test
 	fun `ambient Steps startup leaves unavailable provider inactive without reporting failure`() = runTest {
 		val unavailable = AmbientStepsDemandReconciliation.Unavailable(

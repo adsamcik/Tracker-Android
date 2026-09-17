@@ -8,6 +8,7 @@ package com.adsamcik.tracker.tracker.api
  */
 interface AmbientStepsProviderLifecycle {
 	suspend fun reconcileAfterSettingsChange(): AmbientStepsSettingsReconciliationResult
+	suspend fun retireAfterRetentionAuthorityFailure(): AmbientStepsSettingsReconciliationResult
 	suspend fun closeForCollectedDataDeletion(): AmbientStepsProviderCleanupResult
 }
 
@@ -36,6 +37,9 @@ enum class AmbientStepsSettingsReconciliationFailure {
 
 object NoOpAmbientStepsProviderLifecycle : AmbientStepsProviderLifecycle {
 	override suspend fun reconcileAfterSettingsChange() =
+		AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
+
+	override suspend fun retireAfterRetentionAuthorityFailure() =
 		AmbientStepsSettingsReconciliationResult(complete = true, operational = false)
 
 	override suspend fun closeForCollectedDataDeletion() =

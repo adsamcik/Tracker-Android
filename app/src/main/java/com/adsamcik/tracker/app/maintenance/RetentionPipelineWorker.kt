@@ -27,6 +27,7 @@ import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigRead
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -36,7 +37,6 @@ import com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionService
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 import javax.inject.Provider
 
@@ -56,8 +56,17 @@ class RetentionPipelineWorker @AssistedInject constructor(
 	private val wifiCapturedRetentionService: WifiCapturedRetentionService,
 ) : CoroutineWorker(appContext, params) {
 
-    override suspend fun doWork(): Result {
-        val storedConfig = retentionConfigStore.config.first()
+    override suspend fun doWork(): Result =
+        when (val authority = retentionConfigStore.currentExactApprovedConfig()) {
+            is ExactApprovedRetentionConfigRead.Approved ->
+                doApprovedWork(authority.configuration)
+            is ExactApprovedRetentionConfigRead.Pending,
+            is ExactApprovedRetentionConfigRead.Invalid,
+            is ExactApprovedRetentionConfigRead.Unavailable,
+            -> Result.retry()
+        }
+
+    private suspend fun doApprovedWork(storedConfig: RetentionConfigState): Result {
         val config = storedConfig.forWorker()
 
         if (!storedConfig.autoPurgeEnabled && !storedConfig.autoCleanupEnabled) return Result.success()

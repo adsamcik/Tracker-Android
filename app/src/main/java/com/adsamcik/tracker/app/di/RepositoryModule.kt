@@ -22,6 +22,8 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.DefaultCollectedDataLif
 import com.adsamcik.tracker.shared.preferences.settings.DefaultTrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.DefaultTrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.AmbientStepsPolicyRevisionReconciliation
+import com.adsamcik.tracker.shared.preferences.tracking.AmbientStepsPolicyRevisionReconciler
 import com.adsamcik.tracker.shared.preferences.tracking.AndroidSourcePolicyEffectiveTimeProvider
 import com.adsamcik.tracker.shared.preferences.tracking.AuthoritativeTrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
@@ -31,12 +33,15 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
+import com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import javax.inject.Provider
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 
@@ -122,6 +127,7 @@ abstract class RepositoryModule {
 			@ApplicationScope applicationScope: CoroutineScope,
 			trackingStartupGate: TrackingStartupGate,
 			retentionAuthorityProducer: RetentionAuthorityProducer,
+			ambientStepsProviderLifecycle: Provider<AmbientStepsProviderLifecycle>,
 		): TrackingParamsRepository = AuthoritativeTrackingParamsRepository(
 			legacy = DefaultTrackingParamsRepository(
 				context = context,
@@ -131,6 +137,18 @@ abstract class RepositoryModule {
 			applicationScope = applicationScope,
 			trackingStartupGate = trackingStartupGate,
 			retentionAuthorityProducer = retentionAuthorityProducer,
+			ambientStepsPolicyRevisionReconciler =
+				object : AmbientStepsPolicyRevisionReconciler {
+					override suspend fun reconcileAfterRetentionReissue() =
+						ambientStepsProviderLifecycle.get()
+							.reconcileAfterSettingsChange()
+							.toPolicyRevisionReconciliation()
+
+					override suspend fun retireAfterRetentionDebt() =
+						ambientStepsProviderLifecycle.get()
+							.retireAfterRetentionAuthorityFailure()
+							.toPolicyRevisionReconciliation()
+				},
 		)
 
 		@Provides
@@ -198,4 +216,15 @@ abstract class RepositoryModule {
 			io = dispatchers.io,
 		)
 	}
+}
+
+private fun AmbientStepsSettingsReconciliationResult.toPolicyRevisionReconciliation():
+	AmbientStepsPolicyRevisionReconciliation = when {
+	complete -> AmbientStepsPolicyRevisionReconciliation.Complete
+	retryable -> AmbientStepsPolicyRevisionReconciliation.Retryable(
+		requireNotNull(failure).name,
+	)
+	else -> AmbientStepsPolicyRevisionReconciliation.Unverifiable(
+		requireNotNull(failure).name,
+	)
 }

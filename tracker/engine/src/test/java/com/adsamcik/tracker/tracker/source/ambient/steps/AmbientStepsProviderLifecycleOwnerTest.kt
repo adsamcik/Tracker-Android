@@ -120,6 +120,39 @@ class AmbientStepsProviderLifecycleOwnerTest {
 			)
 	}
 
+	@Test
+	fun `retention failure explicitly retires demand before provider reconciliation`() = runTest {
+		val boundary = boundary(20L)
+		val retired = AmbientStepsDemandReconciliation.PolicyBlocked(
+			provider = null,
+			reason = AmbientStepsDemandBlockReason.RETENTION_POLICY_UNAVAILABLE,
+		)
+		val events = mutableListOf<String>()
+		val subject = AmbientStepsProviderLifecycleOwner(
+			currentBoundary = { boundary },
+			reconcileDemand = { error("Normal demand reconciliation must not run") },
+			retireDemandAfterAuthorityFailure = {
+				events += "retire-demand"
+				it shouldBe boundary
+				retired
+			},
+			reconcileRegistration = { demand, actualBoundary ->
+				events += "close-provider"
+				demand shouldBe retired
+				actualBoundary shouldBe boundary
+				AmbientStepsProviderRegistrationResult.Inactive(retired)
+			},
+			closeRegistration = { completeCleanup() },
+		)
+
+		subject.retireAfterRetentionAuthorityFailure() shouldBe
+			com.adsamcik.tracker.tracker.api.AmbientStepsSettingsReconciliationResult(
+				complete = true,
+				operational = false,
+			)
+		events shouldBe listOf("retire-demand", "close-provider")
+	}
+
 	private fun boundary(at: Long) = AmbientStepsDemandBoundary(
 		bootId = "ambient-steps-lifecycle-test",
 		elapsedRealtimeNanos = at,

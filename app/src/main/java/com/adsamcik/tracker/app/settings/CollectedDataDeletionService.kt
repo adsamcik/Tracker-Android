@@ -56,7 +56,7 @@ interface CollectedDataDeletionService {
 	suspend fun reconcilePendingDeletion(): CollectedDataDeletionCompletion
 }
 
-/** Completion is reported only after post-clear authority and provider reconciliation. */
+/** Completion is reported only after durable marker clear and post-clear authority reconciliation. */
 sealed interface CollectedDataDeletionCompletion {
 	data object Complete : CollectedDataDeletionCompletion
 
@@ -104,6 +104,14 @@ sealed interface CollectedDataDeletionReconciliationFailure {
 
 	data object AmbientStepsCleanupUnavailable : CollectedDataDeletionReconciliationFailure {
 		override val failureCode: String = "POST_DELETE_AMBIENT_STEPS_CLEANUP_UNAVAILABLE"
+	}
+
+	data object DeletionMarkerRemoval : CollectedDataDeletionReconciliationFailure {
+		override val failureCode: String = "POST_DELETE_MARKER_REMOVAL"
+	}
+
+	data object DeletionMarkerDurability : CollectedDataDeletionReconciliationFailure {
+		override val failureCode: String = "POST_DELETE_MARKER_DURABILITY"
 	}
 }
 
@@ -271,8 +279,14 @@ class DefaultCollectedDataDeletionService(
 		"collected-data-deletion-pending",
 	),
 	private val directorySync: (File) -> Unit = ::syncDirectory,
+	private val markerDelete: (File) -> Boolean = File::delete,
 ) : CollectedDataDeletionService {
 	private val deletionMutex = Mutex()
+	private val clearingMarkerFile = File(
+		checkNotNull(markerFile.parentFile),
+		"${markerFile.name}.clearing",
+	)
+	private var markerClearPendingInProcess = false
 
 	override suspend fun deleteAll(): CollectedDataDeletionCompletion =
 		deletionMutex.withLock {
@@ -281,14 +295,17 @@ class DefaultCollectedDataDeletionService(
 
 	override suspend fun reconcilePendingDeletion(): CollectedDataDeletionCompletion =
 		deletionMutex.withLock {
-			if (!markerFile.exists()) return@withLock CollectedDataDeletionCompletion.Complete
-			runDeletion(writeMarker = false)
+			when {
+				markerFile.exists() -> runDeletion(writeMarker = false)
+				clearingMarkerFile.exists() || markerClearPendingInProcess ->
+					reconcileMarkerClearCompletion()
+				else -> CollectedDataDeletionCompletion.Complete
+			}
 		}
 
 	private suspend fun runDeletion(writeMarker: Boolean): CollectedDataDeletionCompletion {
 		var activityRegistrationArbiter: ActivityRegistrationArbiter? = null
 		var ambientStepsProviderLifecycle: AmbientStepsProviderLifecycle? = null
-		var deletionCompleted = false
 		// The on-disk marker is the crash authority. Persist it before closing the in-process gate so
 		// a process death at this boundary cannot forget a user-confirmed deletion request.
 		if (writeMarker) writeDeletionMarker()
@@ -369,16 +386,79 @@ class DefaultCollectedDataDeletionService(
 				}
 				return keepAmbientStepsClosed(ambientStepsProviderLifecycle, classified)
 			}
-			deletionCompleted = true
-		} finally {
-			if (deletionCompleted) {
-				startupDeletionBarrier.reopen()
+			val markerFailure = clearDeletionMarker()
+			if (markerFailure != null) {
+				markerClearPendingInProcess = true
+				return keepAmbientStepsClosed(
+					ambientStepsProviderLifecycle,
+					markerFailure,
+				)
 			}
+			markerClearPendingInProcess = false
+			startupDeletionBarrier.reopen()
+			return CollectedDataDeletionCompletion.Complete
+		} catch (cancelled: CancellationException) {
+			throw cancelled
 		}
-		if (deletionCompleted) {
-			clearDeletionMarker()
+	}
+
+	private suspend fun reconcileMarkerClearCompletion(): CollectedDataDeletionCompletion {
+		startupDeletionBarrier.closeAdmission()
+		val ambientStepsProviderLifecycle = ambientStepsProviderLifecycleProvider?.get()
+		closeAmbientStepsForMarkerRecovery(ambientStepsProviderLifecycle)?.let { return it }
+		reconcilePostDeletionRetention()?.let { failure ->
+			return keepAmbientStepsClosed(ambientStepsProviderLifecycle, failure)
 		}
+		reconcilePostDeletionPurpose()?.let { failure ->
+			return keepAmbientStepsClosed(ambientStepsProviderLifecycle, failure)
+		}
+		reconcilePostDeletionRetention()?.let { failure ->
+			return keepAmbientStepsClosed(ambientStepsProviderLifecycle, failure)
+		}
+		val ambientResult = ambientStepsProviderLifecycle?.reconcileAfterSettingsChange()
+		if (ambientResult != null && !ambientResult.complete) {
+			val failure = CollectedDataDeletionReconciliationFailure.AmbientStepsProvider(
+				requireNotNull(ambientResult.failure),
+			)
+			val classified = if (ambientResult.retryable) {
+				CollectedDataDeletionCompletion.Retryable(failure)
+			} else {
+				CollectedDataDeletionCompletion.Unverifiable(failure)
+			}
+			return keepAmbientStepsClosed(ambientStepsProviderLifecycle, classified)
+		}
+		val markerFailure = clearDeletionMarker()
+		if (markerFailure != null) {
+			markerClearPendingInProcess = true
+			return keepAmbientStepsClosed(ambientStepsProviderLifecycle, markerFailure)
+		}
+		markerClearPendingInProcess = false
+		startupDeletionBarrier.reopen()
 		return CollectedDataDeletionCompletion.Complete
+	}
+
+	private suspend fun closeAmbientStepsForMarkerRecovery(
+		lifecycle: AmbientStepsProviderLifecycle?,
+	): CollectedDataDeletionCompletion? {
+		if (lifecycle == null) return null
+		val cleanup = try {
+			lifecycle.closeForCollectedDataDeletion()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			return CollectedDataDeletionCompletion.Retryable(
+				CollectedDataDeletionReconciliationFailure.AmbientStepsCleanupUnavailable,
+			)
+		}
+		if (cleanup.complete) return null
+		val failure = CollectedDataDeletionReconciliationFailure.AmbientStepsCleanup(
+			requireNotNull(cleanup.failure),
+		)
+		return if (cleanup.retryable) {
+			CollectedDataDeletionCompletion.Retryable(failure)
+		} else {
+			CollectedDataDeletionCompletion.Unverifiable(failure)
+		}
 	}
 
 	private suspend fun reconcilePostDeletionRetention(): CollectedDataDeletionCompletion? {
@@ -597,13 +677,51 @@ class DefaultCollectedDataDeletionService(
 		}
 	}
 
-	private fun clearDeletionMarker() {
-		if (markerFile.exists() && !markerFile.delete()) {
-			throw DatabaseMigrationBackupException(
-				"Could not clear collected-data deletion marker",
+	private fun clearDeletionMarker(): CollectedDataDeletionCompletion? {
+		val parent = checkNotNull(markerFile.parentFile)
+		if (markerFile.exists()) {
+			if (clearingMarkerFile.exists() && !deleteMarkerFile(clearingMarkerFile)) {
+				return CollectedDataDeletionCompletion.Retryable(
+					CollectedDataDeletionReconciliationFailure.DeletionMarkerRemoval,
+				)
+			}
+			val renamed = try {
+				markerFile.renameTo(clearingMarkerFile)
+			} catch (_: Exception) {
+				false
+			}
+			if (!renamed) {
+				return CollectedDataDeletionCompletion.Retryable(
+					CollectedDataDeletionReconciliationFailure.DeletionMarkerRemoval,
+				)
+			}
+			try {
+				directorySync(parent)
+			} catch (_: Exception) {
+				return CollectedDataDeletionCompletion.Unverifiable(
+					CollectedDataDeletionReconciliationFailure.DeletionMarkerDurability,
+				)
+			}
+		}
+		if (clearingMarkerFile.exists() && !deleteMarkerFile(clearingMarkerFile)) {
+			return CollectedDataDeletionCompletion.Retryable(
+				CollectedDataDeletionReconciliationFailure.DeletionMarkerRemoval,
 			)
 		}
-		directorySync(checkNotNull(markerFile.parentFile))
+		return try {
+			directorySync(parent)
+			null
+		} catch (_: Exception) {
+			CollectedDataDeletionCompletion.Unverifiable(
+				CollectedDataDeletionReconciliationFailure.DeletionMarkerDurability,
+			)
+		}
+	}
+
+	private fun deleteMarkerFile(file: File): Boolean = try {
+		markerDelete(file)
+	} catch (_: Exception) {
+		false
 	}
 
 	private companion object {

@@ -53,6 +53,8 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.retention.ApprovedRetentionPolicy
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigRead
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
@@ -65,7 +67,6 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -261,12 +262,28 @@ class ActivityRetentionWorkerRobolectricTest {
 
 	private fun worker(path: WorkerPath, db: AppDatabase, imported: RoomTruncateImportedActivityRetention): CoroutineWorker {
 		val store = mockk<RetentionConfigStore> {
-			every { config } returns flowOf(if (path == WorkerPath.LEGACY) {
-				RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 1)
-			} else {
-				RetentionConfigState(autoPurgeEnabled = true, rawDataRetentionDays = 1,
-					wifiCellRetentionDays = 0, tripRetentionDays = 0, dailySummaryRetentionDays = 0, explorationRetentionDays = 0)
-			})
+			coEvery { currentExactApprovedConfig() } returns
+				ExactApprovedRetentionConfigRead.Approved(
+					configuration = if (path == WorkerPath.LEGACY) {
+						RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 1)
+					} else {
+						RetentionConfigState(
+							autoPurgeEnabled = true,
+							rawDataRetentionDays = 1,
+							wifiCellRetentionDays = 0,
+							tripRetentionDays = 0,
+							dailySummaryRetentionDays = 0,
+							explorationRetentionDays = 0,
+						)
+					},
+					policy = ApprovedRetentionPolicy(
+						configurationGeneration = 1L,
+						revision = 1L,
+						opaquePolicyId = "activity-retention-worker-test",
+						configurationChecksum = "e".repeat(64),
+						integrityChecksum = "f".repeat(64),
+					),
+				)
 		}
 		val lifecycle = mockk<CollectedDataLifecycleStore> {
 			coEvery { advanceRetainedFrom(any()) } returns CollectedDataLifecycleSnapshot(EPOCH, FLOOR)

@@ -3,6 +3,7 @@ package com.adsamcik.tracker.maintenance
 import android.content.Context
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigRead
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -35,8 +36,15 @@ class DataRetentionScheduler @Inject constructor(
      */
     fun initialize() {
         observationJob?.cancel()
-        observationJob = retentionConfigStore.config
-            .map { it.autoCleanupEnabled || it.autoPurgeEnabled }
+        observationJob = retentionConfigStore.approvalStatus
+            .map { retentionConfigStore.currentExactApprovedConfig() }
+            .map { authority ->
+                authority is ExactApprovedRetentionConfigRead.Approved &&
+                    (
+                        authority.configuration.autoCleanupEnabled ||
+                            authority.configuration.autoPurgeEnabled
+                        )
+            }
             .onEach { enabled -> syncScheduling(enabled) }
             .launchIn(appScope)
     }

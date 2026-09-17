@@ -51,6 +51,10 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+import com.adsamcik.tracker.shared.preferences.retention.ApprovedRetentionPolicy
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigInvalidReason
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigRead
+import com.adsamcik.tracker.shared.preferences.retention.ExactApprovedRetentionConfigUnavailableReason
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
@@ -68,7 +72,6 @@ import io.mockk.slot
 import io.mockk.verify
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -89,6 +92,42 @@ import com.adsamcik.tracker.tracker.source.wifi.WifiCapturedRetentionService
 @Config(sdk = [34])
 @Suppress("LargeClass")
 class RetentionPipelineWorkerRobolectricTest {
+	@Test
+	fun `stale scheduled pipeline work retries every inexact retention authority`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val enabled = autoPurgeConfig(rawDataRetentionDays = 1)
+		val inexact = listOf<ExactApprovedRetentionConfigRead>(
+			ExactApprovedRetentionConfigRead.Pending(enabled, pipelineApprovedPolicy()),
+			ExactApprovedRetentionConfigRead.Invalid(
+				ExactApprovedRetentionConfigInvalidReason.APPROVAL_INTEGRITY_MISMATCH,
+			),
+			ExactApprovedRetentionConfigRead.Unavailable(
+				ExactApprovedRetentionConfigUnavailableReason.NOT_APPROVED,
+			),
+		)
+
+		inexact.forEach { authority ->
+			var databaseResolutions = 0
+			val store: RetentionConfigStore = mockk {
+				coEvery { currentExactApprovedConfig() } returns authority
+			}
+
+			assertEquals(
+				ListenableWorker.Result.retry(),
+				worker(
+					context = context,
+					store = store,
+					db = mockk(relaxed = true),
+					databaseProvider = Provider {
+						databaseResolutions += 1
+						mockk(relaxed = true)
+					},
+				).doWork(),
+			)
+			assertEquals(0, databaseResolutions)
+		}
+	}
+
 	@Test
 	fun `retryable startup does not resolve the collected database`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
@@ -118,14 +157,12 @@ class RetentionPipelineWorkerRobolectricTest {
 	@Test
 	fun `auto cleanup purges all supported retention tables`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
-		val store: RetentionConfigStore = mockk {
-			every { config } returns flowOf(
-				RetentionConfigState(
-					autoCleanupEnabled = true,
-					dataRetentionYears = 1,
-				)
-			)
-		}
+		val store = retentionStore(
+			RetentionConfigState(
+				autoCleanupEnabled = true,
+				dataRetentionYears = 1,
+			),
+		)
 		val db: AppDatabase = mockk(relaxed = true)
 		every { db.transactionExecutor } returns DIRECT_EXECUTOR
 		every { db.suspendingTransactionContext } returns
@@ -519,14 +556,12 @@ class RetentionPipelineWorkerRobolectricTest {
 	@Test
 	fun `auto cleanup zero years keeps data forever`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
-		val store: RetentionConfigStore = mockk {
-			every { config } returns flowOf(
-				RetentionConfigState(
-					autoCleanupEnabled = true,
-					dataRetentionYears = 0,
-				)
-			)
-		}
+		val store = retentionStore(
+			RetentionConfigState(
+				autoCleanupEnabled = true,
+				dataRetentionYears = 0,
+			),
+		)
 		val db: AppDatabase = mockk(relaxed = true)
 
 		assertEquals(ListenableWorker.Result.success(), worker(context, store, db).doWork())
@@ -1003,7 +1038,8 @@ class RetentionPipelineWorkerRobolectricTest {
 			.build() as RetentionPipelineWorker
 
 	private fun retentionStore(state: RetentionConfigState): RetentionConfigStore = mockk {
-		every { config } returns flowOf(state)
+		coEvery { currentExactApprovedConfig() } returns
+			ExactApprovedRetentionConfigRead.Approved(state, pipelineApprovedPolicy())
 	}
 
 	private fun autoPurgeConfig(rawDataRetentionDays: Int): RetentionConfigState =
@@ -1059,6 +1095,14 @@ class RetentionPipelineWorkerRobolectricTest {
 		every { db.sessionSegmentDao() } returns sessionSegmentDao
 		return db
 	}
+
+	private fun pipelineApprovedPolicy(): ApprovedRetentionPolicy = ApprovedRetentionPolicy(
+		configurationGeneration = 1L,
+		revision = 1L,
+		opaquePolicyId = "retention-pipeline-worker-test",
+		configurationChecksum = "c".repeat(64),
+		integrityChecksum = "d".repeat(64),
+	)
 
 	private fun cellRetentionService(
 		result: CellCapturedRetentionResult = CellCapturedRetentionResult.NoChange,

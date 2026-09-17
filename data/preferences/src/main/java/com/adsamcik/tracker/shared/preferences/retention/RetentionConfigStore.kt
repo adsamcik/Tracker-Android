@@ -21,6 +21,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.io.OutputStream
+import kotlin.coroutines.cancellation.CancellationException
 
 private object RetentionConfigSerializer : Serializer<RetentionConfigProto> {
     override val defaultValue: RetentionConfigProto = RetentionConfigProto.getDefaultInstance()
@@ -145,6 +146,59 @@ class RetentionConfigStore(
             policyApprovalStore.current(current)
         }
 
+    /** Serializes configuration and approval reads with publication so workers cannot observe the gap. */
+    suspend fun currentExactApprovedConfig(): ExactApprovedRetentionConfigRead =
+        updateMutex.withLock {
+            try {
+                withContext(ioDispatcher) {
+                    val current = ensureDataSettingsMigrated().toDomain()
+                    when (val candidate = policyApprovalStore.candidate(current)) {
+                        is RetentionPolicyCandidateRead.Available -> when (candidate.status) {
+                            RetentionPolicyApprovalStatus.APPROVED ->
+                                ExactApprovedRetentionConfigRead.Approved(
+                                    configuration = current,
+                                    policy = candidate.policy,
+                                )
+                            RetentionPolicyApprovalStatus.PENDING ->
+                                ExactApprovedRetentionConfigRead.Pending(
+                                    configuration = current,
+                                    policy = candidate.policy,
+                                )
+                            RetentionPolicyApprovalStatus.UNAPPROVED,
+                            RetentionPolicyApprovalStatus.INVALID,
+                            -> ExactApprovedRetentionConfigRead.Invalid(
+                                ExactApprovedRetentionConfigInvalidReason.APPROVAL_STATE_INVALID,
+                            )
+                        }
+                        is RetentionPolicyCandidateRead.Unavailable -> when (candidate.reason) {
+                            ApprovedRetentionPolicyUnavailableReason.NOT_APPROVED ->
+                                ExactApprovedRetentionConfigRead.Unavailable(
+                                    ExactApprovedRetentionConfigUnavailableReason.NOT_APPROVED,
+                                )
+                            ApprovedRetentionPolicyUnavailableReason.CONFIGURATION_CHANGED ->
+                                ExactApprovedRetentionConfigRead.Invalid(
+                                    ExactApprovedRetentionConfigInvalidReason.CONFIGURATION_MISMATCH,
+                                )
+                            ApprovedRetentionPolicyUnavailableReason.INTEGRITY_MISMATCH ->
+                                ExactApprovedRetentionConfigRead.Invalid(
+                                    ExactApprovedRetentionConfigInvalidReason.APPROVAL_INTEGRITY_MISMATCH,
+                                )
+                            ApprovedRetentionPolicyUnavailableReason.PENDING_APPROVAL ->
+                                ExactApprovedRetentionConfigRead.Invalid(
+                                    ExactApprovedRetentionConfigInvalidReason.APPROVAL_STATE_INVALID,
+                                )
+                        }
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                ExactApprovedRetentionConfigRead.Unavailable(
+                    ExactApprovedRetentionConfigUnavailableReason.STORAGE_UNAVAILABLE,
+                )
+            }
+        }
+
     suspend fun currentPolicyCandidate(): RetentionPolicyCandidateRead =
         withContext(ioDispatcher) {
             val current = ensureDataSettingsMigrated().toDomain()
@@ -231,6 +285,37 @@ data class RetentionConfigApplyResult(
     val published: Boolean,
     val approval: RetentionConfigurationApprovalResult,
 )
+
+sealed interface ExactApprovedRetentionConfigRead {
+    data class Approved(
+        val configuration: RetentionConfigState,
+        val policy: ApprovedRetentionPolicy,
+    ) : ExactApprovedRetentionConfigRead
+
+    data class Pending(
+        val configuration: RetentionConfigState,
+        val policy: ApprovedRetentionPolicy,
+    ) : ExactApprovedRetentionConfigRead
+
+    data class Invalid(
+        val reason: ExactApprovedRetentionConfigInvalidReason,
+    ) : ExactApprovedRetentionConfigRead
+
+    data class Unavailable(
+        val reason: ExactApprovedRetentionConfigUnavailableReason,
+    ) : ExactApprovedRetentionConfigRead
+}
+
+enum class ExactApprovedRetentionConfigInvalidReason {
+    CONFIGURATION_MISMATCH,
+    APPROVAL_INTEGRITY_MISMATCH,
+    APPROVAL_STATE_INVALID,
+}
+
+enum class ExactApprovedRetentionConfigUnavailableReason {
+    NOT_APPROVED,
+    STORAGE_UNAVAILABLE,
+}
 
 private fun ApprovedRetentionPolicy.sameIdentity(other: ApprovedRetentionPolicy): Boolean =
     configurationGeneration == other.configurationGeneration &&

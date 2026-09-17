@@ -7,9 +7,12 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.store.LegacyPreferenceStore
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.assertIs
 import org.junit.Before
@@ -176,6 +179,96 @@ class RetentionConfigStoreTest {
 
 		retried.published shouldBe true
 		store.approvalStatus.first() shouldBe RetentionPolicyApprovalStatus.APPROVED
+	}
+
+	@Test
+	fun `exact approved read waits across publication and approval`() = runTest {
+		val atomicStore = RetentionConfigStore(context, Dispatchers.Unconfined)
+		val approvalEntered = CompletableDeferred<Unit>()
+		val releaseApproval = CompletableDeferred<Unit>()
+		val update = async {
+			atomicStore.updateWithApproval(
+				block = {
+					copy(
+						autoPurgeEnabled = true,
+						rawDataRetentionDays = 30,
+					)
+				},
+				prepare = { RetentionConfigurationApprovalResult.Prepared(it.policy) },
+				approve = {
+					approvalEntered.complete(Unit)
+					releaseApproval.await()
+					val approved = requireNotNull(atomicStore.markPolicyApproved(it.policy))
+					RetentionConfigurationApprovalResult.Approved(approved)
+				},
+			)
+		}
+		approvalEntered.await()
+		val read = async { atomicStore.currentExactApprovedConfig() }
+		runCurrent()
+
+		read.isCompleted shouldBe false
+		releaseApproval.complete(Unit)
+		val applied = update.await()
+		val exact = assertIs<ExactApprovedRetentionConfigRead.Approved>(read.await())
+		exact.configuration.rawDataRetentionDays shouldBe 30
+		exact.policy.configurationGeneration shouldBe
+			applied.stage.policy.configurationGeneration
+		exact.policy.revision shouldBe applied.stage.policy.revision
+		exact.policy.opaquePolicyId shouldBe applied.stage.policy.opaquePolicyId
+		exact.policy.configurationChecksum shouldBe
+			applied.stage.policy.configurationChecksum
+	}
+
+	@Test
+	fun `failed approval leaves exact worker configuration pending`() = runTest {
+		val failed = store.updateWithApproval(
+			block = { copy(autoPurgeEnabled = true, rawDataRetentionDays = 7) },
+			prepare = { RetentionConfigurationApprovalResult.Prepared(it.policy) },
+			approve = {
+				RetentionConfigurationApprovalResult.Unavailable(
+					RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE,
+				)
+			},
+		)
+
+		val exact = assertIs<ExactApprovedRetentionConfigRead.Pending>(
+			store.currentExactApprovedConfig(),
+		)
+		exact.configuration.rawDataRetentionDays shouldBe 7
+		exact.policy shouldBe failed.stage.policy
+	}
+
+	@Test
+	fun `unpublished checksum candidate is invalid for destructive work`() = runTest {
+		store.updateWithApproval(
+			block = { copy(autoPurgeEnabled = true, rawDataRetentionDays = 14) },
+			prepare = {
+				RetentionConfigurationApprovalResult.Unavailable(
+					RetentionAuthorityUnavailableReason.STORAGE_UNAVAILABLE,
+				)
+			},
+			approve = { error("Approval must not run") },
+		)
+
+		assertIs<ExactApprovedRetentionConfigRead.Invalid>(
+			store.currentExactApprovedConfig(),
+		).reason shouldBe ExactApprovedRetentionConfigInvalidReason.CONFIGURATION_MISMATCH
+	}
+
+	@Test
+	fun `approval revision mismatch cannot authenticate the published configuration`() = runTest {
+		val staged = store.update {
+			copy(autoPurgeEnabled = true, rawDataRetentionDays = 21)
+		}
+
+		store.markPolicyApproved(
+			staged.policy.copy(revision = staged.policy.revision + 1L),
+		) shouldBe null
+		val exact = assertIs<ExactApprovedRetentionConfigRead.Pending>(
+			store.currentExactApprovedConfig(),
+		)
+		exact.policy.revision shouldBe staged.policy.revision
 	}
 
 	@Test
