@@ -6,6 +6,18 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterCompletedFullDeletion
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterFullDeletionRearmAuthority
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterHistoricalProvenance
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterRearmAuthorityInput
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterRearmCapability
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterRearmDeletionSupport
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterRearmFactsSupport
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterRearmMaintenanceSupport
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterRearmReaderSupport
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterRearmSupportDeclaration
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterRearmTransferSupport
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterRearmWriterSupport
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
@@ -13,6 +25,7 @@ import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.tracker.pipeline.persistence.ExclusiveTrackingPersistenceLifecycleLease
 import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
@@ -310,27 +323,30 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 
 		coordinator.rearmAfterFullDeletion(14L)
 			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
-			.blocker shouldBe SourceWriterTransitionBlocker.REARM_BINDING_CONTRACT_UNAVAILABLE
+			.blocker shouldBe SourceWriterTransitionBlocker.FULL_DELETION_PROOF_UNAVAILABLE
 	}
 
 	@Test
 	fun `monotonic rearm contract supports repeated owner and binding generations`() = runTest {
-		val rearmCatalog = ExecutableSourceLaneCatalog.explicitRearmable(
-			ExecutableSourceLaneCatalog.CELL_SESSION_FACTS,
+		val firstDeletion = completedDeletion(generation = 1L)
+		val secondDeletion = completedDeletion(generation = 2L)
+		val authority = ExactFullDeletionAuthority(firstDeletion, secondDeletion)
+		val rearmCatalog = cellRearmCatalog(
+			declaration = cellRearmDeclaration(authority = authority),
 		)
 		RoomTrackingRolloutStateStore(database, rearmCatalog).load() shouldBe
 			TrackingRolloutState.contained(revision = 1L)
 		val coordinator = CellSessionFactWriterTransitionCoordinator(
 			database,
 			rearmCatalog,
-			dependencies(rearmAuthority = SourceWriterRearmAuthority.ALWAYS),
+			dependencies(),
 		)
 
 		coordinator.installInertCandidate(1L, 10L)
 		coordinator.activateCandidate(2L, 11L)
 		coordinator.beginCandidateRollback(3L, 12L)
 		coordinator.completeCandidateRollback(4L, 0L, 13L)
-		coordinator.rearmAfterFullDeletion(14L)
+		coordinator.rearmAfterFullDeletion(firstDeletion, 14L)
 			.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
 		database.sourceProjectionStateDao().activeProductLane(SourceKind.CELL.stableCode)
 			?.bindingGeneration shouldBe 2L
@@ -343,7 +359,7 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 
 		coordinator.beginCandidateRollback(6L, 16L)
 		coordinator.completeCandidateRollback(7L, 0L, 17L)
-		coordinator.rearmAfterFullDeletion(18L)
+		coordinator.rearmAfterFullDeletion(secondDeletion, 18L)
 			.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
 		database.sourceProjectionStateDao().activeProductLane(SourceKind.CELL.stableCode)
 			?.bindingGeneration shouldBe 3L
@@ -351,6 +367,169 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 			SourceDestinationOwnerEntity.SOURCE_CELL,
 			SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
 		)?.ownerGeneration shouldBe 5L
+		authority.inputs.map { it.completedFullDeletion } shouldBe
+			listOf(firstDeletion, secondDeletion)
+	}
+
+	@Test
+	fun `catalog rejects duplicate or conflicting source rearm declarations`() {
+		val authority = ExactFullDeletionAuthority(completedDeletion())
+		val exact = MonotonicRearmSourceWriterSupport(
+			SourceKind.CELL,
+			cellRearmDeclaration(authority = authority),
+		)
+		val conflicting = exact.copy(
+			declaration = cellRearmDeclaration(
+				authority = authority,
+				capability = CELL_REARM_CAPABILITY.copy(destination = "WRONG_DESTINATION"),
+			),
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			ExecutableSourceLaneCatalog(
+				setOf(ExecutableSourceLaneCatalog.CELL_SESSION_FACTS),
+				listOf(exact, exact),
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			ExecutableSourceLaneCatalog(
+				setOf(ExecutableSourceLaneCatalog.CELL_SESSION_FACTS),
+				listOf(exact, conflicting),
+			)
+		}
+	}
+
+	@Test
+	fun `catalog rejects a declaration whose exact source identity is wrong`() {
+		val authority = ExactFullDeletionAuthority(completedDeletion())
+		val wrongCapabilities = listOf(
+			CELL_REARM_CAPABILITY.copy(destination = "WRONG_DESTINATION"),
+			CELL_REARM_CAPABILITY.copy(candidateOwner = "WRONG_CANDIDATE"),
+			CELL_REARM_CAPABILITY.copy(containedOwner = "WRONG_CONTAINED"),
+			CELL_REARM_CAPABILITY.copy(projectionId = "wrong-projection"),
+			CELL_REARM_CAPABILITY.copy(projectionVersion = 2),
+			CELL_REARM_CAPABILITY.copy(
+				canonicalStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+			),
+		)
+
+		wrongCapabilities.forEach { capability ->
+			shouldThrow<IllegalArgumentException> {
+				cellRearmCatalog(
+					cellRearmDeclaration(authority = authority, capability = capability),
+				)
+			}
+		}
+	}
+
+	@Test
+	fun `partial six surface support blocks before full deletion authority`() = runTest {
+		val deletion = completedDeletion()
+		val authority = ExactFullDeletionAuthority(deletion)
+		val rearmCatalog = cellRearmCatalog(
+			cellRearmDeclaration(
+				authority = authority,
+				transferSupported = false,
+			),
+		)
+		val coordinator = prepareCellRollback(rearmCatalog)
+
+		coordinator.rearmAfterFullDeletion(deletion, 14L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+			.blocker shouldBe SourceWriterTransitionBlocker.REARM_BINDING_CONTRACT_UNAVAILABLE
+		authority.inputs shouldBe emptyList()
+	}
+
+	@Test
+	fun `full deletion receipt mismatch fails closed in the real coordinator`() = runTest {
+		val authorizedDeletion = completedDeletion(generation = 7L)
+		val presentedDeletion = completedDeletion(generation = 8L)
+		val authority = ExactFullDeletionAuthority(authorizedDeletion)
+		val rearmCatalog = cellRearmCatalog(
+			cellRearmDeclaration(authority = authority),
+		)
+		val coordinator = prepareCellRollback(rearmCatalog)
+
+		coordinator.rearmAfterFullDeletion(presentedDeletion, 14L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+			.blocker shouldBe SourceWriterTransitionBlocker.FULL_DELETION_PROOF_UNAVAILABLE
+		database.sourceProjectionStateDao().activeProductLane(SourceKind.CELL.stableCode) shouldBe null
+	}
+
+	@Test
+	fun `retired writer identity mismatch blocks rearm before source authority`() = runTest {
+		val deletion = completedDeletion()
+		val authority = ExactFullDeletionAuthority(deletion)
+		val rearmCatalog = cellRearmCatalog(
+			cellRearmDeclaration(authority = authority),
+		)
+		val coordinator = prepareCellRollback(rearmCatalog)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_product_projection_lane SET projection_id = ? WHERE source_kind = ?",
+			arrayOf<Any>("wrong-cell-projection", SourceKind.CELL.stableCode),
+		)
+
+		coordinator.rearmAfterFullDeletion(deletion, 14L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+			.blocker shouldBe SourceWriterTransitionBlocker.BINDING_NOT_EXECUTABLE
+		authority.inputs shouldBe emptyList()
+	}
+
+	@Test
+	fun `last representable contained owner blocks successor overflow before authority`() = runTest {
+		val deletion = completedDeletion()
+		val authority = ExactFullDeletionAuthority(deletion)
+		val rearmCatalog = cellRearmCatalog(
+			cellRearmDeclaration(authority = authority),
+		)
+		RoomTrackingRolloutStateStore(database, rearmCatalog).load()
+		val finalBindingGeneration = Long.MAX_VALUE / 2L
+		seedRetiredCellGeneration(
+			bindingGeneration = finalBindingGeneration,
+			containedOwnerGeneration = Long.MAX_VALUE,
+		)
+		val coordinator = CellSessionFactWriterTransitionCoordinator(
+			database,
+			rearmCatalog,
+			dependencies(),
+		)
+
+		coordinator.rearmAfterFullDeletion(deletion, 20L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+			.blocker shouldBe SourceWriterTransitionBlocker.REARM_BINDING_CONTRACT_UNAVAILABLE
+		authority.inputs shouldBe emptyList()
+		database.sourceProjectionStateDao().activeProductLane(SourceKind.CELL.stableCode) shouldBe null
+	}
+
+	@Test
+	fun `rollback AlreadyApplied rejects wrong canonical stage or activation revision`() = runTest {
+		seedContainedRollout()
+		val coordinator = CellSessionFactWriterTransitionCoordinator(
+			database,
+			catalog,
+			dependencies(),
+		)
+		coordinator.installInertCandidate(1L, 10L)
+		coordinator.activateCandidate(2L, 11L)
+		coordinator.beginCandidateRollback(3L, 12L)
+
+		coordinator.beginCandidateRollback(3L, 13L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.AlreadyApplied>()
+		updateCellLaneIdentity(
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+			activatedRolloutRevision = 3L,
+		)
+		coordinator.beginCandidateRollback(3L, 14L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+			.blocker shouldBe SourceWriterTransitionBlocker.ROLLOUT_REVISION_CHANGED
+
+		updateCellLaneIdentity(
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			activatedRolloutRevision = 2L,
+		)
+		coordinator.beginCandidateRollback(3L, 15L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Blocked>()
+			.blocker shouldBe SourceWriterTransitionBlocker.ROLLOUT_REVISION_CHANGED
 	}
 
 	@Test
@@ -417,6 +596,78 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 		)
 	}
 
+	private suspend fun prepareCellRollback(
+		rearmCatalog: ExecutableSourceLaneCatalog,
+	): CellSessionFactWriterTransitionCoordinator {
+		RoomTrackingRolloutStateStore(database, rearmCatalog).load() shouldBe
+			TrackingRolloutState.contained(revision = 1L)
+		val coordinator = CellSessionFactWriterTransitionCoordinator(
+			database,
+			rearmCatalog,
+			dependencies(),
+		)
+		coordinator.installInertCandidate(1L, 10L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+		coordinator.activateCandidate(2L, 11L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+		coordinator.beginCandidateRollback(3L, 12L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+		coordinator.completeCandidateRollback(4L, 0L, 13L)
+			.shouldBeInstanceOf<SourceWriterTransitionResult.Applied>()
+		return coordinator
+	}
+
+	private suspend fun seedRetiredCellGeneration(
+		bindingGeneration: Long,
+		containedOwnerGeneration: Long,
+	) {
+		database.trackingRolloutStateDao().save(
+			TrackingRolloutState.contained(revision = 19L).toEntity(updatedAtMs = 1L),
+		)
+		database.sourceProjectionStateDao().installProductLane(
+			SourceProductProjectionLaneEntity(
+				sourceKind = SourceKind.CELL.stableCode,
+				bindingGeneration = bindingGeneration,
+				projectionId = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				projectionVersion = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				captureModeMask =
+					ExecutableSourceLaneCatalog.CELL_SESSION_FACTS.captureModeMask,
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+				activatedRolloutRevision = 18L,
+				activationOrdinal = 1L,
+				contiguousAdmissionOrdinal = 0L,
+				captureAdmissionCutoffOrdinal = 0L,
+				retentionRequired = false,
+				status = SourceProductProjectionLaneEntity.STATUS_RETIRED,
+				terminalDisposition =
+					SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN,
+				terminalAtMs = 1L,
+				installedAtMs = 0L,
+				updatedAtMs = 1L,
+			),
+		)
+		database.sourceDestinationOwnerDao().insertIfAbsent(
+			SourceDestinationOwnerEntity(
+				sourceKind = SourceKind.CELL.stableCode,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+				owner = SourceDestinationOwnerEntity.OWNER_CONTAINED_CELL_SESSION_FACTS,
+				ownerGeneration = containedOwnerGeneration,
+				updatedAtMs = 1L,
+			),
+		)
+	}
+
+	private fun updateCellLaneIdentity(
+		productStage: String,
+		activatedRolloutRevision: Long,
+	) {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_product_projection_lane " +
+				"SET product_stage = ?, activated_rollout_revision = ? WHERE source_kind = ?",
+			arrayOf<Any>(productStage, activatedRolloutRevision, SourceKind.CELL.stableCode),
+		)
+	}
+
 	private suspend fun assertCanonical(
 		spec: SourceWriterTransitionSpec,
 		expectedRevision: Long,
@@ -452,16 +703,73 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 	private fun dependencies(
 		legacyWriterQuiescence: LegacySourceWriterTransitionBoundary =
 			LegacySourceWriterTransitionBoundary.ALWAYS,
-		rearmAuthority: SourceWriterRearmAuthority = UnavailableSourceWriterRearmAuthority(),
 		requestDrain: (SourceKind) -> Unit = {},
 	) = SourceWriterTransitionTestDependencies(
 		startupGate = ReadyStartupGate,
 		bootClockDomainProvider = BootClockDomainProvider { BOOT_ID },
 		clock = FixedClock(fixedTimeMillis = 1_000L, fixedRealtimeNanos = 1_000L),
 		legacyWriterQuiescence = legacyWriterQuiescence,
-		rearmAuthority = rearmAuthority,
 		requestDrain = requestDrain,
 	)
+
+	private fun completedDeletion(
+		generation: Long = 1L,
+	): SourceWriterCompletedFullDeletion = SourceWriterCompletedFullDeletion(
+		collectedDataEpoch = generation,
+		sourceDeletionGeneration = generation,
+		sourceEvidenceRevision = generation,
+		deletedSourceEventHighWaterOrdinal = generation - 1L,
+		completedAtMs = generation,
+	)
+
+	private fun cellRearmCatalog(
+		declaration: SourceWriterRearmSupportDeclaration,
+	): ExecutableSourceLaneCatalog = ExecutableSourceLaneCatalog(
+		bindings = setOf(ExecutableSourceLaneCatalog.CELL_SESSION_FACTS),
+		monotonicRearmSupport = listOf(
+			MonotonicRearmSourceWriterSupport(SourceKind.CELL, declaration),
+		),
+	)
+
+	private fun cellRearmDeclaration(
+		authority: SourceWriterFullDeletionRearmAuthority,
+		capability: SourceWriterRearmCapability = CELL_REARM_CAPABILITY,
+		transferSupported: Boolean = true,
+	): SourceWriterRearmSupportDeclaration {
+		val supportsHistorical = { provenance: SourceWriterHistoricalProvenance ->
+			capability.bindingForHistoricalProvenance(provenance) != null
+		}
+		return SourceWriterRearmSupportDeclaration(
+			capability = capability,
+			writer = SourceWriterRearmWriterSupport { binding ->
+				binding == capability.binding(binding.bindingGeneration)
+			},
+			facts = SourceWriterRearmFactsSupport(supportsHistorical),
+			readers = SourceWriterRearmReaderSupport(supportsHistorical),
+			maintenance = SourceWriterRearmMaintenanceSupport(supportsHistorical),
+			transfer = SourceWriterRearmTransferSupport { provenance ->
+				transferSupported && supportsHistorical(provenance)
+			},
+			deletion = SourceWriterRearmDeletionSupport(supportsHistorical),
+			fullDeletionAuthority = authority,
+		)
+	}
+
+	private class ExactFullDeletionAuthority(
+		vararg accepted: SourceWriterCompletedFullDeletion,
+	) : SourceWriterFullDeletionRearmAuthority {
+		private val accepted = accepted.toMutableList()
+		val inputs = mutableListOf<SourceWriterRearmAuthorityInput>()
+
+		override suspend fun <T : Any> runIfAuthorized(
+			input: SourceWriterRearmAuthorityInput,
+			operation: suspend () -> T,
+		): T? {
+			inputs += input
+			if (!accepted.remove(input.completedFullDeletion)) return null
+			return operation()
+		}
+	}
 
 	private object ReadyStartupGate : TrackingStartupGate {
 		override val isReady: Boolean = true
@@ -474,5 +782,14 @@ class SourceSpecificWriterTransitionCoordinatorsTest {
 	private companion object {
 		const val BOOT_ID = "test-boot"
 		const val SESSION_COORDINATOR_LEASE = "tracking-session-coordinator"
+		val CELL_REARM_CAPABILITY = SourceWriterRearmCapability(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_CELL,
+			destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+			candidateOwner = SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS,
+			containedOwner = SourceDestinationOwnerEntity.OWNER_CONTAINED_CELL_SESSION_FACTS,
+			projectionId = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+			projectionVersion = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+			canonicalStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+		)
 	}
 }

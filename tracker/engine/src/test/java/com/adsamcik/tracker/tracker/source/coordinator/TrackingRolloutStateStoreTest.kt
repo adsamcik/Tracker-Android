@@ -75,24 +75,28 @@ class TrackingRolloutStateStoreTest {
 		activity.projectionId shouldBe SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID
 		activity.projectionVersion shouldBe SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION
 		activity.captureModes shouldBe setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)
+		catalog.owns(activity.copy(bindingGeneration = activity.bindingGeneration + 1L)) shouldBe false
 		catalog.owns(pressure) shouldBe true
 		pressure.source shouldBe SourceKind.PRESSURE
 		pressure.bindingGeneration shouldBe SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION
 		pressure.projectionId shouldBe SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID
 		pressure.projectionVersion shouldBe SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION
 		pressure.captureModes shouldBe setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)
+		catalog.owns(pressure.copy(bindingGeneration = pressure.bindingGeneration + 1L)) shouldBe false
 		catalog.owns(cell) shouldBe true
 		cell.source shouldBe SourceKind.CELL
 		cell.bindingGeneration shouldBe SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION
 		cell.projectionId shouldBe SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID
 		cell.projectionVersion shouldBe SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION
 		cell.captureModes shouldBe setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)
+		catalog.owns(cell.copy(bindingGeneration = cell.bindingGeneration + 1L)) shouldBe false
 		catalog.owns(wifi) shouldBe true
 		wifi.source shouldBe SourceKind.WIFI
 		wifi.bindingGeneration shouldBe SourceDestinationOwnerEntity.WIFI_FACT_BINDING_GENERATION
 		wifi.projectionId shouldBe SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID
 		wifi.projectionVersion shouldBe SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION
 		wifi.captureModes shouldBe setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)
+		catalog.owns(wifi.copy(bindingGeneration = wifi.bindingGeneration + 1L)) shouldBe false
 	}
 
 	@Test

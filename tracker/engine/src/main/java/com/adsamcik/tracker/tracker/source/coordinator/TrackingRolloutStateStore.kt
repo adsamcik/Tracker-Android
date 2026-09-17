@@ -6,7 +6,10 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationBinding
 import com.adsamcik.tracker.shared.base.database.data.SourceWriterGenerationContract
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterRearmAuthorityInput
+import com.adsamcik.tracker.shared.base.database.data.SourceWriterRearmCapability
 import com.adsamcik.tracker.shared.base.database.data.SourceWriterRearmSupportDeclaration
 import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
 import com.adsamcik.tracker.shared.base.database.liveSourceProjectionActivationOrdinal
@@ -50,16 +53,16 @@ data class MonotonicRearmSourceWriterSupport(
 @Singleton
 class ExecutableSourceLaneCatalog internal constructor(
 	bindings: Set<ExecutableSourceLaneBinding>,
-	private val monotonicRearmSources: Set<SourceKind> = emptySet(),
+	monotonicRearmSupport: Collection<MonotonicRearmSourceWriterSupport> = emptyList(),
 ) : SourceProductLaneExecutionAuthority {
 	@Inject constructor(
 		monotonicRearmSupport: Set<@JvmSuppressWildcards MonotonicRearmSourceWriterSupport>,
 	) : this(
 		defaultBindings(),
-		monotonicRearmSupport.mapTo(mutableSetOf(), MonotonicRearmSourceWriterSupport::source),
+		monotonicRearmSupport,
 	)
 
-	internal constructor() : this(defaultBindings(), emptySet())
+	internal constructor() : this(defaultBindings(), emptyList())
 
 	private val bindingsByGeneration = bindings.associateBy { binding ->
 		binding.source to binding.bindingGeneration
@@ -73,10 +76,34 @@ class ExecutableSourceLaneCatalog internal constructor(
 			}
 		}
 	}
+	private val rearmDeclarationsBySource = monotonicRearmSupport
+		.groupBy(MonotonicRearmSourceWriterSupport::source)
+		.also { declarations ->
+			require(declarations.values.all { it.size == 1 }) {
+				"Each source may contribute exactly one rearm support declaration"
+			}
+		}
+		.mapValues { (source, support) ->
+			support.single().declaration.also { declaration ->
+				require(declaration.capability == expectedRearmCapability(source)) {
+					"Source $source rearm declaration does not match its exact destination and writer identity"
+				}
+				val base = baseBinding(source)
+				require(base != null &&
+					declaration.capability.projectionId == base.projectionId &&
+					declaration.capability.projectionVersion == base.projectionVersion
+				) {
+					"Source $source rearm declaration does not match its executable projection"
+				}
+			}
+		}
 
 	fun owns(binding: ExecutableSourceLaneBinding): Boolean =
 		bindingsByGeneration[binding.source to binding.bindingGeneration] == binding ||
 			binding.isSupportedMonotonicRearm()
+
+	internal fun ownsStaticBinding(binding: ExecutableSourceLaneBinding): Boolean =
+		bindingsByGeneration[binding.source to binding.bindingGeneration] == binding
 
 	fun bindingFor(
 		source: SourceKind,
@@ -113,12 +140,36 @@ class ExecutableSourceLaneCatalog internal constructor(
 		}
 	}
 
-	fun nextRearmBinding(current: ExecutableSourceLaneBinding): ExecutableSourceLaneBinding? {
-		if (!owns(current) || current.source !in monotonicRearmSources) return null
-		return current.copy(
-			bindingGeneration = SourceWriterGenerationContract.nextBindingGeneration(
-				current.bindingGeneration,
-			),
+	internal fun nextRearmBinding(
+		current: ExecutableSourceLaneBinding,
+		input: SourceWriterRearmAuthorityInput,
+		destination: String,
+		candidateOwner: String,
+		containedOwner: String,
+	): ExecutableSourceRearmBinding? {
+		if (!owns(current)) return null
+		val declaration = rearmDeclarationsBySource[current.source] ?: return null
+		if (!declaration.capability.matchesIdentity(
+				sourceKind = current.source.stableCode,
+				destination = destination,
+				candidateOwner = candidateOwner,
+				containedOwner = containedOwner,
+				projectionId = current.projectionId,
+				projectionVersion = current.projectionVersion,
+				canonicalStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			)
+		) return null
+		val nextContractBinding = declaration.nextBindingIfFullySupported(input) ?: return null
+		val nextLaneBinding = current.copy(bindingGeneration = nextContractBinding.bindingGeneration)
+		if (!owns(nextLaneBinding) ||
+			nextContractBinding.sourceKind != nextLaneBinding.source.stableCode ||
+			nextContractBinding.projectionId != nextLaneBinding.projectionId ||
+			nextContractBinding.projectionVersion != nextLaneBinding.projectionVersion
+		) return null
+		return ExecutableSourceRearmBinding(
+			nextLaneBinding = nextLaneBinding,
+			nextContractBinding = nextContractBinding,
+			declaration = declaration,
 		)
 	}
 
@@ -128,11 +179,28 @@ class ExecutableSourceLaneCatalog internal constructor(
 			.minByOrNull(ExecutableSourceLaneBinding::bindingGeneration)
 
 	private fun ExecutableSourceLaneBinding.isSupportedMonotonicRearm(): Boolean {
-		if (source !in monotonicRearmSources || bindingGeneration <= 0L) return false
+		val declaration = rearmDeclarationsBySource[source] ?: return false
+		if (bindingGeneration <= 0L) return false
 		val base = baseBinding(source) ?: return false
-		return projectionId == base.projectionId &&
+		val expected = expectedRearmCapability(source) ?: return false
+		val identityMatches = projectionId == base.projectionId &&
 			projectionVersion == base.projectionVersion &&
-			captureModes == base.captureModes
+			captureModes == base.captureModes &&
+			declaration.capability.matchesIdentity(
+				sourceKind = source.stableCode,
+				destination = expected.destination,
+				candidateOwner = expected.candidateOwner,
+				containedOwner = expected.containedOwner,
+				projectionId = projectionId,
+				projectionVersion = projectionVersion,
+				canonicalStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			)
+		if (!identityMatches) return false
+		return try {
+			declaration.fullySupports(declaration.capability.binding(bindingGeneration))
+		} catch (_: ArithmeticException) {
+			false
+		}
 	}
 
 	override fun owns(lane: SourceProductProjectionLaneEntity): Boolean = bindingFor(lane) != null
@@ -205,13 +273,7 @@ class ExecutableSourceLaneCatalog internal constructor(
 		)
 
 		fun explicit(vararg bindings: ExecutableSourceLaneBinding) =
-			ExecutableSourceLaneCatalog(bindings.toSet())
-
-		fun explicitRearmable(vararg bindings: ExecutableSourceLaneBinding) =
-			ExecutableSourceLaneCatalog(
-				bindings = bindings.toSet(),
-				monotonicRearmSources = bindings.mapTo(mutableSetOf(), ExecutableSourceLaneBinding::source),
-			)
+			ExecutableSourceLaneCatalog(bindings.toSet(), emptyList())
 
 		private fun defaultBindings() = setOf(
 			STEPS_SESSION_FACTS_V1,
@@ -222,6 +284,52 @@ class ExecutableSourceLaneCatalog internal constructor(
 			WIFI_SESSION_FACTS,
 		)
 	}
+}
+
+internal data class ExecutableSourceRearmBinding(
+	val nextLaneBinding: ExecutableSourceLaneBinding,
+	val nextContractBinding: SourceWriterGenerationBinding,
+	val declaration: SourceWriterRearmSupportDeclaration,
+)
+
+private fun expectedRearmCapability(source: SourceKind): SourceWriterRearmCapability? = when (source) {
+	SourceKind.ACTIVITY -> SourceWriterRearmCapability(
+		sourceKind = source.stableCode,
+		destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY,
+		candidateOwner = SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS,
+		containedOwner = SourceDestinationOwnerEntity.OWNER_CONTAINED_ACTIVITY_SESSION_FACTS,
+		projectionId = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
+		projectionVersion = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION,
+		canonicalStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+	)
+	SourceKind.PRESSURE -> SourceWriterRearmCapability(
+		sourceKind = source.stableCode,
+		destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+		candidateOwner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+		containedOwner = SourceDestinationOwnerEntity.OWNER_CONTAINED_PRESSURE_SESSION_FACTS,
+		projectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+		projectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+		canonicalStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+	)
+	SourceKind.WIFI -> SourceWriterRearmCapability(
+		sourceKind = source.stableCode,
+		destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_WIFI,
+		candidateOwner = SourceDestinationOwnerEntity.OWNER_WIFI_SESSION_FACTS,
+		containedOwner = SourceDestinationOwnerEntity.OWNER_CONTAINED_WIFI_SESSION_FACTS,
+		projectionId = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_ID,
+		projectionVersion = SourceDestinationOwnerEntity.WIFI_FACT_PROJECTION_VERSION,
+		canonicalStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+	)
+	SourceKind.CELL -> SourceWriterRearmCapability(
+		sourceKind = source.stableCode,
+		destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+		candidateOwner = SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS,
+		containedOwner = SourceDestinationOwnerEntity.OWNER_CONTAINED_CELL_SESSION_FACTS,
+		projectionId = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+		projectionVersion = SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+		canonicalStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+	)
+	else -> null
 }
 
 interface TrackingRolloutStateStore {
@@ -312,6 +420,7 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 		rolloutRevision = rolloutRevision,
 		updatedAtMs = updatedAtMs,
 		rearm = false,
+		validatedDynamicRearm = false,
 	)
 
 	suspend fun rearmInertShadowLane(
@@ -323,6 +432,19 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 		rolloutRevision = rolloutRevision,
 		updatedAtMs = updatedAtMs,
 		rearm = true,
+		validatedDynamicRearm = false,
+	)
+
+	internal suspend fun rearmInertShadowLane(
+		rearmBinding: ExecutableSourceRearmBinding,
+		rolloutRevision: Long,
+		updatedAtMs: Long,
+	): SourceProductLaneActivation = installShadowLane(
+		binding = rearmBinding.nextLaneBinding,
+		rolloutRevision = rolloutRevision,
+		updatedAtMs = updatedAtMs,
+		rearm = true,
+		validatedDynamicRearm = true,
 	)
 
 	private suspend fun installShadowLane(
@@ -330,9 +452,13 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 		rolloutRevision: Long,
 		updatedAtMs: Long,
 		rearm: Boolean,
+		validatedDynamicRearm: Boolean,
 	): SourceProductLaneActivation {
 		require(executableLaneCatalog.owns(binding)) {
 			"Source lane binding is not executable by this app binary"
+		}
+		require(!rearm || validatedDynamicRearm || executableLaneCatalog.ownsStaticBinding(binding)) {
+			"Dynamic re-arm requires an exact all-surfaces source declaration"
 		}
 		require(rolloutRevision > 0L) { "Rollout revision must be positive" }
 		require(updatedAtMs >= 0L)

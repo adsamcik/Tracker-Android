@@ -216,6 +216,7 @@ class SourceWriterRearmContractTest {
 			containedOwner = SourceDestinationOwnerEntity.OWNER_CONTAINED_ACTIVITY_SESSION_FACTS,
 			projectionId = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID,
 			projectionVersion = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION,
+			canonicalStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
 		)
 	}
 }

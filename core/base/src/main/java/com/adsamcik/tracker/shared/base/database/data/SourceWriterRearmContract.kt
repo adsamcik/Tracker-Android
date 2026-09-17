@@ -14,6 +14,7 @@ data class SourceWriterGenerationBinding(
 	val bindingGeneration: Long,
 	val projectionId: String,
 	val projectionVersion: Int,
+	val canonicalStage: String,
 ) {
 	init {
 		require(sourceKind > 0)
@@ -24,6 +25,7 @@ data class SourceWriterGenerationBinding(
 		require(bindingGeneration > 0L)
 		require(projectionId.isNotBlank())
 		require(projectionVersion > 0)
+		require(canonicalStage.isNotBlank())
 	}
 
 	val canonicalOwnerGeneration: Long =
@@ -44,7 +46,7 @@ data class SourceWriterGenerationBinding(
 			writerBindingGeneration = bindingGeneration,
 			writerProjectionId = projectionId,
 			writerProjectionVersion = projectionVersion,
-			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			productStage = canonicalStage,
 			activationRevision = activationRevision,
 		)
 
@@ -202,6 +204,7 @@ data class SourceWriterRearmCapability(
 	val containedOwner: String,
 	val projectionId: String,
 	val projectionVersion: Int,
+	val canonicalStage: String,
 ) {
 	init {
 		require(sourceKind > 0)
@@ -211,6 +214,7 @@ data class SourceWriterRearmCapability(
 		require(candidateOwner != containedOwner)
 		require(projectionId.isNotBlank())
 		require(projectionVersion > 0)
+		require(canonicalStage.isNotBlank())
 	}
 
 	fun binding(bindingGeneration: Long): SourceWriterGenerationBinding =
@@ -222,7 +226,24 @@ data class SourceWriterRearmCapability(
 			bindingGeneration = bindingGeneration,
 			projectionId = projectionId,
 			projectionVersion = projectionVersion,
+			canonicalStage = canonicalStage,
 		)
+
+	fun matchesIdentity(
+		sourceKind: Int,
+		destination: String,
+		candidateOwner: String,
+		containedOwner: String,
+		projectionId: String,
+		projectionVersion: Int,
+		canonicalStage: String,
+	): Boolean = this.sourceKind == sourceKind &&
+		this.destination == destination &&
+		this.candidateOwner == candidateOwner &&
+		this.containedOwner == containedOwner &&
+		this.projectionId == projectionId &&
+		this.projectionVersion == projectionVersion &&
+		this.canonicalStage == canonicalStage
 
 	/**
 	 * Resolves old facts solely from their immutable provenance, never from the current owner row.
@@ -323,26 +344,27 @@ data class SourceWriterRearmSupportDeclaration(
 	val deletion: SourceWriterRearmDeletionSupport,
 	val fullDeletionAuthority: SourceWriterFullDeletionRearmAuthority,
 ) {
+	fun fullySupports(binding: SourceWriterGenerationBinding): Boolean {
+		if (capability.bindingForHistoricalProvenance(binding.historicalProvenance()) != binding) {
+			return false
+		}
+		val provenance = binding.historicalProvenance()
+		return writer.supportsNewWrites(binding) &&
+			facts.supportsImmutableFacts(provenance) &&
+			readers.supportsHistoricalReads(provenance) &&
+			maintenance.supportsHistoricalMaintenance(provenance) &&
+			transfer.supportsHistoricalTransfer(provenance) &&
+			deletion.supportsHistoricalDeletion(provenance)
+	}
+
 	fun nextBindingIfFullySupported(
 		input: SourceWriterRearmAuthorityInput,
 	): SourceWriterGenerationBinding? {
-		val retiredProvenance = input.retiredCanonicalActivation.historicalProvenance()
+		val retiredBinding = capability.bindingForHistoricalProvenance(
+			input.retiredCanonicalActivation.historicalProvenance(),
+		) ?: return null
 		val nextBinding = capability.nextBindingAfter(input) ?: return null
-		val nextProvenance = nextBinding.historicalProvenance()
-		if (!writer.supportsNewWrites(nextBinding) ||
-			!facts.supportsImmutableFacts(retiredProvenance) ||
-			!facts.supportsImmutableFacts(nextProvenance) ||
-			!readers.supportsHistoricalReads(retiredProvenance) ||
-			!readers.supportsHistoricalReads(nextProvenance) ||
-			!maintenance.supportsHistoricalMaintenance(retiredProvenance) ||
-			!maintenance.supportsHistoricalMaintenance(nextProvenance) ||
-			!transfer.supportsHistoricalTransfer(retiredProvenance) ||
-			!transfer.supportsHistoricalTransfer(nextProvenance) ||
-			!deletion.supportsHistoricalDeletion(retiredProvenance) ||
-			!deletion.supportsHistoricalDeletion(nextProvenance)
-		) {
-			return null
-		}
+		if (!fullySupports(retiredBinding) || !fullySupports(nextBinding)) return null
 		return nextBinding
 	}
 
